@@ -1,11 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
-const {
-  Client,
-  GatewayIntentBits,
-  PermissionsBitField,
-} = require("discord.js");
+const { Client, GatewayIntentBits, PermissionsBitField } = require("discord.js");
 
 const CONFIG_PATH = path.join(__dirname, "config.json");
 const STATE_PATH = path.join(__dirname, "state.json");
@@ -20,12 +16,12 @@ function ensureStateFile() {
         {
           notificationChannelId: "",
           seen: {},
-          subscribed: false,
+          subscribed: false
         },
         null,
-        2,
+        2
       ),
-      "utf8",
+      "utf8"
     );
   }
 }
@@ -66,7 +62,7 @@ function isLikelyPatchNote(item) {
     "merch",
     "tournament",
     "esports",
-    "giveaway",
+    "giveaway"
   ];
 
   const goodWords = [
@@ -85,7 +81,7 @@ function isLikelyPatchNote(item) {
     "maintenance",
     "build",
     "client update",
-    "title update",
+    "title update"
   ];
 
   if (badWordsInTitle.some((word) => title.includes(word))) {
@@ -131,14 +127,14 @@ async function fetchSteamUpdate(game) {
     id: String(latest.gid),
     title: cleanText(latest.title),
     link: latest.url || `https://store.steampowered.com/news/app/${game.appId}`,
-    excerpt: cleanExcerpt || `A apărut un nou update pentru ${game.name}.`,
+    excerpt: cleanExcerpt || `A apărut un nou update pentru ${game.name}.`
   };
 }
 
 async function fetchMinecraftUpdate() {
   const res = await axios.get(
     "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
-    { timeout: 15000 },
+    { timeout: 15000 }
   );
 
   const latestVersion = res?.data?.latest?.release;
@@ -151,13 +147,13 @@ async function fetchMinecraftUpdate() {
     id: String(latestVersion),
     title: `Minecraft Release ${latestVersion}`,
     link: "https://www.minecraft.net/en-us/article",
-    excerpt: `Ai de instalat o nouă versiune oficială Minecraft (${latestVersion}).`,
+    excerpt: `Ai de instalat o nouă versiune oficială Minecraft (${latestVersion}).`
   };
 }
 
 async function fetchFortniteUpdate() {
   const res = await axios.get("https://fortnite-api.com/v2/aes", {
-    timeout: 15000,
+    timeout: 15000
   });
 
   const build = res?.data?.data?.build;
@@ -170,14 +166,14 @@ async function fetchFortniteUpdate() {
     id: String(build),
     title: `Fortnite Update (Build ${build})`,
     link: "https://www.fortnite.com/news",
-    excerpt: `A fost lansată o nouă versiune Fortnite de instalat (Build: ${build}).`,
+    excerpt: `A fost lansată o nouă versiune Fortnite de instalat (Build: ${build}).`
   };
 }
 
 async function fetchRobloxUpdate() {
   const res = await axios.get(
     "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer",
-    { timeout: 15000 },
+    { timeout: 15000 }
   );
 
   const version = res?.data?.clientVersionUpload;
@@ -190,7 +186,7 @@ async function fetchRobloxUpdate() {
     id: String(version),
     title: "Roblox Client Update",
     link: "https://en.help.roblox.com/hc/en-us/articles/203312870-Update-Log",
-    excerpt: `Un nou client oficial Roblox a fost urcat pe servere (versiunea: ${version}).`,
+    excerpt: `Un nou client oficial Roblox a fost urcat pe servere (versiunea: ${version}).`
   };
 }
 
@@ -227,8 +223,8 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-  ],
+    GatewayIntentBits.MessageContent
+  ]
 });
 
 async function getConfiguredChannel() {
@@ -238,9 +234,7 @@ async function getConfiguredChannel() {
     return null;
   }
 
-  return await client.channels
-    .fetch(state.notificationChannelId)
-    .catch(() => null);
+  return await client.channels.fetch(state.notificationChannelId).catch(() => null);
 }
 
 async function sendUpdateToConfiguredChannel(messageText) {
@@ -291,7 +285,7 @@ async function checkForUpdates() {
 
         if (previousId) {
           await sendUpdateToConfiguredChannel(
-            formatUpdateMessage(game.name, latest),
+            formatUpdateMessage(game.name, latest)
           );
           foundSomething = true;
         }
@@ -334,15 +328,12 @@ client.once("ready", async () => {
   console.log("🤖 Botul este online și așteaptă comenzi.");
   console.log(`Conectat ca: ${client.user.tag}`);
   console.log(
-    `🎮 Jocuri urmărite: ${config.games.map((g) => g.name).join(", ")}`,
+    `🎮 Jocuri urmărite: ${config.games.map((g) => g.name).join(", ")}`
   );
 
-  setInterval(
-    async () => {
-      await checkForUpdates();
-    },
-    Number(config.checkIntervalMinutes || 30) * 60 * 1000,
-  );
+  setInterval(async () => {
+    await checkForUpdates();
+  }, Number(config.checkIntervalMinutes || 30) * 60 * 1000);
 });
 
 client.on("messageCreate", async (message) => {
@@ -364,17 +355,15 @@ client.on("messageCreate", async (message) => {
     await message.reply(
       `🎮 **Jocuri urmărite:**\n${config.games
         .map((g) => `- **${g.name}** (${PREFIX}latest ${g.key})`)
-        .join("\n")}`,
+        .join("\n")}`
     );
     return;
   }
 
   if (command === "startupdates") {
-    if (
-      !message.member.permissions.has(PermissionsBitField.Flags.Administrator)
-    ) {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       await message.reply(
-        `⛔ Doar un administrator poate folosi comanda **${PREFIX}startupdates**.`,
+        `⛔ Doar un administrator poate folosi comanda **${PREFIX}startupdates**.`
       );
       return;
     }
@@ -387,17 +376,15 @@ client.on("messageCreate", async (message) => {
     await initializeSeenForCurrentGames();
 
     await message.reply(
-      "✅ Am pornit notificările automate pe acest canal. De acum înainte voi trimite doar update-urile viitoare.",
+      "✅ Am pornit notificările automate pe acest canal. De acum înainte voi trimite doar update-urile viitoare."
     );
     return;
   }
 
   if (command === "stopupdates") {
-    if (
-      !message.member.permissions.has(PermissionsBitField.Flags.Administrator)
-    ) {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       await message.reply(
-        `⛔ Doar un administrator poate folosi comanda **${PREFIX}stopupdates**.`,
+        `⛔ Doar un administrator poate folosi comanda **${PREFIX}stopupdates**.`
       );
       return;
     }
@@ -417,13 +404,13 @@ client.on("messageCreate", async (message) => {
       for (const result of results) {
         if (!result.latest) {
           await message.channel.send(
-            `❌ Nu am putut lua ultimul update pentru **${result.game.name}**.`,
+            `❌ Nu am putut lua ultimul update pentru **${result.game.name}**.`
           );
           continue;
         }
 
         await message.channel.send(
-          formatUpdateMessage(result.game.name, result.latest),
+          formatUpdateMessage(result.game.name, result.latest)
         );
       }
 
@@ -435,7 +422,7 @@ client.on("messageCreate", async (message) => {
 
     if (!game) {
       await message.reply(
-        `❌ Nu am găsit jocul. Folosește **${PREFIX}games** pentru listă.`,
+        `❌ Nu am găsit jocul. Folosește **${PREFIX}games** pentru listă.`
       );
       return;
     }
@@ -445,7 +432,7 @@ client.on("messageCreate", async (message) => {
       await message.channel.send(formatUpdateMessage(game.name, latest));
     } catch (error) {
       await message.reply(
-        `❌ Nu am putut lua ultimul update pentru **${game.name}**.`,
+        `❌ Nu am putut lua ultimul update pentru **${game.name}**.`
       );
     }
 
