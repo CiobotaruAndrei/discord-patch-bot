@@ -1,0 +1,50 @@
+{
+  "checkIntervalMinutes": 30,
+  "games": [
+    {
+      "key": "dbd",
+      "name": "Dead by Daylight",
+      "type": "steam",
+      "appId": "381210"
+    },
+    {
+      "key": "fc26",
+      "name": "EA SPORTS FC 26",
+      "type": "steam",
+      "appId": "3405690"
+    },
+    {
+      "key": "cs2",
+      "name": "Counter-Strike 2",
+      "type": "steam",
+      "appId": "730"
+    },
+    {
+      "key": "phasmophobia",
+      "name": "Phasmophobia",
+      "type": "steam",
+      "appId": "739630"
+    },
+    {
+      "key": "wot",
+      "name": "World of Tanks",
+      "type": "steam",
+      "appId": "1407200"
+    },
+    {
+      "key": "battlefront2",
+      "name": "Star Wars Battlefront II",
+      "type": "steam",
+      "appId": "1237950"
+    },
+    {
+      "key": "rocketleague",
+      "name": "Rocket League",
+      "type": "steam",
+      "appId": "252950"
+    },
+    { "key": "minecraft", "name": "Minecraft", "type": "minecraft" },
+    { "key": "fortnite", "name": "Fortnite", "type": "fortnite" },
+    { "key": "roblox", "name": "Roblox", "type": "roblox" }
+  ]
+}
