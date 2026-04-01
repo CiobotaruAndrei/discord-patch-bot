@@ -1,12 +1,25 @@
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
-const { Client, GatewayIntentBits, PermissionsBitField } = require("discord.js");
+const {
+  Client,
+  GatewayIntentBits,
+  PermissionsBitField,
+  EmbedBuilder
+} = require("discord.js");
 
 const CONFIG_PATH = path.join(__dirname, "config.json");
 const STATE_PATH = path.join(__dirname, "state.json");
 
 const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+
+process.on("unhandledRejection", (reason) => {
+  console.error("UNHANDLED REJECTION:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("UNCAUGHT EXCEPTION:", error);
+});
 
 function ensureStateFile() {
   if (!fs.existsSync(STATE_PATH)) {
@@ -95,6 +108,40 @@ function isLikelyPatchNote(item) {
   return goodWords.some((word) => text.includes(word));
 }
 
+function formatUpdateMessage(gameName, latest) {
+  return (
+    `🚨 **Update nou de instalat pentru ${gameName}**\n` +
+    `📰 **${latest.title}**\n` +
+    `📝 ${latest.excerpt}\n` +
+    `🔗 ${latest.link}`
+  );
+}
+
+function buildUpdateEmbed(gameName, latest) {
+  const embed = new EmbedBuilder()
+    .setColor(0x57f287)
+    .setTitle(latest.title || `Update nou pentru ${gameName}`)
+    .setURL(latest.link)
+    .setDescription(
+      (latest.excerpt || `A apărut un nou update pentru ${gameName}.`).slice(0, 4000)
+    )
+    .setFooter({ text: gameName });
+
+  if (latest.image) {
+    embed.setImage(latest.image);
+  }
+
+  if (latest.thumbnail) {
+    embed.setThumbnail(latest.thumbnail);
+  }
+
+  if (latest.timestamp) {
+    embed.setTimestamp(new Date(latest.timestamp));
+  }
+
+  return embed;
+}
+
 async function fetchSteamUpdate(game) {
   const apiUrl =
     `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/` +
@@ -127,27 +174,59 @@ async function fetchSteamUpdate(game) {
     id: String(latest.gid),
     title: cleanText(latest.title),
     link: latest.url || `https://store.steampowered.com/news/app/${game.appId}`,
-    excerpt: cleanExcerpt || `A apărut un nou update pentru ${game.name}.`
+    excerpt: cleanExcerpt || `A apărut un nou update pentru ${game.name}.`,
+    timestamp: latest.date ? new Date(latest.date * 1000).toISOString() : undefined
   };
 }
 
 async function fetchMinecraftUpdate() {
-  const res = await axios.get(
+  const manifestRes = await axios.get(
     "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
     { timeout: 15000 }
   );
 
-  const latestVersion = res?.data?.latest?.release;
+  const latestVersion = manifestRes?.data?.latest?.release;
 
   if (!latestVersion) {
     throw new Error("Date lipsă pe serverul Mojang.");
+  }
+
+  let articleText = `Ai de instalat o nouă versiune oficială Minecraft (${latestVersion}).`;
+  let articleImage =
+    "https://www.minecraft.net/content/dam/minecraftnet/games/minecraft/key-art/MCV-keyart-default.jpg";
+
+  try {
+    const articleRes = await axios.get("https://www.minecraft.net/en-us/article", {
+      timeout: 15000,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
+      }
+    });
+
+    const html = String(articleRes.data || "");
+    const textMatch = html.match(/<meta name="description" content="([^"]+)"/i);
+    if (textMatch && textMatch[1]) {
+      articleText = textMatch[1];
+    }
+
+    const imgMatch = html.match(/<meta property="og:image" content="([^"]+)"/i);
+    if (imgMatch && imgMatch[1]) {
+      articleImage = imgMatch[1];
+    }
+  } catch (error) {
+    console.error("Nu am putut lua imaginea/textul extra pentru Minecraft:", error.message);
   }
 
   return {
     id: String(latestVersion),
     title: `Minecraft Release ${latestVersion}`,
     link: "https://www.minecraft.net/en-us/article",
-    excerpt: `Ai de instalat o nouă versiune oficială Minecraft (${latestVersion}).`
+    excerpt: articleText,
+    image: articleImage,
+    thumbnail:
+      "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg",
+    timestamp: new Date().toISOString()
   };
 }
 
@@ -166,7 +245,10 @@ async function fetchFortniteUpdate() {
     id: String(build),
     title: `Fortnite Update (Build ${build})`,
     link: "https://www.fortnite.com/news",
-    excerpt: `A fost lansată o nouă versiune Fortnite de instalat (Build: ${build}).`
+    excerpt: `A fost lansată o nouă versiune Fortnite de instalat (Build: ${build}).`,
+    thumbnail:
+      "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
+    timestamp: new Date().toISOString()
   };
 }
 
@@ -186,7 +268,10 @@ async function fetchRobloxUpdate() {
     id: String(version),
     title: "Roblox Client Update",
     link: "https://en.help.roblox.com/hc/en-us/articles/203312870-Update-Log",
-    excerpt: `Un nou client oficial Roblox a fost urcat pe servere (versiunea: ${version}).`
+    excerpt: `Un nou client oficial Roblox a fost urcat pe servere (versiunea: ${version}).`,
+    thumbnail:
+      "https://upload.wikimedia.org/wikipedia/commons/7/7e/Roblox_Logo_2022.jpg",
+    timestamp: new Date().toISOString()
   };
 }
 
@@ -210,15 +295,6 @@ async function fetchGameUpdate(game) {
   throw new Error(`Tip de joc necunoscut pentru ${game.name}.`);
 }
 
-function formatUpdateMessage(gameName, latest) {
-  return (
-    `🚨 **Update nou de instalat pentru ${gameName}**\n` +
-    `📰 **${latest.title}**\n` +
-    `📝 ${latest.excerpt}\n` +
-    `🔗 ${latest.link}`
-  );
-}
-
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -237,7 +313,7 @@ async function getConfiguredChannel() {
   return await client.channels.fetch(state.notificationChannelId).catch(() => null);
 }
 
-async function sendUpdateToConfiguredChannel(messageText) {
+async function sendUpdateToConfiguredChannel(gameName, latest) {
   const channel = await getConfiguredChannel();
 
   if (!channel) {
@@ -245,7 +321,13 @@ async function sendUpdateToConfiguredChannel(messageText) {
     return false;
   }
 
-  await channel.send(messageText);
+  try {
+    const embed = buildUpdateEmbed(gameName, latest);
+    await channel.send({ embeds: [embed] });
+  } catch (error) {
+    await channel.send(formatUpdateMessage(gameName, latest));
+  }
+
   return true;
 }
 
@@ -284,9 +366,7 @@ async function checkForUpdates() {
         saveState(state);
 
         if (previousId) {
-          await sendUpdateToConfiguredChannel(
-            formatUpdateMessage(game.name, latest)
-          );
+          await sendUpdateToConfiguredChannel(game.name, latest);
           foundSomething = true;
         }
       }
@@ -327,12 +407,14 @@ function findGameFromText(text) {
 client.once("ready", async () => {
   console.log("🤖 Botul este online și așteaptă comenzi.");
   console.log(`Conectat ca: ${client.user.tag}`);
-  console.log(
-    `🎮 Jocuri urmărite: ${config.games.map((g) => g.name).join(", ")}`
-  );
+  console.log(`🎮 Jocuri urmărite: ${config.games.map((g) => g.name).join(", ")}`);
 
   setInterval(async () => {
-    await checkForUpdates();
+    try {
+      await checkForUpdates();
+    } catch (error) {
+      console.error("Eroare în checkForUpdates:", error);
+    }
   }, Number(config.checkIntervalMinutes || 30) * 60 * 1000);
 });
 
@@ -409,9 +491,15 @@ client.on("messageCreate", async (message) => {
           continue;
         }
 
-        await message.channel.send(
-          formatUpdateMessage(result.game.name, result.latest)
-        );
+        try {
+          await message.channel.send({
+            embeds: [buildUpdateEmbed(result.game.name, result.latest)]
+          });
+        } catch (error) {
+          await message.channel.send(
+            formatUpdateMessage(result.game.name, result.latest)
+          );
+        }
       }
 
       return;
@@ -429,7 +517,14 @@ client.on("messageCreate", async (message) => {
 
     try {
       const latest = await fetchGameUpdate(game);
-      await message.channel.send(formatUpdateMessage(game.name, latest));
+
+      try {
+        await message.channel.send({
+          embeds: [buildUpdateEmbed(game.name, latest)]
+        });
+      } catch (error) {
+        await message.channel.send(formatUpdateMessage(game.name, latest));
+      }
     } catch (error) {
       await message.reply(
         `❌ Nu am putut lua ultimul update pentru **${game.name}**.`
@@ -463,4 +558,6 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN).catch((error) => {
+  console.error("Login failed:", error);
+});
