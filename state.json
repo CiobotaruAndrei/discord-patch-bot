@@ -1,16 +1,5 @@
 {
-  "notificationChannelId": "1462361009456152780",
-  "seen": {
-    "dbd": "1828441623113194",
-    "fc26": "1828441623109809",
-    "cs2": "1827626365752526",
-    "phasmophobia": "1828441623111971",
-    "wot": "1827626365768082",
-    "battlefront2": "1822556746166756",
-    "rocketleague": "1827626365758252",
-    "minecraft": "26.1",
-    "fortnite": "++Fortnite+Release-40.10-CL-52157884",
-    "roblox": "version-6776addb8fbc4d17"
-  },
-  "subscribed": true
+  "notificationChannelId": "",
+  "seen": {},
+  "subscribed": false
 }
