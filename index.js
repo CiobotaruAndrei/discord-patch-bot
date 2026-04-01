@@ -224,27 +224,37 @@ async function fetchFortniteUpdate() {
   }
 
   let articleTitle = `Fortnite Update (Build ${build})`;
-  let articleExcerpt = `A fost lansată o nouă versiune Fortnite de instalat (Build: ${build}). Apasă pe link pentru a vedea ce e nou!`;
+  let articleExcerpt = `A fost lansată o nouă versiune Fortnite de instalat (Build: ${build}). Apasă pe link pentru a vedea detaliile oficiale.`;
   let articleImage = null;
+  let directLink = "https://www.fortnite.com/news";
 
-  // 2. Extragem datele vizuale spectaculoase (Titlu și Imagine)
+  // 2. Extragem datele vizuale și construim link-ul DIRECT
   try {
     const newsRes = await axios.get("https://fortnite-api.com/v2/news", { timeout: 15000 });
     const latestNews = newsRes?.data?.data?.br?.motds?.[0];
 
-    if (latestNews) {
-      if (latestNews.title) articleTitle = `${latestNews.title} (Build ${build})`;
-      if (latestNews.body) articleExcerpt = latestNews.body;
-      if (latestNews.image) articleImage = latestNews.image;
+    if (latestNews && latestNews.title) {
+      articleTitle = `${latestNews.title} (Build ${build})`;
+      articleExcerpt = latestNews.body || articleExcerpt;
+      articleImage = latestNews.image || null;
+
+      // TRUCUL MAGIC: Transformăm titlul în link exact
+      // Ex: "Showdown in the New Fortnite..." -> "showdown-in-the-new-fortnite..."
+      const slug = latestNews.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-") // înlocuiește spațiile și caracterele ciudate cu cratimă
+        .replace(/(^-|-$)/g, "");    // șterge cratimele de la început sau sfârșit
+      
+      directLink = `https://www.fortnite.com/news/${slug}`;
     }
   } catch (error) {
-    console.error("Nu am putut trage imaginea pt Fortnite:", error.message);
+    console.error("Nu am putut trage știrea pt Fortnite:", error.message);
   }
 
   return {
     id: String(build),
     title: articleTitle,
-    link: "https://patchbot.io/games/fortnite", // Link direct și curat!
+    link: directLink, // Te trimite FIX pe pagina oficială a acelui update!
     excerpt: articleExcerpt,
     image: articleImage,
     thumbnail:
@@ -408,7 +418,6 @@ function findGameFromText(text) {
 client.once("ready", async () => {
   console.log("🤖 Botul este online și așteaptă comenzi.");
   console.log(`Conectat ca: ${client.user.tag}`);
-  console.log(`🎮 Jocuri urmărite: ${config.games.map((g) => g.name).join(", ")}`);
 
   setInterval(async () => {
     try {
