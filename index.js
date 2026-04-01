@@ -55,8 +55,20 @@ function cleanText(text) {
     .replace(/&amp;/gi, "&")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
+    .replace(/&apos;/gi, "'")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function htmlDecode(text) {
+  return String(text || "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
 }
 
 function isLikelyPatchNote(item) {
@@ -146,7 +158,7 @@ function buildUpdateEmbed(gameName, latest) {
 }
 
 // ==========================================
-// STEAM LOGIC (Linkuri Curate Reparate)
+// STEAM
 // ==========================================
 async function fetchSteamUpdate(game) {
   const apiUrl =
@@ -175,8 +187,6 @@ async function fetchSteamUpdate(game) {
   }
 
   const cleanExcerpt = cleanText(latest.contents).slice(0, 700);
-
-  // Generăm manual linkul oficial și curat către postarea de pe Steam Store
   const cleanSteamLink = `https://store.steampowered.com/news/app/${game.appId}/view/${latest.gid}`;
 
   return {
@@ -189,7 +199,7 @@ async function fetchSteamUpdate(game) {
 }
 
 // ==========================================
-// MINECRAFT LOGIC
+// MINECRAFT
 // ==========================================
 async function fetchMinecraftUpdate() {
   const manifestRes = await axios.get(
@@ -203,65 +213,206 @@ async function fetchMinecraftUpdate() {
     throw new Error("Date lipsă pe serverul Mojang.");
   }
 
-  const formattedVersion = latestVersion.replace(/\./g, "-");
-  const directLink = `https://www.minecraft.net/en-us/article/minecraft-java-edition-${formattedVersion}`;
+  const manualArticleLinks = {
+    // exemplu:
+    // "26.1.1": "https://www.minecraft.net/en-us/article/minecraft-java-edition-26-1-1"
+  };
+
+  const articleUrl = manualArticleLinks[latestVersion] || undefined;
+
+  let articleText = `Ai de instalat o nouă versiune oficială Minecraft (${latestVersion}).`;
+  let articleImage =
+    "https://www.minecraft.net/content/dam/minecraftnet/games/minecraft/key-art/MCV-keyart-default.jpg";
+
+  if (articleUrl) {
+    try {
+      const articleRes = await axios.get(articleUrl, {
+        timeout: 15000,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
+        }
+      });
+
+      const html = String(articleRes.data || "");
+
+      const textMatch = html.match(/<meta name="description" content="([^"]+)"/i);
+      if (textMatch && textMatch[1]) {
+        articleText = htmlDecode(textMatch[1]);
+      }
+
+      const imgMatch = html.match(/<meta property="og:image" content="([^"]+)"/i);
+      if (imgMatch && imgMatch[1]) {
+        articleImage = imgMatch[1];
+      }
+    } catch (error) {
+      console.error("Nu am putut lua articolul Minecraft:", error.message);
+    }
+  }
 
   return {
     id: String(latestVersion),
     title: `Minecraft: Java Edition ${latestVersion}`,
-    link: directLink,
-    excerpt: `O nouă versiune oficială (${latestVersion}) este disponibilă! Apasă pe linkul de mai jos pentru a merge direct la pagina oficială cu detaliile.`,
-    image: "https://www.minecraft.net/content/dam/minecraftnet/games/minecraft/key-art/MCV-keyart-default.jpg",
-    thumbnail: "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg",
+    link: articleUrl,
+    excerpt: articleText,
+    image: articleImage,
+    thumbnail:
+      "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg",
     timestamp: new Date().toISOString()
   };
 }
 
 // ==========================================
-// FORTNITE LOGIC (Fără 404)
+// FORTNITE
 // ==========================================
+function extractFortniteArticlePath(html) {
+  const candidates = [];
+
+  const regexes = [
+    /href="(\/news\/[^"#?]+)"/gi,
+    /"url":"(\/news\/[^"#?]+)"/gi,
+    /https:\/\/www\.fortnite\.com(\/news\/[^"#?]+)/gi
+  ];
+
+  for (const regex of regexes) {
+    let match;
+    while ((match = regex.exec(html)) !== null) {
+      const raw = match[1];
+      if (!raw) continue;
+
+      const pathOnly = raw.startsWith("http")
+        ? raw.replace(/^https:\/\/www\.fortnite\.com/i, "")
+        : raw;
+
+      const cleaned = pathOnly.split("?")[0].replace(/\/+$/, "");
+
+      if (
+        cleaned &&
+        cleaned.startsWith("/news/") &&
+        cleaned !== "/news" &&
+        !cleaned.includes("/news/fortnite")
+      ) {
+        candidates.push(cleaned);
+      }
+    }
+  }
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const unique = [...new Set(candidates)];
+
+  unique.sort((a, b) => a.length - b.length);
+
+  return unique[0];
+}
+
 async function fetchFortniteUpdate() {
-  const res = await axios.get("https://fortnite-api.com/v2/aes", {
+  const aesRes = await axios.get("https://fortnite-api.com/v2/aes", {
     timeout: 15000
   });
 
-  const build = res?.data?.data?.build;
+  const build = aesRes?.data?.data?.build;
 
   if (!build) {
     throw new Error("Date lipsă Fortnite.");
   }
 
   let articleTitle = `Fortnite Update (Build ${build})`;
-  let articleExcerpt = `A fost lansată o nouă versiune Fortnite de instalat (Build: ${build}). Caută detaliile pe site-ul oficial.`;
+  let articleExcerpt = `A fost lansată o nouă versiune Fortnite de instalat (Build: ${build}).`;
   let articleImage = null;
+  let articleLink = null;
+  let articleTimestamp = new Date().toISOString();
 
   try {
-    const newsRes = await axios.get("https://fortnite-api.com/v2/news", { timeout: 15000 });
-    const latestNews = newsRes?.data?.data?.br?.motds?.[0];
+    const newsPageRes = await axios.get("https://www.fortnite.com/news?lang=en-US", {
+      timeout: 15000,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
+      }
+    });
 
-    if (latestNews && latestNews.title) {
-      articleTitle = `${latestNews.title} (Build ${build})`;
-      articleExcerpt = latestNews.body || articleExcerpt;
-      articleImage = latestNews.image || null;
+    const newsHtml = String(newsPageRes.data || "");
+    const articlePath = extractFortniteArticlePath(newsHtml);
+
+    if (articlePath) {
+      articleLink = `https://www.fortnite.com${articlePath}?lang=en-US`;
+
+      const articleRes = await axios.get(articleLink, {
+        timeout: 15000,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
+        }
+      });
+
+      const articleHtml = String(articleRes.data || "");
+
+      const titleMatch = articleHtml.match(/<meta property="og:title" content="([^"]+)"/i);
+      if (titleMatch && titleMatch[1]) {
+        articleTitle = htmlDecode(titleMatch[1]);
+      }
+
+      const descMatch = articleHtml.match(/<meta property="og:description" content="([^"]+)"/i)
+        || articleHtml.match(/<meta name="description" content="([^"]+)"/i);
+      if (descMatch && descMatch[1]) {
+        articleExcerpt = htmlDecode(descMatch[1]);
+      }
+
+      const imgMatch = articleHtml.match(/<meta property="og:image" content="([^"]+)"/i);
+      if (imgMatch && imgMatch[1]) {
+        articleImage = imgMatch[1];
+      }
+
+      const timeMatch = articleHtml.match(/<meta property="article:published_time" content="([^"]+)"/i);
+      if (timeMatch && timeMatch[1]) {
+        articleTimestamp = timeMatch[1];
+      }
     }
   } catch (error) {
-    console.error("Nu am putut trage știrea pt Fortnite:", error.message);
+    console.error("Nu am putut lua articolul Fortnite:", error.message);
+  }
+
+  if (!articleLink) {
+    try {
+      const fallbackNews = await axios.get("https://fortnite-api.com/v2/news", {
+        timeout: 15000
+      });
+
+      const latestNews = fallbackNews?.data?.data?.br?.motds?.[0];
+
+      if (latestNews) {
+        if (latestNews.title) {
+          articleTitle = `${latestNews.title} (Build ${build})`;
+        }
+        if (latestNews.body) {
+          articleExcerpt = latestNews.body;
+        }
+        if (latestNews.image) {
+          articleImage = latestNews.image;
+        }
+      }
+    } catch (error) {
+      console.error("Nu am putut lua fallback news pt Fortnite:", error.message);
+    }
   }
 
   return {
     id: String(build),
     title: articleTitle,
-    link: "https://www.fortnite.com/news", // Am pus varianta sigură ca să nu mai primești Lame (404)
+    link: articleLink || undefined,
     excerpt: articleExcerpt,
     image: articleImage,
     thumbnail:
       "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
-    timestamp: new Date().toISOString()
+    timestamp: articleTimestamp
   };
 }
 
 // ==========================================
-// ROBLOX LOGIC
+// ROBLOX
 // ==========================================
 async function fetchRobloxUpdate() {
   const res = await axios.get(
@@ -290,12 +441,15 @@ async function fetchGameUpdate(game) {
   if (!game.type || game.type === "steam") {
     return await fetchSteamUpdate(game);
   }
+
   if (game.type === "minecraft") {
     return await fetchMinecraftUpdate();
   }
+
   if (game.type === "fortnite") {
     return await fetchFortniteUpdate();
   }
+
   if (game.type === "roblox") {
     return await fetchRobloxUpdate();
   }
@@ -327,17 +481,22 @@ async function sendUpdateToConfiguredChannel(gameName, latest) {
   } catch (error) {
     await channel.send(formatUpdateMessage(gameName, latest));
   }
+
   return true;
 }
 
 async function initializeSeenForCurrentGames() {
   const state = loadState();
+
   for (const game of config.games) {
     try {
       const latest = await fetchGameUpdate(game);
       state.seen[game.key] = latest.id;
-    } catch (error) {}
+    } catch (error) {
+      console.error(`Nu am putut inițializa ${game.name}: ${error.message}`);
+    }
   }
+
   saveState(state);
 }
 
@@ -346,6 +505,7 @@ async function checkForUpdates() {
   if (!state.subscribed || !state.notificationChannelId) return false;
 
   let foundSomething = false;
+
   for (const game of config.games) {
     try {
       const latest = await fetchGameUpdate(game);
@@ -354,18 +514,23 @@ async function checkForUpdates() {
       if (previousId !== latest.id) {
         state.seen[game.key] = latest.id;
         saveState(state);
+
         if (previousId) {
           await sendUpdateToConfiguredChannel(game.name, latest);
           foundSomething = true;
         }
       }
-    } catch (error) {}
+    } catch (error) {
+      console.error(`Eroare la ${game.name}: ${error.message}`);
+    }
   }
+
   return foundSomething;
 }
 
 async function getLatestForAllGames() {
   const results = [];
+
   for (const game of config.games) {
     try {
       const latest = await fetchGameUpdate(game);
@@ -374,6 +539,7 @@ async function getLatestForAllGames() {
       results.push({ game, latest: null, error: error.message });
     }
   }
+
   return results;
 }
 
@@ -389,8 +555,14 @@ function findGameFromText(text) {
 client.once("ready", async () => {
   console.log("🤖 Botul este online și așteaptă comenzi.");
   console.log(`Conectat ca: ${client.user.tag}`);
+  console.log(`🎮 Jocuri urmărite: ${config.games.map((g) => g.name).join(", ")}`);
+
   setInterval(async () => {
-    try { await checkForUpdates(); } catch (error) {}
+    try {
+      await checkForUpdates();
+    } catch (error) {
+      console.error("Eroare în checkForUpdates:", error);
+    }
   }, Number(config.checkIntervalMinutes || 30) * 60 * 1000);
 });
 
@@ -410,27 +582,44 @@ client.on("messageCreate", async (message) => {
 
   if (command === "games") {
     await message.reply(
-      `🎮 **Jocuri urmărite:**\n${config.games.map((g) => `- **${g.name}** (${PREFIX}latest ${g.key})`).join("\n")}`
+      `🎮 **Jocuri urmărite:**\n${config.games
+        .map((g) => `- **${g.name}** (${PREFIX}latest ${g.key})`)
+        .join("\n")}`
     );
     return;
   }
 
   if (command === "startupdates") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      await message.reply(
+        `⛔ Doar un administrator poate folosi comanda **${PREFIX}startupdates**.`
+      );
+      return;
+    }
+
     const state = loadState();
     state.notificationChannelId = message.channel.id;
     state.subscribed = true;
     saveState(state);
+
     await initializeSeenForCurrentGames();
+
     await message.reply("✅ Am pornit notificările automate pe acest canal.");
     return;
   }
 
   if (command === "stopupdates") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      await message.reply(
+        `⛔ Doar un administrator poate folosi comanda **${PREFIX}stopupdates**.`
+      );
+      return;
+    }
+
     const state = loadState();
     state.subscribed = false;
     saveState(state);
+
     await message.reply("🛑 Am oprit notificările automate.");
     return;
   }
@@ -438,12 +627,23 @@ client.on("messageCreate", async (message) => {
   if (command === "latest") {
     if (args.length === 0) {
       const results = await getLatestForAllGames();
+
       for (const result of results) {
-        if (!result.latest) continue;
+        if (!result.latest) {
+          await message.channel.send(
+            `❌ Nu am putut lua ultimul update pentru **${result.game.name}**.`
+          );
+          continue;
+        }
+
         try {
-          await message.channel.send({ embeds: [buildUpdateEmbed(result.game.name, result.latest)] });
+          await message.channel.send({
+            embeds: [buildUpdateEmbed(result.game.name, result.latest)]
+          });
         } catch (error) {
-          await message.channel.send(formatUpdateMessage(result.game.name, result.latest));
+          await message.channel.send(
+            formatUpdateMessage(result.game.name, result.latest)
+          );
         }
       }
       return;
@@ -459,14 +659,18 @@ client.on("messageCreate", async (message) => {
 
     try {
       const latest = await fetchGameUpdate(game);
+
       try {
-        await message.channel.send({ embeds: [buildUpdateEmbed(game.name, latest)] });
+        await message.channel.send({
+          embeds: [buildUpdateEmbed(game.name, latest)]
+        });
       } catch (error) {
         await message.channel.send(formatUpdateMessage(game.name, latest));
       }
     } catch (error) {
       await message.reply(`❌ Nu am putut lua ultimul update pentru **${game.name}**.`);
     }
+
     return;
   }
 
@@ -481,8 +685,11 @@ client.on("messageCreate", async (message) => {
       `**${PREFIX}startupdates** *(Admin)*\n> Activează alertele automate pe canalul curent.\n\n` +
       `**${PREFIX}stopupdates** *(Admin)*\n> Oprește alertele automate.\n\n` +
       `**${PREFIX}ping**\n> Verifică dacă botul răspunde.`;
+
     await message.reply(helpMessage);
   }
 });
 
-client.login(process.env.DISCORD_TOKEN).catch(() => {});
+client.login(process.env.DISCORD_TOKEN).catch((error) => {
+  console.error("Login failed:", error);
+});
