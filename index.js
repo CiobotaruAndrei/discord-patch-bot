@@ -182,6 +182,7 @@ async function fetchSteamUpdate(game) {
   };
 }
 
+// Aici am simplificat codul pentru Minecraft ca să trimită direct la PatchBot
 async function fetchMinecraftUpdate() {
   const manifestRes = await axios.get(
     "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
@@ -194,74 +195,13 @@ async function fetchMinecraftUpdate() {
     throw new Error("Date lipsă pe serverul Mojang.");
   }
 
-  let articleText = `Ai de instalat o nouă versiune oficială Minecraft (${latestVersion}).`;
-  let articleImage =
-    "https://www.minecraft.net/content/dam/minecraftnet/games/minecraft/key-art/MCV-keyart-default.jpg";
-
-  const manualArticleLinks = {
-    // aici poți adăuga manual pe viitor:
-    // "26.1.1": "https://www.minecraft.net/en-us/article/....."
-  };
-
-  const articleUrl = manualArticleLinks[latestVersion] || null;
-
-  if (articleUrl) {
-    try {
-      const articleRes = await axios.get(articleUrl, {
-        timeout: 15000,
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
-        }
-      });
-
-      const html = String(articleRes.data || "");
-
-      const textMatch = html.match(/<meta name="description" content="([^"]+)"/i);
-      if (textMatch && textMatch[1]) {
-        articleText = textMatch[1];
-      }
-
-      const imgMatch = html.match(/<meta property="og:image" content="([^"]+)"/i);
-      if (imgMatch && imgMatch[1]) {
-        articleImage = imgMatch[1];
-      }
-    } catch (error) {
-      console.error("Nu am putut lua articolul Minecraft:", error.message);
-    }
-  } else {
-    try {
-      const articleRes = await axios.get("https://www.minecraft.net/en-us/article", {
-        timeout: 15000,
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
-        }
-      });
-
-      const html = String(articleRes.data || "");
-      const textMatch = html.match(/<meta name="description" content="([^"]+)"/i);
-      if (textMatch && textMatch[1]) {
-        articleText = textMatch[1];
-      }
-
-      const imgMatch = html.match(/<meta property="og:image" content="([^"]+)"/i);
-      if (imgMatch && imgMatch[1]) {
-        articleImage = imgMatch[1];
-      }
-    } catch (error) {
-      console.error("Nu am putut lua metadatele Minecraft:", error.message);
-    }
-  }
-
   return {
     id: String(latestVersion),
     title: `Minecraft: Java Edition ${latestVersion}`,
-    link: articleUrl || undefined,
-    excerpt: articleText,
-    image: articleImage,
-    thumbnail:
-      "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg",
+    link: "https://patchbot.io/games/minecraft", // Te trimite fix la sursa curată
+    excerpt: `O nouă versiune oficială (${latestVersion}) este disponibilă! Apasă pe link pentru a citi Patch Notes-ul complet.`,
+    image: "https://www.minecraft.net/content/dam/minecraftnet/games/minecraft/key-art/MCV-keyart-default.jpg",
+    thumbnail: "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg",
     timestamp: new Date().toISOString()
   };
 }
