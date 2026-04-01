@@ -43,8 +43,20 @@
       "type": "steam",
       "appId": "252950"
     },
-    { "key": "minecraft", "name": "Minecraft", "type": "minecraft" },
-    { "key": "fortnite", "name": "Fortnite", "type": "fortnite" },
-    { "key": "roblox", "name": "Roblox", "type": "roblox" }
+    {
+      "key": "minecraft",
+      "name": "Minecraft",
+      "type": "minecraft"
+    },
+    {
+      "key": "fortnite",
+      "name": "Fortnite",
+      "type": "fortnite"
+    },
+    {
+      "key": "roblox",
+      "name": "Roblox",
+      "type": "roblox"
+    }
   ]
 }
