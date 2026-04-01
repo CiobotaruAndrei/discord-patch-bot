@@ -182,51 +182,6 @@ async function fetchSteamUpdate(game) {
   };
 }
 
-async function resolveMinecraftArticleUrl(version) {
-  const safeVersion = String(version).trim();
-  const versionDashed = safeVersion.replace(/\./g, "-");
-  const majorMinor = safeVersion.split(".").slice(0, 2).join("-");
-  const possibleUrls = [
-    `https://www.minecraft.net/en-us/article/minecraft-java-edition-${versionDashed}`,
-    `https://www.minecraft.net/en-us/article/minecraft-java-edition-${majorMinor}`,
-    `https://www.minecraft.net/en-us/article/minecraft-java-edition-${versionDashed}-release`,
-    `https://www.minecraft.net/en-us/article/minecraft-java-edition-${majorMinor}-release`
-  ];
-
-  for (const url of possibleUrls) {
-    try {
-      const res = await axios.get(url, {
-        timeout: 15000,
-        maxRedirects: 5,
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
-        }
-      });
-
-      const finalUrl =
-        (res.request &&
-          res.request.res &&
-          res.request.res.responseUrl) ||
-        url;
-
-      const html = String(res.data || "");
-      const htmlLower = html.toLowerCase();
-
-      if (
-        finalUrl.includes("/en-us/article/") &&
-        !finalUrl.endsWith("/en-us/article") &&
-        (htmlLower.includes(safeVersion.toLowerCase()) ||
-          htmlLower.includes(versionDashed.toLowerCase()))
-      ) {
-        return finalUrl;
-      }
-    } catch (error) {}
-  }
-
-  return null;
-}
-
 async function fetchMinecraftUpdate() {
   const manifestRes = await axios.get(
     "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
@@ -243,7 +198,12 @@ async function fetchMinecraftUpdate() {
   let articleImage =
     "https://www.minecraft.net/content/dam/minecraftnet/games/minecraft/key-art/MCV-keyart-default.jpg";
 
-  const articleUrl = await resolveMinecraftArticleUrl(latestVersion);
+  const manualArticleLinks = {
+    // aici poți adăuga manual pe viitor:
+    // "26.1.1": "https://www.minecraft.net/en-us/article/....."
+  };
+
+  const articleUrl = manualArticleLinks[latestVersion] || null;
 
   if (articleUrl) {
     try {
@@ -268,6 +228,29 @@ async function fetchMinecraftUpdate() {
       }
     } catch (error) {
       console.error("Nu am putut lua articolul Minecraft:", error.message);
+    }
+  } else {
+    try {
+      const articleRes = await axios.get("https://www.minecraft.net/en-us/article", {
+        timeout: 15000,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
+        }
+      });
+
+      const html = String(articleRes.data || "");
+      const textMatch = html.match(/<meta name="description" content="([^"]+)"/i);
+      if (textMatch && textMatch[1]) {
+        articleText = textMatch[1];
+      }
+
+      const imgMatch = html.match(/<meta property="og:image" content="([^"]+)"/i);
+      if (imgMatch && imgMatch[1]) {
+        articleImage = imgMatch[1];
+      }
+    } catch (error) {
+      console.error("Nu am putut lua metadatele Minecraft:", error.message);
     }
   }
 
