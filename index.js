@@ -182,9 +182,6 @@ async function fetchSteamUpdate(game) {
   };
 }
 
-// ==========================================
-// LOGICA NOUĂ PENTRU MINECRAFT (LINK DIRECT)
-// ==========================================
 async function fetchMinecraftUpdate() {
   const manifestRes = await axios.get(
     "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
@@ -197,24 +194,25 @@ async function fetchMinecraftUpdate() {
     throw new Error("Date lipsă pe serverul Mojang.");
   }
 
-  // TRUCUL: Transformăm versiunea (ex: 1.20.4) în formatul de link oficial (ex: 1-20-4)
   const formattedVersion = latestVersion.replace(/\./g, "-");
-  
-  // Construim linkul DIRECT către pagina specifică a update-ului
   const directLink = `https://www.minecraft.net/en-us/article/minecraft-java-edition-${formattedVersion}`;
 
   return {
     id: String(latestVersion),
     title: `Minecraft: Java Edition ${latestVersion}`,
-    link: directLink,
-    excerpt: `O nouă versiune oficială (${latestVersion}) este disponibilă! Apasă pe linkul de mai jos pentru a merge direct la pagina oficială cu toate detaliile acestui patch.`,
+    link: "https://patchbot.io/games/minecraft",
+    excerpt: `O nouă versiune oficială (${latestVersion}) este disponibilă! Apasă pe linkul de mai jos pentru a merge direct la pagina curată cu toate detaliile.`,
     image: "https://www.minecraft.net/content/dam/minecraftnet/games/minecraft/key-art/MCV-keyart-default.jpg",
     thumbnail: "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg",
     timestamp: new Date().toISOString()
   };
 }
 
+// ==========================================
+// LOGICA NOUĂ PENTRU FORTNITE
+// ==========================================
 async function fetchFortniteUpdate() {
+  // 1. Obținem numărul tehnic de Build
   const res = await axios.get("https://fortnite-api.com/v2/aes", {
     timeout: 15000
   });
@@ -225,11 +223,30 @@ async function fetchFortniteUpdate() {
     throw new Error("Date lipsă Fortnite.");
   }
 
+  let articleTitle = `Fortnite Update (Build ${build})`;
+  let articleExcerpt = `A fost lansată o nouă versiune Fortnite de instalat (Build: ${build}). Apasă pe link pentru a vedea ce e nou!`;
+  let articleImage = null;
+
+  // 2. Extragem datele vizuale spectaculoase (Titlu și Imagine)
+  try {
+    const newsRes = await axios.get("https://fortnite-api.com/v2/news", { timeout: 15000 });
+    const latestNews = newsRes?.data?.data?.br?.motds?.[0];
+
+    if (latestNews) {
+      if (latestNews.title) articleTitle = `${latestNews.title} (Build ${build})`;
+      if (latestNews.body) articleExcerpt = latestNews.body;
+      if (latestNews.image) articleImage = latestNews.image;
+    }
+  } catch (error) {
+    console.error("Nu am putut trage imaginea pt Fortnite:", error.message);
+  }
+
   return {
     id: String(build),
-    title: `Fortnite Update (Build ${build})`,
-    link: "https://www.fortnite.com/news",
-    excerpt: `A fost lansată o nouă versiune Fortnite de instalat (Build: ${build}).`,
+    title: articleTitle,
+    link: "https://patchbot.io/games/fortnite", // Link direct și curat!
+    excerpt: articleExcerpt,
+    image: articleImage,
     thumbnail:
       "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
     timestamp: new Date().toISOString()
@@ -391,6 +408,7 @@ function findGameFromText(text) {
 client.once("ready", async () => {
   console.log("🤖 Botul este online și așteaptă comenzi.");
   console.log(`Conectat ca: ${client.user.tag}`);
+  console.log(`🎮 Jocuri urmărite: ${config.games.map((g) => g.name).join(", ")}`);
 
   setInterval(async () => {
     try {
