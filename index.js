@@ -182,7 +182,9 @@ async function fetchSteamUpdate(game) {
   };
 }
 
-// Aici am simplificat codul pentru Minecraft ca să trimită direct la PatchBot
+// ==========================================
+// LOGICA NOUĂ PENTRU MINECRAFT (LINK DIRECT)
+// ==========================================
 async function fetchMinecraftUpdate() {
   const manifestRes = await axios.get(
     "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
@@ -195,11 +197,17 @@ async function fetchMinecraftUpdate() {
     throw new Error("Date lipsă pe serverul Mojang.");
   }
 
+  // TRUCUL: Transformăm versiunea (ex: 1.20.4) în formatul de link oficial (ex: 1-20-4)
+  const formattedVersion = latestVersion.replace(/\./g, "-");
+  
+  // Construim linkul DIRECT către pagina specifică a update-ului
+  const directLink = `https://www.minecraft.net/en-us/article/minecraft-java-edition-${formattedVersion}`;
+
   return {
     id: String(latestVersion),
     title: `Minecraft: Java Edition ${latestVersion}`,
-    link: "https://patchbot.io/games/minecraft", // Te trimite fix la sursa curată
-    excerpt: `O nouă versiune oficială (${latestVersion}) este disponibilă! Apasă pe link pentru a citi Patch Notes-ul complet.`,
+    link: directLink,
+    excerpt: `O nouă versiune oficială (${latestVersion}) este disponibilă! Apasă pe linkul de mai jos pentru a merge direct la pagina oficială cu toate detaliile acestui patch.`,
     image: "https://www.minecraft.net/content/dam/minecraftnet/games/minecraft/key-art/MCV-keyart-default.jpg",
     thumbnail: "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg",
     timestamp: new Date().toISOString()
@@ -383,7 +391,6 @@ function findGameFromText(text) {
 client.once("ready", async () => {
   console.log("🤖 Botul este online și așteaptă comenzi.");
   console.log(`Conectat ca: ${client.user.tag}`);
-  console.log(`🎮 Jocuri urmărite: ${config.games.map((g) => g.name).join(", ")}`);
 
   setInterval(async () => {
     try {
