@@ -222,26 +222,6 @@ function buildUpdateEmbed(gameName, latest) {
   return embed;
 }
 
-function isGoodSteamArticleUrl(url) {
-  const value = String(url || "").trim();
-
-  if (!value) return false;
-  if (!/^https?:\/\//i.test(value)) return false;
-  if (/steamstatic\.com/i.test(value)) return false;
-  if (/steamcdn/i.test(value)) return false;
-  if (/\/news\/app\/\d+\/view\/\d+/i.test(value)) return true;
-  if (/steamcommunity\.com\/games\//i.test(value)) return true;
-
-  return false;
-}
-
-function getSteamFallbackNewsLink(game) {
-  if (game.appId) {
-    return `https://store.steampowered.com/news/app/${game.appId}`;
-  }
-  return "";
-}
-
 async function fetchSteamUpdate(game) {
   const apiUrl =
     `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/` +
@@ -268,13 +248,12 @@ async function fetchSteamUpdate(game) {
   }
 
   const cleanExcerpt = cleanText(latest.contents).slice(0, 700);
+  const exactArticleLink = `https://store.steampowered.com/news/app/${game.appId}/view/${latest.gid}`;
 
   return {
     id: String(latest.gid),
     title: cleanText(latest.title),
-    link: isGoodSteamArticleUrl(latest.url)
-      ? latest.url
-      : getSteamFallbackNewsLink(game),
+    link: exactArticleLink,
     excerpt: cleanExcerpt || `A apărut un nou update pentru ${game.name}.`,
     timestamp: latest.date ? new Date(latest.date * 1000).toISOString() : undefined
   };
@@ -422,6 +401,27 @@ async function fetchEpicGamesUpdate(game) {
   return await fetchListingBasedUpdate(game);
 }
 
+async function fetchFortniteUpdate() {
+  const res = await axios.get("https://fortnite-api.com/v2/news", { timeout: 15000 });
+  const motds = res?.data?.data?.br?.motds;
+
+  if (!Array.isArray(motds) || motds.length === 0) {
+    throw new Error("Nu am găsit noutăți pentru Fortnite pe serverul API.");
+  }
+
+  const latest = motds[0];
+
+  return {
+    id: String(latest.id),
+    title: latest.title || "Fortnite: Noutăți",
+    link: latest.websiteURL || "https://www.fortnite.com/news",
+    excerpt: cleanText(latest.body) || "A apărut o nouă actualizare sau un nou eveniment în Fortnite.",
+    image: latest.image, 
+    thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
+    timestamp: new Date().toISOString()
+  };
+}
+
 async function fetchRobloxUpdate() {
   const res = await axios.get(
     "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer",
@@ -454,7 +454,11 @@ async function fetchGameUpdate(game) {
     return await fetchMinecraftUpdate();
   }
 
-  if (game.type === "epic_games") {
+  if (game.key === "fortnite") {
+    return await fetchFortniteUpdate();
+  }
+
+  if (game.type === "epic_games" && game.key !== "fortnite") {
     return await fetchEpicGamesUpdate(game);
   }
 
