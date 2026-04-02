@@ -217,7 +217,7 @@ function buildUpdateEmbed(gameName, latest) {
 }
 
 // -------------------------------------------------------------
-// FUNCȚII NOI PENTRU DRIVERE 
+// FUNCȚII PENTRU DRIVERE 
 // -------------------------------------------------------------
 
 async function fetchNvidiaUpdate(game) {
@@ -491,7 +491,7 @@ async function fetchRobloxUpdate() {
 }
 
 // -------------------------------------------------------------
-// FUNCȚII NOI PENTRU REDUCERI - SISTEM SEPARAT STEAM & EPIC
+// FUNCȚII NOI PENTRU REDUCERI - EXTRAGERE PE PLATFORME
 // -------------------------------------------------------------
 
 async function fetchDealsForStore(storeID, storeName) {
@@ -528,16 +528,14 @@ async function fetchDealsForStore(storeID, storeName) {
     const savings = parseFloat(d.savings) || 0;
     const salePrice = parseFloat(d.salePrice) || 0;
     const isFree = salePrice === 0;
-    
     const steamRating = parseFloat(d.steamRatingPercent) || 0;
     const metacritic = parseInt(d.metacriticScore) || 0;
     
-    // Epic Games nu trimite scoruri de la Steam, acceptăm doar reducerea.
+    // Epic Games nu trimite rating Steam, deci lăsăm doar regula de reducere
     if (storeID === 25) {
       return (savings >= 70 || isFree); 
     }
     
-    // Filtru normal de calitate pentru Steam
     return (savings >= 70 || isFree) && (steamRating >= 70 || metacritic > 0 || isFree);
   });
 
@@ -555,25 +553,20 @@ async function fetchDealsForStore(storeID, storeName) {
   }));
 
   sortedDeals.sort((a, b) => b.popularityScore - a.popularityScore);
-
   return sortedDeals.slice(0, 25);
 }
 
 async function fetchDeals() {
-  // Tragem separat 25 Steam și 25 Epic, garantând prezența ambelor.
   const steamDeals = await fetchDealsForStore(1, "Steam");
-  const epicDeals = await fetchDealsForStore(25, "Epic Games"); // ID 25 este sigur Epic Games
+  const epicDeals = await fetchDealsForStore(25, "Epic Games"); // ID 25 e Epic Games
 
   const finalTop50 = [...epicDeals, ...steamDeals];
-  
-  if (finalTop50.length === 0) {
-      throw new Error("Nu s-au putut extrage oferte valide nici de pe Steam, nici de pe Epic.");
-  }
+  if (finalTop50.length === 0) throw new Error("Nu s-au putut extrage oferte valide de pe Steam sau Epic.");
   
   return finalTop50;
 }
 
-// Magia din fundal: Îmbogățim fiecare ofertă cu date suplimentare
+// Extragerea datei de expirare și formatarea ei
 async function enrichDealData(deal) {
   deal.endDateStr = "Nespecificat";
   deal.extraDetails = "";
@@ -595,11 +588,10 @@ async function enrichDealData(deal) {
         }
       }
       
-      // Citim pagina web fizică a Steam pentru a găsi data de expirare ascunsă
       const htmlRes = await axios.get(deal.link, {
         timeout: 5000,
         headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
           "Cookie": "strLanguage=english; birthtime=283993201; mature_content=1;" 
         }
       });
@@ -607,24 +599,45 @@ async function enrichDealData(deal) {
       if (match && match[1]) {
         deal.endDateStr = match[1].trim();
       }
-    } catch (e) { /* Ignorăm erorile pentru a nu bloca afișarea */ }
+    } catch (e) { }
   } 
   else if (deal.store === "Epic Games") {
+    // 1. Căutare inteligentă (fără cuvinte tip "Edition")
     try {
+      let cleanTitle = deal.title.replace(/\s*(Standard|Deluxe|Premium|Ultimate|Gold|Nightmare|Edition|Director's Cut)/gi, "").trim();
       const epicQuery = {
         query: `query searchStoreQuery($keywords: String!) { Catalog { searchStore(keyword: $keywords, category: "games", count: 1) { elements { price { totalPrice { discountEndDate } } } } } }`,
-        variables: { keywords: deal.title }
+        variables: { keywords: cleanTitle }
       };
       const epicRes = await axios.post('https://graphql.epicgames.com/graphql', epicQuery, { timeout: 5000 });
       const elements = epicRes.data?.data?.Catalog?.searchStore?.elements;
-      if (elements && elements.length > 0) {
-        const dDate = elements[0]?.price?.totalPrice?.discountEndDate;
-        if (dDate) {
-          const dateObj = new Date(dDate);
-          deal.endDateStr = dateObj.toLocaleDateString('ro-RO') + " " + dateObj.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' });
+      
+      if (elements && elements.length > 0 && elements[0]?.price?.totalPrice?.discountEndDate) {
+        const d = new Date(elements[0].price.totalPrice.discountEndDate);
+        if (!isNaN(d.getTime())) {
+          const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+          deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]}`;
+          return deal; // Ne oprim aici dacă am găsit-o
         }
       }
-    } catch (e) { /* Ignorăm erorile Epic GraphQL */ }
+    } catch (e) {}
+
+    // 2. Fallback: Citim pagina web fizică la fel ca la Steam
+    try {
+       const htmlRes = await axios.get(deal.link, {
+         timeout: 8000,
+         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
+       });
+       const html = String(htmlRes.data || "");
+       const discountMatch = html.match(/"discountEndDate"\s*:\s*"([^"]+)"/i) || html.match(/"endDate"\s*:\s*"([^"]+)"/i);
+       if (discountMatch && discountMatch[1]) {
+         const d = new Date(discountMatch[1]);
+         if (!isNaN(d.getTime())) {
+           const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+           deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]}`;
+         }
+       }
+    } catch(err) {}
   }
 
   return deal;
@@ -893,7 +906,7 @@ client.on("messageCreate", async (message) => {
         const maxDeals = deals.slice(0, 50); 
 
         if (maxDeals.length > 10) {
-          await message.channel.send(`ℹ️ *Am extras o selecție echilibrată de oferte Epic și Steam. Trimit câte 10 jocuri la fiecare 20 de secunde pentru a evita blocajele serverelor...*`);
+          await message.channel.send(`ℹ️ *Am extras o selecție echilibrată: **Top 25 Epic** și **Top 25 Steam**. Trimit câte 10 jocuri la fiecare 20 de secunde pentru a evita blocajele serverelor...*`);
         }
 
         for (let i = 0; i < maxDeals.length; i += 10) {
