@@ -426,6 +426,7 @@ async function fetchEpicGamesUpdate(game) {
   return await fetchListingBasedUpdate(game);
 }
 
+// Funcția pentru Fortnite, menținută intactă pentru că rulează perfect
 async function fetchFortniteUpdate() {
   try {
     const epicApiUrl = "https://www.fortnite.com/api/blog/getPosts?postsPerPage=10&offset=0&locale=en-US";
@@ -679,8 +680,20 @@ client.on("messageCreate", async (message) => {
   if (command === "games") {
     await message.reply(
       `🎮 **Jocuri urmărite:**\n${config.games
-        .map((g) => `- **${g.name}** (${PREFIX}latest ${g.key})`)
+        .map((g) => `- **${g.name}**`)
         .join("\n")}`
+    );
+    return;
+  }
+
+  // COMANDA NOUĂ: porecle
+  if (command === "porecle") {
+    const list = config.games
+      .map((g) => `**${g.name}** -> folosește porecla: \`${g.key}\``)
+      .join("\n");
+
+    await message.reply(
+      `🏷️ **Lista de porecle pentru jocuri:**\nPentru a vedea ultimul update al unui joc specific, folosește comanda \`${PREFIX}latest [poreclă]\`.\n\n${list}`
     );
     return;
   }
@@ -753,7 +766,7 @@ client.on("messageCreate", async (message) => {
 
     if (!game) {
       await message.reply(
-        `❌ Nu am găsit jocul. Folosește **${PREFIX}games** pentru listă.`
+        `❌ Nu am găsit jocul. Folosește **${PREFIX}porecle** pentru listă.`
       );
       return;
     }
@@ -785,9 +798,11 @@ client.on("messageCreate", async (message) => {
       `> Afișează acest meniu detaliat.\n\n` +
       `**${PREFIX}games**\n` +
       `> Vezi lista cu toate jocurile urmărite.\n\n` +
+      `**${PREFIX}porecle**\n` +
+      `> Vezi lista cu poreclele (prescurtările) jocurilor necesare pentru comanda latest.\n\n` +
       `**${PREFIX}latest**\n` +
       `> Vezi cele mai recente update-uri pentru toate jocurile.\n\n` +
-      `**${PREFIX}latest [nume_joc]**\n` +
+      `**${PREFIX}latest [poreclă]**\n` +
       `> Vezi ultimul update pentru un joc specific.\n\n` +
       `**${PREFIX}startupdates** *(Admin)*\n` +
       `> Activează alertele automate pe canalul curent.\n\n` +
