@@ -132,7 +132,6 @@ function extractPublishedTimeFromHtml(html) {
   );
 }
 
-// RESTAURAT: Această funcție veche garantează că linkul este un articol web și nu o simplă poză promoțională
 function isGoodSteamArticleUrl(url) {
   const val = String(url || "").trim().toLowerCase();
   if (!val) return false;
@@ -245,16 +244,12 @@ async function fetchSteamUpdate(game) {
   }
 
   const patchNotes = newsItems.filter((item) => {
-    // 1. Luăm exclusiv postările oficiale ale dezvoltatorilor, fără articole externe
     if (item.feed_type !== 1 && item.feedname !== "steam_community_announcements") {
       return false;
     }
-    // 2. FILTRUL SUPREM: Eliminăm anunțurile care au doar o poză în link. 
-    // Așa îl forțăm să caute următorul update adevărat cu o pagină web existentă!
     if (!isGoodSteamArticleUrl(item.url)) {
       return false;
     }
-    // 3. Verificăm dacă e patch note
     return isLikelyPatchNote(item);
   });
 
@@ -269,12 +264,18 @@ async function fetchSteamUpdate(game) {
     throw new Error("Update invalid primit de la Steam.");
   }
 
-  const cleanExcerpt = cleanText(latest.contents).slice(0, 700);
+  // AICI ESTE FIX-UL CRITIC PENTRU CS2: 
+  // Curățăm textul brut de link-uri (ca să nu poți da click pe poze din descriere) și de formatarea BBCode folosită de Steam.
+  let rawContents = String(latest.contents || "");
+  rawContents = rawContents.replace(/https?:\/\/[^\s]+/gi, ""); // Ștergem orice link http/https din interiorul textului
+  rawContents = rawContents.replace(/\[[^\]]+\]/g, " "); // Ștergem orice tag BBCode gen [img], [b], etc.
+
+  const cleanExcerpt = cleanText(rawContents).slice(0, 700);
 
   return {
     id: String(latest.gid),
     title: cleanText(latest.title),
-    link: String(latest.url).trim(), // Aici punem linkul nativ, acum protejat de isGoodSteamArticleUrl
+    link: String(latest.url).trim(), 
     excerpt: cleanExcerpt || `A apărut un nou update pentru ${game.name}.`,
     timestamp: latest.date ? new Date(latest.date * 1000).toISOString() : undefined
   };
@@ -422,7 +423,7 @@ async function fetchEpicGamesUpdate(game) {
   return await fetchListingBasedUpdate(game);
 }
 
-// LOGICA BUNĂ PENTRU FORTNITE
+// Funcția pentru Fortnite, menținută intactă pentru că rulează perfect
 async function fetchFortniteUpdate() {
   try {
     const epicApiUrl = "https://www.fortnite.com/api/blog/getPosts?postsPerPage=10&offset=0&locale=en-US";
@@ -590,7 +591,7 @@ async function checkForUpdates() {
   const state = loadState();
 
   if (!state.subscribed || !state.notificationChannelId) {
-    console.log("Notificările automate nu sunt active.");
+    console.log("Notificările automate nu active.");
     return false;
   }
 
