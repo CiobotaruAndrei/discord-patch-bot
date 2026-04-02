@@ -671,32 +671,35 @@ async function fetchRobloxUpdate() {
 }
 
 // -------------------------------------------------------------
-// FUNCȚII NOI PENTRU REDUCERI 
+// FUNCȚII NOI PENTRU REDUCERI - REPARATE CU PROXY
 // -------------------------------------------------------------
 
 async function fetchDeals() {
-  // storeID=1 este Steam, storeID=24 este Epic Games
-  const url = "https://www.cheapshark.com/api/1.0/deals?storeID=1,24&onSale=1";
+  // Trecem cererea prin proxy-ul gratuit AllOrigins pentru a ocoli blocajul Cloudflare
+  const targetUrl = "https://www.cheapshark.com/api/1.0/deals?storeID=1,24&onSale=1";
+  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
   
-  // Am adăugat Headers ca să prevenim blocarea din partea serverului
-  const res = await axios.get(url, { 
-    timeout: 15000,
-    headers: {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
-  });
+  const res = await axios.get(proxyUrl, { timeout: 20000 });
   
-  const deals = res.data || [];
+  // AllOrigins returnează datele site-ului ca un string JSON în proprietatea "contents"
+  let deals = [];
+  try {
+    deals = JSON.parse(res?.data?.contents || "[]");
+  } catch (e) {
+    throw new Error("Proxy-ul a returnat date invalide sau a fost blocat.");
+  }
+
+  if (!Array.isArray(deals) || deals.length === 0) {
+    throw new Error("Nu s-au putut extrage ofertele (lista este goală).");
+  }
 
   const validDeals = deals.filter(d => {
     const savings = parseFloat(d.savings) || 0;
     const salePrice = parseFloat(d.salePrice) || 0;
     const isFree = salePrice === 0;
     
-    // Condiția 1: Reducere minim 70% SAU gratis (100%)
     const hasGoodDiscount = savings >= 70 || isFree;
     
-    // Condiția 2: Filtru pentru a evita zeci de jocuri slabe calitativ. 
     const steamRating = parseFloat(d.steamRatingPercent) || 0;
     const metacritic = parseInt(d.metacriticScore) || 0;
     const isQualityGame = steamRating >= 70 || metacritic > 0 || isFree;
@@ -715,10 +718,9 @@ async function fetchDeals() {
       ? `https://store.steampowered.com/app/${d.steamAppID}`
       : `https://www.cheapshark.com/redirect?dealID=${d.dealID}`,
     thumbnail: d.thumb || null,
-    popularityScore: (parseInt(d.steamRatingCount) || 0) + ((parseInt(d.metacriticScore) || 0) * 100) // Punctaj
+    popularityScore: (parseInt(d.steamRatingCount) || 0) + ((parseInt(d.metacriticScore) || 0) * 100)
   }));
 
-  // Sortăm descrescător după popularitate
   sortedDeals.sort((a, b) => b.popularityScore - a.popularityScore);
 
   return sortedDeals;
@@ -1021,7 +1023,7 @@ client.on("messageCreate", async (message) => {
     // VERIFICARE NOUĂ: Dacă utilizatorul a scris "latest reduceri"
     // ---------------------------------------------------------
     if (args.length > 0 && args[0].toLowerCase() === "reduceri") {
-      const loadingMsg = await message.reply(`⏳ *Caut și sortez după popularitate cele mai bune oferte de pe Steam și Epic Games...*`);
+      const loadingMsg = await message.reply(`⏳ *Caut și sortez după popularitate cele mai bune oferte prin tunelul securizat...*`);
       
       try {
         const deals = await fetchDeals(); 
@@ -1047,7 +1049,7 @@ client.on("messageCreate", async (message) => {
             const isFree = parseFloat(deal.salePrice) === 0;
             const embed = new EmbedBuilder()
               .setColor(isFree ? 0xffd700 : 0xe74c3c)
-              .setTitle(String(`🚨 OFERTĂ ACTIVĂ: ${deal.title}`).slice(0, 250)) // Scurtăm ca să nu dea eroare dacă numele e prea lung
+              .setTitle(String(`🚨 OFERTĂ ACTIVĂ: ${deal.title}`).slice(0, 250))
               .setDescription(`**${deal.store}** oferă o reducere de **${deal.savings}%**!`)
               .addFields(
                 { name: 'Preț Vechi', value: `~~$${deal.normalPrice}~~`, inline: true },
@@ -1072,7 +1074,6 @@ client.on("messageCreate", async (message) => {
         }
 
       } catch (error) {
-        // Acum bot-ul va scrie pe chat direct eroarea pe care o primește
         await loadingMsg.edit(`❌ A apărut o eroare la serverul de oferte: \`${error.message}\``).catch(() => null);
         console.error("Eroare comanda latest reduceri:", error);
       }
