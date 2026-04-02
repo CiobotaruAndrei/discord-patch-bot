@@ -30,7 +30,10 @@ function ensureStateFile() {
           notificationChannelId: "",
           seen: {},
           subscribed: false,
-          executionTimes: { all: 15000, single: 2000 } // Sistem de estimare timp
+          executionTimes: { all: 15000, single: 2000 }, // Sistem de estimare timp
+          discountChannelId: "",
+          seenDiscounts: [],
+          discountsSubscribed: false
         },
         null,
         2
@@ -41,8 +44,26 @@ function ensureStateFile() {
     // Actualizăm fișierul existent dacă nu are parametrii noi
     try {
       const data = JSON.parse(fs.readFileSync(STATE_PATH, "utf8"));
+      let changed = false;
+      
       if (!data.executionTimes) {
         data.executionTimes = { all: 15000, single: 2000 };
+        changed = true;
+      }
+      if (!data.seenDiscounts) {
+        data.seenDiscounts = [];
+        changed = true;
+      }
+      if (data.discountsSubscribed === undefined) {
+        data.discountsSubscribed = false;
+        changed = true;
+      }
+      if (data.discountChannelId === undefined) {
+        data.discountChannelId = "";
+        changed = true;
+      }
+
+      if (changed) {
         fs.writeFileSync(STATE_PATH, JSON.stringify(data, null, 2), "utf8");
       }
     } catch (e) {
@@ -651,6 +672,94 @@ async function fetchRobloxUpdate() {
 }
 
 // -------------------------------------------------------------
+// FUNCȚII NOI PENTRU REDUCERI 
+// -------------------------------------------------------------
+
+async function fetchDeals() {
+  // storeID=1 este Steam, storeID=24 este Epic Games
+  const url = "https://www.cheapshark.com/api/1.0/deals?storeID=1,24&onSale=1";
+  const res = await axios.get(url, { timeout: 15000 });
+  const deals = res.data || [];
+
+  const validDeals = deals.filter(d => {
+    const savings = parseFloat(d.savings);
+    const salePrice = parseFloat(d.salePrice);
+    const isFree = salePrice === 0;
+    
+    // Condiția 1: Reducere minim 70% SAU gratis (100%)
+    const hasGoodDiscount = savings >= 70 || isFree;
+    
+    // Condiția 2: Filtru pentru a evita zeci de jocuri slabe calitativ. 
+    // Acceptăm jocuri care au un rating bun pe Steam (>70%), scor pe Metacritic, sau dacă sunt efectiv gratis.
+    const steamRating = parseFloat(d.steamRatingPercent) || 0;
+    const metacritic = parseInt(d.metacriticScore) || 0;
+    const isQualityGame = steamRating >= 70 || metacritic > 0 || isFree;
+
+    return hasGoodDiscount && isQualityGame;
+  });
+
+  return validDeals.map(d => ({
+    id: d.dealID,
+    title: d.title,
+    salePrice: d.salePrice,
+    normalPrice: d.normalPrice,
+    savings: Math.round(parseFloat(d.savings)),
+    store: d.storeID === "1" ? "Steam" : "Epic Games",
+    link: d.storeID === "1" 
+      ? `https://store.steampowered.com/app/${d.steamAppID}`
+      : `https://www.cheapshark.com/redirect?dealID=${d.dealID}`,
+    thumbnail: d.thumb
+  }));
+}
+
+async function checkForDiscounts() {
+  const state = loadState();
+  if (!state.discountsSubscribed || !state.discountChannelId) return;
+
+  try {
+    const deals = await fetchDeals();
+    const channel = await client.channels.fetch(state.discountChannelId).catch(() => null);
+    
+    if (!channel) return;
+
+    let newDealsFound = false;
+
+    for (const deal of deals) {
+      if (!state.seenDiscounts.includes(deal.id)) {
+        state.seenDiscounts.push(deal.id);
+        newDealsFound = true;
+
+        const isFree = deal.salePrice === "0.00";
+        const embed = new EmbedBuilder()
+          .setColor(isFree ? 0xffd700 : 0xe74c3c) // Auriu pentru gratis, Roșu pentru reducere
+          .setTitle(`🚨 OFERTĂ NOUĂ: ${deal.title}`)
+          .setDescription(`**${deal.store}** oferă o reducere masivă de **${deal.savings}%**!`)
+          .addFields(
+            { name: 'Preț Vechi', value: `~~$${deal.normalPrice}~~`, inline: true },
+            { name: 'Preț Nou', value: isFree ? "🔥 GRATIS 🔥" : `$${deal.salePrice}`, inline: true },
+            { name: 'Link Către Magazin', value: `[Apasă aici pentru ofertă](${deal.link})`, inline: false }
+          )
+          .setThumbnail(deal.thumbnail)
+          .setTimestamp();
+
+        await channel.send({ embeds: [embed] });
+      }
+    }
+
+    if (newDealsFound) {
+      // Tăiem lista la ultimele 300 de ID-uri ca să nu blocăm fișierul state.json în timp
+      if (state.seenDiscounts.length > 300) {
+        state.seenDiscounts = state.seenDiscounts.slice(-300);
+      }
+      saveState(state);
+    }
+
+  } catch (error) {
+    console.error("Eroare la căutarea reducerilor:", error.message);
+  }
+}
+
+// -------------------------------------------------------------
 // DISPECERUL PRINCIPAL
 // -------------------------------------------------------------
 
@@ -786,8 +895,9 @@ client.once("ready", async () => {
   setInterval(async () => {
     try {
       await checkForUpdates();
+      await checkForDiscounts(); // Scanăm de oferte odată cu update-urile
     } catch (error) {
-      console.error("Eroare în checkForUpdates:", error);
+      console.error("Eroare în Loop-ul principal:", error);
     }
   }, Number(config.checkIntervalMinutes || 30) * 60 * 1000);
 });
@@ -861,6 +971,34 @@ client.on("messageCreate", async (message) => {
     saveState(state);
 
     await message.reply("🛑 Am oprit notificările automate.");
+    return;
+  }
+
+  if (command === "startreduceri") {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      return message.reply(`⛔ Doar un administrator poate folosi comanda **${PREFIX}startreduceri**.`);
+    }
+
+    const state = loadState();
+    state.discountChannelId = message.channel.id;
+    state.discountsSubscribed = true;
+    saveState(state);
+    
+    await message.reply("✅ Am activat scannerul de reduceri masive (70%+ și gratuite) pentru Steam și Epic. Caut oferte acum...");
+    await checkForDiscounts();
+    return;
+  }
+
+  if (command === "stopreduceri") {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      return message.reply(`⛔ Doar un administrator poate folosi comanda **${PREFIX}stopreduceri**.`);
+    }
+
+    const state = loadState();
+    state.discountsSubscribed = false;
+    saveState(state);
+    
+    await message.reply("🛑 Am oprit notificările pentru reduceri.");
     return;
   }
 
@@ -958,6 +1096,10 @@ client.on("messageCreate", async (message) => {
       `> Activează alertele automate pe canalul curent.\n\n` +
       `**${PREFIX}stopupdates** *(Admin)*\n` +
       `> Oprește alertele automate.\n\n` +
+      `**${PREFIX}startreduceri** *(Admin)*\n` +
+      `> Pornește alertele pentru reduceri masive (70%+) și jocuri gratis (Steam/Epic).\n\n` +
+      `**${PREFIX}stopreduceri** *(Admin)*\n` +
+      `> Oprește alertele de reduceri.\n\n` +
       `**${PREFIX}ping**\n` +
       `> Verifică dacă botul răspunde.`;
 
