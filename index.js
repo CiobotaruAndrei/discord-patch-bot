@@ -255,8 +255,13 @@ async function fetchSteamUpdate(game) {
 
   const cleanExcerpt = cleanText(latest.contents).slice(0, 700);
   
-  // SOLUȚIA DIRECTĂ: Folosim exclusiv link-ul pe care Steam însuși îl furnizează în API, fără a genera nimic manual.
-  const exactArticleLink = latest.url ? String(latest.url).trim() : `https://store.steampowered.com/news/app/${game.appId}`;
+  // Verificăm dacă link-ul returnat de Steam e doar o imagine (.steamstatic.com)
+  let exactArticleLink = String(latest.url || "").trim();
+
+  if (!exactArticleLink || exactArticleLink.includes("steamstatic.com") || exactArticleLink.includes("steamcdn")) {
+    // Dacă e poză, generăm link-ul sigur din comunitatea Steam care acceptă vechiul GID
+    exactArticleLink = `https://steamcommunity.com/games/${game.appId}/announcements/detail/${latest.gid}`;
+  }
 
   return {
     id: String(latest.gid),
