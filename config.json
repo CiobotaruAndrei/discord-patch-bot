@@ -35,9 +35,12 @@
       "key": "battlefront2",
       "name": "Star Wars Battlefront II",
       "type": "listing_based",
-      "listingUrl": "https://forums.ea.com/category/star-wars-games-en/discussions/star-wars-battlefront-2-en",
+      "listingUrls": [
+        "https://forums.ea.com/category/star-wars-games-en/discussions/star-wars-battlefront-2-en"
+      ],
       "baseUrl": "https://forums.ea.com",
-      "articleHrefRegex": "href=[\"']([^\"']*\\/discussions\\/star-wars-battlefront-2-en\\/[^\"']*(?:release-notes|patch|update)[^\"']*)[\"']"
+      "articleHrefRegex": "/discussions/star-wars-battlefront-2-en/",
+      "requireKeywords": ["release-notes", "patch", "update"]
     },
     {
       "key": "rocketleague",
@@ -72,10 +75,16 @@
       "key": "fortnite",
       "name": "Fortnite",
       "type": "epic_games",
-      "listingUrl": "https://www.fortnite.com/news",
+      "listingUrls": [
+        "https://www.fortnite.com/news",
+        "https://www.fortnite.com/news?page=2",
+        "https://www.fortnite.com/news?page=3",
+        "https://www.fortnite.com/news/tag/all-news",
+        "https://www.fortnite.com/news/tag/all-news?page=2"
+      ],
       "baseUrl": "https://www.fortnite.com",
-      "articleHrefRegex": "href=[\"']([^\"']*\\/news\\/[^\"']+)[\"']",
-      "requireKeywords": ["update", "patch", "release-notes", "update-notes"],
+      "articleHrefRegex": "/news/",
+      "requireKeywords": ["update", "patch", "release-notes", "update-notes", "ecosystem-v"],
       "thumbnail": "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png"
     },
     {
@@ -87,18 +96,24 @@
       "key": "valorant",
       "name": "VALORANT",
       "type": "listing_based",
-      "listingUrl": "https://playvalorant.com/en-us/news/tags/patch-notes/",
+      "listingUrls": [
+        "https://playvalorant.com/en-us/news/tags/patch-notes/"
+      ],
       "baseUrl": "https://playvalorant.com",
-      "articleHrefRegex": "href=[\"']([^\"']*\\/news\\/game-updates\\/[^\"']*patch[^\"']*)[\"']",
+      "articleHrefRegex": "/news/game-updates/",
+      "requireKeywords": ["patch"],
       "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/f/fc/Valorant_logo_-_pink_color_version.svg"
     },
     {
       "key": "lol",
       "name": "League of Legends",
       "type": "listing_based",
-      "listingUrl": "https://www.leagueoflegends.com/en-us/news/tags/patch-notes/",
+      "listingUrls": [
+        "https://www.leagueoflegends.com/en-us/news/tags/patch-notes/"
+      ],
       "baseUrl": "https://www.leagueoflegends.com",
-      "articleHrefRegex": "href=[\"']([^\"']*\\/en-us\\/news\\/game-updates\\/[^\"']*patch[^\"']*)[\"']",
+      "articleHrefRegex": "/news/game-updates/",
+      "requireKeywords": ["patch"],
       "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/d/d8/League_of_Legends_2019_vector.svg"
     }
   ]
