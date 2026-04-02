@@ -34,13 +34,8 @@
     {
       "key": "battlefront2",
       "name": "Star Wars Battlefront II",
-      "type": "listing_based",
-      "listingUrls": [
-        "https://forums.ea.com/category/star-wars-games-en/discussions/star-wars-battlefront-2-en"
-      ],
-      "baseUrl": "https://forums.ea.com",
-      "articleHrefRegex": "/discussions/star-wars-battlefront-2-en/",
-      "requireKeywords": ["release-notes", "patch", "update"]
+      "type": "steam",
+      "appId": "1237950"
     },
     {
       "key": "rocketleague",
