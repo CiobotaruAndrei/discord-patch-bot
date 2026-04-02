@@ -511,6 +511,36 @@ async function fetchRobloxUpdate() {
   };
 }
 
+// Funcția pentru preluarea driverelor via Google News RSS
+async function fetchDriverUpdate(game) {
+  // Construim URL-ul folosind query-ul specific fiecărui driver din config.json
+  const encodedQuery = encodeURIComponent(game.query);
+  const rssUrl = `https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fnews.google.com%2Frss%2Fsearch%3Fq%3D${encodedQuery}%26hl%3Den-US%26gl%3DUS%26ceid%3DUS%3Aen`;
+
+  // Apelăm feed-ul
+  const res = await axios.get(rssUrl, { timeout: 15000 });
+  const items = res?.data?.items;
+
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error(`Nu am găsit articole recente pentru ${game.name}.`);
+  }
+
+  // Luăm primul rezultat (cel mai recent)
+  const latest = items[0];
+  
+  // Curățăm titlul de terminologia Google News (ex: " - NVIDIA")
+  const cleanTitle = cleanText(latest.title).split(" - ")[0];
+
+  return {
+    id: String(latest.guid || latest.link),
+    title: cleanTitle || `Update nou pentru ${game.name}`,
+    link: latest.link,
+    excerpt: `O nouă versiune oficială pentru ${game.name} este acum disponibilă. Verifică link-ul pentru detalii și download.`,
+    thumbnail: game.thumbnail, // Folosim logo-urile definite in config
+    timestamp: latest.pubDate ? new Date(latest.pubDate).toISOString() : new Date().toISOString()
+  };
+}
+
 async function fetchGameUpdate(game) {
   if (!game.type || game.type === "steam") {
     return await fetchSteamUpdate(game);
@@ -534,6 +564,10 @@ async function fetchGameUpdate(game) {
 
   if (game.type === "listing_based") {
     return await fetchListingBasedUpdate(game);
+  }
+
+  if (game.type === "driver") {
+    return await fetchDriverUpdate(game);
   }
 
   throw new Error(`Tip de joc necunoscut pentru ${game.name}.`);
