@@ -671,26 +671,49 @@ async function fetchRobloxUpdate() {
 }
 
 // -------------------------------------------------------------
-// FUNCȚII NOI PENTRU REDUCERI - REPARATE CU PROXY
+// FUNCȚII NOI PENTRU REDUCERI - SISTEM TRUPLU TUNEL 
 // -------------------------------------------------------------
 
 async function fetchDeals() {
-  // Trecem cererea prin proxy-ul gratuit AllOrigins pentru a ocoli blocajul Cloudflare
   const targetUrl = "https://www.cheapshark.com/api/1.0/deals?storeID=1,24&onSale=1";
-  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-  
-  const res = await axios.get(proxyUrl, { timeout: 20000 });
-  
-  // AllOrigins returnează datele site-ului ca un string JSON în proprietatea "contents"
-  let deals = [];
+  let deals = null;
+
+  // Metoda 1: Tunelul AllOrigins (Cel folosit la driverele Intel/AMD)
   try {
-    deals = JSON.parse(res?.data?.contents || "[]");
-  } catch (e) {
-    throw new Error("Proxy-ul a returnat date invalide sau a fost blocat.");
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+    const res = await axios.get(proxyUrl, { timeout: 15000 });
+    if (res?.data?.contents) {
+      deals = JSON.parse(res.data.contents);
+    }
+  } catch (err) {}
+
+  // Metoda 2: Tunelul Codetabs (Un alt proxy public puternic)
+  if (!Array.isArray(deals) || deals.length === 0) {
+    try {
+      const proxyUrl2 = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
+      const res2 = await axios.get(proxyUrl2, { timeout: 15000 });
+      if (Array.isArray(res2.data)) deals = res2.data;
+    } catch (err) {}
+  }
+
+  // Metoda 3: Conexiune directă cu deghizare maximă de browser
+  if (!Array.isArray(deals) || deals.length === 0) {
+    try {
+      const res3 = await axios.get(targetUrl, {
+        timeout: 15000,
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "application/json"
+        }
+      });
+      if (Array.isArray(res3.data)) deals = res3.data;
+    } catch (err) {
+       throw new Error("Securitatea site-ului a blocat toate cele 3 metode de conectare.");
+    }
   }
 
   if (!Array.isArray(deals) || deals.length === 0) {
-    throw new Error("Nu s-au putut extrage ofertele (lista este goală).");
+    throw new Error("Nu s-au putut extrage ofertele (lista primită a fost goală sau invalidă).");
   }
 
   const validDeals = deals.filter(d => {
@@ -698,8 +721,10 @@ async function fetchDeals() {
     const salePrice = parseFloat(d.salePrice) || 0;
     const isFree = salePrice === 0;
     
+    // Condiția 1: Reducere minim 70% SAU gratis (100%)
     const hasGoodDiscount = savings >= 70 || isFree;
     
+    // Condiția 2: Filtru pentru a evita zeci de jocuri slabe calitativ. 
     const steamRating = parseFloat(d.steamRatingPercent) || 0;
     const metacritic = parseInt(d.metacriticScore) || 0;
     const isQualityGame = steamRating >= 70 || metacritic > 0 || isFree;
@@ -721,6 +746,7 @@ async function fetchDeals() {
     popularityScore: (parseInt(d.steamRatingCount) || 0) + ((parseInt(d.metacriticScore) || 0) * 100)
   }));
 
+  // Sortăm descrescător după popularitate
   sortedDeals.sort((a, b) => b.popularityScore - a.popularityScore);
 
   return sortedDeals;
@@ -1023,7 +1049,7 @@ client.on("messageCreate", async (message) => {
     // VERIFICARE NOUĂ: Dacă utilizatorul a scris "latest reduceri"
     // ---------------------------------------------------------
     if (args.length > 0 && args[0].toLowerCase() === "reduceri") {
-      const loadingMsg = await message.reply(`⏳ *Caut și sortez după popularitate cele mai bune oferte prin tunelul securizat...*`);
+      const loadingMsg = await message.reply(`⏳ *Caut și sortez după popularitate cele mai bune oferte prin tunelul securizat triplu...*`);
       
       try {
         const deals = await fetchDeals(); 
