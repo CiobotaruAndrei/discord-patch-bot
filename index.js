@@ -248,7 +248,9 @@ async function fetchSteamUpdate(game) {
   }
 
   const cleanExcerpt = cleanText(latest.contents).slice(0, 700);
-  const exactArticleLink = `https://store.steampowered.com/news/app/${game.appId}/view/${latest.gid}`;
+  
+  // Utilizăm direct permalink-ul furnizat de Steam din interiorul API-ului (latest.url).
+  const exactArticleLink = String(latest.url || "").trim() || `https://store.steampowered.com/news/app/${game.appId}`;
 
   return {
     id: String(latest.gid),
@@ -402,23 +404,49 @@ async function fetchEpicGamesUpdate(game) {
 }
 
 async function fetchFortniteUpdate() {
-  const res = await axios.get("https://fortnite-api.com/v2/news", { timeout: 15000 });
-  const motds = res?.data?.data?.br?.motds;
+  // Accesăm pagina web unde Epic publică oficial noutățile
+  const url = "https://www.fortnite.com/news";
+  const res = await axios.get(url, {
+    timeout: 15000,
+    headers: { "User-Agent": "Mozilla/5.0" }
+  });
 
-  if (!Array.isArray(motds) || motds.length === 0) {
-    throw new Error("Nu am găsit noutăți pentru Fortnite pe serverul API.");
+  const html = String(res.data || "");
+  const anchors = parseAnchors(html, "https://www.fortnite.com");
+
+  // Extragem strict link-urile valide care conțin un articol individual
+  const validArticles = anchors.filter(a => {
+    return a.href && 
+           a.href.includes("/news/") && 
+           !a.href.endsWith("/news") && 
+           !a.href.includes("?page=") &&
+           !a.href.includes("/tag/");
+  });
+
+  if (!validArticles.length) {
+    throw new Error("Nu am putut găsi articole pe pagina de noutăți Fortnite.");
   }
 
-  const latest = motds[0];
+  // Filtrăm duplicatele și selectăm primul articol găsit (care e și cel mai nou)
+  const uniqueArticles = uniqueByHref(validArticles);
+  const latestArticle = uniqueArticles[0];
+
+  // Extragem direct metadatele de pe pagina articolului
+  const articleRes = await axios.get(latestArticle.href, {
+    timeout: 15000,
+    headers: { "User-Agent": "Mozilla/5.0" }
+  });
+  
+  const articleHtml = String(articleRes.data || "");
 
   return {
-    id: String(latest.id),
-    title: latest.title || "Fortnite: Noutăți",
-    link: latest.websiteURL || "https://www.fortnite.com/news",
-    excerpt: cleanText(latest.body) || "A apărut o nouă actualizare sau un nou eveniment în Fortnite.",
-    image: latest.image, 
+    id: latestArticle.href, // Ne folosim direct de link ca identificator unic
+    title: extractTitleFromHtml(articleHtml) || cleanText(latestArticle.text) || "Fortnite: Noutăți Noi",
+    link: latestArticle.href,
+    excerpt: extractDescriptionFromHtml(articleHtml).slice(0, 700) || "A apărut un nou articol oficial pentru Fortnite.",
+    image: extractImageFromHtml(articleHtml),
     thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
-    timestamp: new Date().toISOString()
+    timestamp: extractPublishedTimeFromHtml(articleHtml)
   };
 }
 
