@@ -491,7 +491,7 @@ async function fetchRobloxUpdate() {
 }
 
 // -------------------------------------------------------------
-// FUNCȚII NOI PENTRU REDUCERI - SISTEM HIBRID (SHADOW QUERY)
+// FUNCȚII NOI PENTRU REDUCERI - SISTEM HIBRID AVANSAT
 // -------------------------------------------------------------
 
 async function fetchDeals() {
@@ -534,7 +534,7 @@ async function fetchDeals() {
     return (savings >= 70 || isFree) && (steamRating >= 70 || metacritic > 0 || isFree);
   });
 
-  const sortedDeals = validDeals.map(d => ({
+  let sortedDeals = validDeals.map(d => ({
     id: d.dealID, steamAppID: d.steamAppID,
     title: d.title || "Joc Necunoscut",
     salePrice: d.salePrice || "0.00",
@@ -548,16 +548,24 @@ async function fetchDeals() {
   }));
 
   sortedDeals.sort((a, b) => b.popularityScore - a.popularityScore);
-  return sortedDeals;
+
+  // NOU: Forțăm o împărțire corectă ca Steam să nu domine topul din cauza numărului uriaș de recenzii.
+  // Luăm top 25 de la Epic și top 25 de la Steam.
+  const steamDeals = sortedDeals.filter(d => d.store === "Steam").slice(0, 25);
+  const epicDeals = sortedDeals.filter(d => d.store === "Epic Games").slice(0, 25);
+
+  const finalTop50 = [...epicDeals, ...steamDeals];
+  return finalTop50;
 }
 
-// Magia din fundal: Îmbogățim fiecare ofertă cu date suplimentare (Shadow Query)
+// Magia din fundal: Îmbogățim fiecare ofertă cu date suplimentare (Aici "citim" datele de expirare inclusiv pt Steam)
 async function enrichDealData(deal) {
   deal.endDateStr = "Nespecificat";
   deal.extraDetails = "";
 
   if (deal.store === "Steam" && deal.steamAppID) {
     try {
+      // 1. Obținem detalii platforme/lansare din API
       const url = `https://store.steampowered.com/api/appdetails?appids=${deal.steamAppID}`;
       const res = await axios.get(url, { timeout: 5000 });
       const data = res.data[deal.steamAppID]?.data;
@@ -572,7 +580,22 @@ async function enrichDealData(deal) {
           if (plats.length > 0) deal.extraDetails += `\n**Platforme:** ${plats.join(", ")}`;
         }
       }
-    } catch (e) { /* Ignorăm erorile la Steam API pentru a nu bloca afișarea */ }
+      
+      // 2. Citim pagina web fizică a Steam pentru a găsi data de expirare ascunsă
+      const htmlRes = await axios.get(deal.link, {
+        timeout: 5000,
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          // Setăm limba pe engleză pentru a prinde textul fix cum apare în poză și trecem de confirmarea vârstei
+          "Cookie": "strLanguage=english; birthtime=283993201; mature_content=1;" 
+        }
+      });
+      // Căutăm textele de reducere pe engleză
+      const match = htmlRes.data.match(/Offer ends\s+([^<]+)/i);
+      if (match && match[1]) {
+        deal.endDateStr = match[1].trim();
+      }
+    } catch (e) { /* Ignorăm erorile pentru a nu bloca afișarea */ }
   } 
   else if (deal.store === "Epic Games") {
     try {
@@ -772,13 +795,11 @@ client.on("messageCreate", async (message) => {
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const command = (args.shift() || "").toLowerCase();
 
-  // 1. PING
   if (command === "ping") {
     await message.reply("Pong! 🏓 Sistemele sunt operaționale.");
     return;
   }
 
-  // 2. GAMES
   if (command === "games") {
     await message.reply(
       `🎮 **Jocuri urmărite:**\n${config.games.map((g) => `- **${g.name}**`).join("\n")}`
@@ -786,7 +807,6 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  // 3. PORECLE
   if (command === "porecle") {
     const list = config.games.map((g) => `**${g.name}** -> folosește porecla: \`${g.key}\``).join("\n");
     await message.reply(
@@ -795,7 +815,6 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  // 4. STARTUPDATES
   if (command === "startupdates") {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       await message.reply(`⛔ Doar un administrator poate folosi comanda **${PREFIX}startupdates**.`);
@@ -810,7 +829,6 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  // 5. STOPUPDATES
   if (command === "stopupdates") {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       await message.reply(`⛔ Doar un administrator poate folosi comanda **${PREFIX}stopupdates**.`);
@@ -823,7 +841,6 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  // 6. STARTREDUCERI
   if (command === "startreduceri") {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return message.reply(`⛔ Doar un administrator poate folosi comanda **${PREFIX}startreduceri**.`);
@@ -837,7 +854,6 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  // 7. STOPREDUCERI
   if (command === "stopreduceri") {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return message.reply(`⛔ Doar un administrator poate folosi comanda **${PREFIX}stopreduceri**.`);
@@ -849,17 +865,15 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  // 8. LATEST / LATEST REDUCERI
   if (command === "latest") {
-    
     // --- LATEST REDUCERI ---
     if (args.length > 0 && args[0].toLowerCase() === "reduceri") {
-      const loadingMsg = await message.reply(`⏳ *Caut ofertele și extrag datele avansate direct de pe servere...*`);
+      const loadingMsg = await message.reply(`⏳ *Caut ofertele și extrag datele de expirare de pe Steam și Epic Games...*`);
       
       try {
         const deals = await fetchDeals(); 
         if (!deals || deals.length === 0) {
-          await loadingMsg.edit(`❌ Momentan nu am găsit nicio ofertă.`);
+          await loadingMsg.edit(`❌ Momentan nu am găsit nicio ofertă care să îndeplinească criteriile.`);
           return;
         }
 
@@ -867,26 +881,23 @@ client.on("messageCreate", async (message) => {
         const maxDeals = deals.slice(0, 50); 
 
         if (maxDeals.length > 10) {
-          await message.channel.send(`ℹ️ *Am găsit ${deals.length} oferte! Pentru a extrage data de expirare și a evita blocajele, trimit câte 10 oferte, la interval de 20 de secunde.*`);
+          await message.channel.send(`ℹ️ *Am extras o selecție echilibrată de oferte Epic și Steam. Trimit câte 10 jocuri la fiecare 20 de secunde pentru a evita blocajele serverelor...*`);
         }
 
         for (let i = 0; i < maxDeals.length; i += 10) {
           const rawChunk = maxDeals.slice(i, i + 10);
-          
-          // Aici se rulează interogarea secretă către Steam/Epic
           const chunk = await Promise.all(rawChunk.map(enrichDealData));
-          
           const embedsToSend = [];
 
           for (const deal of chunk) {
             const isFree = parseFloat(deal.salePrice) === 0;
             const embed = new EmbedBuilder()
               .setColor(isFree ? 0x0099ff : 0x2b2d31)
-              .setTitle(`Free Game: ${String(deal.title).slice(0, 200)}`)
+              .setTitle(`${isFree ? "Free Game: " : "Reducere: "}${String(deal.title).slice(0, 200)}`)
               .setAuthor({ name: deal.store })
               .setDescription(
                 `**Price:**\n~~$${deal.normalPrice}~~ ${isFree ? "FREE" : `$${deal.salePrice} (-${deal.savings}%)`}\n\n` +
-                (deal.endDateStr !== "Nespecificat" ? `**Free until / Expira la:**\n${deal.endDateStr}\n\n` : "") +
+                (deal.endDateStr !== "Nespecificat" ? `**Free until / Offer ends:**\n${deal.endDateStr}\n\n` : "") +
                 (deal.store === "Steam" ? `**All Reviews:**\n${deal.steamRatingText}\n` : "") +
                 (deal.extraDetails ? `${deal.extraDetails}\n\n` : "\n") +
                 `🔗 [Accesează Magazinul](${deal.link})`
@@ -909,7 +920,7 @@ client.on("messageCreate", async (message) => {
         }
 
       } catch (error) {
-        await loadingMsg.edit(`❌ A apărut o eroare la serverul de oferte: \`${error.message}\``).catch(() => null);
+        await loadingMsg.edit(`❌ A apărut o eroare la extragerea datelor: \`${error.message}\``).catch(() => null);
         console.error("Eroare comanda latest reduceri:", error);
       }
       return; 
@@ -972,7 +983,6 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  // 9. HELP
   if (command === "help") {
     const helpMessage =
       `🤖 **MENIUL DE AJUTOR - BIG MASTER** 🤖\n` +
@@ -988,7 +998,7 @@ client.on("messageCreate", async (message) => {
       `**${PREFIX}latest [poreclă]**\n` +
       `> Vezi ultimul update pentru un joc specific.\n\n` +
       `**${PREFIX}latest reduceri**\n` +
-      `> Vezi instantaneu top 50 oferte (cu date extrase direct din serverele Steam/Epic).\n\n` +
+      `> Vezi instantaneu top 50 oferte Steam și Epic Games, inclusiv datele de expirare.\n\n` +
       `**${PREFIX}startupdates** *(Admin)*\n` +
       `> Activează alertele automate de update-uri.\n\n` +
       `**${PREFIX}stopupdates** *(Admin)*\n` +
