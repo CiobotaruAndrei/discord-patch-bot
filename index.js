@@ -257,8 +257,8 @@ async function fetchSteamUpdate(game) {
   
   let exactArticleLink = String(latest.url || "").trim();
 
-  // Filtru testat: Dacă e o poză (steamstatic), forțăm linkul stabil din comunitate
-  if (!exactArticleLink || exactArticleLink.includes("steamstatic.com") || exactArticleLink.includes("steamcdn")) {
+  // Filtrul corectat: prinde orice variantă de server de imagini Steam (steamstatic, steamcdn, mai.steamstatic etc.)
+  if (!exactArticleLink || exactArticleLink.includes("steamstatic") || exactArticleLink.includes("steamcdn") || !exactArticleLink.startsWith("http")) {
     exactArticleLink = `https://steamcommunity.com/games/${game.appId}/announcements/detail/${latest.gid}`;
   }
 
