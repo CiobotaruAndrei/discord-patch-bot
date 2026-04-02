@@ -233,11 +233,53 @@ function isGoodSteamArticleUrl(url) {
   return /store\.steampowered\.com|steamcommunity\.com/i.test(value);
 }
 
+function buildSteamArticleUrl(appId, gid) {
+  if (!appId || !gid) return "";
+  return `https://store.steampowered.com/news/app/${appId}/view/${gid}`;
+}
+
 function getSteamFallbackNewsLink(game) {
   if (game.appId) {
     return `https://store.steampowered.com/news/app/${game.appId}`;
   }
   return "";
+}
+
+async function urlLooksValid(url) {
+  if (!url) return false;
+
+  try {
+    const response = await axios.get(url, {
+      timeout: 12000,
+      maxRedirects: 5,
+      headers: {
+        "User-Agent": "Mozilla/5.0"
+      }
+    });
+
+    const html = String(response.data || "");
+
+    if (/Event does not exist/i.test(html)) {
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+async function chooseBestSteamLink(game, latest) {
+  if (isGoodSteamArticleUrl(latest.url)) {
+    return latest.url;
+  }
+
+  const constructed = buildSteamArticleUrl(game.appId, latest.gid);
+  if (constructed && (await urlLooksValid(constructed))) {
+    return constructed;
+  }
+
+  return getSteamFallbackNewsLink(game);
 }
 
 async function fetchSteamUpdate(game) {
@@ -266,9 +308,7 @@ async function fetchSteamUpdate(game) {
   }
 
   const cleanExcerpt = cleanText(latest.contents).slice(0, 700);
-  const chosenLink = isGoodSteamArticleUrl(latest.url)
-    ? latest.url
-    : getSteamFallbackNewsLink(game);
+  const chosenLink = await chooseBestSteamLink(game, latest);
 
   return {
     id: String(latest.gid),
@@ -303,7 +343,15 @@ async function fetchListingBasedUpdate(game) {
 
   const listHtml = String(listRes.data || "");
   const articleRegex = new RegExp(game.articleHrefRegex, "gi");
-  const links = extractLinksWithRegex(listHtml, game.baseUrl, articleRegex);
+  let links = extractLinksWithRegex(listHtml, game.baseUrl, articleRegex);
+
+  if (game.requireKeywords && Array.isArray(game.requireKeywords) && game.requireKeywords.length) {
+    const loweredKeywords = game.requireKeywords.map((k) => String(k).toLowerCase());
+    links = links.filter((link) => {
+      const value = String(link).toLowerCase();
+      return loweredKeywords.some((keyword) => value.includes(keyword));
+    });
+  }
 
   if (!links.length) {
     throw new Error(`Nu am găsit articole de update pentru ${game.name}.`);
@@ -362,34 +410,8 @@ async function fetchMinecraftUpdate() {
   };
 }
 
-async function fetchFortniteUpdate() {
-  const res = await axios.get("https://fortnite-api.com/v2/aes", {
-    timeout: 15000
-  });
-
-  const build = res?.data?.data?.build;
-
-  if (!build) {
-    throw new Error("Date lipsă Fortnite.");
-  }
-
-  const officialArticle = await fetchListingBasedUpdate({
-    name: "Fortnite",
-    listingUrl: "https://www.fortnite.com/news",
-    baseUrl: "https://www.fortnite.com",
-    articleHrefRegex: 'href=["\']([^"\']*\\/news\\/[^"\']*(?:update-notes|patch-notes)[^"\']*)["\']'
-  });
-
-  return {
-    id: String(build),
-    title: officialArticle.title,
-    link: officialArticle.link,
-    excerpt: officialArticle.excerpt,
-    image: officialArticle.image,
-    thumbnail:
-      "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
-    timestamp: officialArticle.timestamp
-  };
+async function fetchEpicGamesUpdate(game) {
+  return await fetchListingBasedUpdate(game);
 }
 
 async function fetchRobloxUpdate() {
@@ -424,8 +446,8 @@ async function fetchGameUpdate(game) {
     return await fetchMinecraftUpdate();
   }
 
-  if (game.type === "fortnite") {
-    return await fetchFortniteUpdate();
+  if (game.type === "epic_games") {
+    return await fetchEpicGamesUpdate(game);
   }
 
   if (game.type === "roblox") {
