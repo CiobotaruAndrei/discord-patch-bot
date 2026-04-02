@@ -696,7 +696,7 @@ async function fetchDeals() {
     return hasGoodDiscount && isQualityGame;
   });
 
-  return validDeals.map(d => ({
+  const sortedDeals = validDeals.map(d => ({
     id: d.dealID,
     title: d.title,
     salePrice: d.salePrice,
@@ -706,8 +706,14 @@ async function fetchDeals() {
     link: d.storeID === "1" 
       ? `https://store.steampowered.com/app/${d.steamAppID}`
       : `https://www.cheapshark.com/redirect?dealID=${d.dealID}`,
-    thumbnail: d.thumb
+    thumbnail: d.thumb,
+    popularityScore: (parseInt(d.steamRatingCount) || 0) + ((parseInt(d.metacriticScore) || 0) * 100) // Punctaj bazat pe nr recenzii și scor metacritic
   }));
+
+  // Sortăm descrescător după popularitate pentru a obține cele mai bune/populare jocuri
+  sortedDeals.sort((a, b) => b.popularityScore - a.popularityScore);
+
+  return sortedDeals;
 }
 
 async function checkForDiscounts() {
@@ -999,60 +1005,66 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  if (command === "reduceri") {
-    const loadingMsg = await message.reply(`⏳ *Caut cele mai bune oferte de moment pe Steam și Epic Games...*`);
-    
-    try {
-      const deals = await fetchDeals();
-      
-      if (!deals || deals.length === 0) {
-        await loadingMsg.edit(`❌ Momentan nu am găsit nicio reducere de peste 70% sau jocuri gratuite care să îndeplinească criteriile noastre.`);
-        return;
-      }
-
-      await loadingMsg.delete().catch(() => null);
-
-      const maxDeals = deals.slice(0, 50); 
-
-      if (maxDeals.length > 10) {
-        await message.channel.send(`ℹ️ *Am găsit **${deals.length}** de oferte excelente! Pentru a evita blocarea botului de către Discord (spamming), voi lista maxim 50 de jocuri. Acestea vor fi trimise în grupuri de câte 10, la un interval de 20 de secunde.*`);
-      }
-
-      for (let i = 0; i < maxDeals.length; i += 10) {
-        const chunk = maxDeals.slice(i, i + 10);
-        const embedsToSend = [];
-
-        for (const deal of chunk) {
-          const isFree = deal.salePrice === "0.00";
-          const embed = new EmbedBuilder()
-            .setColor(isFree ? 0xffd700 : 0xe74c3c)
-            .setTitle(`🚨 OFERTĂ ACTIVĂ: ${deal.title}`)
-            .setDescription(`**${deal.store}** oferă o reducere de **${deal.savings}%**!`)
-            .addFields(
-              { name: 'Preț Vechi', value: `~~$${deal.normalPrice}~~`, inline: true },
-              { name: 'Preț Nou', value: isFree ? "🔥 GRATIS 🔥" : `$${deal.salePrice}`, inline: true },
-              { name: 'Link Către Magazin', value: `[Apasă aici pentru ofertă](${deal.link})`, inline: false }
-            )
-            .setThumbnail(deal.thumbnail);
-          
-          embedsToSend.push(embed);
-        }
-
-        await message.channel.send({ embeds: embedsToSend });
-
-        if (i + 10 < maxDeals.length) {
-          await new Promise(resolve => setTimeout(resolve, 20000));
-        }
-      }
-
-    } catch (error) {
-      await loadingMsg.edit(`❌ A apărut o eroare la căutarea ofertelor.`);
-      console.error("Eroare comanda reduceri:", error);
-    }
-    return;
-  }
-
   if (command === "latest") {
+    // ---------------------------------------------------------
+    // VERIFICARE NOUĂ: Dacă utilizatorul a scris "latest reduceri"
+    // ---------------------------------------------------------
+    if (args.length > 0 && args[0].toLowerCase() === "reduceri") {
+      const loadingMsg = await message.reply(`⏳ *Caut și sortez după popularitate cele mai bune oferte de pe Steam și Epic Games...*`);
+      
+      try {
+        const deals = await fetchDeals(); // FetchDeals acum le și sortează
+        
+        if (!deals || deals.length === 0) {
+          await loadingMsg.edit(`❌ Momentan nu am găsit nicio reducere de peste 70% sau jocuri gratuite care să îndeplinească criteriile noastre.`);
+          return;
+        }
+
+        await loadingMsg.delete().catch(() => null);
+
+        const maxDeals = deals.slice(0, 50); 
+
+        if (maxDeals.length > 10) {
+          await message.channel.send(`ℹ️ *Am găsit și sortat cele mai populare **${deals.length}** oferte! Pentru a evita spamming-ul, voi lista top 50 de jocuri, trimise în grupuri de câte 10, la interval de 20 de secunde.*`);
+        }
+
+        for (let i = 0; i < maxDeals.length; i += 10) {
+          const chunk = maxDeals.slice(i, i + 10);
+          const embedsToSend = [];
+
+          for (const deal of chunk) {
+            const isFree = deal.salePrice === "0.00";
+            const embed = new EmbedBuilder()
+              .setColor(isFree ? 0xffd700 : 0xe74c3c)
+              .setTitle(`🚨 OFERTĂ ACTIVĂ: ${deal.title}`)
+              .setDescription(`**${deal.store}** oferă o reducere de **${deal.savings}%**!`)
+              .addFields(
+                { name: 'Preț Vechi', value: `~~$${deal.normalPrice}~~`, inline: true },
+                { name: 'Preț Nou', value: isFree ? "🔥 GRATIS 🔥" : `$${deal.salePrice}`, inline: true },
+                { name: 'Link Către Magazin', value: `[Apasă aici pentru ofertă](${deal.link})`, inline: false }
+              )
+              .setThumbnail(deal.thumbnail);
+            
+            embedsToSend.push(embed);
+          }
+
+          await message.channel.send({ embeds: embedsToSend });
+
+          if (i + 10 < maxDeals.length) {
+            await new Promise(resolve => setTimeout(resolve, 20000));
+          }
+        }
+
+      } catch (error) {
+        await loadingMsg.edit(`❌ A apărut o eroare la căutarea ofertelor.`);
+        console.error("Eroare comanda latest reduceri:", error);
+      }
+      return; // Ieșim ca să nu continue cu restul comenzii latest normale
+    }
+
+    // ---------------------------------------------------------
+    // Comanda originală "latest" normală (update-uri jocuri)
+    // ---------------------------------------------------------
     const state = loadState();
     const isAll = args.length === 0;
     const estType = isAll ? "all" : "single";
@@ -1139,8 +1151,8 @@ client.on("messageCreate", async (message) => {
       `> Vezi cele mai recente update-uri pentru toate jocurile.\n\n` +
       `**${PREFIX}latest [poreclă]**\n` +
       `> Vezi ultimul update pentru un joc specific.\n\n` +
-      `**${PREFIX}reduceri**\n` +
-      `> Vezi instantaneu top 50 cele mai bune oferte (peste 70% reducere sau gratis) de pe Steam și Epic Games.\n\n` +
+      `**${PREFIX}latest reduceri**\n` +
+      `> Vezi instantaneu top 50 cele mai bune și populare oferte (peste 70% reducere sau gratis) de pe Steam și Epic Games.\n\n` +
       `**${PREFIX}startupdates** *(Admin)*\n` +
       `> Activează alertele automate pe canalul curent.\n\n` +
       `**${PREFIX}stopupdates** *(Admin)*\n` +
