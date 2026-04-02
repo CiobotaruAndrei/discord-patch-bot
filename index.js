@@ -29,13 +29,25 @@ function ensureStateFile() {
         {
           notificationChannelId: "",
           seen: {},
-          subscribed: false
+          subscribed: false,
+          executionTimes: { all: 15000, single: 2000 } // Sistem de estimare timp
         },
         null,
         2
       ),
       "utf8"
     );
+  } else {
+    // Actualizăm fișierul existent dacă nu are parametrii noi
+    try {
+      const data = JSON.parse(fs.readFileSync(STATE_PATH, "utf8"));
+      if (!data.executionTimes) {
+        data.executionTimes = { all: 15000, single: 2000 };
+        fs.writeFileSync(STATE_PATH, JSON.stringify(data, null, 2), "utf8");
+      }
+    } catch (e) {
+      console.error("Eroare la citirea state.json", e);
+    }
   }
 }
 
@@ -232,11 +244,10 @@ function buildUpdateEmbed(gameName, latest) {
 }
 
 // -------------------------------------------------------------
-// FUNCȚII NOI PENTRU DRIVERE
+// FUNCȚII NOI PENTRU DRIVERE 
 // -------------------------------------------------------------
 
 async function fetchNvidiaUpdate(game) {
-  // Am înlocuit descărcarea directă cu citirea articolelor de pe site-ul NVIDIA.com
   const exactQuery = game.key === "nvidiastudio" ? '"Studio Driver"' : '"Game Ready Driver"';
   const searchQuery = `site:nvidia.com ${exactQuery} release`;
 
@@ -253,18 +264,17 @@ async function fetchNvidiaUpdate(game) {
     const dateMatch = itemXml.match(/<pubDate>([\s\S]*?)<\/pubDate>/i);
 
     const rawTitle = titleMatch ? cleanText(titleMatch[1]) : `Update ${game.name}`;
-    const cleanT = rawTitle.split(" - ")[0]; // Eliminăm branding-ul de la final
+    const cleanT = rawTitle.split(" - ")[0]; 
     const link = linkMatch ? linkMatch[1] : "https://www.nvidia.com/en-us/geforce/news/";
     const pubDate = dateMatch ? dateMatch[1] : new Date().toISOString();
 
-    // Extragem din titlu versiunea driverului (ex: 551.23)
     const vMatch = cleanT.match(/\b(\d{3}\.\d{2})\b/);
     const versionStr = vMatch ? `v${vMatch[1]}` : "Update Nou";
 
     return {
-      id: cleanT, // Titlul curat e perfect ca ID unic
+      id: cleanT, 
       title: `${game.name} ${versionStr}`,
-      link: link, // Acum link-ul duce către o pagină web cu articolul
+      link: link, 
       excerpt: `Sursa: Sistemul oficial de articole NVIDIA.`,
       thumbnail: game.thumbnail,
       timestamp: new Date(pubDate).toISOString()
@@ -365,7 +375,7 @@ async function fetchAmdUpdate(game) {
 }
 
 // -------------------------------------------------------------
-// FUNCȚIILE DE JOCURI (Rămase neschimbate)
+// FUNCȚIILE DE JOCURI 
 // -------------------------------------------------------------
 
 async function fetchSteamUpdate(game) {
@@ -855,11 +865,26 @@ client.on("messageCreate", async (message) => {
   }
 
   if (command === "latest") {
-    const loadingMsg = await message.reply("⏳ *Mă conectez la serverele oficiale și verific update-urile... Te rog așteaptă câteva secunde.*");
+    const state = loadState();
+    const isAll = args.length === 0;
+    const estType = isAll ? "all" : "single";
+    
+    // Extragem media stocată în sistem (sau fallback la 15s/2s)
+    const estMs = state.executionTimes?.[estType] || (isAll ? 15000 : 2000);
+    const estSec = Math.max(1, Math.ceil(estMs / 1000)); // Garantăm minim 1 secundă pentru aspect
 
-    if (args.length === 0) {
+    const loadingMsg = await message.reply(`⏳ *Mă conectez la serverele oficiale... Această acțiune va dura aproximativ **${estSec} secunde**.*`);
+    
+    const startTime = Date.now(); // Pornim cronometrul intern
+
+    if (isAll) {
       const results = await getLatestForAllGames();
       
+      // Oprim cronometrul și calculăm noul timp (mediem între cel vechi și cel nou)
+      const elapsed = Date.now() - startTime;
+      state.executionTimes[estType] = Math.round((estMs + elapsed) / 2);
+      saveState(state);
+
       await loadingMsg.delete().catch(() => null);
 
       for (const result of results) {
@@ -894,6 +919,11 @@ client.on("messageCreate", async (message) => {
     try {
       const latest = await fetchGameUpdate(game);
       
+      // Oprim cronometrul și calculăm noul timp pentru varianta "single"
+      const elapsed = Date.now() - startTime;
+      state.executionTimes[estType] = Math.round((estMs + elapsed) / 2);
+      saveState(state);
+
       await loadingMsg.delete().catch(() => null);
 
       try {
