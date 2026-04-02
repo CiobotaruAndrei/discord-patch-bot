@@ -30,7 +30,7 @@ function ensureStateFile() {
           notificationChannelId: "",
           seen: {},
           subscribed: false,
-          executionTimes: { all: 15000, single: 2000 },
+          executionTimes: { all: 15000, single: 2000, reduceri: 15000, startreduceri: 8000, startupdates: 15000 },
           discountChannelId: "",
           seenDiscounts: [],
           discountsSubscribed: false
@@ -46,9 +46,14 @@ function ensureStateFile() {
       let changed = false;
       
       if (!data.executionTimes) {
-        data.executionTimes = { all: 15000, single: 2000 };
+        data.executionTimes = { all: 15000, single: 2000, reduceri: 15000, startreduceri: 8000, startupdates: 15000 };
         changed = true;
+      } else {
+        if (!data.executionTimes.reduceri) { data.executionTimes.reduceri = 15000; changed = true; }
+        if (!data.executionTimes.startreduceri) { data.executionTimes.startreduceri = 8000; changed = true; }
+        if (!data.executionTimes.startupdates) { data.executionTimes.startupdates = 15000; changed = true; }
       }
+
       if (!data.seenDiscounts) {
         data.seenDiscounts = [];
         changed = true;
@@ -601,11 +606,8 @@ async function enrichDealData(deal) {
     } catch (e) { }
   } 
   else if (deal.store === "Epic Games") {
-    // 1. Căutare MEGA Inteligentă pentru baza de date Epic
     try {
-      // Tăiem cuvintele balast (precum Edition, Deluxe) dintr-un șut și ne asigurăm că luăm doar titlul de bază.
       let cleanTitle = deal.title.split(/[:\-]/)[0].trim();
-      // Dacă tot a rămas prea lung (mai mult de 3 cuvinte), reținem doar primele 3.
       if (cleanTitle.split(' ').length > 3) {
          cleanTitle = cleanTitle.split(' ').slice(0, 3).join(' ');
       }
@@ -618,7 +620,6 @@ async function enrichDealData(deal) {
       const elements = epicRes.data?.data?.Catalog?.searchStore?.elements;
       
       if (elements && elements.length > 0) {
-        // Găsim primul element din listă care ARE o dată de reducere asociată
         const match = elements.find(e => e.price?.totalPrice?.discountEndDate);
         if (match) {
           const d = new Date(match.price.totalPrice.discountEndDate);
@@ -631,7 +632,6 @@ async function enrichDealData(deal) {
       }
     } catch (e) {}
 
-    // 2. Planul B (Fallback): Citim pagina web fizică a Epic Games direct din HTML
     try {
        const htmlRes = await axios.get(deal.link, {
          timeout: 8000,
@@ -639,7 +639,6 @@ async function enrichDealData(deal) {
        });
        const html = String(htmlRes.data || "");
        
-       // Pattern inteligent ca să fure data direct din scriptul ascuns al Epic
        const discountMatch = html.match(/"endDate"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/i);
        if (discountMatch && discountMatch[1]) {
          const d = new Date(discountMatch[1]);
@@ -671,20 +670,27 @@ async function checkForDiscounts() {
         state.seenDiscounts.push(deal.id);
         newDealsFound = true;
 
-        const isFree = parseFloat(deal.salePrice) === 0;
+        // ACUM Trecem oferta nouă prin filtrul care îi extrage detaliile (și data expirării)!
+        const enrichedDeal = await enrichDealData(deal);
+        const isFree = parseFloat(enrichedDeal.salePrice) === 0;
+
         const embed = new EmbedBuilder()
           .setColor(isFree ? 0xffd700 : 0xe74c3c)
-          .setTitle(String(`🚨 OFERTĂ NOUĂ: ${deal.title}`).slice(0, 250))
-          .setDescription(`**${deal.store}** oferă o reducere masivă de **${deal.savings}%**!`)
+          .setTitle(String(`🚨 OFERTĂ NOUĂ: ${enrichedDeal.title}`).slice(0, 250))
+          .setDescription(
+             `**${enrichedDeal.store}** oferă o reducere masivă de **${enrichedDeal.savings}%**!\n\n` +
+             (enrichedDeal.endDateStr !== "Nespecificat" ? `⏳ **Expiră la:** ${enrichedDeal.endDateStr}\n\n` : "") +
+             (enrichedDeal.extraDetails ? `${enrichedDeal.extraDetails}\n` : "")
+          )
           .addFields(
-            { name: 'Preț Vechi', value: `~~$${deal.normalPrice}~~`, inline: true },
-            { name: 'Preț Nou', value: isFree ? "🔥 GRATIS 🔥" : `$${deal.salePrice}`, inline: true },
-            { name: 'Link Către Magazin', value: `[Apasă aici pentru ofertă](${deal.link})`, inline: false }
+            { name: 'Preț Vechi', value: `~~$${enrichedDeal.normalPrice}~~`, inline: true },
+            { name: 'Preț Nou', value: isFree ? "🔥 GRATIS 🔥" : `$${enrichedDeal.salePrice}`, inline: true },
+            { name: 'Link Către Magazin', value: `[Apasă aici pentru ofertă](${enrichedDeal.link})`, inline: false }
           )
           .setTimestamp();
           
-        if (deal.thumbnail && deal.thumbnail.startsWith("http")) {
-            embed.setThumbnail(deal.thumbnail);
+        if (enrichedDeal.thumbnail && enrichedDeal.thumbnail.startsWith("http")) {
+            embed.setThumbnail(enrichedDeal.thumbnail);
         }
 
         await channel.send({ embeds: [embed] }).catch(err => console.error("Eroare trimitere embed reducere", err));
@@ -856,12 +862,29 @@ client.on("messageCreate", async (message) => {
       await message.reply(`⛔ Doar un administrator poate folosi comanda **${PREFIX}startupdates**.`);
       return;
     }
+    
     const state = loadState();
     state.notificationChannelId = message.channel.id;
     state.subscribed = true;
+    
+    // Extragere ETA
+    const estMs = state.executionTimes?.startupdates || 15000;
+    const estSec = Math.max(1, Math.ceil(estMs / 1000));
     saveState(state);
+    
+    const loadingMsg = await message.reply(`⏳ *Pornesc alertele și sincronizez jocurile curente... Această acțiune va dura aproximativ **${estSec} secunde**.*`);
+    const startTime = Date.now();
+
     await initializeSeenForCurrentGames();
-    await message.reply("✅ Am pornit notificările automate pe acest canal. De acum înainte voi trimite doar update-urile viitoare.");
+
+    // Salvare ETA finalizat
+    const elapsed = Date.now() - startTime;
+    const finalState = loadState();
+    if (!finalState.executionTimes) finalState.executionTimes = {};
+    finalState.executionTimes.startupdates = Math.round((estMs + elapsed) / 2);
+    saveState(finalState);
+
+    await loadingMsg.edit("✅ Am pornit notificările automate pe acest canal. De acum înainte voi trimite doar update-urile viitoare.");
     return;
   }
 
@@ -881,12 +904,29 @@ client.on("messageCreate", async (message) => {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return message.reply(`⛔ Doar un administrator poate folosi comanda **${PREFIX}startreduceri**.`);
     }
+    
     const state = loadState();
     state.discountChannelId = message.channel.id;
     state.discountsSubscribed = true;
+    
+    // Extragere ETA
+    const estMs = state.executionTimes?.startreduceri || 8000;
+    const estSec = Math.max(1, Math.ceil(estMs / 1000));
     saveState(state);
-    await message.reply("✅ Am activat scannerul de reduceri masive (70%+ și gratuite) pentru Steam și Epic. Caut oferte acum...");
+    
+    const loadingMsg = await message.reply(`✅ Am activat scannerul de reduceri masive. ⏳ Caut oferte acum... Această acțiune va dura aproximativ **${estSec} secunde**.`);
+    const startTime = Date.now();
+    
     await checkForDiscounts();
+    
+    // Salvare ETA finalizat
+    const elapsed = Date.now() - startTime;
+    const finalState = loadState();
+    if (!finalState.executionTimes) finalState.executionTimes = {};
+    finalState.executionTimes.startreduceri = Math.round((estMs + elapsed) / 2);
+    saveState(finalState);
+    
+    await loadingMsg.edit("✅ Scannerul a fost activat cu succes și prima căutare a fost finalizată. Voi trimite oferte noi aici.");
     return;
   }
 
@@ -904,7 +944,11 @@ client.on("messageCreate", async (message) => {
   if (command === "latest") {
     // --- LATEST REDUCERI ---
     if (args.length > 0 && args[0].toLowerCase() === "reduceri") {
-      const loadingMsg = await message.reply(`⏳ *Caut ofertele și extrag datele de expirare de pe Steam și Epic Games...*`);
+      const state = loadState();
+      const estMs = state.executionTimes?.reduceri || 15000;
+      const estSec = Math.max(1, Math.ceil(estMs / 1000));
+      const loadingMsg = await message.reply(`⏳ *Caut ofertele și extrag datele de expirare de pe Steam și Epic Games... Această acțiune va dura aproximativ **${estSec} secunde**.*`);
+      const startTime = Date.now();
       
       try {
         const deals = await fetchDeals(); 
@@ -913,11 +957,11 @@ client.on("messageCreate", async (message) => {
           return;
         }
 
-        await loadingMsg.delete().catch(() => null);
         const maxDeals = deals.slice(0, 50); 
+        await loadingMsg.delete().catch(() => null);
 
         if (maxDeals.length > 10) {
-          await message.channel.send(`ℹ️ *Am extras o selecție echilibrată de oferte Epic și Steam. Trimit câte 10 jocuri la fiecare 20 de secunde pentru a evita blocajele serverelor...*`);
+          await message.channel.send(`ℹ️ *Am extras o selecție echilibrată de oferte. Trimit câte 10 jocuri la fiecare 20 de secunde pentru a evita blocajele serverelor...*`);
         }
 
         for (let i = 0; i < maxDeals.length; i += 10) {
@@ -954,6 +998,13 @@ client.on("messageCreate", async (message) => {
             await new Promise(resolve => setTimeout(resolve, 20000));
           }
         }
+        
+        // Salvare ETA finalizat
+        const elapsed = Date.now() - startTime;
+        const finalState = loadState();
+        if (!finalState.executionTimes) finalState.executionTimes = {};
+        finalState.executionTimes.reduceri = Math.round((estMs + elapsed) / 2);
+        saveState(finalState);
 
       } catch (error) {
         await loadingMsg.edit(`❌ A apărut o eroare la extragerea datelor: \`${error.message}\``).catch(() => null);
