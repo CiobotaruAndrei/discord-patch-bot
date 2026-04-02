@@ -50,11 +50,14 @@ function saveState(state) {
 
 function cleanText(text) {
   return String(text || "")
-    .replace(/(<([^>]+)>)/gi, " ")
+    .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
+    .replace(/&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -89,6 +92,9 @@ function extractTitleFromHtml(html) {
   const ogTitle = extractMetaContent(html, "og:title");
   if (ogTitle) return cleanText(ogTitle);
 
+  const twitterTitle = extractMetaContent(html, "twitter:title", "name");
+  if (twitterTitle) return cleanText(twitterTitle);
+
   const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   if (titleMatch) {
     return cleanText(decodeHtmlEntities(titleMatch[1]));
@@ -97,80 +103,33 @@ function extractTitleFromHtml(html) {
   return "";
 }
 
-function extractLatestPatchLinkFromTagsPage(html, baseUrl) {
-  const links = [];
-  const regex = /href=["']([^"']*\/news\/game-updates\/[^"']*patch[^"']*)["']/gi;
+function extractDescriptionFromHtml(html) {
+  const ogDescription = extractMetaContent(html, "og:description");
+  if (ogDescription) return cleanText(ogDescription);
 
-  let match;
-  while ((match = regex.exec(html)) !== null) {
-    const url = absoluteUrl(baseUrl, match[1]);
-    if (!links.includes(url)) {
-      links.push(url);
-    }
-  }
+  const twitterDescription = extractMetaContent(html, "twitter:description", "name");
+  if (twitterDescription) return cleanText(twitterDescription);
 
-  return links[0] || "";
+  const metaDescription = extractMetaContent(html, "description", "name");
+  if (metaDescription) return cleanText(metaDescription);
+
+  return "";
 }
 
-async function fetchRiotPatchFromTagsPage({
-  tagsUrl,
-  baseUrl,
-  gameName,
-  fallbackThumbnail,
-  fallbackImage
-}) {
-  const tagsRes = await axios.get(tagsUrl, {
-    timeout: 15000,
-    headers: {
-      "User-Agent": "Mozilla/5.0"
-    }
-  });
+function extractImageFromHtml(html) {
+  return (
+    extractMetaContent(html, "og:image") ||
+    extractMetaContent(html, "twitter:image", "name") ||
+    undefined
+  );
+}
 
-  const tagsHtml = String(tagsRes.data || "");
-  const articleUrl = extractLatestPatchLinkFromTagsPage(tagsHtml, baseUrl);
-
-  if (!articleUrl) {
-    throw new Error(`Nu am găsit patch notes pentru ${gameName}.`);
-  }
-
-  const articleRes = await axios.get(articleUrl, {
-    timeout: 15000,
-    headers: {
-      "User-Agent": "Mozilla/5.0"
-    }
-  });
-
-  const articleHtml = String(articleRes.data || "");
-
-  const title =
-    extractMetaContent(articleHtml, "og:title") ||
-    extractTitleFromHtml(articleHtml) ||
-    `Patch notes noi pentru ${gameName}`;
-
-  const excerpt =
-    extractMetaContent(articleHtml, "og:description") ||
-    `A apărut un nou patch notes oficial pentru ${gameName}.`;
-
-  const image =
-    extractMetaContent(articleHtml, "og:image") || fallbackImage || undefined;
-
-  const publishedTime =
-    extractMetaContent(articleHtml, "article:published_time") ||
-    extractMetaContent(articleHtml, "og:updated_time") ||
-    new Date().toISOString();
-
-  const cleanTitle = cleanText(title);
-  const cleanExcerpt = cleanText(excerpt).slice(0, 700);
-
-  return {
-    id: String(articleUrl),
-    title: cleanTitle,
-    link: articleUrl,
-    excerpt: cleanExcerpt,
-    image,
-    thumbnail: fallbackThumbnail,
-    timestamp: publishedTime
-  };
+function extractPublishedTimeFromHtml(html) {
+  return (
+    extractMetaContent(html, "article:published_time") ||
+    extractMetaContent(html, "og:updated_time") ||
+    new Date().toISOString()
+  );
 }
 
 function isLikelyPatchNote(item) {
@@ -208,7 +167,8 @@ function isLikelyPatchNote(item) {
     "maintenance",
     "build",
     "client update",
-    "title update"
+    "title update",
+    "release notes"
   ];
 
   if (badWordsInTitle.some((word) => title.includes(word))) {
@@ -253,26 +213,31 @@ function buildUpdateEmbed(gameName, latest) {
   }
 
   if (latest.timestamp) {
-    embed.setTimestamp(new Date(latest.timestamp));
+    const date = new Date(latest.timestamp);
+    if (!Number.isNaN(date.getTime())) {
+      embed.setTimestamp(date);
+    }
   }
 
   return embed;
 }
 
-function getSteamNewsLink(game, latest) {
-  if (game.customNewsLink) {
-    return game.customNewsLink;
-  }
+function isGoodSteamArticleUrl(url) {
+  const value = String(url || "").trim();
 
-  if (latest?.gid && game.appId) {
-    return `https://store.steampowered.com/news/app/${game.appId}/view/${latest.gid}`;
-  }
+  if (!value) return false;
+  if (!/^https?:\/\//i.test(value)) return false;
+  if (/steamstatic\.com/i.test(value)) return false;
+  if (/steamcdn/i.test(value)) return false;
 
+  return /store\.steampowered\.com|steamcommunity\.com/i.test(value);
+}
+
+function getSteamFallbackNewsLink(game) {
   if (game.appId) {
     return `https://store.steampowered.com/news/app/${game.appId}`;
   }
-
-  return latest?.url || "";
+  return "";
 }
 
 async function fetchSteamUpdate(game) {
@@ -294,7 +259,6 @@ async function fetchSteamUpdate(game) {
   }
 
   patchNotes.sort((a, b) => Number(b.date || 0) - Number(a.date || 0));
-
   const latest = patchNotes[0];
 
   if (!latest.gid || !latest.title) {
@@ -302,13 +266,72 @@ async function fetchSteamUpdate(game) {
   }
 
   const cleanExcerpt = cleanText(latest.contents).slice(0, 700);
+  const chosenLink = isGoodSteamArticleUrl(latest.url)
+    ? latest.url
+    : getSteamFallbackNewsLink(game);
 
   return {
     id: String(latest.gid),
     title: cleanText(latest.title),
-    link: getSteamNewsLink(game, latest),
+    link: chosenLink,
     excerpt: cleanExcerpt || `A apărut un nou update pentru ${game.name}.`,
     timestamp: latest.date ? new Date(latest.date * 1000).toISOString() : undefined
+  };
+}
+
+function extractLinksWithRegex(html, baseUrl, regex) {
+  const found = [];
+  let match;
+
+  while ((match = regex.exec(html)) !== null) {
+    const full = absoluteUrl(baseUrl, match[1]);
+    if (!found.includes(full)) {
+      found.push(full);
+    }
+  }
+
+  return found;
+}
+
+async function fetchListingBasedUpdate(game) {
+  const listRes = await axios.get(game.listingUrl, {
+    timeout: 15000,
+    headers: {
+      "User-Agent": "Mozilla/5.0"
+    }
+  });
+
+  const listHtml = String(listRes.data || "");
+  const articleRegex = new RegExp(game.articleHrefRegex, "gi");
+  const links = extractLinksWithRegex(listHtml, game.baseUrl, articleRegex);
+
+  if (!links.length) {
+    throw new Error(`Nu am găsit articole de update pentru ${game.name}.`);
+  }
+
+  const articleUrl = links[0];
+
+  const articleRes = await axios.get(articleUrl, {
+    timeout: 15000,
+    headers: {
+      "User-Agent": "Mozilla/5.0"
+    }
+  });
+
+  const articleHtml = String(articleRes.data || "");
+
+  return {
+    id: String(articleUrl),
+    title:
+      extractTitleFromHtml(articleHtml) ||
+      `Update nou pentru ${game.name}`,
+    link: articleUrl,
+    excerpt:
+      extractDescriptionFromHtml(articleHtml).slice(0, 700) ||
+      `A apărut un nou update oficial pentru ${game.name}.`,
+    image: extractImageFromHtml(articleHtml),
+    thumbnail: game.thumbnail || undefined,
+    timestamp: extractPublishedTimeFromHtml(articleHtml)
   };
 }
 
@@ -331,8 +354,10 @@ async function fetchMinecraftUpdate() {
     title: `Minecraft: Java Edition ${latestVersion}`,
     link: `https://www.minecraft.net/en-us/article/minecraft-java-edition-${formattedVersion}`,
     excerpt: `O nouă versiune oficială (${latestVersion}) este disponibilă!`,
-    image: "https://www.minecraft.net/content/dam/minecraftnet/games/minecraft/key-art/MCV-keyart-default.jpg",
-    thumbnail: "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg",
+    image:
+      "https://www.minecraft.net/content/dam/minecraftnet/games/minecraft/key-art/MCV-keyart-default.jpg",
+    thumbnail:
+      "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg",
     timestamp: new Date().toISOString()
   };
 }
@@ -348,32 +373,22 @@ async function fetchFortniteUpdate() {
     throw new Error("Date lipsă Fortnite.");
   }
 
-  let articleTitle = `Fortnite Update (Build ${build})`;
-  let articleExcerpt = `A fost lansată o nouă versiune Fortnite de instalat (Build: ${build}). Apasă pe link pentru a vedea ce e nou!`;
-  let articleImage = null;
-
-  try {
-    const newsRes = await axios.get("https://fortnite-api.com/v2/news", { timeout: 15000 });
-    const latestNews = newsRes?.data?.data?.br?.motds?.[0];
-
-    if (latestNews) {
-      if (latestNews.title) articleTitle = `${latestNews.title} (Build ${build})`;
-      if (latestNews.body) articleExcerpt = latestNews.body;
-      if (latestNews.image) articleImage = latestNews.image;
-    }
-  } catch (error) {
-    console.error("Nu am putut trage imaginea pt Fortnite:", error.message);
-  }
+  const officialArticle = await fetchListingBasedUpdate({
+    name: "Fortnite",
+    listingUrl: "https://www.fortnite.com/news",
+    baseUrl: "https://www.fortnite.com",
+    articleHrefRegex: 'href=["\']([^"\']*\\/news\\/[^"\']*(?:update-notes|patch-notes)[^"\']*)["\']'
+  });
 
   return {
     id: String(build),
-    title: articleTitle,
-    link: "https://patchbot.io/games/fortnite",
-    excerpt: articleExcerpt,
-    image: articleImage,
+    title: officialArticle.title,
+    link: officialArticle.link,
+    excerpt: officialArticle.excerpt,
+    image: officialArticle.image,
     thumbnail:
       "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
-    timestamp: new Date().toISOString()
+    timestamp: officialArticle.timestamp
   };
 }
 
@@ -400,28 +415,6 @@ async function fetchRobloxUpdate() {
   };
 }
 
-async function fetchValorantUpdate() {
-  return await fetchRiotPatchFromTagsPage({
-    tagsUrl: "https://playvalorant.com/en-us/news/tags/patch-notes/",
-    baseUrl: "https://playvalorant.com",
-    gameName: "VALORANT",
-    fallbackThumbnail:
-      "https://upload.wikimedia.org/wikipedia/commons/f/fc/Valorant_logo_-_pink_color_version.svg",
-    fallbackImage: undefined
-  });
-}
-
-async function fetchLeagueOfLegendsUpdate() {
-  return await fetchRiotPatchFromTagsPage({
-    tagsUrl: "https://www.leagueoflegends.com/en-us/news/tags/patch-notes/",
-    baseUrl: "https://www.leagueoflegends.com",
-    gameName: "League of Legends",
-    fallbackThumbnail:
-      "https://upload.wikimedia.org/wikipedia/commons/d/d8/League_of_Legends_2019_vector.svg",
-    fallbackImage: undefined
-  });
-}
-
 async function fetchGameUpdate(game) {
   if (!game.type || game.type === "steam") {
     return await fetchSteamUpdate(game);
@@ -439,12 +432,8 @@ async function fetchGameUpdate(game) {
     return await fetchRobloxUpdate();
   }
 
-  if (game.type === "valorant") {
-    return await fetchValorantUpdate();
-  }
-
-  if (game.type === "leagueoflegends") {
-    return await fetchLeagueOfLegendsUpdate();
+  if (game.type === "listing_based") {
+    return await fetchListingBasedUpdate(game);
   }
 
   throw new Error(`Tip de joc necunoscut pentru ${game.name}.`);
