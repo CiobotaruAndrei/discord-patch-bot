@@ -71,7 +71,12 @@
     {
       "key": "fortnite",
       "name": "Fortnite",
-      "type": "fortnite"
+      "type": "epic_games",
+      "listingUrl": "https://www.fortnite.com/news",
+      "baseUrl": "https://www.fortnite.com",
+      "articleHrefRegex": "href=[\"']([^\"']*\\/news\\/[^\"']+)[\"']",
+      "requireKeywords": ["update", "patch", "release-notes", "update-notes"],
+      "thumbnail": "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png"
     },
     {
       "key": "roblox",
