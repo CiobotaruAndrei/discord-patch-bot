@@ -531,7 +531,6 @@ async function fetchDealsForStore(storeID, storeName) {
     const steamRating = parseFloat(d.steamRatingPercent) || 0;
     const metacritic = parseInt(d.metacriticScore) || 0;
     
-    // Epic Games nu trimite rating Steam, deci lăsăm doar regula de reducere
     if (storeID === 25) {
       return (savings >= 70 || isFree); 
     }
@@ -558,7 +557,7 @@ async function fetchDealsForStore(storeID, storeName) {
 
 async function fetchDeals() {
   const steamDeals = await fetchDealsForStore(1, "Steam");
-  const epicDeals = await fetchDealsForStore(25, "Epic Games"); // ID 25 e Epic Games
+  const epicDeals = await fetchDealsForStore(25, "Epic Games"); 
 
   const finalTop50 = [...epicDeals, ...steamDeals];
   if (finalTop50.length === 0) throw new Error("Nu s-au putut extrage oferte valide de pe Steam sau Epic.");
@@ -566,7 +565,7 @@ async function fetchDeals() {
   return finalTop50;
 }
 
-// Extragerea datei de expirare și formatarea ei
+// Extragerea datei de expirare și formatarea ei (REPARAT EPIC)
 async function enrichDealData(deal) {
   deal.endDateStr = "Nespecificat";
   deal.extraDetails = "";
@@ -602,34 +601,46 @@ async function enrichDealData(deal) {
     } catch (e) { }
   } 
   else if (deal.store === "Epic Games") {
-    // 1. Căutare inteligentă (fără cuvinte tip "Edition")
+    // 1. Căutare MEGA Inteligentă pentru baza de date Epic
     try {
-      let cleanTitle = deal.title.replace(/\s*(Standard|Deluxe|Premium|Ultimate|Gold|Nightmare|Edition|Director's Cut)/gi, "").trim();
+      // Tăiem cuvintele balast (precum Edition, Deluxe) dintr-un șut și ne asigurăm că luăm doar titlul de bază.
+      let cleanTitle = deal.title.split(/[:\-]/)[0].trim();
+      // Dacă tot a rămas prea lung (mai mult de 3 cuvinte), reținem doar primele 3.
+      if (cleanTitle.split(' ').length > 3) {
+         cleanTitle = cleanTitle.split(' ').slice(0, 3).join(' ');
+      }
+
       const epicQuery = {
-        query: `query searchStoreQuery($keywords: String!) { Catalog { searchStore(keyword: $keywords, category: "games", count: 1) { elements { price { totalPrice { discountEndDate } } } } } }`,
+        query: `query searchStoreQuery($keywords: String!) { Catalog { searchStore(keyword: $keywords, count: 5) { elements { title price { totalPrice { discountEndDate } } } } } }`,
         variables: { keywords: cleanTitle }
       };
       const epicRes = await axios.post('https://graphql.epicgames.com/graphql', epicQuery, { timeout: 5000 });
       const elements = epicRes.data?.data?.Catalog?.searchStore?.elements;
       
-      if (elements && elements.length > 0 && elements[0]?.price?.totalPrice?.discountEndDate) {
-        const d = new Date(elements[0].price.totalPrice.discountEndDate);
-        if (!isNaN(d.getTime())) {
-          const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-          deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]}`;
-          return deal; // Ne oprim aici dacă am găsit-o
+      if (elements && elements.length > 0) {
+        // Găsim primul element din listă care ARE o dată de reducere asociată
+        const match = elements.find(e => e.price?.totalPrice?.discountEndDate);
+        if (match) {
+          const d = new Date(match.price.totalPrice.discountEndDate);
+          if (!isNaN(d.getTime())) {
+            const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]}`;
+            return deal; 
+          }
         }
       }
     } catch (e) {}
 
-    // 2. Fallback: Citim pagina web fizică la fel ca la Steam
+    // 2. Planul B (Fallback): Citim pagina web fizică a Epic Games direct din HTML
     try {
        const htmlRes = await axios.get(deal.link, {
          timeout: 8000,
          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
        });
        const html = String(htmlRes.data || "");
-       const discountMatch = html.match(/"discountEndDate"\s*:\s*"([^"]+)"/i) || html.match(/"endDate"\s*:\s*"([^"]+)"/i);
+       
+       // Pattern inteligent ca să fure data direct din scriptul ascuns al Epic
+       const discountMatch = html.match(/"endDate"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/i);
        if (discountMatch && discountMatch[1]) {
          const d = new Date(discountMatch[1]);
          if (!isNaN(d.getTime())) {
@@ -906,7 +917,7 @@ client.on("messageCreate", async (message) => {
         const maxDeals = deals.slice(0, 50); 
 
         if (maxDeals.length > 10) {
-          await message.channel.send(`ℹ️ *Am extras o selecție echilibrată: **Top 25 Epic** și **Top 25 Steam**. Trimit câte 10 jocuri la fiecare 20 de secunde pentru a evita blocajele serverelor...*`);
+          await message.channel.send(`ℹ️ *Am extras o selecție echilibrată de oferte Epic și Steam. Trimit câte 10 jocuri la fiecare 20 de secunde pentru a evita blocajele serverelor...*`);
         }
 
         for (let i = 0; i < maxDeals.length; i += 10) {
