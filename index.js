@@ -132,6 +132,16 @@ function extractPublishedTimeFromHtml(html) {
   );
 }
 
+// RESTAURAT: Această funcție veche garantează că linkul este un articol web și nu o simplă poză promoțională
+function isGoodSteamArticleUrl(url) {
+  const val = String(url || "").trim().toLowerCase();
+  if (!val) return false;
+  if (!val.startsWith("http")) return false;
+  if (val.includes("steamstatic.com")) return false;
+  if (val.includes("steamcdn")) return false;
+  return true;
+}
+
 function isLikelyPatchNote(item) {
   const title = String(item.title || "").toLowerCase();
   const contents = String(item.contents || "").toLowerCase();
@@ -235,10 +245,16 @@ async function fetchSteamUpdate(game) {
   }
 
   const patchNotes = newsItems.filter((item) => {
-    // Luăm exclusiv postările oficiale ale dezvoltatorilor, fără articole externe
+    // 1. Luăm exclusiv postările oficiale ale dezvoltatorilor, fără articole externe
     if (item.feed_type !== 1 && item.feedname !== "steam_community_announcements") {
       return false;
     }
+    // 2. FILTRUL SUPREM: Eliminăm anunțurile care au doar o poză în link. 
+    // Așa îl forțăm să caute următorul update adevărat cu o pagină web existentă!
+    if (!isGoodSteamArticleUrl(item.url)) {
+      return false;
+    }
+    // 3. Verificăm dacă e patch note
     return isLikelyPatchNote(item);
   });
 
@@ -254,18 +270,11 @@ async function fetchSteamUpdate(game) {
   }
 
   const cleanExcerpt = cleanText(latest.contents).slice(0, 700);
-  
-  let exactArticleLink = String(latest.url || "").trim();
-
-  // Filtrul corectat: prinde orice variantă de server de imagini Steam (steamstatic, steamcdn, mai.steamstatic etc.)
-  if (!exactArticleLink || exactArticleLink.includes("steamstatic") || exactArticleLink.includes("steamcdn") || !exactArticleLink.startsWith("http")) {
-    exactArticleLink = `https://steamcommunity.com/games/${game.appId}/announcements/detail/${latest.gid}`;
-  }
 
   return {
     id: String(latest.gid),
     title: cleanText(latest.title),
-    link: exactArticleLink,
+    link: String(latest.url).trim(), // Aici punem linkul nativ, acum protejat de isGoodSteamArticleUrl
     excerpt: cleanExcerpt || `A apărut un nou update pentru ${game.name}.`,
     timestamp: latest.date ? new Date(latest.date * 1000).toISOString() : undefined
   };
@@ -413,15 +422,13 @@ async function fetchEpicGamesUpdate(game) {
   return await fetchListingBasedUpdate(game);
 }
 
+// LOGICA BUNĂ PENTRU FORTNITE
 async function fetchFortniteUpdate() {
   try {
-    // Soluția 1: Folosim un Proxy Public (AllOrigins) pentru a ocoli sistemul anti-bot Cloudflare de la Epic Games
     const epicApiUrl = "https://www.fortnite.com/api/blog/getPosts?postsPerPage=10&offset=0&locale=en-US";
     const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(epicApiUrl)}`;
     
     const res = await axios.get(proxyUrl, { timeout: 20000 });
-    
-    // API-ul proxy returnează textul efectiv în proprietatea 'contents'
     const data = JSON.parse(res?.data?.contents || "{}");
     const posts = data?.blogList;
 
@@ -429,7 +436,6 @@ async function fetchFortniteUpdate() {
       throw new Error("Date invalide primite de la Epic prin proxy.");
     }
 
-    // Filtrăm pentru a lua doar articole valide (să evităm slug-urile goale sau "news")
     const validPosts = posts.filter(p => p.slug && p.slug.trim() !== "" && p.slug.toLowerCase() !== "news");
     
     if (validPosts.length === 0) {
@@ -456,8 +462,6 @@ async function fetchFortniteUpdate() {
   } catch (error) {
     console.log("Proxy-ul Epic a dat greș (sau a fost detectat), folosim metoda de backup supremă...");
     
-    // Soluția 2 Backup: Agregatorul Google News convertit din RSS în JSON.
-    // Google nu e blocat de Epic, așa că tragem fix articolele oficiale indexate de ei.
     const backupUrl = "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fnews.google.com%2Frss%2Fsearch%3Fq%3Dsite%3Afortnite.com%2Fnews%2Bupdate%26hl%3Den-US%26gl%3DUS%26ceid%3DUS%3Aen";
     const fallbackRes = await axios.get(backupUrl, { timeout: 15000 });
     const items = fallbackRes?.data?.items;
@@ -470,7 +474,6 @@ async function fetchFortniteUpdate() {
     
     return {
       id: String(latestBackup.guid || latestBackup.link),
-      // Ștergem textul " - Fortnite" adăugat automat de Google News la titlu
       title: cleanText(latestBackup.title).replace(/\s-\sFortnite$/i, "").trim() || "Fortnite: Noutăți",
       link: latestBackup.link || "https://www.fortnite.com/news",
       excerpt: "A apărut un nou articol oficial de actualizare pe site-ul Fortnite.",
