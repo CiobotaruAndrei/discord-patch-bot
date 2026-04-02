@@ -150,10 +150,17 @@
       "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/7/7c/AMD_Logo.svg"
     },
     {
-      "key": "intelarc",
-      "name": "Intel ARC Drivers",
+      "key": "intelgameon",
+      "name": "Intel ARC Game On Drivers",
       "type": "driver",
-      "query": "Intel Arc Graphics Driver release update",
+      "query": "Intel Arc Game On Graphics Driver release update",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel_logo_%282020%2C_light_blue%29.svg"
+    },
+    {
+      "key": "intelpro",
+      "name": "Intel ARC Pro Drivers",
+      "type": "driver",
+      "query": "Intel Arc Pro Graphics Driver release update",
       "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel_logo_%282020%2C_light_blue%29.svg"
     }
   ]
