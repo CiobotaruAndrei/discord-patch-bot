@@ -1,5 +1,12 @@
 {
   "notificationChannelId": "",
   "seen": {},
-  "subscribed": false
+  "subscribed": false,
+  "discountChannelId": "",
+  "seenDiscounts": [],
+  "discountsSubscribed": false,
+  "executionTimes": {
+    "all": 15000,
+    "single": 2000
+  }
 }
