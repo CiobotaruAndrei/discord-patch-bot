@@ -232,49 +232,90 @@ function buildUpdateEmbed(gameName, latest) {
 }
 
 // -------------------------------------------------------------
-// FUNCȚII NOI PENTRU DRIVERE (Direct de pe site-urile oficiale)
+// FUNCȚII NOI PENTRU DRIVERE (REPARATE DEFINITIV)
 // -------------------------------------------------------------
 
 async function fetchNvidiaUpdate(game) {
-  // Accesăm direct baza de date invizibilă a serverelor NVIDIA
   const upCRD = game.upCRD || 0; 
   const url = `https://gfwsl.geforce.com/services_toolkit/services/com/nvidia/services/AjaxDriverService.php?func=DriverManualLookup&psid=120&pfid=939&osID=57&languageCode=1033&beta=0&isWHQL=1&dltype=-1&dch=1&upCRD=${upCRD}&sort1=0`;
   
   const res = await axios.get(url, { timeout: 15000 });
-  const driver = res?.data?.IDS?.[0];
+  const rawDriver = res?.data?.IDS?.[0];
   
-  if (!driver) throw new Error("API-ul oficial NVIDIA nu a returnat date.");
+  if (!rawDriver) throw new Error("API-ul oficial NVIDIA nu a returnat date.");
+
+  // FIX: NVIDIA pune datele în "downloadInfo" uneori. Dacă există, îl folosim pe acela.
+  const driver = rawDriver.downloadInfo || rawDriver;
+
+  if (!driver.Version) throw new Error("Nu s-a putut găsi versiunea în datele NVIDIA.");
 
   const titleName = upCRD === 1 ? "NVIDIA Studio Driver" : "NVIDIA Game Ready Driver";
   
   return {
     id: String(driver.Version),
     title: `${titleName} v${driver.Version}`,
-    link: driver.DownloadURL, // Link-ul direct de descărcare de pe serverul lor
-    excerpt: `Preluat direct din baza de date NVIDIA.ro.\n**Versiune:** ${driver.Version}\n**Data Lansării:** ${driver.ReleaseDateTime}`,
+    link: driver.DownloadURL || "https://www.nvidia.com/en-us/geforce/drivers/",
+    excerpt: `Preluat direct din baza de date NVIDIA.\n**Versiune:** ${driver.Version}\n**Data Lansării:** ${driver.ReleaseDateTime || "Recentă"}`,
     thumbnail: game.thumbnail,
     timestamp: new Date().toISOString()
   };
 }
 
 async function fetchIntelUpdate(game) {
-  // Citim HTML-ul oficial de pe intel.com printr-un proxy ca să nu fim blocați
-  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(game.url)}`;
-  const res = await axios.get(proxyUrl, { timeout: 15000 });
-  const html = String(res?.data?.contents || "");
-  
-  // Căutăm versiunea ascunsă în codul sursă al paginii
-  const versionMatch = html.match(/class=["']version["'][^>]*>([\d\.]+)</i) || html.match(/Version:\s*([\d\.]+)/i);
-  const version = versionMatch ? versionMatch[1] : "Nouă";
+  try {
+    // Încercăm să citim codul sursă
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(game.url)}`;
+    const res = await axios.get(proxyUrl, { timeout: 15000 });
+    const html = String(res?.data?.contents || "");
+    
+    // FIX: Căutăm direct formatul specific Intel (ex: 31.0.101.5382)
+    const versionMatch = html.match(/\b(\d{2,3}\.\d+\.\d+\.\d+)\b/);
+    
+    if (versionMatch) {
+      const version = versionMatch[1];
+      return {
+        id: version,
+        title: `${game.name} v${version}`,
+        link: game.url,
+        excerpt: `Extras direct de pe pagina oficială Intel.\n**Versiune găsită:** ${version}`,
+        thumbnail: game.thumbnail,
+        timestamp: new Date().toISOString()
+      };
+    }
+  } catch (err) {
+    // Dacă pagina oficială blochează proxy-ul, trecem direct la metoda de rezervă RSS
+  }
 
-  return {
-    id: version,
-    title: `${game.name} - Versiunea ${version}`,
-    link: game.url,
-    excerpt: `Extras direct de pe pagina oficială Intel.com. Accesează link-ul pentru detalii și descărcare.`,
-    thumbnail: game.thumbnail,
-    timestamp: new Date().toISOString()
-  };
+  // Fallback: Dacă scraping-ul pică, folosim sistemul sigur care merge și la AMD
+  const searchQuery = game.key === "intelpro" 
+    ? "site:intel.com \"Intel Arc Pro Graphics\"" 
+    : "site:intel.com \"Intel Arc & Iris Xe Graphics - Windows\"";
+
+  const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(searchQuery)}&hl=en-US&gl=US&ceid=US:en`;
+  const fallbackRes = await axios.get(rssUrl, { timeout: 15000, headers: { "User-Agent": "Mozilla/5.0" } });
+  const xml = String(fallbackRes.data || "");
+  
+  const match = xml.match(/<item>[\s\S]*?<title>([\s\S]*?)<\/title>[\s\S]*?<link>([\s\S]*?)<\/link>[\s\S]*?<\/item>/i);
+  
+  if (match) {
+    const rawTitle = cleanText(match[1]);
+    const cleanT = rawTitle.split(" - ")[0];
+    
+    // Extragem din nou versiunea din titlul obținut
+    const vMatch = cleanT.match(/\b(\d{2,3}\.\d+\.\d+\.\d+)\b/);
+    const versionStr = vMatch ? `v${vMatch[1]}` : "Update Nou";
+
+    return {
+      id: cleanText(match[1]),
+      title: `${game.name} ${versionStr}`,
+      link: match[2],
+      excerpt: "Sursa: Sistemul oficial de articole Intel.",
+      thumbnail: game.thumbnail,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  throw new Error("Acces refuzat la serverele Intel.");
 }
 
 async function fetchAmdUpdate(game) {
@@ -301,7 +342,7 @@ async function fetchAmdUpdate(game) {
 
   // Back-up în caz de IP block extrem din partea AMD
   const rssUrl = `https://news.google.com/rss/search?q=site:amd.com+%22AMD+Software:+Adrenalin+Edition%22+release+notes&hl=en-US&gl=US&ceid=US:en`;
-  const fallbackRes = await axios.get(rssUrl, { timeout: 15000 });
+  const fallbackRes = await axios.get(rssUrl, { timeout: 15000, headers: { "User-Agent": "Mozilla/5.0" }});
   const match = String(fallbackRes.data).match(/<item>[\s\S]*?<title>([\s\S]*?)<\/title>[\s\S]*?<link>([\s\S]*?)<\/link>[\s\S]*?<\/item>/i);
   
   if (match) {
@@ -606,7 +647,6 @@ async function fetchGameUpdate(game) {
   if (game.type === "roblox") return await fetchRobloxUpdate();
   if (game.type === "listing_based") return await fetchListingBasedUpdate(game);
   
-  // Trimiteri pentru noile drivere
   if (game.type === "nvidia") return await fetchNvidiaUpdate(game);
   if (game.type === "intel") return await fetchIntelUpdate(game);
   if (game.type === "amd") return await fetchAmdUpdate(game);
@@ -810,13 +850,11 @@ client.on("messageCreate", async (message) => {
   }
 
   if (command === "latest") {
-    // ⏳ MESAJ DE AȘTEPTARE / GÂNDIRE ADĂUGAT AICI
     const loadingMsg = await message.reply("⏳ *Mă conectez la serverele oficiale și verific update-urile... Te rog așteaptă câteva secunde.*");
 
     if (args.length === 0) {
       const results = await getLatestForAllGames();
       
-      // După ce a terminat de căutat, ștergem mesajul de așteptare
       await loadingMsg.delete().catch(() => null);
 
       for (const result of results) {
@@ -844,7 +882,6 @@ client.on("messageCreate", async (message) => {
     const game = findGameFromText(gameText);
 
     if (!game) {
-      // Dacă a greșit comanda, modificăm mesajul de așteptare direct într-o eroare
       await loadingMsg.edit(`❌ Nu am găsit jocul. Folosește **${PREFIX}porecle** pentru listă.`);
       return;
     }
@@ -852,7 +889,6 @@ client.on("messageCreate", async (message) => {
     try {
       const latest = await fetchGameUpdate(game);
       
-      // Ștergem mesajul de gândire înainte de a trimite rezultatul
       await loadingMsg.delete().catch(() => null);
 
       try {
