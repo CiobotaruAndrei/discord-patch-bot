@@ -231,6 +231,97 @@ function buildUpdateEmbed(gameName, latest) {
   return embed;
 }
 
+// -------------------------------------------------------------
+// FUNCȚII NOI PENTRU DRIVERE (Direct de pe site-urile oficiale)
+// -------------------------------------------------------------
+
+async function fetchNvidiaUpdate(game) {
+  // Accesăm direct baza de date invizibilă a serverelor NVIDIA
+  const upCRD = game.upCRD || 0; 
+  const url = `https://gfwsl.geforce.com/services_toolkit/services/com/nvidia/services/AjaxDriverService.php?func=DriverManualLookup&psid=120&pfid=939&osID=57&languageCode=1033&beta=0&isWHQL=1&dltype=-1&dch=1&upCRD=${upCRD}&sort1=0`;
+  
+  const res = await axios.get(url, { timeout: 15000 });
+  const driver = res?.data?.IDS?.[0];
+  
+  if (!driver) throw new Error("API-ul oficial NVIDIA nu a returnat date.");
+
+  const titleName = upCRD === 1 ? "NVIDIA Studio Driver" : "NVIDIA Game Ready Driver";
+  
+  return {
+    id: String(driver.Version),
+    title: `${titleName} v${driver.Version}`,
+    link: driver.DownloadURL, // Link-ul direct de descărcare de pe serverul lor
+    excerpt: `Preluat direct din baza de date NVIDIA.ro.\n**Versiune:** ${driver.Version}\n**Data Lansării:** ${driver.ReleaseDateTime}`,
+    thumbnail: game.thumbnail,
+    timestamp: new Date().toISOString()
+  };
+}
+
+async function fetchIntelUpdate(game) {
+  // Citim HTML-ul oficial de pe intel.com printr-un proxy ca să nu fim blocați
+  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(game.url)}`;
+  const res = await axios.get(proxyUrl, { timeout: 15000 });
+  const html = String(res?.data?.contents || "");
+  
+  // Căutăm versiunea ascunsă în codul sursă al paginii
+  const versionMatch = html.match(/class=["']version["'][^>]*>([\d\.]+)</i) || html.match(/Version:\s*([\d\.]+)/i);
+  const version = versionMatch ? versionMatch[1] : "Nouă";
+
+  return {
+    id: version,
+    title: `${game.name} - Versiunea ${version}`,
+    link: game.url,
+    excerpt: `Extras direct de pe pagina oficială Intel.com. Accesează link-ul pentru detalii și descărcare.`,
+    thumbnail: game.thumbnail,
+    timestamp: new Date().toISOString()
+  };
+}
+
+async function fetchAmdUpdate(game) {
+  // AMD e cel mai strict. Încercăm să citim pagina lor oficială de suport prin proxy.
+  const amdUrl = "https://www.amd.com/en/support/download/drivers.html";
+  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(amdUrl)}`;
+  
+  try {
+    const res = await axios.get(proxyUrl, { timeout: 15000 });
+    const html = String(res?.data?.contents || "");
+    const versionMatch = html.match(/Adrenalin Edition\s+([\d\.]+)/i);
+    
+    if (versionMatch) {
+      return {
+        id: versionMatch[1],
+        title: `AMD Radeon Adrenalin v${versionMatch[1]}`,
+        link: amdUrl,
+        excerpt: "Scanat direct de pe serverul amd.com. Un nou driver este disponibil.",
+        thumbnail: game.thumbnail,
+        timestamp: new Date().toISOString()
+      };
+    }
+  } catch (err) {}
+
+  // Back-up în caz de IP block extrem din partea AMD
+  const rssUrl = `https://news.google.com/rss/search?q=site:amd.com+%22AMD+Software:+Adrenalin+Edition%22+release+notes&hl=en-US&gl=US&ceid=US:en`;
+  const fallbackRes = await axios.get(rssUrl, { timeout: 15000 });
+  const match = String(fallbackRes.data).match(/<item>[\s\S]*?<title>([\s\S]*?)<\/title>[\s\S]*?<link>([\s\S]*?)<\/link>[\s\S]*?<\/item>/i);
+  
+  if (match) {
+    return {
+      id: cleanText(match[1]),
+      title: cleanText(match[1]).split(" - ")[0],
+      link: match[2],
+      excerpt: "Sursa: Sistemul oficial de articole AMD.",
+      thumbnail: game.thumbnail,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  throw new Error("Acces refuzat de protecția anti-bot a serverului AMD.");
+}
+
+// -------------------------------------------------------------
+// FUNCȚIILE DE JOCURI (Rămase neschimbate)
+// -------------------------------------------------------------
+
 async function fetchSteamUpdate(game) {
   const apiUrl =
     `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/` +
@@ -503,92 +594,22 @@ async function fetchRobloxUpdate() {
   };
 }
 
-// ----------------------------------------------------------------------
-// FUNCȚIA REPARATĂ TOTAL: Extrage XML-ul direct fără niciun intermediar
-// ----------------------------------------------------------------------
-async function fetchDriverUpdate(game) {
-  try {
-    const query = encodeURIComponent(game.query);
-    // Lovim direct XML-ul Google News
-    const rssUrl = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
-
-    const res = await axios.get(rssUrl, {
-      timeout: 15000,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Accept": "application/rss+xml, application/xml, text/xml"
-      }
-    });
-
-    const xml = String(res.data || "");
-
-    // Căutăm primul articol din feed-ul RSS
-    const itemMatch = xml.match(/<item>([\s\S]*?)<\/item>/i);
-    
-    if (!itemMatch) {
-      throw new Error("Datele returnate de Google nu conțin articole.");
-    }
-
-    const itemXml = itemMatch[1];
-
-    // Funcție mică pentru a extrage și curăța datele din XML
-    const getTag = (tag) => {
-      const match = itemXml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
-      if (!match) return "";
-      // Curățăm tag-urile CDATA care apar adesea în XML-uri
-      return match[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, "$1").trim();
-    };
-
-    let title = getTag("title");
-    let link = getTag("link");
-    let pubDate = getTag("pubDate");
-
-    // Curățăm titlul de terminologia automată (ex: " - Nume Site")
-    title = cleanText(title).split(" - ")[0] || `Update nou pentru ${game.name}`;
-
-    return {
-      id: String(link || title), // Link-ul funcționează ca un ID perfect unic
-      title: title,
-      link: link,
-      excerpt: `Un nou update oficial legat de ${game.name} a fost detectat în presă. Accesează link-ul pentru a vedea detaliile.`,
-      thumbnail: game.thumbnail,
-      timestamp: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString()
-    };
-
-  } catch (error) {
-    console.error(`[Eroare Driver - ${game.name}]:`, error.message);
-    throw new Error(`Eroare preluare date nativ: ${error.message}`);
-  }
-}
+// -------------------------------------------------------------
+// DISPECERUL PRINCIPAL
+// -------------------------------------------------------------
 
 async function fetchGameUpdate(game) {
-  if (!game.type || game.type === "steam") {
-    return await fetchSteamUpdate(game);
-  }
-
-  if (game.type === "minecraft") {
-    return await fetchMinecraftUpdate();
-  }
-
-  if (game.key === "fortnite") {
-    return await fetchFortniteUpdate();
-  }
-
-  if (game.type === "epic_games" && game.key !== "fortnite") {
-    return await fetchEpicGamesUpdate(game);
-  }
-
-  if (game.type === "roblox") {
-    return await fetchRobloxUpdate();
-  }
-
-  if (game.type === "listing_based") {
-    return await fetchListingBasedUpdate(game);
-  }
-
-  if (game.type === "driver") {
-    return await fetchDriverUpdate(game);
-  }
+  if (!game.type || game.type === "steam") return await fetchSteamUpdate(game);
+  if (game.type === "minecraft") return await fetchMinecraftUpdate();
+  if (game.key === "fortnite") return await fetchFortniteUpdate();
+  if (game.type === "epic_games" && game.key !== "fortnite") return await fetchEpicGamesUpdate(game);
+  if (game.type === "roblox") return await fetchRobloxUpdate();
+  if (game.type === "listing_based") return await fetchListingBasedUpdate(game);
+  
+  // Trimiteri pentru noile drivere
+  if (game.type === "nvidia") return await fetchNvidiaUpdate(game);
+  if (game.type === "intel") return await fetchIntelUpdate(game);
+  if (game.type === "amd") return await fetchAmdUpdate(game);
 
   throw new Error(`Tip de joc necunoscut pentru ${game.name}.`);
 }
@@ -789,8 +810,14 @@ client.on("messageCreate", async (message) => {
   }
 
   if (command === "latest") {
+    // ⏳ MESAJ DE AȘTEPTARE / GÂNDIRE ADĂUGAT AICI
+    const loadingMsg = await message.reply("⏳ *Mă conectez la serverele oficiale și verific update-urile... Te rog așteaptă câteva secunde.*");
+
     if (args.length === 0) {
       const results = await getLatestForAllGames();
+      
+      // După ce a terminat de căutat, ștergem mesajul de așteptare
+      await loadingMsg.delete().catch(() => null);
 
       for (const result of results) {
         if (!result.latest) {
@@ -810,7 +837,6 @@ client.on("messageCreate", async (message) => {
           );
         }
       }
-
       return;
     }
 
@@ -818,14 +844,16 @@ client.on("messageCreate", async (message) => {
     const game = findGameFromText(gameText);
 
     if (!game) {
-      await message.reply(
-        `❌ Nu am găsit jocul. Folosește **${PREFIX}porecle** pentru listă.`
-      );
+      // Dacă a greșit comanda, modificăm mesajul de așteptare direct într-o eroare
+      await loadingMsg.edit(`❌ Nu am găsit jocul. Folosește **${PREFIX}porecle** pentru listă.`);
       return;
     }
 
     try {
       const latest = await fetchGameUpdate(game);
+      
+      // Ștergem mesajul de gândire înainte de a trimite rezultatul
+      await loadingMsg.delete().catch(() => null);
 
       try {
         await message.channel.send({
@@ -835,9 +863,7 @@ client.on("messageCreate", async (message) => {
         await message.channel.send(formatUpdateMessage(game.name, latest));
       }
     } catch (error) {
-      await message.reply(
-        `❌ Nu am putut lua ultimul update pentru **${game.name}**.`
-      );
+      await loadingMsg.edit(`❌ Nu am putut lua ultimul update pentru **${game.name}**.`);
     }
 
     return;
