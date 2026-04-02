@@ -677,12 +677,20 @@ async function fetchRobloxUpdate() {
 async function fetchDeals() {
   // storeID=1 este Steam, storeID=24 este Epic Games
   const url = "https://www.cheapshark.com/api/1.0/deals?storeID=1,24&onSale=1";
-  const res = await axios.get(url, { timeout: 15000 });
+  
+  // Am adăugat Headers ca să prevenim blocarea din partea serverului
+  const res = await axios.get(url, { 
+    timeout: 15000,
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+  });
+  
   const deals = res.data || [];
 
   const validDeals = deals.filter(d => {
-    const savings = parseFloat(d.savings);
-    const salePrice = parseFloat(d.salePrice);
+    const savings = parseFloat(d.savings) || 0;
+    const salePrice = parseFloat(d.salePrice) || 0;
     const isFree = salePrice === 0;
     
     // Condiția 1: Reducere minim 70% SAU gratis (100%)
@@ -698,19 +706,19 @@ async function fetchDeals() {
 
   const sortedDeals = validDeals.map(d => ({
     id: d.dealID,
-    title: d.title,
-    salePrice: d.salePrice,
-    normalPrice: d.normalPrice,
-    savings: Math.round(parseFloat(d.savings)),
+    title: d.title || "Joc Necunoscut",
+    salePrice: d.salePrice || "0.00",
+    normalPrice: d.normalPrice || "0.00",
+    savings: Math.round(parseFloat(d.savings) || 0),
     store: d.storeID === "1" ? "Steam" : "Epic Games",
     link: d.storeID === "1" 
       ? `https://store.steampowered.com/app/${d.steamAppID}`
       : `https://www.cheapshark.com/redirect?dealID=${d.dealID}`,
-    thumbnail: d.thumb,
-    popularityScore: (parseInt(d.steamRatingCount) || 0) + ((parseInt(d.metacriticScore) || 0) * 100) // Punctaj bazat pe nr recenzii și scor metacritic
+    thumbnail: d.thumb || null,
+    popularityScore: (parseInt(d.steamRatingCount) || 0) + ((parseInt(d.metacriticScore) || 0) * 100) // Punctaj
   }));
 
-  // Sortăm descrescător după popularitate pentru a obține cele mai bune/populare jocuri
+  // Sortăm descrescător după popularitate
   sortedDeals.sort((a, b) => b.popularityScore - a.popularityScore);
 
   return sortedDeals;
@@ -733,20 +741,23 @@ async function checkForDiscounts() {
         state.seenDiscounts.push(deal.id);
         newDealsFound = true;
 
-        const isFree = deal.salePrice === "0.00";
+        const isFree = parseFloat(deal.salePrice) === 0;
         const embed = new EmbedBuilder()
           .setColor(isFree ? 0xffd700 : 0xe74c3c)
-          .setTitle(`🚨 OFERTĂ NOUĂ: ${deal.title}`)
+          .setTitle(String(`🚨 OFERTĂ NOUĂ: ${deal.title}`).slice(0, 250))
           .setDescription(`**${deal.store}** oferă o reducere masivă de **${deal.savings}%**!`)
           .addFields(
             { name: 'Preț Vechi', value: `~~$${deal.normalPrice}~~`, inline: true },
             { name: 'Preț Nou', value: isFree ? "🔥 GRATIS 🔥" : `$${deal.salePrice}`, inline: true },
             { name: 'Link Către Magazin', value: `[Apasă aici pentru ofertă](${deal.link})`, inline: false }
           )
-          .setThumbnail(deal.thumbnail)
           .setTimestamp();
+          
+        if (deal.thumbnail && deal.thumbnail.startsWith("http")) {
+            embed.setThumbnail(deal.thumbnail);
+        }
 
-        await channel.send({ embeds: [embed] });
+        await channel.send({ embeds: [embed] }).catch(err => console.error("Eroare trimitere embed reducere", err));
       }
     }
 
@@ -758,7 +769,7 @@ async function checkForDiscounts() {
     }
 
   } catch (error) {
-    console.error("Eroare la căutarea reducerilor:", error.message);
+    console.error("Eroare la căutarea reducerilor automate:", error.message);
   }
 }
 
@@ -1013,7 +1024,7 @@ client.on("messageCreate", async (message) => {
       const loadingMsg = await message.reply(`⏳ *Caut și sortez după popularitate cele mai bune oferte de pe Steam și Epic Games...*`);
       
       try {
-        const deals = await fetchDeals(); // FetchDeals acum le și sortează
+        const deals = await fetchDeals(); 
         
         if (!deals || deals.length === 0) {
           await loadingMsg.edit(`❌ Momentan nu am găsit nicio reducere de peste 70% sau jocuri gratuite care să îndeplinească criteriile noastre.`);
@@ -1033,22 +1044,27 @@ client.on("messageCreate", async (message) => {
           const embedsToSend = [];
 
           for (const deal of chunk) {
-            const isFree = deal.salePrice === "0.00";
+            const isFree = parseFloat(deal.salePrice) === 0;
             const embed = new EmbedBuilder()
               .setColor(isFree ? 0xffd700 : 0xe74c3c)
-              .setTitle(`🚨 OFERTĂ ACTIVĂ: ${deal.title}`)
+              .setTitle(String(`🚨 OFERTĂ ACTIVĂ: ${deal.title}`).slice(0, 250)) // Scurtăm ca să nu dea eroare dacă numele e prea lung
               .setDescription(`**${deal.store}** oferă o reducere de **${deal.savings}%**!`)
               .addFields(
                 { name: 'Preț Vechi', value: `~~$${deal.normalPrice}~~`, inline: true },
                 { name: 'Preț Nou', value: isFree ? "🔥 GRATIS 🔥" : `$${deal.salePrice}`, inline: true },
                 { name: 'Link Către Magazin', value: `[Apasă aici pentru ofertă](${deal.link})`, inline: false }
-              )
-              .setThumbnail(deal.thumbnail);
+              );
+              
+            if (deal.thumbnail && deal.thumbnail.startsWith("http")) {
+                embed.setThumbnail(deal.thumbnail);
+            }
             
             embedsToSend.push(embed);
           }
 
-          await message.channel.send({ embeds: embedsToSend });
+          await message.channel.send({ embeds: embedsToSend }).catch(err => {
+             console.error("Eroare la trimiterea unui mesaj de grup:", err);
+          });
 
           if (i + 10 < maxDeals.length) {
             await new Promise(resolve => setTimeout(resolve, 20000));
@@ -1056,10 +1072,11 @@ client.on("messageCreate", async (message) => {
         }
 
       } catch (error) {
-        await loadingMsg.edit(`❌ A apărut o eroare la căutarea ofertelor.`);
+        // Acum bot-ul va scrie pe chat direct eroarea pe care o primește
+        await loadingMsg.edit(`❌ A apărut o eroare la serverul de oferte: \`${error.message}\``).catch(() => null);
         console.error("Eroare comanda latest reduceri:", error);
       }
-      return; // Ieșim ca să nu continue cu restul comenzii latest normale
+      return; 
     }
 
     // ---------------------------------------------------------
