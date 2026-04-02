@@ -229,13 +229,10 @@ function isGoodSteamArticleUrl(url) {
   if (!/^https?:\/\//i.test(value)) return false;
   if (/steamstatic\.com/i.test(value)) return false;
   if (/steamcdn/i.test(value)) return false;
+  if (/\/news\/app\/\d+\/view\/\d+/i.test(value)) return true;
+  if (/steamcommunity\.com\/games\//i.test(value)) return true;
 
-  return /store\.steampowered\.com|steamcommunity\.com/i.test(value);
-}
-
-function buildSteamArticleUrl(appId, gid) {
-  if (!appId || !gid) return "";
-  return `https://store.steampowered.com/news/app/${appId}/view/${gid}`;
+  return false;
 }
 
 function getSteamFallbackNewsLink(game) {
@@ -243,43 +240,6 @@ function getSteamFallbackNewsLink(game) {
     return `https://store.steampowered.com/news/app/${game.appId}`;
   }
   return "";
-}
-
-async function urlLooksValid(url) {
-  if (!url) return false;
-
-  try {
-    const response = await axios.get(url, {
-      timeout: 12000,
-      maxRedirects: 5,
-      headers: {
-        "User-Agent": "Mozilla/5.0"
-      }
-    });
-
-    const html = String(response.data || "");
-
-    if (/Event does not exist/i.test(html)) {
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    return false;
-  }
-}
-
-async function chooseBestSteamLink(game, latest) {
-  if (isGoodSteamArticleUrl(latest.url)) {
-    return latest.url;
-  }
-
-  const constructed = buildSteamArticleUrl(game.appId, latest.gid);
-  if (constructed && (await urlLooksValid(constructed))) {
-    return constructed;
-  }
-
-  return getSteamFallbackNewsLink(game);
 }
 
 async function fetchSteamUpdate(game) {
@@ -308,56 +268,106 @@ async function fetchSteamUpdate(game) {
   }
 
   const cleanExcerpt = cleanText(latest.contents).slice(0, 700);
-  const chosenLink = await chooseBestSteamLink(game, latest);
 
   return {
     id: String(latest.gid),
     title: cleanText(latest.title),
-    link: chosenLink,
+    link: isGoodSteamArticleUrl(latest.url)
+      ? latest.url
+      : getSteamFallbackNewsLink(game),
     excerpt: cleanExcerpt || `A apărut un nou update pentru ${game.name}.`,
     timestamp: latest.date ? new Date(latest.date * 1000).toISOString() : undefined
   };
 }
 
-function extractLinksWithRegex(html, baseUrl, regex) {
-  const found = [];
+function parseAnchors(html, baseUrl) {
+  const anchors = [];
+  const regex = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   let match;
 
   while ((match = regex.exec(html)) !== null) {
-    const full = absoluteUrl(baseUrl, match[1]);
-    if (!found.includes(full)) {
-      found.push(full);
-    }
-  }
+    const href = absoluteUrl(baseUrl, match[1]);
+    const inner = cleanText(match[2]);
 
-  return found;
-}
-
-async function fetchListingBasedUpdate(game) {
-  const listRes = await axios.get(game.listingUrl, {
-    timeout: 15000,
-    headers: {
-      "User-Agent": "Mozilla/5.0"
-    }
-  });
-
-  const listHtml = String(listRes.data || "");
-  const articleRegex = new RegExp(game.articleHrefRegex, "gi");
-  let links = extractLinksWithRegex(listHtml, game.baseUrl, articleRegex);
-
-  if (game.requireKeywords && Array.isArray(game.requireKeywords) && game.requireKeywords.length) {
-    const loweredKeywords = game.requireKeywords.map((k) => String(k).toLowerCase());
-    links = links.filter((link) => {
-      const value = String(link).toLowerCase();
-      return loweredKeywords.some((keyword) => value.includes(keyword));
+    anchors.push({
+      href,
+      text: inner
     });
   }
 
-  if (!links.length) {
+  return anchors;
+}
+
+function uniqueByHref(items) {
+  const seen = new Set();
+  const result = [];
+
+  for (const item of items) {
+    if (!item.href || seen.has(item.href)) continue;
+    seen.add(item.href);
+    result.push(item);
+  }
+
+  return result;
+}
+
+function scoreCandidate(candidate, keywords) {
+  const haystack = `${candidate.href} ${candidate.text}`.toLowerCase();
+  let score = 0;
+
+  for (const keyword of keywords) {
+    if (haystack.includes(String(keyword).toLowerCase())) {
+      score += 1;
+    }
+  }
+
+  return score;
+}
+
+async function fetchListingBasedUpdate(game) {
+  const listingUrls = Array.isArray(game.listingUrls) && game.listingUrls.length
+    ? game.listingUrls
+    : [game.listingUrl];
+
+  const keywords = Array.isArray(game.requireKeywords) ? game.requireKeywords : [];
+  const hrefRegex = game.articleHrefRegex ? new RegExp(game.articleHrefRegex, "i") : null;
+
+  let collected = [];
+
+  for (const url of listingUrls) {
+    const listRes = await axios.get(url, {
+      timeout: 15000,
+      headers: {
+        "User-Agent": "Mozilla/5.0"
+      }
+    });
+
+    const listHtml = String(listRes.data || "");
+    let anchors = parseAnchors(listHtml, game.baseUrl);
+
+    anchors = anchors.filter((a) => {
+      if (!a.href) return false;
+      if (hrefRegex && !hrefRegex.test(a.href)) return false;
+      if (!keywords.length) return true;
+
+      const score = scoreCandidate(a, keywords);
+      return score > 0;
+    });
+
+    collected.push(...anchors);
+  }
+
+  collected = uniqueByHref(collected);
+
+  if (keywords.length) {
+    collected.sort((a, b) => scoreCandidate(b, keywords) - scoreCandidate(a, keywords));
+  }
+
+  if (!collected.length) {
     throw new Error(`Nu am găsit articole de update pentru ${game.name}.`);
   }
 
-  const articleUrl = links[0];
+  const articleUrl = collected[0].href;
 
   const articleRes = await axios.get(articleUrl, {
     timeout: 15000,
@@ -370,9 +380,7 @@ async function fetchListingBasedUpdate(game) {
 
   return {
     id: String(articleUrl),
-    title:
-      extractTitleFromHtml(articleHtml) ||
-      `Update nou pentru ${game.name}`,
+    title: extractTitleFromHtml(articleHtml) || `Update nou pentru ${game.name}`,
     link: articleUrl,
     excerpt:
       extractDescriptionFromHtml(articleHtml).slice(0, 700) ||
