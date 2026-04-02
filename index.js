@@ -259,6 +259,22 @@ function buildUpdateEmbed(gameName, latest) {
   return embed;
 }
 
+function getSteamNewsLink(game, latest) {
+  if (game.customNewsLink) {
+    return game.customNewsLink;
+  }
+
+  if (latest?.gid && game.appId) {
+    return `https://store.steampowered.com/news/app/${game.appId}/view/${latest.gid}`;
+  }
+
+  if (game.appId) {
+    return `https://store.steampowered.com/news/app/${game.appId}`;
+  }
+
+  return latest?.url || "";
+}
+
 async function fetchSteamUpdate(game) {
   const apiUrl =
     `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/` +
@@ -290,7 +306,7 @@ async function fetchSteamUpdate(game) {
   return {
     id: String(latest.gid),
     title: cleanText(latest.title),
-    link: latest.url || `https://store.steampowered.com/news/app/${game.appId}`,
+    link: getSteamNewsLink(game, latest),
     excerpt: cleanExcerpt || `A apărut un nou update pentru ${game.name}.`,
     timestamp: latest.date ? new Date(latest.date * 1000).toISOString() : undefined
   };
