@@ -571,7 +571,7 @@ async function fetchDeals() {
 }
 
 async function enrichDealData(deal) {
-  deal.endDateStr = "Necunoscut (Verifică manual link-ul)";
+  deal.endDateStr = "Limitată (Grăbește-te!)";
   deal.extraDetails = "";
 
   if (deal.store === "Steam" && deal.steamAppID) {
@@ -602,7 +602,6 @@ async function enrichDealData(deal) {
       if (match && match[1]) {
         let str = match[1].trim().toLowerCase();
         
-        // Dictionar de traducere a lunilor in romana
         const months = {
            "january": "Ianuarie", "jan": "Ianuarie",
            "february": "Februarie", "feb": "Februarie",
@@ -628,7 +627,6 @@ async function enrichDealData(deal) {
         let yearMatch = str.match(/\b202\d\b/);
         let year = yearMatch ? yearMatch[0] : "";
         
-        // Formatăm elegant: ex. "15 Aprilie 2026"
         if (day && foundMonth) {
             deal.endDateStr = `${day} ${foundMonth}${year ? ' ' + year : ''}`;
         } else {
@@ -639,22 +637,44 @@ async function enrichDealData(deal) {
   } 
   else if (deal.store === "Epic Games") {
     let epicDate = null;
-    
-    // Metoda 1: Folosim AllOrigins ca un Proxy pentru a fenta Cloudflare și a citi codul sursă 
-    try {
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(deal.link)}`;
-        const proxyRes = await axios.get(proxyUrl, { timeout: 8000 });
-        const html = String(proxyRes.data?.contents || "");
-        
-        const discountMatch = html.match(/"discountEndDate"\s*:\s*"([^"]+)"/i) || html.match(/<time datetime="([^"]+)"/i);
-        if (discountMatch && discountMatch[1]) {
-            epicDate = discountMatch[1];
-        }
-    } catch (err) {}
+    let realEpicUrl = deal.link;
 
-    // Metoda 2: Interogăm direct baza de date Epic (GraphQL) fără protecție pe pagină, dacă prima a picat
+    // 1. Găsim link-ul real Epic (deoarece CheapShark are redirect)
+    try {
+        const redir = await axios.get(deal.link, { maxRedirects: 5, timeout: 5000, validateStatus: () => true });
+        if (redir.request && redir.request.res && redir.request.res.responseUrl) {
+            realEpicUrl = redir.request.res.responseUrl;
+        } else if (redir.headers && redir.headers.location) {
+            realEpicUrl = redir.headers.location;
+        }
+    } catch (e) {}
+
+    // 2. Extragem datele cu sistem multi-proxy ca să spargem Cloudflare-ul
+    const proxies = [
+        `https://api.allorigins.win/get?url=${encodeURIComponent(realEpicUrl)}`,
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(realEpicUrl)}`,
+        realEpicUrl 
+    ];
+
+    for (const proxy of proxies) {
+        try {
+            const htmlRes = await axios.get(proxy, { timeout: 6000, headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" } });
+            const html = String(htmlRes.data?.contents || htmlRes.data || "");
+            
+            const dateMatch = html.match(/"discountEndDate"\s*:\s*"([^"]+)"/i) || 
+                              html.match(/<time datetime="([^"]+)"/i) || 
+                              html.match(/"endDate"\s*:\s*"([^"]+)"/i);
+            
+            if (dateMatch && dateMatch[1]) {
+                epicDate = dateMatch[1];
+                break;
+            }
+        } catch (e) {}
+    }
+
+    // 3. Fallback direct la baza de date Epic (GraphQL)
     if (!epicDate) {
-        const getEpicDateGraphQL = async (keyword) => {
+        const fetchGraphQL = async (keyword) => {
             try {
                 const query = {
                     query: `query searchStoreQuery($keywords: String!) { Catalog { searchStore(keyword: $keywords, count: 5) { elements { title price { totalPrice { discountEndDate } } } } } }`,
@@ -662,9 +682,8 @@ async function enrichDealData(deal) {
                 };
                 const res = await axios.post('https://graphql.epicgames.com/graphql', query, { 
                     timeout: 6000, 
-                    headers: { "Content-Type": "application/json" } 
+                    headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" } 
                 });
-                
                 const elements = res.data?.data?.Catalog?.searchStore?.elements;
                 if (elements && elements.length > 0) {
                     const match = elements.find(e => e.price?.totalPrice?.discountEndDate);
@@ -674,20 +693,18 @@ async function enrichDealData(deal) {
             return null;
         };
 
-        epicDate = await getEpicDateGraphQL(deal.title);
+        epicDate = await fetchGraphQL(deal.title);
         if (!epicDate) {
-            // Tăiem balastul din titlu ca Epic să găsească jocul de bază sigur
-            let cleanTitle = deal.title.replace(/Edition|Deluxe|Standard|Premium|Legendary|Director's Cut/gi, '').split(/[:\-]/)[0].trim();
-            epicDate = await getEpicDateGraphQL(cleanTitle);
+            const cleanTitle = deal.title.replace(/Edition|Deluxe|Standard|Premium|Legendary|Director's Cut/gi, '').split(/[:\-]/)[0].trim();
+            epicDate = await fetchGraphQL(cleanTitle);
         }
     }
 
-    // Traducem și formatăm frumos data găsită
+    // 4. Traducere elegantă și formatare
     if (epicDate) {
         const d = new Date(epicDate);
         if (!isNaN(d.getTime())) {
             const months = ["Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie", "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie"];
-            // Afișăm data completă (ex. 13 Aprilie 2026 la 18:00)
             deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()} la ora ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         }
     }
@@ -905,7 +922,6 @@ client.on("messageCreate", async (message) => {
     state.notificationChannelId = message.channel.id;
     state.subscribed = true;
     
-    // Extragere ETA
     const estMs = state.executionTimes?.startupdates || 15000;
     const estSec = Math.max(1, Math.ceil(estMs / 1000));
     saveState(state);
@@ -915,7 +931,6 @@ client.on("messageCreate", async (message) => {
 
     await initializeSeenForCurrentGames();
 
-    // Salvare ETA finalizat
     const elapsed = Date.now() - startTime;
     const finalState = loadState();
     if (!finalState.executionTimes) finalState.executionTimes = {};
@@ -947,7 +962,6 @@ client.on("messageCreate", async (message) => {
     state.discountChannelId = message.channel.id;
     state.discountsSubscribed = true;
     
-    // Extragere ETA
     const estMs = state.executionTimes?.startreduceri || 8000;
     const estSec = Math.max(1, Math.ceil(estMs / 1000));
     saveState(state);
@@ -957,7 +971,6 @@ client.on("messageCreate", async (message) => {
     
     await checkForDiscounts();
     
-    // Salvare ETA finalizat
     const elapsed = Date.now() - startTime;
     const finalState = loadState();
     if (!finalState.executionTimes) finalState.executionTimes = {};
@@ -1035,7 +1048,6 @@ client.on("messageCreate", async (message) => {
           }
         }
         
-        // Salvare ETA finalizat
         const elapsed = Date.now() - startTime;
         const finalState = loadState();
         if (!finalState.executionTimes) finalState.executionTimes = {};
@@ -1049,7 +1061,6 @@ client.on("messageCreate", async (message) => {
       return; 
     }
 
-    // --- LATEST (UPDATE JOCURI NORMAL) ---
     const state = loadState();
     const isAll = args.length === 0;
     const estType = isAll ? "all" : "single";
