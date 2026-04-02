@@ -234,10 +234,16 @@ async function fetchSteamUpdate(game) {
     throw new Error("Lipsă date Steam.");
   }
 
-  const patchNotes = newsItems.filter(isLikelyPatchNote);
+  const patchNotes = newsItems.filter((item) => {
+    // FILTRU CRITIC: Acceptăm doar anunțuri oficiale de la dezvoltatori pe Steam, excludem site-urile externe (ca PCGamesN)
+    if (item.feedname !== "steam_community_announcements" && item.feed_type !== 1) {
+      return false; 
+    }
+    return isLikelyPatchNote(item);
+  });
 
   if (patchNotes.length === 0) {
-    throw new Error("Niciun update recent detectat.");
+    throw new Error("Niciun update recent detectat direct de pe Steam.");
   }
 
   patchNotes.sort((a, b) => Number(b.date || 0) - Number(a.date || 0));
@@ -249,8 +255,8 @@ async function fetchSteamUpdate(game) {
 
   const cleanExcerpt = cleanText(latest.contents).slice(0, 700);
   
-  // Utilizăm direct permalink-ul furnizat de Steam din interiorul API-ului (latest.url).
-  const exactArticleLink = String(latest.url || "").trim() || `https://store.steampowered.com/news/app/${game.appId}`;
+  // Link fix, securizat, garantat să funcționeze pe pagina oficială Steam
+  const exactArticleLink = `https://store.steampowered.com/news/app/${game.appId}/view/${latest.gid}`;
 
   return {
     id: String(latest.gid),
@@ -404,49 +410,32 @@ async function fetchEpicGamesUpdate(game) {
 }
 
 async function fetchFortniteUpdate() {
-  // Accesăm pagina web unde Epic publică oficial noutățile
-  const url = "https://www.fortnite.com/news";
-  const res = await axios.get(url, {
-    timeout: 15000,
-    headers: { "User-Agent": "Mozilla/5.0" }
-  });
+  // Utilizăm API-ul intern oficial pe care îl folosește frontend-ul Fortnite.com
+  const url = "https://www.fortnite.com/api/blog/getPosts?postsPerPage=5&offset=0&locale=en-US";
+  
+  const res = await axios.get(url, { timeout: 15000 });
+  const posts = res?.data?.blogList;
 
-  const html = String(res.data || "");
-  const anchors = parseAnchors(html, "https://www.fortnite.com");
-
-  // Extragem strict link-urile valide care conțin un articol individual
-  const validArticles = anchors.filter(a => {
-    return a.href && 
-           a.href.includes("/news/") && 
-           !a.href.endsWith("/news") && 
-           !a.href.includes("?page=") &&
-           !a.href.includes("/tag/");
-  });
-
-  if (!validArticles.length) {
-    throw new Error("Nu am putut găsi articole pe pagina de noutăți Fortnite.");
+  if (!Array.isArray(posts) || posts.length === 0) {
+    throw new Error("Nu am găsit noutăți pentru Fortnite pe API-ul oficial.");
   }
 
-  // Filtrăm duplicatele și selectăm primul articol găsit (care e și cel mai nou)
-  const uniqueArticles = uniqueByHref(validArticles);
-  const latestArticle = uniqueArticles[0];
-
-  // Extragem direct metadatele de pe pagina articolului
-  const articleRes = await axios.get(latestArticle.href, {
-    timeout: 15000,
-    headers: { "User-Agent": "Mozilla/5.0" }
+  // Filtrăm pentru a scoate ultimul update relevant (sau prima noutate majoră dacă nu are tag explicit de update)
+  let latest = posts.find((p) => {
+    const t = String(p.title).toLowerCase();
+    return t.includes("update") || t.includes("patch") || t.includes("v") || p.category === "Patch Notes";
   });
-  
-  const articleHtml = String(articleRes.data || "");
+
+  if (!latest) latest = posts[0];
 
   return {
-    id: latestArticle.href, // Ne folosim direct de link ca identificator unic
-    title: extractTitleFromHtml(articleHtml) || cleanText(latestArticle.text) || "Fortnite: Noutăți Noi",
-    link: latestArticle.href,
-    excerpt: extractDescriptionFromHtml(articleHtml).slice(0, 700) || "A apărut un nou articol oficial pentru Fortnite.",
-    image: extractImageFromHtml(articleHtml),
+    id: String(latest._id || latest.slug),
+    title: cleanText(latest.title) || "Fortnite Update",
+    link: `https://www.fortnite.com/news/${latest.slug}`,
+    excerpt: cleanText(latest.shareDescription || "A apărut o nouă actualizare pentru Fortnite.").slice(0, 700),
+    image: latest.image || latest.trendingImage,
     thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
-    timestamp: extractPublishedTimeFromHtml(articleHtml)
+    timestamp: latest.date ? new Date(latest.date).toISOString() : new Date().toISOString()
   };
 }
 
