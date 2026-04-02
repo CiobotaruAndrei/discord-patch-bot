@@ -222,24 +222,62 @@ function buildUpdateEmbed(gameName, latest) {
   return embed;
 }
 
-function tokenize(text) {
-  return cleanText(text)
-    .toLowerCase()
-    .split(/[^a-z0-9]+/i)
-    .filter(Boolean);
+function isGoodSteamArticleUrl(url) {
+  const value = String(url || "").trim();
+
+  if (!value) return false;
+  if (!/^https?:\/\//i.test(value)) return false;
+  if (/steamstatic\.com/i.test(value)) return false;
+  if (/steamcdn/i.test(value)) return false;
+  if (/\/news\/app\/\d+\/view\/\d+/i.test(value)) return true;
+  if (/steamcommunity\.com\/games\//i.test(value)) return true;
+
+  return false;
 }
 
-function scoreTextSimilarity(a, b) {
-  const aTokens = new Set(tokenize(a));
-  const bTokens = tokenize(b);
-
-  if (!aTokens.size || !bTokens.length) return 0;
-
-  let score = 0;
-  for (const token of bTokens) {
-    if (aTokens.has(token)) score += 1;
+function getSteamFallbackNewsLink(game) {
+  if (game.appId) {
+    return `https://store.steampowered.com/news/app/${game.appId}`;
   }
-  return score;
+  return "";
+}
+
+async function fetchSteamUpdate(game) {
+  const apiUrl =
+    `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/` +
+    `?appid=${game.appId}&count=100&maxlength=2000&format=json`;
+
+  const response = await axios.get(apiUrl, { timeout: 15000 });
+  const newsItems = response?.data?.appnews?.newsitems;
+
+  if (!Array.isArray(newsItems) || newsItems.length === 0) {
+    throw new Error("Lipsă date Steam.");
+  }
+
+  const patchNotes = newsItems.filter(isLikelyPatchNote);
+
+  if (patchNotes.length === 0) {
+    throw new Error("Niciun update recent detectat.");
+  }
+
+  patchNotes.sort((a, b) => Number(b.date || 0) - Number(a.date || 0));
+  const latest = patchNotes[0];
+
+  if (!latest.gid || !latest.title) {
+    throw new Error("Update invalid primit de la Steam.");
+  }
+
+  const cleanExcerpt = cleanText(latest.contents).slice(0, 700);
+
+  return {
+    id: String(latest.gid),
+    title: cleanText(latest.title),
+    link: isGoodSteamArticleUrl(latest.url)
+      ? latest.url
+      : getSteamFallbackNewsLink(game),
+    excerpt: cleanExcerpt || `A apărut un nou update pentru ${game.name}.`,
+    timestamp: latest.date ? new Date(latest.date * 1000).toISOString() : undefined
+  };
 }
 
 function parseAnchors(html, baseUrl) {
@@ -273,98 +311,23 @@ function uniqueByHref(items) {
   return result;
 }
 
-function isDirectSteamArticleUrl(url, appId) {
-  const value = String(url || "").trim().toLowerCase();
-  if (!value) return false;
-  if (/steamstatic\.com/.test(value)) return false;
-  if (/steamcdn/.test(value)) return false;
+function scoreCandidate(candidate, keywords) {
+  const haystack = `${candidate.href} ${candidate.text}`.toLowerCase();
+  let score = 0;
 
-  return (
-    value.includes(`/news/app/${appId}/view/`) ||
-    value.includes("steamcommunity.com/games/") ||
-    value.includes("steamcommunity.com/app/")
-  );
-}
-
-async function fetchSteamArticleLink(game, latestTitle, fallbackUrl) {
-  if (isDirectSteamArticleUrl(fallbackUrl, game.appId)) {
-    return fallbackUrl;
-  }
-
-  const newsHubUrl = `https://store.steampowered.com/news/app/${game.appId}`;
-
-  try {
-    const response = await axios.get(newsHubUrl, {
-      timeout: 15000,
-      headers: {
-        "User-Agent": "Mozilla/5.0"
-      }
-    });
-
-    const html = String(response.data || "");
-    let anchors = parseAnchors(html, "https://store.steampowered.com");
-    anchors = uniqueByHref(anchors);
-
-    const candidates = anchors
-      .filter((a) => isDirectSteamArticleUrl(a.href, game.appId))
-      .map((a) => ({
-        ...a,
-        score: scoreTextSimilarity(latestTitle, a.text)
-      }))
-      .sort((a, b) => b.score - a.score);
-
-    if (candidates.length > 0) {
-      return candidates[0].href;
+  for (const keyword of keywords) {
+    if (haystack.includes(String(keyword).toLowerCase())) {
+      score += 1;
     }
-  } catch (error) {
-    console.error(`Nu am putut extrage articolul Steam pentru ${game.name}: ${error.message}`);
   }
 
-  return newsHubUrl;
-}
-
-async function fetchSteamUpdate(game) {
-  const apiUrl =
-    `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/` +
-    `?appid=${game.appId}&count=100&maxlength=2000&format=json`;
-
-  const response = await axios.get(apiUrl, { timeout: 15000 });
-  const newsItems = response?.data?.appnews?.newsitems;
-
-  if (!Array.isArray(newsItems) || newsItems.length === 0) {
-    throw new Error("Lipsă date Steam.");
-  }
-
-  const patchNotes = newsItems.filter(isLikelyPatchNote);
-
-  if (patchNotes.length === 0) {
-    throw new Error("Niciun update recent detectat.");
-  }
-
-  patchNotes.sort((a, b) => Number(b.date || 0) - Number(a.date || 0));
-  const latest = patchNotes[0];
-
-  if (!latest.gid || !latest.title) {
-    throw new Error("Update invalid primit de la Steam.");
-  }
-
-  const chosenLink = await fetchSteamArticleLink(game, latest.title, latest.url);
-  const cleanExcerpt = cleanText(latest.contents).slice(0, 700);
-
-  return {
-    id: String(latest.gid),
-    title: cleanText(latest.title),
-    link: chosenLink,
-    excerpt: cleanExcerpt || `A apărut un nou update pentru ${game.name}.`,
-    timestamp: latest.date ? new Date(latest.date * 1000).toISOString() : undefined
-  };
+  return score;
 }
 
 async function fetchListingBasedUpdate(game) {
-  const listingUrls =
-    Array.isArray(game.listingUrls) && game.listingUrls.length
-      ? game.listingUrls
-      : [game.listingUrl];
+  const listingUrls = Array.isArray(game.listingUrls) && game.listingUrls.length
+    ? game.listingUrls
+    : [game.listingUrl];
 
   const keywords = Array.isArray(game.requireKeywords) ? game.requireKeywords : [];
   const hrefRegex = game.articleHrefRegex ? new RegExp(game.articleHrefRegex, "i") : null;
@@ -387,27 +350,18 @@ async function fetchListingBasedUpdate(game) {
       if (hrefRegex && !hrefRegex.test(a.href)) return false;
       if (!keywords.length) return true;
 
-      const bag = `${a.href} ${a.text}`.toLowerCase();
-      return keywords.some((k) => bag.includes(String(k).toLowerCase()));
+      const score = scoreCandidate(a, keywords);
+      return score > 0;
     });
 
     collected.push(...anchors);
   }
 
-  collected = uniqueByHref(collected).map((a) => {
-    const bag = `${a.href} ${a.text}`;
-    let score = 0;
+  collected = uniqueByHref(collected);
 
-    for (const keyword of keywords) {
-      if (bag.toLowerCase().includes(String(keyword).toLowerCase())) {
-        score += 1;
-      }
-    }
-
-    return { ...a, score };
-  });
-
-  collected.sort((a, b) => b.score - a.score);
+  if (keywords.length) {
+    collected.sort((a, b) => scoreCandidate(b, keywords) - scoreCandidate(a, keywords));
+  }
 
   if (!collected.length) {
     throw new Error(`Nu am găsit articole de update pentru ${game.name}.`);
