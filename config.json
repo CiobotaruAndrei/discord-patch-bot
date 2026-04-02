@@ -44,6 +44,24 @@
       "appId": "252950"
     },
     {
+      "key": "crossout",
+      "name": "Crossout",
+      "type": "steam",
+      "appId": "386180"
+    },
+    {
+      "key": "pubgpc",
+      "name": "PUBG (PC)",
+      "type": "steam",
+      "appId": "578080"
+    },
+    {
+      "key": "battlefield6",
+      "name": "Battlefield 6",
+      "type": "steam",
+      "appId": "2807960"
+    },
+    {
       "key": "minecraft",
       "name": "Minecraft",
       "type": "minecraft"
@@ -57,6 +75,16 @@
       "key": "roblox",
       "name": "Roblox",
       "type": "roblox"
+    },
+    {
+      "key": "valorant",
+      "name": "VALORANT",
+      "type": "valorant"
+    },
+    {
+      "key": "lol",
+      "name": "League of Legends",
+      "type": "leagueoflegends"
     }
   ]
 }
