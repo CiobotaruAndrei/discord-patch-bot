@@ -109,7 +109,9 @@
       ],
       "baseUrl": "https://playvalorant.com",
       "articleHrefRegex": "/news/game-updates/",
-      "requireKeywords": ["patch"],
+      "requireKeywords": [
+        "patch"
+      ],
       "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/f/fc/Valorant_logo_-_pink_color_version.svg"
     },
     {
@@ -121,8 +123,38 @@
       ],
       "baseUrl": "https://www.leagueoflegends.com",
       "articleHrefRegex": "/news/game-updates/",
-      "requireKeywords": ["patch"],
+      "requireKeywords": [
+        "patch"
+      ],
       "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/d/d8/League_of_Legends_2019_vector.svg"
+    },
+    {
+      "key": "nvidiagr",
+      "name": "NVIDIA Game Ready Drivers",
+      "type": "driver",
+      "query": "site:nvidia.com/en-us/geforce/news/ \"Game Ready Driver\"",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/2/21/Nvidia_logo.svg"
+    },
+    {
+      "key": "nvidiastudio",
+      "name": "NVIDIA Studio Drivers",
+      "type": "driver",
+      "query": "site:nvidia.com/en-us/geforce/news/ \"Studio Driver\"",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/2/21/Nvidia_logo.svg"
+    },
+    {
+      "key": "amd",
+      "name": "AMD Radeon Drivers",
+      "type": "driver",
+      "query": "site:amd.com/en/resources/support-articles/release-notes/ \"AMD Software: Adrenalin Edition\"",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/7/7c/AMD_Logo.svg"
+    },
+    {
+      "key": "intelarc",
+      "name": "Intel ARC Drivers",
+      "type": "driver",
+      "query": "site:intel.com \"Intel Arc & Iris Xe Graphics - Windows\"",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel_logo_%282020%2C_light_blue%29.svg"
     }
   ]
 }
