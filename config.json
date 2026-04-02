@@ -132,28 +132,28 @@
       "key": "nvidiagr",
       "name": "NVIDIA Game Ready Drivers",
       "type": "driver",
-      "query": "site:nvidia.com/en-us/geforce/news/ \"Game Ready Driver\"",
+      "query": "\"Game Ready Driver\" site:nvidia.com",
       "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/2/21/Nvidia_logo.svg"
     },
     {
       "key": "nvidiastudio",
       "name": "NVIDIA Studio Drivers",
       "type": "driver",
-      "query": "site:nvidia.com/en-us/geforce/news/ \"Studio Driver\"",
+      "query": "\"Studio Driver\" site:nvidia.com",
       "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/2/21/Nvidia_logo.svg"
     },
     {
       "key": "amd",
       "name": "AMD Radeon Drivers",
       "type": "driver",
-      "query": "site:amd.com/en/resources/support-articles/release-notes/ \"AMD Software: Adrenalin Edition\"",
+      "query": "\"AMD Software: Adrenalin Edition\" site:amd.com",
       "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/7/7c/AMD_Logo.svg"
     },
     {
       "key": "intelarc",
       "name": "Intel ARC Drivers",
       "type": "driver",
-      "query": "site:intel.com \"Intel Arc & Iris Xe Graphics - Windows\"",
+      "query": "\"Intel Arc\" graphics driver site:intel.com",
       "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel_logo_%282020%2C_light_blue%29.svg"
     }
   ]
