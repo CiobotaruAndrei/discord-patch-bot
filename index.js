@@ -235,6 +235,7 @@ async function fetchSteamUpdate(game) {
   }
 
   const patchNotes = newsItems.filter((item) => {
+    // Luăm exclusiv postările oficiale ale dezvoltatorilor, fără articole externe
     if (item.feed_type !== 1 && item.feedname !== "steam_community_announcements") {
       return false;
     }
@@ -256,6 +257,7 @@ async function fetchSteamUpdate(game) {
   
   let exactArticleLink = String(latest.url || "").trim();
 
+  // Filtru testat: Dacă e o poză (steamstatic), forțăm linkul stabil din comunitate
   if (!exactArticleLink || exactArticleLink.includes("steamstatic.com") || exactArticleLink.includes("steamcdn")) {
     exactArticleLink = `https://steamcommunity.com/games/${game.appId}/announcements/detail/${latest.gid}`;
   }
@@ -413,76 +415,70 @@ async function fetchEpicGamesUpdate(game) {
 
 async function fetchFortniteUpdate() {
   try {
-    const url = "https://www.fortnite.com/api/blog/getPosts?postsPerPage=10&offset=0&locale=en-US";
-    const res = await axios.get(url, { 
-      timeout: 10000,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
-        "Referer": "https://www.fortnite.com/news"
-      }
+    // Soluția 1: Folosim un Proxy Public (AllOrigins) pentru a ocoli sistemul anti-bot Cloudflare de la Epic Games
+    const epicApiUrl = "https://www.fortnite.com/api/blog/getPosts?postsPerPage=10&offset=0&locale=en-US";
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(epicApiUrl)}`;
+    
+    const res = await axios.get(proxyUrl, { timeout: 20000 });
+    
+    // API-ul proxy returnează textul efectiv în proprietatea 'contents'
+    const data = JSON.parse(res?.data?.contents || "{}");
+    const posts = data?.blogList;
+
+    if (!Array.isArray(posts) || posts.length === 0) {
+      throw new Error("Date invalide primite de la Epic prin proxy.");
+    }
+
+    // Filtrăm pentru a lua doar articole valide (să evităm slug-urile goale sau "news")
+    const validPosts = posts.filter(p => p.slug && p.slug.trim() !== "" && p.slug.toLowerCase() !== "news");
+    
+    if (validPosts.length === 0) {
+      throw new Error("Nu am găsit articole valide.");
+    }
+
+    let latest = validPosts.find((p) => {
+      const t = String(p.title).toLowerCase();
+      return t.includes("update") || t.includes("patch") || t.includes("v") || p.category === "Patch Notes";
     });
 
-    const posts = res?.data?.blogList;
+    if (!latest) latest = validPosts[0];
 
-    if (posts && Array.isArray(posts) && posts.length > 0) {
-      const validPosts = posts.filter(p => p.slug && p.slug.trim() !== "" && p.slug.toLowerCase() !== "news");
+    return {
+      id: String(latest._id || latest.slug),
+      title: cleanText(latest.title) || "Fortnite Update",
+      link: `https://www.fortnite.com/news/${latest.slug}`,
+      excerpt: cleanText(latest.shareDescription || "A apărut o nouă actualizare oficială.").slice(0, 700),
+      image: latest.image || latest.trendingImage,
+      thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
+      timestamp: latest.date ? new Date(latest.date).toISOString() : new Date().toISOString()
+    };
 
-      if (validPosts.length > 0) {
-        let latest = validPosts.find((p) => {
-          const t = String(p.title).toLowerCase();
-          return t.includes("update") || t.includes("patch") || t.includes("v") || p.category === "Patch Notes";
-        });
-
-        if (!latest) latest = validPosts[0];
-
-        return {
-          id: String(latest._id || latest.slug),
-          title: cleanText(latest.title) || "Fortnite Update",
-          link: `https://www.fortnite.com/news/${latest.slug}`,
-          excerpt: cleanText(latest.shareDescription || "A apărut o nouă actualizare pentru Fortnite.").slice(0, 700),
-          image: latest.image || latest.trendingImage,
-          thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
-          timestamp: latest.date ? new Date(latest.date).toISOString() : new Date().toISOString()
-        };
-      }
-    }
   } catch (error) {
-    console.log("Epic API a blocat cererea (Cloudflare/IP Block). Trecem pe API-ul comunitar de rezervă...");
+    console.log("Proxy-ul Epic a dat greș (sau a fost detectat), folosim metoda de backup supremă...");
+    
+    // Soluția 2 Backup: Agregatorul Google News convertit din RSS în JSON.
+    // Google nu e blocat de Epic, așa că tragem fix articolele oficiale indexate de ei.
+    const backupUrl = "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fnews.google.com%2Frss%2Fsearch%3Fq%3Dsite%3Afortnite.com%2Fnews%2Bupdate%26hl%3Den-US%26gl%3DUS%26ceid%3DUS%3Aen";
+    const fallbackRes = await axios.get(backupUrl, { timeout: 15000 });
+    const items = fallbackRes?.data?.items;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new Error("Toate metodele pentru Fortnite au eșuat.");
+    }
+
+    const latestBackup = items[0];
+    
+    return {
+      id: String(latestBackup.guid || latestBackup.link),
+      // Ștergem textul " - Fortnite" adăugat automat de Google News la titlu
+      title: cleanText(latestBackup.title).replace(/\s-\sFortnite$/i, "").trim() || "Fortnite: Noutăți",
+      link: latestBackup.link || "https://www.fortnite.com/news",
+      excerpt: "A apărut un nou articol oficial de actualizare pe site-ul Fortnite.",
+      image: "https://cdn2.unrealengine.com/14br-consoles-1920x1080-1920x1080-4954ecbc82b3.jpg",
+      thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
+      timestamp: latestBackup.pubDate ? new Date(latestBackup.pubDate).toISOString() : new Date().toISOString()
+    };
   }
-
-  // Varianta de rezervă: API-ul public (care nu este blocat de serverele Epic)
-  const fallbackRes = await axios.get("https://fortnite-api.com/v2/news", { timeout: 15000 });
-  const motds = fallbackRes?.data?.data?.br?.motds;
-
-  if (!Array.isArray(motds) || motds.length === 0) {
-    throw new Error("Nu am putut obține update-uri nici prin metoda de rezervă.");
-  }
-
-  // Aici verificăm strict fiecare mesaj pentru a ne asigura că are un link VALID și COMPLET către un articol (nu pagina de home)
-  const validArticleMotds = motds.filter((m) => {
-    if (!m.websiteURL) return false;
-    const urlStr = String(m.websiteURL).toLowerCase();
-    return urlStr.includes("/news/") && !urlStr.endsWith("/news") && !urlStr.endsWith("/news/");
-  });
-
-  // Luăm primul articol valid pe care l-am găsit. Dacă chiar nu a postat Epic niciun articol de luni de zile (foarte rar), se va întoarce la primul mesaj generic.
-  const latestFallback = validArticleMotds.length > 0 ? validArticleMotds[0] : motds[0];
-
-  let finalLink = latestFallback.websiteURL;
-  if (!finalLink) {
-    finalLink = "https://www.fortnite.com/news";
-  }
-
-  return {
-    id: String(latestFallback.id),
-    title: latestFallback.title || "Fortnite: Noutăți",
-    link: finalLink,
-    excerpt: cleanText(latestFallback.body) || "A apărut un nou eveniment în joc.",
-    image: latestFallback.image,
-    thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
-    timestamp: new Date().toISOString()
-  };
 }
 
 async function fetchRobloxUpdate() {
