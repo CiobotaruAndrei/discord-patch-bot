@@ -232,43 +232,54 @@ function buildUpdateEmbed(gameName, latest) {
 }
 
 // -------------------------------------------------------------
-// FUNCȚII NOI PENTRU DRIVERE (REPARATE DEFINITIV)
+// FUNCȚII NOI PENTRU DRIVERE
 // -------------------------------------------------------------
 
 async function fetchNvidiaUpdate(game) {
-  const upCRD = game.upCRD || 0; 
-  const url = `https://gfwsl.geforce.com/services_toolkit/services/com/nvidia/services/AjaxDriverService.php?func=DriverManualLookup&psid=120&pfid=939&osID=57&languageCode=1033&beta=0&isWHQL=1&dltype=-1&dch=1&upCRD=${upCRD}&sort1=0`;
-  
-  const res = await axios.get(url, { timeout: 15000 });
-  const rawDriver = res?.data?.IDS?.[0];
-  
-  if (!rawDriver) throw new Error("API-ul oficial NVIDIA nu a returnat date.");
+  // Am înlocuit descărcarea directă cu citirea articolelor de pe site-ul NVIDIA.com
+  const exactQuery = game.key === "nvidiastudio" ? '"Studio Driver"' : '"Game Ready Driver"';
+  const searchQuery = `site:nvidia.com ${exactQuery} release`;
 
-  // FIX: NVIDIA pune datele în "downloadInfo" uneori. Dacă există, îl folosim pe acela.
-  const driver = rawDriver.downloadInfo || rawDriver;
+  const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(searchQuery)}&hl=en-US&gl=US&ceid=US:en`;
+  const res = await axios.get(rssUrl, { timeout: 15000, headers: { "User-Agent": "Mozilla/5.0" } });
+  const xml = String(res.data || "");
 
-  if (!driver.Version) throw new Error("Nu s-a putut găsi versiunea în datele NVIDIA.");
+  const itemMatch = xml.match(/<item>([\s\S]*?)<\/item>/i);
 
-  const titleName = upCRD === 1 ? "NVIDIA Studio Driver" : "NVIDIA Game Ready Driver";
-  
-  return {
-    id: String(driver.Version),
-    title: `${titleName} v${driver.Version}`,
-    link: driver.DownloadURL || "https://www.nvidia.com/en-us/geforce/drivers/",
-    excerpt: `Preluat direct din baza de date NVIDIA.\n**Versiune:** ${driver.Version}\n**Data Lansării:** ${driver.ReleaseDateTime || "Recentă"}`,
-    thumbnail: game.thumbnail,
-    timestamp: new Date().toISOString()
-  };
+  if (itemMatch) {
+    const itemXml = itemMatch[1];
+    const titleMatch = itemXml.match(/<title>([\s\S]*?)<\/title>/i);
+    const linkMatch = itemXml.match(/<link>([\s\S]*?)<\/link>/i);
+    const dateMatch = itemXml.match(/<pubDate>([\s\S]*?)<\/pubDate>/i);
+
+    const rawTitle = titleMatch ? cleanText(titleMatch[1]) : `Update ${game.name}`;
+    const cleanT = rawTitle.split(" - ")[0]; // Eliminăm branding-ul de la final
+    const link = linkMatch ? linkMatch[1] : "https://www.nvidia.com/en-us/geforce/news/";
+    const pubDate = dateMatch ? dateMatch[1] : new Date().toISOString();
+
+    // Extragem din titlu versiunea driverului (ex: 551.23)
+    const vMatch = cleanT.match(/\b(\d{3}\.\d{2})\b/);
+    const versionStr = vMatch ? `v${vMatch[1]}` : "Update Nou";
+
+    return {
+      id: cleanT, // Titlul curat e perfect ca ID unic
+      title: `${game.name} ${versionStr}`,
+      link: link, // Acum link-ul duce către o pagină web cu articolul
+      excerpt: `Sursa: Sistemul oficial de articole NVIDIA.`,
+      thumbnail: game.thumbnail,
+      timestamp: new Date(pubDate).toISOString()
+    };
+  }
+
+  throw new Error(`Nu am putut găsi date pentru ${game.name}.`);
 }
 
 async function fetchIntelUpdate(game) {
   try {
-    // Încercăm să citim codul sursă
     const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(game.url)}`;
     const res = await axios.get(proxyUrl, { timeout: 15000 });
     const html = String(res?.data?.contents || "");
     
-    // FIX: Căutăm direct formatul specific Intel (ex: 31.0.101.5382)
     const versionMatch = html.match(/\b(\d{2,3}\.\d+\.\d+\.\d+)\b/);
     
     if (versionMatch) {
@@ -282,11 +293,8 @@ async function fetchIntelUpdate(game) {
         timestamp: new Date().toISOString()
       };
     }
-  } catch (err) {
-    // Dacă pagina oficială blochează proxy-ul, trecem direct la metoda de rezervă RSS
-  }
+  } catch (err) {}
 
-  // Fallback: Dacă scraping-ul pică, folosim sistemul sigur care merge și la AMD
   const searchQuery = game.key === "intelpro" 
     ? "site:intel.com \"Intel Arc Pro Graphics\"" 
     : "site:intel.com \"Intel Arc & Iris Xe Graphics - Windows\"";
@@ -301,7 +309,6 @@ async function fetchIntelUpdate(game) {
     const rawTitle = cleanText(match[1]);
     const cleanT = rawTitle.split(" - ")[0];
     
-    // Extragem din nou versiunea din titlul obținut
     const vMatch = cleanT.match(/\b(\d{2,3}\.\d+\.\d+\.\d+)\b/);
     const versionStr = vMatch ? `v${vMatch[1]}` : "Update Nou";
 
@@ -319,7 +326,6 @@ async function fetchIntelUpdate(game) {
 }
 
 async function fetchAmdUpdate(game) {
-  // AMD e cel mai strict. Încercăm să citim pagina lor oficială de suport prin proxy.
   const amdUrl = "https://www.amd.com/en/support/download/drivers.html";
   const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(amdUrl)}`;
   
@@ -340,7 +346,6 @@ async function fetchAmdUpdate(game) {
     }
   } catch (err) {}
 
-  // Back-up în caz de IP block extrem din partea AMD
   const rssUrl = `https://news.google.com/rss/search?q=site:amd.com+%22AMD+Software:+Adrenalin+Edition%22+release+notes&hl=en-US&gl=US&ceid=US:en`;
   const fallbackRes = await axios.get(rssUrl, { timeout: 15000, headers: { "User-Agent": "Mozilla/5.0" }});
   const match = String(fallbackRes.data).match(/<item>[\s\S]*?<title>([\s\S]*?)<\/title>[\s\S]*?<link>([\s\S]*?)<\/link>[\s\S]*?<\/item>/i);
