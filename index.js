@@ -491,11 +491,11 @@ async function fetchRobloxUpdate() {
 }
 
 // -------------------------------------------------------------
-// FUNCȚII NOI PENTRU REDUCERI - SISTEM HIBRID AVANSAT
+// FUNCȚII NOI PENTRU REDUCERI - SISTEM SEPARAT STEAM & EPIC
 // -------------------------------------------------------------
 
-async function fetchDeals() {
-  const targetUrl = "https://www.cheapshark.com/api/1.0/deals?storeID=1,24&onSale=1";
+async function fetchDealsForStore(storeID, storeName) {
+  const targetUrl = `https://www.cheapshark.com/api/1.0/deals?storeID=${storeID}&onSale=1&pageSize=50`;
   let deals = null;
 
   try {
@@ -519,18 +519,25 @@ async function fetchDeals() {
         headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" }
       });
       if (Array.isArray(res3.data)) deals = res3.data;
-    } catch (err) { throw new Error("Securitatea site-ului a blocat toate metodele de conectare."); }
+    } catch (err) {}
   }
 
-  if (!Array.isArray(deals) || deals.length === 0) throw new Error("Nu s-au putut extrage ofertele.");
+  if (!Array.isArray(deals) || deals.length === 0) return [];
 
   const validDeals = deals.filter(d => {
     const savings = parseFloat(d.savings) || 0;
     const salePrice = parseFloat(d.salePrice) || 0;
     const isFree = salePrice === 0;
+    
     const steamRating = parseFloat(d.steamRatingPercent) || 0;
     const metacritic = parseInt(d.metacriticScore) || 0;
     
+    // Epic Games nu trimite scoruri de la Steam, acceptăm doar reducerea.
+    if (storeID === 25) {
+      return (savings >= 70 || isFree); 
+    }
+    
+    // Filtru normal de calitate pentru Steam
     return (savings >= 70 || isFree) && (steamRating >= 70 || metacritic > 0 || isFree);
   });
 
@@ -540,8 +547,8 @@ async function fetchDeals() {
     salePrice: d.salePrice || "0.00",
     normalPrice: d.normalPrice || "0.00",
     savings: Math.round(parseFloat(d.savings) || 0),
-    store: d.storeID === "1" ? "Steam" : "Epic Games",
-    link: d.storeID === "1" ? `https://store.steampowered.com/app/${d.steamAppID}` : `https://www.cheapshark.com/redirect?dealID=${d.dealID}`,
+    store: storeName,
+    link: storeID === 1 ? `https://store.steampowered.com/app/${d.steamAppID}` : `https://www.cheapshark.com/redirect?dealID=${d.dealID}`,
     thumbnail: d.thumb || null,
     popularityScore: (parseInt(d.steamRatingCount) || 0) + ((parseInt(d.metacriticScore) || 0) * 100),
     steamRatingText: d.steamRatingText || "Fără rating"
@@ -549,23 +556,30 @@ async function fetchDeals() {
 
   sortedDeals.sort((a, b) => b.popularityScore - a.popularityScore);
 
-  // NOU: Forțăm o împărțire corectă ca Steam să nu domine topul din cauza numărului uriaș de recenzii.
-  // Luăm top 25 de la Epic și top 25 de la Steam.
-  const steamDeals = sortedDeals.filter(d => d.store === "Steam").slice(0, 25);
-  const epicDeals = sortedDeals.filter(d => d.store === "Epic Games").slice(0, 25);
+  return sortedDeals.slice(0, 25);
+}
+
+async function fetchDeals() {
+  // Tragem separat 25 Steam și 25 Epic, garantând prezența ambelor.
+  const steamDeals = await fetchDealsForStore(1, "Steam");
+  const epicDeals = await fetchDealsForStore(25, "Epic Games"); // ID 25 este sigur Epic Games
 
   const finalTop50 = [...epicDeals, ...steamDeals];
+  
+  if (finalTop50.length === 0) {
+      throw new Error("Nu s-au putut extrage oferte valide nici de pe Steam, nici de pe Epic.");
+  }
+  
   return finalTop50;
 }
 
-// Magia din fundal: Îmbogățim fiecare ofertă cu date suplimentare (Aici "citim" datele de expirare inclusiv pt Steam)
+// Magia din fundal: Îmbogățim fiecare ofertă cu date suplimentare
 async function enrichDealData(deal) {
   deal.endDateStr = "Nespecificat";
   deal.extraDetails = "";
 
   if (deal.store === "Steam" && deal.steamAppID) {
     try {
-      // 1. Obținem detalii platforme/lansare din API
       const url = `https://store.steampowered.com/api/appdetails?appids=${deal.steamAppID}`;
       const res = await axios.get(url, { timeout: 5000 });
       const data = res.data[deal.steamAppID]?.data;
@@ -581,16 +595,14 @@ async function enrichDealData(deal) {
         }
       }
       
-      // 2. Citim pagina web fizică a Steam pentru a găsi data de expirare ascunsă
+      // Citim pagina web fizică a Steam pentru a găsi data de expirare ascunsă
       const htmlRes = await axios.get(deal.link, {
         timeout: 5000,
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          // Setăm limba pe engleză pentru a prinde textul fix cum apare în poză și trecem de confirmarea vârstei
           "Cookie": "strLanguage=english; birthtime=283993201; mature_content=1;" 
         }
       });
-      // Căutăm textele de reducere pe engleză
       const match = htmlRes.data.match(/Offer ends\s+([^<]+)/i);
       if (match && match[1]) {
         deal.endDateStr = match[1].trim();
