@@ -131,36 +131,35 @@
     {
       "key": "nvidiagr",
       "name": "NVIDIA Game Ready Drivers",
-      "type": "driver",
-      "query": "NVIDIA Game Ready Driver release update",
+      "type": "nvidia",
+      "upCRD": 0,
       "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/2/21/Nvidia_logo.svg"
     },
     {
       "key": "nvidiastudio",
       "name": "NVIDIA Studio Drivers",
-      "type": "driver",
-      "query": "NVIDIA Studio Driver release update",
+      "type": "nvidia",
+      "upCRD": 1,
       "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/2/21/Nvidia_logo.svg"
     },
     {
       "key": "amd",
       "name": "AMD Radeon Drivers",
-      "type": "driver",
-      "query": "AMD Radeon Software Adrenalin release update",
+      "type": "amd",
       "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/7/7c/AMD_Logo.svg"
     },
     {
       "key": "intelgameon",
       "name": "Intel ARC Game On Drivers",
-      "type": "driver",
-      "query": "Intel Arc Game On Graphics Driver release update",
+      "type": "intel",
+      "url": "https://www.intel.com/content/www/us/en/download/785590/intel-arc-iris-xe-graphics-windows.html",
       "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel_logo_%282020%2C_light_blue%29.svg"
     },
     {
       "key": "intelpro",
       "name": "Intel ARC Pro Drivers",
-      "type": "driver",
-      "query": "Intel Arc Pro Graphics Driver release update",
+      "type": "intel",
+      "url": "https://www.intel.com/content/www/us/en/download/785597/intel-arc-pro-graphics-windows.html",
       "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel_logo_%282020%2C_light_blue%29.svg"
     }
   ]
