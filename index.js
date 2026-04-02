@@ -132,11 +132,12 @@ function extractPublishedTimeFromHtml(html) {
   );
 }
 
+// Filtru care ignoră anunțurile ce sunt doar poze
 function isGoodSteamArticleUrl(url) {
   const val = String(url || "").trim().toLowerCase();
   if (!val) return false;
   if (!val.startsWith("http")) return false;
-  if (val.includes("steamstatic.com")) return false;
+  if (val.includes("steamstatic")) return false;
   if (val.includes("steamcdn")) return false;
   return true;
 }
@@ -244,12 +245,15 @@ async function fetchSteamUpdate(game) {
   }
 
   const patchNotes = newsItems.filter((item) => {
+    // 1. Luăm exclusiv postările oficiale ale dezvoltatorilor, fără articole externe
     if (item.feed_type !== 1 && item.feedname !== "steam_community_announcements") {
       return false;
     }
+    // 2. Trecem de anunțurile care sunt doar imagini
     if (!isGoodSteamArticleUrl(item.url)) {
       return false;
     }
+    // 3. Ne asigurăm că e patch note
     return isLikelyPatchNote(item);
   });
 
@@ -264,11 +268,10 @@ async function fetchSteamUpdate(game) {
     throw new Error("Update invalid primit de la Steam.");
   }
 
-  // AICI ESTE FIX-UL CRITIC PENTRU CS2: 
-  // Curățăm textul brut de link-uri (ca să nu poți da click pe poze din descriere) și de formatarea BBCode folosită de Steam.
+  // FIX CS2: Eliminăm linkurile și formatările BBCode din text pentru a nu mai deturna click-ul în Discord
   let rawContents = String(latest.contents || "");
-  rawContents = rawContents.replace(/https?:\/\/[^\s]+/gi, ""); // Ștergem orice link http/https din interiorul textului
-  rawContents = rawContents.replace(/\[[^\]]+\]/g, " "); // Ștergem orice tag BBCode gen [img], [b], etc.
+  rawContents = rawContents.replace(/https?:\/\/[^\s]+/gi, ""); 
+  rawContents = rawContents.replace(/\[[^\]]+\]/g, " ");
 
   const cleanExcerpt = cleanText(rawContents).slice(0, 700);
 
@@ -423,7 +426,6 @@ async function fetchEpicGamesUpdate(game) {
   return await fetchListingBasedUpdate(game);
 }
 
-// Funcția pentru Fortnite, menținută intactă pentru că rulează perfect
 async function fetchFortniteUpdate() {
   try {
     const epicApiUrl = "https://www.fortnite.com/api/blog/getPosts?postsPerPage=10&offset=0&locale=en-US";
@@ -591,7 +593,7 @@ async function checkForUpdates() {
   const state = loadState();
 
   if (!state.subscribed || !state.notificationChannelId) {
-    console.log("Notificările automate nu active.");
+    console.log("Notificările automate nu sunt active.");
     return false;
   }
 
