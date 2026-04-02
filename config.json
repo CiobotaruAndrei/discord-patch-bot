@@ -62,6 +62,30 @@
       "appId": "2807960"
     },
     {
+      "key": "marvel",
+      "name": "Marvel Rivals",
+      "type": "steam",
+      "appId": "2764370"
+    },
+    {
+      "key": "cod",
+      "name": "Call of Duty",
+      "type": "steam",
+      "appId": "1938090"
+    },
+    {
+      "key": "ow2",
+      "name": "Overwatch 2",
+      "type": "steam",
+      "appId": "2357570"
+    },
+    {
+      "key": "ron",
+      "name": "Ready or Not",
+      "type": "steam",
+      "appId": "1144200"
+    },
+    {
       "key": "minecraft",
       "name": "Minecraft",
       "type": "minecraft"
@@ -69,18 +93,7 @@
     {
       "key": "fortnite",
       "name": "Fortnite",
-      "type": "epic_games",
-      "listingUrls": [
-        "https://www.fortnite.com/news",
-        "https://www.fortnite.com/news?page=2",
-        "https://www.fortnite.com/news?page=3",
-        "https://www.fortnite.com/news/tag/all-news",
-        "https://www.fortnite.com/news/tag/all-news?page=2"
-      ],
-      "baseUrl": "https://www.fortnite.com",
-      "articleHrefRegex": "/news/",
-      "requireKeywords": ["update", "patch", "release-notes", "update-notes", "ecosystem-v"],
-      "thumbnail": "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png"
+      "type": "epic_games"
     },
     {
       "key": "roblox",
