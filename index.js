@@ -503,32 +503,62 @@ async function fetchRobloxUpdate() {
   };
 }
 
-// -------------------------------------------------------------
-// FUNCȚIA REPARATĂ: Adăugat cache-buster ca să ocolim blocajele
-// -------------------------------------------------------------
+// ----------------------------------------------------------------------
+// FUNCȚIA REPARATĂ TOTAL: Extrage XML-ul direct fără niciun intermediar
+// ----------------------------------------------------------------------
 async function fetchDriverUpdate(game) {
-  const encodedQuery = encodeURIComponent(game.query);
-  const cb = Date.now(); // Cache-Buster: evită primirea unui răspuns gol stocat anterior
-  const rssUrl = `https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fnews.google.com%2Frss%2Fsearch%3Fq%3D${encodedQuery}%26hl%3Den-US%26gl%3DUS%26ceid%3DUS%3Aen&cb=${cb}`;
+  try {
+    const query = encodeURIComponent(game.query);
+    // Lovim direct XML-ul Google News
+    const rssUrl = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
 
-  const res = await axios.get(rssUrl, { timeout: 15000 });
-  const items = res?.data?.items;
+    const res = await axios.get(rssUrl, {
+      timeout: 15000,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "Accept": "application/rss+xml, application/xml, text/xml"
+      }
+    });
 
-  if (!Array.isArray(items) || items.length === 0) {
-    throw new Error(`Nu am găsit articole recente (Query-ul nu a returnat nimic).`);
+    const xml = String(res.data || "");
+
+    // Căutăm primul articol din feed-ul RSS
+    const itemMatch = xml.match(/<item>([\s\S]*?)<\/item>/i);
+    
+    if (!itemMatch) {
+      throw new Error("Datele returnate de Google nu conțin articole.");
+    }
+
+    const itemXml = itemMatch[1];
+
+    // Funcție mică pentru a extrage și curăța datele din XML
+    const getTag = (tag) => {
+      const match = itemXml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
+      if (!match) return "";
+      // Curățăm tag-urile CDATA care apar adesea în XML-uri
+      return match[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, "$1").trim();
+    };
+
+    let title = getTag("title");
+    let link = getTag("link");
+    let pubDate = getTag("pubDate");
+
+    // Curățăm titlul de terminologia automată (ex: " - Nume Site")
+    title = cleanText(title).split(" - ")[0] || `Update nou pentru ${game.name}`;
+
+    return {
+      id: String(link || title), // Link-ul funcționează ca un ID perfect unic
+      title: title,
+      link: link,
+      excerpt: `Un nou update oficial legat de ${game.name} a fost detectat în presă. Accesează link-ul pentru a vedea detaliile.`,
+      thumbnail: game.thumbnail,
+      timestamp: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString()
+    };
+
+  } catch (error) {
+    console.error(`[Eroare Driver - ${game.name}]:`, error.message);
+    throw new Error(`Eroare preluare date nativ: ${error.message}`);
   }
-
-  const latest = items[0];
-  const cleanTitle = cleanText(latest.title).split(" - ")[0];
-
-  return {
-    id: String(latest.guid || latest.link),
-    title: cleanTitle || `Update nou pentru ${game.name}`,
-    link: latest.link,
-    excerpt: `O nouă versiune pentru ${game.name} a fost detectată. Verifică link-ul pentru detalii.`,
-    thumbnail: game.thumbnail,
-    timestamp: latest.pubDate ? new Date(latest.pubDate).toISOString() : new Date().toISOString()
-  };
 }
 
 async function fetchGameUpdate(game) {
