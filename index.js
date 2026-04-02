@@ -124,15 +124,7 @@ function extractImageFromHtml(html) {
   );
 }
 
-function extractPublishedTimeFromHtml(html) {
-  return (
-    extractMetaContent(html, "article:published_time") ||
-    extractMetaContent(html, "og:updated_time") ||
-    new Date().toISOString()
-  );
-}
-
-// Filtru care ignoră anunțurile ce sunt doar poze
+// Filtru Steam poze
 function isGoodSteamArticleUrl(url) {
   const val = String(url || "").trim().toLowerCase();
   if (!val) return false;
@@ -245,15 +237,12 @@ async function fetchSteamUpdate(game) {
   }
 
   const patchNotes = newsItems.filter((item) => {
-    // 1. Luăm exclusiv postările oficiale ale dezvoltatorilor, fără articole externe
     if (item.feed_type !== 1 && item.feedname !== "steam_community_announcements") {
       return false;
     }
-    // 2. Trecem de anunțurile care sunt doar imagini
     if (!isGoodSteamArticleUrl(item.url)) {
       return false;
     }
-    // 3. Ne asigurăm că e patch note
     return isLikelyPatchNote(item);
   });
 
@@ -268,7 +257,7 @@ async function fetchSteamUpdate(game) {
     throw new Error("Update invalid primit de la Steam.");
   }
 
-  // FIX CS2: Eliminăm linkurile și formatările BBCode din text pentru a nu mai deturna click-ul în Discord
+  // FIX CS2: Eliminăm linkurile și formatările BBCode din text
   let rawContents = String(latest.contents || "");
   rawContents = rawContents.replace(/https?:\/\/[^\s]+/gi, ""); 
   rawContents = rawContents.replace(/\[[^\]]+\]/g, " ");
@@ -391,7 +380,7 @@ async function fetchListingBasedUpdate(game) {
       `A apărut un nou update oficial pentru ${game.name}.`,
     image: extractImageFromHtml(articleHtml),
     thumbnail: game.thumbnail || undefined,
-    timestamp: extractPublishedTimeFromHtml(articleHtml)
+    timestamp: extractPublishedTimeFromHtml(articleHtml) || new Date().toISOString()
   };
 }
 
@@ -426,7 +415,6 @@ async function fetchEpicGamesUpdate(game) {
   return await fetchListingBasedUpdate(game);
 }
 
-// Funcția pentru Fortnite, menținută intactă pentru că rulează perfect
 async function fetchFortniteUpdate() {
   try {
     const epicApiUrl = "https://www.fortnite.com/api/blog/getPosts?postsPerPage=10&offset=0&locale=en-US";
@@ -464,8 +452,6 @@ async function fetchFortniteUpdate() {
     };
 
   } catch (error) {
-    console.log("Proxy-ul Epic a dat greș (sau a fost detectat), folosim metoda de backup supremă...");
-    
     const backupUrl = "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fnews.google.com%2Frss%2Fsearch%3Fq%3Dsite%3Afortnite.com%2Fnews%2Bupdate%26hl%3Den-US%26gl%3DUS%26ceid%3DUS%3Aen";
     const fallbackRes = await axios.get(backupUrl, { timeout: 15000 });
     const items = fallbackRes?.data?.items;
@@ -511,6 +497,65 @@ async function fetchRobloxUpdate() {
   };
 }
 
+// Funcție inteligentă pentru căutarea driverelor
+async function fetchDriverUpdate(game) {
+  let query = "";
+  let logo = "";
+  let defaultImage = "";
+
+  // Setăm căutarea în funcție de tipul de software/driver cerut
+  if (game.key === "nvidia") {
+      query = "site:nvidia.com/en-us/geforce/news/ \"NVIDIA app\" update";
+      logo = "https://upload.wikimedia.org/wikipedia/commons/2/21/Nvidia_logo.svg";
+      defaultImage = "https://www.nvidia.com/content/dam/en-zz/Solutions/geforce/news/nvidia-app-beta/nvidia-app-beta-download-article-hero-1920x1080.jpg";
+  } else if (game.key === "nv_game_ready") {
+      query = "site:nvidia.com/en-us/geforce/news/ \"Game Ready Driver\" released";
+      logo = "https://upload.wikimedia.org/wikipedia/commons/2/21/Nvidia_logo.svg";
+      defaultImage = "https://www.nvidia.com/content/dam/en-zz/Solutions/geforce/news/geforce-experience/geforce-experience-game-ready-drivers-hero-670x377.jpg";
+  } else if (game.key === "nv_studio") {
+      query = "site:nvidia.com/en-us/geforce/news/ \"Studio Driver\" released";
+      logo = "https://upload.wikimedia.org/wikipedia/commons/2/21/Nvidia_logo.svg";
+      defaultImage = "https://www.nvidia.com/content/dam/en-zz/Solutions/geforce/news/geforce-experience/geforce-experience-studio-drivers-hero-670x377.jpg";
+  } else if (game.key === "amd_radeon") {
+      query = "site:amd.com \"AMD Software: Adrenalin Edition\" release notes";
+      logo = "https://upload.wikimedia.org/wikipedia/commons/7/7c/AMD_Logo.svg";
+      defaultImage = "https://www.amd.com/content/dam/amd/en/images/logos/brands/radeon-logo-red.jpg";
+  } else if (game.key === "intel_arc_game") {
+      query = "site:intel.com \"Intel Graphics Driver\" release notes";
+      logo = "https://upload.wikimedia.org/wikipedia/commons/8/85/Intel_logo_2022.svg";
+      defaultImage = "https://www.intel.com/content/dam/www/central-libraries/us/en/images/arc-graphics-hero-1920x1080.jpg";
+  } else if (game.key === "intel_arc_pro") {
+      query = "site:intel.com \"Intel Arc Pro Graphics\" release notes";
+      logo = "https://upload.wikimedia.org/wikipedia/commons/8/85/Intel_logo_2022.svg";
+      defaultImage = "https://www.intel.com/content/dam/www/central-libraries/us/en/images/arc-pro-graphics-hero-1920x1080.jpg";
+  }
+
+  try {
+    const searchUrl = `https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fnews.google.com%2Frss%2Fsearch%3Fq%3D${encodeURIComponent(query)}%26hl%3Den-US%26gl%3DUS%26ceid%3DUS%3Aen`;
+    const res = await axios.get(searchUrl, { timeout: 15000 });
+    const items = res?.data?.items;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new Error(`Nu am găsit update-uri pentru ${game.name}.`);
+    }
+
+    const latest = items[0];
+    const title = cleanText(latest.title).replace(/\s-\s(NVIDIA|AMD|Intel|Google News)$/i, "").trim();
+
+    return {
+      id: String(latest.guid || latest.link),
+      title: title,
+      link: latest.link,
+      excerpt: `A apărut o nouă versiune de software/drivere pentru ${game.name}. Dă click pe titlu pentru notele de actualizare (Patch Notes).`,
+      image: defaultImage,
+      thumbnail: logo,
+      timestamp: latest.pubDate ? new Date(latest.pubDate).toISOString() : new Date().toISOString()
+    };
+  } catch (error) {
+    throw new Error("Eroare la preluarea driverelor: " + error.message);
+  }
+}
+
 async function fetchGameUpdate(game) {
   if (!game.type || game.type === "steam") {
     return await fetchSteamUpdate(game);
@@ -530,6 +575,10 @@ async function fetchGameUpdate(game) {
 
   if (game.type === "roblox") {
     return await fetchRobloxUpdate();
+  }
+
+  if (game.type === "driver" || game.type === "nvidia") {
+    return await fetchDriverUpdate(game);
   }
 
   if (game.type === "listing_based") {
@@ -686,15 +735,56 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  // COMANDA NOUĂ: porecle
   if (command === "porecle") {
     const list = config.games
       .map((g) => `**${g.name}** -> folosește porecla: \`${g.key}\``)
       .join("\n");
 
     await message.reply(
-      `🏷️ **Lista de porecle pentru jocuri:**\nPentru a vedea ultimul update al unui joc specific, folosește comanda \`${PREFIX}latest [poreclă]\`.\n\n${list}`
+      `🏷️ **Lista de porecle pentru jocuri (și aplicații):**\nPentru a vedea ultimul update, folosește comanda \`${PREFIX}latest [poreclă]\`.\n\n${list}`
     );
+    return;
+  }
+
+  // COMANDA NOUĂ: reduceri
+  if (command === "reduceri") {
+    // Trimitem rapid mesajul de așteptare pentru a tăia delay-ul vizual
+    const loadingMessage = await message.reply("⏳ Caut cele mai bune reduceri (peste 70%) și jocurile gratuite pe Steam și Epic Games. Te rog așteaptă o secundă...");
+    
+    try {
+      // 1 (Steam), 11 (Epic Games), sortate după discount descrescător
+      const url = "https://www.cheapshark.com/api/1.0/deals?storeID=1,11&sortBy=Discount&desc=1&onSale=1";
+      const res = await axios.get(url, { timeout: 15000 });
+      
+      // Filtrăm strict jocurile cu reducere >= 70% sau care sunt gratuite (0.00$)
+      const topDeals = res.data.filter(deal => parseFloat(deal.savings) >= 70 || parseFloat(deal.salePrice) === 0).slice(0, 10);
+
+      if (topDeals.length === 0) {
+        await loadingMessage.edit("❌ Nu am găsit reduceri majore în acest moment.");
+        return;
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(0xffcc00)
+        .setTitle("🔥 TOP REDUCERI: Minim 70% sau GRATIS")
+        .setDescription("Iată cele mai bune oferte pe care le-am găsit acum pe **Steam** și **Epic Games**:");
+
+      topDeals.forEach(deal => {
+        const storeName = deal.storeID === "1" ? "Steam" : "Epic Games";
+        const isFree = parseFloat(deal.salePrice) === 0;
+        const priceText = isFree ? "🔥 GRATIS (100% Reducere)" : `${deal.salePrice}$ (Reducere: ${Math.round(deal.savings)}%)`;
+        const link = `https://www.cheapshark.com/redirect?dealID=${encodeURIComponent(deal.dealID)}`;
+
+        embed.addFields({
+          name: `🎮 ${deal.title} [${storeName}]`,
+          value: `~~${deal.normalPrice}$~~ ➡️ **${priceText}**\n[🛒 Vezi Oferta](${link})`
+        });
+      });
+
+      await loadingMessage.edit({ content: "✅ Gata! Am găsit ofertele:", embeds: [embed] });
+    } catch (error) {
+      await loadingMessage.edit("❌ A apărut o eroare la căutarea ofertelor. Încearcă din nou mai târziu.");
+    }
     return;
   }
 
@@ -737,27 +827,22 @@ client.on("messageCreate", async (message) => {
 
   if (command === "latest") {
     if (args.length === 0) {
+      // Mesaj de așteptare pentru delay
+      const loadingMsg = await message.reply("⏳ Scanez bazele de date pentru toate jocurile. Ar putea dura câteva secunde...");
       const results = await getLatestForAllGames();
 
       for (const result of results) {
         if (!result.latest) {
-          await message.channel.send(
-            `❌ Nu am putut lua ultimul update pentru **${result.game.name}**.`
-          );
+          await message.channel.send(`❌ Nu am putut lua ultimul update pentru **${result.game.name}**.`);
           continue;
         }
-
         try {
-          await message.channel.send({
-            embeds: [buildUpdateEmbed(result.game.name, result.latest)]
-          });
+          await message.channel.send({ embeds: [buildUpdateEmbed(result.game.name, result.latest)] });
         } catch (error) {
-          await message.channel.send(
-            formatUpdateMessage(result.game.name, result.latest)
-          );
+          await message.channel.send(formatUpdateMessage(result.game.name, result.latest));
         }
       }
-
+      await loadingMsg.delete().catch(() => {});
       return;
     }
 
@@ -771,22 +856,19 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
+    // Mesaj de așteptare pentru delay la joc specific
+    const loadingMsg = await message.reply(`⏳ Caut ultimul update pentru **${game.name}**...`);
     try {
       const latest = await fetchGameUpdate(game);
-
       try {
-        await message.channel.send({
-          embeds: [buildUpdateEmbed(game.name, latest)]
-        });
+        await message.channel.send({ embeds: [buildUpdateEmbed(game.name, latest)] });
       } catch (error) {
         await message.channel.send(formatUpdateMessage(game.name, latest));
       }
     } catch (error) {
-      await message.reply(
-        `❌ Nu am putut lua ultimul update pentru **${game.name}**.`
-      );
+      await message.channel.send(`❌ Nu am putut lua ultimul update pentru **${game.name}**.`);
     }
-
+    await loadingMsg.delete().catch(() => {});
     return;
   }
 
@@ -797,15 +879,17 @@ client.on("messageCreate", async (message) => {
       `**${PREFIX}help**\n` +
       `> Afișează acest meniu detaliat.\n\n` +
       `**${PREFIX}games**\n` +
-      `> Vezi lista cu toate jocurile urmărite.\n\n` +
+      `> Vezi lista cu toate jocurile și aplicațiile urmărite.\n\n` +
       `**${PREFIX}porecle**\n` +
-      `> Vezi lista cu poreclele (prescurtările) jocurilor necesare pentru comanda latest.\n\n` +
+      `> Vezi lista cu poreclele (prescurtările) necesare pentru a cere update-ul unui joc anume.\n\n` +
+      `**${PREFIX}reduceri**\n` +
+      `> Arată instant un TOP 10 cu jocuri reduse cu peste 70% sau gratuite de pe Steam și Epic Games.\n\n` +
       `**${PREFIX}latest**\n` +
-      `> Vezi cele mai recente update-uri pentru toate jocurile.\n\n` +
+      `> Vezi cele mai recente update-uri pentru TOATE jocurile din listă.\n\n` +
       `**${PREFIX}latest [poreclă]**\n` +
-      `> Vezi ultimul update pentru un joc specific.\n\n` +
+      `> Vezi ultimul update sau driver lansat pentru programul specificat.\n\n` +
       `**${PREFIX}startupdates** *(Admin)*\n` +
-      `> Activează alertele automate pe canalul curent.\n\n` +
+      `> Activează alertele automate de noutăți pe canalul curent.\n\n` +
       `**${PREFIX}stopupdates** *(Admin)*\n` +
       `> Oprește alertele automate.\n\n` +
       `**${PREFIX}ping**\n` +
