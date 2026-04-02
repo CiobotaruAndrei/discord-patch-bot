@@ -132,7 +132,6 @@ function extractPublishedTimeFromHtml(html) {
   );
 }
 
-// Filtru care ignoră anunțurile ce sunt doar poze
 function isGoodSteamArticleUrl(url) {
   const val = String(url || "").trim().toLowerCase();
   if (!val) return false;
@@ -245,15 +244,12 @@ async function fetchSteamUpdate(game) {
   }
 
   const patchNotes = newsItems.filter((item) => {
-    // 1. Luăm exclusiv postările oficiale ale dezvoltatorilor, fără articole externe
     if (item.feed_type !== 1 && item.feedname !== "steam_community_announcements") {
       return false;
     }
-    // 2. Trecem de anunțurile care sunt doar imagini
     if (!isGoodSteamArticleUrl(item.url)) {
       return false;
     }
-    // 3. Ne asigurăm că e patch note
     return isLikelyPatchNote(item);
   });
 
@@ -268,7 +264,6 @@ async function fetchSteamUpdate(game) {
     throw new Error("Update invalid primit de la Steam.");
   }
 
-  // FIX CS2: Eliminăm linkurile și formatările BBCode din text pentru a nu mai deturna click-ul în Discord
   let rawContents = String(latest.contents || "");
   rawContents = rawContents.replace(/https?:\/\/[^\s]+/gi, ""); 
   rawContents = rawContents.replace(/\[[^\]]+\]/g, " ");
@@ -426,7 +421,6 @@ async function fetchEpicGamesUpdate(game) {
   return await fetchListingBasedUpdate(game);
 }
 
-// Funcția pentru Fortnite, menținută intactă pentru că rulează perfect
 async function fetchFortniteUpdate() {
   try {
     const epicApiUrl = "https://www.fortnite.com/api/blog/getPosts?postsPerPage=10&offset=0&locale=en-US";
@@ -464,8 +458,6 @@ async function fetchFortniteUpdate() {
     };
 
   } catch (error) {
-    console.log("Proxy-ul Epic a dat greș (sau a fost detectat), folosim metoda de backup supremă...");
-    
     const backupUrl = "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fnews.google.com%2Frss%2Fsearch%3Fq%3Dsite%3Afortnite.com%2Fnews%2Bupdate%26hl%3Den-US%26gl%3DUS%26ceid%3DUS%3Aen";
     const fallbackRes = await axios.get(backupUrl, { timeout: 15000 });
     const items = fallbackRes?.data?.items;
@@ -511,32 +503,30 @@ async function fetchRobloxUpdate() {
   };
 }
 
-// Funcția pentru preluarea driverelor via Google News RSS
+// -------------------------------------------------------------
+// FUNCȚIA REPARATĂ: Adăugat cache-buster ca să ocolim blocajele
+// -------------------------------------------------------------
 async function fetchDriverUpdate(game) {
-  // Construim URL-ul folosind query-ul specific fiecărui driver din config.json
   const encodedQuery = encodeURIComponent(game.query);
-  const rssUrl = `https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fnews.google.com%2Frss%2Fsearch%3Fq%3D${encodedQuery}%26hl%3Den-US%26gl%3DUS%26ceid%3DUS%3Aen`;
+  const cb = Date.now(); // Cache-Buster: evită primirea unui răspuns gol stocat anterior
+  const rssUrl = `https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fnews.google.com%2Frss%2Fsearch%3Fq%3D${encodedQuery}%26hl%3Den-US%26gl%3DUS%26ceid%3DUS%3Aen&cb=${cb}`;
 
-  // Apelăm feed-ul
   const res = await axios.get(rssUrl, { timeout: 15000 });
   const items = res?.data?.items;
 
   if (!Array.isArray(items) || items.length === 0) {
-    throw new Error(`Nu am găsit articole recente pentru ${game.name}.`);
+    throw new Error(`Nu am găsit articole recente (Query-ul nu a returnat nimic).`);
   }
 
-  // Luăm primul rezultat (cel mai recent)
   const latest = items[0];
-  
-  // Curățăm titlul de terminologia Google News (ex: " - NVIDIA")
   const cleanTitle = cleanText(latest.title).split(" - ")[0];
 
   return {
     id: String(latest.guid || latest.link),
     title: cleanTitle || `Update nou pentru ${game.name}`,
     link: latest.link,
-    excerpt: `O nouă versiune oficială pentru ${game.name} este acum disponibilă. Verifică link-ul pentru detalii și download.`,
-    thumbnail: game.thumbnail, // Folosim logo-urile definite in config
+    excerpt: `O nouă versiune pentru ${game.name} a fost detectată. Verifică link-ul pentru detalii.`,
+    thumbnail: game.thumbnail,
     timestamp: latest.pubDate ? new Date(latest.pubDate).toISOString() : new Date().toISOString()
   };
 }
@@ -720,7 +710,6 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  // COMANDA NOUĂ: porecle
   if (command === "porecle") {
     const list = config.games
       .map((g) => `**${g.name}** -> folosește porecla: \`${g.key}\``)
