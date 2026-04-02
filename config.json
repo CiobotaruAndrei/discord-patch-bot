@@ -123,36 +123,6 @@
       "articleHrefRegex": "/news/game-updates/",
       "requireKeywords": ["patch"],
       "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/d/d8/League_of_Legends_2019_vector.svg"
-    },
-    {
-      "key": "nvidia",
-      "name": "NVIDIA App",
-      "type": "driver"
-    },
-    {
-      "key": "nv_game_ready",
-      "name": "NVIDIA Game Ready Drivers",
-      "type": "driver"
-    },
-    {
-      "key": "nv_studio",
-      "name": "NVIDIA Studio Drivers",
-      "type": "driver"
-    },
-    {
-      "key": "amd_radeon",
-      "name": "AMD Radeon Drivers",
-      "type": "driver"
-    },
-    {
-      "key": "intel_arc_game",
-      "name": "Intel ARC Game On Drivers",
-      "type": "driver"
-    },
-    {
-      "key": "intel_arc_pro",
-      "name": "Intel ARC Pro Drivers",
-      "type": "driver"
     }
   ]
 }
