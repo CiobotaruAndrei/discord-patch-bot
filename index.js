@@ -600,60 +600,80 @@ async function enrichDealData(deal) {
       });
       const match = htmlRes.data.match(/Offer ends\s+([^<]+)/i);
       if (match && match[1]) {
-        deal.endDateStr = match[1].trim();
+        let rawDate = match[1].trim();
+        // Traducere automată din engleză în română
+        rawDate = rawDate
+             .replace(/January|Jan/gi, "Ianuarie")
+             .replace(/February|Feb/gi, "Februarie")
+             .replace(/March|Mar/gi, "Martie")
+             .replace(/April|Apr/gi, "Aprilie")
+             .replace(/May/gi, "Mai")
+             .replace(/June|Jun/gi, "Iunie")
+             .replace(/July|Jul/gi, "Iulie")
+             .replace(/August|Aug/gi, "August")
+             .replace(/September|Sep/gi, "Septembrie")
+             .replace(/October|Oct/gi, "Octombrie")
+             .replace(/November|Nov/gi, "Noiembrie")
+             .replace(/December|Dec/gi, "Decembrie")
+             .replace(/at/gi, "la")
+             .replace(/@/g, "la");
+             
+        deal.endDateStr = rawDate;
       }
     } catch (e) { }
   } 
   else if (deal.store === "Epic Games") {
-    // 1. Cautare imbunatatita GraphQL cu protectie Bypass
-    try {
-      const headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json",
-        "Content-Type": "application/json"
-      };
+    // Funcție internă ca să tragem datele direct de la API-ul Epic și să trecem de protecția Cloudflare
+    const getEpicDateGraphQL = async (keyword) => {
+        try {
+            const headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                "Content-Type": "application/json"
+            };
+            const query = {
+                query: `query searchStoreQuery($keywords: String!) { Catalog { searchStore(keyword: $keywords, count: 5) { elements { title price(country: "RO") { totalPrice { discountEndDate } } } } } }`,
+                variables: { keywords: keyword }
+            };
+            const res = await axios.post('https://graphql.epicgames.com/graphql', query, { timeout: 8000, headers });
+            const elements = res.data?.data?.Catalog?.searchStore?.elements;
+            if (elements && elements.length > 0) {
+                const match = elements.find(e => e.price?.totalPrice?.discountEndDate);
+                if (match) return match.price.totalPrice.discountEndDate;
+            }
+        } catch (err) {}
+        return null;
+    };
 
-      // Stergem cuvintele extra din titlu pentru a nu încurca baza de date Epic
-      let cleanTitle = deal.title.replace(/Edition|Deluxe|Standard|Premium|Legendary/gi, '').split(/[:\-]/)[0].trim();
+    // 1. Căutăm titlul complet mai întâi
+    let epicDate = await getEpicDateGraphQL(deal.title);
+    
+    // 2. Dacă Epic nu recunoaște titlul stufos, îl curățăm de DLC-uri, Edition etc.
+    if (!epicDate) {
+        let cleanTitle = deal.title.replace(/Edition|Deluxe|Standard|Premium|Legendary|Director's Cut/gi, '').split(/[:\-]/)[0].trim();
+        epicDate = await getEpicDateGraphQL(cleanTitle);
+    }
 
-      const epicQuery = {
-        query: `query searchStoreQuery($keywords: String!) { Catalog { searchStore(keyword: $keywords, count: 5, country: "US", locale: "en-US") { elements { title price(country: "US") { totalPrice { discountEndDate } } } } } }`,
-        variables: { keywords: cleanTitle }
-      };
-      
-      const epicRes = await axios.post('https://graphql.epicgames.com/graphql', epicQuery, { timeout: 8000, headers });
-      const elements = epicRes.data?.data?.Catalog?.searchStore?.elements;
-      
-      if (elements && elements.length > 0) {
-        const match = elements.find(e => e.price?.totalPrice?.discountEndDate);
-        if (match) {
-          const d = new Date(match.price.totalPrice.discountEndDate);
-          if (!isNaN(d.getTime())) {
+    // 3. Fallback extrem la scraping direct, în caz că API-ul crapă
+    if (!epicDate) {
+        try {
+           const realUrlRes = await axios.get(deal.link, {
+             timeout: 8000,
+             headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)" }
+           });
+           const html = String(realUrlRes.data || "");
+           const discountMatch = html.match(/"discountEndDate"\s*:\s*"([^"]+)"/i) || html.match(/<time datetime="([^"]+)"/i);
+           if (discountMatch && discountMatch[1]) epicDate = discountMatch[1];
+        } catch(err) {}
+    }
+
+    // Formatare dată finală în Română
+    if (epicDate) {
+        const d = new Date(epicDate);
+        if (!isNaN(d.getTime())) {
             const months = ["Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie", "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie"];
-            deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]}`;
-            return deal; 
-          }
+            deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()} la ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         }
-      }
-    } catch (e) {}
-
-    // 2. Metoda de urgenta (Citire cod sursa pagina HTML cu Bypass)
-    try {
-       const realUrlRes = await axios.get(deal.link, {
-         timeout: 8000,
-         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" }
-       });
-       const html = String(realUrlRes.data || "");
-       
-       const discountMatch = html.match(/"discountEndDate"\s*:\s*"([^"]+)"/i) || html.match(/"endDate"\s*:\s*"([^"]+)"/i);
-       if (discountMatch && discountMatch[1]) {
-         const d = new Date(discountMatch[1]);
-         if (!isNaN(d.getTime())) {
-           const months = ["Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie", "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie"];
-           deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]}`;
-         }
-       }
-    } catch(err) {}
+    }
   }
 
   return deal;
@@ -684,7 +704,7 @@ async function checkForDiscounts() {
           .setTitle(String(`🚨 OFERTĂ NOUĂ: ${enrichedDeal.title}`).slice(0, 250))
           .setDescription(
              `**${enrichedDeal.store}** oferă o reducere masivă de **${enrichedDeal.savings}%**!\n\n` +
-             `⏳ **Expiră la:** ${enrichedDeal.endDateStr}\n\n` +
+             (enrichedDeal.endDateStr !== "Nespecificat" ? `⏳ **Expiră la:** ${enrichedDeal.endDateStr}\n\n` : "") +
              (enrichedDeal.extraDetails ? `${enrichedDeal.extraDetails}\n` : "")
           )
           .addFields(
@@ -982,7 +1002,7 @@ client.on("messageCreate", async (message) => {
               .setAuthor({ name: deal.store })
               .setDescription(
                 `**Price:**\n~~$${deal.normalPrice}~~ ${isFree ? "FREE" : `$${deal.salePrice} (-${deal.savings}%)`}\n\n` +
-                `**Expiră la:** ${deal.endDateStr}\n\n` +
+                (deal.endDateStr !== "Nespecificat" ? `⏳ **Expiră la:** ${deal.endDateStr}\n\n` : "") +
                 (deal.store === "Steam" ? `**All Reviews:**\n${deal.steamRatingText}\n\n` : "") +
                 (deal.extraDetails ? `${deal.extraDetails}\n\n` : "") +
                 `🔗 [Accesează Magazinul](${deal.link})`
