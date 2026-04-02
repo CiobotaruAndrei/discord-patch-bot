@@ -235,9 +235,9 @@ async function fetchSteamUpdate(game) {
   }
 
   const patchNotes = newsItems.filter((item) => {
-    // FILTRU CRITIC: Acceptăm doar anunțuri oficiale de la dezvoltatori pe Steam, excludem site-urile externe (ca PCGamesN)
-    if (item.feedname !== "steam_community_announcements" && item.feed_type !== 1) {
-      return false; 
+    // Luăm exclusiv postările oficiale ale dezvoltatorilor, fără articole externe
+    if (item.feed_type !== 1 && item.feedname !== "steam_community_announcements") {
+      return false;
     }
     return isLikelyPatchNote(item);
   });
@@ -255,8 +255,8 @@ async function fetchSteamUpdate(game) {
 
   const cleanExcerpt = cleanText(latest.contents).slice(0, 700);
   
-  // Link fix, securizat, garantat să funcționeze pe pagina oficială Steam
-  const exactArticleLink = `https://store.steampowered.com/news/app/${game.appId}/view/${latest.gid}`;
+  // SOLUȚIA DIRECTĂ: Folosim exclusiv link-ul pe care Steam însuși îl furnizează în API, fără a genera nimic manual.
+  const exactArticleLink = latest.url ? String(latest.url).trim() : `https://store.steampowered.com/news/app/${game.appId}`;
 
   return {
     id: String(latest.gid),
@@ -325,7 +325,7 @@ async function fetchListingBasedUpdate(game) {
     const listRes = await axios.get(url, {
       timeout: 15000,
       headers: {
-        "User-Agent": "Mozilla/5.0"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
       }
     });
 
@@ -359,7 +359,7 @@ async function fetchListingBasedUpdate(game) {
   const articleRes = await axios.get(articleUrl, {
     timeout: 15000,
     headers: {
-      "User-Agent": "Mozilla/5.0"
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     }
   });
 
@@ -410,32 +410,59 @@ async function fetchEpicGamesUpdate(game) {
 }
 
 async function fetchFortniteUpdate() {
-  // Utilizăm API-ul intern oficial pe care îl folosește frontend-ul Fortnite.com
-  const url = "https://www.fortnite.com/api/blog/getPosts?postsPerPage=5&offset=0&locale=en-US";
-  
-  const res = await axios.get(url, { timeout: 15000 });
-  const posts = res?.data?.blogList;
+  try {
+    // Varianta primară: Încercăm API-ul oficial de știri Epic Games adăugând headere pentru a nu fi blocați
+    const url = "https://www.fortnite.com/api/blog/getPosts?postsPerPage=5&offset=0&locale=en-US";
+    const res = await axios.get(url, { 
+      timeout: 15000,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json"
+      }
+    });
 
-  if (!Array.isArray(posts) || posts.length === 0) {
-    throw new Error("Nu am găsit noutăți pentru Fortnite pe API-ul oficial.");
+    const posts = res?.data?.blogList;
+
+    if (posts && posts.length > 0) {
+      let latest = posts.find((p) => {
+        const t = String(p.title).toLowerCase();
+        return t.includes("update") || t.includes("patch") || t.includes("v") || p.category === "Patch Notes";
+      });
+
+      if (!latest) latest = posts[0];
+
+      return {
+        id: String(latest._id || latest.slug),
+        title: cleanText(latest.title) || "Fortnite Update",
+        link: `https://www.fortnite.com/news/${latest.slug}`,
+        excerpt: cleanText(latest.shareDescription || "A apărut o nouă actualizare pentru Fortnite.").slice(0, 700),
+        image: latest.image || latest.trendingImage,
+        thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
+        timestamp: latest.date ? new Date(latest.date).toISOString() : new Date().toISOString()
+      };
+    }
+  } catch (error) {
+    console.log("Epic API limitat, folosim soluția de rezervă pentru Fortnite...");
   }
 
-  // Filtrăm pentru a scoate ultimul update relevant (sau prima noutate majoră dacă nu are tag explicit de update)
-  let latest = posts.find((p) => {
-    const t = String(p.title).toLowerCase();
-    return t.includes("update") || t.includes("patch") || t.includes("v") || p.category === "Patch Notes";
-  });
+  // Varianta de rezervă: API public de Fortnite în caz că serverele Epic dau block
+  const fallbackRes = await axios.get("https://fortnite-api.com/v2/news", { timeout: 15000 });
+  const motds = fallbackRes?.data?.data?.br?.motds;
 
-  if (!latest) latest = posts[0];
+  if (!Array.isArray(motds) || motds.length === 0) {
+    throw new Error("Nu am putut obține update-uri nici prin metoda de rezervă.");
+  }
+
+  const latestFallback = motds[0];
 
   return {
-    id: String(latest._id || latest.slug),
-    title: cleanText(latest.title) || "Fortnite Update",
-    link: `https://www.fortnite.com/news/${latest.slug}`,
-    excerpt: cleanText(latest.shareDescription || "A apărut o nouă actualizare pentru Fortnite.").slice(0, 700),
-    image: latest.image || latest.trendingImage,
+    id: String(latestFallback.id),
+    title: latestFallback.title || "Fortnite: Noutăți",
+    link: latestFallback.websiteURL || "https://www.fortnite.com/news",
+    excerpt: cleanText(latestFallback.body) || "A apărut un nou eveniment în joc.",
+    image: latestFallback.image,
     thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
-    timestamp: latest.date ? new Date(latest.date).toISOString() : new Date().toISOString()
+    timestamp: new Date().toISOString()
   };
 }
 
