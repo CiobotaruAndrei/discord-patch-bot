@@ -570,7 +570,6 @@ async function fetchDeals() {
   return finalTop50;
 }
 
-// Extragerea datei de expirare și formatarea ei (REPARAT EPIC)
 async function enrichDealData(deal) {
   deal.endDateStr = "Nespecificat";
   deal.extraDetails = "";
@@ -582,7 +581,7 @@ async function enrichDealData(deal) {
       const data = res.data[deal.steamAppID]?.data;
       
       if (data) {
-        if (data.release_date && data.release_date.date) deal.extraDetails += `\n**Lansare:** ${data.release_date.date}`;
+        if (data.release_date && data.release_date.date) deal.extraDetails += `**Lansare:** ${data.release_date.date}`;
         if (data.platforms) {
           const plats = [];
           if (data.platforms.windows) plats.push("Windows");
@@ -606,17 +605,23 @@ async function enrichDealData(deal) {
     } catch (e) { }
   } 
   else if (deal.store === "Epic Games") {
+    // 1. Cautare imbunatatita GraphQL cu protectie Bypass
     try {
-      let cleanTitle = deal.title.split(/[:\-]/)[0].trim();
-      if (cleanTitle.split(' ').length > 3) {
-         cleanTitle = cleanTitle.split(' ').slice(0, 3).join(' ');
-      }
+      const headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      };
+
+      // Stergem cuvintele extra din titlu pentru a nu încurca baza de date Epic
+      let cleanTitle = deal.title.replace(/Edition|Deluxe|Standard|Premium|Legendary/gi, '').split(/[:\-]/)[0].trim();
 
       const epicQuery = {
-        query: `query searchStoreQuery($keywords: String!) { Catalog { searchStore(keyword: $keywords, count: 5) { elements { title price { totalPrice { discountEndDate } } } } } }`,
+        query: `query searchStoreQuery($keywords: String!) { Catalog { searchStore(keyword: $keywords, count: 5, country: "US", locale: "en-US") { elements { title price(country: "US") { totalPrice { discountEndDate } } } } } }`,
         variables: { keywords: cleanTitle }
       };
-      const epicRes = await axios.post('https://graphql.epicgames.com/graphql', epicQuery, { timeout: 5000 });
+      
+      const epicRes = await axios.post('https://graphql.epicgames.com/graphql', epicQuery, { timeout: 8000, headers });
       const elements = epicRes.data?.data?.Catalog?.searchStore?.elements;
       
       if (elements && elements.length > 0) {
@@ -624,7 +629,7 @@ async function enrichDealData(deal) {
         if (match) {
           const d = new Date(match.price.totalPrice.discountEndDate);
           if (!isNaN(d.getTime())) {
-            const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            const months = ["Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie", "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie"];
             deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]}`;
             return deal; 
           }
@@ -632,18 +637,19 @@ async function enrichDealData(deal) {
       }
     } catch (e) {}
 
+    // 2. Metoda de urgenta (Citire cod sursa pagina HTML cu Bypass)
     try {
-       const htmlRes = await axios.get(deal.link, {
+       const realUrlRes = await axios.get(deal.link, {
          timeout: 8000,
-         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
+         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" }
        });
-       const html = String(htmlRes.data || "");
+       const html = String(realUrlRes.data || "");
        
-       const discountMatch = html.match(/"endDate"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/i);
+       const discountMatch = html.match(/"discountEndDate"\s*:\s*"([^"]+)"/i) || html.match(/"endDate"\s*:\s*"([^"]+)"/i);
        if (discountMatch && discountMatch[1]) {
          const d = new Date(discountMatch[1]);
          if (!isNaN(d.getTime())) {
-           const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+           const months = ["Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie", "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie"];
            deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]}`;
          }
        }
@@ -670,7 +676,6 @@ async function checkForDiscounts() {
         state.seenDiscounts.push(deal.id);
         newDealsFound = true;
 
-        // ACUM Trecem oferta nouă prin filtrul care îi extrage detaliile (și data expirării)!
         const enrichedDeal = await enrichDealData(deal);
         const isFree = parseFloat(enrichedDeal.salePrice) === 0;
 
@@ -679,7 +684,7 @@ async function checkForDiscounts() {
           .setTitle(String(`🚨 OFERTĂ NOUĂ: ${enrichedDeal.title}`).slice(0, 250))
           .setDescription(
              `**${enrichedDeal.store}** oferă o reducere masivă de **${enrichedDeal.savings}%**!\n\n` +
-             (enrichedDeal.endDateStr !== "Nespecificat" ? `⏳ **Expiră la:** ${enrichedDeal.endDateStr}\n\n` : "") +
+             `⏳ **Expiră la:** ${enrichedDeal.endDateStr}\n\n` +
              (enrichedDeal.extraDetails ? `${enrichedDeal.extraDetails}\n` : "")
           )
           .addFields(
@@ -977,9 +982,9 @@ client.on("messageCreate", async (message) => {
               .setAuthor({ name: deal.store })
               .setDescription(
                 `**Price:**\n~~$${deal.normalPrice}~~ ${isFree ? "FREE" : `$${deal.salePrice} (-${deal.savings}%)`}\n\n` +
-                (deal.endDateStr !== "Nespecificat" ? `**Free until / Offer ends:**\n${deal.endDateStr}\n\n` : "") +
-                (deal.store === "Steam" ? `**All Reviews:**\n${deal.steamRatingText}\n` : "") +
-                (deal.extraDetails ? `${deal.extraDetails}\n\n` : "\n") +
+                `**Expiră la:** ${deal.endDateStr}\n\n` +
+                (deal.store === "Steam" ? `**All Reviews:**\n${deal.steamRatingText}\n\n` : "") +
+                (deal.extraDetails ? `${deal.extraDetails}\n\n` : "") +
                 `🔗 [Accesează Magazinul](${deal.link})`
               );
               
