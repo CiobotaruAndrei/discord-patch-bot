@@ -84,7 +84,7 @@
       ],
       "baseUrl": "https://www.fortnite.com",
       "articleHrefRegex": "/news/",
-      "requireKeywords": ["update", "patch", "release-notes", "update-notes", "ecosystem"],
+      "requireKeywords": ["update", "patch", "release-notes", "update-notes", "ecosystem-v"],
       "thumbnail": "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png"
     },
     {
@@ -102,4 +102,19 @@
       "baseUrl": "https://playvalorant.com",
       "articleHrefRegex": "/news/game-updates/",
       "requireKeywords": ["patch"],
-      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/f/fc/Valorant
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/f/fc/Valorant_logo_-_pink_color_version.svg"
+    },
+    {
+      "key": "lol",
+      "name": "League of Legends",
+      "type": "listing_based",
+      "listingUrls": [
+        "https://www.leagueoflegends.com/en-us/news/tags/patch-notes/"
+      ],
+      "baseUrl": "https://www.leagueoflegends.com",
+      "articleHrefRegex": "/news/game-updates/",
+      "requireKeywords": ["patch"],
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/d/d8/League_of_Legends_2019_vector.svg"
+    }
+  ]
+}
