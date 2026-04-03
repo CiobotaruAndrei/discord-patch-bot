@@ -1,11 +1,16 @@
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
+const translate = require("translate-google");
 const {
   Client,
   GatewayIntentBits,
   PermissionsBitField,
-  EmbedBuilder
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ComponentType
 } = require("discord.js");
 
 const CONFIG_PATH = path.join(__dirname, "config.json");
@@ -27,13 +32,10 @@ function ensureStateFile() {
       STATE_PATH,
       JSON.stringify(
         {
-          notificationChannelId: "",
+          guilds: {},
           seen: {},
-          subscribed: false,
-          executionTimes: { all: 15000, single: 2000 },
-          discountChannelId: "",
           seenDiscounts: [],
-          discountsSubscribed: false
+          executionTimes: { all: 15000, single: 2000 }
         },
         null,
         2
@@ -45,20 +47,16 @@ function ensureStateFile() {
       const data = JSON.parse(fs.readFileSync(STATE_PATH, "utf8"));
       let changed = false;
       
+      if (!data.guilds) {
+        data.guilds = {};
+        changed = true;
+      }
       if (!data.executionTimes) {
         data.executionTimes = { all: 15000, single: 2000 };
         changed = true;
       }
       if (!data.seenDiscounts) {
         data.seenDiscounts = [];
-        changed = true;
-      }
-      if (data.discountsSubscribed === undefined) {
-        data.discountsSubscribed = false;
-        changed = true;
-      }
-      if (data.discountChannelId === undefined) {
-        data.discountChannelId = "";
         changed = true;
       }
 
@@ -494,8 +492,8 @@ async function fetchRobloxUpdate() {
 // FUNCȚII NOI PENTRU REDUCERI - EXTRAGERE PE PLATFORME
 // -------------------------------------------------------------
 
-async function fetchDealsForStore(storeID, storeName, limit = 30) {
-  const targetUrl = `https://www.cheapshark.com/api/1.0/deals?storeID=${storeID}&onSale=1&pageSize=100`;
+async function fetchDealsForStore(storeID, storeName) {
+  const targetUrl = `https://www.cheapshark.com/api/1.0/deals?storeID=${storeID}&onSale=1&pageSize=50`;
   let deals = null;
 
   try {
@@ -506,11 +504,19 @@ async function fetchDealsForStore(storeID, storeName, limit = 30) {
 
   if (!Array.isArray(deals) || deals.length === 0) {
     try {
-      const res2 = await axios.get(targetUrl, {
+      const proxyUrl2 = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
+      const res2 = await axios.get(proxyUrl2, { timeout: 15000 });
+      if (Array.isArray(res2.data)) deals = res2.data;
+    } catch (err) {}
+  }
+
+  if (!Array.isArray(deals) || deals.length === 0) {
+    try {
+      const res3 = await axios.get(targetUrl, {
         timeout: 15000,
         headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" }
       });
-      if (Array.isArray(res2.data)) deals = res2.data;
+      if (Array.isArray(res3.data)) deals = res3.data;
     } catch (err) {}
   }
 
@@ -544,36 +550,29 @@ async function fetchDealsForStore(storeID, storeName, limit = 30) {
   }));
 
   sortedDeals.sort((a, b) => b.popularityScore - a.popularityScore);
-  // Asigurăm preluarea exactă a limitei stabilite (30)
-  return sortedDeals.slice(0, limit);
+  return sortedDeals.slice(0, 25);
 }
 
 async function fetchDeals() {
-  const steamDeals = await fetchDealsForStore(1, "Steam", 30);
-  const epicDeals = await fetchDealsForStore(25, "Epic Games", 30); 
+  const steamDeals = await fetchDealsForStore(1, "Steam");
+  const epicDeals = await fetchDealsForStore(25, "Epic Games"); 
 
-  // Păstrăm ordinea dictată: Steam întâi (30 bucăți), apoi Epic Games (30 bucăți)
-  const finalTop60 = [...steamDeals, ...epicDeals];
-  if (finalTop60.length === 0) throw new Error("Nu s-au putut extrage oferte valide de pe Steam sau Epic.");
+  const finalTop50 = [...epicDeals, ...steamDeals];
+  if (finalTop50.length === 0) throw new Error("Nu s-au putut extrage oferte valide de pe Steam sau Epic.");
   
-  return finalTop60;
+  return finalTop50;
 }
 
-// =====================================================================
-// FUNCȚIA enrichDealData - EXTRAGERE DIRECTĂ FINALĂ (FĂRĂ CĂUTARE PE NUME)
-// =====================================================================
 async function enrichDealData(deal) {
   deal.endDateStr = "Nespecificat";
   deal.extraDetails = "";
-  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-  // ======= STEAM =======
   if (deal.store === "Steam" && deal.steamAppID) {
     try {
       const url = `https://store.steampowered.com/api/appdetails?appids=${deal.steamAppID}`;
       const res = await axios.get(url, { timeout: 5000 });
       const data = res.data[deal.steamAppID]?.data;
-
+      
       if (data) {
         if (data.release_date && data.release_date.date) deal.extraDetails += `\n**Lansare:** ${data.release_date.date}`;
         if (data.platforms) {
@@ -584,12 +583,12 @@ async function enrichDealData(deal) {
           if (plats.length > 0) deal.extraDetails += `\n**Platforme:** ${plats.join(", ")}`;
         }
       }
-
+      
       const htmlRes = await axios.get(deal.link, {
         timeout: 5000,
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-          "Cookie": "strLanguage=english; birthtime=283993201; mature_content=1;"
+          "Cookie": "strLanguage=english; birthtime=283993201; mature_content=1;" 
         }
       });
       const match = htmlRes.data.match(/Offer ends\s+([^<]+)/i);
@@ -598,111 +597,154 @@ async function enrichDealData(deal) {
       }
     } catch (e) { }
   } 
-  // ======= EPIC GAMES =======
   else if (deal.store === "Epic Games") {
-    const now = Date.now();
-    let bestDate = null;
-    let epicUrl = deal.link;
-    let slug = "";
-
-    // 1. Aflăm adresa reală Epic Games Store (urmărim redirectul CheapShark)
     try {
-      const redirRes = await axios.get(deal.link, {
-        maxRedirects: 0,
-        validateStatus: (status) => status >= 200 && status <= 308,
-        headers: { "User-Agent": "Mozilla/5.0" }
-      });
-      if (redirRes.headers && redirRes.headers.location) {
-        epicUrl = redirRes.headers.location;
+      let cleanTitle = deal.title.split(/[:\-]/)[0].trim();
+      if (cleanTitle.split(' ').length > 3) {
+         cleanTitle = cleanTitle.split(' ').slice(0, 3).join(' ');
       }
-    } catch (e) {}
 
-    // 2. Extragem "Porecla" (Slug-ul) exactă din link-ul obținut
-    const slugMatch = epicUrl.match(/\/(?:p|bundles)\/([^/?#]+)/i);
-    if (slugMatch) {
-      slug = slugMatch[1];
-    }
-
-    // Funcție internă care găsește în text cea mai apropiată dată de final
-    const extractDate = (html) => {
-      // Caută toate structurile JSON de tip: "endDate":"2025-04-18T15:00:00.000Z"
-      const dateRegex = /"(?:[a-zA-Z]*[eE]ndDate|expiresAt)"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/gi;
-      let m, bDate = null;
-      while ((m = dateRegex.exec(html)) !== null) {
-        const d = new Date(m[1]);
-        if (!isNaN(d.getTime()) && d.getTime() > now) {
-          if (!bDate || d.getTime() < bDate.getTime()) bDate = d;
-        }
-      }
-      return bDate;
-    };
-
-    // 3. Citire directă din codul paginii ca un browser uman (Cea mai rapidă și sigură metodă)
-    try {
-      const htmlRes = await axios.get(epicUrl, {
-        timeout: 8000,
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" }
-      });
-      bestDate = extractDate(String(htmlRes.data));
-    } catch (e) {}
-
-    // 4. Dacă magazinul a dat block (Cloudflare), folosim proxy invizibil fix ca la Fortnite
-    if (!bestDate) {
-      try {
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(epicUrl)}`;
-        const proxyRes = await axios.get(proxyUrl, { timeout: 8000 });
-        bestDate = extractDate(String(proxyRes.data?.contents || ""));
-      } catch(e) {}
-    }
-
-    // 5. Dacă nu s-a reușit parsarea HTML-ului, interogăm baza de date a magazinului FIX pe Slug-ul găsit (nu mai căutăm "Suicide Squad", căutăm exact ID-ul)
-    if (!bestDate && slug) {
-      try {
-        const epicQuery = {
-          query: `query searchStoreQuery($keywords: String!) { Catalog { searchStore(keyword: $keywords, count: 1) { elements { price(country: "US") { lineOffers { appliedRules { endDate } } } promotions { promotionalOffers { promotionalOffers { endDate } } } } } } }`,
-          variables: { keywords: slug }
-        };
-        const gqlRes = await axios.post('https://graphql.epicgames.com/graphql', epicQuery, {
-          timeout: 8000,
-          headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" }
-        });
-        
-        const elements = gqlRes.data?.data?.Catalog?.searchStore?.elements;
-        if (Array.isArray(elements) && elements.length > 0) {
-          const el = elements[0];
-          const rules = el.price?.lineOffers?.[0]?.appliedRules || [];
-          const promos = el.promotions?.promotionalOffers?.[0]?.promotionalOffers || [];
-          const allDates = [...rules, ...promos].map(r => r.endDate).filter(Boolean);
-          
-          for (const dStr of allDates) {
-            const pd = new Date(dStr);
-            if (!isNaN(pd.getTime()) && pd.getTime() > now) {
-              if (!bestDate || pd.getTime() < bestDate.getTime()) bestDate = pd;
-            }
+      const epicQuery = {
+        query: `query searchStoreQuery($keywords: String!) { Catalog { searchStore(keyword: $keywords, count: 5) { elements { title price { totalPrice { discountEndDate } } } } } }`,
+        variables: { keywords: cleanTitle }
+      };
+      const epicRes = await axios.post('https://graphql.epicgames.com/graphql', epicQuery, { timeout: 5000 });
+      const elements = epicRes.data?.data?.Catalog?.searchStore?.elements;
+      
+      if (elements && elements.length > 0) {
+        const match = elements.find(e => e.price?.totalPrice?.discountEndDate);
+        if (match) {
+          const d = new Date(match.price.totalPrice.discountEndDate);
+          if (!isNaN(d.getTime())) {
+            const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]}`;
+            return deal; 
           }
         }
-      } catch(e) {}
-    }
+      }
+    } catch (e) {}
 
-    // Traducem și formatăm data găsită ca să arate identic cu Steam
-    if (bestDate) {
-      deal.endDateStr = `${months[bestDate.getMonth()]} ${bestDate.getDate()}`;
-    }
+    try {
+       const htmlRes = await axios.get(deal.link, {
+         timeout: 8000,
+         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
+       });
+       const html = String(htmlRes.data || "");
+       
+       const discountMatch = html.match(/"endDate"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/i);
+       if (discountMatch && discountMatch[1]) {
+         const d = new Date(discountMatch[1]);
+         if (!isNaN(d.getTime())) {
+           const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+           deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]}`;
+         }
+       }
+    } catch(err) {}
   }
 
   return deal;
 }
 
+// -------------------------------------------------------------
+// DISPECERUL PRINCIPAL & MULTI-SERVER
+// -------------------------------------------------------------
+
+async function fetchGameUpdate(game) {
+  if (!game.type || game.type === "steam") return await fetchSteamUpdate(game);
+  if (game.type === "minecraft") return await fetchMinecraftUpdate();
+  if (game.key === "fortnite") return await fetchFortniteUpdate();
+  if (game.type === "epic_games" && game.key !== "fortnite") return await fetchEpicGamesUpdate(game);
+  if (game.type === "roblox") return await fetchRobloxUpdate();
+  if (game.type === "listing_based") return await fetchListingBasedUpdate(game);
+  if (game.type === "nvidia") return await fetchNvidiaUpdate(game);
+  if (game.type === "intel") return await fetchIntelUpdate(game);
+  if (game.type === "amd") return await fetchAmdUpdate(game);
+
+  throw new Error(`Tip de joc necunoscut pentru ${game.name}.`);
+}
+
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
+});
+
+// NOU: Funcție care trimite actualizările către toate serverele abonate
+async function sendUpdateToAllSubscribedGuilds(gameName, latest) {
+  const state = loadState();
+  const embed = buildUpdateEmbed(gameName, latest);
+  
+  // Butonul de traducere pentru mesajele automate
+  const translateBtn = new ButtonBuilder()
+    .setCustomId("translate_update")
+    .setLabel("🇷🇴 Tradu în Română")
+    .setStyle(ButtonStyle.Primary)
+    .setEmoji("🌍");
+    
+  const row = new ActionRowBuilder().addComponents(translateBtn);
+
+  for (const [guildId, guildConfig] of Object.entries(state.guilds)) {
+    if (guildConfig.subscribed && guildConfig.notificationChannelId) {
+      try {
+        const channel = await client.channels.fetch(guildConfig.notificationChannelId);
+        if (channel) {
+          await channel.send({ embeds: [embed], components: [row] });
+        }
+      } catch (err) {
+        console.error(`Nu am putut trimite update pe serverul ${guildId}:`, err.message);
+      }
+    }
+  }
+}
+
+async function initializeSeenForCurrentGames() {
+  const state = loadState();
+  for (const game of config.games) {
+    try {
+      const latest = await fetchGameUpdate(game);
+      state.seen[game.key] = latest.id;
+    } catch (error) {
+      console.error(`Nu am putut inițializa ${game.name}: ${error.message}`);
+    }
+  }
+  saveState(state);
+}
+
+async function checkForUpdates() {
+  const state = loadState();
+  
+  // Verificăm dacă măcar un server este abonat la notificări
+  const hasSubscribers = Object.values(state.guilds).some(g => g.subscribed && g.notificationChannelId);
+  if (!hasSubscribers) return false;
+
+  let foundSomething = false;
+  for (const game of config.games) {
+    try {
+      const latest = await fetchGameUpdate(game);
+      const previousId = state.seen[game.key];
+
+      if (previousId !== latest.id) {
+        state.seen[game.key] = latest.id;
+        saveState(state);
+        if (previousId) {
+          await sendUpdateToAllSubscribedGuilds(game.name, latest);
+          foundSomething = true;
+        }
+      }
+    } catch (error) {
+      console.error(`Eroare la ${game.name}: ${error.message}`);
+    }
+  }
+  return foundSomething;
+}
+
 async function checkForDiscounts() {
   const state = loadState();
-  if (!state.discountsSubscribed || !state.discountChannelId) return;
+  
+  // Verificăm dacă măcar un server este abonat la reduceri
+  const hasDiscountSubscribers = Object.values(state.guilds).some(g => g.discountsSubscribed && g.discountChannelId);
+  if (!hasDiscountSubscribers) return;
 
   try {
     const deals = await fetchDeals();
-    const channel = await client.channels.fetch(state.discountChannelId).catch(() => null);
-    
-    if (!channel) return;
-
     let newDealsFound = false;
 
     for (const deal of deals) {
@@ -726,7 +768,17 @@ async function checkForDiscounts() {
             embed.setThumbnail(deal.thumbnail);
         }
 
-        await channel.send({ embeds: [embed] }).catch(err => console.error("Eroare trimitere embed reducere", err));
+        // Trimitem notificarea de reducere tuturor serverelor abonate
+        for (const [guildId, guildConfig] of Object.entries(state.guilds)) {
+          if (guildConfig.discountsSubscribed && guildConfig.discountChannelId) {
+            try {
+              const channel = await client.channels.fetch(guildConfig.discountChannelId);
+              if (channel) await channel.send({ embeds: [embed] });
+            } catch (err) {
+              console.error(`Eroare trimitere embed reducere pe serverul ${guildId}`, err.message);
+            }
+          }
+        }
       }
     }
 
@@ -740,88 +792,6 @@ async function checkForDiscounts() {
   } catch (error) {
     console.error("Eroare la căutarea reducerilor automate:", error.message);
   }
-}
-
-// -------------------------------------------------------------
-// DISPECERUL PRINCIPAL
-// -------------------------------------------------------------
-
-async function fetchGameUpdate(game) {
-  if (!game.type || game.type === "steam") return await fetchSteamUpdate(game);
-  if (game.type === "minecraft") return await fetchMinecraftUpdate();
-  if (game.key === "fortnite") return await fetchFortniteUpdate();
-  if (game.type === "epic_games" && game.key !== "fortnite") return await fetchEpicGamesUpdate(game);
-  if (game.type === "roblox") return await fetchRobloxUpdate();
-  if (game.type === "listing_based") return await fetchListingBasedUpdate(game);
-  if (game.type === "nvidia") return await fetchNvidiaUpdate(game);
-  if (game.type === "intel") return await fetchIntelUpdate(game);
-  if (game.type === "amd") return await fetchAmdUpdate(game);
-
-  throw new Error(`Tip de joc necunoscut pentru ${game.name}.`);
-}
-
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
-});
-
-async function getConfiguredChannel() {
-  const state = loadState();
-  if (!state.notificationChannelId) return null;
-  return await client.channels.fetch(state.notificationChannelId).catch(() => null);
-}
-
-async function sendUpdateToConfiguredChannel(gameName, latest) {
-  const channel = await getConfiguredChannel();
-  if (!channel) {
-    console.log("Canalul de notificări nu este setat sau nu există.");
-    return false;
-  }
-
-  try {
-    const embed = buildUpdateEmbed(gameName, latest);
-    await channel.send({ embeds: [embed] });
-  } catch (error) {
-    await channel.send(formatUpdateMessage(gameName, latest));
-  }
-  return true;
-}
-
-async function initializeSeenForCurrentGames() {
-  const state = loadState();
-  for (const game of config.games) {
-    try {
-      const latest = await fetchGameUpdate(game);
-      state.seen[game.key] = latest.id;
-    } catch (error) {
-      console.error(`Nu am putut inițializa ${game.name}: ${error.message}`);
-    }
-  }
-  saveState(state);
-}
-
-async function checkForUpdates() {
-  const state = loadState();
-  if (!state.subscribed || !state.notificationChannelId) return false;
-
-  let foundSomething = false;
-  for (const game of config.games) {
-    try {
-      const latest = await fetchGameUpdate(game);
-      const previousId = state.seen[game.key];
-
-      if (previousId !== latest.id) {
-        state.seen[game.key] = latest.id;
-        saveState(state);
-        if (previousId) {
-          await sendUpdateToConfiguredChannel(game.name, latest);
-          foundSomething = true;
-        }
-      }
-    } catch (error) {
-      console.error(`Eroare la ${game.name}: ${error.message}`);
-    }
-  }
-  return foundSomething;
 }
 
 async function getLatestForAllGames() {
@@ -861,14 +831,47 @@ client.once("ready", async () => {
   }, Number(config.checkIntervalMinutes || 30) * 60 * 1000);
 });
 
+// NOU: Funcție care ascultă apăsarea butonului de traducere
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isButton()) return;
+
+  if (interaction.customId === "translate_update") {
+    await interaction.deferUpdate(); 
+    
+    const originalEmbed = interaction.message.embeds[0];
+    if (!originalEmbed || !originalEmbed.description) return;
+
+    try {
+      const translatedDesc = await translate(originalEmbed.description, { to: 'ro' });
+      let translatedTitle = originalEmbed.title;
+      if (originalEmbed.title) {
+        translatedTitle = await translate(originalEmbed.title, { to: 'ro' });
+      }
+
+      const newEmbed = EmbedBuilder.from(originalEmbed)
+        .setTitle(translatedTitle)
+        .setDescription(translatedDesc);
+
+      // Editează mesajul original cu textul tradus și scoate butonul
+      await interaction.editReply({ embeds: [newEmbed], components: [] });
+    } catch (error) {
+      console.error("Eroare la traducere:", error);
+      await interaction.followUp({ content: "❌ A apărut o eroare la serverul de traducere.", ephemeral: true });
+    }
+  }
+});
+
 client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
+  // Ignorăm mesajele de la boți sau cele date în DM (Direct Messages) pentru că acum ne bazăm pe servere (Guilds)
+  if (message.author.bot || !message.guild) return;
 
   const PREFIX = "big_master!";
   if (!message.content.startsWith(PREFIX)) return;
 
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const command = (args.shift() || "").toLowerCase();
+
+  const guildId = message.guild.id;
 
   if (command === "ping") {
     await message.reply("Pong! 🏓 Sistemele sunt operaționale.");
@@ -896,9 +899,12 @@ client.on("messageCreate", async (message) => {
       return;
     }
     const state = loadState();
-    state.notificationChannelId = message.channel.id;
-    state.subscribed = true;
+    if (!state.guilds[guildId]) state.guilds[guildId] = {};
+    
+    state.guilds[guildId].notificationChannelId = message.channel.id;
+    state.guilds[guildId].subscribed = true;
     saveState(state);
+    
     await initializeSeenForCurrentGames();
     await message.reply("✅ Am pornit notificările automate pe acest canal. De acum înainte voi trimite doar update-urile viitoare.");
     return;
@@ -910,9 +916,11 @@ client.on("messageCreate", async (message) => {
       return;
     }
     const state = loadState();
-    state.subscribed = false;
-    saveState(state);
-    await message.reply("🛑 Am oprit notificările automate.");
+    if (state.guilds[guildId]) {
+      state.guilds[guildId].subscribed = false;
+      saveState(state);
+    }
+    await message.reply("🛑 Am oprit notificările automate pentru acest server.");
     return;
   }
 
@@ -921,9 +929,12 @@ client.on("messageCreate", async (message) => {
       return message.reply(`⛔ Doar un administrator poate folosi comanda **${PREFIX}startreduceri**.`);
     }
     const state = loadState();
-    state.discountChannelId = message.channel.id;
-    state.discountsSubscribed = true;
+    if (!state.guilds[guildId]) state.guilds[guildId] = {};
+    
+    state.guilds[guildId].discountChannelId = message.channel.id;
+    state.guilds[guildId].discountsSubscribed = true;
     saveState(state);
+    
     await message.reply("✅ Am activat scannerul de reduceri masive (70%+ și gratuite) pentru Steam și Epic. Caut oferte acum...");
     await checkForDiscounts();
     return;
@@ -934,36 +945,37 @@ client.on("messageCreate", async (message) => {
       return message.reply(`⛔ Doar un administrator poate folosi comanda **${PREFIX}stopreduceri**.`);
     }
     const state = loadState();
-    state.discountsSubscribed = false;
-    saveState(state);
+    if (state.guilds[guildId]) {
+      state.guilds[guildId].discountsSubscribed = false;
+      saveState(state);
+    }
     await message.reply("🛑 Am oprit notificările pentru reduceri.");
     return;
   }
 
   if (command === "latest") {
-    // --- LATEST REDUCERI ---
+    // --- LATEST REDUCERI CU PAGINAȚIE INTERACTIVĂ ---
     if (args.length > 0 && args[0].toLowerCase() === "reduceri") {
-      // Calculăm timpul: 60 oferte = 6 seturi de 10.
-      // 6 iterații -> la fiecare 10 oferte face o pauză de 10 secunde + ~5 secunde de extragere = aprox 90 secunde.
-      const estimareSecunde = 90;
-      const loadingMsg = await message.reply(`⏳ *Mă conectez la servere... Caut 60 de oferte masive (30 Steam, 30 Epic) și extrag datele de expirare direct de pe pagini. Această acțiune va dura aproximativ **${estimareSecunde} secunde**. Trimit câte 10 oferte la fiecare 10 secunde pentru a evita blocajele.*`);
+      const loadingMsg = await message.reply(`⏳ *Caut ofertele și extrag datele de expirare de pe Steam și Epic Games...*`);
       
       try {
-        const deals = await fetchDeals(); 
-        if (!deals || deals.length === 0) {
+        const rawDeals = await fetchDeals(); 
+        if (!rawDeals || rawDeals.length === 0) {
           await loadingMsg.edit(`❌ Momentan nu am găsit nicio ofertă care să îndeplinească criteriile.`);
           return;
         }
 
-        await loadingMsg.delete().catch(() => null);
+        const maxDeals = rawDeals.slice(0, 50); 
+        let currentPage = 0;
+        const itemsPerPage = 5;
+        const totalPages = Math.ceil(maxDeals.length / itemsPerPage);
 
-        // Afișăm în seturi de câte 10 oferte, cu pauză fixă de 10s între ele
-        for (let i = 0; i < deals.length; i += 10) {
-          const rawChunk = deals.slice(i, i + 10);
-          const chunk = await Promise.all(rawChunk.map(enrichDealData));
-          const embedsToSend = [];
-
-          for (const deal of chunk) {
+        const generatePageEmbeds = async (pageIndex) => {
+          const startIndex = pageIndex * itemsPerPage;
+          const chunk = maxDeals.slice(startIndex, startIndex + itemsPerPage);
+          const enrichedChunk = await Promise.all(chunk.map(enrichDealData));
+          
+          return enrichedChunk.map(deal => {
             const isFree = parseFloat(deal.salePrice) === 0;
             const embed = new EmbedBuilder()
               .setColor(isFree ? 0x0099ff : 0x2b2d31)
@@ -975,24 +987,55 @@ client.on("messageCreate", async (message) => {
                 (deal.store === "Steam" ? `**All Reviews:**\n${deal.steamRatingText}\n` : "") +
                 (deal.extraDetails ? `${deal.extraDetails}\n\n` : "\n") +
                 `🔗 [Accesează Magazinul](${deal.link})`
-              );
+              )
+              .setFooter({ text: `Pagina ${pageIndex + 1} din ${totalPages}` });
               
-            if (deal.thumbnail && deal.thumbnail.startsWith("http")) {
-                embed.setImage(deal.thumbnail); 
-            }
-            
-            embedsToSend.push(embed);
-          }
-
-          await message.channel.send({ embeds: embedsToSend }).catch(err => {
-             console.error("Eroare la trimiterea unui mesaj de grup:", err);
+            if (deal.thumbnail && deal.thumbnail.startsWith("http")) embed.setImage(deal.thumbnail); 
+            return embed;
           });
+        };
 
-          // Pauza dictată de limitările Discord, exact cum ai cerut
-          if (i + 10 < deals.length) {
-            await new Promise(resolve => setTimeout(resolve, 10000));
+        const generateButtons = (pageIndex) => {
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('prev_page')
+              .setLabel('◀ Pagina Anterioară')
+              .setStyle(ButtonStyle.Secondary)
+              .setDisabled(pageIndex === 0),
+            new ButtonBuilder()
+              .setCustomId('next_page')
+              .setLabel('Următoarea Pagină ▶')
+              .setStyle(ButtonStyle.Primary)
+              .setDisabled(pageIndex === totalPages - 1)
+          );
+          return row;
+        };
+
+        const firstPageEmbeds = await generatePageEmbeds(currentPage);
+        const replyMsg = await loadingMsg.edit({ 
+          content: `✅ **Am extras o selecție de oferte Epic și Steam:**`, 
+          embeds: firstPageEmbeds, 
+          components: [generateButtons(currentPage)] 
+        });
+
+        const collector = replyMsg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 300000 });
+
+        collector.on('collect', async (btnInteraction) => {
+          if (btnInteraction.user.id !== message.author.id) {
+            return btnInteraction.reply({ content: 'Doar utilizatorul care a apelat comanda poate schimba paginile!', ephemeral: true });
           }
-        }
+
+          if (btnInteraction.customId === 'prev_page') currentPage--;
+          if (btnInteraction.customId === 'next_page') currentPage++;
+
+          await btnInteraction.deferUpdate();
+          const newEmbeds = await generatePageEmbeds(currentPage);
+          await btnInteraction.editReply({ embeds: newEmbeds, components: [generateButtons(currentPage)] });
+        });
+
+        collector.on('end', () => {
+          replyMsg.edit({ components: [] }).catch(() => null);
+        });
 
       } catch (error) {
         await loadingMsg.edit(`❌ A apărut o eroare la extragerea datelor: \`${error.message}\``).catch(() => null);
@@ -1001,7 +1044,15 @@ client.on("messageCreate", async (message) => {
       return; 
     }
 
-    // --- LATEST (UPDATE JOCURI NORMAL) ---
+    // --- LATEST (UPDATE JOCURI NORMAL) + BUTON DE TRADUCERE ---
+    const translateBtnRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("translate_update")
+        .setLabel("🇷🇴 Tradu în Română")
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji("🌍")
+    );
+
     const state = loadState();
     const isAll = args.length === 0;
     const estType = isAll ? "all" : "single";
@@ -1024,7 +1075,7 @@ client.on("messageCreate", async (message) => {
           continue;
         }
         try {
-          await message.channel.send({ embeds: [buildUpdateEmbed(result.game.name, result.latest)] });
+          await message.channel.send({ embeds: [buildUpdateEmbed(result.game.name, result.latest)], components: [translateBtnRow] });
         } catch (error) {
           await message.channel.send(formatUpdateMessage(result.game.name, result.latest));
         }
@@ -1048,7 +1099,7 @@ client.on("messageCreate", async (message) => {
       await loadingMsg.delete().catch(() => null);
 
       try {
-        await message.channel.send({ embeds: [buildUpdateEmbed(game.name, latest)] });
+        await message.channel.send({ embeds: [buildUpdateEmbed(game.name, latest)], components: [translateBtnRow] });
       } catch (error) {
         await message.channel.send(formatUpdateMessage(game.name, latest));
       }
@@ -1073,7 +1124,7 @@ client.on("messageCreate", async (message) => {
       `**${PREFIX}latest [poreclă]**\n` +
       `> Vezi ultimul update pentru un joc specific.\n\n` +
       `**${PREFIX}latest reduceri**\n` +
-      `> Vezi instantaneu top 60 oferte (30 Steam, 30 Epic), inclusiv datele de expirare.\n\n` +
+      `> Vezi instantaneu top 50 oferte Steam și Epic Games, inclusiv datele de expirare.\n\n` +
       `**${PREFIX}startupdates** *(Admin)*\n` +
       `> Activează alertele automate de update-uri.\n\n` +
       `**${PREFIX}stopupdates** *(Admin)*\n` +
