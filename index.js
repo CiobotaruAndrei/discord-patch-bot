@@ -544,6 +544,7 @@ async function fetchDealsForStore(storeID, storeName, limit = 30) {
   }));
 
   sortedDeals.sort((a, b) => b.popularityScore - a.popularityScore);
+  // Asigurăm preluarea exactă a limitei stabilite (30)
   return sortedDeals.slice(0, limit);
 }
 
@@ -551,6 +552,7 @@ async function fetchDeals() {
   const steamDeals = await fetchDealsForStore(1, "Steam", 30);
   const epicDeals = await fetchDealsForStore(25, "Epic Games", 30); 
 
+  // Păstrăm ordinea dictată: Steam întâi (30 bucăți), apoi Epic Games (30 bucăți)
   const finalTop60 = [...steamDeals, ...epicDeals];
   if (finalTop60.length === 0) throw new Error("Nu s-au putut extrage oferte valide de pe Steam sau Epic.");
   
@@ -558,14 +560,14 @@ async function fetchDeals() {
 }
 
 // =====================================================================
-// FUNCȚIA enrichDealData - VERSIUNEA FINALĂ BLINDATĂ
-// Extrage datele exact de pe pagină după rezolvarea linkului real
+// FUNCȚIA enrichDealData - EXTRAGERE DIRECTĂ FINALĂ (FĂRĂ CĂUTARE PE NUME)
 // =====================================================================
 async function enrichDealData(deal) {
   deal.endDateStr = "Nespecificat";
   deal.extraDetails = "";
   const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
+  // ======= STEAM =======
   if (deal.store === "Steam" && deal.steamAppID) {
     try {
       const url = `https://store.steampowered.com/api/appdetails?appids=${deal.steamAppID}`;
@@ -596,102 +598,95 @@ async function enrichDealData(deal) {
       }
     } catch (e) { }
   } 
+  // ======= EPIC GAMES =======
   else if (deal.store === "Epic Games") {
+    const now = Date.now();
+    let bestDate = null;
+    let epicUrl = deal.link;
+    let slug = "";
+
+    // 1. Aflăm adresa reală Epic Games Store (urmărim redirectul CheapShark)
     try {
-      let epicUrl = deal.link;
-      
-      // Preluăm linkul final din spatele redirect-ului CheapShark
-      if (epicUrl.includes("cheapshark.com/redirect")) {
-        try {
-          const redirRes = await axios.get(deal.link, { maxRedirects: 0, validateStatus: (s) => s >= 200 && s <= 308 });
-          if (redirRes.headers && redirRes.headers.location) {
-            epicUrl = redirRes.headers.location;
-          }
-        } catch (e) {}
-      }
-
-      // Extragem ID-ul/Slug-ul exact din URL
-      let uniqueSlug = "";
-      const slugMatch = epicUrl.match(/\/(?:p|bundles)\/([^/?#]+)/i);
-      if (slugMatch) {
-        uniqueSlug = slugMatch[1];
-      }
-
-      const searchQuery = uniqueSlug || deal.title.replace(/[:\-–—]/g, " ").replace(/[^a-zA-Z0-9\s]/g, "").trim();
-
-      // Căutăm cu o precizie de chirurg în catalogul Epic doar acel Slug/Nume
-      const epicQuery = {
-        query: `query searchStoreQuery($keywords: String!) {
-          Catalog {
-            searchStore(keyword: $keywords, count: 5) {
-              elements {
-                title
-                price(country: "US") { lineOffers { appliedRules { endDate } } }
-                promotions { promotionalOffers { promotionalOffers { endDate } } }
-              }
-            }
-          }
-        }`,
-        variables: { keywords: searchQuery }
-      };
-
-      const epicRes = await axios.post('https://graphql.epicgames.com/graphql', epicQuery, { 
-        timeout: 8000, 
-        headers: { 
-          "Content-Type": "application/json",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        } 
+      const redirRes = await axios.get(deal.link, {
+        maxRedirects: 0,
+        validateStatus: (status) => status >= 200 && status <= 308,
+        headers: { "User-Agent": "Mozilla/5.0" }
       });
+      if (redirRes.headers && redirRes.headers.location) {
+        epicUrl = redirRes.headers.location;
+      }
+    } catch (e) {}
 
-      const elements = epicRes.data?.data?.Catalog?.searchStore?.elements;
-      
-      if (Array.isArray(elements) && elements.length > 0) {
-        let foundDate = null;
-        const now = Date.now();
+    // 2. Extragem "Porecla" (Slug-ul) exactă din link-ul obținut
+    const slugMatch = epicUrl.match(/\/(?:p|bundles)\/([^/?#]+)/i);
+    if (slugMatch) {
+      slug = slugMatch[1];
+    }
 
-        for (const el of elements) {
+    // Funcție internă care găsește în text cea mai apropiată dată de final
+    const extractDate = (html) => {
+      // Caută toate structurile JSON de tip: "endDate":"2025-04-18T15:00:00.000Z"
+      const dateRegex = /"(?:[a-zA-Z]*[eE]ndDate|expiresAt)"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/gi;
+      let m, bDate = null;
+      while ((m = dateRegex.exec(html)) !== null) {
+        const d = new Date(m[1]);
+        if (!isNaN(d.getTime()) && d.getTime() > now) {
+          if (!bDate || d.getTime() < bDate.getTime()) bDate = d;
+        }
+      }
+      return bDate;
+    };
+
+    // 3. Citire directă din codul paginii ca un browser uman (Cea mai rapidă și sigură metodă)
+    try {
+      const htmlRes = await axios.get(epicUrl, {
+        timeout: 8000,
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" }
+      });
+      bestDate = extractDate(String(htmlRes.data));
+    } catch (e) {}
+
+    // 4. Dacă magazinul a dat block (Cloudflare), folosim proxy invizibil fix ca la Fortnite
+    if (!bestDate) {
+      try {
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(epicUrl)}`;
+        const proxyRes = await axios.get(proxyUrl, { timeout: 8000 });
+        bestDate = extractDate(String(proxyRes.data?.contents || ""));
+      } catch(e) {}
+    }
+
+    // 5. Dacă nu s-a reușit parsarea HTML-ului, interogăm baza de date a magazinului FIX pe Slug-ul găsit (nu mai căutăm "Suicide Squad", căutăm exact ID-ul)
+    if (!bestDate && slug) {
+      try {
+        const epicQuery = {
+          query: `query searchStoreQuery($keywords: String!) { Catalog { searchStore(keyword: $keywords, count: 1) { elements { price(country: "US") { lineOffers { appliedRules { endDate } } } promotions { promotionalOffers { promotionalOffers { endDate } } } } } } }`,
+          variables: { keywords: slug }
+        };
+        const gqlRes = await axios.post('https://graphql.epicgames.com/graphql', epicQuery, {
+          timeout: 8000,
+          headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" }
+        });
+        
+        const elements = gqlRes.data?.data?.Catalog?.searchStore?.elements;
+        if (Array.isArray(elements) && elements.length > 0) {
+          const el = elements[0];
           const rules = el.price?.lineOffers?.[0]?.appliedRules || [];
           const promos = el.promotions?.promotionalOffers?.[0]?.promotionalOffers || [];
           const allDates = [...rules, ...promos].map(r => r.endDate).filter(Boolean);
           
           for (const dStr of allDates) {
-            const parsedDate = new Date(dStr);
-            if (!isNaN(parsedDate.getTime()) && parsedDate.getTime() > now) {
-              if (!foundDate || parsedDate.getTime() < foundDate.getTime()) {
-                foundDate = parsedDate; // Selectează cea mai apropiată dată
-              }
+            const pd = new Date(dStr);
+            if (!isNaN(pd.getTime()) && pd.getTime() > now) {
+              if (!bestDate || pd.getTime() < bestDate.getTime()) bestDate = pd;
             }
           }
         }
+      } catch(e) {}
+    }
 
-        if (foundDate) {
-          deal.endDateStr = `${months[foundDate.getMonth()]} ${foundDate.getDate()}`;
-          return deal;
-        }
-      }
-
-      // Verificare de rezervă absolută: citim textul paginii ignorând structura
-      if (deal.endDateStr === "Nespecificat" && epicUrl.includes("epicgames.com")) {
-        try {
-          const htmlRes = await axios.get(epicUrl, {
-            timeout: 5000,
-            headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
-          });
-          const dateRegex = /"(?:endDate|discountEndDate|expiresAt)"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/gi;
-          let m;
-          let bDate = null;
-          while ((m = dateRegex.exec(String(htmlRes.data))) !== null) {
-            const pd = new Date(m[1]);
-            if (!isNaN(pd.getTime()) && pd.getTime() > Date.now()) {
-              if (!bDate || pd.getTime() < bDate.getTime()) bDate = pd;
-            }
-          }
-          if (bDate) deal.endDateStr = `${months[bDate.getMonth()]} ${bDate.getDate()}`;
-        } catch(err) {}
-      }
-
-    } catch (e) {
-      console.error("Eroare completă la Epic Games:", e.message);
+    // Traducem și formatăm data găsită ca să arate identic cu Steam
+    if (bestDate) {
+      deal.endDateStr = `${months[bestDate.getMonth()]} ${bestDate.getDate()}`;
     }
   }
 
@@ -948,8 +943,9 @@ client.on("messageCreate", async (message) => {
   if (command === "latest") {
     // --- LATEST REDUCERI ---
     if (args.length > 0 && args[0].toLowerCase() === "reduceri") {
-      // 6 pachete de mesaje x 10 secunde pauză + 20 secunde pentru scraping inițial = 80 secunde estimare.
-      const estimareSecunde = 80;
+      // Calculăm timpul: 60 oferte = 6 seturi de 10.
+      // 6 iterații -> la fiecare 10 oferte face o pauză de 10 secunde + ~5 secunde de extragere = aprox 90 secunde.
+      const estimareSecunde = 90;
       const loadingMsg = await message.reply(`⏳ *Mă conectez la servere... Caut 60 de oferte masive (30 Steam, 30 Epic) și extrag datele de expirare direct de pe pagini. Această acțiune va dura aproximativ **${estimareSecunde} secunde**. Trimit câte 10 oferte la fiecare 10 secunde pentru a evita blocajele.*`);
       
       try {
@@ -961,7 +957,7 @@ client.on("messageCreate", async (message) => {
 
         await loadingMsg.delete().catch(() => null);
 
-        // Afișăm în seturi de câte 10 cu pauză exact 10s între ele
+        // Afișăm în seturi de câte 10 oferte, cu pauză fixă de 10s între ele
         for (let i = 0; i < deals.length; i += 10) {
           const rawChunk = deals.slice(i, i + 10);
           const chunk = await Promise.all(rawChunk.map(enrichDealData));
@@ -992,7 +988,7 @@ client.on("messageCreate", async (message) => {
              console.error("Eroare la trimiterea unui mesaj de grup:", err);
           });
 
-          // Pauza de 10 secunde dictată de Discord
+          // Pauza dictată de limitările Discord, exact cum ai cerut
           if (i + 10 < deals.length) {
             await new Promise(resolve => setTimeout(resolve, 10000));
           }
