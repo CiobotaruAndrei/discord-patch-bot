@@ -566,11 +566,8 @@ async function fetchDeals() {
 }
 
 // =====================================================================
-// FUNCȚIA enrichDealData - VERSIUNE ACTUALIZATĂ
-// Înlocuiește COMPLET funcția enrichDealData din index.js
+// FUNCȚIA enrichDealData - VERSIUNE BLINDATĂ EPIC GAMES
 // =====================================================================
-
-// Extragerea datei de expirare și formatarea ei (EPIC GAMES REPARAT COMPLET)
 async function enrichDealData(deal) {
   deal.endDateStr = "Nespecificat";
   deal.extraDetails = "";
@@ -604,270 +601,121 @@ async function enrichDealData(deal) {
         deal.endDateStr = match[1].trim();
       }
     } catch (e) { }
-  }
+  } 
   else if (deal.store === "Epic Games") {
-    const months = ["January", "February", "March", "April", "May", "June",
-                    "July", "August", "September", "October", "November", "December"];
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-    // ──────────────────────────────────────────────────────────────
-    // METODA 1: API-ul oficial Epic de promoții gratuite
-    // Cea mai fiabilă sursă pentru jocuri GRATIS de pe Epic
-    // ──────────────────────────────────────────────────────────────
+    // METODA 1: GraphQL cu Numele COMPLET
     try {
-      const promoUrl = "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US";
-      const promoRes = await axios.get(promoUrl, {
-        timeout: 8000,
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
-      });
-
-      const elements = promoRes.data?.data?.Catalog?.searchStore?.elements;
-      if (Array.isArray(elements)) {
-        // Curățăm titlul deal-ului pentru comparare
-        const dealTitleClean = deal.title.toLowerCase()
-          .replace(/[^a-z0-9\s]/g, '')
-          .replace(/\s+/g, ' ')
-          .trim();
-
-        for (const el of elements) {
-          const elTitleClean = (el.title || "").toLowerCase()
-            .replace(/[^a-z0-9\s]/g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-
-          // Verificăm dacă titlurile se potrivesc (parțial sau complet)
-          const titlesMatch =
-            elTitleClean === dealTitleClean ||
-            elTitleClean.includes(dealTitleClean) ||
-            dealTitleClean.includes(elTitleClean) ||
-            (dealTitleClean.split(' ').length >= 2 &&
-             dealTitleClean.split(' ').filter(w => elTitleClean.includes(w)).length >= 2);
-
-          if (!titlesMatch) continue;
-
-          // Căutăm data de expirare în promotionalOffers (oferte active ACUM)
-          const promos = el.promotions?.promotionalOffers;
-          if (Array.isArray(promos)) {
-            for (const group of promos) {
-              if (Array.isArray(group.promotionalOffers)) {
-                for (const offer of group.promotionalOffers) {
-                  if (offer.endDate) {
-                    const d = new Date(offer.endDate);
-                    if (!isNaN(d.getTime())) {
-                      deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}, ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')} UTC`;
-                      return deal;
-                    }
-                  }
-                }
-              }
-            }
-          }
-
-          // Căutăm și în upcomingPromotionalOffers (oferte viitoare)
-          const upcoming = el.promotions?.upcomingPromotionalOffers;
-          if (Array.isArray(upcoming)) {
-            for (const group of upcoming) {
-              if (Array.isArray(group.promotionalOffers)) {
-                for (const offer of group.promotionalOffers) {
-                  if (offer.endDate) {
-                    const d = new Date(offer.endDate);
-                    if (!isNaN(d.getTime())) {
-                      deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}, ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')} UTC`;
-                      return deal;
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.error("Epic Promo API eșuat:", e.message);
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    // METODA 2: GraphQL Catalog Search (query îmbunătățit)
-    // Funcționează pentru TOATE ofertele Epic, nu doar cele gratuite
-    // ──────────────────────────────────────────────────────────────
-    try {
-      let cleanTitle = deal.title.split(/[:\-–—]/)[0].trim();
-      if (cleanTitle.split(' ').length > 4) {
-        cleanTitle = cleanTitle.split(' ').slice(0, 4).join(' ');
-      }
+      const searchQuery = deal.title.replace(/\s+/g, ' ').trim();
 
       const epicQuery = {
         query: `query searchStoreQuery($keywords: String!) {
           Catalog {
-            searchStore(keyword: $keywords, count: 10, category: "games/edition/base|bundles/games|editors|software/edition/base") {
+            searchStore(keyword: $keywords, count: 5) {
               elements {
                 title
-                price(country: "US") {
-                  totalPrice {
-                    discountPrice
-                    originalPrice
-                    discount
-                  }
-                  lineOffers {
-                    appliedRules {
-                      endDate
-                    }
-                  }
+                promotions {
+                  promotionalOffers { promotionalOffers { endDate } }
                 }
-                promotions(category: "freegames") {
-                  promotionalOffers {
-                    promotionalOffers {
-                      startDate
-                      endDate
-                      discountSetting {
-                        discountPercentage
-                      }
-                    }
-                  }
-                  upcomingPromotionalOffers {
-                    promotionalOffers {
-                      startDate
-                      endDate
-                      discountSetting {
-                        discountPercentage
-                      }
-                    }
-                  }
+                price(country: "US") {
+                  lineOffers { appliedRules { endDate } }
                 }
               }
             }
           }
         }`,
-        variables: { keywords: cleanTitle }
+        variables: { keywords: searchQuery }
       };
 
       const epicRes = await axios.post('https://graphql.epicgames.com/graphql', epicQuery, {
-        timeout: 8000,
+        timeout: 10000,
         headers: {
           "Content-Type": "application/json",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         }
       });
 
-      const gqlElements = epicRes.data?.data?.Catalog?.searchStore?.elements;
-      if (Array.isArray(gqlElements) && gqlElements.length > 0) {
-        // Căutăm elementul care se potrivește cel mai bine cu titlul
-        const dealWords = deal.title.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-        let bestMatch = null;
-        let bestScore = 0;
+      const elements = epicRes.data?.data?.Catalog?.searchStore?.elements;
+      if (Array.isArray(elements)) {
+        for (const el of elements) {
+          let foundDate = null;
 
-        for (const el of gqlElements) {
-          const elTitle = (el.title || "").toLowerCase();
-          const score = dealWords.filter(w => elTitle.includes(w)).length;
-          if (score > bestScore) {
-            bestScore = score;
-            bestMatch = el;
+          // 1. Cautam in lineOffers (reducerile standard de pret pe jocurile/DLC-urile de pe Epic)
+          const rules = el.price?.lineOffers?.[0]?.appliedRules;
+          if (Array.isArray(rules)) {
+            for (const rule of rules) {
+              if (rule.endDate) foundDate = rule.endDate;
+            }
           }
-        }
 
-        if (bestMatch && bestScore >= Math.min(2, dealWords.length)) {
-          // Verificăm lineOffers (reguli aplicate cu endDate)
-          const lineOffers = bestMatch.price?.lineOffers;
-          if (Array.isArray(lineOffers)) {
-            for (const line of lineOffers) {
-              if (Array.isArray(line.appliedRules)) {
-                for (const rule of line.appliedRules) {
-                  if (rule.endDate) {
-                    const d = new Date(rule.endDate);
-                    if (!isNaN(d.getTime()) && d.getTime() > Date.now()) {
-                      deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}, ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')} UTC`;
-                      return deal;
-                    }
+          // 2. Cautam in promotions (jocurile care devin gratis sau reduceri globale)
+          if (!foundDate) {
+            const promoOffers = el.promotions?.promotionalOffers;
+            if (Array.isArray(promoOffers)) {
+              for (const p of promoOffers) {
+                const inner = p.promotionalOffers;
+                if (Array.isArray(inner)) {
+                  for (const i of inner) {
+                    if (i.endDate) foundDate = i.endDate;
                   }
                 }
               }
             }
           }
 
-          // Verificăm promotions
-          const allPromoGroups = [
-            ...(bestMatch.promotions?.promotionalOffers || []),
-            ...(bestMatch.promotions?.upcomingPromotionalOffers || [])
-          ];
-          for (const group of allPromoGroups) {
-            if (Array.isArray(group.promotionalOffers)) {
-              for (const offer of group.promotionalOffers) {
-                if (offer.endDate) {
-                  const d = new Date(offer.endDate);
-                  if (!isNaN(d.getTime()) && d.getTime() > Date.now()) {
-                    deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}, ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')} UTC`;
-                    return deal;
-                  }
-                }
-              }
+          if (foundDate) {
+            const d = new Date(foundDate);
+            if (!isNaN(d.getTime()) && d.getTime() > Date.now()) {
+              deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}, ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')} UTC`;
+              return deal; 
             }
           }
         }
       }
     } catch (e) {
-      console.error("Epic GraphQL eșuat:", e.message);
+      console.log(`[GraphQL Epic] Failed pt ${deal.title}:`, e.message);
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // METODA 3: Fallback — Scraping HTML de pe pagina Epic Store
-    // ──────────────────────────────────────────────────────────────
-    try {
-      // Construim URL-ul direct către pagina Epic Store pe baza titlului
-      const slug = deal.title.toLowerCase()
-        .replace(/[^a-z0-9\s]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
+    // METODA 2: Fallback Scrapping pe URL-ul real Epic (Ocolind redirectionarea CheapShark)
+    if (deal.endDateStr === "Nespecificat") {
+      try {
+        let epicUrl = deal.link;
+        
+        // Daca link-ul contine cheapshark redirect, urmarim link-ul pentru a gasi url-ul original catre magazinul Epic
+        if (epicUrl.includes("cheapshark.com/redirect")) {
+          const redirRes = await axios.get(deal.link, { maxRedirects: 0, validateStatus: s => s >= 200 && s <= 308 });
+          if (redirRes.headers.location) epicUrl = redirRes.headers.location;
+        }
 
-      const epicStoreUrl = `https://store.epicgames.com/en-US/p/${slug}`;
+        const pageRes = await axios.get(epicUrl, {
+          timeout: 10000,
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" }
+        });
 
-      const htmlRes = await axios.get(epicStoreUrl, {
-        timeout: 8000,
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
-        maxRedirects: 5,
-        validateStatus: (s) => s < 400
-      });
-      const html = String(htmlRes.data || "");
+        const html = String(pageRes.data || "");
+        const dateRegex = /"(?:endDate|discountEndDate)"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/g;
+        let match;
+        let bestDate = null;
+        const now = Date.now();
 
-      // Căutăm pattern-uri de dată în JSON-ul embeded în pagină
-      const patterns = [
-        /"endDate"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/gi,
-        /"discountEndDate"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/gi,
-        /"expiresAt"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/gi
-      ];
-
-      let bestDate = null;
-      for (const pattern of patterns) {
-        let m;
-        while ((m = pattern.exec(html)) !== null) {
-          const d = new Date(m[1]);
-          if (!isNaN(d.getTime()) && d.getTime() > Date.now()) {
-            // Luăm cea mai apropiată dată viitoare
-            if (!bestDate || d.getTime() < bestDate.getTime()) {
-              bestDate = d;
+        // Cautam cel mai apropiat endDate inamic care nu este in trecut
+        while ((match = dateRegex.exec(html)) !== null) {
+          const parsedDate = new Date(match[1]);
+          const time = parsedDate.getTime();
+          if (!isNaN(time) && time > now) {
+            if (!bestDate || time < bestDate.getTime()) {
+              bestDate = parsedDate;
             }
           }
         }
-      }
 
-      if (bestDate) {
-        deal.endDateStr = `${bestDate.getDate()} ${months[bestDate.getMonth()]} ${bestDate.getFullYear()}, ${String(bestDate.getUTCHours()).padStart(2,'0')}:${String(bestDate.getUTCMinutes()).padStart(2,'0')} UTC`;
-      }
-    } catch (err) {
-      // Ultima încercare: pagina CheapShark redirect
-      try {
-        const htmlRes = await axios.get(deal.link, {
-          timeout: 8000,
-          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
-        });
-        const html = String(htmlRes.data || "");
-        const discountMatch = html.match(/"endDate"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/i);
-        if (discountMatch && discountMatch[1]) {
-          const d = new Date(discountMatch[1]);
-          if (!isNaN(d.getTime())) {
-            deal.endDateStr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}, ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')} UTC`;
-          }
+        if (bestDate) {
+          deal.endDateStr = `${bestDate.getDate()} ${months[bestDate.getMonth()]} ${bestDate.getFullYear()}, ${String(bestDate.getUTCHours()).padStart(2,'0')}:${String(bestDate.getUTCMinutes()).padStart(2,'0')} UTC`;
         }
-      } catch (err2) {}
+      } catch (err) {
+        console.log(`[Scrape Epic] Failed pt ${deal.title}:`, err.message);
+      }
     }
   }
 
