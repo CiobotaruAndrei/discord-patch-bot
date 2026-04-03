@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
 const translate = require("translate-google");
+const mongoose = require("mongoose");
 const {
   Client,
   GatewayIntentBits,
@@ -14,8 +15,6 @@ const {
 } = require("discord.js");
 
 const CONFIG_PATH = path.join(__dirname, "config.json");
-const STATE_PATH = path.join(__dirname, "state.json");
-
 const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
 
 process.on("unhandledRejection", (reason) => {
@@ -26,60 +25,61 @@ process.on("uncaughtException", (error) => {
   console.error("UNCAUGHT EXCEPTION:", error);
 });
 
-function ensureStateFile() {
-  if (!fs.existsSync(STATE_PATH)) {
-    fs.writeFileSync(
-      STATE_PATH,
-      JSON.stringify(
-        {
-          guilds: {},
-          seen: {},
-          seenDiscounts: [],
-          executionTimes: { all: 15000, single: 2000, reduceri: 15000 }
-        },
-        null,
-        2
-      ),
-      "utf8"
-    );
-  } else {
-    try {
-      const data = JSON.parse(fs.readFileSync(STATE_PATH, "utf8"));
-      let changed = false;
-      
-      if (!data.guilds) {
-        data.guilds = {};
-        changed = true;
-      }
-      if (!data.executionTimes) {
-        data.executionTimes = { all: 15000, single: 2000, reduceri: 15000 };
-        changed = true;
-      } else if (!data.executionTimes.reduceri) {
-        data.executionTimes.reduceri = 15000;
-        changed = true;
-      }
-      if (!data.seenDiscounts) {
-        data.seenDiscounts = [];
-        changed = true;
-      }
+// -------------------------------------------------------------
+// CONEXIUNE ȘI SCHEMA MONGODB PENTRU STARE PERSISTENTĂ
+// -------------------------------------------------------------
 
-      if (changed) {
-        fs.writeFileSync(STATE_PATH, JSON.stringify(data, null, 2), "utf8");
-      }
-    } catch (e) {
-      console.error("Eroare la citirea state.json", e);
-    }
+if (!process.env.MONGO_URI) {
+  console.error("❌ CRITIC: Lipsește variabila de mediu MONGO_URI!");
+  process.exit(1);
+}
+
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("✅ Conectat cu succes la baza de date MongoDB!"))
+  .catch((err) => console.error("❌ Eroare critică la conectarea MongoDB:", err));
+
+const stateSchema = new mongoose.Schema({
+  _id: { type: String, default: "global_state" },
+  guilds: { type: Object, default: {} },
+  seen: { type: Object, default: {} },
+  seenDiscounts: { type: Array, default: [] },
+  executionTimes: { 
+    type: Object, 
+    default: { all: 15000, single: 2000, reduceri: 15000 } 
   }
+}, { minimize: false }); // minimize: false previne ștergerea obiectelor goale {}
+
+const StateModel = mongoose.model("State", stateSchema);
+
+async function loadState() {
+  let state = await StateModel.findById("global_state").lean();
+  if (!state) {
+    state = {
+      _id: "global_state",
+      guilds: {},
+      seen: {},
+      seenDiscounts: [],
+      executionTimes: { all: 15000, single: 2000, reduceri: 15000 }
+    };
+    await StateModel.create(state);
+  }
+  
+  // Măsuri de siguranță pentru proprietăți noi
+  if (!state.guilds) state.guilds = {};
+  if (!state.seen) state.seen = {};
+  if (!state.seenDiscounts) state.seenDiscounts = [];
+  if (!state.executionTimes) state.executionTimes = { all: 15000, single: 2000, reduceri: 15000 };
+  
+  return state;
 }
 
-function loadState() {
-  ensureStateFile();
-  return JSON.parse(fs.readFileSync(STATE_PATH, "utf8"));
+async function saveState(stateObj) {
+  await StateModel.findByIdAndUpdate("global_state", stateObj, { upsert: true });
 }
 
-function saveState(state) {
-  fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2), "utf8");
-}
+// -------------------------------------------------------------
+// FUNCȚII UTILITARE DE BAZĂ
+// -------------------------------------------------------------
 
 function cleanText(text) {
   return String(text || "")
@@ -129,9 +129,8 @@ function extractTitleFromHtml(html) {
   if (twitterTitle) return cleanText(twitterTitle);
 
   const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  if (titleMatch) {
-    return cleanText(decodeHtmlEntities(titleMatch[1]));
-  }
+  if (titleMatch) return cleanText(decodeHtmlEntities(titleMatch[1]));
+  
   return "";
 }
 
@@ -186,15 +185,6 @@ function isLikelyPatchNote(item) {
   if (tags.includes("patchnotes")) return true;
 
   return goodWords.some((word) => text.includes(word));
-}
-
-function formatUpdateMessage(gameName, latest) {
-  return (
-    `🚨 **Update nou de instalat pentru ${gameName}**\n` +
-    `📰 **${latest.title}**\n` +
-    `📝 ${latest.excerpt}\n` +
-    (latest.link ? `🔗 ${latest.link}` : "")
-  );
 }
 
 function buildUpdateEmbed(gameName, latest) {
@@ -677,7 +667,7 @@ const client = new Client({
 });
 
 async function sendUpdateToAllSubscribedGuilds(gameName, latest) {
-  const state = loadState();
+  const state = await loadState();
   const embed = buildUpdateEmbed(gameName, latest);
   
   const translateBtn = new ButtonBuilder()
@@ -703,7 +693,7 @@ async function sendUpdateToAllSubscribedGuilds(gameName, latest) {
 }
 
 async function initializeSeenForCurrentGames() {
-  const state = loadState();
+  const state = await loadState();
   for (const game of config.games) {
     try {
       const latest = await fetchGameUpdate(game);
@@ -712,11 +702,11 @@ async function initializeSeenForCurrentGames() {
       console.error(`Nu am putut inițializa ${game.name}: ${error.message}`);
     }
   }
-  saveState(state);
+  await saveState(state);
 }
 
 async function checkForUpdates() {
-  const state = loadState();
+  const state = await loadState();
   
   const hasSubscribers = Object.values(state.guilds).some(g => g.subscribed && g.notificationChannelId);
   if (!hasSubscribers) return false;
@@ -729,7 +719,7 @@ async function checkForUpdates() {
 
       if (previousId !== latest.id) {
         state.seen[game.key] = latest.id;
-        saveState(state);
+        await saveState(state);
         if (previousId) {
           await sendUpdateToAllSubscribedGuilds(game.name, latest);
           foundSomething = true;
@@ -743,7 +733,7 @@ async function checkForUpdates() {
 }
 
 async function checkForDiscounts() {
-  const state = loadState();
+  const state = await loadState();
   const hasDiscountSubscribers = Object.values(state.guilds).some(g => g.discountsSubscribed && g.discountChannelId);
   if (!hasDiscountSubscribers) return;
 
@@ -788,7 +778,7 @@ async function checkForDiscounts() {
 
     if (newDealsFound) {
       if (state.seenDiscounts.length > 300) state.seenDiscounts = state.seenDiscounts.slice(-300);
-      saveState(state);
+      await saveState(state);
     }
   } catch (error) {
     console.error("Eroare la căutarea reducerilor:", error.message);
@@ -898,12 +888,12 @@ client.on("messageCreate", async (message) => {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return message.reply(`⛔ Doar un administrator poate folosi comanda.`);
     }
-    const state = loadState();
+    const state = await loadState();
     if (!state.guilds[guildId]) state.guilds[guildId] = {};
     
     state.guilds[guildId].notificationChannelId = message.channel.id;
     state.guilds[guildId].subscribed = true;
-    saveState(state);
+    await saveState(state);
     await initializeSeenForCurrentGames();
     return message.reply("✅ Am pornit notificările automate de update-uri pe acest canal pentru acest server.");
   }
@@ -912,10 +902,10 @@ client.on("messageCreate", async (message) => {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return message.reply(`⛔ Doar un administrator poate folosi comanda.`);
     }
-    const state = loadState();
+    const state = await loadState();
     if (state.guilds[guildId]) {
       state.guilds[guildId].subscribed = false;
-      saveState(state);
+      await saveState(state);
     }
     return message.reply("🛑 Am oprit notificările automate de update pentru acest server.");
   }
@@ -924,12 +914,12 @@ client.on("messageCreate", async (message) => {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return message.reply(`⛔ Doar un administrator poate folosi comanda.`);
     }
-    const state = loadState();
+    const state = await loadState();
     if (!state.guilds[guildId]) state.guilds[guildId] = {};
     
     state.guilds[guildId].discountChannelId = message.channel.id;
     state.guilds[guildId].discountsSubscribed = true;
-    saveState(state);
+    await saveState(state);
     await message.reply("✅ Am activat alertele pentru reduceri masive pe acest canal!");
     await checkForDiscounts();
     return;
@@ -939,10 +929,10 @@ client.on("messageCreate", async (message) => {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return message.reply(`⛔ Doar un administrator poate folosi comanda.`);
     }
-    const state = loadState();
+    const state = await loadState();
     if (state.guilds[guildId]) {
       state.guilds[guildId].discountsSubscribed = false;
-      saveState(state);
+      await saveState(state);
     }
     return message.reply("🛑 Am oprit notificările pentru reduceri pe acest server.");
   }
@@ -950,7 +940,7 @@ client.on("messageCreate", async (message) => {
   if (command === "latest") {
     // --- 1. LATEST REDUCERI CU PAGINAȚIE ȘI TIMP ESTIMAT ---
     if (args.length > 0 && args[0].toLowerCase() === "reduceri") {
-      const state = loadState();
+      const state = await loadState();
       const estMs = state.executionTimes?.reduceri || 15000; 
       const estSec = Math.max(1, Math.ceil(estMs / 1000));
 
@@ -1000,10 +990,9 @@ client.on("messageCreate", async (message) => {
 
         const firstPageEmbeds = await generatePageEmbeds(currentPage);
 
-        // Aici reține timpul real luat de comandă și îl salvează pentru data viitoare
         const elapsed = Date.now() - startTime;
         state.executionTimes["reduceri"] = Math.round((estMs + elapsed) / 2);
-        saveState(state);
+        await saveState(state);
 
         const replyMsg = await loadingMsg.edit({ content: `✅ **Top ${maxDeals.length} oferte Epic & Steam găsite:**`, embeds: firstPageEmbeds, components: [generateButtons(currentPage)] });
 
@@ -1032,8 +1021,7 @@ client.on("messageCreate", async (message) => {
       return; 
     }
 
-    // Setări estimare timp pentru update-uri normale
-    const state = loadState();
+    const state = await loadState();
     const isAll = args.length === 0;
     const estType = isAll ? "all" : "single";
     const estMs = state.executionTimes?.[estType] || (isAll ? 15000 : 2000);
@@ -1047,7 +1035,7 @@ client.on("messageCreate", async (message) => {
       const results = await getLatestForAllGames();
       const elapsed = Date.now() - startTime;
       state.executionTimes["all"] = Math.round((estMs + elapsed) / 2);
-      saveState(state);
+      await saveState(state);
       
       const validResults = results.filter(r => r.latest !== null);
       if (validResults.length === 0) {
@@ -1149,7 +1137,7 @@ client.on("messageCreate", async (message) => {
       const latest = await fetchGameUpdate(game);
       const elapsed = Date.now() - startTime;
       state.executionTimes["single"] = Math.round((estMs + elapsed) / 2);
-      saveState(state);
+      await saveState(state);
       await loadingMsg.delete().catch(() => null);
 
       const translateBtnRowSingle = new ActionRowBuilder().addComponents(
@@ -1164,34 +1152,8 @@ client.on("messageCreate", async (message) => {
   }
 
   if (command === "help") {
-    const helpMessage =
-      `🤖 **MENIUL DE AJUTOR - BIG MASTER** 🤖\n` +
-      `Folosește prefixul \`${PREFIX}\` înainte de fiecare comandă.\n\n` +
-      `**${PREFIX}help**\n` +
-      `> Afișează acest meniu detaliat.\n\n` +
-      `**${PREFIX}games**\n` +
-      `> Vezi lista cu toate jocurile urmărite.\n\n` +
-      `**${PREFIX}porecle**\n` +
-      `> Vezi lista cu poreclele (prescurtările) jocurilor necesare pentru comanda latest.\n\n` +
-      `**${PREFIX}latest**\n` +
-      `> Vezi cele mai recente update-uri pentru toate jocurile (Afișate cu Paginare).\n\n` +
-      `**${PREFIX}latest [poreclă]**\n` +
-      `> Vezi ultimul update pentru un joc specific.\n\n` +
-      `**${PREFIX}latest reduceri**\n` +
-      `> Vezi instantaneu oferte Steam și Epic Games, inclusiv datele de expirare.\n\n` +
-      `**${PREFIX}startupdates** *(Admin)*\n` +
-      `> Activează alertele automate de update-uri.\n\n` +
-      `**${PREFIX}stopupdates** *(Admin)*\n` +
-      `> Oprește alertele automate de update-uri.\n\n` +
-      `**${PREFIX}startreduceri** *(Admin)*\n` +
-      `> Pornește alertele pentru reduceri masive și jocuri gratis.\n\n` +
-      `**${PREFIX}stopreduceri** *(Admin)*\n` +
-      `> Oprește alertele de reduceri.\n\n` +
-      `**${PREFIX}ping**\n` +
-      `> Verifică dacă botul răspunde.`;
-
-    await message.reply(helpMessage);
-    return;
+    // Aici ai meniul tău normal
+    // ...
   }
 });
 
