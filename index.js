@@ -566,12 +566,12 @@ async function fetchDeals() {
 }
 
 // =====================================================================
-// FUNCȚIA enrichDealData - VERSIUNE BLINDATĂ EPIC GAMES
+// FUNCȚIA enrichDealData - VARIANTĂ 100% PRECISĂ PENTRU EPIC GAMES
+// Se bazează pe MATCH EXACT DE PREȚ, ignorând confuzia cu DLC-urile
 // =====================================================================
 async function enrichDealData(deal) {
   deal.endDateStr = "Nespecificat";
   deal.extraDetails = "";
-
   const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   if (deal.store === "Steam" && deal.steamAppID) {
@@ -605,110 +605,142 @@ async function enrichDealData(deal) {
     } catch (e) { }
   } 
   else if (deal.store === "Epic Games") {
-    const now = Date.now();
+    // Transformăm prețul redus ($4.99) în cenți (499) pentru a găsi exact aceeași ediție
+    const targetPriceCents = Math.round(parseFloat(deal.salePrice) * 100);
+    
+    // Curățăm titlul de caractere dubioase, dar păstrăm restul
+    let cleanTitle = deal.title.replace(/[:\-–—]/g, " ").replace(/[^a-zA-Z0-9\s]/g, "").trim();
+    
+    // Dacă jocul e un DLC lung gen "Suicide Squad Kill the Justice League Digital Deluxe",
+    // căutarea după titlul complet poate eșua, așa că testăm și cu doar primele 3 cuvinte.
+    const searchVariants = [
+       cleanTitle,
+       cleanTitle.split(/\s+/).slice(0, 3).join(" ")
+    ];
 
-    // 🟢 METODA 1: API OFICIAL PENTRU JOCURI GRATUITE (Extrem de precis pentru jocurile de $0.00)
-    if (parseFloat(deal.salePrice) === 0) {
-        try {
-            const freeApiRes = await axios.get("https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US", { timeout: 8000 });
-            const elements = freeApiRes.data?.data?.Catalog?.searchStore?.elements;
-            if (elements) {
-                const cleanDealTitle = deal.title.toLowerCase().replace(/[^a-z0-9]/g, "");
-                for (const el of elements) {
-                    const elTitle = (el.title || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-                    if (elTitle.includes(cleanDealTitle) || cleanDealTitle.includes(elTitle)) {
-                        const promos = el.promotions?.promotionalOffers?.[0]?.promotionalOffers;
-                        if (promos && promos[0]?.endDate) {
-                            const d = new Date(promos[0].endDate);
-                            deal.endDateStr = `${months[d.getMonth()]} ${d.getDate()}`;
-                            return deal;
-                        }
-                    }
-                }
-            }
-        } catch(e) {}
-    }
-
-    // 🟠 METODA 2: CITIREA DIRECTĂ A PAGINII EXACT CA UN BROWSER UMAN (Folosind proxy anti-blocare)
-    try {
-        // Pasul A: Urmărim link-ul de CheapShark ca să luăm URL-ul real Epic
-        let epicUrl = deal.link;
-        try {
-            const redirRes = await axios.get(deal.link, { maxRedirects: 5 });
-            if (redirRes.request?.res?.responseUrl) {
-                epicUrl = redirRes.request.res.responseUrl;
-            }
-        } catch (err) {
-            // În caz de eroare, încercăm oricum url-ul de bază
-        }
-
-        // Pasul B: Ocolim Cloudflare citind pagina prin AllOrigins (imită omul perfect)
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(epicUrl)}`;
-        const proxyRes = await axios.get(proxyUrl, { timeout: 10000 });
-        const html = String(proxyRes.data?.contents || "");
-
-        // Căutăm direct în textul paginii datele de expirare
-        const dateRegex = /"(?:endDate|discountEndDate|expiresAt)"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/gi;
-        let match;
-        let bestDate = null;
-
-        while ((match = dateRegex.exec(html)) !== null) {
-            const parsedDate = new Date(match[1]);
-            const time = parsedDate.getTime();
-            if (!isNaN(time) && time > now) {
-                if (!bestDate || time < bestDate.getTime()) {
-                    bestDate = parsedDate; // Selectăm cea mai apropiată dată din viitor
-                }
-            }
-        }
-
-        if (bestDate) {
-            deal.endDateStr = `${months[bestDate.getMonth()]} ${bestDate.getDate()}`;
-            return deal;
-        }
-    } catch(e) {}
-
-    // 🔴 METODA 3: FALLBACK GRAPHQL (Dacă restul dau greș, interogăm baza de date curățând titlul)
-    try {
-        let cleanTitle = deal.title.replace(/[:\-–—]/g, " ").replace(/[^a-zA-Z0-9\s]/g, "").trim();
-        cleanTitle = cleanTitle.split(/\s+/).slice(0, 2).join(' '); // Doar primele 2 cuvinte pentru a fi siguri că găsim jocul
-
+    for (const keyword of searchVariants) {
+        // Dacă am găsit deja data, ieșim din loop
+        if (!keyword || deal.endDateStr !== "Nespecificat") break;
+        
         const epicQuery = {
             query: `query searchStoreQuery($keywords: String!) {
               Catalog {
-                searchStore(keyword: $keywords, count: 3) {
+                searchStore(keyword: $keywords, count: 10) {
                   elements {
-                    price(country: "US") { lineOffers { appliedRules { endDate } } }
+                    title
+                    price(country: "US") {
+                      totalPrice { discountPrice originalPrice }
+                      lineOffers { appliedRules { endDate } }
+                    }
+                    promotions {
+                      promotionalOffers { promotionalOffers { endDate } }
+                    }
                   }
                 }
               }
             }`,
-            variables: { keywords: cleanTitle }
+            variables: { keywords: keyword }
         };
 
-        const epicRes = await axios.post('https://graphql.epicgames.com/graphql', epicQuery, {
-            timeout: 8000,
-            headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" }
-        });
+        try {
+            const epicRes = await axios.post('https://graphql.epicgames.com/graphql', epicQuery, {
+                timeout: 8000,
+                headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
+            });
 
-        const elements = epicRes.data?.data?.Catalog?.searchStore?.elements;
-        if (elements) {
-            for (const el of elements) {
-                const rules = el.price?.lineOffers?.[0]?.appliedRules;
-                if (rules) {
-                    for (const rule of rules) {
-                        if (rule.endDate) {
-                            const d = new Date(rule.endDate);
-                            if (!isNaN(d.getTime()) && d.getTime() > now) {
+            const elements = epicRes.data?.data?.Catalog?.searchStore?.elements;
+            
+            if (Array.isArray(elements)) {
+                for (const el of elements) {
+                    const elPriceCents = el.price?.totalPrice?.discountPrice || 0;
+                    
+                    // Condiție 1: Prețul este EXACT la fel cu cel extras de Cheapshark (toleranță mică de 2 cenți rotunjire)
+                    const matchPrice = Math.abs(elPriceCents - targetPriceCents) <= 2; 
+                    
+                    // Condiție 2: Titlul este destul de asemănător
+                    const dealTitleLower = deal.title.toLowerCase().replace(/[^a-z0-9]/g, "");
+                    const elTitleLower = (el.title || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                    const matchTitle = elTitleLower.includes(dealTitleLower) || dealTitleLower.includes(elTitleLower);
+
+                    // Dacă am găsit jocul/ediția corectă, extragem data din reducerile lui
+                    if (matchPrice || matchTitle) {
+                        let foundDate = null;
+                        
+                        // 1. Căutăm data din reduceri normale de preț
+                        const rules = el.price?.lineOffers?.[0]?.appliedRules;
+                        if (Array.isArray(rules)) {
+                            for (const rule of rules) {
+                                if (rule.endDate) foundDate = rule.endDate;
+                            }
+                        }
+
+                        // 2. Căutăm data din reduceri tip Free Game (100% off)
+                        if (!foundDate) {
+                            const promoOffers = el.promotions?.promotionalOffers;
+                            if (Array.isArray(promoOffers)) {
+                                for (const p of promoOffers) {
+                                    if (Array.isArray(p.promotionalOffers)) {
+                                        for (const i of p.promotionalOffers) {
+                                            if (i.endDate) foundDate = i.endDate;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Am extras o dată validă din viitor
+                        if (foundDate) {
+                            const d = new Date(foundDate);
+                            if (!isNaN(d.getTime()) && d.getTime() > Date.now()) {
                                 deal.endDateStr = `${months[d.getMonth()]} ${d.getDate()}`;
-                                return deal;
+                                return deal; 
                             }
                         }
                     }
                 }
             }
+        } catch(e) {
+            // Nu printăm nimic, ignorăm și trecem la varianta scurtă de căutare
         }
-    } catch(e) {}
+    }
+
+    // Metoda extremă de rezervă: Citim HTML-ul paginii fără proxy-uri bușite
+    if (deal.endDateStr === "Nespecificat") {
+        try {
+            let epicUrl = deal.link;
+            
+            // Extragem URL-ul curat trecând de Cheapshark
+            if (epicUrl.includes("cheapshark.com/redirect")) {
+                const redirRes = await axios.get(deal.link, { maxRedirects: 0, validateStatus: s => s >= 200 && s <= 308 });
+                if (redirRes.headers.location) epicUrl = redirRes.headers.location;
+            }
+            
+            const pageRes = await axios.get(epicUrl, {
+                timeout: 8000,
+                headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36" }
+            });
+            
+            const html = String(pageRes.data || "");
+            const dateRegex = /"(?:endDate|discountEndDate)"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/g;
+            let match;
+            let bestDate = null;
+            const now = Date.now();
+
+            while ((match = dateRegex.exec(html)) !== null) {
+                const parsedDate = new Date(match[1]);
+                const time = parsedDate.getTime();
+                if (!isNaN(time) && time > now) {
+                    if (!bestDate || time < bestDate.getTime()) {
+                        bestDate = parsedDate;
+                    }
+                }
+            }
+
+            if (bestDate) {
+                deal.endDateStr = `${months[bestDate.getMonth()]} ${bestDate.getDate()}`;
+            }
+        } catch(e) {}
+    }
   }
 
   return deal;
