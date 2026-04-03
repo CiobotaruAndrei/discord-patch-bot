@@ -35,7 +35,7 @@ function ensureStateFile() {
           guilds: {},
           seen: {},
           seenDiscounts: [],
-          executionTimes: { all: 15000, single: 2000 }
+          executionTimes: { all: 15000, single: 2000, reduceri: 15000 }
         },
         null,
         2
@@ -52,7 +52,10 @@ function ensureStateFile() {
         changed = true;
       }
       if (!data.executionTimes) {
-        data.executionTimes = { all: 15000, single: 2000 };
+        data.executionTimes = { all: 15000, single: 2000, reduceri: 15000 };
+        changed = true;
+      } else if (!data.executionTimes.reduceri) {
+        data.executionTimes.reduceri = 15000;
         changed = true;
       }
       if (!data.seenDiscounts) {
@@ -599,7 +602,6 @@ async function enrichDealData(deal) {
   } 
   else if (deal.store === "Epic Games") {
     try {
-      // Curatam numele jocului de editii speciale pentru o cautare corecta pe Epic API
       let cleanTitle = deal.title.replace(/(Standard|Deluxe|Ultimate|Edition)/gi, "").trim();
       if (cleanTitle.split(' ').length > 4) {
          cleanTitle = cleanTitle.split(' ').slice(0, 4).join(' ');
@@ -619,7 +621,6 @@ async function enrichDealData(deal) {
       if (elements && elements.length > 0) {
         let endDateIso = null;
         
-        // Cautam in primele rezultate data reducerii sau ofertei gratuite
         for (const item of elements) {
           const promoOffers = item.promotions?.promotionalOffers;
           if (promoOffers && promoOffers.length > 0 && promoOffers[0].promotionalOffers && promoOffers[0].promotionalOffers.length > 0) {
@@ -646,7 +647,6 @@ async function enrichDealData(deal) {
         }
       }
     } catch (err) {
-      // In caz de eroare, ramane "Nespecificat" in loc sa crape botul
       console.error("Eroare la preluarea datei din API Epic:", err.message);
     }
   }
@@ -948,9 +948,15 @@ client.on("messageCreate", async (message) => {
   }
 
   if (command === "latest") {
+    // --- 1. LATEST REDUCERI CU PAGINAȚIE ȘI TIMP ESTIMAT ---
     if (args.length > 0 && args[0].toLowerCase() === "reduceri") {
-      const loadingMsg = await message.reply(`⏳ *Caut și procesez ofertele disponibile...*`);
-      
+      const state = loadState();
+      const estMs = state.executionTimes?.reduceri || 15000; 
+      const estSec = Math.max(1, Math.ceil(estMs / 1000));
+
+      const loadingMsg = await message.reply(`⏳ *Caut și procesez ofertele disponibile... Durată estimată: **${estSec} secunde**.*`);
+      const startTime = Date.now();
+
       try {
         const rawDeals = await fetchDeals(); 
         if (!rawDeals || rawDeals.length === 0) {
@@ -993,6 +999,12 @@ client.on("messageCreate", async (message) => {
         };
 
         const firstPageEmbeds = await generatePageEmbeds(currentPage);
+
+        // Aici reține timpul real luat de comandă și îl salvează pentru data viitoare
+        const elapsed = Date.now() - startTime;
+        state.executionTimes["reduceri"] = Math.round((estMs + elapsed) / 2);
+        saveState(state);
+
         const replyMsg = await loadingMsg.edit({ content: `✅ **Top ${maxDeals.length} oferte Epic & Steam găsite:**`, embeds: firstPageEmbeds, components: [generateButtons(currentPage)] });
 
         const collector = replyMsg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 300000 }); 
@@ -1020,31 +1032,114 @@ client.on("messageCreate", async (message) => {
       return; 
     }
 
-    const translateBtnRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("translate_update").setLabel("🇷🇴 Tradu în Română").setStyle(ButtonStyle.Primary)
-    );
-
+    // Setări estimare timp pentru update-uri normale
     const state = loadState();
     const isAll = args.length === 0;
-    const estMs = state.executionTimes?.[isAll ? "all" : "single"] || (isAll ? 15000 : 2000);
+    const estType = isAll ? "all" : "single";
+    const estMs = state.executionTimes?.[estType] || (isAll ? 15000 : 2000);
     const estSec = Math.max(1, Math.ceil(estMs / 1000)); 
 
     const loadingMsg = await message.reply(`⏳ *Mă conectez la servere... Durată estimată: **${estSec} secunde**.*`);
     const startTime = Date.now(); 
 
+    // --- 2. LATEST ALL JOCURI (CU PAGINAȚIE ȘI TIMP) ---
     if (isAll) {
       const results = await getLatestForAllGames();
-      state.executionTimes["all"] = Math.round((estMs + (Date.now() - startTime)) / 2);
+      const elapsed = Date.now() - startTime;
+      state.executionTimes["all"] = Math.round((estMs + elapsed) / 2);
       saveState(state);
-      await loadingMsg.delete().catch(() => null);
-
-      for (const result of results) {
-        if (!result.latest) continue;
-        await message.channel.send({ embeds: [buildUpdateEmbed(result.game.name, result.latest)], components: [translateBtnRow] }).catch(() => null);
+      
+      const validResults = results.filter(r => r.latest !== null);
+      if (validResults.length === 0) {
+         return loadingMsg.edit(`❌ Nu am putut prelua update-uri pentru niciun joc.`);
       }
+
+      let currentPage = 0;
+      const itemsPerPage = 5; 
+      const totalPages = Math.ceil(validResults.length / itemsPerPage);
+
+      const generateUpdateEmbeds = (pageIndex) => {
+        const startIndex = pageIndex * itemsPerPage;
+        const chunk = validResults.slice(startIndex, startIndex + itemsPerPage);
+        return chunk.map(r => {
+           const embed = buildUpdateEmbed(r.game.name, r.latest);
+           embed.setFooter({ text: `${r.game.name} • Pagina ${pageIndex + 1} din ${totalPages}` });
+           return embed;
+        });
+      };
+
+      const generateUpdateButtons = (pageIndex, translated = false) => {
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('prev_upd').setLabel('◀').setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === 0),
+          new ButtonBuilder().setCustomId('next_upd').setLabel('▶').setStyle(ButtonStyle.Primary).setDisabled(pageIndex === totalPages - 1)
+        );
+        if (!translated) {
+          row.addComponents(
+            new ButtonBuilder().setCustomId('trans_upd').setLabel('🇷🇴 Tradu Pagina').setStyle(ButtonStyle.Success).setEmoji("🌍")
+          );
+        }
+        return row;
+      };
+
+      let currentEmbeds = generateUpdateEmbeds(currentPage);
+      let isTranslatedPage = false;
+
+      const replyMsg = await loadingMsg.edit({
+        content: `✅ **Cele mai recente update-uri (${validResults.length} jocuri monitorizate):**`,
+        embeds: currentEmbeds,
+        components: [generateUpdateButtons(currentPage, isTranslatedPage)]
+      });
+
+      const collector = replyMsg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 300000 });
+
+      collector.on('collect', async (btnInteraction) => {
+        if (btnInteraction.user.id !== message.author.id) {
+          return btnInteraction.reply({ content: 'Doar utilizatorul care a apelat comanda poate folosi butoanele!', ephemeral: true });
+        }
+
+        if (btnInteraction.customId === 'prev_upd') {
+          currentPage--;
+          isTranslatedPage = false; 
+          currentEmbeds = generateUpdateEmbeds(currentPage);
+          await btnInteraction.deferUpdate();
+          await btnInteraction.editReply({ embeds: currentEmbeds, components: [generateUpdateButtons(currentPage, isTranslatedPage)] });
+        } 
+        else if (btnInteraction.customId === 'next_upd') {
+          currentPage++;
+          isTranslatedPage = false;
+          currentEmbeds = generateUpdateEmbeds(currentPage);
+          await btnInteraction.deferUpdate();
+          await btnInteraction.editReply({ embeds: currentEmbeds, components: [generateUpdateButtons(currentPage, isTranslatedPage)] });
+        }
+        else if (btnInteraction.customId === 'trans_upd') {
+          await btnInteraction.deferUpdate();
+          isTranslatedPage = true;
+          
+          const msgEmbeds = btnInteraction.message.embeds;
+          const translatedEmbeds = [];
+          
+          for (const emb of msgEmbeds) {
+            try {
+              let tDesc = emb.description ? await translate(emb.description, { to: 'ro' }) : emb.description;
+              let tTitle = emb.title ? await translate(emb.title, { to: 'ro' }) : emb.title;
+              translatedEmbeds.push(EmbedBuilder.from(emb).setTitle(tTitle).setDescription(tDesc));
+            } catch (err) {
+              translatedEmbeds.push(EmbedBuilder.from(emb)); 
+            }
+          }
+          currentEmbeds = translatedEmbeds;
+          await btnInteraction.editReply({ embeds: currentEmbeds, components: [generateUpdateButtons(currentPage, isTranslatedPage)] });
+        }
+      });
+
+      collector.on('end', () => {
+        replyMsg.edit({ components: [] }).catch(() => null);
+      });
+
       return;
     }
 
+    // --- 3. LATEST SINGLE (Când ceri un anumit joc ex: latest cs2) ---
     const gameText = args.join(" ");
     const game = findGameFromText(gameText);
 
@@ -1052,11 +1147,16 @@ client.on("messageCreate", async (message) => {
 
     try {
       const latest = await fetchGameUpdate(game);
-      state.executionTimes["single"] = Math.round((estMs + (Date.now() - startTime)) / 2);
+      const elapsed = Date.now() - startTime;
+      state.executionTimes["single"] = Math.round((estMs + elapsed) / 2);
       saveState(state);
       await loadingMsg.delete().catch(() => null);
 
-      await message.channel.send({ embeds: [buildUpdateEmbed(game.name, latest)], components: [translateBtnRow] });
+      const translateBtnRowSingle = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("translate_update").setLabel("🇷🇴 Tradu în Română").setStyle(ButtonStyle.Primary).setEmoji("🌍")
+      );
+
+      await message.channel.send({ embeds: [buildUpdateEmbed(game.name, latest)], components: [translateBtnRowSingle] });
     } catch (error) {
       await loadingMsg.edit(`❌ Nu am putut lua ultimul update pentru **${game.name}**.`);
     }
@@ -1074,7 +1174,7 @@ client.on("messageCreate", async (message) => {
       `**${PREFIX}porecle**\n` +
       `> Vezi lista cu poreclele (prescurtările) jocurilor necesare pentru comanda latest.\n\n` +
       `**${PREFIX}latest**\n` +
-      `> Vezi cele mai recente update-uri pentru toate jocurile.\n\n` +
+      `> Vezi cele mai recente update-uri pentru toate jocurile (Afișate cu Paginare).\n\n` +
       `**${PREFIX}latest [poreclă]**\n` +
       `> Vezi ultimul update pentru un joc specific.\n\n` +
       `**${PREFIX}latest reduceri**\n` +
