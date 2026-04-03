@@ -599,71 +599,55 @@ async function enrichDealData(deal) {
   } 
   else if (deal.store === "Epic Games") {
     try {
-      // 1. Facem request pentru a urma redirect-ul CheapShark și a descărca HTML-ul de la Epic Games
-      const response = await axios.get(deal.link, {
-        timeout: 8000,
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" }
-      });
-
-      // Funcție pentru a formata data exact ca la PatchBot (în limba română)
-      const formatRoDate = (isoString) => {
-         const d = new Date(isoString);
-         if (isNaN(d.getTime())) return null;
-         const monthsRo = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
-         const hr = d.getHours().toString().padStart(2, '0');
-         const min = d.getMinutes().toString().padStart(2, '0');
-         return `${d.getDate()} ${monthsRo[d.getMonth()]} ${d.getFullYear()} ${hr}:${min}`;
-      };
-
-      const html = String(response.data || "");
-
-      // 2. Scanăm rapid tot HTML-ul pentru a găsi datele interne pe care Epic le ascunde la randare
-      const discountMatch = html.match(/"discountEndDate"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/i) ||
-                            html.match(/"endDate"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/i);
-
-      if (discountMatch && discountMatch[1]) {
-         const formatted = formatRoDate(discountMatch[1]);
-         if (formatted) {
-            deal.endDateStr = formatted;
-            return deal;
-         }
-      }
-
-      // 3. Fallback: Dacă datele nu sunt în HTML, facem o interogare internă pe GraphQL folosind titlul
-      let cleanTitle = deal.title.split(/[:\-]/)[0].trim();
-      if (cleanTitle.split(' ').length > 3) {
-         cleanTitle = cleanTitle.split(' ').slice(0, 3).join(' ');
+      // Curatam numele jocului de editii speciale pentru o cautare corecta pe Epic API
+      let cleanTitle = deal.title.replace(/(Standard|Deluxe|Ultimate|Edition)/gi, "").trim();
+      if (cleanTitle.split(' ').length > 4) {
+         cleanTitle = cleanTitle.split(' ').slice(0, 4).join(' ');
       }
 
       const epicQuery = {
-        query: `query searchStoreQuery($keywords: String!) { Catalog { searchStore(keyword: $keywords, count: 5) { elements { title price { totalPrice { discountEndDate } } promotions { promotionalOffers { promotionalOffers { endDate } } } } } } }`,
+        query: `query searchStoreQuery($keywords: String!) { Catalog { searchStore(keywords: $keywords, count: 3, country: "US", locale: "en-US") { elements { title price(country: "US") { lineOffers { appliedRules { endDate } } } promotions { promotionalOffers { promotionalOffers { endDate } } } } } } }`,
         variables: { keywords: cleanTitle }
       };
 
-      const epicRes = await axios.post('https://graphql.epicgames.com/graphql', epicQuery, { timeout: 5000 });
-      const elements = epicRes.data?.data?.Catalog?.searchStore?.elements;
+      const response = await axios.post('https://graphql.epicgames.com/graphql', epicQuery, {
+        timeout: 8000,
+        headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0' }
+      });
 
+      const elements = response.data?.data?.Catalog?.searchStore?.elements;
       if (elements && elements.length > 0) {
-        // Căutăm primul element care are fie un discountEndDate valid, fie o promoție validă
-        const match = elements.find(e => e.price?.totalPrice?.discountEndDate || (e.promotions?.promotionalOffers?.length > 0));
+        let endDateIso = null;
         
-        if (match) {
-          let dString = match.price?.totalPrice?.discountEndDate;
-          // Dacă nu există reducere standard, verificăm datele ofertelor promoționale (Free Games Promo)
-          if (!dString && match.promotions?.promotionalOffers?.length > 0) {
-             dString = match.promotions.promotionalOffers[0]?.promotionalOffers?.[0]?.endDate;
+        // Cautam in primele rezultate data reducerii sau ofertei gratuite
+        for (const item of elements) {
+          const promoOffers = item.promotions?.promotionalOffers;
+          if (promoOffers && promoOffers.length > 0 && promoOffers[0].promotionalOffers && promoOffers[0].promotionalOffers.length > 0) {
+            endDateIso = promoOffers[0].promotionalOffers[0].endDate;
+            break;
           }
-          
-          if (dString) {
-             const formatted = formatRoDate(dString);
-             if (formatted) {
-                deal.endDateStr = formatted;
+          if (item.price?.lineOffers && item.price.lineOffers.length > 0) {
+             const rules = item.price.lineOffers[0].appliedRules;
+             if (rules && rules.length > 0 && rules[0].endDate) {
+                endDateIso = rules[0].endDate;
+                break;
              }
           }
         }
+
+        if (endDateIso) {
+          const d = new Date(endDateIso);
+          if (!isNaN(d.getTime())) {
+            const monthsRo = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
+            const hr = d.getHours().toString().padStart(2, '0');
+            const min = d.getMinutes().toString().padStart(2, '0');
+            deal.endDateStr = `${d.getDate()} ${monthsRo[d.getMonth()]} ${d.getFullYear()} ${hr}:${min}`;
+          }
+        }
       }
-    } catch (e) {
-      // Eroare la parsare, `endDateStr` va rămâne "Nespecificat"
+    } catch (err) {
+      // In caz de eroare, ramane "Nespecificat" in loc sa crape botul
+      console.error("Eroare la preluarea datei din API Epic:", err.message);
     }
   }
 
@@ -772,14 +756,13 @@ async function checkForDiscounts() {
         state.seenDiscounts.push(deal.id);
         newDealsFound = true;
 
-        // Am modificat puțin descrierea din embed ca să folosească directendDateStr dacă există
         const isFree = parseFloat(deal.salePrice) === 0;
         const embed = new EmbedBuilder()
           .setColor(isFree ? 0xffd700 : 0xe74c3c)
-          .setTitle(String(`🚨 OFERTĂ NOUĂ: ${deal.title}`).slice(0, 250))
+          .setTitle(String(`${isFree ? "Free Game: " : "Reducere: "}${deal.title}`).slice(0, 250))
           .setDescription(
             `**${deal.store}** oferă o reducere masivă de **${deal.savings}%**!\n\n` +
-            (deal.endDateStr !== "Nespecificat" ? `⏳ **Ofertă valabilă până la:** ${deal.endDateStr}\n\n` : "")
+            (deal.endDateStr !== "Nespecificat" ? `⏳ **${isFree ? "Free until" : "Offer ends"}:** ${deal.endDateStr}\n\n` : "")
           )
           .addFields(
             { name: 'Preț Vechi', value: `~~$${deal.normalPrice}~~`, inline: true },
@@ -992,7 +975,7 @@ client.on("messageCreate", async (message) => {
               .setAuthor({ name: deal.store })
               .setDescription(
                 `**Price:**\n~~$${deal.normalPrice}~~ ${isFree ? "FREE" : `$${deal.salePrice} (-${deal.savings}%)`}\n\n` +
-                (deal.endDateStr !== "Nespecificat" ? `**Free until / Offer ends:**\n${deal.endDateStr}\n\n` : "") +
+                (deal.endDateStr !== "Nespecificat" ? `**${isFree ? "Free until" : "Offer ends"}:**\n${deal.endDateStr}\n\n` : "") +
                 `🔗 [Accesează Magazinul](${deal.link})`
               )
               .setFooter({ text: `Pagina ${pageIndex + 1} din ${totalPages}` });
