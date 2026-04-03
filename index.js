@@ -494,8 +494,9 @@ async function fetchRobloxUpdate() {
 // FUNCȚII NOI PENTRU REDUCERI - EXTRAGERE PE PLATFORME
 // -------------------------------------------------------------
 
-async function fetchDealsForStore(storeID, storeName) {
-  const targetUrl = `https://www.cheapshark.com/api/1.0/deals?storeID=${storeID}&onSale=1&pageSize=50`;
+async function fetchDealsForStore(storeID, storeName, limit = 30) {
+  // Preluăm mai multe date (100) ca să fim siguri că rămân 30 de oferte masive valide
+  const targetUrl = `https://www.cheapshark.com/api/1.0/deals?storeID=${storeID}&onSale=1&pageSize=100`;
   let deals = null;
 
   try {
@@ -503,14 +504,6 @@ async function fetchDealsForStore(storeID, storeName) {
     const res = await axios.get(proxyUrl, { timeout: 15000 });
     if (res?.data?.contents) deals = JSON.parse(res.data.contents);
   } catch (err) {}
-
-  if (!Array.isArray(deals) || deals.length === 0) {
-    try {
-      const proxyUrl2 = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
-      const res2 = await axios.get(proxyUrl2, { timeout: 15000 });
-      if (Array.isArray(res2.data)) deals = res2.data;
-    } catch (err) {}
-  }
 
   if (!Array.isArray(deals) || deals.length === 0) {
     try {
@@ -552,22 +545,24 @@ async function fetchDealsForStore(storeID, storeName) {
   }));
 
   sortedDeals.sort((a, b) => b.popularityScore - a.popularityScore);
-  return sortedDeals.slice(0, 25);
+  // Extragem exact limit-ul dorit (30 pentru fiecare magazin)
+  return sortedDeals.slice(0, limit);
 }
 
 async function fetchDeals() {
-  const steamDeals = await fetchDealsForStore(1, "Steam");
-  const epicDeals = await fetchDealsForStore(25, "Epic Games"); 
+  const steamDeals = await fetchDealsForStore(1, "Steam", 30);
+  const epicDeals = await fetchDealsForStore(25, "Epic Games", 30); 
 
-  const finalTop50 = [...epicDeals, ...steamDeals];
-  if (finalTop50.length === 0) throw new Error("Nu s-au putut extrage oferte valide de pe Steam sau Epic.");
+  // Combinăm ofertele: Primele Steam, apoi Epic Games
+  const finalTop60 = [...steamDeals, ...epicDeals];
+  if (finalTop60.length === 0) throw new Error("Nu s-au putut extrage oferte valide de pe Steam sau Epic.");
   
-  return finalTop50;
+  return finalTop60;
 }
 
 // =====================================================================
-// FUNCȚIA enrichDealData - VARIANTĂ 100% PRECISĂ PENTRU EPIC GAMES
-// Se bazează pe MATCH EXACT DE PREȚ, ignorând confuzia cu DLC-urile
+// FUNCȚIA enrichDealData 
+// Citirea directă și exactă a datelor de expirare pentru ambele magazine
 // =====================================================================
 async function enrichDealData(deal) {
   deal.endDateStr = "Nespecificat";
@@ -605,141 +600,92 @@ async function enrichDealData(deal) {
     } catch (e) { }
   } 
   else if (deal.store === "Epic Games") {
-    // Transformăm prețul redus ($4.99) în cenți (499) pentru a găsi exact aceeași ediție
-    const targetPriceCents = Math.round(parseFloat(deal.salePrice) * 100);
-    
-    // Curățăm titlul de caractere dubioase, dar păstrăm restul
-    let cleanTitle = deal.title.replace(/[:\-–—]/g, " ").replace(/[^a-zA-Z0-9\s]/g, "").trim();
-    
-    // Dacă jocul e un DLC lung gen "Suicide Squad Kill the Justice League Digital Deluxe",
-    // căutarea după titlul complet poate eșua, așa că testăm și cu doar primele 3 cuvinte.
-    const searchVariants = [
-       cleanTitle,
-       cleanTitle.split(/\s+/).slice(0, 3).join(" ")
-    ];
-
-    for (const keyword of searchVariants) {
-        // Dacă am găsit deja data, ieșim din loop
-        if (!keyword || deal.endDateStr !== "Nespecificat") break;
-        
-        const epicQuery = {
-            query: `query searchStoreQuery($keywords: String!) {
-              Catalog {
-                searchStore(keyword: $keywords, count: 10) {
-                  elements {
-                    title
-                    price(country: "US") {
-                      totalPrice { discountPrice originalPrice }
-                      lineOffers { appliedRules { endDate } }
-                    }
-                    promotions {
-                      promotionalOffers { promotionalOffers { endDate } }
-                    }
-                  }
-                }
-              }
-            }`,
-            variables: { keywords: keyword }
-        };
-
+    try {
+      let epicUrl = deal.link;
+      
+      // Dacă este link de redirect (CheapShark), urmărim linkul pentru a obține adresa oficială Epic Store
+      if (epicUrl.includes("cheapshark.com/redirect")) {
         try {
-            const epicRes = await axios.post('https://graphql.epicgames.com/graphql', epicQuery, {
-                timeout: 8000,
-                headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
-            });
+          const redirRes = await axios.get(deal.link, { maxRedirects: 0, validateStatus: s => s >= 200 && s <= 308 });
+          if (redirRes.headers.location) epicUrl = redirRes.headers.location;
+        } catch (e) {}
+      }
 
-            const elements = epicRes.data?.data?.Catalog?.searchStore?.elements;
-            
-            if (Array.isArray(elements)) {
-                for (const el of elements) {
-                    const elPriceCents = el.price?.totalPrice?.discountPrice || 0;
-                    
-                    // Condiție 1: Prețul este EXACT la fel cu cel extras de Cheapshark (toleranță mică de 2 cenți rotunjire)
-                    const matchPrice = Math.abs(elPriceCents - targetPriceCents) <= 2; 
-                    
-                    // Condiție 2: Titlul este destul de asemănător
-                    const dealTitleLower = deal.title.toLowerCase().replace(/[^a-z0-9]/g, "");
-                    const elTitleLower = (el.title || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-                    const matchTitle = elTitleLower.includes(dealTitleLower) || dealTitleLower.includes(elTitleLower);
-
-                    // Dacă am găsit jocul/ediția corectă, extragem data din reducerile lui
-                    if (matchPrice || matchTitle) {
-                        let foundDate = null;
-                        
-                        // 1. Căutăm data din reduceri normale de preț
-                        const rules = el.price?.lineOffers?.[0]?.appliedRules;
-                        if (Array.isArray(rules)) {
-                            for (const rule of rules) {
-                                if (rule.endDate) foundDate = rule.endDate;
-                            }
-                        }
-
-                        // 2. Căutăm data din reduceri tip Free Game (100% off)
-                        if (!foundDate) {
-                            const promoOffers = el.promotions?.promotionalOffers;
-                            if (Array.isArray(promoOffers)) {
-                                for (const p of promoOffers) {
-                                    if (Array.isArray(p.promotionalOffers)) {
-                                        for (const i of p.promotionalOffers) {
-                                            if (i.endDate) foundDate = i.endDate;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Am extras o dată validă din viitor
-                        if (foundDate) {
-                            const d = new Date(foundDate);
-                            if (!isNaN(d.getTime()) && d.getTime() > Date.now()) {
-                                deal.endDateStr = `${months[d.getMonth()]} ${d.getDate()}`;
-                                return deal; 
-                            }
-                        }
-                    }
-                }
-            }
-        } catch(e) {
-            // Nu printăm nimic, ignorăm și trecem la varianta scurtă de căutare
+      // Descărcăm HTML-ul direct de pe pagina Epic a jocului
+      const pageRes = await axios.get(epicUrl, {
+        timeout: 10000,
+        headers: { 
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          "Accept-Language": "en-US,en;q=0.9"
         }
+      });
+      
+      const html = String(pageRes.data || "");
+      // Expresie regulată universală pentru a găsi data de expirare din codul intern Epic
+      const dateRegex = /"(?:endDate|discountEndDate)"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/gi;
+      let match;
+      let bestDate = null;
+      const now = Date.now();
+
+      while ((match = dateRegex.exec(html)) !== null) {
+        const parsedDate = new Date(match[1]);
+        const time = parsedDate.getTime();
+        // Ne asigurăm că luăm doar data de final a ofertei CURENTE (din viitor)
+        if (!isNaN(time) && time > now) {
+          if (!bestDate || time < bestDate.getTime()) {
+            bestDate = parsedDate;
+          }
+        }
+      }
+
+      // Dacă am găsit-o direct pe pagină, o formatăm fix ca la Steam (ex: April 8)
+      if (bestDate) {
+        deal.endDateStr = `${months[bestDate.getMonth()]} ${bestDate.getDate()}`;
+        return deal;
+      }
+    } catch (e) {
+      // Dacă pică în blocaj Cloudflare, încercăm Fallback-ul inteligent GraphQL
     }
 
-    // Metoda extremă de rezervă: Citim HTML-ul paginii fără proxy-uri bușite
+    // FALLBACK GraphQL (Doar dacă eșuează scrapping-ul direct)
     if (deal.endDateStr === "Nespecificat") {
-        try {
-            let epicUrl = deal.link;
-            
-            // Extragem URL-ul curat trecând de Cheapshark
-            if (epicUrl.includes("cheapshark.com/redirect")) {
-                const redirRes = await axios.get(deal.link, { maxRedirects: 0, validateStatus: s => s >= 200 && s <= 308 });
-                if (redirRes.headers.location) epicUrl = redirRes.headers.location;
-            }
-            
-            const pageRes = await axios.get(epicUrl, {
-                timeout: 8000,
-                headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36" }
-            });
-            
-            const html = String(pageRes.data || "");
-            const dateRegex = /"(?:endDate|discountEndDate)"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]+)"/g;
-            let match;
-            let bestDate = null;
-            const now = Date.now();
-
-            while ((match = dateRegex.exec(html)) !== null) {
-                const parsedDate = new Date(match[1]);
-                const time = parsedDate.getTime();
-                if (!isNaN(time) && time > now) {
-                    if (!bestDate || time < bestDate.getTime()) {
-                        bestDate = parsedDate;
-                    }
+      try {
+        let cleanTitle = deal.title.replace(/[:\-–—]/g, " ").replace(/[^a-zA-Z0-9\s]/g, "").trim();
+        const epicQuery = {
+          query: `query searchStoreQuery($keywords: String!) {
+            Catalog {
+              searchStore(keyword: $keywords, count: 5) {
+                elements {
+                  price(country: "US") { lineOffers { appliedRules { endDate } } }
+                  promotions { promotionalOffers { promotionalOffers { endDate } } }
                 }
+              }
             }
-
-            if (bestDate) {
-                deal.endDateStr = `${months[bestDate.getMonth()]} ${bestDate.getDate()}`;
+          }`,
+          variables: { keywords: cleanTitle }
+        };
+        const epicRes = await axios.post('https://graphql.epicgames.com/graphql', epicQuery, { timeout: 8000, headers: { "Content-Type": "application/json" } });
+        const elements = epicRes.data?.data?.Catalog?.searchStore?.elements;
+        if (elements) {
+          let foundDateStr = null;
+          for (const el of elements) {
+            const rules = el.price?.lineOffers?.[0]?.appliedRules || [];
+            const promos = el.promotions?.promotionalOffers?.[0]?.promotionalOffers || [];
+            const allDates = [...rules, ...promos].map(r => r.endDate).filter(Boolean);
+            for (const dStr of allDates) {
+              const parsedDate = new Date(dStr);
+              if (!isNaN(parsedDate.getTime()) && parsedDate.getTime() > Date.now()) {
+                foundDateStr = parsedDate;
+                break;
+              }
             }
-        } catch(e) {}
+            if (foundDateStr) break;
+          }
+          if (foundDateStr) {
+            deal.endDateStr = `${months[foundDateStr.getMonth()]} ${foundDateStr.getDate()}`;
+          }
+        }
+      } catch(e) {}
     }
   }
 
@@ -996,7 +942,9 @@ client.on("messageCreate", async (message) => {
   if (command === "latest") {
     // --- LATEST REDUCERI ---
     if (args.length > 0 && args[0].toLowerCase() === "reduceri") {
-      const loadingMsg = await message.reply(`⏳ *Caut ofertele și extrag datele de expirare de pe Steam și Epic Games...*`);
+      // 60 oferte (6 seturi de 10) cu pauză de 10s = aprox 60s doar delay, plus extragerea (10s)
+      const estimareSecunde = 70;
+      const loadingMsg = await message.reply(`⏳ *Caut 60 de oferte masive (30 Steam, 30 Epic) și extrag datele de expirare... Această acțiune va dura aproximativ **${estimareSecunde} secunde**.*`);
       
       try {
         const deals = await fetchDeals(); 
@@ -1006,14 +954,10 @@ client.on("messageCreate", async (message) => {
         }
 
         await loadingMsg.delete().catch(() => null);
-        const maxDeals = deals.slice(0, 50); 
 
-        if (maxDeals.length > 10) {
-          await message.channel.send(`ℹ️ *Am extras o selecție echilibrată de oferte Epic și Steam. Trimit câte 10 jocuri la fiecare 20 de secunde pentru a evita blocajele serverelor...*`);
-        }
-
-        for (let i = 0; i < maxDeals.length; i += 10) {
-          const rawChunk = maxDeals.slice(i, i + 10);
+        // Afișăm câte 10 oferte, apoi pauză 10 secunde
+        for (let i = 0; i < deals.length; i += 10) {
+          const rawChunk = deals.slice(i, i + 10);
           const chunk = await Promise.all(rawChunk.map(enrichDealData));
           const embedsToSend = [];
 
@@ -1042,8 +986,9 @@ client.on("messageCreate", async (message) => {
              console.error("Eroare la trimiterea unui mesaj de grup:", err);
           });
 
-          if (i + 10 < maxDeals.length) {
-            await new Promise(resolve => setTimeout(resolve, 20000));
+          // Pauza de 10 secunde între seturile de 10 mesaje
+          if (i + 10 < deals.length) {
+            await new Promise(resolve => setTimeout(resolve, 10000));
           }
         }
 
@@ -1126,7 +1071,7 @@ client.on("messageCreate", async (message) => {
       `**${PREFIX}latest [poreclă]**\n` +
       `> Vezi ultimul update pentru un joc specific.\n\n` +
       `**${PREFIX}latest reduceri**\n` +
-      `> Vezi instantaneu top 50 oferte Steam și Epic Games, inclusiv datele de expirare.\n\n` +
+      `> Vezi instantaneu top 60 oferte Steam și Epic Games, inclusiv datele de expirare.\n\n` +
       `**${PREFIX}startupdates** *(Admin)*\n` +
       `> Activează alertele automate de update-uri.\n\n` +
       `**${PREFIX}stopupdates** *(Admin)*\n` +
