@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
 const mongoose = require("mongoose");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require("@google/generative-ai");
 const {
   Client,
   GatewayIntentBits,
@@ -26,7 +26,7 @@ process.on("uncaughtException", (error) => {
 });
 
 // -------------------------------------------------------------
-// CONFIGURARE GOOGLE GEMINI AI
+// CONFIGURARE GOOGLE GEMINI AI & FILTRE DE SIGURANȚĂ
 // -------------------------------------------------------------
 let genAI = null;
 if (process.env.GEMINI_API_KEY) {
@@ -36,27 +36,35 @@ if (process.env.GEMINI_API_KEY) {
   console.warn("⚠️ Avertisment: Lipsește variabila GEMINI_API_KEY. Rezumatele AI nu vor funcționa.");
 }
 
+// Oprim cenzura pentru cuvintele din jocuri (kill, shoot, blood, etc.)
+const safetySettings = [
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+];
+
 async function getAiSummary(text) {
-  if (!genAI) return "⚠️ Eroare: Cheia API Gemini nu este configurată în Railway.";
+  if (!genAI) return "⚠️ Eroare: Cheia API Gemini lipsește.";
   if (!text || text.trim() === "") return "Nu există detalii textuale pentru acest update.";
   
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const prompt = `Ești un asistent de gaming. Fă un rezumat foarte scurt, clar și la obiect (maxim 2-3 propoziții), în limba română, pentru următoarele note de lansare/update ale unui joc. Extrage doar esențialul (ce s-a adăugat/modificat important). Nu folosi formatare markdown complexă dacă nu e nevoie. Text original:\n\n${text}`;
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", safetySettings });
+    const prompt = `Ești un asistent de gaming. Fă un rezumat foarte scurt, clar și la obiect (maxim 2-3 propoziții), în limba română, pentru următoarele note de lansare/update ale unui joc. Extrage doar esențialul. Nu folosi formatare markdown complexă dacă nu e nevoie. Text original:\n\n${text}`;
     
     const result = await model.generateContent(prompt);
     return result.response.text().trim();
   } catch (error) {
-    console.error("Eroare Gemini API:", error);
-    return `❌ Eroare la generarea rezumatului: Vă rugăm să încercați mai târziu.`;
+    console.error("Eroare Gemini API Summary:", error);
+    return `❌ Eroare tehnică: ${error.message.split('\n')[0]}`;
   }
 }
 
 async function getAiTranslatedTitle(title) {
   if (!genAI || !title) return title;
   try {
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      const prompt = `Tradu următorul titlu de update de joc în limba română scurt și la obiect. Păstrează numerele de versiune intacte. Oferă DOAR traducerea, fără ghilimele sau alte texte adiționale:\n\n${title}`;
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", safetySettings });
+      const prompt = `Tradu următorul titlu de update de joc în limba română scurt și la obiect. Păstrează numerele de versiune intacte. Oferă DOAR traducerea, fără ghilimele:\n\n${title}`;
       const result = await model.generateContent(prompt);
       return result.response.text().trim();
   } catch (e) {
@@ -888,7 +896,7 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.editReply({ embeds: [newEmbed], components: [] });
     } catch (error) {
       console.error("Eroare la traducerea AI:", error);
-      await interaction.followUp({ content: "❌ A apărut o eroare la conexiunea cu serverul AI Gemini.", ephemeral: true });
+      await interaction.followUp({ content: `❌ A apărut o eroare la serverul AI: ${error.message.split('\n')[0]}`, ephemeral: true });
     }
   }
 });
@@ -1112,6 +1120,9 @@ client.on("messageCreate", async (message) => {
 
           if (needsTranslation) {
              try {
+               // Adaugam o mica pauza de 1 secunda intre procesari pentru a evita blocajele de la Google API
+               await new Promise(resolve => setTimeout(resolve, 1000));
+               
                if (r.latest.excerpt) {
                  const summaryText = await getAiSummary(r.latest.excerpt);
                  emb.setDescription(`✨ **Rezumat AI:**\n${summaryText}`);
