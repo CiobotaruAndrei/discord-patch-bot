@@ -549,7 +549,9 @@ async function fetchDeals() {
   const steamDeals = await fetchDealsForStore(1, "Steam");
   const epicDeals = await fetchDealsForStore(25, "Epic Games"); 
 
-  const finalTop50 = [...epicDeals, ...steamDeals];
+  // Am modificat ordinea aici: Steam primul, Epic Games al doilea
+  const finalTop50 = [...steamDeals, ...epicDeals];
+  
   if (finalTop50.length === 0) throw new Error("Nu s-au putut extrage oferte valide de pe Steam sau Epic.");
   
   return finalTop50;
@@ -1000,7 +1002,7 @@ client.on("messageCreate", async (message) => {
         state.executionTimes["reduceri"] = Math.round((estMs + elapsed) / 2);
         await saveState(state);
 
-        const replyMsg = await loadingMsg.edit({ content: `✅ **Top ${maxDeals.length} oferte Epic & Steam găsite:**`, embeds: firstPageEmbeds, components: [generateButtons(currentPage)] });
+        const replyMsg = await loadingMsg.edit({ content: `✅ **Top ${maxDeals.length} oferte Steam & Epic găsite:**`, embeds: firstPageEmbeds, components: [generateButtons(currentPage)] });
 
         const collector = replyMsg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 300000 }); 
 
@@ -1202,7 +1204,7 @@ client.on("messageCreate", async (message) => {
         },
         { 
           name: `\`${PREFIX}latest reduceri\``, 
-          value: "Caută manual și afișează topul ofertelor și jocurilor gratuite valabile în acest moment pe Epic Games și Steam." 
+          value: "Caută manual și afișează topul ofertelor și jocurilor gratuite valabile în acest moment pe Steam și Epic Games." 
         },
         { 
           name: `\`${PREFIX}games\``, 
