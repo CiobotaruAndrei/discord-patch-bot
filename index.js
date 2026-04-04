@@ -36,7 +36,6 @@ if (process.env.GEMINI_API_KEY) {
   console.warn("⚠️ Avertisment: Lipsește variabila GEMINI_API_KEY. Rezumatele AI nu vor funcționa.");
 }
 
-// Oprim cenzura pentru cuvintele din jocuri (kill, shoot, blood, etc.)
 const safetySettings = [
   { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
   { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -44,33 +43,45 @@ const safetySettings = [
   { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
 ];
 
-async function getAiSummary(text) {
-  if (!genAI) return "⚠️ Eroare: Cheia API Gemini lipsește.";
-  if (!text || text.trim() === "") return "Nu există detalii textuale pentru acest update.";
-  
+async function getAiTranslationAndSummary(title, text) {
+  if (!genAI) return { titlu: title, rezumat: "⚠️ Eroare: Cheia API Gemini lipsește." };
+  if (!text || text.trim() === "") return { titlu: title, rezumat: "Nu există detalii textuale." };
+
   try {
-    // Am actualizat modelul la versiunea 2.5-flash (cea noua si valabila)
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", safetySettings });
-    const prompt = `Ești un asistent de gaming. Fă un rezumat foarte scurt, clar și la obiect (maxim 2-3 propoziții), în limba română, pentru următoarele note de lansare/update ale unui joc. Extrage doar esențialul. Nu folosi formatare markdown complexă dacă nu e nevoie. Text original:\n\n${text}`;
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash", 
+      safetySettings,
+      generationConfig: { responseMimeType: "application/json" } 
+    });
+    
+    const prompt = `Ești un asistent de gaming.
+1. Tradu titlul original în română.
+2. Fă un rezumat foarte scurt, clar și la obiect (maxim 2-3 propoziții) în română pentru textul original, extrăgând doar noutățile esențiale.
+
+Titlu original: ${title || "Update"}
+Text original: ${text}
+
+Returnează rezultatul STRICT ca un obiect JSON valid, cu această structură:
+{"titlu": "titlul tradus", "rezumat": "rezumatul textului"}`;
     
     const result = await model.generateContent(prompt);
-    return result.response.text().trim();
-  } catch (error) {
-    console.error("Eroare Gemini API Summary:", error);
-    return `❌ Eroare tehnică: ${error.message.split('\n')[0]}`;
-  }
-}
+    let responseText = result.response.text().trim();
+    
+    // Curățare în caz că AI-ul folosește markdown din greșeală
+    if (responseText.startsWith("```json")) {
+      responseText = responseText.replace(/^```json/i, "").replace(/```$/i, "").trim();
+    } else if (responseText.startsWith("```")) {
+      responseText = responseText.replace(/^```/i, "").replace(/```$/i, "").trim();
+    }
 
-async function getAiTranslatedTitle(title) {
-  if (!genAI || !title) return title;
-  try {
-      // Am actualizat modelul la versiunea 2.5-flash
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", safetySettings });
-      const prompt = `Tradu următorul titlu de update de joc în limba română scurt și la obiect. Păstrează numerele de versiune intacte. Oferă DOAR traducerea, fără ghilimele:\n\n${title}`;
-      const result = await model.generateContent(prompt);
-      return result.response.text().trim();
-  } catch (e) {
-      return title;
+    const data = JSON.parse(responseText);
+    return { 
+      titlu: data.titlu || title, 
+      rezumat: data.rezumat || "Eroare la formatarea rezumatului." 
+    };
+  } catch (error) {
+    console.error("Eroare Gemini API:", error);
+    return { titlu: title, rezumat: `❌ Eroare tehnică: ${error.message.split('\n')[0]}` };
   }
 }
 
@@ -877,7 +888,7 @@ client.once("ready", async () => {
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isButton()) return;
 
-  // Handler pentru rezumatul AI la alertele trimise automat sau cand se foloseste `latest update cs2`
+  // Handler pentru single-update
   if (interaction.customId === "translate_update") {
     await interaction.deferUpdate();
     
@@ -885,20 +896,16 @@ client.on("interactionCreate", async (interaction) => {
     if (!originalEmbed || !originalEmbed.description) return;
 
     try {
-      const summaryText = await getAiSummary(originalEmbed.description);
-      let tTitle = originalEmbed.title;
-      if (originalEmbed.title) {
-        tTitle = await getAiTranslatedTitle(originalEmbed.title);
-      }
+      const aiResult = await getAiTranslationAndSummary(originalEmbed.title, originalEmbed.description);
 
       const newEmbed = EmbedBuilder.from(originalEmbed)
-        .setTitle(tTitle)
-        .setDescription(`✨ **Rezumat AI:**\n${summaryText}`);
+        .setTitle(aiResult.titlu)
+        .setDescription(`✨ **Rezumat AI:**\n${aiResult.rezumat}`);
 
       await interaction.editReply({ embeds: [newEmbed], components: [] });
     } catch (error) {
       console.error("Eroare la traducerea AI:", error);
-      await interaction.followUp({ content: `❌ A apărut o eroare la serverul AI: ${error.message.split('\n')[0]}`, ephemeral: true });
+      await interaction.followUp({ content: `❌ A apărut o eroare la serverul AI.`, ephemeral: true });
     }
   }
 });
@@ -1122,16 +1129,13 @@ client.on("messageCreate", async (message) => {
 
           if (needsTranslation) {
              try {
-               // Adaugam o mica pauza de 1 secunda intre procesari pentru a evita blocajele de la Google API
-               await new Promise(resolve => setTimeout(resolve, 1000));
+               // 2.5 SECUNDE PAUZA PENTRU A EVITA EROAREA 429
+               await new Promise(resolve => setTimeout(resolve, 2500));
                
                if (r.latest.excerpt) {
-                 const summaryText = await getAiSummary(r.latest.excerpt);
-                 emb.setDescription(`✨ **Rezumat AI:**\n${summaryText}`);
-               }
-               if (r.latest.title) {
-                 const tTitle = await getAiTranslatedTitle(r.latest.title);
-                 emb.setTitle(tTitle);
+                 const aiResult = await getAiTranslationAndSummary(r.latest.title, r.latest.excerpt);
+                 emb.setTitle(aiResult.titlu);
+                 emb.setDescription(`✨ **Rezumat AI:**\n${aiResult.rezumat}`);
                }
              } catch (e) {
                // Daca AI-ul pica, va ramane textul original
@@ -1187,7 +1191,6 @@ client.on("messageCreate", async (message) => {
           await btnInteraction.editReply({ embeds: currentEmbeds, components: [generateUpdateButtons(currentPage, isGloballyTranslated)] });
         }
         else if (btnInteraction.customId === 'trans_upd') {
-          // Actualizam butonul cu un text temporar cat timp AI-ul lucreaza
           const loadingRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('prev_disabled').setLabel('◀').setStyle(ButtonStyle.Secondary).setDisabled(true),
             new ButtonBuilder().setCustomId('next_disabled').setLabel('▶').setStyle(ButtonStyle.Secondary).setDisabled(true),
