@@ -13,31 +13,51 @@ const {
   ComponentType
 } = require("discord.js");
 
-const CONFIG_PATH = path.join(__dirname, "config.json");
-const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
-
-process.on("unhandledRejection", (reason) => {
-  console.error("UNHANDLED REJECTION:", reason);
-});
-
-process.on("uncaughtException", (error) => {
-  console.error("UNCAUGHT EXCEPTION:", error);
-});
+// -------------------------------------------------------------
+// 1. ÎNCĂRCAREA CONFIGULUI (SIGUR)
+// -------------------------------------------------------------
+let config;
+try {
+  const CONFIG_PATH = path.join(__dirname, "config.json");
+  config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+} catch (err) {
+  console.error("❌ Eroare critică la citirea config.json:", err.message);
+  process.exit(1);
+}
 
 // -------------------------------------------------------------
-// 10. VALIDARE CONFIG LA BOOT (Cu fix de crash - Punctul 2)
+// 2. VALIDARE CONFIG LA BOOT (STRICTĂ)
 // -------------------------------------------------------------
 function validateConfig() {
   console.log("🛠️ Se validează config.json...");
+  
+  if (!config.games || !Array.isArray(config.games)) {
+    throw new Error("CRITIC: config.games trebuie să fie un array!");
+  }
+
   for (const game of config.games) {
+    if (!game.key || !game.name || !game.type) {
+      throw new Error(`CRITIC: Un joc nu are proprietățile de bază (key, name, type) setate! Date: ${JSON.stringify(game)}`);
+    }
     if (game.type === "steam" && !game.appId) {
       throw new Error(`CRITIC: Jocul Steam "${game.name}" nu are appId setat!`);
     }
-    if (game.type === "listing_based" && (!game.listingUrls || game.listingUrls.length === 0)) {
-      throw new Error(`CRITIC: Jocul listing_based "${game.name}" nu are listingUrls setat!`);
+    if (game.type === "listing_based") {
+      if (!game.listingUrls || game.listingUrls.length === 0) {
+        throw new Error(`CRITIC: Jocul listing_based "${game.name}" nu are listingUrls setat!`);
+      }
+      if (!game.baseUrl) {
+        throw new Error(`CRITIC: Jocul listing_based "${game.name}" nu are baseUrl setat!`);
+      }
+      if (game.articleHrefRegex) {
+        try {
+          new RegExp(game.articleHrefRegex, "i");
+        } catch (e) {
+          throw new Error(`CRITIC: articleHrefRegex invalid pentru "${game.name}": ${e.message}`);
+        }
+      }
     }
-    // Fix adăugat: Verificare sigură să nu crape dacă lipsește game.key
-    if (game.type === "intel" && !game.url && (!game.key || !game.key.includes("intel"))) {
+    if (game.type === "intel" && !game.url) {
       throw new Error(`CRITIC: Jocul Intel "${game.name}" nu are URL setat!`);
     }
   }
@@ -46,7 +66,7 @@ function validateConfig() {
 validateConfig();
 
 // -------------------------------------------------------------
-// CONEXIUNE ȘI SCHEMA MONGODB (Bug "seen" fixat: mutat per-guild)
+// 3. CONEXIUNE MONGODB ȘI CLIENT DISCORD
 // -------------------------------------------------------------
 if (!process.env.MONGO_URI) {
   console.error("❌ CRITIC: Lipsește variabila de mediu MONGO_URI!");
@@ -83,8 +103,44 @@ async function saveState(stateObj) {
   await StateModel.findByIdAndUpdate("global_state", stateObj, { upsert: true });
 }
 
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
+});
+
 // -------------------------------------------------------------
-// CACHE (Punctul 8) & LOCK (Punctul 3)
+// 4. SHUTDOWN GRACEFUL & HANDLERE GLOBALE DE ERORI
+// -------------------------------------------------------------
+const gracefulShutdown = async (signal) => {
+  console.log(`\n[${signal}] Initiating graceful shutdown...`);
+  try {
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.connection.close();
+      console.log("✅ MongoDB connection closed.");
+    }
+    client.destroy();
+    console.log("✅ Discord client destroyed.");
+    process.exit(0);
+  } catch (err) {
+    console.error("❌ Error during shutdown:", err);
+    process.exit(1);
+  }
+};
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+
+process.on("unhandledRejection", (reason) => {
+  console.error("UNHANDLED REJECTION:", reason);
+});
+
+// Shutdown controlat la excepții fatale pentru a proteja starea procesului
+process.on("uncaughtException", async (error) => {
+  console.error("UNCAUGHT EXCEPTION:", error);
+  await gracefulShutdown("uncaughtException");
+});
+
+// -------------------------------------------------------------
+// CACHE & LOCK
 // -------------------------------------------------------------
 const cache = {
   updates: { data: null, expiresAt: 0 },
@@ -209,7 +265,7 @@ function findGameFromText(text) {
 }
 
 // -------------------------------------------------------------
-// 7. HELPER REQUEST CU RETRY ȘI TIMEOUT
+// HELPER REQUEST CU RETRY ȘI TIMEOUT
 // -------------------------------------------------------------
 async function httpReq(method, url, options = {}, retries = 2, backoff = 1000) {
   const reqConfig = {
@@ -692,10 +748,6 @@ async function fetchGameUpdate(game) {
   throw new Error(`Tip de joc necunoscut pentru ${game.name}.`);
 }
 
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
-});
-
 async function getLatestForAllGames() {
   const results = [];
   for (const game of config.games) {
@@ -794,7 +846,6 @@ async function checkForDiscounts() {
 client.once("ready", () => {
   console.log(`🤖 Botul este online și așteaptă comenzi: ${client.user.tag}`);
 
-  // FIX Punctul 4: Funcție separată care rulează prima dată IMEDIAT, apoi în setInterval
   const runChecks = async () => {
     if (isChecking) {
       console.log("⏳ Locking activ: Se sare peste verificare, runda precedentă încă rulează...");
@@ -811,7 +862,7 @@ client.once("ready", () => {
     }
   };
 
-  runChecks(); // Rulează exact în secunda în care pornește botul!
+  runChecks();
   setInterval(runChecks, Number(config.checkIntervalMinutes || 30) * 60 * 1000);
 });
 
@@ -922,7 +973,6 @@ client.on("messageCreate", async (message) => {
         isCached = true;
       }
 
-      // FIX Punctul 3: Evităm încărcarea din DB dacă avem cache!
       let loadingMsg;
       let state;
       let startTime = Date.now();
@@ -931,7 +981,7 @@ client.on("messageCreate", async (message) => {
       if (isCached) {
         loadingMsg = await message.reply(`⏳ *Aduc datele instantaneu din cache...*`);
       } else {
-        state = await loadState(); // Se apelează DOAR dacă facem request real
+        state = await loadState(); 
         estMs = state.executionTimes?.reduceri || 15000;
         loadingMsg = await message.reply(`⏳ *Caut oferte pe servere... Durată estimată: ${Math.max(1, Math.ceil(estMs / 1000))} secunde.*`);
       }
@@ -1029,7 +1079,6 @@ client.on("messageCreate", async (message) => {
         isCached = true;
       }
 
-      // FIX Punctul 3: Evităm DB load inutil
       let loadingMsg;
       let state;
       let startTime = Date.now();
@@ -1203,25 +1252,3 @@ client.on("messageCreate", async (message) => {
 client.login(process.env.DISCORD_TOKEN).catch((error) => {
   console.error("Login failed:", error);
 });
-
-// -------------------------------------------------------------
-// 4. SHUTDOWN GRACEFUL PENTRU RAILWAY
-// -------------------------------------------------------------
-const gracefulShutdown = async (signal) => {
-  console.log(`\n[${signal}] Initiating graceful shutdown...`);
-  try {
-    if (mongoose.connection.readyState === 1) {
-      await mongoose.connection.close();
-      console.log("✅ MongoDB connection closed.");
-    }
-    client.destroy();
-    console.log("✅ Discord client destroyed.");
-    process.exit(0);
-  } catch (err) {
-    console.error("❌ Error during shutdown:", err);
-    process.exit(1);
-  }
-};
-
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));
