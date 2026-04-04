@@ -1,8 +1,8 @@
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
-const translate = require("translate-google");
 const mongoose = require("mongoose");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const {
   Client,
   GatewayIntentBits,
@@ -24,6 +24,45 @@ process.on("unhandledRejection", (reason) => {
 process.on("uncaughtException", (error) => {
   console.error("UNCAUGHT EXCEPTION:", error);
 });
+
+// -------------------------------------------------------------
+// CONFIGURARE GOOGLE GEMINI AI
+// -------------------------------------------------------------
+let genAI = null;
+if (process.env.GEMINI_API_KEY) {
+  genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  console.log("🧠 Sistemul AI Gemini a fost inițializat cu succes!");
+} else {
+  console.warn("⚠️ Avertisment: Lipsește variabila GEMINI_API_KEY. Rezumatele AI nu vor funcționa.");
+}
+
+async function getAiSummary(text) {
+  if (!genAI) return "⚠️ Eroare: Cheia API Gemini nu este configurată în Railway.";
+  if (!text || text.trim() === "") return "Nu există detalii textuale pentru acest update.";
+  
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const prompt = `Ești un asistent de gaming. Fă un rezumat foarte scurt, clar și la obiect (maxim 2-3 propoziții), în limba română, pentru următoarele note de lansare/update ale unui joc. Extrage doar esențialul (ce s-a adăugat/modificat important). Nu folosi formatare markdown complexă dacă nu e nevoie. Text original:\n\n${text}`;
+    
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
+  } catch (error) {
+    console.error("Eroare Gemini API:", error);
+    return `❌ Eroare la generarea rezumatului: Vă rugăm să încercați mai târziu.`;
+  }
+}
+
+async function getAiTranslatedTitle(title) {
+  if (!genAI || !title) return title;
+  try {
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const prompt = `Tradu următorul titlu de update de joc în limba română scurt și la obiect. Păstrează numerele de versiune intacte. Oferă DOAR traducerea, fără ghilimele sau alte texte adiționale:\n\n${title}`;
+      const result = await model.generateContent(prompt);
+      return result.response.text().trim();
+  } catch (e) {
+      return title;
+  }
+}
 
 // -------------------------------------------------------------
 // CONEXIUNE ȘI SCHEMA MONGODB PENTRU STARE PERSISTENTĂ
@@ -672,9 +711,9 @@ async function sendUpdateToAllSubscribedGuilds(gameName, latest) {
   
   const translateBtn = new ButtonBuilder()
     .setCustomId("translate_update")
-    .setLabel("🇷🇴 Tradu în Română")
+    .setLabel("🇷🇴 Rezumat în Română (AI)")
     .setStyle(ButtonStyle.Primary)
-    .setEmoji("🌍");
+    .setEmoji("🧠");
     
   const row = new ActionRowBuilder().addComponents(translateBtn);
 
@@ -828,7 +867,7 @@ client.once("ready", async () => {
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isButton()) return;
 
-  // Handler pentru butoanele simple de traducere (ex: alerte sau latest update cs2)
+  // Handler pentru rezumatul AI la alertele trimise automat sau cand se foloseste `latest update cs2`
   if (interaction.customId === "translate_update") {
     await interaction.deferUpdate();
     
@@ -836,20 +875,20 @@ client.on("interactionCreate", async (interaction) => {
     if (!originalEmbed || !originalEmbed.description) return;
 
     try {
-      const translatedDesc = await translate(originalEmbed.description, { to: 'ro' });
-      let translatedTitle = originalEmbed.title;
+      const summaryText = await getAiSummary(originalEmbed.description);
+      let tTitle = originalEmbed.title;
       if (originalEmbed.title) {
-        translatedTitle = await translate(originalEmbed.title, { to: 'ro' });
+        tTitle = await getAiTranslatedTitle(originalEmbed.title);
       }
 
       const newEmbed = EmbedBuilder.from(originalEmbed)
-        .setTitle(translatedTitle)
-        .setDescription(translatedDesc);
+        .setTitle(tTitle)
+        .setDescription(`✨ **Rezumat AI:**\n${summaryText}`);
 
       await interaction.editReply({ embeds: [newEmbed], components: [] });
     } catch (error) {
-      console.error("Eroare la traducere:", error);
-      await interaction.followUp({ content: "❌ A apărut o eroare la conexiunea cu serverul de traducere.", ephemeral: true });
+      console.error("Eroare la traducerea AI:", error);
+      await interaction.followUp({ content: "❌ A apărut o eroare la conexiunea cu serverul AI Gemini.", ephemeral: true });
     }
   }
 });
@@ -1052,7 +1091,7 @@ client.on("messageCreate", async (message) => {
       const itemsPerPage = 5; 
       const totalPages = Math.ceil(validResults.length / itemsPerPage);
 
-      // Variabile pentru noul sistem de traducere global cu cache
+      // Variabile pentru noul sistem de generare rezumate cu AI
       let isGloballyTranslated = false;
       const originalCache = {};
       const translatedCache = {};
@@ -1074,15 +1113,15 @@ client.on("messageCreate", async (message) => {
           if (needsTranslation) {
              try {
                if (r.latest.excerpt) {
-                 const tDesc = await translate(r.latest.excerpt, { to: 'ro' });
-                 emb.setDescription(tDesc);
+                 const summaryText = await getAiSummary(r.latest.excerpt);
+                 emb.setDescription(`✨ **Rezumat AI:**\n${summaryText}`);
                }
                if (r.latest.title) {
-                 const tTitle = await translate(r.latest.title, { to: 'ro' });
+                 const tTitle = await getAiTranslatedTitle(r.latest.title);
                  emb.setTitle(tTitle);
                }
              } catch (e) {
-               // Daca traducerea esueaza, ramane textul original in engleza pentru acest embed specific.
+               // Daca AI-ul pica, va ramane textul original
              }
           }
           pageEmbeds.push(emb);
@@ -1101,7 +1140,7 @@ client.on("messageCreate", async (message) => {
         );
         if (!isTranslated) {
           row.addComponents(
-            new ButtonBuilder().setCustomId('trans_upd').setLabel('🇷🇴 Tradu Toate Paginile').setStyle(ButtonStyle.Success).setEmoji("🌍")
+            new ButtonBuilder().setCustomId('trans_upd').setLabel('🧠 Generare Rezumat AI').setStyle(ButtonStyle.Success).setEmoji("✨")
           );
         }
         return row;
@@ -1135,11 +1174,11 @@ client.on("messageCreate", async (message) => {
           await btnInteraction.editReply({ embeds: currentEmbeds, components: [generateUpdateButtons(currentPage, isGloballyTranslated)] });
         }
         else if (btnInteraction.customId === 'trans_upd') {
-          // Editam temporar mesajul pentru a arata o stare de "Se traduce..." si dezactivam butoanele ca sa evitam spam-ul
+          // Actualizam butonul cu un text temporar cat timp AI-ul lucreaza
           const loadingRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('prev_disabled').setLabel('◀').setStyle(ButtonStyle.Secondary).setDisabled(true),
             new ButtonBuilder().setCustomId('next_disabled').setLabel('▶').setStyle(ButtonStyle.Secondary).setDisabled(true),
-            new ButtonBuilder().setCustomId('loading_btn').setLabel('⏳ Se traduce...').setStyle(ButtonStyle.Secondary).setDisabled(true)
+            new ButtonBuilder().setCustomId('loading_btn').setLabel('⏳ Generare rezumate în curs...').setStyle(ButtonStyle.Secondary).setDisabled(true)
           );
           await btnInteraction.update({ components: [loadingRow] });
 
@@ -1180,7 +1219,7 @@ client.on("messageCreate", async (message) => {
         await loadingMsg.delete().catch(() => null);
 
         const translateBtnRowSingle = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId("translate_update").setLabel("🇷🇴 Tradu în Română").setStyle(ButtonStyle.Primary).setEmoji("🌍")
+          new ButtonBuilder().setCustomId("translate_update").setLabel("🇷🇴 Rezumat în Română (AI)").setStyle(ButtonStyle.Primary).setEmoji("🧠")
         );
 
         await message.channel.send({ embeds: [buildUpdateEmbed(game.name, latest)], components: [translateBtnRowSingle] });
