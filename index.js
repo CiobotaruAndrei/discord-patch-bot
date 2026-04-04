@@ -2,7 +2,6 @@ const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
 const mongoose = require("mongoose");
-const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require("@google/generative-ai");
 const {
   Client,
   GatewayIntentBits,
@@ -26,127 +25,6 @@ process.on("uncaughtException", (error) => {
 });
 
 // -------------------------------------------------------------
-// CONFIGURARE GOOGLE GEMINI AI & FILTRE DE SIGURANȚĂ
-// -------------------------------------------------------------
-let genAI = null;
-if (process.env.GEMINI_API_KEY) {
-  genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  console.log("🧠 Sistemul AI Gemini a fost inițializat cu succes!");
-} else {
-  console.warn("⚠️ Avertisment: Lipsește variabila GEMINI_API_KEY. Rezumatele AI nu vor funcționa.");
-}
-
-const safetySettings = [
-  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-];
-
-// Functie pentru rezumat singular (folosita la latest update [porecla])
-async function getAiTranslationAndSummary(title, fullText) {
-  if (!genAI) return { titlu: title, rezumat: "⚠️ Eroare: Cheia API Gemini lipsește." };
-  if (!fullText || fullText.trim() === "") return { titlu: title, rezumat: "Nu există detalii textuale pentru acest update." };
-
-  try {
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash", 
-      safetySettings,
-      generationConfig: { responseMimeType: "application/json" } 
-    });
-    
-    const prompt = `Ești un asistent de gaming.
-1. Tradu titlul original în limba română.
-2. Analizează cu atenție textul complet al acestui update/patch notes și extrage cele mai importante noutăți, schimbări sau reparații.
-Fă un rezumat folosind o listă cu buline (maxim 4-5 idei principale) în limba română. Fii direct și la obiect.
-
-Titlu original: ${title || "Update"}
-Text complet update: ${fullText.slice(0, 10000)}
-
-Returnează rezultatul STRICT ca un obiect JSON valid, cu această structură:
-{"titlu": "titlul tradus", "rezumat": "rezumatul textului"}`;
-    
-    const result = await model.generateContent(prompt);
-    let responseText = result.response.text().trim();
-    
-    if (responseText.startsWith("```json")) {
-      responseText = responseText.replace(/^```json/i, "").replace(/```$/i, "").trim();
-    } else if (responseText.startsWith("```")) {
-      responseText = responseText.replace(/^```/i, "").replace(/```$/i, "").trim();
-    }
-
-    const data = JSON.parse(responseText);
-    return { 
-      titlu: data.titlu || title, 
-      rezumat: data.rezumat || "Eroare la formatarea rezumatului." 
-    };
-  } catch (error) {
-    console.error("Eroare Gemini API Single:", error);
-    return { titlu: title, rezumat: `❌ Eroare tehnică API: ${error.message.split('\n')[0]}` };
-  }
-}
-
-// Noua functie BATCH - Proceseaza 5 jocuri in ACEEASI cerere pentru a nu atinge limitele gratuite
-async function getAiBatchSummary(items) {
-  if (!genAI) return items.map(item => ({ titlu: item.title, rezumat: "⚠️ Eroare API Gemini." }));
-
-  // Decupam la un maxim sigur de caractere pt a trimite totul intr-un singur pachet
-  const payload = items.map((item, index) => ({
-    id: index,
-    titluOriginal: item.title || "Update",
-    textOriginal: (item.fullText || item.excerpt || "Fara detalii").slice(0, 7000)
-  }));
-
-  try {
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash", 
-      safetySettings,
-      generationConfig: { responseMimeType: "application/json" } 
-    });
-
-    const prompt = `Ești un asistent de gaming. Mai jos ai un array JSON cu detalii despre mai multe update-uri de jocuri.
-Pentru FIECARE element din array, fa urmatoarele:
-1. Tradu titlul original in romana.
-2. Analizeaza textul si extrage cele mai importante noutati, schimbari sau adaugiri sub forma unei liste scurte cu buline in romana (maxim 4 idei per joc).
-
-Date intrare:
-${JSON.stringify(payload)}
-
-Returneaza STRICT un obiect JSON cu structura de mai jos, care sa contina toate elementele procesate:
-{
-  "rezultate": [
-    { "id": 0, "titlu": "titlu tradus", "rezumat": "rezumat cu buline" },
-    { "id": 1, "titlu": "...", "rezumat": "..." }
-  ]
-}`;
-
-    const result = await model.generateContent(prompt);
-    let responseText = result.response.text().trim();
-    
-    if (responseText.startsWith("```json")) {
-      responseText = responseText.replace(/^```json/i, "").replace(/```$/i, "").trim();
-    } else if (responseText.startsWith("```")) {
-      responseText = responseText.replace(/^```/i, "").replace(/```$/i, "").trim();
-    }
-
-    const data = JSON.parse(responseText);
-    
-    // Mapam rezultatele inapoi la ordinea originala
-    return items.map((item, index) => {
-      const res = data.rezultate.find(r => r.id === index);
-      return {
-        titlu: res ? res.titlu : item.title,
-        rezumat: res ? res.rezumat : "Eroare la generarea rezumatului."
-      };
-    });
-
-  } catch (error) {
-    console.error("Eroare Gemini API Batch:", error);
-    return items.map(item => ({ titlu: item.title, rezumat: `❌ Limită atinsă sau eroare API: ${error.message.split('\n')[0]}` }));
-  }
-}
-
-// -------------------------------------------------------------
 // CONEXIUNE ȘI SCHEMA MONGODB PENTRU STARE PERSISTENTĂ
 // -------------------------------------------------------------
 
@@ -164,9 +42,9 @@ const stateSchema = new mongoose.Schema({
   guilds: { type: Object, default: {} },
   seen: { type: Object, default: {} },
   seenDiscounts: { type: Array, default: [] },
-  executionTimes: { 
-    type: Object, 
-    default: { all: 15000, single: 2000, reduceri: 15000 } 
+  executionTimes: {
+    type: Object,
+    default: { all: 15000, single: 2000, reduceri: 15000 }
   }
 }, { minimize: false });
 
@@ -184,12 +62,12 @@ async function loadState() {
     };
     await StateModel.create(state);
   }
-  
+
   if (!state.guilds) state.guilds = {};
   if (!state.seen) state.seen = {};
   if (!state.seenDiscounts) state.seenDiscounts = [];
   if (!state.executionTimes) state.executionTimes = { all: 15000, single: 2000, reduceri: 15000 };
-  
+
   return state;
 }
 
@@ -250,7 +128,7 @@ function extractTitleFromHtml(html) {
 
   const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   if (titleMatch) return cleanText(decodeHtmlEntities(titleMatch[1]));
-  
+
   return "";
 }
 
@@ -328,7 +206,7 @@ function buildUpdateEmbed(gameName, latest) {
 }
 
 // -------------------------------------------------------------
-// FUNCȚII PENTRU DRIVERE 
+// FUNCȚII PENTRU DRIVERE
 // -------------------------------------------------------------
 
 async function fetchNvidiaUpdate(game) {
@@ -348,7 +226,7 @@ async function fetchNvidiaUpdate(game) {
     const dateMatch = itemXml.match(/<pubDate>([\s\S]*?)<\/pubDate>/i);
 
     const rawTitle = titleMatch ? cleanText(titleMatch[1]) : `Update ${game.name}`;
-    const cleanT = rawTitle.split(" - ")[0]; 
+    const cleanT = rawTitle.split(" - ")[0];
     const link = linkMatch ? linkMatch[1] : "https://www.nvidia.com/en-us/geforce/news/";
     const pubDate = dateMatch ? dateMatch[1] : new Date().toISOString();
 
@@ -356,12 +234,16 @@ async function fetchNvidiaUpdate(game) {
     const versionStr = vMatch ? `v${vMatch[1]}` : "Update Nou";
 
     return {
-      id: cleanT, title: `${game.name} ${versionStr}`, link: link, 
-      excerpt: `Sursa: Sistemul oficial de articole NVIDIA.`, 
+      id: cleanT,
+      title: `${game.name} ${versionStr}`,
+      link: link,
+      excerpt: `Sursa: Sistemul oficial de articole NVIDIA.`,
       fullText: `Sursa: Sistemul oficial de articole NVIDIA. Noul driver ${versionStr} este disponibil.`,
-      thumbnail: game.thumbnail, timestamp: new Date(pubDate).toISOString()
+      thumbnail: game.thumbnail,
+      timestamp: new Date(pubDate).toISOString()
     };
   }
+
   throw new Error(`Nu am putut găsi date pentru ${game.name}.`);
 }
 
@@ -371,24 +253,30 @@ async function fetchIntelUpdate(game) {
     const res = await axios.get(proxyUrl, { timeout: 15000 });
     const html = String(res?.data?.contents || "");
     const versionMatch = html.match(/\b(\d{2,3}\.\d+\.\d+\.\d+)\b/);
-    
+
     if (versionMatch) {
       const version = versionMatch[1];
       return {
-        id: version, title: `${game.name} v${version}`, link: game.url,
-        excerpt: `Extras direct de pe pagina oficială Intel.\n**Versiune găsită:** ${version}`, 
+        id: version,
+        title: `${game.name} v${version}`,
+        link: game.url,
+        excerpt: `Extras direct de pe pagina oficială Intel.\n**Versiune găsită:** ${version}`,
         fullText: `Extras direct de pe pagina oficială Intel. Versiune nouă detectată: ${version}`,
-        thumbnail: game.thumbnail, timestamp: new Date().toISOString()
+        thumbnail: game.thumbnail,
+        timestamp: new Date().toISOString()
       };
     }
   } catch (err) {}
 
-  const searchQuery = game.key === "intelpro" ? "site:intel.com \"Intel Arc Pro Graphics\"" : "site:intel.com \"Intel Arc & Iris Xe Graphics - Windows\"";
+  const searchQuery = game.key === "intelpro"
+    ? 'site:intel.com "Intel Arc Pro Graphics"'
+    : 'site:intel.com "Intel Arc & Iris Xe Graphics - Windows"';
+
   const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(searchQuery)}&hl=en-US&gl=US&ceid=US:en`;
   const fallbackRes = await axios.get(rssUrl, { timeout: 15000, headers: { "User-Agent": "Mozilla/5.0" } });
   const xml = String(fallbackRes.data || "");
   const match = xml.match(/<item>[\s\S]*?<title>([\s\S]*?)<\/title>[\s\S]*?<link>([\s\S]*?)<\/link>[\s\S]*?<\/item>/i);
-  
+
   if (match) {
     const rawTitle = cleanText(match[1]);
     const cleanT = rawTitle.split(" - ")[0];
@@ -396,51 +284,62 @@ async function fetchIntelUpdate(game) {
     const versionStr = vMatch ? `v${vMatch[1]}` : "Update Nou";
 
     return {
-      id: cleanText(match[1]), title: `${game.name} ${versionStr}`, link: match[2],
-      excerpt: "Sursa: Sistemul oficial de articole Intel.", 
+      id: cleanText(match[1]),
+      title: `${game.name} ${versionStr}`,
+      link: match[2],
+      excerpt: "Sursa: Sistemul oficial de articole Intel.",
       fullText: "Sursa: Sistemul oficial de articole Intel. Un nou update a fost detectat.",
-      thumbnail: game.thumbnail, timestamp: new Date().toISOString()
+      thumbnail: game.thumbnail,
+      timestamp: new Date().toISOString()
     };
   }
+
   throw new Error("Acces refuzat la serverele Intel.");
 }
 
 async function fetchAmdUpdate(game) {
   const amdUrl = "https://www.amd.com/en/support/download/drivers.html";
   const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(amdUrl)}`;
-  
+
   try {
     const res = await axios.get(proxyUrl, { timeout: 15000 });
     const html = String(res?.data?.contents || "");
     const versionMatch = html.match(/Adrenalin Edition\s+([\d\.]+)/i);
-    
+
     if (versionMatch) {
       return {
-        id: versionMatch[1], title: `AMD Radeon Adrenalin v${versionMatch[1]}`, link: amdUrl,
-        excerpt: "Scanat direct de pe serverul amd.com. Un nou driver este disponibil.", 
+        id: versionMatch[1],
+        title: `AMD Radeon Adrenalin v${versionMatch[1]}`,
+        link: amdUrl,
+        excerpt: "Scanat direct de pe serverul amd.com. Un nou driver este disponibil.",
         fullText: "Scanat direct de pe serverul amd.com. Un nou driver Adrenalin este disponibil pentru descărcare.",
-        thumbnail: game.thumbnail, timestamp: new Date().toISOString()
+        thumbnail: game.thumbnail,
+        timestamp: new Date().toISOString()
       };
     }
   } catch (err) {}
 
   const rssUrl = `https://news.google.com/rss/search?q=site:amd.com+%22AMD+Software:+Adrenalin+Edition%22+release+notes&hl=en-US&gl=US&ceid=US:en`;
-  const fallbackRes = await axios.get(rssUrl, { timeout: 15000, headers: { "User-Agent": "Mozilla/5.0" }});
+  const fallbackRes = await axios.get(rssUrl, { timeout: 15000, headers: { "User-Agent": "Mozilla/5.0" } });
   const match = String(fallbackRes.data).match(/<item>[\s\S]*?<title>([\s\S]*?)<\/title>[\s\S]*?<link>([\s\S]*?)<\/link>[\s\S]*?<\/item>/i);
-  
+
   if (match) {
     return {
-      id: cleanText(match[1]), title: cleanText(match[1]).split(" - ")[0], link: match[2],
-      excerpt: "Sursa: Sistemul oficial de articole AMD.", 
+      id: cleanText(match[1]),
+      title: cleanText(match[1]).split(" - ")[0],
+      link: match[2],
+      excerpt: "Sursa: Sistemul oficial de articole AMD.",
       fullText: "Sursa: Sistemul oficial de articole AMD. A fost detectat un articol nou cu update-uri.",
-      thumbnail: game.thumbnail, timestamp: new Date().toISOString()
+      thumbnail: game.thumbnail,
+      timestamp: new Date().toISOString()
     };
   }
+
   throw new Error("Acces refuzat de protecția anti-bot a serverului AMD.");
 }
 
 // -------------------------------------------------------------
-// FUNCȚIILE DE JOCURI 
+// FUNCȚIILE DE JOCURI
 // -------------------------------------------------------------
 
 async function fetchSteamUpdate(game) {
@@ -463,14 +362,18 @@ async function fetchSteamUpdate(game) {
 
   if (!latest.gid || !latest.title) throw new Error("Update invalid primit de la Steam.");
 
-  let rawContents = String(latest.contents || "").replace(/https?:\/\/[^\s]+/gi, "").replace(/\[[^\]]+\]/g, " ");
-  
+  let rawContents = String(latest.contents || "")
+    .replace(/https?:\/\/[^\s]+/gi, "")
+    .replace(/\[[^\]]+\]/g, " ");
+
   const cleanExcerpt = cleanText(rawContents).slice(0, 700);
-  const fullText = cleanText(rawContents).slice(0, 15000); 
+  const fullText = cleanText(rawContents).slice(0, 15000);
 
   return {
-    id: String(latest.gid), title: cleanText(latest.title), link: String(latest.url).trim(), 
-    excerpt: cleanExcerpt || `A apărut un nou update pentru ${game.name}.`, 
+    id: String(latest.gid),
+    title: cleanText(latest.title),
+    link: String(latest.url).trim(),
+    excerpt: cleanExcerpt || `A apărut un nou update pentru ${game.name}.`,
     fullText: fullText || cleanExcerpt,
     timestamp: latest.date ? new Date(latest.date * 1000).toISOString() : undefined
   };
@@ -480,7 +383,12 @@ function parseAnchors(html, baseUrl) {
   const anchors = [];
   const regex = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   let match;
-  while ((match = regex.exec(html)) !== null) anchors.push({ href: absoluteUrl(baseUrl, match[1]), text: cleanText(match[2]) });
+  while ((match = regex.exec(html)) !== null) {
+    anchors.push({
+      href: absoluteUrl(baseUrl, match[1]),
+      text: cleanText(match[2])
+    });
+  }
   return anchors;
 }
 
@@ -505,7 +413,10 @@ function scoreCandidate(candidate, keywords) {
 }
 
 async function fetchListingBasedUpdate(game) {
-  const listingUrls = Array.isArray(game.listingUrls) && game.listingUrls.length ? game.listingUrls : [game.listingUrl];
+  const listingUrls = Array.isArray(game.listingUrls) && game.listingUrls.length
+    ? game.listingUrls
+    : [game.listingUrl];
+
   const keywords = Array.isArray(game.requireKeywords) ? game.requireKeywords : [];
   const hrefRegex = game.articleHrefRegex ? new RegExp(game.articleHrefRegex, "i") : null;
   let collected = [];
@@ -513,38 +424,54 @@ async function fetchListingBasedUpdate(game) {
   for (const url of listingUrls) {
     const listRes = await axios.get(url, {
       timeout: 15000,
-      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" }
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      }
     });
+
     const listHtml = String(listRes.data || "");
     let anchors = parseAnchors(listHtml, game.baseUrl);
+
     anchors = anchors.filter((a) => {
       if (!a.href) return false;
       if (hrefRegex && !hrefRegex.test(a.href)) return false;
       if (!keywords.length) return true;
       return scoreCandidate(a, keywords) > 0;
     });
+
     collected.push(...anchors);
   }
 
   collected = uniqueByHref(collected);
-  if (keywords.length) collected.sort((a, b) => scoreCandidate(b, keywords) - scoreCandidate(a, keywords));
+  if (keywords.length) {
+    collected.sort((a, b) => scoreCandidate(b, keywords) - scoreCandidate(a, keywords));
+  }
+
   if (!collected.length) throw new Error(`Nu am găsit articole de update pentru ${game.name}.`);
 
   const articleUrl = collected[0].href;
-  const articleRes = await axios.get(articleUrl, { timeout: 15000, headers: { "User-Agent": "Mozilla/5.0" } });
+  const articleRes = await axios.get(articleUrl, {
+    timeout: 15000,
+    headers: { "User-Agent": "Mozilla/5.0" }
+  });
+
   const articleHtml = String(articleRes.data || "");
 
   let cleanHtml = articleHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ");
   cleanHtml = cleanHtml.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ");
 
   const shortExcerpt = extractDescriptionFromHtml(articleHtml).slice(0, 700) || `A apărut un nou update oficial pentru ${game.name}.`;
-  const fullText = cleanText(cleanHtml).slice(0, 15000); 
-  
+  const fullText = cleanText(cleanHtml).slice(0, 15000);
+
   return {
-    id: String(articleUrl), title: extractTitleFromHtml(articleHtml) || `Update nou pentru ${game.name}`, link: articleUrl,
+    id: String(articleUrl),
+    title: extractTitleFromHtml(articleHtml) || `Update nou pentru ${game.name}`,
+    link: articleUrl,
     excerpt: shortExcerpt,
     fullText: fullText,
-    image: extractImageFromHtml(articleHtml), thumbnail: game.thumbnail || undefined, timestamp: extractPublishedTimeFromHtml(articleHtml)
+    image: extractImageFromHtml(articleHtml),
+    thumbnail: game.thumbnail || undefined,
+    timestamp: extractPublishedTimeFromHtml(articleHtml)
   };
 }
 
@@ -552,14 +479,16 @@ async function fetchMinecraftUpdate() {
   const manifestRes = await axios.get("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json", { timeout: 15000 });
   const latestVersion = manifestRes?.data?.latest?.release;
   if (!latestVersion) throw new Error("Date lipsă pe serverul Mojang.");
-  const formattedVersion = latestVersion.replace(/\./g, "-");
 
+  const formattedVersion = latestVersion.replace(/\./g, "-");
   const excerpt = `O nouă versiune oficială (${latestVersion}) este disponibilă!`;
+
   return {
-    id: String(latestVersion), title: `Minecraft: Java Edition ${latestVersion}`,
+    id: String(latestVersion),
+    title: `Minecraft: Java Edition ${latestVersion}`,
     link: `https://www.minecraft.net/en-us/article/minecraft-java-edition-${formattedVersion}`,
     excerpt: excerpt,
-    fullText: excerpt, 
+    fullText: excerpt,
     image: "https://www.minecraft.net/content/dam/minecraftnet/games/minecraft/key-art/MCV-keyart-default.jpg",
     thumbnail: "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg",
     timestamp: new Date().toISOString()
@@ -594,26 +523,33 @@ async function fetchFortniteUpdate() {
     const fullText = cleanText(latest.content || latest.shareDescription).slice(0, 15000);
 
     return {
-      id: String(latest._id || latest.slug), title: cleanText(latest.title) || "Fortnite Update", link: `https://www.fortnite.com/news/${latest.slug}`,
+      id: String(latest._id || latest.slug),
+      title: cleanText(latest.title) || "Fortnite Update",
+      link: `https://www.fortnite.com/news/${latest.slug}`,
       excerpt: shortExcerpt,
       fullText: fullText,
-      image: latest.image || latest.trendingImage, thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
+      image: latest.image || latest.trendingImage,
+      thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
       timestamp: latest.date ? new Date(latest.date).toISOString() : new Date().toISOString()
     };
   } catch (error) {
     const backupUrl = "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fnews.google.com%2Frss%2Fsearch%3Fq%3Dsite%3Afortnite.com%2Fnews%2Bupdate%26hl%3Den-US%26gl%3DUS%26ceid%3DUS%3Aen";
     const fallbackRes = await axios.get(backupUrl, { timeout: 15000 });
     const items = fallbackRes?.data?.items;
+
     if (!Array.isArray(items) || items.length === 0) throw new Error("Toate metodele pentru Fortnite au eșuat.");
 
     const latestBackup = items[0];
     const excerpt = "A apărut un nou articol oficial de actualizare pe site-ul Fortnite.";
+
     return {
-      id: String(latestBackup.guid || latestBackup.link), title: cleanText(latestBackup.title).replace(/\s-\sFortnite$/i, "").trim() || "Fortnite: Noutăți",
-      link: latestBackup.link || "https://www.fortnite.com/news", 
+      id: String(latestBackup.guid || latestBackup.link),
+      title: cleanText(latestBackup.title).replace(/\s-\sFortnite$/i, "").trim() || "Fortnite: Noutăți",
+      link: latestBackup.link || "https://www.fortnite.com/news",
       excerpt: excerpt,
       fullText: excerpt,
-      image: "https://cdn2.unrealengine.com/14br-consoles-1920x1080-1920x1080-4954ecbc82b3.jpg", thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
+      image: "https://cdn2.unrealengine.com/14br-consoles-1920x1080-1920x1080-4954ecbc82b3.jpg",
+      thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
       timestamp: latestBackup.pubDate ? new Date(latestBackup.pubDate).toISOString() : new Date().toISOString()
     };
   }
@@ -625,11 +561,15 @@ async function fetchRobloxUpdate() {
   if (!version) throw new Error("Nu am putut accesa serverul de update Roblox.");
 
   const excerpt = `Un nou client oficial Roblox a fost urcat pe servere (versiunea: ${version}).`;
+
   return {
-    id: String(version), title: "Roblox Client Update", link: "https://en.help.roblox.com/hc/en-us/articles/203312870-Update-Log",
+    id: String(version),
+    title: "Roblox Client Update",
+    link: "https://en.help.roblox.com/hc/en-us/articles/203312870-Update-Log",
     excerpt: excerpt,
     fullText: excerpt,
-    thumbnail: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Roblox_Logo_2022.jpg", timestamp: new Date().toISOString()
+    thumbnail: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Roblox_Logo_2022.jpg",
+    timestamp: new Date().toISOString()
   };
 }
 
@@ -673,16 +613,17 @@ async function fetchDealsForStore(storeID, storeName) {
     const isFree = salePrice === 0;
     const steamRating = parseFloat(d.steamRatingPercent) || 0;
     const metacritic = parseInt(d.metacriticScore) || 0;
-    
+
     if (storeID === 25) {
-      return (savings >= 70 || isFree); 
+      return (savings >= 70 || isFree);
     }
-    
+
     return (savings >= 70 || isFree) && (steamRating >= 70 || metacritic > 0 || isFree);
   });
 
   let sortedDeals = validDeals.map(d => ({
-    id: d.dealID, steamAppID: d.steamAppID,
+    id: d.dealID,
+    steamAppID: d.steamAppID,
     title: d.title || "Joc Necunoscut",
     salePrice: d.salePrice || "0.00",
     normalPrice: d.normalPrice || "0.00",
@@ -700,12 +641,12 @@ async function fetchDealsForStore(storeID, storeName) {
 
 async function fetchDeals() {
   const steamDeals = await fetchDealsForStore(1, "Steam");
-  const epicDeals = await fetchDealsForStore(25, "Epic Games"); 
+  const epicDeals = await fetchDealsForStore(25, "Epic Games");
 
   const finalTop50 = [...steamDeals, ...epicDeals];
-  
+
   if (finalTop50.length === 0) throw new Error("Nu s-au putut extrage oferte valide de pe Steam sau Epic.");
-  
+
   return finalTop50;
 }
 
@@ -718,9 +659,12 @@ async function enrichDealData(deal) {
       const url = `https://store.steampowered.com/api/appdetails?appids=${deal.steamAppID}`;
       const res = await axios.get(url, { timeout: 5000 });
       const data = res.data[deal.steamAppID]?.data;
-      
+
       if (data) {
-        if (data.release_date && data.release_date.date) deal.extraDetails += `\n**Lansare:** ${data.release_date.date}`;
+        if (data.release_date && data.release_date.date) {
+          deal.extraDetails += `\n**Lansare:** ${data.release_date.date}`;
+        }
+
         if (data.platforms) {
           const plats = [];
           if (data.platforms.windows) plats.push("Windows");
@@ -729,25 +673,25 @@ async function enrichDealData(deal) {
           if (plats.length > 0) deal.extraDetails += `\n**Platforme:** ${plats.join(", ")}`;
         }
       }
-      
+
       const htmlRes = await axios.get(deal.link, {
         timeout: 5000,
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-          "Cookie": "strLanguage=english; birthtime=283993201; mature_content=1;" 
+          "Cookie": "strLanguage=english; birthtime=283993201; mature_content=1;"
         }
       });
+
       const match = htmlRes.data.match(/Offer ends\s+([^<]+)/i);
       if (match && match[1]) {
         deal.endDateStr = match[1].trim();
       }
-    } catch (e) { }
-  } 
-  else if (deal.store === "Epic Games") {
+    } catch (e) {}
+  } else if (deal.store === "Epic Games") {
     try {
       let cleanTitle = deal.title.replace(/(Standard|Deluxe|Ultimate|Edition)/gi, "").trim();
-      if (cleanTitle.split(' ').length > 4) {
-         cleanTitle = cleanTitle.split(' ').slice(0, 4).join(' ');
+      if (cleanTitle.split(" ").length > 4) {
+        cleanTitle = cleanTitle.split(" ").slice(0, 4).join(" ");
       }
 
       const epicQuery = {
@@ -755,27 +699,28 @@ async function enrichDealData(deal) {
         variables: { keywords: cleanTitle }
       };
 
-      const response = await axios.post('https://graphql.epicgames.com/graphql', epicQuery, {
+      const response = await axios.post("https://graphql.epicgames.com/graphql", epicQuery, {
         timeout: 8000,
-        headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0' }
+        headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" }
       });
 
       const elements = response.data?.data?.Catalog?.searchStore?.elements;
       if (elements && elements.length > 0) {
         let endDateIso = null;
-        
+
         for (const item of elements) {
           const promoOffers = item.promotions?.promotionalOffers;
           if (promoOffers && promoOffers.length > 0 && promoOffers[0].promotionalOffers && promoOffers[0].promotionalOffers.length > 0) {
             endDateIso = promoOffers[0].promotionalOffers[0].endDate;
             break;
           }
+
           if (item.price?.lineOffers && item.price.lineOffers.length > 0) {
-             const rules = item.price.lineOffers[0].appliedRules;
-             if (rules && rules.length > 0 && rules[0].endDate) {
-                endDateIso = rules[0].endDate;
-                break;
-             }
+            const rules = item.price.lineOffers[0].appliedRules;
+            if (rules && rules.length > 0 && rules[0].endDate) {
+              endDateIso = rules[0].endDate;
+              break;
+            }
           }
         }
 
@@ -783,8 +728,8 @@ async function enrichDealData(deal) {
           const d = new Date(endDateIso);
           if (!isNaN(d.getTime())) {
             const monthsRo = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
-            const hr = d.getHours().toString().padStart(2, '0');
-            const min = d.getMinutes().toString().padStart(2, '0');
+            const hr = d.getHours().toString().padStart(2, "0");
+            const min = d.getMinutes().toString().padStart(2, "0");
             deal.endDateStr = `${d.getDate()} ${monthsRo[d.getMonth()]} ${d.getFullYear()} ${hr}:${min}`;
           }
         }
@@ -822,21 +767,13 @@ const client = new Client({
 async function sendUpdateToAllSubscribedGuilds(gameName, latest) {
   const state = await loadState();
   const embed = buildUpdateEmbed(gameName, latest);
-  
-  const translateBtn = new ButtonBuilder()
-    .setCustomId("translate_update")
-    .setLabel("🇷🇴 Rezumat în Română (AI)")
-    .setStyle(ButtonStyle.Primary)
-    .setEmoji("🧠");
-    
-  const row = new ActionRowBuilder().addComponents(translateBtn);
 
   for (const [guildId, guildConfig] of Object.entries(state.guilds)) {
     if (guildConfig.subscribed && guildConfig.notificationChannelId) {
       try {
         const channel = await client.channels.fetch(guildConfig.notificationChannelId);
         if (channel) {
-          await channel.send({ embeds: [embed], components: [row] });
+          await channel.send({ embeds: [embed] });
         }
       } catch (err) {
         console.error(`Nu am putut trimite pe serverul ${guildId}`, err);
@@ -860,7 +797,7 @@ async function initializeSeenForCurrentGames() {
 
 async function checkForUpdates() {
   const state = await loadState();
-  
+
   const hasSubscribers = Object.values(state.guilds).some(g => g.subscribed && g.notificationChannelId);
   if (!hasSubscribers) return false;
 
@@ -908,14 +845,14 @@ async function checkForDiscounts() {
             (deal.endDateStr !== "Nespecificat" ? `⏳ **${isFree ? "Free until" : "Offer ends"}:** ${deal.endDateStr}\n\n` : "")
           )
           .addFields(
-            { name: 'Preț Vechi', value: `~~$${deal.normalPrice}~~`, inline: true },
-            { name: 'Preț Nou', value: isFree ? "🔥 GRATIS 🔥" : `$${deal.salePrice}`, inline: true },
-            { name: 'Link Către Magazin', value: `[Apasă aici pentru ofertă](${deal.link})`, inline: false }
+            { name: "Preț Vechi", value: `~~$${deal.normalPrice}~~`, inline: true },
+            { name: "Preț Nou", value: isFree ? "🔥 GRATIS 🔥" : `$${deal.salePrice}`, inline: true },
+            { name: "Link Către Magazin", value: `[Apasă aici pentru ofertă](${deal.link})`, inline: false }
           )
           .setTimestamp();
-          
+
         if (deal.thumbnail && deal.thumbnail.startsWith("http")) {
-            embed.setThumbnail(deal.thumbnail);
+          embed.setThumbnail(deal.thumbnail);
         }
 
         for (const [guildId, guildConfig] of Object.entries(state.guilds)) {
@@ -978,43 +915,6 @@ client.once("ready", async () => {
   }, Number(config.checkIntervalMinutes || 30) * 60 * 1000);
 });
 
-client.on("interactionCreate", async (interaction) => {
-  if (!interaction.isButton()) return;
-
-  // Handler pentru single-update (cand e apelat pe un anumit canal prin latest update)
-  if (interaction.customId === "translate_update") {
-    await interaction.deferUpdate();
-    
-    const originalEmbed = interaction.message.embeds[0];
-    if (!originalEmbed || !originalEmbed.description) return;
-
-    try {
-      let textToSummarize = originalEmbed.description;
-      const gameName = originalEmbed.footer?.text;
-      
-      // Luam TOT textul in loc sa facem rezumat la rezumat
-      if (gameName) {
-         const game = config.games.find(g => g.name === gameName);
-         if (game) {
-             const latest = await fetchGameUpdate(game);
-             textToSummarize = latest.fullText || latest.excerpt || textToSummarize;
-         }
-      }
-
-      const aiResult = await getAiTranslationAndSummary(originalEmbed.title, textToSummarize);
-
-      const newEmbed = EmbedBuilder.from(originalEmbed)
-        .setTitle(aiResult.titlu)
-        .setDescription(`✨ **Rezumat AI:**\n${aiResult.rezumat}`);
-
-      await interaction.editReply({ embeds: [newEmbed], components: [] });
-    } catch (error) {
-      console.error("Eroare la traducerea AI:", error);
-      await interaction.followUp({ content: `❌ A apărut o eroare la serverul AI.`, ephemeral: true });
-    }
-  }
-});
-
 client.on("messageCreate", async (message) => {
   if (message.author.bot || !message.guild) return;
 
@@ -1022,8 +922,8 @@ client.on("messageCreate", async (message) => {
   if (!message.content.startsWith(PREFIX)) return;
 
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-  const command1 = (args.shift() || "").toLowerCase(); 
-  const command2 = (args[0] || "").toLowerCase();      
+  const command1 = (args.shift() || "").toLowerCase();
+  const command2 = (args[0] || "").toLowerCase();
 
   const guildId = message.guild.id;
 
@@ -1050,39 +950,44 @@ client.on("messageCreate", async (message) => {
   if (command1 === "start" && command2 === "updates") {
     args.shift();
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-      return message.reply(`⛔ Doar un administrator poate folosi comanda.`);
+      return message.reply("⛔ Doar un administrator poate folosi comanda.");
     }
+
     const state = await loadState();
     if (!state.guilds[guildId]) state.guilds[guildId] = {};
-    
+
     state.guilds[guildId].notificationChannelId = message.channel.id;
     state.guilds[guildId].subscribed = true;
     await saveState(state);
     await initializeSeenForCurrentGames();
+
     return message.reply("✅ Am pornit notificările automate de update-uri pe acest canal pentru acest server.");
   }
 
   if (command1 === "stop" && command2 === "updates") {
     args.shift();
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-      return message.reply(`⛔ Doar un administrator poate folosi comanda.`);
+      return message.reply("⛔ Doar un administrator poate folosi comanda.");
     }
+
     const state = await loadState();
     if (state.guilds[guildId]) {
       state.guilds[guildId].subscribed = false;
       await saveState(state);
     }
+
     return message.reply("🛑 Am oprit notificările automate de update pentru acest server.");
   }
 
   if (command1 === "start" && command2 === "reduceri") {
     args.shift();
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-      return message.reply(`⛔ Doar un administrator poate folosi comanda.`);
+      return message.reply("⛔ Doar un administrator poate folosi comanda.");
     }
+
     const state = await loadState();
     if (!state.guilds[guildId]) state.guilds[guildId] = {};
-    
+
     state.guilds[guildId].discountChannelId = message.channel.id;
     state.guilds[guildId].discountsSubscribed = true;
     await saveState(state);
@@ -1094,34 +999,36 @@ client.on("messageCreate", async (message) => {
   if (command1 === "stop" && command2 === "reduceri") {
     args.shift();
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-      return message.reply(`⛔ Doar un administrator poate folosi comanda.`);
+      return message.reply("⛔ Doar un administrator poate folosi comanda.");
     }
+
     const state = await loadState();
     if (state.guilds[guildId]) {
       state.guilds[guildId].discountsSubscribed = false;
       await saveState(state);
     }
+
     return message.reply("🛑 Am oprit notificările pentru reduceri pe acest server.");
   }
 
   if (command1 === "latest") {
     // --- 1. LATEST REDUCERI ---
     if (command2 === "reduceri") {
-      args.shift(); 
+      args.shift();
       const state = await loadState();
-      const estMs = state.executionTimes?.reduceri || 15000; 
+      const estMs = state.executionTimes?.reduceri || 15000;
       const estSec = Math.max(1, Math.ceil(estMs / 1000));
 
       const loadingMsg = await message.reply(`⏳ *Caut și procesez ofertele disponibile... Durată estimată: **${estSec} secunde**.*`);
       const startTime = Date.now();
 
       try {
-        const rawDeals = await fetchDeals(); 
+        const rawDeals = await fetchDeals();
         if (!rawDeals || rawDeals.length === 0) {
-          return loadingMsg.edit(`❌ Nu am găsit nicio ofertă activă.`);
+          return loadingMsg.edit("❌ Nu am găsit nicio ofertă activă.");
         }
 
-        const maxDeals = rawDeals.slice(0, 50); 
+        const maxDeals = rawDeals.slice(0, 50);
         let currentPage = 0;
         const itemsPerPage = 5;
         const totalPages = Math.ceil(maxDeals.length / itemsPerPage);
@@ -1130,7 +1037,7 @@ client.on("messageCreate", async (message) => {
           const startIndex = pageIndex * itemsPerPage;
           const chunk = maxDeals.slice(startIndex, startIndex + itemsPerPage);
           const enrichedChunk = await Promise.all(chunk.map(enrichDealData));
-          
+
           return enrichedChunk.map(deal => {
             const isFree = parseFloat(deal.salePrice) === 0;
             const embed = new EmbedBuilder()
@@ -1143,7 +1050,7 @@ client.on("messageCreate", async (message) => {
                 `🔗 [Accesează Magazinul](${deal.link})`
               )
               .setFooter({ text: `Pagina ${pageIndex + 1} din ${totalPages}` });
-            
+
             if (deal.thumbnail && deal.thumbnail.startsWith("http")) embed.setThumbnail(deal.thumbnail);
             return embed;
           });
@@ -1151,8 +1058,8 @@ client.on("messageCreate", async (message) => {
 
         const generateButtons = (pageIndex) => {
           return new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('prev_page').setLabel('◀ Pagina Anterioară').setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === 0),
-            new ButtonBuilder().setCustomId('next_page').setLabel('Următoarea Pagină ▶').setStyle(ButtonStyle.Primary).setDisabled(pageIndex === totalPages - 1)
+            new ButtonBuilder().setCustomId("prev_page").setLabel("◀ Pagina Anterioară").setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === 0),
+            new ButtonBuilder().setCustomId("next_page").setLabel("Următoarea Pagină ▶").setStyle(ButtonStyle.Primary).setDisabled(pageIndex === totalPages - 1)
           );
         };
 
@@ -1162,31 +1069,35 @@ client.on("messageCreate", async (message) => {
         state.executionTimes["reduceri"] = Math.round((estMs + elapsed) / 2);
         await saveState(state);
 
-        const replyMsg = await loadingMsg.edit({ content: `✅ **Top ${maxDeals.length} oferte Steam & Epic găsite:**`, embeds: firstPageEmbeds, components: [generateButtons(currentPage)] });
+        const replyMsg = await loadingMsg.edit({
+          content: `✅ **Top ${maxDeals.length} oferte Steam & Epic găsite:**`,
+          embeds: firstPageEmbeds,
+          components: [generateButtons(currentPage)]
+        });
 
-        const collector = replyMsg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 300000 }); 
+        const collector = replyMsg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 300000 });
 
-        collector.on('collect', async (btnInteraction) => {
+        collector.on("collect", async (btnInteraction) => {
           if (btnInteraction.user.id !== message.author.id) {
-            return btnInteraction.reply({ content: 'Doar cel care a cerut comanda poate schimba paginile!', ephemeral: true });
+            return btnInteraction.reply({ content: "Doar cel care a cerut comanda poate schimba paginile!", ephemeral: true });
           }
 
-          if (btnInteraction.customId === 'prev_page') currentPage--;
-          if (btnInteraction.customId === 'next_page') currentPage++;
+          if (btnInteraction.customId === "prev_page") currentPage--;
+          if (btnInteraction.customId === "next_page") currentPage++;
 
           await btnInteraction.deferUpdate();
           const newEmbeds = await generatePageEmbeds(currentPage);
           await btnInteraction.editReply({ embeds: newEmbeds, components: [generateButtons(currentPage)] });
         });
 
-        collector.on('end', () => {
+        collector.on("end", () => {
           replyMsg.edit({ components: [] }).catch(() => null);
         });
-
       } catch (error) {
         await loadingMsg.edit(`❌ Eroare la extragerea datelor: \`${error.message}\``).catch(() => null);
       }
-      return; 
+
+      return;
     }
 
     // --- 2. LATEST UPDATES (TOATE JOCURILE) ---
@@ -1194,126 +1105,72 @@ client.on("messageCreate", async (message) => {
       args.shift();
       const state = await loadState();
       const estMs = state.executionTimes?.all || 15000;
-      const estSec = Math.max(1, Math.ceil(estMs / 1000)); 
+      const estSec = Math.max(1, Math.ceil(estMs / 1000));
 
       const loadingMsg = await message.reply(`⏳ *Mă conectez la servere... Durată estimată: **${estSec} secunde**.*`);
-      const startTime = Date.now(); 
+      const startTime = Date.now();
 
       const results = await getLatestForAllGames();
       const elapsed = Date.now() - startTime;
       state.executionTimes["all"] = Math.round((estMs + elapsed) / 2);
       await saveState(state);
-      
+
       const validResults = results.filter(r => r.latest !== null);
       if (validResults.length === 0) {
-         return loadingMsg.edit(`❌ Nu am putut prelua update-uri pentru niciun joc.`);
+        return loadingMsg.edit("❌ Nu am putut prelua update-uri pentru niciun joc.");
       }
 
       let currentPage = 0;
-      const itemsPerPage = 5; 
+      const itemsPerPage = 5;
       const totalPages = Math.ceil(validResults.length / itemsPerPage);
 
-      let isGloballyTranslated = false;
-      const originalCache = {};
-      const translatedCache = {};
-
-      const getPageEmbeds = async (pageIndex, forceTranslate = false) => {
-        const needsTranslation = forceTranslate || isGloballyTranslated;
-
-        if (needsTranslation && translatedCache[pageIndex]) return translatedCache[pageIndex];
-        if (!needsTranslation && originalCache[pageIndex]) return originalCache[pageIndex];
-
+      const getPageEmbeds = async (pageIndex) => {
         const startIndex = pageIndex * itemsPerPage;
         const chunk = validResults.slice(startIndex, startIndex + itemsPerPage);
-        const pageEmbeds = [];
 
-        if (needsTranslation) {
-            // Trimitem TOATE jocurile dintr-o data la AI, in loc de 5 request-uri
-            const batchItems = chunk.map(r => ({
-                title: r.latest.title,
-                fullText: r.latest.fullText || r.latest.excerpt
-            }));
-
-            const aiResults = await getAiBatchSummary(batchItems);
-
-            chunk.forEach((r, idx) => {
-                const emb = buildUpdateEmbed(r.game.name, r.latest);
-                emb.setFooter({ text: `${r.game.name} • Pagina ${pageIndex + 1} din ${totalPages}` });
-                emb.setTitle(aiResults[idx].titlu);
-                emb.setDescription(`✨ **Rezumat AI:**\n${aiResults[idx].rezumat}`);
-                pageEmbeds.push(emb);
-            });
-        } else {
-            // Fara traducere
-            chunk.forEach(r => {
-                const emb = buildUpdateEmbed(r.game.name, r.latest);
-                emb.setFooter({ text: `${r.game.name} • Pagina ${pageIndex + 1} din ${totalPages}` });
-                pageEmbeds.push(emb);
-            });
-        }
-
-        if (needsTranslation) translatedCache[pageIndex] = pageEmbeds;
-        else originalCache[pageIndex] = pageEmbeds;
-
-        return pageEmbeds;
+        return chunk.map(r => {
+          const emb = buildUpdateEmbed(r.game.name, r.latest);
+          emb.setFooter({ text: `${r.game.name} • Pagina ${pageIndex + 1} din ${totalPages}` });
+          return emb;
+        });
       };
 
-      const generateUpdateButtons = (pageIndex, isTranslated = false) => {
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId('prev_upd').setLabel('◀').setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === 0),
-          new ButtonBuilder().setCustomId('next_upd').setLabel('▶').setStyle(ButtonStyle.Primary).setDisabled(pageIndex === totalPages - 1)
+      const generateUpdateButtons = (pageIndex) => {
+        return new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId("prev_upd").setLabel("◀").setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === 0),
+          new ButtonBuilder().setCustomId("next_upd").setLabel("▶").setStyle(ButtonStyle.Primary).setDisabled(pageIndex === totalPages - 1)
         );
-        if (!isTranslated) {
-          row.addComponents(
-            new ButtonBuilder().setCustomId('trans_upd').setLabel('🧠 Generare Rezumat AI').setStyle(ButtonStyle.Success).setEmoji("✨")
-          );
-        }
-        return row;
       };
 
-      let currentEmbeds = await getPageEmbeds(currentPage, false);
+      let currentEmbeds = await getPageEmbeds(currentPage);
 
       const replyMsg = await loadingMsg.edit({
         content: `✅ **Cele mai recente update-uri (${validResults.length} jocuri monitorizate):**`,
         embeds: currentEmbeds,
-        components: [generateUpdateButtons(currentPage, isGloballyTranslated)]
+        components: [generateUpdateButtons(currentPage)]
       });
 
       const collector = replyMsg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 300000 });
 
-      collector.on('collect', async (btnInteraction) => {
+      collector.on("collect", async (btnInteraction) => {
         if (btnInteraction.user.id !== message.author.id) {
-          return btnInteraction.reply({ content: 'Doar utilizatorul care a apelat comanda poate folosi butoanele!', ephemeral: true });
+          return btnInteraction.reply({ content: "Doar utilizatorul care a apelat comanda poate folosi butoanele!", ephemeral: true });
         }
 
-        if (btnInteraction.customId === 'prev_upd') {
+        if (btnInteraction.customId === "prev_upd") {
           await btnInteraction.deferUpdate();
           currentPage--;
-          currentEmbeds = await getPageEmbeds(currentPage, isGloballyTranslated);
-          await btnInteraction.editReply({ embeds: currentEmbeds, components: [generateUpdateButtons(currentPage, isGloballyTranslated)] });
-        } 
-        else if (btnInteraction.customId === 'next_upd') {
+          currentEmbeds = await getPageEmbeds(currentPage);
+          await btnInteraction.editReply({ embeds: currentEmbeds, components: [generateUpdateButtons(currentPage)] });
+        } else if (btnInteraction.customId === "next_upd") {
           await btnInteraction.deferUpdate();
           currentPage++;
-          currentEmbeds = await getPageEmbeds(currentPage, isGloballyTranslated);
-          await btnInteraction.editReply({ embeds: currentEmbeds, components: [generateUpdateButtons(currentPage, isGloballyTranslated)] });
-        }
-        else if (btnInteraction.customId === 'trans_upd') {
-          const loadingRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('prev_disabled').setLabel('◀').setStyle(ButtonStyle.Secondary).setDisabled(true),
-            new ButtonBuilder().setCustomId('next_disabled').setLabel('▶').setStyle(ButtonStyle.Secondary).setDisabled(true),
-            new ButtonBuilder().setCustomId('loading_btn').setLabel('⏳ Generare rezumate în curs...').setStyle(ButtonStyle.Secondary).setDisabled(true)
-          );
-          await btnInteraction.update({ components: [loadingRow] });
-
-          isGloballyTranslated = true;
-          currentEmbeds = await getPageEmbeds(currentPage, true);
-          
-          await btnInteraction.editReply({ embeds: currentEmbeds, components: [generateUpdateButtons(currentPage, isGloballyTranslated)] });
+          currentEmbeds = await getPageEmbeds(currentPage);
+          await btnInteraction.editReply({ embeds: currentEmbeds, components: [generateUpdateButtons(currentPage)] });
         }
       });
 
-      collector.on('end', () => {
+      collector.on("end", () => {
         replyMsg.edit({ components: [] }).catch(() => null);
       });
 
@@ -1322,15 +1179,15 @@ client.on("messageCreate", async (message) => {
 
     // --- 3. LATEST UPDATE [PORECLĂ] (JOC SPECIFIC) ---
     if (command2 === "update") {
-      args.shift(); 
-      
-      const gameText = args.join(" "); 
+      args.shift();
+
+      const gameText = args.join(" ");
       const state = await loadState();
       const estMs = state.executionTimes?.single || 2000;
-      const estSec = Math.max(1, Math.ceil(estMs / 1000)); 
+      const estSec = Math.max(1, Math.ceil(estMs / 1000));
 
       const loadingMsg = await message.reply(`⏳ *Mă conectez la servere... Durată estimată: **${estSec} secunde**.*`);
-      const startTime = Date.now(); 
+      const startTime = Date.now();
 
       const game = findGameFromText(gameText);
       if (!game) return loadingMsg.edit(`❌ Nu am găsit jocul. Folosește **${PREFIX}porecle** pentru a vedea lista exactă.`);
@@ -1342,14 +1199,11 @@ client.on("messageCreate", async (message) => {
         await saveState(state);
         await loadingMsg.delete().catch(() => null);
 
-        const translateBtnRowSingle = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId("translate_update").setLabel("🇷🇴 Rezumat în Română (AI)").setStyle(ButtonStyle.Primary).setEmoji("🧠")
-        );
-
-        await message.channel.send({ embeds: [buildUpdateEmbed(game.name, latest)], components: [translateBtnRowSingle] });
+        await message.channel.send({ embeds: [buildUpdateEmbed(game.name, latest)] });
       } catch (error) {
         await loadingMsg.edit(`❌ Nu am putut lua ultimul update pentru **${game.name}**.`);
       }
+
       return;
     }
 
@@ -1363,45 +1217,45 @@ client.on("messageCreate", async (message) => {
       .setTitle("📚 Manualul Botului - Meniul de Ajutor")
       .setDescription("Iată lista completă a comenzilor și explicația exactă a ceea ce face fiecare:")
       .addFields(
-        { 
-          name: `\`${PREFIX}start updates\``, 
-          value: "Dacă scrii comanda asta pe un canal, botul va trimite automat mesaje **doar pe acest canal** de fiecare dată când apare un update oficial nou pentru oricare din jocurile urmărite." 
+        {
+          name: `\`${PREFIX}start updates\``,
+          value: "Dacă scrii comanda asta pe un canal, botul va trimite automat mesaje doar pe acest canal de fiecare dată când apare un update oficial nou pentru oricare din jocurile urmărite."
         },
-        { 
-          name: `\`${PREFIX}stop updates\``, 
-          value: "Oprește imediat trimiterea automată a notificărilor de update-uri pentru tot serverul." 
+        {
+          name: `\`${PREFIX}stop updates\``,
+          value: "Oprește imediat trimiterea automată a notificărilor de update-uri pentru tot serverul."
         },
-        { 
-          name: `\`${PREFIX}start reduceri\``, 
-          value: "Setează canalul curent ca destinație pentru alertele cu reduceri masive de preț (peste 70%) sau jocuri complet gratuite de pe platformele Steam și Epic Games." 
+        {
+          name: `\`${PREFIX}start reduceri\``,
+          value: "Setează canalul curent ca destinație pentru alertele cu reduceri masive de preț (peste 70%) sau jocuri complet gratuite de pe platformele Steam și Epic Games."
         },
-        { 
-          name: `\`${PREFIX}stop reduceri\``, 
-          value: "Oprește alertele automate de oferte și jocuri gratuite pe acest server." 
+        {
+          name: `\`${PREFIX}stop reduceri\``,
+          value: "Oprește alertele automate de oferte și jocuri gratuite pe acest server."
         },
-        { 
-          name: `\`${PREFIX}latest updates\``, 
-          value: "Afișează pe loc, manual, o listă structurată pe pagini cu cele mai noi update-uri pentru **toate jocurile** pe care le monitorizează botul." 
+        {
+          name: `\`${PREFIX}latest updates\``,
+          value: "Afișează pe loc, manual, o listă structurată pe pagini cu cele mai noi update-uri pentru toate jocurile pe care le monitorizează botul."
         },
-        { 
-          name: `\`${PREFIX}latest update [poreclă]\``, 
-          value: "Caută imediat cel mai recent update pentru un anumit joc. De exemplu, scrii `big_master!latest update cs2` și primești ultimul update la Counter-Strike 2." 
+        {
+          name: `\`${PREFIX}latest update [poreclă]\``,
+          value: "Caută imediat cel mai recent update pentru un anumit joc. De exemplu, scrii `big_master!latest update cs2` și primești ultimul update la Counter-Strike 2."
         },
-        { 
-          name: `\`${PREFIX}latest reduceri\``, 
-          value: "Caută manual și afișează topul ofertelor și jocurilor gratuite valabile în acest moment pe Steam și Epic Games." 
+        {
+          name: `\`${PREFIX}latest reduceri\``,
+          value: "Caută manual și afișează topul ofertelor și jocurilor gratuite valabile în acest moment pe Steam și Epic Games."
         },
-        { 
-          name: `\`${PREFIX}games\``, 
-          value: "Îți arată pur și simplu o listă curată cu numele tuturor jocurilor și driverelor incluse momentan în baza mea de date." 
+        {
+          name: `\`${PREFIX}games\``,
+          value: "Îți arată pur și simplu o listă curată cu numele tuturor jocurilor și driverelor incluse momentan în baza mea de date."
         },
-        { 
-          name: `\`${PREFIX}porecle\``, 
-          value: "Îți arată cuvintele cheie (poreclele) pe care trebuie să le folosești alături de comanda `latest update` pentru a găsi rapid jocul dorit." 
+        {
+          name: `\`${PREFIX}porecle\``,
+          value: "Îți arată cuvintele cheie (poreclele) pe care trebuie să le folosești alături de comanda `latest update` pentru a găsi rapid jocul dorit."
         },
-        { 
-          name: `\`${PREFIX}ping\``, 
-          value: "Testează rapid dacă sunt online și îți arată că sistemele mele sunt operaționale." 
+        {
+          name: `\`${PREFIX}ping\``,
+          value: "Testează rapid dacă sunt online și îți arată că sistemele mele sunt operaționale."
         }
       )
       .setFooter({ text: "Pentru orice eroare, contactează administratorul." })
