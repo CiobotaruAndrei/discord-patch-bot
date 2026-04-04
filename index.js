@@ -43,6 +43,7 @@ const safetySettings = [
   { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
 ];
 
+// Functie pentru rezumat singular (folosita la latest update [porecla])
 async function getAiTranslationAndSummary(title, fullText) {
   if (!genAI) return { titlu: title, rezumat: "⚠️ Eroare: Cheia API Gemini lipsește." };
   if (!fullText || fullText.trim() === "") return { titlu: title, rezumat: "Nu există detalii textuale pentru acest update." };
@@ -60,7 +61,7 @@ async function getAiTranslationAndSummary(title, fullText) {
 Fă un rezumat folosind o listă cu buline (maxim 4-5 idei principale) în limba română. Fii direct și la obiect.
 
 Titlu original: ${title || "Update"}
-Text complet update: ${fullText}
+Text complet update: ${fullText.slice(0, 10000)}
 
 Returnează rezultatul STRICT ca un obiect JSON valid, cu această structură:
 {"titlu": "titlul tradus", "rezumat": "rezumatul textului"}`;
@@ -80,8 +81,68 @@ Returnează rezultatul STRICT ca un obiect JSON valid, cu această structură:
       rezumat: data.rezumat || "Eroare la formatarea rezumatului." 
     };
   } catch (error) {
-    console.error("Eroare Gemini API:", error);
-    return { titlu: title, rezumat: `❌ Eroare tehnică: ${error.message.split('\n')[0]}` };
+    console.error("Eroare Gemini API Single:", error);
+    return { titlu: title, rezumat: `❌ Eroare tehnică API: ${error.message.split('\n')[0]}` };
+  }
+}
+
+// Noua functie BATCH - Proceseaza 5 jocuri in ACEEASI cerere pentru a nu atinge limitele gratuite
+async function getAiBatchSummary(items) {
+  if (!genAI) return items.map(item => ({ titlu: item.title, rezumat: "⚠️ Eroare API Gemini." }));
+
+  // Decupam la un maxim sigur de caractere pt a trimite totul intr-un singur pachet
+  const payload = items.map((item, index) => ({
+    id: index,
+    titluOriginal: item.title || "Update",
+    textOriginal: (item.fullText || item.excerpt || "Fara detalii").slice(0, 7000)
+  }));
+
+  try {
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash", 
+      safetySettings,
+      generationConfig: { responseMimeType: "application/json" } 
+    });
+
+    const prompt = `Ești un asistent de gaming. Mai jos ai un array JSON cu detalii despre mai multe update-uri de jocuri.
+Pentru FIECARE element din array, fa urmatoarele:
+1. Tradu titlul original in romana.
+2. Analizeaza textul si extrage cele mai importante noutati, schimbari sau adaugiri sub forma unei liste scurte cu buline in romana (maxim 4 idei per joc).
+
+Date intrare:
+${JSON.stringify(payload)}
+
+Returneaza STRICT un obiect JSON cu structura de mai jos, care sa contina toate elementele procesate:
+{
+  "rezultate": [
+    { "id": 0, "titlu": "titlu tradus", "rezumat": "rezumat cu buline" },
+    { "id": 1, "titlu": "...", "rezumat": "..." }
+  ]
+}`;
+
+    const result = await model.generateContent(prompt);
+    let responseText = result.response.text().trim();
+    
+    if (responseText.startsWith("```json")) {
+      responseText = responseText.replace(/^```json/i, "").replace(/```$/i, "").trim();
+    } else if (responseText.startsWith("```")) {
+      responseText = responseText.replace(/^```/i, "").replace(/```$/i, "").trim();
+    }
+
+    const data = JSON.parse(responseText);
+    
+    // Mapam rezultatele inapoi la ordinea originala
+    return items.map((item, index) => {
+      const res = data.rezultate.find(r => r.id === index);
+      return {
+        titlu: res ? res.titlu : item.title,
+        rezumat: res ? res.rezumat : "Eroare la generarea rezumatului."
+      };
+    });
+
+  } catch (error) {
+    console.error("Eroare Gemini API Batch:", error);
+    return items.map(item => ({ titlu: item.title, rezumat: `❌ Limită atinsă sau eroare API: ${error.message.split('\n')[0]}` }));
   }
 }
 
@@ -383,7 +444,7 @@ async function fetchAmdUpdate(game) {
 // -------------------------------------------------------------
 
 async function fetchSteamUpdate(game) {
-  const apiUrl = `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${game.appId}&count=100&maxlength=20000&format=json`;
+  const apiUrl = `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${game.appId}&count=100&maxlength=25000&format=json`;
   const response = await axios.get(apiUrl, { timeout: 15000 });
   const newsItems = response?.data?.appnews?.newsitems;
 
@@ -404,7 +465,6 @@ async function fetchSteamUpdate(game) {
 
   let rawContents = String(latest.contents || "").replace(/https?:\/\/[^\s]+/gi, "").replace(/\[[^\]]+\]/g, " ");
   
-  // Extragem ambele: varianta scurta pt afisarea normala, si tot textul pt AI
   const cleanExcerpt = cleanText(rawContents).slice(0, 700);
   const fullText = cleanText(rawContents).slice(0, 15000); 
 
@@ -474,12 +534,11 @@ async function fetchListingBasedUpdate(game) {
   const articleRes = await axios.get(articleUrl, { timeout: 15000, headers: { "User-Agent": "Mozilla/5.0" } });
   const articleHtml = String(articleRes.data || "");
 
-  // Curatam scripturile inutile inainte sa luam textul complet
   let cleanHtml = articleHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ");
   cleanHtml = cleanHtml.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ");
 
   const shortExcerpt = extractDescriptionFromHtml(articleHtml).slice(0, 700) || `A apărut un nou update oficial pentru ${game.name}.`;
-  const fullText = cleanText(cleanHtml).slice(0, 15000); // Pana la 15.000 caractere din continutul paginii
+  const fullText = cleanText(cleanHtml).slice(0, 15000); 
   
   return {
     id: String(articleUrl), title: extractTitleFromHtml(articleHtml) || `Update nou pentru ${game.name}`, link: articleUrl,
@@ -500,7 +559,7 @@ async function fetchMinecraftUpdate() {
     id: String(latestVersion), title: `Minecraft: Java Edition ${latestVersion}`,
     link: `https://www.minecraft.net/en-us/article/minecraft-java-edition-${formattedVersion}`,
     excerpt: excerpt,
-    fullText: excerpt, // Minecraft e dificil de extras full text fara scraper dedicat, trimitem doar ideea principala
+    fullText: excerpt, 
     image: "https://www.minecraft.net/content/dam/minecraftnet/games/minecraft/key-art/MCV-keyart-default.jpg",
     thumbnail: "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg",
     timestamp: new Date().toISOString()
@@ -532,7 +591,6 @@ async function fetchFortniteUpdate() {
     if (!latest) latest = validPosts[0];
 
     const shortExcerpt = cleanText(latest.shareDescription || "A apărut o nouă actualizare oficială.").slice(0, 700);
-    // Incercam sa luam contentul integral (content), daca nu, fallback la shareDescription
     const fullText = cleanText(latest.content || latest.shareDescription).slice(0, 15000);
 
     return {
@@ -923,7 +981,7 @@ client.once("ready", async () => {
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isButton()) return;
 
-  // Handler pentru single-update (cand e apelat pe un anumit canal)
+  // Handler pentru single-update (cand e apelat pe un anumit canal prin latest update)
   if (interaction.customId === "translate_update") {
     await interaction.deferUpdate();
     
@@ -934,7 +992,7 @@ client.on("interactionCreate", async (interaction) => {
       let textToSummarize = originalEmbed.description;
       const gameName = originalEmbed.footer?.text;
       
-      // Dacă știm ce joc este din Footer, descărcăm TOT textul în loc să folosim doar preview-ul din embed
+      // Luam TOT textul in loc sa facem rezumat la rezumat
       if (gameName) {
          const game = config.games.find(g => g.name === gameName);
          if (game) {
@@ -1169,26 +1227,29 @@ client.on("messageCreate", async (message) => {
         const chunk = validResults.slice(startIndex, startIndex + itemsPerPage);
         const pageEmbeds = [];
 
-        for (const r of chunk) {
-          const emb = buildUpdateEmbed(r.game.name, r.latest);
-          emb.setFooter({ text: `${r.game.name} • Pagina ${pageIndex + 1} din ${totalPages}` });
+        if (needsTranslation) {
+            // Trimitem TOATE jocurile dintr-o data la AI, in loc de 5 request-uri
+            const batchItems = chunk.map(r => ({
+                title: r.latest.title,
+                fullText: r.latest.fullText || r.latest.excerpt
+            }));
 
-          if (needsTranslation) {
-             try {
-               await new Promise(resolve => setTimeout(resolve, 2500));
-               
-               // Trimitem FULL TEXT la AI (sau excerpt daca full nu exista)
-               const textToSummarize = r.latest.fullText || r.latest.excerpt;
-               if (textToSummarize) {
-                 const aiResult = await getAiTranslationAndSummary(r.latest.title, textToSummarize);
-                 emb.setTitle(aiResult.titlu);
-                 emb.setDescription(`✨ **Rezumat AI:**\n${aiResult.rezumat}`);
-               }
-             } catch (e) {
-               // Fallback silentios
-             }
-          }
-          pageEmbeds.push(emb);
+            const aiResults = await getAiBatchSummary(batchItems);
+
+            chunk.forEach((r, idx) => {
+                const emb = buildUpdateEmbed(r.game.name, r.latest);
+                emb.setFooter({ text: `${r.game.name} • Pagina ${pageIndex + 1} din ${totalPages}` });
+                emb.setTitle(aiResults[idx].titlu);
+                emb.setDescription(`✨ **Rezumat AI:**\n${aiResults[idx].rezumat}`);
+                pageEmbeds.push(emb);
+            });
+        } else {
+            // Fara traducere
+            chunk.forEach(r => {
+                const emb = buildUpdateEmbed(r.game.name, r.latest);
+                emb.setFooter({ text: `${r.game.name} • Pagina ${pageIndex + 1} din ${totalPages}` });
+                pageEmbeds.push(emb);
+            });
         }
 
         if (needsTranslation) translatedCache[pageIndex] = pageEmbeds;
