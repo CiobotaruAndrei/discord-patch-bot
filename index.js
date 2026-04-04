@@ -49,7 +49,8 @@ async function getAiSummary(text) {
   if (!text || text.trim() === "") return "Nu există detalii textuale pentru acest update.";
   
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", safetySettings });
+    // Am actualizat modelul la versiunea 2.5-flash (cea noua si valabila)
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", safetySettings });
     const prompt = `Ești un asistent de gaming. Fă un rezumat foarte scurt, clar și la obiect (maxim 2-3 propoziții), în limba română, pentru următoarele note de lansare/update ale unui joc. Extrage doar esențialul. Nu folosi formatare markdown complexă dacă nu e nevoie. Text original:\n\n${text}`;
     
     const result = await model.generateContent(prompt);
@@ -63,7 +64,8 @@ async function getAiSummary(text) {
 async function getAiTranslatedTitle(title) {
   if (!genAI || !title) return title;
   try {
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", safetySettings });
+      // Am actualizat modelul la versiunea 2.5-flash
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", safetySettings });
       const prompt = `Tradu următorul titlu de update de joc în limba română scurt și la obiect. Păstrează numerele de versiune intacte. Oferă DOAR traducerea, fără ghilimele:\n\n${title}`;
       const result = await model.generateContent(prompt);
       return result.response.text().trim();
