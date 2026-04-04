@@ -43,9 +43,9 @@ const safetySettings = [
   { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
 ];
 
-async function getAiTranslationAndSummary(title, text) {
+async function getAiTranslationAndSummary(title, fullText) {
   if (!genAI) return { titlu: title, rezumat: "⚠️ Eroare: Cheia API Gemini lipsește." };
-  if (!text || text.trim() === "") return { titlu: title, rezumat: "Nu există detalii textuale." };
+  if (!fullText || fullText.trim() === "") return { titlu: title, rezumat: "Nu există detalii textuale pentru acest update." };
 
   try {
     const model = genAI.getGenerativeModel({ 
@@ -55,11 +55,12 @@ async function getAiTranslationAndSummary(title, text) {
     });
     
     const prompt = `Ești un asistent de gaming.
-1. Tradu titlul original în română.
-2. Fă un rezumat foarte scurt, clar și la obiect (maxim 2-3 propoziții) în română pentru textul original, extrăgând doar noutățile esențiale.
+1. Tradu titlul original în limba română.
+2. Analizează cu atenție textul complet al acestui update/patch notes și extrage cele mai importante noutăți, schimbări sau reparații.
+Fă un rezumat folosind o listă cu buline (maxim 4-5 idei principale) în limba română. Fii direct și la obiect.
 
 Titlu original: ${title || "Update"}
-Text original: ${text}
+Text complet update: ${fullText}
 
 Returnează rezultatul STRICT ca un obiect JSON valid, cu această structură:
 {"titlu": "titlul tradus", "rezumat": "rezumatul textului"}`;
@@ -67,7 +68,6 @@ Returnează rezultatul STRICT ca un obiect JSON valid, cu această structură:
     const result = await model.generateContent(prompt);
     let responseText = result.response.text().trim();
     
-    // Curățare în caz că AI-ul folosește markdown din greșeală
     if (responseText.startsWith("```json")) {
       responseText = responseText.replace(/^```json/i, "").replace(/```$/i, "").trim();
     } else if (responseText.startsWith("```")) {
@@ -296,7 +296,9 @@ async function fetchNvidiaUpdate(game) {
 
     return {
       id: cleanT, title: `${game.name} ${versionStr}`, link: link, 
-      excerpt: `Sursa: Sistemul oficial de articole NVIDIA.`, thumbnail: game.thumbnail, timestamp: new Date(pubDate).toISOString()
+      excerpt: `Sursa: Sistemul oficial de articole NVIDIA.`, 
+      fullText: `Sursa: Sistemul oficial de articole NVIDIA. Noul driver ${versionStr} este disponibil.`,
+      thumbnail: game.thumbnail, timestamp: new Date(pubDate).toISOString()
     };
   }
   throw new Error(`Nu am putut găsi date pentru ${game.name}.`);
@@ -313,7 +315,9 @@ async function fetchIntelUpdate(game) {
       const version = versionMatch[1];
       return {
         id: version, title: `${game.name} v${version}`, link: game.url,
-        excerpt: `Extras direct de pe pagina oficială Intel.\n**Versiune găsită:** ${version}`, thumbnail: game.thumbnail, timestamp: new Date().toISOString()
+        excerpt: `Extras direct de pe pagina oficială Intel.\n**Versiune găsită:** ${version}`, 
+        fullText: `Extras direct de pe pagina oficială Intel. Versiune nouă detectată: ${version}`,
+        thumbnail: game.thumbnail, timestamp: new Date().toISOString()
       };
     }
   } catch (err) {}
@@ -332,7 +336,9 @@ async function fetchIntelUpdate(game) {
 
     return {
       id: cleanText(match[1]), title: `${game.name} ${versionStr}`, link: match[2],
-      excerpt: "Sursa: Sistemul oficial de articole Intel.", thumbnail: game.thumbnail, timestamp: new Date().toISOString()
+      excerpt: "Sursa: Sistemul oficial de articole Intel.", 
+      fullText: "Sursa: Sistemul oficial de articole Intel. Un nou update a fost detectat.",
+      thumbnail: game.thumbnail, timestamp: new Date().toISOString()
     };
   }
   throw new Error("Acces refuzat la serverele Intel.");
@@ -350,7 +356,9 @@ async function fetchAmdUpdate(game) {
     if (versionMatch) {
       return {
         id: versionMatch[1], title: `AMD Radeon Adrenalin v${versionMatch[1]}`, link: amdUrl,
-        excerpt: "Scanat direct de pe serverul amd.com. Un nou driver este disponibil.", thumbnail: game.thumbnail, timestamp: new Date().toISOString()
+        excerpt: "Scanat direct de pe serverul amd.com. Un nou driver este disponibil.", 
+        fullText: "Scanat direct de pe serverul amd.com. Un nou driver Adrenalin este disponibil pentru descărcare.",
+        thumbnail: game.thumbnail, timestamp: new Date().toISOString()
       };
     }
   } catch (err) {}
@@ -362,7 +370,9 @@ async function fetchAmdUpdate(game) {
   if (match) {
     return {
       id: cleanText(match[1]), title: cleanText(match[1]).split(" - ")[0], link: match[2],
-      excerpt: "Sursa: Sistemul oficial de articole AMD.", thumbnail: game.thumbnail, timestamp: new Date().toISOString()
+      excerpt: "Sursa: Sistemul oficial de articole AMD.", 
+      fullText: "Sursa: Sistemul oficial de articole AMD. A fost detectat un articol nou cu update-uri.",
+      thumbnail: game.thumbnail, timestamp: new Date().toISOString()
     };
   }
   throw new Error("Acces refuzat de protecția anti-bot a serverului AMD.");
@@ -373,7 +383,7 @@ async function fetchAmdUpdate(game) {
 // -------------------------------------------------------------
 
 async function fetchSteamUpdate(game) {
-  const apiUrl = `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${game.appId}&count=100&maxlength=2000&format=json`;
+  const apiUrl = `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${game.appId}&count=100&maxlength=20000&format=json`;
   const response = await axios.get(apiUrl, { timeout: 15000 });
   const newsItems = response?.data?.appnews?.newsitems;
 
@@ -393,11 +403,16 @@ async function fetchSteamUpdate(game) {
   if (!latest.gid || !latest.title) throw new Error("Update invalid primit de la Steam.");
 
   let rawContents = String(latest.contents || "").replace(/https?:\/\/[^\s]+/gi, "").replace(/\[[^\]]+\]/g, " ");
+  
+  // Extragem ambele: varianta scurta pt afisarea normala, si tot textul pt AI
   const cleanExcerpt = cleanText(rawContents).slice(0, 700);
+  const fullText = cleanText(rawContents).slice(0, 15000); 
 
   return {
     id: String(latest.gid), title: cleanText(latest.title), link: String(latest.url).trim(), 
-    excerpt: cleanExcerpt || `A apărut un nou update pentru ${game.name}.`, timestamp: latest.date ? new Date(latest.date * 1000).toISOString() : undefined
+    excerpt: cleanExcerpt || `A apărut un nou update pentru ${game.name}.`, 
+    fullText: fullText || cleanExcerpt,
+    timestamp: latest.date ? new Date(latest.date * 1000).toISOString() : undefined
   };
 }
 
@@ -459,9 +474,17 @@ async function fetchListingBasedUpdate(game) {
   const articleRes = await axios.get(articleUrl, { timeout: 15000, headers: { "User-Agent": "Mozilla/5.0" } });
   const articleHtml = String(articleRes.data || "");
 
+  // Curatam scripturile inutile inainte sa luam textul complet
+  let cleanHtml = articleHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ");
+  cleanHtml = cleanHtml.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ");
+
+  const shortExcerpt = extractDescriptionFromHtml(articleHtml).slice(0, 700) || `A apărut un nou update oficial pentru ${game.name}.`;
+  const fullText = cleanText(cleanHtml).slice(0, 15000); // Pana la 15.000 caractere din continutul paginii
+  
   return {
     id: String(articleUrl), title: extractTitleFromHtml(articleHtml) || `Update nou pentru ${game.name}`, link: articleUrl,
-    excerpt: extractDescriptionFromHtml(articleHtml).slice(0, 700) || `A apărut un nou update oficial pentru ${game.name}.`,
+    excerpt: shortExcerpt,
+    fullText: fullText,
     image: extractImageFromHtml(articleHtml), thumbnail: game.thumbnail || undefined, timestamp: extractPublishedTimeFromHtml(articleHtml)
   };
 }
@@ -472,10 +495,12 @@ async function fetchMinecraftUpdate() {
   if (!latestVersion) throw new Error("Date lipsă pe serverul Mojang.");
   const formattedVersion = latestVersion.replace(/\./g, "-");
 
+  const excerpt = `O nouă versiune oficială (${latestVersion}) este disponibilă!`;
   return {
     id: String(latestVersion), title: `Minecraft: Java Edition ${latestVersion}`,
     link: `https://www.minecraft.net/en-us/article/minecraft-java-edition-${formattedVersion}`,
-    excerpt: `O nouă versiune oficială (${latestVersion}) este disponibilă!`,
+    excerpt: excerpt,
+    fullText: excerpt, // Minecraft e dificil de extras full text fara scraper dedicat, trimitem doar ideea principala
     image: "https://www.minecraft.net/content/dam/minecraftnet/games/minecraft/key-art/MCV-keyart-default.jpg",
     thumbnail: "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg",
     timestamp: new Date().toISOString()
@@ -506,9 +531,14 @@ async function fetchFortniteUpdate() {
 
     if (!latest) latest = validPosts[0];
 
+    const shortExcerpt = cleanText(latest.shareDescription || "A apărut o nouă actualizare oficială.").slice(0, 700);
+    // Incercam sa luam contentul integral (content), daca nu, fallback la shareDescription
+    const fullText = cleanText(latest.content || latest.shareDescription).slice(0, 15000);
+
     return {
       id: String(latest._id || latest.slug), title: cleanText(latest.title) || "Fortnite Update", link: `https://www.fortnite.com/news/${latest.slug}`,
-      excerpt: cleanText(latest.shareDescription || "A apărut o nouă actualizare oficială.").slice(0, 700),
+      excerpt: shortExcerpt,
+      fullText: fullText,
       image: latest.image || latest.trendingImage, thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
       timestamp: latest.date ? new Date(latest.date).toISOString() : new Date().toISOString()
     };
@@ -519,9 +549,12 @@ async function fetchFortniteUpdate() {
     if (!Array.isArray(items) || items.length === 0) throw new Error("Toate metodele pentru Fortnite au eșuat.");
 
     const latestBackup = items[0];
+    const excerpt = "A apărut un nou articol oficial de actualizare pe site-ul Fortnite.";
     return {
       id: String(latestBackup.guid || latestBackup.link), title: cleanText(latestBackup.title).replace(/\s-\sFortnite$/i, "").trim() || "Fortnite: Noutăți",
-      link: latestBackup.link || "https://www.fortnite.com/news", excerpt: "A apărut un nou articol oficial de actualizare pe site-ul Fortnite.",
+      link: latestBackup.link || "https://www.fortnite.com/news", 
+      excerpt: excerpt,
+      fullText: excerpt,
       image: "https://cdn2.unrealengine.com/14br-consoles-1920x1080-1920x1080-4954ecbc82b3.jpg", thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
       timestamp: latestBackup.pubDate ? new Date(latestBackup.pubDate).toISOString() : new Date().toISOString()
     };
@@ -533,9 +566,11 @@ async function fetchRobloxUpdate() {
   const version = res?.data?.clientVersionUpload;
   if (!version) throw new Error("Nu am putut accesa serverul de update Roblox.");
 
+  const excerpt = `Un nou client oficial Roblox a fost urcat pe servere (versiunea: ${version}).`;
   return {
     id: String(version), title: "Roblox Client Update", link: "https://en.help.roblox.com/hc/en-us/articles/203312870-Update-Log",
-    excerpt: `Un nou client oficial Roblox a fost urcat pe servere (versiunea: ${version}).`,
+    excerpt: excerpt,
+    fullText: excerpt,
     thumbnail: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Roblox_Logo_2022.jpg", timestamp: new Date().toISOString()
   };
 }
@@ -888,7 +923,7 @@ client.once("ready", async () => {
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isButton()) return;
 
-  // Handler pentru single-update
+  // Handler pentru single-update (cand e apelat pe un anumit canal)
   if (interaction.customId === "translate_update") {
     await interaction.deferUpdate();
     
@@ -896,7 +931,19 @@ client.on("interactionCreate", async (interaction) => {
     if (!originalEmbed || !originalEmbed.description) return;
 
     try {
-      const aiResult = await getAiTranslationAndSummary(originalEmbed.title, originalEmbed.description);
+      let textToSummarize = originalEmbed.description;
+      const gameName = originalEmbed.footer?.text;
+      
+      // Dacă știm ce joc este din Footer, descărcăm TOT textul în loc să folosim doar preview-ul din embed
+      if (gameName) {
+         const game = config.games.find(g => g.name === gameName);
+         if (game) {
+             const latest = await fetchGameUpdate(game);
+             textToSummarize = latest.fullText || latest.excerpt || textToSummarize;
+         }
+      }
+
+      const aiResult = await getAiTranslationAndSummary(originalEmbed.title, textToSummarize);
 
       const newEmbed = EmbedBuilder.from(originalEmbed)
         .setTitle(aiResult.titlu)
@@ -1108,7 +1155,6 @@ client.on("messageCreate", async (message) => {
       const itemsPerPage = 5; 
       const totalPages = Math.ceil(validResults.length / itemsPerPage);
 
-      // Variabile pentru noul sistem de generare rezumate cu AI
       let isGloballyTranslated = false;
       const originalCache = {};
       const translatedCache = {};
@@ -1129,16 +1175,17 @@ client.on("messageCreate", async (message) => {
 
           if (needsTranslation) {
              try {
-               // 2.5 SECUNDE PAUZA PENTRU A EVITA EROAREA 429
                await new Promise(resolve => setTimeout(resolve, 2500));
                
-               if (r.latest.excerpt) {
-                 const aiResult = await getAiTranslationAndSummary(r.latest.title, r.latest.excerpt);
+               // Trimitem FULL TEXT la AI (sau excerpt daca full nu exista)
+               const textToSummarize = r.latest.fullText || r.latest.excerpt;
+               if (textToSummarize) {
+                 const aiResult = await getAiTranslationAndSummary(r.latest.title, textToSummarize);
                  emb.setTitle(aiResult.titlu);
                  emb.setDescription(`✨ **Rezumat AI:**\n${aiResult.rezumat}`);
                }
              } catch (e) {
-               // Daca AI-ul pica, va ramane textul original
+               // Fallback silentios
              }
           }
           pageEmbeds.push(emb);
