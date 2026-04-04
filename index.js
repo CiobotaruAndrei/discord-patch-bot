@@ -549,7 +549,6 @@ async function fetchDeals() {
   const steamDeals = await fetchDealsForStore(1, "Steam");
   const epicDeals = await fetchDealsForStore(25, "Epic Games"); 
 
-  // Am modificat ordinea aici: Steam primul, Epic Games al doilea
   const finalTop50 = [...steamDeals, ...epicDeals];
   
   if (finalTop50.length === 0) throw new Error("Nu s-au putut extrage oferte valide de pe Steam sau Epic.");
@@ -829,6 +828,7 @@ client.once("ready", async () => {
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isButton()) return;
 
+  // Handler pentru butoanele simple de traducere (ex: alerte sau latest update cs2)
   if (interaction.customId === "translate_update") {
     await interaction.deferUpdate();
     
@@ -860,10 +860,9 @@ client.on("messageCreate", async (message) => {
   const PREFIX = "big_master!";
   if (!message.content.startsWith(PREFIX)) return;
 
-  // Împărțim mesajul în bucăți
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-  const command1 = (args.shift() || "").toLowerCase(); // Primul cuvânt (ex: start, stop, latest)
-  const command2 = (args[0] || "").toLowerCase();      // Al doilea cuvânt (ex: updates, reduceri, update)
+  const command1 = (args.shift() || "").toLowerCase(); 
+  const command2 = (args[0] || "").toLowerCase();      
 
   const guildId = message.guild.id;
 
@@ -888,7 +887,7 @@ client.on("messageCreate", async (message) => {
   }
 
   if (command1 === "start" && command2 === "updates") {
-    args.shift(); // Scoatem "updates" din ecuație
+    args.shift();
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return message.reply(`⛔ Doar un administrator poate folosi comanda.`);
     }
@@ -903,7 +902,7 @@ client.on("messageCreate", async (message) => {
   }
 
   if (command1 === "stop" && command2 === "updates") {
-    args.shift(); // Scoatem "updates"
+    args.shift();
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return message.reply(`⛔ Doar un administrator poate folosi comanda.`);
     }
@@ -916,7 +915,7 @@ client.on("messageCreate", async (message) => {
   }
 
   if (command1 === "start" && command2 === "reduceri") {
-    args.shift(); // Scoatem "reduceri"
+    args.shift();
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return message.reply(`⛔ Doar un administrator poate folosi comanda.`);
     }
@@ -932,7 +931,7 @@ client.on("messageCreate", async (message) => {
   }
 
   if (command1 === "stop" && command2 === "reduceri") {
-    args.shift(); // Scoatem "reduceri"
+    args.shift();
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return message.reply(`⛔ Doar un administrator poate folosi comanda.`);
     }
@@ -947,7 +946,7 @@ client.on("messageCreate", async (message) => {
   if (command1 === "latest") {
     // --- 1. LATEST REDUCERI ---
     if (command2 === "reduceri") {
-      args.shift(); // Scoatem "reduceri"
+      args.shift(); 
       const state = await loadState();
       const estMs = state.executionTimes?.reduceri || 15000; 
       const estSec = Math.max(1, Math.ceil(estMs / 1000));
@@ -1031,7 +1030,7 @@ client.on("messageCreate", async (message) => {
 
     // --- 2. LATEST UPDATES (TOATE JOCURILE) ---
     if (command2 === "updates") {
-      args.shift(); // Scoatem "updates"
+      args.shift();
       const state = await loadState();
       const estMs = state.executionTimes?.all || 15000;
       const estSec = Math.max(1, Math.ceil(estMs / 1000)); 
@@ -1053,36 +1052,67 @@ client.on("messageCreate", async (message) => {
       const itemsPerPage = 5; 
       const totalPages = Math.ceil(validResults.length / itemsPerPage);
 
-      const generateUpdateEmbeds = (pageIndex) => {
+      // Variabile pentru noul sistem de traducere global cu cache
+      let isGloballyTranslated = false;
+      const originalCache = {};
+      const translatedCache = {};
+
+      const getPageEmbeds = async (pageIndex, forceTranslate = false) => {
+        const needsTranslation = forceTranslate || isGloballyTranslated;
+
+        if (needsTranslation && translatedCache[pageIndex]) return translatedCache[pageIndex];
+        if (!needsTranslation && originalCache[pageIndex]) return originalCache[pageIndex];
+
         const startIndex = pageIndex * itemsPerPage;
         const chunk = validResults.slice(startIndex, startIndex + itemsPerPage);
-        return chunk.map(r => {
-           const embed = buildUpdateEmbed(r.game.name, r.latest);
-           embed.setFooter({ text: `${r.game.name} • Pagina ${pageIndex + 1} din ${totalPages}` });
-           return embed;
-        });
+        const pageEmbeds = [];
+
+        for (const r of chunk) {
+          const emb = buildUpdateEmbed(r.game.name, r.latest);
+          emb.setFooter({ text: `${r.game.name} • Pagina ${pageIndex + 1} din ${totalPages}` });
+
+          if (needsTranslation) {
+             try {
+               if (r.latest.excerpt) {
+                 const tDesc = await translate(r.latest.excerpt, { to: 'ro' });
+                 emb.setDescription(tDesc);
+               }
+               if (r.latest.title) {
+                 const tTitle = await translate(r.latest.title, { to: 'ro' });
+                 emb.setTitle(tTitle);
+               }
+             } catch (e) {
+               // Daca traducerea esueaza, ramane textul original in engleza pentru acest embed specific.
+             }
+          }
+          pageEmbeds.push(emb);
+        }
+
+        if (needsTranslation) translatedCache[pageIndex] = pageEmbeds;
+        else originalCache[pageIndex] = pageEmbeds;
+
+        return pageEmbeds;
       };
 
-      const generateUpdateButtons = (pageIndex, translated = false) => {
+      const generateUpdateButtons = (pageIndex, isTranslated = false) => {
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder().setCustomId('prev_upd').setLabel('◀').setStyle(ButtonStyle.Secondary).setDisabled(pageIndex === 0),
           new ButtonBuilder().setCustomId('next_upd').setLabel('▶').setStyle(ButtonStyle.Primary).setDisabled(pageIndex === totalPages - 1)
         );
-        if (!translated) {
+        if (!isTranslated) {
           row.addComponents(
-            new ButtonBuilder().setCustomId('trans_upd').setLabel('🇷🇴 Tradu Pagina').setStyle(ButtonStyle.Success).setEmoji("🌍")
+            new ButtonBuilder().setCustomId('trans_upd').setLabel('🇷🇴 Tradu Toate Paginile').setStyle(ButtonStyle.Success).setEmoji("🌍")
           );
         }
         return row;
       };
 
-      let currentEmbeds = generateUpdateEmbeds(currentPage);
-      let isTranslatedPage = false;
+      let currentEmbeds = await getPageEmbeds(currentPage, false);
 
       const replyMsg = await loadingMsg.edit({
         content: `✅ **Cele mai recente update-uri (${validResults.length} jocuri monitorizate):**`,
         embeds: currentEmbeds,
-        components: [generateUpdateButtons(currentPage, isTranslatedPage)]
+        components: [generateUpdateButtons(currentPage, isGloballyTranslated)]
       });
 
       const collector = replyMsg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 300000 });
@@ -1093,37 +1123,30 @@ client.on("messageCreate", async (message) => {
         }
 
         if (btnInteraction.customId === 'prev_upd') {
-          currentPage--;
-          isTranslatedPage = false; 
-          currentEmbeds = generateUpdateEmbeds(currentPage);
           await btnInteraction.deferUpdate();
-          await btnInteraction.editReply({ embeds: currentEmbeds, components: [generateUpdateButtons(currentPage, isTranslatedPage)] });
+          currentPage--;
+          currentEmbeds = await getPageEmbeds(currentPage, isGloballyTranslated);
+          await btnInteraction.editReply({ embeds: currentEmbeds, components: [generateUpdateButtons(currentPage, isGloballyTranslated)] });
         } 
         else if (btnInteraction.customId === 'next_upd') {
-          currentPage++;
-          isTranslatedPage = false;
-          currentEmbeds = generateUpdateEmbeds(currentPage);
           await btnInteraction.deferUpdate();
-          await btnInteraction.editReply({ embeds: currentEmbeds, components: [generateUpdateButtons(currentPage, isTranslatedPage)] });
+          currentPage++;
+          currentEmbeds = await getPageEmbeds(currentPage, isGloballyTranslated);
+          await btnInteraction.editReply({ embeds: currentEmbeds, components: [generateUpdateButtons(currentPage, isGloballyTranslated)] });
         }
         else if (btnInteraction.customId === 'trans_upd') {
-          await btnInteraction.deferUpdate();
-          isTranslatedPage = true;
+          // Editam temporar mesajul pentru a arata o stare de "Se traduce..." si dezactivam butoanele ca sa evitam spam-ul
+          const loadingRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('prev_disabled').setLabel('◀').setStyle(ButtonStyle.Secondary).setDisabled(true),
+            new ButtonBuilder().setCustomId('next_disabled').setLabel('▶').setStyle(ButtonStyle.Secondary).setDisabled(true),
+            new ButtonBuilder().setCustomId('loading_btn').setLabel('⏳ Se traduce...').setStyle(ButtonStyle.Secondary).setDisabled(true)
+          );
+          await btnInteraction.update({ components: [loadingRow] });
+
+          isGloballyTranslated = true;
+          currentEmbeds = await getPageEmbeds(currentPage, true);
           
-          const msgEmbeds = btnInteraction.message.embeds;
-          const translatedEmbeds = [];
-          
-          for (const emb of msgEmbeds) {
-            try {
-              let tDesc = emb.description ? await translate(emb.description, { to: 'ro' }) : emb.description;
-              let tTitle = emb.title ? await translate(emb.title, { to: 'ro' }) : emb.title;
-              translatedEmbeds.push(EmbedBuilder.from(emb).setTitle(tTitle).setDescription(tDesc));
-            } catch (err) {
-              translatedEmbeds.push(EmbedBuilder.from(emb)); 
-            }
-          }
-          currentEmbeds = translatedEmbeds;
-          await btnInteraction.editReply({ embeds: currentEmbeds, components: [generateUpdateButtons(currentPage, isTranslatedPage)] });
+          await btnInteraction.editReply({ embeds: currentEmbeds, components: [generateUpdateButtons(currentPage, isGloballyTranslated)] });
         }
       });
 
@@ -1136,9 +1159,9 @@ client.on("messageCreate", async (message) => {
 
     // --- 3. LATEST UPDATE [PORECLĂ] (JOC SPECIFIC) ---
     if (command2 === "update") {
-      args.shift(); // Scoatem "update"
+      args.shift(); 
       
-      const gameText = args.join(" "); // Tot ce ramane e porecla
+      const gameText = args.join(" "); 
       const state = await loadState();
       const estMs = state.executionTimes?.single || 2000;
       const estSec = Math.max(1, Math.ceil(estMs / 1000)); 
@@ -1167,7 +1190,6 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    // Dacă ajunge aici înseamnă că a scris "big_master!latest" dar fără argumentele corecte
     return message.reply(`❌ Comandă incorectă. Folosește \`${PREFIX}help\` pentru a vedea cum se folosesc comenzile noi.`);
   }
 
