@@ -47,7 +47,7 @@ const stateSchema = new mongoose.Schema({
     type: Object, 
     default: { all: 15000, single: 2000, reduceri: 15000 } 
   }
-}, { minimize: false }); // minimize: false previne ștergerea obiectelor goale {}
+}, { minimize: false });
 
 const StateModel = mongoose.model("State", stateSchema);
 
@@ -64,7 +64,6 @@ async function loadState() {
     await StateModel.create(state);
   }
   
-  // Măsuri de siguranță pentru proprietăți noi
   if (!state.guilds) state.guilds = {};
   if (!state.seen) state.seen = {};
   if (!state.seenDiscounts) state.seenDiscounts = [];
@@ -859,32 +858,35 @@ client.on("messageCreate", async (message) => {
   const PREFIX = "big_master!";
   if (!message.content.startsWith(PREFIX)) return;
 
+  // Împărțim mesajul în bucăți
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-  const command = (args.shift() || "").toLowerCase();
+  const command1 = (args.shift() || "").toLowerCase(); // Primul cuvânt (ex: start, stop, latest)
+  const command2 = (args[0] || "").toLowerCase();      // Al doilea cuvânt (ex: updates, reduceri, update)
 
   const guildId = message.guild.id;
 
-  if (command === "ping") {
+  if (command1 === "ping") {
     await message.reply("Pong! 🏓 Sistemele sunt operaționale.");
     return;
   }
 
-  if (command === "games") {
+  if (command1 === "games") {
     await message.reply(
       `🎮 **Jocuri urmărite:**\n${config.games.map((g) => `- **${g.name}**`).join("\n")}`
     );
     return;
   }
 
-  if (command === "porecle") {
+  if (command1 === "porecle") {
     const list = config.games.map((g) => `**${g.name}** -> folosește porecla: \`${g.key}\``).join("\n");
     await message.reply(
-      `🏷️ **Lista de porecle pentru jocuri:**\nPentru a vedea ultimul update al unui joc specific, folosește comanda \`${PREFIX}latest [poreclă]\`.\n\n${list}`
+      `🏷️ **Lista de porecle pentru jocuri:**\nPentru a vedea ultimul update al unui joc specific, folosește comanda \`${PREFIX}latest update [poreclă]\`.\n\n${list}`
     );
     return;
   }
 
-  if (command === "startupdates") {
+  if (command1 === "start" && command2 === "updates") {
+    args.shift(); // Scoatem "updates" din ecuație
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return message.reply(`⛔ Doar un administrator poate folosi comanda.`);
     }
@@ -898,7 +900,8 @@ client.on("messageCreate", async (message) => {
     return message.reply("✅ Am pornit notificările automate de update-uri pe acest canal pentru acest server.");
   }
 
-  if (command === "stopupdates") {
+  if (command1 === "stop" && command2 === "updates") {
+    args.shift(); // Scoatem "updates"
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return message.reply(`⛔ Doar un administrator poate folosi comanda.`);
     }
@@ -910,7 +913,8 @@ client.on("messageCreate", async (message) => {
     return message.reply("🛑 Am oprit notificările automate de update pentru acest server.");
   }
 
-  if (command === "startreduceri") {
+  if (command1 === "start" && command2 === "reduceri") {
+    args.shift(); // Scoatem "reduceri"
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return message.reply(`⛔ Doar un administrator poate folosi comanda.`);
     }
@@ -925,7 +929,8 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  if (command === "stopreduceri") {
+  if (command1 === "stop" && command2 === "reduceri") {
+    args.shift(); // Scoatem "reduceri"
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return message.reply(`⛔ Doar un administrator poate folosi comanda.`);
     }
@@ -937,9 +942,10 @@ client.on("messageCreate", async (message) => {
     return message.reply("🛑 Am oprit notificările pentru reduceri pe acest server.");
   }
 
-  if (command === "latest") {
-    // --- 1. LATEST REDUCERI CU PAGINAȚIE ȘI TIMP ESTIMAT ---
-    if (args.length > 0 && args[0].toLowerCase() === "reduceri") {
+  if (command1 === "latest") {
+    // --- 1. LATEST REDUCERI ---
+    if (command2 === "reduceri") {
+      args.shift(); // Scoatem "reduceri"
       const state = await loadState();
       const estMs = state.executionTimes?.reduceri || 15000; 
       const estSec = Math.max(1, Math.ceil(estMs / 1000));
@@ -1021,17 +1027,16 @@ client.on("messageCreate", async (message) => {
       return; 
     }
 
-    const state = await loadState();
-    const isAll = args.length === 0;
-    const estType = isAll ? "all" : "single";
-    const estMs = state.executionTimes?.[estType] || (isAll ? 15000 : 2000);
-    const estSec = Math.max(1, Math.ceil(estMs / 1000)); 
+    // --- 2. LATEST UPDATES (TOATE JOCURILE) ---
+    if (command2 === "updates") {
+      args.shift(); // Scoatem "updates"
+      const state = await loadState();
+      const estMs = state.executionTimes?.all || 15000;
+      const estSec = Math.max(1, Math.ceil(estMs / 1000)); 
 
-    const loadingMsg = await message.reply(`⏳ *Mă conectez la servere... Durată estimată: **${estSec} secunde**.*`);
-    const startTime = Date.now(); 
+      const loadingMsg = await message.reply(`⏳ *Mă conectez la servere... Durată estimată: **${estSec} secunde**.*`);
+      const startTime = Date.now(); 
 
-    // --- 2. LATEST ALL JOCURI (CU PAGINAȚIE ȘI TIMP) ---
-    if (isAll) {
       const results = await getLatestForAllGames();
       const elapsed = Date.now() - startTime;
       state.executionTimes["all"] = Math.round((estMs + elapsed) / 2);
@@ -1127,33 +1132,96 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    // --- 3. LATEST SINGLE (Când ceri un anumit joc ex: latest cs2) ---
-    const gameText = args.join(" ");
-    const game = findGameFromText(gameText);
+    // --- 3. LATEST UPDATE [PORECLĂ] (JOC SPECIFIC) ---
+    if (command2 === "update") {
+      args.shift(); // Scoatem "update"
+      
+      const gameText = args.join(" "); // Tot ce ramane e porecla
+      const state = await loadState();
+      const estMs = state.executionTimes?.single || 2000;
+      const estSec = Math.max(1, Math.ceil(estMs / 1000)); 
 
-    if (!game) return loadingMsg.edit(`❌ Nu am găsit jocul. Folosește **${PREFIX}porecle** pentru listă.`);
+      const loadingMsg = await message.reply(`⏳ *Mă conectez la servere... Durată estimată: **${estSec} secunde**.*`);
+      const startTime = Date.now(); 
 
-    try {
-      const latest = await fetchGameUpdate(game);
-      const elapsed = Date.now() - startTime;
-      state.executionTimes["single"] = Math.round((estMs + elapsed) / 2);
-      await saveState(state);
-      await loadingMsg.delete().catch(() => null);
+      const game = findGameFromText(gameText);
+      if (!game) return loadingMsg.edit(`❌ Nu am găsit jocul. Folosește **${PREFIX}porecle** pentru a vedea lista exactă.`);
 
-      const translateBtnRowSingle = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("translate_update").setLabel("🇷🇴 Tradu în Română").setStyle(ButtonStyle.Primary).setEmoji("🌍")
-      );
+      try {
+        const latest = await fetchGameUpdate(game);
+        const elapsed = Date.now() - startTime;
+        state.executionTimes["single"] = Math.round((estMs + elapsed) / 2);
+        await saveState(state);
+        await loadingMsg.delete().catch(() => null);
 
-      await message.channel.send({ embeds: [buildUpdateEmbed(game.name, latest)], components: [translateBtnRowSingle] });
-    } catch (error) {
-      await loadingMsg.edit(`❌ Nu am putut lua ultimul update pentru **${game.name}**.`);
+        const translateBtnRowSingle = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId("translate_update").setLabel("🇷🇴 Tradu în Română").setStyle(ButtonStyle.Primary).setEmoji("🌍")
+        );
+
+        await message.channel.send({ embeds: [buildUpdateEmbed(game.name, latest)], components: [translateBtnRowSingle] });
+      } catch (error) {
+        await loadingMsg.edit(`❌ Nu am putut lua ultimul update pentru **${game.name}**.`);
+      }
+      return;
     }
-    return;
+
+    // Dacă ajunge aici înseamnă că a scris "big_master!latest" dar fără argumentele corecte
+    return message.reply(`❌ Comandă incorectă. Folosește \`${PREFIX}help\` pentru a vedea cum se folosesc comenzile noi.`);
   }
 
-  if (command === "help") {
-    // Aici ai meniul tău normal
-    // ...
+  // --- MENIUL HELP DETAILIAT ---
+  if (command1 === "help") {
+    const helpEmbed = new EmbedBuilder()
+      .setColor(0x0099FF)
+      .setTitle("📚 Manualul Botului - Meniul de Ajutor")
+      .setDescription("Iată lista completă a comenzilor și explicația exactă a ceea ce face fiecare:")
+      .addFields(
+        { 
+          name: `\`${PREFIX}start updates\``, 
+          value: "Dacă scrii comanda asta pe un canal, botul va trimite automat mesaje **doar pe acest canal** de fiecare dată când apare un update oficial nou pentru oricare din jocurile urmărite." 
+        },
+        { 
+          name: `\`${PREFIX}stop updates\``, 
+          value: "Oprește imediat trimiterea automată a notificărilor de update-uri pentru tot serverul." 
+        },
+        { 
+          name: `\`${PREFIX}start reduceri\``, 
+          value: "Setează canalul curent ca destinație pentru alertele cu reduceri masive de preț (peste 70%) sau jocuri complet gratuite de pe platformele Steam și Epic Games." 
+        },
+        { 
+          name: `\`${PREFIX}stop reduceri\``, 
+          value: "Oprește alertele automate de oferte și jocuri gratuite pe acest server." 
+        },
+        { 
+          name: `\`${PREFIX}latest updates\``, 
+          value: "Afișează pe loc, manual, o listă structurată pe pagini cu cele mai noi update-uri pentru **toate jocurile** pe care le monitorizează botul." 
+        },
+        { 
+          name: `\`${PREFIX}latest update [poreclă]\``, 
+          value: "Caută imediat cel mai recent update pentru un anumit joc. De exemplu, scrii `big_master!latest update cs2` și primești ultimul update la Counter-Strike 2." 
+        },
+        { 
+          name: `\`${PREFIX}latest reduceri\``, 
+          value: "Caută manual și afișează topul ofertelor și jocurilor gratuite valabile în acest moment pe Epic Games și Steam." 
+        },
+        { 
+          name: `\`${PREFIX}games\``, 
+          value: "Îți arată pur și simplu o listă curată cu numele tuturor jocurilor și driverelor incluse momentan în baza mea de date." 
+        },
+        { 
+          name: `\`${PREFIX}porecle\``, 
+          value: "Îți arată cuvintele cheie (poreclele) pe care trebuie să le folosești alături de comanda `latest update` pentru a găsi rapid jocul dorit." 
+        },
+        { 
+          name: `\`${PREFIX}ping\``, 
+          value: "Testează rapid dacă sunt online și îți arată că sistemele mele sunt operaționale." 
+        }
+      )
+      .setFooter({ text: "Pentru orice eroare, contactează administratorul." })
+      .setTimestamp();
+
+    await message.reply({ embeds: [helpEmbed] });
+    return;
   }
 });
 
