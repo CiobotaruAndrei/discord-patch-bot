@@ -132,8 +132,9 @@ const GuildModel = mongoose.model("Guild", guildSchema);
 const systemSchema = new mongoose.Schema({
   _id: { type: String, default: "system_state" },
   executionTimes: {
-    type: Object,
-    default: { all: 15000, single: 2000, reduceri: 15000 }
+    all: { type: Number, default: 15000 },
+    single: { type: Number, default: 2000 },
+    reduceri: { type: Number, default: 15000 }
   }
 }, { minimize: false });
 
@@ -899,7 +900,7 @@ async function getLatestForAllGames() {
 }
 
 async function checkForUpdates() {
-  const guilds = await GuildModel.find({ subscribed: true });
+  const guilds = await GuildModel.find({ subscribed: true }).lean();
   if (guilds.length === 0) return;
 
   const results = await getLatestForAllGames();
@@ -927,32 +928,44 @@ async function checkForUpdates() {
 
     if (!channel) continue;
 
-    let updateQueryObj = {};
-
     for (const { game, latest, error } of results) {
       if (error || !latest) continue;
 
       if (guildConfig.seen[game.key] !== latest.id) {
-        try {
-          await channel.send({ embeds: [buildUpdateEmbed(game.name, latest)] });
-          updateQueryObj[`seen.${game.key}`] = latest.id;
-        } catch (err) {
-          console.warn(`[Updates] Send failed pe guild ${guildConfig._id} pt jocul ${game.name}:`, err.message);
+        
+        const updateResult = await GuildModel.updateOne(
+          { _id: guildConfig._id, [`seen.${game.key}`]: { $ne: latest.id } },
+          { $set: { [`seen.${game.key}`]: latest.id } }
+        );
+
+        if (updateResult.modifiedCount > 0) {
+          try {
+            await channel.send({ embeds: [buildUpdateEmbed(game.name, latest)] });
+            guildConfig.seen[game.key] = latest.id;
+          } catch (err) {
+            console.warn(`[Updates] Send failed pe guild ${guildConfig._id} pt jocul ${game.name}. Execut ROLLBACK CONDIȚIONAT. Eroare:`, err.message);
+            
+            const previousId = guildConfig.seen[game.key];
+            if (previousId) {
+              await GuildModel.updateOne(
+                { _id: guildConfig._id, [`seen.${game.key}`]: latest.id },
+                { $set: { [`seen.${game.key}`]: previousId } }
+              );
+            } else {
+              await GuildModel.updateOne(
+                { _id: guildConfig._id, [`seen.${game.key}`]: latest.id },
+                { $unset: { [`seen.${game.key}`]: "" } }
+              );
+            }
+          }
         }
       }
-    }
-
-    if (Object.keys(updateQueryObj).length > 0) {
-      await GuildModel.updateOne(
-        { _id: guildConfig._id },
-        { $set: updateQueryObj }
-      );
     }
   }
 }
 
 async function checkForDiscounts() {
-  const guilds = await GuildModel.find({ discountsSubscribed: true });
+  const guilds = await GuildModel.find({ discountsSubscribed: true }).lean();
   if (guilds.length === 0) return;
 
   try {
@@ -981,54 +994,58 @@ async function checkForDiscounts() {
 
       if (!channel) continue;
 
-      let noileOferteId = [];
-
       for (const deal of deals) {
         if (!guildConfig.seenDiscounts.includes(deal.id)) {
-          if (!deal.enriched) await enrichDealData(deal);
-
-          const isFree = parseFloat(deal.salePrice) === 0;
-          const embed = new EmbedBuilder()
-            .setColor(isFree ? 0xffd700 : 0xe74c3c)
-            .setTitle(String(`${isFree ? "Joc Gratuit: " : "Reducere: "}${deal.title}`).slice(0, 250))
-            .setDescription(
-              `**${deal.store}** oferă o reducere masivă de **${deal.savings}%**!\n\n` +
-              (deal.endDateStr !== "Nespecificat" ? `⏳ **${isFree ? "Gratis până la" : "Oferta expiră la"}:** ${deal.endDateStr}\n\n` : "")
-            )
-            .addFields(
-              { name: "Preț Vechi", value: `~~$${deal.normalPrice}~~`, inline: true },
-              { name: "Preț Nou", value: isFree ? "🔥 GRATUIT 🔥" : `$${deal.salePrice}`, inline: true },
-              { name: "Link Către Magazin", value: `[Apasă aici pentru ofertă](${deal.link})`, inline: false }
-            )
-            .setTimestamp();
-
-          if (deal.thumbnail && deal.thumbnail.startsWith("http")) embed.setThumbnail(deal.thumbnail);
           
-          if (deal.extraDetails) {
-            embed.addFields({ name: "Detalii Suplimentare", value: deal.extraDetails.trim().substring(0, 1020), inline: false });
-          }
+          const updateResult = await GuildModel.updateOne(
+            { _id: guildConfig._id, seenDiscounts: { $ne: deal.id } },
+            { 
+              $push: { 
+                seenDiscounts: { 
+                  $each: [deal.id], 
+                  $slice: -300 
+                } 
+              } 
+            }
+          );
 
-          try {
-            await channel.send({ embeds: [embed] });
-            noileOferteId.push(deal.id);
-          } catch (e) {
-            console.warn(`[Reduceri] Send failed pe guild ${guildConfig._id}:`, e.message);
+          if (updateResult.modifiedCount > 0) {
+            if (!deal.enriched) await enrichDealData(deal);
+
+            const isFree = parseFloat(deal.salePrice) === 0;
+            const embed = new EmbedBuilder()
+              .setColor(isFree ? 0xffd700 : 0xe74c3c)
+              .setTitle(String(`${isFree ? "Joc Gratuit: " : "Reducere: "}${deal.title}`).slice(0, 250))
+              .setDescription(
+                `**${deal.store}** oferă o reducere masivă de **${deal.savings}%**!\n\n` +
+                (deal.endDateStr !== "Nespecificat" ? `⏳ **${isFree ? "Gratis până la" : "Oferta expiră la"}:** ${deal.endDateStr}\n\n` : "")
+              )
+              .addFields(
+                { name: "Preț Vechi", value: `~~$${deal.normalPrice}~~`, inline: true },
+                { name: "Preț Nou", value: isFree ? "🔥 GRATUIT 🔥" : `$${deal.salePrice}`, inline: true },
+                { name: "Link Către Magazin", value: `[Apasă aici pentru ofertă](${deal.link})`, inline: false }
+              )
+              .setTimestamp();
+
+            if (deal.thumbnail && deal.thumbnail.startsWith("http")) embed.setThumbnail(deal.thumbnail);
+            
+            if (deal.extraDetails) {
+              embed.addFields({ name: "Detalii Suplimentare", value: deal.extraDetails.trim().substring(0, 1020), inline: false });
+            }
+
+            try {
+              await channel.send({ embeds: [embed] });
+              guildConfig.seenDiscounts.push(deal.id);
+            } catch (e) {
+              console.warn(`[Reduceri] Send failed pe guild ${guildConfig._id}. Execut ROLLBACK. Eroare:`, e.message);
+              // $pull elimină strict deal.id-ul adăugat la acest pas, deci nu pune în pericol alte date adăugate de alte instanțe
+              await GuildModel.updateOne(
+                { _id: guildConfig._id },
+                { $pull: { seenDiscounts: deal.id } }
+              );
+            }
           }
         }
-      }
-
-      if (noileOferteId.length > 0) {
-        // Dedupificare reală la nivel de Mongo utilizând $addToSet
-        await GuildModel.updateOne(
-          { _id: guildConfig._id },
-          { 
-            $addToSet: { 
-              seenDiscounts: { 
-                $each: noileOferteId
-              } 
-            } 
-          }
-        );
       }
     }
 
@@ -1098,19 +1115,23 @@ client.on("messageCreate", async (message) => {
       return message.reply("⛔ Doar un administrator poate folosi comanda.");
     }
 
-    let gCfg = await getGuildConfig(guildId);
-    gCfg.notificationChannelId = message.channel.id;
-    gCfg.subscribed = true;
-    if (!gCfg.seen) gCfg.seen = {};
-
     const msg = await message.reply("⏳ Setez canalul și preiau istoricul jocurilor (ca să nu te spamez cu alerte vechi)...");
-
     const results = await getLatestForAllGames();
+    
+    let seenData = {};
     for (const r of results) {
-      if (r.latest) gCfg.seen[r.game.key] = r.latest.id;
+      if (r.latest) seenData[`seen.${r.game.key}`] = r.latest.id;
     }
 
-    await saveGuildConfig(guildId, gCfg);
+    await GuildModel.updateOne(
+      { _id: guildId }, 
+      { 
+        $set: { subscribed: true, notificationChannelId: message.channel.id, ...seenData },
+        $setOnInsert: { discountsSubscribed: false, discountChannelId: null, seenDiscounts: [] }
+      }, 
+      { upsert: true }
+    );
+    
     return msg.edit("✅ Am pornit notificările automate de update-uri pe acest canal pentru acest server.");
   }
 
@@ -1119,7 +1140,7 @@ client.on("messageCreate", async (message) => {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply("⛔ Doar un administrator poate folosi comanda.");
 
     await GuildModel.updateOne({ _id: guildId }, { $set: { subscribed: false, notificationChannelId: null, seen: {} } });
-    return message.reply("🛑 Am oprit notificările automate de update pentru acest server. Configurația canalului a fost curățată.");
+    return message.reply("🛑 Am oprit notificările automate de update pentru acest server. Configurația canalului a fost curățată complet.");
   }
 
   if (command1 === "start" && command2 === "reduceri") {
@@ -1128,26 +1149,23 @@ client.on("messageCreate", async (message) => {
 
     const loadingMsg = await message.reply("⏳ Preiau istoricul ofertelor curente pentru a preveni spam-ul...");
     
-    let gCfg = await getGuildConfig(guildId);
-    gCfg.discountChannelId = message.channel.id;
-    gCfg.discountsSubscribed = true;
-    if (!gCfg.seenDiscounts) gCfg.seenDiscounts = [];
-
+    let initialDealsIds = [];
     try {
       const currentDeals = await fetchDeals();
-      for (const d of currentDeals) {
-        if (!gCfg.seenDiscounts.includes(d.id)) {
-          gCfg.seenDiscounts.push(d.id);
-        }
-      }
-      if (gCfg.seenDiscounts.length > 300) {
-        gCfg.seenDiscounts = gCfg.seenDiscounts.slice(-300);
-      }
+      initialDealsIds = currentDeals.map(d => d.id).slice(-300);
     } catch (e) {
       console.warn("Nu s-au putut prelua ofertele la comanda start reduceri:", e.message);
     }
 
-    await saveGuildConfig(guildId, gCfg);
+    await GuildModel.updateOne(
+      { _id: guildId }, 
+      { 
+        $set: { discountsSubscribed: true, discountChannelId: message.channel.id, seenDiscounts: initialDealsIds },
+        $setOnInsert: { subscribed: false, notificationChannelId: null, seen: {} }
+      }, 
+      { upsert: true }
+    );
+
     await loadingMsg.edit("✅ Am activat alertele pentru reduceri masive pe acest canal! Vei primi **doar** oferte noi apărute de acum înainte.");
     return;
   }
@@ -1157,7 +1175,7 @@ client.on("messageCreate", async (message) => {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply("⛔ Doar un administrator poate folosi comanda.");
 
     await GuildModel.updateOne({ _id: guildId }, { $set: { discountsSubscribed: false, discountChannelId: null, seenDiscounts: [] } });
-    return message.reply("🛑 Am oprit notificările pentru reduceri pe acest server. Configurația canalului a fost curățată.");
+    return message.reply("🛑 Am oprit notificările pentru reduceri pe acest server. Configurația canalului a fost curățată complet.");
   }
 
   if (command1 === "latest") {
@@ -1417,21 +1435,21 @@ client.on("messageCreate", async (message) => {
       .setDescription("Iată lista completă a comenzilor și explicația exactă a ceea ce face fiecare:")
       .addFields(
         {
-          name: `${PREFIX}start updates`, value: "Dacă scrii comanda asta pe un canal, botul va trimite automat mesaje doar pe acest canal de fiecare dată când apare un update oficial nou pentru oricare din jocurile urmărite."
+          name: `${PREFIX}start updates`, value: "Setează canalul unde botul va trimite automat mesaje de fiecare dată când apare un update oficial nou."
         }, {
-          name: `${PREFIX}stop updates`, value: "Oprește imediat trimiterea automată a notificărilor de update-uri pentru tot serverul."
+          name: `${PREFIX}stop updates`, value: "Oprește notificările automate de update-uri pentru tot serverul și curăță datele salvate."
         }, {
-          name: `${PREFIX}start reduceri`, value: "Setează canalul curent ca destinație pentru alertele cu reduceri masive de preț (peste 70%) sau jocuri complet gratuite de pe platformele Steam și Epic Games."
+          name: `${PREFIX}start reduceri`, value: "Setează canalul pentru alertele cu reduceri masive de preț (peste 70%) sau jocuri complet gratuite."
         }, {
-          name: `${PREFIX}stop reduceri`, value: "Oprește alertele automate de oferte și jocuri gratuite pe acest server."
+          name: `${PREFIX}stop reduceri`, value: "Oprește alertele automate de oferte și curăță configurația canalului curent."
         }, {
-          name: `${PREFIX}latest updates`, value: "Afișează pe loc, manual, o listă structurată pe pagini cu cele mai noi update-uri pentru toate jocurile pe care le monitorizează botul."
+          name: `${PREFIX}latest updates`, value: "Afișează pe loc, manual, o listă structurată cu cele mai noi update-uri pentru toate jocurile monitorizate."
         }, {
           name: `${PREFIX}latest update [poreclă]`, value: `Caută imediat cel mai recent update pentru un anumit joc. De exemplu, scrii \`${PREFIX}latest update cs2\` și primești ultimul update la Counter-Strike 2.`
         }, {
           name: `${PREFIX}latest reduceri`, value: "Caută manual și afișează topul ofertelor și jocurilor gratuite valabile în acest moment pe Steam și Epic Games."
         }, {
-          name: `${PREFIX}games`, value: "Îți arată pur și simplu o listă curată cu numele tuturor jocurilor și driverelor incluse momentan în baza mea de date."
+          name: `${PREFIX}games`, value: "Îți arată o listă curată cu numele tuturor jocurilor și driverelor incluse momentan în baza mea de date."
         }, {
           name: `${PREFIX}porecle`, value: `Îți arată cuvintele cheie (poreclele) pe care trebuie să le folosești alături de comanda \`latest update\` pentru a găsi rapid jocul dorit.`
         }, {
