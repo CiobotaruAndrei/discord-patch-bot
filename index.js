@@ -53,10 +53,15 @@ function validateConfig() {
   }
 
   const seenKeys = new Set();
+  const validTypes = ["steam", "intel", "nvidia", "amd", "roblox", "minecraft", "epic_games", "listing_based", "fortnite"];
 
   for (const game of config.games) {
     if (!game.key || !game.name || !game.type) {
       throw new Error(`CRITIC: Joc invalid (lipsesc key, name sau type): ${JSON.stringify(game)}`);
+    }
+
+    if (!validTypes.includes(game.type)) {
+      throw new Error(`CRITIC: Tip invalid de joc "${game.type}" setat pentru "${game.name}".`);
     }
 
     if (seenKeys.has(game.key)) {
@@ -76,18 +81,19 @@ function validateConfig() {
       throw new Error(`CRITIC: Jocul Intel "${game.name}" nu are URL valid!`);
     }
 
-    if (game.type === "listing_based") {
-      if (!Array.isArray(game.listingUrls) || game.listingUrls.length === 0) {
+    if (game.type === "listing_based" || (game.type === "epic_games" && game.key !== "fortnite")) {
+      const urls = game.listingUrls || [game.listingUrl];
+      if (!Array.isArray(urls) || urls.filter(Boolean).length === 0) {
         throw new Error(`CRITIC: Jocul "${game.name}" nu are listingUrls valid.`);
       }
 
-      for (const url of game.listingUrls) {
-        if (!isValidUrl(url)) {
+      for (const url of urls) {
+        if (url && !isValidUrl(url)) {
           throw new Error(`CRITIC: listingUrl invalid pentru "${game.name}": ${url}`);
         }
       }
 
-      if (!game.baseUrl || !isValidUrl(game.baseUrl)) {
+      if (game.type === "listing_based" && (!game.baseUrl || !isValidUrl(game.baseUrl))) {
         throw new Error(`CRITIC: baseUrl invalid pentru "${game.name}"`);
       }
 
@@ -848,15 +854,17 @@ async function enrichDealData(deal) {
 // DISPECERUL PRINCIPAL ȘI STRUCTURA DE EVENIMENTE
 // -------------------------------------------------------------
 async function fetchGameUpdate(game) {
-  if (!game.type || game.type === "steam") return await fetchSteamUpdate(game);
-  if (game.type === "minecraft") return await fetchMinecraftUpdate();
-  if (game.key === "fortnite") return await fetchFortniteUpdate();
-  if (game.type === "epic_games" && game.key !== "fortnite") return await fetchListingBasedUpdate(game);
-  if (game.type === "roblox") return await fetchRobloxUpdate();
-  if (game.type === "listing_based") return await fetchListingBasedUpdate(game);
-  if (game.type === "nvidia") return await fetchNvidiaUpdate(game);
-  if (game.type === "intel") return await fetchIntelUpdate(game);
-  if (game.type === "amd") return await fetchAmdUpdate(game);
+  const type = game.type;
+  const key = game.key;
+
+  if (!type || type === "steam") return await fetchSteamUpdate(game);
+  if (type === "minecraft") return await fetchMinecraftUpdate();
+  if (key === "fortnite" || type === "fortnite") return await fetchFortniteUpdate();
+  if (type === "roblox") return await fetchRobloxUpdate();
+  if (type === "nvidia") return await fetchNvidiaUpdate(game);
+  if (type === "intel") return await fetchIntelUpdate(game);
+  if (type === "amd") return await fetchAmdUpdate(game);
+  if (type === "listing_based" || type === "epic_games") return await fetchListingBasedUpdate(game);
 
   throw new Error(`Tip de joc necunoscut pentru ${game.name}.`);
 }
@@ -880,29 +888,35 @@ async function getLatestForAllGames() {
   return results;
 }
 
-// FIX: BATCH UPDATE LA BAZA DE DATE PENTRU UPDATE-URI JOCURI
 async function checkForUpdates() {
   const guilds = await GuildModel.find({ subscribed: true });
   if (guilds.length === 0) return;
 
   const results = await getLatestForAllGames();
 
-  // Inversat loop-urile: Parcurgem Guild-urile întâi pentru a face un singur update DB per server
   for (const guildConfig of guilds) {
     if (!guildConfig.notificationChannelId) continue;
     if (!guildConfig.seen) guildConfig.seen = {};
     
     let isGuildChanged = false;
+    let channel = null;
+
+    // Fetch canal o singură dată per server, în afara loop-ului de jocuri
+    try {
+      channel = await client.channels.fetch(guildConfig.notificationChannelId);
+    } catch (err) {
+      console.warn(`[Updates] Nu am putut accesa canalul pt guild ${guildConfig._id}`);
+      continue;
+    }
+
+    if (!channel) continue;
 
     for (const { game, latest, error } of results) {
       if (error || !latest) continue;
 
       if (guildConfig.seen[game.key] !== latest.id) {
         try {
-          const channel = await client.channels.fetch(guildConfig.notificationChannelId);
-          if (channel) {
-            await channel.send({ embeds: [buildUpdateEmbed(game.name, latest)] });
-          }
+          await channel.send({ embeds: [buildUpdateEmbed(game.name, latest)] });
           guildConfig.seen[game.key] = latest.id;
           isGuildChanged = true;
         } catch (err) {
@@ -911,7 +925,6 @@ async function checkForUpdates() {
       }
     }
 
-    // Un singur save in baza de date cu toate datele cumulate pentru acest guild
     if (isGuildChanged) {
       await GuildModel.updateOne(
         { _id: guildConfig._id },
@@ -921,7 +934,6 @@ async function checkForUpdates() {
   }
 }
 
-// FIX: BATCH UPDATE LA BAZA DE DATE PENTRU REDUCERI
 async function checkForDiscounts() {
   const guilds = await GuildModel.find({ discountsSubscribed: true });
   if (guilds.length === 0) return;
@@ -934,10 +946,20 @@ async function checkForDiscounts() {
       if (!guildConfig.seenDiscounts) guildConfig.seenDiscounts = [];
       
       let isGuildChanged = false;
+      let channel = null;
+
+      // Fetch canal o singură dată per server, în afara loop-ului de oferte
+      try {
+        channel = await client.channels.fetch(guildConfig.discountChannelId);
+      } catch (err) {
+        console.warn(`[Reduceri] Nu am putut accesa canalul pt guild ${guildConfig._id}`);
+        continue;
+      }
+
+      if (!channel) continue;
 
       for (const deal of deals) {
         if (!guildConfig.seenDiscounts.includes(deal.id)) {
-          // Datele se îmbogățesc dinamic dacă un guild are nevoie de ele, dar se aplică pe obiectul din memorie o singură dată
           if (!deal.enriched) await enrichDealData(deal);
 
           const isFree = parseFloat(deal.salePrice) === 0;
@@ -958,9 +980,7 @@ async function checkForDiscounts() {
           if (deal.thumbnail && deal.thumbnail.startsWith("http")) embed.setThumbnail(deal.thumbnail);
 
           try {
-            const channel = await client.channels.fetch(guildConfig.discountChannelId);
-            if (channel) await channel.send({ embeds: [embed] });
-
+            await channel.send({ embeds: [embed] });
             guildConfig.seenDiscounts.push(deal.id);
             isGuildChanged = true;
           } catch (e) {
@@ -969,7 +989,6 @@ async function checkForDiscounts() {
         }
       }
 
-      // Un singur update pentru acest guild după ce s-au verificat toate ofertele
       if (isGuildChanged) {
         if (guildConfig.seenDiscounts.length > 300) guildConfig.seenDiscounts = guildConfig.seenDiscounts.slice(-300);
         await GuildModel.updateOne(
@@ -1023,8 +1042,6 @@ client.on("messageCreate", async (message) => {
 
   const guildId = message.guild.id;
 
-  // FIX: S-a eliminat "cleanCache" din interiorul if(command1 === 'latest')
-
   if (command1 === "ping") {
     await message.reply("Pong! 🏓 Sistemele sunt operaționale.");
     return;
@@ -1071,7 +1088,6 @@ client.on("messageCreate", async (message) => {
     return message.reply("🛑 Am oprit notificările automate de update pentru acest server.");
   }
 
-  // FIX: Rezolvat problema de spam cu "valul mare de embeduri" la start reduceri
   if (command1 === "start" && command2 === "reduceri") {
     args.shift();
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply("⛔ Doar un administrator poate folosi comanda.");
@@ -1090,7 +1106,6 @@ client.on("messageCreate", async (message) => {
           gCfg.seenDiscounts.push(d.id);
         }
       }
-      // Păstrăm un număr rezonabil de deal-uri trecute pentru siguranță
       if (gCfg.seenDiscounts.length > 300) {
         gCfg.seenDiscounts = gCfg.seenDiscounts.slice(-300);
       }
@@ -1159,7 +1174,9 @@ client.on("messageCreate", async (message) => {
         const generatePageEmbeds = async (pageIndex) => {
           const startIndex = pageIndex * itemsPerPage;
           const chunk = maxDeals.slice(startIndex, startIndex + itemsPerPage);
-          const enrichedChunk = await Promise.all(chunk.map(d => enrichDealData({ ...d })));
+          
+          // NU se mai folosește clonarea cu spread ({ ...d }), ci se trimite direct referința obiectului pentru a persista datele enriched în Cache
+          const enrichedChunk = await Promise.all(chunk.map(d => enrichDealData(d)));
 
           return enrichedChunk.map(deal => {
             const isFree = parseFloat(deal.salePrice) === 0;
@@ -1344,6 +1361,7 @@ client.on("messageCreate", async (message) => {
         await loadingMsg.edit({ content: `✅ Cel mai recent update pentru **${game.name}**:`, embeds: [buildUpdateEmbed(game.name, latest)] }).catch(() => null);
 
       } catch (error) {
+        console.warn(`[Latest Single] Eroare la ${game.name}:`, error.message);
         await loadingMsg.edit(`❌ Nu am putut lua ultimul update pentru **${game.name}**.`);
       }
 
