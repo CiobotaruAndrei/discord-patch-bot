@@ -6,7 +6,7 @@ const cheerio = require("cheerio");
 const http = require("http");
 const cron = require("node-cron");
 const Parser = require("rss-parser");
-const { z } = require("zod"); // Adăugat pentru validare
+const { z } = require("zod");
 const rssParser = new Parser();
 
 const {
@@ -28,7 +28,7 @@ const STEAM_STORE_ID = 1;
 const EPIC_STORE_ID = 25;
 
 // -------------------------------------------------------------
-// 2. VALIDARE CONFIG CU ZOD (Implementare nouă)
+// 2. VALIDARE CONFIG CU ZOD (Completă și Strictă Logic)
 // -------------------------------------------------------------
 const GameSchema = z.object({
   key: z.string().min(1),
@@ -42,12 +42,40 @@ const GameSchema = z.object({
   articleHrefRegex: z.string().optional(),
   requireKeywords: z.array(z.string()).optional(),
   thumbnail: z.string().url().optional(),
-  upCRD: z.number().optional() // specific pentru anumite drivere
+  upCRD: z.number().optional()
+}).superRefine((game, ctx) => {
+  if (game.type === "steam" && !game.appId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Jocul Steam "${game.name}" trebuie să aibă appId.` });
+  }
+  if (game.type === "intel" && !game.url) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Jocul Intel "${game.name}" trebuie să aibă url.` });
+  }
+  if (game.type === "listing_based" || (game.type === "epic_games" && game.key !== "fortnite")) {
+    const hasListing = game.listingUrl || (Array.isArray(game.listingUrls) && game.listingUrls.length > 0);
+    if (!hasListing) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Jocul "${game.name}" necesită listingUrl sau listingUrls.` });
+    }
+    if (!game.baseUrl) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Jocul "${game.name}" necesită baseUrl.` });
+    }
+  }
 });
 
 const ConfigSchema = z.object({
-  checkIntervalMinutes: z.number().positive(),
-  games: z.array(GameSchema).min(1)
+  checkIntervalMinutes: z.number().int().positive().refine(
+    (v) => [5, 10, 15, 20, 30, 60].includes(v),
+    { message: "checkIntervalMinutes trebuie să fie 5, 10, 15, 20, 30 sau 60." }
+  ),
+  games: z.array(GameSchema).min(1).superRefine((games, ctx) => {
+    const keys = games.map(g => g.key);
+    const duplicates = keys.filter((item, index) => keys.indexOf(item) !== index);
+    if (duplicates.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Chei duplicate interzise în config: ${[...new Set(duplicates)].join(', ')}`
+      });
+    }
+  })
 });
 
 let config;
@@ -173,7 +201,7 @@ function cleanCache() {
 }
 
 // -------------------------------------------------------------
-// FUNCȚII UTILITARE & NORMALIZARE (Implementare nouă)
+// FUNCȚII UTILITARE & NORMALIZARE
 // -------------------------------------------------------------
 function cleanText(text) {
   return String(text || "")
@@ -195,7 +223,7 @@ function normalizeUpdate(data) {
     title: String(data.title || "Update nou"),
     link: String(data.link || ""),
     excerpt: String(data.excerpt || "").slice(0, 700),
-    fullText: String(data.fullText || "").slice(0, 4000), // Protecție memorie direct în normalizator
+    fullText: String(data.fullText || "").slice(0, 4000), 
     image: data.image || null,
     thumbnail: data.thumbnail || null,
     timestamp: data.timestamp || ""
@@ -300,7 +328,7 @@ async function httpReq(method, url, options = {}, retries = 2, backoff = 1000) {
 }
 
 // -------------------------------------------------------------
-// FUNCȚII PENTRU DRIVERE ȘI JOCURI (Toate folosesc normalizeUpdate)
+// FUNCȚII PENTRU DRIVERE ȘI JOCURI 
 // -------------------------------------------------------------
 async function fetchNvidiaUpdate(game) {
   const exactQuery = game.key === "nvidiastudio" ? '"Studio Driver"' : '"Game Ready Driver"';
@@ -711,7 +739,7 @@ async function checkForUpdates() {
 }
 
 // -------------------------------------------------------------
-// REDUCERI (Logica completă)
+// REDUCERI 
 // -------------------------------------------------------------
 async function fetchDealsForStore(storeID, storeName) {
   const targetUrl = `https://www.cheapshark.com/api/1.0/deals?storeID=${storeID}&onSale=1&pageSize=50`;
@@ -839,7 +867,7 @@ async function checkForDiscounts() {
 
 
 // -------------------------------------------------------------
-// COMMAND ROUTER & HANDLERS (Implementare nouă)
+// COMMAND ROUTER & HANDLERS 
 // -------------------------------------------------------------
 async function handlePing(message) {
   await message.reply("Pong! 🏓 Sistemele sunt operaționale.");
@@ -1147,11 +1175,10 @@ client.on("messageCreate", async (message) => {
   if (!message.content.startsWith(PREFIX)) return;
 
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-  const command1 = (args.shift() || "").toLowerCase(); // ex: "start", "latest", "ping"
-  const command2 = (args[0] || "").toLowerCase();      // ex: "updates", "reduceri"
+  const command1 = (args.shift() || "").toLowerCase();
+  const command2 = (args[0] || "").toLowerCase();
   const guildId = message.guild.id;
 
-  // ROUTER COMUNICARE
   const commands = {
     ping: handlePing,
     games: handleGames,
@@ -1186,4 +1213,3 @@ async function bootstrap() {
 }
 
 bootstrap();
-
