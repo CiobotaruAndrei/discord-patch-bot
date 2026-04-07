@@ -29,7 +29,7 @@ const STEAM_STORE_ID = 1;
 const EPIC_STORE_ID = 25;
 
 const CACHE_TTL_MS = 180000;
-const STALE_CACHE_TTL_MS = 10 * 60 * 1000;
+const STALE_CACHE_TTL_MS = 15 * 60 * 1000;
 
 const MAX_DEALS = 50;
 const ITEMS_PER_PAGE = 5;
@@ -39,7 +39,8 @@ const FETCH_CONCURRENCY = 6;
 const FETCH_JITTER_MS = 120;
 const PER_SOURCE_TIMEOUT_MS = 9000;
 const COMMAND_TIMEOUT_MS = 40000;
-const DEALS_TIMEOUT_MS = 22000;
+const DEALS_TIMEOUT_MS = 20000;
+const DEALS_ENRICH_TIMEOUT_MS = 5000;
 
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -49,7 +50,7 @@ const USER_AGENTS = [
 ];
 
 // -------------------------------------------------------------
-// 1.1. UTILITARE DE BAZĂ
+// 1.1. UTILAJE DE BAZĂ
 // -------------------------------------------------------------
 function smoothTime(oldMs, newMs, alpha = 0.3) {
   return Math.round(oldMs * (1 - alpha) + newMs * alpha);
@@ -106,26 +107,6 @@ async function runPool(items, limit, workerFn) {
   return results;
 }
 
-function getCacheEntry(bucket) {
-  return cache[bucket];
-}
-
-function isFresh(entry) {
-  return !!entry?.data && Date.now() < entry.expiresAt;
-}
-
-function isStaleButUsable(entry) {
-  return !!entry?.data && Date.now() < entry.staleExpiresAt;
-}
-
-function setCacheEntry(bucket, data, ttlMs = CACHE_TTL_MS, staleTtlMs = STALE_CACHE_TTL_MS) {
-  cache[bucket] = {
-    data,
-    expiresAt: Date.now() + ttlMs,
-    staleExpiresAt: Date.now() + staleTtlMs
-  };
-}
-
 function randomUserAgent() {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 }
@@ -135,7 +116,6 @@ function levenshtein(a, b) {
   if (b.length === 0) return a.length;
 
   const matrix = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
-
   for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
   for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
 
@@ -149,6 +129,7 @@ function levenshtein(a, b) {
       );
     }
   }
+
   return matrix[a.length][b.length];
 }
 
@@ -243,7 +224,9 @@ const systemSchema = new mongoose.Schema({
   executionTimes: {
     all: { type: Number, default: 15000 },
     single: { type: Number, default: 2000 },
-    reduceri: { type: Number, default: 15000 }
+    reduceri: { type: Number, default: 15000 },
+    startUpdates: { type: Number, default: 10000 },
+    startReduceri: { type: Number, default: 10000 }
   }
 }, { minimize: false });
 
@@ -312,10 +295,25 @@ async function releaseDbLock(jobName, token) {
 async function getSystemTimes() {
   let sys = await SystemModel.findById("system_state").lean();
   if (!sys) {
-    sys = { _id: "system_state", executionTimes: { all: 15000, single: 2000, reduceri: 15000 } };
+    sys = {
+      _id: "system_state",
+      executionTimes: {
+        all: 15000,
+        single: 2000,
+        reduceri: 15000,
+        startUpdates: 10000,
+        startReduceri: 10000
+      }
+    };
     await SystemModel.create(sys);
   }
-  return sys.executionTimes || { all: 15000, single: 2000, reduceri: 15000 };
+  return sys.executionTimes || {
+    all: 15000,
+    single: 2000,
+    reduceri: 15000,
+    startUpdates: 10000,
+    startReduceri: 10000
+  };
 }
 
 async function saveSystemTimes(times) {
@@ -379,12 +377,13 @@ process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 // -------------------------------------------------------------
-// CACHE + STĂRI FETCH
+// CACHE
 // -------------------------------------------------------------
 const cache = {
   updates: { data: null, expiresAt: 0, staleExpiresAt: 0 },
   deals: { data: null, expiresAt: 0, staleExpiresAt: 0 },
-  single: new Map()
+  single: new Map(),
+  latestByGame: new Map()
 };
 
 const inflight = {
@@ -402,6 +401,41 @@ function cleanCache() {
   for (const [key, value] of cache.single.entries()) {
     if (value.staleExpiresAt < now) cache.single.delete(key);
   }
+}
+
+function setCacheEntry(bucket, data, ttlMs = CACHE_TTL_MS, staleTtlMs = STALE_CACHE_TTL_MS) {
+  cache[bucket] = {
+    data,
+    expiresAt: Date.now() + ttlMs,
+    staleExpiresAt: Date.now() + staleTtlMs
+  };
+}
+
+function isFresh(entry) {
+  return !!entry?.data && Date.now() < entry.expiresAt;
+}
+
+function isStaleButUsable(entry) {
+  return !!entry?.data && Date.now() < entry.staleExpiresAt;
+}
+
+function rememberLatestByGame(gameKey, latest) {
+  if (!latest) return;
+  cache.latestByGame.set(gameKey, {
+    data: latest,
+    expiresAt: Date.now() + CACHE_TTL_MS,
+    staleExpiresAt: Date.now() + STALE_CACHE_TTL_MS
+  });
+}
+
+function getRememberedLatestByGame(gameKey) {
+  const entry = cache.latestByGame.get(gameKey);
+  if (!entry?.data) return null;
+  if (Date.now() >= entry.staleExpiresAt) {
+    cache.latestByGame.delete(gameKey);
+    return null;
+  }
+  return entry.data;
 }
 
 // -------------------------------------------------------------
@@ -494,7 +528,9 @@ function buildDealEmbed(deal, mode = "detailed") {
         { name: "Link", value: `[Apasă aici](${deal.link})`, inline: false }
       );
 
-    if (deal.thumbnail && deal.thumbnail.startsWith("http")) embed.setThumbnail(deal.thumbnail);
+    if (deal.thumbnail && deal.thumbnail.startsWith("http")) {
+      embed.setThumbnail(deal.thumbnail);
+    }
     if (deal.extraDetails) {
       embed.addFields({ name: "Detalii", value: truncate(deal.extraDetails.trim(), 1024), inline: false });
     }
@@ -531,11 +567,8 @@ async function handlePagination(interactionMessage, authorId, prefix, items, ite
       const embeds = await generateEmbedsFn(currentPage, totalPages, defaultMode);
       const components = [buildPaginationButtons(prefix, sessionId, currentPage, totalPages)];
 
-      if (interaction) {
-        await interaction.editReply({ embeds, components }).catch(() => null);
-      } else {
-        await interactionMessage.edit({ embeds, components }).catch(() => null);
-      }
+      if (interaction) await interaction.editReply({ embeds, components }).catch(() => null);
+      else await interactionMessage.edit({ embeds, components }).catch(() => null);
     } catch (err) {
       if (collector) collector.stop("message_deleted");
     }
@@ -825,7 +858,7 @@ async function fetchListingBasedUpdate(game) {
     return a.position - b.position;
   });
 
-  if (!unique.length) throw new Error(`Nu am găsit ancore valide.`);
+  if (!unique.length) throw new Error("Nu am găsit ancore valide.");
 
   const articleUrl = unique[0].href;
   const articleRes = await httpReq("GET", articleUrl);
@@ -853,7 +886,6 @@ async function fetchFortniteUpdate() {
       { timeout: PER_SOURCE_TIMEOUT_MS }
     );
     const posts = JSON.parse(raw || "{}")?.blogList;
-
     const valid = (posts || []).filter(p => p.slug && p.slug.toLowerCase() !== "news");
     if (!valid.length) throw new Error("Nu există postări valide.");
 
@@ -869,10 +901,8 @@ async function fetchFortniteUpdate() {
     });
   } catch (err) {
     logger("WARN", "FETCH_FALLBACK", "Scrape direct eșuat pentru Fortnite, trecem pe RSS.", err.message);
-
     const backupUrl = "https://news.google.com/rss/search?q=site:fortnite.com/news+update&hl=en-US";
     const feed = await rssParser.parseString((await httpReq("GET", backupUrl)).data);
-
     if (!feed.items || feed.items.length === 0) throw new Error("Eșec total Fortnite, lipsă items RSS.");
 
     return normalizeUpdate({
@@ -890,7 +920,6 @@ async function fetchAmdUpdate(game) {
   try {
     const rawContent = await fetchWithProxy("https://www.amd.com/en/support/download/drivers.html");
     const match = rawContent.match(/Adrenalin Edition\s+([\d\.]+)/i);
-
     if (match) {
       return normalizeUpdate({
         id: match[1],
@@ -906,7 +935,6 @@ async function fetchAmdUpdate(game) {
 
   const res = await httpReq("GET", `https://news.google.com/rss/search?q=site:amd.com+%22AMD+Software:+Adrenalin+Edition%22+release+notes&hl=en-US`);
   const feed = await rssParser.parseString(res.data);
-
   if (!feed.items || feed.items.length === 0) throw new Error("Eșec AMD, lipsă items RSS.");
 
   return normalizeUpdate({
@@ -923,7 +951,6 @@ async function fetchIntelUpdate(game) {
   try {
     const rawContent = await fetchWithProxy(game.url);
     const match = rawContent.match(/\b(\d{2,3}\.\d+\.\d+\.\d+)\b/);
-
     if (match) {
       return normalizeUpdate({
         id: match[1],
@@ -943,7 +970,6 @@ async function fetchIntelUpdate(game) {
 
   const res = await httpReq("GET", `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US`);
   const feed = await rssParser.parseString(res.data);
-
   if (!feed.items || feed.items.length === 0) throw new Error("Eșec Intel, lipsă items RSS.");
 
   return normalizeUpdate({
@@ -957,64 +983,53 @@ async function fetchIntelUpdate(game) {
 }
 
 async function fetchMinecraftUpdate() {
-  try {
-    const r = await httpReq("GET", "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json");
-    const v = r?.data?.latest?.release;
-    if (!v) throw new Error("Lipsă versiune JSON");
+  const r = await httpReq("GET", "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json");
+  const v = r?.data?.latest?.release;
+  if (!v) throw new Error("Lipsă versiune JSON");
 
-    return normalizeUpdate({
-      id: v,
-      title: `Minecraft ${v}`,
-      link: `https://www.minecraft.net/en-us/article/minecraft-java-edition-${v.replace(/\./g, "-")}`,
-      excerpt: `Versiunea ${v}`,
-      thumbnail: "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg"
-    });
-  } catch (err) {
-    logger("WARN", "FETCH_MINECRAFT", "Eșec preluare update Minecraft", err.message);
-    throw err;
-  }
+  return normalizeUpdate({
+    id: v,
+    title: `Minecraft ${v}`,
+    link: `https://www.minecraft.net/en-us/article/minecraft-java-edition-${v.replace(/\./g, "-")}`,
+    excerpt: `Versiunea ${v}`,
+    thumbnail: "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg"
+  });
 }
 
 async function fetchRobloxUpdate() {
-  try {
-    const r = await httpReq("GET", "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer");
-    const v = r?.data?.clientVersionUpload;
-    if (!v) throw new Error("Lipsă versiune API");
+  const r = await httpReq("GET", "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer");
+  const v = r?.data?.clientVersionUpload;
+  if (!v) throw new Error("Lipsă versiune API");
 
-    return normalizeUpdate({
-      id: String(v),
-      title: "Roblox Update",
-      link: "https://en.help.roblox.com/hc/en-us",
-      excerpt: `Versiunea ${v}`,
-      thumbnail: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Roblox_Logo_2022.jpg"
-    });
-  } catch (err) {
-    logger("WARN", "FETCH_ROBLOX", "Eșec preluare update Roblox", err.message);
-    throw err;
-  }
+  return normalizeUpdate({
+    id: String(v),
+    title: "Roblox Update",
+    link: "https://en.help.roblox.com/hc/en-us",
+    excerpt: `Versiunea ${v}`,
+    thumbnail: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Roblox_Logo_2022.jpg"
+  });
 }
 
 async function fetchNvidiaUpdate(g) {
   const q = g.key === "nvidiastudio" ? '"Studio Driver"' : '"Game Ready Driver"';
   const r = await httpReq("GET", `https://news.google.com/rss/search?q=${encodeURIComponent(`site:nvidia.com ${q} release`)}&hl=en-US`);
   const f = await rssParser.parseString(r.data);
-
   if (!f.items || f.items.length === 0) throw new Error("Eșec Nvidia, lipsă items RSS.");
 
   return normalizeUpdate({
     id: f.items[0].link,
     title: cleanText(f.items[0].title).split(" - ")[0],
     link: f.items[0].link,
-    thumbnail: g.thumbnail
+    thumbnail: g.thumbnail,
+    timestamp: f.items[0].pubDate
   });
 }
 
 // -------------------------------------------------------------
-// DISPECERUL PRINCIPAL ȘI REDUCERI
+// DISPECER FETCH + REDUCERI
 // -------------------------------------------------------------
 async function fetchGameUpdate(game) {
   const t = game.type;
-
   if (!t || t === "steam") return await fetchSteamUpdate(game);
   if (t === "minecraft") return await fetchMinecraftUpdate();
   if (t === "epic_games" && game.key === "fortnite") return await fetchFortniteUpdate();
@@ -1023,7 +1038,6 @@ async function fetchGameUpdate(game) {
   if (t === "intel") return await fetchIntelUpdate(game);
   if (t === "amd") return await fetchAmdUpdate(game);
   if (t === "listing_based" || t === "epic_games") return await fetchListingBasedUpdate(game);
-
   throw new Error("Tip necunoscut.");
 }
 
@@ -1032,7 +1046,13 @@ async function executeFetchWithCircuitBreaker(game) {
   if (!cb) cb = new CircuitBreakerModel({ _id: game.key });
 
   if (cb.cooldownUntil && new Date() < cb.cooldownUntil) {
-    return { game, latest: null, error: "Circuit Breaker Activ (Pauză temporară)" };
+    const remembered = getRememberedLatestByGame(game.key);
+    return {
+      game,
+      latest: remembered || null,
+      error: remembered ? null : "Circuit Breaker Activ (Pauză temporară)",
+      fromStaleCache: !!remembered
+    };
   }
 
   try {
@@ -1048,7 +1068,8 @@ async function executeFetchWithCircuitBreaker(game) {
       await cb.save();
     }
 
-    return { game, latest, error: null };
+    rememberLatestByGame(game.key, latest);
+    return { game, latest, error: null, fromStaleCache: false };
   } catch (error) {
     cb.fails += 1;
     if (cb.fails >= 5) {
@@ -1056,38 +1077,61 @@ async function executeFetchWithCircuitBreaker(game) {
       logger("WARN", "CIRCUIT", `Sursa ${game.key} pusă pe pauză din cauza erorilor repetate.`);
     }
     await cb.save();
-    return { game, latest: null, error: error.message };
+
+    const remembered = getRememberedLatestByGame(game.key);
+    if (remembered) {
+      return { game, latest: remembered, error: null, fromStaleCache: true };
+    }
+
+    return { game, latest: null, error: error.message, fromStaleCache: false };
   }
+}
+
+function mergeResultsKeepingAllGames(results) {
+  const resultByKey = new Map();
+  for (const item of results) resultByKey.set(item.game.key, item);
+
+  return config.games.map((game) => {
+    const current = resultByKey.get(game.key);
+    if (current?.latest) return current;
+
+    const remembered = getRememberedLatestByGame(game.key);
+    if (remembered) {
+      return { game, latest: remembered, error: null, fromStaleCache: true };
+    }
+
+    return current || { game, latest: null, error: "Fără date", fromStaleCache: false };
+  });
 }
 
 async function getLatestForAllGames({ maxDurationMs = COMMAND_TIMEOUT_MS } = {}) {
   const startedAt = Date.now();
 
-  const tasks = await runPool(config.games, FETCH_CONCURRENCY, async (game, index) => {
+  const results = await runPool(config.games, FETCH_CONCURRENCY, async (game) => {
     const elapsed = Date.now() - startedAt;
     if (elapsed >= maxDurationMs) {
-      return { game, latest: null, error: "Oprit din cauza timeout-ului global" };
+      const remembered = getRememberedLatestByGame(game.key);
+      return {
+        game,
+        latest: remembered || null,
+        error: remembered ? null : "Oprit din cauza timeout-ului global",
+        fromStaleCache: !!remembered
+      };
     }
 
     if (FETCH_JITTER_MS > 0) {
       await sleep(Math.floor(Math.random() * FETCH_JITTER_MS));
     }
 
-    try {
-      return await executeFetchWithCircuitBreaker(game);
-    } catch (err) {
-      return { game, latest: null, error: err.message || "Eroare necunoscută" };
-    }
+    return await executeFetchWithCircuitBreaker(game);
   });
 
-  return tasks.filter(Boolean);
+  return mergeResultsKeepingAllGames(results.filter(Boolean));
 }
 
 async function getLatestForAllGamesCached({ maxDurationMs = COMMAND_TIMEOUT_MS, forceFresh = false } = {}) {
-  const cacheEntry = getCacheEntry("updates");
-
-  if (!forceFresh && isFresh(cacheEntry)) {
-    return { results: cacheEntry.data, fromCache: true, isStale: false };
+  if (!forceFresh && isFresh(cache.updates)) {
+    return { results: cache.updates.data, fromCache: true, isStale: false };
   }
 
   if (inflight.updates) {
@@ -1095,8 +1139,8 @@ async function getLatestForAllGamesCached({ maxDurationMs = COMMAND_TIMEOUT_MS, 
       const results = await withTimeout(inflight.updates, maxDurationMs, "Timeout fetch updates");
       return { results, fromCache: false, isStale: false };
     } catch (err) {
-      if (!forceFresh && isStaleButUsable(cacheEntry)) {
-        return { results: cacheEntry.data, fromCache: true, isStale: true };
+      if (!forceFresh && isStaleButUsable(cache.updates)) {
+        return { results: cache.updates.data, fromCache: true, isStale: true };
       }
       throw err;
     }
@@ -1112,8 +1156,8 @@ async function getLatestForAllGamesCached({ maxDurationMs = COMMAND_TIMEOUT_MS, 
     const results = await withTimeout(inflight.updates, maxDurationMs, "Timeout fetch updates");
     return { results, fromCache: false, isStale: false };
   } catch (err) {
-    if (!forceFresh && isStaleButUsable(cacheEntry)) {
-      return { results: cacheEntry.data, fromCache: true, isStale: true };
+    if (!forceFresh && isStaleButUsable(cache.updates)) {
+      return { results: cache.updates.data, fromCache: true, isStale: true };
     }
     throw err;
   } finally {
@@ -1129,7 +1173,7 @@ async function enrichDealData(deal) {
       const res = await httpReq(
         "GET",
         `https://store.steampowered.com/api/appdetails?appids=${deal.steamAppID}`,
-        { timeout: 5000 }
+        { timeout: DEALS_ENRICH_TIMEOUT_MS }
       );
 
       const data = res.data[deal.steamAppID]?.data;
@@ -1144,7 +1188,7 @@ async function enrichDealData(deal) {
       }
 
       const htmlRes = await httpReq("GET", deal.link, {
-        timeout: 5000,
+        timeout: DEALS_ENRICH_TIMEOUT_MS,
         headers: { "Cookie": "birthtime=283993201; mature_content=1;" }
       });
 
@@ -1159,62 +1203,65 @@ async function enrichDealData(deal) {
   return deal;
 }
 
+async function fetchStoreDeals(storeId, name) {
+  try {
+    const res = await httpReq(
+      "GET",
+      `https://www.cheapshark.com/api/1.0/deals?storeID=${storeId}&onSale=1&pageSize=${MAX_DEALS}`,
+      {
+        timeout: 10000,
+        headers: { "Accept": "application/json" }
+      }
+    );
+
+    const rows = Array.isArray(res.data) ? res.data : [];
+    return rows.map(d => {
+      const savings = Math.round(parseFloat(d.savings) || 0);
+      return {
+        id: d.dealID,
+        steamAppID: d.steamAppID,
+        title: d.title,
+        salePrice: d.salePrice,
+        normalPrice: d.normalPrice,
+        savings,
+        store: name,
+        link: storeId === STEAM_STORE_ID
+          ? `https://store.steampowered.com/app/${d.steamAppID}`
+          : `https://www.cheapshark.com/redirect?dealID=${d.dealID}`,
+        popularityScore: (savings * 2) + Math.max(parseInt(d.steamRatingPercent) || 0, parseInt(d.metacriticScore) || 0),
+        endDateStr: "Nespecificat",
+        extraDetails: "",
+        enriched: false,
+        thumbnail: d.thumb || null
+      };
+    });
+  } catch (err) {
+    logger("WARN", "DEALS_FETCH", `Eroare la preluarea ofertelor CheapShark (StoreID: ${storeId})`, err.message);
+    return [];
+  }
+}
+
 async function fetchDeals() {
-  const getD = async (sId, name) => {
-    try {
-      const res = await httpReq(
-        "GET",
-        `https://www.cheapshark.com/api/1.0/deals?storeID=${sId}&onSale=1&pageSize=${MAX_DEALS}`,
-        {
-          timeout: 9000,
-          headers: { "Accept": "application/json" }
-        }
-      );
-
-      return (Array.isArray(res.data) ? res.data : []).map(d => {
-        const savings = Math.round(parseFloat(d.savings) || 0);
-        return {
-          id: d.dealID,
-          steamAppID: d.steamAppID,
-          title: d.title,
-          salePrice: d.salePrice,
-          normalPrice: d.normalPrice,
-          savings,
-          store: name,
-          link: sId === STEAM_STORE_ID
-            ? `https://store.steampowered.com/app/${d.steamAppID}`
-            : `https://www.cheapshark.com/redirect?dealID=${d.dealID}`,
-          popularityScore: (savings * 2) + Math.max(parseInt(d.steamRatingPercent) || 0, parseInt(d.metacriticScore) || 0),
-          endDateStr: "Nespecificat",
-          extraDetails: "",
-          enriched: false,
-          thumbnail: d.thumb || null
-        };
-      });
-    } catch (err) {
-      logger("WARN", "DEALS_FETCH", `Eroare la preluarea ofertelor CheapShark (StoreID: ${sId})`, err.message);
-      return [];
-    }
-  };
-
   const [steamDeals, epicDeals] = await Promise.all([
-    getD(STEAM_STORE_ID, "Steam"),
-    getD(EPIC_STORE_ID, "Epic Games")
+    fetchStoreDeals(STEAM_STORE_ID, "Steam"),
+    fetchStoreDeals(EPIC_STORE_ID, "Epic Games")
   ]);
 
-  const finalTop = [...steamDeals, ...epicDeals]
+  const combined = [...steamDeals, ...epicDeals]
+    .filter(Boolean)
     .sort((a, b) => b.popularityScore - a.popularityScore)
     .slice(0, MAX_DEALS);
 
-  if (!finalTop.length) throw new Error("Fără oferte valide.");
-  return finalTop;
+  if (combined.length === 0) {
+    throw new Error("Nicio sursă de reduceri nu a răspuns cu date valide.");
+  }
+
+  return combined;
 }
 
 async function getDealsCached({ maxDurationMs = DEALS_TIMEOUT_MS, forceFresh = false } = {}) {
-  const cacheEntry = getCacheEntry("deals");
-
-  if (!forceFresh && isFresh(cacheEntry)) {
-    return { deals: cacheEntry.data, fromCache: true, isStale: false };
+  if (!forceFresh && isFresh(cache.deals)) {
+    return { deals: cache.deals.data, fromCache: true, isStale: false };
   }
 
   if (inflight.deals) {
@@ -1222,8 +1269,8 @@ async function getDealsCached({ maxDurationMs = DEALS_TIMEOUT_MS, forceFresh = f
       const deals = await withTimeout(inflight.deals, maxDurationMs, "Timeout fetch deals");
       return { deals, fromCache: false, isStale: false };
     } catch (err) {
-      if (!forceFresh && isStaleButUsable(cacheEntry)) {
-        return { deals: cacheEntry.data, fromCache: true, isStale: true };
+      if (!forceFresh && isStaleButUsable(cache.deals)) {
+        return { deals: cache.deals.data, fromCache: true, isStale: true };
       }
       throw err;
     }
@@ -1239,8 +1286,8 @@ async function getDealsCached({ maxDurationMs = DEALS_TIMEOUT_MS, forceFresh = f
     const deals = await withTimeout(inflight.deals, maxDurationMs, "Timeout fetch deals");
     return { deals, fromCache: false, isStale: false };
   } catch (err) {
-    if (!forceFresh && isStaleButUsable(cacheEntry)) {
-      return { deals: cacheEntry.data, fromCache: true, isStale: true };
+    if (!forceFresh && isStaleButUsable(cache.deals)) {
+      return { deals: cache.deals.data, fromCache: true, isStale: true };
     }
     throw err;
   } finally {
@@ -1279,6 +1326,7 @@ async function getSingleGameLatestCached(game, { maxDurationMs = 15000, forceFre
       staleExpiresAt: Date.now() + STALE_CACHE_TTL_MS
     });
 
+    rememberLatestByGame(game.key, res.latest);
     return res.latest;
   })();
 
@@ -1288,6 +1336,10 @@ async function getSingleGameLatestCached(game, { maxDurationMs = 15000, forceFre
     const latest = await withTimeout(promise, maxDurationMs, `Timeout single ${game.key}`);
     return { latest, fromCache: false, isStale: false };
   } catch (err) {
+    const remembered = getRememberedLatestByGame(game.key);
+    if (remembered) {
+      return { latest: remembered, fromCache: true, isStale: true };
+    }
     if (!forceFresh && existing?.data && Date.now() < existing.staleExpiresAt) {
       return { latest: existing.data, fromCache: true, isStale: true };
     }
@@ -1298,7 +1350,7 @@ async function getSingleGameLatestCached(game, { maxDurationMs = 15000, forceFre
 }
 
 // -------------------------------------------------------------
-// AUTOMATIZĂRI (CRON JOBS)
+// AUTOMATIZĂRI
 // -------------------------------------------------------------
 async function checkForUpdates() {
   const guilds = await GuildModel.find({ subscribed: true }).lean();
@@ -1329,13 +1381,9 @@ async function checkForUpdates() {
       const currentSeen = g.seen?.[game.key];
       let seenArray = [];
 
-      if (Array.isArray(currentSeen)) {
-        seenArray = currentSeen;
-      } else if (typeof currentSeen === "object" && currentSeen !== null && currentSeen.id) {
-        seenArray = [currentSeen.id];
-      } else if (typeof currentSeen === "string") {
-        seenArray = [currentSeen];
-      }
+      if (Array.isArray(currentSeen)) seenArray = currentSeen;
+      else if (typeof currentSeen === "object" && currentSeen !== null && currentSeen.id) seenArray = [currentSeen.id];
+      else if (typeof currentSeen === "string") seenArray = [currentSeen];
 
       if (!seenArray.includes(latest.id)) {
         seenArray.push(latest.id);
@@ -1422,13 +1470,12 @@ async function checkForDiscounts() {
           for (const item of chunkToProcess) {
             try {
               if (!item.deal.enriched && g.notificationMode !== "compact") {
-                await withTimeout(enrichDealData(item.deal), 6000, "Timeout enrich deal");
+                await withTimeout(enrichDealData(item.deal), DEALS_ENRICH_TIMEOUT_MS, "Timeout enrich deal");
               }
-              chunkEmbeds.push(buildDealEmbed(item.deal, g.notificationMode).setTimestamp());
             } catch (enrichErr) {
               logger("WARN", "ENRICH", "Eroare izolată la enrich deal", enrichErr.message);
-              chunkEmbeds.push(buildDealEmbed(item.deal, g.notificationMode).setTimestamp());
             }
+            chunkEmbeds.push(buildDealEmbed(item.deal, g.notificationMode).setTimestamp());
           }
 
           if (chunkEmbeds.length === 0) continue;
@@ -1462,8 +1509,11 @@ async function handleStart(message, subCommand, guildId) {
     return message.reply("⛔ Doar un admin poate folosi comanda.");
   }
 
+  const times = await getSystemTimes();
+
   if (subCommand === "updates") {
-    const msg = await message.reply("⏳ Setez canalul...");
+    const msg = await message.reply(`⏳ Setez canalul pentru update-uri... Durată estimată: **~${Math.max(1, Math.ceil((times.startUpdates || 10000) / 1000))} secunde**.`);
+    const start = Date.now();
 
     try {
       const { results } = await getLatestForAllGamesCached({
@@ -1481,6 +1531,11 @@ async function handleStart(message, subCommand, guildId) {
       }
 
       await GuildModel.updateOne({ _id: guildId }, { $set: setPayload }, { upsert: true });
+
+      const updated = await getSystemTimes();
+      updated.startUpdates = smoothTime(times.startUpdates || 10000, Date.now() - start);
+      await saveSystemTimes(updated);
+
       return msg.edit("✅ Update-uri automate activate pe acest canal.");
     } catch (err) {
       logger("ERROR", "START_UPDATES", "Eroare la pornirea update-urilor:", err.message);
@@ -1489,7 +1544,8 @@ async function handleStart(message, subCommand, guildId) {
   }
 
   if (subCommand === "reduceri") {
-    const msg = await message.reply("⏳ Setez canalul pentru oferte...");
+    const msg = await message.reply(`⏳ Setez canalul pentru reduceri... Durată estimată: **~${Math.max(1, Math.ceil((times.startReduceri || 10000) / 1000))} secunde**.`);
+    const start = Date.now();
 
     try {
       const { deals } = await getDealsCached({
@@ -1513,10 +1569,14 @@ async function handleStart(message, subCommand, guildId) {
         { upsert: true }
       );
 
-      return msg.edit("✅ Alertele pentru reduceri activate pe acest canal!");
+      const updated = await getSystemTimes();
+      updated.startReduceri = smoothTime(times.startReduceri || 10000, Date.now() - start);
+      await saveSystemTimes(updated);
+
+      return msg.edit("✅ Alertele pentru reduceri au fost activate pe acest canal.");
     } catch (err) {
       logger("ERROR", "START_REDUCERI", "Eroare la pornirea reducerilor:", err.message);
-      return msg.edit("❌ A apărut o eroare internă. Verifică logurile.");
+      return msg.edit("❌ A apărut o eroare internă la activarea alertelor pentru reduceri.");
     }
   }
 
@@ -1530,18 +1590,12 @@ async function handleStop(message, subCommand, guildId) {
 
   try {
     if (subCommand === "updates") {
-      await GuildModel.updateOne(
-        { _id: guildId },
-        { $set: { subscribed: false, notificationChannelId: null } }
-      );
+      await GuildModel.updateOne({ _id: guildId }, { $set: { subscribed: false, notificationChannelId: null } });
       return message.reply("🛑 Update-uri automate oprite pentru acest server.");
     }
 
     if (subCommand === "reduceri") {
-      await GuildModel.updateOne(
-        { _id: guildId },
-        { $set: { discountsSubscribed: false, discountChannelId: null } }
-      );
+      await GuildModel.updateOne({ _id: guildId }, { $set: { discountsSubscribed: false, discountChannelId: null } });
       return message.reply("🛑 Alerte reduceri oprite pentru acest server.");
     }
   } catch (err) {
@@ -1576,35 +1630,27 @@ async function handleSetCommand(message, args, guildId) {
 
   switch (setting) {
     case "mode":
-      if (!["compact", "detailed"].includes(value)) {
-        return message.reply("❌ Valori permise: `compact` sau `detailed`.");
-      }
+      if (!["compact", "detailed"].includes(value)) return message.reply("❌ Valori permise: `compact` sau `detailed`.");
       updateDoc.notificationMode = value;
       confirmMsg = `✅ Modul de notificare setat pe: **${value}**`;
       break;
 
     case "mindiscount": {
       const min = parseInt(value, 10);
-      if (isNaN(min) || min < 0 || min > 100) {
-        return message.reply("❌ Te rog introdu un procent între 0 și 100.");
-      }
+      if (isNaN(min) || min < 0 || min > 100) return message.reply("❌ Te rog introdu un procent între 0 și 100.");
       updateDoc.minDiscountPercent = min;
       confirmMsg = `✅ Procentajul minim pentru oferte setat la: **${min}%**`;
       break;
     }
 
     case "free":
-      if (!["on", "off"].includes(value)) {
-        return message.reply("❌ Valori permise: `on` sau `off`.");
-      }
+      if (!["on", "off"].includes(value)) return message.reply("❌ Valori permise: `on` sau `off`.");
       updateDoc.includeFreeGames = value === "on";
       confirmMsg = `✅ Notificări pentru jocuri gratuite: **${value.toUpperCase()}**`;
       break;
 
     case "paid":
-      if (!["on", "off"].includes(value)) {
-        return message.reply("❌ Valori permise: `on` sau `off`.");
-      }
+      if (!["on", "off"].includes(value)) return message.reply("❌ Valori permise: `on` sau `off`.");
       updateDoc.includePaidDiscounts = value === "on";
       confirmMsg = `✅ Notificări pentru oferte plătite: **${value.toUpperCase()}**`;
       break;
@@ -1624,7 +1670,7 @@ async function handleSetCommand(message, args, guildId) {
 
 async function handleLatestUpdates(message) {
   const estMs = (await getSystemTimes()).all || 15000;
-  const msg = await message.reply(`⏳ *Aduc datele de pe internet... Durată estimată: **${Math.max(1, Math.ceil(estMs / 1000))} secunde**.*`);
+  const msg = await message.reply(`⏳ Aduc ultimele update-uri de pe internet... Durată estimată: **~${Math.max(1, Math.ceil(estMs / 1000))} secunde**.`);
   const start = Date.now();
 
   let results;
@@ -1635,16 +1681,16 @@ async function handleLatestUpdates(message) {
       maxDurationMs: COMMAND_TIMEOUT_MS,
       forceFresh: false
     });
+
     results = out.results;
     isStale = !!out.isStale;
 
-    const elapsed = Date.now() - start;
     const times = await getSystemTimes();
-    times.all = smoothTime(estMs, elapsed);
+    times.all = smoothTime(estMs, Date.now() - start);
     await saveSystemTimes(times);
   } catch (err) {
     logger("ERROR", "LATEST_UPDATES", "Eroare fetch latest updates", err.message);
-    return msg.edit("❌ Eroare rețea.");
+    return msg.edit("❌ Eroare la preluarea update-urilor.");
   }
 
   const valid = results.filter(r => r.latest !== null);
@@ -1654,12 +1700,11 @@ async function handleLatestUpdates(message) {
   const mode = guild?.notificationMode || "detailed";
 
   const generateEmbeds = async (page, totalP, currentMode) => {
-    const embeds = valid
+    return valid
       .slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE)
       .map(r => buildUpdateEmbed(r.game.name, r.latest, currentMode).setFooter({
-        text: `${r.game.name} • Pagina ${page + 1}/${totalP}${isStale ? " • cache vechi" : ""}`
+        text: `${r.game.name} • Pagina ${page + 1}/${totalP}${r.fromStaleCache ? " • cache" : ""}${isStale ? " • răspuns parțial din cache" : ""}`
       }));
-    return embeds;
   };
 
   await handlePagination(msg, message.author.id, "upd", valid, ITEMS_PER_PAGE, generateEmbeds, mode);
@@ -1667,7 +1712,7 @@ async function handleLatestUpdates(message) {
 
 async function handleLatestDeals(message) {
   const estMs = (await getSystemTimes()).reduceri || 15000;
-  const msg = await message.reply(`⏳ *Caut oferte... ~${Math.ceil(estMs / 1000)} sec.*`);
+  const msg = await message.reply(`⏳ Caut reduceri... Durată estimată: **~${Math.max(1, Math.ceil(estMs / 1000))} secunde**.`);
   const start = Date.now();
 
   let rawDeals;
@@ -1682,9 +1727,8 @@ async function handleLatestDeals(message) {
     rawDeals = out.deals;
     isStale = !!out.isStale;
 
-    const elapsed = Date.now() - start;
     const times = await getSystemTimes();
-    times.reduceri = smoothTime(estMs, elapsed);
+    times.reduceri = smoothTime(estMs, Date.now() - start);
     await saveSystemTimes(times);
   } catch (err) {
     logger("ERROR", "LATEST_DEALS", "Eroare fetch latest deals", err.message);
@@ -1692,6 +1736,8 @@ async function handleLatestDeals(message) {
   }
 
   const top = rawDeals.slice(0, MAX_DEALS);
+  if (!top.length) return msg.edit("❌ Nu am găsit reduceri disponibile.");
+
   const guild = await GuildModel.findById(message.guild.id).lean();
   const mode = guild?.notificationMode || "detailed";
 
@@ -1701,13 +1747,13 @@ async function handleLatestDeals(message) {
     if (currentMode !== "compact") {
       await runPool(chunk, 3, async (d) => {
         try {
-          await withTimeout(enrichDealData(d), 6000, "Timeout enrich paginare");
+          await withTimeout(enrichDealData(d), DEALS_ENRICH_TIMEOUT_MS, "Timeout enrich paginare");
         } catch {}
       });
     }
 
     return chunk.map(d => buildDealEmbed(d, currentMode).setFooter({
-      text: `Pagina ${page + 1}/${totalP}${isStale ? " • cache vechi" : ""}`
+      text: `Pagina ${page + 1}/${totalP}${isStale ? " • cache" : ""}`
     }));
   };
 
@@ -1720,7 +1766,7 @@ async function handleLatestSingle(message, gameText) {
   }
 
   const estMs = (await getSystemTimes()).single || 2000;
-  const loadingMsg = await message.reply(`⏳ *Mă conectez... Durată estimată: **${Math.max(1, Math.ceil(estMs / 1000))} secunde**.*`);
+  const loadingMsg = await message.reply(`⏳ Aduc update-ul cerut... Durată estimată: **~${Math.max(1, Math.ceil(estMs / 1000))} secunde**.`);
   const startTime = Date.now();
 
   const { game, suggestion } = findGameAndSuggestion(gameText);
@@ -1753,7 +1799,7 @@ async function handleLatestSingle(message, gameText) {
     }).catch(() => null);
   } catch (error) {
     logger("ERROR", "LATEST_SINGLE", `Eroare preluare update pentru ${gameText}`, error.message);
-    await loadingMsg.edit(`❌ Eroare preluare update.`).catch(() => null);
+    await loadingMsg.edit("❌ Eroare preluare update.").catch(() => null);
   }
 }
 
@@ -1817,10 +1863,7 @@ client.on("messageCreate", async (message) => {
       }
       currentMsg += line + "\n";
     }
-
-    if (currentMsg.trim() !== "") {
-      await message.reply(currentMsg).catch(() => null);
-    }
+    if (currentMsg.trim() !== "") await message.reply(currentMsg).catch(() => null);
     return;
   }
 
@@ -1852,7 +1895,7 @@ client.on("messageCreate", async (message) => {
           value:
             `\`${PREFIX}latest updates\`\n` +
             `\`${PREFIX}latest reduceri\`\n` +
-            `\`${PREFIX}latest update [poreclă/alias]\` (ex: \`${PREFIX}latest update cs2\` sau \`"Counter Strike"\`)\n` +
+            `\`${PREFIX}latest update [poreclă/alias]\`\n` +
             `\`${PREFIX}porecle\` - Lista jocurilor și alias-urilor`
         }
       );
