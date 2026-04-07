@@ -718,10 +718,10 @@ async function fetchDeals() {
         savings: savings,
         store: "Steam",
         link: `https://store.steampowered.com/app/${item.id}`,
-        popularityScore: savings * 2, // Sortăm prioritizând reducerile mai mari
+        popularityScore: savings * 2,
         endDateStr: "Nespecificat",
         extraDetails: "",
-        enriched: false, // Lasă enrichDealData() să găsească platformele (Windows, Mac)
+        enriched: false, 
         thumbnail: item.header_image || null
       });
     }
@@ -752,20 +752,17 @@ async function fetchDeals() {
       const normalPrice = (priceInfo.originalPrice / 100).toFixed(2);
       const salePrice = (priceInfo.discountPrice / 100).toFixed(2);
 
-      // Calculăm reducerea dacă nu este predefinită
       let savings = 0;
       if (priceInfo.originalPrice > 0) {
         savings = Math.round(((priceInfo.originalPrice - priceInfo.discountPrice) / priceInfo.originalPrice) * 100);
       }
 
-      // Poza de copertă a jocului
       let thumb = null;
       if (Array.isArray(item.keyImages)) {
         const img = item.keyImages.find(i => i.type === "OfferImageWide" || i.type === "Thumbnail");
         if (img) thumb = img.url;
       }
 
-      // Extragerea datei la care expiră reducerea
       let endDate = "Nespecificat";
       const promos = item.promotions?.promotionalOffers?.[0]?.promotionalOffers?.[0];
       if (promos && promos.endDate) {
@@ -786,7 +783,7 @@ async function fetchDeals() {
         popularityScore: savings * 2,
         endDateStr: endDate,
         extraDetails: "",
-        enriched: true, // Epic are deja end date direct din API, deci scutim un apel HTTP
+        enriched: true,
         thumbnail: thumb
       });
     }
@@ -807,6 +804,9 @@ async function checkForUpdates() {
   const guilds = await GuildModel.find({ subscribed: true }).lean();
   if (guilds.length === 0) return;
   const results = await getLatestForAllGames();
+  
+  // NOU: Salvăm rezultatele direct în memorie pentru ca cererile manuale să fie instante
+  cache.updates = { data: results, expiresAt: Date.now() + 86400000 }; 
 
   for (const g of guilds) {
     if (!g.notificationChannelId) continue;
@@ -866,6 +866,10 @@ async function checkForDiscounts() {
   if (guilds.length === 0) return;
   try {
     const deals = await fetchDeals();
+    
+    // NOU: Salvăm ofertele în cache instant pentru comanda big_master!latest reduceri
+    cache.deals = { data: deals, expiresAt: Date.now() + 86400000 };
+
     for (const g of guilds) {
       if (!g.discountChannelId) continue;
       let channel;
@@ -1019,38 +1023,34 @@ async function handleSetCommand(message, args, guildId) {
 }
 
 async function handleLatestUpdates(message) {
-  let estMs = (await getSystemTimes()).all || 15000;
-  const msg = await message.reply(`⏳ *Mă conectez... ~${Math.ceil(estMs / 1000)} secunde.*`);
-  const start = Date.now();
-  let results;
-  try {
-    if (cache.updates.data && Date.now() < cache.updates.expiresAt) results = cache.updates.data;
-    else { results = await getLatestForAllGames(); cache.updates = { data: results, expiresAt: Date.now() + CACHE_TTL_MS }; const times = await getSystemTimes(); times.all = smoothTime(estMs, Date.now() - start); await saveSystemTimes(times); }
-  } catch (err) { return msg.edit("❌ Eroare rețea."); }
+  // Verificăm dacă botul are datele pregătite în fundal
+  if (!cache.updates.data) {
+    return message.reply("⏳ *Aplicația abia a pornit și sincronizează datele în fundal. Te rog să încerci comanda din nou în ~2 minute.*");
+  }
 
-  const valid = results.filter(r => r.latest !== null);
-  if (!valid.length) return msg.edit("❌ Nu am putut prelua date.");
+  const valid = cache.updates.data.filter(r => r.latest !== null);
+  if (!valid.length) return message.reply("❌ Nu am date disponibile momentan.");
 
   const guild = await GuildModel.findById(message.guild.id).lean();
   const mode = guild?.notificationMode || "detailed";
+  
+  const msg = await message.reply("✅ Date încărcate instant:");
   
   const generateEmbeds = async (page, totalP, currentMode) => valid.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE).map(r => buildUpdateEmbed(r.game.name, r.latest, currentMode).setFooter({ text: `${r.game.name} • Pagina ${page + 1}/${totalP}` }));
   await handlePagination(msg, message.author.id, "upd", valid, ITEMS_PER_PAGE, generateEmbeds, mode);
 }
 
 async function handleLatestDeals(message) {
-  let estMs = (await getSystemTimes()).reduceri || 15000;
-  const msg = await message.reply(`⏳ *Caut oferte... ~${Math.ceil(estMs / 1000)} sec.*`);
-  const start = Date.now();
-  let rawDeals;
-  try {
-    if (cache.deals.data && Date.now() < cache.deals.expiresAt) rawDeals = cache.deals.data;
-    else { rawDeals = await fetchDeals(); cache.deals = { data: rawDeals, expiresAt: Date.now() + CACHE_TTL_MS }; const times = await getSystemTimes(); times.reduceri = smoothTime(estMs, Date.now() - start); await saveSystemTimes(times); }
-  } catch (err) { return msg.edit("❌ Eroare oferte."); }
+  // Verificăm dacă ofertele sunt deja în memorie
+  if (!cache.deals.data) {
+    return message.reply("⏳ *Caut noile oferte în fundal. Revino în ~1 minut.*");
+  }
 
-  const top = rawDeals.slice(0, MAX_DEALS);
+  const top = cache.deals.data.slice(0, MAX_DEALS);
   const guild = await GuildModel.findById(message.guild.id).lean();
   const mode = guild?.notificationMode || "detailed";
+
+  const msg = await message.reply("✅ Oferte încărcate instant:");
 
   const generateEmbeds = async (page, totalP, currentMode) => {
     const chunk = top.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
