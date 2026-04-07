@@ -25,8 +25,6 @@ const {
 // 1. SETĂRI GLOBALE ȘI CONSTANTE
 // -------------------------------------------------------------
 const PREFIX = "big_master!";
-const STEAM_STORE_ID = 1;
-const EPIC_STORE_ID = 25;
 
 const CACHE_TTL_MS = 180000;
 const MAX_DEALS = 50;
@@ -349,7 +347,6 @@ async function handlePagination(interactionMessage, authorId, prefix, items, ite
   let currentPage = 0; const totalPages = Math.max(1, Math.ceil(items.length / itemsPerPage));
   const sessionId = Date.now().toString();
 
-  // FIX: Declarăm collector înainte pentru a evita ReferenceError în catch-ul inițial
   let collector = null;
 
   const updateMessage = async (interaction) => {
@@ -384,7 +381,6 @@ async function handlePagination(interactionMessage, authorId, prefix, items, ite
   });
 }
 
-// MATCHING: Logică finală rafinată pentru a rezolva conflictul Levenshtein vs Includes
 function findGameAndSuggestion(text) {
   const search = String(text || "").toLowerCase().replace(/[-_]/g, " ").trim();
   
@@ -701,25 +697,105 @@ async function enrichDealData(deal) {
 }
 
 async function fetchDeals() {
-  const getD = async (sId, name) => {
-    try {
-      const res = await httpReq('GET', `https://www.cheapshark.com/api/1.0/deals?storeID=${sId}&onSale=1&pageSize=${MAX_DEALS}`, { headers: { "Accept": "application/json" } });
-      return (Array.isArray(res.data) ? res.data : []).map(d => {
-        const savings = Math.round(parseFloat(d.savings) || 0);
-        return {
-          id: d.dealID, steamAppID: d.steamAppID, title: d.title, salePrice: d.salePrice, normalPrice: d.normalPrice, savings, store: name,
-          link: sId === STEAM_STORE_ID ? `https://store.steampowered.com/app/${d.steamAppID}` : `https://www.cheapshark.com/redirect?dealID=${d.dealID}`,
-          popularityScore: (savings * 2) + Math.max(parseInt(d.steamRatingPercent) || 0, parseInt(d.metacriticScore) || 0), 
-          endDateStr: "Nespecificat", extraDetails: "", enriched: false, thumbnail: d.thumb || null
-        };
+  const deals = [];
+
+  // --- 1. PRELUARE OFERTE STEAM VIA API INTERN ---
+  try {
+    const steamRes = await httpReq('GET', 'https://store.steampowered.com/api/featuredcategories/?cc=US&l=english');
+    const steamSpecials = steamRes.data?.specials?.items || [];
+
+    for (const item of steamSpecials) {
+      const normalPrice = (item.original_price / 100).toFixed(2);
+      const salePrice = (item.final_price / 100).toFixed(2);
+      const savings = item.discount_percent || 0;
+
+      deals.push({
+        id: `steam_${item.id}`,
+        steamAppID: item.id,
+        title: item.name,
+        salePrice: salePrice,
+        normalPrice: normalPrice,
+        savings: savings,
+        store: "Steam",
+        link: `https://store.steampowered.com/app/${item.id}`,
+        popularityScore: savings * 2, // Sortăm prioritizând reducerile mai mari
+        endDateStr: "Nespecificat",
+        extraDetails: "",
+        enriched: false, // Lasă enrichDealData() să găsească platformele (Windows, Mac)
+        thumbnail: item.header_image || null
       });
-    } catch (err) { 
-      logger("WARN", "DEALS_FETCH", `Eroare la preluarea ofertelor CheapShark (StoreID: ${sId})`, err.message);
-      return []; 
     }
-  };
-  
-  const finalTop = [...(await getD(STEAM_STORE_ID, "Steam")), ...(await getD(EPIC_STORE_ID, "Epic Games"))].sort((a, b) => b.popularityScore - a.popularityScore).slice(0, MAX_DEALS);
+  } catch (err) {
+    logger("WARN", "DEALS_FETCH", "Eroare preluare date Steam API", err.message);
+  }
+
+  // --- 2. PRELUARE OFERTE EPIC GAMES VIA GRAPHQL ---
+  try {
+    const epicQuery = `query searchStoreQuery($category: String, $count: Int, $country: String!, $locale: String, $onSale: Boolean, $withPrice: Boolean = false) { Catalog { searchStore(category: $category, count: $count, country: $country, locale: $locale, onSale: $onSale) { elements { title id urlSlug keyImages { type url } price(country: $country) @include(if: $withPrice) { totalPrice { discountPrice originalPrice } } promotions { promotionalOffers { promotionalOffers { endDate discountSetting { discountPercentage } } } } } } } }`;
+    
+    const epicVars = {
+      category: "games/edition/base|bundles/games",
+      count: 40,
+      country: "US",
+      locale: "en-US",
+      onSale: true,
+      withPrice: true
+    };
+
+    const epicRes = await httpReq('POST', 'https://graphql.epicgames.com/graphql', { data: { query: epicQuery, variables: epicVars } });
+    const epicElements = epicRes.data?.data?.Catalog?.searchStore?.elements || [];
+
+    for (const item of epicElements) {
+      const priceInfo = item.price?.totalPrice;
+      if (!priceInfo) continue;
+
+      const normalPrice = (priceInfo.originalPrice / 100).toFixed(2);
+      const salePrice = (priceInfo.discountPrice / 100).toFixed(2);
+
+      // Calculăm reducerea dacă nu este predefinită
+      let savings = 0;
+      if (priceInfo.originalPrice > 0) {
+        savings = Math.round(((priceInfo.originalPrice - priceInfo.discountPrice) / priceInfo.originalPrice) * 100);
+      }
+
+      // Poza de copertă a jocului
+      let thumb = null;
+      if (Array.isArray(item.keyImages)) {
+        const img = item.keyImages.find(i => i.type === "OfferImageWide" || i.type === "Thumbnail");
+        if (img) thumb = img.url;
+      }
+
+      // Extragerea datei la care expiră reducerea
+      let endDate = "Nespecificat";
+      const promos = item.promotions?.promotionalOffers?.[0]?.promotionalOffers?.[0];
+      if (promos && promos.endDate) {
+        endDate = new Date(promos.endDate).toLocaleDateString('ro-RO');
+      }
+
+      const urlSlug = item.urlSlug || item.id;
+
+      deals.push({
+        id: `epic_${item.id}`,
+        steamAppID: null,
+        title: item.title,
+        salePrice: salePrice,
+        normalPrice: normalPrice,
+        savings: savings,
+        store: "Epic Games",
+        link: `https://store.epicgames.com/en-US/p/${urlSlug}`,
+        popularityScore: savings * 2,
+        endDateStr: endDate,
+        extraDetails: "",
+        enriched: true, // Epic are deja end date direct din API, deci scutim un apel HTTP
+        thumbnail: thumb
+      });
+    }
+  } catch (err) {
+    logger("WARN", "DEALS_FETCH", "Eroare preluare date Epic GraphQL", err.message);
+  }
+
+  // --- 3. SORTARE ȘI RETURNARE ---
+  const finalTop = deals.sort((a, b) => b.popularityScore - a.popularityScore).slice(0, MAX_DEALS);
   if (!finalTop.length) throw new Error("Fără oferte valide.");
   return finalTop;
 }
@@ -742,13 +818,25 @@ async function checkForUpdates() {
 
     for (const { game, latest, error } of results) {
       if (error || !latest) continue;
+      
       const currentSeen = g.seen?.[game.key];
-      const oldId = (typeof currentSeen === 'object' && currentSeen !== null) ? currentSeen.id : currentSeen;
+      let seenArray = [];
+      
+      if (Array.isArray(currentSeen)) {
+          seenArray = currentSeen;
+      } else if (typeof currentSeen === 'object' && currentSeen !== null && currentSeen.id) {
+          seenArray = [currentSeen.id];
+      } else if (typeof currentSeen === 'string') {
+          seenArray = [currentSeen];
+      }
 
-      if (oldId !== latest.id) {
+      if (!seenArray.includes(latest.id)) {
+        seenArray.push(latest.id);
+        if (seenArray.length > 5) seenArray.shift();
+
         itemsToProcess.push({
           embed: buildUpdateEmbed(game.name, latest, g.notificationMode),
-          dbPayload: { [`seen.${game.key}`]: { id: latest.id, title: latest.title, link: latest.link, timestamp: latest.timestamp, updatedAt: new Date() } }
+          dbPayload: { [`seen.${game.key}`]: seenArray }
         });
       }
     }
@@ -806,26 +894,27 @@ async function checkForDiscounts() {
       if (itemsToProcess.length > 0) {
           let savedHashes = [];
           
-          const chunkToProcess = itemsToProcess.slice(0, 10);
-          const chunkEmbeds = [];
-          
-          for (const item of chunkToProcess) {
-              try {
-                if (!item.deal.enriched && g.notificationMode !== "compact") await enrichDealData(item.deal);
-                chunkEmbeds.push(buildDealEmbed(item.deal, g.notificationMode).setTimestamp());
-              } catch (enrichErr) {
-                logger("WARN", "ENRICH", "Eroare izolata la enrich deal", enrichErr.message);
+          for (let i = 0; i < itemsToProcess.length; i += 10) {
+              const chunkToProcess = itemsToProcess.slice(i, i + 10);
+              const chunkEmbeds = [];
+              
+              for (const item of chunkToProcess) {
+                  try {
+                    if (!item.deal.enriched && g.notificationMode !== "compact") await enrichDealData(item.deal);
+                    chunkEmbeds.push(buildDealEmbed(item.deal, g.notificationMode).setTimestamp());
+                  } catch (enrichErr) {
+                    logger("WARN", "ENRICH", "Eroare izolata la enrich deal", enrichErr.message);
+                  }
               }
-          }
-          
-          // FIX CRITIC: Dacă toate deal-urile din lot au eșuat la procesare (array gol), prevenim eroarea Discord API
-          if (chunkEmbeds.length === 0) continue;
+              
+              if (chunkEmbeds.length === 0) continue;
 
-          try {
-              await channel.send({ embeds: chunkEmbeds });
-              savedHashes.push(...chunkToProcess.map(c => c.hash));
-          } catch (e) {
-              logger("ERROR", "SEND", `Eroare trimitere parțială reduceri către serverul ${g._id}`, e.message);
+              try {
+                  await channel.send({ embeds: chunkEmbeds });
+                  savedHashes.push(...chunkToProcess.map(c => c.hash));
+              } catch (e) {
+                  logger("ERROR", "SEND", `Eroare trimitere parțială reduceri către serverul ${g._id}`, e.message);
+              }
           }
           
           if (savedHashes.length > 0) {
@@ -847,7 +936,7 @@ async function handleStart(message, subCommand, guildId) {
     try {
       const results = await getLatestForAllGames();
       const setPayload = { subscribed: true, notificationChannelId: message.channel.id };
-      for (const r of results) if (r.latest) setPayload[`seen.${r.game.key}`] = { id: r.latest.id };
+      for (const r of results) if (r.latest) setPayload[`seen.${r.game.key}`] = [r.latest.id];
       await GuildModel.updateOne({ _id: guildId }, { $set: setPayload }, { upsert: true });
       return msg.edit("✅ Update-uri automate activate pe acest canal.");
     } catch (err) {
