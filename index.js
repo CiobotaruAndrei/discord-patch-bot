@@ -30,7 +30,7 @@ const CACHE_TTL_MS = 180000;
 const MAX_DEALS = 50;
 const ITEMS_PER_PAGE = 5;
 const DEALS_HISTORY_LIMIT = 300;
-const FETCH_CONCURRENCY = 3;
+const FETCH_CONCURRENCY = 10; // OPTIMIZAT: Procesăm 10 deodată pentru viteză
 
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -153,7 +153,7 @@ const CircuitBreakerModel = mongoose.model("CircuitBreaker", circuitBreakerSchem
 
 const systemSchema = new mongoose.Schema({
   _id: { type: String, default: "system_state" },
-  executionTimes: { all: { type: Number, default: 15000 }, single: { type: Number, default: 2000 }, reduceri: { type: Number, default: 15000 } }
+  executionTimes: { all: { type: Number, default: 35000 }, single: { type: Number, default: 2000 }, reduceri: { type: Number, default: 10000 } }
 }, { minimize: false });
 
 const SystemModel = mongoose.model("System", systemSchema);
@@ -212,8 +212,8 @@ async function releaseDbLock(jobName, token) {
 
 async function getSystemTimes() {
   let sys = await SystemModel.findById("system_state").lean();
-  if (!sys) { sys = { _id: "system_state", executionTimes: { all: 15000, single: 2000, reduceri: 15000 } }; await SystemModel.create(sys); }
-  return sys.executionTimes || { all: 15000, single: 2000, reduceri: 15000 };
+  if (!sys) { sys = { _id: "system_state", executionTimes: { all: 35000, single: 2000, reduceri: 10000 } }; await SystemModel.create(sys); }
+  return sys.executionTimes || { all: 35000, single: 2000, reduceri: 10000 };
 }
 
 async function saveSystemTimes(times) { await SystemModel.findByIdAndUpdate("system_state", { $set: { executionTimes: times } }, { upsert: true }); }
@@ -666,11 +666,10 @@ async function executeFetchWithCircuitBreaker(game) {
 
 async function getLatestForAllGames() {
   const results = [];
+  // OPTIMIZARE: Paralelizare agresivă (concurrency 10) și fără delay artificial
   for (let i = 0; i < config.games.length; i += FETCH_CONCURRENCY) {
     const chunk = config.games.slice(i, i + FETCH_CONCURRENCY);
-    const chunkResults = await Promise.all(chunk.map(async (game, index) => {
-      const delay = index * 800 + Math.floor(Math.random() * 500);
-      if (delay > 0) await new Promise(r => setTimeout(r, delay));
+    const chunkResults = await Promise.all(chunk.map(async (game) => {
       return await executeFetchWithCircuitBreaker(game);
     }));
     results.push(...chunkResults);
@@ -1024,10 +1023,13 @@ async function handleLatestUpdates(message) {
   let msg = null;
   
   if (!cache.updates.data) {
-    msg = await message.reply("⏳ *Aduc datele de pe internet (prima rulare durează puțin, apoi va fi instant)...*");
+    const estMs = (await getSystemTimes()).all || 35000;
+    msg = await message.reply(`⏳ *Aduc datele de pe internet... Durată estimată: **${Math.max(1, Math.ceil(estMs / 1000))} secunde***`);
+    const startTime = Date.now();
     try {
         const results = await getLatestForAllGames();
         cache.updates = { data: results, expiresAt: Date.now() + 86400000 };
+        const sys = await getSystemTimes(); sys.all = smoothTime(estMs, Date.now() - startTime); await saveSystemTimes(sys);
     } catch (err) {
         return msg.edit("❌ Eroare la preluarea datelor.");
     }
@@ -1055,10 +1057,13 @@ async function handleLatestDeals(message) {
   let msg = null;
 
   if (!cache.deals.data) {
-    msg = await message.reply("⏳ *Caut noile oferte (prima rulare durează puțin, apoi va fi instant)...*");
+    const estMs = (await getSystemTimes()).reduceri || 10000;
+    msg = await message.reply(`⏳ *Caut noile oferte... Durată estimată: **${Math.max(1, Math.ceil(estMs / 1000))} secunde***`);
+    const startTime = Date.now();
     try {
         const rawDeals = await fetchDeals();
         cache.deals = { data: rawDeals, expiresAt: Date.now() + 86400000 };
+        const sys = await getSystemTimes(); sys.reduceri = smoothTime(estMs, Date.now() - startTime); await saveSystemTimes(sys);
     } catch (err) {
         return msg.edit("❌ Eroare la preluarea ofertelor.");
     }
