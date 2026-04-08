@@ -144,11 +144,11 @@ const guildSchema = new mongoose.Schema({
   subscribed: { type: Boolean, default: false },
   notificationChannelId: { type: String, default: null },
   seen: { type: Map, of: [String], default: {} },
-
+  
   discountsSubscribed: { type: Boolean, default: false },
   discountChannelId: { type: String, default: null },
   seenDiscounts: { type: [String], default: [] }, 
-
+  
   minDiscountPercent: { type: Number, default: 70 },
   includeFreeGames: { type: Boolean, default: true },
   includePaidDiscounts: { type: Boolean, default: true },
@@ -185,19 +185,21 @@ async function acquireDbLock(jobName, ttlMs = 120000) {
   const now = new Date();
   const expires = new Date(now.getTime() + ttlMs);
   const lockToken = crypto.randomUUID();
-
+  
   try {
+    // 1. Încercăm să actualizăm un lock existent și expirat
     const lock = await JobLockModel.findOneAndUpdate(
       { _id: `lock_${jobName}`, $or: [{ lockedUntil: { $lt: now } }, { lockedUntil: null }] },
       { $set: { lockedUntil: expires, ownerToken: lockToken } },
       { new: true } 
     );
-
+    
     if (lock && lock.ownerToken === lockToken) {
       activeLocks.set(jobName, lockToken);
       return lockToken;
     }
 
+    // 2. Dacă documentul nu există deloc, încercăm să-l creăm
     try {
       await JobLockModel.create({
         _id: `lock_${jobName}`,
@@ -207,7 +209,7 @@ async function acquireDbLock(jobName, ttlMs = 120000) {
       activeLocks.set(jobName, lockToken);
       return lockToken;
     } catch (createErr) {
-      if (createErr.code === 11000) return null; 
+      if (createErr.code === 11000) return null; // Altcineva l-a creat concurent
       throw createErr;
     }
   } catch (err) {
@@ -231,6 +233,7 @@ async function renewDbLock(jobName, token, ttlMs = 120000) {
 async function releaseDbLock(jobName, token) {
   if (!token) return;
   try {
+    // Curățare curată, fără să lăsăm gunoi
     await JobLockModel.deleteOne({ _id: `lock_${jobName}`, ownerToken: token });
     activeLocks.delete(jobName);
   } catch (err) { 
@@ -244,7 +247,7 @@ async function getSystemTimes() {
     { $setOnInsert: { executionTimes: { all: 35000, single: 2000, reduceri: 10000 } } },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   ).lean();
-
+  
   return sys.executionTimes || { all: 35000, single: 2000, reduceri: 10000 };
 }
 
@@ -316,6 +319,7 @@ function cleanCache() {
     if (value.expiresAt < now) cache.dlc.delete(key);
   }
 
+  // Limite de dimensiune
   if (cache.dlc.size > 100) {
     const oldestKeys = [...cache.dlc.keys()].slice(0, 20);
     oldestKeys.forEach(k => cache.dlc.delete(k));
@@ -340,7 +344,7 @@ function buildUpdateEmbed(gameName, latest, mode = "detailed") {
   const isCompact = mode === "compact";
   const embed = new EmbedBuilder().setColor(0x57f287).setTitle(truncate(latest.title, 256)).setFooter({ text: truncate(gameName, 2048) }); 
   if (latest.link) embed.setURL(latest.link);
-
+  
   if (isCompact) {
     embed.setDescription(latest.link ? `Apasă pe titlu pentru a citi patch-ul.` : `A apărut un nou update pentru ${gameName}.`);
   } else {
@@ -400,18 +404,18 @@ async function handlePagination(interactionMessage, authorId, prefix, items, ite
       if (collector) collector.stop("error"); 
     }
   };
-
+  
   await updateMessage();
 
   collector = interactionMessage.createMessageComponentCollector({ componentType: ComponentType.Button, time: 300000 });
   collector.on("collect", async (btn) => {
     if (btn.user.id !== authorId) return btn.reply({ content: "Doar autorul comenzii poate naviga!", ephemeral: true }).catch(() => null);
     if (btn.customId !== `${prefix}_prev_${sessionId}` && btn.customId !== `${prefix}_next_${sessionId}`) return;
-
+    
     if (btn.customId === `${prefix}_prev_${sessionId}`) currentPage--;
     if (btn.customId === `${prefix}_next_${sessionId}`) currentPage++;
     currentPage = Math.max(0, Math.min(totalPages - 1, currentPage));
-
+    
     await btn.deferUpdate().catch(() => null);
     await updateMessage();
   });
@@ -479,7 +483,7 @@ async function httpReq(method, url, options = {}, retries = 2, backoff = 1000) {
     catch (err) {
       const status = err.response?.status || "N/A";
       if (typeof status === "number" && status >= 400 && status < 500 && status !== 429) throw err;
-
+      
       if (i === retries) {
         logger("ERROR", "HTTP", `Eșec final request [${status}] după ${retries} încercări: ${url}`, err.message);
         throw err;
@@ -515,10 +519,10 @@ function isLikelyPatchNote(item) {
   const contents = String(item.contents || "").toLowerCase();
   const tags = Array.isArray(item.tags) ? item.tags.map((t) => String(t).toLowerCase()) : [];
   const text = `${title} ${contents}`;
-
+  
   const badWordsInTitle = ["community", "sale", "store", "merch", "tournament", "esports", "giveaway", "teaser", "trailer", "preview", "announce", "announcement"];
   const goodWords = ["update", "patch", "hotfix", "version", "release", "bugfix", "bug fix", "fixes", "fix", "notes", "patch notes", "changelog", "maintenance", "build", "client update", "title update", "release notes", "season", "chapter", "rework", "balance", "content update", "launch"];
-
+  
   if (badWordsInTitle.some((word) => title.includes(word))) return false;
   if (tags.includes("patchnotes") || tags.includes("update")) return true;
   return goodWords.some((word) => text.includes(word));
@@ -570,7 +574,7 @@ async function fetchListingBasedUpdate(game) {
   const articleUrl = unique[0].href;
   const articleRes = await httpReq('GET', articleUrl);
   const $art = cheerio.load(String(articleRes.data || ""));
-
+  
   const ogTitle = $art('meta[property="og:title"]').attr('content') || $art('title').text() || "";
   const ogDesc = $art('meta[property="og:description"]').attr('content') || "";
   $art('script, style, nav, footer, header').remove();
@@ -709,7 +713,7 @@ const activeEnrichments = new Map();
 
 async function enrichDealData(deal) {
   if (deal.enriched) return deal; 
-
+  
   if (activeEnrichments.has(deal.id)) {
     return activeEnrichments.get(deal.id);
   }
@@ -793,7 +797,7 @@ async function fetchDeals() {
   // --- 2. PRELUARE OFERTE EPIC GAMES VIA GRAPHQL ---
   try {
     const epicQuery = `query searchStoreQuery($category: String, $count: Int, $country: String!, $locale: String, $onSale: Boolean, $withPrice: Boolean = false) { Catalog { searchStore(category: $category, count: $count, country: $country, locale: $locale, onSale: $onSale) { elements { title id urlSlug keyImages { type url } price(country: $country) @include(if: $withPrice) { totalPrice { discountPrice originalPrice } } promotions { promotionalOffers { promotionalOffers { endDate discountSetting { discountPercentage } } } } } } } }`;
-
+    
     const epicVars = {
       category: "games/edition/base|bundles/games",
       count: 20, 
@@ -851,6 +855,7 @@ async function fetchDeals() {
     }
   } catch (err) { logger("WARN", "DEALS_FETCH", "Eroare Epic GraphQL", err.message); }
 
+  // --- 3. SORTARE ȘI RETURNARE ---
   const finalTop = deals.sort((a, b) => b.popularityScore - a.popularityScore).slice(0, MAX_DEALS);
   if (!finalTop.length) throw new Error("Fără oferte valide.");
   return finalTop;
@@ -869,13 +874,13 @@ function chooseBestSteamMatch(items, query) {
     .replace(/[^a-z0-9\s]/g, ' ') 
     .replace(/\s+/g, ' ')         
     .trim();
-
+  
   const searchTarget = query.toLowerCase().trim();
   const normTarget = normalize(query);
 
   const dlcKeywords = ["dlc", "soundtrack", "demo", "expansion", "deluxe upgrade", "season pass", "ost", "artbook", "collection", "remaster", "bundle", "definitive edition"];
   const wantsDLC = dlcKeywords.some(kw => searchTarget.includes(kw));
-
+  
   const extraTypes = new Set(["dlc", "demo", "music"]);
 
   let bestMatch = items[0];
@@ -884,7 +889,7 @@ function chooseBestSteamMatch(items, query) {
   for (const item of items) {
     const itemName = String(item.name || "").toLowerCase();
     const normItemName = normalize(itemName);
-
+    
     let score = levenshtein(normTarget, normItemName);
 
     if (normItemName === normTarget) score -= 100;
@@ -894,7 +899,7 @@ function chooseBestSteamMatch(items, query) {
     if (!wantsDLC) {
       const isExtraByName = dlcKeywords.some(kw => itemName.includes(kw));
       const isExtraByType = typeof item.type === "string" && extraTypes.has(item.type.toLowerCase());
-
+      
       if (isExtraByName || isExtraByType) {
         score += 50; 
       }
@@ -905,7 +910,7 @@ function chooseBestSteamMatch(items, query) {
       bestMatch = item;
     }
   }
-
+  
   return bestMatch; 
 }
 
@@ -982,7 +987,7 @@ function buildSteamPriceEmbed(gameData, appId, offerEndDate) {
 // -------------------------------------------------------------
 async function handleStart(message, subCommand, guildId) {
   if (!message.member?.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply("⛔ Doar un admin.");
-
+  
   if (subCommand === "updates") {
     const msg = await message.reply("⏳ Setez canalul...");
     try {
@@ -1063,7 +1068,7 @@ async function handleLatestUpdates(message) {
   const mode = guild?.notificationMode || "detailed";
   if (msg) await msg.edit("✅ Date încărcate!");
   else msg = await message.reply("✅ Date încărcate!");
-
+  
   const generateEmbeds = async (page, totalP, currentMode) => valid.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE).map(r => buildUpdateEmbed(r.game.name, r.latest, currentMode).setFooter({ text: `${r.game.name} • Pagina ${page + 1}/${totalP}` }));
   await handlePagination(msg, message.author.id, "upd", valid, ITEMS_PER_PAGE, generateEmbeds, mode);
 }
@@ -1150,7 +1155,7 @@ async function handlePriceSearch(message, gameName) {
     }
 
     const bestMatch = chooseBestSteamMatch(items, gameName);
-
+    
     if (!bestMatch || !bestMatch.id) {
       return loadingMsg.edit(`❌ Nu am putut selecta un rezultat valid de pe Steam.`).catch(() => null);
     }
@@ -1239,7 +1244,7 @@ async function handleDlcSearch(message, gameName) {
       });
 
       const $ = cheerio.load(htmlRes.data);
-
+      
       if ($('#agegate_box').length > 0 || $('.agegate_text_container').length > 0 || htmlRes.request?.path?.includes('agecheck')) {
         return loadingMsg.edit(`❌ Pagina de Steam pentru **${title}** necesită verificare de vârstă, iar botul nu o poate accesa direct.`).catch(() => null);
       }
@@ -1251,7 +1256,7 @@ async function handleDlcSearch(message, gameName) {
         const dlcName = $(el).find('.game_area_dlc_name').text().trim();
         let dlcPrice = $(el).find('.game_area_dlc_price').text().trim();
         const dlcAppId = $(el).attr('data-ds-appid') || dlcName;
-
+        
         dlcPrice = dlcPrice.replace(/\s+/g, ' ');
         if (!dlcPrice || dlcPrice === "") dlcPrice = "Preț indisponibil";
 
@@ -1274,13 +1279,13 @@ async function handleDlcSearch(message, gameName) {
     }
 
     const { dlcList, title, appId: finalAppId, thumbUrl: finalThumbUrl, totalExtracted } = dlcData;
-
+    
     await loadingMsg.edit(`✅ Am găsit **${totalExtracted}** DLC-uri pentru **${title}**!`).catch(() => null);
 
     const itemsPerPage = 10;
     const generateEmbeds = async (page, totalP) => {
       const chunk = dlcList.slice(page * itemsPerPage, (page + 1) * itemsPerPage);
-
+      
       const embed = new EmbedBuilder()
         .setColor(0x9b59b6) 
         .setTitle(`📦 DLC-uri: ${title}`)
@@ -1295,7 +1300,7 @@ async function handleDlcSearch(message, gameName) {
 
       embed.setDescription(desc);
       embed.setFooter({ text: `Pagina ${page + 1}/${totalP} • Afișate: ${dlcList.length} / Extrase: ${totalExtracted}` });
-
+      
       return [embed];
     };
 
@@ -1308,103 +1313,29 @@ async function handleDlcSearch(message, gameName) {
 }
 
 // -------------------------------------------------------------
-// FUNCȚII DE DISPECERIZARE AUTOMATĂ (CRON)
-// -------------------------------------------------------------
-async function checkForUpdates() {
-  const results = await getLatestForAllGames();
-  const guilds = await GuildModel.find({ subscribed: true, notificationChannelId: { $ne: null } });
-
-  for (const r of results) {
-    if (!r.latest || r.error) continue;
-
-    for (const guild of guilds) {
-      const seenArray = getSeenArray(guild.seen, r.game.key);
-
-      if (!seenArray.includes(r.latest.id)) {
-        try {
-          const channel = await client.channels.fetch(guild.notificationChannelId).catch(() => null);
-          if (channel) {
-            const embed = buildUpdateEmbed(r.game.name, r.latest, guild.notificationMode);
-            await channel.send({ embeds: [embed] });
-          }
-
-          seenArray.push(r.latest.id);
-          if (seenArray.length > 20) seenArray.shift(); 
-
-          guild.set(`seen.${r.game.key}`, seenArray);
-          await guild.save();
-        } catch (e) {
-          logger("WARN", "CRON_UPDATES", `Eroare la trimiterea update-ului pentru serverul ${guild._id}`, e.message);
-        }
-      }
-    }
-  }
-}
-
-async function checkForDiscounts() {
-  let deals;
-  try {
-    deals = await fetchDeals();
-  } catch (err) {
-    return logger("WARN", "CRON_DEALS", "Nu am putut prelua reducerile", err.message);
-  }
-
-  const guilds = await GuildModel.find({ discountsSubscribed: true, discountChannelId: { $ne: null } });
-
-  for (const deal of deals) {
-    const isFree = parseFloat(deal.salePrice) === 0;
-    const dealHash = crypto.createHash('sha1').update(`${deal.title}_${deal.store}_${deal.salePrice}_${deal.normalPrice}`).digest('hex');
-
-    for (const guild of guilds) {
-      if (isFree && !guild.includeFreeGames) continue;
-      if (!isFree && !guild.includePaidDiscounts) continue;
-      if (!isFree && deal.savings < guild.minDiscountPercent) continue;
-
-      if (!guild.seenDiscounts.includes(dealHash)) {
-        try {
-          const channel = await client.channels.fetch(guild.discountChannelId).catch(() => null);
-          if (channel) {
-            if (guild.notificationMode !== "compact") await enrichDealData(deal);
-
-            const embed = buildDealEmbed(deal, guild.notificationMode);
-            await channel.send({ embeds: [embed] });
-          }
-
-          guild.seenDiscounts.push(dealHash);
-          if (guild.seenDiscounts.length > DEALS_HISTORY_LIMIT) guild.seenDiscounts.shift();
-          await guild.save();
-        } catch (e) {
-          logger("WARN", "CRON_DEALS", `Eroare la trimiterea reducerii pe serverul ${guild._id}`, e.message);
-        }
-      }
-    }
-  }
-}
-
-// -------------------------------------------------------------
 // INIT 
 // -------------------------------------------------------------
 let isRunningCron = false; 
 
 client.once("ready", () => {
   logger("INFO", "DISCORD", `Bot online: ${client.user.tag}`);
-
+  
   const runChecks = async () => {
     if (isRunningCron) {
         return logger("WARN", "CRON", "Jobul anterior încă rulează pe această instanță, sar peste ciclul actual.");
     }
-
+    
     isRunningCron = true;
     cleanCache();
-
+    
     const lockToken = await acquireDbLock("main_cron_job", 120000);
     if (!lockToken) {
         isRunningCron = false;
         return;
     }
-
+    
     const hb = setInterval(() => renewDbLock("main_cron_job", lockToken, 120000).catch(()=>{}), 60000);
-
+    
     try { 
       await checkForUpdates(); 
       await checkForDiscounts(); 
@@ -1416,7 +1347,7 @@ client.once("ready", () => {
       isRunningCron = false;
     }
   };
-
+  
   runChecks();
   const min = Number(config.checkIntervalMinutes || 30);
   cron.schedule(min === 60 ? '0 * * * *' : `*/${min} * * * *`, runChecks);
@@ -1451,7 +1382,7 @@ client.on("messageCreate", async (message) => {
   if (command === "start") return handleStart(message, subCommand, message.guild.id);
   if (command === "stop") return handleStop(message, subCommand, message.guild.id);
   if (command === "set") return handleSetCommand(message, rawArgs, message.guild.id);
-
+  
   if (command === "latest") {
     if (subCommand === "updates") return handleLatestUpdates(message);
     if (subCommand === "reduceri") return handleLatestDeals(message);
@@ -1462,7 +1393,7 @@ client.on("messageCreate", async (message) => {
   if (command === "dlc") {
     return handleDlcSearch(message, rawArgs.join(" "));
   }
-
+  
   if (command === "help") {
     const helpEmbed = new EmbedBuilder().setColor(0x2b2d31).setTitle("🤖 Meniul de Ajutor - Big Master")
       .addFields(
