@@ -4,143 +4,163 @@
     {
       "key": "dbd",
       "name": "Dead by Daylight",
-      "appId": "381210",
-      "updateSource": { "type": "steam_news" }
+      "type": "steam",
+      "appId": "381210"
     },
     {
       "key": "fc26",
       "name": "EA SPORTS FC 26",
-      "appId": "3405690",
-      "updateSource": { "type": "steam_news" }
+      "type": "steam",
+      "appId": "3405690"
     },
     {
       "key": "cs2",
       "name": "Counter-Strike 2",
-      "appId": "730",
-      "updateSource": { "type": "steam_news" }
+      "type": "steam",
+      "appId": "730"
     },
     {
       "key": "phasmophobia",
       "name": "Phasmophobia",
-      "appId": "739630",
-      "updateSource": { "type": "steam_news" }
+      "type": "steam",
+      "appId": "739630"
     },
     {
       "key": "wot",
       "name": "World of Tanks",
-      "appId": "1407200",
-      "updateSource": { "type": "steam_news" }
+      "type": "steam",
+      "appId": "1407200"
     },
     {
       "key": "battlefront2",
       "name": "Star Wars Battlefront II",
-      "appId": "1237950",
-      "updateSource": { "type": "steam_news" }
+      "type": "steam",
+      "appId": "1237950"
     },
     {
       "key": "rocketleague",
       "name": "Rocket League",
-      "appId": "252950",
-      "updateSource": { "type": "steam_news" }
+      "type": "steam",
+      "appId": "252950"
     },
     {
       "key": "crossout",
       "name": "Crossout",
-      "appId": "386180",
-      "updateSource": { "type": "steam_news" }
+      "type": "steam",
+      "appId": "386180"
     },
     {
       "key": "pubg",
       "name": "PUBG (PC)",
-      "appId": "578080",
-      "updateSource": { "type": "steam_news" }
+      "type": "steam",
+      "appId": "578080"
     },
     {
       "key": "battlefield6",
       "name": "Battlefield 6",
-      "appId": "2807960",
-      "updateSource": { "type": "steam_news" }
+      "type": "steam",
+      "appId": "2807960"
     },
     {
       "key": "marvel",
       "name": "Marvel Rivals",
-      "appId": "2764370",
-      "updateSource": { "type": "steam_news" }
+      "type": "steam",
+      "appId": "2764370"
     },
     {
       "key": "cod",
       "name": "Call of Duty",
-      "appId": "1938090",
-      "updateSource": { "type": "steam_news" }
+      "type": "steam",
+      "appId": "1938090"
     },
     {
       "key": "ow2",
       "name": "Overwatch 2",
-      "appId": "2357570",
-      "updateSource": { "type": "steam_news" }
+      "type": "steam",
+      "appId": "2357570"
     },
     {
       "key": "ron",
       "name": "Ready or Not",
-      "appId": "1144200",
-      "updateSource": { "type": "steam_news" }
+      "type": "steam",
+      "appId": "1144200"
     },
     {
       "key": "minecraft",
       "name": "Minecraft",
-      "updateSource": { "type": "official_json", "url": "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json" }
+      "type": "minecraft"
     },
     {
       "key": "fortnite",
       "name": "Fortnite",
-      "updateSource": { "type": "official_json", "url": "https://www.fortnite.com/api/blog/getPosts?postsPerPage=10&offset=0&locale=en-US" }
+      "type": "epic_games"
     },
     {
       "key": "roblox",
       "name": "Roblox",
-      "updateSource": { "type": "official_json", "url": "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer" }
+      "type": "roblox"
     },
     {
       "key": "valorant",
       "name": "VALORANT",
-      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/f/fc/Valorant_logo_-_pink_color_version.svg",
-      "updateSource": { "type": "rss", "url": "https://news.google.com/rss/search?q=site:playvalorant.com/en-us/news/game-updates/+patch&hl=en-US" }
+      "type": "listing_based",
+      "listingUrls": [
+        "https://playvalorant.com/en-us/news/tags/patch-notes/"
+      ],
+      "baseUrl": "https://playvalorant.com",
+      "articleHrefRegex": "/news/game-updates/",
+      "requireKeywords": [
+        "patch"
+      ],
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/f/fc/Valorant_logo_-_pink_color_version.svg"
     },
     {
       "key": "lol",
       "name": "League of Legends",
-      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/d/d8/League_of_Legends_2019_vector.svg",
-      "updateSource": { "type": "rss", "url": "https://news.google.com/rss/search?q=site:leagueoflegends.com/en-us/news/game-updates/+patch&hl=en-US" }
+      "type": "listing_based",
+      "listingUrls": [
+        "https://www.leagueoflegends.com/en-us/news/tags/patch-notes/"
+      ],
+      "baseUrl": "https://www.leagueoflegends.com",
+      "articleHrefRegex": "/news/game-updates/",
+      "requireKeywords": [
+        "patch"
+      ],
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/d/d8/League_of_Legends_2019_vector.svg"
     },
     {
       "key": "nvidiagr",
       "name": "NVIDIA Game Ready Drivers",
-      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/2/21/Nvidia_logo.svg",
-      "updateSource": { "type": "rss", "url": "https://news.google.com/rss/search?q=site:nvidia.com+%22Game+Ready+Driver%22+release&hl=en-US" }
+      "type": "nvidia",
+      "upCRD": 0,
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/2/21/Nvidia_logo.svg"
     },
     {
       "key": "nvidiastudio",
       "name": "NVIDIA Studio Drivers",
-      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/2/21/Nvidia_logo.svg",
-      "updateSource": { "type": "rss", "url": "https://news.google.com/rss/search?q=site:nvidia.com+%22Studio+Driver%22+release&hl=en-US" }
+      "type": "nvidia",
+      "upCRD": 1,
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/2/21/Nvidia_logo.svg"
     },
     {
       "key": "amd",
       "name": "AMD Radeon Drivers",
-      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/7/7c/AMD_Logo.svg",
-      "updateSource": { "type": "rss", "url": "https://news.google.com/rss/search?q=site:amd.com+%22AMD+Software:+Adrenalin+Edition%22+release+notes&hl=en-US" }
+      "type": "amd",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/7/7c/AMD_Logo.svg"
     },
     {
       "key": "intelgameon",
       "name": "Intel ARC Game On Drivers",
-      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel_logo_%282020%2C_light_blue%29.svg",
-      "updateSource": { "type": "rss", "url": "https://news.google.com/rss/search?q=site:intel.com+%22Intel+Arc+%26+Iris+Xe+Graphics+-+Windows%22&hl=en-US" }
+      "type": "intel",
+      "url": "https://www.intel.com/content/www/us/en/download/785590/intel-arc-iris-xe-graphics-windows.html",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel_logo_%282020%2C_light_blue%29.svg"
     },
     {
       "key": "intelpro",
       "name": "Intel ARC Pro Drivers",
-      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel_logo_%282020%2C_light_blue%29.svg",
-      "updateSource": { "type": "rss", "url": "https://news.google.com/rss/search?q=site:intel.com+%22Intel+Arc+Pro+Graphics%22&hl=en-US" }
+      "type": "intel",
+      "url": "https://www.intel.com/content/www/us/en/download/785597/intel-arc-pro-graphics-windows.html",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel_logo_%282020%2C_light_blue%29.svg"
     }
   ]
 }
