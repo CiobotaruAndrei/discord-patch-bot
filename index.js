@@ -32,12 +32,10 @@ const MAX_DEALS = 50;
 const ITEMS_PER_PAGE = 5;
 const DEALS_HISTORY_LIMIT = 300;
 
-// Setări Optimizare și Anti-Spam
 const FETCH_CONCURRENCY = 10;
 const MAX_UPDATE_NOTIFICATIONS_PER_CYCLE = 3; 
 const MAX_DEAL_NOTIFICATIONS_PER_CYCLE = 5;
 
-// Store IDs pentru API-ul CheapShark
 const CS_STORE_IDS = {
   STEAM: "1",
   EPIC: "25",
@@ -367,21 +365,63 @@ async function httpReq(method, url, options = {}, retries = 2, backoff = 1000) {
   }
 }
 
+// Helper Proxy pentru cazuri blocate de Cloudflare (ex: Fortnite API)
+async function fetchWithProxy(targetUrl, options = {}) {
+  const proxies = [
+    `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`, 
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
+  ];
+  let lastErr;
+  for (const proxy of proxies) {
+    try {
+      const res = await httpReq('GET', proxy, options);
+      return proxy.includes("allorigins") ? String(res?.data?.contents || "") : (typeof res.data === 'string' ? res.data : JSON.stringify(res.data));
+    } catch (err) { lastErr = err; }
+  }
+  throw new Error(`Proxy fallback epuizat: ${lastErr?.message}`);
+}
+
 // -------------------------------------------------------------
 // RUTER ACTUALIZĂRI (UPDATE SOURCES)
 // -------------------------------------------------------------
 function isLikelyPatchNote(item) {
   const text = `${item.title || ""} ${item.contents || item.contentSnippet || ""}`.toLowerCase();
+  
+  // Tag-uri specifice Steam
+  const tags = Array.isArray(item.tags) ? item.tags.map(t => String(t).toLowerCase()) : [];
+  if (tags.includes("patchnotes") || tags.includes("update")) return true;
+
+  // Verificare titlu
+  const title = String(item.title || "").toLowerCase();
+  const badWordsInTitle = ["tournament", "merch", "esports", "giveaway", "teaser", "trailer", "preview"];
+  if (badWordsInTitle.some(w => title.includes(w))) return false;
+
   const goodWords = ["update", "patch", "hotfix", "version", "release", "bugfix", "notes", "changelog", "season", "driver"];
-  return goodWords.some(w => text.includes(w)) && !text.includes("tournament") && !text.includes("merch");
+  return goodWords.some(w => text.includes(w));
 }
 
 async function fetchSteamUpdate(game) {
-  const res = await httpReq('GET', `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${game.appId}&count=30&format=json`);
-  const notes = (res?.data?.appnews?.newsitems || []).filter(item => isLikelyPatchNote(item)).sort((a, b) => b.date - a.date);
+  const res = await httpReq('GET', `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${game.appId}&count=50&format=json`);
+  const notes = (res?.data?.appnews?.newsitems || [])
+    .filter(item => {
+      const isOfficial = item.feed_type === 1 || item.feedname === "steam_community_announcements";
+      const isSteamLink = item.url && (item.url.includes("store.steampowered.com") || item.url.includes("steamcommunity.com"));
+      return isOfficial && isSteamLink && isLikelyPatchNote(item);
+    })
+    .sort((a, b) => b.date - a.date);
+
   if (!notes.length) throw new Error("Lipsă patch notes Steam valabile.");
   const latest = notes[0];
-  return normalizeUpdate({ id: String(latest.gid), title: cleanText(latest.title), link: latest.url, excerpt: cleanText(latest.contents), thumbnail: game.thumbnail, timestamp: new Date(latest.date * 1000).toISOString() });
+  const rawContents = String(latest.contents || "").replace(/https?:\/\/[^\s]+/gi, "").replace(/\[.*?\]/g, " ");
+
+  return normalizeUpdate({ 
+    id: String(latest.gid), 
+    title: cleanText(latest.title), 
+    link: latest.url, 
+    excerpt: cleanText(rawContents), 
+    thumbnail: game.thumbnail, 
+    timestamp: new Date(latest.date * 1000).toISOString() 
+  });
 }
 
 async function fetchRssUpdate(game) {
@@ -399,23 +439,40 @@ async function fetchRssUpdate(game) {
 
 async function fetchOfficialJsonUpdate(game) {
   const url = game.updateSource.url;
-  const res = await httpReq('GET', url);
   
   if (game.key === "fortnite") {
-    const valid = (res.data?.blogList || []).filter(p => p.slug && p.slug.toLowerCase() !== "news" && /update|patch|\bv\d+/i.test(String(p.title)));
+    const rawContent = await fetchWithProxy(url);
+    let data = {};
+    try { data = JSON.parse(rawContent); } catch(e) { }
+    
+    const valid = (data?.blogList || []).filter(p => p.slug && p.slug.toLowerCase() !== "news" && /update|patch|\bv\d+/i.test(String(p.title)));
     if (!valid.length) throw new Error("Fără postări valide Fortnite");
-    return normalizeUpdate({ id: valid[0].slug, title: cleanText(valid[0].title), link: `https://www.fortnite.com/news/${valid[0].slug}`, excerpt: cleanText(valid[0].shareDescription), thumbnail: game.thumbnail, timestamp: valid[0].date });
+    
+    return normalizeUpdate({ 
+      id: valid[0].slug, 
+      title: cleanText(valid[0].title), 
+      link: `https://www.fortnite.com/news/${valid[0].slug}`, 
+      excerpt: cleanText(valid[0].shareDescription), 
+      thumbnail: game.thumbnail, 
+      timestamp: valid[0].date 
+    });
   }
+
+  const res = await httpReq('GET', url);
+  
   if (game.key === "minecraft") {
     const v = res.data?.latest?.release;
     if (!v) throw new Error("Eșec JSON Minecraft");
     return normalizeUpdate({ id: v, title: `Minecraft ${v}`, link: `https://www.minecraft.net/en-us/article/minecraft-java-edition-${v.replace(/\./g, "-")}`, excerpt: `Versiunea ${v}`, thumbnail: game.thumbnail });
   }
+  
   if (game.key === "roblox") {
     const v = res.data?.clientVersionUpload;
     if (!v) throw new Error("Eșec JSON Roblox");
-    return normalizeUpdate({ id: String(v), title: `Roblox Update`, link: "https://en.help.roblox.com/hc/en-us", excerpt: `Versiunea ${v}`, thumbnail: game.thumbnail });
+    // Fallback in caz ca utilizatorul nu schimba pe RSS
+    return normalizeUpdate({ id: String(v), title: `Roblox Update`, link: "https://create.roblox.com/docs/release-notes", excerpt: `Versiunea de client detectată: ${v}`, thumbnail: game.thumbnail });
   }
+  
   throw new Error("JSON parser necunoscut pentru acest joc.");
 }
 
@@ -470,7 +527,7 @@ async function fetchDealsPrimary() {
 }
 
 // -------------------------------------------------------------
-// CRON JOBS ADEVĂRATE (IMPLEMENTATE COMPLET)
+// CRON JOBS ADEVĂRATE
 // -------------------------------------------------------------
 function getSeenArray(seenContainer, key) {
   const rawSeen = seenContainer instanceof Map ? seenContainer.get(key) : (seenContainer && typeof seenContainer === "object" ? seenContainer[key] : undefined);
@@ -817,7 +874,7 @@ async function handleDlcSearch(message, gameName) {
 // GRACEFUL SHUTDOWN (NOU)
 // -------------------------------------------------------------
 let isShuttingDown = false;
-let heartbeatInterval = null; // Scos global pentru a putea fi oprit curat la shutdown
+let heartbeatInterval = null; 
 
 const gracefulShutdown = async (signal) => {
   if (isShuttingDown) return;
@@ -842,7 +899,6 @@ const gracefulShutdown = async (signal) => {
   try {
     await client.destroy();
   } catch (e) {
-    // Nu vrem excepții târzii care strică ieșirea
   }
 
   process.exit(0);
