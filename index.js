@@ -21,6 +21,23 @@ const {
 } = require("discord.js");
 
 // -------------------------------------------------------------
+// CONSTANTE GLOBALE
+// -------------------------------------------------------------
+const PREFIX = "big_master!";
+const MAX_DEALS = 40; 
+const MAX_FREE_PER_STORE = 20;
+const ITEMS_PER_PAGE = 5;
+const DEALS_HISTORY_LIMIT = 50;
+const GLOBAL_CACHE_TTL_MS = 15 * 60 * 1000;
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const FETCH_CONCURRENCY = 5;
+const USER_AGENTS = [
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Safari/605.1.15",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Gecko/20100101 Firefox/120.0"
+];
+
+// -------------------------------------------------------------
 // SISTEM DE TRADUCERI (i18n)
 // -------------------------------------------------------------
 const i18n = {
@@ -30,21 +47,21 @@ const i18n = {
     setChannelUpdates: "⏳ Setez canalul...",
     updatesActive: "✅ Update-uri automate activate.",
     initError: "Eroare la inițializarea datelor.",
-    startUpdatesSyntax: "❌ Sintaxă: `{prefix}start updates` sau `{prefix}start reduceri`.",
-    setChannelDeals: "⏳ Setez canalul oferte...",
-    dealsActive: "✅ Alertele reduceri activate!",
+    startUpdatesSyntax: "❌ Sintaxă: `{prefix}start updates`, `{prefix}start deals` sau `{prefix}start free games`.",
+    setChannelDeals: "⏳ Setez canalul pentru oferte plătite...",
+    dealsActive: "✅ Alertele pentru reduceri (plătite) activate!",
+    setChannelFree: "⏳ Setez canalul pentru jocuri gratuite...",
+    freeActive: "✅ Alertele pentru jocurile promoționale 100% GRATUITE activate!",
     dealsError: "Eroare internă la preluarea ofertelor.",
     stopUpdates: "🛑 Update-uri oprite.",
     stopDeals: "🛑 Reduceri oprite.",
-    stopSyntax: "❌ Sintaxă: `{prefix}stop updates` sau `{prefix}stop reduceri`.",
-    setHelp: "⚙️ Setări: mode, mindiscount, free, paid, lang.",
+    stopFree: "🛑 Notificările de jocuri gratuite oprite.",
+    stopSyntax: "❌ Sintaxă: `{prefix}stop updates`, `{prefix}stop deals` sau `{prefix}stop free games`.",
+    setHelp: "⚙️ Setări: mode, mindiscount, language.",
     invalidMode: "❌ Permise: `compact` sau `detailed`.",
     modeSet: "✅ Mod setat: **{value}**",
     invalidDiscount: "❌ 0-100.",
     discountSet: "✅ Reducere minimă: **{value}%**",
-    invalidBool: "❌ `on` / `off`.",
-    freeSet: "✅ Jocuri free: **{value}**",
-    paidSet: "✅ Oferte plătite: **{value}**",
     invalidLang: "❌ Limbi permise: `ro` sau `en`.",
     langSet: "✅ Limba setată: **{value}**",
     unknownSetting: "❌ Setare necunoscută.",
@@ -55,21 +72,27 @@ const i18n = {
     dataLoaded: "✅ Date încărcate!",
     fetchDealsError: "Nu am putut interoga magazinele.",
     noDealsMatch: "❌ Nu am găsit oferte care să corespundă setărilor serverului.",
+    noFreeMatch: "❌ Nu am găsit jocuri promoționale 100% gratuite în acest moment.",
     dealsLoaded: "✅ Oferte încărcate!",
+    freeLoaded: "✅ Promoții gratuite găsite!",
     latestUpdateSyntax: "❌ Ex: `{prefix}latest update cs2`.",
     connecting: "⏳ *Mă conectez... Durată estimată: **{time} secunde**.*",
     gameNotFound: "❌ Nu am găsit jocul.",
     didYouMean: " Te refereai cumva la **{name}** (`{key}`)?",
     updateSuccess: "✅ Update **{name}**:",
     updateError: "Nu am putut prelua acest update.",
-    priceSyntax: "❌ Trebuie să specifici un joc. Ex: `{prefix}latest pret cyberpunk`.",
-    searchingPrice: "⏳ *Caut prețul pe Steam pentru **{name}**...*",
-    steamError: "❌ Eroare la conectarea cu serverele Steam. Te rugăm să încerci mai târziu.",
+    priceSyntax: "❌ Trebuie să specifici un joc. Ex: `{prefix}latest price cyberpunk`.",
+    searchingDualPrice: "⏳ *Caut prețul pe Steam și Epic Games pentru **{name}**...*",
+    steamError: "❌ Eroare la conectarea cu serverele Steam.",
     noSteamResults: "❌ Nu am găsit niciun rezultat pe Steam pentru \"**{name}**\".",
+    noDualResults: "❌ Nu am găsit niciun rezultat pe Steam sau Epic Games pentru \"**{name}**\".",
     invalidSteamResult: "❌ Nu am putut selecta un rezultat valid de pe Steam.",
-    steamApiError: "❌ Steam API nu a putut returna detaliile pentru acest titlu.",
-    steamDetailsUnavailable: "❌ Am găsit un rezultat, dar detaliile de preț nu sunt disponibile (posibil blocat regional sau nelistat).",
-    priceSuccess: "✅ Am obținut datele de pe Steam!",
+    steamApiError: "❌ Steam API nu a putut returna detaliile.",
+    steamDetailsUnavailable: "❌ Detaliile de preț nu sunt disponibile (posibil blocat regional).",
+    priceDualSuccess: "✅ Am obținut prețurile!",
+    dualPriceTitle: "🏷️ Preț curent: {title}",
+    notFoundSteam: "❌ Jocul nu a fost găsit (sau nu are preț public) pe Steam.",
+    notFoundEpic: "❌ Jocul nu a fost găsit pe Epic Games.",
     priceUnexpectedError: "❌ A apărut o eroare neașteptată la căutarea prețului.",
     dlcSyntax: "❌ Trebuie să specifici un joc. Ex: `{prefix}dlc cyberpunk`.",
     searchingDlc: "⏳ *Caut DLC-urile pentru **{name}**...*",
@@ -83,10 +106,13 @@ const i18n = {
     statusSuccess: "✅ Informații preluate pentru **{name}**:",
     statusError: "❌ A apărut o eroare la preluarea statusului.",
     helpTitle: "🤖 Meniul de Ajutor - Big Master",
-    helpGeneral: "🛠️ Comenzi Utilitare Generale",
-    helpNotif: "🔔 Notificări Automate",
-    helpPrefs: "⚙️ Preferințe Server",
-    helpManual: "🔍 Comenzi Manuale",
+    helpDetailedTitle: "📖 Detalii comandă",
+    helpCmdNotFound: "❌ Nu am găsit detalii pentru această comandă. Asigură-te că ai scris-o corect.",
+    helpFooter: "💡 Tip: Folosește `{prefix}help [comandă]` pentru explicații detaliate",
+    helpGeneral: "🛠️ Comenzi pentru Ajutor Utilizator",
+    helpNotif: "🔔 Comenzi pentru Notificare",
+    helpPrefs: "⚙️ Comenzi Setare Bot Pentru Server",
+    helpManual: "🎮 Comenzi Jocuri",
     trackedGames: "🎮 **Jocuri urmărite:**\n",
     onlyAuthor: "Doar autorul comenzii poate naviga!",
     prev: "◀ Ant",
@@ -108,22 +134,19 @@ const i18n = {
     page: "Pagina",
     displayed: "Afișate",
     extracted: "Extrase",
+    dlcMoreNote: "⚠️ Pot exista mai multe DLC-uri pe pagina oficială.",
     notifiedUpdate: "🔔 A apărut un update nou pentru **{name}**!",
     notifiedDeal: "🔥 Ofertă nouă detectată!",
+    notifiedFree: "🎁 Un joc GRATUIT (Promoție 100%) a apărut!",
     typeProd: "**Tip produs:**",
     typeGame: "Joc",
-    typeDlc: "DLC / Extensie",
-    typeMusic: "Coloană Sonoră",
-    typeDemo: "Demo",
-    typeApp: "Aplicație/Bundle",
-    currFree: "Acest titlu este în prezent **GRATUIT** (Free to Play).",
+    currFree: "Acest titlu este permanent gratuit (Free-to-Play).",
     priceUnav: "Prețul nu este disponibil în acest moment.",
-    activeDisc: "Este o reducere activă de **{percent}%**!\n\n~~${old}~~ -> **${new}**",
+    activeDisc: "Este o reducere activă de **{percent}%**!\n\n~~{old}~~ -> **{new}**",
     expAt: "\n⏳ **Oferta expiră la:** ",
     expUnspec: "Nespecificat (posibil ofertă permanentă sau bundle).",
-    noDisc: "Nu este la reducere în acest moment.\n\nPreț standard: **${price}**",
-    steamPriceTitle: "🏷️ Preț curent pe Steam: {title}",
-    statusApiErr: "Acest joc nu are un API de status public și oficial integrat în bot.",
+    noDisc: "Nu este la reducere în acest moment.\n\nPreț standard: **{price}**",
+    statusApiErr: "Acest joc nu are un API de status public integrat. Poți verifica link-urile de mai jos.",
     statusServ: "**Status Server:**",
     statusRoblox: "Apasă pe linkul de mai jos pentru a vedea starea oficială Roblox.",
     statusRiot: "Apasă pe linkul de mai jos pentru a vedea starea oficială Riot Games.",
@@ -131,11 +154,14 @@ const i18n = {
     statusTitle: "📡 Status Servere: {name}",
     statusOff: "🔗 Pagină Oficială de Status",
     statusCheckText: "Verifică Statusul Aici",
-    statusHome: "🏠 Pagină Principală / Fallback",
-    statusFallbackText: "Accesează Homepage",
-    statusFallbackNote: "\n*(Acesta este link-ul general al jocului/producătorului, nu o pagină automată de status)*",
+    statusHome: "🏠 Pagină Principală / Steam",
+    statusFallbackText: "Accesează Pagina Jocului",
+    statusFallbackNote: "\n*(Acesta este link-ul general al jocului, nu o pagină automată de status)*",
+    searchDowndetector: "🔍 Caută pe Downdetector",
     dlcPack: "📦 DLC-uri: {title}",
-    dealOffer: "**{store}** oferă o reducere de **{savings}%**!\n\n",
+    dlcBuyLink: "🛒 Cumpără / Vezi pe Steam",
+    dealOffer: "🏷️ **{store}** oferă o reducere de **{savings}%**!\n\n",
+    freeOffer: "🎁 **{store}** oferă acest titlu **GRATUIT** pentru o perioadă limitată!\n\n",
     defaultError: "A apărut o eroare internă.",
     errCircuitBreaker: "Circuit Breaker Activ",
     errSteamPatch: "Lipsă patch notes Steam valabile.",
@@ -149,37 +175,63 @@ const i18n = {
     errNvidia: "Eșec Nvidia.",
     errUnknownType: "Tip necunoscut.",
     errNoValidDeals: "Fără oferte valide.",
-    helpGeneralCmds: "`{prefix}ping`\n`{prefix}games` (sau `{prefix}porecle`)",
-    helpNotifCmds: "`{prefix}start updates`\n`{prefix}stop updates`\n`{prefix}start reduceri`\n`{prefix}stop reduceri`",
-    helpPrefsCmds: "`{prefix}set mode [compact/detailed]`\n`{prefix}set mindiscount [0-100]`\n`{prefix}set free [on/off]`\n`{prefix}set paid [on/off]`\n`{prefix}set lang [ro/en]`",
-    helpManualCmds: "`{prefix}latest updates`\n`{prefix}latest reduceri`\n`{prefix}latest update [poreclă]`\n`{prefix}latest pret [nume joc]`\n`{prefix}dlc [nume joc]`\n`{prefix}status [nume joc]`",
+    helpGeneralCmds: "`{prefix}help`\n`{prefix}help [nume comandă]`\n`{prefix}ping`",
+    helpNotifCmds: "`{prefix}start updates`\n`{prefix}stop updates`\n`{prefix}start deals` (sau `reduceri`)\n`{prefix}stop deals`\n`{prefix}start free games` (sau `free`)\n`{prefix}stop free games`",
+    helpPrefsCmds: "`{prefix}set mode [compact/detailed]`\n`{prefix}set mindiscount [0-100]`\n`{prefix}set language [ro/en]`",
+    helpManualCmds: "`{prefix}games` (sau `{prefix}porecle`)\n`{prefix}latest updates`\n`{prefix}latest deals` (doar jocuri plătite)\n`{prefix}latest free games` (până la 20 Steam/Epic)\n`{prefix}latest update [poreclă]`\n`{prefix}latest price [nume joc]`\n`{prefix}dlc [nume joc]`\n`{prefix}status [nume joc]`",
     excerptFortnite: "Update oficial Fortnite.",
     excerptAmdDriver: "Driver disponibil.",
     excerptAMD: "Update AMD.com.",
     excerptIntel: "Update intel.com detectat.",
-    excerptVersion: "Versiunea {v}"
+    excerptVersion: "Versiunea {v}",
+    helpCmd_ping: "🏓 **Ping:** Verifică timpul de răspuns (latența) botului.",
+    helpCmd_games: "🎮 **Games/Porecle:** Afișează o listă completă cu toate jocurile monitorizate automat.",
+    helpCmd_porecle: "🎮 **Games/Porecle:** Afișează o listă completă cu toate jocurile monitorizate automat.",
+    helpCmd_start_updates: "🔔 **Start Updates:** *(Necesită Administrator)* Setează canalul destinație pentru noile Patch Notes.",
+    helpCmd_stop_updates: "🛑 **Stop Updates:** *(Necesită Administrator)* Oprește trimiterea automată a update-urilor.",
+    helpCmd_start_deals: "🔔 **Start Deals:** *(Necesită Administrator)* Setează destinația pentru alertele cu reduceri (doar jocuri care costă bani).",
+    helpCmd_start_reduceri: "🔔 **Start Deals:** *(Necesită Administrator)* Setează destinația pentru alertele cu reduceri (doar jocuri care costă bani).",
+    helpCmd_stop_deals: "🛑 **Stop Deals:** *(Necesită Administrator)* Oprește notificările de reduceri.",
+    helpCmd_stop_reduceri: "🛑 **Stop Deals:** *(Necesită Administrator)* Oprește notificările de reduceri.",
+    helpCmd_start_free_games: "🔔 **Start Free Games:** *(Necesită Administrator)* Setează destinația EXCLUSIV pentru jocurile promoționale (reducere 100%).",
+    helpCmd_start_free: "🔔 **Start Free Games:** *(Necesită Administrator)* Setează destinația EXCLUSIV pentru jocurile promoționale (reducere 100%).",
+    helpCmd_stop_free_games: "🛑 **Stop Free Games:** *(Necesită Administrator)* Oprește notificările pentru jocurile gratuite.",
+    helpCmd_stop_free: "🛑 **Stop Free Games:** *(Necesită Administrator)* Oprește notificările pentru jocurile gratuite.",
+    helpCmd_set_mode: "⚙️ **Set Mode:** *(Necesită Administrator)* Schimbă dimensiunea mesajelor (compact/detailed).",
+    helpCmd_set_mindiscount: "⚙️ **Set MinDiscount:** *(Necesită Administrator)* Setează pragul minim (în procente) pentru oferte.",
+    helpCmd_set_language: "⚙️ **Set Language:** *(Necesită Administrator)* Schimbă limba botului (ro/en).",
+    helpCmd_latest_updates: "🔍 **Latest Updates:** Afișează o listă paginată ({items} pe pagină) cu cele mai noi actualizări.",
+    helpCmd_latest_deals: "🔍 **Latest Deals:** Afișează cele mai populare reduceri plătite la jocuri (Steam/Epic).",
+    helpCmd_latest_reduceri: "🔍 **Latest Deals:** Afișează cele mai populare reduceri plătite la jocuri (Steam/Epic).",
+    helpCmd_latest_free_games: "🔍 **Latest Free Games:** Afișează o listă cu până la 20 promoții 100% gratuite Steam și 20 Epic Games disponibile acum.",
+    helpCmd_latest_free: "🔍 **Latest Free Games:** Afișează o listă cu până la 20 promoții 100% gratuite Steam și 20 Epic Games disponibile acum.",
+    helpCmd_latest_update: "🔍 **Latest Update [nume]:** Caută ultimul update lansat doar pentru jocul specificat.",
+    helpCmd_latest_price: "🔍 **Latest Price [nume]:** Caută prețul curent simultan pe **Steam** și pe **Epic Games**.",
+    helpCmd_latest_pret: "🔍 **Latest Price [nume]:** Caută prețul curent simultan pe **Steam** și pe **Epic Games**.",
+    helpCmd_dlc: "🔍 **DLC [nume joc]:** Extrage lista completă de DLC-uri pentru un joc de pe Steam.",
+    helpCmd_status: "📡 **Status [nume joc]:** Interoghează starea curentă a serverelor pentru jocul menționat."
   },
   en: {
     adminOnly: "⛔ Admin only.",
     pong: "Pong! 🏓",
-    setChannelUpdates: "⏳ Setting channel...",
+    setChannelUpdates: "⏳ Setting updates channel...",
     updatesActive: "✅ Automatic updates enabled.",
     initError: "Error initializing data.",
-    startUpdatesSyntax: "❌ Syntax: `{prefix}start updates` or `{prefix}start reduceri`.",
+    startUpdatesSyntax: "❌ Syntax: `{prefix}start updates`, `{prefix}start deals` or `{prefix}start free games`.",
     setChannelDeals: "⏳ Setting deals channel...",
-    dealsActive: "✅ Deal alerts enabled!",
+    dealsActive: "✅ Deal alerts (paid) enabled!",
+    setChannelFree: "⏳ Setting free games channel...",
+    freeActive: "✅ 100% FREE games alerts enabled!",
     dealsError: "Internal error fetching deals.",
     stopUpdates: "🛑 Updates stopped.",
     stopDeals: "🛑 Deals stopped.",
-    stopSyntax: "❌ Syntax: `{prefix}stop updates` or `{prefix}stop reduceri`.",
-    setHelp: "⚙️ Settings: mode, mindiscount, free, paid, lang.",
+    stopFree: "🛑 Free games notifications stopped.",
+    stopSyntax: "❌ Syntax: `{prefix}stop updates`, `{prefix}stop deals` or `{prefix}stop free games`.",
+    setHelp: "⚙️ Settings: mode, mindiscount, language.",
     invalidMode: "❌ Allowed: `compact` or `detailed`.",
     modeSet: "✅ Mode set to: **{value}**",
     invalidDiscount: "❌ 0-100.",
     discountSet: "✅ Minimum discount: **{value}%**",
-    invalidBool: "❌ `on` / `off`.",
-    freeSet: "✅ Free games: **{value}**",
-    paidSet: "✅ Paid offers: **{value}**",
     invalidLang: "❌ Allowed languages: `ro` or `en`.",
     langSet: "✅ Language set to: **{value}**",
     unknownSetting: "❌ Unknown setting.",
@@ -188,46 +240,55 @@ const i18n = {
     fetchUpdatesError: "Failed to fetch updates.",
     noData: "❌ No data available.",
     dataLoaded: "✅ Data loaded!",
-    fetchDealsError: "Failed to query stores.",
+    fetchDealsError: "Failed to fetch deals.",
     noDealsMatch: "❌ No deals found matching server settings.",
+    noFreeMatch: "❌ No 100% free promotional games found at this moment.",
     dealsLoaded: "✅ Deals loaded!",
+    freeLoaded: "✅ Free promotions found!",
     latestUpdateSyntax: "❌ Ex: `{prefix}latest update cs2`.",
     connecting: "⏳ *Connecting... Estimated time: **{time} seconds**.*",
     gameNotFound: "❌ Game not found.",
     didYouMean: " Did you mean **{name}** (`{key}`)?",
     updateSuccess: "✅ Update **{name}**:",
     updateError: "Could not fetch this update.",
-    priceSyntax: "❌ You must specify a game. Ex: `{prefix}latest pret cyberpunk`.",
-    searchingPrice: "⏳ *Searching Steam price for **{name}**...*",
-    steamError: "❌ Error connecting to Steam servers. Please try again later.",
+    priceSyntax: "❌ You must specify a game. Ex: `{prefix}latest price cyberpunk`.",
+    searchingDualPrice: "⏳ *Searching Steam and Epic Games for **{name}**...*",
+    steamError: "❌ Error connecting to Steam servers.",
     noSteamResults: "❌ No Steam results found for \"**{name}**\".",
+    noDualResults: "❌ No results found on Steam or Epic Games for \"**{name}**\".",
     invalidSteamResult: "❌ Could not select a valid Steam result.",
-    steamApiError: "❌ Steam API could not return details for this title.",
-    steamDetailsUnavailable: "❌ Found a result, but price details are unavailable.",
-    priceSuccess: "✅ Steam data retrieved!",
-    priceUnexpectedError: "❌ Unexpected error while searching for price.",
+    steamApiError: "❌ Steam API could not return details.",
+    steamDetailsUnavailable: "❌ Price details are unavailable (possibly region blocked).",
+    priceDualSuccess: "✅ Prices retrieved!",
+    dualPriceTitle: "🏷️ Current Price: {title}",
+    notFoundSteam: "❌ Game not found (or has no public price) on Steam.",
+    notFoundEpic: "❌ Game not found on Epic Games.",
+    priceUnexpectedError: "❌ Unexpected error fetching the price.",
     dlcSyntax: "❌ You must specify a game. Ex: `{prefix}dlc cyberpunk`.",
     searchingDlc: "⏳ *Searching DLCs for **{name}**...*",
-    ageGate: "❌ Steam page for **{name}** requires an age check which the bot cannot bypass.",
-    pageStructureError: "❌ Page structure for **{name}** could not be parsed.",
-    noDlcList: "❌ The game **{name}** has no DLCs listed separately on Steam.",
+    ageGate: "❌ Steam page for **{name}** is age-restricted; bot cannot access it directly.",
+    pageStructureError: "❌ Page structure for **{name}** could not be parsed (possibly region blocked or special bundle).",
+    noDlcList: "❌ **{name}** has no separately listed DLCs on Steam.",
     dlcSuccess: "✅ Found **{count}** DLCs for **{name}**!",
     dlcUnexpectedError: "❌ Error searching for DLCs.",
     statusSyntax: "❌ You must specify a game. Ex: `{prefix}status fortnite`.",
     searchingStatus: "⏳ *Checking server status for **{name}**...*",
-    statusSuccess: "✅ Information retrieved for **{name}**:",
+    statusSuccess: "✅ Status retrieved for **{name}**:",
     statusError: "❌ Error retrieving status.",
     helpTitle: "🤖 Help Menu - Big Master",
+    helpDetailedTitle: "📖 Command Details",
+    helpCmdNotFound: "❌ Details not found for this command. Make sure you typed it correctly.",
+    helpFooter: "💡 Tip: Use `{prefix}help [command]` for detailed explanations",
     helpGeneral: "🛠️ General Utility Commands",
-    helpNotif: "🔔 Automated Notifications",
-    helpPrefs: "⚙️ Server Preferences",
-    helpManual: "🔍 Manual Commands",
+    helpNotif: "🔔 Notification Commands",
+    helpPrefs: "⚙️ Bot Setup Commands",
+    helpManual: "🎮 Game Commands",
     trackedGames: "🎮 **Tracked Games:**\n",
     onlyAuthor: "Only the command author can navigate!",
     prev: "◀ Prev",
     next: "Next ▶",
     updateTitleText: "Click the title to read the patch notes.",
-    updateDescText: "A new update for {name} has been released.",
+    updateDescText: "A new update for {name} was released.",
     fallbackUpdateTitle: "New Update",
     free: "Free",
     discount: "Discount",
@@ -243,56 +304,83 @@ const i18n = {
     page: "Page",
     displayed: "Displayed",
     extracted: "Extracted",
-    notifiedUpdate: "🔔 A new update for **{name}** has been released!",
+    dlcMoreNote: "⚠️ More DLCs might exist on the official store page.",
+    notifiedUpdate: "🔔 A new update for **{name}** was released!",
     notifiedDeal: "🔥 New deal detected!",
+    notifiedFree: "🎁 A FREE game (100% Off) is available!",
     typeProd: "**Product Type:**",
     typeGame: "Game",
-    typeDlc: "DLC / Expansion",
-    typeMusic: "Soundtrack",
-    typeDemo: "Demo",
-    typeApp: "Application/Bundle",
-    currFree: "This title is currently **FREE** (Free to Play).",
-    priceUnav: "Price is unavailable at this moment.",
-    activeDisc: "There is an active discount of **{percent}%**!\n\n~~${old}~~ -> **${new}**",
+    currFree: "This title is permanently free (Free-to-Play).",
+    priceUnav: "Price is currently unavailable.",
+    activeDisc: "There's an active **{percent}%** discount!\n\n~~{old}~~ -> **{new}**",
     expAt: "\n⏳ **Offer expires at:** ",
-    expUnspec: "Unspecified (possibly permanent offer or bundle).",
-    noDisc: "Not on sale at the moment.\n\nStandard Price: **${price}**",
-    steamPriceTitle: "🏷️ Current Steam Price: {title}",
-    statusApiErr: "This game does not have an official public status API integrated.",
+    expUnspec: "Unspecified (possibly permanent or a bundle).",
+    noDisc: "Not on sale right now.\n\nStandard price: **{price}**",
+    statusApiErr: "This game doesn't have a public status API. Check the links below.",
     statusServ: "**Server Status:**",
-    statusRoblox: "Click the link below to see the official Roblox status.",
-    statusRiot: "Click the link below to see the official Riot Games status.",
-    noLink: "No official link available.",
+    statusRoblox: "Click the link below to view Roblox's official status.",
+    statusRiot: "Click the link below to view Riot Games' official status.",
+    noLink: "Official link unavailable.",
     statusTitle: "📡 Server Status: {name}",
     statusOff: "🔗 Official Status Page",
     statusCheckText: "Check Status Here",
-    statusHome: "🏠 Main Page / Fallback",
-    statusFallbackText: "Access Homepage",
-    statusFallbackNote: "\n*(This is the general link, not automated status)*",
+    statusHome: "🏠 Main / Steam Page",
+    statusFallbackText: "Access Game Page",
+    statusFallbackNote: "\n*(This is the general game link, not an automated status page)*",
+    searchDowndetector: "🔍 Search on Downdetector",
     dlcPack: "📦 DLCs: {title}",
-    dealOffer: "**{store}** offers a **{savings}%** discount!\n\n",
+    dlcBuyLink: "🛒 Buy / View on Steam",
+    dealOffer: "🏷️ **{store}** offers a **{savings}%** discount!\n\n",
+    freeOffer: "🎁 **{store}** is offering this title for **FREE** for a limited time!\n\n",
     defaultError: "An internal error occurred.",
     errCircuitBreaker: "Circuit Breaker Active",
-    errSteamPatch: "Missing valid Steam patch notes.",
+    errSteamPatch: "No valid Steam patch notes.",
     errAncore: "No valid anchors found.",
     errFortnite: "No valid posts found.",
-    errFortniteTotal: "Total Fortnite failure.",
-    errAMD: "AMD failure.",
-    errIntel: "Intel failure.",
+    errFortniteTotal: "Fortnite fetch failed completely.",
+    errAMD: "AMD fetch failed.",
+    errIntel: "Intel fetch failed.",
     errMinecraft: "Missing JSON version.",
     errRoblox: "Missing API version.",
-    errNvidia: "Nvidia failure.",
+    errNvidia: "Nvidia fetch failed.",
     errUnknownType: "Unknown type.",
     errNoValidDeals: "No valid deals found.",
-    helpGeneralCmds: "`{prefix}ping`\n`{prefix}games`",
-    helpNotifCmds: "`{prefix}start updates`\n`{prefix}stop updates`\n`{prefix}start reduceri`\n`{prefix}stop reduceri`",
-    helpPrefsCmds: "`{prefix}set mode [compact/detailed]`\n`{prefix}set mindiscount [0-100]`\n`{prefix}set free [on/off]`\n`{prefix}set paid [on/off]`\n`{prefix}set lang [ro/en]`",
-    helpManualCmds: "`{prefix}latest updates`\n`{prefix}latest reduceri`\n`{prefix}latest update [nickname]`\n`{prefix}latest pret [game name]`\n`{prefix}dlc [game name]`\n`{prefix}status [game name]`",
+    helpGeneralCmds: "`{prefix}help`\n`{prefix}help [command]`\n`{prefix}ping`",
+    helpNotifCmds: "`{prefix}start updates`\n`{prefix}stop updates`\n`{prefix}start deals`\n`{prefix}stop deals`\n`{prefix}start free games` (or `free`)\n`{prefix}stop free games`",
+    helpPrefsCmds: "`{prefix}set mode [compact/detailed]`\n`{prefix}set mindiscount [0-100]`\n`{prefix}set language [ro/en]`",
+    helpManualCmds: "`{prefix}games` (or `{prefix}aliases`)\n`{prefix}latest updates`\n`{prefix}latest deals` (paid only)\n`{prefix}latest free games` (up to 20 Steam/Epic)\n`{prefix}latest update [alias]`\n`{prefix}latest price [game]`\n`{prefix}dlc [game]`\n`{prefix}status [game]`",
     excerptFortnite: "Official Fortnite update.",
     excerptAmdDriver: "Driver available.",
     excerptAMD: "AMD.com update.",
     excerptIntel: "intel.com update detected.",
-    excerptVersion: "Version {v}"
+    excerptVersion: "Version {v}",
+    helpCmd_ping: "🏓 **Ping:** Checks bot's response time (latency).",
+    helpCmd_games: "🎮 **Games/Aliases:** Shows a full list of all automatically tracked games.",
+    helpCmd_porecle: "🎮 **Games/Aliases:** Shows a full list of all automatically tracked games.",
+    helpCmd_aliases: "🎮 **Games/Aliases:** Shows a full list of all automatically tracked games.",
+    helpCmd_start_updates: "🔔 **Start Updates:** *(Admin)* Sets the destination channel for new Patch Notes.",
+    helpCmd_stop_updates: "🛑 **Stop Updates:** *(Admin)* Stops automatic update notifications.",
+    helpCmd_start_deals: "🔔 **Start Deals:** *(Admin)* Sets destination for deal alerts (paid games only).",
+    helpCmd_start_reduceri: "🔔 **Start Deals:** *(Admin)* Sets destination for deal alerts (paid games only).",
+    helpCmd_stop_deals: "🛑 **Stop Deals:** *(Admin)* Stops deal notifications.",
+    helpCmd_stop_reduceri: "🛑 **Stop Deals:** *(Admin)* Stops deal notifications.",
+    helpCmd_start_free_games: "🔔 **Start Free Games:** *(Admin)* Sets destination EXCLUSIVELY for 100% FREE promotional games.",
+    helpCmd_start_free: "🔔 **Start Free Games:** *(Admin)* Sets destination EXCLUSIVELY for 100% FREE promotional games.",
+    helpCmd_stop_free_games: "🛑 **Stop Free Games:** *(Admin)* Stops free games notifications.",
+    helpCmd_stop_free: "🛑 **Stop Free Games:** *(Admin)* Stops free games notifications.",
+    helpCmd_set_mode: "⚙️ **Set Mode:** *(Admin)* Changes message size (compact/detailed).",
+    helpCmd_set_mindiscount: "⚙️ **Set MinDiscount:** *(Admin)* Sets the minimum discount threshold (in %) for deal alerts.",
+    helpCmd_set_language: "⚙️ **Set Language:** *(Admin)* Changes bot's language (ro/en).",
+    helpCmd_latest_updates: "🔍 **Latest Updates:** Shows a paginated list ({items} per page) of the newest updates.",
+    helpCmd_latest_deals: "🔍 **Latest Deals:** Shows the most popular paid deals (Steam/Epic).",
+    helpCmd_latest_reduceri: "🔍 **Latest Deals:** Shows the most popular paid deals (Steam/Epic).",
+    helpCmd_latest_free_games: "🔍 **Latest Free Games:** Shows up to 20 100% free promotions from Steam and Epic Games.",
+    helpCmd_latest_free: "🔍 **Latest Free Games:** Shows up to 20 100% free promotions from Steam and Epic Games.",
+    helpCmd_latest_update: "🔍 **Latest Update [name]:** Searches for the latest patch notes for a specific tracked game.",
+    helpCmd_latest_price: "🔍 **Latest Price [name]:** Checks the current price on both **Steam** and **Epic Games**.",
+    helpCmd_latest_pret: "🔍 **Latest Price [name]:** Checks the current price on both **Steam** and **Epic Games**.",
+    helpCmd_dlc: "🔍 **DLC [game name]:** Extracts the full list of DLCs for a Steam game.",
+    helpCmd_status: "📡 **Status [game name]:** Checks the current server status for the specified game."
   }
 };
 
@@ -303,24 +391,6 @@ function getText(lang, key, params = {}) {
   }
   return text;
 }
-
-// -------------------------------------------------------------
-// 1. SETĂRI GLOBALE ȘI CONSTANTE
-// -------------------------------------------------------------
-const PREFIX = "big_master!";
-const CACHE_TTL_MS = 180000;
-const GLOBAL_CACHE_TTL_MS = 1800000;
-const MAX_DEALS = 50;
-const ITEMS_PER_PAGE = 5;
-const DEALS_HISTORY_LIMIT = 300;
-const FETCH_CONCURRENCY = 10;
-
-const USER_AGENTS = [
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15",
-  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0"
-];
 
 // --- UTILAJE DE BAZĂ ---
 function smoothTime(oldMs, newMs, alpha = 0.3) {
@@ -345,7 +415,6 @@ function formatUserError(err, defaultMsgKey, lang = "ro") {
   if (err) {
     const errorDetails = err.stack ? err.stack : (err.message || err);
     logger("WARN", "USER_COMMAND", defaultMsg, errorDetails);
-
     const specificMsg = i18n[lang]?.[err.message];
     if (specificMsg) {
       return `❌ ${specificMsg}`;
@@ -437,9 +506,10 @@ const guildSchema = new mongoose.Schema({
   discountsSubscribed: { type: Boolean, default: false },
   discountChannelId: { type: String, default: null },
   seenDiscounts: { type: [String], default: [] }, 
+  freeSubscribed: { type: Boolean, default: false },
+  freeChannelId: { type: String, default: null },
+  seenFree: { type: [String], default: [] },
   minDiscountPercent: { type: Number, default: 70 },
-  includeFreeGames: { type: Boolean, default: true },
-  includePaidDiscounts: { type: Boolean, default: true },
   notificationMode: { type: String, enum: ["compact", "detailed"], default: "detailed" }
 }, { minimize: false });
 
@@ -455,7 +525,7 @@ const CircuitBreakerModel = mongoose.model("CircuitBreaker", circuitBreakerSchem
 
 const systemSchema = new mongoose.Schema({
   _id: { type: String, default: "system_state" },
-  executionTimes: { all: { type: Number, default: 35000 }, single: { type: Number, default: 2000 }, reduceri: { type: Number, default: 10000 } }
+  executionTimes: { all: { type: Number, default: 35000 }, single: { type: Number, default: 2000 }, deals: { type: Number, default: 10000 }, free: { type: Number, default: 10000 } }
 }, { minimize: false });
 
 const SystemModel = mongoose.model("System", systemSchema);
@@ -508,10 +578,7 @@ async function renewDbLock(jobName, token, ttlMs = 120000) {
   try {
     const res = await JobLockModel.updateOne({ _id: `lock_${jobName}`, ownerToken: token }, { $set: { lockedUntil: expires } });
     return res.modifiedCount > 0;
-  } catch (err) { 
-    logger("WARN", "DB_LOCK", "Eroare la reînnoire lock", err.message);
-    return false; 
-  }
+  } catch (err) { return false; }
 }
 
 async function releaseDbLock(jobName, token) {
@@ -519,18 +586,16 @@ async function releaseDbLock(jobName, token) {
   try {
     await JobLockModel.deleteOne({ _id: `lock_${jobName}`, ownerToken: token });
     activeLocks.delete(jobName);
-  } catch (err) { 
-    logger("WARN", "DB_LOCK", "Eroare la eliberare lock", err.message);
-  }
+  } catch (err) {}
 }
 
 async function getSystemTimes() {
   let sys = await SystemModel.findOneAndUpdate(
     { _id: "system_state" },
-    { $setOnInsert: { executionTimes: { all: 35000, single: 2000, reduceri: 10000 } } },
+    { $setOnInsert: { executionTimes: { all: 35000, single: 2000, deals: 10000, free: 10000 } } },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   ).lean();
-  return sys.executionTimes || { all: 35000, single: 2000, reduceri: 10000 };
+  return sys.executionTimes || { all: 35000, single: 2000, deals: 10000, free: 10000 };
 }
 
 async function saveSystemTimes(times) { 
@@ -569,16 +634,13 @@ const gracefulShutdown = async (signal) => {
     for (const [jobName, token] of activeLocks.entries()) await releaseDbLock(jobName, token);
     if (mongoose.connection.readyState === 1) await mongoose.connection.close();
     client.destroy(); process.exit(0);
-  } catch (err) { 
-    logger("ERROR", "SHUTDOWN", "Eroare la închidere", err.message);
-    process.exit(1); 
-  }
+  } catch (err) { process.exit(1); }
 };
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 // -------------------------------------------------------------
-// CACHE 
+// CACHE ȘI CROSS-PLATFORM STEAM ID MEMORY
 // -------------------------------------------------------------
 const cache = { 
   updates: { data: null, expiresAt: 0 }, 
@@ -586,6 +648,9 @@ const cache = {
   single: new Map(),
   dlc: new Map()
 };
+
+// Map pentru a salva asocierile Title Epic -> AppId Steam (sau null)
+const steamIdCache = new Map();
 
 function cleanCache() {
   const now = Date.now();
@@ -595,6 +660,39 @@ function cleanCache() {
   for (const [key, value] of cache.dlc.entries()) { if (value.expiresAt < now) cache.dlc.delete(key); }
   if (cache.dlc.size > 100) { const oldestKeys = [...cache.dlc.keys()].slice(0, 20); oldestKeys.forEach(k => cache.dlc.delete(k)); }
   if (cache.single.size > 100) { const oldestKeys = [...cache.single.keys()].slice(0, 20); oldestKeys.forEach(k => cache.single.delete(k)); }
+
+  // Anti-memory leak: Comportament LRU simplificat.
+  if (steamIdCache.size > 500) {
+      const firstKey = steamIdCache.keys().next().value;
+      steamIdCache.delete(firstKey);
+  }
+}
+
+async function getSteamIdForTitle(title) {
+  // Implementare LRU autentică la nivel de citire
+  if (steamIdCache.has(title)) {
+      const val = steamIdCache.get(title);
+      steamIdCache.delete(title);
+      steamIdCache.set(title, val);
+      return val;
+  }
+  try {
+    const searchItems = await searchSteamGameByName(title);
+    if (searchItems && searchItems.length > 0) {
+      const bestMatch = chooseBestSteamMatch(searchItems, title);
+      const steamName = String(bestMatch.name).toLowerCase();
+      const epicName = String(title).toLowerCase();
+
+      // Heuristica imbunatatita
+      if (bestMatch && bestMatch.id && 
+         (steamName === epicName || steamName.includes(epicName) || epicName.includes(steamName))) {
+        steamIdCache.set(title, bestMatch.id);
+        return bestMatch.id;
+      }
+    }
+  } catch(e) {}
+  steamIdCache.set(title, null); 
+  return null;
 }
 
 // -------------------------------------------------------------
@@ -641,18 +739,18 @@ function buildUpdateEmbed(gameName, latest, mode = "detailed", lang = "ro") {
 }
 
 function buildDealEmbed(deal, mode = "detailed", lang = "ro") {
-  const isFree = parseFloat(deal.salePrice) === 0;
+  const isFree = parseFloat(deal.salePrice) === 0 && deal.savings === 100;
   const isCompact = mode === "compact";
   const freeText = getText(lang, "free");
   const discText = getText(lang, "discount");
-  const embed = new EmbedBuilder().setColor(isFree ? 0xffd700 : 0xe74c3c).setTitle(truncate(`${isFree ? `${freeText}: ` : `${discText}: `}${deal.title}`, 256));
+  const embed = new EmbedBuilder().setColor(isFree ? 0x2ecc71 : 0xe74c3c).setTitle(truncate(`${isFree ? `🎁 ${freeText.toUpperCase()}: ` : `🏷️ ${discText}: `}${deal.title}`, 256));
 
   if (isCompact) {
     embed.setDescription(`**${deal.store}** | ~~$${deal.normalPrice}~~ -> **${isFree ? freeText.toUpperCase() : "$" + deal.salePrice}**\n[${getText(lang, "link")}](${deal.link})`);
   } else {
     let statsStr = "";
-    if (deal.qualityScore > 0) {
-      statsStr = `⭐ **${getText(lang, "quality")}:** ${deal.qualityScore}% | 👥 **${getText(lang, "popularity")}:** ${deal.totalReviews > 0 ? deal.totalReviews : "Top Seller"}\n\n`;
+    if (deal.qualityScore > 0 || deal.totalReviews > 0) {
+      statsStr = `⭐ **${getText(lang, "quality")}:** ${deal.qualityScore}% | 👥 **${getText(lang, "popularity")}:** ${deal.totalReviews > 0 ? deal.totalReviews : "N/A"}\n\n`;
     }
 
     let displayDate = deal.endDateStr;
@@ -663,8 +761,12 @@ function buildDealEmbed(deal, mode = "detailed", lang = "ro") {
         }
     }
 
+    const offerText = isFree 
+        ? getText(lang, "freeOffer", { store: deal.store }) 
+        : getText(lang, "dealOffer", { store: deal.store, savings: deal.savings });
+
     embed.setAuthor({ name: truncate(deal.store, 256) })
-      .setDescription(truncate(getText(lang, "dealOffer", { store: deal.store, savings: deal.savings }) + statsStr + (displayDate ? `⏳ **${isFree ? getText(lang, "freeUntil") : getText(lang, "expiresAt")}:** ${displayDate}\n\n` : ""), 4096))
+      .setDescription(truncate(offerText + statsStr + (displayDate ? `⏳ **${isFree ? getText(lang, "freeUntil") : getText(lang, "expiresAt")}:** ${displayDate}\n\n` : ""), 4096))
       .addFields(
         { name: getText(lang, "oldPrice"), value: `~~$${deal.normalPrice}~~`, inline: true },
         { name: getText(lang, "newPrice"), value: isFree ? `🔥 ${freeText.toUpperCase()} 🔥` : `$${deal.salePrice}`, inline: true },
@@ -687,6 +789,88 @@ function buildDealEmbed(deal, mode = "detailed", lang = "ro") {
   return embed;
 }
 
+function buildDualPriceEmbed(steamData, steamAppId, steamEndDate, epicData, query, lang) {
+    const embed = new EmbedBuilder().setColor(0x3498db).setTitle(getText(lang, "dualPriceTitle", { title: query }));
+
+    let steamVal = "";
+    if (!steamData) {
+        steamVal = getText(lang, "notFoundSteam");
+    } else {
+        const title = steamData.name;
+        const isFree = steamData.is_free;
+        const priceOverview = steamData.price_overview;
+        steamVal += `**${title}**\n`;
+        if (isFree) {
+            steamVal += getText(lang, "currFree");
+        } else if (!priceOverview) {
+            steamVal += getText(lang, "priceUnav");
+        } else {
+            const normalPrice = (priceOverview.initial / 100).toFixed(2);
+            const currentPrice = (priceOverview.final / 100).toFixed(2);
+            const discount = priceOverview.discount_percent;
+            if (discount > 0) {
+                const displayNewPrice = currentPrice === "0.00" ? getText(lang, "free").toUpperCase() : `$${currentPrice}`;
+                steamVal += getText(lang, "activeDisc", { percent: discount, old: `$${normalPrice}`, new: displayNewPrice });
+                if (steamEndDate) steamVal += `\n${getText(lang, "expAt")} ${steamEndDate}`;
+            } else {
+                steamVal += getText(lang, "noDisc", { price: `$${normalPrice}` });
+            }
+        }
+        steamVal += `\n[${getText(lang, "link")}](https://store.steampowered.com/app/${steamAppId})`;
+        if (!embed.data.thumbnail && steamData.header_image) embed.setThumbnail(steamData.header_image);
+    }
+    embed.addFields({ name: "🎮 Steam", value: steamVal, inline: false });
+
+    let epicVal = "";
+    if (!epicData) {
+        epicVal = getText(lang, "notFoundEpic");
+    } else {
+        const title = epicData.title;
+        const priceInfo = epicData.price?.totalPrice;
+        epicVal += `**${title}**\n`;
+        if (!priceInfo) {
+            epicVal += getText(lang, "priceUnav");
+        } else {
+            const normalPrice = (priceInfo.originalPrice / 100).toFixed(2);
+            const currentPrice = (priceInfo.discountPrice / 100).toFixed(2);
+            const isFree = currentPrice === "0.00";
+            let savings = 0;
+            if (priceInfo.originalPrice > 0) savings = Math.round(((priceInfo.originalPrice - priceInfo.discountPrice) / priceInfo.originalPrice) * 100);
+
+            if (isFree && normalPrice === "0.00") {
+                 epicVal += getText(lang, "currFree");
+            } else if (savings > 0) {
+                const displayNewPrice = isFree ? getText(lang, "free").toUpperCase() : `$${currentPrice}`;
+                epicVal += getText(lang, "activeDisc", { percent: savings, old: `$${normalPrice}`, new: displayNewPrice });
+                const promos = epicData.promotions?.promotionalOffers?.[0]?.promotionalOffers?.[0];
+                if (promos && promos.endDate) {
+                    const d = new Date(promos.endDate);
+                    if (!isNaN(d.getTime())) {
+                        epicVal += `\n${getText(lang, "expAt")} ${d.toLocaleDateString(lang === "ro" ? "ro-RO" : "en-US")}`;
+                    }
+                }
+            } else {
+                epicVal += getText(lang, "noDisc", { price: `$${normalPrice}` });
+            }
+        }
+        let urlSlug = epicData.urlSlug || epicData.id;
+        if (!epicData.urlSlug && epicData.catalogNs && epicData.catalogNs.mappings && epicData.catalogNs.mappings.length > 0) {
+            urlSlug = epicData.catalogNs.mappings[0].pageSlug;
+        }
+        epicVal += `\n[${getText(lang, "link")}](https://store.epicgames.com/en-US/p/${urlSlug})`;
+
+        if (!embed.data.thumbnail) {
+           if (epicData.keyImages) {
+               const img = epicData.keyImages.find(i => i.type === "OfferImageWide" || i.type === "Thumbnail");
+               if (img) embed.setThumbnail(img.url);
+           }
+        }
+    }
+    embed.addFields({ name: "🛒 Epic Games", value: epicVal, inline: false });
+
+    return embed;
+}
+
 function buildPaginationButtons(prefix, sessionId, page, totalPages, lang = "ro") {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`${prefix}_prev_${sessionId}`).setLabel(getText(lang, "prev")).setStyle(ButtonStyle.Secondary).setDisabled(page <= 0),
@@ -697,14 +881,16 @@ function buildPaginationButtons(prefix, sessionId, page, totalPages, lang = "ro"
 async function handlePagination(interactionMessage, authorId, prefix, items, itemsPerPage, generateEmbedsFn, defaultMode = "detailed", lang = "ro") {
   if (!items || items.length === 0) return;
   let currentPage = 0; const totalPages = Math.max(1, Math.ceil(items.length / itemsPerPage));
-  const sessionId = Date.now().toString();
+  const sessionId = Date.now().toString() + Math.random().toString(36).substring(7);
   let collector = null;
+
   const updateMessage = async () => {
     try {
       const embeds = await generateEmbedsFn(currentPage, totalPages, defaultMode);
       const components = [buildPaginationButtons(prefix, sessionId, currentPage, totalPages, lang)];
       await interactionMessage.edit({ embeds, components }).catch(() => null);
     } catch (err) { 
+      logger("WARN", "PAGINATION", "Error updating message", err.message);
       if (collector) collector.stop("error"); 
     }
   };
@@ -722,8 +908,15 @@ async function handlePagination(interactionMessage, authorId, prefix, items, ite
     await btn.deferUpdate().catch(() => null);
     await updateMessage();
   });
+
   collector.on("end", () => {
-    if (interactionMessage.editable) interactionMessage.edit({ components: [] }).catch(() => null);
+    if (interactionMessage.editable) {
+      const disabledRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`${prefix}_prev_${sessionId}`).setLabel(getText(lang, "prev")).setStyle(ButtonStyle.Secondary).setDisabled(true),
+        new ButtonBuilder().setCustomId(`${prefix}_next_${sessionId}`).setLabel(getText(lang, "next")).setStyle(ButtonStyle.Primary).setDisabled(true)
+      );
+      interactionMessage.edit({ components: [disabledRow] }).catch(() => null);
+    }
   });
 }
 
@@ -829,7 +1022,8 @@ async function fetchSteamUpdate(game) {
     .sort((a, b) => Number(b.date || 0) - Number(a.date || 0));
   if (!patchNotes.length) throw new Error("errSteamPatch");
   const latest = patchNotes[0];
-  const rawContents = String(latest.contents || "").replace(/https?:\/\/[^\s]+/gi, "").replace(/\[.*?\]/g, " ");
+
+  const rawContents = String(latest.contents || "").replace(/\[\/?(?:b|i|u|h1|h2|h3|url=?[^\]]*|list|\*|spoiler|img|table|tr|th|td)\]/gi, "");
   return normalizeUpdate({ id: String(latest.gid), title: cleanText(latest.title), link: String(latest.url), excerpt: rawContents, fullText: rawContents, timestamp: latest.date ? new Date(latest.date * 1000).toISOString() : "" });
 }
 
@@ -891,7 +1085,9 @@ async function fetchAmdUpdate(game) {
     const rawContent = await fetchWithProxy("https://www.amd.com/en/support/download/drivers.html");
     const match = rawContent.match(/Adrenalin Edition\s+([\d\.]+)/i);
     if (match) return normalizeUpdate({ id: match[1], title: `AMD Radeon Adrenalin v${match[1]}`, link: "https://www.amd.com", excerpt: "Driver disponibil.", excerptKey: "excerptAmdDriver", thumbnail: game.thumbnail });
-  } catch (err) {}
+  } catch (err) {
+    logger("WARN", "AMD_UPDATE", "Failed proxy fetch", err.message);
+  }
   const res = await httpReq('GET', `https://news.google.com/rss/search?q=site:amd.com+%22AMD+Software:+Adrenalin+Edition%22+release+notes&hl=en-US`);
   const feed = await rssParser.parseString(res.data);
   if (!feed.items || feed.items.length === 0) throw new Error("errAMD");
@@ -903,7 +1099,9 @@ async function fetchIntelUpdate(game) {
     const rawContent = await fetchWithProxy(game.url);
     const match = rawContent.match(/\b(\d{2,3}\.\d+\.\d+\.\d+)\b/);
     if (match) return normalizeUpdate({ id: match[1], title: `${game.name} v${match[1]}`, link: game.url, excerpt: `Versiune găsită: ${match[1]}`, excerptKey: "excerptVersion", excerptParams: { v: match[1] }, thumbnail: game.thumbnail });
-  } catch (err) {}
+  } catch (err) {
+    logger("WARN", "INTEL_UPDATE", "Failed proxy fetch", err.message);
+  }
   const q = game.key === "intelpro" ? 'site:intel.com "Intel Arc Pro Graphics"' : 'site:intel.com "Intel Arc & Iris Xe Graphics - Windows"';
   const res = await httpReq('GET', `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US`);
   const feed = await rssParser.parseString(res.data);
@@ -912,25 +1110,40 @@ async function fetchIntelUpdate(game) {
 }
 
 async function fetchMinecraftUpdate() { 
-  const r = await httpReq('GET', "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"); 
-  const v = r?.data?.latest?.release;
-  if(!v) throw new Error("errMinecraft"); 
-  return normalizeUpdate({ id: v, title: `Minecraft ${v}`, link: `https://www.minecraft.net/en-us/article/minecraft-java-edition-${v.replace(/\./g, "-")}`, excerpt: `Versiunea ${v}`, excerptKey: "excerptVersion", excerptParams: { v: v }, thumbnail: "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg" });
+  try {
+      const r = await httpReq('GET', "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"); 
+      const v = r?.data?.latest?.release;
+      if(!v) throw new Error("errMinecraft"); 
+      return normalizeUpdate({ id: v, title: `Minecraft ${v}`, link: `https://www.minecraft.net/en-us/article/minecraft-java-edition-${v.replace(/\./g, "-")}`, excerpt: `Versiunea ${v}`, excerptKey: "excerptVersion", excerptParams: { v: v }, thumbnail: "https://static.wikia.nocookie.net/minecraft_gamepedia/images/c/c7/Grass_Block_Revision_6.png" });
+  } catch (err) {
+      logger("WARN", "MINECRAFT", "Failed to fetch update", err.message);
+      throw err;
+  }
 }
 
 async function fetchRobloxUpdate() { 
-  const r = await httpReq('GET', "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer"); 
-  const v = r?.data?.clientVersionUpload;
-  if(!v) throw new Error("errRoblox"); 
-  return normalizeUpdate({ id: String(v), title: "Roblox Update", link: "https://en.help.roblox.com/hc/en-us", excerpt: `Versiunea ${v}`, excerptKey: "excerptVersion", excerptParams: { v: String(v) }, thumbnail: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Roblox_Logo_2022.jpg" });
+  try {
+      const r = await httpReq('GET', "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer"); 
+      const v = r?.data?.clientVersionUpload;
+      if(!v) throw new Error("errRoblox"); 
+      return normalizeUpdate({ id: String(v), title: "Roblox Update", link: "https://en.help.roblox.com/hc/en-us", excerpt: `Versiunea ${v}`, excerptKey: "excerptVersion", excerptParams: { v: String(v) }, thumbnail: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Roblox_Logo_2022.jpg" });
+  } catch (err) {
+      logger("WARN", "ROBLOX", "Failed to fetch update", err.message);
+      throw err;
+  }
 }
 
 async function fetchNvidiaUpdate(g) { 
-  const q = g.key === "nvidiastudio" ? '"Studio Driver"' : '"Game Ready Driver"';
-  const r = await httpReq('GET', `https://news.google.com/rss/search?q=${encodeURIComponent(`site:nvidia.com ${q} release`)}&hl=en-US`); 
-  const f = await rssParser.parseString(r.data);
-  if (!f.items || f.items.length === 0) throw new Error("errNvidia");
-  return normalizeUpdate({ id: f.items[0].link, title: cleanText(f.items[0].title).split(" - ")[0], link: f.items[0].link, thumbnail: g.thumbnail });
+  try {
+      const q = g.key === "nvidiastudio" ? '"Studio Driver"' : '"Game Ready Driver"';
+      const r = await httpReq('GET', `https://news.google.com/rss/search?q=${encodeURIComponent(`site:nvidia.com ${q} release`)}&hl=en-US`); 
+      const f = await rssParser.parseString(r.data);
+      if (!f.items || f.items.length === 0) throw new Error("errNvidia");
+      return normalizeUpdate({ id: f.items[0].link, title: cleanText(f.items[0].title).split(" - ")[0], link: f.items[0].link, thumbnail: g.thumbnail });
+  } catch (err) {
+      logger("WARN", "NVIDIA", "Failed to fetch update", err.message);
+      throw err;
+  }
 }
 
 // -------------------------------------------------------------
@@ -986,7 +1199,9 @@ async function fetchSteamReviewData(appId) {
       const qualityPercent = totalReviews > 0 ? Math.round((positiveReviews / totalReviews) * 100) : 0;
       return { totalReviews, qualityPercent };
     }
-  } catch (err) {}
+  } catch (err) {
+    logger("WARN", "STEAM_REVIEW", "Failed to fetch review data", err.message);
+  }
   return { totalReviews: 0, qualityPercent: 0 };
 }
 
@@ -1010,7 +1225,9 @@ async function enrichDealData(deal) {
         const htmlRes = await httpReq('GET', deal.link, { headers: { "Cookie": "birthtime=283993201; mature_content=1;" } });
         const match = htmlRes.data.match(/Offer ends\s+([^<]+)/i);
         if (match && match[1]) deal.endDateStr = match[1].trim();
-      } catch (e) {}
+      } catch (e) {
+        logger("WARN", "STEAM_ENRICH", "Failed to enrich deal data", e.message);
+      }
     }
     deal.enriched = true;
     return deal;
@@ -1020,11 +1237,16 @@ async function enrichDealData(deal) {
   return deal;
 }
 
+// -------------------------------------------------------------
+// FETCH DEALS COMPUS (CU CROSS-PLATFORM EPIC -> STEAM)
+// -------------------------------------------------------------
 async function fetchDeals() {
   const deals = [];
+
+  // 1. STEAM DEALS
   try {
     const steamRes = await httpReq('GET', 'https://store.steampowered.com/api/featuredcategories/?cc=US&l=english');
-    const steamSpecials = (steamRes.data?.specials?.items || []).slice(0, 30);
+    const steamSpecials = (steamRes.data?.specials?.items || []).slice(0, 40);
     const reviewsData = [];
     for (let i = 0; i < steamSpecials.length; i += 5) {
       const chunk = steamSpecials.slice(i, i + 5);
@@ -1039,27 +1261,33 @@ async function fetchDeals() {
       const normalPrice = (item.original_price / 100).toFixed(2);
       const salePrice = (item.final_price / 100).toFixed(2);
       const savings = item.discount_percent || 0;
-      const hybridScore = (savings * 0.8) + (revData.qualityPercent * 1.0) + Math.min(25, Math.floor(revData.totalReviews / 1000));
+
+      let hybridScore = (savings * 0.8) + (revData.qualityPercent * 1.0) + Math.min(25, Math.floor(revData.totalReviews / 1000));
+
       deals.push({
         id: `steam_${item.id}`, steamAppID: item.id, title: item.name, salePrice: salePrice, normalPrice: normalPrice, savings: savings, store: "Steam", link: `https://store.steampowered.com/app/${item.id}`, popularityScore: hybridScore, totalReviews: revData.totalReviews, qualityScore: revData.qualityPercent, endDateStr: null, extraDetails: "", platformsInfo: null, enriched: false, thumbnail: item.header_image || null
       });
     }
   } catch (err) { logger("WARN", "DEALS_FETCH", "Eroare Steam API", err.message); }
 
+  // 2. EPIC GAMES DEALS
   try {
-    const epicQuery = `query searchStoreQuery($category: String, $count: Int, $country: String!, $locale: String, $onSale: Boolean, $withPrice: Boolean = false) { Catalog { searchStore(category: $category, count: $count, country: $country, locale: $locale, onSale: $onSale) { elements { title id urlSlug keyImages { type url } price(country: $country) @include(if: $withPrice) { totalPrice { discountPrice originalPrice } } promotions { promotionalOffers { promotionalOffers { endDate discountSetting { discountPercentage } } } } } } } }`;
-    const epicVars = { category: "games/edition/base|bundles/games", count: 20, country: "US", locale: "en-US", onSale: true, withPrice: true };
+    const epicQuery = `query searchStoreQuery($category: String, $count: Int, $country: String!, $locale: String, $onSale: Boolean, $withPrice: Boolean = false) { Catalog { searchStore(category: $category, count: $count, country: $country, locale: $locale, onSale: $onSale) { elements { title id urlSlug catalogNs { mappings { pageSlug } } keyImages { type url } price(country: $country) @include(if: $withPrice) { totalPrice { discountPrice originalPrice } } promotions { promotionalOffers { promotionalOffers { endDate discountSetting { discountPercentage } } } } } } } }`;
+    const epicVars = { category: "games/edition/base|bundles/games", count: 30, country: "US", locale: "en-US", onSale: true, withPrice: true };
     const epicRes = await httpReq('POST', 'https://graphql.epicgames.com/graphql', { data: { query: epicQuery, variables: epicVars } });
     const epicElements = epicRes.data?.data?.Catalog?.searchStore?.elements || [];
 
+    const epicDealsTemp = [];
     for (const item of epicElements) {
       const priceInfo = item.price?.totalPrice;
       if (!priceInfo) continue;
-      const normalPrice = (priceInfo.originalPrice / 100).toFixed(2);
+      const normalPriceNum = priceInfo.originalPrice / 100;
+      const normalPrice = normalPriceNum.toFixed(2);
       const salePrice = (priceInfo.discountPrice / 100).toFixed(2);
+
       let savings = 0;
       if (priceInfo.originalPrice > 0) savings = Math.round(((priceInfo.originalPrice - priceInfo.discountPrice) / priceInfo.originalPrice) * 100);
-      const hybridScore = (savings * 0.8) + 80.0 + 15.0;
+
       let thumb = null;
       if (Array.isArray(item.keyImages)) {
         const img = item.keyImages.find(i => i.type === "OfferImageWide" || i.type === "Thumbnail");
@@ -1069,22 +1297,86 @@ async function fetchDeals() {
       const promos = item.promotions?.promotionalOffers?.[0]?.promotionalOffers?.[0];
       if (promos && promos.endDate) endDate = promos.endDate;
 
-      const urlSlug = item.urlSlug || item.id;
-      deals.push({ id: `epic_${item.id}`, steamAppID: null, title: item.title, salePrice: salePrice, normalPrice: normalPrice, savings: savings, store: "Epic Games", link: `https://store.epicgames.com/en-US/p/${urlSlug}`, popularityScore: hybridScore, totalReviews: 0, qualityScore: 80, endDateStr: endDate, extraDetails: "", platformsInfo: null, enriched: true, thumbnail: thumb });
+      let urlSlug = item.urlSlug || item.id;
+      if (!item.urlSlug && item.catalogNs && item.catalogNs.mappings && item.catalogNs.mappings.length > 0) {
+          urlSlug = item.catalogNs.mappings[0].pageSlug;
+      }
+      epicDealsTemp.push({
+         id: `epic_${item.id}`, steamAppID: null, title: item.title, salePrice: salePrice, normalPrice: normalPrice, normalPriceNum: normalPriceNum, savings: savings, store: "Epic Games", link: `https://store.epicgames.com/en-US/p/${urlSlug}`, endDateStr: endDate, platformsInfo: null, enriched: true, thumbnail: thumb 
+      });
+    }
+
+    // CROSS-PLATFORM SCORING: Obținem recenzii Steam pentru jocurile Epic
+    const epicReviewsData = [];
+    for (let i = 0; i < epicDealsTemp.length; i += 5) {
+      const chunk = epicDealsTemp.slice(i, i + 5);
+      const chunkPromises = chunk.map(async (deal) => {
+          const steamId = await getSteamIdForTitle(deal.title);
+          if (steamId) return await fetchSteamReviewData(steamId);
+          return null;
+      });
+      epicReviewsData.push(...(await Promise.all(chunkPromises)));
+      await new Promise(res => setTimeout(res, 500)); // Pază împotriva rate-limit-ului Steam
+    }
+
+    for (let i = 0; i < epicDealsTemp.length; i++) {
+       const deal = epicDealsTemp[i];
+       const revData = epicReviewsData[i];
+
+       if (revData && revData.totalReviews > 0) {
+           deal.popularityScore = (deal.savings * 0.8) + (revData.qualityPercent * 1.0) + Math.min(25, Math.floor(revData.totalReviews / 1000));
+           deal.qualityScore = revData.qualityPercent;
+           deal.totalReviews = revData.totalReviews;
+           deal.extraDetails = "\n*(Scor comunitar preluat via Steam)*";
+       } else {
+           deal.popularityScore = (deal.savings * 0.8) + 85.0 + Math.min(25, deal.normalPriceNum / 2);
+           deal.qualityScore = 85;
+           deal.totalReviews = 0;
+           deal.extraDetails = "\n*(Exclusiv Epic/Fără recenzii publice)*";
+       }
+       deals.push(deal);
     }
   } catch (err) { logger("WARN", "DEALS_FETCH", "Eroare Epic GraphQL", err.message); }
 
-  const finalTop = deals.sort((a, b) => b.popularityScore - a.popularityScore).slice(0, MAX_DEALS);
-  if (!finalTop.length) throw new Error("errNoValidDeals");
-  return finalTop;
+  return deals;
 }
 
 // -------------------------------------------------------------
-// HELPERE PENTRU CĂUTAREA PREȚURILOR ȘI DLC-urilor PE STEAM
+// HELPERE PENTRU CĂUTAREA PREȚURILOR ȘI DLC-urilor
 // -------------------------------------------------------------
 async function searchSteamGameByName(query) {
   const searchRes = await httpReq('GET', `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(query)}&cc=US&l=english`);
   return searchRes.data?.items || [];
+}
+
+async function searchEpicGameByName(query) {
+  const epicQuery = `query searchStoreQuery($keywords: String, $count: Int, $country: String!, $locale: String, $withPrice: Boolean = false) { Catalog { searchStore(keywords: $keywords, count: $count, country: $country, locale: $locale) { elements { title id urlSlug catalogNs { mappings { pageSlug } } keyImages { type url } price(country: $country) @include(if: $withPrice) { totalPrice { discountPrice originalPrice } } promotions { promotionalOffers { promotionalOffers { endDate discountSetting { discountPercentage } } } } } } } }`;
+  const epicVars = { keywords: query, count: 5, country: "US", locale: "en-US", withPrice: true };
+  try {
+    const res = await httpReq('POST', 'https://graphql.epicgames.com/graphql', { data: { query: epicQuery, variables: epicVars } });
+    const elements = res.data?.data?.Catalog?.searchStore?.elements || [];
+    if (!elements.length) return null;
+    return chooseBestEpicMatch(elements, query);
+  } catch (err) { 
+    logger("WARN", "EPIC_SEARCH", "Epic GraphQL search failed", err.message);
+    return null; 
+  }
+}
+
+function chooseBestEpicMatch(items, query) {
+  const normalize = (str) => String(str).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const normTarget = normalize(query);
+  let bestMatch = items[0];
+  let bestScore = Infinity;
+  for (const item of items) {
+      const normItemName = normalize(item.title);
+      let score = levenshtein(normTarget, normItemName);
+      if (normItemName === normTarget) score -= 100;
+      else if (normItemName.startsWith(normTarget)) score -= 20;
+      else if (normItemName.includes(normTarget)) score -= 10;
+      if (score < bestScore) { bestScore = score; bestMatch = item; }
+  }
+  return bestMatch;
 }
 
 function chooseBestSteamMatch(items, query) {
@@ -1127,54 +1419,10 @@ async function extractSteamOfferEndDate(appId) {
     const htmlRes = await httpReq('GET', `https://store.steampowered.com/app/${appId}`, { headers: { "Cookie": "birthtime=283993201; mature_content=1;" } });
     const match = htmlRes.data.match(/Offer ends\s+([^<]+)/i);
     return match && match[1] ? match[1].trim() : null;
-  } catch (err) { return null; }
-}
-
-function buildSteamPriceEmbed(gameData, appId, offerEndDate, lang = "ro") {
-  const typeStr = gameData.type === 'game' ? getText(lang, "typeGame") :
-                  gameData.type === 'dlc' ? getText(lang, "typeDlc") :
-                  gameData.type === 'music' ? getText(lang, "typeMusic") :
-                  gameData.type === 'demo' ? getText(lang, "typeDemo") : getText(lang, "typeApp");
-
-  const title = gameData.name;
-  const isFree = gameData.is_free;
-  const priceOverview = gameData.price_overview;
-
-  let embedDesc = `${getText(lang, "typeProd")} ${typeStr}\n\n`;
-  let color = 0x2b2d31;
-
-  if (isFree) {
-    embedDesc += getText(lang, "currFree");
-    color = 0xffd700;
-  } else if (!priceOverview) {
-    embedDesc += getText(lang, "priceUnav");
-  } else {
-    const normalPrice = (priceOverview.initial / 100).toFixed(2);
-    const currentPrice = (priceOverview.final / 100).toFixed(2);
-    const discountPercent = priceOverview.discount_percent;
-
-    if (discountPercent > 0) {
-      embedDesc += getText(lang, "activeDisc", { percent: discountPercent, old: normalPrice, new: currentPrice });
-      color = 0xe74c3c;
-      if (offerEndDate) {
-        embedDesc += `${getText(lang, "expAt")} ${offerEndDate}`;
-      } else {
-        embedDesc += `${getText(lang, "expAt")} ${getText(lang, "expUnspec")}`;
-      }
-    } else {
-      embedDesc += getText(lang, "noDisc", { price: normalPrice });
-      color = 0x57f287;
-    }
+  } catch (err) { 
+    logger("WARN", "STEAM_OFFER_DATE", "Failed to extract offer end date", err.message);
+    return null; 
   }
-
-  const embed = new EmbedBuilder()
-    .setColor(color)
-    .setTitle(getText(lang, "steamPriceTitle", { title: title }))
-    .setURL(`https://store.steampowered.com/app/${appId}`)
-    .setDescription(embedDesc);
-
-  if (gameData.header_image) embed.setImage(gameData.header_image);
-  return embed;
 }
 
 // -------------------------------------------------------------
@@ -1193,6 +1441,7 @@ async function fetchGameStatus(game, lang = "ro") {
       statusLink = "https://status.epicgames.com/";
       color = res.data.status.indicator === "none" ? 0x2ecc71 : 0xe74c3c;
     } catch (e) {
+      logger("WARN", "EPIC_STATUS", "Status fetch failed", e.message);
       statusText = getText(lang, "statusError");
       statusLink = "https://status.epicgames.com/";
     }
@@ -1205,7 +1454,7 @@ async function fetchGameStatus(game, lang = "ro") {
   } else if (game.key === "minecraft") {
     statusLink = "https://help.minecraft.net/hc/en-us/articles/360052646271-Minecraft-Server-Status";
   } else {
-    homepageLink = game.url || game.baseUrl || getText(lang, "noLink");
+    homepageLink = game.url || game.baseUrl || (game.appId ? `https://store.steampowered.com/app/${game.appId}` : "");
   }
 
   const embed = new EmbedBuilder()
@@ -1215,9 +1464,14 @@ async function fetchGameStatus(game, lang = "ro") {
 
   if (statusLink && statusLink.startsWith("http")) {
     embed.addFields({ name: getText(lang, "statusOff"), value: `[${getText(lang, "statusCheckText")}](${statusLink})` });
-  } else if (homepageLink && homepageLink.startsWith("http")) {
-    embed.addFields({ name: getText(lang, "statusHome"), value: `[${getText(lang, "statusFallbackText")}](${homepageLink})${getText(lang, "statusFallbackNote")}` });
+  } else {
+    if (homepageLink && homepageLink.startsWith("http")) {
+      embed.addFields({ name: getText(lang, "statusHome"), value: `[${getText(lang, "statusFallbackText")}](${homepageLink})${getText(lang, "statusFallbackNote")}` });
+    }
+    const downDetectorUrl = `https://downdetector.com/search/?q=${encodeURIComponent(game.name)}`;
+    embed.addFields({ name: "Downdetector", value: `[${getText(lang, "searchDowndetector")}](${downDetectorUrl})` });
   }
+
   if (game.thumbnail) embed.setThumbnail(game.thumbnail);
   return embed;
 }
@@ -1257,13 +1511,11 @@ async function checkForUpdates() {
             guild.seen[game.key] = seenIds;
             updatePayload[`seen.${game.key}`] = seenIds;
             await GuildModel.updateOne({ _id: guild._id }, { $set: updatePayload });
-          } catch (err) {}
+          } catch (err) {
+            logger("WARN", "CRON_UPDATE", "Failed to send embed", err.message);
+          }
         } else {
-           seenIds.push(latest.id);
-           if (seenIds.length > 20) seenIds.shift();
-           guild.seen[game.key] = seenIds;
-           updatePayload[`seen.${game.key}`] = seenIds;
-           await GuildModel.updateOne({ _id: guild._id }, { $set: updatePayload });
+           break;
         }
       }
     }
@@ -1271,53 +1523,92 @@ async function checkForUpdates() {
 }
 
 async function checkForDiscounts() {
-  const guilds = await GuildModel.find({ discountsSubscribed: true, discountChannelId: { $ne: null } }).lean();
+  const guilds = await GuildModel.find({ 
+    $or: [
+        { discountsSubscribed: true, discountChannelId: { $ne: null } },
+        { freeSubscribed: true, freeChannelId: { $ne: null } }
+    ]
+  }).lean();
+
   if (!guilds.length) return;
 
-  let deals;
-  try { deals = await fetchDeals(); } catch (err) { return; }
+  let allDeals;
+  try { allDeals = await fetchDeals(); } catch (err) { return; }
+
+  const paidDeals = allDeals
+    .filter(d => parseFloat(d.salePrice) > 0)
+    .sort((a, b) => b.popularityScore - a.popularityScore);
+
+  const freeDeals = allDeals
+    .filter(d => parseFloat(d.salePrice) === 0 && d.savings === 100)
+    .sort((a, b) => b.popularityScore - a.popularityScore);
 
   for (const guild of guilds) {
-    let channel;
     const lang = guild.language || "ro";
-    try { channel = await client.channels.fetch(guild.discountChannelId); } catch (err) { continue; }
-    if (!canSendEmbeds(channel, client.user.id)) continue;
 
-    const minDisc = guild.minDiscountPercent || 0;
-    const incFree = guild.includeFreeGames !== false;
-    const incPaid = guild.includePaidDiscounts !== false;
+    // 1. Notificări Reduceri
+    if (guild.discountsSubscribed && guild.discountChannelId) {
+        let channel;
+        try { channel = await client.channels.fetch(guild.discountChannelId); } catch (err) {}
 
-    const filteredDeals = deals.filter(deal => {
-      const isFree = parseFloat(deal.salePrice) === 0;
-      if (isFree && !incFree) return false;
-      if (!isFree && !incPaid) return false;
-      if (!isFree && deal.savings < minDisc) return false;
-      return true;
-    });
+        if (channel && canSendEmbeds(channel, client.user.id)) {
+            const minDisc = guild.minDiscountPercent || 0;
+            const validPaidDeals = paidDeals.filter(deal => deal.savings >= minDisc);
 
-    let sentCount = 0;
-    if (!guild.seenDiscounts) guild.seenDiscounts = [];
+            let sentCountPaid = 0;
+            if (!guild.seenDiscounts) guild.seenDiscounts = [];
 
-    for (const deal of filteredDeals) {
-      const hash = crypto.createHash('sha1').update(`${deal.title}_${deal.store}_${deal.salePrice}_${deal.normalPrice}`).digest('hex');
-      if (!guild.seenDiscounts.includes(hash)) {
-        if (sentCount < 8) { 
-          try { await enrichDealData(deal); } catch (e) { } 
-          const embed = buildDealEmbed(deal, guild.notificationMode || "detailed", lang);
-          try {
-            await channel.send({ content: getText(lang, "notifiedDeal"), embeds: [embed] });
-            await new Promise(r => setTimeout(r, 800)); 
-            sentCount++;
-            guild.seenDiscounts.push(hash); 
-            if (guild.seenDiscounts.length > DEALS_HISTORY_LIMIT) guild.seenDiscounts.shift();
-            await GuildModel.updateOne({ _id: guild._id }, { $set: { seenDiscounts: guild.seenDiscounts } });
-          } catch (err) {}
-        } else {
-           guild.seenDiscounts.push(hash);
-           if (guild.seenDiscounts.length > DEALS_HISTORY_LIMIT) guild.seenDiscounts.shift();
-           await GuildModel.updateOne({ _id: guild._id }, { $set: { seenDiscounts: guild.seenDiscounts } });
+            for (const deal of validPaidDeals) {
+              const hash = crypto.createHash('sha1').update(`${deal.title}_${deal.store}_${deal.salePrice}_${deal.normalPrice}`).digest('hex');
+              if (!guild.seenDiscounts.includes(hash)) {
+                if (sentCountPaid < 8) { 
+                  try { await enrichDealData(deal); } catch (e) { } 
+                  const embed = buildDealEmbed(deal, guild.notificationMode || "detailed", lang);
+                  try {
+                    await channel.send({ content: getText(lang, "notifiedDeal"), embeds: [embed] });
+                    await new Promise(r => setTimeout(r, 800)); 
+                    sentCountPaid++;
+                    guild.seenDiscounts.push(hash); 
+                    if (guild.seenDiscounts.length > DEALS_HISTORY_LIMIT) guild.seenDiscounts.shift();
+                    await GuildModel.updateOne({ _id: guild._id }, { $set: { seenDiscounts: guild.seenDiscounts } });
+                  } catch (err) { logger("WARN", "CRON_DEAL", "Failed to send embed", err.message); }
+                } else {
+                   break;
+                }
+              }
+            }
         }
-      }
+    }
+
+    // 2. Notificări Jocuri Gratuite (Promoții)
+    if (guild.freeSubscribed && guild.freeChannelId) {
+        let channelFree;
+        try { channelFree = await client.channels.fetch(guild.freeChannelId); } catch (err) {}
+
+        if (channelFree && canSendEmbeds(channelFree, client.user.id)) {
+            let sentCountFree = 0;
+            if (!guild.seenFree) guild.seenFree = [];
+
+            for (const deal of freeDeals) {
+              const hash = crypto.createHash('sha1').update(`FREE_${deal.title}_${deal.store}`).digest('hex');
+              if (!guild.seenFree.includes(hash)) {
+                  if (sentCountFree < 8) {
+                      try { await enrichDealData(deal); } catch (e) { } 
+                      const embed = buildDealEmbed(deal, guild.notificationMode || "detailed", lang);
+                      try {
+                          await channelFree.send({ content: getText(lang, "notifiedFree"), embeds: [embed] });
+                          await new Promise(r => setTimeout(r, 800));
+                          sentCountFree++;
+                          guild.seenFree.push(hash);
+                          if (guild.seenFree.length > DEALS_HISTORY_LIMIT) guild.seenFree.shift();
+                          await GuildModel.updateOne({ _id: guild._id }, { $set: { seenFree: guild.seenFree } });
+                      } catch (err) { logger("WARN", "CRON_FREE", "Failed to send embed", err.message); }
+                  } else {
+                      break; 
+                  }
+              }
+            }
+        }
     }
   }
 }
@@ -1327,6 +1618,7 @@ async function checkForDiscounts() {
 // -------------------------------------------------------------
 async function handleStart(message, subCommand, guildId, lang) {
   if (!message.member?.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply(getText(lang, "adminOnly"));
+
   if (subCommand === "updates") {
     const msg = await message.reply(getText(lang, "setChannelUpdates"));
     try {
@@ -1334,18 +1626,38 @@ async function handleStart(message, subCommand, guildId, lang) {
       const setPayload = { subscribed: true, notificationChannelId: message.channel.id };
       for (const r of results) if (r.latest) setPayload[`seen.${r.game.key}`] = [r.latest.id];
       await GuildModel.updateOne({ _id: guildId }, { $set: setPayload }, { upsert: true });
-      return msg.edit(getText(lang, "updatesActive"));
-    } catch (err) { return msg.edit(formatUserError(err, "initError", lang)); }
+      return msg.edit(getText(lang, "updatesActive")).catch(() => null);
+    } catch (err) { return msg.edit(formatUserError(err, "initError", lang)).catch(() => null); }
   } 
-  if (subCommand === "reduceri") {
+
+  if (subCommand === "deals" || subCommand === "reduceri") {
     const msg = await message.reply(getText(lang, "setChannelDeals"));
     try {
-      const deals = await fetchDeals(); 
-      const initHashes = deals.map(d => crypto.createHash('sha1').update(`${d.title}_${d.store}_${d.salePrice}_${d.normalPrice}`).digest('hex')).slice(-DEALS_HISTORY_LIMIT);
+      const allDeals = await fetchDeals(); 
+      const paidDeals = allDeals
+        .filter(d => parseFloat(d.salePrice) > 0)
+        .sort((a, b) => b.popularityScore - a.popularityScore);
+
+      const initHashes = paidDeals.map(d => crypto.createHash('sha1').update(`${d.title}_${d.store}_${d.salePrice}_${d.normalPrice}`).digest('hex')).slice(-DEALS_HISTORY_LIMIT);
       await GuildModel.updateOne({ _id: guildId }, { $set: { discountsSubscribed: true, discountChannelId: message.channel.id, seenDiscounts: initHashes } }, { upsert: true });
-      return msg.edit(getText(lang, "dealsActive"));
-    } catch (err) { return msg.edit(formatUserError(err, "dealsError", lang)); }
+      return msg.edit(getText(lang, "dealsActive")).catch(() => null);
+    } catch (err) { return msg.edit(formatUserError(err, "dealsError", lang)).catch(() => null); }
   }
+
+  if (subCommand === "free") {
+    const msg = await message.reply(getText(lang, "setChannelFree"));
+    try {
+      const allDeals = await fetchDeals();
+      const freeDeals = allDeals
+        .filter(d => parseFloat(d.salePrice) === 0 && d.savings === 100)
+        .sort((a, b) => b.popularityScore - a.popularityScore);
+
+      const initHashes = freeDeals.map(d => crypto.createHash('sha1').update(`FREE_${d.title}_${d.store}`).digest('hex')).slice(-DEALS_HISTORY_LIMIT);
+      await GuildModel.updateOne({ _id: guildId }, { $set: { freeSubscribed: true, freeChannelId: message.channel.id, seenFree: initHashes } }, { upsert: true });
+      return msg.edit(getText(lang, "freeActive")).catch(() => null);
+    } catch (err) { return msg.edit(formatUserError(err, "dealsError", lang)).catch(() => null); }
+  }
+
   return message.reply(getText(lang, "startUpdatesSyntax", { prefix: PREFIX }));
 }
 
@@ -1353,7 +1665,8 @@ async function handleStop(message, subCommand, guildId, lang) {
   if (!message.member?.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply(getText(lang, "adminOnly"));
   try {
     if (subCommand === "updates") { await GuildModel.updateOne({ _id: guildId }, { $set: { subscribed: false, notificationChannelId: null } }); return message.reply(getText(lang, "stopUpdates")); }
-    if (subCommand === "reduceri") { await GuildModel.updateOne({ _id: guildId }, { $set: { discountsSubscribed: false, discountChannelId: null } }); return message.reply(getText(lang, "stopDeals")); }
+    if (subCommand === "deals" || subCommand === "reduceri") { await GuildModel.updateOne({ _id: guildId }, { $set: { discountsSubscribed: false, discountChannelId: null } }); return message.reply(getText(lang, "stopDeals")); }
+    if (subCommand === "free") { await GuildModel.updateOne({ _id: guildId }, { $set: { freeSubscribed: false, freeChannelId: null } }); return message.reply(getText(lang, "stopFree")); }
   } catch (err) {}
   return message.reply(getText(lang, "stopSyntax", { prefix: PREFIX }));
 }
@@ -1375,13 +1688,7 @@ async function handleSetCommand(message, args, guildId, lang) {
       const min = parseInt(value);
       if (isNaN(min) || min < 0 || min > 100) return message.reply(getText(lang, "invalidDiscount"));
       updateDoc.minDiscountPercent = min; confirmMsg = getText(lang, "discountSet", { value: min }); break;
-    case "free":
-      if (!["on", "off"].includes(value)) return message.reply(getText(lang, "invalidBool"));
-      updateDoc.includeFreeGames = value === "on"; confirmMsg = getText(lang, "freeSet", { value: value.toUpperCase() }); break;
-    case "paid":
-      if (!["on", "off"].includes(value)) return message.reply(getText(lang, "invalidBool"));
-      updateDoc.includePaidDiscounts = value === "on"; confirmMsg = getText(lang, "paidSet", { value: value.toUpperCase() }); break;
-    case "lang":
+    case "language":
       if (!["ro", "en"].includes(value)) return message.reply(getText(lang, "invalidLang"));
       updateDoc.language = value; confirmMsg = getText(value, "langSet", { value: value.toUpperCase() }); break;
     default: return message.reply(getText(lang, "unknownSetting"));
@@ -1401,13 +1708,13 @@ async function handleLatestUpdates(message, guildDoc, lang) {
         cache.updates = { data: results, expiresAt: Date.now() + GLOBAL_CACHE_TTL_MS };
         const sys = await getSystemTimes();
         sys.all = smoothTime(estMs, Date.now() - startTime); await saveSystemTimes(sys);
-    } catch (err) { return msg.edit(formatUserError(err, "fetchUpdatesError", lang)); }
+    } catch (err) { return msg.edit(formatUserError(err, "fetchUpdatesError", lang)).catch(() => null); }
   }
   const valid = cache.updates.data.filter(r => r.latest !== null);
-  if (!valid.length) return msg ? msg.edit(getText(lang, "noData")) : message.reply(getText(lang, "noData"));
+  if (!valid.length) return msg ? msg.edit(getText(lang, "noData")).catch(() => null) : message.reply(getText(lang, "noData"));
 
   const mode = guildDoc?.notificationMode || "detailed";
-  if (msg) await msg.edit(getText(lang, "dataLoaded"));
+  if (msg) await msg.edit(getText(lang, "dataLoaded")).catch(() => null);
   else msg = await message.reply(getText(lang, "dataLoaded"));
   const generateEmbeds = async (page, totalP, currentMode) => valid.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE).map(r => buildUpdateEmbed(r.game.name, r.latest, currentMode, lang).setFooter({ text: `${r.game.name} • ${getText(lang, "page")} ${page + 1}/${totalP}` }));
   await handlePagination(msg, message.author.id, "upd", valid, ITEMS_PER_PAGE, generateEmbeds, mode, lang);
@@ -1416,32 +1723,27 @@ async function handleLatestUpdates(message, guildDoc, lang) {
 async function handleLatestDeals(message, guildDoc, lang) {
   let msg = null;
   if (!cache.deals.data) {
-    const estMs = (await getSystemTimes()).reduceri || 10000;
+    const estMs = (await getSystemTimes()).deals || 10000;
     msg = await message.reply(getText(lang, "estTime", { time: Math.max(1, Math.ceil(estMs / 1000)) }));
     const startTime = Date.now();
     try {
         const rawDeals = await fetchDeals();
         cache.deals = { data: rawDeals, expiresAt: Date.now() + GLOBAL_CACHE_TTL_MS };
         const sys = await getSystemTimes();
-        sys.reduceri = smoothTime(estMs, Date.now() - startTime); await saveSystemTimes(sys);
-    } catch (err) { return msg.edit(formatUserError(err, "fetchDealsError", lang)); }
+        sys.deals = smoothTime(estMs, Date.now() - startTime); await saveSystemTimes(sys);
+    } catch (err) { return msg.edit(formatUserError(err, "fetchDealsError", lang)).catch(() => null); }
   }
 
   const mode = guildDoc?.notificationMode || "detailed";
   const minDisc = guildDoc?.minDiscountPercent || 0;
-  const incFree = guildDoc?.includeFreeGames !== false;
-  const incPaid = guildDoc?.includePaidDiscounts !== false;
 
-  const top = cache.deals.data.filter(deal => {
-    const isFree = parseFloat(deal.salePrice) === 0;
-    if (isFree && !incFree) return false;
-    if (!isFree && !incPaid) return false;
-    if (!isFree && deal.savings < minDisc) return false;
-    return true;
-  }).slice(0, MAX_DEALS);
+  const top = cache.deals.data
+    .filter(deal => parseFloat(deal.salePrice) > 0 && deal.savings >= minDisc)
+    .sort((a, b) => b.popularityScore - a.popularityScore)
+    .slice(0, MAX_DEALS);
 
-  if (!top.length) return msg ? msg.edit(getText(lang, "noDealsMatch")) : message.reply(getText(lang, "noDealsMatch"));
-  if (msg) await msg.edit(getText(lang, "dealsLoaded"));
+  if (!top.length) return msg ? msg.edit(getText(lang, "noDealsMatch")).catch(() => null) : message.reply(getText(lang, "noDealsMatch"));
+  if (msg) await msg.edit(getText(lang, "dealsLoaded")).catch(() => null);
   else msg = await message.reply(getText(lang, "dealsLoaded"));
 
   const generateEmbeds = async (page, totalP, currentMode) => {
@@ -1452,6 +1754,48 @@ async function handleLatestDeals(message, guildDoc, lang) {
     return chunk.map(d => buildDealEmbed(d, currentMode, lang).setFooter({ text: `${getText(lang, "page")} ${page + 1}/${totalP}` }));
   };
   await handlePagination(msg, message.author.id, "deals", top, ITEMS_PER_PAGE, generateEmbeds, mode, lang);
+}
+
+async function handleLatestFreeGames(message, guildDoc, lang) {
+  let msg = null;
+  if (!cache.deals.data) {
+    const estMs = (await getSystemTimes()).free || 10000;
+    msg = await message.reply(getText(lang, "estTime", { time: Math.max(1, Math.ceil(estMs / 1000)) }));
+    const startTime = Date.now();
+    try {
+        const rawDeals = await fetchDeals();
+        cache.deals = { data: rawDeals, expiresAt: Date.now() + GLOBAL_CACHE_TTL_MS };
+        const sys = await getSystemTimes();
+        sys.free = smoothTime(estMs, Date.now() - startTime); await saveSystemTimes(sys);
+    } catch (err) { return msg.edit(formatUserError(err, "fetchDealsError", lang)).catch(() => null); }
+  }
+
+  const mode = guildDoc?.notificationMode || "detailed";
+
+  const freeSteam = cache.deals.data
+    .filter(deal => parseFloat(deal.salePrice) === 0 && deal.savings === 100 && deal.store === "Steam")
+    .sort((a, b) => b.popularityScore - a.popularityScore)
+    .slice(0, MAX_FREE_PER_STORE);
+
+  const freeEpic = cache.deals.data
+    .filter(deal => parseFloat(deal.salePrice) === 0 && deal.savings === 100 && deal.store === "Epic Games")
+    .sort((a, b) => b.popularityScore - a.popularityScore)
+    .slice(0, MAX_FREE_PER_STORE);
+
+  const freeGames = [...freeSteam, ...freeEpic];
+
+  if (!freeGames.length) return msg ? msg.edit(getText(lang, "noFreeMatch")).catch(() => null) : message.reply(getText(lang, "noFreeMatch"));
+  if (msg) await msg.edit(getText(lang, "freeLoaded")).catch(() => null);
+  else msg = await message.reply(getText(lang, "freeLoaded"));
+
+  const generateEmbeds = async (page, totalP, currentMode) => {
+    const chunk = freeGames.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
+    if (currentMode !== "compact") { 
+      for (const d of chunk) { try { await enrichDealData(d); } catch(e) {} }
+    }
+    return chunk.map(d => buildDealEmbed(d, currentMode, lang).setFooter({ text: `${getText(lang, "page")} ${page + 1}/${totalP}` }));
+  };
+  await handlePagination(msg, message.author.id, "free", freeGames, ITEMS_PER_PAGE, generateEmbeds, mode, lang);
 }
 
 async function handleLatestSingle(message, gameText, guildDoc, lang) {
@@ -1488,28 +1832,45 @@ async function handleLatestSingle(message, gameText, guildDoc, lang) {
 
 async function handlePriceSearch(message, gameName, lang) {
   if (!gameName) return message.reply(getText(lang, "priceSyntax", { prefix: PREFIX }));
-  const loadingMsg = await message.reply(getText(lang, "searchingPrice", { name: gameName }));
+  const loadingMsg = await message.reply(getText(lang, "searchingDualPrice", { name: gameName }));
+
+  let steamData = null;
+  let steamAppId = null;
+  let steamEndDate = null;
 
   try {
-    let items;
-    try { items = await searchSteamGameByName(gameName); } catch (e) { return loadingMsg.edit(getText(lang, "steamError")).catch(() => null); }
-    if (!items || items.length === 0) return loadingMsg.edit(getText(lang, "noSteamResults", { name: gameName })).catch(() => null);
+    const steamItems = await searchSteamGameByName(gameName);
+    if (steamItems && steamItems.length > 0) {
+      const bestMatch = chooseBestSteamMatch(steamItems, gameName);
+      if (bestMatch && bestMatch.id) {
+        steamAppId = bestMatch.id;
+        steamData = await fetchSteamPriceDetails(steamAppId);
+        if (steamData && steamData.price_overview && steamData.price_overview.discount_percent > 0) {
+            steamEndDate = await extractSteamOfferEndDate(steamAppId);
+        }
+      }
+    }
+  } catch (e) {
+    logger("WARN", "PRICE_SEARCH", "Steam search/fetch failed", e.message);
+  }
 
-    const bestMatch = chooseBestSteamMatch(items, gameName);
-    if (!bestMatch || !bestMatch.id) return loadingMsg.edit(getText(lang, "invalidSteamResult")).catch(() => null);
+  let epicData = null;
+  try {
+    epicData = await searchEpicGameByName(gameName);
+  } catch (e) {
+    logger("WARN", "PRICE_SEARCH", "Epic Games search failed", e.message);
+  }
 
-    const bestMatchId = bestMatch.id;
-    let gameData;
-    try { gameData = await fetchSteamPriceDetails(bestMatchId); } catch (e) { return loadingMsg.edit(getText(lang, "steamApiError")).catch(() => null); }
-    if (!gameData) return loadingMsg.edit(getText(lang, "steamDetailsUnavailable")).catch(() => null);
+  if (!steamData && !epicData) {
+      return loadingMsg.edit(getText(lang, "noDualResults", { name: gameName })).catch(() => null);
+  }
 
-    let offerEndDate = null;
-    if (gameData.price_overview && gameData.price_overview.discount_percent > 0) offerEndDate = await extractSteamOfferEndDate(bestMatchId);
-
-    const embed = buildSteamPriceEmbed(gameData, bestMatchId, offerEndDate, lang);
-    await loadingMsg.edit({ content: getText(lang, "priceSuccess"), embeds: [embed] }).catch(() => null);
+  try {
+      const embed = buildDualPriceEmbed(steamData, steamAppId, steamEndDate, epicData, gameName, lang);
+      await loadingMsg.edit({ content: getText(lang, "priceDualSuccess"), embeds: [embed] }).catch(() => null);
   } catch (err) {
-    await loadingMsg.edit(getText(lang, "priceUnexpectedError")).catch(() => null);
+      logger("ERROR", "PRICE_SEARCH", "Failed to build or send dual price embed", err.message);
+      await loadingMsg.edit(getText(lang, "priceUnexpectedError")).catch(() => null);
   }
 }
 
@@ -1537,7 +1898,7 @@ async function handleDlcSearch(message, gameName, lang) {
     } else {
       const title = bestMatch.name;
       let gameDetails;
-      try { gameDetails = await fetchSteamPriceDetails(cacheKey); } catch (e) {}
+      try { gameDetails = await fetchSteamPriceDetails(cacheKey); } catch (e) { logger("WARN", "DLC_SEARCH", "Details fetch failed", e.message); }
       const thumbUrl = gameDetails?.header_image || `https://cdn.akamai.steamstatic.com/steam/apps/${cacheKey}/header.jpg`;
       const htmlRes = await httpReq('GET', `https://store.steampowered.com/app/${cacheKey}`, { headers: { "Cookie": "birthtime=283993201; mature_content=1;" }, timeout: 15000 });
       const $ = cheerio.load(htmlRes.data);
@@ -1551,11 +1912,30 @@ async function handleDlcSearch(message, gameName, lang) {
       $('.game_area_dlc_row').each((i, el) => {
         const dlcName = $(el).find('.game_area_dlc_name').text().trim();
         let dlcPrice = $(el).find('.game_area_dlc_price').text().trim();
-        const dlcAppId = $(el).attr('data-ds-appid') || dlcName;
+        const dlcAppId = $(el).attr('data-ds-appid');
+
+        let explicitLink = $(el).attr('href');
+        if (!explicitLink) {
+            explicitLink = $(el).find('a').attr('href');
+        }
+
+        if (explicitLink) {
+            explicitLink = absoluteUrl("https://store.steampowered.com", explicitLink);
+        }
+
         dlcPrice = dlcPrice.replace(/\s+/g, ' ');
         if (!dlcPrice || dlcPrice === "") dlcPrice = getText(lang, "priceUnav");
 
-        if (dlcName && !seenDlcIds.has(dlcAppId)) { seenDlcIds.add(dlcAppId); dlcList.push({ name: dlcName, price: dlcPrice }); }
+        if (dlcName && !seenDlcIds.has(dlcAppId || dlcName)) { 
+            seenDlcIds.add(dlcAppId || dlcName); 
+
+            let link = explicitLink;
+            if (!link) {
+                link = dlcAppId ? `https://store.steampowered.com/app/${dlcAppId}` : `https://store.steampowered.com/app/${cacheKey}`;
+            }
+
+            dlcList.push({ name: dlcName, price: dlcPrice, link }); 
+        }
       });
       if (dlcList.length === 0) {
         if ($('.game_area_purchase_game').length === 0) return loadingMsg.edit(getText(lang, "pageStructureError", { name: title })).catch(() => null);
@@ -1575,14 +1955,26 @@ async function handleDlcSearch(message, gameName, lang) {
       const chunk = dlcList.slice(page * itemsPerPage, (page + 1) * itemsPerPage);
       const embed = new EmbedBuilder().setColor(0x9b59b6).setTitle(getText(lang, "dlcPack", { title: title })).setURL(`https://store.steampowered.com/app/${finalAppId}`).setThumbnail(finalThumbUrl);
       let desc = "";
-      chunk.forEach((dlc, index) => { const globalIndex = page * itemsPerPage + index + 1; desc += `**${globalIndex}. ${truncate(dlc.name, 100)}**\n💵 ${dlc.price}\n\n`; });
+      chunk.forEach((dlc, index) => { 
+          const globalIndex = page * itemsPerPage + index + 1; 
+          desc += `**${globalIndex}. ${truncate(dlc.name, 100)}**\n💵 ${dlc.price}\n[${getText(lang, "dlcBuyLink")}](${dlc.link})\n\n`; 
+      });
       embed.setDescription(desc);
-      embed.setFooter({ text: `${getText(lang, "page")} ${page + 1}/${totalP} • ${getText(lang, "displayed")}: ${dlcList.length} / ${getText(lang, "extracted")}: ${totalExtracted}` });
+
+      let footerText = `${getText(lang, "page")} ${page + 1}/${totalP} • ${getText(lang, "displayed")}: ${dlcList.length} / ${getText(lang, "extracted")}: ${totalExtracted}`;
+      if (totalExtracted >= 100) {
+          footerText += `\n${getText(lang, "dlcMoreNote")}`;
+      }
+      embed.setFooter({ text: footerText });
+
       return [embed];
     };
     await handlePagination(loadingMsg, message.author.id, "dlc_cmd", dlcList, itemsPerPage, generateEmbeds, "detailed", lang);
 
-  } catch (err) { await loadingMsg.edit(getText(lang, "dlcUnexpectedError")).catch(() => null); }
+  } catch (err) { 
+    logger("ERROR", "DLC_SEARCH", "Fatal error", err.message);
+    await loadingMsg.edit(getText(lang, "dlcUnexpectedError")).catch(() => null); 
+  }
 }
 
 async function handleStatus(message, gameText, lang) {
@@ -1599,7 +1991,10 @@ async function handleStatus(message, gameText, lang) {
   try {
     const embed = await fetchGameStatus(game, lang);
     await loadingMsg.edit({ content: getText(lang, "statusSuccess", { name: game.name }), embeds: [embed] }).catch(() => null);
-  } catch (err) { await loadingMsg.edit(getText(lang, "statusError")).catch(() => null); }
+  } catch (err) { 
+    logger("ERROR", "STATUS_CMD", "Failed to get status", err.message);
+    await loadingMsg.edit(getText(lang, "statusError")).catch(() => null); 
+  }
 }
 
 // -------------------------------------------------------------
@@ -1626,7 +2021,8 @@ client.once("ready", () => {
 });
 
 client.on("messageCreate", async (message) => {
-  if (message.author.bot || !message.guild || !message.content.startsWith(PREFIX)) return;
+  if (message.author.bot || !message.guild) return;
+  if (!message.content.toLowerCase().startsWith(PREFIX.toLowerCase())) return;
 
   const guildDoc = await GuildModel.findById(message.guild.id).lean();
   const lang = guildDoc?.language || "ro";
@@ -1655,14 +2051,32 @@ client.on("messageCreate", async (message) => {
     if (currentMsg.trim() !== "") await message.reply(currentMsg).catch(() => null);
     return;
   }
-  if (command === "start") return handleStart(message, subCommand, message.guild.id, lang);
-  if (command === "stop") return handleStop(message, subCommand, message.guild.id, lang);
+
+  const joinedSub = rawArgs.join(" ").toLowerCase();
+
+  if (command === "start") {
+    if (joinedSub === "free" || joinedSub === "free games") {
+      return handleStart(message, "free", message.guild.id, lang);
+    }
+    return handleStart(message, subCommand, message.guild.id, lang);
+  }
+
+  if (command === "stop") {
+    if (joinedSub === "free" || joinedSub === "free games") {
+      return handleStop(message, "free", message.guild.id, lang);
+    }
+    return handleStop(message, subCommand, message.guild.id, lang);
+  }
+
   if (command === "set") return handleSetCommand(message, rawArgs, message.guild.id, lang);
 
   if (command === "latest") {
     if (subCommand === "updates") return handleLatestUpdates(message, guildDoc, lang);
-    if (subCommand === "reduceri") return handleLatestDeals(message, guildDoc, lang);
-    if (subCommand === "pret") return handlePriceSearch(message, rawArgs.slice(1).join(" "), lang);
+    if (subCommand === "deals" || subCommand === "reduceri") return handleLatestDeals(message, guildDoc, lang);
+
+    if (joinedSub === "free" || joinedSub === "free games") return handleLatestFreeGames(message, guildDoc, lang);
+
+    if (subCommand === "price" || subCommand === "pret") return handlePriceSearch(message, rawArgs.slice(1).join(" "), lang);
     if (subCommand === "update") return handleLatestSingle(message, rawArgs.slice(1).join(" "), guildDoc, lang);
   }
 
@@ -1670,13 +2084,31 @@ client.on("messageCreate", async (message) => {
   if (command === "status") return handleStatus(message, rawArgs.join(" "), lang);
 
   if (command === "help") {
+    if (rawArgs.length > 0) {
+        const cmdQuery = rawArgs.join("_").toLowerCase();
+        const helpKey = "helpCmd_" + cmdQuery;
+        let desc = getText(lang, helpKey, { items: ITEMS_PER_PAGE, prefix: PREFIX });
+
+        if (desc === helpKey) { 
+            desc = getText(lang, "helpCmdNotFound", { prefix: PREFIX });
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor(0x2b2d31)
+            .setTitle(`${getText(lang, "helpDetailedTitle")}: ${rawArgs.join(" ")}`)
+            .setDescription(desc);
+
+        return message.reply({ embeds: [embed] });
+    }
+
     const helpEmbed = new EmbedBuilder().setColor(0x2b2d31).setTitle(getText(lang, "helpTitle"))
       .addFields(
         { name: getText(lang, "helpGeneral"), value: getText(lang, "helpGeneralCmds", { prefix: PREFIX }) },
         { name: getText(lang, "helpNotif"), value: getText(lang, "helpNotifCmds", { prefix: PREFIX }) },
         { name: getText(lang, "helpPrefs"), value: getText(lang, "helpPrefsCmds", { prefix: PREFIX }) },
         { name: getText(lang, "helpManual"), value: getText(lang, "helpManualCmds", { prefix: PREFIX }) }
-      );
+      )
+      .setFooter({ text: getText(lang, "helpFooter", { prefix: PREFIX }) });
     return message.reply({ embeds: [helpEmbed] });
   }
 });
