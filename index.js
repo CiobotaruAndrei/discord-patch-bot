@@ -396,7 +396,6 @@ async function handlePagination(interactionMessage, authorId, prefix, items, ite
     try {
       const embeds = await generateEmbedsFn(currentPage, totalPages, defaultMode);
       const components = [buildPaginationButtons(prefix, sessionId, currentPage, totalPages)];
-      // Păstrăm intenționat conținutul text al mesajului original pentru claritate
       await interactionMessage.edit({ embeds, components }).catch(() => null);
     } catch (err) { 
       if (collector) collector.stop("error"); 
@@ -720,7 +719,7 @@ async function enrichDealData(deal) {
   const enrichTask = (async () => {
     if (deal.store === "Steam" && deal.steamAppID) {
       try {
-        const res = await httpReq('GET', `https://store.steampowered.com/api/appdetails?appids=${deal.steamAppID}`, { timeout: 5000 });
+        const res = await httpReq('GET', `https://store.steampowered.com/api/appdetails?appids=${deal.steamAppID}&cc=US&l=english`, { timeout: 5000 });
         const data = res.data[deal.steamAppID]?.data;
         if (data && data.platforms) deal.extraDetails += `\n**Platforme:** ${[data.platforms.windows ? "Win" : "", data.platforms.mac ? "Mac" : "", data.platforms.linux ? "Lin" : ""].filter(Boolean).join(", ")}`;
         const htmlRes = await httpReq('GET', deal.link, { headers: { "Cookie": "birthtime=283993201; mature_content=1;" } });
@@ -1039,7 +1038,6 @@ async function checkForUpdates() {
   const validResults = results.filter(r => r.latest !== null);
   if (!validResults.length) return;
 
-  // Folosim iterație secvențială pentru o gestionare 100% sigură a rate limit-ului global
   for (const guild of guilds) {
     let channel;
     try {
@@ -1048,7 +1046,7 @@ async function checkForUpdates() {
 
     if (!canSendEmbeds(channel, client.user.id)) continue;
 
-    let isGuildUpdated = false;
+    let updatePayload = {};
     if (!guild.seen) guild.seen = {}; 
     let sentUpdatesCount = 0; 
 
@@ -1056,32 +1054,32 @@ async function checkForUpdates() {
       const seenIds = Array.isArray(guild.seen[game.key]) ? [...guild.seen[game.key]] : [];
 
       if (!seenIds.includes(latest.id)) {
-        if (sentUpdatesCount < 5) { // Limită la maxim 5 per server pentru a nu spama canalul
+        if (sentUpdatesCount < 5) { 
           const embed = buildUpdateEmbed(game.name, latest, guild.notificationMode || "detailed");
           try {
             await channel.send({ content: `🔔 A apărut un update nou pentru **${game.name}**!`, embeds: [embed] });
-            await new Promise(r => setTimeout(r, 800)); // Delay GLOBAL aplicat strict după trimitere
+            await new Promise(r => setTimeout(r, 800)); 
 
             sentUpdatesCount++;
             seenIds.push(latest.id);
             if (seenIds.length > 20) seenIds.shift();
+
             guild.seen[game.key] = seenIds;
-            isGuildUpdated = true;
+            updatePayload[`seen.${game.key}`] = seenIds; 
+
+            await GuildModel.updateOne({ _id: guild._id }, { $set: updatePayload });
           } catch (err) {
             logger("WARN", "CRON_UPDATES", `Eroare la trimitere pe canal ${channel.id}`, err.message);
           }
         } else {
-           // Cap de siguranță per server atins
            seenIds.push(latest.id);
            if (seenIds.length > 20) seenIds.shift();
+
            guild.seen[game.key] = seenIds;
-           isGuildUpdated = true;
+           updatePayload[`seen.${game.key}`] = seenIds;
+           await GuildModel.updateOne({ _id: guild._id }, { $set: updatePayload });
         }
       }
-    }
-
-    if (isGuildUpdated) {
-        await GuildModel.updateOne({ _id: guild._id }, { $set: { seen: guild.seen } });
     }
   }
 }
@@ -1115,7 +1113,6 @@ async function checkForDiscounts() {
       return true;
     });
 
-    let newHashes = [];
     let sentCount = 0;
     if (!guild.seenDiscounts) guild.seenDiscounts = [];
 
@@ -1123,31 +1120,27 @@ async function checkForDiscounts() {
       const hash = crypto.createHash('sha1').update(`${deal.title}_${deal.store}_${deal.salePrice}_${deal.normalPrice}`).digest('hex');
 
       if (!guild.seenDiscounts.includes(hash)) {
-        if (sentCount < 8) { // Limitat la 8 oferte maxime dintr-un foc pe server
+        if (sentCount < 8) { 
           try { await enrichDealData(deal); } catch (e) { } 
           const embed = buildDealEmbed(deal, guild.notificationMode || "detailed");
           try {
             await channel.send({ content: `🔥 Ofertă nouă detectată!`, embeds: [embed] });
-            await new Promise(r => setTimeout(r, 800)); // Delay GLOBAL aplicat strict după trimitere
+            await new Promise(r => setTimeout(r, 800)); 
 
             sentCount++;
-            newHashes.push(hash); 
+            guild.seenDiscounts.push(hash); 
+            if (guild.seenDiscounts.length > DEALS_HISTORY_LIMIT) guild.seenDiscounts.shift();
+
+            await GuildModel.updateOne({ _id: guild._id }, { $set: { seenDiscounts: guild.seenDiscounts } });
           } catch (err) {
             logger("WARN", "CRON_DISCOUNTS", `Eroare trimitere oferte canal ${channel.id}`, err.message);
           }
         } else {
-           newHashes.push(hash);
+           guild.seenDiscounts.push(hash);
+           if (guild.seenDiscounts.length > DEALS_HISTORY_LIMIT) guild.seenDiscounts.shift();
+           await GuildModel.updateOne({ _id: guild._id }, { $set: { seenDiscounts: guild.seenDiscounts } });
         }
       }
-    }
-
-    if (newHashes.length > 0) {
-      const updatedDiscounts = [...guild.seenDiscounts, ...newHashes];
-      const trimmedDiscounts = updatedDiscounts.length > DEALS_HISTORY_LIMIT 
-          ? updatedDiscounts.slice(-DEALS_HISTORY_LIMIT) 
-          : updatedDiscounts;
-
-      await GuildModel.updateOne({ _id: guild._id }, { $set: { seenDiscounts: trimmedDiscounts } });
     }
   }
 }
@@ -1607,6 +1600,7 @@ client.on("messageCreate", async (message) => {
   if (command === "help") {
     const helpEmbed = new EmbedBuilder().setColor(0x2b2d31).setTitle("🤖 Meniul de Ajutor - Big Master")
       .addFields(
+        { name: "🛠️ Comenzi Utilitare Generale", value: `\`${PREFIX}ping\`\n\`${PREFIX}games\` (sau \`${PREFIX}porecle\`)` },
         { name: "🔔 Notificări Automate", value: `\`${PREFIX}start updates\`\n\`${PREFIX}stop updates\`\n\`${PREFIX}start reduceri\`\n\`${PREFIX}stop reduceri\`` },
         { name: "⚙️ Preferințe Server", value: `\`${PREFIX}set mode [compact/detailed]\`\n\`${PREFIX}set mindiscount [0-100]\`\n\`${PREFIX}set free [on/off]\`\n\`${PREFIX}set paid [on/off]\`` },
         { name: "🔍 Comenzi Manuale", value: `\`${PREFIX}latest updates\`\n\`${PREFIX}latest reduceri\`\n\`${PREFIX}latest update [poreclă]\`\n\`${PREFIX}latest pret [nume joc]\`\n\`${PREFIX}dlc [nume joc]\`\n\`${PREFIX}status [nume joc]\`` }
