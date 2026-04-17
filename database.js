@@ -56,7 +56,11 @@ async function acquireDbLock(jobName, ttlMs = 120000) {
             return lockToken;
         }
         try {
-            await JobLockModel.create({ _id: `lock_${jobName}`, lockedUntil: expires, ownerToken: lockToken });
+            await JobLockModel.create({
+                _id: `lock_${jobName}`,
+                lockedUntil: expires,
+                ownerToken: lockToken
+            });
             activeLocks.set(jobName, lockToken);
             return lockToken;
         } catch (createErr) {
@@ -100,6 +104,14 @@ async function saveSystemTimes(times) {
 }
 
 module.exports = {
-    GuildModel, CircuitBreakerModel, SystemModel, JobLockModel, activeLocks,
-    acquireDbLock, renewDbLock, releaseDbLock, getSystemTimes, saveSystemTimes
+    GuildModel,
+    CircuitBreakerModel,
+    SystemModel,
+    JobLockModel,
+    activeLocks,
+    acquireDbLock,
+    renewDbLock,
+    releaseDbLock,
+    getSystemTimes,
+    saveSystemTimes
 };
