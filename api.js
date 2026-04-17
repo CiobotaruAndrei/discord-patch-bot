@@ -399,16 +399,15 @@ async function fetchDeals() {
         }
     } catch (err) { utils.logger("WARN", "DEALS_FETCH", "Eroare Steam API", err.message); }
 
-    // 1.5 STEAM DEALS - Scraper avansat pentru promotii 100% Free (MODIFICAT)
+    // 1.5 STEAM DEALS - Scraper avansat pentru promotii 100% Free
     try {
         const searchRes = await utils.httpReq('GET', 'https://store.steampowered.com/search/results/?query&start=0&count=50&dynamic_data=&sort_by=Price_ASC&snr=1_7_7_7000_7&specials=1&infinite=1');
         if (searchRes.data && searchRes.data.results_html) {
             const $ = cheerio.load(searchRes.data.results_html);
             $('a.search_result_row').each((i, el) => {
-                // Selector relaxat pentru Steam
+                // Modificat aici: prindem mai multe clase Steam posibile și relaxăm condiția
                 const discountText = $(el).find('.search_discount span, .discount_pct').text().trim();
                 
-                // Condiție de validare relaxată
                 if (discountText.includes('100%')) {
                     const appId = $(el).attr('data-ds-appid');
                     const title = $(el).find('.title').text().trim();
@@ -469,8 +468,9 @@ async function fetchDeals() {
     // 2. EPIC GAMES DEALS 
     const epicDealsTemp = [];
     try {
+        // Categoria a fost setată corect la "games/edition/base" pentru a funcționa
         const epicQuery = `query searchStoreQuery($category: String, $count: Int, $country: String!, $locale: String, $onSale: Boolean, $withPrice: Boolean = false) { Catalog { searchStore(category: $category, count: $count, country: $country, locale: $locale, onSale: $onSale) { elements { title id urlSlug catalogNs { mappings { pageSlug } } keyImages { type url } price(country: $country) @include(if: $withPrice) { totalPrice { discountPrice originalPrice } } promotions { promotionalOffers { promotionalOffers { endDate discountSetting { discountPercentage } } } } } } } }`;
-        const epicVars = { category: "games/edition/base|bundles/games", count: 30, country: "US", locale: "en-US", onSale: true, withPrice: true };
+        const epicVars = { category: "games/edition/base", count: 40, country: "US", locale: "en-US", onSale: true, withPrice: true };
         const epicRes = await utils.httpReq('POST', 'https://graphql.epicgames.com/graphql', { data: { query: epicQuery, variables: epicVars } });
         const epicElements = epicRes.data?.data?.Catalog?.searchStore?.elements || [];
 
