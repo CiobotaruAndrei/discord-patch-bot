@@ -425,7 +425,6 @@ async function fetchDeals() {
         }
     } catch (err) { utils.logger("WARN", "STEAM_FREE_SCRAPE", "Eroare la scrape pentru freebies pe Steam", err.message); }
 
-    // Extragerea recenziilor pentru lista Steam
     const steamReviewsData = [];
     for (let i = 0; i < steamDealsTemp.length; i += 5) {
         const chunk = steamDealsTemp.slice(i, i + 5);
@@ -464,7 +463,7 @@ async function fetchDeals() {
         deals.push(item);
     }
 
-    // 2. EPIC GAMES DEALS & FREE GAMES
+    // 2. EPIC GAMES DEALS 
     const epicDealsTemp = [];
     try {
         const epicQuery = `query searchStoreQuery($category: String, $count: Int, $country: String!, $locale: String, $onSale: Boolean, $withPrice: Boolean = false) { Catalog { searchStore(category: $category, count: $count, country: $country, locale: $locale, onSale: $onSale) { elements { title id urlSlug catalogNs { mappings { pageSlug } } keyImages { type url } price(country: $country) @include(if: $withPrice) { totalPrice { discountPrice originalPrice } } promotions { promotionalOffers { promotionalOffers { endDate discountSetting { discountPercentage } } } } } } } }`;
@@ -500,44 +499,51 @@ async function fetchDeals() {
             epicDealsTemp.push({  
                 id: `epic_${item.id}`, steamAppID: null, title: item.title, salePrice: salePrice, normalPrice: normalPrice, normalPriceNum: normalPriceNum, savings: savings, store: "Epic Games", link: `https://store.epicgames.com/en-US/p/${urlSlug}`, endDateStr: endDate, platformsInfo: null, enriched: true, thumbnail: thumb   
             });
-        }  
+        }
+    } catch (err) { 
+        utils.logger("WARN", "DEALS_FETCH", "Eroare Epic GraphQL (Deals)", err.message); 
+    }
 
-        // Epic Free Games Robust Fetch
-        try {  
-            const freeRes = await utils.httpReq('GET', 'https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US');
-            const freeElements = freeRes.data?.data?.Catalog?.searchStore?.elements || [];  
+    // 3. EPIC FREE GAMES ROBUST FETCH
+    try {  
+        const freeRes = await utils.httpReq('GET', 'https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US');
+        const freeElements = freeRes.data?.data?.Catalog?.searchStore?.elements || [];  
 
-            for (const item of freeElements) {
-                const promotionalOffers = item.promotions?.promotionalOffers || [];
-                if (promotionalOffers.length === 0) continue;
-                
-                const activeOffers = promotionalOffers[0].promotionalOffers || [];
-                const activeFreeOffer = activeOffers.find(p => p.discountSetting?.discountPercentage === 0);
-                
-                const isFreeNow = activeFreeOffer || (item.price?.totalPrice?.discountPrice === 0 && item.price?.totalPrice?.originalPrice > 0);
+        for (const item of freeElements) {
+            const activeOffers = item.promotions?.promotionalOffers?.[0]?.promotionalOffers || [];
+            const activeFreeOffer = activeOffers.find(p => p.discountSetting?.discountPercentage === 0);
+            
+            const isFreeNow = activeFreeOffer || (item.price?.totalPrice?.discountPrice === 0 && item.price?.totalPrice?.originalPrice > 0);
 
-                if (isFreeNow) {
-                    let thumb = null;
-                    if (Array.isArray(item.keyImages)) {
-                        const img = item.keyImages.find(i => i.type === "OfferImageWide" || i.type === "Thumbnail");
-                        if (img) thumb = img.url;
-                    }
-                    let urlSlug = item.urlSlug || item.catalogNs?.mappings?.[0]?.pageSlug || item.id;
-
-                    if (!epicDealsTemp.some(d => d.id === `epic_${item.id}`)) {
-                        epicDealsTemp.push({
-                            id: `epic_${item.id}`, steamAppID: null, title: item.title, salePrice: "0.00",
-                            normalPrice: (item.price?.totalPrice?.originalPrice / 100 || 0).toFixed(2), normalPriceNum: (item.price?.totalPrice?.originalPrice || 0) / 100, savings: 100,
-                            store: "Epic Games", link: `https://store.epicgames.com/en-US/p/${urlSlug}`,
-                            endDateStr: activeFreeOffer?.endDate || null, platformsInfo: null, enriched: true, thumbnail: thumb
-                        });
-                    }
+            if (isFreeNow) {
+                let thumb = null;
+                if (Array.isArray(item.keyImages)) {
+                    const img = item.keyImages.find(i => i.type === "OfferImageWide" || i.type === "Thumbnail");
+                    if (img) thumb = img.url;
                 }
-            }  
-        } catch(err) {  
-            utils.logger("WARN", "EPIC_FREE", "Eroare la preluarea jocurilor gratuite direct de la sursa.", err.message);
-        }  
+                let urlSlug = item.urlSlug || item.catalogNs?.mappings?.[0]?.pageSlug || item.id;
 
+                const existing = epicDealsTemp.find(d => d.id === `epic_${item.id}`);
+                if (!existing) {
+                    epicDealsTemp.push({
+                        id: `epic_${item.id}`, steamAppID: null, title: item.title, salePrice: "0.00",
+                        normalPrice: (item.price?.totalPrice?.originalPrice / 100 || 0).toFixed(2), normalPriceNum: (item.price?.totalPrice?.originalPrice || 0) / 100, savings: 100,
+                        store: "Epic Games", link: `https://store.epicgames.com/en-US/p/${urlSlug}`,
+                        endDateStr: activeFreeOffer?.endDate || null, platformsInfo: null, enriched: true, thumbnail: thumb
+                    });
+                } else {
+                    existing.salePrice = "0.00";
+                    existing.savings = 100;
+                    if(activeFreeOffer?.endDate) existing.endDateStr = activeFreeOffer.endDate;
+                }
+            }
+        }  
+    } catch(err) {  
+        utils.logger("WARN", "EPIC_FREE", "Eroare Epic Free Games", err.message);
+    }  
+
+    // 4. CROSS-PLATFORM SCORING
+    try {
         const epicReviewsData = [];
         for (let i = 0; i < epicDealsTemp.length; i += 5) {  
             const chunk = epicDealsTemp.slice(i, i + 5);
@@ -570,8 +576,9 @@ async function fetchDeals() {
             }  
             deals.push(deal);
         }
-
-    } catch (err) { utils.logger("WARN", "DEALS_FETCH", "Eroare Epic GraphQL", err.message); }
+    } catch (err) {
+        utils.logger("WARN", "EPIC_SCORING", "Eroare la calcularea scorului Epic", err.message);
+    }
 
     return deals;
 }
