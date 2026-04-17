@@ -325,10 +325,21 @@ async function handleLatestDeals(message, guildDoc, lang) {
     const mode = guildDoc?.notificationMode || "detailed";
     const minDisc = guildDoc?.minDiscountPercent || 0;
 
-    const top = api.cache.deals.data
-        .filter(deal => parseFloat(deal.salePrice) > 0 && deal.savings >= minDisc)
+    // MODIFICARE: Maxim 20 de la Steam
+    const paidSteam = api.cache.deals.data
+        .filter(deal => parseFloat(deal.salePrice) > 0 && deal.savings >= minDisc && deal.store === "Steam")
         .sort((a, b) => b.popularityScore - a.popularityScore)
-        .slice(0, utils.MAX_DEALS);
+        .slice(0, 20);
+
+    // MODIFICARE: Maxim 20 de la Epic Games
+    const paidEpic = api.cache.deals.data
+        .filter(deal => parseFloat(deal.salePrice) > 0 && deal.savings >= minDisc && deal.store === "Epic Games")
+        .sort((a, b) => b.popularityScore - a.popularityScore)
+        .slice(0, 20);
+
+    // Fuzionare și sortare globală
+    const top = [...paidSteam, ...paidEpic].sort((a, b) => b.popularityScore - a.popularityScore);
+
     if (!top.length) return msg ? msg.edit(utils.getText(lang, "noDealsMatch")).catch(() => null) : message.reply(utils.getText(lang, "noDealsMatch"));
     if (msg) await msg.edit(utils.getText(lang, "dealsLoaded")).catch(() => null);
     else msg = await message.reply(utils.getText(lang, "dealsLoaded"));
@@ -358,14 +369,18 @@ async function handleLatestFreeGames(message, guildDoc, lang) {
     }
 
     const mode = guildDoc?.notificationMode || "detailed";
+    
+    // Extrage max 20 Steam și max 20 Epic
     const freeSteam = api.cache.deals.data
         .filter(deal => parseFloat(deal.salePrice) === 0 && deal.savings === 100 && deal.store === "Steam")
         .sort((a, b) => b.popularityScore - a.popularityScore)
         .slice(0, utils.MAX_FREE_PER_STORE);
+        
     const freeEpic = api.cache.deals.data
         .filter(deal => parseFloat(deal.salePrice) === 0 && deal.savings === 100 && deal.store === "Epic Games")
         .sort((a, b) => b.popularityScore - a.popularityScore)
         .slice(0, utils.MAX_FREE_PER_STORE);
+        
     const freeGames = [...freeSteam, ...freeEpic];
 
     freeGames.sort((a, b) => {
@@ -373,6 +388,7 @@ async function handleLatestFreeGames(message, guildDoc, lang) {
         if (a.store !== "Steam" && b.store === "Steam") return 1;
         return b.popularityScore - a.popularityScore;
     });
+    
     if (!freeGames.length) return msg ? msg.edit(utils.getText(lang, "noFreeMatch")).catch(() => null) : message.reply(utils.getText(lang, "noFreeMatch"));
     if (msg) await msg.edit(utils.getText(lang, "freeLoaded")).catch(() => null);
     else msg = await message.reply(utils.getText(lang, "freeLoaded"));
