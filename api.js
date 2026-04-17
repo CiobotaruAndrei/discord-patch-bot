@@ -399,17 +399,20 @@ async function fetchDeals() {
         }
     } catch (err) { utils.logger("WARN", "DEALS_FETCH", "Eroare Steam API", err.message); }
 
-    // 1.5 STEAM DEALS - Scraper avansat pentru promotii 100% Free
+    // 1.5 STEAM DEALS - Scraper avansat pentru promotii 100% Free (MODIFICAT)
     try {
         const searchRes = await utils.httpReq('GET', 'https://store.steampowered.com/search/results/?query&start=0&count=50&dynamic_data=&sort_by=Price_ASC&snr=1_7_7_7000_7&specials=1&infinite=1');
         if (searchRes.data && searchRes.data.results_html) {
             const $ = cheerio.load(searchRes.data.results_html);
             $('a.search_result_row').each((i, el) => {
-                const discountText = $(el).find('.search_discount span').text().trim();
-                if (discountText === '-100%') {
+                // Selector relaxat pentru Steam
+                const discountText = $(el).find('.search_discount span, .discount_pct').text().trim();
+                
+                // Condiție de validare relaxată
+                if (discountText.includes('100%')) {
                     const appId = $(el).attr('data-ds-appid');
                     const title = $(el).find('.title').text().trim();
-                    let normalPrice = $(el).find('strike').text().trim().replace(/[^0-9.]/g, '');
+                    let normalPrice = $(el).find('strike, .discount_original_price').text().trim().replace(/[^0-9.]/g, '');
                     if (!normalPrice) normalPrice = "0.00";
 
                     if (!steamDealsTemp.some(d => d.steamAppID == appId)) {  
