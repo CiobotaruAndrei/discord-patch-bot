@@ -325,19 +325,18 @@ async function handleLatestDeals(message, guildDoc, lang) {
     const mode = guildDoc?.notificationMode || "detailed";
     const minDisc = guildDoc?.minDiscountPercent || 0;
 
-    // MODIFICARE: Maxim 20 de la Steam
+    // Filtrare echitabilă: Maxim 20 de la Steam și Maxim 20 de la Epic Games
     const paidSteam = api.cache.deals.data
         .filter(deal => parseFloat(deal.salePrice) > 0 && deal.savings >= minDisc && deal.store === "Steam")
         .sort((a, b) => b.popularityScore - a.popularityScore)
         .slice(0, 20);
 
-    // MODIFICARE: Maxim 20 de la Epic Games
     const paidEpic = api.cache.deals.data
         .filter(deal => parseFloat(deal.salePrice) > 0 && deal.savings >= minDisc && deal.store === "Epic Games")
         .sort((a, b) => b.popularityScore - a.popularityScore)
         .slice(0, 20);
 
-    // Fuzionare și sortare globală
+    // Combinăm listele și le sortăm global pentru a fi afișate de la cea mai bună la cea mai slabă ofertă
     const top = [...paidSteam, ...paidEpic].sort((a, b) => b.popularityScore - a.popularityScore);
 
     if (!top.length) return msg ? msg.edit(utils.getText(lang, "noDealsMatch")).catch(() => null) : message.reply(utils.getText(lang, "noDealsMatch"));
