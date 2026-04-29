@@ -32,12 +32,6 @@
       "appId": "1407200"
     },
     {
-      "key": "battlefront2",
-      "name": "Star Wars Battlefront II",
-      "type": "steam",
-      "appId": "1237950"
-    },
-    {
       "key": "rocketleague",
       "name": "Rocket League",
       "type": "steam",
@@ -133,13 +127,6 @@
       "name": "NVIDIA Game Ready Drivers",
       "type": "nvidia",
       "upCRD": 0,
-      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/2/21/Nvidia_logo.svg"
-    },
-    {
-      "key": "nvidiastudio",
-      "name": "NVIDIA Studio Drivers",
-      "type": "nvidia",
-      "upCRD": 1,
       "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/2/21/Nvidia_logo.svg"
     },
     {
