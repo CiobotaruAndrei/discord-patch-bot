@@ -246,8 +246,8 @@ helpCmd_set_mode: "⚙️ Set Mode: (Necesită Administrator) Schimbă dimensiun
 helpCmd_set_mindiscount: "⚙️ Set MinDiscount: (Necesită Administrator) Setează pragul minim (în procente) pentru oferte.",
 helpCmd_set_language: "⚙️ Set Language: (Necesită Administrator) Schimbă limba botului (ro/en).",
 helpCmd_latest_updates: "🔍 Latest Updates: Afișează o listă paginată ({items} pe pagină) cu cele mai noi actualizări.",
-helpCmd_latest_deals: "🔍 Latest Deals: Afișează cele mai populare reduceri plătite la jocuri (Steam/Epic).",
-helpCmd_latest_reduceri: "🔍 Latest Deals: Afișează cele mai populare reduceri plătite la jocuri (Steam/Epic).",
+helpCmd_latest_deals: "🔍 Latest Deals: Afișează până la 20 reduceri plătite Steam + până la 20 reduceri plătite Epic Games, ordonate după popularitate, recenzii și mărimea reducerii.",
+helpCmd_latest_reduceri: "🔍 Latest Deals: Afișează până la 20 reduceri plătite Steam + până la 20 reduceri plătite Epic Games, ordonate după popularitate, recenzii și mărimea reducerii.",
 helpCmd_latest_free_games: "🔍 Latest Free Games: Afișează până la 20 jocuri gratuite Steam și până la 20 jocuri gratuite Epic Games, grupate clar pe magazin.",
 helpCmd_latest_free: "🔍 Latest Free Games: Afișează până la 20 jocuri gratuite Steam și până la 20 jocuri gratuite Epic Games, grupate clar pe magazin.",
 helpCmd_latest_update: "🔍 Latest Update [nume]: Caută ultimul update lansat doar pentru jocul specificat.",
@@ -402,8 +402,8 @@ helpCmd_set_mode: "⚙️ Set Mode: (Admin) Changes message size (compact/detail
 helpCmd_set_mindiscount: "⚙️ Set MinDiscount: (Admin) Sets the minimum discount threshold (in %) for deal alerts.",
 helpCmd_set_language: "⚙️ Set Language: (Admin) Changes bot's language (ro/en).",
 helpCmd_latest_updates: "🔍 Latest Updates: Shows a paginated list ({items} per page) of the newest updates.",
-helpCmd_latest_deals: "🔍 Latest Deals: Shows the most popular paid deals (Steam/Epic).",
-helpCmd_latest_reduceri: "🔍 Latest Deals: Shows the most popular paid deals (Steam/Epic).",
+helpCmd_latest_deals: "🔍 Latest Deals: Shows up to 20 paid Steam deals + up to 20 paid Epic Games deals, sorted by popularity, reviews and discount size.",
+helpCmd_latest_reduceri: "🔍 Latest Deals: Shows up to 20 paid Steam deals + up to 20 paid Epic Games deals, sorted by popularity, reviews and discount size.",
 helpCmd_latest_free_games: "🔍 Latest Free Games: Shows up to 20 free Steam games and up to 20 free Epic Games titles, clearly grouped by store.",
 helpCmd_latest_free: "🔍 Latest Free Games: Shows up to 20 free Steam games and up to 20 free Epic Games titles, clearly grouped by store.",
 helpCmd_latest_update: "🔍 Latest Update [name]: Searches for the latest patch notes for a specific tracked game.",
@@ -1261,42 +1261,113 @@ throw err;
 }
 }
 
-async function fetchRobloxUpdate() {
-try {
-const categoryUrl = "https://devforum.roblox.com/c/updates/release-notes/62.json";
-const r = await httpReq('GET', categoryUrl, { timeout: 15000 });
-const topics = r.data?.topic_list?.topics || [];
-const latestTopic = topics
-  .filter(topic => /^Release Notes for\s+\d+/i.test(String(topic.title || "")))
-  .sort((a, b) => new Date(b.bumped_at || b.created_at || 0) - new Date(a.bumped_at || a.created_at || 0))[0];
 
-if (!latestTopic) throw new Error("errRoblox");
-const link = `https://devforum.roblox.com/t/${latestTopic.slug}/${latestTopic.id}`;
-return normalizeUpdate({
-  id: String(latestTopic.id),
-  title: cleanText(latestTopic.title),
-  link,
-  excerpt: cleanText(latestTopic.excerpt || `Ultimul update Roblox: ${latestTopic.title}`),
-  thumbnail: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Roblox_Logo_2022.jpg",
-  timestamp: latestTopic.created_at || latestTopic.bumped_at || latestTopic.last_posted_at || ""
-});
-} catch (err) {
-logger("WARN", "ROBLOX", "Failed to fetch DevForum release notes, using client version fallback", err.message);
-try {
-const r = await httpReq('GET', "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer");
-const v = r?.data?.clientVersionUpload;
-if(!v) throw new Error("errRoblox");
-return normalizeUpdate({
-  id: String(v),
-  title: "Roblox Client Update",
-  link: "https://devforum.roblox.com/c/updates/release-notes/62",
-  excerpt: `Versiunea ${v}. Apasă pe titlu ca să vezi categoria oficială cu release notes Roblox.`,
-  thumbnail: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Roblox_Logo_2022.jpg"
-});
-} catch (fallbackErr) {
-logger("WARN", "ROBLOX", "Failed to fetch Roblox client version fallback", fallbackErr.message);
-throw new Error("errRoblox");
+async function fetchRobloxUpdate() {
+const categoryUrl = "https://devforum.roblox.com/c/updates/release-notes/62";
+const categoryJsonUrls = [
+  `${categoryUrl}.json`,
+  `${categoryUrl}/l/latest.json?no_subcategories=false`
+];
+
+function robloxReleaseNumber(title) {
+  const m = String(title || "").match(/Release Notes for\s+(\d+)/i);
+  return m ? Number(m[1]) : 0;
 }
+
+function robloxTopicDateValue(topic) {
+  const raw = topic?.created_at || topic?.last_posted_at || topic?.bumped_at || topic?.updated_at || 0;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
+function buildRobloxTopicUpdate(topic) {
+  if (!topic || !topic.id) return null;
+  const title = cleanText(topic.title || "Roblox Release Notes");
+  const slug = topic.slug || title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const link = `https://devforum.roblox.com/t/${slug}/${topic.id}`;
+  return normalizeUpdate({
+    id: String(topic.id),
+    title,
+    link,
+    excerpt: cleanText(topic.excerpt || topic.fancy_title || `Ultimul update Roblox: ${title}`),
+    thumbnail: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Roblox_Logo_2022.jpg",
+    timestamp: topic.created_at || topic.last_posted_at || topic.bumped_at || topic.updated_at || ""
+  });
+}
+
+try {
+  const topics = [];
+  for (const url of categoryJsonUrls) {
+    try {
+      const r = await httpReq('GET', url, { timeout: 15000, headers: { "Accept": "application/json" } });
+      const list = r.data?.topic_list?.topics || [];
+      topics.push(...list);
+    } catch (err) {
+      logger("WARN", "ROBLOX", `DevForum JSON failed: ${url}`, err.message);
+    }
+  }
+
+  const seen = new Set();
+  const validTopics = topics
+    .filter(topic => {
+      if (!topic || !topic.id || seen.has(topic.id)) return false;
+      seen.add(topic.id);
+      const title = String(topic.title || "");
+      if (/^About the Release Notes category$/i.test(title)) return false;
+      return /^Release Notes for\s+\d+/i.test(title);
+    })
+    .sort((a, b) => {
+      const numDiff = robloxReleaseNumber(b.title) - robloxReleaseNumber(a.title);
+      if (numDiff !== 0) return numDiff;
+      return robloxTopicDateValue(b) - robloxTopicDateValue(a);
+    });
+
+  const latestFromJson = buildRobloxTopicUpdate(validTopics[0]);
+  if (latestFromJson) return latestFromJson;
+} catch (err) {
+  logger("WARN", "ROBLOX", "DevForum JSON total failed", err.message);
+}
+
+try {
+  const htmlRes = await httpReq('GET', `${categoryUrl}/l/latest?no_subcategories=false`, { timeout: 15000 });
+  const $ = cheerio.load(String(htmlRes.data || ""));
+  const candidates = [];
+  $('a.raw-link, a.title, a[href*="/t/"]').each((i, el) => {
+    const hrefRaw = String($(el).attr('href') || "");
+    const text = cleanText($(el).text());
+    if (!/^Release Notes for\s+\d+/i.test(text)) return;
+    const href = absoluteUrl("https://devforum.roblox.com", hrefRaw);
+    const idMatch = href.match(/\/t\/[^/]+\/(\d+)/);
+    candidates.push({ id: idMatch ? idMatch[1] : href, title: text, link: href, order: i, release: robloxReleaseNumber(text) });
+  });
+  candidates.sort((a, b) => (b.release - a.release) || (a.order - b.order));
+  if (candidates[0]?.link) {
+    return normalizeUpdate({
+      id: String(candidates[0].id),
+      title: candidates[0].title,
+      link: candidates[0].link,
+      excerpt: `Ultimul update Roblox: ${candidates[0].title}`,
+      thumbnail: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Roblox_Logo_2022.jpg"
+    });
+  }
+} catch (err) {
+  logger("WARN", "ROBLOX", "DevForum HTML scrape failed", err.message);
+}
+
+try {
+  const r = await httpReq('GET', "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", { timeout: 10000 });
+  const v = r?.data?.clientVersionUpload;
+  if (!v) throw new Error("errRoblox");
+  return normalizeUpdate({
+    id: String(v),
+    title: `Roblox Client Update ${v}`,
+    link: categoryUrl,
+    excerpt: `Versiunea ${v}. Nu am putut găsi topicul direct, dar linkul duce la categoria oficială Roblox Release Notes, nu la pagina principală de help.`,
+    thumbnail: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Roblox_Logo_2022.jpg"
+  });
+} catch (fallbackErr) {
+  logger("WARN", "ROBLOX", "Failed to fetch Roblox client version fallback", fallbackErr.message);
+  throw new Error("errRoblox");
 }
 }
 
@@ -1408,28 +1479,44 @@ return deal;
 }
 
 
+
 function parseSteamPriceNumber(text) {
 const normalized = String(text || "").replace(/,/g, ".").replace(/[^0-9.]/g, "");
 const parsed = Number.parseFloat(normalized);
 return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function getSteamAppIdFromSearchRow($, el) {
+const row = $(el);
+const dataId = String(row.attr('data-ds-appid') || row.attr('data-ds-bundleid') || "").split(',')[0].trim();
+if (/^\d+$/.test(dataId)) return dataId;
+const href = String(row.attr('href') || "");
+const m = href.match(/\/app\/(\d+)/i);
+return m ? m[1] : null;
+}
+
 function buildSteamFreeDealFromSearch($, el, index = 0, sourceLabel = "Steam") {
 const row = $(el);
-const rawAppId = String(row.attr('data-ds-appid') || row.attr('data-ds-bundleid') || "").split(',')[0].trim();
-if (!/^\d+$/.test(rawAppId)) return null;
-const title = cleanText(row.find('.title').text());
+const rawAppId = getSteamAppIdFromSearchRow($, el);
+if (!/^\d+$/.test(String(rawAppId || ""))) return null;
+
+const title = cleanText(row.find('.title').text() || row.find('.search_name span').text() || row.text().split('\n').map(s => s.trim()).filter(Boolean)[0]);
 if (!title) return null;
+
 const href = row.attr('href') || `https://store.steampowered.com/app/${rawAppId}`;
-const discountText = row.find('.search_discount span').text().trim();
-const priceText = row.find('.search_price').text().trim();
-const strikePrice = row.find('strike').first().text().trim();
+const discountText = cleanText(row.find('.search_discount span').text());
+const priceText = cleanText(row.find('.search_price').text());
+const strikePrice = cleanText(row.find('strike').first().text());
+const finalPriceAttr = Number(row.attr('data-price-final'));
 let normalPrice = parseSteamPriceNumber(strikePrice || priceText);
-const isLimitedFree = discountText === '-100%' || /100%/.test(discountText);
-const isPermanentFree = /free\s*to\s*play|free/i.test(priceText) && !isLimitedFree;
+
+const isLimitedFree = discountText === '-100%' || /100\s*%/.test(discountText);
+const isPermanentFree = /free\s*to\s*play|free/i.test(priceText) || finalPriceAttr === 0;
 if (!isLimitedFree && !isPermanentFree) return null;
+
 const img = row.find('img').attr('src') || `https://cdn.akamai.steamstatic.com/steam/apps/${rawAppId}/header.jpg`;
 if (normalPrice <= 0 && isLimitedFree) normalPrice = 0;
+
 return {
   id: `steam_${rawAppId}`,
   steamAppID: rawAppId,
@@ -1444,7 +1531,7 @@ return {
   endDateStr: null,
   platformsInfo: null,
   enriched: false,
-  popularityScore: isLimitedFree ? 140 + Math.max(0, normalPrice) : 100 - Math.min(index, 50),
+  popularityScore: isLimitedFree ? 160 + Math.max(0, normalPrice) : 120 - Math.min(index, 80),
   qualityScore: 0,
   totalReviews: 0,
   isPermanentFree,
@@ -1455,29 +1542,55 @@ return {
 async function fetchSteamFreeGamesDirect(limit = MAX_FREE_PER_STORE) {
 const freeDeals = [];
 const seen = new Set();
-const urls = [
-  'https://store.steampowered.com/search/results/?query&start=0&count=100&dynamic_data=&sort_by=Released_DESC&maxprice=free&category1=998&snr=1_7_7_230_7&infinite=1',
-  'https://store.steampowered.com/search/results/?query&start=0&count=100&dynamic_data=&sort_by=Price_ASC&specials=1&category1=998&snr=1_7_7_230_7&infinite=1'
+const startOffsets = [0, 50, 100, 150, 200];
+const urlBuilders = [
+  (start) => `https://store.steampowered.com/search/results/?query=&start=${start}&count=50&dynamic_data=&sort_by=Reviews_DESC&maxprice=free&category1=998&ignore_preferences=1&ndl=1&infinite=1`,
+  (start) => `https://store.steampowered.com/search/results/?query=&start=${start}&count=50&dynamic_data=&sort_by=ConcurrentUsers_DESC&maxprice=free&category1=998&ignore_preferences=1&ndl=1&infinite=1`,
+  (start) => `https://store.steampowered.com/search/results/?query=&start=${start}&count=50&dynamic_data=&sort_by=Released_DESC&maxprice=free&category1=998&ignore_preferences=1&ndl=1&infinite=1`,
+  (start) => `https://store.steampowered.com/search/results/?query=&start=${start}&count=50&dynamic_data=&sort_by=Price_ASC&specials=1&category1=998&ignore_preferences=1&ndl=1&infinite=1`
 ];
 
-for (const url of urls) {
-try {
-const res = await httpReq('GET', url, { timeout: 15000 });
-const html = res.data?.results_html || (typeof res.data === 'string' ? res.data : '');
-if (!html) continue;
-const $ = cheerio.load(html);
-$('a.search_result_row').each((i, el) => {
-  const deal = buildSteamFreeDealFromSearch($, el, i);
-  if (!deal || seen.has(deal.id)) return;
-  seen.add(deal.id);
-  freeDeals.push(deal);
-});
-} catch (err) {
-logger("WARN", "STEAM_FREE_DIRECT", "Eroare la preluarea jocurilor gratuite Steam", err.message);
+for (const buildUrl of urlBuilders) {
+  for (const start of startOffsets) {
+    if (freeDeals.length >= limit) break;
+    const url = buildUrl(start);
+    try {
+      const res = await httpReq('GET', url, { timeout: 15000, headers: { "Cookie": "birthtime=283993201; mature_content=1; lastagecheckage=1-0-1990" } });
+      const html = res.data?.results_html || (typeof res.data === 'string' ? res.data : '');
+      if (!html) continue;
+      const $ = cheerio.load(html);
+      $('a.search_result_row').each((i, el) => {
+        const deal = buildSteamFreeDealFromSearch($, el, start + i);
+        if (!deal || seen.has(deal.id)) return;
+        seen.add(deal.id);
+        freeDeals.push(deal);
+      });
+    } catch (err) {
+      logger("WARN", "STEAM_FREE_DIRECT", `Eroare la preluarea jocurilor gratuite Steam: ${url}`, err.message);
+    }
+  }
+  if (freeDeals.length >= limit) break;
 }
-if (freeDeals.length >= limit) break;
+
+const selected = freeDeals.slice(0, Math.max(limit, MAX_FREE_PER_STORE));
+for (let i = 0; i < selected.length; i += 5) {
+  const chunk = selected.slice(i, i + 5);
+  const reviews = await Promise.all(chunk.map(d => fetchSteamReviewData(d.steamAppID)));
+  for (let j = 0; j < chunk.length; j++) {
+    const d = chunk[j];
+    const rev = reviews[j] || { totalReviews: 0, qualityPercent: 0 };
+    d.totalReviews = rev.totalReviews || 0;
+    d.qualityScore = rev.qualityPercent || 0;
+    const reviewScore = Math.log10(Math.max(1, d.totalReviews)) * 25 * (d.qualityScore / 100);
+    const promoBoost = d.isPermanentFree ? 0 : 70;
+    d.popularityScore = promoBoost + reviewScore + Math.max(0, d.normalPriceNum || 0) - Math.min(i + j, 50);
+  }
+  if (selected.length > 5) await new Promise(res => setTimeout(res, 350));
 }
-return freeDeals.slice(0, limit);
+
+return selected
+  .sort((a, b) => b.popularityScore - a.popularityScore)
+  .slice(0, limit);
 }
 
 function mergeDealsUnique(...lists) {
@@ -1493,6 +1606,7 @@ for (const list of lists) {
 return merged;
 }
 
+
 function getEpicPageSlug(item) {
 return item.productSlug || item.offerMappings?.[0]?.pageSlug || item.catalogNs?.mappings?.[0]?.pageSlug || item.urlSlug || item.id;
 }
@@ -1504,36 +1618,139 @@ return `https://store.epicgames.com/en-US/p/${slug}`;
 
 function getEpicThumbnail(item) {
 if (!Array.isArray(item.keyImages)) return null;
-const img = item.keyImages.find(i => i.type === "OfferImageWide" || i.type === "Thumbnail" || i.type === "featuredMedia");
+const img = item.keyImages.find(i => i.type === "OfferImageWide" || i.type === "DieselStoreFrontWide" || i.type === "Thumbnail" || i.type === "featuredMedia" || i.type === "OfferImageTall");
 return img?.url || null;
 }
 
-function buildEpicFreeDeal(item, promo) {
+function stableEpicId(item) {
+const raw = item.id || item.namespace || item.productSlug || item.urlSlug || item.title || crypto.createHash('sha1').update(JSON.stringify(item)).digest('hex');
+return String(raw).replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
+function buildEpicCatalogDeal(item, options = {}) {
 const priceInfo = item.price?.totalPrice;
-if (!priceInfo) return null;
-const originalPrice = Number(priceInfo.originalPrice || 0);
-const discountPrice = Number(priceInfo.discountPrice || 0);
-const promoEndDate = promo?.endDate || item.expiryDate || null;
-if (!(originalPrice > 0 && discountPrice === 0 && promoEndDate)) return null;
+if (!priceInfo || !item.title) return null;
+const originalPriceCents = Number(priceInfo.originalPrice || 0);
+const discountPriceCents = Number(priceInfo.discountPrice ?? priceInfo.finalPrice ?? 0);
+const normalPriceNum = originalPriceCents / 100;
+const salePriceNum = discountPriceCents / 100;
+let savings = 0;
+if (originalPriceCents > 0) savings = Math.round(((originalPriceCents - discountPriceCents) / originalPriceCents) * 100);
+
+const activePromo = item.promotions?.promotionalOffers?.[0]?.promotionalOffers?.[0]
+  || item.promotions?.upcomingPromotionalOffers?.[0]?.promotionalOffers?.[0]
+  || null;
+const endDate = activePromo?.endDate || item.expiryDate || null;
+const isCurrentFree = salePriceNum === 0;
+const isPermanentFree = originalPriceCents === 0 && discountPriceCents === 0;
+
+if (options.freeOnly && !isCurrentFree) return null;
+if (options.paidOnly && !(salePriceNum > 0 && savings > 0)) return null;
+if (options.onSaleOnly && !(savings > 0)) return null;
+
 return {
-  id: `epic_${item.id}`,
+  id: `epic_${stableEpicId(item)}`,
   steamAppID: null,
-  title: item.title,
-  salePrice: "0.00",
-  normalPrice: (originalPrice / 100).toFixed(2),
-  normalPriceNum: originalPrice / 100,
-  savings: 100,
+  title: cleanText(item.title),
+  salePrice: salePriceNum.toFixed(2),
+  normalPrice: normalPriceNum.toFixed(2),
+  normalPriceNum,
+  savings: isCurrentFree ? 100 : savings,
   store: "Epic Games",
   link: getEpicStoreLink(item),
-  endDateStr: promoEndDate,
+  endDateStr: endDate,
   platformsInfo: null,
   enriched: true,
   thumbnail: getEpicThumbnail(item),
-  popularityScore: 120 + Math.min(30, (originalPrice / 100) / 2),
+  popularityScore: (isCurrentFree ? 130 : savings * 1.7) + Math.min(40, normalPriceNum / 2),
   qualityScore: 0,
   totalReviews: 0,
-  extraDetails: "\n*(Promoție 100% Epic Games Store)*"
+  extraDetails: isPermanentFree ? "\n*(Joc gratuit pe Epic Games Store / Free-to-Play)*" : (isCurrentFree ? "\n*(Promoție 100% Epic Games Store)*" : "\n*(Reducere Epic Games Store)*")
 };
+}
+
+function buildEpicFreeDeal(item, promo) {
+const deal = buildEpicCatalogDeal(item, { freeOnly: true });
+if (!deal) return null;
+if (promo?.endDate) deal.endDateStr = promo.endDate;
+if (Number(deal.normalPriceNum || 0) <= 0 && !promo?.endDate) {
+  deal.extraDetails = "\n*(Joc gratuit pe Epic Games Store / Free-to-Play)*";
+}
+return deal;
+}
+
+function collectEpicElementsFromObject(root, out = [], seenObjects = new Set()) {
+if (!root || typeof root !== 'object' || seenObjects.has(root)) return out;
+seenObjects.add(root);
+if (Array.isArray(root)) {
+  for (const item of root) collectEpicElementsFromObject(item, out, seenObjects);
+  return out;
+}
+if (root.title && root.price?.totalPrice && (root.id || root.urlSlug || root.productSlug || root.catalogNs)) {
+  out.push(root);
+}
+for (const value of Object.values(root)) collectEpicElementsFromObject(value, out, seenObjects);
+return out;
+}
+
+async function fetchEpicBrowseFallback({ freeOnly = false, paidOnly = false, limit = MAX_DEALS } = {}) {
+const pricePart = freeOnly ? "priceTier=tierFree&" : (paidOnly ? "priceTier=tierDiscounted&" : "");
+const url = `https://store.epicgames.com/en-US/browse?sortBy=releaseDate&sortDir=DESC&${pricePart}category=Game&count=${Math.max(40, limit)}&start=0`;
+try {
+  const res = await httpReq('GET', url, { timeout: 15000, headers: { "Accept": "text/html,application/xhtml+xml" } });
+  const $ = cheerio.load(String(res.data || ""));
+  const nextJson = $('#__NEXT_DATA__').text();
+  const deals = [];
+  if (nextJson) {
+    const json = JSON.parse(nextJson);
+    const elements = collectEpicElementsFromObject(json);
+    for (const item of elements) {
+      const deal = buildEpicCatalogDeal(item, { freeOnly, paidOnly, onSaleOnly: paidOnly });
+      if (deal) deals.push(deal);
+    }
+  }
+  return mergeDealsUnique(deals).slice(0, limit);
+} catch (err) {
+  logger("WARN", "EPIC_BROWSE", "Eroare la fallback browse Epic", err.message);
+  return [];
+}
+}
+
+async function fetchEpicCatalogSearch({ freeOnly = false, paidOnly = false, limit = MAX_DEALS } = {}) {
+const results = [];
+const attempts = [];
+
+const queryWithPriceTier = `query searchStoreQuery($category: String, $count: Int, $country: String!, $locale: String, $onSale: Boolean, $sortBy: String, $sortDir: String, $start: Int, $priceTier: String, $withPrice: Boolean = true) { Catalog { searchStore(category: $category, count: $count, country: $country, locale: $locale, onSale: $onSale, sortBy: $sortBy, sortDir: $sortDir, start: $start, priceTier: $priceTier) { elements { title id namespace urlSlug productSlug offerMappings { pageSlug } catalogNs { mappings { pageSlug } } keyImages { type url } price(country: $country) @include(if: $withPrice) { totalPrice { discountPrice originalPrice } } promotions { promotionalOffers { promotionalOffers { endDate discountSetting { discountPercentage } } } upcomingPromotionalOffers { promotionalOffers { startDate endDate discountSetting { discountPercentage } } } } } } } }`;
+const queryBasic = `query searchStoreQuery($category: String, $count: Int, $country: String!, $locale: String, $onSale: Boolean, $sortBy: String, $sortDir: String, $start: Int, $withPrice: Boolean = true) { Catalog { searchStore(category: $category, count: $count, country: $country, locale: $locale, onSale: $onSale, sortBy: $sortBy, sortDir: $sortDir, start: $start) { elements { title id namespace urlSlug productSlug offerMappings { pageSlug } catalogNs { mappings { pageSlug } } keyImages { type url } price(country: $country) @include(if: $withPrice) { totalPrice { discountPrice originalPrice } } promotions { promotionalOffers { promotionalOffers { endDate discountSetting { discountPercentage } } } upcomingPromotionalOffers { promotionalOffers { startDate endDate discountSetting { discountPercentage } } } } } } } }`;
+
+if (freeOnly) {
+  attempts.push({ query: queryWithPriceTier, variables: { category: "games/edition/base|bundles/games", count: Math.max(80, limit), country: "US", locale: "en-US", onSale: null, sortBy: "releaseDate", sortDir: "DESC", start: 0, priceTier: "tierFree", withPrice: true } });
+  attempts.push({ query: queryBasic, variables: { category: "games/edition/base|bundles/games", count: 120, country: "US", locale: "en-US", onSale: null, sortBy: "releaseDate", sortDir: "DESC", start: 0, withPrice: true } });
+} else {
+  attempts.push({ query: queryBasic, variables: { category: "games/edition/base|bundles/games", count: Math.max(80, limit), country: "US", locale: "en-US", onSale: true, sortBy: "releaseDate", sortDir: "DESC", start: 0, withPrice: true } });
+  attempts.push({ query: queryWithPriceTier, variables: { category: "games/edition/base|bundles/games", count: Math.max(80, limit), country: "US", locale: "en-US", onSale: null, sortBy: "releaseDate", sortDir: "DESC", start: 0, priceTier: "tierDiscounted", withPrice: true } });
+}
+
+for (const attempt of attempts) {
+  try {
+    const res = await httpReq('POST', 'https://graphql.epicgames.com/graphql', { data: attempt });
+    const elements = res.data?.data?.Catalog?.searchStore?.elements || [];
+    for (const item of elements) {
+      const deal = buildEpicCatalogDeal(item, { freeOnly, paidOnly, onSaleOnly: paidOnly });
+      if (deal) results.push(deal);
+    }
+  } catch (err) {
+    logger("WARN", "EPIC_GRAPHQL", "Eroare Epic GraphQL searchStore", err.message);
+  }
+  if (mergeDealsUnique(results).length >= limit) break;
+}
+
+if (mergeDealsUnique(results).length < limit) {
+  const browseDeals = await fetchEpicBrowseFallback({ freeOnly, paidOnly, limit });
+  results.push(...browseDeals);
+}
+
+return mergeDealsUnique(results).slice(0, limit);
 }
 
 async function fetchEpicFreePromotions() {
@@ -1543,6 +1760,10 @@ try {
   const freeElements = freeRes.data?.data?.Catalog?.searchStore?.elements || [];
   for (const item of freeElements) {
     const activePromos = item.promotions?.promotionalOffers?.[0]?.promotionalOffers || [];
+    if (!activePromos.length && item.price?.totalPrice?.discountPrice === 0) {
+      const permanent = buildEpicFreeDeal(item, null);
+      if (permanent) freeDeals.push(permanent);
+    }
     for (const promo of activePromos) {
       const deal = buildEpicFreeDeal(item, promo);
       if (deal) {
@@ -1554,188 +1775,157 @@ try {
 } catch (err) {
   logger("WARN", "EPIC_FREE", "Eroare la preluarea jocurilor gratuite direct de la sursa.", err.message);
 }
-return freeDeals;
+return mergeDealsUnique(freeDeals);
 }
+
+async function enrichEpicDealsWithSteamReviews(deals) {
+for (let i = 0; i < deals.length; i += 5) {
+  const chunk = deals.slice(i, i + 5);
+  const reviews = await Promise.all(chunk.map(async (deal) => {
+    try {
+      const steamId = await getSteamIdForTitle(deal.title);
+      if (steamId) return await fetchSteamReviewData(steamId);
+    } catch (err) {}
+    return null;
+  }));
+
+  for (let j = 0; j < chunk.length; j++) {
+    const deal = chunk[j];
+    const revData = reviews[j];
+    if (revData && revData.totalReviews > 0) {
+      const reviewVolumeScore = Math.log10(Math.max(1, revData.totalReviews)) * 25;
+      const qualityMultiplier = revData.qualityPercent / 100;
+      const lowReviewPenalty = revData.totalReviews < 50 ? -100 : 0;
+      deal.popularityScore = (deal.savings * 1.5) + (reviewVolumeScore * qualityMultiplier) + lowReviewPenalty + Math.min(20, (deal.normalPriceNum || 0) / 2);
+      deal.qualityScore = revData.qualityPercent;
+      deal.totalReviews = revData.totalReviews;
+      deal.extraDetails = "\n*(Scor comunitar preluat via Steam)*";
+    } else {
+      deal.popularityScore = (deal.savings || 0) + Math.min(30, (deal.normalPriceNum || 0) / 2);
+      deal.qualityScore = 0;
+      deal.totalReviews = 0;
+      if (!deal.extraDetails) deal.extraDetails = "\n*(Exclusiv Epic/Fără recenzii publice)*";
+    }
+  }
+  if (deals.length > 5) await new Promise(res => setTimeout(res, 350));
+}
+return deals;
+}
+
+async function fetchEpicPaidDealsDirect(limit = MAX_DEALS) {
+const epicDeals = await fetchEpicCatalogSearch({ paidOnly: true, limit: Math.max(limit, MAX_DEALS) });
+await enrichEpicDealsWithSteamReviews(epicDeals);
+return epicDeals.sort((a, b) => b.popularityScore - a.popularityScore).slice(0, limit);
+}
+
+async function fetchEpicFreeGamesDirect(limit = MAX_FREE_PER_STORE) {
+const freeFromCatalog = await fetchEpicCatalogSearch({ freeOnly: true, limit: Math.max(limit, MAX_FREE_PER_STORE) });
+const freePromos = await fetchEpicFreePromotions();
+const merged = mergeDealsUnique(freePromos, freeFromCatalog);
+return merged
+  .sort((a, b) => b.popularityScore - a.popularityScore)
+  .slice(0, limit);
+}
+
+// -------------------------------------------------------------
+// FETCH DEALS COMPUS
 
 // -------------------------------------------------------------
 // FETCH DEALS COMPUS (CU CROSS-PLATFORM EPIC -> STEAM)
 // -------------------------------------------------------------
+
 async function fetchDeals() {
 const deals = [];
 const steamDealsTemp = [];
 
 // 1. STEAM DEALS - Featured Specials
 try {
-const steamRes = await httpReq('GET', 'https://store.steampowered.com/api/featuredcategories/?cc=US&l=english');
-const steamSpecials = (steamRes.data?.specials?.items || []).slice(0, 40);
+  const steamRes = await httpReq('GET', 'https://store.steampowered.com/api/featuredcategories/?cc=US&l=english');
+  const steamSpecials = (steamRes.data?.specials?.items || []).slice(0, 80);
 
-for (const item of steamSpecials) {  
-    steamDealsTemp.push({  
-        id: `steam_${item.id}`, steamAppID: item.id, title: item.name,   
-        salePrice: (item.final_price / 100).toFixed(2), normalPrice: (item.original_price / 100).toFixed(2),   
-        savings: item.discount_percent || 0, store: "Steam", link: `https://store.steampowered.com/app/${item.id}`,   
-        thumbnail: item.header_image || null, isFreebie: false  
-    });  
-}
-
-} catch (err) { logger("WARN", "DEALS_FETCH", "Eroare Steam API", err.message); }
-
-// 1.5 STEAM DEALS - Scraper avansat pentru promotii 100% Free
-try {
-const searchRes = await httpReq('GET', 'https://store.steampowered.com/search/results/?query&start=0&count=50&dynamic_data=&sort_by=Price_ASC&snr=1_7_7_7000_7&specials=1&infinite=1');
-if (searchRes.data && searchRes.data.results_html) {
-const $ = cheerio.load(searchRes.data.results_html);
-$('a.search_result_row').each((i, el) => {
-const discountText = $(el).find('.search_discount span').text().trim();
-// Cautam doar cele care au reducerea reala aplicata de 100%
-if (discountText === '-100%') {
-const appId = $(el).attr('data-ds-appid');
-const title = $(el).find('.title').text().trim();
-let normalPrice = $(el).find('strike').text().trim().replace(/[^0-9.]/g, '');
-if (!normalPrice) normalPrice = "0.00";
-
-if (!steamDealsTemp.some(d => d.steamAppID == appId)) {  
-                steamDealsTemp.push({  
-                    id: `steam_${appId}`, steamAppID: appId, title: title,   
-                    salePrice: "0.00", normalPrice: normalPrice,   
-                    savings: 100, store: "Steam", link: `https://store.steampowered.com/app/${appId}`,   
-                    thumbnail: `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg`, isFreebie: true  
-                });  
-            }  
-        }  
-    });  
-}
-
-} catch (err) { logger("WARN", "STEAM_FREE_SCRAPE", "Eroare la scrape pentru freebies pe Steam", err.message); }
-
-try {
-const directSteamFreeDeals = await fetchSteamFreeGamesDirect(MAX_FREE_PER_STORE);
-for (const freeDeal of directSteamFreeDeals) {
-  if (!steamDealsTemp.some(d => String(d.steamAppID) === String(freeDeal.steamAppID))) {
-    steamDealsTemp.push(freeDeal);
+  for (const item of steamSpecials) {
+    const finalPrice = Number(item.final_price || 0) / 100;
+    const originalPrice = Number(item.original_price || 0) / 100;
+    const savings = Number(item.discount_percent || 0);
+    if (savings <= 0 && finalPrice > 0) continue;
+    steamDealsTemp.push({
+      id: `steam_${item.id}`,
+      steamAppID: item.id,
+      title: item.name,
+      salePrice: finalPrice.toFixed(2),
+      normalPrice: originalPrice.toFixed(2),
+      normalPriceNum: originalPrice,
+      savings,
+      store: "Steam",
+      link: `https://store.steampowered.com/app/${item.id}`,
+      thumbnail: item.header_image || null,
+      isFreebie: finalPrice === 0 && savings >= 100
+    });
   }
+} catch (err) {
+  logger("WARN", "DEALS_FETCH", "Eroare Steam API", err.message);
 }
-} catch (err) { logger("WARN", "STEAM_FREE_DIRECT", "Eroare la integrarea jocurilor gratuite Steam", err.message); }
+
+try {
+  const directSteamFreeDeals = await fetchSteamFreeGamesDirect(MAX_FREE_PER_STORE);
+  for (const freeDeal of directSteamFreeDeals) {
+    if (!steamDealsTemp.some(d => String(d.steamAppID) === String(freeDeal.steamAppID))) steamDealsTemp.push(freeDeal);
+  }
+} catch (err) {
+  logger("WARN", "STEAM_FREE_DIRECT", "Eroare la integrarea jocurilor gratuite Steam", err.message);
+}
 
 // Extragerea recenziilor pentru lista Steam
 const steamReviewsData = [];
 for (let i = 0; i < steamDealsTemp.length; i += 5) {
-const chunk = steamDealsTemp.slice(i, i + 5);
-const chunkPromises = chunk.map(item => fetchSteamReviewData(item.steamAppID));
-steamReviewsData.push(...(await Promise.all(chunkPromises)));
-await new Promise(res => setTimeout(res, 500));
+  const chunk = steamDealsTemp.slice(i, i + 5);
+  const chunkPromises = chunk.map(item => fetchSteamReviewData(item.steamAppID));
+  steamReviewsData.push(...(await Promise.all(chunkPromises)));
+  if (steamDealsTemp.length > 5) await new Promise(res => setTimeout(res, 350));
 }
 
 for (let i = 0; i < steamDealsTemp.length; i++) {
-const item = steamDealsTemp[i];
-const revData = steamReviewsData[i];
+  const item = steamDealsTemp[i];
+  const revData = steamReviewsData[i] || { totalReviews: 0, qualityPercent: 0 };
 
-let reviewVolumeScore = Math.log10(Math.max(1, revData.totalReviews)) * 25;   
-let qualityMultiplier = revData.qualityPercent / 100;  
+  const reviewVolumeScore = Math.log10(Math.max(1, revData.totalReviews)) * 25;
+  const qualityMultiplier = (revData.qualityPercent || 0) / 100;
+  const newGameBoost = item.steamAppID && parseInt(item.steamAppID) > 2000000 && revData.totalReviews < 1000 ? 40 : 0;
+  const lowReviewPenalty = revData.totalReviews < 50 && parseFloat(item.salePrice) > 0 ? -100 : 0;
+  let hybridScore = ((item.savings || 0) * 1.5) + (reviewVolumeScore * qualityMultiplier) + newGameBoost + lowReviewPenalty;
 
-let newGameBoost = 0;  
-if (item.steamAppID && parseInt(item.steamAppID) > 2000000 && revData.totalReviews < 1000) {  
-    newGameBoost = 40;   
-}  
+  if (parseFloat(item.salePrice) === 0 && item.savings >= 100) hybridScore = Math.max(hybridScore, 130 + (parseFloat(item.normalPrice) || 0));
 
-let lowReviewPenalty = revData.totalReviews < 50 ? -100 : 0;  
-let hybridScore = (item.savings * 1.5) + (reviewVolumeScore * qualityMultiplier) + newGameBoost + lowReviewPenalty;  
-
-// Ofertele extrase prin scraper-ul 100% primesc prioritate oricum pentru ca sunt freebies  
-if (item.isFreebie) {  
-    hybridScore = Math.max(hybridScore, 100 + (parseFloat(item.normalPrice) || 0));  
-}  
-
-item.popularityScore = hybridScore;  
-item.totalReviews = revData.totalReviews;  
-item.qualityScore = revData.qualityPercent;  
-item.endDateStr = null;  
-if (!item.extraDetails) item.extraDetails = item.isFreebie ? "\n*(Promoție 100% detectată de bot)*" : "";  
-item.platformsInfo = item.platformsInfo || null;  
-item.enriched = false;  
-
-delete item.isFreebie;  
-deals.push(item);
-
+  item.popularityScore = hybridScore;
+  item.totalReviews = revData.totalReviews || 0;
+  item.qualityScore = revData.qualityPercent || 0;
+  item.endDateStr = item.endDateStr || null;
+  if (!item.extraDetails) item.extraDetails = parseFloat(item.salePrice) === 0 ? "\n*(Joc gratuit / promoție 100% Steam)*" : "";
+  item.platformsInfo = item.platformsInfo || null;
+  item.enriched = item.enriched || false;
+  delete item.isFreebie;
+  deals.push(item);
 }
 
-// 2. EPIC GAMES DEALS & FREE GAMES
-const epicDealsTemp = [];
 try {
-const epicQuery = `query searchStoreQuery($category: String, $count: Int, $country: String!, $locale: String, $onSale: Boolean, $withPrice: Boolean = false) { Catalog { searchStore(category: $category, count: $count, country: $country, locale: $locale, onSale: $onSale) { elements { title id urlSlug catalogNs { mappings { pageSlug } } keyImages { type url } price(country: $country) @include(if: $withPrice) { totalPrice { discountPrice originalPrice } } promotions { promotionalOffers { promotionalOffers { endDate discountSetting { discountPercentage } } } } } } } }`;
-const epicVars = { category: "games/edition/base|bundles/games", count: 30, country: "US", locale: "en-US", onSale: true, withPrice: true };
-const epicRes = await httpReq('POST', 'https://graphql.epicgames.com/graphql', { data: { query: epicQuery, variables: epicVars } });
-const epicElements = epicRes.data?.data?.Catalog?.searchStore?.elements || [];
-
-for (const item of epicElements) {  
-  const priceInfo = item.price?.totalPrice;  
-  if (!priceInfo) continue;  
-
-  const normalPriceNum = priceInfo.originalPrice / 100;  
-  const normalPrice = normalPriceNum.toFixed(2);  
-  const salePrice = (priceInfo.discountPrice / 100).toFixed(2);  
-
-  let savings = 0;  
-  if (priceInfo.originalPrice > 0) savings = Math.round(((priceInfo.originalPrice - priceInfo.discountPrice) / priceInfo.originalPrice) * 100);  
-  const thumb = getEpicThumbnail(item);  
-  let endDate = null;  
-  const promos = item.promotions?.promotionalOffers?.[0]?.promotionalOffers?.[0];  
-  if (promos && promos.endDate) endDate = promos.endDate;  
-  epicDealsTemp.push({  
-     id: `epic_${item.id}`, steamAppID: null, title: item.title, salePrice: salePrice, normalPrice: normalPrice, normalPriceNum: normalPriceNum, savings: savings, store: "Epic Games", link: getEpicStoreLink(item), endDateStr: endDate, platformsInfo: null, enriched: true, thumbnail: thumb   
-  });  
-}  
-
-// CROSS-PLATFORM SCORING: Obținem recenzii Steam pentru jocurile Epic  
-const epicReviewsData = [];  
-for (let i = 0; i < epicDealsTemp.length; i += 5) {  
-  const chunk = epicDealsTemp.slice(i, i + 5);  
-  const chunkPromises = chunk.map(async (deal) => {  
-      const steamId = await getSteamIdForTitle(deal.title);  
-      if (steamId) return await fetchSteamReviewData(steamId);  
-      return null;  
-  });  
-  epicReviewsData.push(...(await Promise.all(chunkPromises)));  
-  await new Promise(res => setTimeout(res, 500));   
-}  
-
-for (let i = 0; i < epicDealsTemp.length; i++) {  
-   const deal = epicDealsTemp[i];  
-   const revData = epicReviewsData[i];  
-
-   if (revData && revData.totalReviews > 0) {  
-       let reviewVolumeScore = Math.log10(Math.max(1, revData.totalReviews)) * 25;   
-       let qualityMultiplier = revData.qualityPercent / 100;  
-       let lowReviewPenalty = revData.totalReviews < 50 ? -100 : 0;  
-
-       deal.popularityScore = (deal.savings * 1.5) + (reviewVolumeScore * qualityMultiplier) + lowReviewPenalty;  
-       deal.qualityScore = revData.qualityPercent;  
-       deal.totalReviews = revData.totalReviews;  
-       deal.extraDetails = "\n*(Scor comunitar preluat via Steam)*";  
-   } else {  
-       // Pentru Epic fără recenzii nu mai folosim "scor artificial", se bazează doar pe reducere  
-       deal.popularityScore = deal.savings + Math.min(20, deal.normalPriceNum / 2);  
-       deal.qualityScore = 0;  
-       deal.totalReviews = 0;  
-       deal.extraDetails = "\n*(Exclusiv Epic/Fără recenzii publice)*";  
-   }  
-   deals.push(deal);  
+  const epicPaidDeals = await fetchEpicPaidDealsDirect(MAX_DEALS);
+  deals.push(...epicPaidDeals);
+} catch (err) {
+  logger("WARN", "DEALS_FETCH", "Eroare Epic paid direct", err.message);
 }
 
-} catch (err) { logger("WARN", "DEALS_FETCH", "Eroare Epic GraphQL", err.message); }
-
-const explicitEpicFreeDeals = await fetchEpicFreePromotions();
-for (const freeDeal of explicitEpicFreeDeals) {
-  const existingIndex = deals.findIndex((d) => d.id === freeDeal.id);
-  if (existingIndex >= 0) {
-    deals[existingIndex] = { ...deals[existingIndex], ...freeDeal };
-  } else {
-    deals.push(freeDeal);
-  }
+try {
+  const epicFreeDeals = await fetchEpicFreeGamesDirect(MAX_FREE_PER_STORE);
+  deals.push(...epicFreeDeals);
+} catch (err) {
+  logger("WARN", "DEALS_FETCH", "Eroare Epic free direct", err.message);
 }
 
-return deals;
+return mergeDealsUnique(deals);
 }
+
+// -------------------------------------------------------------
+// HELPERE PENTRU CĂUTAREA PREȚURILOR ȘI DLC-urilor
 
 // -------------------------------------------------------------
 // HELPERE PENTRU CĂUTAREA PREȚURILOR ȘI DLC-urilor
@@ -2108,6 +2298,7 @@ const generateEmbeds = async (page, totalP, currentMode) => valid.slice(page * I
 await handlePagination(msg, message.author.id, "upd", valid, ITEMS_PER_PAGE, generateEmbeds, mode, lang);
 }
 
+
 async function handleLatestDeals(message, guildDoc, lang) {
 let msg = null;
 if (!cache.deals.data || cache.deals.expiresAt < Date.now()) {
@@ -2124,22 +2315,44 @@ sys.deals = smoothTime(estMs, Date.now() - startTime); await saveSystemTimes(sys
 
 const mode = guildDoc?.notificationMode || "detailed";
 const minDisc = guildDoc?.minDiscountPercent || 0;
+const paidFilter = (deal) => parseFloat(deal.salePrice) > 0 && Number(deal.savings || 0) >= minDisc;
 
-const top = cache.deals.data
-.filter(deal => parseFloat(deal.salePrice) > 0 && deal.savings >= minDisc)
-.sort((a, b) => b.popularityScore - a.popularityScore)
-.slice(0, MAX_DEALS);
+let directEpicPaid = [];
+try { directEpicPaid = await fetchEpicPaidDealsDirect(MAX_DEALS); } catch (err) { logger("WARN", "DEALS_CMD", "Epic paid fallback failed", err.message); }
+
+const steamDeals = mergeDealsUnique(
+  cache.deals.data.filter(deal => paidFilter(deal) && deal.store === "Steam")
+).sort((a, b) => b.popularityScore - a.popularityScore).slice(0, 20);
+
+const epicDeals = mergeDealsUnique(
+  cache.deals.data.filter(deal => paidFilter(deal) && deal.store === "Epic Games"),
+  directEpicPaid.filter(paidFilter)
+).sort((a, b) => b.popularityScore - a.popularityScore).slice(0, 20);
+
+const top = [...steamDeals, ...epicDeals];
 
 if (!top.length) return msg ? msg.edit(getText(lang, "noDealsMatch")).catch(() => null) : message.reply(getText(lang, "noDealsMatch"));
-if (msg) await msg.edit(getText(lang, "dealsLoaded")).catch(() => null);
-else msg = await message.reply(getText(lang, "dealsLoaded"));
+if (msg) await msg.edit(`${getText(lang, "dealsLoaded")} Steam: ${steamDeals.length}/20 | Epic Games: ${epicDeals.length}/20`).catch(() => null);
+else msg = await message.reply(`${getText(lang, "dealsLoaded")} Steam: ${steamDeals.length}/20 | Epic Games: ${epicDeals.length}/20`);
 
 const generateEmbeds = async (page, totalP, currentMode) => {
 const chunk = top.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
+const embedsToReturn = [];
+const startIndex = page * ITEMS_PER_PAGE;
+const firstSteamIdx = top.findIndex(g => g.store === "Steam");
+const firstEpicIdx = top.findIndex(g => g.store === "Epic Games");
+
 if (currentMode !== "compact") {
 for (const d of chunk) { try { await enrichDealData(d); } catch(e) {} }
 }
-return chunk.map(d => buildDealEmbed(d, currentMode, lang).setFooter({ text: `${getText(lang, "page")} ${page + 1}/${totalP}` }));
+
+for (let i = 0; i < chunk.length; i++) {
+  const globalIndex = startIndex + i;
+  if (globalIndex === firstSteamIdx) embedsToReturn.push(new EmbedBuilder().setColor(0x1b2838).setTitle("🎮  ---  REDUCERI STEAM  ---  🎮"));
+  if (globalIndex === firstEpicIdx) embedsToReturn.push(new EmbedBuilder().setColor(0x313131).setTitle("🛒  ---  REDUCERI EPIC GAMES  ---  🛒"));
+  embedsToReturn.push(buildDealEmbed(chunk[i], currentMode, lang).setFooter({ text: `${getText(lang, "page")} ${page + 1}/${totalP}` }));
+}
+return embedsToReturn;
 };
 await handlePagination(msg, message.author.id, "deals", top, ITEMS_PER_PAGE, generateEmbeds, mode, lang);
 }
@@ -2162,15 +2375,17 @@ const mode = guildDoc?.notificationMode || "detailed";
 let directSteamFree = [];
 let directEpicFree = [];
 try { directSteamFree = await fetchSteamFreeGamesDirect(MAX_FREE_PER_STORE); } catch (err) { logger("WARN", "FREE_CMD", "Steam free fallback failed", err.message); }
-try { directEpicFree = await fetchEpicFreePromotions(); } catch (err) { logger("WARN", "FREE_CMD", "Epic free fallback failed", err.message); }
+try { directEpicFree = await fetchEpicFreeGamesDirect(MAX_FREE_PER_STORE); } catch (err) { logger("WARN", "FREE_CMD", "Epic free fallback failed", err.message); }
+
+const isFreeDeal = (deal) => parseFloat(deal.salePrice) === 0 && Number(deal.savings || 0) >= 100;
 
 const freeSteam = mergeDealsUnique(
-  cache.deals.data.filter(deal => parseFloat(deal.salePrice) === 0 && deal.savings === 100 && deal.store === "Steam"),
+  cache.deals.data.filter(deal => isFreeDeal(deal) && deal.store === "Steam"),
   directSteamFree
 ).sort((a, b) => b.popularityScore - a.popularityScore).slice(0, MAX_FREE_PER_STORE);
 
 const freeEpic = mergeDealsUnique(
-  cache.deals.data.filter(deal => parseFloat(deal.salePrice) === 0 && deal.savings === 100 && deal.store === "Epic Games"),
+  cache.deals.data.filter(deal => isFreeDeal(deal) && deal.store === "Epic Games"),
   directEpicFree
 ).sort((a, b) => b.popularityScore - a.popularityScore).slice(0, MAX_FREE_PER_STORE);
 
@@ -2184,7 +2399,6 @@ const generateEmbeds = async (page, totalP, currentMode) => {
 const chunk = freeGames.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
 const embedsToReturn = [];
 const startIndex = page * ITEMS_PER_PAGE;
-
 const firstSteamIdx = freeGames.findIndex(g => g.store === "Steam");
 const firstEpicIdx = freeGames.findIndex(g => g.store === "Epic Games");
 
@@ -2194,19 +2408,11 @@ if (currentMode !== "compact") {
 
 for (let i = 0; i < chunk.length; i++) {
     const globalIndex = startIndex + i;
-
-    if (globalIndex === firstSteamIdx) {
-        embedsToReturn.push(new EmbedBuilder().setColor(0x1b2838).setTitle(getText(lang, "separatorSteam")));
-    }
-    if (globalIndex === firstEpicIdx) {
-        embedsToReturn.push(new EmbedBuilder().setColor(0x313131).setTitle(getText(lang, "separatorEpic")));
-    }
-
+    if (globalIndex === firstSteamIdx) embedsToReturn.push(new EmbedBuilder().setColor(0x1b2838).setTitle(getText(lang, "separatorSteam")));
+    if (globalIndex === firstEpicIdx) embedsToReturn.push(new EmbedBuilder().setColor(0x313131).setTitle(getText(lang, "separatorEpic")));
     embedsToReturn.push(buildDealEmbed(chunk[i], currentMode, lang).setFooter({ text: `${getText(lang, "page")} ${page + 1}/${totalP}` }));
 }
-
 return embedsToReturn;
-
 };
 
 await handlePagination(msg, message.author.id, "free", freeGames, ITEMS_PER_PAGE, generateEmbeds, mode, lang);
