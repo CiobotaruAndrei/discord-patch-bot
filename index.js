@@ -45,7 +45,6 @@ const DEFAULT_CONFIG = {
     { key: "cs2", name: "Counter-Strike 2", type: "steam", appId: "730" },
     { key: "phasmophobia", name: "Phasmophobia", type: "steam", appId: "739630" },
     { key: "wot", name: "World of Tanks", type: "steam", appId: "1407200" },
-    { key: "battlefront2", name: "Star Wars Battlefront II", type: "steam", appId: "1237950" },
     { key: "rocketleague", name: "Rocket League", type: "steam", appId: "252950" },
     { key: "crossout", name: "Crossout", type: "steam", appId: "386180" },
     { key: "pubg", name: "PUBG (PC)", type: "steam", appId: "578080" },
@@ -516,13 +515,24 @@ if (duplicates.length > 0) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 
 })
 });
 
+function sanitizeConfig(rawConfig) {
+const removedAppIds = new Set(["1237950"]);
+return {
+...rawConfig,
+games: (rawConfig.games || []).filter((game) => {
+const appId = String(game.appId || "");
+return !removedAppIds.has(appId);
+})
+};
+}
+
 let config;
 try {
 const CONFIG_PATH = path.join(__dirname, "config.json");
 const rawConfig = fs.existsSync(CONFIG_PATH)
   ? JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"))
   : DEFAULT_CONFIG;
-config = ConfigSchema.parse(rawConfig);
+config = ConfigSchema.parse(sanitizeConfig(rawConfig));
 } catch (err) {
 logger("ERROR", "CONFIG", "Eroare validare config", err.issues || err.message);
 process.exit(1);
@@ -1120,20 +1130,87 @@ const rawContent = $art('article').text() || $art('main').text() || $art('body')
 return normalizeUpdate({ id: String(articleUrl), title: cleanText(ogTitle) || `${game.name} Update`, link: articleUrl, excerpt: cleanText(ogDesc), fullText: cleanText(rawContent), thumbnail: game.thumbnail });
 }
 
+function buildFortniteArticleUrl(post) {
+const rawCandidates = [post.url, post.link, post.urlPattern, post._urlPattern, post.slug].filter(Boolean);
+for (const raw of rawCandidates) {
+const value = String(raw).trim();
+if (!value || value.toLowerCase() === "news" || value === "/news") continue;
+let candidate = "";
+if (/^https?:\/\//i.test(value)) candidate = value;
+else if (value.startsWith("/")) candidate = absoluteUrl("https://www.fortnite.com", value);
+else if (value.toLowerCase().startsWith("news/")) candidate = absoluteUrl("https://www.fortnite.com", `/${value}`);
+else candidate = `https://www.fortnite.com/news/${value.replace(/^\/+/, "")}`;
+if (isValidFortniteArticleUrl(candidate)) return candidate;
+}
+return "";
+}
+
+function isValidFortniteArticleUrl(url) {
+try {
+const parsed = new URL(url);
+const pathName = parsed.pathname.toLowerCase().replace(/\/+$/, "");
+return parsed.hostname.includes("fortnite.com") && pathName.startsWith("/news/") && pathName !== "/news";
+} catch {
+return false;
+}
+}
+
+function scoreFortnitePost(post) {
+const title = String(post.title || "").toLowerCase();
+const slug = String(post.slug || post.urlPattern || post.url || "").toLowerCase();
+const text = `${title} ${slug}`;
+let score = 0;
+if (/\b(update|patch|hotfix|v\d+|version|balance|reload|battle royale|fortnite og|ranked)\b/i.test(text)) score += 20;
+if (/\b(shop|cosmetic|crew|lego|festival|rocket racing|community|tournament|competitive-ruling)\b/i.test(text)) score -= 10;
+const date = new Date(post.date || post.publishedDate || post.updatedDate || 0).getTime();
+return { score, date: Number.isNaN(date) ? 0 : date };
+}
+
+async function readFortniteBlogPayload(apiUrl) {
+try {
+const direct = await httpReq('GET', apiUrl, { timeout: 15000 });
+return typeof direct.data === "string" ? JSON.parse(direct.data || "{}") : direct.data;
+} catch (err) {
+const proxied = await fetchWithProxy(apiUrl, { timeout: 15000 });
+return JSON.parse(proxied || "{}");
+}
+}
+
 async function fetchFortniteUpdate() {
 try {
-const posts = JSON.parse(await fetchWithProxy("https://www.fortnite.com/api/blog/getPosts?postsPerPage=10&offset=0&locale=en-US", { timeout: 15000 }) || "{}")?.blogList;
-const valid = (posts || []).filter(p => p.slug && p.slug.toLowerCase() !== "news");
+const apiUrl = "https://www.fortnite.com/api/blog/getPosts?postsPerPage=25&offset=0&locale=en-US";
+const payload = await readFortniteBlogPayload(apiUrl);
+const posts = payload?.blogList || payload?.posts || [];
+const valid = (posts || [])
+  .map((post) => ({ ...post, articleUrl: buildFortniteArticleUrl(post) }))
+  .filter((post) => post.slug && String(post.slug).toLowerCase() !== "news" && isValidFortniteArticleUrl(post.articleUrl));
+
 if (!valid.length) throw new Error("errFortnite");
 
-const latest = valid.find(p => /update|patch|\bv\d+/i.test(String(p.title))) || valid[0];  
-return normalizeUpdate({ id: String(latest.slug), title: cleanText(latest.title), link: `https://www.fortnite.com/news/${latest.slug}`, excerpt: cleanText(latest.shareDescription), excerptKey: "excerptFortnite", thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png", timestamp: latest.date });
+valid.sort((a, b) => {
+  const sa = scoreFortnitePost(a);
+  const sb = scoreFortnitePost(b);
+  if (sb.score !== sa.score) return sb.score - sa.score;
+  return sb.date - sa.date;
+});
+
+const latest = valid[0];
+return normalizeUpdate({
+  id: String(latest.slug || latest.articleUrl),
+  title: cleanText(latest.title),
+  link: latest.articleUrl,
+  excerpt: cleanText(latest.shareDescription || latest.excerpt || latest.description),
+  excerptKey: latest.shareDescription || latest.excerpt || latest.description ? null : "excerptFortnite",
+  thumbnail: latest.image || latest.shareImage || latest.trendingImage || "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
+  timestamp: latest.date || latest.publishedDate || latest.updatedDate || ""
+});
 
 } catch (err) {
-const backupUrl = "https://news.google.com/rss/search?q=site:fortnite.com/news+update&hl=en-US";
+const backupUrl = "https://news.google.com/rss/search?q=site:fortnite.com/news+(Fortnite+update+OR+patch+OR+hotfix)&hl=en-US";
 const feed = await rssParser.parseString((await httpReq('GET', backupUrl)).data);
-if (!feed.items || feed.items.length === 0) throw new Error("errFortniteTotal");
-return normalizeUpdate({ id: feed.items[0].link, title: cleanText(feed.items[0].title), link: feed.items[0].link, excerpt: "Update oficial Fortnite.", excerptKey: "excerptFortnite", thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png", timestamp: feed.items[0].pubDate });
+const item = (feed.items || []).find((i) => isValidFortniteArticleUrl(i.link)) || feed.items?.[0];
+if (!item) throw new Error("errFortniteTotal");
+return normalizeUpdate({ id: item.link, title: cleanText(item.title), link: item.link, excerpt: "Update oficial Fortnite.", excerptKey: "excerptFortnite", thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png", timestamp: item.pubDate });
 }
 }
 
@@ -1297,6 +1374,70 @@ try { await enrichTask; } finally { activeEnrichments.delete(deal.id); }
 return deal;
 }
 
+function getEpicPageSlug(item) {
+return item.productSlug || item.offerMappings?.[0]?.pageSlug || item.catalogNs?.mappings?.[0]?.pageSlug || item.urlSlug || item.id;
+}
+
+function getEpicStoreLink(item) {
+const slug = getEpicPageSlug(item);
+return `https://store.epicgames.com/en-US/p/${slug}`;
+}
+
+function getEpicThumbnail(item) {
+if (!Array.isArray(item.keyImages)) return null;
+const img = item.keyImages.find(i => i.type === "OfferImageWide" || i.type === "Thumbnail" || i.type === "featuredMedia");
+return img?.url || null;
+}
+
+function buildEpicFreeDeal(item, promo) {
+const priceInfo = item.price?.totalPrice;
+if (!priceInfo) return null;
+const originalPrice = Number(priceInfo.originalPrice || 0);
+const discountPrice = Number(priceInfo.discountPrice || 0);
+const promoEndDate = promo?.endDate || item.expiryDate || null;
+if (!(originalPrice > 0 && discountPrice === 0 && promoEndDate)) return null;
+return {
+  id: `epic_${item.id}`,
+  steamAppID: null,
+  title: item.title,
+  salePrice: "0.00",
+  normalPrice: (originalPrice / 100).toFixed(2),
+  normalPriceNum: originalPrice / 100,
+  savings: 100,
+  store: "Epic Games",
+  link: getEpicStoreLink(item),
+  endDateStr: promoEndDate,
+  platformsInfo: null,
+  enriched: true,
+  thumbnail: getEpicThumbnail(item),
+  popularityScore: 120 + Math.min(30, (originalPrice / 100) / 2),
+  qualityScore: 0,
+  totalReviews: 0,
+  extraDetails: "\n*(Promoție 100% Epic Games Store)*"
+};
+}
+
+async function fetchEpicFreePromotions() {
+const freeDeals = [];
+try {
+  const freeRes = await httpReq('GET', 'https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US');
+  const freeElements = freeRes.data?.data?.Catalog?.searchStore?.elements || [];
+  for (const item of freeElements) {
+    const activePromos = item.promotions?.promotionalOffers?.[0]?.promotionalOffers || [];
+    for (const promo of activePromos) {
+      const deal = buildEpicFreeDeal(item, promo);
+      if (deal) {
+        freeDeals.push(deal);
+        break;
+      }
+    }
+  }
+} catch (err) {
+  logger("WARN", "EPIC_FREE", "Eroare la preluarea jocurilor gratuite direct de la sursa.", err.message);
+}
+return freeDeals;
+}
+
 // -------------------------------------------------------------
 // FETCH DEALS COMPUS (CU CROSS-PLATFORM EPIC -> STEAM)
 // -------------------------------------------------------------
@@ -1408,60 +1549,13 @@ for (const item of epicElements) {
 
   let savings = 0;  
   if (priceInfo.originalPrice > 0) savings = Math.round(((priceInfo.originalPrice - priceInfo.discountPrice) / priceInfo.originalPrice) * 100);  
-
-  let thumb = null;  
-  if (Array.isArray(item.keyImages)) {  
-    const img = item.keyImages.find(i => i.type === "OfferImageWide" || i.type === "Thumbnail");  
-    if (img) thumb = img.url;  
-  }  
-
+  const thumb = getEpicThumbnail(item);  
   let endDate = null;  
   const promos = item.promotions?.promotionalOffers?.[0]?.promotionalOffers?.[0];  
   if (promos && promos.endDate) endDate = promos.endDate;  
-
-  let urlSlug = item.urlSlug || item.id;  
-  if (!item.urlSlug && item.catalogNs && item.catalogNs.mappings && item.catalogNs.mappings.length > 0) {  
-      urlSlug = item.catalogNs.mappings[0].pageSlug;  
-  }  
-
   epicDealsTemp.push({  
-     id: `epic_${item.id}`, steamAppID: null, title: item.title, salePrice: salePrice, normalPrice: normalPrice, normalPriceNum: normalPriceNum, savings: savings, store: "Epic Games", link: `https://store.epicgames.com/en-US/p/${urlSlug}`, endDateStr: endDate, platformsInfo: null, enriched: true, thumbnail: thumb   
+     id: `epic_${item.id}`, steamAppID: null, title: item.title, salePrice: salePrice, normalPrice: normalPrice, normalPriceNum: normalPriceNum, savings: savings, store: "Epic Games", link: getEpicStoreLink(item), endDateStr: endDate, platformsInfo: null, enriched: true, thumbnail: thumb   
   });  
-}  
-
-// Explicit Free Games Fetch from Epic's dedicated endpoint  
-try {  
-    const freeRes = await httpReq('GET', 'https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US');  
-    const freeElements = freeRes.data?.data?.Catalog?.searchStore?.elements || [];  
-
-    for (const item of freeElements) {  
-        const promos = item.promotions?.promotionalOffers?.[0]?.promotionalOffers?.[0];  
-        if (promos && promos.discountSetting?.discountPercentage === 0) {  
-            const priceInfo = item.price?.totalPrice;  
-            const normalPriceNum = (priceInfo?.originalPrice || 0) / 100;  
-            const normalPrice = normalPriceNum.toFixed(2);  
-
-            let thumb = null;  
-            if (Array.isArray(item.keyImages)) {  
-                const img = item.keyImages.find(i => i.type === "OfferImageWide" || i.type === "Thumbnail");  
-                if (img) thumb = img.url;  
-            }  
-
-            let urlSlug = item.urlSlug || item.catalogNs?.mappings?.[0]?.pageSlug || item.id;  
-
-            // Evităm duplicatele dacă jocul a fost prins deja de query-ul GraphQL principal  
-            if (!epicDealsTemp.some(d => d.id === `epic_${item.id}`)) {  
-                epicDealsTemp.push({  
-                    id: `epic_${item.id}`, steamAppID: null, title: item.title, salePrice: "0.00",   
-                    normalPrice: normalPrice, normalPriceNum: normalPriceNum, savings: 100,   
-                    store: "Epic Games", link: `https://store.epicgames.com/en-US/p/${urlSlug}`,   
-                    endDateStr: promos.endDate, platformsInfo: null, enriched: true, thumbnail: thumb   
-                });  
-            }  
-        }  
-    }  
-} catch(err) {  
-    logger("WARN", "EPIC_FREE", "Eroare la preluarea jocurilor gratuite direct de la sursa.", err.message);  
 }  
 
 // CROSS-PLATFORM SCORING: Obținem recenzii Steam pentru jocurile Epic  
@@ -1501,6 +1595,16 @@ for (let i = 0; i < epicDealsTemp.length; i++) {
 }
 
 } catch (err) { logger("WARN", "DEALS_FETCH", "Eroare Epic GraphQL", err.message); }
+
+const explicitEpicFreeDeals = await fetchEpicFreePromotions();
+for (const freeDeal of explicitEpicFreeDeals) {
+  const existingIndex = deals.findIndex((d) => d.id === freeDeal.id);
+  if (existingIndex >= 0) {
+    deals[existingIndex] = { ...deals[existingIndex], ...freeDeal };
+  } else {
+    deals.push(freeDeal);
+  }
+}
 
 return deals;
 }
@@ -2316,4 +2420,3 @@ await client.login(process.env.DISCORD_TOKEN);
 }
 
 bootstrap();
-
