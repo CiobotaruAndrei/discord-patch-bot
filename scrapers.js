@@ -44,8 +44,8 @@ const USER_AGENTS = [
 ];
 
 // V8 (#16): proxy-uri configurabile. Format env: "https://my-proxy/?u={url},https://other/?q={url}"
-// Default rămâne lista publică, dar e overridable. Documentăm trust risk.
-const DEFAULT_PROXIES = [
+// În producție nu folosim proxy-uri publice implicite; setează PROXY_URLS cu endpoint-uri de încredere.
+const DEFAULT_PROXIES = env.isProd ? [] : [
   "https://api.allorigins.win/get?url={url}",
   "https://api.codetabs.com/v1/proxy?quest={url}"
 ];
@@ -122,15 +122,24 @@ function safeCheerioLoad(html) {
   return cheerio.load(buf.toString("utf8"));
 }
 
+function normalizeDealState(deal) {
+  return [
+    deal.salePrice ?? "",
+    deal.normalPrice ?? "",
+    deal.savings ?? "",
+    deal.endDateStr ?? ""
+  ].map(v => String(v).trim().toLowerCase()).join(":");
+}
+
 function dealHash(deal) {
   let stableKey;
   if (deal.store === "Steam" && deal.steamAppID) {
-    stableKey = `steam:${deal.steamAppID}`;
+    stableKey = `steam:${deal.steamAppID}:${normalizeDealState(deal)}`;
   } else if (deal.store === "Epic Games" && deal.id) {
     const rawId = String(deal.id).replace(/^epic_/, "");
-    stableKey = `epic:${rawId}`;
+    stableKey = `epic:${rawId}:${normalizeDealState(deal)}`;
   } else {
-    stableKey = `${deal.store}:${normalizeTitleForDedupe(deal.title)}`;
+    stableKey = `${deal.store}:${normalizeTitleForDedupe(deal.title)}:${normalizeDealState(deal)}`;
   }
   return crypto.createHash("sha1").update(stableKey).digest("hex");
 }
@@ -215,6 +224,9 @@ async function httpReq(method, url, options = {}, retries = 2, backoff = 1000) {
 }
 
 async function fetchWithProxy(targetUrl, options = {}) {
+  if (!PROXY_TEMPLATES.length) {
+    throw new Error("Proxy fallback neconfigurat. Setează PROXY_URLS pentru această sursă.");
+  }
   let lastErr;
   for (const template of PROXY_TEMPLATES) {
     const proxyUrl = template.replace("{url}", encodeURIComponent(targetUrl));
@@ -231,13 +243,14 @@ async function fetchWithProxy(targetUrl, options = {}) {
 }
 
 function withInflightTimeout(promise, label) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(
       () => reject(new Error(`Inflight timeout (${label})`)),
       INFLIGHT_PROMISE_TIMEOUT_MS
-    ))
-  ]);
+    );
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
 }
 
 // -------------------------------------------------------------
