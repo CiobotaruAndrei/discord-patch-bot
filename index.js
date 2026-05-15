@@ -13,19 +13,26 @@ const http = require("http");
 const crypto = require("crypto");
 const { performance } = require("perf_hooks");
 const { Client, GatewayIntentBits } = require("discord.js");
+const { validateConfig } = require("./configValidator");
 
 // -------------------------------------------------------------
 // CONFIG LOADING
 // Încărcăm config-ul jocurilor direct dintr-un JSON.
-// Path-ul implicit este ./config_bot_discord.json, override via env CONFIG_PATH.
+// Path-ul implicit este ./config.json, override via env CONFIG_PATH.
 // -------------------------------------------------------------
-const CONFIG_PATH = process.env.CONFIG_PATH || "./config_bot_discord.json";
+const CONFIG_PATH = process.env.CONFIG_PATH || "./config.json";
 let config;
 try {
   config = require(CONFIG_PATH);
 } catch (err) {
   console.error(`[BOOT] Nu pot încărca config-ul de la calea "${CONFIG_PATH}": ${err.message}`);
   console.error("[BOOT] Asigură-te că fișierul există și este JSON valid. Override cu env CONFIG_PATH.");
+  process.exit(1);
+}
+try {
+  config = validateConfig(config, CONFIG_PATH);
+} catch (err) {
+  console.error(`[BOOT] ${err.message}`);
   process.exit(1);
 }
 const games = Array.isArray(config.games) ? config.games : [];
@@ -265,7 +272,7 @@ const httpServer = http.createServer((req, res) => {
     const cacheSizes = commands.getCacheSizes();
     const lines = [
       `# HELP bot_uptime_seconds Bot uptime`,
-      `# TYPE bot_uptime_seconds counter`,
+      `# TYPE bot_uptime_seconds gauge`,
       `bot_uptime_seconds ${Math.floor((Date.now() - metrics.startedAt) / 1000)}`,
       `# HELP bot_fetch_success Fetch reușite`,
       `# TYPE bot_fetch_success counter`,
@@ -361,7 +368,7 @@ mongoose.connection.on("reconnected", () => logger("INFO", "DB", "Reconectat la 
 // -------------------------------------------------------------
 // SHUTDOWN
 // -------------------------------------------------------------
-async function shutdown(signal) {
+async function shutdown(signal, exitCode = 0) {
   if (isShuttingDown) return;
   isShuttingDown = true;
   logger("INFO", "SHUTDOWN", `Semnal primit: ${signal}, închidere...`);
@@ -389,18 +396,25 @@ async function shutdown(signal) {
   try { httpServer.close(); } catch { /* ignore */ }
 
   logger("INFO", "SHUTDOWN", "Închidere completă.");
-  setTimeout(() => process.exit(0), 500).unref();
+  setTimeout(() => process.exit(exitCode), 500).unref();
 }
 
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
+function handleFatalProcessError(kind, reason) {
+  const detail = reason?.stack || reason?.message || String(reason);
+  logger("ERROR", "PROCESS", kind, detail);
+  adminAlert(`process:${kind}`, kind, detail)
+    .catch(() => null)
+    .finally(() => shutdown(kind, 1));
+  setTimeout(() => process.exit(1), 10_000).unref();
+}
+
 process.on("uncaughtException", (err) => {
-  logger("ERROR", "PROCESS", "uncaughtException", err.stack || err.message);
-  adminAlert("process:uncaught", "uncaughtException", err.stack || err.message).catch(() => null);
+  handleFatalProcessError("uncaughtException", err);
 });
 process.on("unhandledRejection", (reason) => {
-  logger("ERROR", "PROCESS", "unhandledRejection", reason?.stack || String(reason));
-  adminAlert("process:unhandled", "unhandledRejection", String(reason)).catch(() => null);
+  handleFatalProcessError("unhandledRejection", reason);
 });
 
 // -------------------------------------------------------------
