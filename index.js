@@ -1,392 +1,428 @@
 "use strict";
 // =============================================================
-// index.js — bootstrap final:
-//   * validarea env e centralizată în db.js (require-ul face validarea)
-//   * aici rămâne doar: validare config.json, Discord client, cron,
-//     HTTP server, process handlers.
+// index.js — V8
+//   * Slash commands (eliminăm MessageContent intent)
+//   * interactionCreate în loc de messageCreate
+//   * Housekeeping interval consolidat
+//   * Graceful shutdown cu drain delay
+//   * Adaugă cache_enriched_deals_size la /metrics
+//   * GLOBAL_CACHE_TTL_MS adaptiv legat de CRON_INTERVAL_MS
 // =============================================================
-const fs = require("fs");
-const path = require("path");
+const mongoose = require("mongoose");
 const http = require("http");
 const crypto = require("crypto");
-const mongoose = require("mongoose");
-const cron = require("node-cron");
-const { z } = require("zod");
+const { performance } = require("perf_hooks");
 const { Client, GatewayIntentBits } = require("discord.js");
-// IMPORTANT: db.js validează env la require-time. Dacă env e invalid,
-// procesul iese cu exit(1) ÎNAINTE de orice altceva.
+
+// -------------------------------------------------------------
+// CONFIG LOADING
+// Încărcăm config-ul jocurilor direct dintr-un JSON.
+// Path-ul implicit este ./config_bot_discord.json, override via env CONFIG_PATH.
+// -------------------------------------------------------------
+const CONFIG_PATH = process.env.CONFIG_PATH || "./config_bot_discord.json";
+let config;
+try {
+  config = require(CONFIG_PATH);
+} catch (err) {
+  console.error(`[BOOT] Nu pot încărca config-ul de la calea "${CONFIG_PATH}": ${err.message}`);
+  console.error("[BOOT] Asigură-te că fișierul există și este JSON valid. Override cu env CONFIG_PATH.");
+  process.exit(1);
+}
+const games = Array.isArray(config.games) ? config.games : [];
+if (games.length === 0) {
+  console.error(`[BOOT] Config-ul de la "${CONFIG_PATH}" nu conține un array "games" cu jocuri.`);
+  process.exit(1);
+}
+
 const {
-  logger,
-  env,
+  logger, env, parseEnvNumber,
   acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
-  getGuildCacheSize, cleanGuildCache,
-  adminAlert
+  waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert
 } = require("./db");
-const scrapers = require("./scrapers");
 const commands = require("./commands");
+const scrapers = require("./scrapers");
+
+// -------------------------------------------------------------
+// CONFIG CRON
+// -------------------------------------------------------------
+const ALLOWED_CRON_INTERVALS = new Set([
+  10 * 60 * 1000,
+  15 * 60 * 1000,
+  30 * 60 * 1000,
+  60 * 60 * 1000
+]);
+// Default-ul respectă config.checkIntervalMinutes (dacă există), apoi 30 min.
+const CONFIG_INTERVAL_MS = Number.isFinite(config.checkIntervalMinutes) && config.checkIntervalMinutes > 0
+  ? Math.round(config.checkIntervalMinutes * 60 * 1000)
+  : 30 * 60 * 1000;
+const DEFAULT_CRON_INTERVAL_MS = CONFIG_INTERVAL_MS;
+const REQUESTED_CRON_INTERVAL_MS = parseEnvNumber(
+  "CRON_INTERVAL_MS",
+  DEFAULT_CRON_INTERVAL_MS,
+  { min: 10 * 60 * 1000, max: 60 * 60 * 1000 }
+);
+const CRON_INTERVAL_MS = ALLOWED_CRON_INTERVALS.has(REQUESTED_CRON_INTERVAL_MS)
+  ? REQUESTED_CRON_INTERVAL_MS
+  : DEFAULT_CRON_INTERVAL_MS;
+if (REQUESTED_CRON_INTERVAL_MS !== CRON_INTERVAL_MS) {
+  logger("WARN", "CONFIG",
+    `CRON_INTERVAL_MS=${REQUESTED_CRON_INTERVAL_MS} nu este într-o valoare suportată ` +
+    `(10/15/30/60 min). Folosesc default ${DEFAULT_CRON_INTERVAL_MS}.`);
+}
+
+const CRON_LOCK_TTL_MS = Math.max(CRON_INTERVAL_MS + 60_000, 5 * 60 * 1000);
+const HEARTBEAT_INTERVAL_MS = Math.max(15_000, Math.floor(CRON_LOCK_TTL_MS / 3));
+
+// V8 (#8): GLOBAL_CACHE_TTL adaptiv — niciodată mai mare decât cron interval
+commands.setGlobalCacheTtl(Math.min(30 * 60 * 1000, CRON_INTERVAL_MS));
+
 // -------------------------------------------------------------
 // METRICI
 // -------------------------------------------------------------
 const metrics = {
-  startedAt: Date.now(),
-  cronRuns: 0,
-  cronErrors: 0,
   fetchSuccess: 0,
   fetchFail: 0,
   httpRetries: 0,
   rateLimitHits: 0,
-  lastCronAt: null,
-  lastCronDurationMs: 0,
-  unhandledRejections: 0,
-  uncaughtExceptions: 0,
-  cronAbortedNoLock: 0
+  cronRuns: 0,
+  cronErrors: 0,
+  cronSkippedDueToLock: 0,
+  cronAborted: 0,
+  startedAt: Date.now()
 };
 scrapers.attachMetrics(metrics);
+
 // -------------------------------------------------------------
-// VALIDARE CONFIG.JSON (rămâne aici fiindcă e specific aplicației)
-// -------------------------------------------------------------
-const ALLOWED_CRON_INTERVALS = [5, 10, 15, 20, 30, 60];
-const KEY_PATTERN = /^[a-z0-9_-]+$/;
-function isValidRegex(s) {
-  try { new RegExp(s); return true; } catch { return false; }
-}
-const GameSchema = z.object({
-  key: z.string().regex(KEY_PATTERN, "key trebuie să conțină doar litere mici, cifre, _ sau -"),
-  name: z.string().min(1),
-  type: z.enum(["steam", "intel", "nvidia", "amd", "roblox", "minecraft", "epic_games",
-"listing_based"]),
-  aliases: z.array(z.string()).optional(),
-  appId: z.string().optional(),
-  url: z.string().url().optional(),
-  listingUrl: z.string().url().optional(),
-  listingUrls: z.array(z.string().url()).optional(),
-  baseUrl: z.string().url().optional(),
-  articleHrefRegex: z.string().optional().refine(
-    (v) => v === undefined || isValidRegex(v),
-    { message: "articleHrefRegex nu este o expresie regulată validă." }
-  ),
-  requireKeywords: z.array(z.string()).optional(),
-  thumbnail: z.string().url().optional()
-}).superRefine((game, ctx) => {
-  if (game.type === "steam" && !game.appId) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Jocul Steam "${game.name}" trebuie să
-aibă appId.` });
-  }
-  if (game.type === "intel" && !game.url) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Jocul Intel "${game.name}" trebuie să
-aibă url.` });
-  }
-  if (game.type === "listing_based" || (game.type === "epic_games" && game.key !== "fortnite"))
-{
-    const hasListing = game.listingUrl || (Array.isArray(game.listingUrls) &&
-game.listingUrls.length > 0);
-    if (!hasListing) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Jocul "${game.name}"
-necesită listingUrl/Urls.` });
-    if (!game.baseUrl) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Jocul
-"${game.name}" necesită baseUrl.` });
-  }
-});
-const ConfigSchema = z.object({
-  checkIntervalMinutes: z.number().int().positive().refine(
-    (v) => ALLOWED_CRON_INTERVALS.includes(v),
-    { message: `checkIntervalMinutes trebuie să fie unul din: ${ALLOWED_CRON_INTERVALS.join(",
-")}.` }
-  ),
-  games: z.array(GameSchema).min(1).superRefine((games, ctx) => {
-    const keys = games.map(g => g.key);
-    const dupKeys = keys.filter((item, index) => keys.indexOf(item) !== index);
-    if (dupKeys.length > 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Chei duplicate: ${[...new
-Set(dupKeys)].join(", ")}` });
-    }
-    const aliasToGame = new Map();
-    for (const g of games) {
-      if (!Array.isArray(g.aliases)) continue;
-      for (const a of g.aliases) {
-        const norm = String(a).toLowerCase().trim();
-        if (!norm) continue;
-        if (aliasToGame.has(norm) && aliasToGame.get(norm) !== g.key) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Aliasul "${a}" este folosit de mai multe jocuri (${aliasToGame.get(norm)}
-și ${g.key}).`
-          });
-        } else {
-          aliasToGame.set(norm, g.key);
-        }
-        if (keys.includes(norm) && norm !== g.key.toLowerCase()) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Aliasul "${a}" al jocului "${g.key}" coincide cu cheia altui joc.`
-          });
-        }
-      }
-    }
-  })
-});
-let config;
-try {
-  const CONFIG_PATH = path.join(__dirname, "config.json");
-  config = ConfigSchema.parse(JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8")));
-} catch (err) {
-  logger("ERROR", "CONFIG", "Eroare validare config.json", err.issues || err.message);
-  process.exit(1);
-}
-const games = config.games;
-// -------------------------------------------------------------
-// DISCORD CLIENT
+// DISCORD CLIENT (V8: doar Guilds, fără MessageContent/GuildMessages)
 // -------------------------------------------------------------
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
+  intents: [GatewayIntentBits.Guilds]
 });
+
 // -------------------------------------------------------------
-// HTTP HEALTH/METRICS SERVER
+// CRON STATE
 // -------------------------------------------------------------
-const PORT = env.PORT;
-const CRON_INTERVAL_MS = Number(config.checkIntervalMinutes) * 60 * 1000;
-const CRON_STUCK_THRESHOLD_MS = 3 * CRON_INTERVAL_MS;
-const METRICS_TOKEN = env.METRICS_TOKEN;
-const METRICS_PUBLIC = env.METRICS_PUBLIC;
-function isMetricsAuthorized(req) {
-  if (METRICS_PUBLIC && !METRICS_TOKEN) return true;
-  if (METRICS_TOKEN) {
-    try {
-      const u = new URL(req.url, `http://${req.headers.host || "localhost"}`);
-      const supplied = u.searchParams.get("token") || req.headers["x-metrics-token"] || "";
-      if (!supplied) return false;
-      const a = Buffer.from(String(supplied));
-      const b = Buffer.from(METRICS_TOKEN);
-      if (a.length !== b.length) return false;
-      return crypto.timingSafeEqual(a, b);
-    } catch { return false; }
-  }
-  return false;
-}
-http.createServer((req, res) => {
-  if (req.url && req.url.startsWith("/health")) {
-    const mongoOk = mongoose.connection.readyState === 1;
-    const discordOk = typeof client.isReady === "function" && client.isReady();
-    const now = Date.now();
-    const sinceStart = now - metrics.startedAt;
-    let cronStuck = false;
-    if (sinceStart > 2 * CRON_INTERVAL_MS) {
-      const lastCronTs = metrics.lastCronAt ? new Date(metrics.lastCronAt).getTime() : 0;
-      cronStuck = (now - lastCronTs) > CRON_STUCK_THRESHOLD_MS;
-    }
-    const ok = mongoOk && discordOk && !cronStuck;
-    res.writeHead(ok ? 200 : 503, { "Content-Type": "application/json" });
-    return res.end(JSON.stringify({
-      ok, mongoOk, discordOk, cronStuck,
-      message: ok ? "Toate sistemele sunt online."
-        : (cronStuck ? "Cronul pare blocat." : "Sisteme indisponibile.")
-    }));
-  }
-  if (req.url && req.url.startsWith("/metrics")) {
-    if (!isMetricsAuthorized(req)) {
-      res.writeHead(401, { "Content-Type": "application/json" });
-      return res.end(JSON.stringify({ ok: false, error: "Unauthorized" }));
-    }
-    const uptime = Math.round((Date.now() - metrics.startedAt) / 1000);
-    const sizes = commands.getCacheSizes();
-    res.writeHead(200, { "Content-Type": "application/json" });
-    return res.end(JSON.stringify({
-      uptime_seconds: uptime,
-      cron_runs: metrics.cronRuns,
-      cron_errors: metrics.cronErrors,
-      cron_last_at: metrics.lastCronAt,
-      cron_last_duration_ms: metrics.lastCronDurationMs,
-      cron_interval_ms: CRON_INTERVAL_MS,
-      cron_aborted_no_lock: metrics.cronAbortedNoLock,
-      fetch_success: metrics.fetchSuccess,
-      fetch_fail: metrics.fetchFail,
-      http_retries: metrics.httpRetries,
-      rate_limit_hits: metrics.rateLimitHits,
-      unhandled_rejections: metrics.unhandledRejections,
-      uncaught_exceptions: metrics.uncaughtExceptions,
-      cache_single_size: sizes.single,
-      cache_dlc_size: sizes.dlc,
-      cache_guild_settings_size: getGuildCacheSize(),
-      cache_updates_valid: sizes.updatesValid,
-      cache_deals_valid: sizes.dealsValid
-    }, null, 2));
-  }
-  res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("OK\n");
-}).listen(PORT, "0.0.0.0", () => {
-  let mode = "PRIVAT";
-  if (METRICS_TOKEN) mode = "cu METRICS_TOKEN";
-  else if (METRICS_PUBLIC) mode = "PUBLIC (opt-in)";
-  logger("INFO", "WEB", `Server healthcheck pornit pe portul ${PORT} — /metrics: ${mode}`);
-});
-// -------------------------------------------------------------
-// PROCESS HANDLERS
-// -------------------------------------------------------------
+let cronTimerId = null;
+let heartbeatTimerId = null;
 let isShuttingDown = false;
-const gracefulShutdown = async (signal) => {
+let currentCronAbortController = null;
+let currentCronToken = null;
+
+function shouldAbortCron() {
+  return isShuttingDown || (currentCronAbortController?.signal.aborted ?? false);
+}
+
+async function runCronCycle() {
   if (isShuttingDown) return;
-  isShuttingDown = true;
-  logger("WARN", "SHUTDOWN", `Se oprește procesul (${signal})...`);
-  const hardExit = setTimeout(() => {
-    logger("ERROR", "SHUTDOWN", "Hard exit (timeout)");
-    process.exit(1);
-  }, 8000);
-  if (typeof hardExit.unref === "function") hardExit.unref();
-  try {
-    for (const [jobName, token] of activeLocks.entries()) await releaseDbLock(jobName, token);
-    if (mongoose.connection.readyState === 1) await mongoose.connection.close();
-    client.destroy();
-    clearTimeout(hardExit);
-    process.exit(0);
-  } catch (err) {
-    logger("ERROR", "SHUTDOWN", "Eroare la închidere", err.message);
-    process.exit(1);
-  }
-};
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));
-process.on("unhandledRejection", (reason) => {
-  metrics.unhandledRejections++;
-  const detail = reason instanceof Error ? (reason.stack || reason.message) : String(reason);
-  logger("ERROR", "PROCESS", "Unhandled promise rejection", detail);
-});
-process.on("uncaughtException", (err) => {
-  metrics.uncaughtExceptions++;
-  logger("ERROR", "PROCESS", "Uncaught exception — închidere graceful", err.stack ||
-err.message);
-  gracefulShutdown("uncaughtException");
-});
-// -------------------------------------------------------------
-// CACHE CLEANUP
-// -------------------------------------------------------------
-commands.startCacheCleaner();
-const guildCleaner = setInterval(cleanGuildCache, 5 * 60 * 1000);
-if (typeof guildCleaner.unref === "function") guildCleaner.unref();
-// -------------------------------------------------------------
-// CRON LOOP
-// -------------------------------------------------------------
-let isRunningCron = false;
-async function runChecks() {
-  if (isRunningCron) {
-    return logger("WARN", "CRON", "Jobul anterior încă rulează pe această instanță, sar peste
-ciclul actual.");
-  }
-  isRunningCron = true;
-  commands.cleanCache();
-  const lockToken = await acquireDbLock("main_cron_job", 120000);
-  if (!lockToken) {
-    metrics.cronAbortedNoLock++;
-    logger("INFO", "CRON", "Lock-ul DB e deținut de altă instanță, sar peste acest ciclu.");
-    isRunningCron = false;
+  if (mongoose.connection.readyState !== 1) {
+    logger("WARN", "CRON", "Mongo nu e conectat, sar peste ciclul curent");
+    scheduleNextCron();
     return;
   }
-  let lockLost = false;
-  const shouldAbort = () => lockLost;
-  let consecutiveRenewFails = 0;
-  const hb = setInterval(async () => {
-    const ok = await renewDbLock("main_cron_job", lockToken, 120000).catch(() => false);
-    if (ok) { consecutiveRenewFails = 0; return; }
-    consecutiveRenewFails++;
-    logger("WARN", "CRON", `Heartbeat lock eșuat (${consecutiveRenewFails}/2)`);
-    if (consecutiveRenewFails >= 2 && !lockLost) {
-      lockLost = true;
-      metrics.cronAbortedNoLock++;
-      logger("ERROR", "CRON", "Pierdut lock-ul DB după 2 renew eșuate consecutiv — abortez
-jobul.");
-      clearInterval(hb);
-      adminAlert("cron:lock-lost", "Cron a pierdut lock-ul DB",
-        "Heartbeat-ul de lock a eșuat de 2 ori consecutiv. Jobul curent va fi abortat și o altă
-instanță poate prelua.")
-        .catch(() => null);
-    }
-  }, 60000);
-  const startedAt = Date.now();
+  if (!client.isReady()) {
+    logger("WARN", "CRON", "Discord client nu e ready, sar peste ciclu");
+    scheduleNextCron();
+    return;
+  }
+
+  const lockToken = await acquireDbLock("cron_main", CRON_LOCK_TTL_MS);
+  if (!lockToken) {
+    metrics.cronSkippedDueToLock++;
+    logger("INFO", "CRON", "Lock cron deținut de altă instanță, sar peste ciclu");
+    scheduleNextCron();
+    return;
+  }
+  currentCronToken = lockToken;
+  currentCronAbortController = new AbortController();
+
+  startHeartbeat(lockToken);
+
+  metrics.cronRuns++;
+  const cycleStart = performance.now();
   try {
-    await commands.checkForUpdates(client, games, shouldAbort);
-    if (lockLost) {
-      logger("WARN", "CRON", "Sar peste checkForDiscounts pentru că lock-ul a fost pierdut.");
+    logger("INFO", "CRON", `Pornire ciclu cron #${metrics.cronRuns}`);
+    await Promise.all([
+      commands.checkForUpdates(client, games, shouldAbortCron),
+      commands.checkForDiscounts(client, shouldAbortCron)
+    ]);
+    if (currentCronAbortController.signal.aborted) {
+      metrics.cronAborted++;
+      logger("WARN", "CRON", "Ciclu abandonat (shutdown sau abort)");
     } else {
-      await commands.checkForDiscounts(client, shouldAbort);
+      const ms = Math.round(performance.now() - cycleStart);
+      logger("INFO", "CRON", `Ciclu cron #${metrics.cronRuns} finalizat în ${ms}ms`);
     }
-    metrics.cronRuns++;
   } catch (err) {
     metrics.cronErrors++;
-    logger("ERROR", "CRON", "Eroare loop principal", err.message);
-    adminAlert("cron:error", "Eroare în ciclul de cron",
-      `Mesaj: ${err.message}\nStack:\n${err.stack || "(no stack)"}`).catch(() => null);
+    logger("ERROR", "CRON", `Eroare în ciclul cron #${metrics.cronRuns}`, err.stack || err.message);
+    adminAlert("cron:fatal", `Eroare cron ciclu #${metrics.cronRuns}`, err.message).catch(() => null);
   } finally {
-    metrics.lastCronAt = new Date().toISOString();
-    metrics.lastCronDurationMs = Date.now() - startedAt;
-    clearInterval(hb);
-    if (!lockLost) await releaseDbLock("main_cron_job", lockToken);
-    isRunningCron = false;
+    stopHeartbeat();
+    await releaseDbLock("cron_main", lockToken).catch(() => null);
+    currentCronToken = null;
+    currentCronAbortController = null;
+    if (!isShuttingDown) scheduleNextCron();
   }
 }
-client.once("ready", () => {
-  logger("INFO", "DISCORD", `Bot online: ${client.user.tag}`);
-  runChecks().catch(err => logger("ERROR", "CRON", "Eroare la runChecks inițial", err.message));
-  const min = Number(config.checkIntervalMinutes || 30);
-  let cronExpr;
-  if (min === 60) cronExpr = "0 * * * *";
-  else if (ALLOWED_CRON_INTERVALS.includes(min)) cronExpr = `*/${min} * * * *`;
-  else { logger("WARN", "CRON", `Interval neuzual ${min}, fallback la 30 minute.`); cronExpr =
-"*/30 * * * *"; }
-  if (!cron.validate(cronExpr)) {
-    logger("ERROR", "CRON", `Expresie cron invalidă "${cronExpr}", fallback la "*/30 * * * *"`);
-    cronExpr = "*/30 * * * *";
-  }
-  logger("INFO", "CRON", `Programat cu expresia: ${cronExpr}`);
-  cron.schedule(cronExpr, runChecks);
-});
-// -------------------------------------------------------------
-// MESSAGE HANDLER
-// -------------------------------------------------------------
-client.on("messageCreate", async (message) => {
-  if (message.author.bot || !message.guild || !message.content.startsWith(commands.PREFIX))
-return;
-  const rawContent = message.content.slice(commands.PREFIX.length).trim();
-  const rawMatches = rawContent.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
-  const rawArgs = rawMatches.map(arg => arg.replace(/^["']|["']$/g, ""));
-  const command = (rawArgs.shift() || "").toLowerCase();
-  const subCommand = (rawArgs[0] || "").toLowerCase();
-  try {
-    if (command === "ping") return message.reply("Pong! \u{1F4CD}");
-    if (command === "games" || command === "porecle") return
-commands.handleGamesCommand(message, games);
-    if (command === "start") return commands.handleStart(message, subCommand, message.guild.id,
-games);
-    if (command === "stop") return commands.handleStop(message, subCommand, message.guild.id);
-    if (command === "set") return commands.handleSetCommand(message, rawArgs, message.guild.id);
-    if (command === "latest") {
-      if (subCommand === "updates") return commands.handleLatestUpdates(message, games);
-      if (subCommand === "reduceri") return commands.handleLatestDeals(message);
-      if (subCommand === "pret") return commands.handlePriceSearch(message,
-rawArgs.slice(1).join(" "));
-      if (subCommand === "update") return commands.handleLatestSingle(message,
-rawArgs.slice(1).join(" "), games);
+
+function scheduleNextCron() {
+  if (isShuttingDown) return;
+  if (cronTimerId) clearTimeout(cronTimerId);
+  cronTimerId = setTimeout(runCronCycle, CRON_INTERVAL_MS);
+  if (typeof cronTimerId.unref === "function") cronTimerId.unref();
+}
+
+function startHeartbeat(lockToken) {
+  stopHeartbeat();
+  const tick = async () => {
+    if (isShuttingDown || currentCronToken !== lockToken) return;
+    try {
+      const renewed = await renewDbLock("cron_main", lockToken, CRON_LOCK_TTL_MS);
+      if (!renewed) {
+        logger("WARN", "CRON_HEARTBEAT", "Lock-ul cron nu a putut fi reînnoit, anulez ciclul");
+        if (currentCronAbortController) currentCronAbortController.abort();
+        return;
+      }
+    } catch (err) {
+      logger("WARN", "CRON_HEARTBEAT", "Eroare la reînnoirea lock-ului", err.message);
     }
-    if (command === "dlc") return commands.handleDlcSearch(message, rawArgs.join(" "));
-    if (command === "status") return commands.handleStatus(message, rawArgs.join(" "), games);
-    if (command === "help") return message.reply({ embeds: [commands.buildHelpEmbed()] });
+    if (!isShuttingDown && currentCronToken === lockToken) {
+      heartbeatTimerId = setTimeout(tick, HEARTBEAT_INTERVAL_MS);
+      if (typeof heartbeatTimerId.unref === "function") heartbeatTimerId.unref();
+    }
+  };
+  heartbeatTimerId = setTimeout(tick, HEARTBEAT_INTERVAL_MS);
+  if (typeof heartbeatTimerId.unref === "function") heartbeatTimerId.unref();
+}
+
+function stopHeartbeat() {
+  if (heartbeatTimerId) {
+    clearTimeout(heartbeatTimerId);
+    heartbeatTimerId = null;
+  }
+}
+
+// -------------------------------------------------------------
+// HOUSEKEEPING (V8: consolidat — cache cleaner + guild cache + enriched cache)
+// -------------------------------------------------------------
+let housekeepingTimerId = null;
+
+function startHousekeeping() {
+  const tick = () => {
+    try { commands.cleanCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanCache eroare", e.message); }
+    try { cleanGuildCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanGuildCache eroare", e.message); }
+    try { scrapers.cleanEnrichedCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanEnrichedCache eroare", e.message); }
+  };
+  housekeepingTimerId = setInterval(tick, env.HOUSEKEEPING_INTERVAL_MS);
+  if (typeof housekeepingTimerId.unref === "function") housekeepingTimerId.unref();
+  logger("INFO", "HOUSEKEEPING", `Pornit interval=${env.HOUSEKEEPING_INTERVAL_MS}ms`);
+}
+
+function stopHousekeeping() {
+  if (housekeepingTimerId) {
+    clearInterval(housekeepingTimerId);
+    housekeepingTimerId = null;
+  }
+}
+
+// -------------------------------------------------------------
+// HTTP SERVER — health + metrics
+// -------------------------------------------------------------
+function timingSafeEqualStr(a, b) {
+  const bufA = Buffer.from(String(a || ""));
+  const bufB = Buffer.from(String(b || ""));
+  if (bufA.length !== bufB.length) return false;
+  try { return crypto.timingSafeEqual(bufA, bufB); } catch { return false; }
+}
+
+function checkMetricsAuth(req) {
+  if (!env.isProd && !env.METRICS_TOKEN) return true;
+  if (env.METRICS_PUBLIC && !env.METRICS_TOKEN) return true;
+  if (!env.METRICS_TOKEN) return false;
+  const auth = req.headers["authorization"] || "";
+  const expected = `Bearer ${env.METRICS_TOKEN}`;
+  return timingSafeEqualStr(auth, expected);
+}
+
+const httpServer = http.createServer((req, res) => {
+  if (req.url === "/health" || req.url === "/healthz") {
+    const ok = mongoose.connection.readyState === 1 && client.isReady();
+    res.writeHead(ok ? 200 : 503, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      status: ok ? "ok" : "degraded",
+      mongo: mongoose.connection.readyState,
+      discord: client.isReady() ? "ready" : "not-ready",
+      uptimeMs: Date.now() - metrics.startedAt
+    }));
+    return;
+  }
+  if (req.url === "/metrics") {
+    if (!checkMetricsAuth(req)) {
+      res.writeHead(401, { "Content-Type": "text/plain" });
+      res.end("Unauthorized");
+      return;
+    }
+    const cacheSizes = commands.getCacheSizes();
+    const lines = [
+      `# HELP bot_uptime_seconds Bot uptime`,
+      `# TYPE bot_uptime_seconds counter`,
+      `bot_uptime_seconds ${Math.floor((Date.now() - metrics.startedAt) / 1000)}`,
+      `# HELP bot_fetch_success Fetch reușite`,
+      `# TYPE bot_fetch_success counter`,
+      `bot_fetch_success ${metrics.fetchSuccess}`,
+      `# HELP bot_fetch_fail Fetch eșuate`,
+      `# TYPE bot_fetch_fail counter`,
+      `bot_fetch_fail ${metrics.fetchFail}`,
+      `# HELP bot_http_retries HTTP retries`,
+      `# TYPE bot_http_retries counter`,
+      `bot_http_retries ${metrics.httpRetries}`,
+      `# HELP bot_rate_limit_hits Rate limit hits`,
+      `# TYPE bot_rate_limit_hits counter`,
+      `bot_rate_limit_hits ${metrics.rateLimitHits}`,
+      `# HELP bot_cron_runs Cron runs`,
+      `# TYPE bot_cron_runs counter`,
+      `bot_cron_runs ${metrics.cronRuns}`,
+      `# HELP bot_cron_errors Cron errors`,
+      `# TYPE bot_cron_errors counter`,
+      `bot_cron_errors ${metrics.cronErrors}`,
+      `# HELP bot_cron_skipped_due_to_lock Cron skipped`,
+      `# TYPE bot_cron_skipped_due_to_lock counter`,
+      `bot_cron_skipped_due_to_lock ${metrics.cronSkippedDueToLock}`,
+      `# HELP bot_cron_aborted Cron aborted`,
+      `# TYPE bot_cron_aborted counter`,
+      `bot_cron_aborted ${metrics.cronAborted}`,
+      `# HELP bot_cache_single Cache single size`,
+      `# TYPE bot_cache_single gauge`,
+      `bot_cache_single ${cacheSizes.single}`,
+      `# HELP bot_cache_dlc Cache DLC size`,
+      `# TYPE bot_cache_dlc gauge`,
+      `bot_cache_dlc ${cacheSizes.dlc}`,
+      `# HELP bot_cache_updates_valid Updates cache valid`,
+      `# TYPE bot_cache_updates_valid gauge`,
+      `bot_cache_updates_valid ${cacheSizes.updatesValid ? 1 : 0}`,
+      `# HELP bot_cache_deals_currencies_valid Deals cache currencies count`,
+      `# TYPE bot_cache_deals_currencies_valid gauge`,
+      `bot_cache_deals_currencies_valid ${cacheSizes.dealsCurrenciesValid}`,
+      `# HELP bot_cache_user_cooldowns User cooldowns size`,
+      `# TYPE bot_cache_user_cooldowns gauge`,
+      `bot_cache_user_cooldowns ${cacheSizes.userCooldowns}`,
+      `# HELP bot_cache_guild_settings Guild settings cache size`,
+      `# TYPE bot_cache_guild_settings gauge`,
+      `bot_cache_guild_settings ${getGuildCacheSize()}`,
+      `# HELP bot_cache_enriched_deals_size Enriched deals cache size`,
+      `# TYPE bot_cache_enriched_deals_size gauge`,
+      `bot_cache_enriched_deals_size ${scrapers.getEnrichedCacheSize()}`,
+      `# HELP bot_active_locks Active distributed locks`,
+      `# TYPE bot_active_locks gauge`,
+      `bot_active_locks ${activeLocks.size}`
+    ];
+    res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4" });
+    res.end(lines.join("\n") + "\n");
+    return;
+  }
+  res.writeHead(404, { "Content-Type": "text/plain" });
+  res.end("Not Found");
+});
+
+// -------------------------------------------------------------
+// DISCORD EVENTS
+// -------------------------------------------------------------
+client.once("ready", async () => {
+  logger("INFO", "DISCORD", `Conectat ca ${client.user.tag}`);
+  try {
+    await commands.registerSlashCommands(env.DISCORD_TOKEN, env.DISCORD_CLIENT_ID);
   } catch (err) {
-    logger("ERROR", "MSG_HANDLER", "Eroare în handler-ul de comenzi", err.stack || err.message);
-    try { await message.reply("\u274C Eroare neașteptată la procesarea comenzii."); } catch {}
+    logger("ERROR", "DISCORD", "Eșec înregistrare slash commands", err.message);
+    adminAlert("slash:register-failed", "Slash commands nu au putut fi înregistrate", err.message).catch(() => null);
+  }
+  startHousekeeping();
+  scheduleNextCron();
+});
+
+client.on("interactionCreate", async (interaction) => {
+  try { await commands.handleInteraction(interaction, games); }
+  catch (err) {
+    logger("ERROR", "INTERACTION", "Eroare top-level la interactionCreate", err.stack || err.message);
   }
 });
+
+client.on("error", (err) => logger("ERROR", "DISCORD", "Eroare client Discord", err.message));
+client.on("warn", (msg) => logger("WARN", "DISCORD", msg));
+client.on("shardError", (err) => logger("ERROR", "DISCORD", "Shard error", err.message));
+
+// -------------------------------------------------------------
+// MONGO EVENTS
+// -------------------------------------------------------------
+mongoose.connection.on("connected", () => logger("INFO", "DB", "Conectat la MongoDB"));
+mongoose.connection.on("disconnected", () => logger("WARN", "DB", "Deconectat de la MongoDB"));
+mongoose.connection.on("error", (err) => logger("ERROR", "DB", "Eroare MongoDB", err.message));
+mongoose.connection.on("reconnected", () => logger("INFO", "DB", "Reconectat la MongoDB"));
+
+// -------------------------------------------------------------
+// SHUTDOWN
+// -------------------------------------------------------------
+async function shutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  logger("INFO", "SHUTDOWN", `Semnal primit: ${signal}, închidere...`);
+
+  if (currentCronAbortController) currentCronAbortController.abort();
+  if (cronTimerId) clearTimeout(cronTimerId);
+  stopHeartbeat();
+  stopHousekeeping();
+
+  // Eliberare lock-uri active
+  for (const [jobName, token] of activeLocks.entries()) {
+    try { await releaseDbLock(jobName, token); }
+    catch (err) { logger("WARN", "SHUTDOWN", `Eroare la eliberare lock ${jobName}`, err.message); }
+  }
+
+  // V8 (#15): drain delay între eliberarea lock-urilor și destroy client
+  // — dă timp comenzilor în zbor să răspundă
+  if (env.SHUTDOWN_DRAIN_MS > 0) {
+    logger("INFO", "SHUTDOWN", `Drain ${env.SHUTDOWN_DRAIN_MS}ms pentru comenzi în zbor`);
+    await new Promise(r => setTimeout(r, env.SHUTDOWN_DRAIN_MS));
+  }
+
+  try { client.destroy(); } catch (err) { logger("WARN", "SHUTDOWN", "Eroare destroy client", err.message); }
+  try { await mongoose.connection.close(); } catch (err) { logger("WARN", "SHUTDOWN", "Eroare închidere mongo", err.message); }
+  try { httpServer.close(); } catch { /* ignore */ }
+
+  logger("INFO", "SHUTDOWN", "Închidere completă.");
+  setTimeout(() => process.exit(0), 500).unref();
+}
+
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("uncaughtException", (err) => {
+  logger("ERROR", "PROCESS", "uncaughtException", err.stack || err.message);
+  adminAlert("process:uncaught", "uncaughtException", err.stack || err.message).catch(() => null);
+});
+process.on("unhandledRejection", (reason) => {
+  logger("ERROR", "PROCESS", "unhandledRejection", reason?.stack || String(reason));
+  adminAlert("process:unhandled", "unhandledRejection", String(reason)).catch(() => null);
+});
+
 // -------------------------------------------------------------
 // BOOTSTRAP
 // -------------------------------------------------------------
-async function bootstrap() {
+(async () => {
   try {
-    await mongoose.connect(env.MONGO_URI, { serverSelectionTimeoutMS: 5000, socketTimeoutMS:
-45000 });
+    await mongoose.connect(env.MONGO_URI, {
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000
+    });
+    const ready = await waitForMongoReady(15000);
+    if (!ready) {
+      logger("ERROR", "BOOT", "Mongo nu a devenit ready, exit");
+      process.exit(1);
+    }
+    httpServer.listen(env.PORT, () => {
+      logger("INFO", "HTTP", `Server pornit pe portul ${env.PORT}`);
+    });
     await client.login(env.DISCORD_TOKEN);
   } catch (err) {
-    logger("ERROR", "BOOTSTRAP", "Eroare la pornire", err.message);
+    logger("ERROR", "BOOT", "Eroare la bootstrap", err.stack || err.message);
     process.exit(1);
   }
-}
-bootstrap();
+})();
