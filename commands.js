@@ -181,7 +181,7 @@ function smoothTime(oldMs, newMs, alpha = 0.3) {
 function formatUserError(err, defaultMsg = "A aparut o eroare interna.", errorCode = null) {
   if (err) logger("WARN", "USER_COMMAND", `${defaultMsg}${errorCode ? ` [${errorCode}]` : ""}`, err.stack || err.message || err);
   const suffix = errorCode ? ` \`[${errorCode}]\`` : "";
-  return `[X] ${defaultMsg}${suffix}`;
+  return `Eroare: ${defaultMsg}${suffix}`;
 }
 
 function canSendEmbeds(channel, botId) {
@@ -194,7 +194,15 @@ function canSendEmbeds(channel, botId) {
 }
 
 function missingChannelPermsMessage() {
-  return "[X] Nu pot activa notificarile pe acest canal. Am nevoie de permisiunile **Send Messages** si **Embed Links**.";
+  return "Eroare: Nu pot activa notificarile pe acest canal. Am nevoie de permisiunile **Send Messages** si **Embed Links**.";
+}
+
+function operationalUpdateOptions() {
+  return { strict: false };
+}
+
+function makeActivationId() {
+  return crypto.randomBytes(8).toString("hex");
 }
 
 async function sleepIfPositive(ms) {
@@ -269,7 +277,7 @@ function rotateAfter(keys, lastKey) {
 async function enforceCooldown(interaction, command) {
   const { allowed, remainingMs } = checkUserCooldown(interaction.user?.id, command);
   if (allowed) return true;
-  const msg = `[COOLDOWN] Comanda \`${command}\` are cooldown. Reincearca in **${Math.ceil(remainingMs / 1000)}s**.`;
+  const msg = `Cooldown: Comanda \`${command}\` are cooldown. Reincearca in **${Math.ceil(remainingMs / 1000)}s**.`;
   if (interaction.deferred || interaction.replied) await interaction.editReply(msg).catch(() => null);
   else await interaction.reply({ content: msg, flags: MessageFlags.Ephemeral }).catch(() => null);
   return false;
@@ -354,11 +362,11 @@ function buildDealEmbed(deal, mode = "detailed", currency) {
   embed.setAuthor({ name: truncate(deal.store, 256) })
     .setDescription(truncate(`**${deal.store}** ofera o reducere de **${deal.savings}%**!\n\n`
       + statsStr + (deal.endDateStr && deal.endDateStr !== "Nespecificat"
-        ? `[WAIT] **${isFree ? "Gratis pana la" : "Expira la"}:** ${deal.endDateStr}\n\n`
+        ? `Se incarca: **${isFree ? "Gratis pana la" : "Expira la"}:** ${deal.endDateStr}\n\n`
         : ""), 4096))
     .addFields(
       { name: "Pret Vechi", value: `~~${formatPrice(deal.normalPrice, cur)}~~`, inline: true },
-      { name: "Pret Nou", value: isFree ? "HOT GRATUIT HOT" : formatPrice(deal.salePrice, cur), inline: true },
+      { name: "Pret Nou", value: isFree ? "GRATUIT" : formatPrice(deal.salePrice, cur), inline: true },
       { name: "Link", value: `[Apasa aici](${deal.link})`, inline: false }
     );
   if (deal.thumbnail && deal.thumbnail.startsWith("http")) embed.setThumbnail(deal.thumbnail);
@@ -485,13 +493,13 @@ async function fetchGameStatus(game) {
 
   const embed = new EmbedBuilder()
     .setColor(color)
-    .setTitle(`Status Status Servere: ${game.name}`)
+    .setTitle(`Status servere: ${game.name}`)
     .setDescription(statusText);
   if (statusLink) {
-    embed.addFields({ name: "Link Pagina oficiala de status", value: `[Verifica statusul aici](${statusLink})` });
+    embed.addFields({ name: "Pagina oficiala de status", value: `[Verifica statusul aici](${statusLink})` });
   } else if (homepageLink && homepageLink.startsWith("http")) {
     embed.addFields({
-      name: "Home Pagina principala / fallback",
+      name: "Pagina principala / fallback",
       value: `[Acceseaza homepage](${homepageLink})\n*(Acesta nu este un API live de status.)`
     });
   }
@@ -519,7 +527,7 @@ function buildSteamPriceEmbed(gameData, appId, offerEndDate, currency) {
     const currentPrice = (priceOverview.final / 100).toFixed(2);
     if (priceOverview.discount_percent > 0) {
       embedDesc += `Este o reducere activa de **${priceOverview.discount_percent}%**!\n\n~~${formatPrice(normalPrice, cur)}~~ -> **${formatPrice(currentPrice, cur)}**`;
-      embedDesc += `\n[WAIT] **Oferta expira la:** ${offerEndDate || "Nespecificat"}`;
+      embedDesc += `\nSe incarca: **Oferta expira la:** ${offerEndDate || "Nespecificat"}`;
       color = 0xe74c3c;
     } else {
       embedDesc += `Nu este la reducere in acest moment.\n\nPret standard: **${formatPrice(normalPrice, cur)}**`;
@@ -529,28 +537,59 @@ function buildSteamPriceEmbed(gameData, appId, offerEndDate, currency) {
 
   const embed = new EmbedBuilder()
     .setColor(color)
-    .setTitle(`Price Pret curent pe Steam: ${gameData.name}`)
+    .setTitle(`Pret curent pe Steam: ${gameData.name}`)
     .setURL(`https://store.steampowered.com/app/${appId}`)
     .setDescription(embedDesc);
   if (gameData.header_image) embed.setImage(gameData.header_image);
   return embed;
 }
 
-async function persistSeenUpdate(guildId, channelId, gameKey, updateId) {
+async function claimSeenUpdate(guildId, channelId, gameKey, updateId) {
   return GuildModel.updateOne(
-    { _id: guildId, subscribed: true, notificationChannelId: channelId },
+    {
+      _id: guildId,
+      subscribed: true,
+      notificationChannelId: channelId,
+      updatesInitializing: { $ne: true },
+      [`seen.${gameKey}`]: { $ne: updateId }
+    },
     {
       $push: { [`seen.${gameKey}`]: { $each: [updateId], $slice: -SEEN_PER_GAME_LIMIT } },
       $pull: { [`pendingUpdates.${gameKey}`]: { id: updateId } },
       $set: { lastProcessedGameKey: gameKey }
-    }
+    },
+    operationalUpdateOptions()
+  );
+}
+
+async function rollbackSeenUpdate(guildId, gameKey, updateId) {
+  return GuildModel.updateOne(
+    { _id: guildId },
+    { $pull: { [`seen.${gameKey}`]: updateId } }
+  );
+}
+
+async function disableUpdatesForChannelError(guildId, channelId, message) {
+  return GuildModel.updateOne(
+    { _id: guildId },
+    {
+      $set: {
+        subscribed: false,
+        notificationChannelId: null,
+        updatesInitializing: false,
+        updatesLastError: { message, channelId, at: new Date() }
+      }
+    },
+    operationalUpdateOptions()
   );
 }
 
 async function processGuildUpdates(client, guild, latestResults) {
   const channel = await client.channels.fetch(guild.notificationChannelId).catch(() => null);
   if (!canSendEmbeds(channel, client.user.id)) {
-    logger("WARN", "CRON_UPDATES", `Canal invalid sau fara permisiuni pentru guild ${guild._id}`);
+    const message = "Canal invalid sau fara permisiuni Send Messages/Embed Links.";
+    await disableUpdatesForChannelError(String(guild._id), guild.notificationChannelId, message).catch(() => null);
+    logger("WARN", "CRON_UPDATES", `${message} Guild ${guild._id}`);
     return;
   }
 
@@ -591,14 +630,19 @@ async function processGuildUpdates(client, guild, latestResults) {
     const queue = pendingByGame.get(gameKey);
     const next = queue.shift();
     const game = latestResults.find(r => r.game.key === gameKey)?.game || { name: gameKey };
+    const claim = await claimSeenUpdate(String(guild._id), channel.id, gameKey, next.id);
+    if (claim.matchedCount === 0) {
+      if (queue.length) pendingByGame.set(gameKey, queue);
+      else pendingByGame.delete(gameKey);
+      continue;
+    }
     try {
       await channel.send({ embeds: [buildUpdateEmbed(game.name, next, guild.notificationMode || "detailed")] });
-      const res = await persistSeenUpdate(String(guild._id), channel.id, gameKey, next.id);
-      if (res.matchedCount === 0) break;
       sentCount++;
       lastProcessedGameKey = gameKey;
       await sleepIfPositive(DISCORD_SEND_DELAY_MS);
     } catch (err) {
+      await rollbackSeenUpdate(String(guild._id), gameKey, next.id).catch(() => null);
       next.attempts = (next.attempts || 0) + 1;
       if (next.attempts < PENDING_UPDATE_MAX_ATTEMPTS) queue.unshift(next);
       logger("WARN", "CRON_UPDATES", `Nu am putut trimite update pentru ${gameKey}`, err.message);
@@ -628,7 +672,11 @@ async function checkForUpdates(client, games, shouldAbort = null) {
     return;
   }
   if (shouldAbort?.()) return;
-  const guilds = await GuildModel.find({ subscribed: true, notificationChannelId: { $ne: null } }).lean();
+  const guilds = await GuildModel.find({
+    subscribed: true,
+    notificationChannelId: { $ne: null },
+    updatesInitializing: { $ne: true }
+  }).lean();
   await runConcurrent(guilds, GUILD_PROCESS_CONCURRENCY, async (guild) => {
     if (!shouldAbort?.()) await processGuildUpdates(client, guild, latestResults);
   }, {
@@ -636,20 +684,51 @@ async function checkForUpdates(client, games, shouldAbort = null) {
   });
 }
 
-async function persistSeenDiscount(guildId, channelId, hash) {
+async function claimSeenDiscount(guildId, channelId, hash) {
   return GuildModel.updateOne(
-    { _id: guildId, discountsSubscribed: true, discountChannelId: channelId },
+    {
+      _id: guildId,
+      discountsSubscribed: true,
+      discountChannelId: channelId,
+      discountsInitializing: { $ne: true },
+      seenDiscounts: { $ne: hash }
+    },
     {
       $push: { seenDiscounts: { $each: [hash], $slice: -DEALS_HISTORY_LIMIT } },
       $pull: { pendingDiscounts: { hash } }
-    }
+    },
+    operationalUpdateOptions()
+  );
+}
+
+async function rollbackSeenDiscount(guildId, hash) {
+  return GuildModel.updateOne(
+    { _id: guildId },
+    { $pull: { seenDiscounts: hash } }
+  );
+}
+
+async function disableDiscountsForChannelError(guildId, channelId, message) {
+  return GuildModel.updateOne(
+    { _id: guildId },
+    {
+      $set: {
+        discountsSubscribed: false,
+        discountChannelId: null,
+        discountsInitializing: false,
+        discountsLastError: { message, channelId, at: new Date() }
+      }
+    },
+    operationalUpdateOptions()
   );
 }
 
 async function processGuildDiscounts(client, guild, deals) {
   const channel = await client.channels.fetch(guild.discountChannelId).catch(() => null);
   if (!canSendEmbeds(channel, client.user.id)) {
-    logger("WARN", "CRON_DISCOUNTS", `Canal invalid sau fara permisiuni pentru guild ${guild._id}`);
+    const message = "Canal invalid sau fara permisiuni Send Messages/Embed Links.";
+    await disableDiscountsForChannelError(String(guild._id), guild.discountChannelId, message).catch(() => null);
+    logger("WARN", "CRON_DISCOUNTS", `${message} Guild ${guild._id}`);
     return;
   }
 
@@ -685,14 +764,17 @@ async function processGuildDiscounts(client, guild, deals) {
       remaining.push(...pending.slice(i));
       break;
     }
+    let claimed = false;
     try {
       const dealToSend = await enrichDealData(item.snapshot, guild.currency || DEFAULT_CURRENCY);
+      const claim = await claimSeenDiscount(String(guild._id), channel.id, item.hash);
+      if (claim.matchedCount === 0) continue;
+      claimed = true;
       await channel.send({ embeds: [buildDealEmbed(dealToSend, guild.notificationMode || "detailed", guild.currency || DEFAULT_CURRENCY)] });
-      const res = await persistSeenDiscount(String(guild._id), channel.id, item.hash);
-      if (res.matchedCount === 0) break;
       sentCount++;
       await sleepIfPositive(DISCORD_SEND_DELAY_MS);
     } catch (err) {
+      if (claimed) await rollbackSeenDiscount(String(guild._id), item.hash).catch(() => null);
       const retry = { ...item, attempts: (item.attempts || 0) + 1 };
       if (retry.attempts < PENDING_DISCOUNT_MAX_ATTEMPTS) remaining.push(retry);
       remaining.push(...pending.slice(i + 1));
@@ -709,7 +791,11 @@ async function processGuildDiscounts(client, guild, deals) {
 
 async function checkForDiscounts(client, shouldAbort = null) {
   if (shouldAbort?.()) return;
-  const guilds = await GuildModel.find({ discountsSubscribed: true, discountChannelId: { $ne: null } }).lean();
+  const guilds = await GuildModel.find({
+    discountsSubscribed: true,
+    discountChannelId: { $ne: null },
+    discountsInitializing: { $ne: true }
+  }).lean();
   if (!guilds.length) return;
 
   const dealsPromises = new Map();
@@ -810,7 +896,7 @@ async function handleGamesInteraction(interaction, games) {
     if (g.aliases && g.aliases.length > 0) item += ` *[Alias: ${g.aliases.join(", ")}]*`;
     return item;
   });
-  let currentMsg = "Games **Jocuri urmarite:**\n";
+  let currentMsg = "**Jocuri urmarite:**\n";
   const messages = [];
   for (const line of lines) {
     if (currentMsg.length + line.length > COMMAND_OUTPUT_MAX_CHARS) {
@@ -840,33 +926,66 @@ async function handleStartInteraction(interaction, games) {
 
   if (sub === "updates") {
     try {
+      const activationId = makeActivationId();
       await GuildModel.updateOne(
         { _id: guildId },
-        { $set: { subscribed: true, notificationChannelId: interaction.channel.id, pendingUpdates: {} } },
-        { upsert: true }
+        {
+          $set: {
+            subscribed: true,
+            notificationChannelId: interaction.channel.id,
+            updatesInitializing: true,
+            updatesActivationId: activationId,
+            pendingUpdates: {}
+          },
+          $unset: { updatesLastError: "" }
+        },
+        { upsert: true, ...operationalUpdateOptions() }
       );
       invalidateGuildCache(guildId);
 
-      let baselineOk = true;
       try {
         const results = await getLatestForAllGames(games);
-        const seenPayload = {};
+        const seenPayload = {
+          updatesInitializing: false
+        };
         for (const result of results) {
           if (result.latest) seenPayload[`seen.${result.game.key}`] = [result.latest.id];
         }
-        if (Object.keys(seenPayload).length) {
-          await GuildModel.updateOne(
-            { _id: guildId, subscribed: true, notificationChannelId: interaction.channel.id },
-            { $set: seenPayload }
-          );
+        const activationResult = await GuildModel.updateOne(
+          {
+            _id: guildId,
+            subscribed: true,
+            notificationChannelId: interaction.channel.id,
+            updatesActivationId: activationId
+          },
+          {
+            $set: seenPayload,
+            $unset: { updatesActivationId: "", updatesLastError: "" }
+          },
+          operationalUpdateOptions()
+        );
+        if (activationResult.matchedCount === 0) {
+          return safeEdit(interaction, "Activarea update-urilor a fost intrerupta de o comanda stop/start mai noua. Ruleaza din nou /start updates daca mai vrei activarea.");
         }
+        return safeEdit(interaction, "OK: Update-uri automate activate.");
       } catch (err) {
-        baselineOk = false;
+        await GuildModel.updateOne(
+          { _id: guildId, updatesActivationId: activationId },
+          {
+            $set: {
+              subscribed: false,
+              notificationChannelId: null,
+              updatesInitializing: false,
+              updatesLastError: { message: err.message, channelId: interaction.channel.id, at: new Date() }
+            },
+            $unset: { updatesActivationId: "" }
+          },
+          operationalUpdateOptions()
+        ).catch(() => null);
         logger("WARN", "START_UPDATES", "Activat, dar baseline-ul initial a esuat", err.message);
+        invalidateGuildCache(guildId);
+        return safeEdit(interaction, formatUserError(err, "Nu am activat update-urile fiindca baseline-ul initial nu a putut fi incarcat."));
       }
-      return safeEdit(interaction, baselineOk
-        ? "[OK] Update-uri automate activate."
-        : "[OK] Update-uri automate activate. [WARN] Nu am putut seta baseline-ul initial; urmatorul ciclu va recupera datele.");
     } catch (err) {
       return safeEdit(interaction, formatUserError(err, "Eroare la activarea update-urilor."));
     }
@@ -874,31 +993,67 @@ async function handleStartInteraction(interaction, games) {
 
   if (sub === "reduceri") {
     try {
+      const activationId = makeActivationId();
       const existingGuild = await getGuildSettings(guildId);
       const currency = existingGuild?.currency || DEFAULT_CURRENCY;
       await GuildModel.updateOne(
         { _id: guildId },
-        { $set: { discountsSubscribed: true, discountChannelId: interaction.channel.id, pendingDiscounts: [] } },
-        { upsert: true }
+        {
+          $set: {
+            discountsSubscribed: true,
+            discountChannelId: interaction.channel.id,
+            discountsInitializing: true,
+            discountsActivationId: activationId,
+            pendingDiscounts: []
+          },
+          $unset: { discountsLastError: "" }
+        },
+        { upsert: true, ...operationalUpdateOptions() }
       );
       invalidateGuildCache(guildId);
 
-      let baselineOk = true;
       try {
         const deals = await fetchDeals({ currency });
         const initHashes = deals.map(deal => dealHash(deal)).slice(0, DEALS_HISTORY_LIMIT);
-        await GuildModel.updateOne(
-          { _id: guildId, discountsSubscribed: true, discountChannelId: interaction.channel.id },
-          { $set: { seenDiscounts: initHashes } }
+        const activationResult = await GuildModel.updateOne(
+          {
+            _id: guildId,
+            discountsSubscribed: true,
+            discountChannelId: interaction.channel.id,
+            discountsActivationId: activationId
+          },
+          {
+            $set: {
+              seenDiscounts: initHashes,
+              discountsInitializing: false
+            },
+            $unset: { discountsActivationId: "", discountsLastError: "" }
+          },
+          operationalUpdateOptions()
         );
+        if (activationResult.matchedCount === 0) {
+          return safeEdit(interaction, "Activarea reducerilor a fost intrerupta de o comanda stop/start mai noua. Ruleaza din nou /start reduceri daca mai vrei activarea.");
+        }
         setDealsCache(currency, deals);
+        return safeEdit(interaction, `OK: Alerte reduceri activate pe acest canal. Valuta: **${currency}**.`);
       } catch (err) {
-        baselineOk = false;
+        await GuildModel.updateOne(
+          { _id: guildId, discountsActivationId: activationId },
+          {
+            $set: {
+              discountsSubscribed: false,
+              discountChannelId: null,
+              discountsInitializing: false,
+              discountsLastError: { message: err.message, channelId: interaction.channel.id, at: new Date() }
+            },
+            $unset: { discountsActivationId: "" }
+          },
+          operationalUpdateOptions()
+        ).catch(() => null);
         logger("WARN", "START_DISCOUNTS", "Activat, dar baseline-ul de reduceri a esuat", err.message);
+        invalidateGuildCache(guildId);
+        return safeEdit(interaction, formatUserError(err, "Nu am activat reducerile fiindca baseline-ul initial nu a putut fi incarcat."));
       }
-      return safeEdit(interaction, baselineOk
-        ? `[OK] Alerte reduceri activate pe acest canal. Valuta: **${currency}**.`
-        : `[OK] Alerte reduceri activate pe acest canal. Valuta: **${currency}**. [WARN] Baseline-ul initial nu a putut fi incarcat.`);
     } catch (err) {
       return safeEdit(interaction, formatUserError(err, "Eroare la activarea reducerilor."));
     }
@@ -912,17 +1067,19 @@ async function handleStopInteraction(interaction) {
   try {
     if (sub === "updates") {
       await GuildModel.updateOne({ _id: guildId }, {
-        $set: { subscribed: false, notificationChannelId: null, pendingUpdates: {} }
-      });
+        $set: { subscribed: false, notificationChannelId: null, updatesInitializing: false, pendingUpdates: {} },
+        $unset: { updatesActivationId: "" }
+      }, operationalUpdateOptions());
       invalidateGuildCache(guildId);
-      return safeEdit(interaction, "[STOP] Update-uri oprite.");
+      return safeEdit(interaction, "OK: Update-uri oprite.");
     }
     if (sub === "reduceri") {
       await GuildModel.updateOne({ _id: guildId }, {
-        $set: { discountsSubscribed: false, discountChannelId: null, pendingDiscounts: [] }
-      });
+        $set: { discountsSubscribed: false, discountChannelId: null, discountsInitializing: false, pendingDiscounts: [] },
+        $unset: { discountsActivationId: "" }
+      }, operationalUpdateOptions());
       invalidateGuildCache(guildId);
-      return safeEdit(interaction, "[STOP] Reduceri oprite.");
+      return safeEdit(interaction, "OK: Reduceri oprite.");
     }
   } catch (err) {
     return safeEdit(interaction, formatUserError(err, "Eroare la baza de date."));
@@ -940,26 +1097,26 @@ async function handleSetInteraction(interaction) {
   if (sub === "mode") {
     const value = interaction.options.getString("value");
     updateDoc.notificationMode = value;
-    confirmMsg = `[OK] Mod setat: **${value}**`;
+    confirmMsg = `OK: Mod setat: **${value}**`;
   } else if (sub === "mindiscount") {
     const min = interaction.options.getInteger("value");
     updateDoc.minDiscountPercent = min;
-    confirmMsg = `[OK] Reducere minima: **${min}%**`;
+    confirmMsg = `OK: Reducere minima: **${min}%**`;
     isFilterChange = true;
   } else if (sub === "free") {
     const value = interaction.options.getString("value");
     updateDoc.includeFreeGames = value === "on";
-    confirmMsg = `[OK] Jocuri free: **${value.toUpperCase()}**`;
+    confirmMsg = `OK: Jocuri free: **${value.toUpperCase()}**`;
     isFilterChange = true;
   } else if (sub === "paid") {
     const value = interaction.options.getString("value");
     updateDoc.includePaidDiscounts = value === "on";
-    confirmMsg = `[OK] Oferte platite: **${value.toUpperCase()}**`;
+    confirmMsg = `OK: Oferte platite: **${value.toUpperCase()}**`;
     isFilterChange = true;
   } else if (sub === "currency") {
     const value = interaction.options.getString("value");
     updateDoc.currency = value;
-    confirmMsg = `[OK] Valuta setata: **${value}**`;
+    confirmMsg = `OK: Valuta setata: **${value}**`;
     isFilterChange = true;
   }
   if (isFilterChange) updateDoc.pendingDiscounts = [];
@@ -988,7 +1145,7 @@ async function handleLatestUpdatesInteraction(interaction, games) {
   let data = getUpdatesCacheData();
   if (!data) {
     const estMs = (await getSystemTimes()).all || 35000;
-    await safeEdit(interaction, `[WAIT] *Durata estimata: **${Math.max(1, Math.ceil(estMs / 1000))} secunde***`);
+    await safeEdit(interaction, `Se incarca: *Durata estimata: **${Math.max(1, Math.ceil(estMs / 1000))} secunde***`);
     const startTime = Date.now();
     try {
       data = await getLatestForAllGames(games);
@@ -1004,11 +1161,11 @@ async function handleLatestUpdatesInteraction(interaction, games) {
   const valid = data.filter(r => r.latest !== null);
   if (!valid.length) {
     endLog("no_data");
-    return safeEdit(interaction, "[X] Nu am date disponibile.");
+    return safeEdit(interaction, "Eroare: Nu am date disponibile.");
   }
   const guild = await getGuildSettings(interaction.guild.id);
   const mode = guild?.notificationMode || "detailed";
-  const msg = await safeEdit(interaction, "[OK] Date incarcate!");
+  const msg = await safeEdit(interaction, "OK: Date incarcate!");
   const generateEmbeds = async (page, totalP, currentMode) =>
     valid.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE).map(r =>
       buildUpdateEmbed(r.game.name, r.latest, currentMode).setFooter({ text: `${r.game.name} - Pagina ${page + 1}/${totalP}` })
@@ -1029,7 +1186,7 @@ async function handleLatestDealsInteraction(interaction) {
   let deals = getDealsCacheData(currency);
   if (!deals) {
     const estMs = (await getSystemTimes()).reduceri || 10000;
-    await safeEdit(interaction, `[WAIT] *Durata estimata: **${Math.max(1, Math.ceil(estMs / 1000))} secunde***`);
+    await safeEdit(interaction, `Se incarca: *Durata estimata: **${Math.max(1, Math.ceil(estMs / 1000))} secunde***`);
     const startTime = Date.now();
     try {
       deals = await fetchDeals({ currency });
@@ -1045,9 +1202,9 @@ async function handleLatestDealsInteraction(interaction) {
   const top = deals.filter(d => dealPassesFilters(d, guild)).slice(0, MAX_DEALS);
   if (!top.length) {
     endLog("no_data");
-    return safeEdit(interaction, "[X] Nu am gasit oferte care sa corespunda setarilor serverului.");
+    return safeEdit(interaction, "Eroare: Nu am gasit oferte care sa corespunda setarilor serverului.");
   }
-  const msg = await safeEdit(interaction, "[OK] Oferte incarcate!");
+  const msg = await safeEdit(interaction, "OK: Oferte incarcate!");
   const generateEmbeds = async (page, totalP, currentMode) => {
     const chunk = top.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
     const dealsToRender = currentMode === "compact"
@@ -1066,17 +1223,17 @@ async function handleLatestDealsInteraction(interaction) {
 }
 
 async function handleLatestSingleInteraction(interaction, gameText, games) {
-  if (!gameText) return interaction.reply({ content: "[X] Trebuie sa specifici un joc.", flags: MessageFlags.Ephemeral });
+  if (!gameText) return interaction.reply({ content: "Eroare: Trebuie sa specifici un joc.", flags: MessageFlags.Ephemeral });
   const endLog = startCommandLog(interaction, "latest update", { query: gameText });
   await safeDefer(interaction);
 
   const estMs = (await getSystemTimes()).single || 2000;
-  await safeEdit(interaction, `[WAIT] *Ma conectez... Durata estimata: **${Math.max(1, Math.ceil(estMs / 1000))} secunde**.*`);
+  await safeEdit(interaction, `Se incarca: *Ma conectez... Durata estimata: **${Math.max(1, Math.ceil(estMs / 1000))} secunde**.*`);
   const startTime = Date.now();
   const { game, suggestion } = findGameAndSuggestion(gameText, games);
   if (!game) {
     endLog("not_found", { suggestion: suggestion?.key });
-    let errText = "[X] Nu am gasit jocul.";
+    let errText = "Eroare: Nu am gasit jocul.";
     if (suggestion) errText += ` Te refereai cumva la **${suggestion.name}** (\`${suggestion.key}\`)?`;
     return safeEdit(interaction, errText);
   }
@@ -1094,7 +1251,7 @@ async function handleLatestSingleInteraction(interaction, gameText, games) {
     const guild = await getGuildSettings(interaction.guild.id);
     endLog("ok", { gameKey: game.key });
     return safeEdit(interaction, {
-      content: `[OK] Update **${game.name}**:`,
+      content: `OK: Update **${game.name}**:`,
       embeds: [buildUpdateEmbed(game.name, latest, guild?.notificationMode || "detailed")]
     });
   } catch (err) {
@@ -1104,42 +1261,42 @@ async function handleLatestSingleInteraction(interaction, gameText, games) {
 }
 
 async function handlePriceSearchInteraction(interaction, gameName) {
-  if (!gameName) return interaction.reply({ content: "[X] Trebuie sa specifici un joc.", flags: MessageFlags.Ephemeral });
+  if (!gameName) return interaction.reply({ content: "Eroare: Trebuie sa specifici un joc.", flags: MessageFlags.Ephemeral });
   if (!(await enforceCooldown(interaction, "latest pret"))) return;
   const endLog = startCommandLog(interaction, "latest pret", { query: gameName });
   await safeDefer(interaction);
 
   const guild = await getGuildSettings(interaction.guild.id);
   const currency = guild?.currency || DEFAULT_CURRENCY;
-  await safeEdit(interaction, `[WAIT] *Caut pretul pe Steam pentru **${gameName}**...*`);
+  await safeEdit(interaction, `Se incarca: *Caut pretul pe Steam pentru **${gameName}**...*`);
   try {
     const items = await searchSteamGameByName(gameName, currency);
     if (!items || !items.length) {
       endLog("not_found");
-      return safeEdit(interaction, `[X] Nu am gasit niciun rezultat pe Steam pentru "**${gameName}**".`);
+      return safeEdit(interaction, `Eroare: Nu am gasit niciun rezultat pe Steam pentru "**${gameName}**".`);
     }
     const bestMatch = chooseBestSteamMatch(items, gameName, { forceGameOnly: true });
     if (!bestMatch?.id) {
       endLog("no_match");
-      return safeEdit(interaction, "[X] Nu am putut selecta un rezultat valid de pe Steam.");
+      return safeEdit(interaction, "Eroare: Nu am putut selecta un rezultat valid de pe Steam.");
     }
     const gameData = await fetchSteamPriceDetails(bestMatch.id, currency);
     if (!gameData) {
       endLog("no_details", { appId: bestMatch.id });
-      return safeEdit(interaction, "[X] Am gasit un rezultat, dar detaliile de pret nu sunt disponibile.");
+      return safeEdit(interaction, "Eroare: Am gasit un rezultat, dar detaliile de pret nu sunt disponibile.");
     }
     const offerEndDate = gameData.price_overview?.discount_percent > 0
       ? await extractSteamOfferEndDate(bestMatch.id)
       : null;
     endLog("ok", { appId: bestMatch.id });
     return safeEdit(interaction, {
-      content: "[OK] Am obtinut datele de pe Steam!",
+      content: "OK: Am obtinut datele de pe Steam!",
       embeds: [buildSteamPriceEmbed(gameData, bestMatch.id, offerEndDate, currency)]
     });
   } catch (err) {
     endLog("error", { errorMsg: err.message });
     logger("ERROR", "PRICE_SEARCH", "Eroare la cautare pret", err.message);
-    return safeEdit(interaction, "[X] A aparut o eroare la cautarea pretului. `[ERR_PRICE_GENERAL]`");
+    return safeEdit(interaction, "Eroare: A aparut o eroare la cautarea pretului. `[ERR_PRICE_GENERAL]`");
   }
 }
 
@@ -1151,18 +1308,18 @@ async function handleDlcInteraction(interaction) {
 
   const guild = await getGuildSettings(interaction.guild.id);
   const currency = guild?.currency || DEFAULT_CURRENCY;
-  await safeEdit(interaction, `[WAIT] *Caut DLC-urile pentru **${gameName}**...*`);
+  await safeEdit(interaction, `Se incarca: *Caut DLC-urile pentru **${gameName}**...*`);
 
   try {
     const items = await searchSteamGameByName(gameName, currency);
     if (!items || !items.length) {
       endLog("not_found");
-      return safeEdit(interaction, `[X] Nu am gasit niciun rezultat pe Steam pentru "**${gameName}**".`);
+      return safeEdit(interaction, `Eroare: Nu am gasit niciun rezultat pe Steam pentru "**${gameName}**".`);
     }
     const bestMatch = chooseBestSteamMatch(items, gameName, { forceGameOnly: true });
     if (!bestMatch?.id) {
       endLog("no_match");
-      return safeEdit(interaction, "[X] Nu am putut selecta un joc valid de pe Steam.");
+      return safeEdit(interaction, "Eroare: Nu am putut selecta un joc valid de pe Steam.");
     }
 
     const cacheKey = `${bestMatch.id}:${currency}`;
@@ -1182,7 +1339,7 @@ async function handleDlcInteraction(interaction) {
       const $ = safeCheerioLoad(htmlRes.data);
       if ($("#agegate_box").length > 0 || $(".agegate_text_container").length > 0 || htmlRes.request?.path?.includes("agecheck")) {
         endLog("age_gate", { appId: bestMatch.id });
-        return safeEdit(interaction, `[X] Pagina de Steam pentru **${title}** necesita verificare de varsta, iar botul nu o poate accesa direct.`);
+        return safeEdit(interaction, `Eroare: Pagina de Steam pentru **${title}** necesita verificare de varsta, iar botul nu o poate accesa direct.`);
       }
 
       const dlcList = [];
@@ -1201,27 +1358,27 @@ async function handleDlcInteraction(interaction) {
         if ($(".game_area_purchase_game").length === 0) {
           logger("WARN", "DLC_SEARCH", "Schema drift suspectat la pagina DLC", { appId: bestMatch.id, query: gameName });
           endLog("parse_error", { appId: bestMatch.id });
-          return safeEdit(interaction, `[X] Structura paginii pentru **${title}** nu a putut fi interpretata.`);
+          return safeEdit(interaction, `Eroare: Structura paginii pentru **${title}** nu a putut fi interpretata.`);
         }
         endLog("no_dlc", { appId: bestMatch.id });
-        return safeEdit(interaction, `[X] Jocul **${title}** nu are niciun DLC listat separat pe magazinul Steam.`);
+        return safeEdit(interaction, `Eroare: Jocul **${title}** nu are niciun DLC listat separat pe magazinul Steam.`);
       }
       dlcData = { dlcList: dlcList.slice(0, 100), title, appId: bestMatch.id, thumbUrl, totalExtracted: dlcList.length };
       cacheSetLRU(cache.dlc, cacheKey, dlcData, CACHE_TTL_MS, DLC_CACHE_MAX_SIZE);
     }
 
     const { dlcList, title, appId, thumbUrl, totalExtracted } = dlcData;
-    const msg = await safeEdit(interaction, `[OK] Am gasit **${totalExtracted}** DLC-uri pentru **${title}**!`);
+    const msg = await safeEdit(interaction, `OK: Am gasit **${totalExtracted}** DLC-uri pentru **${title}**!`);
     const generateEmbeds = async (page, totalP) => {
       const chunk = dlcList.slice(page * DLC_ITEMS_PER_PAGE, (page + 1) * DLC_ITEMS_PER_PAGE);
       const embed = new EmbedBuilder()
         .setColor(0x9b59b6)
-        .setTitle(`DLC DLC-uri: ${title}`)
+        .setTitle(`DLC-uri: ${title}`)
         .setURL(`https://store.steampowered.com/app/${appId}`)
         .setThumbnail(thumbUrl);
       let desc = "";
       chunk.forEach((dlc, index) => {
-        desc += `**${page * DLC_ITEMS_PER_PAGE + index + 1}. ${truncate(dlc.name, 100)}**\nPrice ${dlc.price}\n\n`;
+        desc += `**${page * DLC_ITEMS_PER_PAGE + index + 1}. ${truncate(dlc.name, 100)}**\nPret: ${dlc.price}\n\n`;
       });
       embed.setDescription(desc);
       embed.setFooter({ text: `Pagina ${page + 1}/${totalP} - Afisate: ${dlcList.length} / Extrase: ${totalExtracted}` });
@@ -1232,39 +1389,39 @@ async function handleDlcInteraction(interaction) {
   } catch (err) {
     endLog("error", { errorMsg: err.message });
     logger("ERROR", "DLC_SEARCH", "Eroare la extragere DLC-uri", err.message);
-    return safeEdit(interaction, "[X] A aparut o eroare la cautarea DLC-urilor. `[ERR_DLC_GENERAL]`");
+    return safeEdit(interaction, "Eroare: A aparut o eroare la cautarea DLC-urilor. `[ERR_DLC_GENERAL]`");
   }
 }
 
 async function handleStatusInteraction(interaction, games) {
   const gameText = interaction.options.getString("joc");
   await safeDefer(interaction);
-  await safeEdit(interaction, `[WAIT] *Verific statusul serverelor pentru **${gameText}**...*`);
+  await safeEdit(interaction, `Se incarca: *Verific statusul serverelor pentru **${gameText}**...*`);
   const { game, suggestion } = findGameAndSuggestion(gameText, games);
   if (!game) {
-    let errText = "[X] Nu am gasit jocul in baza mea de date.";
+    let errText = "Eroare: Nu am gasit jocul in baza mea de date.";
     if (suggestion) errText += ` Te refereai cumva la **${suggestion.name}** (\`${suggestion.key}\`)?`;
     return safeEdit(interaction, errText);
   }
   try {
     const embed = await fetchGameStatus(game);
-    return safeEdit(interaction, { content: `[OK] Informatii preluate pentru **${game.name}**:`, embeds: [embed] });
+    return safeEdit(interaction, { content: `OK: Informatii preluate pentru **${game.name}**:`, embeds: [embed] });
   } catch (err) {
     logger("ERROR", "STATUS", "Eroare la comanda status", err.message);
-    return safeEdit(interaction, "[X] A aparut o eroare la preluarea statusului. `[ERR_STATUS_GENERAL]`");
+    return safeEdit(interaction, "Eroare: A aparut o eroare la preluarea statusului. `[ERR_STATUS_GENERAL]`");
   }
 }
 
 function buildHelpEmbed() {
   return new EmbedBuilder()
     .setColor(0x2b2d31)
-    .setTitle("Bot Meniul de Ajutor - Big Master")
+    .setTitle("Meniul de Ajutor - Big Master")
     .setDescription("Toate comenzile sunt slash commands. Incepe cu `/` pentru autocomplete.")
     .addFields(
-      { name: "Tools Utilitare", value: "`/ping` - `/games` - `/help`" },
-      { name: "Alerts Notificari Automate (admin)", value: "`/start updates` - `/stop updates`\n`/start reduceri` - `/stop reduceri`" },
-      { name: "Settings Preferinte Server (admin)", value: "`/set mode <compact|detailed>`\n`/set mindiscount <0-100>`\n`/set free <on|off>` - `/set paid <on|off>`\n`/set currency <USD|EUR|GBP|RON>`" },
-      { name: "Search Manuale", value: "`/latest updates` - `/latest reduceri`\n`/latest update <joc>` - `/latest pret <joc>`\n`/dlc <joc>` - `/status <joc>`" }
+      { name: "Utilitare", value: "`/ping` - `/games` - `/help`" },
+      { name: "Notificari Automate (admin)", value: "`/start updates` - `/stop updates`\n`/start reduceri` - `/stop reduceri`" },
+      { name: "Preferinte Server (admin)", value: "`/set mode <compact|detailed>`\n`/set mindiscount <0-100>`\n`/set free <on|off>` - `/set paid <on|off>`\n`/set currency <USD|EUR|GBP|RON>`" },
+      { name: "Comenzi Manuale", value: "`/latest updates` - `/latest reduceri`\n`/latest update <joc>` - `/latest pret <joc>`\n`/dlc <joc>` - `/status <joc>`" }
     );
 }
 
@@ -1286,7 +1443,7 @@ async function handleInteraction(interaction, games) {
     if (cmd === "status") return handleStatusInteraction(interaction, games);
   } catch (err) {
     logger("ERROR", "INTERACTION", "Eroare in handler-ul de comenzi", err.stack || err.message);
-    const payload = { content: "[X] Eroare neasteptata la procesarea comenzii.", flags: MessageFlags.Ephemeral };
+    const payload = { content: "Eroare: Eroare neasteptata la procesarea comenzii.", flags: MessageFlags.Ephemeral };
     try {
       if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
       else await interaction.reply(payload);
