@@ -26,38 +26,42 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          CLEAN_CI = '''name: CI
+          def lines(items):
+              return "\n".join(items) + "\n"
 
-on:
-  pull_request:
-  push:
-    branches:
-      - main
-      - "codex/**"
-
-jobs:
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run checks
-        env:
-          MONGO_URI: mongodb://localhost:27017/discord-patch-bot-test
-          DISCORD_TOKEN: test_discord_token
-          DISCORD_CLIENT_ID: test_discord_client_id
-          METRICS_PUBLIC: "true"
-        run: npm run check
-'''
+          CLEAN_CI = lines([
+              "name: CI",
+              "",
+              "on:",
+              "  pull_request:",
+              "  push:",
+              "    branches:",
+              "      - main",
+              "      - \"codex/**\"",
+              "",
+              "jobs:",
+              "  check:",
+              "    runs-on: ubuntu-latest",
+              "    steps:",
+              "      - name: Checkout",
+              "        uses: actions/checkout@v4",
+              "",
+              "      - name: Setup Node.js",
+              "        uses: actions/setup-node@v4",
+              "        with:",
+              "          node-version: 20",
+              "",
+              "      - name: Install dependencies",
+              "        run: npm install",
+              "",
+              "      - name: Run checks",
+              "        env:",
+              "          MONGO_URI: mongodb://localhost:27017/discord-patch-bot-test",
+              "          DISCORD_TOKEN: test_discord_token",
+              "          DISCORD_CLIENT_ID: test_discord_client_id",
+              "          METRICS_PUBLIC: \"true\"",
+              "        run: npm run check",
+          ])
 
           def replace_once(path, old, new):
               p = Path(path)
@@ -71,75 +75,60 @@ jobs:
 
           replace_once(
               "db.js",
-              '''  lastProcessedGameKey: { type: String, default: null },
-
-  // V9: filtre noi
-''',
-              '''  lastProcessedGameKey: { type: String, default: null },
-
-  updatesInitializing: { type: Boolean, default: false },
-  updatesActivationId: { type: String, default: null },
-  updatesLastError: {
-    message: { type: String, default: "" },
-    channelId: { type: String, default: null },
-    at: { type: Date, default: null }
-  },
-  discountsInitializing: { type: Boolean, default: false },
-  discountsActivationId: { type: String, default: null },
-  discountsLastError: {
-    message: { type: String, default: "" },
-    channelId: { type: String, default: null },
-    at: { type: Date, default: null }
-  },
-
-  // V9: filtre noi
-'''
+              lines([
+                  "  lastProcessedGameKey: { type: String, default: null },",
+                  "",
+                  "  // V9: filtre noi",
+              ]),
+              lines([
+                  "  lastProcessedGameKey: { type: String, default: null },",
+                  "",
+                  "  updatesInitializing: { type: Boolean, default: false },",
+                  "  updatesActivationId: { type: String, default: null },",
+                  "  updatesLastError: {",
+                  "    message: { type: String, default: \"\" },",
+                  "    channelId: { type: String, default: null },",
+                  "    at: { type: Date, default: null }",
+                  "  },",
+                  "  discountsInitializing: { type: Boolean, default: false },",
+                  "  discountsActivationId: { type: String, default: null },",
+                  "  discountsLastError: {",
+                  "    message: { type: String, default: \"\" },",
+                  "    channelId: { type: String, default: null },",
+                  "    at: { type: Date, default: null }",
+                  "  },",
+                  "",
+                  "  // V9: filtre noi",
+              ])
           )
 
           replace_once(
               "commands.js",
-              '''  const valid = data.filter(r => r.latest !== null);
-  if (!valid.length) {
-    endLog("no_data");
-    return safeEdit(interaction, "Eroare: Nu am date disponibile.");
-  }
-  const guild = await getGuildSettings(interaction.guild.id);
-  const mode = guild?.notificationMode || "detailed";
-''',
-              '''  const guild = await getGuildSettings(interaction.guild.id);
-  const enabledGames = Array.isArray(guild?.enabledGames) ? guild.enabledGames : [];
-  const enabledSet = enabledGames.length > 0 ? new Set(enabledGames) : null;
-  const valid = data.filter(r => r.latest !== null && (!enabledSet || enabledSet.has(r.game.key)));
-  if (!valid.length) {
-    endLog("no_data");
-    return safeEdit(
-      interaction,
-      enabledSet
-        ? "Eroare: Nu am date disponibile pentru jocurile active ale acestui server."
-        : "Eroare: Nu am date disponibile."
-    );
-  }
-  const mode = guild?.notificationMode || "detailed";
-'''
-          )
-
-          replace_once(
-              "test/commands-regression.test.js",
-              '''test("automatic update notifications respect the per-game filter", () => {
-  assert.match(commandsSource, /enabledGames/);
-  assert.match(commandsSource, /hasGameFilter && !enabledSet\\.has\\(gameKey\\)/);
-});
-''',
-              '''test("automatic update notifications respect the per-game filter", () => {
-  assert.match(commandsSource, /enabledGames/);
-  assert.match(commandsSource, /hasGameFilter && !enabledSet\\.has\\(gameKey\\)/);
-});
-
-test("manual latest updates respects the per-game filter", () => {
-  assert.match(commandsSource, /Nu am date disponibile pentru jocurile active ale acestui server/);
-  assert.match(commandsSource, /data\\.filter\\(r => r\\.latest !== null && \\(!enabledSet \\|\\| enabledSet\\.has\\(r\\.game\\.key\\)\\)\\)/);
-});
-'''
+              lines([
+                  "  const valid = data.filter(r => r.latest !== null);",
+                  "  if (!valid.length) {",
+                  "    endLog(\"no_data\");",
+                  "    return safeEdit(interaction, \"Eroare: Nu am date disponibile.\");",
+                  "  }",
+                  "  const guild = await getGuildSettings(interaction.guild.id);",
+                  "  const mode = guild?.notificationMode || \"detailed\";",
+              ]),
+              lines([
+                  "  const guild = await getGuildSettings(interaction.guild.id);",
+                  "  const enabledGames = Array.isArray(guild?.enabledGames) ? guild.enabledGames : [];",
+                  "  const enabledSet = enabledGames.length > 0 ? new Set(enabledGames) : null;",
+                  "  const valid = data.filter(r => r.latest !== null && (!enabledSet || enabledSet.has(r.game.key)));",
+                  "  if (!valid.length) {",
+                  "    endLog(\"no_data\");",
+                  "    return safeEdit(",
+                  "      interaction,",
+                  "      enabledSet",
+                  "        ? \"Eroare: Nu am date disponibile pentru jocurile active ale acestui server.\"",
+                  "        : \"Eroare: Nu am date disponibile.\"",
+                  "    );",
+                  "  }",
+                  "  const mode = guild?.notificationMode || \"detailed\";",
+              ])
           )
 
           temp_workflow = Path(".github/workflows/apply-source-patch.yml")
@@ -167,13 +156,12 @@ test("manual latest updates respects the per-game filter", () => {
       - name: Commit final source patch
         shell: bash
         run: |
-          if git diff --quiet -- db.js commands.js test/commands-regression.test.js .github/workflows/ci.yml .github/workflows/apply-source-patch.yml; then
+          if git diff --quiet -- db.js commands.js test/commands-regression.test.js .github/workflows; then
             echo "No final patch changes needed."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add db.js commands.js test/commands-regression.test.js .github/workflows/ci.yml
-          git add -u .github/workflows/apply-source-patch.yml
+          git add -A db.js commands.js test/commands-regression.test.js .github/workflows
           git commit -m "Harden guild state and manual update filters"
           git push origin HEAD:${{ github.head_ref || github.ref_name }}
