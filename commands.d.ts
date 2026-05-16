@@ -5,9 +5,8 @@ import type {
   EmbedBuilder,
   Interaction
 } from "discord.js";
-import type { CommandCacheSizes, GameConfig } from "./types";
+import type { AbortPredicate, CommandCacheSizes, GameConfig } from "./types";
 
-type ShouldAbort = () => boolean;
 type CommandInteraction = ChatInputCommandInteraction | AutocompleteInteraction | Interaction;
 
 export function startCacheCleaner(): NodeJS.Timeout;
@@ -18,12 +17,12 @@ export function setGlobalCacheTtl(ms: number): void;
 export function checkForUpdates(
   client: Client,
   games: GameConfig[],
-  shouldAbort?: ShouldAbort | null
+  shouldAbort?: AbortPredicate | null
 ): Promise<void>;
 
 export function checkForDiscounts(
   client: Client,
-  shouldAbort?: ShouldAbort | null
+  shouldAbort?: AbortPredicate | null
 ): Promise<void>;
 
 export function registerSlashCommands(token: string, clientId: string): Promise<void>;
