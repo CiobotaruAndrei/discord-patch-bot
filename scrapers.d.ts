@@ -1,4 +1,6 @@
-import type { DealInfo, GameConfig, PatchUpdate } from "./types";
+import type { CurrencyCode, DealInfo, GameConfig, PatchUpdate } from "./types";
+
+type CurrencyInput = CurrencyCode | string;
 
 export interface FetchMetrics {
   fetchSuccess: number;
@@ -14,7 +16,7 @@ export interface FetchResult {
 }
 
 export interface FetchDealsOptions {
-  currency?: string;
+  currency?: CurrencyInput;
   fromCron?: boolean;
 }
 
@@ -69,22 +71,22 @@ export function getLatestForAllGames(
 export function fetchSteamReviewData(appId: string | number): Promise<SteamReviewData>;
 export function enrichDealData<T extends DealInfo>(
   deal: T,
-  currencyCode?: string
+  currencyCode?: CurrencyInput
 ): Promise<T & { enriched: boolean }>;
 export function fetchDeals(opts?: FetchDealsOptions): Promise<DealInfo[]>;
 
 export function searchSteamGameByName(
   query: string,
-  currencyCode?: string
+  currencyCode?: CurrencyInput
 ): Promise<SteamSearchItem[]>;
 export function chooseBestSteamMatch(
   items: SteamSearchItem[],
   query: string,
   options?: SteamSearchOptions
 ): SteamSearchItem | null;
-export function fetchSteamPriceDetails(appId: string | number, currencyCode?: string): Promise<unknown>;
-export function extractSteamOfferEndDate(appId: string | number, currencyCode?: string): Promise<string | null>;
+export function fetchSteamPriceDetails(appId: string | number, currencyCode?: CurrencyInput): Promise<unknown>;
+export function extractSteamOfferEndDate(appId: string | number, currencyCode?: CurrencyInput): Promise<string | null>;
 
 export function cleanEnrichedCache(): void;
 export function getEnrichedCacheSize(): number;
-export function formatPrice(value: string | number, currencyCode?: string): string;
+export function formatPrice(value: string | number, currencyCode?: CurrencyInput): string;
