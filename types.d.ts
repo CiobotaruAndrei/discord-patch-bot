@@ -8,6 +8,8 @@ export type GameType =
   | "amd"
   | "intel";
 
+export type CurrencyCode = "USD" | "EUR" | "GBP" | "RON";
+
 export interface GameConfig {
   key: string;
   name: string;
@@ -71,4 +73,60 @@ export interface DealInfo {
   extraDetails?: string;
   enriched?: boolean;
   [key: string]: unknown;
+}
+
+export interface PendingUpdate extends PatchUpdate {
+  id: string;
+  attempts?: number;
+  createdAt?: Date | string;
+}
+
+export interface PendingDiscount {
+  hash: string;
+  snapshot?: DealInfo | null;
+  lastSeenAt?: Date | string;
+  attempts?: number;
+}
+
+export interface LastErrorInfo {
+  message?: string;
+  channelId?: string | null;
+  at?: Date | string | null;
+}
+
+export interface GuildSettings {
+  _id: string;
+  subscribed?: boolean;
+  notificationChannelId?: string | null;
+  seen?: Map<string, string[]> | Record<string, string[]>;
+  pendingUpdates?: Map<string, PendingUpdate[]> | Record<string, PendingUpdate[]>;
+  discountsSubscribed?: boolean;
+  discountChannelId?: string | null;
+  seenDiscounts?: string[];
+  pendingDiscounts?: PendingDiscount[];
+  minDiscountPercent?: number;
+  includeFreeGames?: boolean;
+  includePaidDiscounts?: boolean;
+  notificationMode?: "compact" | "detailed";
+  currency?: CurrencyCode | string;
+  lastProcessedGameKey?: string | null;
+  updatesInitializing?: boolean;
+  updatesActivationId?: string | null;
+  updatesLastError?: LastErrorInfo;
+  discountsInitializing?: boolean;
+  discountsActivationId?: string | null;
+  discountsLastError?: LastErrorInfo;
+  enabledGames?: string[];
+  enabledStores?: string[];
+  maxAbsolutePrice?: number;
+  notificationRoleId?: string | null;
+  discountRoleId?: string | null;
+  [key: string]: unknown;
+}
+
+export interface SystemTimes {
+  all: number;
+  single: number;
+  reduceri: number;
+  [key: string]: number;
 }
