@@ -1,12 +1,11 @@
 "use strict";
 // =============================================================
-// index.js — V8
-//   * Slash commands (eliminăm MessageContent intent)
-//   * interactionCreate în loc de messageCreate
-//   * Housekeeping interval consolidat
-//   * Graceful shutdown cu drain delay
-//   * Adaugă cache_enriched_deals_size la /metrics
-//   * GLOBAL_CACHE_TTL_MS adaptiv legat de CRON_INTERVAL_MS
+// index.js — V9
+//   * V8 features păstrate: slash commands, housekeeping, drain
+//   * Rate limiting per IP pe HTTP server (token bucket /health & /metrics)
+//   * mongoose.connect cu maxPoolSize din env.MONGO_MAX_POOL_SIZE
+//   * interactionCreate wrap în requestContext.run pentru req_id propagat
+//   * SHUTDOWN_DRAIN_MS default acum 5000 (din db.js)
 // =============================================================
 const mongoose = require("mongoose");
 const http = require("http");
@@ -17,8 +16,6 @@ const { validateConfig } = require("./configValidator");
 
 // -------------------------------------------------------------
 // CONFIG LOADING
-// Încărcăm config-ul jocurilor direct dintr-un JSON.
-// Path-ul implicit este ./config.json, override via env CONFIG_PATH.
 // -------------------------------------------------------------
 const CONFIG_PATH = process.env.CONFIG_PATH || "./config.json";
 let config;
@@ -44,7 +41,8 @@ if (games.length === 0) {
 const {
   logger, env, parseEnvNumber,
   acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
-  waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert
+  waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
+  requestContext
 } = require("./db");
 const commands = require("./commands");
 const scrapers = require("./scrapers");
@@ -58,7 +56,6 @@ const ALLOWED_CRON_INTERVALS = new Set([
   30 * 60 * 1000,
   60 * 60 * 1000
 ]);
-// Default-ul respectă config.checkIntervalMinutes (dacă există), apoi 30 min.
 const CONFIG_INTERVAL_MS = Number.isFinite(config.checkIntervalMinutes) && config.checkIntervalMinutes > 0
   ? Math.round(config.checkIntervalMinutes * 60 * 1000)
   : 30 * 60 * 1000;
@@ -80,7 +77,6 @@ if (REQUESTED_CRON_INTERVAL_MS !== CRON_INTERVAL_MS) {
 const CRON_LOCK_TTL_MS = Math.max(CRON_INTERVAL_MS + 60_000, 5 * 60 * 1000);
 const HEARTBEAT_INTERVAL_MS = Math.max(15_000, Math.floor(CRON_LOCK_TTL_MS / 3));
 
-// V8 (#8): GLOBAL_CACHE_TTL adaptiv — niciodată mai mare decât cron interval
 commands.setGlobalCacheTtl(Math.min(30 * 60 * 1000, CRON_INTERVAL_MS));
 
 // -------------------------------------------------------------
@@ -95,12 +91,13 @@ const metrics = {
   cronErrors: 0,
   cronSkippedDueToLock: 0,
   cronAborted: 0,
+  httpRateLimitDrops: 0,
   startedAt: Date.now()
 };
 scrapers.attachMetrics(metrics);
 
 // -------------------------------------------------------------
-// DISCORD CLIENT (V8: doar Guilds, fără MessageContent/GuildMessages)
+// DISCORD CLIENT
 // -------------------------------------------------------------
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
@@ -146,30 +143,35 @@ async function runCronCycle() {
 
   metrics.cronRuns++;
   const cycleStart = performance.now();
-  try {
-    logger("INFO", "CRON", `Pornire ciclu cron #${metrics.cronRuns}`);
-    await Promise.all([
-      commands.checkForUpdates(client, games, shouldAbortCron),
-      commands.checkForDiscounts(client, shouldAbortCron)
-    ]);
-    if (currentCronAbortController.signal.aborted) {
-      metrics.cronAborted++;
-      logger("WARN", "CRON", "Ciclu abandonat (shutdown sau abort)");
-    } else {
-      const ms = Math.round(performance.now() - cycleStart);
-      logger("INFO", "CRON", `Ciclu cron #${metrics.cronRuns} finalizat în ${ms}ms`);
+  // V9: requestContext.run propagă req_id-ul pe toate awaiterele crontului.
+  // Pentru cron folosim un prefix dedicat ca să distingem ușor în logs.
+  const cronReqId = `cron-${metrics.cronRuns}-${crypto.randomBytes(3).toString("hex")}`;
+  await requestContext.run({ requestId: cronReqId }, async () => {
+    try {
+      logger("INFO", "CRON", `Pornire ciclu cron #${metrics.cronRuns}`);
+      await Promise.all([
+        commands.checkForUpdates(client, games, shouldAbortCron),
+        commands.checkForDiscounts(client, shouldAbortCron)
+      ]);
+      if (currentCronAbortController.signal.aborted) {
+        metrics.cronAborted++;
+        logger("WARN", "CRON", "Ciclu abandonat (shutdown sau abort)");
+      } else {
+        const ms = Math.round(performance.now() - cycleStart);
+        logger("INFO", "CRON", `Ciclu cron #${metrics.cronRuns} finalizat în ${ms}ms`);
+      }
+    } catch (err) {
+      metrics.cronErrors++;
+      logger("ERROR", "CRON", `Eroare în ciclul cron #${metrics.cronRuns}`, err.stack || err.message);
+      adminAlert("cron:fatal", `Eroare cron ciclu #${metrics.cronRuns}`, err.message).catch(() => null);
+    } finally {
+      stopHeartbeat();
+      await releaseDbLock("cron_main", lockToken).catch(() => null);
+      currentCronToken = null;
+      currentCronAbortController = null;
+      if (!isShuttingDown) scheduleNextCron();
     }
-  } catch (err) {
-    metrics.cronErrors++;
-    logger("ERROR", "CRON", `Eroare în ciclul cron #${metrics.cronRuns}`, err.stack || err.message);
-    adminAlert("cron:fatal", `Eroare cron ciclu #${metrics.cronRuns}`, err.message).catch(() => null);
-  } finally {
-    stopHeartbeat();
-    await releaseDbLock("cron_main", lockToken).catch(() => null);
-    currentCronToken = null;
-    currentCronAbortController = null;
-    if (!isShuttingDown) scheduleNextCron();
-  }
+  });
 }
 
 function scheduleNextCron() {
@@ -210,7 +212,7 @@ function stopHeartbeat() {
 }
 
 // -------------------------------------------------------------
-// HOUSEKEEPING (V8: consolidat — cache cleaner + guild cache + enriched cache)
+// HOUSEKEEPING
 // -------------------------------------------------------------
 let housekeepingTimerId = null;
 
@@ -219,6 +221,7 @@ function startHousekeeping() {
     try { commands.cleanCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanCache eroare", e.message); }
     try { cleanGuildCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanGuildCache eroare", e.message); }
     try { scrapers.cleanEnrichedCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanEnrichedCache eroare", e.message); }
+    try { pruneRateLimitMap(); } catch (e) { logger("WARN", "HOUSEKEEPING", "pruneRateLimitMap eroare", e.message); }
   };
   housekeepingTimerId = setInterval(tick, env.HOUSEKEEPING_INTERVAL_MS);
   if (typeof housekeepingTimerId.unref === "function") housekeepingTimerId.unref();
@@ -229,6 +232,75 @@ function stopHousekeeping() {
   if (housekeepingTimerId) {
     clearInterval(housekeepingTimerId);
     housekeepingTimerId = null;
+  }
+}
+
+// -------------------------------------------------------------
+// V9: RATE LIMITING PER IP (token bucket per IP)
+// Map: clientIp -> { tokens, lastRefill }
+// La fiecare cerere refacem token-uri proporțional cu timpul scurs.
+// La 1000 entry-uri facem o curățare proactivă (în plus față de cea
+// din housekeeping) ca să nu lăsăm Map-ul să crească necontrolat.
+// -------------------------------------------------------------
+const RL_CAP = env.HTTP_RATE_LIMIT_REQ;
+const RL_WINDOW_MS = env.HTTP_RATE_LIMIT_WINDOW_MS;
+const RL_REFILL_PER_MS = RL_CAP / RL_WINDOW_MS;
+const RL_MAP_MAX = 1000;
+const rateLimitMap = new Map();
+
+function getClientIp(req) {
+  const fwd = req.headers["x-forwarded-for"];
+  if (typeof fwd === "string" && fwd.length > 0) {
+    return fwd.split(",")[0].trim();
+  }
+  return req.socket?.remoteAddress || "unknown";
+}
+
+function checkHttpRateLimit(req) {
+  const ip = getClientIp(req);
+  const now = Date.now();
+  let entry = rateLimitMap.get(ip);
+  if (!entry) {
+    entry = { tokens: RL_CAP, lastRefill: now };
+    rateLimitMap.set(ip, entry);
+  } else {
+    const elapsed = now - entry.lastRefill;
+    if (elapsed > 0) {
+      entry.tokens = Math.min(RL_CAP, entry.tokens + elapsed * RL_REFILL_PER_MS);
+      entry.lastRefill = now;
+    }
+    // LRU touch
+    rateLimitMap.delete(ip);
+    rateLimitMap.set(ip, entry);
+  }
+  if (rateLimitMap.size > RL_MAP_MAX) {
+    pruneRateLimitMap();
+  }
+  if (entry.tokens < 1) {
+    metrics.httpRateLimitDrops++;
+    return false;
+  }
+  entry.tokens -= 1;
+  return true;
+}
+
+function pruneRateLimitMap() {
+  const now = Date.now();
+  // Entry-uri "pline" și vechi (mai vechi decât 2x fereastra) pot fi șterse —
+  // sunt clienți inactivi care nu mai consumă oricum.
+  for (const [ip, entry] of rateLimitMap.entries()) {
+    if (now - entry.lastRefill > RL_WINDOW_MS * 2 && entry.tokens >= RL_CAP * 0.95) {
+      rateLimitMap.delete(ip);
+    }
+  }
+  // Dacă tot e prea plin, eliminăm cei mai vechi (LRU)
+  if (rateLimitMap.size > RL_MAP_MAX) {
+    const excess = rateLimitMap.size - RL_MAP_MAX;
+    let deleted = 0;
+    for (const key of rateLimitMap.keys()) {
+      rateLimitMap.delete(key);
+      if (++deleted >= excess) break;
+    }
   }
 }
 
@@ -252,6 +324,18 @@ function checkMetricsAuth(req) {
 }
 
 const httpServer = http.createServer((req, res) => {
+  // V9: rate limit pe ambele endpoint-uri publice. 429 cu Retry-After.
+  if (req.url === "/health" || req.url === "/healthz" || req.url === "/metrics") {
+    if (!checkHttpRateLimit(req)) {
+      res.writeHead(429, {
+        "Content-Type": "text/plain",
+        "Retry-After": Math.ceil(RL_WINDOW_MS / 1000).toString()
+      });
+      res.end("Too Many Requests");
+      return;
+    }
+  }
+
   if (req.url === "/health" || req.url === "/healthz") {
     const ok = mongoose.connection.readyState === 1 && client.isReady();
     res.writeHead(ok ? 200 : 503, { "Content-Type": "application/json" });
@@ -283,7 +367,7 @@ const httpServer = http.createServer((req, res) => {
       `# HELP bot_http_retries HTTP retries`,
       `# TYPE bot_http_retries counter`,
       `bot_http_retries ${metrics.httpRetries}`,
-      `# HELP bot_rate_limit_hits Rate limit hits`,
+      `# HELP bot_rate_limit_hits Rate limit hits (upstream)`,
       `# TYPE bot_rate_limit_hits counter`,
       `bot_rate_limit_hits ${metrics.rateLimitHits}`,
       `# HELP bot_cron_runs Cron runs`,
@@ -298,6 +382,9 @@ const httpServer = http.createServer((req, res) => {
       `# HELP bot_cron_aborted Cron aborted`,
       `# TYPE bot_cron_aborted counter`,
       `bot_cron_aborted ${metrics.cronAborted}`,
+      `# HELP bot_http_rate_limit_drops HTTP requests blocked by local rate limiter`,
+      `# TYPE bot_http_rate_limit_drops counter`,
+      `bot_http_rate_limit_drops ${metrics.httpRateLimitDrops}`,
       `# HELP bot_cache_single Cache single size`,
       `# TYPE bot_cache_single gauge`,
       `bot_cache_single ${cacheSizes.single}`,
@@ -319,6 +406,9 @@ const httpServer = http.createServer((req, res) => {
       `# HELP bot_cache_enriched_deals_size Enriched deals cache size`,
       `# TYPE bot_cache_enriched_deals_size gauge`,
       `bot_cache_enriched_deals_size ${scrapers.getEnrichedCacheSize()}`,
+      `# HELP bot_http_rate_limit_map_size Local HTTP rate limit map size`,
+      `# TYPE bot_http_rate_limit_map_size gauge`,
+      `bot_http_rate_limit_map_size ${rateLimitMap.size}`,
       `# HELP bot_active_locks Active distributed locks`,
       `# TYPE bot_active_locks gauge`,
       `bot_active_locks ${activeLocks.size}`
@@ -346,11 +436,16 @@ client.once("ready", async () => {
   scheduleNextCron();
 });
 
+// V9: înfășurăm fiecare interacțiune într-un context cu req_id propriu.
+// Toate apelurile logger() din lanțul de await-uri vor include automat req_id.
 client.on("interactionCreate", async (interaction) => {
-  try { await commands.handleInteraction(interaction, games); }
-  catch (err) {
-    logger("ERROR", "INTERACTION", "Eroare top-level la interactionCreate", err.stack || err.message);
-  }
+  const reqId = crypto.randomBytes(6).toString("hex");
+  await requestContext.run({ requestId: reqId }, async () => {
+    try { await commands.handleInteraction(interaction, games); }
+    catch (err) {
+      logger("ERROR", "INTERACTION", "Eroare top-level la interactionCreate", err.stack || err.message);
+    }
+  });
 });
 
 client.on("error", (err) => logger("ERROR", "DISCORD", "Eroare client Discord", err.message));
@@ -378,14 +473,11 @@ async function shutdown(signal, exitCode = 0) {
   stopHeartbeat();
   stopHousekeeping();
 
-  // Eliberare lock-uri active
   for (const [jobName, token] of activeLocks.entries()) {
     try { await releaseDbLock(jobName, token); }
     catch (err) { logger("WARN", "SHUTDOWN", `Eroare la eliberare lock ${jobName}`, err.message); }
   }
 
-  // V8 (#15): drain delay între eliberarea lock-urilor și destroy client
-  // — dă timp comenzilor în zbor să răspundă
   if (env.SHUTDOWN_DRAIN_MS > 0) {
     logger("INFO", "SHUTDOWN", `Drain ${env.SHUTDOWN_DRAIN_MS}ms pentru comenzi în zbor`);
     await new Promise(r => setTimeout(r, env.SHUTDOWN_DRAIN_MS));
@@ -422,9 +514,12 @@ process.on("unhandledRejection", (reason) => {
 // -------------------------------------------------------------
 (async () => {
   try {
+    // V9: maxPoolSize configurabil — important pentru deployments cu mai
+    // multe guild-uri active care fac update-uri în paralel.
     await mongoose.connect(env.MONGO_URI, {
       serverSelectionTimeoutMS: 10000,
-      socketTimeoutMS: 45000
+      socketTimeoutMS: 45000,
+      maxPoolSize: env.MONGO_MAX_POOL_SIZE
     });
     const ready = await waitForMongoReady(15000);
     if (!ready) {
