@@ -4,6 +4,7 @@
 const { z } = require("zod");
 
 /** @typedef {import("zod").ZodIssue} ZodIssue */
+/** @typedef {import("./types").BotConfig} BotConfig */
 /** @typedef {(string | number)[]} IssuePath */
 /** @typedef {{ label: string, path: IssuePath, ownerIndex: number }} SeenSearchTerm */
 
@@ -208,10 +209,11 @@ function formatZodIssues(issues) {
 /**
  * @param {unknown} config
  * @param {string} [source]
+ * @returns {BotConfig}
  */
 function validateConfig(config, source = "config.json") {
   const result = ConfigSchema.safeParse(config);
-  if (result.success) return result.data;
+  if (result.success) return /** @type {BotConfig} */ (result.data);
 
   const failure = /** @type {import("zod").SafeParseError<unknown>} */ (result);
   const issues = failure.error.issues;
