@@ -4,16 +4,18 @@ import type {
   AbortPredicate,
   BotMetrics,
   CurrencyCode,
-  DealInfo,
   EnrichedDealInfo,
   FetchDealsOptions,
   FetchResult,
   GameConfig,
+  HttpMethod,
   HttpRequestOptions,
   NormalizedUpdate,
   PatchUpdate,
+  SteamAppDetails,
   SteamReviewData,
-  SteamSearchItem
+  SteamSearchItem,
+  StoreDeal
 } from "./types";
 
 export type CurrencyInput = CurrencyCode | string;
@@ -37,14 +39,14 @@ export function normalizeUpdate(data: Partial<PatchUpdate>): NormalizedUpdate;
 export function safeCheerioLoad(html: unknown): CheerioAPI;
 export function levenshtein(a: string, b: string): number;
 export function httpReq<T = unknown>(
-  method: string,
+  method: HttpMethod,
   url: string,
   options?: HttpRequestOptions,
   retries?: number,
   backoff?: number
 ): Promise<AxiosResponse<T>>;
 export function fetchWithProxy(targetUrl: string, options?: HttpRequestOptions): Promise<string>;
-export function dealHash(deal: DealInfo): string;
+export function dealHash(deal: StoreDeal): string;
 export function attachMetrics(metrics: FetchMetrics | BotMetrics): void;
 
 export function fetchGameUpdate(game: GameConfig): Promise<NormalizedUpdate>;
@@ -55,11 +57,11 @@ export function getLatestForAllGames(
 ): Promise<FetchResult[]>;
 
 export function fetchSteamReviewData(appId: string | number): Promise<SteamReviewData>;
-export function enrichDealData<T extends DealInfo>(
+export function enrichDealData<T extends StoreDeal>(
   deal: T,
   currencyCode?: CurrencyInput
 ): Promise<T & EnrichedDealInfo>;
-export function fetchDeals(opts?: FetchDealsOptions): Promise<DealInfo[]>;
+export function fetchDeals(opts?: FetchDealsOptions): Promise<StoreDeal[]>;
 
 export function searchSteamGameByName(
   query: string,
@@ -73,7 +75,7 @@ export function chooseBestSteamMatch(
 export function fetchSteamPriceDetails(
   appId: string | number,
   currencyCode?: CurrencyInput
-): Promise<Record<string, unknown> | null>;
+): Promise<SteamAppDetails | null>;
 export function extractSteamOfferEndDate(appId: string | number, currencyCode?: CurrencyInput): Promise<string | null>;
 
 export function cleanEnrichedCache(): void;
