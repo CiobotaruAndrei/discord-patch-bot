@@ -1,13 +1,11 @@
 "use strict";
 // =============================================================
-// scrapers.js — V8
-//   * Currency-aware (cc dinamic, formatPrice)
-//   * SchemaDriftError pe paths critice (DLC, listing_based)
-//   * enrichDealData paralelizat (Promise.all)
-//   * Cache enrichment între cicluri (LRU cu TTL)
-//   * httpReq retry pe 408/425 idempotent
-//   * extractDateScore folosește Date.UTC (no timezone surprises)
-//   * Proxy-uri configurabile via env.PROXY_URLS
+// scrapers.js — V9
+//   * extractSteamOfferEndDate primește currency (cc dinamic)
+//   * enrichDealData adaugă ?cc=&l=english pe HTML scrape Steam
+//   * In-flight coalescing: cleanup safe (verifică identitatea
+//     promise-ului înainte de delete) — evită orfanizarea
+//   * Restul V8: schema drift, currency-aware, proxy-uri
 // =============================================================
 const axios = require("axios");
 const cheerio = require("cheerio");
@@ -43,8 +41,6 @@ const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0"
 ];
 
-// V8 (#16): proxy-uri configurabile. Format env: "https://my-proxy/?u={url},https://other/?q={url}"
-// În producție nu folosim proxy-uri publice implicite; setează PROXY_URLS cu endpoint-uri de încredere.
 const DEFAULT_PROXIES = env.isProd ? [] : [
   "https://api.allorigins.win/get?url={url}",
   "https://api.codetabs.com/v1/proxy?quest={url}"
@@ -146,9 +142,6 @@ function dealHash(deal) {
 
 // -------------------------------------------------------------
 // HTTP
-//
-// V8 (#9): retry pentru 408/425 (idempotent timing) pentru GET.
-// 4xx non-retry-able rămâne 400/401/403/404/etc.
 // -------------------------------------------------------------
 const RETRY_ABLE_4XX = new Set([408, 425, 429]);
 
@@ -190,11 +183,10 @@ async function httpReq(method, url, options = {}, retries = 2, backoff = 1000) {
       return await axios(reqConfig);
     } catch (err) {
       const status = err.response?.status || "N/A";
-      // V8 (#9): pentru GET retry-uim și 408/425/429; alte 4xx → throw.
       const isRetryable4xx = isIdempotent && typeof status === "number"
         && RETRY_ABLE_4XX.has(status);
       const is5xx = typeof status === "number" && status >= 500;
-      const isNetworkErr = typeof status !== "number"; // N/A → network/timeout
+      const isNetworkErr = typeof status !== "number";
       if (typeof status === "number" && status >= 400 && status < 500 && !isRetryable4xx) {
         throw err;
       }
@@ -232,7 +224,6 @@ async function fetchWithProxy(targetUrl, options = {}) {
     const proxyUrl = template.replace("{url}", encodeURIComponent(targetUrl));
     try {
       const res = await httpReq("GET", proxyUrl, options);
-      // allorigins returnează { contents: "..." }, codetabs returnează raw
       if (template.includes("allorigins")) {
         return String(res?.data?.contents || "");
       }
@@ -253,6 +244,18 @@ function withInflightTimeout(promise, label) {
   return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
 }
 
+// V9: helper pentru in-flight coalescing safe.
+// Setează map[key]=promise întâi, apoi atașează cleanup care șterge
+// DOAR dacă entry-ul curent e încă promise-ul nostru. Evită orfanizarea
+// dacă timeout-ul wrap-ului expiră dar inner-ul mai rulează.
+function trackInflight(map, key, promise) {
+  map.set(key, promise);
+  const cleanup = () => {
+    if (map.get(key) === promise) map.delete(key);
+  };
+  promise.then(cleanup, cleanup);
+}
+
 // -------------------------------------------------------------
 // SCORE HELPERS
 // -------------------------------------------------------------
@@ -265,7 +268,6 @@ function isGoodSteamArticleUrl(url) {
   return !(!v || !v.startsWith("http") || v.includes("steamstatic") || v.includes("steamcdn"));
 }
 
-// V8 (#11): folosim Date.UTC pentru a evita ambiguități timezone
 function extractDateScore(url) {
   const u = url.toLowerCase();
   const m1 = u.match(/(\d{4})[-/](\d{2})[-/](\d{2})/);
@@ -366,8 +368,6 @@ async function fetchListingBasedUpdate(game) {
     return a.position - b.position;
   });
 
-  // V8 (#4): dacă am reușit să fetch-uim listing-ul DAR n-am găsit ancore,
-  // e drift de schema, nu network. Aruncăm SchemaDriftError.
   if (!unique.length) {
     if (listingFetched > 0) {
       throw new SchemaDriftError(
@@ -547,10 +547,6 @@ async function fetchGameUpdate(game) {
 
 // -------------------------------------------------------------
 // CIRCUIT BREAKER + SCHEMA DRIFT DETECTION
-//
-// V8 (#4): tratăm SchemaDriftError separat — increment separate counter,
-// alertă separată. Nu activăm circuit breaker network pe drift, pentru
-// că network e OK; problema e parsing.
 // -------------------------------------------------------------
 async function executeFetchWithCircuitBreaker(game) {
   const cb = await CircuitBreakerModel.findOneAndUpdate(
@@ -572,7 +568,6 @@ async function executeFetchWithCircuitBreaker(game) {
     metricsRef.fetchSuccess++;
     return { game, latest, error: null };
   } catch (error) {
-    // V8 (#4): schema drift vs network
     if (error instanceof SchemaDriftError) {
       const updatedCb = await CircuitBreakerModel.findOneAndUpdate(
         { _id: game.key },
@@ -618,7 +613,7 @@ async function executeFetchWithCircuitBreaker(game) {
 }
 
 // -------------------------------------------------------------
-// POOL CONCURRENT + IN-FLIGHT COALESCING
+// POOL CONCURRENT + IN-FLIGHT COALESCING — V9 safe cleanup
 // -------------------------------------------------------------
 const inflightAllGames = new Map();
 
@@ -650,16 +645,11 @@ async function getLatestForAllGames(games, shouldAbort) {
     logger("INFO", "FETCH_COALESCE", `Refolosesc fetch-ul în curs (context=${contextKey})`);
     return existing;
   }
-  const innerPromise = (async () => {
-    try { return await _getLatestForAllGamesImpl(games, shouldAbort); }
-    finally { inflightAllGames.delete(contextKey); }
-  })();
-  const promise = withInflightTimeout(innerPromise, `getLatestForAllGames(${contextKey})`)
-    .catch((err) => {
-      inflightAllGames.delete(contextKey);
-      throw err;
-    });
-  inflightAllGames.set(contextKey, promise);
+  const promise = withInflightTimeout(
+    _getLatestForAllGamesImpl(games, shouldAbort),
+    `getLatestForAllGames(${contextKey})`
+  );
+  trackInflight(inflightAllGames, contextKey, promise);
   return promise;
 }
 
@@ -686,24 +676,18 @@ async function fetchSteamReviewData(appId) {
 }
 
 // -------------------------------------------------------------
-// ENRICH DEAL DATA — V8
-//
-// V8 (#6): cele 2 HTTP-uri (appdetails + HTML pentru end-date)
-//   sunt acum paralelizate cu Promise.all → ~50% latency reduction
-// V8 (#7): cache LRU cu TTL între cicluri pentru a evita re-fetch
-// V8 (#2): currency-aware (cc dinamic)
+// ENRICH DEAL DATA — V9: cc dinamic și pe HTML scrape
 // -------------------------------------------------------------
 const activeEnrichments = new Map();
-const enrichedCache = new Map(); // dealId -> { enriched, expiresAt, currency }
+const enrichedCache = new Map();
 
 function enrichCacheGet(key, currency) {
   const v = enrichedCache.get(key);
   if (!v) return null;
   if (v.expiresAt < Date.now()) { enrichedCache.delete(key); return null; }
-  // Currency mismatch invalidează entry-ul (prețuri diferite)
   if (v.currency !== currency) return null;
   enrichedCache.delete(key);
-  enrichedCache.set(key, v); // refresh LRU
+  enrichedCache.set(key, v);
   return v.enriched;
 }
 
@@ -737,11 +721,9 @@ async function enrichDealData(deal, currencyCode) {
   const currency = String(currencyCode || "USD").toUpperCase();
   if (deal.enriched) return deal;
 
-  // V8: check cache între cicluri
   const cached = enrichCacheGet(deal.id, currency);
   if (cached) return cached;
 
-  // Coalescing concurrent
   const inflightKey = `${deal.id}:${currency}`;
   const existing = activeEnrichments.get(inflightKey);
   if (existing) return existing;
@@ -751,7 +733,8 @@ async function enrichDealData(deal, currencyCode) {
     if (enriched.store === "Steam" && enriched.steamAppID) {
       const cfg = getCurrencyConfig(currency);
       try {
-        // V8 (#6): paralelizare appdetails + HTML scrape pentru end-date
+        // V9: pagina HTML primește și ea cc + l=english pentru consistență
+        const htmlUrl = `${enriched.link}?cc=${cfg.cc}&l=english`;
         const [detailsRes, htmlRes] = await Promise.all([
           httpReq("GET",
             `https://store.steampowered.com/api/appdetails?appids=${enriched.steamAppID}&cc=${cfg.cc}&l=english`,
@@ -759,7 +742,7 @@ async function enrichDealData(deal, currencyCode) {
               logger("WARN", "STEAM_ENRICH", `appdetails fail appID ${enriched.steamAppID}`, e.message);
               return null;
             }),
-          httpReq("GET", enriched.link, {
+          httpReq("GET", htmlUrl, {
             headers: { "Cookie": "birthtime=283993201; mature_content=1;" }
           }).catch(e => {
             logger("WARN", "STEAM_ENRICH", `html fetch fail appID ${enriched.steamAppID}`, e.message);
@@ -794,10 +777,7 @@ async function enrichDealData(deal, currencyCode) {
 }
 
 // -------------------------------------------------------------
-// FETCH DEALS
-//
-// V8 (#2): currency-aware — cc-ul Steam și Epic se ia din currency
-// param (default USD). Coalescing cache se face per-currency.
+// FETCH DEALS — V9: cleanup safe
 // -------------------------------------------------------------
 const inflightDeals = new Map();
 
@@ -940,21 +920,16 @@ async function fetchDeals(opts = {}) {
     logger("INFO", "FETCH_COALESCE", `Refolosesc fetchDeals în curs (context=${contextKey})`);
     return existing;
   }
-  const innerPromise = (async () => {
-    try { return await _fetchDealsImpl(currency); }
-    finally { inflightDeals.delete(contextKey); }
-  })();
-  const promise = withInflightTimeout(innerPromise, `fetchDeals(${contextKey})`)
-    .catch((err) => {
-      inflightDeals.delete(contextKey);
-      throw err;
-    });
-  inflightDeals.set(contextKey, promise);
+  const promise = withInflightTimeout(
+    _fetchDealsImpl(currency),
+    `fetchDeals(${contextKey})`
+  );
+  trackInflight(inflightDeals, contextKey, promise);
   return promise;
 }
 
 // -------------------------------------------------------------
-// STEAM SEARCH (V8: currency-aware)
+// STEAM SEARCH
 // -------------------------------------------------------------
 async function searchSteamGameByName(query, currencyCode) {
   const cc = getCurrencyConfig(currencyCode).cc;
@@ -1032,9 +1007,14 @@ async function fetchSteamPriceDetails(appId, currencyCode) {
   return detailsRes.data[appId]?.data || null;
 }
 
-async function extractSteamOfferEndDate(appId) {
+// V9: primește currency-ul pentru a cere pagina HTML în regiunea corectă.
+// Steam returnează formatul "Offer ends ..." în limba/regiunea cerută, deci fără
+// cc=RO un guild pe RON parsa rezultatul englez în locul celui așteptat.
+async function extractSteamOfferEndDate(appId, currencyCode) {
+  const cc = getCurrencyConfig(currencyCode).cc;
   try {
-    const htmlRes = await httpReq("GET", `https://store.steampowered.com/app/${appId}`, {
+    const htmlRes = await httpReq("GET",
+      `https://store.steampowered.com/app/${appId}?cc=${cc}&l=english`, {
       headers: { "Cookie": "birthtime=283993201; mature_content=1;" }
     });
     const match = htmlRes.data.match(/Offer ends\s+([^<]+)/i);
