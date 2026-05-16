@@ -386,6 +386,21 @@ const guildSchema = new mongoose.Schema({
   currency: { type: String, enum: Object.keys(SUPPORTED_CURRENCIES), default: DEFAULT_CURRENCY },
   lastProcessedGameKey: { type: String, default: null },
 
+  updatesInitializing: { type: Boolean, default: false },
+  updatesActivationId: { type: String, default: null },
+  updatesLastError: {
+    message: { type: String, default: "" },
+    channelId: { type: String, default: null },
+    at: { type: Date, default: null }
+  },
+  discountsInitializing: { type: Boolean, default: false },
+  discountsActivationId: { type: String, default: null },
+  discountsLastError: {
+    message: { type: String, default: "" },
+    channelId: { type: String, default: null },
+    at: { type: Date, default: null }
+  },
+
   // V9: filtre noi
   enabledGames: { type: [String], default: [] },   // [] = toate jocurile active
   enabledStores: { type: [String], default: [] },  // [] = toate store-urile active
