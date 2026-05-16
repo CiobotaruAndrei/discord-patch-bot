@@ -46,11 +46,11 @@ const ConfigSchema = z.object({
   const seenKeys = new Set();
   const seenSearchTerms = new Map();
 
-  function addSearchTerm(term, path, label) {
+  function addSearchTerm(term, path, label, ownerIndex) {
     const normalized = String(term || "").toLowerCase().trim();
     if (!normalized) return;
     const existing = seenSearchTerms.get(normalized);
-    if (existing) {
+    if (existing && existing.ownerIndex !== ownerIndex) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path,
@@ -58,7 +58,7 @@ const ConfigSchema = z.object({
       });
       return;
     }
-    seenSearchTerms.set(normalized, { label, path });
+    if (!existing) seenSearchTerms.set(normalized, { label, path, ownerIndex });
   }
 
   for (let i = 0; i < config.games.length; i++) {
@@ -74,8 +74,8 @@ const ConfigSchema = z.object({
       });
     }
     seenKeys.add(game.key);
-    addSearchTerm(game.key, [...path, "key"], `cheia jocului ${game.name}`);
-    addSearchTerm(game.name, [...path, "name"], `numele jocului ${game.key}`);
+    addSearchTerm(game.key, [...path, "key"], `cheia jocului ${game.name}`, i);
+    addSearchTerm(game.name, [...path, "name"], `numele jocului ${game.key}`, i);
 
     if (Array.isArray(game.aliases)) {
       const localAliases = new Set();
@@ -90,7 +90,7 @@ const ConfigSchema = z.object({
           });
         }
         localAliases.add(normalizedAlias);
-        addSearchTerm(alias, [...path, "aliases", aliasIndex], `aliasul jocului ${game.key}`);
+        addSearchTerm(alias, [...path, "aliases", aliasIndex], `aliasul jocului ${game.key}`, i);
       }
     }
 
