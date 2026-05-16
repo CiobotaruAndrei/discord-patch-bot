@@ -15,6 +15,7 @@ export type MaybePromise<T> = T | Promise<T>;
 export type PriceValue = string | number;
 export type CurrencyPlacement = "prefix" | "suffix";
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | string;
 
 export interface CurrencyConfig {
   cc: string;
@@ -180,7 +181,26 @@ export interface DealInfo {
   [key: string]: unknown;
 }
 
-export interface EnrichedDealInfo extends DealInfo {
+export interface StoreDeal extends DealInfo {
+  id: string;
+  title: string;
+  link: string;
+  store: "Steam" | "Epic Games" | string;
+  steamAppID: string | number | null;
+  normalPrice: string;
+  salePrice: string;
+  savings: number;
+  popularityScore: number;
+  totalReviews: number;
+  qualityScore: number;
+  currency: CurrencyCode | string;
+  endDateStr: string;
+  extraDetails: string;
+  enriched: boolean;
+  thumbnail: string | null;
+}
+
+export interface EnrichedDealInfo extends StoreDeal {
   enriched: true;
 }
 
@@ -247,7 +267,7 @@ export interface CacheEntry<T> {
 
 export interface CommandRuntimeCache {
   updates: CacheEntry<FetchResult[] | null>;
-  dealsByCurrency: Map<string, CacheEntry<DealInfo[]>>;
+  dealsByCurrency: Map<string, CacheEntry<StoreDeal[]>>;
   single: Map<string, CacheEntry<NormalizedUpdate | null>>;
   dlc: Map<string, CacheEntry<DlcCacheEntry>>;
 }
@@ -284,6 +304,31 @@ export interface SteamSearchItem {
   type?: string;
   tiny_image?: string;
   price?: unknown;
+  [key: string]: unknown;
+}
+
+export interface SteamPriceOverview {
+  currency?: string;
+  initial: number;
+  final: number;
+  discount_percent: number;
+  initial_formatted?: string;
+  final_formatted?: string;
+}
+
+export interface SteamPlatformFlags {
+  windows?: boolean;
+  mac?: boolean;
+  linux?: boolean;
+}
+
+export interface SteamAppDetails {
+  name?: string;
+  type?: "game" | "dlc" | "music" | "demo" | string;
+  is_free?: boolean;
+  price_overview?: SteamPriceOverview;
+  header_image?: string;
+  platforms?: SteamPlatformFlags;
   [key: string]: unknown;
 }
 
