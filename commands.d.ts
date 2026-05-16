@@ -3,11 +3,13 @@ import type {
   ChatInputCommandInteraction,
   Client,
   EmbedBuilder,
-  Interaction
+  Interaction,
+  SlashCommandBuilder
 } from "discord.js";
 import type { AbortPredicate, CommandCacheSizes, GameConfig } from "./types";
 
 type CommandInteraction = ChatInputCommandInteraction | AutocompleteInteraction | Interaction;
+export type SlashCommandDefinition = ReturnType<SlashCommandBuilder["toJSON"]>;
 
 export function startCacheCleaner(): NodeJS.Timeout;
 export function cleanCache(): void;
@@ -26,7 +28,7 @@ export function checkForDiscounts(
 ): Promise<void>;
 
 export function registerSlashCommands(token: string, clientId: string): Promise<void>;
-export function buildSlashCommandDefinitions(): unknown[];
+export function buildSlashCommandDefinitions(): SlashCommandDefinition[];
 
 export function handleInteraction(
   interaction: CommandInteraction,
