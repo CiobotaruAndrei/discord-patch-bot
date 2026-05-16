@@ -32,6 +32,24 @@ export interface BotConfig {
   games: GameConfig[];
 }
 
+export interface BotMetrics {
+  fetchSuccess: number;
+  fetchFail: number;
+  httpRetries: number;
+  rateLimitHits: number;
+  cronRuns: number;
+  cronErrors: number;
+  cronSkippedDueToLock: number;
+  cronAborted: number;
+  httpRateLimitDrops: number;
+  startedAt: number;
+}
+
+export interface RateLimitBucket {
+  tokens: number;
+  lastRefill: number;
+}
+
 export interface PatchUpdate {
   id?: string;
   title?: string;
