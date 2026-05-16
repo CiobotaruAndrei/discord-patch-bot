@@ -1362,12 +1362,19 @@ async function handleLatestUpdatesInteraction(interaction, games) {
       return safeEdit(interaction, formatUserError(err, "Nu am reusit sa obtin update-urile.", "ERR_LATEST_UPDATES"));
     }
   }
-  const valid = data.filter(r => r.latest !== null);
+  const guild = await getGuildSettings(interaction.guild.id);
+  const enabledGames = Array.isArray(guild?.enabledGames) ? guild.enabledGames : [];
+  const enabledSet = enabledGames.length > 0 ? new Set(enabledGames) : null;
+  const valid = data.filter(r => r.latest !== null && (!enabledSet || enabledSet.has(r.game.key)));
   if (!valid.length) {
     endLog("no_data");
-    return safeEdit(interaction, "Eroare: Nu am date disponibile.");
+    return safeEdit(
+      interaction,
+      enabledSet
+        ? "Eroare: Nu am date disponibile pentru jocurile active ale acestui server."
+        : "Eroare: Nu am date disponibile."
+    );
   }
-  const guild = await getGuildSettings(interaction.guild.id);
   const mode = guild?.notificationMode || "detailed";
   const msg = await safeEdit(interaction, "OK: Date incarcate!");
   const generateEmbeds = async (page, totalP, currentMode) =>
