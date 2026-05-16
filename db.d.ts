@@ -11,9 +11,9 @@ export interface CurrencyConfig {
 }
 
 export interface EnvConfig {
-  MONGO_URI?: string;
-  DISCORD_TOKEN?: string;
-  DISCORD_CLIENT_ID?: string;
+  MONGO_URI: string;
+  DISCORD_TOKEN: string;
+  DISCORD_CLIENT_ID: string;
   PORT: string;
   NODE_ENV: string;
   METRICS_TOKEN: string;
