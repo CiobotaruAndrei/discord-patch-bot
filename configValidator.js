@@ -1,7 +1,13 @@
+// @ts-check
 "use strict";
 
 const { z } = require("zod");
 
+/** @typedef {import("zod").ZodIssue} ZodIssue */
+/** @typedef {(string | number)[]} IssuePath */
+/** @typedef {{ label: string, path: IssuePath, ownerIndex: number }} SeenSearchTerm */
+
+/** @type {Set<string>} */
 const ALLOWED_GAME_TYPES = new Set([
   "steam",
   "minecraft",
@@ -13,6 +19,7 @@ const ALLOWED_GAME_TYPES = new Set([
   "intel"
 ]);
 
+/** @type {Set<number>} */
 const ALLOWED_CHECK_INTERVAL_MINUTES = new Set([10, 15, 30, 60]);
 
 const GameSchema = z.object({
@@ -43,9 +50,17 @@ const ConfigSchema = z.object({
     });
   }
 
+  /** @type {Set<string>} */
   const seenKeys = new Set();
+  /** @type {Map<string, SeenSearchTerm>} */
   const seenSearchTerms = new Map();
 
+  /**
+   * @param {unknown} term
+   * @param {IssuePath} path
+   * @param {string} label
+   * @param {number} ownerIndex
+   */
   function addSearchTerm(term, path, label, ownerIndex) {
     const normalized = String(term || "").toLowerCase().trim();
     if (!normalized) return;
@@ -64,6 +79,7 @@ const ConfigSchema = z.object({
   for (let i = 0; i < config.games.length; i++) {
     const game = config.games[i];
     const type = game.type || "steam";
+    /** @type {IssuePath} */
     const path = ["games", i];
 
     if (seenKeys.has(game.key)) {
@@ -78,6 +94,7 @@ const ConfigSchema = z.object({
     addSearchTerm(game.name, [...path, "name"], `numele jocului ${game.key}`, i);
 
     if (Array.isArray(game.aliases)) {
+      /** @type {Set<string>} */
       const localAliases = new Set();
       for (let aliasIndex = 0; aliasIndex < game.aliases.length; aliasIndex++) {
         const alias = game.aliases[aliasIndex];
@@ -166,16 +183,21 @@ const ConfigSchema = z.object({
     if (game.articleHrefRegex) {
       try { new RegExp(game.articleHrefRegex); }
       catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: [...path, "articleHrefRegex"],
-          message: `Regex invalid: ${err.message}`
+          message: `Regex invalid: ${message}`
         });
       }
     }
   }
 });
 
+/**
+ * @param {ZodIssue[]} issues
+ * @returns {string}
+ */
 function formatZodIssues(issues) {
   return issues.map(issue => {
     const location = issue.path.length ? issue.path.join(".") : "config";
@@ -183,14 +205,20 @@ function formatZodIssues(issues) {
   }).join("\n");
 }
 
+/**
+ * @param {unknown} config
+ * @param {string} [source]
+ */
 function validateConfig(config, source = "config.json") {
   const result = ConfigSchema.safeParse(config);
-  if (!result.success) {
-    const err = new Error(`Config invalid (${source}):\n${formatZodIssues(result.error.issues)}`);
-    err.issues = result.error.issues;
-    throw err;
-  }
-  return result.data;
+  if (result.success) return result.data;
+
+  const failure = /** @type {import("zod").SafeParseError<unknown>} */ (result);
+  const issues = failure.error.issues;
+  /** @type {Error & { issues?: ZodIssue[] }} */
+  const err = new Error(`Config invalid (${source}):\n${formatZodIssues(issues)}`);
+  err.issues = issues;
+  throw err;
 }
 
 module.exports = {
