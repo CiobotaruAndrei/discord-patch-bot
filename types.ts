@@ -9,6 +9,76 @@ export type GameType =
   | "intel";
 
 export type CurrencyCode = "USD" | "EUR" | "GBP" | "RON";
+export type NotificationMode = "compact" | "detailed";
+export type AbortPredicate = () => boolean;
+export type MaybePromise<T> = T | Promise<T>;
+export type PriceValue = string | number;
+export type CurrencyPlacement = "prefix" | "suffix";
+export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
+
+export interface CurrencyConfig {
+  cc: string;
+  symbol: string;
+  placement: CurrencyPlacement;
+}
+
+export interface RuntimeEnv {
+  MONGO_URI?: string;
+  DISCORD_TOKEN?: string;
+  DISCORD_CLIENT_ID?: string;
+  PORT: string;
+  NODE_ENV: string;
+  METRICS_TOKEN: string;
+  METRICS_PUBLIC: boolean;
+  ADMIN_WEBHOOK_URL: string;
+  LOG_LEVEL: string;
+  PROXY_URLS: string;
+  FETCH_CONCURRENCY: number;
+  MAX_HTML_BYTES: number;
+  MAX_JSON_BYTES: number;
+  MAX_DEALS: number;
+  STEAM_SPECIALS_LIMIT: number;
+  EPIC_SPECIALS_LIMIT: number;
+  STEAM_REVIEW_BATCH_SIZE: number;
+  STEAM_REVIEW_BATCH_DELAY_MS: number;
+  DISCORD_SEND_DELAY_MS: number;
+  MAX_UPDATES_PER_CYCLE: number;
+  MAX_DEALS_PER_CYCLE: number;
+  GUILD_PROCESS_CONCURRENCY: number;
+  SEEN_PER_GAME_LIMIT: number;
+  DEALS_HISTORY_LIMIT: number;
+  PENDING_UPDATES_PER_GAME_LIMIT: number;
+  PENDING_DISCOUNTS_LIMIT: number;
+  PENDING_UPDATE_MAX_AGE_MS: number;
+  PENDING_DISCOUNT_GRACE_CYCLES: number;
+  PENDING_UPDATE_MAX_ATTEMPTS: number;
+  PENDING_DISCOUNT_MAX_ATTEMPTS: number;
+  MAX_FUZZY_SEARCH_INPUT: number;
+  INFLIGHT_PROMISE_TIMEOUT_MS: number;
+  USER_COMMAND_COOLDOWN_MS: number;
+  CIRCUIT_BREAKER_FAIL_THRESHOLD: number;
+  CIRCUIT_BREAKER_COOLDOWN_MS: number;
+  CIRCUIT_BREAKER_JITTER_MS: number;
+  SCHEMA_DRIFT_THRESHOLD: number;
+  COLLECTOR_TIMEOUT_MS: number;
+  HOUSEKEEPING_INTERVAL_MS: number;
+  GUILD_CACHE_TTL_MS: number;
+  ADMIN_ALERT_COOLDOWN_MS: number;
+  SHUTDOWN_DRAIN_MS: number;
+  ENRICHED_DEAL_CACHE_TTL_MS: number;
+  ENRICHED_DEAL_CACHE_MAX_SIZE: number;
+  CACHE_TTL_MS: number;
+  SINGLE_CACHE_MAX_SIZE: number;
+  DLC_CACHE_MAX_SIZE: number;
+  ITEMS_PER_PAGE: number;
+  DLC_ITEMS_PER_PAGE: number;
+  COMMAND_OUTPUT_MAX_CHARS: number;
+  MONGO_MAX_POOL_SIZE: number;
+  HTTP_RATE_LIMIT_REQ: number;
+  HTTP_RATE_LIMIT_WINDOW_MS: number;
+  isProd: boolean;
+  [key: string]: string | number | boolean | undefined;
+}
 
 export interface GameConfig {
   key: string;
@@ -68,6 +138,23 @@ export interface PatchUpdate {
   [key: string]: unknown;
 }
 
+export interface NormalizedUpdate {
+  id: string;
+  title: string;
+  link: string;
+  excerpt: string;
+  fullText: string;
+  image: string | null;
+  thumbnail: string | null;
+  timestamp: string;
+}
+
+export interface FetchResult {
+  game: GameConfig;
+  latest: NormalizedUpdate | null;
+  error: string | null;
+}
+
 export interface DealInfo {
   id?: string;
   title?: string;
@@ -76,14 +163,14 @@ export interface DealInfo {
   store?: string;
   appId?: string;
   steamAppID?: string | number | null;
-  normalPrice?: string | number;
-  salePrice?: string | number;
-  savings?: string | number;
+  normalPrice?: PriceValue;
+  salePrice?: PriceValue;
+  savings?: number;
   discountPercent?: number;
   popularityScore?: number;
   totalReviews?: number;
   qualityScore?: number;
-  currency?: string;
+  currency?: CurrencyCode | string;
   image?: string | null;
   thumbnail?: string | null;
   endsAt?: string | Date | null;
@@ -91,6 +178,10 @@ export interface DealInfo {
   extraDetails?: string;
   enriched?: boolean;
   [key: string]: unknown;
+}
+
+export interface EnrichedDealInfo extends DealInfo {
+  enriched: true;
 }
 
 export interface PendingUpdate extends PatchUpdate {
@@ -125,7 +216,7 @@ export interface GuildSettings {
   minDiscountPercent?: number;
   includeFreeGames?: boolean;
   includePaidDiscounts?: boolean;
-  notificationMode?: "compact" | "detailed";
+  notificationMode?: NotificationMode;
   currency?: CurrencyCode | string;
   lastProcessedGameKey?: string | null;
   updatesInitializing?: boolean;
@@ -155,9 +246,9 @@ export interface CacheEntry<T> {
 }
 
 export interface CommandRuntimeCache {
-  updates: CacheEntry<unknown | null>;
+  updates: CacheEntry<FetchResult[] | null>;
   dealsByCurrency: Map<string, CacheEntry<DealInfo[]>>;
-  single: Map<string, CacheEntry<PatchUpdate | null>>;
+  single: Map<string, CacheEntry<NormalizedUpdate | null>>;
   dlc: Map<string, CacheEntry<DlcCacheEntry>>;
 }
 
@@ -185,4 +276,43 @@ export interface DlcCacheEntry {
   appId: string | number;
   thumbUrl: string;
   totalExtracted: number;
+}
+
+export interface SteamSearchItem {
+  id?: string | number;
+  name?: string;
+  type?: string;
+  tiny_image?: string;
+  price?: unknown;
+  [key: string]: unknown;
+}
+
+export interface SteamReviewData {
+  totalReviews: number;
+  qualityPercent: number;
+  success: boolean;
+}
+
+export interface HttpRequestOptions {
+  timeout?: number;
+  headers?: Record<string, string>;
+  data?: unknown;
+  largeJson?: boolean;
+  maxContentLength?: number;
+  maxBodyLength?: number;
+  [key: string]: unknown;
+}
+
+export interface FetchDealsOptions {
+  currency?: CurrencyCode | string;
+  fromCron?: boolean;
+}
+
+export interface ConcurrentRunResult<T> {
+  processed: number;
+  errors: Array<{
+    index: number;
+    item: T;
+    error: unknown;
+  }>;
 }
