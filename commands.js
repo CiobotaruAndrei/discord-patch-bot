@@ -1,5 +1,21 @@
 "use strict";
-
+// =============================================================
+// commands.js — V9
+//   * Autocomplete pe /dlc, /status, /latest update, /latest pret,
+//     /set games add, /set games remove
+//   * Filtre noi per guild: enabledGames, enabledStores,
+//     maxAbsolutePrice, notificationRoleId, discountRoleId
+//   * /set restructurat: subcommands directe + subcommand groups
+//     `games` (add/remove/reset/list) și `role` (updates/discounts),
+//     plus directe noi `maxprice` și `stores`
+//   * Role mention doar pe prima trimitere per ciclu (anti-spam)
+//   * COLORS constant + OP_UPDATE_OPTS const în loc de funcție
+//   * normalizeCurrencyKey aplicat pe cache.dealsByCurrency
+//   * evictLRU unificat (cleanCache + cacheSetLRU)
+//   * Fix "Users **Popularitate:**" leftover + "Se incarca:" typo
+//   * extractSteamOfferEndDate primește currency
+//   * Magic numbers mutate în env
+// =============================================================
 const crypto = require("crypto");
 const {
   EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
@@ -12,6 +28,7 @@ const {
   getGuildSettings, invalidateGuildCache,
   runConcurrent, validatePendingDiscountSnapshot,
   SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, formatPrice,
+  getCurrencyConfig,
   env
 } = require("./db");
 
@@ -25,13 +42,16 @@ const {
   MAX_DEALS
 } = require("./scrapers");
 
-const CACHE_TTL_MS = 180000;
+// -------------------------------------------------------------
+// CONSTANTE (acum din env, cu defaulturi păstrate)
+// -------------------------------------------------------------
+const CACHE_TTL_MS = env.CACHE_TTL_MS;
 const CACHE_CLEAN_INTERVAL_MS = 300000;
-const ITEMS_PER_PAGE = 5;
-const DLC_ITEMS_PER_PAGE = 10;
-const COMMAND_OUTPUT_MAX_CHARS = 1900;
-const DLC_CACHE_MAX_SIZE = 100;
-const SINGLE_CACHE_MAX_SIZE = 100;
+const ITEMS_PER_PAGE = env.ITEMS_PER_PAGE;
+const DLC_ITEMS_PER_PAGE = env.DLC_ITEMS_PER_PAGE;
+const COMMAND_OUTPUT_MAX_CHARS = env.COMMAND_OUTPUT_MAX_CHARS;
+const DLC_CACHE_MAX_SIZE = env.DLC_CACHE_MAX_SIZE;
+const SINGLE_CACHE_MAX_SIZE = env.SINGLE_CACHE_MAX_SIZE;
 
 const DEALS_HISTORY_LIMIT = env.DEALS_HISTORY_LIMIT;
 const SEEN_PER_GAME_LIMIT = env.SEEN_PER_GAME_LIMIT;
@@ -49,12 +69,32 @@ const MAX_FUZZY_SEARCH_INPUT = env.MAX_FUZZY_SEARCH_INPUT;
 const USER_COMMAND_COOLDOWN_MS = env.USER_COMMAND_COOLDOWN_MS;
 const COLLECTOR_TIMEOUT_MS = env.COLLECTOR_TIMEOUT_MS;
 
+// V9: constante pentru culori embed (eliminăm magic numbers împrăștiate)
+const COLORS = Object.freeze({
+  ERROR:    0xe74c3c,
+  SUCCESS:  0x57f287,
+  FREE:     0xffd700,
+  INFO:     0x3498db,
+  DARK:     0x2b2d31,
+  DLC:      0x9b59b6,
+  POSITIVE: 0x2ecc71
+});
+
+// V9: opțiuni pentru updates operaționale — frozen, în loc să le construim
+// la fiecare apel cu o funcție.
+const OP_UPDATE_OPTS = Object.freeze({ strict: false });
+
 let GLOBAL_CACHE_TTL_MS = 1800000;
 function setGlobalCacheTtl(ms) {
   if (Number.isFinite(ms) && ms > 0) {
     GLOBAL_CACHE_TTL_MS = Math.min(ms, 30 * 60 * 1000);
     logger("INFO", "CACHE", `GLOBAL_CACHE_TTL_MS setat la ${GLOBAL_CACHE_TTL_MS}ms`);
   }
+}
+
+// V9: normalizare cheie currency în cache (defensiv)
+function normalizeCurrencyKey(c) {
+  return String(c || DEFAULT_CURRENCY).toUpperCase();
 }
 
 const cache = {
@@ -78,17 +118,19 @@ function setUpdatesCache(data) {
 }
 
 function getDealsCacheData(currency) {
-  const entry = cache.dealsByCurrency.get(currency);
+  const key = normalizeCurrencyKey(currency);
+  const entry = cache.dealsByCurrency.get(key);
   if (!entry) return null;
   if (entry.expiresAt <= Date.now()) {
-    cache.dealsByCurrency.delete(currency);
+    cache.dealsByCurrency.delete(key);
     return null;
   }
   return entry.data;
 }
 
 function setDealsCache(currency, data) {
-  cache.dealsByCurrency.set(currency, { data, expiresAt: Date.now() + GLOBAL_CACHE_TTL_MS });
+  const key = normalizeCurrencyKey(currency);
+  cache.dealsByCurrency.set(key, { data, expiresAt: Date.now() + GLOBAL_CACHE_TTL_MS });
 }
 
 function cacheGetLRU(map, key) {
@@ -103,14 +145,22 @@ function cacheGetLRU(map, key) {
   return value.data;
 }
 
+// V9: helper unificat de eviction. Folosit și de cacheSetLRU,
+// și de cleanCache. Evită bucle while care recreează iteratorul.
+function evictLRU(map, maxSize) {
+  if (map.size <= maxSize) return;
+  const toDelete = map.size - maxSize;
+  let deleted = 0;
+  for (const key of map.keys()) {
+    map.delete(key);
+    if (++deleted >= toDelete) break;
+  }
+}
+
 function cacheSetLRU(map, key, data, ttlMs, maxSize) {
   if (map.has(key)) map.delete(key);
   map.set(key, { data, expiresAt: Date.now() + ttlMs });
-  while (map.size > maxSize) {
-    const oldestKey = map.keys().next().value;
-    if (oldestKey === undefined) break;
-    map.delete(oldestKey);
-  }
+  evictLRU(map, maxSize);
 }
 
 const USER_COOLDOWNS_THRESHOLD = 500;
@@ -153,8 +203,8 @@ function cleanCache() {
   for (const [key, value] of cache.dlc.entries()) {
     if (value.expiresAt <= now) cache.dlc.delete(key);
   }
-  while (cache.single.size > SINGLE_CACHE_MAX_SIZE) cache.single.delete(cache.single.keys().next().value);
-  while (cache.dlc.size > DLC_CACHE_MAX_SIZE) cache.dlc.delete(cache.dlc.keys().next().value);
+  evictLRU(cache.single, SINGLE_CACHE_MAX_SIZE);
+  evictLRU(cache.dlc, DLC_CACHE_MAX_SIZE);
   cleanUserCooldowns();
 }
 
@@ -197,10 +247,6 @@ function missingChannelPermsMessage() {
   return "Eroare: Nu pot activa notificarile pe acest canal. Am nevoie de permisiunile **Send Messages** si **Embed Links**.";
 }
 
-function operationalUpdateOptions() {
-  return { strict: false };
-}
-
 function makeActivationId() {
   return crypto.randomBytes(8).toString("hex");
 }
@@ -209,14 +255,22 @@ async function sleepIfPositive(ms) {
   if (ms > 0) await new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// V9: filtre extinse — store, preț absolut max
 function dealPassesFilters(deal, guild) {
   const minDisc = guild?.minDiscountPercent ?? 0;
   const incFree = guild?.includeFreeGames !== false;
   const incPaid = guild?.includePaidDiscounts !== false;
-  const isFree = parseFloat(deal.salePrice) === 0;
+  const maxPrice = Number(guild?.maxAbsolutePrice) || 0;
+  const enabledStores = Array.isArray(guild?.enabledStores) ? guild.enabledStores : [];
+
+  const salePriceNum = parseFloat(deal.salePrice);
+  const isFree = salePriceNum === 0;
+
   if (isFree && !incFree) return false;
   if (!isFree && !incPaid) return false;
   if (!isFree && deal.savings < minDisc) return false;
+  if (!isFree && maxPrice > 0 && Number.isFinite(salePriceNum) && salePriceNum > maxPrice) return false;
+  if (enabledStores.length > 0 && !enabledStores.includes(deal.store)) return false;
   return true;
 }
 
@@ -325,7 +379,7 @@ async function safeEdit(interaction, payload) {
 function buildUpdateEmbed(gameName, latest, mode = "detailed") {
   const isCompact = mode === "compact";
   const embed = new EmbedBuilder()
-    .setColor(0x57f287)
+    .setColor(COLORS.SUCCESS)
     .setTitle(truncate(latest.title, 256))
     .setFooter({ text: truncate(gameName, 2048) });
   if (latest.link) embed.setURL(latest.link);
@@ -343,12 +397,13 @@ function buildUpdateEmbed(gameName, latest, mode = "detailed") {
   return embed;
 }
 
+// V9: fix "Users **Popularitate:**" leftover + scoatere "Se incarca:" eronat.
 function buildDealEmbed(deal, mode = "detailed", currency) {
   const cur = currency || deal.currency || DEFAULT_CURRENCY;
   const isFree = parseFloat(deal.salePrice) === 0;
   const isCompact = mode === "compact";
   const embed = new EmbedBuilder()
-    .setColor(isFree ? 0xffd700 : 0xe74c3c)
+    .setColor(isFree ? COLORS.FREE : COLORS.ERROR)
     .setTitle(truncate(`${isFree ? "Gratuit: " : "Reducere: "}${deal.title}`, 256));
   if (deal.link) embed.setURL(deal.link);
   if (isCompact) {
@@ -357,12 +412,12 @@ function buildDealEmbed(deal, mode = "detailed", currency) {
   }
   let statsStr = "";
   if (deal.qualityScore > 0) {
-    statsStr = `* **Calitate:** ${deal.qualityScore}% aprecieri | Users **Popularitate:** ${deal.totalReviews > 0 ? `${deal.totalReviews} recenzii` : "Top Seller"}\n\n`;
+    statsStr = `**Calitate:** ${deal.qualityScore}% aprecieri | **Popularitate:** ${deal.totalReviews > 0 ? `${deal.totalReviews} recenzii` : "Top Seller"}\n\n`;
   }
   embed.setAuthor({ name: truncate(deal.store, 256) })
     .setDescription(truncate(`**${deal.store}** ofera o reducere de **${deal.savings}%**!\n\n`
       + statsStr + (deal.endDateStr && deal.endDateStr !== "Nespecificat"
-        ? `Se incarca: **${isFree ? "Gratis pana la" : "Expira la"}:** ${deal.endDateStr}\n\n`
+        ? `**${isFree ? "Gratis pana la" : "Expira la"}:** ${deal.endDateStr}\n\n`
         : ""), 4096))
     .addFields(
       { name: "Pret Vechi", value: `~~${formatPrice(deal.normalPrice, cur)}~~`, inline: true },
@@ -467,14 +522,14 @@ async function fetchGameStatus(game) {
   let statusText = "Nu am un API oficial live integrat pentru acest joc. Iti dau pagina oficiala/fallback ca sa verifici manual.";
   let statusLink = "";
   let homepageLink = "";
-  let color = 0x3498db;
+  let color = COLORS.INFO;
 
   if (game.type === "epic_games") {
     try {
       const res = await httpReq("GET", "https://status.epicgames.com/api/v2/status.json");
       statusText = `**Status Server:** ${res.data.status.description}`;
       statusLink = "https://status.epicgames.com/";
-      color = res.data.status.indicator === "none" ? 0x2ecc71 : 0xe74c3c;
+      color = res.data.status.indicator === "none" ? COLORS.POSITIVE : COLORS.ERROR;
     } catch (err) {
       statusText = "Nu am putut prelua statusul automat. Verifica pagina oficiala.";
       statusLink = "https://status.epicgames.com/";
@@ -507,6 +562,7 @@ async function fetchGameStatus(game) {
   return embed;
 }
 
+// V9: fix "Se incarca:" leftover din descriere.
 function buildSteamPriceEmbed(gameData, appId, offerEndDate, currency) {
   const cur = currency || DEFAULT_CURRENCY;
   const typeStr = gameData.type === "game" ? "Joc"
@@ -515,11 +571,11 @@ function buildSteamPriceEmbed(gameData, appId, offerEndDate, currency) {
     : gameData.type === "demo" ? "Demo" : "Aplicatie/Bundle";
   const priceOverview = gameData.price_overview;
   let embedDesc = `**Tip produs:** ${typeStr}\n\n`;
-  let color = 0x2b2d31;
+  let color = COLORS.DARK;
 
   if (gameData.is_free) {
     embedDesc += "Acest titlu este in prezent **GRATUIT** (Free to Play).";
-    color = 0xffd700;
+    color = COLORS.FREE;
   } else if (!priceOverview) {
     embedDesc += "Pretul nu este disponibil in acest moment.";
   } else {
@@ -527,11 +583,11 @@ function buildSteamPriceEmbed(gameData, appId, offerEndDate, currency) {
     const currentPrice = (priceOverview.final / 100).toFixed(2);
     if (priceOverview.discount_percent > 0) {
       embedDesc += `Este o reducere activa de **${priceOverview.discount_percent}%**!\n\n~~${formatPrice(normalPrice, cur)}~~ -> **${formatPrice(currentPrice, cur)}**`;
-      embedDesc += `\nSe incarca: **Oferta expira la:** ${offerEndDate || "Nespecificat"}`;
-      color = 0xe74c3c;
+      embedDesc += `\n**Oferta expira la:** ${offerEndDate || "Nespecificat"}`;
+      color = COLORS.ERROR;
     } else {
       embedDesc += `Nu este la reducere in acest moment.\n\nPret standard: **${formatPrice(normalPrice, cur)}**`;
-      color = 0x57f287;
+      color = COLORS.SUCCESS;
     }
   }
 
@@ -558,7 +614,7 @@ async function claimSeenUpdate(guildId, channelId, gameKey, updateId) {
       $pull: { [`pendingUpdates.${gameKey}`]: { id: updateId } },
       $set: { lastProcessedGameKey: gameKey }
     },
-    operationalUpdateOptions()
+    OP_UPDATE_OPTS
   );
 }
 
@@ -580,10 +636,11 @@ async function disableUpdatesForChannelError(guildId, channelId, message) {
         updatesLastError: { message, channelId, at: new Date() }
       }
     },
-    operationalUpdateOptions()
+    OP_UPDATE_OPTS
   );
 }
 
+// V9: filtrăm per joc + mențiune rol pe prima trimitere doar.
 async function processGuildUpdates(client, guild, latestResults) {
   const channel = await client.channels.fetch(guild.notificationChannelId).catch(() => null);
   if (!canSendEmbeds(channel, client.user.id)) {
@@ -593,6 +650,11 @@ async function processGuildUpdates(client, guild, latestResults) {
     return;
   }
 
+  // V9: dacă guild-ul are listă explicită de jocuri active, filtrăm.
+  const enabledGames = Array.isArray(guild.enabledGames) ? guild.enabledGames : [];
+  const hasGameFilter = enabledGames.length > 0;
+  const enabledSet = hasGameFilter ? new Set(enabledGames) : null;
+
   const now = Date.now();
   const pendingByGame = new Map();
   const seenByGame = new Map();
@@ -600,6 +662,7 @@ async function processGuildUpdates(client, guild, latestResults) {
     seenByGame.set(gameKey, new Set(Array.isArray(seen) ? seen.map(String) : []));
   }
   for (const [gameKey, arr] of toEntries(guild.pendingUpdates)) {
+    if (hasGameFilter && !enabledSet.has(gameKey)) continue;
     const seenSet = seenByGame.get(gameKey) || new Set();
     const cleaned = normalizePendingUpdateArray(arr).filter(item => {
       const age = now - new Date(item.createdAt).getTime();
@@ -613,6 +676,7 @@ async function processGuildUpdates(client, guild, latestResults) {
   for (const result of latestResults) {
     if (!result?.game?.key || !result.latest) continue;
     const gameKey = result.game.key;
+    if (hasGameFilter && !enabledSet.has(gameKey)) continue;
     const seenSet = seenByGame.get(gameKey) || new Set();
     const queue = pendingByGame.get(gameKey) || [];
     if (!seenSet.has(result.latest.id) && !queue.some(item => item.id === result.latest.id)) {
@@ -637,7 +701,15 @@ async function processGuildUpdates(client, guild, latestResults) {
       continue;
     }
     try {
-      await channel.send({ embeds: [buildUpdateEmbed(game.name, next, guild.notificationMode || "detailed")] });
+      // V9: prima trimitere pingează rolul (dacă e setat), restul nu — anti-spam.
+      const sendPayload = {
+        embeds: [buildUpdateEmbed(game.name, next, guild.notificationMode || "detailed")]
+      };
+      if (sentCount === 0 && guild.notificationRoleId) {
+        sendPayload.content = `<@&${guild.notificationRoleId}>`;
+        sendPayload.allowedMentions = { roles: [guild.notificationRoleId] };
+      }
+      await channel.send(sendPayload);
       sentCount++;
       lastProcessedGameKey = gameKey;
       await sleepIfPositive(DISCORD_SEND_DELAY_MS);
@@ -697,7 +769,7 @@ async function claimSeenDiscount(guildId, channelId, hash) {
       $push: { seenDiscounts: { $each: [hash], $slice: -DEALS_HISTORY_LIMIT } },
       $pull: { pendingDiscounts: { hash } }
     },
-    operationalUpdateOptions()
+    OP_UPDATE_OPTS
   );
 }
 
@@ -719,10 +791,11 @@ async function disableDiscountsForChannelError(guildId, channelId, message) {
         discountsLastError: { message, channelId, at: new Date() }
       }
     },
-    operationalUpdateOptions()
+    OP_UPDATE_OPTS
   );
 }
 
+// V9: mențiune rol pe prima trimitere doar.
 async function processGuildDiscounts(client, guild, deals) {
   const channel = await client.channels.fetch(guild.discountChannelId).catch(() => null);
   if (!canSendEmbeds(channel, client.user.id)) {
@@ -770,7 +843,15 @@ async function processGuildDiscounts(client, guild, deals) {
       const claim = await claimSeenDiscount(String(guild._id), channel.id, item.hash);
       if (claim.matchedCount === 0) continue;
       claimed = true;
-      await channel.send({ embeds: [buildDealEmbed(dealToSend, guild.notificationMode || "detailed", guild.currency || DEFAULT_CURRENCY)] });
+      const sendPayload = {
+        embeds: [buildDealEmbed(dealToSend, guild.notificationMode || "detailed", guild.currency || DEFAULT_CURRENCY)]
+      };
+      // V9: ping rol doar pe prima trimitere
+      if (sentCount === 0 && guild.discountRoleId) {
+        sendPayload.content = `<@&${guild.discountRoleId}>`;
+        sendPayload.allowedMentions = { roles: [guild.discountRoleId] };
+      }
+      await channel.send(sendPayload);
       sentCount++;
       await sleepIfPositive(DISCORD_SEND_DELAY_MS);
     } catch (err) {
@@ -800,7 +881,7 @@ async function checkForDiscounts(client, shouldAbort = null) {
 
   const dealsPromises = new Map();
   async function dealsForCurrency(currency) {
-    const cur = currency || DEFAULT_CURRENCY;
+    const cur = normalizeCurrencyKey(currency);
     const cached = getDealsCacheData(cur);
     if (cached) return cached;
     if (!dealsPromises.has(cur)) {
@@ -824,6 +905,7 @@ async function checkForDiscounts(client, shouldAbort = null) {
 
 const CURRENCY_CHOICES = Object.keys(SUPPORTED_CURRENCIES).map(c => ({ name: c, value: c }));
 
+// V9: definiții slash extinse — autocomplete + subcomenzi noi.
 function buildSlashCommandDefinitions() {
   return [
     new SlashCommandBuilder().setName("ping").setDescription("Verifica daca botul raspunde"),
@@ -850,6 +932,8 @@ function buildSlashCommandDefinitions() {
           .addChoices({ name: "compact", value: "compact" }, { name: "detailed", value: "detailed" })))
       .addSubcommand(s => s.setName("mindiscount").setDescription("Procent minim reducere (0-100)")
         .addIntegerOption(o => o.setName("value").setDescription("0-100").setRequired(true).setMinValue(0).setMaxValue(100)))
+      .addSubcommand(s => s.setName("maxprice").setDescription("Pret maxim absolut pentru oferte (0 = fara limita)")
+        .addIntegerOption(o => o.setName("value").setDescription("0-10000 (0 = dezactivat)").setRequired(true).setMinValue(0).setMaxValue(10000)))
       .addSubcommand(s => s.setName("free").setDescription("Afiseaza jocurile gratuite?")
         .addStringOption(o => o.setName("value").setDescription("on/off").setRequired(true)
           .addChoices({ name: "on", value: "on" }, { name: "off", value: "off" })))
@@ -858,24 +942,38 @@ function buildSlashCommandDefinitions() {
           .addChoices({ name: "on", value: "on" }, { name: "off", value: "off" })))
       .addSubcommand(s => s.setName("currency").setDescription("Valuta pentru afisarea preturilor")
         .addStringOption(o => o.setName("value").setDescription("USD/EUR/GBP/RON").setRequired(true)
-          .addChoices(...CURRENCY_CHOICES))),
+          .addChoices(...CURRENCY_CHOICES)))
+      .addSubcommand(s => s.setName("stores").setDescription("Filtreaza dupa magazin (steam,epic sau reset)")
+        .addStringOption(o => o.setName("value").setDescription("Ex: steam,epic | reset").setRequired(true)))
+      .addSubcommandGroup(g => g.setName("games").setDescription("Filtru per-joc pentru update-uri")
+        .addSubcommand(s => s.setName("add").setDescription("Adauga un joc la lista activa")
+          .addStringOption(o => o.setName("joc").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true)))
+        .addSubcommand(s => s.setName("remove").setDescription("Scoate un joc din lista activa")
+          .addStringOption(o => o.setName("joc").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true)))
+        .addSubcommand(s => s.setName("reset").setDescription("Resetare filtru (toate jocurile active)"))
+        .addSubcommand(s => s.setName("list").setDescription("Afiseaza jocurile active explicit")))
+      .addSubcommandGroup(g => g.setName("role").setDescription("Roluri ping pentru notificari")
+        .addSubcommand(s => s.setName("updates").setDescription("Rol pingat la update-uri (gol = oprit)")
+          .addRoleOption(o => o.setName("value").setDescription("Rolul de mentionat (gol = oprit)").setRequired(false)))
+        .addSubcommand(s => s.setName("discounts").setDescription("Rol pingat la reduceri (gol = oprit)")
+          .addRoleOption(o => o.setName("value").setDescription("Rolul de mentionat (gol = oprit)").setRequired(false)))),
     new SlashCommandBuilder()
       .setName("latest")
       .setDescription("Comenzi pentru ultimele update-uri/oferte")
       .addSubcommand(s => s.setName("updates").setDescription("Cele mai recente update-uri pentru toate jocurile"))
       .addSubcommand(s => s.setName("reduceri").setDescription("Cele mai bune reduceri actuale"))
       .addSubcommand(s => s.setName("update").setDescription("Ultimul update pentru un joc specific")
-        .addStringOption(o => o.setName("joc").setDescription("Numele/porecla jocului").setRequired(true)))
+        .addStringOption(o => o.setName("joc").setDescription("Numele/porecla jocului").setRequired(true).setAutocomplete(true)))
       .addSubcommand(s => s.setName("pret").setDescription("Cauta pretul curent pe Steam")
-        .addStringOption(o => o.setName("joc").setDescription("Numele jocului").setRequired(true))),
+        .addStringOption(o => o.setName("joc").setDescription("Numele jocului").setRequired(true).setAutocomplete(true))),
     new SlashCommandBuilder()
       .setName("dlc")
       .setDescription("Cauta DLC-urile pentru un joc pe Steam")
-      .addStringOption(o => o.setName("joc").setDescription("Numele jocului").setRequired(true)),
+      .addStringOption(o => o.setName("joc").setDescription("Numele jocului").setRequired(true).setAutocomplete(true)),
     new SlashCommandBuilder()
       .setName("status")
       .setDescription("Verifica status server pentru un joc")
-      .addStringOption(o => o.setName("joc").setDescription("Numele/porecla jocului").setRequired(true))
+      .addStringOption(o => o.setName("joc").setDescription("Numele/porecla jocului").setRequired(true).setAutocomplete(true))
   ].map(b => b.toJSON());
 }
 
@@ -939,7 +1037,7 @@ async function handleStartInteraction(interaction, games) {
           },
           $unset: { updatesLastError: "" }
         },
-        { upsert: true, ...operationalUpdateOptions() }
+        { upsert: true, ...OP_UPDATE_OPTS }
       );
       invalidateGuildCache(guildId);
 
@@ -962,7 +1060,7 @@ async function handleStartInteraction(interaction, games) {
             $set: seenPayload,
             $unset: { updatesActivationId: "", updatesLastError: "" }
           },
-          operationalUpdateOptions()
+          OP_UPDATE_OPTS
         );
         if (activationResult.matchedCount === 0) {
           return safeEdit(interaction, "Activarea update-urilor a fost intrerupta de o comanda stop/start mai noua. Ruleaza din nou /start updates daca mai vrei activarea.");
@@ -980,7 +1078,7 @@ async function handleStartInteraction(interaction, games) {
             },
             $unset: { updatesActivationId: "" }
           },
-          operationalUpdateOptions()
+          OP_UPDATE_OPTS
         ).catch(() => null);
         logger("WARN", "START_UPDATES", "Activat, dar baseline-ul initial a esuat", err.message);
         invalidateGuildCache(guildId);
@@ -1008,7 +1106,7 @@ async function handleStartInteraction(interaction, games) {
           },
           $unset: { discountsLastError: "" }
         },
-        { upsert: true, ...operationalUpdateOptions() }
+        { upsert: true, ...OP_UPDATE_OPTS }
       );
       invalidateGuildCache(guildId);
 
@@ -1029,7 +1127,7 @@ async function handleStartInteraction(interaction, games) {
             },
             $unset: { discountsActivationId: "", discountsLastError: "" }
           },
-          operationalUpdateOptions()
+          OP_UPDATE_OPTS
         );
         if (activationResult.matchedCount === 0) {
           return safeEdit(interaction, "Activarea reducerilor a fost intrerupta de o comanda stop/start mai noua. Ruleaza din nou /start reduceri daca mai vrei activarea.");
@@ -1048,7 +1146,7 @@ async function handleStartInteraction(interaction, games) {
             },
             $unset: { discountsActivationId: "" }
           },
-          operationalUpdateOptions()
+          OP_UPDATE_OPTS
         ).catch(() => null);
         logger("WARN", "START_DISCOUNTS", "Activat, dar baseline-ul de reduceri a esuat", err.message);
         invalidateGuildCache(guildId);
@@ -1069,7 +1167,7 @@ async function handleStopInteraction(interaction) {
       await GuildModel.updateOne({ _id: guildId }, {
         $set: { subscribed: false, notificationChannelId: null, updatesInitializing: false, pendingUpdates: {} },
         $unset: { updatesActivationId: "" }
-      }, operationalUpdateOptions());
+      }, OP_UPDATE_OPTS);
       invalidateGuildCache(guildId);
       return safeEdit(interaction, "OK: Update-uri oprite.");
     }
@@ -1077,7 +1175,7 @@ async function handleStopInteraction(interaction) {
       await GuildModel.updateOne({ _id: guildId }, {
         $set: { discountsSubscribed: false, discountChannelId: null, discountsInitializing: false, pendingDiscounts: [] },
         $unset: { discountsActivationId: "" }
-      }, operationalUpdateOptions());
+      }, OP_UPDATE_OPTS);
       invalidateGuildCache(guildId);
       return safeEdit(interaction, "OK: Reduceri oprite.");
     }
@@ -1086,14 +1184,21 @@ async function handleStopInteraction(interaction) {
   }
 }
 
-async function handleSetInteraction(interaction) {
-  const sub = interaction.options.getSubcommand();
+// V9: handler /set restructurat — dispatch pe subcommand group + handlere noi.
+async function handleSetInteraction(interaction, games) {
   const guildId = interaction.guild.id;
+  const group = interaction.options.getSubcommandGroup(false);
+  const sub = interaction.options.getSubcommand();
   await safeDefer(interaction);
 
+  if (group === "games") return handleSetGames(interaction, games, sub, guildId);
+  if (group === "role") return handleSetRole(interaction, sub, guildId);
+
+  // Subcomenzi directe (fără grup): mode, mindiscount, maxprice, free, paid, currency, stores
   const updateDoc = {};
   let confirmMsg = "";
   let isFilterChange = false;
+
   if (sub === "mode") {
     const value = interaction.options.getString("value");
     updateDoc.notificationMode = value;
@@ -1102,6 +1207,13 @@ async function handleSetInteraction(interaction) {
     const min = interaction.options.getInteger("value");
     updateDoc.minDiscountPercent = min;
     confirmMsg = `OK: Reducere minima: **${min}%**`;
+    isFilterChange = true;
+  } else if (sub === "maxprice") {
+    const val = interaction.options.getInteger("value");
+    updateDoc.maxAbsolutePrice = val;
+    confirmMsg = val === 0
+      ? "OK: Filtru pret maxim dezactivat."
+      : `OK: Pret maxim setat: **${val}**`;
     isFilterChange = true;
   } else if (sub === "free") {
     const value = interaction.options.getString("value");
@@ -1118,7 +1230,27 @@ async function handleSetInteraction(interaction) {
     updateDoc.currency = value;
     confirmMsg = `OK: Valuta setata: **${value}**`;
     isFilterChange = true;
+  } else if (sub === "stores") {
+    const raw = String(interaction.options.getString("value") || "").trim().toLowerCase();
+    if (raw === "reset" || raw === "") {
+      updateDoc.enabledStores = [];
+      confirmMsg = "OK: Filtru store-uri resetat (toate active).";
+    } else {
+      const tokens = raw.split(",").map(s => s.trim()).filter(Boolean);
+      const selected = [];
+      for (const t of tokens) {
+        if (t === "steam") selected.push("Steam");
+        else if (t === "epic" || t === "epicgames" || t === "epic games") selected.push("Epic Games");
+        else {
+          return safeEdit(interaction, `Eroare: Store necunoscut: \`${t}\`. Valori valide: \`steam\`, \`epic\`. Pentru reset: \`reset\`.`);
+        }
+      }
+      updateDoc.enabledStores = Array.from(new Set(selected));
+      confirmMsg = `OK: Store-uri active: **${updateDoc.enabledStores.join(", ")}**`;
+    }
+    isFilterChange = true;
   }
+
   if (isFilterChange) updateDoc.pendingDiscounts = [];
   try {
     await GuildModel.updateOne({ _id: guildId }, { $set: updateDoc }, { upsert: true });
@@ -1126,6 +1258,78 @@ async function handleSetInteraction(interaction) {
     return safeEdit(interaction, confirmMsg + (isFilterChange ? " *(coada de pending a fost resetata)*" : ""));
   } catch (err) {
     return safeEdit(interaction, formatUserError(err, "Eroare la salvarea preferintelor."));
+  }
+}
+
+async function handleSetGames(interaction, games, sub, guildId) {
+  if (sub === "list") {
+    const guild = await getGuildSettings(guildId);
+    const enabled = Array.isArray(guild?.enabledGames) ? guild.enabledGames : [];
+    if (enabled.length === 0) {
+      return safeEdit(interaction, "OK: Filtru per-joc: **dezactivat** (toate jocurile configurate sunt active).");
+    }
+    const lines = enabled.map(key => {
+      const g = games.find(x => x.key === key);
+      return g ? `- **${g.name}** (\`${g.key}\`)` : `- \`${key}\` *(cheie necunoscuta in config)*`;
+    });
+    return safeEdit(interaction, `OK: Jocuri active explicit (${enabled.length}):\n` + lines.join("\n"));
+  }
+
+  if (sub === "reset") {
+    try {
+      await GuildModel.updateOne({ _id: guildId }, { $set: { enabledGames: [] } }, { upsert: true });
+      invalidateGuildCache(guildId);
+      return safeEdit(interaction, "OK: Filtru per-joc resetat. Toate jocurile sunt active.");
+    } catch (err) {
+      return safeEdit(interaction, formatUserError(err, "Eroare la resetare."));
+    }
+  }
+
+  const joc = interaction.options.getString("joc");
+  const game = games.find(g => g.key === joc);
+  if (!game) {
+    return safeEdit(interaction, `Eroare: Cheia \`${joc}\` nu exista in config. Foloseste \`/games\` pentru a vedea cheile valide.`);
+  }
+
+  try {
+    if (sub === "add") {
+      await GuildModel.updateOne(
+        { _id: guildId },
+        { $addToSet: { enabledGames: joc } },
+        { upsert: true }
+      );
+      invalidateGuildCache(guildId);
+      return safeEdit(interaction, `OK: **${game.name}** adaugat la lista activa.`);
+    }
+    if (sub === "remove") {
+      await GuildModel.updateOne(
+        { _id: guildId },
+        { $pull: { enabledGames: joc } }
+      );
+      invalidateGuildCache(guildId);
+      return safeEdit(interaction, `OK: **${game.name}** scos din lista activa.`);
+    }
+  } catch (err) {
+    return safeEdit(interaction, formatUserError(err, "Eroare la modificarea listei de jocuri."));
+  }
+}
+
+async function handleSetRole(interaction, sub, guildId) {
+  const role = interaction.options.getRole("value", false);
+  const field = sub === "updates" ? "notificationRoleId" : "discountRoleId";
+  const label = sub === "updates" ? "update-uri" : "reduceri";
+  try {
+    if (role) {
+      await GuildModel.updateOne({ _id: guildId }, { $set: { [field]: role.id } }, { upsert: true });
+      invalidateGuildCache(guildId);
+      return safeEdit(interaction, `OK: Rol pentru ${label}: <@&${role.id}> *(ping doar la prima notificare per ciclu)*`);
+    } else {
+      await GuildModel.updateOne({ _id: guildId }, { $set: { [field]: null } });
+      invalidateGuildCache(guildId);
+      return safeEdit(interaction, `OK: Rol pentru ${label} eliminat (fara ping).`);
+    }
+  } catch (err) {
+    return safeEdit(interaction, formatUserError(err, "Eroare la setarea rolului."));
   }
 }
 
@@ -1285,8 +1489,9 @@ async function handlePriceSearchInteraction(interaction, gameName) {
       endLog("no_details", { appId: bestMatch.id });
       return safeEdit(interaction, "Eroare: Am gasit un rezultat, dar detaliile de pret nu sunt disponibile.");
     }
+    // V9: trecem currency-ul pentru extractul de dată — locale corect per guild.
     const offerEndDate = gameData.price_overview?.discount_percent > 0
-      ? await extractSteamOfferEndDate(bestMatch.id)
+      ? await extractSteamOfferEndDate(bestMatch.id, currency)
       : null;
     endLog("ok", { appId: bestMatch.id });
     return safeEdit(interaction, {
@@ -1330,9 +1535,9 @@ async function handleDlcInteraction(interaction) {
       try { gameDetails = await fetchSteamPriceDetails(bestMatch.id, currency); }
       catch (err) { logger("WARN", "DLC_SEARCH", `Nu am putut prelua header_image pentru ${bestMatch.id}`, err.message); }
       const thumbUrl = gameDetails?.header_image || `https://cdn.akamai.steamstatic.com/steam/apps/${bestMatch.id}/header.jpg`;
-      const { getCurrencyConfig } = require("./db");
       const cc = getCurrencyConfig(currency).cc;
-      const htmlRes = await httpReq("GET", `https://store.steampowered.com/app/${bestMatch.id}?cc=${cc}`, {
+      // V9: adăugăm l=english pentru consistență cu enrich.
+      const htmlRes = await httpReq("GET", `https://store.steampowered.com/app/${bestMatch.id}?cc=${cc}&l=english`, {
         headers: { Cookie: "birthtime=283993201; mature_content=1;" },
         timeout: 15000
       });
@@ -1372,7 +1577,7 @@ async function handleDlcInteraction(interaction) {
     const generateEmbeds = async (page, totalP) => {
       const chunk = dlcList.slice(page * DLC_ITEMS_PER_PAGE, (page + 1) * DLC_ITEMS_PER_PAGE);
       const embed = new EmbedBuilder()
-        .setColor(0x9b59b6)
+        .setColor(COLORS.DLC)
         .setTitle(`DLC-uri: ${title}`)
         .setURL(`https://store.steampowered.com/app/${appId}`)
         .setThumbnail(thumbUrl);
@@ -1412,20 +1617,111 @@ async function handleStatusInteraction(interaction, games) {
   }
 }
 
+// V9: autocomplete handler. Returnează maxim 25 sugestii, scoring simplu.
+// Pentru /dlc și /latest pret folosim numele complet ca valoare (Steam search
+// nu cunoaște cheia internă), pentru restul folosim cheia.
+async function handleAutocomplete(interaction, games) {
+  try {
+    const focused = interaction.options.getFocused(true);
+    if (!focused || focused.name !== "joc") {
+      return interaction.respond([]).catch(() => null);
+    }
+    const input = String(focused.value || "").toLowerCase().trim().substring(0, 100);
+    const cmd = interaction.commandName;
+    const sub = interaction.options.getSubcommand(false);
+    const group = interaction.options.getSubcommandGroup(false);
+
+    // Pentru Steam search (dlc, latest pret) returnăm numele complet
+    const useNameAsValue = (cmd === "dlc") || (cmd === "latest" && sub === "pret");
+
+    // Pentru /set games remove restrângem pool-ul la jocurile deja active
+    let pool = games;
+    if (cmd === "set" && group === "games" && sub === "remove") {
+      try {
+        const guild = await getGuildSettings(interaction.guild.id);
+        const enabled = Array.isArray(guild?.enabledGames) ? guild.enabledGames : [];
+        if (enabled.length > 0) {
+          const enabledSet = new Set(enabled);
+          pool = games.filter(g => enabledSet.has(g.key));
+        }
+      } catch (err) {
+        logger("WARN", "AUTOCOMPLETE", "Nu am putut citi setarile guild-ului", err.message);
+      }
+    }
+
+    const candidates = [];
+    for (const game of pool) {
+      const haystack = [
+        String(game.name || "").toLowerCase(),
+        String(game.key || "").toLowerCase(),
+        ...(Array.isArray(game.aliases) ? game.aliases.map(a => String(a).toLowerCase()) : [])
+      ];
+      let score = -1;
+      for (const h of haystack) {
+        if (!input) { score = Math.max(score, 0); continue; }
+        if (h === input) score = Math.max(score, 100);
+        else if (h.startsWith(input)) score = Math.max(score, 50);
+        else if (h.includes(input)) score = Math.max(score, 20);
+      }
+      // Dacă utilizatorul a introdus ceva, filtrăm scorurile prea slabe
+      if (input && score < 20) continue;
+      candidates.push({ game, score });
+    }
+    candidates.sort((a, b) => b.score - a.score);
+
+    const choices = candidates.slice(0, 25).map(c => ({
+      name: `${c.game.name} (${c.game.key})`.substring(0, 100),
+      value: (useNameAsValue ? c.game.name : c.game.key).substring(0, 100)
+    }));
+    await interaction.respond(choices).catch(() => null);
+  } catch (err) {
+    logger("WARN", "AUTOCOMPLETE", "Eroare in handler", err.message);
+    interaction.respond([]).catch(() => null);
+  }
+}
+
 function buildHelpEmbed() {
   return new EmbedBuilder()
-    .setColor(0x2b2d31)
+    .setColor(COLORS.DARK)
     .setTitle("Meniul de Ajutor - Big Master")
     .setDescription("Toate comenzile sunt slash commands. Incepe cu `/` pentru autocomplete.")
     .addFields(
       { name: "Utilitare", value: "`/ping` - `/games` - `/help`" },
       { name: "Notificari Automate (admin)", value: "`/start updates` - `/stop updates`\n`/start reduceri` - `/stop reduceri`" },
-      { name: "Preferinte Server (admin)", value: "`/set mode <compact|detailed>`\n`/set mindiscount <0-100>`\n`/set free <on|off>` - `/set paid <on|off>`\n`/set currency <USD|EUR|GBP|RON>`" },
-      { name: "Comenzi Manuale", value: "`/latest updates` - `/latest reduceri`\n`/latest update <joc>` - `/latest pret <joc>`\n`/dlc <joc>` - `/status <joc>`" }
+      {
+        name: "Preferinte Server (admin)",
+        value:
+          "`/set mode <compact|detailed>`\n" +
+          "`/set mindiscount <0-100>`\n" +
+          "`/set maxprice <0-10000>` *(0 = fara limita)*\n" +
+          "`/set free <on|off>` - `/set paid <on|off>`\n" +
+          "`/set currency <USD|EUR|GBP|RON>`\n" +
+          "`/set stores <steam,epic | reset>`"
+      },
+      {
+        name: "Filtru per-joc (admin)",
+        value:
+          "`/set games add <joc>` - `/set games remove <joc>`\n" +
+          "`/set games list` - `/set games reset`"
+      },
+      {
+        name: "Ping-uri rol (admin)",
+        value:
+          "`/set role updates <rol>` *(gol = oprit)*\n" +
+          "`/set role discounts <rol>` *(gol = oprit)*"
+      },
+      {
+        name: "Comenzi Manuale",
+        value: "`/latest updates` - `/latest reduceri`\n`/latest update <joc>` - `/latest pret <joc>`\n`/dlc <joc>` - `/status <joc>`"
+      }
     );
 }
 
 async function handleInteraction(interaction, games) {
+  // V9: branch autocomplete
+  if (interaction.isAutocomplete && interaction.isAutocomplete()) {
+    return handleAutocomplete(interaction, games);
+  }
   if (!interaction.isChatInputCommand()) return;
   if (!interaction.guild) {
     return interaction.reply({ content: "Comenzile sunt disponibile doar pe servere.", flags: MessageFlags.Ephemeral }).catch(() => null);
@@ -1437,7 +1733,7 @@ async function handleInteraction(interaction, games) {
     if (cmd === "help") return handleHelpInteraction(interaction);
     if (cmd === "start") return handleStartInteraction(interaction, games);
     if (cmd === "stop") return handleStopInteraction(interaction);
-    if (cmd === "set") return handleSetInteraction(interaction);
+    if (cmd === "set") return handleSetInteraction(interaction, games);
     if (cmd === "latest") return handleLatestInteraction(interaction, games);
     if (cmd === "dlc") return handleDlcInteraction(interaction);
     if (cmd === "status") return handleStatusInteraction(interaction, games);
