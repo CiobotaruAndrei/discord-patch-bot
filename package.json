@@ -7,9 +7,10 @@
     "start": "node index.js",
     "check:config": "node scripts/check-config.js",
     "check:syntax": "node scripts/check-syntax.js",
+    "typecheck": "tsc --noEmit",
     "lint": "npm run check:syntax",
     "test": "node --test",
-    "check": "npm run check:config && npm run check:syntax && npm test"
+    "check": "npm run check:config && npm run check:syntax && npm run typecheck && npm test"
   },
   "engines": {
     "node": ">=20"
@@ -21,5 +22,9 @@
     "mongoose": "8.2.1",
     "rss-parser": "3.13.0",
     "zod": "3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.39",
+    "typescript": "5.9.3"
   }
 }
