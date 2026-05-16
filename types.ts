@@ -130,3 +130,41 @@ export interface SystemTimes {
   reduceri: number;
   [key: string]: number;
 }
+
+export interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+export interface CommandRuntimeCache {
+  updates: CacheEntry<unknown | null>;
+  dealsByCurrency: Map<string, CacheEntry<DealInfo[]>>;
+  single: Map<string, CacheEntry<PatchUpdate | null>>;
+  dlc: Map<string, CacheEntry<DlcCacheEntry>>;
+}
+
+export interface CommandCacheSizes {
+  single: number;
+  dlc: number;
+  updatesValid: boolean;
+  dealsCurrenciesValid: number;
+  userCooldowns: number;
+}
+
+export interface CooldownResult {
+  allowed: boolean;
+  remainingMs?: number;
+}
+
+export interface DlcInfo {
+  name: string;
+  price: string;
+}
+
+export interface DlcCacheEntry {
+  dlcList: DlcInfo[];
+  title: string;
+  appId: string | number;
+  thumbUrl: string;
+  totalExtracted: number;
+}
