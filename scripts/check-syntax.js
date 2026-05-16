@@ -1,3 +1,4 @@
+// @ts-check
 "use strict";
 
 const { spawnSync } = require("child_process");
@@ -5,9 +6,14 @@ const fs = require("fs");
 const path = require("path");
 
 const root = process.cwd();
+/** @type {Set<string>} */
 const ignoredDirs = new Set([".git", "node_modules", "coverage"]);
+/** @type {string[]} */
 const files = [];
 
+/**
+ * @param {string} dir
+ */
 function walk(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (ignoredDirs.has(entry.name)) continue;
