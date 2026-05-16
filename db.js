@@ -1,18 +1,26 @@
 "use strict";
 // =============================================================
-// db.js — V8
-//   * LOG_LEVEL filtering (DEBUG/INFO/WARN/ERROR)
-//   * Currency per-guild (USD/EUR/GBP/RON)
-//   * SchemaDriftError pentru detectare drift HTML
-//   * Magic numbers mutate în env vars
+// db.js — V9
+//   * AsyncLocalStorage requestContext pentru request_id în logger
+//   * AdminAlertCooldown în Mongo (multi-instance safe, TTL 7 zile)
+//   * Guild schema extins: enabledGames, enabledStores, maxAbsolutePrice,
+//     notificationRoleId, discountRoleId
+//   * SHUTDOWN_DRAIN_MS default 5000 (era 2000)
+//   * MONGO_MAX_POOL_SIZE nou (default 15)
 // =============================================================
 const mongoose = require("mongoose");
 const crypto = require("crypto");
 const axios = require("axios");
 const { z } = require("zod");
+const { AsyncLocalStorage } = require("async_hooks");
 
 // -------------------------------------------------------------
-// LOG_LEVEL (V8): filtrare la nivel de logger
+// REQUEST CONTEXT — propagăm requestId prin toți awaiterii
+// -------------------------------------------------------------
+const requestContext = new AsyncLocalStorage();
+
+// -------------------------------------------------------------
+// LOGGER cu requestId
 // -------------------------------------------------------------
 const LOG_LEVELS = { DEBUG: 10, INFO: 20, WARN: 30, ERROR: 40 };
 const RAW_LOG_LEVEL = (process.env.LOG_LEVEL || "INFO").toUpperCase();
@@ -28,8 +36,12 @@ function logger(level, context, message, meta = "") {
   if (lvl < ACTIVE_LOG_LEVEL) return;
 
   const ts = new Date().toISOString();
+  const ctx = requestContext.getStore();
+  const reqId = ctx?.requestId;
+
   if (USE_JSON_LOGS) {
     const entry = { ts, level: lvlKey, context, message };
+    if (reqId) entry.requestId = reqId;
     if (meta !== "" && meta !== null && meta !== undefined) {
       if (meta instanceof Error) {
         entry.meta = { message: meta.message, stack: meta.stack };
@@ -42,7 +54,7 @@ function logger(level, context, message, meta = "") {
     }
     let line;
     try { line = JSON.stringify(entry); }
-    catch { line = JSON.stringify({ ts, level: lvlKey, context, message, meta: "[unserializable]" }); }
+    catch { line = JSON.stringify({ ts, level: lvlKey, context, message, requestId: reqId, meta: "[unserializable]" }); }
     if (lvlKey === "ERROR") console.error(line);
     else if (lvlKey === "WARN") console.warn(line);
     else console.log(line);
@@ -53,7 +65,8 @@ function logger(level, context, message, meta = "") {
     try { metaStr = typeof meta === "string" ? meta : JSON.stringify(meta); }
     catch { metaStr = String(meta); }
   }
-  const line = `[${ts}] [${lvlKey}] [${context}] ${message} ${metaStr}`;
+  const reqStr = reqId ? ` [req=${reqId}]` : "";
+  const line = `[${ts}] [${lvlKey}] [${context}]${reqStr} ${message} ${metaStr}`;
   if (lvlKey === "ERROR") console.error(line);
   else if (lvlKey === "WARN") console.warn(line);
   else console.log(line);
@@ -82,7 +95,7 @@ function parseEnvNumber(name, defaultValue, { min = 0, max = Infinity } = {}) {
 }
 
 // -------------------------------------------------------------
-// SchemaDriftError — V8: distinct de network failure
+// SchemaDriftError
 // -------------------------------------------------------------
 class SchemaDriftError extends Error {
   constructor(message, source) {
@@ -94,9 +107,7 @@ class SchemaDriftError extends Error {
 }
 
 // -------------------------------------------------------------
-// SUPPORTED_CURRENCIES — V8
-// Steam returnează prețul real în valuta locală via cc, deci NU
-// convertim noi prețuri (rate-urile sunt doar pentru sortare).
+// CURRENCY
 // -------------------------------------------------------------
 const SUPPORTED_CURRENCIES = {
   USD: { cc: "US", symbol: "$",   placement: "prefix" },
@@ -222,10 +233,22 @@ const env = {
   HOUSEKEEPING_INTERVAL_MS: parseEnvNumber("HOUSEKEEPING_INTERVAL_MS", 2 * 60 * 1000, { min: 30_000, max: ONE_HOUR_MS }),
   GUILD_CACHE_TTL_MS: parseEnvNumber("GUILD_CACHE_TTL_MS", 60_000, { min: 5_000, max: ONE_HOUR_MS }),
   ADMIN_ALERT_COOLDOWN_MS: parseEnvNumber("ADMIN_ALERT_COOLDOWN_MS", 30 * 60 * 1000, { min: 60_000, max: 24 * ONE_HOUR_MS }),
-  SHUTDOWN_DRAIN_MS: parseEnvNumber("SHUTDOWN_DRAIN_MS", 2000, { min: 0, max: 30_000 }),
+  SHUTDOWN_DRAIN_MS: parseEnvNumber("SHUTDOWN_DRAIN_MS", 5000, { min: 0, max: 30_000 }),
 
   ENRICHED_DEAL_CACHE_TTL_MS: parseEnvNumber("ENRICHED_DEAL_CACHE_TTL_MS", 10 * 60 * 1000, { min: 0, max: ONE_HOUR_MS }),
   ENRICHED_DEAL_CACHE_MAX_SIZE: parseEnvNumber("ENRICHED_DEAL_CACHE_MAX_SIZE", 500, { min: 0, max: 10_000 }),
+
+  CACHE_TTL_MS: parseEnvNumber("CACHE_TTL_MS", 3 * 60 * 1000, { min: 30_000, max: ONE_HOUR_MS }),
+  SINGLE_CACHE_MAX_SIZE: parseEnvNumber("SINGLE_CACHE_MAX_SIZE", 100, { min: 10, max: 10_000 }),
+  DLC_CACHE_MAX_SIZE: parseEnvNumber("DLC_CACHE_MAX_SIZE", 100, { min: 10, max: 10_000 }),
+  ITEMS_PER_PAGE: parseEnvNumber("ITEMS_PER_PAGE", 5, { min: 1, max: 25 }),
+  DLC_ITEMS_PER_PAGE: parseEnvNumber("DLC_ITEMS_PER_PAGE", 10, { min: 1, max: 25 }),
+  COMMAND_OUTPUT_MAX_CHARS: parseEnvNumber("COMMAND_OUTPUT_MAX_CHARS", 1900, { min: 500, max: 2000 }),
+
+  MONGO_MAX_POOL_SIZE: parseEnvNumber("MONGO_MAX_POOL_SIZE", 15, { min: 1, max: 200 }),
+
+  HTTP_RATE_LIMIT_REQ: parseEnvNumber("HTTP_RATE_LIMIT_REQ", 60, { min: 1, max: 10000 }),
+  HTTP_RATE_LIMIT_WINDOW_MS: parseEnvNumber("HTTP_RATE_LIMIT_WINDOW_MS", 60_000, { min: 1000, max: ONE_HOUR_MS }),
 
   isProd
 };
@@ -239,6 +262,8 @@ logger("INFO", "ENV", "Configurație de tuning încărcată", {
   MAX_DEALS_PER_CYCLE: env.MAX_DEALS_PER_CYCLE,
   SCHEMA_DRIFT_THRESHOLD: env.SCHEMA_DRIFT_THRESHOLD,
   ENRICHED_DEAL_CACHE_TTL_MS: env.ENRICHED_DEAL_CACHE_TTL_MS,
+  MONGO_MAX_POOL_SIZE: env.MONGO_MAX_POOL_SIZE,
+  SHUTDOWN_DRAIN_MS: env.SHUTDOWN_DRAIN_MS,
   PROXY_URLS_CONFIGURED: !!env.PROXY_URLS
 });
 
@@ -358,10 +383,15 @@ const guildSchema = new mongoose.Schema({
   includeFreeGames: { type: Boolean, default: true },
   includePaidDiscounts: { type: Boolean, default: true },
   notificationMode: { type: String, enum: ["compact", "detailed"], default: "detailed" },
-  // V8: currency per-guild
   currency: { type: String, enum: Object.keys(SUPPORTED_CURRENCIES), default: DEFAULT_CURRENCY },
-  // V8: offset round-robin pentru fairness
-  lastProcessedGameKey: { type: String, default: null }
+  lastProcessedGameKey: { type: String, default: null },
+
+  // V9: filtre noi
+  enabledGames: { type: [String], default: [] },   // [] = toate jocurile active
+  enabledStores: { type: [String], default: [] },  // [] = toate store-urile active
+  maxAbsolutePrice: { type: Number, default: 0 },  // 0 = fără limită superioară
+  notificationRoleId: { type: String, default: null }, // ping rol pe updates
+  discountRoleId: { type: String, default: null }      // ping rol pe reduceri
 }, { minimize: false });
 
 guildSchema.index({ subscribed: 1, notificationChannelId: 1 }, { background: true });
@@ -374,7 +404,6 @@ const circuitBreakerSchema = new mongoose.Schema({
   fails: { type: Number, default: 0 },
   cooldownUntil: { type: Date, default: null },
   alertSent: { type: Boolean, default: false },
-  // V8: schema drift = HTTP 200 dar 0 rezultate (selectori CSS rupte)
   schemaDriftFails: { type: Number, default: 0 },
   schemaDriftAlertSent: { type: Boolean, default: false }
 }, { minimize: false });
@@ -396,6 +425,15 @@ const jobLockSchema = new mongoose.Schema({
   ownerToken: { type: String, default: null }
 }, { minimize: false });
 const JobLockModel = mongoose.model("JobLock", jobLockSchema);
+
+// V9: cooldown alerte admin în Mongo, multi-instance safe.
+// TTL 7 zile pe lastSentAt — la o instanță cu volum mare de alerte unice,
+// curățarea automată ne salvează de growth necontrolat.
+const adminAlertCooldownSchema = new mongoose.Schema({
+  _id: String, // alert kind (ex. "cb:dbd", "cron:fatal")
+  lastSentAt: { type: Date, default: Date.now, expires: 7 * ONE_DAY_MS / 1000 }
+}, { minimize: false });
+const AdminAlertCooldownModel = mongoose.model("AdminAlertCooldown", adminAlertCooldownSchema);
 
 // -------------------------------------------------------------
 // LOCK-URI DISTRIBUITE
@@ -496,25 +534,57 @@ function getGuildCacheSize() {
 }
 
 // -------------------------------------------------------------
-// ADMIN ALERTS
+// ADMIN ALERTS — V9: cooldown în Mongo, multi-instance safe
 // -------------------------------------------------------------
 const ADMIN_ALERT_COOLDOWN_MS = env.ADMIN_ALERT_COOLDOWN_MS;
-const lastAdminAlertAt = new Map();
 
 async function adminAlert(kind, title, body) {
   const url = env.ADMIN_WEBHOOK_URL;
   if (!url) return;
-  const now = Date.now();
-  const lastAt = lastAdminAlertAt.get(kind) || 0;
-  if (now - lastAt < ADMIN_ALERT_COOLDOWN_MS) return;
-  lastAdminAlertAt.set(kind, now);
+  const now = new Date();
+  const cooldownThreshold = new Date(now.getTime() - ADMIN_ALERT_COOLDOWN_MS);
+
+  // Atomic check-and-set: doar dacă lastSentAt e mai vechi decât pragul
+  // sau dacă nu există documentul, putem trimite. Două instanțe care rulează
+  // simultan vor concura aici și doar una va câștiga.
+  let allowed = false;
+  try {
+    const result = await AdminAlertCooldownModel.findOneAndUpdate(
+      { _id: kind, lastSentAt: { $lte: cooldownThreshold } },
+      { $set: { lastSentAt: now } },
+      { new: false }
+    );
+    if (result) {
+      // Am updatat un doc existent în afara cooldown-ului → noi suntem câștigătorul
+      allowed = true;
+    } else {
+      // Fie nu există documentul, fie cooldown-ul e încă activ.
+      // Încercăm insert (unic pe _id); dacă cineva a inserat în paralel,
+      // primim duplicate key error și știm că suntem în cooldown.
+      try {
+        await AdminAlertCooldownModel.create({ _id: kind, lastSentAt: now });
+        allowed = true;
+      } catch (err) {
+        if (err.code === 11000) {
+          allowed = false; // alt proces a câștigat
+        } else {
+          throw err;
+        }
+      }
+    }
+  } catch (err) {
+    logger("WARN", "ADMIN_ALERT", "Eroare la cooldown DB, sar alerta", err.message);
+    return;
+  }
+
+  if (!allowed) return;
 
   const payload = {
     embeds: [{
       title: `\u26A0\uFE0F ${title}`,
       description: String(body || "").slice(0, 3500),
       color: 0xe74c3c,
-      timestamp: new Date().toISOString(),
+      timestamp: now.toISOString(),
       footer: { text: `kind=${kind}` }
     }]
   };
@@ -537,6 +607,7 @@ module.exports = {
   CircuitBreakerModel,
   SystemModel,
   JobLockModel,
+  AdminAlertCooldownModel,
   acquireDbLock,
   renewDbLock,
   releaseDbLock,
@@ -552,5 +623,6 @@ module.exports = {
   SUPPORTED_CURRENCIES,
   DEFAULT_CURRENCY,
   getCurrencyConfig,
-  formatPrice
+  formatPrice,
+  requestContext
 };
