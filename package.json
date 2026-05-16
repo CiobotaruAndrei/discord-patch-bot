@@ -6,17 +6,20 @@
   "scripts": {
     "start": "node index.js",
     "check:config": "node scripts/check-config.js",
-    "check": "npm run check:config"
+    "check:syntax": "node scripts/check-syntax.js",
+    "lint": "npm run check:syntax",
+    "test": "node --test",
+    "check": "npm run check:config && npm run check:syntax && npm test"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "axios": "^1.7.7",
-    "cheerio": "^1.0.0-rc.12",
-    "discord.js": "^14.26.0",
-    "mongoose": "^8.2.1",
-    "rss-parser": "^3.13.0",
-    "zod": "^3.22.4"
+    "axios": "1.7.7",
+    "cheerio": "1.0.0-rc.12",
+    "discord.js": "14.26.0",
+    "mongoose": "8.2.1",
+    "rss-parser": "3.13.0",
+    "zod": "3.22.4"
   }
 }
