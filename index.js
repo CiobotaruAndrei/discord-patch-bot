@@ -1,3 +1,4 @@
+// @ts-check
 "use strict";
 // =============================================================
 // index.js — V9
@@ -14,24 +15,49 @@ const { performance } = require("perf_hooks");
 const { Client, GatewayIntentBits } = require("discord.js");
 const { validateConfig } = require("./configValidator");
 
+/** @typedef {import("./types").BotConfig} BotConfig */
+/** @typedef {import("./types").BotMetrics} BotMetrics */
+/** @typedef {import("./types").GameConfig} GameConfig */
+/** @typedef {import("./types").RateLimitBucket} RateLimitBucket */
+
+/**
+ * @param {unknown} err
+ * @returns {string}
+ */
+function errorMessage(err) {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * @param {unknown} err
+ * @returns {string}
+ */
+function errorDetail(err) {
+  return err instanceof Error ? (err.stack || err.message) : String(err);
+}
+
 // -------------------------------------------------------------
 // CONFIG LOADING
 // -------------------------------------------------------------
 const CONFIG_PATH = process.env.CONFIG_PATH || "./config.json";
-let config;
+/** @type {unknown} */
+let rawConfig;
 try {
-  config = require(CONFIG_PATH);
+  rawConfig = require(CONFIG_PATH);
 } catch (err) {
-  console.error(`[BOOT] Nu pot încărca config-ul de la calea "${CONFIG_PATH}": ${err.message}`);
+  console.error(`[BOOT] Nu pot încărca config-ul de la calea "${CONFIG_PATH}": ${errorMessage(err)}`);
   console.error("[BOOT] Asigură-te că fișierul există și este JSON valid. Override cu env CONFIG_PATH.");
   process.exit(1);
 }
+/** @type {BotConfig} */
+let config;
 try {
-  config = validateConfig(config, CONFIG_PATH);
+  config = validateConfig(rawConfig, CONFIG_PATH);
 } catch (err) {
-  console.error(`[BOOT] ${err.message}`);
+  console.error(`[BOOT] ${errorMessage(err)}`);
   process.exit(1);
 }
+/** @type {GameConfig[]} */
 const games = Array.isArray(config.games) ? config.games : [];
 if (games.length === 0) {
   console.error(`[BOOT] Config-ul de la "${CONFIG_PATH}" nu conține un array "games" cu jocuri.`);
@@ -82,6 +108,7 @@ commands.setGlobalCacheTtl(Math.min(30 * 60 * 1000, CRON_INTERVAL_MS));
 // -------------------------------------------------------------
 // METRICI
 // -------------------------------------------------------------
+/** @type {BotMetrics} */
 const metrics = {
   fetchSuccess: 0,
   fetchFail: 0,
@@ -106,10 +133,14 @@ const client = new Client({
 // -------------------------------------------------------------
 // CRON STATE
 // -------------------------------------------------------------
+/** @type {ReturnType<typeof setTimeout> | null} */
 let cronTimerId = null;
+/** @type {ReturnType<typeof setTimeout> | null} */
 let heartbeatTimerId = null;
 let isShuttingDown = false;
+/** @type {AbortController | null} */
 let currentCronAbortController = null;
+/** @type {string | null} */
 let currentCronToken = null;
 
 function shouldAbortCron() {
@@ -153,7 +184,7 @@ async function runCronCycle() {
         commands.checkForUpdates(client, games, shouldAbortCron),
         commands.checkForDiscounts(client, shouldAbortCron)
       ]);
-      if (currentCronAbortController.signal.aborted) {
+      if (currentCronAbortController?.signal.aborted) {
         metrics.cronAborted++;
         logger("WARN", "CRON", "Ciclu abandonat (shutdown sau abort)");
       } else {
@@ -162,8 +193,8 @@ async function runCronCycle() {
       }
     } catch (err) {
       metrics.cronErrors++;
-      logger("ERROR", "CRON", `Eroare în ciclul cron #${metrics.cronRuns}`, err.stack || err.message);
-      adminAlert("cron:fatal", `Eroare cron ciclu #${metrics.cronRuns}`, err.message).catch(() => null);
+      logger("ERROR", "CRON", `Eroare în ciclul cron #${metrics.cronRuns}`, errorDetail(err));
+      adminAlert("cron:fatal", `Eroare cron ciclu #${metrics.cronRuns}`, errorMessage(err)).catch(() => null);
     } finally {
       stopHeartbeat();
       await releaseDbLock("cron_main", lockToken).catch(() => null);
@@ -181,6 +212,9 @@ function scheduleNextCron() {
   if (typeof cronTimerId.unref === "function") cronTimerId.unref();
 }
 
+/**
+ * @param {string} lockToken
+ */
 function startHeartbeat(lockToken) {
   stopHeartbeat();
   const tick = async () => {
@@ -193,7 +227,7 @@ function startHeartbeat(lockToken) {
         return;
       }
     } catch (err) {
-      logger("WARN", "CRON_HEARTBEAT", "Eroare la reînnoirea lock-ului", err.message);
+      logger("WARN", "CRON_HEARTBEAT", "Eroare la reînnoirea lock-ului", errorMessage(err));
     }
     if (!isShuttingDown && currentCronToken === lockToken) {
       heartbeatTimerId = setTimeout(tick, HEARTBEAT_INTERVAL_MS);
@@ -214,14 +248,15 @@ function stopHeartbeat() {
 // -------------------------------------------------------------
 // HOUSEKEEPING
 // -------------------------------------------------------------
+/** @type {ReturnType<typeof setInterval> | null} */
 let housekeepingTimerId = null;
 
 function startHousekeeping() {
   const tick = () => {
-    try { commands.cleanCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanCache eroare", e.message); }
-    try { cleanGuildCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanGuildCache eroare", e.message); }
-    try { scrapers.cleanEnrichedCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanEnrichedCache eroare", e.message); }
-    try { pruneRateLimitMap(); } catch (e) { logger("WARN", "HOUSEKEEPING", "pruneRateLimitMap eroare", e.message); }
+    try { commands.cleanCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanCache eroare", errorMessage(e)); }
+    try { cleanGuildCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanGuildCache eroare", errorMessage(e)); }
+    try { scrapers.cleanEnrichedCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanEnrichedCache eroare", errorMessage(e)); }
+    try { pruneRateLimitMap(); } catch (e) { logger("WARN", "HOUSEKEEPING", "pruneRateLimitMap eroare", errorMessage(e)); }
   };
   housekeepingTimerId = setInterval(tick, env.HOUSEKEEPING_INTERVAL_MS);
   if (typeof housekeepingTimerId.unref === "function") housekeepingTimerId.unref();
@@ -246,8 +281,13 @@ const RL_CAP = env.HTTP_RATE_LIMIT_REQ;
 const RL_WINDOW_MS = env.HTTP_RATE_LIMIT_WINDOW_MS;
 const RL_REFILL_PER_MS = RL_CAP / RL_WINDOW_MS;
 const RL_MAP_MAX = 1000;
+/** @type {Map<string, RateLimitBucket>} */
 const rateLimitMap = new Map();
 
+/**
+ * @param {http.IncomingMessage} req
+ * @returns {string}
+ */
 function getClientIp(req) {
   const fwd = req.headers["x-forwarded-for"];
   if (typeof fwd === "string" && fwd.length > 0) {
@@ -256,6 +296,10 @@ function getClientIp(req) {
   return req.socket?.remoteAddress || "unknown";
 }
 
+/**
+ * @param {http.IncomingMessage} req
+ * @returns {boolean}
+ */
 function checkHttpRateLimit(req) {
   const ip = getClientIp(req);
   const now = Date.now();
@@ -307,6 +351,11 @@ function pruneRateLimitMap() {
 // -------------------------------------------------------------
 // HTTP SERVER — health + metrics
 // -------------------------------------------------------------
+/**
+ * @param {unknown} a
+ * @param {unknown} b
+ * @returns {boolean}
+ */
 function timingSafeEqualStr(a, b) {
   const bufA = Buffer.from(String(a || ""));
   const bufB = Buffer.from(String(b || ""));
@@ -314,6 +363,10 @@ function timingSafeEqualStr(a, b) {
   try { return crypto.timingSafeEqual(bufA, bufB); } catch { return false; }
 }
 
+/**
+ * @param {http.IncomingMessage} req
+ * @returns {boolean}
+ */
 function checkMetricsAuth(req) {
   if (!env.isProd && !env.METRICS_TOKEN) return true;
   if (env.METRICS_PUBLIC && !env.METRICS_TOKEN) return true;
@@ -425,12 +478,13 @@ const httpServer = http.createServer((req, res) => {
 // DISCORD EVENTS
 // -------------------------------------------------------------
 client.once("ready", async () => {
-  logger("INFO", "DISCORD", `Conectat ca ${client.user.tag}`);
+  const userTag = client.user?.tag || "unknown";
+  logger("INFO", "DISCORD", `Conectat ca ${userTag}`);
   try {
     await commands.registerSlashCommands(env.DISCORD_TOKEN, env.DISCORD_CLIENT_ID);
   } catch (err) {
-    logger("ERROR", "DISCORD", "Eșec înregistrare slash commands", err.message);
-    adminAlert("slash:register-failed", "Slash commands nu au putut fi înregistrate", err.message).catch(() => null);
+    logger("ERROR", "DISCORD", "Eșec înregistrare slash commands", errorMessage(err));
+    adminAlert("slash:register-failed", "Slash commands nu au putut fi înregistrate", errorMessage(err)).catch(() => null);
   }
   startHousekeeping();
   scheduleNextCron();
@@ -443,26 +497,30 @@ client.on("interactionCreate", async (interaction) => {
   await requestContext.run({ requestId: reqId }, async () => {
     try { await commands.handleInteraction(interaction, games); }
     catch (err) {
-      logger("ERROR", "INTERACTION", "Eroare top-level la interactionCreate", err.stack || err.message);
+      logger("ERROR", "INTERACTION", "Eroare top-level la interactionCreate", errorDetail(err));
     }
   });
 });
 
-client.on("error", (err) => logger("ERROR", "DISCORD", "Eroare client Discord", err.message));
+client.on("error", (err) => logger("ERROR", "DISCORD", "Eroare client Discord", errorMessage(err)));
 client.on("warn", (msg) => logger("WARN", "DISCORD", msg));
-client.on("shardError", (err) => logger("ERROR", "DISCORD", "Shard error", err.message));
+client.on("shardError", (err) => logger("ERROR", "DISCORD", "Shard error", errorMessage(err)));
 
 // -------------------------------------------------------------
 // MONGO EVENTS
 // -------------------------------------------------------------
 mongoose.connection.on("connected", () => logger("INFO", "DB", "Conectat la MongoDB"));
 mongoose.connection.on("disconnected", () => logger("WARN", "DB", "Deconectat de la MongoDB"));
-mongoose.connection.on("error", (err) => logger("ERROR", "DB", "Eroare MongoDB", err.message));
+mongoose.connection.on("error", (err) => logger("ERROR", "DB", "Eroare MongoDB", errorMessage(err)));
 mongoose.connection.on("reconnected", () => logger("INFO", "DB", "Reconectat la MongoDB"));
 
 // -------------------------------------------------------------
 // SHUTDOWN
 // -------------------------------------------------------------
+/**
+ * @param {string} signal
+ * @param {number} [exitCode]
+ */
 async function shutdown(signal, exitCode = 0) {
   if (isShuttingDown) return;
   isShuttingDown = true;
@@ -475,7 +533,7 @@ async function shutdown(signal, exitCode = 0) {
 
   for (const [jobName, token] of activeLocks.entries()) {
     try { await releaseDbLock(jobName, token); }
-    catch (err) { logger("WARN", "SHUTDOWN", `Eroare la eliberare lock ${jobName}`, err.message); }
+    catch (err) { logger("WARN", "SHUTDOWN", `Eroare la eliberare lock ${jobName}`, errorMessage(err)); }
   }
 
   if (env.SHUTDOWN_DRAIN_MS > 0) {
@@ -483,8 +541,8 @@ async function shutdown(signal, exitCode = 0) {
     await new Promise(r => setTimeout(r, env.SHUTDOWN_DRAIN_MS));
   }
 
-  try { client.destroy(); } catch (err) { logger("WARN", "SHUTDOWN", "Eroare destroy client", err.message); }
-  try { await mongoose.connection.close(); } catch (err) { logger("WARN", "SHUTDOWN", "Eroare închidere mongo", err.message); }
+  try { client.destroy(); } catch (err) { logger("WARN", "SHUTDOWN", "Eroare destroy client", errorMessage(err)); }
+  try { await mongoose.connection.close(); } catch (err) { logger("WARN", "SHUTDOWN", "Eroare închidere mongo", errorMessage(err)); }
   try { httpServer.close(); } catch { /* ignore */ }
 
   logger("INFO", "SHUTDOWN", "Închidere completă.");
@@ -493,8 +551,12 @@ async function shutdown(signal, exitCode = 0) {
 
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
+/**
+ * @param {string} kind
+ * @param {unknown} reason
+ */
 function handleFatalProcessError(kind, reason) {
-  const detail = reason?.stack || reason?.message || String(reason);
+  const detail = errorDetail(reason);
   logger("ERROR", "PROCESS", kind, detail);
   adminAlert(`process:${kind}`, kind, detail)
     .catch(() => null)
@@ -531,7 +593,7 @@ process.on("unhandledRejection", (reason) => {
     });
     await client.login(env.DISCORD_TOKEN);
   } catch (err) {
-    logger("ERROR", "BOOT", "Eroare la bootstrap", err.stack || err.message);
+    logger("ERROR", "BOOT", "Eroare la bootstrap", errorDetail(err));
     process.exit(1);
   }
 })();
