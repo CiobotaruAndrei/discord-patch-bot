@@ -27,9 +27,12 @@ npm run check
 
 ## Structura principala
 
-Tot ce tine de proiect sta sub `src/`:
+Aproape tot ce tine de proiect sta sub `src/`. Singura exceptie intentionata este workflow-ul GitHub Actions din `.github/workflows/ci.yml`, pentru ca GitHub ruleaza automat CI doar din acel folder special. Jobul CI lucreaza tot din `src/`.
 
 ```text
+.github/
+  workflows/
+    ci.yml
 src/
   app/
     main.js
@@ -99,6 +102,18 @@ Scripturi importante:
 - `npm run typecheck`: ruleaza `tsc --noEmit`;
 - `npm test`: compileaza si ruleaza testele din `dist/test`;
 - `npm run check`: typecheck, build, syntax check, config check si teste.
+
+## GitHub Actions
+
+CI-ul real este in `.github/workflows/ci.yml`. Acesta este singurul fisier pastrat in afara `src`, deoarece GitHub Actions nu citeste workflow-uri din `src/.github/workflows`.
+
+Workflow-ul ruleaza pe push si pull request, foloseste Node.js 20, instaleaza dependintele in `src/` si executa:
+
+```bash
+npm run check
+```
+
+Copia veche din `src/.github/workflows/ci.yml` a fost stearsa ca sa nu existe doua surse de adevar.
 
 ## Config
 
