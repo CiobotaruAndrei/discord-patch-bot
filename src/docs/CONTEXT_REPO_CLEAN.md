@@ -2,18 +2,28 @@
 
 ## Scopul proiectului
 
-Acest repo contine un bot Discord pentru notificari automate despre:
+Acest repo contine un bot Discord pentru notificari automate despre update-uri/patch notes la jocuri, reduceri Steam si Epic Games, preturi Steam, DLC-uri Steam, status servere si endpoint-uri de health/metrics.
 
-- update-uri si patch notes la jocuri;
-- reduceri Steam si Epic Games;
-- preturi curente Steam;
-- DLC-uri Steam;
-- status servere pentru anumite jocuri sau platforme;
-- health checks si metrici pentru rulare/deploy.
+Proiectul ruleaza pe Node.js si foloseste CommonJS la runtime-ul compilat. Codul este mixt JavaScript + TypeScript:
 
-Proiectul este scris in Node.js cu CommonJS (`require` / `module.exports`). Foloseste `discord.js`, `mongoose`, `axios`, `cheerio`, `rss-parser`, `zod` si TypeScript doar pentru verificari/tipuri.
+- modulele JavaScript raman in fisierele existente unde conversia ar fi riscanta sau inutila momentan;
+- modulele unde tiparea aduce siguranta reala sunt scrise in TypeScript;
+- `src/config/configValidator.ts` valideaza config-ul cu Zod;
+- `src/shared/errors.ts` contine helper-ele comune pentru erori;
+- `src/types.ts` pastreaza tipurile de domeniu;
+- `npm start` compileaza cu TypeScript si porneste `dist/app/main.js`.
 
-Entry point-ul aplicatiei este `src/app/main.js`, iar rularea normala se face din `src/` cu `npm start`.
+Rularea normala se face din `src/`:
+
+```bash
+npm start
+```
+
+Verificarea completa se face cu:
+
+```bash
+npm run check
+```
 
 ## Structura principala
 
@@ -27,6 +37,8 @@ src/
     lifecycle/
     scheduler/
   config/
+    configLoader.js
+    configValidator.ts
   domain/
   features/
     commands/
@@ -36,19 +48,26 @@ src/
     mongo/
   scripts/
   shared/
+    errors.ts
   sources/
   test/
+  docs/
   config.json
+  config.schema.json
   package.json
   tsconfig.json
   types.ts
 ```
 
+`dist/` este output de build si nu trebuie editat manual.
+
 ## Flow de pornire
 
-`src/app/main.js` trebuie pastrat ca orchestrator. El:
+`src/app/main.js` ramane orchestrator. Dupa build, se executa ca `dist/app/main.js`.
 
-1. incarca si valideaza config-ul;
+Flow-ul:
+
+1. incarca si valideaza config-ul prin `loadConfig` si `validateConfig`;
 2. creeaza metricile;
 3. conecteaza metricile la surse;
 4. creeaza clientul Discord;
@@ -65,9 +84,25 @@ src/
 
 Logica mare nu trebuie pusa direct in `main.js`.
 
+## TypeScript
+
+TypeScript este folosit gradual. Regula curenta:
+
+- conversia la `.ts` se face pentru module pure, critice sau usor de verificat;
+- fisierele runtime mari raman JavaScript pana cand pot fi impartite/convertite fara risc;
+- orice fisier `.ts` folosit de runtime trebuie sa mearga prin build, nu direct prin Node;
+- `package.json` ruleaza build inainte de `start`, `test` si `check:config`.
+
+Scripturi importante:
+
+- `npm run build`: compileaza in `dist/`;
+- `npm run typecheck`: ruleaza `tsc --noEmit`;
+- `npm test`: compileaza si ruleaza testele din `dist/test`;
+- `npm run check`: typecheck, build, syntax check, config check si teste.
+
 ## Config
 
-Config-ul runtime este in `src/config.json` si este validat in `src/config/configValidator.js` cu Zod.
+Config-ul runtime este in `src/config.json` si este validat in `src/config/configValidator.ts` cu Zod.
 
 Tipuri acceptate de jocuri/surse:
 
@@ -91,7 +126,7 @@ Validari importante:
 - duplicatele de `key`, `name` sau `aliases` sunt respinse;
 - `articleHrefRegex` trebuie sa fie regex valid.
 
-Daca se adauga un tip nou de sursa, trebuie actualizate validatorul, `src/sources/updates/index.js`, `src/types.ts` si testele.
+Daca se adauga un tip nou de sursa, trebuie actualizate validatorul, `src/sources/updates/index.js`, `src/types.ts`, `src/config.schema.json` si testele.
 
 ## Env
 
@@ -107,29 +142,20 @@ Campuri importante:
 - `METRICS_PUBLIC`
 - `ADMIN_WEBHOOK_URL`
 - `LOG_LEVEL`
+- `LOG_SAMPLE_RATE`
 - `PROXY_URLS`
 
-In production, `/metrics` trebuie protejat prin `METRICS_TOKEN`, sau facut public explicit cu `METRICS_PUBLIC=true`.
+In production, `/metrics` trebuie protejat prin `METRICS_TOKEN`, sau facut public explicit cu `METRICS_PUBLIC=true`. Placeholder-ul `change_me_to_a_long_random_value` este tratat ca lipsa.
 
 ## MongoDB
 
-MongoDB este folosit pentru:
+MongoDB este folosit pentru setari per server Discord, update-uri vazute, reduceri vazute, cozi pending, state global, locks distribuite, circuit breaker si cooldown-uri pentru alertele admin.
 
-- setari per server Discord;
-- update-uri vazute;
-- reduceri vazute;
-- cozi de update-uri pending;
-- cozi de reduceri pending;
-- state global pentru estimari de timp;
-- locks distribuite pentru cron si migrari;
-- circuit breaker pentru surse externe;
-- cooldown-uri pentru alertele admin.
-
-Modelele sunt in `src/infra/mongo/models.js`.
+Modelele sunt in `src/infra/mongo/models.js`. Migrarile sunt in `src/infra/mongo/migrations.js` si se ruleaza la pornire, dupa Mongo ready, sub lock distribuit.
 
 ## HTTP si scraping
 
-Clientul HTTP comun este in `src/infra/http/client.js`. Acesta ofera request-uri cu retry/backoff, limite de bytes pentru HTML/JSON, user-agent random, proxy fallback, `safeCheerioLoad`, normalizare update-uri, hashing pentru deal-uri, coalescing pentru request-uri in zbor si timeout pentru promisiuni.
+Clientul HTTP comun este in `src/infra/http/client.js`. Acesta ofera retry/backoff, limite de bytes pentru HTML/JSON, user-agent random, proxy fallback, `safeCheerioLoad`, hashing pentru deal-uri, in-flight coalescing, timeout pentru promisiuni si agenti keep-alive.
 
 Acest fisier este sensibil: modificarile aici afecteaza toate sursele externe.
 
@@ -147,11 +173,9 @@ Comenzile sunt in `src/features/commands`.
 
 - `slashCommands.js`: definitiile comenzilor;
 - `interactions.js`: handler-ele slash/autocomplete;
-- `ui.js`: embed-uri, paginare, fuzzy matching;
+- `ui.js`: embed-uri, paginare, fuzzy matching si cache LRU pentru cautarea jocurilor;
 - `cache.js`: cache runtime si cooldown-uri;
 - `index.js`: agregator.
-
-Comenzi principale: `/ping`, `/games`, `/help`, `/start`, `/stop`, `/set`, `/latest`, `/dlc`, `/status`.
 
 ## Notificari automate
 
@@ -166,7 +190,8 @@ Reguli importante anti-spam si anti-duplicate:
 - limitele per ciclu trebuie pastrate;
 - rolul se ping-uieste doar la prima notificare per ciclu;
 - `updatesInitializing` si `discountsInitializing` protejeaza activarea;
-- activation id previne race conditions la `/start`.
+- activation id previne race conditions la `/start`;
+- cron-ul foloseste `buildOptimizedGameList` ca sa evite scraping-ul jocurilor nefolosite.
 
 ## Health si metrics
 
@@ -180,20 +205,14 @@ Endpoint-uri:
 
 `/metrics` expune metrici Prometheus-like si trebuie protejat in production.
 
-## Scheduler si shutdown
-
-Cron-ul este in `src/app/scheduler/cron.js`. Foloseste lock distribuit `cron_main`, heartbeat pentru lock, `AbortController`, metrici si reprogrameaza urmatorul ciclu.
-
-Shutdown-ul este in `src/app/lifecycle/shutdown.js`. El opreste cron-ul si housekeeping-ul, elibereaza lock-urile, asteapta drain, distruge clientul Discord, inchide Mongo si serverul HTTP.
-
 ## Teste si scripturi
 
 Scripturi:
 
-- `src/scripts/check-config.js`
-- `src/scripts/check-syntax.js`
+- `src/scripts/check-config.js`: se ruleaza din `dist/scripts/check-config.js` dupa build;
+- `src/scripts/check-syntax.js`: verifica sintaxa fisierelor JavaScript sursa si ignora `dist/`.
 
-Teste existente si recomandate:
+Teste importante:
 
 - regresii pentru comenzi si notificari;
 - validare config;
@@ -202,5 +221,3 @@ Teste existente si recomandate:
 - parsing Steam offer end;
 - `safeCheerioLoad`;
 - optimizarea listei de jocuri pentru cron.
-
-Comanda completa este `npm run check`, rulata din `src/`.
