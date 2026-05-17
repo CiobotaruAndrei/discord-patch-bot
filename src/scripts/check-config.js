@@ -4,9 +4,16 @@
 const path = require("path");
 const { validateConfig } = require("../config/configValidator");
 
+function defaultConfigPath() {
+  if (path.basename(path.dirname(__dirname)) === "dist") {
+    return path.resolve(__dirname, "..", "..", "config.json");
+  }
+  return path.resolve(__dirname, "..", "config.json");
+}
+
 const configPath = process.env.CONFIG_PATH
   ? path.resolve(process.cwd(), process.env.CONFIG_PATH)
-  : path.resolve(__dirname, "..", "config.json");
+  : defaultConfigPath();
 const config = require(configPath);
 const validated = validateConfig(config, configPath);
 
