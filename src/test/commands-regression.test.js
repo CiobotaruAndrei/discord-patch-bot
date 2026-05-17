@@ -7,12 +7,12 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const commandFiles = [
-  "commands/cache.js",
-  "commands/filters.js",
-  "commands/ui.js",
-  "commands/notifications.js",
-  "commands/slashCommands.js",
-  "commands/interactions.js"
+  "features/commands/cache.js",
+  "domain/deals/filters.js",
+  "features/commands/ui.js",
+  "features/notifications/index.js",
+  "features/commands/slashCommands.js",
+  "features/commands/interactions.js"
 ];
 const commandsSource = commandFiles
   .map(file => fs.readFileSync(path.join(__dirname, "..", file), "utf8"))

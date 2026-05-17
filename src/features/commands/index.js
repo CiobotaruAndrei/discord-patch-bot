@@ -3,9 +3,9 @@
 const ctx = require("./runtime");
 
 require("./cache")(ctx);
-require("./filters")(ctx);
+require("../../domain/deals/filters")(ctx);
 require("./ui")(ctx);
-require("./notifications")(ctx);
+require("../notifications")(ctx);
 require("./slashCommands")(ctx);
 require("./interactions")(ctx);
 

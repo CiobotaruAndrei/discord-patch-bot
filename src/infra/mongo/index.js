@@ -2,10 +2,10 @@
 
 const ctx = require("./runtime");
 
-require("./logging")(ctx);
-require("./domain")(ctx);
-require("./env")(ctx);
-require("./utilities")(ctx);
+require("../../shared/logging")(ctx);
+require("../../shared/domain")(ctx);
+require("../../shared/env")(ctx);
+require("../../shared/utilities")(ctx);
 require("./models")(ctx);
 require("./locks")(ctx);
 require("./systemState")(ctx);

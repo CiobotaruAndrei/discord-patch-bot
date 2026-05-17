@@ -3,7 +3,7 @@
 
 const path = require("path");
 const { validateConfig } = require("../config/configValidator");
-const { errorMessage } = require("./errors");
+const { errorMessage } = require("../shared/errors");
 
 /** @typedef {import("../types").BotConfig} BotConfig */
 /** @typedef {import("../types").GameConfig} GameConfig */

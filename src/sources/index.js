@@ -2,7 +2,7 @@
 
 const ctx = require("./runtime");
 
-require("./core")(ctx);
+require("../infra/http/client")(ctx);
 require("./updates")(ctx);
 require("./deals")(ctx);
 require("./steam")(ctx);

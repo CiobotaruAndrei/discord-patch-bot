@@ -5,24 +5,24 @@ const mongoose = require("mongoose");
 const crypto = require("crypto");
 const { performance } = require("perf_hooks");
 const { Client, GatewayIntentBits } = require("discord.js");
-const { loadConfig } = require("./configLoader");
-const { createMetrics } = require("./metrics");
-const { createRateLimiter } = require("./rateLimit");
-const { createHousekeeping } = require("./housekeeping");
-const { createCronController } = require("./cron");
-const { createHttpServer } = require("./httpServer");
-const { registerDiscordEvents, registerMongoEvents } = require("./events");
-const { createShutdownController } = require("./shutdown");
-const { errorMessage, errorDetail } = require("./errors");
+const { loadConfig } = require("../config/configLoader");
+const { createMetrics } = require("./health/metrics");
+const { createRateLimiter } = require("./health/rateLimit");
+const { createHousekeeping } = require("./scheduler/housekeeping");
+const { createCronController } = require("./scheduler/cron");
+const { createHttpServer } = require("./health/httpServer");
+const { registerDiscordEvents, registerMongoEvents } = require("./lifecycle/events");
+const { createShutdownController } = require("./lifecycle/shutdown");
+const { errorMessage, errorDetail } = require("../shared/errors");
 
 const {
   logger, env, parseEnvNumber,
   acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
   waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
   requestContext
-} = require("../data");
-const commands = require("../commands");
-const scrapers = require("../scrapers");
+} = require("../infra/mongo");
+const commands = require("../features/commands");
+const scrapers = require("../sources");
 
 const { config, games } = loadConfig();
 const metrics = createMetrics();

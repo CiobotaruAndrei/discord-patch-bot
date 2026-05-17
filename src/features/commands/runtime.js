@@ -6,8 +6,8 @@ const {
   ComponentType, MessageFlags, PermissionsBitField,
   SlashCommandBuilder, Routes, REST
 } = require("discord.js");
-const data = require("../data");
-const scrapers = require("../scrapers");
+const data = require("../../infra/mongo");
+const scrapers = require("../../sources");
 
 module.exports = {
   crypto,
