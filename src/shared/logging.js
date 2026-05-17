@@ -11,6 +11,14 @@ const requestContext = new AsyncLocalStorage();
 const LOG_LEVELS = { DEBUG: 10, INFO: 20, WARN: 30, ERROR: 40 };
 const RAW_LOG_LEVEL = (process.env.LOG_LEVEL || "INFO").toUpperCase();
 const ACTIVE_LOG_LEVEL = LOG_LEVELS[RAW_LOG_LEVEL] ?? LOG_LEVELS.INFO;
+const LOG_SAMPLE_RATE = (() => {
+  const raw = process.env.LOG_SAMPLE_RATE;
+  if (raw === undefined || raw === "") return 1;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 1) return 1;
+  return Math.floor(parsed);
+})();
+let sampleCounter = 0;
 
 const LOG_FORMAT = (process.env.LOG_FORMAT || "").toLowerCase();
 const USE_JSON_LOGS = LOG_FORMAT === "json"
@@ -20,6 +28,11 @@ function logger(level, context, message, meta = "") {
   const lvlKey = String(level || "INFO").toUpperCase();
   const lvl = LOG_LEVELS[lvlKey] ?? LOG_LEVELS.INFO;
   if (lvl < ACTIVE_LOG_LEVEL) return;
+
+  if (LOG_SAMPLE_RATE > 1 && lvl < LOG_LEVELS.WARN) {
+    sampleCounter = (sampleCounter + 1) % LOG_SAMPLE_RATE;
+    if (sampleCounter !== 0) return;
+  }
 
   const ts = new Date().toISOString();
   const ctx = requestContext.getStore();
@@ -66,7 +79,7 @@ function parseEnvNumber(name, defaultValue, { min = 0, max = Infinity } = {}) {
   if (raw === undefined || raw === "") return defaultValue;
   const parsed = Number(raw);
   if (!Number.isFinite(parsed)) {
-    logger("WARN", "ENV", `${name}="${raw}" nu este număr valid, folosesc default ${defaultValue}`);
+    logger("WARN", "ENV", `${name}="${raw}" nu este numar valid, folosesc default ${defaultValue}`);
     return defaultValue;
   }
   if (parsed < min) {
@@ -84,6 +97,7 @@ function parseEnvNumber(name, defaultValue, { min = 0, max = Infinity } = {}) {
     requestContext,
     logger,
     parseEnvNumber,
-    RAW_LOG_LEVEL
+    RAW_LOG_LEVEL,
+    LOG_SAMPLE_RATE
   });
 };
