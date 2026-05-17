@@ -35,7 +35,8 @@ A fost facuta o singura exceptie intentionata de la regula "totul in `src`":
 
 - workflow-ul real este in `.github/workflows/ci.yml`, fiindca GitHub Actions ruleaza doar workflow-uri aflate acolo;
 - copia veche din `src/.github/workflows/ci.yml` a fost stearsa, pentru ca nu era executata de GitHub;
-- jobul CI ruleaza cu `working-directory: src`, instaleaza dependintele si executa `npm run check`.
+- jobul CI ruleaza cu `working-directory: src`, instaleaza dependintele si executa `npm run check`;
+- workflow-ul poate fi pornit manual din GitHub Actions prin `workflow_dispatch`, pe langa push si pull request.
 
 ## Ce nu am copiat 1:1
 
