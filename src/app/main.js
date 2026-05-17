@@ -19,7 +19,7 @@ const {
   logger, env, parseEnvNumber,
   acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
   waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
-  requestContext
+  runMigrations, requestContext
 } = require("../infra/mongo");
 const commands = require("../features/commands");
 const scrapers = require("../sources");
@@ -114,6 +114,11 @@ createShutdownController({
     const mongoReady = await waitForMongoReady(10000);
     if (!mongoReady) {
       logger("WARN", "BOOT", "Mongo nu a confirmat conexiunea in timp util");
+    }
+
+    const migrations = await runMigrations(logger);
+    if (migrations.applied.length) {
+      logger("INFO", "MIGRATE", `Migrari aplicate: ${migrations.applied.join(", ")}`);
     }
 
     httpServer.listen(env.PORT, () => {
