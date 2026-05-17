@@ -18,12 +18,23 @@ Acest document vine din fisierele locale din `Discord bot` si noteaza ce a fost 
 - Au fost adaugate teste functionale pentru noile zone sensibile.
 - Testul de fuzzy matching pentru cazul "doar sugestie" foloseste acum un typo cu distanta reala mai mare de 1, ca sa nu contrazica regula de match direct pentru typo-uri foarte apropiate.
 
+## Portari noi din fisierele locale
+
+- `DEALS_CURRENCY_CACHE_MAX_SIZE` limiteaza cache-ul de reduceri pe valute si foloseste LRU, ca botul sa nu tina nelimitat valute rare in memorie.
+- `withMongoRetry` reincearca operatiile Mongo temporare pe claim-urile atomice pentru update-uri si reduceri.
+- Cron-ul trimite `abortSignal` prin `requestContext`, iar `httpReq` il foloseste ca sa opreasca request-urile HTTP cand ciclul cron este anulat.
+- Cron-ul tine o fereastra de sanatate globala (`GLOBAL_HEALTH_WINDOW`, `GLOBAL_HEALTH_MIN_RATIO`) si sare un ciclu cand rata de succes scade sub prag.
+- `/health` expune `cronHealth`, iar `/metrics` expune `bot_cron_skipped_due_to_health`.
+- Erorile Discord permanente `10003`, `10004`, `50001`, `50013` dezactiveaza canalul de notificari afectat in loc sa fie reincercate la nesfarsit.
+- Testele de regresie verifica aceste protectii ca sa ramana vizibile in CI.
+
 ## TypeScript gradual
 
 Am inceput migrarea reala la TypeScript acolo unde merita cel mai mult:
 
 - `src/config/configValidator.js` a devenit `src/config/configValidator.ts`;
 - `src/shared/errors.js` a devenit `src/shared/errors.ts`;
+- `src/types.ts` a fost extins cu env-urile si metricile noi folosite de protectiile portate;
 - build-ul TypeScript genereaza runtime-ul in `src/dist/`;
 - `npm start`, `npm test`, `npm run check:config` si `npm run check` folosesc output-ul compilat;
 - `check-syntax` ignora `dist/`, ca sa nu verifice de doua ori fisiere generate;
@@ -51,4 +62,4 @@ Fișierele locale mari (`commands.js`, `scrapers.js`, `db.js`, `index.js`) erau 
 - `db.js` -> `src/shared/*` si `src/infra/mongo/*`;
 - `index.js` -> `src/app/*`.
 
-Astfel repo-ul ramane organizat si nu revine la fisiere mari duplicate.
+Nu am copiat fisiere intregi din folderul local. Am sarit intentionat peste fisiere extra precum histograme separate, smoke test separat, configurari noi de lint si comenzi admin/snooze mari, pentru ca cerinta a fost sa nu adaug fisiere in plus decat daca este absolut necesar. Astfel repo-ul ramane organizat si nu revine la fisiere mari duplicate.
