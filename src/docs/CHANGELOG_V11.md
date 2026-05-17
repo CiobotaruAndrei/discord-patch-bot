@@ -22,7 +22,8 @@ Acest document vine din fisierele locale din `Discord bot` si noteaza ce a fost 
 
 - `runCronCycle` prinde acum erorile aruncate de `acquireDbLock`. Inainte, daca Mongo arunca inainte de intrarea in blocul principal, cron-ul putea iesi fara sa programeze urmatorul ciclu.
 - Eroarea de lock este contorizata in `cronErrors`, trece prin health window si trimite alert separat cu cheia `cron:lock`.
-- Testele de regresie verifica faptul ca eroarea de lock ramane izolata si cron-ul programeaza urmatorul run.
+- `createRateLimiter` citeste acum `x-forwarded-for` si cand Node il primeste ca array, nu doar ca string.
+- Testele de regresie verifica faptul ca eroarea de lock ramane izolata, cron-ul programeaza urmatorul run si pachetul health ramane compilat corect din TypeScript.
 
 ## Portari noi din fisierele locale
 
@@ -36,19 +37,21 @@ Acest document vine din fisierele locale din `Discord bot` si noteaza ce a fost 
 
 ## TypeScript gradual
 
-Am inceput migrarea reala la TypeScript acolo unde merita cel mai mult:
+Migrarea la TypeScript se face pe zone unde tiparea chiar reduce riscul:
 
 - `src/config/configValidator.js` a devenit `src/config/configValidator.ts`;
 - `src/shared/errors.js` a devenit `src/shared/errors.ts`;
 - `src/app/scheduler/cron.js` a devenit `src/app/scheduler/cron.ts`, pentru ca este o zona critica: lock distribuit, heartbeat, abort si health backoff;
-- `src/types.ts` a fost extins cu env-urile, metricile, `CronHealthSnapshot` si `CronController`;
+- `src/domain/deals/filters.js`, `src/features/commands/cache.js` si `src/features/commands/ui.js` au devenit `.ts`, fiindca au multe obiecte de domeniu si reguli care pot aluneca usor;
+- pachetul health este acum TypeScript: `src/app/health/metrics.ts`, `src/app/health/rateLimit.ts` si `src/app/health/httpServer.ts`;
+- `src/types.ts` a fost extins cu env-urile, metricile, `CronHealthSnapshot`, `CronController` si `RateLimiter`;
 - build-ul TypeScript genereaza runtime-ul in `src/dist/`;
 - `npm start`, `npm test`, `npm run check:config` si `npm run check` folosesc output-ul compilat;
 - `check-syntax` ignora `dist/`, ca sa nu verifice de doua ori fisiere generate;
 - typecheck-ul din PR a prins si au fost corectate importurile JSDoc catre `src/types.ts` din health modules;
 - `src/config/configValidator.ts` foloseste o tipare explicita pentru rezultatul de eroare Zod, ca `safeParse` sa treaca typecheck-ul.
 
-Nu am convertit toate fisierele mari dintr-o singura trecere, pentru ca `commands`, `notifications`, `sources` si `infra/http` sunt zone sensibile si trebuie migrate in pasi mai mici, cu teste clare.
+Nu am convertit toate fisierele mari dintr-o singura trecere, pentru ca `notifications`, `sources` si `infra/http` sunt zone sensibile si trebuie migrate in pasi cu teste clare.
 
 ## GitHub Actions
 
@@ -62,7 +65,7 @@ A fost facuta o singura exceptie intentionata de la regula "totul in `src`":
 
 ## Ce nu am copiat 1:1
 
-Fișierele locale mari (`commands.js`, `scrapers.js`, `db.js`, `index.js`) erau monolitice. Repo-ul de pe GitHub este deja impartit mai bine pe functionalitati, asa ca logica utila a fost mutata in modulele potrivite:
+Fisierele locale mari (`commands.js`, `scrapers.js`, `db.js`, `index.js`) erau monolitice. Repo-ul de pe GitHub este deja impartit mai bine pe functionalitati, asa ca logica utila a fost mutata in modulele potrivite:
 
 - `commands.js` -> `src/features/commands/*` si `src/features/notifications/index.js`;
 - `scrapers.js` -> `src/infra/http/client.js`, `src/sources/*`;
