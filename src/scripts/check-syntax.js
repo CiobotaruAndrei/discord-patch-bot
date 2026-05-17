@@ -7,7 +7,7 @@ const path = require("path");
 
 const root = process.cwd();
 /** @type {Set<string>} */
-const ignoredDirs = new Set([".git", "node_modules", "coverage"]);
+const ignoredDirs = new Set([".git", "node_modules", "coverage", "dist"]);
 /** @type {string[]} */
 const files = [];
 
