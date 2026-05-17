@@ -1,5 +1,8 @@
 "use strict";
 
+const http = require("http");
+const https = require("https");
+
 module.exports = (ctx) => {
   const { axios, cheerio, crypto, env, logger } = ctx;
 
@@ -18,6 +21,22 @@ const CIRCUIT_BREAKER_JITTER_MS = env.CIRCUIT_BREAKER_JITTER_MS;
 const SCHEMA_DRIFT_THRESHOLD = env.SCHEMA_DRIFT_THRESHOLD;
 const ENRICHED_DEAL_CACHE_TTL_MS = env.ENRICHED_DEAL_CACHE_TTL_MS;
 const ENRICHED_DEAL_CACHE_MAX_SIZE = env.ENRICHED_DEAL_CACHE_MAX_SIZE;
+
+const httpAgent = new http.Agent({
+  keepAlive: true,
+  maxSockets: Math.max(FETCH_CONCURRENCY * 2, 20),
+  keepAliveMsecs: 30_000
+});
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: Math.max(FETCH_CONCURRENCY * 2, 20),
+  keepAliveMsecs: 30_000
+});
+const axiosClient = axios.create({
+  httpAgent,
+  httpsAgent,
+  decompress: true
+});
 
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -69,7 +88,7 @@ function truncate(str, maxLen) {
 function normalizeTitleForDedupe(str) {
   return String(str || "")
     .toLowerCase()
-    .replace(/[®©™]/g, "")
+    .replace(/[\u00ae\u00a9\u2122]/g, "")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
@@ -99,16 +118,22 @@ function safeCheerioLoad(html) {
   if (str.length * 4 <= MAX_HTML_BYTES) return cheerio.load(str);
   const byteLen = Buffer.byteLength(str, "utf8");
   if (byteLen <= MAX_HTML_BYTES) return cheerio.load(str);
-  const buf = Buffer.from(str, "utf8").subarray(0, MAX_HTML_BYTES);
-  return cheerio.load(buf.toString("utf8"));
+
+  const buf = Buffer.from(str, "utf8");
+  let end = Math.min(buf.length, MAX_HTML_BYTES);
+  while (end > 0) {
+    const nextByte = buf[end];
+    if (nextByte === undefined || (nextByte & 0xC0) !== 0x80) break;
+    end--;
+  }
+  return cheerio.load(buf.subarray(0, end).toString("utf8"));
 }
 
 function normalizeDealState(deal) {
   return [
     deal.salePrice ?? "",
     deal.normalPrice ?? "",
-    deal.savings ?? "",
-    deal.endDateStr ?? ""
+    deal.savings ?? ""
   ].map(v => String(v).trim().toLowerCase()).join(":");
 }
 
@@ -165,7 +190,7 @@ async function httpReq(method, url, options = {}, retries = 2, backoff = 1000) {
 
   for (let i = 0; i <= retries; i++) {
     try {
-      return await axios(reqConfig);
+      return await axiosClient(reqConfig);
     } catch (err) {
       const status = err.response?.status || "N/A";
       const isRetryable4xx = isIdempotent && typeof status === "number"
