@@ -1,3 +1,5 @@
+import type { IncomingMessage } from "http";
+
 export type GameType =
   | "steam"
   | "minecraft"
@@ -138,6 +140,13 @@ export interface CronController {
 export interface RateLimitBucket {
   tokens: number;
   lastRefill: number;
+}
+
+export interface RateLimiter {
+  check(req: IncomingMessage): boolean;
+  prune(): void;
+  readonly size: number;
+  readonly retryAfterSeconds: number;
 }
 
 export interface PatchUpdate {
