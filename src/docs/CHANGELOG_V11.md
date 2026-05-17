@@ -25,7 +25,9 @@ Am inceput migrarea reala la TypeScript acolo unde merita cel mai mult:
 - `src/shared/errors.js` a devenit `src/shared/errors.ts`;
 - build-ul TypeScript genereaza runtime-ul in `src/dist/`;
 - `npm start`, `npm test`, `npm run check:config` si `npm run check` folosesc output-ul compilat;
-- `check-syntax` ignora `dist/`, ca sa nu verifice de doua ori fisiere generate.
+- `check-syntax` ignora `dist/`, ca sa nu verifice de doua ori fisiere generate;
+- typecheck-ul din PR a prins si au fost corectate importurile JSDoc catre `src/types.ts` din health modules;
+- `src/config/configValidator.ts` foloseste o tipare explicita pentru rezultatul de eroare Zod, ca `safeParse` sa treaca typecheck-ul.
 
 Nu am convertit toate fisierele mari dintr-o singura trecere, pentru ca `commands`, `notifications`, `sources` si `infra/http` sunt zone sensibile si trebuie migrate in pasi mai mici, cu teste clare.
 
