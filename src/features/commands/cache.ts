@@ -1,10 +1,35 @@
-"use strict";
+import type {
+  CacheEntry,
+  CommandCacheSizes,
+  CommandRuntimeCache,
+  CooldownResult,
+  DealInfo,
+  DlcCacheEntry,
+  FetchResult,
+  NormalizedUpdate,
+  RuntimeEnv
+} from "../../types";
 
-module.exports = (ctx) => {
+type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
+
+interface CommandCacheContext {
+  crypto: {
+    randomBytes(size: number): { toString(encoding: BufferEncoding): string };
+  };
+  PermissionsBitField: any;
+  logger: Logger;
+  DEFAULT_CURRENCY: string;
+  env: RuntimeEnv;
+  [key: string]: unknown;
+}
+
+const CACHE_CLEAN_INTERVAL_MS = 300000;
+const USER_COOLDOWNS_THRESHOLD = 500;
+
+function attachCommandCache(ctx: CommandCacheContext): void {
   const { crypto, PermissionsBitField, logger, DEFAULT_CURRENCY, env } = ctx;
 
 const CACHE_TTL_MS = env.CACHE_TTL_MS;
-const CACHE_CLEAN_INTERVAL_MS = 300000;
 const ITEMS_PER_PAGE = env.ITEMS_PER_PAGE;
 const DLC_ITEMS_PER_PAGE = env.DLC_ITEMS_PER_PAGE;
 const COMMAND_OUTPUT_MAX_CHARS = env.COMMAND_OUTPUT_MAX_CHARS;
@@ -44,7 +69,7 @@ const COLORS = Object.freeze({
 const OP_UPDATE_OPTS = Object.freeze({ strict: false });
 
 let GLOBAL_CACHE_TTL_MS = 1800000;
-function setGlobalCacheTtl(ms) {
+function setGlobalCacheTtl(ms: number): void {
   if (Number.isFinite(ms) && ms > 0) {
     GLOBAL_CACHE_TTL_MS = Math.min(ms, 30 * 60 * 1000);
     logger("INFO", "CACHE", `GLOBAL_CACHE_TTL_MS setat la ${GLOBAL_CACHE_TTL_MS}ms`);
@@ -52,18 +77,18 @@ function setGlobalCacheTtl(ms) {
 }
 
 // V9: normalizare cheie currency în cache (defensiv)
-function normalizeCurrencyKey(c) {
+function normalizeCurrencyKey(c: unknown): string {
   return String(c || DEFAULT_CURRENCY).toUpperCase();
 }
 
-const cache = {
+const cache: CommandRuntimeCache = {
   updates: { data: null, expiresAt: 0 },
-  dealsByCurrency: new Map(),
-  single: new Map(),
-  dlc: new Map()
+  dealsByCurrency: new Map<string, CacheEntry<DealInfo[]>>(),
+  single: new Map<string, CacheEntry<NormalizedUpdate | null>>(),
+  dlc: new Map<string, CacheEntry<DlcCacheEntry>>()
 };
 
-function getUpdatesCacheData() {
+function getUpdatesCacheData(): FetchResult[] | null {
   if (!cache.updates.data) return null;
   if (cache.updates.expiresAt <= Date.now()) {
     cache.updates = { data: null, expiresAt: 0 };
@@ -72,11 +97,11 @@ function getUpdatesCacheData() {
   return cache.updates.data;
 }
 
-function setUpdatesCache(data) {
+function setUpdatesCache(data: FetchResult[] | null): void {
   cache.updates = { data, expiresAt: Date.now() + GLOBAL_CACHE_TTL_MS };
 }
 
-function getDealsCacheData(currency) {
+function getDealsCacheData(currency: unknown): DealInfo[] | null {
   const key = normalizeCurrencyKey(currency);
   const entry = cache.dealsByCurrency.get(key);
   if (!entry) return null;
@@ -89,14 +114,14 @@ function getDealsCacheData(currency) {
   return entry.data;
 }
 
-function setDealsCache(currency, data) {
+function setDealsCache(currency: unknown, data: DealInfo[]): void {
   const key = normalizeCurrencyKey(currency);
   if (cache.dealsByCurrency.has(key)) cache.dealsByCurrency.delete(key);
   cache.dealsByCurrency.set(key, { data, expiresAt: Date.now() + GLOBAL_CACHE_TTL_MS });
   evictLRU(cache.dealsByCurrency, DEALS_CURRENCY_CACHE_MAX_SIZE);
 }
 
-function cacheGetLRU(map, key) {
+function cacheGetLRU<T>(map: Map<string, CacheEntry<T>>, key: string): T | null {
   const value = map.get(key);
   if (!value) return null;
   if (value.expiresAt <= Date.now()) {
@@ -110,7 +135,7 @@ function cacheGetLRU(map, key) {
 
 // V9: helper unificat de eviction. Folosit și de cacheSetLRU,
 // și de cleanCache. Evită bucle while care recreează iteratorul.
-function evictLRU(map, maxSize) {
+function evictLRU<K, V>(map: Map<K, V>, maxSize: number): void {
   if (map.size <= maxSize) return;
   const toDelete = map.size - maxSize;
   let deleted = 0;
@@ -120,16 +145,15 @@ function evictLRU(map, maxSize) {
   }
 }
 
-function cacheSetLRU(map, key, data, ttlMs, maxSize) {
+function cacheSetLRU<T>(map: Map<string, CacheEntry<T>>, key: string, data: T, ttlMs: number, maxSize: number): void {
   if (map.has(key)) map.delete(key);
   map.set(key, { data, expiresAt: Date.now() + ttlMs });
   evictLRU(map, maxSize);
 }
 
-const USER_COOLDOWNS_THRESHOLD = 500;
-const userCommandCooldowns = new Map();
+const userCommandCooldowns = new Map<string, number>();
 
-function checkUserCooldown(userId, command) {
+function checkUserCooldown(userId: unknown, command: string): CooldownResult {
   if (USER_COMMAND_COOLDOWN_MS === 0) return { allowed: true };
   const key = `${userId}:${command}`;
   const last = userCommandCooldowns.get(key) || 0;
@@ -143,7 +167,7 @@ function checkUserCooldown(userId, command) {
   return { allowed: true };
 }
 
-function cleanUserCooldowns() {
+function cleanUserCooldowns(): void {
   if (USER_COMMAND_COOLDOWN_MS === 0) {
     userCommandCooldowns.clear();
     return;
@@ -154,7 +178,7 @@ function cleanUserCooldowns() {
   }
 }
 
-function cleanCache() {
+function cleanCache(): void {
   const now = Date.now();
   if (cache.updates.expiresAt <= now) cache.updates = { data: null, expiresAt: 0 };
   for (const [currency, entry] of cache.dealsByCurrency.entries()) {
@@ -172,7 +196,7 @@ function cleanCache() {
   cleanUserCooldowns();
 }
 
-function getCacheSizes() {
+function getCacheSizes(): CommandCacheSizes {
   return {
     single: cache.single.size,
     dlc: cache.dlc.size,
@@ -182,23 +206,26 @@ function getCacheSizes() {
   };
 }
 
-function startCacheCleaner() {
+function startCacheCleaner(): ReturnType<typeof setInterval> {
   const handle = setInterval(cleanCache, CACHE_CLEAN_INTERVAL_MS);
   if (typeof handle.unref === "function") handle.unref();
   return handle;
 }
 
-function smoothTime(oldMs, newMs, alpha = 0.3) {
+function smoothTime(oldMs: number, newMs: number, alpha = 0.3): number {
   return Math.round(oldMs * (1 - alpha) + newMs * alpha);
 }
 
-function formatUserError(err, defaultMsg = "A aparut o eroare interna.", errorCode = null) {
-  if (err) logger("WARN", "USER_COMMAND", `${defaultMsg}${errorCode ? ` [${errorCode}]` : ""}`, err.stack || err.message || err);
+function formatUserError(err: unknown, defaultMsg = "A aparut o eroare interna.", errorCode: string | null = null): string {
+  const detail = err && typeof err === "object"
+    ? ((err as { stack?: unknown; message?: unknown }).stack || (err as { message?: unknown }).message || err)
+    : err;
+  if (err) logger("WARN", "USER_COMMAND", `${defaultMsg}${errorCode ? ` [${errorCode}]` : ""}`, detail);
   const suffix = errorCode ? ` \`[${errorCode}]\`` : "";
   return `Eroare: ${defaultMsg}${suffix}`;
 }
 
-function canSendEmbeds(channel, botId) {
+function canSendEmbeds(channel: any, botId: string): boolean {
   if (!channel || !channel.isTextBased()) return false;
   const perms = channel.permissionsFor(botId);
   return !!perms && perms.has([
@@ -207,15 +234,15 @@ function canSendEmbeds(channel, botId) {
   ]);
 }
 
-function missingChannelPermsMessage() {
+function missingChannelPermsMessage(): string {
   return "Eroare: Nu pot activa notificarile pe acest canal. Am nevoie de permisiunile **Send Messages** si **Embed Links**.";
 }
 
-function makeActivationId() {
+function makeActivationId(): string {
   return crypto.randomBytes(8).toString("hex");
 }
 
-async function sleepIfPositive(ms) {
+async function sleepIfPositive(ms: number): Promise<void> {
   if (ms > 0) await new Promise(resolve => setTimeout(resolve, ms));
 }
 
@@ -267,4 +294,6 @@ async function sleepIfPositive(ms) {
     makeActivationId,
     sleepIfPositive
   });
-};
+}
+
+export = attachCommandCache;

@@ -1,6 +1,41 @@
-"use strict";
+import type { DealInfo, GameConfig, NormalizedUpdate, NotificationMode } from "../../types";
 
-module.exports = (ctx) => {
+type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
+type CommandLogEnd = (status?: string, endExtra?: Record<string, unknown>) => void;
+
+type FindGameResult = {
+  game: GameConfig | null;
+  suggestion: GameConfig | null;
+};
+
+type CommandUiContext = {
+  crypto: {
+    randomBytes(size: number): { toString(encoding: BufferEncoding): string };
+  };
+  EmbedBuilder: any;
+  ActionRowBuilder: any;
+  ButtonBuilder: any;
+  ButtonStyle: any;
+  ComponentType: any;
+  MessageFlags: any;
+  logger: Logger;
+  checkUserCooldown(userId: unknown, command: string): { allowed: boolean; remainingMs?: number };
+  COLORS: Record<string, number>;
+  truncate(value: unknown, maxLen: number): string;
+  DEFAULT_CURRENCY: string;
+  formatPrice(value: unknown, currencyCode?: string): string;
+  COLLECTOR_TIMEOUT_MS: number;
+  MAX_FUZZY_SEARCH_INPUT: number;
+  levenshtein(a: string, b: string): number;
+  httpReq(method: string, url: string, options?: Record<string, unknown>): Promise<any>;
+  [key: string]: unknown;
+};
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function attachCommandUi(ctx: CommandUiContext): void {
   const {
     crypto, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
     ComponentType, MessageFlags, logger, checkUserCooldown, COLORS,
@@ -8,8 +43,8 @@ module.exports = (ctx) => {
     MAX_FUZZY_SEARCH_INPUT, levenshtein, httpReq
   } = ctx;
 
-async function enforceCooldown(interaction, command) {
-  const { allowed, remainingMs } = checkUserCooldown(interaction.user?.id, command);
+async function enforceCooldown(interaction: any, command: string): Promise<boolean> {
+  const { allowed, remainingMs = 0 } = checkUserCooldown(interaction.user?.id, command);
   if (allowed) return true;
   const msg = `Cooldown: Comanda \`${command}\` are cooldown. Reincearca in **${Math.ceil(remainingMs / 1000)}s**.`;
   if (interaction.deferred || interaction.replied) await interaction.editReply(msg).catch(() => null);
@@ -17,7 +52,7 @@ async function enforceCooldown(interaction, command) {
   return false;
 }
 
-function startCommandLog(interaction, command, extra = {}) {
+function startCommandLog(interaction: any, command: string, extra: Record<string, unknown> = {}): CommandLogEnd {
   const startedAt = Date.now();
   logger("INFO", "USER_CMD", `Comanda pornita: ${command}`, {
     userId: interaction.user?.id,
@@ -26,7 +61,7 @@ function startCommandLog(interaction, command, extra = {}) {
     command,
     ...extra
   });
-  return (status = "ok", endExtra = {}) => {
+  return (status = "ok", endExtra: Record<string, unknown> = {}) => {
     logger("INFO", "USER_CMD", `Comanda finalizata: ${command} [${status}]`, {
       userId: interaction.user?.id,
       guildId: interaction.guild?.id,
@@ -38,25 +73,25 @@ function startCommandLog(interaction, command, extra = {}) {
   };
 }
 
-async function safeDefer(interaction, ephemeral = false) {
+async function safeDefer(interaction: any, ephemeral = false): Promise<void> {
   try {
     if (!interaction.deferred && !interaction.replied) {
       await interaction.deferReply(ephemeral ? { flags: MessageFlags.Ephemeral } : {});
     }
   } catch (err) {
-    logger("WARN", "INTERACTION", "Eroare la deferReply", err.message);
+    logger("WARN", "INTERACTION", "Eroare la deferReply", errorMessage(err));
   }
 }
 
-async function safeEdit(interaction, payload) {
+async function safeEdit(interaction: any, payload: unknown): Promise<unknown | null> {
   try { return await interaction.editReply(payload); }
   catch (err) {
-    logger("WARN", "INTERACTION", "Eroare la editReply", err.message);
+    logger("WARN", "INTERACTION", "Eroare la editReply", errorMessage(err));
     return null;
   }
 }
 
-function buildUpdateEmbed(gameName, latest, mode = "detailed") {
+function buildUpdateEmbed(gameName: string, latest: NormalizedUpdate, mode: NotificationMode = "detailed"): any {
   const isCompact = mode === "compact";
   const embed = new EmbedBuilder()
     .setColor(COLORS.SUCCESS)
@@ -78,21 +113,21 @@ function buildUpdateEmbed(gameName, latest, mode = "detailed") {
 }
 
 // V9: fix "Users **Popularitate:**" leftover + scoatere "Se incarca:" eronat.
-function buildDealEmbed(deal, mode = "detailed", currency) {
+function buildDealEmbed(deal: DealInfo, mode: NotificationMode = "detailed", currency?: string): any {
   const cur = currency || deal.currency || DEFAULT_CURRENCY;
-  const isFree = parseFloat(deal.salePrice) === 0;
+  const isFree = parseFloat(String(deal.salePrice)) === 0;
   const isCompact = mode === "compact";
   const embed = new EmbedBuilder()
     .setColor(isFree ? COLORS.FREE : COLORS.ERROR)
     .setTitle(truncate(`${isFree ? "Gratuit: " : "Reducere: "}${deal.title}`, 256));
   if (deal.link) embed.setURL(deal.link);
   if (isCompact) {
-    embed.setDescription(`**${deal.store}** | ~~${formatPrice(deal.normalPrice, cur)}~~ -> **${isFree ? "GRATUIT" : formatPrice(deal.salePrice, cur)}**\n[Apasa aici pentru link](${deal.link})`);
+    embed.setDescription(`**${deal.store}** | ~~${formatPrice(deal.normalPrice, String(cur))}~~ -> **${isFree ? "GRATUIT" : formatPrice(deal.salePrice, String(cur))}**\n[Apasa aici pentru link](${deal.link})`);
     return embed;
   }
   let statsStr = "";
-  if (deal.qualityScore > 0) {
-    statsStr = `**Calitate:** ${deal.qualityScore}% aprecieri | **Popularitate:** ${deal.totalReviews > 0 ? `${deal.totalReviews} recenzii` : "Top Seller"}\n\n`;
+  if (Number(deal.qualityScore) > 0) {
+    statsStr = `**Calitate:** ${deal.qualityScore}% aprecieri | **Popularitate:** ${Number(deal.totalReviews) > 0 ? `${deal.totalReviews} recenzii` : "Top Seller"}\n\n`;
   }
   embed.setAuthor({ name: truncate(deal.store, 256) })
     .setDescription(truncate(`**${deal.store}** ofera o reducere de **${deal.savings}%**!\n\n`
@@ -100,32 +135,40 @@ function buildDealEmbed(deal, mode = "detailed", currency) {
         ? `**${isFree ? "Gratis pana la" : "Expira la"}:** ${deal.endDateStr}\n\n`
         : ""), 4096))
     .addFields(
-      { name: "Pret Vechi", value: `~~${formatPrice(deal.normalPrice, cur)}~~`, inline: true },
-      { name: "Pret Nou", value: isFree ? "GRATUIT" : formatPrice(deal.salePrice, cur), inline: true },
+      { name: "Pret Vechi", value: `~~${formatPrice(deal.normalPrice, String(cur))}~~`, inline: true },
+      { name: "Pret Nou", value: isFree ? "GRATUIT" : formatPrice(deal.salePrice, String(cur)), inline: true },
       { name: "Link", value: `[Apasa aici](${deal.link})`, inline: false }
     );
-  if (deal.thumbnail && deal.thumbnail.startsWith("http")) embed.setThumbnail(deal.thumbnail);
+  if (typeof deal.thumbnail === "string" && deal.thumbnail.startsWith("http")) embed.setThumbnail(deal.thumbnail);
   if (deal.extraDetails) embed.addFields({ name: "Detalii", value: truncate(deal.extraDetails.trim(), 1024), inline: false });
   return embed;
 }
 
-function generateSessionId() {
+function generateSessionId(): string {
   return crypto.randomBytes(8).toString("hex");
 }
 
-function buildPaginationButtons(prefix, sessionId, page, totalPages) {
+function buildPaginationButtons(prefix: string, sessionId: string, page: number, totalPages: number): any {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`${prefix}_prev_${sessionId}`).setLabel("<- Ant").setStyle(ButtonStyle.Secondary).setDisabled(page <= 0),
     new ButtonBuilder().setCustomId(`${prefix}_next_${sessionId}`).setLabel("Urm ->").setStyle(ButtonStyle.Primary).setDisabled(page >= totalPages - 1)
   );
 }
 
-async function handlePagination(interactionMessage, authorId, prefix, items, itemsPerPage, generateEmbedsFn, defaultMode = "detailed") {
+async function handlePagination(
+  interactionMessage: any,
+  authorId: string,
+  prefix: string,
+  items: unknown[],
+  itemsPerPage: number,
+  generateEmbedsFn: (currentPage: number, totalPages: number, mode: NotificationMode) => Promise<unknown[]> | unknown[],
+  defaultMode: NotificationMode = "detailed"
+): Promise<void> {
   if (!items || items.length === 0) return;
   let currentPage = 0;
   const totalPages = Math.max(1, Math.ceil(items.length / itemsPerPage));
   const sessionId = generateSessionId();
-  let collector = null;
+  let collector: any = null;
 
   const updateMessage = async () => {
     try {
@@ -144,7 +187,7 @@ async function handlePagination(interactionMessage, authorId, prefix, items, ite
     componentType: ComponentType.Button,
     time: COLLECTOR_TIMEOUT_MS
   });
-  collector.on("collect", async (btn) => {
+  collector.on("collect", async (btn: any) => {
     if (btn.user.id !== authorId) {
       return btn.reply({ content: "Doar autorul comenzii poate naviga!", flags: MessageFlags.Ephemeral }).catch(() => null);
     }
@@ -160,10 +203,10 @@ async function handlePagination(interactionMessage, authorId, prefix, items, ite
 }
 
 const FIND_GAME_CACHE_MAX = 200;
-const findGameCache = new Map();
-const findGameCacheGuard = { hash: "", gamesRef: null };
+const findGameCache = new Map<string, FindGameResult>();
+const findGameCacheGuard: { hash: string; gamesRef: GameConfig[] | null } = { hash: "", gamesRef: null };
 
-function gamesHashKey(games) {
+function gamesHashKey(games: GameConfig[]): string {
   if (findGameCacheGuard.gamesRef === games && findGameCacheGuard.hash) {
     return findGameCacheGuard.hash;
   }
@@ -173,7 +216,7 @@ function gamesHashKey(games) {
   return hash;
 }
 
-function rememberFindGameResult(cacheKey, result) {
+function rememberFindGameResult(cacheKey: string, result: FindGameResult): FindGameResult {
   if (findGameCache.size >= FIND_GAME_CACHE_MAX) {
     const oldest = findGameCache.keys().next().value;
     if (oldest !== undefined) findGameCache.delete(oldest);
@@ -182,7 +225,7 @@ function rememberFindGameResult(cacheKey, result) {
   return result;
 }
 
-function findGameAndSuggestion(text, games) {
+function findGameAndSuggestion(text: unknown, games: GameConfig[]): FindGameResult {
   let search = String(text || "").toLowerCase().replace(/[-_]/g, " ").trim();
   if (search.length > MAX_FUZZY_SEARCH_INPUT) search = search.substring(0, MAX_FUZZY_SEARCH_INPUT);
 
@@ -199,7 +242,7 @@ function findGameAndSuggestion(text, games) {
     return rememberFindGameResult(cacheKey, { game: exact || null, suggestion: null });
   }
 
-  const candidates = [];
+  const candidates: Array<{ game: GameConfig; dist: number; isStartsWith: boolean; isIncludes: boolean }> = [];
   for (const game of games) {
     const identifiers = [
       String(game.key).toLowerCase().replace(/[-_]/g, " "),
@@ -233,17 +276,17 @@ function findGameAndSuggestion(text, games) {
   return rememberFindGameResult(cacheKey, { game: null, suggestion: null });
 }
 
-function getFindGameCacheSize() {
+function getFindGameCacheSize(): number {
   return findGameCache.size;
 }
 
-function clearFindGameCache() {
+function clearFindGameCache(): void {
   findGameCache.clear();
   findGameCacheGuard.hash = "";
   findGameCacheGuard.gamesRef = null;
 }
 
-async function fetchGameStatus(game) {
+async function fetchGameStatus(game: GameConfig): Promise<any> {
   let statusText = "Nu am un API oficial live integrat pentru acest joc. Iti dau pagina oficiala/fallback ca sa verifici manual.";
   let statusLink = "";
   let homepageLink = "";
@@ -288,7 +331,7 @@ async function fetchGameStatus(game) {
 }
 
 // V9: fix "Se incarca:" leftover din descriere.
-function buildSteamPriceEmbed(gameData, appId, offerEndDate, currency) {
+function buildSteamPriceEmbed(gameData: any, appId: string | number, offerEndDate?: string | null, currency?: string): any {
   const cur = currency || DEFAULT_CURRENCY;
   const typeStr = gameData.type === "game" ? "Joc"
     : gameData.type === "dlc" ? "DLC / Extensie"
@@ -341,4 +384,6 @@ function buildSteamPriceEmbed(gameData, appId, offerEndDate, currency) {
     fetchGameStatus,
     buildSteamPriceEmbed
   });
-};
+}
+
+export = attachCommandUi;
