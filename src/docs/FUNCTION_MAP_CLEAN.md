@@ -22,6 +22,7 @@ Comportament:
 
 - ruleaza pe `push` pe `main` si `codex/**`;
 - ruleaza pe `pull_request`;
+- poate fi pornit manual din tabul Actions prin `workflow_dispatch`;
 - foloseste Node.js 20;
 - executa pasii cu `working-directory: src`;
 - instaleaza dependintele cu `npm install`;
