@@ -10,6 +10,10 @@
     "typecheck": "tsc --noEmit",
     "lint": "npm run check:syntax",
     "test": "node --test",
+    "test:functional": "node --test test/",
+    "test:regression": "node --test test/commands-regression.test.js test/configValidator.test.js",
+    "audit": "npm audit --omit=dev --audit-level=moderate",
+    "precommit": "npm run check && npm run audit",
     "check": "npm run check:config && npm run check:syntax && npm run typecheck && npm test"
   },
   "engines": {
