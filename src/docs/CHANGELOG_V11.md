@@ -17,6 +17,18 @@ Acest document vine din fisierele locale din `Discord bot` si noteaza ce a fost 
 - A fost adaugata schema JSON pentru `config.json`.
 - Au fost adaugate teste functionale pentru noile zone sensibile.
 
+## TypeScript gradual
+
+Am inceput migrarea reala la TypeScript acolo unde merita cel mai mult:
+
+- `src/config/configValidator.js` a devenit `src/config/configValidator.ts`;
+- `src/shared/errors.js` a devenit `src/shared/errors.ts`;
+- build-ul TypeScript genereaza runtime-ul in `src/dist/`;
+- `npm start`, `npm test`, `npm run check:config` si `npm run check` folosesc output-ul compilat;
+- `check-syntax` ignora `dist/`, ca sa nu verifice de doua ori fisiere generate.
+
+Nu am convertit toate fisierele mari dintr-o singura trecere, pentru ca `commands`, `notifications`, `sources` si `infra/http` sunt zone sensibile si trebuie migrate in pasi mai mici, cu teste clare.
+
 ## Ce nu am copiat 1:1
 
 Fișierele locale mari (`commands.js`, `scrapers.js`, `db.js`, `index.js`) erau monolitice. Repo-ul de pe GitHub este deja impartit mai bine pe functionalitati, asa ca logica utila a fost mutata in modulele potrivite:
