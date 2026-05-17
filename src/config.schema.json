@@ -1,0 +1,146 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DiscordPatchBotConfig",
+  "description": "Schema pentru config.json al botului.",
+  "type": "object",
+  "required": ["games"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "checkIntervalMinutes": {
+      "description": "Intervalul cronului in minute. Valori suportate: 10, 15, 30 sau 60.",
+      "type": "number",
+      "enum": [10, 15, 30, 60]
+    },
+    "games": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/Game" }
+    }
+  },
+  "definitions": {
+    "Alias": {
+      "type": "string",
+      "minLength": 1
+    },
+    "BaseGame": {
+      "type": "object",
+      "required": ["key", "name", "type"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "thumbnail": { "type": "string", "format": "uri" },
+        "aliases": { "type": "array", "items": { "$ref": "#/definitions/Alias" } }
+      }
+    },
+    "Game": {
+      "oneOf": [
+        { "$ref": "#/definitions/SteamGame" },
+        { "$ref": "#/definitions/MinecraftGame" },
+        { "$ref": "#/definitions/EpicGamesGame" },
+        { "$ref": "#/definitions/RobloxGame" },
+        { "$ref": "#/definitions/ListingBasedGame" },
+        { "$ref": "#/definitions/NvidiaGame" },
+        { "$ref": "#/definitions/AmdGame" },
+        { "$ref": "#/definitions/IntelGame" }
+      ]
+    },
+    "SteamGame": {
+      "allOf": [{ "$ref": "#/definitions/BaseGame" }],
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "appId"],
+      "properties": {
+        "key": {}, "name": {}, "thumbnail": {}, "aliases": {},
+        "type": { "const": "steam" },
+        "appId": { "type": "string", "pattern": "^[0-9]+$" }
+      }
+    },
+    "MinecraftGame": {
+      "allOf": [{ "$ref": "#/definitions/BaseGame" }],
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "key": {}, "name": {}, "thumbnail": {}, "aliases": {},
+        "type": { "const": "minecraft" }
+      }
+    },
+    "EpicGamesGame": {
+      "allOf": [{ "$ref": "#/definitions/BaseGame" }],
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "key": {}, "name": {}, "thumbnail": {}, "aliases": {},
+        "type": { "const": "epic_games" },
+        "baseUrl": { "type": "string", "format": "uri" },
+        "listingUrl": { "type": "string", "format": "uri" },
+        "listingUrls": { "type": "array", "items": { "type": "string", "format": "uri" } },
+        "articleHrefRegex": { "type": "string" },
+        "requireKeywords": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "RobloxGame": {
+      "allOf": [{ "$ref": "#/definitions/BaseGame" }],
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "key": {}, "name": {}, "thumbnail": {}, "aliases": {},
+        "type": { "const": "roblox" }
+      }
+    },
+    "ListingBasedGame": {
+      "allOf": [{ "$ref": "#/definitions/BaseGame" }],
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "baseUrl"],
+      "properties": {
+        "key": {}, "name": {}, "thumbnail": {}, "aliases": {},
+        "type": { "const": "listing_based" },
+        "baseUrl": { "type": "string", "format": "uri" },
+        "listingUrl": { "type": "string", "format": "uri" },
+        "listingUrls": { "type": "array", "items": { "type": "string", "format": "uri" } },
+        "articleHrefRegex": { "type": "string" },
+        "requireKeywords": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      },
+      "anyOf": [
+        { "required": ["listingUrl"] },
+        { "required": ["listingUrls"] }
+      ]
+    },
+    "NvidiaGame": {
+      "allOf": [{ "$ref": "#/definitions/BaseGame" }],
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "key": {}, "name": {}, "thumbnail": {}, "aliases": {},
+        "type": { "const": "nvidia" },
+        "upCRD": { "type": "integer", "enum": [0, 1] }
+      }
+    },
+    "AmdGame": {
+      "allOf": [{ "$ref": "#/definitions/BaseGame" }],
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "key": {}, "name": {}, "thumbnail": {}, "aliases": {},
+        "type": { "const": "amd" }
+      }
+    },
+    "IntelGame": {
+      "allOf": [{ "$ref": "#/definitions/BaseGame" }],
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "url"],
+      "properties": {
+        "key": {}, "name": {}, "thumbnail": {}, "aliases": {},
+        "type": { "const": "intel" },
+        "url": { "type": "string", "format": "uri" }
+      }
+    }
+  }
+}
