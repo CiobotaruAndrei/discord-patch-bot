@@ -6,7 +6,7 @@ module.exports = (ctx) => {
     SchemaDriftError, FETCH_CONCURRENCY, CIRCUIT_BREAKER_FAIL_THRESHOLD,
     CIRCUIT_BREAKER_COOLDOWN_MS, CIRCUIT_BREAKER_JITTER_MS, SCHEMA_DRIFT_THRESHOLD,
     httpReq, fetchWithProxy, withInflightTimeout, trackInflight,
-    cleanText, stableUpdateId, normalizeUpdate, safeCheerioLoad
+    cleanText, stableUpdateId, normalizeUpdate, safeCheerioLoad, crypto
   } = ctx;
 
 function absoluteUrl(base, maybeRelative) {
@@ -389,7 +389,12 @@ async function _getLatestForAllGamesImpl(games, shouldAbort) {
 }
 
 async function getLatestForAllGames(games, shouldAbort) {
-  const contextKey = shouldAbort ? "cron" : "manual";
+  const ctxBase = shouldAbort ? "cron" : "manual";
+  const keysHash = crypto.createHash("sha1")
+    .update(games.map(g => String(g.key)).sort().join(","))
+    .digest("hex")
+    .substring(0, 8);
+  const contextKey = `${ctxBase}:${keysHash}`;
   const existing = inflightAllGames.get(contextKey);
   if (existing) {
     logger("INFO", "FETCH_COALESCE", `Refolosesc fetch-ul în curs (context=${contextKey})`);
