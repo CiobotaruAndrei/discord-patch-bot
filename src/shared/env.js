@@ -4,6 +4,12 @@ module.exports = (ctx) => {
   const { z, logger, parseEnvNumber, RAW_LOG_LEVEL } = ctx;
 
 const isProd = process.env.NODE_ENV === "production";
+const PLACEHOLDER_METRICS_TOKEN = "change_me_to_a_long_random_value";
+const rawMetricsToken = process.env.METRICS_TOKEN || "";
+const effectiveMetricsToken = rawMetricsToken === PLACEHOLDER_METRICS_TOKEN ? "" : rawMetricsToken;
+if (rawMetricsToken === PLACEHOLDER_METRICS_TOKEN) {
+  logger("WARN", "ENV", "METRICS_TOKEN are valoarea placeholder, tratat ca lipsa");
+}
 
 const EnvSchema = z.object({
   MONGO_URI: z.string().min(1, "MONGO_URI lipsește"),
@@ -36,7 +42,7 @@ try {
     DISCORD_CLIENT_ID: process.env.DISCORD_CLIENT_ID,
     PORT: process.env.PORT,
     NODE_ENV: process.env.NODE_ENV,
-    METRICS_TOKEN: process.env.METRICS_TOKEN,
+    METRICS_TOKEN: effectiveMetricsToken || undefined,
     METRICS_PUBLIC: process.env.METRICS_PUBLIC,
     ADMIN_WEBHOOK_URL: process.env.ADMIN_WEBHOOK_URL,
     LOG_LEVEL: process.env.LOG_LEVEL,
@@ -60,7 +66,7 @@ const env = {
   DISCORD_CLIENT_ID: process.env.DISCORD_CLIENT_ID,
   PORT: process.env.PORT || "3000",
   NODE_ENV: process.env.NODE_ENV || "development",
-  METRICS_TOKEN: process.env.METRICS_TOKEN || "",
+  METRICS_TOKEN: effectiveMetricsToken,
   METRICS_PUBLIC: String(process.env.METRICS_PUBLIC || "").toLowerCase() === "true",
   ADMIN_WEBHOOK_URL: process.env.ADMIN_WEBHOOK_URL || "",
   LOG_LEVEL: RAW_LOG_LEVEL,
@@ -134,7 +140,8 @@ logger("INFO", "ENV", "Configurație de tuning încărcată", {
   ENRICHED_DEAL_CACHE_TTL_MS: env.ENRICHED_DEAL_CACHE_TTL_MS,
   MONGO_MAX_POOL_SIZE: env.MONGO_MAX_POOL_SIZE,
   SHUTDOWN_DRAIN_MS: env.SHUTDOWN_DRAIN_MS,
-  PROXY_URLS_CONFIGURED: !!env.PROXY_URLS
+  PROXY_URLS_CONFIGURED: !!env.PROXY_URLS,
+  METRICS_TOKEN_SET: !!env.METRICS_TOKEN
 });
 
   Object.assign(ctx, {
