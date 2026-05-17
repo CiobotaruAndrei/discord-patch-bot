@@ -68,3 +68,4 @@ function createRateLimiter(env: RuntimeEnv, metrics: BotMetrics): RateLimiter {
 }
 
 export { createRateLimiter, firstHeaderValue };
+export type { RateLimiter };
