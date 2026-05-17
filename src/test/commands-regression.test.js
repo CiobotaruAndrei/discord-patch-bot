@@ -15,11 +15,15 @@ const commandFiles = [
   "features/commands/interactions.js"
 ];
 const runtimeFiles = [
+  "config/configLoader.js",
   "shared/env.js",
   "shared/utilities.js",
   "shared/logging.js",
   "infra/http/client.js",
+  "infra/mongo/locks.js",
   "app/scheduler/cron.js",
+  "app/lifecycle/events.js",
+  "app/lifecycle/shutdown.js",
   "app/health/httpServer.js",
   "app/health/metrics.js",
   "app/health/rateLimit.js"
@@ -105,6 +109,18 @@ test("health modules keep TypeScript contracts after build", () => {
   assert.match(runtimeSource, /function createHttpServer/);
   assert.match(runtimeSource, /function firstHeaderValue/);
   assert.match(runtimeSource, /Array\.isArray\(value\)/);
+});
+
+test("boot lifecycle and Mongo lock modules keep TypeScript contracts after build", () => {
+  assert.match(runtimeSource, /function resolveConfigPath/);
+  assert.match(runtimeSource, /function loadConfig/);
+  assert.match(runtimeSource, /function registerDiscordEvents/);
+  assert.match(runtimeSource, /function registerMongoEvents/);
+  assert.match(runtimeSource, /function createShutdownController/);
+  assert.match(runtimeSource, /function attachLocks/);
+  assert.match(runtimeSource, /async function acquireDbLock/);
+  assert.match(runtimeSource, /async function renewDbLock/);
+  assert.match(runtimeSource, /async function releaseDbLock/);
 });
 
 test("cron lock acquisition errors are contained", () => {
