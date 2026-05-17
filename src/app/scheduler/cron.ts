@@ -1,6 +1,3 @@
-import type * as Crypto from "crypto";
-import type * as Mongoose from "mongoose";
-import type { performance as PerfHooksPerformance } from "perf_hooks";
 import type {
   BotConfig,
   BotMetrics,
@@ -17,8 +14,23 @@ type AdminAlert = (kind: string, title: string, body: string) => Promise<unknown
 type AcquireDbLock = (jobName: string, ttlMs: number) => Promise<string | null>;
 type RenewDbLock = (jobName: string, token: string, ttlMs: number) => Promise<boolean>;
 type ReleaseDbLock = (jobName: string, token: string) => Promise<unknown>;
-
 type TimerHandle = ReturnType<typeof setTimeout>;
+
+interface MongooseLike {
+  connection: {
+    readyState: number;
+  };
+}
+
+interface PerformanceLike {
+  now(): number;
+}
+
+interface CryptoLike {
+  randomBytes(size: number): {
+    toString(encoding: BufferEncoding): string;
+  };
+}
 
 interface DiscordClientLike {
   isReady(): boolean;
@@ -44,9 +56,9 @@ interface CronCommands {
 }
 
 interface CreateCronControllerDeps {
-  mongoose: typeof Mongoose;
-  performance: typeof PerfHooksPerformance;
-  crypto: typeof Crypto;
+  mongoose: MongooseLike;
+  performance: PerformanceLike;
+  crypto: CryptoLike;
   logger: Logger;
   env: RuntimeEnv;
   parseEnvNumber: ParseEnvNumber;
