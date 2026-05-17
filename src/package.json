@@ -2,19 +2,20 @@
   "name": "discord-patch-bot",
   "version": "1.0.0",
   "description": "Bot Discord pentru update-uri automate la jocuri",
-  "main": "app/main.js",
+  "main": "dist/app/main.js",
   "scripts": {
-    "start": "node app/main.js",
-    "check:config": "node scripts/check-config.js",
+    "build": "tsc",
+    "start": "npm run build && node dist/app/main.js",
+    "check:config": "npm run build && node dist/scripts/check-config.js",
     "check:syntax": "node scripts/check-syntax.js",
     "typecheck": "tsc --noEmit",
-    "lint": "npm run check:syntax",
-    "test": "node --test",
-    "test:functional": "node --test test/",
-    "test:regression": "node --test test/commands-regression.test.js test/configValidator.test.js",
+    "lint": "npm run typecheck",
+    "test": "npm run build && node --test dist/test",
+    "test:functional": "npm run test",
+    "test:regression": "npm run build && node --test dist/test/commands-regression.test.js dist/test/configValidator.test.js",
     "audit": "npm audit --omit=dev --audit-level=moderate",
     "precommit": "npm run check && npm run audit",
-    "check": "npm run check:config && npm run check:syntax && npm run typecheck && npm test"
+    "check": "npm run typecheck && npm run build && npm run check:syntax && node dist/scripts/check-config.js && node --test dist/test"
   },
   "engines": {
     "node": ">=20"
