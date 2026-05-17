@@ -62,6 +62,8 @@ export interface RuntimeEnv {
   SCHEMA_DRIFT_THRESHOLD: number;
   COLLECTOR_TIMEOUT_MS: number;
   HOUSEKEEPING_INTERVAL_MS: number;
+  GLOBAL_HEALTH_WINDOW: number;
+  GLOBAL_HEALTH_MIN_RATIO: number;
   GUILD_CACHE_TTL_MS: number;
   ADMIN_ALERT_COOLDOWN_MS: number;
   SHUTDOWN_DRAIN_MS: number;
@@ -70,10 +72,12 @@ export interface RuntimeEnv {
   CACHE_TTL_MS: number;
   SINGLE_CACHE_MAX_SIZE: number;
   DLC_CACHE_MAX_SIZE: number;
+  DEALS_CURRENCY_CACHE_MAX_SIZE: number;
   ITEMS_PER_PAGE: number;
   DLC_ITEMS_PER_PAGE: number;
   COMMAND_OUTPUT_MAX_CHARS: number;
   MONGO_MAX_POOL_SIZE: number;
+  MONGO_RETRY_ATTEMPTS: number;
   HTTP_RATE_LIMIT_REQ: number;
   HTTP_RATE_LIMIT_WINDOW_MS: number;
   isProd: boolean;
@@ -110,6 +114,7 @@ export interface BotMetrics {
   cronRuns: number;
   cronErrors: number;
   cronSkippedDueToLock: number;
+  cronSkippedDueToHealth: number;
   cronAborted: number;
   httpRateLimitDrops: number;
   startedAt: number;
@@ -300,6 +305,7 @@ export interface HttpRequestOptions {
   largeJson?: boolean;
   maxContentLength?: number;
   maxBodyLength?: number;
+  signal?: AbortSignal;
   [key: string]: unknown;
 }
 
