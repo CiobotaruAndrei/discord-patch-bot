@@ -107,7 +107,7 @@ Scripturi importante:
 
 CI-ul real este in `.github/workflows/ci.yml`. Acesta este singurul fisier pastrat in afara `src`, deoarece GitHub Actions nu citeste workflow-uri din `src/.github/workflows`.
 
-Workflow-ul ruleaza pe push si pull request, foloseste Node.js 20, instaleaza dependintele in `src/` si executa:
+Workflow-ul ruleaza pe push, pull request si pornire manuala din GitHub Actions. Foloseste Node.js 20, instaleaza dependintele in `src/` si executa:
 
 ```bash
 npm run check
