@@ -10,6 +10,25 @@ Acest fisier documenteaza functiile importante din repo, pe fisiere. Scopul lui 
 - `src/infra/mongo/index.js`, `src/sources/index.js` si `src/features/commands/index.js` sunt agregatoare.
 - `src/types.ts` descrie tipurile folosite in JSDoc si TypeScript.
 - `dist/` este output generat si nu se editeaza manual.
+- Singura exceptie intentionata din afara `src/` este `.github/workflows/ci.yml`, necesara pentru GitHub Actions.
+
+## GitHub Actions
+
+### `.github/workflows/ci.yml`
+
+Rol: workflow-ul real de CI pentru GitHub.
+
+Comportament:
+
+- ruleaza pe `push` pe `main` si `codex/**`;
+- ruleaza pe `pull_request`;
+- foloseste Node.js 20;
+- executa pasii cu `working-directory: src`;
+- instaleaza dependintele cu `npm install`;
+- seteaza env-uri de test pentru bot;
+- ruleaza `npm run check`.
+
+Atentie: GitHub nu ruleaza workflow-uri din `src/.github/workflows`, deci acea copie nu trebuie recreata.
 
 ## Build si scripts
 
