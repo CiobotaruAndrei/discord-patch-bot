@@ -9,10 +9,14 @@ Proiectul ruleaza pe Node.js si foloseste CommonJS la runtime-ul compilat. Codul
 - modulele JavaScript raman in fisierele existente unde conversia ar fi riscanta sau inutila momentan;
 - modulele unde tiparea aduce siguranta reala sunt scrise in TypeScript;
 - `src/config/configValidator.ts` valideaza config-ul cu Zod;
+- `src/config/configLoader.ts` incarca config-ul si returneaza `config`, `games` si `configPath` tipate;
 - `src/shared/errors.ts` contine helper-ele comune pentru erori;
 - `src/app/scheduler/cron.ts` controleaza cron-ul critic cu tipuri explicite;
+- `src/app/scheduler/housekeeping.ts` controleaza cleanup-ul periodic;
+- `src/app/lifecycle/events.ts` si `src/app/lifecycle/shutdown.ts` tin event wiring-ul si oprirea controlata;
 - `src/app/health/metrics.ts`, `src/app/health/rateLimit.ts` si `src/app/health/httpServer.ts` tin health/metrics intr-o zona TypeScript coerenta;
-- `src/domain/deals/filters.ts`, `src/features/commands/cache.ts` si `src/features/commands/ui.ts` sunt TypeScript pentru regulile de domeniu si cache/UI de comenzi;
+- `src/infra/mongo/locks.ts` gestioneaza lock-urile distribuite folosite de cron si migrari;
+- `src/domain/deals/filters.ts`, `src/features/commands/cache.ts`, `src/features/commands/ui.ts` si `src/features/commands/slashCommands.ts` sunt TypeScript pentru regulile de domeniu si comenzi;
 - `src/types.ts` pastreaza tipurile de domeniu si este folosit inclusiv de JSDoc-ul din modulele JavaScript;
 - `npm start` compileaza cu TypeScript si porneste `dist/app/main.js`.
 
@@ -44,10 +48,13 @@ src/
       rateLimit.ts
       httpServer.ts
     lifecycle/
+      events.ts
+      shutdown.ts
     scheduler/
       cron.ts
+      housekeeping.ts
   config/
-    configLoader.js
+    configLoader.ts
     configValidator.ts
   domain/
     deals/
@@ -56,12 +63,13 @@ src/
     commands/
       cache.ts
       ui.ts
-      slashCommands.js
+      slashCommands.ts
       interactions.js
     notifications/
   infra/
     http/
     mongo/
+      locks.ts
   scripts/
   shared/
     errors.ts
@@ -88,11 +96,11 @@ Flow-ul:
 3. conecteaza metricile la surse;
 4. creeaza clientul Discord;
 5. creeaza rate limiter-ul HTTP TypeScript;
-6. creeaza housekeeping-ul;
+6. creeaza housekeeping-ul TypeScript;
 7. creeaza cron controller-ul TypeScript;
 8. creeaza serverul HTTP TypeScript de health/metrics si ii da acces la starea cron;
-9. creeaza controller-ul de shutdown;
-10. inregistreaza evenimente Discord si MongoDB;
+9. creeaza controller-ul TypeScript de shutdown;
+10. inregistreaza evenimente Discord si MongoDB prin lifecycle TypeScript;
 11. conecteaza MongoDB;
 12. ruleaza migrarile DB;
 13. porneste serverul HTTP;
@@ -110,9 +118,12 @@ TypeScript este folosit gradual. Regula curenta:
 - importurile JSDoc din fisierele `.js` trebuie sa indice corect catre `src/types.ts`, pentru ca `npm run typecheck` le valideaza;
 - `src/types.ts` trebuie actualizat cand se adauga env-uri, metrici, controllere, optiuni sau contracte intre module;
 - `configValidator.ts` pastreaza accesul la erorile Zod intr-o forma tipata explicit, ca `safeParse` sa fie compatibil cu typecheck-ul curent;
+- `configLoader.ts` descrie rezultatul de boot prin `ConfigLoadResult`;
 - `src/app/scheduler/cron.ts` este TypeScript fiindca gestioneaza lock distribuit, heartbeat, abort signal si health backoff;
+- `src/app/lifecycle/*.ts` este TypeScript fiindca orice greseala aici poate afecta event wiring-ul sau oprirea controlata;
+- `src/infra/mongo/locks.ts` este TypeScript fiindca gestioneaza lock token-uri si `activeLocks` folosite la shutdown;
 - `src/app/health/*.ts` este TypeScript fiindca endpoint-urile de health/metrics ating env, metrics, cron controller, rate limiter si dependinte externe;
-- `src/domain/deals/filters.ts`, `src/features/commands/cache.ts` si `src/features/commands/ui.ts` sunt TypeScript fiindca au reguli de business si cache-uri unde tipurile ajuta mult;
+- `src/domain/deals/filters.ts`, `src/features/commands/cache.ts`, `src/features/commands/ui.ts` si `src/features/commands/slashCommands.ts` sunt TypeScript fiindca au reguli de business si cache-uri unde tipurile ajuta mult;
 - `package.json` ruleaza build inainte de `start`, `test` si `check:config`.
 
 Scripturi importante:
@@ -136,7 +147,7 @@ Copia veche din `src/.github/workflows/ci.yml` a fost stearsa ca sa nu existe do
 
 ## Config
 
-Config-ul runtime este in `src/config.json` si este validat in `src/config/configValidator.ts` cu Zod.
+Config-ul runtime este in `src/config.json` si este incarcat de `src/config/configLoader.ts`, apoi validat in `src/config/configValidator.ts` cu Zod.
 
 Tipuri acceptate de jocuri/surse:
 
@@ -191,7 +202,7 @@ In production, `/metrics` trebuie protejat prin `METRICS_TOKEN`, sau facut publi
 
 MongoDB este folosit pentru setari per server Discord, update-uri vazute, reduceri vazute, cozi pending, state global, locks distribuite, circuit breaker si cooldown-uri pentru alertele admin.
 
-Modelele sunt in `src/infra/mongo/models.js`. Migrarile sunt in `src/infra/mongo/migrations.js` si se ruleaza la pornire, dupa Mongo ready, sub lock distribuit.
+Modelele sunt in `src/infra/mongo/models.js`. Lock-urile distribuite sunt in `src/infra/mongo/locks.ts`. Migrarile sunt in `src/infra/mongo/migrations.js` si se ruleaza la pornire, dupa Mongo ready, sub lock distribuit.
 
 `src/shared/utilities.js` expune `withMongoRetry` si `isTransientMongoError`. Claim-urile atomice din notificari folosesc retry doar pentru erori Mongo tranzitorii, nu pentru erori de logica.
 
@@ -215,7 +226,7 @@ Sursele externe sunt in `src/sources`.
 
 Comenzile sunt in `src/features/commands`.
 
-- `slashCommands.js`: definitiile comenzilor;
+- `slashCommands.ts`: definitiile comenzilor;
 - `interactions.js`: handler-ele slash/autocomplete;
 - `ui.ts`: embed-uri, paginare, fuzzy matching si cache LRU pentru cautarea jocurilor;
 - `cache.ts`: cache runtime, cooldown-uri si LRU pentru cache-ul de reduceri pe valute;
@@ -270,6 +281,7 @@ Teste importante:
 - regresii pentru comenzi si notificari;
 - protectiile portate din codul local: retry Mongo, coduri Discord permanente, cache LRU pe valute, cron health, abort signal HTTP si eroare la lock cron;
 - regresie pentru pachetul health compilat din TypeScript;
+- regresie pentru modulele boot/lifecycle/lock compilate din TypeScript;
 - validare config;
 - hashing reduceri;
 - fuzzy matching jocuri;
