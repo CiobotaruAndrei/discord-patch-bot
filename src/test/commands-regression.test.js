@@ -21,7 +21,8 @@ const runtimeFiles = [
   "infra/http/client.js",
   "app/scheduler/cron.js",
   "app/health/httpServer.js",
-  "app/health/metrics.js"
+  "app/health/metrics.js",
+  "app/health/rateLimit.js"
 ];
 const readBuiltFile = (file) => fs.readFileSync(path.join(__dirname, "..", file), "utf8");
 const commandsSource = commandFiles.map(readBuiltFile).join("\n");
@@ -96,6 +97,14 @@ test("cron health backoff is exposed", () => {
   assert.match(runtimeSource, /function getHealthSnapshot/);
   assert.match(runtimeSource, /bot_cron_skipped_due_to_health/);
   assert.match(runtimeSource, /cronHealth = cronController\.getHealthSnapshot\(\)/);
+});
+
+test("health modules keep TypeScript contracts after build", () => {
+  assert.match(runtimeSource, /function createMetrics/);
+  assert.match(runtimeSource, /function createRateLimiter/);
+  assert.match(runtimeSource, /function createHttpServer/);
+  assert.match(runtimeSource, /function firstHeaderValue/);
+  assert.match(runtimeSource, /Array\.isArray\(value\)/);
 });
 
 test("cron lock acquisition errors are contained", () => {
