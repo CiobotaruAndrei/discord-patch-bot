@@ -78,6 +78,10 @@ Functii:
 
 - `createMetrics`: creeaza contoare pentru fetch-uri, retry-uri, rate limit, cron, abort si uptime.
 
+Tipuri:
+
+- foloseste `BotMetrics` din `src/types.ts` prin JSDoc cu calea `../../types`.
+
 ### `src/app/health/rateLimit.js`
 
 Functii:
@@ -86,6 +90,10 @@ Functii:
 - `check(req)`;
 - `prune()`;
 - `retryAfterSeconds`.
+
+Tipuri:
+
+- foloseste `RateLimitBucket` din `src/types.ts` prin JSDoc cu calea `../../types`.
 
 ### `src/app/health/httpServer.js`
 
@@ -148,6 +156,12 @@ Functii si constante:
 - `ConfigSchema`;
 - `formatZodIssues(issues)`;
 - `validateConfig(config, source)`.
+
+Tipuri interne:
+
+- `IssuePath`;
+- `SeenSearchTerm`;
+- `ConfigParseError`, folosit pentru acces explicit la `safeParse(...).error.issues` in ramura de eroare.
 
 Validari speciale:
 
