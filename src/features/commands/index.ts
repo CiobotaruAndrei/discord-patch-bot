@@ -1,6 +1,4 @@
-"use strict";
-
-const ctx = require("./runtime");
+const ctx = require("./runtime") as any;
 
 require("./cache")(ctx);
 require("../../domain/deals/filters")(ctx);
@@ -9,7 +7,7 @@ require("../notifications")(ctx);
 require("./slashCommands")(ctx);
 require("./interactions")(ctx);
 
-module.exports = {
+const commands = {
   startCacheCleaner: ctx.startCacheCleaner,
   cleanCache: ctx.cleanCache,
   getCacheSizes: ctx.getCacheSizes,
@@ -26,3 +24,5 @@ module.exports = {
   clearFindGameCache: ctx.clearFindGameCache,
   formatUserError: ctx.formatUserError
 };
+
+export = commands;

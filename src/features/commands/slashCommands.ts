@@ -1,12 +1,30 @@
-"use strict";
+type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
-module.exports = (ctx) => {
+interface SlashCommandContext {
+  SlashCommandBuilder: any;
+  PermissionsBitField: any;
+  Routes: {
+    applicationCommands(clientId: string): string;
+  };
+  REST: new (options: { version: string }) => {
+    setToken(token: string): {
+      put(route: string, options: { body: unknown[] }): Promise<unknown>;
+    };
+  };
+  SUPPORTED_CURRENCIES: Record<string, unknown>;
+  logger: Logger;
+  CURRENCY_CHOICES?: Array<{ name: string; value: string }>;
+  buildSlashCommandDefinitions?: () => unknown[];
+  registerSlashCommands?: (token: string, clientId: string) => Promise<void>;
+}
+
+function attachSlashCommands(ctx: SlashCommandContext): void {
   const { SlashCommandBuilder, PermissionsBitField, Routes, REST, SUPPORTED_CURRENCIES, logger } = ctx;
 
 const CURRENCY_CHOICES = Object.keys(SUPPORTED_CURRENCIES).map(c => ({ name: c, value: c }));
 
 // V9: definiții slash extinse — autocomplete + subcomenzi noi.
-function buildSlashCommandDefinitions() {
+function buildSlashCommandDefinitions(): unknown[] {
   return [
     new SlashCommandBuilder().setName("ping").setDescription("Verifica daca botul raspunde"),
     new SlashCommandBuilder().setName("games").setDescription("Listeaza jocurile urmarite (poreclele acceptate)"),
@@ -77,7 +95,7 @@ function buildSlashCommandDefinitions() {
   ].map(b => b.toJSON());
 }
 
-async function registerSlashCommands(token, clientId) {
+async function registerSlashCommands(token: string, clientId: string): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(token);
   const body = buildSlashCommandDefinitions();
   await rest.put(Routes.applicationCommands(clientId), { body });
@@ -89,4 +107,6 @@ async function registerSlashCommands(token, clientId) {
     buildSlashCommandDefinitions,
     registerSlashCommands
   });
-};
+}
+
+export = attachSlashCommands;

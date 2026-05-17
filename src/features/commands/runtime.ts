@@ -1,15 +1,21 @@
-"use strict";
+import crypto = require("crypto");
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ComponentType,
+  EmbedBuilder,
+  MessageFlags,
+  PermissionsBitField,
+  REST,
+  Routes,
+  SlashCommandBuilder
+} from "discord.js";
 
-const crypto = require("crypto");
-const {
-  EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
-  ComponentType, MessageFlags, PermissionsBitField,
-  SlashCommandBuilder, Routes, REST
-} = require("discord.js");
 const data = require("../../infra/mongo");
 const scrapers = require("../../sources");
 
-module.exports = {
+const runtime = {
   crypto,
   EmbedBuilder,
   ActionRowBuilder,
@@ -24,3 +30,5 @@ module.exports = {
   ...data,
   ...scrapers
 };
+
+export = runtime;
