@@ -150,22 +150,45 @@ async function processGuildUpdates(client, guild, latestResults) {
   );
 }
 
+function buildOptimizedGameList(allGames, subscribedGuilds) {
+  if (!Array.isArray(subscribedGuilds) || subscribedGuilds.length === 0) return allGames;
+
+  const used = new Set();
+  for (const guild of subscribedGuilds) {
+    const filter = Array.isArray(guild.enabledGames) ? guild.enabledGames : [];
+    if (filter.length === 0) return allGames;
+    for (const key of filter) used.add(String(key).toLowerCase());
+  }
+
+  const filtered = allGames.filter(game => used.has(String(game.key).toLowerCase()));
+  return filtered.length > 0 ? filtered : allGames;
+}
+
 async function checkForUpdates(client, games, shouldAbort = null) {
   if (shouldAbort?.()) return;
+
+  const guilds = await GuildModel.find({
+    subscribed: true,
+    notificationChannelId: { $ne: null },
+    updatesInitializing: { $ne: true }
+  }).lean();
+  if (!guilds.length) return;
+
+  const optimizedGames = buildOptimizedGameList(games, guilds);
+  if (optimizedGames.length < games.length) {
+    logger("INFO", "CRON_UPDATES", `Lista optimizata: ${optimizedGames.length}/${games.length} jocuri folosite de guild-uri`);
+  }
+
   let latestResults;
   try {
-    latestResults = await getLatestForAllGames(games, shouldAbort);
+    latestResults = await getLatestForAllGames(optimizedGames, shouldAbort);
     setUpdatesCache(latestResults);
   } catch (err) {
     logger("ERROR", "CRON_UPDATES", "Nu am putut prelua update-urile", err.message);
     return;
   }
   if (shouldAbort?.()) return;
-  const guilds = await GuildModel.find({
-    subscribed: true,
-    notificationChannelId: { $ne: null },
-    updatesInitializing: { $ne: true }
-  }).lean();
+
   await runConcurrent(guilds, GUILD_PROCESS_CONCURRENCY, async (guild) => {
     if (!shouldAbort?.()) await processGuildUpdates(client, guild, latestResults);
   }, {
@@ -325,6 +348,7 @@ async function checkForDiscounts(client, shouldAbort = null) {
     rollbackSeenUpdate,
     disableUpdatesForChannelError,
     processGuildUpdates,
+    buildOptimizedGameList,
     checkForUpdates,
     claimSeenDiscount,
     rollbackSeenDiscount,
