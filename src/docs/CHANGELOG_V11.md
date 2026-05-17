@@ -29,6 +29,14 @@ Am inceput migrarea reala la TypeScript acolo unde merita cel mai mult:
 
 Nu am convertit toate fisierele mari dintr-o singura trecere, pentru ca `commands`, `notifications`, `sources` si `infra/http` sunt zone sensibile si trebuie migrate in pasi mai mici, cu teste clare.
 
+## GitHub Actions
+
+A fost facuta o singura exceptie intentionata de la regula "totul in `src`":
+
+- workflow-ul real este in `.github/workflows/ci.yml`, fiindca GitHub Actions ruleaza doar workflow-uri aflate acolo;
+- copia veche din `src/.github/workflows/ci.yml` a fost stearsa, pentru ca nu era executata de GitHub;
+- jobul CI ruleaza cu `working-directory: src`, instaleaza dependintele si executa `npm run check`.
+
 ## Ce nu am copiat 1:1
 
 Fișierele locale mari (`commands.js`, `scrapers.js`, `db.js`, `index.js`) erau monolitice. Repo-ul de pe GitHub este deja impartit mai bine pe functionalitati, asa ca logica utila a fost mutata in modulele potrivite:
