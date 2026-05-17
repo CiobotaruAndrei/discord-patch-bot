@@ -10,6 +10,7 @@ const DLC_ITEMS_PER_PAGE = env.DLC_ITEMS_PER_PAGE;
 const COMMAND_OUTPUT_MAX_CHARS = env.COMMAND_OUTPUT_MAX_CHARS;
 const DLC_CACHE_MAX_SIZE = env.DLC_CACHE_MAX_SIZE;
 const SINGLE_CACHE_MAX_SIZE = env.SINGLE_CACHE_MAX_SIZE;
+const DEALS_CURRENCY_CACHE_MAX_SIZE = env.DEALS_CURRENCY_CACHE_MAX_SIZE;
 
 const DEALS_HISTORY_LIMIT = env.DEALS_HISTORY_LIMIT;
 const SEEN_PER_GAME_LIMIT = env.SEEN_PER_GAME_LIMIT;
@@ -83,12 +84,16 @@ function getDealsCacheData(currency) {
     cache.dealsByCurrency.delete(key);
     return null;
   }
+  cache.dealsByCurrency.delete(key);
+  cache.dealsByCurrency.set(key, entry);
   return entry.data;
 }
 
 function setDealsCache(currency, data) {
   const key = normalizeCurrencyKey(currency);
+  if (cache.dealsByCurrency.has(key)) cache.dealsByCurrency.delete(key);
   cache.dealsByCurrency.set(key, { data, expiresAt: Date.now() + GLOBAL_CACHE_TTL_MS });
+  evictLRU(cache.dealsByCurrency, DEALS_CURRENCY_CACHE_MAX_SIZE);
 }
 
 function cacheGetLRU(map, key) {
@@ -161,6 +166,7 @@ function cleanCache() {
   for (const [key, value] of cache.dlc.entries()) {
     if (value.expiresAt <= now) cache.dlc.delete(key);
   }
+  evictLRU(cache.dealsByCurrency, DEALS_CURRENCY_CACHE_MAX_SIZE);
   evictLRU(cache.single, SINGLE_CACHE_MAX_SIZE);
   evictLRU(cache.dlc, DLC_CACHE_MAX_SIZE);
   cleanUserCooldowns();
@@ -221,6 +227,7 @@ async function sleepIfPositive(ms) {
     COMMAND_OUTPUT_MAX_CHARS,
     DLC_CACHE_MAX_SIZE,
     SINGLE_CACHE_MAX_SIZE,
+    DEALS_CURRENCY_CACHE_MAX_SIZE,
     DEALS_HISTORY_LIMIT,
     SEEN_PER_GAME_LIMIT,
     PENDING_UPDATES_PER_GAME_LIMIT,
