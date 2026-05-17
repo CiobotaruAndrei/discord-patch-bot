@@ -1,21 +1,15 @@
-// @ts-check
-"use strict";
+import * as path from "path";
+import { validateConfig } from "./configValidator";
+import { errorMessage } from "../shared/errors";
+import type { BotConfig, ConfigLoadResult, GameConfig } from "../types";
 
-const path = require("path");
-const { validateConfig } = require("../config/configValidator");
-const { errorMessage } = require("../shared/errors");
-
-/** @typedef {import("../types").BotConfig} BotConfig */
-/** @typedef {import("../types").GameConfig} GameConfig */
-
-function resolveConfigPath(configPath) {
+function resolveConfigPath(configPath: string): string {
   return path.isAbsolute(configPath) ? configPath : path.resolve(process.cwd(), configPath);
 }
 
-function loadConfig(configPath = process.env.CONFIG_PATH || "./config.json") {
+function loadConfig(configPath = process.env.CONFIG_PATH || "./config.json"): ConfigLoadResult {
   const resolvedPath = resolveConfigPath(configPath);
-  /** @type {unknown} */
-  let rawConfig;
+  let rawConfig: unknown;
   try {
     rawConfig = require(resolvedPath);
   } catch (err) {
@@ -24,8 +18,7 @@ function loadConfig(configPath = process.env.CONFIG_PATH || "./config.json") {
     process.exit(1);
   }
 
-  /** @type {BotConfig} */
-  let config;
+  let config: BotConfig;
   try {
     config = validateConfig(rawConfig, configPath);
   } catch (err) {
@@ -33,8 +26,7 @@ function loadConfig(configPath = process.env.CONFIG_PATH || "./config.json") {
     process.exit(1);
   }
 
-  /** @type {GameConfig[]} */
-  const games = Array.isArray(config.games) ? config.games : [];
+  const games: GameConfig[] = Array.isArray(config.games) ? config.games : [];
   if (games.length === 0) {
     console.error(`[BOOT] Config-ul de la "${configPath}" nu contine un array "games" cu jocuri.`);
     process.exit(1);
@@ -43,4 +35,4 @@ function loadConfig(configPath = process.env.CONFIG_PATH || "./config.json") {
   return { config, games, configPath };
 }
 
-module.exports = { loadConfig };
+export { loadConfig, resolveConfigPath };

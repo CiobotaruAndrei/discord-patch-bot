@@ -17,6 +17,8 @@ export type MaybePromise<T> = T | Promise<T>;
 export type PriceValue = string | number;
 export type CurrencyPlacement = "prefix" | "suffix";
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
+export type LockToken = string;
+export type ActiveLocks = Map<string, LockToken>;
 
 export interface CurrencyConfig {
   cc: string;
@@ -108,6 +110,12 @@ export interface BotConfig {
   games: GameConfig[];
 }
 
+export interface ConfigLoadResult {
+  config: BotConfig;
+  games: GameConfig[];
+  configPath: string;
+}
+
 export interface BotMetrics {
   fetchSuccess: number;
   fetchFail: number;
@@ -135,6 +143,10 @@ export interface CronController {
   stop(): void;
   shouldAbortCron(): boolean;
   getHealthSnapshot(): CronHealthSnapshot;
+}
+
+export interface LifecycleState {
+  isShuttingDown: boolean;
 }
 
 export interface RateLimitBucket {
