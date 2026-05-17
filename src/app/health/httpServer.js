@@ -11,7 +11,7 @@ function timingSafeEqualStr(crypto, a, b) {
 
 function createHttpServer({
   mongoose, crypto, env, client, metrics, commands,
-  getGuildCacheSize, scrapers, activeLocks, rateLimiter
+  getGuildCacheSize, scrapers, activeLocks, rateLimiter, cronController = null
 }) {
   function checkMetricsAuth(req) {
     if (!env.isProd && !env.METRICS_TOKEN) return true;
@@ -36,13 +36,17 @@ function createHttpServer({
 
     if (req.url === "/health" || req.url === "/healthz") {
       const ok = mongoose.connection.readyState === 1 && client.isReady();
-      res.writeHead(ok ? 200 : 503, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
+      const body = {
         status: ok ? "ok" : "degraded",
         mongo: mongoose.connection.readyState,
         discord: client.isReady() ? "ready" : "not-ready",
         uptimeMs: Date.now() - metrics.startedAt
-      }));
+      };
+      if (typeof cronController?.getHealthSnapshot === "function") {
+        body.cronHealth = cronController.getHealthSnapshot();
+      }
+      res.writeHead(ok ? 200 : 503, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(body));
       return;
     }
 
@@ -81,6 +85,9 @@ function createHttpServer({
         `# HELP bot_cron_aborted Cron aborted`,
         `# TYPE bot_cron_aborted counter`,
         `bot_cron_aborted ${metrics.cronAborted}`,
+        `# HELP bot_cron_skipped_due_to_health Cron skipped by global health backoff`,
+        `# TYPE bot_cron_skipped_due_to_health counter`,
+        `bot_cron_skipped_due_to_health ${metrics.cronSkippedDueToHealth || 0}`,
         `# HELP bot_http_rate_limit_drops HTTP requests blocked by local rate limiter`,
         `# TYPE bot_http_rate_limit_drops counter`,
         `bot_http_rate_limit_drops ${metrics.httpRateLimitDrops}`,
