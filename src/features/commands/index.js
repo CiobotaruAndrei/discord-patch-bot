@@ -16,9 +16,13 @@ module.exports = {
   setGlobalCacheTtl: ctx.setGlobalCacheTtl,
   checkForUpdates: ctx.checkForUpdates,
   checkForDiscounts: ctx.checkForDiscounts,
+  buildOptimizedGameList: ctx.buildOptimizedGameList,
   registerSlashCommands: ctx.registerSlashCommands,
   buildSlashCommandDefinitions: ctx.buildSlashCommandDefinitions,
   handleInteraction: ctx.handleInteraction,
   buildHelpEmbed: ctx.buildHelpEmbed,
+  findGameAndSuggestion: ctx.findGameAndSuggestion,
+  getFindGameCacheSize: ctx.getFindGameCacheSize,
+  clearFindGameCache: ctx.clearFindGameCache,
   formatUserError: ctx.formatUserError
 };
