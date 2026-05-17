@@ -11,6 +11,8 @@ Proiectul ruleaza pe Node.js si foloseste CommonJS la runtime-ul compilat. Codul
 - `src/config/configValidator.ts` valideaza config-ul cu Zod;
 - `src/shared/errors.ts` contine helper-ele comune pentru erori;
 - `src/app/scheduler/cron.ts` controleaza cron-ul critic cu tipuri explicite;
+- `src/app/health/metrics.ts`, `src/app/health/rateLimit.ts` si `src/app/health/httpServer.ts` tin health/metrics intr-o zona TypeScript coerenta;
+- `src/domain/deals/filters.ts`, `src/features/commands/cache.ts` si `src/features/commands/ui.ts` sunt TypeScript pentru regulile de domeniu si cache/UI de comenzi;
 - `src/types.ts` pastreaza tipurile de domeniu si este folosit inclusiv de JSDoc-ul din modulele JavaScript;
 - `npm start` compileaza cu TypeScript si porneste `dist/app/main.js`.
 
@@ -38,6 +40,9 @@ src/
   app/
     main.js
     health/
+      metrics.ts
+      rateLimit.ts
+      httpServer.ts
     lifecycle/
     scheduler/
       cron.ts
@@ -45,8 +50,14 @@ src/
     configLoader.js
     configValidator.ts
   domain/
+    deals/
+      filters.ts
   features/
     commands/
+      cache.ts
+      ui.ts
+      slashCommands.js
+      interactions.js
     notifications/
   infra/
     http/
@@ -76,10 +87,10 @@ Flow-ul:
 2. creeaza metricile;
 3. conecteaza metricile la surse;
 4. creeaza clientul Discord;
-5. creeaza rate limiter-ul HTTP;
+5. creeaza rate limiter-ul HTTP TypeScript;
 6. creeaza housekeeping-ul;
 7. creeaza cron controller-ul TypeScript;
-8. creeaza serverul HTTP de health/metrics si ii da acces la starea cron;
+8. creeaza serverul HTTP TypeScript de health/metrics si ii da acces la starea cron;
 9. creeaza controller-ul de shutdown;
 10. inregistreaza evenimente Discord si MongoDB;
 11. conecteaza MongoDB;
@@ -97,9 +108,11 @@ TypeScript este folosit gradual. Regula curenta:
 - fisierele runtime mari raman JavaScript pana cand pot fi impartite/convertite fara risc;
 - orice fisier `.ts` folosit de runtime trebuie sa mearga prin build, nu direct prin Node;
 - importurile JSDoc din fisierele `.js` trebuie sa indice corect catre `src/types.ts`, pentru ca `npm run typecheck` le valideaza;
-- `src/types.ts` trebuie actualizat cand se adauga env-uri, metrici, controllere sau optiuni folosite de modulele JavaScript;
+- `src/types.ts` trebuie actualizat cand se adauga env-uri, metrici, controllere, optiuni sau contracte intre module;
 - `configValidator.ts` pastreaza accesul la erorile Zod intr-o forma tipata explicit, ca `safeParse` sa fie compatibil cu typecheck-ul curent;
 - `src/app/scheduler/cron.ts` este TypeScript fiindca gestioneaza lock distribuit, heartbeat, abort signal si health backoff;
+- `src/app/health/*.ts` este TypeScript fiindca endpoint-urile de health/metrics ating env, metrics, cron controller, rate limiter si dependinte externe;
+- `src/domain/deals/filters.ts`, `src/features/commands/cache.ts` si `src/features/commands/ui.ts` sunt TypeScript fiindca au reguli de business si cache-uri unde tipurile ajuta mult;
 - `package.json` ruleaza build inainte de `start`, `test` si `check:config`.
 
 Scripturi importante:
@@ -169,6 +182,8 @@ Campuri importante:
 - `GLOBAL_HEALTH_WINDOW`
 - `GLOBAL_HEALTH_MIN_RATIO`
 - `MONGO_RETRY_ATTEMPTS`
+- `HTTP_RATE_LIMIT_REQ`
+- `HTTP_RATE_LIMIT_WINDOW_MS`
 
 In production, `/metrics` trebuie protejat prin `METRICS_TOKEN`, sau facut public explicit cu `METRICS_PUBLIC=true`. Placeholder-ul `change_me_to_a_long_random_value` este tratat ca lipsa.
 
@@ -202,8 +217,8 @@ Comenzile sunt in `src/features/commands`.
 
 - `slashCommands.js`: definitiile comenzilor;
 - `interactions.js`: handler-ele slash/autocomplete;
-- `ui.js`: embed-uri, paginare, fuzzy matching si cache LRU pentru cautarea jocurilor;
-- `cache.js`: cache runtime, cooldown-uri si LRU pentru cache-ul de reduceri pe valute;
+- `ui.ts`: embed-uri, paginare, fuzzy matching si cache LRU pentru cautarea jocurilor;
+- `cache.ts`: cache runtime, cooldown-uri si LRU pentru cache-ul de reduceri pe valute;
 - `index.js`: agregator.
 
 ## Notificari automate
@@ -225,7 +240,11 @@ Reguli importante anti-spam si anti-duplicate:
 
 ## Health si metrics
 
-Serverul HTTP este in `src/app/health/httpServer.js`.
+Pachetul health este TypeScript:
+
+- `src/app/health/metrics.ts` creeaza obiectul de metrici runtime;
+- `src/app/health/rateLimit.ts` limiteaza endpoint-urile `/health`, `/healthz` si `/metrics` pe IP si accepta `x-forwarded-for` atat string, cat si array;
+- `src/app/health/httpServer.ts` creeaza serverul HTTP si expune endpoint-urile.
 
 Endpoint-uri:
 
@@ -250,6 +269,7 @@ Teste importante:
 
 - regresii pentru comenzi si notificari;
 - protectiile portate din codul local: retry Mongo, coduri Discord permanente, cache LRU pe valute, cron health, abort signal HTTP si eroare la lock cron;
+- regresie pentru pachetul health compilat din TypeScript;
 - validare config;
 - hashing reduceri;
 - fuzzy matching jocuri;

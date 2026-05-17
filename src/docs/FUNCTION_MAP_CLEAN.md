@@ -5,10 +5,10 @@ Acest fisier documenteaza functiile importante din repo, pe fisiere. Scopul lui 
 ## Conventii generale
 
 - Proiectul foloseste build TypeScript catre `dist/`.
-- Majoritatea modulelor runtime sunt inca JavaScript CommonJS.
+- Codul runtime este mixt: JavaScript CommonJS plus module TypeScript compilate.
 - Modulele convertite la TypeScript sunt compilate in `dist/` inainte de rulare.
 - `src/infra/mongo/index.js`, `src/sources/index.js` si `src/features/commands/index.js` sunt agregatoare.
-- `src/types.ts` descrie tipurile folosite in JSDoc si TypeScript.
+- `src/types.ts` descrie tipurile folosite in JSDoc si TypeScript, inclusiv `RateLimiter`.
 - `dist/` este output generat si nu se editeaza manual.
 - Singura exceptie intentionata din afara `src/` este `.github/workflows/ci.yml`, necesara pentru GitHub Actions.
 
@@ -53,6 +53,18 @@ Rol:
 - permite migrare graduala cu `allowJs: true`;
 - exclude `dist`, `node_modules` si `coverage`.
 
+### `src/types.ts`
+
+Rol: contracte comune pentru module TypeScript si JSDoc.
+
+Tipuri importante:
+
+- `RuntimeEnv`;
+- `BotMetrics`;
+- `CronController` si `CronHealthSnapshot`;
+- `RateLimitBucket` si `RateLimiter`;
+- tipuri pentru config, jocuri, reduceri, guild settings, cache-uri, HTTP si rezultate concurente.
+
 ## App
 
 ### `src/app/main.js`
@@ -73,7 +85,7 @@ Logica:
 
 Atentie: `main.js` ramane orchestrator, nu loc pentru logica mare.
 
-### `src/app/health/metrics.js`
+### `src/app/health/metrics.ts`
 
 Functii:
 
@@ -81,22 +93,30 @@ Functii:
 
 Tipuri:
 
-- foloseste `BotMetrics` din `src/types.ts` prin JSDoc cu calea `../../types`.
+- foloseste `BotMetrics` din `src/types.ts`.
 
-### `src/app/health/rateLimit.js`
+### `src/app/health/rateLimit.ts`
 
 Functii:
 
 - `createRateLimiter(env, metrics)`;
+- `firstHeaderValue(value)`;
 - `check(req)`;
 - `prune()`;
 - `retryAfterSeconds`.
 
+Comportament:
+
+- limiteaza request-urile la `/health`, `/healthz` si `/metrics` prin token bucket pe IP;
+- citeste `x-forwarded-for` cand este string sau array;
+- contorizeaza drop-urile in `metrics.httpRateLimitDrops`;
+- curata bucket-urile vechi si limiteaza dimensiunea hartii interne.
+
 Tipuri:
 
-- foloseste `RateLimitBucket` din `src/types.ts` prin JSDoc cu calea `../../types`.
+- foloseste `RuntimeEnv`, `BotMetrics`, `RateLimitBucket` si `RateLimiter` din `src/types.ts`.
 
-### `src/app/health/httpServer.js`
+### `src/app/health/httpServer.ts`
 
 Functii:
 
@@ -105,8 +125,15 @@ Functii:
 
 Comportament:
 
+- aplica rate limiter-ul pe `/health`, `/healthz` si `/metrics`;
 - `/health` si `/healthz` returneaza starea Mongo, Discord, uptime si `cronHealth` cand este disponibil;
-- `/metrics` include `bot_cron_skipped_due_to_health` pe langa metricile existente.
+- `/metrics` verifica `METRICS_TOKEN` cu comparatie timing-safe;
+- `/metrics` include `bot_cron_skipped_due_to_health` pe langa metricile existente;
+- endpoint-urile necunoscute returneaza `404`.
+
+Tipuri:
+
+- foloseste `RuntimeEnv`, `BotMetrics`, `RateLimiter`, `CronController`, `CronHealthSnapshot` si `CommandCacheSizes` din `src/types.ts`.
 
 ### `src/app/scheduler/cron.ts`
 
@@ -181,12 +208,6 @@ Functii si constante:
 - `formatZodIssues(issues)`;
 - `validateConfig(config, source)`.
 
-Tipuri interne:
-
-- `IssuePath`;
-- `SeenSearchTerm`;
-- `ConfigParseError`, folosit pentru acces explicit la `safeParse(...).error.issues` in ramura de eroare.
-
 Validari speciale:
 
 - duplicate de key/name/aliases;
@@ -216,7 +237,7 @@ Atentie:
 
 - in production cere `METRICS_TOKEN` sau `METRICS_PUBLIC=true`;
 - placeholder-ul `change_me_to_a_long_random_value` este tratat ca token lipsa;
-- include pragurile pentru health backoff, retry Mongo si limita LRU pentru cache-ul de reduceri pe valute.
+- include pragurile pentru health backoff, retry Mongo, limita LRU pentru cache-ul de reduceri pe valute si limitele HTTP rate limiter-ului.
 
 ### `src/shared/domain.js`
 
@@ -398,7 +419,7 @@ Functii:
 
 ## Domain
 
-### `src/domain/deals/filters.js`
+### `src/domain/deals/filters.ts`
 
 Functii:
 
@@ -412,13 +433,13 @@ Functii:
 
 ## Commands
 
-### `src/features/commands/cache.js`
+### `src/features/commands/cache.ts`
 
 Functii: cache runtime, cooldown-uri, `formatUserError`, `canSendEmbeds`, `makeActivationId` si helper-e LRU.
 
 Comportament: cache-ul `dealsByCurrency` este limitat de `DEALS_CURRENCY_CACHE_MAX_SIZE` si reinnoieste cheia accesata pentru comportament LRU.
 
-### `src/features/commands/ui.js`
+### `src/features/commands/ui.ts`
 
 Functii:
 
@@ -483,4 +504,4 @@ Ruleaza `node --check` pe fisierele `.js` sursa si ignora `dist/`.
 
 ### `src/test/*`
 
-Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad`, optimizarea cronului, conversia cronului critic la TypeScript si protectiile portate din codul local.
+Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad`, optimizarea cronului, conversia cronului critic la TypeScript, conversia pachetului health la TypeScript si protectiile portate din codul local.

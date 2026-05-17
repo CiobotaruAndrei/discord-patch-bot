@@ -1,8 +1,61 @@
-"use strict";
+import * as http from "http";
+import type { IncomingMessage, Server } from "http";
+import type {
+  BotMetrics,
+  CommandCacheSizes,
+  CronController,
+  CronHealthSnapshot,
+  RateLimiter,
+  RuntimeEnv
+} from "../../types";
 
-const http = require("http");
+interface MongooseLike {
+  connection: { readyState: number };
+}
 
-function timingSafeEqualStr(crypto, a, b) {
+interface CryptoLike {
+  timingSafeEqual(a: Buffer, b: Buffer): boolean;
+}
+
+interface DiscordClientLike {
+  isReady(): boolean;
+}
+
+interface CommandsLike {
+  getCacheSizes(): CommandCacheSizes;
+}
+
+interface ScrapersLike {
+  getEnrichedCacheSize(): number;
+}
+
+interface SizedCollectionLike {
+  size: number;
+}
+
+interface HealthBody {
+  status: "ok" | "degraded";
+  mongo: number;
+  discord: "ready" | "not-ready";
+  uptimeMs: number;
+  cronHealth?: CronHealthSnapshot;
+}
+
+interface CreateHttpServerDeps {
+  mongoose: MongooseLike;
+  crypto: CryptoLike;
+  env: RuntimeEnv;
+  client: DiscordClientLike;
+  metrics: BotMetrics;
+  commands: CommandsLike;
+  getGuildCacheSize: () => number;
+  scrapers: ScrapersLike;
+  activeLocks: SizedCollectionLike;
+  rateLimiter: RateLimiter;
+  cronController?: CronController | null;
+}
+
+function timingSafeEqualStr(crypto: CryptoLike, a: unknown, b: unknown): boolean {
   const bufA = Buffer.from(String(a || ""));
   const bufB = Buffer.from(String(b || ""));
   if (bufA.length !== bufB.length) return false;
@@ -12,8 +65,8 @@ function timingSafeEqualStr(crypto, a, b) {
 function createHttpServer({
   mongoose, crypto, env, client, metrics, commands,
   getGuildCacheSize, scrapers, activeLocks, rateLimiter, cronController = null
-}) {
-  function checkMetricsAuth(req) {
+}: CreateHttpServerDeps): Server {
+  function checkMetricsAuth(req: IncomingMessage): boolean {
     if (!env.isProd && !env.METRICS_TOKEN) return true;
     if (env.METRICS_PUBLIC && !env.METRICS_TOKEN) return true;
     if (!env.METRICS_TOKEN) return false;
@@ -36,7 +89,7 @@ function createHttpServer({
 
     if (req.url === "/health" || req.url === "/healthz") {
       const ok = mongoose.connection.readyState === 1 && client.isReady();
-      const body = {
+      const body: HealthBody = {
         status: ok ? "ok" : "degraded",
         mongo: mongoose.connection.readyState,
         discord: client.isReady() ? "ready" : "not-ready",
@@ -129,4 +182,4 @@ function createHttpServer({
   });
 }
 
-module.exports = { createHttpServer };
+export { createHttpServer, timingSafeEqualStr };
