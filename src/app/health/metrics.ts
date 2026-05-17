@@ -1,11 +1,7 @@
-// @ts-check
-"use strict";
+import type { BotMetrics } from "../../types";
 
-/** @typedef {import("../../types").BotMetrics} BotMetrics */
-
-function createMetrics() {
-  /** @type {BotMetrics} */
-  const metrics = {
+function createMetrics(): BotMetrics {
+  return {
     fetchSuccess: 0,
     fetchFail: 0,
     httpRetries: 0,
@@ -18,7 +14,6 @@ function createMetrics() {
     httpRateLimitDrops: 0,
     startedAt: Date.now()
   };
-  return metrics;
 }
 
-module.exports = { createMetrics };
+export { createMetrics };

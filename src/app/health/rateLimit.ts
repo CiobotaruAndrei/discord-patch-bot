@@ -1,23 +1,27 @@
-// @ts-check
-"use strict";
+import type { IncomingMessage } from "http";
+import type { BotMetrics, RateLimitBucket, RuntimeEnv } from "../../types";
 
-/** @typedef {import("../../types").RateLimitBucket} RateLimitBucket */
+interface RateLimiter {
+  check(req: IncomingMessage): boolean;
+  prune(): void;
+  readonly size: number;
+  readonly retryAfterSeconds: number;
+}
 
-function createRateLimiter(env, metrics) {
+function createRateLimiter(env: RuntimeEnv, metrics: BotMetrics): RateLimiter {
   const cap = env.HTTP_RATE_LIMIT_REQ;
   const windowMs = env.HTTP_RATE_LIMIT_WINDOW_MS;
   const refillPerMs = cap / windowMs;
   const mapMax = 1000;
-  /** @type {Map<string, RateLimitBucket>} */
-  const buckets = new Map();
+  const buckets = new Map<string, RateLimitBucket>();
 
-  function getClientIp(req) {
+  function getClientIp(req: IncomingMessage): string {
     const fwd = req.headers["x-forwarded-for"];
     if (typeof fwd === "string" && fwd.length > 0) return fwd.split(",")[0].trim();
     return req.socket?.remoteAddress || "unknown";
   }
 
-  function prune() {
+  function prune(): void {
     const now = Date.now();
     for (const [ip, entry] of buckets.entries()) {
       if (now - entry.lastRefill > windowMs * 2 && entry.tokens >= cap * 0.95) buckets.delete(ip);
@@ -32,7 +36,7 @@ function createRateLimiter(env, metrics) {
     }
   }
 
-  function check(req) {
+  function check(req: IncomingMessage): boolean {
     const ip = getClientIp(req);
     const now = Date.now();
     let entry = buckets.get(ip);
@@ -65,4 +69,5 @@ function createRateLimiter(env, metrics) {
   };
 }
 
-module.exports = { createRateLimiter };
+export { createRateLimiter };
+export type { RateLimiter };
