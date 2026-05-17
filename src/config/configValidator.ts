@@ -7,6 +7,7 @@ type SeenSearchTerm = {
   path: IssuePath;
   ownerIndex: number;
 };
+type ConfigParseError = { error: { issues: ZodIssue[] } };
 
 const ALLOWED_GAME_TYPES = new Set<string>([
   "steam",
@@ -196,7 +197,7 @@ function validateConfig(config: unknown, source = "config.json"): BotConfig {
   const result = ConfigSchema.safeParse(config);
   if (result.success) return result.data as BotConfig;
 
-  const issues = result.error.issues;
+  const issues = (result as ConfigParseError).error.issues;
   const err = new Error(`Config invalid (${source}):\n${formatZodIssues(issues)}`) as Error & { issues?: ZodIssue[] };
   err.issues = issues;
   throw err;
