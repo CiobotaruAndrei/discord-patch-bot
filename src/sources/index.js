@@ -3,9 +3,9 @@
 const ctx = require("./runtime");
 
 require("../infra/http/client")(ctx);
+require("./steam")(ctx);
 require("./updates")(ctx);
 require("./deals")(ctx);
-require("./steam")(ctx);
 
 module.exports = {
   USER_AGENTS: ctx.USER_AGENTS,
@@ -33,6 +33,7 @@ module.exports = {
   searchSteamGameByName: ctx.searchSteamGameByName,
   chooseBestSteamMatch: ctx.chooseBestSteamMatch,
   fetchSteamPriceDetails: ctx.fetchSteamPriceDetails,
+  extractOfferEndFromHtml: ctx.extractOfferEndFromHtml,
   extractSteamOfferEndDate: ctx.extractSteamOfferEndDate,
   cleanEnrichedCache: ctx.cleanEnrichedCache,
   getEnrichedCacheSize: ctx.getEnrichedCacheSize,
