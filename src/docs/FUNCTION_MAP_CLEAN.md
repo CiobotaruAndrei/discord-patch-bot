@@ -8,7 +8,7 @@ Acest fisier documenteaza functiile importante din repo, pe fisiere. Scopul lui 
 - Codul runtime este mixt: JavaScript CommonJS plus module TypeScript compilate.
 - Modulele convertite la TypeScript sunt compilate in `dist/` inainte de rulare.
 - `src/infra/mongo/index.js`, `src/sources/index.js` si `src/features/commands/index.js` sunt agregatoare.
-- `src/types.ts` descrie tipurile folosite in JSDoc si TypeScript, inclusiv `RateLimiter`.
+- `src/types.ts` descrie tipurile folosite in JSDoc si TypeScript, inclusiv contracte pentru config, lifecycle, health si locks.
 - `dist/` este output generat si nu se editeaza manual.
 - Singura exceptie intentionata din afara `src/` este `.github/workflows/ci.yml`, necesara pentru GitHub Actions.
 
@@ -60,10 +60,13 @@ Rol: contracte comune pentru module TypeScript si JSDoc.
 Tipuri importante:
 
 - `RuntimeEnv`;
+- `BotConfig`, `GameConfig` si `ConfigLoadResult`;
 - `BotMetrics`;
 - `CronController` si `CronHealthSnapshot`;
+- `LifecycleState`;
 - `RateLimitBucket` si `RateLimiter`;
-- tipuri pentru config, jocuri, reduceri, guild settings, cache-uri, HTTP si rezultate concurente.
+- `LockToken` si `ActiveLocks`;
+- tipuri pentru reduceri, guild settings, cache-uri, HTTP si rezultate concurente.
 
 ## App
 
@@ -162,20 +165,31 @@ Tipuri:
 
 - foloseste `RuntimeEnv`, `BotConfig`, `BotMetrics`, `GameConfig`, `CronController` si `CronHealthSnapshot` din `src/types.ts`.
 
-### `src/app/scheduler/housekeeping.js`
+### `src/app/scheduler/housekeeping.ts`
 
 Functii:
 
 - `createHousekeeping(...)`.
 
-### `src/app/lifecycle/events.js`
+Comportament:
+
+- ruleaza cleanup periodic pentru cache-uri, guild cache, enriched cache si rate limiter;
+- expune `start()` si `stop()` pentru lifecycle/shutdown.
+
+### `src/app/lifecycle/events.ts`
 
 Functii:
 
 - `registerDiscordEvents`;
 - `registerMongoEvents`.
 
-### `src/app/lifecycle/shutdown.js`
+Comportament:
+
+- la `ready`, inregistreaza slash commands, porneste housekeeping si programeaza cron-ul;
+- pune fiecare interactiune Discord intr-un `requestContext` cu `requestId`;
+- logheaza erorile Discord si MongoDB.
+
+### `src/app/lifecycle/shutdown.ts`
 
 Functii:
 
@@ -184,16 +198,29 @@ Functii:
 - `handleFatalProcessError(kind, reason)`;
 - `registerProcessHandlers`.
 
+Comportament:
+
+- opreste cron-ul si housekeeping-ul;
+- elibereaza lock-urile active;
+- respecta `SHUTDOWN_DRAIN_MS`;
+- inchide clientul Discord, conexiunea Mongo si serverul HTTP;
+- trimite alerta admin pentru erori fatale de proces.
+
 ## Config
 
-### `src/config/configLoader.js`
+### `src/config/configLoader.ts`
 
 Functii:
 
 - `resolveConfigPath(configPath)`;
 - `loadConfig(configPath)`.
 
-Atentie: la runtime importa validatorul compilat din `dist/config/configValidator.js`.
+Comportament:
+
+- rezolva calea config-ului relativ la `process.cwd()`;
+- incarca JSON-ul prin `require`;
+- valideaza prin `validateConfig`;
+- opreste procesul cu mesaj explicit daca fisierul lipseste, JSON-ul este invalid sau lista `games` este goala.
 
 ### `src/config/configValidator.ts`
 
@@ -276,7 +303,7 @@ Expune dependinte comune: `mongoose`, `crypto`, `axios`, `z`, `AsyncLocalStorage
 
 ### `src/infra/mongo/index.js`
 
-Agregator pentru infrastructura Mongo si shared utilities. Include export pentru `runMigrations`, `ALL_MIGRATIONS`, `withMongoRetry`, `isTransientMongoError` si `getAbortSignal`.
+Agregator pentru infrastructura Mongo si shared utilities. Include export pentru `runMigrations`, `ALL_MIGRATIONS`, `withMongoRetry`, `isTransientMongoError`, `getAbortSignal`, lock-uri si modelele Mongo.
 
 ### `src/infra/mongo/models.js`
 
@@ -288,14 +315,22 @@ Modele:
 - `JobLockModel`;
 - `AdminAlertCooldownModel`.
 
-### `src/infra/mongo/locks.js`
+### `src/infra/mongo/locks.ts`
 
 Functii:
 
+- `attachLocks(ctx)`;
 - `acquireDbLock(jobName, ttlMs)`;
 - `renewDbLock(jobName, token, ttlMs)`;
 - `releaseDbLock(jobName, token)`;
 - `activeLocks`.
+
+Comportament:
+
+- creeaza token unic cu `crypto.randomUUID()`;
+- accepta lock doar daca documentul expirat sau gol poate fi preluat;
+- trateaza duplicate key ca lock indisponibil, nu ca eroare fatala;
+- tine `activeLocks` in memorie pentru cleanup la shutdown.
 
 ### `src/infra/mongo/migrations.js`
 
@@ -456,10 +491,11 @@ Functii:
 - `fetchGameStatus`;
 - `buildSteamPriceEmbed`.
 
-### `src/features/commands/slashCommands.js`
+### `src/features/commands/slashCommands.ts`
 
 Functii:
 
+- `attachSlashCommands(ctx)`;
 - `buildSlashCommandDefinitions()`;
 - `registerSlashCommands(token, clientId)`.
 
@@ -504,4 +540,4 @@ Ruleaza `node --check` pe fisierele `.js` sursa si ignora `dist/`.
 
 ### `src/test/*`
 
-Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad`, optimizarea cronului, conversia cronului critic la TypeScript, conversia pachetului health la TypeScript si protectiile portate din codul local.
+Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad`, optimizarea cronului, conversia cronului critic la TypeScript, conversia pachetului health la TypeScript, conversia boot/lifecycle/lock la TypeScript si protectiile portate din codul local.
