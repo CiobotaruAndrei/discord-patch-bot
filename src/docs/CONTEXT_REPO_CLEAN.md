@@ -10,7 +10,7 @@ Proiectul ruleaza pe Node.js si foloseste CommonJS la runtime-ul compilat. Codul
 - modulele unde tiparea aduce siguranta reala sunt scrise in TypeScript;
 - `src/config/configValidator.ts` valideaza config-ul cu Zod;
 - `src/shared/errors.ts` contine helper-ele comune pentru erori;
-- `src/types.ts` pastreaza tipurile de domeniu;
+- `src/types.ts` pastreaza tipurile de domeniu si este folosit inclusiv de JSDoc-ul din modulele JavaScript;
 - `npm start` compileaza cu TypeScript si porneste `dist/app/main.js`.
 
 Rularea normala se face din `src/`:
@@ -94,6 +94,8 @@ TypeScript este folosit gradual. Regula curenta:
 - conversia la `.ts` se face pentru module pure, critice sau usor de verificat;
 - fisierele runtime mari raman JavaScript pana cand pot fi impartite/convertite fara risc;
 - orice fisier `.ts` folosit de runtime trebuie sa mearga prin build, nu direct prin Node;
+- importurile JSDoc din fisierele `.js` trebuie sa indice corect catre `src/types.ts`, pentru ca `npm run typecheck` le valideaza;
+- `configValidator.ts` pastreaza accesul la erorile Zod intr-o forma tipata explicit, ca `safeParse` sa fie compatibil cu typecheck-ul curent;
 - `package.json` ruleaza build inainte de `start`, `test` si `check:config`.
 
 Scripturi importante:

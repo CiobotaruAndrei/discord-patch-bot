@@ -1,7 +1,7 @@
 // @ts-check
 "use strict";
 
-/** @typedef {import("../types").BotMetrics} BotMetrics */
+/** @typedef {import("../../types").BotMetrics} BotMetrics */
 
 function createMetrics() {
   /** @type {BotMetrics} */

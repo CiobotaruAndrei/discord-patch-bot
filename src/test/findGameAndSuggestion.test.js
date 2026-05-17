@@ -59,7 +59,7 @@ test("ofera sugestie cand typo este aproape", () => {
 
 test("returneaza doar suggestion pentru typo cu distanta mai mare", () => {
   clearFindGameCache();
-  const result = findGameAndSuggestion("minicraft", games);
+  const result = findGameAndSuggestion("minikraft", games);
   assert.equal(result.game, null);
   assert.equal(result.suggestion?.key, "minecraft");
 });

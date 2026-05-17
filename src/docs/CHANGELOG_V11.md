@@ -16,6 +16,7 @@ Acest document vine din fisierele locale din `Discord bot` si noteaza ce a fost 
 - A fost adaugat un sistem simplu de migrari DB la pornire.
 - A fost adaugata schema JSON pentru `config.json`.
 - Au fost adaugate teste functionale pentru noile zone sensibile.
+- Testul de fuzzy matching pentru cazul "doar sugestie" foloseste acum un typo cu distanta reala mai mare de 1, ca sa nu contrazica regula de match direct pentru typo-uri foarte apropiate.
 
 ## TypeScript gradual
 
@@ -25,7 +26,9 @@ Am inceput migrarea reala la TypeScript acolo unde merita cel mai mult:
 - `src/shared/errors.js` a devenit `src/shared/errors.ts`;
 - build-ul TypeScript genereaza runtime-ul in `src/dist/`;
 - `npm start`, `npm test`, `npm run check:config` si `npm run check` folosesc output-ul compilat;
-- `check-syntax` ignora `dist/`, ca sa nu verifice de doua ori fisiere generate.
+- `check-syntax` ignora `dist/`, ca sa nu verifice de doua ori fisiere generate;
+- typecheck-ul din PR a prins si au fost corectate importurile JSDoc catre `src/types.ts` din health modules;
+- `src/config/configValidator.ts` foloseste o tipare explicita pentru rezultatul de eroare Zod, ca `safeParse` sa treaca typecheck-ul.
 
 Nu am convertit toate fisierele mari dintr-o singura trecere, pentru ca `commands`, `notifications`, `sources` si `infra/http` sunt zone sensibile si trebuie migrate in pasi mai mici, cu teste clare.
 
@@ -36,7 +39,8 @@ A fost facuta o singura exceptie intentionata de la regula "totul in `src`":
 - workflow-ul real este in `.github/workflows/ci.yml`, fiindca GitHub Actions ruleaza doar workflow-uri aflate acolo;
 - copia veche din `src/.github/workflows/ci.yml` a fost stearsa, pentru ca nu era executata de GitHub;
 - jobul CI ruleaza cu `working-directory: src`, instaleaza dependintele si executa `npm run check`;
-- workflow-ul poate fi pornit manual din GitHub Actions prin `workflow_dispatch`, pe langa push si pull request.
+- workflow-ul poate fi pornit manual din GitHub Actions prin `workflow_dispatch`, pe langa push si pull request;
+- pentru schimbari noi, fluxul recomandat este branch separat si Pull Request catre `main`, ca GitHub sa arate checks inainte de merge.
 
 ## Ce nu am copiat 1:1
 

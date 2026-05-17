@@ -1,7 +1,7 @@
 // @ts-check
 "use strict";
 
-/** @typedef {import("../types").RateLimitBucket} RateLimitBucket */
+/** @typedef {import("../../types").RateLimitBucket} RateLimitBucket */
 
 function createRateLimiter(env, metrics) {
   const cap = env.HTTP_RATE_LIMIT_REQ;
