@@ -13,6 +13,7 @@ function createMetrics() {
     cronRuns: 0,
     cronErrors: 0,
     cronSkippedDueToLock: 0,
+    cronSkippedDueToHealth: 0,
     cronAborted: 0,
     httpRateLimitDrops: 0,
     startedAt: Date.now()

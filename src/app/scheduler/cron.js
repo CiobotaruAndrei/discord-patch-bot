@@ -34,6 +34,46 @@ function createCronController({
   let heartbeatTimerId = null;
   let currentCronAbortController = null;
   let currentCronToken = null;
+  const healthWindow = [];
+  let healthSkipScheduled = false;
+
+  function recordHealth(success, durationMs) {
+    healthWindow.push({ success, durationMs });
+    if (healthWindow.length > env.GLOBAL_HEALTH_WINDOW) healthWindow.shift();
+  }
+
+  function shouldSkipForGlobalHealth() {
+    if (healthSkipScheduled) {
+      healthSkipScheduled = false;
+      healthWindow.length = 0;
+      return false;
+    }
+    if (healthWindow.length < env.GLOBAL_HEALTH_WINDOW) return false;
+    const successCount = healthWindow.filter(entry => entry.success).length;
+    const ratio = (successCount / healthWindow.length) * 100;
+    if (ratio < env.GLOBAL_HEALTH_MIN_RATIO) {
+      healthSkipScheduled = true;
+      logger("WARN", "CRON_HEALTH",
+        `Global health rate ${ratio.toFixed(0)}% < ${env.GLOBAL_HEALTH_MIN_RATIO}% in ultimele ${healthWindow.length} cicluri. ` +
+        "Sar ciclul curent pentru backoff.");
+      return true;
+    }
+    return false;
+  }
+
+  function getHealthSnapshot() {
+    if (!healthWindow.length) {
+      return { successRatio: null, windowSize: 0, healthSkipScheduled };
+    }
+    const successCount = healthWindow.filter(entry => entry.success).length;
+    const totalDurationMs = healthWindow.reduce((sum, entry) => sum + entry.durationMs, 0);
+    return {
+      successRatio: Math.round((successCount / healthWindow.length) * 100),
+      windowSize: healthWindow.length,
+      healthSkipScheduled,
+      avgDurationMs: Math.round(totalDurationMs / healthWindow.length)
+    };
+  }
 
   function shouldAbortCron() {
     return lifecycle.isShuttingDown || (currentCronAbortController?.signal.aborted ?? false);
@@ -88,6 +128,11 @@ function createCronController({
       scheduleNextCron();
       return;
     }
+    if (shouldSkipForGlobalHealth()) {
+      metrics.cronSkippedDueToHealth = (metrics.cronSkippedDueToHealth || 0) + 1;
+      scheduleNextCron();
+      return;
+    }
 
     const lockToken = await acquireDbLock("cron_main", lockTtlMs);
     if (!lockToken) {
@@ -102,8 +147,9 @@ function createCronController({
 
     metrics.cronRuns++;
     const cycleStart = performance.now();
+    let success = false;
     const cronReqId = `cron-${metrics.cronRuns}-${crypto.randomBytes(3).toString("hex")}`;
-    await requestContext.run({ requestId: cronReqId }, async () => {
+    await requestContext.run({ requestId: cronReqId, abortSignal: currentCronAbortController.signal }, async () => {
       try {
         logger("INFO", "CRON", `Pornire ciclu cron #${metrics.cronRuns}`);
         await Promise.all([
@@ -114,6 +160,7 @@ function createCronController({
           metrics.cronAborted++;
           logger("WARN", "CRON", "Ciclu abandonat (shutdown sau abort)");
         } else {
+          success = true;
           const ms = Math.round(performance.now() - cycleStart);
           logger("INFO", "CRON", `Ciclu cron #${metrics.cronRuns} finalizat in ${ms}ms`);
         }
@@ -122,6 +169,8 @@ function createCronController({
         logger("ERROR", "CRON", `Eroare in ciclul cron #${metrics.cronRuns}`, errorDetail(err));
         adminAlert("cron:fatal", `Eroare cron ciclu #${metrics.cronRuns}`, errorMessage(err)).catch(() => null);
       } finally {
+        const durationMs = Math.round(performance.now() - cycleStart);
+        recordHealth(success, durationMs);
         stopHeartbeat();
         await releaseDbLock("cron_main", lockToken).catch(() => null);
         currentCronToken = null;
@@ -137,7 +186,7 @@ function createCronController({
     stopHeartbeat();
   }
 
-  return { scheduleNextCron, runCronCycle, stop, shouldAbortCron };
+  return { scheduleNextCron, runCronCycle, stop, shouldAbortCron, getHealthSnapshot };
 }
 
 module.exports = { createCronController };

@@ -73,7 +73,8 @@ const httpServer = createHttpServer({
   getGuildCacheSize,
   scrapers,
   activeLocks,
-  rateLimiter
+  rateLimiter,
+  cronController
 });
 
 registerDiscordEvents({

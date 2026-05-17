@@ -20,6 +20,8 @@ module.exports = {
   runConcurrent: ctx.runConcurrent,
   waitForMongoReady: ctx.waitForMongoReady,
   validatePendingDiscountSnapshot: ctx.validatePendingDiscountSnapshot,
+  isTransientMongoError: ctx.isTransientMongoError,
+  withMongoRetry: ctx.withMongoRetry,
   GuildModel: ctx.GuildModel,
   CircuitBreakerModel: ctx.CircuitBreakerModel,
   SystemModel: ctx.SystemModel,
@@ -43,5 +45,6 @@ module.exports = {
   DEFAULT_CURRENCY: ctx.DEFAULT_CURRENCY,
   getCurrencyConfig: ctx.getCurrencyConfig,
   formatPrice: ctx.formatPrice,
-  requestContext: ctx.requestContext
+  requestContext: ctx.requestContext,
+  getAbortSignal: ctx.getAbortSignal
 };

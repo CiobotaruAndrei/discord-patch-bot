@@ -77,7 +77,7 @@ Flow-ul:
 5. creeaza rate limiter-ul HTTP;
 6. creeaza housekeeping-ul;
 7. creeaza cron controller-ul;
-8. creeaza serverul HTTP de health/metrics;
+8. creeaza serverul HTTP de health/metrics si ii da acces la starea cron;
 9. creeaza controller-ul de shutdown;
 10. inregistreaza evenimente Discord si MongoDB;
 11. conecteaza MongoDB;
@@ -95,6 +95,7 @@ TypeScript este folosit gradual. Regula curenta:
 - fisierele runtime mari raman JavaScript pana cand pot fi impartite/convertite fara risc;
 - orice fisier `.ts` folosit de runtime trebuie sa mearga prin build, nu direct prin Node;
 - importurile JSDoc din fisierele `.js` trebuie sa indice corect catre `src/types.ts`, pentru ca `npm run typecheck` le valideaza;
+- `src/types.ts` trebuie actualizat cand se adauga env-uri, metrici sau optiuni folosite de modulele JavaScript;
 - `configValidator.ts` pastreaza accesul la erorile Zod intr-o forma tipata explicit, ca `safeParse` sa fie compatibil cu typecheck-ul curent;
 - `package.json` ruleaza build inainte de `start`, `test` si `check:config`.
 
@@ -161,6 +162,10 @@ Campuri importante:
 - `LOG_LEVEL`
 - `LOG_SAMPLE_RATE`
 - `PROXY_URLS`
+- `DEALS_CURRENCY_CACHE_MAX_SIZE`
+- `GLOBAL_HEALTH_WINDOW`
+- `GLOBAL_HEALTH_MIN_RATIO`
+- `MONGO_RETRY_ATTEMPTS`
 
 In production, `/metrics` trebuie protejat prin `METRICS_TOKEN`, sau facut public explicit cu `METRICS_PUBLIC=true`. Placeholder-ul `change_me_to_a_long_random_value` este tratat ca lipsa.
 
@@ -170,9 +175,13 @@ MongoDB este folosit pentru setari per server Discord, update-uri vazute, reduce
 
 Modelele sunt in `src/infra/mongo/models.js`. Migrarile sunt in `src/infra/mongo/migrations.js` si se ruleaza la pornire, dupa Mongo ready, sub lock distribuit.
 
+`src/shared/utilities.js` expune `withMongoRetry` si `isTransientMongoError`. Claim-urile atomice din notificari folosesc retry doar pentru erori Mongo tranzitorii, nu pentru erori de logica.
+
 ## HTTP si scraping
 
 Clientul HTTP comun este in `src/infra/http/client.js`. Acesta ofera retry/backoff, limite de bytes pentru HTML/JSON, user-agent random, proxy fallback, `safeCheerioLoad`, hashing pentru deal-uri, in-flight coalescing, timeout pentru promisiuni si agenti keep-alive.
+
+Cron-ul pune `abortSignal` in `requestContext`, `src/shared/logging.js` il expune prin `getAbortSignal`, iar `httpReq` il foloseste ca sa poata opri request-urile cand ciclul cron este anulat. Erorile de abort/cancel nu sunt retry-uite.
 
 Acest fisier este sensibil: modificarile aici afecteaza toate sursele externe.
 
@@ -191,7 +200,7 @@ Comenzile sunt in `src/features/commands`.
 - `slashCommands.js`: definitiile comenzilor;
 - `interactions.js`: handler-ele slash/autocomplete;
 - `ui.js`: embed-uri, paginare, fuzzy matching si cache LRU pentru cautarea jocurilor;
-- `cache.js`: cache runtime si cooldown-uri;
+- `cache.js`: cache runtime, cooldown-uri si LRU pentru cache-ul de reduceri pe valute;
 - `index.js`: agregator.
 
 ## Notificari automate
@@ -202,13 +211,14 @@ Reguli importante anti-spam si anti-duplicate:
 
 - nu se strica logica de `seen`;
 - nu se strica logica de `pending`;
-- claim-ul trebuie atomic;
+- claim-ul trebuie atomic si trece prin `withMongoRetry`;
 - rollback-ul trebuie pastrat;
 - limitele per ciclu trebuie pastrate;
 - rolul se ping-uieste doar la prima notificare per ciclu;
 - `updatesInitializing` si `discountsInitializing` protejeaza activarea;
 - activation id previne race conditions la `/start`;
-- cron-ul foloseste `buildOptimizedGameList` ca sa evite scraping-ul jocurilor nefolosite.
+- cron-ul foloseste `buildOptimizedGameList` ca sa evite scraping-ul jocurilor nefolosite;
+- erorile Discord permanente `10003`, `10004`, `50001`, `50013` dezactiveaza canalul afectat in loc sa produca retry-uri infinite.
 
 ## Health si metrics
 
@@ -220,7 +230,9 @@ Endpoint-uri:
 - `/healthz`
 - `/metrics`
 
-`/metrics` expune metrici Prometheus-like si trebuie protejat in production.
+`/health` include `cronHealth` cand serverul primeste cron controller-ul. Cron-ul calculeaza rata de succes pe o fereastra scurta si poate sari un ciclu daca rata scade sub `GLOBAL_HEALTH_MIN_RATIO`.
+
+`/metrics` expune metrici Prometheus-like si trebuie protejat in production. Contorul `bot_cron_skipped_due_to_health` arata cate cicluri au fost sarite din cauza backoff-ului global.
 
 ## Teste si scripturi
 
@@ -232,6 +244,7 @@ Scripturi:
 Teste importante:
 
 - regresii pentru comenzi si notificari;
+- protectiile portate din codul local: retry Mongo, coduri Discord permanente, cache LRU pe valute, cron health si abort signal HTTP;
 - validare config;
 - hashing reduceri;
 - fuzzy matching jocuri;

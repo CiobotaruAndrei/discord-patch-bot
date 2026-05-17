@@ -1,7 +1,7 @@
 "use strict";
 
 module.exports = (ctx) => {
-  const { mongoose } = ctx;
+  const { mongoose, logger, env } = ctx;
 
 async function runConcurrent(items, concurrency, fn, { shouldAbort = null, errorLogger = null } = {}) {
   if (!Array.isArray(items) || items.length === 0) return { processed: 0, errors: [] };
@@ -80,9 +80,46 @@ function validatePendingDiscountSnapshot(snapshot) {
   return true;
 }
 
+const TRANSIENT_MONGO_CODES = new Set([
+  112,
+  189,
+  11600,
+  11602,
+  10107,
+  13435,
+  13436
+]);
+
+function isTransientMongoError(err) {
+  if (!err) return false;
+  if (err.name === "MongoNetworkError") return true;
+  if (err.name === "MongoNetworkTimeoutError") return true;
+  if (TRANSIENT_MONGO_CODES.has(err.code)) return true;
+  if (Array.isArray(err.errorLabels) && err.errorLabels.includes("TransientTransactionError")) return true;
+  return false;
+}
+
+async function withMongoRetry(fn, { retries = env.MONGO_RETRY_ATTEMPTS, label = "mongo-op" } = {}) {
+  let lastErr;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (!isTransientMongoError(err) || i === retries) throw err;
+      const waitMs = Math.round(100 * (2 ** i) * (0.5 + Math.random()));
+      logger("WARN", "MONGO_RETRY", `Retry ${label} (attempt ${i + 1}/${retries + 1}) dupa ${waitMs}ms`, err.message);
+      await new Promise(resolve => setTimeout(resolve, waitMs));
+    }
+  }
+  throw lastErr;
+}
+
   Object.assign(ctx, {
     runConcurrent,
     waitForMongoReady,
-    validatePendingDiscountSnapshot
+    validatePendingDiscountSnapshot,
+    isTransientMongoError,
+    withMongoRetry
   });
 };

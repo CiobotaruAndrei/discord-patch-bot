@@ -8,7 +8,7 @@ module.exports = (ctx) => {
     buildDealEmbed, setUpdatesCache, getDealsCacheData, setDealsCache,
     normalizeCurrencyKey, normalizePendingUpdateArray,
     normalizePendingDiscountArray, toEntries, rotateAfter, mapToObject,
-    dealPassesFilters, sleepIfPositive, OP_UPDATE_OPTS,
+    dealPassesFilters, sleepIfPositive, withMongoRetry, OP_UPDATE_OPTS,
     SEEN_PER_GAME_LIMIT, PENDING_UPDATE_MAX_AGE_MS,
     PENDING_UPDATE_MAX_ATTEMPTS, PENDING_UPDATES_PER_GAME_LIMIT,
     MAX_UPDATES_PER_CYCLE, DISCORD_SEND_DELAY_MS,
@@ -17,8 +17,14 @@ module.exports = (ctx) => {
     PENDING_DISCOUNTS_LIMIT, MAX_DEALS_PER_CYCLE
   } = ctx;
 
+const DISCORD_PERMANENT_ERROR_CODES = new Set([10003, 10004, 50001, 50013]);
+
+function isPermanentDiscordError(err) {
+  return DISCORD_PERMANENT_ERROR_CODES.has(Number(err?.code));
+}
+
 async function claimSeenUpdate(guildId, channelId, gameKey, updateId) {
-  return GuildModel.updateOne(
+  return withMongoRetry(() => GuildModel.updateOne(
     {
       _id: guildId,
       subscribed: true,
@@ -32,7 +38,7 @@ async function claimSeenUpdate(guildId, channelId, gameKey, updateId) {
       $set: { lastProcessedGameKey: gameKey }
     },
     OP_UPDATE_OPTS
-  );
+  ), { label: "claimSeenUpdate" });
 }
 
 async function rollbackSeenUpdate(guildId, gameKey, updateId) {
@@ -132,6 +138,12 @@ async function processGuildUpdates(client, guild, latestResults) {
       await sleepIfPositive(DISCORD_SEND_DELAY_MS);
     } catch (err) {
       await rollbackSeenUpdate(String(guild._id), gameKey, next.id).catch(() => null);
+      if (isPermanentDiscordError(err)) {
+        const reason = `Discord cod ${err.code}: ${err.message}`;
+        await disableUpdatesForChannelError(String(guild._id), channel.id, reason).catch(() => null);
+        logger("WARN", "CRON_UPDATES", `Disable updates pentru guild ${guild._id} - cod permanent`, reason);
+        break;
+      }
       next.attempts = (next.attempts || 0) + 1;
       if (next.attempts < PENDING_UPDATE_MAX_ATTEMPTS) queue.unshift(next);
       logger("WARN", "CRON_UPDATES", `Nu am putut trimite update pentru ${gameKey}`, err.message);
@@ -197,7 +209,7 @@ async function checkForUpdates(client, games, shouldAbort = null) {
 }
 
 async function claimSeenDiscount(guildId, channelId, hash) {
-  return GuildModel.updateOne(
+  return withMongoRetry(() => GuildModel.updateOne(
     {
       _id: guildId,
       discountsSubscribed: true,
@@ -210,7 +222,7 @@ async function claimSeenDiscount(guildId, channelId, hash) {
       $pull: { pendingDiscounts: { hash } }
     },
     OP_UPDATE_OPTS
-  );
+  ), { label: "claimSeenDiscount" });
 }
 
 async function rollbackSeenDiscount(guildId, hash) {
@@ -296,6 +308,13 @@ async function processGuildDiscounts(client, guild, deals) {
       await sleepIfPositive(DISCORD_SEND_DELAY_MS);
     } catch (err) {
       if (claimed) await rollbackSeenDiscount(String(guild._id), item.hash).catch(() => null);
+      if (isPermanentDiscordError(err)) {
+        const reason = `Discord cod ${err.code}: ${err.message}`;
+        await disableDiscountsForChannelError(String(guild._id), channel.id, reason).catch(() => null);
+        logger("WARN", "CRON_DISCOUNTS", `Disable discounts pentru guild ${guild._id} - cod permanent`, reason);
+        remaining.push(...pending.slice(i + 1));
+        break;
+      }
       const retry = { ...item, attempts: (item.attempts || 0) + 1 };
       if (retry.attempts < PENDING_DISCOUNT_MAX_ATTEMPTS) remaining.push(retry);
       remaining.push(...pending.slice(i + 1));
@@ -344,6 +363,8 @@ async function checkForDiscounts(client, shouldAbort = null) {
 }
 
   Object.assign(ctx, {
+    DISCORD_PERMANENT_ERROR_CODES,
+    isPermanentDiscordError,
     claimSeenUpdate,
     rollbackSeenUpdate,
     disableUpdatesForChannelError,

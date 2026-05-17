@@ -65,6 +65,7 @@ Logica:
 - creeaza metrici;
 - creeaza client Discord;
 - creeaza rate limiter, housekeeping, cron controller, HTTP server si shutdown controller;
+- paseaza cron controller-ul catre HTTP server pentru `cronHealth`;
 - conecteaza MongoDB;
 - ruleaza `runMigrations(logger)`;
 - porneste serverul HTTP;
@@ -76,7 +77,7 @@ Atentie: `main.js` ramane orchestrator, nu loc pentru logica mare.
 
 Functii:
 
-- `createMetrics`: creeaza contoare pentru fetch-uri, retry-uri, rate limit, cron, abort si uptime.
+- `createMetrics`: creeaza contoare pentru fetch-uri, retry-uri, rate limit, cron, abort, skip-uri cron si uptime.
 
 Tipuri:
 
@@ -102,14 +103,30 @@ Functii:
 - `createHttpServer(...)`;
 - `timingSafeEqualStr(crypto, a, b)`.
 
+Comportament:
+
+- `/health` si `/healthz` returneaza starea Mongo, Discord, uptime si `cronHealth` cand este disponibil;
+- `/metrics` include `bot_cron_skipped_due_to_health` pe langa metricile existente.
+
 ### `src/app/scheduler/cron.js`
 
 Functii:
 
 - `createCronController(...)`;
+- `recordHealth(success, durationMs)`;
+- `shouldSkipForGlobalHealth()`;
+- `getHealthSnapshot()`;
 - `scheduleNextCron`;
 - `runCronCycle`;
-- `stop`.
+- `stop`;
+- `shouldAbortCron`.
+
+Comportament:
+
+- foloseste lock distribuit si heartbeat;
+- pune `abortSignal` in `requestContext` pentru request-uri HTTP anulabile;
+- sare un ciclu cand fereastra globala de health scade sub prag;
+- expune snapshot-ul de health pentru endpoint-ul HTTP.
 
 ### `src/app/scheduler/housekeeping.js`
 
@@ -179,9 +196,10 @@ Validari speciale:
 Functii:
 
 - `logger(level, context, message, meta)`;
-- `parseEnvNumber(name, defaultValue, limits)`.
+- `parseEnvNumber(name, defaultValue, limits)`;
+- `getAbortSignal()`.
 
-Include `LOG_SAMPLE_RATE` pentru sampling pe INFO/DEBUG. WARN si ERROR nu sunt sample-uite.
+Include `LOG_SAMPLE_RATE` pentru sampling pe INFO/DEBUG. WARN si ERROR nu sunt sample-uite. `getAbortSignal` citeste semnalul de anulare din `requestContext`.
 
 ### `src/shared/env.js`
 
@@ -190,7 +208,8 @@ Rol: valideaza env-ul si construieste obiectul central `env`.
 Atentie:
 
 - in production cere `METRICS_TOKEN` sau `METRICS_PUBLIC=true`;
-- placeholder-ul `change_me_to_a_long_random_value` este tratat ca token lipsa.
+- placeholder-ul `change_me_to_a_long_random_value` este tratat ca token lipsa;
+- include pragurile pentru health backoff, retry Mongo si limita LRU pentru cache-ul de reduceri pe valute.
 
 ### `src/shared/domain.js`
 
@@ -208,7 +227,11 @@ Functii:
 
 - `runConcurrent(items, concurrency, fn, options)`;
 - `waitForMongoReady(timeoutMs)`;
-- `validatePendingDiscountSnapshot(snapshot)`.
+- `validatePendingDiscountSnapshot(snapshot)`;
+- `isTransientMongoError(err)`;
+- `withMongoRetry(fn, options)`.
+
+`withMongoRetry` este folosit pentru claim-uri atomice Mongo unde o eroare temporara poate fi reincercata fara sa dubleze notificari.
 
 ### `src/shared/errors.ts`
 
@@ -225,7 +248,7 @@ Expune dependinte comune: `mongoose`, `crypto`, `axios`, `z`, `AsyncLocalStorage
 
 ### `src/infra/mongo/index.js`
 
-Agregator pentru infrastructura Mongo si shared utilities. Include export pentru `runMigrations` si `ALL_MIGRATIONS`.
+Agregator pentru infrastructura Mongo si shared utilities. Include export pentru `runMigrations`, `ALL_MIGRATIONS`, `withMongoRetry`, `isTransientMongoError` si `getAbortSignal`.
 
 ### `src/infra/mongo/models.js`
 
@@ -297,7 +320,7 @@ Functii importante:
 - `withInflightTimeout(promise, label)`;
 - `trackInflight(map, key, promise)`.
 
-Atentie: `httpReq` foloseste agenti HTTP/HTTPS keep-alive si este folosit de toate sursele externe.
+Atentie: `httpReq` foloseste agenti HTTP/HTTPS keep-alive, citeste `options.signal` sau `getAbortSignal()` si nu face retry pe erori de anulare.
 
 ## Sources
 
@@ -386,6 +409,8 @@ Functii:
 
 Functii: cache runtime, cooldown-uri, `formatUserError`, `canSendEmbeds`, `makeActivationId` si helper-e LRU.
 
+Comportament: cache-ul `dealsByCurrency` este limitat de `DEALS_CURRENCY_CACHE_MAX_SIZE` si reinnoieste cheia accesata pentru comportament LRU.
+
 ### `src/features/commands/ui.js`
 
 Functii:
@@ -420,6 +445,8 @@ Proceseaza slash commands si autocomplete.
 
 Update-uri:
 
+- `DISCORD_PERMANENT_ERROR_CODES`;
+- `isPermanentDiscordError`;
 - `claimSeenUpdate`;
 - `rollbackSeenUpdate`;
 - `disableUpdatesForChannelError`;
@@ -435,7 +462,7 @@ Reducerile:
 - `processGuildDiscounts`;
 - `checkForDiscounts`.
 
-Atentie: nu se elimina claim atomic, rollback, pending queues, seen arrays, activation guards sau limita per ciclu.
+Atentie: nu se elimina claim atomic, retry-ul Mongo pentru claim, rollback, pending queues, seen arrays, activation guards, codurile Discord permanente sau limita per ciclu.
 
 ## Scripts si teste
 
@@ -449,4 +476,4 @@ Ruleaza `node --check` pe fisierele `.js` sursa si ignora `dist/`.
 
 ### `src/test/*`
 
-Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad` si optimizarea cronului.
+Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad`, optimizarea cronului si protectiile portate din codul local.

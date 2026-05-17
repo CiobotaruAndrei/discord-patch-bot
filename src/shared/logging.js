@@ -93,11 +93,16 @@ function parseEnvNumber(name, defaultValue, { min = 0, max = Infinity } = {}) {
   return parsed;
 }
 
+function getAbortSignal() {
+  return requestContext.getStore()?.abortSignal || null;
+}
+
   Object.assign(ctx, {
     requestContext,
     logger,
     parseEnvNumber,
     RAW_LOG_LEVEL,
-    LOG_SAMPLE_RATE
+    LOG_SAMPLE_RATE,
+    getAbortSignal
   });
 };

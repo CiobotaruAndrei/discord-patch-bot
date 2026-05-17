@@ -14,9 +14,19 @@ const commandFiles = [
   "features/commands/slashCommands.js",
   "features/commands/interactions.js"
 ];
-const commandsSource = commandFiles
-  .map(file => fs.readFileSync(path.join(__dirname, "..", file), "utf8"))
-  .join("\n");
+const runtimeFiles = [
+  "shared/env.js",
+  "shared/utilities.js",
+  "shared/logging.js",
+  "infra/http/client.js",
+  "app/scheduler/cron.js",
+  "app/health/httpServer.js",
+  "app/health/metrics.js"
+];
+const readBuiltFile = (file) => fs.readFileSync(path.join(__dirname, "..", file), "utf8");
+const commandsSource = commandFiles.map(readBuiltFile).join("\n");
+const runtimeSource = runtimeFiles.map(readBuiltFile).join("\n");
+const allSource = `${commandsSource}\n${runtimeSource}`;
 
 test("notification queues keep the duplicate-prevention guardrails", () => {
   assert.match(commandsSource, /async function claimSeenUpdate/);
@@ -51,4 +61,47 @@ test("automatic update notifications respect the per-game filter", () => {
 test("manual latest updates respects the per-game filter", () => {
   assert.match(commandsSource, /Nu am date disponibile pentru jocurile active ale acestui server/);
   assert.match(commandsSource, /data\.filter\(r => r\.latest !== null && \(!enabledSet \|\| enabledSet\.has\(r\.game\.key\)\)\)/);
+});
+
+test("Discord permanent errors disable broken notification channels", () => {
+  assert.match(commandsSource, /DISCORD_PERMANENT_ERROR_CODES/);
+  assert.match(commandsSource, /10003/);
+  assert.match(commandsSource, /10004/);
+  assert.match(commandsSource, /50001/);
+  assert.match(commandsSource, /50013/);
+  assert.match(commandsSource, /function isPermanentDiscordError/);
+  assert.match(commandsSource, /disableUpdatesForChannelError\(String\(guild\._id\), channel\.id, reason\)/);
+  assert.match(commandsSource, /disableDiscountsForChannelError\(String\(guild\._id\), channel\.id, reason\)/);
+});
+
+test("Mongo retry wraps atomic notification claims", () => {
+  assert.match(allSource, /function isTransientMongoError/);
+  assert.match(allSource, /async function withMongoRetry/);
+  assert.match(commandsSource, /withMongoRetry\(\(\) => GuildModel\.updateOne/);
+  assert.match(commandsSource, /label: "claimSeenUpdate"/);
+  assert.match(commandsSource, /label: "claimSeenDiscount"/);
+});
+
+test("deals currency cache is LRU bounded", () => {
+  assert.match(commandsSource, /DEALS_CURRENCY_CACHE_MAX_SIZE/);
+  assert.match(commandsSource, /evictLRU\(cache\.dealsByCurrency/);
+  assert.match(commandsSource, /cache\.dealsByCurrency\.delete\(key\)/);
+  assert.match(commandsSource, /cache\.dealsByCurrency\.set\(key, entry\)/);
+});
+
+test("cron health backoff is exposed", () => {
+  assert.match(allSource, /GLOBAL_HEALTH_WINDOW/);
+  assert.match(allSource, /GLOBAL_HEALTH_MIN_RATIO/);
+  assert.match(allSource, /cronSkippedDueToHealth/);
+  assert.match(runtimeSource, /function getHealthSnapshot/);
+  assert.match(runtimeSource, /bot_cron_skipped_due_to_health/);
+  assert.match(runtimeSource, /cronHealth = cronController\.getHealthSnapshot\(\)/);
+});
+
+test("cron abort signal reaches HTTP requests", () => {
+  assert.match(runtimeSource, /abortSignal: currentCronAbortController\.signal/);
+  assert.match(runtimeSource, /function getAbortSignal/);
+  assert.match(runtimeSource, /const signal = options\.signal \|\|/);
+  assert.match(runtimeSource, /reqConfig\.signal = signal/);
+  assert.match(runtimeSource, /ERR_CANCELED|CanceledError|AbortError/);
 });
