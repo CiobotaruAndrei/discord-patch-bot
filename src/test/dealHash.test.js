@@ -1,6 +1,11 @@
 // @ts-check
 "use strict";
 
+process.env.MONGO_URI ||= "mongodb://localhost:27017/discord-patch-bot-test";
+process.env.DISCORD_TOKEN ||= "test_discord_token";
+process.env.DISCORD_CLIENT_ID ||= "test_discord_client_id";
+process.env.METRICS_PUBLIC ||= "true";
+
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { dealHash } = require("../sources");
