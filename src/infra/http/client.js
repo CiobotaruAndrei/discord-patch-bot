@@ -4,7 +4,7 @@ const http = require("http");
 const https = require("https");
 
 module.exports = (ctx) => {
-  const { axios, cheerio, crypto, env, logger } = ctx;
+  const { axios, cheerio, crypto, env, logger, getAbortSignal } = ctx;
 
 const FETCH_CONCURRENCY = env.FETCH_CONCURRENCY;
 const MAX_HTML_BYTES = env.MAX_HTML_BYTES;
@@ -176,6 +176,7 @@ async function httpReq(method, url, options = {}, retries = 2, backoff = 1000) {
         ...callerHeaders
       };
 
+  const signal = options.signal || (typeof getAbortSignal === "function" ? getAbortSignal() : null);
   const reqConfig = {
     method,
     url,
@@ -184,6 +185,7 @@ async function httpReq(method, url, options = {}, retries = 2, backoff = 1000) {
     maxBodyLength: bodyLimit,
     headers: mergedHeaders
   };
+  if (signal) reqConfig.signal = signal;
   if (options.data) reqConfig.data = options.data;
 
   const isIdempotent = String(method).toUpperCase() === "GET";
@@ -192,6 +194,9 @@ async function httpReq(method, url, options = {}, retries = 2, backoff = 1000) {
     try {
       return await axiosClient(reqConfig);
     } catch (err) {
+      if (err?.code === "ERR_CANCELED" || err?.name === "CanceledError" || err?.name === "AbortError") {
+        throw err;
+      }
       const status = err.response?.status || "N/A";
       const isRetryable4xx = isIdempotent && typeof status === "number"
         && RETRY_ABLE_4XX.has(status);
