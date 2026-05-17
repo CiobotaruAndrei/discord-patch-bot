@@ -4,22 +4,53 @@ Acest fisier documenteaza functiile importante din repo, pe fisiere. Scopul lui 
 
 ## Conventii generale
 
-- Proiectul foloseste CommonJS: `require` si `module.exports`.
-- Multe module exporta o functie care primeste `ctx` si ataseaza functii/proprietati pe `ctx`.
+- Proiectul foloseste build TypeScript catre `dist/`.
+- Majoritatea modulelor runtime sunt inca JavaScript CommonJS.
+- Modulele convertite la TypeScript sunt compilate in `dist/` inainte de rulare.
 - `src/infra/mongo/index.js`, `src/sources/index.js` si `src/features/commands/index.js` sunt agregatoare.
-- `src/types.ts` descrie tipurile folosite in JSDoc si TypeScript check.
+- `src/types.ts` descrie tipurile folosite in JSDoc si TypeScript.
+- `dist/` este output generat si nu se editeaza manual.
+
+## Build si scripts
+
+### `src/package.json`
+
+Scripturi importante:
+
+- `build`: compileaza cu `tsc` in `dist/`;
+- `start`: ruleaza `npm run build && node dist/app/main.js`;
+- `typecheck`: ruleaza `tsc --noEmit`;
+- `check:config`: compileaza si ruleaza `dist/scripts/check-config.js`;
+- `check:syntax`: verifica sintaxa fisierelor `.js` sursa;
+- `test`: compileaza si ruleaza testele din `dist/test`;
+- `check`: typecheck, build, syntax check, config check si teste.
+
+### `src/tsconfig.json`
+
+Rol:
+
+- compileaza `.ts` si `.js` in `dist/`;
+- permite migrare graduala cu `allowJs: true`;
+- exclude `dist`, `node_modules` si `coverage`.
 
 ## App
 
 ### `src/app/main.js`
 
-Rol: entry point-ul botului. Leaga modulele principale, porneste MongoDB, ruleaza migrarile, porneste HTTP server-ul si clientul Discord.
+Rol: entry point-ul botului. Dupa build se ruleaza ca `dist/app/main.js`.
 
-Atentie:
+Logica:
 
-- trebuie sa ramana orchestrator;
-- cron-ul se porneste dupa ce Discord este ready;
-- erorile fatale la boot duc la `process.exit(1)`.
+- incarca config-ul;
+- creeaza metrici;
+- creeaza client Discord;
+- creeaza rate limiter, housekeeping, cron controller, HTTP server si shutdown controller;
+- conecteaza MongoDB;
+- ruleaza `runMigrations(logger)`;
+- porneste serverul HTTP;
+- face login la Discord.
+
+Atentie: `main.js` ramane orchestrator, nu loc pentru logica mare.
 
 ### `src/app/health/metrics.js`
 
@@ -31,43 +62,39 @@ Functii:
 
 Functii:
 
-- `createRateLimiter(env, metrics)`: token bucket per IP pentru endpoint-urile HTTP;
-- `check(req)`: decide daca request-ul este permis;
-- `prune()`: curata bucket-uri vechi;
-- `retryAfterSeconds`: valoarea pentru header-ul `Retry-After`.
+- `createRateLimiter(env, metrics)`;
+- `check(req)`;
+- `prune()`;
+- `retryAfterSeconds`.
 
 ### `src/app/health/httpServer.js`
 
 Functii:
 
-- `createHttpServer(...)`: creeaza serverul pentru `/health`, `/healthz`, `/metrics`;
-- `timingSafeEqualStr(crypto, a, b)`: compara token-ul de metrics fara leak de timing.
-
-Atentie: `/metrics` poate expune informatii operationale si trebuie protejat in production.
+- `createHttpServer(...)`;
+- `timingSafeEqualStr(crypto, a, b)`.
 
 ### `src/app/scheduler/cron.js`
 
 Functii:
 
-- `createCronController(...)`: configureaza cron-ul principal;
-- `scheduleNextCron`: programeaza urmatorul ciclu;
-- `runCronCycle`: ia lock-ul `cron_main`, ruleaza update-uri si reduceri, elibereaza lock-ul;
-- `stop`: opreste cron-ul curent si timer-ele.
-
-Atentie: nu se elimina lock-ul distribuit si nu se pornesc doua cron-uri simultan.
+- `createCronController(...)`;
+- `scheduleNextCron`;
+- `runCronCycle`;
+- `stop`.
 
 ### `src/app/scheduler/housekeeping.js`
 
 Functii:
 
-- `createHousekeeping(...)`: porneste un interval periodic pentru cache cleanup.
+- `createHousekeeping(...)`.
 
 ### `src/app/lifecycle/events.js`
 
 Functii:
 
-- `registerDiscordEvents`: ready, interactionCreate, warning/error Discord;
-- `registerMongoEvents`: connected, disconnected, error, reconnected.
+- `registerDiscordEvents`;
+- `registerMongoEvents`.
 
 ### `src/app/lifecycle/shutdown.js`
 
@@ -78,8 +105,6 @@ Functii:
 - `handleFatalProcessError(kind, reason)`;
 - `registerProcessHandlers`.
 
-Atentie: shutdown-ul elibereaza lock-urile active si inchide resursele in ordine.
-
 ## Config
 
 ### `src/config/configLoader.js`
@@ -89,7 +114,11 @@ Functii:
 - `resolveConfigPath(configPath)`;
 - `loadConfig(configPath)`.
 
-### `src/config/configValidator.js`
+Atentie: la runtime importa validatorul compilat din `dist/config/configValidator.js`.
+
+### `src/config/configValidator.ts`
+
+Rol: validator TypeScript pentru `config.json`, bazat pe Zod.
 
 Functii si constante:
 
@@ -100,7 +129,14 @@ Functii si constante:
 - `formatZodIssues(issues)`;
 - `validateConfig(config, source)`.
 
-Validari speciale: duplicate de key/name/aliases, Steam fara `appId`, `listing_based` fara URL/base URL, Intel fara `url`, `upCRD` folosit pe alt tip decat NVIDIA, regex invalid.
+Validari speciale:
+
+- duplicate de key/name/aliases;
+- Steam fara `appId` sau cu `appId` non-numeric;
+- `listing_based` fara URL/base URL;
+- Intel fara `url`;
+- `upCRD` folosit pe alt tip decat NVIDIA;
+- regex invalid in `articleHrefRegex`.
 
 ## Shared
 
@@ -111,13 +147,16 @@ Functii:
 - `logger(level, context, message, meta)`;
 - `parseEnvNumber(name, defaultValue, limits)`.
 
-Atentie: nu se logheaza token-uri sau secrete.
+Include `LOG_SAMPLE_RATE` pentru sampling pe INFO/DEBUG. WARN si ERROR nu sunt sample-uite.
 
 ### `src/shared/env.js`
 
 Rol: valideaza env-ul si construieste obiectul central `env`.
 
-Atentie: in production cere `METRICS_TOKEN` sau `METRICS_PUBLIC=true`.
+Atentie:
+
+- in production cere `METRICS_TOKEN` sau `METRICS_PUBLIC=true`;
+- placeholder-ul `change_me_to_a_long_random_value` este tratat ca token lipsa.
 
 ### `src/shared/domain.js`
 
@@ -137,22 +176,22 @@ Functii:
 - `waitForMongoReady(timeoutMs)`;
 - `validatePendingDiscountSnapshot(snapshot)`.
 
-### `src/shared/errors.js`
+### `src/shared/errors.ts`
 
-Functii:
+Functii TypeScript:
 
-- `errorMessage(err)`;
-- `errorDetail(err)`.
+- `errorMessage(err: unknown): string`;
+- `errorDetail(err: unknown): string`.
 
 ## Infra Mongo
 
 ### `src/infra/mongo/runtime.js`
 
-Expune dependinte comune pentru modulele Mongo: `mongoose`, `crypto`, `axios`, `z`, `AsyncLocalStorage`.
+Expune dependinte comune: `mongoose`, `crypto`, `axios`, `z`, `AsyncLocalStorage`.
 
 ### `src/infra/mongo/index.js`
 
-Agregator pentru infrastructura Mongo si shared utilities.
+Agregator pentru infrastructura Mongo si shared utilities. Include export pentru `runMigrations` si `ALL_MIGRATIONS`.
 
 ### `src/infra/mongo/models.js`
 
@@ -164,8 +203,6 @@ Modele:
 - `JobLockModel`;
 - `AdminAlertCooldownModel`.
 
-Atentie: campurile `seen`, `pendingUpdates`, `seenDiscounts` si `pendingDiscounts` sunt critice pentru duplicate prevention.
-
 ### `src/infra/mongo/locks.js`
 
 Functii:
@@ -174,6 +211,15 @@ Functii:
 - `renewDbLock(jobName, token, ttlMs)`;
 - `releaseDbLock(jobName, token)`;
 - `activeLocks`.
+
+### `src/infra/mongo/migrations.js`
+
+Functii:
+
+- `runMigrations(logger)`;
+- `ALL_MIGRATIONS`.
+
+Rol: ruleaza migrari idempotente la pornire, sub lock distribuit `db_migrations`.
 
 ### `src/infra/mongo/systemState.js`
 
@@ -197,15 +243,6 @@ Functii:
 
 - `adminAlert(kind, title, body)`.
 
-### `src/infra/mongo/migrations.js`
-
-Functii:
-
-- `runMigrations(logger)`;
-- `ALL_MIGRATIONS`.
-
-Rol: ruleaza migrari idempotente la pornire, sub lock distribuit, si pastreaza `migrationState.lastApplied`.
-
 ## Infra HTTP
 
 ### `src/infra/http/client.js`
@@ -226,7 +263,7 @@ Functii importante:
 - `withInflightTimeout(promise, label)`;
 - `trackInflight(map, key, promise)`.
 
-Atentie: `httpReq` este folosit de toate sursele externe.
+Atentie: `httpReq` foloseste agenti HTTP/HTTPS keep-alive si este folosit de toate sursele externe.
 
 ## Sources
 
@@ -236,7 +273,7 @@ Expune dependinte pentru surse: `axios`, `cheerio`, `rss-parser`, `crypto` si in
 
 ### `src/sources/index.js`
 
-Agregator pentru client HTTP, update sources, deals sources si Steam helpers.
+Agregator pentru client HTTP, Steam helpers, update sources si deals sources.
 
 ### `src/sources/updates/index.js`
 
@@ -268,6 +305,8 @@ Fetch global:
 
 - `_getLatestForAllGamesImpl(games, shouldAbort)`;
 - `getLatestForAllGames(games, shouldAbort)`.
+
+`getLatestForAllGames` foloseste cache key bazat pe lista efectiva de jocuri.
 
 ### `src/sources/deals/index.js`
 
@@ -311,43 +350,24 @@ Functii:
 
 ### `src/features/commands/cache.js`
 
-Functii:
-
-- `setGlobalCacheTtl(ms)`;
-- `normalizeCurrencyKey(c)`;
-- `getUpdatesCacheData()`;
-- `setUpdatesCache(data)`;
-- `getDealsCacheData(currency)`;
-- `setDealsCache(currency, data)`;
-- `cacheGetLRU(map, key)`;
-- `evictLRU(map, maxSize)`;
-- `cacheSetLRU(map, key, data, ttlMs, maxSize)`;
-- `checkUserCooldown(userId, command)`;
-- `cleanCache()`;
-- `getCacheSizes()`;
-- `startCacheCleaner()`;
-- `formatUserError(err, defaultMsg, errorCode)`;
-- `canSendEmbeds(channel, botId)`;
-- `makeActivationId()`.
+Functii: cache runtime, cooldown-uri, `formatUserError`, `canSendEmbeds`, `makeActivationId` si helper-e LRU.
 
 ### `src/features/commands/ui.js`
 
 Functii:
 
-- `enforceCooldown(interaction, command)`;
-- `startCommandLog(interaction, command, extra)`;
-- `safeDefer(interaction, ephemeral)`;
-- `safeEdit(interaction, payload)`;
-- `buildUpdateEmbed(gameName, latest, mode)`;
-- `buildDealEmbed(deal, mode, currency)`;
-- `generateSessionId()`;
-- `buildPaginationButtons(prefix, sessionId, page, totalPages)`;
-- `handlePagination(...)`;
-- `findGameAndSuggestion(text, games)`;
-- `getFindGameCacheSize()`;
-- `clearFindGameCache()`;
-- `fetchGameStatus(game)`;
-- `buildSteamPriceEmbed(gameData, appId, offerEndDate, currency)`.
+- `enforceCooldown`;
+- `startCommandLog`;
+- `safeDefer`;
+- `safeEdit`;
+- `buildUpdateEmbed`;
+- `buildDealEmbed`;
+- `handlePagination`;
+- `findGameAndSuggestion`;
+- `getFindGameCacheSize`;
+- `clearFindGameCache`;
+- `fetchGameStatus`;
+- `buildSteamPriceEmbed`.
 
 ### `src/features/commands/slashCommands.js`
 
@@ -358,20 +378,7 @@ Functii:
 
 ### `src/features/commands/interactions.js`
 
-Functii principale:
-
-- `handlePingInteraction`;
-- `handleGamesInteraction`;
-- `handleHelpInteraction`;
-- `handleStartInteraction`;
-- `handleStopInteraction`;
-- `handleSetInteraction`;
-- `handleLatestInteraction`;
-- `handleDlcInteraction`;
-- `handleStatusInteraction`;
-- `handleAutocomplete`;
-- `buildHelpEmbed`;
-- `handleInteraction`.
+Proceseaza slash commands si autocomplete.
 
 ## Notifications
 
@@ -379,33 +386,33 @@ Functii principale:
 
 Update-uri:
 
-- `claimSeenUpdate(guildId, channelId, gameKey, updateId)`;
-- `rollbackSeenUpdate(guildId, gameKey, updateId)`;
-- `disableUpdatesForChannelError(guildId, channelId, message)`;
-- `processGuildUpdates(client, guild, latestResults)`;
-- `buildOptimizedGameList(allGames, subscribedGuilds)`;
-- `checkForUpdates(client, games, shouldAbort)`.
+- `claimSeenUpdate`;
+- `rollbackSeenUpdate`;
+- `disableUpdatesForChannelError`;
+- `processGuildUpdates`;
+- `buildOptimizedGameList`;
+- `checkForUpdates`.
 
 Reducerile:
 
-- `claimSeenDiscount(guildId, channelId, hash)`;
-- `rollbackSeenDiscount(guildId, hash)`;
-- `disableDiscountsForChannelError(guildId, channelId, message)`;
-- `processGuildDiscounts(client, guild, deals)`;
-- `checkForDiscounts(client, shouldAbort)`.
+- `claimSeenDiscount`;
+- `rollbackSeenDiscount`;
+- `disableDiscountsForChannelError`;
+- `processGuildDiscounts`;
+- `checkForDiscounts`.
 
-Atentie: acest fisier este sensibil. Nu se elimina claim atomic, rollback, pending queues, seen arrays, activation guards sau limita per ciclu.
+Atentie: nu se elimina claim atomic, rollback, pending queues, seen arrays, activation guards sau limita per ciclu.
 
 ## Scripts si teste
 
 ### `src/scripts/check-config.js`
 
-Valideaza `config.json` fara sa porneasca bot-ul.
+Valideaza `config.json`. Este dist-aware: din `dist/scripts` gaseste `src/config.json`.
 
 ### `src/scripts/check-syntax.js`
 
-Ruleaza `node --check` pe fisierele `.js`.
+Ruleaza `node --check` pe fisierele `.js` sursa si ignora `dist/`.
 
 ### `src/test/*`
 
-Acopera validare config, regresii pentru comenzi/notificari si testele functionale pentru hashing, parsing, fuzzy matching, `safeCheerioLoad` si optimizarea cronului.
+Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad` si optimizarea cronului.
