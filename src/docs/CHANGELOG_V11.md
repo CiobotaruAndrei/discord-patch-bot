@@ -16,6 +16,7 @@ Acest document vine din fisierele locale din `Discord bot` si noteaza ce a fost 
 - A fost adaugat un sistem simplu de migrari DB la pornire.
 - A fost adaugata schema JSON pentru `config.json`.
 - Au fost adaugate teste functionale pentru noile zone sensibile.
+- Testul de fuzzy matching pentru cazul "doar sugestie" foloseste acum un typo cu distanta reala mai mare de 1, ca sa nu contrazica regula de match direct pentru typo-uri foarte apropiate.
 
 ## TypeScript gradual
 
