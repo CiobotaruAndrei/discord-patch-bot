@@ -5,8 +5,8 @@ module.exports = (ctx) => {
     logger, getCurrencyConfig, formatPrice, STEAM_REVIEW_BATCH_SIZE,
     STEAM_REVIEW_BATCH_DELAY_MS, ENRICHED_DEAL_CACHE_TTL_MS,
     ENRICHED_DEAL_CACHE_MAX_SIZE, STEAM_SPECIALS_LIMIT, EPIC_SPECIALS_LIMIT,
-    MAX_DEALS, httpReq, safeCheerioLoad, cleanText, normalizeTitleForDedupe,
-    trackInflight, withInflightTimeout
+    MAX_DEALS, httpReq, normalizeTitleForDedupe,
+    trackInflight, withInflightTimeout, extractOfferEndFromHtml
   } = ctx;
 
 async function fetchSteamReviewData(appId) {
@@ -81,7 +81,7 @@ async function enrichDealData(deal, currencyCode) {
   const existing = activeEnrichments.get(inflightKey);
   if (existing) return existing;
 
-  const enrichTask = (async () => {
+  const enrichTask = withInflightTimeout((async () => {
     const enriched = { ...deal };
     if (enriched.store === "Steam" && enriched.steamAppID) {
       const cfg = getCurrencyConfig(currency);
@@ -109,8 +109,8 @@ async function enrichDealData(deal, currencyCode) {
             + `\n**Platforme:** ${[data.platforms.windows ? "Win" : "", data.platforms.mac ? "Mac" : "", data.platforms.linux ? "Lin" : ""].filter(Boolean).join(", ")}`;
         }
         if (htmlRes?.data) {
-          const match = htmlRes.data.match(/Offer ends\s+([^<]+)/i);
-          if (match && match[1]) enriched.endDateStr = match[1].trim();
+          const end = extractOfferEndFromHtml(String(htmlRes.data));
+          if (end) enriched.endDateStr = end;
         }
       } catch (e) {
         logger("WARN", "STEAM_ENRICH", `Eroare enrich oferta Steam appID ${enriched.steamAppID}`, e.message);
@@ -119,7 +119,7 @@ async function enrichDealData(deal, currencyCode) {
     enriched.enriched = true;
     enrichCacheSet(deal.id, enriched, currency);
     return enriched;
-  })();
+  })(), `enrichDealData(${deal.id})`);
 
   activeEnrichments.set(inflightKey, enrichTask);
   try {
