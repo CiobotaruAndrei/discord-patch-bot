@@ -85,7 +85,8 @@ test("Mongo retry wraps atomic notification claims", () => {
 test("deals currency cache is LRU bounded", () => {
   assert.match(commandsSource, /DEALS_CURRENCY_CACHE_MAX_SIZE/);
   assert.match(commandsSource, /evictLRU\(cache\.dealsByCurrency/);
-  assert.match(commandsSource, /cache\.dealsByCurrency\.delete\(normalized\)/);
+  assert.match(commandsSource, /cache\.dealsByCurrency\.delete\(key\)/);
+  assert.match(commandsSource, /cache\.dealsByCurrency\.set\(key, entry\)/);
 });
 
 test("cron health backoff is exposed", () => {
