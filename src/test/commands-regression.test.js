@@ -98,6 +98,14 @@ test("cron health backoff is exposed", () => {
   assert.match(runtimeSource, /cronHealth = cronController\.getHealthSnapshot\(\)/);
 });
 
+test("cron lock acquisition errors are contained", () => {
+  assert.match(runtimeSource, /lockAttemptStart/);
+  assert.match(runtimeSource, /Nu am putut obtine lock-ul cron/);
+  assert.match(runtimeSource, /cron:lock/);
+  assert.match(runtimeSource, /recordHealth\(false/);
+  assert.match(runtimeSource, /scheduleNextCron\(\)/);
+});
+
 test("cron abort signal reaches HTTP requests", () => {
   assert.match(runtimeSource, /abortSignal: currentCronAbortController\.signal/);
   assert.match(runtimeSource, /function getAbortSignal/);

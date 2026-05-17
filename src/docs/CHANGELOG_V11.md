@@ -18,6 +18,12 @@ Acest document vine din fisierele locale din `Discord bot` si noteaza ce a fost 
 - Au fost adaugate teste functionale pentru noile zone sensibile.
 - Testul de fuzzy matching pentru cazul "doar sugestie" foloseste acum un typo cu distanta reala mai mare de 1, ca sa nu contrazica regula de match direct pentru typo-uri foarte apropiate.
 
+## Bug fix-uri gasite la recitire
+
+- `runCronCycle` prinde acum erorile aruncate de `acquireDbLock`. Inainte, daca Mongo arunca inainte de intrarea in blocul principal, cron-ul putea iesi fara sa programeze urmatorul ciclu.
+- Eroarea de lock este contorizata in `cronErrors`, trece prin health window si trimite alert separat cu cheia `cron:lock`.
+- Testele de regresie verifica faptul ca eroarea de lock ramane izolata si cron-ul programeaza urmatorul run.
+
 ## Portari noi din fisierele locale
 
 - `DEALS_CURRENCY_CACHE_MAX_SIZE` limiteaza cache-ul de reduceri pe valute si foloseste LRU, ca botul sa nu tina nelimitat valute rare in memorie.
@@ -34,7 +40,8 @@ Am inceput migrarea reala la TypeScript acolo unde merita cel mai mult:
 
 - `src/config/configValidator.js` a devenit `src/config/configValidator.ts`;
 - `src/shared/errors.js` a devenit `src/shared/errors.ts`;
-- `src/types.ts` a fost extins cu env-urile si metricile noi folosite de protectiile portate;
+- `src/app/scheduler/cron.js` a devenit `src/app/scheduler/cron.ts`, pentru ca este o zona critica: lock distribuit, heartbeat, abort si health backoff;
+- `src/types.ts` a fost extins cu env-urile, metricile, `CronHealthSnapshot` si `CronController`;
 - build-ul TypeScript genereaza runtime-ul in `src/dist/`;
 - `npm start`, `npm test`, `npm run check:config` si `npm run check` folosesc output-ul compilat;
 - `check-syntax` ignora `dist/`, ca sa nu verifice de doua ori fisiere generate;

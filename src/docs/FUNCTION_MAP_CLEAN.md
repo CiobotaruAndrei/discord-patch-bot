@@ -108,7 +108,9 @@ Comportament:
 - `/health` si `/healthz` returneaza starea Mongo, Discord, uptime si `cronHealth` cand este disponibil;
 - `/metrics` include `bot_cron_skipped_due_to_health` pe langa metricile existente.
 
-### `src/app/scheduler/cron.js`
+### `src/app/scheduler/cron.ts`
+
+Rol: controller TypeScript pentru cron-ul automat.
 
 Functii:
 
@@ -126,7 +128,12 @@ Comportament:
 - foloseste lock distribuit si heartbeat;
 - pune `abortSignal` in `requestContext` pentru request-uri HTTP anulabile;
 - sare un ciclu cand fereastra globala de health scade sub prag;
+- prinde erorile de `acquireDbLock`, le contorizeaza, le adauga in health window si programeaza urmatorul ciclu;
 - expune snapshot-ul de health pentru endpoint-ul HTTP.
+
+Tipuri:
+
+- foloseste `RuntimeEnv`, `BotConfig`, `BotMetrics`, `GameConfig`, `CronController` si `CronHealthSnapshot` din `src/types.ts`.
 
 ### `src/app/scheduler/housekeeping.js`
 
@@ -476,4 +483,4 @@ Ruleaza `node --check` pe fisierele `.js` sursa si ignora `dist/`.
 
 ### `src/test/*`
 
-Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad`, optimizarea cronului si protectiile portate din codul local.
+Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad`, optimizarea cronului, conversia cronului critic la TypeScript si protectiile portate din codul local.

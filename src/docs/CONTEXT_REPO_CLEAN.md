@@ -10,6 +10,7 @@ Proiectul ruleaza pe Node.js si foloseste CommonJS la runtime-ul compilat. Codul
 - modulele unde tiparea aduce siguranta reala sunt scrise in TypeScript;
 - `src/config/configValidator.ts` valideaza config-ul cu Zod;
 - `src/shared/errors.ts` contine helper-ele comune pentru erori;
+- `src/app/scheduler/cron.ts` controleaza cron-ul critic cu tipuri explicite;
 - `src/types.ts` pastreaza tipurile de domeniu si este folosit inclusiv de JSDoc-ul din modulele JavaScript;
 - `npm start` compileaza cu TypeScript si porneste `dist/app/main.js`.
 
@@ -39,6 +40,7 @@ src/
     health/
     lifecycle/
     scheduler/
+      cron.ts
   config/
     configLoader.js
     configValidator.ts
@@ -76,7 +78,7 @@ Flow-ul:
 4. creeaza clientul Discord;
 5. creeaza rate limiter-ul HTTP;
 6. creeaza housekeeping-ul;
-7. creeaza cron controller-ul;
+7. creeaza cron controller-ul TypeScript;
 8. creeaza serverul HTTP de health/metrics si ii da acces la starea cron;
 9. creeaza controller-ul de shutdown;
 10. inregistreaza evenimente Discord si MongoDB;
@@ -95,8 +97,9 @@ TypeScript este folosit gradual. Regula curenta:
 - fisierele runtime mari raman JavaScript pana cand pot fi impartite/convertite fara risc;
 - orice fisier `.ts` folosit de runtime trebuie sa mearga prin build, nu direct prin Node;
 - importurile JSDoc din fisierele `.js` trebuie sa indice corect catre `src/types.ts`, pentru ca `npm run typecheck` le valideaza;
-- `src/types.ts` trebuie actualizat cand se adauga env-uri, metrici sau optiuni folosite de modulele JavaScript;
+- `src/types.ts` trebuie actualizat cand se adauga env-uri, metrici, controllere sau optiuni folosite de modulele JavaScript;
 - `configValidator.ts` pastreaza accesul la erorile Zod intr-o forma tipata explicit, ca `safeParse` sa fie compatibil cu typecheck-ul curent;
+- `src/app/scheduler/cron.ts` este TypeScript fiindca gestioneaza lock distribuit, heartbeat, abort signal si health backoff;
 - `package.json` ruleaza build inainte de `start`, `test` si `check:config`.
 
 Scripturi importante:
@@ -232,6 +235,8 @@ Endpoint-uri:
 
 `/health` include `cronHealth` cand serverul primeste cron controller-ul. Cron-ul calculeaza rata de succes pe o fereastra scurta si poate sari un ciclu daca rata scade sub `GLOBAL_HEALTH_MIN_RATIO`.
 
+Cron-ul prinde si erorile aparute la obtinerea lock-ului. Acestea cresc `cronErrors`, intra in health window, trimit alerta `cron:lock` si programeaza urmatorul ciclu in loc sa opreasca scheduler-ul.
+
 `/metrics` expune metrici Prometheus-like si trebuie protejat in production. Contorul `bot_cron_skipped_due_to_health` arata cate cicluri au fost sarite din cauza backoff-ului global.
 
 ## Teste si scripturi
@@ -244,7 +249,7 @@ Scripturi:
 Teste importante:
 
 - regresii pentru comenzi si notificari;
-- protectiile portate din codul local: retry Mongo, coduri Discord permanente, cache LRU pe valute, cron health si abort signal HTTP;
+- protectiile portate din codul local: retry Mongo, coduri Discord permanente, cache LRU pe valute, cron health, abort signal HTTP si eroare la lock cron;
 - validare config;
 - hashing reduceri;
 - fuzzy matching jocuri;
