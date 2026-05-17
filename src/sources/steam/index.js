@@ -79,6 +79,35 @@ async function fetchSteamPriceDetails(appId, currencyCode) {
   return detailsRes.data[appId]?.data || null;
 }
 
+function extractOfferEndFromHtml(html) {
+  try {
+    const $ = safeCheerioLoad(html);
+    const cdText = $(".game_purchase_discount_countdown").first().text().trim();
+    if (cdText) {
+      const match = cdText.match(/(?:Offer|Sale|Special\s+promotion)\s+ends\s+([^<\n]+)/i)
+        || cdText.match(/Daily\s+Deal!?\s*Offer\s+ends\s+([^<\n]+)/i);
+      if (match && match[1]) return match[1].trim().slice(0, 200).replace(/\s{2,}/g, " ");
+    }
+
+    const bodyText = $("body").text();
+    const candidates = [
+      /Offer ends\s+([^<\n]+)/i,
+      /Sale ends\s+([^<\n]+)/i,
+      /Special promotion ends\s+([^<\n]+)/i,
+      /Daily Deal!?\s*Offer ends\s+([^<\n]+)/i
+    ];
+    for (const re of candidates) {
+      const match = bodyText.match(re);
+      if (match && match[1]) return match[1].trim().slice(0, 200).replace(/\s{2,}/g, " ");
+    }
+  } catch {
+    // Fallback to raw HTML regex below.
+  }
+
+  const rawMatch = String(html || "").match(/Offer ends\s+([^<\n]+)/i);
+  return rawMatch && rawMatch[1] ? rawMatch[1].trim().slice(0, 200) : null;
+}
+
 // V9: primește currency-ul pentru a cere pagina HTML în regiunea corectă.
 // Steam returnează formatul "Offer ends ..." în limba/regiunea cerută, deci fără
 // cc=RO un guild pe RON parsa rezultatul englez în locul celui așteptat.
@@ -89,8 +118,7 @@ async function extractSteamOfferEndDate(appId, currencyCode) {
       `https://store.steampowered.com/app/${appId}?cc=${cc}&l=english`, {
       headers: { "Cookie": "birthtime=283993201; mature_content=1;" }
     });
-    const match = htmlRes.data.match(/Offer ends\s+([^<]+)/i);
-    return match && match[1] ? match[1].trim() : null;
+    return extractOfferEndFromHtml(String(htmlRes.data));
   } catch (err) {
     logger("WARN", "PRICE_SEARCH", `Nu am putut extrage data expirării pentru app ${appId}`, err.message);
     return null;
@@ -102,6 +130,7 @@ async function extractSteamOfferEndDate(appId, currencyCode) {
     levenshtein,
     chooseBestSteamMatch,
     fetchSteamPriceDetails,
+    extractOfferEndFromHtml,
     extractSteamOfferEndDate
   });
 };
