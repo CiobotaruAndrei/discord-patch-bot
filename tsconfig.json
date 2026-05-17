@@ -18,7 +18,10 @@
   "include": [
     "*.ts",
     "*.d.ts",
+    "src/**/*.ts",
+    "src/**/*.d.ts",
     "*.js",
+    "src/**/*.js",
     "scripts/**/*.js",
     "test/**/*.js"
   ],

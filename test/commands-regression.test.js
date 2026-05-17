@@ -6,7 +6,17 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const commandsSource = fs.readFileSync(path.join(__dirname, "..", "commands.js"), "utf8");
+const commandFiles = [
+  "src/commands/cache.js",
+  "src/commands/filters.js",
+  "src/commands/ui.js",
+  "src/commands/notifications.js",
+  "src/commands/slashCommands.js",
+  "src/commands/interactions.js"
+];
+const commandsSource = commandFiles
+  .map(file => fs.readFileSync(path.join(__dirname, "..", file), "utf8"))
+  .join("\n");
 
 test("notification queues keep the duplicate-prevention guardrails", () => {
   assert.match(commandsSource, /async function claimSeenUpdate/);
