@@ -8,6 +8,7 @@ require("../../shared/env")(ctx);
 require("../../shared/utilities")(ctx);
 require("./models")(ctx);
 require("./locks")(ctx);
+require("./migrations")(ctx);
 require("./systemState")(ctx);
 require("./guildSettings")(ctx);
 require("./adminAlerts")(ctx);
@@ -28,6 +29,8 @@ module.exports = {
   renewDbLock: ctx.renewDbLock,
   releaseDbLock: ctx.releaseDbLock,
   activeLocks: ctx.activeLocks,
+  runMigrations: ctx.runMigrations,
+  ALL_MIGRATIONS: ctx.ALL_MIGRATIONS,
   getSystemTimes: ctx.getSystemTimes,
   saveSystemTimes: ctx.saveSystemTimes,
   getGuildSettings: ctx.getGuildSettings,
