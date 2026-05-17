@@ -1,11 +1,9 @@
 import type { IncomingMessage } from "http";
-import type { BotMetrics, RateLimitBucket, RuntimeEnv } from "../../types";
+import type { BotMetrics, RateLimitBucket, RateLimiter, RuntimeEnv } from "../../types";
 
-interface RateLimiter {
-  check(req: IncomingMessage): boolean;
-  prune(): void;
-  readonly size: number;
-  readonly retryAfterSeconds: number;
+function firstHeaderValue(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0] || null;
+  return value || null;
 }
 
 function createRateLimiter(env: RuntimeEnv, metrics: BotMetrics): RateLimiter {
@@ -16,8 +14,8 @@ function createRateLimiter(env: RuntimeEnv, metrics: BotMetrics): RateLimiter {
   const buckets = new Map<string, RateLimitBucket>();
 
   function getClientIp(req: IncomingMessage): string {
-    const fwd = req.headers["x-forwarded-for"];
-    if (typeof fwd === "string" && fwd.length > 0) return fwd.split(",")[0].trim();
+    const forwardedFor = firstHeaderValue(req.headers["x-forwarded-for"]);
+    if (forwardedFor) return forwardedFor.split(",")[0].trim() || "unknown";
     return req.socket?.remoteAddress || "unknown";
   }
 
@@ -69,5 +67,4 @@ function createRateLimiter(env: RuntimeEnv, metrics: BotMetrics): RateLimiter {
   };
 }
 
-export { createRateLimiter };
-export type { RateLimiter };
+export { createRateLimiter, firstHeaderValue };
