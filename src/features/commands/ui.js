@@ -159,13 +159,46 @@ async function handlePagination(interactionMessage, authorId, prefix, items, ite
   });
 }
 
+const FIND_GAME_CACHE_MAX = 200;
+const findGameCache = new Map();
+const findGameCacheGuard = { hash: "", gamesRef: null };
+
+function gamesHashKey(games) {
+  if (findGameCacheGuard.gamesRef === games && findGameCacheGuard.hash) {
+    return findGameCacheGuard.hash;
+  }
+  const hash = games.map(game => String(game.key)).join("|");
+  findGameCacheGuard.hash = hash;
+  findGameCacheGuard.gamesRef = games;
+  return hash;
+}
+
+function rememberFindGameResult(cacheKey, result) {
+  if (findGameCache.size >= FIND_GAME_CACHE_MAX) {
+    const oldest = findGameCache.keys().next().value;
+    if (oldest !== undefined) findGameCache.delete(oldest);
+  }
+  findGameCache.set(cacheKey, result);
+  return result;
+}
+
 function findGameAndSuggestion(text, games) {
   let search = String(text || "").toLowerCase().replace(/[-_]/g, " ").trim();
   if (search.length > MAX_FUZZY_SEARCH_INPUT) search = search.substring(0, MAX_FUZZY_SEARCH_INPUT);
+
+  const cacheKey = `${gamesHashKey(games)}::${search}`;
+  const cached = findGameCache.get(cacheKey);
+  if (cached !== undefined) {
+    findGameCache.delete(cacheKey);
+    findGameCache.set(cacheKey, cached);
+    return cached;
+  }
+
   if (search.length < 2) {
     const exact = games.find(g => String(g.key).toLowerCase() === search);
-    return { game: exact || null, suggestion: null };
+    return rememberFindGameResult(cacheKey, { game: exact || null, suggestion: null });
   }
+
   const candidates = [];
   for (const game of games) {
     const identifiers = [
@@ -173,7 +206,7 @@ function findGameAndSuggestion(text, games) {
       String(game.name).toLowerCase().replace(/[-_]/g, " "),
       ...(Array.isArray(game.aliases) ? game.aliases.map(a => String(a).toLowerCase().replace(/[-_]/g, " ")) : [])
     ];
-    if (identifiers.includes(search)) return { game, suggestion: null };
+    if (identifiers.includes(search)) return rememberFindGameResult(cacheKey, { game, suggestion: null });
     let bestDistForGame = Infinity;
     let isStartsWith = false;
     let isIncludes = false;
@@ -191,11 +224,23 @@ function findGameAndSuggestion(text, games) {
     return 0;
   });
   const best = candidates[0];
-  if (!best) return { game: null, suggestion: null };
+  if (!best) return rememberFindGameResult(cacheKey, { game: null, suggestion: null });
   const dynamicThreshold = Math.max(1, Math.floor(search.length * 0.3));
-  if (best.dist <= 1) return { game: best.game, suggestion: null };
-  if (best.dist <= dynamicThreshold || best.isStartsWith || best.isIncludes) return { game: null, suggestion: best.game };
-  return { game: null, suggestion: null };
+  if (best.dist <= 1) return rememberFindGameResult(cacheKey, { game: best.game, suggestion: null });
+  if (best.dist <= dynamicThreshold || best.isStartsWith || best.isIncludes) {
+    return rememberFindGameResult(cacheKey, { game: null, suggestion: best.game });
+  }
+  return rememberFindGameResult(cacheKey, { game: null, suggestion: null });
+}
+
+function getFindGameCacheSize() {
+  return findGameCache.size;
+}
+
+function clearFindGameCache() {
+  findGameCache.clear();
+  findGameCacheGuard.hash = "";
+  findGameCacheGuard.gamesRef = null;
 }
 
 async function fetchGameStatus(game) {
@@ -291,6 +336,8 @@ function buildSteamPriceEmbed(gameData, appId, offerEndDate, currency) {
     buildPaginationButtons,
     handlePagination,
     findGameAndSuggestion,
+    getFindGameCacheSize,
+    clearFindGameCache,
     fetchGameStatus,
     buildSteamPriceEmbed
   });
