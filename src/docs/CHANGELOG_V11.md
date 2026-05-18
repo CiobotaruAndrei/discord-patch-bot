@@ -24,6 +24,7 @@ Acest document noteaza ce a fost pastrat din fisierele locale si cum a fost orga
 - `runCronCycle` prinde acum erorile aruncate de `acquireDbLock` si programeaza urmatorul ciclu.
 - Eroarea de lock intra in `cronErrors`, health window si alerta `cron:lock`.
 - `createRateLimiter` citeste `x-forwarded-for` si cand Node il primeste ca array.
+- Conversia `interactions.ts` a prins un bug real: `/status` folosea `fetchGameStatus` fara sa fie disponibil in scope. `src/features/commands/index.ts` il expune temporar prin `globalThis` pentru codul legacy convertit.
 - Testele de regresie verifica protectiile pentru lock, abort signal, health, notificari, cache si surse.
 
 ## TypeScript complet pe sursa
@@ -58,6 +59,8 @@ Conversii facute in acest pas:
 Schimbari de build:
 
 - `src/tsconfig.json` foloseste `moduleDetection: force`, ca fisierele TypeScript fara import explicit sa fie tratate ca module si sa nu polueze scope-ul global.
+- `src/legacy-dynamic.d.ts` pastreaza compatibilitatea pentru cateva obiecte legacy construite dinamic in fisierele mari convertite. Este o masura temporara de migrare, nu un model de urmat pentru cod nou.
+- `src/sources/index.ts` expune si exporturi TypeScript pentru helper-ele folosite de testele existente.
 - `npm run check:syntax` ruleaza scriptul compilat din `dist/scripts/check-syntax.js`.
 - `npm start`, `npm test`, `npm run check:config` si `npm run check` continua sa foloseasca output-ul compilat.
 
