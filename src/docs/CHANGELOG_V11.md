@@ -69,6 +69,7 @@ Corectie finala dupa ce CI a aratat ca mai ramasesera 5 fisiere JavaScript de te
 Primul pas Rust este limitat la algoritmi puri de text, unde poate ajuta fara sa atinga Discord, Mongo sau HTTP:
 
 - `src/native/src/lib.rs` implementeaza in Rust `levenshtein` si un helper bulk pentru fuzzy matching.
+- `src/native/package.json` da metadata N-API pentru build-ul addon-ului.
 - `src/native/fuzzy.ts` este puntea TypeScript catre addon-ul nativ si are fallback TypeScript pentru dezvoltare locala cand binarul lipseste.
 - `src/sources/steam/index.ts` foloseste `levenshtein` din `src/native/fuzzy.ts`, deci alegerea celui mai bun rezultat Steam si fuzzy matching-ul din comenzi primesc nucleul Rust prin contextul comun.
 - `src/test/rustFuzzy.test.ts` verifica explicit ca addon-ul Rust este incarcat in CI.
@@ -79,10 +80,10 @@ Nu am mutat in Rust zonele de Discord, Mongo, HTTP sau parsare HTML in acest pas
 
 - `src/tsconfig.json` foloseste `moduleDetection: force`, ca fisierele TypeScript fara import explicit sa fie tratate ca module si sa nu polueze scope-ul global.
 - `src/tsconfig.json` are `allowJs: false` si nu mai include `**/*.js`, ca sursa editabila sa fie TypeScript.
-- `src/scripts/check-syntax.ts` pica CI-ul daca mai exista fisiere `.js` in sursa `src` in afara de output-ul ignorat din `dist`.
+- `src/scripts/check-syntax.ts` pica CI-ul daca mai exista fisiere `.js` in sursa `src`, dar ignora `dist` si loader-ul N-API generat `native/index.js`.
 - `src/package.json` are `build:rust`, `build:ts` si `build`, iar `npm run check` compileaza addon-ul Rust inainte de testare.
 - `.github/workflows/ci.yml` instaleaza toolchain-ul Rust inainte de `npm install` si `npm run check`.
-- `src/.gitignore` ignora output-ul generat: `dist/`, `node_modules/`, `native/target/` si fisierele native `.node`.
+- `src/.gitignore` ignora output-ul generat: `dist/`, `node_modules/`, `native/target/`, fisierele native `.node`, `native/index.js` si `native/index.d.ts`.
 - `src/legacy-dynamic.d.ts` pastreaza compatibilitatea pentru cateva obiecte legacy construite dinamic in fisierele mari convertite. Este o masura temporara de migrare, nu un model de urmat pentru cod nou.
 - `src/sources/index.ts` expune si exporturi TypeScript pentru helper-ele folosite de testele existente.
 
