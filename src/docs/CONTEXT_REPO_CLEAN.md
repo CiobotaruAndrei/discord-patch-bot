@@ -86,6 +86,7 @@ src/
     dealHash.test.ts
     extractOfferEndFromHtml.test.ts
     findGameAndSuggestion.test.ts
+    resolveOutboundChannel.test.ts
     rustFuzzy.test.ts
     safeCheerioLoad.test.ts
   docs/
@@ -280,7 +281,8 @@ Testele sunt TypeScript:
 - `src/test/extractOfferEndFromHtml.test.ts` verifica parser-ul datelor de expirare Steam;
 - `src/test/findGameAndSuggestion.test.ts` verifica fuzzy matching-ul si cache-ul pentru jocuri;
 - `src/test/rustFuzzy.test.ts` verifica faptul ca addon-ul Rust este incarcat, ca fuzzy matching-ul merge si ca hash-urile/normalizarile Rust pastreaza contractul existent;
-- `src/test/safeCheerioLoad.test.ts` verifica taierea sigura a HTML-ului mare.
+- `src/test/safeCheerioLoad.test.ts` verifica taierea sigura a HTML-ului mare;
+- `src/test/resolveOutboundChannel.test.ts` verifica comportamental ca erorile Discord permanente dezactiveaza canalul, iar cele tranzitorii (rate limit, 5xx, network) sar ciclul fara sa dezactiveze guild-ul.
 
 ## GitHub Actions
 
