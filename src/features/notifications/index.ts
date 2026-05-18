@@ -23,6 +23,44 @@ function isPermanentDiscordError(err) {
   return DISCORD_PERMANENT_ERROR_CODES.has(Number(err?.code));
 }
 
+function transientErrorMessage(err) {
+  return err && typeof err === "object" && typeof err.message === "string"
+    ? err.message
+    : String(err);
+}
+
+// V11: distingem erorile permanente (canal sters / fara acces / fara permisiuni
+// / tip de canal gresit) de cele tranzitorii (rate limit Discord, 5xx, timeout
+// retea). Pe tranzitoriu sarim ciclul, NU dezactivam guild-ul.
+async function resolveOutboundChannel({ client, guild, channelId, context, disableFn }) {
+  let channel = null;
+  try {
+    channel = await client.channels.fetch(channelId);
+  } catch (err) {
+    if (isPermanentDiscordError(err)) {
+      const reason = `Discord cod ${err.code}: ${err.message}`;
+      await disableFn(String(guild._id), channelId, reason).catch(() => null);
+      logger("WARN", context, `Disable pentru guild ${guild._id} - eroare permanenta la fetch canal`, reason);
+      return { channel: null, abort: true };
+    }
+    logger("WARN", context, `Eroare tranzitorie la fetch canal pentru guild ${guild._id}, sar peste ciclu`, transientErrorMessage(err));
+    return { channel: null, abort: true };
+  }
+  if (!channel) {
+    const reason = "Canal inexistent (probabil sters).";
+    await disableFn(String(guild._id), channelId, reason).catch(() => null);
+    logger("WARN", context, `Disable pentru guild ${guild._id} - ${reason}`);
+    return { channel: null, abort: true };
+  }
+  if (!canSendEmbeds(channel, client.user.id)) {
+    const message = "Canal invalid sau fara permisiuni Send Messages/Embed Links.";
+    await disableFn(String(guild._id), channelId, message).catch(() => null);
+    logger("WARN", context, `${message} Guild ${guild._id}`);
+    return { channel: null, abort: true };
+  }
+  return { channel, abort: false };
+}
+
 async function claimSeenUpdate(guildId, channelId, gameKey, updateId) {
   return withMongoRetry(() => GuildModel.updateOne(
     {
@@ -65,13 +103,14 @@ async function disableUpdatesForChannelError(guildId, channelId, message) {
 
 // V9: filtrăm per joc + mențiune rol pe prima trimitere doar.
 async function processGuildUpdates(client, guild, latestResults) {
-  const channel = await client.channels.fetch(guild.notificationChannelId).catch(() => null);
-  if (!canSendEmbeds(channel, client.user.id)) {
-    const message = "Canal invalid sau fara permisiuni Send Messages/Embed Links.";
-    await disableUpdatesForChannelError(String(guild._id), guild.notificationChannelId, message).catch(() => null);
-    logger("WARN", "CRON_UPDATES", `${message} Guild ${guild._id}`);
-    return;
-  }
+  const { channel, abort } = await resolveOutboundChannel({
+    client,
+    guild,
+    channelId: guild.notificationChannelId,
+    context: "CRON_UPDATES",
+    disableFn: disableUpdatesForChannelError
+  });
+  if (abort) return;
 
   // V9: dacă guild-ul are listă explicită de jocuri active, filtrăm.
   const enabledGames = Array.isArray(guild.enabledGames) ? guild.enabledGames : [];
@@ -249,13 +288,14 @@ async function disableDiscountsForChannelError(guildId, channelId, message) {
 
 // V9: mențiune rol pe prima trimitere doar.
 async function processGuildDiscounts(client, guild, deals) {
-  const channel = await client.channels.fetch(guild.discountChannelId).catch(() => null);
-  if (!canSendEmbeds(channel, client.user.id)) {
-    const message = "Canal invalid sau fara permisiuni Send Messages/Embed Links.";
-    await disableDiscountsForChannelError(String(guild._id), guild.discountChannelId, message).catch(() => null);
-    logger("WARN", "CRON_DISCOUNTS", `${message} Guild ${guild._id}`);
-    return;
-  }
+  const { channel, abort } = await resolveOutboundChannel({
+    client,
+    guild,
+    channelId: guild.discountChannelId,
+    context: "CRON_DISCOUNTS",
+    disableFn: disableDiscountsForChannelError
+  });
+  if (abort) return;
 
   const seenSet = new Set(Array.isArray(guild.seenDiscounts) ? guild.seenDiscounts.map(String) : []);
   const dealsByHash = new Map(deals.map(deal => [dealHash(deal), deal]));
