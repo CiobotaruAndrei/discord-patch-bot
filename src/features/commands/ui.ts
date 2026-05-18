@@ -1,4 +1,5 @@
 import type { DealInfo, GameConfig, NormalizedUpdate, NotificationMode } from "../../types";
+import { findGameKeys } from "../../native/fuzzy";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, endExtra?: Record<string, unknown>) => void;
@@ -26,7 +27,6 @@ type CommandUiContext = {
   formatPrice(value: unknown, currencyCode?: string): string;
   COLLECTOR_TIMEOUT_MS: number;
   MAX_FUZZY_SEARCH_INPUT: number;
-  levenshtein(a: string, b: string): number;
   httpReq(method: string, url: string, options?: Record<string, unknown>): Promise<any>;
   [key: string]: unknown;
 };
@@ -40,7 +40,7 @@ function attachCommandUi(ctx: CommandUiContext): void {
     crypto, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
     ComponentType, MessageFlags, logger, checkUserCooldown, COLORS,
     truncate, DEFAULT_CURRENCY, formatPrice, COLLECTOR_TIMEOUT_MS,
-    MAX_FUZZY_SEARCH_INPUT, levenshtein, httpReq
+    MAX_FUZZY_SEARCH_INPUT, httpReq
   } = ctx;
 
 async function enforceCooldown(interaction: any, command: string): Promise<boolean> {
@@ -204,15 +204,22 @@ async function handlePagination(
 
 const FIND_GAME_CACHE_MAX = 200;
 const findGameCache = new Map<string, FindGameResult>();
-const findGameCacheGuard: { hash: string; gamesRef: GameConfig[] | null } = { hash: "", gamesRef: null };
+const findGameCacheGuard: {
+  hash: string;
+  gamesRef: GameConfig[] | null;
+  gamesByKey: Map<string, GameConfig>;
+} = { hash: "", gamesRef: null, gamesByKey: new Map() };
 
-function gamesHashKey(games: GameConfig[]): string {
+function refreshGuard(games: GameConfig[]): string {
   if (findGameCacheGuard.gamesRef === games && findGameCacheGuard.hash) {
     return findGameCacheGuard.hash;
   }
   const hash = games.map(game => String(game.key)).join("|");
+  const byKey = new Map<string, GameConfig>();
+  for (const game of games) byKey.set(String(game.key), game);
   findGameCacheGuard.hash = hash;
   findGameCacheGuard.gamesRef = games;
+  findGameCacheGuard.gamesByKey = byKey;
   return hash;
 }
 
@@ -226,10 +233,9 @@ function rememberFindGameResult(cacheKey: string, result: FindGameResult): FindG
 }
 
 function findGameAndSuggestion(text: unknown, games: GameConfig[]): FindGameResult {
-  let search = String(text || "").toLowerCase().replace(/[-_]/g, " ").trim();
-  if (search.length > MAX_FUZZY_SEARCH_INPUT) search = search.substring(0, MAX_FUZZY_SEARCH_INPUT);
-
-  const cacheKey = `${gamesHashKey(games)}::${search}`;
+  const hash = refreshGuard(games);
+  const search = String(text || "").toLowerCase().replace(/[-_]/g, " ").trim().slice(0, MAX_FUZZY_SEARCH_INPUT);
+  const cacheKey = `${hash}::${search}`;
   const cached = findGameCache.get(cacheKey);
   if (cached !== undefined) {
     findGameCache.delete(cacheKey);
@@ -237,43 +243,13 @@ function findGameAndSuggestion(text: unknown, games: GameConfig[]): FindGameResu
     return cached;
   }
 
-  if (search.length < 2) {
-    const exact = games.find(g => String(g.key).toLowerCase() === search);
-    return rememberFindGameResult(cacheKey, { game: exact || null, suggestion: null });
-  }
-
-  const candidates: Array<{ game: GameConfig; dist: number; isStartsWith: boolean; isIncludes: boolean }> = [];
-  for (const game of games) {
-    const identifiers = [
-      String(game.key).toLowerCase().replace(/[-_]/g, " "),
-      String(game.name).toLowerCase().replace(/[-_]/g, " "),
-      ...(Array.isArray(game.aliases) ? game.aliases.map(a => String(a).toLowerCase().replace(/[-_]/g, " ")) : [])
-    ];
-    if (identifiers.includes(search)) return rememberFindGameResult(cacheKey, { game, suggestion: null });
-    let bestDistForGame = Infinity;
-    let isStartsWith = false;
-    let isIncludes = false;
-    for (const val of identifiers) {
-      if (val.startsWith(search)) isStartsWith = true;
-      if (val.includes(search)) isIncludes = true;
-      bestDistForGame = Math.min(bestDistForGame, levenshtein(search, val));
-    }
-    candidates.push({ game, dist: bestDistForGame, isStartsWith, isIncludes });
-  }
-  candidates.sort((a, b) => {
-    if (a.isStartsWith !== b.isStartsWith) return a.isStartsWith ? -1 : 1;
-    if (a.dist !== b.dist) return a.dist - b.dist;
-    if (a.isIncludes !== b.isIncludes) return a.isIncludes ? -1 : 1;
-    return 0;
-  });
-  const best = candidates[0];
-  if (!best) return rememberFindGameResult(cacheKey, { game: null, suggestion: null });
-  const dynamicThreshold = Math.max(1, Math.floor(search.length * 0.3));
-  if (best.dist <= 1) return rememberFindGameResult(cacheKey, { game: best.game, suggestion: null });
-  if (best.dist <= dynamicThreshold || best.isStartsWith || best.isIncludes) {
-    return rememberFindGameResult(cacheKey, { game: null, suggestion: best.game });
-  }
-  return rememberFindGameResult(cacheKey, { game: null, suggestion: null });
+  const { gameKey, suggestionKey } = findGameKeys(text, games, MAX_FUZZY_SEARCH_INPUT);
+  const lookup = findGameCacheGuard.gamesByKey;
+  const result: FindGameResult = {
+    game: gameKey ? lookup.get(gameKey) || null : null,
+    suggestion: suggestionKey ? lookup.get(suggestionKey) || null : null
+  };
+  return rememberFindGameResult(cacheKey, result);
 }
 
 function getFindGameCacheSize(): number {
@@ -284,6 +260,7 @@ function clearFindGameCache(): void {
   findGameCache.clear();
   findGameCacheGuard.hash = "";
   findGameCacheGuard.gamesRef = null;
+  findGameCacheGuard.gamesByKey = new Map();
 }
 
 async function fetchGameStatus(game: GameConfig): Promise<any> {
