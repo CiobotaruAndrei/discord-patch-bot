@@ -2,44 +2,13 @@
 
 ## Scopul proiectului
 
-Acest repo contine un bot Discord pentru notificari automate despre update-uri/patch notes la jocuri, reduceri Steam si Epic Games, preturi Steam, DLC-uri Steam, status servere si endpoint-uri de health/metrics.
+Repo-ul contine un bot Discord pentru notificari automate despre patch notes, update-uri de jocuri, reduceri Steam si Epic Games, preturi Steam, DLC-uri Steam, status servere si endpoint-uri de health/metrics.
 
-Proiectul ruleaza pe Node.js si foloseste CommonJS la runtime-ul compilat. Codul este mixt JavaScript + TypeScript:
-
-- modulele JavaScript raman in fisierele existente unde conversia ar fi riscanta sau inutila momentan;
-- modulele unde tiparea aduce siguranta reala sunt scrise in TypeScript;
-- `src/config/configValidator.ts` valideaza config-ul cu Zod;
-- `src/config/configLoader.ts` incarca config-ul si returneaza `config`, `games` si `configPath` tipate;
-- `src/shared/errors.ts`, `src/shared/logging.ts`, `src/shared/env.ts`, `src/shared/domain.ts` si `src/shared/utilities.ts` contin baza comuna pentru erori, logger, request context, env, valute, retry Mongo si utilitare;
-- `src/infra/http/client.ts` tine clientul HTTP comun, normalizarea text/update/deal, retry/backoff, proxy fallback si in-flight coalescing;
-- `src/infra/mongo/guildSettings.ts`, `src/infra/mongo/adminAlerts.ts`, `src/infra/mongo/systemState.ts` si `src/infra/mongo/migrations.ts` tin cache-ul de guild settings, alertele admin, state-ul global si migrarile DB;
-- `src/sources/steam/index.ts` tine helper-ele Steam pentru cautare, preturi, best match si parser-ul de expirare oferte;
-- `src/sources/deals/index.ts` tine reducerile Steam/Epic, review scoring, enrich cache si coalescing pentru fetch-uri de oferte;
-- `src/sources/updates/index.ts` tine fetch-ul de patch notes, scraping-ul listing-based, circuit breaker-ul si schema drift detection;
-- `src/app/scheduler/cron.ts` controleaza cron-ul critic cu tipuri explicite;
-- `src/app/scheduler/housekeeping.ts` controleaza cleanup-ul periodic;
-- `src/app/lifecycle/events.ts` si `src/app/lifecycle/shutdown.ts` tin event wiring-ul si oprirea controlata;
-- `src/app/health/metrics.ts`, `src/app/health/rateLimit.ts` si `src/app/health/httpServer.ts` tin health/metrics intr-o zona TypeScript coerenta;
-- `src/infra/mongo/locks.ts` gestioneaza lock-urile distribuite folosite de cron si migrari;
-- `src/domain/deals/filters.ts`, `src/features/commands/cache.ts`, `src/features/commands/ui.ts` si `src/features/commands/slashCommands.ts` sunt TypeScript pentru regulile de domeniu si comenzi;
-- `src/types.ts` pastreaza tipurile de domeniu si este folosit inclusiv de JSDoc-ul din modulele JavaScript;
-- `npm start` compileaza cu TypeScript si porneste `dist/app/main.js`.
-
-Rularea normala se face din `src/`:
-
-```bash
-npm start
-```
-
-Verificarea completa se face cu:
-
-```bash
-npm run check
-```
+Codul sursa editabil este in `src` si este TypeScript. JavaScript-ul apare dupa build in `src/dist/` si nu trebuie editat manual.
 
 ## Structura principala
 
-Aproape tot ce tine de proiect sta sub `src/`. Singura exceptie intentionata este workflow-ul GitHub Actions din `.github/workflows/ci.yml`, pentru ca GitHub ruleaza automat CI doar din acel folder special. Jobul CI lucreaza tot din `src/`.
+Aproape tot ce tine de proiect sta sub `src`. Singura exceptie intentionata este workflow-ul real de GitHub Actions din `.github/workflows/ci.yml`.
 
 ```text
 .github/
@@ -47,7 +16,7 @@ Aproape tot ce tine de proiect sta sub `src/`. Singura exceptie intentionata est
     ci.yml
 src/
   app/
-    main.js
+    main.ts
     health/
       metrics.ts
       rateLimit.ts
@@ -67,20 +36,27 @@ src/
   features/
     commands/
       cache.ts
-      ui.ts
+      index.ts
+      interactions.ts
       slashCommands.ts
-      interactions.js
+      ui.ts
     notifications/
+      index.ts
   infra/
     http/
       client.ts
     mongo/
       adminAlerts.ts
       guildSettings.ts
+      index.ts
       locks.ts
       migrations.ts
+      models.ts
+      runtime.ts
       systemState.ts
   scripts/
+    check-config.ts
+    check-syntax.ts
   shared/
     domain.ts
     env.ts
@@ -88,6 +64,8 @@ src/
     logging.ts
     utilities.ts
   sources/
+    index.ts
+    runtime.ts
     deals/
       index.ts
     steam/
@@ -95,6 +73,8 @@ src/
     updates/
       index.ts
   test/
+    commands-regression.test.ts
+    configValidator.test.ts
   docs/
   config.json
   config.schema.json
@@ -103,86 +83,69 @@ src/
   types.ts
 ```
 
-`dist/` este output de build si nu trebuie editat manual.
+`dist/` este output de build si nu se editeaza manual.
 
-## Flow de pornire
+## Rulare si verificare
 
-`src/app/main.js` ramane orchestrator. Dupa build, se executa ca `dist/app/main.js`.
+Rularea normala se face din `src`:
 
-Flow-ul:
+```bash
+npm start
+```
 
-1. `src/infra/mongo/index.js` construieste contextul comun, atasand `logging.ts`, `env.ts`, `domain.ts`, `utilities.ts`, modele, guild settings cache, state global, migrari, lock-uri si alerte;
-2. incarca si valideaza config-ul prin `loadConfig` si `validateConfig`;
-3. creeaza metricile;
-4. conecteaza metricile la surse;
-5. creeaza clientul Discord;
-6. creeaza rate limiter-ul HTTP TypeScript;
-7. creeaza housekeeping-ul TypeScript;
-8. creeaza cron controller-ul TypeScript;
-9. creeaza serverul HTTP TypeScript de health/metrics si ii da acces la starea cron;
-10. creeaza controller-ul TypeScript de shutdown;
-11. inregistreaza evenimente Discord si MongoDB prin lifecycle TypeScript;
-12. conecteaza MongoDB;
-13. ruleaza migrarile DB;
-14. porneste serverul HTTP;
-15. face login la Discord.
-
-Logica mare nu trebuie pusa direct in `main.js`.
-
-## TypeScript
-
-TypeScript este folosit gradual. Regula curenta:
-
-- conversia la `.ts` se face pentru module pure, critice sau usor de verificat;
-- fisierele runtime mari raman JavaScript pana cand pot fi impartite/convertite fara risc;
-- orice fisier `.ts` folosit de runtime trebuie sa mearga prin build, nu direct prin Node;
-- importurile JSDoc din fisierele `.js` trebuie sa indice corect catre `src/types.ts`, pentru ca `npm run typecheck` le valideaza;
-- `src/types.ts` trebuie actualizat cand se adauga env-uri, metrici, controllere, optiuni sau contracte intre module;
-- `configValidator.ts` pastreaza accesul la erorile Zod intr-o forma tipata explicit, ca `safeParse` sa fie compatibil cu typecheck-ul curent;
-- `configLoader.ts` descrie rezultatul de boot prin `ConfigLoadResult`;
-- `src/shared/logging.ts` descrie `LoggerFunction`, `ParseEnvNumber`, `RequestContextStore` si semnalul de abort curent;
-- `src/shared/env.ts` construieste obiectul `RuntimeEnv`, inclusiv placeholder handling pentru `METRICS_TOKEN`;
-- `src/shared/domain.ts` tipizeaza `SchemaDriftError`, valutele suportate, `getCurrencyConfig` si `formatPrice`;
-- `src/shared/utilities.ts` tipizeaza `runConcurrent`, `waitForMongoReady`, validarea snapshot-urilor pending si retry-ul Mongo pentru erori tranzitorii;
-- `src/infra/http/client.ts` este TypeScript fiindca este folosit de toate sursele externe si atinge retry HTTP, abort signal, limite de bytes, proxy fallback, hashing si in-flight coalescing;
-- `src/infra/mongo/guildSettings.ts` este TypeScript fiindca expune cache-ul de guild settings folosit de comenzi si housekeeping;
-- `src/infra/mongo/adminAlerts.ts` este TypeScript fiindca alertele admin folosesc cooldown atomic in Mongo si webhook extern;
-- `src/infra/mongo/systemState.ts` este TypeScript fiindca salveaza/citeste timpi globali folositi de runtime si trebuie sa respecte `SystemTimes`;
-- `src/infra/mongo/migrations.ts` este TypeScript fiindca ruleaza modificari idempotente in DB sub lock distribuit;
-- `src/sources/steam/index.ts` este TypeScript fiindca functiile de cautare Steam, preturi si parser HTML sunt folosite de comenzi si reduceri;
-- `src/sources/deals/index.ts` este TypeScript fiindca gestioneaza deal-uri Steam/Epic, review-uri, cache LRU de enrich si fetch coalescing;
-- `src/sources/updates/index.ts` este TypeScript fiindca aduna toate sursele de patch notes si controleaza circuit breaker-ul per joc;
-- `src/app/scheduler/cron.ts` este TypeScript fiindca gestioneaza lock distribuit, heartbeat, abort signal si health backoff;
-- `src/app/lifecycle/*.ts` este TypeScript fiindca orice greseala aici poate afecta event wiring-ul sau oprirea controlata;
-- `src/infra/mongo/locks.ts` este TypeScript fiindca gestioneaza lock token-uri si `activeLocks` folosite la shutdown;
-- `src/app/health/*.ts` este TypeScript fiindca endpoint-urile de health/metrics ating env, metrics, cron controller, rate limiter si dependinte externe;
-- `src/domain/deals/filters.ts`, `src/features/commands/cache.ts`, `src/features/commands/ui.ts` si `src/features/commands/slashCommands.ts` sunt TypeScript fiindca au reguli de business si cache-uri unde tipurile ajuta mult;
-- `package.json` ruleaza build inainte de `start`, `test` si `check:config`.
-
-Scripturi importante:
-
-- `npm run build`: compileaza in `dist/`;
-- `npm run typecheck`: ruleaza `tsc --noEmit`;
-- `npm test`: compileaza si ruleaza testele din `dist/test`;
-- `npm run check`: typecheck, build, syntax check, config check si teste.
-
-## GitHub Actions
-
-CI-ul real este in `.github/workflows/ci.yml`. Acesta este singurul fisier pastrat in afara `src`, deoarece GitHub Actions nu citeste workflow-uri din `src/.github/workflows`.
-
-Workflow-ul ruleaza pe push, pull request si pornire manuala din GitHub Actions. Foloseste Node.js 20, instaleaza dependintele in `src/` si executa:
+Verificarea completa se face cu:
 
 ```bash
 npm run check
 ```
 
-Copia veche din `src/.github/workflows/ci.yml` a fost stearsa ca sa nu existe doua surse de adevar.
+Scripturi importante:
 
-## Config
+- `npm run build`: compileaza TypeScript in `dist/`;
+- `npm run typecheck`: ruleaza `tsc --noEmit`;
+- `npm run check:syntax`: compileaza si ruleaza `dist/scripts/check-syntax.js`;
+- `npm run check:config`: compileaza si valideaza `config.json`;
+- `npm test`: compileaza si ruleaza testele din `dist/test`;
+- `npm run check`: ruleaza typecheck, build, syntax check, config check si teste.
 
-Config-ul runtime este in `src/config.json` si este incarcat de `src/config/configLoader.ts`, apoi validat in `src/config/configValidator.ts` cu Zod.
+## Flow de pornire
 
-Tipuri acceptate de jocuri/surse:
+`src/app/main.ts` este orchestratorul. Dupa build, se ruleaza ca `dist/app/main.js`.
+
+Flow-ul:
+
+1. `src/infra/mongo/index.ts` construieste contextul comun.
+2. Se ataseaza logging, env, domain, utilities, modele Mongo, lock-uri, migrari, state global, guild cache si alerte admin.
+3. `loadConfig` incarca si valideaza config-ul.
+4. Se creeaza metricile si se leaga de surse.
+5. Se creeaza clientul Discord.
+6. Se creeaza rate limiter-ul, housekeeping-ul, cron controller-ul si HTTP server-ul.
+7. Se inregistreaza lifecycle handlers pentru Discord, Mongo si shutdown.
+8. Se conecteaza MongoDB.
+9. Se ruleaza migrarile DB.
+10. Se porneste serverul HTTP.
+11. Se face login la Discord.
+
+Logica mare nu trebuie pusa direct in `main.ts`; ea sta in modulele din `app`, `features`, `infra`, `shared` si `sources`.
+
+## TypeScript
+
+Regula curenta este simpla: sursa din `src` este TypeScript. Runtime-ul ramane CommonJS dupa compilare, deci importurile prin `require` si `module.exports` sunt acceptate unde ajuta la o migrare sigura.
+
+`src/tsconfig.json`:
+
+- compileaza `.ts` si, pentru compatibilitate, inca permite `.js` prin `allowJs`;
+- foloseste `module: CommonJS`;
+- foloseste `moduleDetection: force`, ca fisierele fara import explicit sa fie tratate ca module;
+- exclude `dist`, `node_modules` si `coverage`.
+
+`src/types.ts` pastreaza tipurile comune pentru config, env, metrics, cron, lifecycle, locks, HTTP, Mongo, surse, comenzi si date de domeniu.
+
+## Config si env
+
+Config-ul runtime este in `src/config.json`, validat prin `src/config/configValidator.ts` si incarcat prin `src/config/configLoader.ts`.
+
+Tipuri acceptate de surse:
 
 - `steam`
 - `minecraft`
@@ -193,162 +156,81 @@ Tipuri acceptate de jocuri/surse:
 - `amd`
 - `intel`
 
-Validari importante:
-
-- `checkIntervalMinutes` trebuie sa fie 10, 15, 30 sau 60;
-- fiecare joc trebuie sa aiba `key` si `name`;
-- jocurile Steam trebuie sa aiba `appId` numeric;
-- sursele `listing_based` trebuie sa aiba `listingUrl` sau `listingUrls` si `baseUrl`;
-- sursele Intel trebuie sa aiba `url`;
-- `upCRD` este permis doar pentru NVIDIA;
-- duplicatele de `key`, `name` sau `aliases` sunt respinse;
-- `articleHrefRegex` trebuie sa fie regex valid.
-
-Daca se adauga un tip nou de sursa, trebuie actualizate validatorul, `src/sources/updates/index.ts`, `src/types.ts`, `src/config.schema.json` si testele.
-
-## Env
-
-Variabilele de mediu sunt validate in `src/shared/env.ts`, iar numerele sunt parse-uite prin `parseEnvNumber` din `src/shared/logging.ts`.
-
-Campuri importante:
-
-- `MONGO_URI`
-- `DISCORD_TOKEN`
-- `DISCORD_CLIENT_ID`
-- `PORT`
-- `METRICS_TOKEN`
-- `METRICS_PUBLIC`
-- `ADMIN_WEBHOOK_URL`
-- `LOG_LEVEL`
-- `LOG_SAMPLE_RATE`
-- `PROXY_URLS`
-- `DEALS_CURRENCY_CACHE_MAX_SIZE`
-- `GLOBAL_HEALTH_WINDOW`
-- `GLOBAL_HEALTH_MIN_RATIO`
-- `MONGO_RETRY_ATTEMPTS`
-- `HTTP_RATE_LIMIT_REQ`
-- `HTTP_RATE_LIMIT_WINDOW_MS`
-
-In production, `/metrics` trebuie protejat prin `METRICS_TOKEN`, sau facut public explicit cu `METRICS_PUBLIC=true`. Placeholder-ul `change_me_to_a_long_random_value` este tratat ca lipsa.
-
-## Logging si request context
-
-`src/shared/logging.ts` creeaza `requestContext` prin `AsyncLocalStorage` si expune:
-
-- `logger(level, context, message, meta)`;
-- `parseEnvNumber(name, defaultValue, limits)`;
-- `getAbortSignal()`.
-
-Logger-ul poate scrie JSON sau text, include `requestId` cand exista si aplica sampling pe INFO/DEBUG prin `LOG_SAMPLE_RATE`. `getAbortSignal()` este folosit de clientul HTTP ca sa opreasca request-uri cand cron-ul este anulat.
-
-## Shared domain si utilities
-
-`src/shared/domain.ts` tine contractele mici de domeniu folosite peste tot:
-
-- `SchemaDriftError` pentru surse care raspund OK dar nu mai potrivesc selectorii asteptati;
-- `SUPPORTED_CURRENCIES` si `DEFAULT_CURRENCY`;
-- `getCurrencyConfig(code)`;
-- `formatPrice(value, currencyCode)`.
-
-`src/shared/utilities.ts` tine utilitare comune:
-
-- `runConcurrent(items, concurrency, fn, options)`;
-- `waitForMongoReady(timeoutMs)`;
-- `validatePendingDiscountSnapshot(snapshot)`;
-- `isTransientMongoError(err)`;
-- `withMongoRetry(fn, options)`.
-
-`withMongoRetry` este folosit pe claim-uri atomice Mongo unde o eroare temporara poate fi reincercata fara sa dubleze notificari.
+Variabilele de mediu sunt construite in `src/shared/env.ts`. In production, `/metrics` trebuie protejat prin `METRICS_TOKEN` sau facut public explicit cu `METRICS_PUBLIC=true`.
 
 ## MongoDB
 
-MongoDB este folosit pentru setari per server Discord, update-uri vazute, reduceri vazute, cozi pending, state global, locks distribuite, circuit breaker si cooldown-uri pentru alertele admin.
+MongoDB tine setari per guild, update-uri vazute, reduceri vazute, cozi pending, state global, locks distribuite, circuit breaker si cooldown-uri pentru alerte admin.
 
-Modelele sunt in `src/infra/mongo/models.js`. Lock-urile distribuite sunt in `src/infra/mongo/locks.ts`. Cache-ul pentru setari guild este in `src/infra/mongo/guildSettings.ts`, alertele admin cu cooldown atomic sunt in `src/infra/mongo/adminAlerts.ts`, state-ul global este in `src/infra/mongo/systemState.ts`, iar migrarile sunt in `src/infra/mongo/migrations.ts` si se ruleaza la pornire, dupa Mongo ready, sub lock distribuit.
+Module importante:
 
-`src/shared/utilities.ts` expune `withMongoRetry` si `isTransientMongoError`. Claim-urile atomice din notificari folosesc retry doar pentru erori Mongo tranzitorii, nu pentru erori de logica.
+- `src/infra/mongo/runtime.ts`: dependinte comune pentru context;
+- `src/infra/mongo/index.ts`: agregatorul infrastructurii Mongo;
+- `src/infra/mongo/models.ts`: modelele `Guild`, `CircuitBreaker`, `System`, `JobLock`, `AdminAlertCooldown`;
+- `src/infra/mongo/locks.ts`: lock-uri distribuite;
+- `src/infra/mongo/migrations.ts`: migrari DB idempotente;
+- `src/infra/mongo/systemState.ts`: timpi globali;
+- `src/infra/mongo/guildSettings.ts`: cache guild settings;
+- `src/infra/mongo/adminAlerts.ts`: alerte admin cu cooldown atomic.
 
-## HTTP si scraping
+## HTTP si sources
 
-Clientul HTTP comun este in `src/infra/http/client.ts`. Acesta ofera retry/backoff, limite de bytes pentru HTML/JSON, user-agent random, proxy fallback, `safeCheerioLoad`, hashing pentru deal-uri, in-flight coalescing, timeout pentru promisiuni si agenti keep-alive.
+Clientul HTTP comun este in `src/infra/http/client.ts`. El gestioneaza retry/backoff, limite de bytes, user-agent random, proxy fallback, hashing, normalizare, in-flight coalescing si abort signal.
 
-Cron-ul pune `abortSignal` in `requestContext`, `src/shared/logging.ts` il expune prin `getAbortSignal`, iar `httpReq` il foloseste ca sa poata opri request-urile cand ciclul cron este anulat. Erorile de abort/cancel nu sunt retry-uite.
+Sursele externe sunt in `src/sources`:
 
-Acest fisier este sensibil: modificarile aici afecteaza toate sursele externe.
+- `runtime.ts`: dependinte comune pentru surse;
+- `index.ts`: agregatorul surselor;
+- `steam/index.ts`: cautare Steam, preturi si parser de expirare oferte;
+- `deals/index.ts`: reduceri Steam/Epic, enrich cache si review scoring;
+- `updates/index.ts`: patch notes, listing-based scraping, circuit breaker si schema drift.
 
-## Sources
+## Commands si notificari
 
-Sursele externe sunt in `src/sources`.
+Comenzile sunt in `src/features/commands`:
 
-- `src/sources/updates/index.ts`: update-uri pentru Steam, Minecraft, Fortnite, Roblox, NVIDIA, AMD, Intel si surse `listing_based`, plus circuit breaker si schema drift detection;
-- `src/sources/deals/index.ts`: reduceri Steam si Epic Games, enrich pentru date Steam, review scoring, cache si fetch coalescing;
-- `src/sources/steam/index.ts`: cautare Steam, preturi, alegere best match si extragere data expirarii ofertelor.
+- `index.ts`: agregator;
+- `cache.ts`: cache runtime, cooldown-uri si LRU;
+- `ui.ts`: embed-uri, paginare, fuzzy matching, status si pret Steam;
+- `slashCommands.ts`: definitii si inregistrare slash commands;
+- `interactions.ts`: handler-ele slash si autocomplete.
 
-## Slash commands
+Notificarile automate sunt in `src/features/notifications/index.ts`.
 
-Comenzile sunt in `src/features/commands`.
+Reguli care nu trebuie rupte:
 
-- `slashCommands.ts`: definitiile comenzilor;
-- `interactions.js`: handler-ele slash/autocomplete;
-- `ui.ts`: embed-uri, paginare, fuzzy matching si cache LRU pentru cautarea jocurilor;
-- `cache.ts`: cache runtime, cooldown-uri si LRU pentru cache-ul de reduceri pe valute;
-- `index.js`: agregator.
-
-## Notificari automate
-
-Notificarile automate sunt in `src/features/notifications/index.js`.
-
-Reguli importante anti-spam si anti-duplicate:
-
-- nu se strica logica de `seen`;
-- nu se strica logica de `pending`;
-- claim-ul trebuie atomic si trece prin `withMongoRetry`;
-- rollback-ul trebuie pastrat;
-- limitele per ciclu trebuie pastrate;
-- rolul se ping-uieste doar la prima notificare per ciclu;
-- `updatesInitializing` si `discountsInitializing` protejeaza activarea;
-- activation id previne race conditions la `/start`;
-- cron-ul foloseste `buildOptimizedGameList` ca sa evite scraping-ul jocurilor nefolosite;
-- erorile Discord permanente `10003`, `10004`, `50001`, `50013` dezactiveaza canalul afectat in loc sa produca retry-uri infinite.
+- claim atomic pentru `seen`;
+- rollback cand Discord send esueaza;
+- pending queues pentru update-uri si reduceri;
+- activation id pentru `/start`;
+- filtre per joc, store, pret si procent;
+- ping de rol doar la prima notificare per ciclu;
+- dezactivare canal pentru erori Discord permanente.
 
 ## Health si metrics
 
-Pachetul health este TypeScript:
+Pachetul health este in `src/app/health`:
 
-- `src/app/health/metrics.ts` creeaza obiectul de metrici runtime;
-- `src/app/health/rateLimit.ts` limiteaza endpoint-urile `/health`, `/healthz` si `/metrics` pe IP si accepta `x-forwarded-for` atat string, cat si array;
-- `src/app/health/httpServer.ts` creeaza serverul HTTP si expune endpoint-urile.
+- `metrics.ts`: creeaza contoarele runtime;
+- `rateLimit.ts`: limiteaza `/health`, `/healthz` si `/metrics`;
+- `httpServer.ts`: expune health, healthz si metrics.
 
-Endpoint-uri:
-
-- `/health`
-- `/healthz`
-- `/metrics`
-
-`/health` include `cronHealth` cand serverul primeste cron controller-ul. Cron-ul calculeaza rata de succes pe o fereastra scurta si poate sari un ciclu daca rata scade sub `GLOBAL_HEALTH_MIN_RATIO`.
-
-Cron-ul prinde si erorile aparute la obtinerea lock-ului. Acestea cresc `cronErrors`, intra in health window, trimit alerta `cron:lock` si programeaza urmatorul ciclu in loc sa opreasca scheduler-ul.
-
-`/metrics` expune metrici Prometheus-like si trebuie protejat in production. Contorul `bot_cron_skipped_due_to_health` arata cate cicluri au fost sarite din cauza backoff-ului global.
+`/health` include `cronHealth` cand cron controller-ul este disponibil. `/metrics` expune valori Prometheus-like si trebuie protejat in production.
 
 ## Teste si scripturi
 
-Scripturi:
+Scripturile sunt TypeScript:
 
-- `src/scripts/check-config.js`: se ruleaza din `dist/scripts/check-config.js` dupa build;
-- `src/scripts/check-syntax.js`: verifica sintaxa fisierelor JavaScript sursa si ignora `dist/`.
+- `src/scripts/check-config.ts` valideaza config-ul;
+- `src/scripts/check-syntax.ts` ruleaza syntax check pe fisiere `.js` sursa ramase. In starea curenta ar trebui sa gaseasca zero fisiere JavaScript sursa, in afara de output-ul ignorat din `dist`.
 
-Teste importante:
+Testele sunt TypeScript:
 
-- regresii pentru comenzi si notificari;
-- protectiile portate din codul local: retry Mongo, coduri Discord permanente, cache LRU pe valute, cron health, abort signal HTTP si eroare la lock cron;
-- regresie pentru pachetul health compilat din TypeScript;
-- regresie pentru modulele boot/lifecycle/lock compilate din TypeScript;
-- regresie pentru modulele shared env/logging/domain/utilities compilate din TypeScript;
-- regresie pentru modulele Mongo helper, state/migrations, Steam helpers, sources/deals, sources/updates si HTTP client compilate din TypeScript;
-- validare config;
-- hashing reduceri;
-- fuzzy matching jocuri;
-- parsing Steam offer end;
-- `safeCheerioLoad`;
-- optimizarea listei de jocuri pentru cron.
+- `src/test/commands-regression.test.ts` verifica regresiile pentru comenzi, notificari, runtime si module compilate;
+- `src/test/configValidator.test.ts` verifica validatorul de config.
+
+## GitHub Actions
+
+CI-ul real este in `.github/workflows/ci.yml`, fiindca GitHub nu ruleaza workflow-uri din `src/.github/workflows`.
+
+Workflow-ul ruleaza pe push, pull request si pornire manuala, foloseste Node.js 20, instaleaza dependintele in `src` si executa `npm run check`.
