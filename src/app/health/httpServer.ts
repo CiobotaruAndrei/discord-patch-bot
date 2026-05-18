@@ -67,9 +67,12 @@ function createHttpServer({
   getGuildCacheSize, scrapers, activeLocks, rateLimiter, cronController = null
 }: CreateHttpServerDeps): Server {
   function checkMetricsAuth(req: IncomingMessage): boolean {
-    if (!env.isProd && !env.METRICS_TOKEN) return true;
-    if (env.METRICS_PUBLIC && !env.METRICS_TOKEN) return true;
-    if (!env.METRICS_TOKEN) return false;
+    // Explicit opt-in to public metrics overrides everything else.
+    if (env.METRICS_PUBLIC) return true;
+    // No token configured: allowed in dev (legacy convenience), denied in prod.
+    // (Production startup also requires either METRICS_TOKEN or METRICS_PUBLIC
+    // via env validation — see src/shared/env.ts.)
+    if (!env.METRICS_TOKEN) return !env.isProd;
     const auth = req.headers["authorization"] || "";
     const expected = `Bearer ${env.METRICS_TOKEN}`;
     return timingSafeEqualStr(crypto, auth, expected);
