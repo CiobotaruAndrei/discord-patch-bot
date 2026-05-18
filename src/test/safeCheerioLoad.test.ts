@@ -12,7 +12,7 @@ const { safeCheerioLoad, MAX_HTML_BYTES } = require("../sources");
 
 test("nu sparge codepoint-uri UTF-8 la limita maxima", () => {
   const filler = "<p>x</p>".repeat(Math.floor(MAX_HTML_BYTES / 8) - 10);
-  const emoji = "🎮";
+  const emoji = "\ud83c\udfae";
   const html = `<html><body>${filler}${emoji.repeat(50)}</body></html>`;
 
   const $ = safeCheerioLoad(html);
@@ -34,9 +34,9 @@ test("nu sparge codepoint-uri UTF-8 la limita maxima", () => {
 });
 
 test("accepta input mic fara modificari", () => {
-  const html = "<html><body><p>Salut 🎮 Romania</p></body></html>";
+  const html = "<html><body><p>Salut \ud83c\udfae Romania</p></body></html>";
   const $ = safeCheerioLoad(html);
-  assert.equal($("p").text(), "Salut 🎮 Romania");
+  assert.equal($("p").text(), "Salut \ud83c\udfae Romania");
 });
 
 test("accepta input gol", () => {
