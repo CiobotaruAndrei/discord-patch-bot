@@ -109,9 +109,40 @@ createShutdownController({
   errorDetail
 }).registerProcessHandlers();
 
+// V11: connect-ul direct esua la primul network blip si crash-uia bot-ul, lasand
+// platforma (Docker/k8s) sa-l restart-eze. Cu retry exponential bot-ul tolereaza
+// fereastra tipica de start a Mongo (~5-15s) fara restart inutil.
+const MONGO_CONNECT_MAX_ATTEMPTS = 5;
+const MONGO_CONNECT_INITIAL_BACKOFF_MS = 1000;
+const MONGO_CONNECT_MAX_BACKOFF_MS = 16000;
+
+async function connectMongoWithRetry(): Promise<void> {
+  let backoff = MONGO_CONNECT_INITIAL_BACKOFF_MS;
+  for (let attempt = 1; attempt <= MONGO_CONNECT_MAX_ATTEMPTS; attempt++) {
+    try {
+      await mongoose.connect(env.MONGO_URI, { maxPoolSize: env.MONGO_MAX_POOL_SIZE });
+      if (attempt > 1) {
+        logger("INFO", "BOOT", `Mongo conectat la incercarea ${attempt}/${MONGO_CONNECT_MAX_ATTEMPTS}`);
+      }
+      return;
+    } catch (err) {
+      if (attempt === MONGO_CONNECT_MAX_ATTEMPTS) throw err;
+      const jitter = Math.round(backoff * (0.5 + Math.random() * 0.5));
+      logger(
+        "WARN",
+        "BOOT",
+        `Mongo connect a esuat (incercarea ${attempt}/${MONGO_CONNECT_MAX_ATTEMPTS}), reincerc in ${jitter}ms`,
+        errorMessage(err)
+      );
+      await new Promise(resolve => setTimeout(resolve, jitter));
+      backoff = Math.min(backoff * 2, MONGO_CONNECT_MAX_BACKOFF_MS);
+    }
+  }
+}
+
 (async () => {
   try {
-    await mongoose.connect(env.MONGO_URI, { maxPoolSize: env.MONGO_MAX_POOL_SIZE });
+    await connectMongoWithRetry();
     const mongoReady = await waitForMongoReady(10000);
     if (!mongoReady) {
       logger("WARN", "BOOT", "Mongo nu a confirmat conexiunea in timp util");
