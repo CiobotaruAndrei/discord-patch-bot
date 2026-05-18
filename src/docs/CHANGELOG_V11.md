@@ -23,7 +23,7 @@ Acest document vine din fisierele locale din `Discord bot` si noteaza ce a fost 
 - `runCronCycle` prinde acum erorile aruncate de `acquireDbLock`. Inainte, daca Mongo arunca inainte de intrarea in blocul principal, cron-ul putea iesi fara sa programeze urmatorul ciclu.
 - Eroarea de lock este contorizata in `cronErrors`, trece prin health window si trimite alert separat cu cheia `cron:lock`.
 - `createRateLimiter` citeste acum `x-forwarded-for` si cand Node il primeste ca array, nu doar ca string.
-- Testele de regresie verifica faptul ca eroarea de lock ramane izolata, cron-ul programeaza urmatorul run, pachetul health ramane compilat corect din TypeScript, modulele de boot/lifecycle/lock ajung in runtime dupa build si modulele shared env/logging raman compilate corect.
+- Testele de regresie verifica faptul ca eroarea de lock ramane izolata, cron-ul programeaza urmatorul run, pachetul health ramane compilat corect din TypeScript, modulele de boot/lifecycle/lock ajung in runtime dupa build si modulele shared env/logging/domain/utilities raman compilate corect.
 
 ## Portari noi din fisierele locale
 
@@ -44,6 +44,8 @@ Migrarea la TypeScript se face pe zone unde tiparea chiar reduce riscul:
 - `src/shared/errors.js` a devenit `src/shared/errors.ts`;
 - `src/shared/logging.js` a devenit `src/shared/logging.ts`, ca logger-ul, `parseEnvNumber`, `requestContext` si `getAbortSignal` sa aiba contract comun;
 - `src/shared/env.js` a devenit `src/shared/env.ts`, ca obiectul central `env` sa fie verificat fata de `RuntimeEnv`;
+- `src/shared/domain.js` a devenit `src/shared/domain.ts`, ca valutele, `SchemaDriftError` si `formatPrice` sa aiba contracte clare;
+- `src/shared/utilities.js` a devenit `src/shared/utilities.ts`, ca `runConcurrent`, `waitForMongoReady`, validarea snapshot-urilor pending si retry-ul Mongo sa fie verificate la build;
 - `src/app/scheduler/cron.js` a devenit `src/app/scheduler/cron.ts`, pentru ca este o zona critica: lock distribuit, heartbeat, abort si health backoff;
 - `src/app/scheduler/housekeeping.js` a devenit `src/app/scheduler/housekeeping.ts`;
 - `src/app/lifecycle/events.js` si `src/app/lifecycle/shutdown.js` au devenit `.ts`, fiindca leaga Discord events, Mongo events, shutdown, fatal errors si cleanup;
