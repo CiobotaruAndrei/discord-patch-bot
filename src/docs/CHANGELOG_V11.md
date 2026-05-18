@@ -27,6 +27,13 @@ Acest document noteaza ce a fost pastrat din fisierele locale si cum a fost orga
 - Conversia `interactions.ts` a prins un bug real: `/status` folosea `fetchGameStatus` fara sa fie disponibil in scope. `src/features/commands/index.ts` il expune temporar prin `globalThis` pentru codul legacy convertit.
 - Testele de regresie verifica protectiile pentru lock, abort signal, health, notificari, cache si surse.
 
+## Bug fix-uri gasite la al doilea audit
+
+- `handleDlcInteraction` nu mai testeaza `htmlRes.request?.path?.includes("agecheck")`: in axios `request.path` este path-ul initial, nu cel final dupa redirect, deci conditia nu firea niciodata. Detectia age-gate se bazeaza acum doar pe selectorii cheerio fiabili.
+- `extractOfferEndFromHtml` nu mai cauta data de expirare in tot `body.text()` cand selectorul `.game_purchase_discount_countdown` lipseste. Fallback-ul e restrans la `.game_area_purchase, .game_purchase_action, .discount_block` ca sa nu prinda din greseala "Offer ends ..." dintr-un sidebar de produs nelegat.
+- `handleAutocomplete` adauga un tiebreaker alfabetic pe nume cand mai multi candidati au acelasi scor, ca ordinea sugestiilor sa nu mai sara aleator intre apasarile de tasta.
+- `processGuildDiscounts` calculeaza `dealHash` o singura data per deal, prin `orderedHashes` + `dealsByHash`, in loc sa-l recalculeze in al doilea loop.
+
 ## TypeScript complet pe sursa
 
 Codul sursa din `src` a fost mutat la TypeScript. JavaScript-ul ramas este output generat in `src/dist/` dupa build, nu sursa editata manual.

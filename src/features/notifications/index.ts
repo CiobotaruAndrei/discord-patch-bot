@@ -298,7 +298,19 @@ async function processGuildDiscounts(client, guild, deals) {
   if (abort) return;
 
   const seenSet = new Set(Array.isArray(guild.seenDiscounts) ? guild.seenDiscounts.map(String) : []);
-  const dealsByHash = new Map(deals.map(deal => [dealHash(deal), deal]));
+  // V11: calculam dealHash o singura data per deal, nu de doua ori. orderedHashes
+  // pastreaza ordinea originala pentru loop-ul de mai jos; dealsByHash pastreaza
+  // primul snapshot intalnit la fiecare hash (in caz extrem de duplicat dupa
+  // dedupe-ul din fetchDeals).
+  const dealsByHash = new Map();
+  const orderedHashes = [];
+  for (const deal of deals) {
+    const hash = dealHash(deal);
+    if (!dealsByHash.has(hash)) {
+      dealsByHash.set(hash, deal);
+      orderedHashes.push(hash);
+    }
+  }
   const pending = [];
   for (const old of normalizePendingDiscountArray(guild.pendingDiscounts)) {
     if (seenSet.has(old.hash) || old.attempts >= PENDING_DISCOUNT_MAX_ATTEMPTS) continue;
@@ -313,9 +325,10 @@ async function processGuildDiscounts(client, guild, deals) {
   }
 
   const pendingHashes = new Set(pending.map(item => item.hash));
-  for (const deal of deals) {
-    const hash = dealHash(deal);
-    if (seenSet.has(hash) || pendingHashes.has(hash) || !dealPassesFilters(deal, guild)) continue;
+  for (const hash of orderedHashes) {
+    if (seenSet.has(hash) || pendingHashes.has(hash)) continue;
+    const deal = dealsByHash.get(hash);
+    if (!dealPassesFilters(deal, guild)) continue;
     pending.push({ hash, snapshot: deal, lastSeenAt: new Date(), attempts: 0 });
     pendingHashes.add(hash);
     if (pending.length >= PENDING_DISCOUNTS_LIMIT) break;

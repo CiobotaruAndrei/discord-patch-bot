@@ -129,7 +129,12 @@ function extractOfferEndFromHtml(html: unknown): string | null {
       if (match && match[1]) return match[1].trim().slice(0, 200).replace(/\s{2,}/g, " ");
     }
 
-    const bodyText = $("body").text();
+    // V11: scope fallback-ul la zona de cumparare a jocului principal. Steam
+    // pune adesea reclame in sidebar / "Customers also bought" cu propriile
+    // "Offer ends ..." — daca scanam tot body-ul putem prinde data unei oferte
+    // pentru un cu totul alt joc. .game_area_purchase /.game_purchase_action
+    // sunt ancorate de blocul de pret al produsului curent.
+    const scopedText = $(".game_area_purchase, .game_purchase_action, .discount_block").text();
     const candidates = [
       /Offer ends\s+([^<\n]+)/i,
       /Sale ends\s+([^<\n]+)/i,
@@ -137,7 +142,7 @@ function extractOfferEndFromHtml(html: unknown): string | null {
       /Daily Deal!?\s*Offer ends\s+([^<\n]+)/i
     ];
     for (const re of candidates) {
-      const match = bodyText.match(re);
+      const match = scopedText.match(re);
       if (match && match[1]) return match[1].trim().slice(0, 200).replace(/\s{2,}/g, " ");
     }
   } catch {
