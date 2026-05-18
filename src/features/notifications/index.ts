@@ -418,6 +418,8 @@ async function checkForDiscounts(client, shouldAbort = null) {
   Object.assign(ctx, {
     DISCORD_PERMANENT_ERROR_CODES,
     isPermanentDiscordError,
+    transientErrorMessage,
+    resolveOutboundChannel,
     claimSeenUpdate,
     rollbackSeenUpdate,
     disableUpdatesForChannelError,

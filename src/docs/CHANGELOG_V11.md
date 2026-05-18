@@ -19,6 +19,13 @@ Acest document noteaza ce a fost pastrat din fisierele locale si cum a fost orga
 - A fost adaugata schema JSON pentru `config.json`.
 - Testele de regresie acopera zonele sensibile portate.
 
+## Acoperire de teste comportamentale
+
+- `src/features/notifications/index.ts` expune acum prin `ctx` si `resolveOutboundChannel` + `transientErrorMessage`, ca testele sa poata exercita direct ramurile permanent vs tranzitoriu.
+- `src/test/resolveOutboundChannel.test.ts` mock-eaza `client.channels.fetch` si verifica comportamental ca: (1) codurile permanente cheama `disableFn` si aborteaza ciclul, (2) erorile tranzitorii NU cheama `disableFn`, (3) `fetch` rezolvand `null` e tratat ca canal sters, (4) lipsa permisiunilor Send/Embed dezactiveaza, (5) happy path returneaza canalul. Acopera si `isPermanentDiscordError` cu cele 4 coduri + cazuri negative si `transientErrorMessage` pe diverse input-uri.
+
+Pana acum `commands-regression.test.ts` doar verifica prezenta sirurilor in source-ul compilat, deci fix-ul transient/permanent ramasese fara test real. Acum exista o asertie pe comportament, nu doar pe text.
+
 ## Bug fix-uri gasite la recitire
 
 - `runCronCycle` prinde acum erorile aruncate de `acquireDbLock` si programeaza urmatorul ciclu.

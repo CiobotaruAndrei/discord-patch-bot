@@ -292,11 +292,11 @@ Proceseaza slash commands si autocomplete: `handleInteraction`, `handleAutocompl
 
 ### `src/features/notifications/index.ts`
 
-Update-uri: `DISCORD_PERMANENT_ERROR_CODES`, `isPermanentDiscordError`, `claimSeenUpdate`, `rollbackSeenUpdate`, `disableUpdatesForChannelError`, `processGuildUpdates`, `buildOptimizedGameList`, `checkForUpdates`.
+Update-uri: `DISCORD_PERMANENT_ERROR_CODES`, `isPermanentDiscordError`, `transientErrorMessage`, `resolveOutboundChannel`, `claimSeenUpdate`, `rollbackSeenUpdate`, `disableUpdatesForChannelError`, `processGuildUpdates`, `buildOptimizedGameList`, `checkForUpdates`.
 
 Reducerile: `claimSeenDiscount`, `rollbackSeenDiscount`, `disableDiscountsForChannelError`, `processGuildDiscounts`, `checkForDiscounts`.
 
-Atentie: nu se elimina claim atomic, retry-ul Mongo, rollback-ul, pending queues, activation guards, codurile Discord permanente sau limita per ciclu.
+Atentie: nu se elimina claim atomic, retry-ul Mongo, rollback-ul, pending queues, activation guards, codurile Discord permanente sau limita per ciclu. `resolveOutboundChannel` distinge codurile permanente (10003/10004/50001/50013) de erorile tranzitorii — pe tranzitoriu sare ciclul fara sa dezactiveze guild-ul.
 
 ## Scripts si teste
 
@@ -335,6 +335,18 @@ Testeaza match-ul exact, aliasurile, fuzzy matching-ul si cache-ul pentru cautar
 ### `src/test/rustFuzzy.test.ts`
 
 Testeaza ca addon-ul Rust este incarcat in CI, ca `levenshtein` pastreaza distantele asteptate, ca helper-ul Rust de fuzzy matching returneaza cheile corecte si ca normalizarile/hash-urile Rust pastreaza contractele existente.
+
+### `src/test/resolveOutboundChannel.test.ts`
+
+Test comportamental pentru `resolveOutboundChannel` din `features/notifications/index.ts`. Verifica direct (cu stub-uri pentru `client.channels.fetch`, `canSendEmbeds` si `logger`):
+
+- codul Discord permanent (10003/10004/50001/50013) cheama `disableFn` si aborteaza ciclul;
+- eroarea tranzitorie (cod necunoscut, rate limit, network) NU cheama `disableFn`, doar logheaza si aborteaza ciclul;
+- canalul nul (fetch reusit dar `null`) este tratat ca sters si cheama `disableFn`;
+- canal valid fara permisiuni Send/Embed cheama `disableFn`;
+- happy path returneaza canalul si `abort: false`.
+
+Acopera si `isPermanentDiscordError` (toate cele 4 coduri + cazuri non-permanente) si `transientErrorMessage` (Error, obiecte cu `message`, null, undefined, string).
 
 ### `src/test/safeCheerioLoad.test.ts`
 
