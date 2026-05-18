@@ -35,7 +35,13 @@ pub fn normalize_title_for_dedupe(value: String) -> String {
 #[napi]
 pub fn stable_update_id(title: String, link: String) -> String {
   let base = format!("{}|{}", title, link);
-  sha1_hex(&base).chars().take(16).collect()
+  let mut hasher = Sha1::new();
+  hasher.update(base.as_bytes());
+  // We only need the first 16 hex chars (8 bytes). The previous version did
+  // `sha1_hex(...).chars().take(16).collect()` — formatting all 40 hex chars
+  // then walking the string to keep the first 16. Going direct from the
+  // digest bytes avoids that intermediate 40-char String allocation.
+  hex_encode(&hasher.finalize()[..8])
 }
 
 #[napi]
@@ -183,7 +189,21 @@ fn normalize_deal_state_impl(sale_price: &str, normal_price: &str, savings: &str
 fn sha1_hex(value: &str) -> String {
   let mut hasher = Sha1::new();
   hasher.update(value.as_bytes());
-  format!("{:x}", hasher.finalize())
+  hex_encode(&hasher.finalize())
+}
+
+// Lowercase-hex encoder. Faster than `format!("{:x}", ..)` per byte because we
+// allocate exactly the right capacity once and write directly into the buffer
+// instead of going through the Display/Write traits.
+fn hex_encode(bytes: &[u8]) -> String {
+  const HEX: &[u8; 16] = b"0123456789abcdef";
+  let mut out = vec![0u8; bytes.len() * 2];
+  for (i, &b) in bytes.iter().enumerate() {
+    out[i * 2] = HEX[(b >> 4) as usize];
+    out[i * 2 + 1] = HEX[(b & 0x0f) as usize];
+  }
+  // SAFETY: every byte written is an ASCII hex digit, so the buffer is valid UTF-8.
+  unsafe { String::from_utf8_unchecked(out) }
 }
 
 fn levenshtein_impl(a: &str, b: &str) -> usize {
