@@ -46,6 +46,7 @@ export interface RuntimeEnv {
   NODE_ENV: string;
   METRICS_TOKEN: string;
   METRICS_PUBLIC: boolean;
+  TRUST_PROXY: boolean;
   ADMIN_WEBHOOK_URL: string;
   LOG_LEVEL: string;
   PROXY_URLS: string;

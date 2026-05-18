@@ -11,11 +11,17 @@ function createRateLimiter(env: RuntimeEnv, metrics: BotMetrics): RateLimiter {
   const windowMs = env.HTTP_RATE_LIMIT_WINDOW_MS;
   const refillPerMs = cap / windowMs;
   const mapMax = 1000;
+  const trustProxy = env.TRUST_PROXY === true;
   const buckets = new Map<string, RateLimitBucket>();
 
+  // Only trust X-Forwarded-For when the deployment is explicitly behind a
+  // reverse proxy that rewrites it. Otherwise an arbitrary client can spoof
+  // the header to bypass the per-IP rate limit on /health and /metrics.
   function getClientIp(req: IncomingMessage): string {
-    const forwardedFor = firstHeaderValue(req.headers["x-forwarded-for"]);
-    if (forwardedFor) return forwardedFor.split(",")[0].trim() || "unknown";
+    if (trustProxy) {
+      const forwardedFor = firstHeaderValue(req.headers["x-forwarded-for"]);
+      if (forwardedFor) return forwardedFor.split(",")[0].trim() || "unknown";
+    }
     return req.socket?.remoteAddress || "unknown";
   }
 
