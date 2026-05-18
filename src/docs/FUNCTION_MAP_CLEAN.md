@@ -8,7 +8,7 @@ Acest fisier documenteaza functiile importante din repo, pe fisiere. Scopul lui 
 - Codul runtime este mixt: JavaScript CommonJS plus module TypeScript compilate.
 - Modulele convertite la TypeScript sunt compilate in `dist/` inainte de rulare.
 - `src/infra/mongo/index.js`, `src/sources/index.js` si `src/features/commands/index.js` sunt agregatoare.
-- `src/types.ts` descrie tipurile folosite in JSDoc si TypeScript, inclusiv contracte pentru config, lifecycle, health, locks, env, logging, shared domain, utilitare, HTTP, Mongo helpers si Steam helpers.
+- `src/types.ts` descrie tipurile folosite in JSDoc si TypeScript, inclusiv contracte pentru config, lifecycle, health, locks, env, logging, shared domain, utilitare, HTTP, Mongo helpers si source helpers.
 - `dist/` este output generat si nu se editeaza manual.
 - Singura exceptie intentionata din afara `src/` este `.github/workflows/ci.yml`, necesara pentru GitHub Actions.
 
@@ -414,10 +414,11 @@ Expune dependinte pentru surse: `axios`, `cheerio`, `rss-parser`, `crypto` si in
 
 Agregator pentru client HTTP, Steam helpers, update sources si deals sources.
 
-### `src/sources/updates/index.js`
+### `src/sources/updates/index.ts`
 
 Functii helper:
 
+- `attachUpdates(ctx)`;
 - `absoluteUrl(base, maybeRelative)`;
 - `isGoodSteamArticleUrl(url)`;
 - `extractDateScore(url)`;
@@ -445,12 +446,13 @@ Fetch global:
 - `_getLatestForAllGamesImpl(games, shouldAbort)`;
 - `getLatestForAllGames(games, shouldAbort)`.
 
-`getLatestForAllGames` foloseste cache key bazat pe lista efectiva de jocuri.
+`getLatestForAllGames` foloseste cache key bazat pe lista efectiva de jocuri. `executeFetchWithCircuitBreaker` contorizeaza succes/esec, activeaza cooldown per joc si trimite alerta admin pentru circuit breaker sau schema drift.
 
-### `src/sources/deals/index.js`
+### `src/sources/deals/index.ts`
 
 Functii:
 
+- `attachDeals(ctx)`;
 - `fetchSteamReviewData(appId)`;
 - `enrichCacheGet(key, currency)`;
 - `enrichCacheSet(key, enriched, currency)`;
@@ -459,6 +461,8 @@ Functii:
 - `enrichDealData(deal, currencyCode)`;
 - `_fetchDealsImpl(currencyCode)`;
 - `fetchDeals(opts)`.
+
+Rol: aduna reduceri Steam si Epic Games, calculeaza scor hibrid, deduplica dupa titlu normalizat, limiteaza rezultatele la `MAX_DEALS`, imbogateste ofertele Steam cu appdetails/HTML si protejeaza fetch-urile prin cache/coalescing.
 
 ### `src/sources/steam/index.ts`
 
@@ -562,4 +566,4 @@ Ruleaza `node --check` pe fisierele `.js` sursa si ignora `dist/`.
 
 ### `src/test/*`
 
-Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad`, optimizarea cronului, conversia cronului critic la TypeScript, conversia pachetului health la TypeScript, conversia boot/lifecycle/lock la TypeScript, conversia shared env/logging/domain/utilities la TypeScript, conversia Mongo helper/state/migrations la TypeScript, conversia Steam helpers la TypeScript, conversia HTTP client la TypeScript si protectiile portate din codul local.
+Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad`, optimizarea cronului, conversia cronului critic la TypeScript, conversia pachetului health la TypeScript, conversia boot/lifecycle/lock la TypeScript, conversia shared env/logging/domain/utilities la TypeScript, conversia Mongo helper/state/migrations la TypeScript, conversia Steam helpers la TypeScript, conversia deals/updates sources la TypeScript, conversia HTTP client la TypeScript si protectiile portate din codul local.
