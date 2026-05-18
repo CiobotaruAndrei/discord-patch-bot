@@ -1,14 +1,21 @@
 import type { Mongoose } from "mongoose";
 import type {
-  AbortPredicate,
-  ConcurrentRunOptions,
   ConcurrentRunResult,
   DealInfo,
   LoggerFunction,
   MaybePromise,
-  MongoRetryOptions,
   RuntimeEnv
 } from "../types";
+
+interface ConcurrentRunOptions<T> {
+  shouldAbort?: (() => boolean) | null;
+  errorLogger?: ((item: T, err: unknown) => void) | null;
+}
+
+interface MongoRetryOptions {
+  retries?: number;
+  label?: string;
+}
 
 interface UtilitiesContext {
   mongoose: Mongoose;
