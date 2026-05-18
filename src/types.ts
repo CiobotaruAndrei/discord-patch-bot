@@ -17,8 +17,20 @@ export type MaybePromise<T> = T | Promise<T>;
 export type PriceValue = string | number;
 export type CurrencyPlacement = "prefix" | "suffix";
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
+export type LoggerFunction = (level: LogLevel | string, context: string, message: string, meta?: unknown) => void;
+export type ParseEnvNumber = (name: string, defaultValue: number, limits?: ParseEnvNumberLimits) => number;
 export type LockToken = string;
 export type ActiveLocks = Map<string, LockToken>;
+
+export interface ParseEnvNumberLimits {
+  min?: number;
+  max?: number;
+}
+
+export interface RequestContextStore {
+  requestId?: string;
+  abortSignal?: AbortSignal | null;
+}
 
 export interface CurrencyConfig {
   cc: string;
