@@ -123,6 +123,16 @@ test("boot lifecycle and Mongo lock modules keep TypeScript contracts after buil
   assert.match(runtimeSource, /async function releaseDbLock/);
 });
 
+test("shared logging and env modules keep TypeScript contracts after build", () => {
+  assert.match(runtimeSource, /function attachLogging/);
+  assert.match(runtimeSource, /function logger/);
+  assert.match(runtimeSource, /function parseEnvNumber/);
+  assert.match(runtimeSource, /function getAbortSignal/);
+  assert.match(runtimeSource, /function attachEnv/);
+  assert.match(runtimeSource, /PLACEHOLDER_METRICS_TOKEN/);
+  assert.match(runtimeSource, /LOG_SAMPLE_RATE/);
+});
+
 test("cron lock acquisition errors are contained", () => {
   assert.match(runtimeSource, /lockAttemptStart/);
   assert.match(runtimeSource, /Nu am putut obtine lock-ul cron/);
