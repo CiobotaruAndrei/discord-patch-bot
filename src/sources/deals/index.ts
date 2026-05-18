@@ -1,15 +1,100 @@
-"use strict";
+import type {
+  CurrencyCode,
+  CurrencyConfig,
+  DealInfo,
+  FetchDealsOptions,
+  HttpRequestOptions,
+  LoggerFunction,
+  SteamReviewData
+} from "../../types";
 
-module.exports = (ctx) => {
-  const {
-    logger, getCurrencyConfig, formatPrice, STEAM_REVIEW_BATCH_SIZE,
-    STEAM_REVIEW_BATCH_DELAY_MS, ENRICHED_DEAL_CACHE_TTL_MS,
-    ENRICHED_DEAL_CACHE_MAX_SIZE, STEAM_SPECIALS_LIMIT, EPIC_SPECIALS_LIMIT,
-    MAX_DEALS, httpReq, normalizeTitleForDedupe,
-    trackInflight, withInflightTimeout, extractOfferEndFromHtml
-  } = ctx;
+type DealCurrencyCode = CurrencyCode | string | null | undefined;
+type HttpResponse<T = unknown> = { data: T };
+type HttpReq = (
+  method: string,
+  url: string,
+  options?: HttpRequestOptions,
+  retries?: number,
+  backoff?: number
+) => Promise<HttpResponse<any>>;
+type TrackInflight = <T>(map: Map<string, Promise<T>>, key: string, promise: Promise<T>) => void;
+type WithInflightTimeout = <T>(promise: Promise<T>, label: string) => Promise<T>;
 
-async function fetchSteamReviewData(appId) {
+interface EnrichedCacheEntry {
+  enriched: DealInfo;
+  currency: string;
+  expiresAt: number;
+}
+
+interface SteamSpecialItem {
+  id: string | number;
+  name?: string;
+  original_price?: number;
+  final_price?: number;
+  discount_percent?: number;
+  header_image?: string | null;
+}
+
+interface EpicStoreElement {
+  id?: string;
+  title?: string;
+  urlSlug?: string;
+  keyImages?: Array<{ type?: string; url?: string }>;
+  price?: {
+    totalPrice?: {
+      discountPrice?: number;
+      originalPrice?: number;
+    };
+  };
+  promotions?: {
+    promotionalOffers?: Array<{
+      promotionalOffers?: Array<{
+        endDate?: string;
+      }>;
+    }>;
+  };
+}
+
+interface DealsContext {
+  logger: LoggerFunction;
+  getCurrencyConfig: (code?: DealCurrencyCode) => CurrencyConfig;
+  formatPrice?: (value: unknown, currencyCode?: DealCurrencyCode) => string;
+  STEAM_REVIEW_BATCH_SIZE: number;
+  STEAM_REVIEW_BATCH_DELAY_MS: number;
+  ENRICHED_DEAL_CACHE_TTL_MS: number;
+  ENRICHED_DEAL_CACHE_MAX_SIZE: number;
+  STEAM_SPECIALS_LIMIT: number;
+  EPIC_SPECIALS_LIMIT: number;
+  MAX_DEALS: number;
+  httpReq: HttpReq;
+  normalizeTitleForDedupe: (value: unknown) => string;
+  trackInflight: TrackInflight;
+  withInflightTimeout: WithInflightTimeout;
+  extractOfferEndFromHtml: (html: unknown) => string | null;
+  fetchSteamReviewData?: typeof fetchSteamReviewData;
+  enrichCacheGet?: typeof enrichCacheGet;
+  enrichCacheSet?: typeof enrichCacheSet;
+  cleanEnrichedCache?: typeof cleanEnrichedCache;
+  getEnrichedCacheSize?: typeof getEnrichedCacheSize;
+  enrichDealData?: typeof enrichDealData;
+  fetchDeals?: typeof fetchDeals;
+  [key: string]: unknown;
+}
+
+let runtimeContext: DealsContext;
+const activeEnrichments = new Map<string, Promise<DealInfo>>();
+const enrichedCache = new Map<unknown, EnrichedCacheEntry>();
+const inflightDeals = new Map<string, Promise<DealInfo[]>>();
+
+function errorMessage(err: unknown): string {
+  if (err && typeof err === "object" && "message" in err) {
+    return String((err as { message?: unknown }).message);
+  }
+  return String(err);
+}
+
+async function fetchSteamReviewData(appId: string | number): Promise<SteamReviewData> {
+  const { httpReq, logger } = runtimeContext;
   try {
     const res = await httpReq("GET",
       `https://store.steampowered.com/appreviews/${appId}?json=1&language=all&num_per_page=0`,
@@ -23,18 +108,12 @@ async function fetchSteamReviewData(appId) {
     }
     return { totalReviews: 0, qualityPercent: 0, success: false };
   } catch (err) {
-    logger("WARN", "STEAM_REVIEW", `Eroare preluare review Steam appID ${appId}`, err.message);
+    logger("WARN", "STEAM_REVIEW", `Eroare preluare review Steam appID ${appId}`, errorMessage(err));
     return { totalReviews: 0, qualityPercent: 0, success: false };
   }
 }
 
-// -------------------------------------------------------------
-// ENRICH DEAL DATA — V9: cc dinamic și pe HTML scrape
-// -------------------------------------------------------------
-const activeEnrichments = new Map();
-const enrichedCache = new Map();
-
-function enrichCacheGet(key, currency) {
+function enrichCacheGet(key: unknown, currency: string): DealInfo | null {
   const v = enrichedCache.get(key);
   if (!v) return null;
   if (v.expiresAt < Date.now()) { enrichedCache.delete(key); return null; }
@@ -44,7 +123,8 @@ function enrichCacheGet(key, currency) {
   return v.enriched;
 }
 
-function enrichCacheSet(key, enriched, currency) {
+function enrichCacheSet(key: unknown, enriched: DealInfo, currency: string): void {
+  const { ENRICHED_DEAL_CACHE_MAX_SIZE, ENRICHED_DEAL_CACHE_TTL_MS } = runtimeContext;
   if (ENRICHED_DEAL_CACHE_MAX_SIZE === 0 || ENRICHED_DEAL_CACHE_TTL_MS === 0) return;
   if (enrichedCache.has(key)) enrichedCache.delete(key);
   enrichedCache.set(key, {
@@ -59,18 +139,25 @@ function enrichCacheSet(key, enriched, currency) {
   }
 }
 
-function cleanEnrichedCache() {
+function cleanEnrichedCache(): void {
   const now = Date.now();
   for (const [k, v] of enrichedCache.entries()) {
     if (v.expiresAt < now) enrichedCache.delete(k);
   }
 }
 
-function getEnrichedCacheSize() {
+function getEnrichedCacheSize(): number {
   return enrichedCache.size;
 }
 
-async function enrichDealData(deal, currencyCode) {
+async function enrichDealData(deal: DealInfo, currencyCode?: DealCurrencyCode): Promise<DealInfo> {
+  const {
+    getCurrencyConfig,
+    httpReq,
+    logger,
+    withInflightTimeout,
+    extractOfferEndFromHtml
+  } = runtimeContext;
   const currency = String(currencyCode || "USD").toUpperCase();
   if (deal.enriched) return deal;
 
@@ -82,23 +169,22 @@ async function enrichDealData(deal, currencyCode) {
   if (existing) return existing;
 
   const enrichTask = withInflightTimeout((async () => {
-    const enriched = { ...deal };
+    const enriched: DealInfo = { ...deal };
     if (enriched.store === "Steam" && enriched.steamAppID) {
       const cfg = getCurrencyConfig(currency);
       try {
-        // V9: pagina HTML primește și ea cc + l=english pentru consistență
         const htmlUrl = `${enriched.link}?cc=${cfg.cc}&l=english`;
         const [detailsRes, htmlRes] = await Promise.all([
           httpReq("GET",
             `https://store.steampowered.com/api/appdetails?appids=${enriched.steamAppID}&cc=${cfg.cc}&l=english`,
             { timeout: 5000, largeJson: true }).catch(e => {
-              logger("WARN", "STEAM_ENRICH", `appdetails fail appID ${enriched.steamAppID}`, e.message);
+              logger("WARN", "STEAM_ENRICH", `appdetails fail appID ${enriched.steamAppID}`, errorMessage(e));
               return null;
             }),
           httpReq("GET", htmlUrl, {
             headers: { "Cookie": "birthtime=283993201; mature_content=1;" }
           }).catch(e => {
-            logger("WARN", "STEAM_ENRICH", `html fetch fail appID ${enriched.steamAppID}`, e.message);
+            logger("WARN", "STEAM_ENRICH", `html fetch fail appID ${enriched.steamAppID}`, errorMessage(e));
             return null;
           })
         ]);
@@ -113,7 +199,7 @@ async function enrichDealData(deal, currencyCode) {
           if (end) enriched.endDateStr = end;
         }
       } catch (e) {
-        logger("WARN", "STEAM_ENRICH", `Eroare enrich oferta Steam appID ${enriched.steamAppID}`, e.message);
+        logger("WARN", "STEAM_ENRICH", `Eroare enrich oferta Steam appID ${enriched.steamAppID}`, errorMessage(e));
       }
     }
     enriched.enriched = true;
@@ -129,23 +215,29 @@ async function enrichDealData(deal, currencyCode) {
   }
 }
 
-// -------------------------------------------------------------
-// FETCH DEALS — V9: cleanup safe
-// -------------------------------------------------------------
-const inflightDeals = new Map();
-
-async function _fetchDealsImpl(currencyCode) {
+async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo[]> {
+  const {
+    getCurrencyConfig,
+    httpReq,
+    logger,
+    normalizeTitleForDedupe,
+    STEAM_SPECIALS_LIMIT,
+    STEAM_REVIEW_BATCH_SIZE,
+    STEAM_REVIEW_BATCH_DELAY_MS,
+    EPIC_SPECIALS_LIMIT,
+    MAX_DEALS
+  } = runtimeContext;
   const cfg = getCurrencyConfig(currencyCode);
   const cc = cfg.cc;
 
-  const deals = [];
+  const deals: DealInfo[] = [];
   try {
     const steamRes = await httpReq("GET",
       `https://store.steampowered.com/api/featuredcategories/?cc=${cc}&l=english`,
       { largeJson: true });
-    const steamSpecials = (steamRes.data?.specials?.items || []).slice(0, STEAM_SPECIALS_LIMIT);
+    const steamSpecials = (steamRes.data?.specials?.items || []).slice(0, STEAM_SPECIALS_LIMIT) as SteamSpecialItem[];
 
-    const reviewsData = [];
+    const reviewsData: SteamReviewData[] = [];
     for (let i = 0; i < steamSpecials.length; i += STEAM_REVIEW_BATCH_SIZE) {
       const chunk = steamSpecials.slice(i, i + STEAM_REVIEW_BATCH_SIZE);
       const chunkPromises = chunk.map(item => fetchSteamReviewData(item.id));
@@ -159,8 +251,8 @@ async function _fetchDealsImpl(currencyCode) {
     for (let i = 0; i < steamSpecials.length; i++) {
       const item = steamSpecials[i];
       const revData = reviewsData[i];
-      const normalPrice = (item.original_price / 100).toFixed(2);
-      const salePrice = (item.final_price / 100).toFixed(2);
+      const normalPrice = ((item.original_price || 0) / 100).toFixed(2);
+      const salePrice = ((item.final_price || 0) / 100).toFixed(2);
       const savings = item.discount_percent || 0;
       const wSavings = savings * 0.8;
       const wQuality = revData.success ? revData.qualityPercent * 1.0 : 50;
@@ -184,7 +276,7 @@ async function _fetchDealsImpl(currencyCode) {
       });
     }
   } catch (err) {
-    logger("WARN", "DEALS_FETCH", "Eroare Steam API", err.message);
+    logger("WARN", "DEALS_FETCH", "Eroare Steam API", errorMessage(err));
   }
 
   try {
@@ -206,22 +298,24 @@ async function _fetchDealsImpl(currencyCode) {
       }
     });
 
-    const epicElements = epicRes.data?.data?.Catalog?.searchStore?.elements || [];
+    const epicElements = (epicRes.data?.data?.Catalog?.searchStore?.elements || []) as EpicStoreElement[];
     for (const item of epicElements) {
       const priceInfo = item.price?.totalPrice;
       if (!priceInfo) continue;
-      const normalPrice = (priceInfo.originalPrice / 100).toFixed(2);
-      const salePrice = (priceInfo.discountPrice / 100).toFixed(2);
+      const originalPrice = priceInfo.originalPrice || 0;
+      const discountPrice = priceInfo.discountPrice || 0;
+      const normalPrice = (originalPrice / 100).toFixed(2);
+      const salePrice = (discountPrice / 100).toFixed(2);
       let savings = 0;
-      if (priceInfo.originalPrice > 0) {
-        savings = Math.round(((priceInfo.originalPrice - priceInfo.discountPrice) / priceInfo.originalPrice) * 100);
+      if (originalPrice > 0) {
+        savings = Math.round(((originalPrice - discountPrice) / originalPrice) * 100);
       }
       const hybridScore = savings * 0.8 + 80.0 + 15.0;
 
-      let thumb = null;
+      let thumb: string | null = null;
       if (Array.isArray(item.keyImages)) {
         const img = item.keyImages.find(i => i.type === "OfferImageWide" || i.type === "Thumbnail");
-        if (img) thumb = img.url;
+        if (img?.url) thumb = img.url;
       }
       let endDate = "Nespecificat";
       const promos = item.promotions?.promotionalOffers?.[0]?.promotionalOffers?.[0];
@@ -246,26 +340,27 @@ async function _fetchDealsImpl(currencyCode) {
       });
     }
   } catch (err) {
-    logger("WARN", "DEALS_FETCH", "Eroare Epic GraphQL", err.message);
+    logger("WARN", "DEALS_FETCH", "Eroare Epic GraphQL", errorMessage(err));
   }
 
-  const dedupeMap = new Map();
+  const dedupeMap = new Map<string, DealInfo>();
   for (const deal of deals) {
     const key = normalizeTitleForDedupe(deal.title);
-    if (!key) { dedupeMap.set(deal.id, deal); continue; }
+    if (!key) { dedupeMap.set(String(deal.id), deal); continue; }
     const existing = dedupeMap.get(key);
-    if (!existing || deal.popularityScore > existing.popularityScore) {
+    if (!existing || (deal.popularityScore || 0) > (existing.popularityScore || 0)) {
       dedupeMap.set(key, deal);
     }
   }
   const finalTop = Array.from(dedupeMap.values())
-    .sort((a, b) => b.popularityScore - a.popularityScore)
+    .sort((a, b) => (b.popularityScore || 0) - (a.popularityScore || 0))
     .slice(0, MAX_DEALS);
   if (!finalTop.length) throw new Error("Fără oferte valide.");
   return finalTop;
 }
 
-async function fetchDeals(opts = {}) {
+async function fetchDeals(opts: FetchDealsOptions = {}): Promise<DealInfo[]> {
+  const { logger, withInflightTimeout, trackInflight } = runtimeContext;
   const currency = String(opts.currency || "USD").toUpperCase();
   const contextKey = `${opts.fromCron ? "cron" : "manual"}:${currency}`;
   const existing = inflightDeals.get(contextKey);
@@ -281,9 +376,8 @@ async function fetchDeals(opts = {}) {
   return promise;
 }
 
-// -------------------------------------------------------------
-// STEAM SEARCH
-// -------------------------------------------------------------
+function attachDeals(ctx: DealsContext): void {
+  runtimeContext = ctx;
 
   Object.assign(ctx, {
     fetchSteamReviewData,
@@ -294,4 +388,6 @@ async function fetchDeals(opts = {}) {
     enrichDealData,
     fetchDeals
   });
-};
+}
+
+export = attachDeals;

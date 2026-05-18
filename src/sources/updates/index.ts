@@ -1,24 +1,118 @@
-"use strict";
+import type { Model } from "mongoose";
+import type {
+  AbortPredicate,
+  BotMetrics,
+  FetchResult,
+  GameConfig,
+  HttpRequestOptions,
+  LoggerFunction,
+  NormalizedUpdate,
+  PatchUpdate
+} from "../../types";
 
-module.exports = (ctx) => {
-  const {
-    rssParser, CircuitBreakerModel, logger, adminAlert, runConcurrent,
-    SchemaDriftError, FETCH_CONCURRENCY, CIRCUIT_BREAKER_FAIL_THRESHOLD,
-    CIRCUIT_BREAKER_COOLDOWN_MS, CIRCUIT_BREAKER_JITTER_MS, SCHEMA_DRIFT_THRESHOLD,
-    httpReq, fetchWithProxy, withInflightTimeout, trackInflight,
-    cleanText, stableUpdateId, normalizeUpdate, safeCheerioLoad, crypto
-  } = ctx;
+type HttpResponse<T = unknown> = { data: T };
+type HttpReq = (
+  method: string,
+  url: string,
+  options?: HttpRequestOptions,
+  retries?: number,
+  backoff?: number
+) => Promise<HttpResponse<any>>;
+type TrackInflight = <T>(map: Map<string, Promise<T>>, key: string, promise: Promise<T>) => void;
+type WithInflightTimeout = <T>(promise: Promise<T>, label: string) => Promise<T>;
+type SchemaDriftErrorInstance = Error & { source?: string };
+type SchemaDriftErrorClass = new (message: string, source?: string) => SchemaDriftErrorInstance;
 
-function absoluteUrl(base, maybeRelative) {
+type RunConcurrent = <T>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<void>,
+  options?: {
+    shouldAbort?: AbortPredicate;
+    errorLogger?: (item: T, err: unknown) => void;
+  }
+) => Promise<unknown>;
+
+interface RssParserLike {
+  parseString(input: string): Promise<{ items?: any[] }>;
+}
+
+interface CircuitBreakerDoc {
+  _id: string;
+  fails: number;
+  cooldownUntil?: Date | string | null;
+  alertSent?: boolean;
+  schemaDriftFails: number;
+  schemaDriftAlertSent?: boolean;
+}
+
+interface ListingCandidate {
+  href: string;
+  text: string;
+  position: number;
+}
+
+interface UpdatesContext {
+  rssParser: RssParserLike;
+  CircuitBreakerModel: Model<CircuitBreakerDoc>;
+  logger: LoggerFunction;
+  adminAlert: (kind: string, title: string, body: string) => Promise<void>;
+  runConcurrent: RunConcurrent;
+  SchemaDriftError: SchemaDriftErrorClass;
+  FETCH_CONCURRENCY: number;
+  CIRCUIT_BREAKER_FAIL_THRESHOLD: number;
+  CIRCUIT_BREAKER_COOLDOWN_MS: number;
+  CIRCUIT_BREAKER_JITTER_MS: number;
+  SCHEMA_DRIFT_THRESHOLD: number;
+  httpReq: HttpReq;
+  fetchWithProxy: (targetUrl: string, options?: HttpRequestOptions) => Promise<string>;
+  withInflightTimeout: WithInflightTimeout;
+  trackInflight: TrackInflight;
+  cleanText: (text: unknown) => string;
+  stableUpdateId: (title: unknown, link: unknown) => string;
+  normalizeUpdate: (data: PatchUpdate) => NormalizedUpdate;
+  safeCheerioLoad: (html: unknown) => any;
+  crypto: typeof import("crypto");
+  metricsRef: Pick<BotMetrics, "fetchSuccess" | "fetchFail">;
+  absoluteUrl?: typeof absoluteUrl;
+  isGoodSteamArticleUrl?: typeof isGoodSteamArticleUrl;
+  extractDateScore?: typeof extractDateScore;
+  scoreCandidate?: typeof scoreCandidate;
+  isLikelyPatchNote?: typeof isLikelyPatchNote;
+  fetchSteamUpdate?: typeof fetchSteamUpdate;
+  fetchListingBasedUpdate?: typeof fetchListingBasedUpdate;
+  fetchFortniteUpdate?: typeof fetchFortniteUpdate;
+  fetchAmdUpdate?: typeof fetchAmdUpdate;
+  fetchIntelUpdate?: typeof fetchIntelUpdate;
+  fetchMinecraftUpdate?: typeof fetchMinecraftUpdate;
+  fetchRobloxUpdate?: typeof fetchRobloxUpdate;
+  fetchNvidiaUpdate?: typeof fetchNvidiaUpdate;
+  fetchGameUpdate?: typeof fetchGameUpdate;
+  executeFetchWithCircuitBreaker?: typeof executeFetchWithCircuitBreaker;
+  getLatestForAllGames?: typeof getLatestForAllGames;
+  [key: string]: unknown;
+}
+
+let runtimeContext: UpdatesContext;
+const inflightAllGames = new Map<string, Promise<FetchResult[]>>();
+
+function errorMessage(err: unknown): string {
+  if (err && typeof err === "object" && "message" in err) {
+    return String((err as { message?: unknown }).message);
+  }
+  return String(err);
+}
+
+function absoluteUrl(base: string | undefined, maybeRelative: string | undefined): string {
   try { return new URL(maybeRelative, base).href; } catch { return ""; }
 }
 
-function isGoodSteamArticleUrl(url) {
+function isGoodSteamArticleUrl(url: unknown): boolean {
   const v = String(url || "").trim().toLowerCase();
   return !(!v || !v.startsWith("http") || v.includes("steamstatic") || v.includes("steamcdn"));
 }
 
-function extractDateScore(url) {
+function extractDateScore(url: string): number {
   const u = url.toLowerCase();
   const m1 = u.match(/(\d{4})[-/](\d{2})[-/](\d{2})/);
   if (m1) {
@@ -33,17 +127,17 @@ function extractDateScore(url) {
   return 0;
 }
 
-function scoreCandidate(candidate, keywords) {
+function scoreCandidate(candidate: ListingCandidate, keywords: string[]): number {
   const haystack = `${candidate.href} ${candidate.text}`.toLowerCase();
   let score = 0;
   for (const k of keywords) if (haystack.includes(String(k).toLowerCase())) score += 1;
   return score;
 }
 
-function isLikelyPatchNote(item) {
+function isLikelyPatchNote(item: any): boolean {
   const title = String(item.title || "").toLowerCase();
   const contents = String(item.contents || "").toLowerCase();
-  const tags = Array.isArray(item.tags) ? item.tags.map(t => String(t).toLowerCase()) : [];
+  const tags = Array.isArray(item.tags) ? item.tags.map((t: unknown) => String(t).toLowerCase()) : [];
   const text = `${title} ${contents}`;
   const badInTitle = ["community", "sale", "store", "merch", "tournament", "esports", "giveaway", "teaser", "trailer", "preview", "announce", "announcement"];
   if (badInTitle.some(w => title.includes(w))) return false;
@@ -52,17 +146,15 @@ function isLikelyPatchNote(item) {
   return goodWords.some(w => text.includes(w));
 }
 
-// -------------------------------------------------------------
-// FETCH PER TIP
-// -------------------------------------------------------------
-async function fetchSteamUpdate(game) {
+async function fetchSteamUpdate(game: GameConfig): Promise<NormalizedUpdate> {
+  const { httpReq, normalizeUpdate, cleanText } = runtimeContext;
   const response = await httpReq("GET",
     `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${game.appId}&count=50&format=json`,
     { largeJson: true });
   const patchNotes = (response?.data?.appnews?.newsitems || [])
-    .filter(item => (item.feed_type === 1 || item.feedname === "steam_community_announcements")
+    .filter((item: any) => (item.feed_type === 1 || item.feedname === "steam_community_announcements")
       && isGoodSteamArticleUrl(item.url) && isLikelyPatchNote(item))
-    .sort((a, b) => Number(b.date || 0) - Number(a.date || 0));
+    .sort((a: any, b: any) => Number(b.date || 0) - Number(a.date || 0));
   if (!patchNotes.length) throw new Error("Lipsă patch notes Steam valabile.");
   const latest = patchNotes[0];
   const rawContents = String(latest.contents || "").replace(/https?:\/\/[^\s]+/gi, "").replace(/\[.*?\]/g, " ");
@@ -76,21 +168,22 @@ async function fetchSteamUpdate(game) {
   });
 }
 
-async function fetchListingBasedUpdate(game) {
-  const listingUrls = Array.isArray(game.listingUrls) && game.listingUrls.length
+async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpdate> {
+  const { httpReq, safeCheerioLoad, cleanText, normalizeUpdate, logger, SchemaDriftError } = runtimeContext;
+  const listingUrls: Array<string | undefined> = Array.isArray(game.listingUrls) && game.listingUrls.length
     ? game.listingUrls : [game.listingUrl];
   const keywords = Array.isArray(game.requireKeywords) ? game.requireKeywords : [];
   const hrefRegex = game.articleHrefRegex ? new RegExp(game.articleHrefRegex, "i") : null;
 
-  const collected = [];
+  const collected: ListingCandidate[] = [];
   let listingFetched = 0;
   for (const url of listingUrls) {
     try {
-      const listRes = await httpReq("GET", url);
+      const listRes = await httpReq("GET", url as string);
       listingFetched++;
       const $ = safeCheerioLoad(listRes.data);
       let position = 0;
-      $("a").each((i, el) => {
+      $("a").each((i: number, el: unknown) => {
         const href = absoluteUrl(game.baseUrl, $(el).attr("href"));
         if (!href || (hrefRegex && !hrefRegex.test(href))) return;
         const candidate = { href, text: cleanText($(el).text()), position: position++ };
@@ -98,11 +191,11 @@ async function fetchListingBasedUpdate(game) {
         collected.push(candidate);
       });
     } catch (err) {
-      logger("WARN", "SCRAPE", `Eroare preluare listing url ${url}`, err.message);
+      logger("WARN", "SCRAPE", `Eroare preluare listing url ${url}`, errorMessage(err));
     }
   }
 
-  const seen = new Set();
+  const seen = new Set<string>();
   const unique = collected.filter(item => {
     if (!item.href || seen.has(item.href)) return false;
     seen.add(item.href);
@@ -144,15 +237,16 @@ async function fetchListingBasedUpdate(game) {
   });
 }
 
-async function fetchFortniteUpdate() {
+async function fetchFortniteUpdate(): Promise<NormalizedUpdate> {
+  const { fetchWithProxy, rssParser, httpReq, normalizeUpdate, cleanText, stableUpdateId } = runtimeContext;
   try {
     const posts = JSON.parse(await fetchWithProxy(
       "https://www.fortnite.com/api/blog/getPosts?postsPerPage=10&offset=0&locale=en-US",
       { timeout: 15000 }
     ) || "{}")?.blogList;
-    const valid = (posts || []).filter(p => p.slug && p.slug.toLowerCase() !== "news");
+    const valid = (posts || []).filter((p: any) => p.slug && p.slug.toLowerCase() !== "news");
     if (!valid.length) throw new Error("Nu am găsit postări valide");
-    const latest = valid.find(p => /update|patch|\bv\d+/i.test(String(p.title))) || valid[0];
+    const latest = valid.find((p: any) => /update|patch|\bv\d+/i.test(String(p.title))) || valid[0];
     return normalizeUpdate({
       id: String(latest.slug),
       title: cleanText(latest.title),
@@ -161,7 +255,7 @@ async function fetchFortniteUpdate() {
       thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
       timestamp: latest.date
     });
-  } catch (err) {
+  } catch {
     const backupUrl = "https://news.google.com/rss/search?q=site:fortnite.com/news+update&hl=en-US";
     const feed = await rssParser.parseString((await httpReq("GET", backupUrl)).data);
     if (!feed.items || feed.items.length === 0) throw new Error("Eșec total Fortnite.");
@@ -176,7 +270,8 @@ async function fetchFortniteUpdate() {
   }
 }
 
-async function fetchAmdUpdate(game) {
+async function fetchAmdUpdate(game: GameConfig): Promise<NormalizedUpdate> {
+  const { fetchWithProxy, httpReq, rssParser, logger, normalizeUpdate, cleanText, stableUpdateId } = runtimeContext;
   try {
     const rawContent = await fetchWithProxy("https://www.amd.com/en/support/download/drivers.html");
     const match = rawContent.match(/Adrenalin Edition\s+([\d\.]+)/i);
@@ -188,7 +283,7 @@ async function fetchAmdUpdate(game) {
       thumbnail: game.thumbnail
     });
   } catch (err) {
-    logger("WARN", "SCRAPE", "Eroare preluare AMD proxy", err.message);
+    logger("WARN", "SCRAPE", "Eroare preluare AMD proxy", errorMessage(err));
   }
   const res = await httpReq("GET",
     "https://news.google.com/rss/search?q=site:amd.com+%22AMD+Software:+Adrenalin+Edition%22+release+notes&hl=en-US");
@@ -205,9 +300,10 @@ async function fetchAmdUpdate(game) {
   });
 }
 
-async function fetchIntelUpdate(game) {
+async function fetchIntelUpdate(game: GameConfig): Promise<NormalizedUpdate> {
+  const { fetchWithProxy, httpReq, rssParser, logger, normalizeUpdate, cleanText, stableUpdateId } = runtimeContext;
   try {
-    const rawContent = await fetchWithProxy(game.url);
+    const rawContent = await fetchWithProxy(game.url as string);
     const match = rawContent.match(/\b(\d{2,3}\.\d+\.\d+\.\d+)\b/);
     if (match) return normalizeUpdate({
       id: match[1],
@@ -217,7 +313,7 @@ async function fetchIntelUpdate(game) {
       thumbnail: game.thumbnail
     });
   } catch (err) {
-    logger("WARN", "SCRAPE", "Eroare preluare Intel proxy", err.message);
+    logger("WARN", "SCRAPE", "Eroare preluare Intel proxy", errorMessage(err));
   }
   const q = game.key === "intelpro"
     ? 'site:intel.com "Intel Arc Pro Graphics"'
@@ -237,7 +333,8 @@ async function fetchIntelUpdate(game) {
   });
 }
 
-async function fetchMinecraftUpdate() {
+async function fetchMinecraftUpdate(): Promise<NormalizedUpdate> {
+  const { httpReq, normalizeUpdate } = runtimeContext;
   const r = await httpReq("GET", "https://pistonmeta.mojang.com/mc/game/version_manifest_v2.json",
     { largeJson: true });
   const v = r?.data?.latest?.release;
@@ -245,13 +342,14 @@ async function fetchMinecraftUpdate() {
   return normalizeUpdate({
     id: v,
     title: `Minecraft ${v}`,
-    link: `https://www.minecraft.net/en-us/article/minecraft-java-edition-${v.replace(/\./g, "-")}`,
+    link: `https://www.minecraft.net/en-us/article/minecraft-java-edition-${String(v).replace(/\./g, "-")}`,
     excerpt: `Versiunea ${v}`,
     thumbnail: "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg"
   });
 }
 
-async function fetchRobloxUpdate() {
+async function fetchRobloxUpdate(): Promise<NormalizedUpdate> {
+  const { httpReq, normalizeUpdate } = runtimeContext;
   const r = await httpReq("GET", "https://clientsettings.roblox.com/v2/clientversion/WindowsPlayer");
   const v = r?.data?.clientVersionUpload;
   if (!v) throw new Error("Lipsă versiune API");
@@ -264,7 +362,8 @@ async function fetchRobloxUpdate() {
   });
 }
 
-async function fetchNvidiaUpdate(g) {
+async function fetchNvidiaUpdate(g: GameConfig): Promise<NormalizedUpdate> {
+  const { httpReq, rssParser, normalizeUpdate, cleanText, stableUpdateId } = runtimeContext;
   const q = g.key === "nvidiastudio" ? '"Studio Driver"' : '"Game Ready Driver"';
   const r = await httpReq("GET",
     `https://news.google.com/rss/search?q=${encodeURIComponent(`site:nvidia.com ${q} release`)}&hl=en-US`);
@@ -279,10 +378,7 @@ async function fetchNvidiaUpdate(g) {
   });
 }
 
-// -------------------------------------------------------------
-// DISPATCHER
-// -------------------------------------------------------------
-async function fetchGameUpdate(game) {
+async function fetchGameUpdate(game: GameConfig): Promise<NormalizedUpdate> {
   const t = game.type;
   if (!t || t === "steam") return fetchSteamUpdate(game);
   if (t === "minecraft") return fetchMinecraftUpdate();
@@ -295,16 +391,23 @@ async function fetchGameUpdate(game) {
   throw new Error("Tip necunoscut.");
 }
 
-// -------------------------------------------------------------
-// CIRCUIT BREAKER + SCHEMA DRIFT DETECTION
-// -------------------------------------------------------------
-async function executeFetchWithCircuitBreaker(game) {
+async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchResult> {
+  const {
+    CircuitBreakerModel,
+    CIRCUIT_BREAKER_FAIL_THRESHOLD,
+    CIRCUIT_BREAKER_COOLDOWN_MS,
+    CIRCUIT_BREAKER_JITTER_MS,
+    SCHEMA_DRIFT_THRESHOLD,
+    SchemaDriftError,
+    adminAlert,
+    metricsRef
+  } = runtimeContext;
   const cb = await CircuitBreakerModel.findOneAndUpdate(
     { _id: game.key },
     { $setOnInsert: { fails: 0, cooldownUntil: null, alertSent: false, schemaDriftFails: 0, schemaDriftAlertSent: false } },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
-  if (cb.cooldownUntil && new Date() < cb.cooldownUntil) {
+  if (cb.cooldownUntil && new Date() < new Date(cb.cooldownUntil)) {
     return { game, latest: null, error: "Circuit Breaker Activ" };
   }
   try {
@@ -315,7 +418,7 @@ async function executeFetchWithCircuitBreaker(game) {
         { $set: { fails: 0, cooldownUntil: null, alertSent: false, schemaDriftFails: 0, schemaDriftAlertSent: false } }
       );
     }
-    ctx.metricsRef.fetchSuccess++;
+    metricsRef.fetchSuccess++;
     return { game, latest, error: null };
   } catch (error) {
     if (error instanceof SchemaDriftError) {
@@ -332,7 +435,7 @@ async function executeFetchWithCircuitBreaker(game) {
           `Sursa pentru \`${game.key}\` returnează HTTP OK dar 0 rezultate valide după ${updatedCb.schemaDriftFails} cicluri consecutive. Probabil selectorii CSS/HTML s-au schimbat.\nSursă: ${error.source}\nMesaj: ${error.message}`
         );
       }
-      ctx.metricsRef.fetchFail++;
+      metricsRef.fetchFail++;
       return { game, latest: null, error: error.message };
     }
 
@@ -342,7 +445,7 @@ async function executeFetchWithCircuitBreaker(game) {
       { new: true, upsert: true }
     );
     if (updatedCb.fails >= CIRCUIT_BREAKER_FAIL_THRESHOLD
-        && (!updatedCb.cooldownUntil || new Date() >= updatedCb.cooldownUntil)) {
+        && (!updatedCb.cooldownUntil || new Date() >= new Date(updatedCb.cooldownUntil))) {
       const jitter = Math.floor(Math.random() * CIRCUIT_BREAKER_JITTER_MS);
       await CircuitBreakerModel.updateOne(
         { _id: game.key },
@@ -353,30 +456,26 @@ async function executeFetchWithCircuitBreaker(game) {
         await adminAlert(
           `cb:${game.key}`,
           `Circuit breaker activat: ${game.name}`,
-          `Sursa pentru \`${game.key}\` a eșuat de ${updatedCb.fails} ori consecutiv. Cooldown ~${Math.round(CIRCUIT_BREAKER_COOLDOWN_MS/60000)}-${Math.round((CIRCUIT_BREAKER_COOLDOWN_MS+CIRCUIT_BREAKER_JITTER_MS)/60000)} min.\nUltima eroare: ${error.message}`
+          `Sursa pentru \`${game.key}\` a eșuat de ${updatedCb.fails} ori consecutiv. Cooldown ~${Math.round(CIRCUIT_BREAKER_COOLDOWN_MS/60000)}-${Math.round((CIRCUIT_BREAKER_COOLDOWN_MS+CIRCUIT_BREAKER_JITTER_MS)/60000)} min.\nUltima eroare: ${errorMessage(error)}`
         );
       }
     }
-    ctx.metricsRef.fetchFail++;
-    return { game, latest: null, error: error.message };
+    metricsRef.fetchFail++;
+    return { game, latest: null, error: errorMessage(error) };
   }
 }
 
-// -------------------------------------------------------------
-// POOL CONCURRENT + IN-FLIGHT COALESCING — V9 safe cleanup
-// -------------------------------------------------------------
-const inflightAllGames = new Map();
-
-async function _getLatestForAllGamesImpl(games, shouldAbort) {
+async function _getLatestForAllGamesImpl(games: GameConfig[], shouldAbort?: AbortPredicate): Promise<FetchResult[]> {
+  const { runConcurrent, FETCH_CONCURRENCY, logger } = runtimeContext;
   const list = games.slice();
-  const results = new Array(list.length);
+  const results = new Array<FetchResult | undefined>(list.length);
 
   await runConcurrent(list, FETCH_CONCURRENCY, async (game, idx) => {
     results[idx] = await executeFetchWithCircuitBreaker(game);
   }, {
     shouldAbort,
     errorLogger: (game, err) => {
-      logger("WARN", "FETCH_WORKER", `Eroare la procesarea ${game.key}`, err.message);
+      logger("WARN", "FETCH_WORKER", `Eroare la procesarea ${game.key}`, errorMessage(err));
     }
   });
 
@@ -385,10 +484,11 @@ async function _getLatestForAllGamesImpl(games, shouldAbort) {
       results[i] = { game: list[i], latest: null, error: "abort" };
     }
   }
-  return results;
+  return results as FetchResult[];
 }
 
-async function getLatestForAllGames(games, shouldAbort) {
+async function getLatestForAllGames(games: GameConfig[], shouldAbort?: AbortPredicate): Promise<FetchResult[]> {
+  const { crypto, logger, withInflightTimeout, trackInflight } = runtimeContext;
   const ctxBase = shouldAbort ? "cron" : "manual";
   const keysHash = crypto.createHash("sha1")
     .update(games.map(g => String(g.key)).sort().join(","))
@@ -408,9 +508,8 @@ async function getLatestForAllGames(games, shouldAbort) {
   return promise;
 }
 
-// -------------------------------------------------------------
-// STEAM REVIEW
-// -------------------------------------------------------------
+function attachUpdates(ctx: UpdatesContext): void {
+  runtimeContext = ctx;
 
   Object.assign(ctx, {
     absoluteUrl,
@@ -430,4 +529,6 @@ async function getLatestForAllGames(games, shouldAbort) {
     executeFetchWithCircuitBreaker,
     getLatestForAllGames
   });
-};
+}
+
+export = attachUpdates;

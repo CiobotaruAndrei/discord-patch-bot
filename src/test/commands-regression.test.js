@@ -24,6 +24,11 @@ const runtimeFiles = [
   "infra/mongo/guildSettings.js",
   "infra/mongo/adminAlerts.js",
   "infra/mongo/locks.js",
+  "infra/mongo/migrations.js",
+  "infra/mongo/systemState.js",
+  "sources/steam/index.js",
+  "sources/deals/index.js",
+  "sources/updates/index.js",
   "app/scheduler/cron.js",
   "app/lifecycle/events.js",
   "app/lifecycle/shutdown.js",
@@ -158,6 +163,15 @@ test("Mongo helper modules keep TypeScript contracts after build", () => {
   assert.match(runtimeSource, /ADMIN_ALERT/);
 });
 
+test("Mongo state and migration modules keep TypeScript contracts after build", () => {
+  assert.match(runtimeSource, /function attachSystemState/);
+  assert.match(runtimeSource, /async function getSystemTimes/);
+  assert.match(runtimeSource, /async function saveSystemTimes/);
+  assert.match(runtimeSource, /function attachMigrations/);
+  assert.match(runtimeSource, /async function runMigrations/);
+  assert.match(runtimeSource, /ALL_MIGRATIONS/);
+});
+
 test("HTTP client module keeps TypeScript contracts after build", () => {
   assert.match(runtimeSource, /function attachHttpClient/);
   assert.match(runtimeSource, /function attachMetrics/);
@@ -169,6 +183,30 @@ test("HTTP client module keeps TypeScript contracts after build", () => {
   assert.match(runtimeSource, /async function fetchWithProxy/);
   assert.match(runtimeSource, /function withInflightTimeout/);
   assert.match(runtimeSource, /function trackInflight/);
+});
+
+test("Steam source module keeps TypeScript contracts after build", () => {
+  assert.match(runtimeSource, /function attachSteam/);
+  assert.match(runtimeSource, /async function searchSteamGameByName/);
+  assert.match(runtimeSource, /function chooseBestSteamMatch/);
+  assert.match(runtimeSource, /async function fetchSteamPriceDetails/);
+  assert.match(runtimeSource, /function extractOfferEndFromHtml/);
+  assert.match(runtimeSource, /async function extractSteamOfferEndDate/);
+});
+
+test("deal and update source modules keep TypeScript contracts after build", () => {
+  assert.match(runtimeSource, /function attachDeals/);
+  assert.match(runtimeSource, /async function fetchSteamReviewData/);
+  assert.match(runtimeSource, /function enrichCacheGet/);
+  assert.match(runtimeSource, /async function enrichDealData/);
+  assert.match(runtimeSource, /async function fetchDeals/);
+  assert.match(runtimeSource, /function attachUpdates/);
+  assert.match(runtimeSource, /function absoluteUrl/);
+  assert.match(runtimeSource, /function isLikelyPatchNote/);
+  assert.match(runtimeSource, /async function fetchSteamUpdate/);
+  assert.match(runtimeSource, /async function fetchListingBasedUpdate/);
+  assert.match(runtimeSource, /async function executeFetchWithCircuitBreaker/);
+  assert.match(runtimeSource, /async function getLatestForAllGames/);
 });
 
 test("cron lock acquisition errors are contained", () => {
