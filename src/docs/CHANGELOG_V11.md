@@ -1,91 +1,86 @@
 # V11 - schimbari utile portate
 
-Acest document vine din fisierele locale din `Discord bot` si noteaza ce a fost util de pastrat in repo-ul organizat pe functionalitati.
+Acest document noteaza ce a fost pastrat din fisierele locale si cum a fost organizat repo-ul dupa curatare si migrarea la TypeScript.
 
 ## Bug fix-uri si imbunatatiri portate
 
-- `METRICS_TOKEN` placeholder (`change_me_to_a_long_random_value`) este tratat ca lipsa, ca sa nu para production-safe din greseala.
+- `METRICS_TOKEN` placeholder este tratat ca lipsa, ca sa nu para production-safe din greseala.
 - `safeCheerioLoad` taie HTML-ul mare pe limita de bytes fara sa rupa caractere UTF-8.
-- `dealHash` nu mai include `endDateStr`, deci o oferta nu devine alta oferta doar fiindca s-a schimbat textul datei de expirare.
-- `extractOfferEndFromHtml(html)` parseaza mai robust textele Steam de tip `Offer ends`, `Sale ends`, `Special promotion ends`, `Daily Deal! Offer ends`.
-- `enrichDealData` foloseste parser-ul robust pentru data de expirare Steam.
-- `getLatestForAllGames` foloseste cache key bazat pe lista efectiva de jocuri, ca sa separe cron-ul optimizat de fetch-urile manuale.
-- `buildOptimizedGameList(allGames, subscribedGuilds)` evita scraping-ul jocurilor nefolosite de niciun guild abonat.
-- `findGameAndSuggestion` are cache LRU pentru autocomplete/fuzzy matching.
-- HTTP foloseste agenti keep-alive pentru reutilizarea conexiunilor.
-- A fost adaugat un sistem simplu de migrari DB la pornire.
+- `dealHash` nu mai include textul volatil al datei de expirare.
+- `extractOfferEndFromHtml(html)` parseaza mai robust textele Steam pentru finalul ofertelor.
+- `getLatestForAllGames` foloseste cache key bazat pe lista efectiva de jocuri.
+- `buildOptimizedGameList(allGames, subscribedGuilds)` evita scraping-ul jocurilor nefolosite.
+- `findGameAndSuggestion` foloseste cache LRU pentru autocomplete si fuzzy matching.
+- HTTP foloseste agenti keep-alive, retry/backoff, proxy fallback si abort signal.
+- Claim-urile atomice Mongo pentru update-uri si reduceri folosesc `withMongoRetry`.
+- Cron-ul are lock distribuit, heartbeat, health window si backoff global.
+- Erorile Discord permanente `10003`, `10004`, `50001`, `50013` dezactiveaza canalul afectat.
+- A fost adaugat sistem de migrari DB la pornire.
 - A fost adaugata schema JSON pentru `config.json`.
-- Au fost adaugate teste functionale pentru noile zone sensibile.
-- Testul de fuzzy matching pentru cazul "doar sugestie" foloseste acum un typo cu distanta reala mai mare de 1, ca sa nu contrazica regula de match direct pentru typo-uri foarte apropiate.
+- Testele de regresie acopera zonele sensibile portate.
 
 ## Bug fix-uri gasite la recitire
 
-- `runCronCycle` prinde acum erorile aruncate de `acquireDbLock`. Inainte, daca Mongo arunca inainte de intrarea in blocul principal, cron-ul putea iesi fara sa programeze urmatorul ciclu.
-- Eroarea de lock este contorizata in `cronErrors`, trece prin health window si trimite alert separat cu cheia `cron:lock`.
-- `createRateLimiter` citeste acum `x-forwarded-for` si cand Node il primeste ca array, nu doar ca string.
-- Testele de regresie verifica faptul ca eroarea de lock ramane izolata, cron-ul programeaza urmatorul run, pachetul health ramane compilat corect din TypeScript, modulele de boot/lifecycle/lock ajung in runtime dupa build, modulele shared env/logging/domain/utilities raman compilate corect, modulele Mongo/HTTP TypeScript sunt prezente in `dist`, iar Steam helpers, state-ul global Mongo, migrarile, sources/deals si sources/updates sunt compilate din TypeScript.
+- `runCronCycle` prinde acum erorile aruncate de `acquireDbLock` si programeaza urmatorul ciclu.
+- Eroarea de lock intra in `cronErrors`, health window si alerta `cron:lock`.
+- `createRateLimiter` citeste `x-forwarded-for` si cand Node il primeste ca array.
+- Testele de regresie verifica protectiile pentru lock, abort signal, health, notificari, cache si surse.
 
-## Portari noi din fisierele locale
+## TypeScript complet pe sursa
 
-- `DEALS_CURRENCY_CACHE_MAX_SIZE` limiteaza cache-ul de reduceri pe valute si foloseste LRU, ca botul sa nu tina nelimitat valute rare in memorie.
-- `withMongoRetry` reincearca operatiile Mongo temporare pe claim-urile atomice pentru update-uri si reduceri.
-- Cron-ul trimite `abortSignal` prin `requestContext`, iar `httpReq` il foloseste ca sa opreasca request-urile HTTP cand ciclul cron este anulat.
-- Cron-ul tine o fereastra de sanatate globala (`GLOBAL_HEALTH_WINDOW`, `GLOBAL_HEALTH_MIN_RATIO`) si sare un ciclu cand rata de succes scade sub prag.
-- `/health` expune `cronHealth`, iar `/metrics` expune `bot_cron_skipped_due_to_health`.
-- Erorile Discord permanente `10003`, `10004`, `50001`, `50013` dezactiveaza canalul de notificari afectat in loc sa fie reincercate la nesfarsit.
-- Testele de regresie verifica aceste protectii ca sa ramana vizibile in CI.
+Codul sursa din `src` a fost mutat la TypeScript. JavaScript-ul ramas este output generat in `src/dist/` dupa build, nu sursa editata manual.
 
-## TypeScript gradual
+Conversii facute anterior:
 
-Migrarea la TypeScript se face pe zone unde tiparea chiar reduce riscul:
+- `src/config/configValidator.ts` si `src/config/configLoader.ts` tipizeaza config-ul si rezultatul de boot.
+- `src/shared/errors.ts`, `src/shared/logging.ts`, `src/shared/env.ts`, `src/shared/domain.ts`, `src/shared/utilities.ts` tin baza comuna.
+- `src/infra/http/client.ts` tipizeaza clientul HTTP comun.
+- `src/infra/mongo/guildSettings.ts`, `adminAlerts.ts`, `locks.ts`, `systemState.ts`, `migrations.ts` tin infrastructura Mongo critica.
+- `src/sources/steam/index.ts`, `src/sources/deals/index.ts`, `src/sources/updates/index.ts` tipizeaza sursele externe.
+- `src/app/scheduler/cron.ts`, `housekeeping.ts`, `src/app/lifecycle/events.ts`, `shutdown.ts` si `src/app/health/*.ts` tipizeaza runtime-ul aplicatiei.
+- `src/domain/deals/filters.ts`, `src/features/commands/cache.ts`, `ui.ts`, `slashCommands.ts` si `index.ts` tipizeaza regulile de comenzi si domeniu.
 
-- `src/config/configValidator.js` a devenit `src/config/configValidator.ts`;
-- `src/config/configLoader.js` a devenit `src/config/configLoader.ts`, ca boot-ul sa aiba rezultat tipat pentru `config`, `games` si `configPath`;
-- `src/shared/errors.js` a devenit `src/shared/errors.ts`;
-- `src/shared/logging.js` a devenit `src/shared/logging.ts`, ca logger-ul, `parseEnvNumber`, `requestContext` si `getAbortSignal` sa aiba contract comun;
-- `src/shared/env.js` a devenit `src/shared/env.ts`, ca obiectul central `env` sa fie verificat fata de `RuntimeEnv`;
-- `src/shared/domain.js` a devenit `src/shared/domain.ts`, ca valutele, `SchemaDriftError` si `formatPrice` sa aiba contracte clare;
-- `src/shared/utilities.js` a devenit `src/shared/utilities.ts`, ca `runConcurrent`, `waitForMongoReady`, validarea snapshot-urilor pending si retry-ul Mongo sa fie verificate la build;
-- `src/infra/mongo/guildSettings.js` a devenit `src/infra/mongo/guildSettings.ts`, ca cache-ul de guild settings sa aiba contract tipat;
-- `src/infra/mongo/adminAlerts.js` a devenit `src/infra/mongo/adminAlerts.ts`, ca alerta admin si cooldown-ul Mongo atomic sa fie verificate la build;
-- `src/infra/mongo/systemState.js` a devenit `src/infra/mongo/systemState.ts`, ca timpii globali salvati in Mongo sa fie verificati prin `SystemTimes`;
-- `src/infra/mongo/migrations.js` a devenit `src/infra/mongo/migrations.ts`, ca lista de migrari, lock-ul distribuit si state-ul `migrationState` sa aiba contracte clare;
-- `src/infra/http/client.js` a devenit `src/infra/http/client.ts`, ca retry-ul HTTP, abort signal, normalizarea update/deal si in-flight coalescing sa aiba contracte mai clare;
-- `src/sources/steam/index.js` a devenit `src/sources/steam/index.ts`, ca search-ul Steam, alegerea best match, preturile si parser-ul de expirare oferte sa fie verificate la build;
-- `src/sources/deals/index.js` a devenit `src/sources/deals/index.ts`, ca reducerile Steam/Epic, enrich cache-ul, review score-ul si coalescing-ul de fetch sa fie verificate la build;
-- `src/sources/updates/index.js` a devenit `src/sources/updates/index.ts`, ca fetch-ul de patch notes, scraping-ul listing-based, circuit breaker-ul si schema drift detection sa aiba contracte mai clare;
-- `src/app/scheduler/cron.js` a devenit `src/app/scheduler/cron.ts`, pentru ca este o zona critica: lock distribuit, heartbeat, abort si health backoff;
-- `src/app/scheduler/housekeeping.js` a devenit `src/app/scheduler/housekeeping.ts`;
-- `src/app/lifecycle/events.js` si `src/app/lifecycle/shutdown.js` au devenit `.ts`, fiindca leaga Discord events, Mongo events, shutdown, fatal errors si cleanup;
-- `src/infra/mongo/locks.js` a devenit `src/infra/mongo/locks.ts`, ca lock token-urile si `activeLocks` sa fie verificate la build;
-- `src/domain/deals/filters.js`, `src/features/commands/cache.js`, `src/features/commands/ui.js` si `src/features/commands/slashCommands.js` au devenit `.ts`, fiindca au multe obiecte de domeniu si reguli care pot aluneca usor;
-- pachetul health este acum TypeScript: `src/app/health/metrics.ts`, `src/app/health/rateLimit.ts` si `src/app/health/httpServer.ts`;
-- `src/types.ts` a fost extins cu env-urile, metricile, `CronHealthSnapshot`, `CronController`, `RateLimiter`, `ConfigLoadResult`, `LifecycleState`, `LockToken`, `ActiveLocks`, `LoggerFunction`, `ParseEnvNumber` si `RequestContextStore`;
-- build-ul TypeScript genereaza runtime-ul in `src/dist/`;
-- `npm start`, `npm test`, `npm run check:config` si `npm run check` folosesc output-ul compilat;
-- `check-syntax` ignora `dist/`, ca sa nu verifice de doua ori fisiere generate;
-- typecheck-ul din PR a prins si au fost corectate importurile JSDoc catre `src/types.ts` din health modules;
-- `src/config/configValidator.ts` foloseste o tipare explicita pentru rezultatul de eroare Zod, ca `safeParse` sa treaca typecheck-ul.
+Conversii facute in acest pas:
 
-Nu am convertit toate fisierele mari dintr-o singura trecere, pentru ca `interactions` si `notifications` sunt zone sensibile si trebuie migrate in pasi separati cu teste clare.
+- `src/app/main.js` -> `src/app/main.ts`.
+- `src/infra/mongo/runtime.js` -> `src/infra/mongo/runtime.ts`.
+- `src/infra/mongo/index.js` -> `src/infra/mongo/index.ts`.
+- `src/infra/mongo/models.js` -> `src/infra/mongo/models.ts`.
+- `src/sources/runtime.js` -> `src/sources/runtime.ts`.
+- `src/sources/index.js` -> `src/sources/index.ts`.
+- `src/features/commands/interactions.js` -> `src/features/commands/interactions.ts`.
+- `src/features/notifications/index.js` -> `src/features/notifications/index.ts`.
+- `src/scripts/check-config.js` -> `src/scripts/check-config.ts`.
+- `src/scripts/check-syntax.js` -> `src/scripts/check-syntax.ts`.
+- `src/test/commands-regression.test.js` -> `src/test/commands-regression.test.ts`.
+- `src/test/configValidator.test.js` -> `src/test/configValidator.test.ts`.
+
+Schimbari de build:
+
+- `src/tsconfig.json` foloseste `moduleDetection: force`, ca fisierele TypeScript fara import explicit sa fie tratate ca module si sa nu polueze scope-ul global.
+- `npm run check:syntax` ruleaza scriptul compilat din `dist/scripts/check-syntax.js`.
+- `npm start`, `npm test`, `npm run check:config` si `npm run check` continua sa foloseasca output-ul compilat.
 
 ## GitHub Actions
 
-A fost facuta o singura exceptie intentionata de la regula "totul in `src`":
+Singura exceptie intentionata din afara `src` ramane `.github/workflows/ci.yml`, fiindca GitHub Actions ruleaza workflow-uri doar din acel folder special.
 
-- workflow-ul real este in `.github/workflows/ci.yml`, fiindca GitHub Actions ruleaza doar workflow-uri aflate acolo;
-- copia veche din `src/.github/workflows/ci.yml` a fost stearsa, pentru ca nu era executata de GitHub;
-- jobul CI ruleaza cu `working-directory: src`, instaleaza dependintele si executa `npm run check`;
-- workflow-ul poate fi pornit manual din GitHub Actions prin `workflow_dispatch`, pe langa push si pull request;
-- pentru schimbari noi, fluxul recomandat este branch separat si Pull Request catre `main`, ca GitHub sa arate checks inainte de merge.
+Workflow-ul:
+
+- ruleaza pe push, pull request si `workflow_dispatch`;
+- foloseste Node.js 20;
+- lucreaza cu `working-directory: src`;
+- ruleaza `npm run check`.
+
+Fluxul recomandat ramane branch separat si Pull Request catre `main`, ca GitHub sa arate checks inainte de merge.
 
 ## Ce nu am copiat 1:1
 
-Fisierele locale mari (`commands.js`, `scrapers.js`, `db.js`, `index.js`) erau monolitice. Repo-ul de pe GitHub este deja impartit mai bine pe functionalitati, asa ca logica utila a fost mutata in modulele potrivite:
+Fisierele locale mari erau monolitice. Repo-ul de pe GitHub ramane impartit pe functionalitati:
 
-- `commands.js` -> `src/features/commands/*` si `src/features/notifications/index.js`;
-- `scrapers.js` -> `src/infra/http/client.js`, `src/sources/*`;
+- `commands.js` -> `src/features/commands/*` si `src/features/notifications/index.ts`;
+- `scrapers.js` -> `src/infra/http/client.ts` si `src/sources/*`;
 - `db.js` -> `src/shared/*` si `src/infra/mongo/*`;
 - `index.js` -> `src/app/*`.
 
-Nu am copiat fisiere intregi din folderul local. Am sarit intentionat peste fisiere extra precum histograme separate, smoke test separat, configurari noi de lint si comenzi admin/snooze mari, pentru ca cerinta a fost sa nu adaug fisiere in plus decat daca este absolut necesar. Astfel repo-ul ramane organizat si nu revine la fisiere mari duplicate.
+Nu am copiat fisiere intregi din folderul local si nu am readus fisiere duplicate in afara lui `src`.
