@@ -1,6 +1,6 @@
 # V11 - schimbari utile portate
 
-Acest document noteaza ce a fost pastrat din fisierele locale si cum a fost organizat repo-ul dupa curatare si migrarea la TypeScript.
+Acest document noteaza ce a fost pastrat din fisierele locale si cum a fost organizat repo-ul dupa curatare, migrarea la TypeScript si primul pas Rust.
 
 ## Bug fix-uri si imbunatatiri portate
 
@@ -64,15 +64,28 @@ Corectie finala dupa ce CI a aratat ca mai ramasesera 5 fisiere JavaScript de te
 - `src/test/findGameAndSuggestion.test.js` -> `src/test/findGameAndSuggestion.test.ts`.
 - `src/test/safeCheerioLoad.test.js` -> `src/test/safeCheerioLoad.test.ts`.
 
-Schimbari de build:
+## Rust gradual
+
+Primul pas Rust este limitat la algoritmi puri de text, unde poate ajuta fara sa atinga Discord, Mongo sau HTTP:
+
+- `src/native/src/lib.rs` implementeaza in Rust `levenshtein` si un helper bulk pentru fuzzy matching.
+- `src/native/package.json` da metadata N-API pentru build-ul addon-ului.
+- `src/native/fuzzy.ts` este puntea TypeScript catre addon-ul nativ si are fallback TypeScript pentru dezvoltare locala cand binarul lipseste.
+- `src/sources/steam/index.ts` foloseste `levenshtein` din `src/native/fuzzy.ts`, deci alegerea celui mai bun rezultat Steam si fuzzy matching-ul din comenzi primesc nucleul Rust prin contextul comun.
+- `src/test/rustFuzzy.test.ts` verifica explicit ca addon-ul Rust este incarcat in CI.
+
+Nu am mutat in Rust zonele de Discord, Mongo, HTTP sau parsare HTML in acest pas, pentru ca acolo timpul real este dominat de retea/IO si riscul ar fi mai mare decat castigul.
+
+## Schimbari de build
 
 - `src/tsconfig.json` foloseste `moduleDetection: force`, ca fisierele TypeScript fara import explicit sa fie tratate ca module si sa nu polueze scope-ul global.
 - `src/tsconfig.json` are `allowJs: false` si nu mai include `**/*.js`, ca sursa editabila sa fie TypeScript.
-- `src/scripts/check-syntax.ts` pica CI-ul daca mai exista fisiere `.js` in sursa `src` in afara de output-ul ignorat din `dist`.
+- `src/scripts/check-syntax.ts` pica CI-ul daca mai exista fisiere `.js` in sursa `src`, dar ignora `dist` si loader-ul N-API generat `native/index.js`.
+- `src/package.json` are `build:rust`, `build:ts` si `build`, iar `npm run check` compileaza addon-ul Rust inainte de testare.
+- `.github/workflows/ci.yml` instaleaza toolchain-ul Rust inainte de `npm install` si `npm run check`.
+- `src/.gitignore` ignora output-ul generat: `dist/`, `node_modules/`, `native/target/`, fisierele native `.node`, `native/index.js` si `native/index.d.ts`.
 - `src/legacy-dynamic.d.ts` pastreaza compatibilitatea pentru cateva obiecte legacy construite dinamic in fisierele mari convertite. Este o masura temporara de migrare, nu un model de urmat pentru cod nou.
 - `src/sources/index.ts` expune si exporturi TypeScript pentru helper-ele folosite de testele existente.
-- `npm run check:syntax` ruleaza scriptul compilat din `dist/scripts/check-syntax.js`.
-- `npm start`, `npm test`, `npm run check:config` si `npm run check` continua sa foloseasca output-ul compilat.
 
 ## GitHub Actions
 
@@ -82,6 +95,7 @@ Workflow-ul:
 
 - ruleaza pe push, pull request si `workflow_dispatch`;
 - foloseste Node.js 20;
+- instaleaza Rust stable;
 - lucreaza cu `working-directory: src`;
 - ruleaza `npm run check`.
 
@@ -92,7 +106,7 @@ Fluxul recomandat ramane branch separat si Pull Request catre `main`, ca GitHub 
 Fisierele locale mari erau monolitice. Repo-ul de pe GitHub ramane impartit pe functionalitati:
 
 - `commands.js` -> `src/features/commands/*` si `src/features/notifications/index.ts`;
-- `scrapers.js` -> `src/infra/http/client.ts` si `src/sources/*`;
+- `scrapers.js` -> `src/infra/http/client.ts`, `src/native/*` si `src/sources/*`;
 - `db.js` -> `src/shared/*` si `src/infra/mongo/*`;
 - `index.js` -> `src/app/*`.
 

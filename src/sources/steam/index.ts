@@ -5,6 +5,7 @@ import type {
   LoggerFunction,
   SteamSearchItem
 } from "../../types";
+import { levenshtein } from "../../native/fuzzy";
 
 type SteamCurrencyCode = CurrencyCode | string | null | undefined;
 type HttpResponse<T = unknown> = { data: T };
@@ -57,20 +58,6 @@ async function searchSteamGameByName(query: string, currencyCode?: SteamCurrency
     { largeJson: true });
   const data = searchRes.data as SteamSearchResponse | undefined;
   return data?.items || [];
-}
-
-function levenshtein(a: string, b: string): number {
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-  const matrix: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i]);
-  for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      matrix[i][j] = Math.min(matrix[i - 1][j] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j - 1] + cost);
-    }
-  }
-  return matrix[a.length][b.length];
 }
 
 function chooseBestSteamMatch(
@@ -170,7 +157,7 @@ async function extractSteamOfferEndDate(appId: string | number, currencyCode?: S
     });
     return extractOfferEndFromHtml(String(htmlRes.data));
   } catch (err) {
-    runtimeContext.logger("WARN", "PRICE_SEARCH", `Nu am putut extrage data expirării pentru app ${appId}`, errorMessage(err));
+    runtimeContext.logger("WARN", "PRICE_SEARCH", `Nu am putut extrage data expirarii pentru app ${appId}`, errorMessage(err));
     return null;
   }
 }

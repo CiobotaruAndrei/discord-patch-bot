@@ -4,10 +4,12 @@
   "description": "Bot Discord pentru update-uri automate la jocuri",
   "main": "dist/app/main.js",
   "scripts": {
-    "build": "tsc",
+    "build:rust": "cd native && napi build --platform --release",
+    "build:ts": "tsc",
+    "build": "npm run build:rust && npm run build:ts",
     "start": "npm run build && node dist/app/main.js",
-    "check:config": "npm run build && node dist/scripts/check-config.js",
-    "check:syntax": "npm run build && node dist/scripts/check-syntax.js",
+    "check:config": "npm run build:ts && node dist/scripts/check-config.js",
+    "check:syntax": "npm run build:ts && node dist/scripts/check-syntax.js",
     "typecheck": "tsc --noEmit",
     "lint": "npm run typecheck",
     "test": "npm run build && node --test dist/test",
@@ -15,7 +17,7 @@
     "test:regression": "npm run build && node --test dist/test/commands-regression.test.js dist/test/configValidator.test.js",
     "audit": "npm audit --omit=dev --audit-level=moderate",
     "precommit": "npm run check && npm run audit",
-    "check": "npm run typecheck && npm run build && npm run check:syntax && node dist/scripts/check-config.js && node --test dist/test"
+    "check": "npm run typecheck && npm run build && node dist/scripts/check-syntax.js && node dist/scripts/check-config.js && node --test dist/test"
   },
   "engines": {
     "node": ">=20"
@@ -29,6 +31,7 @@
     "zod": "3.22.4"
   },
   "devDependencies": {
+    "@napi-rs/cli": "^2.18.4",
     "@types/node": "20.19.39",
     "typescript": "5.9.3"
   }

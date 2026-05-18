@@ -4,7 +4,7 @@
 
 Repo-ul contine un bot Discord pentru notificari automate despre patch notes, update-uri de jocuri, reduceri Steam si Epic Games, preturi Steam, DLC-uri Steam, status servere si endpoint-uri de health/metrics.
 
-Codul sursa editabil este in `src` si este TypeScript. JavaScript-ul apare dupa build in `src/dist/` si nu trebuie editat manual.
+Codul sursa editabil este in `src` si este in principal TypeScript. JavaScript-ul apare dupa build in `src/dist/` si nu trebuie editat manual. Primul nucleu Rust este in `src/native` si este folosit pentru algoritmi puri de fuzzy matching.
 
 ## Structura principala
 
@@ -54,6 +54,12 @@ src/
       models.ts
       runtime.ts
       systemState.ts
+  native/
+    Cargo.toml
+    build.rs
+    fuzzy.ts
+    src/
+      lib.rs
   scripts/
     check-config.ts
     check-syntax.ts
@@ -79,8 +85,10 @@ src/
     dealHash.test.ts
     extractOfferEndFromHtml.test.ts
     findGameAndSuggestion.test.ts
+    rustFuzzy.test.ts
     safeCheerioLoad.test.ts
   docs/
+  .gitignore
   config.json
   config.schema.json
   legacy-dynamic.d.ts
@@ -89,7 +97,7 @@ src/
   types.ts
 ```
 
-`dist/` este output de build si nu se editeaza manual.
+`dist/`, `node_modules/`, `native/target/` si fisierele `.node` sunt output-uri generate si nu se editeaza manual.
 
 ## Rulare si verificare
 
@@ -107,11 +115,13 @@ npm run check
 
 Scripturi importante:
 
-- `npm run build`: compileaza TypeScript in `dist/`;
+- `npm run build:rust`: compileaza addon-ul Rust din `src/native`;
+- `npm run build:ts`: compileaza TypeScript in `dist/`;
+- `npm run build`: ruleaza Rust apoi TypeScript;
 - `npm run typecheck`: ruleaza `tsc --noEmit`;
-- `npm run check:syntax`: compileaza si verifica faptul ca nu exista fisiere `.js` sursa ramase;
-- `npm run check:config`: compileaza si valideaza `config.json`;
-- `npm test`: compileaza si ruleaza testele din `dist/test`;
+- `npm run check:syntax`: compileaza TypeScript si verifica faptul ca nu exista fisiere `.js` sursa ramase;
+- `npm run check:config`: compileaza TypeScript si valideaza `config.json`;
+- `npm test`: compileaza Rust + TypeScript si ruleaza testele din `dist/test`;
 - `npm run check`: ruleaza typecheck, build, syntax check, config check si teste.
 
 ## Flow de pornire
@@ -132,11 +142,11 @@ Flow-ul:
 10. Se porneste serverul HTTP.
 11. Se face login la Discord.
 
-Logica mare nu trebuie pusa direct in `main.ts`; ea sta in modulele din `app`, `features`, `infra`, `shared` si `sources`.
+Logica mare nu trebuie pusa direct in `main.ts`; ea sta in modulele din `app`, `features`, `infra`, `shared`, `sources` si, pentru cod nativ pur, `native`.
 
 ## TypeScript
 
-Regula curenta este simpla: sursa din `src` este TypeScript. Runtime-ul ramane CommonJS dupa compilare, deci importurile prin `require` si `module.exports` sunt acceptate unde ajuta la o migrare sigura.
+Regula curenta: sursa aplicatiei din `src` este TypeScript. Runtime-ul ramane CommonJS dupa compilare, deci importurile prin `require` si `module.exports` sunt acceptate unde ajuta la o migrare sigura.
 
 `src/tsconfig.json`:
 
@@ -150,7 +160,31 @@ Regula curenta este simpla: sursa din `src` este TypeScript. Runtime-ul ramane C
 
 `src/legacy-dynamic.d.ts` este un shim temporar pentru cateva obiecte legacy construite dinamic in fisierele mari convertite (`interactions.ts` si `notifications/index.ts`). Codul nou nu trebuie sa copieze acest model; pe masura ce aceste fisiere sunt tipizate mai strict, shim-ul poate fi redus sau eliminat.
 
-`src/features/commands/index.ts` seteaza temporar `fetchGameStatus` pe `globalThis` pentru compatibilitate cu handler-ul legacy convertit. TypeScript a prins aici un bug care exista in JS: `/status` folosea `fetchGameStatus` fara sa fie disponibil in scope.
+## Rust
+
+Rust este introdus gradual si doar unde are sens practic.
+
+Module:
+
+- `src/native/src/lib.rs`: implementeaza nativ `levenshtein` si `find_game_keys` pentru fuzzy matching;
+- `src/native/fuzzy.ts`: incarca addon-ul `.node`, expune `levenshtein`, `findGameKeys` si `isRustFuzzyAvailable`, plus fallback TypeScript pentru dezvoltare locala;
+- `src/native/Cargo.toml` si `src/native/build.rs`: configuratia crate-ului N-API.
+
+Unde este folosit acum:
+
+- `src/sources/steam/index.ts` importa `levenshtein` din `src/native/fuzzy.ts`.
+- `src/sources/index.ts` exporta mai departe `levenshtein` prin context.
+- `src/features/commands/ui.ts` foloseste `levenshtein` din context pentru fuzzy matching-ul de comenzi, deci primeste implementarea Rust fara sa schimbe API-ul comenzii.
+
+Ce nu s-a mutat in Rust in acest pas:
+
+- Discord handlers;
+- Mongo queries si migrari;
+- HTTP client, retries si proxy fallback;
+- parsare HTML cu Cheerio;
+- formatari de embed-uri.
+
+Motiv: aceste zone sunt dominate de IO sau de obiecte Discord/Mongo, iar o conversie Rust acolo ar creste riscul mai mult decat performanta.
 
 ## Config si env
 
@@ -192,7 +226,7 @@ Sursele externe sunt in `src/sources`:
 
 - `runtime.ts`: dependinte comune pentru surse;
 - `index.ts`: agregatorul surselor si exporturile tipate folosite de teste;
-- `steam/index.ts`: cautare Steam, preturi si parser de expirare oferte;
+- `steam/index.ts`: cautare Steam, preturi, parser de expirare oferte si alegere best match folosind Levenshtein din Rust;
 - `deals/index.ts`: reduceri Steam/Epic, enrich cache si review scoring;
 - `updates/index.ts`: patch notes, listing-based scraping, circuit breaker si schema drift.
 
@@ -243,10 +277,11 @@ Testele sunt TypeScript:
 - `src/test/dealHash.test.ts` verifica stabilitatea hash-ului pentru reduceri;
 - `src/test/extractOfferEndFromHtml.test.ts` verifica parser-ul datelor de expirare Steam;
 - `src/test/findGameAndSuggestion.test.ts` verifica fuzzy matching-ul si cache-ul pentru jocuri;
+- `src/test/rustFuzzy.test.ts` verifica faptul ca addon-ul Rust este incarcat si pastreaza comportamentul asteptat;
 - `src/test/safeCheerioLoad.test.ts` verifica taierea sigura a HTML-ului mare.
 
 ## GitHub Actions
 
 CI-ul real este in `.github/workflows/ci.yml`, fiindca GitHub nu ruleaza workflow-uri din `src/.github/workflows`.
 
-Workflow-ul ruleaza pe push, pull request si pornire manuala, foloseste Node.js 20, instaleaza dependintele in `src` si executa `npm run check`.
+Workflow-ul ruleaza pe push, pull request si pornire manuala, foloseste Node.js 20, instaleaza Rust stable, instaleaza dependintele in `src` si executa `npm run check`.
