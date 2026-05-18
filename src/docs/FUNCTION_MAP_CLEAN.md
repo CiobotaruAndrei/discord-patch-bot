@@ -1,17 +1,18 @@
 # Function map curat
 
-Acest fisier documenteaza responsabilitatile modulelor importante din repo. Sursa din `src` este TypeScript; fisierele `.js` apar dupa build in `dist/`.
+Acest fisier documenteaza responsabilitatile modulelor importante din repo. Sursa din `src` este TypeScript, cu un nucleu Rust in `src/native` pentru fuzzy matching; fisierele `.js` apar dupa build in `dist/`.
 
 ## Conventii generale
 
-- Proiectul compileaza TypeScript catre `src/dist/`.
-- Runtime-ul compilat este CommonJS.
+- Proiectul compileaza Rust nativ si apoi TypeScript catre `src/dist/`.
+- Runtime-ul compilat TypeScript este CommonJS.
 - `src/tsconfig.json` are `allowJs: false`, deci fisierele `.js` nu mai sunt acceptate ca sursa editabila.
 - `src/scripts/check-syntax.ts` pica verificarea daca mai apare un fisier `.js` in sursa `src`, ignorand `dist/`.
 - `src/infra/mongo/index.ts`, `src/sources/index.ts` si `src/features/commands/index.ts` sunt agregatoare.
 - `src/types.ts` tine tipurile comune folosite intre module.
 - `src/legacy-dynamic.d.ts` este un shim temporar pentru obiecte legacy dinamice ramase in fisierele mari convertite.
-- `dist/` este output generat si nu se editeaza manual.
+- `src/native` contine cod Rust doar pentru algoritmi puri, nu pentru Discord/Mongo/HTTP.
+- `dist/`, `native/target/` si fisierele native `.node` sunt output generat si nu se editeaza manual.
 - Singura exceptie intentionata din afara `src` este `.github/workflows/ci.yml`.
 
 ## GitHub Actions
@@ -26,6 +27,7 @@ Comportament:
 - ruleaza pe `pull_request`;
 - poate fi pornit manual prin `workflow_dispatch`;
 - foloseste Node.js 20;
+- instaleaza Rust stable;
 - ruleaza cu `working-directory: src`;
 - instaleaza dependintele si executa `npm run check`.
 
@@ -35,12 +37,14 @@ Comportament:
 
 Scripturi:
 
-- `build`: compileaza cu `tsc`;
+- `build:rust`: compileaza addon-ul Rust prin `napi build --platform --release`;
+- `build:ts`: compileaza TypeScript cu `tsc`;
+- `build`: ruleaza `build:rust` apoi `build:ts`;
 - `start`: compileaza si ruleaza `dist/app/main.js`;
 - `typecheck`: ruleaza `tsc --noEmit`;
-- `check:syntax`: compileaza si ruleaza `dist/scripts/check-syntax.js`;
-- `check:config`: compileaza si ruleaza `dist/scripts/check-config.js`;
-- `test`: compileaza si ruleaza testele din `dist/test`;
+- `check:syntax`: compileaza TypeScript si ruleaza `dist/scripts/check-syntax.js`;
+- `check:config`: compileaza TypeScript si ruleaza `dist/scripts/check-config.js`;
+- `test`: compileaza Rust + TypeScript si ruleaza testele din `dist/test`;
 - `check`: ruleaza typecheck, build, syntax check, config check si teste.
 
 ### `src/tsconfig.json`
@@ -52,6 +56,10 @@ Rol:
 - foloseste `moduleDetection: force`, pentru fisiere convertite care inca folosesc `require` si `module.exports`;
 - are `allowJs: false` si include doar `**/*.ts` plus `**/*.d.ts`;
 - exclude `dist`, `node_modules` si `coverage`.
+
+### `src/.gitignore`
+
+Rol: ignora output-urile generate local: `dist/`, `node_modules/`, `native/target/` si `native/*.node`.
 
 ### `src/types.ts`
 
@@ -66,7 +74,39 @@ Include declaratii pentru:
 - campuri dinamice din `updateDoc`, `sendPayload` si `setDoc`;
 - `fetchGameStatus`, folosit de handler-ul legacy de status.
 
-Atentie: acest fisier este o punte de migrare. Codul nou trebuie sa foloseasca tipuri locale explicite, nu sa extinda shim-ul fara motiv.
+## Rust Native
+
+### `src/native/Cargo.toml`
+
+Rol: defineste crate-ul Rust `discord_patch_bot_core`, compilat ca `cdylib` pentru N-API.
+
+### `src/native/build.rs`
+
+Rol: ruleaza setup-ul `napi-build` necesar pentru addon-ul Node nativ.
+
+### `src/native/src/lib.rs`
+
+Functii exportate:
+
+- `levenshtein(a, b)`: calculeaza distanta Levenshtein in Rust;
+- `find_game_keys(text, games, max_input)`: calculeaza in Rust cheia jocului gasit sau cheia sugestiei.
+
+Structuri exportate:
+
+- `GameCandidate`;
+- `FuzzyMatchResult`.
+
+### `src/native/fuzzy.ts`
+
+Rol: punte TypeScript catre addon-ul Rust.
+
+Functii:
+
+- `isRustFuzzyAvailable()`;
+- `levenshtein(a, b)`;
+- `findGameKeys(text, games, maxInput)`.
+
+Comportament: incarca fisierul `.node` generat in `src/native`; daca lipseste local, foloseste fallback TypeScript pentru ca dezvoltarea sa ramana posibila. CI verifica insa ca Rust este incarcat.
 
 ## App
 
@@ -337,6 +377,8 @@ Functii principale:
 - `extractOfferEndFromHtml(html)`;
 - `extractSteamOfferEndDate(appId, currencyCode)`.
 
+Atentie: `chooseBestSteamMatch` foloseste `levenshtein` din `src/native/fuzzy.ts`, deci scorarea textului vine din Rust cand addon-ul nativ este disponibil.
+
 ## Domain
 
 ### `src/domain/deals/filters.ts`
@@ -375,6 +417,8 @@ Functii:
 - `findGameAndSuggestion`;
 - `fetchGameStatus`;
 - `buildSteamPriceEmbed`.
+
+Atentie: `findGameAndSuggestion` foloseste `levenshtein` primit prin contextul comun, care acum vine din `src/native/fuzzy.ts`.
 
 ### `src/features/commands/slashCommands.ts`
 
@@ -458,6 +502,10 @@ Testeaza parser-ul Steam pentru expresii de tip `Offer ends`, `Sale ends`, `Spec
 ### `src/test/findGameAndSuggestion.test.ts`
 
 Testeaza match-ul exact, aliasurile, fuzzy matching-ul si cache-ul pentru cautarea jocurilor.
+
+### `src/test/rustFuzzy.test.ts`
+
+Testeaza ca addon-ul Rust este incarcat in CI, ca `levenshtein` pastreaza distantele asteptate si ca helper-ul Rust de fuzzy matching returneaza cheile corecte.
 
 ### `src/test/safeCheerioLoad.test.ts`
 
