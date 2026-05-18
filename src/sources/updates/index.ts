@@ -121,10 +121,36 @@ function extractDateScore(url: string): number {
     const day = parseInt(m1[3], 10);
     if (year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
       const t = Date.UTC(year, month - 1, day);
-      if (!isNaN(t)) return t;
+      if (!isNaN(t)) {
+        // Date.UTC rolls over invalid dates (e.g. Feb 31 -> Mar 2). Reject the
+        // roll-over case so URLs with malformed dates don't get a bogus score
+        // that skews sort order in fetchListingBasedUpdate.
+        const d = new Date(t);
+        if (d.getUTCFullYear() === year
+            && d.getUTCMonth() === month - 1
+            && d.getUTCDate() === day) {
+          return t;
+        }
+      }
     }
   }
   return 0;
+}
+
+// Compiled-once cache for game.articleHrefRegex. fetchListingBasedUpdate is
+// called once per game per cron tick; rebuilding the same RegExp on every
+// call is pure waste. WeakMap keeps the cache tied to the GameConfig object
+// lifetime — when the games array is rebuilt at config reload, old regexes
+// are GC'd automatically.
+const articleHrefRegexCache = new WeakMap<GameConfig, RegExp>();
+
+function getArticleHrefRegex(game: GameConfig): RegExp | null {
+  if (!game.articleHrefRegex) return null;
+  const cached = articleHrefRegexCache.get(game);
+  if (cached) return cached;
+  const compiled = new RegExp(game.articleHrefRegex, "i");
+  articleHrefRegexCache.set(game, compiled);
+  return compiled;
 }
 
 function scoreCandidate(candidate: ListingCandidate, keywords: string[]): number {
@@ -173,7 +199,7 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
   const listingUrls: Array<string | undefined> = Array.isArray(game.listingUrls) && game.listingUrls.length
     ? game.listingUrls : [game.listingUrl];
   const keywords = Array.isArray(game.requireKeywords) ? game.requireKeywords : [];
-  const hrefRegex = game.articleHrefRegex ? new RegExp(game.articleHrefRegex, "i") : null;
+  const hrefRegex = getArticleHrefRegex(game);
 
   const collected: ListingCandidate[] = [];
   let listingFetched = 0;
