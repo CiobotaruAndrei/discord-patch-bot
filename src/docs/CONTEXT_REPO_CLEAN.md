@@ -14,6 +14,8 @@ Proiectul ruleaza pe Node.js si foloseste CommonJS la runtime-ul compilat. Codul
 - `src/infra/http/client.ts` tine clientul HTTP comun, normalizarea text/update/deal, retry/backoff, proxy fallback si in-flight coalescing;
 - `src/infra/mongo/guildSettings.ts`, `src/infra/mongo/adminAlerts.ts`, `src/infra/mongo/systemState.ts` si `src/infra/mongo/migrations.ts` tin cache-ul de guild settings, alertele admin, state-ul global si migrarile DB;
 - `src/sources/steam/index.ts` tine helper-ele Steam pentru cautare, preturi, best match si parser-ul de expirare oferte;
+- `src/sources/deals/index.ts` tine reducerile Steam/Epic, review scoring, enrich cache si coalescing pentru fetch-uri de oferte;
+- `src/sources/updates/index.ts` tine fetch-ul de patch notes, scraping-ul listing-based, circuit breaker-ul si schema drift detection;
 - `src/app/scheduler/cron.ts` controleaza cron-ul critic cu tipuri explicite;
 - `src/app/scheduler/housekeeping.ts` controleaza cleanup-ul periodic;
 - `src/app/lifecycle/events.ts` si `src/app/lifecycle/shutdown.ts` tin event wiring-ul si oprirea controlata;
@@ -86,7 +88,11 @@ src/
     logging.ts
     utilities.ts
   sources/
+    deals/
+      index.ts
     steam/
+      index.ts
+    updates/
       index.ts
   test/
   docs/
@@ -144,6 +150,8 @@ TypeScript este folosit gradual. Regula curenta:
 - `src/infra/mongo/systemState.ts` este TypeScript fiindca salveaza/citeste timpi globali folositi de runtime si trebuie sa respecte `SystemTimes`;
 - `src/infra/mongo/migrations.ts` este TypeScript fiindca ruleaza modificari idempotente in DB sub lock distribuit;
 - `src/sources/steam/index.ts` este TypeScript fiindca functiile de cautare Steam, preturi si parser HTML sunt folosite de comenzi si reduceri;
+- `src/sources/deals/index.ts` este TypeScript fiindca gestioneaza deal-uri Steam/Epic, review-uri, cache LRU de enrich si fetch coalescing;
+- `src/sources/updates/index.ts` este TypeScript fiindca aduna toate sursele de patch notes si controleaza circuit breaker-ul per joc;
 - `src/app/scheduler/cron.ts` este TypeScript fiindca gestioneaza lock distribuit, heartbeat, abort signal si health backoff;
 - `src/app/lifecycle/*.ts` este TypeScript fiindca orice greseala aici poate afecta event wiring-ul sau oprirea controlata;
 - `src/infra/mongo/locks.ts` este TypeScript fiindca gestioneaza lock token-uri si `activeLocks` folosite la shutdown;
@@ -196,7 +204,7 @@ Validari importante:
 - duplicatele de `key`, `name` sau `aliases` sunt respinse;
 - `articleHrefRegex` trebuie sa fie regex valid.
 
-Daca se adauga un tip nou de sursa, trebuie actualizate validatorul, `src/sources/updates/index.js`, `src/types.ts`, `src/config.schema.json` si testele.
+Daca se adauga un tip nou de sursa, trebuie actualizate validatorul, `src/sources/updates/index.ts`, `src/types.ts`, `src/config.schema.json` si testele.
 
 ## Env
 
@@ -272,8 +280,8 @@ Acest fisier este sensibil: modificarile aici afecteaza toate sursele externe.
 
 Sursele externe sunt in `src/sources`.
 
-- `src/sources/updates/index.js`: update-uri pentru Steam, Minecraft, Fortnite, Roblox, NVIDIA, AMD, Intel si surse `listing_based`;
-- `src/sources/deals/index.js`: reduceri Steam si Epic Games;
+- `src/sources/updates/index.ts`: update-uri pentru Steam, Minecraft, Fortnite, Roblox, NVIDIA, AMD, Intel si surse `listing_based`, plus circuit breaker si schema drift detection;
+- `src/sources/deals/index.ts`: reduceri Steam si Epic Games, enrich pentru date Steam, review scoring, cache si fetch coalescing;
 - `src/sources/steam/index.ts`: cautare Steam, preturi, alegere best match si extragere data expirarii ofertelor.
 
 ## Slash commands
@@ -337,7 +345,7 @@ Teste importante:
 - regresie pentru pachetul health compilat din TypeScript;
 - regresie pentru modulele boot/lifecycle/lock compilate din TypeScript;
 - regresie pentru modulele shared env/logging/domain/utilities compilate din TypeScript;
-- regresie pentru modulele Mongo helper, state/migrations, Steam helpers si HTTP client compilate din TypeScript;
+- regresie pentru modulele Mongo helper, state/migrations, Steam helpers, sources/deals, sources/updates si HTTP client compilate din TypeScript;
 - validare config;
 - hashing reduceri;
 - fuzzy matching jocuri;
