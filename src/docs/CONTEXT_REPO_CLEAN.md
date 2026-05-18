@@ -12,7 +12,8 @@ Proiectul ruleaza pe Node.js si foloseste CommonJS la runtime-ul compilat. Codul
 - `src/config/configLoader.ts` incarca config-ul si returneaza `config`, `games` si `configPath` tipate;
 - `src/shared/errors.ts`, `src/shared/logging.ts`, `src/shared/env.ts`, `src/shared/domain.ts` si `src/shared/utilities.ts` contin baza comuna pentru erori, logger, request context, env, valute, retry Mongo si utilitare;
 - `src/infra/http/client.ts` tine clientul HTTP comun, normalizarea text/update/deal, retry/backoff, proxy fallback si in-flight coalescing;
-- `src/infra/mongo/guildSettings.ts` si `src/infra/mongo/adminAlerts.ts` tin cache-ul de guild settings si alertele admin cu cooldown Mongo atomic;
+- `src/infra/mongo/guildSettings.ts`, `src/infra/mongo/adminAlerts.ts`, `src/infra/mongo/systemState.ts` si `src/infra/mongo/migrations.ts` tin cache-ul de guild settings, alertele admin, state-ul global si migrarile DB;
+- `src/sources/steam/index.ts` tine helper-ele Steam pentru cautare, preturi, best match si parser-ul de expirare oferte;
 - `src/app/scheduler/cron.ts` controleaza cron-ul critic cu tipuri explicite;
 - `src/app/scheduler/housekeeping.ts` controleaza cleanup-ul periodic;
 - `src/app/lifecycle/events.ts` si `src/app/lifecycle/shutdown.ts` tin event wiring-ul si oprirea controlata;
@@ -75,6 +76,8 @@ src/
       adminAlerts.ts
       guildSettings.ts
       locks.ts
+      migrations.ts
+      systemState.ts
   scripts/
   shared/
     domain.ts
@@ -83,6 +86,8 @@ src/
     logging.ts
     utilities.ts
   sources/
+    steam/
+      index.ts
   test/
   docs/
   config.json
@@ -100,7 +105,7 @@ src/
 
 Flow-ul:
 
-1. `src/infra/mongo/index.js` construieste contextul comun, atasand `logging.ts`, `env.ts`, `domain.ts`, `utilities.ts`, modele, guild settings cache, lock-uri si alerte;
+1. `src/infra/mongo/index.js` construieste contextul comun, atasand `logging.ts`, `env.ts`, `domain.ts`, `utilities.ts`, modele, guild settings cache, state global, migrari, lock-uri si alerte;
 2. incarca si valideaza config-ul prin `loadConfig` si `validateConfig`;
 3. creeaza metricile;
 4. conecteaza metricile la surse;
@@ -136,6 +141,9 @@ TypeScript este folosit gradual. Regula curenta:
 - `src/infra/http/client.ts` este TypeScript fiindca este folosit de toate sursele externe si atinge retry HTTP, abort signal, limite de bytes, proxy fallback, hashing si in-flight coalescing;
 - `src/infra/mongo/guildSettings.ts` este TypeScript fiindca expune cache-ul de guild settings folosit de comenzi si housekeeping;
 - `src/infra/mongo/adminAlerts.ts` este TypeScript fiindca alertele admin folosesc cooldown atomic in Mongo si webhook extern;
+- `src/infra/mongo/systemState.ts` este TypeScript fiindca salveaza/citeste timpi globali folositi de runtime si trebuie sa respecte `SystemTimes`;
+- `src/infra/mongo/migrations.ts` este TypeScript fiindca ruleaza modificari idempotente in DB sub lock distribuit;
+- `src/sources/steam/index.ts` este TypeScript fiindca functiile de cautare Steam, preturi si parser HTML sunt folosite de comenzi si reduceri;
 - `src/app/scheduler/cron.ts` este TypeScript fiindca gestioneaza lock distribuit, heartbeat, abort signal si health backoff;
 - `src/app/lifecycle/*.ts` este TypeScript fiindca orice greseala aici poate afecta event wiring-ul sau oprirea controlata;
 - `src/infra/mongo/locks.ts` este TypeScript fiindca gestioneaza lock token-uri si `activeLocks` folosite la shutdown;
@@ -248,7 +256,7 @@ Logger-ul poate scrie JSON sau text, include `requestId` cand exista si aplica s
 
 MongoDB este folosit pentru setari per server Discord, update-uri vazute, reduceri vazute, cozi pending, state global, locks distribuite, circuit breaker si cooldown-uri pentru alertele admin.
 
-Modelele sunt in `src/infra/mongo/models.js`. Lock-urile distribuite sunt in `src/infra/mongo/locks.ts`. Cache-ul pentru setari guild este in `src/infra/mongo/guildSettings.ts`, iar alertele admin cu cooldown atomic sunt in `src/infra/mongo/adminAlerts.ts`. Migrarile sunt in `src/infra/mongo/migrations.js` si se ruleaza la pornire, dupa Mongo ready, sub lock distribuit.
+Modelele sunt in `src/infra/mongo/models.js`. Lock-urile distribuite sunt in `src/infra/mongo/locks.ts`. Cache-ul pentru setari guild este in `src/infra/mongo/guildSettings.ts`, alertele admin cu cooldown atomic sunt in `src/infra/mongo/adminAlerts.ts`, state-ul global este in `src/infra/mongo/systemState.ts`, iar migrarile sunt in `src/infra/mongo/migrations.ts` si se ruleaza la pornire, dupa Mongo ready, sub lock distribuit.
 
 `src/shared/utilities.ts` expune `withMongoRetry` si `isTransientMongoError`. Claim-urile atomice din notificari folosesc retry doar pentru erori Mongo tranzitorii, nu pentru erori de logica.
 
@@ -266,7 +274,7 @@ Sursele externe sunt in `src/sources`.
 
 - `src/sources/updates/index.js`: update-uri pentru Steam, Minecraft, Fortnite, Roblox, NVIDIA, AMD, Intel si surse `listing_based`;
 - `src/sources/deals/index.js`: reduceri Steam si Epic Games;
-- `src/sources/steam/index.js`: cautare Steam, preturi, alegere best match si extragere data expirarii ofertelor.
+- `src/sources/steam/index.ts`: cautare Steam, preturi, alegere best match si extragere data expirarii ofertelor.
 
 ## Slash commands
 
@@ -329,7 +337,7 @@ Teste importante:
 - regresie pentru pachetul health compilat din TypeScript;
 - regresie pentru modulele boot/lifecycle/lock compilate din TypeScript;
 - regresie pentru modulele shared env/logging/domain/utilities compilate din TypeScript;
-- regresie pentru modulele Mongo helper si HTTP client compilate din TypeScript;
+- regresie pentru modulele Mongo helper, state/migrations, Steam helpers si HTTP client compilate din TypeScript;
 - validare config;
 - hashing reduceri;
 - fuzzy matching jocuri;

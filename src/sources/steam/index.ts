@@ -1,20 +1,68 @@
-"use strict";
+import type {
+  CurrencyCode,
+  CurrencyConfig,
+  HttpRequestOptions,
+  LoggerFunction,
+  SteamSearchItem
+} from "../../types";
 
-module.exports = (ctx) => {
-  const { logger, getCurrencyConfig, httpReq, safeCheerioLoad } = ctx;
+type SteamCurrencyCode = CurrencyCode | string | null | undefined;
+type HttpResponse<T = unknown> = { data: T };
+type HttpReq = (
+  method: string,
+  url: string,
+  options?: HttpRequestOptions,
+  retries?: number,
+  backoff?: number
+) => Promise<HttpResponse<any>>;
+type CheerioLoader = (html: unknown) => any;
 
-async function searchSteamGameByName(query, currencyCode) {
-  const cc = getCurrencyConfig(currencyCode).cc;
-  const searchRes = await httpReq("GET",
-    `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(query)}&cc=${cc}&l=english`,
-    { largeJson: true });
-  return searchRes.data?.items || [];
+interface ChooseBestSteamMatchOptions {
+  forceGameOnly?: boolean;
 }
 
-function levenshtein(a, b) {
+interface SteamSearchResponse {
+  items?: SteamSearchItem[];
+}
+
+type SteamDetailsResponse = Record<string, { data?: unknown } | undefined>;
+
+interface SteamContext {
+  logger: LoggerFunction;
+  getCurrencyConfig: (code?: SteamCurrencyCode) => CurrencyConfig;
+  httpReq: HttpReq;
+  safeCheerioLoad: CheerioLoader;
+  searchSteamGameByName?: typeof searchSteamGameByName;
+  levenshtein?: typeof levenshtein;
+  chooseBestSteamMatch?: typeof chooseBestSteamMatch;
+  fetchSteamPriceDetails?: typeof fetchSteamPriceDetails;
+  extractOfferEndFromHtml?: typeof extractOfferEndFromHtml;
+  extractSteamOfferEndDate?: typeof extractSteamOfferEndDate;
+  [key: string]: unknown;
+}
+
+let runtimeContext: Pick<SteamContext, "logger" | "getCurrencyConfig" | "httpReq" | "safeCheerioLoad">;
+
+function errorMessage(err: unknown): string {
+  if (err && typeof err === "object" && "message" in err) {
+    return String((err as { message?: unknown }).message);
+  }
+  return String(err);
+}
+
+async function searchSteamGameByName(query: string, currencyCode?: SteamCurrencyCode): Promise<SteamSearchItem[]> {
+  const cc = runtimeContext.getCurrencyConfig(currencyCode).cc;
+  const searchRes = await runtimeContext.httpReq("GET",
+    `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(query)}&cc=${cc}&l=english`,
+    { largeJson: true });
+  const data = searchRes.data as SteamSearchResponse | undefined;
+  return data?.items || [];
+}
+
+function levenshtein(a: string, b: string): number {
   if (a.length === 0) return b.length;
   if (b.length === 0) return a.length;
-  const matrix = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  const matrix: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i]);
   for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
   for (let i = 1; i <= a.length; i++) {
     for (let j = 1; j <= b.length; j++) {
@@ -25,10 +73,14 @@ function levenshtein(a, b) {
   return matrix[a.length][b.length];
 }
 
-function chooseBestSteamMatch(items, query, options = {}) {
+function chooseBestSteamMatch(
+  items: SteamSearchItem[] | null | undefined,
+  query: string,
+  options: ChooseBestSteamMatchOptions = {}
+): SteamSearchItem | null {
   if (!Array.isArray(items) || items.length === 0) return null;
   const { forceGameOnly = false } = options;
-  const normalize = (str) => String(str).toLowerCase()
+  const normalize = (str: unknown): string => String(str).toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
   const searchTarget = query.toLowerCase().trim();
   const normTarget = normalize(query);
@@ -71,17 +123,18 @@ function chooseBestSteamMatch(items, query, options = {}) {
   return bestMatch;
 }
 
-async function fetchSteamPriceDetails(appId, currencyCode) {
-  const cc = getCurrencyConfig(currencyCode).cc;
-  const detailsRes = await httpReq("GET",
+async function fetchSteamPriceDetails(appId: string | number, currencyCode?: SteamCurrencyCode): Promise<unknown | null> {
+  const cc = runtimeContext.getCurrencyConfig(currencyCode).cc;
+  const detailsRes = await runtimeContext.httpReq("GET",
     `https://store.steampowered.com/api/appdetails?appids=${appId}&cc=${cc}&l=english`,
     { largeJson: true });
-  return detailsRes.data[appId]?.data || null;
+  const data = (detailsRes.data || {}) as SteamDetailsResponse;
+  return data[String(appId)]?.data || null;
 }
 
-function extractOfferEndFromHtml(html) {
+function extractOfferEndFromHtml(html: unknown): string | null {
   try {
-    const $ = safeCheerioLoad(html);
+    const $ = runtimeContext.safeCheerioLoad(html);
     const cdText = $(".game_purchase_discount_countdown").first().text().trim();
     if (cdText) {
       const match = cdText.match(/(?:Offer|Sale|Special\s+promotion)\s+ends\s+([^<\n]+)/i)
@@ -108,22 +161,27 @@ function extractOfferEndFromHtml(html) {
   return rawMatch && rawMatch[1] ? rawMatch[1].trim().slice(0, 200) : null;
 }
 
-// V9: primește currency-ul pentru a cere pagina HTML în regiunea corectă.
-// Steam returnează formatul "Offer ends ..." în limba/regiunea cerută, deci fără
-// cc=RO un guild pe RON parsa rezultatul englez în locul celui așteptat.
-async function extractSteamOfferEndDate(appId, currencyCode) {
-  const cc = getCurrencyConfig(currencyCode).cc;
+async function extractSteamOfferEndDate(appId: string | number, currencyCode?: SteamCurrencyCode): Promise<string | null> {
+  const cc = runtimeContext.getCurrencyConfig(currencyCode).cc;
   try {
-    const htmlRes = await httpReq("GET",
+    const htmlRes = await runtimeContext.httpReq("GET",
       `https://store.steampowered.com/app/${appId}?cc=${cc}&l=english`, {
       headers: { "Cookie": "birthtime=283993201; mature_content=1;" }
     });
     return extractOfferEndFromHtml(String(htmlRes.data));
   } catch (err) {
-    logger("WARN", "PRICE_SEARCH", `Nu am putut extrage data expirării pentru app ${appId}`, err.message);
+    runtimeContext.logger("WARN", "PRICE_SEARCH", `Nu am putut extrage data expirării pentru app ${appId}`, errorMessage(err));
     return null;
   }
 }
+
+function attachSteam(ctx: SteamContext): void {
+  runtimeContext = {
+    logger: ctx.logger,
+    getCurrencyConfig: ctx.getCurrencyConfig,
+    httpReq: ctx.httpReq,
+    safeCheerioLoad: ctx.safeCheerioLoad
+  };
 
   Object.assign(ctx, {
     searchSteamGameByName,
@@ -133,4 +191,6 @@ async function extractSteamOfferEndDate(appId, currencyCode) {
     extractOfferEndFromHtml,
     extractSteamOfferEndDate
   });
-};
+}
+
+export = attachSteam;

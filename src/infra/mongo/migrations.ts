@@ -1,13 +1,37 @@
-// @ts-check
-"use strict";
+import type { Connection, Mongoose } from "mongoose";
+import type { LockToken, LoggerFunction } from "../../types";
 
-module.exports = (ctx) => {
-  const { mongoose, acquireDbLock, releaseDbLock } = ctx;
+interface Migration {
+  id: number;
+  name: string;
+  up: (db: Connection) => Promise<void>;
+}
 
-/** @typedef {{ id: number, name: string, up: (db: import("mongoose").Connection) => Promise<void> }} Migration */
+interface MigrationStateDoc {
+  _id: string;
+  lastApplied?: number;
+  lastAppliedAt?: Date;
+}
 
-/** @type {Migration} */
-const m1_addEnabledStores = {
+interface GuildSeenDiscountDoc {
+  _id: unknown;
+  seenDiscounts?: unknown;
+}
+
+interface RunMigrationsResult {
+  applied: number[];
+  skipped: number;
+}
+
+interface MigrationsContext {
+  mongoose: Mongoose;
+  acquireDbLock: (jobName: string, ttlMs: number) => Promise<LockToken | null>;
+  releaseDbLock: (jobName: string, token: LockToken) => Promise<unknown>;
+  runMigrations?: typeof runMigrations;
+  ALL_MIGRATIONS?: Migration[];
+}
+
+const m1_addEnabledStores: Migration = {
   id: 1,
   name: "add-enabledStores-to-existing-guilds",
   async up(db) {
@@ -19,8 +43,7 @@ const m1_addEnabledStores = {
   }
 };
 
-/** @type {Migration} */
-const m2_addMaxAbsolutePrice = {
+const m2_addMaxAbsolutePrice: Migration = {
   id: 2,
   name: "add-maxAbsolutePrice-to-existing-guilds",
   async up(db) {
@@ -32,8 +55,7 @@ const m2_addMaxAbsolutePrice = {
   }
 };
 
-/** @type {Migration} */
-const m3_addEnabledGames = {
+const m3_addEnabledGames: Migration = {
   id: 3,
   name: "add-enabledGames-to-existing-guilds",
   async up(db) {
@@ -45,8 +67,7 @@ const m3_addEnabledGames = {
   }
 };
 
-/** @type {Migration} */
-const m4_trimSeenDiscounts = {
+const m4_trimSeenDiscounts: Migration = {
   id: 4,
   name: "trim-runaway-seenDiscounts",
   async up(db) {
@@ -54,7 +75,7 @@ const m4_trimSeenDiscounts = {
     const docs = await coll.find(
       { "seenDiscounts.500": { $exists: true } },
       { projection: { _id: 1, seenDiscounts: 1 } }
-    ).toArray();
+    ).toArray() as GuildSeenDiscountDoc[];
 
     for (const doc of docs) {
       if (!Array.isArray(doc.seenDiscounts)) continue;
@@ -64,8 +85,7 @@ const m4_trimSeenDiscounts = {
   }
 };
 
-/** @type {Migration[]} */
-const ALL_MIGRATIONS = [
+const ALL_MIGRATIONS: Migration[] = [
   m1_addEnabledStores,
   m2_addMaxAbsolutePrice,
   m3_addEnabledGames,
@@ -74,12 +94,10 @@ const ALL_MIGRATIONS = [
 
 const MIGRATION_LOCK_NAME = "db_migrations";
 const MIGRATION_LOCK_TTL_MS = 5 * 60 * 1000;
+let runtimeContext: Pick<MigrationsContext, "mongoose" | "acquireDbLock" | "releaseDbLock">;
 
-/**
- * @param {(level: string, ctx: string, msg: string, meta?: unknown) => void} logger
- * @returns {Promise<{ applied: number[], skipped: number }>}
- */
-async function runMigrations(logger) {
+async function runMigrations(logger: LoggerFunction): Promise<RunMigrationsResult> {
+  const { mongoose, acquireDbLock, releaseDbLock } = runtimeContext;
   const db = mongoose.connection;
   if (!db.db) {
     logger("WARN", "MIGRATE", "Conexiunea Mongo nu e ready, sar peste migrari");
@@ -93,14 +111,13 @@ async function runMigrations(logger) {
   }
 
   try {
-    const sysColl = db.collection("system");
+    const sysColl = db.collection<MigrationStateDoc>("system");
     const stateDoc = await sysColl.findOne({ _id: "migrationState" });
     const lastApplied = stateDoc && typeof stateDoc.lastApplied === "number"
       ? stateDoc.lastApplied
       : 0;
 
-    /** @type {number[]} */
-    const applied = [];
+    const applied: number[] = [];
     let skipped = 0;
 
     for (const migration of ALL_MIGRATIONS) {
@@ -132,8 +149,17 @@ async function runMigrations(logger) {
   }
 }
 
+function attachMigrations(ctx: MigrationsContext): void {
+  runtimeContext = {
+    mongoose: ctx.mongoose,
+    acquireDbLock: ctx.acquireDbLock,
+    releaseDbLock: ctx.releaseDbLock
+  };
+
   Object.assign(ctx, {
     runMigrations,
     ALL_MIGRATIONS
   });
-};
+}
+
+export = attachMigrations;
