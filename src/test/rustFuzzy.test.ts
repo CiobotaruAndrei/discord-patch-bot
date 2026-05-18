@@ -3,7 +3,15 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { findGameKeys, isRustFuzzyAvailable, levenshtein } = require("../native/fuzzy");
+const {
+  dealHash,
+  findGameKeys,
+  isRustFuzzyAvailable,
+  levenshtein,
+  normalizeDealState,
+  normalizeTitleForDedupe,
+  stableUpdateId
+} = require("../native/fuzzy");
 
 const games = [
   { key: "cs2", name: "Counter-Strike 2", aliases: ["counter strike", "cs"] },
@@ -31,6 +39,46 @@ test("Rust fuzzy matching returns suggestion keys for wider typo", () => {
   const result = findGameKeys("minikraft", games, 80);
   assert.equal(result.gameKey, null);
   assert.equal(result.suggestionKey, "minecraft");
+});
+
+test("Rust title normalization matches deal dedupe behavior", () => {
+  assert.equal(normalizeTitleForDedupe("Counter-Strike\u00ae 2\u2122!!!"), "counter strike 2");
+});
+
+test("Rust stable update ids match SHA1 contract", () => {
+  assert.equal(stableUpdateId("Patch", "https://example.com/update"), "7f512d1c3e0464b1");
+});
+
+test("Rust deal state normalization trims and lowercases values", () => {
+  assert.equal(normalizeDealState({ salePrice: " 9.99 ", normalPrice: "19.99", savings: 50 }), "9.99:19.99:50");
+});
+
+test("Rust deal hashes preserve stable Steam, Epic and listing keys", () => {
+  assert.equal(dealHash({
+    store: "Steam",
+    steamAppID: 730,
+    title: "Counter-Strike 2",
+    salePrice: "9.99",
+    normalPrice: "19.99",
+    savings: "50"
+  }), "5c0280542102f361747d03b0c15241b65de1b8c6");
+
+  assert.equal(dealHash({
+    store: "Epic Games",
+    id: "epic_abc-123",
+    title: "Some Epic Game",
+    salePrice: "5.00",
+    normalPrice: "10.00",
+    savings: "50"
+  }), "624513cc2f304303abd6638f9b6286de4b61eeb1");
+
+  assert.equal(dealHash({
+    store: "Itch.io",
+    title: "Some Listing Game!!!",
+    salePrice: "7.50",
+    normalPrice: "15.00",
+    savings: "50"
+  }), "851f5fc3c20f8379c5d78cff6300dd601c835d02");
 });
 
 export {};

@@ -1,6 +1,7 @@
+import crypto = require("crypto");
 import fs = require("fs");
 import path = require("path");
-import type { GameConfig } from "../types";
+import type { DealInfo, GameConfig } from "../types";
 
 interface NativeGameCandidate {
   key: string;
@@ -17,6 +18,14 @@ interface NativeFuzzyModule {
   levenshtein(a: string, b: string): number;
   findGameKeys(text: string, games: NativeGameCandidate[], maxInput: number): unknown;
   find_game_keys?(text: string, games: NativeGameCandidate[], maxInput: number): unknown;
+  normalizeTitleForDedupe?(value: string): string;
+  normalize_title_for_dedupe?(value: string): string;
+  stableUpdateId?(title: string, link: string): string;
+  stable_update_id?(title: string, link: string): string;
+  normalizeDealState?(salePrice: string, normalPrice: string, savings: string): string;
+  normalize_deal_state?(salePrice: string, normalPrice: string, savings: string): string;
+  dealHash?(store: string, steamAppId: string, id: string, title: string, salePrice: string, normalPrice: string, savings: string): string;
+  deal_hash?(store: string, steamAppId: string, id: string, title: string, salePrice: string, normalPrice: string, savings: string): string;
 }
 
 let nativeModule: NativeFuzzyModule | null | undefined;
@@ -74,6 +83,13 @@ function toNativeCandidates(games: GameConfig[]): NativeGameCandidate[] {
   }));
 }
 
+function nativeStringFn(name: keyof NativeFuzzyModule, snakeName: keyof NativeFuzzyModule): ((...args: string[]) => string) | null {
+  const native = loadNativeFuzzy();
+  if (!native) return null;
+  const fn = typeof native[name] === "function" ? native[name] : native[snakeName];
+  return typeof fn === "function" ? fn.bind(native) as (...args: string[]) => string : null;
+}
+
 function levenshteinFallback(a: string, b: string): number {
   if (a.length === 0) return b.length;
   if (b.length === 0) return a.length;
@@ -91,6 +107,40 @@ function levenshteinFallback(a: string, b: string): number {
     }
   }
   return row[b.length];
+}
+
+function normalizeTitleForDedupeFallback(value: unknown): string {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[\u00ae\u00a9\u2122]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function stableUpdateIdFallback(title: unknown, link: unknown): string {
+  const base = `${String(title || "")}|${String(link || "")}`;
+  return crypto.createHash("sha1").update(base).digest("hex").substring(0, 16);
+}
+
+function normalizeDealStateFallback(deal: DealInfo): string {
+  return [
+    deal.salePrice ?? "",
+    deal.normalPrice ?? "",
+    deal.savings ?? ""
+  ].map(value => String(value).trim().toLowerCase()).join(":");
+}
+
+function dealHashFallback(deal: DealInfo): string {
+  let stableKey;
+  if (deal.store === "Steam" && deal.steamAppID) {
+    stableKey = `steam:${deal.steamAppID}:${normalizeDealStateFallback(deal)}`;
+  } else if (deal.store === "Epic Games" && deal.id) {
+    const rawId = String(deal.id).replace(/^epic_/, "");
+    stableKey = `epic:${rawId}:${normalizeDealStateFallback(deal)}`;
+  } else {
+    stableKey = `${deal.store}:${normalizeTitleForDedupeFallback(deal.title)}:${normalizeDealStateFallback(deal)}`;
+  }
+  return crypto.createHash("sha1").update(stableKey).digest("hex");
 }
 
 function findGameKeysFallback(text: unknown, games: GameConfig[], maxInput: number): FuzzyMatchKeys {
@@ -147,6 +197,36 @@ export function levenshtein(a: string, b: string): number {
   const native = loadNativeFuzzy();
   if (native) return native.levenshtein(a, b);
   return levenshteinFallback(a, b);
+}
+
+export function normalizeTitleForDedupe(value: unknown): string {
+  const fn = nativeStringFn("normalizeTitleForDedupe", "normalize_title_for_dedupe");
+  return fn ? fn(String(value || "")) : normalizeTitleForDedupeFallback(value);
+}
+
+export function stableUpdateId(title: unknown, link: unknown): string {
+  const fn = nativeStringFn("stableUpdateId", "stable_update_id");
+  return fn ? fn(String(title || ""), String(link || "")) : stableUpdateIdFallback(title, link);
+}
+
+export function normalizeDealState(deal: DealInfo): string {
+  const salePrice = String(deal.salePrice ?? "");
+  const normalPrice = String(deal.normalPrice ?? "");
+  const savings = String(deal.savings ?? "");
+  const fn = nativeStringFn("normalizeDealState", "normalize_deal_state");
+  return fn ? fn(salePrice, normalPrice, savings) : normalizeDealStateFallback(deal);
+}
+
+export function dealHash(deal: DealInfo): string {
+  const store = String(deal.store);
+  const steamAppId = deal.steamAppID ? String(deal.steamAppID) : "";
+  const id = String(deal.id || "");
+  const title = String(deal.title || "");
+  const salePrice = String(deal.salePrice ?? "");
+  const normalPrice = String(deal.normalPrice ?? "");
+  const savings = String(deal.savings ?? "");
+  const fn = nativeStringFn("dealHash", "deal_hash");
+  return fn ? fn(store, steamAppId, id, title, salePrice, normalPrice, savings) : dealHashFallback(deal);
 }
 
 export function findGameKeys(text: unknown, games: GameConfig[], maxInput: number): FuzzyMatchKeys {

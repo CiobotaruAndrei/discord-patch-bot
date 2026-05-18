@@ -1,6 +1,6 @@
 # V11 - schimbari utile portate
 
-Acest document noteaza ce a fost pastrat din fisierele locale si cum a fost organizat repo-ul dupa curatare, migrarea la TypeScript si primul pas Rust.
+Acest document noteaza ce a fost pastrat din fisierele locale si cum a fost organizat repo-ul dupa curatare, migrarea la TypeScript si introducerea graduala a Rust.
 
 ## Bug fix-uri si imbunatatiri portate
 
@@ -66,7 +66,9 @@ Corectie finala dupa ce CI a aratat ca mai ramasesera 5 fisiere JavaScript de te
 
 ## Rust gradual
 
-Primul pas Rust este limitat la algoritmi puri de text, unde poate ajuta fara sa atinga Discord, Mongo sau HTTP:
+Rust este limitat la algoritmi puri si repetitivi, unde ajuta fara sa mute Discord, Mongo sau HTTP peste granita N-API.
+
+Primul pas Rust:
 
 - `src/native/src/lib.rs` implementeaza in Rust `levenshtein` si un helper bulk pentru fuzzy matching.
 - `src/native/package.json` da metadata N-API pentru build-ul addon-ului.
@@ -74,7 +76,15 @@ Primul pas Rust este limitat la algoritmi puri de text, unde poate ajuta fara sa
 - `src/sources/steam/index.ts` foloseste `levenshtein` din `src/native/fuzzy.ts`, deci alegerea celui mai bun rezultat Steam si fuzzy matching-ul din comenzi primesc nucleul Rust prin contextul comun.
 - `src/test/rustFuzzy.test.ts` verifica explicit ca addon-ul Rust este incarcat in CI.
 
-Nu am mutat in Rust zonele de Discord, Mongo, HTTP sau parsare HTML in acest pas, pentru ca acolo timpul real este dominat de retea/IO si riscul ar fi mai mare decat castigul.
+Al doilea pas Rust:
+
+- `src/native/src/lib.rs` expune si `normalize_title_for_dedupe`, `stable_update_id`, `normalize_deal_state` si `deal_hash`.
+- `src/native/Cargo.toml` adauga `sha1`, ca hash-urile stabile sa fie calculate in nucleul Rust.
+- `src/native/fuzzy.ts` expune wrapper-ele TypeScript `normalizeTitleForDedupe`, `stableUpdateId`, `normalizeDealState` si `dealHash`, cu fallback-uri compatibile.
+- `src/infra/http/client.ts` pastreaza aceleasi functii publice pentru restul codului, dar deleaga normalizarea/hash-ul catre wrapper-ele Rust.
+- `src/test/rustFuzzy.test.ts` acopera normalizarea titlurilor, ID-urile stabile de update si hash-urile pentru Steam, Epic si listing-based deals.
+
+Nu am mutat in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy fallback sau parsare HTML in acest pas, pentru ca acolo timpul real este dominat de retea/IO si riscul ar fi mai mare decat castigul.
 
 ## Schimbari de build
 

@@ -1,4 +1,5 @@
 use napi_derive::napi;
+use sha1::{Digest, Sha1};
 
 #[napi(object)]
 pub struct GameCandidate {
@@ -24,6 +25,45 @@ struct CandidateScore<'a> {
 #[napi]
 pub fn levenshtein(a: String, b: String) -> u32 {
   levenshtein_impl(&a, &b) as u32
+}
+
+#[napi]
+pub fn normalize_title_for_dedupe(value: String) -> String {
+  normalize_title_for_dedupe_impl(&value)
+}
+
+#[napi]
+pub fn stable_update_id(title: String, link: String) -> String {
+  let base = format!("{}|{}", title, link);
+  sha1_hex(&base).chars().take(16).collect()
+}
+
+#[napi]
+pub fn normalize_deal_state(sale_price: String, normal_price: String, savings: String) -> String {
+  normalize_deal_state_impl(&sale_price, &normal_price, &savings)
+}
+
+#[napi]
+pub fn deal_hash(
+  store: String,
+  steam_app_id: String,
+  id: String,
+  title: String,
+  sale_price: String,
+  normal_price: String,
+  savings: String,
+) -> String {
+  let state = normalize_deal_state_impl(&sale_price, &normal_price, &savings);
+  let stable_key = if store == "Steam" && !steam_app_id.is_empty() {
+    format!("steam:{}:{}", steam_app_id, state)
+  } else if store == "Epic Games" && !id.is_empty() {
+    let raw_id = id.strip_prefix("epic_").unwrap_or(&id);
+    format!("epic:{}:{}", raw_id, state)
+  } else {
+    format!("{}:{}:{}", store, normalize_title_for_dedupe_impl(&title), state)
+  };
+
+  sha1_hex(&stable_key)
 }
 
 #[napi]
@@ -112,6 +152,38 @@ fn normalize_command_text(value: &str) -> String {
     .collect::<String>()
     .trim()
     .to_string()
+}
+
+fn normalize_title_for_dedupe_impl(value: &str) -> String {
+  let mut normalized = String::with_capacity(value.len());
+  let mut previous_was_space = false;
+
+  for ch in value.to_lowercase().chars() {
+    if matches!(ch, '\u{00ae}' | '\u{00a9}' | '\u{2122}') {
+      continue;
+    }
+    if ch.is_ascii_alphanumeric() {
+      normalized.push(ch);
+      previous_was_space = false;
+    } else if !previous_was_space {
+      normalized.push(' ');
+      previous_was_space = true;
+    }
+  }
+
+  normalized.trim().to_string()
+}
+
+fn normalize_deal_state_impl(sale_price: &str, normal_price: &str, savings: &str) -> String {
+  [sale_price, normal_price, savings]
+    .map(|value| value.trim().to_lowercase())
+    .join(":")
+}
+
+fn sha1_hex(value: &str) -> String {
+  let mut hasher = Sha1::new();
+  hasher.update(value.as_bytes());
+  format!("{:x}", hasher.finalize())
 }
 
 fn levenshtein_impl(a: &str, b: &str) -> usize {

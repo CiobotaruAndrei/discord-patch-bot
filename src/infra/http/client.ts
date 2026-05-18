@@ -10,6 +10,12 @@ import type {
   PatchUpdate,
   RuntimeEnv
 } from "../../types";
+import {
+  dealHash as rustDealHash,
+  normalizeDealState as rustNormalizeDealState,
+  normalizeTitleForDedupe as rustNormalizeTitleForDedupe,
+  stableUpdateId as rustStableUpdateId
+} from "../../native/fuzzy";
 
 type CheerioModule = typeof import("cheerio");
 type CryptoModule = typeof import("crypto");
@@ -40,7 +46,7 @@ const CLEAN_REGEX = /<[^>]+>|&(nbsp|amp|quot|#39|apos|lt|gt);|\s+/gi;
 const RETRY_ABLE_4XX = new Set([408, 425, 429]);
 
 function attachHttpClient(ctx: HttpClientContext): void {
-  const { axios, cheerio, crypto, env, logger, getAbortSignal } = ctx;
+  const { axios, cheerio, env, logger, getAbortSignal } = ctx;
 
   const FETCH_CONCURRENCY = env.FETCH_CONCURRENCY;
   const MAX_HTML_BYTES = env.MAX_HTML_BYTES;
@@ -108,16 +114,11 @@ function attachHttpClient(ctx: HttpClientContext): void {
   }
 
   function normalizeTitleForDedupe(str: unknown): string {
-    return String(str || "")
-      .toLowerCase()
-      .replace(/[\u00ae\u00a9\u2122]/g, "")
-      .replace(/[^a-z0-9]+/g, " ")
-      .trim();
+    return rustNormalizeTitleForDedupe(str);
   }
 
   function stableUpdateId(title: unknown, link: unknown): string {
-    const base = `${String(title || "")}|${String(link || "")}`;
-    return crypto.createHash("sha1").update(base).digest("hex").substring(0, 16);
+    return rustStableUpdateId(title, link);
   }
 
   function normalizeUpdate(data: PatchUpdate): NormalizedUpdate {
@@ -152,24 +153,11 @@ function attachHttpClient(ctx: HttpClientContext): void {
   }
 
   function normalizeDealState(deal: DealInfo): string {
-    return [
-      deal.salePrice ?? "",
-      deal.normalPrice ?? "",
-      deal.savings ?? ""
-    ].map(v => String(v).trim().toLowerCase()).join(":");
+    return rustNormalizeDealState(deal);
   }
 
   function dealHash(deal: DealInfo): string {
-    let stableKey;
-    if (deal.store === "Steam" && deal.steamAppID) {
-      stableKey = `steam:${deal.steamAppID}:${normalizeDealState(deal)}`;
-    } else if (deal.store === "Epic Games" && deal.id) {
-      const rawId = String(deal.id).replace(/^epic_/, "");
-      stableKey = `epic:${rawId}:${normalizeDealState(deal)}`;
-    } else {
-      stableKey = `${deal.store}:${normalizeTitleForDedupe(deal.title)}:${normalizeDealState(deal)}`;
-    }
-    return crypto.createHash("sha1").update(stableKey).digest("hex");
+    return rustDealHash(deal);
   }
 
   async function httpReq(
