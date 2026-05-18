@@ -8,6 +8,7 @@ Acest fisier documenteaza responsabilitatile modulelor importante din repo. Surs
 - Runtime-ul compilat este CommonJS.
 - `src/infra/mongo/index.ts`, `src/sources/index.ts` si `src/features/commands/index.ts` sunt agregatoare.
 - `src/types.ts` tine tipurile comune folosite intre module.
+- `src/legacy-dynamic.d.ts` este un shim temporar pentru obiecte legacy dinamice ramase in fisierele mari convertite.
 - `dist/` este output generat si nu se editeaza manual.
 - Singura exceptie intentionata din afara `src` este `.github/workflows/ci.yml`.
 
@@ -53,15 +54,16 @@ Rol:
 
 Rol: contracte comune pentru config, env, metrics, cron, lifecycle, locks, HTTP, Mongo, surse, comenzi si date de domeniu.
 
-Tipuri importante:
+### `src/legacy-dynamic.d.ts`
 
-- `RuntimeEnv`;
-- `LoggerFunction`, `ParseEnvNumber`, `RequestContextStore`;
-- `BotConfig`, `GameConfig`, `ConfigLoadResult`;
-- `BotMetrics`, `CronController`, `CronHealthSnapshot`;
-- `LifecycleState`, `LockToken`, `ActiveLocks`;
-- `DealInfo`, `PendingUpdate`, `PendingDiscount`, `GuildSettings`, `SystemTimes`;
-- `HttpRequestOptions`, cache-uri si rezultate concurente.
+Rol: compatibilitate temporara pentru obiectele legacy construite dinamic dupa conversia fisierelor mari la TypeScript.
+
+Include declaratii pentru:
+
+- campuri dinamice din `updateDoc`, `sendPayload` si `setDoc`;
+- `fetchGameStatus`, folosit de handler-ul legacy de status.
+
+Atentie: acest fisier este o punte de migrare. Codul nou trebuie sa foloseasca tipuri locale explicite, nu sa extinda shim-ul fara motiv.
 
 ## App
 
@@ -299,7 +301,7 @@ Expune dependinte pentru surse: `axios`, `cheerio`, `rss-parser`, `crypto` si in
 
 ### `src/sources/index.ts`
 
-Agregator pentru client HTTP, Steam helpers, update sources si deals sources.
+Agregator pentru client HTTP, Steam helpers, update sources si deals sources. Expune si exporturi TypeScript pentru `dealHash`, `extractOfferEndFromHtml`, `safeCheerioLoad` si `MAX_HTML_BYTES`, folosite de testele existente.
 
 ### `src/sources/updates/index.ts`
 
@@ -350,7 +352,7 @@ Functii:
 
 ### `src/features/commands/index.ts`
 
-Agregator pentru cache, filtre, UI, notificari, slash commands si interactions.
+Agregator pentru cache, filtre, UI, notificari, slash commands si interactions. Mai seteaza temporar `globalThis.fetchGameStatus` pentru handler-ul legacy convertit la TypeScript.
 
 ### `src/features/commands/cache.ts`
 
