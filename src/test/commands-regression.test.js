@@ -21,6 +21,8 @@ const runtimeFiles = [
   "shared/utilities.js",
   "shared/logging.js",
   "infra/http/client.js",
+  "infra/mongo/guildSettings.js",
+  "infra/mongo/adminAlerts.js",
   "infra/mongo/locks.js",
   "app/scheduler/cron.js",
   "app/lifecycle/events.js",
@@ -143,6 +145,30 @@ test("shared domain and utilities modules keep TypeScript contracts after build"
   assert.match(runtimeSource, /function validatePendingDiscountSnapshot/);
   assert.match(runtimeSource, /function isTransientMongoError/);
   assert.match(runtimeSource, /async function withMongoRetry/);
+});
+
+test("Mongo helper modules keep TypeScript contracts after build", () => {
+  assert.match(runtimeSource, /function attachGuildSettings/);
+  assert.match(runtimeSource, /async function getGuildSettings/);
+  assert.match(runtimeSource, /function invalidateGuildCache/);
+  assert.match(runtimeSource, /function cleanGuildCache/);
+  assert.match(runtimeSource, /function getGuildCacheSize/);
+  assert.match(runtimeSource, /function attachAdminAlerts/);
+  assert.match(runtimeSource, /async function adminAlert/);
+  assert.match(runtimeSource, /ADMIN_ALERT/);
+});
+
+test("HTTP client module keeps TypeScript contracts after build", () => {
+  assert.match(runtimeSource, /function attachHttpClient/);
+  assert.match(runtimeSource, /function attachMetrics/);
+  assert.match(runtimeSource, /function cleanText/);
+  assert.match(runtimeSource, /function normalizeUpdate/);
+  assert.match(runtimeSource, /function safeCheerioLoad/);
+  assert.match(runtimeSource, /function dealHash/);
+  assert.match(runtimeSource, /async function httpReq/);
+  assert.match(runtimeSource, /async function fetchWithProxy/);
+  assert.match(runtimeSource, /function withInflightTimeout/);
+  assert.match(runtimeSource, /function trackInflight/);
 });
 
 test("cron lock acquisition errors are contained", () => {
