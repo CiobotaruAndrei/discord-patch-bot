@@ -16,6 +16,7 @@ const commandFiles = [
 ];
 const runtimeFiles = [
   "config/configLoader.js",
+  "shared/domain.js",
   "shared/env.js",
   "shared/utilities.js",
   "shared/logging.js",
@@ -131,6 +132,17 @@ test("shared logging and env modules keep TypeScript contracts after build", () 
   assert.match(runtimeSource, /function attachEnv/);
   assert.match(runtimeSource, /PLACEHOLDER_METRICS_TOKEN/);
   assert.match(runtimeSource, /LOG_SAMPLE_RATE/);
+});
+
+test("shared domain and utilities modules keep TypeScript contracts after build", () => {
+  assert.match(runtimeSource, /class SchemaDriftError/);
+  assert.match(runtimeSource, /SCHEMA_DRIFT/);
+  assert.match(runtimeSource, /function getCurrencyConfig/);
+  assert.match(runtimeSource, /function formatPrice/);
+  assert.match(runtimeSource, /function attachUtilities/);
+  assert.match(runtimeSource, /function validatePendingDiscountSnapshot/);
+  assert.match(runtimeSource, /function isTransientMongoError/);
+  assert.match(runtimeSource, /async function withMongoRetry/);
 });
 
 test("cron lock acquisition errors are contained", () => {

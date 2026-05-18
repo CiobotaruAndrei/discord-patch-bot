@@ -10,7 +10,7 @@ Proiectul ruleaza pe Node.js si foloseste CommonJS la runtime-ul compilat. Codul
 - modulele unde tiparea aduce siguranta reala sunt scrise in TypeScript;
 - `src/config/configValidator.ts` valideaza config-ul cu Zod;
 - `src/config/configLoader.ts` incarca config-ul si returneaza `config`, `games` si `configPath` tipate;
-- `src/shared/errors.ts`, `src/shared/logging.ts` si `src/shared/env.ts` contin baza comuna pentru erori, logger, request context si env;
+- `src/shared/errors.ts`, `src/shared/logging.ts`, `src/shared/env.ts`, `src/shared/domain.ts` si `src/shared/utilities.ts` contin baza comuna pentru erori, logger, request context, env, valute, retry Mongo si utilitare;
 - `src/app/scheduler/cron.ts` controleaza cron-ul critic cu tipuri explicite;
 - `src/app/scheduler/housekeeping.ts` controleaza cleanup-ul periodic;
 - `src/app/lifecycle/events.ts` si `src/app/lifecycle/shutdown.ts` tin event wiring-ul si oprirea controlata;
@@ -72,9 +72,11 @@ src/
       locks.ts
   scripts/
   shared/
+    domain.ts
     env.ts
     errors.ts
     logging.ts
+    utilities.ts
   sources/
   test/
   docs/
@@ -93,7 +95,7 @@ src/
 
 Flow-ul:
 
-1. `src/infra/mongo/index.js` construieste contextul comun, atasand `logging.ts`, `env.ts`, utilitare, modele, lock-uri si alerte;
+1. `src/infra/mongo/index.js` construieste contextul comun, atasand `logging.ts`, `env.ts`, `domain.ts`, `utilities.ts`, modele, lock-uri si alerte;
 2. incarca si valideaza config-ul prin `loadConfig` si `validateConfig`;
 3. creeaza metricile;
 4. conecteaza metricile la surse;
@@ -124,6 +126,8 @@ TypeScript este folosit gradual. Regula curenta:
 - `configLoader.ts` descrie rezultatul de boot prin `ConfigLoadResult`;
 - `src/shared/logging.ts` descrie `LoggerFunction`, `ParseEnvNumber`, `RequestContextStore` si semnalul de abort curent;
 - `src/shared/env.ts` construieste obiectul `RuntimeEnv`, inclusiv placeholder handling pentru `METRICS_TOKEN`;
+- `src/shared/domain.ts` tipizeaza `SchemaDriftError`, valutele suportate, `getCurrencyConfig` si `formatPrice`;
+- `src/shared/utilities.ts` tipizeaza `runConcurrent`, `waitForMongoReady`, validarea snapshot-urilor pending si retry-ul Mongo pentru erori tranzitorii;
 - `src/app/scheduler/cron.ts` este TypeScript fiindca gestioneaza lock distribuit, heartbeat, abort signal si health backoff;
 - `src/app/lifecycle/*.ts` este TypeScript fiindca orice greseala aici poate afecta event wiring-ul sau oprirea controlata;
 - `src/infra/mongo/locks.ts` este TypeScript fiindca gestioneaza lock token-uri si `activeLocks` folosite la shutdown;
@@ -213,13 +217,32 @@ In production, `/metrics` trebuie protejat prin `METRICS_TOKEN`, sau facut publi
 
 Logger-ul poate scrie JSON sau text, include `requestId` cand exista si aplica sampling pe INFO/DEBUG prin `LOG_SAMPLE_RATE`. `getAbortSignal()` este folosit de clientul HTTP ca sa opreasca request-uri cand cron-ul este anulat.
 
+## Shared domain si utilities
+
+`src/shared/domain.ts` tine contractele mici de domeniu folosite peste tot:
+
+- `SchemaDriftError` pentru surse care raspund OK dar nu mai potrivesc selectorii asteptati;
+- `SUPPORTED_CURRENCIES` si `DEFAULT_CURRENCY`;
+- `getCurrencyConfig(code)`;
+- `formatPrice(value, currencyCode)`.
+
+`src/shared/utilities.ts` tine utilitare comune:
+
+- `runConcurrent(items, concurrency, fn, options)`;
+- `waitForMongoReady(timeoutMs)`;
+- `validatePendingDiscountSnapshot(snapshot)`;
+- `isTransientMongoError(err)`;
+- `withMongoRetry(fn, options)`.
+
+`withMongoRetry` este folosit pe claim-uri atomice Mongo unde o eroare temporara poate fi reincercata fara sa dubleze notificari.
+
 ## MongoDB
 
 MongoDB este folosit pentru setari per server Discord, update-uri vazute, reduceri vazute, cozi pending, state global, locks distribuite, circuit breaker si cooldown-uri pentru alertele admin.
 
 Modelele sunt in `src/infra/mongo/models.js`. Lock-urile distribuite sunt in `src/infra/mongo/locks.ts`. Migrarile sunt in `src/infra/mongo/migrations.js` si se ruleaza la pornire, dupa Mongo ready, sub lock distribuit.
 
-`src/shared/utilities.js` expune `withMongoRetry` si `isTransientMongoError`. Claim-urile atomice din notificari folosesc retry doar pentru erori Mongo tranzitorii, nu pentru erori de logica.
+`src/shared/utilities.ts` expune `withMongoRetry` si `isTransientMongoError`. Claim-urile atomice din notificari folosesc retry doar pentru erori Mongo tranzitorii, nu pentru erori de logica.
 
 ## HTTP si scraping
 
@@ -297,7 +320,7 @@ Teste importante:
 - protectiile portate din codul local: retry Mongo, coduri Discord permanente, cache LRU pe valute, cron health, abort signal HTTP si eroare la lock cron;
 - regresie pentru pachetul health compilat din TypeScript;
 - regresie pentru modulele boot/lifecycle/lock compilate din TypeScript;
-- regresie pentru modulele shared env/logging compilate din TypeScript;
+- regresie pentru modulele shared env/logging/domain/utilities compilate din TypeScript;
 - validare config;
 - hashing reduceri;
 - fuzzy matching jocuri;

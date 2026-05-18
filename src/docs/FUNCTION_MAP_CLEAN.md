@@ -8,7 +8,7 @@ Acest fisier documenteaza functiile importante din repo, pe fisiere. Scopul lui 
 - Codul runtime este mixt: JavaScript CommonJS plus module TypeScript compilate.
 - Modulele convertite la TypeScript sunt compilate in `dist/` inainte de rulare.
 - `src/infra/mongo/index.js`, `src/sources/index.js` si `src/features/commands/index.js` sunt agregatoare.
-- `src/types.ts` descrie tipurile folosite in JSDoc si TypeScript, inclusiv contracte pentru config, lifecycle, health, locks, env si logging.
+- `src/types.ts` descrie tipurile folosite in JSDoc si TypeScript, inclusiv contracte pentru config, lifecycle, health, locks, env, logging, shared domain si utilitare.
 - `dist/` este output generat si nu se editeaza manual.
 - Singura exceptie intentionata din afara `src/` este `.github/workflows/ci.yml`, necesara pentru GitHub Actions.
 
@@ -61,12 +61,14 @@ Tipuri importante:
 
 - `RuntimeEnv`;
 - `LoggerFunction`, `ParseEnvNumber`, `ParseEnvNumberLimits` si `RequestContextStore`;
+- `CurrencyConfig`, `CurrencyCode`, `CurrencyPlacement` si `PriceValue`;
 - `BotConfig`, `GameConfig` si `ConfigLoadResult`;
 - `BotMetrics`;
 - `CronController` si `CronHealthSnapshot`;
 - `LifecycleState`;
 - `RateLimitBucket` si `RateLimiter`;
 - `LockToken` si `ActiveLocks`;
+- `DealInfo`, `PendingUpdate`, `PendingDiscount`, `GuildSettings` si `ConcurrentRunResult`;
 - tipuri pentru reduceri, guild settings, cache-uri, HTTP si rezultate concurente.
 
 ## App
@@ -275,7 +277,7 @@ Atentie:
 - foloseste `parseEnvNumber` pentru praguri si limite numerice;
 - include pragurile pentru health backoff, retry Mongo, limita LRU pentru cache-ul de reduceri pe valute si limitele HTTP rate limiter-ului.
 
-### `src/shared/domain.js`
+### `src/shared/domain.ts`
 
 Expune:
 
@@ -285,7 +287,13 @@ Expune:
 - `getCurrencyConfig(code)`;
 - `formatPrice(value, currencyCode)`.
 
-### `src/shared/utilities.js`
+Comportament:
+
+- `SchemaDriftError` marcheaza drift de schema la surse care raspund OK, dar nu mai dau rezultate valide;
+- `getCurrencyConfig` cade pe `DEFAULT_CURRENCY` pentru valori necunoscute;
+- `formatPrice` aplica prefix/suffix dupa configuratia valutei.
+
+### `src/shared/utilities.ts`
 
 Functii:
 
@@ -295,7 +303,7 @@ Functii:
 - `isTransientMongoError(err)`;
 - `withMongoRetry(fn, options)`.
 
-`withMongoRetry` este folosit pentru claim-uri atomice Mongo unde o eroare temporara poate fi reincercata fara sa dubleze notificari.
+`withMongoRetry` este folosit pentru claim-uri atomice Mongo unde o eroare temporara poate fi reincercata fara sa dubleze notificari. `validatePendingDiscountSnapshot` este type guard pentru snapshot-urile pending folosite la reduceri.
 
 ### `src/shared/errors.ts`
 
@@ -549,4 +557,4 @@ Ruleaza `node --check` pe fisierele `.js` sursa si ignora `dist/`.
 
 ### `src/test/*`
 
-Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad`, optimizarea cronului, conversia cronului critic la TypeScript, conversia pachetului health la TypeScript, conversia boot/lifecycle/lock la TypeScript, conversia shared env/logging la TypeScript si protectiile portate din codul local.
+Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad`, optimizarea cronului, conversia cronului critic la TypeScript, conversia pachetului health la TypeScript, conversia boot/lifecycle/lock la TypeScript, conversia shared env/logging/domain/utilities la TypeScript si protectiile portate din codul local.
