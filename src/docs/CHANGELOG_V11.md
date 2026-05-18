@@ -34,6 +34,10 @@ Acest document noteaza ce a fost pastrat din fisierele locale si cum a fost orga
 - `handleAutocomplete` adauga un tiebreaker alfabetic pe nume cand mai multi candidati au acelasi scor, ca ordinea sugestiilor sa nu mai sara aleator intre apasarile de tasta.
 - `processGuildDiscounts` calculeaza `dealHash` o singura data per deal, prin `orderedHashes` + `dealsByHash`, in loc sa-l recalculeze in al doilea loop.
 
+## Boot resilience
+
+- `app/main.ts` conecteaza Mongo printr-un retry exponential (5 incercari, backoff 1s -> 16s cu jitter). Inainte, un network blip la pornire crash-uia bot-ul si platforma (Docker/k8s) il restart-uia; acum fereastra tipica de start a Mongo (~5-15s) e tolerata fara restart inutil. Dupa ultima incercare esuata, ramane comportamentul vechi: alerta admin `boot:fatal` si `process.exit(1)`.
+
 ## TypeScript complet pe sursa
 
 Codul sursa din `src` a fost mutat la TypeScript. JavaScript-ul ramas este output generat in `src/dist/` dupa build, nu sursa editata manual.
