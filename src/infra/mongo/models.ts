@@ -1,6 +1,6 @@
 "use strict";
 
-module.exports = (ctx) => {
+module.exports = (ctx: any) => {
   const { mongoose, SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, ONE_DAY_MS } = ctx;
 
 const pendingUpdateSchema = new mongoose.Schema({
@@ -57,7 +57,7 @@ const guildSchema = new mongoose.Schema({
   // V9: filtre noi
   enabledGames: { type: [String], default: [] },   // [] = toate jocurile active
   enabledStores: { type: [String], default: [] },  // [] = toate store-urile active
-  maxAbsolutePrice: { type: Number, default: 0 },  // 0 = fără limită superioară
+  maxAbsolutePrice: { type: Number, default: 0 },  // 0 = fara limita superioara
   notificationRoleId: { type: String, default: null }, // ping rol pe updates
   discountRoleId: { type: String, default: null }      // ping rol pe reduceri
 }, { minimize: false });
@@ -94,9 +94,9 @@ const jobLockSchema = new mongoose.Schema({
 }, { minimize: false });
 const JobLockModel = mongoose.model("JobLock", jobLockSchema);
 
-// V9: cooldown alerte admin în Mongo, multi-instance safe.
-// TTL 7 zile pe lastSentAt — la o instanță cu volum mare de alerte unice,
-// curățarea automată ne salvează de growth necontrolat.
+// V9: cooldown alerte admin in Mongo, multi-instance safe.
+// TTL 7 zile pe lastSentAt - la o instanta cu volum mare de alerte unice,
+// curatarea automata ne salveaza de growth necontrolat.
 const adminAlertCooldownSchema = new mongoose.Schema({
   _id: String, // alert kind (ex. "cb:dbd", "cron:fatal")
   lastSentAt: { type: Date, default: Date.now, expires: 7 * ONE_DAY_MS / 1000 }
@@ -111,3 +111,5 @@ const AdminAlertCooldownModel = mongoose.model("AdminAlertCooldown", adminAlertC
     AdminAlertCooldownModel
   });
 };
+
+export {};

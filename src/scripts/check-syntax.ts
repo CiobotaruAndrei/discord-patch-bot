@@ -6,15 +6,10 @@ const fs = require("fs");
 const path = require("path");
 
 const root = process.cwd();
-/** @type {Set<string>} */
-const ignoredDirs = new Set([".git", "node_modules", "coverage", "dist"]);
-/** @type {string[]} */
-const files = [];
+const ignoredDirs = new Set<string>([".git", "node_modules", "coverage", "dist"]);
+const files: string[] = [];
 
-/**
- * @param {string} dir
- */
-function walk(dir) {
+function walk(dir: string): void {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (ignoredDirs.has(entry.name)) continue;
     const fullPath = path.join(dir, entry.name);
@@ -45,3 +40,5 @@ for (const file of files.sort()) {
 
 if (failed) process.exit(1);
 console.log(`Syntax OK: ${files.length} JavaScript files`);
+
+export {};

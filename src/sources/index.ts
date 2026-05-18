@@ -39,3 +39,8 @@ module.exports = {
   getEnrichedCacheSize: ctx.getEnrichedCacheSize,
   formatPrice: ctx.formatPrice
 };
+
+export const dealHash = ctx.dealHash;
+export const extractOfferEndFromHtml = ctx.extractOfferEndFromHtml;
+export const safeCheerioLoad = ctx.safeCheerioLoad;
+export const MAX_HTML_BYTES = ctx.MAX_HTML_BYTES;

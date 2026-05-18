@@ -14,3 +14,5 @@ module.exports = {
   rssParser: new Parser(),
   ...data
 };
+
+export {};

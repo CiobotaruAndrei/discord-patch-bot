@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "npm run build && node dist/app/main.js",
     "check:config": "npm run build && node dist/scripts/check-config.js",
-    "check:syntax": "node scripts/check-syntax.js",
+    "check:syntax": "npm run build && node dist/scripts/check-syntax.js",
     "typecheck": "tsc --noEmit",
     "lint": "npm run typecheck",
     "test": "npm run build && node --test dist/test",

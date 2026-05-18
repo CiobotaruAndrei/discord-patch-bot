@@ -4,7 +4,7 @@
 const path = require("path");
 const { validateConfig } = require("../config/configValidator");
 
-function defaultConfigPath() {
+function defaultConfigPath(): string {
   if (path.basename(path.dirname(__dirname)) === "dist") {
     return path.resolve(__dirname, "..", "..", "config.json");
   }
@@ -18,3 +18,5 @@ const config = require(configPath);
 const validated = validateConfig(config, configPath);
 
 console.log(`Config OK: ${validated.games.length} entries from ${configPath}`);
+
+export {};
