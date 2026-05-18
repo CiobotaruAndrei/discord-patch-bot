@@ -584,7 +584,10 @@ async function handleDlcInteraction(interaction) {
         timeout: 15000
       });
       const $ = safeCheerioLoad(htmlRes.data);
-      if ($("#agegate_box").length > 0 || $(".agegate_text_container").length > 0 || htmlRes.request?.path?.includes("agecheck")) {
+      // V11: am scos verificarea pe htmlRes.request.path — acel `path` este URL-ul
+      // initial, nu cel final dupa redirect, deci nu contine niciodata "agecheck".
+      // Detectia se bazeaza pe selectorii cheerio care sunt fiabili.
+      if ($("#agegate_box").length > 0 || $(".agegate_text_container").length > 0) {
         endLog("age_gate", { appId: bestMatch.id });
         return safeEdit(interaction, `Eroare: Pagina de Steam pentru **${title}** necesita verificare de varsta, iar botul nu o poate accesa direct.`);
       }
@@ -709,7 +712,12 @@ async function handleAutocomplete(interaction, games) {
       if (input && score < 20) continue;
       candidates.push({ game, score });
     }
-    candidates.sort((a, b) => b.score - a.score);
+    // V11: tiebreaker alfabetic dupa nume, ca ordinea sugestiilor sa nu mai
+    // sara aleator intre apasarile de tasta cand multi candidati au acelasi scor.
+    candidates.sort((a, b) => {
+      if (a.score !== b.score) return b.score - a.score;
+      return String(a.game.name || "").localeCompare(String(b.game.name || ""));
+    });
 
     const choices = candidates.slice(0, 25).map(c => ({
       name: `${c.game.name} (${c.game.key})`.substring(0, 100),
