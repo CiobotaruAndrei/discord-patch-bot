@@ -8,7 +8,7 @@ interface Migration {
 }
 
 interface MigrationStateDoc {
-  _id?: string;
+  _id: string;
   lastApplied?: number;
   lastAppliedAt?: Date;
 }
@@ -111,8 +111,8 @@ async function runMigrations(logger: LoggerFunction): Promise<RunMigrationsResul
   }
 
   try {
-    const sysColl = db.collection("system");
-    const stateDoc = await sysColl.findOne({ _id: "migrationState" }) as MigrationStateDoc | null;
+    const sysColl = db.collection<MigrationStateDoc>("system");
+    const stateDoc = await sysColl.findOne({ _id: "migrationState" });
     const lastApplied = stateDoc && typeof stateDoc.lastApplied === "number"
       ? stateDoc.lastApplied
       : 0;
