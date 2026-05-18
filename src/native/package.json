@@ -1,0 +1,11 @@
+{
+  "name": "discord_patch_bot_core",
+  "version": "0.1.0",
+  "private": true,
+  "napi": {
+    "name": "discord_patch_bot_core",
+    "triples": {
+      "defaults": true
+    }
+  }
+}
