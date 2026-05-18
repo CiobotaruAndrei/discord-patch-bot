@@ -15,10 +15,13 @@ const attachNotifications = require("../features/notifications");
 // closure (everything ungranted just stays undefined; resolveOutboundChannel
 // itself only touches logger and canSendEmbeds), then invoke the attach
 // function so ctx.resolveOutboundChannel gets exposed.
-function buildContext(overrides = {}) {
-  const captured = { logs: [] };
-  const ctx = {
-    logger: (level, context, message, meta) => {
+//
+// ctx is typed as Record<string, any> so TS doesn't complain when we access
+// the properties that attachNotifications mutates onto it.
+function buildContext(overrides: Record<string, any> = {}) {
+  const captured: { logs: any[] } = { logs: [] };
+  const ctx: Record<string, any> = {
+    logger: (level: any, context: any, message: any, meta: any) => {
       captured.logs.push({ level, context, message, meta });
     },
     canSendEmbeds: () => true,
@@ -30,7 +33,7 @@ function buildContext(overrides = {}) {
   return { ctx, captured };
 }
 
-function makeClient(channelOrThrow, botId = "bot-id") {
+function makeClient(channelOrThrow: any, botId = "bot-id") {
   return {
     user: { id: botId },
     channels: {
@@ -43,8 +46,8 @@ function makeClient(channelOrThrow, botId = "bot-id") {
 }
 
 function makeDisableFnStub() {
-  const calls = [];
-  const fn = async (guildId, channelId, reason) => {
+  const calls: Array<{ guildId: string; channelId: string; reason: string }> = [];
+  const fn = async (guildId: string, channelId: string, reason: string) => {
     calls.push({ guildId, channelId, reason });
   };
   return { fn, calls };
