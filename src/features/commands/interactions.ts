@@ -146,7 +146,8 @@ async function handleStartInteraction(interaction, games) {
 
       try {
         const deals = await fetchDeals({ currency });
-        const initHashes = deals.map(deal => dealHash(deal)).slice(0, DEALS_HISTORY_LIMIT);
+        // Slice first so we don't hash deals we're about to throw away.
+        const initHashes = deals.slice(0, DEALS_HISTORY_LIMIT).map(deal => dealHash(deal));
         const activationResult = await GuildModel.updateOne(
           {
             _id: guildId,

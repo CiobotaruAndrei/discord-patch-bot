@@ -152,6 +152,11 @@ function cacheSetLRU<T>(map: Map<string, CacheEntry<T>>, key: string, data: T, t
 }
 
 const userCommandCooldowns = new Map<string, number>();
+// V11: debounce contor — daca depasim pragul si toti userii sunt inca in
+// fereastra de cooldown, cleanUserCooldowns nu sterge nimic, dar e O(n) la
+// fiecare insert. Limitam clean-ul la 1 din N inserturi peste prag.
+let cooldownInsertCounter = 0;
+const COOLDOWN_CLEAN_EVERY_N_INSERTS = 100;
 
 function checkUserCooldown(userId: unknown, command: string): CooldownResult {
   if (USER_COMMAND_COOLDOWN_MS === 0) return { allowed: true };
@@ -163,7 +168,13 @@ function checkUserCooldown(userId: unknown, command: string): CooldownResult {
     return { allowed: false, remainingMs: USER_COMMAND_COOLDOWN_MS - elapsed };
   }
   userCommandCooldowns.set(key, now);
-  if (userCommandCooldowns.size > USER_COOLDOWNS_THRESHOLD) cleanUserCooldowns();
+  if (userCommandCooldowns.size > USER_COOLDOWNS_THRESHOLD) {
+    cooldownInsertCounter++;
+    if (cooldownInsertCounter >= COOLDOWN_CLEAN_EVERY_N_INSERTS) {
+      cooldownInsertCounter = 0;
+      cleanUserCooldowns();
+    }
+  }
   return { allowed: true };
 }
 
