@@ -80,9 +80,18 @@ function createShutdownController({
   function handleFatalProcessError(kind: "uncaughtException" | "unhandledRejection", reason: unknown): void {
     const detail = errorDetail(reason);
     logger("ERROR", "PROCESS", kind, detail);
-    adminAlert(`process:${kind}`, kind, detail)
-      .catch(() => null)
-      .finally(() => shutdown(kind, 1));
+    // Race the alert against a short timeout so a slow/offline webhook can't
+    // delay shutdown. Either way we always run the shutdown sequence; we just
+    // don't block it on the alert promise resolving first.
+    const ALERT_BUDGET_MS = 2000;
+    const alertWithBudget = Promise.race([
+      adminAlert(`process:${kind}`, kind, detail).catch(() => null),
+      new Promise(resolve => setTimeout(resolve, ALERT_BUDGET_MS))
+    ]);
+    alertWithBudget.finally(() => { shutdown(kind, 1); });
+    // Hard safety net: if shutdown itself hangs (a stuck drain, a stuck mongo
+    // close), force-exit after 10s. Unref'd so a clean shutdown can still let
+    // the process exit naturally before this fires.
     setTimeout(() => process.exit(1), 10_000).unref();
   }
 
