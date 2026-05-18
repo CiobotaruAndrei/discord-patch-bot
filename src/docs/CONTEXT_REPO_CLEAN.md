@@ -11,6 +11,8 @@ Proiectul ruleaza pe Node.js si foloseste CommonJS la runtime-ul compilat. Codul
 - `src/config/configValidator.ts` valideaza config-ul cu Zod;
 - `src/config/configLoader.ts` incarca config-ul si returneaza `config`, `games` si `configPath` tipate;
 - `src/shared/errors.ts`, `src/shared/logging.ts`, `src/shared/env.ts`, `src/shared/domain.ts` si `src/shared/utilities.ts` contin baza comuna pentru erori, logger, request context, env, valute, retry Mongo si utilitare;
+- `src/infra/http/client.ts` tine clientul HTTP comun, normalizarea text/update/deal, retry/backoff, proxy fallback si in-flight coalescing;
+- `src/infra/mongo/guildSettings.ts` si `src/infra/mongo/adminAlerts.ts` tin cache-ul de guild settings si alertele admin cu cooldown Mongo atomic;
 - `src/app/scheduler/cron.ts` controleaza cron-ul critic cu tipuri explicite;
 - `src/app/scheduler/housekeeping.ts` controleaza cleanup-ul periodic;
 - `src/app/lifecycle/events.ts` si `src/app/lifecycle/shutdown.ts` tin event wiring-ul si oprirea controlata;
@@ -68,7 +70,10 @@ src/
     notifications/
   infra/
     http/
+      client.ts
     mongo/
+      adminAlerts.ts
+      guildSettings.ts
       locks.ts
   scripts/
   shared/
@@ -95,7 +100,7 @@ src/
 
 Flow-ul:
 
-1. `src/infra/mongo/index.js` construieste contextul comun, atasand `logging.ts`, `env.ts`, `domain.ts`, `utilities.ts`, modele, lock-uri si alerte;
+1. `src/infra/mongo/index.js` construieste contextul comun, atasand `logging.ts`, `env.ts`, `domain.ts`, `utilities.ts`, modele, guild settings cache, lock-uri si alerte;
 2. incarca si valideaza config-ul prin `loadConfig` si `validateConfig`;
 3. creeaza metricile;
 4. conecteaza metricile la surse;
@@ -128,6 +133,9 @@ TypeScript este folosit gradual. Regula curenta:
 - `src/shared/env.ts` construieste obiectul `RuntimeEnv`, inclusiv placeholder handling pentru `METRICS_TOKEN`;
 - `src/shared/domain.ts` tipizeaza `SchemaDriftError`, valutele suportate, `getCurrencyConfig` si `formatPrice`;
 - `src/shared/utilities.ts` tipizeaza `runConcurrent`, `waitForMongoReady`, validarea snapshot-urilor pending si retry-ul Mongo pentru erori tranzitorii;
+- `src/infra/http/client.ts` este TypeScript fiindca este folosit de toate sursele externe si atinge retry HTTP, abort signal, limite de bytes, proxy fallback, hashing si in-flight coalescing;
+- `src/infra/mongo/guildSettings.ts` este TypeScript fiindca expune cache-ul de guild settings folosit de comenzi si housekeeping;
+- `src/infra/mongo/adminAlerts.ts` este TypeScript fiindca alertele admin folosesc cooldown atomic in Mongo si webhook extern;
 - `src/app/scheduler/cron.ts` este TypeScript fiindca gestioneaza lock distribuit, heartbeat, abort signal si health backoff;
 - `src/app/lifecycle/*.ts` este TypeScript fiindca orice greseala aici poate afecta event wiring-ul sau oprirea controlata;
 - `src/infra/mongo/locks.ts` este TypeScript fiindca gestioneaza lock token-uri si `activeLocks` folosite la shutdown;
@@ -240,13 +248,13 @@ Logger-ul poate scrie JSON sau text, include `requestId` cand exista si aplica s
 
 MongoDB este folosit pentru setari per server Discord, update-uri vazute, reduceri vazute, cozi pending, state global, locks distribuite, circuit breaker si cooldown-uri pentru alertele admin.
 
-Modelele sunt in `src/infra/mongo/models.js`. Lock-urile distribuite sunt in `src/infra/mongo/locks.ts`. Migrarile sunt in `src/infra/mongo/migrations.js` si se ruleaza la pornire, dupa Mongo ready, sub lock distribuit.
+Modelele sunt in `src/infra/mongo/models.js`. Lock-urile distribuite sunt in `src/infra/mongo/locks.ts`. Cache-ul pentru setari guild este in `src/infra/mongo/guildSettings.ts`, iar alertele admin cu cooldown atomic sunt in `src/infra/mongo/adminAlerts.ts`. Migrarile sunt in `src/infra/mongo/migrations.js` si se ruleaza la pornire, dupa Mongo ready, sub lock distribuit.
 
 `src/shared/utilities.ts` expune `withMongoRetry` si `isTransientMongoError`. Claim-urile atomice din notificari folosesc retry doar pentru erori Mongo tranzitorii, nu pentru erori de logica.
 
 ## HTTP si scraping
 
-Clientul HTTP comun este in `src/infra/http/client.js`. Acesta ofera retry/backoff, limite de bytes pentru HTML/JSON, user-agent random, proxy fallback, `safeCheerioLoad`, hashing pentru deal-uri, in-flight coalescing, timeout pentru promisiuni si agenti keep-alive.
+Clientul HTTP comun este in `src/infra/http/client.ts`. Acesta ofera retry/backoff, limite de bytes pentru HTML/JSON, user-agent random, proxy fallback, `safeCheerioLoad`, hashing pentru deal-uri, in-flight coalescing, timeout pentru promisiuni si agenti keep-alive.
 
 Cron-ul pune `abortSignal` in `requestContext`, `src/shared/logging.ts` il expune prin `getAbortSignal`, iar `httpReq` il foloseste ca sa poata opri request-urile cand ciclul cron este anulat. Erorile de abort/cancel nu sunt retry-uite.
 
@@ -321,6 +329,7 @@ Teste importante:
 - regresie pentru pachetul health compilat din TypeScript;
 - regresie pentru modulele boot/lifecycle/lock compilate din TypeScript;
 - regresie pentru modulele shared env/logging/domain/utilities compilate din TypeScript;
+- regresie pentru modulele Mongo helper si HTTP client compilate din TypeScript;
 - validare config;
 - hashing reduceri;
 - fuzzy matching jocuri;

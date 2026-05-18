@@ -23,7 +23,7 @@ Acest document vine din fisierele locale din `Discord bot` si noteaza ce a fost 
 - `runCronCycle` prinde acum erorile aruncate de `acquireDbLock`. Inainte, daca Mongo arunca inainte de intrarea in blocul principal, cron-ul putea iesi fara sa programeze urmatorul ciclu.
 - Eroarea de lock este contorizata in `cronErrors`, trece prin health window si trimite alert separat cu cheia `cron:lock`.
 - `createRateLimiter` citeste acum `x-forwarded-for` si cand Node il primeste ca array, nu doar ca string.
-- Testele de regresie verifica faptul ca eroarea de lock ramane izolata, cron-ul programeaza urmatorul run, pachetul health ramane compilat corect din TypeScript, modulele de boot/lifecycle/lock ajung in runtime dupa build si modulele shared env/logging/domain/utilities raman compilate corect.
+- Testele de regresie verifica faptul ca eroarea de lock ramane izolata, cron-ul programeaza urmatorul run, pachetul health ramane compilat corect din TypeScript, modulele de boot/lifecycle/lock ajung in runtime dupa build, modulele shared env/logging/domain/utilities raman compilate corect si noile module Mongo/HTTP TypeScript sunt prezente in `dist`.
 
 ## Portari noi din fisierele locale
 
@@ -46,6 +46,9 @@ Migrarea la TypeScript se face pe zone unde tiparea chiar reduce riscul:
 - `src/shared/env.js` a devenit `src/shared/env.ts`, ca obiectul central `env` sa fie verificat fata de `RuntimeEnv`;
 - `src/shared/domain.js` a devenit `src/shared/domain.ts`, ca valutele, `SchemaDriftError` si `formatPrice` sa aiba contracte clare;
 - `src/shared/utilities.js` a devenit `src/shared/utilities.ts`, ca `runConcurrent`, `waitForMongoReady`, validarea snapshot-urilor pending si retry-ul Mongo sa fie verificate la build;
+- `src/infra/mongo/guildSettings.js` a devenit `src/infra/mongo/guildSettings.ts`, ca cache-ul de guild settings sa aiba contract tipat;
+- `src/infra/mongo/adminAlerts.js` a devenit `src/infra/mongo/adminAlerts.ts`, ca alerta admin si cooldown-ul Mongo atomic sa fie verificate la build;
+- `src/infra/http/client.js` a devenit `src/infra/http/client.ts`, ca retry-ul HTTP, abort signal, normalizarea update/deal si in-flight coalescing sa aiba contracte mai clare;
 - `src/app/scheduler/cron.js` a devenit `src/app/scheduler/cron.ts`, pentru ca este o zona critica: lock distribuit, heartbeat, abort si health backoff;
 - `src/app/scheduler/housekeeping.js` a devenit `src/app/scheduler/housekeeping.ts`;
 - `src/app/lifecycle/events.js` si `src/app/lifecycle/shutdown.js` au devenit `.ts`, fiindca leaga Discord events, Mongo events, shutdown, fatal errors si cleanup;
@@ -59,7 +62,7 @@ Migrarea la TypeScript se face pe zone unde tiparea chiar reduce riscul:
 - typecheck-ul din PR a prins si au fost corectate importurile JSDoc catre `src/types.ts` din health modules;
 - `src/config/configValidator.ts` foloseste o tipare explicita pentru rezultatul de eroare Zod, ca `safeParse` sa treaca typecheck-ul.
 
-Nu am convertit toate fisierele mari dintr-o singura trecere, pentru ca `interactions`, `notifications`, `sources` si `infra/http` sunt zone sensibile si trebuie migrate in pasi cu teste clare.
+Nu am convertit toate fisierele mari dintr-o singura trecere, pentru ca `interactions`, `notifications` si `sources` sunt zone sensibile si trebuie migrate in pasi cu teste clare.
 
 ## GitHub Actions
 
