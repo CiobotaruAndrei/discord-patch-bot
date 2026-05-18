@@ -5,7 +5,10 @@ const fs = require("fs");
 const path = require("path");
 
 const root = process.cwd();
-const ignoredDirs = new Set<string>([".git", "node_modules", "coverage", "dist"]);
+const ignoredDirs = new Set<string>([".git", "node_modules", "coverage", "dist", "target"]);
+const ignoredGeneratedFiles = new Set<string>([
+  path.normalize(path.join("native", "index.js"))
+]);
 const files: string[] = [];
 
 function walk(dir: string): void {
@@ -15,7 +18,8 @@ function walk(dir: string): void {
     if (entry.isDirectory()) {
       walk(fullPath);
     } else if (entry.isFile() && entry.name.endsWith(".js")) {
-      files.push(fullPath);
+      const rel = path.normalize(path.relative(root, fullPath));
+      if (!ignoredGeneratedFiles.has(rel)) files.push(fullPath);
     }
   }
 }
