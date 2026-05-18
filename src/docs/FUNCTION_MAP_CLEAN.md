@@ -8,7 +8,7 @@ Acest fisier documenteaza functiile importante din repo, pe fisiere. Scopul lui 
 - Codul runtime este mixt: JavaScript CommonJS plus module TypeScript compilate.
 - Modulele convertite la TypeScript sunt compilate in `dist/` inainte de rulare.
 - `src/infra/mongo/index.js`, `src/sources/index.js` si `src/features/commands/index.js` sunt agregatoare.
-- `src/types.ts` descrie tipurile folosite in JSDoc si TypeScript, inclusiv contracte pentru config, lifecycle, health, locks, env, logging, shared domain si utilitare.
+- `src/types.ts` descrie tipurile folosite in JSDoc si TypeScript, inclusiv contracte pentru config, lifecycle, health, locks, env, logging, shared domain, utilitare, HTTP si Mongo helpers.
 - `dist/` este output generat si nu se editeaza manual.
 - Singura exceptie intentionata din afara `src/` este `.github/workflows/ci.yml`, necesara pentru GitHub Actions.
 
@@ -69,7 +69,7 @@ Tipuri importante:
 - `RateLimitBucket` si `RateLimiter`;
 - `LockToken` si `ActiveLocks`;
 - `DealInfo`, `PendingUpdate`, `PendingDiscount`, `GuildSettings` si `ConcurrentRunResult`;
-- tipuri pentru reduceri, guild settings, cache-uri, HTTP si rezultate concurente.
+- `HttpRequestOptions`, cache-uri, HTTP si rezultate concurente.
 
 ## App
 
@@ -320,7 +320,7 @@ Expune dependinte comune: `mongoose`, `crypto`, `axios`, `z`, `AsyncLocalStorage
 
 ### `src/infra/mongo/index.js`
 
-Agregator pentru infrastructura Mongo si shared utilities. Include export pentru `runMigrations`, `ALL_MIGRATIONS`, `withMongoRetry`, `isTransientMongoError`, `getAbortSignal`, lock-uri si modelele Mongo.
+Agregator pentru infrastructura Mongo si shared utilities. Include export pentru `runMigrations`, `ALL_MIGRATIONS`, `withMongoRetry`, `isTransientMongoError`, `getAbortSignal`, guild settings, alerte admin, lock-uri si modelele Mongo.
 
 ### `src/infra/mongo/models.js`
 
@@ -365,27 +365,42 @@ Functii:
 - `getSystemTimes()`;
 - `saveSystemTimes(times)`.
 
-### `src/infra/mongo/guildSettings.js`
+### `src/infra/mongo/guildSettings.ts`
 
 Functii:
 
+- `attachGuildSettings(ctx)`;
 - `getGuildSettings(guildId)`;
 - `invalidateGuildCache(guildId)`;
 - `cleanGuildCache()`;
 - `getGuildCacheSize()`.
 
-### `src/infra/mongo/adminAlerts.js`
+Comportament:
+
+- cache-uieste setarile de guild pana la `GUILD_CACHE_TTL_MS`;
+- invalideaza explicit cache-ul dupa modificari de setari;
+- expune dimensiunea cache-ului pentru health/housekeeping.
+
+### `src/infra/mongo/adminAlerts.ts`
 
 Functii:
 
+- `attachAdminAlerts(ctx)`;
 - `adminAlert(kind, title, body)`.
+
+Comportament:
+
+- respecta `ADMIN_WEBHOOK_URL` si `ADMIN_ALERT_COOLDOWN_MS`;
+- foloseste `AdminAlertCooldownModel` pentru check-and-set atomic intre instante;
+- trimite alerta prin webhook Discord si logheaza esecurile fara sa opreasca procesul.
 
 ## Infra HTTP
 
-### `src/infra/http/client.js`
+### `src/infra/http/client.ts`
 
 Functii importante:
 
+- `attachHttpClient(ctx)`;
 - `attachMetrics(m)`;
 - `cleanText(text)`;
 - `truncate(str, maxLen)`;
@@ -557,4 +572,4 @@ Ruleaza `node --check` pe fisierele `.js` sursa si ignora `dist/`.
 
 ### `src/test/*`
 
-Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad`, optimizarea cronului, conversia cronului critic la TypeScript, conversia pachetului health la TypeScript, conversia boot/lifecycle/lock la TypeScript, conversia shared env/logging/domain/utilities la TypeScript si protectiile portate din codul local.
+Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad`, optimizarea cronului, conversia cronului critic la TypeScript, conversia pachetului health la TypeScript, conversia boot/lifecycle/lock la TypeScript, conversia shared env/logging/domain/utilities la TypeScript, conversia Mongo helper/HTTP client la TypeScript si protectiile portate din codul local.
