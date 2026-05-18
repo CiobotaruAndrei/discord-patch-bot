@@ -90,6 +90,7 @@ function attachEnv(ctx: EnvContext): void {
     NODE_ENV: process.env.NODE_ENV || "development",
     METRICS_TOKEN: effectiveMetricsToken,
     METRICS_PUBLIC: String(process.env.METRICS_PUBLIC || "").toLowerCase() === "true",
+    TRUST_PROXY: String(process.env.TRUST_PROXY || "").toLowerCase() === "true",
     ADMIN_WEBHOOK_URL: process.env.ADMIN_WEBHOOK_URL || "",
     LOG_LEVEL: RAW_LOG_LEVEL,
     PROXY_URLS: process.env.PROXY_URLS || "",
