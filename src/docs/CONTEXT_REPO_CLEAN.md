@@ -78,6 +78,7 @@ src/
   docs/
   config.json
   config.schema.json
+  legacy-dynamic.d.ts
   package.json
   tsconfig.json
   types.ts
@@ -141,6 +142,10 @@ Regula curenta este simpla: sursa din `src` este TypeScript. Runtime-ul ramane C
 
 `src/types.ts` pastreaza tipurile comune pentru config, env, metrics, cron, lifecycle, locks, HTTP, Mongo, surse, comenzi si date de domeniu.
 
+`src/legacy-dynamic.d.ts` este un shim temporar pentru cateva obiecte legacy construite dinamic in fisierele mari convertite (`interactions.ts` si `notifications/index.ts`). Codul nou nu trebuie sa copieze acest model; pe masura ce aceste fisiere sunt tipizate mai strict, shim-ul poate fi redus sau eliminat.
+
+`src/features/commands/index.ts` seteaza temporar `fetchGameStatus` pe `globalThis` pentru compatibilitate cu handler-ul legacy convertit. TypeScript a prins aici un bug care exista in JS: `/status` folosea `fetchGameStatus` fara sa fie disponibil in scope.
+
 ## Config si env
 
 Config-ul runtime este in `src/config.json`, validat prin `src/config/configValidator.ts` si incarcat prin `src/config/configLoader.ts`.
@@ -180,7 +185,7 @@ Clientul HTTP comun este in `src/infra/http/client.ts`. El gestioneaza retry/bac
 Sursele externe sunt in `src/sources`:
 
 - `runtime.ts`: dependinte comune pentru surse;
-- `index.ts`: agregatorul surselor;
+- `index.ts`: agregatorul surselor si exporturile tipate folosite de teste;
 - `steam/index.ts`: cautare Steam, preturi si parser de expirare oferte;
 - `deals/index.ts`: reduceri Steam/Epic, enrich cache si review scoring;
 - `updates/index.ts`: patch notes, listing-based scraping, circuit breaker si schema drift.
