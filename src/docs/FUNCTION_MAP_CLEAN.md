@@ -8,7 +8,7 @@ Acest fisier documenteaza functiile importante din repo, pe fisiere. Scopul lui 
 - Codul runtime este mixt: JavaScript CommonJS plus module TypeScript compilate.
 - Modulele convertite la TypeScript sunt compilate in `dist/` inainte de rulare.
 - `src/infra/mongo/index.js`, `src/sources/index.js` si `src/features/commands/index.js` sunt agregatoare.
-- `src/types.ts` descrie tipurile folosite in JSDoc si TypeScript, inclusiv contracte pentru config, lifecycle, health si locks.
+- `src/types.ts` descrie tipurile folosite in JSDoc si TypeScript, inclusiv contracte pentru config, lifecycle, health, locks, env si logging.
 - `dist/` este output generat si nu se editeaza manual.
 - Singura exceptie intentionata din afara `src/` este `.github/workflows/ci.yml`, necesara pentru GitHub Actions.
 
@@ -60,6 +60,7 @@ Rol: contracte comune pentru module TypeScript si JSDoc.
 Tipuri importante:
 
 - `RuntimeEnv`;
+- `LoggerFunction`, `ParseEnvNumber`, `ParseEnvNumberLimits` si `RequestContextStore`;
 - `BotConfig`, `GameConfig` si `ConfigLoadResult`;
 - `BotMetrics`;
 - `CronController` si `CronHealthSnapshot`;
@@ -246,24 +247,32 @@ Validari speciale:
 
 ## Shared
 
-### `src/shared/logging.js`
+### `src/shared/logging.ts`
 
 Functii:
 
+- `attachLogging(ctx)`;
 - `logger(level, context, message, meta)`;
 - `parseEnvNumber(name, defaultValue, limits)`;
 - `getAbortSignal()`.
 
-Include `LOG_SAMPLE_RATE` pentru sampling pe INFO/DEBUG. WARN si ERROR nu sunt sample-uite. `getAbortSignal` citeste semnalul de anulare din `requestContext`.
+Include `requestContext` bazat pe `AsyncLocalStorage`, `LOG_SAMPLE_RATE` pentru sampling pe INFO/DEBUG si contracte TypeScript pentru logger, parser numeric de env si contextul cererii. WARN si ERROR nu sunt sample-uite. `getAbortSignal` citeste semnalul de anulare din `requestContext`.
 
-### `src/shared/env.js`
+### `src/shared/env.ts`
 
-Rol: valideaza env-ul si construieste obiectul central `env`.
+Rol: valideaza env-ul si construieste obiectul central `env` tipat ca `RuntimeEnv`.
+
+Functii:
+
+- `attachEnv(ctx)`;
+- validarea Zod pentru env-ul brut;
+- constructia obiectului `env` folosit de restul runtime-ului.
 
 Atentie:
 
 - in production cere `METRICS_TOKEN` sau `METRICS_PUBLIC=true`;
 - placeholder-ul `change_me_to_a_long_random_value` este tratat ca token lipsa;
+- foloseste `parseEnvNumber` pentru praguri si limite numerice;
 - include pragurile pentru health backoff, retry Mongo, limita LRU pentru cache-ul de reduceri pe valute si limitele HTTP rate limiter-ului.
 
 ### `src/shared/domain.js`
@@ -540,4 +549,4 @@ Ruleaza `node --check` pe fisierele `.js` sursa si ignora `dist/`.
 
 ### `src/test/*`
 
-Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad`, optimizarea cronului, conversia cronului critic la TypeScript, conversia pachetului health la TypeScript, conversia boot/lifecycle/lock la TypeScript si protectiile portate din codul local.
+Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad`, optimizarea cronului, conversia cronului critic la TypeScript, conversia pachetului health la TypeScript, conversia boot/lifecycle/lock la TypeScript, conversia shared env/logging la TypeScript si protectiile portate din codul local.
