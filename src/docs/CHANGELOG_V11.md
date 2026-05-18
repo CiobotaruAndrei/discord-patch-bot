@@ -41,7 +41,7 @@ Conversii facute anterior:
 - `src/app/scheduler/cron.ts`, `housekeeping.ts`, `src/app/lifecycle/events.ts`, `shutdown.ts` si `src/app/health/*.ts` tipizeaza runtime-ul aplicatiei.
 - `src/domain/deals/filters.ts`, `src/features/commands/cache.ts`, `ui.ts`, `slashCommands.ts` si `index.ts` tipizeaza regulile de comenzi si domeniu.
 
-Conversii facute in acest pas:
+Conversii facute in pasul mare de runtime:
 
 - `src/app/main.js` -> `src/app/main.ts`.
 - `src/infra/mongo/runtime.js` -> `src/infra/mongo/runtime.ts`.
@@ -56,9 +56,19 @@ Conversii facute in acest pas:
 - `src/test/commands-regression.test.js` -> `src/test/commands-regression.test.ts`.
 - `src/test/configValidator.test.js` -> `src/test/configValidator.test.ts`.
 
+Corectie finala dupa ce CI a aratat ca mai ramasesera 5 fisiere JavaScript de test:
+
+- `src/test/buildOptimizedGameList.test.js` -> `src/test/buildOptimizedGameList.test.ts`.
+- `src/test/dealHash.test.js` -> `src/test/dealHash.test.ts`.
+- `src/test/extractOfferEndFromHtml.test.js` -> `src/test/extractOfferEndFromHtml.test.ts`.
+- `src/test/findGameAndSuggestion.test.js` -> `src/test/findGameAndSuggestion.test.ts`.
+- `src/test/safeCheerioLoad.test.js` -> `src/test/safeCheerioLoad.test.ts`.
+
 Schimbari de build:
 
 - `src/tsconfig.json` foloseste `moduleDetection: force`, ca fisierele TypeScript fara import explicit sa fie tratate ca module si sa nu polueze scope-ul global.
+- `src/tsconfig.json` are `allowJs: false` si nu mai include `**/*.js`, ca sursa editabila sa fie TypeScript.
+- `src/scripts/check-syntax.ts` pica CI-ul daca mai exista fisiere `.js` in sursa `src` in afara de output-ul ignorat din `dist`.
 - `src/legacy-dynamic.d.ts` pastreaza compatibilitatea pentru cateva obiecte legacy construite dinamic in fisierele mari convertite. Este o masura temporara de migrare, nu un model de urmat pentru cod nou.
 - `src/sources/index.ts` expune si exporturi TypeScript pentru helper-ele folosite de testele existente.
 - `npm run check:syntax` ruleaza scriptul compilat din `dist/scripts/check-syntax.js`.
