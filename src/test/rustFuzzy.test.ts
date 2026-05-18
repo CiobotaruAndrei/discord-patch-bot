@@ -49,6 +49,19 @@ test("Rust stable update ids match SHA1 contract", () => {
   assert.equal(stableUpdateId("Patch", "https://example.com/update"), "7f512d1c3e0464b1");
 });
 
+test("stable update id is exactly 16 lowercase hex chars regardless of input", () => {
+  const samples = [
+    ["", ""],
+    ["a", "b"],
+    ["Some very long title with special chars: éà / 中文 🎮", "https://store.steampowered.com/app/999999?cc=US&l=english"]
+  ];
+  for (const [title, link] of samples) {
+    const id = stableUpdateId(title, link);
+    assert.equal(id.length, 16, `expected 16 chars, got ${id.length} for ${JSON.stringify([title, link])}`);
+    assert.match(id, /^[0-9a-f]{16}$/, `expected lowercase hex, got ${id}`);
+  }
+});
+
 test("Rust deal state normalization trims and lowercases values", () => {
   assert.equal(normalizeDealState({ salePrice: " 9.99 ", normalPrice: "19.99", savings: 50 }), "9.99:19.99:50");
 });

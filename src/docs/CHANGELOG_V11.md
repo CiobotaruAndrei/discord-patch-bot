@@ -91,6 +91,14 @@ Al doilea pas Rust:
 - `src/infra/http/client.ts` pastreaza aceleasi functii publice pentru restul codului, dar deleaga normalizarea/hash-ul catre wrapper-ele Rust.
 - `src/test/rustFuzzy.test.ts` acopera normalizarea titlurilor, ID-urile stabile de update si hash-urile pentru Steam, Epic si listing-based deals.
 
+Optimizari la nucleul Rust de hashing:
+
+- `stable_update_id` nu mai formateaza tot SHA1-ul (40 chars) ca sa pastreze doar primii 16. Acum trece direct prin primii 8 bytes ai digest-ului catre `hex_encode`, evitand alocarea string-ului intermediar de 40 chars.
+- `sha1_hex` foloseste acelasi `hex_encode` ca sa pastreze consistenta. `hex_encode` aloca o data capacitatea exacta si scrie direct in buffer fara `format!` per byte.
+- `rustFuzzy.test.ts` adauga o asertie ca `stable_update_id` returneaza intotdeauna exact 16 chars hex lowercase, independent de input.
+
+Atentie: schimbarea este pur intern micro-optimizare; output-ul `stable_update_id` si `deal_hash` ramane identic cu inainte, deci hash-urile stocate in `seen.*` si `seenDiscounts` raman valide.
+
 Nu am mutat in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy fallback sau parsare HTML in acest pas, pentru ca acolo timpul real este dominat de retea/IO si riscul ar fi mai mare decat castigul.
 
 ## Schimbari de build
