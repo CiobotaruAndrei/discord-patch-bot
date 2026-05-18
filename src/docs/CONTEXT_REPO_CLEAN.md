@@ -10,7 +10,7 @@ Proiectul ruleaza pe Node.js si foloseste CommonJS la runtime-ul compilat. Codul
 - modulele unde tiparea aduce siguranta reala sunt scrise in TypeScript;
 - `src/config/configValidator.ts` valideaza config-ul cu Zod;
 - `src/config/configLoader.ts` incarca config-ul si returneaza `config`, `games` si `configPath` tipate;
-- `src/shared/errors.ts` contine helper-ele comune pentru erori;
+- `src/shared/errors.ts`, `src/shared/logging.ts` si `src/shared/env.ts` contin baza comuna pentru erori, logger, request context si env;
 - `src/app/scheduler/cron.ts` controleaza cron-ul critic cu tipuri explicite;
 - `src/app/scheduler/housekeeping.ts` controleaza cleanup-ul periodic;
 - `src/app/lifecycle/events.ts` si `src/app/lifecycle/shutdown.ts` tin event wiring-ul si oprirea controlata;
@@ -72,7 +72,9 @@ src/
       locks.ts
   scripts/
   shared/
+    env.ts
     errors.ts
+    logging.ts
   sources/
   test/
   docs/
@@ -91,20 +93,21 @@ src/
 
 Flow-ul:
 
-1. incarca si valideaza config-ul prin `loadConfig` si `validateConfig`;
-2. creeaza metricile;
-3. conecteaza metricile la surse;
-4. creeaza clientul Discord;
-5. creeaza rate limiter-ul HTTP TypeScript;
-6. creeaza housekeeping-ul TypeScript;
-7. creeaza cron controller-ul TypeScript;
-8. creeaza serverul HTTP TypeScript de health/metrics si ii da acces la starea cron;
-9. creeaza controller-ul TypeScript de shutdown;
-10. inregistreaza evenimente Discord si MongoDB prin lifecycle TypeScript;
-11. conecteaza MongoDB;
-12. ruleaza migrarile DB;
-13. porneste serverul HTTP;
-14. face login la Discord.
+1. `src/infra/mongo/index.js` construieste contextul comun, atasand `logging.ts`, `env.ts`, utilitare, modele, lock-uri si alerte;
+2. incarca si valideaza config-ul prin `loadConfig` si `validateConfig`;
+3. creeaza metricile;
+4. conecteaza metricile la surse;
+5. creeaza clientul Discord;
+6. creeaza rate limiter-ul HTTP TypeScript;
+7. creeaza housekeeping-ul TypeScript;
+8. creeaza cron controller-ul TypeScript;
+9. creeaza serverul HTTP TypeScript de health/metrics si ii da acces la starea cron;
+10. creeaza controller-ul TypeScript de shutdown;
+11. inregistreaza evenimente Discord si MongoDB prin lifecycle TypeScript;
+12. conecteaza MongoDB;
+13. ruleaza migrarile DB;
+14. porneste serverul HTTP;
+15. face login la Discord.
 
 Logica mare nu trebuie pusa direct in `main.js`.
 
@@ -119,6 +122,8 @@ TypeScript este folosit gradual. Regula curenta:
 - `src/types.ts` trebuie actualizat cand se adauga env-uri, metrici, controllere, optiuni sau contracte intre module;
 - `configValidator.ts` pastreaza accesul la erorile Zod intr-o forma tipata explicit, ca `safeParse` sa fie compatibil cu typecheck-ul curent;
 - `configLoader.ts` descrie rezultatul de boot prin `ConfigLoadResult`;
+- `src/shared/logging.ts` descrie `LoggerFunction`, `ParseEnvNumber`, `RequestContextStore` si semnalul de abort curent;
+- `src/shared/env.ts` construieste obiectul `RuntimeEnv`, inclusiv placeholder handling pentru `METRICS_TOKEN`;
 - `src/app/scheduler/cron.ts` este TypeScript fiindca gestioneaza lock distribuit, heartbeat, abort signal si health backoff;
 - `src/app/lifecycle/*.ts` este TypeScript fiindca orice greseala aici poate afecta event wiring-ul sau oprirea controlata;
 - `src/infra/mongo/locks.ts` este TypeScript fiindca gestioneaza lock token-uri si `activeLocks` folosite la shutdown;
@@ -175,7 +180,7 @@ Daca se adauga un tip nou de sursa, trebuie actualizate validatorul, `src/source
 
 ## Env
 
-Variabilele de mediu sunt validate in `src/shared/env.js`.
+Variabilele de mediu sunt validate in `src/shared/env.ts`, iar numerele sunt parse-uite prin `parseEnvNumber` din `src/shared/logging.ts`.
 
 Campuri importante:
 
@@ -198,6 +203,16 @@ Campuri importante:
 
 In production, `/metrics` trebuie protejat prin `METRICS_TOKEN`, sau facut public explicit cu `METRICS_PUBLIC=true`. Placeholder-ul `change_me_to_a_long_random_value` este tratat ca lipsa.
 
+## Logging si request context
+
+`src/shared/logging.ts` creeaza `requestContext` prin `AsyncLocalStorage` si expune:
+
+- `logger(level, context, message, meta)`;
+- `parseEnvNumber(name, defaultValue, limits)`;
+- `getAbortSignal()`.
+
+Logger-ul poate scrie JSON sau text, include `requestId` cand exista si aplica sampling pe INFO/DEBUG prin `LOG_SAMPLE_RATE`. `getAbortSignal()` este folosit de clientul HTTP ca sa opreasca request-uri cand cron-ul este anulat.
+
 ## MongoDB
 
 MongoDB este folosit pentru setari per server Discord, update-uri vazute, reduceri vazute, cozi pending, state global, locks distribuite, circuit breaker si cooldown-uri pentru alertele admin.
@@ -210,7 +225,7 @@ Modelele sunt in `src/infra/mongo/models.js`. Lock-urile distribuite sunt in `sr
 
 Clientul HTTP comun este in `src/infra/http/client.js`. Acesta ofera retry/backoff, limite de bytes pentru HTML/JSON, user-agent random, proxy fallback, `safeCheerioLoad`, hashing pentru deal-uri, in-flight coalescing, timeout pentru promisiuni si agenti keep-alive.
 
-Cron-ul pune `abortSignal` in `requestContext`, `src/shared/logging.js` il expune prin `getAbortSignal`, iar `httpReq` il foloseste ca sa poata opri request-urile cand ciclul cron este anulat. Erorile de abort/cancel nu sunt retry-uite.
+Cron-ul pune `abortSignal` in `requestContext`, `src/shared/logging.ts` il expune prin `getAbortSignal`, iar `httpReq` il foloseste ca sa poata opri request-urile cand ciclul cron este anulat. Erorile de abort/cancel nu sunt retry-uite.
 
 Acest fisier este sensibil: modificarile aici afecteaza toate sursele externe.
 
@@ -282,6 +297,7 @@ Teste importante:
 - protectiile portate din codul local: retry Mongo, coduri Discord permanente, cache LRU pe valute, cron health, abort signal HTTP si eroare la lock cron;
 - regresie pentru pachetul health compilat din TypeScript;
 - regresie pentru modulele boot/lifecycle/lock compilate din TypeScript;
+- regresie pentru modulele shared env/logging compilate din TypeScript;
 - validare config;
 - hashing reduceri;
 - fuzzy matching jocuri;
