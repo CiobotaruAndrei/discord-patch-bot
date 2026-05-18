@@ -8,7 +8,7 @@ Acest fisier documenteaza functiile importante din repo, pe fisiere. Scopul lui 
 - Codul runtime este mixt: JavaScript CommonJS plus module TypeScript compilate.
 - Modulele convertite la TypeScript sunt compilate in `dist/` inainte de rulare.
 - `src/infra/mongo/index.js`, `src/sources/index.js` si `src/features/commands/index.js` sunt agregatoare.
-- `src/types.ts` descrie tipurile folosite in JSDoc si TypeScript, inclusiv contracte pentru config, lifecycle, health, locks, env, logging, shared domain, utilitare, HTTP si Mongo helpers.
+- `src/types.ts` descrie tipurile folosite in JSDoc si TypeScript, inclusiv contracte pentru config, lifecycle, health, locks, env, logging, shared domain, utilitare, HTTP, Mongo helpers si Steam helpers.
 - `dist/` este output generat si nu se editeaza manual.
 - Singura exceptie intentionata din afara `src/` este `.github/workflows/ci.yml`, necesara pentru GitHub Actions.
 
@@ -68,8 +68,8 @@ Tipuri importante:
 - `LifecycleState`;
 - `RateLimitBucket` si `RateLimiter`;
 - `LockToken` si `ActiveLocks`;
-- `DealInfo`, `PendingUpdate`, `PendingDiscount`, `GuildSettings` si `ConcurrentRunResult`;
-- `HttpRequestOptions`, cache-uri, HTTP si rezultate concurente.
+- `DealInfo`, `PendingUpdate`, `PendingDiscount`, `GuildSettings`, `SystemTimes` si `SteamSearchItem`;
+- `HttpRequestOptions`, cache-uri si rezultate concurente.
 
 ## App
 
@@ -97,10 +97,6 @@ Functii:
 
 - `createMetrics`: creeaza contoare pentru fetch-uri, retry-uri, rate limit, cron, abort, skip-uri cron si uptime.
 
-Tipuri:
-
-- foloseste `BotMetrics` din `src/types.ts`.
-
 ### `src/app/health/rateLimit.ts`
 
 Functii:
@@ -118,10 +114,6 @@ Comportament:
 - contorizeaza drop-urile in `metrics.httpRateLimitDrops`;
 - curata bucket-urile vechi si limiteaza dimensiunea hartii interne.
 
-Tipuri:
-
-- foloseste `RuntimeEnv`, `BotMetrics`, `RateLimitBucket` si `RateLimiter` din `src/types.ts`.
-
 ### `src/app/health/httpServer.ts`
 
 Functii:
@@ -134,12 +126,8 @@ Comportament:
 - aplica rate limiter-ul pe `/health`, `/healthz` si `/metrics`;
 - `/health` si `/healthz` returneaza starea Mongo, Discord, uptime si `cronHealth` cand este disponibil;
 - `/metrics` verifica `METRICS_TOKEN` cu comparatie timing-safe;
-- `/metrics` include `bot_cron_skipped_due_to_health` pe langa metricile existente;
+- `/metrics` include `bot_cron_skipped_due_to_health`;
 - endpoint-urile necunoscute returneaza `404`.
-
-Tipuri:
-
-- foloseste `RuntimeEnv`, `BotMetrics`, `RateLimiter`, `CronController`, `CronHealthSnapshot` si `CommandCacheSizes` din `src/types.ts`.
 
 ### `src/app/scheduler/cron.ts`
 
@@ -163,10 +151,6 @@ Comportament:
 - sare un ciclu cand fereastra globala de health scade sub prag;
 - prinde erorile de `acquireDbLock`, le contorizeaza, le adauga in health window si programeaza urmatorul ciclu;
 - expune snapshot-ul de health pentru endpoint-ul HTTP.
-
-Tipuri:
-
-- foloseste `RuntimeEnv`, `BotConfig`, `BotMetrics`, `GameConfig`, `CronController` si `CronHealthSnapshot` din `src/types.ts`.
 
 ### `src/app/scheduler/housekeeping.ts`
 
@@ -227,8 +211,6 @@ Comportament:
 
 ### `src/config/configValidator.ts`
 
-Rol: validator TypeScript pentru `config.json`, bazat pe Zod.
-
 Functii si constante:
 
 - `ALLOWED_GAME_TYPES`;
@@ -258,7 +240,7 @@ Functii:
 - `parseEnvNumber(name, defaultValue, limits)`;
 - `getAbortSignal()`.
 
-Include `requestContext` bazat pe `AsyncLocalStorage`, `LOG_SAMPLE_RATE` pentru sampling pe INFO/DEBUG si contracte TypeScript pentru logger, parser numeric de env si contextul cererii. WARN si ERROR nu sunt sample-uite. `getAbortSignal` citeste semnalul de anulare din `requestContext`.
+Include `requestContext` bazat pe `AsyncLocalStorage`, `LOG_SAMPLE_RATE` pentru sampling pe INFO/DEBUG si contracte TypeScript pentru logger, parser numeric de env si contextul cererii.
 
 ### `src/shared/env.ts`
 
@@ -287,12 +269,6 @@ Expune:
 - `getCurrencyConfig(code)`;
 - `formatPrice(value, currencyCode)`.
 
-Comportament:
-
-- `SchemaDriftError` marcheaza drift de schema la surse care raspund OK, dar nu mai dau rezultate valide;
-- `getCurrencyConfig` cade pe `DEFAULT_CURRENCY` pentru valori necunoscute;
-- `formatPrice` aplica prefix/suffix dupa configuratia valutei.
-
 ### `src/shared/utilities.ts`
 
 Functii:
@@ -303,7 +279,7 @@ Functii:
 - `isTransientMongoError(err)`;
 - `withMongoRetry(fn, options)`.
 
-`withMongoRetry` este folosit pentru claim-uri atomice Mongo unde o eroare temporara poate fi reincercata fara sa dubleze notificari. `validatePendingDiscountSnapshot` este type guard pentru snapshot-urile pending folosite la reduceri.
+`withMongoRetry` este folosit pentru claim-uri atomice Mongo unde o eroare temporara poate fi reincercata fara sa dubleze notificari.
 
 ### `src/shared/errors.ts`
 
@@ -320,7 +296,7 @@ Expune dependinte comune: `mongoose`, `crypto`, `axios`, `z`, `AsyncLocalStorage
 
 ### `src/infra/mongo/index.js`
 
-Agregator pentru infrastructura Mongo si shared utilities. Include export pentru `runMigrations`, `ALL_MIGRATIONS`, `withMongoRetry`, `isTransientMongoError`, `getAbortSignal`, guild settings, alerte admin, lock-uri si modelele Mongo.
+Agregator pentru infrastructura Mongo si shared utilities. Include export pentru `runMigrations`, `ALL_MIGRATIONS`, `getSystemTimes`, `saveSystemTimes`, `withMongoRetry`, `isTransientMongoError`, `getAbortSignal`, guild settings, alerte admin, lock-uri si modelele Mongo.
 
 ### `src/infra/mongo/models.js`
 
@@ -349,21 +325,32 @@ Comportament:
 - trateaza duplicate key ca lock indisponibil, nu ca eroare fatala;
 - tine `activeLocks` in memorie pentru cleanup la shutdown.
 
-### `src/infra/mongo/migrations.js`
+### `src/infra/mongo/migrations.ts`
 
 Functii:
 
+- `attachMigrations(ctx)`;
 - `runMigrations(logger)`;
 - `ALL_MIGRATIONS`.
 
-Rol: ruleaza migrari idempotente la pornire, sub lock distribuit `db_migrations`.
+Migrari curente:
 
-### `src/infra/mongo/systemState.js`
+- `add-enabledStores-to-existing-guilds`;
+- `add-maxAbsolutePrice-to-existing-guilds`;
+- `add-enabledGames-to-existing-guilds`;
+- `trim-runaway-seenDiscounts`.
+
+Rol: ruleaza migrari idempotente la pornire, sub lock distribuit `db_migrations`. State-ul este tinut in colectia `system`, documentul `migrationState`.
+
+### `src/infra/mongo/systemState.ts`
 
 Functii:
 
+- `attachSystemState(ctx)`;
 - `getSystemTimes()`;
 - `saveSystemTimes(times)`.
+
+Rol: citeste si salveaza timpii globali `all`, `single` si `reduceri` in documentul Mongo `system_state`. Default-ul este `{ all: 35000, single: 2000, reduceri: 10000 }`.
 
 ### `src/infra/mongo/guildSettings.ts`
 
@@ -473,16 +460,19 @@ Functii:
 - `_fetchDealsImpl(currencyCode)`;
 - `fetchDeals(opts)`.
 
-### `src/sources/steam/index.js`
+### `src/sources/steam/index.ts`
 
 Functii:
 
+- `attachSteam(ctx)`;
 - `searchSteamGameByName(query, currencyCode)`;
 - `levenshtein(a, b)`;
 - `chooseBestSteamMatch(items, query, options)`;
 - `fetchSteamPriceDetails(appId, currencyCode)`;
 - `extractOfferEndFromHtml(html)`;
 - `extractSteamOfferEndDate(appId, currencyCode)`.
+
+Rol: cauta jocuri in Steam Store API, alege match-ul cel mai bun cu penalizari pentru DLC/demo cand utilizatorul cauta jocul principal, citeste detalii de pret si extrage data de expirare a ofertelor din HTML-ul Steam.
 
 ## Domain
 
@@ -572,4 +562,4 @@ Ruleaza `node --check` pe fisierele `.js` sursa si ignora `dist/`.
 
 ### `src/test/*`
 
-Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad`, optimizarea cronului, conversia cronului critic la TypeScript, conversia pachetului health la TypeScript, conversia boot/lifecycle/lock la TypeScript, conversia shared env/logging/domain/utilities la TypeScript, conversia Mongo helper/HTTP client la TypeScript si protectiile portate din codul local.
+Teste pentru config, regresii comenzi/notificari, hashing, parsing, fuzzy matching, `safeCheerioLoad`, optimizarea cronului, conversia cronului critic la TypeScript, conversia pachetului health la TypeScript, conversia boot/lifecycle/lock la TypeScript, conversia shared env/logging/domain/utilities la TypeScript, conversia Mongo helper/state/migrations la TypeScript, conversia Steam helpers la TypeScript, conversia HTTP client la TypeScript si protectiile portate din codul local.
