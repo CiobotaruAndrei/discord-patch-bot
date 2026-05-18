@@ -1,7 +1,6 @@
 // @ts-check
 "use strict";
 
-const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
@@ -23,22 +22,14 @@ function walk(dir: string): void {
 
 walk(root);
 
-let failed = false;
-for (const file of files.sort()) {
-  const result = spawnSync(process.execPath, ["--check", file], {
-    cwd: root,
-    encoding: "utf8"
-  });
-  if (result.status !== 0) {
-    failed = true;
-    const rel = path.relative(root, file);
-    console.error(`Syntax check failed: ${rel}`);
-    if (result.stderr) console.error(result.stderr.trim());
-    if (result.stdout) console.error(result.stdout.trim());
+if (files.length > 0) {
+  console.error("JavaScript source files are not allowed after the TypeScript migration:");
+  for (const file of files.sort()) {
+    console.error(`- ${path.relative(root, file)}`);
   }
+  process.exit(1);
 }
 
-if (failed) process.exit(1);
-console.log(`Syntax OK: ${files.length} JavaScript files`);
+console.log("Syntax OK: 0 JavaScript source files");
 
 export {};

@@ -94,3 +94,5 @@ test("cache se invalideaza cand games array se schimba", () => {
   const result = findGameAndSuggestion("cs", newGames);
   assert.equal(result.game?.key, "newkey");
 });
+
+export {};

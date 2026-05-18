@@ -77,3 +77,5 @@ test("cheile sunt tratate case-insensitive", () => {
   assert.equal(result.length, 2);
   assert.deepEqual(result.map(g => g.key).sort(), ["cs2", "minecraft"]);
 });
+
+export {};

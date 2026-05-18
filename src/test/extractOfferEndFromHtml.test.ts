@@ -69,3 +69,5 @@ test("limiteaza lungimea rezultatului fallback", () => {
   const result = extractOfferEndFromHtml(html);
   assert.ok((result || "").length <= 200, "fallback trebuie limitat la 200 char");
 });
+
+export {};

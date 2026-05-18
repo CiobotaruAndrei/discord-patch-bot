@@ -122,3 +122,5 @@ test("dealHash se schimba cand normalPrice difera", () => {
   b.normalPrice = "29.99";
   assert.notEqual(dealHash(a), dealHash(b));
 });
+
+export {};

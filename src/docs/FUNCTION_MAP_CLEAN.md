@@ -6,6 +6,8 @@ Acest fisier documenteaza responsabilitatile modulelor importante din repo. Surs
 
 - Proiectul compileaza TypeScript catre `src/dist/`.
 - Runtime-ul compilat este CommonJS.
+- `src/tsconfig.json` are `allowJs: false`, deci fisierele `.js` nu mai sunt acceptate ca sursa editabila.
+- `src/scripts/check-syntax.ts` pica verificarea daca mai apare un fisier `.js` in sursa `src`, ignorand `dist/`.
 - `src/infra/mongo/index.ts`, `src/sources/index.ts` si `src/features/commands/index.ts` sunt agregatoare.
 - `src/types.ts` tine tipurile comune folosite intre module.
 - `src/legacy-dynamic.d.ts` este un shim temporar pentru obiecte legacy dinamice ramase in fisierele mari convertite.
@@ -48,6 +50,7 @@ Rol:
 - compileaza sursa TypeScript in `dist`;
 - pastreaza CommonJS ca format runtime;
 - foloseste `moduleDetection: force`, pentru fisiere convertite care inca folosesc `require` si `module.exports`;
+- are `allowJs: false` si include doar `**/*.ts` plus `**/*.d.ts`;
 - exclude `dist`, `node_modules` si `coverage`.
 
 ### `src/types.ts`
@@ -430,7 +433,11 @@ Valideaza `config.json`. Este dist-aware si gaseste config-ul real cand ruleaza 
 
 ### `src/scripts/check-syntax.ts`
 
-Ruleaza `node --check` pe fisierele JavaScript sursa ramase si ignora `dist`. In starea curenta, sursa proiectului este TypeScript, deci acest script este o plasa de siguranta pentru eventuale fisiere `.js` adaugate ulterior.
+Verifica faptul ca nu exista fisiere JavaScript sursa ramase in `src`. Ignora `dist`; daca gaseste un `.js` in sursa, CI pica si listeaza fisierul.
+
+### `src/test/buildOptimizedGameList.test.ts`
+
+Testeaza `buildOptimizedGameList` pentru guild-uri fara filtre, filtre per joc, uniuni intre guild-uri si chei stale.
 
 ### `src/test/commands-regression.test.ts`
 
@@ -439,3 +446,19 @@ Testeaza regresiile pentru comenzi, notificari, health, cron, Mongo, HTTP, sourc
 ### `src/test/configValidator.test.ts`
 
 Testeaza forma acceptata a config-ului si validari pentru intervale, duplicate, Steam app IDs si `upCRD` legacy.
+
+### `src/test/dealHash.test.ts`
+
+Testeaza stabilitatea `dealHash`, inclusiv faptul ca modificarea textului datei de expirare nu creeaza o oferta noua.
+
+### `src/test/extractOfferEndFromHtml.test.ts`
+
+Testeaza parser-ul Steam pentru expresii de tip `Offer ends`, `Sale ends`, `Special promotion ends` si fallback-uri din HTML.
+
+### `src/test/findGameAndSuggestion.test.ts`
+
+Testeaza match-ul exact, aliasurile, fuzzy matching-ul si cache-ul pentru cautarea jocurilor.
+
+### `src/test/safeCheerioLoad.test.ts`
+
+Testeaza incarcarea HTML sigura, taierea la limita de bytes si pastrarea codepoint-urilor UTF-8 valide.
