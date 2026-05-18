@@ -73,8 +73,13 @@ src/
     updates/
       index.ts
   test/
+    buildOptimizedGameList.test.ts
     commands-regression.test.ts
     configValidator.test.ts
+    dealHash.test.ts
+    extractOfferEndFromHtml.test.ts
+    findGameAndSuggestion.test.ts
+    safeCheerioLoad.test.ts
   docs/
   config.json
   config.schema.json
@@ -104,7 +109,7 @@ Scripturi importante:
 
 - `npm run build`: compileaza TypeScript in `dist/`;
 - `npm run typecheck`: ruleaza `tsc --noEmit`;
-- `npm run check:syntax`: compileaza si ruleaza `dist/scripts/check-syntax.js`;
+- `npm run check:syntax`: compileaza si verifica faptul ca nu exista fisiere `.js` sursa ramase;
 - `npm run check:config`: compileaza si valideaza `config.json`;
 - `npm test`: compileaza si ruleaza testele din `dist/test`;
 - `npm run check`: ruleaza typecheck, build, syntax check, config check si teste.
@@ -135,7 +140,8 @@ Regula curenta este simpla: sursa din `src` este TypeScript. Runtime-ul ramane C
 
 `src/tsconfig.json`:
 
-- compileaza `.ts` si, pentru compatibilitate, inca permite `.js` prin `allowJs`;
+- compileaza doar `.ts` si `.d.ts` ca sursa;
+- are `allowJs: false`, ca fisierele `.js` sa nu mai fie acceptate ca sursa editabila;
 - foloseste `module: CommonJS`;
 - foloseste `moduleDetection: force`, ca fisierele fara import explicit sa fie tratate ca module;
 - exclude `dist`, `node_modules` si `coverage`.
@@ -227,12 +233,17 @@ Pachetul health este in `src/app/health`:
 Scripturile sunt TypeScript:
 
 - `src/scripts/check-config.ts` valideaza config-ul;
-- `src/scripts/check-syntax.ts` ruleaza syntax check pe fisiere `.js` sursa ramase. In starea curenta ar trebui sa gaseasca zero fisiere JavaScript sursa, in afara de output-ul ignorat din `dist`.
+- `src/scripts/check-syntax.ts` pica verificarea daca apare orice fisier `.js` in sursa `src`, ignorand doar output-ul generat din `dist`.
 
 Testele sunt TypeScript:
 
+- `src/test/buildOptimizedGameList.test.ts` verifica optimizarea listei de jocuri pentru cron;
 - `src/test/commands-regression.test.ts` verifica regresiile pentru comenzi, notificari, runtime si module compilate;
-- `src/test/configValidator.test.ts` verifica validatorul de config.
+- `src/test/configValidator.test.ts` verifica validatorul de config;
+- `src/test/dealHash.test.ts` verifica stabilitatea hash-ului pentru reduceri;
+- `src/test/extractOfferEndFromHtml.test.ts` verifica parser-ul datelor de expirare Steam;
+- `src/test/findGameAndSuggestion.test.ts` verifica fuzzy matching-ul si cache-ul pentru jocuri;
+- `src/test/safeCheerioLoad.test.ts` verifica taierea sigura a HTML-ului mare.
 
 ## GitHub Actions
 
