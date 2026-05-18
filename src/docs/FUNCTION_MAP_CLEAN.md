@@ -1,18 +1,18 @@
 # Function map curat
 
-Acest fisier documenteaza responsabilitatile modulelor importante din repo. Sursa din `src` este TypeScript, cu un nucleu Rust in `src/native` pentru fuzzy matching; fisierele `.js` apar dupa build in `dist/`.
+Acest fisier documenteaza responsabilitatile modulelor importante din repo. Sursa din `src` este TypeScript, cu un nucleu Rust in `src/native` pentru fuzzy matching, normalizare si hash-uri stabile; fisierele `.js` apar dupa build in `dist/` sau ca loader N-API generat.
 
 ## Conventii generale
 
 - Proiectul compileaza Rust nativ si apoi TypeScript catre `src/dist/`.
 - Runtime-ul compilat TypeScript este CommonJS.
 - `src/tsconfig.json` are `allowJs: false`, deci fisierele `.js` nu mai sunt acceptate ca sursa editabila.
-- `src/scripts/check-syntax.ts` pica verificarea daca mai apare un fisier `.js` in sursa `src`, ignorand `dist/`.
+- `src/scripts/check-syntax.ts` pica verificarea daca mai apare un fisier `.js` in sursa `src`, ignorand `dist/` si loader-ul generat `native/index.js`.
 - `src/infra/mongo/index.ts`, `src/sources/index.ts` si `src/features/commands/index.ts` sunt agregatoare.
 - `src/types.ts` tine tipurile comune folosite intre module.
 - `src/legacy-dynamic.d.ts` este un shim temporar pentru obiecte legacy dinamice ramase in fisierele mari convertite.
 - `src/native` contine cod Rust doar pentru algoritmi puri, nu pentru Discord/Mongo/HTTP.
-- `dist/`, `native/target/` si fisierele native `.node` sunt output generat si nu se editeaza manual.
+- `dist/`, `native/target/`, fisierele `.node`, `native/index.js` si `native/index.d.ts` sunt output generat si nu se editeaza manual.
 - Singura exceptie intentionata din afara `src` este `.github/workflows/ci.yml`.
 
 ## GitHub Actions
@@ -59,7 +59,7 @@ Rol:
 
 ### `src/.gitignore`
 
-Rol: ignora output-urile generate local: `dist/`, `node_modules/`, `native/target/` si `native/*.node`.
+Rol: ignora output-urile generate local: `dist/`, `node_modules/`, `native/target/`, `native/*.node`, `native/index.js` si `native/index.d.ts`.
 
 ### `src/types.ts`
 
@@ -67,29 +67,32 @@ Rol: contracte comune pentru config, env, metrics, cron, lifecycle, locks, HTTP,
 
 ### `src/legacy-dynamic.d.ts`
 
-Rol: compatibilitate temporara pentru obiectele legacy construite dinamic dupa conversia fisierelor mari la TypeScript.
-
-Include declaratii pentru:
-
-- campuri dinamice din `updateDoc`, `sendPayload` si `setDoc`;
-- `fetchGameStatus`, folosit de handler-ul legacy de status.
+Rol: compatibilitate temporara pentru obiectele legacy construite dinamic dupa conversia fisierelor mari la TypeScript. Include campuri dinamice din `updateDoc`, `sendPayload`, `setDoc` si `fetchGameStatus`.
 
 ## Rust Native
 
 ### `src/native/Cargo.toml`
 
-Rol: defineste crate-ul Rust `discord_patch_bot_core`, compilat ca `cdylib` pentru N-API.
+Rol: defineste crate-ul Rust `discord_patch_bot_core`, compilat ca `cdylib` pentru N-API. Dependintele principale sunt `napi`, `napi-derive` si `sha1`.
 
 ### `src/native/build.rs`
 
 Rol: ruleaza setup-ul `napi-build` necesar pentru addon-ul Node nativ.
+
+### `src/native/package.json`
+
+Rol: metadata N-API pentru numele addon-ului si triple-urile de build.
 
 ### `src/native/src/lib.rs`
 
 Functii exportate:
 
 - `levenshtein(a, b)`: calculeaza distanta Levenshtein in Rust;
-- `find_game_keys(text, games, max_input)`: calculeaza in Rust cheia jocului gasit sau cheia sugestiei.
+- `find_game_keys(text, games, max_input)`: calculeaza in Rust cheia jocului gasit sau cheia sugestiei;
+- `normalize_title_for_dedupe(value)`: normalizeaza titlurile pentru dedupe de reduceri;
+- `stable_update_id(title, link)`: creeaza ID stabil de update din SHA1, taiat la 16 caractere;
+- `normalize_deal_state(sale_price, normal_price, savings)`: normalizeaza campurile de pret/procent;
+- `deal_hash(store, steam_app_id, id, title, sale_price, normal_price, savings)`: creeaza hash stabil pentru reduceri Steam, Epic si listing-based.
 
 Structuri exportate:
 
@@ -104,7 +107,11 @@ Functii:
 
 - `isRustFuzzyAvailable()`;
 - `levenshtein(a, b)`;
-- `findGameKeys(text, games, maxInput)`.
+- `findGameKeys(text, games, maxInput)`;
+- `normalizeTitleForDedupe(value)`;
+- `stableUpdateId(title, link)`;
+- `normalizeDealState(deal)`;
+- `dealHash(deal)`.
 
 Comportament: incarca fisierul `.node` generat in `src/native`; daca lipseste local, foloseste fallback TypeScript pentru ca dezvoltarea sa ramana posibila. CI verifica insa ca Rust este incarcat.
 
@@ -112,114 +119,49 @@ Comportament: incarca fisierul `.node` generat in `src/native`; daca lipseste lo
 
 ### `src/app/main.ts`
 
-Rol: entrypoint-ul botului.
-
-Logica:
-
-- incarca config-ul;
-- creeaza metrici;
-- creeaza client Discord;
-- creeaza rate limiter, housekeeping, cron controller, HTTP server si shutdown controller;
-- inregistreaza evenimente Discord si Mongo;
-- conecteaza MongoDB;
-- ruleaza migrarile DB;
-- porneste serverul HTTP;
-- face login la Discord.
+Rol: entrypoint-ul botului. Incarca config-ul, creeaza metrici, clientul Discord, rate limiter-ul, housekeeping-ul, cron controller-ul, HTTP server-ul si shutdown controller-ul; apoi conecteaza MongoDB, ruleaza migrarile, porneste serverul HTTP si face login la Discord.
 
 ### `src/app/health/metrics.ts`
 
-Functii:
-
-- `createMetrics`: creeaza contoare pentru fetch-uri, retry-uri, rate limit, cron, abort, skip-uri cron si uptime.
+Functii: `createMetrics` creeaza contoare pentru fetch-uri, retry-uri, rate limit, cron, abort, skip-uri cron si uptime.
 
 ### `src/app/health/rateLimit.ts`
 
-Functii:
-
-- `createRateLimiter(env, metrics)`;
-- `firstHeaderValue(value)`;
-- `check(req)`;
-- `prune()`;
-- `retryAfterSeconds`.
+Functii: `createRateLimiter`, `firstHeaderValue`, `check`, `prune`, `retryAfterSeconds`.
 
 ### `src/app/health/httpServer.ts`
 
-Functii:
-
-- `createHttpServer(...)`;
-- `timingSafeEqualStr(crypto, a, b)`.
-
-Comportament: expune `/health`, `/healthz`, `/metrics`, aplica rate limit si protejeaza metrics cu token cand e necesar.
+Functii: `createHttpServer`, `timingSafeEqualStr`. Expune `/health`, `/healthz`, `/metrics`, aplica rate limit si protejeaza metrics cu token cand e necesar.
 
 ### `src/app/scheduler/cron.ts`
 
-Rol: controller pentru cron-ul automat.
-
-Functii:
-
-- `createCronController(...)`;
-- `recordHealth(success, durationMs)`;
-- `shouldSkipForGlobalHealth()`;
-- `getHealthSnapshot()`;
-- `scheduleNextCron`;
-- `runCronCycle`;
-- `stop`;
-- `shouldAbortCron`.
+Functii: `createCronController`, `recordHealth`, `shouldSkipForGlobalHealth`, `getHealthSnapshot`, `scheduleNextCron`, `runCronCycle`, `stop`, `shouldAbortCron`.
 
 ### `src/app/scheduler/housekeeping.ts`
 
-Functii:
-
-- `createHousekeeping(...)`.
-
-Comportament: curata periodic cache-uri, guild cache, enriched cache si rate limiter.
+Functii: `createHousekeeping`. Curata periodic cache-uri, guild cache, enriched cache si rate limiter.
 
 ### `src/app/lifecycle/events.ts`
 
-Functii:
-
-- `registerDiscordEvents`;
-- `registerMongoEvents`.
+Functii: `registerDiscordEvents`, `registerMongoEvents`.
 
 ### `src/app/lifecycle/shutdown.ts`
 
-Functii:
+Functii: `createShutdownController`, `shutdown`, `handleFatalProcessError`, `registerProcessHandlers`.
 
-- `createShutdownController(...)`;
-- `shutdown(signal, exitCode)`;
-- `handleFatalProcessError(kind, reason)`;
-- `registerProcessHandlers`.
-
-## Config
+## Config si shared
 
 ### `src/config/configLoader.ts`
 
-Functii:
-
-- `resolveConfigPath(configPath)`;
-- `loadConfig(configPath)`.
+Functii: `resolveConfigPath`, `loadConfig`.
 
 ### `src/config/configValidator.ts`
 
-Functii si constante:
-
-- `ALLOWED_GAME_TYPES`;
-- `ALLOWED_CHECK_INTERVAL_MINUTES`;
-- `GameSchema`;
-- `ConfigSchema`;
-- `formatZodIssues(issues)`;
-- `validateConfig(config, source)`.
-
-## Shared
+Functii si constante: `ALLOWED_GAME_TYPES`, `ALLOWED_CHECK_INTERVAL_MINUTES`, `GameSchema`, `ConfigSchema`, `formatZodIssues`, `validateConfig`.
 
 ### `src/shared/logging.ts`
 
-Functii:
-
-- `attachLogging(ctx)`;
-- `logger(level, context, message, meta)`;
-- `parseEnvNumber(name, defaultValue, limits)`;
-- `getAbortSignal()`.
+Functii: `attachLogging`, `logger`, `parseEnvNumber`, `getAbortSignal`.
 
 ### `src/shared/env.ts`
 
@@ -227,30 +169,15 @@ Rol: valideaza env-ul si construieste obiectul `env`.
 
 ### `src/shared/domain.ts`
 
-Expune:
-
-- `SchemaDriftError`;
-- `SUPPORTED_CURRENCIES`;
-- `DEFAULT_CURRENCY`;
-- `getCurrencyConfig(code)`;
-- `formatPrice(value, currencyCode)`.
+Expune: `SchemaDriftError`, `SUPPORTED_CURRENCIES`, `DEFAULT_CURRENCY`, `getCurrencyConfig`, `formatPrice`.
 
 ### `src/shared/utilities.ts`
 
-Functii:
-
-- `runConcurrent(items, concurrency, fn, options)`;
-- `waitForMongoReady(timeoutMs)`;
-- `validatePendingDiscountSnapshot(snapshot)`;
-- `isTransientMongoError(err)`;
-- `withMongoRetry(fn, options)`.
+Functii: `runConcurrent`, `waitForMongoReady`, `validatePendingDiscountSnapshot`, `isTransientMongoError`, `withMongoRetry`.
 
 ### `src/shared/errors.ts`
 
-Functii:
-
-- `errorMessage(err)`;
-- `errorDetail(err)`.
+Functii: `errorMessage`, `errorDetail`.
 
 ## Infra Mongo
 
@@ -264,56 +191,27 @@ Agregator pentru infrastructura Mongo si shared utilities. Exporta logger, env, 
 
 ### `src/infra/mongo/models.ts`
 
-Modele:
-
-- `GuildModel`;
-- `CircuitBreakerModel`;
-- `SystemModel`;
-- `JobLockModel`;
-- `AdminAlertCooldownModel`.
+Modele: `GuildModel`, `CircuitBreakerModel`, `SystemModel`, `JobLockModel`, `AdminAlertCooldownModel`.
 
 ### `src/infra/mongo/locks.ts`
 
-Functii:
-
-- `attachLocks(ctx)`;
-- `acquireDbLock(jobName, ttlMs)`;
-- `renewDbLock(jobName, token, ttlMs)`;
-- `releaseDbLock(jobName, token)`;
-- `activeLocks`.
+Functii: `attachLocks`, `acquireDbLock`, `renewDbLock`, `releaseDbLock`, `activeLocks`.
 
 ### `src/infra/mongo/migrations.ts`
 
-Functii:
-
-- `attachMigrations(ctx)`;
-- `runMigrations(logger)`;
-- `ALL_MIGRATIONS`.
+Functii: `attachMigrations`, `runMigrations`, `ALL_MIGRATIONS`.
 
 ### `src/infra/mongo/systemState.ts`
 
-Functii:
-
-- `attachSystemState(ctx)`;
-- `getSystemTimes()`;
-- `saveSystemTimes(times)`.
+Functii: `attachSystemState`, `getSystemTimes`, `saveSystemTimes`.
 
 ### `src/infra/mongo/guildSettings.ts`
 
-Functii:
-
-- `attachGuildSettings(ctx)`;
-- `getGuildSettings(guildId)`;
-- `invalidateGuildCache(guildId)`;
-- `cleanGuildCache()`;
-- `getGuildCacheSize()`.
+Functii: `attachGuildSettings`, `getGuildSettings`, `invalidateGuildCache`, `cleanGuildCache`, `getGuildCacheSize`.
 
 ### `src/infra/mongo/adminAlerts.ts`
 
-Functii:
-
-- `attachAdminAlerts(ctx)`;
-- `adminAlert(kind, title, body)`.
+Functii: `attachAdminAlerts`, `adminAlert`.
 
 ## Infra HTTP
 
@@ -325,12 +223,12 @@ Functii importante:
 - `attachMetrics(m)`;
 - `cleanText(text)`;
 - `truncate(str, maxLen)`;
-- `normalizeTitleForDedupe(str)`;
-- `stableUpdateId(title, link)`;
+- `normalizeTitleForDedupe(str)`: delega la `src/native/fuzzy.ts`;
+- `stableUpdateId(title, link)`: delega la `src/native/fuzzy.ts`;
 - `normalizeUpdate(data)`;
 - `safeCheerioLoad(html)`;
-- `normalizeDealState(deal)`;
-- `dealHash(deal)`;
+- `normalizeDealState(deal)`: delega la `src/native/fuzzy.ts`;
+- `dealHash(deal)`: delega la `src/native/fuzzy.ts`;
 - `httpReq(method, url, options, retries, backoff)`;
 - `fetchWithProxy(targetUrl, options)`;
 - `withInflightTimeout(promise, label)`;
@@ -348,34 +246,15 @@ Agregator pentru client HTTP, Steam helpers, update sources si deals sources. Ex
 
 ### `src/sources/updates/index.ts`
 
-Functii principale:
-
-- `attachUpdates(ctx)`;
-- `fetchGameUpdate(game)`;
-- `executeFetchWithCircuitBreaker(game)`;
-- `getLatestForAllGames(games, shouldAbort)`.
+Functii principale: `attachUpdates`, `fetchGameUpdate`, `executeFetchWithCircuitBreaker`, `getLatestForAllGames`.
 
 ### `src/sources/deals/index.ts`
 
-Functii principale:
-
-- `attachDeals(ctx)`;
-- `fetchSteamReviewData(appId)`;
-- `enrichDealData(deal, currencyCode)`;
-- `fetchDeals(opts)`;
-- `cleanEnrichedCache()`;
-- `getEnrichedCacheSize()`.
+Functii principale: `attachDeals`, `fetchSteamReviewData`, `enrichDealData`, `fetchDeals`, `cleanEnrichedCache`, `getEnrichedCacheSize`.
 
 ### `src/sources/steam/index.ts`
 
-Functii principale:
-
-- `attachSteam(ctx)`;
-- `searchSteamGameByName(query, currencyCode)`;
-- `chooseBestSteamMatch(items, query, options)`;
-- `fetchSteamPriceDetails(appId, currencyCode)`;
-- `extractOfferEndFromHtml(html)`;
-- `extractSteamOfferEndDate(appId, currencyCode)`.
+Functii principale: `attachSteam`, `searchSteamGameByName`, `chooseBestSteamMatch`, `fetchSteamPriceDetails`, `extractOfferEndFromHtml`, `extractSteamOfferEndDate`.
 
 Atentie: `chooseBestSteamMatch` foloseste `levenshtein` din `src/native/fuzzy.ts`, deci scorarea textului vine din Rust cand addon-ul nativ este disponibil.
 
@@ -383,15 +262,7 @@ Atentie: `chooseBestSteamMatch` foloseste `levenshtein` din `src/native/fuzzy.ts
 
 ### `src/domain/deals/filters.ts`
 
-Functii:
-
-- `dealPassesFilters(deal, guild)`;
-- `normalizePendingUpdateArray(arr)`;
-- `normalizePendingDiscountArray(arr)`;
-- `toEntries(value)`;
-- `mapToObject(map)`;
-- `getSeenSet(guild, gameKey)`;
-- `rotateAfter(keys, lastKey)`.
+Functii: `dealPassesFilters`, `normalizePendingUpdateArray`, `normalizePendingDiscountArray`, `toEntries`, `mapToObject`, `getSeenSet`, `rotateAfter`.
 
 ## Commands
 
@@ -405,67 +276,25 @@ Functii: cache runtime, cooldown-uri, `formatUserError`, `canSendEmbeds`, `makeA
 
 ### `src/features/commands/ui.ts`
 
-Functii:
-
-- `enforceCooldown`;
-- `startCommandLog`;
-- `safeDefer`;
-- `safeEdit`;
-- `buildUpdateEmbed`;
-- `buildDealEmbed`;
-- `handlePagination`;
-- `findGameAndSuggestion`;
-- `fetchGameStatus`;
-- `buildSteamPriceEmbed`.
+Functii: `enforceCooldown`, `startCommandLog`, `safeDefer`, `safeEdit`, `buildUpdateEmbed`, `buildDealEmbed`, `handlePagination`, `findGameAndSuggestion`, `fetchGameStatus`, `buildSteamPriceEmbed`.
 
 Atentie: `findGameAndSuggestion` foloseste `levenshtein` primit prin contextul comun, care acum vine din `src/native/fuzzy.ts`.
 
 ### `src/features/commands/slashCommands.ts`
 
-Functii:
-
-- `attachSlashCommands(ctx)`;
-- `buildSlashCommandDefinitions()`;
-- `registerSlashCommands(token, clientId)`.
+Functii: `attachSlashCommands`, `buildSlashCommandDefinitions`, `registerSlashCommands`.
 
 ### `src/features/commands/interactions.ts`
 
-Proceseaza slash commands si autocomplete.
-
-Functii principale:
-
-- `handleInteraction(interaction, games)`;
-- `handleAutocomplete(interaction, games)`;
-- `handleStartInteraction(interaction, games)`;
-- `handleStopInteraction(interaction)`;
-- `handleSetInteraction(interaction, games)`;
-- `handleLatestInteraction(interaction, games)`;
-- `handleDlcInteraction(interaction)`;
-- `handleStatusInteraction(interaction, games)`;
-- `buildHelpEmbed()`.
+Proceseaza slash commands si autocomplete: `handleInteraction`, `handleAutocomplete`, `handleStartInteraction`, `handleStopInteraction`, `handleSetInteraction`, `handleLatestInteraction`, `handleDlcInteraction`, `handleStatusInteraction`, `buildHelpEmbed`.
 
 ## Notifications
 
 ### `src/features/notifications/index.ts`
 
-Update-uri:
+Update-uri: `DISCORD_PERMANENT_ERROR_CODES`, `isPermanentDiscordError`, `claimSeenUpdate`, `rollbackSeenUpdate`, `disableUpdatesForChannelError`, `processGuildUpdates`, `buildOptimizedGameList`, `checkForUpdates`.
 
-- `DISCORD_PERMANENT_ERROR_CODES`;
-- `isPermanentDiscordError`;
-- `claimSeenUpdate`;
-- `rollbackSeenUpdate`;
-- `disableUpdatesForChannelError`;
-- `processGuildUpdates`;
-- `buildOptimizedGameList`;
-- `checkForUpdates`.
-
-Reducerile:
-
-- `claimSeenDiscount`;
-- `rollbackSeenDiscount`;
-- `disableDiscountsForChannelError`;
-- `processGuildDiscounts`;
-- `checkForDiscounts`.
+Reducerile: `claimSeenDiscount`, `rollbackSeenDiscount`, `disableDiscountsForChannelError`, `processGuildDiscounts`, `checkForDiscounts`.
 
 Atentie: nu se elimina claim atomic, retry-ul Mongo, rollback-ul, pending queues, activation guards, codurile Discord permanente sau limita per ciclu.
 
@@ -477,7 +306,7 @@ Valideaza `config.json`. Este dist-aware si gaseste config-ul real cand ruleaza 
 
 ### `src/scripts/check-syntax.ts`
 
-Verifica faptul ca nu exista fisiere JavaScript sursa ramase in `src`. Ignora `dist`; daca gaseste un `.js` in sursa, CI pica si listeaza fisierul.
+Verifica faptul ca nu exista fisiere JavaScript sursa ramase in `src`. Ignora `dist`, `target` si loader-ul N-API generat `native/index.js`; daca gaseste alt `.js` in sursa, CI pica si listeaza fisierul.
 
 ### `src/test/buildOptimizedGameList.test.ts`
 
@@ -493,7 +322,7 @@ Testeaza forma acceptata a config-ului si validari pentru intervale, duplicate, 
 
 ### `src/test/dealHash.test.ts`
 
-Testeaza stabilitatea `dealHash`, inclusiv faptul ca modificarea textului datei de expirare nu creeaza o oferta noua.
+Testeaza stabilitatea `dealHash`, inclusiv faptul ca modificarea textului datei de expirare nu creeaza o oferta noua. `dealHash` este acum expus prin clientul HTTP, dar calculul pur este delegat la wrapper-ul Rust.
 
 ### `src/test/extractOfferEndFromHtml.test.ts`
 
@@ -505,7 +334,7 @@ Testeaza match-ul exact, aliasurile, fuzzy matching-ul si cache-ul pentru cautar
 
 ### `src/test/rustFuzzy.test.ts`
 
-Testeaza ca addon-ul Rust este incarcat in CI, ca `levenshtein` pastreaza distantele asteptate si ca helper-ul Rust de fuzzy matching returneaza cheile corecte.
+Testeaza ca addon-ul Rust este incarcat in CI, ca `levenshtein` pastreaza distantele asteptate, ca helper-ul Rust de fuzzy matching returneaza cheile corecte si ca normalizarile/hash-urile Rust pastreaza contractele existente.
 
 ### `src/test/safeCheerioLoad.test.ts`
 

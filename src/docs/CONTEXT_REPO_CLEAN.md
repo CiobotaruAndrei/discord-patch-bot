@@ -4,7 +4,7 @@
 
 Repo-ul contine un bot Discord pentru notificari automate despre patch notes, update-uri de jocuri, reduceri Steam si Epic Games, preturi Steam, DLC-uri Steam, status servere si endpoint-uri de health/metrics.
 
-Codul sursa editabil este in `src` si este in principal TypeScript. JavaScript-ul apare dupa build in `src/dist/` si nu trebuie editat manual. Primul nucleu Rust este in `src/native` si este folosit pentru algoritmi puri de fuzzy matching.
+Codul sursa editabil este in `src` si este in principal TypeScript. JavaScript-ul apare dupa build in `src/dist/` si nu trebuie editat manual. Nucleul Rust este in `src/native` si este folosit pentru algoritmi puri de fuzzy matching, normalizare si hash-uri stabile.
 
 ## Structura principala
 
@@ -58,6 +58,7 @@ src/
     Cargo.toml
     build.rs
     fuzzy.ts
+    package.json
     src/
       lib.rs
   scripts/
@@ -97,7 +98,7 @@ src/
   types.ts
 ```
 
-`dist/`, `node_modules/`, `native/target/` si fisierele `.node` sunt output-uri generate si nu se editeaza manual.
+`dist/`, `node_modules/`, `native/target/`, fisierele `.node`, `native/index.js` si `native/index.d.ts` sunt output-uri generate si nu se editeaza manual.
 
 ## Rulare si verificare
 
@@ -166,15 +167,16 @@ Rust este introdus gradual si doar unde are sens practic.
 
 Module:
 
-- `src/native/src/lib.rs`: implementeaza nativ `levenshtein` si `find_game_keys` pentru fuzzy matching;
-- `src/native/fuzzy.ts`: incarca addon-ul `.node`, expune `levenshtein`, `findGameKeys` si `isRustFuzzyAvailable`, plus fallback TypeScript pentru dezvoltare locala;
-- `src/native/Cargo.toml` si `src/native/build.rs`: configuratia crate-ului N-API.
+- `src/native/src/lib.rs`: implementeaza nativ `levenshtein`, `find_game_keys`, normalizarea pentru dedupe, ID-ul stabil de update, normalizarea starii unei reduceri si `deal_hash`;
+- `src/native/fuzzy.ts`: incarca addon-ul `.node`, expune wrapper-ele TypeScript si pastreaza fallback-uri locale compatibile;
+- `src/native/Cargo.toml`, `src/native/build.rs` si `src/native/package.json`: configuratia crate-ului N-API si metadata de build.
 
 Unde este folosit acum:
 
 - `src/sources/steam/index.ts` importa `levenshtein` din `src/native/fuzzy.ts`.
 - `src/sources/index.ts` exporta mai departe `levenshtein` prin context.
 - `src/features/commands/ui.ts` foloseste `levenshtein` din context pentru fuzzy matching-ul de comenzi, deci primeste implementarea Rust fara sa schimbe API-ul comenzii.
+- `src/infra/http/client.ts` pastreaza `normalizeTitleForDedupe`, `stableUpdateId`, `normalizeDealState` si `dealHash`, dar acestea deleaga catre wrapper-ele Rust din `src/native/fuzzy.ts`.
 
 Ce nu s-a mutat in Rust in acest pas:
 
@@ -220,7 +222,7 @@ Module importante:
 
 ## HTTP si sources
 
-Clientul HTTP comun este in `src/infra/http/client.ts`. El gestioneaza retry/backoff, limite de bytes, user-agent random, proxy fallback, hashing, normalizare, in-flight coalescing si abort signal.
+Clientul HTTP comun este in `src/infra/http/client.ts`. El gestioneaza retry/backoff, limite de bytes, user-agent random, proxy fallback, hashing, normalizare, in-flight coalescing si abort signal. Hashing-ul si normalizarile pure pentru dedupe sunt delegate catre `src/native/fuzzy.ts`, care foloseste Rust cand addon-ul nativ este disponibil.
 
 Sursele externe sunt in `src/sources`:
 
@@ -267,7 +269,7 @@ Pachetul health este in `src/app/health`:
 Scripturile sunt TypeScript:
 
 - `src/scripts/check-config.ts` valideaza config-ul;
-- `src/scripts/check-syntax.ts` pica verificarea daca apare orice fisier `.js` in sursa `src`, ignorand doar output-ul generat din `dist`.
+- `src/scripts/check-syntax.ts` pica verificarea daca apare orice fisier `.js` in sursa `src`, ignorand output-ul generat din `dist` si loader-ul N-API `native/index.js`.
 
 Testele sunt TypeScript:
 
@@ -277,7 +279,7 @@ Testele sunt TypeScript:
 - `src/test/dealHash.test.ts` verifica stabilitatea hash-ului pentru reduceri;
 - `src/test/extractOfferEndFromHtml.test.ts` verifica parser-ul datelor de expirare Steam;
 - `src/test/findGameAndSuggestion.test.ts` verifica fuzzy matching-ul si cache-ul pentru jocuri;
-- `src/test/rustFuzzy.test.ts` verifica faptul ca addon-ul Rust este incarcat si pastreaza comportamentul asteptat;
+- `src/test/rustFuzzy.test.ts` verifica faptul ca addon-ul Rust este incarcat, ca fuzzy matching-ul merge si ca hash-urile/normalizarile Rust pastreaza contractul existent;
 - `src/test/safeCheerioLoad.test.ts` verifica taierea sigura a HTML-ului mare.
 
 ## GitHub Actions
