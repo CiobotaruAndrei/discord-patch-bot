@@ -168,16 +168,17 @@ Rust este introdus gradual si doar unde are sens practic.
 
 Module:
 
-- `src/native/src/lib.rs`: implementeaza nativ `levenshtein`, `find_game_keys`, normalizarea pentru dedupe, ID-ul stabil de update, normalizarea starii unei reduceri si `deal_hash`;
-- `src/native/fuzzy.ts`: incarca addon-ul `.node`, expune wrapper-ele TypeScript si pastreaza fallback-uri locale compatibile;
+- `src/native/src/lib.rs`: implementeaza nativ fuzzy matching (`levenshtein`, `find_game_keys`), normalizari si hash-uri stabile (`normalize_title_for_dedupe`, `stable_update_id`, `normalize_deal_state`, `deal_hash`), plus helperi de text din hot path-ul de scraping (`clean_text`, `classify_patch_note`, `score_listing_candidate`);
+- `src/native/fuzzy.ts`: incarca addon-ul `.node`, expune wrapper-ele TypeScript si pastreaza fallback-uri locale compatibile pentru fiecare functie nativa;
 - `src/native/Cargo.toml`, `src/native/build.rs` si `src/native/package.json`: configuratia crate-ului N-API si metadata de build.
 
 Unde este folosit acum:
 
 - `src/sources/steam/index.ts` importa `levenshtein` din `src/native/fuzzy.ts`.
 - `src/sources/index.ts` exporta mai departe `levenshtein` prin context.
-- `src/features/commands/ui.ts` foloseste `levenshtein` din context pentru fuzzy matching-ul de comenzi, deci primeste implementarea Rust fara sa schimbe API-ul comenzii.
-- `src/infra/http/client.ts` pastreaza `normalizeTitleForDedupe`, `stableUpdateId`, `normalizeDealState` si `dealHash`, dar acestea deleaga catre wrapper-ele Rust din `src/native/fuzzy.ts`.
+- `src/features/commands/ui.ts` foloseste `findGameKeys` direct (Rust full loop, nu doar `levenshtein`) pentru fuzzy matching-ul comenzilor.
+- `src/infra/http/client.ts` deleaga `cleanText`, `normalizeTitleForDedupe`, `stableUpdateId`, `normalizeDealState` si `dealHash` catre wrapper-ele Rust din `src/native/fuzzy.ts`.
+- `src/sources/updates/index.ts` deleaga `isLikelyPatchNote` si `scoreCandidate` catre wrapper-ele Rust `classifyPatchNote` si `scoreListingCandidate`.
 
 Ce nu s-a mutat in Rust in acest pas:
 

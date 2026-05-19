@@ -11,6 +11,7 @@ import type {
   RuntimeEnv
 } from "../../types";
 import {
+  cleanText as rustCleanText,
   dealHash as rustDealHash,
   normalizeDealState as rustNormalizeDealState,
   normalizeTitleForDedupe as rustNormalizeTitleForDedupe,
@@ -39,10 +40,6 @@ const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0"
 ];
 
-const HTML_ENTITIES: Record<string, string> = {
-  nbsp: " ", amp: "&", quot: '"', "#39": "'", apos: "'", lt: "<", gt: ">"
-};
-const CLEAN_REGEX = /<[^>]+>|&(nbsp|amp|quot|#39|apos|lt|gt);|\s+/gi;
 const RETRY_ABLE_4XX = new Set([408, 425, 429]);
 
 function attachHttpClient(ctx: HttpClientContext): void {
@@ -96,16 +93,7 @@ function attachHttpClient(ctx: HttpClientContext): void {
   function attachMetrics(m: HttpMetricsRef): void { ctx.metricsRef = m; }
 
   function cleanText(text: unknown): string {
-    const str = String(text || "");
-    if (!str) return "";
-    const cleaned = str.replace(CLEAN_REGEX, (match, entity: string | undefined) => {
-      if (entity) {
-        const replacement = HTML_ENTITIES[entity.toLowerCase()];
-        return replacement !== undefined ? replacement : match;
-      }
-      return " ";
-    });
-    return cleaned.replace(/\s+/g, " ").trim();
+    return rustCleanText(text);
   }
 
   function truncate(str: unknown, maxLen: number): string {

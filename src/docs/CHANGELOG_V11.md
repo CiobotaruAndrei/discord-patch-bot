@@ -119,6 +119,17 @@ Optimizari la nucleul Rust de hashing:
 
 Atentie: schimbarea este pur intern micro-optimizare; output-ul `stable_update_id` si `deal_hash` ramane identic cu inainte, deci hash-urile stocate in `seen.*` si `seenDiscounts` raman valide.
 
+Al treilea pas Rust — helperi de text in hot path:
+
+- `src/native/src/lib.rs::clean_text` inlocuieste pipeline-ul JS `CLEAN_REGEX` din `infra/http/client.ts`. Implementare hand-rolled byte scanner, fara dependinte Cargo noi, care strip-uieste tag-uri HTML, decodeaza entitatile `&nbsp; &amp; &quot; &#39; &apos; &lt; &gt;` (case-insensitive, preserva cele necunoscute) si colapseaza whitespace-ul. UTF-8 multibyte e copiat intact.
+- `src/native/src/lib.rs::classify_patch_note` muta `isLikelyPatchNote` in nucleu. Listele `BAD_IN_TITLE` (12 cuvinte) si `GOOD_WORDS` (23 cuvinte) sunt static slices, alocate o data la incarcarea addon-ului. `fetchSteamUpdate` ruleaza clasificarea pana la 50 ori per joc per ciclu cron; bridge-ul JS<->native se traverseaza acum o data per item, nu o data per cuvant.
+- `src/native/src/lib.rs::score_listing_candidate` muta `scoreCandidate` in nucleu. Lowercasing-ul haystack-ului se face o singura data per ancora, nu o data per keyword. Bucla peste keywords ruleaza integral in cod nativ.
+- `src/native/fuzzy.ts` expune `cleanText`, `classifyPatchNote` si `scoreListingCandidate`, fiecare cu fallback TypeScript care oglindeste comportamentul Rust pentru dezvoltarea locala fara binar `.node`.
+- `src/infra/http/client.ts::cleanText` si `src/sources/updates/index.ts::isLikelyPatchNote` / `scoreCandidate` sunt acum delegatori de o linie catre wrapper-ele Rust. Listele de cuvinte cheie au fost scoase din bundle-ul JS — Rust e sursa unica acum.
+- `src/test/rustFuzzy.test.ts` acopera entity decode, unknown-entity passthrough, whitespace collapse, UTF-8 multibyte, plus reguli `classifyPatchNote` (bad-in-title invinge good word, tag patchnotes/update castiga, etc.) si `scoreListingCandidate` (case-insensitive, keyword gol, lista goala).
+
+Atentie: acesti helperi nu schimba semantica vizibila pentru consumatorii lor — output-ul `cleanText`, decizia `isLikelyPatchNote` si scorul `scoreCandidate` raman identice cu inainte. Doar costul per apel scade.
+
 Nu am mutat in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy fallback sau parsare HTML in acest pas, pentru ca acolo timpul real este dominat de retea/IO si riscul ar fi mai mare decat castigul.
 
 ## Schimbari de build

@@ -33,6 +33,72 @@ pub fn normalize_title_for_dedupe(value: String) -> String {
 }
 
 #[napi]
+pub fn clean_text(text: String) -> String {
+  clean_text_impl(&text)
+}
+
+// Keyword sets are static so we never reallocate them across calls. fetchSteamUpdate
+// runs classify_patch_note up to 50 times per game per cron tick — the JS version
+// called String.includes per keyword and burnt time on the JS<->native bridge for
+// every single comparison via .some(). Running the whole classification in one
+// native call removes that overhead.
+const BAD_IN_TITLE: &[&str] = &[
+  "community", "sale", "store", "merch", "tournament", "esports",
+  "giveaway", "teaser", "trailer", "preview", "announce", "announcement",
+];
+const GOOD_WORDS: &[&str] = &[
+  "update", "patch", "hotfix", "version", "release", "bugfix", "bug fix",
+  "fixes", "fix", "notes", "patch notes", "changelog", "maintenance",
+  "build", "client update", "title update", "release notes", "season",
+  "chapter", "rework", "balance", "content update", "launch",
+];
+
+#[napi]
+pub fn classify_patch_note(title: String, contents: String, tags: Vec<String>) -> bool {
+  let title_lc = title.to_lowercase();
+  if BAD_IN_TITLE.iter().any(|w| title_lc.contains(w)) {
+    return false;
+  }
+  let has_patch_tag = tags.iter().any(|t| {
+    let lc = t.to_lowercase();
+    lc == "patchnotes" || lc == "update"
+  });
+  if has_patch_tag {
+    return true;
+  }
+  let contents_lc = contents.to_lowercase();
+  GOOD_WORDS.iter().any(|w| title_lc.contains(w) || contents_lc.contains(w))
+}
+
+// scoreCandidate is called per <a> tag inside fetchListingBasedUpdate's listing
+// scrape. With per-guild require_keywords lists of ~3-8 words and listings of
+// 50-200 anchors, the JS version does N*M String.includes calls per fetch.
+// Lowercasing the haystack once and looping in native keeps the hot loop in
+// one place.
+#[napi]
+pub fn score_listing_candidate(href: String, text: String, keywords: Vec<String>) -> u32 {
+  if keywords.is_empty() {
+    return 0;
+  }
+  let mut haystack = String::with_capacity(href.len() + text.len() + 1);
+  haystack.push_str(&href);
+  haystack.push(' ');
+  haystack.push_str(&text);
+  let haystack_lc = haystack.to_lowercase();
+  let mut score: u32 = 0;
+  for keyword in &keywords {
+    if keyword.is_empty() {
+      continue;
+    }
+    let kw_lc = keyword.to_lowercase();
+    if haystack_lc.contains(&kw_lc) {
+      score += 1;
+    }
+  }
+  score
+}
+
+#[napi]
 pub fn stable_update_id(title: String, link: String) -> String {
   let base = format!("{}|{}", title, link);
   let mut hasher = Sha1::new();
@@ -184,6 +250,119 @@ fn normalize_deal_state_impl(sale_price: &str, normal_price: &str, savings: &str
   [sale_price, normal_price, savings]
     .map(|value| value.trim().to_lowercase())
     .join(":")
+}
+
+// Mirror of the JS CLEAN_REGEX = /<[^>]+>|&(nbsp|amp|quot|#39|apos|lt|gt);|\s+/gi
+// pipeline, hand-rolled to avoid pulling in the regex crate (~1MB binary).
+// Strips HTML tags (replaced with space), decodes a small set of named entities,
+// collapses whitespace runs, and trims. Behavior matches the JS implementation
+// in src/infra/http/client.ts byte-for-byte for the entities and pages we see.
+fn clean_text_impl(input: &str) -> String {
+  if input.is_empty() {
+    return String::new();
+  }
+  let bytes = input.as_bytes();
+  let mut out = String::with_capacity(input.len());
+  let mut i = 0usize;
+  let mut prev_was_space = true; // treat start-of-input as space so leading whitespace collapses
+
+  while i < bytes.len() {
+    let b = bytes[i];
+
+    // HTML tag: <...>
+    if b == b'<' {
+      let mut j = i + 1;
+      while j < bytes.len() && bytes[j] != b'>' {
+        j += 1;
+      }
+      i = if j < bytes.len() { j + 1 } else { j };
+      if !prev_was_space {
+        out.push(' ');
+        prev_was_space = true;
+      }
+      continue;
+    }
+
+    // Named entity: &(nbsp|amp|quot|#39|apos|lt|gt);
+    if b == b'&' {
+      let max = std::cmp::min(bytes.len(), i + 8);
+      let mut j = i + 1;
+      while j < max && bytes[j] != b';' {
+        j += 1;
+      }
+      if j < bytes.len() && bytes[j] == b';' {
+        let entity_bytes = &bytes[i + 1..j];
+        // entity names are ASCII; safe to compare bytes after lowercasing.
+        let replacement: Option<&str> = match entity_bytes {
+          b if b.eq_ignore_ascii_case(b"nbsp") => Some(" "),
+          b if b.eq_ignore_ascii_case(b"amp") => Some("&"),
+          b if b.eq_ignore_ascii_case(b"quot") => Some("\""),
+          b if b.eq_ignore_ascii_case(b"#39") || b.eq_ignore_ascii_case(b"apos") => Some("'"),
+          b if b.eq_ignore_ascii_case(b"lt") => Some("<"),
+          b if b.eq_ignore_ascii_case(b"gt") => Some(">"),
+          _ => None,
+        };
+        if let Some(repl) = replacement {
+          if repl == " " {
+            if !prev_was_space {
+              out.push(' ');
+              prev_was_space = true;
+            }
+          } else {
+            out.push_str(repl);
+            prev_was_space = false;
+          }
+          i = j + 1;
+          continue;
+        }
+        // Unknown entity: JS keeps the original match. Mirror that.
+        out.push_str(&input[i..=j]);
+        prev_was_space = false;
+        i = j + 1;
+        continue;
+      }
+      // Stray '&' with no closing ';' — keep as-is.
+      out.push('&');
+      prev_was_space = false;
+      i += 1;
+      continue;
+    }
+
+    // ASCII whitespace -> collapse runs to a single space.
+    if b.is_ascii_whitespace() {
+      if !prev_was_space {
+        out.push(' ');
+        prev_was_space = true;
+      }
+      i += 1;
+      continue;
+    }
+
+    // Regular byte. For ASCII this is a 1-byte char; for multibyte UTF-8 we
+    // need to copy the whole codepoint to keep the string valid.
+    if b < 0x80 {
+      out.push(b as char);
+      prev_was_space = false;
+      i += 1;
+    } else {
+      let char_len = if b & 0xE0 == 0xC0 { 2 }
+                     else if b & 0xF0 == 0xE0 { 3 }
+                     else if b & 0xF8 == 0xF0 { 4 }
+                     else { 1 };
+      let end = std::cmp::min(bytes.len(), i + char_len);
+      if let Ok(s) = std::str::from_utf8(&bytes[i..end]) {
+        out.push_str(s);
+      }
+      prev_was_space = false;
+      i = end;
+    }
+  }
+
+  // Strip trailing space if we emitted one. Match JS `.trim()` semantics.
+  while out.ends_with(' ') {
+    out.pop();
+  }
+  out
 }
 
 fn sha1_hex(value: &str) -> String {

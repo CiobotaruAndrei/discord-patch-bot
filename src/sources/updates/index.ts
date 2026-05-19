@@ -9,6 +9,7 @@ import type {
   NormalizedUpdate,
   PatchUpdate
 } from "../../types";
+import { classifyPatchNote, scoreListingCandidate } from "../../native/fuzzy";
 
 type HttpResponse<T = unknown> = { data: T };
 type HttpReq = (
@@ -154,22 +155,15 @@ function getArticleHrefRegex(game: GameConfig): RegExp | null {
 }
 
 function scoreCandidate(candidate: ListingCandidate, keywords: string[]): number {
-  const haystack = `${candidate.href} ${candidate.text}`.toLowerCase();
-  let score = 0;
-  for (const k of keywords) if (haystack.includes(String(k).toLowerCase())) score += 1;
-  return score;
+  // V11: delegat catre src/native/src/lib.rs::score_listing_candidate.
+  return scoreListingCandidate(candidate.href, candidate.text, keywords);
 }
 
 function isLikelyPatchNote(item: any): boolean {
-  const title = String(item.title || "").toLowerCase();
-  const contents = String(item.contents || "").toLowerCase();
-  const tags = Array.isArray(item.tags) ? item.tags.map((t: unknown) => String(t).toLowerCase()) : [];
-  const text = `${title} ${contents}`;
-  const badInTitle = ["community", "sale", "store", "merch", "tournament", "esports", "giveaway", "teaser", "trailer", "preview", "announce", "announcement"];
-  if (badInTitle.some(w => title.includes(w))) return false;
-  if (tags.includes("patchnotes") || tags.includes("update")) return true;
-  const goodWords = ["update", "patch", "hotfix", "version", "release", "bugfix", "bug fix", "fixes", "fix", "notes", "patch notes", "changelog", "maintenance", "build", "client update", "title update", "release notes", "season", "chapter", "rework", "balance", "content update", "launch"];
-  return goodWords.some(w => text.includes(w));
+  // V11: delegat catre src/native/src/lib.rs::classify_patch_note. Acolo
+  // listele de cuvinte cheie sunt static, iar clasificarea ruleaza intr-un
+  // singur apel native in loc sa traverseze granita JS<->Rust per cuvant.
+  return classifyPatchNote(item?.title, item?.contents, item?.tags);
 }
 
 async function fetchSteamUpdate(game: GameConfig): Promise<NormalizedUpdate> {

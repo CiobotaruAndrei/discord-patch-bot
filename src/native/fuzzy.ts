@@ -26,6 +26,12 @@ interface NativeFuzzyModule {
   normalize_deal_state?(salePrice: string, normalPrice: string, savings: string): string;
   dealHash?(store: string, steamAppId: string, id: string, title: string, salePrice: string, normalPrice: string, savings: string): string;
   deal_hash?(store: string, steamAppId: string, id: string, title: string, salePrice: string, normalPrice: string, savings: string): string;
+  cleanText?(text: string): string;
+  clean_text?(text: string): string;
+  classifyPatchNote?(title: string, contents: string, tags: string[]): boolean;
+  classify_patch_note?(title: string, contents: string, tags: string[]): boolean;
+  scoreListingCandidate?(href: string, text: string, keywords: string[]): number;
+  score_listing_candidate?(href: string, text: string, keywords: string[]): number;
 }
 
 let nativeModule: NativeFuzzyModule | null | undefined;
@@ -117,6 +123,47 @@ function normalizeTitleForDedupeFallback(value: unknown): string {
     .trim();
 }
 
+const PATCH_NOTE_BAD_IN_TITLE = ["community", "sale", "store", "merch", "tournament", "esports", "giveaway", "teaser", "trailer", "preview", "announce", "announcement"];
+const PATCH_NOTE_GOOD_WORDS = ["update", "patch", "hotfix", "version", "release", "bugfix", "bug fix", "fixes", "fix", "notes", "patch notes", "changelog", "maintenance", "build", "client update", "title update", "release notes", "season", "chapter", "rework", "balance", "content update", "launch"];
+
+function classifyPatchNoteFallback(title: unknown, contents: unknown, tags: unknown): boolean {
+  const titleLc = String(title || "").toLowerCase();
+  if (PATCH_NOTE_BAD_IN_TITLE.some(w => titleLc.includes(w))) return false;
+  const tagList = Array.isArray(tags) ? tags.map(t => String(t).toLowerCase()) : [];
+  if (tagList.includes("patchnotes") || tagList.includes("update")) return true;
+  const contentsLc = String(contents || "").toLowerCase();
+  return PATCH_NOTE_GOOD_WORDS.some(w => titleLc.includes(w) || contentsLc.includes(w));
+}
+
+function scoreListingCandidateFallback(href: unknown, text: unknown, keywords: unknown): number {
+  if (!Array.isArray(keywords) || keywords.length === 0) return 0;
+  const haystack = `${String(href || "")} ${String(text || "")}`.toLowerCase();
+  let score = 0;
+  for (const k of keywords) {
+    const kw = String(k || "").toLowerCase();
+    if (kw && haystack.includes(kw)) score++;
+  }
+  return score;
+}
+
+const CLEAN_TEXT_REGEX = /<[^>]+>|&(nbsp|amp|quot|#39|apos|lt|gt);|\s+/gi;
+const CLEAN_TEXT_ENTITIES: Record<string, string> = {
+  nbsp: " ", amp: "&", quot: '"', "#39": "'", apos: "'", lt: "<", gt: ">"
+};
+
+function cleanTextFallback(value: unknown): string {
+  const str = String(value || "");
+  if (!str) return "";
+  const replaced = str.replace(CLEAN_TEXT_REGEX, (match, entity: string | undefined) => {
+    if (entity) {
+      const repl = CLEAN_TEXT_ENTITIES[entity.toLowerCase()];
+      return repl !== undefined ? repl : match;
+    }
+    return " ";
+  });
+  return replaced.replace(/\s+/g, " ").trim();
+}
+
 function stableUpdateIdFallback(title: unknown, link: unknown): string {
   const base = `${String(title || "")}|${String(link || "")}`;
   return crypto.createHash("sha1").update(base).digest("hex").substring(0, 16);
@@ -202,6 +249,37 @@ export function levenshtein(a: string, b: string): number {
 export function normalizeTitleForDedupe(value: unknown): string {
   const fn = nativeStringFn("normalizeTitleForDedupe", "normalize_title_for_dedupe");
   return fn ? fn(String(value || "")) : normalizeTitleForDedupeFallback(value);
+}
+
+export function cleanText(value: unknown): string {
+  const fn = nativeStringFn("cleanText", "clean_text");
+  return fn ? fn(String(value || "")) : cleanTextFallback(value);
+}
+
+export function classifyPatchNote(title: unknown, contents: unknown, tags: unknown): boolean {
+  const native = loadNativeFuzzy();
+  if (native) {
+    const fn = typeof native.classifyPatchNote === "function" ? native.classifyPatchNote : native.classify_patch_note;
+    if (typeof fn === "function") {
+      const tagsList = Array.isArray(tags) ? tags.map(t => String(t)) : [];
+      try { return fn.call(native, String(title || ""), String(contents || ""), tagsList); }
+      catch { /* fall through to TS fallback */ }
+    }
+  }
+  return classifyPatchNoteFallback(title, contents, tags);
+}
+
+export function scoreListingCandidate(href: unknown, text: unknown, keywords: unknown): number {
+  const native = loadNativeFuzzy();
+  if (native) {
+    const fn = typeof native.scoreListingCandidate === "function" ? native.scoreListingCandidate : native.score_listing_candidate;
+    if (typeof fn === "function") {
+      const kw = Array.isArray(keywords) ? keywords.map(k => String(k)) : [];
+      try { return fn.call(native, String(href || ""), String(text || ""), kw); }
+      catch { /* fall through to TS fallback */ }
+    }
+  }
+  return scoreListingCandidateFallback(href, text, keywords);
 }
 
 export function stableUpdateId(title: unknown, link: unknown): string {
