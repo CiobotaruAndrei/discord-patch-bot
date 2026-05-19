@@ -264,7 +264,7 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
 }
 
 async function fetchFortniteUpdate(): Promise<NormalizedUpdate> {
-  const { fetchWithProxy, rssParser, httpReq, normalizeUpdate, cleanText, stableUpdateId } = runtimeContext;
+  const { fetchWithProxy, rssParser, httpReq, logger, normalizeUpdate, cleanText, stableUpdateId } = runtimeContext;
   try {
     const posts = JSON.parse(await fetchWithProxy(
       "https://www.fortnite.com/api/blog/getPosts?postsPerPage=10&offset=0&locale=en-US",
@@ -281,17 +281,22 @@ async function fetchFortniteUpdate(): Promise<NormalizedUpdate> {
       thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
       timestamp: latest.date
     });
-  } catch {
+  } catch (err) {
+    // V11: log explicit primary-path failure ca sa observam cand API-ul oficial
+    // Fortnite isi schimba shape-ul si cadem mereu pe RSS Google News.
+    logger("WARN", "SCRAPE", "Fortnite primary path a esuat, fallback la RSS Google News", errorMessage(err));
     const backupUrl = "https://news.google.com/rss/search?q=site:fortnite.com/news+update&hl=en-US";
     const feed = await rssParser.parseString((await httpReq("GET", backupUrl)).data);
     if (!feed.items || feed.items.length === 0) throw new Error("Eșec total Fortnite.");
+    const first = feed.items[0];
+    if (!first.title) throw new Error("Fortnite RSS fallback fara titlu in primul item.");
     return normalizeUpdate({
-      id: stableUpdateId(feed.items[0].title, ""),
-      title: cleanText(feed.items[0].title),
-      link: feed.items[0].link,
+      id: stableUpdateId(first.title, ""),
+      title: cleanText(first.title),
+      link: first.link,
       excerpt: "Update oficial Fortnite.",
       thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
-      timestamp: feed.items[0].pubDate
+      timestamp: first.pubDate
     });
   }
 }
@@ -308,6 +313,8 @@ async function fetchAmdUpdate(game: GameConfig): Promise<NormalizedUpdate> {
       excerpt: "Driver disponibil.",
       thumbnail: game.thumbnail
     });
+    // V11: regex-ul nu a prins versiunea — semnal de schema drift, log explicit.
+    logger("WARN", "SCRAPE", "AMD proxy a returnat continut, dar regex-ul `Adrenalin Edition X.Y.Z` nu a prins versiunea — posibil schema drift, fallback RSS");
   } catch (err) {
     logger("WARN", "SCRAPE", "Eroare preluare AMD proxy", errorMessage(err));
   }
@@ -315,10 +322,13 @@ async function fetchAmdUpdate(game: GameConfig): Promise<NormalizedUpdate> {
     "https://news.google.com/rss/search?q=site:amd.com+%22AMD+Software:+Adrenalin+Edition%22+release+notes&hl=en-US");
   const feed = await rssParser.parseString(res.data);
   if (!feed.items || feed.items.length === 0) throw new Error("Eșec AMD.");
-  const cleanTitle = cleanText(feed.items[0].title);
+  const rawTitle = feed.items[0].title;
+  if (!rawTitle) throw new Error("AMD RSS fallback fara titlu in primul item.");
+  const cleanTitle = cleanText(rawTitle).split(" - ")[0];
+  if (!cleanTitle) throw new Error("AMD RSS fallback cu titlu gol dupa curatare.");
   return normalizeUpdate({
-    id: stableUpdateId(cleanTitle.split(" - ")[0], ""),
-    title: cleanTitle.split(" - ")[0],
+    id: stableUpdateId(cleanTitle, ""),
+    title: cleanTitle,
     link: feed.items[0].link,
     excerpt: "Update AMD.com.",
     thumbnail: game.thumbnail,
@@ -338,6 +348,8 @@ async function fetchIntelUpdate(game: GameConfig): Promise<NormalizedUpdate> {
       excerpt: `Versiune găsită: ${match[1]}`,
       thumbnail: game.thumbnail
     });
+    // V11: regex-ul nu a prins versiunea — semnal de schema drift, log explicit.
+    logger("WARN", "SCRAPE", `Intel proxy a returnat continut pentru ${game.key}, dar regex-ul de versiune (\d+.\d+.\d+.\d+) nu a prins nimic — posibil schema drift, fallback RSS`);
   } catch (err) {
     logger("WARN", "SCRAPE", "Eroare preluare Intel proxy", errorMessage(err));
   }
@@ -348,10 +360,13 @@ async function fetchIntelUpdate(game: GameConfig): Promise<NormalizedUpdate> {
     `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US`);
   const feed = await rssParser.parseString(res.data);
   if (!feed.items || feed.items.length === 0) throw new Error("Eșec Intel.");
-  const cleanTitle = cleanText(feed.items[0].title);
+  const rawTitle = feed.items[0].title;
+  if (!rawTitle) throw new Error("Intel RSS fallback fara titlu in primul item.");
+  const cleanTitle = cleanText(rawTitle).split(" - ")[0];
+  if (!cleanTitle) throw new Error("Intel RSS fallback cu titlu gol dupa curatare.");
   return normalizeUpdate({
-    id: stableUpdateId(cleanTitle.split(" - ")[0], ""),
-    title: cleanTitle.split(" - ")[0],
+    id: stableUpdateId(cleanTitle, ""),
+    title: cleanTitle,
     link: feed.items[0].link,
     excerpt: "Update intel.com detectat.",
     thumbnail: game.thumbnail,
