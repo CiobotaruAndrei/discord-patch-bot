@@ -26,6 +26,8 @@ interface NativeFuzzyModule {
   normalize_deal_state?(salePrice: string, normalPrice: string, savings: string): string;
   dealHash?(store: string, steamAppId: string, id: string, title: string, salePrice: string, normalPrice: string, savings: string): string;
   deal_hash?(store: string, steamAppId: string, id: string, title: string, salePrice: string, normalPrice: string, savings: string): string;
+  cleanText?(text: string): string;
+  clean_text?(text: string): string;
 }
 
 let nativeModule: NativeFuzzyModule | null | undefined;
@@ -117,6 +119,24 @@ function normalizeTitleForDedupeFallback(value: unknown): string {
     .trim();
 }
 
+const CLEAN_TEXT_REGEX = /<[^>]+>|&(nbsp|amp|quot|#39|apos|lt|gt);|\s+/gi;
+const CLEAN_TEXT_ENTITIES: Record<string, string> = {
+  nbsp: " ", amp: "&", quot: '"', "#39": "'", apos: "'", lt: "<", gt: ">"
+};
+
+function cleanTextFallback(value: unknown): string {
+  const str = String(value || "");
+  if (!str) return "";
+  const replaced = str.replace(CLEAN_TEXT_REGEX, (match, entity: string | undefined) => {
+    if (entity) {
+      const repl = CLEAN_TEXT_ENTITIES[entity.toLowerCase()];
+      return repl !== undefined ? repl : match;
+    }
+    return " ";
+  });
+  return replaced.replace(/\s+/g, " ").trim();
+}
+
 function stableUpdateIdFallback(title: unknown, link: unknown): string {
   const base = `${String(title || "")}|${String(link || "")}`;
   return crypto.createHash("sha1").update(base).digest("hex").substring(0, 16);
@@ -202,6 +222,11 @@ export function levenshtein(a: string, b: string): number {
 export function normalizeTitleForDedupe(value: unknown): string {
   const fn = nativeStringFn("normalizeTitleForDedupe", "normalize_title_for_dedupe");
   return fn ? fn(String(value || "")) : normalizeTitleForDedupeFallback(value);
+}
+
+export function cleanText(value: unknown): string {
+  const fn = nativeStringFn("cleanText", "clean_text");
+  return fn ? fn(String(value || "")) : cleanTextFallback(value);
 }
 
 export function stableUpdateId(title: unknown, link: unknown): string {

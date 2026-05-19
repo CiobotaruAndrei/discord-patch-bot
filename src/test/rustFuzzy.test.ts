@@ -4,6 +4,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  cleanText,
   dealHash,
   findGameKeys,
   isRustFuzzyAvailable,
@@ -43,6 +44,20 @@ test("Rust fuzzy matching returns suggestion keys for wider typo", () => {
 
 test("Rust title normalization matches deal dedupe behavior", () => {
   assert.equal(normalizeTitleForDedupe("Counter-Strike\u00ae 2\u2122!!!"), "counter strike 2");
+});
+
+test("Rust cleanText strips tags and decodes entities", () => {
+  // Same fixtures the JS implementation handled. Output must match JS byte-for-byte
+  // so existing scrapers don't drift.
+  assert.equal(cleanText("<p>Hello   <b>world</b>!</p>"), "Hello world !");
+  assert.equal(cleanText("Tom &amp; Jerry"), "Tom & Jerry");
+  assert.equal(cleanText("It&#39;s &quot;hot&quot;"), "It's \"hot\"");
+  assert.equal(cleanText("&NBSP;case-insensitive&AMP;"), "case-insensitive&");
+  assert.equal(cleanText("unknown &foo; entity"), "unknown &foo; entity");
+  assert.equal(cleanText("  leading\nand\ttrailing  "), "leading and trailing");
+  assert.equal(cleanText(""), "");
+  // Multibyte UTF-8 stays valid through the byte scanner.
+  assert.equal(cleanText("<span>caf\u00e9 \u2014 \u4e2d\u6587</span>"), "caf\u00e9 \u2014 \u4e2d\u6587");
 });
 
 test("Rust stable update ids match SHA1 contract", () => {

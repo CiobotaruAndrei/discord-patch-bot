@@ -33,6 +33,11 @@ pub fn normalize_title_for_dedupe(value: String) -> String {
 }
 
 #[napi]
+pub fn clean_text(text: String) -> String {
+  clean_text_impl(&text)
+}
+
+#[napi]
 pub fn stable_update_id(title: String, link: String) -> String {
   let base = format!("{}|{}", title, link);
   let mut hasher = Sha1::new();
@@ -184,6 +189,119 @@ fn normalize_deal_state_impl(sale_price: &str, normal_price: &str, savings: &str
   [sale_price, normal_price, savings]
     .map(|value| value.trim().to_lowercase())
     .join(":")
+}
+
+// Mirror of the JS CLEAN_REGEX = /<[^>]+>|&(nbsp|amp|quot|#39|apos|lt|gt);|\s+/gi
+// pipeline, hand-rolled to avoid pulling in the regex crate (~1MB binary).
+// Strips HTML tags (replaced with space), decodes a small set of named entities,
+// collapses whitespace runs, and trims. Behavior matches the JS implementation
+// in src/infra/http/client.ts byte-for-byte for the entities and pages we see.
+fn clean_text_impl(input: &str) -> String {
+  if input.is_empty() {
+    return String::new();
+  }
+  let bytes = input.as_bytes();
+  let mut out = String::with_capacity(input.len());
+  let mut i = 0usize;
+  let mut prev_was_space = true; // treat start-of-input as space so leading whitespace collapses
+
+  while i < bytes.len() {
+    let b = bytes[i];
+
+    // HTML tag: <...>
+    if b == b'<' {
+      let mut j = i + 1;
+      while j < bytes.len() && bytes[j] != b'>' {
+        j += 1;
+      }
+      i = if j < bytes.len() { j + 1 } else { j };
+      if !prev_was_space {
+        out.push(' ');
+        prev_was_space = true;
+      }
+      continue;
+    }
+
+    // Named entity: &(nbsp|amp|quot|#39|apos|lt|gt);
+    if b == b'&' {
+      let max = std::cmp::min(bytes.len(), i + 8);
+      let mut j = i + 1;
+      while j < max && bytes[j] != b';' {
+        j += 1;
+      }
+      if j < bytes.len() && bytes[j] == b';' {
+        let entity_bytes = &bytes[i + 1..j];
+        // entity names are ASCII; safe to compare bytes after lowercasing.
+        let replacement: Option<&str> = match entity_bytes {
+          b if b.eq_ignore_ascii_case(b"nbsp") => Some(" "),
+          b if b.eq_ignore_ascii_case(b"amp") => Some("&"),
+          b if b.eq_ignore_ascii_case(b"quot") => Some("\""),
+          b if b.eq_ignore_ascii_case(b"#39") || b.eq_ignore_ascii_case(b"apos") => Some("'"),
+          b if b.eq_ignore_ascii_case(b"lt") => Some("<"),
+          b if b.eq_ignore_ascii_case(b"gt") => Some(">"),
+          _ => None,
+        };
+        if let Some(repl) = replacement {
+          if repl == " " {
+            if !prev_was_space {
+              out.push(' ');
+              prev_was_space = true;
+            }
+          } else {
+            out.push_str(repl);
+            prev_was_space = false;
+          }
+          i = j + 1;
+          continue;
+        }
+        // Unknown entity: JS keeps the original match. Mirror that.
+        out.push_str(&input[i..=j]);
+        prev_was_space = false;
+        i = j + 1;
+        continue;
+      }
+      // Stray '&' with no closing ';' — keep as-is.
+      out.push('&');
+      prev_was_space = false;
+      i += 1;
+      continue;
+    }
+
+    // ASCII whitespace -> collapse runs to a single space.
+    if b.is_ascii_whitespace() {
+      if !prev_was_space {
+        out.push(' ');
+        prev_was_space = true;
+      }
+      i += 1;
+      continue;
+    }
+
+    // Regular byte. For ASCII this is a 1-byte char; for multibyte UTF-8 we
+    // need to copy the whole codepoint to keep the string valid.
+    if b < 0x80 {
+      out.push(b as char);
+      prev_was_space = false;
+      i += 1;
+    } else {
+      let char_len = if b & 0xE0 == 0xC0 { 2 }
+                     else if b & 0xF0 == 0xE0 { 3 }
+                     else if b & 0xF8 == 0xF0 { 4 }
+                     else { 1 };
+      let end = std::cmp::min(bytes.len(), i + char_len);
+      if let Ok(s) = std::str::from_utf8(&bytes[i..end]) {
+        out.push_str(s);
+      }
+      prev_was_space = false;
+      i = end;
+    }
+  }
+
+  // Strip trailing space if we emitted one. Match JS `.trim()` semantics.
+  while out.ends_with(' ') {
+    out.pop();
+  }
+  out
 }
 
 fn sha1_hex(value: &str) -> String {
