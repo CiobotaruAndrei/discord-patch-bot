@@ -1,5 +1,7 @@
 "use strict";
 
+const { errorMessage, errorDetail } = require("../../shared/errors");
+
 module.exports = (ctx) => {
   const {
     EmbedBuilder, MessageFlags, GuildModel, logger, getSystemTimes,
@@ -108,13 +110,13 @@ async function handleStartInteraction(interaction, games) {
               subscribed: false,
               notificationChannelId: null,
               updatesInitializing: false,
-              updatesLastError: { message: err.message, channelId: interaction.channel.id, at: new Date() }
+              updatesLastError: { message: errorMessage(err), channelId: interaction.channel.id, at: new Date() }
             },
             $unset: { updatesActivationId: "" }
           },
           OP_UPDATE_OPTS
         ).catch(() => null);
-        logger("WARN", "START_UPDATES", "Activat, dar baseline-ul initial a esuat", err.message);
+        logger("WARN", "START_UPDATES", "Activat, dar baseline-ul initial a esuat", errorMessage(err));
         invalidateGuildCache(guildId);
         return safeEdit(interaction, formatUserError(err, "Nu am activat update-urile fiindca baseline-ul initial nu a putut fi incarcat."));
       }
@@ -177,13 +179,13 @@ async function handleStartInteraction(interaction, games) {
               discountsSubscribed: false,
               discountChannelId: null,
               discountsInitializing: false,
-              discountsLastError: { message: err.message, channelId: interaction.channel.id, at: new Date() }
+              discountsLastError: { message: errorMessage(err), channelId: interaction.channel.id, at: new Date() }
             },
             $unset: { discountsActivationId: "" }
           },
           OP_UPDATE_OPTS
         ).catch(() => null);
-        logger("WARN", "START_DISCOUNTS", "Activat, dar baseline-ul de reduceri a esuat", err.message);
+        logger("WARN", "START_DISCOUNTS", "Activat, dar baseline-ul de reduceri a esuat", errorMessage(err));
         invalidateGuildCache(guildId);
         return safeEdit(interaction, formatUserError(err, "Nu am activat reducerile fiindca baseline-ul initial nu a putut fi incarcat."));
       }
@@ -393,7 +395,7 @@ async function handleLatestUpdatesInteraction(interaction, games) {
       sys.all = smoothTime(estMs, Date.now() - startTime);
       await saveSystemTimes(sys);
     } catch (err) {
-      endLog("error", { errorMsg: err.message });
+      endLog("error", { errorMsg: errorMessage(err) });
       return safeEdit(interaction, formatUserError(err, "Nu am reusit sa obtin update-urile.", "ERR_LATEST_UPDATES"));
     }
   }
@@ -441,7 +443,7 @@ async function handleLatestDealsInteraction(interaction) {
       sys.reduceri = smoothTime(estMs, Date.now() - startTime);
       await saveSystemTimes(sys);
     } catch (err) {
-      endLog("error", { errorMsg: err.message });
+      endLog("error", { errorMsg: errorMessage(err) });
       return safeEdit(interaction, formatUserError(err, "Nu am putut interoga magazinele.", "ERR_LATEST_DEALS"));
     }
   }
@@ -458,7 +460,7 @@ async function handleLatestDealsInteraction(interaction) {
       : await Promise.all(chunk.map(async (deal) => {
           try { return await enrichDealData(deal, currency); }
           catch (err) {
-            logger("WARN", "ENRICH", "Eroare enrich command handler", err.message);
+            logger("WARN", "ENRICH", "Eroare enrich command handler", errorMessage(err));
             return deal;
           }
         }));
@@ -501,7 +503,7 @@ async function handleLatestSingleInteraction(interaction, gameText, games) {
       embeds: [buildUpdateEmbed(game.name, latest, guild?.notificationMode || "detailed")]
     });
   } catch (err) {
-    endLog("error", { gameKey: game.key, errorMsg: err.message });
+    endLog("error", { gameKey: game.key, errorMsg: errorMessage(err) });
     return safeEdit(interaction, formatUserError(err, "Nu am putut prelua acest update.", "ERR_LATEST_SINGLE"));
   }
 }
@@ -541,8 +543,8 @@ async function handlePriceSearchInteraction(interaction, gameName) {
       embeds: [buildSteamPriceEmbed(gameData, bestMatch.id, offerEndDate, currency)]
     });
   } catch (err) {
-    endLog("error", { errorMsg: err.message });
-    logger("ERROR", "PRICE_SEARCH", "Eroare la cautare pret", err.message);
+    endLog("error", { errorMsg: errorMessage(err) });
+    logger("ERROR", "PRICE_SEARCH", "Eroare la cautare pret", errorMessage(err));
     return safeEdit(interaction, "Eroare: A aparut o eroare la cautarea pretului. `[ERR_PRICE_GENERAL]`");
   }
 }
@@ -575,7 +577,7 @@ async function handleDlcInteraction(interaction) {
       const title = bestMatch.name;
       let gameDetails = null;
       try { gameDetails = await fetchSteamPriceDetails(bestMatch.id, currency); }
-      catch (err) { logger("WARN", "DLC_SEARCH", `Nu am putut prelua header_image pentru ${bestMatch.id}`, err.message); }
+      catch (err) { logger("WARN", "DLC_SEARCH", `Nu am putut prelua header_image pentru ${bestMatch.id}`, errorMessage(err)); }
       const thumbUrl = gameDetails?.header_image || `https://cdn.akamai.steamstatic.com/steam/apps/${bestMatch.id}/header.jpg`;
       const cc = getCurrencyConfig(currency).cc;
       // V9: adăugăm l=english pentru consistență cu enrich.
@@ -637,8 +639,8 @@ async function handleDlcInteraction(interaction) {
     endLog("ok", { appId, dlcCount: totalExtracted });
     if (msg) await handlePagination(msg, interaction.user.id, "dlc_cmd", dlcList, DLC_ITEMS_PER_PAGE, generateEmbeds, "detailed");
   } catch (err) {
-    endLog("error", { errorMsg: err.message });
-    logger("ERROR", "DLC_SEARCH", "Eroare la extragere DLC-uri", err.message);
+    endLog("error", { errorMsg: errorMessage(err) });
+    logger("ERROR", "DLC_SEARCH", "Eroare la extragere DLC-uri", errorMessage(err));
     return safeEdit(interaction, "Eroare: A aparut o eroare la cautarea DLC-urilor. `[ERR_DLC_GENERAL]`");
   }
 }
@@ -657,7 +659,7 @@ async function handleStatusInteraction(interaction, games) {
     const embed = await fetchGameStatus(game);
     return safeEdit(interaction, { content: `OK: Informatii preluate pentru **${game.name}**:`, embeds: [embed] });
   } catch (err) {
-    logger("ERROR", "STATUS", "Eroare la comanda status", err.message);
+    logger("ERROR", "STATUS", "Eroare la comanda status", errorMessage(err));
     return safeEdit(interaction, "Eroare: A aparut o eroare la preluarea statusului. `[ERR_STATUS_GENERAL]`");
   }
 }
@@ -690,7 +692,7 @@ async function handleAutocomplete(interaction, games) {
           pool = games.filter(g => enabledSet.has(g.key));
         }
       } catch (err) {
-        logger("WARN", "AUTOCOMPLETE", "Nu am putut citi setarile guild-ului", err.message);
+        logger("WARN", "AUTOCOMPLETE", "Nu am putut citi setarile guild-ului", errorMessage(err));
       }
     }
 
@@ -725,7 +727,7 @@ async function handleAutocomplete(interaction, games) {
     }));
     await interaction.respond(choices).catch(() => null);
   } catch (err) {
-    logger("WARN", "AUTOCOMPLETE", "Eroare in handler", err.message);
+    logger("WARN", "AUTOCOMPLETE", "Eroare in handler", errorMessage(err));
     interaction.respond([]).catch(() => null);
   }
 }
@@ -788,7 +790,7 @@ async function handleInteraction(interaction, games) {
     if (cmd === "dlc") return handleDlcInteraction(interaction);
     if (cmd === "status") return handleStatusInteraction(interaction, games);
   } catch (err) {
-    logger("ERROR", "INTERACTION", "Eroare in handler-ul de comenzi", err.stack || err.message);
+    logger("ERROR", "INTERACTION", "Eroare in handler-ul de comenzi", errorDetail(err));
     const payload = { content: "Eroare: Eroare neasteptata la procesarea comenzii.", flags: MessageFlags.Ephemeral };
     try {
       if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
