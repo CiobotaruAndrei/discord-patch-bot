@@ -120,6 +120,7 @@ async function fetchSteamPriceDetails(appId: string | number, currencyCode?: Ste
 }
 
 function extractOfferEndFromHtml(html: unknown): string | null {
+  let cheerioThrew = false;
   try {
     const $ = runtimeContext.safeCheerioLoad(html);
     const cdText = $(".game_purchase_discount_countdown").first().text().trim();
@@ -146,9 +147,15 @@ function extractOfferEndFromHtml(html: unknown): string | null {
       if (match && match[1]) return match[1].trim().slice(0, 200).replace(/\s{2,}/g, " ");
     }
   } catch {
-    // Fallback to raw HTML regex below.
+    cheerioThrew = true;
   }
 
+  // V11: raw HTML fallback ruleaza DOAR cand cheerio a aruncat (HTML invalid
+  // sever). Daca cheerio a parsat cu succes dar n-am gasit textul in
+  // containerele de cumparare ancorate, returnam null in loc sa cautam in tot
+  // documentul — caz in care am putea prinde "Offer ends ..." dintr-un sidebar
+  // de produs nelegat.
+  if (!cheerioThrew) return null;
   const rawMatch = String(html || "").match(/Offer ends\s+([^<\n]+)/i);
   return rawMatch && rawMatch[1] ? rawMatch[1].trim().slice(0, 200) : null;
 }
