@@ -37,6 +37,39 @@ pub fn clean_text(text: String) -> String {
   clean_text_impl(&text)
 }
 
+// Keyword sets are static so we never reallocate them across calls. fetchSteamUpdate
+// runs classify_patch_note up to 50 times per game per cron tick — the JS version
+// called String.includes per keyword and burnt time on the JS<->native bridge for
+// every single comparison via .some(). Running the whole classification in one
+// native call removes that overhead.
+const BAD_IN_TITLE: &[&str] = &[
+  "community", "sale", "store", "merch", "tournament", "esports",
+  "giveaway", "teaser", "trailer", "preview", "announce", "announcement",
+];
+const GOOD_WORDS: &[&str] = &[
+  "update", "patch", "hotfix", "version", "release", "bugfix", "bug fix",
+  "fixes", "fix", "notes", "patch notes", "changelog", "maintenance",
+  "build", "client update", "title update", "release notes", "season",
+  "chapter", "rework", "balance", "content update", "launch",
+];
+
+#[napi]
+pub fn classify_patch_note(title: String, contents: String, tags: Vec<String>) -> bool {
+  let title_lc = title.to_lowercase();
+  if BAD_IN_TITLE.iter().any(|w| title_lc.contains(w)) {
+    return false;
+  }
+  let has_patch_tag = tags.iter().any(|t| {
+    let lc = t.to_lowercase();
+    lc == "patchnotes" || lc == "update"
+  });
+  if has_patch_tag {
+    return true;
+  }
+  let contents_lc = contents.to_lowercase();
+  GOOD_WORDS.iter().any(|w| title_lc.contains(w) || contents_lc.contains(w))
+}
+
 #[napi]
 pub fn stable_update_id(title: String, link: String) -> String {
   let base = format!("{}|{}", title, link);

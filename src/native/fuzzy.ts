@@ -28,6 +28,8 @@ interface NativeFuzzyModule {
   deal_hash?(store: string, steamAppId: string, id: string, title: string, salePrice: string, normalPrice: string, savings: string): string;
   cleanText?(text: string): string;
   clean_text?(text: string): string;
+  classifyPatchNote?(title: string, contents: string, tags: string[]): boolean;
+  classify_patch_note?(title: string, contents: string, tags: string[]): boolean;
 }
 
 let nativeModule: NativeFuzzyModule | null | undefined;
@@ -117,6 +119,18 @@ function normalizeTitleForDedupeFallback(value: unknown): string {
     .replace(/[\u00ae\u00a9\u2122]/g, "")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+const PATCH_NOTE_BAD_IN_TITLE = ["community", "sale", "store", "merch", "tournament", "esports", "giveaway", "teaser", "trailer", "preview", "announce", "announcement"];
+const PATCH_NOTE_GOOD_WORDS = ["update", "patch", "hotfix", "version", "release", "bugfix", "bug fix", "fixes", "fix", "notes", "patch notes", "changelog", "maintenance", "build", "client update", "title update", "release notes", "season", "chapter", "rework", "balance", "content update", "launch"];
+
+function classifyPatchNoteFallback(title: unknown, contents: unknown, tags: unknown): boolean {
+  const titleLc = String(title || "").toLowerCase();
+  if (PATCH_NOTE_BAD_IN_TITLE.some(w => titleLc.includes(w))) return false;
+  const tagList = Array.isArray(tags) ? tags.map(t => String(t).toLowerCase()) : [];
+  if (tagList.includes("patchnotes") || tagList.includes("update")) return true;
+  const contentsLc = String(contents || "").toLowerCase();
+  return PATCH_NOTE_GOOD_WORDS.some(w => titleLc.includes(w) || contentsLc.includes(w));
 }
 
 const CLEAN_TEXT_REGEX = /<[^>]+>|&(nbsp|amp|quot|#39|apos|lt|gt);|\s+/gi;
@@ -227,6 +241,19 @@ export function normalizeTitleForDedupe(value: unknown): string {
 export function cleanText(value: unknown): string {
   const fn = nativeStringFn("cleanText", "clean_text");
   return fn ? fn(String(value || "")) : cleanTextFallback(value);
+}
+
+export function classifyPatchNote(title: unknown, contents: unknown, tags: unknown): boolean {
+  const native = loadNativeFuzzy();
+  if (native) {
+    const fn = typeof native.classifyPatchNote === "function" ? native.classifyPatchNote : native.classify_patch_note;
+    if (typeof fn === "function") {
+      const tagsList = Array.isArray(tags) ? tags.map(t => String(t)) : [];
+      try { return fn.call(native, String(title || ""), String(contents || ""), tagsList); }
+      catch { /* fall through to TS fallback */ }
+    }
+  }
+  return classifyPatchNoteFallback(title, contents, tags);
 }
 
 export function stableUpdateId(title: unknown, link: unknown): string {

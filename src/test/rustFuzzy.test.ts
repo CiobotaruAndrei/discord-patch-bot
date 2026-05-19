@@ -4,6 +4,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  classifyPatchNote,
   cleanText,
   dealHash,
   findGameKeys,
@@ -44,6 +45,32 @@ test("Rust fuzzy matching returns suggestion keys for wider typo", () => {
 
 test("Rust title normalization matches deal dedupe behavior", () => {
   assert.equal(normalizeTitleForDedupe("Counter-Strike\u00ae 2\u2122!!!"), "counter strike 2");
+});
+
+test("Rust classifyPatchNote: bad-in-title rejects despite good words", () => {
+  // "trailer" alone (badInTitle) wins even if body says "update"
+  assert.equal(classifyPatchNote("Season 5 Trailer", "comes with an update", []), false);
+  assert.equal(classifyPatchNote("Community giveaway", "huge patch incoming", []), false);
+});
+
+test("Rust classifyPatchNote: explicit patch tags win over body", () => {
+  assert.equal(classifyPatchNote("Some Title", "no relevant words", ["PatchNotes"]), true);
+  assert.equal(classifyPatchNote("Some Title", "", ["update"]), true);
+});
+
+test("Rust classifyPatchNote: matches on good words in title or contents", () => {
+  assert.equal(classifyPatchNote("Hotfix 1.2.3", "", []), true);
+  assert.equal(classifyPatchNote("Weekly digest", "small bug fixes inside", []), true);
+});
+
+test("Rust classifyPatchNote: rejects unrelated news", () => {
+  assert.equal(classifyPatchNote("New plushie store", "merch available now", []), false);
+  assert.equal(classifyPatchNote("Devblog: art direction", "concept sketches", []), false);
+});
+
+test("Rust classifyPatchNote: handles missing/odd inputs without throwing", () => {
+  assert.equal(classifyPatchNote("", "", []), false);
+  assert.equal(classifyPatchNote(undefined, undefined, undefined), false);
 });
 
 test("Rust cleanText strips tags and decodes entities", () => {
