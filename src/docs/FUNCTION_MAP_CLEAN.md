@@ -90,6 +90,9 @@ Functii exportate:
 - `levenshtein(a, b)`: calculeaza distanta Levenshtein in Rust;
 - `find_game_keys(text, games, max_input)`: calculeaza in Rust cheia jocului gasit sau cheia sugestiei;
 - `normalize_title_for_dedupe(value)`: normalizeaza titlurile pentru dedupe de reduceri;
+- `clean_text(text)`: strip HTML tags, decodeaza entitati `&nbsp;/&amp;/&quot;/&#39;/&apos;/&lt;/&gt;` (case-insensitive, preserva pe cele necunoscute), colapseaza whitespace; folosit de toti scraperii;
+- `classify_patch_note(title, contents, tags)`: clasificator boolean al unei stiri Steam — bad-in-title invinge good word, tag `patchnotes`/`update` castiga, altfel match pe good-words; foloseste liste statice;
+- `score_listing_candidate(href, text, keywords)`: numara cate keywords din lista apar in `href + text` (lowercase, case-insensitive);
 - `stable_update_id(title, link)`: creeaza ID stabil de update din SHA1, taiat la 16 caractere;
 - `normalize_deal_state(sale_price, normal_price, savings)`: normalizeaza campurile de pret/procent;
 - `deal_hash(store, steam_app_id, id, title, sale_price, normal_price, savings)`: creeaza hash stabil pentru reduceri Steam, Epic si listing-based.
@@ -109,6 +112,9 @@ Functii:
 - `levenshtein(a, b)`;
 - `findGameKeys(text, games, maxInput)`;
 - `normalizeTitleForDedupe(value)`;
+- `cleanText(value)`;
+- `classifyPatchNote(title, contents, tags)`;
+- `scoreListingCandidate(href, text, keywords)`;
 - `stableUpdateId(title, link)`;
 - `normalizeDealState(deal)`;
 - `dealHash(deal)`.
