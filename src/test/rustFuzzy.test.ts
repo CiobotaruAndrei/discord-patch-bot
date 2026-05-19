@@ -12,6 +12,7 @@ const {
   levenshtein,
   normalizeDealState,
   normalizeTitleForDedupe,
+  scoreListingCandidate,
   stableUpdateId
 } = require("../native/fuzzy");
 
@@ -71,6 +72,17 @@ test("Rust classifyPatchNote: rejects unrelated news", () => {
 test("Rust classifyPatchNote: handles missing/odd inputs without throwing", () => {
   assert.equal(classifyPatchNote("", "", []), false);
   assert.equal(classifyPatchNote(undefined, undefined, undefined), false);
+});
+
+test("Rust scoreListingCandidate counts case-insensitive keyword hits", () => {
+  assert.equal(scoreListingCandidate("https://x/patch-notes-v1.2", "Patch Notes 1.2", ["patch", "notes", "version"]), 2);
+  assert.equal(scoreListingCandidate("https://x/news", "Sale ends Friday", ["patch", "update"]), 0);
+  // case-insensitive on both haystack and keywords
+  assert.equal(scoreListingCandidate("HTTPS://X/UPDATE", "Big PATCH", ["patch", "update"]), 2);
+  // empty keywords -> 0
+  assert.equal(scoreListingCandidate("https://x", "any text", []), 0);
+  // empty keyword strings are skipped
+  assert.equal(scoreListingCandidate("https://x/patch", "ok", ["", "patch", ""]), 1);
 });
 
 test("Rust cleanText strips tags and decodes entities", () => {

@@ -9,7 +9,7 @@ import type {
   NormalizedUpdate,
   PatchUpdate
 } from "../../types";
-import { classifyPatchNote } from "../../native/fuzzy";
+import { classifyPatchNote, scoreListingCandidate } from "../../native/fuzzy";
 
 type HttpResponse<T = unknown> = { data: T };
 type HttpReq = (
@@ -155,10 +155,8 @@ function getArticleHrefRegex(game: GameConfig): RegExp | null {
 }
 
 function scoreCandidate(candidate: ListingCandidate, keywords: string[]): number {
-  const haystack = `${candidate.href} ${candidate.text}`.toLowerCase();
-  let score = 0;
-  for (const k of keywords) if (haystack.includes(String(k).toLowerCase())) score += 1;
-  return score;
+  // V11: delegat catre src/native/src/lib.rs::score_listing_candidate.
+  return scoreListingCandidate(candidate.href, candidate.text, keywords);
 }
 
 function isLikelyPatchNote(item: any): boolean {

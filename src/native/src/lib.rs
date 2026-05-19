@@ -70,6 +70,34 @@ pub fn classify_patch_note(title: String, contents: String, tags: Vec<String>) -
   GOOD_WORDS.iter().any(|w| title_lc.contains(w) || contents_lc.contains(w))
 }
 
+// scoreCandidate is called per <a> tag inside fetchListingBasedUpdate's listing
+// scrape. With per-guild require_keywords lists of ~3-8 words and listings of
+// 50-200 anchors, the JS version does N*M String.includes calls per fetch.
+// Lowercasing the haystack once and looping in native keeps the hot loop in
+// one place.
+#[napi]
+pub fn score_listing_candidate(href: String, text: String, keywords: Vec<String>) -> u32 {
+  if keywords.is_empty() {
+    return 0;
+  }
+  let mut haystack = String::with_capacity(href.len() + text.len() + 1);
+  haystack.push_str(&href);
+  haystack.push(' ');
+  haystack.push_str(&text);
+  let haystack_lc = haystack.to_lowercase();
+  let mut score: u32 = 0;
+  for keyword in &keywords {
+    if keyword.is_empty() {
+      continue;
+    }
+    let kw_lc = keyword.to_lowercase();
+    if haystack_lc.contains(&kw_lc) {
+      score += 1;
+    }
+  }
+  score
+}
+
 #[napi]
 pub fn stable_update_id(title: String, link: String) -> String {
   let base = format!("{}|{}", title, link);

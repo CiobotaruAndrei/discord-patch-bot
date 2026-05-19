@@ -30,6 +30,8 @@ interface NativeFuzzyModule {
   clean_text?(text: string): string;
   classifyPatchNote?(title: string, contents: string, tags: string[]): boolean;
   classify_patch_note?(title: string, contents: string, tags: string[]): boolean;
+  scoreListingCandidate?(href: string, text: string, keywords: string[]): number;
+  score_listing_candidate?(href: string, text: string, keywords: string[]): number;
 }
 
 let nativeModule: NativeFuzzyModule | null | undefined;
@@ -131,6 +133,17 @@ function classifyPatchNoteFallback(title: unknown, contents: unknown, tags: unkn
   if (tagList.includes("patchnotes") || tagList.includes("update")) return true;
   const contentsLc = String(contents || "").toLowerCase();
   return PATCH_NOTE_GOOD_WORDS.some(w => titleLc.includes(w) || contentsLc.includes(w));
+}
+
+function scoreListingCandidateFallback(href: unknown, text: unknown, keywords: unknown): number {
+  if (!Array.isArray(keywords) || keywords.length === 0) return 0;
+  const haystack = `${String(href || "")} ${String(text || "")}`.toLowerCase();
+  let score = 0;
+  for (const k of keywords) {
+    const kw = String(k || "").toLowerCase();
+    if (kw && haystack.includes(kw)) score++;
+  }
+  return score;
 }
 
 const CLEAN_TEXT_REGEX = /<[^>]+>|&(nbsp|amp|quot|#39|apos|lt|gt);|\s+/gi;
@@ -254,6 +267,19 @@ export function classifyPatchNote(title: unknown, contents: unknown, tags: unkno
     }
   }
   return classifyPatchNoteFallback(title, contents, tags);
+}
+
+export function scoreListingCandidate(href: unknown, text: unknown, keywords: unknown): number {
+  const native = loadNativeFuzzy();
+  if (native) {
+    const fn = typeof native.scoreListingCandidate === "function" ? native.scoreListingCandidate : native.score_listing_candidate;
+    if (typeof fn === "function") {
+      const kw = Array.isArray(keywords) ? keywords.map(k => String(k)) : [];
+      try { return fn.call(native, String(href || ""), String(text || ""), kw); }
+      catch { /* fall through to TS fallback */ }
+    }
+  }
+  return scoreListingCandidateFallback(href, text, keywords);
 }
 
 export function stableUpdateId(title: unknown, link: unknown): string {
