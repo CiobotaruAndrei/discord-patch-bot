@@ -17,6 +17,7 @@ import {
   normalizeTitleForDedupe as rustNormalizeTitleForDedupe,
   stableUpdateId as rustStableUpdateId
 } from "../../native/fuzzy";
+import { errorMessage } from "../../shared/errors";
 
 type CheerioModule = typeof import("cheerio");
 type CryptoModule = typeof import("crypto");
@@ -197,20 +198,26 @@ function attachHttpClient(ctx: HttpClientContext): void {
           throw err;
         }
         const status = err.response?.status || "N/A";
-        const isRetryable4xx = isIdempotent && typeof status === "number"
-          && RETRY_ABLE_4XX.has(status);
+        // V11: 429 inseamna "server-ul ne cere sa incetinim", nu "request-ul a
+        // fost respins definitiv". E sigur sa-l reincercam si pe POST (cazul
+        // nostru: Epic GraphQL queries care sunt semantic citiri). Inainte,
+        // 429 pe POST arunca imediat si pierdeam intregul fetch de reduceri
+        // Epic pana la urmatorul ciclu.
+        const isRateLimit = status === 429;
+        const isRetryable4xx = isRateLimit
+          || (isIdempotent && typeof status === "number" && RETRY_ABLE_4XX.has(status));
         const is5xx = typeof status === "number" && status >= 500;
         const isNetworkErr = typeof status !== "number";
         if (typeof status === "number" && status >= 400 && status < 500 && !isRetryable4xx) {
           throw err;
         }
         if (i === retries) {
-          logger("ERROR", "HTTP", `Esec final request [${status}] dupa ${retries} incercari: ${url}`, err.message);
+          logger("ERROR", "HTTP", `Esec final request [${status}] dupa ${retries} incercari: ${url}`, errorMessage(err));
           throw err;
         }
 
         let waitMs = backoff;
-        if (status === 429) {
+        if (isRateLimit) {
           metrics().rateLimitHits++;
           const retryAfter = err.response?.headers?.["retry-after"];
           if (retryAfter) {
@@ -222,7 +229,7 @@ function attachHttpClient(ctx: HttpClientContext): void {
         waitMs = Math.round(waitMs * (0.5 + Math.random()));
         metrics().httpRetries++;
         logger("WARN", "HTTP", `Esec request [${status}] (incercarea ${i + 1}/${retries}), reincerc in ${waitMs}ms: ${url}`,
-          { errMsg: err.message, is5xx, isNetworkErr, isRetryable4xx });
+          { errMsg: errorMessage(err), is5xx, isNetworkErr, isRetryable4xx });
         await new Promise(res => setTimeout(res, waitMs));
         backoff *= 2;
       }
