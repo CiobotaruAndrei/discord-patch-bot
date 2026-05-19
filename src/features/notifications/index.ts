@@ -112,6 +112,14 @@ async function processGuildUpdates(client, guild, latestResults) {
   });
   if (abort) return;
 
+  // V11: indexam latestResults dupa cheia jocului ca lookup-ul ulterior din
+  // bucla de trimitere sa fie O(1) in loc sa parcurga linear toata lista la
+  // fiecare iteratie.
+  const resultByGameKey = new Map();
+  for (const result of latestResults) {
+    if (result?.game?.key) resultByGameKey.set(result.game.key, result);
+  }
+
   // V9: dacă guild-ul are listă explicită de jocuri active, filtrăm.
   const enabledGames = Array.isArray(guild.enabledGames) ? guild.enabledGames : [];
   const hasGameFilter = enabledGames.length > 0;
@@ -155,7 +163,7 @@ async function processGuildUpdates(client, guild, latestResults) {
     const gameKey = rotateAfter(keys, lastProcessedGameKey)[0];
     const queue = pendingByGame.get(gameKey);
     const next = queue.shift();
-    const game = latestResults.find(r => r.game.key === gameKey)?.game || { name: gameKey };
+    const game = resultByGameKey.get(gameKey)?.game || { name: gameKey };
     const claim = await claimSeenUpdate(String(guild._id), channel.id, gameKey, next.id);
     if (claim.matchedCount === 0) {
       if (queue.length) pendingByGame.set(gameKey, queue);

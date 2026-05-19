@@ -42,20 +42,38 @@ test("extrage Daily Deal Offer ends", () => {
   assert.match(result || "", /25 Oct/);
 });
 
-test("fallback la body text daca lipseste container-ul", () => {
+test("fallback la text din .game_area_purchase daca lipseste countdown-ul", () => {
   const html = `<html><body>
-    <span>random text</span>
-    <span>Offer ends 12 Dec at noon</span>
-    <span>more text</span>
+    <div class="game_area_purchase">
+      <span>Offer ends 12 Dec at noon</span>
+    </div>
   </body></html>`;
   const result = extractOfferEndFromHtml(html);
   assert.match(result || "", /12 Dec/);
 });
 
-test("fallback regex direct pe raw HTML", () => {
-  const html = `<div>Offer ends 5 Feb</div>`;
+test("fallback la .game_purchase_action prinde data", () => {
+  const html = `<html><body>
+    <div class="game_purchase_action">Sale ends 30 Jan @ 7pm</div>
+  </body></html>`;
   const result = extractOfferEndFromHtml(html);
-  assert.match(result || "", /5 Feb/);
+  assert.match(result || "", /30 Jan/);
+});
+
+test("nu prinde data dintr-un sidebar nelegat de produsul principal", () => {
+  // V11 regression guard: sidebar-ul de la 'Customers also bought' sau
+  // 'More like this' poate avea propriul 'Offer ends ...' pentru un alt joc.
+  // Cand pagina principala NU are countdown/purchase area, nu mai cautam in tot
+  // body-ul ca sa nu lipim data unui produs nelegat la embed.
+  const html = `<html><body>
+    <h1>Game without active sale</h1>
+    <aside class="recommendation_widget">
+      <a>Customers also bought</a>
+      <span>Offer ends 99 Aug</span>
+    </aside>
+  </body></html>`;
+  const result = extractOfferEndFromHtml(html);
+  assert.equal(result, null, "n-ar trebui sa prindem '99 Aug' din sidebar");
 });
 
 test("returneaza null daca nimic nu match-uieste", () => {
@@ -65,7 +83,9 @@ test("returneaza null daca nimic nu match-uieste", () => {
 });
 
 test("limiteaza lungimea rezultatului fallback", () => {
-  const html = `<html><body>Offer ends ${"X".repeat(500)}</body></html>`;
+  const html = `<html><body>
+    <div class="game_area_purchase">Offer ends ${"X".repeat(500)}</div>
+  </body></html>`;
   const result = extractOfferEndFromHtml(html);
   assert.ok((result || "").length <= 200, "fallback trebuie limitat la 200 char");
 });

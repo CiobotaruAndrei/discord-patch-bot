@@ -45,6 +45,15 @@ Pana acum `commands-regression.test.ts` doar verifica prezenta sirurilor in sour
 
 - `app/main.ts` conecteaza Mongo printr-un retry exponential (5 incercari, backoff 1s -> 16s cu jitter). Inainte, un network blip la pornire crash-uia bot-ul si platforma (Docker/k8s) il restart-uia; acum fereastra tipica de start a Mongo (~5-15s) e tolerata fara restart inutil. Dupa ultima incercare esuata, ramane comportamentul vechi: alerta admin `boot:fatal` si `process.exit(1)`.
 
+## Diagnosticare scraper-uri si robustete error handling
+
+- `fetchFortniteUpdate` nu mai face `catch {}` mut: logheaza un WARN cu motivul cand cade pe RSS Google News. Inainte, daca API-ul oficial Fortnite isi schimba forma, falleam permanent pe fallback fara niciun semnal.
+- `fetchAmdUpdate` si `fetchIntelUpdate` logheaza explicit cand regex-ul de versiune (`Adrenalin Edition X.Y.Z`, respectiv `\d+.\d+.\d+.\d+`) nu match-uieste continutul primit prin proxy — semnal de schema drift care inainte trecea neobservat fiindca executia cadea direct in RSS.
+- AMD/Intel RSS fallback nu mai produc entry-uri cu titlu/id gol: daca `feed.items[0].title` lipseste sau `cleanText(...).split(" - ")[0]` da string gol, throw cu mesaj explicit ca sa intre circuit breaker-ul.
+- `extractOfferEndFromHtml` ruleaza raw-HTML fallback DOAR cand cheerio arunca. Daca cheerio parseaza cu succes dar n-am gasit text in `.game_area_purchase / .game_purchase_action / .discount_block`, returnam `null` in loc sa scanam tot documentul — eliminam un drum prin care sidebar-ul "Customers also bought" putea adauga data unui produs nelegat la embed.
+- `interactions.ts` foloseste `errorMessage` / `errorDetail` din `shared/errors` pentru toate cele 17 site-uri de `err.message` / `err.stack || err.message`. Inainte, daca handler-ul prindea ceva non-Error (string aruncat dintr-o lib third-party), log-ul afisa `undefined` si campul `updatesLastError.message` ramanea nedefinit in Mongo.
+- `processGuildUpdates` indexeaza `latestResults` intr-un `Map<gameKey, result>` o data per guild, in loc sa faca `find()` linear in bucla de trimitere — O(1) lookup la fiecare iteratie.
+
 ## TypeScript complet pe sursa
 
 Codul sursa din `src` a fost mutat la TypeScript. JavaScript-ul ramas este output generat in `src/dist/` dupa build, nu sursa editata manual.
