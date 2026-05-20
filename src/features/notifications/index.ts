@@ -1,5 +1,7 @@
 "use strict";
 
+const { errorMessage } = require("../../shared/errors");
+
 module.exports = (ctx) => {
   const {
     GuildModel, logger, DEFAULT_CURRENCY, runConcurrent,
@@ -23,11 +25,11 @@ function isPermanentDiscordError(err) {
   return DISCORD_PERMANENT_ERROR_CODES.has(Number(err?.code));
 }
 
-function transientErrorMessage(err) {
-  return err && typeof err === "object" && typeof err.message === "string"
-    ? err.message
-    : String(err);
-}
+// V11: alias catre helper-ul canonic din shared/errors. Pastram numele
+// `transientErrorMessage` pentru ca testul comportamental din PR #44
+// (`resolveOutboundChannel.test.ts`) pin-uieste exact acest nume in ctx,
+// si comentariile din proces clarifica "tranzitor" la fata locului.
+const transientErrorMessage = errorMessage;
 
 // V11: distingem erorile permanente (canal sters / fara acces / fara permisiuni
 // / tip de canal gresit) de cele tranzitorii (rate limit Discord, 5xx, timeout
