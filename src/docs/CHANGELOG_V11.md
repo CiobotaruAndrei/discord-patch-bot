@@ -37,6 +37,7 @@ Acest document noteaza starea curenta a repo-ului dupa curatare, migrarea la Typ
 - `app/lifecycle/shutdown.ts` asteapta `client.destroy()` ca teardown-ul Discord sa intre in cleanup-ul controlat.
 - `sources/updates/index.ts::fetchListingBasedUpdate` fetch-uieste URL-urile de listing paralel si pastreaza tiebreaker-ul determinist.
 - `app/scheduler/housekeeping.ts::start()` este idempotent: daca housekeeping ruleaza deja, un al doilea apel nu mai porneste inca un `setInterval` fara handle de oprire.
+- `sources/updates/index.ts::fetchNvidiaUpdate` respinge fallback-ul RSS fara titlu sau cu titlu gol dupa curatare, ca sursa stricata sa intre in circuit breaker in loc sa produca update-uri goale.
 
 ## TypeScript complet pe sursa
 
@@ -77,7 +78,7 @@ Nu au fost mutate in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy f
 ## Acoperire de teste
 
 - `src/test/resolveOutboundChannel.test.ts` verifica comportamentul permanent vs tranzitoriu pentru erori Discord.
-- `src/test/commands-regression.test.ts` acopera protectiile textuale pentru lock, abort signal, health, notificari, cache, surse si registrul de comenzi.
+- `src/test/commands-regression.test.ts` acopera protectiile textuale pentru lock, abort signal, health, notificari, cache, surse, registrul de comenzi si guard-urile RSS pentru drivere.
 - `src/test/housekeeping.test.ts` verifica direct ca `createHousekeeping().start()` porneste un singur interval chiar daca este apelat de doua ori si ca `stop()` curata intervalul.
 - Testele de domeniu acopera `buildOptimizedGameList`, `dealHash`, `extractOfferEndFromHtml`, `findGameAndSuggestion`, `safeCheerioLoad` si helperii Rust.
 
