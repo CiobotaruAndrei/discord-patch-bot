@@ -6,7 +6,7 @@ require("./ui")(ctx);
 // V11: interactions.ts destructureaza `fetchGameStatus` direct din ctx, deci
 // globalThis-ul nu mai e necesar. ui.ts ataseaza functia pe ctx la fel ca pe
 // celelalte handler-e (vezi ui.ts: Object.assign(ctx, { ..., fetchGameStatus })).
-require("../notifications/notificationWorkflows")(ctx);
+require("../notifications")(ctx);
 require("./slashCommands")(ctx);
 require("./interactions")(ctx);
 
