@@ -3,9 +3,9 @@
 const ctx = require("./runtime");
 
 require("../infra/http/client")(ctx);
-require("./steam/steamSource")(ctx);
-require("./updates/updateSources")(ctx);
-require("./deals/dealSources")(ctx);
+require("./steam")(ctx);
+require("./updates")(ctx);
+require("./deals")(ctx);
 
 module.exports = {
   USER_AGENTS: ctx.USER_AGENTS,
