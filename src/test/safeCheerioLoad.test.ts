@@ -8,11 +8,11 @@ process.env.METRICS_PUBLIC ||= "true";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { safeCheerioLoad, MAX_HTML_BYTES } = require("../sources");
+const { safeCheerioLoad, MAX_HTML_BYTES } = require("../sources/sourceRegistry");
 
 test("nu sparge codepoint-uri UTF-8 la limita maxima", () => {
   const filler = "<p>x</p>".repeat(Math.floor(MAX_HTML_BYTES / 8) - 10);
-  const emoji = "\ud83c\udfae";
+  const emoji = "🎮";
   const html = `<html><body>${filler}${emoji.repeat(50)}</body></html>`;
 
   const $ = safeCheerioLoad(html);
@@ -34,9 +34,9 @@ test("nu sparge codepoint-uri UTF-8 la limita maxima", () => {
 });
 
 test("accepta input mic fara modificari", () => {
-  const html = "<html><body><p>Salut \ud83c\udfae Romania</p></body></html>";
+  const html = "<html><body><p>Salut 🎮 Romania</p></body></html>";
   const $ = safeCheerioLoad(html);
-  assert.equal($("p").text(), "Salut \ud83c\udfae Romania");
+  assert.equal($("p").text(), "Salut 🎮 Romania");
 });
 
 test("accepta input gol", () => {
