@@ -8,7 +8,7 @@ process.env.METRICS_PUBLIC ||= "true";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { findGameAndSuggestion, clearFindGameCache } = require("../features/commands");
+const { findGameAndSuggestion, clearFindGameCache } = require("../features/commands/commandRegistry");
 
 const games = [
   { key: "cs2", name: "Counter-Strike 2", type: "steam", appId: "730", aliases: ["counter strike", "cs"] },
