@@ -7,6 +7,7 @@ import type {
   LoggerFunction,
   SteamReviewData
 } from "../../types";
+import { errorMessage } from "../../shared/errors";
 
 type DealCurrencyCode = CurrencyCode | string | null | undefined;
 type HttpResponse<T = unknown> = { data: T };
@@ -85,13 +86,6 @@ let runtimeContext: DealsContext;
 const activeEnrichments = new Map<string, Promise<DealInfo>>();
 const enrichedCache = new Map<string, EnrichedCacheEntry>();
 const inflightDeals = new Map<string, Promise<DealInfo[]>>();
-
-function errorMessage(err: unknown): string {
-  if (err && typeof err === "object" && "message" in err) {
-    return String((err as { message?: unknown }).message);
-  }
-  return String(err);
-}
 
 async function fetchSteamReviewData(appId: string | number): Promise<SteamReviewData> {
   const { httpReq, logger } = runtimeContext;

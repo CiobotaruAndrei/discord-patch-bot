@@ -15,6 +15,7 @@ import {
   isGoodSteamArticleUrl as rustIsGoodSteamArticleUrl,
   scoreListingCandidate
 } from "../../native/fuzzy";
+import { errorMessage } from "../../shared/errors";
 
 type HttpResponse<T = unknown> = { data: T };
 type HttpReq = (
@@ -101,13 +102,6 @@ interface UpdatesContext {
 
 let runtimeContext: UpdatesContext;
 const inflightAllGames = new Map<string, Promise<FetchResult[]>>();
-
-function errorMessage(err: unknown): string {
-  if (err && typeof err === "object" && "message" in err) {
-    return String((err as { message?: unknown }).message);
-  }
-  return String(err);
-}
 
 function absoluteUrl(base: string | undefined, maybeRelative: string | undefined): string {
   try { return new URL(maybeRelative, base).href; } catch { return ""; }

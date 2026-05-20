@@ -152,6 +152,11 @@ Bug fix-uri si perf, pasul 6:
 - `app/lifecycle/shutdown.ts` face acum `await client.destroy()`. In discord.js v14 metoda intoarce `Promise<void>`, dar codul vechi o apela sync ca pe v13 — WebSocket teardown si ratelimit-queue drain rulau in paralel cu `mongoose.connection.close()` si cu timer-ul de 500 ms de exit, iar un eventual reject scapa de catch-ul sincron. Acum cleanup-ul Discord intra pe drumul critic al shutdown-ului si rejection-urile sunt prinse.
 - `sources/updates/index.ts::fetchListingBasedUpdate` fetch-uieste `game.listingUrls` paralel via `Promise.allSettled`. Inainte, un URL lent intarzia toate celelalte sub `await` secvential. Pozitiile candidatilor (folosite ca tiebreaker la sort) sunt reasamblate post-settle in ordinea declarata a URL-urilor din config, asa incat decizia "primul rezultat" ramane deterministica chiar daca URL-urile termina in ordine diferita.
 
+Curatare `errorMessage` (pasul 7):
+
+- `shared/errors.ts::errorMessage` si `errorDetail` sunt acum forme strict superset: pentru `Error` instances se comporta ca inainte (`.message` / `.stack || .message`); in plus, pentru obiecte non-`Error` care au totusi un `.message` (cazuri intalnite cu mongo/axios cand eroarea trece printr-o granita de worker sau e serializata), se extrage `.message` in loc sa primim `"[object Object]"` in log.
+- Sapte fisiere care aveau copii locale de `errorMessage` (cu mici diferente intre ele) au fost rezolvate via `import { errorMessage } from ".../shared/errors"`: `features/commands/ui.ts`, `shared/utilities.ts`, `sources/deals/index.ts`, `sources/steam/index.ts`, `sources/updates/index.ts`, `infra/mongo/adminAlerts.ts`, `infra/mongo/locks.ts`. Net -36 linii; comportament neschimbat pentru `Error`/string/null, mai informativ pentru obiecte cu `.message`.
+
 Nu am mutat in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy fallback sau parsare HTML in acest pas, pentru ca acolo timpul real este dominat de retea/IO si riscul ar fi mai mare decat castigul.
 
 ## Schimbari de build

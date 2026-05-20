@@ -1,6 +1,7 @@
 import type { AxiosStatic } from "axios";
 import type { Model } from "mongoose";
 import type { LoggerFunction, RuntimeEnv } from "../../types";
+import { errorMessage } from "../../shared/errors";
 
 interface AdminAlertCooldownDoc {
   _id: string;
@@ -21,13 +22,6 @@ interface AdminAlertsContext {
 }
 
 let runtimeContext: Pick<AdminAlertsContext, "env" | "AdminAlertCooldownModel" | "axios" | "logger">;
-
-function errorMessage(err: unknown): string {
-  if (err && typeof err === "object" && "message" in err) {
-    return String((err as { message?: unknown }).message);
-  }
-  return String(err);
-}
 
 async function adminAlert(kind: string, title: string, body: unknown): Promise<void> {
   const { env, AdminAlertCooldownModel, axios, logger } = runtimeContext;

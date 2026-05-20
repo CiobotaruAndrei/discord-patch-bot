@@ -1,5 +1,6 @@
 import type { DealInfo, GameConfig, NormalizedUpdate, NotificationMode } from "../../types";
 import { findGameKeys } from "../../native/fuzzy";
+import { errorMessage } from "../../shared/errors";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, endExtra?: Record<string, unknown>) => void;
@@ -30,10 +31,6 @@ type CommandUiContext = {
   httpReq(method: string, url: string, options?: Record<string, unknown>): Promise<any>;
   [key: string]: unknown;
 };
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 function attachCommandUi(ctx: CommandUiContext): void {
   const {
