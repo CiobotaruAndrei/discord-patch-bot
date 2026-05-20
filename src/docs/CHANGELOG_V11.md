@@ -146,6 +146,12 @@ Curatare finala `err.message` in notifications:
 
 - `features/notifications/index.ts` foloseste acum `transientErrorMessage` (helper-ul local existent) in toate cele 7 site-uri ramase care citeau `err.message` direct: ramurile permanent-error din `resolveOutboundChannel`/`processGuildUpdates`/`processGuildDiscounts` (cele cu sablonul `Discord cod ${code}: ${message}`), log-urile de send-failure din ambele bucle, catch-ul outer din `checkForUpdates` si cele doua `errorLogger` din `runConcurrent`. Inainte, pe un throw non-Error (string, numar, obiect simplu), log-ul afisa `undefined` iar campurile Mongo `updatesLastError.message` / `discountsLastError.message` ramaneau nedefinite.
 
+Bug fix-uri si perf, pasul 6:
+
+- `sources/deals/index.ts::enrichedCache` foloseste cheie compusa `${dealId}:${currency}` in loc de `dealId` singur. Inainte, in deployment multi-currency, fiecare cerere de enrichment in alta currency suprascria entry-ul existent, fortand re-enrichment continuu pentru ambele tabere — cache-ul era efectiv inactiv. Acum USD/EUR/etc. coexista cu intrari separate. Tipul Map e si el restrans la `Map<string, …>`.
+- `app/lifecycle/shutdown.ts` face acum `await client.destroy()`. In discord.js v14 metoda intoarce `Promise<void>`, dar codul vechi o apela sync ca pe v13 — WebSocket teardown si ratelimit-queue drain rulau in paralel cu `mongoose.connection.close()` si cu timer-ul de 500 ms de exit, iar un eventual reject scapa de catch-ul sincron. Acum cleanup-ul Discord intra pe drumul critic al shutdown-ului si rejection-urile sunt prinse.
+- `sources/updates/index.ts::fetchListingBasedUpdate` fetch-uieste `game.listingUrls` paralel via `Promise.allSettled`. Inainte, un URL lent intarzia toate celelalte sub `await` secvential. Pozitiile candidatilor (folosite ca tiebreaker la sort) sunt reasamblate post-settle in ordinea declarata a URL-urilor din config, asa incat decizia "primul rezultat" ramane deterministica chiar daca URL-urile termina in ordine diferita.
+
 Nu am mutat in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy fallback sau parsare HTML in acest pas, pentru ca acolo timpul real este dominat de retea/IO si riscul ar fi mai mare decat castigul.
 
 ## Schimbari de build
