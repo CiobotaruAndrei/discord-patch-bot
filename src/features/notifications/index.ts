@@ -38,7 +38,7 @@ async function resolveOutboundChannel({ client, guild, channelId, context, disab
     channel = await client.channels.fetch(channelId);
   } catch (err) {
     if (isPermanentDiscordError(err)) {
-      const reason = `Discord cod ${err.code}: ${err.message}`;
+      const reason = `Discord cod ${err.code}: ${transientErrorMessage(err)}`;
       await disableFn(String(guild._id), channelId, reason).catch(() => null);
       logger("WARN", context, `Disable pentru guild ${guild._id} - eroare permanenta la fetch canal`, reason);
       return { channel: null, abort: true };
@@ -186,14 +186,14 @@ async function processGuildUpdates(client, guild, latestResults) {
     } catch (err) {
       await rollbackSeenUpdate(String(guild._id), gameKey, next.id).catch(() => null);
       if (isPermanentDiscordError(err)) {
-        const reason = `Discord cod ${err.code}: ${err.message}`;
+        const reason = `Discord cod ${err.code}: ${transientErrorMessage(err)}`;
         await disableUpdatesForChannelError(String(guild._id), channel.id, reason).catch(() => null);
         logger("WARN", "CRON_UPDATES", `Disable updates pentru guild ${guild._id} - cod permanent`, reason);
         break;
       }
       next.attempts = (next.attempts || 0) + 1;
       if (next.attempts < PENDING_UPDATE_MAX_ATTEMPTS) queue.unshift(next);
-      logger("WARN", "CRON_UPDATES", `Nu am putut trimite update pentru ${gameKey}`, err.message);
+      logger("WARN", "CRON_UPDATES", `Nu am putut trimite update pentru ${gameKey}`, transientErrorMessage(err));
       break;
     }
     if (queue.length) pendingByGame.set(gameKey, queue);
@@ -243,7 +243,7 @@ async function checkForUpdates(client, games, shouldAbort = null) {
     latestResults = await getLatestForAllGames(optimizedGames, shouldAbort);
     setUpdatesCache(latestResults);
   } catch (err) {
-    logger("ERROR", "CRON_UPDATES", "Nu am putut prelua update-urile", err.message);
+    logger("ERROR", "CRON_UPDATES", "Nu am putut prelua update-urile", transientErrorMessage(err));
     return;
   }
   if (shouldAbort?.()) return;
@@ -251,7 +251,7 @@ async function checkForUpdates(client, games, shouldAbort = null) {
   await runConcurrent(guilds, GUILD_PROCESS_CONCURRENCY, async (guild) => {
     if (!shouldAbort?.()) await processGuildUpdates(client, guild, latestResults);
   }, {
-    errorLogger: (guild, err) => logger("WARN", "CRON_UPDATES", `Eroare procesare guild ${guild._id}`, err.message)
+    errorLogger: (guild, err) => logger("WARN", "CRON_UPDATES", `Eroare procesare guild ${guild._id}`, transientErrorMessage(err))
   });
 }
 
@@ -384,7 +384,7 @@ async function processGuildDiscounts(client, guild, deals) {
     } catch (err) {
       if (claimed) await rollbackSeenDiscount(String(guild._id), item.hash).catch(() => null);
       if (isPermanentDiscordError(err)) {
-        const reason = `Discord cod ${err.code}: ${err.message}`;
+        const reason = `Discord cod ${err.code}: ${transientErrorMessage(err)}`;
         await disableDiscountsForChannelError(String(guild._id), channel.id, reason).catch(() => null);
         logger("WARN", "CRON_DISCOUNTS", `Disable discounts pentru guild ${guild._id} - cod permanent`, reason);
         remaining.push(...pending.slice(i + 1));
@@ -393,7 +393,7 @@ async function processGuildDiscounts(client, guild, deals) {
       const retry = { ...item, attempts: (item.attempts || 0) + 1 };
       if (retry.attempts < PENDING_DISCOUNT_MAX_ATTEMPTS) remaining.push(retry);
       remaining.push(...pending.slice(i + 1));
-      logger("WARN", "CRON_DISCOUNTS", "Nu am putut trimite reducere", err.message);
+      logger("WARN", "CRON_DISCOUNTS", "Nu am putut trimite reducere", transientErrorMessage(err));
       break;
     }
   }
@@ -433,7 +433,7 @@ async function checkForDiscounts(client, shouldAbort = null) {
     const deals = await dealsForCurrency(currency);
     await processGuildDiscounts(client, guild, deals);
   }, {
-    errorLogger: (guild, err) => logger("WARN", "CRON_DISCOUNTS", `Eroare procesare guild ${guild._id}`, err.message)
+    errorLogger: (guild, err) => logger("WARN", "CRON_DISCOUNTS", `Eroare procesare guild ${guild._id}`, transientErrorMessage(err))
   });
 }
 
