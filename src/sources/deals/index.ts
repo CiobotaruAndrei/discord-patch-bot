@@ -248,7 +248,11 @@ async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo
       const chunkPromises = chunk.map(item => fetchSteamReviewData(item.id));
       const chunkResults = await Promise.all(chunkPromises);
       reviewsData.push(...chunkResults);
-      if (STEAM_REVIEW_BATCH_DELAY_MS > 0) {
+      // V11: nu mai dormim si dupa ultimul batch. Inainte ultima iteratie
+      // pierdea STEAM_REVIEW_BATCH_DELAY_MS (default 500ms) inutil, fiindca
+      // nu mai venea niciun request dupa el.
+      const isLastBatch = i + STEAM_REVIEW_BATCH_SIZE >= steamSpecials.length;
+      if (STEAM_REVIEW_BATCH_DELAY_MS > 0 && !isLastBatch) {
         await new Promise(res => setTimeout(res, STEAM_REVIEW_BATCH_DELAY_MS));
       }
     }
