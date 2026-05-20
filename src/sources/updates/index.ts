@@ -182,23 +182,40 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
   const keywords = Array.isArray(game.requireKeywords) ? game.requireKeywords : [];
   const hrefRegex = getArticleHrefRegex(game);
 
+  // V11: fetch-uim toate listingUrls in paralel. Inainte le rulam secvential,
+  // deci o listingUrl mai lenta intarzia toate celelalte. Cu Promise.allSettled
+  // un URL care esueaza nu blocheaza pe celelalte si nici nu propaga rejection-ul.
+  type FetchedListing = { url: string; candidates: ListingCandidate[] };
+  const settled = await Promise.allSettled(listingUrls.map(async (url): Promise<FetchedListing> => {
+    const listRes = await httpReq("GET", url as string);
+    const $ = safeCheerioLoad(listRes.data);
+    const candidates: ListingCandidate[] = [];
+    let localPosition = 0;
+    $("a").each((i: number, el: unknown) => {
+      const href = absoluteUrl(game.baseUrl, $(el).attr("href"));
+      if (!href || (hrefRegex && !hrefRegex.test(href))) return;
+      const candidate = { href, text: cleanText($(el).text()), position: localPosition++ };
+      if (keywords.length > 0 && scoreCandidate(candidate, keywords) === 0) return;
+      candidates.push(candidate);
+    });
+    return { url: String(url), candidates };
+  }));
+
+  // V11: pozitiile sunt re-asignate global, pe ordinea declarata a URL-urilor
+  // din config, ca tiebreaker-ul `a.position - b.position` sa ramana
+  // deterministic chiar daca un URL slow termina dupa unul fast.
   const collected: ListingCandidate[] = [];
   let listingFetched = 0;
-  for (const url of listingUrls) {
-    try {
-      const listRes = await httpReq("GET", url as string);
-      listingFetched++;
-      const $ = safeCheerioLoad(listRes.data);
-      let position = 0;
-      $("a").each((i: number, el: unknown) => {
-        const href = absoluteUrl(game.baseUrl, $(el).attr("href"));
-        if (!href || (hrefRegex && !hrefRegex.test(href))) return;
-        const candidate = { href, text: cleanText($(el).text()), position: position++ };
-        if (keywords.length > 0 && scoreCandidate(candidate, keywords) === 0) return;
-        collected.push(candidate);
-      });
-    } catch (err) {
-      logger("WARN", "SCRAPE", `Eroare preluare listing url ${url}`, errorMessage(err));
+  let globalPosition = 0;
+  for (let i = 0; i < settled.length; i++) {
+    const r = settled[i];
+    if (r.status === "rejected") {
+      logger("WARN", "SCRAPE", `Eroare preluare listing url ${listingUrls[i]}`, errorMessage(r.reason));
+      continue;
+    }
+    listingFetched++;
+    for (const c of r.value.candidates) {
+      collected.push({ href: c.href, text: c.text, position: globalPosition++ });
     }
   }
 

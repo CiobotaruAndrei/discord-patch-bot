@@ -83,7 +83,7 @@ interface DealsContext {
 
 let runtimeContext: DealsContext;
 const activeEnrichments = new Map<string, Promise<DealInfo>>();
-const enrichedCache = new Map<unknown, EnrichedCacheEntry>();
+const enrichedCache = new Map<string, EnrichedCacheEntry>();
 const inflightDeals = new Map<string, Promise<DealInfo[]>>();
 
 function errorMessage(err: unknown): string {
@@ -113,19 +113,30 @@ async function fetchSteamReviewData(appId: string | number): Promise<SteamReview
   }
 }
 
-function enrichCacheGet(key: unknown, currency: string): DealInfo | null {
+// V11: cheia cache-ului include si currency-ul. Inainte, cheia era doar
+// `deal.id` iar currency era stocat ca valoare si verificat la citire — daca
+// guild-uri cu currency-uri diferite cereau enrichment pentru acelasi deal,
+// scrierile se suprascriau reciproc si ambele tabere reveneau in mod
+// continuu pe miss, dezamorsand complet cache-ul intr-un deployment
+// multi-currency.
+function enrichCacheKey(dealId: unknown, currency: string): string {
+  return `${String(dealId)}:${currency}`;
+}
+
+function enrichCacheGet(dealId: unknown, currency: string): DealInfo | null {
+  const key = enrichCacheKey(dealId, currency);
   const v = enrichedCache.get(key);
   if (!v) return null;
   if (v.expiresAt < Date.now()) { enrichedCache.delete(key); return null; }
-  if (v.currency !== currency) return null;
   enrichedCache.delete(key);
   enrichedCache.set(key, v);
   return v.enriched;
 }
 
-function enrichCacheSet(key: unknown, enriched: DealInfo, currency: string): void {
+function enrichCacheSet(dealId: unknown, enriched: DealInfo, currency: string): void {
   const { ENRICHED_DEAL_CACHE_MAX_SIZE, ENRICHED_DEAL_CACHE_TTL_MS } = runtimeContext;
   if (ENRICHED_DEAL_CACHE_MAX_SIZE === 0 || ENRICHED_DEAL_CACHE_TTL_MS === 0) return;
+  const key = enrichCacheKey(dealId, currency);
   if (enrichedCache.has(key)) enrichedCache.delete(key);
   enrichedCache.set(key, {
     enriched,

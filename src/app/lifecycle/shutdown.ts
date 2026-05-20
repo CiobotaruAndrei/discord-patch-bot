@@ -7,7 +7,10 @@ type AdminAlert = (kind: string, title: string, body: string) => Promise<unknown
 type ShutdownSignal = NodeJS.Signals | "uncaughtException" | "unhandledRejection" | string;
 
 interface DiscordClientLike {
-  destroy(): void;
+  // discord.js v14 returns a Promise from destroy(); v13 was sync.
+  // Typed as void | Promise<void> so we can await it without a TS error
+  // and still tolerate older shims/mocks.
+  destroy(): void | Promise<void>;
 }
 
 interface MongooseLike {
@@ -69,7 +72,10 @@ function createShutdownController({
       await new Promise(resolve => setTimeout(resolve, env.SHUTDOWN_DRAIN_MS));
     }
 
-    try { client.destroy(); } catch (err) { logger("WARN", "SHUTDOWN", "Eroare destroy client", errorMessage(err)); }
+    // V11: discord.js v14 face `destroy()` async (intoarce Promise) — fara
+    // await ramaneam cu cleanup-ul WebSocket in zbor cand cadeam pe
+    // mongoose.connection.close() si setTimeout(exit, 500).unref().
+    try { await client.destroy(); } catch (err) { logger("WARN", "SHUTDOWN", "Eroare destroy client", errorMessage(err)); }
     try { await mongoose.connection.close(); } catch (err) { logger("WARN", "SHUTDOWN", "Eroare inchidere mongo", errorMessage(err)); }
     try { httpServer.close(); } catch { /* ignore */ }
 
