@@ -122,7 +122,7 @@ function extractDateScore(url: string): number {
 // Compiled-once cache for game.articleHrefRegex. fetchListingBasedUpdate is
 // called once per game per cron tick; rebuilding the same RegExp on every
 // call is pure waste. WeakMap keeps the cache tied to the GameConfig object
-// lifetime — when the games array is rebuilt at config reload, old regexes
+// lifetime - when the games array is rebuilt at config reload, old regexes
 // are GC'd automatically.
 const articleHrefRegexCache = new WeakMap<GameConfig, RegExp>();
 
@@ -156,7 +156,7 @@ async function fetchSteamUpdate(game: GameConfig): Promise<NormalizedUpdate> {
     .filter((item: any) => (item.feed_type === 1 || item.feedname === "steam_community_announcements")
       && isGoodSteamArticleUrl(item.url) && isLikelyPatchNote(item))
     .sort((a: any, b: any) => Number(b.date || 0) - Number(a.date || 0));
-  if (!patchNotes.length) throw new Error("Lipsă patch notes Steam valabile.");
+  if (!patchNotes.length) throw new Error("Lipsa patch notes Steam valabile.");
   const latest = patchNotes[0];
   const rawContents = String(latest.contents || "").replace(/https?:\/\/[^\s]+/gi, "").replace(/\[.*?\]/g, " ");
   return normalizeUpdate({
@@ -236,7 +236,7 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
         `listing:${game.key}`
       );
     }
-    throw new Error("Nu am găsit ancore valide.");
+    throw new Error("Nu am gasit ancore valide.");
   }
   const articleUrl = unique[0].href;
   const articleRes = await httpReq("GET", articleUrl, { timeout: 8000 });
@@ -263,7 +263,7 @@ async function fetchFortniteUpdate(): Promise<NormalizedUpdate> {
       { timeout: 15000 }
     ) || "{}")?.blogList;
     const valid = (posts || []).filter((p: any) => p.slug && p.slug.toLowerCase() !== "news");
-    if (!valid.length) throw new Error("Nu am găsit postări valide");
+    if (!valid.length) throw new Error("Nu am gasit postari valide");
     const latest = valid.find((p: any) => /update|patch|\bv\d+/i.test(String(p.title))) || valid[0];
     return normalizeUpdate({
       id: String(latest.slug),
@@ -279,7 +279,7 @@ async function fetchFortniteUpdate(): Promise<NormalizedUpdate> {
     logger("WARN", "SCRAPE", "Fortnite primary path a esuat, fallback la RSS Google News", errorMessage(err));
     const backupUrl = "https://news.google.com/rss/search?q=site:fortnite.com/news+update&hl=en-US";
     const feed = await rssParser.parseString((await httpReq("GET", backupUrl)).data);
-    if (!feed.items || feed.items.length === 0) throw new Error("Eșec total Fortnite.");
+    if (!feed.items || feed.items.length === 0) throw new Error("Esec total Fortnite.");
     const first = feed.items[0];
     if (!first.title) throw new Error("Fortnite RSS fallback fara titlu in primul item.");
     return normalizeUpdate({
@@ -305,15 +305,15 @@ async function fetchAmdUpdate(game: GameConfig): Promise<NormalizedUpdate> {
       excerpt: "Driver disponibil.",
       thumbnail: game.thumbnail
     });
-    // V11: regex-ul nu a prins versiunea — semnal de schema drift, log explicit.
-    logger("WARN", "SCRAPE", "AMD proxy a returnat continut, dar regex-ul `Adrenalin Edition X.Y.Z` nu a prins versiunea — posibil schema drift, fallback RSS");
+    // V11: regex-ul nu a prins versiunea - semnal de schema drift, log explicit.
+    logger("WARN", "SCRAPE", "AMD proxy a returnat continut, dar regex-ul `Adrenalin Edition X.Y.Z` nu a prins versiunea - posibil schema drift, fallback RSS");
   } catch (err) {
     logger("WARN", "SCRAPE", "Eroare preluare AMD proxy", errorMessage(err));
   }
   const res = await httpReq("GET",
     "https://news.google.com/rss/search?q=site:amd.com+%22AMD+Software:+Adrenalin+Edition%22+release+notes&hl=en-US");
   const feed = await rssParser.parseString(res.data);
-  if (!feed.items || feed.items.length === 0) throw new Error("Eșec AMD.");
+  if (!feed.items || feed.items.length === 0) throw new Error("Esec AMD.");
   const rawTitle = feed.items[0].title;
   if (!rawTitle) throw new Error("AMD RSS fallback fara titlu in primul item.");
   const cleanTitle = cleanText(rawTitle).split(" - ")[0];
@@ -337,11 +337,11 @@ async function fetchIntelUpdate(game: GameConfig): Promise<NormalizedUpdate> {
       id: match[1],
       title: `${game.name} v${match[1]}`,
       link: game.url,
-      excerpt: `Versiune găsită: ${match[1]}`,
+      excerpt: `Versiune gasita: ${match[1]}`,
       thumbnail: game.thumbnail
     });
-    // V11: regex-ul nu a prins versiunea — semnal de schema drift, log explicit.
-    logger("WARN", "SCRAPE", `Intel proxy a returnat continut pentru ${game.key}, dar regex-ul de versiune (\d+.\d+.\d+.\d+) nu a prins nimic — posibil schema drift, fallback RSS`);
+    // V11: regex-ul nu a prins versiunea - semnal de schema drift, log explicit.
+    logger("WARN", "SCRAPE", `Intel proxy a returnat continut pentru ${game.key}, dar regex-ul de versiune (\d+.\d+.\d+.\d+) nu a prins nimic - posibil schema drift, fallback RSS`);
   } catch (err) {
     logger("WARN", "SCRAPE", "Eroare preluare Intel proxy", errorMessage(err));
   }
@@ -351,7 +351,7 @@ async function fetchIntelUpdate(game: GameConfig): Promise<NormalizedUpdate> {
   const res = await httpReq("GET",
     `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US`);
   const feed = await rssParser.parseString(res.data);
-  if (!feed.items || feed.items.length === 0) throw new Error("Eșec Intel.");
+  if (!feed.items || feed.items.length === 0) throw new Error("Esec Intel.");
   const rawTitle = feed.items[0].title;
   if (!rawTitle) throw new Error("Intel RSS fallback fara titlu in primul item.");
   const cleanTitle = cleanText(rawTitle).split(" - ")[0];
@@ -371,7 +371,7 @@ async function fetchMinecraftUpdate(): Promise<NormalizedUpdate> {
   const r = await httpReq("GET", "https://pistonmeta.mojang.com/mc/game/version_manifest_v2.json",
     { largeJson: true });
   const v = r?.data?.latest?.release;
-  if (!v) throw new Error("Lipsă versiune JSON");
+  if (!v) throw new Error("Lipsa versiune JSON");
   return normalizeUpdate({
     id: v,
     title: `Minecraft ${v}`,
@@ -385,7 +385,7 @@ async function fetchRobloxUpdate(): Promise<NormalizedUpdate> {
   const { httpReq, normalizeUpdate } = runtimeContext;
   const r = await httpReq("GET", "https://clientsettings.roblox.com/v2/clientversion/WindowsPlayer");
   const v = r?.data?.clientVersionUpload;
-  if (!v) throw new Error("Lipsă versiune API");
+  if (!v) throw new Error("Lipsa versiune API");
   return normalizeUpdate({
     id: String(v),
     title: "Roblox Update",
@@ -401,8 +401,11 @@ async function fetchNvidiaUpdate(g: GameConfig): Promise<NormalizedUpdate> {
   const r = await httpReq("GET",
     `https://news.google.com/rss/search?q=${encodeURIComponent(`site:nvidia.com ${q} release`)}&hl=en-US`);
   const f = await rssParser.parseString(r.data);
-  if (!f.items || f.items.length === 0) throw new Error("Eșec Nvidia.");
-  const cleanTitle = cleanText(f.items[0].title).split(" - ")[0];
+  if (!f.items || f.items.length === 0) throw new Error("Esec Nvidia.");
+  const rawTitle = f.items[0].title;
+  if (!rawTitle) throw new Error("Nvidia RSS fallback fara titlu in primul item.");
+  const cleanTitle = cleanText(rawTitle).split(" - ")[0];
+  if (!cleanTitle) throw new Error("Nvidia RSS fallback cu titlu gol dupa curatare.");
   return normalizeUpdate({
     id: stableUpdateId(cleanTitle, ""),
     title: cleanTitle,
@@ -465,7 +468,7 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
         await adminAlert(
           `drift:${game.key}`,
           `Schema drift suspectat: ${game.name}`,
-          `Sursa pentru \`${game.key}\` returnează HTTP OK dar 0 rezultate valide după ${updatedCb.schemaDriftFails} cicluri consecutive. Probabil selectorii CSS/HTML s-au schimbat.\nSursă: ${error.source}\nMesaj: ${error.message}`
+          `Sursa pentru \`${game.key}\` returneaza HTTP OK dar 0 rezultate valide dupa ${updatedCb.schemaDriftFails} cicluri consecutive. Probabil selectorii CSS/HTML s-au schimbat.\nSursa: ${error.source}\nMesaj: ${error.message}`
         );
       }
       metricsRef.fetchFail++;
@@ -489,7 +492,7 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
         await adminAlert(
           `cb:${game.key}`,
           `Circuit breaker activat: ${game.name}`,
-          `Sursa pentru \`${game.key}\` a eșuat de ${updatedCb.fails} ori consecutiv. Cooldown ~${Math.round(CIRCUIT_BREAKER_COOLDOWN_MS/60000)}-${Math.round((CIRCUIT_BREAKER_COOLDOWN_MS+CIRCUIT_BREAKER_JITTER_MS)/60000)} min.\nUltima eroare: ${errorMessage(error)}`
+          `Sursa pentru \`${game.key}\` a esuat de ${updatedCb.fails} ori consecutiv. Cooldown ~${Math.round(CIRCUIT_BREAKER_COOLDOWN_MS/60000)}-${Math.round((CIRCUIT_BREAKER_COOLDOWN_MS+CIRCUIT_BREAKER_JITTER_MS)/60000)} min.\nUltima eroare: ${errorMessage(error)}`
         );
       }
     }
@@ -530,7 +533,7 @@ async function getLatestForAllGames(games: GameConfig[], shouldAbort?: AbortPred
   const contextKey = `${ctxBase}:${keysHash}`;
   const existing = inflightAllGames.get(contextKey);
   if (existing) {
-    logger("INFO", "FETCH_COALESCE", `Refolosesc fetch-ul în curs (context=${contextKey})`);
+    logger("INFO", "FETCH_COALESCE", `Refolosesc fetch-ul in curs (context=${contextKey})`);
     return existing;
   }
   const promise = withInflightTimeout(
