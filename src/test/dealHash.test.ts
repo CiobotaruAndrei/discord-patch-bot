@@ -8,7 +8,7 @@ process.env.METRICS_PUBLIC ||= "true";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { dealHash } = require("../sources");
+const { dealHash } = require("../sources/sourceRegistry");
 
 function steamDeal() {
   return {

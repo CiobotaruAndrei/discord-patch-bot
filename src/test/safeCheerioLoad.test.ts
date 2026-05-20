@@ -8,7 +8,7 @@ process.env.METRICS_PUBLIC ||= "true";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { safeCheerioLoad, MAX_HTML_BYTES } = require("../sources");
+const { safeCheerioLoad, MAX_HTML_BYTES } = require("../sources/sourceRegistry");
 
 test("nu sparge codepoint-uri UTF-8 la limita maxima", () => {
   const filler = "<p>x</p>".repeat(Math.floor(MAX_HTML_BYTES / 8) - 10);

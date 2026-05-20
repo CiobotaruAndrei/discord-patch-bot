@@ -12,8 +12,8 @@ import {
   SlashCommandBuilder
 } from "discord.js";
 
-const data = require("../../infra/mongo");
-const scrapers = require("../../sources");
+const data = require("../../infra/mongo/mongoContext");
+const scrapers = require("../../sources/sourceRegistry");
 
 const runtime = {
   crypto,
