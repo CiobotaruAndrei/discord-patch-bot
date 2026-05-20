@@ -8,7 +8,7 @@ test("housekeeping start is idempotent", () => {
   const handles: unknown[] = [];
   let cleared = 0;
 
-  globalThis.setInterval = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+  globalThis.setInterval = ((handler: (...args: unknown[]) => void, timeout?: number, ...args: unknown[]) => {
     const handle = { handler, timeout, args, unref() {} };
     handles.push(handle);
     return handle as unknown as ReturnType<typeof setInterval>;
