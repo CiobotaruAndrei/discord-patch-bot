@@ -166,6 +166,10 @@ Curatare shim `globalThis.fetchGameStatus` (pasul 9):
 
 - `features/commands/interactions.ts::handleStatusInteraction` ia acum `fetchGameStatus` prin destructure din `ctx`, ca toate celelalte handler-e din fisier. Vechiul `(globalThis as any).fetchGameStatus = ctx.fetchGameStatus;` din `features/commands/index.ts` a fost scos, la fel ca declaratia `const fetchGameStatus: any;` din `legacy-dynamic.d.ts`. Shim-ul era notat explicit ca "temporar" la conversia initiala a `interactions.ts` la TypeScript. Restul shim-urilor din `legacy-dynamic.d.ts` (Object dynamic fields) raman pana se reduce dinamic-typing-ul din `sendPayload`/`updateDoc`/`setDoc`.
 
+Curatare memorie `findGameCache` (pasul 10):
+
+- `features/commands/ui.ts::refreshGuard` goleste `findGameCache` cand array-ul `games` se schimba. Cheia de cache embeded-uieste hash-ul curent al jocurilor, deci vechile intrari deveneau nereferentiabile prin codul de productie dar continuau sa ocupe sloturi pana la pragul LRU (`FIND_GAME_CACHE_MAX = 200`). Pe `clearFindGameCache` extern comportamentul ramane neschimbat; testul "cache se invalideaza cand games array se schimba" din `findGameAndSuggestion.test.ts` continua sa treaca.
+
 Nu am mutat in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy fallback sau parsare HTML in acest pas, pentru ca acolo timpul real este dominat de retea/IO si riscul ar fi mai mare decat castigul.
 
 ## Schimbari de build
