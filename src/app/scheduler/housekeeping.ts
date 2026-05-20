@@ -39,6 +39,7 @@ function createHousekeeping({
   let timerId: ReturnType<typeof setInterval> | null = null;
 
   function start(): void {
+    if (timerId) return;
     const tick = () => {
       try { commands.cleanCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanCache eroare", errorMessage(e)); }
       try { cleanGuildCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanGuildCache eroare", errorMessage(e)); }
