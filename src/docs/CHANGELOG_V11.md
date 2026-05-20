@@ -142,6 +142,10 @@ Bug fix-uri si perf in acelasi PR:
 - `infra/http/client.ts` retry-uieste 429 chiar si pe POST. Singurul POST din codebase este Epic GraphQL deals query — o cerere semantic de citire. Inainte cadea direct pe `throw` si pierdeam toate ofertele Epic intr-un ciclu cron la primul rate-limit. Acum onoreaza header-ul `Retry-After` ca si pe GET. Drive-by: cele doua aparitii `err.message` din `httpReq` au fost inlocuite cu `errorMessage(err)` pentru cazurile non-Error.
 - `features/notifications/index.ts::processGuildDiscounts` partajeaza index-ul `(hash -> snapshot)` intre toate guild-urile din acelasi ciclu printr-un `WeakMap<DealInfo[], { dealsByHash, orderedHashes }>` keyed pe referinta array-ului `deals`. Cu 100 de guild-uri si 50 de deal-uri scapam de 5000 de apeluri `dealHash` per ciclu si pastram doar 50.
 
+Curatare finala `err.message` in notifications:
+
+- `features/notifications/index.ts` foloseste acum `transientErrorMessage` (helper-ul local existent) in toate cele 7 site-uri ramase care citeau `err.message` direct: ramurile permanent-error din `resolveOutboundChannel`/`processGuildUpdates`/`processGuildDiscounts` (cele cu sablonul `Discord cod ${code}: ${message}`), log-urile de send-failure din ambele bucle, catch-ul outer din `checkForUpdates` si cele doua `errorLogger` din `runConcurrent`. Inainte, pe un throw non-Error (string, numar, obiect simplu), log-ul afisa `undefined` iar campurile Mongo `updatesLastError.message` / `discountsLastError.message` ramaneau nedefinite.
+
 Nu am mutat in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy fallback sau parsare HTML in acest pas, pentru ca acolo timpul real este dominat de retea/IO si riscul ar fi mai mare decat castigul.
 
 ## Schimbari de build
