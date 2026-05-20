@@ -1,6 +1,6 @@
 # File rename map
 
-Redenumirile din branch-ul acesta curata fisierele `index.ts` care erau doar puncte de agregare. Numele noi descriu rolul fisierului, iar importurile au fost mutate explicit catre ele.
+Repo-ul de pe `main` foloseste deja nume descriptive pentru agregatoarele care erau doar fisiere `index.ts`. Harta de mai jos noteaza redenumirile active si importurile care trebuie pastrate asa.
 
 ## Redenumiri facute
 
@@ -10,10 +10,12 @@ Redenumirile din branch-ul acesta curata fisierele `index.ts` care erau doar pun
 
 ## Importuri actualizate
 
-- `src/app/main.ts` foloseste acum `mongoContext`, `commandRegistry` si `sourceRegistry` direct.
+- `src/app/main.ts` foloseste `mongoContext`, `commandRegistry` si `sourceRegistry` direct.
 - `src/features/commands/runtime.ts` si `src/sources/runtime.ts` folosesc noile nume, ca sa nu mai depinda de importuri implicite pe folder.
-- Testele care foloseau agregatoarele importa acum fisierele cu nume explicit.
+- Testele care foloseau agregatoarele importa fisierele cu nume explicit.
 
-## Ce ramane neschimbat
+## Ce ramane intentionat
 
-Fisierele mari de implementare din `src/sources/steam/index.ts`, `src/sources/deals/index.ts`, `src/sources/updates/index.ts` si `src/features/notifications/index.ts` raman neschimbate in acest pas. Ele contin logica efectiva a modulelor respective, nu doar re-exporturi mici. Daca vrei zero fisiere `index.ts` peste tot, urmatorul pas sigur este mutarea lor pe rand in `steamSource.ts`, `dealSources.ts`, `updateSources.ts` si `notificationWorkflows.ts`, cu aceleasi teste dupa fiecare mutare.
+Fisierele `src/sources/steam/index.ts`, `src/sources/deals/index.ts`, `src/sources/updates/index.ts` si `src/features/notifications/index.ts` raman inca fisiere mari de implementare. Ele nu sunt simple re-exporturi; contin logica efectiva a modulelor respective.
+
+Daca se cere zero fisiere `index.ts` peste tot, urmatorul pas sigur este mutarea lor pe rand in `steamSource.ts`, `dealSources.ts`, `updateSources.ts` si `notificationWorkflows.ts`, cu aceleasi teste dupa fiecare mutare.
