@@ -6,6 +6,7 @@ import type {
   MaybePromise,
   RuntimeEnv
 } from "../types";
+import { errorMessage } from "./errors";
 
 interface ConcurrentRunOptions<T> {
   shouldAbort?: (() => boolean) | null;
@@ -132,13 +133,6 @@ function isTransientMongoError(err: unknown): boolean {
   if (typeof mongoErr.code === "number" && TRANSIENT_MONGO_CODES.has(mongoErr.code)) return true;
   if (Array.isArray(mongoErr.errorLabels) && mongoErr.errorLabels.includes("TransientTransactionError")) return true;
   return false;
-}
-
-function errorMessage(err: unknown): string {
-  if (err && typeof err === "object" && "message" in err) {
-    return String((err as { message?: unknown }).message);
-  }
-  return String(err);
 }
 
 async function withMongoRetry<T>(

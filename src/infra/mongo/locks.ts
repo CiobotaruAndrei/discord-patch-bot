@@ -1,4 +1,5 @@
 import type { ActiveLocks, LockToken } from "../../types";
+import { errorMessage } from "../../shared/errors";
 
 type LockLogger = (level: "WARN", context: string, message: string, meta?: unknown) => void;
 
@@ -33,10 +34,6 @@ interface LocksContext {
   acquireDbLock?: (jobName: string, ttlMs?: number) => Promise<LockToken | null>;
   renewDbLock?: (jobName: string, token: LockToken | null, ttlMs?: number) => Promise<boolean>;
   releaseDbLock?: (jobName: string, token: LockToken | null) => Promise<void>;
-}
-
-function errorMessage(err: unknown): string {
-  return typeof (err as MongoErrorLike)?.message === "string" ? (err as MongoErrorLike).message : String(err);
 }
 
 function isDuplicateKeyError(err: unknown): boolean {

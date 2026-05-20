@@ -6,6 +6,7 @@ import type {
   SteamSearchItem
 } from "../../types";
 import { levenshtein } from "../../native/fuzzy";
+import { errorMessage } from "../../shared/errors";
 
 type SteamCurrencyCode = CurrencyCode | string | null | undefined;
 type HttpResponse<T = unknown> = { data: T };
@@ -43,13 +44,6 @@ interface SteamContext {
 }
 
 let runtimeContext: Pick<SteamContext, "logger" | "getCurrencyConfig" | "httpReq" | "safeCheerioLoad">;
-
-function errorMessage(err: unknown): string {
-  if (err && typeof err === "object" && "message" in err) {
-    return String((err as { message?: unknown }).message);
-  }
-  return String(err);
-}
 
 async function searchSteamGameByName(query: string, currencyCode?: SteamCurrencyCode): Promise<SteamSearchItem[]> {
   const cc = runtimeContext.getCurrencyConfig(currencyCode).cc;
