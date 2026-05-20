@@ -8,7 +8,7 @@ process.env.METRICS_PUBLIC ||= "true";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { extractOfferEndFromHtml } = require("../sources");
+const { extractOfferEndFromHtml } = require("../sources/sourceRegistry");
 
 test("extrage din .game_purchase_discount_countdown - Offer ends", () => {
   const html = `<html><body>
