@@ -32,6 +32,10 @@ interface NativeFuzzyModule {
   classify_patch_note?(title: string, contents: string, tags: string[]): boolean;
   scoreListingCandidate?(href: string, text: string, keywords: string[]): number;
   score_listing_candidate?(href: string, text: string, keywords: string[]): number;
+  isGoodSteamArticleUrl?(url: string): boolean;
+  is_good_steam_article_url?(url: string): boolean;
+  extractDateScore?(url: string): number;
+  extract_date_score?(url: string): number;
 }
 
 let nativeModule: NativeFuzzyModule | null | undefined;
@@ -144,6 +148,30 @@ function scoreListingCandidateFallback(href: unknown, text: unknown, keywords: u
     if (kw && haystack.includes(kw)) score++;
   }
   return score;
+}
+
+function isGoodSteamArticleUrlFallback(url: unknown): boolean {
+  const v = String(url || "").trim().toLowerCase();
+  if (!v) return false;
+  if (!v.startsWith("http")) return false;
+  if (v.includes("steamstatic")) return false;
+  if (v.includes("steamcdn")) return false;
+  return true;
+}
+
+function extractDateScoreFallback(url: unknown): number {
+  const u = String(url || "").toLowerCase();
+  const m = u.match(/(\d{4})[-/](\d{2})[-/](\d{2})/);
+  if (!m) return 0;
+  const year = parseInt(m[1], 10);
+  const month = parseInt(m[2], 10);
+  const day = parseInt(m[3], 10);
+  if (!(year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31)) return 0;
+  const t = Date.UTC(year, month - 1, day);
+  if (isNaN(t)) return 0;
+  const d = new Date(t);
+  if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) return 0;
+  return t;
 }
 
 const CLEAN_TEXT_REGEX = /<[^>]+>|&(nbsp|amp|quot|#39|apos|lt|gt);|\s+/gi;
@@ -280,6 +308,30 @@ export function scoreListingCandidate(href: unknown, text: unknown, keywords: un
     }
   }
   return scoreListingCandidateFallback(href, text, keywords);
+}
+
+export function isGoodSteamArticleUrl(url: unknown): boolean {
+  const native = loadNativeFuzzy();
+  if (native) {
+    const fn = typeof native.isGoodSteamArticleUrl === "function" ? native.isGoodSteamArticleUrl : native.is_good_steam_article_url;
+    if (typeof fn === "function") {
+      try { return fn.call(native, String(url || "")); }
+      catch { /* fall through */ }
+    }
+  }
+  return isGoodSteamArticleUrlFallback(url);
+}
+
+export function extractDateScore(url: unknown): number {
+  const native = loadNativeFuzzy();
+  if (native) {
+    const fn = typeof native.extractDateScore === "function" ? native.extractDateScore : native.extract_date_score;
+    if (typeof fn === "function") {
+      try { return fn.call(native, String(url || "")); }
+      catch { /* fall through */ }
+    }
+  }
+  return extractDateScoreFallback(url);
 }
 
 export function stableUpdateId(title: unknown, link: unknown): string {
