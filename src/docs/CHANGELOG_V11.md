@@ -157,6 +157,11 @@ Curatare `errorMessage` (pasul 7):
 - `shared/errors.ts::errorMessage` si `errorDetail` sunt acum forme strict superset: pentru `Error` instances se comporta ca inainte (`.message` / `.stack || .message`); in plus, pentru obiecte non-`Error` care au totusi un `.message` (cazuri intalnite cu mongo/axios cand eroarea trece printr-o granita de worker sau e serializata), se extrage `.message` in loc sa primim `"[object Object]"` in log.
 - Sapte fisiere care aveau copii locale de `errorMessage` (cu mici diferente intre ele) au fost rezolvate via `import { errorMessage } from ".../shared/errors"`: `features/commands/ui.ts`, `shared/utilities.ts`, `sources/deals/index.ts`, `sources/steam/index.ts`, `sources/updates/index.ts`, `infra/mongo/adminAlerts.ts`, `infra/mongo/locks.ts`. Net -36 linii; comportament neschimbat pentru `Error`/string/null, mai informativ pentru obiecte cu `.message`.
 
+Curatare `transientErrorMessage` (pasul 8):
+
+- `features/notifications/index.ts::transientErrorMessage` devine alias direct la `errorMessage` din `shared/errors`. Numele se pastreaza pentru ca `resolveOutboundChannel.test.ts` (PR #44) pin-uieste `ctx.transientErrorMessage` in asertii, iar la call site-uri serveste ca adnotare "eroare asteptata tranzitorie". Acelasi comportament pe toate clasele de input testate.
+- `sources/deals/index.ts::_fetchDealsImpl` nu mai doarme `STEAM_REVIEW_BATCH_DELAY_MS` (default 500 ms) dupa ultimul batch de review-uri Steam. Pe configuratia default (`STEAM_SPECIALS_LIMIT=30` / `STEAM_REVIEW_BATCH_SIZE=5`) economisesti ~500 ms de wall-clock per fetchDeals per currency, fara sa schimbi caracteristicile de rate-limit per batch.
+
 Nu am mutat in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy fallback sau parsare HTML in acest pas, pentru ca acolo timpul real este dominat de retea/IO si riscul ar fi mai mare decat castigul.
 
 ## Schimbari de build
