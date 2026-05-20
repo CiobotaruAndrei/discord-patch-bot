@@ -20,9 +20,9 @@ const {
   acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
   waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
   runMigrations, requestContext
-} = require("../infra/mongo");
-const commands = require("../features/commands");
-const scrapers = require("../sources");
+} = require("../infra/mongo/mongoContext");
+const commands = require("../features/commands/commandRegistry");
+const scrapers = require("../sources/sourceRegistry");
 
 const { config, games } = loadConfig();
 const metrics = createMetrics();
