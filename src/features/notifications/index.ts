@@ -279,6 +279,29 @@ async function rollbackSeenDiscount(guildId, hash) {
   );
 }
 
+// V11: indexul (hash -> snapshot) este derivat din array-ul `deals` returnat de
+// fetchDeals si nu se schimba intre guild-uri in acelasi ciclu cron. WeakMap
+// keyed pe referinta array-ului ne lasa sa hash-uim O data per ciclu (per
+// currency), nu N x M unde N = numar de guild-uri.
+const dealsHashIndexCache = new WeakMap();
+
+function getDealsHashIndex(deals) {
+  let cached = dealsHashIndexCache.get(deals);
+  if (cached) return cached;
+  const dealsByHash = new Map();
+  const orderedHashes = [];
+  for (const deal of deals) {
+    const hash = dealHash(deal);
+    if (!dealsByHash.has(hash)) {
+      dealsByHash.set(hash, deal);
+      orderedHashes.push(hash);
+    }
+  }
+  cached = { dealsByHash, orderedHashes };
+  dealsHashIndexCache.set(deals, cached);
+  return cached;
+}
+
 async function disableDiscountsForChannelError(guildId, channelId, message) {
   return GuildModel.updateOne(
     { _id: guildId },
@@ -306,19 +329,10 @@ async function processGuildDiscounts(client, guild, deals) {
   if (abort) return;
 
   const seenSet = new Set(Array.isArray(guild.seenDiscounts) ? guild.seenDiscounts.map(String) : []);
-  // V11: calculam dealHash o singura data per deal, nu de doua ori. orderedHashes
-  // pastreaza ordinea originala pentru loop-ul de mai jos; dealsByHash pastreaza
-  // primul snapshot intalnit la fiecare hash (in caz extrem de duplicat dupa
-  // dedupe-ul din fetchDeals).
-  const dealsByHash = new Map();
-  const orderedHashes = [];
-  for (const deal of deals) {
-    const hash = dealHash(deal);
-    if (!dealsByHash.has(hash)) {
-      dealsByHash.set(hash, deal);
-      orderedHashes.push(hash);
-    }
-  }
+  // V11: index-ul hash este partajat intre toate guild-urile in ciclul curent
+  // prin WeakMap-ul de mai sus — pe deployment-uri cu N guild-uri reducem
+  // hashing-ul de la N x M la M apeluri per ciclu cron per currency.
+  const { dealsByHash, orderedHashes } = getDealsHashIndex(deals);
   const pending = [];
   for (const old of normalizePendingDiscountArray(guild.pendingDiscounts)) {
     if (seenSet.has(old.hash) || old.attempts >= PENDING_DISCOUNT_MAX_ATTEMPTS) continue;

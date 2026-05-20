@@ -9,7 +9,12 @@ import type {
   NormalizedUpdate,
   PatchUpdate
 } from "../../types";
-import { classifyPatchNote, scoreListingCandidate } from "../../native/fuzzy";
+import {
+  classifyPatchNote,
+  extractDateScore as rustExtractDateScore,
+  isGoodSteamArticleUrl as rustIsGoodSteamArticleUrl,
+  scoreListingCandidate
+} from "../../native/fuzzy";
 
 type HttpResponse<T = unknown> = { data: T };
 type HttpReq = (
@@ -109,33 +114,15 @@ function absoluteUrl(base: string | undefined, maybeRelative: string | undefined
 }
 
 function isGoodSteamArticleUrl(url: unknown): boolean {
-  const v = String(url || "").trim().toLowerCase();
-  return !(!v || !v.startsWith("http") || v.includes("steamstatic") || v.includes("steamcdn"));
+  // V11: delegat catre src/native/src/lib.rs::is_good_steam_article_url.
+  return rustIsGoodSteamArticleUrl(url);
 }
 
 function extractDateScore(url: string): number {
-  const u = url.toLowerCase();
-  const m1 = u.match(/(\d{4})[-/](\d{2})[-/](\d{2})/);
-  if (m1) {
-    const year = parseInt(m1[1], 10);
-    const month = parseInt(m1[2], 10);
-    const day = parseInt(m1[3], 10);
-    if (year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      const t = Date.UTC(year, month - 1, day);
-      if (!isNaN(t)) {
-        // Date.UTC rolls over invalid dates (e.g. Feb 31 -> Mar 2). Reject the
-        // roll-over case so URLs with malformed dates don't get a bogus score
-        // that skews sort order in fetchListingBasedUpdate.
-        const d = new Date(t);
-        if (d.getUTCFullYear() === year
-            && d.getUTCMonth() === month - 1
-            && d.getUTCDate() === day) {
-          return t;
-        }
-      }
-    }
-  }
-  return 0;
+  // V11: delegat catre src/native/src/lib.rs::extract_date_score. Acolo
+  // validarea anului/lunii/zilei si calculul UTC ms se fac fara regex
+  // engine si fara Date object allocation per ancora.
+  return rustExtractDateScore(url);
 }
 
 // Compiled-once cache for game.articleHrefRegex. fetchListingBasedUpdate is

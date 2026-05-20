@@ -7,7 +7,9 @@ const {
   classifyPatchNote,
   cleanText,
   dealHash,
+  extractDateScore,
   findGameKeys,
+  isGoodSteamArticleUrl,
   isRustFuzzyAvailable,
   levenshtein,
   normalizeDealState,
@@ -72,6 +74,39 @@ test("Rust classifyPatchNote: rejects unrelated news", () => {
 test("Rust classifyPatchNote: handles missing/odd inputs without throwing", () => {
   assert.equal(classifyPatchNote("", "", []), false);
   assert.equal(classifyPatchNote(undefined, undefined, undefined), false);
+});
+
+test("Rust isGoodSteamArticleUrl filters CDN/non-http URLs", () => {
+  assert.equal(isGoodSteamArticleUrl("https://store.steampowered.com/news/app/730"), true);
+  assert.equal(isGoodSteamArticleUrl("http://example.com/article"), true);
+  // Steam CDN images are not articles
+  assert.equal(isGoodSteamArticleUrl("https://cdn.steamstatic.com/image.jpg"), false);
+  assert.equal(isGoodSteamArticleUrl("https://media.steamcdn.com/image.png"), false);
+  // Non-http schemes and empties
+  assert.equal(isGoodSteamArticleUrl("ftp://foo/bar"), false);
+  assert.equal(isGoodSteamArticleUrl(""), false);
+  assert.equal(isGoodSteamArticleUrl("   "), false);
+  // Case-insensitive on the path matching
+  assert.equal(isGoodSteamArticleUrl("HTTPS://CDN.STEAMSTATIC.COM/X"), false);
+});
+
+test("Rust extractDateScore returns UTC ms for real dates, 0 for nonsense", () => {
+  // 2024-01-15 UTC = 1705276800000 ms
+  assert.equal(extractDateScore("https://x/news/2024-01-15/foo"), Date.UTC(2024, 0, 15));
+  assert.equal(extractDateScore("https://x/news/2024/01/15/foo"), Date.UTC(2024, 0, 15));
+  // Leap-year boundary: 2024-02-29 is real, 2023-02-29 isn't.
+  assert.equal(extractDateScore("https://x/2024-02-29"), Date.UTC(2024, 1, 29));
+  assert.equal(extractDateScore("https://x/2023-02-29"), 0);
+  // Roll-over case (Date.UTC would happily roll Feb 31 -> Mar 2)
+  assert.equal(extractDateScore("https://x/2024-02-31"), 0);
+  // Out-of-range year/month/day
+  assert.equal(extractDateScore("https://x/1999-12-31"), 0);
+  assert.equal(extractDateScore("https://x/2101-01-01"), 0);
+  assert.equal(extractDateScore("https://x/2024-13-01"), 0);
+  assert.equal(extractDateScore("https://x/2024-00-15"), 0);
+  // No date at all
+  assert.equal(extractDateScore("https://x/news/article-name"), 0);
+  assert.equal(extractDateScore(""), 0);
 });
 
 test("Rust scoreListingCandidate counts case-insensitive keyword hits", () => {

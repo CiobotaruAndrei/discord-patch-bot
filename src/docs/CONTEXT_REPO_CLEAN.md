@@ -178,7 +178,7 @@ Unde este folosit acum:
 - `src/sources/index.ts` exporta mai departe `levenshtein` prin context.
 - `src/features/commands/ui.ts` foloseste `findGameKeys` direct (Rust full loop, nu doar `levenshtein`) pentru fuzzy matching-ul comenzilor.
 - `src/infra/http/client.ts` deleaga `cleanText`, `normalizeTitleForDedupe`, `stableUpdateId`, `normalizeDealState` si `dealHash` catre wrapper-ele Rust din `src/native/fuzzy.ts`.
-- `src/sources/updates/index.ts` deleaga `isLikelyPatchNote` si `scoreCandidate` catre wrapper-ele Rust `classifyPatchNote` si `scoreListingCandidate`.
+- `src/sources/updates/index.ts` deleaga `isLikelyPatchNote`, `scoreCandidate`, `isGoodSteamArticleUrl` si `extractDateScore` catre wrapper-ele Rust corespunzatoare.
 
 Ce nu s-a mutat in Rust in acest pas:
 

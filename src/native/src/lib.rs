@@ -37,6 +37,106 @@ pub fn clean_text(text: String) -> String {
   clean_text_impl(&text)
 }
 
+// fetchSteamUpdate filters every news item through this; with up to 50 items
+// per game per cron tick and N games configured, the JS version paid a
+// startsWith + two includes chain per call. Native runs the whole check in
+// one bridge crossing.
+#[napi]
+pub fn is_good_steam_article_url(url: String) -> bool {
+  let v = url.trim().to_lowercase();
+  if v.is_empty() { return false; }
+  if !v.starts_with("http") { return false; }
+  if v.contains("steamstatic") { return false; }
+  if v.contains("steamcdn") { return false; }
+  true
+}
+
+// fetchListingBasedUpdate sorts up to 50-200 anchors per game per cron tick;
+// extract_date_score is called for every anchor to break ties. Moving the
+// regex match + day/month validation + Date.UTC equivalent into Rust avoids
+// JS regex-engine entry per call and the Date object allocation for roll-over
+// checks. Returns UTC milliseconds-since-epoch for the first YYYY[-/]MM[-/]DD
+// substring in `url`, or 0 if none was found or the date is a roll-over
+// (e.g. Feb 31).
+#[napi]
+pub fn extract_date_score(url: String) -> f64 {
+  extract_date_score_impl(&url)
+}
+
+fn extract_date_score_impl(url: &str) -> f64 {
+  let bytes = url.as_bytes();
+  if bytes.len() < 10 { return 0.0; }
+  let max_start = bytes.len() - 10;
+  let mut i = 0usize;
+  while i <= max_start {
+    if !bytes[i].is_ascii_digit() {
+      i += 1;
+      continue;
+    }
+    if bytes[i + 1].is_ascii_digit()
+      && bytes[i + 2].is_ascii_digit()
+      && bytes[i + 3].is_ascii_digit()
+      && (bytes[i + 4] == b'-' || bytes[i + 4] == b'/')
+      && bytes[i + 5].is_ascii_digit()
+      && bytes[i + 6].is_ascii_digit()
+      && (bytes[i + 7] == b'-' || bytes[i + 7] == b'/')
+      && bytes[i + 8].is_ascii_digit()
+      && bytes[i + 9].is_ascii_digit()
+    {
+      let year  = (bytes[i]     - b'0') as i32 * 1000
+                + (bytes[i + 1] - b'0') as i32 * 100
+                + (bytes[i + 2] - b'0') as i32 * 10
+                + (bytes[i + 3] - b'0') as i32;
+      let month = (bytes[i + 5] - b'0') as i32 * 10
+                + (bytes[i + 6] - b'0') as i32;
+      let day   = (bytes[i + 8] - b'0') as i32 * 10
+                + (bytes[i + 9] - b'0') as i32;
+      if year >= 2000 && year <= 2100
+        && month >= 1 && month <= 12
+        && day >= 1 && day <= 31
+      {
+        if let Some(ts) = utc_ms_for_date(year, month as u32, day as u32) {
+          return ts;
+        }
+      }
+    }
+    i += 1;
+  }
+  0.0
+}
+
+// Returns the milliseconds-since-epoch for midnight UTC on (year, month, day)
+// if that date is a real calendar date; None for roll-over inputs like Feb 31.
+// Mirrors `Date.UTC(year, month - 1, day)` followed by the year/month/day
+// round-trip check the JS implementation did to reject roll-overs.
+fn utc_ms_for_date(year: i32, month: u32, day: u32) -> Option<f64> {
+  let max_day = match month {
+    1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+    4 | 6 | 9 | 11 => 30,
+    2 => if is_leap_year(year) { 29 } else { 28 },
+    _ => return None,
+  };
+  if day == 0 || day > max_day { return None; }
+  Some(days_from_civil(year, month, day) as f64 * 86_400_000.0)
+}
+
+fn is_leap_year(year: i32) -> bool {
+  (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+}
+
+// Howard Hinnant's days_from_civil: given a Gregorian (year, month, day),
+// return days since 1970-01-01. Faster and dependency-free vs reaching for
+// chrono/time crates just for this.
+fn days_from_civil(year: i32, month: u32, day: u32) -> i64 {
+  let y = if month <= 2 { year - 1 } else { year } as i64;
+  let era = (if y >= 0 { y } else { y - 399 }) / 400;
+  let yoe = (y - era * 400) as u32;
+  let m = month as i64;
+  let doy = ((153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + day as i64 - 1) as u32;
+  let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+  era * 146_097 + doe as i64 - 719_468
+}
+
 // Keyword sets are static so we never reallocate them across calls. fetchSteamUpdate
 // runs classify_patch_note up to 50 times per game per cron tick — the JS version
 // called String.includes per keyword and burnt time on the JS<->native bridge for
