@@ -93,6 +93,8 @@ Functii exportate:
 - `clean_text(text)`: strip HTML tags, decodeaza entitati `&nbsp;/&amp;/&quot;/&#39;/&apos;/&lt;/&gt;` (case-insensitive, preserva pe cele necunoscute), colapseaza whitespace; folosit de toti scraperii;
 - `classify_patch_note(title, contents, tags)`: clasificator boolean al unei stiri Steam — bad-in-title invinge good word, tag `patchnotes`/`update` castiga, altfel match pe good-words; foloseste liste statice;
 - `score_listing_candidate(href, text, keywords)`: numara cate keywords din lista apar in `href + text` (lowercase, case-insensitive);
+- `is_good_steam_article_url(url)`: filtru per news item Steam (trim + lowercase + starts_with http + reject steamstatic/steamcdn);
+- `extract_date_score(url)`: scoreaza ancore listing dupa data din URL (YYYY-MM-DD / YYYY/MM/DD); valideaza leap year si respinge roll-over (Feb 31);
 - `stable_update_id(title, link)`: creeaza ID stabil de update din SHA1, taiat la 16 caractere;
 - `normalize_deal_state(sale_price, normal_price, savings)`: normalizeaza campurile de pret/procent;
 - `deal_hash(store, steam_app_id, id, title, sale_price, normal_price, savings)`: creeaza hash stabil pentru reduceri Steam, Epic si listing-based.
@@ -115,6 +117,8 @@ Functii:
 - `cleanText(value)`;
 - `classifyPatchNote(title, contents, tags)`;
 - `scoreListingCandidate(href, text, keywords)`;
+- `isGoodSteamArticleUrl(url)`;
+- `extractDateScore(url)`;
 - `stableUpdateId(title, link)`;
 - `normalizeDealState(deal)`;
 - `dealHash(deal)`.

@@ -130,6 +130,18 @@ Al treilea pas Rust — helperi de text in hot path:
 
 Atentie: acesti helperi nu schimba semantica vizibila pentru consumatorii lor — output-ul `cleanText`, decizia `isLikelyPatchNote` si scorul `scoreCandidate` raman identice cu inainte. Doar costul per apel scade.
 
+Al patrulea pas Rust — URL helpers la cron hot path:
+
+- `src/native/src/lib.rs::is_good_steam_article_url` muta verificarea per news item Steam in Rust. fetchSteamUpdate o ruleaza pana la 50 ori per joc per ciclu cron; ramane in JS doar wrapper-ul TS cu fallback identic.
+- `src/native/src/lib.rs::extract_date_score` muta in Rust scorul de sortare al ancorelor din `fetchListingBasedUpdate`. Implementare hand-rolled byte scanner pentru YYYY-MM-DD / YYYY/MM/DD plus algoritmul `days_from_civil` (Howard Hinnant) — fara dependinte `regex` / `chrono`. Acceptarea anilor bisecti (2024-02-29 da, 2023-02-29 nu) si respingerea roll-over (Feb 31) sunt aceleasi ca in JS.
+- `src/sources/updates/index.ts::isGoodSteamArticleUrl` si `extractDateScore` devin delegatori de o linie catre wrapper-ele din `src/native/fuzzy.ts`.
+- `src/test/rustFuzzy.test.ts` acopera ambele functii cu cazuri pozitive si negative (CDN/non-http rejected, leap year, roll-over, separator `-` vs `/`, intervale out-of-range).
+
+Bug fix-uri si perf in acelasi PR:
+
+- `infra/http/client.ts` retry-uieste 429 chiar si pe POST. Singurul POST din codebase este Epic GraphQL deals query — o cerere semantic de citire. Inainte cadea direct pe `throw` si pierdeam toate ofertele Epic intr-un ciclu cron la primul rate-limit. Acum onoreaza header-ul `Retry-After` ca si pe GET. Drive-by: cele doua aparitii `err.message` din `httpReq` au fost inlocuite cu `errorMessage(err)` pentru cazurile non-Error.
+- `features/notifications/index.ts::processGuildDiscounts` partajeaza index-ul `(hash -> snapshot)` intre toate guild-urile din acelasi ciclu printr-un `WeakMap<DealInfo[], { dealsByHash, orderedHashes }>` keyed pe referinta array-ului `deals`. Cu 100 de guild-uri si 50 de deal-uri scapam de 5000 de apeluri `dealHash` per ciclu si pastram doar 50.
+
 Nu am mutat in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy fallback sau parsare HTML in acest pas, pentru ca acolo timpul real este dominat de retea/IO si riscul ar fi mai mare decat castigul.
 
 ## Schimbari de build
