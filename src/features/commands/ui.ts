@@ -211,6 +211,13 @@ function refreshGuard(games: GameConfig[]): string {
   if (findGameCacheGuard.gamesRef === games && findGameCacheGuard.hash) {
     return findGameCacheGuard.hash;
   }
+  // V11: array-ul `games` s-a schimbat (de obicei la `loadConfig` la pornire,
+  // dar potential si la un reload viitor). Cache-ul mapeaza cheile prin
+  // `${hash}::${search}` — odata ce hash-ul vechi e abandonat, vechile intrari
+  // devin nereferentiabile prin codul de productie dar continua sa ocupe
+  // sloturi pana cand LRU le scoate la `FIND_GAME_CACHE_MAX = 200`. Le golim
+  // explicit ca sa eliberam memoria imediat dupa ce schimbam guardul.
+  if (findGameCacheGuard.hash) findGameCache.clear();
   const hash = games.map(game => String(game.key)).join("|");
   const byKey = new Map<string, GameConfig>();
   for (const game of games) byKey.set(String(game.key), game);
