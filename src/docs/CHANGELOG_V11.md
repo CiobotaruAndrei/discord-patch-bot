@@ -162,6 +162,10 @@ Curatare `transientErrorMessage` (pasul 8):
 - `features/notifications/index.ts::transientErrorMessage` devine alias direct la `errorMessage` din `shared/errors`. Numele se pastreaza pentru ca `resolveOutboundChannel.test.ts` (PR #44) pin-uieste `ctx.transientErrorMessage` in asertii, iar la call site-uri serveste ca adnotare "eroare asteptata tranzitorie". Acelasi comportament pe toate clasele de input testate.
 - `sources/deals/index.ts::_fetchDealsImpl` nu mai doarme `STEAM_REVIEW_BATCH_DELAY_MS` (default 500 ms) dupa ultimul batch de review-uri Steam. Pe configuratia default (`STEAM_SPECIALS_LIMIT=30` / `STEAM_REVIEW_BATCH_SIZE=5`) economisesti ~500 ms de wall-clock per fetchDeals per currency, fara sa schimbi caracteristicile de rate-limit per batch.
 
+Curatare shim `globalThis.fetchGameStatus` (pasul 9):
+
+- `features/commands/interactions.ts::handleStatusInteraction` ia acum `fetchGameStatus` prin destructure din `ctx`, ca toate celelalte handler-e din fisier. Vechiul `(globalThis as any).fetchGameStatus = ctx.fetchGameStatus;` din `features/commands/index.ts` a fost scos, la fel ca declaratia `const fetchGameStatus: any;` din `legacy-dynamic.d.ts`. Shim-ul era notat explicit ca "temporar" la conversia initiala a `interactions.ts` la TypeScript. Restul shim-urilor din `legacy-dynamic.d.ts` (Object dynamic fields) raman pana se reduce dinamic-typing-ul din `sendPayload`/`updateDoc`/`setDoc`.
+
 Nu am mutat in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy fallback sau parsare HTML in acest pas, pentru ca acolo timpul real este dominat de retea/IO si riscul ar fi mai mare decat castigul.
 
 ## Schimbari de build

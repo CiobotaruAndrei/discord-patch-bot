@@ -67,7 +67,7 @@ Rol: contracte comune pentru config, env, metrics, cron, lifecycle, locks, HTTP,
 
 ### `src/legacy-dynamic.d.ts`
 
-Rol: compatibilitate temporara pentru obiectele legacy construite dinamic dupa conversia fisierelor mari la TypeScript. Include campuri dinamice din `updateDoc`, `sendPayload`, `setDoc` si `fetchGameStatus`.
+Rol: compatibilitate temporara pentru obiectele legacy construite dinamic dupa conversia fisierelor mari la TypeScript. Include campuri dinamice din `updateDoc`, `sendPayload` si `setDoc`. Declaratia `fetchGameStatus` a fost scoasa in pasul 9 — handler-ul ia acum functia prin destructure din ctx.
 
 ## Rust Native
 
@@ -278,7 +278,7 @@ Functii: `dealPassesFilters`, `normalizePendingUpdateArray`, `normalizePendingDi
 
 ### `src/features/commands/index.ts`
 
-Agregator pentru cache, filtre, UI, notificari, slash commands si interactions. Mai seteaza temporar `globalThis.fetchGameStatus` pentru handler-ul legacy convertit la TypeScript.
+Agregator pentru cache, filtre, UI, notificari, slash commands si interactions. `fetchGameStatus` ajunge la `interactions.ts` prin destructure din ctx, ca toate celelalte handler-e (vechiul shim pe `globalThis` a fost scos in pasul 9).
 
 ### `src/features/commands/cache.ts`
 
