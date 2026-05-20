@@ -402,7 +402,10 @@ async function fetchNvidiaUpdate(g: GameConfig): Promise<NormalizedUpdate> {
     `https://news.google.com/rss/search?q=${encodeURIComponent(`site:nvidia.com ${q} release`)}&hl=en-US`);
   const f = await rssParser.parseString(r.data);
   if (!f.items || f.items.length === 0) throw new Error("Eșec Nvidia.");
-  const cleanTitle = cleanText(f.items[0].title).split(" - ")[0];
+  const rawTitle = f.items[0].title;
+  if (!rawTitle) throw new Error("Nvidia RSS fallback fara titlu in primul item.");
+  const cleanTitle = cleanText(rawTitle).split(" - ")[0];
+  if (!cleanTitle) throw new Error("Nvidia RSS fallback cu titlu gol dupa curatare.");
   return normalizeUpdate({
     id: stableUpdateId(cleanTitle, ""),
     title: cleanTitle,

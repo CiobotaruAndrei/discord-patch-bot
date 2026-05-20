@@ -143,7 +143,7 @@ Sursele externe sunt in `src/sources`:
 - `sourceRegistry.ts`: agregatorul surselor si exporturile tipate folosite de teste.
 - `steam/index.ts`: cautare Steam, preturi, parser de expirare oferte si alegere best match.
 - `deals/index.ts`: reduceri Steam/Epic, enrich cache si review scoring.
-- `updates/index.ts`: patch notes, listing-based scraping, circuit breaker si schema drift.
+- `updates/index.ts`: patch notes, listing-based scraping, circuit breaker, schema drift si guard-uri pentru fallback-uri RSS de drivere fara titlu valid.
 
 ## Commands si notificari
 
@@ -174,7 +174,7 @@ Scripturile sunt TypeScript:
 
 Teste importante:
 
-- `src/test/commands-regression.test.ts` verifica regresiile pentru comenzi, notificari, runtime si module compilate.
+- `src/test/commands-regression.test.ts` verifica regresiile pentru comenzi, notificari, runtime, module compilate si guard-urile RSS pentru drivere.
 - `src/test/housekeeping.test.ts` verifica idempotenta `createHousekeeping().start()` si faptul ca `stop()` curata intervalul creat.
 - `src/test/resolveOutboundChannel.test.ts` verifica comportamental erorile Discord permanente vs tranzitorii.
 - `src/test/rustFuzzy.test.ts` verifica addon-ul Rust si contractul helperilor nativi.
