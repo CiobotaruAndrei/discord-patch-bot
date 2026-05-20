@@ -17,6 +17,7 @@ module.exports = (ctx) => {
     safeEdit, findGameAndSuggestion, buildUpdateEmbed, buildDealEmbed,
     buildSteamPriceEmbed, handlePagination, dealPassesFilters, canSendEmbeds,
     missingChannelPermsMessage, makeActivationId, formatUserError, smoothTime,
+    fetchGameStatus,
     COLORS
   } = ctx;
 

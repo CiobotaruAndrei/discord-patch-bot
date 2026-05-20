@@ -12,8 +12,6 @@ declare global {
     allowedMentions?: any;
     lastProcessedGameKey?: any;
   }
-
-  const fetchGameStatus: any;
 }
 
 export {};
