@@ -172,7 +172,7 @@ Agregator pentru client HTTP, Steam helpers, update sources si deals sources. Ex
 
 ### `src/sources/updates/index.ts`
 
-`attachUpdates`, `fetchGameUpdate`, `executeFetchWithCircuitBreaker`, `getLatestForAllGames`. Helperii puri de clasificare si scor URL sunt delegati catre Rust prin `src/native/fuzzy.ts`.
+`attachUpdates`, `fetchGameUpdate`, `executeFetchWithCircuitBreaker`, `getLatestForAllGames`. Helperii puri de clasificare si scor URL sunt delegati catre Rust prin `src/native/fuzzy.ts`. Fallback-urile RSS pentru AMD, Intel si Nvidia resping item-urile fara titlu sau cu titlu gol dupa curatare, ca rezultatele invalide sa intre pe fluxul normal de eroare/circuit breaker.
 
 ### `src/sources/deals/index.ts`
 
@@ -228,7 +228,7 @@ Verifica faptul ca nu exista fisiere JavaScript sursa ramase in `src`.
 
 ### `src/test/commands-regression.test.ts`
 
-Testeaza regresiile pentru comenzi, notificari, health, cron, Mongo, HTTP, sources, TypeScript build si protectiile portate din codul local.
+Testeaza regresiile pentru comenzi, notificari, health, cron, Mongo, HTTP, sources, TypeScript build si protectiile portate din codul local, inclusiv guard-urile RSS pentru drivere fara titlu valid.
 
 ### `src/test/housekeeping.test.ts`
 
