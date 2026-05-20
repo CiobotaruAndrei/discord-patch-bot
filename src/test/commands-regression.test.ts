@@ -209,6 +209,13 @@ test("deal and update source modules keep TypeScript contracts after build", () 
   assert.match(runtimeSource, /async function getLatestForAllGames/);
 });
 
+test("driver RSS fallbacks reject missing and empty titles", () => {
+  assert.match(runtimeSource, /AMD RSS fallback fara titlu in primul item/);
+  assert.match(runtimeSource, /Intel RSS fallback fara titlu in primul item/);
+  assert.match(runtimeSource, /Nvidia RSS fallback fara titlu in primul item/);
+  assert.match(runtimeSource, /Nvidia RSS fallback cu titlu gol dupa curatare/);
+});
+
 test("cron lock acquisition errors are contained", () => {
   assert.match(runtimeSource, /lockAttemptStart/);
   assert.match(runtimeSource, /Nu am putut obtine lock-ul cron/);
