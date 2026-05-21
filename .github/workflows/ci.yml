@@ -9,7 +9,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   check:
@@ -20,56 +20,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Apply remaining strict fixes
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          function edit(file, mutator) {
-            const before = fs.readFileSync(file, 'utf8');
-            const after = mutator(before);
-            if (after !== before) fs.writeFileSync(file, after);
-          }
-
-          edit('app/lifecycle/events.ts', s =>
-            s.replace('await commands.registerSlashCommands(env.DISCORD_TOKEN, env.DISCORD_CLIENT_ID);',
-              'await commands.registerSlashCommands(String(env.DISCORD_TOKEN || ""), String(env.DISCORD_CLIENT_ID || ""));')
-          );
-
-          edit('sources/updates/index.ts', s =>
-            s.replace('try { return new URL(maybeRelative, base).href; } catch { return ""; }',
-              'try { return new URL(maybeRelative || "", base).href; } catch { return ""; }')
-          );
-
-          edit('features/commands/interactions.ts', s => {
-            s = s.replace('.map(deal => dealHash(deal));', '.map((deal: any) => dealHash(deal));');
-            s = s.replace('const lines = enabled.map(key => {', 'const lines = enabled.map((key: any) => {');
-            s = s.replace('const g = games.find(x => x.key === key);', 'const g = games.find((x: any) => x.key === key);');
-            return s;
-          });
-
-          edit('features/notifications/index.ts', s => {
-            s = s.replace('const cleaned = normalizePendingUpdateArray(arr).filter(item => {', 'const cleaned = normalizePendingUpdateArray(arr).filter((item: any) => {');
-            s = s.replace('return dealsPromises.get(cur);', 'return dealsPromises.get(cur) as Promise<any[]>;');
-            return s;
-          });
-          NODE
-
-      - name: Commit remaining strict fixes
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/lifecycle/events.ts sources/updates/index.ts features/commands/interactions.ts features/notifications/index.ts
-          git diff --cached --quiet && exit 0
-          git commit -m "Fix remaining strict type errors"
-          git push origin HEAD:codex/main-strict-tsconfig
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
