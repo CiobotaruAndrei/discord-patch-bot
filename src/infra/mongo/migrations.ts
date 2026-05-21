@@ -80,7 +80,7 @@ const m4_trimSeenDiscounts: Migration = {
     for (const doc of docs) {
       if (!Array.isArray(doc.seenDiscounts)) continue;
       const trimmed = doc.seenDiscounts.slice(-300);
-      await coll.updateOne({ _id: doc._id }, { $set: { seenDiscounts: trimmed } });
+      await coll.updateOne({ _id: doc._id as any }, { $set: { seenDiscounts: trimmed } });
     }
   }
 };

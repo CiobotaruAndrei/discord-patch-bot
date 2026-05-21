@@ -36,7 +36,7 @@ const runtimeFiles = [
   "app/health/metrics.js",
   "app/health/rateLimit.js"
 ];
-const readBuiltFile = (file) => fs.readFileSync(path.join(__dirname, "..", file), "utf8");
+const readBuiltFile = (file: string) => fs.readFileSync(path.join(__dirname, "..", file), "utf8");
 const commandsSource = commandFiles.map(readBuiltFile).join("\n");
 const runtimeSource = runtimeFiles.map(readBuiltFile).join("\n");
 const allSource = `${commandsSource}\n${runtimeSource}`;
