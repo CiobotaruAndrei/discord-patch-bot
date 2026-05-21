@@ -1,5 +1,6 @@
 import http = require("http");
 import https = require("https");
+import net = require("net");
 import type { AxiosRequestConfig, AxiosResponse, AxiosStatic } from "axios";
 import type {
   BotMetrics,
@@ -43,6 +44,78 @@ const USER_AGENTS = [
 
 const RETRY_ABLE_4XX = new Set([408, 425, 429]);
 
+function isPrivateIPv4(hostname: string): boolean {
+  const parts = hostname.split(".").map(part => Number(part));
+  if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) return false;
+  const [a, b] = parts;
+  return a === 0
+    || a === 10
+    || a === 127
+    || (a === 169 && b === 254)
+    || (a === 172 && b >= 16 && b <= 31)
+    || (a === 192 && b === 168);
+}
+
+function isPrivateIPv6(hostname: string): boolean {
+  const firstHextet = parseInt(hostname.split(":")[0] || "0", 16);
+  return hostname === "::"
+    || hostname === "::1"
+    || hostname === "0:0:0:0:0:0:0:1"
+    || ((firstHextet & 0xfe00) === 0xfc00)
+    || ((firstHextet & 0xffc0) === 0xfe80);
+}
+
+function isBlockedExternalHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase().replace(/\.$/, "");
+  if (!normalized) return true;
+  if (normalized === "localhost" || normalized.endsWith(".localhost")) return true;
+  const ipVersion = net.isIP(normalized);
+  if (ipVersion === 4) return isPrivateIPv4(normalized);
+  if (ipVersion === 6) return isPrivateIPv6(normalized);
+  return false;
+}
+
+function assertSafeExternalUrl(rawUrl: unknown, label = "URL extern"): string {
+  if (typeof rawUrl !== "string" || !rawUrl.trim()) {
+    throw new Error(`${label} lipseste sau nu este string.`);
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error(`${label} nu este URL valid.`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`${label} trebuie sa foloseasca http sau https.`);
+  }
+  if (parsed.username || parsed.password) {
+    throw new Error(`${label} nu poate contine credentiale.`);
+  }
+  if (isBlockedExternalHostname(parsed.hostname)) {
+    throw new Error(`${label} pointeaza catre o adresa locala sau privata.`);
+  }
+  return parsed.href;
+}
+
+function normalizeProxyTemplates(rawTemplates: string, defaults: string[]): string[] {
+  const candidates = rawTemplates
+    ? rawTemplates.split(",").map(s => s.trim()).filter(Boolean)
+    : defaults;
+  const seen = new Set<string>();
+  return candidates.map(template => {
+    if (!template.includes("{url}")) {
+      throw new Error("PROXY_URLS trebuie sa contina placeholder-ul {url}.");
+    }
+    const probeUrl = template.replace("{url}", encodeURIComponent("https://example.com/patch"));
+    assertSafeExternalUrl(probeUrl, "PROXY_URLS template");
+    return template;
+  }).filter(template => {
+    if (seen.has(template)) return false;
+    seen.add(template);
+    return true;
+  });
+}
+
 function attachHttpClient(ctx: HttpClientContext): void {
   const { axios, cheerio, env, logger, getAbortSignal } = ctx;
 
@@ -82,9 +155,7 @@ function attachHttpClient(ctx: HttpClientContext): void {
     "https://api.allorigins.win/get?url={url}",
     "https://api.codetabs.com/v1/proxy?quest={url}"
   ];
-  const PROXY_TEMPLATES = env.PROXY_URLS
-    ? env.PROXY_URLS.split(",").map(s => s.trim()).filter(Boolean)
-    : DEFAULT_PROXIES;
+  const PROXY_TEMPLATES = normalizeProxyTemplates(env.PROXY_URLS, DEFAULT_PROXIES);
 
   ctx.metricsRef = { fetchSuccess: 0, fetchFail: 0, httpRetries: 0, rateLimitHits: 0 };
   function metrics(): HttpMetricsRef {
@@ -156,6 +227,7 @@ function attachHttpClient(ctx: HttpClientContext): void {
     retries = 2,
     backoff = 1000
   ): Promise<AxiosResponse> {
+    const safeUrl = assertSafeExternalUrl(url, "HTTP URL");
     let contentLimit = options.maxContentLength;
     let bodyLimit = options.maxBodyLength;
     if (contentLimit === undefined) {
@@ -179,14 +251,14 @@ function attachHttpClient(ctx: HttpClientContext): void {
     const signal = options.signal || (typeof getAbortSignal === "function" ? getAbortSignal() : null);
     const reqConfig: AxiosRequestConfig = {
       method,
-      url,
+      url: safeUrl,
       timeout: options.timeout || 15000,
       maxContentLength: contentLimit,
       maxBodyLength: bodyLimit,
       headers: mergedHeaders
     };
     if (signal) reqConfig.signal = signal;
-    if (options.data) reqConfig.data = options.data;
+    if ("data" in options) reqConfig.data = options.data;
 
     const isIdempotent = String(method).toUpperCase() === "GET";
 
@@ -212,7 +284,7 @@ function attachHttpClient(ctx: HttpClientContext): void {
           throw err;
         }
         if (i === retries) {
-          logger("ERROR", "HTTP", `Esec final request [${status}] dupa ${retries} incercari: ${url}`, errorMessage(err));
+          logger("ERROR", "HTTP", `Esec final request [${status}] dupa ${retries} incercari: ${safeUrl}`, errorMessage(err));
           throw err;
         }
 
@@ -228,22 +300,23 @@ function attachHttpClient(ctx: HttpClientContext): void {
 
         waitMs = Math.round(waitMs * (0.5 + Math.random()));
         metrics().httpRetries++;
-        logger("WARN", "HTTP", `Esec request [${status}] (incercarea ${i + 1}/${retries}), reincerc in ${waitMs}ms: ${url}`,
+        logger("WARN", "HTTP", `Esec request [${status}] (incercarea ${i + 1}/${retries}), reincerc in ${waitMs}ms: ${safeUrl}`,
           { errMsg: errorMessage(err), is5xx, isNetworkErr, isRetryable4xx });
         await new Promise(res => setTimeout(res, waitMs));
         backoff *= 2;
       }
     }
-    throw new Error(`Request failed without result: ${url}`);
+    throw new Error(`Request failed without result: ${safeUrl}`);
   }
 
   async function fetchWithProxy(targetUrl: string, options: HttpRequestOptions = {}): Promise<string> {
+    const safeTargetUrl = assertSafeExternalUrl(targetUrl, "Proxy target URL");
     if (!PROXY_TEMPLATES.length) {
       throw new Error("Proxy fallback neconfigurat. Seteaza PROXY_URLS pentru aceasta sursa.");
     }
     let lastErr: unknown;
     for (const template of PROXY_TEMPLATES) {
-      const proxyUrl = template.replace("{url}", encodeURIComponent(targetUrl));
+      const proxyUrl = template.replace("{url}", encodeURIComponent(safeTargetUrl));
       try {
         const res = await httpReq("GET", proxyUrl, options);
         if (template.includes("allorigins")) {
@@ -297,6 +370,7 @@ function attachHttpClient(ctx: HttpClientContext): void {
     ENRICHED_DEAL_CACHE_MAX_SIZE,
     USER_AGENTS,
     PROXY_TEMPLATES,
+    assertSafeExternalUrl,
     attachMetrics,
     cleanText,
     truncate,
