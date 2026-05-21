@@ -8,7 +8,7 @@ Acest fisier documenteaza responsabilitatile modulelor importante din repo. Surs
 - Runtime-ul compilat TypeScript este CommonJS.
 - `src/tsconfig.json` are `allowJs: false`, deci fisierele `.js` nu mai sunt acceptate ca sursa editabila.
 - `src/scripts/check-syntax.ts` pica verificarea daca mai apare un fisier `.js` in sursa `src`, ignorand `dist/` si loader-ul generat `native/index.js`.
-- `src/infra/mongo/index.ts`, `src/sources/index.ts` si `src/features/commands/index.ts` sunt agregatoare.
+- `src/infra/mongo/mongoContext.ts`, `src/sources/sourceRegistry.ts` si `src/features/commands/commandRegistry.ts` sunt agregatoare.
 - `src/types.ts` tine tipurile comune folosite intre module.
 - `src/legacy-dynamic.d.ts` este un shim temporar pentru obiecte legacy dinamice ramase in fisierele mari convertite.
 - `src/native` contine cod Rust doar pentru algoritmi puri, nu pentru Discord/Mongo/HTTP.
@@ -195,7 +195,7 @@ Functii: `errorMessage`, `errorDetail`.
 
 Expune dependinte comune pentru context: `mongoose`, `crypto`, `axios`, `z`, `AsyncLocalStorage`.
 
-### `src/infra/mongo/index.ts`
+### `src/infra/mongo/mongoContext.ts`
 
 Agregator pentru infrastructura Mongo si shared utilities. Exporta logger, env, utilitare, modele, lock-uri, migrari, state global, guild settings, alerte admin, valute si request context.
 
@@ -250,7 +250,7 @@ Functii importante:
 
 Expune dependinte pentru surse: `axios`, `cheerio`, `rss-parser`, `crypto` si infrastructura Mongo.
 
-### `src/sources/index.ts`
+### `src/sources/sourceRegistry.ts`
 
 Agregator pentru client HTTP, Steam helpers, update sources si deals sources. Expune si exporturi TypeScript pentru `dealHash`, `extractOfferEndFromHtml`, `safeCheerioLoad` si `MAX_HTML_BYTES`, folosite de testele existente.
 
@@ -276,7 +276,7 @@ Functii: `dealPassesFilters`, `normalizePendingUpdateArray`, `normalizePendingDi
 
 ## Commands
 
-### `src/features/commands/index.ts`
+### `src/features/commands/commandRegistry.ts`
 
 Agregator pentru cache, filtre, UI, notificari, slash commands si interactions. `fetchGameStatus` ajunge la `interactions.ts` prin destructure din ctx, ca toate celelalte handler-e (vechiul shim pe `globalThis` a fost scos in pasul 9).
 

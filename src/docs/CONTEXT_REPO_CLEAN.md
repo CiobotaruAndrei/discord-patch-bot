@@ -36,7 +36,7 @@ src/
   features/
     commands/
       cache.ts
-      index.ts
+      commandRegistry.ts
       interactions.ts
       slashCommands.ts
       ui.ts
@@ -48,10 +48,10 @@ src/
     mongo/
       adminAlerts.ts
       guildSettings.ts
-      index.ts
       locks.ts
       migrations.ts
       models.ts
+      mongoContext.ts
       runtime.ts
       systemState.ts
   native/
@@ -71,8 +71,8 @@ src/
     logging.ts
     utilities.ts
   sources/
-    index.ts
     runtime.ts
+    sourceRegistry.ts
     deals/
       index.ts
     steam/
@@ -132,7 +132,7 @@ Scripturi importante:
 
 Flow-ul:
 
-1. `src/infra/mongo/index.ts` construieste contextul comun.
+1. `src/infra/mongo/mongoContext.ts` construieste contextul comun.
 2. Se ataseaza logging, env, domain, utilities, modele Mongo, lock-uri, migrari, state global, guild cache si alerte admin.
 3. `loadConfig` incarca si valideaza config-ul.
 4. Se creeaza metricile si se leaga de surse.
@@ -175,7 +175,7 @@ Module:
 Unde este folosit acum:
 
 - `src/sources/steam/index.ts` importa `levenshtein` din `src/native/fuzzy.ts`.
-- `src/sources/index.ts` exporta mai departe `levenshtein` prin context.
+- `src/sources/sourceRegistry.ts` exporta mai departe `levenshtein` prin context.
 - `src/features/commands/ui.ts` foloseste `findGameKeys` direct (Rust full loop, nu doar `levenshtein`) pentru fuzzy matching-ul comenzilor.
 - `src/infra/http/client.ts` deleaga `cleanText`, `normalizeTitleForDedupe`, `stableUpdateId`, `normalizeDealState` si `dealHash` catre wrapper-ele Rust din `src/native/fuzzy.ts`.
 - `src/sources/updates/index.ts` deleaga `isLikelyPatchNote`, `scoreCandidate`, `isGoodSteamArticleUrl` si `extractDateScore` catre wrapper-ele Rust corespunzatoare.
@@ -214,7 +214,7 @@ MongoDB tine setari per guild, update-uri vazute, reduceri vazute, cozi pending,
 Module importante:
 
 - `src/infra/mongo/runtime.ts`: dependinte comune pentru context;
-- `src/infra/mongo/index.ts`: agregatorul infrastructurii Mongo;
+- `src/infra/mongo/mongoContext.ts`: agregatorul infrastructurii Mongo;
 - `src/infra/mongo/models.ts`: modelele `Guild`, `CircuitBreaker`, `System`, `JobLock`, `AdminAlertCooldown`;
 - `src/infra/mongo/locks.ts`: lock-uri distribuite;
 - `src/infra/mongo/migrations.ts`: migrari DB idempotente;
