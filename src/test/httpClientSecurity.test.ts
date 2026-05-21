@@ -54,7 +54,7 @@ test("proxy fallback validates and encodes target URLs", async () => {
 
   assert.equal(body, "ok");
   assert.equal(requestedUrls.length, 1);
-  assert.equal(requestedUrls[0], "https://proxy.example/fetch?url=https%3A%2F%2Fexample.com%2Fpatch%20notes%3Fq%3Da%20b");
+  assert.equal(requestedUrls[0], "https://proxy.example/fetch?url=https%3A%2F%2Fexample.com%2Fpatch%2520notes%3Fq%3Da%2520b");
 });
 
 test("proxy templates must include the target placeholder", () => {
