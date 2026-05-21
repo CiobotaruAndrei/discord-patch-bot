@@ -1,0 +1,35 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/src"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "Europe/Bucharest"
+    open-pull-requests-limit: 3
+    groups:
+      runtime-dependencies:
+        dependency-type: "production"
+        patterns:
+          - "axios"
+          - "cheerio"
+          - "discord.js"
+          - "mongoose"
+          - "rss-parser"
+          - "zod"
+      build-and-types:
+        dependency-type: "development"
+        patterns:
+          - "@napi-rs/*"
+          - "@types/*"
+          - "typescript"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:30"
+      timezone: "Europe/Bucharest"
+    open-pull-requests-limit: 2

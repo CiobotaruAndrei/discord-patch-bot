@@ -9,10 +9,12 @@
     "app/health/httpServer.ts",
     "app/scheduler/cron.ts",
     "app/scheduler/housekeeping.ts",
+    "domain/deals/filtersCore.ts",
     "features/commands/commandRegistry.ts",
     "infra/http/client.ts",
     "shared/errors.ts",
     "test/cronController.test.ts",
+    "test/dealFiltersCore.functional.test.ts",
     "test/housekeeping.test.ts",
     "test/httpClientSecurity.test.ts"
   ]
