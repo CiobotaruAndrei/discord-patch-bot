@@ -73,6 +73,8 @@ src/
     resolveOutboundChannel.test.ts
     rustFuzzy.test.ts
     setGamesInteraction.functional.test.ts
+    sourceRegistry.functional.test.ts
+    startDiscountsFlow.e2e.test.ts
     startUpdatesFlow.e2e.test.ts
     ...
   docs/
@@ -89,6 +91,8 @@ cd src
 npm ci
 cp .env.example .env
 ```
+
+`src/.env.example` documenteaza variabilele pe categorii: runtime, Mongo, Discord, metrics, reverse proxy, admin webhook, proxy URL templates, logging, scraping, Discord throughput, circuit breaker, pending queues, cache-uri, Mongo pool si HTTP rate limit.
 
 Pentru dezvoltare locala, dupa ce completezi `src/.env`, foloseste:
 
@@ -130,6 +134,19 @@ README-ul are badge-uri pentru CI, Dependency Audit, Release, Node.js >=20 si li
 
 `SECURITY.md` explica raportarea privata a vulnerabilitatilor prin GitHub Security Advisories si cere ca tokenurile, credentialele Mongo, `METRICS_TOKEN`, webhook-urile si proxy URL-urile sa nu fie publicate in issue-uri, PR-uri sau loguri.
 
+## Docker si GHCR
+
+`Dockerfile` face build multi-stage: compileaza Rust/N-API si TypeScript in stage-ul de build, apoi imaginea runtime instaleaza doar dependintele production si porneste `npm start`.
+
+`.github/workflows/release.yml` publica imaginea Docker in GitHub Container Registry la fiecare tag `v*.*.*` sau release manual:
+
+```text
+ghcr.io/ciobotaruandrei/discord-patch-bot:<tag>
+ghcr.io/ciobotaruandrei/discord-patch-bot:latest
+```
+
+Workflow-ul ruleaza `npm run check` inainte sa publice imaginea si inainte sa creeze GitHub Release.
+
 ## Flow de pornire
 
 `src/app/main.ts` este orchestratorul. Dupa build, se ruleaza ca `dist/app/main.js`.
@@ -161,12 +178,13 @@ Regula curenta: sursa aplicatiei din `src` este TypeScript. Runtime-ul compilat 
 Reducerea treptata a `ctx` dinamic:
 
 - `src/features/commands/commandRegistry.ts` expune `createCommandRegistry(baseContext, installers)`, deci installer-ele pot fi injectate si testate explicit.
+- `src/sources/sourceRegistry.ts` expune `createSourceRegistry(baseContext, installers)`, deci sursele HTTP, Steam, updates si deals pot fi injectate si testate explicit.
 - `src/domain/deals/filtersCore.ts` expune functii pure tipate direct.
 - `src/domain/deals/filters.ts` ramane adapter pentru codul legacy care asteapta atasare pe context.
 - `src/features/notifications/outboundChannel.ts` expune resolver-ul de canal Discord ca serviciu tipat, iar `src/features/notifications/index.ts` il foloseste prin dependinte injectate.
-- `src/test/startUpdatesFlow.e2e.test.ts` acopera fluxul complet `/start updates` plus cron, ca extragerile viitoare din `interactions.ts` si `notifications/index.ts` sa aiba un guard functional.
+- `src/test/startUpdatesFlow.e2e.test.ts` si `src/test/startDiscountsFlow.e2e.test.ts` acopera fluxurile complete `/start updates` si `/start reduceri` plus cron, ca extragerile viitoare din `interactions.ts` si `notifications/index.ts` sa aiba guard functional.
 
-Urmatoarele tinte sanatoase pentru refactor sunt `features/commands/interactions.ts`, `features/notifications/index.ts` si `sources/`, mutate treptat spre factory-uri cu dependinte explicite.
+Urmatoarele tinte sanatoase pentru refactor sunt `features/commands/interactions.ts` si `features/notifications/index.ts`, mutate treptat spre factory-uri cu dependinte explicite.
 
 ## Rust
 
@@ -195,7 +213,9 @@ Module importante:
 
 Clientul HTTP comun este in `src/infra/http/client.ts`. El gestioneaza retry/backoff, limite de bytes, user-agent random, proxy fallback, hashing, normalizare, in-flight coalescing si abort signal.
 
-Tot aici se valideaza URL-urile externe inainte de request. `assertSafeExternalUrl` accepta doar `http` si `https`, respinge credentialele din URL, host-urile locale/private IPv4, IPv6 loopback/link-local/unique-local si orice template proxy fara `{url}`. `fetchWithProxy` valideaza intai URL-ul tinta si apoi encodeaza varianta canonica in proxy.
+`src/sources/sourceRegistry.ts` leaga clientul HTTP, helperii Steam, update sources si deals sources prin `createSourceRegistry(baseContext, installers)`. Exporturile vechi raman compatibile, dar wiring-ul poate fi testat fara sa depinda de contextul runtime implicit.
+
+Tot in clientul HTTP se valideaza URL-urile externe inainte de request. `assertSafeExternalUrl` accepta doar `http` si `https`, respinge credentialele din URL, host-urile locale/private IPv4, IPv6 loopback/link-local/unique-local si orice template proxy fara `{url}`. `fetchWithProxy` valideaza intai URL-ul tinta si apoi encodeaza varianta canonica in proxy.
 
 Sursele externe sunt fragile prin natura lor, pentru ca depind de HTML, RSS si API-uri care se pot schimba. Repo-ul pastreaza defensiv `SchemaDriftError`, circuit breaker, fallback-uri si teste pentru cazurile unde sursa incepe sa dea date goale sau forme neasteptate.
 
@@ -246,7 +266,7 @@ In productie `/metrics` trebuie protejat cu un `METRICS_TOKEN` real, exceptand c
 
 - `.github/workflows/ci.yml` ruleaza pe push, pull request si pornire manuala, foloseste Node.js 20, instaleaza Rust stable, instaleaza dependintele in `src` cu `npm ci` si executa `npm run check`.
 - `.github/workflows/dependency-audit.yml` ruleaza saptamanal si manual `npm audit --omit=dev --audit-level=moderate` in `src`.
-- `.github/workflows/release.yml` ruleaza la tag-uri `v*.*.*` sau manual cu input `tag`; face checkout pe ref-ul de release, ruleaza `npm run check`, apoi creeaza GitHub Release.
+- `.github/workflows/release.yml` ruleaza la tag-uri `v*.*.*` sau manual cu input `tag`; face checkout pe ref-ul de release, ruleaza `npm run check`, publica imaginea Docker in GHCR si creeaza GitHub Release.
 - `.github/dependabot.yml` propune PR-uri saptamanale pentru npm si GitHub Actions, cu grupuri separate pentru dependinte runtime, build/types si actions.
 
 ## Teste si scripturi
@@ -259,7 +279,9 @@ Scripturile sunt TypeScript:
 Teste importante:
 
 - `src/test/startUpdatesFlow.e2e.test.ts` verifica fluxul complet `/start updates -> baseline Mongo -> cron -> embed -> seen`.
+- `src/test/startDiscountsFlow.e2e.test.ts` verifica fluxul complet `/start reduceri -> baseline reduceri -> cron -> deal embed -> seenDiscounts`.
 - `src/test/commandRegistry.functional.test.ts` verifica registrul de comenzi cu installer-e mock injectate.
+- `src/test/sourceRegistry.functional.test.ts` verifica registrul de surse cu installer-e mock injectate.
 - `src/test/dealFiltersCore.functional.test.ts` verifica direct filtrele de reduceri si helperii de normalizare.
 - `src/test/setGamesInteraction.functional.test.ts` verifica functional `/set games add/remove` si cheia invalida.
 - `src/test/mongoMigrations.functional.test.ts` verifica migrarile Mongo cu colectii fake si release de lock.

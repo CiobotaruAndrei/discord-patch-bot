@@ -8,7 +8,7 @@ Acest fisier documenteaza responsabilitatile modulelor importante din repo. Surs
 - Runtime-ul compilat TypeScript este CommonJS.
 - `src/package-lock.json` blocheaza versiunile de dependinte, iar CI instaleaza cu `npm ci`.
 - `src/tsconfig.json` are `allowJs: false`, `strict: true` si `noImplicitAny: true`.
-- `src/tsconfig.strict.json` include zone stabilizate explicit, inclusiv `src/domain/deals/filtersCore.ts`, `src/features/notifications/outboundChannel.ts` si testele lor directe.
+- `src/tsconfig.strict.json` include zone stabilizate explicit, inclusiv `src/domain/deals/filtersCore.ts`, `src/features/notifications/outboundChannel.ts`, `src/sources/sourceRegistry.ts` si testele lor directe.
 - `src/scripts/check-syntax.ts` pica verificarea daca mai apare un fisier `.js` in sursa `src`, ignorand `dist/` si loader-ul generat `native/index.js`.
 - Agregatoarele descriptive sunt `src/infra/mongo/mongoContext.ts`, `src/sources/sourceRegistry.ts` si `src/features/commands/commandRegistry.ts`.
 - `src/types.ts` tine tipurile comune folosite intre module.
@@ -20,11 +20,11 @@ Acest fisier documenteaza responsabilitatile modulelor importante din repo. Surs
 
 ### `README.md`
 
-Rol: ghid principal pentru setup, env, comenzi, Docker, audit, release, security, health/metrics, structura, testare, badge-uri si exemple vizuale de embed-uri.
+Rol: ghid principal pentru setup, env, comenzi, Docker, audit, GHCR release image, security, health/metrics, structura, testare, badge-uri si exemple vizuale de embed-uri.
 
 ### `CHANGELOG.md`
 
-Rol: istoric de versiuni si schimbari notabile. Explica folosirea tag-urilor semver `vMAJOR.MINOR.PATCH` si sta ca sursa de note pentru GitHub Release.
+Rol: istoric de versiuni si schimbari notabile. Explica folosirea tag-urilor semver `vMAJOR.MINOR.PATCH`, mentioneaza imaginea GHCR si sta ca sursa de note pentru GitHub Release.
 
 ### `SECURITY.md`
 
@@ -68,9 +68,16 @@ Comportament: ruleaza saptamanal si la `workflow_dispatch`, lucreaza in `src`, i
 
 ### `.github/workflows/release.yml`
 
-Rol: release automat pentru tag-uri semver.
+Rol: release automat pentru tag-uri semver si imagine Docker publicata.
 
-Comportament: ruleaza la tag-uri `v*.*.*` sau manual cu input `tag`, face checkout pe ref-ul de release, instaleaza Node.js 20 si Rust stable, ruleaza `npm ci` si `npm run check` in `src`, apoi creeaza GitHub Release cu `CHANGELOG.md` si release notes generate de GitHub.
+Comportament: ruleaza la tag-uri `v*.*.*` sau manual cu input `tag`, rezolva tag-ul si numele imaginii lowercase, face checkout pe ref-ul de release, instaleaza Node.js 20 si Rust stable, ruleaza `npm ci` si `npm run check` in `src`, construieste `Dockerfile`, publica imaginea in GHCR si creeaza GitHub Release cu `CHANGELOG.md` si release notes generate de GitHub.
+
+Output GHCR:
+
+```text
+ghcr.io/ciobotaruandrei/discord-patch-bot:<tag>
+ghcr.io/ciobotaruandrei/discord-patch-bot:latest
+```
 
 ### `.github/dependabot.yml`
 
@@ -103,7 +110,7 @@ Rol: lockfile npm pentru instalari reproductibile local si in GitHub Actions.
 
 ### `src/.env.example`
 
-Rol: exemplu de configurare pentru `MONGO_URI`, tokenul Discord, client ID, metrics si tuning runtime.
+Rol: exemplu de configurare pentru `MONGO_URI`, tokenul Discord, client ID, metrics si tuning runtime. Este impartit pe categorii: runtime, Mongo, Discord, metrics, reverse proxy, admin webhook, proxy URL templates, logging, scraping, Discord throughput, circuit breaker, queues/cache si HTTP rate limit.
 
 ### `src/tsconfig.json`
 
@@ -111,7 +118,7 @@ Compileaza sursa TypeScript in `dist`, pastreaza CommonJS ca format runtime, fol
 
 ### `src/tsconfig.strict.json`
 
-Verificare stricta separata pentru zone stabilizate explicit: health server, scheduler, `domain/deals/filtersCore.ts`, `features/notifications/outboundChannel.ts`, `commandRegistry`, HTTP client, erori shared si testele directe pentru acele zone.
+Verificare stricta separata pentru zone stabilizate explicit: health server, scheduler, `domain/deals/filtersCore.ts`, `features/notifications/outboundChannel.ts`, `sources/sourceRegistry.ts`, `commandRegistry`, HTTP client, erori shared si testele directe pentru acele zone.
 
 ### `src/.gitignore`
 
@@ -241,7 +248,7 @@ Dependinte pentru surse: `axios`, `cheerio`, `rss-parser`, `crypto` si infrastru
 
 ### `src/sources/sourceRegistry.ts`
 
-Agregator pentru client HTTP, Steam helpers, update sources si deals sources. Expune si exporturi TypeScript folosite de teste.
+Agregator pentru client HTTP, Steam helpers, update sources si deals sources. Expune `createSourceRegistry(baseContext, installers)` pentru wiring explicit si testabil, apoi pastreaza exporturile vechi pentru compatibilitate cu runtime-ul curent.
 
 ### `src/sources/updates/index.ts`
 
@@ -289,7 +296,7 @@ Definitii si inregistrare slash commands.
 
 ### `src/features/commands/interactions.ts`
 
-Proceseaza slash commands si autocomplete. `handleSetGames` este acoperit functional pentru add/remove in `src/test/setGamesInteraction.functional.test.ts`. Fluxul complet `/start updates` este acoperit in `src/test/startUpdatesFlow.e2e.test.ts`, peste `interactions.ts` + `notifications/index.ts`.
+Proceseaza slash commands si autocomplete. `handleSetGames` este acoperit functional pentru add/remove in `src/test/setGamesInteraction.functional.test.ts`. Fluxurile complete `/start updates` si `/start reduceri` sunt acoperite in `src/test/startUpdatesFlow.e2e.test.ts` si `src/test/startDiscountsFlow.e2e.test.ts`, peste `interactions.ts` + `notifications/index.ts`.
 
 ## Notifications
 
@@ -315,9 +322,17 @@ Verifica faptul ca nu exista fisiere JavaScript sursa ramase in `src`.
 
 Testeaza end-to-end fluxul `/start updates`: baseline-ul initial scrie update-ul vechi in `seen`, cron-ul gaseste update-ul nou, trimite un embed si marcheaza update-ul ca vazut.
 
+### `src/test/startDiscountsFlow.e2e.test.ts`
+
+Testeaza end-to-end fluxul `/start reduceri`: baseline-ul initial scrie hash-ul reducerii vechi in `seenDiscounts`, cron-ul gaseste reducerea noua, trimite un embed si marcheaza deal-ul ca vazut.
+
 ### `src/test/commandRegistry.functional.test.ts`
 
 Testeaza functional `createCommandRegistry` cu installer-e mock injectate si verificare de eroare cand lipseste o functie obligatorie.
+
+### `src/test/sourceRegistry.functional.test.ts`
+
+Testeaza functional `createSourceRegistry` cu installer-e mock injectate pentru HTTP, Steam, updates si deals.
 
 ### `src/test/dealFiltersCore.functional.test.ts`
 
