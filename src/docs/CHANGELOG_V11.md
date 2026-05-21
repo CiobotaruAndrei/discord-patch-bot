@@ -6,7 +6,8 @@ Acest document noteaza starea curenta a repo-ului dupa curatare, migrarea la Typ
 
 - Codul editabil este in `src/`.
 - JavaScript-ul ramas este output generat in `src/dist/` sau loader N-API generat, nu sursa manuala.
-- Exceptia intentionata din afara `src/` este `.github/workflows/ci.yml`, fiindca GitHub Actions citeste workflow-urile doar din `.github/workflows`.
+- Dependintele sunt blocate prin `src/package-lock.json`, iar CI foloseste instalare reproductibila cu `npm ci`.
+- Exceptia intentionata din afara `src` este `.github/workflows/ci.yml`, fiindca GitHub Actions citeste workflow-urile doar din `.github/workflows`.
 - Agregatoarele cu nume generic au fost redenumite dupa rol:
   - `src/infra/mongo/mongoContext.ts` pentru contextul Mongo.
   - `src/sources/sourceRegistry.ts` pentru registrul de surse externe.
@@ -24,10 +25,14 @@ Acest document noteaza starea curenta a repo-ului dupa curatare, migrarea la Typ
 - `findGameAndSuggestion` foloseste cache LRU pentru autocomplete si fuzzy matching.
 - `features/commands/ui.ts::refreshGuard` goleste `findGameCache` cand array-ul `games` se schimba, ca vechile intrari nereferentiabile sa nu stea pana la pragul LRU.
 - HTTP foloseste agenti keep-alive, retry/backoff, proxy fallback, abort signal si `errorMessage` pentru erori non-Error.
+- `src/infra/http/client.ts::assertSafeExternalUrl` valideaza destinatiile externe inainte de request: accepta doar `http`/`https`, respinge credentialele in URL, host-urile locale/private IPv4, IPv6 loopback/link-local/unique-local si template-urile proxy fara `{url}`.
+- `fetchWithProxy` valideaza URL-ul tinta inainte sa-l puna in proxy si valideaza template-urile din `PROXY_URLS` la pornirea clientului HTTP.
 - Epic GraphQL deals retry-uieste 429 chiar si pe POST, pentru ca acel POST este semantic o citire.
 - Claim-urile atomice Mongo pentru update-uri si reduceri folosesc `withMongoRetry`.
 - Cron-ul are lock distribuit, heartbeat, health window si backoff global.
 - `app/scheduler/cron.ts::stop()` curata `cronTimerId` dupa `clearTimeout`, ca oprirea controllerului sa nu lase un handle stale in stare.
+- `src/app/health/httpServer.ts` construieste metricile printr-un helper central (`pushMetric`), ca aceeasi metrica Prometheus sa nu poata fi emisa accidental de doua ori.
+- `src/features/commands/commandRegistry.ts` declara functiile de context cerute si arunca explicit daca o dependinta lipseste. Pattern-ul legacy cu `ctx` injectat ramane de redus gradual catre factory-uri mai explicite.
 - Erorile Discord permanente `10003`, `10004`, `50001`, `50013` dezactiveaza canalul afectat.
 - A fost adaugat sistem de migrari DB la pornire.
 - A fost adaugata schema JSON pentru `config.json`.
@@ -43,6 +48,8 @@ Acest document noteaza starea curenta a repo-ului dupa curatare, migrarea la Typ
 ## TypeScript complet pe sursa
 
 Sursa din `src` a fost mutata la TypeScript. `src/tsconfig.json` are `allowJs: false`, iar `src/scripts/check-syntax.ts` pica verificarea daca apar fisiere `.js` manuale in sursa, cu exceptiile generate cunoscute.
+
+`src/tsconfig.strict.json` introduce treptat `strict: true` si `noImplicitAny: true` pe fisierele mai stabile sau nou intarite: health HTTP, cron, housekeeping, registrul de comenzi, clientul HTTP, erori shared si testele directe aferente. `npm run typecheck:strict`, `npm run lint` si `npm run check` ruleaza aceasta verificare, fara sa forteze inca tot proiectul legacy dintr-o singura mutare riscanta.
 
 Zone convertite si mentinute in TypeScript:
 
@@ -70,9 +77,10 @@ Nu au fost mutate in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy f
 
 ## Schimbari de build si CI
 
-- `src/package.json` are `build:rust`, `build:ts`, `build` si `check`.
-- `npm run check` compileaza addon-ul Rust, compileaza TypeScript-ul si ruleaza testele.
-- `.github/workflows/ci.yml` foloseste Node.js 20, instaleaza Rust stable, lucreaza cu `working-directory: src` si ruleaza `npm run check`.
+- `src/package-lock.json` este prezent in repo si blocheaza versiunile efective de dependinte.
+- `src/package.json` are `build:rust`, `build:ts`, `build`, `typecheck`, `typecheck:strict`, `lint` si `check`.
+- `npm run check` ruleaza `typecheck`, `typecheck:strict`, compileaza addon-ul Rust, compileaza TypeScript-ul si ruleaza testele.
+- `.github/workflows/ci.yml` foloseste Node.js 20, instaleaza Rust stable, lucreaza cu `working-directory: src`, instaleaza dependintele cu `npm ci` si ruleaza `npm run check`.
 - `src/.gitignore` ignora output-ul generat: `dist/`, `node_modules/`, `native/target/`, fisierele native `.node`, `native/index.js` si `native/index.d.ts`.
 - `src/legacy-dynamic.d.ts` ramane doar ca punte temporara pentru obiecte legacy construite dinamic.
 
@@ -80,6 +88,7 @@ Nu au fost mutate in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy f
 
 - `src/test/resolveOutboundChannel.test.ts` verifica comportamentul permanent vs tranzitoriu pentru erori Discord.
 - `src/test/cronController.test.ts` verifica comportamental ca `stop()` curata handle-ul programat si ramane idempotent.
+- `src/test/httpClientSecurity.test.ts` verifica respingerea URL-urilor externe nesigure, inclusiv `file:`, localhost, IPv4/IPv6 local sau privat, credentiale in URL si template-uri proxy fara `{url}`.
 - `src/test/commands-regression.test.ts` acopera protectiile textuale pentru lock, abort signal, health, notificari, cache, surse, registrul de comenzi si guard-urile RSS pentru drivere.
 - `src/test/housekeeping.test.ts` verifica direct ca `createHousekeeping().start()` porneste un singur interval chiar daca este apelat de doua ori si ca `stop()` curata intervalul.
 - Testele de domeniu acopera `buildOptimizedGameList`, `dealHash`, `extractOfferEndFromHtml`, `findGameAndSuggestion`, `safeCheerioLoad` si helperii Rust.

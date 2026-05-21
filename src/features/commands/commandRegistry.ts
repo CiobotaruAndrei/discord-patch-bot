@@ -1,4 +1,23 @@
-const ctx = require("./runtime") as any;
+interface CommandRegistryContext {
+  startCacheCleaner?: (...args: unknown[]) => unknown;
+  cleanCache?: (...args: unknown[]) => unknown;
+  getCacheSizes?: (...args: unknown[]) => unknown;
+  setGlobalCacheTtl?: (...args: unknown[]) => unknown;
+  checkForUpdates?: (...args: unknown[]) => unknown;
+  checkForDiscounts?: (...args: unknown[]) => unknown;
+  buildOptimizedGameList?: (...args: unknown[]) => unknown;
+  registerSlashCommands?: (...args: unknown[]) => unknown;
+  buildSlashCommandDefinitions?: (...args: unknown[]) => unknown;
+  handleInteraction?: (...args: unknown[]) => unknown;
+  buildHelpEmbed?: (...args: unknown[]) => unknown;
+  findGameAndSuggestion?: (...args: unknown[]) => unknown;
+  getFindGameCacheSize?: (...args: unknown[]) => unknown;
+  clearFindGameCache?: (...args: unknown[]) => unknown;
+  formatUserError?: (...args: unknown[]) => unknown;
+  [key: string]: unknown;
+}
+
+const ctx = require("./runtime") as CommandRegistryContext;
 
 require("./cache")(ctx);
 require("../../domain/deals/filters")(ctx);
@@ -10,22 +29,30 @@ require("../notifications")(ctx);
 require("./slashCommands")(ctx);
 require("./interactions")(ctx);
 
+function requireRegistryFunction<K extends keyof CommandRegistryContext>(key: K): NonNullable<CommandRegistryContext[K]> {
+  const value = ctx[key];
+  if (typeof value !== "function") {
+    throw new Error(`commandRegistry nu a primit functia necesara din ctx: ${String(key)}`);
+  }
+  return value as NonNullable<CommandRegistryContext[K]>;
+}
+
 const commands = {
-  startCacheCleaner: ctx.startCacheCleaner,
-  cleanCache: ctx.cleanCache,
-  getCacheSizes: ctx.getCacheSizes,
-  setGlobalCacheTtl: ctx.setGlobalCacheTtl,
-  checkForUpdates: ctx.checkForUpdates,
-  checkForDiscounts: ctx.checkForDiscounts,
-  buildOptimizedGameList: ctx.buildOptimizedGameList,
-  registerSlashCommands: ctx.registerSlashCommands,
-  buildSlashCommandDefinitions: ctx.buildSlashCommandDefinitions,
-  handleInteraction: ctx.handleInteraction,
-  buildHelpEmbed: ctx.buildHelpEmbed,
-  findGameAndSuggestion: ctx.findGameAndSuggestion,
-  getFindGameCacheSize: ctx.getFindGameCacheSize,
-  clearFindGameCache: ctx.clearFindGameCache,
-  formatUserError: ctx.formatUserError
+  startCacheCleaner: requireRegistryFunction("startCacheCleaner"),
+  cleanCache: requireRegistryFunction("cleanCache"),
+  getCacheSizes: requireRegistryFunction("getCacheSizes"),
+  setGlobalCacheTtl: requireRegistryFunction("setGlobalCacheTtl"),
+  checkForUpdates: requireRegistryFunction("checkForUpdates"),
+  checkForDiscounts: requireRegistryFunction("checkForDiscounts"),
+  buildOptimizedGameList: requireRegistryFunction("buildOptimizedGameList"),
+  registerSlashCommands: requireRegistryFunction("registerSlashCommands"),
+  buildSlashCommandDefinitions: requireRegistryFunction("buildSlashCommandDefinitions"),
+  handleInteraction: requireRegistryFunction("handleInteraction"),
+  buildHelpEmbed: requireRegistryFunction("buildHelpEmbed"),
+  findGameAndSuggestion: requireRegistryFunction("findGameAndSuggestion"),
+  getFindGameCacheSize: requireRegistryFunction("getFindGameCacheSize"),
+  clearFindGameCache: requireRegistryFunction("clearFindGameCache"),
+  formatUserError: requireRegistryFunction("formatUserError")
 };
 
 export = commands;

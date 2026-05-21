@@ -55,11 +55,30 @@ interface CreateHttpServerDeps {
   cronController?: CronController | null;
 }
 
+type PrometheusMetricType = "counter" | "gauge";
+
 function timingSafeEqualStr(crypto: CryptoLike, a: unknown, b: unknown): boolean {
   const bufA = Buffer.from(String(a || ""));
   const bufB = Buffer.from(String(b || ""));
   if (bufA.length !== bufB.length) return false;
   try { return crypto.timingSafeEqual(bufA, bufB); } catch { return false; }
+}
+
+function pushMetric(
+  lines: string[],
+  seenNames: Set<string>,
+  name: string,
+  type: PrometheusMetricType,
+  help: string,
+  value: string | number
+): void {
+  if (seenNames.has(name)) return;
+  seenNames.add(name);
+  lines.push(
+    `# HELP ${name} ${help}`,
+    `# TYPE ${name} ${type}`,
+    `${name} ${value}`
+  );
 }
 
 function createHttpServer({
@@ -71,7 +90,7 @@ function createHttpServer({
     if (env.METRICS_PUBLIC) return true;
     // No token configured: allowed in dev (legacy convenience), denied in prod.
     // (Production startup also requires either METRICS_TOKEN or METRICS_PUBLIC
-    // via env validation — see src/shared/env.ts.)
+    // via env validation - see src/shared/env.ts.)
     if (!env.METRICS_TOKEN) return !env.isProd;
     const auth = req.headers["authorization"] || "";
     const expected = `Bearer ${env.METRICS_TOKEN}`;
@@ -113,68 +132,28 @@ function createHttpServer({
         return;
       }
       const cacheSizes = commands.getCacheSizes();
-      const lines = [
-        `# HELP bot_uptime_seconds Bot uptime`,
-        `# TYPE bot_uptime_seconds gauge`,
-        `bot_uptime_seconds ${Math.floor((Date.now() - metrics.startedAt) / 1000)}`,
-        `# HELP bot_fetch_success Fetch reusite`,
-        `# TYPE bot_fetch_success counter`,
-        `bot_fetch_success ${metrics.fetchSuccess}`,
-        `# HELP bot_fetch_fail Fetch esuate`,
-        `# TYPE bot_fetch_fail counter`,
-        `bot_fetch_fail ${metrics.fetchFail}`,
-        `# HELP bot_http_retries HTTP retries`,
-        `# TYPE bot_http_retries counter`,
-        `bot_http_retries ${metrics.httpRetries}`,
-        `# HELP bot_rate_limit_hits Rate limit hits (upstream)`,
-        `# TYPE bot_rate_limit_hits counter`,
-        `bot_rate_limit_hits ${metrics.rateLimitHits}`,
-        `# HELP bot_cron_runs Cron runs`,
-        `# TYPE bot_cron_runs counter`,
-        `bot_cron_runs ${metrics.cronRuns}`,
-        `# HELP bot_cron_errors Cron errors`,
-        `# TYPE bot_cron_errors counter`,
-        `bot_cron_errors ${metrics.cronErrors}`,
-        `# HELP bot_cron_skipped_due_to_lock Cron skipped`,
-        `# TYPE bot_cron_skipped_due_to_lock counter`,
-        `bot_cron_skipped_due_to_lock ${metrics.cronSkippedDueToLock}`,
-        `# HELP bot_cron_aborted Cron aborted`,
-        `# TYPE bot_cron_aborted counter`,
-        `bot_cron_aborted ${metrics.cronAborted}`,
-        `# HELP bot_cron_skipped_due_to_health Cron skipped by global health backoff`,
-        `# TYPE bot_cron_skipped_due_to_health counter`,
-        `bot_cron_skipped_due_to_health ${metrics.cronSkippedDueToHealth || 0}`,
-        `# HELP bot_http_rate_limit_drops HTTP requests blocked by local rate limiter`,
-        `# TYPE bot_http_rate_limit_drops counter`,
-        `bot_http_rate_limit_drops ${metrics.httpRateLimitDrops}`,
-        `# HELP bot_cache_single Cache single size`,
-        `# TYPE bot_cache_single gauge`,
-        `bot_cache_single ${cacheSizes.single}`,
-        `# HELP bot_cache_dlc Cache DLC size`,
-        `# TYPE bot_cache_dlc gauge`,
-        `bot_cache_dlc ${cacheSizes.dlc}`,
-        `# HELP bot_cache_updates_valid Updates cache valid`,
-        `# TYPE bot_cache_updates_valid gauge`,
-        `bot_cache_updates_valid ${cacheSizes.updatesValid ? 1 : 0}`,
-        `# HELP bot_cache_deals_currencies_valid Deals cache currencies count`,
-        `# TYPE bot_cache_deals_currencies_valid gauge`,
-        `bot_cache_deals_currencies_valid ${cacheSizes.dealsCurrenciesValid}`,
-        `# HELP bot_cache_user_cooldowns User cooldowns size`,
-        `# TYPE bot_cache_user_cooldowns gauge`,
-        `bot_cache_user_cooldowns ${cacheSizes.userCooldowns}`,
-        `# HELP bot_cache_guild_settings Guild settings cache size`,
-        `# TYPE bot_cache_guild_settings gauge`,
-        `bot_cache_guild_settings ${getGuildCacheSize()}`,
-        `# HELP bot_cache_enriched_deals_size Enriched deals cache size`,
-        `# TYPE bot_cache_enriched_deals_size gauge`,
-        `bot_cache_enriched_deals_size ${scrapers.getEnrichedCacheSize()}`,
-        `# HELP bot_http_rate_limit_map_size Local HTTP rate limit map size`,
-        `# TYPE bot_http_rate_limit_map_size gauge`,
-        `bot_http_rate_limit_map_size ${rateLimiter.size}`,
-        `# HELP bot_active_locks Active distributed locks`,
-        `# TYPE bot_active_locks gauge`,
-        `bot_active_locks ${activeLocks.size}`
-      ];
+      const lines: string[] = [];
+      const seenMetricNames = new Set<string>();
+      pushMetric(lines, seenMetricNames, "bot_uptime_seconds", "gauge", "Bot uptime", Math.floor((Date.now() - metrics.startedAt) / 1000));
+      pushMetric(lines, seenMetricNames, "bot_fetch_success", "counter", "Fetch reusite", metrics.fetchSuccess);
+      pushMetric(lines, seenMetricNames, "bot_fetch_fail", "counter", "Fetch esuate", metrics.fetchFail);
+      pushMetric(lines, seenMetricNames, "bot_http_retries", "counter", "HTTP retries", metrics.httpRetries);
+      pushMetric(lines, seenMetricNames, "bot_rate_limit_hits", "counter", "Rate limit hits (upstream)", metrics.rateLimitHits);
+      pushMetric(lines, seenMetricNames, "bot_cron_runs", "counter", "Cron runs", metrics.cronRuns);
+      pushMetric(lines, seenMetricNames, "bot_cron_errors", "counter", "Cron errors", metrics.cronErrors);
+      pushMetric(lines, seenMetricNames, "bot_cron_skipped_due_to_lock", "counter", "Cron skipped", metrics.cronSkippedDueToLock);
+      pushMetric(lines, seenMetricNames, "bot_cron_aborted", "counter", "Cron aborted", metrics.cronAborted);
+      pushMetric(lines, seenMetricNames, "bot_cron_skipped_due_to_health", "counter", "Cron skipped by global health backoff", metrics.cronSkippedDueToHealth || 0);
+      pushMetric(lines, seenMetricNames, "bot_http_rate_limit_drops", "counter", "HTTP requests blocked by local rate limiter", metrics.httpRateLimitDrops);
+      pushMetric(lines, seenMetricNames, "bot_cache_single", "gauge", "Cache single size", cacheSizes.single);
+      pushMetric(lines, seenMetricNames, "bot_cache_dlc", "gauge", "Cache DLC size", cacheSizes.dlc);
+      pushMetric(lines, seenMetricNames, "bot_cache_updates_valid", "gauge", "Updates cache valid", cacheSizes.updatesValid ? 1 : 0);
+      pushMetric(lines, seenMetricNames, "bot_cache_deals_currencies_valid", "gauge", "Deals cache currencies count", cacheSizes.dealsCurrenciesValid);
+      pushMetric(lines, seenMetricNames, "bot_cache_user_cooldowns", "gauge", "User cooldowns size", cacheSizes.userCooldowns);
+      pushMetric(lines, seenMetricNames, "bot_cache_guild_settings", "gauge", "Guild settings cache size", getGuildCacheSize());
+      pushMetric(lines, seenMetricNames, "bot_cache_enriched_deals_size", "gauge", "Enriched deals cache size", scrapers.getEnrichedCacheSize());
+      pushMetric(lines, seenMetricNames, "bot_http_rate_limit_map_size", "gauge", "Local HTTP rate limit map size", rateLimiter.size);
+      pushMetric(lines, seenMetricNames, "bot_active_locks", "gauge", "Active distributed locks", activeLocks.size);
       res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4" });
       res.end(lines.join("\n") + "\n");
       return;

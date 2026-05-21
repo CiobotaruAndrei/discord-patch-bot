@@ -6,7 +6,9 @@ Acest fisier documenteaza responsabilitatile modulelor importante din repo. Surs
 
 - Proiectul compileaza Rust nativ si apoi TypeScript catre `src/dist/`.
 - Runtime-ul compilat TypeScript este CommonJS.
+- `src/package-lock.json` blocheaza versiunile de dependinte, iar CI instaleaza cu `npm ci`.
 - `src/tsconfig.json` are `allowJs: false`, deci fisierele `.js` nu mai sunt acceptate ca sursa editabila.
+- `src/tsconfig.strict.json` aplica gradual `strict: true` si `noImplicitAny: true` pe modulele deja stabilizate sau nou intarite.
 - `src/scripts/check-syntax.ts` pica verificarea daca mai apare un fisier `.js` in sursa `src`, ignorand `dist/` si loader-ul generat `native/index.js`.
 - Agregatoarele descriptive sunt `src/infra/mongo/mongoContext.ts`, `src/sources/sourceRegistry.ts` si `src/features/commands/commandRegistry.ts`.
 - `src/types.ts` tine tipurile comune folosite intre module.
@@ -21,7 +23,7 @@ Acest fisier documenteaza responsabilitatile modulelor importante din repo. Surs
 
 Rol: workflow-ul real de CI.
 
-Comportament: ruleaza pe push, pull request si `workflow_dispatch`, foloseste Node.js 20, instaleaza Rust stable, lucreaza in `src` si executa `npm run check`.
+Comportament: ruleaza pe push, pull request si `workflow_dispatch`, foloseste Node.js 20, instaleaza Rust stable, lucreaza in `src`, instaleaza dependintele cu `npm ci` si executa `npm run check`.
 
 ## Build si scripts
 
@@ -34,11 +36,21 @@ Scripturi importante:
 - `build`: ruleaza Rust apoi TypeScript.
 - `start`: compileaza si ruleaza `dist/app/main.js`.
 - `typecheck`: ruleaza `tsc --noEmit`.
-- `check`: ruleaza typecheck, build, syntax check, config check si testele.
+- `typecheck:strict`: ruleaza `tsc -p tsconfig.strict.json`.
+- `lint`: ruleaza `typecheck` si `typecheck:strict`.
+- `check`: ruleaza typecheck normal, typecheck strict gradual, build, syntax check, config check si testele.
+
+### `src/package-lock.json`
+
+Rol: lockfile npm pentru instalari reproductibile local si in GitHub Actions.
 
 ### `src/tsconfig.json`
 
 Compileaza sursa TypeScript in `dist`, pastreaza CommonJS ca format runtime, foloseste `moduleDetection: force`, are `allowJs: false` si exclude `dist`, `node_modules` si `coverage`.
+
+### `src/tsconfig.strict.json`
+
+Verificare stricta incrementala. In prezent include `app/health/httpServer.ts`, `app/scheduler/cron.ts`, `app/scheduler/housekeeping.ts`, `features/commands/commandRegistry.ts`, `infra/http/client.ts`, `shared/errors.ts` si testele directe pentru cron, housekeeping si securitatea clientului HTTP.
 
 ### `src/.gitignore`
 
@@ -70,7 +82,7 @@ Entrypoint-ul botului. Incarca config-ul, creeaza metrici, client Discord, rate 
 
 ### `src/app/health/httpServer.ts`
 
-`createHttpServer` si `timingSafeEqualStr`. Expune `/health`, `/healthz`, `/metrics`, aplica rate limit si protejeaza metrics cu token cand e necesar.
+`createHttpServer`, `timingSafeEqualStr` si helper-ul intern `pushMetric`. Expune `/health`, `/healthz`, `/metrics`, aplica rate limit, protejeaza metrics cu token cand e necesar si previne duplicarea accidentala a metricilor Prometheus cu acelasi nume.
 
 ### `src/app/scheduler/cron.ts`
 
@@ -156,9 +168,9 @@ Modelele `GuildModel`, `CircuitBreakerModel`, `SystemModel`, `JobLockModel`, `Ad
 
 ### `src/infra/http/client.ts`
 
-`attachHttpClient`, `attachMetrics`, `cleanText`, `truncate`, `normalizeTitleForDedupe`, `stableUpdateId`, `normalizeUpdate`, `safeCheerioLoad`, `normalizeDealState`, `dealHash`, `httpReq`, `fetchWithProxy`, `withInflightTimeout`, `trackInflight`.
+`attachHttpClient`, `attachMetrics`, `cleanText`, `truncate`, `normalizeTitleForDedupe`, `stableUpdateId`, `normalizeUpdate`, `safeCheerioLoad`, `normalizeDealState`, `dealHash`, `assertSafeExternalUrl`, `httpReq`, `fetchWithProxy`, `withInflightTimeout`, `trackInflight`.
 
-Normalizarile pure si hash-urile sunt delegate catre `src/native/fuzzy.ts`.
+Normalizarile pure si hash-urile sunt delegate catre `src/native/fuzzy.ts`. URL-urile externe sunt validate inainte de request: doar `http`/`https`, fara credentiale, fara localhost, fara adrese private IPv4 si fara adrese IPv6 locale/private. `PROXY_URLS` trebuie sa contina `{url}` si template-urile sunt validate la atasarea clientului HTTP.
 
 ## Sources
 
@@ -192,7 +204,9 @@ Agregator pentru client HTTP, Steam helpers, update sources si deals sources. Ex
 
 ### `src/features/commands/commandRegistry.ts`
 
-Agregator pentru cache, filtre, UI, notificari, slash commands si interactions. `fetchGameStatus` ajunge la `interactions.ts` prin context, nu prin `globalThis`.
+Agregator pentru cache, filtre, UI, notificari, slash commands si interactions. `fetchGameStatus` ajunge la `interactions.ts` prin context, nu prin `globalThis`. Registrul declara functiile asteptate din context si foloseste `requireRegistryFunction` ca sa pice devreme daca un modul nu a atasat o dependinta obligatorie.
+
+Pattern-ul legacy `require("./cache")(ctx)` inca exista aici, dar acum are un contract minim explicit. Urmatorul pas mare ar fi factory-uri de tip `createCommandRegistry({ mongo, scrapers, logger, env })`.
 
 ### `src/features/commands/cache.ts`
 
@@ -237,6 +251,10 @@ Testeaza comportamental ca `createCronController().stop()` curata handle-ul time
 ### `src/test/housekeeping.test.ts`
 
 Testeaza comportamental ca `createHousekeeping().start()` este idempotent si ca `stop()` curata intervalul creat.
+
+### `src/test/httpClientSecurity.test.ts`
+
+Testeaza `assertSafeExternalUrl`, `httpReq` si `fetchWithProxy`: scheme nesigure, localhost, IPv4/IPv6 local sau privat, credentiale in URL, URL tinta prin proxy si template-uri `PROXY_URLS` fara `{url}`.
 
 ### `src/test/resolveOutboundChannel.test.ts`
 
