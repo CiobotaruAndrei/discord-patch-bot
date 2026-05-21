@@ -284,5 +284,9 @@ test("/start reduceri baseline plus cron sends only the next unseen deal", async
   assert.equal(sentPayloads[0].embeds?.[0]?.enriched, true);
   assert.deepEqual(guild.seenDiscounts, ["old-deal", "new-deal"]);
   assert.deepEqual(guild.pendingDiscounts, []);
-  assert.equal(dealsCacheWrites.length, 1, "start reduceri should cache the baseline deals once");
+  assert.equal(dealsCacheWrites.length, 2, "start reduceri should cache the baseline, then cron should refresh the deals cache");
+  assert.deepEqual(
+    dealsCacheWrites.map(write => write.deals.map(deal => deal.id)),
+    [["old-deal"], ["old-deal", "new-deal"]]
+  );
 });
