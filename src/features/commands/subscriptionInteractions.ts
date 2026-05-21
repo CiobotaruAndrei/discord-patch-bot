@@ -1,9 +1,10 @@
 "use strict";
 
-const { errorMessage } = require("../../shared/errors");
+const { errorDetail, errorMessage } = require("../../shared/errors");
 
 type DiscordInteraction = any;
 type GameConfig = any;
+type MaybePromise<T> = T | Promise<T>;
 
 type GuildModelLike = {
   updateOne: (...args: any[]) => Promise<any>;
@@ -27,6 +28,11 @@ type SubscriptionInteractionDeps = {
   missingChannelPermsMessage: () => string;
   makeActivationId: () => string;
   formatUserError: (err: unknown, fallback: string) => string;
+};
+
+type SubscriptionContext = SubscriptionInteractionDeps & {
+  MessageFlags: { Ephemeral: number };
+  handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 };
 
 function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps) {
@@ -211,7 +217,49 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
   return { handleStartInteraction, handleStopInteraction };
 }
 
-Object.assign(module.exports, { createSubscriptionInteractionHandlers });
+function isSubscriptionCommand(interaction: DiscordInteraction) {
+  return interaction?.isChatInputCommand?.() === true
+    && interaction.guild
+    && (interaction.commandName === "start" || interaction.commandName === "stop");
+}
 
-export { createSubscriptionInteractionHandlers };
+function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
+  return {
+    content: "Eroare: Eroare neasteptata la procesarea comenzii.",
+    flags: MessageFlags.Ephemeral
+  };
+}
+
+function installSubscriptionInteractions(ctx: SubscriptionContext) {
+  const previousHandleInteraction = ctx.handleInteraction;
+  const handlers = createSubscriptionInteractionHandlers(ctx);
+
+  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
+    if (!isSubscriptionCommand(interaction)) {
+      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
+      return undefined;
+    }
+
+    try {
+      if (interaction.commandName === "start") return handlers.handleStartInteraction(interaction, games);
+      return handlers.handleStopInteraction(interaction);
+    } catch (err: any) {
+      ctx.logger("ERROR", "SUBSCRIPTION_INTERACTION", "Eroare in handler-ul de start/stop", errorDetail(err));
+      const payload = createInteractionErrorPayload(ctx.MessageFlags);
+      try {
+        if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
+        else await interaction.reply(payload);
+      } catch { /* ignore */ }
+      return undefined;
+    }
+  }
+
+  Object.assign(ctx, handlers, { handleInteraction });
+}
+
+Object.assign(installSubscriptionInteractions, { createSubscriptionInteractionHandlers });
+
+module.exports = installSubscriptionInteractions;
+
+export { createSubscriptionInteractionHandlers, installSubscriptionInteractions };
 export type { SubscriptionInteractionDeps };
