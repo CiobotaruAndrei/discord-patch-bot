@@ -1,94 +1,29 @@
-import type { DealInfo, GuildSettings, PendingDiscount, PendingUpdate } from "../../types";
+import {
+  dealPassesFilters,
+  getSeenSet,
+  mapToObject,
+  normalizePendingDiscountArray,
+  normalizePendingUpdateArray,
+  rotateAfter,
+  toEntries
+} from "./filtersCore";
 
-type EntrySource = Map<string, unknown> | Record<string, unknown> | { toObject(): Record<string, unknown> } | null | undefined;
 type DealFiltersContext = Record<string, unknown>;
 
-function dealPassesFilters(deal: DealInfo, guild: GuildSettings | null | undefined): boolean {
-  const minDisc = guild?.minDiscountPercent ?? 0;
-  const incFree = guild?.includeFreeGames !== false;
-  const incPaid = guild?.includePaidDiscounts !== false;
-  const maxPrice = Number(guild?.maxAbsolutePrice) || 0;
-  const enabledStores = Array.isArray(guild?.enabledStores) ? guild.enabledStores : [];
-
-  const salePriceNum = parseFloat(String(deal.salePrice));
-  const isFree = salePriceNum === 0;
-
-  if (isFree && !incFree) return false;
-  if (!isFree && !incPaid) return false;
-  if (!isFree && Number(deal.savings) < minDisc) return false;
-  if (!isFree && maxPrice > 0 && Number.isFinite(salePriceNum) && salePriceNum > maxPrice) return false;
-  if (enabledStores.length > 0 && !enabledStores.includes(String(deal.store))) return false;
-  return true;
-}
-
-function normalizePendingUpdateArray(arr: unknown): PendingUpdate[] {
-  if (!Array.isArray(arr)) return [];
-  return arr.map(item => {
-    const candidate = item as Record<string, unknown> | null;
-    if (!candidate || typeof candidate !== "object" || !candidate.id) return null;
-    return {
-      id: String(candidate.id),
-      title: String(candidate.title || ""),
-      link: String(candidate.link || ""),
-      excerpt: String(candidate.excerpt || ""),
-      thumbnail: candidate.thumbnail || null,
-      image: candidate.image || null,
-      timestamp: candidate.timestamp || "",
-      createdAt: candidate.createdAt || new Date(),
-      attempts: typeof candidate.attempts === "number" ? candidate.attempts : 0
-    } as PendingUpdate;
-  }).filter((item): item is PendingUpdate => Boolean(item));
-}
-
-function normalizePendingDiscountArray(arr: unknown): PendingDiscount[] {
-  if (!Array.isArray(arr)) return [];
-  return arr.map(item => {
-    const candidate = item as Record<string, unknown> | null;
-    if (!candidate || typeof candidate !== "object" || !candidate.hash) return null;
-    return {
-      hash: String(candidate.hash),
-      snapshot: (candidate.snapshot || null) as PendingDiscount["snapshot"],
-      lastSeenAt: candidate.lastSeenAt || new Date(),
-      attempts: typeof candidate.attempts === "number" ? candidate.attempts : 0
-    } as PendingDiscount;
-  }).filter((item): item is PendingDiscount => Boolean(item));
-}
-
-function toEntries(value: EntrySource): Array<[string, unknown]> {
-  if (!value) return [];
-  if (value instanceof Map) return Array.from(value.entries());
-  if (typeof (value as { toObject?: unknown }).toObject === "function") {
-    return Object.entries((value as { toObject(): Record<string, unknown> }).toObject());
-  }
-  return Object.entries(value);
-}
-
-function mapToObject<T>(map: Map<string, T>): Record<string, T> {
-  return Object.fromEntries(Array.from(map.entries()));
-}
-
-function getSeenSet(guild: Pick<GuildSettings, "seen">, gameKey: string): Set<string> {
-  const seenEntries = toEntries(guild.seen as EntrySource);
-  const found = seenEntries.find(([key]) => key === gameKey);
-  return new Set(Array.isArray(found?.[1]) ? found[1].map(String) : []);
-}
-
-function rotateAfter<T>(keys: T[], lastKey: T | null | undefined): T[] {
-  if (!lastKey || !keys.includes(lastKey)) return keys;
-  const index = keys.indexOf(lastKey);
-  return keys.slice(index + 1).concat(keys.slice(0, index + 1));
-}
+const dealFilterExports = {
+  dealPassesFilters,
+  normalizePendingUpdateArray,
+  normalizePendingDiscountArray,
+  toEntries,
+  mapToObject,
+  getSeenSet,
+  rotateAfter
+};
 
 function attachDealFilters(ctx: DealFiltersContext): void {
-  Object.assign(ctx, {
-    dealPassesFilters,
-    normalizePendingUpdateArray,
-    normalizePendingDiscountArray,
-    toEntries,
-    mapToObject,
-    getSeenSet,
-    rotateAfter
-  });
+  Object.assign(ctx, dealFilterExports);
 }
 
-export = attachDealFilters;
+const attachDealFiltersWithExports = Object.assign(attachDealFilters, dealFilterExports);
+
+export = attachDealFiltersWithExports;
