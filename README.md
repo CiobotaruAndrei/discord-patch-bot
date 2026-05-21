@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/ci.yml)
 [![Dependency Audit](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/dependency-audit.yml/badge.svg)](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/dependency-audit.yml)
+[![CodeQL](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/codeql.yml/badge.svg)](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/codeql.yml)
 [![Release](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/release.yml/badge.svg)](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/release.yml)
 ![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -76,6 +77,7 @@ Dependintele sunt blocate prin `src/package-lock.json`, iar CI instaleaza cu `np
 
 - `npm run audit` ruleaza local auditul pe dependintele runtime.
 - `.github/workflows/dependency-audit.yml` ruleaza saptamanal acelasi audit in GitHub Actions si poate fi pornit manual.
+- `.github/workflows/codeql.yml` ruleaza CodeQL pentru JavaScript/TypeScript la push, PR, saptamanal si manual.
 - `.github/dependabot.yml` deschide PR-uri saptamanale pentru dependinte npm din `src` si pentru GitHub Actions, grupate ca sa fie mai usor de verificat controlat.
 
 ## Release si versioning
@@ -99,6 +101,8 @@ ghcr.io/ciobotaruandrei/discord-patch-bot:latest
 ## Securitate
 
 Repo-ul are `SECURITY.md` pentru raportarea privata a vulnerabilitatilor. Nu publica in issue-uri tokenuri Discord, credentiale Mongo, `METRICS_TOKEN`, webhook-uri sau proxy URL-uri. Pentru probleme de securitate foloseste GitHub Security Advisories.
+
+CodeQL este configurat prin `.github/workflows/codeql.yml` pentru analiza JavaScript/TypeScript. Secret scanning si push protection se activeaza din setarile GitHub ale repo-ului; `SECURITY.md` documenteaza ce se verifica si ce trebuie rotit daca un secret ajunge public.
 
 ## Config jocuri
 
@@ -136,6 +140,7 @@ In productie `/metrics` trebuie protejat cu `METRICS_TOKEN`, exceptand cazul in 
 ```text
 .github/dependabot.yml       # PR-uri saptamanale pentru dependinte
 .github/workflows/ci.yml     # GitHub Actions principal
+.github/workflows/codeql.yml # CodeQL pentru JavaScript/TypeScript
 .github/workflows/dependency-audit.yml
 .github/workflows/release.yml
 CHANGELOG.md                 # istoric schimbari si versiuni
@@ -148,7 +153,7 @@ src/
   app/                       # main, lifecycle, scheduler, health
   config/                    # validare config
   domain/                    # reguli domeniu
-  features/commands/         # slash commands si interactions
+  features/commands/         # slash commands, interactions si subscription factory
   features/notifications/    # notificari automate
   infra/http/                # HTTP client, proxy, URL safety
   infra/mongo/               # modele, lock-uri, migrari, state
@@ -163,6 +168,7 @@ src/
 
 - Flux E2E `/start updates -> baseline Mongo -> cron -> embed -> seen` in `startUpdatesFlow.e2e.test.ts`
 - Flux E2E `/start reduceri -> baseline reduceri -> cron -> deal embed -> seenDiscounts` in `startDiscountsFlow.e2e.test.ts`
+- Factory-ul pentru `/start` si `/stop` in `subscriptionInteractions.functional.test.ts`
 - Discord channel resolution si erori permanente in `resolveOutboundChannel.test.ts`
 - `/set games add/remove` in `setGamesInteraction.functional.test.ts`
 - HTTP URL safety si proxy fallback in `httpClientSecurity.test.ts`
@@ -177,10 +183,11 @@ Codul legacy foloseste inca module CommonJS care ataseaza functii pe un context 
 
 - `commandRegistry` expune o fabrica testabila cu installer-e injectate explicit.
 - `sourceRegistry` expune o fabrica testabila cu installer-e injectate explicit pentru HTTP, Steam, updates si deals.
+- `features/commands/subscriptionInteractions.ts` extrage fluxurile `/start` si `/stop` intr-o factory tipata cu dependinte explicite si un wrapper instalat peste handlerul legacy.
 - `domain/deals/filtersCore.ts` expune reguli pure si tipate direct, iar `domain/deals/filters.ts` ramane doar adapter pentru contextul legacy.
 - `features/notifications/outboundChannel.ts` expune resolver-ul tipat pentru canale Discord, iar `features/notifications/index.ts` il foloseste ca serviciu injectat.
 - `startUpdatesFlow.e2e.test.ts` si `startDiscountsFlow.e2e.test.ts` acopera fluxurile complete ramase peste `interactions.ts` + `notifications/index.ts`, ca urmatoarea extragere din `ctx` sa aiba guard functional real.
-- Urmatorii pasi pot muta `interactions.ts` si `notifications/index.ts` catre servicii/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
+- Urmatorii pasi pot muta restul din `interactions.ts` si `notifications/index.ts` catre servicii/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
 
 ## Licenta
 
