@@ -54,7 +54,8 @@ const defaultInstallers: CommandModuleInstaller[] = [
   // celelalte handler-e (vezi ui.ts: Object.assign(ctx, { ..., fetchGameStatus })).
   require("../notifications") as CommandModuleInstaller,
   require("./slashCommands") as CommandModuleInstaller,
-  require("./interactions") as CommandModuleInstaller
+  require("./interactions") as CommandModuleInstaller,
+  require("./subscriptionInteractions") as CommandModuleInstaller
 ];
 
 function installCommandModules(
