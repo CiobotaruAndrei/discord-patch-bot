@@ -7,8 +7,8 @@ Acest fisier documenteaza responsabilitatile modulelor importante din repo. Surs
 - Proiectul compileaza Rust nativ si apoi TypeScript catre `src/dist/`.
 - Runtime-ul compilat TypeScript este CommonJS.
 - `src/package-lock.json` blocheaza versiunile de dependinte, iar CI instaleaza cu `npm ci`.
-- `src/tsconfig.json` are `allowJs: false`, deci fisierele `.js` nu mai sunt acceptate ca sursa editabila.
-- `src/tsconfig.strict.json` aplica gradual `strict: true` si `noImplicitAny: true` pe modulele deja stabilizate sau nou intarite.
+- `src/tsconfig.json` are `allowJs: false`, `strict: true` si `noImplicitAny: true`, deci fisierele `.js` nu mai sunt acceptate ca sursa editabila si proiectul principal este verificat strict.
+- `src/tsconfig.strict.json` ramane ca verificare separata pentru lista explicita de zone stabilizate anterior.
 - `src/scripts/check-syntax.ts` pica verificarea daca mai apare un fisier `.js` in sursa `src`, ignorand `dist/` si loader-ul generat `native/index.js`.
 - Agregatoarele descriptive sunt `src/infra/mongo/mongoContext.ts`, `src/sources/sourceRegistry.ts` si `src/features/commands/commandRegistry.ts`.
 - `src/types.ts` tine tipurile comune folosite intre module.
@@ -35,10 +35,10 @@ Scripturi importante:
 - `build:ts`: compileaza TypeScript cu `tsc`.
 - `build`: ruleaza Rust apoi TypeScript.
 - `start`: compileaza si ruleaza `dist/app/main.js`.
-- `typecheck`: ruleaza `tsc --noEmit`.
-- `typecheck:strict`: ruleaza `tsc -p tsconfig.strict.json`.
+- `typecheck`: ruleaza `tsc --noEmit` cu `strict` activ in configuratia principala.
+- `typecheck:strict`: ruleaza `tsc -p tsconfig.strict.json` pe lista explicita de fisiere stabilizate.
 - `lint`: ruleaza `typecheck` si `typecheck:strict`.
-- `check`: ruleaza typecheck normal, typecheck strict gradual, build, syntax check, config check si testele.
+- `check`: ruleaza typecheck normal, typecheck strict separat, build, syntax check, config check si testele.
 
 ### `src/package-lock.json`
 
@@ -46,11 +46,11 @@ Rol: lockfile npm pentru instalari reproductibile local si in GitHub Actions.
 
 ### `src/tsconfig.json`
 
-Compileaza sursa TypeScript in `dist`, pastreaza CommonJS ca format runtime, foloseste `moduleDetection: force`, are `allowJs: false` si exclude `dist`, `node_modules` si `coverage`.
+Compileaza sursa TypeScript in `dist`, pastreaza CommonJS ca format runtime, foloseste `moduleDetection: force`, are `allowJs: false`, `strict: true`, `noImplicitAny: true` si exclude `dist`, `node_modules` si `coverage`.
 
 ### `src/tsconfig.strict.json`
 
-Verificare stricta incrementala. In prezent include `app/health/httpServer.ts`, `app/scheduler/cron.ts`, `app/scheduler/housekeeping.ts`, `features/commands/commandRegistry.ts`, `infra/http/client.ts`, `shared/errors.ts` si testele directe pentru cron, housekeeping si securitatea clientului HTTP.
+Verificare stricta separata pentru lista explicita de fisiere stabilizate anterior: `app/health/httpServer.ts`, `app/scheduler/cron.ts`, `app/scheduler/housekeeping.ts`, `features/commands/commandRegistry.ts`, `infra/http/client.ts`, `shared/errors.ts` si testele directe pentru cron, housekeeping si securitatea clientului HTTP.
 
 ### `src/.gitignore`
 
