@@ -7,6 +7,7 @@ Acest document noteaza starea curenta a repo-ului dupa curatare, migrarea la Typ
 - Codul editabil este in `src/`.
 - JavaScript-ul ramas este output generat in `src/dist/` sau loader N-API generat, nu sursa manuala.
 - Dependintele sunt blocate prin `src/package-lock.json`, iar CI foloseste instalare reproductibila cu `npm ci`.
+- `src/tsconfig.json` ruleaza acum proiectul cu `strict: true` si `noImplicitAny: true`, nu doar verificarea separata stricta.
 - Exceptia intentionata din afara `src` este `.github/workflows/ci.yml`, fiindca GitHub Actions citeste workflow-urile doar din `.github/workflows`.
 - Agregatoarele cu nume generic au fost redenumite dupa rol:
   - `src/infra/mongo/mongoContext.ts` pentru contextul Mongo.
@@ -44,12 +45,13 @@ Acest document noteaza starea curenta a repo-ului dupa curatare, migrarea la Typ
 - `sources/updates/index.ts::fetchListingBasedUpdate` fetch-uieste URL-urile de listing paralel si pastreaza tiebreaker-ul determinist.
 - `app/scheduler/housekeeping.ts::start()` este idempotent: daca housekeeping ruleaza deja, un al doilea apel nu mai porneste inca un `setInterval` fara handle de oprire.
 - `sources/updates/index.ts::fetchNvidiaUpdate` respinge fallback-ul RSS fara titlu sau cu titlu gol dupa curatare, ca sursa stricata sa intre in circuit breaker in loc sa produca update-uri goale.
+- Configuratia principala TypeScript a fost ridicata la `strict: true` si `noImplicitAny: true`; handler-ele legacy de comenzi/notificari si testele au primit adnotarile minime necesare ca verificarea stricta completa sa treaca.
 
 ## TypeScript complet pe sursa
 
-Sursa din `src` a fost mutata la TypeScript. `src/tsconfig.json` are `allowJs: false`, iar `src/scripts/check-syntax.ts` pica verificarea daca apar fisiere `.js` manuale in sursa, cu exceptiile generate cunoscute.
+Sursa din `src` a fost mutata la TypeScript. `src/tsconfig.json` are `allowJs: false`, `strict: true` si `noImplicitAny: true`, iar `src/scripts/check-syntax.ts` pica verificarea daca apar fisiere `.js` manuale in sursa, cu exceptiile generate cunoscute.
 
-`src/tsconfig.strict.json` introduce treptat `strict: true` si `noImplicitAny: true` pe fisierele mai stabile sau nou intarite: health HTTP, cron, housekeeping, registrul de comenzi, clientul HTTP, erori shared si testele directe aferente. `npm run typecheck:strict`, `npm run lint` si `npm run check` ruleaza aceasta verificare, fara sa forteze inca tot proiectul legacy dintr-o singura mutare riscanta.
+`src/tsconfig.strict.json` ramane ca verificare separata pentru lista explicita de zone stabilizate anterior, dar strictul de baza este acum activ pe tot proiectul prin `src/tsconfig.json`. `npm run typecheck:strict`, `npm run lint` si `npm run check` ruleaza in continuare aceasta verificare ca protectie suplimentara.
 
 Zone convertite si mentinute in TypeScript:
 
