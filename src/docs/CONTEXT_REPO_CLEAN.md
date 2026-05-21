@@ -118,9 +118,9 @@ Logica mare nu trebuie pusa direct in `main.ts`; ea sta in modulele din `app`, `
 
 Regula curenta: sursa aplicatiei din `src` este TypeScript. Runtime-ul ramane CommonJS dupa compilare, deci importurile prin `require` si `module.exports` sunt acceptate unde ajuta la migrare sigura.
 
-`src/tsconfig.json` compileaza doar `.ts` si `.d.ts`, are `allowJs: false`, foloseste `module: CommonJS`, `moduleDetection: force` si exclude `dist`, `node_modules` si `coverage`.
+`src/tsconfig.json` compileaza doar `.ts` si `.d.ts`, are `allowJs: false`, `strict: true`, `noImplicitAny: true`, foloseste `module: CommonJS`, `moduleDetection: force` si exclude `dist`, `node_modules` si `coverage`.
 
-`src/tsconfig.strict.json` este verificarea stricta introdusa gradual. In prezent acopera health HTTP, cron, housekeeping, registrul de comenzi, clientul HTTP, erorile shared si testele directe pentru aceste zone. `npm run typecheck:strict`, `npm run lint` si `npm run check` o ruleaza mereu.
+`src/tsconfig.strict.json` ramane o verificare separata pentru lista explicita de zone stabilizate anterior. Strictul principal nu mai este dezactivat: `npm run typecheck`, `npm run lint` si `npm run check` verifica acum proiectul complet cu `strict` activ.
 
 `src/legacy-dynamic.d.ts` este un shim temporar pentru cateva obiecte legacy construite dinamic. Codul nou nu trebuie sa copieze acest model.
 

@@ -104,7 +104,7 @@ let runtimeContext: UpdatesContext;
 const inflightAllGames = new Map<string, Promise<FetchResult[]>>();
 
 function absoluteUrl(base: string | undefined, maybeRelative: string | undefined): string {
-  try { return new URL(maybeRelative, base).href; } catch { return ""; }
+  try { return new URL(maybeRelative || "", base).href; } catch { return ""; }
 }
 
 function isGoodSteamArticleUrl(url: unknown): boolean {
@@ -127,10 +127,11 @@ function extractDateScore(url: string): number {
 const articleHrefRegexCache = new WeakMap<GameConfig, RegExp>();
 
 function getArticleHrefRegex(game: GameConfig): RegExp | null {
-  if (!game.articleHrefRegex) return null;
+  const pattern = game.articleHrefRegex;
+  if (!pattern) return null;
   const cached = articleHrefRegexCache.get(game);
   if (cached) return cached;
-  const compiled = new RegExp(game.articleHrefRegex, "i");
+  const compiled = new RegExp(pattern, "i");
   articleHrefRegexCache.set(game, compiled);
   return compiled;
 }

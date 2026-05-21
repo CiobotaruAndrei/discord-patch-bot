@@ -2,7 +2,7 @@
 
 const { errorMessage } = require("../../shared/errors");
 
-module.exports = (ctx) => {
+module.exports = (ctx: any) => {
   const {
     GuildModel, logger, DEFAULT_CURRENCY, runConcurrent,
     validatePendingDiscountSnapshot, getLatestForAllGames, fetchDeals,
@@ -21,7 +21,7 @@ module.exports = (ctx) => {
 
 const DISCORD_PERMANENT_ERROR_CODES = new Set([10003, 10004, 50001, 50013]);
 
-function isPermanentDiscordError(err) {
+function isPermanentDiscordError(err: any) {
   return DISCORD_PERMANENT_ERROR_CODES.has(Number(err?.code));
 }
 
@@ -34,11 +34,11 @@ const transientErrorMessage = errorMessage;
 // V11: distingem erorile permanente (canal sters / fara acces / fara permisiuni
 // / tip de canal gresit) de cele tranzitorii (rate limit Discord, 5xx, timeout
 // retea). Pe tranzitoriu sarim ciclul, NU dezactivam guild-ul.
-async function resolveOutboundChannel({ client, guild, channelId, context, disableFn }) {
+async function resolveOutboundChannel({ client, guild, channelId, context, disableFn }: any) {
   let channel = null;
   try {
     channel = await client.channels.fetch(channelId);
-  } catch (err) {
+  } catch (err: any) {
     if (isPermanentDiscordError(err)) {
       const reason = `Discord cod ${err.code}: ${transientErrorMessage(err)}`;
       await disableFn(String(guild._id), channelId, reason).catch(() => null);
@@ -63,7 +63,7 @@ async function resolveOutboundChannel({ client, guild, channelId, context, disab
   return { channel, abort: false };
 }
 
-async function claimSeenUpdate(guildId, channelId, gameKey, updateId) {
+async function claimSeenUpdate(guildId: string, channelId: string, gameKey: string, updateId: string) {
   return withMongoRetry(() => GuildModel.updateOne(
     {
       _id: guildId,
@@ -81,14 +81,14 @@ async function claimSeenUpdate(guildId, channelId, gameKey, updateId) {
   ), { label: "claimSeenUpdate" });
 }
 
-async function rollbackSeenUpdate(guildId, gameKey, updateId) {
+async function rollbackSeenUpdate(guildId: string, gameKey: string, updateId: string) {
   return GuildModel.updateOne(
     { _id: guildId },
     { $pull: { [`seen.${gameKey}`]: updateId } }
   );
 }
 
-async function disableUpdatesForChannelError(guildId, channelId, message) {
+async function disableUpdatesForChannelError(guildId: string, channelId: string, message: string) {
   return GuildModel.updateOne(
     { _id: guildId },
     {
@@ -104,7 +104,7 @@ async function disableUpdatesForChannelError(guildId, channelId, message) {
 }
 
 // V9: filtrăm per joc + mențiune rol pe prima trimitere doar.
-async function processGuildUpdates(client, guild, latestResults) {
+async function processGuildUpdates(client: any, guild: any, latestResults: any[]) {
   const { channel, abort } = await resolveOutboundChannel({
     client,
     guild,
@@ -117,7 +117,7 @@ async function processGuildUpdates(client, guild, latestResults) {
   // V11: indexam latestResults dupa cheia jocului ca lookup-ul ulterior din
   // bucla de trimitere sa fie O(1) in loc sa parcurga linear toata lista la
   // fiecare iteratie.
-  const resultByGameKey = new Map();
+  const resultByGameKey = new Map<string, any>();
   for (const result of latestResults) {
     if (result?.game?.key) resultByGameKey.set(result.game.key, result);
   }
@@ -125,18 +125,18 @@ async function processGuildUpdates(client, guild, latestResults) {
   // V9: dacă guild-ul are listă explicită de jocuri active, filtrăm.
   const enabledGames = Array.isArray(guild.enabledGames) ? guild.enabledGames : [];
   const hasGameFilter = enabledGames.length > 0;
-  const enabledSet = hasGameFilter ? new Set(enabledGames) : null;
+  const enabledSet = new Set(enabledGames);
 
   const now = Date.now();
-  const pendingByGame = new Map();
-  const seenByGame = new Map();
+  const pendingByGame = new Map<string, any[]>();
+  const seenByGame = new Map<string, Set<string>>();
   for (const [gameKey, seen] of toEntries(guild.seen)) {
     seenByGame.set(gameKey, new Set(Array.isArray(seen) ? seen.map(String) : []));
   }
   for (const [gameKey, arr] of toEntries(guild.pendingUpdates)) {
     if (hasGameFilter && !enabledSet.has(gameKey)) continue;
     const seenSet = seenByGame.get(gameKey) || new Set();
-    const cleaned = normalizePendingUpdateArray(arr).filter(item => {
+    const cleaned = normalizePendingUpdateArray(arr).filter((item: any) => {
       const age = now - new Date(item.createdAt).getTime();
       return !seenSet.has(item.id)
         && age <= PENDING_UPDATE_MAX_AGE_MS
@@ -162,9 +162,10 @@ async function processGuildUpdates(client, guild, latestResults) {
   while (sentCount < MAX_UPDATES_PER_CYCLE) {
     const keys = Array.from(pendingByGame.keys()).filter(key => pendingByGame.get(key)?.length);
     if (!keys.length) break;
-    const gameKey = rotateAfter(keys, lastProcessedGameKey)[0];
-    const queue = pendingByGame.get(gameKey);
+    const gameKey = rotateAfter(keys, lastProcessedGameKey)[0] as string;
+    const queue = pendingByGame.get(gameKey) || [];
     const next = queue.shift();
+    if (!next) { pendingByGame.delete(gameKey); continue; }
     const game = resultByGameKey.get(gameKey)?.game || { name: gameKey };
     const claim = await claimSeenUpdate(String(guild._id), channel.id, gameKey, next.id);
     if (claim.matchedCount === 0) {
@@ -174,7 +175,7 @@ async function processGuildUpdates(client, guild, latestResults) {
     }
     try {
       // V9: prima trimitere pingează rolul (dacă e setat), restul nu — anti-spam.
-      const sendPayload = {
+      const sendPayload: any = {
         embeds: [buildUpdateEmbed(game.name, next, guild.notificationMode || "detailed")]
       };
       if (sentCount === 0 && guild.notificationRoleId) {
@@ -185,7 +186,7 @@ async function processGuildUpdates(client, guild, latestResults) {
       sentCount++;
       lastProcessedGameKey = gameKey;
       await sleepIfPositive(DISCORD_SEND_DELAY_MS);
-    } catch (err) {
+    } catch (err: any) {
       await rollbackSeenUpdate(String(guild._id), gameKey, next.id).catch(() => null);
       if (isPermanentDiscordError(err)) {
         const reason = `Discord cod ${err.code}: ${transientErrorMessage(err)}`;
@@ -203,7 +204,7 @@ async function processGuildUpdates(client, guild, latestResults) {
   }
 
   const pendingObject = mapToObject(pendingByGame);
-  const setDoc = { pendingUpdates: pendingObject };
+  const setDoc: any = { pendingUpdates: pendingObject };
   if (lastProcessedGameKey) setDoc.lastProcessedGameKey = lastProcessedGameKey;
   await GuildModel.updateOne(
     { _id: guild._id, subscribed: true, notificationChannelId: channel.id },
@@ -211,7 +212,7 @@ async function processGuildUpdates(client, guild, latestResults) {
   );
 }
 
-function buildOptimizedGameList(allGames, subscribedGuilds) {
+function buildOptimizedGameList(allGames: any[], subscribedGuilds: any[]) {
   if (!Array.isArray(subscribedGuilds) || subscribedGuilds.length === 0) return allGames;
 
   const used = new Set();
@@ -225,7 +226,7 @@ function buildOptimizedGameList(allGames, subscribedGuilds) {
   return filtered.length > 0 ? filtered : allGames;
 }
 
-async function checkForUpdates(client, games, shouldAbort = null) {
+async function checkForUpdates(client: any, games: any[], shouldAbort: (() => boolean) | null = null) {
   if (shouldAbort?.()) return;
 
   const guilds = await GuildModel.find({
@@ -244,20 +245,20 @@ async function checkForUpdates(client, games, shouldAbort = null) {
   try {
     latestResults = await getLatestForAllGames(optimizedGames, shouldAbort);
     setUpdatesCache(latestResults);
-  } catch (err) {
+  } catch (err: any) {
     logger("ERROR", "CRON_UPDATES", "Nu am putut prelua update-urile", transientErrorMessage(err));
     return;
   }
   if (shouldAbort?.()) return;
 
-  await runConcurrent(guilds, GUILD_PROCESS_CONCURRENCY, async (guild) => {
+  await runConcurrent(guilds, GUILD_PROCESS_CONCURRENCY, async (guild: any) => {
     if (!shouldAbort?.()) await processGuildUpdates(client, guild, latestResults);
   }, {
-    errorLogger: (guild, err) => logger("WARN", "CRON_UPDATES", `Eroare procesare guild ${guild._id}`, transientErrorMessage(err))
+    errorLogger: (guild: any, err: any) => logger("WARN", "CRON_UPDATES", `Eroare procesare guild ${guild._id}`, transientErrorMessage(err))
   });
 }
 
-async function claimSeenDiscount(guildId, channelId, hash) {
+async function claimSeenDiscount(guildId: string, channelId: string, hash: string) {
   return withMongoRetry(() => GuildModel.updateOne(
     {
       _id: guildId,
@@ -274,7 +275,7 @@ async function claimSeenDiscount(guildId, channelId, hash) {
   ), { label: "claimSeenDiscount" });
 }
 
-async function rollbackSeenDiscount(guildId, hash) {
+async function rollbackSeenDiscount(guildId: string, hash: string) {
   return GuildModel.updateOne(
     { _id: guildId },
     { $pull: { seenDiscounts: hash } }
@@ -285,9 +286,9 @@ async function rollbackSeenDiscount(guildId, hash) {
 // fetchDeals si nu se schimba intre guild-uri in acelasi ciclu cron. WeakMap
 // keyed pe referinta array-ului ne lasa sa hash-uim O data per ciclu (per
 // currency), nu N x M unde N = numar de guild-uri.
-const dealsHashIndexCache = new WeakMap();
+const dealsHashIndexCache = new WeakMap<any[], { dealsByHash: Map<string, any>; orderedHashes: string[] }>();
 
-function getDealsHashIndex(deals) {
+function getDealsHashIndex(deals: any[]) {
   let cached = dealsHashIndexCache.get(deals);
   if (cached) return cached;
   const dealsByHash = new Map();
@@ -304,7 +305,7 @@ function getDealsHashIndex(deals) {
   return cached;
 }
 
-async function disableDiscountsForChannelError(guildId, channelId, message) {
+async function disableDiscountsForChannelError(guildId: string, channelId: string, message: string) {
   return GuildModel.updateOne(
     { _id: guildId },
     {
@@ -320,7 +321,7 @@ async function disableDiscountsForChannelError(guildId, channelId, message) {
 }
 
 // V9: mențiune rol pe prima trimitere doar.
-async function processGuildDiscounts(client, guild, deals) {
+async function processGuildDiscounts(client: any, guild: any, deals: any[]) {
   const { channel, abort } = await resolveOutboundChannel({
     client,
     guild,
@@ -335,7 +336,7 @@ async function processGuildDiscounts(client, guild, deals) {
   // prin WeakMap-ul de mai sus — pe deployment-uri cu N guild-uri reducem
   // hashing-ul de la N x M la M apeluri per ciclu cron per currency.
   const { dealsByHash, orderedHashes } = getDealsHashIndex(deals);
-  const pending = [];
+  const pending: any[] = [];
   for (const old of normalizePendingDiscountArray(guild.pendingDiscounts)) {
     if (seenSet.has(old.hash) || old.attempts >= PENDING_DISCOUNT_MAX_ATTEMPTS) continue;
     const fresh = dealsByHash.get(old.hash);
@@ -352,16 +353,17 @@ async function processGuildDiscounts(client, guild, deals) {
   for (const hash of orderedHashes) {
     if (seenSet.has(hash) || pendingHashes.has(hash)) continue;
     const deal = dealsByHash.get(hash);
-    if (!dealPassesFilters(deal, guild)) continue;
+    if (!deal || !dealPassesFilters(deal, guild)) continue;
     pending.push({ hash, snapshot: deal, lastSeenAt: new Date(), attempts: 0 });
     pendingHashes.add(hash);
     if (pending.length >= PENDING_DISCOUNTS_LIMIT) break;
   }
 
-  const remaining = [];
+  const remaining: any[] = [];
   let sentCount = 0;
   for (let i = 0; i < pending.length; i++) {
     const item = pending[i];
+    if (!item) continue;
     if (sentCount >= MAX_DEALS_PER_CYCLE) {
       remaining.push(...pending.slice(i));
       break;
@@ -372,7 +374,7 @@ async function processGuildDiscounts(client, guild, deals) {
       const claim = await claimSeenDiscount(String(guild._id), channel.id, item.hash);
       if (claim.matchedCount === 0) continue;
       claimed = true;
-      const sendPayload = {
+      const sendPayload: any = {
         embeds: [buildDealEmbed(dealToSend, guild.notificationMode || "detailed", guild.currency || DEFAULT_CURRENCY)]
       };
       // V9: ping rol doar pe prima trimitere
@@ -383,7 +385,7 @@ async function processGuildDiscounts(client, guild, deals) {
       await channel.send(sendPayload);
       sentCount++;
       await sleepIfPositive(DISCORD_SEND_DELAY_MS);
-    } catch (err) {
+    } catch (err: any) {
       if (claimed) await rollbackSeenDiscount(String(guild._id), item.hash).catch(() => null);
       if (isPermanentDiscordError(err)) {
         const reason = `Discord cod ${err.code}: ${transientErrorMessage(err)}`;
@@ -406,7 +408,7 @@ async function processGuildDiscounts(client, guild, deals) {
   );
 }
 
-async function checkForDiscounts(client, shouldAbort = null) {
+async function checkForDiscounts(client: any, shouldAbort: (() => boolean) | null = null) {
   if (shouldAbort?.()) return;
   const guilds = await GuildModel.find({
     discountsSubscribed: true,
@@ -415,27 +417,27 @@ async function checkForDiscounts(client, shouldAbort = null) {
   }).lean();
   if (!guilds.length) return;
 
-  const dealsPromises = new Map();
-  async function dealsForCurrency(currency) {
+  const dealsPromises = new Map<string, Promise<any[]>>();
+  async function dealsForCurrency(currency: any): Promise<any[]> {
     const cur = normalizeCurrencyKey(currency);
     const cached = getDealsCacheData(cur);
     if (cached) return cached;
     if (!dealsPromises.has(cur)) {
-      dealsPromises.set(cur, fetchDeals({ currency: cur, fromCron: true }).then(deals => {
+      dealsPromises.set(cur, fetchDeals({ currency: cur, fromCron: true }).then((deals: any[]) => {
         setDealsCache(cur, deals);
         return deals;
       }));
     }
-    return dealsPromises.get(cur);
+    return dealsPromises.get(cur) as Promise<any[]>;
   }
 
-  await runConcurrent(guilds, GUILD_PROCESS_CONCURRENCY, async (guild) => {
+  await runConcurrent(guilds, GUILD_PROCESS_CONCURRENCY, async (guild: any) => {
     if (shouldAbort?.()) return;
     const currency = guild.currency || DEFAULT_CURRENCY;
     const deals = await dealsForCurrency(currency);
     await processGuildDiscounts(client, guild, deals);
   }, {
-    errorLogger: (guild, err) => logger("WARN", "CRON_DISCOUNTS", `Eroare procesare guild ${guild._id}`, transientErrorMessage(err))
+    errorLogger: (guild: any, err: any) => logger("WARN", "CRON_DISCOUNTS", `Eroare procesare guild ${guild._id}`, transientErrorMessage(err))
   });
 }
 
