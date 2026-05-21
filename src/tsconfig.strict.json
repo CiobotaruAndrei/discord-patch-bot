@@ -14,10 +14,12 @@
     "features/notifications/outboundChannel.ts",
     "infra/http/client.ts",
     "shared/errors.ts",
+    "sources/sourceRegistry.ts",
     "test/cronController.test.ts",
     "test/dealFiltersCore.functional.test.ts",
     "test/housekeeping.test.ts",
     "test/httpClientSecurity.test.ts",
-    "test/resolveOutboundChannel.test.ts"
+    "test/resolveOutboundChannel.test.ts",
+    "test/sourceRegistry.functional.test.ts"
   ]
 }
