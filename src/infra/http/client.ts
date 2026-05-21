@@ -24,6 +24,15 @@ type CheerioModule = typeof import("cheerio");
 type CryptoModule = typeof import("crypto");
 type HttpMetricsRef = Pick<BotMetrics, "fetchSuccess" | "fetchFail" | "httpRetries" | "rateLimitHits">;
 
+interface AxiosLikeError {
+  code?: string;
+  name?: string;
+  response?: {
+    status?: number;
+    headers?: Record<string, unknown>;
+  };
+}
+
 interface HttpClientContext {
   axios: AxiosStatic;
   cheerio: CheerioModule;
@@ -57,16 +66,30 @@ function isPrivateIPv4(hostname: string): boolean {
 }
 
 function isPrivateIPv6(hostname: string): boolean {
-  const firstHextet = parseInt(hostname.split(":")[0] || "0", 16);
-  return hostname === "::"
-    || hostname === "::1"
-    || hostname === "0:0:0:0:0:0:0:1"
+  const normalized = hostname.toLowerCase();
+  if (normalized.startsWith("::ffff:")) {
+    const mappedIpv4 = normalized.slice("::ffff:".length);
+    return !net.isIP(mappedIpv4) || isPrivateIPv4(mappedIpv4);
+  }
+  const firstHextet = parseInt(normalized.split(":").find(Boolean) || "0", 16);
+  return normalized === "::"
+    || normalized === "::1"
+    || normalized === "0:0:0:0:0:0:0:0"
+    || normalized === "0:0:0:0:0:0:0:1"
     || ((firstHextet & 0xfe00) === 0xfc00)
     || ((firstHextet & 0xffc0) === 0xfe80);
 }
 
-function isBlockedExternalHostname(hostname: string): boolean {
+function normalizeHostname(hostname: string): string {
   const normalized = hostname.toLowerCase().replace(/\.$/, "");
+  if (normalized.startsWith("[") && normalized.endsWith("]")) {
+    return normalized.slice(1, -1);
+  }
+  return normalized;
+}
+
+function isBlockedExternalHostname(hostname: string): boolean {
+  const normalized = normalizeHostname(hostname);
   if (!normalized) return true;
   if (normalized === "localhost" || normalized.endsWith(".localhost")) return true;
   const ipVersion = net.isIP(normalized);
@@ -266,10 +289,11 @@ function attachHttpClient(ctx: HttpClientContext): void {
       try {
         return await axiosClient(reqConfig);
       } catch (err) {
-        if (err?.code === "ERR_CANCELED" || err?.name === "CanceledError" || err?.name === "AbortError") {
+        const requestError = err as AxiosLikeError;
+        if (requestError.code === "ERR_CANCELED" || requestError.name === "CanceledError" || requestError.name === "AbortError") {
           throw err;
         }
-        const status = err.response?.status || "N/A";
+        const status = requestError.response?.status || "N/A";
         // V11: 429 inseamna "server-ul ne cere sa incetinim", nu "request-ul a
         // fost respins definitiv". E sigur sa-l reincercam si pe POST (cazul
         // nostru: Epic GraphQL queries care sunt semantic citiri). Inainte,
@@ -291,7 +315,7 @@ function attachHttpClient(ctx: HttpClientContext): void {
         let waitMs = backoff;
         if (isRateLimit) {
           metrics().rateLimitHits++;
-          const retryAfter = err.response?.headers?.["retry-after"];
+          const retryAfter = requestError.response?.headers?.["retry-after"];
           if (retryAfter) {
             const parsed = parseInt(String(retryAfter), 10);
             if (!isNaN(parsed) && parsed > 0) waitMs = Math.min(parsed * 1000, 30000);
