@@ -94,8 +94,11 @@ function createCronController({
     30 * 60 * 1000,
     60 * 60 * 1000
   ]);
-  const configIntervalMs = Number.isFinite(config.checkIntervalMinutes) && config.checkIntervalMinutes > 0
-    ? Math.round(config.checkIntervalMinutes * 60 * 1000)
+  const configuredIntervalMinutes = config.checkIntervalMinutes;
+  const configIntervalMs = typeof configuredIntervalMinutes === "number"
+    && Number.isFinite(configuredIntervalMinutes)
+    && configuredIntervalMinutes > 0
+    ? Math.round(configuredIntervalMinutes * 60 * 1000)
     : 30 * 60 * 1000;
   const requestedIntervalMs = parseEnvNumber("CRON_INTERVAL_MS", configIntervalMs, {
     min: 10 * 60 * 1000,
