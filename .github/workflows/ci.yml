@@ -38,6 +38,12 @@ jobs:
           name: generated-package-lock
           path: src/package-lock.json
 
+      - name: Print generated lockfile
+        run: |
+          echo "LOCKFILE_B64_START"
+          node -e "console.log(require('fs').readFileSync('package-lock.json', 'base64'))"
+          echo "LOCKFILE_B64_END"
+
       - name: Run project checks
         env:
           MONGO_URI: mongodb://localhost:27017/discord-patch-bot-test
