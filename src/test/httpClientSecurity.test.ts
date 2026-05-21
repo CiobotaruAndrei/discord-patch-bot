@@ -42,6 +42,9 @@ test("HTTP client rejects unsafe external URLs", async () => {
 
   assert.throws(() => ctx.assertSafeExternalUrl("file:///etc/passwd"), /http sau https/);
   assert.throws(() => ctx.assertSafeExternalUrl("http://127.0.0.1/admin"), /locala sau privata/);
+  assert.throws(() => ctx.assertSafeExternalUrl("http://[::1]/admin"), /locala sau privata/);
+  assert.throws(() => ctx.assertSafeExternalUrl("http://[fd00::1]/admin"), /locala sau privata/);
+  assert.throws(() => ctx.assertSafeExternalUrl("http://[::ffff:127.0.0.1]/admin"), /locala sau privata/);
   assert.throws(() => ctx.assertSafeExternalUrl("https://user:pass@example.com/"), /credentiale/);
   await assert.rejects(() => ctx.httpReq("GET", "http://localhost/metrics"), /locala sau privata/);
 });
