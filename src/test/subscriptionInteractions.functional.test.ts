@@ -70,7 +70,7 @@ test("subscription installer intercepts start/stop and delegates other interacti
   const operations: any[] = [];
   const replies: any[] = [];
   const delegated: string[] = [];
-  const ctx = makeBaseContext(operations, replies);
+  const ctx: Record<string, any> = makeBaseContext(operations, replies);
   ctx.handleInteraction = async (interaction: Record<string, any>) => {
     delegated.push(interaction.commandName);
     return "delegated";
