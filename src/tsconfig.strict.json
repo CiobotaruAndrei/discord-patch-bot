@@ -11,6 +11,7 @@
     "app/scheduler/housekeeping.ts",
     "domain/deals/filtersCore.ts",
     "features/commands/commandRegistry.ts",
+    "features/commands/subscriptionInteractions.ts",
     "features/notifications/outboundChannel.ts",
     "infra/http/client.ts",
     "shared/errors.ts",
@@ -20,6 +21,7 @@
     "test/housekeeping.test.ts",
     "test/httpClientSecurity.test.ts",
     "test/resolveOutboundChannel.test.ts",
-    "test/sourceRegistry.functional.test.ts"
+    "test/sourceRegistry.functional.test.ts",
+    "test/subscriptionInteractions.functional.test.ts"
   ]
 }
