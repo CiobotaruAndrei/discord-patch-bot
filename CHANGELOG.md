@@ -11,16 +11,19 @@ The project uses semantic version tags in the form `vMAJOR.MINOR.PATCH`. After a
 - End-to-end test coverage for `/start updates` baseline activation through cron delivery and seen marking.
 - End-to-end test coverage for `/start reduceri` baseline activation through cron discount delivery and `seenDiscounts` marking.
 - Functional test coverage for the source registry factory with mocked installers.
-- `SECURITY.md` with private vulnerability reporting guidance.
+- Functional test coverage for the subscription interaction factory and wrapper.
+- `SECURITY.md` with private vulnerability reporting guidance, CodeQL notes and secret scanning/push protection guidance.
+- GitHub Actions CodeQL workflow for JavaScript/TypeScript security analysis.
 - GitHub Actions release workflow for `v*.*.*` tags and manual release runs.
 - GHCR Docker image publishing from the release workflow as `ghcr.io/ciobotaruandrei/discord-patch-bot:<tag>` and `latest`.
 - README release/security documentation.
 
 ### Changed
 
+- `src/features/commands/subscriptionInteractions.ts` now owns the `/start` and `/stop` subscription flows through a typed factory with explicit dependencies, installed by `commandRegistry` as a runtime wrapper over the legacy interaction handler.
 - `src/sources/sourceRegistry.ts` now exposes `createSourceRegistry(baseContext, installers)` so source wiring can be tested and migrated away from implicit `ctx` setup gradually.
 - `src/.env.example` now documents the important required and optional environment variables by category.
-- Documentation now tracks the E2E flows, source registry factory, security policy, release process and GHCR image publishing.
+- Documentation now tracks the E2E flows, source registry factory, subscription interaction factory, security policy, CodeQL, secret scanning guidance, release process and GHCR image publishing.
 
 ## [1.0.0] - 2026-05-21
 
