@@ -77,7 +77,7 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
 
   const ctx: any = {
     mongoose: { connection },
-    acquireDbLock: overrides.acquireDbLock || async () => "migration-lock-token",
+    acquireDbLock: overrides.acquireDbLock || (async () => "migration-lock-token"),
     releaseDbLock: async (name: string, token: string) => {
       releaseCalls.push({ name, token });
     }
