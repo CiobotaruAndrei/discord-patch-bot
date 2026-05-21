@@ -104,7 +104,7 @@ let runtimeContext: UpdatesContext;
 const inflightAllGames = new Map<string, Promise<FetchResult[]>>();
 
 function absoluteUrl(base: string | undefined, maybeRelative: string | undefined): string {
-  try { return new URL(maybeRelative, base).href; } catch { return ""; }
+  try { return new URL(maybeRelative || "", base).href; } catch { return ""; }
 }
 
 function isGoodSteamArticleUrl(url: unknown): boolean {

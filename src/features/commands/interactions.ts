@@ -150,7 +150,7 @@ async function handleStartInteraction(interaction: any, games: any[]) {
       try {
         const deals = await fetchDeals({ currency });
         // Slice first so we don't hash deals we're about to throw away.
-        const initHashes = deals.slice(0, DEALS_HISTORY_LIMIT).map(deal => dealHash(deal));
+        const initHashes = deals.slice(0, DEALS_HISTORY_LIMIT).map((deal: any) => dealHash(deal));
         const activationResult = await GuildModel.updateOne(
           {
             _id: guildId,
@@ -306,8 +306,8 @@ async function handleSetGames(interaction: any, games: any[], sub: string, guild
     if (enabled.length === 0) {
       return safeEdit(interaction, "OK: Filtru per-joc: **dezactivat** (toate jocurile configurate sunt active).");
     }
-    const lines = enabled.map(key => {
-      const g = games.find(x => x.key === key);
+    const lines = enabled.map((key: any) => {
+      const g = games.find((x: any) => x.key === key);
       return g ? `- **${g.name}** (\`${g.key}\`)` : `- \`${key}\` *(cheie necunoscuta in config)*`;
     });
     return safeEdit(interaction, `OK: Jocuri active explicit (${enabled.length}):\n` + lines.join("\n"));

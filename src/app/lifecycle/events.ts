@@ -68,7 +68,7 @@ function registerDiscordEvents({
     const userTag = client.user?.tag || "unknown";
     logger("INFO", "DISCORD", `Conectat ca ${userTag}`);
     try {
-      await commands.registerSlashCommands(env.DISCORD_TOKEN, env.DISCORD_CLIENT_ID);
+      await commands.registerSlashCommands(String(env.DISCORD_TOKEN || ""), String(env.DISCORD_CLIENT_ID || ""));
     } catch (err) {
       logger("ERROR", "DISCORD", "Esec inregistrare slash commands", errorMessage(err));
       adminAlert("slash:register-failed", "Slash commands nu au putut fi inregistrate", errorMessage(err)).catch(() => null);

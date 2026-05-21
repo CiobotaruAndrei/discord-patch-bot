@@ -136,7 +136,7 @@ async function processGuildUpdates(client: any, guild: any, latestResults: any[]
   for (const [gameKey, arr] of toEntries(guild.pendingUpdates)) {
     if (hasGameFilter && !enabledSet.has(gameKey)) continue;
     const seenSet = seenByGame.get(gameKey) || new Set();
-    const cleaned = normalizePendingUpdateArray(arr).filter(item => {
+    const cleaned = normalizePendingUpdateArray(arr).filter((item: any) => {
       const age = now - new Date(item.createdAt).getTime();
       return !seenSet.has(item.id)
         && age <= PENDING_UPDATE_MAX_AGE_MS
@@ -428,7 +428,7 @@ async function checkForDiscounts(client: any, shouldAbort: (() => boolean) | nul
         return deals;
       }));
     }
-    return dealsPromises.get(cur);
+    return dealsPromises.get(cur) as Promise<any[]>;
   }
 
   await runConcurrent(guilds, GUILD_PROCESS_CONCURRENCY, async (guild: any) => {
