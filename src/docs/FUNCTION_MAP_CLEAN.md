@@ -74,7 +74,7 @@ Entrypoint-ul botului. Incarca config-ul, creeaza metrici, client Discord, rate 
 
 ### `src/app/scheduler/cron.ts`
 
-`createCronController`, health window, lock distribuit, backoff global, abort signal si scheduling pentru ciclurile cron.
+`createCronController`, health window, lock distribuit, backoff global, abort signal, scheduling pentru ciclurile cron si curatarea handle-ului programat la `stop()`.
 
 ### `src/app/scheduler/housekeeping.ts`
 
@@ -229,6 +229,10 @@ Verifica faptul ca nu exista fisiere JavaScript sursa ramase in `src`.
 ### `src/test/commands-regression.test.ts`
 
 Testeaza regresiile pentru comenzi, notificari, health, cron, Mongo, HTTP, sources, TypeScript build si protectiile portate din codul local, inclusiv guard-urile RSS pentru drivere fara titlu valid.
+
+### `src/test/cronController.test.ts`
+
+Testeaza comportamental ca `createCronController().stop()` curata handle-ul timerului programat si ramane idempotent daca este apelat de mai multe ori.
 
 ### `src/test/housekeeping.test.ts`
 

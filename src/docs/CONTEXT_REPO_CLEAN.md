@@ -58,6 +58,7 @@ src/
     updates/index.ts
   test/
     commands-regression.test.ts
+    cronController.test.ts
     housekeeping.test.ts
     rustFuzzy.test.ts
     ...
@@ -161,7 +162,7 @@ Reguli care nu trebuie rupte: claim atomic pentru `seen`, rollback cand Discord 
 
 ## Scheduler si housekeeping
 
-`src/app/scheduler/cron.ts` coordoneaza ciclurile de update si foloseste lock distribuit, health window si backoff global.
+`src/app/scheduler/cron.ts` coordoneaza ciclurile de update si foloseste lock distribuit, health window, backoff global si curatarea handle-ului programat la `stop()`.
 
 `src/app/scheduler/housekeeping.ts` curata cache-uri si rate limiter-ul. `start()` este idempotent: daca exista deja timer, un al doilea apel returneaza fara sa porneasca inca un interval.
 
@@ -175,6 +176,7 @@ Scripturile sunt TypeScript:
 Teste importante:
 
 - `src/test/commands-regression.test.ts` verifica regresiile pentru comenzi, notificari, runtime, module compilate si guard-urile RSS pentru drivere.
+- `src/test/cronController.test.ts` verifica direct ca `createCronController().stop()` curata handle-ul timerului programat si ramane idempotent.
 - `src/test/housekeeping.test.ts` verifica idempotenta `createHousekeeping().start()` si faptul ca `stop()` curata intervalul creat.
 - `src/test/resolveOutboundChannel.test.ts` verifica comportamental erorile Discord permanente vs tranzitorii.
 - `src/test/rustFuzzy.test.ts` verifica addon-ul Rust si contractul helperilor nativi.

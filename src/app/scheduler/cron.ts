@@ -276,7 +276,10 @@ function createCronController({
 
   function stop(): void {
     if (currentCronAbortController) currentCronAbortController.abort();
-    if (cronTimerId) clearTimeout(cronTimerId);
+    if (cronTimerId) {
+      clearTimeout(cronTimerId);
+      cronTimerId = null;
+    }
     stopHeartbeat();
   }
 
