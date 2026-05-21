@@ -2,20 +2,23 @@
 
 All notable changes to this project are documented here.
 
-The project uses semantic version tags in the form `vMAJOR.MINOR.PATCH`. After a tag is pushed, the release workflow runs the full check suite and creates a GitHub Release.
+The project uses semantic version tags in the form `vMAJOR.MINOR.PATCH`. After a tag is pushed, the release workflow runs the full check suite, publishes the Docker image to GitHub Container Registry and creates a GitHub Release.
 
 ## [Unreleased]
 
 ### Added
 
 - End-to-end test coverage for `/start updates` baseline activation through cron delivery and seen marking.
+- End-to-end test coverage for `/start reduceri` baseline activation through cron discount delivery and `seenDiscounts` marking.
 - `SECURITY.md` with private vulnerability reporting guidance.
 - GitHub Actions release workflow for `v*.*.*` tags and manual release runs.
+- GHCR Docker image publishing from the release workflow as `ghcr.io/ciobotaruandrei/discord-patch-bot:<tag>` and `latest`.
 - README release/security documentation.
 
 ### Changed
 
-- Documentation now tracks the new E2E flow, security policy and release process.
+- `src/.env.example` now documents the important required and optional environment variables by category.
+- Documentation now tracks the E2E flows, security policy, release process and GHCR image publishing.
 
 ## [1.0.0] - 2026-05-21
 
