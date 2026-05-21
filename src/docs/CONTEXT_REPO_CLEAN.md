@@ -22,6 +22,7 @@ docker-compose.yml
   dependabot.yml
   workflows/
     ci.yml
+    codeql.yml
     dependency-audit.yml
     release.yml
 docs/
@@ -36,44 +37,26 @@ src/
   tsconfig.json
   tsconfig.strict.json
   app/
-    main.ts
-    health/
-    lifecycle/
-    scheduler/
   config/
   domain/
-    deals/
-      filters.ts
-      filtersCore.ts
   features/
     commands/
       commandRegistry.ts
       interactions.ts
+      subscriptionInteractions.ts
       ui.ts
     notifications/
       index.ts
       outboundChannel.ts
   infra/
-    http/
-    mongo/
   native/
-    fuzzy.ts
-    src/lib.rs
   scripts/
   shared/
   sources/
   test/
     commandRegistry.functional.test.ts
-    commands-regression.test.ts
-    cronController.test.ts
-    dealFiltersCore.functional.test.ts
-    housekeeping.test.ts
-    httpClientSecurity.test.ts
-    mongoMigrations.functional.test.ts
-    resolveOutboundChannel.test.ts
-    rustFuzzy.test.ts
-    setGamesInteraction.functional.test.ts
     sourceRegistry.functional.test.ts
+    subscriptionInteractions.functional.test.ts
     startDiscountsFlow.e2e.test.ts
     startUpdatesFlow.e2e.test.ts
     ...
@@ -94,7 +77,7 @@ cp .env.example .env
 
 `src/.env.example` documenteaza variabilele pe categorii: runtime, Mongo, Discord, metrics, reverse proxy, admin webhook, proxy URL templates, logging, scraping, Discord throughput, circuit breaker, pending queues, cache-uri, Mongo pool si HTTP rate limit.
 
-Pentru dezvoltare locala, dupa ce completezi `src/.env`, foloseste:
+Pentru dezvoltare locala:
 
 ```bash
 npm run dev
@@ -128,13 +111,13 @@ Compose tine MongoDB doar in reteaua Docker interna (`expose: 27017`) si publica
 
 ## README, changelog, security si licenta
 
-README-ul are badge-uri pentru CI, Dependency Audit, Release, Node.js >=20 si licenta MIT. Licenta proiectului este in `LICENSE`.
+README-ul are badge-uri pentru CI, Dependency Audit, CodeQL, Release, Node.js >=20 si licenta MIT. Licenta proiectului este in `LICENSE`.
 
 `CHANGELOG.md` tine istoricul de versiuni si explica tag-urile semver `vMAJOR.MINOR.PATCH`. Pentru un release nou se actualizeaza changelog-ul, se face merge in `main`, apoi se impinge un tag de forma `v1.1.0`.
 
-`SECURITY.md` explica raportarea privata a vulnerabilitatilor prin GitHub Security Advisories si cere ca tokenurile, credentialele Mongo, `METRICS_TOKEN`, webhook-urile si proxy URL-urile sa nu fie publicate in issue-uri, PR-uri sau loguri.
+`SECURITY.md` explica raportarea privata a vulnerabilitatilor prin GitHub Security Advisories, CodeQL, secret scanning, push protection si regula de rotire imediata a tokenurilor/credentialelor expuse.
 
-## Docker si GHCR
+## Docker, GHCR si release
 
 `Dockerfile` face build multi-stage: compileaza Rust/N-API si TypeScript in stage-ul de build, apoi imaginea runtime instaleaza doar dependintele production si porneste `npm start`.
 
@@ -145,79 +128,34 @@ ghcr.io/ciobotaruandrei/discord-patch-bot:<tag>
 ghcr.io/ciobotaruandrei/discord-patch-bot:latest
 ```
 
-Workflow-ul ruleaza `npm run check` inainte sa publice imaginea si inainte sa creeze GitHub Release.
-
-## Flow de pornire
-
-`src/app/main.ts` este orchestratorul. Dupa build, se ruleaza ca `dist/app/main.js`.
-
-Flow-ul curent:
-
-1. `src/infra/mongo/mongoContext.ts` construieste contextul comun.
-2. Se ataseaza logging, env, domain, utilities, modele Mongo, lock-uri, migrari, state global, guild cache si alerte admin.
-3. `loadConfig` incarca si valideaza config-ul.
-4. Se creeaza metricile si se leaga de surse.
-5. Se creeaza clientul Discord.
-6. Se creeaza rate limiter-ul, housekeeping-ul, cron controller-ul si HTTP server-ul.
-7. Se inregistreaza lifecycle handlers pentru Discord, Mongo si shutdown.
-8. Se conecteaza MongoDB.
-9. Se ruleaza migrarile DB.
-10. Se porneste serverul HTTP.
-11. Se face login la Discord.
-
-Logica mare nu trebuie pusa direct in `main.ts`; ea sta in modulele din `app`, `features`, `infra`, `shared`, `sources` si, pentru cod nativ pur, `native`.
+Workflow-ul ruleaza `npm run check` inainte sa publice imaginea si inainte sa creeze GitHub Release. Release-ul devine real si vizibil dupa ce `main` primeste un tag semver, de exemplu `v1.1.0`.
 
 ## TypeScript si ctx legacy
 
 Regula curenta: sursa aplicatiei din `src` este TypeScript. Runtime-ul compilat TypeScript este CommonJS, deci importurile prin `require` si `module.exports` sunt acceptate unde ajuta la migrare sigura.
-
-`src/tsconfig.json` compileaza doar `.ts` si `.d.ts`, are `allowJs: false`, `strict: true`, `noImplicitAny: true`, foloseste `module: CommonJS`, `moduleDetection: force` si exclude `dist`, `node_modules` si `coverage`.
 
 `src/legacy-dynamic.d.ts` este un shim temporar pentru obiecte legacy construite dinamic. Codul nou nu trebuie sa copieze acest model.
 
 Reducerea treptata a `ctx` dinamic:
 
 - `src/features/commands/commandRegistry.ts` expune `createCommandRegistry(baseContext, installers)`, deci installer-ele pot fi injectate si testate explicit.
+- `src/features/commands/subscriptionInteractions.ts` extrage `/start updates`, `/stop updates`, `/start reduceri` si `/stop reduceri` intr-o factory cu dependinte explicite; installer-ul ei intercepteaza doar comenzile start/stop si deleaga restul catre handlerul existent.
 - `src/sources/sourceRegistry.ts` expune `createSourceRegistry(baseContext, installers)`, deci sursele HTTP, Steam, updates si deals pot fi injectate si testate explicit.
 - `src/domain/deals/filtersCore.ts` expune functii pure tipate direct.
 - `src/domain/deals/filters.ts` ramane adapter pentru codul legacy care asteapta atasare pe context.
 - `src/features/notifications/outboundChannel.ts` expune resolver-ul de canal Discord ca serviciu tipat, iar `src/features/notifications/index.ts` il foloseste prin dependinte injectate.
-- `src/test/startUpdatesFlow.e2e.test.ts` si `src/test/startDiscountsFlow.e2e.test.ts` acopera fluxurile complete `/start updates` si `/start reduceri` plus cron, ca extragerile viitoare din `interactions.ts` si `notifications/index.ts` sa aiba guard functional.
+- `src/test/subscriptionInteractions.functional.test.ts`, `src/test/startUpdatesFlow.e2e.test.ts` si `src/test/startDiscountsFlow.e2e.test.ts` acopera fluxurile care ating `interactions.ts` si `notifications/index.ts`.
 
-Urmatoarele tinte sanatoase pentru refactor sunt `features/commands/interactions.ts` si `features/notifications/index.ts`, mutate treptat spre factory-uri cu dependinte explicite.
+Urmatoarele tinte sanatoase pentru refactor sunt restul din `features/commands/interactions.ts` si persistenta din `features/notifications/index.ts`, mutate treptat spre factory-uri cu dependinte explicite.
 
-## Rust
+## Securitate si mentenanta GitHub
 
-Rust este introdus gradual si doar unde are sens practic.
-
-- `src/native/src/lib.rs` implementeaza fuzzy matching, normalizari, hash-uri stabile si helperi de text/URL din hot path-ul de scraping.
-- `src/native/fuzzy.ts` incarca addon-ul `.node`, expune wrapper-ele TypeScript si pastreaza fallback-uri compatibile.
-- `src/infra/http/client.ts` si `src/sources/updates/index.ts` deleaga helperii puri catre `src/native/fuzzy.ts`.
-
-Nu s-au mutat in Rust Discord handlers, Mongo queries, HTTP client/retries/proxy fallback sau parsarea HTML cu Cheerio, fiindca sunt dominate de IO si integrare cu librarii JS.
-
-## MongoDB
-
-Module importante:
-
-- `src/infra/mongo/runtime.ts`: dependinte comune pentru context.
-- `src/infra/mongo/mongoContext.ts`: agregatorul infrastructurii Mongo.
-- `src/infra/mongo/models.ts`: modelele `Guild`, `CircuitBreaker`, `System`, `JobLock`, `AdminAlertCooldown`.
-- `src/infra/mongo/locks.ts`: lock-uri distribuite.
-- `src/infra/mongo/migrations.ts`: migrari DB idempotente.
-- `src/infra/mongo/systemState.ts`: timpi globali.
-- `src/infra/mongo/guildSettings.ts`: cache guild settings.
-- `src/infra/mongo/adminAlerts.ts`: alerte admin cu cooldown atomic.
-
-## HTTP si sources
-
-Clientul HTTP comun este in `src/infra/http/client.ts`. El gestioneaza retry/backoff, limite de bytes, user-agent random, proxy fallback, hashing, normalizare, in-flight coalescing si abort signal.
-
-`src/sources/sourceRegistry.ts` leaga clientul HTTP, helperii Steam, update sources si deals sources prin `createSourceRegistry(baseContext, installers)`. Exporturile vechi raman compatibile, dar wiring-ul poate fi testat fara sa depinda de contextul runtime implicit.
-
-Tot in clientul HTTP se valideaza URL-urile externe inainte de request. `assertSafeExternalUrl` accepta doar `http` si `https`, respinge credentialele din URL, host-urile locale/private IPv4, IPv6 loopback/link-local/unique-local si orice template proxy fara `{url}`. `fetchWithProxy` valideaza intai URL-ul tinta si apoi encodeaza varianta canonica in proxy.
-
-Sursele externe sunt fragile prin natura lor, pentru ca depind de HTML, RSS si API-uri care se pot schimba. Repo-ul pastreaza defensiv `SchemaDriftError`, circuit breaker, fallback-uri si teste pentru cazurile unde sursa incepe sa dea date goale sau forme neasteptate.
+- `.github/workflows/ci.yml` ruleaza pe push, pull request si pornire manuala, foloseste Node.js 20, instaleaza Rust stable, instaleaza dependintele in `src` cu `npm ci` si executa `npm run check`.
+- `.github/workflows/codeql.yml` ruleaza CodeQL pentru JavaScript/TypeScript la push, pull request, saptamanal si manual.
+- `.github/workflows/dependency-audit.yml` ruleaza saptamanal si manual `npm audit --omit=dev --audit-level=moderate` in `src`.
+- `.github/workflows/release.yml` ruleaza la tag-uri `v*.*.*` sau manual cu input `tag`; face checkout pe ref-ul de release, ruleaza `npm run check`, publica imaginea Docker in GHCR si creeaza GitHub Release.
+- `.github/dependabot.yml` propune PR-uri saptamanale pentru npm si GitHub Actions, cu grupuri separate pentru dependinte runtime, build/types si actions.
+- Secret scanning pentru repo-uri publice este gestionat de GitHub; push protection trebuie activat din setarile repo-ului cand este disponibil.
 
 ## Commands si notificari
 
@@ -227,7 +165,8 @@ Comenzile sunt in `src/features/commands`:
 - `cache.ts`: cache runtime, cooldown-uri si LRU.
 - `ui.ts`: embed-uri, paginare, fuzzy matching, status si pret Steam.
 - `slashCommands.ts`: definitii si inregistrare slash commands.
-- `interactions.ts`: handler-ele slash si autocomplete.
+- `interactions.ts`: handler-ele slash si autocomplete ramase in stil legacy.
+- `subscriptionInteractions.ts`: serviciu/factory pentru start/stop subscription flows.
 
 Notificarile automate sunt in `src/features/notifications`:
 
@@ -235,39 +174,6 @@ Notificarile automate sunt in `src/features/notifications`:
 - `outboundChannel.ts`: resolver tipat pentru fetch canal Discord, permisiuni embed si erori permanente/tranzitorii.
 
 Reguli care nu trebuie rupte: claim atomic pentru `seen`, rollback cand Discord send esueaza, pending queues, activation id pentru `/start`, filtre per joc/store/pret/procent, ping de rol o singura data per ciclu si dezactivare canal pentru erori Discord permanente.
-
-## Domain deals
-
-`src/domain/deals/filtersCore.ts` contine partea tipata si importabila direct:
-
-- `dealPassesFilters`
-- `normalizePendingUpdateArray`
-- `normalizePendingDiscountArray`
-- `toEntries`
-- `mapToObject`
-- `getSeenSet`
-- `rotateAfter`
-
-`src/domain/deals/filters.ts` este adapter-ul legacy care ataseaza aceleasi functii pe `ctx`. Codul nou trebuie sa importe din `filtersCore.ts` cand are nevoie de filtre.
-
-## Scheduler si housekeeping
-
-`src/app/scheduler/cron.ts` coordoneaza ciclurile de update si foloseste lock distribuit, health window, backoff global si curatarea handle-ului programat la `stop()`.
-
-`src/app/scheduler/housekeeping.ts` curata cache-uri si rate limiter-ul. `start()` este idempotent: daca exista deja timer, un al doilea apel returneaza fara sa porneasca inca un interval.
-
-## Health si metrics
-
-`src/app/health/httpServer.ts` expune `/health`, `/healthz` si `/metrics`. Metricile Prometheus sunt construite prin `pushMetric`, care tine un set cu numele deja emise si evita duplicarea accidentala a liniilor pentru aceeasi metrica.
-
-In productie `/metrics` trebuie protejat cu un `METRICS_TOKEN` real, exceptand cazul in care `METRICS_PUBLIC=true` este setat intentionat.
-
-## GitHub Actions si mentenanta
-
-- `.github/workflows/ci.yml` ruleaza pe push, pull request si pornire manuala, foloseste Node.js 20, instaleaza Rust stable, instaleaza dependintele in `src` cu `npm ci` si executa `npm run check`.
-- `.github/workflows/dependency-audit.yml` ruleaza saptamanal si manual `npm audit --omit=dev --audit-level=moderate` in `src`.
-- `.github/workflows/release.yml` ruleaza la tag-uri `v*.*.*` sau manual cu input `tag`; face checkout pe ref-ul de release, ruleaza `npm run check`, publica imaginea Docker in GHCR si creeaza GitHub Release.
-- `.github/dependabot.yml` propune PR-uri saptamanale pentru npm si GitHub Actions, cu grupuri separate pentru dependinte runtime, build/types si actions.
 
 ## Teste si scripturi
 
@@ -278,6 +184,7 @@ Scripturile sunt TypeScript:
 
 Teste importante:
 
+- `src/test/subscriptionInteractions.functional.test.ts` verifica factory-ul pentru start/stop si wrapper-ul care deleaga comenzile non-subscription.
 - `src/test/startUpdatesFlow.e2e.test.ts` verifica fluxul complet `/start updates -> baseline Mongo -> cron -> embed -> seen`.
 - `src/test/startDiscountsFlow.e2e.test.ts` verifica fluxul complet `/start reduceri -> baseline reduceri -> cron -> deal embed -> seenDiscounts`.
 - `src/test/commandRegistry.functional.test.ts` verifica registrul de comenzi cu installer-e mock injectate.
