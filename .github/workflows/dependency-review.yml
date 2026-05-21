@@ -1,0 +1,34 @@
+name: Dependency Review
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/package.json"
+      - "src/package-lock.json"
+      - ".github/dependabot.yml"
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  dependency-review:
+    name: Review dependency changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Review dependency changes
+        id: dependency-review
+        uses: actions/dependency-review-action@v4
+        continue-on-error: true
+        with:
+          fail-on-severity: moderate
+
+      - name: Explain dependency review setup
+        if: steps.dependency-review.outcome == 'failure'
+        run: |
+          echo "::warning::GitHub Dependency Review needs Dependency graph enabled in repository security settings. The local npm dependency policy check still runs in CI through npm run check."

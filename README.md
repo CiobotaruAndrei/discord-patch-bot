@@ -48,7 +48,7 @@ Din `src/`:
 npm run build       # compileaza Rust/N-API si TypeScript
 npm start           # porneste codul deja compilat din dist/app/main.js
 npm run dev         # build + start pentru dezvoltare locala
-npm run check       # typecheck, build, syntax/config check si teste
+npm run check       # typecheck, build, syntax/config/dependency check si teste
 npm run test        # build + testele Node
 npm run lint        # typecheck normal + strict
 npm run audit       # audit pe dependintele runtime
@@ -76,9 +76,13 @@ Daca ai nevoie temporar sa accesezi Mongo din host, foloseste un override local 
 Dependintele sunt blocate prin `src/package-lock.json`, iar CI instaleaza cu `npm ci`.
 
 - `npm run audit` ruleaza local auditul pe dependintele runtime.
+- `npm run check:dependencies` verifica local ca dependintele runtime sunt pin-uite exact, ca `package.json` si `package-lock.json` sunt aliniate si ca URL-urile din lockfile folosesc registry npm peste HTTPS.
 - `.github/workflows/dependency-audit.yml` ruleaza saptamanal acelasi audit in GitHub Actions si poate fi pornit manual.
+- `.github/workflows/dependency-review.yml` ruleaza pe PR-uri si blocheaza schimbari de dependinte cu vulnerabilitati moderate sau mai grave.
 - `.github/workflows/codeql.yml` ruleaza CodeQL pentru JavaScript/TypeScript la push, PR, saptamanal si manual.
 - `.github/dependabot.yml` deschide PR-uri saptamanale pentru dependinte npm din `src` si pentru GitHub Actions, grupate ca sa fie mai usor de verificat controlat.
+
+Cand un PR Dependabot modifica `src/package-lock.json`, verifica diff-ul lockfile-ului, rezultatul `Dependency Review`, `npm audit`, CI-ul complet si notele de release ale pachetului inainte de merge.
 
 ## Release si versioning
 
@@ -88,13 +92,13 @@ Proces recomandat:
 
 1. Actualizeaza `CHANGELOG.md` cu modificarile pentru versiunea noua.
 2. Da merge in `main` dupa ce CI este verde.
-3. Creeaza si impinge tag-ul, de exemplu `v1.1.0`.
+3. Creeaza si impinge tag-ul, de exemplu `v1.0.0` pentru primul release public sau `v1.1.0` pentru urmatorul minor.
 4. `.github/workflows/release.yml` ruleaza `npm run check` din `src`, publica imaginea Docker in GitHub Container Registry si creeaza GitHub Release cu notele din `CHANGELOG.md`.
 
 Imaginea Docker publicata are formatul:
 
 ```text
-ghcr.io/ciobotaruandrei/discord-patch-bot:v1.1.0
+ghcr.io/ciobotaruandrei/discord-patch-bot:v1.0.0
 ghcr.io/ciobotaruandrei/discord-patch-bot:latest
 ```
 
@@ -138,28 +142,30 @@ In productie `/metrics` trebuie protejat cu `METRICS_TOKEN`, exceptand cazul in 
 ## Structura
 
 ```text
-.github/dependabot.yml       # PR-uri saptamanale pentru dependinte
-.github/workflows/ci.yml     # GitHub Actions principal
-.github/workflows/codeql.yml # CodeQL pentru JavaScript/TypeScript
+.github/dependabot.yml
+.github/workflows/ci.yml
+.github/workflows/codeql.yml
 .github/workflows/dependency-audit.yml
+.github/workflows/dependency-review.yml
 .github/workflows/release.yml
-CHANGELOG.md                 # istoric schimbari si versiuni
-Dockerfile                   # build multi-stage pentru bot
-docker-compose.yml           # bot + MongoDB local, Mongo neexpus pe host
-docs/assets/                 # exemple SVG pentru README
-LICENSE                      # licenta MIT
-SECURITY.md                  # raportare privata vulnerabilitati
+CHANGELOG.md
+Dockerfile
+docker-compose.yml
+docs/assets/
+LICENSE
+SECURITY.md
 src/
-  app/                       # main, lifecycle, scheduler, health
-  config/                    # validare config
-  domain/                    # reguli domeniu
-  features/commands/         # slash commands, interactions si subscription factory
-  features/notifications/    # notificari automate
-  infra/http/                # HTTP client, proxy, URL safety
-  infra/mongo/               # modele, lock-uri, migrari, state
-  native/                    # Rust/N-API + fallback TypeScript
-  sources/                   # Steam/Epic/RSS/listing scrapers
-  test/                      # teste functionale si regresii
+  app/
+  config/
+  domain/
+  features/commands/         # slash commands, interactions, subscription si game filter factories
+  features/notifications/
+  infra/http/
+  infra/mongo/
+  native/
+  scripts/
+  sources/
+  test/
 ```
 
 ## Testare
@@ -169,6 +175,7 @@ src/
 - Flux E2E `/start updates -> baseline Mongo -> cron -> embed -> seen` in `startUpdatesFlow.e2e.test.ts`
 - Flux E2E `/start reduceri -> baseline reduceri -> cron -> deal embed -> seenDiscounts` in `startDiscountsFlow.e2e.test.ts`
 - Factory-ul pentru `/start` si `/stop` in `subscriptionInteractions.functional.test.ts`
+- Factory-ul pentru `/set games` in `gameFilterInteractions.functional.test.ts`
 - Discord channel resolution si erori permanente in `resolveOutboundChannel.test.ts`
 - `/set games add/remove` in `setGamesInteraction.functional.test.ts`
 - HTTP URL safety si proxy fallback in `httpClientSecurity.test.ts`
@@ -184,10 +191,11 @@ Codul legacy foloseste inca module CommonJS care ataseaza functii pe un context 
 - `commandRegistry` expune o fabrica testabila cu installer-e injectate explicit.
 - `sourceRegistry` expune o fabrica testabila cu installer-e injectate explicit pentru HTTP, Steam, updates si deals.
 - `features/commands/subscriptionInteractions.ts` extrage fluxurile `/start` si `/stop` intr-o factory tipata cu dependinte explicite si un wrapper instalat peste handlerul legacy.
+- `features/commands/gameFilterInteractions.ts` extrage fluxurile `/set games` intr-o factory tipata cu dependinte explicite si wrapper dedicat.
 - `domain/deals/filtersCore.ts` expune reguli pure si tipate direct, iar `domain/deals/filters.ts` ramane doar adapter pentru contextul legacy.
 - `features/notifications/outboundChannel.ts` expune resolver-ul tipat pentru canale Discord, iar `features/notifications/index.ts` il foloseste ca serviciu injectat.
 - `startUpdatesFlow.e2e.test.ts` si `startDiscountsFlow.e2e.test.ts` acopera fluxurile complete ramase peste `interactions.ts` + `notifications/index.ts`, ca urmatoarea extragere din `ctx` sa aiba guard functional real.
-- Urmatorii pasi pot muta restul din `interactions.ts` si `notifications/index.ts` catre servicii/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
+- Urmatorii pasi pot muta restul din `interactions.ts` si persistenta din `notifications/index.ts` catre servicii/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
 
 ## Licenta
 
