@@ -73,7 +73,7 @@ test("automatic update notifications respect the per-game filter", () => {
 
 test("manual latest updates respects the per-game filter", () => {
   assert.match(commandsSource, /Nu am date disponibile pentru jocurile active ale acestui server/);
-  assert.match(commandsSource, /data\.filter\(r => r\.latest !== null && \(!enabledSet \|\| enabledSet\.has\(r\.game\.key\)\)\)/);
+  assert.match(commandsSource, /data\.filter\(\(?r\)? => r\.latest !== null && \(!enabledSet \|\| enabledSet\.has\(r\.game\.key\)\)\)/);
 });
 
 test("Discord permanent errors disable broken notification channels", () => {
