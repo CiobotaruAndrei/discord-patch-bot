@@ -8,10 +8,12 @@ Codul sursa editabil al aplicatiei este in `src`. JavaScript-ul ramas este outpu
 
 ## Structura principala
 
-Aplicatia sta sub `src`, iar radacina repo-ului contine documentatie, exemple vizuale, CI, licenta si infrastructura de rulare.
+Aplicatia sta sub `src`, iar radacina repo-ului contine documentatie, release notes, politica de securitate, exemple vizuale, CI, licenta si infrastructura de rulare.
 
 ```text
 README.md
+CHANGELOG.md
+SECURITY.md
 LICENSE
 Dockerfile
 docker-compose.yml
@@ -21,6 +23,7 @@ docker-compose.yml
   workflows/
     ci.yml
     dependency-audit.yml
+    release.yml
 docs/
   assets/
     embed-help.svg
@@ -70,6 +73,7 @@ src/
     resolveOutboundChannel.test.ts
     rustFuzzy.test.ts
     setGamesInteraction.functional.test.ts
+    startUpdatesFlow.e2e.test.ts
     ...
   docs/
 ```
@@ -118,9 +122,13 @@ docker compose up --build
 
 Compose tine MongoDB doar in reteaua Docker interna (`expose: 27017`) si publica botul doar pe `127.0.0.1:3000`. Pentru acces local temporar la Mongo din host trebuie folosit un override necomis si legat doar pe loopback.
 
-## README si licenta
+## README, changelog, security si licenta
 
-README-ul are badge-uri pentru CI, Dependency Audit, Node.js >=20 si licenta MIT. Licenta proiectului este in `LICENSE`.
+README-ul are badge-uri pentru CI, Dependency Audit, Release, Node.js >=20 si licenta MIT. Licenta proiectului este in `LICENSE`.
+
+`CHANGELOG.md` tine istoricul de versiuni si explica tag-urile semver `vMAJOR.MINOR.PATCH`. Pentru un release nou se actualizeaza changelog-ul, se face merge in `main`, apoi se impinge un tag de forma `v1.1.0`.
+
+`SECURITY.md` explica raportarea privata a vulnerabilitatilor prin GitHub Security Advisories si cere ca tokenurile, credentialele Mongo, `METRICS_TOKEN`, webhook-urile si proxy URL-urile sa nu fie publicate in issue-uri, PR-uri sau loguri.
 
 ## Flow de pornire
 
@@ -156,6 +164,9 @@ Reducerea treptata a `ctx` dinamic:
 - `src/domain/deals/filtersCore.ts` expune functii pure tipate direct.
 - `src/domain/deals/filters.ts` ramane adapter pentru codul legacy care asteapta atasare pe context.
 - `src/features/notifications/outboundChannel.ts` expune resolver-ul de canal Discord ca serviciu tipat, iar `src/features/notifications/index.ts` il foloseste prin dependinte injectate.
+- `src/test/startUpdatesFlow.e2e.test.ts` acopera fluxul complet `/start updates` plus cron, ca extragerile viitoare din `interactions.ts` si `notifications/index.ts` sa aiba un guard functional.
+
+Urmatoarele tinte sanatoase pentru refactor sunt `features/commands/interactions.ts`, `features/notifications/index.ts` si `sources/`, mutate treptat spre factory-uri cu dependinte explicite.
 
 ## Rust
 
@@ -229,10 +240,13 @@ Reguli care nu trebuie rupte: claim atomic pentru `seen`, rollback cand Discord 
 
 `src/app/health/httpServer.ts` expune `/health`, `/healthz` si `/metrics`. Metricile Prometheus sunt construite prin `pushMetric`, care tine un set cu numele deja emise si evita duplicarea accidentala a liniilor pentru aceeasi metrica.
 
-## GitHub Actions si mentenanta dependinte
+In productie `/metrics` trebuie protejat cu un `METRICS_TOKEN` real, exceptand cazul in care `METRICS_PUBLIC=true` este setat intentionat.
+
+## GitHub Actions si mentenanta
 
 - `.github/workflows/ci.yml` ruleaza pe push, pull request si pornire manuala, foloseste Node.js 20, instaleaza Rust stable, instaleaza dependintele in `src` cu `npm ci` si executa `npm run check`.
 - `.github/workflows/dependency-audit.yml` ruleaza saptamanal si manual `npm audit --omit=dev --audit-level=moderate` in `src`.
+- `.github/workflows/release.yml` ruleaza la tag-uri `v*.*.*` sau manual cu input `tag`; face checkout pe ref-ul de release, ruleaza `npm run check`, apoi creeaza GitHub Release.
 - `.github/dependabot.yml` propune PR-uri saptamanale pentru npm si GitHub Actions, cu grupuri separate pentru dependinte runtime, build/types si actions.
 
 ## Teste si scripturi
@@ -244,6 +258,7 @@ Scripturile sunt TypeScript:
 
 Teste importante:
 
+- `src/test/startUpdatesFlow.e2e.test.ts` verifica fluxul complet `/start updates -> baseline Mongo -> cron -> embed -> seen`.
 - `src/test/commandRegistry.functional.test.ts` verifica registrul de comenzi cu installer-e mock injectate.
 - `src/test/dealFiltersCore.functional.test.ts` verifica direct filtrele de reduceri si helperii de normalizare.
 - `src/test/setGamesInteraction.functional.test.ts` verifica functional `/set games add/remove` si cheia invalida.
