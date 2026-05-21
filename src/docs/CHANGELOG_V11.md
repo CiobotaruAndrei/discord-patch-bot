@@ -27,6 +27,7 @@ Acest document noteaza starea curenta a repo-ului dupa curatare, migrarea la Typ
 - Epic GraphQL deals retry-uieste 429 chiar si pe POST, pentru ca acel POST este semantic o citire.
 - Claim-urile atomice Mongo pentru update-uri si reduceri folosesc `withMongoRetry`.
 - Cron-ul are lock distribuit, heartbeat, health window si backoff global.
+- `app/scheduler/cron.ts::stop()` curata `cronTimerId` dupa `clearTimeout`, ca oprirea controllerului sa nu lase un handle stale in stare.
 - Erorile Discord permanente `10003`, `10004`, `50001`, `50013` dezactiveaza canalul afectat.
 - A fost adaugat sistem de migrari DB la pornire.
 - A fost adaugata schema JSON pentru `config.json`.
@@ -78,6 +79,7 @@ Nu au fost mutate in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy f
 ## Acoperire de teste
 
 - `src/test/resolveOutboundChannel.test.ts` verifica comportamentul permanent vs tranzitoriu pentru erori Discord.
+- `src/test/cronController.test.ts` verifica comportamental ca `stop()` curata handle-ul programat si ramane idempotent.
 - `src/test/commands-regression.test.ts` acopera protectiile textuale pentru lock, abort signal, health, notificari, cache, surse, registrul de comenzi si guard-urile RSS pentru drivere.
 - `src/test/housekeeping.test.ts` verifica direct ca `createHousekeeping().start()` porneste un singur interval chiar daca este apelat de doua ori si ca `stop()` curata intervalul.
 - Testele de domeniu acopera `buildOptimizedGameList`, `dealHash`, `extractOfferEndFromHtml`, `findGameAndSuggestion`, `safeCheerioLoad` si helperii Rust.
