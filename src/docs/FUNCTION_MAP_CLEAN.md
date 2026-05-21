@@ -8,7 +8,7 @@ Acest fisier documenteaza responsabilitatile modulelor importante din repo. Surs
 - Runtime-ul compilat TypeScript este CommonJS.
 - `src/package-lock.json` blocheaza versiunile de dependinte, iar CI instaleaza cu `npm ci`.
 - `src/tsconfig.json` are `allowJs: false`, `strict: true` si `noImplicitAny: true`.
-- `src/tsconfig.strict.json` include zone stabilizate explicit, inclusiv `src/domain/deals/filtersCore.ts`, `src/features/notifications/outboundChannel.ts`, `src/sources/sourceRegistry.ts` si testele lor directe.
+- `src/tsconfig.strict.json` include zone stabilizate explicit, inclusiv `src/features/commands/subscriptionInteractions.ts`, `src/features/commands/commandRegistry.ts`, `src/features/notifications/outboundChannel.ts`, `src/sources/sourceRegistry.ts` si testele lor directe.
 - `src/scripts/check-syntax.ts` pica verificarea daca mai apare un fisier `.js` in sursa `src`, ignorand `dist/` si loader-ul generat `native/index.js`.
 - Agregatoarele descriptive sunt `src/infra/mongo/mongoContext.ts`, `src/sources/sourceRegistry.ts` si `src/features/commands/commandRegistry.ts`.
 - `src/types.ts` tine tipurile comune folosite intre module.
@@ -20,15 +20,15 @@ Acest fisier documenteaza responsabilitatile modulelor importante din repo. Surs
 
 ### `README.md`
 
-Rol: ghid principal pentru setup, env, comenzi, Docker, audit, GHCR release image, security, health/metrics, structura, testare, badge-uri si exemple vizuale de embed-uri.
+Rol: ghid principal pentru setup, env, comenzi, Docker, audit, CodeQL, GHCR release image, security, health/metrics, structura, testare, badge-uri si exemple vizuale de embed-uri.
 
 ### `CHANGELOG.md`
 
-Rol: istoric de versiuni si schimbari notabile. Explica folosirea tag-urilor semver `vMAJOR.MINOR.PATCH`, mentioneaza imaginea GHCR si sta ca sursa de note pentru GitHub Release.
+Rol: istoric de versiuni si schimbari notabile. Explica folosirea tag-urilor semver `vMAJOR.MINOR.PATCH`, mentioneaza CodeQL, refactorizarea subscription interactions, imaginea GHCR si sta ca sursa de note pentru GitHub Release.
 
 ### `SECURITY.md`
 
-Rol: politica de raportare privata a vulnerabilitatilor si reguli pentru secret management. Acopera tokenuri Discord, credentiale Mongo, `METRICS_TOKEN`, webhook-uri si proxy URL-uri.
+Rol: politica de raportare privata a vulnerabilitatilor si reguli pentru secret management. Acopera tokenuri Discord, credentiale Mongo, `METRICS_TOKEN`, webhook-uri, proxy URL-uri, CodeQL, secret scanning si push protection.
 
 ### `LICENSE`
 
@@ -59,6 +59,12 @@ Rol: exemple statice pentru embed-urile din README: `/help`, update automat si r
 Rol: workflow-ul real de CI.
 
 Comportament: ruleaza pe push, pull request si `workflow_dispatch`, foloseste Node.js 20, instaleaza Rust stable, lucreaza in `src`, instaleaza dependintele cu `npm ci` si executa `npm run check`.
+
+### `.github/workflows/codeql.yml`
+
+Rol: analiza CodeQL pentru JavaScript/TypeScript.
+
+Comportament: ruleaza pe push in `main`, pull request spre `main`, saptamanal si manual. Foloseste `github/codeql-action/init@v4` cu `languages: javascript-typescript`, `build-mode: none` si query suite `security-extended,security-and-quality`, apoi `github/codeql-action/analyze@v4`.
 
 ### `.github/workflows/dependency-audit.yml`
 
@@ -118,7 +124,7 @@ Compileaza sursa TypeScript in `dist`, pastreaza CommonJS ca format runtime, fol
 
 ### `src/tsconfig.strict.json`
 
-Verificare stricta separata pentru zone stabilizate explicit: health server, scheduler, `domain/deals/filtersCore.ts`, `features/notifications/outboundChannel.ts`, `sources/sourceRegistry.ts`, `commandRegistry`, HTTP client, erori shared si testele directe pentru acele zone.
+Verificare stricta separata pentru zone stabilizate explicit: health server, scheduler, `domain/deals/filtersCore.ts`, `features/commands/commandRegistry.ts`, `features/commands/subscriptionInteractions.ts`, `features/notifications/outboundChannel.ts`, `sources/sourceRegistry.ts`, HTTP client, erori shared si testele directe pentru acele zone.
 
 ### `src/.gitignore`
 
@@ -140,14 +146,6 @@ Punte TypeScript catre addon-ul Rust. Expune wrapper-ele TypeScript si fallback-
 
 Entrypoint-ul botului. Incarca config-ul, creeaza metrici, client Discord, rate limiter, housekeeping, cron controller, HTTP server si shutdown controller; apoi conecteaza MongoDB, ruleaza migrarile, porneste HTTP si face login la Discord.
 
-### `src/app/health/metrics.ts`
-
-`createMetrics` creeaza contoare pentru fetch-uri, retry-uri, rate limit, cron, abort, skip-uri cron si uptime.
-
-### `src/app/health/rateLimit.ts`
-
-`createRateLimiter`, `firstHeaderValue`, `check`, `prune`, `retryAfterSeconds`.
-
 ### `src/app/health/httpServer.ts`
 
 `createHttpServer`, `timingSafeEqualStr` si helper-ul intern `pushMetric`. Expune `/health`, `/healthz`, `/metrics`, aplica rate limit, protejeaza metrics cu token cand e necesar si previne duplicarea accidentala a metricilor Prometheus cu acelasi nume.
@@ -159,14 +157,6 @@ Entrypoint-ul botului. Incarca config-ul, creeaza metrici, client Discord, rate 
 ### `src/app/scheduler/housekeeping.ts`
 
 `createHousekeeping`. Curata periodic cache-uri, guild cache, enriched cache si rate limiter. `start()` este idempotent.
-
-### `src/app/lifecycle/events.ts`
-
-`registerDiscordEvents` si `registerMongoEvents`.
-
-### `src/app/lifecycle/shutdown.ts`
-
-`createShutdownController`, `shutdown`, `handleFatalProcessError`, `registerProcessHandlers`. Shutdown-ul asteapta `client.destroy()`.
 
 ## Config si shared
 
@@ -200,10 +190,6 @@ Valideaza env-ul si construieste obiectul `env`.
 
 ## Infra Mongo
 
-### `src/infra/mongo/runtime.ts`
-
-Dependinte comune pentru context: `mongoose`, `crypto`, `axios`, `z`, `AsyncLocalStorage`.
-
 ### `src/infra/mongo/mongoContext.ts`
 
 Agregator pentru infrastructura Mongo si shared utilities. Exporta logger, env, utilitare, modele, lock-uri, migrari, state global, guild settings, alerte admin, valute si request context.
@@ -220,18 +206,6 @@ Modelele `GuildModel`, `CircuitBreakerModel`, `SystemModel`, `JobLockModel`, `Ad
 
 `attachMigrations`, `runMigrations`, `ALL_MIGRATIONS`.
 
-### `src/infra/mongo/systemState.ts`
-
-`attachSystemState`, `getSystemTimes`, `saveSystemTimes`.
-
-### `src/infra/mongo/guildSettings.ts`
-
-`attachGuildSettings`, `getGuildSettings`, `invalidateGuildCache`, `cleanGuildCache`, `getGuildCacheSize`.
-
-### `src/infra/mongo/adminAlerts.ts`
-
-`attachAdminAlerts`, `adminAlert`.
-
 ## Infra HTTP
 
 ### `src/infra/http/client.ts`
@@ -241,10 +215,6 @@ Modelele `GuildModel`, `CircuitBreakerModel`, `SystemModel`, `JobLockModel`, `Ad
 Normalizarile pure si hash-urile sunt delegate catre `src/native/fuzzy.ts`. URL-urile externe sunt validate inainte de request: doar `http`/`https`, fara credentiale, fara localhost, fara adrese private IPv4 si fara adrese IPv6 locale/private. `PROXY_URLS` trebuie sa contina `{url}` si template-urile sunt validate la atasarea clientului HTTP.
 
 ## Sources
-
-### `src/sources/runtime.ts`
-
-Dependinte pentru surse: `axios`, `cheerio`, `rss-parser`, `crypto` si infrastructura Mongo.
 
 ### `src/sources/sourceRegistry.ts`
 
@@ -278,9 +248,9 @@ Codul nou trebuie sa importe din `filtersCore.ts`; `filters.ts` ramane doar punt
 
 ### `src/features/commands/commandRegistry.ts`
 
-Agregator pentru cache, filtre, UI, notificari, slash commands si interactions. `fetchGameStatus` ajunge la `interactions.ts` prin context, nu prin `globalThis`. Registrul declara functiile asteptate din context si foloseste `requireRegistryFunction` ca sa pice devreme daca un modul nu a atasat o dependinta obligatorie.
+Agregator pentru cache, filtre, UI, notificari, slash commands, handlerul legacy de interactions si wrapper-ul `subscriptionInteractions`. Registrul declara functiile asteptate din context si foloseste `requireRegistryFunction` ca sa pice devreme daca un modul nu a atasat o dependinta obligatorie.
 
-Pattern-ul legacy cu module care muta functii pe `ctx` inca exista, dar `createCommandRegistry(baseContext, installers)` permite injectarea explicita a installer-elor si testarea fara side effect global. Urmatorul pas mare ar fi factory-uri de tip `createCommandServices({ mongo, sources, logger, env })`.
+Pattern-ul legacy cu module care muta functii pe `ctx` inca exista, dar `createCommandRegistry(baseContext, installers)` permite injectarea explicita a installer-elor si testarea fara side effect global.
 
 ### `src/features/commands/cache.ts`
 
@@ -296,7 +266,11 @@ Definitii si inregistrare slash commands.
 
 ### `src/features/commands/interactions.ts`
 
-Proceseaza slash commands si autocomplete. `handleSetGames` este acoperit functional pentru add/remove in `src/test/setGamesInteraction.functional.test.ts`. Fluxurile complete `/start updates` si `/start reduceri` sunt acoperite in `src/test/startUpdatesFlow.e2e.test.ts` si `src/test/startDiscountsFlow.e2e.test.ts`, peste `interactions.ts` + `notifications/index.ts`.
+Proceseaza slash commands si autocomplete ramase in handlerul legacy. Fluxurile complete `/start updates` si `/start reduceri` raman acoperite prin E2E, dar dispatch-ul runtime pentru `/start` si `/stop` este suprascris de `subscriptionInteractions.ts`.
+
+### `src/features/commands/subscriptionInteractions.ts`
+
+Serviciu TypeScript pentru `/start updates`, `/stop updates`, `/start reduceri` si `/stop reduceri`. Expune `createSubscriptionInteractionHandlers(deps)` pentru teste cu dependinte explicite si un installer CommonJS care intercepteaza doar comenzile start/stop, apoi deleaga restul catre `handleInteraction` precedent.
 
 ## Notifications
 
@@ -310,13 +284,9 @@ Update-uri si reduceri automate: claim atomic, rollback, pending queues, activat
 
 ## Scripts si teste
 
-### `src/scripts/check-config.ts`
+### `src/test/subscriptionInteractions.functional.test.ts`
 
-Valideaza `config.json`.
-
-### `src/scripts/check-syntax.ts`
-
-Verifica faptul ca nu exista fisiere JavaScript sursa ramase in `src`.
+Testeaza functional `createSubscriptionInteractionHandlers` cu dependinte mock si installer-ul care intercepteaza start/stop fara sa preia celelalte comenzi.
 
 ### `src/test/startUpdatesFlow.e2e.test.ts`
 
@@ -342,21 +312,9 @@ Testeaza functional `filtersCore` direct: reguli de magazin, pret, discount, fre
 
 Testeaza functional `/set games add/remove`: update-ul Mongo produs, mesajul de confirmare, invalidarea cache-ului si respingerea cheilor inexistente.
 
-### `src/test/mongoMigrations.functional.test.ts`
-
-Testeaza functional migrarile Mongo cu colectii fake: aplica migrarile, taie `seenDiscounts`, actualizeaza `migrationState` si elibereaza lock-ul.
-
 ### `src/test/commands-regression.test.ts`
 
 Testeaza regresiile pentru comenzi, notificari, health, cron, Mongo, HTTP, sources, TypeScript build si protectiile portate din codul local.
-
-### `src/test/cronController.test.ts`
-
-Testeaza comportamental ca `createCronController().stop()` curata handle-ul timerului programat si ramane idempotent.
-
-### `src/test/housekeeping.test.ts`
-
-Testeaza comportamental ca `createHousekeeping().start()` este idempotent si ca `stop()` curata intervalul creat.
 
 ### `src/test/httpClientSecurity.test.ts`
 
