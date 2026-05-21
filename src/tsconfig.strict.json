@@ -10,8 +10,10 @@
     "app/scheduler/cron.ts",
     "app/scheduler/housekeeping.ts",
     "features/commands/commandRegistry.ts",
+    "infra/http/client.ts",
     "shared/errors.ts",
     "test/cronController.test.ts",
-    "test/housekeeping.test.ts"
+    "test/housekeeping.test.ts",
+    "test/httpClientSecurity.test.ts"
   ]
 }
