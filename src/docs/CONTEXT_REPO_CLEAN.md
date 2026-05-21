@@ -8,7 +8,7 @@ Codul sursa editabil al aplicatiei este in `src`. JavaScript-ul ramas este outpu
 
 ## Structura principala
 
-Aplicatia sta sub `src`, iar radacina repo-ului contine doar documentatie, CI si infrastructura de rulare.
+Aplicatia sta sub `src`, iar radacina repo-ului contine documentatie, exemple vizuale, CI si infrastructura de rulare.
 
 ```text
 README.md
@@ -16,8 +16,15 @@ Dockerfile
 docker-compose.yml
 .dockerignore
 .github/
+  dependabot.yml
   workflows/
     ci.yml
+    dependency-audit.yml
+docs/
+  assets/
+    embed-help.svg
+    embed-update.svg
+    embed-discount.svg
 src/
   .env.example
   package.json
@@ -29,46 +36,28 @@ src/
     health/
     lifecycle/
     scheduler/
-      cron.ts
-      housekeeping.ts
   config/
   domain/
+    deals/
+      filters.ts
+      filtersCore.ts
   features/
     commands/
-      cache.ts
-      commandRegistry.ts
-      interactions.ts
-      slashCommands.ts
-      ui.ts
     notifications/
-      index.ts
   infra/
     http/
-      client.ts
     mongo/
-      adminAlerts.ts
-      guildSettings.ts
-      locks.ts
-      migrations.ts
-      models.ts
-      mongoContext.ts
-      runtime.ts
-      systemState.ts
   native/
     fuzzy.ts
     src/lib.rs
   scripts/
   shared/
   sources/
-    sourceRegistry.ts
-    runtime.ts
-    deals/index.ts
-    steam/index.ts
-    updates/index.ts
   test/
     commandRegistry.functional.test.ts
     commands-regression.test.ts
     cronController.test.ts
+    dealFiltersCore.functional.test.ts
     housekeeping.test.ts
     httpClientSecurity.test.ts
     mongoMigrations.functional.test.ts
@@ -103,19 +92,24 @@ npm run build
 npm start
 ```
 
-`npm start` porneste doar codul deja compilat din `dist/app/main.js`. Verificarea completa se face cu:
+`npm start` porneste doar codul deja compilat din `dist/app/main.js`.
+
+Verificari importante:
 
 ```bash
 npm run check
+npm run audit
 ```
 
-`npm run check` ruleaza `typecheck`, `typecheck:strict`, build Rust + TypeScript, syntax check, config check si testele din `dist/test`.
+`npm run check` ruleaza `typecheck`, `typecheck:strict`, build Rust + TypeScript, syntax check, config check si testele din `dist/test`. `npm run audit` verifica dependintele runtime.
 
 Din radacina repo-ului poti porni botul si MongoDB cu:
 
 ```bash
 docker compose up --build
 ```
+
+Compose tine MongoDB doar in reteaua Docker interna (`expose: 27017`) si publica botul doar pe `127.0.0.1:3000`. Pentru acces local temporar la Mongo din host trebuie folosit un override necomis si legat doar pe loopback.
 
 ## Flow de pornire
 
@@ -137,15 +131,19 @@ Flow-ul curent:
 
 Logica mare nu trebuie pusa direct in `main.ts`; ea sta in modulele din `app`, `features`, `infra`, `shared`, `sources` si, pentru cod nativ pur, `native`.
 
-## TypeScript
+## TypeScript si ctx legacy
 
-Regula curenta: sursa aplicatiei din `src` este TypeScript. Runtime-ul ramane CommonJS dupa compilare, deci importurile prin `require` si `module.exports` sunt acceptate unde ajuta la migrare sigura.
+Regula curenta: sursa aplicatiei din `src` este TypeScript. Runtime-ul compilat TypeScript este CommonJS, deci importurile prin `require` si `module.exports` sunt acceptate unde ajuta la migrare sigura.
 
 `src/tsconfig.json` compileaza doar `.ts` si `.d.ts`, are `allowJs: false`, `strict: true`, `noImplicitAny: true`, foloseste `module: CommonJS`, `moduleDetection: force` si exclude `dist`, `node_modules` si `coverage`.
 
-`src/tsconfig.strict.json` ramane o verificare separata pentru lista explicita de zone stabilizate anterior. Strictul principal nu mai este dezactivat: `npm run typecheck`, `npm run lint` si `npm run check` verifica acum proiectul complet cu `strict` activ.
+`src/legacy-dynamic.d.ts` este un shim temporar pentru obiecte legacy construite dinamic. Codul nou nu trebuie sa copieze acest model.
 
-`src/legacy-dynamic.d.ts` este un shim temporar pentru cateva obiecte legacy construite dinamic. Codul nou nu trebuie sa copieze acest model.
+Reducerea treptata a `ctx` dinamic:
+
+- `src/features/commands/commandRegistry.ts` expune `createCommandRegistry(baseContext, installers)`, deci installer-ele pot fi injectate si testate explicit.
+- `src/domain/deals/filtersCore.ts` expune functii pure tipate direct.
+- `src/domain/deals/filters.ts` ramane adapter pentru codul legacy care asteapta atasare pe context.
 
 ## Rust
 
@@ -178,14 +176,6 @@ Tot aici se valideaza URL-urile externe inainte de request. `assertSafeExternalU
 
 Sursele externe sunt fragile prin natura lor, pentru ca depind de HTML, RSS si API-uri care se pot schimba. Repo-ul pastreaza defensiv `SchemaDriftError`, circuit breaker, fallback-uri si teste pentru cazurile unde sursa incepe sa dea date goale sau forme neasteptate.
 
-Sursele externe sunt in `src/sources`:
-
-- `runtime.ts`: dependinte comune pentru surse.
-- `sourceRegistry.ts`: agregatorul surselor si exporturile tipate folosite de teste.
-- `steam/index.ts`: cautare Steam, preturi, parser de expirare oferte si alegere best match.
-- `deals/index.ts`: reduceri Steam/Epic, enrich cache si review scoring.
-- `updates/index.ts`: patch notes, listing-based scraping, circuit breaker, schema drift si guard-uri pentru fallback-uri RSS de drivere fara titlu valid.
-
 ## Commands si notificari
 
 Comenzile sunt in `src/features/commands`:
@@ -196,11 +186,23 @@ Comenzile sunt in `src/features/commands`:
 - `slashCommands.ts`: definitii si inregistrare slash commands.
 - `interactions.ts`: handler-ele slash si autocomplete.
 
-`commandRegistry.ts` inca foloseste module legacy care ataseaza functii pe `ctx`, dar acum expune `createCommandRegistry(baseContext, installers)`. Asta permite testarea cu installer-e injectate si reduce dependenta de side effect global. Refactorizarea completa catre servicii/factory-uri explicite ramane o migrare separata, ca sa nu rupa tot fluxul Discord dintr-o singura schimbare.
-
 Notificarile automate sunt in `src/features/notifications/index.ts`.
 
 Reguli care nu trebuie rupte: claim atomic pentru `seen`, rollback cand Discord send esueaza, pending queues, activation id pentru `/start`, filtre per joc/store/pret/procent, ping de rol o singura data per ciclu si dezactivare canal pentru erori Discord permanente.
+
+## Domain deals
+
+`src/domain/deals/filtersCore.ts` contine partea tipata si importabila direct:
+
+- `dealPassesFilters`
+- `normalizePendingUpdateArray`
+- `normalizePendingDiscountArray`
+- `toEntries`
+- `mapToObject`
+- `getSeenSet`
+- `rotateAfter`
+
+`src/domain/deals/filters.ts` este adapter-ul legacy care ataseaza aceleasi functii pe `ctx`. Codul nou trebuie sa importe din `filtersCore.ts` cand are nevoie de filtre.
 
 ## Scheduler si housekeeping
 
@@ -210,7 +212,13 @@ Reguli care nu trebuie rupte: claim atomic pentru `seen`, rollback cand Discord 
 
 ## Health si metrics
 
-`src/app/health/httpServer.ts` expune `/health`, `/healthz` si `/metrics`. Metricile Prometheus sunt construite prin `pushMetric`, care tine un set cu numele deja emise si evita duplicarea accidentala a liniilor `HELP`/`TYPE`/sample pentru aceeasi metrica.
+`src/app/health/httpServer.ts` expune `/health`, `/healthz` si `/metrics`. Metricile Prometheus sunt construite prin `pushMetric`, care tine un set cu numele deja emise si evita duplicarea accidentala a liniilor pentru aceeasi metrica.
+
+## GitHub Actions si mentenanta dependinte
+
+- `.github/workflows/ci.yml` ruleaza pe push, pull request si pornire manuala, foloseste Node.js 20, instaleaza Rust stable, instaleaza dependintele in `src` cu `npm ci` si executa `npm run check`.
+- `.github/workflows/dependency-audit.yml` ruleaza saptamanal si manual `npm audit --omit=dev --audit-level=moderate` in `src`.
+- `.github/dependabot.yml` propune PR-uri saptamanale pentru npm si GitHub Actions, cu grupuri separate pentru dependinte runtime, build/types si actions.
 
 ## Teste si scripturi
 
@@ -222,16 +230,9 @@ Scripturile sunt TypeScript:
 Teste importante:
 
 - `src/test/commandRegistry.functional.test.ts` verifica registrul de comenzi cu installer-e mock injectate.
+- `src/test/dealFiltersCore.functional.test.ts` verifica direct filtrele de reduceri si helperii de normalizare.
 - `src/test/mongoMigrations.functional.test.ts` verifica migrarile Mongo cu colectii fake si release de lock.
-- `src/test/resolveOutboundChannel.test.ts` verifica comportamental erorile Discord permanente vs tranzitorii cu mock-uri de client/canal.
-- `src/test/httpClientSecurity.test.ts` verifica URL guard-ul pentru scheme nesigure, localhost, IPv4/IPv6 local sau privat, credentiale in URL, proxy target si template-uri proxy fara `{url}`.
-- `src/test/commands-regression.test.ts` ramane guard textual pentru regresiile de comenzi, notificari, runtime, module compilate si guard-urile RSS pentru drivere.
-- `src/test/cronController.test.ts` verifica direct ca `createCronController().stop()` curata handle-ul timerului programat si ramane idempotent.
-- `src/test/housekeeping.test.ts` verifica idempotenta `createHousekeeping().start()` si faptul ca `stop()` curata intervalul creat.
-- `src/test/rustFuzzy.test.ts` verifica addon-ul Rust si contractul helperilor nativi.
-
-## GitHub Actions
-
-CI-ul real este in `.github/workflows/ci.yml`, fiindca GitHub nu ruleaza workflow-uri din `src/.github/workflows`.
-
-Workflow-ul ruleaza pe push, pull request si pornire manuala, foloseste Node.js 20, instaleaza Rust stable, instaleaza dependintele in `src` cu `npm ci` si executa `npm run check`.
+- `src/test/resolveOutboundChannel.test.ts` verifica comportamental erorile Discord permanente vs tranzitorii.
+- `src/test/httpClientSecurity.test.ts` verifica URL guard-ul si proxy fallback-ul.
+- `src/test/commands-regression.test.ts` ramane guard textual pentru regresii importante.
+- `src/test/cronController.test.ts`, `src/test/housekeeping.test.ts` si `src/test/rustFuzzy.test.ts` acopera scheduler, housekeeping si helperii nativi.
