@@ -20,7 +20,15 @@ Acest fisier documenteaza responsabilitatile modulelor importante din repo. Surs
 
 ### `README.md`
 
-Rol: ghid principal pentru setup, env, comenzi, Docker, audit, health/metrics, structura, testare, badge-uri si exemple vizuale de embed-uri.
+Rol: ghid principal pentru setup, env, comenzi, Docker, audit, release, security, health/metrics, structura, testare, badge-uri si exemple vizuale de embed-uri.
+
+### `CHANGELOG.md`
+
+Rol: istoric de versiuni si schimbari notabile. Explica folosirea tag-urilor semver `vMAJOR.MINOR.PATCH` si sta ca sursa de note pentru GitHub Release.
+
+### `SECURITY.md`
+
+Rol: politica de raportare privata a vulnerabilitatilor si reguli pentru secret management. Acopera tokenuri Discord, credentiale Mongo, `METRICS_TOKEN`, webhook-uri si proxy URL-uri.
 
 ### `LICENSE`
 
@@ -40,17 +48,9 @@ Comportament important: MongoDB este vizibil doar in reteaua Docker interna prin
 
 Rol: exclude `node_modules`, `dist`, target-ul Rust, `.env` si fisiere inutile din contextul Docker.
 
-### `docs/assets/embed-help.svg`
+### `docs/assets/*.svg`
 
-Rol: exemplu static pentru embed-ul `/help` din README.
-
-### `docs/assets/embed-update.svg`
-
-Rol: exemplu static pentru embed-ul de update automat din README.
-
-### `docs/assets/embed-discount.svg`
-
-Rol: exemplu static pentru embed-ul de reducere automata din README.
+Rol: exemple statice pentru embed-urile din README: `/help`, update automat si reducere automata.
 
 ## GitHub Actions si mentenanta
 
@@ -65,6 +65,12 @@ Comportament: ruleaza pe push, pull request si `workflow_dispatch`, foloseste No
 Rol: audit periodic si manual pentru dependinte runtime.
 
 Comportament: ruleaza saptamanal si la `workflow_dispatch`, lucreaza in `src`, instaleaza cu `npm ci` si executa `npm audit --omit=dev --audit-level=moderate`.
+
+### `.github/workflows/release.yml`
+
+Rol: release automat pentru tag-uri semver.
+
+Comportament: ruleaza la tag-uri `v*.*.*` sau manual cu input `tag`, face checkout pe ref-ul de release, instaleaza Node.js 20 si Rust stable, ruleaza `npm ci` si `npm run check` in `src`, apoi creeaza GitHub Release cu `CHANGELOG.md` si release notes generate de GitHub.
 
 ### `.github/dependabot.yml`
 
@@ -283,7 +289,7 @@ Definitii si inregistrare slash commands.
 
 ### `src/features/commands/interactions.ts`
 
-Proceseaza slash commands si autocomplete. `handleSetGames` este acoperit functional pentru add/remove in `src/test/setGamesInteraction.functional.test.ts`.
+Proceseaza slash commands si autocomplete. `handleSetGames` este acoperit functional pentru add/remove in `src/test/setGamesInteraction.functional.test.ts`. Fluxul complet `/start updates` este acoperit in `src/test/startUpdatesFlow.e2e.test.ts`, peste `interactions.ts` + `notifications/index.ts`.
 
 ## Notifications
 
@@ -304,6 +310,10 @@ Valideaza `config.json`.
 ### `src/scripts/check-syntax.ts`
 
 Verifica faptul ca nu exista fisiere JavaScript sursa ramase in `src`.
+
+### `src/test/startUpdatesFlow.e2e.test.ts`
+
+Testeaza end-to-end fluxul `/start updates`: baseline-ul initial scrie update-ul vechi in `seen`, cron-ul gaseste update-ul nou, trimite un embed si marcheaza update-ul ca vazut.
 
 ### `src/test/commandRegistry.functional.test.ts`
 

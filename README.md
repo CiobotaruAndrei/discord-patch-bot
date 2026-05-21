@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/ci.yml)
 [![Dependency Audit](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/dependency-audit.yml/badge.svg)](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/dependency-audit.yml)
+[![Release](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/release.yml/badge.svg)](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/release.yml)
 ![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -75,6 +76,21 @@ Dependintele sunt blocate prin `src/package-lock.json`, iar CI instaleaza cu `np
 - `.github/workflows/dependency-audit.yml` ruleaza saptamanal acelasi audit in GitHub Actions si poate fi pornit manual.
 - `.github/dependabot.yml` deschide PR-uri saptamanale pentru dependinte npm din `src` si pentru GitHub Actions, grupate ca sa fie mai usor de verificat controlat.
 
+## Release si versioning
+
+Versiunile folosesc tag-uri semver de forma `vMAJOR.MINOR.PATCH`, de exemplu `v1.0.0` sau `v1.1.0`.
+
+Proces recomandat:
+
+1. Actualizeaza `CHANGELOG.md` cu modificarile pentru versiunea noua.
+2. Da merge in `main` dupa ce CI este verde.
+3. Creeaza si impinge tag-ul, de exemplu `v1.1.0`.
+4. `.github/workflows/release.yml` ruleaza `npm run check` din `src` si creeaza GitHub Release cu notele din `CHANGELOG.md`.
+
+## Securitate
+
+Repo-ul are `SECURITY.md` pentru raportarea privata a vulnerabilitatilor. Nu publica in issue-uri tokenuri Discord, credentiale Mongo, `METRICS_TOKEN`, webhook-uri sau proxy URL-uri. Pentru probleme de securitate foloseste GitHub Security Advisories.
+
 ## Config jocuri
 
 Lista de jocuri si surse este in `src/config.json`. Fiecare intrare are o cheie (`key`) folosita in comenzi Discord si un tip de sursa, de exemplu `steam`, `epic_games`, `listing_based`, `nvidia`, `amd` sau `intel`.
@@ -112,10 +128,13 @@ In productie `/metrics` trebuie protejat cu `METRICS_TOKEN`, exceptand cazul in 
 .github/dependabot.yml       # PR-uri saptamanale pentru dependinte
 .github/workflows/ci.yml     # GitHub Actions principal
 .github/workflows/dependency-audit.yml
+.github/workflows/release.yml
+CHANGELOG.md                 # istoric schimbari si versiuni
 Dockerfile                   # build multi-stage pentru bot
 docker-compose.yml           # bot + MongoDB local, Mongo neexpus pe host
 docs/assets/                 # exemple SVG pentru README
 LICENSE                      # licenta MIT
+SECURITY.md                  # raportare privata vulnerabilitati
 src/
   app/                       # main, lifecycle, scheduler, health
   config/                    # validare config
@@ -133,6 +152,7 @@ src/
 
 `npm run check` este verificarea completa folosita si in CI. Pe langa regresii textuale, repo-ul are teste functionale cu mock-uri pentru zone critice:
 
+- Flux E2E `/start updates -> baseline Mongo -> cron -> embed -> seen` in `startUpdatesFlow.e2e.test.ts`
 - Discord channel resolution si erori permanente in `resolveOutboundChannel.test.ts`
 - `/set games add/remove` in `setGamesInteraction.functional.test.ts`
 - HTTP URL safety si proxy fallback in `httpClientSecurity.test.ts`
@@ -147,7 +167,8 @@ Codul legacy foloseste inca module CommonJS care ataseaza functii pe un context 
 - `commandRegistry` expune o fabrica testabila cu installer-e injectate explicit.
 - `domain/deals/filtersCore.ts` expune reguli pure si tipate direct, iar `domain/deals/filters.ts` ramane doar adapter pentru contextul legacy.
 - `features/notifications/outboundChannel.ts` expune resolver-ul tipat pentru canale Discord, iar `features/notifications/index.ts` il foloseste ca serviciu injectat.
-- Urmatorii pasi pot muta modulele Discord/notifications catre servicii/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
+- `startUpdatesFlow.e2e.test.ts` acopera fluxul complet ramas peste `interactions.ts` + `notifications/index.ts`, ca urmatoarea extragere din `ctx` sa aiba guard functional real.
+- Urmatorii pasi pot muta `interactions.ts`, `notifications/index.ts` si `sources` catre servicii/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
 
 ## Licenta
 

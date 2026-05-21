@@ -1,38 +1,48 @@
-# V11 - schimbari utile portate
+# V11 - stare curenta si schimbari utile
 
-Acest document noteaza starea curenta a repo-ului dupa curatare, migrarea la TypeScript, introducerea graduala a Rust, redenumirea fisierelor dupa functionalitate si imbunatatirile de setup/testare.
+Acest document noteaza starea repo-ului dupa curatare, migrarea sursei la TypeScript, introducerea graduala a Rust, setup-ul de CI/Docker si ultimele imbunatatiri pentru testare, release si securitate.
 
 ## Stare curenta
 
 - Codul editabil al aplicatiei este in `src/`.
 - JavaScript-ul ramas este output generat in `src/dist/` sau loader N-API generat, nu sursa manuala.
-- Dependintele sunt blocate prin `src/package-lock.json`, iar CI foloseste instalare reproductibila cu `npm ci`.
+- Dependintele sunt blocate prin `src/package-lock.json`, iar CI foloseste `npm ci`.
 - `src/tsconfig.json` ruleaza proiectul cu `strict: true` si `noImplicitAny: true`.
 - `src/tsconfig.strict.json` include zone stabilizate explicit: health, scheduler, `filtersCore`, `outboundChannel`, HTTP client si teste directe.
-- Fisierele intentionate din afara `src` sunt documentatie si infrastructura: `README.md`, `LICENSE`, `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `.github/` si `docs/assets/`.
-- `.github/workflows/ci.yml` ruleaza verificarea principala, iar `.github/workflows/dependency-audit.yml` ruleaza audit npm saptamanal si manual.
+- `src/legacy-dynamic.d.ts` ramane doar shim temporar pentru codul vechi care construieste contextul dinamic.
+- Fisierele intentionate din afara `src` sunt documentatie si infrastructura: `README.md`, `CHANGELOG.md`, `SECURITY.md`, `LICENSE`, `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `.github/` si `docs/assets/`.
+- `.github/workflows/ci.yml` ruleaza verificarea principala.
+- `.github/workflows/dependency-audit.yml` ruleaza audit npm saptamanal si manual.
+- `.github/workflows/release.yml` ruleaza `npm run check` pentru tag-uri `v*.*.*` si creeaza GitHub Release.
 - `.github/dependabot.yml` deschide PR-uri saptamanale pentru dependinte npm din `src` si pentru GitHub Actions.
-- `docker-compose.yml` nu mai publica MongoDB pe host; botul publica HTTP doar pe `127.0.0.1:3000`.
-- `README.md` are badge-uri pentru CI, Dependency Audit, Node.js si licenta MIT.
-- `README.md` documenteaza setup, Docker, audit, comenzi, health/metrics si include exemple SVG pentru `/help`, update automat si reducere automata.
+- `docker-compose.yml` nu publica MongoDB pe host; botul publica HTTP doar pe `127.0.0.1:3000`.
+- `README.md` are badge-uri pentru CI, Dependency Audit, Release, Node.js si licenta MIT.
+- `CHANGELOG.md` documenteaza versiunile si schimbarile notabile.
+- `SECURITY.md` documenteaza raportarea privata a vulnerabilitatilor.
 
-## Rectificari pentru feedback-ul recent
+## Rectificari recente din feedback
 
-- `src/features/notifications/outboundChannel.ts` extrage resolver-ul de canal Discord intr-un serviciu TypeScript tipat, cu dependinte injectate (`logger`, `canSendEmbeds`).
-- `src/features/notifications/index.ts` foloseste serviciul `createOutboundChannelResolver`, dar pastreaza adapter-ul legacy pe `ctx` ca sa nu rupa registrul de comenzi.
-- `src/test/resolveOutboundChannel.test.ts` testeaza direct serviciul tipat, nu prin mutarea dinamica pe `ctx`.
-- `src/test/setGamesInteraction.functional.test.ts` adauga test functional real pentru `/set games add`, cheia invalida si `/set games remove`.
-- `src/test/commands-regression.test.ts` include si build-ul `features/notifications/outboundChannel.js` in guard-urile textuale.
-- `LICENSE` adauga licenta MIT, iar README-ul o afiseaza cu badge si sectiune dedicata.
-- `src/domain/deals/filtersCore.ts` expune direct functiile pure pentru filtre, normalizarea pending queues, conversia map/object si rotirea cozilor.
-- `src/domain/deals/filters.ts` ramane doar adapter pentru contextul legacy, astfel incat codul existent nu se rupe, dar codul nou poate importa servicii tipate direct.
-- `src/test/dealFiltersCore.functional.test.ts` testeaza functional filtrele de reduceri si helperii de normalizare, in loc sa verifice doar string-uri in cod compilat.
-- `docker-compose.yml` foloseste `expose` pentru Mongo in reteaua Docker interna si nu mai are `27017:27017`.
-- `.github/workflows/dependency-audit.yml` ruleaza `npm audit --omit=dev --audit-level=moderate` din `src`.
-- `.github/dependabot.yml` grupeaza update-urile runtime, build/types si GitHub Actions.
-- `docs/assets/embed-help.svg`, `docs/assets/embed-update.svg` si `docs/assets/embed-discount.svg` sunt exemple vizuale pentru README.
+- A fost adaugat `src/test/startUpdatesFlow.e2e.test.ts`, un test end-to-end pentru fluxul `/start updates -> baseline Mongo -> cron -> embed -> seen`.
+- A fost adaugat `SECURITY.md` pentru raportarea privata a vulnerabilitatilor si pentru reguli de tratare a secretelor.
+- A fost adaugat `CHANGELOG.md` pentru versioning semantic si istoric de release.
+- A fost adaugat `.github/workflows/release.yml`, care ruleaza verificarea completa inainte de GitHub Release.
+- `README.md` documenteaza release/versioning, securitate si noul test E2E.
+- Documentele explicative (`CHANGELOG_V11.md`, `CONTEXT_REPO_CLEAN.md`, `FUNCTION_MAP_CLEAN.md`) au fost actualizate ca sa reflecte ultimele fisiere si fluxuri.
 
-## Bug fix-uri si imbunatatiri portate anterior
+## Reducerea treptata a ctx legacy
+
+Codul inca are module CommonJS care ataseaza functii pe un context comun. Directia corecta este sa fie mutate treptat in servicii/factory-uri tipate. Pasi deja facuti:
+
+- `src/features/commands/commandRegistry.ts` expune `createCommandRegistry(baseContext, installers)` pentru installer-e injectate explicit.
+- `src/domain/deals/filtersCore.ts` expune functii pure si tipate direct.
+- `src/domain/deals/filters.ts` ramane doar adapter pentru contextul legacy.
+- `src/features/notifications/outboundChannel.ts` expune resolver-ul de canal Discord ca serviciu tipat.
+- `src/features/notifications/index.ts` foloseste `createOutboundChannelResolver`, dar pastreaza adapter-ul legacy pe `ctx`.
+- `src/test/startUpdatesFlow.e2e.test.ts` acopera acum fluxul complet peste `interactions.ts` si `notifications/index.ts`, ca urmatoarea extragere din `ctx` sa fie protejata de un test functional real.
+
+Urmatoarele zone bune de refactorizat sunt `features/commands/interactions.ts`, `features/notifications/index.ts` si `sources/`, dar in pasi separati si cu teste functionale langa fiecare extragere.
+
+## Bug fix-uri si imbunatatiri portate
 
 - `METRICS_TOKEN` placeholder este tratat ca lipsa, ca sa nu para production-safe din greseala.
 - `safeCheerioLoad` taie HTML-ul mare pe limita de bytes fara sa rupa caractere UTF-8.
@@ -50,7 +60,6 @@ Acest document noteaza starea curenta a repo-ului dupa curatare, migrarea la Typ
 - Cron-ul are lock distribuit, heartbeat, health window si backoff global.
 - `app/scheduler/cron.ts::stop()` curata `cronTimerId` dupa `clearTimeout`.
 - `src/app/health/httpServer.ts` construieste metricile prin `pushMetric`, ca aceeasi metrica Prometheus sa nu fie emisa accidental de doua ori.
-- `src/features/commands/commandRegistry.ts` expune `createCommandRegistry(baseContext, installers)` pentru installer-e injectate explicit.
 - Erorile Discord permanente `10003`, `10004`, `50001`, `50013` dezactiveaza canalul afectat.
 - A fost adaugat sistem de migrari DB la pornire.
 - A fost adaugata schema JSON pentru `config.json`.
@@ -64,15 +73,11 @@ Acest document noteaza starea curenta a repo-ului dupa curatare, migrarea la Typ
 - `sources/updates/index.ts::fetchNvidiaUpdate` respinge fallback-ul RSS fara titlu sau cu titlu gol dupa curatare.
 - `npm start` porneste doar codul compilat din `dist/app/main.js`; `npm run dev` face build + start pentru dezvoltare.
 
-## TypeScript complet pe sursa
+## TypeScript si Rust
 
 Sursa din `src` este TypeScript. `src/tsconfig.json` are `allowJs: false`, `strict: true` si `noImplicitAny: true`, iar `src/scripts/check-syntax.ts` pica verificarea daca apar fisiere `.js` manuale in sursa, cu exceptiile generate cunoscute.
 
-`src/legacy-dynamic.d.ts` ramane doar ca punte temporara pentru obiecte legacy construite dinamic. Codul nou trebuie sa mearga spre servicii/factory-uri tipate, nu spre atasari dinamice noi pe `ctx`.
-
-## Rust gradual
-
-Rust este limitat la algoritmi puri si repetitivi, unde ajuta fara sa mute Discord, Mongo sau HTTP peste granita N-API.
+Rust este limitat la algoritmi puri si repetitivi, unde ajuta fara sa mute Discord, Mongo sau HTTP peste granita N-API:
 
 - `src/native/src/lib.rs` implementeaza `levenshtein` si helper bulk pentru fuzzy matching.
 - `src/native/fuzzy.ts` este puntea TypeScript catre addon-ul nativ si are fallback TypeScript pentru dezvoltare locala fara binar.
@@ -82,18 +87,20 @@ Rust este limitat la algoritmi puri si repetitivi, unde ajuta fara sa mute Disco
 
 Nu au fost mutate in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy fallback sau parsare HTML cu Cheerio, fiindca acolo timpul real este dominat de retea/IO si riscul ar fi mai mare decat castigul.
 
-## Schimbari de build, CI si mentenanta
+## Build, CI si release
 
 - `src/package-lock.json` este prezent in repo si blocheaza versiunile efective de dependinte.
 - `src/package.json` are scripturi separate pentru build Rust, build TypeScript, start, dev, typecheck, strict, test, audit si check.
 - `.github/workflows/ci.yml` ruleaza `npm run check` in `src` cu Node.js 20 si Rust stable.
 - `.github/workflows/dependency-audit.yml` ruleaza audit runtime saptamanal.
+- `.github/workflows/release.yml` ruleaza `npm run check` pentru tag-uri `v*.*.*` sau manual cu input `tag`, apoi creeaza GitHub Release cu notele din `CHANGELOG.md`.
 - `.github/dependabot.yml` propune update-uri controlate pentru npm si GitHub Actions.
 - `Dockerfile` face build multi-stage, iar `docker-compose.yml` porneste botul impreuna cu MongoDB fara sa publice Mongo pe host.
 - `src/.gitignore` ignora output-ul generat: `dist/`, `node_modules/`, `native/target/`, fisierele native `.node`, `native/index.js` si `native/index.d.ts`.
 
 ## Acoperire de teste
 
+- `src/test/startUpdatesFlow.e2e.test.ts` verifica fluxul complet `/start updates`, baseline-ul Mongo, cron-ul, trimiterea embed-ului si marcarea `seen`.
 - `src/test/resolveOutboundChannel.test.ts` verifica direct serviciul de rezolvare canal Discord si erorile permanente vs tranzitorii.
 - `src/test/setGamesInteraction.functional.test.ts` verifica functional `/set games add/remove` si cheia invalida.
 - `src/test/httpClientSecurity.test.ts` verifica respingerea URL-urilor externe nesigure si proxy fallback.
