@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="360" viewBox="0 0 760 360" role="img" aria-labelledby="title desc">
+  <title id="title">Discord Patch Bot update embed example</title>
+  <desc id="desc">Static mock of an automatic game update Discord embed.</desc>
+  <rect width="760" height="360" rx="22" fill="#0b1220"/>
+  <rect x="54" y="42" width="652" height="276" rx="14" fill="#111827" stroke="#334155"/>
+  <rect x="54" y="42" width="8" height="276" rx="4" fill="#22c55e"/>
+  <rect x="574" y="76" width="92" height="92" rx="12" fill="#1f2937" stroke="#475569"/>
+  <text x="620" y="128" text-anchor="middle" fill="#22c55e" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="36" font-weight="800">UP</text>
+  <text x="84" y="88" fill="#f8fafc" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="28" font-weight="700">Counter-Strike 2 - update nou</text>
+  <text x="84" y="122" fill="#94a3b8" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="15">Patch notes detectate automat din sursa oficiala.</text>
+  <text x="84" y="170" fill="#e5e7eb" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Gameplay balance and stability patch</text>
+  <text x="84" y="206" fill="#cbd5e1" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17">Fix-uri pentru matchmaking, optimizari de performanta si corectii</text>
+  <text x="84" y="232" fill="#cbd5e1" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17">pentru harti. Botul trimite doar update-uri noi.</text>
+  <rect x="84" y="268" width="160" height="30" rx="15" fill="#1f2937"/>
+  <text x="164" y="289" text-anchor="middle" fill="#86efac" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">Deschide patch notes</text>
+</svg>
