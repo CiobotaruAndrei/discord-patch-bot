@@ -8,7 +8,7 @@ Acest fisier documenteaza responsabilitatile modulelor importante din repo. Surs
 - Runtime-ul compilat TypeScript este CommonJS.
 - `src/package-lock.json` blocheaza versiunile de dependinte, iar CI instaleaza cu `npm ci`.
 - `src/tsconfig.json` are `allowJs: false`, `strict: true` si `noImplicitAny: true`.
-- `src/tsconfig.strict.json` include zone stabilizate explicit, inclusiv `src/domain/deals/filtersCore.ts`, `src/features/notifications/outboundChannel.ts` si testele lor directe.
+- `src/tsconfig.strict.json` include zone stabilizate explicit, inclusiv `src/domain/deals/filtersCore.ts`, `src/features/notifications/outboundChannel.ts`, `src/sources/sourceRegistry.ts` si testele lor directe.
 - `src/scripts/check-syntax.ts` pica verificarea daca mai apare un fisier `.js` in sursa `src`, ignorand `dist/` si loader-ul generat `native/index.js`.
 - Agregatoarele descriptive sunt `src/infra/mongo/mongoContext.ts`, `src/sources/sourceRegistry.ts` si `src/features/commands/commandRegistry.ts`.
 - `src/types.ts` tine tipurile comune folosite intre module.
@@ -118,7 +118,7 @@ Compileaza sursa TypeScript in `dist`, pastreaza CommonJS ca format runtime, fol
 
 ### `src/tsconfig.strict.json`
 
-Verificare stricta separata pentru zone stabilizate explicit: health server, scheduler, `domain/deals/filtersCore.ts`, `features/notifications/outboundChannel.ts`, `commandRegistry`, HTTP client, erori shared si testele directe pentru acele zone.
+Verificare stricta separata pentru zone stabilizate explicit: health server, scheduler, `domain/deals/filtersCore.ts`, `features/notifications/outboundChannel.ts`, `sources/sourceRegistry.ts`, `commandRegistry`, HTTP client, erori shared si testele directe pentru acele zone.
 
 ### `src/.gitignore`
 
@@ -248,7 +248,7 @@ Dependinte pentru surse: `axios`, `cheerio`, `rss-parser`, `crypto` si infrastru
 
 ### `src/sources/sourceRegistry.ts`
 
-Agregator pentru client HTTP, Steam helpers, update sources si deals sources. Expune si exporturi TypeScript folosite de teste.
+Agregator pentru client HTTP, Steam helpers, update sources si deals sources. Expune `createSourceRegistry(baseContext, installers)` pentru wiring explicit si testabil, apoi pastreaza exporturile vechi pentru compatibilitate cu runtime-ul curent.
 
 ### `src/sources/updates/index.ts`
 
@@ -329,6 +329,10 @@ Testeaza end-to-end fluxul `/start reduceri`: baseline-ul initial scrie hash-ul 
 ### `src/test/commandRegistry.functional.test.ts`
 
 Testeaza functional `createCommandRegistry` cu installer-e mock injectate si verificare de eroare cand lipseste o functie obligatorie.
+
+### `src/test/sourceRegistry.functional.test.ts`
+
+Testeaza functional `createSourceRegistry` cu installer-e mock injectate pentru HTTP, Steam, updates si deals.
 
 ### `src/test/dealFiltersCore.functional.test.ts`
 
