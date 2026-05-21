@@ -168,6 +168,7 @@ src/
 - HTTP URL safety si proxy fallback in `httpClientSecurity.test.ts`
 - Mongo migrations si lock release in `mongoMigrations.functional.test.ts`
 - Command registry wiring in `commandRegistry.functional.test.ts`
+- Source registry wiring in `sourceRegistry.functional.test.ts`
 - Filtrele de reduceri exportate direct in `dealFiltersCore.functional.test.ts`
 
 ## Note arhitecturale
@@ -175,10 +176,11 @@ src/
 Codul legacy foloseste inca module CommonJS care ataseaza functii pe un context comun. Pentru a reduce riscul, migrarea se face treptat:
 
 - `commandRegistry` expune o fabrica testabila cu installer-e injectate explicit.
+- `sourceRegistry` expune o fabrica testabila cu installer-e injectate explicit pentru HTTP, Steam, updates si deals.
 - `domain/deals/filtersCore.ts` expune reguli pure si tipate direct, iar `domain/deals/filters.ts` ramane doar adapter pentru contextul legacy.
 - `features/notifications/outboundChannel.ts` expune resolver-ul tipat pentru canale Discord, iar `features/notifications/index.ts` il foloseste ca serviciu injectat.
 - `startUpdatesFlow.e2e.test.ts` si `startDiscountsFlow.e2e.test.ts` acopera fluxurile complete ramase peste `interactions.ts` + `notifications/index.ts`, ca urmatoarea extragere din `ctx` sa aiba guard functional real.
-- Urmatorii pasi pot muta `interactions.ts`, `notifications/index.ts` si `sources` catre servicii/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
+- Urmatorii pasi pot muta `interactions.ts` si `notifications/index.ts` catre servicii/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
 
 ## Licenta
 
