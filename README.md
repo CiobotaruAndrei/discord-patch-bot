@@ -42,6 +42,7 @@ npm run dev         # build + start pentru dezvoltare locala
 npm run check       # typecheck, build, syntax/config check si teste
 npm run test        # build + testele Node
 npm run lint        # typecheck normal + strict
+npm run audit       # audit pe dependintele runtime
 ```
 
 `npm start` nu mai ruleaza build automat. In productie, build-ul trebuie facut in CI sau in imaginea Docker, iar runtime-ul doar porneste `dist/app/main.js`.
@@ -57,7 +58,17 @@ cp src/.env.example src/.env
 docker compose up --build
 ```
 
-Compose porneste un MongoDB local si botul. Pentru productie seteaza un `METRICS_TOKEN` real si evita expunerea publica a `/metrics`.
+Compose porneste botul si MongoDB intr-o retea interna Docker. Mongo nu este publicat pe host; botul publica HTTP doar pe `127.0.0.1:3000`, ca endpoint-urile locale sa nu fie expuse accidental in retea.
+
+Daca ai nevoie temporar sa accesezi Mongo din host, foloseste un override local necomis si leaga portul doar pe loopback, de exemplu `127.0.0.1:27017:27017`. Pentru productie seteaza un `METRICS_TOKEN` real si evita expunerea publica a `/metrics`.
+
+## Dependinte si audit
+
+Dependintele sunt blocate prin `src/package-lock.json`, iar CI instaleaza cu `npm ci`.
+
+- `npm run audit` ruleaza local auditul pe dependintele runtime.
+- `.github/workflows/dependency-audit.yml` ruleaza saptamanal acelasi audit in GitHub Actions si poate fi pornit manual.
+- `.github/dependabot.yml` deschide PR-uri saptamanale pentru dependinte npm din `src` si pentru GitHub Actions, grupate ca sa fie mai usor de verificat controlat.
 
 ## Config jocuri
 
@@ -73,6 +84,14 @@ Comenzile sunt inregistrate ca slash commands. Suprafata principala include:
 - `/set games`, `/set stores`, `/set role`, `/set mode`, `/set currency`, `/set mindiscount`, `/set maxprice`
 - `/games`, `/help`, `/ping`
 
+## Exemple embed-uri
+
+Aceste mock-uri statice arata forma mesajelor trimise in Discord pentru cele mai importante fluxuri.
+
+| `/help` | Update automat | Reducere automata |
+| --- | --- | --- |
+| <img src="docs/assets/embed-help.svg" alt="Exemplu embed /help" width="240"> | <img src="docs/assets/embed-update.svg" alt="Exemplu embed update" width="240"> | <img src="docs/assets/embed-discount.svg" alt="Exemplu embed reducere" width="240"> |
+
 ## Health si metrics
 
 Serverul HTTP expune:
@@ -85,20 +104,23 @@ In productie `/metrics` trebuie protejat cu `METRICS_TOKEN`, exceptand cazul in 
 ## Structura
 
 ```text
-.github/workflows/ci.yml   # GitHub Actions
-Dockerfile                 # build multi-stage pentru bot
-docker-compose.yml         # bot + MongoDB local
+.github/dependabot.yml       # PR-uri saptamanale pentru dependinte
+.github/workflows/ci.yml     # GitHub Actions principal
+.github/workflows/dependency-audit.yml
+Dockerfile                   # build multi-stage pentru bot
+docker-compose.yml           # bot + MongoDB local, Mongo neexpus pe host
+docs/assets/                 # exemple SVG pentru README
 src/
-  app/                     # main, lifecycle, scheduler, health
-  config/                  # validare config
-  domain/                  # reguli domeniu
-  features/commands/       # slash commands si interactions
-  features/notifications/  # notificari automate
-  infra/http/              # HTTP client, proxy, URL safety
-  infra/mongo/             # modele, lock-uri, migrari, state
-  native/                  # Rust/N-API + fallback TypeScript
-  sources/                 # Steam/Epic/RSS/listing scrapers
-  test/                    # teste functionale si regresii
+  app/                       # main, lifecycle, scheduler, health
+  config/                    # validare config
+  domain/                    # reguli domeniu
+  features/commands/         # slash commands si interactions
+  features/notifications/    # notificari automate
+  infra/http/                # HTTP client, proxy, URL safety
+  infra/mongo/               # modele, lock-uri, migrari, state
+  native/                    # Rust/N-API + fallback TypeScript
+  sources/                   # Steam/Epic/RSS/listing scrapers
+  test/                      # teste functionale si regresii
 ```
 
 ## Testare
@@ -109,7 +131,12 @@ src/
 - HTTP URL safety si proxy fallback in `httpClientSecurity.test.ts`
 - Mongo migrations si lock release in `mongoMigrations.functional.test.ts`
 - Command registry wiring in `commandRegistry.functional.test.ts`
+- Filtrele de reduceri exportate direct in `dealFiltersCore.functional.test.ts`
 
 ## Note arhitecturale
 
-Codul legacy foloseste inca module CommonJS care ataseaza functii pe un context comun. Pentru a reduce riscul, migrarea se face treptat: `commandRegistry` expune acum o fabrica testabila cu installer-e injectate explicit, iar urmatorii pasi pot muta modulele Discord/notifications catre servicii/factory-uri mai tipate.
+Codul legacy foloseste inca module CommonJS care ataseaza functii pe un context comun. Pentru a reduce riscul, migrarea se face treptat:
+
+- `commandRegistry` expune o fabrica testabila cu installer-e injectate explicit.
+- `domain/deals/filtersCore.ts` expune reguli pure si tipate direct, iar `domain/deals/filters.ts` ramane doar adapter pentru contextul legacy.
+- Urmatorii pasi pot muta modulele Discord/notifications catre servicii/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
