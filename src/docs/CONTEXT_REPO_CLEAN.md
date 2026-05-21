@@ -15,6 +15,10 @@ Aproape tot ce tine de proiect sta sub `src`. Singura exceptie intentionata este
   workflows/
     ci.yml
 src/
+  package.json
+  package-lock.json
+  tsconfig.json
+  tsconfig.strict.json
   app/
     main.ts
     health/
@@ -60,6 +64,7 @@ src/
     commands-regression.test.ts
     cronController.test.ts
     housekeeping.test.ts
+    httpClientSecurity.test.ts
     rustFuzzy.test.ts
     ...
   docs/
@@ -69,7 +74,13 @@ src/
 
 ## Rulare si verificare
 
-Rularea normala se face din `src`:
+Instalarea dependintelor se face din `src` cu lockfile-ul comis:
+
+```bash
+npm ci
+```
+
+Rularea normala se face tot din `src`:
 
 ```bash
 npm start
@@ -81,7 +92,7 @@ Verificarea completa se face cu:
 npm run check
 ```
 
-`npm run check` ruleaza typecheck, build Rust + TypeScript, syntax check, config check si testele din `dist/test`.
+`npm run check` ruleaza `typecheck`, `typecheck:strict`, build Rust + TypeScript, syntax check, config check si testele din `dist/test`.
 
 ## Flow de pornire
 
@@ -108,6 +119,8 @@ Logica mare nu trebuie pusa direct in `main.ts`; ea sta in modulele din `app`, `
 Regula curenta: sursa aplicatiei din `src` este TypeScript. Runtime-ul ramane CommonJS dupa compilare, deci importurile prin `require` si `module.exports` sunt acceptate unde ajuta la migrare sigura.
 
 `src/tsconfig.json` compileaza doar `.ts` si `.d.ts`, are `allowJs: false`, foloseste `module: CommonJS`, `moduleDetection: force` si exclude `dist`, `node_modules` si `coverage`.
+
+`src/tsconfig.strict.json` este verificarea stricta introdusa gradual. In prezent acopera health HTTP, cron, housekeeping, registrul de comenzi, clientul HTTP, erorile shared si testele directe pentru aceste zone. `npm run typecheck:strict`, `npm run lint` si `npm run check` o ruleaza mereu.
 
 `src/legacy-dynamic.d.ts` este un shim temporar pentru cateva obiecte legacy construite dinamic. Codul nou nu trebuie sa copieze acest model.
 
@@ -138,6 +151,10 @@ Module importante:
 
 Clientul HTTP comun este in `src/infra/http/client.ts`. El gestioneaza retry/backoff, limite de bytes, user-agent random, proxy fallback, hashing, normalizare, in-flight coalescing si abort signal.
 
+Tot aici se valideaza URL-urile externe inainte de request. `assertSafeExternalUrl` accepta doar `http` si `https`, respinge credentialele din URL, host-urile locale/private IPv4, IPv6 loopback/link-local/unique-local si orice template proxy fara `{url}`. `fetchWithProxy` valideaza intai URL-ul tinta si apoi encodeaza varianta canonica in proxy.
+
+Sursele externe sunt fragile prin natura lor, pentru ca depind de HTML, RSS si API-uri care se pot schimba. Repo-ul pastreaza defensiv `SchemaDriftError`, circuit breaker, fallback-uri si teste pentru cazurile unde sursa incepe sa dea date goale sau forme neasteptate.
+
 Sursele externe sunt in `src/sources`:
 
 - `runtime.ts`: dependinte comune pentru surse.
@@ -150,11 +167,13 @@ Sursele externe sunt in `src/sources`:
 
 Comenzile sunt in `src/features/commands`:
 
-- `commandRegistry.ts`: agregatorul comenzilor.
+- `commandRegistry.ts`: agregatorul comenzilor si contractul functiilor cerute din context.
 - `cache.ts`: cache runtime, cooldown-uri si LRU.
 - `ui.ts`: embed-uri, paginare, fuzzy matching, status si pret Steam.
 - `slashCommands.ts`: definitii si inregistrare slash commands.
 - `interactions.ts`: handler-ele slash si autocomplete.
+
+`commandRegistry.ts` inca foloseste pattern-ul legacy de module care ataseaza functii pe `ctx`, dar acum declara explicit functiile asteptate si pica devreme daca o dependinta lipseste. Refactorizarea completa catre factory-uri explicite ramane o migrare separata, ca sa nu rupa tot fluxul Discord dintr-o singura schimbare.
 
 Notificarile automate sunt in `src/features/notifications/index.ts`.
 
@@ -165,6 +184,10 @@ Reguli care nu trebuie rupte: claim atomic pentru `seen`, rollback cand Discord 
 `src/app/scheduler/cron.ts` coordoneaza ciclurile de update si foloseste lock distribuit, health window, backoff global si curatarea handle-ului programat la `stop()`.
 
 `src/app/scheduler/housekeeping.ts` curata cache-uri si rate limiter-ul. `start()` este idempotent: daca exista deja timer, un al doilea apel returneaza fara sa porneasca inca un interval.
+
+## Health si metrics
+
+`src/app/health/httpServer.ts` expune `/health`, `/healthz` si `/metrics`. Metricile Prometheus sunt construite prin `pushMetric`, care tine un set cu numele deja emise si evita duplicarea accidentala a liniilor `HELP`/`TYPE`/sample pentru aceeasi metrica.
 
 ## Teste si scripturi
 
@@ -177,6 +200,7 @@ Teste importante:
 
 - `src/test/commands-regression.test.ts` verifica regresiile pentru comenzi, notificari, runtime, module compilate si guard-urile RSS pentru drivere.
 - `src/test/cronController.test.ts` verifica direct ca `createCronController().stop()` curata handle-ul timerului programat si ramane idempotent.
+- `src/test/httpClientSecurity.test.ts` verifica URL guard-ul pentru scheme nesigure, localhost, IPv4/IPv6 local sau privat, credentiale in URL, proxy target si template-uri proxy fara `{url}`.
 - `src/test/housekeeping.test.ts` verifica idempotenta `createHousekeeping().start()` si faptul ca `stop()` curata intervalul creat.
 - `src/test/resolveOutboundChannel.test.ts` verifica comportamental erorile Discord permanente vs tranzitorii.
 - `src/test/rustFuzzy.test.ts` verifica addon-ul Rust si contractul helperilor nativi.
@@ -185,4 +209,4 @@ Teste importante:
 
 CI-ul real este in `.github/workflows/ci.yml`, fiindca GitHub nu ruleaza workflow-uri din `src/.github/workflows`.
 
-Workflow-ul ruleaza pe push, pull request si pornire manuala, foloseste Node.js 20, instaleaza Rust stable, instaleaza dependintele in `src` si executa `npm run check`.
+Workflow-ul ruleaza pe push, pull request si pornire manuala, foloseste Node.js 20, instaleaza Rust stable, instaleaza dependintele in `src` cu `npm ci` si executa `npm run check`.
