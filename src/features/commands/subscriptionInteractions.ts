@@ -259,7 +259,4 @@ function installSubscriptionInteractions(ctx: SubscriptionContext) {
 
 Object.assign(installSubscriptionInteractions, { createSubscriptionInteractionHandlers });
 
-module.exports = installSubscriptionInteractions;
-
-export { createSubscriptionInteractionHandlers, installSubscriptionInteractions };
-export type { SubscriptionInteractionDeps };
+export = installSubscriptionInteractions;
