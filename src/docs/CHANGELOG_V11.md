@@ -1,6 +1,6 @@
 # V11 - stare curenta si schimbari utile
 
-Acest document noteaza starea repo-ului dupa curatare, migrarea sursei la TypeScript, introducerea graduala a Rust, setup-ul de CI/Docker si ultimele imbunatatiri pentru testare, release si securitate.
+Acest document noteaza starea repo-ului dupa curatare, migrarea sursei la TypeScript, introducerea graduala a Rust, setup-ul de CI/Docker si ultimele imbunatatiri pentru testare, release, GHCR si securitate.
 
 ## Stare curenta
 
@@ -13,21 +13,21 @@ Acest document noteaza starea repo-ului dupa curatare, migrarea sursei la TypeSc
 - Fisierele intentionate din afara `src` sunt documentatie si infrastructura: `README.md`, `CHANGELOG.md`, `SECURITY.md`, `LICENSE`, `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `.github/` si `docs/assets/`.
 - `.github/workflows/ci.yml` ruleaza verificarea principala.
 - `.github/workflows/dependency-audit.yml` ruleaza audit npm saptamanal si manual.
-- `.github/workflows/release.yml` ruleaza `npm run check` pentru tag-uri `v*.*.*` si creeaza GitHub Release.
+- `.github/workflows/release.yml` ruleaza `npm run check`, publica imaginea Docker in GHCR si creeaza GitHub Release pentru tag-uri `v*.*.*`.
 - `.github/dependabot.yml` deschide PR-uri saptamanale pentru dependinte npm din `src` si pentru GitHub Actions.
 - `docker-compose.yml` nu publica MongoDB pe host; botul publica HTTP doar pe `127.0.0.1:3000`.
+- `src/.env.example` documenteaza variabilele obligatorii si optionale importante pe categorii.
 - `README.md` are badge-uri pentru CI, Dependency Audit, Release, Node.js si licenta MIT.
-- `CHANGELOG.md` documenteaza versiunile si schimbarile notabile.
+- `CHANGELOG.md` documenteaza versiunile, schimbarile notabile si imaginea GHCR.
 - `SECURITY.md` documenteaza raportarea privata a vulnerabilitatilor.
 
 ## Rectificari recente din feedback
 
 - A fost adaugat `src/test/startUpdatesFlow.e2e.test.ts`, un test end-to-end pentru fluxul `/start updates -> baseline Mongo -> cron -> embed -> seen`.
-- A fost adaugat `SECURITY.md` pentru raportarea privata a vulnerabilitatilor si pentru reguli de tratare a secretelor.
-- A fost adaugat `CHANGELOG.md` pentru versioning semantic si istoric de release.
-- A fost adaugat `.github/workflows/release.yml`, care ruleaza verificarea completa inainte de GitHub Release.
-- `README.md` documenteaza release/versioning, securitate si noul test E2E.
-- Documentele explicative (`CHANGELOG_V11.md`, `CONTEXT_REPO_CLEAN.md`, `FUNCTION_MAP_CLEAN.md`) au fost actualizate ca sa reflecte ultimele fisiere si fluxuri.
+- A fost adaugat `src/test/startDiscountsFlow.e2e.test.ts`, un test end-to-end pentru fluxul `/start reduceri -> baseline reduceri -> cron -> deal embed -> seenDiscounts`.
+- `.github/workflows/release.yml` publica imaginea Docker in GitHub Container Registry: `ghcr.io/ciobotaruandrei/discord-patch-bot:<tag>` si `latest`.
+- `src/.env.example` a fost rescris pe sectiuni clare: runtime, Mongo, Discord, metrics, proxy, webhook, logging, scraping, Discord throughput, circuit breaker, queue/cache si rate limit.
+- `README.md`, `CHANGELOG.md` si documentele explicative au fost actualizate ca sa reflecte ultimele fisiere si fluxuri.
 
 ## Reducerea treptata a ctx legacy
 
@@ -38,7 +38,7 @@ Codul inca are module CommonJS care ataseaza functii pe un context comun. Direct
 - `src/domain/deals/filters.ts` ramane doar adapter pentru contextul legacy.
 - `src/features/notifications/outboundChannel.ts` expune resolver-ul de canal Discord ca serviciu tipat.
 - `src/features/notifications/index.ts` foloseste `createOutboundChannelResolver`, dar pastreaza adapter-ul legacy pe `ctx`.
-- `src/test/startUpdatesFlow.e2e.test.ts` acopera acum fluxul complet peste `interactions.ts` si `notifications/index.ts`, ca urmatoarea extragere din `ctx` sa fie protejata de un test functional real.
+- `src/test/startUpdatesFlow.e2e.test.ts` si `src/test/startDiscountsFlow.e2e.test.ts` acopera acum fluxurile complete peste `interactions.ts` si `notifications/index.ts`, ca urmatoarea extragere din `ctx` sa fie protejata de teste functionale reale.
 
 Urmatoarele zone bune de refactorizat sunt `features/commands/interactions.ts`, `features/notifications/index.ts` si `sources/`, dar in pasi separati si cu teste functionale langa fiecare extragere.
 
@@ -93,7 +93,7 @@ Nu au fost mutate in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy f
 - `src/package.json` are scripturi separate pentru build Rust, build TypeScript, start, dev, typecheck, strict, test, audit si check.
 - `.github/workflows/ci.yml` ruleaza `npm run check` in `src` cu Node.js 20 si Rust stable.
 - `.github/workflows/dependency-audit.yml` ruleaza audit runtime saptamanal.
-- `.github/workflows/release.yml` ruleaza `npm run check` pentru tag-uri `v*.*.*` sau manual cu input `tag`, apoi creeaza GitHub Release cu notele din `CHANGELOG.md`.
+- `.github/workflows/release.yml` ruleaza `npm run check`, construieste Dockerfile-ul, publica imaginea in GHCR si creeaza GitHub Release.
 - `.github/dependabot.yml` propune update-uri controlate pentru npm si GitHub Actions.
 - `Dockerfile` face build multi-stage, iar `docker-compose.yml` porneste botul impreuna cu MongoDB fara sa publice Mongo pe host.
 - `src/.gitignore` ignora output-ul generat: `dist/`, `node_modules/`, `native/target/`, fisierele native `.node`, `native/index.js` si `native/index.d.ts`.
@@ -101,6 +101,7 @@ Nu au fost mutate in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy f
 ## Acoperire de teste
 
 - `src/test/startUpdatesFlow.e2e.test.ts` verifica fluxul complet `/start updates`, baseline-ul Mongo, cron-ul, trimiterea embed-ului si marcarea `seen`.
+- `src/test/startDiscountsFlow.e2e.test.ts` verifica fluxul complet `/start reduceri`, baseline-ul reducerilor, cron-ul, trimiterea embed-ului si marcarea `seenDiscounts`.
 - `src/test/resolveOutboundChannel.test.ts` verifica direct serviciul de rezolvare canal Discord si erorile permanente vs tranzitorii.
 - `src/test/setGamesInteraction.functional.test.ts` verifica functional `/set games add/remove` si cheia invalida.
 - `src/test/httpClientSecurity.test.ts` verifica respingerea URL-urilor externe nesigure si proxy fallback.
