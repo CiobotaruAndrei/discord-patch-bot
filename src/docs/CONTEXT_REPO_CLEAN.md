@@ -8,10 +8,11 @@ Codul sursa editabil al aplicatiei este in `src`. JavaScript-ul ramas este outpu
 
 ## Structura principala
 
-Aplicatia sta sub `src`, iar radacina repo-ului contine documentatie, exemple vizuale, CI si infrastructura de rulare.
+Aplicatia sta sub `src`, iar radacina repo-ului contine documentatie, exemple vizuale, CI, licenta si infrastructura de rulare.
 
 ```text
 README.md
+LICENSE
 Dockerfile
 docker-compose.yml
 .dockerignore
@@ -43,7 +44,12 @@ src/
       filtersCore.ts
   features/
     commands/
+      commandRegistry.ts
+      interactions.ts
+      ui.ts
     notifications/
+      index.ts
+      outboundChannel.ts
   infra/
     http/
     mongo/
@@ -63,6 +69,7 @@ src/
     mongoMigrations.functional.test.ts
     resolveOutboundChannel.test.ts
     rustFuzzy.test.ts
+    setGamesInteraction.functional.test.ts
     ...
   docs/
 ```
@@ -111,6 +118,10 @@ docker compose up --build
 
 Compose tine MongoDB doar in reteaua Docker interna (`expose: 27017`) si publica botul doar pe `127.0.0.1:3000`. Pentru acces local temporar la Mongo din host trebuie folosit un override necomis si legat doar pe loopback.
 
+## README si licenta
+
+README-ul are badge-uri pentru CI, Dependency Audit, Node.js >=20 si licenta MIT. Licenta proiectului este in `LICENSE`.
+
 ## Flow de pornire
 
 `src/app/main.ts` este orchestratorul. Dupa build, se ruleaza ca `dist/app/main.js`.
@@ -144,6 +155,7 @@ Reducerea treptata a `ctx` dinamic:
 - `src/features/commands/commandRegistry.ts` expune `createCommandRegistry(baseContext, installers)`, deci installer-ele pot fi injectate si testate explicit.
 - `src/domain/deals/filtersCore.ts` expune functii pure tipate direct.
 - `src/domain/deals/filters.ts` ramane adapter pentru codul legacy care asteapta atasare pe context.
+- `src/features/notifications/outboundChannel.ts` expune resolver-ul de canal Discord ca serviciu tipat, iar `src/features/notifications/index.ts` il foloseste prin dependinte injectate.
 
 ## Rust
 
@@ -186,7 +198,10 @@ Comenzile sunt in `src/features/commands`:
 - `slashCommands.ts`: definitii si inregistrare slash commands.
 - `interactions.ts`: handler-ele slash si autocomplete.
 
-Notificarile automate sunt in `src/features/notifications/index.ts`.
+Notificarile automate sunt in `src/features/notifications`:
+
+- `index.ts`: fluxurile cron pentru update-uri si reduceri, claim atomic, rollback si pending queues.
+- `outboundChannel.ts`: resolver tipat pentru fetch canal Discord, permisiuni embed si erori permanente/tranzitorii.
 
 Reguli care nu trebuie rupte: claim atomic pentru `seen`, rollback cand Discord send esueaza, pending queues, activation id pentru `/start`, filtre per joc/store/pret/procent, ping de rol o singura data per ciclu si dezactivare canal pentru erori Discord permanente.
 
@@ -231,8 +246,9 @@ Teste importante:
 
 - `src/test/commandRegistry.functional.test.ts` verifica registrul de comenzi cu installer-e mock injectate.
 - `src/test/dealFiltersCore.functional.test.ts` verifica direct filtrele de reduceri si helperii de normalizare.
+- `src/test/setGamesInteraction.functional.test.ts` verifica functional `/set games add/remove` si cheia invalida.
 - `src/test/mongoMigrations.functional.test.ts` verifica migrarile Mongo cu colectii fake si release de lock.
-- `src/test/resolveOutboundChannel.test.ts` verifica comportamental erorile Discord permanente vs tranzitorii.
+- `src/test/resolveOutboundChannel.test.ts` verifica direct serviciul de canal Discord pentru erori permanente vs tranzitorii.
 - `src/test/httpClientSecurity.test.ts` verifica URL guard-ul si proxy fallback-ul.
 - `src/test/commands-regression.test.ts` ramane guard textual pentru regresii importante.
 - `src/test/cronController.test.ts`, `src/test/housekeeping.test.ts` si `src/test/rustFuzzy.test.ts` acopera scheduler, housekeeping si helperii nativi.
