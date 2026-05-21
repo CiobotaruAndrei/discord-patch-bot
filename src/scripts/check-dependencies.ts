@@ -1,0 +1,80 @@
+import fs from "node:fs";
+import path from "node:path";
+
+type PackageJson = {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
+
+type PackageLock = {
+  lockfileVersion?: number;
+  packages?: Record<string, { version?: string; resolved?: string; dependencies?: Record<string, string> }>;
+};
+
+function readJson<T>(filePath: string): T {
+  return JSON.parse(fs.readFileSync(filePath, "utf8")) as T;
+}
+
+function fail(message: string): never {
+  throw new Error(`Dependency policy failed: ${message}`);
+}
+
+function isExactSemver(version: string) {
+  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version);
+}
+
+function assertTrustedResolvedUrl(packageName: string, resolved: string | undefined) {
+  if (!resolved) return;
+  let parsed: URL;
+  try {
+    parsed = new URL(resolved);
+  } catch {
+    fail(`${packageName} has an invalid resolved URL in package-lock.json`);
+  }
+  if (parsed.protocol !== "https:") {
+    fail(`${packageName} is resolved over ${parsed.protocol}, expected https:`);
+  }
+  if (parsed.hostname !== "registry.npmjs.org") {
+    fail(`${packageName} is resolved from ${parsed.hostname}, expected registry.npmjs.org`);
+  }
+}
+
+const rootDir = process.cwd();
+const packageJson = readJson<PackageJson>(path.join(rootDir, "package.json"));
+const packageLock = readJson<PackageLock>(path.join(rootDir, "package-lock.json"));
+const lockRoot = packageLock.packages?.[""];
+
+if (!packageLock.packages || !lockRoot) {
+  fail("package-lock.json must use the npm lockfile package map");
+}
+
+if (typeof packageLock.lockfileVersion !== "number" || packageLock.lockfileVersion < 3) {
+  fail("package-lock.json must be lockfileVersion 3 or newer");
+}
+
+const runtimeDependencies = packageJson.dependencies || {};
+const lockRuntimeDependencies = lockRoot.dependencies || {};
+
+for (const [name, version] of Object.entries(runtimeDependencies)) {
+  if (!isExactSemver(version)) {
+    fail(`runtime dependency ${name} must be pinned to an exact version, got ${version}`);
+  }
+  if (lockRuntimeDependencies[name] !== version) {
+    fail(`runtime dependency ${name} differs between package.json (${version}) and package-lock.json (${lockRuntimeDependencies[name] || "missing"})`);
+  }
+  const lockEntry = packageLock.packages[`node_modules/${name}`];
+  if (!lockEntry) {
+    fail(`runtime dependency ${name} is missing from package-lock.json`);
+  }
+  if (lockEntry.version !== version) {
+    fail(`runtime dependency ${name} resolves to ${lockEntry.version || "missing"}, expected ${version}`);
+  }
+  assertTrustedResolvedUrl(name, lockEntry.resolved);
+}
+
+for (const [packagePath, lockEntry] of Object.entries(packageLock.packages)) {
+  if (!packagePath || !lockEntry.resolved) continue;
+  assertTrustedResolvedUrl(packagePath.replace(/^node_modules\//, ""), lockEntry.resolved);
+}
+
+console.log(`Dependency policy OK: ${Object.keys(runtimeDependencies).length} runtime dependencies pinned and lockfile URLs verified.`);
