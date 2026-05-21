@@ -9,7 +9,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   check:
@@ -20,22 +20,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install dependencies
-        run: npm install
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Commit generated lockfile
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git diff --cached --quiet && exit 0
-          git commit -m "Add generated package lock"
-          git push
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run project checks
+        env:
+          MONGO_URI: mongodb://localhost:27017/discord-patch-bot-test
+          DISCORD_TOKEN: test_discord_token
+          DISCORD_CLIENT_ID: test_discord_client_id
+          METRICS_PUBLIC: "true"
+        run: npm run check
