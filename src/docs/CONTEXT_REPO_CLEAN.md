@@ -73,6 +73,7 @@ src/
     resolveOutboundChannel.test.ts
     rustFuzzy.test.ts
     setGamesInteraction.functional.test.ts
+    sourceRegistry.functional.test.ts
     startDiscountsFlow.e2e.test.ts
     startUpdatesFlow.e2e.test.ts
     ...
@@ -177,12 +178,13 @@ Regula curenta: sursa aplicatiei din `src` este TypeScript. Runtime-ul compilat 
 Reducerea treptata a `ctx` dinamic:
 
 - `src/features/commands/commandRegistry.ts` expune `createCommandRegistry(baseContext, installers)`, deci installer-ele pot fi injectate si testate explicit.
+- `src/sources/sourceRegistry.ts` expune `createSourceRegistry(baseContext, installers)`, deci sursele HTTP, Steam, updates si deals pot fi injectate si testate explicit.
 - `src/domain/deals/filtersCore.ts` expune functii pure tipate direct.
 - `src/domain/deals/filters.ts` ramane adapter pentru codul legacy care asteapta atasare pe context.
 - `src/features/notifications/outboundChannel.ts` expune resolver-ul de canal Discord ca serviciu tipat, iar `src/features/notifications/index.ts` il foloseste prin dependinte injectate.
 - `src/test/startUpdatesFlow.e2e.test.ts` si `src/test/startDiscountsFlow.e2e.test.ts` acopera fluxurile complete `/start updates` si `/start reduceri` plus cron, ca extragerile viitoare din `interactions.ts` si `notifications/index.ts` sa aiba guard functional.
 
-Urmatoarele tinte sanatoase pentru refactor sunt `features/commands/interactions.ts`, `features/notifications/index.ts` si `sources/`, mutate treptat spre factory-uri cu dependinte explicite.
+Urmatoarele tinte sanatoase pentru refactor sunt `features/commands/interactions.ts` si `features/notifications/index.ts`, mutate treptat spre factory-uri cu dependinte explicite.
 
 ## Rust
 
@@ -211,7 +213,9 @@ Module importante:
 
 Clientul HTTP comun este in `src/infra/http/client.ts`. El gestioneaza retry/backoff, limite de bytes, user-agent random, proxy fallback, hashing, normalizare, in-flight coalescing si abort signal.
 
-Tot aici se valideaza URL-urile externe inainte de request. `assertSafeExternalUrl` accepta doar `http` si `https`, respinge credentialele din URL, host-urile locale/private IPv4, IPv6 loopback/link-local/unique-local si orice template proxy fara `{url}`. `fetchWithProxy` valideaza intai URL-ul tinta si apoi encodeaza varianta canonica in proxy.
+`src/sources/sourceRegistry.ts` leaga clientul HTTP, helperii Steam, update sources si deals sources prin `createSourceRegistry(baseContext, installers)`. Exporturile vechi raman compatibile, dar wiring-ul poate fi testat fara sa depinda de contextul runtime implicit.
+
+Tot in clientul HTTP se valideaza URL-urile externe inainte de request. `assertSafeExternalUrl` accepta doar `http` si `https`, respinge credentialele din URL, host-urile locale/private IPv4, IPv6 loopback/link-local/unique-local si orice template proxy fara `{url}`. `fetchWithProxy` valideaza intai URL-ul tinta si apoi encodeaza varianta canonica in proxy.
 
 Sursele externe sunt fragile prin natura lor, pentru ca depind de HTML, RSS si API-uri care se pot schimba. Repo-ul pastreaza defensiv `SchemaDriftError`, circuit breaker, fallback-uri si teste pentru cazurile unde sursa incepe sa dea date goale sau forme neasteptate.
 
@@ -277,6 +281,7 @@ Teste importante:
 - `src/test/startUpdatesFlow.e2e.test.ts` verifica fluxul complet `/start updates -> baseline Mongo -> cron -> embed -> seen`.
 - `src/test/startDiscountsFlow.e2e.test.ts` verifica fluxul complet `/start reduceri -> baseline reduceri -> cron -> deal embed -> seenDiscounts`.
 - `src/test/commandRegistry.functional.test.ts` verifica registrul de comenzi cu installer-e mock injectate.
+- `src/test/sourceRegistry.functional.test.ts` verifica registrul de surse cu installer-e mock injectate.
 - `src/test/dealFiltersCore.functional.test.ts` verifica direct filtrele de reduceri si helperii de normalizare.
 - `src/test/setGamesInteraction.functional.test.ts` verifica functional `/set games add/remove` si cheia invalida.
 - `src/test/mongoMigrations.functional.test.ts` verifica migrarile Mongo cu colectii fake si release de lock.
