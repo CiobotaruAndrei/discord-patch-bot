@@ -35,6 +35,8 @@ DISCORD_CLIENT_ID=...
 METRICS_PUBLIC=true
 ```
 
+`src/.env.example` documenteaza si variabilele optionale importante: metrics token, reverse proxy, admin webhook, proxy URL templates, limite de scraping, cooldown-uri Discord, circuit breaker, pending queues, cache-uri, Mongo pool si rate limit pentru endpoint-urile HTTP.
+
 Porneste MongoDB local sau foloseste Docker Compose din radacina repo-ului.
 
 ## Comenzi utile
@@ -85,7 +87,14 @@ Proces recomandat:
 1. Actualizeaza `CHANGELOG.md` cu modificarile pentru versiunea noua.
 2. Da merge in `main` dupa ce CI este verde.
 3. Creeaza si impinge tag-ul, de exemplu `v1.1.0`.
-4. `.github/workflows/release.yml` ruleaza `npm run check` din `src` si creeaza GitHub Release cu notele din `CHANGELOG.md`.
+4. `.github/workflows/release.yml` ruleaza `npm run check` din `src`, publica imaginea Docker in GitHub Container Registry si creeaza GitHub Release cu notele din `CHANGELOG.md`.
+
+Imaginea Docker publicata are formatul:
+
+```text
+ghcr.io/ciobotaruandrei/discord-patch-bot:v1.1.0
+ghcr.io/ciobotaruandrei/discord-patch-bot:latest
+```
 
 ## Securitate
 
@@ -153,6 +162,7 @@ src/
 `npm run check` este verificarea completa folosita si in CI. Pe langa regresii textuale, repo-ul are teste functionale cu mock-uri pentru zone critice:
 
 - Flux E2E `/start updates -> baseline Mongo -> cron -> embed -> seen` in `startUpdatesFlow.e2e.test.ts`
+- Flux E2E `/start reduceri -> baseline reduceri -> cron -> deal embed -> seenDiscounts` in `startDiscountsFlow.e2e.test.ts`
 - Discord channel resolution si erori permanente in `resolveOutboundChannel.test.ts`
 - `/set games add/remove` in `setGamesInteraction.functional.test.ts`
 - HTTP URL safety si proxy fallback in `httpClientSecurity.test.ts`
@@ -167,7 +177,7 @@ Codul legacy foloseste inca module CommonJS care ataseaza functii pe un context 
 - `commandRegistry` expune o fabrica testabila cu installer-e injectate explicit.
 - `domain/deals/filtersCore.ts` expune reguli pure si tipate direct, iar `domain/deals/filters.ts` ramane doar adapter pentru contextul legacy.
 - `features/notifications/outboundChannel.ts` expune resolver-ul tipat pentru canale Discord, iar `features/notifications/index.ts` il foloseste ca serviciu injectat.
-- `startUpdatesFlow.e2e.test.ts` acopera fluxul complet ramas peste `interactions.ts` + `notifications/index.ts`, ca urmatoarea extragere din `ctx` sa aiba guard functional real.
+- `startUpdatesFlow.e2e.test.ts` si `startDiscountsFlow.e2e.test.ts` acopera fluxurile complete ramase peste `interactions.ts` + `notifications/index.ts`, ca urmatoarea extragere din `ctx` sa aiba guard functional real.
 - Urmatorii pasi pot muta `interactions.ts`, `notifications/index.ts` si `sources` catre servicii/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
 
 ## Licenta
