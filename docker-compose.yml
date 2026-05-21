@@ -1,0 +1,25 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    ports:
+      - "27017:27017"
+
+  bot:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    env_file:
+      - ./src/.env
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongo:27017/discord-patch-bot
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+
+volumes:
+  mongo-data:

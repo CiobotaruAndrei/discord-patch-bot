@@ -15,7 +15,25 @@ Acest fisier documenteaza responsabilitatile modulelor importante din repo. Surs
 - `src/legacy-dynamic.d.ts` este un shim temporar pentru obiecte legacy dinamice.
 - `src/native` contine cod Rust doar pentru algoritmi puri, nu pentru Discord/Mongo/HTTP.
 - `dist/`, `native/target/`, fisierele `.node`, `native/index.js` si `native/index.d.ts` sunt output generat si nu se editeaza manual.
-- Singura exceptie intentionata din afara `src` este `.github/workflows/ci.yml`.
+- Fisierele intentionate din afara `src` sunt `README.md`, `Dockerfile`, `docker-compose.yml`, `.dockerignore` si `.github/workflows/ci.yml`.
+
+## Radacina repo-ului
+
+### `README.md`
+
+Rol: ghid principal pentru setup, env, comenzi, Docker, health/metrics, structura si testare.
+
+### `Dockerfile`
+
+Rol: build multi-stage pentru bot. Stage-ul de build instaleaza dependinte, compileaza Rust/N-API si TypeScript; stage-ul runtime porneste doar `npm start` peste `dist/app/main.js`.
+
+### `docker-compose.yml`
+
+Rol: stack local cu MongoDB si bot. Foloseste `src/.env` pentru tokenurile Discord si seteaza `MONGO_URI` catre serviciul `mongo`.
+
+### `.dockerignore`
+
+Rol: exclude `node_modules`, `dist`, target-ul Rust, `.env` si fisiere inutile din contextul Docker.
 
 ## GitHub Actions
 
@@ -34,7 +52,9 @@ Scripturi importante:
 - `build:rust`: compileaza addon-ul Rust prin `napi build --platform --release`.
 - `build:ts`: compileaza TypeScript cu `tsc`.
 - `build`: ruleaza Rust apoi TypeScript.
-- `start`: compileaza si ruleaza `dist/app/main.js`.
+- `start`: porneste doar `dist/app/main.js`; nu mai ruleaza build la runtime.
+- `start:build`: ruleaza build + start, util pentru verificare locala rapida.
+- `dev`: alias pentru `start:build`.
 - `typecheck`: ruleaza `tsc --noEmit` cu `strict` activ in configuratia principala.
 - `typecheck:strict`: ruleaza `tsc -p tsconfig.strict.json` pe lista explicita de fisiere stabilizate.
 - `lint`: ruleaza `typecheck` si `typecheck:strict`.
@@ -43,6 +63,10 @@ Scripturi importante:
 ### `src/package-lock.json`
 
 Rol: lockfile npm pentru instalari reproductibile local si in GitHub Actions.
+
+### `src/.env.example`
+
+Rol: exemplu de configurare pentru `MONGO_URI`, tokenul Discord, client ID, metrics si tuning runtime.
 
 ### `src/tsconfig.json`
 
@@ -206,7 +230,7 @@ Agregator pentru client HTTP, Steam helpers, update sources si deals sources. Ex
 
 Agregator pentru cache, filtre, UI, notificari, slash commands si interactions. `fetchGameStatus` ajunge la `interactions.ts` prin context, nu prin `globalThis`. Registrul declara functiile asteptate din context si foloseste `requireRegistryFunction` ca sa pice devreme daca un modul nu a atasat o dependinta obligatorie.
 
-Pattern-ul legacy `require("./cache")(ctx)` inca exista aici, dar acum are un contract minim explicit. Urmatorul pas mare ar fi factory-uri de tip `createCommandRegistry({ mongo, scrapers, logger, env })`.
+Pattern-ul legacy cu module care muta functii pe `ctx` inca exista, dar `createCommandRegistry(baseContext, installers)` permite injectarea explicita a installer-elor si testarea fara side effect global. Urmatorul pas mare ar fi factory-uri de tip `createCommandServices({ mongo, sources, logger, env })`.
 
 ### `src/features/commands/cache.ts`
 
@@ -240,6 +264,14 @@ Valideaza `config.json`.
 
 Verifica faptul ca nu exista fisiere JavaScript sursa ramase in `src`.
 
+### `src/test/commandRegistry.functional.test.ts`
+
+Testeaza functional `createCommandRegistry` cu installer-e mock injectate si verificare de eroare cand lipseste o functie obligatorie.
+
+### `src/test/mongoMigrations.functional.test.ts`
+
+Testeaza functional migrarile Mongo cu colectii fake: aplica migrarile, taie `seenDiscounts`, actualizeaza `migrationState` si elibereaza lock-ul.
+
 ### `src/test/commands-regression.test.ts`
 
 Testeaza regresiile pentru comenzi, notificari, health, cron, Mongo, HTTP, sources, TypeScript build si protectiile portate din codul local, inclusiv guard-urile RSS pentru drivere fara titlu valid.
@@ -258,7 +290,7 @@ Testeaza `assertSafeExternalUrl`, `httpReq` si `fetchWithProxy`: scheme nesigure
 
 ### `src/test/resolveOutboundChannel.test.ts`
 
-Testeaza comportamental erorile Discord permanente vs tranzitorii.
+Testeaza comportamental erorile Discord permanente vs tranzitorii cu mock-uri de client/canal.
 
 ### `src/test/rustFuzzy.test.ts`
 
