@@ -4,17 +4,22 @@
 
 Repo-ul contine un bot Discord pentru notificari automate despre patch notes, update-uri de jocuri, reduceri Steam/Epic, preturi Steam, DLC-uri Steam, status servere si endpoint-uri de health/metrics.
 
-Codul sursa editabil este in `src`. JavaScript-ul ramas este output generat in `src/dist/` sau loader N-API generat, nu sursa manuala. Nucleul Rust este in `src/native` si este folosit doar pentru algoritmi puri de fuzzy matching, normalizare, hashing si helperi de text/URL.
+Codul sursa editabil al aplicatiei este in `src`. JavaScript-ul ramas este output generat in `src/dist/` sau loader N-API generat, nu sursa manuala. Nucleul Rust este in `src/native` si este folosit doar pentru algoritmi puri de fuzzy matching, normalizare, hashing si helperi de text/URL.
 
 ## Structura principala
 
-Aproape tot ce tine de proiect sta sub `src`. Singura exceptie intentionata este workflow-ul real de GitHub Actions din `.github/workflows/ci.yml`.
+Aplicatia sta sub `src`, iar radacina repo-ului contine doar documentatie, CI si infrastructura de rulare.
 
 ```text
+README.md
+Dockerfile
+docker-compose.yml
+.dockerignore
 .github/
   workflows/
     ci.yml
 src/
+  .env.example
   package.json
   package-lock.json
   tsconfig.json
@@ -61,10 +66,13 @@ src/
     steam/index.ts
     updates/index.ts
   test/
+    commandRegistry.functional.test.ts
     commands-regression.test.ts
     cronController.test.ts
     housekeeping.test.ts
     httpClientSecurity.test.ts
+    mongoMigrations.functional.test.ts
+    resolveOutboundChannel.test.ts
     rustFuzzy.test.ts
     ...
   docs/
@@ -77,22 +85,37 @@ src/
 Instalarea dependintelor se face din `src` cu lockfile-ul comis:
 
 ```bash
+cd src
 npm ci
+cp .env.example .env
 ```
 
-Rularea normala se face tot din `src`:
+Pentru dezvoltare locala, dupa ce completezi `src/.env`, foloseste:
 
 ```bash
+npm run dev
+```
+
+Pentru productie sau Docker, build-ul si pornirea sunt separate:
+
+```bash
+npm run build
 npm start
 ```
 
-Verificarea completa se face cu:
+`npm start` porneste doar codul deja compilat din `dist/app/main.js`. Verificarea completa se face cu:
 
 ```bash
 npm run check
 ```
 
 `npm run check` ruleaza `typecheck`, `typecheck:strict`, build Rust + TypeScript, syntax check, config check si testele din `dist/test`.
+
+Din radacina repo-ului poti porni botul si MongoDB cu:
+
+```bash
+docker compose up --build
+```
 
 ## Flow de pornire
 
@@ -173,7 +196,7 @@ Comenzile sunt in `src/features/commands`:
 - `slashCommands.ts`: definitii si inregistrare slash commands.
 - `interactions.ts`: handler-ele slash si autocomplete.
 
-`commandRegistry.ts` inca foloseste pattern-ul legacy de module care ataseaza functii pe `ctx`, dar acum declara explicit functiile asteptate si pica devreme daca o dependinta lipseste. Refactorizarea completa catre factory-uri explicite ramane o migrare separata, ca sa nu rupa tot fluxul Discord dintr-o singura schimbare.
+`commandRegistry.ts` inca foloseste module legacy care ataseaza functii pe `ctx`, dar acum expune `createCommandRegistry(baseContext, installers)`. Asta permite testarea cu installer-e injectate si reduce dependenta de side effect global. Refactorizarea completa catre servicii/factory-uri explicite ramane o migrare separata, ca sa nu rupa tot fluxul Discord dintr-o singura schimbare.
 
 Notificarile automate sunt in `src/features/notifications/index.ts`.
 
@@ -198,11 +221,13 @@ Scripturile sunt TypeScript:
 
 Teste importante:
 
-- `src/test/commands-regression.test.ts` verifica regresiile pentru comenzi, notificari, runtime, module compilate si guard-urile RSS pentru drivere.
-- `src/test/cronController.test.ts` verifica direct ca `createCronController().stop()` curata handle-ul timerului programat si ramane idempotent.
+- `src/test/commandRegistry.functional.test.ts` verifica registrul de comenzi cu installer-e mock injectate.
+- `src/test/mongoMigrations.functional.test.ts` verifica migrarile Mongo cu colectii fake si release de lock.
+- `src/test/resolveOutboundChannel.test.ts` verifica comportamental erorile Discord permanente vs tranzitorii cu mock-uri de client/canal.
 - `src/test/httpClientSecurity.test.ts` verifica URL guard-ul pentru scheme nesigure, localhost, IPv4/IPv6 local sau privat, credentiale in URL, proxy target si template-uri proxy fara `{url}`.
+- `src/test/commands-regression.test.ts` ramane guard textual pentru regresiile de comenzi, notificari, runtime, module compilate si guard-urile RSS pentru drivere.
+- `src/test/cronController.test.ts` verifica direct ca `createCronController().stop()` curata handle-ul timerului programat si ramane idempotent.
 - `src/test/housekeeping.test.ts` verifica idempotenta `createHousekeeping().start()` si faptul ca `stop()` curata intervalul creat.
-- `src/test/resolveOutboundChannel.test.ts` verifica comportamental erorile Discord permanente vs tranzitorii.
 - `src/test/rustFuzzy.test.ts` verifica addon-ul Rust si contractul helperilor nativi.
 
 ## GitHub Actions
