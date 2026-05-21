@@ -1,5 +1,10 @@
 # Discord Patch Bot
 
+[![CI](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/ci.yml)
+[![Dependency Audit](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/dependency-audit.yml/badge.svg)](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/dependency-audit.yml)
+![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Discord Patch Bot trimite automat pe servere Discord notificari despre patch notes, update-uri de jocuri, reduceri Steam/Epic, preturi Steam, DLC-uri, status servere si health/metrics.
 
 Repo-ul este organizat in jurul sursei din `src/`, cu TypeScript strict si un mic modul Rust/N-API pentru algoritmi puri de fuzzy matching, normalizare si hashing.
@@ -110,6 +115,7 @@ In productie `/metrics` trebuie protejat cu `METRICS_TOKEN`, exceptand cazul in 
 Dockerfile                   # build multi-stage pentru bot
 docker-compose.yml           # bot + MongoDB local, Mongo neexpus pe host
 docs/assets/                 # exemple SVG pentru README
+LICENSE                      # licenta MIT
 src/
   app/                       # main, lifecycle, scheduler, health
   config/                    # validare config
@@ -128,6 +134,7 @@ src/
 `npm run check` este verificarea completa folosita si in CI. Pe langa regresii textuale, repo-ul are teste functionale cu mock-uri pentru zone critice:
 
 - Discord channel resolution si erori permanente in `resolveOutboundChannel.test.ts`
+- `/set games add/remove` in `setGamesInteraction.functional.test.ts`
 - HTTP URL safety si proxy fallback in `httpClientSecurity.test.ts`
 - Mongo migrations si lock release in `mongoMigrations.functional.test.ts`
 - Command registry wiring in `commandRegistry.functional.test.ts`
@@ -139,4 +146,9 @@ Codul legacy foloseste inca module CommonJS care ataseaza functii pe un context 
 
 - `commandRegistry` expune o fabrica testabila cu installer-e injectate explicit.
 - `domain/deals/filtersCore.ts` expune reguli pure si tipate direct, iar `domain/deals/filters.ts` ramane doar adapter pentru contextul legacy.
+- `features/notifications/outboundChannel.ts` expune resolver-ul tipat pentru canale Discord, iar `features/notifications/index.ts` il foloseste ca serviciu injectat.
 - Urmatorii pasi pot muta modulele Discord/notifications catre servicii/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
+
+## Licenta
+
+Codul este publicat sub licenta MIT. Vezi [LICENSE](LICENSE).
