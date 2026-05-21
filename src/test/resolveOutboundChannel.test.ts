@@ -1,44 +1,34 @@
-// @ts-check
-"use strict";
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  createOutboundChannelResolver,
+  isPermanentDiscordError,
+  transientErrorMessage
+} from "../features/notifications/outboundChannel";
 
 process.env.MONGO_URI ||= "mongodb://localhost:27017/discord-patch-bot-test";
 process.env.DISCORD_TOKEN ||= "test_discord_token";
 process.env.DISCORD_CLIENT_ID ||= "test_discord_client_id";
 process.env.METRICS_PUBLIC ||= "true";
 
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const attachNotifications = require("../features/notifications");
-
-// resolveOutboundChannel lives inside the notifications module closure.
-// Build a minimal ctx that satisfies the destructure at the top of that
-// closure (everything ungranted just stays undefined; resolveOutboundChannel
-// itself only touches logger and canSendEmbeds), then invoke the attach
-// function so ctx.resolveOutboundChannel gets exposed.
-//
-// ctx is typed as Record<string, any> so TS doesn't complain when we access
-// the properties that attachNotifications mutates onto it.
-function buildContext(overrides: Record<string, any> = {}) {
-  const captured: { logs: any[] } = { logs: [] };
-  const ctx: Record<string, any> = {
-    logger: (level: any, context: any, message: any, meta: any) => {
+function buildResolver(overrides: Record<string, unknown> = {}) {
+  const captured: { logs: Array<{ level: string; context: string; message: string; meta?: unknown }> } = { logs: [] };
+  const resolveOutboundChannel = createOutboundChannelResolver({
+    logger: (level, context, message, meta) => {
       captured.logs.push({ level, context, message, meta });
     },
     canSendEmbeds: () => true,
-    // All other destructured deps from notifications can stay undefined;
-    // none of them are reached by resolveOutboundChannel.
     ...overrides
-  };
-  attachNotifications(ctx);
-  return { ctx, captured };
+  });
+  return { resolveOutboundChannel, captured };
 }
 
-function makeClient(channelOrThrow: any, botId = "bot-id") {
+function makeClient(channelOrThrow: unknown, botId = "bot-id") {
   return {
     user: { id: botId },
     channels: {
       fetch: async () => {
-        if (typeof channelOrThrow === "function") return channelOrThrow();
+        if (typeof channelOrThrow === "function") return (channelOrThrow as () => unknown)();
         return channelOrThrow;
       }
     }
@@ -54,12 +44,12 @@ function makeDisableFnStub() {
 }
 
 test("resolveOutboundChannel: permanent Discord code disables and aborts", async () => {
-  const { ctx, captured } = buildContext();
+  const { resolveOutboundChannel, captured } = buildResolver();
   const err = Object.assign(new Error("Missing Access"), { code: 50001 });
   const { fn: disableFn, calls } = makeDisableFnStub();
   const client = makeClient(() => { throw err; });
 
-  const result = await ctx.resolveOutboundChannel({
+  const result = await resolveOutboundChannel({
     client,
     guild: { _id: "guild-1" },
     channelId: "channel-1",
@@ -78,12 +68,12 @@ test("resolveOutboundChannel: permanent Discord code disables and aborts", async
 });
 
 test("resolveOutboundChannel: transient error skips cycle without disabling", async () => {
-  const { ctx, captured } = buildContext();
-  const err = Object.assign(new Error("rate limited"), { code: 0 }); // not in DISCORD_PERMANENT_ERROR_CODES
+  const { resolveOutboundChannel, captured } = buildResolver();
+  const err = Object.assign(new Error("rate limited"), { code: 0 });
   const { fn: disableFn, calls } = makeDisableFnStub();
   const client = makeClient(() => { throw err; });
 
-  const result = await ctx.resolveOutboundChannel({
+  const result = await resolveOutboundChannel({
     client,
     guild: { _id: "guild-2" },
     channelId: "channel-2",
@@ -99,11 +89,11 @@ test("resolveOutboundChannel: transient error skips cycle without disabling", as
 });
 
 test("resolveOutboundChannel: fetch resolves to null is treated as channel deleted", async () => {
-  const { ctx, captured } = buildContext();
+  const { resolveOutboundChannel, captured } = buildResolver();
   const { fn: disableFn, calls } = makeDisableFnStub();
   const client = makeClient(null);
 
-  const result = await ctx.resolveOutboundChannel({
+  const result = await resolveOutboundChannel({
     client,
     guild: { _id: "guild-3" },
     channelId: "channel-3",
@@ -119,13 +109,12 @@ test("resolveOutboundChannel: fetch resolves to null is treated as channel delet
 });
 
 test("resolveOutboundChannel: channel without Send/Embed perms triggers disable", async () => {
-  // Override canSendEmbeds to return false for this case
-  const { ctx, captured } = buildContext({ canSendEmbeds: () => false });
+  const { resolveOutboundChannel } = buildResolver({ canSendEmbeds: () => false });
   const { fn: disableFn, calls } = makeDisableFnStub();
   const fakeChannel = { id: "channel-4", isTextBased: () => true };
   const client = makeClient(fakeChannel);
 
-  const result = await ctx.resolveOutboundChannel({
+  const result = await resolveOutboundChannel({
     client,
     guild: { _id: "guild-4" },
     channelId: "channel-4",
@@ -140,12 +129,12 @@ test("resolveOutboundChannel: channel without Send/Embed perms triggers disable"
 });
 
 test("resolveOutboundChannel: healthy channel returns the channel without aborting", async () => {
-  const { ctx } = buildContext({ canSendEmbeds: () => true });
+  const { resolveOutboundChannel } = buildResolver({ canSendEmbeds: () => true });
   const { fn: disableFn, calls } = makeDisableFnStub();
   const fakeChannel = { id: "channel-5", isTextBased: () => true };
   const client = makeClient(fakeChannel);
 
-  const result = await ctx.resolveOutboundChannel({
+  const result = await resolveOutboundChannel({
     client,
     guild: { _id: "guild-5" },
     channelId: "channel-5",
@@ -159,26 +148,20 @@ test("resolveOutboundChannel: healthy channel returns the channel without aborti
 });
 
 test("isPermanentDiscordError recognizes all four permanent codes", () => {
-  const { ctx } = buildContext();
   for (const code of [10003, 10004, 50001, 50013]) {
-    assert.equal(ctx.isPermanentDiscordError({ code }), true, `code ${code} should be permanent`);
+    assert.equal(isPermanentDiscordError({ code }), true, `code ${code} should be permanent`);
   }
-  // Non-permanent codes
   for (const code of [0, 429, 500, 50007]) {
-    assert.equal(ctx.isPermanentDiscordError({ code }), false, `code ${code} should NOT be permanent`);
+    assert.equal(isPermanentDiscordError({ code }), false, `code ${code} should NOT be permanent`);
   }
-  // Missing code
-  assert.equal(ctx.isPermanentDiscordError({}), false, "no code = transient");
-  assert.equal(ctx.isPermanentDiscordError(null), false, "null err = transient");
+  assert.equal(isPermanentDiscordError({}), false, "no code = transient");
+  assert.equal(isPermanentDiscordError(null), false, "null err = transient");
 });
 
 test("transientErrorMessage handles strings, errors, and weird inputs", () => {
-  const { ctx } = buildContext();
-  assert.equal(ctx.transientErrorMessage(new Error("kaboom")), "kaboom");
-  assert.equal(ctx.transientErrorMessage({ message: "object with message" }), "object with message");
-  assert.equal(ctx.transientErrorMessage(null), "null");
-  assert.equal(ctx.transientErrorMessage(undefined), "undefined");
-  assert.equal(ctx.transientErrorMessage("plain string"), "plain string");
+  assert.equal(transientErrorMessage(new Error("kaboom")), "kaboom");
+  assert.equal(transientErrorMessage({ message: "object with message" }), "object with message");
+  assert.equal(transientErrorMessage(null), "null");
+  assert.equal(transientErrorMessage(undefined), "undefined");
+  assert.equal(transientErrorMessage("plain string"), "plain string");
 });
-
-export {};

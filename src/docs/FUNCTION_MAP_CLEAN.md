@@ -8,7 +8,7 @@ Acest fisier documenteaza responsabilitatile modulelor importante din repo. Surs
 - Runtime-ul compilat TypeScript este CommonJS.
 - `src/package-lock.json` blocheaza versiunile de dependinte, iar CI instaleaza cu `npm ci`.
 - `src/tsconfig.json` are `allowJs: false`, `strict: true` si `noImplicitAny: true`.
-- `src/tsconfig.strict.json` include zone stabilizate explicit, inclusiv noul `src/domain/deals/filtersCore.ts` si testul lui functional.
+- `src/tsconfig.strict.json` include zone stabilizate explicit, inclusiv `src/domain/deals/filtersCore.ts`, `src/features/notifications/outboundChannel.ts` si testele lor directe.
 - `src/scripts/check-syntax.ts` pica verificarea daca mai apare un fisier `.js` in sursa `src`, ignorand `dist/` si loader-ul generat `native/index.js`.
 - Agregatoarele descriptive sunt `src/infra/mongo/mongoContext.ts`, `src/sources/sourceRegistry.ts` si `src/features/commands/commandRegistry.ts`.
 - `src/types.ts` tine tipurile comune folosite intre module.
@@ -20,7 +20,11 @@ Acest fisier documenteaza responsabilitatile modulelor importante din repo. Surs
 
 ### `README.md`
 
-Rol: ghid principal pentru setup, env, comenzi, Docker, audit, health/metrics, structura, testare si exemple vizuale de embed-uri.
+Rol: ghid principal pentru setup, env, comenzi, Docker, audit, health/metrics, structura, testare, badge-uri si exemple vizuale de embed-uri.
+
+### `LICENSE`
+
+Rol: licenta MIT pentru repo, referita si de badge-ul din README.
 
 ### `Dockerfile`
 
@@ -101,7 +105,7 @@ Compileaza sursa TypeScript in `dist`, pastreaza CommonJS ca format runtime, fol
 
 ### `src/tsconfig.strict.json`
 
-Verificare stricta separata pentru zone stabilizate explicit: health server, scheduler, `domain/deals/filtersCore.ts`, `commandRegistry`, HTTP client, erori shared si testele directe pentru acele zone.
+Verificare stricta separata pentru zone stabilizate explicit: health server, scheduler, `domain/deals/filtersCore.ts`, `features/notifications/outboundChannel.ts`, `commandRegistry`, HTTP client, erori shared si testele directe pentru acele zone.
 
 ### `src/.gitignore`
 
@@ -279,13 +283,17 @@ Definitii si inregistrare slash commands.
 
 ### `src/features/commands/interactions.ts`
 
-Proceseaza slash commands si autocomplete.
+Proceseaza slash commands si autocomplete. `handleSetGames` este acoperit functional pentru add/remove in `src/test/setGamesInteraction.functional.test.ts`.
 
 ## Notifications
 
+### `src/features/notifications/outboundChannel.ts`
+
+Serviciu TypeScript tipat pentru rezolvarea canalului Discord outbound: fetch canal, distinctie erori permanente/tranzitorii, verificare permisiuni embed si dezactivare sigura a canalului cand e cazul.
+
 ### `src/features/notifications/index.ts`
 
-Update-uri si reduceri automate: claim atomic, rollback, pending queues, activation guards, filtre, coduri Discord permanente si trimitere embed-uri. `resolveOutboundChannel` distinge codurile permanente (10003/10004/50001/50013) de erorile tranzitorii.
+Update-uri si reduceri automate: claim atomic, rollback, pending queues, activation guards, filtre si trimitere embed-uri. Foloseste `createOutboundChannelResolver` din `outboundChannel.ts`, dar inca expune functiile pe `ctx` ca adapter legacy.
 
 ## Scripts si teste
 
@@ -304,6 +312,10 @@ Testeaza functional `createCommandRegistry` cu installer-e mock injectate si ver
 ### `src/test/dealFiltersCore.functional.test.ts`
 
 Testeaza functional `filtersCore` direct: reguli de magazin, pret, discount, free/paid, normalizare pending arrays, conversii map/object si rotire de cozi.
+
+### `src/test/setGamesInteraction.functional.test.ts`
+
+Testeaza functional `/set games add/remove`: update-ul Mongo produs, mesajul de confirmare, invalidarea cache-ului si respingerea cheilor inexistente.
 
 ### `src/test/mongoMigrations.functional.test.ts`
 
@@ -327,7 +339,7 @@ Testeaza `assertSafeExternalUrl`, `httpReq` si `fetchWithProxy`: scheme nesigure
 
 ### `src/test/resolveOutboundChannel.test.ts`
 
-Testeaza comportamental erorile Discord permanente vs tranzitorii cu mock-uri de client/canal.
+Testeaza direct `outboundChannel.ts`: erorile Discord permanente vs tranzitorii, canal null, permisiuni lipsa si happy path.
 
 ### `src/test/rustFuzzy.test.ts`
 

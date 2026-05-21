@@ -10,6 +10,7 @@ const commandFiles = [
   "features/commands/cache.js",
   "domain/deals/filters.js",
   "features/commands/ui.js",
+  "features/notifications/outboundChannel.js",
   "features/notifications/index.js",
   "features/commands/slashCommands.js",
   "features/commands/interactions.js"

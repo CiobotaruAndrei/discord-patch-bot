@@ -1,6 +1,12 @@
 "use strict";
 
 const { errorMessage } = require("../../shared/errors");
+const {
+  DISCORD_PERMANENT_ERROR_CODES,
+  createOutboundChannelResolver,
+  isPermanentDiscordError,
+  transientErrorMessage
+} = require("./outboundChannel");
 
 module.exports = (ctx: any) => {
   const {
@@ -19,49 +25,7 @@ module.exports = (ctx: any) => {
     PENDING_DISCOUNTS_LIMIT, MAX_DEALS_PER_CYCLE
   } = ctx;
 
-const DISCORD_PERMANENT_ERROR_CODES = new Set([10003, 10004, 50001, 50013]);
-
-function isPermanentDiscordError(err: any) {
-  return DISCORD_PERMANENT_ERROR_CODES.has(Number(err?.code));
-}
-
-// V11: alias catre helper-ul canonic din shared/errors. Pastram numele
-// `transientErrorMessage` pentru ca testul comportamental din PR #44
-// (`resolveOutboundChannel.test.ts`) pin-uieste exact acest nume in ctx,
-// si comentariile din proces clarifica "tranzitor" la fata locului.
-const transientErrorMessage = errorMessage;
-
-// V11: distingem erorile permanente (canal sters / fara acces / fara permisiuni
-// / tip de canal gresit) de cele tranzitorii (rate limit Discord, 5xx, timeout
-// retea). Pe tranzitoriu sarim ciclul, NU dezactivam guild-ul.
-async function resolveOutboundChannel({ client, guild, channelId, context, disableFn }: any) {
-  let channel = null;
-  try {
-    channel = await client.channels.fetch(channelId);
-  } catch (err: any) {
-    if (isPermanentDiscordError(err)) {
-      const reason = `Discord cod ${err.code}: ${transientErrorMessage(err)}`;
-      await disableFn(String(guild._id), channelId, reason).catch(() => null);
-      logger("WARN", context, `Disable pentru guild ${guild._id} - eroare permanenta la fetch canal`, reason);
-      return { channel: null, abort: true };
-    }
-    logger("WARN", context, `Eroare tranzitorie la fetch canal pentru guild ${guild._id}, sar peste ciclu`, transientErrorMessage(err));
-    return { channel: null, abort: true };
-  }
-  if (!channel) {
-    const reason = "Canal inexistent (probabil sters).";
-    await disableFn(String(guild._id), channelId, reason).catch(() => null);
-    logger("WARN", context, `Disable pentru guild ${guild._id} - ${reason}`);
-    return { channel: null, abort: true };
-  }
-  if (!canSendEmbeds(channel, client.user.id)) {
-    const message = "Canal invalid sau fara permisiuni Send Messages/Embed Links.";
-    await disableFn(String(guild._id), channelId, message).catch(() => null);
-    logger("WARN", context, `${message} Guild ${guild._id}`);
-    return { channel: null, abort: true };
-  }
-  return { channel, abort: false };
-}
+const resolveOutboundChannel = createOutboundChannelResolver({ logger, canSendEmbeds });
 
 async function claimSeenUpdate(guildId: string, channelId: string, gameKey: string, updateId: string) {
   return withMongoRetry(() => GuildModel.updateOne(
@@ -103,7 +67,7 @@ async function disableUpdatesForChannelError(guildId: string, channelId: string,
   );
 }
 
-// V9: filtrăm per joc + mențiune rol pe prima trimitere doar.
+// V9: filtram per joc + mentiune rol pe prima trimitere doar.
 async function processGuildUpdates(client: any, guild: any, latestResults: any[]) {
   const { channel, abort } = await resolveOutboundChannel({
     client,
@@ -122,7 +86,7 @@ async function processGuildUpdates(client: any, guild: any, latestResults: any[]
     if (result?.game?.key) resultByGameKey.set(result.game.key, result);
   }
 
-  // V9: dacă guild-ul are listă explicită de jocuri active, filtrăm.
+  // V9: daca guild-ul are lista explicita de jocuri active, filtram.
   const enabledGames = Array.isArray(guild.enabledGames) ? guild.enabledGames : [];
   const hasGameFilter = enabledGames.length > 0;
   const enabledSet = new Set(enabledGames);
@@ -174,7 +138,7 @@ async function processGuildUpdates(client: any, guild: any, latestResults: any[]
       continue;
     }
     try {
-      // V9: prima trimitere pingează rolul (dacă e setat), restul nu — anti-spam.
+      // V9: prima trimitere pingeaza rolul (daca e setat), restul nu - anti-spam.
       const sendPayload: any = {
         embeds: [buildUpdateEmbed(game.name, next, guild.notificationMode || "detailed")]
       };
@@ -320,7 +284,7 @@ async function disableDiscountsForChannelError(guildId: string, channelId: strin
   );
 }
 
-// V9: mențiune rol pe prima trimitere doar.
+// V9: mentiune rol pe prima trimitere doar.
 async function processGuildDiscounts(client: any, guild: any, deals: any[]) {
   const { channel, abort } = await resolveOutboundChannel({
     client,
@@ -333,7 +297,7 @@ async function processGuildDiscounts(client: any, guild: any, deals: any[]) {
 
   const seenSet = new Set(Array.isArray(guild.seenDiscounts) ? guild.seenDiscounts.map(String) : []);
   // V11: index-ul hash este partajat intre toate guild-urile in ciclul curent
-  // prin WeakMap-ul de mai sus — pe deployment-uri cu N guild-uri reducem
+  // prin WeakMap-ul de mai sus - pe deployment-uri cu N guild-uri reducem
   // hashing-ul de la N x M la M apeluri per ciclu cron per currency.
   const { dealsByHash, orderedHashes } = getDealsHashIndex(deals);
   const pending: any[] = [];

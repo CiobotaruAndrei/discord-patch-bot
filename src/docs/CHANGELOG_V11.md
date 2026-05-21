@@ -8,23 +8,25 @@ Acest document noteaza starea curenta a repo-ului dupa curatare, migrarea la Typ
 - JavaScript-ul ramas este output generat in `src/dist/` sau loader N-API generat, nu sursa manuala.
 - Dependintele sunt blocate prin `src/package-lock.json`, iar CI foloseste instalare reproductibila cu `npm ci`.
 - `src/tsconfig.json` ruleaza proiectul cu `strict: true` si `noImplicitAny: true`.
-- `src/tsconfig.strict.json` include acum si `domain/deals/filtersCore.ts` plus testul lui functional, ca urmator pas explicit de reducere a codului bazat pe `ctx` dinamic.
-- Fisierele intentionate din afara `src` sunt documentatie si infrastructura: `README.md`, `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `.github/` si `docs/assets/`.
+- `src/tsconfig.strict.json` include zone stabilizate explicit: health, scheduler, `filtersCore`, `outboundChannel`, HTTP client si teste directe.
+- Fisierele intentionate din afara `src` sunt documentatie si infrastructura: `README.md`, `LICENSE`, `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `.github/` si `docs/assets/`.
 - `.github/workflows/ci.yml` ruleaza verificarea principala, iar `.github/workflows/dependency-audit.yml` ruleaza audit npm saptamanal si manual.
 - `.github/dependabot.yml` deschide PR-uri saptamanale pentru dependinte npm din `src` si pentru GitHub Actions.
 - `docker-compose.yml` nu mai publica MongoDB pe host; botul publica HTTP doar pe `127.0.0.1:3000`.
+- `README.md` are badge-uri pentru CI, Dependency Audit, Node.js si licenta MIT.
 - `README.md` documenteaza setup, Docker, audit, comenzi, health/metrics si include exemple SVG pentru `/help`, update automat si reducere automata.
-- Agregatoarele cu nume generic au fost redenumite dupa rol:
-  - `src/infra/mongo/mongoContext.ts` pentru contextul Mongo.
-  - `src/sources/sourceRegistry.ts` pentru registrul de surse externe.
-  - `src/features/commands/commandRegistry.ts` pentru registrul de comenzi Discord.
 
 ## Rectificari pentru feedback-ul recent
 
+- `src/features/notifications/outboundChannel.ts` extrage resolver-ul de canal Discord intr-un serviciu TypeScript tipat, cu dependinte injectate (`logger`, `canSendEmbeds`).
+- `src/features/notifications/index.ts` foloseste serviciul `createOutboundChannelResolver`, dar pastreaza adapter-ul legacy pe `ctx` ca sa nu rupa registrul de comenzi.
+- `src/test/resolveOutboundChannel.test.ts` testeaza direct serviciul tipat, nu prin mutarea dinamica pe `ctx`.
+- `src/test/setGamesInteraction.functional.test.ts` adauga test functional real pentru `/set games add`, cheia invalida si `/set games remove`.
+- `src/test/commands-regression.test.ts` include si build-ul `features/notifications/outboundChannel.js` in guard-urile textuale.
+- `LICENSE` adauga licenta MIT, iar README-ul o afiseaza cu badge si sectiune dedicata.
 - `src/domain/deals/filtersCore.ts` expune direct functiile pure pentru filtre, normalizarea pending queues, conversia map/object si rotirea cozilor.
 - `src/domain/deals/filters.ts` ramane doar adapter pentru contextul legacy, astfel incat codul existent nu se rupe, dar codul nou poate importa servicii tipate direct.
 - `src/test/dealFiltersCore.functional.test.ts` testeaza functional filtrele de reduceri si helperii de normalizare, in loc sa verifice doar string-uri in cod compilat.
-- `src/tsconfig.strict.json` include `filtersCore` si testul lui, ca zona stricta noua.
 - `docker-compose.yml` foloseste `expose` pentru Mongo in reteaua Docker interna si nu mai are `27017:27017`.
 - `.github/workflows/dependency-audit.yml` ruleaza `npm audit --omit=dev --audit-level=moderate` din `src`.
 - `.github/dependabot.yml` grupeaza update-urile runtime, build/types si GitHub Actions.
@@ -92,7 +94,8 @@ Nu au fost mutate in Rust zonele de Discord, Mongo, HTTP, retry/backoff, proxy f
 
 ## Acoperire de teste
 
-- `src/test/resolveOutboundChannel.test.ts` verifica comportamentul permanent vs tranzitoriu pentru erori Discord cu mock-uri de client/canal.
+- `src/test/resolveOutboundChannel.test.ts` verifica direct serviciul de rezolvare canal Discord si erorile permanente vs tranzitorii.
+- `src/test/setGamesInteraction.functional.test.ts` verifica functional `/set games add/remove` si cheia invalida.
 - `src/test/httpClientSecurity.test.ts` verifica respingerea URL-urilor externe nesigure si proxy fallback.
 - `src/test/mongoMigrations.functional.test.ts` verifica migrarile Mongo cu colectii fake, trim-ul `seenDiscounts`, update-ul starii si release-ul lock-ului.
 - `src/test/commandRegistry.functional.test.ts` verifica registrul de comenzi cu installer-e injectate.
