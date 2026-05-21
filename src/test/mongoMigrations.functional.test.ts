@@ -22,7 +22,11 @@ interface UpdateManyCall {
   update: unknown;
 }
 
-function createFakeMigrationContext() {
+interface FakeMigrationOverrides {
+  acquireDbLock?: () => Promise<string | null>;
+}
+
+function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
   const updateManyCalls: UpdateManyCall[] = [];
   const releaseCalls: Array<{ name: string; token: string }> = [];
   const guilds: GuildDoc[] = [{
@@ -73,7 +77,7 @@ function createFakeMigrationContext() {
 
   const ctx: any = {
     mongoose: { connection },
-    acquireDbLock: async () => "migration-lock-token",
+    acquireDbLock: overrides.acquireDbLock || async () => "migration-lock-token",
     releaseDbLock: async (name: string, token: string) => {
       releaseCalls.push({ name, token });
     }
@@ -103,8 +107,7 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
 });
 
 test("Mongo migrations skip safely when another instance holds the lock", async () => {
-  const fixture = createFakeMigrationContext();
-  fixture.ctx.acquireDbLock = async () => null;
+  const fixture = createFakeMigrationContext({ acquireDbLock: async () => null });
 
   const result = await fixture.ctx.runMigrations(() => null);
 
