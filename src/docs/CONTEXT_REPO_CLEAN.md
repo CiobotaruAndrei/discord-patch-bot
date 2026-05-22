@@ -41,6 +41,7 @@ src/
       commandRegistry.ts
       gameFilterInteractions.ts
       interactions.ts
+      rolePingInteractions.ts
       subscriptionInteractions.ts
       ui.ts
     notifications/
@@ -56,6 +57,7 @@ src/
   sources/
   test/
     gameFilterInteractions.functional.test.ts
+    rolePingInteractions.functional.test.ts
     subscriptionInteractions.functional.test.ts
     startDiscountsFlow.e2e.test.ts
     startUpdatesFlow.e2e.test.ts
@@ -96,7 +98,7 @@ npm run audit
 npm run check:dependencies
 ```
 
-`npm run check` ruleaza `typecheck`, `typecheck:strict`, build Rust + TypeScript, syntax check, config check, dependency policy check si testele din `dist/test`. `npm run audit` verifica dependintele runtime. `npm run check:dependencies` verifica local lockfile-ul si pachetele runtime pin-uite exact.
+`npm run check` ruleaza `typecheck`, `typecheck:strict`, build Rust + TypeScript, syntax check, config check, dependency policy check si testele din `dist/test`. `npm run audit` verifica dependintele runtime. `npm run check:dependencies` verifica local lockfile-ul si pachetele runtime/build directe pin-uite exact.
 
 Din radacina repo-ului poti porni botul si MongoDB cu:
 
@@ -125,6 +127,7 @@ Reducerea treptata a `ctx` dinamic:
 - `src/features/commands/commandRegistry.ts` expune `createCommandRegistry(baseContext, installers)`, deci installer-ele pot fi injectate si testate explicit.
 - `src/features/commands/subscriptionInteractions.ts` extrage `/start updates`, `/stop updates`, `/start reduceri` si `/stop reduceri` intr-o factory cu dependinte explicite; installer-ul ei intercepteaza doar comenzile start/stop si deleaga restul catre handlerul existent.
 - `src/features/commands/gameFilterInteractions.ts` extrage `/set games add/remove/list/reset` intr-o factory cu dependinte explicite; installer-ul ei intercepteaza doar grupul `/set games` si deleaga restul.
+- `src/features/commands/rolePingInteractions.ts` extrage `/set role updates/discounts` intr-o factory cu dependinte explicite; installer-ul ei intercepteaza doar grupul `/set role` si deleaga restul.
 - `src/sources/sourceRegistry.ts` expune `createSourceRegistry(baseContext, installers)`, deci sursele HTTP, Steam, updates si deals pot fi injectate si testate explicit.
 - `src/domain/deals/filtersCore.ts` expune functii pure tipate direct.
 - `src/domain/deals/filters.ts` ramane adapter pentru codul legacy care asteapta atasare pe context.
@@ -134,10 +137,10 @@ Urmatoarele tinte sanatoase pentru refactor sunt restul din `features/commands/i
 
 ## Dependinte npm si supply chain
 
-- Runtime dependencies din `src/package.json` sunt versiuni exacte.
+- Runtime dependencies si build/dev dependencies directe din `src/package.json` sunt versiuni exacte.
 - `src/package-lock.json` ramane sursa de instalare reproductibila prin `npm ci`.
-- `src/scripts/check-dependencies.ts` pica daca o dependinta runtime nu este pin-uita exact, daca manifestul si lockfile-ul nu se potrivesc sau daca o intrare de lockfile vine din alta sursa decat `https://registry.npmjs.org`.
-- `.github/workflows/dependency-review.yml` verifica PR-urile cu Dependency Review si blocheaza vulnerabilitati moderate sau mai grave.
+- `src/scripts/check-dependencies.ts` pica daca o dependinta runtime/dev directa nu este pin-uita exact, daca intrarea directa din lockfile nu rezolva la versiunea asteptata sau daca o intrare de lockfile vine din alta sursa decat `https://registry.npmjs.org`.
+- `.github/workflows/dependency-review.yml` verifica daca GitHub Dependency graph este activ; cand este activ, Dependency Review ruleaza blocant pentru vulnerabilitati moderate sau mai grave.
 - `.github/workflows/dependency-audit.yml` ruleaza audit runtime saptamanal si manual.
 - PR-urile Dependabot trebuie citite: diff lockfile, rezultat Dependency Review, audit, CI complet si release notes ale pachetului.
 
@@ -165,6 +168,7 @@ Comenzile sunt in `src/features/commands`:
 - `interactions.ts`: handler-ele slash si autocomplete ramase in stil legacy.
 - `subscriptionInteractions.ts`: serviciu/factory pentru start/stop subscription flows.
 - `gameFilterInteractions.ts`: serviciu/factory pentru `/set games`.
+- `rolePingInteractions.ts`: serviciu/factory pentru `/set role`.
 
 Notificarile automate sunt in `src/features/notifications`:
 
@@ -178,7 +182,12 @@ Reguli care nu trebuie rupte: claim atomic pentru `seen`, rollback cand Discord 
 - `src/scripts/check-config.ts` valideaza config-ul.
 - `src/scripts/check-dependencies.ts` valideaza politica minima de dependency supply chain.
 - `src/scripts/check-syntax.ts` pica verificarea daca apare orice fisier `.js` in sursa `src`, ignorand output-ul generat din `dist` si loader-ul N-API `native/index.js`.
+- `src/test/rolePingInteractions.functional.test.ts` verifica factory-ul pentru `/set role` si wrapper-ul care deleaga comenzile non-role.
 - `src/test/gameFilterInteractions.functional.test.ts` verifica factory-ul pentru `/set games` si wrapper-ul care deleaga comenzile non-game-filter.
 - `src/test/subscriptionInteractions.functional.test.ts` verifica factory-ul pentru start/stop si wrapper-ul care deleaga comenzile non-subscription.
 - `src/test/startUpdatesFlow.e2e.test.ts` si `src/test/startDiscountsFlow.e2e.test.ts` verifica fluxurile complete cu cron.
 - Restul testelor functionale si de regresie acopera HTTP safety, outbound channel, Mongo migrations, filters, source registry, command registry, housekeeping, scheduler si Rust helperi.
+
+## Limite de verificare live
+
+Testele automate folosesc mock-uri si medii controlate. Comportamentul live complet trebuie verificat separat pe server Discord de staging, cu `DISCORD_TOKEN`, Mongo si surse externe reale, fara sa se publice secrete in repo, logs sau screenshots.
