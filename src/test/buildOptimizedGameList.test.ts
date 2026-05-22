@@ -8,7 +8,7 @@ process.env.METRICS_PUBLIC ||= "true";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildOptimizedGameList } = require("../features/commands/commandRegistry");
+const { buildOptimizedGameList } = require("../features/command-registry/commandRegistry");
 
 const allGames = [
   { key: "cs2", name: "CS2", type: "steam", appId: "730" },

@@ -11,7 +11,7 @@ interface CommandRegistryExports extends Record<string, unknown> {
   ) => Record<string, AnyFunction>;
 }
 
-const commandRegistry = require("../features/commands/commandRegistry") as CommandRegistryExports;
+const commandRegistry = require("../features/command-registry/commandRegistry") as CommandRegistryExports;
 
 const requiredKeys = [
   "startCacheCleaner",

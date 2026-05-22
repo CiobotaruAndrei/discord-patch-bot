@@ -17,15 +17,7 @@ SECURITY.md
 LICENSE
 Dockerfile
 docker-compose.yml
-.dockerignore
 .github/
-  dependabot.yml
-  workflows/
-    ci.yml
-    codeql.yml
-    dependency-audit.yml
-    dependency-review.yml
-    release.yml
 docs/assets/
 src/
   .env.example
@@ -37,42 +29,39 @@ src/
   config/
   domain/
   features/
-    commands/
-      adminCommandGuard.ts
-      adminGuard.ts
+    command-cache/
+      commandCache.ts
+    command-definitions/
+      slashCommandDefinitions.ts
+    command-handlers/
+      gameFilterHandlers.ts
+      helpInteractionHandler.ts
+      rolePingHandlers.ts
+      subscriptionNotificationHandlers.ts
+    command-presentation/
+      commandPresentation.ts
+    command-registry/
       commandRegistry.ts
-      gameFilterInteractions.ts
-      handlers/
-        help.ts
-      interactions.ts
-      rolePingInteractions.ts
-      slashCommands.ts
-      subscriptionInteractions.ts
-      ui.ts
+    command-router/
+      legacyInteractionRouter.ts
+    command-runtime/
+      commandRuntimeContext.ts
+    command-security/
+      adminCommandRouterGuard.ts
+      adminPermissionGuard.ts
     notifications/
       index.ts
       outboundChannel.ts
   infra/
   native/
   scripts/
-    check-config.ts
-    check-dependencies.ts
-    check-syntax.ts
-    extract-release-notes.ts
   shared/
   sources/
   test/
-    adminGuard.test.ts
-    extractReleaseNotes.test.ts
-    gameFilterInteractions.functional.test.ts
-    helpHandler.functional.test.ts
-    rolePingInteractions.functional.test.ts
-    subscriptionInteractions.functional.test.ts
-    startDiscountsFlow.e2e.test.ts
-    startUpdatesFlow.e2e.test.ts
-    ...
   docs/
 ```
+
+Zona de comenzi nu mai are fisiere sursa in vechiul folder plat `src/features/commands/`. Rutele ramase in stil legacy (`/latest`, `/dlc`, `/status` si autocomplete) sunt mutate in `src/features/command-router/legacyInteractionRouter.ts`, ca si partea temporara sa stea intr-un folder numit dupa functionalitate.
 
 `dist/`, `node_modules/`, `native/target/`, fisierele `.node`, `native/index.js` si `native/index.d.ts` sunt output-uri generate si nu se editeaza manual.
 
@@ -121,7 +110,7 @@ Compose tine MongoDB doar in reteaua Docker interna (`expose: 27017`) si publica
 
 README-ul are badge-uri pentru CI, Dependency Audit, CodeQL, Release, Node.js >=20 si licenta MIT. Licenta proiectului este in `LICENSE`.
 
-`CHANGELOG.md` tine istoricul de versiuni si explica tag-urile semver `vMAJOR.MINOR.PATCH`. Release workflow-ul nu mai foloseste tot changelog-ul ca body; genereaza `release-notes.md` din sectiunea tag-ului curent.
+`CHANGELOG.md` tine istoricul de versiuni si explica tag-urile semver `vMAJOR.MINOR.PATCH`. Release workflow-ul genereaza `release-notes.md` din sectiunea tag-ului curent, nu foloseste tot changelog-ul ca body.
 
 `SECURITY.md` explica raportarea privata a vulnerabilitatilor prin GitHub Security Advisories, CodeQL, Dependency Review, audit npm, secret scanning, push protection, runtime admin guard si regula de rotire imediata a tokenurilor/credentialelor expuse.
 
@@ -133,19 +122,20 @@ Regula curenta: sursa aplicatiei din `src` este TypeScript. Runtime-ul compilat 
 
 Reducerea treptata a `ctx` dinamic:
 
-- `src/features/commands/commandRegistry.ts` expune `createCommandRegistry(baseContext, installers)`, deci installer-ele pot fi injectate si testate explicit.
-- `src/features/commands/slashCommands.ts` este inclus in `tsconfig.strict.json` si foloseste tipuri locale pentru builder-ele Discord, in loc de callback-uri `any`.
-- `src/features/commands/adminCommandGuard.ts` impune runtime administrator check pentru `/start`, `/stop` si `/set`, apoi deleaga la handler-ul concret doar daca utilizatorul este admin.
-- `src/features/commands/handlers/help.ts` extrage `/help` intr-o factory cu dependinte explicite; installer-ul ei intercepteaza doar `/help` si deleaga restul.
-- `src/features/commands/subscriptionInteractions.ts` extrage `/start updates`, `/stop updates`, `/start reduceri` si `/stop reduceri` intr-o factory cu dependinte explicite; installer-ul ei intercepteaza doar comenzile start/stop si deleaga restul catre handlerul existent.
-- `src/features/commands/gameFilterInteractions.ts` extrage `/set games add/remove/list/reset` intr-o factory cu dependinte explicite; installer-ul ei intercepteaza doar grupul `/set games` si deleaga restul.
-- `src/features/commands/rolePingInteractions.ts` extrage `/set role updates/discounts` intr-o factory cu dependinte explicite; installer-ul ei intercepteaza doar grupul `/set role` si deleaga restul.
+- `src/features/command-registry/commandRegistry.ts` expune `createCommandRegistry(baseContext, installers)`, deci installer-ele pot fi injectate si testate explicit.
+- `src/features/command-definitions/slashCommandDefinitions.ts` este inclus in `tsconfig.strict.json` si foloseste tipuri locale pentru builder-ele Discord, in loc de callback-uri `any`.
+- `src/features/command-security/adminCommandRouterGuard.ts` impune runtime administrator check pentru `/start`, `/stop` si `/set`, apoi deleaga la handler-ul concret doar daca utilizatorul este admin.
+- `src/features/command-handlers/helpInteractionHandler.ts` extrage `/help` intr-o factory cu dependinte explicite; installer-ul ei intercepteaza doar `/help` si deleaga restul.
+- `src/features/command-handlers/subscriptionNotificationHandlers.ts` extrage `/start updates`, `/stop updates`, `/start reduceri` si `/stop reduceri` intr-o factory cu dependinte explicite.
+- `src/features/command-handlers/gameFilterHandlers.ts` extrage `/set games add/remove/list/reset` intr-o factory cu dependinte explicite.
+- `src/features/command-handlers/rolePingHandlers.ts` extrage `/set role updates/discounts` intr-o factory cu dependinte explicite.
+- `src/features/command-router/legacyInteractionRouter.ts` tine rutele legacy ramase intr-un modul localizat dupa functionalitate, pana cand si acestea sunt extrase.
 - `src/sources/sourceRegistry.ts` expune `createSourceRegistry(baseContext, installers)`, deci sursele HTTP, Steam, updates si deals pot fi injectate si testate explicit.
 - `src/domain/deals/filtersCore.ts` expune functii pure tipate direct.
 - `src/domain/deals/filters.ts` ramane adapter pentru codul legacy care asteapta atasare pe context.
 - `src/features/notifications/outboundChannel.ts` expune resolver-ul de canal Discord ca serviciu tipat, iar `src/features/notifications/index.ts` il foloseste prin dependinte injectate.
 
-Urmatoarele tinte sanatoase pentru refactor sunt restul din `features/commands/interactions.ts` (`latest`, `dlc`, `status`, autocomplete) si persistenta din `features/notifications/index.ts`, mutate treptat spre factory-uri cu dependinte explicite.
+Urmatoarele tinte sanatoase pentru refactor sunt rutele ramase din `features/command-router/legacyInteractionRouter.ts` (`latest`, `dlc`, `status`, autocomplete) si persistenta din `features/notifications/index.ts`, mutate treptat spre factory-uri cu dependinte explicite.
 
 ## Dependinte npm si supply chain
 
@@ -171,19 +161,19 @@ Workflow-ul ruleaza `npm run check`, genereaza `release-notes.md` din sectiunea 
 
 ## Commands si notificari
 
-Comenzile sunt in `src/features/commands`:
+Comenzile sunt organizate pe functionalitate:
 
-- `commandRegistry.ts`: agregatorul comenzilor si contractul functiilor cerute din context.
-- `cache.ts`: cache runtime, cooldown-uri si LRU.
-- `ui.ts`: embed-uri, paginare, fuzzy matching, status si pret Steam.
-- `slashCommands.ts`: definitii si inregistrare slash commands, inclus in strict TypeScript.
-- `adminGuard.ts`: helper runtime pentru verificarea permisiunii Administrator.
-- `adminCommandGuard.ts`: wrapper exterior pentru `/start`, `/stop` si `/set`.
-- `handlers/help.ts`: handler extras pentru `/help`.
-- `interactions.ts`: handler-ele slash si autocomplete ramase in stil legacy.
-- `subscriptionInteractions.ts`: serviciu/factory pentru start/stop subscription flows.
-- `gameFilterInteractions.ts`: serviciu/factory pentru `/set games`.
-- `rolePingInteractions.ts`: serviciu/factory pentru `/set role`.
+- `src/features/command-registry/commandRegistry.ts`: agregatorul comenzilor si contractul functiilor cerute din context.
+- `src/features/command-cache/commandCache.ts`: cache runtime, cooldown-uri si LRU.
+- `src/features/command-presentation/commandPresentation.ts`: embed-uri, paginare, fuzzy matching, status si pret Steam.
+- `src/features/command-definitions/slashCommandDefinitions.ts`: definitii si inregistrare slash commands, inclus in strict TypeScript.
+- `src/features/command-security/adminPermissionGuard.ts`: helper runtime pentru verificarea permisiunii Administrator.
+- `src/features/command-security/adminCommandRouterGuard.ts`: wrapper exterior pentru `/start`, `/stop` si `/set`.
+- `src/features/command-handlers/helpInteractionHandler.ts`: handler extras pentru `/help`.
+- `src/features/command-handlers/subscriptionNotificationHandlers.ts`: serviciu/factory pentru start/stop subscription flows.
+- `src/features/command-handlers/gameFilterHandlers.ts`: serviciu/factory pentru `/set games`.
+- `src/features/command-handlers/rolePingHandlers.ts`: serviciu/factory pentru `/set role`.
+- `src/features/command-router/legacyInteractionRouter.ts`: routerul ramas pentru `/latest`, `/dlc`, `/status` si autocomplete, pana cand fiecare ruta este extrasa.
 
 Notificarile automate sunt in `src/features/notifications`:
 
@@ -200,7 +190,6 @@ Reguli care nu trebuie rupte: claim atomic pentru `seen`, rollback cand Discord 
 - `src/scripts/extract-release-notes.ts` extrage notele pentru tag-ul curent din `CHANGELOG.md`.
 - `src/test/adminGuard.test.ts` verifica runtime admin guard si delegarea pentru comenzile protejate.
 - `src/test/helpHandler.functional.test.ts` verifica factory-ul pentru `/help` si wrapper-ul care deleaga comenzile non-help.
-- `src/test/extractReleaseNotes.test.ts` verifica extractia release notes.
 - `src/test/rolePingInteractions.functional.test.ts` verifica factory-ul pentru `/set role` si wrapper-ul care deleaga comenzile non-role.
 - `src/test/gameFilterInteractions.functional.test.ts` verifica factory-ul pentru `/set games` si wrapper-ul care deleaga comenzile non-game-filter.
 - `src/test/subscriptionInteractions.functional.test.ts` verifica factory-ul pentru start/stop si wrapper-ul care deleaga comenzile non-subscription.

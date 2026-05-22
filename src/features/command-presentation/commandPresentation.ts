@@ -109,7 +109,6 @@ function buildUpdateEmbed(gameName: string, latest: NormalizedUpdate, mode: Noti
   return embed;
 }
 
-// V9: fix "Users **Popularitate:**" leftover + scoatere "Se incarca:" eronat.
 function buildDealEmbed(deal: DealInfo, mode: NotificationMode = "detailed", currency?: string): any {
   const cur = currency || deal.currency || DEFAULT_CURRENCY;
   const isFree = parseFloat(String(deal.salePrice)) === 0;
@@ -211,12 +210,6 @@ function refreshGuard(games: GameConfig[]): string {
   if (findGameCacheGuard.gamesRef === games && findGameCacheGuard.hash) {
     return findGameCacheGuard.hash;
   }
-  // V11: array-ul `games` s-a schimbat (de obicei la `loadConfig` la pornire,
-  // dar potential si la un reload viitor). Cache-ul mapeaza cheile prin
-  // `${hash}::${search}` — odata ce hash-ul vechi e abandonat, vechile intrari
-  // devin nereferentiabile prin codul de productie dar continua sa ocupe
-  // sloturi pana cand LRU le scoate la `FIND_GAME_CACHE_MAX = 200`. Le golim
-  // explicit ca sa eliberam memoria imediat dupa ce schimbam guardul.
   if (findGameCacheGuard.hash) findGameCache.clear();
   const hash = games.map(game => String(game.key)).join("|");
   const byKey = new Map<string, GameConfig>();
@@ -311,7 +304,6 @@ async function fetchGameStatus(game: GameConfig): Promise<any> {
   return embed;
 }
 
-// V9: fix "Se incarca:" leftover din descriere.
 function buildSteamPriceEmbed(gameData: any, appId: string | number, offerEndDate?: string | null, currency?: string): any {
   const cur = currency || DEFAULT_CURRENCY;
   const typeStr = gameData.type === "game" ? "Joc"

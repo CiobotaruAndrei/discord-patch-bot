@@ -8,7 +8,7 @@ type RolePingModule = ((ctx: Record<string, any>) => void) & {
   };
 };
 
-const rolePingInteractions = require("../features/commands/rolePingInteractions") as RolePingModule;
+const rolePingInteractions = require("../features/command-handlers/rolePingHandlers") as RolePingModule;
 
 function makeSetRoleInteraction(sub: string, role: Record<string, any> | null = { id: "role-1" }) {
   return {

@@ -8,7 +8,7 @@ type GameFilterModule = ((ctx: Record<string, any>) => void) & {
   };
 };
 
-const gameFilterInteractions = require("../features/commands/gameFilterInteractions") as GameFilterModule;
+const gameFilterInteractions = require("../features/command-handlers/gameFilterHandlers") as GameFilterModule;
 
 const games = [
   { key: "cs2", name: "Counter-Strike 2" },

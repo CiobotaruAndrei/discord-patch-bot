@@ -18,7 +18,7 @@ type AdminCommandGuardContext = {
   handleInteraction?: NextInteractionHandler;
 };
 
-const defaultRequireGuildAdmin = require("./adminGuard") as RequireGuildAdmin;
+const defaultRequireGuildAdmin = require("./adminPermissionGuard") as RequireGuildAdmin;
 const ADMIN_COMMANDS = new Set(["start", "stop", "set"]);
 
 function isAdminProtectedCommand(interaction: DiscordInteraction): boolean {

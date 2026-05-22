@@ -1,6 +1,6 @@
 "use strict";
 
-const { errorDetail } = require("../../../shared/errors");
+const { errorDetail } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string } & Record<string, unknown>;

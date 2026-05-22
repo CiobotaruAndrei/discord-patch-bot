@@ -9,7 +9,9 @@ Acest document noteaza starea repo-ului dupa curatare, migrarea sursei la TypeSc
 - Dependintele sunt blocate prin `src/package-lock.json`, iar CI foloseste `npm ci`.
 - `src/package.json` foloseste versiuni exacte pentru dependintele directe runtime si build/dev.
 - `src/tsconfig.json` ruleaza proiectul cu `strict: true` si `noImplicitAny: true`.
-- `src/tsconfig.strict.json` include zone stabilizate explicit: health, scheduler, `filtersCore`, `commandRegistry`, `slashCommands`, `subscriptionInteractions`, `gameFilterInteractions`, `rolePingInteractions`, `adminCommandGuard`, `adminGuard`, `handlers/help`, `outboundChannel`, `sourceRegistry`, `check-dependencies`, `extract-release-notes`, HTTP client si teste directe.
+- `src/tsconfig.strict.json` include zone stabilizate explicit din health, scheduler, `filtersCore`, command registry, command cache, command presentation, slash command definitions, command handlers, command security, `outboundChannel`, `sourceRegistry`, `check-dependencies`, `extract-release-notes`, HTTP client si teste directe.
+- Fisierele de comenzi au fost mutate din folderul plat `src/features/commands/` in foldere numite dupa functionalitate: `command-registry`, `command-runtime`, `command-cache`, `command-presentation`, `command-definitions`, `command-security`, `command-handlers` si `command-router`.
+- Vechiul folder `src/features/commands/` nu mai contine sursa manuala. Routerul ramas pentru `/latest`, `/dlc`, `/status` si autocomplete este acum in `src/features/command-router/legacyInteractionRouter.ts`.
 - `src/legacy-dynamic.d.ts` ramane doar shim temporar pentru codul vechi care construieste contextul dinamic.
 - `.github/workflows/ci.yml` ruleaza verificarea principala.
 - `.github/workflows/dependency-audit.yml` ruleaza audit npm saptamanal si manual.
@@ -18,39 +20,63 @@ Acest document noteaza starea repo-ului dupa curatare, migrarea sursei la TypeSc
 - `.github/workflows/release.yml` ruleaza `npm run check`, extrage notele pentru tag-ul curent din `CHANGELOG.md`, publica imaginea Docker in GHCR si creeaza GitHub Release pentru tag-uri `v*.*.*`.
 - `Dockerfile` ruleaza runtime-ul ca user non-root `node`.
 - `.github/dependabot.yml` deschide PR-uri saptamanale pentru dependinte npm din `src` si pentru GitHub Actions.
-- `README.md`, `CHANGELOG.md`, `SECURITY.md`, `CONTEXT_REPO_CLEAN.md` si `FUNCTION_MAP_CLEAN.md` au fost actualizate cu noile verificari si refactorizari.
+- `README.md`, `CHANGELOG.md`, `SECURITY.md`, `CONTEXT_REPO_CLEAN.md`, `FUNCTION_MAP_CLEAN.md` si acest document au fost actualizate cu noile verificari, refactorizari si foldere de comenzi.
 
 ## Rectificari recente din feedback
 
-- `src/features/commands/adminGuard.ts` verifica runtime daca utilizatorul are Administrator.
-- `src/features/commands/adminCommandGuard.ts` inveleste comenzile `/start`, `/stop` si `/set` si blocheaza non-adminii inainte de a ajunge la handler-ele care schimba starea serverului.
-- `src/features/commands/handlers/help.ts` extrage `/help` intr-un handler mic, testabil si instalat peste handlerul legacy.
-- `src/features/commands/slashCommands.ts` a fost adaugat in `tsconfig.strict.json` si foloseste tipuri locale pentru builder-ele Discord in loc de multe callback-uri `any`.
+- `src/features/command-security/adminPermissionGuard.ts` verifica runtime daca utilizatorul are Administrator.
+- `src/features/command-security/adminCommandRouterGuard.ts` inveleste comenzile `/start`, `/stop` si `/set` si blocheaza non-adminii inainte de a ajunge la handler-ele care schimba starea serverului.
+- `src/features/command-handlers/helpInteractionHandler.ts` extrage `/help` intr-un handler mic, testabil si instalat peste handlerul legacy.
+- `src/features/command-definitions/slashCommandDefinitions.ts` este inclus in `tsconfig.strict.json` si foloseste tipuri locale pentru builder-ele Discord in loc de multe callback-uri `any`.
+- `src/features/command-handlers/subscriptionNotificationHandlers.ts` extrage `/start updates`, `/stop updates`, `/start reduceri` si `/stop reduceri` intr-o factory tipata cu dependinte explicite.
+- `src/features/command-handlers/gameFilterHandlers.ts` extrage `/set games add/remove/list/reset` intr-o factory tipata cu dependinte explicite.
+- `src/features/command-handlers/rolePingHandlers.ts` extrage `/set role updates/discounts` intr-o factory tipata cu dependinte explicite.
+- `src/features/command-registry/commandRegistry.ts` a fost mutat intr-un folder de registru si foloseste importuri dupa functionalitate in loc de fisiere plate.
+- `src/features/command-router/legacyInteractionRouter.ts` tine acum direct routerul legacy ramas, ca nu mai fie nevoie de un fisier vechi in `features/commands`.
+- `src/test/commands-regression.test.ts` citeste acum folderele compilate din `dist/features`, ca testele de regresie sa urmeze structura functionala in loc de nume vechi de fisiere.
 - `src/scripts/extract-release-notes.ts` extrage doar sectiunea tag-ului curent din `CHANGELOG.md`, iar release workflow-ul foloseste `release-notes.md` in loc de tot changelog-ul.
 - `Dockerfile` face `chown` pe `/app` si trece pe `USER node` in runtime.
 - `dependency-review.yml` nu mai foloseste `continue-on-error: true` pe pasul de review. Workflow-ul verifica intai daca GitHub Dependency graph este activ; cand este activ, `actions/dependency-review-action@v4` ruleaza ca verificare blocanta pentru vulnerabilitati moderate sau mai grave.
 - `src/package.json` pin-uieste exact si build/dev dependencies directe, inclusiv `@napi-rs/cli`.
 - `src/scripts/check-dependencies.ts` verifica runtime si build/dev dependencies directe, plus versiunile rezolvate in lockfile si URL-urile din registry npm.
-- `src/features/commands/rolePingInteractions.ts` extrage `/set role updates/discounts` intr-o factory tipata cu dependinte explicite.
 - `README.md` mentioneaza explicit ca testele CI nu pot confirma comportamentul live complet fara server Discord, token, Mongo si surse externe reale.
+
+## Organizarea pe functionalitati
+
+Structura noua pentru zona de comenzi este:
+
+- `src/features/command-registry/commandRegistry.ts`: wiring-ul principal al comenzilor si validarea functiilor asteptate.
+- `src/features/command-runtime/commandRuntimeContext.ts`: contextul runtime construit din Mongo, logger, Discord helpers, cache si metrics.
+- `src/features/command-cache/commandCache.ts`: cache-ul folosit de comenzi.
+- `src/features/command-presentation/commandPresentation.ts`: embed-uri, paginare, select menus si raspunsuri UI.
+- `src/features/command-definitions/slashCommandDefinitions.ts`: definitiile slash command.
+- `src/features/command-security/adminPermissionGuard.ts`: helper-ul runtime de permisiuni admin.
+- `src/features/command-security/adminCommandRouterGuard.ts`: wrapper-ul de securitate pentru comenzile admin.
+- `src/features/command-handlers/helpInteractionHandler.ts`: handler-ul `/help`.
+- `src/features/command-handlers/subscriptionNotificationHandlers.ts`: handler-ele `/start` si `/stop`.
+- `src/features/command-handlers/gameFilterHandlers.ts`: handler-ele `/set games`.
+- `src/features/command-handlers/rolePingHandlers.ts`: handler-ele `/set role`.
+- `src/features/command-router/legacyInteractionRouter.ts`: routerul ramas pentru `/latest`, `/dlc`, `/status` si autocomplete.
+
+Fisierele vechi plate din `src/features/commands/` au fost eliminate sau mutate in foldere functionale. Partea legacy exista inca, dar este localizata in `command-router`, nu intr-un folder generic ramas din structura veche.
 
 ## Reducerea treptata a ctx legacy
 
 Codul inca are module CommonJS care ataseaza functii pe un context comun. Directia corecta este migrarea treptata spre servicii/factory-uri tipate. Pasi deja facuti:
 
-- `src/features/commands/commandRegistry.ts` expune `createCommandRegistry(baseContext, installers)` pentru installer-e injectate explicit.
-- `src/features/commands/adminCommandGuard.ts` este un wrapper exterior pentru comenzile admin si foloseste `adminGuard` inainte de delegare.
-- `src/features/commands/handlers/help.ts` expune `createHelpHandler(deps)` si intercepteaza doar `/help`.
-- `src/features/commands/subscriptionInteractions.ts` expune `createSubscriptionInteractionHandlers(deps)` si un installer care intercepteaza comenzile `/start` si `/stop`.
-- `src/features/commands/gameFilterInteractions.ts` expune `createGameFilterInteractionHandlers(deps)` si un installer care intercepteaza doar `/set games`.
-- `src/features/commands/rolePingInteractions.ts` expune `createRolePingInteractionHandlers(deps)` si un installer care intercepteaza doar `/set role`.
+- `src/features/command-registry/commandRegistry.ts` expune `createCommandRegistry(baseContext, installers)` pentru installer-e injectate explicit.
+- `src/features/command-security/adminCommandRouterGuard.ts` este un wrapper exterior pentru comenzile admin si foloseste `adminPermissionGuard` inainte de delegare.
+- `src/features/command-handlers/helpInteractionHandler.ts` expune `createHelpHandler(deps)` si intercepteaza doar `/help`.
+- `src/features/command-handlers/subscriptionNotificationHandlers.ts` expune `createSubscriptionInteractionHandlers(deps)` si un installer care intercepteaza comenzile `/start` si `/stop`.
+- `src/features/command-handlers/gameFilterHandlers.ts` expune `createGameFilterInteractionHandlers(deps)` si un installer care intercepteaza doar `/set games`.
+- `src/features/command-handlers/rolePingHandlers.ts` expune `createRolePingInteractionHandlers(deps)` si un installer care intercepteaza doar `/set role`.
 - `src/sources/sourceRegistry.ts` expune `createSourceRegistry(baseContext, installers)` pentru surse injectate explicit.
 - `src/domain/deals/filtersCore.ts` expune functii pure si tipate direct.
 - `src/domain/deals/filters.ts` ramane doar adapter pentru contextul legacy.
 - `src/features/notifications/outboundChannel.ts` expune resolver-ul de canal Discord ca serviciu tipat.
 - `src/features/notifications/index.ts` foloseste `createOutboundChannelResolver`, dar pastreaza adapter-ul legacy pe `ctx`.
 
-Urmatoarele zone bune de refactorizat sunt restul din `features/commands/interactions.ts` (`latest`, `dlc`, `status`, autocomplete) si persistenta din `features/notifications/index.ts`, in pasi separati si cu teste functionale langa fiecare extragere.
+Urmatoarele zone bune de refactorizat sunt restul din `src/features/command-router/legacyInteractionRouter.ts` (`latest`, `dlc`, `status`, autocomplete) si persistenta din `src/features/notifications/index.ts`, in pasi separati si cu teste functionale langa fiecare extragere.
 
 ## Dependinte npm si supply chain
 

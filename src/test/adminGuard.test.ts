@@ -17,8 +17,8 @@ type AdminCommandGuardModule = ((ctx: Record<string, any>) => void) & {
   isAdminProtectedCommand: (interaction: Record<string, any>) => boolean;
 };
 
-const requireGuildAdmin = require("../features/commands/adminGuard") as AdminGuardModule;
-const adminCommandGuard = require("../features/commands/adminCommandGuard") as AdminCommandGuardModule;
+const requireGuildAdmin = require("../features/command-security/adminPermissionGuard") as AdminGuardModule;
+const adminCommandGuard = require("../features/command-security/adminCommandRouterGuard") as AdminCommandGuardModule;
 
 function makeInteraction(isAdmin: boolean, deferred = false) {
   const replies: unknown[] = [];

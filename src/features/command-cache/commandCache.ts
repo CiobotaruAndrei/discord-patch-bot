@@ -53,7 +53,7 @@ const MAX_FUZZY_SEARCH_INPUT = env.MAX_FUZZY_SEARCH_INPUT;
 const USER_COMMAND_COOLDOWN_MS = env.USER_COMMAND_COOLDOWN_MS;
 const COLLECTOR_TIMEOUT_MS = env.COLLECTOR_TIMEOUT_MS;
 
-// V9: constante pentru culori embed (eliminăm magic numbers împrăștiate)
+// V9: constante pentru culori embed (eliminam magic numbers imprastiate)
 const COLORS = Object.freeze({
   ERROR:    0xe74c3c,
   SUCCESS:  0x57f287,
@@ -64,8 +64,8 @@ const COLORS = Object.freeze({
   POSITIVE: 0x2ecc71
 });
 
-// V9: opțiuni pentru updates operaționale — frozen, în loc să le construim
-// la fiecare apel cu o funcție.
+// V9: optiuni pentru updates operationale - frozen, in loc sa le construim
+// la fiecare apel cu o functie.
 const OP_UPDATE_OPTS = Object.freeze({ strict: false });
 
 let GLOBAL_CACHE_TTL_MS = 1800000;
@@ -76,7 +76,7 @@ function setGlobalCacheTtl(ms: number): void {
   }
 }
 
-// V9: normalizare cheie currency în cache (defensiv)
+// V9: normalizare cheie currency in cache (defensiv)
 function normalizeCurrencyKey(c: unknown): string {
   return String(c || DEFAULT_CURRENCY).toUpperCase();
 }
@@ -133,8 +133,8 @@ function cacheGetLRU<T>(map: Map<string, CacheEntry<T>>, key: string): T | null 
   return value.data;
 }
 
-// V9: helper unificat de eviction. Folosit și de cacheSetLRU,
-// și de cleanCache. Evită bucle while care recreează iteratorul.
+// V9: helper unificat de eviction. Folosit si de cacheSetLRU,
+// si de cleanCache. Evita bucle while care recreeaza iteratorul.
 function evictLRU<K, V>(map: Map<K, V>, maxSize: number): void {
   if (map.size <= maxSize) return;
   const toDelete = map.size - maxSize;
@@ -152,7 +152,7 @@ function cacheSetLRU<T>(map: Map<string, CacheEntry<T>>, key: string, data: T, t
 }
 
 const userCommandCooldowns = new Map<string, number>();
-// V11: debounce contor — daca depasim pragul si toti userii sunt inca in
+// V11: debounce contor - daca depasim pragul si toti userii sunt inca in
 // fereastra de cooldown, cleanUserCooldowns nu sterge nimic, dar e O(n) la
 // fiecare insert. Limitam clean-ul la 1 din N inserturi peste prag.
 let cooldownInsertCounter = 0;

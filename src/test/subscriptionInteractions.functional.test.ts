@@ -8,7 +8,7 @@ type SubscriptionModule = ((ctx: Record<string, any>) => void) & {
   };
 };
 
-const subscriptionInteractions = require("../features/commands/subscriptionInteractions") as SubscriptionModule;
+const subscriptionInteractions = require("../features/command-handlers/subscriptionNotificationHandlers") as SubscriptionModule;
 
 function makeStartInteraction() {
   return {

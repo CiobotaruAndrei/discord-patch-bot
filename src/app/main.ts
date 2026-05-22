@@ -21,7 +21,7 @@ const {
   waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
   runMigrations, requestContext
 } = require("../infra/mongo/mongoContext");
-const commands = require("../features/commands/commandRegistry");
+const commands = require("../features/command-registry/commandRegistry");
 const scrapers = require("../sources/sourceRegistry");
 
 const { config, games } = loadConfig();

@@ -44,22 +44,21 @@ type RequiredCommandRegistry = {
   [K in RequiredCommandRegistryKey]: NonNullable<CommandRegistryContext[K]>;
 };
 
-const runtimeContext = require("./runtime") as CommandRegistryContext;
+const runtimeContext = require("../command-runtime/commandRuntimeContext") as CommandRegistryContext;
 const defaultInstallers: CommandModuleInstaller[] = [
-  require("./cache") as CommandModuleInstaller,
+  require("../command-cache/commandCache") as CommandModuleInstaller,
   require("../../domain/deals/filters") as CommandModuleInstaller,
-  require("./ui") as CommandModuleInstaller,
-  // V11: interactions.ts destructureaza `fetchGameStatus` direct din ctx, deci
-  // globalThis-ul nu mai e necesar. ui.ts ataseaza functia pe ctx la fel ca pe
-  // celelalte handler-e (vezi ui.ts: Object.assign(ctx, { ..., fetchGameStatus })).
+  require("../command-presentation/commandPresentation") as CommandModuleInstaller,
+  // The remaining legacy handler still reads some helpers from ctx; commandPresentation
+  // attaches those helpers before the compatibility router is loaded.
   require("../notifications") as CommandModuleInstaller,
-  require("./slashCommands") as CommandModuleInstaller,
-  require("./interactions") as CommandModuleInstaller,
-  require("./handlers/help") as CommandModuleInstaller,
-  require("./subscriptionInteractions") as CommandModuleInstaller,
-  require("./gameFilterInteractions") as CommandModuleInstaller,
-  require("./rolePingInteractions") as CommandModuleInstaller,
-  require("./adminCommandGuard") as CommandModuleInstaller
+  require("../command-definitions/slashCommandDefinitions") as CommandModuleInstaller,
+  require("../command-router/legacyInteractionRouter") as CommandModuleInstaller,
+  require("../command-handlers/helpInteractionHandler") as CommandModuleInstaller,
+  require("../command-handlers/subscriptionNotificationHandlers") as CommandModuleInstaller,
+  require("../command-handlers/gameFilterHandlers") as CommandModuleInstaller,
+  require("../command-handlers/rolePingHandlers") as CommandModuleInstaller,
+  require("../command-security/adminCommandRouterGuard") as CommandModuleInstaller
 ];
 
 function installCommandModules(
