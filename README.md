@@ -69,6 +69,8 @@ docker compose up --build
 
 Compose porneste botul si MongoDB intr-o retea interna Docker. Mongo nu este publicat pe host; botul publica HTTP doar pe `127.0.0.1:3000`, ca endpoint-urile locale sa nu fie expuse accidental in retea.
 
+Imaginea runtime din `Dockerfile` ruleaza procesul ca user non-root `node`, dupa ce fisierele din `/app` primesc ownership corect. Pastreaza acest lucru si pentru imaginile publicate in GHCR.
+
 Daca ai nevoie temporar sa accesezi Mongo din host, foloseste un override local necomis si leaga portul doar pe loopback, de exemplu `127.0.0.1:27017:27017`. Pentru productie seteaza un `METRICS_TOKEN` real si evita expunerea publica a `/metrics`.
 
 ## Dependinte si audit
@@ -93,7 +95,7 @@ Proces recomandat:
 1. Actualizeaza `CHANGELOG.md` cu modificarile pentru versiunea noua.
 2. Da merge in `main` dupa ce CI este verde.
 3. Creeaza si impinge tag-ul, de exemplu `v1.0.0` pentru primul release public sau `v1.1.0` pentru urmatorul minor.
-4. `.github/workflows/release.yml` ruleaza `npm run check` din `src`, publica imaginea Docker in GitHub Container Registry si creeaza GitHub Release cu notele din `CHANGELOG.md`.
+4. `.github/workflows/release.yml` ruleaza `npm run check` din `src`, extrage doar sectiunea versiunii din `CHANGELOG.md`, publica imaginea Docker in GitHub Container Registry si creeaza GitHub Release.
 
 Imaginea Docker publicata are formatul:
 
@@ -107,6 +109,8 @@ ghcr.io/ciobotaruandrei/discord-patch-bot:latest
 Repo-ul are `SECURITY.md` pentru raportarea privata a vulnerabilitatilor. Nu publica in issue-uri tokenuri Discord, credentiale Mongo, `METRICS_TOKEN`, webhook-uri sau proxy URL-uri. Pentru probleme de securitate foloseste GitHub Security Advisories.
 
 CodeQL este configurat prin `.github/workflows/codeql.yml` pentru analiza JavaScript/TypeScript. Secret scanning si push protection se activeaza din setarile GitHub ale repo-ului; `SECURITY.md` documenteaza ce se verifica si ce trebuie rotit daca un secret ajunge public.
+
+Comenzile admin (`/start`, `/stop`, `/set`) sunt protejate si la runtime prin `features/commands/adminCommandGuard.ts`, nu doar prin metadata de slash command. Asta reduce riscul daca permisiunile Discord sunt schimbate sau suprascrise pe server.
 
 ## Config jocuri
 
@@ -158,7 +162,7 @@ src/
   app/
   config/
   domain/
-  features/commands/         # slash commands, interactions, subscription, game filter si role ping factories
+  features/commands/         # slash commands, handlers, admin guard, subscription, game filter si role ping factories
   features/notifications/
   infra/http/
   infra/mongo/
@@ -177,6 +181,9 @@ src/
 - Factory-ul pentru `/start` si `/stop` in `subscriptionInteractions.functional.test.ts`
 - Factory-ul pentru `/set games` in `gameFilterInteractions.functional.test.ts`
 - Factory-ul pentru `/set role` in `rolePingInteractions.functional.test.ts`
+- Handler-ul extras pentru `/help` in `helpHandler.functional.test.ts`
+- Runtime admin guard pentru `/start`, `/stop` si `/set` in `adminGuard.test.ts`
+- Release notes extraction pentru GitHub Releases in `extractReleaseNotes.test.ts`
 - Discord channel resolution si erori permanente in `resolveOutboundChannel.test.ts`
 - `/set games add/remove` in `setGamesInteraction.functional.test.ts`
 - HTTP URL safety si proxy fallback in `httpClientSecurity.test.ts`
@@ -192,6 +199,9 @@ CI confirma logica prin teste cu mock-uri si fluxuri E2E locale. Comportamentul 
 Codul legacy foloseste inca module CommonJS care ataseaza functii pe un context comun. Pentru a reduce riscul, migrarea se face treptat:
 
 - `commandRegistry` expune o fabrica testabila cu installer-e injectate explicit.
+- `slashCommands.ts` este inclus in strict TypeScript si foloseste tipuri locale pentru builder-ele Discord, in loc de callback-uri `any`.
+- `features/commands/adminCommandGuard.ts` impune runtime admin check pentru `/start`, `/stop` si `/set` inainte de delegarea catre handler-ele concrete.
+- `features/commands/handlers/help.ts` extrage `/help` intr-un handler mic si testabil, iar `interactions.ts` ramane fallback legacy.
 - `sourceRegistry` expune o fabrica testabila cu installer-e injectate explicit pentru HTTP, Steam, updates si deals.
 - `features/commands/subscriptionInteractions.ts` extrage fluxurile `/start` si `/stop` intr-o factory tipata cu dependinte explicite si un wrapper instalat peste handlerul legacy.
 - `features/commands/gameFilterInteractions.ts` extrage fluxurile `/set games` intr-o factory tipata cu dependinte explicite si wrapper dedicat.
@@ -199,7 +209,7 @@ Codul legacy foloseste inca module CommonJS care ataseaza functii pe un context 
 - `domain/deals/filtersCore.ts` expune reguli pure si tipate direct, iar `domain/deals/filters.ts` ramane doar adapter pentru contextul legacy.
 - `features/notifications/outboundChannel.ts` expune resolver-ul tipat pentru canale Discord, iar `features/notifications/index.ts` il foloseste ca serviciu injectat.
 - `startUpdatesFlow.e2e.test.ts` si `startDiscountsFlow.e2e.test.ts` acopera fluxurile complete ramase peste `interactions.ts` + `notifications/index.ts`, ca urmatoarea extragere din `ctx` sa aiba guard functional real.
-- Urmatorii pasi pot muta restul din `interactions.ts` si persistenta din `features/notifications/index.ts` catre servicii/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
+- Urmatorii pasi pot muta cate o comanda din `interactions.ts` (`latest`, `dlc`, `status`, autocomplete) catre handlers/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
 
 ## Licenta
 
