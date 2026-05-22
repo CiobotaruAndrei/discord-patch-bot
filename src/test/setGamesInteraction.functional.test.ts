@@ -12,7 +12,7 @@ type UpdateCall = {
   options?: unknown;
 };
 
-const attachInteractions = require("../features/commands/interactions") as (ctx: Record<string, unknown>) => void;
+const attachInteractions = require("../features/command-router/legacyInteractionRouter") as (ctx: Record<string, unknown>) => void;
 
 const games = [
   { key: "cs2", name: "Counter-Strike 2" },
