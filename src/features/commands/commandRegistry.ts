@@ -55,9 +55,11 @@ const defaultInstallers: CommandModuleInstaller[] = [
   require("../notifications") as CommandModuleInstaller,
   require("./slashCommands") as CommandModuleInstaller,
   require("./interactions") as CommandModuleInstaller,
+  require("./handlers/help") as CommandModuleInstaller,
   require("./subscriptionInteractions") as CommandModuleInstaller,
   require("./gameFilterInteractions") as CommandModuleInstaller,
-  require("./rolePingInteractions") as CommandModuleInstaller
+  require("./rolePingInteractions") as CommandModuleInstaller,
+  require("./adminCommandGuard") as CommandModuleInstaller
 ];
 
 function installCommandModules(

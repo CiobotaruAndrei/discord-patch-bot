@@ -34,6 +34,10 @@ Dependency safety is checked in three layers:
 
 Secret scanning for public repositories is handled by GitHub, and repository-level push protection should be enabled from GitHub Settings -> Security -> Advanced Security / Secret Protection when available. Push protection is especially useful here because the bot uses Discord tokens, Mongo credentials, metrics tokens, webhook URLs and optional proxy URLs.
 
+Admin-only Discord commands are protected in two layers: slash command metadata sets administrator permissions, and `src/features/commands/adminCommandGuard.ts` performs a runtime administrator check for `/start`, `/stop` and `/set` before any handler changes guild state. This is intentionally kept even if Discord permissions are later changed or overridden.
+
+The Docker runtime image drops to the non-root `node` user after copying the built application and assigning ownership to `/app`. Keep that behavior when changing the Dockerfile, especially for public images published to GHCR.
+
 ## Secrets
 
 Never share real `DISCORD_TOKEN`, Mongo credentials, `METRICS_TOKEN`, webhook URLs, proxy URLs or Discord invite links in public issues, pull requests, logs, screenshots or examples.

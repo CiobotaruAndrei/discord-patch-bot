@@ -26,5 +26,8 @@ COPY --from=build /app/src/native/index.js ./native/
 COPY --from=build /app/src/native/index.d.ts ./native/
 COPY --from=build /app/src/config.json ./config.json
 
+RUN chown -R node:node /app
+USER node
+
 EXPOSE 3000
 CMD ["npm", "start"]
