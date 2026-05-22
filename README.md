@@ -38,8 +38,6 @@ METRICS_PUBLIC=true
 
 `src/.env.example` documenteaza si variabilele optionale importante: metrics token, reverse proxy, admin webhook, proxy URL templates, limite de scraping, cooldown-uri Discord, circuit breaker, pending queues, cache-uri, Mongo pool si rate limit pentru endpoint-urile HTTP.
 
-Porneste MongoDB local sau foloseste Docker Compose din radacina repo-ului.
-
 ## Comenzi utile
 
 Din `src/`:
@@ -71,8 +69,6 @@ Compose porneste botul si MongoDB intr-o retea interna Docker. Mongo nu este pub
 
 Imaginea runtime din `Dockerfile` ruleaza procesul ca user non-root `node`, dupa ce fisierele din `/app` primesc ownership corect. Pastreaza acest lucru si pentru imaginile publicate in GHCR.
 
-Daca ai nevoie temporar sa accesezi Mongo din host, foloseste un override local necomis si leaga portul doar pe loopback, de exemplu `127.0.0.1:27017:27017`. Pentru productie seteaza un `METRICS_TOKEN` real si evita expunerea publica a `/metrics`.
-
 ## Dependinte si audit
 
 Dependintele sunt blocate prin `src/package-lock.json`, iar CI instaleaza cu `npm ci`.
@@ -80,11 +76,9 @@ Dependintele sunt blocate prin `src/package-lock.json`, iar CI instaleaza cu `np
 - `npm run audit` ruleaza local auditul pe dependintele runtime.
 - `npm run check:dependencies` verifica local ca dependintele runtime si build/dev directe sunt pin-uite exact, ca intrarile directe din lockfile rezolva la aceleasi versiuni si ca URL-urile din lockfile folosesc registry npm peste HTTPS.
 - `.github/workflows/dependency-audit.yml` ruleaza saptamanal acelasi audit in GitHub Actions si poate fi pornit manual.
-- `.github/workflows/dependency-review.yml` ruleaza pe PR-uri si devine blocant pentru vulnerabilitati moderate sau mai grave cand GitHub Dependency graph este activ; pana atunci, workflow-ul explica explicit setarea lipsa, iar `npm run check:dependencies` ramane guard-ul blocant din CI.
+- `.github/workflows/dependency-review.yml` ruleaza pe PR-uri si devine blocant pentru vulnerabilitati moderate sau mai grave cand GitHub Dependency graph este activ.
 - `.github/workflows/codeql.yml` ruleaza CodeQL pentru JavaScript/TypeScript la push, PR, saptamanal si manual.
-- `.github/dependabot.yml` deschide PR-uri saptamanale pentru dependinte npm din `src` si pentru GitHub Actions, grupate ca sa fie mai usor de verificat controlat.
-
-Cand un PR Dependabot modifica `src/package-lock.json`, verifica diff-ul lockfile-ului, rezultatul `Dependency Review`, `npm audit`, CI-ul complet si notele de release ale pachetului inainte de merge.
+- `.github/dependabot.yml` deschide PR-uri saptamanale pentru dependinte npm din `src` si pentru GitHub Actions.
 
 ## Release si versioning
 
@@ -110,7 +104,7 @@ Repo-ul are `SECURITY.md` pentru raportarea privata a vulnerabilitatilor. Nu pub
 
 CodeQL este configurat prin `.github/workflows/codeql.yml` pentru analiza JavaScript/TypeScript. Secret scanning si push protection se activeaza din setarile GitHub ale repo-ului; `SECURITY.md` documenteaza ce se verifica si ce trebuie rotit daca un secret ajunge public.
 
-Comenzile admin (`/start`, `/stop`, `/set`) sunt protejate si la runtime prin `features/commands/adminCommandGuard.ts`, nu doar prin metadata de slash command. Asta reduce riscul daca permisiunile Discord sunt schimbate sau suprascrise pe server.
+Comenzile admin (`/start`, `/stop`, `/set`) sunt protejate si la runtime prin `features/command-security/adminCommandRouterGuard.ts`, nu doar prin metadata de slash command. Asta reduce riscul daca permisiunile Discord sunt schimbate sau suprascrise pe server.
 
 ## Config jocuri
 
@@ -147,11 +141,7 @@ In productie `/metrics` trebuie protejat cu `METRICS_TOKEN`, exceptand cazul in 
 
 ```text
 .github/dependabot.yml
-.github/workflows/ci.yml
-.github/workflows/codeql.yml
-.github/workflows/dependency-audit.yml
-.github/workflows/dependency-review.yml
-.github/workflows/release.yml
+.github/workflows/
 CHANGELOG.md
 Dockerfile
 docker-compose.yml
@@ -162,8 +152,17 @@ src/
   app/
   config/
   domain/
-  features/commands/         # slash commands, handlers, admin guard, subscription, game filter si role ping factories
-  features/notifications/
+  features/
+    command-cache/          # cache runtime, cooldown-uri si LRU
+    command-definitions/    # definitii si inregistrare slash commands
+    command-handlers/       # handlers/factory-uri extrase: help, start/stop, set games, set role
+    command-presentation/   # embed-uri, paginare, fuzzy matching, status si preturi
+    command-registry/       # wiring-ul comenzilor si contractul installer-elor
+    command-router/         # adapter pentru routerul legacy ramas
+    command-runtime/        # dependintele runtime injectate in comenzi
+    command-security/       # runtime admin guard si wrapper pentru comenzi protejate
+    commands/               # fisier legacy temporar: interactions.ts
+    notifications/
   infra/http/
   infra/mongo/
   native/
@@ -198,18 +197,18 @@ CI confirma logica prin teste cu mock-uri si fluxuri E2E locale. Comportamentul 
 
 Codul legacy foloseste inca module CommonJS care ataseaza functii pe un context comun. Pentru a reduce riscul, migrarea se face treptat:
 
-- `commandRegistry` expune o fabrica testabila cu installer-e injectate explicit.
-- `slashCommands.ts` este inclus in strict TypeScript si foloseste tipuri locale pentru builder-ele Discord, in loc de callback-uri `any`.
-- `features/commands/adminCommandGuard.ts` impune runtime admin check pentru `/start`, `/stop` si `/set` inainte de delegarea catre handler-ele concrete.
-- `features/commands/handlers/help.ts` extrage `/help` intr-un handler mic si testabil, iar `interactions.ts` ramane fallback legacy.
-- `sourceRegistry` expune o fabrica testabila cu installer-e injectate explicit pentru HTTP, Steam, updates si deals.
-- `features/commands/subscriptionInteractions.ts` extrage fluxurile `/start` si `/stop` intr-o factory tipata cu dependinte explicite si un wrapper instalat peste handlerul legacy.
-- `features/commands/gameFilterInteractions.ts` extrage fluxurile `/set games` intr-o factory tipata cu dependinte explicite si wrapper dedicat.
-- `features/commands/rolePingInteractions.ts` extrage fluxurile `/set role updates/discounts` intr-o factory tipata cu dependinte explicite si wrapper dedicat.
+- `command-registry/commandRegistry.ts` expune o fabrica testabila cu installer-e injectate explicit.
+- `command-definitions/slashCommandDefinitions.ts` este inclus in strict TypeScript si foloseste tipuri locale pentru builder-ele Discord.
+- `command-security/adminCommandRouterGuard.ts` impune runtime admin check pentru `/start`, `/stop` si `/set` inainte de delegarea catre handler-ele concrete.
+- `command-handlers/helpInteractionHandler.ts` extrage `/help` intr-un handler mic si testabil.
+- `command-handlers/subscriptionNotificationHandlers.ts` extrage fluxurile `/start` si `/stop` intr-o factory tipata cu dependinte explicite.
+- `command-handlers/gameFilterHandlers.ts` extrage fluxurile `/set games` intr-o factory tipata cu dependinte explicite.
+- `command-handlers/rolePingHandlers.ts` extrage fluxurile `/set role updates/discounts` intr-o factory tipata cu dependinte explicite.
+- `command-router/legacyInteractionRouter.ts` tine adapterul spre `features/commands/interactions.ts`, unde mai stau temporar `/latest`, `/dlc`, `/status` si autocomplete.
 - `domain/deals/filtersCore.ts` expune reguli pure si tipate direct, iar `domain/deals/filters.ts` ramane doar adapter pentru contextul legacy.
 - `features/notifications/outboundChannel.ts` expune resolver-ul tipat pentru canale Discord, iar `features/notifications/index.ts` il foloseste ca serviciu injectat.
-- `startUpdatesFlow.e2e.test.ts` si `startDiscountsFlow.e2e.test.ts` acopera fluxurile complete ramase peste `interactions.ts` + `notifications/index.ts`, ca urmatoarea extragere din `ctx` sa aiba guard functional real.
-- Urmatorii pasi pot muta cate o comanda din `interactions.ts` (`latest`, `dlc`, `status`, autocomplete) catre handlers/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
+
+Urmatorii pasi pot muta cate o comanda din `features/commands/interactions.ts` (`latest`, `dlc`, `status`, autocomplete) catre handlers/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
 
 ## Licenta
 
