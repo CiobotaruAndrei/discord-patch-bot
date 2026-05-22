@@ -11,7 +11,7 @@ Acest document noteaza starea repo-ului dupa curatare, migrarea sursei la TypeSc
 - `src/tsconfig.json` ruleaza proiectul cu `strict: true` si `noImplicitAny: true`.
 - `src/tsconfig.strict.json` include zone stabilizate explicit din health, scheduler, `filtersCore`, command registry, command cache, command presentation, slash command definitions, command handlers, command security, `outboundChannel`, `sourceRegistry`, `check-dependencies`, `extract-release-notes`, HTTP client si teste directe.
 - Fisierele de comenzi au fost mutate din folderul plat `src/features/commands/` in foldere numite dupa functionalitate: `command-registry`, `command-runtime`, `command-cache`, `command-presentation`, `command-definitions`, `command-security`, `command-handlers` si `command-router`.
-- `src/features/commands/interactions.ts` ramane singurul modul legacy mare de comenzi, izolat prin `src/features/command-router/legacyInteractionRouter.ts`, pana cand `/latest`, `/dlc`, `/status` si autocomplete sunt extrase separat.
+- Vechiul folder `src/features/commands/` nu mai contine sursa manuala. Routerul ramas pentru `/latest`, `/dlc`, `/status` si autocomplete este acum in `src/features/command-router/legacyInteractionRouter.ts`.
 - `src/legacy-dynamic.d.ts` ramane doar shim temporar pentru codul vechi care construieste contextul dinamic.
 - `.github/workflows/ci.yml` ruleaza verificarea principala.
 - `.github/workflows/dependency-audit.yml` ruleaza audit npm saptamanal si manual.
@@ -32,7 +32,8 @@ Acest document noteaza starea repo-ului dupa curatare, migrarea sursei la TypeSc
 - `src/features/command-handlers/gameFilterHandlers.ts` extrage `/set games add/remove/list/reset` intr-o factory tipata cu dependinte explicite.
 - `src/features/command-handlers/rolePingHandlers.ts` extrage `/set role updates/discounts` intr-o factory tipata cu dependinte explicite.
 - `src/features/command-registry/commandRegistry.ts` a fost mutat intr-un folder de registru si foloseste importuri dupa functionalitate in loc de fisiere plate.
-- `src/features/command-router/legacyInteractionRouter.ts` face vizibil faptul ca partea ramasa din `interactions.ts` este compatibilitate temporara, nu structura finala.
+- `src/features/command-router/legacyInteractionRouter.ts` tine acum direct routerul legacy ramas, ca nu mai fie nevoie de un fisier vechi in `features/commands`.
+- `src/test/commands-regression.test.ts` citeste acum folderele compilate din `dist/features`, ca testele de regresie sa urmeze structura functionala in loc de nume vechi de fisiere.
 - `src/scripts/extract-release-notes.ts` extrage doar sectiunea tag-ului curent din `CHANGELOG.md`, iar release workflow-ul foloseste `release-notes.md` in loc de tot changelog-ul.
 - `Dockerfile` face `chown` pe `/app` si trece pe `USER node` in runtime.
 - `dependency-review.yml` nu mai foloseste `continue-on-error: true` pe pasul de review. Workflow-ul verifica intai daca GitHub Dependency graph este activ; cand este activ, `actions/dependency-review-action@v4` ruleaza ca verificare blocanta pentru vulnerabilitati moderate sau mai grave.
@@ -55,9 +56,9 @@ Structura noua pentru zona de comenzi este:
 - `src/features/command-handlers/subscriptionNotificationHandlers.ts`: handler-ele `/start` si `/stop`.
 - `src/features/command-handlers/gameFilterHandlers.ts`: handler-ele `/set games`.
 - `src/features/command-handlers/rolePingHandlers.ts`: handler-ele `/set role`.
-- `src/features/command-router/legacyInteractionRouter.ts`: adaptorul temporar catre handlerul legacy ramas.
+- `src/features/command-router/legacyInteractionRouter.ts`: routerul ramas pentru `/latest`, `/dlc`, `/status` si autocomplete.
 
-Fisierele vechi plate din `src/features/commands/` au fost sterse unde exista handler dedicat. `src/features/commands/interactions.ts` ramane doar pentru rutele inca neextrase.
+Fisierele vechi plate din `src/features/commands/` au fost eliminate sau mutate in foldere functionale. Partea legacy exista inca, dar este localizata in `command-router`, nu intr-un folder generic ramas din structura veche.
 
 ## Reducerea treptata a ctx legacy
 
@@ -75,7 +76,7 @@ Codul inca are module CommonJS care ataseaza functii pe un context comun. Direct
 - `src/features/notifications/outboundChannel.ts` expune resolver-ul de canal Discord ca serviciu tipat.
 - `src/features/notifications/index.ts` foloseste `createOutboundChannelResolver`, dar pastreaza adapter-ul legacy pe `ctx`.
 
-Urmatoarele zone bune de refactorizat sunt restul din `src/features/commands/interactions.ts` (`latest`, `dlc`, `status`, autocomplete) si persistenta din `src/features/notifications/index.ts`, in pasi separati si cu teste functionale langa fiecare extragere.
+Urmatoarele zone bune de refactorizat sunt restul din `src/features/command-router/legacyInteractionRouter.ts` (`latest`, `dlc`, `status`, autocomplete) si persistenta din `src/features/notifications/index.ts`, in pasi separati si cu teste functionale langa fiecare extragere.
 
 ## Dependinte npm si supply chain
 
