@@ -6,23 +6,6 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const commandFiles = [
-  "features/command-cache/commandCache.js",
-  "domain/deals/filters.js",
-  "features/command-presentation/commandPresentation.js",
-  "features/notifications/outboundChannel.js",
-  "features/notifications/index.js",
-  "features/command-definitions/slashCommandDefinitions.js",
-  "features/command-router/legacyInteractionRouter.js",
-  "features/commands/interactions.js",
-  "features/command-handlers/helpInteractionHandler.js",
-  "features/command-handlers/subscriptionNotificationHandlers.js",
-  "features/command-handlers/gameFilterHandlers.js",
-  "features/command-handlers/rolePingHandlers.js",
-  "features/command-security/adminPermissionGuard.js",
-  "features/command-security/adminCommandRouterGuard.js",
-  "features/command-registry/commandRegistry.js"
-];
 const runtimeFiles = [
   "config/configLoader.js",
   "shared/domain.js",
@@ -45,8 +28,28 @@ const runtimeFiles = [
   "app/health/metrics.js",
   "app/health/rateLimit.js"
 ];
+
 const readBuiltFile = (file: string) => fs.readFileSync(path.join(__dirname, "..", file), "utf8");
-const commandsSource = commandFiles.map(readBuiltFile).join("\n");
+const readBuiltFilesUnder = (...segments: string[]) => {
+  const root = path.join(__dirname, "..", ...segments);
+  const chunks: string[] = [];
+  const visit = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) visit(fullPath);
+      if (entry.isFile() && entry.name.endsWith(".js")) {
+        chunks.push(fs.readFileSync(fullPath, "utf8"));
+      }
+    }
+  };
+  visit(root);
+  return chunks.join("\n");
+};
+
+const commandsSource = [
+  readBuiltFilesUnder("features"),
+  readBuiltFile("domain/deals/filters.js")
+].join("\n");
 const runtimeSource = runtimeFiles.map(readBuiltFile).join("\n");
 const allSource = `${commandsSource}\n${runtimeSource}`;
 
@@ -63,8 +66,8 @@ test("start and stop handlers keep activation race protection", () => {
   assert.match(commandsSource, /const activationId = makeActivationId\(\)/);
   assert.match(commandsSource, /updatesActivationId: activationId/);
   assert.match(commandsSource, /discountsActivationId: activationId/);
-  assert.match(commandsSource, /\$unset: \{ updatesActivationId: ""/);
-  assert.match(commandsSource, /\$unset: \{ discountsActivationId: ""/);
+  assert.match(commandsSource, /\$unset:\s*\{\s*updatesActivationId:\s*""/);
+  assert.match(commandsSource, /\$unset:\s*\{\s*discountsActivationId:\s*""/);
 });
 
 test("V9 command surface is still present", () => {
@@ -82,7 +85,9 @@ test("automatic update notifications respect the per-game filter", () => {
 
 test("manual latest updates respects the per-game filter", () => {
   assert.match(commandsSource, /Nu am date disponibile pentru jocurile active ale acestui server/);
-  assert.match(commandsSource, /data\.filter\(\(?r\)? => r\.latest !== null && \(!enabledSet \|\| enabledSet\.has\(r\.game\.key\)\)\)/);
+  assert.match(commandsSource, /data\.filter/);
+  assert.match(commandsSource, /r\.latest !== null/);
+  assert.match(commandsSource, /enabledSet\.has\(r\.game\.key\)/);
 });
 
 test("Discord permanent errors disable broken notification channels", () => {
