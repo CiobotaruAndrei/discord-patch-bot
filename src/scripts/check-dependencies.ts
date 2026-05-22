@@ -1,14 +1,23 @@
 import fs from "node:fs";
 import path from "node:path";
 
+type DependencyField = "dependencies" | "devDependencies";
+
 type PackageJson = {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
+
+type LockPackage = {
+  version?: string;
+  resolved?: string;
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
 };
 
 type PackageLock = {
   lockfileVersion?: number;
-  packages?: Record<string, { version?: string; resolved?: string; dependencies?: Record<string, string> }>;
+  packages?: Record<string, LockPackage>;
 };
 
 function readJson<T>(filePath: string): T {
@@ -39,6 +48,32 @@ function assertTrustedResolvedUrl(packageName: string, resolved: string | undefi
   }
 }
 
+function assertDirectDependencies(
+  label: string,
+  field: DependencyField,
+  packageDeps: Record<string, string>,
+  lockRoot: LockPackage,
+  packageLock: PackageLock
+) {
+  const lockRootDeps = lockRoot[field] || {};
+  for (const [name, version] of Object.entries(packageDeps)) {
+    if (!isExactSemver(version)) {
+      fail(`${label} dependency ${name} must be pinned to an exact version, got ${version}`);
+    }
+    if (!lockRootDeps[name]) {
+      fail(`${label} dependency ${name} is missing from package-lock.json root ${field}`);
+    }
+    const lockEntry = packageLock.packages?.[`node_modules/${name}`];
+    if (!lockEntry) {
+      fail(`${label} dependency ${name} is missing from package-lock.json`);
+    }
+    if (lockEntry.version !== version) {
+      fail(`${label} dependency ${name} resolves to ${lockEntry.version || "missing"}, expected ${version}`);
+    }
+    assertTrustedResolvedUrl(name, lockEntry.resolved);
+  }
+}
+
 const rootDir = process.cwd();
 const packageJson = readJson<PackageJson>(path.join(rootDir, "package.json"));
 const packageLock = readJson<PackageLock>(path.join(rootDir, "package-lock.json"));
@@ -53,28 +88,16 @@ if (typeof packageLock.lockfileVersion !== "number" || packageLock.lockfileVersi
 }
 
 const runtimeDependencies = packageJson.dependencies || {};
-const lockRuntimeDependencies = lockRoot.dependencies || {};
+const developmentDependencies = packageJson.devDependencies || {};
 
-for (const [name, version] of Object.entries(runtimeDependencies)) {
-  if (!isExactSemver(version)) {
-    fail(`runtime dependency ${name} must be pinned to an exact version, got ${version}`);
-  }
-  if (lockRuntimeDependencies[name] !== version) {
-    fail(`runtime dependency ${name} differs between package.json (${version}) and package-lock.json (${lockRuntimeDependencies[name] || "missing"})`);
-  }
-  const lockEntry = packageLock.packages[`node_modules/${name}`];
-  if (!lockEntry) {
-    fail(`runtime dependency ${name} is missing from package-lock.json`);
-  }
-  if (lockEntry.version !== version) {
-    fail(`runtime dependency ${name} resolves to ${lockEntry.version || "missing"}, expected ${version}`);
-  }
-  assertTrustedResolvedUrl(name, lockEntry.resolved);
-}
+assertDirectDependencies("runtime", "dependencies", runtimeDependencies, lockRoot, packageLock);
+assertDirectDependencies("development", "devDependencies", developmentDependencies, lockRoot, packageLock);
 
 for (const [packagePath, lockEntry] of Object.entries(packageLock.packages)) {
   if (!packagePath || !lockEntry.resolved) continue;
   assertTrustedResolvedUrl(packagePath.replace(/^node_modules\//, ""), lockEntry.resolved);
 }
 
-console.log(`Dependency policy OK: ${Object.keys(runtimeDependencies).length} runtime dependencies pinned and lockfile URLs verified.`);
+console.log(
+  `Dependency policy OK: ${Object.keys(runtimeDependencies).length} runtime and ${Object.keys(developmentDependencies).length} development dependencies pinned; lockfile URLs verified.`
+);
