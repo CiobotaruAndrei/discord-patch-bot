@@ -7,7 +7,7 @@ type HelpModule = ((ctx: Record<string, any>) => void) & {
   };
 };
 
-const helpHandler = require("../features/commands/handlers/help") as HelpModule;
+const helpHandler = require("../features/command-handlers/helpInteractionHandler") as HelpModule;
 
 function makeHelpInteraction() {
   const replies: unknown[] = [];
