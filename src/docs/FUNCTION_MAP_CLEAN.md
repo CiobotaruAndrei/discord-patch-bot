@@ -9,7 +9,7 @@ Acest fisier documenteaza responsabilitatile modulelor importante din repo. Surs
 - `src/package-lock.json` blocheaza versiunile de dependinte, iar CI instaleaza cu `npm ci`.
 - `src/package.json` pin-uieste exact dependintele directe runtime si build/dev.
 - `src/tsconfig.json` are `allowJs: false`, `strict: true` si `noImplicitAny: true`.
-- `src/tsconfig.strict.json` include zone stabilizate explicit, inclusiv `src/features/commands/subscriptionInteractions.ts`, `src/features/commands/gameFilterInteractions.ts`, `src/features/commands/rolePingInteractions.ts`, `src/features/commands/commandRegistry.ts`, `src/features/notifications/outboundChannel.ts`, `src/sources/sourceRegistry.ts`, `src/scripts/check-dependencies.ts` si testele lor directe.
+- `src/tsconfig.strict.json` include zone stabilizate explicit, inclusiv `src/features/commands/adminCommandGuard.ts`, `src/features/commands/adminGuard.ts`, `src/features/commands/handlers/help.ts`, `src/features/commands/slashCommands.ts`, `src/features/commands/subscriptionInteractions.ts`, `src/features/commands/gameFilterInteractions.ts`, `src/features/commands/rolePingInteractions.ts`, `src/features/commands/commandRegistry.ts`, `src/features/notifications/outboundChannel.ts`, `src/sources/sourceRegistry.ts`, `src/scripts/check-dependencies.ts`, `src/scripts/extract-release-notes.ts` si testele lor directe.
 - `src/scripts/check-syntax.ts` pica verificarea daca mai apare un fisier `.js` in sursa `src`, ignorand `dist/` si loader-ul generat `native/index.js`.
 - `src/scripts/check-dependencies.ts` pica verificarea daca runtime/build deps directe nu sunt exacte, daca intrarile directe din lockfile nu rezolva la versiunile asteptate sau daca pachetele din lockfile nu vin din registry npm peste HTTPS.
 - Agregatoarele descriptive sunt `src/infra/mongo/mongoContext.ts`, `src/sources/sourceRegistry.ts` si `src/features/commands/commandRegistry.ts`.
@@ -21,15 +21,15 @@ Acest fisier documenteaza responsabilitatile modulelor importante din repo. Surs
 
 ### `README.md`
 
-Rol: ghid principal pentru setup, env, comenzi, Docker, audit, Dependency Review, CodeQL, GHCR release image, security, health/metrics, structura, testare, badge-uri si exemple vizuale de embed-uri.
+Rol: ghid principal pentru setup, env, comenzi, Docker non-root, audit, Dependency Review, CodeQL, GHCR release image, security, health/metrics, structura, testare, badge-uri si exemple vizuale de embed-uri.
 
 ### `CHANGELOG.md`
 
-Rol: istoric de versiuni si schimbari notabile. Explica folosirea tag-urilor semver `vMAJOR.MINOR.PATCH`, mentioneaza CodeQL, Dependency Review, dependency policy check, refactorizarea subscription/game-filter/role-ping interactions, imaginea GHCR si sta ca sursa de note pentru GitHub Release.
+Rol: istoric de versiuni si schimbari notabile. Explica folosirea tag-urilor semver `vMAJOR.MINOR.PATCH`, mentioneaza CodeQL, Dependency Review, dependency policy check, refactorizarea subscription/game-filter/role-ping/help interactions, runtime admin guard, imaginea GHCR si release notes pe sectiunea tag-ului curent.
 
 ### `SECURITY.md`
 
-Rol: politica de raportare privata a vulnerabilitatilor si reguli pentru secret/dependency management. Acopera tokenuri Discord, credentiale Mongo, `METRICS_TOKEN`, webhook-uri, proxy URL-uri, CodeQL, Dependency Review, audit npm, secret scanning, push protection si build-tool supply chain.
+Rol: politica de raportare privata a vulnerabilitatilor si reguli pentru secret/dependency management. Acopera tokenuri Discord, credentiale Mongo, `METRICS_TOKEN`, webhook-uri, proxy URL-uri, CodeQL, Dependency Review, audit npm, secret scanning, push protection, runtime admin guard si build-tool supply chain.
 
 ### `.github/workflows/ci.yml`
 
@@ -59,7 +59,7 @@ Comportament: ruleaza la pull request spre `main` cand se modifica `src/package.
 
 Rol: release automat pentru tag-uri semver si imagine Docker publicata.
 
-Comportament: ruleaza la tag-uri `v*.*.*` sau manual cu input `tag`, rezolva tag-ul si numele imaginii lowercase, face checkout pe ref-ul de release, instaleaza Node.js 20 si Rust stable, ruleaza `npm ci` si `npm run check` in `src`, construieste `Dockerfile`, publica imaginea in GHCR si creeaza GitHub Release cu `CHANGELOG.md` si release notes generate de GitHub.
+Comportament: ruleaza la tag-uri `v*.*.*` sau manual cu input `tag`, rezolva tag-ul si numele imaginii lowercase, face checkout pe ref-ul de release, instaleaza Node.js 20 si Rust stable, ruleaza `npm ci` si `npm run check` in `src`, ruleaza `src/scripts/extract-release-notes.ts` din output-ul compilat ca sa scrie `release-notes.md`, construieste `Dockerfile`, publica imaginea in GHCR si creeaza GitHub Release cu notele tag-ului curent plus release notes generate de GitHub.
 
 Output GHCR:
 
@@ -73,6 +73,12 @@ ghcr.io/ciobotaruandrei/discord-patch-bot:latest
 Rol: update-uri controlate prin PR pentru dependinte.
 
 Comportament: verifica saptamanal npm din `/src` si GitHub Actions, cu grupuri pentru runtime dependencies, build/types si actions. PR-urile trebuie verificate cu lockfile diff, Dependency Review, audit si CI inainte de merge.
+
+### `Dockerfile`
+
+Rol: imagine multi-stage pentru productie.
+
+Comportament: stage-ul de build instaleaza toolchain-ul necesar si ruleaza build Rust + TypeScript. Stage-ul runtime instaleaza doar dependinte production, copiaza output-ul compilat, face `chown -R node:node /app`, trece pe `USER node` si porneste `npm start`.
 
 ## Build si scripts
 
@@ -94,25 +100,17 @@ Scripturi importante:
 - `check:dependencies`: build TypeScript minimal si ruleaza `dist/scripts/check-dependencies.js`.
 - `check`: ruleaza typecheck normal, typecheck strict separat, build, syntax check, config check, dependency check si testele.
 
-### `src/package-lock.json`
-
-Rol: lockfile npm pentru instalari reproductibile local si in GitHub Actions.
-
 ### `src/scripts/check-dependencies.ts`
 
 Rol: guard local si CI pentru supply chain npm. Verifica runtime si build/dev dependencies directe pin-uite exact, intrarile directe din lockfile, lockfileVersion modern si URL-uri `https://registry.npmjs.org`.
 
-### `src/.env.example`
+### `src/scripts/extract-release-notes.ts`
 
-Rol: exemplu de configurare pentru `MONGO_URI`, tokenul Discord, client ID, metrics si tuning runtime.
-
-### `src/tsconfig.json`
-
-Compileaza sursa TypeScript in `dist`, pastreaza CommonJS ca format runtime, foloseste `moduleDetection: force`, are `allowJs: false`, `strict: true`, `noImplicitAny: true` si exclude `dist`, `node_modules` si `coverage`.
+Rol: extrage doar sectiunea tag-ului curent din `CHANGELOG.md` pentru GitHub Release. Daca tag-ul nu are sectiune dedicata, scrie un body scurt de fallback in loc sa publice tot changelog-ul.
 
 ### `src/tsconfig.strict.json`
 
-Verificare stricta separata pentru zone stabilizate explicit: health server, scheduler, `domain/deals/filtersCore.ts`, `features/commands/commandRegistry.ts`, `features/commands/subscriptionInteractions.ts`, `features/commands/gameFilterInteractions.ts`, `features/commands/rolePingInteractions.ts`, `features/notifications/outboundChannel.ts`, `sources/sourceRegistry.ts`, `scripts/check-dependencies.ts`, HTTP client, erori shared si testele directe pentru acele zone.
+Verificare stricta separata pentru zone stabilizate explicit: health server, scheduler, `domain/deals/filtersCore.ts`, command registry, slash commands, admin guard, help handler, subscription/game-filter/role-ping interactions, outbound channel, source registry, dependency/release scripts, HTTP client, erori shared si testele directe pentru acele zone.
 
 ## App si infrastructura
 
@@ -142,14 +140,6 @@ Modele Mongo, lock-uri distribuite, migrari, state global, cache guild settings 
 
 Agregator pentru client HTTP, Steam helpers, update sources si deals sources. Expune `createSourceRegistry(baseContext, installers)` pentru wiring explicit si testabil, apoi pastreaza exporturile vechi pentru compatibilitate cu runtime-ul curent.
 
-### `src/sources/updates/index.ts`
-
-Fetch update-uri pentru surse Steam/Epic/RSS/listing/vendor, circuit breaker si normalizare update.
-
-### `src/sources/deals/index.ts`
-
-Fetch si enrich pentru reduceri Steam/Epic, cache-uri si review data.
-
 ### `src/domain/deals/filtersCore.ts`
 
 Core tipat pentru regulile de reduceri. Exporta direct `dealPassesFilters`, `normalizePendingUpdateArray`, `normalizePendingDiscountArray`, `toEntries`, `mapToObject`, `getSeenSet` si `rotateAfter`.
@@ -162,11 +152,27 @@ Adapter legacy pentru context. Importa functiile din `filtersCore.ts`, le expune
 
 ### `src/features/commands/commandRegistry.ts`
 
-Agregator pentru cache, filtre, UI, notificari, slash commands, handlerul legacy de interactions si wrapper-ele `subscriptionInteractions` + `gameFilterInteractions` + `rolePingInteractions`. Registrul declara functiile asteptate din context si foloseste `requireRegistryFunction` ca sa pice devreme daca un modul nu a atasat o dependinta obligatorie.
+Agregator pentru cache, filtre, UI, notificari, slash commands, handlerul legacy de interactions si wrapper-ele `handlers/help`, `subscriptionInteractions`, `gameFilterInteractions`, `rolePingInteractions` si `adminCommandGuard`. Registrul declara functiile asteptate din context si foloseste `requireRegistryFunction` ca sa pice devreme daca un modul nu a atasat o dependinta obligatorie.
+
+### `src/features/commands/slashCommands.ts`
+
+Defineste si inregistreaza slash commands. Este in strict TypeScript si foloseste tipuri locale pentru builder-ele Discord, ca zona de definire a comenzilor sa nu mai depinda de callback-uri `any`.
+
+### `src/features/commands/adminGuard.ts`
+
+Helper runtime care verifica `memberPermissions` pentru `PermissionsBitField.Flags.Administrator` si raspunde ephemeral cand utilizatorul nu are drepturi de admin.
+
+### `src/features/commands/adminCommandGuard.ts`
+
+Wrapper exterior pentru `/start`, `/stop` si `/set`. Daca utilizatorul nu este admin, opreste comanda inainte de `safeDefer` si inainte de orice update Mongo. Daca este admin, deleaga la handler-ele dedicate sau la fallback-ul legacy.
+
+### `src/features/commands/handlers/help.ts`
+
+Handler TypeScript pentru `/help`. Expune `createHelpHandler(deps)` pentru teste si instaleaza un wrapper care intercepteaza doar `/help`.
 
 ### `src/features/commands/interactions.ts`
 
-Proceseaza slash commands si autocomplete ramase in handlerul legacy. Dispatch-ul runtime pentru `/start`, `/stop`, `/set games` si `/set role` este suprascris de servicii dedicate instalate dupa acest modul.
+Proceseaza slash commands si autocomplete ramase in handlerul legacy. Dispatch-ul runtime pentru `/help`, `/start`, `/stop`, `/set games`, `/set role` si admin guard-ul pentru `/set` sunt suprascrise de servicii dedicate instalate dupa acest modul.
 
 ### `src/features/commands/subscriptionInteractions.ts`
 
@@ -192,6 +198,9 @@ Update-uri si reduceri automate: claim atomic, rollback, pending queues, activat
 
 ## Teste importante
 
+- `src/test/adminGuard.test.ts`: helper runtime admin si wrapper de blocare/delegare pentru comenzile protejate.
+- `src/test/helpHandler.functional.test.ts`: factory si wrapper pentru `/help`.
+- `src/test/extractReleaseNotes.test.ts`: extragere release notes din `CHANGELOG.md`.
 - `src/test/rolePingInteractions.functional.test.ts`: factory si wrapper pentru `/set role`.
 - `src/test/gameFilterInteractions.functional.test.ts`: factory si wrapper pentru `/set games`.
 - `src/test/subscriptionInteractions.functional.test.ts`: factory si wrapper pentru `/start` si `/stop`.
