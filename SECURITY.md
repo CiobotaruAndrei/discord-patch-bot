@@ -28,8 +28,8 @@ The repository runs CodeQL for JavaScript/TypeScript through `.github/workflows/
 
 Dependency safety is checked in three layers:
 
-- `npm run check:dependencies` verifies that runtime dependencies are pinned exactly, that `package.json` matches `package-lock.json`, and that lockfile package URLs resolve from `https://registry.npmjs.org`.
-- `.github/workflows/dependency-review.yml` runs GitHub Dependency Review on pull requests and fails on moderate or higher vulnerability severity.
+- `npm run check:dependencies` verifies that runtime and direct build/dev dependencies are pinned exactly, that direct lockfile entries resolve to the expected versions, and that lockfile package URLs resolve from `https://registry.npmjs.org`.
+- `.github/workflows/dependency-review.yml` checks whether GitHub Dependency graph is enabled. When it is enabled, `actions/dependency-review-action@v4` runs as a blocking pull request check for moderate or higher vulnerability severity.
 - `.github/workflows/dependency-audit.yml` runs `npm audit --omit=dev --audit-level=moderate` weekly and manually.
 
 Secret scanning for public repositories is handled by GitHub, and repository-level push protection should be enabled from GitHub Settings -> Security -> Advanced Security / Secret Protection when available. Push protection is especially useful here because the bot uses Discord tokens, Mongo credentials, metrics tokens, webhook URLs and optional proxy URLs.
@@ -45,3 +45,5 @@ For local examples, use `src/.env.example` placeholders only. Do not copy real `
 ## Dependency Review Discipline
 
 Before merging dependency PRs, especially automated Dependabot PRs, check the lockfile diff, the Dependency Review result, the audit result and the package release notes. Treat unexpected registry URLs, new install scripts, ownership changes or sudden large transitive dependency changes as blockers until they are understood.
+
+Build tooling is part of the supply chain too. Keep direct `devDependencies` pinned exactly, review changes to Rust/N-API build tools manually, and do not merge build-tool updates based only on a green install.

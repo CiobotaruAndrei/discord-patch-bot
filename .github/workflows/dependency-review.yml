@@ -21,14 +21,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check whether Dependency graph is enabled
+        id: dependency-graph
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.repos.get(context.repo);
+            const status = data.security_and_analysis?.dependency_graph?.status;
+            core.info(`Dependency graph status: ${status || "unknown"}`);
+            return status === "enabled";
+
       - name: Review dependency changes
-        id: dependency-review
+        if: steps.dependency-graph.outputs.result == 'true'
         uses: actions/dependency-review-action@v4
-        continue-on-error: true
         with:
           fail-on-severity: moderate
 
       - name: Explain dependency review setup
-        if: steps.dependency-review.outcome == 'failure'
+        if: steps.dependency-graph.outputs.result != 'true'
         run: |
-          echo "::warning::GitHub Dependency Review needs Dependency graph enabled in repository security settings. The local npm dependency policy check still runs in CI through npm run check."
+          echo "::warning::GitHub Dependency Review is skipped until Dependency graph is enabled in repository security settings. After it is enabled, this workflow runs dependency-review-action as a blocking check."

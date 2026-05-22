@@ -76,9 +76,9 @@ Daca ai nevoie temporar sa accesezi Mongo din host, foloseste un override local 
 Dependintele sunt blocate prin `src/package-lock.json`, iar CI instaleaza cu `npm ci`.
 
 - `npm run audit` ruleaza local auditul pe dependintele runtime.
-- `npm run check:dependencies` verifica local ca dependintele runtime sunt pin-uite exact, ca `package.json` si `package-lock.json` sunt aliniate si ca URL-urile din lockfile folosesc registry npm peste HTTPS.
+- `npm run check:dependencies` verifica local ca dependintele runtime si build/dev directe sunt pin-uite exact, ca intrarile directe din lockfile rezolva la aceleasi versiuni si ca URL-urile din lockfile folosesc registry npm peste HTTPS.
 - `.github/workflows/dependency-audit.yml` ruleaza saptamanal acelasi audit in GitHub Actions si poate fi pornit manual.
-- `.github/workflows/dependency-review.yml` ruleaza pe PR-uri si blocheaza schimbari de dependinte cu vulnerabilitati moderate sau mai grave.
+- `.github/workflows/dependency-review.yml` ruleaza pe PR-uri si devine blocant pentru vulnerabilitati moderate sau mai grave cand GitHub Dependency graph este activ; pana atunci, workflow-ul explica explicit setarea lipsa, iar `npm run check:dependencies` ramane guard-ul blocant din CI.
 - `.github/workflows/codeql.yml` ruleaza CodeQL pentru JavaScript/TypeScript la push, PR, saptamanal si manual.
 - `.github/dependabot.yml` deschide PR-uri saptamanale pentru dependinte npm din `src` si pentru GitHub Actions, grupate ca sa fie mai usor de verificat controlat.
 
@@ -158,7 +158,7 @@ src/
   app/
   config/
   domain/
-  features/commands/         # slash commands, interactions, subscription si game filter factories
+  features/commands/         # slash commands, interactions, subscription, game filter si role ping factories
   features/notifications/
   infra/http/
   infra/mongo/
@@ -176,6 +176,7 @@ src/
 - Flux E2E `/start reduceri -> baseline reduceri -> cron -> deal embed -> seenDiscounts` in `startDiscountsFlow.e2e.test.ts`
 - Factory-ul pentru `/start` si `/stop` in `subscriptionInteractions.functional.test.ts`
 - Factory-ul pentru `/set games` in `gameFilterInteractions.functional.test.ts`
+- Factory-ul pentru `/set role` in `rolePingInteractions.functional.test.ts`
 - Discord channel resolution si erori permanente in `resolveOutboundChannel.test.ts`
 - `/set games add/remove` in `setGamesInteraction.functional.test.ts`
 - HTTP URL safety si proxy fallback in `httpClientSecurity.test.ts`
@@ -183,6 +184,8 @@ src/
 - Command registry wiring in `commandRegistry.functional.test.ts`
 - Source registry wiring in `sourceRegistry.functional.test.ts`
 - Filtrele de reduceri exportate direct in `dealFiltersCore.functional.test.ts`
+
+CI confirma logica prin teste cu mock-uri si fluxuri E2E locale. Comportamentul live complet trebuie validat separat pe un server Discord de staging, cu `DISCORD_TOKEN`, Mongo si surse externe reale, inainte de un release public.
 
 ## Note arhitecturale
 
@@ -192,10 +195,11 @@ Codul legacy foloseste inca module CommonJS care ataseaza functii pe un context 
 - `sourceRegistry` expune o fabrica testabila cu installer-e injectate explicit pentru HTTP, Steam, updates si deals.
 - `features/commands/subscriptionInteractions.ts` extrage fluxurile `/start` si `/stop` intr-o factory tipata cu dependinte explicite si un wrapper instalat peste handlerul legacy.
 - `features/commands/gameFilterInteractions.ts` extrage fluxurile `/set games` intr-o factory tipata cu dependinte explicite si wrapper dedicat.
+- `features/commands/rolePingInteractions.ts` extrage fluxurile `/set role updates/discounts` intr-o factory tipata cu dependinte explicite si wrapper dedicat.
 - `domain/deals/filtersCore.ts` expune reguli pure si tipate direct, iar `domain/deals/filters.ts` ramane doar adapter pentru contextul legacy.
 - `features/notifications/outboundChannel.ts` expune resolver-ul tipat pentru canale Discord, iar `features/notifications/index.ts` il foloseste ca serviciu injectat.
 - `startUpdatesFlow.e2e.test.ts` si `startDiscountsFlow.e2e.test.ts` acopera fluxurile complete ramase peste `interactions.ts` + `notifications/index.ts`, ca urmatoarea extragere din `ctx` sa aiba guard functional real.
-- Urmatorii pasi pot muta restul din `interactions.ts` si persistenta din `notifications/index.ts` catre servicii/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
+- Urmatorii pasi pot muta restul din `interactions.ts` si persistenta din `features/notifications/index.ts` catre servicii/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
 
 ## Licenta
 

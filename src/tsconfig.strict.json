@@ -12,6 +12,7 @@
     "domain/deals/filtersCore.ts",
     "features/commands/commandRegistry.ts",
     "features/commands/gameFilterInteractions.ts",
+    "features/commands/rolePingInteractions.ts",
     "features/commands/subscriptionInteractions.ts",
     "features/notifications/outboundChannel.ts",
     "infra/http/client.ts",
@@ -24,6 +25,7 @@
     "test/housekeeping.test.ts",
     "test/httpClientSecurity.test.ts",
     "test/resolveOutboundChannel.test.ts",
+    "test/rolePingInteractions.functional.test.ts",
     "test/sourceRegistry.functional.test.ts",
     "test/subscriptionInteractions.functional.test.ts"
   ]
