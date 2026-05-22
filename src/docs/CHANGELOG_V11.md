@@ -9,24 +9,29 @@ Acest document noteaza starea repo-ului dupa curatare, migrarea sursei la TypeSc
 - Dependintele sunt blocate prin `src/package-lock.json`, iar CI foloseste `npm ci`.
 - `src/package.json` foloseste versiuni exacte pentru dependintele directe runtime si build/dev.
 - `src/tsconfig.json` ruleaza proiectul cu `strict: true` si `noImplicitAny: true`.
-- `src/tsconfig.strict.json` include zone stabilizate explicit: health, scheduler, `filtersCore`, `commandRegistry`, `subscriptionInteractions`, `gameFilterInteractions`, `rolePingInteractions`, `outboundChannel`, `sourceRegistry`, `check-dependencies`, HTTP client si teste directe.
+- `src/tsconfig.strict.json` include zone stabilizate explicit: health, scheduler, `filtersCore`, `commandRegistry`, `slashCommands`, `subscriptionInteractions`, `gameFilterInteractions`, `rolePingInteractions`, `adminCommandGuard`, `adminGuard`, `handlers/help`, `outboundChannel`, `sourceRegistry`, `check-dependencies`, `extract-release-notes`, HTTP client si teste directe.
 - `src/legacy-dynamic.d.ts` ramane doar shim temporar pentru codul vechi care construieste contextul dinamic.
 - `.github/workflows/ci.yml` ruleaza verificarea principala.
 - `.github/workflows/dependency-audit.yml` ruleaza audit npm saptamanal si manual.
 - `.github/workflows/dependency-review.yml` ruleaza Dependency Review pe PR-uri care ating manifestele npm sau workflow-urile si devine blocant cand GitHub Dependency graph este activ.
 - `.github/workflows/codeql.yml` ruleaza CodeQL pentru JavaScript/TypeScript la push, PR, saptamanal si manual.
-- `.github/workflows/release.yml` ruleaza `npm run check`, publica imaginea Docker in GHCR si creeaza GitHub Release pentru tag-uri `v*.*.*`.
+- `.github/workflows/release.yml` ruleaza `npm run check`, extrage notele pentru tag-ul curent din `CHANGELOG.md`, publica imaginea Docker in GHCR si creeaza GitHub Release pentru tag-uri `v*.*.*`.
+- `Dockerfile` ruleaza runtime-ul ca user non-root `node`.
 - `.github/dependabot.yml` deschide PR-uri saptamanale pentru dependinte npm din `src` si pentru GitHub Actions.
 - `README.md`, `CHANGELOG.md`, `SECURITY.md`, `CONTEXT_REPO_CLEAN.md` si `FUNCTION_MAP_CLEAN.md` au fost actualizate cu noile verificari si refactorizari.
 
 ## Rectificari recente din feedback
 
+- `src/features/commands/adminGuard.ts` verifica runtime daca utilizatorul are Administrator.
+- `src/features/commands/adminCommandGuard.ts` inveleste comenzile `/start`, `/stop` si `/set` si blocheaza non-adminii inainte de a ajunge la handler-ele care schimba starea serverului.
+- `src/features/commands/handlers/help.ts` extrage `/help` intr-un handler mic, testabil si instalat peste handlerul legacy.
+- `src/features/commands/slashCommands.ts` a fost adaugat in `tsconfig.strict.json` si foloseste tipuri locale pentru builder-ele Discord in loc de multe callback-uri `any`.
+- `src/scripts/extract-release-notes.ts` extrage doar sectiunea tag-ului curent din `CHANGELOG.md`, iar release workflow-ul foloseste `release-notes.md` in loc de tot changelog-ul.
+- `Dockerfile` face `chown` pe `/app` si trece pe `USER node` in runtime.
 - `dependency-review.yml` nu mai foloseste `continue-on-error: true` pe pasul de review. Workflow-ul verifica intai daca GitHub Dependency graph este activ; cand este activ, `actions/dependency-review-action@v4` ruleaza ca verificare blocanta pentru vulnerabilitati moderate sau mai grave.
 - `src/package.json` pin-uieste exact si build/dev dependencies directe, inclusiv `@napi-rs/cli`.
-- `src/scripts/check-dependencies.ts` verifica acum runtime si build/dev dependencies directe, plus versiunile rezolvate in lockfile si URL-urile din registry npm.
+- `src/scripts/check-dependencies.ts` verifica runtime si build/dev dependencies directe, plus versiunile rezolvate in lockfile si URL-urile din registry npm.
 - `src/features/commands/rolePingInteractions.ts` extrage `/set role updates/discounts` intr-o factory tipata cu dependinte explicite.
-- `src/features/commands/commandRegistry.ts` instaleaza wrapper-ul `rolePingInteractions` dupa `gameFilterInteractions`, deci runtime-ul foloseste servicii dedicate pentru `/start`, `/stop`, `/set games` si `/set role`, iar restul comenzilor sunt delegate catre handlerul legacy.
-- `src/test/rolePingInteractions.functional.test.ts` verifica factory-ul si wrapper-ul de dispatch pentru `/set role`.
 - `README.md` mentioneaza explicit ca testele CI nu pot confirma comportamentul live complet fara server Discord, token, Mongo si surse externe reale.
 
 ## Reducerea treptata a ctx legacy
@@ -34,6 +39,8 @@ Acest document noteaza starea repo-ului dupa curatare, migrarea sursei la TypeSc
 Codul inca are module CommonJS care ataseaza functii pe un context comun. Directia corecta este migrarea treptata spre servicii/factory-uri tipate. Pasi deja facuti:
 
 - `src/features/commands/commandRegistry.ts` expune `createCommandRegistry(baseContext, installers)` pentru installer-e injectate explicit.
+- `src/features/commands/adminCommandGuard.ts` este un wrapper exterior pentru comenzile admin si foloseste `adminGuard` inainte de delegare.
+- `src/features/commands/handlers/help.ts` expune `createHelpHandler(deps)` si intercepteaza doar `/help`.
 - `src/features/commands/subscriptionInteractions.ts` expune `createSubscriptionInteractionHandlers(deps)` si un installer care intercepteaza comenzile `/start` si `/stop`.
 - `src/features/commands/gameFilterInteractions.ts` expune `createGameFilterInteractionHandlers(deps)` si un installer care intercepteaza doar `/set games`.
 - `src/features/commands/rolePingInteractions.ts` expune `createRolePingInteractionHandlers(deps)` si un installer care intercepteaza doar `/set role`.
@@ -43,7 +50,7 @@ Codul inca are module CommonJS care ataseaza functii pe un context comun. Direct
 - `src/features/notifications/outboundChannel.ts` expune resolver-ul de canal Discord ca serviciu tipat.
 - `src/features/notifications/index.ts` foloseste `createOutboundChannelResolver`, dar pastreaza adapter-ul legacy pe `ctx`.
 
-Urmatoarele zone bune de refactorizat sunt restul din `features/commands/interactions.ts` si persistenta din `features/notifications/index.ts`, in pasi separati si cu teste functionale langa fiecare extragere.
+Urmatoarele zone bune de refactorizat sunt restul din `features/commands/interactions.ts` (`latest`, `dlc`, `status`, autocomplete) si persistenta din `features/notifications/index.ts`, in pasi separati si cu teste functionale langa fiecare extragere.
 
 ## Dependinte npm si supply chain
 
@@ -60,11 +67,14 @@ Urmatoarele zone bune de refactorizat sunt restul din `features/commands/interac
 - `.github/workflows/dependency-audit.yml` ruleaza audit runtime saptamanal.
 - `.github/workflows/dependency-review.yml` ruleaza review pe PR-uri cu dependency/workflow changes.
 - `.github/workflows/codeql.yml` ruleaza CodeQL pentru JavaScript/TypeScript.
-- `.github/workflows/release.yml` ruleaza `npm run check`, construieste Dockerfile-ul, publica imaginea in GHCR si creeaza GitHub Release.
+- `.github/workflows/release.yml` ruleaza `npm run check`, genereaza `release-notes.md` din sectiunea tag-ului curent, construieste Dockerfile-ul, publica imaginea in GHCR si creeaza GitHub Release.
 - Un release real devine vizibil dupa ce `main` primeste un tag semver, de exemplu `v1.0.0` pentru primul release public.
 
 ## Acoperire de teste
 
+- `src/test/adminGuard.test.ts` verifica helper-ul de runtime admin si wrapper-ul care blocheaza comenzile admin inainte de delegare.
+- `src/test/helpHandler.functional.test.ts` verifica handler-ul extras pentru `/help` si wrapper-ul care deleaga comenzile non-help.
+- `src/test/extractReleaseNotes.test.ts` verifica extragerea notelor de release pentru tag-ul curent.
 - `src/test/rolePingInteractions.functional.test.ts` verifica factory-ul explicit pentru `/set role` si wrapper-ul care deleaga comenzile non-role.
 - `src/test/gameFilterInteractions.functional.test.ts` verifica factory-ul explicit pentru `/set games` si wrapper-ul care deleaga comenzile non-game-filter.
 - `src/test/subscriptionInteractions.functional.test.ts` verifica factory-ul explicit pentru `/start`/`/stop` si wrapper-ul instalat in command context.
