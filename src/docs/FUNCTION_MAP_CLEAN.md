@@ -53,7 +53,7 @@ Comportament: ruleaza saptamanal si la `workflow_dispatch`, lucreaza in `src`, i
 
 Rol: review pe PR-uri pentru schimbari de dependinte sau workflow-uri.
 
-Comportament: ruleaza la pull request spre `main` cand se modifica `src/package.json`, `src/package-lock.json`, `.github/dependabot.yml` sau `.github/workflows/**`. Verifica intai statusul GitHub Dependency graph prin `actions/github-script@v7`. Cand Dependency graph este activ, ruleaza `actions/dependency-review-action@v4` fara `continue-on-error` si pica pe vulnerabilitati moderate sau mai grave. Cand Dependency graph nu este activ, workflow-ul avertizeaza explicit ca setarea trebuie activata.
+Comportament: ruleaza la pull request spre `main` cand se modifica `src/package.json`, `src/package-lock.json`, `.github/dependabot.yml` sau `.github/workflows/**`. Verifica intai statusul GitHub Dependency graph prin `actions/github-script@v7`. Cand Dependency graph este activ, ruleaza `actions/dependency-review-action@v4` fara `continue-on-error` si pica pe vulnerabilitati moderate sau mai grave.
 
 ### `.github/workflows/release.yml`
 
@@ -67,12 +67,6 @@ Output GHCR:
 ghcr.io/ciobotaruandrei/discord-patch-bot:<tag>
 ghcr.io/ciobotaruandrei/discord-patch-bot:latest
 ```
-
-### `.github/dependabot.yml`
-
-Rol: update-uri controlate prin PR pentru dependinte.
-
-Comportament: verifica saptamanal npm din `/src` si GitHub Actions, cu grupuri pentru runtime dependencies, build/types si actions. PR-urile trebuie verificate cu lockfile diff, Dependency Review, audit si CI inainte de merge.
 
 ### `Dockerfile`
 
@@ -90,11 +84,9 @@ Scripturi importante:
 - `build:ts`: compileaza TypeScript cu `tsc`.
 - `build`: ruleaza Rust apoi TypeScript.
 - `start`: porneste doar `dist/app/main.js`; nu mai ruleaza build la runtime.
-- `start:build`: ruleaza build + start, util pentru verificare locala rapida.
-- `dev`: alias pentru `start:build`.
+- `dev`: build + start pentru dezvoltare locala.
 - `typecheck`: ruleaza `tsc --noEmit` cu `strict` activ in configuratia principala.
 - `typecheck:strict`: ruleaza `tsc -p tsconfig.strict.json` pe lista explicita de fisiere stabilizate.
-- `lint`: ruleaza `typecheck` si `typecheck:strict`.
 - `test`: build + testele Node.
 - `audit`: ruleaza `npm audit --omit=dev --audit-level=moderate`.
 - `check:dependencies`: build TypeScript minimal si ruleaza `dist/scripts/check-dependencies.js`.
@@ -150,11 +142,11 @@ Adapter legacy pentru context. Importa functiile din `filtersCore.ts`, le expune
 
 ## Commands
 
-Comenzile au fost mutate dintr-un folder plat `src/features/commands/` in foldere numite dupa functionalitate. Fisierele vechi plate au fost sterse, cu exceptia lui `src/features/commands/interactions.ts`, care ramane temporar ca modul legacy mare pana cand `/latest`, `/dlc`, `/status` si autocomplete sunt extrase in handler-e dedicate.
+Comenzile au fost mutate dintr-un folder plat `src/features/commands/` in foldere numite dupa functionalitate. Nu mai exista sursa manuala in vechiul folder `commands`; inclusiv routerul ramas pentru rutele inca neextrase a fost mutat in `src/features/command-router/legacyInteractionRouter.ts`.
 
 ### `src/features/command-registry/commandRegistry.ts`
 
-Agregator pentru wiring-ul comenzilor. Instaleaza cache, filtre, prezentare UI, notificari, definitii slash command, handler-e dedicate, guard-ul admin si adaptorul legacy. Registrul declara functiile asteptate din context si foloseste `requireRegistryFunction` ca sa pice devreme daca un modul nu a atasat o dependinta obligatorie.
+Agregator pentru wiring-ul comenzilor. Instaleaza cache, filtre, prezentare UI, notificari, definitii slash command, handler-e dedicate, guard-ul admin si routerul legacy. Registrul declara functiile asteptate din context si foloseste `requireRegistryFunction` ca sa pice devreme daca un modul nu a atasat o dependinta obligatorie.
 
 ### `src/features/command-runtime/commandRuntimeContext.ts`
 
@@ -198,11 +190,7 @@ Serviciu TypeScript pentru `/set role updates/discounts`. Expune `createRolePing
 
 ### `src/features/command-router/legacyInteractionRouter.ts`
 
-Adaptor temporar care incarca handlerul legacy ramas. Scopul lui este sa tina compatibilitatea pana cand rutele ramase sunt mutate in fisiere dedicate dupa functionalitate.
-
-### `src/features/commands/interactions.ts`
-
-Proceseaza slash commands si autocomplete ramase in handlerul legacy. Dispatch-ul runtime pentru `/help`, `/start`, `/stop`, `/set games`, `/set role` si admin guard-ul pentru `/set` sunt suprascrise de servicii dedicate instalate dupa acest modul.
+Router temporar pentru slash commands si autocomplete ramase in stil legacy: `/latest`, `/dlc`, `/status` si autocomplete. Dispatch-ul runtime pentru `/help`, `/start`, `/stop`, `/set games`, `/set role` si admin guard-ul pentru `/set` sunt suprascrise de servicii dedicate instalate dupa acest modul.
 
 ## Notifications
 
