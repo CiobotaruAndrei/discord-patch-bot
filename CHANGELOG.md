@@ -14,6 +14,9 @@ The project uses semantic version tags in the form `vMAJOR.MINOR.PATCH`. After a
 - Functional test coverage for the subscription interaction factory and wrapper.
 - Functional test coverage for the game filter interaction factory and wrapper.
 - Functional test coverage for the role ping interaction factory and wrapper.
+- Functional test coverage for the extracted `/help` handler and wrapper.
+- Runtime admin guard coverage for `/start`, `/stop` and `/set`, so Discord command permissions are backed by a handler-level check.
+- Release notes extraction script so GitHub Releases use the matching changelog section instead of the full changelog file.
 - `SECURITY.md` with private vulnerability reporting guidance, CodeQL notes, dependency review discipline and secret scanning/push protection guidance.
 - GitHub Actions CodeQL workflow for JavaScript/TypeScript security analysis.
 - GitHub Actions Dependency Review workflow for pull request dependency changes, strict when GitHub Dependency graph is enabled.
@@ -24,6 +27,11 @@ The project uses semantic version tags in the form `vMAJOR.MINOR.PATCH`. After a
 
 ### Changed
 
+- `src/features/commands/handlers/help.ts` now owns `/help` through a small typed handler with explicit dependencies, installed by `commandRegistry` as another incremental extraction from `interactions.ts`.
+- `src/features/commands/adminCommandGuard.ts` now wraps admin-only commands at runtime and rejects non-admin users before delegating to `/start`, `/stop` or `/set` handlers.
+- `src/features/commands/slashCommands.ts` is part of the strict TypeScript slice and no longer relies on broad `any` types for Discord command builder callbacks.
+- `Dockerfile` now switches the runtime image to the built-in non-root `node` user after ownership is assigned to `/app`.
+- `.github/workflows/release.yml` now generates `release-notes.md` from the matching `CHANGELOG.md` section before creating the GitHub Release.
 - `src/features/commands/rolePingInteractions.ts` now owns `/set role updates/discounts` through a typed factory with explicit dependencies, installed by `commandRegistry` as a runtime wrapper over the legacy interaction handler.
 - `src/features/commands/gameFilterInteractions.ts` now owns `/set games` add/remove/list/reset through a typed factory with explicit dependencies, installed by `commandRegistry` as a runtime wrapper over the legacy interaction handler.
 - `src/features/commands/subscriptionInteractions.ts` now owns the `/start` and `/stop` subscription flows through a typed factory with explicit dependencies, installed by `commandRegistry` as a runtime wrapper over the legacy interaction handler.
@@ -31,7 +39,7 @@ The project uses semantic version tags in the form `vMAJOR.MINOR.PATCH`. After a
 - `@napi-rs/cli` is pinned exactly in `src/package.json` so the Rust/N-API build tool does not float by range.
 - `src/sources/sourceRegistry.ts` now exposes `createSourceRegistry(baseContext, installers)` so source wiring can be tested and migrated away from implicit `ctx` setup gradually.
 - `src/.env.example` now documents the important required and optional environment variables by category.
-- Documentation now tracks the E2E flows, source registry factory, subscription interaction factory, game filter interaction factory, role ping interaction factory, dependency review workflow, dependency policy check, security policy, CodeQL, secret scanning guidance, release process and GHCR image publishing.
+- Documentation now tracks the E2E flows, source registry factory, subscription interaction factory, game filter interaction factory, role ping interaction factory, help handler, runtime admin guard, dependency review workflow, dependency policy check, security policy, CodeQL, secret scanning guidance, release process and GHCR image publishing.
 
 ## [1.0.0] - 2026-05-21
 
