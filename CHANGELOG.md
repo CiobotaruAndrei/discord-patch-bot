@@ -27,7 +27,9 @@ The project uses semantic version tags in the form `vMAJOR.MINOR.PATCH`. After a
 
 ### Changed
 
-- Command code is now grouped by function under `src/features/command-registry`, `command-runtime`, `command-cache`, `command-presentation`, `command-definitions`, `command-handlers`, `command-security` and `command-router`, instead of keeping most command files flat in one folder.
+- Command code is now grouped by function under `src/features/command-registry`, `command-runtime`, `command-cache`, `command-presentation`, `command-definitions`, `command-handlers`, `command-security` and `command-router`, instead of keeping command files flat in one folder.
+- The remaining legacy slash/autocomplete router now lives directly in `src/features/command-router/legacyInteractionRouter.ts`; the old `src/features/commands/` source folder is no longer needed.
+- `src/test/commands-regression.test.ts` now reads built command files from the organized `dist/features` tree, so regression guards follow the functional folder layout.
 - `src/features/command-handlers/helpInteractionHandler.ts` now owns `/help` through a small typed handler with explicit dependencies, installed by `commandRegistry` as another incremental extraction from `interactions.ts`.
 - `src/features/command-security/adminCommandRouterGuard.ts` now wraps admin-only commands at runtime and rejects non-admin users before delegating to `/start`, `/stop` or `/set` handlers.
 - `src/features/command-definitions/slashCommandDefinitions.ts` is part of the strict TypeScript slice and no longer relies on broad `any` types for Discord command builder callbacks.
