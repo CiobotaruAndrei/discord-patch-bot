@@ -27,19 +27,20 @@ The project uses semantic version tags in the form `vMAJOR.MINOR.PATCH`. After a
 
 ### Changed
 
-- `src/features/commands/handlers/help.ts` now owns `/help` through a small typed handler with explicit dependencies, installed by `commandRegistry` as another incremental extraction from `interactions.ts`.
-- `src/features/commands/adminCommandGuard.ts` now wraps admin-only commands at runtime and rejects non-admin users before delegating to `/start`, `/stop` or `/set` handlers.
-- `src/features/commands/slashCommands.ts` is part of the strict TypeScript slice and no longer relies on broad `any` types for Discord command builder callbacks.
+- Command code is now grouped by function under `src/features/command-registry`, `command-runtime`, `command-cache`, `command-presentation`, `command-definitions`, `command-handlers`, `command-security` and `command-router`, instead of keeping most command files flat in one folder.
+- `src/features/command-handlers/helpInteractionHandler.ts` now owns `/help` through a small typed handler with explicit dependencies, installed by `commandRegistry` as another incremental extraction from `interactions.ts`.
+- `src/features/command-security/adminCommandRouterGuard.ts` now wraps admin-only commands at runtime and rejects non-admin users before delegating to `/start`, `/stop` or `/set` handlers.
+- `src/features/command-definitions/slashCommandDefinitions.ts` is part of the strict TypeScript slice and no longer relies on broad `any` types for Discord command builder callbacks.
 - `Dockerfile` now switches the runtime image to the built-in non-root `node` user after ownership is assigned to `/app`.
 - `.github/workflows/release.yml` now generates `release-notes.md` from the matching `CHANGELOG.md` section before creating the GitHub Release.
-- `src/features/commands/rolePingInteractions.ts` now owns `/set role updates/discounts` through a typed factory with explicit dependencies, installed by `commandRegistry` as a runtime wrapper over the legacy interaction handler.
-- `src/features/commands/gameFilterInteractions.ts` now owns `/set games` add/remove/list/reset through a typed factory with explicit dependencies, installed by `commandRegistry` as a runtime wrapper over the legacy interaction handler.
-- `src/features/commands/subscriptionInteractions.ts` now owns the `/start` and `/stop` subscription flows through a typed factory with explicit dependencies, installed by `commandRegistry` as a runtime wrapper over the legacy interaction handler.
+- `src/features/command-handlers/rolePingHandlers.ts` now owns `/set role updates/discounts` through a typed factory with explicit dependencies, installed by `commandRegistry` as a runtime wrapper over the legacy interaction handler.
+- `src/features/command-handlers/gameFilterHandlers.ts` now owns `/set games` add/remove/list/reset through a typed factory with explicit dependencies, installed by `commandRegistry` as a runtime wrapper over the legacy interaction handler.
+- `src/features/command-handlers/subscriptionNotificationHandlers.ts` now owns the `/start` and `/stop` subscription flows through a typed factory with explicit dependencies, installed by `commandRegistry` as a runtime wrapper over the legacy interaction handler.
 - `src/scripts/check-dependencies.ts` now validates direct `devDependencies` as build-time supply-chain inputs, not only runtime dependencies.
 - `@napi-rs/cli` is pinned exactly in `src/package.json` so the Rust/N-API build tool does not float by range.
 - `src/sources/sourceRegistry.ts` now exposes `createSourceRegistry(baseContext, installers)` so source wiring can be tested and migrated away from implicit `ctx` setup gradually.
 - `src/.env.example` now documents the important required and optional environment variables by category.
-- Documentation now tracks the E2E flows, source registry factory, subscription interaction factory, game filter interaction factory, role ping interaction factory, help handler, runtime admin guard, dependency review workflow, dependency policy check, security policy, CodeQL, secret scanning guidance, release process and GHCR image publishing.
+- Documentation now tracks the organized command folders, E2E flows, source registry factory, subscription interaction factory, game filter interaction factory, role ping interaction factory, help handler, runtime admin guard, dependency review workflow, dependency policy check, security policy, CodeQL, secret scanning guidance, release process and GHCR image publishing.
 
 ## [1.0.0] - 2026-05-21
 
