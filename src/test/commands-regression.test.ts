@@ -7,13 +7,21 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const commandFiles = [
-  "features/commands/cache.js",
+  "features/command-cache/commandCache.js",
   "domain/deals/filters.js",
-  "features/commands/ui.js",
+  "features/command-presentation/commandPresentation.js",
   "features/notifications/outboundChannel.js",
   "features/notifications/index.js",
-  "features/commands/slashCommands.js",
-  "features/commands/interactions.js"
+  "features/command-definitions/slashCommandDefinitions.js",
+  "features/command-router/legacyInteractionRouter.js",
+  "features/commands/interactions.js",
+  "features/command-handlers/helpInteractionHandler.js",
+  "features/command-handlers/subscriptionNotificationHandlers.js",
+  "features/command-handlers/gameFilterHandlers.js",
+  "features/command-handlers/rolePingHandlers.js",
+  "features/command-security/adminPermissionGuard.js",
+  "features/command-security/adminCommandRouterGuard.js",
+  "features/command-registry/commandRegistry.js"
 ];
 const runtimeFiles = [
   "config/configLoader.js",
