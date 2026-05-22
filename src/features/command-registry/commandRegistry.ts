@@ -49,9 +49,8 @@ const defaultInstallers: CommandModuleInstaller[] = [
   require("../command-cache/commandCache") as CommandModuleInstaller,
   require("../../domain/deals/filters") as CommandModuleInstaller,
   require("../command-presentation/commandPresentation") as CommandModuleInstaller,
-  // V11: legacyInteractionRouter.ts destructureaza `fetchGameStatus` direct din ctx, deci
-  // globalThis-ul nu mai e necesar. commandPresentation.ts ataseaza functia pe ctx la fel ca pe
-  // celelalte handler-e (vezi Object.assign(ctx, { ..., fetchGameStatus })).
+  // The remaining legacy handler still reads some helpers from ctx; commandPresentation
+  // attaches those helpers before the compatibility router is loaded.
   require("../notifications") as CommandModuleInstaller,
   require("../command-definitions/slashCommandDefinitions") as CommandModuleInstaller,
   require("../command-router/legacyInteractionRouter") as CommandModuleInstaller,
