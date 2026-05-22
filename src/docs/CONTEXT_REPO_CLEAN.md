@@ -38,10 +38,15 @@ src/
   domain/
   features/
     commands/
+      adminCommandGuard.ts
+      adminGuard.ts
       commandRegistry.ts
       gameFilterInteractions.ts
+      handlers/
+        help.ts
       interactions.ts
       rolePingInteractions.ts
+      slashCommands.ts
       subscriptionInteractions.ts
       ui.ts
     notifications/
@@ -53,10 +58,14 @@ src/
     check-config.ts
     check-dependencies.ts
     check-syntax.ts
+    extract-release-notes.ts
   shared/
   sources/
   test/
+    adminGuard.test.ts
+    extractReleaseNotes.test.ts
     gameFilterInteractions.functional.test.ts
+    helpHandler.functional.test.ts
     rolePingInteractions.functional.test.ts
     subscriptionInteractions.functional.test.ts
     startDiscountsFlow.e2e.test.ts
@@ -112,9 +121,9 @@ Compose tine MongoDB doar in reteaua Docker interna (`expose: 27017`) si publica
 
 README-ul are badge-uri pentru CI, Dependency Audit, CodeQL, Release, Node.js >=20 si licenta MIT. Licenta proiectului este in `LICENSE`.
 
-`CHANGELOG.md` tine istoricul de versiuni si explica tag-urile semver `vMAJOR.MINOR.PATCH`. Pentru primul release public, tag-ul potrivit este `v1.0.0`; dupa ce tag-ul ajunge pe `main`, workflow-ul de release creeaza GitHub Release si imaginea GHCR.
+`CHANGELOG.md` tine istoricul de versiuni si explica tag-urile semver `vMAJOR.MINOR.PATCH`. Release workflow-ul nu mai foloseste tot changelog-ul ca body; genereaza `release-notes.md` din sectiunea tag-ului curent.
 
-`SECURITY.md` explica raportarea privata a vulnerabilitatilor prin GitHub Security Advisories, CodeQL, Dependency Review, audit npm, secret scanning, push protection si regula de rotire imediata a tokenurilor/credentialelor expuse.
+`SECURITY.md` explica raportarea privata a vulnerabilitatilor prin GitHub Security Advisories, CodeQL, Dependency Review, audit npm, secret scanning, push protection, runtime admin guard si regula de rotire imediata a tokenurilor/credentialelor expuse.
 
 ## TypeScript si ctx legacy
 
@@ -125,6 +134,9 @@ Regula curenta: sursa aplicatiei din `src` este TypeScript. Runtime-ul compilat 
 Reducerea treptata a `ctx` dinamic:
 
 - `src/features/commands/commandRegistry.ts` expune `createCommandRegistry(baseContext, installers)`, deci installer-ele pot fi injectate si testate explicit.
+- `src/features/commands/slashCommands.ts` este inclus in `tsconfig.strict.json` si foloseste tipuri locale pentru builder-ele Discord, in loc de callback-uri `any`.
+- `src/features/commands/adminCommandGuard.ts` impune runtime administrator check pentru `/start`, `/stop` si `/set`, apoi deleaga la handler-ul concret doar daca utilizatorul este admin.
+- `src/features/commands/handlers/help.ts` extrage `/help` intr-o factory cu dependinte explicite; installer-ul ei intercepteaza doar `/help` si deleaga restul.
 - `src/features/commands/subscriptionInteractions.ts` extrage `/start updates`, `/stop updates`, `/start reduceri` si `/stop reduceri` intr-o factory cu dependinte explicite; installer-ul ei intercepteaza doar comenzile start/stop si deleaga restul catre handlerul existent.
 - `src/features/commands/gameFilterInteractions.ts` extrage `/set games add/remove/list/reset` intr-o factory cu dependinte explicite; installer-ul ei intercepteaza doar grupul `/set games` si deleaga restul.
 - `src/features/commands/rolePingInteractions.ts` extrage `/set role updates/discounts` intr-o factory cu dependinte explicite; installer-ul ei intercepteaza doar grupul `/set role` si deleaga restul.
@@ -133,7 +145,7 @@ Reducerea treptata a `ctx` dinamic:
 - `src/domain/deals/filters.ts` ramane adapter pentru codul legacy care asteapta atasare pe context.
 - `src/features/notifications/outboundChannel.ts` expune resolver-ul de canal Discord ca serviciu tipat, iar `src/features/notifications/index.ts` il foloseste prin dependinte injectate.
 
-Urmatoarele tinte sanatoase pentru refactor sunt restul din `features/commands/interactions.ts` si persistenta din `features/notifications/index.ts`, mutate treptat spre factory-uri cu dependinte explicite.
+Urmatoarele tinte sanatoase pentru refactor sunt restul din `features/commands/interactions.ts` (`latest`, `dlc`, `status`, autocomplete) si persistenta din `features/notifications/index.ts`, mutate treptat spre factory-uri cu dependinte explicite.
 
 ## Dependinte npm si supply chain
 
@@ -146,7 +158,7 @@ Urmatoarele tinte sanatoase pentru refactor sunt restul din `features/commands/i
 
 ## Docker, GHCR si release
 
-`Dockerfile` face build multi-stage: compileaza Rust/N-API si TypeScript in stage-ul de build, apoi imaginea runtime instaleaza doar dependintele production si porneste `npm start`.
+`Dockerfile` face build multi-stage: compileaza Rust/N-API si TypeScript in stage-ul de build, apoi imaginea runtime instaleaza doar dependintele production, copiaza output-ul, face ownership pe `/app` si ruleaza `npm start` ca user non-root `node`.
 
 `.github/workflows/release.yml` publica imaginea Docker in GitHub Container Registry la fiecare tag `v*.*.*` sau release manual:
 
@@ -155,7 +167,7 @@ ghcr.io/ciobotaruandrei/discord-patch-bot:<tag>
 ghcr.io/ciobotaruandrei/discord-patch-bot:latest
 ```
 
-Workflow-ul ruleaza `npm run check` inainte sa publice imaginea si inainte sa creeze GitHub Release. Release-ul devine real si vizibil dupa ce `main` primeste un tag semver, de exemplu `v1.0.0`.
+Workflow-ul ruleaza `npm run check`, genereaza `release-notes.md` din sectiunea tag-ului curent din `CHANGELOG.md`, publica imaginea si creeaza GitHub Release. Release-ul devine real si vizibil dupa ce `main` primeste un tag semver, de exemplu `v1.0.0`.
 
 ## Commands si notificari
 
@@ -164,7 +176,10 @@ Comenzile sunt in `src/features/commands`:
 - `commandRegistry.ts`: agregatorul comenzilor si contractul functiilor cerute din context.
 - `cache.ts`: cache runtime, cooldown-uri si LRU.
 - `ui.ts`: embed-uri, paginare, fuzzy matching, status si pret Steam.
-- `slashCommands.ts`: definitii si inregistrare slash commands.
+- `slashCommands.ts`: definitii si inregistrare slash commands, inclus in strict TypeScript.
+- `adminGuard.ts`: helper runtime pentru verificarea permisiunii Administrator.
+- `adminCommandGuard.ts`: wrapper exterior pentru `/start`, `/stop` si `/set`.
+- `handlers/help.ts`: handler extras pentru `/help`.
 - `interactions.ts`: handler-ele slash si autocomplete ramase in stil legacy.
 - `subscriptionInteractions.ts`: serviciu/factory pentru start/stop subscription flows.
 - `gameFilterInteractions.ts`: serviciu/factory pentru `/set games`.
@@ -182,6 +197,10 @@ Reguli care nu trebuie rupte: claim atomic pentru `seen`, rollback cand Discord 
 - `src/scripts/check-config.ts` valideaza config-ul.
 - `src/scripts/check-dependencies.ts` valideaza politica minima de dependency supply chain.
 - `src/scripts/check-syntax.ts` pica verificarea daca apare orice fisier `.js` in sursa `src`, ignorand output-ul generat din `dist` si loader-ul N-API `native/index.js`.
+- `src/scripts/extract-release-notes.ts` extrage notele pentru tag-ul curent din `CHANGELOG.md`.
+- `src/test/adminGuard.test.ts` verifica runtime admin guard si delegarea pentru comenzile protejate.
+- `src/test/helpHandler.functional.test.ts` verifica factory-ul pentru `/help` si wrapper-ul care deleaga comenzile non-help.
+- `src/test/extractReleaseNotes.test.ts` verifica extractia release notes.
 - `src/test/rolePingInteractions.functional.test.ts` verifica factory-ul pentru `/set role` si wrapper-ul care deleaga comenzile non-role.
 - `src/test/gameFilterInteractions.functional.test.ts` verifica factory-ul pentru `/set games` si wrapper-ul care deleaga comenzile non-game-filter.
 - `src/test/subscriptionInteractions.functional.test.ts` verifica factory-ul pentru start/stop si wrapper-ul care deleaga comenzile non-subscription.
