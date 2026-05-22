@@ -158,10 +158,9 @@ src/
     command-handlers/       # handlers/factory-uri extrase: help, start/stop, set games, set role
     command-presentation/   # embed-uri, paginare, fuzzy matching, status si preturi
     command-registry/       # wiring-ul comenzilor si contractul installer-elor
-    command-router/         # adapter pentru routerul legacy ramas
+    command-router/         # routerul legacy ramas pentru /latest, /dlc, /status si autocomplete
     command-runtime/        # dependintele runtime injectate in comenzi
     command-security/       # runtime admin guard si wrapper pentru comenzi protejate
-    commands/               # fisier legacy temporar: interactions.ts
     notifications/
   infra/http/
   infra/mongo/
@@ -170,6 +169,8 @@ src/
   sources/
   test/
 ```
+
+`dist/`, `node_modules/`, `native/target/`, fisierele `.node`, `native/index.js` si `native/index.d.ts` sunt output-uri generate si nu se editeaza manual.
 
 ## Testare
 
@@ -204,11 +205,11 @@ Codul legacy foloseste inca module CommonJS care ataseaza functii pe un context 
 - `command-handlers/subscriptionNotificationHandlers.ts` extrage fluxurile `/start` si `/stop` intr-o factory tipata cu dependinte explicite.
 - `command-handlers/gameFilterHandlers.ts` extrage fluxurile `/set games` intr-o factory tipata cu dependinte explicite.
 - `command-handlers/rolePingHandlers.ts` extrage fluxurile `/set role updates/discounts` intr-o factory tipata cu dependinte explicite.
-- `command-router/legacyInteractionRouter.ts` tine adapterul spre `features/commands/interactions.ts`, unde mai stau temporar `/latest`, `/dlc`, `/status` si autocomplete.
+- `command-router/legacyInteractionRouter.ts` pastreaza temporar rutele inca neextrase (`/latest`, `/dlc`, `/status`, autocomplete), dar le tine intr-un folder numit dupa functionalitate, nu in vechiul folder plat `commands`.
 - `domain/deals/filtersCore.ts` expune reguli pure si tipate direct, iar `domain/deals/filters.ts` ramane doar adapter pentru contextul legacy.
 - `features/notifications/outboundChannel.ts` expune resolver-ul tipat pentru canale Discord, iar `features/notifications/index.ts` il foloseste ca serviciu injectat.
 
-Urmatorii pasi pot muta cate o comanda din `features/commands/interactions.ts` (`latest`, `dlc`, `status`, autocomplete) catre handlers/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
+Urmatorii pasi pot muta cate o comanda din `features/command-router/legacyInteractionRouter.ts` (`latest`, `dlc`, `status`, autocomplete) catre handlers/factory-uri mai tipate, fara sa schimbe toate fluxurile intr-un singur PR.
 
 ## Licenta
 
