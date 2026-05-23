@@ -77,10 +77,12 @@ test("shutdown waits for httpServer.close callback before continuing", async () 
     // Up to here mongo/client should have finished but the HTTP close is still pending.
     assert.ok(order.includes("client.destroy"), "client.destroy should run before HTTP close");
     assert.ok(order.includes("mongo.close"), "mongo.close should run before HTTP close");
-    assert.ok(closeCb, "httpServer.close should have been invoked with a callback");
 
     // Now release the close callback — shutdown should finish.
-    closeCb!();
+    if (!closeCb) {
+      throw new Error("httpServer.close should have been invoked with a callback");
+    }
+    closeCb();
     await shutdownPromise;
   } finally {
     timers.restore();
