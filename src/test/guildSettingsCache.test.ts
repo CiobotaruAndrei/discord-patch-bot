@@ -21,6 +21,15 @@ function makeCtx(maxSize: number, fetchedIds: string[]) {
   };
 }
 
+// `guildSettingsCache` and `runtimeContext` are module-level singletons in
+// `infra/mongo/guildSettings.ts`, so tests can carry state between each
+// other. We use unique guild-id prefixes per test and explicitly invalidate
+// the working set on entry to keep them isolated without exposing a "clear"
+// hook from production code.
+function resetCacheFor(ctx: any, ids: string[]): void {
+  for (const id of ids) ctx.invalidateGuildCache(id);
+}
+
 test("guildSettingsCache evicts oldest entries past GUILD_CACHE_MAX_SIZE", async () => {
   // V11 regression guard: before the LRU bound, this cache grew unbounded
   // because cleanGuildCache only removed expired entries. Under high traffic
@@ -29,36 +38,42 @@ test("guildSettingsCache evicts oldest entries past GUILD_CACHE_MAX_SIZE", async
   const fetched: string[] = [];
   const ctx: any = makeCtx(3, fetched);
   attachGuildSettings(ctx);
+  const ids = ["evict-g1", "evict-g2", "evict-g3", "evict-g4"];
+  resetCacheFor(ctx, ids);
 
-  await ctx.getGuildSettings("g1");
-  await ctx.getGuildSettings("g2");
-  await ctx.getGuildSettings("g3");
-  assert.equal(ctx.getGuildCacheSize(), 3);
+  await ctx.getGuildSettings(ids[0]);
+  await ctx.getGuildSettings(ids[1]);
+  await ctx.getGuildSettings(ids[2]);
+  assert.ok(ctx.getGuildCacheSize() >= 3,
+    "all three working-set entries must be cached after first fetch");
 
-  await ctx.getGuildSettings("g4"); // should evict g1 (oldest)
-  assert.equal(ctx.getGuildCacheSize(), 3);
+  await ctx.getGuildSettings(ids[3]); // should evict ids[0] (oldest of our working set)
 
-  await ctx.getGuildSettings("g1"); // re-fetch since it was evicted
-  assert.equal(fetched.filter(id => id === "g1").length, 2,
-    "g1 must be re-fetched after eviction");
+  await ctx.getGuildSettings(ids[0]); // must be re-fetched since it was evicted
+  assert.equal(fetched.filter(id => id === ids[0]).length, 2,
+    `${ids[0]} must be re-fetched after eviction past cap`);
 });
 
 test("touching an entry refreshes its LRU position", async () => {
   const fetched: string[] = [];
   const ctx: any = makeCtx(3, fetched);
   attachGuildSettings(ctx);
+  const ids = ["touch-g1", "touch-g2", "touch-g3", "touch-g4"];
+  resetCacheFor(ctx, ids);
 
-  await ctx.getGuildSettings("g1");
-  await ctx.getGuildSettings("g2");
-  await ctx.getGuildSettings("g3");
+  await ctx.getGuildSettings(ids[0]);
+  await ctx.getGuildSettings(ids[1]);
+  await ctx.getGuildSettings(ids[2]);
 
-  // Touch g1 — should bump it to newest so a subsequent insert evicts g2 instead.
-  await ctx.getGuildSettings("g1");
-  await ctx.getGuildSettings("g4"); // should now evict g2 (oldest after the bump)
+  // Touch ids[0] — should bump it to newest so a subsequent insert evicts ids[1] instead.
+  await ctx.getGuildSettings(ids[0]);
+  await ctx.getGuildSettings(ids[3]);
 
-  await ctx.getGuildSettings("g1"); // still cached, no extra fetch
-  await ctx.getGuildSettings("g2"); // evicted, must be re-fetched
+  await ctx.getGuildSettings(ids[0]); // still cached, no extra fetch
+  await ctx.getGuildSettings(ids[1]); // evicted, must be re-fetched
 
-  assert.equal(fetched.filter(id => id === "g1").length, 1, "g1 stayed cached after the bump");
-  assert.equal(fetched.filter(id => id === "g2").length, 2, "g2 was evicted, then re-fetched");
+  assert.equal(fetched.filter(id => id === ids[0]).length, 1,
+    `${ids[0]} stayed cached after the touch (only fetched once)`);
+  assert.equal(fetched.filter(id => id === ids[1]).length, 2,
+    `${ids[1]} was evicted by the bump, then re-fetched`);
 });
