@@ -98,6 +98,12 @@ function createHttpServer({
   }
 
   return http.createServer((req, res) => {
+    // V11: wrap intregul handler intr-un try/catch. Inainte, un throw sincron
+    // in oricare dintre `commands.getCacheSizes()`, `scrapers.getEnrichedCacheSize()`,
+    // `cronController.getHealthSnapshot()` etc. crasha cererea fara raspuns —
+    // clientul (Prometheus, Kubernetes liveness) primea connection reset si
+    // declansa fals-pozitive in monitoring.
+    try {
     if (req.url === "/health" || req.url === "/healthz" || req.url === "/metrics") {
       if (!rateLimiter.check(req)) {
         res.writeHead(429, {
@@ -161,6 +167,17 @@ function createHttpServer({
 
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("Not Found");
+    } catch {
+      // V11: ultimul resort cand un upstream a aruncat sincron. Nu putem
+      // garanta ca headers nu sunt deja scrise (de aici try/catch suplimentar
+      // pe writeHead), dar incercam un 500 inainte sa scapam connection-ul.
+      try {
+        if (!res.headersSent) {
+          res.writeHead(500, { "Content-Type": "text/plain" });
+        }
+        res.end("Internal Server Error");
+      } catch { /* connection deja inchisa */ }
+    }
   });
 }
 
