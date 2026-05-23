@@ -335,12 +335,13 @@ async function handleSetGames(interaction: any, games: any[], sub: string, guild
 
   const joc = interaction.options.getString("joc");
   const game = games.find(g => g.key === joc);
-  if (!game) {
-    return safeEdit(interaction, `Eroare: Cheia \`${joc}\` nu exista in config. Foloseste \`/games\` pentru a vedea cheile valide.`);
-  }
 
   try {
     if (sub === "add") {
+      // V11: pentru `add` validam stricta — nu vrem chei aleatorii in enabledGames.
+      if (!game) {
+        return safeEdit(interaction, `Eroare: Cheia \`${joc}\` nu exista in config. Foloseste \`/games\` pentru a vedea cheile valide.`);
+      }
       await GuildModel.updateOne(
         { _id: guildId },
         { $addToSet: { enabledGames: joc } },
@@ -350,12 +351,22 @@ async function handleSetGames(interaction: any, games: any[], sub: string, guild
       return safeEdit(interaction, `OK: **${game.name}** adaugat la lista activa.`);
     }
     if (sub === "remove") {
-      await GuildModel.updateOne(
+      // V11: pentru `remove` NU validam stricta — daca operatorul a sters un
+      // joc din config dar guild-uri vechi inca au cheia in `enabledGames`,
+      // trebuie sa o poata scoate. Vechea forma respingea cu "Cheia ... nu
+      // exista in config" si lasa intrarea stale inghetata in DB pentru
+      // totdeauna. $pull pe o cheie inexistenta in array este no-op safe.
+      const result = await GuildModel.updateOne(
         { _id: guildId },
         { $pull: { enabledGames: joc } }
       );
       invalidateGuildCache(guildId);
-      return safeEdit(interaction, `OK: **${game.name}** scos din lista activa.`);
+      const displayName = game ? game.name : String(joc);
+      const note = game ? "" : " *(cheie nu mai existe in config — am curatat-o)*";
+      if (result.modifiedCount === 0) {
+        return safeEdit(interaction, `Info: **${displayName}** nu era in lista activa, nimic de scos.`);
+      }
+      return safeEdit(interaction, `OK: **${displayName}** scos din lista activa.${note}`);
     }
     // V11: orice sub-comanda care nu e add / remove / list / reset cade aici
     // (toate cele cunoscute sunt deja handled mai sus). Inainte iesea fara
@@ -675,6 +686,14 @@ async function handleDlcInteraction(interaction: any) {
 
 async function handleStatusInteraction(interaction: any, games: any[]) {
   const gameText = interaction.options.getString("joc");
+  // V11: guard pentru gameText empty/null, simetric cu `latest update` si
+  // `latest pret`. Slash command-ul declara `joc` ca required, dar payload-uri
+  // malformate sau o defiitie schimbata pot trimite null — afisajul vechi
+  // arata "Se incarca: ... pentru **null**..." inainte sa rasaira eroarea
+  // generica "Nu am gasit jocul".
+  if (!gameText) {
+    return interaction.reply({ content: "Eroare: Trebuie sa specifici un joc.", flags: MessageFlags.Ephemeral });
+  }
   // V11: enforceCooldown si startCommandLog lipseau aici, spre deosebire de
   // restul comenzilor user. Status calls status.epicgames.com pentru Epic
   // games si poate fi spamat fara cost server-side dar tot consuma rate-limit
@@ -718,7 +737,7 @@ async function handleAutocomplete(interaction: any, games: any[]) {
     // Pentru Steam search (dlc, latest pret) returnăm numele complet
     const useNameAsValue = (cmd === "dlc") || (cmd === "latest" && sub === "pret");
 
-    // Pentru /set games remove restrângem pool-ul la jocurile deja active
+    // Pentru /set games remove restrangem pool-ul la jocurile deja active
     let pool = games;
     if (cmd === "set" && group === "games" && sub === "remove") {
       try {
@@ -726,7 +745,20 @@ async function handleAutocomplete(interaction: any, games: any[]) {
         const enabled = Array.isArray(guild?.enabledGames) ? guild.enabledGames : [];
         if (enabled.length > 0) {
           const enabledSet = new Set(enabled);
-          pool = games.filter(g => enabledSet.has(g.key));
+          const fromConfig = games.filter(g => enabledSet.has(g.key));
+          // V11: include si cheile STALE (in enabledGames dar nu mai exista in
+          // config) ca sa poata fi sterse. Vechea forma le ascundea complet
+          // din autocomplete iar comanda `remove` le respingea ca "cheie nu
+          // exista in config" — operatorul ramanea blocat cu intrari stale.
+          const knownKeys = new Set(fromConfig.map((g: any) => g.key));
+          const stalePlaceholders = (enabled as unknown[])
+            .filter((key: unknown): key is string => typeof key === "string" && !knownKeys.has(key))
+            .map((key: string) => ({
+              key,
+              name: `${key} (cheie stale)`,
+              aliases: [] as string[]
+            }));
+          pool = [...fromConfig, ...stalePlaceholders];
         }
       } catch (err: any) {
         logger("WARN", "AUTOCOMPLETE", "Nu am putut citi setarile guild-ului", errorMessage(err));
