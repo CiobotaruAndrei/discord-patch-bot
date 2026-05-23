@@ -20,7 +20,9 @@ interface MongooseLike {
 }
 
 interface HttpServerLike {
-  close(): unknown;
+  // node:http Server.close(callback?). Returns the server (not a Promise),
+  // so we wrap the callback below to drain real connections.
+  close(callback?: (err?: Error) => void): unknown;
 }
 
 interface HousekeepingLike {
@@ -77,7 +79,34 @@ function createShutdownController({
     // mongoose.connection.close() si setTimeout(exit, 500).unref().
     try { await client.destroy(); } catch (err) { logger("WARN", "SHUTDOWN", "Eroare destroy client", errorMessage(err)); }
     try { await mongoose.connection.close(); } catch (err) { logger("WARN", "SHUTDOWN", "Eroare inchidere mongo", errorMessage(err)); }
-    try { httpServer.close(); } catch { /* ignore */ }
+
+    // V11: `httpServer.close()` din node:http returneaza server-ul, NU un
+    // Promise. Callback-ul de close ruleaza dupa ce TOATE conexiunile deschise
+    // se inchid. Inainte: `try { httpServer.close(); } catch {}` lansa close
+    // dar nu astepta nimic — daca un caller pe /metrics era mid-flight cand
+    // semnalul ajungea, conexiunea era rupta abrupt. Acum: race intre callback
+    // si un budget scurt, ca un client agatat sa nu blocheze shutdown-ul.
+    const HTTP_CLOSE_BUDGET_MS = 3000;
+    await new Promise<void>(resolve => {
+      let resolved = false;
+      const finish = () => { if (!resolved) { resolved = true; resolve(); } };
+      const watchdog = setTimeout(() => {
+        logger("WARN", "SHUTDOWN", `httpServer.close() nu a terminat in ${HTTP_CLOSE_BUDGET_MS}ms, fortez exit`);
+        finish();
+      }, HTTP_CLOSE_BUDGET_MS);
+      watchdog.unref();
+      try {
+        httpServer.close((err?: Error) => {
+          clearTimeout(watchdog);
+          if (err) logger("WARN", "SHUTDOWN", "Eroare close server HTTP", errorMessage(err));
+          finish();
+        });
+      } catch (err) {
+        clearTimeout(watchdog);
+        logger("WARN", "SHUTDOWN", "Eroare la apelul httpServer.close()", errorMessage(err));
+        finish();
+      }
+    });
 
     logger("INFO", "SHUTDOWN", "Inchidere completa.");
     setTimeout(() => process.exit(exitCode), 500).unref();

@@ -172,8 +172,20 @@ async function fetchSteamUpdate(game: GameConfig): Promise<NormalizedUpdate> {
 
 async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpdate> {
   const { httpReq, safeCheerioLoad, cleanText, normalizeUpdate, logger, SchemaDriftError } = runtimeContext;
-  const listingUrls: Array<string | undefined> = Array.isArray(game.listingUrls) && game.listingUrls.length
+  // V11: filtram URL-uri falsy (undefined / "") inainte de fetch. Daca
+  // `game.listingUrls` era array gol si `game.listingUrl` undefined, vechea
+  // forma producea `[undefined]` si pornea un httpReq cu undefined ca URL —
+  // erau aruncate de `assertSafeExternalUrl`, dar pe drum se aprindeau
+  // log-uri WARN inselatoare ("Eroare preluare listing url undefined") si
+  // se irosea un slot in Promise.allSettled.
+  const rawListingUrls: Array<string | undefined> = Array.isArray(game.listingUrls) && game.listingUrls.length
     ? game.listingUrls : [game.listingUrl];
+  const listingUrls: string[] = rawListingUrls.filter(
+    (u): u is string => typeof u === "string" && u.trim().length > 0
+  );
+  if (listingUrls.length === 0) {
+    throw new Error(`Nu am URL-uri de listing valide pentru ${game.key} (verifica config.json).`);
+  }
   const keywords = Array.isArray(game.requireKeywords) ? game.requireKeywords : [];
   const hrefRegex = getArticleHrefRegex(game);
 
@@ -182,7 +194,7 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
   // un URL care esueaza nu blocheaza pe celelalte si nici nu propaga rejection-ul.
   type FetchedListing = { url: string; candidates: ListingCandidate[] };
   const settled = await Promise.allSettled(listingUrls.map(async (url): Promise<FetchedListing> => {
-    const listRes = await httpReq("GET", url as string);
+    const listRes = await httpReq("GET", url);
     const $ = safeCheerioLoad(listRes.data);
     const candidates: ListingCandidate[] = [];
     let localPosition = 0;

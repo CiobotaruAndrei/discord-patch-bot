@@ -178,7 +178,21 @@ async function enrichDealData(deal: DealInfo, currencyCode?: DealCurrencyCode): 
     if (enriched.store === "Steam" && enriched.steamAppID) {
       const cfg = getCurrencyConfig(currency);
       try {
-        const htmlUrl = `${enriched.link}?cc=${cfg.cc}&l=english`;
+        // V11: foloseste URL builder in loc de concatenare raw. `${link}?cc=...`
+        // se sparge daca `link` are deja query string (ex. dintr-o sursa
+        // viitoare care pune ?utm_*=*) — produce `link?utm?cc=...`, invalid.
+        // URL builder seteaza/inlocuieste corect parametrii.
+        let htmlUrl: string;
+        try {
+          const u = new URL(String(enriched.link));
+          u.searchParams.set("cc", cfg.cc);
+          u.searchParams.set("l", "english");
+          htmlUrl = u.href;
+        } catch {
+          // Fallback la concatenare daca link-ul nu e parsabil — pastram
+          // comportamentul vechi pentru deals fara link valid.
+          htmlUrl = `${enriched.link}?cc=${cfg.cc}&l=english`;
+        }
         const [detailsRes, htmlRes] = await Promise.all([
           httpReq("GET",
             `https://store.steampowered.com/api/appdetails?appids=${enriched.steamAppID}&cc=${cfg.cc}&l=english`,
