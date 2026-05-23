@@ -273,6 +273,9 @@ async function fetchGameStatus(game: GameConfig): Promise<any> {
       statusLink = "https://status.epicgames.com/";
       color = res.data.status.indicator === "none" ? COLORS.POSITIVE : COLORS.ERROR;
     } catch (err) {
+      // V11: nu mai inghitim eroarea fara urma — log-am ca sa observam daca
+      // status.epicgames.com a schimbat shape-ul JSON sau pica frecvent.
+      logger("WARN", "STATUS", "Esec status.epicgames.com, folosesc fallback", errorMessage(err));
       statusText = "Nu am putut prelua statusul automat. Verifica pagina oficiala.";
       statusLink = "https://status.epicgames.com/";
     }
@@ -297,7 +300,9 @@ async function fetchGameStatus(game: GameConfig): Promise<any> {
   } else if (homepageLink && homepageLink.startsWith("http")) {
     embed.addFields({
       name: "Pagina principala / fallback",
-      value: `[Acceseaza homepage](${homepageLink})\n*(Acesta nu este un API live de status.)`
+      // V11: marker-ul de italic `*(...)` era lasat deschis si Discord randa fie
+      // un asterisc literal, fie continua italic-ul peste continutul urmator.
+      value: `[Acceseaza homepage](${homepageLink})\n*(Acesta nu este un API live de status.)*`
     });
   }
   if (game.thumbnail) embed.setThumbnail(game.thumbnail);
