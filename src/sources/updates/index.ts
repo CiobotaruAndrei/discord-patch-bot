@@ -470,59 +470,74 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
     metricsRef.fetchSuccess++;
     return { game, latest, error: null };
   } catch (error) {
-    if (error instanceof SchemaDriftError) {
+    // V11: bookkeeping-ul circuit-breaker (Mongo updates + adminAlert) e wrap-uit
+    // intr-un try/catch separat ca o eroare Mongo intermitenta sa nu inlocuiasca
+    // eroarea originala a fetch-ului. Inainte: daca `findOneAndUpdate` sau orice
+    // alta scriere ridica in catch-ul de jos, exceptia Mongo se propaga in
+    // `_getLatestForAllGamesImpl` → `runConcurrent` errorLogger → `results[i]`
+    // ramanea undefined → in final `{game, latest: null, error: "abort"}` —
+    // operatorul vedea "abort" in loc de eroarea reala a sursei. Acum, chiar
+    // daca Mongo flakeaza, returnam mereu un FetchResult cu mesajul real al
+    // fetch-ului ratat.
+    try {
+      if (error instanceof SchemaDriftError) {
+        const updatedCb = await CircuitBreakerModel.findOneAndUpdate(
+          { _id: game.key },
+          { $inc: { schemaDriftFails: 1 } },
+          { new: true, upsert: true }
+        );
+        // V11: schema drift trebuie sa intre in cooldown la fel ca fail-urile
+        // normale. Inainte: o data atins pragul, alerta era trimisa o data, dar
+        // sursa era refetch-uita la fiecare ciclu — botul lovea o pagina
+        // structurata gresit la nesfarsit pana intervenea operatorul, irosind
+        // HTTP retries si ratand sansa de auto-recovery cand pagina e reparata.
+        // Acum: la prag, setam acelasi cooldownUntil ca pe ramura non-drift,
+        // ca fereastra de retry sa fie aceeasi pentru ambele moduri de esec.
+        if (updatedCb.schemaDriftFails >= SCHEMA_DRIFT_THRESHOLD
+            && (!updatedCb.cooldownUntil || new Date() >= new Date(updatedCb.cooldownUntil))) {
+          const jitter = Math.floor(Math.random() * CIRCUIT_BREAKER_JITTER_MS);
+          await CircuitBreakerModel.updateOne(
+            { _id: game.key },
+            { $set: { cooldownUntil: new Date(Date.now() + CIRCUIT_BREAKER_COOLDOWN_MS + jitter) } }
+          );
+          if (!updatedCb.schemaDriftAlertSent) {
+            await CircuitBreakerModel.updateOne({ _id: game.key }, { $set: { schemaDriftAlertSent: true } });
+            await adminAlert(
+              `drift:${game.key}`,
+              `Schema drift suspectat: ${game.name}`,
+              `Sursa pentru \`${game.key}\` returnează HTTP OK dar 0 rezultate valide după ${updatedCb.schemaDriftFails} cicluri consecutive. Probabil selectorii CSS/HTML s-au schimbat.\nSursă: ${error.source}\nMesaj: ${error.message}\nCooldown ~${Math.round(CIRCUIT_BREAKER_COOLDOWN_MS/60000)}-${Math.round((CIRCUIT_BREAKER_COOLDOWN_MS+CIRCUIT_BREAKER_JITTER_MS)/60000)} min.`
+            );
+          }
+        }
+        metricsRef.fetchFail++;
+        return { game, latest: null, error: error.message };
+      }
+
       const updatedCb = await CircuitBreakerModel.findOneAndUpdate(
         { _id: game.key },
-        { $inc: { schemaDriftFails: 1 } },
+        { $inc: { fails: 1 } },
         { new: true, upsert: true }
       );
-      // V11: schema drift trebuie sa intre in cooldown la fel ca fail-urile
-      // normale. Inainte: o data atins pragul, alerta era trimisa o data, dar
-      // sursa era refetch-uita la fiecare ciclu — botul lovea o pagina
-      // structurata gresit la nesfarsit pana intervenea operatorul, irosind
-      // HTTP retries si ratand sansa de auto-recovery cand pagina e reparata.
-      // Acum: la prag, setam acelasi cooldownUntil ca pe ramura non-drift,
-      // ca fereastra de retry sa fie aceeasi pentru ambele moduri de esec.
-      if (updatedCb.schemaDriftFails >= SCHEMA_DRIFT_THRESHOLD
+      if (updatedCb.fails >= CIRCUIT_BREAKER_FAIL_THRESHOLD
           && (!updatedCb.cooldownUntil || new Date() >= new Date(updatedCb.cooldownUntil))) {
         const jitter = Math.floor(Math.random() * CIRCUIT_BREAKER_JITTER_MS);
         await CircuitBreakerModel.updateOne(
           { _id: game.key },
           { $set: { cooldownUntil: new Date(Date.now() + CIRCUIT_BREAKER_COOLDOWN_MS + jitter) } }
         );
-        if (!updatedCb.schemaDriftAlertSent) {
-          await CircuitBreakerModel.updateOne({ _id: game.key }, { $set: { schemaDriftAlertSent: true } });
+        if (!updatedCb.alertSent) {
+          await CircuitBreakerModel.updateOne({ _id: game.key }, { $set: { alertSent: true } });
           await adminAlert(
-            `drift:${game.key}`,
-            `Schema drift suspectat: ${game.name}`,
-            `Sursa pentru \`${game.key}\` returnează HTTP OK dar 0 rezultate valide după ${updatedCb.schemaDriftFails} cicluri consecutive. Probabil selectorii CSS/HTML s-au schimbat.\nSursă: ${error.source}\nMesaj: ${error.message}\nCooldown ~${Math.round(CIRCUIT_BREAKER_COOLDOWN_MS/60000)}-${Math.round((CIRCUIT_BREAKER_COOLDOWN_MS+CIRCUIT_BREAKER_JITTER_MS)/60000)} min.`
+            `cb:${game.key}`,
+            `Circuit breaker activat: ${game.name}`,
+            `Sursa pentru \`${game.key}\` a eșuat de ${updatedCb.fails} ori consecutiv. Cooldown ~${Math.round(CIRCUIT_BREAKER_COOLDOWN_MS/60000)}-${Math.round((CIRCUIT_BREAKER_COOLDOWN_MS+CIRCUIT_BREAKER_JITTER_MS)/60000)} min.\nUltima eroare: ${errorMessage(error)}`
           );
         }
       }
-      metricsRef.fetchFail++;
-      return { game, latest: null, error: error.message };
-    }
-
-    const updatedCb = await CircuitBreakerModel.findOneAndUpdate(
-      { _id: game.key },
-      { $inc: { fails: 1 } },
-      { new: true, upsert: true }
-    );
-    if (updatedCb.fails >= CIRCUIT_BREAKER_FAIL_THRESHOLD
-        && (!updatedCb.cooldownUntil || new Date() >= new Date(updatedCb.cooldownUntil))) {
-      const jitter = Math.floor(Math.random() * CIRCUIT_BREAKER_JITTER_MS);
-      await CircuitBreakerModel.updateOne(
-        { _id: game.key },
-        { $set: { cooldownUntil: new Date(Date.now() + CIRCUIT_BREAKER_COOLDOWN_MS + jitter) } }
-      );
-      if (!updatedCb.alertSent) {
-        await CircuitBreakerModel.updateOne({ _id: game.key }, { $set: { alertSent: true } });
-        await adminAlert(
-          `cb:${game.key}`,
-          `Circuit breaker activat: ${game.name}`,
-          `Sursa pentru \`${game.key}\` a eșuat de ${updatedCb.fails} ori consecutiv. Cooldown ~${Math.round(CIRCUIT_BREAKER_COOLDOWN_MS/60000)}-${Math.round((CIRCUIT_BREAKER_COOLDOWN_MS+CIRCUIT_BREAKER_JITTER_MS)/60000)} min.\nUltima eroare: ${errorMessage(error)}`
-        );
-      }
+    } catch (bookkeepingErr) {
+      runtimeContext.logger("WARN", "CIRCUIT_BREAKER",
+        `Eroare la actualizarea state-ului circuit breaker pentru ${game.key}`,
+        errorMessage(bookkeepingErr));
     }
     metricsRef.fetchFail++;
     return { game, latest: null, error: errorMessage(error) };
