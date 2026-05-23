@@ -153,6 +153,15 @@ async function connectMongoWithRetry(): Promise<void> {
       logger("INFO", "MIGRATE", `Migrari aplicate: ${migrations.applied.join(", ")}`);
     }
 
+    // V11: handler explicit de `error` pe httpServer. Inainte, daca port-ul era
+    // ocupat (deploy paralel, restart prea rapid in container), Node emitea
+    // un eveniment `error` fara listener → `uncaughtException` → shutdown
+    // declansat de safety net-ul nostru, dar fara semnal clar in log-uri. Acum
+    // log-am eroarea explicit si trimitem alerta admin inainte sa cadem.
+    httpServer.on("error", (err) => {
+      logger("ERROR", "HTTP", `httpServer error (port=${env.PORT})`, errorDetail(err));
+      adminAlert("http:listen", "Eroare HTTP server", errorMessage(err)).catch(() => null);
+    });
     httpServer.listen(env.PORT, () => {
       logger("INFO", "HTTP", `Health/metrics server pornit pe port ${env.PORT}`);
     });
