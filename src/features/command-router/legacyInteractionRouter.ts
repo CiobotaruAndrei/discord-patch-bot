@@ -739,7 +739,14 @@ async function handleAutocomplete(interaction: any, games: any[]) {
 
     // Pentru /set games remove restrangem pool-ul la jocurile deja active
     let pool = games;
-    if (cmd === "set" && group === "games" && sub === "remove") {
+    if (cmd === "set" && group === "games" && sub === "remove" && interaction.guild) {
+      // V11: explicit `interaction.guild` check inainte sa accesam `.id`.
+      // Autocomplete fire-uieste doar din guild context in practica (slash
+      // commands sunt configurate guild-only), dar payload-uri malformate
+      // sau o testare manuala via API ar putea trimite autocomplete fara
+      // guild — inainte aruncam pe `.id`, intram in catch-ul interior si
+      // emitam un WARN inselator. Acum sarim peste filtering-ul guild-based
+      // si folosim `pool = games` default fara zgomot in log-uri.
       try {
         const guild = await getGuildSettings(interaction.guild.id);
         const enabled = Array.isArray(guild?.enabledGames) ? guild.enabledGames : [];
