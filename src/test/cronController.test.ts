@@ -123,7 +123,7 @@ test("cron cycle waits for both jobs when one rejects (Promise.allSettled)", asy
       lifecycle: { isShuttingDown: false },
       errorMessage: (err: unknown) => (err as Error)?.message ?? String(err),
       errorDetail: (err: unknown) => (err as Error)?.message ?? String(err),
-      requestContext: { run: async (_store: unknown, callback: () => Promise<unknown>) => callback() }
+      requestContext: { run: async (_store, callback) => callback() }
     });
 
     await controller.runCronCycle();
