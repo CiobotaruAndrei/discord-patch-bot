@@ -39,6 +39,7 @@ interface NativeFuzzyModule {
 }
 
 let nativeModule: NativeFuzzyModule | null | undefined;
+const NATIVE_FUZZY_LOAD_FAILURES: Array<{ file: string; error: string }> = [];
 
 function loadNativeFuzzy(): NativeFuzzyModule | null {
   if (nativeModule !== undefined) return nativeModule;
@@ -60,13 +61,42 @@ function loadNativeFuzzy(): NativeFuzzyModule | null {
           nativeModule = loaded;
           return nativeModule;
         }
-      } catch {
-        // Fallback below keeps local development usable if the native addon is absent or stale.
+        NATIVE_FUZZY_LOAD_FAILURES.push({
+          file: path.join(dir, file),
+          error: "addon loaded but does not expose `levenshtein` (probably stale build)"
+        });
+      } catch (err) {
+        NATIVE_FUZZY_LOAD_FAILURES.push({
+          file: path.join(dir, file),
+          error: err instanceof Error ? err.message : String(err)
+        });
       }
     }
   }
 
   nativeModule = null;
+  // V11: cand cad pe fallback TS, log-am LOUD pe stderr inainte ca app-ul sa
+  // ajunga la primul `dealHash` / `stableUpdateId` / etc. Rust si TS folosesc
+  // formule echivalente in test-uri, dar daca Rust impl se schimba in viitor
+  // si TS nu, hash-urile pot diverge. Asta cauzeaza mass-spam: TOATE deal-urile
+  // par "noi" pentru ca seen-discounts din Mongo (hash-uri Rust) nu mai
+  // matchuiesc cu hash-urile TS. Operatorul trebuie sa stie *imediat* ca
+  // .node nu s-a incarcat, fara sa astepte ca primul ciclu cron sa spam-uiasca.
+  if (NATIVE_FUZZY_LOAD_FAILURES.length) {
+    console.error(
+      "[NATIVE_FUZZY] Rust addon nu a putut fi incarcat — folosesc fallback TypeScript.",
+      "Risc: hash-urile dealHash / stableUpdateId pot diverge fata de cele stocate de o instanta Rust anterioara,",
+      "ceea ce poate cauza mass-spam de notificari `seen` la prima cerere cron.",
+      "Detalii:",
+      NATIVE_FUZZY_LOAD_FAILURES
+    );
+  } else {
+    console.error(
+      "[NATIVE_FUZZY] Rust addon `discord_patch_bot_core*.node` nu a fost gasit in search dirs.",
+      searchDirs,
+      "Folosesc fallback TypeScript. Re-build cu `npm run build:rust` daca esti in productie."
+    );
+  }
   return nativeModule;
 }
 
