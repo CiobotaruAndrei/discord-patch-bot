@@ -79,16 +79,16 @@ test("shutdown waits for httpServer.close callback before continuing", async () 
     assert.ok(order.includes("mongo.close"), "mongo.close should run before HTTP close");
 
     // Now release the close callback — shutdown should finish.
-    // V11: capture into a local const before narrowing. `closeCb` is a `let`
-    // assigned inside a nested closure (httpServer.close), and TS5 in strict
-    // mode widens such variables back to their declared union type after any
-    // control-flow check — so `if (!closeCb) throw` followed by `closeCb()`
-    // trips TS2349. Capturing into a const breaks the closure-widening rule.
-    const releaseClose = closeCb;
-    if (!releaseClose) {
+    // V11: TS5 trips TS2349 ("expression not callable") on every variant of
+    // `closeCb!()` / `if (!closeCb) throw; closeCb();` / `const x = closeCb`
+    // because the variable is a `let` assigned inside a nested closure and
+    // strict-mode control flow refuses to narrow past the closure boundary.
+    // Cast to the concrete function type at the call site to bypass it —
+    // the runtime check above guarantees we don't actually call null.
+    if (!closeCb) {
       throw new Error("httpServer.close should have been invoked with a callback");
     }
-    releaseClose();
+    (closeCb as (err?: Error) => void)();
     await shutdownPromise;
   } finally {
     timers.restore();
