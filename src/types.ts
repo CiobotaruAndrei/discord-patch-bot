@@ -82,6 +82,7 @@ export interface RuntimeEnv {
   GLOBAL_HEALTH_WINDOW: number;
   GLOBAL_HEALTH_MIN_RATIO: number;
   GUILD_CACHE_TTL_MS: number;
+  GUILD_CACHE_MAX_SIZE: number;
   ADMIN_ALERT_COOLDOWN_MS: number;
   SHUTDOWN_DRAIN_MS: number;
   ENRICHED_DEAL_CACHE_TTL_MS: number;
