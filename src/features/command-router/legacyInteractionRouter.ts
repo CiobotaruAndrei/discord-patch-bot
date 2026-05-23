@@ -289,6 +289,16 @@ async function handleSetInteraction(interaction: any, games: any[]) {
     isFilterChange = true;
   }
 
+  // V11: guard pentru sub-comenzi necunoscute. Daca un branch nou e adaugat in
+  // `slashCommandDefinitions.ts` dar uitat aici, vechea forma facea un
+  // `updateOne(_, { $set: {} }, { upsert: true })` care, daca guild-ul nu
+  // exista, INSERA un document gol cu doar `_id` (poluare a coleciei) si
+  // raspundea user-ului cu " *(coada...)*" pe un confirmMsg gol. Acum
+  // detectam early si returnam o eroare clara.
+  if (!confirmMsg || Object.keys(updateDoc).length === 0) {
+    logger("WARN", "SET_COMMAND", `Subcomanda /set necunoscuta: ${sub} (group=${group || "none"})`);
+    return safeEdit(interaction, `Eroare: Subcomanda \`/set ${sub}\` nu este recunoscuta. Foloseste \`/help\` pentru lista.`);
+  }
   if (isFilterChange) updateDoc.pendingDiscounts = [];
   try {
     await GuildModel.updateOne({ _id: guildId }, { $set: updateDoc }, { upsert: true });
@@ -347,15 +357,31 @@ async function handleSetGames(interaction: any, games: any[], sub: string, guild
       invalidateGuildCache(guildId);
       return safeEdit(interaction, `OK: **${game.name}** scos din lista activa.`);
     }
+    // V11: orice sub-comanda care nu e add / remove / list / reset cade aici
+    // (toate cele cunoscute sunt deja handled mai sus). Inainte iesea fara
+    // niciun reply si user-ul ramanea cu loading-ul pe deferReply.
+    logger("WARN", "SET_GAMES", `Subcomanda /set games necunoscuta: ${sub}`);
+    return safeEdit(interaction, `Eroare: Subcomanda \`/set games ${sub}\` nu este recunoscuta.`);
   } catch (err: any) {
     return safeEdit(interaction, formatUserError(err, "Eroare la modificarea listei de jocuri."));
   }
 }
 
 async function handleSetRole(interaction: any, sub: string, guildId: string) {
+  // V11: valideaza explicit sub-comanda. Vechea forma `sub === "updates" ? X : Y`
+  // defaulta la `discountRoleId` pentru ORICE sub care nu era "updates" — un sub
+  // viitor cu nume gresit (sau apel direct din test) ar fi modificat tacit
+  // configurarea de discount role in loc sa raporteze o eroare clara.
+  const KNOWN_SUBS: Record<string, { field: string; label: string }> = {
+    updates: { field: "notificationRoleId", label: "update-uri" },
+    discounts: { field: "discountRoleId", label: "reduceri" }
+  };
+  const knownSub = KNOWN_SUBS[sub];
+  if (!knownSub) {
+    return safeEdit(interaction, `Eroare: Subcomanda \`/set role ${sub}\` nu este recunoscuta.`);
+  }
   const role = interaction.options.getRole("value", false);
-  const field = sub === "updates" ? "notificationRoleId" : "discountRoleId";
-  const label = sub === "updates" ? "update-uri" : "reduceri";
+  const { field, label } = knownSub;
   try {
     if (role) {
       await GuildModel.updateOne({ _id: guildId }, { $set: { [field]: role.id } }, { upsert: true });
