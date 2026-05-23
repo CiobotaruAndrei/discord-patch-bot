@@ -451,11 +451,27 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
     adminAlert,
     metricsRef
   } = runtimeContext;
-  const cb = await CircuitBreakerModel.findOneAndUpdate(
-    { _id: game.key },
-    { $setOnInsert: { fails: 0, cooldownUntil: null, alertSent: false, schemaDriftFails: 0, schemaDriftAlertSent: false } },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
+  // V11: wrap si getter-ul initial al circuit-breaker doc-ului. PR-ul anterior
+  // (#83) izola scrierile din catch, dar daca acest `findOneAndUpdate` initial
+  // ridica (Mongo blip exact pe primele HTTP requests dupa o reconectare), tot
+  // executeFetchWithCircuitBreaker rejecteaza inainte de fetch. Atunci
+  // `_getLatestForAllGamesImpl` umpleea slot-ul cu placeholder-ul "abort" —
+  // exact problema pe care PR #83 voia sa o evite, lasata partial pentru
+  // primul get. Acum returnam un FetchResult clar cu mesajul Mongo.
+  let cb: any;
+  try {
+    cb = await CircuitBreakerModel.findOneAndUpdate(
+      { _id: game.key },
+      { $setOnInsert: { fails: 0, cooldownUntil: null, alertSent: false, schemaDriftFails: 0, schemaDriftAlertSent: false } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+  } catch (cbGetErr) {
+    runtimeContext.logger("WARN", "CIRCUIT_BREAKER",
+      `Eroare la citirea state-ului CB pentru ${game.key}, sar fetch-ul ciclului curent`,
+      errorMessage(cbGetErr));
+    metricsRef.fetchFail++;
+    return { game, latest: null, error: errorMessage(cbGetErr) };
+  }
   if (cb.cooldownUntil && new Date() < new Date(cb.cooldownUntil)) {
     return { game, latest: null, error: "Circuit Breaker Activ" };
   }
@@ -549,7 +565,12 @@ async function _getLatestForAllGamesImpl(games: GameConfig[], shouldAbort?: Abor
   const list = games.slice();
   const results = new Array<FetchResult | undefined>(list.length);
 
-  await runConcurrent(list, FETCH_CONCURRENCY, async (game, idx) => {
+  // V11: capturam rezultatul runConcurrent (errors[]) ca sa putem distinge
+  // intre "abort" real (shouldAbort triggered, worker iese inainte de fn)
+  // si "fn a aruncat sincron neasteptat" (errors[] are entry pentru index).
+  // Inainte, ambele cazuri foloseau placeholder-ul generic "abort" si
+  // operatorul nu mai putea sa-si dea seama de unde a venit slot-ul gol.
+  const runResult = await runConcurrent(list, FETCH_CONCURRENCY, async (game, idx) => {
     results[idx] = await executeFetchWithCircuitBreaker(game);
   }, {
     shouldAbort,
@@ -557,10 +578,20 @@ async function _getLatestForAllGamesImpl(games: GameConfig[], shouldAbort?: Abor
       logger("WARN", "FETCH_WORKER", `Eroare la procesarea ${game.key}`, errorMessage(err));
     }
   });
+  const errorsByIndex = new Map<number, unknown>();
+  if (runResult && Array.isArray((runResult as { errors?: unknown }).errors)) {
+    for (const entry of ((runResult as { errors: Array<{ index: number; error: unknown }> }).errors)) {
+      errorsByIndex.set(entry.index, entry.error);
+    }
+  }
 
   for (let i = 0; i < results.length; i++) {
     if (!results[i]) {
-      results[i] = { game: list[i], latest: null, error: "abort" };
+      const concurrentErr = errorsByIndex.get(i);
+      const placeholderError = concurrentErr !== undefined
+        ? errorMessage(concurrentErr)
+        : "abort";
+      results[i] = { game: list[i], latest: null, error: placeholderError };
     }
   }
   return results as FetchResult[];
