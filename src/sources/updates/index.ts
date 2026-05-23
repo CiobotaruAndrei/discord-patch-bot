@@ -464,13 +464,28 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
         { $inc: { schemaDriftFails: 1 } },
         { new: true, upsert: true }
       );
-      if (updatedCb.schemaDriftFails >= SCHEMA_DRIFT_THRESHOLD && !updatedCb.schemaDriftAlertSent) {
-        await CircuitBreakerModel.updateOne({ _id: game.key }, { $set: { schemaDriftAlertSent: true } });
-        await adminAlert(
-          `drift:${game.key}`,
-          `Schema drift suspectat: ${game.name}`,
-          `Sursa pentru \`${game.key}\` returnează HTTP OK dar 0 rezultate valide după ${updatedCb.schemaDriftFails} cicluri consecutive. Probabil selectorii CSS/HTML s-au schimbat.\nSursă: ${error.source}\nMesaj: ${error.message}`
+      // V11: schema drift trebuie sa intre in cooldown la fel ca fail-urile
+      // normale. Inainte: o data atins pragul, alerta era trimisa o data, dar
+      // sursa era refetch-uita la fiecare ciclu — botul lovea o pagina
+      // structurata gresit la nesfarsit pana intervenea operatorul, irosind
+      // HTTP retries si ratand sansa de auto-recovery cand pagina e reparata.
+      // Acum: la prag, setam acelasi cooldownUntil ca pe ramura non-drift,
+      // ca fereastra de retry sa fie aceeasi pentru ambele moduri de esec.
+      if (updatedCb.schemaDriftFails >= SCHEMA_DRIFT_THRESHOLD
+          && (!updatedCb.cooldownUntil || new Date() >= new Date(updatedCb.cooldownUntil))) {
+        const jitter = Math.floor(Math.random() * CIRCUIT_BREAKER_JITTER_MS);
+        await CircuitBreakerModel.updateOne(
+          { _id: game.key },
+          { $set: { cooldownUntil: new Date(Date.now() + CIRCUIT_BREAKER_COOLDOWN_MS + jitter) } }
         );
+        if (!updatedCb.schemaDriftAlertSent) {
+          await CircuitBreakerModel.updateOne({ _id: game.key }, { $set: { schemaDriftAlertSent: true } });
+          await adminAlert(
+            `drift:${game.key}`,
+            `Schema drift suspectat: ${game.name}`,
+            `Sursa pentru \`${game.key}\` returnează HTTP OK dar 0 rezultate valide după ${updatedCb.schemaDriftFails} cicluri consecutive. Probabil selectorii CSS/HTML s-au schimbat.\nSursă: ${error.source}\nMesaj: ${error.message}\nCooldown ~${Math.round(CIRCUIT_BREAKER_COOLDOWN_MS/60000)}-${Math.round((CIRCUIT_BREAKER_COOLDOWN_MS+CIRCUIT_BREAKER_JITTER_MS)/60000)} min.`
+          );
+        }
       }
       metricsRef.fetchFail++;
       return { game, latest: null, error: error.message };
