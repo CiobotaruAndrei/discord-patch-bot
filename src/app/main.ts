@@ -158,7 +158,7 @@ async function connectMongoWithRetry(): Promise<void> {
     // un eveniment `error` fara listener → `uncaughtException` → shutdown
     // declansat de safety net-ul nostru, dar fara semnal clar in log-uri. Acum
     // log-am eroarea explicit si trimitem alerta admin inainte sa cadem.
-    httpServer.on("error", (err) => {
+    httpServer.on("error", (err: Error) => {
       logger("ERROR", "HTTP", `httpServer error (port=${env.PORT})`, errorDetail(err));
       adminAlert("http:listen", "Eroare HTTP server", errorMessage(err)).catch(() => null);
     });
