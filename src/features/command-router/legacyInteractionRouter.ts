@@ -5,7 +5,7 @@ const { errorMessage, errorDetail } = require("../../shared/errors");
 module.exports = (ctx: any) => {
   const {
     EmbedBuilder, MessageFlags, GuildModel, logger, getSystemTimes,
-    saveSystemTimes, getGuildSettings, invalidateGuildCache, DEFAULT_CURRENCY,
+    saveSystemTime, getGuildSettings, invalidateGuildCache, DEFAULT_CURRENCY,
     getCurrencyConfig, executeFetchWithCircuitBreaker, getLatestForAllGames,
     fetchDeals, enrichDealData, dealHash, searchSteamGameByName,
     chooseBestSteamMatch, fetchSteamPriceDetails, extractSteamOfferEndDate,
@@ -392,9 +392,9 @@ async function handleLatestUpdatesInteraction(interaction: any, games: any[]) {
     try {
       data = await getLatestForAllGames(games);
       setUpdatesCache(data);
-      const sys = await getSystemTimes();
-      sys.all = smoothTime(estMs, Date.now() - startTime);
-      await saveSystemTimes(sys);
+      // V11: write doar campul modificat (dot-path) — fara lost-write race
+      // intre comenzi paralele care actualizeaza chei diferite din SystemTimes.
+      await saveSystemTime("all", smoothTime(estMs, Date.now() - startTime));
     } catch (err: any) {
       endLog("error", { errorMsg: errorMessage(err) });
       return safeEdit(interaction, formatUserError(err, "Nu am reusit sa obtin update-urile.", "ERR_LATEST_UPDATES"));
@@ -440,9 +440,7 @@ async function handleLatestDealsInteraction(interaction: any) {
     try {
       deals = await fetchDeals({ currency });
       setDealsCache(currency, deals);
-      const sys = await getSystemTimes();
-      sys.reduceri = smoothTime(estMs, Date.now() - startTime);
-      await saveSystemTimes(sys);
+      await saveSystemTime("reduceri", smoothTime(estMs, Date.now() - startTime));
     } catch (err: any) {
       endLog("error", { errorMsg: errorMessage(err) });
       return safeEdit(interaction, formatUserError(err, "Nu am putut interoga magazinele.", "ERR_LATEST_DEALS"));
@@ -473,6 +471,11 @@ async function handleLatestDealsInteraction(interaction: any) {
 
 async function handleLatestSingleInteraction(interaction: any, gameText: string | null, games: any[]) {
   if (!gameText) return interaction.reply({ content: "Eroare: Trebuie sa specifici un joc.", flags: MessageFlags.Ephemeral });
+  // V11: enforceCooldown lipsea aici (si pe /status), spre deosebire de
+  // celelalte comenzi din /latest si /dlc. Spamming `/latest update` putea
+  // suna intr-un ciclu deplin de scraping per apel — risc de trip pe propriul
+  // circuit breaker per joc.
+  if (!(await enforceCooldown(interaction, "latest update"))) return;
   const endLog = startCommandLog(interaction, "latest update", { query: gameText });
   await safeDefer(interaction);
 
@@ -493,9 +496,7 @@ async function handleLatestSingleInteraction(interaction: any, gameText: string 
       if (res.error) throw new Error(res.error);
       latest = res.latest;
       cacheSetLRU(cache.single, game.key, latest, CACHE_TTL_MS, SINGLE_CACHE_MAX_SIZE);
-      const sys = await getSystemTimes();
-      sys.single = smoothTime(estMs, Date.now() - startTime);
-      await saveSystemTimes(sys);
+      await saveSystemTime("single", smoothTime(estMs, Date.now() - startTime));
     }
     const guild = await getGuildSettings(interaction.guild.id);
     endLog("ok", { gameKey: game.key });
@@ -648,18 +649,27 @@ async function handleDlcInteraction(interaction: any) {
 
 async function handleStatusInteraction(interaction: any, games: any[]) {
   const gameText = interaction.options.getString("joc");
+  // V11: enforceCooldown si startCommandLog lipseau aici, spre deosebire de
+  // restul comenzilor user. Status calls status.epicgames.com pentru Epic
+  // games si poate fi spamat fara cost server-side dar tot consuma rate-limit
+  // local si nu lasa urma in jurnalul comenzilor pentru audit.
+  if (!(await enforceCooldown(interaction, "status"))) return;
+  const endLog = startCommandLog(interaction, "status", { query: gameText });
   await safeDefer(interaction);
   await safeEdit(interaction, `Se incarca: *Verific statusul serverelor pentru **${gameText}**...*`);
   const { game, suggestion } = findGameAndSuggestion(gameText, games);
   if (!game) {
+    endLog("not_found", { suggestion: suggestion?.key });
     let errText = "Eroare: Nu am gasit jocul in baza mea de date.";
     if (suggestion) errText += ` Te refereai cumva la **${suggestion.name}** (\`${suggestion.key}\`)?`;
     return safeEdit(interaction, errText);
   }
   try {
     const embed = await fetchGameStatus(game);
+    endLog("ok", { gameKey: game.key });
     return safeEdit(interaction, { content: `OK: Informatii preluate pentru **${game.name}**:`, embeds: [embed] });
   } catch (err: any) {
+    endLog("error", { gameKey: game.key, errorMsg: errorMessage(err) });
     logger("ERROR", "STATUS", "Eroare la comanda status", errorMessage(err));
     return safeEdit(interaction, "Eroare: A aparut o eroare la preluarea statusului. `[ERR_STATUS_GENERAL]`");
   }
