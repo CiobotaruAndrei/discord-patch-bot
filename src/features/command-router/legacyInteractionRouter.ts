@@ -5,7 +5,7 @@ const { errorMessage, errorDetail } = require("../../shared/errors");
 module.exports = (ctx: any) => {
   const {
     EmbedBuilder, MessageFlags, GuildModel, logger, getSystemTimes,
-    saveSystemTimes, getGuildSettings, invalidateGuildCache, DEFAULT_CURRENCY,
+    saveSystemTime, getGuildSettings, invalidateGuildCache, DEFAULT_CURRENCY,
     getCurrencyConfig, executeFetchWithCircuitBreaker, getLatestForAllGames,
     fetchDeals, enrichDealData, dealHash, searchSteamGameByName,
     chooseBestSteamMatch, fetchSteamPriceDetails, extractSteamOfferEndDate,
@@ -392,9 +392,9 @@ async function handleLatestUpdatesInteraction(interaction: any, games: any[]) {
     try {
       data = await getLatestForAllGames(games);
       setUpdatesCache(data);
-      const sys = await getSystemTimes();
-      sys.all = smoothTime(estMs, Date.now() - startTime);
-      await saveSystemTimes(sys);
+      // V11: write doar campul modificat (dot-path) — fara lost-write race
+      // intre comenzi paralele care actualizeaza chei diferite din SystemTimes.
+      await saveSystemTime("all", smoothTime(estMs, Date.now() - startTime));
     } catch (err: any) {
       endLog("error", { errorMsg: errorMessage(err) });
       return safeEdit(interaction, formatUserError(err, "Nu am reusit sa obtin update-urile.", "ERR_LATEST_UPDATES"));
@@ -440,9 +440,7 @@ async function handleLatestDealsInteraction(interaction: any) {
     try {
       deals = await fetchDeals({ currency });
       setDealsCache(currency, deals);
-      const sys = await getSystemTimes();
-      sys.reduceri = smoothTime(estMs, Date.now() - startTime);
-      await saveSystemTimes(sys);
+      await saveSystemTime("reduceri", smoothTime(estMs, Date.now() - startTime));
     } catch (err: any) {
       endLog("error", { errorMsg: errorMessage(err) });
       return safeEdit(interaction, formatUserError(err, "Nu am putut interoga magazinele.", "ERR_LATEST_DEALS"));
@@ -498,9 +496,7 @@ async function handleLatestSingleInteraction(interaction: any, gameText: string 
       if (res.error) throw new Error(res.error);
       latest = res.latest;
       cacheSetLRU(cache.single, game.key, latest, CACHE_TTL_MS, SINGLE_CACHE_MAX_SIZE);
-      const sys = await getSystemTimes();
-      sys.single = smoothTime(estMs, Date.now() - startTime);
-      await saveSystemTimes(sys);
+      await saveSystemTime("single", smoothTime(estMs, Date.now() - startTime));
     }
     const guild = await getGuildSettings(interaction.guild.id);
     endLog("ok", { gameKey: game.key });

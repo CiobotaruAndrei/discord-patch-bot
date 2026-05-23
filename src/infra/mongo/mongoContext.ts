@@ -35,6 +35,7 @@ module.exports = {
   ALL_MIGRATIONS: ctx.ALL_MIGRATIONS,
   getSystemTimes: ctx.getSystemTimes,
   saveSystemTimes: ctx.saveSystemTimes,
+  saveSystemTime: ctx.saveSystemTime,
   getGuildSettings: ctx.getGuildSettings,
   invalidateGuildCache: ctx.invalidateGuildCache,
   cleanGuildCache: ctx.cleanGuildCache,
