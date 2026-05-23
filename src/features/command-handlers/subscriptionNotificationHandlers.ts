@@ -241,8 +241,11 @@ function installSubscriptionInteractions(ctx: SubscriptionContext) {
     }
 
     try {
-      if (interaction.commandName === "start") return handlers.handleStartInteraction(interaction, games);
-      return handlers.handleStopInteraction(interaction);
+      // V11: `return await` ca rejecturile asincrone sa fie prinse de catch,
+      // nu doar propagate spre caller. `return inner()` fara await lasa
+      // user-ul fara reply-ul "Eroare neasteptata" cand handler-ul respinge.
+      if (interaction.commandName === "start") return await handlers.handleStartInteraction(interaction, games);
+      return await handlers.handleStopInteraction(interaction);
     } catch (err: any) {
       ctx.logger("ERROR", "SUBSCRIPTION_INTERACTION", "Eroare in handler-ul de start/stop", errorDetail(err));
       const payload = createInteractionErrorPayload(ctx.MessageFlags);
