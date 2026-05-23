@@ -60,3 +60,52 @@ test("keeps legacy upCRD limited to NVIDIA entries", () => {
     /legacy/
   );
 });
+
+test("epic_games non-fortnite requires baseUrl and listing URL(s)", () => {
+  // V11 regression guard: fortnite has its own implementation (fetchFortniteUpdate)
+  // and doesn't need listingUrl. All other epic_games sources flow into
+  // fetchListingBasedUpdate and silently failed at runtime with "Nu am
+  // URL-uri de listing valide pentru …" if config was missing the fields.
+  // Now the validator catches the omission at boot.
+  assert.doesNotThrow(
+    () => validateConfig(baseConfig({
+      games: [{ key: "fortnite", name: "Fortnite", type: "epic_games" }]
+    }), "unit-test"),
+    "fortnite is allowed without listingUrl (uses its own implementation)"
+  );
+
+  assert.throws(
+    () => validateConfig(baseConfig({
+      games: [{ key: "egstore", name: "Epic Games Store", type: "epic_games" }]
+    }), "unit-test"),
+    /epic_games \(non-fortnite\)/,
+    "non-fortnite epic_games without baseUrl/listingUrl must fail validation"
+  );
+
+  assert.throws(
+    () => validateConfig(baseConfig({
+      games: [{
+        key: "egstore",
+        name: "Epic Games Store",
+        type: "epic_games",
+        listingUrl: "https://store.epicgames.com/feed"
+        // baseUrl still missing
+      }]
+    }), "unit-test"),
+    /baseUrl/,
+    "non-fortnite epic_games still requires baseUrl when listingUrl is given"
+  );
+
+  assert.doesNotThrow(
+    () => validateConfig(baseConfig({
+      games: [{
+        key: "egstore",
+        name: "Epic Games Store",
+        type: "epic_games",
+        baseUrl: "https://store.epicgames.com",
+        listingUrls: ["https://store.epicgames.com/feed/news"]
+      }]
+    }), "unit-test"),
+    "non-fortnite epic_games with baseUrl + listingUrls is valid"
+  );
+});

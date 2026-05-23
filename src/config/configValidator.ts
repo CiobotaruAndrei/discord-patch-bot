@@ -164,6 +164,31 @@ const ConfigSchema = z.object({
       });
     }
 
+    // V11: epic_games non-fortnite ajunge in `fetchListingBasedUpdate`, deci
+    // necesita aceleasi campuri ca `listing_based` (baseUrl + listingUrl /
+    // listingUrls). Inainte, validatorul lasa configul sa treaca; eroarea
+    // aparea abia la runtime ("Nu am URL-uri de listing valide pentru ...")
+    // dupa ce primul ciclu cron lovea sursa. Fortnite e singura exceptie
+    // pentru ca are propria implementare (`fetchFortniteUpdate`).
+    if (type === "epic_games" && game.key !== "fortnite") {
+      const hasListing = Boolean(game.listingUrl)
+        || (Array.isArray(game.listingUrls) && game.listingUrls.length > 0);
+      if (!hasListing) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [...path, "listingUrls"],
+          message: "Sursele epic_games (non-fortnite) trebuie sa aiba listingUrl sau listingUrls"
+        });
+      }
+      if (!game.baseUrl) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [...path, "baseUrl"],
+          message: "Sursele epic_games (non-fortnite) trebuie sa aiba baseUrl"
+        });
+      }
+    }
+
     if (game.upCRD !== undefined && type !== "nvidia") {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
