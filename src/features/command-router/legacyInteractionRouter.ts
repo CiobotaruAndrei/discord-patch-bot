@@ -750,10 +750,10 @@ async function handleAutocomplete(interaction: any, games: any[]) {
           // config) ca sa poata fi sterse. Vechea forma le ascundea complet
           // din autocomplete iar comanda `remove` le respingea ca "cheie nu
           // exista in config" — operatorul ramanea blocat cu intrari stale.
-          const knownKeys = new Set(fromConfig.map(g => g.key));
-          const stalePlaceholders = enabled
-            .filter(key => typeof key === "string" && !knownKeys.has(key))
-            .map(key => ({
+          const knownKeys = new Set(fromConfig.map((g: any) => g.key));
+          const stalePlaceholders = (enabled as unknown[])
+            .filter((key: unknown): key is string => typeof key === "string" && !knownKeys.has(key))
+            .map((key: string) => ({
               key,
               name: `${key} (cheie stale)`,
               aliases: [] as string[]
