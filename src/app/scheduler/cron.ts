@@ -249,11 +249,30 @@ function createCronController({
     await requestContext.run({ requestId: cronReqId, abortSignal: currentCronAbortController.signal }, async () => {
       try {
         logger("INFO", "CRON", `Pornire ciclu cron #${metrics.cronRuns}`);
-        await Promise.all([
+        // V11: Promise.allSettled in loc de Promise.all. Cu Promise.all, daca
+        // checkForUpdates respingea, cycle-ul intra in catch imediat, dar
+        // checkForDiscounts continua sa ruleze in background — orfan, dupa ce
+        // finally a eliberat deja lock-ul si a stins heartbeat-ul. Allsettled
+        // ne lasa sa asteptam ambele si sa contorizam erorile corect inainte
+        // de release.
+        const [updatesResult, discountsResult] = await Promise.allSettled([
           commands.checkForUpdates(client, games, shouldAbortCron),
           commands.checkForDiscounts(client, shouldAbortCron)
         ]);
-        if (currentCronAbortController?.signal.aborted) {
+        const failures: Array<{ label: string; reason: unknown }> = [];
+        if (updatesResult.status === "rejected") failures.push({ label: "checkForUpdates", reason: updatesResult.reason });
+        if (discountsResult.status === "rejected") failures.push({ label: "checkForDiscounts", reason: discountsResult.reason });
+
+        if (failures.length) {
+          metrics.cronErrors++;
+          for (const failure of failures) {
+            logger("ERROR", "CRON", `Eroare in ciclul cron #${metrics.cronRuns} (${failure.label})`, errorDetail(failure.reason));
+          }
+          // Combine reasons into a single admin alert so an outage in both jobs
+          // doesn't double-spam the cron:fatal cooldown bucket.
+          const combinedMessage = failures.map(f => `${f.label}: ${errorMessage(f.reason)}`).join(" | ");
+          adminAlert("cron:fatal", `Eroare cron ciclu #${metrics.cronRuns}`, combinedMessage).catch(() => null);
+        } else if (currentCronAbortController?.signal.aborted) {
           metrics.cronAborted++;
           logger("WARN", "CRON", "Ciclu abandonat (shutdown sau abort)");
         } else {
@@ -262,6 +281,9 @@ function createCronController({
           logger("INFO", "CRON", `Ciclu cron #${metrics.cronRuns} finalizat in ${ms}ms`);
         }
       } catch (err) {
+        // Pastrat ca safety net pentru orice throw sincron neasteptat din
+        // requestContext.run sau din logica de mai sus — Promise.allSettled in
+        // sine nu mai arunca pentru rejecturi.
         metrics.cronErrors++;
         logger("ERROR", "CRON", `Eroare in ciclul cron #${metrics.cronRuns}`, errorDetail(err));
         adminAlert("cron:fatal", `Eroare cron ciclu #${metrics.cronRuns}`, errorMessage(err)).catch(() => null);

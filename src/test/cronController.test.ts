@@ -67,3 +67,79 @@ test("cron stop clears the scheduled timer handle", () => {
     globalThis.clearTimeout = originalClearTimeout;
   }
 });
+
+test("cron cycle waits for both jobs when one rejects (Promise.allSettled)", async () => {
+  // V11 regression guard: with the old Promise.all, a rejection in
+  // checkForUpdates would race ahead of checkForDiscounts and the cycle's
+  // finally block would release the distributed lock while discounts was
+  // still hitting Mongo. Now allSettled awaits both before releasing.
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  globalThis.setTimeout = ((handler: (...args: unknown[]) => void, _timeout?: number) => {
+    return { handler, unref() {} } as unknown as ReturnType<typeof setTimeout>;
+  }) as typeof setTimeout;
+  globalThis.clearTimeout = (() => undefined) as typeof clearTimeout;
+
+  try {
+    let discountsResolved = false;
+    let lockReleasedAt: number | null = null;
+    let discountsFinishedAt: number | null = null;
+    const adminAlertCalls: Array<{ kind: string; title: string; body: string }> = [];
+    const loggedErrors: Array<{ message: string; meta: unknown }> = [];
+    const metrics = {
+      fetchSuccess: 0, fetchFail: 0, httpRetries: 0, rateLimitHits: 0,
+      cronRuns: 0, cronErrors: 0, cronSkippedDueToLock: 0, cronSkippedDueToHealth: 0,
+      cronAborted: 0, httpRateLimitDrops: 0, startedAt: 0
+    };
+
+    const controller = createCronController({
+      mongoose: { connection: { readyState: 1 } },
+      performance: { now: () => Date.now() },
+      crypto: { randomBytes: () => ({ toString: () => "deadbe" }) },
+      logger(level: string, _ctx: string, message: string, meta?: unknown) {
+        if (level === "ERROR") loggedErrors.push({ message, meta });
+      },
+      env: { GLOBAL_HEALTH_WINDOW: 3, GLOBAL_HEALTH_MIN_RATIO: 50 } as any,
+      parseEnvNumber: (_name: string, defaultValue: number) => defaultValue,
+      acquireDbLock: async () => "token-abc",
+      renewDbLock: async () => true,
+      releaseDbLock: async () => { lockReleasedAt = Date.now(); return undefined; },
+      commands: {
+        setGlobalCacheTtl() {},
+        checkForUpdates: async () => { throw new Error("boom-updates"); },
+        checkForDiscounts: async () => {
+          await new Promise(resolve => setImmediate(resolve));
+          discountsResolved = true;
+          discountsFinishedAt = Date.now();
+        }
+      },
+      adminAlert: async (kind: string, title: string, body: string) => {
+        adminAlertCalls.push({ kind, title, body });
+      },
+      client: { isReady: () => true },
+      games: [],
+      config: { games: [], checkIntervalMinutes: 30 },
+      metrics,
+      lifecycle: { isShuttingDown: false },
+      errorMessage: (err: unknown) => (err as Error)?.message ?? String(err),
+      errorDetail: (err: unknown) => (err as Error)?.message ?? String(err),
+      requestContext: { run: async (_store: unknown, callback: () => Promise<unknown>) => callback() }
+    });
+
+    await controller.runCronCycle();
+
+    assert.equal(discountsResolved, true, "discounts job must finish before the cycle returns");
+    assert.notEqual(lockReleasedAt, null);
+    assert.notEqual(discountsFinishedAt, null);
+    assert.ok(lockReleasedAt! >= discountsFinishedAt!,
+      "lock must be released AFTER both jobs finish, not while discounts is still running");
+    assert.equal(metrics.cronErrors, 1, "one cycle-level error counted regardless of how many jobs failed");
+    assert.equal(metrics.cronAborted, 0);
+    assert.equal(adminAlertCalls.length, 1, "single combined admin alert");
+    assert.match(adminAlertCalls[0].body, /checkForUpdates: boom-updates/);
+    assert.ok(loggedErrors.some(e => /checkForUpdates/.test(e.message)));
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});
