@@ -313,16 +313,32 @@ function attachHttpClient(ctx: HttpClientContext): void {
         }
 
         let waitMs = backoff;
+        // V11: cand server-ul ne trimite `Retry-After`, marker-am explicit asta
+        // ca sa nu mai aplicam jitter [0.5, 1.5) peste valoare. Inainte, un
+        // Retry-After de 30s putea ajunge sa fie asteptat doar ~15s, sub
+        // pragul cerut de server — o incalcare a contractului HTTP 429 care
+        // putea face peer-ul sa banneze IP-ul mai agresiv.
+        let waitIsRetryAfter = false;
         if (isRateLimit) {
           metrics().rateLimitHits++;
           const retryAfter = requestError.response?.headers?.["retry-after"];
           if (retryAfter) {
             const parsed = parseInt(String(retryAfter), 10);
-            if (!isNaN(parsed) && parsed > 0) waitMs = Math.min(parsed * 1000, 30000);
+            if (!isNaN(parsed) && parsed > 0) {
+              waitMs = Math.min(parsed * 1000, 30000);
+              waitIsRetryAfter = true;
+            }
           }
         }
 
-        waitMs = Math.round(waitMs * (0.5 + Math.random()));
+        if (waitIsRetryAfter) {
+          // Jitter pozitiv [1.0, 1.25] — niciodata sub valoarea ceruta de server,
+          // dar evitam thundering herd cand multi clienti primesc acelasi
+          // Retry-After in acelasi timp.
+          waitMs = Math.round(waitMs * (1 + Math.random() * 0.25));
+        } else {
+          waitMs = Math.round(waitMs * (0.5 + Math.random()));
+        }
         metrics().httpRetries++;
         logger("WARN", "HTTP", `Esec request [${status}] (incercarea ${i + 1}/${retries}), reincerc in ${waitMs}ms: ${safeUrl}`,
           { errMsg: errorMessage(err), is5xx, isNetworkErr, isRetryable4xx });

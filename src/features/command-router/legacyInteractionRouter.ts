@@ -781,15 +781,19 @@ async function handleInteraction(interaction: any, games: any[]) {
   }
   const cmd = interaction.commandName;
   try {
-    if (cmd === "ping") return handlePingInteraction(interaction);
-    if (cmd === "games") return handleGamesInteraction(interaction, games);
-    if (cmd === "help") return handleHelpInteraction(interaction);
-    if (cmd === "start") return handleStartInteraction(interaction, games);
-    if (cmd === "stop") return handleStopInteraction(interaction);
-    if (cmd === "set") return handleSetInteraction(interaction, games);
-    if (cmd === "latest") return handleLatestInteraction(interaction, games);
-    if (cmd === "dlc") return handleDlcInteraction(interaction);
-    if (cmd === "status") return handleStatusInteraction(interaction, games);
+    // V11: `return await` (nu doar `return`) ca rejecturile asincrone din sub-handler-e
+    // sa fie prinse de catch-ul de mai jos. Fara await, `return inner()` doar
+    // propaga promisiunea respinsa caller-ului, lasand try-catch-ul fara efect
+    // si user-ul fara reply-ul "Eroare neasteptata".
+    if (cmd === "ping") return await handlePingInteraction(interaction);
+    if (cmd === "games") return await handleGamesInteraction(interaction, games);
+    if (cmd === "help") return await handleHelpInteraction(interaction);
+    if (cmd === "start") return await handleStartInteraction(interaction, games);
+    if (cmd === "stop") return await handleStopInteraction(interaction);
+    if (cmd === "set") return await handleSetInteraction(interaction, games);
+    if (cmd === "latest") return await handleLatestInteraction(interaction, games);
+    if (cmd === "dlc") return await handleDlcInteraction(interaction);
+    if (cmd === "status") return await handleStatusInteraction(interaction, games);
   } catch (err: any) {
     logger("ERROR", "INTERACTION", "Eroare in handler-ul de comenzi", errorDetail(err));
     const payload = { content: "Eroare: Eroare neasteptata la procesarea comenzii.", flags: MessageFlags.Ephemeral };

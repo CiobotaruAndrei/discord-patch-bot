@@ -40,6 +40,9 @@ Acest document noteaza starea repo-ului dupa curatare, migrarea sursei la TypeSc
 - `src/package.json` pin-uieste exact si build/dev dependencies directe, inclusiv `@napi-rs/cli`.
 - `src/scripts/check-dependencies.ts` verifica runtime si build/dev dependencies directe, plus versiunile rezolvate in lockfile si URL-urile din registry npm.
 - `README.md` mentioneaza explicit ca testele CI nu pot confirma comportamentul live complet fara server Discord, token, Mongo si surse externe reale.
+- `src/features/command-router/legacyInteractionRouter.ts` si cele patru installer-e (`helpInteractionHandler`, `subscriptionNotificationHandlers`, `gameFilterHandlers`, `rolePingHandlers`) folosesc acum `return await` in dispatchere. Forma veche `return inner()` lasa rejectul asincron sa treaca pe langa `try/catch`, deci user-ul nu mai primea niciodata reply-ul "Eroare neasteptata la procesarea comenzii" cand un sub-handler arunca asincron.
+- `src/features/command-presentation/commandPresentation.ts::fetchGameStatus` inchide marker-ul de italic in mesajul "*(Acesta nu este un API live de status.)*" — fara `*` final Discord randa fie un asterisc literal, fie continua italic-ul peste continutul urmator. Acelasi handler log-uieste acum cand `status.epicgames.com` esueaza in loc sa inghita eroarea fara urma.
+- `src/infra/http/client.ts::httpReq` respecta `Retry-After` pe 429. Jitter-ul `[0.5, 1.5)` aplicat peste tot insemna ca un Retry-After de 30s putea fi asteptat doar ~15s, sub pragul cerut de server. Acum, cand server-ul trimite `Retry-After`, folosim jitter pozitiv `[1.0, 1.25]` peste valoare ca sa pastram pragul si sa evitam thundering herd.
 
 ## Organizarea pe functionalitati
 

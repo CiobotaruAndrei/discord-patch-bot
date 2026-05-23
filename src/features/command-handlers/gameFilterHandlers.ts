@@ -115,7 +115,9 @@ function installGameFilterInteractions(ctx: GameFilterContext) {
     }
 
     try {
-      return handlers.handleSetGamesInteraction(interaction, games);
+      // V11: `return await` ca rejecturile asincrone sa fie prinse de catch,
+      // altfel try-catch-ul nu observa promisiunea respinsa din interior.
+      return await handlers.handleSetGamesInteraction(interaction, games);
     } catch (err: any) {
       ctx.logger?.("ERROR", "GAME_FILTER_INTERACTION", "Eroare in handler-ul /set games", errorDetail(err));
       const payload = createInteractionErrorPayload(ctx.MessageFlags);

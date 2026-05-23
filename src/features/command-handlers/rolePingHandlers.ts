@@ -84,7 +84,9 @@ function installRolePingInteractions(ctx: RolePingContext) {
     }
 
     try {
-      return handlers.handleSetRoleInteraction(interaction);
+      // V11: `return await` ca rejecturile asincrone sa fie prinse de catch,
+      // altfel try-catch-ul nu observa promisiunea respinsa din interior.
+      return await handlers.handleSetRoleInteraction(interaction);
     } catch (err: any) {
       ctx.logger?.("ERROR", "ROLE_PING_INTERACTION", "Eroare in handler-ul /set role", errorDetail(err));
       const payload = createInteractionErrorPayload(ctx.MessageFlags);

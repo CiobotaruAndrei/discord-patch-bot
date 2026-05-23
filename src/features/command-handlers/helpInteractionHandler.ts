@@ -57,7 +57,9 @@ function installHelpHandler(ctx: HelpContext) {
     }
 
     try {
-      return handlers.handleHelpInteraction(interaction);
+      // V11: `return await` ca rejecturile asincrone sa fie prinse de catch,
+      // altfel try-catch-ul nu observa promisiunea respinsa din interior.
+      return await handlers.handleHelpInteraction(interaction);
     } catch (err: unknown) {
       ctx.logger?.("ERROR", "HELP_INTERACTION", "Eroare in handler-ul /help", errorDetail(err));
       const payload = createInteractionErrorPayload(ctx.MessageFlags);
