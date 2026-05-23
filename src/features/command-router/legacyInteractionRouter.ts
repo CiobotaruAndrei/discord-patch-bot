@@ -473,6 +473,11 @@ async function handleLatestDealsInteraction(interaction: any) {
 
 async function handleLatestSingleInteraction(interaction: any, gameText: string | null, games: any[]) {
   if (!gameText) return interaction.reply({ content: "Eroare: Trebuie sa specifici un joc.", flags: MessageFlags.Ephemeral });
+  // V11: enforceCooldown lipsea aici (si pe /status), spre deosebire de
+  // celelalte comenzi din /latest si /dlc. Spamming `/latest update` putea
+  // suna intr-un ciclu deplin de scraping per apel — risc de trip pe propriul
+  // circuit breaker per joc.
+  if (!(await enforceCooldown(interaction, "latest update"))) return;
   const endLog = startCommandLog(interaction, "latest update", { query: gameText });
   await safeDefer(interaction);
 
@@ -648,18 +653,27 @@ async function handleDlcInteraction(interaction: any) {
 
 async function handleStatusInteraction(interaction: any, games: any[]) {
   const gameText = interaction.options.getString("joc");
+  // V11: enforceCooldown si startCommandLog lipseau aici, spre deosebire de
+  // restul comenzilor user. Status calls status.epicgames.com pentru Epic
+  // games si poate fi spamat fara cost server-side dar tot consuma rate-limit
+  // local si nu lasa urma in jurnalul comenzilor pentru audit.
+  if (!(await enforceCooldown(interaction, "status"))) return;
+  const endLog = startCommandLog(interaction, "status", { query: gameText });
   await safeDefer(interaction);
   await safeEdit(interaction, `Se incarca: *Verific statusul serverelor pentru **${gameText}**...*`);
   const { game, suggestion } = findGameAndSuggestion(gameText, games);
   if (!game) {
+    endLog("not_found", { suggestion: suggestion?.key });
     let errText = "Eroare: Nu am gasit jocul in baza mea de date.";
     if (suggestion) errText += ` Te refereai cumva la **${suggestion.name}** (\`${suggestion.key}\`)?`;
     return safeEdit(interaction, errText);
   }
   try {
     const embed = await fetchGameStatus(game);
+    endLog("ok", { gameKey: game.key });
     return safeEdit(interaction, { content: `OK: Informatii preluate pentru **${game.name}**:`, embeds: [embed] });
   } catch (err: any) {
+    endLog("error", { gameKey: game.key, errorMsg: errorMessage(err) });
     logger("ERROR", "STATUS", "Eroare la comanda status", errorMessage(err));
     return safeEdit(interaction, "Eroare: A aparut o eroare la preluarea statusului. `[ERR_STATUS_GENERAL]`");
   }
