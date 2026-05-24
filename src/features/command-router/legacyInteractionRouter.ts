@@ -293,7 +293,7 @@ async function handleSetInteraction(interaction: any, games: any[]) {
   // V11: guard pentru sub-comenzi necunoscute. Daca un branch nou e adaugat in
   // `slashCommandDefinitions.ts` dar uitat aici, vechea forma facea un
   // `updateOne(_, { $set: {} }, { upsert: true })` care, daca guild-ul nu
-  // exista, INSERA un document gol cu doar `_id` (poluare a coleciei) si
+  // exista, INSERA un document gol cu doar `_id` (poluare a colectiei) si
   // raspundea user-ului cu " *(coada...)*" pe un confirmMsg gol. Acum
   // detectam early si returnam o eroare clara.
   if (!confirmMsg || Object.keys(updateDoc).length === 0) {
@@ -363,7 +363,7 @@ async function handleSetGames(interaction: any, games: any[], sub: string, guild
       );
       invalidateGuildCache(guildId);
       const displayName = game ? game.name : String(joc);
-      const note = game ? "" : " *(cheie nu mai existe in config — am curatat-o)*";
+      const note = game ? "" : " *(cheie nu mai exista in config — am curatat-o)*";
       if (result.modifiedCount === 0) {
         return safeEdit(interaction, `Info: **${displayName}** nu era in lista activa, nimic de scos.`);
       }
