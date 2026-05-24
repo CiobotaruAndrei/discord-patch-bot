@@ -104,23 +104,28 @@ function createHttpServer({
     // clientul (Prometheus, Kubernetes liveness) primea connection reset si
     // declansa fals-pozitive in monitoring.
     try {
-    // V11: normalizam la pathname (taie query string si fragment) ca matching-ul
-    // de mai jos sa nu fie sensibil la suffixe ca `?cb=1` sau `?_=…` adaugate
-    // de agenti de monitoring sau de reverse-proxy. Inainte, `req.url === "/metrics"`
-    // exact-match rata `/metrics?n=1` → 404 fara rate-limit, ceea ce permitea
-    // o ruta cheap de DoS pentru orice client care adauga un query string,
-    // si totodata bloca agentii care faceau cache-busting.
-    const reqPath = (req.url || "/").split("?")[0].split("#")[0];
-    if (reqPath === "/health" || reqPath === "/healthz" || reqPath === "/metrics") {
-      if (!rateLimiter.check(req)) {
-        res.writeHead(429, {
-          "Content-Type": "text/plain",
-          "Retry-After": rateLimiter.retryAfterSeconds.toString()
-        });
-        res.end("Too Many Requests");
-        return;
-      }
+    // V11: rate-limit-am TOATE cererile uncondiitional, inainte de orice
+    // matching de URL. Inainte, gate-ul era `if (req.url === "/health" ||
+    // /healthz || /metrics) { check }` — un client putea spama `/anything`
+    // cu un query string si bypass-a rate-limit-ul, iar CodeQL flag-uia ca
+    // "user-controlled bypass of security check". Aplicand check-ul pe
+    // toate cererile, hardening-ul e mai strict si fara conditie controlata
+    // de utilizator. 404-urile pentru rute necunoscute raman in continuare
+    // ieftine (text scurt), iar agentii de monitoring care lovesc strict
+    // /health, /healthz, /metrics nu sunt afectati.
+    if (!rateLimiter.check(req)) {
+      res.writeHead(429, {
+        "Content-Type": "text/plain",
+        "Retry-After": rateLimiter.retryAfterSeconds.toString()
+      });
+      res.end("Too Many Requests");
+      return;
     }
+    // Normalizam la pathname (taie query string si fragment) ca matching-ul
+    // sa nu fie sensibil la suffixe ca `?cb=1` sau `?_=…` adaugate de agenti
+    // de monitoring sau de reverse-proxy. Inainte, exact-match pe `req.url`
+    // rata `/metrics?n=1` → 404 in loc sa rezolve handler-ul corespunzator.
+    const reqPath = (req.url || "/").split("?")[0].split("#")[0];
 
     if (reqPath === "/health" || reqPath === "/healthz") {
       const ok = mongoose.connection.readyState === 1 && client.isReady();
