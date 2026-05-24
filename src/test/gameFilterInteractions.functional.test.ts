@@ -132,7 +132,7 @@ test("game filter rejects unknown sub-commands explicitly instead of leaving def
   const replies: any[] = [];
   const logs: any[] = [];
   const ctx = makeBaseContext(calls, replies);
-  ctx.logger = (...args: any[]) => logs.push(args);
+  ctx.logger = (...args: any[]) => { logs.push(args); };
   const handlers = gameFilterInteractions.createGameFilterInteractionHandlers(ctx);
 
   await handlers.handleSetGames(makeSetGamesInteraction("totally-unknown"), games, "totally-unknown", "guild-1");

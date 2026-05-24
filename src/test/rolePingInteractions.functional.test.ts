@@ -82,7 +82,7 @@ test("role ping rejects unknown sub-commands instead of silently defaulting to d
   const replies: any[] = [];
   const logs: any[] = [];
   const ctx = makeBaseContext(calls, replies);
-  ctx.logger = (...args: any[]) => logs.push(args);
+  ctx.logger = (...args: any[]) => { logs.push(args); };
   const handlers = rolePingInteractions.createRolePingInteractionHandlers(ctx);
 
   await handlers.handleSetRole(makeSetRoleInteraction("typo-not-real"), "typo-not-real", "guild-1");
