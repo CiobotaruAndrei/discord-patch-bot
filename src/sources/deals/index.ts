@@ -353,7 +353,18 @@ async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo
       }
       let endDate = "Nespecificat";
       const promos = item.promotions?.promotionalOffers?.[0]?.promotionalOffers?.[0];
-      if (promos && promos.endDate) endDate = new Date(promos.endDate).toLocaleDateString("ro-RO");
+      if (promos && promos.endDate) {
+        // V11: valideaza data inainte sa o formatam. Vechea forma trecea
+        // `new Date(invalid).toLocaleDateString("ro-RO")` care intoarce literal
+        // sirul `"Invalid Date"` — apoi `buildDealEmbed` afisa pentru user
+        // `"Expira la: Invalid Date"` (label-ul `endDateStr !== "Nespecificat"`
+        // matchuieste si pe `Invalid Date`). Acum, daca data Epic e malformata
+        // sau lipseste timezone-ul corect, pastram fallback-ul "Nespecificat".
+        const parsed = new Date(promos.endDate);
+        if (!Number.isNaN(parsed.getTime())) {
+          endDate = parsed.toLocaleDateString("ro-RO");
+        }
+      }
       const urlSlug = item.urlSlug || item.id;
 
       deals.push({
