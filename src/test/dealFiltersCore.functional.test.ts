@@ -37,6 +37,38 @@ test("deal filter core applies store, price, discount and free/paid rules direct
   assert.equal(dealPassesFilters({ ...baseDeal, salePrice: "0", savings: 0 }, { ...guild, includeFreeGames: false }), false);
 });
 
+test("deal filter rejects deals with non-finite savings (V11 NaN guard)", () => {
+  // V11 regression guard: `Number(undefined) === NaN`, and `NaN < minDisc`
+  // evaluates to false — so the old comparator LET deals through whose
+  // upstream source forgot the `savings` field. Then buildDealEmbed
+  // surfaced "Reducere: NaN%" or "undefined%" to the user. Now we
+  // explicitly reject any non-finite savings number when checking the
+  // minimum discount threshold.
+  const guild: GuildSettings = {
+    _id: "guild-1",
+    minDiscountPercent: 30,
+    includeFreeGames: true,
+    includePaidDiscounts: true
+  };
+
+  assert.equal(
+    dealPassesFilters({ ...baseDeal, savings: undefined as unknown as number }, guild),
+    false,
+    "deal with undefined savings must fail the min-discount gate"
+  );
+  assert.equal(
+    dealPassesFilters({ ...baseDeal, savings: NaN }, guild),
+    false,
+    "deal with NaN savings must fail the min-discount gate"
+  );
+  // Free deals don't go through the savings gate, so they still pass.
+  assert.equal(
+    dealPassesFilters({ ...baseDeal, salePrice: "0", savings: undefined as unknown as number }, guild),
+    true,
+    "free deals skip the savings gate even when savings is invalid"
+  );
+});
+
 test("pending normalizers drop invalid entries and keep stable fields", () => {
   const updates = normalizePendingUpdateArray([
     { id: "u1", title: "Patch", attempts: 2 },

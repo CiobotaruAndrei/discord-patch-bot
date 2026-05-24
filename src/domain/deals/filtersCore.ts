@@ -11,10 +11,16 @@ export function dealPassesFilters(deal: DealInfo, guild: GuildSettings | null | 
 
   const salePriceNum = parseFloat(String(deal.salePrice));
   const isFree = salePriceNum === 0;
+  // V11: `Number(deal.savings)` putea fi NaN cand upstream returneaza un deal
+  // fara campul `savings` valid. `NaN < minDisc` evalueaza la `false`, deci
+  // vechea ramura `if (... < minDisc) return false;` LASA deal-ul sa treaca →
+  // user-ul vedea "Reducere: NaN%" / "undefined%" in embed. Cap-am defensiv:
+  // un deal fara savings finit nu poate trece prag-ul de reducere minima.
+  const savingsNum = Number(deal.savings);
 
   if (isFree && !incFree) return false;
   if (!isFree && !incPaid) return false;
-  if (!isFree && Number(deal.savings) < minDisc) return false;
+  if (!isFree && (!Number.isFinite(savingsNum) || savingsNum < minDisc)) return false;
   if (!isFree && maxPrice > 0 && Number.isFinite(salePriceNum) && salePriceNum > maxPrice) return false;
   if (enabledStores.length > 0 && !enabledStores.includes(String(deal.store))) return false;
   return true;
