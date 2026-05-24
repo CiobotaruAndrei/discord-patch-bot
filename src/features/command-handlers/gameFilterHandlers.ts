@@ -24,7 +24,7 @@ type GameFilterContext = GameFilterInteractionDeps & {
 };
 
 function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
-  const { GuildModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit, formatUserError } = deps;
+  const { GuildModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit, formatUserError, logger } = deps;
 
   async function handleSetGames(interaction: DiscordInteraction, games: GameConfig[], sub: string, guildId: string) {
     if (sub === "list") {
@@ -52,12 +52,13 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
 
     const gameKey = interaction.options.getString("joc");
     const game = games.find(candidate => candidate.key === gameKey);
-    if (!game) {
-      return safeEdit(interaction, `Eroare: Cheia \`${gameKey}\` nu exista in config. Foloseste \`/games\` pentru a vedea cheile valide.`);
-    }
 
     try {
       if (sub === "add") {
+        // V11: pentru `add` validam stricta — nu vrem chei aleatorii in enabledGames.
+        if (!game) {
+          return safeEdit(interaction, `Eroare: Cheia \`${gameKey}\` nu exista in config. Foloseste \`/games\` pentru a vedea cheile valide.`);
+        }
         await GuildModel.updateOne(
           { _id: guildId },
           { $addToSet: { enabledGames: gameKey } },
@@ -67,17 +68,35 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
         return safeEdit(interaction, `OK: **${game.name}** adaugat la lista activa.`);
       }
       if (sub === "remove") {
-        await GuildModel.updateOne(
+        // V11: pentru `remove` NU validam stricta — daca operatorul a sters un
+        // joc din config dar guild-uri vechi inca au cheia in `enabledGames`,
+        // trebuie sa o poata scoate. Vechea forma respingea cu "Cheia ... nu
+        // exista in config" si lasa intrarea stale inghetata in DB pentru
+        // totdeauna. $pull pe o cheie inexistenta in array este no-op safe.
+        // Acelasi fix a fost aplicat anterior pe `legacyInteractionRouter.ts`,
+        // dar acel handler e shadow-ed in chain de installer-ul curent
+        // (gameFilterHandlers intercepteaza `/set games *` inainte sa ajunga
+        // la legacy), deci fix-ul trebuie sa traiasca aici ca sa fie efectiv.
+        const result = await GuildModel.updateOne(
           { _id: guildId },
           { $pull: { enabledGames: gameKey } }
         );
         invalidateGuildCache(guildId);
-        return safeEdit(interaction, `OK: **${game.name}** scos din lista activa.`);
+        const displayName = game ? game.name : String(gameKey);
+        const note = game ? "" : " *(cheie nu mai exista in config — am curatat-o)*";
+        if (result.modifiedCount === 0) {
+          return safeEdit(interaction, `Info: **${displayName}** nu era in lista activa, nimic de scos.`);
+        }
+        return safeEdit(interaction, `OK: **${displayName}** scos din lista activa.${note}`);
       }
     } catch (err: any) {
       return safeEdit(interaction, formatUserError(err, "Eroare la modificarea listei de jocuri."));
     }
-    return safeEdit(interaction, "Eroare: Subcomanda necunoscuta pentru filtrul de jocuri.");
+    // V11: orice sub-comanda care nu e add / remove / list / reset cade aici.
+    // Vechea forma iesea fara reply explicit si user-ul ramanea cu loading-ul
+    // pe deferReply.
+    logger?.("WARN", "SET_GAMES", `Subcomanda /set games necunoscuta: ${sub}`);
+    return safeEdit(interaction, `Eroare: Subcomanda \`/set games ${sub}\` nu este recunoscuta.`);
   }
 
   async function handleSetGamesInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
