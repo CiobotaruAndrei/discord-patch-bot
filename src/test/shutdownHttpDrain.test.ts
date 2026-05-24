@@ -95,6 +95,77 @@ test("shutdown waits for httpServer.close callback before continuing", async () 
   }
 });
 
+test("handleFatalProcessError clears the alert-budget timer once adminAlert wins the race", async () => {
+  // V11 regression guard: previously the budget Promise was a free-standing
+  // `setTimeout(resolve, 2000)` without unref/clearTimeout. When adminAlert
+  // resolved first, Promise.race resolved but the timer kept refing the event
+  // loop for up to 2s — blocking a clean natural exit and forcing reliance
+  // on the 10s force-exit safety net even on fast shutdowns. Now the timer
+  // is unref'd AND cleared from the race's .finally.
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+
+  type Handle = { id: number; ms: number; unrefed: boolean };
+  const timers: Handle[] = [];
+  let nextId = 1;
+  const cleared = new Set<number>();
+
+  globalThis.setTimeout = ((fn: (...args: unknown[]) => void, ms?: number) => {
+    const id = nextId++;
+    const handle: Handle = { id, ms: typeof ms === "number" ? ms : 0, unrefed: false };
+    timers.push(handle);
+    // Never actually fire — we just observe scheduling/clearing.
+    return {
+      __id: id,
+      unref() { handle.unrefed = true; }
+    } as unknown as ReturnType<typeof setTimeout>;
+  }) as typeof setTimeout;
+
+  globalThis.clearTimeout = ((handle: { __id?: number } | undefined) => {
+    if (handle && typeof handle.__id === "number") cleared.add(handle.__id);
+  }) as typeof clearTimeout;
+
+  try {
+    const { deps } = makeBaseDeps();
+    const httpServer = {
+      close(cb?: (err?: Error) => void) { if (cb) cb(); return httpServer; }
+    };
+    let adminAlertResolve!: () => void;
+    const adminAlertPromise = new Promise<undefined>(resolve => {
+      adminAlertResolve = () => resolve(undefined);
+    });
+
+    const controller = createShutdownController({
+      ...deps,
+      httpServer,
+      adminAlert: () => adminAlertPromise
+    });
+
+    // Don't await — handleFatalProcessError schedules shutdown via .finally(),
+    // we need to inspect timer state before/after the race resolves.
+    controller.handleFatalProcessError("uncaughtException", new Error("boom"));
+
+    // After scheduling, the budget timer (2000ms) and the force-exit timer
+    // (10_000ms) should be registered.
+    const budgetTimer = timers.find(t => t.ms === 2000);
+    assert.ok(budgetTimer, "budget timer must be scheduled");
+    assert.equal(budgetTimer!.unrefed, true, "budget timer must be unref'd so it doesn't keep the loop alive");
+    assert.equal(cleared.has(budgetTimer!.id), false, "budget timer not cleared yet — race still pending");
+
+    // Resolve adminAlert; race wins via adminAlert branch.
+    adminAlertResolve();
+    // Let .finally() handlers run.
+    await new Promise(resolve => setImmediate(resolve));
+    await new Promise(resolve => setImmediate(resolve));
+
+    assert.equal(cleared.has(budgetTimer!.id), true,
+      "budget timer must be clearTimeout'd by the race's .finally so it doesn't keep refing the loop");
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});
+
 test("shutdown gives up after HTTP_CLOSE_BUDGET if close never fires its callback", async () => {
   // V11: a stuck connection cannot block shutdown forever — the 3-second
   // budget timer is the safety net. We fire it instantly via fakeTimers so
