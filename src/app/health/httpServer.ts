@@ -121,13 +121,7 @@ function createHttpServer({
       res.end("Too Many Requests");
       return;
     }
-    // Normalizam la pathname (taie query string si fragment) ca matching-ul
-    // sa nu fie sensibil la suffixe ca `?cb=1` sau `?_=…` adaugate de agenti
-    // de monitoring sau de reverse-proxy. Inainte, exact-match pe `req.url`
-    // rata `/metrics?n=1` → 404 in loc sa rezolve handler-ul corespunzator.
-    const reqPath = (req.url || "/").split("?")[0].split("#")[0];
-
-    if (reqPath === "/health" || reqPath === "/healthz") {
+    if (req.url === "/health" || req.url === "/healthz") {
       const ok = mongoose.connection.readyState === 1 && client.isReady();
       const body: HealthBody = {
         status: ok ? "ok" : "degraded",
@@ -143,7 +137,7 @@ function createHttpServer({
       return;
     }
 
-    if (reqPath === "/metrics") {
+    if (req.url === "/metrics") {
       if (!checkMetricsAuth(req)) {
         res.writeHead(401, { "Content-Type": "text/plain" });
         res.end("Unauthorized");
