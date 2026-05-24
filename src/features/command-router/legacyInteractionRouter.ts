@@ -414,6 +414,15 @@ async function handleLatestInteraction(interaction: any, games: any[]) {
   if (sub === "reduceri") return handleLatestDealsInteraction(interaction);
   if (sub === "update") return handleLatestSingleInteraction(interaction, interaction.options.getString("joc"), games);
   if (sub === "pret") return handlePriceSearchInteraction(interaction, interaction.options.getString("joc"));
+  // V11: defensive guard for an unknown sub. Slash schema only declares
+  // updates/reduceri/update/pret; a future addition there without a matching
+  // dispatch line here would silently return undefined → no defer → Discord
+  // shows "interaction failed" to the user after 3s with no log trail.
+  logger("WARN", "LATEST_COMMAND", `Subcomanda /latest necunoscuta: ${sub}`);
+  return interaction.reply({
+    content: `Eroare: Subcomanda \`/latest ${sub}\` nu este recunoscuta.`,
+    flags: MessageFlags.Ephemeral
+  }).catch(() => null);
 }
 
 async function handleLatestUpdatesInteraction(interaction: any, games: any[]) {
