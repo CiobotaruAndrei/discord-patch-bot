@@ -22,7 +22,8 @@ module.exports = (ctx: any) => {
   } = ctx;
 
 async function handlePingInteraction(interaction: any) {
-  return interaction.reply("Pong! ");
+  // V11: eliminat spatiul trailing leftover ("Pong! " → "Pong!").
+  return interaction.reply("Pong!");
 }
 
 async function handleGamesInteraction(interaction: any, games: any[]) {
