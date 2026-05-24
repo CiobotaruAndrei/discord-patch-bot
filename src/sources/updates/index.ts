@@ -160,14 +160,29 @@ async function fetchSteamUpdate(game: GameConfig): Promise<NormalizedUpdate> {
   if (!patchNotes.length) throw new Error("Lipsă patch notes Steam valabile.");
   const latest = patchNotes[0];
   const rawContents = String(latest.contents || "").replace(/https?:\/\/[^\s]+/gi, "").replace(/\[.*?\]/g, " ");
+  // V11: defensive timestamp coercion. Inainte: `new Date(latest.date * 1000).toISOString()`
+  // arunca `RangeError: Invalid time value` daca Steam returneaza ceva ce nu
+  // se evalueaza ca numar epoch (string "abc" → "abc" * 1000 = NaN → Invalid
+  // Date → throw). Throw-ul propaga prin fetchSteamUpdate, executeFetchWithCircuitBreaker
+  // marca CB fail si numara pe schemaDriftFails — toate datorate unei singure
+  // intrari corupte din feed-ul Steam. Acum: valideaza ca data parsata e finita
+  // inainte de toISOString; pe esec pastreaza string-ul gol ca pe restul fetcherelor.
+  const timestamp = computeSteamTimestamp(latest.date);
   return normalizeUpdate({
     id: String(latest.gid),
     title: cleanText(latest.title),
     link: String(latest.url),
     excerpt: rawContents,
     fullText: rawContents,
-    timestamp: latest.date ? new Date(latest.date * 1000).toISOString() : ""
+    timestamp
   });
+}
+
+function computeSteamTimestamp(rawDate: unknown): string {
+  const epochSec = Number(rawDate);
+  if (!Number.isFinite(epochSec) || epochSec <= 0) return "";
+  const d = new Date(epochSec * 1000);
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString();
 }
 
 async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpdate> {
