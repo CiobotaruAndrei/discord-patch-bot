@@ -5,7 +5,6 @@ type RegistryFunction = (...args: unknown[]) => MaybePromise<unknown>;
 type CommandModuleInstaller = (context: CommandRegistryContext) => void;
 
 interface CommandRegistryContext {
-  startCacheCleaner?: RegistryFunction;
   cleanCache?: RegistryFunction;
   getCacheSizes?: RegistryFunction;
   setGlobalCacheTtl?: RegistryFunction;
@@ -24,7 +23,6 @@ interface CommandRegistryContext {
 }
 
 type RequiredCommandRegistryKey =
-  | "startCacheCleaner"
   | "cleanCache"
   | "getCacheSizes"
   | "setGlobalCacheTtl"
@@ -86,7 +84,6 @@ function createCommandRegistry(
 ): RequiredCommandRegistry {
   const context = installCommandModules(baseContext, installers);
   return {
-    startCacheCleaner: requireRegistryFunction(context, "startCacheCleaner"),
     cleanCache: requireRegistryFunction(context, "cleanCache"),
     getCacheSizes: requireRegistryFunction(context, "getCacheSizes"),
     setGlobalCacheTtl: requireRegistryFunction(context, "setGlobalCacheTtl"),

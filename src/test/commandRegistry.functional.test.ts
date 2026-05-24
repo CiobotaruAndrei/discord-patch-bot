@@ -14,7 +14,6 @@ interface CommandRegistryExports extends Record<string, unknown> {
 const commandRegistry = require("../features/command-registry/commandRegistry") as CommandRegistryExports;
 
 const requiredKeys = [
-  "startCacheCleaner",
   "cleanCache",
   "getCacheSizes",
   "setGlobalCacheTtl",
@@ -65,7 +64,10 @@ test("command registry can be created with explicit mocked installers", () => {
 test("command registry fails early when an installer misses a required function", () => {
   assert.throws(
     () => commandRegistry.createCommandRegistry({}, [ctx => {
-      ctx.startCacheCleaner = () => null;
+      // Attach an irrelevant entry so the error references the missing
+      // `cleanCache` (the first required key) rather than a generic empty-ctx
+      // message.
+      ctx.unrelated = () => null;
     }]),
     /cleanCache/
   );
