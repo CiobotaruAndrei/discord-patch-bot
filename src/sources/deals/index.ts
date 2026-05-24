@@ -210,8 +210,19 @@ async function enrichDealData(deal: DealInfo, currencyCode?: DealCurrencyCode): 
 
         const data = detailsRes?.data?.[enriched.steamAppID]?.data;
         if (data && data.platforms) {
-          enriched.extraDetails = (enriched.extraDetails || "")
-            + `\n**Platforme:** ${[data.platforms.windows ? "Win" : "", data.platforms.mac ? "Mac" : "", data.platforms.linux ? "Lin" : ""].filter(Boolean).join(", ")}`;
+          // V11: skipam intreg randul `**Platforme:**` daca Steam returneaza
+          // platforms cu toate flag-urile false. Vechea forma adauga
+          // "\n**Platforme:** " (gol dupa join) → embed cu un label fara
+          // continut, vizibil dezordonat in client-ul Discord.
+          const platformList = [
+            data.platforms.windows ? "Win" : "",
+            data.platforms.mac ? "Mac" : "",
+            data.platforms.linux ? "Lin" : ""
+          ].filter(Boolean);
+          if (platformList.length > 0) {
+            enriched.extraDetails = (enriched.extraDetails || "")
+              + `\n**Platforme:** ${platformList.join(", ")}`;
+          }
         }
         if (htmlRes?.data) {
           const end = extractOfferEndFromHtml(String(htmlRes.data));
