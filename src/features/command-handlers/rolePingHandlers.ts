@@ -22,18 +22,31 @@ type RolePingContext = RolePingInteractionDeps & {
   handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 };
 
-function roleFieldForSubcommand(sub: string) {
-  return sub === "updates"
-    ? { field: "notificationRoleId", label: "update-uri" }
-    : { field: "discountRoleId", label: "reduceri" };
-}
+// V11: tabel explicit de sub-comenzi recunoscute. Vechea forma
+// `sub === "updates" ? notificationRoleId : discountRoleId` defaulta tacit la
+// discountRoleId pentru ORICE sub diferit de "updates" — un typo viitor sau o
+// adaugare in slash schema fara update aici ar fi rescris configurarea de
+// discount role fara warning. Versiunea precedenta a acestui fix a fost
+// aplicata pe `legacyInteractionRouter.ts`, dar acel handler e shadow-ed in
+// chain de installer-ul curent (rolePingHandlers e instalat dupa legacy router
+// si intercepteaza `/set role *` inainte sa ajunga la legacy), deci fix-ul
+// trebuie sa traiasca aici ca sa fie efectiv.
+const KNOWN_ROLE_SUBS: Record<string, { field: string; label: string }> = {
+  updates: { field: "notificationRoleId", label: "update-uri" },
+  discounts: { field: "discountRoleId", label: "reduceri" }
+};
 
 function createRolePingInteractionHandlers(deps: RolePingInteractionDeps) {
-  const { GuildModel, invalidateGuildCache, safeDefer, safeEdit, formatUserError } = deps;
+  const { GuildModel, invalidateGuildCache, safeDefer, safeEdit, formatUserError, logger } = deps;
 
   async function handleSetRole(interaction: DiscordInteraction, sub: string, guildId: string) {
+    const knownSub = KNOWN_ROLE_SUBS[sub];
+    if (!knownSub) {
+      logger?.("WARN", "SET_ROLE", `Subcomanda /set role necunoscuta: ${sub}`);
+      return safeEdit(interaction, `Eroare: Subcomanda \`/set role ${sub}\` nu este recunoscuta.`);
+    }
     const role = interaction.options.getRole("value", false);
-    const { field, label } = roleFieldForSubcommand(sub);
+    const { field, label } = knownSub;
     try {
       if (role) {
         await GuildModel.updateOne({ _id: guildId }, { $set: { [field]: role.id } }, { upsert: true });

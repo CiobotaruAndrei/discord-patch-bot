@@ -71,6 +71,30 @@ test("role ping factory clears /set role discounts when role is omitted", async 
   assert.equal(replies[0], "OK: Rol pentru reduceri eliminat (fara ping).");
 });
 
+test("role ping rejects unknown sub-commands instead of silently defaulting to discountRoleId", async () => {
+  // V11 regression guard: the previous ternary `sub === "updates" ? notification : discount`
+  // silently rewrote `discountRoleId` for ANY sub that wasn't exactly "updates".
+  // A typo (e.g. /set role discountss) or a future schema addition without
+  // matching code changes would overwrite a guild's discount role config with
+  // no warning. The new KNOWN_ROLE_SUBS table rejects unknown subs with a
+  // clear error message and a WARN log entry.
+  const calls: any[] = [];
+  const replies: any[] = [];
+  const logs: any[] = [];
+  const ctx = makeBaseContext(calls, replies);
+  ctx.logger = (...args: any[]) => logs.push(args);
+  const handlers = rolePingInteractions.createRolePingInteractionHandlers(ctx);
+
+  await handlers.handleSetRole(makeSetRoleInteraction("typo-not-real"), "typo-not-real", "guild-1");
+
+  assert.equal(calls.length, 0,
+    "no DB write must happen for an unknown sub — old code silently $set discountRoleId");
+  assert.equal(replies.length, 1);
+  assert.match(String(replies[0]), /typo-not-real.*nu este recunoscuta/);
+  assert.ok(logs.some(([level, ctx]) => level === "WARN" && ctx === "SET_ROLE"),
+    "must emit a WARN log so operators see the rejected sub");
+});
+
 test("role ping installer intercepts only /set role commands", async () => {
   const calls: any[] = [];
   const replies: any[] = [];
