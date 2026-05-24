@@ -151,7 +151,11 @@ function extractOfferEndFromHtml(html: unknown): string | null {
   // de produs nelegat.
   if (!cheerioThrew) return null;
   const rawMatch = String(html || "").match(/Offer ends\s+([^<\n]+)/i);
-  return rawMatch && rawMatch[1] ? rawMatch[1].trim().slice(0, 200) : null;
+  // V11: normalize whitespace la fel ca pe cele doua path-uri principale,
+  // ca output-ul user-facing sa nu difere intre cheerio-OK si cheerio-throw.
+  return rawMatch && rawMatch[1]
+    ? rawMatch[1].trim().slice(0, 200).replace(/\s{2,}/g, " ")
+    : null;
 }
 
 async function extractSteamOfferEndDate(appId: string | number, currencyCode?: SteamCurrencyCode): Promise<string | null> {
