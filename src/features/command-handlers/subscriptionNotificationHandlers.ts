@@ -186,6 +186,14 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
         return safeEdit(interaction, formatUserError(err, "Eroare la activarea reducerilor."));
       }
     }
+
+    // V11: explicit fall-through guard. handleStartInteraction defers BEFORE
+    // dispatching on sub; if the sub is neither "updates" nor "reduceri" (slash
+    // schema and active handler drift, or a malformed payload), the previous
+    // form silently returned and left the user staring at the deferReply
+    // spinner forever. Mirrors the existing guards on /set games and /set role.
+    logger?.("WARN", "START_COMMAND", `Subcomanda /start necunoscuta: ${sub}`);
+    return safeEdit(interaction, `Eroare: Subcomanda \`/start ${sub}\` nu este recunoscuta.`);
   }
 
   async function handleStopInteraction(interaction: DiscordInteraction) {
@@ -212,6 +220,12 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
     } catch (err: any) {
       return safeEdit(interaction, formatUserError(err, "Eroare la baza de date."));
     }
+
+    // V11: same fall-through guard as handleStartInteraction. Avoids the
+    // silent-spinner failure mode if a future sub is added to the slash
+    // schema without a matching handler branch here.
+    logger?.("WARN", "STOP_COMMAND", `Subcomanda /stop necunoscuta: ${sub}`);
+    return safeEdit(interaction, `Eroare: Subcomanda \`/stop ${sub}\` nu este recunoscuta.`);
   }
 
   return { handleStartInteraction, handleStopInteraction };

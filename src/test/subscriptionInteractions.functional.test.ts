@@ -66,6 +66,53 @@ test("subscription interaction factory handles /start updates with explicit deps
   assert.equal(operations[2][1].$set["seen.cs2"][0], "update-1");
 });
 
+test("subscription /start rejects unknown sub-commands instead of leaving the deferReply hanging", async () => {
+  // V11 regression guard: handleStartInteraction defers BEFORE branching on
+  // sub. The previous form returned undefined for any sub other than
+  // "updates"/"reduceri", so a slash schema addition without a matching
+  // handler branch (or a malformed payload) would leave the user staring at
+  // the loading spinner forever. Now we WARN-log and reply explicitly.
+  const operations: any[] = [];
+  const replies: any[] = [];
+  const logs: any[] = [];
+  const ctx = makeBaseContext(operations, replies);
+  ctx.logger = (...args: any[]) => { logs.push(args); };
+  const handlers = subscriptionInteractions.createSubscriptionInteractionHandlers(ctx);
+
+  const interaction = makeStartInteraction();
+  interaction.options.getSubcommand = () => "totally-unknown";
+
+  await handlers.handleStartInteraction(interaction, []);
+
+  assert.equal(operations.length, 0,
+    "no DB write must happen for an unknown sub — defer-then-return left the spinner hanging");
+  assert.equal(replies.length, 1, "must reply explicitly");
+  assert.match(String(replies[0]), /totally-unknown.*nu este recunoscuta/);
+  assert.ok(logs.some(([level, ctx]) => level === "WARN" && ctx === "START_COMMAND"),
+    "must emit a WARN log so operators see the rejected sub");
+});
+
+test("subscription /stop rejects unknown sub-commands instead of leaving the deferReply hanging", async () => {
+  // Same guard as the /start test above, mirrored for /stop.
+  const operations: any[] = [];
+  const replies: any[] = [];
+  const logs: any[] = [];
+  const ctx = makeBaseContext(operations, replies);
+  ctx.logger = (...args: any[]) => { logs.push(args); };
+  const handlers = subscriptionInteractions.createSubscriptionInteractionHandlers(ctx);
+
+  const interaction = makeStartInteraction();
+  interaction.commandName = "stop";
+  interaction.options.getSubcommand = () => "totally-unknown";
+
+  await handlers.handleStopInteraction(interaction);
+
+  assert.equal(operations.length, 0);
+  assert.equal(replies.length, 1);
+  assert.match(String(replies[0]), /totally-unknown.*nu este recunoscuta/);
+  assert.ok(logs.some(([level, ctx]) => level === "WARN" && ctx === "STOP_COMMAND"));
+});
+
 test("subscription installer intercepts start/stop and delegates other interactions", async () => {
   const operations: any[] = [];
   const replies: any[] = [];
