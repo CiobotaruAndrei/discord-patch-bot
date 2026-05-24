@@ -23,7 +23,6 @@ interface CommandCacheContext {
   [key: string]: unknown;
 }
 
-const CACHE_CLEAN_INTERVAL_MS = 300000;
 const USER_COOLDOWNS_THRESHOLD = 500;
 
 function attachCommandCache(ctx: CommandCacheContext): void {
@@ -217,12 +216,6 @@ function getCacheSizes(): CommandCacheSizes {
   };
 }
 
-function startCacheCleaner(): ReturnType<typeof setInterval> {
-  const handle = setInterval(cleanCache, CACHE_CLEAN_INTERVAL_MS);
-  if (typeof handle.unref === "function") handle.unref();
-  return handle;
-}
-
 function smoothTime(oldMs: number, newMs: number, alpha = 0.3): number {
   return Math.round(oldMs * (1 - alpha) + newMs * alpha);
 }
@@ -259,7 +252,6 @@ async function sleepIfPositive(ms: number): Promise<void> {
 
   Object.assign(ctx, {
     CACHE_TTL_MS,
-    CACHE_CLEAN_INTERVAL_MS,
     ITEMS_PER_PAGE,
     DLC_ITEMS_PER_PAGE,
     COMMAND_OUTPUT_MAX_CHARS,
@@ -297,7 +289,6 @@ async function sleepIfPositive(ms: number): Promise<void> {
     cleanUserCooldowns,
     cleanCache,
     getCacheSizes,
-    startCacheCleaner,
     smoothTime,
     formatUserError,
     canSendEmbeds,
