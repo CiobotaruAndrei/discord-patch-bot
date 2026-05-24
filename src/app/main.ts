@@ -169,7 +169,22 @@ async function connectMongoWithRetry(): Promise<void> {
     await client.login(env.DISCORD_TOKEN);
   } catch (err) {
     logger("ERROR", "BOOT", "Eroare la pornire", errorDetail(err));
-    adminAlert("boot:fatal", "Botul nu a putut porni", errorMessage(err)).catch(() => null);
+    // V11: asteptam pana la 3s pentru ca alerta admin sa ajunga inainte de
+    // `process.exit(1)`. Inainte: `adminAlert(...).catch(...)` era
+    // fire-and-forget, iar `process.exit(1)` se executa sincron pe linia
+    // urmatoare — omora event loop-ul inainte ca POST-ul HTTP catre webhook
+    // sa apuce sa porneasca. Operatorul nu primea niciodata notificare
+    // despre boot failures, doar restart-loop in platforma de orchestratie.
+    // Race cu un budget scurt: daca webhook-ul e lent / offline, exit-ul
+    // se intampla la 3s in loc sa ramana blocat.
+    const BOOT_ALERT_BUDGET_MS = 3000;
+    await Promise.race([
+      adminAlert("boot:fatal", "Botul nu a putut porni", errorMessage(err)).catch(() => null),
+      new Promise<void>(resolve => {
+        const t = setTimeout(resolve, BOOT_ALERT_BUDGET_MS);
+        if (typeof t.unref === "function") t.unref();
+      })
+    ]);
     process.exit(1);
   }
 })();

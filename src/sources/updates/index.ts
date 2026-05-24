@@ -354,7 +354,11 @@ async function fetchIntelUpdate(game: GameConfig): Promise<NormalizedUpdate> {
       thumbnail: game.thumbnail
     });
     // V11: regex-ul nu a prins versiunea — semnal de schema drift, log explicit.
-    logger("WARN", "SCRAPE", `Intel proxy a returnat continut pentru ${game.key}, dar regex-ul de versiune (\d+.\d+.\d+.\d+) nu a prins nimic — posibil schema drift, fallback RSS`);
+    // Note: scapem backslash-urile (`\\d+`) ca log-ul sa afiseze pattern-ul real
+    // `\d+.\d+.\d+.\d+`; un singur backslash intr-un template literal devine
+    // o secventa de escape invalida, JS o reduce la litera goala (`d+.d+.d+.d+`)
+    // si log-ul devine confuz pentru operator.
+    logger("WARN", "SCRAPE", `Intel proxy a returnat continut pentru ${game.key}, dar regex-ul de versiune (\\d+.\\d+.\\d+.\\d+) nu a prins nimic — posibil schema drift, fallback RSS`);
   } catch (err) {
     logger("WARN", "SCRAPE", "Eroare preluare Intel proxy", errorMessage(err));
   }
@@ -419,11 +423,19 @@ async function fetchNvidiaUpdate(g: GameConfig): Promise<NormalizedUpdate> {
   if (!rawTitle) throw new Error("Nvidia RSS fallback fara titlu in primul item.");
   const cleanTitle = cleanText(rawTitle).split(" - ")[0];
   if (!cleanTitle) throw new Error("Nvidia RSS fallback cu titlu gol dupa curatare.");
+  // V11: propagam `excerpt` si `timestamp` din RSS feed, simetric cu
+  // fetchAmdUpdate / fetchIntelUpdate / fetchFortniteUpdate care toate
+  // seteaza aceste campuri. Inainte, embed-ul Nvidia avea fallback-ul generic
+  // "A aparut un nou update pentru …" in loc de "Update nvidia.com detectat."
+  // si nu setam `setTimestamp` pe embed (lipsea label-ul "relative time" jos),
+  // facand notificarile Nvidia sa para mai sarace fata de celelalte surse.
   return normalizeUpdate({
     id: stableUpdateId(cleanTitle, ""),
     title: cleanTitle,
     link: f.items[0].link,
-    thumbnail: g.thumbnail
+    excerpt: "Update nvidia.com detectat.",
+    thumbnail: g.thumbnail,
+    timestamp: f.items[0].pubDate
   });
 }
 
