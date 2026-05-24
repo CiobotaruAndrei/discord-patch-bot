@@ -599,6 +599,13 @@ async function handlePriceSearchInteraction(interaction: any, gameName: string |
 
 async function handleDlcInteraction(interaction: any) {
   const gameName = interaction.options.getString("joc");
+  // V11: guard pentru gameName empty/null, simetric cu `latest update`, `latest
+  // pret` si `status`. Slash schema declara `joc` ca required, dar payload-uri
+  // malformate pot trimite null — vechea forma incepea sa lucreze (cooldown,
+  // log, defer) si apoi cauta Steam pentru "null", afisand "Nu am gasit
+  // niciun rezultat pe Steam pentru "**null**"" — confuz pentru user si
+  // risipa de rate-limit budget local.
+  if (!gameName) return interaction.reply({ content: "Eroare: Trebuie sa specifici un joc.", flags: MessageFlags.Ephemeral });
   if (!(await enforceCooldown(interaction, "dlc"))) return;
   const endLog = startCommandLog(interaction, "dlc", { query: gameName });
   await safeDefer(interaction);

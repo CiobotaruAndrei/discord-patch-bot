@@ -166,19 +166,29 @@ async function handlePagination(
   const sessionId = generateSessionId();
   let collector: any = null;
 
-  const updateMessage = async () => {
+  // V11: updateMessage returneaza acum un boolean. Inainte, daca PRIMA chemare
+  // arunca in `generateEmbedsFn` (enrich pe deals, build embed pe update etc),
+  // catch-ul incerca `collector.stop()` dar collector inca era null (se asigna
+  // doar dupa await updateMessage()), iar functia continua sa creeze
+  // collector-ul oricum. User-ul ramanea cu mesajul vechi de loading + un
+  // collector tacut care astepta COLLECTOR_TIMEOUT_MS (5 min default) fara
+  // butoane vizibile. Acum, daca prima incercare esueaza, iesim devreme fara
+  // sa montam vreun collector.
+  const updateMessage = async (): Promise<boolean> => {
     try {
       const embeds = await generateEmbedsFn(currentPage, totalPages, defaultMode);
       await interactionMessage.edit({
         embeds,
         components: [buildPaginationButtons(prefix, sessionId, currentPage, totalPages)]
       }).catch(() => null);
+      return true;
     } catch {
       if (collector) collector.stop("error");
+      return false;
     }
   };
 
-  await updateMessage();
+  if (!(await updateMessage())) return;
   collector = interactionMessage.createMessageComponentCollector({
     componentType: ComponentType.Button,
     time: COLLECTOR_TIMEOUT_MS
