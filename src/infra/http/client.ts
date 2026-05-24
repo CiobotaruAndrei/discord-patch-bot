@@ -352,9 +352,7 @@ function attachHttpClient(ctx: HttpClientContext): void {
           const retryAfter = requestError.response?.headers?.["retry-after"];
           const parsedMs = parseRetryAfter(retryAfter);
           if (parsedMs !== null) {
-            // Cap la 30s: nu vrem sa blocam workerul intregul ciclu pentru un
-            // server care cere ore intregi de pauza.
-            waitMs = Math.min(parsedMs, 30000);
+            waitMs = parsedMs;
             waitIsRetryAfter = true;
           }
         }
@@ -363,7 +361,12 @@ function attachHttpClient(ctx: HttpClientContext): void {
           // Jitter pozitiv [1.0, 1.25] — niciodata sub valoarea ceruta de server,
           // dar evitam thundering herd cand multi clienti primesc acelasi
           // Retry-After in acelasi timp.
-          waitMs = Math.round(waitMs * (1 + Math.random() * 0.25));
+          // V11: cap-am la 30s **dupa** jitter, nu inainte. Inainte, cap-ul
+          // de 30s era aplicat pe `parsedMs` brut iar jitter-ul `1..1.25`
+          // putea apoi escalada waitMs la 37.5s — depasea cap-ul intentionat.
+          // Acum, daca server-ul a cerut 30s, jitter-am la 30..37.5s si
+          // apoi Math.min(..., 30000) → 30000. Bound real respectat.
+          waitMs = Math.min(Math.round(waitMs * (1 + Math.random() * 0.25)), 30000);
         } else {
           waitMs = Math.round(waitMs * (0.5 + Math.random()));
         }

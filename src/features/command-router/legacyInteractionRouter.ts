@@ -255,12 +255,17 @@ async function handleSetInteraction(interaction: any, games: any[]) {
       : `OK: Pret maxim setat: **${val}**`;
     isFilterChange = true;
   } else if (sub === "free") {
-    const value = interaction.options.getString("value");
+    // V11: String(...||""). Inainte: `value.toUpperCase()` arunca TypeError
+    // pe `null` daca payload-ul Discord venea cumva fara optiunea required
+    // (test manual via API sau client modificat). Crash-ul era prins de
+    // catch-ul global din handleInteraction si user-ul primea "Eroare
+    // neasteptata" in loc de un raspuns specific.
+    const value = String(interaction.options.getString("value") || "");
     updateDoc.includeFreeGames = value === "on";
     confirmMsg = `OK: Jocuri free: **${value.toUpperCase()}**`;
     isFilterChange = true;
   } else if (sub === "paid") {
-    const value = interaction.options.getString("value");
+    const value = String(interaction.options.getString("value") || "");
     updateDoc.includePaidDiscounts = value === "on";
     confirmMsg = `OK: Oferte platite: **${value.toUpperCase()}**`;
     isFilterChange = true;
