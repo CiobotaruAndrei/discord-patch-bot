@@ -120,6 +120,34 @@ function assertSafeExternalUrl(rawUrl: unknown, label = "URL extern"): string {
   return parsed.href;
 }
 
+// V11: parse Retry-After header value per RFC 7231. Accepta:
+//  - seconds (delta non-negativ): "120" → 120_000ms
+//  - HTTP-date absoluta: "Wed, 21 Oct 2015 07:28:00 GMT" → delta until that date
+// Inainte, doar varianta seconds era recunoscuta. Pentru HTTP-date, parseInt
+// returna NaN (incepe cu litera), waitIsRetryAfter ramanea false si retry-ul
+// folosea backoff exponential cu jitter [0.5, 1.5) — putea cadea SUB pragul
+// cerut de server, contraventionand RFC-ului si crescand riscul de IP ban.
+// Returneaza null pentru valori invalide (caller continua cu backoff normal).
+function parseRetryAfter(raw: unknown, nowMs: number = Date.now()): number | null {
+  if (raw === null || raw === undefined) return null;
+  const trimmed = String(raw).trim();
+  if (!trimmed) return null;
+  // Delta-seconds este definit ca 1*DIGIT (un sir de cifre), nu un numar
+  // arbitrar — "60s" sau "0x10" nu sunt valide. parseInt singur ar accepta
+  // "60abc" → 60, deci adaugam un regex strict pe sirul brut.
+  if (/^\d+$/.test(trimmed)) {
+    const seconds = parseInt(trimmed, 10);
+    if (seconds > 0 && Number.isFinite(seconds)) return seconds * 1000;
+    return null;
+  }
+  const asDate = Date.parse(trimmed);
+  if (!isNaN(asDate)) {
+    const delta = asDate - nowMs;
+    if (delta > 0) return delta;
+  }
+  return null;
+}
+
 function normalizeProxyTemplates(rawTemplates: string, defaults: string[]): string[] {
   const candidates = rawTemplates
     ? rawTemplates.split(",").map(s => s.trim()).filter(Boolean)
@@ -322,12 +350,12 @@ function attachHttpClient(ctx: HttpClientContext): void {
         if (isRateLimit) {
           metrics().rateLimitHits++;
           const retryAfter = requestError.response?.headers?.["retry-after"];
-          if (retryAfter) {
-            const parsed = parseInt(String(retryAfter), 10);
-            if (!isNaN(parsed) && parsed > 0) {
-              waitMs = Math.min(parsed * 1000, 30000);
-              waitIsRetryAfter = true;
-            }
+          const parsedMs = parseRetryAfter(retryAfter);
+          if (parsedMs !== null) {
+            // Cap la 30s: nu vrem sa blocam workerul intregul ciclu pentru un
+            // server care cere ore intregi de pauza.
+            waitMs = Math.min(parsedMs, 30000);
+            waitIsRetryAfter = true;
           }
         }
 
@@ -423,8 +451,15 @@ function attachHttpClient(ctx: HttpClientContext): void {
     httpReq,
     fetchWithProxy,
     withInflightTimeout,
-    trackInflight
+    trackInflight,
+    parseRetryAfter
   });
 }
+
+// Expose pure helpers on the function itself so tests can import them without
+// going through the full ctx setup. `export =` keeps the default-callable
+// signature that the rest of the codebase relies on.
+attachHttpClient.parseRetryAfter = parseRetryAfter;
+attachHttpClient.assertSafeExternalUrl = assertSafeExternalUrl;
 
 export = attachHttpClient;

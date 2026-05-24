@@ -67,3 +67,49 @@ test("proxy templates must include the target placeholder", () => {
     attachHttpClient(ctx);
   }, /placeholder-ul \{url\}/);
 });
+
+test("parseRetryAfter accepts integer seconds and rejects unitless garbage", () => {
+  // V11 regression: parseInt("60s", 10) === 60 — the old code accepted any
+  // prefix-numeric string as seconds. The new strict `/^\d+$/` guard rejects
+  // anything with non-digit suffixes so we don't misinterpret malformed
+  // headers as a tiny wait time.
+  const { ctx } = createHttpClientTestContext();
+  assert.equal(ctx.parseRetryAfter("60"), 60_000);
+  assert.equal(ctx.parseRetryAfter(" 120 "), 120_000);
+  assert.equal(ctx.parseRetryAfter("0"), null, "0 seconds means no wait, treat as invalid");
+  assert.equal(ctx.parseRetryAfter("60s"), null, "unitless `s` suffix must be rejected, not silently truncated");
+  assert.equal(ctx.parseRetryAfter("-30"), null);
+  assert.equal(ctx.parseRetryAfter(""), null);
+  assert.equal(ctx.parseRetryAfter(null), null);
+  assert.equal(ctx.parseRetryAfter(undefined), null);
+});
+
+test("parseRetryAfter accepts HTTP-date format per RFC 7231", () => {
+  // V11 regression: HTTP-date Retry-After values used to be silently dropped
+  // (parseInt of "Wed, 21 Oct 2025 ..." is NaN). Now we Date.parse them and
+  // compute the delta from now. A date in the past returns null (no wait),
+  // a future date returns the positive delta in ms.
+  const { ctx } = createHttpClientTestContext();
+  const now = 1_700_000_000_000;
+  const futureMs = now + 45_000;
+  const future = new Date(futureMs).toUTCString();
+  const past = new Date(now - 60_000).toUTCString();
+
+  const parsed = ctx.parseRetryAfter(future, now) as number | null;
+  assert.equal(typeof parsed, "number", "future HTTP-date must yield a numeric delta");
+  // Allow small skew from toUTCString() truncating sub-second precision.
+  assert.ok(parsed! >= 44_000 && parsed! <= 45_000,
+    `expected ~45_000ms delta for future Retry-After, got ${parsed}`);
+
+  assert.equal(ctx.parseRetryAfter(past, now), null,
+    "past HTTP-date must return null (server's deadline already elapsed)");
+
+  assert.equal(ctx.parseRetryAfter("not a date at all", now), null);
+});
+
+test("parseRetryAfter exposed as static helper on attachHttpClient", () => {
+  // Pure helper — must be reachable without spinning up the full ctx, so
+  // future modules can reuse it (e.g. for client-side Retry-After scheduling).
+  assert.equal(typeof (attachHttpClient as any).parseRetryAfter, "function");
+  assert.equal((attachHttpClient as any).parseRetryAfter("30"), 30_000);
+});
