@@ -46,10 +46,17 @@ async function claimSeenUpdate(guildId: string, channelId: string, gameKey: stri
 }
 
 async function rollbackSeenUpdate(guildId: string, gameKey: string, updateId: string) {
-  return GuildModel.updateOne(
+  // V11: foloseste withMongoRetry. Inainte: updateOne fara retry — daca
+  // Mongo flacara exact in fereastra dintre `claimSeenUpdate` (care a $push-uit
+  // updateId in seen) si rollback (dupa channel.send esuat), updateId ramane in
+  // seen, urmatorul ciclu cron sare update-ul "deja vazut", iar user-ul nu mai
+  // primeste niciodata notificarea (channel.send a esuat, rollback a esuat,
+  // efectul net: notificare definitiv pierduta). Retry tolereaza blip-uri
+  // transient si recupereaza rollback-ul cand reteaua revine.
+  return withMongoRetry(() => GuildModel.updateOne(
     { _id: guildId },
     { $pull: { [`seen.${gameKey}`]: updateId } }
-  );
+  ), { label: "rollbackSeenUpdate" });
 }
 
 async function disableUpdatesForChannelError(guildId: string, channelId: string, message: string) {
@@ -240,10 +247,14 @@ async function claimSeenDiscount(guildId: string, channelId: string, hash: strin
 }
 
 async function rollbackSeenDiscount(guildId: string, hash: string) {
-  return GuildModel.updateOne(
+  // V11: foloseste withMongoRetry, simetric cu rollbackSeenUpdate. Aceeasi
+  // logica: pe blip Mongo intre claim + rollback, hash-ul ramane in
+  // seenDiscounts, deal-ul e marcat "deja vazut" pentru totdeauna iar user-ul
+  // nu primeste niciodata notificarea (channel.send a esuat, rollback a esuat).
+  return withMongoRetry(() => GuildModel.updateOne(
     { _id: guildId },
     { $pull: { seenDiscounts: hash } }
-  );
+  ), { label: "rollbackSeenDiscount" });
 }
 
 // V11: indexul (hash -> snapshot) este derivat din array-ul `deals` returnat de

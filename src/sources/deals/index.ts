@@ -342,7 +342,13 @@ async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo
       const salePrice = (discountPrice / 100).toFixed(2);
       let savings = 0;
       if (originalPrice > 0) {
-        savings = Math.round(((originalPrice - discountPrice) / originalPrice) * 100);
+        // V11: cap pe 0 — daca Epic returneaza date corupte cu `discountPrice
+        // > originalPrice` (raw API inconsistency cand pretul a urcat), formula
+        // produce un savings negativ. `buildDealEmbed` afisa apoi user-ului
+        // "Reducere: -X%" — confuz si misleading. `onSale: true` in query ar
+        // trebui sa garanteze pret in scadere, dar nu putem deplina increderea
+        // in shape-ul intors de upstream.
+        savings = Math.max(0, Math.round(((originalPrice - discountPrice) / originalPrice) * 100));
       }
       const hybridScore = savings * 0.8 + 80.0 + 15.0;
 
