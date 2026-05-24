@@ -109,3 +109,37 @@ test("epic_games non-fortnite requires baseUrl and listing URL(s)", () => {
     "non-fortnite epic_games with baseUrl + listingUrls is valid"
   );
 });
+
+test("rejects duplicate listingUrls for listing_based and epic_games (non-fortnite)", () => {
+  // V11 regression guard: both `listing_based` and `epic_games` (non-fortnite)
+  // flow into fetchListingBasedUpdate, which Promise.allSettled's every URL.
+  // Duplicates = wasted HTTP work and double "Eroare preluare listing url ..."
+  // log entries for the same source. listing_based already rejected them; the
+  // same guard now applies to epic_games for consistency.
+  assert.throws(
+    () => validateConfig(baseConfig({
+      games: [{
+        key: "lb",
+        name: "Listing Source",
+        type: "listing_based",
+        baseUrl: "https://example.com",
+        listingUrls: ["https://example.com/feed", "https://example.com/feed"]
+      }]
+    }), "unit-test"),
+    /listingUrls nu trebuie sa contina URL-uri duplicate/
+  );
+
+  assert.throws(
+    () => validateConfig(baseConfig({
+      games: [{
+        key: "egstore",
+        name: "Epic Games Store",
+        type: "epic_games",
+        baseUrl: "https://store.epicgames.com",
+        listingUrls: ["https://store.epicgames.com/feed", "https://store.epicgames.com/feed"]
+      }]
+    }), "unit-test"),
+    /listingUrls nu trebuie sa contina URL-uri duplicate/,
+    "epic_games duplicates must now be rejected too, symmetric with listing_based"
+  );
+});

@@ -180,6 +180,21 @@ const ConfigSchema = z.object({
           message: "Sursele epic_games (non-fortnite) trebuie sa aiba listingUrl sau listingUrls"
         });
       }
+      // V11: simetric cu `listing_based`, respingem duplicate in listingUrls.
+      // Ambele tipuri ajung in `fetchListingBasedUpdate`, care fetch-uieste
+      // toate URL-urile in Promise.allSettled. Duplicate = workload risipit
+      // si log-uri amestecate ("Eroare preluare listing url X" de doua ori
+      // pentru aceeasi sursa).
+      if (Array.isArray(game.listingUrls)) {
+        const uniqueUrls = new Set(game.listingUrls);
+        if (uniqueUrls.size !== game.listingUrls.length) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [...path, "listingUrls"],
+            message: "listingUrls nu trebuie sa contina URL-uri duplicate"
+          });
+        }
+      }
       if (!game.baseUrl) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
