@@ -143,3 +143,153 @@ test("cron cycle waits for both jobs when one rejects (Promise.allSettled)", asy
     globalThis.clearTimeout = originalClearTimeout;
   }
 });
+
+test("cron heartbeat tolerates one transient renew throw but aborts on the second", async () => {
+  // V11 regression guard: locks.ts::renewDbLock now propagates infrastructure
+  // errors instead of swallowing them as `false`. The cron heartbeat used to
+  // log-and-continue forever on throws (no upper bound), and treated a single
+  // `false` as immediate abort. The new behavior: count consecutive throws and
+  // abort on the 2nd (heartbeatIntervalMs = lockTtlMs/3, so 2 ticks ≈ 2/3 TTL
+  // — safely before lock expiration). `false` still aborts immediately.
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const scheduledHandlers: Array<() => unknown> = [];
+
+  globalThis.setTimeout = ((handler: () => unknown) => {
+    const entry = { handler, unref() {} };
+    scheduledHandlers.push(handler);
+    return entry as unknown as ReturnType<typeof setTimeout>;
+  }) as typeof setTimeout;
+  globalThis.clearTimeout = (() => undefined) as typeof clearTimeout;
+
+  try {
+    let renewCallCount = 0;
+    const metrics = {
+      fetchSuccess: 0, fetchFail: 0, httpRetries: 0, rateLimitHits: 0,
+      cronRuns: 0, cronErrors: 0, cronSkippedDueToLock: 0, cronSkippedDueToHealth: 0,
+      cronAborted: 0, httpRateLimitDrops: 0, startedAt: 0
+    };
+
+    const controller = createCronController({
+      mongoose: { connection: { readyState: 1 } },
+      performance: { now: () => Date.now() },
+      crypto: { randomBytes: () => ({ toString: () => "ff00aa" }) },
+      logger() {},
+      env: { GLOBAL_HEALTH_WINDOW: 3, GLOBAL_HEALTH_MIN_RATIO: 50 } as any,
+      parseEnvNumber: (_name: string, defaultValue: number) => defaultValue,
+      acquireDbLock: async () => "tok-heartbeat",
+      renewDbLock: async () => {
+        renewCallCount++;
+        throw new Error("mongo blip");
+      },
+      releaseDbLock: async () => undefined,
+      commands: {
+        setGlobalCacheTtl() {},
+        // Sit in the body until both heartbeat ticks have fired so the abort
+        // path can run while the cycle is still in flight. We manually drain
+        // the stubbed setTimeout queue between awaits.
+        checkForUpdates: async () => {
+          // Wait until heartbeat has been scheduled at least once.
+          for (let i = 0; i < 50 && renewCallCount < 2; i++) {
+            await new Promise(resolve => setImmediate(resolve));
+            const next = scheduledHandlers.shift();
+            if (next) await next();
+          }
+        },
+        checkForDiscounts: async () => undefined
+      },
+      adminAlert: async () => undefined,
+      client: { isReady: () => true },
+      games: [],
+      config: { games: [], checkIntervalMinutes: 30 },
+      metrics,
+      lifecycle: { isShuttingDown: false },
+      errorMessage: (err: unknown) => (err as Error)?.message ?? String(err),
+      errorDetail: (err: unknown) => (err as Error)?.message ?? String(err),
+      requestContext: { run: async (_store, callback) => callback() }
+    });
+
+    await controller.runCronCycle();
+
+    assert.equal(renewCallCount, 2,
+      `heartbeat must tolerate the first throw and only abort on the second (got ${renewCallCount} attempts)`);
+    assert.equal(metrics.cronAborted, 1,
+      "the cycle must finish in the aborted bucket once consecutive heartbeat failures fire abort()");
+    assert.equal(metrics.cronErrors, 0,
+      "transient heartbeat failures must not be counted as cycle-level errors");
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});
+
+test("cron heartbeat aborts immediately when renew returns false (lock genuinely lost)", async () => {
+  // V11 regression guard: while infrastructure throws are now tolerated up to
+  // MAX_HEARTBEAT_ERRORS_BEFORE_ABORT consecutive attempts, a `false` return
+  // value still means another instance now owns the lock and we MUST abort
+  // immediately — running concurrently with another holder would corrupt
+  // dedupe state.
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const scheduledHandlers: Array<() => unknown> = [];
+
+  globalThis.setTimeout = ((handler: () => unknown) => {
+    const entry = { handler, unref() {} };
+    scheduledHandlers.push(handler);
+    return entry as unknown as ReturnType<typeof setTimeout>;
+  }) as typeof setTimeout;
+  globalThis.clearTimeout = (() => undefined) as typeof clearTimeout;
+
+  try {
+    let renewCallCount = 0;
+    const metrics = {
+      fetchSuccess: 0, fetchFail: 0, httpRetries: 0, rateLimitHits: 0,
+      cronRuns: 0, cronErrors: 0, cronSkippedDueToLock: 0, cronSkippedDueToHealth: 0,
+      cronAborted: 0, httpRateLimitDrops: 0, startedAt: 0
+    };
+
+    const controller = createCronController({
+      mongoose: { connection: { readyState: 1 } },
+      performance: { now: () => Date.now() },
+      crypto: { randomBytes: () => ({ toString: () => "ff00bb" }) },
+      logger() {},
+      env: { GLOBAL_HEALTH_WINDOW: 3, GLOBAL_HEALTH_MIN_RATIO: 50 } as any,
+      parseEnvNumber: (_name: string, defaultValue: number) => defaultValue,
+      acquireDbLock: async () => "tok-lost",
+      renewDbLock: async () => {
+        renewCallCount++;
+        return false;
+      },
+      releaseDbLock: async () => undefined,
+      commands: {
+        setGlobalCacheTtl() {},
+        checkForUpdates: async () => {
+          for (let i = 0; i < 50 && renewCallCount < 1; i++) {
+            await new Promise(resolve => setImmediate(resolve));
+            const next = scheduledHandlers.shift();
+            if (next) await next();
+          }
+        },
+        checkForDiscounts: async () => undefined
+      },
+      adminAlert: async () => undefined,
+      client: { isReady: () => true },
+      games: [],
+      config: { games: [], checkIntervalMinutes: 30 },
+      metrics,
+      lifecycle: { isShuttingDown: false },
+      errorMessage: (err: unknown) => (err as Error)?.message ?? String(err),
+      errorDetail: (err: unknown) => (err as Error)?.message ?? String(err),
+      requestContext: { run: async (_store, callback) => callback() }
+    });
+
+    await controller.runCronCycle();
+
+    assert.equal(renewCallCount, 1,
+      "heartbeat must abort after a single `false` return (lock lost)");
+    assert.equal(metrics.cronAborted, 1);
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});

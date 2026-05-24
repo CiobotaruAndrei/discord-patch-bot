@@ -171,8 +171,17 @@ function createCronController({
     }
   }
 
+  // V11: heartbeat tolerance pentru erori transient. Inainte, orice throw din
+  // renewDbLock (acum infrastructure errors propaga, dupa fix-ul din locks.ts)
+  // era doar log-uit, iar `!renewed` era abort imediat — chiar daca Mongo doar
+  // tremura un tick. heartbeatIntervalMs = lockTtlMs / 3, deci avem 2 ticks
+  // intregi inainte ca lock-ul sa expire pe Mongo. Permit max 2 throw-uri
+  // consecutive; pe al treilea, abort. `false` ramane abort imediat (lock-ul
+  // a fost preluat de alta instanta — corectitudine, nu blip).
+  const MAX_HEARTBEAT_ERRORS_BEFORE_ABORT = 2;
   function startHeartbeat(lockToken: string): void {
     stopHeartbeat();
+    let consecutiveErrors = 0;
     const tick = async (): Promise<void> => {
       if (lifecycle.isShuttingDown || currentCronToken !== lockToken) return;
       try {
@@ -182,8 +191,19 @@ function createCronController({
           if (currentCronAbortController) currentCronAbortController.abort();
           return;
         }
+        consecutiveErrors = 0;
       } catch (err) {
-        logger("WARN", "CRON_HEARTBEAT", "Eroare la reinnoirea lock-ului", errorMessage(err));
+        consecutiveErrors++;
+        if (consecutiveErrors >= MAX_HEARTBEAT_ERRORS_BEFORE_ABORT) {
+          logger("WARN", "CRON_HEARTBEAT",
+            `Reinnoire lock esuata ${consecutiveErrors} ticks consecutiv, anulez ciclul`,
+            errorMessage(err));
+          if (currentCronAbortController) currentCronAbortController.abort();
+          return;
+        }
+        logger("WARN", "CRON_HEARTBEAT",
+          `Eroare la reinnoirea lock-ului (${consecutiveErrors}/${MAX_HEARTBEAT_ERRORS_BEFORE_ABORT}), retry`,
+          errorMessage(err));
       }
       if (!lifecycle.isShuttingDown && currentCronToken === lockToken) {
         heartbeatTimerId = setTimeout(tick, heartbeatIntervalMs);

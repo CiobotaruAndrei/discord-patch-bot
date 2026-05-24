@@ -70,16 +70,17 @@ function attachLocks(ctx: LocksContext): void {
   async function renewDbLock(jobName: string, token: LockToken | null, ttlMs = 120000): Promise<boolean> {
     if (!token) return false;
     const expires = new Date(Date.now() + ttlMs);
-    try {
-      const res = await JobLockModel.updateOne(
-        { _id: `lock_${jobName}`, ownerToken: token },
-        { $set: { lockedUntil: expires } }
-      );
-      return (res.modifiedCount || 0) > 0;
-    } catch (err) {
-      logger("WARN", "DB_LOCK", "Eroare la reinnoire lock", errorMessage(err));
-      return false;
-    }
+    // V11: nu mai inghitim erorile transient. Catch-ul vechi rescria orice
+    // throw (Mongo network blip, replica step-down) intr-un `false`, iar
+    // call-site-ul (cron heartbeat) trata `false` ca "lock pierdut definitiv"
+    // si anula imediat ciclul. Acum lasam erorile sa propage, ca apelantul sa
+    // distinga intre "modifiedCount=0 → lock pierdut, abort" si "throw → blip
+    // transient, retry inca o data".
+    const res = await JobLockModel.updateOne(
+      { _id: `lock_${jobName}`, ownerToken: token },
+      { $set: { lockedUntil: expires } }
+    );
+    return (res.modifiedCount || 0) > 0;
   }
 
   async function releaseDbLock(jobName: string, token: LockToken | null): Promise<void> {
