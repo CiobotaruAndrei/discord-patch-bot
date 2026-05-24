@@ -104,7 +104,14 @@ function createHttpServer({
     // clientul (Prometheus, Kubernetes liveness) primea connection reset si
     // declansa fals-pozitive in monitoring.
     try {
-    if (req.url === "/health" || req.url === "/healthz" || req.url === "/metrics") {
+    // V11: normalizam la pathname (taie query string si fragment) ca matching-ul
+    // de mai jos sa nu fie sensibil la suffixe ca `?cb=1` sau `?_=…` adaugate
+    // de agenti de monitoring sau de reverse-proxy. Inainte, `req.url === "/metrics"`
+    // exact-match rata `/metrics?n=1` → 404 fara rate-limit, ceea ce permitea
+    // o ruta cheap de DoS pentru orice client care adauga un query string,
+    // si totodata bloca agentii care faceau cache-busting.
+    const reqPath = (req.url || "/").split("?")[0].split("#")[0];
+    if (reqPath === "/health" || reqPath === "/healthz" || reqPath === "/metrics") {
       if (!rateLimiter.check(req)) {
         res.writeHead(429, {
           "Content-Type": "text/plain",
@@ -115,7 +122,7 @@ function createHttpServer({
       }
     }
 
-    if (req.url === "/health" || req.url === "/healthz") {
+    if (reqPath === "/health" || reqPath === "/healthz") {
       const ok = mongoose.connection.readyState === 1 && client.isReady();
       const body: HealthBody = {
         status: ok ? "ok" : "degraded",
@@ -131,7 +138,7 @@ function createHttpServer({
       return;
     }
 
-    if (req.url === "/metrics") {
+    if (reqPath === "/metrics") {
       if (!checkMetricsAuth(req)) {
         res.writeHead(401, { "Content-Type": "text/plain" });
         res.end("Unauthorized");
