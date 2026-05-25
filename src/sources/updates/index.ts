@@ -159,6 +159,17 @@ async function fetchSteamUpdate(game: GameConfig): Promise<NormalizedUpdate> {
     .sort((a: any, b: any) => Number(b.date || 0) - Number(a.date || 0));
   if (!patchNotes.length) throw new Error("Lipsă patch notes Steam valabile.");
   const latest = patchNotes[0];
+  // V12: valideaza explicit ca `gid` exista inainte de `String(latest.gid)`.
+  // Inainte: pe schema drift unde Steam returna un newsitem fara gid (raspuns
+  // partial / structura noua de feed / corupere de field), `String(undefined)`
+  // devenea literal "undefined". Era apoi $push-uit atomic in `seen.<game>`
+  // pentru primul guild care primea notificarea, iar TOATE urmatoarele
+  // newsitems-uri fara gid colidau cu aceeasi intrare "undefined" si erau
+  // tratate silent ca "deja vazut". Patch notes-urile sursei opreau brusc
+  // sa curga la user fara semnal in logs.
+  if (latest.gid === undefined || latest.gid === null || latest.gid === "") {
+    throw new Error("Steam newsitem fără gid — posibil schema drift în feed-ul ISteamNews.");
+  }
   const rawContents = String(latest.contents || "").replace(/https?:\/\/[^\s]+/gi, "").replace(/\[.*?\]/g, " ");
   // V11: defensive timestamp coercion. Inainte: `new Date(latest.date * 1000).toISOString()`
   // arunca `RangeError: Invalid time value` daca Steam returneaza ceva ce nu

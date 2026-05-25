@@ -97,3 +97,54 @@ test("entry helpers support Map, plain objects and rotation", () => {
   const guild = { seen: new Map([["cs2", ["u1", "u2"]]]) } as Pick<GuildSettings, "seen">;
   assert.deepEqual(Array.from(getSeenSet(guild, "cs2")), ["u1", "u2"]);
 });
+
+test("normalizePendingUpdateArray coerces invalid createdAt to a fresh Date", () => {
+  // V12 regression guard: `new Date(item.createdAt).getTime()` in
+  // processGuildUpdates returna NaN pentru intrari cu createdAt malformat
+  // (string "abc", `"Invalid Date"`, sau docs pre-V11). NaN <=
+  // PENDING_UPDATE_MAX_AGE_MS este false, deci item-ul era filtrat din
+  // pendingUpdates si re-scris in DB FARA el — notificarea era pierduta
+  // definitiv. Acum normalizatorul stampleaza `new Date()` pe orice valoare
+  // care nu produce un Date valid.
+  const before = Date.now();
+  const items = normalizePendingUpdateArray([
+    { id: "u1", createdAt: "abc" },            // string nevalid
+    { id: "u2", createdAt: null },             // null
+    { id: "u3", createdAt: "Invalid Date" },   // sirul literal
+    { id: "u4" },                              // lipseste cu totul
+    { id: "u5", createdAt: NaN },              // NaN explicit
+    { id: "u6", createdAt: new Date(0) },      // 1970 valid → pastreaza
+    { id: "u7", createdAt: "2024-01-01T00:00:00Z" } // ISO valid → pastreaza
+  ]);
+  const after = Date.now();
+
+  assert.equal(items.length, 7);
+  for (const item of items.slice(0, 5)) {
+    const ts = (item.createdAt as Date).getTime();
+    assert.ok(!Number.isNaN(ts), `${item.id}: createdAt trebuie sa fie un Date valid`);
+    assert.ok(ts >= before && ts <= after, `${item.id}: createdAt invalid trebuie inlocuit cu now`);
+  }
+  // Date-le valide raman neschimbate.
+  assert.equal((items[5].createdAt as Date).getTime(), 0, "1970-01-01 trebuie pastrat");
+  assert.equal((items[6].createdAt as Date).toISOString(), "2024-01-01T00:00:00.000Z");
+});
+
+test("normalizePendingDiscountArray coerces invalid lastSeenAt to a fresh Date", () => {
+  // Simetric cu pendingUpdates — lastSeenAt este folosit pentru bookkeeping
+  // si pentru grace-period (`PENDING_DISCOUNT_GRACE_CYCLES`). Un format
+  // nevalid blocheaza prelungirea grace-ului in mod silent.
+  const before = Date.now();
+  const items = normalizePendingDiscountArray([
+    { hash: "h1", lastSeenAt: "abc" },
+    { hash: "h2", lastSeenAt: null },
+    { hash: "h3" }
+  ]);
+  const after = Date.now();
+
+  assert.equal(items.length, 3);
+  for (const item of items) {
+    const ts = (item.lastSeenAt as Date).getTime();
+    assert.ok(!Number.isNaN(ts), `${item.hash}: lastSeenAt trebuie sa fie Date valid`);
+    assert.ok(ts >= before && ts <= after);
+  }
+});
