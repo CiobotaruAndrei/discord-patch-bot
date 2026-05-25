@@ -12,9 +12,11 @@
     "domain/deals/filtersCore.ts",
     "features/command-cache/commandCache.ts",
     "features/command-definitions/slashCommandDefinitions.ts",
+    "features/command-handlers/dlcInteractionHandler.ts",
     "features/command-handlers/gameFilterHandlers.ts",
     "features/command-handlers/helpInteractionHandler.ts",
     "features/command-handlers/rolePingHandlers.ts",
+    "features/command-handlers/statusInteractionHandler.ts",
     "features/command-handlers/subscriptionNotificationHandlers.ts",
     "features/command-registry/commandRegistry.ts",
     "features/command-runtime/commandRuntimeContext.ts",
@@ -30,6 +32,7 @@
     "test/commandRegistry.functional.test.ts",
     "test/cronController.test.ts",
     "test/dealFiltersCore.functional.test.ts",
+    "test/dlcInteractionHandler.functional.test.ts",
     "test/extractReleaseNotes.test.ts",
     "test/gameFilterInteractions.functional.test.ts",
     "test/helpHandler.functional.test.ts",
@@ -38,6 +41,7 @@
     "test/resolveOutboundChannel.test.ts",
     "test/rolePingInteractions.functional.test.ts",
     "test/sourceRegistry.functional.test.ts",
+    "test/statusInteractionHandler.functional.test.ts",
     "test/subscriptionInteractions.functional.test.ts"
   ]
 }
