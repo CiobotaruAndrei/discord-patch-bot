@@ -28,8 +28,12 @@ function makeDlcInteraction(gameText: string | null = "cs2") {
 }
 
 function makeFakeCheerioLoad(htmlMarkers: { hasAgeGate?: boolean; dlcRows?: Array<{ name: string; price: string; appId?: string }>; hasPurchaseGame?: boolean }) {
-  return (_html: unknown) => {
-    return function $(selector: string) {
+  // V11: returnam `any` ca sa tolereze cele doua moduri de invocare ale lui $
+  // — cu string selector si cu element-object (din `.each((i, el) => $(el))`).
+  // Cheerio runtime accepta ambele; TS-ul nostru de test imita asta cu o
+  // signature relaxata.
+  return ((_html: unknown): any => {
+    return function $(selector: any): any {
       if (selector === "#agegate_box" || selector === ".agegate_text_container") {
         return { length: htmlMarkers.hasAgeGate ? 1 : 0 };
       }
@@ -44,7 +48,6 @@ function makeFakeCheerioLoad(htmlMarkers: { hasAgeGate?: boolean; dlcRows?: Arra
           }
         };
       }
-      // selector called on element node
       if (typeof selector === "object" && selector !== null) {
         const el = selector as { name: string; price: string; appId?: string };
         return {
@@ -58,7 +61,7 @@ function makeFakeCheerioLoad(htmlMarkers: { hasAgeGate?: boolean; dlcRows?: Arra
       }
       return { length: 0, each: () => undefined };
     };
-  };
+  });
 }
 
 function makeBaseDeps(replies: unknown[], cacheMap: Map<string, any>) {

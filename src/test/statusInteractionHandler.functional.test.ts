@@ -27,24 +27,35 @@ function makeStatusInteraction(gameText: string | null = "cs2") {
   };
 }
 
+type GameLike = { key: string; name: string };
+type FindGameResult = { game: GameLike | null; suggestion: GameLike | null };
+type StatusDeps = {
+  MessageFlags: { Ephemeral: number };
+  logger: (level: string, ctx: string, msg?: string, meta?: unknown) => void;
+  enforceCooldown: (interaction: Record<string, any>, command: string) => Promise<boolean>;
+  startCommandLog: (interaction: Record<string, any>, command: string) => (status?: string, extra?: unknown) => void;
+  safeDefer: (interaction: Record<string, any>) => Promise<void>;
+  safeEdit: (interaction: Record<string, any>, payload: unknown) => Promise<unknown>;
+  findGameAndSuggestion: (text: unknown, games: GameLike[]) => FindGameResult;
+  fetchGameStatus: (game: GameLike) => Promise<unknown>;
+};
+
 function makeBaseDeps(replies: unknown[], logs: Array<{ level: string; ctx: string }>) {
   let endCalls = 0;
-  return {
-    deps: {
-      MessageFlags: { Ephemeral: 64 },
-      logger: (level: string, ctx: string) => { logs.push({ level, ctx }); },
-      enforceCooldown: async () => true,
-      startCommandLog: () => (_status?: string) => { endCalls++; },
-      safeDefer: async () => undefined,
-      safeEdit: async (_interaction: unknown, payload: unknown) => { replies.push(payload); return payload; },
-      findGameAndSuggestion: (text: unknown, games: Array<Record<string, any>>) => {
-        const game = games.find((g) => g.key === String(text || ""));
-        return { game: game || null, suggestion: null };
-      },
-      fetchGameStatus: async () => ({ title: "Status" })
+  const deps: StatusDeps = {
+    MessageFlags: { Ephemeral: 64 },
+    logger: (level: string, ctx: string) => { logs.push({ level, ctx }); },
+    enforceCooldown: async () => true,
+    startCommandLog: () => () => { endCalls++; },
+    safeDefer: async () => undefined,
+    safeEdit: async (_interaction: Record<string, any>, payload: unknown) => { replies.push(payload); return payload; },
+    findGameAndSuggestion: (text: unknown, games: GameLike[]) => {
+      const game = games.find((g) => g.key === String(text || ""));
+      return { game: game || null, suggestion: null };
     },
-    endCalls: () => endCalls
+    fetchGameStatus: async () => ({ title: "Status" })
   };
+  return { deps, endCalls: () => endCalls };
 }
 
 test("status handler factory replies with embed for a known game", async () => {
