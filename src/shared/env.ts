@@ -50,7 +50,16 @@ function attachEnv(ctx: EnvContext): void {
     NODE_ENV: z.string().optional(),
     METRICS_TOKEN: z.string().min(8, "METRICS_TOKEN trebuie sa aiba cel putin 8 caractere").optional(),
     METRICS_PUBLIC: z.string().optional(),
-    ADMIN_WEBHOOK_URL: z.string().url("ADMIN_WEBHOOK_URL nu este URL valid").optional(),
+    // V11: forteaza http/https. Inainte: `z.string().url()` accepta orice
+    // schema (javascript:, file:, data:, etc.) — `axios.post` ar fi esuat la
+    // runtime cu un mesaj obscur, dar mai bine respingem la boot cu un mesaj
+    // clar. Webhook-urile reale (Discord, Slack, custom) sunt mereu HTTPS.
+    ADMIN_WEBHOOK_URL: z.string().url("ADMIN_WEBHOOK_URL nu este URL valid")
+      .refine(u => {
+        try { return ["http:", "https:"].includes(new URL(u).protocol); }
+        catch { return false; }
+      }, "ADMIN_WEBHOOK_URL trebuie sa fie http:// sau https://")
+      .optional(),
     LOG_LEVEL: z.string().optional(),
     PROXY_URLS: z.string().optional()
   }).superRefine((env, validationCtx) => {
