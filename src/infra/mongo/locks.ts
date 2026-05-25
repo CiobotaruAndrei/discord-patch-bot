@@ -85,11 +85,18 @@ function attachLocks(ctx: LocksContext): void {
 
   async function releaseDbLock(jobName: string, token: LockToken | null): Promise<void> {
     if (!token) return;
+    // V12: muta `activeLocks.delete` in finally. Inainte, daca deleteOne arunca
+    // (Mongo blip in fereastra de release-end-of-cycle), .delete-ul era sarit
+    // si intrarea ramanea in activeLocks pe veci (exposed prin metricul
+    // `bot_active_locks`). Doc-ul Mongo va expira oricum prin `lockedUntil`,
+    // deci tracking-ul in memorie poate fi sters neconditionat — vom recrea
+    // entry-ul cand acquireDbLock va prinde un lock proaspat in ciclul urmator.
     try {
       await JobLockModel.deleteOne({ _id: `lock_${jobName}`, ownerToken: token });
-      activeLocks.delete(jobName);
     } catch (err) {
       logger("WARN", "DB_LOCK", "Eroare la eliberare lock", errorMessage(err));
+    } finally {
+      activeLocks.delete(jobName);
     }
   }
 
