@@ -6,6 +6,7 @@ module.exports = (ctx: any) => {
   const {
     EmbedBuilder, MessageFlags, GuildModel, logger, getSystemTimes,
     saveSystemTime, getGuildSettings, invalidateGuildCache, DEFAULT_CURRENCY,
+    SUPPORTED_CURRENCIES,
     getCurrencyConfig, executeFetchWithCircuitBreaker, getLatestForAllGames,
     fetchDeals, enrichDealData, dealHash, searchSteamGameByName,
     chooseBestSteamMatch, fetchSteamPriceDetails, extractSteamOfferEndDate,
@@ -239,16 +240,32 @@ async function handleSetInteraction(interaction: any, games: any[]) {
   let isFilterChange = false;
 
   if (sub === "mode") {
+    // V12: validare null defensiva, simetric cu sub === "free" / "paid".
+    // Slash schema declara `value` ca required, dar un payload manipulat (test
+    // manual API, client modificat) ar putea trimite null. Inainte: persistam
+    // `notificationMode: null` si raspundeam user-ului `OK: Mod setat: null`.
     const value = interaction.options.getString("value");
+    if (value !== "compact" && value !== "detailed") {
+      return safeEdit(interaction, "Eroare: `mode` accepta doar `compact` sau `detailed`.");
+    }
     updateDoc.notificationMode = value;
     confirmMsg = `OK: Mod setat: **${value}**`;
   } else if (sub === "mindiscount") {
+    // V12: respinge null/NaN/outside-range. Inainte: persistam null in DB si
+    // displayam "**null%**". Slash schema are setMinValue(0).setMaxValue(100),
+    // dar valoarea ajunge tot prin Discord client, deci defensiv re-validam.
     const min = interaction.options.getInteger("value");
+    if (typeof min !== "number" || !Number.isFinite(min) || min < 0 || min > 100) {
+      return safeEdit(interaction, "Eroare: `mindiscount` trebuie sa fie un intreg intre 0 si 100.");
+    }
     updateDoc.minDiscountPercent = min;
     confirmMsg = `OK: Reducere minima: **${min}%**`;
     isFilterChange = true;
   } else if (sub === "maxprice") {
     const val = interaction.options.getInteger("value");
+    if (typeof val !== "number" || !Number.isFinite(val) || val < 0 || val > 10000) {
+      return safeEdit(interaction, "Eroare: `maxprice` trebuie sa fie un intreg intre 0 si 10000 (0 = dezactivat).");
+    }
     updateDoc.maxAbsolutePrice = val;
     confirmMsg = val === 0
       ? "OK: Filtru pret maxim dezactivat."
@@ -270,7 +287,16 @@ async function handleSetInteraction(interaction: any, games: any[]) {
     confirmMsg = `OK: Oferte platite: **${value.toUpperCase()}**`;
     isFilterChange = true;
   } else if (sub === "currency") {
+    // V12: respinge valori care nu sunt in SUPPORTED_CURRENCIES. Slash schema
+    // foloseste addChoices(...CURRENCY_CHOICES), dar un payload manipulat poate
+    // trimite null sau orice alt sir. Inainte: persistam `currency: null`,
+    // displayam "OK: Valuta setata: **null**", iar in cron deals lookup-ul
+    // cadea silent pe DEFAULT_CURRENCY — comportament corect dar mesaj fals.
     const value = interaction.options.getString("value");
+    if (typeof value !== "string" || !value || !(value in SUPPORTED_CURRENCIES)) {
+      const supported = Object.keys(SUPPORTED_CURRENCIES).join(", ");
+      return safeEdit(interaction, `Eroare: \`currency\` trebuie sa fie una dintre: ${supported}.`);
+    }
     updateDoc.currency = value;
     confirmMsg = `OK: Valuta setata: **${value}**`;
     isFilterChange = true;

@@ -200,3 +200,100 @@ test("/set role with known sub still works (regression for the new guard)", asyn
   assert.equal(update.$set.notificationRoleId, "role-42");
   assert.match(String(replies[0]), /Rol pentru update-uri:/);
 });
+
+// V12: defensive null/range validation per subcomanda directa. Slash schema
+// marcheaza optiunile ca required + min/max value, dar un payload manipulat
+// (test manual API, client modificat) poate trimite null sau valori in afara
+// range-ului. Inainte: persistam null sau valoarea outside-range si raspundeam
+// user-ului cu mesaj fals "OK: ...: **null**" / "**150%**".
+
+test("/set mode rejects null/unknown values instead of persisting null", async () => {
+  const replies: unknown[] = [];
+  const mongoCalls: unknown[][] = [];
+  const ctx: any = makeCtx(replies, mongoCalls);
+  attachInteractions(ctx);
+
+  await ctx.handleSetInteraction(
+    makeSetInteraction({ group: null, sub: "mode", optionGetter: () => null }),
+    []
+  );
+  assert.equal(mongoCalls.length, 0, "no write on null mode");
+  assert.match(String(replies[0]), /accepta doar `compact` sau `detailed`/);
+
+  replies.length = 0;
+  await ctx.handleSetInteraction(
+    makeSetInteraction({ group: null, sub: "mode", optionGetter: () => "future-mode" }),
+    []
+  );
+  assert.equal(mongoCalls.length, 0, "no write on unknown mode value");
+  assert.match(String(replies[0]), /accepta doar `compact` sau `detailed`/);
+});
+
+test("/set mindiscount rejects null and out-of-range integers", async () => {
+  const replies: unknown[] = [];
+  const mongoCalls: unknown[][] = [];
+  const ctx: any = makeCtx(replies, mongoCalls);
+  attachInteractions(ctx);
+
+  for (const value of [null, -1, 101, NaN]) {
+    replies.length = 0;
+    await ctx.handleSetInteraction(
+      makeSetInteraction({ group: null, sub: "mindiscount", optionGetter: () => value }),
+      []
+    );
+    assert.match(String(replies[0]), /intreg intre 0 si 100/, `value=${value} trebuie respinsa`);
+  }
+  assert.equal(mongoCalls.length, 0, "no write on invalid mindiscount");
+
+  // Valoarea valida trece
+  await ctx.handleSetInteraction(
+    makeSetInteraction({ group: null, sub: "mindiscount", optionGetter: () => 50 }),
+    []
+  );
+  assert.equal(mongoCalls.length, 1, "mindiscount=50 trebuie persistat");
+});
+
+test("/set maxprice rejects null and out-of-range integers", async () => {
+  const replies: unknown[] = [];
+  const mongoCalls: unknown[][] = [];
+  const ctx: any = makeCtx(replies, mongoCalls);
+  attachInteractions(ctx);
+
+  for (const value of [null, -5, 10001]) {
+    replies.length = 0;
+    await ctx.handleSetInteraction(
+      makeSetInteraction({ group: null, sub: "maxprice", optionGetter: () => value }),
+      []
+    );
+    assert.match(String(replies[0]), /intreg intre 0 si 10000/, `value=${value} trebuie respinsa`);
+  }
+  assert.equal(mongoCalls.length, 0, "no write on invalid maxprice");
+});
+
+test("/set currency rejects null and unsupported codes", async () => {
+  const replies: unknown[] = [];
+  const mongoCalls: unknown[][] = [];
+  const ctx: any = makeCtx(replies, mongoCalls);
+  // SUPPORTED_CURRENCIES nu e in makeCtx default; injectam aici cu shape-ul real.
+  ctx.SUPPORTED_CURRENCIES = { USD: {}, EUR: {}, GBP: {}, RON: {} };
+  attachInteractions(ctx);
+
+  for (const value of [null, "", "XYZ", "usd" /* case-sensitive per schema */]) {
+    replies.length = 0;
+    await ctx.handleSetInteraction(
+      makeSetInteraction({ group: null, sub: "currency", optionGetter: () => value }),
+      []
+    );
+    assert.match(String(replies[0]), /USD, EUR, GBP, RON/, `value=${JSON.stringify(value)} trebuie respinsa`);
+  }
+  assert.equal(mongoCalls.length, 0, "no write on invalid currency");
+
+  // O valoare valida trece.
+  await ctx.handleSetInteraction(
+    makeSetInteraction({ group: null, sub: "currency", optionGetter: () => "EUR" }),
+    []
+  );
+  assert.equal(mongoCalls.length, 1, "currency=EUR trebuie persistat");
+  const [, update] = mongoCalls[0] as [unknown, Record<string, any>];
+  assert.equal(update.$set.currency, "EUR");
+});
