@@ -7,6 +7,7 @@ const {
   isPermanentDiscordError,
   transientErrorMessage
 } = require("./outboundChannel");
+const { createSeenRepository } = require("./seenRepository");
 
 module.exports = (ctx: any) => {
   const {
@@ -27,52 +28,18 @@ module.exports = (ctx: any) => {
 
 const resolveOutboundChannel = createOutboundChannelResolver({ logger, canSendEmbeds });
 
-async function claimSeenUpdate(guildId: string, channelId: string, gameKey: string, updateId: string) {
-  return withMongoRetry(() => GuildModel.updateOne(
-    {
-      _id: guildId,
-      subscribed: true,
-      notificationChannelId: channelId,
-      updatesInitializing: { $ne: true },
-      [`seen.${gameKey}`]: { $ne: updateId }
-    },
-    {
-      $push: { [`seen.${gameKey}`]: { $each: [updateId], $slice: -SEEN_PER_GAME_LIMIT } },
-      $pull: { [`pendingUpdates.${gameKey}`]: { id: updateId } },
-      $set: { lastProcessedGameKey: gameKey }
-    },
-    OP_UPDATE_OPTS
-  ), { label: "claimSeenUpdate" });
-}
-
-async function rollbackSeenUpdate(guildId: string, gameKey: string, updateId: string) {
-  // V11: foloseste withMongoRetry. Inainte: updateOne fara retry — daca
-  // Mongo flacara exact in fereastra dintre `claimSeenUpdate` (care a $push-uit
-  // updateId in seen) si rollback (dupa channel.send esuat), updateId ramane in
-  // seen, urmatorul ciclu cron sare update-ul "deja vazut", iar user-ul nu mai
-  // primeste niciodata notificarea (channel.send a esuat, rollback a esuat,
-  // efectul net: notificare definitiv pierduta). Retry tolereaza blip-uri
-  // transient si recupereaza rollback-ul cand reteaua revine.
-  return withMongoRetry(() => GuildModel.updateOne(
-    { _id: guildId },
-    { $pull: { [`seen.${gameKey}`]: updateId } }
-  ), { label: "rollbackSeenUpdate" });
-}
-
-async function disableUpdatesForChannelError(guildId: string, channelId: string, message: string) {
-  return GuildModel.updateOne(
-    { _id: guildId },
-    {
-      $set: {
-        subscribed: false,
-        notificationChannelId: null,
-        updatesInitializing: false,
-        updatesLastError: { message, channelId, at: new Date() }
-      }
-    },
-    OP_UPDATE_OPTS
-  );
-}
+// V11: claim/rollback/disable extrase intr-un `SeenRepository` tipat — primul
+// pas pentru a sparge notifications/index.ts asa cum cerea review-ul extern
+// (ecranul 1 punctul 2 + ecranul 2 punctul 2 — modul "prea mare"). Restul
+// logicii (`processGuildUpdates`, `processGuildDiscounts`, etc) ramane aici
+// pana cand mai sparge in iteratii viitoare.
+const seenRepository = createSeenRepository({
+  GuildModel, withMongoRetry, SEEN_PER_GAME_LIMIT, DEALS_HISTORY_LIMIT, OP_UPDATE_OPTS
+});
+const {
+  claimSeenUpdate, rollbackSeenUpdate, disableUpdatesForChannelError,
+  claimSeenDiscount, rollbackSeenDiscount, disableDiscountsForChannelError
+} = seenRepository;
 
 // V9: filtram per joc + mentiune rol pe prima trimitere doar.
 async function processGuildUpdates(client: any, guild: any, latestResults: any[]) {
@@ -229,34 +196,6 @@ async function checkForUpdates(client: any, games: any[], shouldAbort: (() => bo
   });
 }
 
-async function claimSeenDiscount(guildId: string, channelId: string, hash: string) {
-  return withMongoRetry(() => GuildModel.updateOne(
-    {
-      _id: guildId,
-      discountsSubscribed: true,
-      discountChannelId: channelId,
-      discountsInitializing: { $ne: true },
-      seenDiscounts: { $ne: hash }
-    },
-    {
-      $push: { seenDiscounts: { $each: [hash], $slice: -DEALS_HISTORY_LIMIT } },
-      $pull: { pendingDiscounts: { hash } }
-    },
-    OP_UPDATE_OPTS
-  ), { label: "claimSeenDiscount" });
-}
-
-async function rollbackSeenDiscount(guildId: string, hash: string) {
-  // V11: foloseste withMongoRetry, simetric cu rollbackSeenUpdate. Aceeasi
-  // logica: pe blip Mongo intre claim + rollback, hash-ul ramane in
-  // seenDiscounts, deal-ul e marcat "deja vazut" pentru totdeauna iar user-ul
-  // nu primeste niciodata notificarea (channel.send a esuat, rollback a esuat).
-  return withMongoRetry(() => GuildModel.updateOne(
-    { _id: guildId },
-    { $pull: { seenDiscounts: hash } }
-  ), { label: "rollbackSeenDiscount" });
-}
-
 // V11: indexul (hash -> snapshot) este derivat din array-ul `deals` returnat de
 // fetchDeals si nu se schimba intre guild-uri in acelasi ciclu cron. WeakMap
 // keyed pe referinta array-ului ne lasa sa hash-uim O data per ciclu (per
@@ -278,21 +217,6 @@ function getDealsHashIndex(deals: any[]) {
   cached = { dealsByHash, orderedHashes };
   dealsHashIndexCache.set(deals, cached);
   return cached;
-}
-
-async function disableDiscountsForChannelError(guildId: string, channelId: string, message: string) {
-  return GuildModel.updateOne(
-    { _id: guildId },
-    {
-      $set: {
-        discountsSubscribed: false,
-        discountChannelId: null,
-        discountsInitializing: false,
-        discountsLastError: { message, channelId, at: new Date() }
-      }
-    },
-    OP_UPDATE_OPTS
-  );
 }
 
 // V9: mentiune rol pe prima trimitere doar.

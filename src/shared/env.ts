@@ -40,6 +40,12 @@ function attachEnv(ctx: EnvContext): void {
     MONGO_URI: z.string().min(1, "MONGO_URI lipseste"),
     DISCORD_TOKEN: z.string().min(1, "DISCORD_TOKEN lipseste"),
     DISCORD_CLIENT_ID: z.string().min(1, "DISCORD_CLIENT_ID lipseste (necesar pentru slash commands)"),
+    // V11: DEV/staging — daca e setat, inregistreaza slash commands DOAR pe
+    // acest guild in loc de global. Discord propaga global commands cu pana la
+    // o ora delay, dar guild commands se vad instant. Util cand ai
+    // staging/test server unde iterezi pe slash schema. Format: snowflake
+    // numeric (acelasi format ca DISCORD_CLIENT_ID).
+    DISCORD_DEV_GUILD_ID: z.string().regex(/^\d+$/, "DISCORD_DEV_GUILD_ID trebuie sa fie snowflake numeric").optional(),
     // V11: valideaza ca PORT e un sir strict numeric in interval valid TCP
     // (1-65535). Inainte: `z.string().optional()` lasa orice string sa treaca,
     // iar Node `httpServer.listen("abc")` cadea silent pe port random — admin-ul
@@ -80,6 +86,7 @@ function attachEnv(ctx: EnvContext): void {
       MONGO_URI: process.env.MONGO_URI,
       DISCORD_TOKEN: process.env.DISCORD_TOKEN,
       DISCORD_CLIENT_ID: process.env.DISCORD_CLIENT_ID,
+      DISCORD_DEV_GUILD_ID: process.env.DISCORD_DEV_GUILD_ID,
       PORT: process.env.PORT,
       NODE_ENV: process.env.NODE_ENV,
       METRICS_TOKEN: effectiveMetricsToken || undefined,
@@ -101,6 +108,7 @@ function attachEnv(ctx: EnvContext): void {
     MONGO_URI: process.env.MONGO_URI,
     DISCORD_TOKEN: process.env.DISCORD_TOKEN,
     DISCORD_CLIENT_ID: process.env.DISCORD_CLIENT_ID,
+    DISCORD_DEV_GUILD_ID: process.env.DISCORD_DEV_GUILD_ID || "",
     PORT: process.env.PORT || "3000",
     NODE_ENV: process.env.NODE_ENV || "development",
     METRICS_TOKEN: effectiveMetricsToken,
