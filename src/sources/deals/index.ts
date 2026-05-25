@@ -193,9 +193,19 @@ async function enrichDealData(deal: DealInfo, currencyCode?: DealCurrencyCode): 
           // comportamentul vechi pentru deals fara link valid.
           htmlUrl = `${enriched.link}?cc=${cfg.cc}&l=english`;
         }
+        // V12: build appdetails URL via URL().searchParams.set, simetric cu
+        // htmlUrl de mai sus si cu fetchSteamPriceDetails / extractSteamOfferEndDate
+        // din `src/sources/steam/index.ts` (CHANGELOG #108). Inainte aici era
+        // unicul callsite Steam ramas pe concatenare raw — fix-ul anterior
+        // de URL-builder a ratat exact aceasta linie. `steamAppID` provine din
+        // sursele de deals (Steam specials JSON sau pipeline-uri viitoare) si
+        // un schema drift cu char-uri ne-asteptate ar putea corupe query-ul.
+        const detailsUrl = new URL("https://store.steampowered.com/api/appdetails");
+        detailsUrl.searchParams.set("appids", String(enriched.steamAppID));
+        detailsUrl.searchParams.set("cc", cfg.cc);
+        detailsUrl.searchParams.set("l", "english");
         const [detailsRes, htmlRes] = await Promise.all([
-          httpReq("GET",
-            `https://store.steampowered.com/api/appdetails?appids=${enriched.steamAppID}&cc=${cfg.cc}&l=english`,
+          httpReq("GET", detailsUrl.toString(),
             { timeout: 5000, largeJson: true }).catch(e => {
               logger("WARN", "STEAM_ENRICH", `appdetails fail appID ${enriched.steamAppID}`, errorMessage(e));
               return null;
