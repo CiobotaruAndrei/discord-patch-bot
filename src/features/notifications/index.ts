@@ -269,10 +269,18 @@ async function processGuildDiscounts(client: any, guild: any, deals: any[]) {
     }
     let claimed = false;
     try {
-      const dealToSend = await enrichDealData(item.snapshot, guild.currency || DEFAULT_CURRENCY);
+      // V12: claim INAINTE de enrich, simetric cu processGuildUpdates (line ~108).
+      // Inainte: `enrichDealData` ruleaza primul si face apeluri Steam (HTML +
+      // appdetails, 5–15s timeout total). In fereastra asta o alta instanta
+      // poate revendica acelasi hash; claim-ul nostru returneaza apoi
+      // matchedCount===0 si toate apelurile Steam au fost in zadar. Pentru
+      // primul guild dintr-un ciclu (cand cache-ul Steam pentru hash-ul ala
+      // e rece) PLATIM costul, indiferent de race. Acum: claim atomic intai;
+      // doar daca am castigat race-ul mergem la enrich.
       const claim = await claimSeenDiscount(String(guild._id), channel.id, item.hash);
       if (claim.matchedCount === 0) continue;
       claimed = true;
+      const dealToSend = await enrichDealData(item.snapshot, guild.currency || DEFAULT_CURRENCY);
       const sendPayload: any = {
         embeds: [buildDealEmbed(dealToSend, guild.notificationMode || "detailed", guild.currency || DEFAULT_CURRENCY)]
       };
