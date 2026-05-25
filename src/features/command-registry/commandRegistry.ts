@@ -56,6 +56,12 @@ const defaultInstallers: CommandModuleInstaller[] = [
   require("../command-handlers/subscriptionNotificationHandlers") as CommandModuleInstaller,
   require("../command-handlers/gameFilterHandlers") as CommandModuleInstaller,
   require("../command-handlers/rolePingHandlers") as CommandModuleInstaller,
+  // V11: /status si /dlc extrase din legacy router in factory-uri tipate cu
+  // deps explicite, simetric cu cele patru installer-e de mai sus. Versiunile
+  // legacy raman shadow-ed: aceste installer-e vin dupa legacy in chain si
+  // intercepteaza interactiunile inainte sa ajunga la dispatcher-ul vechi.
+  require("../command-handlers/statusInteractionHandler") as CommandModuleInstaller,
+  require("../command-handlers/dlcInteractionHandler") as CommandModuleInstaller,
   require("../command-security/adminCommandRouterGuard") as CommandModuleInstaller
 ];
 
