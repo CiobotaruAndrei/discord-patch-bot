@@ -42,6 +42,7 @@ export interface RuntimeEnv {
   MONGO_URI?: string;
   DISCORD_TOKEN?: string;
   DISCORD_CLIENT_ID?: string;
+  DISCORD_DEV_GUILD_ID: string;
   PORT: string;
   NODE_ENV: string;
   METRICS_TOKEN: string;
