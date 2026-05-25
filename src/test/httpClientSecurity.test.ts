@@ -76,7 +76,12 @@ test("parseRetryAfter accepts integer seconds and rejects unitless garbage", () 
   const { ctx } = createHttpClientTestContext();
   assert.equal(ctx.parseRetryAfter("60"), 60_000);
   assert.equal(ctx.parseRetryAfter(" 120 "), 120_000);
-  assert.equal(ctx.parseRetryAfter("0"), null, "0 seconds means no wait, treat as invalid");
+  // V12: `Retry-After: 0` is valid per RFC 7231 (delta-seconds=0 means "retry
+  // immediately"). Previously we treated 0 as invalid and fell back to
+  // exponential backoff jitter, which actually contradicted the server's
+  // explicit instruction. Now we honor it and let waitMs=0 flow through
+  // (setTimeout(res, 0) -> retry next tick).
+  assert.equal(ctx.parseRetryAfter("0"), 0, "0 seconds is RFC-valid (retry immediately)");
   assert.equal(ctx.parseRetryAfter("60s"), null, "unitless `s` suffix must be rejected, not silently truncated");
   assert.equal(ctx.parseRetryAfter("-30"), null);
   assert.equal(ctx.parseRetryAfter(""), null);
@@ -103,6 +108,16 @@ test("parseRetryAfter accepts HTTP-date format per RFC 7231", () => {
 
   assert.equal(ctx.parseRetryAfter(past, now), null,
     "past HTTP-date must return null (server's deadline already elapsed)");
+
+  // V12: HTTP-date egal cu `now` returneaza 0 (delta=0), simetric cu accepter-ul
+  // pentru `Retry-After: 0` in delta-seconds. Inainte conditia era `delta > 0`
+  // → returna null pe deadline-ul exact, ceea ce parea inconsistent cu
+  // path-ul de integer seconds.
+  const nowExact = new Date(now).toUTCString();
+  const exact = ctx.parseRetryAfter(nowExact, now) as number | null;
+  assert.equal(typeof exact, "number", "HTTP-date == now must yield a numeric delta");
+  assert.ok(exact! >= 0 && exact! <= 1_000,
+    `expected ~0ms delta for now=now Retry-After, got ${exact}`);
 
   assert.equal(ctx.parseRetryAfter("not a date at all", now), null);
 });

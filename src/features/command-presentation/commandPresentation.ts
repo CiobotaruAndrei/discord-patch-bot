@@ -180,9 +180,16 @@ async function handlePagination(
       await interactionMessage.edit({
         embeds,
         components: [buildPaginationButtons(prefix, sessionId, currentPage, totalPages)]
-      }).catch(() => null);
+      }).catch((err: unknown) => {
+        // V12: log explicit cand edit-ul de pagina nu trece. Inainte:
+        // `.catch(() => null)` inghitea orice — nu stiam ca user-ul a vazut un
+        // mesaj fara butoane sau un embed invechit. Acum o pierdem doar dupa
+        // log, ca observabilitatea pe pagination sa nu fie oarba.
+        logger("WARN", "PAGINATION", `Eroare la edit-ul paginii (prefix=${prefix})`, errorMessage(err));
+      });
       return true;
-    } catch {
+    } catch (err) {
+      logger("WARN", "PAGINATION", `Eroare la generarea embed-urilor (prefix=${prefix})`, errorMessage(err));
       if (collector) collector.stop("error");
       return false;
     }
@@ -204,7 +211,15 @@ async function handlePagination(
     await updateMessage();
   });
   collector.on("end", () => {
-    if (interactionMessage.editable) interactionMessage.edit({ components: [] }).catch(() => null);
+    if (interactionMessage.editable) {
+      // V12: log explicit cand cleanup-ul butoanelor esueaza (mesaj sters,
+      // permisiuni revocate, channel arhivat etc). Inainte `.catch(() => null)`
+      // ascundea cazul si operatorul nu vedea niciun semnal cand mesajul
+      // expirat ramanea cu butoane "active" dar fara collector.
+      interactionMessage.edit({ components: [] }).catch((err: unknown) => {
+        logger("WARN", "PAGINATION", `Eroare la cleanup-ul butoanelor (prefix=${prefix})`, errorMessage(err));
+      });
+    }
   });
 }
 

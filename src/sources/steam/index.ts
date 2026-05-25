@@ -106,9 +106,15 @@ function chooseBestSteamMatch(
 
 async function fetchSteamPriceDetails(appId: string | number, currencyCode?: SteamCurrencyCode): Promise<unknown | null> {
   const cc = runtimeContext.getCurrencyConfig(currencyCode).cc;
-  const detailsRes = await runtimeContext.httpReq("GET",
-    `https://store.steampowered.com/api/appdetails?appids=${appId}&cc=${cc}&l=english`,
-    { largeJson: true });
+  // V12: build via URL().searchParams.set in loc de concatenare raw, simetric
+  // cu enrichDealData (CHANGELOG #52). `appId` provine din raspunsuri upstream
+  // si trece prin String(); fara escape, un schema drift teoretic ar putea
+  // injecta caractere care strica query string-ul.
+  const detailsUrl = new URL("https://store.steampowered.com/api/appdetails");
+  detailsUrl.searchParams.set("appids", String(appId));
+  detailsUrl.searchParams.set("cc", cc);
+  detailsUrl.searchParams.set("l", "english");
+  const detailsRes = await runtimeContext.httpReq("GET", detailsUrl.toString(), { largeJson: true });
   const data = (detailsRes.data || {}) as SteamDetailsResponse;
   return data[String(appId)]?.data || null;
 }
@@ -150,19 +156,38 @@ function extractOfferEndFromHtml(html: unknown): string | null {
   // documentul — caz in care am putea prinde "Offer ends ..." dintr-un sidebar
   // de produs nelegat.
   if (!cheerioThrew) return null;
-  const rawMatch = String(html || "").match(/Offer ends\s+([^<\n]+)/i);
-  // V11: normalize whitespace la fel ca pe cele doua path-uri principale,
-  // ca output-ul user-facing sa nu difere intre cheerio-OK si cheerio-throw.
-  return rawMatch && rawMatch[1]
-    ? rawMatch[1].trim().slice(0, 200).replace(/\s{2,}/g, " ")
-    : null;
+  // V12: fallback-ul raw aplica acelasi set de 4 patterns ca path-ul principal
+  // cheerio. Inainte fallback-ul matchuia DOAR `Offer ends\s+...` — daca Steam
+  // servea HTML invalid sever pe un joc cu eticheta "Sale ends", "Special
+  // promotion ends" sau "Daily Deal! Offer ends", user-ul vedea "Expira la:
+  // Nespecificat" silent. Acum simetrie completa cu path-ul cheerio.
+  const rawText = String(html || "");
+  const rawCandidates = [
+    /Offer ends\s+([^<\n]+)/i,
+    /Sale ends\s+([^<\n]+)/i,
+    /Special promotion ends\s+([^<\n]+)/i,
+    /Daily Deal!?\s*Offer ends\s+([^<\n]+)/i
+  ];
+  for (const re of rawCandidates) {
+    const match = rawText.match(re);
+    // V11: normalize whitespace la fel ca pe cele doua path-uri principale,
+    // ca output-ul user-facing sa nu difere intre cheerio-OK si cheerio-throw.
+    if (match && match[1]) return match[1].trim().slice(0, 200).replace(/\s{2,}/g, " ");
+  }
+  return null;
 }
 
 async function extractSteamOfferEndDate(appId: string | number, currencyCode?: SteamCurrencyCode): Promise<string | null> {
   const cc = runtimeContext.getCurrencyConfig(currencyCode).cc;
   try {
-    const htmlRes = await runtimeContext.httpReq("GET",
-      `https://store.steampowered.com/app/${appId}?cc=${cc}&l=english`, {
+    // V12: URL().searchParams.set in loc de concat. `appId` ajunge tot in path,
+    // dar trecem prin `encodeURIComponent` ca un schema drift sau o injectie
+    // sa nu rupa cererea HTTP.
+    const safeAppId = encodeURIComponent(String(appId));
+    const htmlUrl = new URL(`https://store.steampowered.com/app/${safeAppId}`);
+    htmlUrl.searchParams.set("cc", cc);
+    htmlUrl.searchParams.set("l", "english");
+    const htmlRes = await runtimeContext.httpReq("GET", htmlUrl.toString(), {
       headers: { "Cookie": "birthtime=283993201; mature_content=1;" }
     });
     return extractOfferEndFromHtml(String(htmlRes.data));

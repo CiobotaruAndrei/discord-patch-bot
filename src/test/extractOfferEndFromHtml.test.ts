@@ -90,4 +90,60 @@ test("limiteaza lungimea rezultatului fallback", () => {
   assert.ok((result || "").length <= 200, "fallback trebuie limitat la 200 char");
 });
 
+// V12: raw-HTML fallback (cand cheerio arunca pe HTML invalid sever) trebuie
+// sa matchuiasca aceleasi 4 patterns ca path-ul cheerio: Offer ends, Sale ends,
+// Special promotion ends, Daily Deal Offer ends. Inainte fallback-ul matchuia
+// DOAR "Offer ends" — daca Steam servea HTML rupt pe un joc cu "Sale ends" /
+// "Special promotion ends" / "Daily Deal", user-ul vedea "Expira la:
+// Nespecificat" silent. Atasam modulul steam la un ctx in care safeCheerioLoad
+// arunca → fortam path-ul raw.
+const attachSteam = require("../sources/steam");
+
+function makeSteamCtxWithThrowingCheerio() {
+  const ctx: Record<string, any> = {
+    logger: () => undefined,
+    httpReq: async () => ({ data: {} }),
+    getCurrencyConfig: () => ({ cc: "us" }),
+    safeCheerioLoad: () => { throw new Error("cheerio refuses malformed HTML"); }
+  };
+  attachSteam(ctx);
+  return ctx;
+}
+
+test("raw fallback matchuieste 'Sale ends' cand cheerio arunca", () => {
+  const ctx = makeSteamCtxWithThrowingCheerio();
+  // HTML deliberat fara markup util — invocam direct si forteaza fallback-ul.
+  const html = "<broken> Sale ends 12 Aug @ 5pm </broken>";
+  const result = ctx.extractOfferEndFromHtml(html);
+  assert.match(result || "", /12 Aug/);
+});
+
+test("raw fallback matchuieste 'Special promotion ends' cand cheerio arunca", () => {
+  const ctx = makeSteamCtxWithThrowingCheerio();
+  const html = "<broken> Special promotion ends 3 Mar </broken>";
+  const result = ctx.extractOfferEndFromHtml(html);
+  assert.match(result || "", /3 Mar/);
+});
+
+test("raw fallback matchuieste 'Daily Deal! Offer ends' cand cheerio arunca", () => {
+  const ctx = makeSteamCtxWithThrowingCheerio();
+  const html = "<broken> Daily Deal! Offer ends 25 Oct @ 7am </broken>";
+  const result = ctx.extractOfferEndFromHtml(html);
+  assert.match(result || "", /25 Oct/);
+});
+
+test("raw fallback inca matchuieste 'Offer ends' (regression guard pe path-ul vechi)", () => {
+  const ctx = makeSteamCtxWithThrowingCheerio();
+  const html = "<broken> Offer ends 30 Dec @ 10am </broken>";
+  const result = ctx.extractOfferEndFromHtml(html);
+  assert.match(result || "", /30 Dec/);
+});
+
+test("raw fallback returneaza null cand nimic nu matchuieste, chiar daca cheerio arunca", () => {
+  const ctx = makeSteamCtxWithThrowingCheerio();
+  const html = "<broken> nothing here </broken>";
+  const result = ctx.extractOfferEndFromHtml(html);
+  assert.equal(result, null);
+});
+
 export {};

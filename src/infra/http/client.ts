@@ -137,13 +137,19 @@ function parseRetryAfter(raw: unknown, nowMs: number = Date.now()): number | nul
   // "60abc" → 60, deci adaugam un regex strict pe sirul brut.
   if (/^\d+$/.test(trimmed)) {
     const seconds = parseInt(trimmed, 10);
-    if (seconds > 0 && Number.isFinite(seconds)) return seconds * 1000;
+    // V12: accepta `Retry-After: 0` (RFC 7231 permite explicit delta-seconds=0
+    // ca "retry immediately"). Inainte conditia era `seconds > 0` → 0 cadea
+    // pe fallback-ul de backoff exponential cu jitter [0.5, 1.5), ceea ce
+    // contraventiona instructiunii server-ului. Acum honoram exact ce a cerut
+    // peer-ul: 0 → waitMs=0 (retry imediat, fara jitter). Pentru HTTP-date
+    // calea simetrica e `delta >= 0` la limita inferioara.
+    if (seconds >= 0 && Number.isFinite(seconds)) return seconds * 1000;
     return null;
   }
   const asDate = Date.parse(trimmed);
   if (!isNaN(asDate)) {
     const delta = asDate - nowMs;
-    if (delta > 0) return delta;
+    if (delta >= 0) return delta;
   }
   return null;
 }
