@@ -261,7 +261,12 @@ function installSubscriptionInteractions(ctx: SubscriptionContext) {
       if (interaction.commandName === "start") return await handlers.handleStartInteraction(interaction, games);
       return await handlers.handleStopInteraction(interaction);
     } catch (err: any) {
-      ctx.logger("ERROR", "SUBSCRIPTION_INTERACTION", "Eroare in handler-ul de start/stop", errorDetail(err));
+      // V11: optional-call simetric cu helpInteractionHandler, gameFilterHandlers
+      // si rolePingHandlers. Inainte `ctx.logger(...)` direct arunca TypeError
+      // daca ctx-ul vine fara logger (test cu mock minimal sau context partial),
+      // iar try/catch-ul de mai sus n-ar fi avut sansa sa raporteze nimic
+      // user-ului. Acum cele 4 handler-e de comenzi sunt aliniate.
+      ctx.logger?.("ERROR", "SUBSCRIPTION_INTERACTION", "Eroare in handler-ul de start/stop", errorDetail(err));
       const payload = createInteractionErrorPayload(ctx.MessageFlags);
       try {
         if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
