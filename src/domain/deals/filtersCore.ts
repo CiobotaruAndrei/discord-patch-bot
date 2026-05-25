@@ -26,6 +26,21 @@ export function dealPassesFilters(deal: DealInfo, guild: GuildSettings | null | 
   return true;
 }
 
+// V12: coerce orice valoare necunoscuta intr-un Date valid. Inainte
+// `candidate.createdAt || new Date()` lasa sa treaca string-uri/numere
+// nevalide (ex. "abc", `null` deja gestionat dar `"Invalid Date"` nu, sau
+// docs pre-V11 cu format vechi). In `processGuildUpdates`,
+// `new Date(item.createdAt).getTime()` returna NaN, age devenea NaN, iar
+// `age <= PENDING_UPDATE_MAX_AGE_MS` era `false` → item-ul era filtrat din
+// pendingUpdates si re-scris in DB FARA el → notificare definitiv pierduta.
+// Acum: parsam si validam ca getTime() e finit; pe esec stampila proaspata.
+function coerceValidDate(raw: unknown): Date {
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) return raw;
+  if (raw === null || raw === undefined || raw === "") return new Date();
+  const parsed = new Date(raw as string | number);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
 export function normalizePendingUpdateArray(arr: unknown): PendingUpdate[] {
   if (!Array.isArray(arr)) return [];
   return arr.map(item => {
@@ -39,7 +54,7 @@ export function normalizePendingUpdateArray(arr: unknown): PendingUpdate[] {
       thumbnail: candidate.thumbnail || null,
       image: candidate.image || null,
       timestamp: candidate.timestamp || "",
-      createdAt: candidate.createdAt || new Date(),
+      createdAt: coerceValidDate(candidate.createdAt),
       attempts: typeof candidate.attempts === "number" ? candidate.attempts : 0
     } as PendingUpdate;
   }).filter((item): item is PendingUpdate => Boolean(item));
@@ -53,7 +68,9 @@ export function normalizePendingDiscountArray(arr: unknown): PendingDiscount[] {
     return {
       hash: String(candidate.hash),
       snapshot: (candidate.snapshot || null) as PendingDiscount["snapshot"],
-      lastSeenAt: candidate.lastSeenAt || new Date(),
+      // V12: simetric cu pendingUpdates. lastSeenAt invalid blocheaza prelungirea
+      // grace-period-ului (PENDING_DISCOUNT_GRACE_CYCLES).
+      lastSeenAt: coerceValidDate(candidate.lastSeenAt),
       attempts: typeof candidate.attempts === "number" ? candidate.attempts : 0
     } as PendingDiscount;
   }).filter((item): item is PendingDiscount => Boolean(item));
