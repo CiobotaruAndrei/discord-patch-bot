@@ -73,6 +73,10 @@ const defaultInstallers: CommandModuleInstaller[] = [
   // intercepteaza interactiunile inainte sa ajunga la dispatcher-ul vechi.
   require("../command-handlers/statusInteractionHandler") as CommandModuleInstaller,
   require("../command-handlers/dlcInteractionHandler") as CommandModuleInstaller,
+  // V12: autocomplete extras din legacy router. Acopera optiunile `joc` din
+  // /dlc, /status, /latest update, /latest pret, /set games add/remove. Deps
+  // tipate (logger, getGuildSettings) — niciun acces ctx in interior.
+  require("../command-handlers/autocompleteInteractionHandler") as CommandModuleInstaller,
   require("../command-security/adminCommandRouterGuard") as CommandModuleInstaller
 ];
 
