@@ -166,7 +166,7 @@ Starea curenta:
 - `interactions.ts` este router/wiring si delega catre handler-e;
 - `notifications/index.ts` este wiring pentru cron jobs, iar logica principala este in `updateNotificationService.ts` si `discountNotificationService.ts`;
 - `domain/deals/filtersCore.ts`, `outboundChannel.ts` si `seenRepository.ts` sunt module tipate, usor de testat separat;
-- `src/native/` contine Rust/N-API pentru hot-path-uri pure: fuzzy matching, hash-uri, normalizare text/scoring si filtrarea ofertelor;
+- `src/native/` contine Rust/N-API pentru hot-path-uri pure: fuzzy matching, autocomplete scoring, hash-uri, normalizare text/scoring si filtrarea ofertelor;
 - `src/tsconfig.strict.json` include incremental fisiere stabilizate, nu tot proiectul deodata.
 
 Zonele ramase de imbunatatit sunt reducerea contextului din runtime/registry, inlocuirea ultimelor tipuri `any` unde exista API-uri Discord.js potrivite si mentinerea adapterelor subtiri la marginea sistemului.

@@ -17,6 +17,7 @@
  */
 
 const { errorMessage, errorDetail } = require("../../shared/errors");
+const { buildAutocompleteChoices } = require("../../native/fuzzy") as typeof import("../../native/fuzzy");
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string; aliases?: string[] } & Record<string, unknown>;
@@ -124,24 +125,15 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
         pool = await buildSetGamesRemovePool(interaction, games);
       }
 
-      const candidates: Array<{ game: GameConfig; score: number }> = [];
-      for (const game of pool) {
-        const score = scoreGameAgainstInput(game, input);
-        // Filtram scorurile prea slabe doar daca user-ul a tastat ceva.
-        if (input && score < MIN_RELEVANT_SCORE) continue;
-        candidates.push({ game, score });
-      }
-      // V11: tiebreaker alfabetic dupa nume, ca ordinea sugestiilor sa nu mai
-      // sara aleator intre apasarile de tasta cand multi candidati au acelasi scor.
-      candidates.sort((a, b) => {
-        if (a.score !== b.score) return b.score - a.score;
-        return String(a.game.name || "").localeCompare(String(b.game.name || ""));
-      });
-
-      const choices: AutocompleteChoice[] = candidates.slice(0, MAX_AUTOCOMPLETE_CHOICES).map(c => ({
-        name: `${c.game.name} (${c.game.key})`.substring(0, MAX_CHOICE_NAME_LEN),
-        value: (useNameAsValue ? c.game.name : c.game.key).substring(0, MAX_CHOICE_VALUE_LEN)
-      }));
+      const choices: AutocompleteChoice[] = buildAutocompleteChoices(
+        pool,
+        input,
+        useNameAsValue,
+        MIN_RELEVANT_SCORE,
+        MAX_AUTOCOMPLETE_CHOICES,
+        MAX_CHOICE_NAME_LEN,
+        MAX_CHOICE_VALUE_LEN
+      );
       await interaction.respond(choices).catch(() => null);
     } catch (err: unknown) {
       logger("WARN", "AUTOCOMPLETE", "Eroare in handler", errorMessage(err));
