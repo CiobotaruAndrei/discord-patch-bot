@@ -136,6 +136,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-handlers/autocompleteInteractionHandler.ts`
 
 - Gestioneaza autocomplete pentru optiunile slash commands.
+- Delegheaza scoring-ul, sortarea si limitarea optiunilor catre `buildAutocompleteChoices` din Rust/N-API, cu fallback TypeScript.
 - Trebuie tinut separat de logica de executie a comenzilor.
 
 ### `src/features/command-handlers/fallbackInteractionHandler.ts`
@@ -205,7 +206,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/native/src/lib.rs`
 
-- Contine functii deterministe si izolate: fuzzy matching, Levenshtein, normalizare text, hash-uri, scoring si filtrare deal-uri.
+- Contine functii deterministe si izolate: fuzzy matching, Levenshtein, normalizare text, hash-uri, autocomplete scoring, scoring listing-uri si filtrare deal-uri.
 - Nu trebuie sa depinda de Discord, Mongo, HTTP, env sau filesystem.
 
 ### `src/native/fuzzy.ts`

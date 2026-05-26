@@ -16,7 +16,7 @@ Acest document noteaza starea repo-ului dupa curatare, migrarea la TypeScript, i
 - `notifications/index.ts` este wiring; logica principala pentru update-uri si reduceri este in `updateNotificationService.ts` si `discountNotificationService.ts`.
 - `seenRepository.ts` gestioneaza deduplicarea pentru update-uri si reduceri.
 - `outboundChannel.ts` izoleaza rezolvarea canalului Discord.
-- `src/native/` contine Rust/N-API pentru hot-path-uri pure: fuzzy matching, hash-uri, normalizare/scoring si filtrarea ofertelor.
+- `src/native/` contine Rust/N-API pentru hot-path-uri pure: fuzzy matching, autocomplete scoring, hash-uri, normalizare/scoring si filtrarea ofertelor.
 - `Dockerfile` ruleaza runtime-ul ca user non-root.
 - Workflow-urile GitHub acopera CI, CodeQL, dependency review, audit si release cu GHCR.
 - `README.md`, `CHANGELOG.md`, `SECURITY.md`, `CONTEXT_REPO_CLEAN.md` si `FUNCTION_MAP_CLEAN.md` sunt documentele principale care trebuie tinute sincronizate cu schimbarile de cod.
@@ -65,6 +65,7 @@ Acest document noteaza starea repo-ului dupa curatare, migrarea la TypeScript, i
 ### Rust/N-API
 
 - `dealPassesFilters` a fost mutat in Rust pentru hot-path-ul pur de filtrare oferte, apelat in cron si in `/latest reduceri`.
+- `buildAutocompleteChoices` a fost mutat in Rust pentru scoring, sortare si limitarea optiunilor Discord din autocomplete.
 - `src/native/fuzzy.ts` pastreaza fallback TypeScript identic, deci botul ramane functional daca addon-ul nativ nu este disponibil.
 - `dealFiltersCore.ts` ramane API-ul domain-level folosit de restul aplicatiei.
 
@@ -101,6 +102,7 @@ Pasi deja facuti:
 - repository de seen items separat;
 - filtre pure pentru deal/update logic;
 - `dealPassesFilters` delegat prin Rust/N-API cu fallback TypeScript;
+- autocomplete scoring delegat prin Rust/N-API cu fallback TypeScript;
 - source registry si command registry mai explicite.
 
 Urmatoarele zone de refactorizat:

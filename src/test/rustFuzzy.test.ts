@@ -4,6 +4,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  buildAutocompleteChoices,
   classifyPatchNote,
   cleanText,
   dealPassesFilters,
@@ -119,6 +120,38 @@ test("Rust scoreListingCandidate counts case-insensitive keyword hits", () => {
   assert.equal(scoreListingCandidate("https://x", "any text", []), 0);
   // empty keyword strings are skipped
   assert.equal(scoreListingCandidate("https://x/patch", "ok", ["", "patch", ""]), 1);
+});
+
+test("Rust autocomplete choices score, sort and cap Discord option output", () => {
+  const choices = buildAutocompleteChoices(
+    [
+      { key: "dota2", name: "Dota 2", aliases: ["dota"] },
+      { key: "cs2", name: "Counter-Strike 2", aliases: ["cs", "counter strike"] },
+      { key: "minecraft", name: "Minecraft", aliases: ["mc"] }
+    ],
+    "c",
+    false,
+    20,
+    25,
+    100,
+    100
+  );
+
+  assert.deepEqual(choices, [
+    { name: "Counter-Strike 2 (cs2)", value: "cs2" },
+    { name: "Minecraft (minecraft)", value: "minecraft" }
+  ]);
+
+  const nameValue = buildAutocompleteChoices(
+    [{ key: "cs2", name: "Counter-Strike 2", aliases: ["cs"] }],
+    "cs",
+    true,
+    20,
+    25,
+    12,
+    8
+  );
+  assert.deepEqual(nameValue, [{ name: "Counter-Stri", value: "Counter-" }]);
 });
 
 test("Rust cleanText strips tags and decodes entities", () => {

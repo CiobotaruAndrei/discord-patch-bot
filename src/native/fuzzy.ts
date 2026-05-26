@@ -9,6 +9,11 @@ interface NativeGameCandidate {
   aliases?: string[];
 }
 
+interface NativeAutocompleteChoice {
+  name: string;
+  value: string;
+}
+
 interface FuzzyMatchKeys {
   gameKey: string | null;
   suggestionKey: string | null;
@@ -34,6 +39,8 @@ interface NativeFuzzyModule {
   classify_patch_note?(title: string, contents: string, tags: string[]): boolean;
   scoreListingCandidate?(href: string, text: string, keywords: string[]): number;
   score_listing_candidate?(href: string, text: string, keywords: string[]): number;
+  buildAutocompleteChoices?(games: NativeGameCandidate[], input: string, useNameAsValue: boolean, minRelevantScore: number, maxChoices: number, maxNameLen: number, maxValueLen: number): NativeAutocompleteChoice[];
+  build_autocomplete_choices?(games: NativeGameCandidate[], input: string, useNameAsValue: boolean, minRelevantScore: number, maxChoices: number, maxNameLen: number, maxValueLen: number): NativeAutocompleteChoice[];
   isGoodSteamArticleUrl?(url: string): boolean;
   is_good_steam_article_url?(url: string): boolean;
   extractDateScore?(url: string): number;
@@ -180,6 +187,48 @@ function scoreListingCandidateFallback(href: unknown, text: unknown, keywords: u
     if (kw && haystack.includes(kw)) score++;
   }
   return score;
+}
+
+function scoreAutocompleteGameFallback(game: GameConfig, input: string): number {
+  const haystack = [
+    String(game.name || "").toLowerCase(),
+    String(game.key || "").toLowerCase(),
+    ...(Array.isArray(game.aliases) ? game.aliases.map(alias => String(alias).toLowerCase()) : [])
+  ];
+  let score = -1;
+  for (const value of haystack) {
+    if (!input) { score = Math.max(score, 0); continue; }
+    if (value === input) score = Math.max(score, 100);
+    else if (value.startsWith(input)) score = Math.max(score, 50);
+    else if (value.includes(input)) score = Math.max(score, 20);
+  }
+  return score;
+}
+
+function buildAutocompleteChoicesFallback(
+  games: GameConfig[],
+  input: string,
+  useNameAsValue: boolean,
+  minRelevantScore: number,
+  maxChoices: number,
+  maxNameLen: number,
+  maxValueLen: number
+): NativeAutocompleteChoice[] {
+  const normalizedInput = String(input || "").toLowerCase().trim();
+  const candidates: Array<{ game: GameConfig; score: number }> = [];
+  for (const game of games) {
+    const score = scoreAutocompleteGameFallback(game, normalizedInput);
+    if (normalizedInput && score < minRelevantScore) continue;
+    candidates.push({ game, score });
+  }
+  candidates.sort((a, b) => {
+    if (a.score !== b.score) return b.score - a.score;
+    return String(a.game.name || "").localeCompare(String(b.game.name || ""));
+  });
+  return candidates.slice(0, maxChoices).map(candidate => ({
+    name: `${candidate.game.name} (${candidate.game.key})`.substring(0, maxNameLen),
+    value: String(useNameAsValue ? candidate.game.name : candidate.game.key).substring(0, maxValueLen)
+  }));
 }
 
 function isGoodSteamArticleUrlFallback(url: unknown): boolean {
@@ -359,6 +408,46 @@ export function scoreListingCandidate(href: unknown, text: unknown, keywords: un
     }
   }
   return scoreListingCandidateFallback(href, text, keywords);
+}
+
+export function buildAutocompleteChoices(
+  games: GameConfig[],
+  input: string,
+  useNameAsValue: boolean,
+  minRelevantScore: number,
+  maxChoices: number,
+  maxNameLen: number,
+  maxValueLen: number
+): NativeAutocompleteChoice[] {
+  const native = loadNativeFuzzy();
+  if (native) {
+    const fn = typeof native.buildAutocompleteChoices === "function"
+      ? native.buildAutocompleteChoices
+      : native.build_autocomplete_choices;
+    if (typeof fn === "function") {
+      try {
+        const choices = fn.call(
+          native,
+          toNativeCandidates(games),
+          String(input || ""),
+          Boolean(useNameAsValue),
+          minRelevantScore,
+          maxChoices,
+          maxNameLen,
+          maxValueLen
+        );
+        if (Array.isArray(choices)) {
+          return choices.map(choice => ({
+            name: String(choice?.name || "").substring(0, maxNameLen),
+            value: String(choice?.value || "").substring(0, maxValueLen)
+          }));
+        }
+      } catch {
+        // Keep autocomplete responsive if a stale native binary is loaded.
+      }
+    }
+  }
+  return buildAutocompleteChoicesFallback(games, input, useNameAsValue, minRelevantScore, maxChoices, maxNameLen, maxValueLen);
 }
 
 export function isGoodSteamArticleUrl(url: unknown): boolean {
