@@ -277,21 +277,46 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
     }
     throw new Error("Nu am găsit ancore valide.");
   }
-  const articleUrl = unique[0].href;
-  const articleRes = await httpReq("GET", articleUrl, { timeout: 8000 });
-  const $art = safeCheerioLoad(articleRes.data || "");
-  const ogTitle = $art('meta[property="og:title"]').attr("content") || $art("title").text() || "";
-  const ogDesc = $art('meta[property="og:description"]').attr("content") || "";
-  $art("script, style, nav, footer, header").remove();
-  const rawContent = $art("article").text() || $art("main").text() || $art("body").text();
-  return normalizeUpdate({
-    id: String(articleUrl),
-    title: cleanText(ogTitle) || `${game.name} Update`,
-    link: articleUrl,
-    excerpt: cleanText(ogDesc),
-    fullText: cleanText(rawContent),
-    thumbnail: game.thumbnail
-  });
+  // V12: incearca pana la 3 candidati ranked, in loc de doar `unique[0]`.
+  // Inainte: daca top-ranked anchor era dead/404/timeout (URL stale dupa
+  // redirect de site, articol sters dar inca linked din listing), TOATA
+  // sursa cadea pe CB fail counter — chiar daca `unique[1]` sau `unique[2]`
+  // erau articolele bune. Eveniment real: schimbare de templating la sursa
+  // → top anchor devine un permalink decuplat care arunca 404; CB cooldown
+  // se aprinde fals si guild-urile pierd update-urile pana opera-torul
+  // intervine. Acum fallback ranked, log WARN pentru fiecare skip.
+  const TRY_LIMIT = Math.min(3, unique.length);
+  let lastErr: unknown = null;
+  for (let i = 0; i < TRY_LIMIT; i++) {
+    const candidate = unique[i];
+    const articleUrl = candidate.href;
+    try {
+      const articleRes = await httpReq("GET", articleUrl, { timeout: 8000 });
+      const $art = safeCheerioLoad(articleRes.data || "");
+      const ogTitle = $art('meta[property="og:title"]').attr("content") || $art("title").text() || "";
+      const ogDesc = $art('meta[property="og:description"]').attr("content") || "";
+      $art("script, style, nav, footer, header").remove();
+      const rawContent = $art("article").text() || $art("main").text() || $art("body").text();
+      return normalizeUpdate({
+        id: String(articleUrl),
+        title: cleanText(ogTitle) || `${game.name} Update`,
+        link: articleUrl,
+        excerpt: cleanText(ogDesc),
+        fullText: cleanText(rawContent),
+        thumbnail: game.thumbnail
+      });
+    } catch (err) {
+      lastErr = err;
+      logger("WARN", "FETCH_UPDATES", `Articol indisponibil pentru ${game.key} (candidat ${i + 1}/${TRY_LIMIT}): ${articleUrl}`, errorMessage(err));
+    }
+  }
+  // V12: epuizat candidatii. Aruncam ca SchemaDriftError doar daca am avut
+  // anchore — listing-ul fetch-uit, dar nicio pagina articol nu raspunde —
+  // ca CB cooldown sa parcheze sursa pana opera-torul intervine.
+  throw new SchemaDriftError(
+    `Niciun articol nu a raspuns din primii ${TRY_LIMIT} candidati pentru ${game.key}: ${errorMessage(lastErr)}`,
+    `listing:${game.key}`
+  );
 }
 
 async function fetchFortniteUpdate(): Promise<NormalizedUpdate> {
