@@ -5,11 +5,13 @@ Documentul descrie starea curenta a repo-ului dupa migrarea treptata din fisiere
 ## Starea curenta
 
 - Codul principal este in `src/`.
+- `src/package.json`, `src/package-lock.json`, `src/.env.example`, `src/tsconfig.json` si `src/tsconfig.strict.json` sunt fisierele active pentru build/test/runtime Node.
 - Fisierele active sunt grupate pe functionalitati, nu duplicate la radacina.
 - `src/features/command-router/` nu mai reprezinta arhitectura curenta.
 - Comenzile cunoscute si autocomplete-ul sunt mutate in `src/features/command-handlers/`.
 - `fallbackInteractionHandler.ts` este doar fallback de final pentru interactiuni necunoscute sau ramase neacoperite.
 - `notifications/index.ts` este wiring pentru job-uri; logica de update-uri si reduceri este in servicii dedicate.
+- Rust/N-API este folosit doar pentru hot-path-uri pure, cu fallback TypeScript in `src/native/fuzzy.ts`.
 - Migrarea TypeScript strict este incrementala prin `src/tsconfig.strict.json`.
 
 ## Structura logica
@@ -18,18 +20,18 @@ Documentul descrie starea curenta a repo-ului dupa migrarea treptata din fisiere
 src/
   app/
     main.ts
-    health/httpServer.ts
+    health/
+    lifecycle/
+    scheduler/
   config/
-    env.ts
-    runtime.ts
-  db/
-    mongo.ts
-    models.ts
+    configLoader.ts
+    configValidator.ts
+  domain/
+    deals/
+      filtersCore.ts
   features/
-    commands/
-      commandRegistry.ts
-      commandRuntimeContext.ts
-      slashCommands.ts
+    command-cache/
+    command-definitions/
     command-handlers/
       autocompleteInteractionHandler.ts
       dlcInteractionHandler.ts
@@ -42,25 +44,29 @@ src/
       simpleCommandsHandler.ts
       statusInteractionHandler.ts
       subscriptionNotificationHandlers.ts
+    command-presentation/
+    command-registry/
+    command-runtime/
+    command-security/
     notifications/
       discountNotificationService.ts
       index.ts
       outboundChannel.ts
       seenRepository.ts
       updateNotificationService.ts
-    scrapers/
-      filtersCore.ts
-      ...
-    sources/
-      sourceRegistry.ts
-      ...
-  jobs/
-    ...
-  lib/
-    ...
-  docs/
-    CONTEXT_REPO_CLEAN.md
-    FUNCTION_MAP_CLEAN.md
+  infra/
+    http/
+    mongo/
+  native/
+    fuzzy.ts
+    src/lib.rs
+  shared/
+  sources/
+    deals/
+    steam/
+    updates/
+    sourceRegistry.ts
+  test/
 ```
 
 ## Comenzi si interactiuni
@@ -93,17 +99,30 @@ Zona de notificari este impartita astfel:
 
 Aceasta impartire reduce riscul de copy-paste in cron jobs si permite teste functionale mai clare.
 
+## Native Rust/N-API
+
+`src/native/src/lib.rs` contine doar functii deterministe, fara Discord, Mongo sau HTTP:
+
+- fuzzy matching si Levenshtein;
+- normalizare text si titluri;
+- `stableUpdateId`, `normalizeDealState` si `dealHash`;
+- scoring pentru listing-uri si URL-uri Steam;
+- `dealPassesFilters` pentru filtrarea ofertelor in cron si `/latest reduceri`.
+
+`src/native/fuzzy.ts` ramane adapterul TypeScript cu fallback. Daca addon-ul `.node` nu se incarca, botul continua pe fallback si logheaza explicit problema.
+
 ## TypeScript strict
 
 `src/tsconfig.strict.json` include doar fisiere stabilizate. Nu activa brusc strict pe tot proiectul pana cand zonele cu context dinamic si API-uri Discord complexe nu sunt tipate suficient.
 
 Zone deja potrivite pentru strict:
 
-- filtre pure din scraping;
+- filtre pure din `src/domain/deals/`;
 - repository-ul de seen items;
 - serviciile de notificari;
 - handler-ele de comenzi extrase;
-- utilitarele de health/metrics si config.
+- utilitarele de health/metrics si config;
+- adapterul `src/native/fuzzy.ts`.
 
 Zone care inca trebuie urmarite:
 
@@ -122,7 +141,7 @@ Zone care inca trebuie urmarite:
 
 ## Teste importante
 
-Ruleaza cel putin:
+Ruleaza din `src/`:
 
 ```bash
 npm test
@@ -142,6 +161,8 @@ Teste relevante pentru structura actuala:
 - `autocompleteInteractionHandler.functional.test.ts`;
 - `notificationServices.functional.test.ts`;
 - `seenRepository.functional.test.ts`;
+- `dealFiltersCore.functional.test.ts`;
+- `rustFuzzy.test.ts`;
 - testele E2E pentru update-uri si reduceri.
 
 ## Zone ramase de curatat

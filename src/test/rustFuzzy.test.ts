@@ -6,6 +6,7 @@ const assert = require("node:assert/strict");
 const {
   classifyPatchNote,
   cleanText,
+  dealPassesFilters,
   dealHash,
   extractDateScore,
   findGameKeys,
@@ -153,6 +154,31 @@ test("stable update id is exactly 16 lowercase hex chars regardless of input", (
 
 test("Rust deal state normalization trims and lowercases values", () => {
   assert.equal(normalizeDealState({ salePrice: " 9.99 ", normalPrice: "19.99", savings: 50 }), "9.99:19.99:50");
+});
+
+test("Rust deal filter applies guild price, discount, store and free/paid gates", () => {
+  const guild = {
+    _id: "guild-1",
+    minDiscountPercent: 30,
+    includeFreeGames: true,
+    includePaidDiscounts: true,
+    maxAbsolutePrice: 15,
+    enabledStores: ["Steam"]
+  };
+  const baseDeal = {
+    store: "Steam",
+    salePrice: "9.99",
+    normalPrice: "19.99",
+    savings: 50
+  };
+
+  assert.equal(dealPassesFilters(baseDeal, guild), true);
+  assert.equal(dealPassesFilters({ ...baseDeal, savings: 10 }, guild), false);
+  assert.equal(dealPassesFilters({ ...baseDeal, salePrice: "20" }, guild), false);
+  assert.equal(dealPassesFilters({ ...baseDeal, store: "Epic Games" }, guild), false);
+  assert.equal(dealPassesFilters({ ...baseDeal, salePrice: "0", savings: undefined }, { ...guild, includeFreeGames: false }), false);
+  assert.equal(dealPassesFilters({ ...baseDeal, savings: undefined }, guild), false);
+  assert.equal(dealPassesFilters({ ...baseDeal, salePrice: "0", savings: undefined }, guild), true);
 });
 
 test("Rust deal hashes preserve stable Steam, Epic and listing keys", () => {
