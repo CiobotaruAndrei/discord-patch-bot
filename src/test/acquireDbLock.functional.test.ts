@@ -1,0 +1,97 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+// V12: acquireDbLock rethrow-on-non-E11000 regression tests.
+// Inainte conditia in catch trata ORICE eroare ca null ("alta instanta detine
+// lock-ul, skip"), iar caller-ul cron incrementa cronSkippedDueToLock metricul
+// — un esec real al infrastructurii (auth fail, write-concern timeout, primary
+// step-down) era silentiat. Acum: E11000 → null (race legitim); orice altceva
+// → throw, ca cron-ul sa il numere ca esec real si sa fire adminAlert.
+
+const attachLocks = require("../infra/mongo/locks") as
+  (ctx: Record<string, any>) => void;
+
+function makeLocksCtx(opts: {
+  findOneAndUpdateBehavior: "ok" | "throw-duplicate" | "throw-other";
+  ownerTokenInDoc?: string;
+}) {
+  const findCalls: Array<{ filter: unknown; update: unknown }> = [];
+  const logs: Array<{ level: string; ctx: string; msg: string }> = [];
+
+  const JobLockModel = {
+    async findOneAndUpdate(filter: unknown, update: unknown) {
+      findCalls.push({ filter, update });
+      if (opts.findOneAndUpdateBehavior === "throw-duplicate") {
+        const err = new Error("E11000 duplicate key") as Error & { code: number };
+        err.code = 11000;
+        throw err;
+      }
+      if (opts.findOneAndUpdateBehavior === "throw-other") {
+        const err = new Error("MongoServerError: write concern timeout") as Error & { code: number };
+        err.code = 64;
+        throw err;
+      }
+      const setUpd = (update as any).$set;
+      return {
+        _id: (filter as any)._id,
+        lockedUntil: setUpd.lockedUntil,
+        ownerToken: opts.ownerTokenInDoc ?? setUpd.ownerToken
+      };
+    },
+    async deleteOne() { return { deletedCount: 1 }; },
+    async updateOne() { return { matchedCount: 1, modifiedCount: 1 }; }
+  };
+
+  const ctx: Record<string, any> = {
+    crypto: { randomUUID: () => "test-token-fixed" },
+    JobLockModel,
+    logger: (level: string, c: string, msg: string) => { logs.push({ level, ctx: c, msg }); }
+  };
+  attachLocks(ctx);
+  return {
+    acquireDbLock: ctx.acquireDbLock as (jobName: string, ttlMs?: number) => Promise<string | null>,
+    activeLocks: ctx.activeLocks as Map<string, string>,
+    findCalls, logs
+  };
+}
+
+test("acquireDbLock returns token on successful upsert", async () => {
+  const { acquireDbLock, activeLocks } = makeLocksCtx({ findOneAndUpdateBehavior: "ok" });
+  const token = await acquireDbLock("cron_main", 60_000);
+  assert.equal(token, "test-token-fixed");
+  assert.equal(activeLocks.get("cron_main"), "test-token-fixed");
+});
+
+test("acquireDbLock returns null on E11000 duplicate-key (legitimate race)", async () => {
+  // Race-ul legitim cu alta instanta — alt nod a inserat lock-ul exact in
+  // fereastra noastra de upsert. Caller-ul cron trebuie sa numere asta ca
+  // `cronSkippedDueToLock` si sa sara ciclu fara alerta.
+  const { acquireDbLock, activeLocks } = makeLocksCtx({ findOneAndUpdateBehavior: "throw-duplicate" });
+  const token = await acquireDbLock("cron_main", 60_000);
+  assert.equal(token, null, "E11000 trebuie sa returneze null, fara sa arunce");
+  assert.equal(activeLocks.has("cron_main"), false, "nu populam activeLocks daca n-am castigat lock-ul");
+});
+
+test("acquireDbLock RETHROWS non-E11000 errors instead of swallowing them as 'race'", async () => {
+  // V12 regression guard: inainte ORICE eroare devenea null si era confundata
+  // cu race-ul legitim — un Mongo real outage era invizibil pentru operator.
+  // Acum: erorile non-E11000 propaga la caller-ul cron, care le numara ca
+  // `cronErrors` si trigeri `adminAlert("cron:lock", ...)`.
+  const { acquireDbLock } = makeLocksCtx({ findOneAndUpdateBehavior: "throw-other" });
+  await assert.rejects(
+    () => acquireDbLock("cron_main", 60_000),
+    /write concern timeout/,
+    "non-E11000 errors trebuie sa propage, nu sa fie ascunse ca null"
+  );
+});
+
+test("acquireDbLock returns null when the upserted doc has a different ownerToken (lost the race)", async () => {
+  // Mongo a returnat doc-ul existent dar alt nod l-a luat — ownerToken-ul nu
+  // matchuieste cu cel pe care l-am generat. Tratam ca null (race legitim).
+  const { acquireDbLock } = makeLocksCtx({
+    findOneAndUpdateBehavior: "ok",
+    ownerTokenInDoc: "other-instance-token"
+  });
+  const token = await acquireDbLock("cron_main", 60_000);
+  assert.equal(token, null);
+});
