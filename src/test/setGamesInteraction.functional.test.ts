@@ -12,7 +12,8 @@ type UpdateCall = {
   options?: unknown;
 };
 
-const attachInteractions = require("../features/command-router/legacyInteractionRouter") as (ctx: Record<string, unknown>) => void;
+// V12: legacy router-ul nu mai expune handleSetGames. Folosim noul handler.
+const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as (ctx: Record<string, unknown>) => void;
 
 const games = [
   { key: "cs2", name: "Counter-Strike 2" },
@@ -40,7 +41,7 @@ function buildContext() {
     formatUserError: (_err: unknown, fallback: string) => fallback,
     getGuildSettings: async () => ({ enabledGames: [] })
   };
-  attachInteractions(ctx);
+  installGameFilterHandlers(ctx);
   return { ctx, calls, replies, invalidatedGuilds };
 }
 

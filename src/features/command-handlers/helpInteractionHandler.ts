@@ -15,15 +15,71 @@ type DiscordInteraction = {
 };
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 
+type EmbedBuilderInstance = {
+  setColor(color: number): EmbedBuilderInstance;
+  setTitle(title: string): EmbedBuilderInstance;
+  setDescription(desc: string): EmbedBuilderInstance;
+  addFields(...fields: Array<{ name: string; value: string }>): EmbedBuilderInstance;
+};
+type EmbedBuilderCtor = new () => EmbedBuilderInstance;
+
 type HelpHandlerDeps = {
   buildHelpEmbed: () => unknown;
 };
 
-type HelpContext = HelpHandlerDeps & {
+type HelpContext = {
+  // V12: install accepta fie un `buildHelpEmbed` direct (legacy compatibility +
+  // testing), fie il construieste intern din `EmbedBuilder` + `COLORS`. Asa
+  // pastram contractul vechi al `createHelpHandler({buildHelpEmbed})` cu deps
+  // explicit, dar reducem si suprafata ctx (buildHelpEmbed nu mai trebuie sa
+  // existe upstream).
+  buildHelpEmbed?: () => unknown;
+  EmbedBuilder?: EmbedBuilderCtor;
+  COLORS?: { DARK: number } & Record<string, number>;
   MessageFlags: { Ephemeral: number };
   logger?: (...args: unknown[]) => void;
   handleInteraction?: NextInteractionHandler;
 };
+
+// V12: textul mutat aici din legacyInteractionRouter ca help handler-ul sa
+// fie self-contained. Daca cineva are nevoie de tabelul de comenzi in alta
+// parte, e mai usor de extras de aici.
+function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: number }) {
+  return new EmbedBuilder()
+    .setColor(COLORS.DARK)
+    .setTitle("Meniul de Ajutor - Big Master")
+    .setDescription("Toate comenzile sunt slash commands. Incepe cu `/` pentru autocomplete.")
+    .addFields(
+      { name: "Utilitare", value: "`/ping` - `/games` - `/help`" },
+      { name: "Notificari Automate (admin)", value: "`/start updates` - `/stop updates`\n`/start reduceri` - `/stop reduceri`" },
+      {
+        name: "Preferinte Server (admin)",
+        value:
+          "`/set mode <compact|detailed>`\n" +
+          "`/set mindiscount <0-100>`\n" +
+          "`/set maxprice <0-10000>` *(0 = fara limita)*\n" +
+          "`/set free <on|off>` - `/set paid <on|off>`\n" +
+          "`/set currency <USD|EUR|GBP|RON>`\n" +
+          "`/set stores <steam,epic | reset>`"
+      },
+      {
+        name: "Filtru per-joc (admin)",
+        value:
+          "`/set games add <joc>` - `/set games remove <joc>`\n" +
+          "`/set games list` - `/set games reset`"
+      },
+      {
+        name: "Ping-uri rol (admin)",
+        value:
+          "`/set role updates <rol>` *(gol = oprit)*\n" +
+          "`/set role discounts <rol>` *(gol = oprit)*"
+      },
+      {
+        name: "Comenzi Manuale",
+        value: "`/latest updates` - `/latest reduceri`\n`/latest update <joc>` - `/latest pret <joc>`\n`/dlc <joc>` - `/status <joc>`"
+      }
+    );
+}
 
 function createHelpHandler(deps: HelpHandlerDeps) {
   async function handleHelpInteraction(interaction: DiscordInteraction) {
@@ -48,7 +104,19 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
 
 function installHelpHandler(ctx: HelpContext) {
   const previousHandleInteraction = ctx.handleInteraction;
-  const handlers = createHelpHandler(ctx);
+  // V12: rezolva buildHelpEmbed in ordine: dep injectata > util intern din
+  // EmbedBuilder+COLORS. Fallback-ul cu EmbedBuilder+COLORS pastreaza testele
+  // existente care injecteaza un buildHelpEmbed custom.
+  let resolvedBuildHelpEmbed = ctx.buildHelpEmbed;
+  if (typeof resolvedBuildHelpEmbed !== "function") {
+    if (!ctx.EmbedBuilder || !ctx.COLORS) {
+      throw new Error("helpInteractionHandler: needs either ctx.buildHelpEmbed or (ctx.EmbedBuilder + ctx.COLORS)");
+    }
+    const EmbedBuilder = ctx.EmbedBuilder;
+    const COLORS = ctx.COLORS;
+    resolvedBuildHelpEmbed = () => buildHelpEmbedFromDeps(EmbedBuilder, COLORS);
+  }
+  const handlers = createHelpHandler({ buildHelpEmbed: resolvedBuildHelpEmbed });
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!isHelpCommand(interaction)) {
@@ -74,9 +142,11 @@ function installHelpHandler(ctx: HelpContext) {
     }
   }
 
-  Object.assign(ctx, handlers, { handleInteraction });
+  // V12: re-expune buildHelpEmbed pe ctx pentru backwards compatibility cu
+  // commandRegistry (requireRegistryFunction asteapta sa-l gaseasca).
+  Object.assign(ctx, handlers, { handleInteraction, buildHelpEmbed: resolvedBuildHelpEmbed });
 }
 
-Object.assign(installHelpHandler, { createHelpHandler });
+Object.assign(installHelpHandler, { createHelpHandler, buildHelpEmbed: buildHelpEmbedFromDeps });
 
 export = installHelpHandler;

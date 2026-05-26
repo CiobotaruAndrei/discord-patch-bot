@@ -1,87 +1,43 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-// legacyInteractionRouter.ts is CommonJS-style `module.exports = (ctx) => {...}`.
-const attachInteractions = require("../features/command-router/legacyInteractionRouter") as (ctx: Record<string, any>) => void;
+// V12: dupa retragerea legacy router, testele NU mai pot apela
+// `ctx.handleSetInteraction(...)` direct (acea functie nu mai exista pe ctx).
+// In schimb instalam aceleasi handlers ca productiunea si testam prin
+// `ctx.handleInteraction(interaction, games)` — exact flow-ul real al
+// chain-ului wrapper.
+
+const installSetHandler = require("../features/command-handlers/setInteractionHandler") as (ctx: Record<string, any>) => void;
+const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as (ctx: Record<string, any>) => void;
+const installRolePingHandlers = require("../features/command-handlers/rolePingHandlers") as (ctx: Record<string, any>) => void;
 
 function makeCtx(replies: unknown[], mongoCalls: unknown[][]) {
-  return {
-    // Discord helpers (only the ones touched by the /set branches we exercise).
-    EmbedBuilder: class {},
-    ActionRowBuilder: class {},
-    ButtonBuilder: class {},
-    ButtonStyle: {},
-    ComponentType: {},
+  const ctx: Record<string, any> = {
     MessageFlags: { Ephemeral: 64 },
     logger: () => undefined,
-    COLORS: {},
-    truncate: (s: string) => s,
     DEFAULT_CURRENCY: "USD",
-    formatPrice: (v: unknown) => String(v),
-    COLLECTOR_TIMEOUT_MS: 60_000,
-    MAX_FUZZY_SEARCH_INPUT: 100,
-    httpReq: async () => ({ data: {} }),
-    // Mongo + cache state.
+    SUPPORTED_CURRENCIES: { USD: {}, EUR: {}, GBP: {}, RON: {} },
     GuildModel: {
       updateOne: async (...args: unknown[]) => {
         mongoCalls.push(args);
         return { matchedCount: 1, modifiedCount: 1 };
-      },
-      findById: () => ({ lean: async () => null })
+      }
     },
     invalidateGuildCache: () => undefined,
     getGuildSettings: async () => null,
-    // UI helpers that the router calls.
     safeDefer: async () => undefined,
     safeEdit: async (_interaction: unknown, payload: unknown) => { replies.push(payload); return payload; },
-    enforceCooldown: async () => true,
-    startCommandLog: () => () => undefined,
     formatUserError: (_err: unknown, fallback: string) => fallback,
-    findGameAndSuggestion: () => ({ game: null, suggestion: null }),
-    buildUpdateEmbed: () => ({}),
-    buildDealEmbed: () => ({}),
-    buildSteamPriceEmbed: () => ({}),
-    handlePagination: async () => undefined,
-    dealPassesFilters: () => true,
-    canSendEmbeds: () => true,
-    missingChannelPermsMessage: () => "missing perms",
-    makeActivationId: () => "id",
-    smoothTime: () => 0,
-    fetchGameStatus: async () => ({}),
-    // Cache layer
-    cache: { single: new Map(), dlc: new Map() },
-    cacheGetLRU: () => null,
-    cacheSetLRU: () => undefined,
-    getUpdatesCacheData: () => null,
-    setUpdatesCache: () => undefined,
-    getDealsCacheData: () => null,
-    setDealsCache: () => undefined,
-    // Other deps the IIFE destructures.
-    getCurrencyConfig: () => ({ cc: "US", symbol: "$", placement: "prefix" }),
-    executeFetchWithCircuitBreaker: async () => ({ game: {}, latest: null, error: null }),
-    getLatestForAllGames: async () => [],
-    fetchDeals: async () => [],
-    enrichDealData: async (d: unknown) => d,
-    dealHash: () => "h",
-    searchSteamGameByName: async () => [],
-    chooseBestSteamMatch: () => null,
-    fetchSteamPriceDetails: async () => null,
-    extractSteamOfferEndDate: async () => null,
-    safeCheerioLoad: () => ({} as any),
-    getSystemTimes: async () => ({ all: 35000, single: 2000, reduceri: 10000 }),
-    saveSystemTime: async () => undefined,
-    saveSystemTimes: async () => undefined,
-    crypto: { randomBytes: () => ({ toString: () => "abc" }) },
-    MAX_DEALS: 10,
-    COMMAND_OUTPUT_MAX_CHARS: 1900,
-    DEALS_HISTORY_LIMIT: 300,
-    OP_UPDATE_OPTS: {},
-    CACHE_TTL_MS: 180_000,
-    SINGLE_CACHE_MAX_SIZE: 100,
-    DLC_CACHE_MAX_SIZE: 100,
-    ITEMS_PER_PAGE: 5,
-    DLC_ITEMS_PER_PAGE: 10
+    handleInteraction: async () => { /* bottom of chain — unknown command */ }
   };
+  // Install order matches commandRegistry.ts (gameFilterHandlers first, then
+  // rolePingHandlers, then setInteractionHandler — runtime order is reversed,
+  // so setInteractionHandler intercepts /set with group=null, role intercepts
+  // group=role, games intercepts group=games).
+  installGameFilterHandlers(ctx);
+  installRolePingHandlers(ctx);
+  installSetHandler(ctx);
+  return ctx;
 }
 
 function makeSetInteraction(opts: {
@@ -90,7 +46,9 @@ function makeSetInteraction(opts: {
   optionGetter?: (name: string, type: "string" | "integer" | "role") => unknown;
 }) {
   return {
+    commandName: "set",
     guild: { id: "guild-1" },
+    isChatInputCommand: () => true,
     options: {
       getSubcommandGroup: () => opts.group,
       getSubcommand: () => opts.sub,
@@ -99,20 +57,21 @@ function makeSetInteraction(opts: {
       getRole: (name: string) => opts.optionGetter?.(name, "role") ?? null
     },
     deferred: false,
-    replied: false
+    replied: false,
+    reply: async () => undefined,
+    followUp: async () => undefined
   };
 }
 
 test("/set with unknown sub returns an error instead of writing empty $set", async () => {
-  // V11 regression guard: previously this would call
+  // V11/V12 regression guard: previously this would call
   // `GuildModel.updateOne({_id}, { $set: {} }, { upsert: true })` and on a
   // new guild would create an empty document with only `_id`.
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx: any = makeCtx(replies, mongoCalls);
-  attachInteractions(ctx);
+  const ctx = makeCtx(replies, mongoCalls);
 
-  await ctx.handleSetInteraction(
+  await ctx.handleInteraction(
     makeSetInteraction({ group: null, sub: "future-feature" }),
     []
   );
@@ -125,22 +84,17 @@ test("/set with unknown sub returns an error instead of writing empty $set", asy
 });
 
 test("/set games with unknown sub replies to the user instead of leaving the interaction hanging", async () => {
-  // V11 regression guard: the legacy router's handleSetGames used to drop off
-  // the end of the function without calling safeEdit for an unknown sub —
+  // V11/V12 regression guard: the legacy router's handleSetGames used to drop
+  // off the end of the function without calling safeEdit for an unknown sub —
   // user stayed on the deferReply loading state forever.
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx: any = makeCtx(replies, mongoCalls);
-  attachInteractions(ctx);
+  const ctx = makeCtx(replies, mongoCalls);
 
-  await ctx.handleSetInteraction(
+  await ctx.handleInteraction(
     makeSetInteraction({
       group: "games",
       sub: "experimental",
-      // The fallthrough path looks for the `joc` option after the known
-      // branches, so this stand-in just returns a known game key to make
-      // sure we don't bail on "necunoscut" path before reaching the new
-      // guard at the end.
       optionGetter: (name) => name === "joc" ? "cs2" : null
     }),
     [{ key: "cs2", name: "Counter-Strike 2" }]
@@ -154,19 +108,18 @@ test("/set games with unknown sub replies to the user instead of leaving the int
 });
 
 test("/set role with unknown sub does not silently target discountRoleId", async () => {
-  // V11 regression guard: the old `sub === "updates" ? notificationRoleId :
+  // V11/V12 regression guard: the old `sub === "updates" ? notificationRoleId :
   // discountRoleId` default meant ANY unknown sub silently wrote to
-  // discountRoleId. Confusing and dangerous if a typo'd sub somehow
-  // reached this branch.
+  // discountRoleId. Confusing and dangerous if a typo'd sub somehow reached
+  // this branch.
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx: any = makeCtx(replies, mongoCalls);
-  attachInteractions(ctx);
+  const ctx = makeCtx(replies, mongoCalls);
 
-  await ctx.handleSetInteraction(
+  await ctx.handleInteraction(
     makeSetInteraction({
       group: "role",
-      sub: "alerts", // Not a known sub.
+      sub: "alerts",
       optionGetter: (name, type) => type === "role" ? { id: "role-999" } : null
     }),
     []
@@ -182,10 +135,9 @@ test("/set role with unknown sub does not silently target discountRoleId", async
 test("/set role with known sub still works (regression for the new guard)", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx: any = makeCtx(replies, mongoCalls);
-  attachInteractions(ctx);
+  const ctx = makeCtx(replies, mongoCalls);
 
-  await ctx.handleSetInteraction(
+  await ctx.handleInteraction(
     makeSetInteraction({
       group: "role",
       sub: "updates",
@@ -210,10 +162,9 @@ test("/set role with known sub still works (regression for the new guard)", asyn
 test("/set mode rejects null/unknown values instead of persisting null", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx: any = makeCtx(replies, mongoCalls);
-  attachInteractions(ctx);
+  const ctx = makeCtx(replies, mongoCalls);
 
-  await ctx.handleSetInteraction(
+  await ctx.handleInteraction(
     makeSetInteraction({ group: null, sub: "mode", optionGetter: () => null }),
     []
   );
@@ -221,7 +172,7 @@ test("/set mode rejects null/unknown values instead of persisting null", async (
   assert.match(String(replies[0]), /accepta doar `compact` sau `detailed`/);
 
   replies.length = 0;
-  await ctx.handleSetInteraction(
+  await ctx.handleInteraction(
     makeSetInteraction({ group: null, sub: "mode", optionGetter: () => "future-mode" }),
     []
   );
@@ -232,12 +183,11 @@ test("/set mode rejects null/unknown values instead of persisting null", async (
 test("/set mindiscount rejects null and out-of-range integers", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx: any = makeCtx(replies, mongoCalls);
-  attachInteractions(ctx);
+  const ctx = makeCtx(replies, mongoCalls);
 
   for (const value of [null, -1, 101, NaN]) {
     replies.length = 0;
-    await ctx.handleSetInteraction(
+    await ctx.handleInteraction(
       makeSetInteraction({ group: null, sub: "mindiscount", optionGetter: () => value }),
       []
     );
@@ -245,8 +195,7 @@ test("/set mindiscount rejects null and out-of-range integers", async () => {
   }
   assert.equal(mongoCalls.length, 0, "no write on invalid mindiscount");
 
-  // Valoarea valida trece
-  await ctx.handleSetInteraction(
+  await ctx.handleInteraction(
     makeSetInteraction({ group: null, sub: "mindiscount", optionGetter: () => 50 }),
     []
   );
@@ -256,12 +205,11 @@ test("/set mindiscount rejects null and out-of-range integers", async () => {
 test("/set maxprice rejects null and out-of-range integers", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx: any = makeCtx(replies, mongoCalls);
-  attachInteractions(ctx);
+  const ctx = makeCtx(replies, mongoCalls);
 
   for (const value of [null, -5, 10001]) {
     replies.length = 0;
-    await ctx.handleSetInteraction(
+    await ctx.handleInteraction(
       makeSetInteraction({ group: null, sub: "maxprice", optionGetter: () => value }),
       []
     );
@@ -273,14 +221,11 @@ test("/set maxprice rejects null and out-of-range integers", async () => {
 test("/set currency rejects null and unsupported codes", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx: any = makeCtx(replies, mongoCalls);
-  // SUPPORTED_CURRENCIES nu e in makeCtx default; injectam aici cu shape-ul real.
-  ctx.SUPPORTED_CURRENCIES = { USD: {}, EUR: {}, GBP: {}, RON: {} };
-  attachInteractions(ctx);
+  const ctx = makeCtx(replies, mongoCalls);
 
-  for (const value of [null, "", "XYZ", "usd" /* case-sensitive per schema */]) {
+  for (const value of [null, "", "XYZ", "usd"]) {
     replies.length = 0;
-    await ctx.handleSetInteraction(
+    await ctx.handleInteraction(
       makeSetInteraction({ group: null, sub: "currency", optionGetter: () => value }),
       []
     );
@@ -288,8 +233,7 @@ test("/set currency rejects null and unsupported codes", async () => {
   }
   assert.equal(mongoCalls.length, 0, "no write on invalid currency");
 
-  // O valoare valida trece.
-  await ctx.handleSetInteraction(
+  await ctx.handleInteraction(
     makeSetInteraction({ group: null, sub: "currency", optionGetter: () => "EUR" }),
     []
   );
