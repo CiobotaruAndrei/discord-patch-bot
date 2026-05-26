@@ -27,6 +27,7 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - `interactions.ts` ramane strat de routing/wiring, nu fisier cu logica de comenzi.
 - `fallbackInteractionHandler.ts` inlocuieste vechiul router legacy si ramane doar fallback de final pentru interactiuni neacoperite.
 - `notifications/index.ts` a fost redus la wiring; logica pentru update-uri si reduceri este in `updateNotificationService.ts` si `discountNotificationService.ts`.
+- Filtrarea ofertelor foloseste acum Rust/N-API pentru hot-path-ul pur `dealPassesFilters`, cu fallback TypeScript identic cand addon-ul nativ lipseste.
 - Documentatia interna a fost sincronizata cu structura actuala si nu mai prezinta `command-router` ca arhitectura curenta.
 
 ### Security

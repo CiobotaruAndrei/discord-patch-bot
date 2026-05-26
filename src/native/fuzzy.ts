@@ -1,7 +1,7 @@
 import crypto = require("crypto");
 import fs = require("fs");
 import path = require("path");
-import type { DealInfo, GameConfig } from "../types";
+import type { DealInfo, GameConfig, GuildSettings } from "../types";
 
 interface NativeGameCandidate {
   key: string;
@@ -24,6 +24,8 @@ interface NativeFuzzyModule {
   stable_update_id?(title: string, link: string): string;
   normalizeDealState?(salePrice: string, normalPrice: string, savings: string): string;
   normalize_deal_state?(salePrice: string, normalPrice: string, savings: string): string;
+  dealPassesFilters?(salePriceNum: number, savingsNum: number, store: string, minDiscountPercent: number, includeFreeGames: boolean, includePaidDiscounts: boolean, maxAbsolutePrice: number, enabledStores: string[]): boolean;
+  deal_passes_filters?(salePriceNum: number, savingsNum: number, store: string, minDiscountPercent: number, includeFreeGames: boolean, includePaidDiscounts: boolean, maxAbsolutePrice: number, enabledStores: string[]): boolean;
   dealHash?(store: string, steamAppId: string, id: string, title: string, salePrice: string, normalPrice: string, savings: string): string;
   deal_hash?(store: string, steamAppId: string, id: string, title: string, salePrice: string, normalPrice: string, savings: string): string;
   cleanText?(text: string): string;
@@ -235,6 +237,25 @@ function normalizeDealStateFallback(deal: DealInfo): string {
   ].map(value => String(value).trim().toLowerCase()).join(":");
 }
 
+function dealPassesFiltersFallback(deal: DealInfo, guild: GuildSettings | null | undefined): boolean {
+  const minDisc = guild?.minDiscountPercent ?? 0;
+  const incFree = guild?.includeFreeGames !== false;
+  const incPaid = guild?.includePaidDiscounts !== false;
+  const maxPrice = Number(guild?.maxAbsolutePrice) || 0;
+  const enabledStores = Array.isArray(guild?.enabledStores) ? guild.enabledStores : [];
+
+  const salePriceNum = parseFloat(String(deal.salePrice));
+  const isFree = salePriceNum === 0;
+  const savingsNum = Number(deal.savings);
+
+  if (isFree && !incFree) return false;
+  if (!isFree && !incPaid) return false;
+  if (!isFree && (!Number.isFinite(savingsNum) || savingsNum < minDisc)) return false;
+  if (!isFree && maxPrice > 0 && Number.isFinite(salePriceNum) && salePriceNum > maxPrice) return false;
+  if (enabledStores.length > 0 && !enabledStores.includes(String(deal.store))) return false;
+  return true;
+}
+
 function dealHashFallback(deal: DealInfo): string {
   let stableKey;
   if (deal.store === "Steam" && deal.steamAppID) {
@@ -375,6 +396,36 @@ export function normalizeDealState(deal: DealInfo): string {
   const savings = String(deal.savings ?? "");
   const fn = nativeStringFn("normalizeDealState", "normalize_deal_state");
   return fn ? fn(salePrice, normalPrice, savings) : normalizeDealStateFallback(deal);
+}
+
+export function dealPassesFilters(deal: DealInfo, guild: GuildSettings | null | undefined): boolean {
+  const minDisc = guild?.minDiscountPercent ?? 0;
+  const incFree = guild?.includeFreeGames !== false;
+  const incPaid = guild?.includePaidDiscounts !== false;
+  const maxPrice = Number(guild?.maxAbsolutePrice) || 0;
+  const enabledStores = Array.isArray(guild?.enabledStores) ? guild.enabledStores.map(String) : [];
+  const native = loadNativeFuzzy();
+  if (native) {
+    const fn = typeof native.dealPassesFilters === "function" ? native.dealPassesFilters : native.deal_passes_filters;
+    if (typeof fn === "function") {
+      try {
+        return fn.call(
+          native,
+          parseFloat(String(deal.salePrice)),
+          Number(deal.savings),
+          String(deal.store),
+          minDisc,
+          incFree,
+          incPaid,
+          maxPrice,
+          enabledStores
+        );
+      } catch {
+        // Keep filtering available if a stale native binary is loaded.
+      }
+    }
+  }
+  return dealPassesFiltersFallback(deal, guild);
 }
 
 export function dealHash(deal: DealInfo): string {

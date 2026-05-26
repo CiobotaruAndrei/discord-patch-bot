@@ -16,6 +16,7 @@ Acest document noteaza starea repo-ului dupa curatare, migrarea la TypeScript, i
 - `notifications/index.ts` este wiring; logica principala pentru update-uri si reduceri este in `updateNotificationService.ts` si `discountNotificationService.ts`.
 - `seenRepository.ts` gestioneaza deduplicarea pentru update-uri si reduceri.
 - `outboundChannel.ts` izoleaza rezolvarea canalului Discord.
+- `src/native/` contine Rust/N-API pentru hot-path-uri pure: fuzzy matching, hash-uri, normalizare/scoring si filtrarea ofertelor.
 - `Dockerfile` ruleaza runtime-ul ca user non-root.
 - Workflow-urile GitHub acopera CI, CodeQL, dependency review, audit si release cu GHCR.
 - `README.md`, `CHANGELOG.md`, `SECURITY.md`, `CONTEXT_REPO_CLEAN.md` si `FUNCTION_MAP_CLEAN.md` sunt documentele principale care trebuie tinute sincronizate cu schimbarile de cod.
@@ -61,12 +62,18 @@ Acest document noteaza starea repo-ului dupa curatare, migrarea la TypeScript, i
 - Circuit breaker-ul acopera si schema drift pentru surse externe.
 - Scraping-ul ramane zona fragila prin natura surselor externe, dar exista fallback-uri, logging si teste de regresie.
 
+### Rust/N-API
+
+- `dealPassesFilters` a fost mutat in Rust pentru hot-path-ul pur de filtrare oferte, apelat in cron si in `/latest reduceri`.
+- `src/native/fuzzy.ts` pastreaza fallback TypeScript identic, deci botul ramane functional daca addon-ul nativ nu este disponibil.
+- `dealFiltersCore.ts` ramane API-ul domain-level folosit de restul aplicatiei.
+
 ## Organizarea pe functionalitati
 
 Structura recomandata pentru zona de comenzi este:
 
-- `src/features/commands/commandRegistry.ts` sau folderul echivalent de registry: instaleaza module si valideaza functii necesare.
-- `src/features/commands/commandRuntimeContext.ts` sau folderul echivalent runtime: construieste contextul comun ramas.
+- `src/features/command-registry/commandRegistry.ts`: instaleaza module si valideaza functii necesare.
+- `src/features/command-runtime/commandRuntimeContext.ts`: construieste contextul comun ramas.
 - `src/features/command-handlers/simpleCommandsHandler.ts`: `/ping` si `/games`.
 - `src/features/command-handlers/helpInteractionHandler.ts`: `/help` si paginare help.
 - `src/features/command-handlers/subscriptionNotificationHandlers.ts`: `/start` si `/stop`.
@@ -93,6 +100,7 @@ Pasi deja facuti:
 - resolver de canal outbound separat;
 - repository de seen items separat;
 - filtre pure pentru deal/update logic;
+- `dealPassesFilters` delegat prin Rust/N-API cu fallback TypeScript;
 - source registry si command registry mai explicite.
 
 Urmatoarele zone de refactorizat:
@@ -126,6 +134,8 @@ Teste functionale si E2E care trebuie mentinute:
 - `autocompleteInteractionHandler.functional.test.ts`;
 - `notificationServices.functional.test.ts`;
 - `seenRepository.functional.test.ts`;
+- `dealFiltersCore.functional.test.ts`;
+- `rustFuzzy.test.ts`;
 - `startUpdatesFlow.e2e.test.ts`;
 - `startDiscountsFlow.e2e.test.ts`.
 

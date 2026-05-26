@@ -10,69 +10,96 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Incarca env/config.
 - Conecteaza MongoDB.
 - Creeaza clientul Discord.
-- Instaleaza registrul de comenzi, interactiunile, job-urile si serverul health/metrics.
+- Instaleaza registrul de comenzi, sursele, job-urile si serverul health/metrics.
 
 ### `src/app/health/httpServer.ts`
 
-- Expune `/healthz`.
-- Expune `/metrics`.
+- Expune `/healthz` si `/metrics`.
 - Protejeaza metrics cu token optional si comparatie sigura.
 - Nu trebuie sa contina logica de business pentru Discord sau scraping.
 
-## Config
+### `src/app/scheduler/cron.ts`
 
-### `src/config/env.ts`
+- Orchestreaza ciclurile de update-uri si reduceri.
+- Gestioneaza lock distribuit, heartbeat, health window si abort.
+- Nu trebuie sa contina logica de scraping sau de formatat embed-uri.
+
+## Config si shared
+
+### `src/shared/env.ts`
 
 - Citeste si valideaza variabilele de mediu.
-- Centralizeaza valorile default.
-- Nu trebuie sa expuna secrete in log-uri.
+- Centralizeaza default-uri si limite numerice.
 
-### `src/config/runtime.ts`
+### `src/config/configLoader.ts`
 
-- Agrega setarile runtime folosite de bootstrap si job-uri.
+- Incarca `config.json`.
+- Expune lista de jocuri configurate.
 
-## Database
+### `src/config/configValidator.ts`
 
-### `src/db/mongo.ts`
+- Valideaza schema si cerintele de runtime pentru jocuri si surse.
 
-- Gestioneaza conexiunea MongoDB.
+### `src/shared/errors.ts`, `src/shared/logging.ts`, `src/shared/utilities.ts`
 
-### `src/db/models.ts`
+- Utilitare comune folosite de app, surse, comenzi si job-uri.
 
-- Defineste modelele Mongoose pentru guild-uri, jocuri si elemente deja vazute.
+## Infra
+
+### `src/infra/http/client.ts`
+
+- Client HTTP cu retry, proxy templates, limite de dimensiune si validare URL externa.
+- Expune `cleanText`, `normalizeUpdate`, `stableUpdateId`, `dealHash` si helper-ele HTTP pe context.
+- Foloseste wrapper-ele Rust din `src/native/fuzzy.ts` pentru hot-path-uri pure.
+
+### `src/infra/mongo/models.ts`
+
+- Defineste modelele Mongoose.
+
+### `src/infra/mongo/mongoContext.ts`
+
+- Ataseaza modelele, runtime-ul Mongo, lock-urile, migratiile, state-ul si alerting-ul pe context.
+
+### `src/infra/mongo/locks.ts`
+
+- Gestioneaza lock-ul distribuit pentru cron.
+- Trebuie sa distinga intre lock pierdut si erori Mongo tranzitorii.
 
 ## Commands
 
-### `src/features/commands/slashCommands.ts`
+### `src/features/command-definitions/slashCommandDefinitions.ts`
 
-- Defineste structura slash commands pentru Discord.
+- Defineste slash commands pentru Discord.
 - Seteaza permisiunile declarative pentru comenzile administrative.
 - Trebuie sa ramana declarativ, fara logica de executie.
 
-### `src/features/commands/commandRegistry.ts`
+### `src/features/command-registry/commandRegistry.ts`
 
 - Instaleaza modulele de comenzi si interactiuni.
 - Leaga handler-ele la contextul runtime.
 - Valideaza ca functiile necesare exista.
 - Ramane o zona de tranzitie pana cand toate dependintele sunt injectate explicit.
 
-### `src/features/commands/commandRuntimeContext.ts`
+### `src/features/command-runtime/commandRuntimeContext.ts`
 
 - Construieste contextul comun folosit de wiring.
 - Este una dintre zonele principale de redus treptat.
 - Scopul pe termen lung este sa livreze dependinte mici si tipate catre factory-uri, nu un `ctx` mare.
 
+### `src/features/command-presentation/commandPresentation.ts`
+
+- Construieste embed-uri, paginare, select menus si raspunsuri user-facing.
+- Contine helper-ul de fuzzy game lookup prin `findGameKeys` din Rust/N-API.
+
 ## Command handlers
 
 ### `src/features/command-handlers/simpleCommandsHandler.ts`
 
-- Gestioneaza comenzi simple precum `/ping` si informatii de baza despre jocuri.
-- Este o zona buna pentru strict typing deoarece are dependinte putine.
+- Gestioneaza `/ping` si `/games`.
 
 ### `src/features/command-handlers/helpInteractionHandler.ts`
 
 - Gestioneaza `/help` si paginarea help-ului.
-- Trebuie sa ramana responsabil doar pentru UI-ul de help.
 
 ### `src/features/command-handlers/subscriptionNotificationHandlers.ts`
 
@@ -81,32 +108,30 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/features/command-handlers/gameFilterHandlers.ts`
 
-- Gestioneaza filtrele de jocuri.
+- Gestioneaza `/set games`.
 - Normalizeaza si valideaza input-ul pentru jocuri urmarite.
 
 ### `src/features/command-handlers/rolePingHandlers.ts`
 
-- Gestioneaza rolurile folosite pentru ping-uri in notificari.
+- Gestioneaza `/set role`.
 
 ### `src/features/command-handlers/setInteractionHandler.ts`
 
-- Gestioneaza subcomenzile `/set`.
+- Gestioneaza subcomenzile directe `/set`.
 - Trebuie sa aiba verificari runtime pentru administrator in operatiile sensibile.
 
 ### `src/features/command-handlers/latestInteractionHandler.ts`
 
 - Gestioneaza `/latest`.
-- Citeste ultimele update-uri cunoscute si raspunde cu embed-uri sau mesaje paginate.
+- Citeste ultimele update-uri sau reduceri cunoscute si raspunde cu embed-uri/paginare.
 
 ### `src/features/command-handlers/dlcInteractionHandler.ts`
 
 - Gestioneaza `/dlc`.
-- Construieste raspunsuri pentru DLC-uri cunoscute.
 
 ### `src/features/command-handlers/statusInteractionHandler.ts`
 
 - Gestioneaza `/status`.
-- Afiseaza starea guild-ului, jocurile urmarite si setarile relevante.
 
 ### `src/features/command-handlers/autocompleteInteractionHandler.ts`
 
@@ -117,15 +142,6 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Fallback de final pentru interactiuni necunoscute sau neacoperite.
 - Nu trebuie sa redezvolte logica de comenzi deja extrasa.
-- Daca adaugi o comanda noua, creeaza handler dedicat si lasa fallback-ul minim.
-
-## Interactions
-
-### `src/interactions.ts`
-
-- Router/wiring pentru interactiuni Discord.
-- Delegarea catre handler-e trebuie sa fie explicita.
-- Nu trebuie sa creasca inapoi intr-un fisier mare cu logica pentru toate comenzile.
 
 ## Notifications
 
@@ -145,7 +161,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Proceseaza reducerile noi.
 - Verifica deduplicarea prin repository.
-- Construieste si trimite embed-uri de reduceri.
+- Foloseste `dealPassesFilters` pentru a respecta setarile guild-ului.
 
 ### `src/features/notifications/outboundChannel.ts`
 
@@ -158,28 +174,45 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Acopera atat update-uri, cat si reduceri.
 - Este modulul central pentru evitarea duplicatelor.
 
-## Scrapers si sources
+## Domain, scrapers si sources
 
-### `src/features/scrapers/filtersCore.ts`
+### `src/domain/deals/filtersCore.ts`
 
-- Contine functii pure pentru filtrare, normalizare si rotire de rezultate.
-- Este tipat explicit si inclus in strict config.
+- Expune filtre pentru deal-uri, normalizatoare pentru pending queues si helper-e Map/Object.
+- Delegheaza `dealPassesFilters` catre Rust/N-API prin `src/native/fuzzy.ts`, cu fallback TypeScript.
 
-### `src/features/sources/sourceRegistry.ts`
+### `src/sources/sourceRegistry.ts`
 
 - Agrega sursele externe.
-- Gestioneaza fallback-uri si erori de schema.
-- Ramane o zona importanta pentru defensive coding deoarece HTML-ul extern se poate schimba.
+- Gestioneaza fallback-uri si erori de schema prin modulele din `src/sources/`.
 
-## Jobs
+### `src/sources/updates/index.ts`
 
-- Job-urile cron trebuie sa orchestreze servicii, nu sa contina toata logica.
-- Lock-urile, cooldown-urile si circuit breaker-ele trebuie sa previna rulari duplicate sau spam.
+- Fetch-uieste update-uri din Steam, RSS, HTML listing si surse custom.
+- Foloseste Rust pentru curatare text, scoring URL/listing si clasificare patch notes.
+
+### `src/sources/deals/index.ts`
+
+- Fetch-uieste reduceri Steam/Epic, deduplica si sorteaza ofertele.
+- Foloseste `normalizeTitleForDedupe` si `dealHash` din Rust/N-API prin context.
+
+### `src/sources/steam/index.ts`
+
+- Cauta jocuri Steam, alege cel mai bun match si extrage detalii de pret.
+- Foloseste Levenshtein din Rust/N-API.
 
 ## Native Rust/N-API
 
-- Codul din `src/native/` este optional si trebuie folosit doar pentru zone hot-path unde Rust aduce beneficii reale.
-- Fallback-ul TypeScript trebuie sa ramana disponibil pentru medii fara build native.
+### `src/native/src/lib.rs`
+
+- Contine functii deterministe si izolate: fuzzy matching, Levenshtein, normalizare text, hash-uri, scoring si filtrare deal-uri.
+- Nu trebuie sa depinda de Discord, Mongo, HTTP, env sau filesystem.
+
+### `src/native/fuzzy.ts`
+
+- Incarca addon-ul `.node` si expune fallback TypeScript.
+- Trebuie sa pastreze contract identic intre Rust si TypeScript.
+- Logheaza explicit cand addon-ul nativ lipseste in productie.
 
 ## Test map
 
@@ -190,7 +223,8 @@ Teste de baza:
 - parsere si filtre;
 - circuit breaker si cooldown-uri;
 - health/metrics;
-- deduplicare.
+- deduplicare;
+- native Rust/fallback contracts.
 
 Teste functionale curente:
 
@@ -200,7 +234,9 @@ Teste functionale curente:
 - `statusInteractionHandler.functional.test.ts`;
 - `autocompleteInteractionHandler.functional.test.ts`;
 - `notificationServices.functional.test.ts`;
-- `seenRepository.functional.test.ts`.
+- `seenRepository.functional.test.ts`;
+- `dealFiltersCore.functional.test.ts`;
+- `rustFuzzy.test.ts`.
 
 Teste E2E:
 
@@ -213,4 +249,5 @@ Teste E2E:
 - Cand modifici logica, actualizeaza README, changelog si fisierele din `src/docs/` daca responsabilitatile s-au schimbat.
 - Nu reintroduce fisiere duplicate la radacina proiectului.
 - Nu transforma fallback-ul intr-un router mare.
+- Nu muta in Rust logica ce depinde de Discord, Mongo, HTTP sau I/O.
 - Nu activa strict global brusc; extinde `src/tsconfig.strict.json` pe module stabilizate.

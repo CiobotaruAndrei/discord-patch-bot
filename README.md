@@ -44,6 +44,7 @@ Comenzile administrative sunt validate atat prin permisiunile slash command decl
 ## Setup rapid
 
 ```bash
+cd src
 npm ci
 cp .env.example .env
 npm run build
@@ -56,27 +57,27 @@ Pentru development local cu MongoDB inclus:
 docker compose up --build
 ```
 
-MongoDB ruleaza doar in reteaua interna Docker; botul se conecteaza prin `MONGODB_URI`.
+MongoDB ruleaza doar in reteaua interna Docker; botul se conecteaza prin `MONGO_URI`.
 
 ## Variabile de mediu
 
-Fisierul `.env.example` documenteaza variabilele importante. Cele minime pentru rulare sunt:
+Fisierul `src/.env.example` documenteaza variabilele importante. Cele minime pentru rulare sunt:
 
 ```env
 DISCORD_TOKEN=...
-CLIENT_ID=...
-MONGODB_URI=mongodb://mongo:27017/discord-patch-bot
+DISCORD_CLIENT_ID=...
+MONGO_URI=mongodb://mongo:27017/discord-patch-bot
 ```
 
 Variabile utile suplimentare:
 
-- `GUILD_ID` - optional, pentru comenzi guild-scoped in development.
-- `CRON_INTERVAL_MS` - intervalul de verificare pentru update-uri.
-- `DISCOUNT_CRON_INTERVAL_MS` - intervalul de verificare pentru reduceri.
-- `HEALTH_PORT` - portul serverului local de health/metrics.
+- `DISCORD_DEV_GUILD_ID` - optional, pentru comenzi guild-scoped in development.
+- `PORT` - portul serverului local de health/metrics.
 - `METRICS_TOKEN` - token optional pentru acces la `/metrics`.
+- `METRICS_PUBLIC` - permite metrics fara token in development.
 - `LOG_LEVEL` - nivelul de logging.
-- `PROXY_URL` - proxy HTTP optional pentru surse externe.
+- `PROXY_URLS` - proxy-uri HTTP optionale pentru surse externe.
+- `ADMIN_WEBHOOK_URL` - webhook optional pentru alerte operationale.
 
 ## Structura proiectului
 
@@ -84,19 +85,25 @@ Variabile utile suplimentare:
 src/
   app/
     main.ts                 # bootstrap bot
+    scheduler/              # cron, heartbeat, housekeeping
     health/httpServer.ts    # /healthz si /metrics
-  config/                   # env, validari si setari runtime
-  db/                       # conexiune MongoDB si modele Mongoose
+  config/                   # loader si validator pentru config.json
+  domain/deals/             # filtre pure pentru deal-uri si pending queues
   features/
-    commands/               # registru si runtime pentru slash commands
+    command-registry/       # instalare module de comenzi
+    command-runtime/        # context runtime pentru comenzi
+    command-definitions/    # definitii slash commands
+    command-presentation/   # embed-uri, paginare si UI Discord
+    command-security/       # guard-uri admin runtime
     command-handlers/       # handler-e tipate pentru comenzi si autocomplete
     notifications/          # wiring notificari, seen repo, servicii update/reduceri
-    scrapers/               # surse externe si parsere
-    sources/                # registry si fallback-uri pentru surse
-  jobs/                     # cron jobs pentru update-uri si reduceri
-  lib/                      # utilitare comune
+  infra/
+    http/                   # client HTTP, proxy, retry, limitari
+    mongo/                  # conexiune, modele, locks, migratii
+  shared/                   # tipuri/utilitare comune
+  sources/                  # surse Steam/Epic/listing/RSS si registry
   docs/                     # harti de context si functie
-src/native/                 # optional Rust/N-API pentru operatii hot-path
+  native/                   # optional Rust/N-API pentru operatii hot-path
 .github/workflows/          # CI, audit, dependency review, release
 ```
 
@@ -105,6 +112,7 @@ Nu mai exista un `command-router` activ ca structura curenta. Handler-ele cunosc
 ## Testare
 
 ```bash
+cd src
 npm test
 npm run test:functional
 npm run test:e2e
@@ -131,6 +139,7 @@ Testele care folosesc surse externe reale nu confirma comportament live cu token
 Build-ul si start-ul sunt separate:
 
 ```bash
+cd src
 npm run build
 npm start
 ```
@@ -156,7 +165,8 @@ Starea curenta:
 - handler-ele pentru comenzi cunoscute sunt separate in `src/features/command-handlers/`;
 - `interactions.ts` este router/wiring si delega catre handler-e;
 - `notifications/index.ts` este wiring pentru cron jobs, iar logica principala este in `updateNotificationService.ts` si `discountNotificationService.ts`;
-- `filtersCore.ts`, `outboundChannel.ts` si `seenRepository.ts` sunt module tipate, usor de testat separat;
+- `domain/deals/filtersCore.ts`, `outboundChannel.ts` si `seenRepository.ts` sunt module tipate, usor de testat separat;
+- `src/native/` contine Rust/N-API pentru hot-path-uri pure: fuzzy matching, hash-uri, normalizare text/scoring si filtrarea ofertelor;
 - `src/tsconfig.strict.json` include incremental fisiere stabilizate, nu tot proiectul deodata.
 
 Zonele ramase de imbunatatit sunt reducerea contextului din runtime/registry, inlocuirea ultimelor tipuri `any` unde exista API-uri Discord.js potrivite si mentinerea adapterelor subtiri la marginea sistemului.
@@ -171,7 +181,7 @@ Zonele ramase de imbunatatit sunt reducerea contextului din runtime/registry, in
 ## Securitate
 
 - Nu comita token-uri Discord, URI-uri MongoDB reale sau webhook-uri.
-- Foloseste `.env.example` ca sablon, nu `.env` real.
+- Foloseste `src/.env.example` ca sablon, nu `src/.env` real.
 - Verifica PR-urile Dependabot si lockfile-ul inainte de merge.
 - Ruleaza `npm audit` si testele inainte de release.
 
