@@ -1,0 +1,257 @@
+"use strict";
+
+/**
+ * V12: handler tipat pentru `/set` cu sub-comenzi DIRECTE (fara grup).
+ *
+ * Continuare a splitting-ului review-ului extern: scoate `handleSetInteraction`
+ * din `legacyInteractionRouter.ts` intr-o factory cu dependinte explicite,
+ * simetric cu `helpInteractionHandler`, `subscriptionNotificationHandlers`,
+ * `gameFilterHandlers`, `rolePingHandlers`, `statusInteractionHandler`,
+ * `dlcInteractionHandler`.
+ *
+ * Acopera doar sub-comenzile **directe** (`mode`, `mindiscount`, `maxprice`,
+ * `free`, `paid`, `currency`, `stores`). Cele cu grup (`/set games *`,
+ * `/set role *`) raman in handler-ele lor specializate, care intercepteaza
+ * in chain INAINTE sa ajungem aici (vezi commandRegistry install order).
+ *
+ * Versiunea legacy ramane shadow-ed in `legacyInteractionRouter.ts` pana cand
+ * decidem sa o stergem; install chain-ul intercepteaza /set direct aici, asa
+ * ca dispatch-ul din legacy nu mai este atins pentru aceste sub-comenzi.
+ */
+
+const { errorDetail, errorMessage } = require("../../shared/errors");
+
+type MaybePromise<T> = T | Promise<T>;
+type GameConfig = { key: string } & Record<string, unknown>;
+type DiscordInteraction = {
+  commandName?: string;
+  guild?: { id: string } | null;
+  deferred?: boolean;
+  replied?: boolean;
+  options: {
+    getSubcommandGroup(required: false): string | null;
+    getSubcommand(): string;
+    getString(name: string): string | null;
+    getInteger(name: string): number | null;
+  };
+  isChatInputCommand?: () => boolean;
+  reply: (payload: unknown) => Promise<unknown>;
+  followUp?: (payload: unknown) => Promise<unknown>;
+};
+type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
+
+type GuildModelLike = {
+  updateOne(filter: unknown, update: unknown, opts?: unknown): Promise<{ matchedCount?: number; modifiedCount?: number }>;
+};
+
+type Logger = (level: string, ctx: string, msg: string, meta?: unknown) => void;
+
+type SetInteractionDeps = {
+  GuildModel: GuildModelLike;
+  invalidateGuildCache: (guildId: string) => void;
+  formatUserError: (err: unknown, fallback: string, code?: string) => string;
+  safeDefer: (interaction: DiscordInteraction) => Promise<unknown>;
+  safeEdit: (interaction: DiscordInteraction, content: string) => Promise<unknown>;
+  logger: Logger;
+  SUPPORTED_CURRENCIES: Record<string, unknown>;
+};
+
+type SetContext = SetInteractionDeps & {
+  MessageFlags: { Ephemeral: number };
+  handleInteraction?: NextInteractionHandler;
+};
+
+interface SetUpdatePlan {
+  updateDoc: Record<string, unknown>;
+  confirmMsg: string;
+  isFilterChange: boolean;
+  earlyReply?: string;
+}
+
+function buildSetUpdatePlan(
+  sub: string,
+  interaction: DiscordInteraction,
+  supportedCurrencies: Record<string, unknown>
+): SetUpdatePlan {
+  const plan: SetUpdatePlan = { updateDoc: {}, confirmMsg: "", isFilterChange: false };
+
+  if (sub === "mode") {
+    const value = interaction.options.getString("value");
+    if (value !== "compact" && value !== "detailed") {
+      plan.earlyReply = "Eroare: `mode` accepta doar `compact` sau `detailed`.";
+      return plan;
+    }
+    plan.updateDoc.notificationMode = value;
+    plan.confirmMsg = `OK: Mod setat: **${value}**`;
+    return plan;
+  }
+
+  if (sub === "mindiscount") {
+    const min = interaction.options.getInteger("value");
+    if (typeof min !== "number" || !Number.isFinite(min) || min < 0 || min > 100) {
+      plan.earlyReply = "Eroare: `mindiscount` trebuie sa fie un intreg intre 0 si 100.";
+      return plan;
+    }
+    plan.updateDoc.minDiscountPercent = min;
+    plan.confirmMsg = `OK: Reducere minima: **${min}%**`;
+    plan.isFilterChange = true;
+    return plan;
+  }
+
+  if (sub === "maxprice") {
+    const val = interaction.options.getInteger("value");
+    if (typeof val !== "number" || !Number.isFinite(val) || val < 0 || val > 10000) {
+      plan.earlyReply = "Eroare: `maxprice` trebuie sa fie un intreg intre 0 si 10000 (0 = dezactivat).";
+      return plan;
+    }
+    plan.updateDoc.maxAbsolutePrice = val;
+    plan.confirmMsg = val === 0
+      ? "OK: Filtru pret maxim dezactivat."
+      : `OK: Pret maxim setat: **${val}**`;
+    plan.isFilterChange = true;
+    return plan;
+  }
+
+  if (sub === "free") {
+    const value = String(interaction.options.getString("value") || "");
+    plan.updateDoc.includeFreeGames = value === "on";
+    plan.confirmMsg = `OK: Jocuri free: **${value.toUpperCase()}**`;
+    plan.isFilterChange = true;
+    return plan;
+  }
+
+  if (sub === "paid") {
+    const value = String(interaction.options.getString("value") || "");
+    plan.updateDoc.includePaidDiscounts = value === "on";
+    plan.confirmMsg = `OK: Oferte platite: **${value.toUpperCase()}**`;
+    plan.isFilterChange = true;
+    return plan;
+  }
+
+  if (sub === "currency") {
+    const value = interaction.options.getString("value");
+    if (typeof value !== "string" || !value || !(value in supportedCurrencies)) {
+      const supported = Object.keys(supportedCurrencies).join(", ");
+      plan.earlyReply = `Eroare: \`currency\` trebuie sa fie una dintre: ${supported}.`;
+      return plan;
+    }
+    plan.updateDoc.currency = value;
+    plan.confirmMsg = `OK: Valuta setata: **${value}**`;
+    plan.isFilterChange = true;
+    return plan;
+  }
+
+  if (sub === "stores") {
+    const raw = String(interaction.options.getString("value") || "").trim().toLowerCase();
+    if (raw === "reset" || raw === "") {
+      plan.updateDoc.enabledStores = [];
+      plan.confirmMsg = "OK: Filtru store-uri resetat (toate active).";
+      plan.isFilterChange = true;
+      return plan;
+    }
+    const tokens = raw.split(",").map(s => s.trim()).filter(Boolean);
+    const selected: string[] = [];
+    for (const t of tokens) {
+      if (t === "steam") selected.push("Steam");
+      else if (t === "epic" || t === "epicgames" || t === "epic games") selected.push("Epic Games");
+      else {
+        plan.earlyReply = `Eroare: Store necunoscut: \`${t}\`. Valori valide: \`steam\`, \`epic\`. Pentru reset: \`reset\`.`;
+        return plan;
+      }
+    }
+    plan.updateDoc.enabledStores = Array.from(new Set(selected));
+    plan.confirmMsg = `OK: Store-uri active: **${(plan.updateDoc.enabledStores as string[]).join(", ")}**`;
+    plan.isFilterChange = true;
+    return plan;
+  }
+
+  // V11/V12 guard: sub necunoscut. Acelasi mesaj ca in legacy ca user-ul sa nu
+  // vada o schimbare de UX.
+  return plan;
+}
+
+function createSetInteractionHandler(deps: SetInteractionDeps) {
+  const {
+    GuildModel, invalidateGuildCache, formatUserError, safeDefer, safeEdit, logger,
+    SUPPORTED_CURRENCIES
+  } = deps;
+
+  async function handleSetInteraction(interaction: DiscordInteraction): Promise<unknown> {
+    if (!interaction.guild) return undefined;
+    const guildId = interaction.guild.id;
+    const sub = interaction.options.getSubcommand();
+    await safeDefer(interaction);
+
+    const plan = buildSetUpdatePlan(sub, interaction, SUPPORTED_CURRENCIES);
+
+    if (plan.earlyReply) {
+      return safeEdit(interaction, plan.earlyReply);
+    }
+    if (!plan.confirmMsg || Object.keys(plan.updateDoc).length === 0) {
+      // Same guard as legacy: an unknown sub must not write {$set: {}}
+      // (would create empty guild docs on upsert) and must reply explicitly.
+      const group = interaction.options.getSubcommandGroup(false);
+      logger("WARN", "SET_COMMAND", `Subcomanda /set necunoscuta: ${sub} (group=${group || "none"})`);
+      return safeEdit(interaction, `Eroare: Subcomanda \`/set ${sub}\` nu este recunoscuta. Foloseste \`/help\` pentru lista.`);
+    }
+
+    const updateDoc: Record<string, unknown> = { ...plan.updateDoc };
+    if (plan.isFilterChange) updateDoc.pendingDiscounts = [];
+
+    try {
+      await GuildModel.updateOne({ _id: guildId }, { $set: updateDoc }, { upsert: true });
+      invalidateGuildCache(guildId);
+      const tail = plan.isFilterChange ? " *(coada de pending a fost resetata)*" : "";
+      return safeEdit(interaction, plan.confirmMsg + tail);
+    } catch (err: unknown) {
+      logger("WARN", "SET_COMMAND", `Eroare la salvarea preferintelor pentru ${guildId}`, errorMessage(err));
+      return safeEdit(interaction, formatUserError(err, "Eroare la salvarea preferintelor."));
+    }
+  }
+
+  return { handleSetInteraction };
+}
+
+function isDirectSetCommand(interaction: DiscordInteraction): boolean {
+  if (interaction?.isChatInputCommand?.() !== true) return false;
+  if (!interaction.guild) return false;
+  if (interaction.commandName !== "set") return false;
+  // V12: handler-ul asta intercepteaza DOAR sub-comenzile directe. Cele cu grup
+  // (`/set games X`, `/set role X`) sunt prinse de installer-ele lor in chain
+  // INAINTE sa ajungem aici (vezi `commandRegistry` install order). Daca
+  // schimbam vreodata ordinea, guard-ul asta opreste interceptia gresita.
+  const group = interaction.options?.getSubcommandGroup?.(false);
+  return group !== "games" && group !== "role";
+}
+
+function installSetInteractionHandler(ctx: SetContext) {
+  const previousHandleInteraction = ctx.handleInteraction;
+  const handlers = createSetInteractionHandler(ctx);
+
+  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
+    if (!isDirectSetCommand(interaction)) {
+      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
+      return undefined;
+    }
+    try {
+      return await handlers.handleSetInteraction(interaction);
+    } catch (err: unknown) {
+      ctx.logger?.("ERROR", "SET_INTERACTION", "Eroare in handler-ul /set", errorDetail(err));
+      const payload = { content: "Eroare: Eroare neasteptata la procesarea comenzii.", flags: ctx.MessageFlags.Ephemeral };
+      try {
+        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") {
+          await interaction.followUp(payload);
+        } else {
+          await interaction.reply(payload);
+        }
+      } catch { /* ignore */ }
+      return undefined;
+    }
+  }
+
+  Object.assign(ctx, handlers, { handleInteraction });
+}
+
+Object.assign(installSetInteractionHandler, { createSetInteractionHandler, buildSetUpdatePlan });
+
+export = installSetInteractionHandler;

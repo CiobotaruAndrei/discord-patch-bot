@@ -56,6 +56,13 @@ const defaultInstallers: CommandModuleInstaller[] = [
   require("../command-handlers/subscriptionNotificationHandlers") as CommandModuleInstaller,
   require("../command-handlers/gameFilterHandlers") as CommandModuleInstaller,
   require("../command-handlers/rolePingHandlers") as CommandModuleInstaller,
+  // V12: /set DIRECT subs (mode/mindiscount/maxprice/free/paid/currency/stores)
+  // extrase din legacy router intr-o factory tipata. Sub-comenzile cu grup
+  // (`/set games X`, `/set role X`) raman in `gameFilterHandlers` /
+  // `rolePingHandlers` care intercepteaza inainte sa ajunga aici. Installer-ul
+  // verifica explicit `group !== "games" && !== "role"` ca sa nu intercepteze
+  // gresit grupurile (defense in depth daca ordinea install se schimba).
+  require("../command-handlers/setInteractionHandler") as CommandModuleInstaller,
   // V11: /status si /dlc extrase din legacy router in factory-uri tipate cu
   // deps explicite, simetric cu cele patru installer-e de mai sus. Versiunile
   // legacy raman shadow-ed: aceste installer-e vin dupa legacy in chain si

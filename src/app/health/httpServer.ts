@@ -121,7 +121,23 @@ function createHttpServer({
       res.end("Too Many Requests");
       return;
     }
-    if (req.url === "/health" || req.url === "/healthz") {
+    // V12: parsam pathname-ul explicit via `URL`, in loc de `req.url ===` strict.
+    // Inainte: `/metrics?probe=1` sau `/health?source=k8s` cadeau prin matching
+    // ca 404 — clienti de monitoring care anexau query parameters (Prometheus
+    // scrape labels, k8s probe configs custom) erau respinsi cu mesaj inselator
+    // "Not Found" in loc de a primi raspunsul real. `req.url` poate fi `null`
+    // pe socket-uri pre-handshake; fallback la "/" si base hardcodat localhost
+    // (nu folosim Host header — ar putea fi spoofed).
+    let pathname: string;
+    try {
+      pathname = new URL(req.url || "/", "http://localhost").pathname;
+    } catch {
+      // URL ne-parsabil — tratam ca 404 imediat (nu propagam la handler-ul de mai jos).
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Not Found");
+      return;
+    }
+    if (pathname === "/health" || pathname === "/healthz") {
       const ok = mongoose.connection.readyState === 1 && client.isReady();
       const body: HealthBody = {
         status: ok ? "ok" : "degraded",
@@ -137,7 +153,7 @@ function createHttpServer({
       return;
     }
 
-    if (req.url === "/metrics") {
+    if (pathname === "/metrics") {
       if (!checkMetricsAuth(req)) {
         res.writeHead(401, { "Content-Type": "text/plain" });
         res.end("Unauthorized");
