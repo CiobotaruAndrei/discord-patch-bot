@@ -1,8 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-// legacyInteractionRouter.ts is CommonJS-style `module.exports = (ctx) => {...}`.
-const attachInteractions = require("../features/command-router/legacyInteractionRouter") as (ctx: Record<string, any>) => void;
+// V12: legacy router-ul nu mai expune handlers per-comanda. Folosim handlers
+// dedicate cu deps tipate, identic cu install order-ul de productie.
+const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as (ctx: Record<string, any>) => void;
+const installStatusHandler = require("../features/command-handlers/statusInteractionHandler") as (ctx: Record<string, any>) => void;
+const installSetHandler = require("../features/command-handlers/setInteractionHandler") as (ctx: Record<string, any>) => void;
+
+function attachInteractions(ctx: Record<string, any>): void {
+  // Bottom-of-chain stub: handleInteraction nu mai exista in legacy router
+  // ca handler complet, deci provideam un default no-op pentru testele care
+  // exercita doar handlers individuali prin `ctx.handleSetInteraction(...)`.
+  if (typeof ctx.handleInteraction !== "function") {
+    ctx.handleInteraction = async () => undefined;
+  }
+  installGameFilterHandlers(ctx);
+  installSetHandler(ctx);
+  installStatusHandler(ctx);
+}
 
 type Game = { key: string; name: string };
 
@@ -107,9 +122,11 @@ test("/set games remove accepts a stale key not in the current config", async ()
   attachInteractions(ctx);
 
   const currentGames: Game[] = [{ key: "cs2", name: "Counter-Strike 2" }];
-  await ctx.handleSetInteraction(
+  await ctx.handleSetGames(
     makeSetGamesInteraction("remove", "old-removed-game"),
-    currentGames
+    currentGames,
+    "remove",
+    "guild-1"
   );
 
   assert.equal(mongoCalls.length, 1,
@@ -131,9 +148,11 @@ test("/set games remove reports 'nothing to remove' when key was not in enabledG
   const ctx: any = makeCtx(replies, mongoCalls, /* modifiedCount */ 0);
   attachInteractions(ctx);
 
-  await ctx.handleSetInteraction(
+  await ctx.handleSetGames(
     makeSetGamesInteraction("remove", "cs2"),
-    [{ key: "cs2", name: "Counter-Strike 2" }]
+    [{ key: "cs2", name: "Counter-Strike 2" }],
+    "remove",
+    "guild-1"
   );
 
   assert.equal(mongoCalls.length, 1);
@@ -150,9 +169,11 @@ test("/set games add still rejects keys not in the current config", async () => 
   const ctx: any = makeCtx(replies, mongoCalls);
   attachInteractions(ctx);
 
-  await ctx.handleSetInteraction(
+  await ctx.handleSetGames(
     makeSetGamesInteraction("add", "no-such-game"),
-    [{ key: "cs2", name: "Counter-Strike 2" }]
+    [{ key: "cs2", name: "Counter-Strike 2" }],
+    "add",
+    "guild-1"
   );
 
   assert.equal(mongoCalls.length, 0, "add must NOT write a stale key to Mongo");

@@ -47,11 +47,17 @@ const defaultInstallers: CommandModuleInstaller[] = [
   require("../command-cache/commandCache") as CommandModuleInstaller,
   require("../../domain/deals/filters") as CommandModuleInstaller,
   require("../command-presentation/commandPresentation") as CommandModuleInstaller,
-  // The remaining legacy handler still reads some helpers from ctx; commandPresentation
-  // attaches those helpers before the compatibility router is loaded.
   require("../notifications") as CommandModuleInstaller,
   require("../command-definitions/slashCommandDefinitions") as CommandModuleInstaller,
+  // V12: legacy router redus la doar bottom-of-chain fallback pentru comenzi
+  // necunoscute. Toate handlers-urile cunoscute (ping, games, help, start, stop,
+  // set, latest, dlc, status, autocomplete) sunt in module dedicate tipate
+  // care wrap ctx.handleInteraction.
   require("../command-router/legacyInteractionRouter") as CommandModuleInstaller,
+  // V12: /ping si /games extrase din legacy router intr-o factory tipata cu
+  // o singura dependinta (COMMAND_OUTPUT_MAX_CHARS). Ultimul pas pentru
+  // retragerea completa a dispatch-ului vechi.
+  require("../command-handlers/simpleCommandsHandler") as CommandModuleInstaller,
   require("../command-handlers/helpInteractionHandler") as CommandModuleInstaller,
   require("../command-handlers/subscriptionNotificationHandlers") as CommandModuleInstaller,
   require("../command-handlers/gameFilterHandlers") as CommandModuleInstaller,
