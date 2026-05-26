@@ -13,11 +13,6 @@ interface MigrationStateDoc {
   lastAppliedAt?: Date;
 }
 
-interface GuildSeenDiscountDoc {
-  _id: unknown;
-  seenDiscounts?: unknown;
-}
-
 interface RunMigrationsResult {
   applied: number[];
   skipped: number;
@@ -72,16 +67,17 @@ const m4_trimSeenDiscounts: Migration = {
   name: "trim-runaway-seenDiscounts",
   async up(db) {
     const coll = db.collection("guilds");
-    const docs = await coll.find(
+    // V12: aggregation-pipeline update — un singur round-trip, fara sa
+    // materializam in memorie toate doc-urile. Inainte: `.find().toArray()`
+    // incarca intregul rezultat (potential mii de guild-uri cu sute de hash-uri
+    // de ~40 caractere) in heap-ul Node inainte de procesare. Pentru migratia
+    // care vizeaza exact array-urile runaway, asta inseamna sute de MB pe deploys
+    // cu istorie lunga — boot OOM sau stall. Acum: Mongo $slice direct in
+    // updateMany; doc-urile nu mai trec prin client.
+    await coll.updateMany(
       { "seenDiscounts.500": { $exists: true } },
-      { projection: { _id: 1, seenDiscounts: 1 } }
-    ).toArray() as GuildSeenDiscountDoc[];
-
-    for (const doc of docs) {
-      if (!Array.isArray(doc.seenDiscounts)) continue;
-      const trimmed = doc.seenDiscounts.slice(-300);
-      await coll.updateOne({ _id: doc._id as any }, { $set: { seenDiscounts: trimmed } });
-    }
+      [{ $set: { seenDiscounts: { $slice: ["$seenDiscounts", -300] } } }]
+    );
   }
 };
 
