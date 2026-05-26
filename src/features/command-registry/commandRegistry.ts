@@ -63,6 +63,10 @@ const defaultInstallers: CommandModuleInstaller[] = [
   // verifica explicit `group !== "games" && !== "role"` ca sa nu intercepteze
   // gresit grupurile (defense in depth daca ordinea install se schimba).
   require("../command-handlers/setInteractionHandler") as CommandModuleInstaller,
+  // V12: /latest extras din legacy router intr-o factory tipata cu deps
+  // explicite (cele 4 sub-comenzi updates/reduceri/update/pret + dispatcher
+  // cu guard pentru sub necunoscut). Versiunea legacy ramane shadow-ed.
+  require("../command-handlers/latestInteractionHandler") as CommandModuleInstaller,
   // V11: /status si /dlc extrase din legacy router in factory-uri tipate cu
   // deps explicite, simetric cu cele patru installer-e de mai sus. Versiunile
   // legacy raman shadow-ed: aceste installer-e vin dupa legacy in chain si
