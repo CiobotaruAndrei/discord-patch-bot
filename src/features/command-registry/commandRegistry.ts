@@ -49,11 +49,12 @@ const defaultInstallers: CommandModuleInstaller[] = [
   require("../command-presentation/commandPresentation") as CommandModuleInstaller,
   require("../notifications") as CommandModuleInstaller,
   require("../command-definitions/slashCommandDefinitions") as CommandModuleInstaller,
-  // V12: legacy router redus la doar bottom-of-chain fallback pentru comenzi
-  // necunoscute. Toate handlers-urile cunoscute (ping, games, help, start, stop,
-  // set, latest, dlc, status, autocomplete) sunt in module dedicate tipate
-  // care wrap ctx.handleInteraction.
-  require("../command-router/legacyInteractionRouter") as CommandModuleInstaller,
+  // V12: fallback handler pentru bottom-of-chain (redenumit din legacy router).
+  // Toate handlers-urile cunoscute (ping, games, help, start, stop, set, latest,
+  // dlc, status, autocomplete) sunt in module dedicate tipate care wrap
+  // ctx.handleInteraction. Acest handler ruleaza doar pentru comenzi
+  // necunoscute, non-chat-input fara handler, sau lipsa context guild.
+  require("../command-handlers/fallbackInteractionHandler") as CommandModuleInstaller,
   // V12: /ping si /games extrase din legacy router intr-o factory tipata cu
   // o singura dependinta (COMMAND_OUTPUT_MAX_CHARS). Ultimul pas pentru
   // retragerea completa a dispatch-ului vechi.

@@ -3,11 +3,18 @@
 /**
  * V12: bottom-of-chain fallback pentru `handleInteraction`.
  *
- * Inainte: fisierul asta avea ~950 linii cu intregul dispatch /ping, /games,
- * /help, /start, /stop, /set, /latest, /dlc, /status + autocomplete +
- * buildHelpEmbed + ~30 deps destructurate din ctx. Toate cele 11 handlers
- * substantiale au fost extrase in module dedicate cu deps tipate explicit
- * (vezi `src/features/command-handlers/*`).
+ * Inainte (cand se numea `legacyInteractionRouter.ts` in `command-router/`):
+ * fisierul avea ~950 linii cu intregul dispatch /ping, /games, /help, /start,
+ * /stop, /set, /latest, /dlc, /status + autocomplete + buildHelpEmbed + ~30
+ * deps destructurate din ctx. Toate cele 11 handlers substantiale au fost
+ * extrase in module dedicate cu deps tipate explicit (vezi celelalte fisiere
+ * din `src/features/command-handlers/*`).
+ *
+ * V12 final: redenumit din `legacyInteractionRouter` in
+ * `fallbackInteractionHandler` si mutat din `command-router/` in
+ * `command-handlers/` ca sa reflecte ce face efectiv — un fallback handler,
+ * NU un router. Numele vechi era confuz ("router" sugera dispatch, dar nu mai
+ * face dispatch).
  *
  * Ce ramane aici: doar bottom-of-chain pentru handleInteraction — wrappers-ii
  * de mai sus (helpInteractionHandler, subscriptionNotificationHandlers,
@@ -19,9 +26,6 @@
  * - comenzi necunoscute (typo in slash schema, drift intre client si server)
  * - non-chat-input fara handler (rar, mostly defense in depth)
  * - lipsa contextului de guild (DM nu este suportat)
- *
- * Filename retinut pentru continuitate git history. Daca scoatem si dispatcher-ul
- * intr-un viitor PR, fisierul devine 0 linii si se poate sterge.
  */
 
 const { errorDetail } = require("../../shared/errors");
