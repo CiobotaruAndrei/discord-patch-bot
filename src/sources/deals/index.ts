@@ -230,8 +230,14 @@ async function enrichDealData(deal: DealInfo, currencyCode?: DealCurrencyCode): 
             data.platforms.linux ? "Lin" : ""
           ].filter(Boolean);
           if (platformList.length > 0) {
-            enriched.extraDetails = (enriched.extraDetails || "")
-              + `\n**Platforme:** ${platformList.join(", ")}`;
+            // V12: nu prependa `\n` cand extraDetails e gol/undefined. Inainte:
+            // pe deal-uri Steam fresh fara extraDetails preexistent, produceam
+            // "\n**Platforme:** Win, Mac" — un newline fantomic la inceputul
+            // sectiunii devine o linie goala vizibila in embed-ul Discord.
+            const platformLine = `**Platforme:** ${platformList.join(", ")}`;
+            enriched.extraDetails = enriched.extraDetails
+              ? `${enriched.extraDetails}\n${platformLine}`
+              : platformLine;
           }
         }
         if (htmlRes?.data) {

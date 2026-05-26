@@ -29,6 +29,8 @@
     "scripts/extract-release-notes.ts",
     "shared/errors.ts",
     "sources/sourceRegistry.ts",
+    "test/acquireDbLock.functional.test.ts",
+    "test/adminAlerts.functional.test.ts",
     "test/adminGuard.test.ts",
     "test/commandRegistry.functional.test.ts",
     "test/cronController.test.ts",

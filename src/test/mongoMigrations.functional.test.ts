@@ -38,6 +38,25 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
   const guildCollection = {
     async updateMany(filter: unknown, update: unknown) {
       updateManyCalls.push({ collection: "guilds", filter, update });
+      // V12: m4_trimSeenDiscounts foloseste acum aggregation-pipeline update
+      // (`[{ $set: { seenDiscounts: { $slice: ["$seenDiscounts", -300] } } }]`)
+      // in loc de find().toArray() + per-doc updateOne. Simulam shape-ul
+      // aggregation aici ca sa pastram regresia care valideaza ca array-urile
+      // runaway sunt trimmed la 300.
+      if (Array.isArray(update)) {
+        for (const stage of update) {
+          const setStage = (stage as { $set?: Record<string, unknown> }).$set;
+          if (!setStage || !setStage.seenDiscounts) continue;
+          const sliceOp = (setStage.seenDiscounts as { $slice?: unknown[] }).$slice;
+          if (!Array.isArray(sliceOp)) continue;
+          const sliceCount = sliceOp[1] as number;
+          for (const guild of guilds) {
+            if (Array.isArray(guild.seenDiscounts) && guild.seenDiscounts.length > 500) {
+              guild.seenDiscounts = guild.seenDiscounts.slice(sliceCount);
+            }
+          }
+        }
+      }
       return { modifiedCount: 1 };
     },
     find() {
@@ -97,7 +116,18 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
 
   assert.deepEqual(result.applied, [1, 2, 3, 4]);
   assert.equal(result.skipped, 0);
-  assert.equal(fixture.updateManyCalls.length, 3);
+  // V12: m4_trimSeenDiscounts foloseste acum updateMany cu aggregation pipeline
+  // in loc de find().toArray() + per-doc updateOne. Total updateMany calls = 4
+  // (m1, m2, m3 + m4 noul). Verificam si shape-ul pipeline-ului explicit ca sa
+  // prindem regresii de schema-update.
+  assert.equal(fixture.updateManyCalls.length, 4);
+  const m4Call = fixture.updateManyCalls[3];
+  assert.deepEqual(m4Call.filter, { "seenDiscounts.500": { $exists: true } });
+  assert.ok(Array.isArray(m4Call.update), "m4 trebuie sa foloseasca aggregation pipeline (array)");
+  assert.deepEqual(
+    (m4Call.update as Array<{ $set: { seenDiscounts: { $slice: unknown[] } } }>)[0].$set.seenDiscounts.$slice,
+    ["$seenDiscounts", -300]
+  );
   assert.equal(fixture.guilds[0].seenDiscounts?.length, 300);
   assert.equal(fixture.guilds[0].seenDiscounts?.[0], "deal-220");
   assert.equal(fixture.migrationState?.lastApplied, 4);

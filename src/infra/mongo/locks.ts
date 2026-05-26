@@ -61,9 +61,18 @@ function attachLocks(ctx: LocksContext): void {
       }
       return null;
     } catch (err) {
+      // V12: duplicate-key (E11000) este race-ul legitim cu alta instanta —
+      // returnam null si lasam caller-ul sa sara ciclul. ORICE alta eroare
+      // (auth fail, write-concern timeout, primary step-down, network blip
+      // intre client si replica primary) NU este o cursa legitima; daca o
+      // tratam ca "alta instanta detine lock-ul" silentiem un esec real al
+      // infrastructurii. Inainte cron-ul incrementa `cronSkippedDueToLock`
+      // metricul ramanea verde, dar bot-ul NU mai rula niciun ciclu — operatorul
+      // nu vedea niciun semnal de outage real. Acum propagam erorile non-E11000;
+      // catch-ul din cron.ts le numara ca `cronErrors` si poate trigeri
+      // `adminAlert("cron:lock", ...)`.
       if (isDuplicateKeyError(err)) return null;
-      logger("WARN", "DB_LOCK", "Eroare la obtinerea lock-ului", errorMessage(err));
-      return null;
+      throw err;
     }
   }
 
