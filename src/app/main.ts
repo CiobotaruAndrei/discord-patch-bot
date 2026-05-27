@@ -109,9 +109,6 @@ createShutdownController({
   errorDetail
 }).registerProcessHandlers();
 
-// V11: connect-ul direct esua la primul network blip si crash-uia bot-ul, lasand
-// platforma (Docker/k8s) sa-l restart-eze. Cu retry exponential bot-ul tolereaza
-// fereastra tipica de start a Mongo (~5-15s) fara restart inutil.
 const MONGO_CONNECT_MAX_ATTEMPTS = 5;
 const MONGO_CONNECT_INITIAL_BACKOFF_MS = 1000;
 const MONGO_CONNECT_MAX_BACKOFF_MS = 16000;
@@ -153,11 +150,6 @@ async function connectMongoWithRetry(): Promise<void> {
       logger("INFO", "MIGRATE", `Migrari aplicate: ${migrations.applied.join(", ")}`);
     }
 
-    // V11: handler explicit de `error` pe httpServer. Inainte, daca port-ul era
-    // ocupat (deploy paralel, restart prea rapid in container), Node emitea
-    // un eveniment `error` fara listener → `uncaughtException` → shutdown
-    // declansat de safety net-ul nostru, dar fara semnal clar in log-uri. Acum
-    // log-am eroarea explicit si trimitem alerta admin inainte sa cadem.
     httpServer.on("error", (err: Error) => {
       logger("ERROR", "HTTP", `httpServer error (port=${env.PORT})`, errorDetail(err));
       adminAlert("http:listen", "Eroare HTTP server", errorMessage(err)).catch(() => null);
@@ -169,14 +161,6 @@ async function connectMongoWithRetry(): Promise<void> {
     await client.login(env.DISCORD_TOKEN);
   } catch (err) {
     logger("ERROR", "BOOT", "Eroare la pornire", errorDetail(err));
-    // V11: asteptam pana la 3s pentru ca alerta admin sa ajunga inainte de
-    // `process.exit(1)`. Inainte: `adminAlert(...).catch(...)` era
-    // fire-and-forget, iar `process.exit(1)` se executa sincron pe linia
-    // urmatoare — omora event loop-ul inainte ca POST-ul HTTP catre webhook
-    // sa apuce sa porneasca. Operatorul nu primea niciodata notificare
-    // despre boot failures, doar restart-loop in platforma de orchestratie.
-    // Race cu un budget scurt: daca webhook-ul e lent / offline, exit-ul
-    // se intampla la 3s in loc sa ramana blocat.
     const BOOT_ALERT_BUDGET_MS = 3000;
     await Promise.race([
       adminAlert("boot:fatal", "Botul nu a putut porni", errorMessage(err)).catch(() => null),

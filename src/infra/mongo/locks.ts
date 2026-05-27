@@ -61,16 +61,6 @@ function attachLocks(ctx: LocksContext): void {
       }
       return null;
     } catch (err) {
-      // V12: duplicate-key (E11000) este race-ul legitim cu alta instanta —
-      // returnam null si lasam caller-ul sa sara ciclul. ORICE alta eroare
-      // (auth fail, write-concern timeout, primary step-down, network blip
-      // intre client si replica primary) NU este o cursa legitima; daca o
-      // tratam ca "alta instanta detine lock-ul" silentiem un esec real al
-      // infrastructurii. Inainte cron-ul incrementa `cronSkippedDueToLock`
-      // metricul ramanea verde, dar bot-ul NU mai rula niciun ciclu — operatorul
-      // nu vedea niciun semnal de outage real. Acum propagam erorile non-E11000;
-      // catch-ul din cron.ts le numara ca `cronErrors` si poate trigeri
-      // `adminAlert("cron:lock", ...)`.
       if (isDuplicateKeyError(err)) return null;
       throw err;
     }
@@ -79,12 +69,6 @@ function attachLocks(ctx: LocksContext): void {
   async function renewDbLock(jobName: string, token: LockToken | null, ttlMs = 120000): Promise<boolean> {
     if (!token) return false;
     const expires = new Date(Date.now() + ttlMs);
-    // V11: nu mai inghitim erorile transient. Catch-ul vechi rescria orice
-    // throw (Mongo network blip, replica step-down) intr-un `false`, iar
-    // call-site-ul (cron heartbeat) trata `false` ca "lock pierdut definitiv"
-    // si anula imediat ciclul. Acum lasam erorile sa propage, ca apelantul sa
-    // distinga intre "modifiedCount=0 → lock pierdut, abort" si "throw → blip
-    // transient, retry inca o data".
     const res = await JobLockModel.updateOne(
       { _id: `lock_${jobName}`, ownerToken: token },
       { $set: { lockedUntil: expires } }
@@ -94,12 +78,6 @@ function attachLocks(ctx: LocksContext): void {
 
   async function releaseDbLock(jobName: string, token: LockToken | null): Promise<void> {
     if (!token) return;
-    // V12: muta `activeLocks.delete` in finally. Inainte, daca deleteOne arunca
-    // (Mongo blip in fereastra de release-end-of-cycle), .delete-ul era sarit
-    // si intrarea ramanea in activeLocks pe veci (exposed prin metricul
-    // `bot_active_locks`). Doc-ul Mongo va expira oricum prin `lockedUntil`,
-    // deci tracking-ul in memorie poate fi sters neconditionat — vom recrea
-    // entry-ul cand acquireDbLock va prinde un lock proaspat in ciclul urmator.
     try {
       await JobLockModel.deleteOne({ _id: `lock_${jobName}`, ownerToken: token });
     } catch (err) {

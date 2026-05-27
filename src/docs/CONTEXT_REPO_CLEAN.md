@@ -13,6 +13,8 @@ Documentul descrie starea curenta a repo-ului dupa migrarea treptata din fisiere
 - `notifications/index.ts` este wiring pentru job-uri; logica de update-uri si reduceri este in servicii dedicate.
 - Rust/N-API este folosit doar pentru hot-path-uri pure, cu fallback TypeScript in `src/native/fuzzy.ts`.
 - Migrarea TypeScript strict este incrementala prin `src/tsconfig.strict.json`.
+- `legacy-dynamic.d.ts` nu mai exista; tipurile dinamice trebuie modelate local.
+- Documentatia istorica versionata a fost scoasa din cod; fisierele curente de documentatie raman sursa de adevar.
 
 ## Structura logica
 
@@ -123,19 +125,21 @@ Zone deja potrivite pentru strict:
 - serviciile de notificari;
 - handler-ele de comenzi extrase;
 - utilitarele de health/metrics si config;
-- adapterul `src/native/fuzzy.ts`.
+- adapterul `src/native/fuzzy.ts`;
+- sursele `src/sources/steam`, `src/sources/deals` si `src/sources/updates`;
+- testele directe de shape drift pentru scrapers.
 
 Zone care inca trebuie urmarite:
 
 - `commandRuntimeContext.ts`;
 - `commandRegistry.ts`;
-- adapterele care inca primesc un context comun mare;
+- adapterele care inca primesc un context comun mare, desi `commandCache`, `commandPresentation` si `mongoContext` au deja factory-uri explicite;
 - locurile unde apar `any` pentru builder-e sau interactiuni Discord.js.
 
 ## Securitate si runtime
 
 - Comenzile administrative trebuie sa aiba atat permisiuni declarate in slash command, cat si verificari runtime in handler.
-- Linkurile externe si proxy-urile trebuie validate prin config.
+- Linkurile externe si proxy-urile trebuie validate prin config, iar request-urile HTTP trec prin validare URL si DNS/IP ca protectie SSRF.
 - `/metrics` trebuie protejat cu token cand este expus in afara mediului local.
 - Token-urile Discord, URI-urile Mongo si webhook-urile nu trebuie comise.
 - Docker trebuie sa ruleze procesul ca user non-root.
@@ -164,6 +168,7 @@ Teste relevante pentru structura actuala:
 - `seenRepository.functional.test.ts`;
 - `dealFiltersCore.functional.test.ts`;
 - `rustFuzzy.test.ts`;
+- `sourceScraperShapeDrift.test.ts`;
 - testele E2E pentru update-uri si reduceri.
 
 ## Zone ramase de curatat

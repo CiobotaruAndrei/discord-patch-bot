@@ -37,13 +37,7 @@ test("deal filter core applies store, price, discount and free/paid rules direct
   assert.equal(dealPassesFilters({ ...baseDeal, salePrice: "0", savings: 0 }, { ...guild, includeFreeGames: false }), false);
 });
 
-test("deal filter rejects deals with non-finite savings (V11 NaN guard)", () => {
-  // V11 regression guard: `Number(undefined) === NaN`, and `NaN < minDisc`
-  // evaluates to false — so the old comparator LET deals through whose
-  // upstream source forgot the `savings` field. Then buildDealEmbed
-  // surfaced "Reducere: NaN%" or "undefined%" to the user. Now we
-  // explicitly reject any non-finite savings number when checking the
-  // minimum discount threshold.
+test("deal filter rejects deals with non-finite savings", () => {
   const guild: GuildSettings = {
     _id: "guild-1",
     minDiscountPercent: 30,
@@ -99,13 +93,6 @@ test("entry helpers support Map, plain objects and rotation", () => {
 });
 
 test("normalizePendingUpdateArray coerces invalid createdAt to a fresh Date", () => {
-  // V12 regression guard: `new Date(item.createdAt).getTime()` in
-  // processGuildUpdates returna NaN pentru intrari cu createdAt malformat
-  // (string "abc", `"Invalid Date"`, sau docs pre-V11). NaN <=
-  // PENDING_UPDATE_MAX_AGE_MS este false, deci item-ul era filtrat din
-  // pendingUpdates si re-scris in DB FARA el — notificarea era pierduta
-  // definitiv. Acum normalizatorul stampleaza `new Date()` pe orice valoare
-  // care nu produce un Date valid.
   const before = Date.now();
   const items = normalizePendingUpdateArray([
     { id: "u1", createdAt: "abc" },            // string nevalid

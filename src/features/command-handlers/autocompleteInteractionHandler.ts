@@ -1,20 +1,5 @@
 "use strict";
 
-/**
- * V12: handler tipat pentru autocomplete pe slash commands.
- *
- * Extras din `legacyInteractionRouter.ts` ca parte din continuarea splitting-ului
- * review-ului extern (legacy router prea dependent de ctx). Autocomplete acopera
- * optiunile `joc` din `/dlc`, `/status`, `/latest update`, `/latest pret`,
- * `/set games add`, `/set games remove`.
- *
- * Deps tipate: logger + getGuildSettings (pentru filtrarea per-guild a pool-ului
- * la `/set games remove`). Niciun acces la `ctx` global in interiorul handler-ului.
- *
- * Acest installer NU wrapeaza dispatcher-ul global de handleInteraction — el
- * verifica explicit `isAutocomplete()` si delegheaza in jos pentru orice
- * altceva, simetric cu cele 8 installer-e de comenzi.
- */
 
 const { errorMessage, errorDetail } = require("../../shared/errors");
 const { buildAutocompleteChoices } = require("../../native/fuzzy") as typeof import("../../native/fuzzy");
@@ -54,7 +39,6 @@ const MAX_AUTOCOMPLETE_CHOICES = 25;
 const MAX_CHOICE_NAME_LEN = 100;
 const MAX_CHOICE_VALUE_LEN = 100;
 
-// V11: scorul minim necesar daca user-ul a tastat ceva (filtrare candidati slabi).
 const MIN_RELEVANT_SCORE = 20;
 const SCORE_EXACT = 100;
 const SCORE_PREFIX = 50;
@@ -80,9 +64,6 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
   const { logger, getGuildSettings } = deps;
 
   async function buildSetGamesRemovePool(interaction: DiscordInteraction, games: GameConfig[]): Promise<GameConfig[]> {
-    // V11: explicit guard. Autocomplete fire-uieste doar din guild context in
-    // practica, dar payload-uri malformate sau o testare manuala via API ar
-    // putea trimite autocomplete fara guild — inainte aruncam pe `.id`.
     if (!interaction.guild) return games;
     try {
       const guild = await getGuildSettings(interaction.guild.id);
@@ -90,10 +71,6 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
       if (enabled.length === 0) return games;
       const enabledSet = new Set(enabled);
       const fromConfig = games.filter(g => enabledSet.has(g.key));
-      // V11: include si cheile STALE (in enabledGames dar nu mai exista in
-      // config) ca sa poata fi sterse. Vechea forma le ascundea complet din
-      // autocomplete iar comanda `remove` le respingea ca "cheie nu exista in
-      // config" — operatorul ramanea blocat cu intrari stale.
       const knownKeys = new Set(fromConfig.map(g => g.key));
       const stalePlaceholders: GameConfig[] = enabled
         .filter((key): key is string => typeof key === "string" && !knownKeys.has(key))

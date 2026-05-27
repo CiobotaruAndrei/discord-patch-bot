@@ -30,12 +30,6 @@ function getCurrencyConfig(code?: CurrencyCode | string | null): CurrencyConfig 
 function formatPrice(value: PriceValue, currencyCode?: CurrencyCode | string | null): string {
   const cfg = getCurrencyConfig(currencyCode);
   const num = Number(value);
-  // V11: pe valori invalide (NaN, undefined coercion, "abc" string), afisam
-  // "—" in loc de a injecta `String(value)` direct in template. Vechi: pentru
-  // value=undefined produceam "$undefined", pentru value="abc" produceam "$abc".
-  // Defensive: nu putem garanta intotdeauna ca pretul vine curat din upstream
-  // (deal corupt in DB, fallback fallback parsing fail, etc.) si valorile
-  // user-facing trebuie sa ramana ingrijite chiar pe edge cases.
   const formatted = Number.isFinite(num) ? num.toFixed(2) : "—";
   return cfg.placement === "prefix"
     ? `${cfg.symbol}${formatted}`

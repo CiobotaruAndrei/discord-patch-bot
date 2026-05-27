@@ -1,16 +1,3 @@
-/**
- * V11: SeenRepository — extras din `notifications/index.ts` ca prim pas
- * pentru a sparge modulul mare in servicii separate (sugestie din review
- * extern, ecranul 1 punctul 2).
- *
- * Concentreaza toate operatiile Mongo pe `seen.<gameKey>` (per-game seen
- * arrays pentru update-uri) si `seenDiscounts` (flat array de hash-uri pentru
- * reduceri), plus disable-flow-ul pentru canale care nu mai sunt accesibile.
- *
- * Functiile sunt independent testabile (deps explicite, fara `ctx` partajat)
- * iar dependinta-prin-context din `index.ts` se reduce la o singura linie
- * de wiring (`createSeenRepository({ GuildModel, withMongoRetry, ... })`).
- */
 
 import type { Model } from "mongoose";
 import type { GuildSettings } from "../../types";

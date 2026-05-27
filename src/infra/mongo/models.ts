@@ -54,7 +54,6 @@ const guildSchema = new mongoose.Schema({
     at: { type: Date, default: null }
   },
 
-  // V9: filtre noi
   enabledGames: { type: [String], default: [] },   // [] = toate jocurile active
   enabledStores: { type: [String], default: [] },  // [] = toate store-urile active
   maxAbsolutePrice: { type: Number, default: 0 },  // 0 = fara limita superioara
@@ -94,9 +93,6 @@ const jobLockSchema = new mongoose.Schema({
 }, { minimize: false });
 const JobLockModel = mongoose.model("JobLock", jobLockSchema);
 
-// V9: cooldown alerte admin in Mongo, multi-instance safe.
-// TTL 7 zile pe lastSentAt - la o instanta cu volum mare de alerte unice,
-// curatarea automata ne salveaza de growth necontrolat.
 const adminAlertCooldownSchema = new mongoose.Schema({
   _id: String, // alert kind (ex. "cb:dbd", "cron:fatal")
   lastSentAt: { type: Date, default: Date.now, expires: 7 * ONE_DAY_MS / 1000 }

@@ -28,10 +28,6 @@ function makeDlcInteraction(gameText: string | null = "cs2") {
 }
 
 function makeFakeCheerioLoad(htmlMarkers: { hasAgeGate?: boolean; dlcRows?: Array<{ name: string; price: string; appId?: string }>; hasPurchaseGame?: boolean }) {
-  // V11: returnam `any` ca sa tolereze cele doua moduri de invocare ale lui $
-  // — cu string selector si cu element-object (din `.each((i, el) => $(el))`).
-  // Cheerio runtime accepta ambele; TS-ul nostru de test imita asta cu o
-  // signature relaxata.
   return ((_html: unknown): any => {
     return function $(selector: any): any {
       if (selector === "#agegate_box" || selector === ".agegate_text_container") {
@@ -108,9 +104,6 @@ function makeBaseDeps(replies: unknown[], cacheMap: Map<string, any>) {
 }
 
 test("dlc handler factory rejects empty gameText BEFORE any cooldown/defer/Steam call", async () => {
-  // V11 regression guard: gameText null must short-circuit with an ephemeral
-  // reply (interaction.reply, not safeEdit) before consuming cooldown, log,
-  // or making any Steam HTTP request.
   const { interaction, replies } = makeDlcInteraction(null);
   const cacheMap = new Map();
   const deps = makeBaseDeps(replies, cacheMap);

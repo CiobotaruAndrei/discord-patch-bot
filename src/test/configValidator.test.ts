@@ -62,11 +62,6 @@ test("keeps legacy upCRD limited to NVIDIA entries", () => {
 });
 
 test("epic_games non-fortnite requires baseUrl and listing URL(s)", () => {
-  // V11 regression guard: fortnite has its own implementation (fetchFortniteUpdate)
-  // and doesn't need listingUrl. All other epic_games sources flow into
-  // fetchListingBasedUpdate and silently failed at runtime with "Nu am
-  // URL-uri de listing valide pentru …" if config was missing the fields.
-  // Now the validator catches the omission at boot.
   assert.doesNotThrow(
     () => validateConfig(baseConfig({
       games: [{ key: "fortnite", name: "Fortnite", type: "epic_games" }]
@@ -111,11 +106,6 @@ test("epic_games non-fortnite requires baseUrl and listing URL(s)", () => {
 });
 
 test("rejects duplicate listingUrls for listing_based and epic_games (non-fortnite)", () => {
-  // V11 regression guard: both `listing_based` and `epic_games` (non-fortnite)
-  // flow into fetchListingBasedUpdate, which Promise.allSettled's every URL.
-  // Duplicates = wasted HTTP work and double "Eroare preluare listing url ..."
-  // log entries for the same source. listing_based already rejected them; the
-  // same guard now applies to epic_games for consistency.
   assert.throws(
     () => validateConfig(baseConfig({
       games: [{

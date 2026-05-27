@@ -1,22 +1,5 @@
 "use strict";
 
-/**
- * V12: UpdateNotificationService — extras din `notifications/index.ts` ca parte
- * a continuarii splitting-ului review-ului extern (notifications/index era una
- * dintre cele mai mari zone de complexitate cu ~330 linii si ~30 deps ctx).
- *
- * Modulul concentreaza intregul flow de notificari de update-uri:
- * - `processGuildUpdates`: per guild, draina coada pendingUpdates, dispatcheaza
- *   maxim N updates/ciclu cu retry tolerant si rollback pe blip-uri Mongo.
- * - `buildOptimizedGameList`: filtreaza lista globala de jocuri la cele active
- *   pe macar un guild — economiseste fetch-uri Steam/Epic per ciclu.
- * - `checkForUpdates`: top-level cron entry — interogheaza guild-urile
- *   subscribed, fetch-uieste si proceseaza in paralel.
- *
- * Deps tipate explicit (no `ctx: any`). Functiile depinde de SeenRepository
- * (claim/rollback/disable) si OutboundChannelResolver injectate, fara apel
- * direct la Mongo/Discord.
- */
 
 import type { Model } from "mongoose";
 import type { GuildSettings } from "../../types";
@@ -99,7 +82,6 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY
   } = deps;
 
-  // V9: filtram per joc + mentiune rol pe prima trimitere doar.
   async function processGuildUpdates(
     client: unknown,
     guild: GuildSettings & Record<string, unknown>,
@@ -114,8 +96,6 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     });
     if (abort) return;
 
-    // V12: faza 1 (build pending queue) extrasa in `pendingUpdatesQueue.ts` ca
-    // helper pur. Aici doar I/O ramane: claim + send + rollback + writeback.
     const { pendingByGame, resultByGameKey } = buildPendingUpdatesQueue({
       normalizePendingUpdateArray, toEntries,
       PENDING_UPDATE_MAX_AGE_MS, PENDING_UPDATE_MAX_ATTEMPTS,
@@ -139,7 +119,6 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
         continue;
       }
       try {
-        // V9: prima trimitere pingeaza rolul (daca e setat), restul nu - anti-spam.
         const sendPayload: Record<string, unknown> = {
           embeds: [buildUpdateEmbed(game.name, next, (guild as { notificationMode?: string }).notificationMode || "detailed")]
         };

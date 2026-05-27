@@ -54,10 +54,6 @@ test("claimSeenUpdate runs under withMongoRetry with the correct atomic filter+u
 });
 
 test("rollbackSeenUpdate runs under withMongoRetry — critical to recover lost notifications on transient blips", async () => {
-  // V11 regression guard (PR #98): if rollback fails silently after a
-  // successful claim, the updateId stays in `seen` and the user never gets
-  // the notification (because channel.send already failed). withMongoRetry
-  // absorbs transient Mongo blips so rollback eventually lands.
   const { repo, calls, retryAttempts } = makeFakeDeps();
 
   await repo.rollbackSeenUpdate("g1", "cs2", "u-99");

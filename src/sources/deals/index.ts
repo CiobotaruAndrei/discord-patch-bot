@@ -107,12 +107,6 @@ async function fetchSteamReviewData(appId: string | number): Promise<SteamReview
   }
 }
 
-// V11: cheia cache-ului include si currency-ul. Inainte, cheia era doar
-// `deal.id` iar currency era stocat ca valoare si verificat la citire — daca
-// guild-uri cu currency-uri diferite cereau enrichment pentru acelasi deal,
-// scrierile se suprascriau reciproc si ambele tabere reveneau in mod
-// continuu pe miss, dezamorsand complet cache-ul intr-un deployment
-// multi-currency.
 function enrichCacheKey(dealId: unknown, currency: string): string {
   return `${String(dealId)}:${currency}`;
 }
@@ -178,10 +172,6 @@ async function enrichDealData(deal: DealInfo, currencyCode?: DealCurrencyCode): 
     if (enriched.store === "Steam" && enriched.steamAppID) {
       const cfg = getCurrencyConfig(currency);
       try {
-        // V11: foloseste URL builder in loc de concatenare raw. `${link}?cc=...`
-        // se sparge daca `link` are deja query string (ex. dintr-o sursa
-        // viitoare care pune ?utm_*=*) — produce `link?utm?cc=...`, invalid.
-        // URL builder seteaza/inlocuieste corect parametrii.
         let htmlUrl: string;
         try {
           const u = new URL(String(enriched.link));
@@ -193,13 +183,6 @@ async function enrichDealData(deal: DealInfo, currencyCode?: DealCurrencyCode): 
           // comportamentul vechi pentru deals fara link valid.
           htmlUrl = `${enriched.link}?cc=${cfg.cc}&l=english`;
         }
-        // V12: build appdetails URL via URL().searchParams.set, simetric cu
-        // htmlUrl de mai sus si cu fetchSteamPriceDetails / extractSteamOfferEndDate
-        // din `src/sources/steam/index.ts` (CHANGELOG #108). Inainte aici era
-        // unicul callsite Steam ramas pe concatenare raw — fix-ul anterior
-        // de URL-builder a ratat exact aceasta linie. `steamAppID` provine din
-        // sursele de deals (Steam specials JSON sau pipeline-uri viitoare) si
-        // un schema drift cu char-uri ne-asteptate ar putea corupe query-ul.
         const detailsUrl = new URL("https://store.steampowered.com/api/appdetails");
         detailsUrl.searchParams.set("appids", String(enriched.steamAppID));
         detailsUrl.searchParams.set("cc", cfg.cc);
@@ -220,20 +203,12 @@ async function enrichDealData(deal: DealInfo, currencyCode?: DealCurrencyCode): 
 
         const data = detailsRes?.data?.[enriched.steamAppID]?.data;
         if (data && data.platforms) {
-          // V11: skipam intreg randul `**Platforme:**` daca Steam returneaza
-          // platforms cu toate flag-urile false. Vechea forma adauga
-          // "\n**Platforme:** " (gol dupa join) → embed cu un label fara
-          // continut, vizibil dezordonat in client-ul Discord.
           const platformList = [
             data.platforms.windows ? "Win" : "",
             data.platforms.mac ? "Mac" : "",
             data.platforms.linux ? "Lin" : ""
           ].filter(Boolean);
           if (platformList.length > 0) {
-            // V12: nu prependa `\n` cand extraDetails e gol/undefined. Inainte:
-            // pe deal-uri Steam fresh fara extraDetails preexistent, produceam
-            // "\n**Platforme:** Win, Mac" — un newline fantomic la inceputul
-            // sectiunii devine o linie goala vizibila in embed-ul Discord.
             const platformLine = `**Platforme:** ${platformList.join(", ")}`;
             enriched.extraDetails = enriched.extraDetails
               ? `${enriched.extraDetails}\n${platformLine}`
@@ -289,9 +264,6 @@ async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo
       const chunkPromises = chunk.map(item => fetchSteamReviewData(item.id));
       const chunkResults = await Promise.all(chunkPromises);
       reviewsData.push(...chunkResults);
-      // V11: nu mai dormim si dupa ultimul batch. Inainte ultima iteratie
-      // pierdea STEAM_REVIEW_BATCH_DELAY_MS (default 500ms) inutil, fiindca
-      // nu mai venea niciun request dupa el.
       const isLastBatch = i + STEAM_REVIEW_BATCH_SIZE >= steamSpecials.length;
       if (STEAM_REVIEW_BATCH_DELAY_MS > 0 && !isLastBatch) {
         await new Promise(res => setTimeout(res, STEAM_REVIEW_BATCH_DELAY_MS));
@@ -358,12 +330,6 @@ async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo
       const salePrice = (discountPrice / 100).toFixed(2);
       let savings = 0;
       if (originalPrice > 0) {
-        // V11: cap pe 0 — daca Epic returneaza date corupte cu `discountPrice
-        // > originalPrice` (raw API inconsistency cand pretul a urcat), formula
-        // produce un savings negativ. `buildDealEmbed` afisa apoi user-ului
-        // "Reducere: -X%" — confuz si misleading. `onSale: true` in query ar
-        // trebui sa garanteze pret in scadere, dar nu putem deplina increderea
-        // in shape-ul intors de upstream.
         savings = Math.max(0, Math.round(((originalPrice - discountPrice) / originalPrice) * 100));
       }
       const hybridScore = savings * 0.8 + 80.0 + 15.0;
@@ -376,12 +342,6 @@ async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo
       let endDate = "Nespecificat";
       const promos = item.promotions?.promotionalOffers?.[0]?.promotionalOffers?.[0];
       if (promos && promos.endDate) {
-        // V11: valideaza data inainte sa o formatam. Vechea forma trecea
-        // `new Date(invalid).toLocaleDateString("ro-RO")` care intoarce literal
-        // sirul `"Invalid Date"` — apoi `buildDealEmbed` afisa pentru user
-        // `"Expira la: Invalid Date"` (label-ul `endDateStr !== "Nespecificat"`
-        // matchuieste si pe `Invalid Date`). Acum, daca data Epic e malformata
-        // sau lipseste timezone-ul corect, pastram fallback-ul "Nespecificat".
         const parsed = new Date(promos.endDate);
         if (!Number.isNaN(parsed.getTime())) {
           endDate = parsed.toLocaleDateString("ro-RO");

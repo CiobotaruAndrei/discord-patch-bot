@@ -164,12 +164,6 @@ const ConfigSchema = z.object({
       });
     }
 
-    // V11: epic_games non-fortnite ajunge in `fetchListingBasedUpdate`, deci
-    // necesita aceleasi campuri ca `listing_based` (baseUrl + listingUrl /
-    // listingUrls). Inainte, validatorul lasa configul sa treaca; eroarea
-    // aparea abia la runtime ("Nu am URL-uri de listing valide pentru ...")
-    // dupa ce primul ciclu cron lovea sursa. Fortnite e singura exceptie
-    // pentru ca are propria implementare (`fetchFortniteUpdate`).
     if (type === "epic_games" && game.key !== "fortnite") {
       const hasListing = Boolean(game.listingUrl)
         || (Array.isArray(game.listingUrls) && game.listingUrls.length > 0);
@@ -180,11 +174,6 @@ const ConfigSchema = z.object({
           message: "Sursele epic_games (non-fortnite) trebuie sa aiba listingUrl sau listingUrls"
         });
       }
-      // V11: simetric cu `listing_based`, respingem duplicate in listingUrls.
-      // Ambele tipuri ajung in `fetchListingBasedUpdate`, care fetch-uieste
-      // toate URL-urile in Promise.allSettled. Duplicate = workload risipit
-      // si log-uri amestecate ("Eroare preluare listing url X" de doua ori
-      // pentru aceeasi sursa).
       if (Array.isArray(game.listingUrls)) {
         const uniqueUrls = new Set(game.listingUrls);
         if (uniqueUrls.size !== game.listingUrls.length) {

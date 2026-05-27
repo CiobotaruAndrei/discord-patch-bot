@@ -43,17 +43,9 @@ function createStatusInteractionHandler(deps: StatusHandlerDeps) {
 
   async function handleStatusInteraction(interaction: DiscordInteraction, games: GameConfig[]): Promise<unknown> {
     const gameText = interaction.options.getString("joc");
-    // V11: guard pentru gameText empty/null, simetric cu `/latest update`,
-    // `/latest pret` si `/dlc`. Slash schema declara `joc` ca required, dar
-    // payload-uri malformate pot trimite null — vechea forma afisa
-    // "Se incarca: ... pentru **null**..." inainte de eroarea finala.
     if (!gameText) {
       return interaction.reply({ content: "Eroare: Trebuie sa specifici un joc.", flags: MessageFlags.Ephemeral });
     }
-    // V11: enforceCooldown + startCommandLog erau initial omise pe /status,
-    // spre deosebire de celelalte comenzi user. Status calls
-    // status.epicgames.com si poate fi spamat fara cost server-side dar tot
-    // consuma rate-limit local si nu lasa urma in jurnal pentru audit.
     if (!(await enforceCooldown(interaction, "status"))) return;
     const endLog = startCommandLog(interaction, "status", { query: gameText });
     await safeDefer(interaction);
@@ -103,8 +95,6 @@ function installStatusInteraction(ctx: StatusContext) {
     }
 
     try {
-      // V11: `return await` ca rejecturile asincrone sa fie prinse de catch,
-      // altfel try-catch-ul nu observa promisiunea respinsa din interior.
       return await handlers.handleStatusInteraction(interaction, games);
     } catch (err: unknown) {
       ctx.logger?.("ERROR", "STATUS_INTERACTION", "Eroare in handler-ul /status", errorDetail(err));

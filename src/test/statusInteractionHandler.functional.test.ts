@@ -73,9 +73,6 @@ test("status handler factory replies with embed for a known game", async () => {
 });
 
 test("status handler factory rejects empty gameText with ephemeral reply BEFORE any cooldown/log/defer", async () => {
-  // V11 regression guard: gameText null/empty must short-circuit before
-  // enforceCooldown / startCommandLog / safeDefer. The interaction.reply
-  // (not safeEdit) is the ephemeral message.
   const { interaction, replies } = makeStatusInteraction(null);
   const logs: Array<{ level: string; ctx: string }> = [];
   const { deps, endCalls } = makeBaseDeps(replies, logs);

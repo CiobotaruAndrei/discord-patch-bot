@@ -13,6 +13,7 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - `LICENSE` MIT.
 - `.env.example` cu variabilele importante pentru Discord, MongoDB, cron, health/metrics, logging si proxy.
 - Teste functionale pentru fluxurile principale de comenzi, notificari, repository-ul `seen` si E2E pentru update-uri/reduceri.
+- Teste directe pentru shape drift in `sources/updates`, `sources/deals` si `sources/steam`.
 - Workflow de release pregatit pentru GitHub Release si imagine Docker GHCR la tag-uri `v*`.
 
 ### Changed
@@ -24,12 +25,14 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Dockerfile ruleaza procesul runtime ca user non-root.
 - Codul este organizat pe functionalitati sub `src/`: `app`, `config`, `domain`, `features`, `infra`, `shared`, `sources` si `native`.
 - Handler-ele pentru `/ping`, `/games`, `/help`, `/start`, `/stop`, `/set`, `/latest`, `/dlc`, `/status` si autocomplete sunt extrase in `src/features/command-handlers/`.
-- `interactions.ts` ramane strat de routing/wiring, nu fisier cu logica de comenzi.
+- `commandRegistry.ts` ramane strat de wiring pentru modulele de comenzi, nu fisier cu logica de business.
 - `fallbackInteractionHandler.ts` inlocuieste vechiul router legacy si ramane doar fallback de final pentru interactiuni neacoperite.
 - `notifications/index.ts` a fost redus la wiring; logica pentru update-uri si reduceri este in `updateNotificationService.ts` si `discountNotificationService.ts`.
+- `commandCache.ts`, `commandPresentation.ts` si `mongoContext.ts` expun factory-uri explicite, cu atasare pe context pastrata doar pentru compatibilitate.
 - Filtrarea ofertelor foloseste acum Rust/N-API pentru hot-path-ul pur `dealPassesFilters`, cu fallback TypeScript identic cand addon-ul nativ lipseste.
 - Autocomplete-ul pentru jocuri foloseste acum Rust/N-API pentru scoring, sortare si limitarea optiunilor Discord, cu fallback TypeScript identic.
 - Documentatia interna a fost sincronizata cu structura actuala si nu mai prezinta `command-router` ca arhitectura curenta.
+- Documentatia istorica versionata si `legacy-dynamic.d.ts` au fost eliminate.
 
 ### Security
 
@@ -37,6 +40,7 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Endpoint-ul `/metrics` poate fi protejat cu token si comparatie `timingSafeEqual`.
 - Workflow-ul de dependency review poate bloca PR-uri cand Dependency Graph este disponibil.
 - Dependabot este configurat pentru actualizari npm si GitHub Actions.
+- Clientul HTTP valideaza hosturile prin URL + DNS/IP inainte de request si prin lookup-ul agentului, pentru protectie SSRF mai stricta.
 
 ## [1.0.0] - 2026-05-21
 

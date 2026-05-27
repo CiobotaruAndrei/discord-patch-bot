@@ -32,7 +32,7 @@ type CommandUiContext = {
   [key: string]: unknown;
 };
 
-function attachCommandUi(ctx: CommandUiContext): void {
+function createCommandPresentation(ctx: CommandUiContext) {
   const {
     crypto, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
     ComponentType, MessageFlags, logger, checkUserCooldown, COLORS,
@@ -166,14 +166,6 @@ async function handlePagination(
   const sessionId = generateSessionId();
   let collector: any = null;
 
-  // V11: updateMessage returneaza acum un boolean. Inainte, daca PRIMA chemare
-  // arunca in `generateEmbedsFn` (enrich pe deals, build embed pe update etc),
-  // catch-ul incerca `collector.stop()` dar collector inca era null (se asigna
-  // doar dupa await updateMessage()), iar functia continua sa creeze
-  // collector-ul oricum. User-ul ramanea cu mesajul vechi de loading + un
-  // collector tacut care astepta COLLECTOR_TIMEOUT_MS (5 min default) fara
-  // butoane vizibile. Acum, daca prima incercare esueaza, iesim devreme fara
-  // sa montam vreun collector.
   const updateMessage = async (): Promise<boolean> => {
     try {
       const embeds = await generateEmbedsFn(currentPage, totalPages, defaultMode);
@@ -181,10 +173,6 @@ async function handlePagination(
         embeds,
         components: [buildPaginationButtons(prefix, sessionId, currentPage, totalPages)]
       }).catch((err: unknown) => {
-        // V12: log explicit cand edit-ul de pagina nu trece. Inainte:
-        // `.catch(() => null)` inghitea orice — nu stiam ca user-ul a vazut un
-        // mesaj fara butoane sau un embed invechit. Acum o pierdem doar dupa
-        // log, ca observabilitatea pe pagination sa nu fie oarba.
         logger("WARN", "PAGINATION", `Eroare la edit-ul paginii (prefix=${prefix})`, errorMessage(err));
       });
       return true;
@@ -212,10 +200,6 @@ async function handlePagination(
   });
   collector.on("end", () => {
     if (interactionMessage.editable) {
-      // V12: log explicit cand cleanup-ul butoanelor esueaza (mesaj sters,
-      // permisiuni revocate, channel arhivat etc). Inainte `.catch(() => null)`
-      // ascundea cazul si operatorul nu vedea niciun semnal cand mesajul
-      // expirat ramanea cu butoane "active" dar fara collector.
       interactionMessage.edit({ components: [] }).catch((err: unknown) => {
         logger("WARN", "PAGINATION", `Eroare la cleanup-ul butoanelor (prefix=${prefix})`, errorMessage(err));
       });
@@ -298,8 +282,6 @@ async function fetchGameStatus(game: GameConfig): Promise<any> {
       statusLink = "https://status.epicgames.com/";
       color = res.data.status.indicator === "none" ? COLORS.POSITIVE : COLORS.ERROR;
     } catch (err) {
-      // V11: nu mai inghitim eroarea fara urma — log-am ca sa observam daca
-      // status.epicgames.com a schimbat shape-ul JSON sau pica frecvent.
       logger("WARN", "STATUS", "Esec status.epicgames.com, folosesc fallback", errorMessage(err));
       statusText = "Nu am putut prelua statusul automat. Verifica pagina oficiala.";
       statusLink = "https://status.epicgames.com/";
@@ -325,8 +307,6 @@ async function fetchGameStatus(game: GameConfig): Promise<any> {
   } else if (homepageLink && homepageLink.startsWith("http")) {
     embed.addFields({
       name: "Pagina principala / fallback",
-      // V11: marker-ul de italic `*(...)` era lasat deschis si Discord randa fie
-      // un asterisc literal, fie continua italic-ul peste continutul urmator.
       value: `[Acceseaza homepage](${homepageLink})\n*(Acesta nu este un API live de status.)*`
     });
   }
@@ -371,7 +351,7 @@ function buildSteamPriceEmbed(gameData: any, appId: string | number, offerEndDat
   return embed;
 }
 
-  Object.assign(ctx, {
+  return {
     enforceCooldown,
     startCommandLog,
     safeDefer,
@@ -386,7 +366,13 @@ function buildSteamPriceEmbed(gameData: any, appId: string | number, offerEndDat
     clearFindGameCache,
     fetchGameStatus,
     buildSteamPriceEmbed
-  });
+  };
 }
+
+function attachCommandUi(ctx: CommandUiContext): void {
+  Object.assign(ctx, createCommandPresentation(ctx));
+}
+
+(attachCommandUi as any).createCommandPresentation = createCommandPresentation;
 
 export = attachCommandUi;

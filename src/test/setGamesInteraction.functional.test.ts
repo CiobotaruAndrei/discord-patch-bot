@@ -12,7 +12,6 @@ type UpdateCall = {
   options?: unknown;
 };
 
-// V12: legacy router-ul nu mai expune handleSetGames. Folosim noul handler.
 const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as (ctx: Record<string, unknown>) => void;
 
 const games = [

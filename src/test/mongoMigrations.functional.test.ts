@@ -38,11 +38,6 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
   const guildCollection = {
     async updateMany(filter: unknown, update: unknown) {
       updateManyCalls.push({ collection: "guilds", filter, update });
-      // V12: m4_trimSeenDiscounts foloseste acum aggregation-pipeline update
-      // (`[{ $set: { seenDiscounts: { $slice: ["$seenDiscounts", -300] } } }]`)
-      // in loc de find().toArray() + per-doc updateOne. Simulam shape-ul
-      // aggregation aici ca sa pastram regresia care valideaza ca array-urile
-      // runaway sunt trimmed la 300.
       if (Array.isArray(update)) {
         for (const stage of update) {
           const setStage = (stage as { $set?: Record<string, unknown> }).$set;
@@ -116,10 +111,6 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
 
   assert.deepEqual(result.applied, [1, 2, 3, 4]);
   assert.equal(result.skipped, 0);
-  // V12: m4_trimSeenDiscounts foloseste acum updateMany cu aggregation pipeline
-  // in loc de find().toArray() + per-doc updateOne. Total updateMany calls = 4
-  // (m1, m2, m3 + m4 noul). Verificam si shape-ul pipeline-ului explicit ca sa
-  // prindem regresii de schema-update.
   assert.equal(fixture.updateManyCalls.length, 4);
   const m4Call = fixture.updateManyCalls[3];
   assert.deepEqual(m4Call.filter, { "seenDiscounts.500": { $exists: true } });

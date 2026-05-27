@@ -84,13 +84,6 @@ function loadNativeFuzzy(): NativeFuzzyModule | null {
   }
 
   nativeModule = null;
-  // V11: cand cad pe fallback TS, log-am LOUD pe stderr inainte ca app-ul sa
-  // ajunga la primul `dealHash` / `stableUpdateId` / etc. Rust si TS folosesc
-  // formule echivalente in test-uri, dar daca Rust impl se schimba in viitor
-  // si TS nu, hash-urile pot diverge. Asta cauzeaza mass-spam: TOATE deal-urile
-  // par "noi" pentru ca seen-discounts din Mongo (hash-uri Rust) nu mai
-  // matchuiesc cu hash-urile TS. Operatorul trebuie sa stie *imediat* ca
-  // .node nu s-a incarcat, fara sa astepte ca primul ciclu cron sa spam-uiasca.
   if (NATIVE_FUZZY_LOAD_FAILURES.length) {
     console.error(
       "[NATIVE_FUZZY] Rust addon nu a putut fi incarcat — folosesc fallback TypeScript.",

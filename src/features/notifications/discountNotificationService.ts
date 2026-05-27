@@ -1,20 +1,5 @@
 "use strict";
 
-/**
- * V12: DiscountNotificationService — extras din `notifications/index.ts`
- * simetric cu UpdateNotificationService.
- *
- * Modulul concentreaza intregul flow de notificari de reduceri:
- * - `processGuildDiscounts`: per guild, draina coada pendingDiscounts,
- *   dispatcheaza maxim N reduceri/ciclu, cu retry tolerant si rollback pe
- *   blip-uri Mongo.
- * - `checkForDiscounts`: top-level cron entry — interogheaza guild-urile
- *   subscribed, fetch-uieste deals per currency (cu deduplicare WeakMap pe
- *   index hash) si proceseaza in paralel.
- *
- * Deps tipate explicit. Functiile depind de SeenRepository (claim/rollback/
- * disable) si OutboundChannelResolver injectate.
- */
 
 import type { Model } from "mongoose";
 import type { GuildSettings, DealInfo } from "../../types";
@@ -109,10 +94,6 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     GUILD_PROCESS_CONCURRENCY
   } = deps;
 
-  // V11: indexul (hash -> snapshot) este derivat din array-ul `deals` returnat
-  // de fetchDeals si nu se schimba intre guild-uri in acelasi ciclu cron.
-  // WeakMap keyed pe referinta array-ului ne lasa sa hash-uim O data per ciclu
-  // (per currency), nu N x M unde N = numar de guild-uri.
   const dealsHashIndexCache = new WeakMap<DealInfo[], { dealsByHash: Map<string, DealInfo>; orderedHashes: string[] }>();
 
   function getDealsHashIndex(deals: DealInfo[]) {
@@ -132,7 +113,6 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     return cached;
   }
 
-  // V9: mentiune rol pe prima trimitere doar.
   async function processGuildDiscounts(client: unknown, guild: GuildSettings & Record<string, unknown>, deals: DealInfo[]): Promise<void> {
     const { channel, abort } = await resolveOutboundChannel({
       client,
@@ -185,7 +165,6 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       }
       let claimed = false;
       try {
-        // V12: claim INAINTE de enrich, simetric cu processGuildUpdates.
         const claim = await claimSeenDiscount(String(guild._id), channel.id, item.hash);
         if ((claim.matchedCount ?? 0) === 0) continue;
         claimed = true;
@@ -194,7 +173,6 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
         const sendPayload: Record<string, unknown> = {
           embeds: [buildDealEmbed(dealToSend, (guild as { notificationMode?: string }).notificationMode || "detailed", currency)]
         };
-        // V9: ping rol doar pe prima trimitere.
         const discountRoleId = (guild as { discountRoleId?: string }).discountRoleId;
         if (sentCount === 0 && discountRoleId) {
           sendPayload.content = `<@&${discountRoleId}>`;

@@ -81,7 +81,7 @@ test("start and stop handlers keep activation race protection", () => {
   ]);
 });
 
-test("V9 command surface is still present", () => {
+test("command surface is still present", () => {
   expectAll(commandsSource, [
     /setName\("maxprice"\)/,
     /setName\("stores"\)/,

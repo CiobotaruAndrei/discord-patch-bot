@@ -1,14 +1,5 @@
 "use strict";
 
-/**
- * V12: handler `/latest updates` — extras din `latestInteractionHandler.ts`
- * ca parte din splitting-ul cerut in review (punctul 2 din screenshot —
- * `latestInteractionHandler` are multe dependinte; l-as sparge mai tarziu).
- *
- * Foloseste cache-ul global de updates (cu fallback la getLatestForAllGames
- * cand cache-ul e rece), filtreaza per-guild via enabledGames, pagineaza
- * embed-urile prin handlePagination.
- */
 
 const { errorMessage } = require("../../../shared/errors");
 
@@ -83,7 +74,6 @@ export function createLatestUpdatesHandler(deps: LatestUpdatesHandlerDeps) {
       try {
         data = await getLatestForAllGames(games);
         setUpdatesCache(data);
-        // V11: dot-path write — fara lost-write race intre comenzi paralele.
         await saveSystemTime("all", smoothTime(estMs, Date.now() - startTime));
       } catch (err: unknown) {
         endLog("error", { errorMsg: errorMessage(err) });

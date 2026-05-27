@@ -69,10 +69,6 @@ test("cron stop clears the scheduled timer handle", () => {
 });
 
 test("cron cycle waits for both jobs when one rejects (Promise.allSettled)", async () => {
-  // V11 regression guard: with the old Promise.all, a rejection in
-  // checkForUpdates would race ahead of checkForDiscounts and the cycle's
-  // finally block would release the distributed lock while discounts was
-  // still hitting Mongo. Now allSettled awaits both before releasing.
   const originalSetTimeout = globalThis.setTimeout;
   const originalClearTimeout = globalThis.clearTimeout;
   globalThis.setTimeout = ((handler: (...args: unknown[]) => void, _timeout?: number) => {
@@ -145,12 +141,6 @@ test("cron cycle waits for both jobs when one rejects (Promise.allSettled)", asy
 });
 
 test("cron heartbeat tolerates one transient renew throw but aborts on the second", async () => {
-  // V11 regression guard: locks.ts::renewDbLock now propagates infrastructure
-  // errors instead of swallowing them as `false`. The cron heartbeat used to
-  // log-and-continue forever on throws (no upper bound), and treated a single
-  // `false` as immediate abort. The new behavior: count consecutive throws and
-  // abort on the 2nd (heartbeatIntervalMs = lockTtlMs/3, so 2 ticks ≈ 2/3 TTL
-  // — safely before lock expiration). `false` still aborts immediately.
   const originalSetTimeout = globalThis.setTimeout;
   const originalClearTimeout = globalThis.clearTimeout;
   const scheduledHandlers: Array<() => unknown> = [];
@@ -224,11 +214,6 @@ test("cron heartbeat tolerates one transient renew throw but aborts on the secon
 });
 
 test("cron heartbeat aborts immediately when renew returns false (lock genuinely lost)", async () => {
-  // V11 regression guard: while infrastructure throws are now tolerated up to
-  // MAX_HEARTBEAT_ERRORS_BEFORE_ABORT consecutive attempts, a `false` return
-  // value still means another instance now owns the lock and we MUST abort
-  // immediately — running concurrently with another holder would corrupt
-  // dedupe state.
   const originalSetTimeout = globalThis.setTimeout;
   const originalClearTimeout = globalThis.clearTimeout;
   const scheduledHandlers: Array<() => unknown> = [];

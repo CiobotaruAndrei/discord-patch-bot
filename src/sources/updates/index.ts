@@ -108,14 +108,10 @@ function absoluteUrl(base: string | undefined, maybeRelative: string | undefined
 }
 
 function isGoodSteamArticleUrl(url: unknown): boolean {
-  // V11: delegat catre src/native/src/lib.rs::is_good_steam_article_url.
   return rustIsGoodSteamArticleUrl(url);
 }
 
 function extractDateScore(url: string): number {
-  // V11: delegat catre src/native/src/lib.rs::extract_date_score. Acolo
-  // validarea anului/lunii/zilei si calculul UTC ms se fac fara regex
-  // engine si fara Date object allocation per ancora.
   return rustExtractDateScore(url);
 }
 
@@ -137,14 +133,10 @@ function getArticleHrefRegex(game: GameConfig): RegExp | null {
 }
 
 function scoreCandidate(candidate: ListingCandidate, keywords: string[]): number {
-  // V11: delegat catre src/native/src/lib.rs::score_listing_candidate.
   return scoreListingCandidate(candidate.href, candidate.text, keywords);
 }
 
 function isLikelyPatchNote(item: any): boolean {
-  // V11: delegat catre src/native/src/lib.rs::classify_patch_note. Acolo
-  // listele de cuvinte cheie sunt static, iar clasificarea ruleaza intr-un
-  // singur apel native in loc sa traverseze granita JS<->Rust per cuvant.
   return classifyPatchNote(item?.title, item?.contents, item?.tags);
 }
 
@@ -159,25 +151,10 @@ async function fetchSteamUpdate(game: GameConfig): Promise<NormalizedUpdate> {
     .sort((a: any, b: any) => Number(b.date || 0) - Number(a.date || 0));
   if (!patchNotes.length) throw new Error("Lipsă patch notes Steam valabile.");
   const latest = patchNotes[0];
-  // V12: valideaza explicit ca `gid` exista inainte de `String(latest.gid)`.
-  // Inainte: pe schema drift unde Steam returna un newsitem fara gid (raspuns
-  // partial / structura noua de feed / corupere de field), `String(undefined)`
-  // devenea literal "undefined". Era apoi $push-uit atomic in `seen.<game>`
-  // pentru primul guild care primea notificarea, iar TOATE urmatoarele
-  // newsitems-uri fara gid colidau cu aceeasi intrare "undefined" si erau
-  // tratate silent ca "deja vazut". Patch notes-urile sursei opreau brusc
-  // sa curga la user fara semnal in logs.
   if (latest.gid === undefined || latest.gid === null || latest.gid === "") {
     throw new Error("Steam newsitem fără gid — posibil schema drift în feed-ul ISteamNews.");
   }
   const rawContents = String(latest.contents || "").replace(/https?:\/\/[^\s]+/gi, "").replace(/\[.*?\]/g, " ");
-  // V11: defensive timestamp coercion. Inainte: `new Date(latest.date * 1000).toISOString()`
-  // arunca `RangeError: Invalid time value` daca Steam returneaza ceva ce nu
-  // se evalueaza ca numar epoch (string "abc" → "abc" * 1000 = NaN → Invalid
-  // Date → throw). Throw-ul propaga prin fetchSteamUpdate, executeFetchWithCircuitBreaker
-  // marca CB fail si numara pe schemaDriftFails — toate datorate unei singure
-  // intrari corupte din feed-ul Steam. Acum: valideaza ca data parsata e finita
-  // inainte de toISOString; pe esec pastreaza string-ul gol ca pe restul fetcherelor.
   const timestamp = computeSteamTimestamp(latest.date);
   return normalizeUpdate({
     id: String(latest.gid),
@@ -198,12 +175,6 @@ function computeSteamTimestamp(rawDate: unknown): string {
 
 async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpdate> {
   const { httpReq, safeCheerioLoad, cleanText, normalizeUpdate, logger, SchemaDriftError } = runtimeContext;
-  // V11: filtram URL-uri falsy (undefined / "") inainte de fetch. Daca
-  // `game.listingUrls` era array gol si `game.listingUrl` undefined, vechea
-  // forma producea `[undefined]` si pornea un httpReq cu undefined ca URL —
-  // erau aruncate de `assertSafeExternalUrl`, dar pe drum se aprindeau
-  // log-uri WARN inselatoare ("Eroare preluare listing url undefined") si
-  // se irosea un slot in Promise.allSettled.
   const rawListingUrls: Array<string | undefined> = Array.isArray(game.listingUrls) && game.listingUrls.length
     ? game.listingUrls : [game.listingUrl];
   const listingUrls: string[] = rawListingUrls.filter(
@@ -215,9 +186,6 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
   const keywords = Array.isArray(game.requireKeywords) ? game.requireKeywords : [];
   const hrefRegex = getArticleHrefRegex(game);
 
-  // V11: fetch-uim toate listingUrls in paralel. Inainte le rulam secvential,
-  // deci o listingUrl mai lenta intarzia toate celelalte. Cu Promise.allSettled
-  // un URL care esueaza nu blocheaza pe celelalte si nici nu propaga rejection-ul.
   type FetchedListing = { url: string; candidates: ListingCandidate[] };
   const settled = await Promise.allSettled(listingUrls.map(async (url): Promise<FetchedListing> => {
     const listRes = await httpReq("GET", url);
@@ -234,9 +202,6 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
     return { url: String(url), candidates };
   }));
 
-  // V11: pozitiile sunt re-asignate global, pe ordinea declarata a URL-urilor
-  // din config, ca tiebreaker-ul `a.position - b.position` sa ramana
-  // deterministic chiar daca un URL slow termina dupa unul fast.
   const collected: ListingCandidate[] = [];
   let listingFetched = 0;
   let globalPosition = 0;
@@ -277,14 +242,6 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
     }
     throw new Error("Nu am găsit ancore valide.");
   }
-  // V12: incearca pana la 3 candidati ranked, in loc de doar `unique[0]`.
-  // Inainte: daca top-ranked anchor era dead/404/timeout (URL stale dupa
-  // redirect de site, articol sters dar inca linked din listing), TOATA
-  // sursa cadea pe CB fail counter — chiar daca `unique[1]` sau `unique[2]`
-  // erau articolele bune. Eveniment real: schimbare de templating la sursa
-  // → top anchor devine un permalink decuplat care arunca 404; CB cooldown
-  // se aprinde fals si guild-urile pierd update-urile pana opera-torul
-  // intervine. Acum fallback ranked, log WARN pentru fiecare skip.
   const TRY_LIMIT = Math.min(3, unique.length);
   let lastErr: unknown = null;
   for (let i = 0; i < TRY_LIMIT; i++) {
@@ -310,9 +267,6 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
       logger("WARN", "FETCH_UPDATES", `Articol indisponibil pentru ${game.key} (candidat ${i + 1}/${TRY_LIMIT}): ${articleUrl}`, errorMessage(err));
     }
   }
-  // V12: epuizat candidatii. Aruncam ca SchemaDriftError doar daca am avut
-  // anchore — listing-ul fetch-uit, dar nicio pagina articol nu raspunde —
-  // ca CB cooldown sa parcheze sursa pana opera-torul intervine.
   throw new SchemaDriftError(
     `Niciun articol nu a raspuns din primii ${TRY_LIMIT} candidati pentru ${game.key}: ${errorMessage(lastErr)}`,
     `listing:${game.key}`
@@ -338,8 +292,6 @@ async function fetchFortniteUpdate(): Promise<NormalizedUpdate> {
       timestamp: latest.date
     });
   } catch (err) {
-    // V11: log explicit primary-path failure ca sa observam cand API-ul oficial
-    // Fortnite isi schimba shape-ul si cadem mereu pe RSS Google News.
     logger("WARN", "SCRAPE", "Fortnite primary path a esuat, fallback la RSS Google News", errorMessage(err));
     const backupUrl = "https://news.google.com/rss/search?q=site:fortnite.com/news+update&hl=en-US";
     const feed = await rssParser.parseString((await httpReq("GET", backupUrl)).data);
@@ -369,7 +321,6 @@ async function fetchAmdUpdate(game: GameConfig): Promise<NormalizedUpdate> {
       excerpt: "Driver disponibil.",
       thumbnail: game.thumbnail
     });
-    // V11: regex-ul nu a prins versiunea — semnal de schema drift, log explicit.
     logger("WARN", "SCRAPE", "AMD proxy a returnat continut, dar regex-ul `Adrenalin Edition X.Y.Z` nu a prins versiunea — posibil schema drift, fallback RSS");
   } catch (err) {
     logger("WARN", "SCRAPE", "Eroare preluare AMD proxy", errorMessage(err));
@@ -404,11 +355,6 @@ async function fetchIntelUpdate(game: GameConfig): Promise<NormalizedUpdate> {
       excerpt: `Versiune găsită: ${match[1]}`,
       thumbnail: game.thumbnail
     });
-    // V11: regex-ul nu a prins versiunea — semnal de schema drift, log explicit.
-    // Note: scapem backslash-urile (`\\d+`) ca log-ul sa afiseze pattern-ul real
-    // `\d+.\d+.\d+.\d+`; un singur backslash intr-un template literal devine
-    // o secventa de escape invalida, JS o reduce la litera goala (`d+.d+.d+.d+`)
-    // si log-ul devine confuz pentru operator.
     logger("WARN", "SCRAPE", `Intel proxy a returnat continut pentru ${game.key}, dar regex-ul de versiune (\\d+.\\d+.\\d+.\\d+) nu a prins nimic — posibil schema drift, fallback RSS`);
   } catch (err) {
     logger("WARN", "SCRAPE", "Eroare preluare Intel proxy", errorMessage(err));
@@ -474,12 +420,6 @@ async function fetchNvidiaUpdate(g: GameConfig): Promise<NormalizedUpdate> {
   if (!rawTitle) throw new Error("Nvidia RSS fallback fara titlu in primul item.");
   const cleanTitle = cleanText(rawTitle).split(" - ")[0];
   if (!cleanTitle) throw new Error("Nvidia RSS fallback cu titlu gol dupa curatare.");
-  // V11: propagam `excerpt` si `timestamp` din RSS feed, simetric cu
-  // fetchAmdUpdate / fetchIntelUpdate / fetchFortniteUpdate care toate
-  // seteaza aceste campuri. Inainte, embed-ul Nvidia avea fallback-ul generic
-  // "A aparut un nou update pentru …" in loc de "Update nvidia.com detectat."
-  // si nu setam `setTimestamp` pe embed (lipsea label-ul "relative time" jos),
-  // facand notificarile Nvidia sa para mai sarace fata de celelalte surse.
   return normalizeUpdate({
     id: stableUpdateId(cleanTitle, ""),
     title: cleanTitle,
@@ -514,13 +454,6 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
     adminAlert,
     metricsRef
   } = runtimeContext;
-  // V11: wrap si getter-ul initial al circuit-breaker doc-ului. PR-ul anterior
-  // (#83) izola scrierile din catch, dar daca acest `findOneAndUpdate` initial
-  // ridica (Mongo blip exact pe primele HTTP requests dupa o reconectare), tot
-  // executeFetchWithCircuitBreaker rejecteaza inainte de fetch. Atunci
-  // `_getLatestForAllGamesImpl` umpleea slot-ul cu placeholder-ul "abort" —
-  // exact problema pe care PR #83 voia sa o evite, lasata partial pentru
-  // primul get. Acum returnam un FetchResult clar cu mesajul Mongo.
   let cb: any;
   try {
     cb = await CircuitBreakerModel.findOneAndUpdate(
@@ -549,15 +482,6 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
     metricsRef.fetchSuccess++;
     return { game, latest, error: null };
   } catch (error) {
-    // V11: bookkeeping-ul circuit-breaker (Mongo updates + adminAlert) e wrap-uit
-    // intr-un try/catch separat ca o eroare Mongo intermitenta sa nu inlocuiasca
-    // eroarea originala a fetch-ului. Inainte: daca `findOneAndUpdate` sau orice
-    // alta scriere ridica in catch-ul de jos, exceptia Mongo se propaga in
-    // `_getLatestForAllGamesImpl` → `runConcurrent` errorLogger → `results[i]`
-    // ramanea undefined → in final `{game, latest: null, error: "abort"}` —
-    // operatorul vedea "abort" in loc de eroarea reala a sursei. Acum, chiar
-    // daca Mongo flakeaza, returnam mereu un FetchResult cu mesajul real al
-    // fetch-ului ratat.
     try {
       if (error instanceof SchemaDriftError) {
         const updatedCb = await CircuitBreakerModel.findOneAndUpdate(
@@ -565,13 +489,6 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
           { $inc: { schemaDriftFails: 1 } },
           { new: true, upsert: true }
         );
-        // V11: schema drift trebuie sa intre in cooldown la fel ca fail-urile
-        // normale. Inainte: o data atins pragul, alerta era trimisa o data, dar
-        // sursa era refetch-uita la fiecare ciclu — botul lovea o pagina
-        // structurata gresit la nesfarsit pana intervenea operatorul, irosind
-        // HTTP retries si ratand sansa de auto-recovery cand pagina e reparata.
-        // Acum: la prag, setam acelasi cooldownUntil ca pe ramura non-drift,
-        // ca fereastra de retry sa fie aceeasi pentru ambele moduri de esec.
         if (updatedCb.schemaDriftFails >= SCHEMA_DRIFT_THRESHOLD
             && (!updatedCb.cooldownUntil || new Date() >= new Date(updatedCb.cooldownUntil))) {
           const jitter = Math.floor(Math.random() * CIRCUIT_BREAKER_JITTER_MS);
@@ -628,11 +545,6 @@ async function _getLatestForAllGamesImpl(games: GameConfig[], shouldAbort?: Abor
   const list = games.slice();
   const results = new Array<FetchResult | undefined>(list.length);
 
-  // V11: capturam rezultatul runConcurrent (errors[]) ca sa putem distinge
-  // intre "abort" real (shouldAbort triggered, worker iese inainte de fn)
-  // si "fn a aruncat sincron neasteptat" (errors[] are entry pentru index).
-  // Inainte, ambele cazuri foloseau placeholder-ul generic "abort" si
-  // operatorul nu mai putea sa-si dea seama de unde a venit slot-ul gol.
   const runResult = await runConcurrent(list, FETCH_CONCURRENCY, async (game, idx) => {
     results[idx] = await executeFetchWithCircuitBreaker(game);
   }, {

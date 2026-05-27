@@ -1,9 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-// V12: handler /latest extras intr-o factory tipata cu deps explicite.
-// Acopera cele 4 sub-comenzi (updates, reduceri, update <joc>, pret <joc>)
-// plus dispatcher-ul cu guard pe sub necunoscut.
 
 const installLatestHandler = require("../features/command-handlers/latestInteractionHandler") as
   ((ctx: Record<string, any>) => void) & { createLatestInteractionHandler?: (deps: any) => any };
@@ -160,7 +157,7 @@ test("/latest pret without `joc` replies with explicit error", async () => {
   assert.match(String((replied as any)?.content), /Trebuie sa specifici un joc/);
 });
 
-test("/latest with unknown sub returns ephemeral error reply (V11 regression)", async () => {
+test("/latest with unknown sub returns ephemeral error reply", async () => {
   let replied: unknown = null;
   const interaction = makeInteraction({
     sub: "future-feature",

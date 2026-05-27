@@ -13,12 +13,6 @@ interface GuildSettingsContext {
 let runtimeContext: Pick<GuildSettingsContext, "env" | "GuildModel">;
 const guildSettingsCache = new Map<string, CacheEntry<GuildSettings | null>>();
 
-// V11: bound LRU pentru cache. Inainte, Map-ul crestea nelimitat — singura
-// curatire era `cleanGuildCache` (housekeeping) si numai pentru intrari
-// expirate. Sub trafic cu multe guild-uri unice in TTL window, am fi tinut
-// toate setarile in memorie pana la urmatorul housekeeping tick. Restul
-// cache-urilor (deals, single, dlc, enriched, findGame) au deja bound;
-// aliniem si pe asta. `GUILD_CACHE_MAX_SIZE` se poate redimensiona din env.
 function maxCacheSize(): number {
   return runtimeContext.env.GUILD_CACHE_MAX_SIZE;
 }

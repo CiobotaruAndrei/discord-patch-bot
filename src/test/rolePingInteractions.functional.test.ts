@@ -72,12 +72,6 @@ test("role ping factory clears /set role discounts when role is omitted", async 
 });
 
 test("role ping rejects unknown sub-commands instead of silently defaulting to discountRoleId", async () => {
-  // V11 regression guard: the previous ternary `sub === "updates" ? notification : discount`
-  // silently rewrote `discountRoleId` for ANY sub that wasn't exactly "updates".
-  // A typo (e.g. /set role discountss) or a future schema addition without
-  // matching code changes would overwrite a guild's discount role config with
-  // no warning. The new KNOWN_ROLE_SUBS table rejects unknown subs with a
-  // clear error message and a WARN log entry.
   const calls: any[] = [];
   const replies: any[] = [];
   const logs: any[] = [];

@@ -27,9 +27,6 @@ type MongoFilter = Record<string, unknown>;
 type MongoUpdate = Record<string, unknown>;
 type SentPayload = { embeds?: Array<Record<string, unknown>>; content?: string };
 
-// V12: legacy router-ul nu mai expune handleStartInteraction. Folosim
-// subscriptionNotificationHandlers care expune `handleStartInteraction`
-// (signatura noua: (interaction, games)) pe ctx.
 const attachInteractions = require("../features/command-handlers/subscriptionNotificationHandlers") as (ctx: Record<string, any>) => void;
 const attachNotifications = require("../features/notifications") as (ctx: Record<string, any>) => void;
 

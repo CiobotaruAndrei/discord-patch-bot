@@ -1,27 +1,5 @@
 "use strict";
 
-/**
- * V12: helpers PUR (no I/O) pentru construirea cozii de update-uri per guild.
- *
- * Extrase din `updateNotificationService.ts::processGuildUpdates` ca parte din
- * continuarea splitting-ului (punctul 3 din review: "separa partea de pending
- * queue de partea de Discord sending"). Logica de aici nu atinge Mongo, nu
- * trimite mesaje Discord, nu cunoaste cooldown-ul. Doar transforma starea
- * guild-ului + rezultatele fetch in trei structuri de date:
- *
- * - `seenByGame: Map<gameKey, Set<updateId>>` — set-uri rapide pentru
- *   verificat duplicate la send.
- * - `pendingByGame: Map<gameKey, PendingUpdate[]>` — coada cu update-uri
- *   ne-expediate (vechi cleaned + noi adaugate), filtrata pe enabledGames.
- * - `resultByGameKey: Map<gameKey, UpdateFetchResult>` — lookup O(1) pentru
- *   loop-ul de send (game name + payload).
- *
- * Beneficii:
- * - Send loop-ul ramane focus pe I/O (claim/rollback/send) si nu mai amesteca
- *   filtering cu network calls.
- * - Testabil per-faza: pendingUpdatesQueue testeaza pure data, send loop-ul
- *   testeaza I/O.
- */
 
 import type { GuildSettings } from "../../types";
 
@@ -80,15 +58,11 @@ export function buildPendingUpdatesQueue(
   const { guild, latestResults } = input;
   const now = input.now ?? Date.now();
 
-  // V11: indexam latestResults dupa cheia jocului ca lookup-ul ulterior din
-  // bucla de trimitere sa fie O(1) in loc sa parcurga linear toata lista la
-  // fiecare iteratie.
   const resultByGameKey = new Map<string, UpdateFetchResult>();
   for (const result of latestResults) {
     if (result?.game?.key) resultByGameKey.set(result.game.key, result);
   }
 
-  // V9: daca guild-ul are lista explicita de jocuri active, filtram.
   const enabledGames = Array.isArray(guild.enabledGames) ? guild.enabledGames : [];
   const hasGameFilter = enabledGames.length > 0;
   const enabledSet = hasGameFilter ? new Set(enabledGames as string[]) : null;

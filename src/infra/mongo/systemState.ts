@@ -36,12 +36,6 @@ async function saveSystemTimes(times: SystemTimes): Promise<void> {
   await runtimeContext.SystemModel.findByIdAndUpdate("system_state", { $set: { executionTimes: times } }, { upsert: true });
 }
 
-// V11: per-key save fara lost-write race. saveSystemTimes(times) scria tot
-// obiectul `executionTimes`, deci doua comenzi concurrente (ex. `/latest pret`
-// si `/latest updates`) puteau face fiecare `read → modify-one-field → write
-// all`, ultima victorie suprascriind update-ul celeilalte. saveSystemTime
-// scrie un singur camp prin dot-path (`executionTimes.single`), deci ambele
-// updates pot ajunge la nivelul corect chiar daca se executa in paralel.
 async function saveSystemTime(key: SystemTimesKey, value: number): Promise<void> {
   if (!SYSTEM_TIMES_KEYS.includes(key)) return;
   if (!Number.isFinite(value) || value <= 0) return;

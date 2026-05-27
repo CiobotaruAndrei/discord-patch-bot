@@ -98,21 +98,7 @@ function createHttpServer({
   }
 
   return http.createServer((req, res) => {
-    // V11: wrap intregul handler intr-un try/catch. Inainte, un throw sincron
-    // in oricare dintre `commands.getCacheSizes()`, `scrapers.getEnrichedCacheSize()`,
-    // `cronController.getHealthSnapshot()` etc. crasha cererea fara raspuns —
-    // clientul (Prometheus, Kubernetes liveness) primea connection reset si
-    // declansa fals-pozitive in monitoring.
     try {
-    // V11: rate-limit-am TOATE cererile uncondiitional, inainte de orice
-    // matching de URL. Inainte, gate-ul era `if (req.url === "/health" ||
-    // /healthz || /metrics) { check }` — un client putea spama `/anything`
-    // cu un query string si bypass-a rate-limit-ul, iar CodeQL flag-uia ca
-    // "user-controlled bypass of security check". Aplicand check-ul pe
-    // toate cererile, hardening-ul e mai strict si fara conditie controlata
-    // de utilizator. 404-urile pentru rute necunoscute raman in continuare
-    // ieftine (text scurt), iar agentii de monitoring care lovesc strict
-    // /health, /healthz, /metrics nu sunt afectati.
     if (!rateLimiter.check(req)) {
       res.writeHead(429, {
         "Content-Type": "text/plain",
@@ -121,13 +107,6 @@ function createHttpServer({
       res.end("Too Many Requests");
       return;
     }
-    // V12: parsam pathname-ul explicit via `URL`, in loc de `req.url ===` strict.
-    // Inainte: `/metrics?probe=1` sau `/health?source=k8s` cadeau prin matching
-    // ca 404 — clienti de monitoring care anexau query parameters (Prometheus
-    // scrape labels, k8s probe configs custom) erau respinsi cu mesaj inselator
-    // "Not Found" in loc de a primi raspunsul real. `req.url` poate fi `null`
-    // pe socket-uri pre-handshake; fallback la "/" si base hardcodat localhost
-    // (nu folosim Host header — ar putea fi spoofed).
     let pathname: string;
     try {
       pathname = new URL(req.url || "/", "http://localhost").pathname;
@@ -190,9 +169,6 @@ function createHttpServer({
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("Not Found");
     } catch {
-      // V11: ultimul resort cand un upstream a aruncat sincron. Nu putem
-      // garanta ca headers nu sunt deja scrise (de aici try/catch suplimentar
-      // pe writeHead), dar incercam un 500 inainte sa scapam connection-ul.
       try {
         if (!res.headersSent) {
           res.writeHead(500, { "Content-Type": "text/plain" });

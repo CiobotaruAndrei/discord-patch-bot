@@ -1,12 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-// V12: acquireDbLock rethrow-on-non-E11000 regression tests.
-// Inainte conditia in catch trata ORICE eroare ca null ("alta instanta detine
-// lock-ul, skip"), iar caller-ul cron incrementa cronSkippedDueToLock metricul
-// — un esec real al infrastructurii (auth fail, write-concern timeout, primary
-// step-down) era silentiat. Acum: E11000 → null (race legitim); orice altceva
-// → throw, ca cron-ul sa il numere ca esec real si sa fire adminAlert.
 
 const attachLocks = require("../infra/mongo/locks") as
   (ctx: Record<string, any>) => void;
@@ -73,10 +67,6 @@ test("acquireDbLock returns null on E11000 duplicate-key (legitimate race)", asy
 });
 
 test("acquireDbLock RETHROWS non-E11000 errors instead of swallowing them as 'race'", async () => {
-  // V12 regression guard: inainte ORICE eroare devenea null si era confundata
-  // cu race-ul legitim — un Mongo real outage era invizibil pentru operator.
-  // Acum: erorile non-E11000 propaga la caller-ul cron, care le numara ca
-  // `cronErrors` si trigeri `adminAlert("cron:lock", ...)`.
   const { acquireDbLock } = makeLocksCtx({ findOneAndUpdateBehavior: "throw-other" });
   await assert.rejects(
     () => acquireDbLock("cron_main", 60_000),

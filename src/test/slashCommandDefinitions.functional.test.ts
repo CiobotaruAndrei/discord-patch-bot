@@ -66,8 +66,6 @@ test("registerSlashCommands defaults to global registration when DISCORD_DEV_GUI
 });
 
 test("registerSlashCommands switches to guild-scoped when DISCORD_DEV_GUILD_ID is set", async () => {
-  // V11: dev/staging short-circuit — guild commands propagate instantly
-  // versus the ~1h Discord cache on global registrations.
   const { ctx, calls, logs } = makeCtx("123456789012345678");
   attachSlashCommands(ctx);
 

@@ -7,9 +7,6 @@ type AdminAlert = (kind: string, title: string, body: string) => Promise<unknown
 type ShutdownSignal = NodeJS.Signals | "uncaughtException" | "unhandledRejection" | string;
 
 interface DiscordClientLike {
-  // discord.js v14 returns a Promise from destroy(); v13 was sync.
-  // Typed as void | Promise<void> so we can await it without a TS error
-  // and still tolerate older shims/mocks.
   destroy(): void | Promise<void>;
 }
 
@@ -74,18 +71,9 @@ function createShutdownController({
       await new Promise(resolve => setTimeout(resolve, env.SHUTDOWN_DRAIN_MS));
     }
 
-    // V11: discord.js v14 face `destroy()` async (intoarce Promise) — fara
-    // await ramaneam cu cleanup-ul WebSocket in zbor cand cadeam pe
-    // mongoose.connection.close() si setTimeout(exit, 500).unref().
     try { await client.destroy(); } catch (err) { logger("WARN", "SHUTDOWN", "Eroare destroy client", errorMessage(err)); }
     try { await mongoose.connection.close(); } catch (err) { logger("WARN", "SHUTDOWN", "Eroare inchidere mongo", errorMessage(err)); }
 
-    // V11: `httpServer.close()` din node:http returneaza server-ul, NU un
-    // Promise. Callback-ul de close ruleaza dupa ce TOATE conexiunile deschise
-    // se inchid. Inainte: `try { httpServer.close(); } catch {}` lansa close
-    // dar nu astepta nimic — daca un caller pe /metrics era mid-flight cand
-    // semnalul ajungea, conexiunea era rupta abrupt. Acum: race intre callback
-    // si un budget scurt, ca un client agatat sa nu blocheze shutdown-ul.
     const HTTP_CLOSE_BUDGET_MS = 3000;
     await new Promise<void>(resolve => {
       let resolved = false;
@@ -118,14 +106,6 @@ function createShutdownController({
     // Race the alert against a short timeout so a slow/offline webhook can't
     // delay shutdown. Either way we always run the shutdown sequence; we just
     // don't block it on the alert promise resolving first.
-    // V11: clear timer-ul cand race-ul rezolva (in oricare directie). Inainte,
-    // `setTimeout(resolve, ALERT_BUDGET_MS)` se reabona pe event-loop chiar
-    // dupa ce `adminAlert` castiga race-ul — Node nu poate exit-ui natural
-    // pana cand timer-ul de 2s nu se trezeste si la randul lui rezolva o
-    // promisiune orfana. `setTimeout(..., 10_000).unref()` de mai jos forta
-    // exit-ul, dar pe acea ramura natural pierdem oportunitatea de exit cu
-    // codul corect. unref() pe budget timer si clearTimeout dupa race rezolva
-    // ambele probleme.
     const ALERT_BUDGET_MS = 2000;
     let budgetTimer: ReturnType<typeof setTimeout> | undefined;
     const budgetPromise = new Promise<void>(resolve => {

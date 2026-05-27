@@ -28,11 +28,6 @@ type HelpHandlerDeps = {
 };
 
 type HelpContext = {
-  // V12: install accepta fie un `buildHelpEmbed` direct (legacy compatibility +
-  // testing), fie il construieste intern din `EmbedBuilder` + `COLORS`. Asa
-  // pastram contractul vechi al `createHelpHandler({buildHelpEmbed})` cu deps
-  // explicit, dar reducem si suprafata ctx (buildHelpEmbed nu mai trebuie sa
-  // existe upstream).
   buildHelpEmbed?: () => unknown;
   EmbedBuilder?: EmbedBuilderCtor;
   COLORS?: { DARK: number } & Record<string, number>;
@@ -41,9 +36,6 @@ type HelpContext = {
   handleInteraction?: NextInteractionHandler;
 };
 
-// V12: textul mutat aici din legacyInteractionRouter ca help handler-ul sa
-// fie self-contained. Daca cineva are nevoie de tabelul de comenzi in alta
-// parte, e mai usor de extras de aici.
 function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: number }) {
   return new EmbedBuilder()
     .setColor(COLORS.DARK)
@@ -104,9 +96,6 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
 
 function installHelpHandler(ctx: HelpContext) {
   const previousHandleInteraction = ctx.handleInteraction;
-  // V12: rezolva buildHelpEmbed in ordine: dep injectata > util intern din
-  // EmbedBuilder+COLORS. Fallback-ul cu EmbedBuilder+COLORS pastreaza testele
-  // existente care injecteaza un buildHelpEmbed custom.
   let resolvedBuildHelpEmbed = ctx.buildHelpEmbed;
   if (typeof resolvedBuildHelpEmbed !== "function") {
     if (!ctx.EmbedBuilder || !ctx.COLORS) {
@@ -125,8 +114,6 @@ function installHelpHandler(ctx: HelpContext) {
     }
 
     try {
-      // V11: `return await` ca rejecturile asincrone sa fie prinse de catch,
-      // altfel try-catch-ul nu observa promisiunea respinsa din interior.
       return await handlers.handleHelpInteraction(interaction);
     } catch (err: unknown) {
       ctx.logger?.("ERROR", "HELP_INTERACTION", "Eroare in handler-ul /help", errorDetail(err));
@@ -142,8 +129,6 @@ function installHelpHandler(ctx: HelpContext) {
     }
   }
 
-  // V12: re-expune buildHelpEmbed pe ctx pentru backwards compatibility cu
-  // commandRegistry (requireRegistryFunction asteapta sa-l gaseasca).
   Object.assign(ctx, handlers, { handleInteraction, buildHelpEmbed: resolvedBuildHelpEmbed });
 }
 

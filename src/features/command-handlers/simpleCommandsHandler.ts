@@ -1,13 +1,5 @@
 "use strict";
 
-/**
- * V12: handler tipat pentru comenzile trivial-stateless `/ping` si `/games`.
- *
- * Ultima extragere din `legacyInteractionRouter.ts` ca sa retiram complet
- * dispatch-ul vechi. Cele doua comenzi sunt foarte mici si nu au nevoie de
- * suprafata mare pe ctx — `/ping` nu are deps, `/games` are nevoie doar de
- * `COMMAND_OUTPUT_MAX_CHARS` ca sa ramana sub 2000 char-uri Discord pe mesaj.
- */
 
 const { errorDetail } = require("../../shared/errors");
 
@@ -38,16 +30,10 @@ function createSimpleCommandsHandler(deps: SimpleCommandsDeps) {
   const { COMMAND_OUTPUT_MAX_CHARS } = deps;
 
   async function handlePingInteraction(interaction: DiscordInteraction) {
-    // V11: eliminat spatiul trailing leftover ("Pong! " → "Pong!").
     return interaction.reply("Pong!");
   }
 
   async function handleGamesInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    // V12 bug fix: early-return cu mesaj clar cand games este gol. Inainte:
-    // legacy router seta `currentMsg = "**Jocuri urmarite:**\n"`, nu intra in
-    // loop-ul de lines (gol), apoi `if (currentMsg.trim()) messages.push(...)`
-    // pastra header-ul ca singurul item → user-ul vedea doar "**Jocuri
-    // urmarite:**" pe Discord, fara nicio intrare. Acum mesaj explicit.
     if (!games.length) return interaction.reply("Nu sunt jocuri configurate.");
     const lines = games.map(g => {
       let item = `- **${g.name}** (\`${g.key}\`)`;

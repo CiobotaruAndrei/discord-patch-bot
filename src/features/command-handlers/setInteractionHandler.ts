@@ -1,23 +1,5 @@
 "use strict";
 
-/**
- * V12: handler tipat pentru `/set` cu sub-comenzi DIRECTE (fara grup).
- *
- * Continuare a splitting-ului review-ului extern: scoate `handleSetInteraction`
- * din `legacyInteractionRouter.ts` intr-o factory cu dependinte explicite,
- * simetric cu `helpInteractionHandler`, `subscriptionNotificationHandlers`,
- * `gameFilterHandlers`, `rolePingHandlers`, `statusInteractionHandler`,
- * `dlcInteractionHandler`.
- *
- * Acopera doar sub-comenzile **directe** (`mode`, `mindiscount`, `maxprice`,
- * `free`, `paid`, `currency`, `stores`). Cele cu grup (`/set games *`,
- * `/set role *`) raman in handler-ele lor specializate, care intercepteaza
- * in chain INAINTE sa ajungem aici (vezi commandRegistry install order).
- *
- * Versiunea legacy ramane shadow-ed in `legacyInteractionRouter.ts` pana cand
- * decidem sa o stergem; install chain-ul intercepteaza /set direct aici, asa
- * ca dispatch-ul din legacy nu mai este atins pentru aceste sub-comenzi.
- */
 
 const { errorDetail, errorMessage } = require("../../shared/errors");
 
@@ -165,8 +147,6 @@ function buildSetUpdatePlan(
     return plan;
   }
 
-  // V11/V12 guard: sub necunoscut. Acelasi mesaj ca in legacy ca user-ul sa nu
-  // vada o schimbare de UX.
   return plan;
 }
 
@@ -216,10 +196,6 @@ function isDirectSetCommand(interaction: DiscordInteraction): boolean {
   if (interaction?.isChatInputCommand?.() !== true) return false;
   if (!interaction.guild) return false;
   if (interaction.commandName !== "set") return false;
-  // V12: handler-ul asta intercepteaza DOAR sub-comenzile directe. Cele cu grup
-  // (`/set games X`, `/set role X`) sunt prinse de installer-ele lor in chain
-  // INAINTE sa ajungem aici (vezi `commandRegistry` install order). Daca
-  // schimbam vreodata ordinea, guard-ul asta opreste interceptia gresita.
   const group = interaction.options?.getSubcommandGroup?.(false);
   return group !== "games" && group !== "role";
 }

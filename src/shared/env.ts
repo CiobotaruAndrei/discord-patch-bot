@@ -40,26 +40,13 @@ function attachEnv(ctx: EnvContext): void {
     MONGO_URI: z.string().min(1, "MONGO_URI lipseste"),
     DISCORD_TOKEN: z.string().min(1, "DISCORD_TOKEN lipseste"),
     DISCORD_CLIENT_ID: z.string().min(1, "DISCORD_CLIENT_ID lipseste (necesar pentru slash commands)"),
-    // V11: DEV/staging — daca e setat, inregistreaza slash commands DOAR pe
-    // acest guild in loc de global. Discord propaga global commands cu pana la
-    // o ora delay, dar guild commands se vad instant. Util cand ai
-    // staging/test server unde iterezi pe slash schema. Format: snowflake
-    // numeric (acelasi format ca DISCORD_CLIENT_ID).
     DISCORD_DEV_GUILD_ID: z.string().regex(/^\d+$/, "DISCORD_DEV_GUILD_ID trebuie sa fie snowflake numeric").optional(),
-    // V11: valideaza ca PORT e un sir strict numeric in interval valid TCP
-    // (1-65535). Inainte: `z.string().optional()` lasa orice string sa treaca,
-    // iar Node `httpServer.listen("abc")` cadea silent pe port random — admin-ul
-    // nu mai gasea /metrics si /health pe portul asteptat fara semnal in log-uri.
     PORT: z.string().regex(/^\d+$/, "PORT trebuie sa fie numar TCP valid")
       .refine(s => { const n = Number(s); return n >= 1 && n <= 65535; }, "PORT trebuie sa fie intre 1 si 65535")
       .optional(),
     NODE_ENV: z.string().optional(),
     METRICS_TOKEN: z.string().min(8, "METRICS_TOKEN trebuie sa aiba cel putin 8 caractere").optional(),
     METRICS_PUBLIC: z.string().optional(),
-    // V11: forteaza http/https. Inainte: `z.string().url()` accepta orice
-    // schema (javascript:, file:, data:, etc.) — `axios.post` ar fi esuat la
-    // runtime cu un mesaj obscur, dar mai bine respingem la boot cu un mesaj
-    // clar. Webhook-urile reale (Discord, Slack, custom) sunt mereu HTTPS.
     ADMIN_WEBHOOK_URL: z.string().url("ADMIN_WEBHOOK_URL nu este URL valid")
       .refine(u => {
         try { return ["http:", "https:"].includes(new URL(u).protocol); }

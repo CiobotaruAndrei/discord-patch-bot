@@ -1,11 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-// V12: adminAlert reset-cooldown-on-failure regression tests.
-// Inainte cooldown-ul atomic era set inainte de axios.post → un Discord webhook
-// 5xx / timeout / network blip ardea cooldown-ul (ADMIN_ALERT_COOLDOWN_MS,
-// default 12h) fara sa fi livrat efectiv alerta. Acum pe esec resetam ts-ul
-// la epoch ca urmatorul apel sa poata re-trigeri.
 
 const attachAdminAlerts = require("../infra/mongo/adminAlerts") as
   (ctx: Record<string, any>) => void;
