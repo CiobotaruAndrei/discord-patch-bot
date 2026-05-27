@@ -111,7 +111,26 @@ function validatePendingDiscountSnapshot(snapshot: unknown): snapshot is DealInf
   const np = deal.normalPrice;
   if (typeof sp !== "string" && typeof sp !== "number") return false;
   if (typeof np !== "string" && typeof np !== "number") return false;
-  if (typeof deal.savings !== "number" || !Number.isFinite(deal.savings)) return false;
+  // V12: `savings` poate fi numar (pipeline curent) sau sir numeric-coercible
+  // (Mongo doc-uri vechi sau cast accidental). Inainte conditia era strict
+  // `typeof === "number"` si snapshot-urile cu `savings: "33"` erau silent
+  // dropate din pendingDiscounts in grace window — guild-urile lung-traite
+  // pierdeau notificarile pe deal-uri care reapareau dupa o pauza scurta in
+  // feed. Acum acceptam si string numeric, dar respingem explicit null /
+  // undefined / "" / object / array (Number(null)===0 ar fi trecut altfel ca
+  // valoare valida, ceea ce nu vrem).
+  // Tipul declarat in DealInfo este `number | undefined`, dar Mongo poate
+  // intoarce string-uri pentru doc-uri vechi — il tratam ca `unknown` aici.
+  const sav: unknown = deal.savings;
+  if (typeof sav === "number") {
+    if (!Number.isFinite(sav)) return false;
+  } else if (typeof sav === "string") {
+    if (!sav.trim()) return false;
+    const num = Number(sav);
+    if (!Number.isFinite(num)) return false;
+  } else {
+    return false;
+  }
   return true;
 }
 
@@ -176,5 +195,12 @@ function attachUtilities(ctx: UtilitiesContext): void {
     withMongoRetry
   });
 }
+
+// V12: expose pure helpers as static attachments on the function itself so
+// tests can import them without spinning up the full ctx wiring.
+Object.assign(attachUtilities, {
+  validatePendingDiscountSnapshot,
+  isTransientMongoError
+});
 
 export = attachUtilities;
