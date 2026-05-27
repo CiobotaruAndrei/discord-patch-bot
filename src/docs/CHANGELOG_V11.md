@@ -103,11 +103,13 @@ Pasi deja facuti:
 - filtre pure pentru deal/update logic;
 - `dealPassesFilters` delegat prin Rust/N-API cu fallback TypeScript;
 - autocomplete scoring delegat prin Rust/N-API cu fallback TypeScript;
-- source registry si command registry mai explicite.
+- source registry si command registry mai explicite;
+- `latestInteractionHandler` spart in 4 sub-handlers (`latestUpdatesHandler`, `latestDealsHandler`, `latestSingleHandler`, `priceSearchHandler`) cu deps tipate per sub (~12-14 deps fiecare in loc de 40 partajate);
+- partea pura de pending queue extrasa din `updateNotificationService` in `pendingUpdatesQueue.ts` (functii pure, fara I/O), separa logica de filtrare-coada de logica de send Discord.
 
 Urmatoarele zone de refactorizat:
 
-- reducerea contextului comun din `commandRuntimeContext` si `commandRegistry`;
+- reducerea contextului comun din `commandRuntimeContext` si `commandRegistry` (potential container/dependency builder explicit);
 - inlocuirea ultimelor `any` din builder-e si interactiuni Discord.js unde exista tipuri concrete;
 - pastrarea `interactions.ts` si `notifications/index.ts` ca adaptoare subtiri;
 - continuarea includerii in `src/tsconfig.strict.json` doar dupa ce fisierele sunt stabile.
