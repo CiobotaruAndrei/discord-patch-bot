@@ -1,19 +1,39 @@
 "use strict";
 
+import type { GameConfig } from "../../types";
+
 const { errorDetail } = require("../../shared/errors");
 
-type DiscordInteraction = any;
-type GameConfig = { key: string; name: string } & Record<string, any>;
 type MaybePromise<T> = T | Promise<T>;
+
+type InteractionPayload = string | Record<string, unknown>;
+type MongoWriteResult = { matchedCount?: number; modifiedCount?: number };
+type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
+type DiscordRole = { id: string };
+
+interface DiscordInteraction {
+  commandName?: string;
+  guild?: { id: string } | null;
+  deferred?: boolean;
+  replied?: boolean;
+  options: {
+    getSubcommand(): string;
+    getSubcommandGroup?(required: false): string | null;
+    getRole(name: string, required?: boolean): DiscordRole | null;
+  };
+  isChatInputCommand?: () => boolean;
+  reply?: (payload: unknown) => Promise<unknown>;
+  followUp?: (payload: unknown) => Promise<unknown>;
+}
 
 type RolePingInteractionDeps = {
   GuildModel: {
-    updateOne: (...args: any[]) => Promise<any>;
+    updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<MongoWriteResult>;
   };
-  logger?: (...args: any[]) => void;
+  logger?: Logger;
   invalidateGuildCache: (guildId: string) => void;
-  safeDefer: (interaction: DiscordInteraction) => Promise<void>;
-  safeEdit: (interaction: DiscordInteraction, payload: any) => Promise<any>;
+  safeDefer: (interaction: DiscordInteraction) => Promise<unknown>;
+  safeEdit: (interaction: DiscordInteraction, payload: InteractionPayload) => Promise<unknown>;
   formatUserError: (err: unknown, fallback: string) => string;
   MessageFlags: { Ephemeral: number };
 };
@@ -48,13 +68,14 @@ function createRolePingInteractionHandlers(deps: RolePingInteractionDeps) {
       await GuildModel.updateOne({ _id: guildId }, { $set: { [field]: null } });
       invalidateGuildCache(guildId);
       return safeEdit(interaction, `OK: Rol pentru ${label} eliminat (fara ping).`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return safeEdit(interaction, formatUserError(err, "Eroare la setarea rolului."));
     }
   }
 
   async function handleSetRoleInteraction(interaction: DiscordInteraction) {
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guild?.id;
+    if (!guildId) return undefined;
     const sub = interaction.options.getSubcommand();
     await safeDefer(interaction);
     return handleSetRole(interaction, sub, guildId);
@@ -89,12 +110,12 @@ function installRolePingInteractions(ctx: RolePingContext) {
 
     try {
       return await handlers.handleSetRoleInteraction(interaction);
-    } catch (err: any) {
+    } catch (err: unknown) {
       ctx.logger?.("ERROR", "ROLE_PING_INTERACTION", "Eroare in handler-ul /set role", errorDetail(err));
       const payload = createInteractionErrorPayload(ctx.MessageFlags);
       try {
-        if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
-        else await interaction.reply(payload);
+        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") await interaction.followUp(payload);
+        else if (typeof interaction.reply === "function") await interaction.reply(payload);
       } catch { /* ignore */ }
       return undefined;
     }

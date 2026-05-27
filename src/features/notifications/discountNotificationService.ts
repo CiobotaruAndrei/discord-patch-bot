@@ -1,7 +1,7 @@
 "use strict";
 
 
-import type { Model } from "mongoose";
+import type { FilterQuery, Model } from "mongoose";
 import type { GuildSettings, DealInfo } from "../../types";
 
 type Logger = (level: string, ctx: string, msg: string, meta?: unknown) => void;
@@ -199,7 +199,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     }
 
     await GuildModel.updateOne(
-      { _id: guild._id, discountsSubscribed: true, discountChannelId: channel.id } as any,
+      { _id: guild._id, discountsSubscribed: true, discountChannelId: channel.id } as FilterQuery<GuildSettings>,
       { $set: { pendingDiscounts: remaining.slice(-PENDING_DISCOUNTS_LIMIT) } }
     );
   }
@@ -210,7 +210,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       discountsSubscribed: true,
       discountChannelId: { $ne: null },
       discountsInitializing: { $ne: true }
-    } as any).lean();
+    } as FilterQuery<GuildSettings>).lean();
     if (!guilds.length) return;
 
     const dealsPromises = new Map<string, Promise<DealInfo[]>>();

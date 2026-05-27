@@ -1,6 +1,6 @@
 "use strict";
 
-type MongoRuntimeContext = Record<string, any>;
+type MongoRuntimeContext = Record<string, unknown>;
 type MongoInstaller = (ctx: MongoRuntimeContext) => void;
 
 const runtimeCtx = require("./runtime") as MongoRuntimeContext;

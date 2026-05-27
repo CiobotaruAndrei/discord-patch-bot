@@ -1,5 +1,8 @@
 "use strict";
 
+import type { SeenRepositoryDeps } from "./seenRepository";
+import type { UpdateNotificationServiceDeps } from "./updateNotificationService";
+import type { DiscountNotificationServiceDeps } from "./discountNotificationService";
 
 const {
   DISCORD_PERMANENT_ERROR_CODES,
@@ -11,7 +14,31 @@ const { createSeenRepository } = require("./seenRepository");
 const { createUpdateNotificationService } = require("./updateNotificationService");
 const { createDiscountNotificationService } = require("./discountNotificationService");
 
-module.exports = (ctx: any) => {
+type GeneratedUpdateDeps =
+  | "resolveOutboundChannel"
+  | "claimSeenUpdate"
+  | "rollbackSeenUpdate"
+  | "disableUpdatesForChannelError"
+  | "isPermanentDiscordError"
+  | "transientErrorMessage";
+
+type GeneratedDiscountDeps =
+  | "resolveOutboundChannel"
+  | "claimSeenDiscount"
+  | "rollbackSeenDiscount"
+  | "disableDiscountsForChannelError"
+  | "isPermanentDiscordError"
+  | "transientErrorMessage";
+
+type NotificationsContext = SeenRepositoryDeps
+  & Omit<UpdateNotificationServiceDeps, GeneratedUpdateDeps>
+  & Omit<DiscountNotificationServiceDeps, GeneratedDiscountDeps>
+  & {
+    canSendEmbeds(channel: unknown, botId: string): boolean;
+  }
+  & Record<string, unknown>;
+
+module.exports = (ctx: NotificationsContext) => {
   const {
     GuildModel, logger, DEFAULT_CURRENCY, runConcurrent,
     validatePendingDiscountSnapshot, getLatestForAllGames, fetchDeals,

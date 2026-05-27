@@ -41,6 +41,8 @@ export interface BuildPendingUpdatesQueueResult {
   enabledSet: Set<string> | null;
 }
 
+type UnknownEntrySource = Map<string, unknown> | Record<string, unknown> | undefined;
+
 /**
  * Construieste cele 3 Map-uri (pendingByGame, seenByGame, resultByGameKey)
  * + enabledSet din starea guild-ului si rezultatele fetch. PURE — nu face
@@ -69,10 +71,10 @@ export function buildPendingUpdatesQueue(
 
   const pendingByGame = new Map<string, PendingUpdate[]>();
   const seenByGame = new Map<string, Set<string>>();
-  for (const [gameKey, seen] of toEntries<string, unknown>(guild.seen as any)) {
+  for (const [gameKey, seen] of toEntries<string, unknown>(guild.seen as UnknownEntrySource)) {
     seenByGame.set(gameKey, new Set(Array.isArray(seen) ? seen.map(String) : []));
   }
-  for (const [gameKey, arr] of toEntries<string, unknown>(guild.pendingUpdates as any)) {
+  for (const [gameKey, arr] of toEntries<string, unknown>(guild.pendingUpdates as UnknownEntrySource)) {
     if (enabledSet && !enabledSet.has(gameKey)) continue;
     const seenSet = seenByGame.get(gameKey) || new Set<string>();
     const cleaned = normalizePendingUpdateArray(arr).filter(item => {

@@ -1,3 +1,4 @@
+import type { CheerioAPI } from "cheerio";
 import type {
   CurrencyCode,
   CurrencyConfig,
@@ -16,8 +17,8 @@ type HttpReq = (
   options?: HttpRequestOptions,
   retries?: number,
   backoff?: number
-) => Promise<HttpResponse<any>>;
-type CheerioLoader = (html: unknown) => any;
+) => Promise<HttpResponse<unknown>>;
+type CheerioLoader = (html: unknown) => CheerioAPI;
 
 interface ChooseBestSteamMatchOptions {
   forceGameOnly?: boolean;

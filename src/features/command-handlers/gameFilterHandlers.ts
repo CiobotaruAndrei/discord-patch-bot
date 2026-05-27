@@ -1,20 +1,39 @@
 "use strict";
 
+import type { GameConfig, GuildSettings } from "../../types";
+
 const { errorDetail } = require("../../shared/errors");
 
-type DiscordInteraction = any;
-type GameConfig = { key: string; name: string } & Record<string, any>;
 type MaybePromise<T> = T | Promise<T>;
+
+type InteractionPayload = string | Record<string, unknown>;
+type MongoWriteResult = { matchedCount?: number; modifiedCount?: number };
+type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
+
+interface DiscordInteraction {
+  commandName?: string;
+  guild?: { id: string } | null;
+  deferred?: boolean;
+  replied?: boolean;
+  options: {
+    getSubcommand(): string;
+    getSubcommandGroup?(required: false): string | null;
+    getString(name: string, required?: boolean): string | null;
+  };
+  isChatInputCommand?: () => boolean;
+  reply?: (payload: unknown) => Promise<unknown>;
+  followUp?: (payload: unknown) => Promise<unknown>;
+}
 
 type GameFilterInteractionDeps = {
   GuildModel: {
-    updateOne: (...args: any[]) => Promise<any>;
+    updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<MongoWriteResult>;
   };
-  logger?: (...args: any[]) => void;
-  getGuildSettings: (guildId: string) => Promise<any>;
+  logger?: Logger;
+  getGuildSettings: (guildId: string) => Promise<GuildSettings | null>;
   invalidateGuildCache: (guildId: string) => void;
-  safeDefer: (interaction: DiscordInteraction) => Promise<void>;
-  safeEdit: (interaction: DiscordInteraction, payload: any) => Promise<any>;
+  safeDefer: (interaction: DiscordInteraction) => Promise<unknown>;
+  safeEdit: (interaction: DiscordInteraction, payload: InteractionPayload) => Promise<unknown>;
   formatUserError: (err: unknown, fallback: string) => string;
   MessageFlags: { Ephemeral: number };
 };
@@ -29,12 +48,12 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
   async function handleSetGames(interaction: DiscordInteraction, games: GameConfig[], sub: string, guildId: string) {
     if (sub === "list") {
       const guild = await getGuildSettings(guildId);
-      const enabled = Array.isArray(guild?.enabledGames) ? guild.enabledGames : [];
+      const enabled = Array.isArray(guild?.enabledGames) ? guild.enabledGames.map(String) : [];
       if (enabled.length === 0) {
         return safeEdit(interaction, "OK: Filtru per-joc: **dezactivat** (toate jocurile configurate sunt active).");
       }
-      const lines = enabled.map((key: any) => {
-        const game = games.find((candidate: any) => candidate.key === key);
+      const lines = enabled.map((key) => {
+        const game = games.find((candidate) => candidate.key === key);
         return game ? `- **${game.name}** (\`${game.key}\`)` : `- \`${key}\` *(cheie necunoscuta in config)*`;
       });
       return safeEdit(interaction, `OK: Jocuri active explicit (${enabled.length}):\n` + lines.join("\n"));
@@ -45,7 +64,7 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
         await GuildModel.updateOne({ _id: guildId }, { $set: { enabledGames: [] } }, { upsert: true });
         invalidateGuildCache(guildId);
         return safeEdit(interaction, "OK: Filtru per-joc resetat. Toate jocurile sunt active.");
-      } catch (err: any) {
+      } catch (err: unknown) {
         return safeEdit(interaction, formatUserError(err, "Eroare la resetare."));
       }
     }
@@ -79,7 +98,7 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
         }
         return safeEdit(interaction, `OK: **${displayName}** scos din lista activa.${note}`);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       return safeEdit(interaction, formatUserError(err, "Eroare la modificarea listei de jocuri."));
     }
     logger?.("WARN", "SET_GAMES", `Subcomanda /set games necunoscuta: ${sub}`);
@@ -87,7 +106,8 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
   }
 
   async function handleSetGamesInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guild?.id;
+    if (!guildId) return undefined;
     const sub = interaction.options.getSubcommand();
     await safeDefer(interaction);
     return handleSetGames(interaction, games, sub, guildId);
@@ -122,12 +142,12 @@ function installGameFilterInteractions(ctx: GameFilterContext) {
 
     try {
       return await handlers.handleSetGamesInteraction(interaction, games);
-    } catch (err: any) {
+    } catch (err: unknown) {
       ctx.logger?.("ERROR", "GAME_FILTER_INTERACTION", "Eroare in handler-ul /set games", errorDetail(err));
       const payload = createInteractionErrorPayload(ctx.MessageFlags);
       try {
-        if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
-        else await interaction.reply(payload);
+        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") await interaction.followUp(payload);
+        else if (typeof interaction.reply === "function") await interaction.reply(payload);
       } catch { /* ignore */ }
       return undefined;
     }

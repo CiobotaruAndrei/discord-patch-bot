@@ -1,7 +1,7 @@
 "use strict";
 
 
-import type { Model } from "mongoose";
+import type { FilterQuery, Model } from "mongoose";
 import type { GuildSettings } from "../../types";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue";
 
@@ -152,7 +152,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     const setDoc: Record<string, unknown> = { pendingUpdates: pendingObject };
     if (lastProcessedGameKey) setDoc.lastProcessedGameKey = lastProcessedGameKey;
     await GuildModel.updateOne(
-      { _id: guild._id, subscribed: true, notificationChannelId: channel.id } as any,
+      { _id: guild._id, subscribed: true, notificationChannelId: channel.id } as FilterQuery<GuildSettings>,
       { $set: setDoc }
     );
   }
@@ -181,7 +181,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       subscribed: true,
       notificationChannelId: { $ne: null },
       updatesInitializing: { $ne: true }
-    } as any).lean();
+    } as FilterQuery<GuildSettings>).lean();
     if (!guilds.length) return;
 
     const optimizedGames = buildOptimizedGameList(games as Array<{ key: string }>, guilds as Array<{ enabledGames?: unknown[] }>);

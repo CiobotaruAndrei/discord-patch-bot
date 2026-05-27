@@ -17,7 +17,7 @@ type HttpReq = (
   options?: HttpRequestOptions,
   retries?: number,
   backoff?: number
-) => Promise<HttpResponse<any>>;
+) => Promise<HttpResponse<unknown>>;
 type TrackInflight = <T>(map: Map<string, Promise<T>>, key: string, promise: Promise<T>) => void;
 type WithInflightTimeout = <T>(promise: Promise<T>, label: string) => Promise<T>;
 
@@ -25,6 +25,39 @@ interface EnrichedCacheEntry {
   enriched: DealInfo;
   currency: string;
   expiresAt: number;
+}
+
+interface SteamReviewResponse {
+  query_summary?: {
+    total_reviews?: number;
+    total_positive?: number;
+  };
+}
+
+interface SteamAppDetailsPayload {
+  platforms?: {
+    windows?: boolean;
+    mac?: boolean;
+    linux?: boolean;
+  };
+}
+
+type SteamAppDetailsResponse = Record<string, { data?: SteamAppDetailsPayload } | undefined>;
+
+interface SteamFeaturedCategoriesResponse {
+  specials?: {
+    items?: SteamSpecialItem[];
+  };
+}
+
+interface EpicGraphqlResponse {
+  data?: {
+    Catalog?: {
+      searchStore?: {
+        elements?: EpicStoreElement[];
+      };
+    };
+  };
 }
 
 interface SteamSpecialItem {
@@ -93,7 +126,7 @@ async function fetchSteamReviewData(appId: string | number): Promise<SteamReview
     const res = await httpReq("GET",
       `https://store.steampowered.com/appreviews/${appId}?json=1&language=all&num_per_page=0`,
       { largeJson: true }, 3, 800);
-    const summary = res.data?.query_summary;
+    const summary = (res.data as SteamReviewResponse).query_summary;
     if (summary) {
       const totalReviews = summary.total_reviews || 0;
       const positiveReviews = summary.total_positive || 0;
@@ -201,7 +234,7 @@ async function enrichDealData(deal: DealInfo, currencyCode?: DealCurrencyCode): 
           })
         ]);
 
-        const data = detailsRes?.data?.[enriched.steamAppID]?.data;
+        const data = detailsRes ? (detailsRes.data as SteamAppDetailsResponse)[String(enriched.steamAppID)]?.data : undefined;
         if (data && data.platforms) {
           const platformList = [
             data.platforms.windows ? "Win" : "",
@@ -256,7 +289,7 @@ async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo
     const steamRes = await httpReq("GET",
       `https://store.steampowered.com/api/featuredcategories/?cc=${cc}&l=english`,
       { largeJson: true });
-    const steamSpecials = (steamRes.data?.specials?.items || []).slice(0, STEAM_SPECIALS_LIMIT) as SteamSpecialItem[];
+    const steamSpecials = ((steamRes.data as SteamFeaturedCategoriesResponse).specials?.items || []).slice(0, STEAM_SPECIALS_LIMIT);
 
     const reviewsData: SteamReviewData[] = [];
     for (let i = 0; i < steamSpecials.length; i += STEAM_REVIEW_BATCH_SIZE) {
@@ -320,7 +353,7 @@ async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo
       }
     });
 
-    const epicElements = (epicRes.data?.data?.Catalog?.searchStore?.elements || []) as EpicStoreElement[];
+    const epicElements = (epicRes.data as EpicGraphqlResponse).data?.Catalog?.searchStore?.elements || [];
     for (const item of epicElements) {
       const priceInfo = item.price?.totalPrice;
       if (!priceInfo) continue;

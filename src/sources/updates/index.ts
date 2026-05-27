@@ -1,4 +1,5 @@
 import type { Model } from "mongoose";
+import type { CheerioAPI } from "cheerio";
 import type {
   AbortPredicate,
   BotMetrics,
@@ -18,13 +19,14 @@ import {
 import { errorMessage } from "../../shared/errors";
 
 type HttpResponse<T = unknown> = { data: T };
+type CheerioSelector = Parameters<CheerioAPI>[0];
 type HttpReq = (
   method: string,
   url: string,
   options?: HttpRequestOptions,
   retries?: number,
   backoff?: number
-) => Promise<HttpResponse<any>>;
+) => Promise<HttpResponse<unknown>>;
 type TrackInflight = <T>(map: Map<string, Promise<T>>, key: string, promise: Promise<T>) => void;
 type WithInflightTimeout = <T>(promise: Promise<T>, label: string) => Promise<T>;
 type SchemaDriftErrorInstance = Error & { source?: string };
@@ -41,7 +43,7 @@ type RunConcurrent = <T>(
 ) => Promise<unknown>;
 
 interface RssParserLike {
-  parseString(input: string): Promise<{ items?: any[] }>;
+  parseString(input: string): Promise<{ items?: RssItem[] }>;
 }
 
 interface CircuitBreakerDoc {
@@ -57,6 +59,52 @@ interface ListingCandidate {
   href: string;
   text: string;
   position: number;
+}
+
+interface RssItem {
+  title?: string;
+  link?: string;
+  pubDate?: string;
+  contents?: unknown;
+  tags?: unknown;
+}
+
+interface SteamNewsItem {
+  gid?: unknown;
+  title?: string;
+  url?: string;
+  contents?: string;
+  tags?: unknown;
+  feed_type?: number;
+  feedname?: string;
+  date?: unknown;
+}
+
+interface SteamNewsResponse {
+  appnews?: {
+    newsitems?: SteamNewsItem[];
+  };
+}
+
+interface FortnitePost {
+  slug?: string;
+  title?: string;
+  shareDescription?: string;
+  date?: string;
+}
+
+interface FortniteBlogResponse {
+  blogList?: FortnitePost[];
+}
+
+interface MinecraftVersionManifest {
+  latest?: {
+    release?: string;
+  };
+}
+
+interface RobloxVersionResponse {
+  clientVersionUpload?: string;
 }
 
 interface UpdatesContext {
@@ -78,7 +126,7 @@ interface UpdatesContext {
   cleanText: (text: unknown) => string;
   stableUpdateId: (title: unknown, link: unknown) => string;
   normalizeUpdate: (data: PatchUpdate) => NormalizedUpdate;
-  safeCheerioLoad: (html: unknown) => any;
+  safeCheerioLoad: (html: unknown) => CheerioAPI;
   crypto: typeof import("crypto");
   metricsRef: Pick<BotMetrics, "fetchSuccess" | "fetchFail">;
   absoluteUrl?: typeof absoluteUrl;
@@ -136,7 +184,7 @@ function scoreCandidate(candidate: ListingCandidate, keywords: string[]): number
   return scoreListingCandidate(candidate.href, candidate.text, keywords);
 }
 
-function isLikelyPatchNote(item: any): boolean {
+function isLikelyPatchNote(item: SteamNewsItem | RssItem | Record<string, unknown>): boolean {
   return classifyPatchNote(item?.title, item?.contents, item?.tags);
 }
 
@@ -145,10 +193,11 @@ async function fetchSteamUpdate(game: GameConfig): Promise<NormalizedUpdate> {
   const response = await httpReq("GET",
     `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${game.appId}&count=50&format=json`,
     { largeJson: true });
-  const patchNotes = (response?.data?.appnews?.newsitems || [])
-    .filter((item: any) => (item.feed_type === 1 || item.feedname === "steam_community_announcements")
+  const data = response.data as SteamNewsResponse;
+  const patchNotes = (data.appnews?.newsitems || [])
+    .filter((item) => (item.feed_type === 1 || item.feedname === "steam_community_announcements")
       && isGoodSteamArticleUrl(item.url) && isLikelyPatchNote(item))
-    .sort((a: any, b: any) => Number(b.date || 0) - Number(a.date || 0));
+    .sort((a, b) => Number(b.date || 0) - Number(a.date || 0));
   if (!patchNotes.length) throw new Error("Lipsă patch notes Steam valabile.");
   const latest = patchNotes[0];
   if (latest.gid === undefined || latest.gid === null || latest.gid === "") {
@@ -193,9 +242,10 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
     const candidates: ListingCandidate[] = [];
     let localPosition = 0;
     $("a").each((i: number, el: unknown) => {
-      const href = absoluteUrl(game.baseUrl, $(el).attr("href"));
+      const node = el as CheerioSelector;
+      const href = absoluteUrl(game.baseUrl, $(node).attr("href"));
       if (!href || (hrefRegex && !hrefRegex.test(href))) return;
-      const candidate = { href, text: cleanText($(el).text()), position: localPosition++ };
+      const candidate = { href, text: cleanText($(node).text()), position: localPosition++ };
       if (keywords.length > 0 && scoreCandidate(candidate, keywords) === 0) return;
       candidates.push(candidate);
     });
@@ -276,13 +326,16 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
 async function fetchFortniteUpdate(): Promise<NormalizedUpdate> {
   const { fetchWithProxy, rssParser, httpReq, logger, normalizeUpdate, cleanText, stableUpdateId } = runtimeContext;
   try {
-    const posts = JSON.parse(await fetchWithProxy(
+    const fortniteResponse = JSON.parse(await fetchWithProxy(
       "https://www.fortnite.com/api/blog/getPosts?postsPerPage=10&offset=0&locale=en-US",
       { timeout: 15000 }
-    ) || "{}")?.blogList;
-    const valid = (posts || []).filter((p: any) => p.slug && p.slug.toLowerCase() !== "news");
+    ) || "{}") as FortniteBlogResponse;
+    const posts = fortniteResponse.blogList || [];
+    const valid = posts.filter((p): p is FortnitePost & { slug: string } =>
+      typeof p.slug === "string" && p.slug.toLowerCase() !== "news"
+    );
     if (!valid.length) throw new Error("Nu am găsit postări valide");
-    const latest = valid.find((p: any) => /update|patch|\bv\d+/i.test(String(p.title))) || valid[0];
+    const latest = valid.find((p) => /update|patch|\bv\d+/i.test(String(p.title))) || valid[0];
     return normalizeUpdate({
       id: String(latest.slug),
       title: cleanText(latest.title),
@@ -294,7 +347,7 @@ async function fetchFortniteUpdate(): Promise<NormalizedUpdate> {
   } catch (err) {
     logger("WARN", "SCRAPE", "Fortnite primary path a esuat, fallback la RSS Google News", errorMessage(err));
     const backupUrl = "https://news.google.com/rss/search?q=site:fortnite.com/news+update&hl=en-US";
-    const feed = await rssParser.parseString((await httpReq("GET", backupUrl)).data);
+    const feed = await rssParser.parseString(String((await httpReq("GET", backupUrl)).data || ""));
     if (!feed.items || feed.items.length === 0) throw new Error("Eșec total Fortnite.");
     const first = feed.items[0];
     if (!first.title) throw new Error("Fortnite RSS fallback fara titlu in primul item.");
@@ -327,7 +380,7 @@ async function fetchAmdUpdate(game: GameConfig): Promise<NormalizedUpdate> {
   }
   const res = await httpReq("GET",
     "https://news.google.com/rss/search?q=site:amd.com+%22AMD+Software:+Adrenalin+Edition%22+release+notes&hl=en-US");
-  const feed = await rssParser.parseString(res.data);
+  const feed = await rssParser.parseString(String(res.data || ""));
   if (!feed.items || feed.items.length === 0) throw new Error("Eșec AMD.");
   const rawTitle = feed.items[0].title;
   if (!rawTitle) throw new Error("AMD RSS fallback fara titlu in primul item.");
@@ -364,7 +417,7 @@ async function fetchIntelUpdate(game: GameConfig): Promise<NormalizedUpdate> {
     : 'site:intel.com "Intel Arc & Iris Xe Graphics - Windows"';
   const res = await httpReq("GET",
     `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US`);
-  const feed = await rssParser.parseString(res.data);
+  const feed = await rssParser.parseString(String(res.data || ""));
   if (!feed.items || feed.items.length === 0) throw new Error("Eșec Intel.");
   const rawTitle = feed.items[0].title;
   if (!rawTitle) throw new Error("Intel RSS fallback fara titlu in primul item.");
@@ -384,7 +437,8 @@ async function fetchMinecraftUpdate(): Promise<NormalizedUpdate> {
   const { httpReq, normalizeUpdate } = runtimeContext;
   const r = await httpReq("GET", "https://pistonmeta.mojang.com/mc/game/version_manifest_v2.json",
     { largeJson: true });
-  const v = r?.data?.latest?.release;
+  const manifest = r.data as MinecraftVersionManifest;
+  const v = manifest.latest?.release;
   if (!v) throw new Error("Lipsă versiune JSON");
   return normalizeUpdate({
     id: v,
@@ -398,7 +452,8 @@ async function fetchMinecraftUpdate(): Promise<NormalizedUpdate> {
 async function fetchRobloxUpdate(): Promise<NormalizedUpdate> {
   const { httpReq, normalizeUpdate } = runtimeContext;
   const r = await httpReq("GET", "https://clientsettings.roblox.com/v2/clientversion/WindowsPlayer");
-  const v = r?.data?.clientVersionUpload;
+  const versionInfo = r.data as RobloxVersionResponse;
+  const v = versionInfo.clientVersionUpload;
   if (!v) throw new Error("Lipsă versiune API");
   return normalizeUpdate({
     id: String(v),
@@ -414,7 +469,7 @@ async function fetchNvidiaUpdate(g: GameConfig): Promise<NormalizedUpdate> {
   const q = g.key === "nvidiastudio" ? '"Studio Driver"' : '"Game Ready Driver"';
   const r = await httpReq("GET",
     `https://news.google.com/rss/search?q=${encodeURIComponent(`site:nvidia.com ${q} release`)}&hl=en-US`);
-  const f = await rssParser.parseString(r.data);
+  const f = await rssParser.parseString(String(r.data || ""));
   if (!f.items || f.items.length === 0) throw new Error("Eșec Nvidia.");
   const rawTitle = f.items[0].title;
   if (!rawTitle) throw new Error("Nvidia RSS fallback fara titlu in primul item.");
@@ -454,13 +509,14 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
     adminAlert,
     metricsRef
   } = runtimeContext;
-  let cb: any;
+  let cb: CircuitBreakerDoc | null = null;
   try {
     cb = await CircuitBreakerModel.findOneAndUpdate(
       { _id: game.key },
       { $setOnInsert: { fails: 0, cooldownUntil: null, alertSent: false, schemaDriftFails: 0, schemaDriftAlertSent: false } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+    if (!cb) throw new Error(`Circuit breaker document lipsa pentru ${game.key}`);
   } catch (cbGetErr) {
     runtimeContext.logger("WARN", "CIRCUIT_BREAKER",
       `Eroare la citirea state-ului CB pentru ${game.key}, sar fetch-ul ciclului curent`,
