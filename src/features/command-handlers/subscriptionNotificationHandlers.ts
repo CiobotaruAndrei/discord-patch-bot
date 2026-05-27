@@ -1,30 +1,53 @@
 "use strict";
 
+import type { DealInfo, FetchResult, GameConfig, GuildSettings } from "../../types";
+
 const { errorDetail, errorMessage } = require("../../shared/errors");
 
-type DiscordInteraction = any;
-type GameConfig = any;
 type MaybePromise<T> = T | Promise<T>;
 
+type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
+type MongoWriteResult = { matchedCount?: number; modifiedCount?: number };
+type InteractionPayload = string | Record<string, unknown>;
+
+interface DiscordChannel {
+  id: string;
+}
+
+interface DiscordInteraction {
+  commandName?: string;
+  guild?: { id: string } | null;
+  channel?: DiscordChannel | null;
+  client?: { user?: { id: string } | null } | null;
+  deferred?: boolean;
+  replied?: boolean;
+  options: {
+    getSubcommand(): string;
+  };
+  isChatInputCommand?: () => boolean;
+  reply?: (payload: unknown) => Promise<unknown>;
+  followUp?: (payload: unknown) => Promise<unknown>;
+}
+
 type GuildModelLike = {
-  updateOne: (...args: any[]) => Promise<any>;
+  updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<MongoWriteResult>;
 };
 
 type SubscriptionInteractionDeps = {
   GuildModel: GuildModelLike;
-  logger: (...args: any[]) => void;
-  getGuildSettings: (guildId: string) => Promise<any>;
+  logger: Logger;
+  getGuildSettings: (guildId: string) => Promise<GuildSettings | null>;
   invalidateGuildCache: (guildId: string) => void;
   DEFAULT_CURRENCY: string;
-  getLatestForAllGames: (games: GameConfig[]) => Promise<any[]>;
-  fetchDeals: (options: { currency: string }) => Promise<any[]>;
-  dealHash: (deal: any) => string;
+  getLatestForAllGames: (games: GameConfig[]) => Promise<FetchResult[]>;
+  fetchDeals: (options: { currency: string }) => Promise<DealInfo[]>;
+  dealHash: (deal: DealInfo) => string;
   DEALS_HISTORY_LIMIT: number;
-  OP_UPDATE_OPTS: Record<string, any>;
-  setDealsCache: (currency: string, deals: any[]) => void;
-  safeDefer: (interaction: DiscordInteraction) => Promise<void>;
-  safeEdit: (interaction: DiscordInteraction, payload: any) => Promise<any>;
-  canSendEmbeds: (channel: any, botId: string) => boolean;
+  OP_UPDATE_OPTS: Record<string, unknown>;
+  setDealsCache: (currency: string, deals: DealInfo[]) => void;
+  safeDefer: (interaction: DiscordInteraction) => Promise<unknown>;
+  safeEdit: (interaction: DiscordInteraction, payload: InteractionPayload) => Promise<unknown>;
+  canSendEmbeds: (channel: DiscordChannel | null | undefined, botId: string) => boolean;
   missingChannelPermsMessage: () => string;
   makeActivationId: () => string;
   formatUserError: (err: unknown, fallback: string) => string;
@@ -45,10 +68,15 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
 
   async function handleStartInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     const sub = interaction.options.getSubcommand();
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guild?.id;
+    if (!guildId) return undefined;
     await safeDefer(interaction);
 
-    if (!canSendEmbeds(interaction.channel, interaction.client.user.id)) {
+    const botId = interaction.client?.user?.id;
+    if (!botId || !canSendEmbeds(interaction.channel, botId)) {
+      return safeEdit(interaction, missingChannelPermsMessage());
+    }
+    if (!interaction.channel) {
       return safeEdit(interaction, missingChannelPermsMessage());
     }
 
@@ -73,7 +101,7 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
 
         try {
           const results = await getLatestForAllGames(games);
-          const seenPayload: Record<string, any> = {
+          const seenPayload: Record<string, unknown> = {
             updatesInitializing: false
           };
           for (const result of results) {
@@ -96,7 +124,7 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
             return safeEdit(interaction, "Activarea update-urilor a fost intrerupta de o comanda stop/start mai noua. Ruleaza din nou /start updates daca mai vrei activarea.");
           }
           return safeEdit(interaction, "OK: Update-uri automate activate.");
-        } catch (err: any) {
+        } catch (err: unknown) {
           await GuildModel.updateOne(
             { _id: guildId, updatesActivationId: activationId },
             {
@@ -114,7 +142,7 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
           invalidateGuildCache(guildId);
           return safeEdit(interaction, formatUserError(err, "Nu am activat update-urile fiindca baseline-ul initial nu a putut fi incarcat."));
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         return safeEdit(interaction, formatUserError(err, "Eroare la activarea update-urilor."));
       }
     }
@@ -142,7 +170,7 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
 
         try {
           const deals = await fetchDeals({ currency });
-          const initHashes = deals.slice(0, DEALS_HISTORY_LIMIT).map((deal: any) => dealHash(deal));
+          const initHashes = deals.slice(0, DEALS_HISTORY_LIMIT).map((deal) => dealHash(deal));
           const activationResult = await GuildModel.updateOne(
             {
               _id: guildId,
@@ -164,7 +192,7 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
           }
           setDealsCache(currency, deals);
           return safeEdit(interaction, `OK: Alerte reduceri activate pe acest canal. Valuta: **${currency}**.`);
-        } catch (err: any) {
+        } catch (err: unknown) {
           await GuildModel.updateOne(
             { _id: guildId, discountsActivationId: activationId },
             {
@@ -182,7 +210,7 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
           invalidateGuildCache(guildId);
           return safeEdit(interaction, formatUserError(err, "Nu am activat reducerile fiindca baseline-ul initial nu a putut fi incarcat."));
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         return safeEdit(interaction, formatUserError(err, "Eroare la activarea reducerilor."));
       }
     }
@@ -193,7 +221,8 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
 
   async function handleStopInteraction(interaction: DiscordInteraction) {
     const sub = interaction.options.getSubcommand();
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guild?.id;
+    if (!guildId) return undefined;
     await safeDefer(interaction);
     try {
       if (sub === "updates") {
@@ -212,7 +241,7 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
         invalidateGuildCache(guildId);
         return safeEdit(interaction, "OK: Reduceri oprite.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       return safeEdit(interaction, formatUserError(err, "Eroare la baza de date."));
     }
 
@@ -249,12 +278,12 @@ function installSubscriptionInteractions(ctx: SubscriptionContext) {
     try {
       if (interaction.commandName === "start") return await handlers.handleStartInteraction(interaction, games);
       return await handlers.handleStopInteraction(interaction);
-    } catch (err: any) {
+    } catch (err: unknown) {
       ctx.logger?.("ERROR", "SUBSCRIPTION_INTERACTION", "Eroare in handler-ul de start/stop", errorDetail(err));
       const payload = createInteractionErrorPayload(ctx.MessageFlags);
       try {
-        if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
-        else await interaction.reply(payload);
+        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") await interaction.followUp(payload);
+        else if (typeof interaction.reply === "function") await interaction.reply(payload);
       } catch { /* ignore */ }
       return undefined;
     }

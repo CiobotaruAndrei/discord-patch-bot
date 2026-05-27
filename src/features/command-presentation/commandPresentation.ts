@@ -5,6 +5,85 @@ import { errorMessage } from "../../shared/errors";
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, endExtra?: Record<string, unknown>) => void;
 
+interface ChainableEmbed {
+  setColor(value: unknown): this;
+  setTitle(value: unknown): this;
+  setFooter(value: unknown): this;
+  setURL(value: unknown): this;
+  setDescription(value: unknown): this;
+  setImage(value: unknown): this;
+  setThumbnail(value: unknown): this;
+  setTimestamp(value: unknown): this;
+  setAuthor(value: unknown): this;
+  addFields(...fields: unknown[]): this;
+}
+
+interface ButtonComponent {
+  setCustomId(value: string): this;
+  setLabel(value: string): this;
+  setStyle(value: unknown): this;
+  setDisabled(value: boolean): this;
+}
+
+interface ActionRowComponent {
+  addComponents(...components: unknown[]): this;
+}
+
+interface ComponentCollector {
+  on(event: "collect", listener: (button: ButtonInteraction) => unknown): this;
+  on(event: "end", listener: () => unknown): this;
+  stop(reason?: string): void;
+}
+
+interface InteractionMessage {
+  editable?: boolean;
+  edit(payload: unknown): Promise<unknown>;
+  createMessageComponentCollector(options: unknown): ComponentCollector;
+}
+
+interface ButtonInteraction {
+  user: { id: string };
+  customId: string;
+  reply(payload: unknown): Promise<unknown>;
+  deferUpdate(): Promise<unknown>;
+}
+
+interface DiscordInteraction {
+  user?: { id?: unknown };
+  guild?: { id?: unknown };
+  channel?: { id?: unknown };
+  deferred?: boolean;
+  replied?: boolean;
+  deferReply(payload?: unknown): Promise<unknown>;
+  editReply(payload: unknown): Promise<unknown>;
+  reply(payload: unknown): Promise<unknown>;
+}
+
+interface HttpResponse<T = unknown> {
+  data: T;
+}
+
+interface EpicStatusPayload {
+  status?: {
+    description?: string;
+    indicator?: string;
+  };
+}
+
+interface SteamPriceOverview {
+  initial: number;
+  final: number;
+  discount_percent: number;
+}
+
+interface SteamAppDetails {
+  type?: string;
+  price_overview?: SteamPriceOverview | null;
+  is_free?: boolean;
+  name?: string;
+  header_image?: string;
+}
+
 type FindGameResult = {
   game: GameConfig | null;
   suggestion: GameConfig | null;
@@ -14,12 +93,12 @@ type CommandUiContext = {
   crypto: {
     randomBytes(size: number): { toString(encoding: BufferEncoding): string };
   };
-  EmbedBuilder: any;
-  ActionRowBuilder: any;
-  ButtonBuilder: any;
-  ButtonStyle: any;
-  ComponentType: any;
-  MessageFlags: any;
+  EmbedBuilder: new () => ChainableEmbed;
+  ActionRowBuilder: new () => ActionRowComponent;
+  ButtonBuilder: new () => ButtonComponent;
+  ButtonStyle: { Primary: unknown; Secondary: unknown };
+  ComponentType: { Button: unknown };
+  MessageFlags: { Ephemeral: number };
   logger: Logger;
   checkUserCooldown(userId: unknown, command: string): { allowed: boolean; remainingMs?: number };
   COLORS: Record<string, number>;
@@ -28,7 +107,7 @@ type CommandUiContext = {
   formatPrice(value: unknown, currencyCode?: string): string;
   COLLECTOR_TIMEOUT_MS: number;
   MAX_FUZZY_SEARCH_INPUT: number;
-  httpReq(method: string, url: string, options?: Record<string, unknown>): Promise<any>;
+  httpReq(method: string, url: string, options?: Record<string, unknown>): Promise<HttpResponse>;
   [key: string]: unknown;
 };
 
@@ -40,7 +119,7 @@ function createCommandPresentation(ctx: CommandUiContext) {
     MAX_FUZZY_SEARCH_INPUT, httpReq
   } = ctx;
 
-async function enforceCooldown(interaction: any, command: string): Promise<boolean> {
+async function enforceCooldown(interaction: DiscordInteraction, command: string): Promise<boolean> {
   const { allowed, remainingMs = 0 } = checkUserCooldown(interaction.user?.id, command);
   if (allowed) return true;
   const msg = `Cooldown: Comanda \`${command}\` are cooldown. Reincearca in **${Math.ceil(remainingMs / 1000)}s**.`;
@@ -49,7 +128,7 @@ async function enforceCooldown(interaction: any, command: string): Promise<boole
   return false;
 }
 
-function startCommandLog(interaction: any, command: string, extra: Record<string, unknown> = {}): CommandLogEnd {
+function startCommandLog(interaction: DiscordInteraction, command: string, extra: Record<string, unknown> = {}): CommandLogEnd {
   const startedAt = Date.now();
   logger("INFO", "USER_CMD", `Comanda pornita: ${command}`, {
     userId: interaction.user?.id,
@@ -70,7 +149,7 @@ function startCommandLog(interaction: any, command: string, extra: Record<string
   };
 }
 
-async function safeDefer(interaction: any, ephemeral = false): Promise<void> {
+async function safeDefer(interaction: DiscordInteraction, ephemeral = false): Promise<void> {
   try {
     if (!interaction.deferred && !interaction.replied) {
       await interaction.deferReply(ephemeral ? { flags: MessageFlags.Ephemeral } : {});
@@ -80,7 +159,7 @@ async function safeDefer(interaction: any, ephemeral = false): Promise<void> {
   }
 }
 
-async function safeEdit(interaction: any, payload: unknown): Promise<unknown | null> {
+async function safeEdit(interaction: DiscordInteraction, payload: unknown): Promise<unknown | null> {
   try { return await interaction.editReply(payload); }
   catch (err) {
     logger("WARN", "INTERACTION", "Eroare la editReply", errorMessage(err));
@@ -88,7 +167,7 @@ async function safeEdit(interaction: any, payload: unknown): Promise<unknown | n
   }
 }
 
-function buildUpdateEmbed(gameName: string, latest: NormalizedUpdate, mode: NotificationMode = "detailed"): any {
+function buildUpdateEmbed(gameName: string, latest: NormalizedUpdate, mode: NotificationMode = "detailed"): ChainableEmbed {
   const isCompact = mode === "compact";
   const embed = new EmbedBuilder()
     .setColor(COLORS.SUCCESS)
@@ -109,7 +188,7 @@ function buildUpdateEmbed(gameName: string, latest: NormalizedUpdate, mode: Noti
   return embed;
 }
 
-function buildDealEmbed(deal: DealInfo, mode: NotificationMode = "detailed", currency?: string): any {
+function buildDealEmbed(deal: DealInfo, mode: NotificationMode = "detailed", currency?: string): ChainableEmbed {
   const cur = currency || deal.currency || DEFAULT_CURRENCY;
   const isFree = parseFloat(String(deal.salePrice)) === 0;
   const isCompact = mode === "compact";
@@ -144,7 +223,7 @@ function generateSessionId(): string {
   return crypto.randomBytes(8).toString("hex");
 }
 
-function buildPaginationButtons(prefix: string, sessionId: string, page: number, totalPages: number): any {
+function buildPaginationButtons(prefix: string, sessionId: string, page: number, totalPages: number): ActionRowComponent {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`${prefix}_prev_${sessionId}`).setLabel("<- Ant").setStyle(ButtonStyle.Secondary).setDisabled(page <= 0),
     new ButtonBuilder().setCustomId(`${prefix}_next_${sessionId}`).setLabel("Urm ->").setStyle(ButtonStyle.Primary).setDisabled(page >= totalPages - 1)
@@ -152,7 +231,7 @@ function buildPaginationButtons(prefix: string, sessionId: string, page: number,
 }
 
 async function handlePagination(
-  interactionMessage: any,
+  interactionMessage: InteractionMessage,
   authorId: string,
   prefix: string,
   items: unknown[],
@@ -164,7 +243,7 @@ async function handlePagination(
   let currentPage = 0;
   const totalPages = Math.max(1, Math.ceil(items.length / itemsPerPage));
   const sessionId = generateSessionId();
-  let collector: any = null;
+  let collector: ComponentCollector | null = null;
 
   const updateMessage = async (): Promise<boolean> => {
     try {
@@ -188,7 +267,7 @@ async function handlePagination(
     componentType: ComponentType.Button,
     time: COLLECTOR_TIMEOUT_MS
   });
-  collector.on("collect", async (btn: any) => {
+  collector.on("collect", async (btn) => {
     if (btn.user.id !== authorId) {
       return btn.reply({ content: "Doar autorul comenzii poate naviga!", flags: MessageFlags.Ephemeral }).catch(() => null);
     }
@@ -269,7 +348,7 @@ function clearFindGameCache(): void {
   findGameCacheGuard.gamesByKey = new Map();
 }
 
-async function fetchGameStatus(game: GameConfig): Promise<any> {
+async function fetchGameStatus(game: GameConfig): Promise<ChainableEmbed> {
   let statusText = "Nu am un API oficial live integrat pentru acest joc. Iti dau pagina oficiala/fallback ca sa verifici manual.";
   let statusLink = "";
   let homepageLink = "";
@@ -278,9 +357,10 @@ async function fetchGameStatus(game: GameConfig): Promise<any> {
   if (game.type === "epic_games") {
     try {
       const res = await httpReq("GET", "https://status.epicgames.com/api/v2/status.json");
-      statusText = `**Status Server:** ${res.data.status.description}`;
+      const data = res.data as EpicStatusPayload;
+      statusText = `**Status Server:** ${data.status?.description || "necunoscut"}`;
       statusLink = "https://status.epicgames.com/";
-      color = res.data.status.indicator === "none" ? COLORS.POSITIVE : COLORS.ERROR;
+      color = data.status?.indicator === "none" ? COLORS.POSITIVE : COLORS.ERROR;
     } catch (err) {
       logger("WARN", "STATUS", "Esec status.epicgames.com, folosesc fallback", errorMessage(err));
       statusText = "Nu am putut prelua statusul automat. Verifica pagina oficiala.";
@@ -314,7 +394,7 @@ async function fetchGameStatus(game: GameConfig): Promise<any> {
   return embed;
 }
 
-function buildSteamPriceEmbed(gameData: any, appId: string | number, offerEndDate?: string | null, currency?: string): any {
+function buildSteamPriceEmbed(gameData: SteamAppDetails, appId: string | number, offerEndDate?: string | null, currency?: string): ChainableEmbed {
   const cur = currency || DEFAULT_CURRENCY;
   const typeStr = gameData.type === "game" ? "Joc"
     : gameData.type === "dlc" ? "DLC / Extensie"
@@ -369,10 +449,14 @@ function buildSteamPriceEmbed(gameData: any, appId: string | number, offerEndDat
   };
 }
 
-function attachCommandUi(ctx: CommandUiContext): void {
-  Object.assign(ctx, createCommandPresentation(ctx));
-}
+type CommandUiInstaller = ((ctx: CommandUiContext) => void) & {
+  createCommandPresentation: typeof createCommandPresentation;
+};
 
-(attachCommandUi as any).createCommandPresentation = createCommandPresentation;
+const attachCommandUi = ((ctx: CommandUiContext): void => {
+  Object.assign(ctx, createCommandPresentation(ctx));
+}) as CommandUiInstaller;
+
+attachCommandUi.createCommandPresentation = createCommandPresentation;
 
 export = attachCommandUi;

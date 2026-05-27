@@ -1,5 +1,7 @@
 "use strict";
 
+import type { CheerioAPI } from "cheerio";
+
 const { errorMessage, errorDetail } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
@@ -34,6 +36,15 @@ type SteamSearchItem = { id?: string | number; name?: string; type?: string };
 type CurrencyConfig = { cc: string; symbol?: string };
 type HttpRequestOptions = { headers?: Record<string, string>; timeout?: number };
 type HttpResponse = { data: unknown };
+type CheerioSelector = Parameters<CheerioAPI>[0];
+type ChainableEmbed = {
+  setColor(value: unknown): ChainableEmbed;
+  setTitle(value: unknown): ChainableEmbed;
+  setURL(value: unknown): ChainableEmbed;
+  setThumbnail(value: unknown): ChainableEmbed;
+  setDescription(value: unknown): ChainableEmbed;
+  setFooter(value: unknown): ChainableEmbed;
+};
 
 type DlcHandlerDeps = {
   logger: DlcHandlerLogger;
@@ -48,7 +59,7 @@ type DlcHandlerDeps = {
   fetchSteamPriceDetails: (appId: string | number, currencyCode: string) => Promise<{ header_image?: string } | null>;
   getCurrencyConfig: (code?: string) => CurrencyConfig;
   httpReq: (method: string, url: string, options?: HttpRequestOptions) => Promise<HttpResponse>;
-  safeCheerioLoad: (html: unknown) => any;
+  safeCheerioLoad: (html: unknown) => CheerioAPI;
   cache: { dlc: DlcCache };
   cacheGetLRU: <T>(map: Map<string, CacheEntry<T>>, key: string) => T | null;
   cacheSetLRU: <T>(map: Map<string, CacheEntry<T>>, key: string, data: T, ttlMs: number, maxSize: number) => void;
@@ -56,7 +67,7 @@ type DlcHandlerDeps = {
   DLC_CACHE_MAX_SIZE: number;
   DLC_ITEMS_PER_PAGE: number;
   truncate: (str: unknown, maxLen: number) => string;
-  EmbedBuilder: any;
+  EmbedBuilder: new () => ChainableEmbed;
   COLORS: { DLC: number } & Record<string, number>;
   handlePagination: (
     msg: unknown,
@@ -133,9 +144,10 @@ function createDlcInteractionHandler(deps: DlcHandlerDeps) {
         const dlcList: Array<{ name: string; price: string }> = [];
         const seenDlcIds = new Set<string>();
         $(".game_area_dlc_row").each((_i: number, el: unknown) => {
-          const dlcName = $(el).find(".game_area_dlc_name").text().trim();
-          let dlcPrice = $(el).find(".game_area_dlc_price").text().trim().replace(/\s+/g, " ");
-          const dlcAppId = String($(el).attr("data-ds-appid") || dlcName);
+          const node = el as CheerioSelector;
+          const dlcName = $(node).find(".game_area_dlc_name").text().trim();
+          let dlcPrice = $(node).find(".game_area_dlc_price").text().trim().replace(/\s+/g, " ");
+          const dlcAppId = String($(node).attr("data-ds-appid") || dlcName);
           if (!dlcPrice) dlcPrice = "Pret indisponibil";
           if (dlcName && !seenDlcIds.has(dlcAppId)) {
             seenDlcIds.add(dlcAppId);

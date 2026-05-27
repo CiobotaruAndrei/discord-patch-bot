@@ -92,12 +92,14 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Gestioneaza cache-uri runtime pentru updates, deals, DLC, single lookup si cooldown-uri user.
 - Expune `createCommandCache`, iar atasarea pe context ramane adapter de compatibilitate.
+- Foloseste tipuri structurale pentru permisiuni/canale, nu `any`.
 
 ### `src/features/command-presentation/commandPresentation.ts`
 
 - Construieste embed-uri, paginare, select menus si raspunsuri user-facing.
 - Contine helper-ul de fuzzy game lookup prin `findGameKeys` din Rust/N-API.
 - Expune `createCommandPresentation`, iar instalarea pe context este doar adapter de compatibilitate.
+- Builder-ele Discord, collector-ul, interactiunile si raspunsurile HTTP sunt modelate local prin interfete mici.
 
 ## Command handlers
 

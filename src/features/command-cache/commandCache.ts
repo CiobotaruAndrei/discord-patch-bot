@@ -12,11 +12,27 @@ import type {
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
+interface PermissionsLike {
+  has(permission: unknown): boolean;
+}
+
+interface TextChannelLike {
+  isTextBased(): boolean;
+  permissionsFor(botId: string): PermissionsLike | null;
+}
+
+interface PermissionsBitFieldLike {
+  Flags: {
+    SendMessages: unknown;
+    EmbedLinks: unknown;
+  };
+}
+
 interface CommandCacheContext {
   crypto: {
     randomBytes(size: number): { toString(encoding: BufferEncoding): string };
   };
-  PermissionsBitField: any;
+  PermissionsBitField: PermissionsBitFieldLike;
   logger: Logger;
   DEFAULT_CURRENCY: string;
   env: RuntimeEnv;
@@ -220,8 +236,14 @@ function formatUserError(err: unknown, defaultMsg = "A aparut o eroare interna."
   return `Eroare: ${defaultMsg}${suffix}`;
 }
 
-function canSendEmbeds(channel: any, botId: string): boolean {
-  if (!channel || !channel.isTextBased()) return false;
+function isTextChannelLike(channel: unknown): channel is TextChannelLike {
+  return Boolean(channel)
+    && typeof (channel as { isTextBased?: unknown }).isTextBased === "function"
+    && typeof (channel as { permissionsFor?: unknown }).permissionsFor === "function";
+}
+
+function canSendEmbeds(channel: unknown, botId: string): boolean {
+  if (!isTextChannelLike(channel) || !channel.isTextBased()) return false;
   const perms = channel.permissionsFor(botId);
   return !!perms && perms.has([
     PermissionsBitField.Flags.SendMessages,
@@ -289,10 +311,14 @@ async function sleepIfPositive(ms: number): Promise<void> {
   };
 }
 
-function attachCommandCache(ctx: CommandCacheContext): void {
-  Object.assign(ctx, createCommandCache(ctx));
-}
+type CommandCacheInstaller = ((ctx: CommandCacheContext) => void) & {
+  createCommandCache: typeof createCommandCache;
+};
 
-(attachCommandCache as any).createCommandCache = createCommandCache;
+const attachCommandCache = ((ctx: CommandCacheContext): void => {
+  Object.assign(ctx, createCommandCache(ctx));
+}) as CommandCacheInstaller;
+
+attachCommandCache.createCommandCache = createCommandCache;
 
 export = attachCommandCache;

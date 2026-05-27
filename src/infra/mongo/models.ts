@@ -1,6 +1,16 @@
 "use strict";
 
-module.exports = (ctx: any) => {
+import type * as Mongoose from "mongoose";
+
+interface MongoModelsContext {
+  mongoose: typeof Mongoose;
+  SUPPORTED_CURRENCIES: Record<string, unknown>;
+  DEFAULT_CURRENCY: string;
+  ONE_DAY_MS: number;
+  [key: string]: unknown;
+}
+
+module.exports = (ctx: MongoModelsContext) => {
   const { mongoose, SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, ONE_DAY_MS } = ctx;
 
 const pendingUpdateSchema = new mongoose.Schema({

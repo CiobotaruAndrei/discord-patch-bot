@@ -146,9 +146,11 @@ function assertSafeExternalUrl(rawUrl: unknown, label = "URL extern"): string {
 function createSafeDnsLookup(baseLookup: DnsLookup = dns.lookup): DnsLookup {
   return ((hostname: string, options: unknown, callback?: unknown) => {
     const cb = typeof callback === "function" ? callback as (...args: unknown[]) => void : options as (...args: unknown[]) => void;
-    const lookupOptions = typeof callback === "function" ? options : undefined;
+    const lookupOptions = typeof callback === "function"
+      ? options as dns.LookupOneOptions | dns.LookupAllOptions
+      : undefined;
 
-    baseLookup(hostname, lookupOptions as any, (err: NodeJS.ErrnoException | null, address: unknown, family: unknown) => {
+    const handleLookupResult = (err: NodeJS.ErrnoException | null, address: unknown, family?: unknown): void => {
       if (err) {
         cb(err, address, family);
         return;
@@ -164,7 +166,13 @@ function createSafeDnsLookup(baseLookup: DnsLookup = dns.lookup): DnsLookup {
       }
 
       cb(null, address, family);
-    });
+    };
+
+    if (lookupOptions) {
+      baseLookup(hostname, lookupOptions, handleLookupResult);
+    } else {
+      baseLookup(hostname, handleLookupResult);
+    }
   }) as DnsLookup;
 }
 

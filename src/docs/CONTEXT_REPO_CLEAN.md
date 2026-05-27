@@ -134,7 +134,7 @@ Zone care inca trebuie urmarite:
 - `commandRuntimeContext.ts`;
 - `commandRegistry.ts`;
 - adapterele care inca primesc un context comun mare, desi `commandCache`, `commandPresentation` si `mongoContext` au deja factory-uri explicite;
-- locurile unde apar `any` pentru builder-e sau interactiuni Discord.js.
+- mock-urile de test care inca folosesc tipuri largi pentru a simula Discord, Mongo si HTTP.
 
 ## Securitate si runtime
 
@@ -174,6 +174,6 @@ Teste relevante pentru structura actuala:
 ## Zone ramase de curatat
 
 - Reducerea contextului comun din runtime si registry.
-- Tiparea builder-elor Discord unde apar inca `any`.
+- Tiparea mai stricta a mock-urilor de test care inca folosesc `Record<string, any>`.
 - Mutarea oricarei logici ramase in adaptere catre servicii sau handler-e dedicate.
 - Mentinerea documentatiei sincronizate la fiecare schimbare de cod.

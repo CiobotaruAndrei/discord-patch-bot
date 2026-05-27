@@ -1,6 +1,6 @@
 "use strict";
 
-type SourceContext = Record<string, any>;
+type SourceContext = Record<string, unknown>;
 type SourceInstaller = (ctx: SourceContext) => void;
 
 const runtimeCtx = require("./runtime") as SourceContext;
