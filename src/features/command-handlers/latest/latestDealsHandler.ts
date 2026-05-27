@@ -1,8 +1,5 @@
 "use strict";
 
-/**
- * V12: handler `/latest reduceri` — extras din `latestInteractionHandler.ts`.
- */
 
 const { errorMessage } = require("../../../shared/errors");
 

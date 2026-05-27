@@ -74,16 +74,6 @@ async function adminAlert(kind: string, title: string, body: unknown): Promise<v
     logger("INFO", "ADMIN_ALERT", `Alerta trimisa: ${kind} - ${title}`);
   } catch (err) {
     logger("WARN", "ADMIN_ALERT", "Nu am putut trimite webhook admin", errorMessage(err));
-    // V12: cooldown reset cand webhook-ul esueaza. Inainte: cooldown-ul atomic
-    // era set BEFORE axios.post, asa ca un Discord webhook 5xx / timeout /
-    // network blip ardea cooldown-ul (ADMIN_ALERT_COOLDOWN_MS, default 12h)
-    // fara sa fi livrat efectiv alerta. Toate alertele pentru acelasi `kind`
-    // erau apoi dropate silent pana la expirare — operatorul nu vedea nici
-    // un semnal pentru evenimente reale (cron:fatal, boot:fatal, http:listen
-    // etc) cand exact in fereastra aia avea cea mai mare nevoie de ele.
-    // Acum: pe esec resetam ts-ul la epoch (1970) ca urmatorul apel sa poata
-    // re-trigeri. Pe success cooldown-ul ramane intact, comportamentul de
-    // suppression nu se schimba.
     try {
       await AdminAlertCooldownModel.updateOne(
         { _id: kind },

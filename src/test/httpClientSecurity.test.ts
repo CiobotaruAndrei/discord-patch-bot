@@ -12,6 +12,15 @@ function createHttpClientTestContext() {
     axios: { create: () => axiosClient },
     cheerio: { load: (html: string) => ({ html }) },
     crypto: {},
+    dnsLookup(hostname: string, options: unknown, callback?: unknown) {
+      const cb = typeof callback === "function"
+        ? callback as (err: Error | null, result: unknown, family?: number) => void
+        : options as (err: Error | null, result: unknown, family?: number) => void;
+      const opts = typeof callback === "function" ? options as { all?: boolean } : {};
+      const address = hostname === "private.example" ? "127.0.0.1" : "93.184.216.34";
+      if (opts.all) cb(null, [{ address, family: 4 }]);
+      else cb(null, address, 4);
+    },
     logger() {},
     env: {
       FETCH_CONCURRENCY: 2,
@@ -49,6 +58,41 @@ test("HTTP client rejects unsafe external URLs", async () => {
   await assert.rejects(() => ctx.httpReq("GET", "http://localhost/metrics"), /locala sau privata/);
 });
 
+test("HTTP client rejects hostnames that resolve to private IP addresses", async () => {
+  const { ctx } = createHttpClientTestContext();
+
+  await assert.rejects(
+    () => ctx.assertSafeExternalDnsTarget("https://private.example/path", "HTTP URL"),
+    /rezolva DNS catre o adresa locala sau privata/
+  );
+  await assert.rejects(
+    () => ctx.httpReq("GET", "https://private.example/path"),
+    /rezolva DNS catre o adresa locala sau privata/
+  );
+});
+
+test("agent DNS lookup rejects rebinding to private IP addresses", async () => {
+  const guardedLookup = (attachHttpClient as any).createSafeDnsLookup(
+    (hostname: string, options: unknown, callback?: unknown) => {
+      const cb = typeof callback === "function"
+        ? callback as (err: Error | null, result: unknown, family?: number) => void
+        : options as (err: Error | null, result: unknown, family?: number) => void;
+      cb(null, hostname === "private.example" ? "10.0.0.8" : "93.184.216.34", 4);
+    }
+  );
+
+  await new Promise<void>((resolve, reject) => {
+    guardedLookup("private.example", {}, (err: Error | null) => {
+      try {
+        assert.match(String(err?.message || ""), /adresa locala sau privata/);
+        resolve();
+      } catch (assertErr) {
+        reject(assertErr);
+      }
+    });
+  });
+});
+
 test("proxy fallback validates and encodes target URLs", async () => {
   const { ctx, requestedUrls } = createHttpClientTestContext();
 
@@ -69,18 +113,9 @@ test("proxy templates must include the target placeholder", () => {
 });
 
 test("parseRetryAfter accepts integer seconds and rejects unitless garbage", () => {
-  // V11 regression: parseInt("60s", 10) === 60 — the old code accepted any
-  // prefix-numeric string as seconds. The new strict `/^\d+$/` guard rejects
-  // anything with non-digit suffixes so we don't misinterpret malformed
-  // headers as a tiny wait time.
   const { ctx } = createHttpClientTestContext();
   assert.equal(ctx.parseRetryAfter("60"), 60_000);
   assert.equal(ctx.parseRetryAfter(" 120 "), 120_000);
-  // V12: `Retry-After: 0` is valid per RFC 7231 (delta-seconds=0 means "retry
-  // immediately"). Previously we treated 0 as invalid and fell back to
-  // exponential backoff jitter, which actually contradicted the server's
-  // explicit instruction. Now we honor it and let waitMs=0 flow through
-  // (setTimeout(res, 0) -> retry next tick).
   assert.equal(ctx.parseRetryAfter("0"), 0, "0 seconds is RFC-valid (retry immediately)");
   assert.equal(ctx.parseRetryAfter("60s"), null, "unitless `s` suffix must be rejected, not silently truncated");
   assert.equal(ctx.parseRetryAfter("-30"), null);
@@ -90,10 +125,6 @@ test("parseRetryAfter accepts integer seconds and rejects unitless garbage", () 
 });
 
 test("parseRetryAfter accepts HTTP-date format per RFC 7231", () => {
-  // V11 regression: HTTP-date Retry-After values used to be silently dropped
-  // (parseInt of "Wed, 21 Oct 2025 ..." is NaN). Now we Date.parse them and
-  // compute the delta from now. A date in the past returns null (no wait),
-  // a future date returns the positive delta in ms.
   const { ctx } = createHttpClientTestContext();
   const now = 1_700_000_000_000;
   const futureMs = now + 45_000;
@@ -109,10 +140,6 @@ test("parseRetryAfter accepts HTTP-date format per RFC 7231", () => {
   assert.equal(ctx.parseRetryAfter(past, now), null,
     "past HTTP-date must return null (server's deadline already elapsed)");
 
-  // V12: HTTP-date egal cu `now` returneaza 0 (delta=0), simetric cu accepter-ul
-  // pentru `Retry-After: 0` in delta-seconds. Inainte conditia era `delta > 0`
-  // → returna null pe deadline-ul exact, ceea ce parea inconsistent cu
-  // path-ul de integer seconds.
   const nowExact = new Date(now).toUTCString();
   const exact = ctx.parseRetryAfter(nowExact, now) as number | null;
   assert.equal(typeof exact, "number", "HTTP-date == now must yield a numeric delta");

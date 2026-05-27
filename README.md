@@ -15,7 +15,7 @@ Bot Discord pentru notificari despre update-uri, DLC-uri si reduceri pentru jocu
 - Trimite notificari pentru update-uri noi si reduceri relevante.
 - Expune comenzi slash pentru abonare, configurare, verificari manuale si status.
 - Evita duplicatele prin `seenUpdates` si `seenDiscounts` persistate in MongoDB.
-- Are fallback-uri si circuit breaker pentru surse externe fragile.
+- Are fallback-uri, validare DNS/IP pentru request-uri externe si circuit breaker pentru surse fragile.
 - Expune endpoint-uri locale `/healthz` si `/metrics`.
 
 ## Comenzi principale
@@ -98,7 +98,7 @@ src/
     command-handlers/       # handler-e tipate pentru comenzi si autocomplete
     notifications/          # wiring notificari, seen repo, servicii update/reduceri
   infra/
-    http/                   # client HTTP, proxy, retry, limitari
+    http/                   # client HTTP, proxy, retry, limitari, DNS/IP guard
     mongo/                  # conexiune, modele, locks, migratii
   shared/                   # tipuri/utilitare comune
   sources/                  # surse Steam/Epic/listing/RSS si registry
@@ -130,7 +130,7 @@ Testele acopera zonele importante:
 - servicii de notificari pentru update-uri si reduceri;
 - repository-ul `seen` pentru deduplicare;
 - fluxuri E2E pentru update-uri si reduceri;
-- parsere, filtre, circuit breaker, cooldown-uri si rate limiting.
+- parsere, filtre, shape drift pe scrapers, circuit breaker, cooldown-uri si rate limiting.
 
 Testele care folosesc surse externe reale nu confirma comportament live cu token Discord real. Pentru productie, valideaza si cu un server Discord de test si MongoDB real.
 
@@ -165,9 +165,11 @@ Starea curenta:
 - handler-ele pentru comenzi cunoscute sunt separate in `src/features/command-handlers/`;
 - `interactions.ts` este router/wiring si delega catre handler-e;
 - `notifications/index.ts` este wiring pentru cron jobs, iar logica principala este in `updateNotificationService.ts` si `discountNotificationService.ts`;
+- `commandCache.ts`, `commandPresentation.ts` si `mongoContext.ts` expun factory-uri explicite; atasarea pe context ramane doar strat de compatibilitate;
 - `domain/deals/filtersCore.ts`, `outboundChannel.ts` si `seenRepository.ts` sunt module tipate, usor de testat separat;
 - `src/native/` contine Rust/N-API pentru hot-path-uri pure: fuzzy matching, autocomplete scoring, hash-uri, normalizare text/scoring si filtrarea ofertelor;
-- `src/tsconfig.strict.json` include incremental fisiere stabilizate, nu tot proiectul deodata.
+- `src/tsconfig.strict.json` include incremental fisiere stabilizate, inclusiv modulele de surse Steam/deals/updates si testele directe pe shape drift;
+- `legacy-dynamic.d.ts` a fost eliminat; tipurile trebuie rezolvate local, nu prin extinderea globala a `Object`.
 
 Zonele ramase de imbunatatit sunt reducerea contextului din runtime/registry, inlocuirea ultimelor tipuri `any` unde exista API-uri Discord.js potrivite si mentinerea adapterelor subtiri la marginea sistemului.
 

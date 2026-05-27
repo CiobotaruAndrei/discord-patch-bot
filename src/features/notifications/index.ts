@@ -1,25 +1,5 @@
 "use strict";
 
-/**
- * V12: notifications/index.ts redus la o pelicula subtire de wiring.
- *
- * Inainte: ~330 linii cu intregul flow (processGuildUpdates,
- * processGuildDiscounts, checkForUpdates, checkForDiscounts, buildOptimizedGameList,
- * helper-ul WeakMap pentru dealsHashIndex) si ~30 deps destructurate din ctx.
- *
- * Acum: cele doua servicii principale sunt in module dedicate cu deps tipate
- * explicit:
- * - `updateNotificationService.ts` (processGuildUpdates, buildOptimizedGameList,
- *   checkForUpdates)
- * - `discountNotificationService.ts` (processGuildDiscounts, checkForDiscounts)
- *
- * `seenRepository.ts` (claim/rollback/disable atomice) si `outboundChannel.ts`
- * (rezolvare canal Discord) sunt deja extrase.
- *
- * Acest fisier doar instantiaza dependintele din ctx, conecteaza factory-urile
- * si re-expune functiile pe ctx pentru backwards compatibility cu apelantii
- * legacy. Niciun fragment de logica de cron nu mai traieste aici.
- */
 
 const {
   DISCORD_PERMANENT_ERROR_CODES,

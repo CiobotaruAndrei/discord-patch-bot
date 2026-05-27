@@ -3,10 +3,6 @@ import assert from "node:assert/strict";
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
 
-// V12: smoke tests pentru cele doua servicii extrase din notifications/index.ts.
-// Verificam ca factory-urile construiesc handlers cu deps explicite si ca
-// scenariile critice (gate-uri pe enabledGames, claim race, role ping pe prima
-// trimitere) functioneaza.
 
 function makeUpdateDeps(overrides: Record<string, any> = {}) {
   const updateOneCalls: Array<{ filter: unknown; update: unknown }> = [];
@@ -271,7 +267,7 @@ test("DiscountService: claim race (matchedCount=0) sare deal-ul fara enrich", as
   };
   await svc.processGuildDiscounts({}, guild, [{ id: "d1" }] as any);
   assert.equal(sentPayloads.length, 0);
-  assert.equal(enrichCount, 0, "V12 — claim ruleaza inainte de enrich; race-ul evita Steam calls");
+  assert.equal(enrichCount, 0, "claim ruleaza inainte de enrich; race-ul evita Steam calls");
 });
 
 test("DiscountService: dealPassesFilters=false sare deal-ul (filter-aware)", async () => {

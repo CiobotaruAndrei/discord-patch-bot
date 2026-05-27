@@ -65,8 +65,6 @@ interface SlashCommandContext {
   };
   SUPPORTED_CURRENCIES: Record<string, unknown>;
   logger: Logger;
-  // V11: optional dev/staging override — daca e setat, registrare guild-scoped
-  // (propagare instant) in loc de global (~1h cache la Discord).
   env?: { DISCORD_DEV_GUILD_ID?: string };
   CURRENCY_CHOICES?: SlashChoice[];
   buildSlashCommandDefinitions?: () => unknown[];
@@ -81,7 +79,6 @@ function attachSlashCommands(ctx: SlashCommandContext): void {
     value: currency
   }));
 
-  // V9: definitii slash extinse - autocomplete + subcomenzi noi.
   function buildSlashCommandDefinitions(): unknown[] {
     return [
       new SlashCommandBuilder().setName("ping").setDescription("Verifica daca botul raspunde"),
@@ -156,11 +153,6 @@ function attachSlashCommands(ctx: SlashCommandContext): void {
   async function registerSlashCommands(token: string, clientId: string): Promise<void> {
     const rest = new REST({ version: "10" }).setToken(token);
     const body = buildSlashCommandDefinitions();
-    // V11: dev/staging shortcut — daca DISCORD_DEV_GUILD_ID este setat,
-    // inregistreaza pe guild in loc de global. Discord propaga global commands
-    // cu pana la o ora de delay si pageaza UI client-side; guild commands sunt
-    // disponibile instant. Util cand iterezi pe slash schema in test server.
-    // In productie lasa env-ul gol → registrare globala ca inainte.
     const devGuildId = env?.DISCORD_DEV_GUILD_ID;
     if (devGuildId) {
       await rest.put(Routes.applicationGuildCommands(clientId, devGuildId), { body });

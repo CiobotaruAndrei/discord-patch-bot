@@ -1,8 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-// V12: legacy router-ul nu mai expune handlers per-comanda. Folosim handlers
-// dedicate cu deps tipate, identic cu install order-ul de productie.
 const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as (ctx: Record<string, any>) => void;
 const installStatusHandler = require("../features/command-handlers/statusInteractionHandler") as (ctx: Record<string, any>) => void;
 const installSetHandler = require("../features/command-handlers/setInteractionHandler") as (ctx: Record<string, any>) => void;
@@ -112,10 +110,6 @@ function makeSetGamesInteraction(sub: string, jocKey: string) {
 }
 
 test("/set games remove accepts a stale key not in the current config", async () => {
-  // V11 regression guard: previously `/set games remove old-game` would fail
-  // with "Cheia `old-game` nu exista in config" if the operator deleted the
-  // game from config.json — leaving the guild's enabledGames stuck with the
-  // stale entry forever. Now $pull runs regardless and confirms.
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
   const ctx: any = makeCtx(replies, mongoCalls, /* modifiedCount */ 1);
@@ -183,9 +177,6 @@ test("/set games add still rejects keys not in the current config", async () => 
 });
 
 test("/status with empty joc replies with a friendly error before doing any work", async () => {
-  // V11 regression guard: previously the loading state read "Se incarca:
-  // ... pentru **null**..." because gameText wasn't validated. Now we bail
-  // before deferring.
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
   const ctx: any = makeCtx(replies, mongoCalls);

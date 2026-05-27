@@ -1,21 +1,5 @@
 "use strict";
 
-/**
- * V12: dispatcher pentru `/latest *` — REDUS la 80 linii dupa splitting.
- *
- * Inainte (V12 generatia 1): un singur fisier de ~390 linii cu cele 4
- * sub-handlers in interior si o interfata gigantica `LatestHandlerDeps` cu
- * ~40 deps. Plangerea explicita din review (punctul 2 din screenshot recent):
- * "latestInteractionHandler are multe dependinte; l-as sparge in
- * latestUpdatesHandler, latestDealsHandler, latestSingleHandler,
- * priceSearchHandler".
- *
- * Acum: cele 4 sub-handlers traiesc in `./latest/` cu deps tipate per sub
- * (~12-14 deps fiecare in loc de 40 partajate). Acest fisier doar:
- * 1. Construieste 4 sub-handlers prin factory-uri.
- * 2. Routeaza pe sub-comanda cu guard pentru sub necunoscut.
- * 3. Installer wraps `ctx.handleInteraction` pentru chain pattern.
- */
 
 const { errorDetail } = require("../../shared/errors");
 const { createLatestUpdatesHandler } = require("./latest/latestUpdatesHandler");
@@ -61,9 +45,6 @@ function createLatestInteractionHandler(ctx: LatestContextDeps) {
     if (sub === "reduceri") return latestDeals.handleLatestDeals(interaction);
     if (sub === "update") return latestSingle.handleLatestSingle(interaction, games);
     if (sub === "pret") return priceSearch.handlePriceSearch(interaction);
-    // V11: defensive guard pentru sub necunoscut. Daca un nou sub e adaugat in
-    // slashCommandDefinitions.ts fara dispatch aici, user-ul vedea "interaction
-    // failed" dupa 3s. Acum reply explicit.
     ctx.logger("WARN", "LATEST_COMMAND", `Subcomanda /latest necunoscuta: ${sub}`);
     return interaction.reply({
       content: `Eroare: Subcomanda \`/latest ${sub}\` nu este recunoscuta.`,

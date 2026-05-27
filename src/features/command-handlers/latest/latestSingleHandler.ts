@@ -1,10 +1,5 @@
 "use strict";
 
-/**
- * V12: handler `/latest update <joc>` — extras din `latestInteractionHandler.ts`.
- * Foloseste cache LRU per game si executeFetchWithCircuitBreaker pentru a evita
- * scraping pe surse parcate de CB.
- */
 
 const { errorMessage } = require("../../../shared/errors");
 

@@ -61,10 +61,6 @@ test("fallback la .game_purchase_action prinde data", () => {
 });
 
 test("nu prinde data dintr-un sidebar nelegat de produsul principal", () => {
-  // V11 regression guard: sidebar-ul de la 'Customers also bought' sau
-  // 'More like this' poate avea propriul 'Offer ends ...' pentru un alt joc.
-  // Cand pagina principala NU are countdown/purchase area, nu mai cautam in tot
-  // body-ul ca sa nu lipim data unui produs nelegat la embed.
   const html = `<html><body>
     <h1>Game without active sale</h1>
     <aside class="recommendation_widget">
@@ -90,13 +86,6 @@ test("limiteaza lungimea rezultatului fallback", () => {
   assert.ok((result || "").length <= 200, "fallback trebuie limitat la 200 char");
 });
 
-// V12: raw-HTML fallback (cand cheerio arunca pe HTML invalid sever) trebuie
-// sa matchuiasca aceleasi 4 patterns ca path-ul cheerio: Offer ends, Sale ends,
-// Special promotion ends, Daily Deal Offer ends. Inainte fallback-ul matchuia
-// DOAR "Offer ends" — daca Steam servea HTML rupt pe un joc cu "Sale ends" /
-// "Special promotion ends" / "Daily Deal", user-ul vedea "Expira la:
-// Nespecificat" silent. Atasam modulul steam la un ctx in care safeCheerioLoad
-// arunca → fortam path-ul raw.
 const attachSteam = require("../sources/steam");
 
 function makeSteamCtxWithThrowingCheerio() {

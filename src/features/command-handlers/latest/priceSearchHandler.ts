@@ -1,10 +1,5 @@
 "use strict";
 
-/**
- * V12: handler `/latest pret <joc>` — extras din `latestInteractionHandler.ts`.
- * Search Steam dupa nume, alege best match, fetch detalii pret, extrage data
- * de expirare (cand exista discount activ).
- */
 
 const { errorMessage } = require("../../../shared/errors");
 
@@ -80,7 +75,6 @@ export function createPriceSearchHandler(deps: PriceSearchHandlerDeps) {
         endLog("no_details", { appId: bestMatch.id });
         return safeEdit(interaction, "Eroare: Am gasit un rezultat, dar detaliile de pret nu sunt disponibile.");
       }
-      // V9: trecem currency-ul pentru extractul de data — locale corect per guild.
       const offerEndDate = (gameData.price_overview?.discount_percent ?? 0) > 0
         ? await extractSteamOfferEndDate(bestMatch.id, currency)
         : null;

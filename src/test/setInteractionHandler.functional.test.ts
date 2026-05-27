@@ -1,13 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-// V12: handler /set extras intr-o factory tipata. Verificam ca:
-// 1. Intercepteaza sub-comenzile directe (mode, mindiscount, maxprice, free,
-//    paid, currency, stores) — scrie Mongo + raspunde user-ului.
-// 2. Deleagheaza `/set games *` si `/set role *` mai jos in chain (intercepted
-//    earlier in commandRegistry).
-// 3. Sub-comenzi necunoscute primesc reply explicit fara $set: {} in Mongo.
-// 4. Validarile noi (mode/mindiscount/maxprice/currency) raman in factory.
 
 const installSetHandler = require("../features/command-handlers/setInteractionHandler") as
   ((ctx: Record<string, any>) => void) & { createSetInteractionHandler?: (deps: any) => any };
@@ -152,7 +145,6 @@ test("handles /set stores with steam,epic + rejects unknown store", async () => 
 });
 
 test("unknown sub returns explicit reply without empty $set write", async () => {
-  // V11 regression guard pastrat in noul handler.
   const { ctx, updateCalls, replies, logs } = makeCtx({});
   await ctx.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "future-feature" }),
@@ -164,11 +156,6 @@ test("unknown sub returns explicit reply without empty $set write", async () => 
 });
 
 test("delegates `/set games *` and `/set role *` to next handler (intercepted earlier in chain)", async () => {
-  // V12: install order plaseaza setInteractionHandler DUPA gameFilterHandlers
-  // si rolePingHandlers. La runtime (reverse order), routing-ul curge prin
-  // setHandler care DELEGEAZA grupurile games/role mai jos, iar acolo sunt
-  // intercepted. In test simulam asta verificand ca grupurile sunt delegate
-  // si NU sunt scrise direct.
   const { ctx, updateCalls, delegateCalls } = makeCtx({});
 
   await ctx.handleInteraction(

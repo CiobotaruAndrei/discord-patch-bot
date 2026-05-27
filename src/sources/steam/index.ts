@@ -106,10 +106,6 @@ function chooseBestSteamMatch(
 
 async function fetchSteamPriceDetails(appId: string | number, currencyCode?: SteamCurrencyCode): Promise<unknown | null> {
   const cc = runtimeContext.getCurrencyConfig(currencyCode).cc;
-  // V12: build via URL().searchParams.set in loc de concatenare raw, simetric
-  // cu enrichDealData (CHANGELOG #52). `appId` provine din raspunsuri upstream
-  // si trece prin String(); fara escape, un schema drift teoretic ar putea
-  // injecta caractere care strica query string-ul.
   const detailsUrl = new URL("https://store.steampowered.com/api/appdetails");
   detailsUrl.searchParams.set("appids", String(appId));
   detailsUrl.searchParams.set("cc", cc);
@@ -130,11 +126,6 @@ function extractOfferEndFromHtml(html: unknown): string | null {
       if (match && match[1]) return match[1].trim().slice(0, 200).replace(/\s{2,}/g, " ");
     }
 
-    // V11: scope fallback-ul la zona de cumparare a jocului principal. Steam
-    // pune adesea reclame in sidebar / "Customers also bought" cu propriile
-    // "Offer ends ..." — daca scanam tot body-ul putem prinde data unei oferte
-    // pentru un cu totul alt joc. .game_area_purchase /.game_purchase_action
-    // sunt ancorate de blocul de pret al produsului curent.
     const scopedText = $(".game_area_purchase, .game_purchase_action, .discount_block").text();
     const candidates = [
       /Offer ends\s+([^<\n]+)/i,
@@ -150,17 +141,7 @@ function extractOfferEndFromHtml(html: unknown): string | null {
     cheerioThrew = true;
   }
 
-  // V11: raw HTML fallback ruleaza DOAR cand cheerio a aruncat (HTML invalid
-  // sever). Daca cheerio a parsat cu succes dar n-am gasit textul in
-  // containerele de cumparare ancorate, returnam null in loc sa cautam in tot
-  // documentul — caz in care am putea prinde "Offer ends ..." dintr-un sidebar
-  // de produs nelegat.
   if (!cheerioThrew) return null;
-  // V12: fallback-ul raw aplica acelasi set de 4 patterns ca path-ul principal
-  // cheerio. Inainte fallback-ul matchuia DOAR `Offer ends\s+...` — daca Steam
-  // servea HTML invalid sever pe un joc cu eticheta "Sale ends", "Special
-  // promotion ends" sau "Daily Deal! Offer ends", user-ul vedea "Expira la:
-  // Nespecificat" silent. Acum simetrie completa cu path-ul cheerio.
   const rawText = String(html || "");
   const rawCandidates = [
     /Offer ends\s+([^<\n]+)/i,
@@ -170,8 +151,6 @@ function extractOfferEndFromHtml(html: unknown): string | null {
   ];
   for (const re of rawCandidates) {
     const match = rawText.match(re);
-    // V11: normalize whitespace la fel ca pe cele doua path-uri principale,
-    // ca output-ul user-facing sa nu difere intre cheerio-OK si cheerio-throw.
     if (match && match[1]) return match[1].trim().slice(0, 200).replace(/\s{2,}/g, " ");
   }
   return null;
@@ -180,9 +159,6 @@ function extractOfferEndFromHtml(html: unknown): string | null {
 async function extractSteamOfferEndDate(appId: string | number, currencyCode?: SteamCurrencyCode): Promise<string | null> {
   const cc = runtimeContext.getCurrencyConfig(currencyCode).cc;
   try {
-    // V12: URL().searchParams.set in loc de concat. `appId` ajunge tot in path,
-    // dar trecem prin `encodeURIComponent` ca un schema drift sau o injectie
-    // sa nu rupa cererea HTTP.
     const safeAppId = encodeURIComponent(String(appId));
     const htmlUrl = new URL(`https://store.steampowered.com/app/${safeAppId}`);
     htmlUrl.searchParams.set("cc", cc);

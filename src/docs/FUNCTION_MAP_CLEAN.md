@@ -49,6 +49,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/infra/http/client.ts`
 
 - Client HTTP cu retry, proxy templates, limite de dimensiune si validare URL externa.
+- Valideaza hosturile externe si prin DNS/IP, ca request-urile sa nu ajunga in adrese locale sau private.
 - Expune `cleanText`, `normalizeUpdate`, `stableUpdateId`, `dealHash` si helper-ele HTTP pe context.
 - Foloseste wrapper-ele Rust din `src/native/fuzzy.ts` pentru hot-path-uri pure.
 
@@ -58,7 +59,8 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/infra/mongo/mongoContext.ts`
 
-- Ataseaza modelele, runtime-ul Mongo, lock-urile, migratiile, state-ul si alerting-ul pe context.
+- Construieste exporturile Mongo prin `createMongoContext`.
+- Atasarea pe context ramane compatibila cu runtime-ul existent.
 
 ### `src/infra/mongo/locks.ts`
 
@@ -86,10 +88,16 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Este una dintre zonele principale de redus treptat.
 - Scopul pe termen lung este sa livreze dependinte mici si tipate catre factory-uri, nu un `ctx` mare.
 
+### `src/features/command-cache/commandCache.ts`
+
+- Gestioneaza cache-uri runtime pentru updates, deals, DLC, single lookup si cooldown-uri user.
+- Expune `createCommandCache`, iar atasarea pe context ramane adapter de compatibilitate.
+
 ### `src/features/command-presentation/commandPresentation.ts`
 
 - Construieste embed-uri, paginare, select menus si raspunsuri user-facing.
 - Contine helper-ul de fuzzy game lookup prin `findGameKeys` din Rust/N-API.
+- Expune `createCommandPresentation`, iar instalarea pe context este doar adapter de compatibilitate.
 
 ## Command handlers
 
@@ -186,6 +194,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Agrega sursele externe.
 - Gestioneaza fallback-uri si erori de schema prin modulele din `src/sources/`.
+- Sursele Steam/deals/updates sunt incluse in strict TypeScript si au teste directe pentru shape drift.
 
 ### `src/sources/updates/index.ts`
 
@@ -238,6 +247,7 @@ Teste functionale curente:
 - `seenRepository.functional.test.ts`;
 - `dealFiltersCore.functional.test.ts`;
 - `rustFuzzy.test.ts`.
+- `sourceScraperShapeDrift.test.ts`.
 
 Teste E2E:
 

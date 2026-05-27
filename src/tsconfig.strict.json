@@ -39,7 +39,10 @@
     "scripts/check-dependencies.ts",
     "scripts/extract-release-notes.ts",
     "shared/errors.ts",
+    "sources/deals/index.ts",
     "sources/sourceRegistry.ts",
+    "sources/steam/index.ts",
+    "sources/updates/index.ts",
     "test/acquireDbLock.functional.test.ts",
     "test/adminAlerts.functional.test.ts",
     "test/adminGuard.test.ts",
@@ -64,6 +67,7 @@
     "test/simpleCommandsHandler.functional.test.ts",
     "test/slashCommandDefinitions.functional.test.ts",
     "test/sourceRegistry.functional.test.ts",
+    "test/sourceScraperShapeDrift.test.ts",
     "test/statusInteractionHandler.functional.test.ts",
     "test/subscriptionInteractions.functional.test.ts"
   ]

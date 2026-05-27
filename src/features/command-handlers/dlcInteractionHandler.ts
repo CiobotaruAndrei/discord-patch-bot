@@ -87,9 +87,6 @@ function createDlcInteractionHandler(deps: DlcHandlerDeps) {
 
   async function handleDlcInteraction(interaction: DiscordInteraction): Promise<unknown> {
     const gameName = interaction.options.getString("joc");
-    // V11: guard pentru gameName empty/null. Slash schema declara `joc` ca
-    // required, dar payload-uri malformate pot trimite null — vechea forma
-    // incepea sa lucreze (cooldown, log, defer) si cauta Steam pentru "null".
     if (!gameName) return interaction.reply({ content: "Eroare: Trebuie sa specifici un joc.", flags: MessageFlags.Ephemeral });
     if (!(await enforceCooldown(interaction, "dlc"))) return;
     const endLog = startCommandLog(interaction, "dlc", { query: gameName });
@@ -128,8 +125,6 @@ function createDlcInteractionHandler(deps: DlcHandlerDeps) {
           timeout: 15000
         });
         const $ = safeCheerioLoad(htmlRes.data);
-        // V11: detectia age-gate prin selectori cheerio (request.path se rezolva
-        // la URL-ul initial, nu cel final dupa redirect).
         if ($("#agegate_box").length > 0 || $(".agegate_text_container").length > 0) {
           endLog("age_gate", { appId: bestMatch.id });
           return safeEdit(interaction, `Eroare: Pagina de Steam pentru **${title}** necesita verificare de varsta, iar botul nu o poate accesa direct.`);

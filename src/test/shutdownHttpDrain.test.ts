@@ -49,9 +49,6 @@ function fakeTimers(opts: { fireMs?: number[] } = {}) {
 }
 
 test("shutdown waits for httpServer.close callback before continuing", async () => {
-  // V11 regression guard: previously `httpServer.close()` was fired without
-  // awaiting the callback, so an in-flight /metrics request could be torn
-  // down abruptly when the 500ms post-shutdown setTimeout fired.
   const timers = fakeTimers();
   try {
     const { order, deps } = makeBaseDeps();
@@ -79,12 +76,6 @@ test("shutdown waits for httpServer.close callback before continuing", async () 
     assert.ok(order.includes("mongo.close"), "mongo.close should run before HTTP close");
 
     // Now release the close callback — shutdown should finish.
-    // V11: TS5 trips TS2349 ("expression not callable") on every variant of
-    // `closeCb!()` / `if (!closeCb) throw; closeCb();` / `const x = closeCb`
-    // because the variable is a `let` assigned inside a nested closure and
-    // strict-mode control flow refuses to narrow past the closure boundary.
-    // Cast to the concrete function type at the call site to bypass it —
-    // the runtime check above guarantees we don't actually call null.
     if (!closeCb) {
       throw new Error("httpServer.close should have been invoked with a callback");
     }
@@ -96,12 +87,6 @@ test("shutdown waits for httpServer.close callback before continuing", async () 
 });
 
 test("handleFatalProcessError clears the alert-budget timer once adminAlert wins the race", async () => {
-  // V11 regression guard: previously the budget Promise was a free-standing
-  // `setTimeout(resolve, 2000)` without unref/clearTimeout. When adminAlert
-  // resolved first, Promise.race resolved but the timer kept refing the event
-  // loop for up to 2s — blocking a clean natural exit and forcing reliance
-  // on the 10s force-exit safety net even on fast shutdowns. Now the timer
-  // is unref'd AND cleared from the race's .finally.
   const originalSetTimeout = globalThis.setTimeout;
   const originalClearTimeout = globalThis.clearTimeout;
 
@@ -167,9 +152,6 @@ test("handleFatalProcessError clears the alert-budget timer once adminAlert wins
 });
 
 test("shutdown gives up after HTTP_CLOSE_BUDGET if close never fires its callback", async () => {
-  // V11: a stuck connection cannot block shutdown forever — the 3-second
-  // budget timer is the safety net. We fire it instantly via fakeTimers so
-  // the test doesn't actually wait 3 s.
   const timers = fakeTimers({ fireMs: [3000] });
   try {
     const { deps } = makeBaseDeps();

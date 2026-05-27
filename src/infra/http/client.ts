@@ -1,5 +1,6 @@
 import http = require("http");
 import https = require("https");
+import dns = require("dns");
 import net = require("net");
 import type { AxiosRequestConfig, AxiosResponse, AxiosStatic } from "axios";
 import type {
@@ -22,6 +23,7 @@ import { errorMessage } from "../../shared/errors";
 
 type CheerioModule = typeof import("cheerio");
 type CryptoModule = typeof import("crypto");
+type DnsLookup = typeof dns.lookup;
 type HttpMetricsRef = Pick<BotMetrics, "fetchSuccess" | "fetchFail" | "httpRetries" | "rateLimitHits">;
 
 interface AxiosLikeError {
@@ -37,6 +39,7 @@ interface HttpClientContext {
   axios: AxiosStatic;
   cheerio: CheerioModule;
   crypto: CryptoModule;
+  dnsLookup?: DnsLookup;
   env: RuntimeEnv;
   logger: LoggerFunction;
   getAbortSignal?: () => AbortSignal | null | undefined;
@@ -53,16 +56,26 @@ const USER_AGENTS = [
 
 const RETRY_ABLE_4XX = new Set([408, 425, 429]);
 
-function isPrivateIPv4(hostname: string): boolean {
+function parseIPv4(hostname: string): number[] | null {
   const parts = hostname.split(".").map(part => Number(part));
-  if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) return false;
+  if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) return null;
+  return parts;
+}
+
+function isPrivateIPv4(hostname: string): boolean {
+  const parts = parseIPv4(hostname);
+  if (!parts) return false;
   const [a, b] = parts;
   return a === 0
     || a === 10
     || a === 127
+    || (a === 100 && b >= 64 && b <= 127)
     || (a === 169 && b === 254)
     || (a === 172 && b >= 16 && b <= 31)
-    || (a === 192 && b === 168);
+    || (a === 192 && b === 0)
+    || (a === 192 && b === 168)
+    || (a === 198 && (b === 18 || b === 19))
+    || (a >= 224);
 }
 
 function isPrivateIPv6(hostname: string): boolean {
@@ -76,8 +89,10 @@ function isPrivateIPv6(hostname: string): boolean {
     || normalized === "::1"
     || normalized === "0:0:0:0:0:0:0:0"
     || normalized === "0:0:0:0:0:0:0:1"
+    || normalized.startsWith("2001:db8:")
     || ((firstHextet & 0xfe00) === 0xfc00)
-    || ((firstHextet & 0xffc0) === 0xfe80);
+    || ((firstHextet & 0xffc0) === 0xfe80)
+    || ((firstHextet & 0xff00) === 0xff00);
 }
 
 function normalizeHostname(hostname: string): string {
@@ -96,6 +111,14 @@ function isBlockedExternalHostname(hostname: string): boolean {
   if (ipVersion === 4) return isPrivateIPv4(normalized);
   if (ipVersion === 6) return isPrivateIPv6(normalized);
   return false;
+}
+
+function isBlockedIpAddress(address: string): boolean {
+  const normalized = normalizeHostname(address);
+  const ipVersion = net.isIP(normalized);
+  if (ipVersion === 4) return isPrivateIPv4(normalized);
+  if (ipVersion === 6) return isPrivateIPv6(normalized);
+  return true;
 }
 
 function assertSafeExternalUrl(rawUrl: unknown, label = "URL extern"): string {
@@ -120,14 +143,64 @@ function assertSafeExternalUrl(rawUrl: unknown, label = "URL extern"): string {
   return parsed.href;
 }
 
-// V11: parse Retry-After header value per RFC 7231. Accepta:
-//  - seconds (delta non-negativ): "120" → 120_000ms
-//  - HTTP-date absoluta: "Wed, 21 Oct 2015 07:28:00 GMT" → delta until that date
-// Inainte, doar varianta seconds era recunoscuta. Pentru HTTP-date, parseInt
-// returna NaN (incepe cu litera), waitIsRetryAfter ramanea false si retry-ul
-// folosea backoff exponential cu jitter [0.5, 1.5) — putea cadea SUB pragul
-// cerut de server, contraventionand RFC-ului si crescand riscul de IP ban.
-// Returneaza null pentru valori invalide (caller continua cu backoff normal).
+function createSafeDnsLookup(baseLookup: DnsLookup = dns.lookup): DnsLookup {
+  return ((hostname: string, options: unknown, callback?: unknown) => {
+    const cb = typeof callback === "function" ? callback as (...args: unknown[]) => void : options as (...args: unknown[]) => void;
+    const lookupOptions = typeof callback === "function" ? options : undefined;
+
+    baseLookup(hostname, lookupOptions as any, (err: NodeJS.ErrnoException | null, address: unknown, family: unknown) => {
+      if (err) {
+        cb(err, address, family);
+        return;
+      }
+
+      const addresses = Array.isArray(address)
+        ? address.map(item => String((item as { address?: unknown }).address || ""))
+        : [String(address || "")];
+      const blocked = addresses.find(candidate => isBlockedIpAddress(candidate));
+      if (blocked) {
+        cb(new Error(`DNS pentru ${hostname} pointeaza catre o adresa locala sau privata (${blocked}).`));
+        return;
+      }
+
+      cb(null, address, family);
+    });
+  }) as DnsLookup;
+}
+
+async function assertSafeExternalDnsTarget(
+  rawUrl: unknown,
+  label = "URL extern",
+  lookup: DnsLookup = dns.lookup
+): Promise<string> {
+  const safeUrl = assertSafeExternalUrl(rawUrl, label);
+  const parsed = new URL(safeUrl);
+  const hostname = normalizeHostname(parsed.hostname);
+  if (net.isIP(hostname)) return safeUrl;
+
+  const addresses = await new Promise<string[]>((resolve, reject) => {
+    lookup(hostname, { all: true, verbatim: true }, (err: NodeJS.ErrnoException | null, result: unknown) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      const resolved = Array.isArray(result)
+        ? result.map(item => String((item as { address?: unknown }).address || "")).filter(Boolean)
+        : [String(result || "")].filter(Boolean);
+      resolve(resolved);
+    });
+  });
+
+  if (!addresses.length) {
+    throw new Error(`${label} nu a returnat niciun rezultat DNS.`);
+  }
+  const blocked = addresses.find(candidate => isBlockedIpAddress(candidate));
+  if (blocked) {
+    throw new Error(`${label} rezolva DNS catre o adresa locala sau privata (${blocked}).`);
+  }
+  return safeUrl;
+}
+
 function parseRetryAfter(raw: unknown, nowMs: number = Date.now()): number | null {
   if (raw === null || raw === undefined) return null;
   const trimmed = String(raw).trim();
@@ -137,12 +210,6 @@ function parseRetryAfter(raw: unknown, nowMs: number = Date.now()): number | nul
   // "60abc" → 60, deci adaugam un regex strict pe sirul brut.
   if (/^\d+$/.test(trimmed)) {
     const seconds = parseInt(trimmed, 10);
-    // V12: accepta `Retry-After: 0` (RFC 7231 permite explicit delta-seconds=0
-    // ca "retry immediately"). Inainte conditia era `seconds > 0` → 0 cadea
-    // pe fallback-ul de backoff exponential cu jitter [0.5, 1.5), ceea ce
-    // contraventiona instructiunii server-ului. Acum honoram exact ce a cerut
-    // peer-ul: 0 → waitMs=0 (retry imediat, fara jitter). Pentru HTTP-date
-    // calea simetrica e `delta >= 0` la limita inferioara.
     if (seconds >= 0 && Number.isFinite(seconds)) return seconds * 1000;
     return null;
   }
@@ -175,6 +242,8 @@ function normalizeProxyTemplates(rawTemplates: string, defaults: string[]): stri
 
 function attachHttpClient(ctx: HttpClientContext): void {
   const { axios, cheerio, env, logger, getAbortSignal } = ctx;
+  const dnsLookup = ctx.dnsLookup || dns.lookup;
+  const safeDnsLookup = createSafeDnsLookup(dnsLookup);
 
   const FETCH_CONCURRENCY = env.FETCH_CONCURRENCY;
   const MAX_HTML_BYTES = env.MAX_HTML_BYTES;
@@ -195,12 +264,14 @@ function attachHttpClient(ctx: HttpClientContext): void {
   const httpAgent = new http.Agent({
     keepAlive: true,
     maxSockets: Math.max(FETCH_CONCURRENCY * 2, 20),
-    keepAliveMsecs: 30_000
+    keepAliveMsecs: 30_000,
+    lookup: safeDnsLookup
   });
   const httpsAgent = new https.Agent({
     keepAlive: true,
     maxSockets: Math.max(FETCH_CONCURRENCY * 2, 20),
-    keepAliveMsecs: 30_000
+    keepAliveMsecs: 30_000,
+    lookup: safeDnsLookup
   });
   const axiosClient = axios.create({
     httpAgent,
@@ -284,7 +355,7 @@ function attachHttpClient(ctx: HttpClientContext): void {
     retries = 2,
     backoff = 1000
   ): Promise<AxiosResponse> {
-    const safeUrl = assertSafeExternalUrl(url, "HTTP URL");
+    const safeUrl = await assertSafeExternalDnsTarget(url, "HTTP URL", dnsLookup);
     let contentLimit = options.maxContentLength;
     let bodyLimit = options.maxBodyLength;
     if (contentLimit === undefined) {
@@ -328,11 +399,6 @@ function attachHttpClient(ctx: HttpClientContext): void {
           throw err;
         }
         const status = requestError.response?.status || "N/A";
-        // V11: 429 inseamna "server-ul ne cere sa incetinim", nu "request-ul a
-        // fost respins definitiv". E sigur sa-l reincercam si pe POST (cazul
-        // nostru: Epic GraphQL queries care sunt semantic citiri). Inainte,
-        // 429 pe POST arunca imediat si pierdeam intregul fetch de reduceri
-        // Epic pana la urmatorul ciclu.
         const isRateLimit = status === 429;
         const isRetryable4xx = isRateLimit
           || (isIdempotent && typeof status === "number" && RETRY_ABLE_4XX.has(status));
@@ -347,11 +413,6 @@ function attachHttpClient(ctx: HttpClientContext): void {
         }
 
         let waitMs = backoff;
-        // V11: cand server-ul ne trimite `Retry-After`, marker-am explicit asta
-        // ca sa nu mai aplicam jitter [0.5, 1.5) peste valoare. Inainte, un
-        // Retry-After de 30s putea ajunge sa fie asteptat doar ~15s, sub
-        // pragul cerut de server — o incalcare a contractului HTTP 429 care
-        // putea face peer-ul sa banneze IP-ul mai agresiv.
         let waitIsRetryAfter = false;
         if (isRateLimit) {
           metrics().rateLimitHits++;
@@ -367,11 +428,6 @@ function attachHttpClient(ctx: HttpClientContext): void {
           // Jitter pozitiv [1.0, 1.25] — niciodata sub valoarea ceruta de server,
           // dar evitam thundering herd cand multi clienti primesc acelasi
           // Retry-After in acelasi timp.
-          // V11: cap-am la 30s **dupa** jitter, nu inainte. Inainte, cap-ul
-          // de 30s era aplicat pe `parsedMs` brut iar jitter-ul `1..1.25`
-          // putea apoi escalada waitMs la 37.5s — depasea cap-ul intentionat.
-          // Acum, daca server-ul a cerut 30s, jitter-am la 30..37.5s si
-          // apoi Math.min(..., 30000) → 30000. Bound real respectat.
           waitMs = Math.min(Math.round(waitMs * (1 + Math.random() * 0.25)), 30000);
         } else {
           waitMs = Math.round(waitMs * (0.5 + Math.random()));
@@ -387,7 +443,7 @@ function attachHttpClient(ctx: HttpClientContext): void {
   }
 
   async function fetchWithProxy(targetUrl: string, options: HttpRequestOptions = {}): Promise<string> {
-    const safeTargetUrl = assertSafeExternalUrl(targetUrl, "Proxy target URL");
+    const safeTargetUrl = await assertSafeExternalDnsTarget(targetUrl, "Proxy target URL", dnsLookup);
     if (!PROXY_TEMPLATES.length) {
       throw new Error("Proxy fallback neconfigurat. Seteaza PROXY_URLS pentru aceasta sursa.");
     }
@@ -448,6 +504,8 @@ function attachHttpClient(ctx: HttpClientContext): void {
     USER_AGENTS,
     PROXY_TEMPLATES,
     assertSafeExternalUrl,
+    assertSafeExternalDnsTarget: (rawUrl: unknown, label?: string) =>
+      assertSafeExternalDnsTarget(rawUrl, label, dnsLookup),
     attachMetrics,
     cleanText,
     truncate,
@@ -470,5 +528,7 @@ function attachHttpClient(ctx: HttpClientContext): void {
 // signature that the rest of the codebase relies on.
 attachHttpClient.parseRetryAfter = parseRetryAfter;
 attachHttpClient.assertSafeExternalUrl = assertSafeExternalUrl;
+attachHttpClient.assertSafeExternalDnsTarget = assertSafeExternalDnsTarget;
+attachHttpClient.createSafeDnsLookup = createSafeDnsLookup;
 
 export = attachHttpClient;

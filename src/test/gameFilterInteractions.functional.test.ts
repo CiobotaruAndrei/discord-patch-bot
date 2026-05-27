@@ -65,15 +65,6 @@ test("game filter factory writes /set games add through explicit deps", async ()
 });
 
 test("game filter allows /set games remove for stale keys not in current config", async () => {
-  // V11 regression guard: when an operator removes a game from config.json,
-  // existing guilds still have the key in `enabledGames`. The old form
-  // rejected `/set games remove <stale-key>` with "Cheia nu exista in config"
-  // BEFORE running the $pull, so operators were stuck with stale entries in
-  // their guild settings forever. The fix in `legacyInteractionRouter.ts`
-  // never actually mattered — that handler is shadow-ed in the install chain
-  // by gameFilterHandlers, which still had the old strict behavior. Now
-  // gameFilterHandlers also accepts stale keys for `remove` (with a clear
-  // "curatat-o" note) but keeps strict validation on `add`.
   const calls: any[] = [];
   const replies: any[] = [];
   const handlers = gameFilterInteractions.createGameFilterInteractionHandlers(makeBaseContext(calls, replies));
@@ -91,8 +82,6 @@ test("game filter allows /set games remove for stale keys not in current config"
 });
 
 test("game filter still rejects /set games add for unknown keys", async () => {
-  // V11: `add` keeps strict validation — we don't want random keys polluting
-  // enabledGames. Only `remove` was loosened.
   const calls: any[] = [];
   const replies: any[] = [];
   const handlers = gameFilterInteractions.createGameFilterInteractionHandlers(makeBaseContext(calls, replies));
@@ -124,10 +113,6 @@ test("game filter reports no-op when /set games remove finds nothing to pull", a
 });
 
 test("game filter rejects unknown sub-commands explicitly instead of leaving deferReply hanging", async () => {
-  // V11: any sub that's not list/reset/add/remove (e.g. future schema change
-  // without matching handler update) was silently dropped — user stuck on the
-  // deferReply spinner forever. Now we WARN-log and reply with an explicit
-  // error.
   const calls: any[] = [];
   const replies: any[] = [];
   const logs: any[] = [];

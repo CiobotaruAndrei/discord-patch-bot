@@ -73,10 +73,6 @@ function registerDiscordEvents({
       logger("ERROR", "DISCORD", "Esec inregistrare slash commands", errorMessage(err));
       adminAlert("slash:register-failed", "Slash commands nu au putut fi inregistrate", errorMessage(err)).catch(() => null);
     }
-    // V11: wrap pentru ca un throw sincron din startHousekeeping / scheduleNextCron
-    // sa nu bubble-uiasca la discord.js emitter ca unhandled — bot-ul ar fi
-    // ramas logged-in dar fara housekeeping si fara cron. Acum log-am explicit
-    // si trimitem alerta, ca operatorul sa vada ca bot-ul e in stare zombie.
     try {
       startHousekeeping();
     } catch (err) {

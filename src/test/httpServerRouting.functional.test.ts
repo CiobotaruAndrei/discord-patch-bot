@@ -4,13 +4,6 @@ import { request as httpRequest } from "node:http";
 import { AddressInfo } from "node:net";
 import { createHttpServer } from "../app/health/httpServer";
 
-// V12: route matching prin `new URL(req.url, "http://localhost").pathname` in
-// loc de `req.url ===` strict. Cu vechea forma, `/metrics?probe=1` sau
-// `/health?source=k8s` cadeau prin matching si serveau 404 — clienti de
-// monitoring care anexau query parameters erau respinsi cu mesaj inselator.
-// Testele de mai jos starteaza un server real pe port random, lovesc rutele
-// cu/fara query strings si valideaza ca toate variantele "valide" raspund
-// cu shape-ul corect.
 
 interface ResponseSnapshot { status: number; body: string }
 
@@ -71,10 +64,7 @@ test("/metrics with no query string returns 200", async () => {
   } finally { await close(); }
 });
 
-test("/metrics?probe=1 still matches the metrics route (V12 fix)", async () => {
-  // V12 regression guard: inainte `/metrics?probe=1` cadea pe 404 pentru ca
-  // matching-ul era pe `req.url === "/metrics"` strict. Acum parsam pathname
-  // si matchuim pe el.
+test("/metrics?probe=1 still matches the metrics route", async () => {
   const { port, close } = await startServer();
   try {
     const res = await fetchPath(port, "/metrics?probe=1&source=prometheus");

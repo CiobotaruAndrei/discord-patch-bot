@@ -1,10 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-// V12: autocomplete handler extras intr-o factory tipata cu deps explicite.
-// Verificam scoring-ul, filtering-ul pe set games remove, stable sort
-// (tiebreaker alfabetic), folosirea name-as-value pentru steam search, si
-// guard-ul pentru `joc` ne-focused.
 
 const installAutocomplete = require("../features/command-handlers/autocompleteInteractionHandler") as
   ((ctx: Record<string, any>) => void) & { createAutocompleteHandler?: (deps: any) => any; scoreGameAgainstInput?: (g: any, i: string) => number };
@@ -145,7 +141,6 @@ test("/set games remove restricts pool to enabledGames + stale placeholders", as
 });
 
 test("/set games remove without guild context falls back to full games pool (no crash)", async () => {
-  // V11: defensive guard pentru autocomplete fara guild (test manual / DM).
   const { ctx, logs } = makeCtx({
     getGuildSettings: async () => { throw new Error("trebuie sa nu fie apelat"); }
   });

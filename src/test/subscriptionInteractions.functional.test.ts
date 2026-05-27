@@ -67,11 +67,6 @@ test("subscription interaction factory handles /start updates with explicit deps
 });
 
 test("subscription /start rejects unknown sub-commands instead of leaving the deferReply hanging", async () => {
-  // V11 regression guard: handleStartInteraction defers BEFORE branching on
-  // sub. The previous form returned undefined for any sub other than
-  // "updates"/"reduceri", so a slash schema addition without a matching
-  // handler branch (or a malformed payload) would leave the user staring at
-  // the loading spinner forever. Now we WARN-log and reply explicitly.
   const operations: any[] = [];
   const replies: any[] = [];
   const logs: any[] = [];

@@ -2,8 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildPendingUpdatesQueue } from "../features/notifications/pendingUpdatesQueue";
 
-// V12: tests pentru util-ul pur de pending queue. Fara mock-uri Discord/Mongo
-// — verifica doar transformarea pura de date.
 
 function makeDeps(overrides: Partial<Parameters<typeof buildPendingUpdatesQueue>[0]> = {}) {
   return {

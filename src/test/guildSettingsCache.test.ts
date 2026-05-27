@@ -31,10 +31,6 @@ function resetCacheFor(ctx: any, ids: string[]): void {
 }
 
 test("guildSettingsCache evicts oldest entries past GUILD_CACHE_MAX_SIZE", async () => {
-  // V11 regression guard: before the LRU bound, this cache grew unbounded
-  // because cleanGuildCache only removed expired entries. Under high traffic
-  // with many distinct guildIds inside one TTL window, the Map could pin
-  // every guild in memory until the next housekeeping tick.
   const fetched: string[] = [];
   const ctx: any = makeCtx(3, fetched);
   attachGuildSettings(ctx);

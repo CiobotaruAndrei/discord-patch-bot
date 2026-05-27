@@ -22,15 +22,6 @@ type RolePingContext = RolePingInteractionDeps & {
   handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 };
 
-// V11: tabel explicit de sub-comenzi recunoscute. Vechea forma
-// `sub === "updates" ? notificationRoleId : discountRoleId` defaulta tacit la
-// discountRoleId pentru ORICE sub diferit de "updates" — un typo viitor sau o
-// adaugare in slash schema fara update aici ar fi rescris configurarea de
-// discount role fara warning. Versiunea precedenta a acestui fix a fost
-// aplicata pe `legacyInteractionRouter.ts`, dar acel handler e shadow-ed in
-// chain de installer-ul curent (rolePingHandlers e instalat dupa legacy router
-// si intercepteaza `/set role *` inainte sa ajunga la legacy), deci fix-ul
-// trebuie sa traiasca aici ca sa fie efectiv.
 const KNOWN_ROLE_SUBS: Record<string, { field: string; label: string }> = {
   updates: { field: "notificationRoleId", label: "update-uri" },
   discounts: { field: "discountRoleId", label: "reduceri" }
@@ -97,8 +88,6 @@ function installRolePingInteractions(ctx: RolePingContext) {
     }
 
     try {
-      // V11: `return await` ca rejecturile asincrone sa fie prinse de catch,
-      // altfel try-catch-ul nu observa promisiunea respinsa din interior.
       return await handlers.handleSetRoleInteraction(interaction);
     } catch (err: any) {
       ctx.logger?.("ERROR", "ROLE_PING_INTERACTION", "Eroare in handler-ul /set role", errorDetail(err));

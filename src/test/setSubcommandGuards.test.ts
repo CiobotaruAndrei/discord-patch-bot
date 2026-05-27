@@ -1,11 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-// V12: dupa retragerea legacy router, testele NU mai pot apela
-// `ctx.handleSetInteraction(...)` direct (acea functie nu mai exista pe ctx).
-// In schimb instalam aceleasi handlers ca productiunea si testam prin
-// `ctx.handleInteraction(interaction, games)` — exact flow-ul real al
-// chain-ului wrapper.
 
 const installSetHandler = require("../features/command-handlers/setInteractionHandler") as (ctx: Record<string, any>) => void;
 const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as (ctx: Record<string, any>) => void;
@@ -64,9 +59,6 @@ function makeSetInteraction(opts: {
 }
 
 test("/set with unknown sub returns an error instead of writing empty $set", async () => {
-  // V11/V12 regression guard: previously this would call
-  // `GuildModel.updateOne({_id}, { $set: {} }, { upsert: true })` and on a
-  // new guild would create an empty document with only `_id`.
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
   const ctx = makeCtx(replies, mongoCalls);
@@ -84,9 +76,6 @@ test("/set with unknown sub returns an error instead of writing empty $set", asy
 });
 
 test("/set games with unknown sub replies to the user instead of leaving the interaction hanging", async () => {
-  // V11/V12 regression guard: the legacy router's handleSetGames used to drop
-  // off the end of the function without calling safeEdit for an unknown sub —
-  // user stayed on the deferReply loading state forever.
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
   const ctx = makeCtx(replies, mongoCalls);
@@ -108,10 +97,6 @@ test("/set games with unknown sub replies to the user instead of leaving the int
 });
 
 test("/set role with unknown sub does not silently target discountRoleId", async () => {
-  // V11/V12 regression guard: the old `sub === "updates" ? notificationRoleId :
-  // discountRoleId` default meant ANY unknown sub silently wrote to
-  // discountRoleId. Confusing and dangerous if a typo'd sub somehow reached
-  // this branch.
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
   const ctx = makeCtx(replies, mongoCalls);
@@ -153,11 +138,6 @@ test("/set role with known sub still works (regression for the new guard)", asyn
   assert.match(String(replies[0]), /Rol pentru update-uri:/);
 });
 
-// V12: defensive null/range validation per subcomanda directa. Slash schema
-// marcheaza optiunile ca required + min/max value, dar un payload manipulat
-// (test manual API, client modificat) poate trimite null sau valori in afara
-// range-ului. Inainte: persistam null sau valoarea outside-range si raspundeam
-// user-ului cu mesaj fals "OK: ...: **null**" / "**150%**".
 
 test("/set mode rejects null/unknown values instead of persisting null", async () => {
   const replies: unknown[] = [];

@@ -171,15 +171,6 @@ function createCronController({
     }
   }
 
-  // V11: heartbeat tolerance pentru erori transient. Inainte, orice throw din
-  // renewDbLock (acum infrastructure errors propaga, dupa fix-ul din locks.ts)
-  // era doar log-uit, iar `!renewed` era abort imediat — chiar daca Mongo doar
-  // tremura un tick. heartbeatIntervalMs = lockTtlMs / 3, deci avem 2 ticks
-  // intregi inainte ca lock-ul sa expire pe Mongo. Toleram primul throw
-  // (log + retry) si abort-am la al doilea throw consecutiv — la momentul
-  // acela mai avem 1/3 din TTL ca buffer inainte ca alta instanta sa preia
-  // lock-ul. `false` ramane abort imediat (lock-ul a fost deja preluat de
-  // alta instanta — corectitudine, nu blip).
   const HEARTBEAT_ABORT_AT_CONSECUTIVE_ERRORS = 2;
   function startHeartbeat(lockToken: string): void {
     stopHeartbeat();
@@ -271,12 +262,6 @@ function createCronController({
     await requestContext.run({ requestId: cronReqId, abortSignal: currentCronAbortController.signal }, async () => {
       try {
         logger("INFO", "CRON", `Pornire ciclu cron #${metrics.cronRuns}`);
-        // V11: Promise.allSettled in loc de Promise.all. Cu Promise.all, daca
-        // checkForUpdates respingea, cycle-ul intra in catch imediat, dar
-        // checkForDiscounts continua sa ruleze in background — orfan, dupa ce
-        // finally a eliberat deja lock-ul si a stins heartbeat-ul. Allsettled
-        // ne lasa sa asteptam ambele si sa contorizam erorile corect inainte
-        // de release.
         const [updatesResult, discountsResult] = await Promise.allSettled([
           commands.checkForUpdates(client, games, shouldAbortCron),
           commands.checkForDiscounts(client, shouldAbortCron)

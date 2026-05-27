@@ -1,13 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-// V12: handler /ping si /games extras intr-o factory tipata cu o singura
-// dependinta (COMMAND_OUTPUT_MAX_CHARS). Verificam:
-// 1. /ping raspunde cu "Pong!" exact (fara whitespace trailing — V11 fix).
-// 2. /games respecta limita de chars si paginheaza in reply + follow-up.
-// 3. /games cu lista goala raspunde "Nu sunt jocuri configurate.".
-// 4. Comenzi non-/ping si non-/games sunt delegate la next handler.
-// 5. Interactiuni fara guild context sunt delegate (DM nu este suportat).
 
 const installSimpleHandlers = require("../features/command-handlers/simpleCommandsHandler") as (ctx: Record<string, any>) => void;
 
@@ -46,7 +39,7 @@ function makeCtx(opts: { maxChars?: number } = {}) {
   return { ctx, delegated, logs };
 }
 
-test("/ping replies with `Pong!` (V11: no trailing whitespace)", async () => {
+test("/ping replies with `Pong!` without trailing whitespace", async () => {
   const { ctx } = makeCtx();
   const { interaction, replies } = makeInteraction({ command: "ping" });
   await ctx.handleInteraction(interaction, []);

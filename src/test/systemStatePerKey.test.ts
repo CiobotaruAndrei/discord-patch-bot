@@ -23,12 +23,6 @@ function makeCtx() {
 }
 
 test("saveSystemTime writes a single dot-path field, not the whole executionTimes object", async () => {
-  // V11 regression guard: the previous `saveSystemTimes(times)` pattern wrote
-  // the full `executionTimes` document every time. Two concurrent commands
-  // (each reading, mutating a different field, then writing the whole thing)
-  // could overwrite each other's update — a lost-write race for timing
-  // statistics. The new `saveSystemTime(key, value)` uses Mongo dot-path so
-  // parallel updates to different keys don't collide.
   const { ctx, writes } = makeCtx();
 
   await ctx.saveSystemTime("single", 4321);
