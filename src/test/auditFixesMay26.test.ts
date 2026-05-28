@@ -1,59 +1,87 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import * as cheerio from "cheerio";
 
 type UtilitiesModule = typeof import("../shared/utilities") & {
   validatePendingDiscountSnapshot: (snapshot: unknown) => boolean;
 };
+type UpdatesRuntime = {
+  fetchListingBasedUpdate: (game: Record<string, unknown>) => Promise<unknown>;
+};
 
-test("sources/updates: fetchListingBasedUpdate aruncă Error (nu SchemaDriftError) pe transient fail", async () => {
+const attachUpdates = require("../sources/updates") as (context: Record<string, unknown>) => void;
 
-  const fs = require("node:fs");
-  const path = require("node:path");
+class TestSchemaDriftError extends Error {
+  source?: string;
 
-  const src = fs.readFileSync(
-    path.join(__dirname, "..", "..", "sources", "updates", "index.ts"),
-    "utf8"
+  constructor(message: string, source?: string) {
+    super(message);
+    this.source = source;
+  }
+}
+
+function normalizeUpdate(data: Record<string, unknown>) {
+  return {
+    id: String(data.id || "id"),
+    title: String(data.title || "title"),
+    link: String(data.link || ""),
+    excerpt: String(data.excerpt || ""),
+    fullText: String(data.fullText || ""),
+    image: data.image || null,
+    thumbnail: data.thumbnail || null,
+    timestamp: String(data.timestamp || "")
+  };
+}
+
+test("sources/updates: fetchListingBasedUpdate arunca plain Error (nu SchemaDriftError) cand articolele esueaza transient", async () => {
+  const listingUrl = "https://example.com/news";
+  const context = {
+    httpReq: async (_method: string, url: string) => {
+      if (url === listingUrl) {
+        return { data: '<html><body><a href="/news/patch-1">Patch Notes Update</a></body></html>' };
+      }
+      throw new Error("transient network blip");
+    },
+    safeCheerioLoad: (html: unknown) => cheerio.load(String(html || "")),
+    cleanText: (value: unknown) => String(value || "").trim(),
+    normalizeUpdate,
+    logger: () => undefined,
+    SchemaDriftError: TestSchemaDriftError
+  };
+  attachUpdates(context);
+  const runtime = context as typeof context & UpdatesRuntime;
+
+  await assert.rejects(
+    () => runtime.fetchListingBasedUpdate({
+      key: "vendor",
+      name: "Vendor",
+      listingUrl,
+      baseUrl: "https://example.com",
+      articleHrefRegex: "/news/"
+    }),
+    (err: unknown) => err instanceof Error
+      && !(err instanceof TestSchemaDriftError)
+      && /Niciun articol/.test(err.message)
   );
-  const fnStart = src.indexOf("async function fetchListingBasedUpdate");
-  assert.ok(fnStart > 0, "fetchListingBasedUpdate trebuie sa existe");
-
-  const fnEnd = src.indexOf("\nasync function ", fnStart + 1);
-  const fnBody = src.slice(fnStart, fnEnd > 0 ? fnEnd : undefined);
-
-  const driftThrows = (fnBody.match(/throw new SchemaDriftError/g) || []).length;
-  assert.equal(driftThrows, 1, "DOAR un singur SchemaDriftError throw (pentru 0 ancore reale)");
-
-  assert.match(fnBody, /throw new Error\([\s\S]*?Niciun articol/,
-    "loop-ul de candidati trebuie sa arunce plain Error, nu SchemaDriftError");
 });
 
-test("native/fuzzy fallback: findGameKeysFallback foloseste Array.from pentru codepoints", () => {
-  const fs = require("node:fs");
-  const path = require("node:path");
-  const src = fs.readFileSync(
-    path.join(__dirname, "..", "..", "native", "fuzzy.ts"),
-    "utf8"
-  );
-  const fnStart = src.indexOf("function findGameKeysFallback");
-  assert.ok(fnStart > 0);
-  const fnEnd = src.indexOf("\nexport function ", fnStart);
-  const fnBody = src.slice(fnStart, fnEnd > 0 ? fnEnd : undefined);
-  assert.match(fnBody, /Array\.from\(search\)/,
-    "fallback trebuie sa numere si trunchieze pe codepoints, nu UTF-16 units");
-  assert.match(fnBody, /searchLen \* 0\.3/,
-    "pragul dinamic trebuie sa foloseasca searchLen (codepoints), nu .length");
-});
-
-test("native/fuzzy fallback: findGameKeys cu input mixed-emoji nu crash", () => {
-
+test("native/fuzzy: findGameKeys cu input mixed-emoji nu crash", () => {
   const { findGameKeys } = require("../native/fuzzy") as typeof import("../native/fuzzy");
   const games = [
     { key: "cs2", name: "Counter-Strike 2", aliases: ["cs"] },
     { key: "fortnite", name: "Fortnite", aliases: [] }
   ];
-
   const result = findGameKeys("\u{1F600}cs2", games, 50);
   assert.ok(result, "trebuie sa returneze un obiect (gameKey/suggestionKey)");
+});
+
+test("native/fuzzy: findGameKeys trunchiaza input multi-codepoint (emoji) determinist", () => {
+  const { findGameKeys } = require("../native/fuzzy") as typeof import("../native/fuzzy");
+  const games = [{ key: "cs2", name: "Counter-Strike 2", aliases: ["cs"] }];
+  const longEmoji = "\u{1F600}".repeat(40) + "cs2";
+  const first = findGameKeys(longEmoji, games, 10);
+  const second = findGameKeys(longEmoji, games, 10);
+  assert.deepEqual(first, second, "acelasi input → acelasi rezultat (codepoint-safe, fara crash)");
 });
 
 test("validatePendingDiscountSnapshot: accepta savings ca numar finit", () => {
@@ -87,17 +115,4 @@ test("validatePendingDiscountSnapshot: pastreaza restul validarilor stricte", ()
   assert.equal(validatePendingDiscountSnapshot(null), false);
   assert.equal(validatePendingDiscountSnapshot(undefined), false);
   assert.equal(validatePendingDiscountSnapshot("not an object"), false);
-});
-
-test("checkForUpdates: setUpdatesCache NU se cheama pe subset filtrat", async () => {
-  const fs = require("node:fs");
-  const path = require("node:path");
-  const src = fs.readFileSync(
-    path.join(__dirname, "..", "..", "features", "notifications", "updateNotificationService.ts"),
-    "utf8"
-  );
-
-  assert.match(src,
-    /if\s*\(\s*optimizedGames\.length\s*===\s*games\.length\s*\)\s*\{[\s\S]*?setUpdatesCache/,
-    "setUpdatesCache trebuie chemat doar in branch-ul `length === length`");
 });

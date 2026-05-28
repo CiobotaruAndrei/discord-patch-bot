@@ -38,6 +38,11 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Documentatia interna a fost sincronizata cu structura actuala si nu mai prezinta `command-router` ca arhitectura curenta.
 - Documentatia istorica versionata si `legacy-dynamic.d.ts` au fost eliminate.
 - Comentariile explicative au fost eliminate din fisierele de cod; informatia de arhitectura si mentenanta ramane in documentatie.
+- Testele din `auditFixesMay26.test.ts` verifica acum comportamentul real (eroare tranzitorie din `fetchListingBasedUpdate`, robustetea `findGameKeys` la emoji multi-codepoint) prin context fals, in loc sa citeasca fisierele sursa ca text si sa caute siruri.
+
+### Fixed
+
+- `buildDealEmbed` limiteaza procentul de reducere la intervalul `[0, 100]`; un snapshot `pendingDiscounts` corupt sau reluat (de ex. `savings: 999`) nu mai poate afisa valori imposibile precum `reducere de 999%`.
 
 ### Security
 

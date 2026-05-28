@@ -278,7 +278,7 @@ test("cron heartbeat aborts immediately when renew returns false (lock genuinely
   }
 });
 
-test("V12: heartbeat tick care se reia in fereastra de release NU mai renew-uie lock-ul", async () => {
+test("heartbeat tick care se reia in fereastra de release NU mai renew-uie lock-ul", async () => {
 
   const originalSetTimeout = globalThis.setTimeout;
   const originalClearTimeout = globalThis.clearTimeout;
