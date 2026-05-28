@@ -170,7 +170,7 @@ Starea curenta:
 - `src/native/` contine Rust/N-API pentru hot-path-uri pure: fuzzy matching, autocomplete scoring, hash-uri, normalizare text/scoring si filtrarea ofertelor;
 - `src/tsconfig.strict.json` include incremental fisiere stabilizate, inclusiv modulele de surse Steam/deals/updates si testele directe pe shape drift;
 - `legacy-dynamic.d.ts` a fost eliminat; tipurile trebuie rezolvate local, nu prin extinderea globala a `Object`.
-- codul runtime din `app`, `domain`, `features`, `infra`, `shared` si `sources` nu mai foloseste `any` sau identificatorul `ctx`; adapterele ramase folosesc `target`/`deps` tipate structural.
+- codul runtime din `app`, `domain`, `features`, `infra`, `shared` si `sources` nu mai foloseste tipuri wildcard nesigure sau abrevierea legacy de context; adapterele ramase folosesc `target`/`deps` tipate structural.
 - fisierele de cod sunt tinute fara comentarii explicative; contextul de arhitectura, operare si mentenanta sta in README, changelog si `src/docs/`.
 
 Zonele ramase de imbunatatit sunt reducerea target-ului comun din runtime/registry, tiparea mai stricta a mock-urilor din teste si mentinerea adapterelor subtiri la marginea sistemului.

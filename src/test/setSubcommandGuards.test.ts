@@ -10,7 +10,7 @@ type InteractionRuntime = {
 };
 type SetUpdate = { $set: Record<string, unknown> };
 
-function makeCtx(replies: unknown[], mongoCalls: unknown[][]) {
+function makeContext(replies: unknown[], mongoCalls: unknown[][]) {
   const context = {
     MessageFlags: { Ephemeral: 64 },
     logger: () => undefined,
@@ -62,7 +62,7 @@ function makeSetInteraction(opts: {
 test("/set with unknown sub returns an error instead of writing empty $set", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const context = makeCtx(replies, mongoCalls);
+  const context = makeContext(replies, mongoCalls);
 
   await context.handleInteraction(
     makeSetInteraction({ group: null, sub: "future-feature" }),
@@ -79,7 +79,7 @@ test("/set with unknown sub returns an error instead of writing empty $set", asy
 test("/set games with unknown sub replies to the user instead of leaving the interaction hanging", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const context = makeCtx(replies, mongoCalls);
+  const context = makeContext(replies, mongoCalls);
 
   await context.handleInteraction(
     makeSetInteraction({
@@ -100,7 +100,7 @@ test("/set games with unknown sub replies to the user instead of leaving the int
 test("/set role with unknown sub does not silently target discountRoleId", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const context = makeCtx(replies, mongoCalls);
+  const context = makeContext(replies, mongoCalls);
 
   await context.handleInteraction(
     makeSetInteraction({
@@ -121,7 +121,7 @@ test("/set role with unknown sub does not silently target discountRoleId", async
 test("/set role with known sub still works (regression for the new guard)", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const context = makeCtx(replies, mongoCalls);
+  const context = makeContext(replies, mongoCalls);
 
   await context.handleInteraction(
     makeSetInteraction({
@@ -142,7 +142,7 @@ test("/set role with known sub still works (regression for the new guard)", asyn
 test("/set mode rejects null/unknown values instead of persisting null", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const context = makeCtx(replies, mongoCalls);
+  const context = makeContext(replies, mongoCalls);
 
   await context.handleInteraction(
     makeSetInteraction({ group: null, sub: "mode", optionGetter: () => null }),
@@ -163,7 +163,7 @@ test("/set mode rejects null/unknown values instead of persisting null", async (
 test("/set mindiscount rejects null and out-of-range integers", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const context = makeCtx(replies, mongoCalls);
+  const context = makeContext(replies, mongoCalls);
 
   for (const value of [null, -1, 101, NaN]) {
     replies.length = 0;
@@ -185,7 +185,7 @@ test("/set mindiscount rejects null and out-of-range integers", async () => {
 test("/set maxprice rejects null and out-of-range integers", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const context = makeCtx(replies, mongoCalls);
+  const context = makeContext(replies, mongoCalls);
 
   for (const value of [null, -5, 10001]) {
     replies.length = 0;
@@ -201,7 +201,7 @@ test("/set maxprice rejects null and out-of-range integers", async () => {
 test("/set currency rejects null and unsupported codes", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const context = makeCtx(replies, mongoCalls);
+  const context = makeContext(replies, mongoCalls);
 
   for (const value of [null, "", "XYZ", "usd"]) {
     replies.length = 0;

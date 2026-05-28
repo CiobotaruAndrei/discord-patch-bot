@@ -86,13 +86,13 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Construieste contextul comun folosit de wiring.
 - Este una dintre zonele principale de redus treptat.
-- Scopul pe termen lung este sa livreze dependinte mici si tipate catre factory-uri, nu un `ctx` mare.
+- Scopul pe termen lung este sa livreze dependinte mici si tipate catre factory-uri, nu un obiect comun mare de context.
 
 ### `src/features/command-cache/commandCache.ts`
 
 - Gestioneaza cache-uri runtime pentru updates, deals, DLC, single lookup si cooldown-uri user.
 - Expune `createCommandCache`, iar atasarea pe context ramane adapter de compatibilitate.
-- Foloseste tipuri structurale pentru permisiuni/canale, nu `any`.
+- Foloseste tipuri structurale pentru permisiuni/canale, nu tipuri wildcard nesigure.
 
 ### `src/features/command-presentation/commandPresentation.ts`
 
@@ -264,5 +264,5 @@ Teste E2E:
 - Nu transforma fallback-ul intr-un router mare.
 - Nu muta in Rust logica ce depinde de Discord, Mongo, HTTP sau I/O.
 - Nu activa strict global brusc; extinde `src/tsconfig.strict.json` pe module stabilizate.
-- In cod runtime nou, foloseste `deps` pentru dependinte explicite si `target` doar pentru instalare compatibila; nu reintroduce identificatorul `ctx`.
+- In cod runtime nou, foloseste `deps` pentru dependinte explicite si `target` doar pentru instalare compatibila; nu reintroduce abrevierea legacy de context.
 - Nu reintroduce comentarii explicative in fisierele de cod. Daca informatia merita pastrata, mut-o in fisierul de documentatie care acopera functionalitatea respectiva.

@@ -21,7 +21,7 @@ type InteractionRuntime = {
   handleStatusInteraction: (interaction: unknown, games: Game[]) => Promise<unknown>;
 };
 
-function makeCtx(replies: unknown[], mongoCalls: unknown[][], modifiedCount = 1) {
+function makeContext(replies: unknown[], mongoCalls: unknown[][], modifiedCount = 1) {
   return {
     EmbedBuilder: class {},
     ActionRowBuilder: class {},
@@ -114,7 +114,7 @@ function makeSetGamesInteraction(sub: string, jocKey: string) {
 test("/set games remove accepts a stale key not in the current config", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const context = makeCtx(replies, mongoCalls,  1) as ReturnType<typeof makeCtx> & InteractionRuntime;
+  const context = makeContext(replies, mongoCalls,  1) as ReturnType<typeof makeContext> & InteractionRuntime;
   attachInteractions(context);
 
   const currentGames: Game[] = [{ key: "cs2", name: "Counter-Strike 2" }];
@@ -139,7 +139,7 @@ test("/set games remove reports 'nothing to remove' when key was not in enabledG
 
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const context = makeCtx(replies, mongoCalls,  0) as ReturnType<typeof makeCtx> & InteractionRuntime;
+  const context = makeContext(replies, mongoCalls,  0) as ReturnType<typeof makeContext> & InteractionRuntime;
   attachInteractions(context);
 
   await context.handleSetGames(
@@ -159,7 +159,7 @@ test("/set games add still rejects keys not in the current config", async () => 
 
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const context = makeCtx(replies, mongoCalls) as ReturnType<typeof makeCtx> & InteractionRuntime;
+  const context = makeContext(replies, mongoCalls) as ReturnType<typeof makeContext> & InteractionRuntime;
   attachInteractions(context);
 
   await context.handleSetGames(
@@ -178,7 +178,7 @@ test("/set games add still rejects keys not in the current config", async () => 
 test("/status with empty joc replies with a friendly error before doing extra work", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const context = makeCtx(replies, mongoCalls) as ReturnType<typeof makeCtx> & InteractionRuntime;
+  const context = makeContext(replies, mongoCalls) as ReturnType<typeof makeContext> & InteractionRuntime;
   attachInteractions(context);
 
   let directReplyPayload: { content?: unknown } | null = null;

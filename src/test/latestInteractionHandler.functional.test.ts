@@ -31,7 +31,7 @@ function makeInteraction(opts: {
   };
 }
 
-function makeCtx(overrides: Partial<Record<string, unknown>> = {}) {
+function makeContext(overrides: Partial<Record<string, unknown>> = {}) {
   const calls: Recorded[] = [];
   const log = (name: string, ...args: unknown[]) => { calls.push({ name, args }); };
 
@@ -95,7 +95,7 @@ function makeCtx(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 test("/latest updates loads + paginates", async () => {
-  const { context, calls } = makeCtx();
+  const { context, calls } = makeContext();
   await context.handleInteraction(
     makeInteraction({ sub: "updates" }),
     [{ key: "cs2", name: "CS2" }]
@@ -105,7 +105,7 @@ test("/latest updates loads + paginates", async () => {
 });
 
 test("/latest reduceri loads + paginates", async () => {
-  const { context, calls } = makeCtx();
+  const { context, calls } = makeContext();
   await context.handleInteraction(
     makeInteraction({ sub: "reduceri" }),
     []
@@ -115,7 +115,7 @@ test("/latest reduceri loads + paginates", async () => {
 });
 
 test("/latest update <joc> calls executeFetchWithCircuitBreaker when cache empty", async () => {
-  const { context, calls } = makeCtx();
+  const { context, calls } = makeContext();
   await context.handleInteraction(
     makeInteraction({ sub: "update", joc: "cs2" }),
     [{ key: "cs2", name: "CS2" }]
@@ -130,7 +130,7 @@ test("/latest update without `joc` replies with explicit error", async () => {
     joc: null,
     ephemeralReply: async (p: unknown) => { replied = p; return undefined; }
   });
-  const { context, calls } = makeCtx();
+  const { context, calls } = makeContext();
   await context.handleInteraction(interaction, [{ key: "cs2", name: "CS2" }]);
   assert.match(String((replied as { content?: unknown } | null)?.content), /Trebuie sa specifici un joc/);
   assert.ok(!calls.some(c => c.name === "executeFetch"), "trebuie SA NU faca fetch fara joc");
@@ -138,7 +138,7 @@ test("/latest update without `joc` replies with explicit error", async () => {
 
 test("/latest pret <joc> calls searchSteamGameByName + buildSteamPriceEmbed", async () => {
   const buildCalls: unknown[] = [];
-  const { context } = makeCtx({
+  const { context } = makeContext({
     buildSteamPriceEmbed: (...args: unknown[]) => { buildCalls.push(args); return {}; }
   });
   await context.handleInteraction(
@@ -155,7 +155,7 @@ test("/latest pret without `joc` replies with explicit error", async () => {
     joc: null,
     ephemeralReply: async (p: unknown) => { replied = p; return undefined; }
   });
-  const { context } = makeCtx();
+  const { context } = makeContext();
   await context.handleInteraction(interaction, []);
   assert.match(String((replied as { content?: unknown } | null)?.content), /Trebuie sa specifici un joc/);
 });
@@ -166,13 +166,13 @@ test("/latest with unknown sub returns ephemeral error reply", async () => {
     sub: "future-feature",
     ephemeralReply: async (p: unknown) => { replied = p; return undefined; }
   });
-  const { context } = makeCtx();
+  const { context } = makeContext();
   await context.handleInteraction(interaction, []);
   assert.match(String((replied as { content?: unknown } | null)?.content), /Subcomanda `\/latest future-feature` nu este recunoscuta/);
 });
 
 test("non-/latest commands are delegated to next handler", async () => {
-  const { context, calls } = makeCtx();
+  const { context, calls } = makeContext();
   const pingInteraction = {
     commandName: "ping",
     guild: { id: "guild-1" },
@@ -190,7 +190,7 @@ test("non-/latest commands are delegated to next handler", async () => {
 
 test("/latest updates with enabledGames filter returns no_data when game not enabled", async () => {
   let editArg: unknown = null;
-  const { context } = makeCtx({
+  const { context } = makeContext({
     getGuildSettings: async () => ({ enabledGames: ["other_game"], notificationMode: "detailed", currency: "USD" }),
     safeEdit: async (_int: unknown, payload: unknown) => { editArg = payload; return { id: "msg" }; }
   });
@@ -203,7 +203,7 @@ test("/latest updates with enabledGames filter returns no_data when game not ena
 
 test("/latest reduceri returns no_data when dealPassesFilters drops everything", async () => {
   let editArg: unknown = null;
-  const { context } = makeCtx({
+  const { context } = makeContext({
     dealPassesFilters: () => false,
     safeEdit: async (_int: unknown, payload: unknown) => { editArg = payload; return { id: "msg" }; }
   });

@@ -46,7 +46,7 @@ function makeInteraction(opts: {
   };
 }
 
-function makeCtx(overrides: Partial<Record<string, unknown>> = {}) {
+function makeContext(overrides: Partial<Record<string, unknown>> = {}) {
   const logs: Array<{ level: string; context: string; msg: string }> = [];
   const delegated: string[] = [];
   const context = {
@@ -60,7 +60,7 @@ function makeCtx(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 test("autocomplete returns empty when focused option is not `joc`", async () => {
-  const { context } = makeCtx();
+  const { context } = makeContext();
   const { interaction, responses } = makeInteraction({
     focused: { name: "value", value: "something" }
   });
@@ -70,7 +70,7 @@ test("autocomplete returns empty when focused option is not `joc`", async () => 
 });
 
 test("autocomplete returns top matches sorted by score then alphabetically", async () => {
-  const { context } = makeCtx();
+  const { context } = makeContext();
   const { interaction, responses } = makeInteraction({
     command: "latest",
     sub: "update",
@@ -84,7 +84,7 @@ test("autocomplete returns top matches sorted by score then alphabetically", asy
 });
 
 test("autocomplete uses game.key as value by default", async () => {
-  const { context } = makeCtx();
+  const { context } = makeContext();
   const { interaction, responses } = makeInteraction({
     command: "latest",
     sub: "update",
@@ -98,7 +98,7 @@ test("autocomplete uses game.key as value by default", async () => {
 });
 
 test("autocomplete uses game.name as value for /dlc", async () => {
-  const { context } = makeCtx();
+  const { context } = makeContext();
   const { interaction, responses } = makeInteraction({
     command: "dlc",
     focused: { name: "joc", value: "cs" }
@@ -110,7 +110,7 @@ test("autocomplete uses game.name as value for /dlc", async () => {
 });
 
 test("autocomplete uses game.name as value for /latest pret", async () => {
-  const { context } = makeCtx();
+  const { context } = makeContext();
   const { interaction, responses } = makeInteraction({
     command: "latest",
     sub: "pret",
@@ -122,7 +122,7 @@ test("autocomplete uses game.name as value for /latest pret", async () => {
 });
 
 test("/set games remove restricts pool to enabledGames + stale placeholders", async () => {
-  const { context } = makeCtx({
+  const { context } = makeContext({
     getGuildSettings: async (_id: string) => ({ enabledGames: ["cs2", "ghost_game_no_longer_in_config"] })
   });
   const { interaction, responses } = makeInteraction({
@@ -146,7 +146,7 @@ test("/set games remove restricts pool to enabledGames + stale placeholders", as
 });
 
 test("/set games remove without guild context falls back to full games pool (no crash)", async () => {
-  const { context, logs } = makeCtx({
+  const { context, logs } = makeContext({
     getGuildSettings: async () => { throw new Error("trebuie sa nu fie apelat"); }
   });
   const { interaction, responses } = makeInteraction({
@@ -163,7 +163,7 @@ test("/set games remove without guild context falls back to full games pool (no 
 });
 
 test("autocomplete falls back to default pool on getGuildSettings throw (logs WARN)", async () => {
-  const { context, logs } = makeCtx({
+  const { context, logs } = makeContext({
     getGuildSettings: async () => { throw new Error("mongo down"); }
   });
   const { interaction, responses } = makeInteraction({
@@ -179,7 +179,7 @@ test("autocomplete falls back to default pool on getGuildSettings throw (logs WA
 });
 
 test("non-autocomplete interactions are delegated to next handler", async () => {
-  const { context, delegated } = makeCtx();
+  const { context, delegated } = makeContext();
   const { interaction } = makeInteraction({
     command: "ping",
     isAutocomplete: false,
@@ -190,7 +190,7 @@ test("non-autocomplete interactions are delegated to next handler", async () => 
 });
 
 test("respond rejection is swallowed (Discord side closed connection)", async () => {
-  const { context } = makeCtx();
+  const { context } = makeContext();
   const interaction = {
     commandName: "latest",
     guild: null,

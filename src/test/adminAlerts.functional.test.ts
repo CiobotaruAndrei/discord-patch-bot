@@ -21,7 +21,7 @@ type AdminAlertsTarget = {
   logger: (level: string, context: string, msg: string) => void;
 } & Partial<AdminAlertsRuntime>;
 
-function makeAdminAlertsCtx(opts: {
+function makeAdminAlertsContext(opts: {
   axiosPostFails?: boolean;
   initialCooldown?: CooldownDoc | null;
 }) {
@@ -92,7 +92,7 @@ function makeAdminAlertsCtx(opts: {
 
 test("adminAlert resets cooldown when webhook POST fails (transient 5xx / timeout)", async () => {
 
-  const { adminAlert, updates, posts, logs, getCooldownState } = makeAdminAlertsCtx({
+  const { adminAlert, updates, posts, logs, getCooldownState } = makeAdminAlertsContext({
     axiosPostFails: true
   });
 
@@ -114,7 +114,7 @@ test("adminAlert resets cooldown when webhook POST fails (transient 5xx / timeou
 
 test("adminAlert does NOT reset cooldown when webhook succeeds", async () => {
 
-  const { adminAlert, updates, posts, getCooldownState } = makeAdminAlertsCtx({
+  const { adminAlert, updates, posts, getCooldownState } = makeAdminAlertsContext({
     axiosPostFails: false
   });
 

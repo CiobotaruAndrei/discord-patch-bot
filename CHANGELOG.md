@@ -29,9 +29,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - `fallbackInteractionHandler.ts` inlocuieste vechiul router legacy si ramane doar fallback de final pentru interactiuni neacoperite.
 - `notifications/index.ts` a fost redus la wiring; logica pentru update-uri si reduceri este in `updateNotificationService.ts` si `discountNotificationService.ts`.
 - `commandCache.ts`, `commandPresentation.ts` si `mongoContext.ts` expun factory-uri explicite, cu atasare pe context pastrata doar pentru compatibilitate.
-- Handler-ele de start/stop, filtre jocuri, roluri, prezentarea comenzilor, registry-urile de surse/Mongo si scrapers principali folosesc acum tipuri structurale locale in loc de `any` in runtime.
-- Identificatorul runtime `ctx` a fost eliminat din codul principal; modulele ramase in stil compatibil folosesc `target` pentru atasare si `deps` pentru dependinte explicite.
-- Testele functionale si E2E au fost curatate de identificatorii legacy `ctx` si de tipurile `any`, folosind mock-uri structurale si cast-uri prin `unknown` acolo unde se testeaza input invalid.
+- Handler-ele de start/stop, filtre jocuri, roluri, prezentarea comenzilor, registry-urile de surse/Mongo si scrapers principali folosesc acum tipuri structurale locale in runtime, fara tipuri wildcard nesigure.
+- Abrevierea runtime de context a fost eliminata din codul principal; modulele ramase in stil compatibil folosesc `target` pentru atasare si `deps` pentru dependinte explicite.
+- Testele functionale si E2E au fost curatate de abrevierile legacy de context si de tipurile wildcard nesigure, folosind mock-uri structurale si cast-uri prin `unknown` acolo unde se testeaza input invalid.
+- Helper-ele de test si variabilele de wiring folosesc nume explicite precum `makeContext`, `runtimeContext` si `validationContext`.
 - Filtrarea ofertelor foloseste acum Rust/N-API pentru hot-path-ul pur `dealPassesFilters`, cu fallback TypeScript identic cand addon-ul nativ lipseste.
 - Autocomplete-ul pentru jocuri foloseste acum Rust/N-API pentru scoring, sortare si limitarea optiunilor Discord, cu fallback TypeScript identic.
 - Documentatia interna a fost sincronizata cu structura actuala si nu mai prezinta `command-router` ca arhitectura curenta.

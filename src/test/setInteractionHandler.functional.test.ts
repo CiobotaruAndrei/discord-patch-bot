@@ -41,7 +41,7 @@ function makeInteraction(opts: {
   };
 }
 
-function makeCtx(opts: {
+function makeContext(opts: {
   prevDelegated?: (interaction: unknown, games: unknown[]) => Promise<unknown>;
   updateOneResult?: { matchedCount: number; modifiedCount: number };
   updateOneThrows?: Error;
@@ -77,7 +77,7 @@ function makeCtx(opts: {
 }
 
 test("handles /set mode and writes notificationMode + confirms", async () => {
-  const { context, updateCalls, replies, cacheInvalidations, delegateCalls } = makeCtx({});
+  const { context, updateCalls, replies, cacheInvalidations, delegateCalls } = makeContext({});
   await context.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "mode", string: { value: "detailed" } }),
     []
@@ -92,7 +92,7 @@ test("handles /set mode and writes notificationMode + confirms", async () => {
 });
 
 test("handles /set mindiscount with valid 50 and rejects out-of-range", async () => {
-  const { context, updateCalls, replies } = makeCtx({});
+  const { context, updateCalls, replies } = makeContext({});
   await context.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "mindiscount", integer: { value: 50 } }),
     []
@@ -111,7 +111,7 @@ test("handles /set mindiscount with valid 50 and rejects out-of-range", async ()
 });
 
 test("handles /set currency with USD and rejects unknown codes", async () => {
-  const { context, updateCalls, replies } = makeCtx({});
+  const { context, updateCalls, replies } = makeContext({});
   await context.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "currency", string: { value: "EUR" } }),
     []
@@ -129,7 +129,7 @@ test("handles /set currency with USD and rejects unknown codes", async () => {
 });
 
 test("handles /set stores with steam,epic + rejects unknown store", async () => {
-  const { context, updateCalls, replies } = makeCtx({});
+  const { context, updateCalls, replies } = makeContext({});
   await context.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "stores", string: { value: "steam,epic" } }),
     []
@@ -147,7 +147,7 @@ test("handles /set stores with steam,epic + rejects unknown store", async () => 
 });
 
 test("unknown sub returns explicit reply without empty $set write", async () => {
-  const { context, updateCalls, replies, logs } = makeCtx({});
+  const { context, updateCalls, replies, logs } = makeContext({});
   await context.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "future-feature" }),
     []
@@ -158,7 +158,7 @@ test("unknown sub returns explicit reply without empty $set write", async () => 
 });
 
 test("delegates `/set games *` and `/set role *` to next handler (intercepted earlier in chain)", async () => {
-  const { context, updateCalls, delegateCalls } = makeCtx({});
+  const { context, updateCalls, delegateCalls } = makeContext({});
 
   await context.handleInteraction(
     makeInteraction({ command: "set", group: "games", sub: "add", string: { joc: "cs2" } }),
@@ -176,7 +176,7 @@ test("delegates `/set games *` and `/set role *` to next handler (intercepted ea
 });
 
 test("delegates non-/set commands to next handler", async () => {
-  const { context, updateCalls, delegateCalls } = makeCtx({});
+  const { context, updateCalls, delegateCalls } = makeContext({});
   await context.handleInteraction(
     makeInteraction({ command: "ping", group: null, sub: "" }),
     []
@@ -187,7 +187,7 @@ test("delegates non-/set commands to next handler", async () => {
 });
 
 test("Mongo updateOne failure surfaces via formatUserError", async () => {
-  const { context, replies, logs } = makeCtx({
+  const { context, replies, logs } = makeContext({
     updateOneThrows: new Error("simulated mongo write failure")
   });
   await context.handleInteraction(

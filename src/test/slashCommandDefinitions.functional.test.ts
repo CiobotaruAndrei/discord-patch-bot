@@ -25,7 +25,7 @@ class FakeSlashCommandBuilder {
   toJSON() { return this.json; }
 }
 
-function makeCtx(devGuildId?: string) {
+function makeContext(devGuildId?: string) {
   const calls: Array<{ route: string; bodyLength: number }> = [];
   const logs: Array<{ level: string; context: string; msg: string }> = [];
   const context = {
@@ -56,7 +56,7 @@ function makeCtx(devGuildId?: string) {
 }
 
 test("registerSlashCommands defaults to global registration when DISCORD_DEV_GUILD_ID is unset", async () => {
-  const { context, calls, logs } = makeCtx();
+  const { context, calls, logs } = makeContext();
   attachSlashCommands(context);
 
   await context.registerSlashCommands("test-token", "client-id-1");
@@ -69,7 +69,7 @@ test("registerSlashCommands defaults to global registration when DISCORD_DEV_GUI
 });
 
 test("registerSlashCommands switches to guild-scoped when DISCORD_DEV_GUILD_ID is set", async () => {
-  const { context, calls, logs } = makeCtx("123456789012345678");
+  const { context, calls, logs } = makeContext("123456789012345678");
   attachSlashCommands(context);
 
   await context.registerSlashCommands("test-token", "client-id-2");
@@ -83,7 +83,7 @@ test("registerSlashCommands switches to guild-scoped when DISCORD_DEV_GUILD_ID i
 
 test("registerSlashCommands falls back to global when DISCORD_DEV_GUILD_ID is empty string", async () => {
 
-  const { context, calls, logs } = makeCtx("");
+  const { context, calls, logs } = makeContext("");
   attachSlashCommands(context);
 
   await context.registerSlashCommands("test-token", "client-id-3");

@@ -625,12 +625,12 @@ async function _getLatestForAllGamesImpl(games: GameConfig[], shouldAbort?: Abor
 
 async function getLatestForAllGames(games: GameConfig[], shouldAbort?: AbortPredicate): Promise<FetchResult[]> {
   const { crypto, logger, withInflightTimeout, trackInflight } = runtimeContext;
-  const ctxBase = shouldAbort ? "cron" : "manual";
+  const sourceModeBase = shouldAbort ? "cron" : "manual";
   const keysHash = crypto.createHash("sha1")
     .update(games.map(g => String(g.key)).sort().join(","))
     .digest("hex")
     .substring(0, 8);
-  const contextKey = `${ctxBase}:${keysHash}`;
+  const contextKey = `${sourceModeBase}:${keysHash}`;
   const existing = inflightAllGames.get(contextKey);
   if (existing) {
     logger("INFO", "FETCH_COALESCE", `Refolosesc fetch-ul în curs (context=${contextKey})`);

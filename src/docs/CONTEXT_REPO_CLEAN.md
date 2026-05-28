@@ -16,8 +16,9 @@ Documentul descrie starea curenta a repo-ului dupa migrarea treptata din fisiere
 - `legacy-dynamic.d.ts` nu mai exista; tipurile dinamice trebuie modelate local.
 - Documentatia istorica versionata a fost scoasa din cod; fisierele curente de documentatie raman sursa de adevar.
 - Comentariile explicative din fisierele de cod au fost eliminate. Daca un rationale trebuie pastrat, el trebuie pus in documentatia potrivita dupa subiect, nu langa implementare.
-- Codul runtime nu mai foloseste identificatorul `ctx`; modulele de compatibilitate folosesc `target` pentru atasare si `deps` pentru factory-uri.
-- Testele din `src/test` nu mai folosesc identificatorii legacy `ctx` sau tipuri `any`; mock-urile Discord/Mongo/HTTP folosesc shape-uri locale si `unknown` pentru cazuri intentionat invalide.
+- Codul runtime nu mai foloseste abrevierea legacy pentru context; modulele de compatibilitate folosesc `target` pentru atasare si `deps` pentru factory-uri.
+- Testele din `src/test` nu mai folosesc abrevieri legacy de context sau tipuri wildcard nesigure; mock-urile Discord/Mongo/HTTP folosesc shape-uri locale si `unknown` pentru cazuri intentionat invalide.
+- Helper-ele de test si variabilele de wiring trebuie numite explicit, de exemplu `makeContext`, `runtimeContext` si `validationContext`.
 
 ## Structura logica
 
@@ -177,6 +178,6 @@ Teste relevante pentru structura actuala:
 ## Zone ramase de curatat
 
 - Reducerea contextului comun din runtime si registry.
-- Mentinerea testelor fara `any`/`ctx` cand se adauga mock-uri noi.
+- Mentinerea testelor fara tipuri wildcard nesigure sau abrevieri legacy de context cand se adauga mock-uri noi.
 - Mutarea oricarei logici ramase in adaptere catre servicii sau handler-e dedicate.
 - Mentinerea documentatiei sincronizate la fiecare schimbare de cod.

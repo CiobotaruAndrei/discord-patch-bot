@@ -3,7 +3,7 @@
 type SourceContext = Record<string, unknown>;
 type SourceInstaller = (target: SourceContext) => void;
 
-const runtimeCtx = require("./runtime") as SourceContext;
+const runtimeContext = require("./runtime") as SourceContext;
 const defaultInstallers: SourceInstaller[] = [
   require("../infra/http/client"),
   require("./steam"),
@@ -47,7 +47,7 @@ function buildSourceRegistry(context: SourceContext) {
 }
 
 function createSourceRegistry(
-  baseContext: SourceContext = runtimeCtx,
+  baseContext: SourceContext = runtimeContext,
   installers: SourceInstaller[] = defaultInstallers
 ) {
   const context = baseContext;

@@ -93,7 +93,7 @@ test("cron cycle waits for both jobs when one rejects (Promise.allSettled)", asy
       mongoose: { connection: { readyState: 1 } },
       performance: { now: () => Date.now() },
       crypto: { randomBytes: () => ({ toString: () => "deadbe" }) },
-      logger(level: string, _ctx: string, message: string, meta?: unknown) {
+      logger(level: string, _logContext: string, message: string, meta?: unknown) {
         if (level === "ERROR") loggedErrors.push({ message, meta });
       },
       env: { GLOBAL_HEALTH_WINDOW: 3, GLOBAL_HEALTH_MIN_RATIO: 50 } as RuntimeEnv,

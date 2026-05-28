@@ -29,7 +29,7 @@ function makeInteraction(opts: {
   };
 }
 
-function makeCtx(opts: { maxChars?: number } = {}) {
+function makeContext(opts: { maxChars?: number } = {}) {
   const delegated: string[] = [];
   const logs: Array<{ level: string; context: string; msg: string }> = [];
   const context = {
@@ -43,14 +43,14 @@ function makeCtx(opts: { maxChars?: number } = {}) {
 }
 
 test("/ping replies with `Pong!` without trailing whitespace", async () => {
-  const { context } = makeCtx();
+  const { context } = makeContext();
   const { interaction, replies } = makeInteraction({ command: "ping" });
   await context.handleInteraction(interaction, []);
   assert.deepEqual(replies, ["Pong!"]);
 });
 
 test("/games replies with formatted game list when short", async () => {
-  const { context } = makeCtx();
+  const { context } = makeContext();
   const { interaction, replies, followUps } = makeInteraction({ command: "games" });
   await context.handleInteraction(interaction, [
     { key: "cs2", name: "Counter-Strike 2", aliases: ["cs"] },
@@ -65,7 +65,7 @@ test("/games replies with formatted game list when short", async () => {
 
 test("/games paginates via followUp when content exceeds COMMAND_OUTPUT_MAX_CHARS", async () => {
 
-  const { context } = makeCtx({ maxChars: 80 });
+  const { context } = makeContext({ maxChars: 80 });
   const { interaction, replies, followUps } = makeInteraction({ command: "games" });
   await context.handleInteraction(interaction, [
     { key: "cs2", name: "Counter-Strike 2" },
@@ -78,21 +78,21 @@ test("/games paginates via followUp when content exceeds COMMAND_OUTPUT_MAX_CHAR
 });
 
 test("/games with empty config replies politely", async () => {
-  const { context } = makeCtx();
+  const { context } = makeContext();
   const { interaction, replies } = makeInteraction({ command: "games" });
   await context.handleInteraction(interaction, []);
   assert.deepEqual(replies, ["Nu sunt jocuri configurate."]);
 });
 
 test("non-/ping non-/games commands delegate to next handler", async () => {
-  const { context, delegated } = makeCtx();
+  const { context, delegated } = makeContext();
   const { interaction } = makeInteraction({ command: "help" });
   await context.handleInteraction(interaction, []);
   assert.deepEqual(delegated, ["help"], "trebuie sa propage la handler-ul de mai jos");
 });
 
 test("interactions without guild context delegate (DM nesuportat)", async () => {
-  const { context, delegated } = makeCtx();
+  const { context, delegated } = makeContext();
   const { interaction } = makeInteraction({ command: "ping", hasGuild: false });
   await context.handleInteraction(interaction, []);
 
@@ -100,7 +100,7 @@ test("interactions without guild context delegate (DM nesuportat)", async () => 
 });
 
 test("non-chat-input interactions delegate", async () => {
-  const { context, delegated } = makeCtx();
+  const { context, delegated } = makeContext();
   const { interaction } = makeInteraction({ command: "ping", isChatInput: false });
   await context.handleInteraction(interaction, []);
   assert.deepEqual(delegated, ["ping"]);
@@ -108,7 +108,7 @@ test("non-chat-input interactions delegate", async () => {
 
 test("logger fires ERROR on internal exception, user gets generic error reply", async () => {
 
-  const { context, logs } = makeCtx();
+  const { context, logs } = makeContext();
   const interaction = {
     commandName: "ping",
     guild: { id: "guild-1" },

@@ -20,7 +20,7 @@ type LocksTarget = {
   logger: (level: string, context: string, msg: string) => void;
 } & Partial<LockRuntime>;
 
-function makeLocksCtx(opts: {
+function makeLocksContext(opts: {
   findOneAndUpdateBehavior: "ok" | "throw-duplicate" | "throw-other";
   ownerTokenInDoc?: string;
 }) {
@@ -66,7 +66,7 @@ function makeLocksCtx(opts: {
 }
 
 test("acquireDbLock returns token on successful upsert", async () => {
-  const { acquireDbLock, activeLocks } = makeLocksCtx({ findOneAndUpdateBehavior: "ok" });
+  const { acquireDbLock, activeLocks } = makeLocksContext({ findOneAndUpdateBehavior: "ok" });
   const token = await acquireDbLock("cron_main", 60_000);
   assert.equal(token, "test-token-fixed");
   assert.equal(activeLocks.get("cron_main"), "test-token-fixed");
@@ -74,14 +74,14 @@ test("acquireDbLock returns token on successful upsert", async () => {
 
 test("acquireDbLock returns null on E11000 duplicate-key (legitimate race)", async () => {
 
-  const { acquireDbLock, activeLocks } = makeLocksCtx({ findOneAndUpdateBehavior: "throw-duplicate" });
+  const { acquireDbLock, activeLocks } = makeLocksContext({ findOneAndUpdateBehavior: "throw-duplicate" });
   const token = await acquireDbLock("cron_main", 60_000);
   assert.equal(token, null, "E11000 trebuie sa returneze null, fara sa arunce");
   assert.equal(activeLocks.has("cron_main"), false, "nu populam activeLocks daca n-am castigat lock-ul");
 });
 
 test("acquireDbLock RETHROWS non-E11000 errors instead of swallowing them as 'race'", async () => {
-  const { acquireDbLock } = makeLocksCtx({ findOneAndUpdateBehavior: "throw-other" });
+  const { acquireDbLock } = makeLocksContext({ findOneAndUpdateBehavior: "throw-other" });
   await assert.rejects(
     () => acquireDbLock("cron_main", 60_000),
     /write concern timeout/,
@@ -91,7 +91,7 @@ test("acquireDbLock RETHROWS non-E11000 errors instead of swallowing them as 'ra
 
 test("acquireDbLock returns null when the upserted doc has a different ownerToken (lost the race)", async () => {
 
-  const { acquireDbLock } = makeLocksCtx({
+  const { acquireDbLock } = makeLocksContext({
     findOneAndUpdateBehavior: "ok",
     ownerTokenInDoc: "other-instance-token"
   });

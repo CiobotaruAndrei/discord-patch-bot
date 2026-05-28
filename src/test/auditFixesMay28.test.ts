@@ -24,7 +24,7 @@ function makeRecordingEmbed() {
   return embed;
 }
 
-function makePresentationCtx() {
+function makePresentationContext() {
   const embeds: RecordingEmbed[] = [];
   const context = {
     crypto: { randomBytes: () => ({ toString: () => "abcd1234" }) },
@@ -52,7 +52,7 @@ function makePresentationCtx() {
 }
 
 test("buildDealEmbed: savings undefined/null/NaN nu produce 'undefined%' sau 'NaN%'", () => {
-  const { ui, embeds } = makePresentationCtx();
+  const { ui, embeds } = makePresentationContext();
   for (const badSavings of [undefined, null, NaN, "abc"]) {
     embeds.length = 0;
     ui.buildDealEmbed(
@@ -67,7 +67,7 @@ test("buildDealEmbed: savings undefined/null/NaN nu produce 'undefined%' sau 'Na
 });
 
 test("buildDealEmbed: savings numeric valid se afiseaza rotunjit", () => {
-  const { ui, embeds } = makePresentationCtx();
+  const { ui, embeds } = makePresentationContext();
   ui.buildDealEmbed(
     { title: "Game", store: "Steam", salePrice: "10", normalPrice: "20", savings: 49.7, qualityScore: 92.4, totalReviews: 1500, link: "https://x" },
     "detailed",
@@ -80,7 +80,7 @@ test("buildDealEmbed: savings numeric valid se afiseaza rotunjit", () => {
 });
 
 test("buildDealEmbed: qualityScore string nu produce 'NaN% aprecieri'", () => {
-  const { ui, embeds } = makePresentationCtx();
+  const { ui, embeds } = makePresentationContext();
   ui.buildDealEmbed(
     { title: "Game", store: "Steam", salePrice: "10", normalPrice: "20", savings: 50, qualityScore: "bogus", totalReviews: "bad", link: "https://x" },
     "detailed",
@@ -93,7 +93,7 @@ test("buildDealEmbed: qualityScore string nu produce 'NaN% aprecieri'", () => {
 });
 
 test("buildSteamPriceEmbed: price_overview cu initial/final lipsa → 'Pretul nu este disponibil'", () => {
-  const { ui, embeds } = makePresentationCtx();
+  const { ui, embeds } = makePresentationContext();
   ui.buildSteamPriceEmbed(
     { type: "game", name: "Demo", is_free: false, price_overview: { discount_percent: 50 } },
     "100",
@@ -106,7 +106,7 @@ test("buildSteamPriceEmbed: price_overview cu initial/final lipsa → 'Pretul nu
 });
 
 test("buildSteamPriceEmbed: discount_percent lipsa dar final < initial → derivat din preturi", () => {
-  const { ui, embeds } = makePresentationCtx();
+  const { ui, embeds } = makePresentationContext();
   ui.buildSteamPriceEmbed(
     { type: "game", name: "Demo", is_free: false, price_overview: { initial: 2000, final: 1000 } },
     "100",
@@ -118,7 +118,7 @@ test("buildSteamPriceEmbed: discount_percent lipsa dar final < initial → deriv
 });
 
 test("buildSteamPriceEmbed: pret valid fara reducere", () => {
-  const { ui, embeds } = makePresentationCtx();
+  const { ui, embeds } = makePresentationContext();
   ui.buildSteamPriceEmbed(
     { type: "game", name: "Demo", is_free: false, price_overview: { initial: 1000, final: 1000, discount_percent: 0 } },
     "100",

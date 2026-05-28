@@ -6,14 +6,14 @@ process.env.DISCORD_TOKEN ||= "test_discord_token";
 process.env.DISCORD_CLIENT_ID ||= "test_discord_client_id";
 process.env.METRICS_PUBLIC ||= "true";
 
-type AnyFunction = (...args: unknown[]) => unknown;
+type RegistryTestFunction = (...args: unknown[]) => unknown;
 type Installer = (context: Record<string, unknown>) => void;
 
 interface CommandRegistryExports extends Record<string, unknown> {
   createCommandRegistry: (
     context: Record<string, unknown>,
     installers: Installer[]
-  ) => Record<string, AnyFunction>;
+  ) => Record<string, RegistryTestFunction>;
 }
 
 const commandRegistry = require("../features/command-registry/commandRegistry") as CommandRegistryExports;
