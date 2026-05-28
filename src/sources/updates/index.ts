@@ -644,10 +644,10 @@ async function getLatestForAllGames(games: GameConfig[], shouldAbort?: AbortPred
   return promise;
 }
 
-function attachUpdates(ctx: UpdatesContext): void {
-  runtimeContext = ctx;
+function attachUpdates(target: UpdatesContext): void {
+  runtimeContext = target;
 
-  Object.assign(ctx, {
+  Object.assign(target, {
     absoluteUrl,
     isGoodSteamArticleUrl,
     extractDateScore,

@@ -16,6 +16,7 @@ Documentul descrie starea curenta a repo-ului dupa migrarea treptata din fisiere
 - `legacy-dynamic.d.ts` nu mai exista; tipurile dinamice trebuie modelate local.
 - Documentatia istorica versionata a fost scoasa din cod; fisierele curente de documentatie raman sursa de adevar.
 - Comentariile explicative din fisierele de cod au fost eliminate. Daca un rationale trebuie pastrat, el trebuie pus in documentatia potrivita dupa subiect, nu langa implementare.
+- Codul runtime nu mai foloseste identificatorul `ctx`; modulele de compatibilitate folosesc `target` pentru atasare si `deps` pentru factory-uri.
 
 ## Structura logica
 
@@ -134,7 +135,7 @@ Zone care inca trebuie urmarite:
 
 - `commandRuntimeContext.ts`;
 - `commandRegistry.ts`;
-- adapterele care inca primesc un context comun mare, desi `commandCache`, `commandPresentation` si `mongoContext` au deja factory-uri explicite;
+- adapterele care inca primesc un target comun mare, desi `commandCache`, `commandPresentation`, `notifications/index`, fallback-ul de interactiuni si `mongoContext` au deja factory-uri explicite;
 - mock-urile de test care inca folosesc tipuri largi pentru a simula Discord, Mongo si HTTP.
 
 ## Securitate si runtime

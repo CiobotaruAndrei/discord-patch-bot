@@ -111,13 +111,13 @@ type CommandUiContext = {
   [key: string]: unknown;
 };
 
-function createCommandPresentation(ctx: CommandUiContext) {
+function createCommandPresentation(deps: CommandUiContext) {
   const {
     crypto, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
     ComponentType, MessageFlags, logger, checkUserCooldown, COLORS,
     truncate, DEFAULT_CURRENCY, formatPrice, COLLECTOR_TIMEOUT_MS,
     MAX_FUZZY_SEARCH_INPUT, httpReq
-  } = ctx;
+  } = deps;
 
 async function enforceCooldown(interaction: DiscordInteraction, command: string): Promise<boolean> {
   const { allowed, remainingMs = 0 } = checkUserCooldown(interaction.user?.id, command);
@@ -462,12 +462,12 @@ function buildSteamPriceEmbed(gameData: SteamAppDetails, appId: string | number,
   };
 }
 
-type CommandUiInstaller = ((ctx: CommandUiContext) => void) & {
+type CommandUiInstaller = ((target: CommandUiContext) => void) & {
   createCommandPresentation: typeof createCommandPresentation;
 };
 
-const attachCommandUi = ((ctx: CommandUiContext): void => {
-  Object.assign(ctx, createCommandPresentation(ctx));
+const attachCommandUi = ((target: CommandUiContext): void => {
+  Object.assign(target, createCommandPresentation(target));
 }) as CommandUiInstaller;
 
 attachCommandUi.createCommandPresentation = createCommandPresentation;

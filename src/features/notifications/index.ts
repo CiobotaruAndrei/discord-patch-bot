@@ -38,7 +38,7 @@ type NotificationsContext = SeenRepositoryDeps
   }
   & Record<string, unknown>;
 
-module.exports = (ctx: NotificationsContext) => {
+function createNotificationRuntime(deps: NotificationsContext) {
   const {
     GuildModel, logger, DEFAULT_CURRENCY, runConcurrent,
     validatePendingDiscountSnapshot, getLatestForAllGames, fetchDeals,
@@ -53,7 +53,7 @@ module.exports = (ctx: NotificationsContext) => {
     GUILD_PROCESS_CONCURRENCY, DEALS_HISTORY_LIMIT,
     PENDING_DISCOUNT_MAX_ATTEMPTS, PENDING_DISCOUNT_GRACE_CYCLES,
     PENDING_DISCOUNTS_LIMIT, MAX_DEALS_PER_CYCLE
-  } = ctx;
+  } = deps;
 
   const resolveOutboundChannel = createOutboundChannelResolver({ logger, canSendEmbeds });
 
@@ -90,7 +90,7 @@ module.exports = (ctx: NotificationsContext) => {
     DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY
   });
 
-  Object.assign(ctx, {
+  return {
     DISCORD_PERMANENT_ERROR_CODES,
     isPermanentDiscordError,
     transientErrorMessage,
@@ -106,5 +106,17 @@ module.exports = (ctx: NotificationsContext) => {
     disableDiscountsForChannelError,
     processGuildDiscounts: discountService.processGuildDiscounts,
     checkForDiscounts: discountService.checkForDiscounts
-  });
+  };
+}
+
+type NotificationsInstaller = ((target: NotificationsContext) => void) & {
+  createNotificationRuntime: typeof createNotificationRuntime;
 };
+
+const installNotifications = ((target: NotificationsContext): void => {
+  Object.assign(target, createNotificationRuntime(target));
+}) as NotificationsInstaller;
+
+installNotifications.createNotificationRuntime = createNotificationRuntime;
+
+export = installNotifications;

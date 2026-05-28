@@ -16,7 +16,7 @@ interface UpdateRecord {
   latest: ({ id: string } & Record<string, unknown>) | null;
 }
 
-type Logger = (level: string, ctx: string, msg: string, meta?: unknown) => void;
+type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, extra?: Record<string, unknown>) => void;
 
 interface GuildSettingsLite {

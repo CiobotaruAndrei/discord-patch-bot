@@ -11,7 +11,7 @@ interface DiscordInteraction {
   reply: (payload: unknown) => Promise<unknown>;
 }
 
-type Logger = (level: string, ctx: string, msg: string, meta?: unknown) => void;
+type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, extra?: Record<string, unknown>) => void;
 type CacheEntry<T> = { data: T; expiresAt: number };
 type SingleCache = Map<string, CacheEntry<unknown>>;

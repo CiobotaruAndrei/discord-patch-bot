@@ -40,8 +40,8 @@ function isDuplicateKeyError(err: unknown): boolean {
   return (err as MongoErrorLike)?.code === 11000;
 }
 
-function attachLocks(ctx: LocksContext): void {
-  const { crypto, JobLockModel, logger } = ctx;
+function attachLocks(target: LocksContext): void {
+  const { crypto, JobLockModel, logger } = target;
 
   const activeLocks: ActiveLocks = new Map();
 
@@ -87,7 +87,7 @@ function attachLocks(ctx: LocksContext): void {
     }
   }
 
-  Object.assign(ctx, {
+  Object.assign(target, {
     activeLocks,
     acquireDbLock,
     renewDbLock,

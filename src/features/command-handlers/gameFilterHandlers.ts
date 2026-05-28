@@ -130,9 +130,9 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
   };
 }
 
-function installGameFilterInteractions(ctx: GameFilterContext) {
-  const previousHandleInteraction = ctx.handleInteraction;
-  const handlers = createGameFilterInteractionHandlers(ctx);
+function installGameFilterInteractions(target: GameFilterContext) {
+  const previousHandleInteraction = target.handleInteraction;
+  const handlers = createGameFilterInteractionHandlers(target);
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!isSetGamesCommand(interaction)) {
@@ -143,8 +143,8 @@ function installGameFilterInteractions(ctx: GameFilterContext) {
     try {
       return await handlers.handleSetGamesInteraction(interaction, games);
     } catch (err: unknown) {
-      ctx.logger?.("ERROR", "GAME_FILTER_INTERACTION", "Eroare in handler-ul /set games", errorDetail(err));
-      const payload = createInteractionErrorPayload(ctx.MessageFlags);
+      target.logger?.("ERROR", "GAME_FILTER_INTERACTION", "Eroare in handler-ul /set games", errorDetail(err));
+      const payload = createInteractionErrorPayload(target.MessageFlags);
       try {
         if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") await interaction.followUp(payload);
         else if (typeof interaction.reply === "function") await interaction.reply(payload);
@@ -153,7 +153,7 @@ function installGameFilterInteractions(ctx: GameFilterContext) {
     }
   }
 
-  Object.assign(ctx, handlers, { handleInteraction });
+  Object.assign(target, handlers, { handleInteraction });
 }
 
 Object.assign(installGameFilterInteractions, { createGameFilterInteractionHandlers });

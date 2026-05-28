@@ -98,9 +98,9 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
   };
 }
 
-function installRolePingInteractions(ctx: RolePingContext) {
-  const previousHandleInteraction = ctx.handleInteraction;
-  const handlers = createRolePingInteractionHandlers(ctx);
+function installRolePingInteractions(target: RolePingContext) {
+  const previousHandleInteraction = target.handleInteraction;
+  const handlers = createRolePingInteractionHandlers(target);
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!isSetRoleCommand(interaction)) {
@@ -111,8 +111,8 @@ function installRolePingInteractions(ctx: RolePingContext) {
     try {
       return await handlers.handleSetRoleInteraction(interaction);
     } catch (err: unknown) {
-      ctx.logger?.("ERROR", "ROLE_PING_INTERACTION", "Eroare in handler-ul /set role", errorDetail(err));
-      const payload = createInteractionErrorPayload(ctx.MessageFlags);
+      target.logger?.("ERROR", "ROLE_PING_INTERACTION", "Eroare in handler-ul /set role", errorDetail(err));
+      const payload = createInteractionErrorPayload(target.MessageFlags);
       try {
         if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") await interaction.followUp(payload);
         else if (typeof interaction.reply === "function") await interaction.reply(payload);
@@ -121,7 +121,7 @@ function installRolePingInteractions(ctx: RolePingContext) {
     }
   }
 
-  Object.assign(ctx, handlers, { handleInteraction });
+  Object.assign(target, handlers, { handleInteraction });
 }
 
 Object.assign(installRolePingInteractions, { createRolePingInteractionHandlers });

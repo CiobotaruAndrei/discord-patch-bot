@@ -165,15 +165,15 @@ Starea curenta:
 - handler-ele pentru comenzi cunoscute sunt separate in `src/features/command-handlers/`;
 - `interactions.ts` este router/wiring si delega catre handler-e;
 - `notifications/index.ts` este wiring pentru cron jobs, iar logica principala este in `updateNotificationService.ts` si `discountNotificationService.ts`;
-- `commandCache.ts`, `commandPresentation.ts` si `mongoContext.ts` expun factory-uri explicite; atasarea pe context ramane doar strat de compatibilitate;
+- `commandCache.ts`, `commandPresentation.ts`, `mongoContext.ts`, `notifications/index.ts` si fallback-ul de interactiuni expun factory-uri explicite; atasarea pe target comun ramane doar strat de compatibilitate;
 - `domain/deals/filtersCore.ts`, `outboundChannel.ts` si `seenRepository.ts` sunt module tipate, usor de testat separat;
 - `src/native/` contine Rust/N-API pentru hot-path-uri pure: fuzzy matching, autocomplete scoring, hash-uri, normalizare text/scoring si filtrarea ofertelor;
 - `src/tsconfig.strict.json` include incremental fisiere stabilizate, inclusiv modulele de surse Steam/deals/updates si testele directe pe shape drift;
 - `legacy-dynamic.d.ts` a fost eliminat; tipurile trebuie rezolvate local, nu prin extinderea globala a `Object`.
-- codul runtime din `app`, `domain`, `features`, `infra`, `shared` si `sources` nu mai foloseste `any` sau `ctx: any`; adapterele ramase folosesc tipuri structurale locale.
+- codul runtime din `app`, `domain`, `features`, `infra`, `shared` si `sources` nu mai foloseste `any` sau identificatorul `ctx`; adapterele ramase folosesc `target`/`deps` tipate structural.
 - fisierele de cod sunt tinute fara comentarii explicative; contextul de arhitectura, operare si mentenanta sta in README, changelog si `src/docs/`.
 
-Zonele ramase de imbunatatit sunt reducerea contextului comun din runtime/registry, tiparea mai stricta a mock-urilor din teste si mentinerea adapterelor subtiri la marginea sistemului.
+Zonele ramase de imbunatatit sunt reducerea target-ului comun din runtime/registry, tiparea mai stricta a mock-urilor din teste si mentinerea adapterelor subtiri la marginea sistemului.
 
 ## Documentatie suplimentara
 

@@ -21,7 +21,7 @@ type DiscordInteraction = {
 };
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 
-type Logger = (level: string, ctx: string, msg: string, meta?: unknown) => void;
+type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 type GuildSettingsLite = { enabledGames?: string[] };
 
 type AutocompleteHandlerDeps = {
@@ -122,9 +122,9 @@ function isAutocompleteInteraction(interaction: DiscordInteraction): boolean {
   return typeof interaction?.isAutocomplete === "function" && interaction.isAutocomplete() === true;
 }
 
-function installAutocompleteHandler(ctx: AutocompleteContext) {
-  const previousHandleInteraction = ctx.handleInteraction;
-  const handlers = createAutocompleteHandler(ctx);
+function installAutocompleteHandler(target: AutocompleteContext) {
+  const previousHandleInteraction = target.handleInteraction;
+  const handlers = createAutocompleteHandler(target);
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!isAutocompleteInteraction(interaction)) {
@@ -134,14 +134,14 @@ function installAutocompleteHandler(ctx: AutocompleteContext) {
     try {
       return await handlers.handleAutocomplete(interaction, games);
     } catch (err: unknown) {
-      ctx.logger?.("ERROR", "AUTOCOMPLETE", "Eroare top-level in handler-ul autocomplete", errorDetail(err));
+      target.logger?.("ERROR", "AUTOCOMPLETE", "Eroare top-level in handler-ul autocomplete", errorDetail(err));
 
       try { await interaction.respond([]); } catch {  }
       return undefined;
     }
   }
 
-  Object.assign(ctx, handlers, { handleInteraction });
+  Object.assign(target, handlers, { handleInteraction });
 }
 
 Object.assign(installAutocompleteHandler, { createAutocompleteHandler, scoreGameAgainstInput });

@@ -84,15 +84,15 @@ async function adminAlert(kind: string, title: string, body: unknown): Promise<v
   }
 }
 
-function attachAdminAlerts(ctx: AdminAlertsContext): void {
+function attachAdminAlerts(target: AdminAlertsContext): void {
   runtimeContext = {
-    env: ctx.env,
-    AdminAlertCooldownModel: ctx.AdminAlertCooldownModel,
-    axios: ctx.axios,
-    logger: ctx.logger
+    env: target.env,
+    AdminAlertCooldownModel: target.AdminAlertCooldownModel,
+    axios: target.axios,
+    logger: target.logger
   };
 
-  Object.assign(ctx, { adminAlert });
+  Object.assign(target, { adminAlert });
 }
 
 export = attachAdminAlerts;

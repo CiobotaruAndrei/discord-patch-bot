@@ -41,8 +41,8 @@ interface CommandCacheContext {
 
 const USER_COOLDOWNS_THRESHOLD = 500;
 
-function createCommandCache(ctx: CommandCacheContext) {
-  const { crypto, PermissionsBitField, logger, DEFAULT_CURRENCY, env } = ctx;
+function createCommandCache(deps: CommandCacheContext) {
+  const { crypto, PermissionsBitField, logger, DEFAULT_CURRENCY, env } = deps;
 
 const CACHE_TTL_MS = env.CACHE_TTL_MS;
 const ITEMS_PER_PAGE = env.ITEMS_PER_PAGE;
@@ -324,12 +324,12 @@ async function sleepIfPositive(ms: number): Promise<void> {
   };
 }
 
-type CommandCacheInstaller = ((ctx: CommandCacheContext) => void) & {
+type CommandCacheInstaller = ((target: CommandCacheContext) => void) & {
   createCommandCache: typeof createCommandCache;
 };
 
-const attachCommandCache = ((ctx: CommandCacheContext): void => {
-  Object.assign(ctx, createCommandCache(ctx));
+const attachCommandCache = ((target: CommandCacheContext): void => {
+  Object.assign(target, createCommandCache(target));
 }) as CommandCacheInstaller;
 
 attachCommandCache.createCommandCache = createCommandCache;

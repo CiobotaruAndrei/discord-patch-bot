@@ -174,15 +174,15 @@ async function extractSteamOfferEndDate(appId: string | number, currencyCode?: S
   }
 }
 
-function attachSteam(ctx: SteamContext): void {
+function attachSteam(target: SteamContext): void {
   runtimeContext = {
-    logger: ctx.logger,
-    getCurrencyConfig: ctx.getCurrencyConfig,
-    httpReq: ctx.httpReq,
-    safeCheerioLoad: ctx.safeCheerioLoad
+    logger: target.logger,
+    getCurrencyConfig: target.getCurrencyConfig,
+    httpReq: target.httpReq,
+    safeCheerioLoad: target.safeCheerioLoad
   };
 
-  Object.assign(ctx, {
+  Object.assign(target, {
     searchSteamGameByName,
     levenshtein,
     chooseBestSteamMatch,

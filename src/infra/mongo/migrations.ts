@@ -138,14 +138,14 @@ async function runMigrations(logger: LoggerFunction): Promise<RunMigrationsResul
   }
 }
 
-function attachMigrations(ctx: MigrationsContext): void {
+function attachMigrations(target: MigrationsContext): void {
   runtimeContext = {
-    mongoose: ctx.mongoose,
-    acquireDbLock: ctx.acquireDbLock,
-    releaseDbLock: ctx.releaseDbLock
+    mongoose: target.mongoose,
+    acquireDbLock: target.acquireDbLock,
+    releaseDbLock: target.releaseDbLock
   };
 
-  Object.assign(ctx, {
+  Object.assign(target, {
     runMigrations,
     ALL_MIGRATIONS
   });

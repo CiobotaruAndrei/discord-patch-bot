@@ -14,7 +14,7 @@ type DiscordInteraction = {
   respond?: (choices: unknown[]) => Promise<unknown>;
 };
 
-type Logger = (level: string, ctx: string, msg: string, meta?: unknown) => void;
+type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
 interface RouterContext {
   MessageFlags: { Ephemeral: number };
@@ -22,8 +22,8 @@ interface RouterContext {
   handleInteraction?: (interaction: DiscordInteraction, games: unknown[]) => Promise<unknown>;
 }
 
-module.exports = (ctx: RouterContext) => {
-  const { MessageFlags, logger } = ctx;
+function createFallbackInteractionHandler(deps: RouterContext) {
+  const { MessageFlags, logger } = deps;
 
   async function handleInteraction(interaction: DiscordInteraction, _games: unknown[]) {
     try {
@@ -63,5 +63,17 @@ module.exports = (ctx: RouterContext) => {
     }
   }
 
-  Object.assign(ctx, { handleInteraction });
+  return { handleInteraction };
+}
+
+type FallbackInteractionInstaller = ((target: RouterContext) => void) & {
+  createFallbackInteractionHandler: typeof createFallbackInteractionHandler;
 };
+
+const installFallbackInteractionHandler = ((target: RouterContext): void => {
+  Object.assign(target, createFallbackInteractionHandler(target));
+}) as FallbackInteractionInstaller;
+
+installFallbackInteractionHandler.createFallbackInteractionHandler = createFallbackInteractionHandler;
+
+export = installFallbackInteractionHandler;

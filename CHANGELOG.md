@@ -30,6 +30,7 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - `notifications/index.ts` a fost redus la wiring; logica pentru update-uri si reduceri este in `updateNotificationService.ts` si `discountNotificationService.ts`.
 - `commandCache.ts`, `commandPresentation.ts` si `mongoContext.ts` expun factory-uri explicite, cu atasare pe context pastrata doar pentru compatibilitate.
 - Handler-ele de start/stop, filtre jocuri, roluri, prezentarea comenzilor, registry-urile de surse/Mongo si scrapers principali folosesc acum tipuri structurale locale in loc de `any` in runtime.
+- Identificatorul runtime `ctx` a fost eliminat din codul principal; modulele ramase in stil compatibil folosesc `target` pentru atasare si `deps` pentru dependinte explicite.
 - Filtrarea ofertelor foloseste acum Rust/N-API pentru hot-path-ul pur `dealPassesFilters`, cu fallback TypeScript identic cand addon-ul nativ lipseste.
 - Autocomplete-ul pentru jocuri foloseste acum Rust/N-API pentru scoring, sortare si limitarea optiunilor Discord, cu fallback TypeScript identic.
 - Documentatia interna a fost sincronizata cu structura actuala si nu mai prezinta `command-router` ca arhitectura curenta.
