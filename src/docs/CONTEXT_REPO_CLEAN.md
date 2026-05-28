@@ -116,7 +116,7 @@ Aceasta impartire reduce riscul de copy-paste in cron jobs si permite teste func
 - `buildAutocompleteChoices` pentru scoring, sortare si limitare optiuni Discord;
 - `dealPassesFilters` pentru filtrarea ofertelor in cron si `/latest reduceri`.
 
-`src/native/fuzzy.ts` ramane adapterul TypeScript cu fallback. Daca addon-ul `.node` nu se incarca, botul continua pe fallback si logheaza explicit problema.
+`src/native/fuzzy.ts` ramane adapterul TypeScript cu fallback. Daca addon-ul `.node` nu se incarca, botul continua pe fallback si logheaza explicit problema. Fallback-urile trebuie sa pastreze acelasi comportament observabil ca implementarea Rust; de exemplu `extractDateScore` scaneaza tot URL-ul dupa prima data `YYYY-MM-DD` valida (nu se opreste la prima potrivire de tipar daca aceasta are valori in afara intervalului), pentru ca sortarea candidatilor `listing_based` dupa data sa fie identica indiferent de calea folosita.
 
 ## TypeScript strict
 
