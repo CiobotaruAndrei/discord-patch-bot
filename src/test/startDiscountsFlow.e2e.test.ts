@@ -22,13 +22,17 @@ type DealDoc = {
   savings: string;
   store: string;
 };
-type GuildDoc = Record<string, any>;
+type GuildDoc = Record<string, unknown>;
 type MongoFilter = Record<string, unknown>;
 type MongoUpdate = Record<string, unknown>;
 type SentPayload = { embeds?: Array<Record<string, unknown>>; content?: string };
+type DiscountsRuntime = {
+  handleStartInteraction: (interaction: unknown, games: unknown[]) => Promise<unknown>;
+  checkForDiscounts: (client: unknown) => Promise<unknown>;
+};
 
-const attachInteractions = require("../features/command-handlers/subscriptionNotificationHandlers") as (ctx: Record<string, any>) => void;
-const attachNotifications = require("../features/notifications") as (ctx: Record<string, any>) => void;
+const attachInteractions = require("../features/command-handlers/subscriptionNotificationHandlers") as (context: Record<string, unknown>) => void;
+const attachNotifications = require("../features/notifications") as (context: Record<string, unknown>) => void;
 
 const oldDeal: DealDoc = {
   id: "old-deal",
@@ -48,14 +52,14 @@ const newDeal: DealDoc = {
   store: "Steam"
 };
 
-function isPlainRecord(value: unknown): value is Record<string, any> {
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function getPath(target: GuildDoc, path: string): unknown {
-  let cursor: any = target;
+  let cursor: unknown = target;
   for (const part of path.split(".")) {
-    if (cursor === undefined || cursor === null) return undefined;
+    if (!isPlainRecord(cursor)) return undefined;
     cursor = cursor[part];
   }
   return cursor;
@@ -75,9 +79,10 @@ function setPath(target: GuildDoc, path: string, value: unknown): void {
 function unsetPath(target: GuildDoc, path: string): void {
   const parts = path.split(".");
   const last = parts[parts.length - 1] as string;
-  let cursor: any = target;
+  let cursor: unknown = target;
   for (const part of parts.slice(0, -1)) {
-    if (!isPlainRecord(cursor?.[part])) return;
+    if (!isPlainRecord(cursor)) return;
+    if (!isPlainRecord(cursor[part])) return;
     cursor = cursor[part];
   }
   if (isPlainRecord(cursor)) delete cursor[last];
@@ -181,7 +186,7 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
   let fetchDealsCallCount = 0;
   const replies: unknown[] = [];
   const dealsCacheWrites: Array<{ currency: string; deals: DealDoc[] }> = [];
-  const ctx: Record<string, any> = {
+  const context = {
     GuildModel: createGuildModel(guild),
     logger: (_level: string, _context: string, _message: string, _meta?: unknown) => undefined,
     DEFAULT_CURRENCY: "USD",
@@ -242,8 +247,8 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
     }
   };
 
-  attachInteractions(ctx);
-  attachNotifications(ctx);
+  attachInteractions(context);
+  attachNotifications(context);
 
   const client = {
     user: { id: "bot-id" },
@@ -252,7 +257,7 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
     }
   };
 
-  return { ctx, client, replies, dealsCacheWrites };
+  return { context: context as typeof context & DiscountsRuntime, client, replies, dealsCacheWrites };
 }
 
 test("/start reduceri baseline plus cron sends only the next unseen deal", async () => {
@@ -272,10 +277,10 @@ test("/start reduceri baseline plus cron sends only the next unseen deal", async
       return { id: `message-${sentPayloads.length}` };
     }
   };
-  const { ctx, client, replies, dealsCacheWrites } = buildContext(guild, channel);
+  const { context, client, replies, dealsCacheWrites } = buildContext(guild, channel);
 
-  await (ctx.handleStartInteraction as Function)(makeStartDiscountsInteraction(channel), []);
-  await (ctx.checkForDiscounts as Function)(client);
+  await context.handleStartInteraction(makeStartDiscountsInteraction(channel), []);
+  await context.checkForDiscounts(client);
 
   assert.deepEqual(replies, ["OK: Alerte reduceri activate pe acest canal. Valuta: **USD**."]);
   assert.equal(sentPayloads.length, 1);

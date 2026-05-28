@@ -1,11 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-type SlashCommandsInstaller = (ctx: Record<string, any>) => void;
-const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions") as SlashCommandsInstaller;
+const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions") as typeof import("../features/command-definitions/slashCommandDefinitions");
+
+type SlashRuntime = {
+  registerSlashCommands: (token: string, clientId: string) => Promise<void>;
+};
 
 class FakeSlashCommandBuilder {
-  json: Record<string, any> = {};
+  json: Record<string, unknown> = {};
   setName(name: string) { this.json.name = name; return this; }
   setDescription(desc: string) { this.json.desc = desc; return this; }
   setDefaultMemberPermissions(p: string) { this.json.perms = p; return this; }
@@ -24,8 +27,8 @@ class FakeSlashCommandBuilder {
 
 function makeCtx(devGuildId?: string) {
   const calls: Array<{ route: string; bodyLength: number }> = [];
-  const logs: Array<{ level: string; ctx: string; msg: string }> = [];
-  const ctx: Record<string, any> = {
+  const logs: Array<{ level: string; context: string; msg: string }> = [];
+  const context = {
     SlashCommandBuilder: FakeSlashCommandBuilder,
     PermissionsBitField: { Flags: { Administrator: { toString: () => "8" } } },
     Routes: {
@@ -44,46 +47,46 @@ function makeCtx(devGuildId?: string) {
       }
     },
     SUPPORTED_CURRENCIES: { USD: {}, EUR: {}, GBP: {}, RON: {} },
-    logger: (level: string, c: string, msg: string) => { logs.push({ level, ctx: c, msg }); }
-  };
+    logger: (level: string, c: string, msg: string) => { logs.push({ level, context: c, msg }); }
+  } as unknown as Parameters<typeof attachSlashCommands>[0] & Partial<SlashRuntime>;
   if (devGuildId !== undefined) {
-    ctx.env = { DISCORD_DEV_GUILD_ID: devGuildId };
+    context.env = { DISCORD_DEV_GUILD_ID: devGuildId };
   }
-  return { ctx, calls, logs };
+  return { context: context as Parameters<typeof attachSlashCommands>[0] & SlashRuntime, calls, logs };
 }
 
 test("registerSlashCommands defaults to global registration when DISCORD_DEV_GUILD_ID is unset", async () => {
-  const { ctx, calls, logs } = makeCtx();
-  attachSlashCommands(ctx);
+  const { context, calls, logs } = makeCtx();
+  attachSlashCommands(context);
 
-  await ctx.registerSlashCommands("test-token", "client-id-1");
+  await context.registerSlashCommands("test-token", "client-id-1");
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].route, "/applications/client-id-1/commands");
   assert.ok(calls[0].bodyLength > 0, "must register at least one slash command");
-  assert.ok(logs.some(l => l.ctx === "SLASH" && /global/.test(l.msg)),
+  assert.ok(logs.some(l => l.context === "SLASH" && /global/.test(l.msg)),
     "log line must announce global registration");
 });
 
 test("registerSlashCommands switches to guild-scoped when DISCORD_DEV_GUILD_ID is set", async () => {
-  const { ctx, calls, logs } = makeCtx("123456789012345678");
-  attachSlashCommands(ctx);
+  const { context, calls, logs } = makeCtx("123456789012345678");
+  attachSlashCommands(context);
 
-  await ctx.registerSlashCommands("test-token", "client-id-2");
+  await context.registerSlashCommands("test-token", "client-id-2");
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].route, "/applications/client-id-2/guilds/123456789012345678/commands");
   assert.ok(calls[0].bodyLength > 0);
-  assert.ok(logs.some(l => l.ctx === "SLASH" && /GUILD-scoped/.test(l.msg) && /123456789012345678/.test(l.msg)),
+  assert.ok(logs.some(l => l.context === "SLASH" && /GUILD-scoped/.test(l.msg) && /123456789012345678/.test(l.msg)),
     "log line must call out the guild and 'GUILD-scoped' so operators know which mode is active");
 });
 
 test("registerSlashCommands falls back to global when DISCORD_DEV_GUILD_ID is empty string", async () => {
 
-  const { ctx, calls, logs } = makeCtx("");
-  attachSlashCommands(ctx);
+  const { context, calls, logs } = makeCtx("");
+  attachSlashCommands(context);
 
-  await ctx.registerSlashCommands("test-token", "client-id-3");
+  await context.registerSlashCommands("test-token", "client-id-3");
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].route, "/applications/client-id-3/commands");

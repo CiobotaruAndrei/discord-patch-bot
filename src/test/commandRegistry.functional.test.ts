@@ -7,7 +7,7 @@ process.env.DISCORD_CLIENT_ID ||= "test_discord_client_id";
 process.env.METRICS_PUBLIC ||= "true";
 
 type AnyFunction = (...args: unknown[]) => unknown;
-type Installer = (ctx: Record<string, unknown>) => void;
+type Installer = (context: Record<string, unknown>) => void;
 
 interface CommandRegistryExports extends Record<string, unknown> {
   createCommandRegistry: (
@@ -35,9 +35,9 @@ const requiredKeys = [
   "formatUserError"
 ];
 
-function attachRequiredFunctions(ctx: Record<string, unknown>) {
+function attachRequiredFunctions(context: Record<string, unknown>) {
   for (const key of requiredKeys) {
-    ctx[key] = (...args: unknown[]) => ({ key, args });
+    context[key] = (...args: unknown[]) => ({ key, args });
   }
 }
 
@@ -45,13 +45,13 @@ test("command registry can be created with explicit mocked installers", () => {
   const calls: string[] = [];
   const baseContext: Record<string, unknown> = {};
   const installers: Installer[] = [
-    ctx => {
+    context => {
       calls.push("cache");
-      attachRequiredFunctions(ctx);
+      attachRequiredFunctions(context);
     },
-    ctx => {
+    context => {
       calls.push("interactions");
-      ctx.handleInteraction = (interaction: unknown, games: unknown[]) => ({ interaction, games });
+      context.handleInteraction = (interaction: unknown, games: unknown[]) => ({ interaction, games });
     }
   ];
 
@@ -68,9 +68,9 @@ test("command registry can be created with explicit mocked installers", () => {
 
 test("command registry fails early when an installer misses a required function", () => {
   assert.throws(
-    () => commandRegistry.createCommandRegistry({}, [ctx => {
+    () => commandRegistry.createCommandRegistry({}, [context => {
 
-      ctx.unrelated = () => null;
+      context.unrelated = () => null;
     }]),
     /cleanCache/
   );

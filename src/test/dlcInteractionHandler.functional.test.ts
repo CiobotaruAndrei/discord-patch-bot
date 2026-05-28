@@ -1,10 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-type DlcModule = ((ctx: Record<string, any>) => void) & {
-  createDlcInteractionHandler: (deps: Record<string, any>) => {
-    handleDlcInteraction: (interaction: Record<string, any>) => Promise<unknown>;
+type DlcModule = ((context: Record<string, unknown>) => void) & {
+  createDlcInteractionHandler: (deps: Record<string, unknown>) => {
+    handleDlcInteraction: (interaction: Record<string, unknown>) => Promise<unknown>;
   };
+};
+type InteractionRuntime = {
+  handleInteraction: (interaction: unknown, games?: unknown[]) => Promise<unknown>;
+};
+type CacheEntry = { data: unknown; expiresAt: number };
+type FakeCheerioSelection = {
+  length?: number;
+  each?: (cb: (index: number, el: unknown) => void) => void;
+  find?: (selector: string) => { text: () => string };
+  attr?: (name: string) => string | null;
 };
 
 const dlcHandler = require("../features/command-handlers/dlcInteractionHandler") as DlcModule;
@@ -28,8 +38,8 @@ function makeDlcInteraction(gameText: string | null = "cs2") {
 }
 
 function makeFakeCheerioLoad(htmlMarkers: { hasAgeGate?: boolean; dlcRows?: Array<{ name: string; price: string; appId?: string }>; hasPurchaseGame?: boolean }) {
-  return ((_html: unknown): any => {
-    return function $(selector: any): any {
+  return ((_html: unknown) => {
+    return function $(selector: unknown): FakeCheerioSelection {
       if (selector === "#agegate_box" || selector === ".agegate_text_container") {
         return { length: htmlMarkers.hasAgeGate ? 1 : 0 };
       }
@@ -60,7 +70,7 @@ function makeFakeCheerioLoad(htmlMarkers: { hasAgeGate?: boolean; dlcRows?: Arra
   });
 }
 
-function makeBaseDeps(replies: unknown[], cacheMap: Map<string, any>) {
+function makeBaseDeps(replies: unknown[], cacheMap: Map<string, CacheEntry>) {
   return {
     MessageFlags: { Ephemeral: 64 },
     logger: () => undefined,
@@ -77,13 +87,13 @@ function makeBaseDeps(replies: unknown[], cacheMap: Map<string, any>) {
     httpReq: async () => ({ data: "<html></html>" }),
     safeCheerioLoad: makeFakeCheerioLoad({ dlcRows: [{ name: "Operation A", price: "$9.99", appId: "1" }] }),
     cache: { dlc: cacheMap },
-    cacheGetLRU: (map: Map<string, any>, key: string) => {
+    cacheGetLRU: (map: Map<string, CacheEntry>, key: string) => {
       const entry = map.get(key);
       if (!entry) return null;
       if (entry.expiresAt <= Date.now()) { map.delete(key); return null; }
       return entry.data;
     },
-    cacheSetLRU: (map: Map<string, any>, key: string, data: unknown, ttlMs: number) => {
+    cacheSetLRU: (map: Map<string, CacheEntry>, key: string, data: unknown, ttlMs: number) => {
       map.set(key, { data, expiresAt: Date.now() + ttlMs });
     },
     CACHE_TTL_MS: 60_000,
@@ -103,7 +113,7 @@ function makeBaseDeps(replies: unknown[], cacheMap: Map<string, any>) {
   };
 }
 
-test("dlc handler factory rejects empty gameText BEFORE any cooldown/defer/Steam call", async () => {
+test("dlc handler factory rejects empty gameText before cooldown/defer/Steam call", async () => {
   const { interaction, replies } = makeDlcInteraction(null);
   const cacheMap = new Map();
   const deps = makeBaseDeps(replies, cacheMap);
@@ -171,17 +181,18 @@ test("dlc installer intercepts only /dlc and delegates everything else", async (
   const cacheMap = new Map();
   const deps = makeBaseDeps(replies, cacheMap);
   const delegated: string[] = [];
-  const ctx: Record<string, any> = {
+  const context = {
     ...deps,
-    handleInteraction: async (handled: Record<string, any>) => {
+    handleInteraction: async (handled: { commandName: string }) => {
       delegated.push(handled.commandName);
       return "delegated";
     }
   };
 
-  dlcHandler(ctx);
-  await ctx.handleInteraction(interaction, []);
-  const result = await ctx.handleInteraction({
+  dlcHandler(context);
+  const runtime = context as typeof context & InteractionRuntime;
+  await runtime.handleInteraction(interaction, []);
+  const result = await runtime.handleInteraction({
     commandName: "status",
     guild: { id: "guild-1" },
     isChatInputCommand: () => true,

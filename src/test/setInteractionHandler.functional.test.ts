@@ -2,7 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const installSetHandler = require("../features/command-handlers/setInteractionHandler") as
-  ((ctx: Record<string, any>) => void) & { createSetInteractionHandler?: (deps: any) => any };
+  ((context: Record<string, unknown>) => void) & { createSetInteractionHandler?: (deps: unknown) => unknown };
+
+type SetInteractionRuntime = {
+  handleInteraction: (interaction: unknown, games?: unknown[]) => Promise<unknown>;
+};
 
 function makeOptions(opts: {
   group: string | null;
@@ -38,7 +42,7 @@ function makeInteraction(opts: {
 }
 
 function makeCtx(opts: {
-  prevDelegated?: (interaction: any, games: any[]) => Promise<unknown>;
+  prevDelegated?: (interaction: unknown, games: unknown[]) => Promise<unknown>;
   updateOneResult?: { matchedCount: number; modifiedCount: number };
   updateOneThrows?: Error;
 }) {
@@ -46,9 +50,9 @@ function makeCtx(opts: {
   const replies: string[] = [];
   const delegateCalls: Array<{ commandName: string }> = [];
   const cacheInvalidations: string[] = [];
-  const logs: Array<{ level: string; ctx: string; msg: string }> = [];
+  const logs: Array<{ level: string; context: string; msg: string }> = [];
 
-  const ctx: Record<string, any> = {
+  const context = {
     GuildModel: {
       updateOne: async (filter: unknown, update: unknown, options?: unknown) => {
         updateCalls.push({ filter, update, opts: options });
@@ -59,22 +63,22 @@ function makeCtx(opts: {
     invalidateGuildCache: (gid: string) => { cacheInvalidations.push(gid); },
     formatUserError: (_err: unknown, fallback: string) => fallback,
     safeDefer: async () => undefined,
-    safeEdit: async (_interaction: any, content: string) => { replies.push(content); return content; },
-    logger: (level: string, c: string, msg: string) => { logs.push({ level, ctx: c, msg }); },
+    safeEdit: async (_interaction: unknown, content: string) => { replies.push(content); return content; },
+    logger: (level: string, c: string, msg: string) => { logs.push({ level, context: c, msg }); },
     SUPPORTED_CURRENCIES: { USD: {}, EUR: {}, GBP: {}, RON: {} },
     MessageFlags: { Ephemeral: 64 },
-    handleInteraction: opts.prevDelegated || (async (interaction: any) => {
-      delegateCalls.push({ commandName: interaction.commandName });
+    handleInteraction: opts.prevDelegated || (async (interaction: unknown) => {
+      delegateCalls.push({ commandName: (interaction as { commandName: string }).commandName });
     })
   };
 
-  installSetHandler(ctx);
-  return { ctx, updateCalls, replies, delegateCalls, cacheInvalidations, logs };
+  installSetHandler(context);
+  return { context: context as typeof context & SetInteractionRuntime, updateCalls, replies, delegateCalls, cacheInvalidations, logs };
 }
 
 test("handles /set mode and writes notificationMode + confirms", async () => {
-  const { ctx, updateCalls, replies, cacheInvalidations, delegateCalls } = makeCtx({});
-  await ctx.handleInteraction(
+  const { context, updateCalls, replies, cacheInvalidations, delegateCalls } = makeCtx({});
+  await context.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "mode", string: { value: "detailed" } }),
     []
   );
@@ -88,8 +92,8 @@ test("handles /set mode and writes notificationMode + confirms", async () => {
 });
 
 test("handles /set mindiscount with valid 50 and rejects out-of-range", async () => {
-  const { ctx, updateCalls, replies } = makeCtx({});
-  await ctx.handleInteraction(
+  const { context, updateCalls, replies } = makeCtx({});
+  await context.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "mindiscount", integer: { value: 50 } }),
     []
   );
@@ -98,7 +102,7 @@ test("handles /set mindiscount with valid 50 and rejects out-of-range", async ()
   assert.equal(update.minDiscountPercent, 50);
   assert.deepEqual(update.pendingDiscounts, [], "filter change reseteaza pendingDiscounts");
 
-  await ctx.handleInteraction(
+  await context.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "mindiscount", integer: { value: 150 } }),
     []
   );
@@ -107,8 +111,8 @@ test("handles /set mindiscount with valid 50 and rejects out-of-range", async ()
 });
 
 test("handles /set currency with USD and rejects unknown codes", async () => {
-  const { ctx, updateCalls, replies } = makeCtx({});
-  await ctx.handleInteraction(
+  const { context, updateCalls, replies } = makeCtx({});
+  await context.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "currency", string: { value: "EUR" } }),
     []
   );
@@ -116,7 +120,7 @@ test("handles /set currency with USD and rejects unknown codes", async () => {
   const update = (updateCalls[0].update as { $set: Record<string, unknown> }).$set;
   assert.equal(update.currency, "EUR");
 
-  await ctx.handleInteraction(
+  await context.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "currency", string: { value: "XYZ" } }),
     []
   );
@@ -125,8 +129,8 @@ test("handles /set currency with USD and rejects unknown codes", async () => {
 });
 
 test("handles /set stores with steam,epic + rejects unknown store", async () => {
-  const { ctx, updateCalls, replies } = makeCtx({});
-  await ctx.handleInteraction(
+  const { context, updateCalls, replies } = makeCtx({});
+  await context.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "stores", string: { value: "steam,epic" } }),
     []
   );
@@ -134,7 +138,7 @@ test("handles /set stores with steam,epic + rejects unknown store", async () => 
   const update = (updateCalls[0].update as { $set: Record<string, unknown> }).$set;
   assert.deepEqual(update.enabledStores, ["Steam", "Epic Games"]);
 
-  await ctx.handleInteraction(
+  await context.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "stores", string: { value: "gog" } }),
     []
   );
@@ -143,27 +147,27 @@ test("handles /set stores with steam,epic + rejects unknown store", async () => 
 });
 
 test("unknown sub returns explicit reply without empty $set write", async () => {
-  const { ctx, updateCalls, replies, logs } = makeCtx({});
-  await ctx.handleInteraction(
+  const { context, updateCalls, replies, logs } = makeCtx({});
+  await context.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "future-feature" }),
     []
   );
   assert.equal(updateCalls.length, 0);
   assert.match(replies[0], /nu este recunoscuta/);
-  assert.ok(logs.some(l => l.level === "WARN" && l.ctx === "SET_COMMAND"));
+  assert.ok(logs.some(l => l.level === "WARN" && l.context === "SET_COMMAND"));
 });
 
 test("delegates `/set games *` and `/set role *` to next handler (intercepted earlier in chain)", async () => {
-  const { ctx, updateCalls, delegateCalls } = makeCtx({});
+  const { context, updateCalls, delegateCalls } = makeCtx({});
 
-  await ctx.handleInteraction(
+  await context.handleInteraction(
     makeInteraction({ command: "set", group: "games", sub: "add", string: { joc: "cs2" } }),
     []
   );
   assert.equal(updateCalls.length, 0, "set games * NU trebuie scris de setInteractionHandler");
   assert.equal(delegateCalls.length, 1);
 
-  await ctx.handleInteraction(
+  await context.handleInteraction(
     makeInteraction({ command: "set", group: "role", sub: "updates" }),
     []
   );
@@ -172,8 +176,8 @@ test("delegates `/set games *` and `/set role *` to next handler (intercepted ea
 });
 
 test("delegates non-/set commands to next handler", async () => {
-  const { ctx, updateCalls, delegateCalls } = makeCtx({});
-  await ctx.handleInteraction(
+  const { context, updateCalls, delegateCalls } = makeCtx({});
+  await context.handleInteraction(
     makeInteraction({ command: "ping", group: null, sub: "" }),
     []
   );
@@ -183,10 +187,10 @@ test("delegates non-/set commands to next handler", async () => {
 });
 
 test("Mongo updateOne failure surfaces via formatUserError", async () => {
-  const { ctx, replies, logs } = makeCtx({
+  const { context, replies, logs } = makeCtx({
     updateOneThrows: new Error("simulated mongo write failure")
   });
-  await ctx.handleInteraction(
+  await context.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "mode", string: { value: "compact" } }),
     []
   );

@@ -1,12 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const installSetHandler = require("../features/command-handlers/setInteractionHandler") as (ctx: Record<string, any>) => void;
-const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as (ctx: Record<string, any>) => void;
-const installRolePingHandlers = require("../features/command-handlers/rolePingHandlers") as (ctx: Record<string, any>) => void;
+const installSetHandler = require("../features/command-handlers/setInteractionHandler") as (context: Record<string, unknown>) => void;
+const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as (context: Record<string, unknown>) => void;
+const installRolePingHandlers = require("../features/command-handlers/rolePingHandlers") as (context: Record<string, unknown>) => void;
+
+type InteractionRuntime = {
+  handleInteraction: (interaction: unknown, games?: Array<Record<string, unknown>>) => Promise<unknown>;
+};
+type SetUpdate = { $set: Record<string, unknown> };
 
 function makeCtx(replies: unknown[], mongoCalls: unknown[][]) {
-  const ctx: Record<string, any> = {
+  const context = {
     MessageFlags: { Ephemeral: 64 },
     logger: () => undefined,
     DEFAULT_CURRENCY: "USD",
@@ -22,13 +27,13 @@ function makeCtx(replies: unknown[], mongoCalls: unknown[][]) {
     safeDefer: async () => undefined,
     safeEdit: async (_interaction: unknown, payload: unknown) => { replies.push(payload); return payload; },
     formatUserError: (_err: unknown, fallback: string) => fallback,
-    handleInteraction: async () => {  }
+    handleInteraction: async (_interaction?: unknown, _games?: Array<Record<string, unknown>>) => {  }
   };
 
-  installGameFilterHandlers(ctx);
-  installRolePingHandlers(ctx);
-  installSetHandler(ctx);
-  return ctx;
+  installGameFilterHandlers(context);
+  installRolePingHandlers(context);
+  installSetHandler(context);
+  return context as typeof context & InteractionRuntime;
 }
 
 function makeSetInteraction(opts: {
@@ -57,9 +62,9 @@ function makeSetInteraction(opts: {
 test("/set with unknown sub returns an error instead of writing empty $set", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx = makeCtx(replies, mongoCalls);
+  const context = makeCtx(replies, mongoCalls);
 
-  await ctx.handleInteraction(
+  await context.handleInteraction(
     makeSetInteraction({ group: null, sub: "future-feature" }),
     []
   );
@@ -74,9 +79,9 @@ test("/set with unknown sub returns an error instead of writing empty $set", asy
 test("/set games with unknown sub replies to the user instead of leaving the interaction hanging", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx = makeCtx(replies, mongoCalls);
+  const context = makeCtx(replies, mongoCalls);
 
-  await ctx.handleInteraction(
+  await context.handleInteraction(
     makeSetInteraction({
       group: "games",
       sub: "experimental",
@@ -95,9 +100,9 @@ test("/set games with unknown sub replies to the user instead of leaving the int
 test("/set role with unknown sub does not silently target discountRoleId", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx = makeCtx(replies, mongoCalls);
+  const context = makeCtx(replies, mongoCalls);
 
-  await ctx.handleInteraction(
+  await context.handleInteraction(
     makeSetInteraction({
       group: "role",
       sub: "alerts",
@@ -116,9 +121,9 @@ test("/set role with unknown sub does not silently target discountRoleId", async
 test("/set role with known sub still works (regression for the new guard)", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx = makeCtx(replies, mongoCalls);
+  const context = makeCtx(replies, mongoCalls);
 
-  await ctx.handleInteraction(
+  await context.handleInteraction(
     makeSetInteraction({
       group: "role",
       sub: "updates",
@@ -128,7 +133,7 @@ test("/set role with known sub still works (regression for the new guard)", asyn
   );
 
   assert.equal(mongoCalls.length, 1, "set role updates must still write");
-  const [filter, update] = mongoCalls[0] as [Record<string, unknown>, Record<string, any>];
+  const [filter, update] = mongoCalls[0] as [Record<string, unknown>, SetUpdate];
   assert.deepEqual(filter, { _id: "guild-1" });
   assert.equal(update.$set.notificationRoleId, "role-42");
   assert.match(String(replies[0]), /Rol pentru update-uri:/);
@@ -137,9 +142,9 @@ test("/set role with known sub still works (regression for the new guard)", asyn
 test("/set mode rejects null/unknown values instead of persisting null", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx = makeCtx(replies, mongoCalls);
+  const context = makeCtx(replies, mongoCalls);
 
-  await ctx.handleInteraction(
+  await context.handleInteraction(
     makeSetInteraction({ group: null, sub: "mode", optionGetter: () => null }),
     []
   );
@@ -147,7 +152,7 @@ test("/set mode rejects null/unknown values instead of persisting null", async (
   assert.match(String(replies[0]), /accepta doar `compact` sau `detailed`/);
 
   replies.length = 0;
-  await ctx.handleInteraction(
+  await context.handleInteraction(
     makeSetInteraction({ group: null, sub: "mode", optionGetter: () => "future-mode" }),
     []
   );
@@ -158,11 +163,11 @@ test("/set mode rejects null/unknown values instead of persisting null", async (
 test("/set mindiscount rejects null and out-of-range integers", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx = makeCtx(replies, mongoCalls);
+  const context = makeCtx(replies, mongoCalls);
 
   for (const value of [null, -1, 101, NaN]) {
     replies.length = 0;
-    await ctx.handleInteraction(
+    await context.handleInteraction(
       makeSetInteraction({ group: null, sub: "mindiscount", optionGetter: () => value }),
       []
     );
@@ -170,7 +175,7 @@ test("/set mindiscount rejects null and out-of-range integers", async () => {
   }
   assert.equal(mongoCalls.length, 0, "no write on invalid mindiscount");
 
-  await ctx.handleInteraction(
+  await context.handleInteraction(
     makeSetInteraction({ group: null, sub: "mindiscount", optionGetter: () => 50 }),
     []
   );
@@ -180,11 +185,11 @@ test("/set mindiscount rejects null and out-of-range integers", async () => {
 test("/set maxprice rejects null and out-of-range integers", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx = makeCtx(replies, mongoCalls);
+  const context = makeCtx(replies, mongoCalls);
 
   for (const value of [null, -5, 10001]) {
     replies.length = 0;
-    await ctx.handleInteraction(
+    await context.handleInteraction(
       makeSetInteraction({ group: null, sub: "maxprice", optionGetter: () => value }),
       []
     );
@@ -196,11 +201,11 @@ test("/set maxprice rejects null and out-of-range integers", async () => {
 test("/set currency rejects null and unsupported codes", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx = makeCtx(replies, mongoCalls);
+  const context = makeCtx(replies, mongoCalls);
 
   for (const value of [null, "", "XYZ", "usd"]) {
     replies.length = 0;
-    await ctx.handleInteraction(
+    await context.handleInteraction(
       makeSetInteraction({ group: null, sub: "currency", optionGetter: () => value }),
       []
     );
@@ -208,11 +213,11 @@ test("/set currency rejects null and unsupported codes", async () => {
   }
   assert.equal(mongoCalls.length, 0, "no write on invalid currency");
 
-  await ctx.handleInteraction(
+  await context.handleInteraction(
     makeSetInteraction({ group: null, sub: "currency", optionGetter: () => "EUR" }),
     []
   );
   assert.equal(mongoCalls.length, 1, "currency=EUR trebuie persistat");
-  const [, update] = mongoCalls[0] as [unknown, Record<string, any>];
+  const [, update] = mongoCalls[0] as [unknown, SetUpdate];
   assert.equal(update.$set.currency, "EUR");
 });

@@ -2,9 +2,24 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const attachAdminAlerts = require("../infra/mongo/adminAlerts") as
-  (ctx: Record<string, any>) => void;
+  (target: AdminAlertsTarget) => void;
 
 type CooldownDoc = { _id: string; lastSentAt: Date };
+type CooldownFilter = { _id: string; lastSentAt?: { $lte: Date } };
+type CooldownUpdate = { $set: { lastSentAt: Date } };
+type AdminAlertsRuntime = {
+  adminAlert: (kind: string, title: string, body: unknown) => Promise<void>;
+};
+type AdminAlertsTarget = {
+  env: { ADMIN_WEBHOOK_URL: string; ADMIN_ALERT_COOLDOWN_MS: number };
+  AdminAlertCooldownModel: {
+    findOneAndUpdate: (filter: CooldownFilter, update: CooldownUpdate) => Promise<CooldownDoc | null>;
+    create: (doc: CooldownDoc) => Promise<CooldownDoc>;
+    updateOne: (filter: Pick<CooldownDoc, "_id">, update: CooldownUpdate) => Promise<{ matchedCount: number; modifiedCount: number }>;
+  };
+  axios: { post: (url: string, payload: unknown) => Promise<{ status: number }> };
+  logger: (level: string, context: string, msg: string) => void;
+} & Partial<AdminAlertsRuntime>;
 
 function makeAdminAlertsCtx(opts: {
   axiosPostFails?: boolean;
@@ -13,12 +28,12 @@ function makeAdminAlertsCtx(opts: {
   const updates: Array<{ filter: Record<string, unknown>; update: Record<string, unknown> }> = [];
   const creates: CooldownDoc[] = [];
   const posts: Array<{ url: string; payload: unknown }> = [];
-  const logs: Array<{ level: string; ctx: string; msg: string }> = [];
+  const logs: Array<{ level: string; context: string; msg: string }> = [];
 
   let cooldownState: CooldownDoc | null = opts.initialCooldown || null;
 
   const AdminAlertCooldownModel = {
-    async findOneAndUpdate(filter: Record<string, any>, update: Record<string, any>) {
+    async findOneAndUpdate(filter: CooldownFilter, update: CooldownUpdate) {
 
       if (cooldownState && cooldownState._id === filter._id) {
         const threshold = filter.lastSentAt?.$lte;
@@ -41,7 +56,7 @@ function makeAdminAlertsCtx(opts: {
       creates.push({ ...doc });
       return doc;
     },
-    async updateOne(filter: Record<string, any>, update: Record<string, any>) {
+    async updateOne(filter: Pick<CooldownDoc, "_id">, update: CooldownUpdate) {
       updates.push({ filter, update });
       if (cooldownState && cooldownState._id === filter._id) {
         cooldownState = { ...cooldownState, lastSentAt: update.$set.lastSentAt };
@@ -60,15 +75,16 @@ function makeAdminAlertsCtx(opts: {
     }
   };
 
-  const ctx: Record<string, any> = {
+  const target: AdminAlertsTarget = {
     env: { ADMIN_WEBHOOK_URL: "https://discord.example/webhook", ADMIN_ALERT_COOLDOWN_MS: 60_000 },
     AdminAlertCooldownModel,
     axios,
-    logger: (level: string, c: string, msg: string) => { logs.push({ level, ctx: c, msg }); }
+    logger: (level: string, context: string, msg: string) => { logs.push({ level, context, msg }); }
   };
-  attachAdminAlerts(ctx);
+  attachAdminAlerts(target);
+  const runtime = target as AdminAlertsTarget & AdminAlertsRuntime;
   return {
-    adminAlert: ctx.adminAlert as (kind: string, title: string, body: unknown) => Promise<void>,
+    adminAlert: runtime.adminAlert,
     updates, creates, posts, logs,
     getCooldownState: () => cooldownState
   };
@@ -84,9 +100,9 @@ test("adminAlert resets cooldown when webhook POST fails (transient 5xx / timeou
 
   assert.equal(posts.length, 1, "webhook trebuie sa fie incercat");
 
-  const resetCall = updates.find(u => (u.update as any).$set?.lastSentAt?.getTime() === 0);
+  const resetCall = updates.find(u => (u.update as CooldownUpdate).$set.lastSentAt.getTime() === 0);
   assert.ok(resetCall, "cooldown trebuie resetat la epoch dupa webhook fail");
-  assert.equal((resetCall!.filter as any)._id, "cron:fatal");
+  assert.equal((resetCall!.filter as Pick<CooldownDoc, "_id">)._id, "cron:fatal");
 
   assert.ok(logs.some(l => l.level === "WARN" && /webhook/i.test(l.msg)),
     "trebuie sa loghez WARN pe esec webhook");
@@ -105,7 +121,7 @@ test("adminAlert does NOT reset cooldown when webhook succeeds", async () => {
   await adminAlert("boot:fatal", "Boot esuat", "config invalid");
 
   assert.equal(posts.length, 1);
-  const resetCall = updates.find(u => (u.update as any).$set?.lastSentAt?.getTime() === 0);
+  const resetCall = updates.find(u => (u.update as CooldownUpdate).$set.lastSentAt.getTime() === 0);
   assert.equal(resetCall, undefined, "pe success NU resetam cooldown-ul");
   const state = getCooldownState();
   assert.ok(state && state.lastSentAt.getTime() > 0,
@@ -113,7 +129,7 @@ test("adminAlert does NOT reset cooldown when webhook succeeds", async () => {
 });
 
 test("adminAlert skip when ADMIN_WEBHOOK_URL is empty", async () => {
-  const ctx: Record<string, any> = {
+  const target: AdminAlertsTarget = {
     env: { ADMIN_WEBHOOK_URL: "", ADMIN_ALERT_COOLDOWN_MS: 60_000 },
     AdminAlertCooldownModel: {
       findOneAndUpdate: async () => { throw new Error("trebuie sa nu fie apelat"); },
@@ -123,7 +139,8 @@ test("adminAlert skip when ADMIN_WEBHOOK_URL is empty", async () => {
     axios: { post: async () => { throw new Error("trebuie sa nu fie apelat"); } },
     logger: () => undefined
   };
-  attachAdminAlerts(ctx);
+  attachAdminAlerts(target);
+  const runtime = target as AdminAlertsTarget & AdminAlertsRuntime;
 
-  await ctx.adminAlert("any", "any", "any");
+  await runtime.adminAlert("test", "test", "test");
 });

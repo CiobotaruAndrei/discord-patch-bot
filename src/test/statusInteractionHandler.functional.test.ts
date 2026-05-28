@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-type StatusModule = ((ctx: Record<string, any>) => void) & {
-  createStatusInteractionHandler: (deps: Record<string, any>) => {
-    handleStatusInteraction: (interaction: Record<string, any>, games: Array<Record<string, any>>) => Promise<unknown>;
+type StatusModule = ((context: Record<string, unknown>) => void) & {
+  createStatusInteractionHandler: (deps: Record<string, unknown>) => {
+    handleStatusInteraction: (interaction: Record<string, unknown>, games: Array<Record<string, unknown>>) => Promise<unknown>;
   };
 };
 
@@ -29,26 +29,29 @@ function makeStatusInteraction(gameText: string | null = "cs2") {
 
 type GameLike = { key: string; name: string };
 type FindGameResult = { game: GameLike | null; suggestion: GameLike | null };
+type InteractionRuntime = {
+  handleInteraction: (interaction: unknown, games?: GameLike[]) => Promise<unknown>;
+};
 type StatusDeps = {
   MessageFlags: { Ephemeral: number };
-  logger: (level: string, ctx: string, msg?: string, meta?: unknown) => void;
-  enforceCooldown: (interaction: Record<string, any>, command: string) => Promise<boolean>;
-  startCommandLog: (interaction: Record<string, any>, command: string) => (status?: string, extra?: unknown) => void;
-  safeDefer: (interaction: Record<string, any>) => Promise<void>;
-  safeEdit: (interaction: Record<string, any>, payload: unknown) => Promise<unknown>;
+  logger: (level: string, context: string, msg?: string, meta?: unknown) => void;
+  enforceCooldown: (interaction: Record<string, unknown>, command: string) => Promise<boolean>;
+  startCommandLog: (interaction: Record<string, unknown>, command: string) => (status?: string, extra?: unknown) => void;
+  safeDefer: (interaction: Record<string, unknown>) => Promise<void>;
+  safeEdit: (interaction: Record<string, unknown>, payload: unknown) => Promise<unknown>;
   findGameAndSuggestion: (text: unknown, games: GameLike[]) => FindGameResult;
   fetchGameStatus: (game: GameLike) => Promise<unknown>;
 };
 
-function makeBaseDeps(replies: unknown[], logs: Array<{ level: string; ctx: string }>) {
+function makeBaseDeps(replies: unknown[], logs: Array<{ level: string; context: string }>) {
   let endCalls = 0;
   const deps: StatusDeps = {
     MessageFlags: { Ephemeral: 64 },
-    logger: (level: string, ctx: string) => { logs.push({ level, ctx }); },
+    logger: (level: string, context: string) => { logs.push({ level, context }); },
     enforceCooldown: async () => true,
     startCommandLog: () => () => { endCalls++; },
     safeDefer: async () => undefined,
-    safeEdit: async (_interaction: Record<string, any>, payload: unknown) => { replies.push(payload); return payload; },
+    safeEdit: async (_interaction: Record<string, unknown>, payload: unknown) => { replies.push(payload); return payload; },
     findGameAndSuggestion: (text: unknown, games: GameLike[]) => {
       const game = games.find((g) => g.key === String(text || ""));
       return { game: game || null, suggestion: null };
@@ -60,7 +63,7 @@ function makeBaseDeps(replies: unknown[], logs: Array<{ level: string; ctx: stri
 
 test("status handler factory replies with embed for a known game", async () => {
   const { interaction, replies } = makeStatusInteraction("cs2");
-  const logs: Array<{ level: string; ctx: string }> = [];
+  const logs: Array<{ level: string; context: string }> = [];
   const { deps } = makeBaseDeps(replies, logs);
   const handlers = statusHandler.createStatusInteractionHandler(deps);
   const games = [{ key: "cs2", name: "Counter-Strike 2" }];
@@ -72,9 +75,9 @@ test("status handler factory replies with embed for a known game", async () => {
   assert.deepEqual(last.embeds, [{ title: "Status" }]);
 });
 
-test("status handler factory rejects empty gameText with ephemeral reply BEFORE any cooldown/log/defer", async () => {
+test("status handler factory rejects empty gameText with ephemeral reply before cooldown/log/defer", async () => {
   const { interaction, replies } = makeStatusInteraction(null);
-  const logs: Array<{ level: string; ctx: string }> = [];
+  const logs: Array<{ level: string; context: string }> = [];
   const { deps, endCalls } = makeBaseDeps(replies, logs);
   let cooldownCalled = false;
   let deferCalled = false;
@@ -86,14 +89,14 @@ test("status handler factory rejects empty gameText with ephemeral reply BEFORE 
 
   assert.equal(cooldownCalled, false, "cooldown must NOT run for empty gameText");
   assert.equal(deferCalled, false, "safeDefer must NOT run for empty gameText");
-  assert.equal(endCalls(), 0, "startCommandLog must NOT produce any endLog");
+  assert.equal(endCalls(), 0, "startCommandLog must NOT produce an endLog");
   assert.equal(replies.length, 1);
   assert.match(String((replies[0] as { content?: string }).content), /Trebuie sa specifici un joc/);
 });
 
 test("status handler factory surfaces suggestion when game not found", async () => {
   const { interaction, replies } = makeStatusInteraction("starcraf");
-  const logs: Array<{ level: string; ctx: string }> = [];
+  const logs: Array<{ level: string; context: string }> = [];
   const { deps } = makeBaseDeps(replies, logs);
   deps.findGameAndSuggestion = () => ({
     game: null,
@@ -110,20 +113,21 @@ test("status handler factory surfaces suggestion when game not found", async () 
 
 test("status installer intercepts only /status and delegates everything else", async () => {
   const { interaction, replies } = makeStatusInteraction("cs2");
-  const logs: Array<{ level: string; ctx: string }> = [];
+  const logs: Array<{ level: string; context: string }> = [];
   const { deps } = makeBaseDeps(replies, logs);
   const delegated: string[] = [];
-  const ctx: Record<string, any> = {
+  const context = {
     ...deps,
-    handleInteraction: async (handled: Record<string, any>) => {
+    handleInteraction: async (handled: { commandName: string }) => {
       delegated.push(handled.commandName);
       return "delegated";
     }
   };
 
-  statusHandler(ctx);
-  await ctx.handleInteraction(interaction, [{ key: "cs2", name: "Counter-Strike 2" }]);
-  const result = await ctx.handleInteraction({
+  statusHandler(context);
+  const runtime = context as typeof context & InteractionRuntime;
+  await runtime.handleInteraction(interaction, [{ key: "cs2", name: "Counter-Strike 2" }]);
+  const result = await runtime.handleInteraction({
     commandName: "latest",
     guild: { id: "guild-1" },
     isChatInputCommand: () => true,

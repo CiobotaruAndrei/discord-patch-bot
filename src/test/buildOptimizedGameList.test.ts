@@ -10,7 +10,10 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { buildOptimizedGameList } = require("../features/command-registry/commandRegistry");
 
-const allGames = [
+type TestGame = { key: string; name: string; type: string; appId?: string };
+type TestGuild = { _id: string; subscribed: boolean; notificationChannelId: string; enabledGames: string[] };
+
+const allGames: TestGame[] = [
   { key: "cs2", name: "CS2", type: "steam", appId: "730" },
   { key: "minecraft", name: "Minecraft", type: "minecraft" },
   { key: "fortnite", name: "Fortnite", type: "epic_games" },
@@ -18,7 +21,7 @@ const allGames = [
   { key: "nvidiagr", name: "NVIDIA", type: "nvidia" }
 ];
 
-function guild(overrides = {}) {
+function guild(overrides: Partial<TestGuild> = {}): TestGuild {
   return {
     _id: "g1",
     subscribed: true,
@@ -43,7 +46,7 @@ test("un guild cu filtru de 2 jocuri include doar acele jocuri", () => {
     guild({ _id: "g1", enabledGames: ["cs2", "minecraft"] })
   ]);
   assert.equal(result.length, 2);
-  assert.deepEqual(result.map((g: any) => g.key).sort(), ["cs2", "minecraft"]);
+  assert.deepEqual(result.map((game: TestGame) => game.key).sort(), ["cs2", "minecraft"]);
 });
 
 test("doua guild-uri cu filtre disjuncte produc uniune", () => {
@@ -52,7 +55,7 @@ test("doua guild-uri cu filtre disjuncte produc uniune", () => {
     guild({ _id: "g2", enabledGames: ["minecraft", "fortnite"] })
   ]);
   assert.equal(result.length, 3);
-  assert.deepEqual(result.map((g: any) => g.key).sort(), ["cs2", "fortnite", "minecraft"]);
+  assert.deepEqual(result.map((game: TestGame) => game.key).sort(), ["cs2", "fortnite", "minecraft"]);
 });
 
 test("daca un guild are filtru gol, toate jocurile raman incluse", () => {
@@ -75,7 +78,7 @@ test("cheile sunt tratate case-insensitive", () => {
     guild({ _id: "g1", enabledGames: ["CS2", "MINECRAFT"] })
   ]);
   assert.equal(result.length, 2);
-  assert.deepEqual(result.map((g: any) => g.key).sort(), ["cs2", "minecraft"]);
+  assert.deepEqual(result.map((game: TestGame) => game.key).sort(), ["cs2", "minecraft"]);
 });
 
 export {};

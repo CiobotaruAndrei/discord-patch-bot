@@ -26,6 +26,11 @@ interface FakeMigrationOverrides {
   acquireDbLock?: () => Promise<string | null>;
 }
 
+interface MigrationRuntime {
+  runMigrations: (logger: (level: string, context: string, message: string) => void) => Promise<{ applied: number[]; skipped: number }>;
+  ALL_MIGRATIONS: Array<{ id: number; name: string }>;
+}
+
 function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
   const updateManyCalls: UpdateManyCall[] = [];
   const releaseCalls: Array<{ name: string; token: string }> = [];
@@ -89,23 +94,24 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
     }
   };
 
-  const ctx: any = {
+  const context = {
     mongoose: { connection },
     acquireDbLock: overrides.acquireDbLock || (async () => "migration-lock-token"),
     releaseDbLock: async (name: string, token: string) => {
       releaseCalls.push({ name, token });
     }
-  };
+  } as unknown as Parameters<typeof attachMigrations>[0] & Partial<MigrationRuntime>;
 
-  attachMigrations(ctx);
-  return { ctx, guilds, get migrationState() { return migrationState; }, updateManyCalls, releaseCalls };
+  attachMigrations(context);
+  const runtime = context as Parameters<typeof attachMigrations>[0] & MigrationRuntime;
+  return { context: runtime, guilds, get migrationState() { return migrationState; }, updateManyCalls, releaseCalls };
 }
 
 test("Mongo migrations apply pending migrations and release the lock", async () => {
   const fixture = createFakeMigrationContext();
   const logs: Array<{ level: string; context: string; message: string }> = [];
 
-  const result = await fixture.ctx.runMigrations((level: string, context: string, message: string) => {
+  const result = await fixture.context.runMigrations((level: string, context: string, message: string) => {
     logs.push({ level, context, message });
   });
 
@@ -130,10 +136,10 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
 test("Mongo migrations skip safely when another instance holds the lock", async () => {
   const fixture = createFakeMigrationContext({ acquireDbLock: async () => null });
 
-  const result = await fixture.ctx.runMigrations(() => null);
+  const result = await fixture.context.runMigrations(() => null);
 
   assert.deepEqual(result.applied, []);
-  assert.equal(result.skipped, fixture.ctx.ALL_MIGRATIONS.length);
+  assert.equal(result.skipped, fixture.context.ALL_MIGRATIONS.length);
   assert.equal(fixture.releaseCalls.length, 0);
   assert.equal(fixture.migrationState, null);
 });

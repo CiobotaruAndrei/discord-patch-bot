@@ -1,13 +1,25 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { SystemTimes } from "../types";
 
-const attachSystemState = require("../infra/mongo/systemState") as (ctx: any) => void;
+const attachSystemState = require("../infra/mongo/systemState") as (target: SystemStateTarget) => void;
 
-function makeCtx() {
-  const writes: Array<Record<string, any>> = [];
-  const ctx: any = {
+type SystemTimesKey = keyof SystemTimes;
+type SystemUpdate = { $set: Record<string, number | SystemTimes> };
+type SaveSystemTime = (key: SystemTimesKey, value: number) => Promise<void>;
+type SystemStateRuntime = { saveSystemTime: SaveSystemTime };
+type SystemStateTarget = {
+  SystemModel: {
+    findByIdAndUpdate: (_id: string, update: SystemUpdate) => Promise<null>;
+    findOneAndUpdate: () => { lean: () => Promise<{ _id: string; executionTimes: SystemTimes }> };
+  };
+} & Partial<SystemStateRuntime>;
+
+function makeTarget() {
+  const writes: SystemUpdate[] = [];
+  const target: SystemStateTarget = {
     SystemModel: {
-      findByIdAndUpdate(_id: string, update: Record<string, any>) {
+      findByIdAndUpdate(_id: string, update: SystemUpdate) {
         writes.push(update);
         return Promise.resolve(null);
       },
@@ -17,14 +29,15 @@ function makeCtx() {
       }
     }
   };
-  attachSystemState(ctx);
-  return { ctx, writes };
+  attachSystemState(target);
+  const runtime = target as SystemStateTarget & SystemStateRuntime;
+  return { runtime, writes };
 }
 
 test("saveSystemTime writes a single dot-path field, not the whole executionTimes object", async () => {
-  const { ctx, writes } = makeCtx();
+  const { runtime, writes } = makeTarget();
 
-  await ctx.saveSystemTime("single", 4321);
+  await runtime.saveSystemTime("single", 4321);
 
   assert.equal(writes.length, 1);
   const setDoc = writes[0].$set;
@@ -37,24 +50,24 @@ test("saveSystemTime writes a single dot-path field, not the whole executionTime
 });
 
 test("saveSystemTime ignores unknown keys and non-positive numbers", async () => {
-  const { ctx, writes } = makeCtx();
+  const { runtime, writes } = makeTarget();
 
-  await ctx.saveSystemTime("bogus" as any, 100);
-  await ctx.saveSystemTime("single", 0);
-  await ctx.saveSystemTime("single", -10);
-  await ctx.saveSystemTime("single", Number.NaN);
-  await ctx.saveSystemTime("single", Number.POSITIVE_INFINITY);
+  await (runtime.saveSystemTime as (key: string, value: number) => Promise<void>)("bogus", 100);
+  await runtime.saveSystemTime("single", 0);
+  await runtime.saveSystemTime("single", -10);
+  await runtime.saveSystemTime("single", Number.NaN);
+  await runtime.saveSystemTime("single", Number.POSITIVE_INFINITY);
 
   assert.equal(writes.length, 0,
     "invalid key or non-positive/non-finite value must not produce a Mongo write");
 });
 
 test("saveSystemTime accepts the three real keys", async () => {
-  const { ctx, writes } = makeCtx();
+  const { runtime, writes } = makeTarget();
 
-  await ctx.saveSystemTime("all", 35000);
-  await ctx.saveSystemTime("single", 2000);
-  await ctx.saveSystemTime("reduceri", 10000);
+  await runtime.saveSystemTime("all", 35000);
+  await runtime.saveSystemTime("single", 2000);
+  await runtime.saveSystemTime("reduceri", 10000);
 
   assert.equal(writes.length, 3);
   assert.equal(writes[0].$set["executionTimes.all"], 35000);

@@ -2,17 +2,33 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const attachLocks = require("../infra/mongo/locks") as
-  (ctx: Record<string, any>) => void;
+  (target: LocksTarget) => void;
+
+type LockQuery = { _id: string };
+type LockUpdate = { $set: { lockedUntil: Date; ownerToken: string } };
+type LockRuntime = {
+  acquireDbLock: (jobName: string, ttlMs?: number) => Promise<string | null>;
+  activeLocks: Map<string, string>;
+};
+type LocksTarget = {
+  crypto: { randomUUID: () => string };
+  JobLockModel: {
+    findOneAndUpdate: (filter: LockQuery, update: LockUpdate) => Promise<{ _id: string; lockedUntil: Date; ownerToken: string }>;
+    deleteOne: () => Promise<{ deletedCount: number }>;
+    updateOne: () => Promise<{ matchedCount: number; modifiedCount: number }>;
+  };
+  logger: (level: string, context: string, msg: string) => void;
+} & Partial<LockRuntime>;
 
 function makeLocksCtx(opts: {
   findOneAndUpdateBehavior: "ok" | "throw-duplicate" | "throw-other";
   ownerTokenInDoc?: string;
 }) {
   const findCalls: Array<{ filter: unknown; update: unknown }> = [];
-  const logs: Array<{ level: string; ctx: string; msg: string }> = [];
+  const logs: Array<{ level: string; context: string; msg: string }> = [];
 
   const JobLockModel = {
-    async findOneAndUpdate(filter: unknown, update: unknown) {
+    async findOneAndUpdate(filter: LockQuery, update: LockUpdate) {
       findCalls.push({ filter, update });
       if (opts.findOneAndUpdateBehavior === "throw-duplicate") {
         const err = new Error("E11000 duplicate key") as Error & { code: number };
@@ -24,9 +40,9 @@ function makeLocksCtx(opts: {
         err.code = 64;
         throw err;
       }
-      const setUpd = (update as any).$set;
+      const setUpd = update.$set;
       return {
-        _id: (filter as any)._id,
+        _id: filter._id,
         lockedUntil: setUpd.lockedUntil,
         ownerToken: opts.ownerTokenInDoc ?? setUpd.ownerToken
       };
@@ -35,15 +51,16 @@ function makeLocksCtx(opts: {
     async updateOne() { return { matchedCount: 1, modifiedCount: 1 }; }
   };
 
-  const ctx: Record<string, any> = {
+  const target: LocksTarget = {
     crypto: { randomUUID: () => "test-token-fixed" },
     JobLockModel,
-    logger: (level: string, c: string, msg: string) => { logs.push({ level, ctx: c, msg }); }
+    logger: (level: string, context: string, msg: string) => { logs.push({ level, context, msg }); }
   };
-  attachLocks(ctx);
+  attachLocks(target);
+  const runtime = target as LocksTarget & LockRuntime;
   return {
-    acquireDbLock: ctx.acquireDbLock as (jobName: string, ttlMs?: number) => Promise<string | null>,
-    activeLocks: ctx.activeLocks as Map<string, string>,
+    acquireDbLock: runtime.acquireDbLock,
+    activeLocks: runtime.activeLocks,
     findCalls, logs
   };
 }

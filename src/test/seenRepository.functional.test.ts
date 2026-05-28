@@ -3,6 +3,23 @@ import assert from "node:assert/strict";
 import { createSeenRepository } from "../features/notifications/seenRepository";
 
 type MongoCall = { filter: unknown; update: unknown; opts?: unknown };
+type SeenFilter = Record<string, unknown>;
+type SeenUpdate = {
+  $push?: Record<string, unknown>;
+  $pull?: Record<string, unknown>;
+  $set?: Record<string, unknown>;
+};
+type DisableErrorState = { message?: string; channelId?: string; at?: Date };
+type DisableUpdateSet = {
+  subscribed?: boolean;
+  notificationChannelId?: null;
+  updatesInitializing?: boolean;
+  updatesLastError?: DisableErrorState;
+  discountsSubscribed?: boolean;
+  discountChannelId?: null;
+  discountsInitializing?: boolean;
+  discountsLastError?: DisableErrorState;
+};
 
 function makeFakeDeps(opts?: { retriesRequested?: number[] }) {
   const calls: MongoCall[] = [];
@@ -23,7 +40,7 @@ function makeFakeDeps(opts?: { retriesRequested?: number[] }) {
   };
 
   const repo = createSeenRepository({
-    GuildModel: GuildModel as any,
+    GuildModel: GuildModel as Parameters<typeof createSeenRepository>[0]["GuildModel"],
     withMongoRetry,
     SEEN_PER_GAME_LIMIT: 20,
     DEALS_HISTORY_LIMIT: 300,
@@ -39,7 +56,7 @@ test("claimSeenUpdate runs under withMongoRetry with the correct atomic filter+u
   await repo.claimSeenUpdate("g1", "ch1", "cs2", "u-99");
 
   assert.equal(calls.length, 1);
-  const { filter, update } = calls[0] as { filter: Record<string, any>; update: Record<string, any> };
+  const { filter, update } = calls[0] as { filter: SeenFilter; update: SeenUpdate };
 
   assert.equal(filter._id, "g1");
   assert.equal(filter.subscribed, true);
@@ -58,7 +75,7 @@ test("rollbackSeenUpdate runs under withMongoRetry — critical to recover lost 
   await repo.rollbackSeenUpdate("g1", "cs2", "u-99");
 
   assert.equal(calls.length, 1);
-  const { filter, update } = calls[0] as { filter: Record<string, any>; update: Record<string, any> };
+  const { filter, update } = calls[0] as { filter: SeenFilter; update: SeenUpdate };
   assert.equal(filter._id, "g1");
   assert.deepEqual(update.$pull, { "seen.cs2": "u-99" });
   assert.equal(retryAttempts.length, 1, "rollback MUST be wrapped in withMongoRetry");
@@ -70,7 +87,7 @@ test("claimSeenDiscount runs under withMongoRetry with the correct atomic filter
   await repo.claimSeenDiscount("g1", "ch-d", "hash-abc");
 
   assert.equal(calls.length, 1);
-  const { filter, update } = calls[0] as { filter: Record<string, any>; update: Record<string, any> };
+  const { filter, update } = calls[0] as { filter: SeenFilter; update: SeenUpdate };
   assert.equal(filter._id, "g1");
   assert.equal(filter.discountsSubscribed, true);
   assert.equal(filter.discountChannelId, "ch-d");
@@ -86,7 +103,7 @@ test("rollbackSeenDiscount runs under withMongoRetry — symmetric guard against
   await repo.rollbackSeenDiscount("g1", "hash-abc");
 
   assert.equal(calls.length, 1);
-  const { filter, update } = calls[0] as { filter: Record<string, any>; update: Record<string, any> };
+  const { filter, update } = calls[0] as { filter: SeenFilter; update: SeenUpdate };
   assert.equal(filter._id, "g1");
   assert.deepEqual(update.$pull, { seenDiscounts: "hash-abc" });
   assert.equal(retryAttempts.length, 1);
@@ -99,13 +116,14 @@ test("disableUpdatesForChannelError writes the error metadata and clears subscri
   await repo.disableUpdatesForChannelError("g1", "ch1", "Missing Access");
 
   assert.equal(calls.length, 1);
-  const { update } = calls[0] as { update: Record<string, any> };
-  assert.equal(update.$set.subscribed, false);
-  assert.equal(update.$set.notificationChannelId, null);
-  assert.equal(update.$set.updatesInitializing, false);
-  assert.equal(update.$set.updatesLastError.message, "Missing Access");
-  assert.equal(update.$set.updatesLastError.channelId, "ch1");
-  assert.ok(update.$set.updatesLastError.at instanceof Date);
+  const { update } = calls[0] as { update: SeenUpdate };
+  const setDoc = update.$set as DisableUpdateSet;
+  assert.equal(setDoc.subscribed, false);
+  assert.equal(setDoc.notificationChannelId, null);
+  assert.equal(setDoc.updatesInitializing, false);
+  assert.equal(setDoc.updatesLastError?.message, "Missing Access");
+  assert.equal(setDoc.updatesLastError?.channelId, "ch1");
+  assert.ok(setDoc.updatesLastError?.at instanceof Date);
   assert.equal(retryAttempts.length, 0, "disable path does NOT need withMongoRetry");
 });
 
@@ -115,9 +133,10 @@ test("disableDiscountsForChannelError mirrors disableUpdatesForChannelError on t
   await repo.disableDiscountsForChannelError("g1", "ch-d", "Unknown Channel");
 
   assert.equal(calls.length, 1);
-  const { update } = calls[0] as { update: Record<string, any> };
-  assert.equal(update.$set.discountsSubscribed, false);
-  assert.equal(update.$set.discountChannelId, null);
-  assert.equal(update.$set.discountsInitializing, false);
-  assert.equal(update.$set.discountsLastError.message, "Unknown Channel");
+  const { update } = calls[0] as { update: SeenUpdate };
+  const setDoc = update.$set as DisableUpdateSet;
+  assert.equal(setDoc.discountsSubscribed, false);
+  assert.equal(setDoc.discountChannelId, null);
+  assert.equal(setDoc.discountsInitializing, false);
+  assert.equal(setDoc.discountsLastError?.message, "Unknown Channel");
 });

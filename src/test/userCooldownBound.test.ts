@@ -2,11 +2,24 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const attachCommandCache = require("../features/command-cache/commandCache") as {
-  createCommandCache: (ctx: Record<string, any>) => Record<string, any>;
+  createCommandCache: (target: CommandCacheTarget) => CommandCacheRuntime;
+};
+
+type CommandCacheRuntime = {
+  checkUserCooldown: (userId: string, command: string) => { allowed: boolean; remainingMs?: number };
+  cleanUserCooldowns: () => void;
+  getCacheSizes: () => { userCooldowns: number };
+};
+type CommandCacheTarget = {
+  crypto: { randomBytes: () => { toString: () => string } };
+  PermissionsBitField: { Flags: { SendMessages: number; EmbedLinks: number } };
+  logger: () => void;
+  DEFAULT_CURRENCY: string;
+  env: Record<string, number>;
 };
 
 function makeCache(cooldownMs: number) {
-  const ctx: Record<string, any> = {
+  const target: CommandCacheTarget = {
     crypto: { randomBytes: () => ({ toString: () => "00" }) },
     PermissionsBitField: { Flags: { SendMessages: 1, EmbedLinks: 2 } },
     logger: () => undefined,
@@ -23,7 +36,7 @@ function makeCache(cooldownMs: number) {
       USER_COMMAND_COOLDOWN_MS: cooldownMs, COLLECTOR_TIMEOUT_MS: 60_000
     }
   };
-  return attachCommandCache.createCommandCache(ctx);
+  return attachCommandCache.createCommandCache(target);
 }
 
 const THRESHOLD = 500;

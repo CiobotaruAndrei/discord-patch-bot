@@ -1,14 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-type GameFilterModule = ((ctx: Record<string, any>) => void) & {
-  createGameFilterInteractionHandlers: (deps: Record<string, any>) => {
-    handleSetGames: (interaction: Record<string, any>, games: Array<Record<string, any>>, sub: string, guildId: string) => Promise<unknown>;
-    handleSetGamesInteraction: (interaction: Record<string, any>, games: Array<Record<string, any>>) => Promise<unknown>;
+type GameFilterModule = ((context: Record<string, unknown>) => void) & {
+  createGameFilterInteractionHandlers: (deps: Record<string, unknown>) => {
+    handleSetGames: (interaction: Record<string, unknown>, games: Array<Record<string, unknown>>, sub: string, guildId: string) => Promise<unknown>;
+    handleSetGamesInteraction: (interaction: Record<string, unknown>, games: Array<Record<string, unknown>>) => Promise<unknown>;
   };
 };
 
 const gameFilterInteractions = require("../features/command-handlers/gameFilterHandlers") as GameFilterModule;
+
+type InteractionRuntime = {
+  handleInteraction: (interaction: unknown, games?: Array<Record<string, unknown>>) => Promise<unknown>;
+};
+type MongoCall = unknown[];
 
 const games = [
   { key: "cs2", name: "Counter-Strike 2" },
@@ -32,27 +37,27 @@ function makeSetGamesInteraction(sub: string, gameKey: string | null = "cs2") {
   };
 }
 
-function makeBaseContext(calls: any[], replies: any[]) {
+function makeBaseContext(calls: MongoCall[], replies: unknown[]) {
   return {
     MessageFlags: { Ephemeral: 64 },
     GuildModel: {
-      updateOne: async (...args: any[]) => {
+      updateOne: async (...args: unknown[]) => {
         calls.push(args);
         return { matchedCount: 1, modifiedCount: 1 };
       }
     },
-    logger: () => undefined,
+    logger: (_level: string, _context: string, ..._args: unknown[]) => undefined,
     getGuildSettings: async () => ({ enabledGames: ["cs2"] }),
     invalidateGuildCache: (guildId: string) => calls.push(["invalidate", guildId]),
-    safeDefer: async (interaction: Record<string, any>) => { interaction.deferred = true; },
+    safeDefer: async (interaction: Record<string, unknown>) => { interaction.deferred = true; },
     safeEdit: async (_interaction: unknown, payload: unknown) => { replies.push(payload); return payload; },
     formatUserError: (_err: unknown, fallback: string) => fallback
   };
 }
 
 test("game filter factory writes /set games add through explicit deps", async () => {
-  const calls: any[] = [];
-  const replies: any[] = [];
+  const calls: MongoCall[] = [];
+  const replies: unknown[] = [];
   const handlers = gameFilterInteractions.createGameFilterInteractionHandlers(makeBaseContext(calls, replies));
 
   await handlers.handleSetGames(makeSetGamesInteraction("add"), games, "add", "guild-1");
@@ -65,8 +70,8 @@ test("game filter factory writes /set games add through explicit deps", async ()
 });
 
 test("game filter allows /set games remove for stale keys not in current config", async () => {
-  const calls: any[] = [];
-  const replies: any[] = [];
+  const calls: MongoCall[] = [];
+  const replies: unknown[] = [];
   const handlers = gameFilterInteractions.createGameFilterInteractionHandlers(makeBaseContext(calls, replies));
 
   await handlers.handleSetGames(makeSetGamesInteraction("remove", "starcraft2"), games, "remove", "guild-1");
@@ -80,8 +85,8 @@ test("game filter allows /set games remove for stale keys not in current config"
 });
 
 test("game filter still rejects /set games add for unknown keys", async () => {
-  const calls: any[] = [];
-  const replies: any[] = [];
+  const calls: MongoCall[] = [];
+  const replies: unknown[] = [];
   const handlers = gameFilterInteractions.createGameFilterInteractionHandlers(makeBaseContext(calls, replies));
 
   await handlers.handleSetGames(makeSetGamesInteraction("add", "starcraft2"), games, "add", "guild-1");
@@ -92,16 +97,16 @@ test("game filter still rejects /set games add for unknown keys", async () => {
 
 test("game filter reports no-op when /set games remove finds nothing to pull", async () => {
 
-  const calls: any[] = [];
-  const replies: any[] = [];
-  const ctx = makeBaseContext(calls, replies);
-  ctx.GuildModel = {
-    updateOne: async (...args: any[]) => {
+  const calls: MongoCall[] = [];
+  const replies: unknown[] = [];
+  const context = makeBaseContext(calls, replies);
+  context.GuildModel = {
+    updateOne: async (...args: unknown[]) => {
       calls.push(args);
       return { matchedCount: 1, modifiedCount: 0 };
     }
   };
-  const handlers = gameFilterInteractions.createGameFilterInteractionHandlers(ctx);
+  const handlers = gameFilterInteractions.createGameFilterInteractionHandlers(context);
 
   await handlers.handleSetGames(makeSetGamesInteraction("remove", "cs2"), games, "remove", "guild-1");
 
@@ -109,33 +114,36 @@ test("game filter reports no-op when /set games remove finds nothing to pull", a
 });
 
 test("game filter rejects unknown sub-commands explicitly instead of leaving deferReply hanging", async () => {
-  const calls: any[] = [];
-  const replies: any[] = [];
-  const logs: any[] = [];
-  const ctx = makeBaseContext(calls, replies);
-  ctx.logger = (...args: any[]) => { logs.push(args); };
-  const handlers = gameFilterInteractions.createGameFilterInteractionHandlers(ctx);
+  const calls: MongoCall[] = [];
+  const replies: unknown[] = [];
+  const logs: Array<[string, string, ...unknown[]]> = [];
+  const context = makeBaseContext(calls, replies);
+  const loggingContext = context as typeof context & { logger: (...args: [string, string, ...unknown[]]) => void };
+  loggingContext.logger = (...args: [string, string, ...unknown[]]) => { logs.push(args); };
+  const handlers = gameFilterInteractions.createGameFilterInteractionHandlers(loggingContext);
 
   await handlers.handleSetGames(makeSetGamesInteraction("totally-unknown"), games, "totally-unknown", "guild-1");
 
   assert.equal(replies.length, 1, "must reply, not leave deferReply hanging");
   assert.match(String(replies[0]), /totally-unknown.*nu este recunoscuta/);
-  assert.ok(logs.some(([level, ctx]) => level === "WARN" && ctx === "SET_GAMES"));
+  assert.ok(logs.some(([level, context]) => level === "WARN" && context === "SET_GAMES"));
 });
 
 test("game filter installer intercepts only /set games commands", async () => {
-  const calls: any[] = [];
-  const replies: any[] = [];
+  const calls: MongoCall[] = [];
+  const replies: unknown[] = [];
   const delegated: string[] = [];
-  const ctx: Record<string, any> = makeBaseContext(calls, replies);
-  ctx.handleInteraction = async (interaction: Record<string, any>) => {
-    delegated.push(interaction.commandName);
+  const context = makeBaseContext(calls, replies);
+  const runtimeContext = context as typeof context & Partial<InteractionRuntime>;
+  runtimeContext.handleInteraction = async (interaction: unknown) => {
+    delegated.push((interaction as { commandName: string }).commandName);
     return "delegated";
   };
 
-  gameFilterInteractions(ctx);
-  await ctx.handleInteraction(makeSetGamesInteraction("remove", "fortnite"), games);
-  const result = await ctx.handleInteraction({
+  gameFilterInteractions(runtimeContext);
+  const runtime = runtimeContext as typeof context & InteractionRuntime;
+  await runtime.handleInteraction(makeSetGamesInteraction("remove", "fortnite"), games);
+  const result = await runtime.handleInteraction({
     commandName: "latest",
     guild: { id: "guild-1" },
     isChatInputCommand: () => true,

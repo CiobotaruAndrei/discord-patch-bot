@@ -1,25 +1,32 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { IncomingMessage } from "node:http";
+import type { BotMetrics, RuntimeEnv } from "../types";
 import { createRateLimiter, firstHeaderValue } from "../app/health/rateLimit";
 
+type CommandPresentation = {
+  buildDealEmbed: (...args: unknown[]) => unknown;
+  buildSteamPriceEmbed: (...args: unknown[]) => unknown;
+};
+type RecordingEmbed = Record<string, unknown> & { _state: Record<string, unknown> };
+
 const attachCommandUi = require("../features/command-presentation/commandPresentation") as {
-  createCommandPresentation: (ctx: Record<string, any>) => Record<string, any>;
+  createCommandPresentation: (context: Record<string, unknown>) => CommandPresentation;
 };
 
 function makeRecordingEmbed() {
   const state: Record<string, unknown> = {};
-  const embed: any = {};
+  const embed: RecordingEmbed = { _state: state };
   for (const m of ["setColor", "setTitle", "setFooter", "setURL", "setImage", "setThumbnail", "setTimestamp", "setAuthor", "addFields"]) {
     embed[m] = (...args: unknown[]) => { state[m] = args.length === 1 ? args[0] : args; return embed; };
   }
   embed.setDescription = (val: unknown) => { state.description = val; return embed; };
-  embed._state = state;
   return embed;
 }
 
 function makePresentationCtx() {
-  const embeds: any[] = [];
-  const ctx: Record<string, any> = {
+  const embeds: RecordingEmbed[] = [];
+  const context = {
     crypto: { randomBytes: () => ({ toString: () => "abcd1234" }) },
     EmbedBuilder: class { constructor() { const e = makeRecordingEmbed(); embeds.push(e); return e; } },
     ActionRowBuilder: class { addComponents() { return this; } },
@@ -40,7 +47,7 @@ function makePresentationCtx() {
     MAX_FUZZY_SEARCH_INPUT: 100,
     httpReq: async () => ({ data: {} })
   };
-  const ui = attachCommandUi.createCommandPresentation(ctx);
+  const ui = attachCommandUi.createCommandPresentation(context);
   return { ui, embeds };
 }
 
@@ -49,7 +56,7 @@ test("buildDealEmbed: savings undefined/null/NaN nu produce 'undefined%' sau 'Na
   for (const badSavings of [undefined, null, NaN, "abc"]) {
     embeds.length = 0;
     ui.buildDealEmbed(
-      { title: "Game", store: "Steam", salePrice: "10", normalPrice: "20", savings: badSavings, link: "https://x" } as any,
+      { title: "Game", store: "Steam", salePrice: "10", normalPrice: "20", savings: badSavings, link: "https://x" },
       "detailed",
       "USD"
     );
@@ -62,7 +69,7 @@ test("buildDealEmbed: savings undefined/null/NaN nu produce 'undefined%' sau 'Na
 test("buildDealEmbed: savings numeric valid se afiseaza rotunjit", () => {
   const { ui, embeds } = makePresentationCtx();
   ui.buildDealEmbed(
-    { title: "Game", store: "Steam", salePrice: "10", normalPrice: "20", savings: 49.7, qualityScore: 92.4, totalReviews: 1500, link: "https://x" } as any,
+    { title: "Game", store: "Steam", salePrice: "10", normalPrice: "20", savings: 49.7, qualityScore: 92.4, totalReviews: 1500, link: "https://x" },
     "detailed",
     "USD"
   );
@@ -75,7 +82,7 @@ test("buildDealEmbed: savings numeric valid se afiseaza rotunjit", () => {
 test("buildDealEmbed: qualityScore string nu produce 'NaN% aprecieri'", () => {
   const { ui, embeds } = makePresentationCtx();
   ui.buildDealEmbed(
-    { title: "Game", store: "Steam", salePrice: "10", normalPrice: "20", savings: 50, qualityScore: "bogus", totalReviews: "bad", link: "https://x" } as any,
+    { title: "Game", store: "Steam", salePrice: "10", normalPrice: "20", savings: 50, qualityScore: "bogus", totalReviews: "bad", link: "https://x" },
     "detailed",
     "USD"
   );
@@ -88,7 +95,7 @@ test("buildDealEmbed: qualityScore string nu produce 'NaN% aprecieri'", () => {
 test("buildSteamPriceEmbed: price_overview cu initial/final lipsa → 'Pretul nu este disponibil'", () => {
   const { ui, embeds } = makePresentationCtx();
   ui.buildSteamPriceEmbed(
-    { type: "game", name: "Demo", is_free: false, price_overview: { discount_percent: 50 } as any },
+    { type: "game", name: "Demo", is_free: false, price_overview: { discount_percent: 50 } },
     "100",
     null,
     "USD"
@@ -101,7 +108,7 @@ test("buildSteamPriceEmbed: price_overview cu initial/final lipsa → 'Pretul nu
 test("buildSteamPriceEmbed: discount_percent lipsa dar final < initial → derivat din preturi", () => {
   const { ui, embeds } = makePresentationCtx();
   ui.buildSteamPriceEmbed(
-    { type: "game", name: "Demo", is_free: false, price_overview: { initial: 2000, final: 1000 } as any },
+    { type: "game", name: "Demo", is_free: false, price_overview: { initial: 2000, final: 1000 } },
     "100",
     null,
     "USD"
@@ -127,12 +134,12 @@ function makeReq(opts: { xff?: string | string[]; remote?: string }) {
   return {
     headers: opts.xff !== undefined ? { "x-forwarded-for": opts.xff } : {},
     socket: { remoteAddress: opts.remote }
-  } as any;
+  } as unknown as IncomingMessage;
 }
 
 function makeRateLimiter(trustProxy: boolean) {
-  const env: any = { HTTP_RATE_LIMIT_REQ: 5, HTTP_RATE_LIMIT_WINDOW_MS: 60_000, TRUST_PROXY: trustProxy };
-  const metrics: any = { httpRateLimitDrops: 0 };
+  const env = { HTTP_RATE_LIMIT_REQ: 5, HTTP_RATE_LIMIT_WINDOW_MS: 60_000, TRUST_PROXY: trustProxy } as RuntimeEnv;
+  const metrics = { httpRateLimitDrops: 0 } as BotMetrics;
   return { rl: createRateLimiter(env, metrics), metrics };
 }
 

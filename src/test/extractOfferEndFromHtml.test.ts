@@ -88,50 +88,53 @@ test("limiteaza lungimea rezultatului fallback", () => {
 
 const attachSteam = require("../sources/steam");
 
+type SteamRuntime = { extractOfferEndFromHtml: (html: string) => string | null };
+type SteamTestTarget = Parameters<typeof attachSteam>[0] & Partial<SteamRuntime>;
+
 function makeSteamCtxWithThrowingCheerio() {
-  const ctx: Record<string, any> = {
+  const context = {
     logger: () => undefined,
     httpReq: async () => ({ data: {} }),
     getCurrencyConfig: () => ({ cc: "us" }),
     safeCheerioLoad: () => { throw new Error("cheerio refuses malformed HTML"); }
-  };
-  attachSteam(ctx);
-  return ctx;
+  } as unknown as SteamTestTarget;
+  attachSteam(context);
+  return context as Parameters<typeof attachSteam>[0] & SteamRuntime;
 }
 
 test("raw fallback matchuieste 'Sale ends' cand cheerio arunca", () => {
-  const ctx = makeSteamCtxWithThrowingCheerio();
+  const context = makeSteamCtxWithThrowingCheerio();
 
   const html = "<broken> Sale ends 12 Aug @ 5pm </broken>";
-  const result = ctx.extractOfferEndFromHtml(html);
+  const result = context.extractOfferEndFromHtml(html);
   assert.match(result || "", /12 Aug/);
 });
 
 test("raw fallback matchuieste 'Special promotion ends' cand cheerio arunca", () => {
-  const ctx = makeSteamCtxWithThrowingCheerio();
+  const context = makeSteamCtxWithThrowingCheerio();
   const html = "<broken> Special promotion ends 3 Mar </broken>";
-  const result = ctx.extractOfferEndFromHtml(html);
+  const result = context.extractOfferEndFromHtml(html);
   assert.match(result || "", /3 Mar/);
 });
 
 test("raw fallback matchuieste 'Daily Deal! Offer ends' cand cheerio arunca", () => {
-  const ctx = makeSteamCtxWithThrowingCheerio();
+  const context = makeSteamCtxWithThrowingCheerio();
   const html = "<broken> Daily Deal! Offer ends 25 Oct @ 7am </broken>";
-  const result = ctx.extractOfferEndFromHtml(html);
+  const result = context.extractOfferEndFromHtml(html);
   assert.match(result || "", /25 Oct/);
 });
 
 test("raw fallback inca matchuieste 'Offer ends' (regression guard pe path-ul vechi)", () => {
-  const ctx = makeSteamCtxWithThrowingCheerio();
+  const context = makeSteamCtxWithThrowingCheerio();
   const html = "<broken> Offer ends 30 Dec @ 10am </broken>";
-  const result = ctx.extractOfferEndFromHtml(html);
+  const result = context.extractOfferEndFromHtml(html);
   assert.match(result || "", /30 Dec/);
 });
 
 test("raw fallback returneaza null cand nimic nu matchuieste, chiar daca cheerio arunca", () => {
-  const ctx = makeSteamCtxWithThrowingCheerio();
+  const context = makeSteamCtxWithThrowingCheerio();
   const html = "<broken> nothing here </broken>";
-  const result = ctx.extractOfferEndFromHtml(html);
+  const result = context.extractOfferEndFromHtml(html);
   assert.equal(result, null);
 });
 

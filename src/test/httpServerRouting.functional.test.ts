@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { request as httpRequest } from "node:http";
 import { AddressInfo } from "node:net";
 import { createHttpServer } from "../app/health/httpServer";
+import type { RuntimeEnv } from "../types";
 
 interface ResponseSnapshot { status: number; body: string }
 
@@ -25,20 +26,20 @@ function startServer() {
   const deps = {
     mongoose: { connection: { readyState: 1 } },
     crypto: { timingSafeEqual: () => true },
-    env: { METRICS_PUBLIC: true, METRICS_TOKEN: "", isProd: false } as any,
+    env: { METRICS_PUBLIC: true, METRICS_TOKEN: "", isProd: false } as RuntimeEnv,
     client: { isReady: () => true },
     metrics: {
       startedAt: Date.now(), fetchSuccess: 1, fetchFail: 0, httpRetries: 0,
       rateLimitHits: 0, cronRuns: 0, cronErrors: 0, cronSkippedDueToLock: 0,
       cronAborted: 0, cronSkippedDueToHealth: 0, httpRateLimitDrops: 0
-    } as any,
+    },
     commands: {
       getCacheSizes: () => ({ single: 0, dlc: 0, updatesValid: true, dealsCurrenciesValid: 0, userCooldowns: 0 })
     },
     getGuildCacheSize: () => 0,
     scrapers: { getEnrichedCacheSize: () => 0 },
     activeLocks: { size: 0 },
-    rateLimiter: { check: () => true, retryAfterSeconds: 1, size: 0 } as any,
+    rateLimiter: { check: () => true, retryAfterSeconds: 1, size: 0, prune: () => undefined },
     cronController: null
   };
   const server = createHttpServer(deps);

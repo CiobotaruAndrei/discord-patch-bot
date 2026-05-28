@@ -1,21 +1,25 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as (ctx: Record<string, any>) => void;
-const installStatusHandler = require("../features/command-handlers/statusInteractionHandler") as (ctx: Record<string, any>) => void;
-const installSetHandler = require("../features/command-handlers/setInteractionHandler") as (ctx: Record<string, any>) => void;
+const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as (context: Record<string, unknown>) => void;
+const installStatusHandler = require("../features/command-handlers/statusInteractionHandler") as (context: Record<string, unknown>) => void;
+const installSetHandler = require("../features/command-handlers/setInteractionHandler") as (context: Record<string, unknown>) => void;
 
-function attachInteractions(ctx: Record<string, any>): void {
+function attachInteractions(context: Record<string, unknown>): void {
 
-  if (typeof ctx.handleInteraction !== "function") {
-    ctx.handleInteraction = async () => undefined;
+  if (typeof context.handleInteraction !== "function") {
+    context.handleInteraction = async () => undefined;
   }
-  installGameFilterHandlers(ctx);
-  installSetHandler(ctx);
-  installStatusHandler(ctx);
+  installGameFilterHandlers(context);
+  installSetHandler(context);
+  installStatusHandler(context);
 }
 
 type Game = { key: string; name: string };
+type InteractionRuntime = {
+  handleSetGames: (interaction: unknown, games: Game[], sub: string, guildId: string) => Promise<unknown>;
+  handleStatusInteraction: (interaction: unknown, games: Game[]) => Promise<unknown>;
+};
 
 function makeCtx(replies: unknown[], mongoCalls: unknown[][], modifiedCount = 1) {
   return {
@@ -75,7 +79,7 @@ function makeCtx(replies: unknown[], mongoCalls: unknown[][], modifiedCount = 1)
     chooseBestSteamMatch: () => null,
     fetchSteamPriceDetails: async () => null,
     extractSteamOfferEndDate: async () => null,
-    safeCheerioLoad: () => ({} as any),
+    safeCheerioLoad: () => ({}),
     getSystemTimes: async () => ({ all: 35000, single: 2000, reduceri: 10000 }),
     saveSystemTime: async () => undefined,
     saveSystemTimes: async () => undefined,
@@ -110,11 +114,11 @@ function makeSetGamesInteraction(sub: string, jocKey: string) {
 test("/set games remove accepts a stale key not in the current config", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx: any = makeCtx(replies, mongoCalls,  1);
-  attachInteractions(ctx);
+  const context = makeCtx(replies, mongoCalls,  1) as ReturnType<typeof makeCtx> & InteractionRuntime;
+  attachInteractions(context);
 
   const currentGames: Game[] = [{ key: "cs2", name: "Counter-Strike 2" }];
-  await ctx.handleSetGames(
+  await context.handleSetGames(
     makeSetGamesInteraction("remove", "old-removed-game"),
     currentGames,
     "remove",
@@ -123,7 +127,7 @@ test("/set games remove accepts a stale key not in the current config", async ()
 
   assert.equal(mongoCalls.length, 1,
     "the $pull must run even when the key is not in the current config");
-  const [filter, update] = mongoCalls[0] as [Record<string, unknown>, Record<string, any>];
+  const [filter, update] = mongoCalls[0] as [Record<string, unknown>, Record<string, unknown>];
   assert.deepEqual(filter, { _id: "guild-1" });
   assert.deepEqual(update.$pull, { enabledGames: "old-removed-game" });
   assert.match(String(replies[0]),
@@ -135,10 +139,10 @@ test("/set games remove reports 'nothing to remove' when key was not in enabledG
 
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx: any = makeCtx(replies, mongoCalls,  0);
-  attachInteractions(ctx);
+  const context = makeCtx(replies, mongoCalls,  0) as ReturnType<typeof makeCtx> & InteractionRuntime;
+  attachInteractions(context);
 
-  await ctx.handleSetGames(
+  await context.handleSetGames(
     makeSetGamesInteraction("remove", "cs2"),
     [{ key: "cs2", name: "Counter-Strike 2" }],
     "remove",
@@ -155,10 +159,10 @@ test("/set games add still rejects keys not in the current config", async () => 
 
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx: any = makeCtx(replies, mongoCalls);
-  attachInteractions(ctx);
+  const context = makeCtx(replies, mongoCalls) as ReturnType<typeof makeCtx> & InteractionRuntime;
+  attachInteractions(context);
 
-  await ctx.handleSetGames(
+  await context.handleSetGames(
     makeSetGamesInteraction("add", "no-such-game"),
     [{ key: "cs2", name: "Counter-Strike 2" }],
     "add",
@@ -171,29 +175,30 @@ test("/set games add still rejects keys not in the current config", async () => 
     "add should still produce the strict 'not in config' error");
 });
 
-test("/status with empty joc replies with a friendly error before doing any work", async () => {
+test("/status with empty joc replies with a friendly error before doing extra work", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx: any = makeCtx(replies, mongoCalls);
-  attachInteractions(ctx);
+  const context = makeCtx(replies, mongoCalls) as ReturnType<typeof makeCtx> & InteractionRuntime;
+  attachInteractions(context);
 
-  let directReplyPayload: any = null;
-  const interaction: any = {
+  let directReplyPayload: { content?: unknown } | null = null;
+  const interaction = {
     guild: { id: "guild-1" },
     options: {
       getString: () => null
     },
     deferred: false,
     replied: false,
-    reply: async (payload: any) => { directReplyPayload = payload; return payload; }
+    reply: async (payload: { content?: unknown }) => { directReplyPayload = payload; return payload; }
   };
 
-  await ctx.handleStatusInteraction(interaction, []);
+  await context.handleStatusInteraction(interaction, []);
 
   assert.equal(replies.length, 0,
     "we should NOT call safeEdit (no defer happened, no loading message)");
-  assert.ok(directReplyPayload, "expected a direct reply()");
-  assert.match(String(directReplyPayload.content),
+  const directReply = directReplyPayload as { content?: unknown } | null;
+  assert.ok(directReply, "expected a direct reply()");
+  assert.match(String(directReply?.content),
     /Trebuie sa specifici un joc/,
     "the reply should ask the user to specify a game");
 });
