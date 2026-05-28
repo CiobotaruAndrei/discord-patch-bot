@@ -200,12 +200,21 @@ function buildDealEmbed(deal: DealInfo, mode: NotificationMode = "detailed", cur
     embed.setDescription(`**${deal.store}** | ~~${formatPrice(deal.normalPrice, String(cur))}~~ -> **${isFree ? "GRATUIT" : formatPrice(deal.salePrice, String(cur))}**\n[Apasa aici pentru link](${deal.link})`);
     return embed;
   }
+  // V12: guard numeric pe savings/qualityScore/totalReviews. Inainte interpolam
+  // raw `${deal.savings}%` etc. — un snapshot replayat din pendingDiscounts (sau
+  // un deal cu schema drift) putea avea aceste campuri ca string/null/undefined,
+  // producand "reducere de **undefined%**" sau "NaN% aprecieri" vizibil in embed.
+  const qualityNum = Number(deal.qualityScore);
+  const reviewsNum = Number(deal.totalReviews);
+  const savingsNum = Number(deal.savings);
+  const savingsDisplay = Number.isFinite(savingsNum) ? Math.max(0, Math.round(savingsNum)) : 0;
   let statsStr = "";
-  if (Number(deal.qualityScore) > 0) {
-    statsStr = `**Calitate:** ${deal.qualityScore}% aprecieri | **Popularitate:** ${Number(deal.totalReviews) > 0 ? `${deal.totalReviews} recenzii` : "Top Seller"}\n\n`;
+  if (Number.isFinite(qualityNum) && qualityNum > 0) {
+    const popularity = Number.isFinite(reviewsNum) && reviewsNum > 0 ? `${reviewsNum} recenzii` : "Top Seller";
+    statsStr = `**Calitate:** ${Math.round(qualityNum)}% aprecieri | **Popularitate:** ${popularity}\n\n`;
   }
   embed.setAuthor({ name: truncate(deal.store, 256) })
-    .setDescription(truncate(`**${deal.store}** ofera o reducere de **${deal.savings}%**!\n\n`
+    .setDescription(truncate(`**${deal.store}** ofera o reducere de **${savingsDisplay}%**!\n\n`
       + statsStr + (deal.endDateStr && deal.endDateStr !== "Nespecificat"
         ? `**${isFree ? "Gratis pana la" : "Expira la"}:** ${deal.endDateStr}\n\n`
         : ""), 4096))
@@ -404,16 +413,31 @@ function buildSteamPriceEmbed(gameData: SteamAppDetails, appId: string | number,
   let embedDesc = `**Tip produs:** ${typeStr}\n\n`;
   let color = COLORS.DARK;
 
+  // V12: validare numerica pe campurile de pret. Steam intoarce uneori
+  // price_overview cu `initial`/`final` absente sau null (apps region-locked /
+  // ne-lansate), iar tipul SteamPriceOverview le declara required dar JSON-ul
+  // upstream e untyped la runtime. Inainte: `null/100 = 0` (pret fals 0.00),
+  // `undefined/100 = NaN`, iar `undefined > 0` era false → un item cu reducere
+  // aparea drept "nu este la reducere". Acum tratam non-finite ca pret
+  // indisponibil si derivam discount-ul din preturi cand `discount_percent`
+  // lipseste dar exista o diferenta reala.
+  const initialRaw = priceOverview ? Number(priceOverview.initial) : NaN;
+  const finalRaw = priceOverview ? Number(priceOverview.final) : NaN;
+  const pricesValid = Number.isFinite(initialRaw) && Number.isFinite(finalRaw);
   if (gameData.is_free) {
     embedDesc += "Acest titlu este in prezent **GRATUIT** (Free to Play).";
     color = COLORS.FREE;
-  } else if (!priceOverview) {
+  } else if (!priceOverview || !pricesValid) {
     embedDesc += "Pretul nu este disponibil in acest moment.";
   } else {
-    const normalPrice = (priceOverview.initial / 100).toFixed(2);
-    const currentPrice = (priceOverview.final / 100).toFixed(2);
-    if (priceOverview.discount_percent > 0) {
-      embedDesc += `Este o reducere activa de **${priceOverview.discount_percent}%**!\n\n~~${formatPrice(normalPrice, cur)}~~ -> **${formatPrice(currentPrice, cur)}**`;
+    const normalPrice = (initialRaw / 100).toFixed(2);
+    const currentPrice = (finalRaw / 100).toFixed(2);
+    const rawDiscount = Number(priceOverview.discount_percent);
+    const discountPct = Number.isFinite(rawDiscount) && rawDiscount > 0
+      ? rawDiscount
+      : (initialRaw > finalRaw ? Math.round(((initialRaw - finalRaw) / initialRaw) * 100) : 0);
+    if (discountPct > 0) {
+      embedDesc += `Este o reducere activa de **${discountPct}%**!\n\n~~${formatPrice(normalPrice, cur)}~~ -> **${formatPrice(currentPrice, cur)}**`;
       embedDesc += `\n**Oferta expira la:** ${offerEndDate || "Nespecificat"}`;
       color = COLORS.ERROR;
     } else {

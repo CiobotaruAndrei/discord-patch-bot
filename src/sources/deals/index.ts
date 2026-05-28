@@ -306,9 +306,22 @@ async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo
     for (let i = 0; i < steamSpecials.length; i++) {
       const item = steamSpecials[i];
       const revData = reviewsData[i];
-      const normalPrice = ((item.original_price || 0) / 100).toFixed(2);
-      const salePrice = ((item.final_price || 0) / 100).toFixed(2);
-      const savings = item.discount_percent || 0;
+      const originalCents = item.original_price || 0;
+      const finalCents = item.final_price || 0;
+      const normalPrice = (originalCents / 100).toFixed(2);
+      const salePrice = (finalCents / 100).toFixed(2);
+      // V12: cand Steam intoarce discount_percent=0 dar pretul final e sub cel
+      // original (frecvent la bundle-uri), derivam procentul din preturi in loc
+      // sa afisam "reducere de 0%" langa preturi care arata o reducere reala.
+      // Clamp la [0,100] ca un original_price=0 sau date corupte sa nu produca
+      // procente negative / Infinity in embed.
+      const rawSavings = item.discount_percent || 0;
+      const derivedSavings = rawSavings > 0
+        ? rawSavings
+        : (originalCents > 0 && finalCents < originalCents
+            ? Math.round(((originalCents - finalCents) / originalCents) * 100)
+            : 0);
+      const savings = Math.max(0, Math.min(100, derivedSavings));
       const wSavings = savings * 0.8;
       const wQuality = revData.success ? revData.qualityPercent * 1.0 : 50;
       const wBonus = revData.success ? Math.min(25, Math.floor(revData.totalReviews / 1000)) : 0;

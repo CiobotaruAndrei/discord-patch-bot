@@ -20,7 +20,18 @@ function createRateLimiter(env: RuntimeEnv, metrics: BotMetrics): RateLimiter {
   function getClientIp(req: IncomingMessage): string {
     if (trustProxy) {
       const forwardedFor = firstHeaderValue(req.headers["x-forwarded-for"]);
-      if (forwardedFor) return forwardedFor.split(",")[0].trim() || "unknown";
+      if (forwardedFor) {
+        // V12: luam ultimul segment ne-gol (hop-ul cel mai apropiat = ce a
+        // observat proxy-ul de incredere), nu primul. Cu un proxy care
+        // APPEND-uieste (`$proxy_add_x_forwarded_for`), primul segment e
+        // controlat de client si poate fi spoofat ca sa creeze bucket-uri
+        // nelimitate / sa ocoleasca throttle-ul. Ultimul segment e cel scris
+        // de proxy. Daca header-ul e gol / doar virgule, cadem pe socket in
+        // loc de a colapsa toti clientii intr-un singur bucket "unknown".
+        const segments = forwardedFor.split(",").map(s => s.trim()).filter(Boolean);
+        const trustedHop = segments[segments.length - 1];
+        if (trustedHop) return trustedHop;
+      }
     }
     return req.socket?.remoteAddress || "unknown";
   }
@@ -31,11 +42,24 @@ function createRateLimiter(env: RuntimeEnv, metrics: BotMetrics): RateLimiter {
       if (now - entry.lastRefill > windowMs * 2 && entry.tokens >= cap * 0.95) buckets.delete(ip);
     }
     if (buckets.size > mapMax) {
-      const excess = buckets.size - mapMax;
-      let deleted = 0;
-      for (const key of buckets.keys()) {
-        buckets.delete(key);
-        if (++deleted >= excess) break;
+      let excess = buckets.size - mapMax;
+      // V12: evict intai bucket-urile idle/refilled (tokens >= cap). Evacuarea
+      // unui bucket plin e inofensiva — la urmatorul request clientul primeste
+      // tot cap token-uri (aceeasi stare). Inainte evacuam strict in ordinea
+      // insertiei, ceea ce putea sterge un bucket de client throttle-uit (aproape
+      // de 0 token-uri) inaintea unuia idle — pierzand starea de throttle a unui
+      // potential atacator si dropand un client legitim inactiv. Doar daca nu
+      // raman destule bucket-uri idle cadem pe ordinea de insertie (LRU-ish).
+      for (const [ip, entry] of buckets.entries()) {
+        if (excess <= 0) break;
+        if (entry.tokens >= cap) { buckets.delete(ip); excess--; }
+      }
+      if (excess > 0) {
+        for (const key of buckets.keys()) {
+          if (excess <= 0) break;
+          buckets.delete(key);
+          excess--;
+        }
       }
     }
   }

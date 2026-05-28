@@ -47,6 +47,7 @@
     "test/adminAlerts.functional.test.ts",
     "test/adminGuard.test.ts",
     "test/auditFixesMay26.test.ts",
+    "test/auditFixesMay28.test.ts",
     "test/autocompleteInteractionHandler.functional.test.ts",
     "test/commandRegistry.functional.test.ts",
     "test/cronController.test.ts",
