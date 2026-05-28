@@ -1,7 +1,7 @@
 import crypto = require("crypto");
 import fs = require("fs");
 import path = require("path");
-import type { DealInfo, GameConfig, GuildSettings } from "../types";
+import type { DealInfo, GameConfig, GuildSettings, SteamSearchItem } from "../types";
 
 interface NativeGameCandidate {
   key: string;
@@ -12,6 +12,11 @@ interface NativeGameCandidate {
 interface NativeAutocompleteChoice {
   name: string;
   value: string;
+}
+
+interface NativeSteamSearchCandidate {
+  name: string;
+  kind: string;
 }
 
 interface FuzzyMatchKeys {
@@ -41,6 +46,8 @@ interface NativeFuzzyModule {
   score_listing_candidate?(href: string, text: string, keywords: string[]): number;
   buildAutocompleteChoices?(games: NativeGameCandidate[], input: string, useNameAsValue: boolean, minRelevantScore: number, maxChoices: number, maxNameLen: number, maxValueLen: number): NativeAutocompleteChoice[];
   build_autocomplete_choices?(games: NativeGameCandidate[], input: string, useNameAsValue: boolean, minRelevantScore: number, maxChoices: number, maxNameLen: number, maxValueLen: number): NativeAutocompleteChoice[];
+  chooseSteamMatchIndex?(items: NativeSteamSearchCandidate[], query: string, forceGameOnly: boolean): number;
+  choose_steam_match_index?(items: NativeSteamSearchCandidate[], query: string, forceGameOnly: boolean): number;
   isGoodSteamArticleUrl?(url: string): boolean;
   is_good_steam_article_url?(url: string): boolean;
   extractDateScore?(url: string): number;
@@ -122,6 +129,13 @@ function toNativeCandidates(games: GameConfig[]): NativeGameCandidate[] {
     key: String(game.key || ""),
     name: String(game.name || ""),
     aliases: Array.isArray(game.aliases) ? game.aliases.map(alias => String(alias)) : []
+  }));
+}
+
+function toNativeSteamSearchCandidates(items: SteamSearchItem[]): NativeSteamSearchCandidate[] {
+  return items.map(item => ({
+    name: String(item.name || ""),
+    kind: typeof item.type === "string" ? item.type : ""
   }));
 }
 
@@ -225,6 +239,65 @@ function buildAutocompleteChoicesFallback(
     name: `${candidate.game.name} (${candidate.game.key})`.substring(0, maxNameLen),
     value: String(useNameAsValue ? candidate.game.name : candidate.game.key).substring(0, maxValueLen)
   }));
+}
+
+const STEAM_DLC_KEYWORDS = ["dlc", "soundtrack", "demo", "expansion", "deluxe upgrade", "season pass", "ost", "artbook", "collection", "remaster", "bundle", "definitive edition"];
+const STEAM_EXTRA_TYPES = new Set(["dlc", "demo", "music"]);
+
+function normalizeSteamMatchText(value: unknown): string {
+  return String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function chooseSteamMatchIndexFallback(
+  items: SteamSearchItem[] | null | undefined,
+  query: unknown,
+  forceGameOnly: boolean
+): number {
+  if (!Array.isArray(items) || items.length === 0) return -1;
+
+  const searchTarget = String(query || "").toLowerCase().trim();
+  const normTarget = normalizeSteamMatchText(query);
+  const wantsDlc = STEAM_DLC_KEYWORDS.some(keyword => searchTarget.includes(keyword));
+
+  let pool = items.map((item, index) => ({ item, index }));
+  if (forceGameOnly && !wantsDlc) {
+    const gamesOnly = pool.filter(({ item }) => {
+      const type = String(item.type || "").toLowerCase();
+      const nameHasExtra = STEAM_DLC_KEYWORDS.some(keyword => String(item.name || "").toLowerCase().includes(keyword));
+      if (type && type !== "game") return false;
+      if (nameHasExtra) return false;
+      return true;
+    });
+    if (gamesOnly.length > 0) pool = gamesOnly;
+  }
+
+  let bestIndex = pool[0].index;
+  let bestScore = Infinity;
+  for (const { item, index } of pool) {
+    const itemName = String(item.name || "").toLowerCase();
+    const normItemName = normalizeSteamMatchText(itemName);
+    let score = levenshteinFallback(normTarget, normItemName);
+
+    if (normItemName === normTarget) score -= 100;
+    else if (normItemName.startsWith(normTarget)) score -= 20;
+    else if (normItemName.includes(normTarget)) score -= 10;
+
+    if (!wantsDlc) {
+      const isExtraByName = STEAM_DLC_KEYWORDS.some(keyword => itemName.includes(keyword));
+      const isExtraByType = typeof item.type === "string" && STEAM_EXTRA_TYPES.has(item.type.toLowerCase());
+      if (isExtraByName || isExtraByType) score += 50;
+    }
+
+    if (score < bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  }
+  return bestIndex;
 }
 
 function isGoodSteamArticleUrlFallback(url: unknown): boolean {
@@ -449,6 +522,33 @@ export function buildAutocompleteChoices(
     }
   }
   return buildAutocompleteChoicesFallback(games, input, useNameAsValue, minRelevantScore, maxChoices, maxNameLen, maxValueLen);
+}
+
+export function chooseSteamMatchIndex(
+  items: SteamSearchItem[] | null | undefined,
+  query: unknown,
+  options: { forceGameOnly?: boolean } = {}
+): number {
+  const native = loadNativeFuzzy();
+  const forceGameOnly = options.forceGameOnly === true;
+  if (native && Array.isArray(items) && items.length > 0) {
+    const fn = typeof native.chooseSteamMatchIndex === "function"
+      ? native.chooseSteamMatchIndex
+      : native.choose_steam_match_index;
+    if (typeof fn === "function") {
+      try {
+        const index = fn.call(
+          native,
+          toNativeSteamSearchCandidates(items),
+          String(query || ""),
+          forceGameOnly
+        );
+        if (Number.isInteger(index) && index >= -1 && index < items.length) return index;
+      } catch {
+      }
+    }
+  }
+  return chooseSteamMatchIndexFallback(items, query, forceGameOnly);
 }
 
 export function isGoodSteamArticleUrl(url: unknown): boolean {

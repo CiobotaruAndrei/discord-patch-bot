@@ -114,6 +114,7 @@ Aceasta impartire reduce riscul de copy-paste in cron jobs si permite teste func
 - `stableUpdateId`, `normalizeDealState` si `dealHash`;
 - scoring pentru listing-uri si URL-uri Steam;
 - `buildAutocompleteChoices` pentru scoring, sortare si limitare optiuni Discord;
+- `chooseSteamMatchIndex` pentru alegerea determinista a rezultatului Steam folosit de `/latest pret` si `/dlc`;
 - `dealPassesFilters` pentru filtrarea ofertelor in cron si `/latest reduceri`.
 
 `src/native/fuzzy.ts` ramane adapterul TypeScript cu fallback. Daca addon-ul `.node` nu se incarca, botul continua pe fallback si logheaza explicit problema.

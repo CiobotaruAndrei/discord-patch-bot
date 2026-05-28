@@ -211,13 +211,13 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/sources/steam/index.ts`
 
 - Cauta jocuri Steam, alege cel mai bun match si extrage detalii de pret.
-- Foloseste Levenshtein din Rust/N-API.
+- Foloseste `chooseSteamMatchIndex` si Levenshtein din Rust/N-API pentru scoring-ul pur al rezultatelor Steam.
 
 ## Native Rust/N-API
 
 ### `src/native/src/lib.rs`
 
-- Contine functii deterministe si izolate: fuzzy matching, Levenshtein, normalizare text, hash-uri, autocomplete scoring, scoring listing-uri si filtrare deal-uri.
+- Contine functii deterministe si izolate: fuzzy matching, Levenshtein, normalizare text, hash-uri, autocomplete scoring, matching Steam, scoring listing-uri si filtrare deal-uri.
 - Nu trebuie sa depinda de Discord, Mongo, HTTP, env sau filesystem.
 
 ### `src/native/fuzzy.ts`

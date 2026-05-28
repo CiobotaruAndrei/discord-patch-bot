@@ -167,7 +167,7 @@ Starea curenta:
 - `notifications/index.ts` este wiring pentru cron jobs, iar logica principala este in `updateNotificationService.ts` si `discountNotificationService.ts`;
 - `commandCache.ts`, `commandPresentation.ts`, `mongoContext.ts`, `notifications/index.ts` si fallback-ul de interactiuni expun factory-uri explicite; atasarea pe target comun ramane doar strat de compatibilitate;
 - `domain/deals/filtersCore.ts`, `outboundChannel.ts` si `seenRepository.ts` sunt module tipate, usor de testat separat;
-- `src/native/` contine Rust/N-API pentru hot-path-uri pure: fuzzy matching, autocomplete scoring, hash-uri, normalizare text/scoring si filtrarea ofertelor;
+- `src/native/` contine Rust/N-API pentru hot-path-uri pure: fuzzy matching, autocomplete scoring, alegerea rezultatului Steam, hash-uri, normalizare text/scoring si filtrarea ofertelor;
 - `src/tsconfig.strict.json` include incremental fisiere stabilizate, inclusiv modulele de surse Steam/deals/updates si testele directe pe shape drift;
 - `legacy-dynamic.d.ts` a fost eliminat; tipurile trebuie rezolvate local, nu prin extinderea globala a `Object`.
 - codul runtime din `app`, `domain`, `features`, `infra`, `shared` si `sources` nu mai foloseste tipuri wildcard nesigure sau abrevierea legacy de context; adapterele ramase folosesc `target`/`deps` tipate structural.

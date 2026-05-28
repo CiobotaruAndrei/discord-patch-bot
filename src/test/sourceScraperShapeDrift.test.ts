@@ -15,6 +15,11 @@ type DealsRuntime = {
 };
 type SteamRuntime = {
   searchSteamGameByName: (query: string, currency: string) => Promise<unknown[]>;
+  chooseBestSteamMatch: (
+    items: Array<{ id?: string | number; name?: string; type?: string }>,
+    query: string,
+    options?: { forceGameOnly?: boolean }
+  ) => { id?: string | number; name?: string; type?: string } | null;
 };
 
 class TestSchemaDriftError extends Error {
@@ -182,4 +187,24 @@ test("steam source tolerates storesearch JSON without items array", async () => 
 
   const items = await runtime.searchSteamGameByName("Counter-Strike 2", "USD");
   assert.deepEqual(items, []);
+});
+
+test("steam source delegates pure match scoring to native wrapper with TypeScript fallback", () => {
+  const context = {
+    logger() {},
+    getCurrencyConfig: () => ({ cc: "US", symbol: "$", placement: "prefix" }),
+    safeCheerioLoad: (html: unknown) => cheerio.load(String(html || "")),
+    httpReq: async () => ({ data: { items: [] } })
+  };
+  attachSteam(context);
+  const runtime = context as typeof context & SteamRuntime;
+
+  const items = [
+    { id: "soundtrack", name: "Counter-Strike 2 Soundtrack", type: "music" },
+    { id: "base", name: "Counter-Strike 2", type: "game" },
+    { id: "demo", name: "Counter-Strike 2 Demo", type: "demo" }
+  ];
+
+  assert.equal(runtime.chooseBestSteamMatch(items, "Counter Strike 2", { forceGameOnly: true })?.id, "base");
+  assert.equal(runtime.chooseBestSteamMatch(items, "Counter Strike 2 soundtrack", { forceGameOnly: true })?.id, "soundtrack");
 });

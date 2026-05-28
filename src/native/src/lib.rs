@@ -20,6 +20,12 @@ pub struct AutocompleteChoice {
   pub value: String,
 }
 
+#[napi(object)]
+pub struct SteamSearchCandidate {
+  pub name: String,
+  pub kind: String,
+}
+
 struct CandidateScore<'a> {
   game: &'a GameCandidate,
   dist: usize,
@@ -217,6 +223,88 @@ pub fn build_autocomplete_choices(
     .collect()
 }
 
+const STEAM_DLC_KEYWORDS: &[&str] = &[
+  "dlc", "soundtrack", "demo", "expansion", "deluxe upgrade", "season pass",
+  "ost", "artbook", "collection", "remaster", "bundle", "definitive edition",
+];
+const STEAM_EXTRA_TYPES: &[&str] = &["dlc", "demo", "music"];
+
+#[napi]
+pub fn choose_steam_match_index(
+  items: Vec<SteamSearchCandidate>,
+  query: String,
+  force_game_only: bool,
+) -> i32 {
+  if items.is_empty() {
+    return -1;
+  }
+
+  let search_target = query.to_lowercase().trim().to_string();
+  let norm_target = normalize_steam_match_text(&query);
+  let wants_dlc = STEAM_DLC_KEYWORDS
+    .iter()
+    .any(|keyword| search_target.contains(keyword));
+
+  let mut pool: Vec<(usize, &SteamSearchCandidate)> = items.iter().enumerate().collect();
+  if force_game_only && !wants_dlc {
+    let games_only: Vec<(usize, &SteamSearchCandidate)> = pool
+      .iter()
+      .copied()
+      .filter(|(_, item)| {
+        let item_type = item.kind.to_lowercase();
+        let item_name = item.name.to_lowercase();
+        let name_has_extra = STEAM_DLC_KEYWORDS
+          .iter()
+          .any(|keyword| item_name.contains(keyword));
+        if !item_type.is_empty() && item_type != "game" {
+          return false;
+        }
+        !name_has_extra
+      })
+      .collect();
+    if !games_only.is_empty() {
+      pool = games_only;
+    }
+  }
+
+  let mut best_index = pool[0].0;
+  let mut best_score = i32::MAX;
+
+  for (index, item) in pool {
+    let item_name = item.name.to_lowercase();
+    let norm_item_name = normalize_steam_match_text(&item_name);
+    let mut score = levenshtein_impl(&norm_target, &norm_item_name) as i32;
+
+    if norm_item_name == norm_target {
+      score -= 100;
+    } else if norm_item_name.starts_with(&norm_target) {
+      score -= 20;
+    } else if norm_item_name.contains(&norm_target) {
+      score -= 10;
+    }
+
+    if !wants_dlc {
+      let is_extra_by_name = STEAM_DLC_KEYWORDS
+        .iter()
+        .any(|keyword| item_name.contains(keyword));
+      let item_type = item.kind.to_lowercase();
+      let is_extra_by_type = STEAM_EXTRA_TYPES
+        .iter()
+        .any(|candidate| item_type == *candidate);
+      if is_extra_by_name || is_extra_by_type {
+        score += 50;
+      }
+    }
+
+    if score < best_score {
+      best_score = score;
+      best_index = index;
+    }
+  }
+
+  best_index as i32
+}
+
 #[napi]
 pub fn stable_update_id(title: String, link: String) -> String {
   let base = format!("{}|{}", title, link);
@@ -410,6 +498,23 @@ fn truncate_chars(value: &str, max_len: usize) -> String {
     return value.to_string();
   }
   value.chars().take(max_len).collect()
+}
+
+fn normalize_steam_match_text(value: &str) -> String {
+  let mut normalized = String::with_capacity(value.len());
+  let mut previous_was_space = true;
+
+  for ch in value.to_lowercase().chars() {
+    if ch.is_ascii_alphanumeric() {
+      normalized.push(ch);
+      previous_was_space = false;
+    } else if !previous_was_space {
+      normalized.push(' ');
+      previous_was_space = true;
+    }
+  }
+
+  normalized.trim().to_string()
 }
 
 fn normalize_title_for_dedupe_impl(value: &str) -> String {

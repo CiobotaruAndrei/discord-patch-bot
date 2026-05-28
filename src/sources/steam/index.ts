@@ -6,7 +6,7 @@ import type {
   LoggerFunction,
   SteamSearchItem
 } from "../../types";
-import { levenshtein } from "../../native/fuzzy";
+import { chooseSteamMatchIndex, levenshtein } from "../../native/fuzzy";
 import { errorMessage } from "../../shared/errors";
 
 type SteamCurrencyCode = CurrencyCode | string | null | undefined;
@@ -61,48 +61,8 @@ function chooseBestSteamMatch(
   options: ChooseBestSteamMatchOptions = {}
 ): SteamSearchItem | null {
   if (!Array.isArray(items) || items.length === 0) return null;
-  const { forceGameOnly = false } = options;
-  const normalize = (str: unknown): string => String(str).toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
-  const searchTarget = query.toLowerCase().trim();
-  const normTarget = normalize(query);
-  const dlcKeywords = ["dlc", "soundtrack", "demo", "expansion", "deluxe upgrade", "season pass", "ost", "artbook", "collection", "remaster", "bundle", "definitive edition"];
-  const wantsDLC = dlcKeywords.some(kw => searchTarget.includes(kw));
-  const extraTypes = new Set(["dlc", "demo", "music"]);
-
-  let pool = items;
-  if (forceGameOnly && !wantsDLC) {
-    const gamesOnly = items.filter(item => {
-      const type = String(item.type || "").toLowerCase();
-      const nameHasExtra = dlcKeywords.some(kw => String(item.name || "").toLowerCase().includes(kw));
-      if (type && type !== "game") return false;
-      if (nameHasExtra) return false;
-      return true;
-    });
-    if (gamesOnly.length > 0) pool = gamesOnly;
-  }
-
-  if (!pool.length) return null;
-
-  let bestMatch = pool[0];
-  let bestScore = Infinity;
-  for (const item of pool) {
-    const itemName = String(item.name || "").toLowerCase();
-    const normItemName = normalize(itemName);
-    let score = levenshtein(normTarget, normItemName);
-
-    if (normItemName === normTarget) score -= 100;
-    else if (normItemName.startsWith(normTarget)) score -= 20;
-    else if (normItemName.includes(normTarget)) score -= 10;
-
-    if (!wantsDLC) {
-      const isExtraByName = dlcKeywords.some(kw => itemName.includes(kw));
-      const isExtraByType = typeof item.type === "string" && extraTypes.has(item.type.toLowerCase());
-      if (isExtraByName || isExtraByType) score += 50;
-    }
-    if (score < bestScore) { bestScore = score; bestMatch = item; }
-  }
-  return bestMatch;
+  const index = chooseSteamMatchIndex(items, query, { forceGameOnly: options.forceGameOnly === true });
+  return index >= 0 ? items[index] : null;
 }
 
 async function fetchSteamPriceDetails(appId: string | number, currencyCode?: SteamCurrencyCode): Promise<unknown | null> {

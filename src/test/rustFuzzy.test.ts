@@ -6,6 +6,7 @@ const assert = require("node:assert/strict");
 const {
   buildAutocompleteChoices,
   classifyPatchNote,
+  chooseSteamMatchIndex,
   cleanText,
   dealPassesFilters,
   dealHash,
@@ -152,6 +153,18 @@ test("Rust autocomplete choices score, sort and cap Discord option output", () =
     8
   );
   assert.deepEqual(nameValue, [{ name: "Counter-Stri", value: "Counter-" }]);
+});
+
+test("Rust Steam search matching prefers base games unless DLC is requested", () => {
+  const items = [
+    { id: 1, name: "Counter-Strike 2 Soundtrack", type: "music" },
+    { id: 2, name: "Counter-Strike 2", type: "game" },
+    { id: 3, name: "Counter-Strike 2 Demo", type: "demo" }
+  ];
+
+  assert.equal(chooseSteamMatchIndex(items, "Counter Strike 2", { forceGameOnly: true }), 1);
+  assert.equal(chooseSteamMatchIndex(items, "Counter Strike 2 soundtrack", { forceGameOnly: true }), 0);
+  assert.equal(chooseSteamMatchIndex([], "Counter Strike 2", { forceGameOnly: true }), -1);
 });
 
 test("Rust cleanText strips tags and decodes entities", () => {
