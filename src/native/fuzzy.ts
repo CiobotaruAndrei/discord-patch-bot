@@ -216,7 +216,16 @@ function buildAutocompleteChoicesFallback(
   }
   candidates.sort((a, b) => {
     if (a.score !== b.score) return b.score - a.score;
-    return String(a.game.name || "").localeCompare(String(b.game.name || ""));
+    // V12: tie-break ordinal (codepoint), NU localeCompare. Rust
+    // `build_autocomplete_choices` foloseste `str::cmp` (ordine lexicografica
+    // pe codepoints), deci fallback-ul trebuie sa fie identic — altfel ordinea
+    // sugestiilor cu scor egal difera intre path-ul nativ (productie) si
+    // fallback (addon lipsa). localeCompare e locale-dependent si trateaza
+    // case/diacritice diferit fata de Rust. Ordinal `<`/`>` matchuieste
+    // `str::cmp` pentru toate numele realiste (BMP/ASCII).
+    const na = String(a.game.name || "");
+    const nb = String(b.game.name || "");
+    return na < nb ? -1 : na > nb ? 1 : 0;
   });
   return candidates.slice(0, maxChoices).map(candidate => ({
     name: `${candidate.game.name} (${candidate.game.key})`.substring(0, maxNameLen),
