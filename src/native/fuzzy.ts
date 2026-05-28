@@ -216,13 +216,7 @@ function buildAutocompleteChoicesFallback(
   }
   candidates.sort((a, b) => {
     if (a.score !== b.score) return b.score - a.score;
-    // V12: tie-break ordinal (codepoint), NU localeCompare. Rust
-    // `build_autocomplete_choices` foloseste `str::cmp` (ordine lexicografica
-    // pe codepoints), deci fallback-ul trebuie sa fie identic — altfel ordinea
-    // sugestiilor cu scor egal difera intre path-ul nativ (productie) si
-    // fallback (addon lipsa). localeCompare e locale-dependent si trateaza
-    // case/diacritice diferit fata de Rust. Ordinal `<`/`>` matchuieste
-    // `str::cmp` pentru toate numele realiste (BMP/ASCII).
+
     const na = String(a.game.name || "");
     const nb = String(b.game.name || "");
     return na < nb ? -1 : na > nb ? 1 : 0;
@@ -322,12 +316,7 @@ function dealHashFallback(deal: DealInfo): string {
 
 function findGameKeysFallback(text: unknown, games: GameConfig[], maxInput: number): FuzzyMatchKeys {
   let search = normalizeCommandText(text);
-  // V12: counting by Unicode codepoints (Array.from + take + join) ca sa
-  // ramanem aliniati cu Rust care foloseste chars().take(max) si chars().count().
-  // Inainte: `search.substring(0, maxInput)` taia pe UTF-16 code units si putea
-  // sparge o pereche surogat la mijloc (emoji, BMP supplementary plane).
-  // Pragul `Math.floor(search.length * 0.3)` la fel — number-of-code-units in
-  // loc de chars — diverge de Rust pe input ne-ASCII.
+
   const searchChars = Array.from(search);
   if (searchChars.length > maxInput) {
     search = searchChars.slice(0, maxInput).join("");
@@ -368,8 +357,7 @@ function findGameKeysFallback(text: unknown, games: GameConfig[], maxInput: numb
 
   const best = candidates[0];
   if (!best) return { gameKey: null, suggestionKey: null };
-  // V12: pragul dinamic foloseste numarul de codepoints, nu code-units, ca sa
-  // matchuiasca Rust impl.
+
   const dynamicThreshold = Math.max(1, Math.floor(searchLen * 0.3));
   if (best.dist <= 1) return { gameKey: best.game.key, suggestionKey: null };
   if (best.dist <= dynamicThreshold || best.isStartsWith || best.isIncludes) {
@@ -405,7 +393,7 @@ export function classifyPatchNote(title: unknown, contents: unknown, tags: unkno
     if (typeof fn === "function") {
       const tagsList = Array.isArray(tags) ? tags.map(t => String(t)) : [];
       try { return fn.call(native, String(title || ""), String(contents || ""), tagsList); }
-      catch { /* fall through to TS fallback */ }
+      catch {  }
     }
   }
   return classifyPatchNoteFallback(title, contents, tags);
@@ -418,7 +406,7 @@ export function scoreListingCandidate(href: unknown, text: unknown, keywords: un
     if (typeof fn === "function") {
       const kw = Array.isArray(keywords) ? keywords.map(k => String(k)) : [];
       try { return fn.call(native, String(href || ""), String(text || ""), kw); }
-      catch { /* fall through to TS fallback */ }
+      catch {  }
     }
   }
   return scoreListingCandidateFallback(href, text, keywords);
@@ -457,7 +445,6 @@ export function buildAutocompleteChoices(
           }));
         }
       } catch {
-        // Keep autocomplete responsive if a stale native binary is loaded.
       }
     }
   }
@@ -470,7 +457,7 @@ export function isGoodSteamArticleUrl(url: unknown): boolean {
     const fn = typeof native.isGoodSteamArticleUrl === "function" ? native.isGoodSteamArticleUrl : native.is_good_steam_article_url;
     if (typeof fn === "function") {
       try { return fn.call(native, String(url || "")); }
-      catch { /* fall through */ }
+      catch {  }
     }
   }
   return isGoodSteamArticleUrlFallback(url);
@@ -482,7 +469,7 @@ export function extractDateScore(url: unknown): number {
     const fn = typeof native.extractDateScore === "function" ? native.extractDateScore : native.extract_date_score;
     if (typeof fn === "function") {
       try { return fn.call(native, String(url || "")); }
-      catch { /* fall through */ }
+      catch {  }
     }
   }
   return extractDateScoreFallback(url);
@@ -524,7 +511,6 @@ export function dealPassesFilters(deal: DealInfo, guild: GuildSettings | null | 
           enabledStores
         );
       } catch {
-        // Keep filtering available if a stale native binary is loaded.
       }
     }
   }
@@ -552,7 +538,6 @@ export function findGameKeys(text: unknown, games: GameConfig[], maxInput: numbe
         return normalizeNativeResult(fn(String(text || ""), toNativeCandidates(games), maxInput));
       }
     } catch {
-      // The TypeScript fallback mirrors the Rust behavior and keeps the bot running.
     }
   }
   return findGameKeysFallback(text, games, maxInput);

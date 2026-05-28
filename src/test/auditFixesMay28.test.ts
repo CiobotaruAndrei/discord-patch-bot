@@ -6,11 +6,6 @@ const attachCommandUi = require("../features/command-presentation/commandPresent
   createCommandPresentation: (ctx: Record<string, any>) => Record<string, any>;
 };
 
-// ============================================================================
-// Embed builders: stub EmbedBuilder care inregistreaza setDescription pentru
-// a putea asserta textul produs.
-// ============================================================================
-
 function makeRecordingEmbed() {
   const state: Record<string, unknown> = {};
   const embed: any = {};
@@ -49,11 +44,6 @@ function makePresentationCtx() {
   return { ui, embeds };
 }
 
-// ============================================================================
-// Fix #4: buildDealEmbed guard numeric pe savings/qualityScore/totalReviews.
-// (commandPresentation.ts:203-216)
-// ============================================================================
-
 test("buildDealEmbed: savings undefined/null/NaN nu produce 'undefined%' sau 'NaN%'", () => {
   const { ui, embeds } = makePresentationCtx();
   for (const badSavings of [undefined, null, NaN, "abc"]) {
@@ -91,14 +81,9 @@ test("buildDealEmbed: qualityScore string nu produce 'NaN% aprecieri'", () => {
   );
   const desc = String(embeds[0]._state.description);
   assert.doesNotMatch(desc, /NaN/, "qualityScore invalid nu trebuie sa apara ca NaN");
-  // qualityScore invalid → sectiunea de stats e omisa.
+
   assert.doesNotMatch(desc, /Calitate:/);
 });
-
-// ============================================================================
-// Fix #5: buildSteamPriceEmbed guard pe initial/final/discount_percent.
-// (commandPresentation.ts:410-423)
-// ============================================================================
 
 test("buildSteamPriceEmbed: price_overview cu initial/final lipsa → 'Pretul nu este disponibil'", () => {
   const { ui, embeds } = makePresentationCtx();
@@ -138,11 +123,6 @@ test("buildSteamPriceEmbed: pret valid fara reducere", () => {
   assert.doesNotMatch(desc, /NaN/);
 });
 
-// ============================================================================
-// Fix #2: rate limiter X-Forwarded-For — rightmost trusted hop + socket fallback.
-// (rateLimit.ts:20-31)
-// ============================================================================
-
 function makeReq(opts: { xff?: string | string[]; remote?: string }) {
   return {
     headers: opts.xff !== undefined ? { "x-forwarded-for": opts.xff } : {},
@@ -157,11 +137,9 @@ function makeRateLimiter(trustProxy: boolean) {
 }
 
 test("rateLimit: cu trustProxy, foloseste ultimul hop din XFF (anti-spoof)", () => {
-  // Client trimite XFF spoofat; proxy appendeaza IP-ul real la sfarsit.
-  // Bucket-ul trebuie sa fie keyed pe IP-ul real (ultimul), nu pe cel spoofat.
+
   const { rl } = makeRateLimiter(true);
-  // Doua requesturi cu acelasi IP real (ultimul) dar leftmost spoofat diferit
-  // → trebuie sa imparta acelasi bucket. Cu cap=5, 6 requesturi → al 6-lea drop.
+
   for (let i = 0; i < 5; i++) {
     assert.equal(rl.check(makeReq({ xff: `spoof${i}, 9.9.9.9` })), true, `req ${i}`);
   }
@@ -171,18 +149,18 @@ test("rateLimit: cu trustProxy, foloseste ultimul hop din XFF (anti-spoof)", () 
 
 test("rateLimit: XFF gol/whitespace cade pe socket, nu pe bucket 'unknown' partajat", () => {
   const { rl } = makeRateLimiter(true);
-  // Doua IP-uri socket diferite cu XFF gol → bucket-uri separate, nu colaps pe "unknown".
+
   for (let i = 0; i < 5; i++) assert.equal(rl.check(makeReq({ xff: "   ", remote: "1.1.1.1" })), true);
-  // Al 6-lea pe 1.1.1.1 e dropat.
+
   assert.equal(rl.check(makeReq({ xff: "   ", remote: "1.1.1.1" })), false);
-  // Dar 2.2.2.2 (socket diferit) inca are bucket plin.
+
   assert.equal(rl.check(makeReq({ xff: ",,", remote: "2.2.2.2" })), true,
     "IP socket diferit cu XFF gol NU trebuie sa imparta bucket cu 1.1.1.1");
 });
 
 test("rateLimit: fara trustProxy, ignora XFF si foloseste socket", () => {
   const { rl } = makeRateLimiter(false);
-  // XFF spoofat e ignorat; toate vin de pe acelasi socket → acelasi bucket.
+
   for (let i = 0; i < 5; i++) assert.equal(rl.check(makeReq({ xff: `evil${i}`, remote: "3.3.3.3" })), true);
   assert.equal(rl.check(makeReq({ xff: "evilX", remote: "3.3.3.3" })), false);
 });

@@ -1,6 +1,5 @@
 "use strict";
 
-
 const { errorMessage } = require("../../../shared/errors");
 
 type NotificationMode = "compact" | "detailed";

@@ -144,9 +144,7 @@ test("dlc handler factory detects age-gate via cheerio selectors", async () => {
 });
 
 test("dlc handler factory falls back to schema-drift message when no DLC rows AND no purchase block", async () => {
-  // If cheerio finds neither .game_area_dlc_row nor .game_area_purchase_game,
-  // the page structure looks invalid → log WARN as schema drift and reply
-  // with "Structura paginii ... nu a putut fi interpretata."
+
   const { interaction, replies } = makeDlcInteraction("cs2");
   const deps = makeBaseDeps(replies, new Map());
   deps.safeCheerioLoad = makeFakeCheerioLoad({ dlcRows: [], hasPurchaseGame: false });
@@ -193,6 +191,6 @@ test("dlc installer intercepts only /dlc and delegates everything else", async (
 
   assert.deepEqual(delegated, ["status"]);
   assert.equal(result, "delegated");
-  // Last reply should be the success message from /dlc.
+
   assert.match(String(replies[replies.length - 1]), /Am gasit \*\*1\*\* DLC-uri/);
 });

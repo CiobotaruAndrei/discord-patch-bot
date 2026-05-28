@@ -84,7 +84,7 @@ test("epic_games non-fortnite requires baseUrl and listing URL(s)", () => {
         name: "Epic Games Store",
         type: "epic_games",
         listingUrl: "https://store.epicgames.com/feed"
-        // baseUrl still missing
+
       }]
     }), "unit-test"),
     /baseUrl/,

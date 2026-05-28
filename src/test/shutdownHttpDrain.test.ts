@@ -23,11 +23,6 @@ function makeBaseDeps() {
   };
 }
 
-// Stub setTimeout so the post-shutdown `process.exit(0)` timer never fires
-// (the test runner process would otherwise be killed). We intercept ALL
-// setTimeout calls inside the test, recording them and giving back a dummy
-// handle. Selected timers can still be triggered immediately by the test if
-// we want the watchdog path.
 function fakeTimers(opts: { fireMs?: number[] } = {}) {
   const originalSetTimeout = globalThis.setTimeout;
   const originalClearTimeout = globalThis.clearTimeout;
@@ -55,8 +50,7 @@ test("shutdown waits for httpServer.close callback before continuing", async () 
     let closeCb: ((err?: Error) => void) | null = null;
     const httpServer = {
       close(cb?: (err?: Error) => void) {
-        // Capture the callback but don't invoke it yet — simulates a long
-        // request still being served.
+
         closeCb = cb || null;
         return httpServer;
       }
@@ -64,18 +58,14 @@ test("shutdown waits for httpServer.close callback before continuing", async () 
 
     const controller = createShutdownController({ ...deps, httpServer });
 
-    // Don't await — we want to check the controller is blocked waiting for the close cb.
     const shutdownPromise = controller.shutdown("SIGTERM");
 
-    // Wait a few event-loop ticks so destroy/close/mongo all start.
     await new Promise(resolve => setImmediate(resolve));
     await new Promise(resolve => setImmediate(resolve));
 
-    // Up to here mongo/client should have finished but the HTTP close is still pending.
     assert.ok(order.includes("client.destroy"), "client.destroy should run before HTTP close");
     assert.ok(order.includes("mongo.close"), "mongo.close should run before HTTP close");
 
-    // Now release the close callback — shutdown should finish.
     if (!closeCb) {
       throw new Error("httpServer.close should have been invoked with a callback");
     }
@@ -99,7 +89,7 @@ test("handleFatalProcessError clears the alert-budget timer once adminAlert wins
     const id = nextId++;
     const handle: Handle = { id, ms: typeof ms === "number" ? ms : 0, unrefed: false };
     timers.push(handle);
-    // Never actually fire — we just observe scheduling/clearing.
+
     return {
       __id: id,
       unref() { handle.unrefed = true; }
@@ -126,20 +116,15 @@ test("handleFatalProcessError clears the alert-budget timer once adminAlert wins
       adminAlert: () => adminAlertPromise
     });
 
-    // Don't await — handleFatalProcessError schedules shutdown via .finally(),
-    // we need to inspect timer state before/after the race resolves.
     controller.handleFatalProcessError("uncaughtException", new Error("boom"));
 
-    // After scheduling, the budget timer (2000ms) and the force-exit timer
-    // (10_000ms) should be registered.
     const budgetTimer = timers.find(t => t.ms === 2000);
     assert.ok(budgetTimer, "budget timer must be scheduled");
     assert.equal(budgetTimer!.unrefed, true, "budget timer must be unref'd so it doesn't keep the loop alive");
     assert.equal(cleared.has(budgetTimer!.id), false, "budget timer not cleared yet — race still pending");
 
-    // Resolve adminAlert; race wins via adminAlert branch.
     adminAlertResolve();
-    // Let .finally() handlers run.
+
     await new Promise(resolve => setImmediate(resolve));
     await new Promise(resolve => setImmediate(resolve));
 
@@ -156,7 +141,7 @@ test("shutdown gives up after HTTP_CLOSE_BUDGET if close never fires its callbac
   try {
     const { deps } = makeBaseDeps();
     const httpServer = {
-      // Never call the callback — simulates a stuck connection.
+
       close(_cb?: (err?: Error) => void) { return httpServer; }
     };
     const controller = createShutdownController({ ...deps, httpServer });

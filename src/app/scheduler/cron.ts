@@ -275,8 +275,7 @@ function createCronController({
           for (const failure of failures) {
             logger("ERROR", "CRON", `Eroare in ciclul cron #${metrics.cronRuns} (${failure.label})`, errorDetail(failure.reason));
           }
-          // Combine reasons into a single admin alert so an outage in both jobs
-          // doesn't double-spam the cron:fatal cooldown bucket.
+
           const combinedMessage = failures.map(f => `${f.label}: ${errorMessage(f.reason)}`).join(" | ");
           adminAlert("cron:fatal", `Eroare cron ciclu #${metrics.cronRuns}`, combinedMessage).catch(() => null);
         } else if (currentCronAbortController?.signal.aborted) {
@@ -288,22 +287,14 @@ function createCronController({
           logger("INFO", "CRON", `Ciclu cron #${metrics.cronRuns} finalizat in ${ms}ms`);
         }
       } catch (err) {
-        // Pastrat ca safety net pentru orice throw sincron neasteptat din
-        // requestContext.run sau din logica de mai sus — Promise.allSettled in
-        // sine nu mai arunca pentru rejecturi.
+
         metrics.cronErrors++;
         logger("ERROR", "CRON", `Eroare in ciclul cron #${metrics.cronRuns}`, errorDetail(err));
         adminAlert("cron:fatal", `Eroare cron ciclu #${metrics.cronRuns}`, errorMessage(err)).catch(() => null);
       } finally {
         const durationMs = Math.round(performance.now() - cycleStart);
         recordHealth(success, durationMs);
-        // V12: invalideaza token-ul INAINTE de stopHeartbeat + releaseDbLock.
-        // Inainte: stopHeartbeat() clears doar timer-ul armat, dar un tick deja
-        // suspendat in `await renewDbLock(...)` se putea relua in fereastra
-        // `await releaseDbLock` cat timp `currentCronToken === lockToken` inca
-        // era adevarat → re-arma un heartbeat orfan si renew-uia un lock pe care
-        // tocmai il eliberam. Setand token-ul null primul, guard-ul tick-ului
-        // (`currentCronToken !== lockToken`) esueaza la reluare si nu mai re-arma.
+
         currentCronToken = null;
         stopHeartbeat();
         await releaseDbLock("cron_main", lockToken).catch(() => null);

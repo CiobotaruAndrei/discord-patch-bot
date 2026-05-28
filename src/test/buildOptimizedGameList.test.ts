@@ -1,4 +1,4 @@
-// @ts-check
+
 "use strict";
 
 process.env.MONGO_URI ||= "mongodb://localhost:27017/discord-patch-bot-test";

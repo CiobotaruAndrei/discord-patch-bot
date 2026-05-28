@@ -86,11 +86,9 @@ function createHttpServer({
   getGuildCacheSize, scrapers, activeLocks, rateLimiter, cronController = null
 }: CreateHttpServerDeps): Server {
   function checkMetricsAuth(req: IncomingMessage): boolean {
-    // Explicit opt-in to public metrics overrides everything else.
+
     if (env.METRICS_PUBLIC) return true;
-    // No token configured: allowed in dev (legacy convenience), denied in prod.
-    // (Production startup also requires either METRICS_TOKEN or METRICS_PUBLIC
-    // via env validation - see src/shared/env.ts.)
+
     if (!env.METRICS_TOKEN) return !env.isProd;
     const auth = req.headers["authorization"] || "";
     const expected = `Bearer ${env.METRICS_TOKEN}`;
@@ -111,7 +109,7 @@ function createHttpServer({
     try {
       pathname = new URL(req.url || "/", "http://localhost").pathname;
     } catch {
-      // URL ne-parsabil — tratam ca 404 imediat (nu propagam la handler-ul de mai jos).
+
       res.writeHead(404, { "Content-Type": "text/plain" });
       res.end("Not Found");
       return;
@@ -174,7 +172,7 @@ function createHttpServer({
           res.writeHead(500, { "Content-Type": "text/plain" });
         }
         res.end("Internal Server Error");
-      } catch { /* connection deja inchisa */ }
+      } catch {  }
     }
   });
 }

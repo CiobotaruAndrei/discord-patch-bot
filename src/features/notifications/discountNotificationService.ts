@@ -1,6 +1,5 @@
 "use strict";
 
-
 import type { FilterQuery, Model } from "mongoose";
 import type { GuildSettings, DealInfo } from "../../types";
 
@@ -43,28 +42,28 @@ export interface DiscountNotificationServiceDeps {
   logger: Logger;
   runConcurrent: RunConcurrent;
   resolveOutboundChannel: ResolveOutboundChannel;
-  // SeenRepository operations
+
   claimSeenDiscount: (guildId: string, channelId: string, hash: string) => Promise<MongoWriteResult>;
   rollbackSeenDiscount: (guildId: string, hash: string) => Promise<MongoWriteResult>;
   disableDiscountsForChannelError: (guildId: string, channelId: string, message: string) => Promise<MongoWriteResult>;
-  // Discord helpers
+
   isPermanentDiscordError: (err: unknown) => boolean;
   transientErrorMessage: (err: unknown) => string;
-  // Pure utils
+
   normalizePendingDiscountArray: (arr: unknown) => PendingDiscount[];
   validatePendingDiscountSnapshot: (snapshot: unknown) => boolean;
   normalizeCurrencyKey: (currency: unknown) => string;
   dealPassesFilters: (deal: unknown, guild: GuildSettings | null) => boolean;
   dealHash: (deal: unknown) => string;
-  // Fetch + embed
+
   fetchDeals: (opts: { currency: string; fromCron?: boolean }) => Promise<DealInfo[]>;
   getDealsCacheData: (currency: string) => DealInfo[] | null;
   setDealsCache: (currency: string, deals: DealInfo[]) => void;
   enrichDealData: (deal: DealInfo, currency: string) => Promise<DealInfo>;
   buildDealEmbed: (deal: DealInfo, mode: string, currency: string) => unknown;
-  // Misc
+
   sleepIfPositive: (ms: number) => Promise<void>;
-  // Limits
+
   DEFAULT_CURRENCY: string;
   DEALS_HISTORY_LIMIT: number;
   PENDING_DISCOUNT_MAX_ATTEMPTS: number;

@@ -15,6 +15,7 @@ Documentul descrie starea curenta a repo-ului dupa migrarea treptata din fisiere
 - Migrarea TypeScript strict este incrementala prin `src/tsconfig.strict.json`.
 - `legacy-dynamic.d.ts` nu mai exista; tipurile dinamice trebuie modelate local.
 - Documentatia istorica versionata a fost scoasa din cod; fisierele curente de documentatie raman sursa de adevar.
+- Comentariile explicative din fisierele de cod au fost eliminate. Daca un rationale trebuie pastrat, el trebuie pus in documentatia potrivita dupa subiect, nu langa implementare.
 
 ## Structura logica
 

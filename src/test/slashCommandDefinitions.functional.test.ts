@@ -33,7 +33,7 @@ function makeCtx(devGuildId?: string) {
       applicationGuildCommands: (clientId: string, guildId: string) => `/applications/${clientId}/guilds/${guildId}/commands`
     },
     REST: class {
-      constructor(_opts: { version: string }) { /* no-op */ }
+      constructor(_opts: { version: string }) {  }
       setToken(_token: string) {
         return {
           put: async (route: string, options: { body: unknown[] }) => {
@@ -79,8 +79,7 @@ test("registerSlashCommands switches to guild-scoped when DISCORD_DEV_GUILD_ID i
 });
 
 test("registerSlashCommands falls back to global when DISCORD_DEV_GUILD_ID is empty string", async () => {
-  // env.ts sets DISCORD_DEV_GUILD_ID to "" when not configured. Empty string
-  // must NOT trigger guild-scoped registration.
+
   const { ctx, calls, logs } = makeCtx("");
   attachSlashCommands(ctx);
 

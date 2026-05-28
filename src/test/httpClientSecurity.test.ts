@@ -133,7 +133,7 @@ test("parseRetryAfter accepts HTTP-date format per RFC 7231", () => {
 
   const parsed = ctx.parseRetryAfter(future, now) as number | null;
   assert.equal(typeof parsed, "number", "future HTTP-date must yield a numeric delta");
-  // Allow small skew from toUTCString() truncating sub-second precision.
+
   assert.ok(parsed! >= 44_000 && parsed! <= 45_000,
     `expected ~45_000ms delta for future Retry-After, got ${parsed}`);
 
@@ -150,8 +150,7 @@ test("parseRetryAfter accepts HTTP-date format per RFC 7231", () => {
 });
 
 test("parseRetryAfter exposed as static helper on attachHttpClient", () => {
-  // Pure helper — must be reachable without spinning up the full ctx, so
-  // future modules can reuse it (e.g. for client-side Retry-After scheduling).
+
   assert.equal(typeof (attachHttpClient as any).parseRetryAfter, "function");
   assert.equal((attachHttpClient as any).parseRetryAfter("30"), 30_000);
 });

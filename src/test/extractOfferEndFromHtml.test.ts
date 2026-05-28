@@ -1,4 +1,4 @@
-// @ts-check
+
 "use strict";
 
 process.env.MONGO_URI ||= "mongodb://localhost:27017/discord-patch-bot-test";
@@ -101,7 +101,7 @@ function makeSteamCtxWithThrowingCheerio() {
 
 test("raw fallback matchuieste 'Sale ends' cand cheerio arunca", () => {
   const ctx = makeSteamCtxWithThrowingCheerio();
-  // HTML deliberat fara markup util — invocam direct si forteaza fallback-ul.
+
   const html = "<broken> Sale ends 12 Aug @ 5pm </broken>";
   const result = ctx.extractOfferEndFromHtml(html);
   assert.match(result || "", /12 Aug/);

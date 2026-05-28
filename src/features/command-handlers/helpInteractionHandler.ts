@@ -124,7 +124,7 @@ function installHelpHandler(ctx: HelpContext) {
         } else {
           await interaction.reply(payload);
         }
-      } catch { /* ignore */ }
+      } catch {  }
       return undefined;
     }
   }

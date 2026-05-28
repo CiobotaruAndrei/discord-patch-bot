@@ -232,7 +232,7 @@ function installDlcInteraction(ctx: DlcContext) {
         } else {
           await interaction.reply(payload);
         }
-      } catch { /* ignore */ }
+      } catch {  }
       return undefined;
     }
   }

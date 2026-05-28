@@ -1,6 +1,5 @@
 "use strict";
 
-
 const { errorDetail } = require("../../shared/errors");
 const { createLatestUpdatesHandler } = require("./latest/latestUpdatesHandler");
 const { createLatestDealsHandler } = require("./latest/latestDealsHandler");
@@ -23,9 +22,6 @@ type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfi
 
 type Logger = (level: string, ctx: string, msg: string, meta?: unknown) => void;
 
-// Interfata uniunii — install layer-ul accepta deps-urile combinate ale celor 4
-// sub-handlers si distribuie. Userii care vor sa construiasca DOAR un sub-handler
-// pot importa direct factory-ul lui din `./latest/*`.
 type LatestContextDeps = Record<string, unknown> & {
   logger: Logger;
   MessageFlags: { Ephemeral: number };
@@ -94,7 +90,7 @@ function installLatestInteractionHandler(ctx: LatestContext) {
         } else {
           await interaction.reply(payload);
         }
-      } catch { /* ignore */ }
+      } catch {  }
       return undefined;
     }
   }

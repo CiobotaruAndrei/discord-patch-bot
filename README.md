@@ -171,6 +171,7 @@ Starea curenta:
 - `src/tsconfig.strict.json` include incremental fisiere stabilizate, inclusiv modulele de surse Steam/deals/updates si testele directe pe shape drift;
 - `legacy-dynamic.d.ts` a fost eliminat; tipurile trebuie rezolvate local, nu prin extinderea globala a `Object`.
 - codul runtime din `app`, `domain`, `features`, `infra`, `shared` si `sources` nu mai foloseste `any` sau `ctx: any`; adapterele ramase folosesc tipuri structurale locale.
+- fisierele de cod sunt tinute fara comentarii explicative; contextul de arhitectura, operare si mentenanta sta in README, changelog si `src/docs/`.
 
 Zonele ramase de imbunatatit sunt reducerea contextului comun din runtime/registry, tiparea mai stricta a mock-urilor din teste si mentinerea adapterelor subtiri la marginea sistemului.
 

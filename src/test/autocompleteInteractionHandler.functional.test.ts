@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-
 const installAutocomplete = require("../features/command-handlers/autocompleteInteractionHandler") as
   ((ctx: Record<string, any>) => void) & { createAutocompleteHandler?: (deps: any) => any; scoreGameAgainstInput?: (g: any, i: string) => number };
 
@@ -70,10 +69,7 @@ test("autocomplete returns top matches sorted by score then alphabetically", asy
   });
   await ctx.handleInteraction(interaction, GAMES);
   assert.equal(responses.length, 1);
-  // Both "Dota 2" (starts with "d") and "dota" alias hit score 50 (prefix).
-  // Tiebreaker by name → "Dota 2" first. Minecraft contains "d" via no path
-  // (Minecraft doesn't contain "d") — let's pick more discriminating input.
-  // Actually with "d", only Dota 2 should match (prefix + alias). Verify:
+
   const names = (responses[0] as any[]).map(c => c.name);
   assert.ok(names[0].startsWith("Dota 2"));
 });
@@ -132,10 +128,10 @@ test("/set games remove restricts pool to enabledGames + stale placeholders", as
   const keys = choices.map(c => c.value);
   assert.ok(keys.includes("cs2"), "cheia activa trebuie sa apara");
   assert.ok(keys.includes("ghost_game_no_longer_in_config"), "cheia stale trebuie inclusa ca placeholder");
-  // Verificam ca eticheta stale e marcata.
+
   const staleChoice = choices.find(c => c.value === "ghost_game_no_longer_in_config");
   assert.match(staleChoice!.name, /cheie stale/);
-  // Jocurile NU active nu apar.
+
   assert.ok(!keys.includes("fortnite"));
   assert.ok(!keys.includes("dota2"));
 });
@@ -198,7 +194,7 @@ test("respond rejection is swallowed (Discord side closed connection)", async ()
     },
     respond: async () => { throw new Error("Unknown interaction (10062)"); }
   };
-  // Trebuie sa nu arunce.
+
   await ctx.handleInteraction(interaction, GAMES);
 });
 
@@ -208,6 +204,6 @@ test("scoreGameAgainstInput: exact > prefix > contains > none", () => {
   assert.equal(score({ key: "cs2", name: "Counter-Strike 2", aliases: ["cs"] }, "counter"), 50);
   assert.equal(score({ key: "cs2", name: "Counter-Strike 2", aliases: ["cs"] }, "strike"), 20);
   assert.equal(score({ key: "cs2", name: "Counter-Strike 2", aliases: ["cs"] }, "xyz"), -1);
-  // empty input → 0 (everything is acceptable, ordered alphabetically downstream).
+
   assert.equal(score({ key: "cs2", name: "Counter-Strike 2", aliases: ["cs"] }, ""), 0);
 });

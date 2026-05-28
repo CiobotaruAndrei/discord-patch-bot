@@ -175,11 +175,9 @@ test("cron heartbeat tolerates one transient renew throw but aborts on the secon
       releaseDbLock: async () => undefined,
       commands: {
         setGlobalCacheTtl() {},
-        // Sit in the body until both heartbeat ticks have fired so the abort
-        // path can run while the cycle is still in flight. We manually drain
-        // the stubbed setTimeout queue between awaits.
+
         checkForUpdates: async () => {
-          // Wait until heartbeat has been scheduled at least once.
+
           for (let i = 0; i < 50 && renewCallCount < 2; i++) {
             await new Promise(resolve => setImmediate(resolve));
             const next = scheduledHandlers.shift();
@@ -280,14 +278,7 @@ test("cron heartbeat aborts immediately when renew returns false (lock genuinely
 });
 
 test("V12: heartbeat tick care se reia in fereastra de release NU mai renew-uie lock-ul", async () => {
-  // Regression guard pentru ordinea din finally: `currentCronToken = null`
-  // ruleaza INAINTE de stopHeartbeat + releaseDbLock. Simulam un tick de
-  // heartbeat care se reia EXACT in timpul `await releaseDbLock` (cazul real:
-  // tick suspendat intr-un `await renewDbLock` cand ciclul se incheie). Cu fix-ul,
-  // token-ul e deja null la momentul ala, deci guard-ul tick-ului
-  // (`currentCronToken !== lockToken`) il opreste — fara renew, fara re-arm.
-  // Cu bug-ul (token nulled DUPA release), tick-ul ar fi renew-uit lock-ul
-  // tocmai eliberat.
+
   const originalSetTimeout = globalThis.setTimeout;
   const originalClearTimeout = globalThis.clearTimeout;
   const scheduledHandlers: Array<() => unknown> = [];
@@ -316,9 +307,7 @@ test("V12: heartbeat tick care se reia in fereastra de release NU mai renew-uie 
       acquireDbLock: async () => "tok-release-race",
       renewDbLock: async () => { renewTotal++; return true; },
       releaseDbLock: async () => {
-        // Tick-ul de heartbeat armat la inceputul ciclului inca asteapta in
-        // scheduledHandlers; il rulam ACUM (in fereastra de release) ca sa
-        // simulam reluarea lui exact in acest moment.
+
         const pendingTick = scheduledHandlers.shift();
         if (pendingTick) await pendingTick();
         return undefined;

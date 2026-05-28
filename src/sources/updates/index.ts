@@ -163,11 +163,6 @@ function extractDateScore(url: string): number {
   return rustExtractDateScore(url);
 }
 
-// Compiled-once cache for game.articleHrefRegex. fetchListingBasedUpdate is
-// called once per game per cron tick; rebuilding the same RegExp on every
-// call is pure waste. WeakMap keeps the cache tied to the GameConfig object
-// lifetime — when the games array is rebuilt at config reload, old regexes
-// are GC'd automatically.
 const articleHrefRegexCache = new WeakMap<GameConfig, RegExp>();
 
 function getArticleHrefRegex(game: GameConfig): RegExp | null {
@@ -317,14 +312,7 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
       logger("WARN", "FETCH_UPDATES", `Articol indisponibil pentru ${game.key} (candidat ${i + 1}/${TRY_LIMIT}): ${articleUrl}`, errorMessage(err));
     }
   }
-  // V12: NU mai aruncam SchemaDriftError aici. Inainte: orice esec de network
-  // pe primii N candidati (404/timeout/5xx) era contat ca schema drift —
-  // pollua `schemaDriftFails` in CB, declansa adminAlert `drift:<game>` si
-  // aplica cooldown-ul lung de drift. Real: doar zero ancore valide DUPA ce
-  // listing-ul a parsat OK (line 286-291) este schema drift; un articol
-  // individual care nu raspunde e un network blip si trebuie sa intre pe
-  // contorul normal de `fails` ca sa nu mascheze drift-ul real cu zgomot
-  // tranzient.
+
   throw new Error(
     `Niciun articol nu a raspuns din primii ${TRY_LIMIT} candidati pentru ${game.key}: ${errorMessage(lastErr)}`
   );

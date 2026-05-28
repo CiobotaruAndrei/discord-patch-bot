@@ -200,10 +200,7 @@ function buildDealEmbed(deal: DealInfo, mode: NotificationMode = "detailed", cur
     embed.setDescription(`**${deal.store}** | ~~${formatPrice(deal.normalPrice, String(cur))}~~ -> **${isFree ? "GRATUIT" : formatPrice(deal.salePrice, String(cur))}**\n[Apasa aici pentru link](${deal.link})`);
     return embed;
   }
-  // V12: guard numeric pe savings/qualityScore/totalReviews. Inainte interpolam
-  // raw `${deal.savings}%` etc. — un snapshot replayat din pendingDiscounts (sau
-  // un deal cu schema drift) putea avea aceste campuri ca string/null/undefined,
-  // producand "reducere de **undefined%**" sau "NaN% aprecieri" vizibil in embed.
+
   const qualityNum = Number(deal.qualityScore);
   const reviewsNum = Number(deal.totalReviews);
   const savingsNum = Number(deal.savings);
@@ -413,14 +410,6 @@ function buildSteamPriceEmbed(gameData: SteamAppDetails, appId: string | number,
   let embedDesc = `**Tip produs:** ${typeStr}\n\n`;
   let color = COLORS.DARK;
 
-  // V12: validare numerica pe campurile de pret. Steam intoarce uneori
-  // price_overview cu `initial`/`final` absente sau null (apps region-locked /
-  // ne-lansate), iar tipul SteamPriceOverview le declara required dar JSON-ul
-  // upstream e untyped la runtime. Inainte: `null/100 = 0` (pret fals 0.00),
-  // `undefined/100 = NaN`, iar `undefined > 0` era false → un item cu reducere
-  // aparea drept "nu este la reducere". Acum tratam non-finite ca pret
-  // indisponibil si derivam discount-ul din preturi cand `discount_percent`
-  // lipseste dar exista o diferenta reala.
   const initialRaw = priceOverview ? Number(priceOverview.initial) : NaN;
   const finalRaw = priceOverview ? Number(priceOverview.final) : NaN;
   const pricesValid = Number.isFinite(initialRaw) && Number.isFinite(finalRaw);

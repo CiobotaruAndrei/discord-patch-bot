@@ -1,6 +1,5 @@
 "use strict";
 
-
 import type { FilterQuery, Model } from "mongoose";
 import type { GuildSettings } from "../../types";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue";
@@ -37,25 +36,25 @@ export interface UpdateNotificationServiceDeps {
   logger: Logger;
   runConcurrent: RunConcurrent;
   resolveOutboundChannel: ResolveOutboundChannel;
-  // SeenRepository operations
+
   claimSeenUpdate: (guildId: string, channelId: string, gameKey: string, updateId: string) => Promise<MongoWriteResult>;
   rollbackSeenUpdate: (guildId: string, gameKey: string, updateId: string) => Promise<MongoWriteResult>;
   disableUpdatesForChannelError: (guildId: string, channelId: string, message: string) => Promise<MongoWriteResult>;
-  // Discord helpers
+
   isPermanentDiscordError: (err: unknown) => boolean;
   transientErrorMessage: (err: unknown) => string;
-  // Pure utils
+
   normalizePendingUpdateArray: (arr: unknown) => PendingUpdate[];
   toEntries: <K, V>(map: Map<K, V> | Record<string, V> | undefined) => Array<[K, V]>;
   rotateAfter: <T>(arr: T[], lastSeen: T | null) => T[];
   mapToObject: <V>(map: Map<string, V>) => Record<string, V>;
-  // Fetch + embed
+
   getLatestForAllGames: (games: unknown[], shouldAbort?: (() => boolean) | null) => Promise<UpdateFetchResult[]>;
   setUpdatesCache: (data: UpdateFetchResult[]) => void;
   buildUpdateEmbed: (gameName: string, latest: unknown, mode: string) => unknown;
-  // Misc
+
   sleepIfPositive: (ms: number) => Promise<void>;
-  // Limits
+
   PENDING_UPDATE_MAX_AGE_MS: number;
   PENDING_UPDATE_MAX_ATTEMPTS: number;
   PENDING_UPDATES_PER_GAME_LIMIT: number;
@@ -192,12 +191,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     let latestResults: UpdateFetchResult[];
     try {
       latestResults = await getLatestForAllGames(optimizedGames, shouldAbort);
-      // V12: scriem in cache DOAR daca am fetch-uit lista completa. Inainte:
-      // cache-am subsetul filtrat de buildOptimizedGameList, iar /latest updates
-      // citea de acolo si servea date partiale unui guild care nu era in
-      // intersectia de enabledGames a celor subscribed (ex: admin face /latest
-      // updates pe un guild ne-subscribed cu enabledGames gol — vrea tot, dar
-      // primeste doar subset-ul subscribed-iolor).
+
       if (optimizedGames.length === games.length) {
         setUpdatesCache(latestResults);
       }

@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-
 const attachLocks = require("../infra/mongo/locks") as
   (ctx: Record<string, any>) => void;
 
@@ -57,9 +56,7 @@ test("acquireDbLock returns token on successful upsert", async () => {
 });
 
 test("acquireDbLock returns null on E11000 duplicate-key (legitimate race)", async () => {
-  // Race-ul legitim cu alta instanta — alt nod a inserat lock-ul exact in
-  // fereastra noastra de upsert. Caller-ul cron trebuie sa numere asta ca
-  // `cronSkippedDueToLock` si sa sara ciclu fara alerta.
+
   const { acquireDbLock, activeLocks } = makeLocksCtx({ findOneAndUpdateBehavior: "throw-duplicate" });
   const token = await acquireDbLock("cron_main", 60_000);
   assert.equal(token, null, "E11000 trebuie sa returneze null, fara sa arunce");
@@ -76,8 +73,7 @@ test("acquireDbLock RETHROWS non-E11000 errors instead of swallowing them as 'ra
 });
 
 test("acquireDbLock returns null when the upserted doc has a different ownerToken (lost the race)", async () => {
-  // Mongo a returnat doc-ul existent dar alt nod l-a luat — ownerToken-ul nu
-  // matchuieste cu cel pe care l-am generat. Tratam ca null (race legitim).
+
   const { acquireDbLock } = makeLocksCtx({
     findOneAndUpdateBehavior: "ok",
     ownerTokenInDoc: "other-instance-token"

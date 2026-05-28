@@ -6,9 +6,7 @@ const installStatusHandler = require("../features/command-handlers/statusInterac
 const installSetHandler = require("../features/command-handlers/setInteractionHandler") as (ctx: Record<string, any>) => void;
 
 function attachInteractions(ctx: Record<string, any>): void {
-  // Bottom-of-chain stub: handleInteraction nu mai exista in legacy router
-  // ca handler complet, deci provideam un default no-op pentru testele care
-  // exercita doar handlers individuali prin `ctx.handleSetInteraction(...)`.
+
   if (typeof ctx.handleInteraction !== "function") {
     ctx.handleInteraction = async () => undefined;
   }
@@ -112,7 +110,7 @@ function makeSetGamesInteraction(sub: string, jocKey: string) {
 test("/set games remove accepts a stale key not in the current config", async () => {
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx: any = makeCtx(replies, mongoCalls, /* modifiedCount */ 1);
+  const ctx: any = makeCtx(replies, mongoCalls,  1);
   attachInteractions(ctx);
 
   const currentGames: Game[] = [{ key: "cs2", name: "Counter-Strike 2" }];
@@ -134,12 +132,10 @@ test("/set games remove accepts a stale key not in the current config", async ()
 });
 
 test("/set games remove reports 'nothing to remove' when key was not in enabledGames", async () => {
-  // Even with the new permissive remove, if the $pull modified nothing
-  // (key wasn't in enabledGames in the first place) we surface that as
-  // Info to the user rather than a misleading "OK" success.
+
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
-  const ctx: any = makeCtx(replies, mongoCalls, /* modifiedCount */ 0);
+  const ctx: any = makeCtx(replies, mongoCalls,  0);
   attachInteractions(ctx);
 
   await ctx.handleSetGames(
@@ -156,8 +152,7 @@ test("/set games remove reports 'nothing to remove' when key was not in enabledG
 });
 
 test("/set games add still rejects keys not in the current config", async () => {
-  // Regression guard for the asymmetry — `add` keeps strict validation
-  // because we don't want random typed strings polluting enabledGames.
+
   const replies: unknown[] = [];
   const mongoCalls: unknown[][] = [];
   const ctx: any = makeCtx(replies, mongoCalls);

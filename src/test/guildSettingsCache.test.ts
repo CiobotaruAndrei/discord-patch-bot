@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-// guildSettings.ts uses CommonJS `export = attachGuildSettings`, so go through require.
 const attachGuildSettings = require("../infra/mongo/guildSettings") as (ctx: any) => void;
 
 function makeCtx(maxSize: number, fetchedIds: string[]) {
@@ -21,11 +20,6 @@ function makeCtx(maxSize: number, fetchedIds: string[]) {
   };
 }
 
-// `guildSettingsCache` and `runtimeContext` are module-level singletons in
-// `infra/mongo/guildSettings.ts`, so tests can carry state between each
-// other. We use unique guild-id prefixes per test and explicitly invalidate
-// the working set on entry to keep them isolated without exposing a "clear"
-// hook from production code.
 function resetCacheFor(ctx: any, ids: string[]): void {
   for (const id of ids) ctx.invalidateGuildCache(id);
 }
@@ -43,9 +37,9 @@ test("guildSettingsCache evicts oldest entries past GUILD_CACHE_MAX_SIZE", async
   assert.ok(ctx.getGuildCacheSize() >= 3,
     "all three working-set entries must be cached after first fetch");
 
-  await ctx.getGuildSettings(ids[3]); // should evict ids[0] (oldest of our working set)
+  await ctx.getGuildSettings(ids[3]);
 
-  await ctx.getGuildSettings(ids[0]); // must be re-fetched since it was evicted
+  await ctx.getGuildSettings(ids[0]);
   assert.equal(fetched.filter(id => id === ids[0]).length, 2,
     `${ids[0]} must be re-fetched after eviction past cap`);
 });
@@ -61,12 +55,11 @@ test("touching an entry refreshes its LRU position", async () => {
   await ctx.getGuildSettings(ids[1]);
   await ctx.getGuildSettings(ids[2]);
 
-  // Touch ids[0] — should bump it to newest so a subsequent insert evicts ids[1] instead.
   await ctx.getGuildSettings(ids[0]);
   await ctx.getGuildSettings(ids[3]);
 
-  await ctx.getGuildSettings(ids[0]); // still cached, no extra fetch
-  await ctx.getGuildSettings(ids[1]); // evicted, must be re-fetched
+  await ctx.getGuildSettings(ids[0]);
+  await ctx.getGuildSettings(ids[1]);
 
   assert.equal(fetched.filter(id => id === ids[0]).length, 1,
     `${ids[0]} stayed cached after the touch (only fetched once)`);

@@ -69,9 +69,7 @@ test("command registry can be created with explicit mocked installers", () => {
 test("command registry fails early when an installer misses a required function", () => {
   assert.throws(
     () => commandRegistry.createCommandRegistry({}, [ctx => {
-      // Attach an irrelevant entry so the error references the missing
-      // `cleanCache` (the first required key) rather than a generic empty-ctx
-      // message.
+
       ctx.unrelated = () => null;
     }]),
     /cleanCache/

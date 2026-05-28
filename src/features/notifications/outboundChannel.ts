@@ -38,7 +38,6 @@ export function isPermanentDiscordError(err: unknown): boolean {
   return DISCORD_PERMANENT_ERROR_CODES.has(Number((err as { code?: unknown } | null)?.code));
 }
 
-// Aliasul ramane explicit pentru logica de notificari: mesajul poate veni din erori tranzitorii sau permanente.
 export const transientErrorMessage = errorMessage;
 
 async function disableSafely(disableFn: DisableChannelFn, guildId: string, channelId: string, message: string): Promise<void> {
