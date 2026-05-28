@@ -278,3 +278,73 @@ test("cron heartbeat aborts immediately when renew returns false (lock genuinely
     globalThis.clearTimeout = originalClearTimeout;
   }
 });
+
+test("V12: heartbeat tick care se reia in fereastra de release NU mai renew-uie lock-ul", async () => {
+  // Regression guard pentru ordinea din finally: `currentCronToken = null`
+  // ruleaza INAINTE de stopHeartbeat + releaseDbLock. Simulam un tick de
+  // heartbeat care se reia EXACT in timpul `await releaseDbLock` (cazul real:
+  // tick suspendat intr-un `await renewDbLock` cand ciclul se incheie). Cu fix-ul,
+  // token-ul e deja null la momentul ala, deci guard-ul tick-ului
+  // (`currentCronToken !== lockToken`) il opreste — fara renew, fara re-arm.
+  // Cu bug-ul (token nulled DUPA release), tick-ul ar fi renew-uit lock-ul
+  // tocmai eliberat.
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const scheduledHandlers: Array<() => unknown> = [];
+  globalThis.setTimeout = ((handler: () => unknown) => {
+    const entry = { handler, unref() {} };
+    scheduledHandlers.push(handler);
+    return entry as unknown as ReturnType<typeof setTimeout>;
+  }) as typeof setTimeout;
+  globalThis.clearTimeout = (() => undefined) as typeof clearTimeout;
+
+  try {
+    let renewTotal = 0;
+    const metrics = {
+      fetchSuccess: 0, fetchFail: 0, httpRetries: 0, rateLimitHits: 0,
+      cronRuns: 0, cronErrors: 0, cronSkippedDueToLock: 0, cronSkippedDueToHealth: 0,
+      cronAborted: 0, httpRateLimitDrops: 0, startedAt: 0
+    };
+
+    const controller = createCronController({
+      mongoose: { connection: { readyState: 1 } },
+      performance: { now: () => Date.now() },
+      crypto: { randomBytes: () => ({ toString: () => "ff00aa" }) },
+      logger() {},
+      env: { GLOBAL_HEALTH_WINDOW: 3, GLOBAL_HEALTH_MIN_RATIO: 50 } as any,
+      parseEnvNumber: (_name: string, defaultValue: number) => defaultValue,
+      acquireDbLock: async () => "tok-release-race",
+      renewDbLock: async () => { renewTotal++; return true; },
+      releaseDbLock: async () => {
+        // Tick-ul de heartbeat armat la inceputul ciclului inca asteapta in
+        // scheduledHandlers; il rulam ACUM (in fereastra de release) ca sa
+        // simulam reluarea lui exact in acest moment.
+        const pendingTick = scheduledHandlers.shift();
+        if (pendingTick) await pendingTick();
+        return undefined;
+      },
+      commands: {
+        setGlobalCacheTtl() {},
+        checkForUpdates: async () => undefined,
+        checkForDiscounts: async () => undefined
+      },
+      adminAlert: async () => undefined,
+      client: { isReady: () => true },
+      games: [],
+      config: { games: [], checkIntervalMinutes: 30 },
+      metrics,
+      lifecycle: { isShuttingDown: false },
+      errorMessage: (err: unknown) => (err as Error)?.message ?? String(err),
+      errorDetail: (err: unknown) => (err as Error)?.message ?? String(err),
+      requestContext: { run: async (_store, callback) => callback() }
+    });
+
+    await controller.runCronCycle();
+
+    assert.equal(renewTotal, 0,
+      `heartbeat-ul reluat in fereastra de release NU trebuie sa renew-uie (token deja null); got ${renewTotal}`);
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});

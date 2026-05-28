@@ -88,13 +88,18 @@ function registerDiscordEvents({
   });
 
   client.on("interactionCreate", async (interaction) => {
-    const reqId = crypto.randomBytes(6).toString("hex");
-    await requestContext.run({ requestId: reqId }, async () => {
-      try { await commands.handleInteraction(interaction, games); }
-      catch (err) {
-        logger("ERROR", "INTERACTION", "Eroare top-level la interactionCreate", errorDetail(err));
-      }
-    });
+    // V12: tot corpul (inclusiv crypto.randomBytes) e in try. Inainte
+    // crypto.randomBytes era in afara — daca arunca (entropy exhaustion, crypto
+    // mock-uit), async handler-ul respingea, iar EventEmitter-ul discord.js nu
+    // are listener → unhandledRejection → fatal handler ruleaza full shutdown.
+    try {
+      const reqId = crypto.randomBytes(6).toString("hex");
+      await requestContext.run({ requestId: reqId }, async () => {
+        await commands.handleInteraction(interaction, games);
+      });
+    } catch (err) {
+      logger("ERROR", "INTERACTION", "Eroare top-level la interactionCreate", errorDetail(err));
+    }
   });
 
   client.on("error", (err) => logger("ERROR", "DISCORD", "Eroare client Discord", errorMessage(err)));
