@@ -297,9 +297,16 @@ function createCronController({
       } finally {
         const durationMs = Math.round(performance.now() - cycleStart);
         recordHealth(success, durationMs);
+        // V12: invalideaza token-ul INAINTE de stopHeartbeat + releaseDbLock.
+        // Inainte: stopHeartbeat() clears doar timer-ul armat, dar un tick deja
+        // suspendat in `await renewDbLock(...)` se putea relua in fereastra
+        // `await releaseDbLock` cat timp `currentCronToken === lockToken` inca
+        // era adevarat → re-arma un heartbeat orfan si renew-uia un lock pe care
+        // tocmai il eliberam. Setand token-ul null primul, guard-ul tick-ului
+        // (`currentCronToken !== lockToken`) esueaza la reluare si nu mai re-arma.
+        currentCronToken = null;
         stopHeartbeat();
         await releaseDbLock("cron_main", lockToken).catch(() => null);
-        currentCronToken = null;
         currentCronAbortController = null;
         if (!lifecycle.isShuttingDown) scheduleNextCron();
       }
