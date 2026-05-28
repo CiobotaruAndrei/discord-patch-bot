@@ -10,8 +10,8 @@ interface MongoModelsContext {
   [key: string]: unknown;
 }
 
-module.exports = (ctx: MongoModelsContext) => {
-  const { mongoose, SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, ONE_DAY_MS } = ctx;
+function attachMongoModels(target: MongoModelsContext): void {
+  const { mongoose, SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, ONE_DAY_MS } = target;
 
 const pendingUpdateSchema = new mongoose.Schema({
   id: { type: String, required: true },
@@ -109,13 +109,13 @@ const adminAlertCooldownSchema = new mongoose.Schema({
 }, { minimize: false });
 const AdminAlertCooldownModel = mongoose.model("AdminAlertCooldown", adminAlertCooldownSchema);
 
-  Object.assign(ctx, {
+  Object.assign(target, {
     GuildModel,
     CircuitBreakerModel,
     SystemModel,
     JobLockModel,
     AdminAlertCooldownModel
   });
-};
+}
 
-export {};
+export = attachMongoModels;

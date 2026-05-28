@@ -265,9 +265,9 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
   };
 }
 
-function installSubscriptionInteractions(ctx: SubscriptionContext) {
-  const previousHandleInteraction = ctx.handleInteraction;
-  const handlers = createSubscriptionInteractionHandlers(ctx);
+function installSubscriptionInteractions(target: SubscriptionContext) {
+  const previousHandleInteraction = target.handleInteraction;
+  const handlers = createSubscriptionInteractionHandlers(target);
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!isSubscriptionCommand(interaction)) {
@@ -279,8 +279,8 @@ function installSubscriptionInteractions(ctx: SubscriptionContext) {
       if (interaction.commandName === "start") return await handlers.handleStartInteraction(interaction, games);
       return await handlers.handleStopInteraction(interaction);
     } catch (err: unknown) {
-      ctx.logger?.("ERROR", "SUBSCRIPTION_INTERACTION", "Eroare in handler-ul de start/stop", errorDetail(err));
-      const payload = createInteractionErrorPayload(ctx.MessageFlags);
+      target.logger?.("ERROR", "SUBSCRIPTION_INTERACTION", "Eroare in handler-ul de start/stop", errorDetail(err));
+      const payload = createInteractionErrorPayload(target.MessageFlags);
       try {
         if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") await interaction.followUp(payload);
         else if (typeof interaction.reply === "function") await interaction.reply(payload);
@@ -289,7 +289,7 @@ function installSubscriptionInteractions(ctx: SubscriptionContext) {
     }
   }
 
-  Object.assign(ctx, handlers, { handleInteraction });
+  Object.assign(target, handlers, { handleInteraction });
 }
 
 Object.assign(installSubscriptionInteractions, { createSubscriptionInteractionHandlers });

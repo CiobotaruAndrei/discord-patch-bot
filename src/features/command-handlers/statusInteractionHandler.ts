@@ -84,9 +84,9 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
   };
 }
 
-function installStatusInteraction(ctx: StatusContext) {
-  const previousHandleInteraction = ctx.handleInteraction;
-  const handlers = createStatusInteractionHandler(ctx);
+function installStatusInteraction(target: StatusContext) {
+  const previousHandleInteraction = target.handleInteraction;
+  const handlers = createStatusInteractionHandler(target);
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!isStatusCommand(interaction)) {
@@ -97,8 +97,8 @@ function installStatusInteraction(ctx: StatusContext) {
     try {
       return await handlers.handleStatusInteraction(interaction, games);
     } catch (err: unknown) {
-      ctx.logger?.("ERROR", "STATUS_INTERACTION", "Eroare in handler-ul /status", errorDetail(err));
-      const payload = createInteractionErrorPayload(ctx.MessageFlags);
+      target.logger?.("ERROR", "STATUS_INTERACTION", "Eroare in handler-ul /status", errorDetail(err));
+      const payload = createInteractionErrorPayload(target.MessageFlags);
       try {
         if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") {
           await interaction.followUp(payload);
@@ -110,7 +110,7 @@ function installStatusInteraction(ctx: StatusContext) {
     }
   }
 
-  Object.assign(ctx, handlers, { handleInteraction });
+  Object.assign(target, handlers, { handleInteraction });
 }
 
 Object.assign(installStatusInteraction, { createStatusInteractionHandler });

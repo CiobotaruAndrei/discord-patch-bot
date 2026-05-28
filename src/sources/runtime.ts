@@ -6,7 +6,7 @@ const Parser = require("rss-parser");
 const crypto = require("crypto");
 const data = require("../infra/mongo/mongoContext");
 
-module.exports = {
+export = {
   axios,
   cheerio,
   Parser,
@@ -14,5 +14,3 @@ module.exports = {
   rssParser: new Parser(),
   ...data
 };
-
-export {};

@@ -20,8 +20,8 @@ const dealFilterExports = {
   rotateAfter
 };
 
-function attachDealFilters(ctx: DealFiltersContext): void {
-  Object.assign(ctx, dealFilterExports);
+function attachDealFilters(target: DealFiltersContext): void {
+  Object.assign(target, dealFilterExports);
 }
 
 const attachDealFiltersWithExports = Object.assign(attachDealFilters, dealFilterExports);

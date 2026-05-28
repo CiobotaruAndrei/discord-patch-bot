@@ -94,15 +94,15 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
   };
 }
 
-function installHelpHandler(ctx: HelpContext) {
-  const previousHandleInteraction = ctx.handleInteraction;
-  let resolvedBuildHelpEmbed = ctx.buildHelpEmbed;
+function installHelpHandler(target: HelpContext) {
+  const previousHandleInteraction = target.handleInteraction;
+  let resolvedBuildHelpEmbed = target.buildHelpEmbed;
   if (typeof resolvedBuildHelpEmbed !== "function") {
-    if (!ctx.EmbedBuilder || !ctx.COLORS) {
-      throw new Error("helpInteractionHandler: needs either ctx.buildHelpEmbed or (ctx.EmbedBuilder + ctx.COLORS)");
+    if (!target.EmbedBuilder || !target.COLORS) {
+      throw new Error("helpInteractionHandler: needs either buildHelpEmbed or EmbedBuilder plus COLORS");
     }
-    const EmbedBuilder = ctx.EmbedBuilder;
-    const COLORS = ctx.COLORS;
+    const EmbedBuilder = target.EmbedBuilder;
+    const COLORS = target.COLORS;
     resolvedBuildHelpEmbed = () => buildHelpEmbedFromDeps(EmbedBuilder, COLORS);
   }
   const handlers = createHelpHandler({ buildHelpEmbed: resolvedBuildHelpEmbed });
@@ -116,8 +116,8 @@ function installHelpHandler(ctx: HelpContext) {
     try {
       return await handlers.handleHelpInteraction(interaction);
     } catch (err: unknown) {
-      ctx.logger?.("ERROR", "HELP_INTERACTION", "Eroare in handler-ul /help", errorDetail(err));
-      const payload = createInteractionErrorPayload(ctx.MessageFlags);
+      target.logger?.("ERROR", "HELP_INTERACTION", "Eroare in handler-ul /help", errorDetail(err));
+      const payload = createInteractionErrorPayload(target.MessageFlags);
       try {
         if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") {
           await interaction.followUp(payload);
@@ -129,7 +129,7 @@ function installHelpHandler(ctx: HelpContext) {
     }
   }
 
-  Object.assign(ctx, handlers, { handleInteraction, buildHelpEmbed: resolvedBuildHelpEmbed });
+  Object.assign(target, handlers, { handleInteraction, buildHelpEmbed: resolvedBuildHelpEmbed });
 }
 
 Object.assign(installHelpHandler, { createHelpHandler, buildHelpEmbed: buildHelpEmbedFromDeps });

@@ -25,7 +25,7 @@ type GuildModelLike = {
   updateOne(filter: unknown, update: unknown, opts?: unknown): Promise<{ matchedCount?: number; modifiedCount?: number }>;
 };
 
-type Logger = (level: string, ctx: string, msg: string, meta?: unknown) => void;
+type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
 type SetInteractionDeps = {
   GuildModel: GuildModelLike;
@@ -198,9 +198,9 @@ function isDirectSetCommand(interaction: DiscordInteraction): boolean {
   return group !== "games" && group !== "role";
 }
 
-function installSetInteractionHandler(ctx: SetContext) {
-  const previousHandleInteraction = ctx.handleInteraction;
-  const handlers = createSetInteractionHandler(ctx);
+function installSetInteractionHandler(target: SetContext) {
+  const previousHandleInteraction = target.handleInteraction;
+  const handlers = createSetInteractionHandler(target);
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!isDirectSetCommand(interaction)) {
@@ -210,8 +210,8 @@ function installSetInteractionHandler(ctx: SetContext) {
     try {
       return await handlers.handleSetInteraction(interaction);
     } catch (err: unknown) {
-      ctx.logger?.("ERROR", "SET_INTERACTION", "Eroare in handler-ul /set", errorDetail(err));
-      const payload = { content: "Eroare: Eroare neasteptata la procesarea comenzii.", flags: ctx.MessageFlags.Ephemeral };
+      target.logger?.("ERROR", "SET_INTERACTION", "Eroare in handler-ul /set", errorDetail(err));
+      const payload = { content: "Eroare: Eroare neasteptata la procesarea comenzii.", flags: target.MessageFlags.Ephemeral };
       try {
         if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") {
           await interaction.followUp(payload);
@@ -223,7 +223,7 @@ function installSetInteractionHandler(ctx: SetContext) {
     }
   }
 
-  Object.assign(ctx, handlers, { handleInteraction });
+  Object.assign(target, handlers, { handleInteraction });
 }
 
 Object.assign(installSetInteractionHandler, { createSetInteractionHandler, buildSetUpdatePlan });

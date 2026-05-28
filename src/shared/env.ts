@@ -25,8 +25,8 @@ function errorDetail(err: unknown): unknown {
   return maybe.issues || maybe.message || String(err);
 }
 
-function attachEnv(ctx: EnvContext): void {
-  const { z, logger, parseEnvNumber, RAW_LOG_LEVEL } = ctx;
+function attachEnv(target: EnvContext): void {
+  const { z, logger, parseEnvNumber, RAW_LOG_LEVEL } = target;
 
   const isProd = process.env.NODE_ENV === "production";
   const PLACEHOLDER_METRICS_TOKEN = "change_me_to_a_long_random_value";
@@ -185,7 +185,7 @@ function attachEnv(ctx: EnvContext): void {
     METRICS_TOKEN_SET: !!env.METRICS_TOKEN
   });
 
-  Object.assign(ctx, {
+  Object.assign(target, {
     env,
     isProd,
     ONE_HOUR_MS,

@@ -3,7 +3,7 @@
 import type { FilterQuery, Model } from "mongoose";
 import type { GuildSettings, DealInfo } from "../../types";
 
-type Logger = (level: string, ctx: string, msg: string, meta?: unknown) => void;
+type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
 interface MongoWriteResult { matchedCount?: number; modifiedCount?: number }
 

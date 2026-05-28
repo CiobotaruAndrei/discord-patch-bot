@@ -6,6 +6,4 @@ const axios = require("axios");
 const { z } = require("zod");
 const { AsyncLocalStorage } = require("async_hooks");
 
-module.exports = { mongoose, crypto, axios, z, AsyncLocalStorage };
-
-export {};
+export = { mongoose, crypto, axios, z, AsyncLocalStorage };

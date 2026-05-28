@@ -264,4 +264,5 @@ Teste E2E:
 - Nu transforma fallback-ul intr-un router mare.
 - Nu muta in Rust logica ce depinde de Discord, Mongo, HTTP sau I/O.
 - Nu activa strict global brusc; extinde `src/tsconfig.strict.json` pe module stabilizate.
+- In cod runtime nou, foloseste `deps` pentru dependinte explicite si `target` doar pentru instalare compatibila; nu reintroduce identificatorul `ctx`.
 - Nu reintroduce comentarii explicative in fisierele de cod. Daca informatia merita pastrata, mut-o in fisierul de documentatie care acopera functionalitatea respectiva.

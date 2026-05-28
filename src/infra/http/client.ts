@@ -246,9 +246,9 @@ function normalizeProxyTemplates(rawTemplates: string, defaults: string[]): stri
   });
 }
 
-function attachHttpClient(ctx: HttpClientContext): void {
-  const { axios, cheerio, env, logger, getAbortSignal } = ctx;
-  const dnsLookup = ctx.dnsLookup || dns.lookup;
+function attachHttpClient(target: HttpClientContext): void {
+  const { axios, cheerio, env, logger, getAbortSignal } = target;
+  const dnsLookup = target.dnsLookup || dns.lookup;
   const safeDnsLookup = createSafeDnsLookup(dnsLookup);
 
   const FETCH_CONCURRENCY = env.FETCH_CONCURRENCY;
@@ -291,12 +291,12 @@ function attachHttpClient(ctx: HttpClientContext): void {
   ];
   const PROXY_TEMPLATES = normalizeProxyTemplates(env.PROXY_URLS, DEFAULT_PROXIES);
 
-  ctx.metricsRef = { fetchSuccess: 0, fetchFail: 0, httpRetries: 0, rateLimitHits: 0 };
+  target.metricsRef = { fetchSuccess: 0, fetchFail: 0, httpRetries: 0, rateLimitHits: 0 };
   function metrics(): HttpMetricsRef {
-    return ctx.metricsRef as HttpMetricsRef;
+    return target.metricsRef as HttpMetricsRef;
   }
 
-  function attachMetrics(m: HttpMetricsRef): void { ctx.metricsRef = m; }
+  function attachMetrics(m: HttpMetricsRef): void { target.metricsRef = m; }
 
   function cleanText(text: unknown): string {
     return rustCleanText(text);
@@ -489,7 +489,7 @@ function attachHttpClient(ctx: HttpClientContext): void {
     promise.then(cleanup, cleanup);
   }
 
-  Object.assign(ctx, {
+  Object.assign(target, {
     FETCH_CONCURRENCY,
     MAX_HTML_BYTES,
     MAX_JSON_BYTES,

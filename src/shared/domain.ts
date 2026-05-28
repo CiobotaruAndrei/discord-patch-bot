@@ -44,8 +44,8 @@ interface DomainContext {
   formatPrice?: typeof formatPrice;
 }
 
-function attachDomain(ctx: DomainContext): void {
-  Object.assign(ctx, {
+function attachDomain(target: DomainContext): void {
+  Object.assign(target, {
     SchemaDriftError,
     SUPPORTED_CURRENCIES,
     DEFAULT_CURRENCY,

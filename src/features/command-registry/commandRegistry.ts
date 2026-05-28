@@ -77,7 +77,7 @@ function requireRegistryFunction<K extends RequiredCommandRegistryKey>(
 ): RequiredCommandRegistry[K] {
   const value = context[key];
   if (typeof value !== "function") {
-    throw new Error(`commandRegistry nu a primit functia necesara din ctx: ${String(key)}`);
+    throw new Error(`commandRegistry nu a primit functia necesara din context: ${String(key)}`);
   }
   return value as RequiredCommandRegistry[K];
 }

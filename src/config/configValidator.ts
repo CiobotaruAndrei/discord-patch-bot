@@ -41,9 +41,9 @@ const GameSchema = z.object({
 const ConfigSchema = z.object({
   checkIntervalMinutes: z.number().positive().optional(),
   games: z.array(GameSchema).min(1)
-}).superRefine((config, ctx) => {
+}).superRefine((config, refinement) => {
   if (config.checkIntervalMinutes !== undefined && !ALLOWED_CHECK_INTERVAL_MINUTES.has(config.checkIntervalMinutes)) {
-    ctx.addIssue({
+    refinement.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["checkIntervalMinutes"],
       message: "Intervalul trebuie sa fie una dintre valorile suportate: 10, 15, 30 sau 60 minute"
@@ -59,7 +59,7 @@ const ConfigSchema = z.object({
 
     const existing = seenSearchTerms.get(normalized);
     if (existing && existing.ownerIndex !== ownerIndex) {
-      ctx.addIssue({
+      refinement.addIssue({
         code: z.ZodIssueCode.custom,
         path,
         message: `${label} duplicat cu ${existing.label}: ${String(term)}`
@@ -76,7 +76,7 @@ const ConfigSchema = z.object({
     const path: IssuePath = ["games", i];
 
     if (seenKeys.has(game.key)) {
-      ctx.addIssue({
+      refinement.addIssue({
         code: z.ZodIssueCode.custom,
         path: [...path, "key"],
         message: `Cheie duplicata in config: ${game.key}`
@@ -92,7 +92,7 @@ const ConfigSchema = z.object({
         const alias = game.aliases[aliasIndex];
         const normalizedAlias = String(alias).toLowerCase().trim();
         if (localAliases.has(normalizedAlias)) {
-          ctx.addIssue({
+          refinement.addIssue({
             code: z.ZodIssueCode.custom,
             path: [...path, "aliases", aliasIndex],
             message: `Alias duplicat pentru ${game.key}: ${alias}`
@@ -104,7 +104,7 @@ const ConfigSchema = z.object({
     }
 
     if (!ALLOWED_GAME_TYPES.has(type)) {
-      ctx.addIssue({
+      refinement.addIssue({
         code: z.ZodIssueCode.custom,
         path: [...path, "type"],
         message: `Tip joc necunoscut: ${type}`
@@ -113,13 +113,13 @@ const ConfigSchema = z.object({
 
     if (type === "steam") {
       if (!game.appId) {
-        ctx.addIssue({
+        refinement.addIssue({
           code: z.ZodIssueCode.custom,
           path: [...path, "appId"],
           message: "Jocurile Steam trebuie sa aiba appId"
         });
       } else if (!/^\d+$/.test(String(game.appId))) {
-        ctx.addIssue({
+        refinement.addIssue({
           code: z.ZodIssueCode.custom,
           path: [...path, "appId"],
           message: "appId pentru Steam trebuie sa contina doar cifre"
@@ -131,7 +131,7 @@ const ConfigSchema = z.object({
       const hasListing = Boolean(game.listingUrl)
         || (Array.isArray(game.listingUrls) && game.listingUrls.length > 0);
       if (!hasListing) {
-        ctx.addIssue({
+        refinement.addIssue({
           code: z.ZodIssueCode.custom,
           path: [...path, "listingUrls"],
           message: "Sursele listing_based trebuie sa aiba listingUrl sau listingUrls"
@@ -140,7 +140,7 @@ const ConfigSchema = z.object({
       if (Array.isArray(game.listingUrls)) {
         const uniqueUrls = new Set(game.listingUrls);
         if (uniqueUrls.size !== game.listingUrls.length) {
-          ctx.addIssue({
+          refinement.addIssue({
             code: z.ZodIssueCode.custom,
             path: [...path, "listingUrls"],
             message: "listingUrls nu trebuie sa contina URL-uri duplicate"
@@ -148,7 +148,7 @@ const ConfigSchema = z.object({
         }
       }
       if (!game.baseUrl) {
-        ctx.addIssue({
+        refinement.addIssue({
           code: z.ZodIssueCode.custom,
           path: [...path, "baseUrl"],
           message: "Sursele listing_based trebuie sa aiba baseUrl"
@@ -157,7 +157,7 @@ const ConfigSchema = z.object({
     }
 
     if (type === "intel" && !game.url) {
-      ctx.addIssue({
+      refinement.addIssue({
         code: z.ZodIssueCode.custom,
         path: [...path, "url"],
         message: "Sursele Intel trebuie sa aiba url"
@@ -168,7 +168,7 @@ const ConfigSchema = z.object({
       const hasListing = Boolean(game.listingUrl)
         || (Array.isArray(game.listingUrls) && game.listingUrls.length > 0);
       if (!hasListing) {
-        ctx.addIssue({
+        refinement.addIssue({
           code: z.ZodIssueCode.custom,
           path: [...path, "listingUrls"],
           message: "Sursele epic_games (non-fortnite) trebuie sa aiba listingUrl sau listingUrls"
@@ -177,7 +177,7 @@ const ConfigSchema = z.object({
       if (Array.isArray(game.listingUrls)) {
         const uniqueUrls = new Set(game.listingUrls);
         if (uniqueUrls.size !== game.listingUrls.length) {
-          ctx.addIssue({
+          refinement.addIssue({
             code: z.ZodIssueCode.custom,
             path: [...path, "listingUrls"],
             message: "listingUrls nu trebuie sa contina URL-uri duplicate"
@@ -185,7 +185,7 @@ const ConfigSchema = z.object({
         }
       }
       if (!game.baseUrl) {
-        ctx.addIssue({
+        refinement.addIssue({
           code: z.ZodIssueCode.custom,
           path: [...path, "baseUrl"],
           message: "Sursele epic_games (non-fortnite) trebuie sa aiba baseUrl"
@@ -194,7 +194,7 @@ const ConfigSchema = z.object({
     }
 
     if (game.upCRD !== undefined && type !== "nvidia") {
-      ctx.addIssue({
+      refinement.addIssue({
         code: z.ZodIssueCode.custom,
         path: [...path, "upCRD"],
         message: "upCRD este un camp legacy permis doar pentru sursele NVIDIA"
@@ -205,7 +205,7 @@ const ConfigSchema = z.object({
       try { new RegExp(game.articleHrefRegex); }
       catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        ctx.addIssue({
+        refinement.addIssue({
           code: z.ZodIssueCode.custom,
           path: [...path, "articleHrefRegex"],
           message: `Regex invalid: ${message}`

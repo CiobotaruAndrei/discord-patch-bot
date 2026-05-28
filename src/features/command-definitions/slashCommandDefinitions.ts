@@ -71,8 +71,8 @@ interface SlashCommandContext {
   registerSlashCommands?: (token: string, clientId: string) => Promise<void>;
 }
 
-function attachSlashCommands(ctx: SlashCommandContext): void {
-  const { SlashCommandBuilder, PermissionsBitField, Routes, REST, SUPPORTED_CURRENCIES, logger, env } = ctx;
+function attachSlashCommands(target: SlashCommandContext): void {
+  const { SlashCommandBuilder, PermissionsBitField, Routes, REST, SUPPORTED_CURRENCIES, logger, env } = target;
 
   const CURRENCY_CHOICES: SlashChoice[] = Object.keys(SUPPORTED_CURRENCIES).map(currency => ({
     name: currency,
@@ -163,7 +163,7 @@ function attachSlashCommands(ctx: SlashCommandContext): void {
     logger("INFO", "SLASH", `Inregistrate ${body.length} slash commands global (propagare ~1h).`);
   }
 
-  Object.assign(ctx, {
+  Object.assign(target, {
     CURRENCY_CHOICES,
     buildSlashCommandDefinitions,
     registerSlashCommands

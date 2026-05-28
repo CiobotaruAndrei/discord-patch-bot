@@ -46,12 +46,12 @@ async function saveSystemTime(key: SystemTimesKey, value: number): Promise<void>
   );
 }
 
-function attachSystemState(ctx: SystemStateContext): void {
+function attachSystemState(target: SystemStateContext): void {
   runtimeContext = {
-    SystemModel: ctx.SystemModel
+    SystemModel: target.SystemModel
   };
 
-  Object.assign(ctx, {
+  Object.assign(target, {
     getSystemTimes,
     saveSystemTimes,
     saveSystemTime

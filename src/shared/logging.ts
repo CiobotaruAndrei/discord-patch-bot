@@ -24,8 +24,8 @@ interface LogEntry {
 
 const LOG_LEVELS: Record<LogLevel, number> = { DEBUG: 10, INFO: 20, WARN: 30, ERROR: 40 };
 
-function attachLogging(ctx: LoggingContext): void {
-  const { AsyncLocalStorage } = ctx;
+function attachLogging(target: LoggingContext): void {
+  const { AsyncLocalStorage } = target;
 
   const requestContext = new AsyncLocalStorage<RequestContextStore>();
 
@@ -115,7 +115,7 @@ function attachLogging(ctx: LoggingContext): void {
     return requestContext.getStore()?.abortSignal || null;
   }
 
-  Object.assign(ctx, {
+  Object.assign(target, {
     requestContext,
     logger,
     parseEnvNumber,

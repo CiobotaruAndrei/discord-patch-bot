@@ -444,10 +444,10 @@ async function fetchDeals(opts: FetchDealsOptions = {}): Promise<DealInfo[]> {
   return promise;
 }
 
-function attachDeals(ctx: DealsContext): void {
-  runtimeContext = ctx;
+function attachDeals(target: DealsContext): void {
+  runtimeContext = target;
 
-  Object.assign(ctx, {
+  Object.assign(target, {
     fetchSteamReviewData,
     enrichCacheGet,
     enrichCacheSet,

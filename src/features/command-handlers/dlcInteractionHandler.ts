@@ -211,9 +211,9 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
   };
 }
 
-function installDlcInteraction(ctx: DlcContext) {
-  const previousHandleInteraction = ctx.handleInteraction;
-  const handlers = createDlcInteractionHandler(ctx);
+function installDlcInteraction(target: DlcContext) {
+  const previousHandleInteraction = target.handleInteraction;
+  const handlers = createDlcInteractionHandler(target);
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!isDlcCommand(interaction)) {
@@ -224,8 +224,8 @@ function installDlcInteraction(ctx: DlcContext) {
     try {
       return await handlers.handleDlcInteraction(interaction);
     } catch (err: unknown) {
-      ctx.logger?.("ERROR", "DLC_INTERACTION", "Eroare in handler-ul /dlc", errorDetail(err));
-      const payload = createInteractionErrorPayload(ctx.MessageFlags);
+      target.logger?.("ERROR", "DLC_INTERACTION", "Eroare in handler-ul /dlc", errorDetail(err));
+      const payload = createInteractionErrorPayload(target.MessageFlags);
       try {
         if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") {
           await interaction.followUp(payload);
@@ -237,7 +237,7 @@ function installDlcInteraction(ctx: DlcContext) {
     }
   }
 
-  Object.assign(ctx, handlers, { handleInteraction });
+  Object.assign(target, handlers, { handleInteraction });
 }
 
 Object.assign(installDlcInteraction, { createDlcInteractionHandler });

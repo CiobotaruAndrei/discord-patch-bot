@@ -44,8 +44,8 @@ function createAdminCommandGuard(
   return { handleAdminProtectedCommand };
 }
 
-function installAdminCommandGuard(ctx: AdminCommandGuardContext) {
-  const previousHandleInteraction = ctx.handleInteraction;
+function installAdminCommandGuard(target: AdminCommandGuardContext) {
+  const previousHandleInteraction = target.handleInteraction;
   const guard = createAdminCommandGuard();
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
@@ -57,7 +57,7 @@ function installAdminCommandGuard(ctx: AdminCommandGuardContext) {
     return guard.handleAdminProtectedCommand(interaction, games, previousHandleInteraction);
   }
 
-  Object.assign(ctx, { handleInteraction });
+  Object.assign(target, { handleInteraction });
 }
 
 Object.assign(installAdminCommandGuard, {

@@ -1,7 +1,7 @@
 "use strict";
 
 type MongoRuntimeContext = Record<string, unknown>;
-type MongoInstaller = (ctx: MongoRuntimeContext) => void;
+type MongoInstaller = (target: MongoRuntimeContext) => void;
 
 const runtimeCtx = require("./runtime") as MongoRuntimeContext;
 const defaultInstallers: MongoInstaller[] = [
@@ -17,42 +17,42 @@ const defaultInstallers: MongoInstaller[] = [
   require("./adminAlerts")
 ];
 
-function buildMongoContextExports(ctx: MongoRuntimeContext) {
+function buildMongoContextExports(context: MongoRuntimeContext) {
   return {
-    logger: ctx.logger,
-    env: ctx.env,
-    parseEnvNumber: ctx.parseEnvNumber,
-    runConcurrent: ctx.runConcurrent,
-    waitForMongoReady: ctx.waitForMongoReady,
-    validatePendingDiscountSnapshot: ctx.validatePendingDiscountSnapshot,
-    isTransientMongoError: ctx.isTransientMongoError,
-    withMongoRetry: ctx.withMongoRetry,
-    GuildModel: ctx.GuildModel,
-    CircuitBreakerModel: ctx.CircuitBreakerModel,
-    SystemModel: ctx.SystemModel,
-    JobLockModel: ctx.JobLockModel,
-    AdminAlertCooldownModel: ctx.AdminAlertCooldownModel,
-    acquireDbLock: ctx.acquireDbLock,
-    renewDbLock: ctx.renewDbLock,
-    releaseDbLock: ctx.releaseDbLock,
-    activeLocks: ctx.activeLocks,
-    runMigrations: ctx.runMigrations,
-    ALL_MIGRATIONS: ctx.ALL_MIGRATIONS,
-    getSystemTimes: ctx.getSystemTimes,
-    saveSystemTimes: ctx.saveSystemTimes,
-    saveSystemTime: ctx.saveSystemTime,
-    getGuildSettings: ctx.getGuildSettings,
-    invalidateGuildCache: ctx.invalidateGuildCache,
-    cleanGuildCache: ctx.cleanGuildCache,
-    getGuildCacheSize: ctx.getGuildCacheSize,
-    adminAlert: ctx.adminAlert,
-    SchemaDriftError: ctx.SchemaDriftError,
-    SUPPORTED_CURRENCIES: ctx.SUPPORTED_CURRENCIES,
-    DEFAULT_CURRENCY: ctx.DEFAULT_CURRENCY,
-    getCurrencyConfig: ctx.getCurrencyConfig,
-    formatPrice: ctx.formatPrice,
-    requestContext: ctx.requestContext,
-    getAbortSignal: ctx.getAbortSignal
+    logger: context.logger,
+    env: context.env,
+    parseEnvNumber: context.parseEnvNumber,
+    runConcurrent: context.runConcurrent,
+    waitForMongoReady: context.waitForMongoReady,
+    validatePendingDiscountSnapshot: context.validatePendingDiscountSnapshot,
+    isTransientMongoError: context.isTransientMongoError,
+    withMongoRetry: context.withMongoRetry,
+    GuildModel: context.GuildModel,
+    CircuitBreakerModel: context.CircuitBreakerModel,
+    SystemModel: context.SystemModel,
+    JobLockModel: context.JobLockModel,
+    AdminAlertCooldownModel: context.AdminAlertCooldownModel,
+    acquireDbLock: context.acquireDbLock,
+    renewDbLock: context.renewDbLock,
+    releaseDbLock: context.releaseDbLock,
+    activeLocks: context.activeLocks,
+    runMigrations: context.runMigrations,
+    ALL_MIGRATIONS: context.ALL_MIGRATIONS,
+    getSystemTimes: context.getSystemTimes,
+    saveSystemTimes: context.saveSystemTimes,
+    saveSystemTime: context.saveSystemTime,
+    getGuildSettings: context.getGuildSettings,
+    invalidateGuildCache: context.invalidateGuildCache,
+    cleanGuildCache: context.cleanGuildCache,
+    getGuildCacheSize: context.getGuildCacheSize,
+    adminAlert: context.adminAlert,
+    SchemaDriftError: context.SchemaDriftError,
+    SUPPORTED_CURRENCIES: context.SUPPORTED_CURRENCIES,
+    DEFAULT_CURRENCY: context.DEFAULT_CURRENCY,
+    getCurrencyConfig: context.getCurrencyConfig,
+    formatPrice: context.formatPrice,
+    requestContext: context.requestContext,
+    getAbortSignal: context.getAbortSignal
   };
 }
 
@@ -60,13 +60,11 @@ function createMongoContext(
   baseContext: MongoRuntimeContext = runtimeCtx,
   installers: MongoInstaller[] = defaultInstallers
 ) {
-  const ctx = baseContext;
-  for (const install of installers) install(ctx);
-  return buildMongoContextExports(ctx);
+  const context = baseContext;
+  for (const install of installers) install(context);
+  return buildMongoContextExports(context);
 }
 
-const mongoContext = createMongoContext();
+const mongoContext = Object.assign(createMongoContext(), { createMongoContext });
 
-Object.assign(module.exports, mongoContext, { createMongoContext });
-
-export {};
+export = mongoContext;
