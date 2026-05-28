@@ -1,14 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-type SubscriptionModule = ((ctx: Record<string, any>) => void) & {
-  createSubscriptionInteractionHandlers: (deps: Record<string, any>) => {
-    handleStartInteraction: (interaction: Record<string, any>, games: Array<Record<string, any>>) => Promise<unknown>;
-    handleStopInteraction: (interaction: Record<string, any>) => Promise<unknown>;
+type SubscriptionModule = ((context: Record<string, unknown>) => void) & {
+  createSubscriptionInteractionHandlers: (deps: Record<string, unknown>) => {
+    handleStartInteraction: (interaction: Record<string, unknown>, games: Array<Record<string, unknown>>) => Promise<unknown>;
+    handleStopInteraction: (interaction: Record<string, unknown>) => Promise<unknown>;
   };
 };
 
 const subscriptionInteractions = require("../features/command-handlers/subscriptionNotificationHandlers") as SubscriptionModule;
+
+type InteractionRuntime = {
+  handleInteraction: (interaction: unknown, games?: Array<Record<string, unknown>>) => Promise<unknown>;
+};
+type MongoCall = unknown[];
 
 function makeStartInteraction() {
   return {
@@ -25,16 +30,16 @@ function makeStartInteraction() {
   };
 }
 
-function makeBaseContext(operations: any[], replies: any[]) {
+function makeBaseContext(operations: MongoCall[], replies: unknown[]) {
   return {
     MessageFlags: { Ephemeral: 64 },
     GuildModel: {
-      updateOne: async (...args: any[]) => {
+      updateOne: async (...args: unknown[]) => {
         operations.push(args);
         return { matchedCount: 1, modifiedCount: 1 };
       }
     },
-    logger: () => undefined,
+    logger: (_level: string, _context: string, ..._args: unknown[]) => undefined,
     getGuildSettings: async () => ({ currency: "USD" }),
     invalidateGuildCache: (guildId: string) => operations.push(["invalidate", guildId]),
     DEFAULT_CURRENCY: "USD",
@@ -44,7 +49,7 @@ function makeBaseContext(operations: any[], replies: any[]) {
     DEALS_HISTORY_LIMIT: 50,
     OP_UPDATE_OPTS: {},
     setDealsCache: () => undefined,
-    safeDefer: async (interaction: Record<string, any>) => { interaction.deferred = true; },
+    safeDefer: async (interaction: Record<string, unknown>) => { interaction.deferred = true; },
     safeEdit: async (_interaction: unknown, payload: unknown) => { replies.push(payload); return payload; },
     canSendEmbeds: () => true,
     missingChannelPermsMessage: () => "Missing permissions",
@@ -54,25 +59,29 @@ function makeBaseContext(operations: any[], replies: any[]) {
 }
 
 test("subscription interaction factory handles /start updates with explicit deps", async () => {
-  const operations: any[] = [];
-  const replies: any[] = [];
+  const operations: MongoCall[] = [];
+  const replies: unknown[] = [];
   const handlers = subscriptionInteractions.createSubscriptionInteractionHandlers(makeBaseContext(operations, replies));
 
   await handlers.handleStartInteraction(makeStartInteraction(), [{ key: "cs2" }]);
 
   assert.equal(replies.at(-1), "OK: Update-uri automate activate.");
-  assert.equal(operations[0][0]._id, "guild-1");
-  assert.equal(operations[0][1].$set.notificationChannelId, "channel-1");
-  assert.equal(operations[2][1].$set["seen.cs2"][0], "update-1");
+  const firstFilter = operations[0][0] as { _id?: string };
+  const firstUpdate = operations[0][1] as { $set: { notificationChannelId: string } };
+  const seenUpdate = operations[2][1] as { $set: Record<string, string[]> };
+  assert.equal(firstFilter._id, "guild-1");
+  assert.equal(firstUpdate.$set.notificationChannelId, "channel-1");
+  assert.equal(seenUpdate.$set["seen.cs2"][0], "update-1");
 });
 
 test("subscription /start rejects unknown sub-commands instead of leaving the deferReply hanging", async () => {
-  const operations: any[] = [];
-  const replies: any[] = [];
-  const logs: any[] = [];
-  const ctx = makeBaseContext(operations, replies);
-  ctx.logger = (...args: any[]) => { logs.push(args); };
-  const handlers = subscriptionInteractions.createSubscriptionInteractionHandlers(ctx);
+  const operations: MongoCall[] = [];
+  const replies: unknown[] = [];
+  const logs: Array<[string, string, ...unknown[]]> = [];
+  const context = makeBaseContext(operations, replies);
+  const loggingContext = context as typeof context & { logger: (...args: [string, string, ...unknown[]]) => void };
+  loggingContext.logger = (...args: [string, string, ...unknown[]]) => { logs.push(args); };
+  const handlers = subscriptionInteractions.createSubscriptionInteractionHandlers(loggingContext);
 
   const interaction = makeStartInteraction();
   interaction.options.getSubcommand = () => "totally-unknown";
@@ -83,18 +92,19 @@ test("subscription /start rejects unknown sub-commands instead of leaving the de
     "no DB write must happen for an unknown sub — defer-then-return left the spinner hanging");
   assert.equal(replies.length, 1, "must reply explicitly");
   assert.match(String(replies[0]), /totally-unknown.*nu este recunoscuta/);
-  assert.ok(logs.some(([level, ctx]) => level === "WARN" && ctx === "START_COMMAND"),
+  assert.ok(logs.some(([level, context]) => level === "WARN" && context === "START_COMMAND"),
     "must emit a WARN log so operators see the rejected sub");
 });
 
 test("subscription /stop rejects unknown sub-commands instead of leaving the deferReply hanging", async () => {
 
-  const operations: any[] = [];
-  const replies: any[] = [];
-  const logs: any[] = [];
-  const ctx = makeBaseContext(operations, replies);
-  ctx.logger = (...args: any[]) => { logs.push(args); };
-  const handlers = subscriptionInteractions.createSubscriptionInteractionHandlers(ctx);
+  const operations: MongoCall[] = [];
+  const replies: unknown[] = [];
+  const logs: Array<[string, string, ...unknown[]]> = [];
+  const context = makeBaseContext(operations, replies);
+  const loggingContext = context as typeof context & { logger: (...args: [string, string, ...unknown[]]) => void };
+  loggingContext.logger = (...args: [string, string, ...unknown[]]) => { logs.push(args); };
+  const handlers = subscriptionInteractions.createSubscriptionInteractionHandlers(loggingContext);
 
   const interaction = makeStartInteraction();
   interaction.commandName = "stop";
@@ -105,22 +115,24 @@ test("subscription /stop rejects unknown sub-commands instead of leaving the def
   assert.equal(operations.length, 0);
   assert.equal(replies.length, 1);
   assert.match(String(replies[0]), /totally-unknown.*nu este recunoscuta/);
-  assert.ok(logs.some(([level, ctx]) => level === "WARN" && ctx === "STOP_COMMAND"));
+  assert.ok(logs.some(([level, context]) => level === "WARN" && context === "STOP_COMMAND"));
 });
 
 test("subscription installer intercepts start/stop and delegates other interactions", async () => {
-  const operations: any[] = [];
-  const replies: any[] = [];
+  const operations: MongoCall[] = [];
+  const replies: unknown[] = [];
   const delegated: string[] = [];
-  const ctx: Record<string, any> = makeBaseContext(operations, replies);
-  ctx.handleInteraction = async (interaction: Record<string, any>) => {
-    delegated.push(interaction.commandName);
+  const context = makeBaseContext(operations, replies);
+  const runtimeContext = context as typeof context & Partial<InteractionRuntime>;
+  runtimeContext.handleInteraction = async (interaction: unknown) => {
+    delegated.push((interaction as { commandName: string }).commandName);
     return "delegated";
   };
 
-  subscriptionInteractions(ctx);
-  await ctx.handleInteraction(makeStartInteraction(), [{ key: "cs2" }]);
-  const result = await ctx.handleInteraction({
+  subscriptionInteractions(runtimeContext);
+  const runtime = runtimeContext as typeof context & InteractionRuntime;
+  await runtime.handleInteraction(makeStartInteraction(), [{ key: "cs2" }]);
+  const result = await runtime.handleInteraction({
     commandName: "latest",
     guild: { id: "guild-1" },
     isChatInputCommand: () => true

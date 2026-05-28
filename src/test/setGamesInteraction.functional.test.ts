@@ -11,8 +11,12 @@ type UpdateCall = {
   update: unknown;
   options?: unknown;
 };
+type Game = { key: string; name: string };
+type GameFilterRuntime = {
+  handleSetGames: (interaction: unknown, games: Game[], sub: string, guildId: string) => Promise<unknown>;
+};
 
-const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as (ctx: Record<string, unknown>) => void;
+const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as (context: Record<string, unknown>) => void;
 
 const games = [
   { key: "cs2", name: "Counter-Strike 2" },
@@ -23,7 +27,7 @@ function buildContext() {
   const calls: UpdateCall[] = [];
   const replies: unknown[] = [];
   const invalidatedGuilds: string[] = [];
-  const ctx: Record<string, unknown> = {
+  const context = {
     GuildModel: {
       updateOne: async (filter: unknown, update: unknown, options?: unknown) => {
         calls.push({ filter, update, options });
@@ -40,8 +44,8 @@ function buildContext() {
     formatUserError: (_err: unknown, fallback: string) => fallback,
     getGuildSettings: async () => ({ enabledGames: [] })
   };
-  installGameFilterHandlers(ctx);
-  return { ctx, calls, replies, invalidatedGuilds };
+  installGameFilterHandlers(context);
+  return { context: context as typeof context & GameFilterRuntime, calls, replies, invalidatedGuilds };
 }
 
 function makeInteraction(gameKey: string | null) {
@@ -53,9 +57,9 @@ function makeInteraction(gameKey: string | null) {
 }
 
 test("/set games add builds the expected Mongo update and confirmation", async () => {
-  const { ctx, calls, replies, invalidatedGuilds } = buildContext();
+  const { context, calls, replies, invalidatedGuilds } = buildContext();
 
-  await (ctx.handleSetGames as Function)(makeInteraction("cs2"), games, "add", "guild-1");
+  await context.handleSetGames(makeInteraction("cs2"), games, "add", "guild-1");
 
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].filter, { _id: "guild-1" });
@@ -66,9 +70,9 @@ test("/set games add builds the expected Mongo update and confirmation", async (
 });
 
 test("/set games add rejects unknown game keys before writing", async () => {
-  const { ctx, calls, replies, invalidatedGuilds } = buildContext();
+  const { context, calls, replies, invalidatedGuilds } = buildContext();
 
-  await (ctx.handleSetGames as Function)(makeInteraction("unknown"), games, "add", "guild-1");
+  await context.handleSetGames(makeInteraction("unknown"), games, "add", "guild-1");
 
   assert.equal(calls.length, 0);
   assert.deepEqual(invalidatedGuilds, []);
@@ -76,9 +80,9 @@ test("/set games add rejects unknown game keys before writing", async () => {
 });
 
 test("/set games remove builds the expected pull update", async () => {
-  const { ctx, calls, replies, invalidatedGuilds } = buildContext();
+  const { context, calls, replies, invalidatedGuilds } = buildContext();
 
-  await (ctx.handleSetGames as Function)(makeInteraction("fortnite"), games, "remove", "guild-2");
+  await context.handleSetGames(makeInteraction("fortnite"), games, "remove", "guild-2");
 
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].filter, { _id: "guild-2" });

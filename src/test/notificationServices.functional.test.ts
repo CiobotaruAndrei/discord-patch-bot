@@ -3,16 +3,40 @@ import assert from "node:assert/strict";
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
 
-function makeUpdateDeps(overrides: Record<string, any> = {}) {
+type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];
+type DiscountDeps = Parameters<typeof createDiscountNotificationService>[0];
+type UpdateService = ReturnType<typeof createUpdateNotificationService>;
+type DiscountService = ReturnType<typeof createDiscountNotificationService>;
+type UpdateGuild = Parameters<UpdateService["processGuildUpdates"]>[1];
+type UpdateResults = Parameters<UpdateService["processGuildUpdates"]>[2];
+type DiscountGuild = Parameters<DiscountService["processGuildDiscounts"]>[1];
+type DiscountDeals = Parameters<DiscountService["processGuildDiscounts"]>[2];
+type TestGame = { key: string; name?: string };
+type TestDeal = { id: string; title?: string };
+type SentPayload = { embeds?: unknown; content?: string };
+
+function entriesFrom(value: unknown): Array<[string, unknown]> {
+  if (value instanceof Map) return Array.from(value.entries()).map(([key, val]) => [String(key), val]);
+  if (value && typeof value === "object") return Object.entries(value as Record<string, unknown>);
+  return [];
+}
+
+function messageOf(value: unknown): string {
+  return value && typeof value === "object" && "message" in value
+    ? String((value as { message?: unknown }).message || value)
+    : String(value);
+}
+
+function makeUpdateDeps(overrides: Record<string, unknown> = {}) {
   const updateOneCalls: Array<{ filter: unknown; update: unknown }> = [];
-  const sentPayloads: Array<{ embeds?: unknown; content?: unknown }> = [];
+  const sentPayloads: SentPayload[] = [];
   const claims: Array<{ guildId: string; gameKey: string; updateId: string }> = [];
   const rollbacks: Array<{ guildId: string; gameKey: string; updateId: string }> = [];
   const channel = {
     id: "channel-1",
-    send: async (payload: any) => { sentPayloads.push(payload); return { id: "msg-1" }; }
+    send: async (payload: SentPayload) => { sentPayloads.push(payload); return { id: "msg-1" }; }
   };
-  const deps: any = {
+  const deps = {
     GuildModel: {
       find: () => ({ lean: async () => [] }),
       updateOne: async (filter: unknown, update: unknown) => {
@@ -21,7 +45,7 @@ function makeUpdateDeps(overrides: Record<string, any> = {}) {
       }
     },
     logger: () => undefined,
-    runConcurrent: async (items: any[], _c: number, fn: any) => { for (const it of items) await fn(it); },
+    runConcurrent: async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>) => { for (const it of items) await fn(it); },
     resolveOutboundChannel: async () => ({ channel, abort: false }),
     claimSeenUpdate: async (gid: string, _cid: string, gkey: string, uid: string) => {
       claims.push({ guildId: gid, gameKey: gkey, updateId: uid });
@@ -33,9 +57,9 @@ function makeUpdateDeps(overrides: Record<string, any> = {}) {
     },
     disableUpdatesForChannelError: async () => ({ matchedCount: 1, modifiedCount: 1 }),
     isPermanentDiscordError: () => false,
-    transientErrorMessage: (e: any) => String(e?.message || e),
-    normalizePendingUpdateArray: (arr: any) => Array.isArray(arr) ? arr : [],
-    toEntries: (obj: any) => obj instanceof Map ? Array.from(obj.entries()) : Object.entries(obj || {}),
+    transientErrorMessage: messageOf,
+    normalizePendingUpdateArray: (arr: unknown) => Array.isArray(arr) ? arr : [],
+    toEntries: entriesFrom,
     rotateAfter: (keys: string[], lastKey: string | null) => {
       if (!lastKey) return keys;
       const idx = keys.indexOf(lastKey);
@@ -43,7 +67,7 @@ function makeUpdateDeps(overrides: Record<string, any> = {}) {
       return [...keys.slice(idx + 1), ...keys.slice(0, idx + 1)];
     },
     mapToObject: (m: Map<string, unknown>) => Object.fromEntries(m.entries()),
-    getLatestForAllGames: async (games: any[]) => games.map((g: any) => ({ game: g, latest: { id: `u-${g.key}` } })),
+    getLatestForAllGames: async (games: TestGame[]) => games.map(game => ({ game, latest: { id: `u-${game.key}` } })),
     setUpdatesCache: () => undefined,
     buildUpdateEmbed: (name: string) => ({ title: name }),
     sleepIfPositive: async () => undefined,
@@ -55,7 +79,7 @@ function makeUpdateDeps(overrides: Record<string, any> = {}) {
     GUILD_PROCESS_CONCURRENCY: 1,
     ...overrides
   };
-  return { deps, updateOneCalls, sentPayloads, claims, rollbacks, channel };
+  return { deps: deps as unknown as UpdateDeps, updateOneCalls, sentPayloads, claims, rollbacks, channel };
 }
 
 test("UpdateService: buildOptimizedGameList filtreaza la jocurile active pe macar un guild", () => {
@@ -84,7 +108,7 @@ test("UpdateService: buildOptimizedGameList returneaza toata lista cand un guild
 test("UpdateService: processGuildUpdates trimite update + ping rol pe prima trimitere", async () => {
   const { deps, sentPayloads, claims } = makeUpdateDeps();
   const svc = createUpdateNotificationService(deps);
-  const guild: any = {
+  const guild = {
     _id: "guild-1",
     subscribed: true,
     notificationChannelId: "channel-1",
@@ -93,13 +117,13 @@ test("UpdateService: processGuildUpdates trimite update + ping rol pe prima trim
     seen: {},
     pendingUpdates: {},
     enabledGames: []
-  };
-  const latestResults: any = [
+  } as UpdateGuild;
+  const latestResults = [
     { game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2", title: "patch" } }
-  ];
+  ] as UpdateResults;
   await svc.processGuildUpdates({}, guild, latestResults);
   assert.equal(sentPayloads.length, 1);
-  assert.equal((sentPayloads[0] as any).content, "<@&role-42>", "rol ping pe prima trimitere");
+  assert.equal(sentPayloads[0].content, "<@&role-42>", "rol ping pe prima trimitere");
   assert.equal(claims.length, 1);
   assert.deepEqual(claims[0], { guildId: "guild-1", gameKey: "cs2", updateId: "u-cs2" });
 });
@@ -109,11 +133,11 @@ test("UpdateService: claim race (matchedCount=0) sare item-ul fara send sau roll
     claimSeenUpdate: async () => ({ matchedCount: 0, modifiedCount: 0 })
   });
   const svc = createUpdateNotificationService(deps);
-  const guild: any = {
+  const guild = {
     _id: "guild-1", subscribed: true, notificationChannelId: "channel-1",
     seen: {}, pendingUpdates: {}, enabledGames: []
-  };
-  const latestResults: any = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1" } }];
+  } as UpdateGuild;
+  const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1" } }] as UpdateResults;
   await svc.processGuildUpdates({}, guild, latestResults);
   assert.equal(sentPayloads.length, 0, "nu trebuie sa trimitem cand claim-ul nu ne-a aprins");
   assert.equal(rollbacks.length, 0, "nu rollback daca n-am claim-uit");
@@ -132,11 +156,11 @@ test("UpdateService: send fail (transient) rollback claim si retry next cycle", 
     resolveOutboundChannel: async () => ({ channel, abort: false })
   });
   const svc = createUpdateNotificationService(deps);
-  const guild: any = {
+  const guild = {
     _id: "guild-1", subscribed: true, notificationChannelId: "channel-1",
     seen: {}, pendingUpdates: {}, enabledGames: []
-  };
-  const latestResults: any = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1" } }];
+  } as UpdateGuild;
+  const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1" } }] as UpdateResults;
   await svc.processGuildUpdates({}, guild, latestResults);
   assert.equal(sendCallCount, 1);
   assert.equal(rollbacks.length, 1, "rollback obligatoriu pe transient fail");
@@ -145,28 +169,28 @@ test("UpdateService: send fail (transient) rollback claim si retry next cycle", 
 test("UpdateService: enabledGames filter sare jocurile ne-active", async () => {
   const { deps, sentPayloads } = makeUpdateDeps();
   const svc = createUpdateNotificationService(deps);
-  const guild: any = {
+  const guild = {
     _id: "guild-1", subscribed: true, notificationChannelId: "channel-1",
     seen: {}, pendingUpdates: {},
     enabledGames: ["cs2"]
-  };
-  const latestResults: any = [
+  } as UpdateGuild;
+  const latestResults = [
     { game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2" } },
     { game: { key: "fortnite", name: "Fortnite" }, latest: { id: "u-fn" } }
-  ];
+  ] as UpdateResults;
   await svc.processGuildUpdates({}, guild, latestResults);
   assert.equal(sentPayloads.length, 1, "doar 1 update pentru cs2");
 });
 
-function makeDiscountDeps(overrides: Record<string, any> = {}) {
+function makeDiscountDeps(overrides: Record<string, unknown> = {}) {
   const updateOneCalls: Array<{ filter: unknown; update: unknown }> = [];
-  const sentPayloads: any[] = [];
+  const sentPayloads: SentPayload[] = [];
   const claims: string[] = [];
   const channel = {
     id: "channel-d",
-    send: async (payload: any) => { sentPayloads.push(payload); return { id: "msg-1" }; }
+    send: async (payload: SentPayload) => { sentPayloads.push(payload); return { id: "msg-1" }; }
   };
-  const deps: any = {
+  const deps = {
     GuildModel: {
       find: () => ({ lean: async () => [] }),
       updateOne: async (filter: unknown, update: unknown) => {
@@ -175,7 +199,7 @@ function makeDiscountDeps(overrides: Record<string, any> = {}) {
       }
     },
     logger: () => undefined,
-    runConcurrent: async (items: any[], _c: number, fn: any) => { for (const it of items) await fn(it); },
+    runConcurrent: async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>) => { for (const it of items) await fn(it); },
     resolveOutboundChannel: async () => ({ channel, abort: false }),
     claimSeenDiscount: async (_gid: string, _cid: string, hash: string) => {
       claims.push(hash);
@@ -184,17 +208,17 @@ function makeDiscountDeps(overrides: Record<string, any> = {}) {
     rollbackSeenDiscount: async () => ({ matchedCount: 1, modifiedCount: 1 }),
     disableDiscountsForChannelError: async () => ({ matchedCount: 1, modifiedCount: 1 }),
     isPermanentDiscordError: () => false,
-    transientErrorMessage: (e: any) => String(e?.message || e),
-    normalizePendingDiscountArray: (arr: any) => Array.isArray(arr) ? arr : [],
+    transientErrorMessage: messageOf,
+    normalizePendingDiscountArray: (arr: unknown) => Array.isArray(arr) ? arr : [],
     validatePendingDiscountSnapshot: () => true,
-    normalizeCurrencyKey: (c: any) => String(c || "USD").toUpperCase(),
+    normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     dealPassesFilters: () => true,
-    dealHash: (deal: any) => deal.id || "h",
+    dealHash: (deal: TestDeal) => deal.id || "h",
     fetchDeals: async () => [{ id: "d1" }],
     getDealsCacheData: () => null,
     setDealsCache: () => undefined,
-    enrichDealData: async (d: any) => d,
-    buildDealEmbed: (d: any) => ({ deal: d.id }),
+    enrichDealData: async (deal: TestDeal) => deal,
+    buildDealEmbed: (deal: TestDeal) => ({ deal: deal.id }),
     sleepIfPositive: async () => undefined,
     DEFAULT_CURRENCY: "USD",
     DEALS_HISTORY_LIMIT: 300,
@@ -206,17 +230,17 @@ function makeDiscountDeps(overrides: Record<string, any> = {}) {
     GUILD_PROCESS_CONCURRENCY: 1,
     ...overrides
   };
-  return { deps, updateOneCalls, sentPayloads, claims, channel };
+  return { deps: deps as unknown as DiscountDeps, updateOneCalls, sentPayloads, claims, channel };
 }
 
 test("DiscountService: trimite reduceri noi care nu sunt in seenDiscounts", async () => {
   const { deps, sentPayloads, claims } = makeDiscountDeps();
   const svc = createDiscountNotificationService(deps);
-  const guild: any = {
+  const guild = {
     _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
     seenDiscounts: [], pendingDiscounts: [], currency: "USD"
-  };
-  const deals: any = [{ id: "d1", title: "Game A" }];
+  } as DiscountGuild;
+  const deals = [{ id: "d1", title: "Game A" }] as DiscountDeals;
   await svc.processGuildDiscounts({}, guild, deals);
   assert.equal(claims.length, 1, "trebuie sa claim-uim hash-ul nou");
   assert.equal(sentPayloads.length, 1);
@@ -225,11 +249,11 @@ test("DiscountService: trimite reduceri noi care nu sunt in seenDiscounts", asyn
 test("DiscountService: hash deja in seenDiscounts NU se mai trimite", async () => {
   const { deps, sentPayloads, claims } = makeDiscountDeps();
   const svc = createDiscountNotificationService(deps);
-  const guild: any = {
+  const guild = {
     _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
     seenDiscounts: ["d1"], pendingDiscounts: [], currency: "USD"
-  };
-  const deals: any = [{ id: "d1", title: "Already seen" }];
+  } as DiscountGuild;
+  const deals = [{ id: "d1", title: "Already seen" }] as DiscountDeals;
   await svc.processGuildDiscounts({}, guild, deals);
   assert.equal(claims.length, 0);
   assert.equal(sentPayloads.length, 0);
@@ -238,31 +262,31 @@ test("DiscountService: hash deja in seenDiscounts NU se mai trimite", async () =
 test("DiscountService: ping rol discount doar pe prima trimitere", async () => {
   const { deps, sentPayloads } = makeDiscountDeps();
   const svc = createDiscountNotificationService(deps);
-  const guild: any = {
+  const guild = {
     _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
     seenDiscounts: [], pendingDiscounts: [], currency: "USD",
     discountRoleId: "role-99"
-  };
-  const deals: any = [{ id: "d1" }, { id: "d2" }, { id: "d3" }];
+  } as DiscountGuild;
+  const deals = [{ id: "d1" }, { id: "d2" }, { id: "d3" }] as DiscountDeals;
   await svc.processGuildDiscounts({}, guild, deals);
   assert.equal(sentPayloads.length, 3);
-  assert.equal((sentPayloads[0] as any).content, "<@&role-99>");
-  assert.equal((sentPayloads[1] as any).content, undefined, "fara ping pe a 2-a");
-  assert.equal((sentPayloads[2] as any).content, undefined);
+  assert.equal(sentPayloads[0].content, "<@&role-99>");
+  assert.equal(sentPayloads[1].content, undefined, "fara ping pe a 2-a");
+  assert.equal(sentPayloads[2].content, undefined);
 });
 
 test("DiscountService: claim race (matchedCount=0) sare deal-ul fara enrich", async () => {
   let enrichCount = 0;
   const { deps, sentPayloads } = makeDiscountDeps({
     claimSeenDiscount: async () => ({ matchedCount: 0, modifiedCount: 0 }),
-    enrichDealData: async (d: any) => { enrichCount++; return d; }
+    enrichDealData: async (deal: TestDeal) => { enrichCount++; return deal; }
   });
   const svc = createDiscountNotificationService(deps);
-  const guild: any = {
+  const guild = {
     _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
     seenDiscounts: [], pendingDiscounts: [], currency: "USD"
-  };
-  await svc.processGuildDiscounts({}, guild, [{ id: "d1" }] as any);
+  } as DiscountGuild;
+  await svc.processGuildDiscounts({}, guild, [{ id: "d1" }] as DiscountDeals);
   assert.equal(sentPayloads.length, 0);
   assert.equal(enrichCount, 0, "claim ruleaza inainte de enrich; race-ul evita Steam calls");
 });
@@ -272,10 +296,10 @@ test("DiscountService: dealPassesFilters=false sare deal-ul (filter-aware)", asy
     dealPassesFilters: () => false
   });
   const svc = createDiscountNotificationService(deps);
-  const guild: any = {
+  const guild = {
     _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
     seenDiscounts: [], pendingDiscounts: [], currency: "USD"
-  };
-  await svc.processGuildDiscounts({}, guild, [{ id: "d1" }] as any);
+  } as DiscountGuild;
+  await svc.processGuildDiscounts({}, guild, [{ id: "d1" }] as DiscountDeals);
   assert.equal(sentPayloads.length, 0);
 });

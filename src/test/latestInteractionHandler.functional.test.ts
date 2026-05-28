@@ -2,9 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const installLatestHandler = require("../features/command-handlers/latestInteractionHandler") as
-  ((ctx: Record<string, any>) => void) & { createLatestInteractionHandler?: (deps: any) => any };
+  ((context: Record<string, unknown>) => void) & { createLatestInteractionHandler?: (deps: unknown) => unknown };
 
 type Recorded = { name: string; args: unknown[] };
+type TestGame = { key: string; name?: string };
+type LatestRuntime = {
+  handleInteraction: (interaction: unknown, games?: TestGame[]) => Promise<unknown>;
+};
 
 function makeInteraction(opts: {
   sub: string;
@@ -27,7 +31,7 @@ function makeInteraction(opts: {
   };
 }
 
-function makeCtx(overrides: Partial<Record<string, any>> = {}) {
+function makeContext(overrides: Partial<Record<string, unknown>> = {}) {
   const calls: Recorded[] = [];
   const log = (name: string, ...args: unknown[]) => { calls.push({ name, args }); };
 
@@ -35,7 +39,7 @@ function makeCtx(overrides: Partial<Record<string, any>> = {}) {
 
   const buildEmbedStub = () => ({ setFooter: () => ({}) });
 
-  const ctx: Record<string, any> = {
+  const context = {
     logger: () => undefined,
     enforceCooldown: async () => true,
     startCommandLog: () => () => undefined,
@@ -46,17 +50,17 @@ function makeCtx(overrides: Partial<Record<string, any>> = {}) {
     },
     getUpdatesCacheData: () => null,
     setUpdatesCache: () => undefined,
-    getLatestForAllGames: async (games: any[]) => {
+    getLatestForAllGames: async (games: TestGame[]) => {
       log("getLatestForAllGames", games);
-      return games.map((g: any) => ({ game: g, latest: { id: `u-${g.key}`, title: "x" } }));
+      return games.map(game => ({ game, latest: { id: `u-${game.key}`, title: "x" } }));
     },
     getDealsCacheData: () => null,
     setDealsCache: () => undefined,
-    fetchDeals: async (opts: any) => { log("fetchDeals", opts); return [{ id: "d1" }]; },
-    enrichDealData: async (d: any) => d,
+    fetchDeals: async (opts: unknown) => { log("fetchDeals", opts); return [{ id: "d1" }]; },
+    enrichDealData: async (deal: unknown) => deal,
     dealPassesFilters: () => true,
     findGameAndSuggestion: () => ({ game: { key: "cs2", name: "CS2" }, suggestion: null }),
-    executeFetchWithCircuitBreaker: async (game: any) => {
+    executeFetchWithCircuitBreaker: async (game: unknown) => {
       log("executeFetch", game);
       return { latest: { id: "u-cs2" } };
     },
@@ -82,17 +86,17 @@ function makeCtx(overrides: Partial<Record<string, any>> = {}) {
     ITEMS_PER_PAGE: 5,
     MAX_DEALS: 25,
     MessageFlags: { Ephemeral: 64 },
-    handleInteraction: async (interaction: any) => { log("delegated", interaction.commandName); }
+    handleInteraction: async (interaction: { commandName: string }) => { log("delegated", interaction.commandName); }
   };
 
-  for (const [k, v] of Object.entries(overrides)) ctx[k] = v;
-  installLatestHandler(ctx);
-  return { ctx, calls, safeEditPayloads };
+  for (const [k, v] of Object.entries(overrides)) (context as Record<string, unknown>)[k] = v;
+  installLatestHandler(context);
+  return { context: context as typeof context & LatestRuntime, calls, safeEditPayloads };
 }
 
 test("/latest updates loads + paginates", async () => {
-  const { ctx, calls } = makeCtx();
-  await ctx.handleInteraction(
+  const { context, calls } = makeContext();
+  await context.handleInteraction(
     makeInteraction({ sub: "updates" }),
     [{ key: "cs2", name: "CS2" }]
   );
@@ -101,8 +105,8 @@ test("/latest updates loads + paginates", async () => {
 });
 
 test("/latest reduceri loads + paginates", async () => {
-  const { ctx, calls } = makeCtx();
-  await ctx.handleInteraction(
+  const { context, calls } = makeContext();
+  await context.handleInteraction(
     makeInteraction({ sub: "reduceri" }),
     []
   );
@@ -111,8 +115,8 @@ test("/latest reduceri loads + paginates", async () => {
 });
 
 test("/latest update <joc> calls executeFetchWithCircuitBreaker when cache empty", async () => {
-  const { ctx, calls } = makeCtx();
-  await ctx.handleInteraction(
+  const { context, calls } = makeContext();
+  await context.handleInteraction(
     makeInteraction({ sub: "update", joc: "cs2" }),
     [{ key: "cs2", name: "CS2" }]
   );
@@ -126,18 +130,18 @@ test("/latest update without `joc` replies with explicit error", async () => {
     joc: null,
     ephemeralReply: async (p: unknown) => { replied = p; return undefined; }
   });
-  const { ctx, calls } = makeCtx();
-  await ctx.handleInteraction(interaction, [{ key: "cs2", name: "CS2" }]);
-  assert.match(String((replied as any)?.content), /Trebuie sa specifici un joc/);
+  const { context, calls } = makeContext();
+  await context.handleInteraction(interaction, [{ key: "cs2", name: "CS2" }]);
+  assert.match(String((replied as { content?: unknown } | null)?.content), /Trebuie sa specifici un joc/);
   assert.ok(!calls.some(c => c.name === "executeFetch"), "trebuie SA NU faca fetch fara joc");
 });
 
 test("/latest pret <joc> calls searchSteamGameByName + buildSteamPriceEmbed", async () => {
   const buildCalls: unknown[] = [];
-  const { ctx } = makeCtx({
+  const { context } = makeContext({
     buildSteamPriceEmbed: (...args: unknown[]) => { buildCalls.push(args); return {}; }
   });
-  await ctx.handleInteraction(
+  await context.handleInteraction(
     makeInteraction({ sub: "pret", joc: "Demo" }),
     []
   );
@@ -151,9 +155,9 @@ test("/latest pret without `joc` replies with explicit error", async () => {
     joc: null,
     ephemeralReply: async (p: unknown) => { replied = p; return undefined; }
   });
-  const { ctx } = makeCtx();
-  await ctx.handleInteraction(interaction, []);
-  assert.match(String((replied as any)?.content), /Trebuie sa specifici un joc/);
+  const { context } = makeContext();
+  await context.handleInteraction(interaction, []);
+  assert.match(String((replied as { content?: unknown } | null)?.content), /Trebuie sa specifici un joc/);
 });
 
 test("/latest with unknown sub returns ephemeral error reply", async () => {
@@ -162,13 +166,13 @@ test("/latest with unknown sub returns ephemeral error reply", async () => {
     sub: "future-feature",
     ephemeralReply: async (p: unknown) => { replied = p; return undefined; }
   });
-  const { ctx } = makeCtx();
-  await ctx.handleInteraction(interaction, []);
-  assert.match(String((replied as any)?.content), /Subcomanda `\/latest future-feature` nu este recunoscuta/);
+  const { context } = makeContext();
+  await context.handleInteraction(interaction, []);
+  assert.match(String((replied as { content?: unknown } | null)?.content), /Subcomanda `\/latest future-feature` nu este recunoscuta/);
 });
 
 test("non-/latest commands are delegated to next handler", async () => {
-  const { ctx, calls } = makeCtx();
+  const { context, calls } = makeContext();
   const pingInteraction = {
     commandName: "ping",
     guild: { id: "guild-1" },
@@ -180,17 +184,17 @@ test("non-/latest commands are delegated to next handler", async () => {
     reply: async () => undefined,
     followUp: async () => undefined
   };
-  await ctx.handleInteraction(pingInteraction, []);
+  await context.handleInteraction(pingInteraction, []);
   assert.ok(calls.some(c => c.name === "delegated" && c.args[0] === "ping"));
 });
 
 test("/latest updates with enabledGames filter returns no_data when game not enabled", async () => {
   let editArg: unknown = null;
-  const { ctx } = makeCtx({
+  const { context } = makeContext({
     getGuildSettings: async () => ({ enabledGames: ["other_game"], notificationMode: "detailed", currency: "USD" }),
     safeEdit: async (_int: unknown, payload: unknown) => { editArg = payload; return { id: "msg" }; }
   });
-  await ctx.handleInteraction(
+  await context.handleInteraction(
     makeInteraction({ sub: "updates" }),
     [{ key: "cs2", name: "CS2" }]
   );
@@ -199,11 +203,11 @@ test("/latest updates with enabledGames filter returns no_data when game not ena
 
 test("/latest reduceri returns no_data when dealPassesFilters drops everything", async () => {
   let editArg: unknown = null;
-  const { ctx } = makeCtx({
+  const { context } = makeContext({
     dealPassesFilters: () => false,
     safeEdit: async (_int: unknown, payload: unknown) => { editArg = payload; return { id: "msg" }; }
   });
-  await ctx.handleInteraction(
+  await context.handleInteraction(
     makeInteraction({ sub: "reduceri" }),
     []
   );

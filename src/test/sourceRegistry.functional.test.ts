@@ -6,20 +6,29 @@ process.env.DISCORD_TOKEN ||= "test_discord_token";
 process.env.DISCORD_CLIENT_ID ||= "test_discord_client_id";
 process.env.METRICS_PUBLIC ||= "true";
 
-type Installer = (ctx: Record<string, any>) => void;
+type Installer = (context: Record<string, unknown>) => void;
 
 type SourceRegistryExports = {
   createSourceRegistry: (
-    context: Record<string, any>,
+    context: Record<string, unknown>,
     installers: Installer[]
-  ) => Record<string, any>;
+  ) => SourceRegistryRuntime;
+};
+type SourceRegistryRuntime = Record<string, unknown> & {
+  cleanText: (value: string) => string;
+  httpReq: () => string;
+  searchSteamGameByName: () => string;
+  getLatestForAllGames: () => string;
+  fetchDeals: () => string;
+  dealHash: (deal: { id: string }) => string;
+  MAX_DEALS: number;
 };
 
 const sourceRegistry = require("../sources/sourceRegistry") as SourceRegistryExports;
 
 test("source registry can be created with explicit mocked installers", () => {
   const calls: string[] = [];
-  const baseContext: Record<string, any> = {
+  const baseContext: Record<string, unknown> = {
     USER_AGENTS: ["test-agent"],
     MAX_HTML_BYTES: 1024,
     MAX_JSON_BYTES: 2048,
@@ -28,27 +37,27 @@ test("source registry can be created with explicit mocked installers", () => {
     formatPrice: (amount: number) => `$${amount}`
   };
   const installers: Installer[] = [
-    ctx => {
+    context => {
       calls.push("http");
-      ctx.cleanText = (value: unknown) => String(value).trim();
-      ctx.httpReq = () => "http-result";
-      ctx.fetchWithProxy = () => "proxy-result";
+      context.cleanText = (value: unknown) => String(value).trim();
+      context.httpReq = () => "http-result";
+      context.fetchWithProxy = () => "proxy-result";
     },
-    ctx => {
+    context => {
       calls.push("steam");
-      ctx.searchSteamGameByName = () => "steam-search";
-      ctx.extractOfferEndFromHtml = () => "offer-end";
+      context.searchSteamGameByName = () => "steam-search";
+      context.extractOfferEndFromHtml = () => "offer-end";
     },
-    ctx => {
+    context => {
       calls.push("updates");
-      ctx.fetchGameUpdate = () => "game-update";
-      ctx.getLatestForAllGames = () => "latest-games";
+      context.fetchGameUpdate = () => "game-update";
+      context.getLatestForAllGames = () => "latest-games";
     },
-    ctx => {
+    context => {
       calls.push("deals");
-      ctx.fetchDeals = () => "deals";
-      ctx.enrichDealData = () => "enriched";
-      ctx.dealHash = (deal: { id: string }) => deal.id;
+      context.fetchDeals = () => "deals";
+      context.enrichDealData = () => "enriched";
+      context.dealHash = (deal: { id: string }) => deal.id;
     }
   ];
 

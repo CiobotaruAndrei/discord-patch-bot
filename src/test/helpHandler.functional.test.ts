@@ -1,10 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-type HelpModule = ((ctx: Record<string, any>) => void) & {
-  createHelpHandler: (deps: Record<string, any>) => {
-    handleHelpInteraction: (interaction: Record<string, any>) => Promise<unknown>;
+type HelpModule = ((context: Record<string, unknown>) => void) & {
+  createHelpHandler: (deps: Record<string, unknown>) => {
+    handleHelpInteraction: (interaction: Record<string, unknown>) => Promise<unknown>;
   };
+};
+type InteractionRuntime = {
+  handleInteraction: (interaction: unknown, games?: unknown[]) => Promise<unknown>;
 };
 
 const helpHandler = require("../features/command-handlers/helpInteractionHandler") as HelpModule;
@@ -38,19 +41,20 @@ test("help handler replies with the injected help embed", async () => {
 test("help handler installer intercepts only /help", async () => {
   const { interaction, replies } = makeHelpInteraction();
   const delegated: string[] = [];
-  const ctx: Record<string, any> = {
+  const context = {
     MessageFlags: { Ephemeral: 64 },
     logger: () => undefined,
     buildHelpEmbed: () => ({ title: "Help" }),
-    handleInteraction: async (handledInteraction: Record<string, any>) => {
+    handleInteraction: async (handledInteraction: { commandName: string }) => {
       delegated.push(handledInteraction.commandName);
       return "delegated";
     }
   };
 
-  helpHandler(ctx);
-  await ctx.handleInteraction(interaction, []);
-  const result = await ctx.handleInteraction({
+  helpHandler(context);
+  const runtime = context as typeof context & InteractionRuntime;
+  await runtime.handleInteraction(interaction, []);
+  const result = await runtime.handleInteraction({
     commandName: "latest",
     guild: { id: "guild-1" },
     isChatInputCommand: () => true,

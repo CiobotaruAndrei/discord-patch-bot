@@ -3,7 +3,7 @@
 type MongoRuntimeContext = Record<string, unknown>;
 type MongoInstaller = (target: MongoRuntimeContext) => void;
 
-const runtimeCtx = require("./runtime") as MongoRuntimeContext;
+const runtimeContext = require("./runtime") as MongoRuntimeContext;
 const defaultInstallers: MongoInstaller[] = [
   require("../../shared/logging"),
   require("../../shared/domain"),
@@ -57,7 +57,7 @@ function buildMongoContextExports(context: MongoRuntimeContext) {
 }
 
 function createMongoContext(
-  baseContext: MongoRuntimeContext = runtimeCtx,
+  baseContext: MongoRuntimeContext = runtimeContext,
   installers: MongoInstaller[] = defaultInstallers
 ) {
   const context = baseContext;

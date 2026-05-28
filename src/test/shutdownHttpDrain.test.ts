@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createShutdownController } from "../app/lifecycle/shutdown";
+import type { LoggerFunction, RuntimeEnv } from "../types";
 
 function makeBaseDeps() {
   const order: string[] = [];
@@ -8,8 +9,8 @@ function makeBaseDeps() {
     order,
     deps: {
       lifecycle: { isShuttingDown: false },
-      logger: (() => undefined) as any,
-      env: { SHUTDOWN_DRAIN_MS: 0 } as any,
+      logger: (() => undefined) as LoggerFunction,
+      env: { SHUTDOWN_DRAIN_MS: 0 } as RuntimeEnv,
       client: { destroy: async () => { order.push("client.destroy"); } },
       mongoose: { connection: { close: async () => { order.push("mongo.close"); } } },
       activeLocks: new Map<string, string>(),

@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+type UtilitiesModule = typeof import("../shared/utilities") & {
+  validatePendingDiscountSnapshot: (snapshot: unknown) => boolean;
+};
+
 test("sources/updates: fetchListingBasedUpdate aruncă Error (nu SchemaDriftError) pe transient fail", async () => {
 
   const fs = require("node:fs");
@@ -53,8 +57,7 @@ test("native/fuzzy fallback: findGameKeys cu input mixed-emoji nu crash", () => 
 });
 
 test("validatePendingDiscountSnapshot: accepta savings ca numar finit", () => {
-  const attachUtilities = require("../shared/utilities") as any;
-  const validatePendingDiscountSnapshot = attachUtilities.validatePendingDiscountSnapshot as (s: unknown) => boolean;
+  const { validatePendingDiscountSnapshot } = require("../shared/utilities") as UtilitiesModule;
   const base = { title: "Game", store: "Steam", link: "https://x", salePrice: "10", normalPrice: "20" };
 
   assert.equal(validatePendingDiscountSnapshot({ ...base, savings: 50 }), true);
@@ -70,8 +73,7 @@ test("validatePendingDiscountSnapshot: accepta savings ca numar finit", () => {
 });
 
 test("validatePendingDiscountSnapshot: pastreaza restul validarilor stricte", () => {
-  const attachUtilities = require("../shared/utilities") as any;
-  const validatePendingDiscountSnapshot = attachUtilities.validatePendingDiscountSnapshot as (s: unknown) => boolean;
+  const { validatePendingDiscountSnapshot } = require("../shared/utilities") as UtilitiesModule;
   const base = { title: "Game", store: "Steam", link: "https://x", salePrice: "10", normalPrice: "20", savings: 50 };
 
   assert.equal(validatePendingDiscountSnapshot({ ...base, title: undefined }), false);

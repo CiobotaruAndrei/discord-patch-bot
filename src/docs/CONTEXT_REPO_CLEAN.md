@@ -16,7 +16,9 @@ Documentul descrie starea curenta a repo-ului dupa migrarea treptata din fisiere
 - `legacy-dynamic.d.ts` nu mai exista; tipurile dinamice trebuie modelate local.
 - Documentatia istorica versionata a fost scoasa din cod; fisierele curente de documentatie raman sursa de adevar.
 - Comentariile explicative din fisierele de cod au fost eliminate. Daca un rationale trebuie pastrat, el trebuie pus in documentatia potrivita dupa subiect, nu langa implementare.
-- Codul runtime nu mai foloseste identificatorul `ctx`; modulele de compatibilitate folosesc `target` pentru atasare si `deps` pentru factory-uri.
+- Codul runtime nu mai foloseste abrevierea legacy pentru context; modulele de compatibilitate folosesc `target` pentru atasare si `deps` pentru factory-uri.
+- Testele din `src/test` nu mai folosesc abrevieri legacy de context sau tipuri wildcard nesigure; mock-urile Discord/Mongo/HTTP folosesc shape-uri locale si `unknown` pentru cazuri intentionat invalide.
+- Helper-ele de test si variabilele de wiring trebuie numite explicit, de exemplu `makeContext`, `runtimeContext` si `validationContext`.
 
 ## Structura logica
 
@@ -129,14 +131,14 @@ Zone deja potrivite pentru strict:
 - utilitarele de health/metrics si config;
 - adapterul `src/native/fuzzy.ts`;
 - sursele `src/sources/steam`, `src/sources/deals` si `src/sources/updates`;
-- testele directe de shape drift pentru scrapers.
+- testele functionale/E2E si testele directe de shape drift pentru scrapers.
 
 Zone care inca trebuie urmarite:
 
 - `commandRuntimeContext.ts`;
 - `commandRegistry.ts`;
 - adapterele care inca primesc un target comun mare, desi `commandCache`, `commandPresentation`, `notifications/index`, fallback-ul de interactiuni si `mongoContext` au deja factory-uri explicite;
-- mock-urile de test care inca folosesc tipuri largi pentru a simula Discord, Mongo si HTTP.
+- mock-urile de test trebuie mentinute pe shape-uri locale mici cand apar fluxuri noi pentru Discord, Mongo sau HTTP.
 
 ## Securitate si runtime
 
@@ -176,6 +178,6 @@ Teste relevante pentru structura actuala:
 ## Zone ramase de curatat
 
 - Reducerea contextului comun din runtime si registry.
-- Tiparea mai stricta a mock-urilor de test care inca folosesc `Record<string, any>`.
+- Mentinerea testelor fara tipuri wildcard nesigure sau abrevieri legacy de context cand se adauga mock-uri noi.
 - Mutarea oricarei logici ramase in adaptere catre servicii sau handler-e dedicate.
 - Mentinerea documentatiei sincronizate la fiecare schimbare de cod.

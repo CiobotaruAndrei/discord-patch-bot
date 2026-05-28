@@ -1,20 +1,32 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-type AdminGuardModule = ((interaction: Record<string, any>) => Promise<boolean>) & {
+type TestInteraction = {
+  commandName: string;
+  guild: { id: string };
+  deferred: boolean;
+  replied: boolean;
+  isChatInputCommand: () => boolean;
+  memberPermissions: { has: () => boolean };
+  reply: (payload: unknown) => Promise<void>;
+  followUp: (payload: unknown) => Promise<void>;
+};
+type TestGame = { key: string };
+
+type AdminGuardModule = ((interaction: TestInteraction) => Promise<boolean>) & {
   ADMIN_REQUIRED_MESSAGE: string;
-  isGuildAdmin: (interaction: Record<string, any>) => boolean;
+  isGuildAdmin: (interaction: TestInteraction) => boolean;
 };
 
-type AdminCommandGuardModule = ((ctx: Record<string, any>) => void) & {
-  createAdminCommandGuard: (deps: Record<string, any>) => {
+type AdminCommandGuardModule = ((context: Record<string, unknown>) => void) & {
+  createAdminCommandGuard: (deps: { requireGuildAdmin: (interaction: TestInteraction) => Promise<boolean> }) => {
     handleAdminProtectedCommand: (
-      interaction: Record<string, any>,
-      games: Array<Record<string, any>>,
-      next?: (interaction: Record<string, any>, games: Array<Record<string, any>>) => Promise<unknown>
+      interaction: TestInteraction,
+      games: TestGame[],
+      next?: (interaction: TestInteraction, games: TestGame[]) => Promise<unknown>
     ) => Promise<unknown>;
   };
-  isAdminProtectedCommand: (interaction: Record<string, any>) => boolean;
+  isAdminProtectedCommand: (interaction: TestInteraction) => boolean;
 };
 
 const requireGuildAdmin = require("../features/command-security/adminPermissionGuard") as AdminGuardModule;

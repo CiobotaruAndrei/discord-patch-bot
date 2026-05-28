@@ -22,13 +22,17 @@ type UpdateDoc = {
   excerpt: string;
   timestamp: string;
 };
-type GuildDoc = Record<string, any>;
+type GuildDoc = Record<string, unknown>;
 type MongoFilter = Record<string, unknown>;
 type MongoUpdate = Record<string, unknown>;
 type SentPayload = { embeds?: Array<Record<string, unknown>>; content?: string };
+type UpdatesRuntime = {
+  handleStartInteraction: (interaction: unknown, games: Game[]) => Promise<unknown>;
+  checkForUpdates: (client: unknown, games: Game[]) => Promise<unknown>;
+};
 
-const attachInteractions = require("../features/command-handlers/subscriptionNotificationHandlers") as (ctx: Record<string, any>) => void;
-const attachNotifications = require("../features/notifications") as (ctx: Record<string, any>) => void;
+const attachInteractions = require("../features/command-handlers/subscriptionNotificationHandlers") as (context: Record<string, unknown>) => void;
+const attachNotifications = require("../features/notifications") as (context: Record<string, unknown>) => void;
 
 const games: Game[] = [
   { key: "cs2", name: "Counter-Strike 2" },
@@ -51,14 +55,14 @@ const newUpdate: UpdateDoc = {
   timestamp: "2026-05-21T10:00:00.000Z"
 };
 
-function isPlainRecord(value: unknown): value is Record<string, any> {
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function getPath(target: GuildDoc, path: string): unknown {
-  let cursor: any = target;
+  let cursor: unknown = target;
   for (const part of path.split(".")) {
-    if (cursor === undefined || cursor === null) return undefined;
+    if (!isPlainRecord(cursor)) return undefined;
     cursor = cursor[part];
   }
   return cursor;
@@ -78,9 +82,10 @@ function setPath(target: GuildDoc, path: string, value: unknown): void {
 function unsetPath(target: GuildDoc, path: string): void {
   const parts = path.split(".");
   const last = parts[parts.length - 1] as string;
-  let cursor: any = target;
+  let cursor: unknown = target;
   for (const part of parts.slice(0, -1)) {
-    if (!isPlainRecord(cursor?.[part])) return;
+    if (!isPlainRecord(cursor)) return;
+    if (!isPlainRecord(cursor[part])) return;
     cursor = cursor[part];
   }
   if (isPlainRecord(cursor)) delete cursor[last];
@@ -184,7 +189,7 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
   let latestCallCount = 0;
   const replies: unknown[] = [];
   const updatesCache: unknown[] = [];
-  const ctx: Record<string, any> = {
+  const context = {
     GuildModel: createGuildModel(guild),
     logger: (_level: string, _context: string, _message: string, _meta?: unknown) => undefined,
     DEFAULT_CURRENCY: "USD",
@@ -244,8 +249,8 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
     }
   };
 
-  attachInteractions(ctx);
-  attachNotifications(ctx);
+  attachInteractions(context);
+  attachNotifications(context);
 
   const client = {
     user: { id: "bot-id" },
@@ -254,7 +259,7 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
     }
   };
 
-  return { ctx, client, replies, updatesCache };
+  return { context: context as typeof context & UpdatesRuntime, client, replies, updatesCache };
 }
 
 test("/start updates baseline plus cron sends only the next unseen update", async () => {
@@ -274,16 +279,16 @@ test("/start updates baseline plus cron sends only the next unseen update", asyn
       return { id: `message-${sentPayloads.length}` };
     }
   };
-  const { ctx, client, replies, updatesCache } = buildContext(guild, channel);
+  const { context, client, replies, updatesCache } = buildContext(guild, channel);
 
-  await (ctx.handleStartInteraction as Function)(makeStartUpdatesInteraction(channel), games);
-  await (ctx.checkForUpdates as Function)(client, games);
+  await context.handleStartInteraction(makeStartUpdatesInteraction(channel), games);
+  await context.checkForUpdates(client, games);
 
   assert.deepEqual(replies, ["OK: Update-uri automate activate."]);
   assert.equal(sentPayloads.length, 1);
   assert.equal(sentPayloads[0].embeds?.[0]?.title, "New patch");
   assert.equal(sentPayloads[0].embeds?.[0]?.updateId, "new-update");
-  assert.deepEqual(guild.seen.cs2, ["old-update", "new-update"]);
+  assert.deepEqual((guild.seen as Record<string, string[]>).cs2, ["old-update", "new-update"]);
   assert.deepEqual(guild.pendingUpdates, {});
   assert.equal(guild.lastProcessedGameKey, "cs2");
   assert.equal(updatesCache.length, 1, "cron should refresh the updates cache once");

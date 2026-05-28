@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createCronController } from "../app/scheduler/cron";
+import type { RuntimeEnv } from "../types";
 
 test("cron stop clears the scheduled timer handle", () => {
   const originalSetTimeout = globalThis.setTimeout;
@@ -23,7 +24,7 @@ test("cron stop clears the scheduled timer handle", () => {
       performance: { now: () => 0 },
       crypto: { randomBytes: () => ({ toString: () => "abc123" }) },
       logger() {},
-      env: { GLOBAL_HEALTH_WINDOW: 3, GLOBAL_HEALTH_MIN_RATIO: 50 } as any,
+      env: { GLOBAL_HEALTH_WINDOW: 3, GLOBAL_HEALTH_MIN_RATIO: 50 } as RuntimeEnv,
       parseEnvNumber: (_name, defaultValue) => defaultValue,
       acquireDbLock: async () => null,
       renewDbLock: async () => true,
@@ -92,10 +93,10 @@ test("cron cycle waits for both jobs when one rejects (Promise.allSettled)", asy
       mongoose: { connection: { readyState: 1 } },
       performance: { now: () => Date.now() },
       crypto: { randomBytes: () => ({ toString: () => "deadbe" }) },
-      logger(level: string, _ctx: string, message: string, meta?: unknown) {
+      logger(level: string, _logContext: string, message: string, meta?: unknown) {
         if (level === "ERROR") loggedErrors.push({ message, meta });
       },
-      env: { GLOBAL_HEALTH_WINDOW: 3, GLOBAL_HEALTH_MIN_RATIO: 50 } as any,
+      env: { GLOBAL_HEALTH_WINDOW: 3, GLOBAL_HEALTH_MIN_RATIO: 50 } as RuntimeEnv,
       parseEnvNumber: (_name: string, defaultValue: number) => defaultValue,
       acquireDbLock: async () => "token-abc",
       renewDbLock: async () => true,
@@ -165,7 +166,7 @@ test("cron heartbeat tolerates one transient renew throw but aborts on the secon
       performance: { now: () => Date.now() },
       crypto: { randomBytes: () => ({ toString: () => "ff00aa" }) },
       logger() {},
-      env: { GLOBAL_HEALTH_WINDOW: 3, GLOBAL_HEALTH_MIN_RATIO: 50 } as any,
+      env: { GLOBAL_HEALTH_WINDOW: 3, GLOBAL_HEALTH_MIN_RATIO: 50 } as RuntimeEnv,
       parseEnvNumber: (_name: string, defaultValue: number) => defaultValue,
       acquireDbLock: async () => "tok-heartbeat",
       renewDbLock: async () => {
@@ -236,7 +237,7 @@ test("cron heartbeat aborts immediately when renew returns false (lock genuinely
       performance: { now: () => Date.now() },
       crypto: { randomBytes: () => ({ toString: () => "ff00bb" }) },
       logger() {},
-      env: { GLOBAL_HEALTH_WINDOW: 3, GLOBAL_HEALTH_MIN_RATIO: 50 } as any,
+      env: { GLOBAL_HEALTH_WINDOW: 3, GLOBAL_HEALTH_MIN_RATIO: 50 } as RuntimeEnv,
       parseEnvNumber: (_name: string, defaultValue: number) => defaultValue,
       acquireDbLock: async () => "tok-lost",
       renewDbLock: async () => {
@@ -302,7 +303,7 @@ test("V12: heartbeat tick care se reia in fereastra de release NU mai renew-uie 
       performance: { now: () => Date.now() },
       crypto: { randomBytes: () => ({ toString: () => "ff00aa" }) },
       logger() {},
-      env: { GLOBAL_HEALTH_WINDOW: 3, GLOBAL_HEALTH_MIN_RATIO: 50 } as any,
+      env: { GLOBAL_HEALTH_WINDOW: 3, GLOBAL_HEALTH_MIN_RATIO: 50 } as RuntimeEnv,
       parseEnvNumber: (_name: string, defaultValue: number) => defaultValue,
       acquireDbLock: async () => "tok-release-race",
       renewDbLock: async () => { renewTotal++; return true; },

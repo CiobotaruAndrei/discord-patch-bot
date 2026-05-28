@@ -2,13 +2,27 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import attachHttpClient = require("../infra/http/client");
 
+type HttpClientRuntime = {
+  env: { PROXY_URLS: string };
+  assertSafeExternalUrl: (url: string) => void;
+  assertSafeExternalDnsTarget: (url: string, label: string) => Promise<void>;
+  httpReq: (method: string, url: string) => Promise<unknown>;
+  fetchWithProxy: (url: string) => Promise<unknown>;
+  parseRetryAfter: (value: unknown, now?: number) => number | null;
+};
+type HttpClientModule = typeof attachHttpClient & {
+  createSafeDnsLookup: (lookup: DnsLookup) => DnsLookup;
+  parseRetryAfter: (value: unknown, now?: number) => number | null;
+};
+type DnsLookup = (hostname: string, options: unknown, callback?: unknown) => void;
+
 function createHttpClientTestContext() {
   const requestedUrls: string[] = [];
   const axiosClient = async (config: { url: string }) => {
     requestedUrls.push(config.url);
     return { data: "ok" };
   };
-  const ctx: any = {
+  const context = {
     axios: { create: () => axiosClient },
     cheerio: { load: (html: string) => ({ html }) },
     crypto: {},
@@ -41,38 +55,39 @@ function createHttpClientTestContext() {
       PROXY_URLS: "https://proxy.example/fetch?url={url}",
       isProd: false
     }
-  };
-  attachHttpClient(ctx);
-  return { ctx, requestedUrls };
+  } as unknown as Parameters<typeof attachHttpClient>[0] & Partial<HttpClientRuntime>;
+  attachHttpClient(context);
+  return { context: context as Parameters<typeof attachHttpClient>[0] & HttpClientRuntime, requestedUrls };
 }
 
 test("HTTP client rejects unsafe external URLs", async () => {
-  const { ctx } = createHttpClientTestContext();
+  const { context } = createHttpClientTestContext();
 
-  assert.throws(() => ctx.assertSafeExternalUrl("file:///etc/passwd"), /http sau https/);
-  assert.throws(() => ctx.assertSafeExternalUrl("http://127.0.0.1/admin"), /locala sau privata/);
-  assert.throws(() => ctx.assertSafeExternalUrl("http://[::1]/admin"), /locala sau privata/);
-  assert.throws(() => ctx.assertSafeExternalUrl("http://[fd00::1]/admin"), /locala sau privata/);
-  assert.throws(() => ctx.assertSafeExternalUrl("http://[::ffff:127.0.0.1]/admin"), /locala sau privata/);
-  assert.throws(() => ctx.assertSafeExternalUrl("https://user:pass@example.com/"), /credentiale/);
-  await assert.rejects(() => ctx.httpReq("GET", "http://localhost/metrics"), /locala sau privata/);
+  assert.throws(() => context.assertSafeExternalUrl("file:///etc/passwd"), /http sau https/);
+  assert.throws(() => context.assertSafeExternalUrl("http://127.0.0.1/admin"), /locala sau privata/);
+  assert.throws(() => context.assertSafeExternalUrl("http://[::1]/admin"), /locala sau privata/);
+  assert.throws(() => context.assertSafeExternalUrl("http://[fd00::1]/admin"), /locala sau privata/);
+  assert.throws(() => context.assertSafeExternalUrl("http://[::ffff:127.0.0.1]/admin"), /locala sau privata/);
+  assert.throws(() => context.assertSafeExternalUrl("https://user:pass@example.com/"), /credentiale/);
+  await assert.rejects(() => context.httpReq("GET", "http://localhost/metrics"), /locala sau privata/);
 });
 
 test("HTTP client rejects hostnames that resolve to private IP addresses", async () => {
-  const { ctx } = createHttpClientTestContext();
+  const { context } = createHttpClientTestContext();
 
   await assert.rejects(
-    () => ctx.assertSafeExternalDnsTarget("https://private.example/path", "HTTP URL"),
+    () => context.assertSafeExternalDnsTarget("https://private.example/path", "HTTP URL"),
     /rezolva DNS catre o adresa locala sau privata/
   );
   await assert.rejects(
-    () => ctx.httpReq("GET", "https://private.example/path"),
+    () => context.httpReq("GET", "https://private.example/path"),
     /rezolva DNS catre o adresa locala sau privata/
   );
 });
 
 test("agent DNS lookup rejects rebinding to private IP addresses", async () => {
-  const guardedLookup = (attachHttpClient as any).createSafeDnsLookup(
+  const httpClientModule = attachHttpClient as HttpClientModule;
+  const guardedLookup = httpClientModule.createSafeDnsLookup(
     (hostname: string, options: unknown, callback?: unknown) => {
       const cb = typeof callback === "function"
         ? callback as (err: Error | null, result: unknown, family?: number) => void
@@ -94,10 +109,10 @@ test("agent DNS lookup rejects rebinding to private IP addresses", async () => {
 });
 
 test("proxy fallback validates and encodes target URLs", async () => {
-  const { ctx, requestedUrls } = createHttpClientTestContext();
+  const { context, requestedUrls } = createHttpClientTestContext();
 
-  await assert.rejects(() => ctx.fetchWithProxy("http://192.168.1.10/private"), /locala sau privata/);
-  const body = await ctx.fetchWithProxy("https://example.com/patch notes?q=a b");
+  await assert.rejects(() => context.fetchWithProxy("http://192.168.1.10/private"), /locala sau privata/);
+  const body = await context.fetchWithProxy("https://example.com/patch notes?q=a b");
 
   assert.equal(body, "ok");
   assert.equal(requestedUrls.length, 1);
@@ -106,51 +121,52 @@ test("proxy fallback validates and encodes target URLs", async () => {
 
 test("proxy templates must include the target placeholder", () => {
   assert.throws(() => {
-    const { ctx } = createHttpClientTestContext();
-    ctx.env.PROXY_URLS = "https://proxy.example/fetch";
-    attachHttpClient(ctx);
+    const { context } = createHttpClientTestContext();
+    context.env.PROXY_URLS = "https://proxy.example/fetch";
+    attachHttpClient(context);
   }, /placeholder-ul \{url\}/);
 });
 
 test("parseRetryAfter accepts integer seconds and rejects unitless garbage", () => {
-  const { ctx } = createHttpClientTestContext();
-  assert.equal(ctx.parseRetryAfter("60"), 60_000);
-  assert.equal(ctx.parseRetryAfter(" 120 "), 120_000);
-  assert.equal(ctx.parseRetryAfter("0"), 0, "0 seconds is RFC-valid (retry immediately)");
-  assert.equal(ctx.parseRetryAfter("60s"), null, "unitless `s` suffix must be rejected, not silently truncated");
-  assert.equal(ctx.parseRetryAfter("-30"), null);
-  assert.equal(ctx.parseRetryAfter(""), null);
-  assert.equal(ctx.parseRetryAfter(null), null);
-  assert.equal(ctx.parseRetryAfter(undefined), null);
+  const { context } = createHttpClientTestContext();
+  assert.equal(context.parseRetryAfter("60"), 60_000);
+  assert.equal(context.parseRetryAfter(" 120 "), 120_000);
+  assert.equal(context.parseRetryAfter("0"), 0, "0 seconds is RFC-valid (retry immediately)");
+  assert.equal(context.parseRetryAfter("60s"), null, "unitless `s` suffix must be rejected, not silently truncated");
+  assert.equal(context.parseRetryAfter("-30"), null);
+  assert.equal(context.parseRetryAfter(""), null);
+  assert.equal(context.parseRetryAfter(null), null);
+  assert.equal(context.parseRetryAfter(undefined), null);
 });
 
 test("parseRetryAfter accepts HTTP-date format per RFC 7231", () => {
-  const { ctx } = createHttpClientTestContext();
+  const { context } = createHttpClientTestContext();
   const now = 1_700_000_000_000;
   const futureMs = now + 45_000;
   const future = new Date(futureMs).toUTCString();
   const past = new Date(now - 60_000).toUTCString();
 
-  const parsed = ctx.parseRetryAfter(future, now) as number | null;
+  const parsed = context.parseRetryAfter(future, now) as number | null;
   assert.equal(typeof parsed, "number", "future HTTP-date must yield a numeric delta");
 
   assert.ok(parsed! >= 44_000 && parsed! <= 45_000,
     `expected ~45_000ms delta for future Retry-After, got ${parsed}`);
 
-  assert.equal(ctx.parseRetryAfter(past, now), null,
+  assert.equal(context.parseRetryAfter(past, now), null,
     "past HTTP-date must return null (server's deadline already elapsed)");
 
   const nowExact = new Date(now).toUTCString();
-  const exact = ctx.parseRetryAfter(nowExact, now) as number | null;
+  const exact = context.parseRetryAfter(nowExact, now) as number | null;
   assert.equal(typeof exact, "number", "HTTP-date == now must yield a numeric delta");
   assert.ok(exact! >= 0 && exact! <= 1_000,
     `expected ~0ms delta for now=now Retry-After, got ${exact}`);
 
-  assert.equal(ctx.parseRetryAfter("not a date at all", now), null);
+  assert.equal(context.parseRetryAfter("not a date at all", now), null);
 });
 
 test("parseRetryAfter exposed as static helper on attachHttpClient", () => {
 
-  assert.equal(typeof (attachHttpClient as any).parseRetryAfter, "function");
-  assert.equal((attachHttpClient as any).parseRetryAfter("30"), 30_000);
+  const httpClientModule = attachHttpClient as HttpClientModule;
+  assert.equal(typeof httpClientModule.parseRetryAfter, "function");
+  assert.equal(httpClientModule.parseRetryAfter("30"), 30_000);
 });

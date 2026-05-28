@@ -55,12 +55,12 @@ function attachEnv(target: EnvContext): void {
       .optional(),
     LOG_LEVEL: z.string().optional(),
     PROXY_URLS: z.string().optional()
-  }).superRefine((env, validationCtx) => {
+  }).superRefine((env, validationContext) => {
     if (isProd) {
       const hasToken = !!env.METRICS_TOKEN;
       const explicitlyPublic = String(env.METRICS_PUBLIC || "").toLowerCase() === "true";
       if (!hasToken && !explicitlyPublic) {
-        validationCtx.addIssue({
+        validationContext.addIssue({
           code: z.ZodIssueCode.custom,
           message: "In NODE_ENV=production trebuie setat METRICS_TOKEN, SAU METRICS_PUBLIC=true (opt-in explicit)."
         });

@@ -1,16 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-type RolePingModule = ((ctx: Record<string, any>) => void) & {
-  createRolePingInteractionHandlers: (deps: Record<string, any>) => {
-    handleSetRole: (interaction: Record<string, any>, sub: string, guildId: string) => Promise<unknown>;
-    handleSetRoleInteraction: (interaction: Record<string, any>) => Promise<unknown>;
+type RolePingModule = ((context: Record<string, unknown>) => void) & {
+  createRolePingInteractionHandlers: (deps: Record<string, unknown>) => {
+    handleSetRole: (interaction: Record<string, unknown>, sub: string, guildId: string) => Promise<unknown>;
+    handleSetRoleInteraction: (interaction: Record<string, unknown>) => Promise<unknown>;
   };
 };
 
 const rolePingInteractions = require("../features/command-handlers/rolePingHandlers") as RolePingModule;
 
-function makeSetRoleInteraction(sub: string, role: Record<string, any> | null = { id: "role-1" }) {
+type InteractionRuntime = {
+  handleInteraction: (interaction: unknown, games?: unknown[]) => Promise<unknown>;
+};
+type MongoCall = unknown[];
+
+function makeSetRoleInteraction(sub: string, role: Record<string, unknown> | null = { id: "role-1" }) {
   return {
     commandName: "set",
     guild: { id: "guild-1" },
@@ -27,26 +32,26 @@ function makeSetRoleInteraction(sub: string, role: Record<string, any> | null = 
   };
 }
 
-function makeBaseContext(calls: any[], replies: any[]) {
+function makeBaseContext(calls: MongoCall[], replies: unknown[]) {
   return {
     MessageFlags: { Ephemeral: 64 },
     GuildModel: {
-      updateOne: async (...args: any[]) => {
+      updateOne: async (...args: unknown[]) => {
         calls.push(args);
         return { matchedCount: 1, modifiedCount: 1 };
       }
     },
-    logger: () => undefined,
+    logger: (_level: string, _context: string, ..._args: unknown[]) => undefined,
     invalidateGuildCache: (guildId: string) => calls.push(["invalidate", guildId]),
-    safeDefer: async (interaction: Record<string, any>) => { interaction.deferred = true; },
+    safeDefer: async (interaction: Record<string, unknown>) => { interaction.deferred = true; },
     safeEdit: async (_interaction: unknown, payload: unknown) => { replies.push(payload); return payload; },
     formatUserError: (_err: unknown, fallback: string) => fallback
   };
 }
 
 test("role ping factory writes /set role updates through explicit deps", async () => {
-  const calls: any[] = [];
-  const replies: any[] = [];
+  const calls: MongoCall[] = [];
+  const replies: unknown[] = [];
   const handlers = rolePingInteractions.createRolePingInteractionHandlers(makeBaseContext(calls, replies));
 
   await handlers.handleSetRole(makeSetRoleInteraction("updates"), "updates", "guild-1");
@@ -59,8 +64,8 @@ test("role ping factory writes /set role updates through explicit deps", async (
 });
 
 test("role ping factory clears /set role discounts when role is omitted", async () => {
-  const calls: any[] = [];
-  const replies: any[] = [];
+  const calls: MongoCall[] = [];
+  const replies: unknown[] = [];
   const handlers = rolePingInteractions.createRolePingInteractionHandlers(makeBaseContext(calls, replies));
 
   await handlers.handleSetRole(makeSetRoleInteraction("discounts", null), "discounts", "guild-1");
@@ -72,12 +77,13 @@ test("role ping factory clears /set role discounts when role is omitted", async 
 });
 
 test("role ping rejects unknown sub-commands instead of silently defaulting to discountRoleId", async () => {
-  const calls: any[] = [];
-  const replies: any[] = [];
-  const logs: any[] = [];
-  const ctx = makeBaseContext(calls, replies);
-  ctx.logger = (...args: any[]) => { logs.push(args); };
-  const handlers = rolePingInteractions.createRolePingInteractionHandlers(ctx);
+  const calls: MongoCall[] = [];
+  const replies: unknown[] = [];
+  const logs: Array<[string, string, ...unknown[]]> = [];
+  const context = makeBaseContext(calls, replies);
+  const loggingContext = context as typeof context & { logger: (...args: [string, string, ...unknown[]]) => void };
+  loggingContext.logger = (...args: [string, string, ...unknown[]]) => { logs.push(args); };
+  const handlers = rolePingInteractions.createRolePingInteractionHandlers(loggingContext);
 
   await handlers.handleSetRole(makeSetRoleInteraction("typo-not-real"), "typo-not-real", "guild-1");
 
@@ -85,23 +91,25 @@ test("role ping rejects unknown sub-commands instead of silently defaulting to d
     "no DB write must happen for an unknown sub — old code silently $set discountRoleId");
   assert.equal(replies.length, 1);
   assert.match(String(replies[0]), /typo-not-real.*nu este recunoscuta/);
-  assert.ok(logs.some(([level, ctx]) => level === "WARN" && ctx === "SET_ROLE"),
+  assert.ok(logs.some(([level, context]) => level === "WARN" && context === "SET_ROLE"),
     "must emit a WARN log so operators see the rejected sub");
 });
 
 test("role ping installer intercepts only /set role commands", async () => {
-  const calls: any[] = [];
-  const replies: any[] = [];
+  const calls: MongoCall[] = [];
+  const replies: unknown[] = [];
   const delegated: string[] = [];
-  const ctx: Record<string, any> = makeBaseContext(calls, replies);
-  ctx.handleInteraction = async (interaction: Record<string, any>) => {
-    delegated.push(interaction.commandName);
+  const context = makeBaseContext(calls, replies);
+  const runtimeContext = context as typeof context & Partial<InteractionRuntime>;
+  runtimeContext.handleInteraction = async (interaction: unknown) => {
+    delegated.push((interaction as { commandName: string }).commandName);
     return "delegated";
   };
 
-  rolePingInteractions(ctx);
-  await ctx.handleInteraction(makeSetRoleInteraction("updates"), []);
-  const result = await ctx.handleInteraction({
+  rolePingInteractions(runtimeContext);
+  const runtime = runtimeContext as typeof context & InteractionRuntime;
+  await runtime.handleInteraction(makeSetRoleInteraction("updates"), []);
+  const result = await runtime.handleInteraction({
     commandName: "latest",
     guild: { id: "guild-1" },
     isChatInputCommand: () => true,

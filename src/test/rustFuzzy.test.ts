@@ -117,7 +117,7 @@ test("Rust scoreListingCandidate counts case-insensitive keyword hits", () => {
 
   assert.equal(scoreListingCandidate("HTTPS://X/UPDATE", "Big PATCH", ["patch", "update"]), 2);
 
-  assert.equal(scoreListingCandidate("https://x", "any text", []), 0);
+  assert.equal(scoreListingCandidate("https://x", "sample text", []), 0);
 
   assert.equal(scoreListingCandidate("https://x/patch", "ok", ["", "patch", ""]), 1);
 });

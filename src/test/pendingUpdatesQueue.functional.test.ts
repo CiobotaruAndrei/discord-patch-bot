@@ -1,17 +1,29 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildPendingUpdatesQueue } from "../features/notifications/pendingUpdatesQueue";
+import {
+  buildPendingUpdatesQueue,
+  type BuildPendingUpdatesQueueDeps,
+  type BuildPendingUpdatesQueueInput,
+  type PendingUpdate,
+  type UpdateFetchResult
+} from "../features/notifications/pendingUpdatesQueue";
 
-function makeDeps(overrides: Partial<Parameters<typeof buildPendingUpdatesQueue>[0]> = {}) {
+function normalizePendingItem(item: unknown): PendingUpdate {
+  const record = item && typeof item === "object" ? item as Record<string, unknown> : {};
   return {
-    normalizePendingUpdateArray: (arr: unknown): any[] => Array.isArray(arr) ? arr.map((it: any) => ({
-      ...it,
-      createdAt: it.createdAt instanceof Date ? it.createdAt : new Date(it.createdAt || Date.now()),
-      attempts: typeof it.attempts === "number" ? it.attempts : 0
-    })) : [],
-    toEntries: (obj: any) =>
+    ...record,
+    id: String(record.id || ""),
+    createdAt: record.createdAt instanceof Date ? record.createdAt : new Date(record.createdAt as string | number | Date || Date.now()),
+    attempts: typeof record.attempts === "number" ? record.attempts : 0
+  };
+}
+
+function makeDeps(overrides: Partial<BuildPendingUpdatesQueueDeps> = {}): BuildPendingUpdatesQueueDeps {
+  return {
+    normalizePendingUpdateArray: (arr: unknown): PendingUpdate[] => Array.isArray(arr) ? arr.map(normalizePendingItem) : [],
+    toEntries: <K, V>(obj: Map<K, V> | Record<string, V> | undefined) =>
       obj instanceof Map ? Array.from(obj.entries())
-        : obj ? Object.entries(obj) : [],
+        : obj ? Object.entries(obj) as Array<[K, V]> : [],
     PENDING_UPDATE_MAX_AGE_MS: 86_400_000,
     PENDING_UPDATE_MAX_ATTEMPTS: 5,
     PENDING_UPDATES_PER_GAME_LIMIT: 10,
@@ -19,13 +31,17 @@ function makeDeps(overrides: Partial<Parameters<typeof buildPendingUpdatesQueue>
   };
 }
 
+function runQueue(input: BuildPendingUpdatesQueueInput, deps: BuildPendingUpdatesQueueDeps = makeDeps()) {
+  return buildPendingUpdatesQueue(deps, input);
+}
+
 test("buildPendingUpdatesQueue indexeaza latestResults dupa game.key", () => {
-  const result = buildPendingUpdatesQueue(makeDeps() as any, {
-    guild: { _id: "g", seen: {}, pendingUpdates: {} } as any,
+  const result = runQueue({
+    guild: { _id: "g", seen: {}, pendingUpdates: {} },
     latestResults: [
       { game: { key: "cs2", name: "CS2" }, latest: { id: "u1" } },
       { game: { key: "fortnite", name: "Fortnite" }, latest: { id: "u2" } }
-    ] as any
+    ] as UpdateFetchResult[]
   });
   assert.equal(result.resultByGameKey.size, 2);
   assert.equal(result.resultByGameKey.get("cs2")?.latest?.id, "u1");
@@ -34,36 +50,35 @@ test("buildPendingUpdatesQueue indexeaza latestResults dupa game.key", () => {
 test("buildPendingUpdatesQueue scoate pendingUpdates expirate dupa MAX_AGE_MS", () => {
   const now = Date.now();
   const oldDate = new Date(now - 100_000_000);
-  const result = buildPendingUpdatesQueue(
-    makeDeps({ PENDING_UPDATE_MAX_AGE_MS: 86_400_000 }) as any,
+  const result = runQueue(
     {
       guild: {
         _id: "g", seen: {}, pendingUpdates: {
           cs2: [{ id: "u-old", createdAt: oldDate, attempts: 0 }]
         }
-      } as any,
+      },
       latestResults: [],
       now
-    }
+    },
+    makeDeps({ PENDING_UPDATE_MAX_AGE_MS: 86_400_000 })
   );
   assert.equal(result.pendingByGame.has("cs2"), false, "intrarea expirata e scoasa");
 });
 
 test("buildPendingUpdatesQueue scoate pendingUpdates deja seen", () => {
-  const result = buildPendingUpdatesQueue(makeDeps() as any, {
+  const result = runQueue({
     guild: {
       _id: "g",
       seen: { cs2: ["u1"] },
       pendingUpdates: { cs2: [{ id: "u1", createdAt: new Date(), attempts: 0 }] }
-    } as any,
+    },
     latestResults: []
   });
   assert.equal(result.pendingByGame.has("cs2"), false);
 });
 
 test("buildPendingUpdatesQueue scoate pendingUpdates cu attempts >= MAX_ATTEMPTS", () => {
-  const result = buildPendingUpdatesQueue(
-    makeDeps({ PENDING_UPDATE_MAX_ATTEMPTS: 3 }) as any,
+  const result = runQueue(
     {
       guild: {
         _id: "g", seen: {},
@@ -73,9 +88,10 @@ test("buildPendingUpdatesQueue scoate pendingUpdates cu attempts >= MAX_ATTEMPTS
             { id: "u2", createdAt: new Date(), attempts: 1 }
           ]
         }
-      } as any,
+      },
       latestResults: []
-    }
+    },
+    makeDeps({ PENDING_UPDATE_MAX_ATTEMPTS: 3 })
   );
   const queue = result.pendingByGame.get("cs2");
   assert.equal(queue?.length, 1);
@@ -84,12 +100,12 @@ test("buildPendingUpdatesQueue scoate pendingUpdates cu attempts >= MAX_ATTEMPTS
 
 test("buildPendingUpdatesQueue limiteaza queue per game la PENDING_UPDATES_PER_GAME_LIMIT", () => {
   const items = Array.from({ length: 15 }, (_, i) => ({ id: `u${i}`, createdAt: new Date(), attempts: 0 }));
-  const result = buildPendingUpdatesQueue(
-    makeDeps({ PENDING_UPDATES_PER_GAME_LIMIT: 5 }) as any,
+  const result = runQueue(
     {
-      guild: { _id: "g", seen: {}, pendingUpdates: { cs2: items } } as any,
+      guild: { _id: "g", seen: {}, pendingUpdates: { cs2: items } },
       latestResults: []
-    }
+    },
+    makeDeps({ PENDING_UPDATES_PER_GAME_LIMIT: 5 })
   );
   const queue = result.pendingByGame.get("cs2");
   assert.equal(queue?.length, 5, "doar ultimele 5 trebuie pastrate");
@@ -98,11 +114,11 @@ test("buildPendingUpdatesQueue limiteaza queue per game la PENDING_UPDATES_PER_G
 });
 
 test("buildPendingUpdatesQueue adauga update-uri noi din latestResults", () => {
-  const result = buildPendingUpdatesQueue(makeDeps() as any, {
-    guild: { _id: "g", seen: {}, pendingUpdates: {} } as any,
+  const result = runQueue({
+    guild: { _id: "g", seen: {}, pendingUpdates: {} },
     latestResults: [
       { game: { key: "cs2", name: "CS2" }, latest: { id: "u-fresh" } }
-    ] as any
+    ] as UpdateFetchResult[]
   });
   const queue = result.pendingByGame.get("cs2");
   assert.equal(queue?.length, 1);
@@ -110,21 +126,21 @@ test("buildPendingUpdatesQueue adauga update-uri noi din latestResults", () => {
 });
 
 test("buildPendingUpdatesQueue NU adauga update-uri deja in queue (dedupe)", () => {
-  const result = buildPendingUpdatesQueue(makeDeps() as any, {
+  const result = runQueue({
     guild: {
       _id: "g", seen: {},
       pendingUpdates: { cs2: [{ id: "u1", createdAt: new Date(), attempts: 0 }] }
-    } as any,
+    },
     latestResults: [
       { game: { key: "cs2", name: "CS2" }, latest: { id: "u1" } }
-    ] as any
+    ] as UpdateFetchResult[]
   });
   const queue = result.pendingByGame.get("cs2");
   assert.equal(queue?.length, 1, "fara duplicate");
 });
 
 test("buildPendingUpdatesQueue respecta enabledGames filter — drops out-of-filter pending si latest", () => {
-  const result = buildPendingUpdatesQueue(makeDeps() as any, {
+  const result = runQueue({
     guild: {
       _id: "g", seen: {},
       pendingUpdates: {
@@ -132,11 +148,11 @@ test("buildPendingUpdatesQueue respecta enabledGames filter — drops out-of-fil
         fortnite: [{ id: "u2", createdAt: new Date(), attempts: 0 }]
       },
       enabledGames: ["cs2"]
-    } as any,
+    },
     latestResults: [
       { game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2-new" } },
       { game: { key: "fortnite", name: "Fortnite" }, latest: { id: "u-fn-new" } }
-    ] as any
+    ] as UpdateFetchResult[]
   });
   assert.equal(result.pendingByGame.has("cs2"), true);
   assert.equal(result.pendingByGame.has("fortnite"), false, "fortnite filtered out");
@@ -145,20 +161,20 @@ test("buildPendingUpdatesQueue respecta enabledGames filter — drops out-of-fil
 });
 
 test("buildPendingUpdatesQueue cu enabledGames gol = no filter (enabledSet === null)", () => {
-  const result = buildPendingUpdatesQueue(makeDeps() as any, {
-    guild: { _id: "g", seen: {}, pendingUpdates: {}, enabledGames: [] } as any,
+  const result = runQueue({
+    guild: { _id: "g", seen: {}, pendingUpdates: {}, enabledGames: [] },
     latestResults: [
       { game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2" } },
       { game: { key: "fortnite", name: "Fortnite" }, latest: { id: "u-fn" } }
-    ] as any
+    ] as UpdateFetchResult[]
   });
   assert.equal(result.enabledSet, null);
   assert.equal(result.pendingByGame.size, 2, "fara filter, ambele jocuri raman");
 });
 
 test("buildPendingUpdatesQueue seenByGame construit din guild.seen (strict string)", () => {
-  const result = buildPendingUpdatesQueue(makeDeps() as any, {
-    guild: { _id: "g", seen: { cs2: ["u1", 2, "u3"] }, pendingUpdates: {} } as any,
+  const result = runQueue({
+    guild: { _id: "g", seen: { cs2: ["u1", 2, "u3"] } as unknown as Record<string, string[]>, pendingUpdates: {} },
     latestResults: []
   });
   const seen = result.seenByGame.get("cs2");
