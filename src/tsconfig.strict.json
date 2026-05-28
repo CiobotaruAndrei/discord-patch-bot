@@ -71,6 +71,7 @@
     "test/sourceRegistry.functional.test.ts",
     "test/sourceScraperShapeDrift.test.ts",
     "test/statusInteractionHandler.functional.test.ts",
-    "test/subscriptionInteractions.functional.test.ts"
+    "test/subscriptionInteractions.functional.test.ts",
+    "test/userCooldownBound.test.ts"
   ]
 }
