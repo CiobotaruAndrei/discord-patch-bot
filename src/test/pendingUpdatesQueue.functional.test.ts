@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildPendingUpdatesQueue } from "../features/notifications/pendingUpdatesQueue";
 
-
 function makeDeps(overrides: Partial<Parameters<typeof buildPendingUpdatesQueue>[0]> = {}) {
   return {
     normalizePendingUpdateArray: (arr: unknown): any[] => Array.isArray(arr) ? arr.map((it: any) => ({
@@ -34,7 +33,7 @@ test("buildPendingUpdatesQueue indexeaza latestResults dupa game.key", () => {
 
 test("buildPendingUpdatesQueue scoate pendingUpdates expirate dupa MAX_AGE_MS", () => {
   const now = Date.now();
-  const oldDate = new Date(now - 100_000_000); // mult mai vechi de 24h
+  const oldDate = new Date(now - 100_000_000);
   const result = buildPendingUpdatesQueue(
     makeDeps({ PENDING_UPDATE_MAX_AGE_MS: 86_400_000 }) as any,
     {
@@ -70,8 +69,8 @@ test("buildPendingUpdatesQueue scoate pendingUpdates cu attempts >= MAX_ATTEMPTS
         _id: "g", seen: {},
         pendingUpdates: {
           cs2: [
-            { id: "u1", createdAt: new Date(), attempts: 3 }, // peste limita
-            { id: "u2", createdAt: new Date(), attempts: 1 }  // OK
+            { id: "u1", createdAt: new Date(), attempts: 3 },
+            { id: "u2", createdAt: new Date(), attempts: 1 }
           ]
         }
       } as any,
@@ -94,7 +93,7 @@ test("buildPendingUpdatesQueue limiteaza queue per game la PENDING_UPDATES_PER_G
   );
   const queue = result.pendingByGame.get("cs2");
   assert.equal(queue?.length, 5, "doar ultimele 5 trebuie pastrate");
-  // slice(-5) → ultimele 5 (u10..u14)
+
   assert.equal(queue?.[0].id, "u10");
 });
 
@@ -117,7 +116,7 @@ test("buildPendingUpdatesQueue NU adauga update-uri deja in queue (dedupe)", () 
       pendingUpdates: { cs2: [{ id: "u1", createdAt: new Date(), attempts: 0 }] }
     } as any,
     latestResults: [
-      { game: { key: "cs2", name: "CS2" }, latest: { id: "u1" } } // dublu
+      { game: { key: "cs2", name: "CS2" }, latest: { id: "u1" } }
     ] as any
   });
   const queue = result.pendingByGame.get("cs2");

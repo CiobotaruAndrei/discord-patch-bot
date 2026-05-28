@@ -1,6 +1,5 @@
 "use strict";
 
-
 const { errorDetail } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
@@ -92,7 +91,7 @@ function installSimpleCommandsHandler(ctx: SimpleCommandsContext) {
         } else {
           await interaction.reply(payload);
         }
-      } catch { /* ignore */ }
+      } catch {  }
       return undefined;
     }
   }

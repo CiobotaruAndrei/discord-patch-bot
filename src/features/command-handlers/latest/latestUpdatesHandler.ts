@@ -1,6 +1,5 @@
 "use strict";
 
-
 const { errorMessage } = require("../../../shared/errors");
 
 type GameConfig = { key: string; name: string } & Record<string, unknown>;

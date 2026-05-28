@@ -1,6 +1,5 @@
 "use strict";
 
-
 const { errorDetail } = require("../../shared/errors");
 
 type DiscordInteraction = {
@@ -34,9 +33,7 @@ module.exports = (ctx: RouterContext) => {
         }
         return;
       }
-      // Non-chat-input (e.g. context menus pe care nu le suportam): ignoram
-      // silentios — Discord va arata "interaction failed" dupa 3s daca
-      // utilizatorul a invocat ceva nesuportat, dar nu polluam logs.
+
       if (typeof interaction.isChatInputCommand !== "function" || !interaction.isChatInputCommand()) {
         return;
       }
@@ -46,9 +43,7 @@ module.exports = (ctx: RouterContext) => {
           flags: MessageFlags.Ephemeral
         }).catch(() => null);
       }
-      // Ajungem aici doar pentru comenzi NECUNOSCUTE — toate cele live (ping,
-      // games, help, start, stop, set, latest, dlc, status) au handler dedicat
-      // care intercepteaza in chain inainte sa cada pe noi.
+
       const cmd = interaction.commandName || "<undefined>";
       logger("WARN", "INTERACTION", `Comanda necunoscuta: /${cmd} — niciun handler in chain nu a interceptat-o`);
       return interaction.reply({
@@ -64,7 +59,7 @@ module.exports = (ctx: RouterContext) => {
         } else {
           await interaction.reply(payload);
         }
-      } catch { /* ignore */ }
+      } catch {  }
     }
   }
 

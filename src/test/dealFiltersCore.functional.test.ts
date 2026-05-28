@@ -55,7 +55,7 @@ test("deal filter rejects deals with non-finite savings", () => {
     false,
     "deal with NaN savings must fail the min-discount gate"
   );
-  // Free deals don't go through the savings gate, so they still pass.
+
   assert.equal(
     dealPassesFilters({ ...baseDeal, salePrice: "0", savings: undefined as unknown as number }, guild),
     true,
@@ -95,13 +95,13 @@ test("entry helpers support Map, plain objects and rotation", () => {
 test("normalizePendingUpdateArray coerces invalid createdAt to a fresh Date", () => {
   const before = Date.now();
   const items = normalizePendingUpdateArray([
-    { id: "u1", createdAt: "abc" },            // string nevalid
-    { id: "u2", createdAt: null },             // null
-    { id: "u3", createdAt: "Invalid Date" },   // sirul literal
-    { id: "u4" },                              // lipseste cu totul
-    { id: "u5", createdAt: NaN },              // NaN explicit
-    { id: "u6", createdAt: new Date(0) },      // 1970 valid → pastreaza
-    { id: "u7", createdAt: "2024-01-01T00:00:00Z" } // ISO valid → pastreaza
+    { id: "u1", createdAt: "abc" },
+    { id: "u2", createdAt: null },
+    { id: "u3", createdAt: "Invalid Date" },
+    { id: "u4" },
+    { id: "u5", createdAt: NaN },
+    { id: "u6", createdAt: new Date(0) },
+    { id: "u7", createdAt: "2024-01-01T00:00:00Z" }
   ]);
   const after = Date.now();
 
@@ -111,15 +111,13 @@ test("normalizePendingUpdateArray coerces invalid createdAt to a fresh Date", ()
     assert.ok(!Number.isNaN(ts), `${item.id}: createdAt trebuie sa fie un Date valid`);
     assert.ok(ts >= before && ts <= after, `${item.id}: createdAt invalid trebuie inlocuit cu now`);
   }
-  // Date-le valide raman neschimbate.
+
   assert.equal((items[5].createdAt as Date).getTime(), 0, "1970-01-01 trebuie pastrat");
   assert.equal((items[6].createdAt as Date).toISOString(), "2024-01-01T00:00:00.000Z");
 });
 
 test("normalizePendingDiscountArray coerces invalid lastSeenAt to a fresh Date", () => {
-  // Simetric cu pendingUpdates — lastSeenAt este folosit pentru bookkeeping
-  // si pentru grace-period (`PENDING_DISCOUNT_GRACE_CYCLES`). Un format
-  // nevalid blocheaza prelungirea grace-ului in mod silent.
+
   const before = Date.now();
   const items = normalizePendingDiscountArray([
     { hash: "h1", lastSeenAt: "abc" },

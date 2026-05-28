@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-
 const installSetHandler = require("../features/command-handlers/setInteractionHandler") as (ctx: Record<string, any>) => void;
 const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as (ctx: Record<string, any>) => void;
 const installRolePingHandlers = require("../features/command-handlers/rolePingHandlers") as (ctx: Record<string, any>) => void;
@@ -23,12 +22,9 @@ function makeCtx(replies: unknown[], mongoCalls: unknown[][]) {
     safeDefer: async () => undefined,
     safeEdit: async (_interaction: unknown, payload: unknown) => { replies.push(payload); return payload; },
     formatUserError: (_err: unknown, fallback: string) => fallback,
-    handleInteraction: async () => { /* bottom of chain — unknown command */ }
+    handleInteraction: async () => {  }
   };
-  // Install order matches commandRegistry.ts (gameFilterHandlers first, then
-  // rolePingHandlers, then setInteractionHandler — runtime order is reversed,
-  // so setInteractionHandler intercepts /set with group=null, role intercepts
-  // group=role, games intercepts group=games).
+
   installGameFilterHandlers(ctx);
   installRolePingHandlers(ctx);
   installSetHandler(ctx);
@@ -137,7 +133,6 @@ test("/set role with known sub still works (regression for the new guard)", asyn
   assert.equal(update.$set.notificationRoleId, "role-42");
   assert.match(String(replies[0]), /Rol pentru update-uri:/);
 });
-
 
 test("/set mode rejects null/unknown values instead of persisting null", async () => {
   const replies: unknown[] = [];

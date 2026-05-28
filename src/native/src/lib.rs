@@ -43,10 +43,6 @@ pub fn clean_text(text: String) -> String {
   clean_text_impl(&text)
 }
 
-// fetchSteamUpdate filters every news item through this; with up to 50 items
-// per game per cron tick and N games configured, the JS version paid a
-// startsWith + two includes chain per call. Native runs the whole check in
-// one bridge crossing.
 #[napi]
 pub fn is_good_steam_article_url(url: String) -> bool {
   let v = url.trim().to_lowercase();
@@ -57,13 +53,6 @@ pub fn is_good_steam_article_url(url: String) -> bool {
   true
 }
 
-// fetchListingBasedUpdate sorts up to 50-200 anchors per game per cron tick;
-// extract_date_score is called for every anchor to break ties. Moving the
-// regex match + day/month validation + Date.UTC equivalent into Rust avoids
-// JS regex-engine entry per call and the Date object allocation for roll-over
-// checks. Returns UTC milliseconds-since-epoch for the first YYYY[-/]MM[-/]DD
-// substring in `url`, or 0 if none was found or the date is a roll-over
-// (e.g. Feb 31).
 #[napi]
 pub fn extract_date_score(url: String) -> f64 {
   extract_date_score_impl(&url)
@@ -111,10 +100,6 @@ fn extract_date_score_impl(url: &str) -> f64 {
   0.0
 }
 
-// Returns the milliseconds-since-epoch for midnight UTC on (year, month, day)
-// if that date is a real calendar date; None for roll-over inputs like Feb 31.
-// Mirrors `Date.UTC(year, month - 1, day)` followed by the year/month/day
-// round-trip check the JS implementation did to reject roll-overs.
 fn utc_ms_for_date(year: i32, month: u32, day: u32) -> Option<f64> {
   let max_day = match month {
     1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
@@ -130,9 +115,6 @@ fn is_leap_year(year: i32) -> bool {
   (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
 
-// Howard Hinnant's days_from_civil: given a Gregorian (year, month, day),
-// return days since 1970-01-01. Faster and dependency-free vs reaching for
-// chrono/time crates just for this.
 fn days_from_civil(year: i32, month: u32, day: u32) -> i64 {
   let y = if month <= 2 { year - 1 } else { year } as i64;
   let era = (if y >= 0 { y } else { y - 399 }) / 400;
@@ -143,11 +125,6 @@ fn days_from_civil(year: i32, month: u32, day: u32) -> i64 {
   era * 146_097 + doe as i64 - 719_468
 }
 
-// Keyword sets are static so we never reallocate them across calls. fetchSteamUpdate
-// runs classify_patch_note up to 50 times per game per cron tick — the JS version
-// called String.includes per keyword and burnt time on the JS<->native bridge for
-// every single comparison via .some(). Running the whole classification in one
-// native call removes that overhead.
 const BAD_IN_TITLE: &[&str] = &[
   "community", "sale", "store", "merch", "tournament", "esports",
   "giveaway", "teaser", "trailer", "preview", "announce", "announcement",
@@ -176,11 +153,6 @@ pub fn classify_patch_note(title: String, contents: String, tags: Vec<String>) -
   GOOD_WORDS.iter().any(|w| title_lc.contains(w) || contents_lc.contains(w))
 }
 
-// scoreCandidate is called per <a> tag inside fetchListingBasedUpdate's listing
-// scrape. With per-guild require_keywords lists of ~3-8 words and listings of
-// 50-200 anchors, the JS version does N*M String.includes calls per fetch.
-// Lowercasing the haystack once and looping in native keeps the hot loop in
-// one place.
 #[napi]
 pub fn score_listing_candidate(href: String, text: String, keywords: Vec<String>) -> u32 {
   if keywords.is_empty() {
@@ -250,10 +222,7 @@ pub fn stable_update_id(title: String, link: String) -> String {
   let base = format!("{}|{}", title, link);
   let mut hasher = Sha1::new();
   hasher.update(base.as_bytes());
-  // We only need the first 16 hex chars (8 bytes). The previous version did
-  // `sha1_hex(...).chars().take(16).collect()` — formatting all 40 hex chars
-  // then walking the string to keep the first 16. Going direct from the
-  // digest bytes avoids that intermediate 40-char String allocation.
+
   hex_encode(&hasher.finalize()[..8])
 }
 
@@ -262,10 +231,6 @@ pub fn normalize_deal_state(sale_price: String, normal_price: String, savings: S
   normalize_deal_state_impl(&sale_price, &normal_price, &savings)
 }
 
-// This predicate is used repeatedly while filtering deal feeds per guild.
-// Keep the contract identical to the TypeScript fallback: sale price is already
-// parseFloat-like, savings is Number-like, and NaN values must fail only the
-// paid discount gate.
 #[napi]
 pub fn deal_passes_filters(
   sale_price_num: f64,
@@ -473,11 +438,6 @@ fn normalize_deal_state_impl(sale_price: &str, normal_price: &str, savings: &str
     .join(":")
 }
 
-// Mirror of the JS CLEAN_REGEX = /<[^>]+>|&(nbsp|amp|quot|#39|apos|lt|gt);|\s+/gi
-// pipeline, hand-rolled to avoid pulling in the regex crate (~1MB binary).
-// Strips HTML tags (replaced with space), decodes a small set of named entities,
-// collapses whitespace runs, and trims. Behavior matches the JS implementation
-// in src/infra/http/client.ts byte-for-byte for the entities and pages we see.
 fn clean_text_impl(input: &str) -> String {
   if input.is_empty() {
     return String::new();
@@ -485,12 +445,11 @@ fn clean_text_impl(input: &str) -> String {
   let bytes = input.as_bytes();
   let mut out = String::with_capacity(input.len());
   let mut i = 0usize;
-  let mut prev_was_space = true; // treat start-of-input as space so leading whitespace collapses
+  let mut prev_was_space = true;
 
   while i < bytes.len() {
     let b = bytes[i];
 
-    // HTML tag: <...>
     if b == b'<' {
       let mut j = i + 1;
       while j < bytes.len() && bytes[j] != b'>' {
@@ -504,7 +463,6 @@ fn clean_text_impl(input: &str) -> String {
       continue;
     }
 
-    // Named entity: &(nbsp|amp|quot|#39|apos|lt|gt);
     if b == b'&' {
       let max = std::cmp::min(bytes.len(), i + 8);
       let mut j = i + 1;
@@ -513,7 +471,7 @@ fn clean_text_impl(input: &str) -> String {
       }
       if j < bytes.len() && bytes[j] == b';' {
         let entity_bytes = &bytes[i + 1..j];
-        // entity names are ASCII; safe to compare bytes after lowercasing.
+
         let replacement: Option<&str> = match entity_bytes {
           b if b.eq_ignore_ascii_case(b"nbsp") => Some(" "),
           b if b.eq_ignore_ascii_case(b"amp") => Some("&"),
@@ -536,20 +494,19 @@ fn clean_text_impl(input: &str) -> String {
           i = j + 1;
           continue;
         }
-        // Unknown entity: JS keeps the original match. Mirror that.
+
         out.push_str(&input[i..=j]);
         prev_was_space = false;
         i = j + 1;
         continue;
       }
-      // Stray '&' with no closing ';' — keep as-is.
+
       out.push('&');
       prev_was_space = false;
       i += 1;
       continue;
     }
 
-    // ASCII whitespace -> collapse runs to a single space.
     if b.is_ascii_whitespace() {
       if !prev_was_space {
         out.push(' ');
@@ -559,8 +516,6 @@ fn clean_text_impl(input: &str) -> String {
       continue;
     }
 
-    // Regular byte. For ASCII this is a 1-byte char; for multibyte UTF-8 we
-    // need to copy the whole codepoint to keep the string valid.
     if b < 0x80 {
       out.push(b as char);
       prev_was_space = false;
@@ -579,7 +534,6 @@ fn clean_text_impl(input: &str) -> String {
     }
   }
 
-  // Strip trailing space if we emitted one. Match JS `.trim()` semantics.
   while out.ends_with(' ') {
     out.pop();
   }
@@ -592,9 +546,6 @@ fn sha1_hex(value: &str) -> String {
   hex_encode(&hasher.finalize())
 }
 
-// Lowercase-hex encoder. Faster than `format!("{:x}", ..)` per byte because we
-// allocate exactly the right capacity once and write directly into the buffer
-// instead of going through the Display/Write traits.
 fn hex_encode(bytes: &[u8]) -> String {
   const HEX: &[u8; 16] = b"0123456789abcdef";
   let mut out = vec![0u8; bytes.len() * 2];
@@ -602,7 +553,7 @@ fn hex_encode(bytes: &[u8]) -> String {
     out[i * 2] = HEX[(b >> 4) as usize];
     out[i * 2 + 1] = HEX[(b & 0x0f) as usize];
   }
-  // SAFETY: every byte written is an ASCII hex digit, so the buffer is valid UTF-8.
+
   unsafe { String::from_utf8_unchecked(out) }
 }
 

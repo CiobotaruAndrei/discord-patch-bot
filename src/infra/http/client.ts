@@ -213,9 +213,7 @@ function parseRetryAfter(raw: unknown, nowMs: number = Date.now()): number | nul
   if (raw === null || raw === undefined) return null;
   const trimmed = String(raw).trim();
   if (!trimmed) return null;
-  // Delta-seconds este definit ca 1*DIGIT (un sir de cifre), nu un numar
-  // arbitrar — "60s" sau "0x10" nu sunt valide. parseInt singur ar accepta
-  // "60abc" → 60, deci adaugam un regex strict pe sirul brut.
+
   if (/^\d+$/.test(trimmed)) {
     const seconds = parseInt(trimmed, 10);
     if (seconds >= 0 && Number.isFinite(seconds)) return seconds * 1000;
@@ -433,9 +431,7 @@ function attachHttpClient(ctx: HttpClientContext): void {
         }
 
         if (waitIsRetryAfter) {
-          // Jitter pozitiv [1.0, 1.25] — niciodata sub valoarea ceruta de server,
-          // dar evitam thundering herd cand multi clienti primesc acelasi
-          // Retry-After in acelasi timp.
+
           waitMs = Math.min(Math.round(waitMs * (1 + Math.random() * 0.25)), 30000);
         } else {
           waitMs = Math.round(waitMs * (0.5 + Math.random()));
@@ -531,9 +527,6 @@ function attachHttpClient(ctx: HttpClientContext): void {
   });
 }
 
-// Expose pure helpers on the function itself so tests can import them without
-// going through the full ctx setup. `export =` keeps the default-callable
-// signature that the rest of the codebase relies on.
 attachHttpClient.parseRetryAfter = parseRetryAfter;
 attachHttpClient.assertSafeExternalUrl = assertSafeExternalUrl;
 attachHttpClient.assertSafeExternalDnsTarget = assertSafeExternalDnsTarget;

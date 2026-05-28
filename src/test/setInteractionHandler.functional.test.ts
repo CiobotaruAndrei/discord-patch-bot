@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-
 const installSetHandler = require("../features/command-handlers/setInteractionHandler") as
   ((ctx: Record<string, any>) => void) & { createSetInteractionHandler?: (deps: any) => any };
 
@@ -99,7 +98,6 @@ test("handles /set mindiscount with valid 50 and rejects out-of-range", async ()
   assert.equal(update.minDiscountPercent, 50);
   assert.deepEqual(update.pendingDiscounts, [], "filter change reseteaza pendingDiscounts");
 
-  // Out-of-range respins
   await ctx.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "mindiscount", integer: { value: 150 } }),
     []

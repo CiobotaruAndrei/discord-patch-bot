@@ -30,7 +30,6 @@ async function adminAlert(kind: string, title: string, body: unknown): Promise<v
   const now = new Date();
   const cooldownThreshold = new Date(now.getTime() - env.ADMIN_ALERT_COOLDOWN_MS);
 
-  // Atomic check-and-set: only one instance should win the cooldown race.
   let allowed = false;
   try {
     const result = await AdminAlertCooldownModel.findOneAndUpdate(

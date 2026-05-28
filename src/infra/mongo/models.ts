@@ -64,11 +64,11 @@ const guildSchema = new mongoose.Schema({
     at: { type: Date, default: null }
   },
 
-  enabledGames: { type: [String], default: [] },   // [] = toate jocurile active
-  enabledStores: { type: [String], default: [] },  // [] = toate store-urile active
-  maxAbsolutePrice: { type: Number, default: 0 },  // 0 = fara limita superioara
-  notificationRoleId: { type: String, default: null }, // ping rol pe updates
-  discountRoleId: { type: String, default: null }      // ping rol pe reduceri
+  enabledGames: { type: [String], default: [] },
+  enabledStores: { type: [String], default: [] },
+  maxAbsolutePrice: { type: Number, default: 0 },
+  notificationRoleId: { type: String, default: null },
+  discountRoleId: { type: String, default: null }
 }, { minimize: false });
 
 guildSchema.index({ subscribed: 1, notificationChannelId: 1 }, { background: true });
@@ -104,7 +104,7 @@ const jobLockSchema = new mongoose.Schema({
 const JobLockModel = mongoose.model("JobLock", jobLockSchema);
 
 const adminAlertCooldownSchema = new mongoose.Schema({
-  _id: String, // alert kind (ex. "cb:dbd", "cron:fatal")
+  _id: String,
   lastSentAt: { type: Date, default: Date.now, expires: 7 * ONE_DAY_MS / 1000 }
 }, { minimize: false });
 const AdminAlertCooldownModel = mongoose.model("AdminAlertCooldown", adminAlertCooldownSchema);

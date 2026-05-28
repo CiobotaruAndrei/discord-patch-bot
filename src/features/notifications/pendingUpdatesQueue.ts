@@ -1,6 +1,5 @@
 "use strict";
 
-
 import type { GuildSettings } from "../../types";
 
 export interface PendingUpdate {
@@ -43,11 +42,6 @@ export interface BuildPendingUpdatesQueueResult {
 
 type UnknownEntrySource = Map<string, unknown> | Record<string, unknown> | undefined;
 
-/**
- * Construieste cele 3 Map-uri (pendingByGame, seenByGame, resultByGameKey)
- * + enabledSet din starea guild-ului si rezultatele fetch. PURE — nu face
- * I/O. Caller-ul detine apoi Map-urile si le muteaza in send loop.
- */
 export function buildPendingUpdatesQueue(
   deps: BuildPendingUpdatesQueueDeps,
   input: BuildPendingUpdatesQueueInput

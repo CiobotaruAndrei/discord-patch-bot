@@ -1,4 +1,4 @@
-// @ts-check
+
 "use strict";
 
 const mongoose = require("mongoose");
@@ -145,12 +145,6 @@ async function connectMongoWithRetry(): Promise<void> {
       logger("WARN", "BOOT", "Mongo nu a confirmat conexiunea in timp util");
     }
 
-    // V12: migrarile sunt backfill-uri aditive idempotente, non-critice pentru
-    // a servi trafic. Inainte, un esec (ex: blip Mongo tranzient in
-    // m4_trimSeenDiscounts) propaga la catch-ul de boot → process.exit(1) →
-    // crash-loop pe fiecare restart pana migratia reuseste, desi botul ar
-    // functiona fara ea. Acum: log + adminAlert + continuam boot-ul. Migratia
-    // esuata nu avanseaza `lastApplied`, deci se reincearca la urmatorul restart.
     try {
       const migrations = await runMigrations(logger);
       if (migrations.applied.length) {

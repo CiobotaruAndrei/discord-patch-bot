@@ -40,8 +40,7 @@ test("claimSeenUpdate runs under withMongoRetry with the correct atomic filter+u
 
   assert.equal(calls.length, 1);
   const { filter, update } = calls[0] as { filter: Record<string, any>; update: Record<string, any> };
-  // Atomic guard: only writes if the guild is still subscribed to this channel
-  // and the updateId is not already in seen.
+
   assert.equal(filter._id, "g1");
   assert.equal(filter.subscribed, true);
   assert.equal(filter.notificationChannelId, "ch1");
@@ -49,7 +48,7 @@ test("claimSeenUpdate runs under withMongoRetry with the correct atomic filter+u
   assert.deepEqual(update.$push, { "seen.cs2": { $each: ["u-99"], $slice: -20 } });
   assert.deepEqual(update.$pull, { "pendingUpdates.cs2": { id: "u-99" } });
   assert.deepEqual(update.$set, { lastProcessedGameKey: "cs2" });
-  // Must go through withMongoRetry (visible via the attempts array).
+
   assert.equal(retryAttempts.length, 1);
 });
 
@@ -94,8 +93,7 @@ test("rollbackSeenDiscount runs under withMongoRetry — symmetric guard against
 });
 
 test("disableUpdatesForChannelError writes the error metadata and clears subscription state", async () => {
-  // No retry on disable — this runs on permanent-error path where we don't
-  // want a hot-loop of retries on a guild that already has bad config.
+
   const { repo, calls, retryAttempts } = makeFakeDeps();
 
   await repo.disableUpdatesForChannelError("g1", "ch1", "Missing Access");

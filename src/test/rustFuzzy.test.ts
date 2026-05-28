@@ -1,4 +1,4 @@
-// @ts-check
+
 "use strict";
 
 const test = require("node:test");
@@ -53,7 +53,7 @@ test("Rust title normalization matches deal dedupe behavior", () => {
 });
 
 test("Rust classifyPatchNote: bad-in-title rejects despite good words", () => {
-  // "trailer" alone (badInTitle) wins even if body says "update"
+
   assert.equal(classifyPatchNote("Season 5 Trailer", "comes with an update", []), false);
   assert.equal(classifyPatchNote("Community giveaway", "huge patch incoming", []), false);
 });
@@ -81,32 +81,32 @@ test("Rust classifyPatchNote: handles missing/odd inputs without throwing", () =
 test("Rust isGoodSteamArticleUrl filters CDN/non-http URLs", () => {
   assert.equal(isGoodSteamArticleUrl("https://store.steampowered.com/news/app/730"), true);
   assert.equal(isGoodSteamArticleUrl("http://example.com/article"), true);
-  // Steam CDN images are not articles
+
   assert.equal(isGoodSteamArticleUrl("https://cdn.steamstatic.com/image.jpg"), false);
   assert.equal(isGoodSteamArticleUrl("https://media.steamcdn.com/image.png"), false);
-  // Non-http schemes and empties
+
   assert.equal(isGoodSteamArticleUrl("ftp://foo/bar"), false);
   assert.equal(isGoodSteamArticleUrl(""), false);
   assert.equal(isGoodSteamArticleUrl("   "), false);
-  // Case-insensitive on the path matching
+
   assert.equal(isGoodSteamArticleUrl("HTTPS://CDN.STEAMSTATIC.COM/X"), false);
 });
 
 test("Rust extractDateScore returns UTC ms for real dates, 0 for nonsense", () => {
-  // 2024-01-15 UTC = 1705276800000 ms
+
   assert.equal(extractDateScore("https://x/news/2024-01-15/foo"), Date.UTC(2024, 0, 15));
   assert.equal(extractDateScore("https://x/news/2024/01/15/foo"), Date.UTC(2024, 0, 15));
-  // Leap-year boundary: 2024-02-29 is real, 2023-02-29 isn't.
+
   assert.equal(extractDateScore("https://x/2024-02-29"), Date.UTC(2024, 1, 29));
   assert.equal(extractDateScore("https://x/2023-02-29"), 0);
-  // Roll-over case (Date.UTC would happily roll Feb 31 -> Mar 2)
+
   assert.equal(extractDateScore("https://x/2024-02-31"), 0);
-  // Out-of-range year/month/day
+
   assert.equal(extractDateScore("https://x/1999-12-31"), 0);
   assert.equal(extractDateScore("https://x/2101-01-01"), 0);
   assert.equal(extractDateScore("https://x/2024-13-01"), 0);
   assert.equal(extractDateScore("https://x/2024-00-15"), 0);
-  // No date at all
+
   assert.equal(extractDateScore("https://x/news/article-name"), 0);
   assert.equal(extractDateScore(""), 0);
 });
@@ -114,11 +114,11 @@ test("Rust extractDateScore returns UTC ms for real dates, 0 for nonsense", () =
 test("Rust scoreListingCandidate counts case-insensitive keyword hits", () => {
   assert.equal(scoreListingCandidate("https://x/patch-notes-v1.2", "Patch Notes 1.2", ["patch", "notes", "version"]), 2);
   assert.equal(scoreListingCandidate("https://x/news", "Sale ends Friday", ["patch", "update"]), 0);
-  // case-insensitive on both haystack and keywords
+
   assert.equal(scoreListingCandidate("HTTPS://X/UPDATE", "Big PATCH", ["patch", "update"]), 2);
-  // empty keywords -> 0
+
   assert.equal(scoreListingCandidate("https://x", "any text", []), 0);
-  // empty keyword strings are skipped
+
   assert.equal(scoreListingCandidate("https://x/patch", "ok", ["", "patch", ""]), 1);
 });
 
@@ -155,8 +155,7 @@ test("Rust autocomplete choices score, sort and cap Discord option output", () =
 });
 
 test("Rust cleanText strips tags and decodes entities", () => {
-  // Same fixtures the JS implementation handled. Output must match JS byte-for-byte
-  // so existing scrapers don't drift.
+
   assert.equal(cleanText("<p>Hello   <b>world</b>!</p>"), "Hello world !");
   assert.equal(cleanText("Tom &amp; Jerry"), "Tom & Jerry");
   assert.equal(cleanText("It&#39;s &quot;hot&quot;"), "It's \"hot\"");
@@ -164,7 +163,7 @@ test("Rust cleanText strips tags and decodes entities", () => {
   assert.equal(cleanText("unknown &foo; entity"), "unknown &foo; entity");
   assert.equal(cleanText("  leading\nand\ttrailing  "), "leading and trailing");
   assert.equal(cleanText(""), "");
-  // Multibyte UTF-8 stays valid through the byte scanner.
+
   assert.equal(cleanText("<span>caf\u00e9 \u2014 \u4e2d\u6587</span>"), "caf\u00e9 \u2014 \u4e2d\u6587");
 });
 

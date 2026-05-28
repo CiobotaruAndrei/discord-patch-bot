@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-// systemState.ts uses CommonJS `export = attachSystemState`.
 const attachSystemState = require("../infra/mongo/systemState") as (ctx: any) => void;
 
 function makeCtx() {
@@ -13,7 +12,7 @@ function makeCtx() {
         return Promise.resolve(null);
       },
       findOneAndUpdate() {
-        // Not exercised by these tests — saveSystemTime path only.
+
         return { lean: async () => ({ _id: "system_state", executionTimes: { all: 1, single: 1, reduceri: 1 } }) };
       }
     }
@@ -32,8 +31,7 @@ test("saveSystemTime writes a single dot-path field, not the whole executionTime
   assert.ok(setDoc, "expected a $set operator");
   assert.equal(setDoc["executionTimes.single"], 4321,
     "must target the dot-path so other keys are untouched");
-  // The whole executionTimes object must NOT be in the $set — that would
-  // re-introduce the lost-write race.
+
   assert.equal(setDoc.executionTimes, undefined,
     "must not write the entire executionTimes object");
 });

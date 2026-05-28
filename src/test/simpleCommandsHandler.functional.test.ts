@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-
 const installSimpleHandlers = require("../features/command-handlers/simpleCommandsHandler") as (ctx: Record<string, any>) => void;
 
 function makeInteraction(opts: {
@@ -61,7 +60,7 @@ test("/games replies with formatted game list when short", async () => {
 });
 
 test("/games paginates via followUp when content exceeds COMMAND_OUTPUT_MAX_CHARS", async () => {
-  // Limita mica pentru a forta paginarea cu doar 2-3 entries.
+
   const { ctx } = makeCtx({ maxChars: 80 });
   const { interaction, replies, followUps } = makeInteraction({ command: "games" });
   await ctx.handleInteraction(interaction, [
@@ -92,7 +91,7 @@ test("interactions without guild context delegate (DM nesuportat)", async () => 
   const { ctx, delegated } = makeCtx();
   const { interaction } = makeInteraction({ command: "ping", hasGuild: false });
   await ctx.handleInteraction(interaction, []);
-  // simpleCommandsHandler verifica guild in isSimpleCommand → false → delegheaza.
+
   assert.deepEqual(delegated, ["ping"]);
 });
 
@@ -104,8 +103,7 @@ test("non-chat-input interactions delegate", async () => {
 });
 
 test("logger fires ERROR on internal exception, user gets generic error reply", async () => {
-  // Fortam o eroare in handleGamesInteraction: dam un game cu aliases ne-array
-  // care nu strica direct, dar putem face altceva — fortam un reply() reject.
+
   const { ctx, logs } = makeCtx();
   const interaction = {
     commandName: "ping",

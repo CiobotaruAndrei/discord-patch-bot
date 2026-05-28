@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-
 const installLatestHandler = require("../features/command-handlers/latestInteractionHandler") as
   ((ctx: Record<string, any>) => void) & { createLatestInteractionHandler?: (deps: any) => any };
 

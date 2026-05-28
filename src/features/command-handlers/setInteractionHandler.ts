@@ -1,6 +1,5 @@
 "use strict";
 
-
 const { errorDetail, errorMessage } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
@@ -168,8 +167,7 @@ function createSetInteractionHandler(deps: SetInteractionDeps) {
       return safeEdit(interaction, plan.earlyReply);
     }
     if (!plan.confirmMsg || Object.keys(plan.updateDoc).length === 0) {
-      // Same guard as legacy: an unknown sub must not write {$set: {}}
-      // (would create empty guild docs on upsert) and must reply explicitly.
+
       const group = interaction.options.getSubcommandGroup(false);
       logger("WARN", "SET_COMMAND", `Subcomanda /set necunoscuta: ${sub} (group=${group || "none"})`);
       return safeEdit(interaction, `Eroare: Subcomanda \`/set ${sub}\` nu este recunoscuta. Foloseste \`/help\` pentru lista.`);
@@ -220,7 +218,7 @@ function installSetInteractionHandler(ctx: SetContext) {
         } else {
           await interaction.reply(payload);
         }
-      } catch { /* ignore */ }
+      } catch {  }
       return undefined;
     }
   }

@@ -116,7 +116,7 @@ function installRolePingInteractions(ctx: RolePingContext) {
       try {
         if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") await interaction.followUp(payload);
         else if (typeof interaction.reply === "function") await interaction.reply(payload);
-      } catch { /* ignore */ }
+      } catch {  }
       return undefined;
     }
   }

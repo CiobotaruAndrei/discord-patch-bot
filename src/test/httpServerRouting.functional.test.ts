@@ -4,7 +4,6 @@ import { request as httpRequest } from "node:http";
 import { AddressInfo } from "node:net";
 import { createHttpServer } from "../app/health/httpServer";
 
-
 interface ResponseSnapshot { status: number; body: string }
 
 async function fetchPath(port: number, path: string, extraHeaders: Record<string, string> = {}): Promise<ResponseSnapshot> {
@@ -108,13 +107,11 @@ test("unknown path returns 404 even with query string", async () => {
 });
 
 test("malformed URL returns 404 (no crash)", async () => {
-  // Node accepta majoritatea URL-urilor stranii prin pre-parsing-ul lui, dar
-  // testam ca handler-ul nostru nu crasha pe ceva ne-asteptat.
+
   const { port, close } = await startServer();
   try {
     const res = await fetchPath(port, "/%E0%A4%A");
-    // Node poate respinge string-ul invalid inainte sa ne ajunga; un 4xx
-    // oricare e acceptabil — important e ca server-ul sa nu crasha.
+
     assert.ok(res.status >= 400 && res.status < 500, `expected 4xx, got ${res.status}`);
   } finally { await close(); }
 });

@@ -69,10 +69,8 @@ test("game filter allows /set games remove for stale keys not in current config"
   const replies: any[] = [];
   const handlers = gameFilterInteractions.createGameFilterInteractionHandlers(makeBaseContext(calls, replies));
 
-  // gameKey = "starcraft2" is NOT in `games` (only cs2 and fortnite are).
   await handlers.handleSetGames(makeSetGamesInteraction("remove", "starcraft2"), games, "remove", "guild-1");
 
-  // Must have actually run the $pull (no early "Cheia nu exista" rejection).
   assert.deepEqual(calls[0][0], { _id: "guild-1" });
   assert.deepEqual(calls[0][1], { $pull: { enabledGames: "starcraft2" } });
   assert.deepEqual(calls[1], ["invalidate", "guild-1"]);
@@ -93,9 +91,7 @@ test("game filter still rejects /set games add for unknown keys", async () => {
 });
 
 test("game filter reports no-op when /set games remove finds nothing to pull", async () => {
-  // If the key wasn't in enabledGames (already removed, or never added), the
-  // $pull is a no-op (modifiedCount === 0). The user should see an informative
-  // "nimic de scos" message instead of a misleading "scos cu succes" one.
+
   const calls: any[] = [];
   const replies: any[] = [];
   const ctx = makeBaseContext(calls, replies);

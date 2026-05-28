@@ -88,7 +88,7 @@ test("subscription /start rejects unknown sub-commands instead of leaving the de
 });
 
 test("subscription /stop rejects unknown sub-commands instead of leaving the deferReply hanging", async () => {
-  // Same guard as the /start test above, mirrored for /stop.
+
   const operations: any[] = [];
   const replies: any[] = [];
   const logs: any[] = [];

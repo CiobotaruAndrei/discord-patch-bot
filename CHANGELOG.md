@@ -34,6 +34,7 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Autocomplete-ul pentru jocuri foloseste acum Rust/N-API pentru scoring, sortare si limitarea optiunilor Discord, cu fallback TypeScript identic.
 - Documentatia interna a fost sincronizata cu structura actuala si nu mai prezinta `command-router` ca arhitectura curenta.
 - Documentatia istorica versionata si `legacy-dynamic.d.ts` au fost eliminate.
+- Comentariile explicative au fost eliminate din fisierele de cod; informatia de arhitectura si mentenanta ramane in documentatie.
 
 ### Security
 

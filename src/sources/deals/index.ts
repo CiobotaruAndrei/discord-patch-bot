@@ -212,8 +212,7 @@ async function enrichDealData(deal: DealInfo, currencyCode?: DealCurrencyCode): 
           u.searchParams.set("l", "english");
           htmlUrl = u.href;
         } catch {
-          // Fallback la concatenare daca link-ul nu e parsabil — pastram
-          // comportamentul vechi pentru deals fara link valid.
+
           htmlUrl = `${enriched.link}?cc=${cfg.cc}&l=english`;
         }
         const detailsUrl = new URL("https://store.steampowered.com/api/appdetails");
@@ -310,11 +309,7 @@ async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo
       const finalCents = item.final_price || 0;
       const normalPrice = (originalCents / 100).toFixed(2);
       const salePrice = (finalCents / 100).toFixed(2);
-      // V12: cand Steam intoarce discount_percent=0 dar pretul final e sub cel
-      // original (frecvent la bundle-uri), derivam procentul din preturi in loc
-      // sa afisam "reducere de 0%" langa preturi care arata o reducere reala.
-      // Clamp la [0,100] ca un original_price=0 sau date corupte sa nu produca
-      // procente negative / Infinity in embed.
+
       const rawSavings = item.discount_percent || 0;
       const derivedSavings = rawSavings > 0
         ? rawSavings

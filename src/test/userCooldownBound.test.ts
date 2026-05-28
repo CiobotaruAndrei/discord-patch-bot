@@ -1,13 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-// V12: regression guard pentru bound-ul dur al map-ului de cooldown-uri.
-// Inainte: cleanUserCooldowns stergea doar intrari mai vechi de 2×cooldown.
-// Cu un USER_COMMAND_COOLDOWN_MS mare si churn de chei distincte, map-ul
-// crestea nemarginit peste threshold (entries fresh nu sunt eligibile la
-// sweep-ul pe varsta). Acum: ceiling dur (10×threshold) evacueaza fortat
-// cele mai vechi intrari (LRU prin delete+set).
-
 const attachCommandCache = require("../features/command-cache/commandCache") as {
   createCommandCache: (ctx: Record<string, any>) => Record<string, any>;
 };
@@ -34,26 +27,24 @@ function makeCache(cooldownMs: number) {
 }
 
 const THRESHOLD = 500;
-const HARD_MAX = THRESHOLD * 10; // 5000
+const HARD_MAX = THRESHOLD * 10;
 const CLEAN_EVERY = 100;
 
 test("userCommandCooldowns ramane marginit chiar cu cooldown mare + churn masiv de chei", () => {
-  // Cooldown 5 min: nicio intrare nu e eligibila pentru sweep-ul pe varsta in
-  // timpul testului → singura cale de a margini map-ul e ceiling-ul dur.
+
   const cache = makeCache(300_000);
   for (let i = 0; i < 20_000; i++) {
     cache.checkUserCooldown(`user-${i}`, "latest");
   }
   const size = cache.getCacheSizes().userCooldowns;
-  // Fara fix: size ar fi 20_000. Cu fix: bound la ~HARD_MAX + un batch de inserts.
+
   assert.ok(size <= HARD_MAX + CLEAN_EVERY,
     `map-ul trebuie marginit la <= ${HARD_MAX + CLEAN_EVERY}, got ${size}`);
 });
 
 test("map-ul oscileaza marginit (trim periodic la depasirea hard max)", () => {
   const cache = makeCache(300_000);
-  // Inseram mult peste HARD_MAX; trim-ul periodic din checkUserCooldown
-  // tine map-ul sub HARD_MAX + un batch de inserts oricand.
+
   let maxObserved = 0;
   for (let i = 0; i < HARD_MAX + 2000; i++) {
     cache.checkUserCooldown(`u${i}`, "cmd");
@@ -65,16 +56,15 @@ test("map-ul oscileaza marginit (trim periodic la depasirea hard max)", () => {
 
 test("dupa trim la threshold, o cheie inserata proaspat e pastrata (LRU coada)", () => {
   const cache = makeCache(300_000);
-  // Churn masiv care impinge map-ul peste hard max.
+
   for (let i = 0; i < HARD_MAX + 600; i++) cache.checkUserCooldown(`old-${i}`, "cmd");
-  cache.cleanUserCooldowns(); // sweep + (eventual) trim hard
+  cache.cleanUserCooldowns();
   assert.ok(cache.getCacheSizes().userCooldowns <= HARD_MAX + CLEAN_EVERY,
     "bound mentinut dupa churn");
 
-  // Insereaza o cheie DUPA churn → e la coada Map-ului (cea mai recenta).
   const fresh1 = cache.checkUserCooldown("brand-new", "cmd");
   assert.equal(fresh1.allowed, true, "prima utilizare e permisa");
-  // Re-apel imediat → respins, ceea ce dovedeste ca a fost retinuta in map.
+
   const fresh2 = cache.checkUserCooldown("brand-new", "cmd");
   assert.equal(fresh2.allowed, false, "cheia proaspata trebuie retinuta (inca in cooldown)");
 });

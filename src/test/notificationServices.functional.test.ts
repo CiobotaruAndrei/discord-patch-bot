@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
 
-
 function makeUpdateDeps(overrides: Record<string, any> = {}) {
   const updateOneCalls: Array<{ filter: unknown; update: unknown }> = [];
   const sentPayloads: Array<{ embeds?: unknown; content?: unknown }> = [];
@@ -77,7 +76,7 @@ test("UpdateService: buildOptimizedGameList returneaza toata lista cand un guild
   const games = [{ key: "cs2" }, { key: "fortnite" }];
   const guilds = [
     { enabledGames: ["cs2"] },
-    { enabledGames: [] } // sentinel: no filter → use all
+    { enabledGames: [] }
   ];
   assert.deepEqual(svc.buildOptimizedGameList(games, guilds).map(g => g.key), ["cs2", "fortnite"]);
 });
@@ -149,7 +148,7 @@ test("UpdateService: enabledGames filter sare jocurile ne-active", async () => {
   const guild: any = {
     _id: "guild-1", subscribed: true, notificationChannelId: "channel-1",
     seen: {}, pendingUpdates: {},
-    enabledGames: ["cs2"] // doar cs2 e activ
+    enabledGames: ["cs2"]
   };
   const latestResults: any = [
     { game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2" } },
@@ -158,8 +157,6 @@ test("UpdateService: enabledGames filter sare jocurile ne-active", async () => {
   await svc.processGuildUpdates({}, guild, latestResults);
   assert.equal(sentPayloads.length, 1, "doar 1 update pentru cs2");
 });
-
-// ===== Discount service =====
 
 function makeDiscountDeps(overrides: Record<string, any> = {}) {
   const updateOneCalls: Array<{ filter: unknown; update: unknown }> = [];

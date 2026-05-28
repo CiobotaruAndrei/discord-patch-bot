@@ -1,6 +1,5 @@
 "use strict";
 
-
 const { errorMessage, errorDetail } = require("../../shared/errors");
 const { buildAutocompleteChoices } = require("../../native/fuzzy") as typeof import("../../native/fuzzy");
 
@@ -93,10 +92,8 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
       const sub = interaction.options.getSubcommand(false);
       const group = interaction.options.getSubcommandGroup(false);
 
-      // Pentru Steam search (dlc, latest pret) returnam numele complet.
       const useNameAsValue = (cmd === "dlc") || (cmd === "latest" && sub === "pret");
 
-      // Pentru /set games remove restrangem pool-ul la jocurile active (+stale).
       let pool = games;
       if (cmd === "set" && group === "games" && sub === "remove") {
         pool = await buildSetGamesRemovePool(interaction, games);
@@ -138,9 +135,8 @@ function installAutocompleteHandler(ctx: AutocompleteContext) {
       return await handlers.handleAutocomplete(interaction, games);
     } catch (err: unknown) {
       ctx.logger?.("ERROR", "AUTOCOMPLETE", "Eroare top-level in handler-ul autocomplete", errorDetail(err));
-      // Daca am ajuns aici, nici inner-ul nu a putut raspunde — incercam un
-      // respond gol ca Discord sa nu mai astepte 3 secunde inutil.
-      try { await interaction.respond([]); } catch { /* ignore */ }
+
+      try { await interaction.respond([]); } catch {  }
       return undefined;
     }
   }

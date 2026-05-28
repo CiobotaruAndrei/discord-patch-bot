@@ -26,7 +26,6 @@ export interface SeenRepository {
 export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
   const { GuildModel, withMongoRetry, SEEN_PER_GAME_LIMIT, DEALS_HISTORY_LIMIT, OP_UPDATE_OPTS } = deps;
 
-  // ---- /start updates path ----------------------------------------------
   async function claimSeenUpdate(guildId: string, channelId: string, gameKey: string, updateId: string): Promise<MongoWriteResult> {
     return withMongoRetry(() => GuildModel.updateOne(
       {
@@ -46,10 +45,7 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
   }
 
   async function rollbackSeenUpdate(guildId: string, gameKey: string, updateId: string): Promise<MongoWriteResult> {
-    // Retry indispensabil: vezi PR #98. Fara retry, un blip Mongo intre claim
-    // si rollback (dupa channel.send esuat) lasa hash-ul in `seen`, iar
-    // urmatorul ciclu cron sare update-ul "deja vazut" — notificare definitiv
-    // pierduta.
+
     return withMongoRetry(() => GuildModel.updateOne(
       { _id: guildId },
       { $pull: { [`seen.${gameKey}`]: updateId } }
@@ -71,7 +67,6 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
     );
   }
 
-  // ---- /start reduceri path ---------------------------------------------
   async function claimSeenDiscount(guildId: string, channelId: string, hash: string): Promise<MongoWriteResult> {
     return withMongoRetry(() => GuildModel.updateOne(
       {
@@ -90,7 +85,7 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
   }
 
   async function rollbackSeenDiscount(guildId: string, hash: string): Promise<MongoWriteResult> {
-    // Acelasi rationament de retry ca rollbackSeenUpdate.
+
     return withMongoRetry(() => GuildModel.updateOne(
       { _id: guildId },
       { $pull: { seenDiscounts: hash } }

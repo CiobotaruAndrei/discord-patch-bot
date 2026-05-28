@@ -88,10 +88,7 @@ function registerDiscordEvents({
   });
 
   client.on("interactionCreate", async (interaction) => {
-    // V12: tot corpul (inclusiv crypto.randomBytes) e in try. Inainte
-    // crypto.randomBytes era in afara — daca arunca (entropy exhaustion, crypto
-    // mock-uit), async handler-ul respingea, iar EventEmitter-ul discord.js nu
-    // are listener → unhandledRejection → fatal handler ruleaza full shutdown.
+
     try {
       const reqId = crypto.randomBytes(6).toString("hex");
       await requestContext.run({ requestId: reqId }, async () => {

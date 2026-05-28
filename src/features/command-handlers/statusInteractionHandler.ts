@@ -105,7 +105,7 @@ function installStatusInteraction(ctx: StatusContext) {
         } else {
           await interaction.reply(payload);
         }
-      } catch { /* ignore */ }
+      } catch {  }
       return undefined;
     }
   }

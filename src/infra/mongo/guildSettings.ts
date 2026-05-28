@@ -18,7 +18,7 @@ function maxCacheSize(): number {
 }
 
 function touchEntry(guildId: string, entry: CacheEntry<GuildSettings | null>): void {
-  // Re-insert to move to "newest" end (Map preserves insertion order).
+
   guildSettingsCache.delete(guildId);
   guildSettingsCache.set(guildId, entry);
 }
