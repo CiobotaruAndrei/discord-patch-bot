@@ -192,7 +192,15 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     let latestResults: UpdateFetchResult[];
     try {
       latestResults = await getLatestForAllGames(optimizedGames, shouldAbort);
-      setUpdatesCache(latestResults);
+      // V12: scriem in cache DOAR daca am fetch-uit lista completa. Inainte:
+      // cache-am subsetul filtrat de buildOptimizedGameList, iar /latest updates
+      // citea de acolo si servea date partiale unui guild care nu era in
+      // intersectia de enabledGames a celor subscribed (ex: admin face /latest
+      // updates pe un guild ne-subscribed cu enabledGames gol — vrea tot, dar
+      // primeste doar subset-ul subscribed-iolor).
+      if (optimizedGames.length === games.length) {
+        setUpdatesCache(latestResults);
+      }
     } catch (err: unknown) {
       logger("ERROR", "CRON_UPDATES", "Nu am putut prelua update-urile", transientErrorMessage(err));
       return;

@@ -313,9 +313,19 @@ function dealHashFallback(deal: DealInfo): string {
 
 function findGameKeysFallback(text: unknown, games: GameConfig[], maxInput: number): FuzzyMatchKeys {
   let search = normalizeCommandText(text);
-  if (search.length > maxInput) search = search.substring(0, maxInput);
+  // V12: counting by Unicode codepoints (Array.from + take + join) ca sa
+  // ramanem aliniati cu Rust care foloseste chars().take(max) si chars().count().
+  // Inainte: `search.substring(0, maxInput)` taia pe UTF-16 code units si putea
+  // sparge o pereche surogat la mijloc (emoji, BMP supplementary plane).
+  // Pragul `Math.floor(search.length * 0.3)` la fel — number-of-code-units in
+  // loc de chars — diverge de Rust pe input ne-ASCII.
+  const searchChars = Array.from(search);
+  if (searchChars.length > maxInput) {
+    search = searchChars.slice(0, maxInput).join("");
+  }
+  const searchLen = Array.from(search).length;
 
-  if (search.length < 2) {
+  if (searchLen < 2) {
     const exact = games.find(game => String(game.key).toLowerCase() === search);
     return { gameKey: exact?.key || null, suggestionKey: null };
   }
@@ -349,7 +359,9 @@ function findGameKeysFallback(text: unknown, games: GameConfig[], maxInput: numb
 
   const best = candidates[0];
   if (!best) return { gameKey: null, suggestionKey: null };
-  const dynamicThreshold = Math.max(1, Math.floor(search.length * 0.3));
+  // V12: pragul dinamic foloseste numarul de codepoints, nu code-units, ca sa
+  // matchuiasca Rust impl.
+  const dynamicThreshold = Math.max(1, Math.floor(searchLen * 0.3));
   if (best.dist <= 1) return { gameKey: best.game.key, suggestionKey: null };
   if (best.dist <= dynamicThreshold || best.isStartsWith || best.isIncludes) {
     return { gameKey: null, suggestionKey: best.game.key };
