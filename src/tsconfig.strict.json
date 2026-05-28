@@ -49,6 +49,7 @@
     "test/auditFixesMay26.test.ts",
     "test/auditFixesMay28.test.ts",
     "test/autocompleteInteractionHandler.functional.test.ts",
+    "test/autocompleteSortParity.test.ts",
     "test/commandRegistry.functional.test.ts",
     "test/cronController.test.ts",
     "test/dealFiltersCore.functional.test.ts",
