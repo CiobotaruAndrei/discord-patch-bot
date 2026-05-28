@@ -204,7 +204,7 @@ function buildDealEmbed(deal: DealInfo, mode: NotificationMode = "detailed", cur
   const qualityNum = Number(deal.qualityScore);
   const reviewsNum = Number(deal.totalReviews);
   const savingsNum = Number(deal.savings);
-  const savingsDisplay = Number.isFinite(savingsNum) ? Math.max(0, Math.round(savingsNum)) : 0;
+  const savingsDisplay = Number.isFinite(savingsNum) ? Math.min(100, Math.max(0, Math.round(savingsNum))) : 0;
   let statsStr = "";
   if (Number.isFinite(qualityNum) && qualityNum > 0) {
     const popularity = Number.isFinite(reviewsNum) && reviewsNum > 0 ? `${reviewsNum} recenzii` : "Top Seller";
