@@ -163,6 +163,13 @@ function cacheSetLRU<T>(map: Map<string, CacheEntry<T>>, key: string, data: T, t
 const userCommandCooldowns = new Map<string, number>();
 let cooldownInsertCounter = 0;
 const COOLDOWN_CLEAN_EVERY_N_INSERTS = 100;
+// V12: ceiling dur peste care evacuam fortat cele mai vechi intrari, chiar daca
+// nu sunt destul de batrane pentru sweep-ul pe varsta. Cu un USER_COMMAND_
+// COOLDOWN_MS mare (configurabil pana la 5 min) si churn de chei distincte
+// (multi useri x multe comenzi), sweep-ul pe varsta (>2×cooldown) nu apuca sa
+// elibereze destul, iar map-ul ar creste nemarginit peste threshold. 10×
+// threshold ofera spatiu pentru spike-uri legitime de useri activi.
+const USER_COOLDOWNS_HARD_MAX = USER_COOLDOWNS_THRESHOLD * 10;
 
 function checkUserCooldown(userId: unknown, command: string): CooldownResult {
   if (USER_COMMAND_COOLDOWN_MS === 0) return { allowed: true };
@@ -173,6 +180,12 @@ function checkUserCooldown(userId: unknown, command: string): CooldownResult {
   if (elapsed < USER_COMMAND_COOLDOWN_MS) {
     return { allowed: false, remainingMs: USER_COMMAND_COOLDOWN_MS - elapsed };
   }
+  // V12: delete + set ca ordinea de iteratie a Map-ului sa reflecte recenta
+  // (least-recently-active primul). Inainte, `set` pe o cheie existenta updata
+  // valoarea fara sa schimbe ordinea de insertie, deci evacuarea fortata putea
+  // sterge un user activ a carui prima aparitie era veche. Acum eviction-ul
+  // pe `keys()` order tinteste corect intrarile cele mai stale.
+  userCommandCooldowns.delete(key);
   userCommandCooldowns.set(key, now);
   if (userCommandCooldowns.size > USER_COOLDOWNS_THRESHOLD) {
     cooldownInsertCounter++;
@@ -192,6 +205,19 @@ function cleanUserCooldowns(): void {
   const now = Date.now();
   for (const [key, ts] of userCommandCooldowns.entries()) {
     if (now - ts > USER_COMMAND_COOLDOWN_MS * 2) userCommandCooldowns.delete(key);
+  }
+  // V12: ceiling dur. Daca dupa sweep-ul pe varsta map-ul e inca peste limita
+  // (cooldown mare + churn), evacuam cele mai vechi intrari (ordine de iteratie
+  // = least-recently-active datorita delete+set din checkUserCooldown) pana
+  // revenim la threshold. Un user evacuat poate re-emite imediat — degradare
+  // acceptabila sub presiune de memorie, garanteaza bound dur.
+  if (userCommandCooldowns.size > USER_COOLDOWNS_HARD_MAX) {
+    let excess = userCommandCooldowns.size - USER_COOLDOWNS_THRESHOLD;
+    for (const key of userCommandCooldowns.keys()) {
+      if (excess <= 0) break;
+      userCommandCooldowns.delete(key);
+      excess--;
+    }
   }
 }
 
