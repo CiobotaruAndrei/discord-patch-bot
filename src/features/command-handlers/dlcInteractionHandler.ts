@@ -213,7 +213,32 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
 
 function installDlcInteraction(target: DlcContext) {
   const previousHandleInteraction = target.handleInteraction;
-  const handlers = createDlcInteractionHandler(target);
+  const handlers = createDlcInteractionHandler({
+    logger: target.logger,
+    enforceCooldown: target.enforceCooldown,
+    startCommandLog: target.startCommandLog,
+    safeDefer: target.safeDefer,
+    safeEdit: target.safeEdit,
+    getGuildSettings: target.getGuildSettings,
+    DEFAULT_CURRENCY: target.DEFAULT_CURRENCY,
+    searchSteamGameByName: target.searchSteamGameByName,
+    chooseBestSteamMatch: target.chooseBestSteamMatch,
+    fetchSteamPriceDetails: target.fetchSteamPriceDetails,
+    getCurrencyConfig: target.getCurrencyConfig,
+    httpReq: target.httpReq,
+    safeCheerioLoad: target.safeCheerioLoad,
+    cache: target.cache,
+    cacheGetLRU: target.cacheGetLRU,
+    cacheSetLRU: target.cacheSetLRU,
+    CACHE_TTL_MS: target.CACHE_TTL_MS,
+    DLC_CACHE_MAX_SIZE: target.DLC_CACHE_MAX_SIZE,
+    DLC_ITEMS_PER_PAGE: target.DLC_ITEMS_PER_PAGE,
+    truncate: target.truncate,
+    EmbedBuilder: target.EmbedBuilder,
+    COLORS: target.COLORS,
+    handlePagination: target.handlePagination,
+    MessageFlags: target.MessageFlags
+  });
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!isDlcCommand(interaction)) {

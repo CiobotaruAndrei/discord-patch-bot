@@ -124,7 +124,10 @@ function isAutocompleteInteraction(interaction: DiscordInteraction): boolean {
 
 function installAutocompleteHandler(target: AutocompleteContext) {
   const previousHandleInteraction = target.handleInteraction;
-  const handlers = createAutocompleteHandler(target);
+  const handlers = createAutocompleteHandler({
+    logger: target.logger,
+    getGuildSettings: target.getGuildSettings
+  });
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!isAutocompleteInteraction(interaction)) {

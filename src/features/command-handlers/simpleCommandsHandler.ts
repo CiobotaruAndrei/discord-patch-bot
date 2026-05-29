@@ -72,7 +72,9 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
 
 function installSimpleCommandsHandler(target: SimpleCommandsContext) {
   const previousHandleInteraction = target.handleInteraction;
-  const handlers = createSimpleCommandsHandler(target);
+  const handlers = createSimpleCommandsHandler({
+    COMMAND_OUTPUT_MAX_CHARS: target.COMMAND_OUTPUT_MAX_CHARS
+  });
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!isSimpleCommand(interaction)) {

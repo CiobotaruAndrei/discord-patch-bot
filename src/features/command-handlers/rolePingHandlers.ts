@@ -100,7 +100,15 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
 
 function installRolePingInteractions(target: RolePingContext) {
   const previousHandleInteraction = target.handleInteraction;
-  const handlers = createRolePingInteractionHandlers(target);
+  const handlers = createRolePingInteractionHandlers({
+    GuildModel: target.GuildModel,
+    logger: target.logger,
+    invalidateGuildCache: target.invalidateGuildCache,
+    safeDefer: target.safeDefer,
+    safeEdit: target.safeEdit,
+    formatUserError: target.formatUserError,
+    MessageFlags: target.MessageFlags
+  });
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!isSetRoleCommand(interaction)) {
