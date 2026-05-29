@@ -141,7 +141,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/features/command-handlers/statusInteractionHandler.ts`
 
-- Gestioneaza `/status`.
+- Gestioneaza `/status <joc>`.
 
 ### `src/features/command-handlers/autocompleteInteractionHandler.ts`
 

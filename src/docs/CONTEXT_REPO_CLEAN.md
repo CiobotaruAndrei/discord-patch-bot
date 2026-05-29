@@ -87,7 +87,7 @@ src/
 - `setInteractionHandler.ts` - subcomenzile `/set`;
 - `latestInteractionHandler.ts` - `/latest`;
 - `dlcInteractionHandler.ts` - `/dlc`;
-- `statusInteractionHandler.ts` - `/status`;
+- `statusInteractionHandler.ts` - `/status <joc>`;
 - `autocompleteInteractionHandler.ts` - autocomplete pentru optiuni;
 - `fallbackInteractionHandler.ts` - fallback de final.
 

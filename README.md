@@ -26,10 +26,10 @@ Bot Discord pentru notificari despre update-uri, DLC-uri si reduceri pentru jocu
 - `/stop reduceri` - dezactiveaza notificarile de reduceri.
 - `/set games add` - adauga jocuri urmarite.
 - `/set games remove` - elimina jocuri urmarite.
-- `/set game-state` - seteaza manual starea unui joc.
+- `/set games add|remove|reset|list` - gestioneaza jocurile urmarite pentru update-uri.
 - `/latest` - afiseaza ultimele update-uri cunoscute.
 - `/dlc` - afiseaza DLC-uri cunoscute.
-- `/status` - afiseaza starea botului pentru server.
+- `/status <joc>` - verifica statusul serverelor pentru jocul cerut.
 - `/help` - afiseaza paginile de ajutor.
 
 Comenzile administrative sunt validate atat prin permisiunile slash command declarate in Discord, cat si prin verificari runtime in handler-ele sensibile.
@@ -126,7 +126,7 @@ Testele acopera zonele importante:
 
 - validare env si configuratie;
 - registrul de comenzi si guard-uri anti-regresie;
-- handler-e functionale pentru `/help`, `/ping`, `/games`, `/set`, `/latest`, `/dlc`, `/status` si autocomplete;
+- handler-e functionale pentru `/help`, `/ping`, `/games`, `/set`, `/latest`, `/dlc`, `/status <joc>` si autocomplete;
 - servicii de notificari pentru update-uri si reduceri;
 - repository-ul `seen` pentru deduplicare;
 - fluxuri E2E pentru update-uri si reduceri;
