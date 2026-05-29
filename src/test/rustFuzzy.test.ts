@@ -110,6 +110,11 @@ test("Rust extractDateScore returns UTC ms for real dates, 0 for nonsense", () =
 
   assert.equal(extractDateScore("https://x/news/article-name"), 0);
   assert.equal(extractDateScore(""), 0);
+
+  assert.equal(extractDateScore("https://x/archive/1999-05-20-old/2024-05-20-new"), Date.UTC(2024, 4, 20));
+  assert.equal(extractDateScore("https://x/5566-77-88/2024-05-20"), Date.UTC(2024, 4, 20));
+  assert.equal(extractDateScore("https://x/2024-13-05/2024-05-20"), Date.UTC(2024, 4, 20));
+  assert.equal(extractDateScore("https://x/2024-02-31/2023-06-10"), Date.UTC(2023, 5, 10));
 });
 
 test("Rust scoreListingCandidate counts case-insensitive keyword hits", () => {
