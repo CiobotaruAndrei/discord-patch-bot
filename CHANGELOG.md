@@ -39,6 +39,8 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Documentatia istorica versionata si `legacy-dynamic.d.ts` au fost eliminate.
 - Comentariile explicative au fost eliminate din fisierele de cod; informatia de arhitectura si mentenanta ramane in documentatie.
 - Testele din `auditFixesMay26.test.ts` verifica acum comportamentul real (eroare tranzitorie din `fetchListingBasedUpdate`, robustetea `findGameKeys` la emoji multi-codepoint) prin context fals, in loc sa citeasca fisierele sursa ca text si sa caute siruri.
+- Installerele `attachCommandCache` si `attachCommandUi` nu mai paseaza intregul `target` comun catre factory-uri; construiesc un obiect `deps` explicit, restrans, cu doar cheile declarate, tipat pe interfata factory-ului asa incat TypeScript impune completitudinea. Reduce cuplajul: factory-urile nu mai pot accesa accidental chei nedeclarate din punga comuna.
+- S-au reintrodus, ca exceptie documentata de la regula „fara comentarii", doua note scurte de o linie la punctele de concurenta din `cron.ts` (invalidarea tokenului inainte de oprirea heartbeat-ului/eliberarea lock-ului si re-armarea heartbeat-ului doar cat timp lock-ul ramane al instantei), pentru a preveni reintroducerea unui race condition la reinnoirea lock-ului.
 
 ### Fixed
 
