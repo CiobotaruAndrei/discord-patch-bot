@@ -86,7 +86,16 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
 
 function installStatusInteraction(target: StatusContext) {
   const previousHandleInteraction = target.handleInteraction;
-  const handlers = createStatusInteractionHandler(target);
+  const handlers = createStatusInteractionHandler({
+    logger: target.logger,
+    enforceCooldown: target.enforceCooldown,
+    startCommandLog: target.startCommandLog,
+    safeDefer: target.safeDefer,
+    safeEdit: target.safeEdit,
+    findGameAndSuggestion: target.findGameAndSuggestion,
+    fetchGameStatus: target.fetchGameStatus,
+    MessageFlags: target.MessageFlags
+  });
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!isStatusCommand(interaction)) {

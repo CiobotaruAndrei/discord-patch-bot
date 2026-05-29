@@ -1,5 +1,10 @@
 "use strict";
 
+import type { LatestUpdatesHandlerDeps } from "./latest/latestUpdatesHandler";
+import type { LatestDealsHandlerDeps } from "./latest/latestDealsHandler";
+import type { LatestSingleHandlerDeps } from "./latest/latestSingleHandler";
+import type { PriceSearchHandlerDeps } from "./latest/priceSearchHandler";
+
 const { errorDetail } = require("../../shared/errors");
 const { createLatestUpdatesHandler } = require("./latest/latestUpdatesHandler");
 const { createLatestDealsHandler } = require("./latest/latestDealsHandler");
@@ -20,12 +25,10 @@ type DiscordInteraction = {
 };
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 
-type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
-
-type LatestContextDeps = Record<string, unknown> & {
-  logger: Logger;
-  MessageFlags: { Ephemeral: number };
-};
+type LatestContextDeps = LatestUpdatesHandlerDeps
+  & LatestDealsHandlerDeps
+  & LatestSingleHandlerDeps
+  & PriceSearchHandlerDeps;
 
 type LatestContext = LatestContextDeps & { handleInteraction?: NextInteractionHandler };
 
@@ -72,7 +75,45 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
 
 function installLatestInteractionHandler(target: LatestContext) {
   const previousHandleInteraction = target.handleInteraction;
-  const handlers = createLatestInteractionHandler(target);
+  const handlers = createLatestInteractionHandler({
+    logger: target.logger,
+    enforceCooldown: target.enforceCooldown,
+    startCommandLog: target.startCommandLog,
+    safeDefer: target.safeDefer,
+    safeEdit: target.safeEdit,
+    getUpdatesCacheData: target.getUpdatesCacheData,
+    setUpdatesCache: target.setUpdatesCache,
+    getLatestForAllGames: target.getLatestForAllGames,
+    getSystemTimes: target.getSystemTimes,
+    saveSystemTime: target.saveSystemTime,
+    smoothTime: target.smoothTime,
+    getGuildSettings: target.getGuildSettings,
+    formatUserError: target.formatUserError,
+    buildUpdateEmbed: target.buildUpdateEmbed,
+    handlePagination: target.handlePagination,
+    ITEMS_PER_PAGE: target.ITEMS_PER_PAGE,
+    getDealsCacheData: target.getDealsCacheData,
+    setDealsCache: target.setDealsCache,
+    fetchDeals: target.fetchDeals,
+    enrichDealData: target.enrichDealData,
+    dealPassesFilters: target.dealPassesFilters,
+    buildDealEmbed: target.buildDealEmbed,
+    DEFAULT_CURRENCY: target.DEFAULT_CURRENCY,
+    MAX_DEALS: target.MAX_DEALS,
+    findGameAndSuggestion: target.findGameAndSuggestion,
+    executeFetchWithCircuitBreaker: target.executeFetchWithCircuitBreaker,
+    cache: target.cache,
+    cacheGetLRU: target.cacheGetLRU,
+    cacheSetLRU: target.cacheSetLRU,
+    CACHE_TTL_MS: target.CACHE_TTL_MS,
+    SINGLE_CACHE_MAX_SIZE: target.SINGLE_CACHE_MAX_SIZE,
+    MessageFlags: target.MessageFlags,
+    searchSteamGameByName: target.searchSteamGameByName,
+    chooseBestSteamMatch: target.chooseBestSteamMatch,
+    fetchSteamPriceDetails: target.fetchSteamPriceDetails,
+    extractSteamOfferEndDate: target.extractSteamOfferEndDate,
+    buildSteamPriceEmbed: target.buildSteamPriceEmbed
+  });
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!isLatestCommand(interaction)) {

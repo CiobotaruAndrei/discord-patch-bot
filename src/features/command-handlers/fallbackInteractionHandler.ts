@@ -71,7 +71,10 @@ type FallbackInteractionInstaller = ((target: RouterContext) => void) & {
 };
 
 const installFallbackInteractionHandler = ((target: RouterContext): void => {
-  Object.assign(target, createFallbackInteractionHandler(target));
+  Object.assign(target, createFallbackInteractionHandler({
+    MessageFlags: target.MessageFlags,
+    logger: target.logger
+  }));
 }) as FallbackInteractionInstaller;
 
 installFallbackInteractionHandler.createFallbackInteractionHandler = createFallbackInteractionHandler;
