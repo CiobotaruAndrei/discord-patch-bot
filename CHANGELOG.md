@@ -43,6 +43,7 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ### Fixed
 
 - `buildDealEmbed` limiteaza procentul de reducere la intervalul `[0, 100]`; un snapshot `pendingDiscounts` corupt sau reluat (de ex. `savings: 999`) nu mai poate afisa valori imposibile precum `reducere de 999%`.
+- Fallback-ul TypeScript `extractDateScore` (folosit cand addon-ul Rust nu este compilat) scaneaza acum tot URL-ul dupa prima data `YYYY-MM-DD` valida, identic cu implementarea Rust. Anterior se uita doar la prima potrivire de tipar; daca aceasta avea un an/luna/zi in afara intervalului (de ex. un an de arhiva `1999-...` sau un grup numeric `5566-77-88` inaintea datei reale), intorcea `0` si nu mai cauta o data valida ulterioara, ceea ce putea face ca sortarea candidatilor `listing_based` dupa data sa aleaga articolul gresit drept „cel mai recent”.
 
 ### Security
 
