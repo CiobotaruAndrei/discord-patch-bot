@@ -75,3 +75,19 @@ test("command registry fails early when an installer misses a required function"
     /cleanCache/
   );
 });
+
+test("createCommandRuntimeContext returns a fresh, isolated base on every call", () => {
+  const runtimeContextModule = require("../features/command-runtime/commandRuntimeContext") as {
+    createCommandRuntimeContext: () => Record<string, unknown>;
+  };
+
+  const first = runtimeContextModule.createCommandRuntimeContext();
+  const second = runtimeContextModule.createCommandRuntimeContext();
+
+  assert.notEqual(first, second);
+  assert.equal(typeof first.EmbedBuilder, "function");
+  assert.equal(typeof first.crypto, "object");
+
+  (first as Record<string, unknown>).handleInteraction = () => "installed";
+  assert.equal(second.handleInteraction, undefined);
+});
