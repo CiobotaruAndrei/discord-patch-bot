@@ -15,7 +15,7 @@ Documentul descrie starea curenta a repo-ului dupa migrarea treptata din fisiere
 - Migrarea TypeScript strict este incrementala prin `src/tsconfig.strict.json`.
 - `legacy-dynamic.d.ts` nu mai exista; tipurile dinamice trebuie modelate local.
 - Documentatia istorica versionata a fost scoasa din cod; fisierele curente de documentatie raman sursa de adevar.
-- Comentariile explicative din fisierele de cod au fost eliminate. Daca un rationale trebuie pastrat, el trebuie pus in documentatia potrivita dupa subiect, nu langa implementare.
+- Comentariile explicative din fisierele de cod au fost eliminate. Daca un rationale trebuie pastrat, el trebuie pus in documentatia potrivita dupa subiect, nu langa implementare. Singura exceptie acceptata sunt notele scurte de o linie la punctele de concurenta/race condition (de exemplu ordinea „invalidare token inainte de eliberarea lock-ului" din `cron.ts`), unde ordinea operatiilor este subtila si comentariul previne reintroducerea bug-ului; nota ramane scurta si nu inlocuieste documentatia.
 - Codul runtime nu mai foloseste abrevierea legacy pentru context; modulele de compatibilitate folosesc `target` pentru atasare si `deps` pentru factory-uri.
 - Testele din `src/test` nu mai folosesc abrevieri legacy de context sau tipuri wildcard nesigure; mock-urile Discord/Mongo/HTTP folosesc shape-uri locale si `unknown` pentru cazuri intentionat invalide.
 - Helper-ele de test si variabilele de wiring trebuie numite explicit, de exemplu `makeContext`, `runtimeContext` si `validationContext`.
@@ -117,7 +117,7 @@ Aceasta impartire reduce riscul de copy-paste in cron jobs si permite teste func
 - `chooseSteamMatchIndex` pentru alegerea determinista a rezultatului Steam folosit de `/latest pret` si `/dlc`;
 - `dealPassesFilters` pentru filtrarea ofertelor in cron si `/latest reduceri`.
 
-`src/native/fuzzy.ts` ramane adapterul TypeScript cu fallback. Daca addon-ul `.node` nu se incarca, botul continua pe fallback si logheaza explicit problema.
+`src/native/fuzzy.ts` ramane adapterul TypeScript cu fallback. Daca addon-ul `.node` nu se incarca, botul continua pe fallback si logheaza explicit problema. Fallback-urile trebuie sa pastreze acelasi comportament observabil ca implementarea Rust; de exemplu `extractDateScore` scaneaza tot URL-ul dupa prima data `YYYY-MM-DD` valida (nu se opreste la prima potrivire de tipar daca aceasta are valori in afara intervalului), pentru ca sortarea candidatilor `listing_based` dupa data sa fie identica indiferent de calea folosita.
 
 ## TypeScript strict
 
@@ -136,9 +136,9 @@ Zone deja potrivite pentru strict:
 
 Zone care inca trebuie urmarite:
 
-- `commandRuntimeContext.ts`;
-- `commandRegistry.ts`;
-- adapterele care inca primesc un target comun mare, desi `commandCache`, `commandPresentation`, `notifications/index`, fallback-ul de interactiuni si `mongoContext` au deja factory-uri explicite;
+- installerele `attachCommandCache` si `attachCommandUi` nu mai paseaza toata punga `target` catre factory; construiesc un obiect `deps` explicit, restrans, cu doar cheile declarate (TypeScript impune completitudinea), iar `filters`, `notifications/index`, fallback-ul de interactiuni si `mongoContext` au deja factory-uri explicite;
+- toate handler-ele de comenzi (`simpleCommands`, `status`, `autocomplete`, `dlc`, `gameFilter`, `rolePing`, `set`, `subscription`, `help` si fallback) plus agregatorul `latest` primesc acum un `deps` explicit, restrans, in loc de toata punga `target`; la `latest`, tipul `deps` este intersectia explicita a celor patru sub-handlere (`latestUpdates`, `latestDeals`, `latestSingle`, `priceSearch`), fara index signature, asa incat TypeScript impune lista completa de dependinte;
+- stratul de wiring nu mai vehiculeaza un singleton mutabil netipat: `commandRuntimeContext.ts` expune acum o factory tipata `createCommandRuntimeContext()` (cu interfata explicita `DiscordRuntimeBindings` pentru constructorii discord.js), iar `commandRegistry.ts` construieste un context proaspat la fiecare apel `createCommandRegistry` in loc sa mute un singleton global comun; asta elimina si riscul de dublare a lantului `handleInteraction` la o eventuala re-rulare;
 - mock-urile de test trebuie mentinute pe shape-uri locale mici cand apar fluxuri noi pentru Discord, Mongo sau HTTP.
 
 ## Securitate si runtime
@@ -148,6 +148,7 @@ Zone care inca trebuie urmarite:
 - `/metrics` trebuie protejat cu token cand este expus in afara mediului local.
 - Token-urile Discord, URI-urile Mongo si webhook-urile nu trebuie comise.
 - Docker trebuie sa ruleze procesul ca user non-root.
+- Prezentarea reducerilor trebuie sa fie robusta la date corupte: `buildDealEmbed` limiteaza procentul afisat la intervalul `[0, 100]`, astfel incat un snapshot `pendingDiscounts` reluat sau alterat sa nu poata produce procente imposibile in embed-uri.
 
 ## Teste importante
 
@@ -178,7 +179,7 @@ Teste relevante pentru structura actuala:
 
 ## Zone ramase de curatat
 
-- Reducerea contextului comun din runtime si registry.
+- Contextul comun din runtime si registry a fost restrans: factory-urile si handler-ele primesc `deps` explicit, iar `commandRuntimeContext` este o factory tipata consumata de `commandRegistry` cu context proaspat per apel. Daca apar module noi de comenzi, ele trebuie sa pastreze acelasi model (factory cu `deps` explicit, fara sa citeasca direct din punga comuna).
 - Mentinerea testelor fara tipuri wildcard nesigure sau abrevieri legacy de context cand se adauga mock-uri noi.
 - Mutarea oricarei logici ramase in adaptere catre servicii sau handler-e dedicate.
 - Mentinerea documentatiei sincronizate la fiecare schimbare de cod.

@@ -79,6 +79,18 @@ test("buildDealEmbed: savings numeric valid se afiseaza rotunjit", () => {
   assert.match(desc, /1500 recenzii/);
 });
 
+test("buildDealEmbed: savings peste 100 e clampat la 100% (snapshot corupt nu produce 999%)", () => {
+  const { ui, embeds } = makePresentationContext();
+  ui.buildDealEmbed(
+    { title: "Game", store: "Steam", salePrice: "10", normalPrice: "20", savings: 999, link: "https://x" },
+    "detailed",
+    "USD"
+  );
+  const desc = String(embeds[0]._state.description);
+  assert.match(desc, /reducere de \*\*100%\*\*/, "savings 999 → clampat la 100%");
+  assert.doesNotMatch(desc, /999/, "procentul brut corupt nu trebuie sa apara");
+});
+
 test("buildDealEmbed: qualityScore string nu produce 'NaN% aprecieri'", () => {
   const { ui, embeds } = makePresentationContext();
   ui.buildDealEmbed(

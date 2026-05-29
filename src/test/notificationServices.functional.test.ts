@@ -105,6 +105,30 @@ test("UpdateService: buildOptimizedGameList returneaza toata lista cand un guild
   assert.deepEqual(svc.buildOptimizedGameList(games, guilds).map(g => g.key), ["cs2", "fortnite"]);
 });
 
+test("UpdateService: checkForUpdates scrie cache cand lista nu e filtrata (full list)", async () => {
+  let cacheWrites = 0;
+  const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seen: {}, pendingUpdates: {}, enabledGames: [] };
+  const { deps } = makeUpdateDeps({
+    GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }) },
+    setUpdatesCache: () => { cacheWrites++; }
+  });
+  const svc = createUpdateNotificationService(deps);
+  await svc.checkForUpdates({}, [{ key: "cs2" }, { key: "fortnite" }]);
+  assert.equal(cacheWrites, 1, "lista completa → cache scris exact o data");
+});
+
+test("UpdateService: checkForUpdates NU scrie cache cand lista e filtrata (subset)", async () => {
+  let cacheWrites = 0;
+  const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seen: {}, pendingUpdates: {}, enabledGames: ["cs2"] };
+  const { deps } = makeUpdateDeps({
+    GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }) },
+    setUpdatesCache: () => { cacheWrites++; }
+  });
+  const svc = createUpdateNotificationService(deps);
+  await svc.checkForUpdates({}, [{ key: "cs2" }, { key: "fortnite" }]);
+  assert.equal(cacheWrites, 0, "subset filtrat → cache global nu trebuie scris (ar fi partial)");
+});
+
 test("UpdateService: processGuildUpdates trimite update + ping rol pe prima trimitere", async () => {
   const { deps, sentPayloads, claims } = makeUpdateDeps();
   const svc = createUpdateNotificationService(deps);

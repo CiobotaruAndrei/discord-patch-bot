@@ -40,6 +40,16 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Documentatia istorica versionata si `legacy-dynamic.d.ts` au fost eliminate.
 - Comentariile explicative au fost eliminate din fisierele de cod; informatia de arhitectura si mentenanta ramane in documentatie.
 - README-ul descrie comenzile reale pentru `/set games ...` si `/status <joc>`.
+- Testele din `auditFixesMay26.test.ts` verifica acum comportamentul real (eroare tranzitorie din `fetchListingBasedUpdate`, robustetea `findGameKeys` la emoji multi-codepoint) prin context fals, in loc sa citeasca fisierele sursa ca text si sa caute siruri.
+- Installerele `attachCommandCache` si `attachCommandUi` nu mai paseaza intregul `target` comun catre factory-uri; construiesc un obiect `deps` explicit, restrans, cu doar cheile declarate, tipat pe interfata factory-ului asa incat TypeScript impune completitudinea. Reduce cuplajul: factory-urile nu mai pot accesa accidental chei nedeclarate din punga comuna.
+- S-au reintrodus, ca exceptie documentata de la regula „fara comentarii", doua note scurte de o linie la punctele de concurenta din `cron.ts` (invalidarea tokenului inainte de oprirea heartbeat-ului/eliberarea lock-ului si re-armarea heartbeat-ului doar cat timp lock-ul ramane al instantei), pentru a preveni reintroducerea unui race condition la reinnoirea lock-ului.
+- Toate handler-ele de comenzi (`simpleCommands`, `status`, `autocomplete`, `dlc`, `gameFilter`, `rolePing`, `set`, `subscription`, `help`, fallback) si agregatorul `latest` primesc acum un obiect `deps` explicit, restrans, in loc de intregul `target` comun, continuand modelul aplicat la `commandCache` si `commandPresentation`. La `latest`, tipul `deps` a devenit intersectia explicita a celor patru sub-handlere (fara index signature), astfel incat TypeScript impune lista completa de dependinte si factory-urile nu mai pot accesa chei nedeclarate din punga comuna.
+- Stratul de wiring nu mai vehiculeaza un singleton mutabil netipat. `commandRuntimeContext.ts` nu mai exporta un obiect global construit prin spread, ci o factory tipata `createCommandRuntimeContext()` (cu interfata explicita `DiscordRuntimeBindings` pentru constructorii discord.js). `commandRegistry.ts` construieste acum un context proaspat la fiecare apel `createCommandRegistry` in loc sa mute un singleton global comun, ceea ce elimina starea globala partajata si riscul de dublare a lantului `handleInteraction` daca registry-ul ar fi construit de mai multe ori.
+
+### Fixed
+
+- `buildDealEmbed` limiteaza procentul de reducere la intervalul `[0, 100]`; un snapshot `pendingDiscounts` corupt sau reluat (de ex. `savings: 999`) nu mai poate afisa valori imposibile precum `reducere de 999%`.
+- Fallback-ul TypeScript `extractDateScore` (folosit cand addon-ul Rust nu este compilat) scaneaza acum tot URL-ul dupa prima data `YYYY-MM-DD` valida, identic cu implementarea Rust. Anterior se uita doar la prima potrivire de tipar; daca aceasta avea un an/luna/zi in afara intervalului (de ex. un an de arhiva `1999-...` sau un grup numeric `5566-77-88` inaintea datei reale), intorcea `0` si nu mai cauta o data valida ulterioara, ceea ce putea face ca sortarea candidatilor `listing_based` dupa data sa aleaga articolul gresit drept „cel mai recent”.
 
 ### Security
 
