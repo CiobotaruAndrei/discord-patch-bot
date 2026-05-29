@@ -7,3 +7,4 @@
 5. Toate implementarile in cod trebuie sa respecte toate regulile din acest fisier.
 6. Nu se scoate o bucata de limbaj de cod, de exemplu Rust, decat daca noul limbaj cu care este inlocuita acea bucata de cod face botul mai bun in ce face si mai eficient.
 7. Testele repo-ului trebuie rulate intr-un mediu care are pachetele si tool-urile necesare pentru validare; de exemplu, pentru testele Rust s-a instalat Cargo.
+8. Daca se da review la repo, review-ul trebuie facut pe baza regulilor din acest fisier.
