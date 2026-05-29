@@ -135,11 +135,9 @@ Zone deja potrivite pentru strict:
 
 Zone care inca trebuie urmarite:
 
-- `commandRuntimeContext.ts`;
-- `commandRegistry.ts`;
 - installerele `attachCommandCache` si `attachCommandUi` nu mai paseaza toata punga `target` catre factory; construiesc un obiect `deps` explicit, restrans, cu doar cheile declarate (TypeScript impune completitudinea), iar `filters`, `notifications/index`, fallback-ul de interactiuni si `mongoContext` au deja factory-uri explicite;
 - toate handler-ele de comenzi (`simpleCommands`, `status`, `autocomplete`, `dlc`, `gameFilter`, `rolePing`, `set`, `subscription`, `help` si fallback) plus agregatorul `latest` primesc acum un `deps` explicit, restrans, in loc de toata punga `target`; la `latest`, tipul `deps` este intersectia explicita a celor patru sub-handlere (`latestUpdates`, `latestDeals`, `latestSingle`, `priceSearch`), fara index signature, asa incat TypeScript impune lista completa de dependinte;
-- pasul incremental ramas este reducerea contextului comun construit in `commandRuntimeContext.ts` si distribuit prin `commandRegistry.ts`, astfel incat nici stratul de wiring sa nu mai vehiculeze o punga mare;
+- stratul de wiring nu mai vehiculeaza un singleton mutabil netipat: `commandRuntimeContext.ts` expune acum o factory tipata `createCommandRuntimeContext()` (cu interfata explicita `DiscordRuntimeBindings` pentru constructorii discord.js), iar `commandRegistry.ts` construieste un context proaspat la fiecare apel `createCommandRegistry` in loc sa mute un singleton global comun; asta elimina si riscul de dublare a lantului `handleInteraction` la o eventuala re-rulare;
 - mock-urile de test trebuie mentinute pe shape-uri locale mici cand apar fluxuri noi pentru Discord, Mongo sau HTTP.
 
 ## Securitate si runtime
@@ -180,7 +178,7 @@ Teste relevante pentru structura actuala:
 
 ## Zone ramase de curatat
 
-- Reducerea contextului comun din runtime si registry.
+- Contextul comun din runtime si registry a fost restrans: factory-urile si handler-ele primesc `deps` explicit, iar `commandRuntimeContext` este o factory tipata consumata de `commandRegistry` cu context proaspat per apel. Daca apar module noi de comenzi, ele trebuie sa pastreze acelasi model (factory cu `deps` explicit, fara sa citeasca direct din punga comuna).
 - Mentinerea testelor fara tipuri wildcard nesigure sau abrevieri legacy de context cand se adauga mock-uri noi.
 - Mutarea oricarei logici ramase in adaptere catre servicii sau handler-e dedicate.
 - Mentinerea documentatiei sincronizate la fiecare schimbare de cod.

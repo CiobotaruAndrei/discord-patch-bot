@@ -42,7 +42,9 @@ type RequiredCommandRegistry = {
   [K in RequiredCommandRegistryKey]: NonNullable<CommandRegistryContext[K]>;
 };
 
-const runtimeContext = require("../command-runtime/commandRuntimeContext") as CommandRegistryContext;
+const { createCommandRuntimeContext } = require("../command-runtime/commandRuntimeContext") as {
+  createCommandRuntimeContext: () => CommandRegistryContext;
+};
 const defaultInstallers: CommandModuleInstaller[] = [
   require("../command-cache/commandCache") as CommandModuleInstaller,
   require("../../domain/deals/filters") as CommandModuleInstaller,
@@ -83,7 +85,7 @@ function requireRegistryFunction<K extends RequiredCommandRegistryKey>(
 }
 
 function createCommandRegistry(
-  baseContext: CommandRegistryContext = runtimeContext,
+  baseContext: CommandRegistryContext = createCommandRuntimeContext(),
   installers: CommandModuleInstaller[] = defaultInstallers
 ): RequiredCommandRegistry {
   const context = installCommandModules(baseContext, installers);
