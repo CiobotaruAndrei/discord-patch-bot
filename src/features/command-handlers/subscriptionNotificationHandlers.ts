@@ -267,7 +267,25 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
 
 function installSubscriptionInteractions(target: SubscriptionContext) {
   const previousHandleInteraction = target.handleInteraction;
-  const handlers = createSubscriptionInteractionHandlers(target);
+  const handlers = createSubscriptionInteractionHandlers({
+    GuildModel: target.GuildModel,
+    logger: target.logger,
+    getGuildSettings: target.getGuildSettings,
+    invalidateGuildCache: target.invalidateGuildCache,
+    DEFAULT_CURRENCY: target.DEFAULT_CURRENCY,
+    getLatestForAllGames: target.getLatestForAllGames,
+    fetchDeals: target.fetchDeals,
+    dealHash: target.dealHash,
+    DEALS_HISTORY_LIMIT: target.DEALS_HISTORY_LIMIT,
+    OP_UPDATE_OPTS: target.OP_UPDATE_OPTS,
+    setDealsCache: target.setDealsCache,
+    safeDefer: target.safeDefer,
+    safeEdit: target.safeEdit,
+    canSendEmbeds: target.canSendEmbeds,
+    missingChannelPermsMessage: target.missingChannelPermsMessage,
+    makeActivationId: target.makeActivationId,
+    formatUserError: target.formatUserError
+  });
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!isSubscriptionCommand(interaction)) {

@@ -132,7 +132,16 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
 
 function installGameFilterInteractions(target: GameFilterContext) {
   const previousHandleInteraction = target.handleInteraction;
-  const handlers = createGameFilterInteractionHandlers(target);
+  const handlers = createGameFilterInteractionHandlers({
+    GuildModel: target.GuildModel,
+    logger: target.logger,
+    getGuildSettings: target.getGuildSettings,
+    invalidateGuildCache: target.invalidateGuildCache,
+    safeDefer: target.safeDefer,
+    safeEdit: target.safeEdit,
+    formatUserError: target.formatUserError,
+    MessageFlags: target.MessageFlags
+  });
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!isSetGamesCommand(interaction)) {

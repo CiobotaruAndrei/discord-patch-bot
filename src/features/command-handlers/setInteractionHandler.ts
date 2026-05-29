@@ -200,7 +200,15 @@ function isDirectSetCommand(interaction: DiscordInteraction): boolean {
 
 function installSetInteractionHandler(target: SetContext) {
   const previousHandleInteraction = target.handleInteraction;
-  const handlers = createSetInteractionHandler(target);
+  const handlers = createSetInteractionHandler({
+    GuildModel: target.GuildModel,
+    invalidateGuildCache: target.invalidateGuildCache,
+    formatUserError: target.formatUserError,
+    safeDefer: target.safeDefer,
+    safeEdit: target.safeEdit,
+    logger: target.logger,
+    SUPPORTED_CURRENCIES: target.SUPPORTED_CURRENCIES
+  });
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!isDirectSetCommand(interaction)) {

@@ -311,17 +311,21 @@ function isGoodSteamArticleUrlFallback(url: unknown): boolean {
 
 function extractDateScoreFallback(url: unknown): number {
   const u = String(url || "").toLowerCase();
-  const m = u.match(/(\d{4})[-/](\d{2})[-/](\d{2})/);
-  if (!m) return 0;
-  const year = parseInt(m[1], 10);
-  const month = parseInt(m[2], 10);
-  const day = parseInt(m[3], 10);
-  if (!(year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31)) return 0;
-  const t = Date.UTC(year, month - 1, day);
-  if (isNaN(t)) return 0;
-  const d = new Date(t);
-  if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) return 0;
-  return t;
+  const dateAt = /(\d{4})[-/](\d{2})[-/](\d{2})/y;
+  for (let start = 0; start + 10 <= u.length; start++) {
+    dateAt.lastIndex = start;
+    const m = dateAt.exec(u);
+    if (!m) continue;
+    const year = parseInt(m[1], 10);
+    const month = parseInt(m[2], 10);
+    const day = parseInt(m[3], 10);
+    if (!(year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31)) continue;
+    const t = Date.UTC(year, month - 1, day);
+    if (Number.isNaN(t)) continue;
+    const d = new Date(t);
+    if (d.getUTCFullYear() === year && d.getUTCMonth() === month - 1 && d.getUTCDate() === day) return t;
+  }
+  return 0;
 }
 
 const CLEAN_TEXT_REGEX = /<[^>]+>|&(nbsp|amp|quot|#39|apos|lt|gt);|\s+/gi;
