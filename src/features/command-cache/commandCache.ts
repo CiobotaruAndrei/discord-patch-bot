@@ -329,7 +329,14 @@ type CommandCacheInstaller = ((target: CommandCacheContext) => void) & {
 };
 
 const attachCommandCache = ((target: CommandCacheContext): void => {
-  Object.assign(target, createCommandCache(target));
+  const deps: CommandCacheContext = {
+    crypto: target.crypto,
+    PermissionsBitField: target.PermissionsBitField,
+    logger: target.logger,
+    DEFAULT_CURRENCY: target.DEFAULT_CURRENCY,
+    env: target.env
+  };
+  Object.assign(target, createCommandCache(deps));
 }) as CommandCacheInstaller;
 
 attachCommandCache.createCommandCache = createCommandCache;

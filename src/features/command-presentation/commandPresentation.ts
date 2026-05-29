@@ -467,7 +467,25 @@ type CommandUiInstaller = ((target: CommandUiContext) => void) & {
 };
 
 const attachCommandUi = ((target: CommandUiContext): void => {
-  Object.assign(target, createCommandPresentation(target));
+  const deps: CommandUiContext = {
+    crypto: target.crypto,
+    EmbedBuilder: target.EmbedBuilder,
+    ActionRowBuilder: target.ActionRowBuilder,
+    ButtonBuilder: target.ButtonBuilder,
+    ButtonStyle: target.ButtonStyle,
+    ComponentType: target.ComponentType,
+    MessageFlags: target.MessageFlags,
+    logger: target.logger,
+    checkUserCooldown: target.checkUserCooldown,
+    COLORS: target.COLORS,
+    truncate: target.truncate,
+    DEFAULT_CURRENCY: target.DEFAULT_CURRENCY,
+    formatPrice: target.formatPrice,
+    COLLECTOR_TIMEOUT_MS: target.COLLECTOR_TIMEOUT_MS,
+    MAX_FUZZY_SEARCH_INPUT: target.MAX_FUZZY_SEARCH_INPUT,
+    httpReq: target.httpReq
+  };
+  Object.assign(target, createCommandPresentation(deps));
 }) as CommandUiInstaller;
 
 attachCommandUi.createCommandPresentation = createCommandPresentation;

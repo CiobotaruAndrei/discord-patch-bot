@@ -15,7 +15,7 @@ Documentul descrie starea curenta a repo-ului dupa migrarea treptata din fisiere
 - Migrarea TypeScript strict este incrementala prin `src/tsconfig.strict.json`.
 - `legacy-dynamic.d.ts` nu mai exista; tipurile dinamice trebuie modelate local.
 - Documentatia istorica versionata a fost scoasa din cod; fisierele curente de documentatie raman sursa de adevar.
-- Comentariile explicative din fisierele de cod au fost eliminate. Daca un rationale trebuie pastrat, el trebuie pus in documentatia potrivita dupa subiect, nu langa implementare.
+- Comentariile explicative din fisierele de cod au fost eliminate. Daca un rationale trebuie pastrat, el trebuie pus in documentatia potrivita dupa subiect, nu langa implementare. Singura exceptie acceptata sunt notele scurte de o linie la punctele de concurenta/race condition (de exemplu ordinea „invalidare token inainte de eliberarea lock-ului" din `cron.ts`), unde ordinea operatiilor este subtila si comentariul previne reintroducerea bug-ului; nota ramane scurta si nu inlocuieste documentatia.
 - Codul runtime nu mai foloseste abrevierea legacy pentru context; modulele de compatibilitate folosesc `target` pentru atasare si `deps` pentru factory-uri.
 - Testele din `src/test` nu mai folosesc abrevieri legacy de context sau tipuri wildcard nesigure; mock-urile Discord/Mongo/HTTP folosesc shape-uri locale si `unknown` pentru cazuri intentionat invalide.
 - Helper-ele de test si variabilele de wiring trebuie numite explicit, de exemplu `makeContext`, `runtimeContext` si `validationContext`.
@@ -137,7 +137,8 @@ Zone care inca trebuie urmarite:
 
 - `commandRuntimeContext.ts`;
 - `commandRegistry.ts`;
-- adapterele care inca primesc un target comun mare, desi `commandCache`, `commandPresentation`, `notifications/index`, fallback-ul de interactiuni si `mongoContext` au deja factory-uri explicite;
+- installerele `attachCommandCache` si `attachCommandUi` nu mai paseaza toata punga `target` catre factory; construiesc un obiect `deps` explicit, restrans, cu doar cheile declarate (TypeScript impune completitudinea), iar `filters`, `notifications/index`, fallback-ul de interactiuni si `mongoContext` au deja factory-uri explicite;
+- pasul incremental urmator este sa primeasca `deps` explicit si handler-ele de comenzi care inca citesc din `target`-ul comun (de exemplu cele care depind de output-urile `commandCache`/`commandPresentation`), plus reducerea contextului comun din `commandRuntimeContext.ts` si `commandRegistry.ts`;
 - mock-urile de test trebuie mentinute pe shape-uri locale mici cand apar fluxuri noi pentru Discord, Mongo sau HTTP.
 
 ## Securitate si runtime
