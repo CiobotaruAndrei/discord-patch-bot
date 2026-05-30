@@ -9,3 +9,4 @@
 7. Testele repo-ului trebuie rulate intr-un mediu care are pachetele si tool-urile necesare pentru validare; de exemplu, pentru testele Rust s-a instalat Cargo.
 8. Daca se da review la repo, review-ul trebuie facut pe baza regulilor din acest fisier.
 9. Orice noua implementare de cod in repo trebuie facuta in GitHub pe branch nou si PR, ca implementarea sa fie verificata ca merge.
+10. Cand se adauga o regula noua in acest fisier, se da direct merge, pentru ca nu este nevoie sa se verifice ceva cand este adaugata o regula.
