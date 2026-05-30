@@ -71,7 +71,8 @@ MONGO_URI=mongodb://mongo:27017/discord-patch-bot
 
 Variabile utile suplimentare:
 
-- `DISCORD_DEV_GUILD_ID` - optional, pentru comenzi guild-scoped in development.
+- `DISCORD_DEV_GUILD_ID` - optional, pentru comenzi guild-scoped in development si pentru smoke-ul de staging.
+- `DISCORD_TEST_CHANNEL_ID` - optional, canalul in care smoke-ul de staging trimite un mesaj de test.
 - `PORT` - portul serverului local de health/metrics.
 - `METRICS_TOKEN` - token optional pentru acces la `/metrics`.
 - `METRICS_PUBLIC` - permite metrics fara token in development.
@@ -134,6 +135,8 @@ Testele acopera zonele importante:
 - parsere, filtre, shape drift pe scrapers, circuit breaker, cooldown-uri si rate limiting.
 
 Testele care folosesc surse externe reale nu confirma comportament live cu token Discord real. Pentru productie, valideaza si cu un server Discord de test si MongoDB real.
+
+Pentru validare live exista un smoke manual: `npm run smoke:staging` (sau workflow-ul `Staging smoke` rulat manual). Acesta se conecteaza la Mongo, ruleaza migrarile, se logheaza la Discord, inregistreaza comenzile pe `DISCORD_DEV_GUILD_ID`, fetch-uieste o sursa Steam si trimite un mesaj in `DISCORD_TEST_CHANNEL_ID`. Se ruleaza manual inainte de release, nu pe fiecare PR, si are nevoie de secrete reale (configurate ca secrete GitHub `STAGING_*`).
 
 ## Build, start si release
 

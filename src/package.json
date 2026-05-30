@@ -20,6 +20,7 @@
     "test:functional": "npm run test",
     "test:e2e": "npm run build && node --test dist/test/startUpdatesFlow.e2e.test.js dist/test/startDiscountsFlow.e2e.test.js",
     "test:regression": "npm run build && node --test dist/test/commands-regression.test.js dist/test/configValidator.test.js",
+    "smoke:staging": "npm run build && node dist/scripts/staging-smoke.js",
     "audit": "npm audit --omit=dev --audit-level=moderate",
     "precommit": "npm run check && npm run audit",
     "check": "npm run typecheck && npm run typecheck:strict && npm run build && node dist/scripts/check-syntax.js && node dist/scripts/check-config.js && node dist/scripts/check-dependencies.js && node --test --test-reporter=spec dist/test"

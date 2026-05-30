@@ -1,0 +1,48 @@
+name: Staging smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: src
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run staging smoke
+        env:
+          MONGO_URI: mongodb://localhost:27017/discord-patch-bot-smoke
+          DISCORD_TOKEN: ${{ secrets.STAGING_DISCORD_TOKEN }}
+          DISCORD_CLIENT_ID: ${{ secrets.STAGING_DISCORD_CLIENT_ID }}
+          DISCORD_DEV_GUILD_ID: ${{ secrets.STAGING_DISCORD_DEV_GUILD_ID }}
+          DISCORD_TEST_CHANNEL_ID: ${{ secrets.STAGING_DISCORD_TEST_CHANNEL_ID }}
+          METRICS_PUBLIC: "true"
+        run: npm run smoke:staging
