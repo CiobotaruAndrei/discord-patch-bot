@@ -15,6 +15,7 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Teste functionale pentru fluxurile principale de comenzi, notificari, repository-ul `seen` si E2E pentru update-uri/reduceri.
 - Teste directe pentru shape drift in `sources/updates`, `sources/deals` si `sources/steam`.
 - Workflow de release pregatit pentru GitHub Release si imagine Docker GHCR la tag-uri `v*`.
+- Coada dead-letter pentru livrarile de notificari care epuizeaza toate reincercarile. Cand un update sau o reducere nu poate fi trimisa nici dupa `PENDING_UPDATE_MAX_ATTEMPTS` / `PENDING_DISCOUNT_MAX_ATTEMPTS`, in loc sa fie aruncata silentios, intrarea este persistata in campul `notificationDeadLetter` de pe documentul guild-ului (kind, itemId, titlu, motiv, numar de incercari, moment), plafonat la ultimele `NOTIFICATION_DEAD_LETTER_LIMIT` intrari prin `$slice`. Ofera vizibilitate asupra livrarilor esuate definitiv si nu pierde informatia la restart. Acoperit de teste functionale noi in `notificationServices.functional.test.ts`.
 
 ### Changed
 

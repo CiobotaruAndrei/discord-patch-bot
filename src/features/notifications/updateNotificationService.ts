@@ -3,6 +3,7 @@
 import type { FilterQuery, Model } from "mongoose";
 import type { GuildSettings } from "../../types";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue";
+import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
@@ -95,6 +96,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     });
     if (abort) return;
 
+    const deadLettered: DeadLetterEntry[] = [];
     const { pendingByGame, resultByGameKey } = buildPendingUpdatesQueue({
       normalizePendingUpdateArray, toEntries,
       PENDING_UPDATE_MAX_AGE_MS, PENDING_UPDATE_MAX_ATTEMPTS,
@@ -140,6 +142,10 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
         }
         next.attempts = (next.attempts || 0) + 1;
         if (next.attempts < PENDING_UPDATE_MAX_ATTEMPTS) queue.unshift(next);
+        else deadLettered.push(buildDeadLetterEntry({
+          kind: "update", itemId: next.id, title: (next as { title?: unknown }).title,
+          reason: transientErrorMessage(err), attempts: next.attempts
+        }));
         logger("WARN", "CRON_UPDATES", `Nu am putut trimite update pentru ${gameKey}`, transientErrorMessage(err));
         break;
       }
@@ -150,9 +156,12 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     const pendingObject = mapToObject(pendingByGame);
     const setDoc: Record<string, unknown> = { pendingUpdates: pendingObject };
     if (lastProcessedGameKey) setDoc.lastProcessedGameKey = lastProcessedGameKey;
+    const update: Record<string, unknown> = { $set: setDoc };
+    const push = deadLetterPush(deadLettered);
+    if (push) update.$push = push;
     await GuildModel.updateOne(
       { _id: guild._id, subscribed: true, notificationChannelId: channel.id } as FilterQuery<GuildSettings>,
-      { $set: setDoc }
+      update
     );
   }
 

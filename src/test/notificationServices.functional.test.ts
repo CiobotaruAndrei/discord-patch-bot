@@ -190,6 +190,46 @@ test("UpdateService: send fail (transient) rollback claim si retry next cycle", 
   assert.equal(rollbacks.length, 1, "rollback obligatoriu pe transient fail");
 });
 
+test("UpdateService: livrarea care epuizeaza retry-urile intra in dead-letter (capat $push)", async () => {
+  const channel = { id: "channel-1", send: async () => { throw new Error("ECONNRESET"); } };
+  const { deps, updateOneCalls } = makeUpdateDeps({
+    resolveOutboundChannel: async () => ({ channel, abort: false }),
+    PENDING_UPDATE_MAX_ATTEMPTS: 1
+  });
+  const svc = createUpdateNotificationService(deps);
+  const guild = {
+    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1",
+    seen: {}, pendingUpdates: {}, enabledGames: []
+  } as UpdateGuild;
+  const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1", title: "patch" } }] as UpdateResults;
+  await svc.processGuildUpdates({}, guild, latestResults);
+  assert.equal(updateOneCalls.length, 1);
+  const update = updateOneCalls[0].update as { $push?: { notificationDeadLetter?: { $each?: unknown[] } } };
+  const entries = (update.$push?.notificationDeadLetter?.$each || []) as Array<{ kind: string; itemId: string; attempts: number }>;
+  assert.equal(entries.length, 1, "un item epuizat -> o intrare dead-letter");
+  assert.deepEqual(
+    { kind: entries[0].kind, itemId: entries[0].itemId, attempts: entries[0].attempts },
+    { kind: "update", itemId: "u-1", attempts: 1 }
+  );
+});
+
+test("UpdateService: un retry sub max NU scrie dead-letter (fara $push)", async () => {
+  const channel = { id: "channel-1", send: async () => { throw new Error("ECONNRESET"); } };
+  const { deps, updateOneCalls } = makeUpdateDeps({
+    resolveOutboundChannel: async () => ({ channel, abort: false }),
+    PENDING_UPDATE_MAX_ATTEMPTS: 5
+  });
+  const svc = createUpdateNotificationService(deps);
+  const guild = {
+    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1",
+    seen: {}, pendingUpdates: {}, enabledGames: []
+  } as UpdateGuild;
+  const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1" } }] as UpdateResults;
+  await svc.processGuildUpdates({}, guild, latestResults);
+  const update = updateOneCalls[0].update as { $push?: unknown };
+  assert.equal(update.$push, undefined, "cat timp se mai poate reincerca, nu scriem dead-letter");
+});
+
 test("UpdateService: enabledGames filter sare jocurile ne-active", async () => {
   const { deps, sentPayloads } = makeUpdateDeps();
   const svc = createUpdateNotificationService(deps);
@@ -326,4 +366,26 @@ test("DiscountService: dealPassesFilters=false sare deal-ul (filter-aware)", asy
   } as DiscountGuild;
   await svc.processGuildDiscounts({}, guild, [{ id: "d1" }] as DiscountDeals);
   assert.equal(sentPayloads.length, 0);
+});
+
+test("DiscountService: livrarea care epuizeaza retry-urile intra in dead-letter (capat $push)", async () => {
+  const channel = { id: "channel-d", send: async () => { throw new Error("ECONNRESET"); } };
+  const { deps, updateOneCalls } = makeDiscountDeps({
+    resolveOutboundChannel: async () => ({ channel, abort: false }),
+    PENDING_DISCOUNT_MAX_ATTEMPTS: 1
+  });
+  const svc = createDiscountNotificationService(deps);
+  const guild = {
+    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
+    seenDiscounts: [], pendingDiscounts: [], currency: "USD"
+  } as DiscountGuild;
+  await svc.processGuildDiscounts({}, guild, [{ id: "d1", title: "Game A" }] as DiscountDeals);
+  assert.equal(updateOneCalls.length, 1);
+  const update = updateOneCalls[0].update as { $push?: { notificationDeadLetter?: { $each?: unknown[] } } };
+  const entries = (update.$push?.notificationDeadLetter?.$each || []) as Array<{ kind: string; itemId: string; attempts: number }>;
+  assert.equal(entries.length, 1, "un deal epuizat -> o intrare dead-letter");
+  assert.deepEqual(
+    { kind: entries[0].kind, itemId: entries[0].itemId, attempts: entries[0].attempts },
+    { kind: "discount", itemId: "d1", attempts: 1 }
+  );
 });

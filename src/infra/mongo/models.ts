@@ -32,6 +32,15 @@ const pendingDiscountSchema = new mongoose.Schema({
   attempts: { type: Number, default: 0 }
 }, { _id: false });
 
+const deadLetterEntrySchema = new mongoose.Schema({
+  kind: { type: String, enum: ["update", "discount"], required: true },
+  itemId: { type: String, default: "" },
+  title: { type: String, default: "" },
+  reason: { type: String, default: "" },
+  attempts: { type: Number, default: 0 },
+  failedAt: { type: Date, default: Date.now }
+}, { _id: false });
+
 const guildSchema = new mongoose.Schema({
   _id: String,
   subscribed: { type: Boolean, default: false },
@@ -42,6 +51,7 @@ const guildSchema = new mongoose.Schema({
   discountChannelId: { type: String, default: null },
   seenDiscounts: { type: [String], default: [] },
   pendingDiscounts: { type: [pendingDiscountSchema], default: [] },
+  notificationDeadLetter: { type: [deadLetterEntrySchema], default: [] },
   minDiscountPercent: { type: Number, default: 70 },
   includeFreeGames: { type: Boolean, default: true },
   includePaidDiscounts: { type: Boolean, default: true },
