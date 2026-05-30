@@ -78,6 +78,7 @@ Variabile utile suplimentare:
 - `LOG_LEVEL` - nivelul de logging.
 - `PROXY_URLS` - proxy-uri HTTP optionale pentru surse externe.
 - `ADMIN_WEBHOOK_URL` - webhook optional pentru alerte operationale.
+- `REQUIRE_NATIVE_FUZZY` - daca este `true`, botul esueaza la pornire cand addon-ul Rust `discord_patch_bot_core*.node` lipseste, in loc sa foloseasca tacut fallback-ul TypeScript (recomandat in productie pentru a evita divergenta de hash si spam de notificari).
 
 ## Structura proiectului
 

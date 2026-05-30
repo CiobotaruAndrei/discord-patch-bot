@@ -146,7 +146,9 @@ function nativeStringFn(name: keyof NativeFuzzyModule, snakeName: keyof NativeFu
   return typeof fn === "function" ? fn.bind(native) as (...args: string[]) => string : null;
 }
 
-function levenshteinFallback(a: string, b: string): number {
+function levenshteinFallback(aStr: string, bStr: string): number {
+  const a = Array.from(aStr);
+  const b = Array.from(bStr);
   if (a.length === 0) return b.length;
   if (b.length === 0) return a.length;
   const row = Array.from({ length: b.length + 1 }, (_, index) => index);
@@ -346,7 +348,7 @@ function cleanTextFallback(value: unknown): string {
   return replaced.replace(/\s+/g, " ").trim();
 }
 
-function stableUpdateIdFallback(title: unknown, link: unknown): string {
+export function stableUpdateIdFallback(title: unknown, link: unknown): string {
   const base = `${String(title || "")}|${String(link || "")}`;
   return crypto.createHash("sha1").update(base).digest("hex").substring(0, 16);
 }
@@ -378,7 +380,7 @@ function dealPassesFiltersFallback(deal: DealInfo, guild: GuildSettings | null |
   return true;
 }
 
-function dealHashFallback(deal: DealInfo): string {
+export function dealHashFallback(deal: DealInfo): string {
   let stableKey;
   if (deal.store === "Steam" && deal.steamAppID) {
     stableKey = `steam:${deal.steamAppID}:${normalizeDealStateFallback(deal)}`;
@@ -391,7 +393,7 @@ function dealHashFallback(deal: DealInfo): string {
   return crypto.createHash("sha1").update(stableKey).digest("hex");
 }
 
-function findGameKeysFallback(text: unknown, games: GameConfig[], maxInput: number): FuzzyMatchKeys {
+export function findGameKeysFallback(text: unknown, games: GameConfig[], maxInput: number): FuzzyMatchKeys {
   let search = normalizeCommandText(text);
 
   const searchChars = Array.from(search);
@@ -445,6 +447,24 @@ function findGameKeysFallback(text: unknown, games: GameConfig[], maxInput: numb
 
 export function isRustFuzzyAvailable(): boolean {
   return loadNativeFuzzy() !== null;
+}
+
+function isNativeFuzzyRequired(): boolean {
+  const value = String(process.env.REQUIRE_NATIVE_FUZZY || "").trim().toLowerCase();
+  return value === "true" || value === "1" || value === "yes" || value === "on";
+}
+
+export function ensureNativeFuzzy(): void {
+  if (loadNativeFuzzy() !== null) return;
+  if (!isNativeFuzzyRequired()) return;
+  const detail = NATIVE_FUZZY_LOAD_FAILURES.length
+    ? JSON.stringify(NATIVE_FUZZY_LOAD_FAILURES)
+    : "addon `discord_patch_bot_core*.node` negasit in search dirs";
+  throw new Error(
+    "[NATIVE_FUZZY] Addon-ul Rust este obligatoriu (REQUIRE_NATIVE_FUZZY) dar nu s-a incarcat: "
+    + detail
+    + ". Recompileaza cu `npm run build:rust` sau scoate REQUIRE_NATIVE_FUZZY ca sa permiti fallback-ul TypeScript."
+  );
 }
 
 export function levenshtein(a: string, b: string): number {

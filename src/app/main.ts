@@ -14,6 +14,7 @@ const { createHttpServer } = require("./health/httpServer");
 const { registerDiscordEvents, registerMongoEvents } = require("./lifecycle/events");
 const { createShutdownController } = require("./lifecycle/shutdown");
 const { errorMessage, errorDetail } = require("../shared/errors");
+const { ensureNativeFuzzy } = require("../native/fuzzy");
 
 const {
   logger, env, parseEnvNumber,
@@ -139,6 +140,7 @@ async function connectMongoWithRetry(): Promise<void> {
 
 (async () => {
   try {
+    ensureNativeFuzzy();
     await connectMongoWithRetry();
     const mongoReady = await waitForMongoReady(10000);
     if (!mongoReady) {

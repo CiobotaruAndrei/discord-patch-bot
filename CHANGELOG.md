@@ -17,6 +17,9 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Workflow de release pregatit pentru GitHub Release si imagine Docker GHCR la tag-uri `v*`.
 - Script `npm run test:e2e` (referit deja in README) care ruleaza fluxurile E2E de update-uri si reduceri.
 - Serviciu `mongo:7` in job-ul de CI plus un test de integrare (`mongoLocks.integration.test.ts`) care valideaza lock-ul distribuit (acquire/renew/release) pe un MongoDB real; testul se skip-uieste curat cand nu exista un server pe `MONGO_URI`, deci suita locala ramane verde fara Mongo.
+- Optiunea `REQUIRE_NATIVE_FUZZY`: cand este `true`, `ensureNativeFuzzy()` opreste botul la pornire (fail fast) daca addon-ul Rust nu s-a incarcat, in loc sa foloseasca tacut fallback-ul TypeScript (care risca divergenta de hash si spam de notificari `seen`). Documentata in `.env.example` si README.
+- Teste de paritate Rust↔TypeScript (`nativeParity.test.ts`) care confirma ca `dealHash`, `stableUpdateId` si `findGameKeys` produc rezultate identice pe calea nativa si pe fallback; fallback-urile sunt acum exportate ca sa poata fi comparate direct.
+- Contract tests pe fixtures realiste per sursa (`sourceContract.test.ts`, cu fixtures in `test/fixtures/sources/`): din payload-ul ISteamNews se extrage cel mai recent patch note valid (id/link/titlu/timestamp), iar din payload-ul GraphQL Epic se extrage oferta (titlu/link/pret/savings/thumbnail). Cand site-ul se schimba, testul arata exact ce extractor s-a rupt.
 
 ### Changed
 
@@ -56,6 +59,7 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - `buildDealEmbed` limiteaza procentul de reducere la intervalul `[0, 100]`; un snapshot `pendingDiscounts` corupt sau reluat (de ex. `savings: 999`) nu mai poate afisa valori imposibile precum `reducere de 999%`.
 - Fallback-ul TypeScript `extractDateScore` (folosit cand addon-ul Rust nu este compilat) scaneaza acum tot URL-ul dupa prima data `YYYY-MM-DD` valida, identic cu implementarea Rust. Anterior se uita doar la prima potrivire de tipar; daca aceasta avea un an/luna/zi in afara intervalului (de ex. un an de arhiva `1999-...` sau un grup numeric `5566-77-88` inaintea datei reale), intorcea `0` si nu mai cauta o data valida ulterioara, ceea ce putea face ca sortarea candidatilor `listing_based` dupa data sa aleaga articolul gresit drept „cel mai recent”.
 - Workflow-ul de release ruleaza `Run release checks` (`npm run check`) cu acelasi `env` ca CI (`MONGO_URI`, `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `METRICS_PUBLIC`). Anterior pasul nu seta aceste variabile, desi validarea env le cere, astfel incat `npm run check` putea esua la release desi trecea in CI.
+- Fallback-ul TypeScript `levenshtein` opereaza acum pe code points (`Array.from`), nu pe code units UTF-16, ca sa fie identic cu implementarea Rust pe input multi-codepoint (emoji/surrogate). Inainte, pentru un input ca `🎮cs2`, fallback-ul calcula distanta gresit (emoji numarat ca 2 unitati), iar `findGameKeys` diverja fata de Rust (Rust gasea jocul, fallback-ul nu). Pentru ASCII rezultatul ramane neschimbat. Divergenta a fost prinsa de noul test de paritate.
 
 ### Security
 
