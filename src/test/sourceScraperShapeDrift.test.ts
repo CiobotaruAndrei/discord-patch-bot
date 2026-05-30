@@ -175,6 +175,39 @@ test("deals source keeps fallback end date when Epic sends malformed promo date"
   assert.equal(deals[0].endDateStr, "Nespecificat");
 });
 
+test("deals source merges Steam and Epic results from a single fetch", async () => {
+  const context = makeDealsContext(async (_method, url) => {
+    if (String(url).includes("featuredcategories")) {
+      return { data: { specials: { items: [
+        { id: 111, name: "Steam Special", original_price: 2000, final_price: 1000, discount_percent: 50, header_image: null }
+      ] } } };
+    }
+    if (String(url).includes("appreviews")) {
+      return { data: { query_summary: { total_reviews: 100, total_positive: 90 } } };
+    }
+    return {
+      data: {
+        data: {
+          Catalog: {
+            searchStore: {
+              elements: [{
+                id: "epic1",
+                title: "Epic Special",
+                urlSlug: "epic-special",
+                price: { totalPrice: { originalPrice: 3000, discountPrice: 1500 } }
+              }]
+            }
+          }
+        }
+      }
+    };
+  });
+
+  const deals = await context.fetchDeals({ currency: "USD" }) as Array<{ store: string }>;
+  const stores = deals.map(deal => deal.store).sort();
+  assert.deepEqual(stores, ["Epic Games", "Steam"]);
+});
+
 test("steam source tolerates storesearch JSON without items array", async () => {
   const context = {
     logger() {},

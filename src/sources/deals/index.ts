@@ -268,20 +268,16 @@ async function enrichDealData(deal: DealInfo, currencyCode?: DealCurrencyCode): 
   }
 }
 
-async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo[]> {
+async function fetchSteamSpecials(currencyCode: DealCurrencyCode): Promise<DealInfo[]> {
   const {
     getCurrencyConfig,
     httpReq,
     logger,
-    normalizeTitleForDedupe,
     STEAM_SPECIALS_LIMIT,
     STEAM_REVIEW_BATCH_SIZE,
-    STEAM_REVIEW_BATCH_DELAY_MS,
-    EPIC_SPECIALS_LIMIT,
-    MAX_DEALS
+    STEAM_REVIEW_BATCH_DELAY_MS
   } = runtimeContext;
-  const cfg = getCurrencyConfig(currencyCode);
-  const cc = cfg.cc;
+  const cc = getCurrencyConfig(currencyCode).cc;
 
   const deals: DealInfo[] = [];
   try {
@@ -341,7 +337,14 @@ async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo
   } catch (err) {
     logger("WARN", "DEALS_FETCH", "Eroare Steam API", errorMessage(err));
   }
+  return deals;
+}
 
+async function fetchEpicSpecials(currencyCode: DealCurrencyCode): Promise<DealInfo[]> {
+  const { getCurrencyConfig, httpReq, logger, EPIC_SPECIALS_LIMIT } = runtimeContext;
+  const cc = getCurrencyConfig(currencyCode).cc;
+
+  const deals: DealInfo[] = [];
   try {
     const epicQuery = `query searchStoreQuery($category: String, $count: Int, $country: String!, $locale: String, $onSale: Boolean, $withPrice: Boolean = false) { Catalog { searchStore(category: $category, count: $count, country: $country, locale: $locale, onSale: $onSale) { elements { title id urlSlug keyImages { type url } price(country: $country) @include(if: $withPrice) { totalPrice { discountPrice originalPrice } } promotions { promotionalOffers { promotionalOffers { endDate discountSetting { discountPercentage } } } } } } } }`;
     const epicVars = {
@@ -410,6 +413,16 @@ async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo
   } catch (err) {
     logger("WARN", "DEALS_FETCH", "Eroare Epic GraphQL", errorMessage(err));
   }
+  return deals;
+}
+
+async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo[]> {
+  const { normalizeTitleForDedupe, MAX_DEALS } = runtimeContext;
+  const [steamDeals, epicDeals] = await Promise.all([
+    fetchSteamSpecials(currencyCode),
+    fetchEpicSpecials(currencyCode)
+  ]);
+  const deals = [...steamDeals, ...epicDeals];
 
   const dedupeMap = new Map<string, DealInfo>();
   for (const deal of deals) {
