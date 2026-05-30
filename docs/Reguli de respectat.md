@@ -10,3 +10,4 @@
 8. Daca se da review la repo, review-ul trebuie facut pe baza regulilor din acest fisier.
 9. Orice noua implementare de cod in repo trebuie facuta in GitHub pe branch nou si PR, ca implementarea sa fie verificata ca merge.
 10. Cand se adauga o regula noua in acest fisier, se da direct merge, pentru ca nu este nevoie sa se verifice ceva cand este adaugata o regula.
+11. Daca la un review de cod sunt mai multe lucruri de implementat in repo si nu se pot face toate dintr-o data, AI-ul trebuie sa retina sau sa isi scrie undeva toate lucrurile care sunt de implementat.
