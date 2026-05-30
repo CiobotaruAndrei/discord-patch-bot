@@ -60,6 +60,7 @@ export interface DiscountNotificationServiceDeps {
   fetchDeals: (opts: { currency: string; fromCron?: boolean }) => Promise<DealInfo[]>;
   getDealsCacheData: (currency: string) => DealInfo[] | null;
   setDealsCache: (currency: string, deals: DealInfo[]) => void;
+  persistFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
   enrichDealData: (deal: DealInfo, currency: string) => Promise<DealInfo>;
   buildDealEmbed: (deal: DealInfo, mode: string, currency: string) => unknown;
 
@@ -87,7 +88,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingDiscountArray, validatePendingDiscountSnapshot,
     normalizeCurrencyKey, dealPassesFilters, dealHash,
-    fetchDeals, getDealsCacheData, setDealsCache, enrichDealData, buildDealEmbed,
+    fetchDeals, getDealsCacheData, setDealsCache, persistFetchSnapshot, enrichDealData, buildDealEmbed,
     sleepIfPositive,
     DEFAULT_CURRENCY, PENDING_DISCOUNT_MAX_ATTEMPTS, PENDING_DISCOUNT_GRACE_CYCLES,
     PENDING_DISCOUNTS_LIMIT, MAX_DEALS_PER_CYCLE, DISCORD_SEND_DELAY_MS,
@@ -227,8 +228,9 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       const cached = getDealsCacheData(cur);
       if (cached) return cached;
       if (!dealsPromises.has(cur)) {
-        dealsPromises.set(cur, fetchDeals({ currency: cur, fromCron: true }).then(deals => {
+        dealsPromises.set(cur, fetchDeals({ currency: cur, fromCron: true }).then(async deals => {
           setDealsCache(cur, deals);
+          if (persistFetchSnapshot) await persistFetchSnapshot(`deals:${cur}`, deals).catch(() => undefined);
           return deals;
         }));
       }

@@ -19,7 +19,7 @@ const {
   logger, env, parseEnvNumber,
   acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
   waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
-  runMigrations, requestContext
+  runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots
 } = require("../infra/mongo/mongoContext");
 const commands = require("../features/command-registry/commandRegistry");
 const scrapers = require("../sources/sourceRegistry");
@@ -153,6 +153,31 @@ async function connectMongoWithRetry(): Promise<void> {
     } catch (migErr) {
       logger("ERROR", "MIGRATE", "Migrari esuate la boot — continui fara ele (retry la urmatorul restart)", errorDetail(migErr));
       adminAlert("boot:migrations", "Migrari DB esuate la pornire", errorMessage(migErr)).catch(() => null);
+    }
+
+    try {
+      const SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
+      const now = Date.now();
+      let hydratedUpdates = false;
+      let hydratedDeals = 0;
+      const updatesSnapshot = await loadFetchSnapshot("updates");
+      if (updatesSnapshot && Array.isArray(updatesSnapshot.payload)
+          && now - updatesSnapshot.fetchedAt.getTime() < SNAPSHOT_MAX_AGE_MS) {
+        commands.setUpdatesCache(updatesSnapshot.payload);
+        hydratedUpdates = true;
+      }
+      for (const snapshot of await loadDealsFetchSnapshots()) {
+        if (Array.isArray(snapshot.payload)
+            && now - snapshot.fetchedAt.getTime() < SNAPSHOT_MAX_AGE_MS) {
+          commands.setDealsCache(snapshot.currency, snapshot.payload);
+          hydratedDeals++;
+        }
+      }
+      if (hydratedUpdates || hydratedDeals) {
+        logger("INFO", "BOOT", `Cache hidratat din snapshot DB: updates=${hydratedUpdates}, deals=${hydratedDeals}`);
+      }
+    } catch (hydrateErr) {
+      logger("WARN", "BOOT", "Hidratarea cache-ului din snapshot a esuat", errorMessage(hydrateErr));
     }
 
     httpServer.on("error", (err: Error) => {

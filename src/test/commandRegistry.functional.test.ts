@@ -22,6 +22,8 @@ const requiredKeys = [
   "cleanCache",
   "getCacheSizes",
   "setGlobalCacheTtl",
+  "setUpdatesCache",
+  "setDealsCache",
   "checkForUpdates",
   "checkForDiscounts",
   "buildOptimizedGameList",

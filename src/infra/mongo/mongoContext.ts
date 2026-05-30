@@ -14,7 +14,8 @@ const defaultInstallers: MongoInstaller[] = [
   require("./migrations"),
   require("./systemState"),
   require("./guildSettings"),
-  require("./adminAlerts")
+  require("./adminAlerts"),
+  require("./fetchSnapshots")
 ];
 
 function buildMongoContextExports(context: MongoRuntimeContext) {
@@ -32,6 +33,10 @@ function buildMongoContextExports(context: MongoRuntimeContext) {
     SystemModel: context.SystemModel,
     JobLockModel: context.JobLockModel,
     AdminAlertCooldownModel: context.AdminAlertCooldownModel,
+    FetchSnapshotModel: context.FetchSnapshotModel,
+    saveFetchSnapshot: context.saveFetchSnapshot,
+    loadFetchSnapshot: context.loadFetchSnapshot,
+    loadDealsFetchSnapshots: context.loadDealsFetchSnapshots,
     acquireDbLock: context.acquireDbLock,
     renewDbLock: context.renewDbLock,
     releaseDbLock: context.releaseDbLock,

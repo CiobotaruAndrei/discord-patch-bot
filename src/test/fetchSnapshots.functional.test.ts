@@ -1,0 +1,113 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
+import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
+import attachFetchSnapshots = require("../infra/mongo/fetchSnapshots");
+
+type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];
+type DiscountDeps = Parameters<typeof createDiscountNotificationService>[0];
+
+interface SnapshotDoc { _id: string; payload: unknown; fetchedAt: Date; }
+
+function makeFakeSnapshotModel() {
+  const store = new Map<string, SnapshotDoc>();
+  return {
+    store,
+    updateOne: async (filter: { _id: string }, update: { $set: { payload: unknown; fetchedAt: Date } }) => {
+      store.set(filter._id, { _id: filter._id, payload: update.$set.payload, fetchedAt: update.$set.fetchedAt });
+      return { acknowledged: true, matchedCount: 1, modifiedCount: 1, upsertedCount: 1 };
+    },
+    findById: (id: string) => ({ lean: async () => store.get(id) || null }),
+    find: (query: { _id: { $regex: string } }) => ({
+      lean: async () => {
+        const re = new RegExp(query._id.$regex);
+        return Array.from(store.values()).filter(doc => re.test(doc._id));
+      }
+    })
+  };
+}
+
+function attachRepo() {
+  const target: Record<string, unknown> = {
+    FetchSnapshotModel: makeFakeSnapshotModel(),
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  };
+  attachFetchSnapshots(target as never);
+  return target as Record<string, unknown> & {
+    saveFetchSnapshot: (id: string, payload: unknown) => Promise<void>;
+    loadFetchSnapshot: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
+    loadDealsFetchSnapshots: () => Promise<Array<{ currency: string; payload: unknown; fetchedAt: Date }>>;
+  };
+}
+
+test("fetchSnapshots: save apoi load intoarce acelasi payload + un fetchedAt Date", async () => {
+  const repo = attachRepo();
+  await repo.saveFetchSnapshot("updates", [{ game: { key: "cs2" }, latest: { id: "u-1" } }]);
+  const loaded = await repo.loadFetchSnapshot("updates");
+  assert.ok(loaded, "snapshot-ul trebuie sa existe dupa save");
+  assert.deepEqual(loaded.payload, [{ game: { key: "cs2" }, latest: { id: "u-1" } }]);
+  assert.ok(loaded.fetchedAt instanceof Date, "fetchedAt este Date");
+});
+
+test("fetchSnapshots: loadFetchSnapshot intoarce null cand nu exista", async () => {
+  const repo = attachRepo();
+  assert.equal(await repo.loadFetchSnapshot("updates"), null);
+});
+
+test("fetchSnapshots: loadDealsFetchSnapshots intoarce doar cheile deals:* cu moneda extrasa", async () => {
+  const repo = attachRepo();
+  await repo.saveFetchSnapshot("updates", [{ id: "u" }]);
+  await repo.saveFetchSnapshot("deals:USD", [{ id: "d1" }]);
+  await repo.saveFetchSnapshot("deals:EUR", [{ id: "d2" }]);
+  const deals = await repo.loadDealsFetchSnapshots();
+  const byCurrency = new Map(deals.map(entry => [entry.currency, entry.payload]));
+  assert.equal(deals.length, 2, "doar snapshot-urile de reduceri");
+  assert.deepEqual(byCurrency.get("USD"), [{ id: "d1" }]);
+  assert.deepEqual(byCurrency.get("EUR"), [{ id: "d2" }]);
+});
+
+test("UpdateService.checkForUpdates persista snapshot-ul 'updates' dupa fetch (lista completa)", async () => {
+  const persistCalls: Array<{ id: string; payload: unknown }> = [];
+  const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seen: {}, pendingUpdates: {}, enabledGames: [] };
+  const deps = {
+    GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
+    logger: () => undefined,
+    runConcurrent: async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>) => { for (const it of items) await fn(it); },
+    resolveOutboundChannel: async () => ({ channel: { id: "channel-1", send: async () => ({}) }, abort: true }),
+    getLatestForAllGames: async (games: Array<{ key: string }>) => games.map(game => ({ game, latest: { id: `u-${game.key}` } })),
+    setUpdatesCache: () => undefined,
+    persistFetchSnapshot: async (id: string, payload: unknown) => { persistCalls.push({ id, payload }); }
+  } as unknown as UpdateDeps;
+  const svc = createUpdateNotificationService(deps);
+  await svc.checkForUpdates({}, [{ key: "cs2" }, { key: "fortnite" }]);
+  assert.equal(persistCalls.length, 1, "exact un snapshot persistat");
+  assert.equal(persistCalls[0].id, "updates");
+  assert.deepEqual(persistCalls[0].payload, [
+    { game: { key: "cs2" }, latest: { id: "u-cs2" } },
+    { game: { key: "fortnite" }, latest: { id: "u-fortnite" } }
+  ]);
+});
+
+test("DiscountService.checkForDiscounts persista snapshot-ul 'deals:<MONEDA>' dupa fetch", async () => {
+  const persistCalls: Array<{ id: string; payload: unknown }> = [];
+  const guild = { _id: "g1", discountsSubscribed: true, discountChannelId: "channel-d", seenDiscounts: [], pendingDiscounts: [], currency: "USD" };
+  const deps = {
+    GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
+    logger: () => undefined,
+    runConcurrent: async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>) => { for (const it of items) await fn(it); },
+    resolveOutboundChannel: async () => ({ channel: { id: "channel-d", send: async () => ({}) }, abort: true }),
+    normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
+    getDealsCacheData: () => null,
+    fetchDeals: async () => [{ id: "d1" }],
+    setDealsCache: () => undefined,
+    persistFetchSnapshot: async (id: string, payload: unknown) => { persistCalls.push({ id, payload }); },
+    DEFAULT_CURRENCY: "USD",
+    GUILD_PROCESS_CONCURRENCY: 1
+  } as unknown as DiscountDeps;
+  const svc = createDiscountNotificationService(deps);
+  await svc.checkForDiscounts({});
+  assert.equal(persistCalls.length, 1, "exact un snapshot de reduceri persistat");
+  assert.equal(persistCalls[0].id, "deals:USD");
+  assert.deepEqual(persistCalls[0].payload, [{ id: "d1" }]);
+});

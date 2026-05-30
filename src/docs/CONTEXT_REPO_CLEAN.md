@@ -109,6 +109,8 @@ Aceasta impartire reduce riscul de copy-paste in cron jobs si permite teste func
 
 Cand o livrare (update sau reducere) epuizeaza toate reincercarile (`PENDING_UPDATE_MAX_ATTEMPTS` / `PENDING_DISCOUNT_MAX_ATTEMPTS`), item-ul nu mai este aruncat silentios: este persistat in campul `notificationDeadLetter` de pe documentul guild-ului, impreuna cu motivul, numarul de incercari si momentul esecului. Coada este plafonata la ultimele `NOTIFICATION_DEAD_LETTER_LIMIT` intrari prin `$slice`, astfel incat documentul nu creste nelimitat. Scopul este vizibilitate asupra livrarilor esuate definitiv si pastrarea informatiei la restart.
 
+Faza de fetch are un event store: dupa fiecare ciclu cron reusit, rezultatele normalizate se persista in DB prin `infra/mongo/fetchSnapshots.ts` (`saveFetchSnapshot`) — cheia `updates` pentru lista completa de update-uri si `deals:<MONEDA>` pentru reduceri. Scrierile sunt best-effort (nu blocheaza cron-ul) si documentele au TTL. La pornire, `app/main.ts` hidrateaza cache-urile in-memory din aceste snapshot-uri (`loadFetchSnapshot` / `loadDealsFetchSnapshots`, expuse setter-ele `setUpdatesCache` / `setDealsCache` prin `commandRegistry`) cand sunt suficient de proaspete, deci comenzile servesc imediat ultimele date dupa restart. Acest store este si baza peste care un dispatcher separat va putea citi evenimentele, decupland fetch-ul de trimitere.
+
 ## Native Rust/N-API
 
 `src/native/src/lib.rs` contine doar functii deterministe, fara Discord, Mongo sau HTTP:

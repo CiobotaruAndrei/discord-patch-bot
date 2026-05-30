@@ -119,12 +119,20 @@ const adminAlertCooldownSchema = new mongoose.Schema({
 }, { minimize: false });
 const AdminAlertCooldownModel = mongoose.model("AdminAlertCooldown", adminAlertCooldownSchema);
 
+const fetchSnapshotSchema = new mongoose.Schema({
+  _id: String,
+  payload: { type: mongoose.Schema.Types.Mixed, default: null },
+  fetchedAt: { type: Date, default: Date.now, expires: ONE_DAY_MS / 1000 }
+}, { minimize: false });
+const FetchSnapshotModel = mongoose.model("FetchSnapshot", fetchSnapshotSchema);
+
   Object.assign(target, {
     GuildModel,
     CircuitBreakerModel,
     SystemModel,
     JobLockModel,
-    AdminAlertCooldownModel
+    AdminAlertCooldownModel,
+    FetchSnapshotModel
   });
 }
 

@@ -8,6 +8,8 @@ interface CommandRegistryContext {
   cleanCache?: RegistryFunction;
   getCacheSizes?: RegistryFunction;
   setGlobalCacheTtl?: RegistryFunction;
+  setUpdatesCache?: (data: unknown) => void;
+  setDealsCache?: (currency: string, data: unknown) => void;
   checkForUpdates?: (games?: GameConfig[]) => MaybePromise<unknown>;
   checkForDiscounts?: RegistryFunction;
   buildOptimizedGameList?: (allGames: GameConfig[], subscribedGuilds: unknown[]) => GameConfig[];
@@ -26,6 +28,8 @@ type RequiredCommandRegistryKey =
   | "cleanCache"
   | "getCacheSizes"
   | "setGlobalCacheTtl"
+  | "setUpdatesCache"
+  | "setDealsCache"
   | "checkForUpdates"
   | "checkForDiscounts"
   | "buildOptimizedGameList"
@@ -93,6 +97,8 @@ function createCommandRegistry(
     cleanCache: requireRegistryFunction(context, "cleanCache"),
     getCacheSizes: requireRegistryFunction(context, "getCacheSizes"),
     setGlobalCacheTtl: requireRegistryFunction(context, "setGlobalCacheTtl"),
+    setUpdatesCache: requireRegistryFunction(context, "setUpdatesCache"),
+    setDealsCache: requireRegistryFunction(context, "setDealsCache"),
     checkForUpdates: requireRegistryFunction(context, "checkForUpdates"),
     checkForDiscounts: requireRegistryFunction(context, "checkForDiscounts"),
     buildOptimizedGameList: requireRegistryFunction(context, "buildOptimizedGameList"),
