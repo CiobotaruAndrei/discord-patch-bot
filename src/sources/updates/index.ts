@@ -128,7 +128,7 @@ interface UpdatesContext {
   normalizeUpdate: (data: PatchUpdate) => NormalizedUpdate;
   safeCheerioLoad: (html: unknown) => CheerioAPI;
   crypto: typeof import("crypto");
-  metricsRef: Pick<BotMetrics, "fetchSuccess" | "fetchFail">;
+  metricsRef: Pick<BotMetrics, "fetchSuccess" | "fetchFail" | "sourceFetchSuccess" | "sourceFailures" | "schemaDriftBySource">;
   absoluteUrl?: typeof absoluteUrl;
   isGoodSteamArticleUrl?: typeof isGoodSteamArticleUrl;
   extractDateScore?: typeof extractDateScore;
@@ -499,6 +499,19 @@ async function fetchGameUpdate(game: GameConfig): Promise<NormalizedUpdate> {
   throw new Error("Tip necunoscut.");
 }
 
+function bumpMetric(record: Record<string, number> | undefined, key: string): void {
+  if (!record) return;
+  record[key] = (record[key] || 0) + 1;
+}
+
+function classifyFetchReason(err: unknown): string {
+  const status = (err as { response?: { status?: unknown } } | null | undefined)?.response?.status;
+  if (typeof status === "number") return String(status);
+  const code = (err as { code?: unknown } | null | undefined)?.code;
+  if (typeof code === "string" && code) return code.toLowerCase();
+  return "error";
+}
+
 async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchResult> {
   const {
     CircuitBreakerModel,
@@ -523,6 +536,7 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
       `Eroare la citirea state-ului CB pentru ${game.key}, sar fetch-ul ciclului curent`,
       errorMessage(cbGetErr));
     metricsRef.fetchFail++;
+    bumpMetric(metricsRef.sourceFailures, `${game.key} cb_read`);
     return { game, latest: null, error: errorMessage(cbGetErr) };
   }
   if (cb.cooldownUntil && new Date() < new Date(cb.cooldownUntil)) {
@@ -537,6 +551,7 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
       );
     }
     metricsRef.fetchSuccess++;
+    bumpMetric(metricsRef.sourceFetchSuccess, game.key);
     return { game, latest, error: null };
   } catch (error) {
     try {
@@ -562,6 +577,7 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
             );
           }
         }
+        bumpMetric(metricsRef.schemaDriftBySource, game.key);
         metricsRef.fetchFail++;
         return { game, latest: null, error: error.message };
       }
@@ -592,6 +608,7 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
         `Eroare la actualizarea state-ului circuit breaker pentru ${game.key}`,
         errorMessage(bookkeepingErr));
     }
+    bumpMetric(metricsRef.sourceFailures, `${game.key} ${classifyFetchReason(error)}`);
     metricsRef.fetchFail++;
     return { game, latest: null, error: errorMessage(error) };
   }

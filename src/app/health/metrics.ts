@@ -12,7 +12,10 @@ function createMetrics(): BotMetrics {
     cronSkippedDueToHealth: 0,
     cronAborted: 0,
     httpRateLimitDrops: 0,
-    startedAt: Date.now()
+    startedAt: Date.now(),
+    sourceFetchSuccess: {},
+    sourceFailures: {},
+    schemaDriftBySource: {}
   };
 }
 

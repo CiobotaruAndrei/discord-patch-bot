@@ -143,6 +143,9 @@ export interface BotMetrics {
   cronAborted: number;
   httpRateLimitDrops: number;
   startedAt: number;
+  sourceFetchSuccess?: Record<string, number>;
+  sourceFailures?: Record<string, number>;
+  schemaDriftBySource?: Record<string, number>;
 }
 
 export interface CronHealthSnapshot {

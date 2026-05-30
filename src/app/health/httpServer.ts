@@ -81,6 +81,32 @@ function pushMetric(
   );
 }
 
+function escapeLabelValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/\n/g, "\\n");
+}
+
+function pushLabeledCounter(
+  lines: string[],
+  seenNames: Set<string>,
+  name: string,
+  help: string,
+  record: Record<string, number> | undefined,
+  labelKeys: string[]
+): void {
+  if (!record) return;
+  if (!seenNames.has(name)) {
+    seenNames.add(name);
+    lines.push(`# HELP ${name} ${help}`, `# TYPE ${name} counter`);
+  }
+  for (const compositeKey of Object.keys(record)) {
+    const parts = compositeKey.split(" ");
+    const labelStr = labelKeys
+      .map((labelKey, index) => `${labelKey}="${escapeLabelValue(parts[index] ?? "")}"`)
+      .join(",");
+    lines.push(`${name}{${labelStr}} ${record[compositeKey]}`);
+  }
+}
+
 function createHttpServer({
   mongoose, crypto, env, client, metrics, commands,
   getGuildCacheSize, scrapers, activeLocks, rateLimiter, cronController = null
@@ -159,6 +185,9 @@ function createHttpServer({
       pushMetric(lines, seenMetricNames, "bot_cache_enriched_deals_size", "gauge", "Enriched deals cache size", scrapers.getEnrichedCacheSize());
       pushMetric(lines, seenMetricNames, "bot_http_rate_limit_map_size", "gauge", "Local HTTP rate limit map size", rateLimiter.size);
       pushMetric(lines, seenMetricNames, "bot_active_locks", "gauge", "Active distributed locks", activeLocks.size);
+      pushLabeledCounter(lines, seenMetricNames, "bot_source_fetch_success_total", "Fetch-uri reusite per sursa", metrics.sourceFetchSuccess, ["source"]);
+      pushLabeledCounter(lines, seenMetricNames, "bot_source_failures_total", "Fetch-uri esuate per sursa si motiv", metrics.sourceFailures, ["source", "reason"]);
+      pushLabeledCounter(lines, seenMetricNames, "bot_scrape_schema_drift_total", "Schema drift suspectat per sursa", metrics.schemaDriftBySource, ["source"]);
       res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4" });
       res.end(lines.join("\n") + "\n");
       return;

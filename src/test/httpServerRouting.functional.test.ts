@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { request as httpRequest } from "node:http";
 import { AddressInfo } from "node:net";
 import { createHttpServer } from "../app/health/httpServer";
-import type { RuntimeEnv } from "../types";
+import type { BotMetrics, RuntimeEnv } from "../types";
 
 interface ResponseSnapshot { status: number; body: string }
 
@@ -22,7 +22,7 @@ async function fetchPath(port: number, path: string, extraHeaders: Record<string
   });
 }
 
-function startServer() {
+function startServer(metricsOverride: Partial<BotMetrics> = {}) {
   const deps = {
     mongoose: { connection: { readyState: 1 } },
     crypto: { timingSafeEqual: () => true },
@@ -31,7 +31,8 @@ function startServer() {
     metrics: {
       startedAt: Date.now(), fetchSuccess: 1, fetchFail: 0, httpRetries: 0,
       rateLimitHits: 0, cronRuns: 0, cronErrors: 0, cronSkippedDueToLock: 0,
-      cronAborted: 0, cronSkippedDueToHealth: 0, httpRateLimitDrops: 0
+      cronAborted: 0, cronSkippedDueToHealth: 0, httpRateLimitDrops: 0,
+      ...metricsOverride
     },
     commands: {
       getCacheSizes: () => ({ single: 0, dlc: 0, updatesValid: true, dealsCurrenciesValid: 0, userCooldowns: 0 })
@@ -70,6 +71,22 @@ test("/metrics?probe=1 still matches the metrics route", async () => {
     const res = await fetchPath(port, "/metrics?probe=1&source=prometheus");
     assert.equal(res.status, 200, "metrics cu query string trebuie sa serveasca 200 nu 404");
     assert.match(res.body, /bot_uptime_seconds/);
+  } finally { await close(); }
+});
+
+test("/metrics exposes labeled per-source counters", async () => {
+  const { port, close } = await startServer({
+    sourceFetchSuccess: { steam: 10 },
+    sourceFailures: { "epic 429": 3, "amd network": 1 },
+    schemaDriftBySource: { listing_cs2: 2 }
+  });
+  try {
+    const res = await fetchPath(port, "/metrics");
+    assert.equal(res.status, 200);
+    assert.match(res.body, /bot_source_fetch_success_total\{source="steam"\} 10/);
+    assert.match(res.body, /bot_source_failures_total\{source="epic",reason="429"\} 3/);
+    assert.match(res.body, /bot_source_failures_total\{source="amd",reason="network"\} 1/);
+    assert.match(res.body, /bot_scrape_schema_drift_total\{source="listing_cs2"\} 2/);
   } finally { await close(); }
 });
 
