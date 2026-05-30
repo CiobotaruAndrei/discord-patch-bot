@@ -268,17 +268,23 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
     seen.add(item.href);
     return true;
   });
-  unique.sort((a, b) => {
+  const decorated = unique.map(candidate => ({
+    candidate,
+    keywordScore: keywords.length ? scoreCandidate(candidate, keywords) : 0,
+    dateScore: extractDateScore(candidate.href)
+  }));
+  decorated.sort((a, b) => {
     if (keywords.length) {
-      const s = scoreCandidate(b, keywords) - scoreCandidate(a, keywords);
+      const s = b.keywordScore - a.keywordScore;
       if (s !== 0) return s;
     }
-    const d = extractDateScore(b.href) - extractDateScore(a.href);
+    const d = b.dateScore - a.dateScore;
     if (d !== 0) return d;
-    return a.position - b.position;
+    return a.candidate.position - b.candidate.position;
   });
+  const ordered = decorated.map(entry => entry.candidate);
 
-  if (!unique.length) {
+  if (!ordered.length) {
     if (listingFetched > 0) {
       throw new SchemaDriftError(
         `Listing fetch-uit cu succes dar 0 ancore valide pentru ${game.key}`,
@@ -287,10 +293,10 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
     }
     throw new Error("Nu am găsit ancore valide.");
   }
-  const TRY_LIMIT = Math.min(3, unique.length);
+  const TRY_LIMIT = Math.min(3, ordered.length);
   let lastErr: unknown = null;
   for (let i = 0; i < TRY_LIMIT; i++) {
-    const candidate = unique[i];
+    const candidate = ordered[i];
     const articleUrl = candidate.href;
     try {
       const articleRes = await httpReq("GET", articleUrl, { timeout: 8000 });
