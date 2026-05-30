@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
+import { HASH_VERSION } from "../shared/hashVersion";
 
 type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];
 type DiscountDeps = Parameters<typeof createDiscountNotificationService>[0];
@@ -107,7 +108,7 @@ test("UpdateService: buildOptimizedGameList returneaza toata lista cand un guild
 
 test("UpdateService: checkForUpdates scrie cache cand lista nu e filtrata (full list)", async () => {
   let cacheWrites = 0;
-  const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seen: {}, pendingUpdates: {}, enabledGames: [] };
+  const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seenHashVersion: HASH_VERSION, seen: {}, pendingUpdates: {}, enabledGames: [] };
   const { deps } = makeUpdateDeps({
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }) },
     setUpdatesCache: () => { cacheWrites++; }
@@ -119,7 +120,7 @@ test("UpdateService: checkForUpdates scrie cache cand lista nu e filtrata (full 
 
 test("UpdateService: checkForUpdates NU scrie cache cand lista e filtrata (subset)", async () => {
   let cacheWrites = 0;
-  const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seen: {}, pendingUpdates: {}, enabledGames: ["cs2"] };
+  const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seenHashVersion: HASH_VERSION, seen: {}, pendingUpdates: {}, enabledGames: ["cs2"] };
   const { deps } = makeUpdateDeps({
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }) },
     setUpdatesCache: () => { cacheWrites++; }
@@ -135,7 +136,7 @@ test("UpdateService: processGuildUpdates trimite update + ping rol pe prima trim
   const guild = {
     _id: "guild-1",
     subscribed: true,
-    notificationChannelId: "channel-1",
+    notificationChannelId: "channel-1", seenHashVersion: HASH_VERSION,
     notificationRoleId: "role-42",
     notificationMode: "detailed",
     seen: {},
@@ -158,7 +159,7 @@ test("UpdateService: claim race (matchedCount=0) sare item-ul fara send sau roll
   });
   const svc = createUpdateNotificationService(deps);
   const guild = {
-    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1",
+    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1", seenHashVersion: HASH_VERSION,
     seen: {}, pendingUpdates: {}, enabledGames: []
   } as UpdateGuild;
   const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1" } }] as UpdateResults;
@@ -181,7 +182,7 @@ test("UpdateService: send fail (transient) rollback claim si retry next cycle", 
   });
   const svc = createUpdateNotificationService(deps);
   const guild = {
-    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1",
+    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1", seenHashVersion: HASH_VERSION,
     seen: {}, pendingUpdates: {}, enabledGames: []
   } as UpdateGuild;
   const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1" } }] as UpdateResults;
@@ -194,7 +195,7 @@ test("UpdateService: enabledGames filter sare jocurile ne-active", async () => {
   const { deps, sentPayloads } = makeUpdateDeps();
   const svc = createUpdateNotificationService(deps);
   const guild = {
-    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1",
+    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1", seenHashVersion: HASH_VERSION,
     seen: {}, pendingUpdates: {},
     enabledGames: ["cs2"]
   } as UpdateGuild;
@@ -204,6 +205,45 @@ test("UpdateService: enabledGames filter sare jocurile ne-active", async () => {
   ] as UpdateResults;
   await svc.processGuildUpdates({}, guild, latestResults);
   assert.equal(sentPayloads.length, 1, "doar 1 update pentru cs2");
+});
+
+test("UpdateService: stale seenHashVersion declanseaza re-baseline silentios fara notificari", async () => {
+  const { deps, sentPayloads, claims, updateOneCalls } = makeUpdateDeps();
+  const svc = createUpdateNotificationService(deps);
+  const guild = {
+    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1",
+    seen: { cs2: ["old-id"] }, pendingUpdates: {}, enabledGames: [],
+    seenHashVersion: 0
+  } as UpdateGuild;
+  const latestResults = [
+    { game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2-new" } }
+  ] as UpdateResults;
+  await svc.processGuildUpdates({}, guild, latestResults);
+  assert.equal(sentPayloads.length, 0, "re-baseline silentios nu trimite notificari");
+  assert.equal(claims.length, 0, "fara claim-uri la re-baseline");
+  assert.equal(updateOneCalls.length, 1, "un singur write de re-baseline");
+  const set = (updateOneCalls[0].update as { $set: Record<string, unknown> }).$set;
+  assert.equal(set.seenHashVersion, HASH_VERSION);
+  assert.deepEqual(set.seen, { cs2: ["u-cs2-new"] });
+});
+
+test("DiscountService: stale discountsHashVersion declanseaza re-baseline silentios fara notificari", async () => {
+  const { deps, sentPayloads, claims, updateOneCalls } = makeDiscountDeps();
+  const svc = createDiscountNotificationService(deps);
+  const guild = {
+    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
+    seenDiscounts: ["old"], pendingDiscounts: [], currency: "USD",
+    discountsHashVersion: 0
+  } as DiscountGuild;
+  const deals = [{ id: "d1", title: "Game A" }, { id: "d2", title: "Game B" }] as DiscountDeals;
+  await svc.processGuildDiscounts({}, guild, deals);
+  assert.equal(sentPayloads.length, 0, "re-baseline silentios nu trimite notificari");
+  assert.equal(claims.length, 0, "fara claim-uri la re-baseline");
+  assert.equal(updateOneCalls.length, 1, "un singur write de re-baseline");
+  const set = (updateOneCalls[0].update as { $set: Record<string, unknown> }).$set;
+  assert.equal(set.discountsHashVersion, HASH_VERSION);
+  assert.deepEqual(set.seenDiscounts, ["d1", "d2"]);
+  assert.deepEqual(set.pendingDiscounts, []);
 });
 
 function makeDiscountDeps(overrides: Record<string, unknown> = {}) {
@@ -261,7 +301,7 @@ test("DiscountService: trimite reduceri noi care nu sunt in seenDiscounts", asyn
   const { deps, sentPayloads, claims } = makeDiscountDeps();
   const svc = createDiscountNotificationService(deps);
   const guild = {
-    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
+    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", discountsHashVersion: HASH_VERSION,
     seenDiscounts: [], pendingDiscounts: [], currency: "USD"
   } as DiscountGuild;
   const deals = [{ id: "d1", title: "Game A" }] as DiscountDeals;
@@ -274,7 +314,7 @@ test("DiscountService: hash deja in seenDiscounts NU se mai trimite", async () =
   const { deps, sentPayloads, claims } = makeDiscountDeps();
   const svc = createDiscountNotificationService(deps);
   const guild = {
-    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
+    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", discountsHashVersion: HASH_VERSION,
     seenDiscounts: ["d1"], pendingDiscounts: [], currency: "USD"
   } as DiscountGuild;
   const deals = [{ id: "d1", title: "Already seen" }] as DiscountDeals;
@@ -287,7 +327,7 @@ test("DiscountService: ping rol discount doar pe prima trimitere", async () => {
   const { deps, sentPayloads } = makeDiscountDeps();
   const svc = createDiscountNotificationService(deps);
   const guild = {
-    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
+    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", discountsHashVersion: HASH_VERSION,
     seenDiscounts: [], pendingDiscounts: [], currency: "USD",
     discountRoleId: "role-99"
   } as DiscountGuild;
@@ -307,7 +347,7 @@ test("DiscountService: claim race (matchedCount=0) sare deal-ul fara enrich", as
   });
   const svc = createDiscountNotificationService(deps);
   const guild = {
-    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
+    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", discountsHashVersion: HASH_VERSION,
     seenDiscounts: [], pendingDiscounts: [], currency: "USD"
   } as DiscountGuild;
   await svc.processGuildDiscounts({}, guild, [{ id: "d1" }] as DiscountDeals);
@@ -321,7 +361,7 @@ test("DiscountService: dealPassesFilters=false sare deal-ul (filter-aware)", asy
   });
   const svc = createDiscountNotificationService(deps);
   const guild = {
-    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
+    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", discountsHashVersion: HASH_VERSION,
     seenDiscounts: [], pendingDiscounts: [], currency: "USD"
   } as DiscountGuild;
   await svc.processGuildDiscounts({}, guild, [{ id: "d1" }] as DiscountDeals);

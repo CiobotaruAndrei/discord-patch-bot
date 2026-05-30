@@ -3,6 +3,7 @@
 import type { FilterQuery, Model } from "mongoose";
 import type { GuildSettings } from "../../types";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue";
+import { HASH_VERSION } from "../../shared/hashVersion";
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
@@ -94,6 +95,19 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       disableFn: disableUpdatesForChannelError
     });
     if (abort) return;
+
+    if (Number((guild as { seenHashVersion?: number }).seenHashVersion ?? 0) !== HASH_VERSION) {
+      const reseed: Record<string, string[]> = {};
+      for (const result of latestResults) {
+        if (result.latest && result.latest.id) reseed[result.game.key] = [String(result.latest.id)];
+      }
+      await GuildModel.updateOne(
+        { _id: guild._id, subscribed: true, notificationChannelId: channel.id } as FilterQuery<GuildSettings>,
+        { $set: { seen: reseed, pendingUpdates: {}, seenHashVersion: HASH_VERSION } }
+      );
+      logger("INFO", "CRON_UPDATES", `Re-baseline silentios seen pentru guild ${guild._id} dupa schimbare de hashVersion`);
+      return;
+    }
 
     const { pendingByGame, resultByGameKey } = buildPendingUpdatesQueue({
       normalizePendingUpdateArray, toEntries,

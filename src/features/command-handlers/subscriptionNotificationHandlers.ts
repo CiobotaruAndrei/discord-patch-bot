@@ -1,6 +1,7 @@
 "use strict";
 
 import type { DealInfo, FetchResult, GameConfig, GuildSettings } from "../../types";
+import { HASH_VERSION } from "../../shared/hashVersion";
 
 const { errorDetail, errorMessage } = require("../../shared/errors");
 
@@ -102,7 +103,8 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
         try {
           const results = await getLatestForAllGames(games);
           const seenPayload: Record<string, unknown> = {
-            updatesInitializing: false
+            updatesInitializing: false,
+            seenHashVersion: HASH_VERSION
           };
           for (const result of results) {
             if (result.latest) seenPayload[`seen.${result.game.key}`] = [result.latest.id];
@@ -181,7 +183,8 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
             {
               $set: {
                 seenDiscounts: initHashes,
-                discountsInitializing: false
+                discountsInitializing: false,
+                discountsHashVersion: HASH_VERSION
               },
               $unset: { discountsActivationId: "", discountsLastError: "" }
             },

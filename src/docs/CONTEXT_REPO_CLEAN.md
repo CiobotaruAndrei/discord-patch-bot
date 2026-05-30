@@ -149,6 +149,7 @@ Zone care inca trebuie urmarite:
 - Token-urile Discord, URI-urile Mongo si webhook-urile nu trebuie comise.
 - Docker trebuie sa ruleze procesul ca user non-root.
 - Prezentarea reducerilor trebuie sa fie robusta la date corupte: `buildDealEmbed` limiteaza procentul afisat la intervalul `[0, 100]`, astfel incat un snapshot `pendingDiscounts` reluat sau alterat sa nu poata produce procente imposibile in embed-uri.
+- Deduplicarea este versionata prin `HASH_VERSION` (`src/shared/hashVersion.ts`): guild-urile pastreaza `seenHashVersion`/`discountsHashVersion`. Daca algoritmul `stableUpdateId`/`dealHash` se schimba, cron-ul re-baseline-uieste silentios `seen`/`seenDiscounts` la elementele curente (fara notificari), in loc sa retrimita tot ca „nou". `REQUIRE_NATIVE_FUZZY=true` opreste botul la pornire cand addon-ul Rust lipseste, ca sa nu cada tacut pe fallback si sa rishte divergenta de hash. Ambele exista ca sa previna spam-ul masiv de notificari.
 
 ## Teste importante
 

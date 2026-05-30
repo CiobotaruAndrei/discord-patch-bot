@@ -1,5 +1,6 @@
 import type { Connection, Mongoose } from "mongoose";
 import type { LockToken, LoggerFunction } from "../../types";
+import { HASH_VERSION } from "../../shared/hashVersion";
 
 interface Migration {
   id: number;
@@ -74,11 +75,28 @@ const m4_trimSeenDiscounts: Migration = {
   }
 };
 
+const m5_backfillHashVersion: Migration = {
+  id: 5,
+  name: "backfill-seen-hash-version",
+  async up(db) {
+    const coll = db.collection("guilds");
+    await coll.updateMany(
+      { seenHashVersion: { $exists: false } },
+      { $set: { seenHashVersion: HASH_VERSION } }
+    );
+    await coll.updateMany(
+      { discountsHashVersion: { $exists: false } },
+      { $set: { discountsHashVersion: HASH_VERSION } }
+    );
+  }
+};
+
 const ALL_MIGRATIONS: Migration[] = [
   m1_addEnabledStores,
   m2_addMaxAbsolutePrice,
   m3_addEnabledGames,
-  m4_trimSeenDiscounts
+  m4_trimSeenDiscounts,
+  m5_backfillHashVersion
 ];
 
 const MIGRATION_LOCK_NAME = "db_migrations";

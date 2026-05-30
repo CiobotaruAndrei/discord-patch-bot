@@ -1,6 +1,7 @@
 "use strict";
 
 import type * as Mongoose from "mongoose";
+import { HASH_VERSION } from "../../shared/hashVersion";
 
 interface MongoModelsContext {
   mongoose: typeof Mongoose;
@@ -68,7 +69,10 @@ const guildSchema = new mongoose.Schema({
   enabledStores: { type: [String], default: [] },
   maxAbsolutePrice: { type: Number, default: 0 },
   notificationRoleId: { type: String, default: null },
-  discountRoleId: { type: String, default: null }
+  discountRoleId: { type: String, default: null },
+
+  seenHashVersion: { type: Number, default: HASH_VERSION },
+  discountsHashVersion: { type: Number, default: HASH_VERSION }
 }, { minimize: false });
 
 guildSchema.index({ subscribed: 1, notificationChannelId: 1 }, { background: true });

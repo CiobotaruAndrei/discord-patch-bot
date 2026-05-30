@@ -2,6 +2,7 @@
 
 import type { FilterQuery, Model } from "mongoose";
 import type { GuildSettings, DealInfo } from "../../types";
+import { HASH_VERSION } from "../../shared/hashVersion";
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
@@ -121,6 +122,16 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       disableFn: disableDiscountsForChannelError
     });
     if (abort) return;
+
+    if (Number((guild as { discountsHashVersion?: number }).discountsHashVersion ?? 0) !== HASH_VERSION) {
+      const { orderedHashes } = getDealsHashIndex(deals);
+      await GuildModel.updateOne(
+        { _id: guild._id, discountsSubscribed: true, discountChannelId: channel.id } as FilterQuery<GuildSettings>,
+        { $set: { seenDiscounts: orderedHashes, pendingDiscounts: [], discountsHashVersion: HASH_VERSION } }
+      );
+      logger("INFO", "CRON_DISCOUNTS", `Re-baseline silentios seenDiscounts pentru guild ${guild._id} dupa schimbare de hashVersion`);
+      return;
+    }
 
     const seenSet = new Set(
       Array.isArray((guild as { seenDiscounts?: unknown[] }).seenDiscounts)
