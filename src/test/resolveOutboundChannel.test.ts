@@ -128,10 +128,16 @@ test("resolveOutboundChannel: channel without Send/Embed perms triggers disable"
   assert.match(calls[0].reason, /permisiuni/);
 });
 
-test("resolveOutboundChannel: healthy channel returns the channel without aborting", async () => {
-  const { resolveOutboundChannel } = buildResolver({ canSendEmbeds: () => true });
+test("resolveOutboundChannel: healthy channel returns a rate-limited channel that gates send", async () => {
+  const order: string[] = [];
+  const acquireSendSlot = async () => { order.push("acquire"); };
+  const { resolveOutboundChannel } = buildResolver({ canSendEmbeds: () => true, acquireSendSlot });
   const { fn: disableFn, calls } = makeDisableFnStub();
-  const fakeChannel = { id: "channel-5", isTextBased: () => true };
+  const fakeChannel = {
+    id: "channel-5",
+    isTextBased: () => true,
+    send: async (payload: unknown) => { order.push("send"); return { id: "msg", payload }; }
+  };
   const client = makeClient(fakeChannel);
 
   const result = await resolveOutboundChannel({
@@ -143,8 +149,11 @@ test("resolveOutboundChannel: healthy channel returns the channel without aborti
   });
 
   assert.equal(result.abort, false);
-  assert.equal(result.channel, fakeChannel);
   assert.equal(calls.length, 0, "no disable on happy path");
+  const channel = result.channel as { id: string; send: (payload: unknown) => Promise<unknown> };
+  assert.equal(channel.id, "channel-5", "id-ul canalului este pastrat");
+  await channel.send({ embeds: [] });
+  assert.deepEqual(order, ["acquire", "send"], "rate limiter-ul este asteptat inainte de send");
 });
 
 test("isPermanentDiscordError recognizes all four permanent codes", () => {

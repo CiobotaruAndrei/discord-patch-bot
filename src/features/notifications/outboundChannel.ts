@@ -1,4 +1,5 @@
 import { errorMessage } from "../../shared/errors";
+import { defaultDiscordSendLimiter } from "./discordRateLimiter";
 
 export const DISCORD_PERMANENT_ERROR_CODES = new Set([10003, 10004, 50001, 50013]);
 
@@ -32,6 +33,18 @@ export interface ResolveOutboundChannelResult {
 export interface OutboundChannelResolverDeps {
   logger: NotificationLogger;
   canSendEmbeds(channel: unknown, botId: string): boolean;
+  acquireSendSlot?: () => Promise<void>;
+}
+
+function rateLimitedChannel(channel: unknown, acquireSendSlot: () => Promise<void>): unknown {
+  const raw = channel as { id?: unknown; send: (payload: unknown) => Promise<unknown> };
+  return {
+    id: raw.id,
+    send: async (payload: unknown) => {
+      await acquireSendSlot();
+      return raw.send(payload);
+    }
+  };
 }
 
 export function isPermanentDiscordError(err: unknown): boolean {
@@ -44,7 +57,8 @@ async function disableSafely(disableFn: DisableChannelFn, guildId: string, chann
   await Promise.resolve(disableFn(guildId, channelId, message)).catch(() => null);
 }
 
-export function createOutboundChannelResolver({ logger, canSendEmbeds }: OutboundChannelResolverDeps) {
+export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSendSlot }: OutboundChannelResolverDeps) {
+  const acquire = acquireSendSlot || defaultDiscordSendLimiter.acquire;
   return async function resolveOutboundChannel({
     client,
     guild,
@@ -80,6 +94,6 @@ export function createOutboundChannelResolver({ logger, canSendEmbeds }: Outboun
       return { channel: null, abort: true };
     }
 
-    return { channel, abort: false };
+    return { channel: rateLimitedChannel(channel, acquire), abort: false };
   };
 }
