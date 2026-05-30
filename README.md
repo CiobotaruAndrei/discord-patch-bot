@@ -24,9 +24,9 @@ Bot Discord pentru notificari despre update-uri, DLC-uri si reduceri pentru jocu
 - `/start reduceri` - activeaza notificarile de reduceri pentru server.
 - `/stop updates` - dezactiveaza notificarile de update-uri.
 - `/stop reduceri` - dezactiveaza notificarile de reduceri.
-- `/set games add` - adauga jocuri urmarite.
-- `/set games remove` - elimina jocuri urmarite.
-- `/set games add|remove|reset|list` - gestioneaza jocurile urmarite pentru update-uri.
+- `/set mode|mindiscount|maxprice|free|paid|currency|stores` - preferinte de notificari si filtre pentru server.
+- `/set games add|remove|list|reset` - gestioneaza jocurile urmarite pentru update-uri.
+- `/set role updates|discounts` - seteaza rolul de ping pentru notificari (gol = oprit).
 - `/latest` - afiseaza ultimele update-uri cunoscute.
 - `/dlc` - afiseaza DLC-uri cunoscute.
 - `/status <joc>` - verifica statusul serverelor pentru jocul cerut.

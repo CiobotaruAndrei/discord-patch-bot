@@ -18,6 +18,7 @@
     "lint": "npm run typecheck && npm run typecheck:strict",
     "test": "npm run build && node --test dist/test",
     "test:functional": "npm run test",
+    "test:e2e": "npm run build && node --test dist/test/startUpdatesFlow.e2e.test.js dist/test/startDiscountsFlow.e2e.test.js",
     "test:regression": "npm run build && node --test dist/test/commands-regression.test.js dist/test/configValidator.test.js",
     "audit": "npm audit --omit=dev --audit-level=moderate",
     "precommit": "npm run check && npm run audit",
