@@ -2,6 +2,7 @@
 
 import type { FilterQuery, Model } from "mongoose";
 import type { GuildSettings, DealInfo } from "../../types";
+import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
@@ -154,6 +155,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     }
 
     const remaining: PendingDiscount[] = [];
+    const deadLettered: DeadLetterEntry[] = [];
     let sentCount = 0;
     for (let i = 0; i < pending.length; i++) {
       const item = pending[i];
@@ -191,15 +193,22 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
         }
         const retry: PendingDiscount = { ...item, attempts: (item.attempts || 0) + 1 };
         if (retry.attempts < PENDING_DISCOUNT_MAX_ATTEMPTS) remaining.push(retry);
+        else deadLettered.push(buildDeadLetterEntry({
+          kind: "discount", itemId: item.hash, title: (item.snapshot as { title?: unknown } | null)?.title,
+          reason: transientErrorMessage(err), attempts: retry.attempts
+        }));
         remaining.push(...pending.slice(i + 1));
         logger("WARN", "CRON_DISCOUNTS", "Nu am putut trimite reducere", transientErrorMessage(err));
         break;
       }
     }
 
+    const discountUpdate: Record<string, unknown> = { $set: { pendingDiscounts: remaining.slice(-PENDING_DISCOUNTS_LIMIT) } };
+    const push = deadLetterPush(deadLettered);
+    if (push) discountUpdate.$push = push;
     await GuildModel.updateOne(
       { _id: guild._id, discountsSubscribed: true, discountChannelId: channel.id } as FilterQuery<GuildSettings>,
-      { $set: { pendingDiscounts: remaining.slice(-PENDING_DISCOUNTS_LIMIT) } }
+      discountUpdate
     );
   }
 

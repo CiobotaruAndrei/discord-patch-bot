@@ -55,6 +55,7 @@ src/
     command-runtime/
     command-security/
     notifications/
+      deadLetter.ts
       discountNotificationService.ts
       index.ts
       outboundChannel.ts
@@ -101,9 +102,12 @@ Zona de notificari este impartita astfel:
 - `updateNotificationService.ts` construieste si trimite notificarile pentru update-uri;
 - `discountNotificationService.ts` construieste si trimite notificarile pentru reduceri;
 - `outboundChannel.ts` rezolva canalul Discord de trimitere;
-- `seenRepository.ts` gestioneaza deduplicarea prin `seenUpdates` si `seenDiscounts`.
+- `seenRepository.ts` gestioneaza deduplicarea prin `seenUpdates` si `seenDiscounts`;
+- `deadLetter.ts` defineste forma intrarii dead-letter si plafonul cozii.
 
 Aceasta impartire reduce riscul de copy-paste in cron jobs si permite teste functionale mai clare.
+
+Cand o livrare (update sau reducere) epuizeaza toate reincercarile (`PENDING_UPDATE_MAX_ATTEMPTS` / `PENDING_DISCOUNT_MAX_ATTEMPTS`), item-ul nu mai este aruncat silentios: este persistat in campul `notificationDeadLetter` de pe documentul guild-ului, impreuna cu motivul, numarul de incercari si momentul esecului. Coada este plafonata la ultimele `NOTIFICATION_DEAD_LETTER_LIMIT` intrari prin `$slice`, astfel incat documentul nu creste nelimitat. Scopul este vizibilitate asupra livrarilor esuate definitiv si pastrarea informatiei la restart.
 
 ## Native Rust/N-API
 
