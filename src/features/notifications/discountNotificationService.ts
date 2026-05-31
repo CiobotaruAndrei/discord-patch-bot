@@ -4,6 +4,8 @@ import type { FilterQuery, Model } from "mongoose";
 import type { GuildSettings, DealInfo } from "../../types";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
 
+const DISCORD_EMBEDS_PER_MESSAGE = 10;
+
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
 interface MongoWriteResult { matchedCount?: number; modifiedCount?: number }
@@ -158,49 +160,69 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
 
     const remaining: PendingDiscount[] = [];
     const deadLettered: DeadLetterEntry[] = [];
-    let sentCount = 0;
-    for (let i = 0; i < pending.length; i++) {
-      const item = pending[i];
+    const currency = (guild as { currency?: string }).currency || DEFAULT_CURRENCY;
+    const notificationMode = (guild as { notificationMode?: string }).notificationMode || "detailed";
+
+    function retryOrDeadLetter(item: PendingDiscount, err: unknown): void {
+      const retry: PendingDiscount = { ...item, attempts: (item.attempts || 0) + 1 };
+      if (retry.attempts < PENDING_DISCOUNT_MAX_ATTEMPTS) remaining.push(retry);
+      else deadLettered.push(buildDeadLetterEntry({
+        kind: "discount", itemId: item.hash, title: (item.snapshot as { title?: unknown } | null)?.title,
+        reason: transientErrorMessage(err), attempts: retry.attempts
+      }));
+    }
+
+    const batch: Array<{ item: PendingDiscount; embed: unknown }> = [];
+    let idx = 0;
+    for (; idx < pending.length && batch.length < MAX_DEALS_PER_CYCLE; idx++) {
+      const item = pending[idx];
       if (!item) continue;
-      if (sentCount >= MAX_DEALS_PER_CYCLE) {
-        remaining.push(...pending.slice(i));
-        break;
-      }
       let claimed = false;
       try {
         const claim = await claimSeenDiscount(String(guild._id), channel.id, item.hash);
         if ((claim.matchedCount ?? 0) === 0) continue;
         claimed = true;
-        const currency = (guild as { currency?: string }).currency || DEFAULT_CURRENCY;
         const dealToSend = await enrichDealData(item.snapshot as DealInfo, currency);
-        const sendPayload: Record<string, unknown> = {
-          embeds: [buildDealEmbed(dealToSend, (guild as { notificationMode?: string }).notificationMode || "detailed", currency)]
-        };
-        const discountRoleId = (guild as { discountRoleId?: string }).discountRoleId;
-        if (sentCount === 0 && discountRoleId) {
-          sendPayload.content = `<@&${discountRoleId}>`;
-          sendPayload.allowedMentions = { roles: [discountRoleId] };
-        }
-        await channel.send(sendPayload);
-        sentCount++;
-        await sleepIfPositive(DISCORD_SEND_DELAY_MS);
+        batch.push({ item, embed: buildDealEmbed(dealToSend, notificationMode, currency) });
       } catch (err: unknown) {
         if (claimed) await rollbackSeenDiscount(String(guild._id), item.hash).catch(() => null);
         if (isPermanentDiscordError(err)) {
           const reason = `Discord cod ${(err as { code?: unknown }).code}: ${transientErrorMessage(err)}`;
           await disableDiscountsForChannelError(String(guild._id), channel.id, reason).catch(() => null);
           logger("WARN", "CRON_DISCOUNTS", `Disable discounts pentru guild ${guild._id} - cod permanent`, reason);
-          remaining.push(...pending.slice(i + 1));
+          idx = pending.length;
           break;
         }
-        const retry: PendingDiscount = { ...item, attempts: (item.attempts || 0) + 1 };
-        if (retry.attempts < PENDING_DISCOUNT_MAX_ATTEMPTS) remaining.push(retry);
-        else deadLettered.push(buildDeadLetterEntry({
-          kind: "discount", itemId: item.hash, title: (item.snapshot as { title?: unknown } | null)?.title,
-          reason: transientErrorMessage(err), attempts: retry.attempts
-        }));
-        remaining.push(...pending.slice(i + 1));
-        logger("WARN", "CRON_DISCOUNTS", "Nu am putut trimite reducere", transientErrorMessage(err));
+        retryOrDeadLetter(item, err);
+        logger("WARN", "CRON_DISCOUNTS", "Nu am putut pregati reducerea", transientErrorMessage(err));
+        idx++;
+        break;
+      }
+    }
+    remaining.push(...pending.slice(idx));
+
+    const discountRoleId = (guild as { discountRoleId?: string }).discountRoleId;
+    for (let start = 0; start < batch.length; start += DISCORD_EMBEDS_PER_MESSAGE) {
+      const chunk = batch.slice(start, start + DISCORD_EMBEDS_PER_MESSAGE);
+      const sendPayload: Record<string, unknown> = { embeds: chunk.map(entry => entry.embed) };
+      if (start === 0 && discountRoleId) {
+        sendPayload.content = `<@&${discountRoleId}>`;
+        sendPayload.allowedMentions = { roles: [discountRoleId] };
+      }
+      try {
+        await channel.send(sendPayload);
+        await sleepIfPositive(DISCORD_SEND_DELAY_MS);
+      } catch (err: unknown) {
+        const failed = batch.slice(start);
+        for (const entry of failed) await rollbackSeenDiscount(String(guild._id), entry.item.hash).catch(() => null);
+        if (isPermanentDiscordError(err)) {
+          const reason = `Discord cod ${(err as { code?: unknown }).code}: ${transientErrorMessage(err)}`;
+          await disableDiscountsForChannelError(String(guild._id), channel.id, reason).catch(() => null);
+          logger("WARN", "CRON_DISCOUNTS", `Disable discounts pentru guild ${guild._id} - cod permanent`, reason);
+          break;
+        }
+        for (const entry of failed) retryOrDeadLetter(entry.item, err);
+        logger("WARN", "CRON_DISCOUNTS", "Nu am putut trimite reduceri", transientErrorMessage(err));
         break;
       }
     }

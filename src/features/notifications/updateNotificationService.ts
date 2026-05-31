@@ -5,6 +5,8 @@ import type { GuildSettings } from "../../types";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
 
+const DISCORD_EMBEDS_PER_MESSAGE = 10;
+
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
 interface MongoWriteResult { matchedCount?: number; modifiedCount?: number }
@@ -105,54 +107,62 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       PENDING_UPDATES_PER_GAME_LIMIT
     }, { guild, latestResults });
 
-    let sentCount = 0;
+    const notificationMode = (guild as { notificationMode?: string }).notificationMode || "detailed";
+    const batch: Array<{ gameKey: string; item: PendingUpdate; embed: unknown }> = [];
     let lastProcessedGameKey: string | null = (guild as { lastProcessedGameKey?: string | null }).lastProcessedGameKey || null;
-    while (sentCount < MAX_UPDATES_PER_CYCLE) {
+    while (batch.length < MAX_UPDATES_PER_CYCLE) {
       const keys = Array.from(pendingByGame.keys()).filter(key => (pendingByGame.get(key) || []).length);
       if (!keys.length) break;
       const gameKey = rotateAfter(keys, lastProcessedGameKey)[0] as string;
       const queue = pendingByGame.get(gameKey) || [];
       const next = queue.shift();
-      if (!next) { pendingByGame.delete(gameKey); continue; }
-      const game = resultByGameKey.get(gameKey)?.game || { name: gameKey, key: gameKey };
+      if (queue.length) pendingByGame.set(gameKey, queue);
+      else pendingByGame.delete(gameKey);
+      if (!next) continue;
+      lastProcessedGameKey = gameKey;
       const claim = await claimSeenUpdate(String(guild._id), channel.id, gameKey, next.id);
-      if ((claim.matchedCount ?? 0) === 0) {
-        if (queue.length) pendingByGame.set(gameKey, queue);
-        else pendingByGame.delete(gameKey);
-        continue;
+      if ((claim.matchedCount ?? 0) === 0) continue;
+      const game = resultByGameKey.get(gameKey)?.game || { name: gameKey, key: gameKey };
+      batch.push({ gameKey, item: next, embed: buildUpdateEmbed(game.name, next, notificationMode) });
+    }
+
+    const notificationRoleId = (guild as { notificationRoleId?: string }).notificationRoleId;
+    for (let start = 0; start < batch.length; start += DISCORD_EMBEDS_PER_MESSAGE) {
+      const chunk = batch.slice(start, start + DISCORD_EMBEDS_PER_MESSAGE);
+      const sendPayload: Record<string, unknown> = { embeds: chunk.map(entry => entry.embed) };
+      if (start === 0 && notificationRoleId) {
+        sendPayload.content = `<@&${notificationRoleId}>`;
+        sendPayload.allowedMentions = { roles: [notificationRoleId] };
       }
       try {
-        const sendPayload: Record<string, unknown> = {
-          embeds: [buildUpdateEmbed(game.name, next, (guild as { notificationMode?: string }).notificationMode || "detailed")]
-        };
-        const notificationRoleId = (guild as { notificationRoleId?: string }).notificationRoleId;
-        if (sentCount === 0 && notificationRoleId) {
-          sendPayload.content = `<@&${notificationRoleId}>`;
-          sendPayload.allowedMentions = { roles: [notificationRoleId] };
-        }
         await channel.send(sendPayload);
-        sentCount++;
-        lastProcessedGameKey = gameKey;
         await sleepIfPositive(DISCORD_SEND_DELAY_MS);
       } catch (err: unknown) {
-        await rollbackSeenUpdate(String(guild._id), gameKey, next.id).catch(() => null);
+        const failed = batch.slice(start);
+        for (const entry of failed) await rollbackSeenUpdate(String(guild._id), entry.gameKey, entry.item.id).catch(() => null);
         if (isPermanentDiscordError(err)) {
           const reason = `Discord cod ${(err as { code?: unknown }).code}: ${transientErrorMessage(err)}`;
           await disableUpdatesForChannelError(String(guild._id), channel.id, reason).catch(() => null);
           logger("WARN", "CRON_UPDATES", `Disable updates pentru guild ${guild._id} - cod permanent`, reason);
           break;
         }
-        next.attempts = (next.attempts || 0) + 1;
-        if (next.attempts < PENDING_UPDATE_MAX_ATTEMPTS) queue.unshift(next);
-        else deadLettered.push(buildDeadLetterEntry({
-          kind: "update", itemId: next.id, title: (next as { title?: unknown }).title,
-          reason: transientErrorMessage(err), attempts: next.attempts
-        }));
-        logger("WARN", "CRON_UPDATES", `Nu am putut trimite update pentru ${gameKey}`, transientErrorMessage(err));
+        for (let j = failed.length - 1; j >= 0; j--) {
+          const entry = failed[j];
+          entry.item.attempts = (entry.item.attempts || 0) + 1;
+          if (entry.item.attempts < PENDING_UPDATE_MAX_ATTEMPTS) {
+            const requeue = pendingByGame.get(entry.gameKey) || [];
+            requeue.unshift(entry.item);
+            pendingByGame.set(entry.gameKey, requeue);
+          } else {
+            deadLettered.push(buildDeadLetterEntry({
+              kind: "update", itemId: entry.item.id, title: (entry.item as { title?: unknown }).title,
+              reason: transientErrorMessage(err), attempts: entry.item.attempts
+            }));
+          }
+        }
+        logger("WARN", "CRON_UPDATES", `Nu am putut trimite update-uri pentru guild ${guild._id}`, transientErrorMessage(err));
         break;
       }
-      if (queue.length) pendingByGame.set(gameKey, queue);
-      else pendingByGame.delete(gameKey);
     }
 
     const pendingObject = mapToObject(pendingByGame);
