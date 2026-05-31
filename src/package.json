@@ -13,6 +13,7 @@
     "check:config": "npm run build:ts && node dist/scripts/check-config.js",
     "check:dependencies": "npm run build:ts && node dist/scripts/check-dependencies.js",
     "check:syntax": "npm run build:ts && node dist/scripts/check-syntax.js",
+    "benchmark": "npm run build:ts && node dist/scripts/notificationBenchmark.js",
     "typecheck": "tsc --noEmit",
     "typecheck:strict": "tsc -p tsconfig.strict.json",
     "lint": "npm run typecheck && npm run typecheck:strict",
