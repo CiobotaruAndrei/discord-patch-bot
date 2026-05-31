@@ -44,7 +44,7 @@ function createNotificationRuntime(deps: NotificationsContext) {
     validatePendingDiscountSnapshot, getLatestForAllGames, fetchDeals,
     enrichDealData, dealHash, canSendEmbeds, buildUpdateEmbed,
     buildDealEmbed, setUpdatesCache, getDealsCacheData, setDealsCache,
-    saveFetchSnapshot,
+    saveFetchSnapshot, loadFetchSnapshot,
     normalizeCurrencyKey, normalizePendingUpdateArray,
     normalizePendingDiscountArray, toEntries, rotateAfter, mapToObject,
     dealPassesFilters, sleepIfPositive, withMongoRetry, OP_UPDATE_OPTS,
@@ -57,6 +57,7 @@ function createNotificationRuntime(deps: NotificationsContext) {
   } = deps;
 
   const persistFetchSnapshot = saveFetchSnapshot as ((id: string, payload: unknown) => Promise<void>) | undefined;
+  const loadSnapshot = loadFetchSnapshot as ((id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>) | undefined;
 
   const resolveOutboundChannel = createOutboundChannelResolver({ logger, canSendEmbeds });
 
@@ -73,7 +74,7 @@ function createNotificationRuntime(deps: NotificationsContext) {
     claimSeenUpdate, rollbackSeenUpdate, disableUpdatesForChannelError,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingUpdateArray, toEntries, rotateAfter, mapToObject,
-    getLatestForAllGames, setUpdatesCache, persistFetchSnapshot, buildUpdateEmbed, sleepIfPositive,
+    getLatestForAllGames, setUpdatesCache, persistFetchSnapshot, loadFetchSnapshot: loadSnapshot, buildUpdateEmbed, sleepIfPositive,
     PENDING_UPDATE_MAX_AGE_MS, PENDING_UPDATE_MAX_ATTEMPTS,
     PENDING_UPDATES_PER_GAME_LIMIT, MAX_UPDATES_PER_CYCLE,
     DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY
@@ -85,7 +86,7 @@ function createNotificationRuntime(deps: NotificationsContext) {
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingDiscountArray, validatePendingDiscountSnapshot,
     normalizeCurrencyKey, dealPassesFilters, dealHash,
-    fetchDeals, getDealsCacheData, setDealsCache, persistFetchSnapshot, enrichDealData, buildDealEmbed,
+    fetchDeals, getDealsCacheData, setDealsCache, persistFetchSnapshot, loadFetchSnapshot: loadSnapshot, enrichDealData, buildDealEmbed,
     sleepIfPositive,
     DEFAULT_CURRENCY, DEALS_HISTORY_LIMIT,
     PENDING_DISCOUNT_MAX_ATTEMPTS, PENDING_DISCOUNT_GRACE_CYCLES,

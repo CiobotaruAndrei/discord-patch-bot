@@ -61,6 +61,7 @@ export interface DiscountNotificationServiceDeps {
   getDealsCacheData: (currency: string) => DealInfo[] | null;
   setDealsCache: (currency: string, deals: DealInfo[]) => void;
   persistFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
+  loadFetchSnapshot?: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
   enrichDealData: (deal: DealInfo, currency: string) => Promise<DealInfo>;
   buildDealEmbed: (deal: DealInfo, mode: string, currency: string) => unknown;
 
@@ -88,7 +89,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingDiscountArray, validatePendingDiscountSnapshot,
     normalizeCurrencyKey, dealPassesFilters, dealHash,
-    fetchDeals, getDealsCacheData, setDealsCache, persistFetchSnapshot, enrichDealData, buildDealEmbed,
+    fetchDeals, getDealsCacheData, setDealsCache, persistFetchSnapshot, loadFetchSnapshot, enrichDealData, buildDealEmbed,
     sleepIfPositive,
     DEFAULT_CURRENCY, PENDING_DISCOUNT_MAX_ATTEMPTS, PENDING_DISCOUNT_GRACE_CYCLES,
     PENDING_DISCOUNTS_LIMIT, MAX_DEALS_PER_CYCLE, DISCORD_SEND_DELAY_MS,
@@ -232,6 +233,13 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
           setDealsCache(cur, deals);
           if (persistFetchSnapshot) await persistFetchSnapshot(`deals:${cur}`, deals).catch(() => undefined);
           return deals;
+        }).catch(async err => {
+          const fallback = loadFetchSnapshot ? await loadFetchSnapshot(`deals:${cur}`).catch(() => null) : null;
+          if (fallback && Array.isArray(fallback.payload) && fallback.payload.length) {
+            logger("WARN", "CRON_DISCOUNTS", `Fetch reduceri esuat pentru ${cur} — folosesc snapshot-ul din event store`, transientErrorMessage(err));
+            return fallback.payload as DealInfo[];
+          }
+          throw err;
         }));
       }
       return dealsPromises.get(cur) as Promise<DealInfo[]>;

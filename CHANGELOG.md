@@ -20,6 +20,7 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- Faza de dispatch (cron) este acum rezistenta la caderea fetch-ului prin event store: daca `getLatestForAllGames` (update-uri) sau `fetchDeals` (reduceri, per moneda) esueaza, in loc sa abandoneze ciclul / sa sara guild-ul, dispatch-ul citeste ultimul snapshot persistat (`loadFetchSnapshot` — `updates` respectiv `deals:<MONEDA>`) si continua trimiterile de pe ultimele date bune. Deduplicarea `seen` previne re-trimiterea, iar TTL-ul snapshot-ului limiteaza vechimea; daca nu exista snapshot, comportamentul ramane cel vechi (abandon/skip). Astfel dispatch-ul nu mai depinde de un fetch reusit in acel moment. Acoperit de teste in `fetchSnapshots.functional.test.ts`.
 - Build-ul si start-ul sunt separate: `npm run build` compileaza, iar `npm start` ruleaza `dist/app/main.js`.
 - CI foloseste `npm ci` pe baza `package-lock.json`.
 - Dependintele runtime si dev sunt pin-uite exact in `package.json` si lockfile.
