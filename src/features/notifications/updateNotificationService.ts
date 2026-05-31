@@ -52,6 +52,7 @@ export interface UpdateNotificationServiceDeps {
 
   getLatestForAllGames: (games: unknown[], shouldAbort?: (() => boolean) | null) => Promise<UpdateFetchResult[]>;
   setUpdatesCache: (data: UpdateFetchResult[]) => void;
+  persistFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
   buildUpdateEmbed: (gameName: string, latest: unknown, mode: string) => unknown;
 
   sleepIfPositive: (ms: number) => Promise<void>;
@@ -76,7 +77,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     claimSeenUpdate, rollbackSeenUpdate, disableUpdatesForChannelError,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingUpdateArray, toEntries, rotateAfter, mapToObject,
-    getLatestForAllGames, setUpdatesCache, buildUpdateEmbed, sleepIfPositive,
+    getLatestForAllGames, setUpdatesCache, persistFetchSnapshot, buildUpdateEmbed, sleepIfPositive,
     PENDING_UPDATE_MAX_AGE_MS, PENDING_UPDATE_MAX_ATTEMPTS,
     PENDING_UPDATES_PER_GAME_LIMIT, MAX_UPDATES_PER_CYCLE,
     DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY
@@ -203,6 +204,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
 
       if (optimizedGames.length === games.length) {
         setUpdatesCache(latestResults);
+        if (persistFetchSnapshot) await persistFetchSnapshot("updates", latestResults).catch(() => undefined);
       }
     } catch (err: unknown) {
       logger("ERROR", "CRON_UPDATES", "Nu am putut prelua update-urile", transientErrorMessage(err));

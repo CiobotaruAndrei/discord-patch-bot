@@ -44,6 +44,7 @@ function createNotificationRuntime(deps: NotificationsContext) {
     validatePendingDiscountSnapshot, getLatestForAllGames, fetchDeals,
     enrichDealData, dealHash, canSendEmbeds, buildUpdateEmbed,
     buildDealEmbed, setUpdatesCache, getDealsCacheData, setDealsCache,
+    saveFetchSnapshot,
     normalizeCurrencyKey, normalizePendingUpdateArray,
     normalizePendingDiscountArray, toEntries, rotateAfter, mapToObject,
     dealPassesFilters, sleepIfPositive, withMongoRetry, OP_UPDATE_OPTS,
@@ -54,6 +55,8 @@ function createNotificationRuntime(deps: NotificationsContext) {
     PENDING_DISCOUNT_MAX_ATTEMPTS, PENDING_DISCOUNT_GRACE_CYCLES,
     PENDING_DISCOUNTS_LIMIT, MAX_DEALS_PER_CYCLE
   } = deps;
+
+  const persistFetchSnapshot = saveFetchSnapshot as ((id: string, payload: unknown) => Promise<void>) | undefined;
 
   const resolveOutboundChannel = createOutboundChannelResolver({ logger, canSendEmbeds });
 
@@ -70,7 +73,7 @@ function createNotificationRuntime(deps: NotificationsContext) {
     claimSeenUpdate, rollbackSeenUpdate, disableUpdatesForChannelError,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingUpdateArray, toEntries, rotateAfter, mapToObject,
-    getLatestForAllGames, setUpdatesCache, buildUpdateEmbed, sleepIfPositive,
+    getLatestForAllGames, setUpdatesCache, persistFetchSnapshot, buildUpdateEmbed, sleepIfPositive,
     PENDING_UPDATE_MAX_AGE_MS, PENDING_UPDATE_MAX_ATTEMPTS,
     PENDING_UPDATES_PER_GAME_LIMIT, MAX_UPDATES_PER_CYCLE,
     DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY
@@ -82,7 +85,7 @@ function createNotificationRuntime(deps: NotificationsContext) {
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingDiscountArray, validatePendingDiscountSnapshot,
     normalizeCurrencyKey, dealPassesFilters, dealHash,
-    fetchDeals, getDealsCacheData, setDealsCache, enrichDealData, buildDealEmbed,
+    fetchDeals, getDealsCacheData, setDealsCache, persistFetchSnapshot, enrichDealData, buildDealEmbed,
     sleepIfPositive,
     DEFAULT_CURRENCY, DEALS_HISTORY_LIMIT,
     PENDING_DISCOUNT_MAX_ATTEMPTS, PENDING_DISCOUNT_GRACE_CYCLES,
