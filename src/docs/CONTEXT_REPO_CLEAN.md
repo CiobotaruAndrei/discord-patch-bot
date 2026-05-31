@@ -111,6 +111,8 @@ Cand o livrare (update sau reducere) epuizeaza toate reincercarile (`PENDING_UPD
 
 Faza de fetch are un event store: dupa fiecare ciclu cron reusit, rezultatele normalizate se persista in DB prin `infra/mongo/fetchSnapshots.ts` (`saveFetchSnapshot`) — cheia `updates` pentru lista completa de update-uri si `deals:<MONEDA>` pentru reduceri. Scrierile sunt best-effort (nu blocheaza cron-ul) si documentele au TTL. La pornire, `app/main.ts` hidrateaza cache-urile in-memory din aceste snapshot-uri (`loadFetchSnapshot` / `loadDealsFetchSnapshots`, expuse setter-ele `setUpdatesCache` / `setDealsCache` prin `commandRegistry`) cand sunt suficient de proaspete, deci comenzile servesc imediat ultimele date dupa restart. Acest store este si baza peste care un dispatcher separat va putea citi evenimentele, decupland fetch-ul de trimitere.
 
+Ca prim pas de decuplare, faza de dispatch foloseste deja event store-ul ca rezerva: daca fetch-ul live esueaza in ciclul cron (`getLatestForAllGames` pentru update-uri sau `fetchDeals` pentru reduceri), dispatch-ul citeste ultimul snapshot persistat (`loadFetchSnapshot`) si continua trimiterile de pe ultimele date bune in loc sa abandoneze ciclul. Deduplicarea `seen` previne re-trimiterea, iar daca nu exista snapshot comportamentul ramane cel vechi (abandon/skip).
+
 ## Native Rust/N-API
 
 `src/native/src/lib.rs` contine doar functii deterministe, fara Discord, Mongo sau HTTP:
