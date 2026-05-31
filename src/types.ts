@@ -357,6 +357,7 @@ export interface HttpRequestOptions {
   maxContentLength?: number;
   maxBodyLength?: number;
   signal?: AbortSignal;
+  acceptNotModified?: boolean;
   [key: string]: unknown;
 }
 

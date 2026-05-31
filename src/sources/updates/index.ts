@@ -120,6 +120,7 @@ interface UpdatesContext {
   CIRCUIT_BREAKER_JITTER_MS: number;
   SCHEMA_DRIFT_THRESHOLD: number;
   httpReq: HttpReq;
+  conditionalGet: <T>(url: string, parse: (data: unknown) => T | Promise<T>, options?: HttpRequestOptions) => Promise<T>;
   fetchWithProxy: (targetUrl: string, options?: HttpRequestOptions) => Promise<string>;
   withInflightTimeout: WithInflightTimeout;
   trackInflight: TrackInflight;
@@ -184,30 +185,30 @@ function isLikelyPatchNote(item: SteamNewsItem | RssItem | Record<string, unknow
 }
 
 async function fetchSteamUpdate(game: GameConfig): Promise<NormalizedUpdate> {
-  const { httpReq, normalizeUpdate, cleanText } = runtimeContext;
-  const response = await httpReq("GET",
-    `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${game.appId}&count=50&format=json`,
-    { largeJson: true });
-  const data = response.data as SteamNewsResponse;
-  const patchNotes = (data.appnews?.newsitems || [])
-    .filter((item) => (item.feed_type === 1 || item.feedname === "steam_community_announcements")
-      && isGoodSteamArticleUrl(item.url) && isLikelyPatchNote(item))
-    .sort((a, b) => Number(b.date || 0) - Number(a.date || 0));
-  if (!patchNotes.length) throw new Error("Lipsă patch notes Steam valabile.");
-  const latest = patchNotes[0];
-  if (latest.gid === undefined || latest.gid === null || latest.gid === "") {
-    throw new Error("Steam newsitem fără gid — posibil schema drift în feed-ul ISteamNews.");
-  }
-  const rawContents = String(latest.contents || "").replace(/https?:\/\/[^\s]+/gi, "").replace(/\[.*?\]/g, " ");
-  const timestamp = computeSteamTimestamp(latest.date);
-  return normalizeUpdate({
-    id: String(latest.gid),
-    title: cleanText(latest.title),
-    link: String(latest.url),
-    excerpt: rawContents,
-    fullText: rawContents,
-    timestamp
-  });
+  const { conditionalGet, normalizeUpdate, cleanText } = runtimeContext;
+  const url = `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${game.appId}&count=50&format=json`;
+  return conditionalGet(url, (raw) => {
+    const data = raw as SteamNewsResponse;
+    const patchNotes = (data.appnews?.newsitems || [])
+      .filter((item) => (item.feed_type === 1 || item.feedname === "steam_community_announcements")
+        && isGoodSteamArticleUrl(item.url) && isLikelyPatchNote(item))
+      .sort((a, b) => Number(b.date || 0) - Number(a.date || 0));
+    if (!patchNotes.length) throw new Error("Lipsă patch notes Steam valabile.");
+    const latest = patchNotes[0];
+    if (latest.gid === undefined || latest.gid === null || latest.gid === "") {
+      throw new Error("Steam newsitem fără gid — posibil schema drift în feed-ul ISteamNews.");
+    }
+    const rawContents = String(latest.contents || "").replace(/https?:\/\/[^\s]+/gi, "").replace(/\[.*?\]/g, " ");
+    const timestamp = computeSteamTimestamp(latest.date);
+    return normalizeUpdate({
+      id: String(latest.gid),
+      title: cleanText(latest.title),
+      link: String(latest.url),
+      excerpt: rawContents,
+      fullText: rawContents,
+      timestamp
+    });
+  }, { largeJson: true });
 }
 
 function computeSteamTimestamp(rawDate: unknown): string {
@@ -429,54 +430,56 @@ async function fetchIntelUpdate(game: GameConfig): Promise<NormalizedUpdate> {
 }
 
 async function fetchMinecraftUpdate(): Promise<NormalizedUpdate> {
-  const { httpReq, normalizeUpdate } = runtimeContext;
-  const r = await httpReq("GET", "https://pistonmeta.mojang.com/mc/game/version_manifest_v2.json",
-    { largeJson: true });
-  const manifest = r.data as MinecraftVersionManifest;
-  const v = manifest.latest?.release;
-  if (!v) throw new Error("Lipsă versiune JSON");
-  return normalizeUpdate({
-    id: v,
-    title: `Minecraft ${v}`,
-    link: `https://www.minecraft.net/en-us/article/minecraft-java-edition-${String(v).replace(/\./g, "-")}`,
-    excerpt: `Versiunea ${v}`,
-    thumbnail: "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg"
-  });
+  const { conditionalGet, normalizeUpdate } = runtimeContext;
+  return conditionalGet("https://pistonmeta.mojang.com/mc/game/version_manifest_v2.json", (raw) => {
+    const manifest = raw as MinecraftVersionManifest;
+    const v = manifest.latest?.release;
+    if (!v) throw new Error("Lipsă versiune JSON");
+    return normalizeUpdate({
+      id: v,
+      title: `Minecraft ${v}`,
+      link: `https://www.minecraft.net/en-us/article/minecraft-java-edition-${String(v).replace(/\./g, "-")}`,
+      excerpt: `Versiunea ${v}`,
+      thumbnail: "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg"
+    });
+  }, { largeJson: true });
 }
 
 async function fetchRobloxUpdate(): Promise<NormalizedUpdate> {
-  const { httpReq, normalizeUpdate } = runtimeContext;
-  const r = await httpReq("GET", "https://clientsettings.roblox.com/v2/clientversion/WindowsPlayer");
-  const versionInfo = r.data as RobloxVersionResponse;
-  const v = versionInfo.clientVersionUpload;
-  if (!v) throw new Error("Lipsă versiune API");
-  return normalizeUpdate({
-    id: String(v),
-    title: "Roblox Update",
-    link: "https://en.help.roblox.com/hc/en-us",
-    excerpt: `Versiunea ${v}`,
-    thumbnail: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Roblox_Logo_2022.jpg"
+  const { conditionalGet, normalizeUpdate } = runtimeContext;
+  return conditionalGet("https://clientsettings.roblox.com/v2/clientversion/WindowsPlayer", (raw) => {
+    const versionInfo = raw as RobloxVersionResponse;
+    const v = versionInfo.clientVersionUpload;
+    if (!v) throw new Error("Lipsă versiune API");
+    return normalizeUpdate({
+      id: String(v),
+      title: "Roblox Update",
+      link: "https://en.help.roblox.com/hc/en-us",
+      excerpt: `Versiunea ${v}`,
+      thumbnail: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Roblox_Logo_2022.jpg"
+    });
   });
 }
 
 async function fetchNvidiaUpdate(g: GameConfig): Promise<NormalizedUpdate> {
-  const { httpReq, rssParser, normalizeUpdate, cleanText, stableUpdateId } = runtimeContext;
+  const { conditionalGet, rssParser, normalizeUpdate, cleanText, stableUpdateId } = runtimeContext;
   const q = g.key === "nvidiastudio" ? '"Studio Driver"' : '"Game Ready Driver"';
-  const r = await httpReq("GET",
-    `https://news.google.com/rss/search?q=${encodeURIComponent(`site:nvidia.com ${q} release`)}&hl=en-US`);
-  const f = await rssParser.parseString(String(r.data || ""));
-  if (!f.items || f.items.length === 0) throw new Error("Eșec Nvidia.");
-  const rawTitle = f.items[0].title;
-  if (!rawTitle) throw new Error("Nvidia RSS fallback fara titlu in primul item.");
-  const cleanTitle = cleanText(rawTitle).split(" - ")[0];
-  if (!cleanTitle) throw new Error("Nvidia RSS fallback cu titlu gol dupa curatare.");
-  return normalizeUpdate({
-    id: stableUpdateId(cleanTitle, ""),
-    title: cleanTitle,
-    link: f.items[0].link,
-    excerpt: "Update nvidia.com detectat.",
-    thumbnail: g.thumbnail,
-    timestamp: f.items[0].pubDate
+  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(`site:nvidia.com ${q} release`)}&hl=en-US`;
+  return conditionalGet(url, async (raw) => {
+    const f = await rssParser.parseString(String(raw || ""));
+    if (!f.items || f.items.length === 0) throw new Error("Eșec Nvidia.");
+    const rawTitle = f.items[0].title;
+    if (!rawTitle) throw new Error("Nvidia RSS fallback fara titlu in primul item.");
+    const cleanTitle = cleanText(rawTitle).split(" - ")[0];
+    if (!cleanTitle) throw new Error("Nvidia RSS fallback cu titlu gol dupa curatare.");
+    return normalizeUpdate({
+      id: stableUpdateId(cleanTitle, ""),
+      title: cleanTitle,
+      link: f.items[0].link,
+      excerpt: "Update nvidia.com detectat.",
+      thumbnail: g.thumbnail,
+      timestamp: f.items[0].pubDate
+    });
   });
 }
 
