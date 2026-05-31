@@ -152,6 +152,25 @@ test("UpdateService: processGuildUpdates trimite update + ping rol pe prima trim
   assert.deepEqual(claims[0], { guildId: "guild-1", gameKey: "cs2", updateId: "u-cs2" });
 });
 
+test("UpdateService: mai multe update-uri sunt grupate intr-un singur mesaj cu mai multe embed-uri", async () => {
+  const { deps, sentPayloads, claims } = makeUpdateDeps();
+  const svc = createUpdateNotificationService(deps);
+  const guild = {
+    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1",
+    notificationRoleId: "role-7", seen: {}, pendingUpdates: {}, enabledGames: []
+  } as UpdateGuild;
+  const latestResults = [
+    { game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2", title: "a" } },
+    { game: { key: "fortnite", name: "Fortnite" }, latest: { id: "u-fn", title: "b" } },
+    { game: { key: "dota2", name: "Dota2" }, latest: { id: "u-dota", title: "c" } }
+  ] as UpdateResults;
+  await svc.processGuildUpdates({}, guild, latestResults);
+  assert.equal(sentPayloads.length, 1, "3 update-uri intr-un singur mesaj batch");
+  assert.equal((sentPayloads[0].embeds as unknown[]).length, 3, "3 embed-uri in mesaj");
+  assert.equal(sentPayloads[0].content, "<@&role-7>", "ping rol pe mesajul batch");
+  assert.equal(claims.length, 3, "fiecare update este claim-uit inainte de trimitere");
+});
+
 test("UpdateService: claim race (matchedCount=0) sare item-ul fara send sau rollback", async () => {
   const { deps, sentPayloads, rollbacks } = makeUpdateDeps({
     claimSeenUpdate: async () => ({ matchedCount: 0, modifiedCount: 0 })
@@ -323,7 +342,7 @@ test("DiscountService: hash deja in seenDiscounts NU se mai trimite", async () =
   assert.equal(sentPayloads.length, 0);
 });
 
-test("DiscountService: ping rol discount doar pe prima trimitere", async () => {
+test("DiscountService: reducerile sunt grupate intr-un singur mesaj cu ping rol o singura data", async () => {
   const { deps, sentPayloads } = makeDiscountDeps();
   const svc = createDiscountNotificationService(deps);
   const guild = {
@@ -333,10 +352,9 @@ test("DiscountService: ping rol discount doar pe prima trimitere", async () => {
   } as DiscountGuild;
   const deals = [{ id: "d1" }, { id: "d2" }, { id: "d3" }] as DiscountDeals;
   await svc.processGuildDiscounts({}, guild, deals);
-  assert.equal(sentPayloads.length, 3);
-  assert.equal(sentPayloads[0].content, "<@&role-99>");
-  assert.equal(sentPayloads[1].content, undefined, "fara ping pe a 2-a");
-  assert.equal(sentPayloads[2].content, undefined);
+  assert.equal(sentPayloads.length, 1, "3 reduceri intr-un singur mesaj batch");
+  assert.equal((sentPayloads[0].embeds as unknown[]).length, 3, "3 embed-uri in mesaj");
+  assert.equal(sentPayloads[0].content, "<@&role-99>", "ping rol pe mesajul batch");
 });
 
 test("DiscountService: claim race (matchedCount=0) sare deal-ul fara enrich", async () => {
