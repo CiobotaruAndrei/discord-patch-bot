@@ -291,6 +291,9 @@ function attachHttpClient(target: HttpClientContext): void {
   ];
   const PROXY_TEMPLATES = normalizeProxyTemplates(env.PROXY_URLS, DEFAULT_PROXIES);
 
+  const CONDITIONAL_CACHE_MAX = 500;
+  const conditionalCache = new Map<string, { etag?: string; lastModified?: string; result: unknown }>();
+
   target.metricsRef = { fetchSuccess: 0, fetchFail: 0, httpRetries: 0, rateLimitHits: 0 };
   function metrics(): HttpMetricsRef {
     return target.metricsRef as HttpMetricsRef;
@@ -393,6 +396,9 @@ function attachHttpClient(target: HttpClientContext): void {
     };
     if (signal) reqConfig.signal = signal;
     if ("data" in options) reqConfig.data = options.data;
+    if (options.acceptNotModified) {
+      reqConfig.validateStatus = (status: number) => (status >= 200 && status < 300) || status === 304;
+    }
 
     const isIdempotent = String(method).toUpperCase() === "GET";
 
@@ -444,6 +450,34 @@ function attachHttpClient(target: HttpClientContext): void {
       }
     }
     throw new Error(`Request failed without result: ${safeUrl}`);
+  }
+
+  async function conditionalGet<T>(
+    url: string,
+    parse: (data: unknown) => T | Promise<T>,
+    options: HttpRequestOptions = {}
+  ): Promise<T> {
+    const cached = conditionalCache.get(url);
+    const headers: Record<string, string> = { ...(options.headers || {}) };
+    if (cached?.etag) headers["If-None-Match"] = cached.etag;
+    if (cached?.lastModified) headers["If-Modified-Since"] = cached.lastModified;
+    const response = await httpReq("GET", url, { ...options, headers, acceptNotModified: true });
+    if (response.status === 304 && cached) {
+      return cached.result as T;
+    }
+    const result = await parse(response.data);
+    const responseHeaders = (response.headers || {}) as Record<string, unknown>;
+    const etag = typeof responseHeaders.etag === "string" ? responseHeaders.etag : undefined;
+    const lastModified = typeof responseHeaders["last-modified"] === "string" ? responseHeaders["last-modified"] : undefined;
+    conditionalCache.delete(url);
+    if (etag || lastModified) {
+      if (conditionalCache.size >= CONDITIONAL_CACHE_MAX) {
+        const oldest = conditionalCache.keys().next().value;
+        if (oldest !== undefined) conditionalCache.delete(oldest);
+      }
+      conditionalCache.set(url, { etag, lastModified, result });
+    }
+    return result;
   }
 
   async function fetchWithProxy(targetUrl: string, options: HttpRequestOptions = {}): Promise<string> {
@@ -520,6 +554,7 @@ function attachHttpClient(target: HttpClientContext): void {
     normalizeDealState,
     dealHash,
     httpReq,
+    conditionalGet,
     fetchWithProxy,
     withInflightTimeout,
     trackInflight,

@@ -41,17 +41,15 @@ function normalizeUpdate(data: Record<string, unknown>) {
 
 test("updates source rejects Steam newsitems without gid", async () => {
   const context = {
-    httpReq: async () => ({
-      data: {
-        appnews: {
-          newsitems: [{
-            feed_type: 1,
-            url: "https://steamcommunity.com/games/730/announcements/detail/1",
-            title: "Patch notes",
-            contents: "bugfix update",
-            date: 1_700_000_000
-          }]
-        }
+    conditionalGet: async (_url: string, parse: (data: unknown) => unknown) => parse({
+      appnews: {
+        newsitems: [{
+          feed_type: 1,
+          url: "https://steamcommunity.com/games/730/announcements/detail/1",
+          title: "Patch notes",
+          contents: "bugfix update",
+          date: 1_700_000_000
+        }]
       }
     }),
     normalizeUpdate,
