@@ -155,6 +155,7 @@ Zone care inca trebuie urmarite:
 - Comenzile administrative trebuie sa aiba atat permisiuni declarate in slash command, cat si verificari runtime in handler.
 - Linkurile externe si proxy-urile trebuie validate prin config, iar request-urile HTTP trec prin validare URL si DNS/IP ca protectie SSRF.
 - Clientul HTTP expune `conditionalGet(url, parse)`: pentru sursele de update-uri cu un singur fetch direct (Steam, Minecraft, Roblox, Nvidia) tine minte `etag` / `last-modified` per URL si trimite `If-None-Match` / `If-Modified-Since`; pe `304 Not Modified` reuseaza rezultatul parsat anterior, fara redescarcare/reparsare. Surse noi cu fetch unic ar trebui sa foloseasca acelasi helper. Sursele prin proxy nu pot face conditional GET fiindca proxy-ul nu pastreaza header-ele de raspuns.
+- `getLatestForAllGames` grupeaza jocurile dupa sursa (`sourceConcurrencyGroup`: steam / epic / listing / driver / other) si ruleaza fiecare grup in paralel cu propria concurrency (`FETCH_CONCURRENCY_STEAM` / `_EPIC` / `_LISTING` / `_DRIVER`, restul pe `FETCH_CONCURRENCY`), ca o sursa lenta sa nu blocheze tot ciclul; rezultatele raman aliniate la ordinea de intrare.
 - `/metrics` trebuie protejat cu token cand este expus in afara mediului local.
 - Token-urile Discord, URI-urile Mongo si webhook-urile nu trebuie comise.
 - Docker trebuie sa ruleze procesul ca user non-root.

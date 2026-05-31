@@ -115,6 +115,10 @@ interface UpdatesContext {
   runConcurrent: RunConcurrent;
   SchemaDriftError: SchemaDriftErrorClass;
   FETCH_CONCURRENCY: number;
+  FETCH_CONCURRENCY_STEAM: number;
+  FETCH_CONCURRENCY_EPIC: number;
+  FETCH_CONCURRENCY_LISTING: number;
+  FETCH_CONCURRENCY_DRIVER: number;
   CIRCUIT_BREAKER_FAIL_THRESHOLD: number;
   CIRCUIT_BREAKER_COOLDOWN_MS: number;
   CIRCUIT_BREAKER_JITTER_MS: number;
@@ -145,6 +149,7 @@ interface UpdatesContext {
   fetchNvidiaUpdate?: typeof fetchNvidiaUpdate;
   fetchGameUpdate?: typeof fetchGameUpdate;
   executeFetchWithCircuitBreaker?: typeof executeFetchWithCircuitBreaker;
+  sourceConcurrencyGroup?: typeof sourceConcurrencyGroup;
   getLatestForAllGames?: typeof getLatestForAllGames;
   [key: string]: unknown;
 }
@@ -182,6 +187,27 @@ function scoreCandidate(candidate: ListingCandidate, keywords: string[]): number
 
 function isLikelyPatchNote(item: SteamNewsItem | RssItem | Record<string, unknown>): boolean {
   return classifyPatchNote(item?.title, item?.contents, item?.tags);
+}
+
+function sourceConcurrencyGroup(game: GameConfig): string {
+  const type = game.type;
+  if (!type || type === "steam") return "steam";
+  if (type === "epic_games") return "epic";
+  if (type === "listing_based") return "listing";
+  if (type === "nvidia" || type === "amd" || type === "intel") return "driver";
+  return "other";
+}
+
+function concurrencyForGroup(group: string): number {
+  const {
+    FETCH_CONCURRENCY, FETCH_CONCURRENCY_STEAM, FETCH_CONCURRENCY_EPIC,
+    FETCH_CONCURRENCY_LISTING, FETCH_CONCURRENCY_DRIVER
+  } = runtimeContext;
+  if (group === "steam") return FETCH_CONCURRENCY_STEAM;
+  if (group === "epic") return FETCH_CONCURRENCY_EPIC;
+  if (group === "listing") return FETCH_CONCURRENCY_LISTING;
+  if (group === "driver") return FETCH_CONCURRENCY_DRIVER;
+  return FETCH_CONCURRENCY;
 }
 
 async function fetchSteamUpdate(game: GameConfig): Promise<NormalizedUpdate> {
@@ -595,24 +621,36 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
 }
 
 async function _getLatestForAllGamesImpl(games: GameConfig[], shouldAbort?: AbortPredicate): Promise<FetchResult[]> {
-  const { runConcurrent, FETCH_CONCURRENCY, logger } = runtimeContext;
+  const { runConcurrent, logger } = runtimeContext;
+  const exec = runtimeContext.executeFetchWithCircuitBreaker || executeFetchWithCircuitBreaker;
   const list = games.slice();
   const results = new Array<FetchResult | undefined>(list.length);
 
-  const runResult = await runConcurrent(list, FETCH_CONCURRENCY, async (game, idx) => {
-    results[idx] = await executeFetchWithCircuitBreaker(game);
-  }, {
-    shouldAbort,
-    errorLogger: (game, err) => {
-      logger("WARN", "FETCH_WORKER", `Eroare la procesarea ${game.key}`, errorMessage(err));
-    }
-  });
-  const errorsByIndex = new Map<number, unknown>();
-  if (runResult && Array.isArray((runResult as { errors?: unknown }).errors)) {
-    for (const entry of ((runResult as { errors: Array<{ index: number; error: unknown }> }).errors)) {
-      errorsByIndex.set(entry.index, entry.error);
-    }
+  const groups = new Map<string, Array<{ game: GameConfig; idx: number }>>();
+  for (let idx = 0; idx < list.length; idx++) {
+    const group = sourceConcurrencyGroup(list[idx]);
+    const bucket = groups.get(group);
+    if (bucket) bucket.push({ game: list[idx], idx });
+    else groups.set(group, [{ game: list[idx], idx }]);
   }
+
+  const errorsByIndex = new Map<number, unknown>();
+  await Promise.all(Array.from(groups.entries()).map(async ([group, items]) => {
+    const runResult = await runConcurrent(items, concurrencyForGroup(group), async (item) => {
+      results[item.idx] = await exec(item.game);
+    }, {
+      shouldAbort,
+      errorLogger: (item: { game: GameConfig }, err: unknown) => {
+        logger("WARN", "FETCH_WORKER", `Eroare la procesarea ${item.game.key}`, errorMessage(err));
+      }
+    });
+    if (runResult && Array.isArray((runResult as { errors?: unknown }).errors)) {
+      for (const entry of ((runResult as { errors: Array<{ index: number; error: unknown }> }).errors)) {
+        const globalIdx = items[entry.index]?.idx;
+        if (globalIdx !== undefined) errorsByIndex.set(globalIdx, entry.error);
+      }
+    }
+  }));
 
   for (let i = 0; i < results.length; i++) {
     if (!results[i]) {
@@ -666,8 +704,11 @@ function attachUpdates(target: UpdatesContext): void {
     fetchNvidiaUpdate,
     fetchGameUpdate,
     executeFetchWithCircuitBreaker,
+    sourceConcurrencyGroup,
     getLatestForAllGames
   });
 }
+
+attachUpdates.sourceConcurrencyGroup = sourceConcurrencyGroup;
 
 export = attachUpdates;

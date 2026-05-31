@@ -252,6 +252,10 @@ function attachHttpClient(target: HttpClientContext): void {
   const safeDnsLookup = createSafeDnsLookup(dnsLookup);
 
   const FETCH_CONCURRENCY = env.FETCH_CONCURRENCY;
+  const FETCH_CONCURRENCY_STEAM = env.FETCH_CONCURRENCY_STEAM;
+  const FETCH_CONCURRENCY_EPIC = env.FETCH_CONCURRENCY_EPIC;
+  const FETCH_CONCURRENCY_LISTING = env.FETCH_CONCURRENCY_LISTING;
+  const FETCH_CONCURRENCY_DRIVER = env.FETCH_CONCURRENCY_DRIVER;
   const MAX_HTML_BYTES = env.MAX_HTML_BYTES;
   const MAX_JSON_BYTES = env.MAX_JSON_BYTES;
   const MAX_DEALS = env.MAX_DEALS;
@@ -525,6 +529,10 @@ function attachHttpClient(target: HttpClientContext): void {
 
   Object.assign(target, {
     FETCH_CONCURRENCY,
+    FETCH_CONCURRENCY_STEAM,
+    FETCH_CONCURRENCY_EPIC,
+    FETCH_CONCURRENCY_LISTING,
+    FETCH_CONCURRENCY_DRIVER,
     MAX_HTML_BYTES,
     MAX_JSON_BYTES,
     MAX_DEALS,
