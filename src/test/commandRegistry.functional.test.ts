@@ -26,6 +26,7 @@ const requiredKeys = [
   "setDealsCache",
   "checkForUpdates",
   "checkForDiscounts",
+  "drainOutbox",
   "buildOptimizedGameList",
   "registerSlashCommands",
   "buildSlashCommandDefinitions",

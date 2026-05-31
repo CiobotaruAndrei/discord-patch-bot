@@ -143,6 +143,18 @@ const guildSeenUpdateSchema = new mongoose.Schema({
 guildSeenUpdateSchema.index({ guildId: 1, gameKey: 1, updateId: 1 }, { unique: true, background: true });
 const GuildSeenUpdateModel = mongoose.model("GuildSeenUpdate", guildSeenUpdateSchema, "guildSeenUpdates");
 
+const notificationOutboxSchema = new mongoose.Schema({
+  guildId: { type: String, required: true },
+  channelId: { type: String, required: true },
+  kind: { type: String, enum: ["update", "discount"], required: true },
+  payload: { type: mongoose.Schema.Types.Mixed, required: true },
+  attempts: { type: Number, default: 0 },
+  availableAt: { type: Date, default: Date.now },
+  createdAt: { type: Date, default: Date.now, expires: 7 * ONE_DAY_MS / 1000 }
+}, { minimize: false });
+notificationOutboxSchema.index({ availableAt: 1 }, { background: true });
+const NotificationOutboxModel = mongoose.model("NotificationOutbox", notificationOutboxSchema, "notificationOutbox");
+
   Object.assign(target, {
     GuildModel,
     CircuitBreakerModel,
@@ -151,7 +163,8 @@ const GuildSeenUpdateModel = mongoose.model("GuildSeenUpdate", guildSeenUpdateSc
     AdminAlertCooldownModel,
     FetchSnapshotModel,
     GuildSeenDiscountModel,
-    GuildSeenUpdateModel
+    GuildSeenUpdateModel,
+    NotificationOutboxModel
   });
 }
 

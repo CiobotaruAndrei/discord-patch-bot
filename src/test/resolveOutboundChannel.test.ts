@@ -156,6 +156,33 @@ test("resolveOutboundChannel: healthy channel returns a rate-limited channel tha
   assert.deepEqual(order, ["acquire", "send"], "rate limiter-ul este asteptat inainte de send");
 });
 
+test("resolveOutboundChannel: cu outbox activ, send enqueue-uieste in loc sa trimita direct", async () => {
+  const enqueued: Array<{ guildId: string; channelId: string; kind: string; payload: unknown }> = [];
+  const enqueueOutbox = async (job: { guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown }) => {
+    enqueued.push(job);
+  };
+  const { resolveOutboundChannel } = buildResolver({ canSendEmbeds: () => true, enqueueOutbox });
+  const { fn: disableFn } = makeDisableFnStub();
+  let directSends = 0;
+  const fakeChannel = { id: "channel-9", isTextBased: () => true, send: async () => { directSends++; return { id: "msg" }; } };
+  const client = makeClient(fakeChannel);
+
+  const result = await resolveOutboundChannel({
+    client,
+    guild: { _id: "guild-9" },
+    channelId: "channel-9",
+    context: "CRON_DISCOUNTS",
+    disableFn
+  });
+
+  assert.equal(result.abort, false);
+  const channel = result.channel as { id: string; send: (payload: unknown) => Promise<unknown> };
+  await channel.send({ embeds: [{ t: 1 }] });
+  assert.equal(directSends, 0, "nu trimite direct cand outbox e activ");
+  assert.equal(enqueued.length, 1, "send-ul enqueue-uieste un job");
+  assert.deepEqual(enqueued[0], { guildId: "guild-9", channelId: "channel-9", kind: "discount", payload: { embeds: [{ t: 1 }] } });
+});
+
 test("isPermanentDiscordError recognizes all four permanent codes", () => {
   for (const code of [10003, 10004, 50001, 50013]) {
     assert.equal(isPermanentDiscordError({ code }), true, `code ${code} should be permanent`);

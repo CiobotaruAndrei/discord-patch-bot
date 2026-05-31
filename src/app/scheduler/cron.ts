@@ -53,6 +53,7 @@ interface CronCommands {
   setGlobalCacheTtl(ms: number): void;
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
   checkForDiscounts(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
+  drainOutbox?(client: DiscordClientLike): Promise<unknown>;
 }
 
 interface CreateCronControllerDeps {
@@ -285,6 +286,11 @@ function createCronController({
         );
         const updatesResult = settled[0];
         const discountsResult = shedDiscounts ? undefined : settled[1];
+        if (commands.drainOutbox) {
+          await commands.drainOutbox(client).catch(
+            (err: unknown) => logger("WARN", "OUTBOX", "Drain outbox esuat", errorMessage(err))
+          );
+        }
         const failures: Array<{ label: string; reason: unknown }> = [];
         if (updatesResult && updatesResult.status === "rejected") failures.push({ label: "checkForUpdates", reason: updatesResult.reason });
         if (discountsResult && discountsResult.status === "rejected") failures.push({ label: "checkForDiscounts", reason: discountsResult.reason });
