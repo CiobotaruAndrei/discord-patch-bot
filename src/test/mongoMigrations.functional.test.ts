@@ -145,9 +145,9 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
     logs.push({ level, context, message });
   });
 
-  assert.deepEqual(result.applied, [1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(result.applied, [1, 2, 3, 4, 5, 6, 7]);
   assert.equal(result.skipped, 0);
-  assert.equal(fixture.updateManyCalls.length, 4, "m5 si m6 folosesc find + bulkWrite, nu updateMany");
+  assert.equal(fixture.updateManyCalls.length, 5, "m1-m4 + m7 folosesc updateMany; m5 si m6 folosesc find + bulkWrite");
   const m4Call = fixture.updateManyCalls[3];
   assert.deepEqual(m4Call.filter, { "seenDiscounts.500": { $exists: true } });
   assert.ok(Array.isArray(m4Call.update), "m4 trebuie sa foloseasca aggregation pipeline (array)");
@@ -165,10 +165,13 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
   const firstSeenUpdate = fixture.seenUpdateBulkOps[0] as { updateOne: { filter: { guildId: string; gameKey: string; updateId: string }; upsert: boolean } };
   assert.deepEqual(firstSeenUpdate.updateOne.filter, { guildId: "guild-1", gameKey: "cs2", updateId: "u-1" });
   assert.equal(firstSeenUpdate.updateOne.upsert, true);
-  assert.equal(fixture.migrationState?.lastApplied, 6);
+  const m7Call = fixture.updateManyCalls[4];
+  assert.deepEqual(m7Call.filter, { $or: [{ seen: { $exists: true } }, { seenDiscounts: { $exists: true } }] });
+  assert.deepEqual(m7Call.update, { $unset: { seen: "", seenDiscounts: "" } });
+  assert.equal(fixture.migrationState?.lastApplied, 7);
   assert.equal(fixture.releaseCalls.length, 1);
   assert.deepEqual(fixture.releaseCalls[0], { name: "db_migrations", token: "migration-lock-token" });
-  assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#6")));
+  assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#7")));
 });
 
 test("Mongo migrations skip safely when another instance holds the lock", async () => {

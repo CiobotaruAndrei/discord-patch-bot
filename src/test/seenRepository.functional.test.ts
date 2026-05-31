@@ -21,8 +21,9 @@ type DisableUpdateSet = {
   discountsLastError?: DisableErrorState;
 };
 
-function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: string[]; seenUpdateInserted?: boolean }) {
+function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: string[]; seenUpdateInserted?: boolean; guildSubscribed?: boolean }) {
   const calls: MongoCall[] = [];
+  const existsCalls: unknown[] = [];
   let updateOneCallCount = 0;
   const retryAttempts: Array<number | undefined> = [];
   const seenDiscountUpserts: MongoCall[] = [];
@@ -35,6 +36,10 @@ function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: stri
       updateOneCallCount++;
       calls.push({ filter, update, opts: mongoOpts });
       return { matchedCount: 1, modifiedCount: 1 };
+    },
+    exists: async (filter: unknown) => {
+      existsCalls.push(filter);
+      return opts?.guildSubscribed === false ? null : { _id: "g1" };
     }
   };
 
@@ -78,25 +83,23 @@ function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: stri
     OP_UPDATE_OPTS: { strict: false }
   });
 
-  return { repo, calls, retryAttempts, seenDiscountUpserts, seenDiscountDeletes, seenUpdateUpserts, seenUpdateDeletes, count: () => updateOneCallCount };
+  return { repo, calls, existsCalls, retryAttempts, seenDiscountUpserts, seenDiscountDeletes, seenUpdateUpserts, seenUpdateDeletes, count: () => updateOneCallCount };
 }
 
-test("claimSeenUpdate: guard pe documentul guild (pull pending + lastProcessedGameKey) + upsert atomic in colectie", async () => {
-  const { repo, calls, seenUpdateUpserts } = makeFakeDeps();
+test("claimSeenUpdate: guard read (exists) pe documentul guild + upsert ca singura scriere in colectie", async () => {
+  const { repo, calls, existsCalls, seenUpdateUpserts } = makeFakeDeps();
 
   const result = await repo.claimSeenUpdate("g1", "ch1", "cs2", "u-99");
 
-  assert.equal(calls.length, 1, "un singur write pe documentul guild (guard + pull pending)");
-  const { filter, update } = calls[0] as { filter: SeenFilter; update: SeenUpdate };
-  assert.equal(filter._id, "g1");
-  assert.equal(filter.subscribed, true);
-  assert.equal(filter.notificationChannelId, "ch1");
-  assert.equal(filter["seen.cs2"], undefined, "nu mai filtram pe seen pe documentul guild");
-  assert.equal(update.$push, undefined, "nu mai impingem in seen pe documentul guild");
-  assert.deepEqual(update.$pull, { "pendingUpdates.cs2": { id: "u-99" } });
-  assert.deepEqual(update.$set, { lastProcessedGameKey: "cs2" });
+  assert.equal(calls.length, 0, "claim-ul nu mai scrie pe documentul guild (fara stare partiala)");
+  assert.equal(existsCalls.length, 1, "guard-ul este un read (exists), nu un write");
+  const guard = existsCalls[0] as SeenFilter;
+  assert.equal(guard._id, "g1");
+  assert.equal(guard.subscribed, true);
+  assert.equal(guard.notificationChannelId, "ch1");
+  assert.deepEqual(guard.updatesInitializing, { $ne: true });
 
-  assert.equal(seenUpdateUpserts.length, 1, "seen-claim merge in colectia dedicata");
+  assert.equal(seenUpdateUpserts.length, 1, "seen-claim merge in colectia dedicata (singura scriere)");
   const upsert = seenUpdateUpserts[0] as { filter: SeenFilter; opts?: { upsert?: boolean } };
   assert.deepEqual(upsert.filter, { guildId: "g1", gameKey: "cs2", updateId: "u-99" });
   assert.equal(upsert.opts?.upsert, true);
@@ -110,18 +113,8 @@ test("claimSeenUpdate: update deja vazut (upsertedCount=0) intoarce matchedCount
 });
 
 test("claimSeenUpdate: guard nepotrivit (guild nesubscris) NU face upsert in colectie", async () => {
-  const { repo, seenUpdateUpserts } = makeFakeDeps();
-  const GuildModelUnsub = {
-    updateOne: async () => ({ matchedCount: 0, modifiedCount: 0 })
-  };
-  const repoUnsub = createSeenRepository({
-    GuildModel: GuildModelUnsub as unknown as Parameters<typeof createSeenRepository>[0]["GuildModel"],
-    GuildSeenDiscountModel: { updateOne: async () => ({ upsertedCount: 1 }), deleteOne: async () => ({ deletedCount: 1 }), find: () => ({ lean: async () => [] }) } as unknown as Parameters<typeof createSeenRepository>[0]["GuildSeenDiscountModel"],
-    GuildSeenUpdateModel: { updateOne: async () => { seenUpdateUpserts.push({ filter: {}, update: {} }); return { upsertedCount: 1 }; }, deleteOne: async () => ({ deletedCount: 1 }) } as unknown as Parameters<typeof createSeenRepository>[0]["GuildSeenUpdateModel"],
-    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
-    SEEN_PER_GAME_LIMIT: 20, DEALS_HISTORY_LIMIT: 300, OP_UPDATE_OPTS: {}
-  });
-  const result = await repoUnsub.claimSeenUpdate("g1", "ch1", "cs2", "u-99");
+  const { repo, seenUpdateUpserts } = makeFakeDeps({ guildSubscribed: false });
+  const result = await repo.claimSeenUpdate("g1", "ch1", "cs2", "u-99");
   assert.equal(result.matchedCount, 0, "guard nepotrivit -> claim esuat");
   assert.equal(seenUpdateUpserts.length, 0, "nu se atinge colectia daca guard-ul nu trece");
 });
@@ -136,20 +129,20 @@ test("rollbackSeenUpdate sterge intrarea din colectia dedicata", async () => {
   assert.deepEqual(seenUpdateDeletes[0], { guildId: "g1", gameKey: "cs2", updateId: "u-99" });
 });
 
-test("claimSeenDiscount: guard pe documentul guild (pull pending) + upsert atomic in colectia dedicata", async () => {
-  const { repo, calls, seenDiscountUpserts } = makeFakeDeps();
+test("claimSeenDiscount: guard read (exists) pe documentul guild + upsert ca singura scriere in colectia dedicata", async () => {
+  const { repo, calls, existsCalls, seenDiscountUpserts } = makeFakeDeps();
 
   const result = await repo.claimSeenDiscount("g1", "ch-d", "hash-abc");
 
-  assert.equal(calls.length, 1, "un singur write pe documentul guild (guard + pull pending)");
-  const { filter, update } = calls[0] as { filter: SeenFilter; update: SeenUpdate };
-  assert.equal(filter._id, "g1");
-  assert.equal(filter.discountsSubscribed, true);
-  assert.equal(filter.discountChannelId, "ch-d");
-  assert.equal(update.$push, undefined, "nu mai impingem in seenDiscounts pe documentul guild");
-  assert.deepEqual(update.$pull, { pendingDiscounts: { hash: "hash-abc" } });
+  assert.equal(calls.length, 0, "claim-ul nu mai scrie pe documentul guild (fara stare partiala)");
+  assert.equal(existsCalls.length, 1, "guard-ul este un read (exists), nu un write");
+  const guard = existsCalls[0] as SeenFilter;
+  assert.equal(guard._id, "g1");
+  assert.equal(guard.discountsSubscribed, true);
+  assert.equal(guard.discountChannelId, "ch-d");
+  assert.deepEqual(guard.discountsInitializing, { $ne: true });
 
-  assert.equal(seenDiscountUpserts.length, 1, "seen-claim merge in colectia dedicata");
+  assert.equal(seenDiscountUpserts.length, 1, "seen-claim merge in colectia dedicata (singura scriere)");
   const upsert = seenDiscountUpserts[0] as { filter: SeenFilter; update: SeenUpdate; opts?: { upsert?: boolean } };
   assert.deepEqual(upsert.filter, { guildId: "g1", dealHash: "hash-abc" });
   assert.equal(upsert.opts?.upsert, true);

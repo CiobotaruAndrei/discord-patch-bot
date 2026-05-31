@@ -194,3 +194,43 @@ test("DiscountService.checkForDiscounts: fetch esuat fara snapshot sare guild-ul
   await svc.checkForDiscounts({});
   assert.equal(resolveCalls, 0, "fara snapshot, guild-ul este sarit");
 });
+
+const STALE_FETCHED_AT = new Date(Date.now() - 61 * 60 * 1000);
+
+test("UpdateService.checkForUpdates: snapshot vechi (>60min) NU este folosit ca fallback", async () => {
+  let resolveCalls = 0;
+  const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seen: {}, pendingUpdates: {}, enabledGames: [] };
+  const deps = {
+    GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
+    logger: () => undefined,
+    runConcurrent: runConcurrentSafe,
+    resolveOutboundChannel: async () => { resolveCalls++; return { channel: { id: "channel-1", send: async () => ({}) }, abort: true }; },
+    transientErrorMessage: messageOf,
+    getLatestForAllGames: async () => { throw new Error("fetch down"); },
+    loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2" }, latest: { id: "u-cs2" } }], fetchedAt: STALE_FETCHED_AT })
+  } as unknown as UpdateDeps;
+  const svc = createUpdateNotificationService(deps);
+  await svc.checkForUpdates({}, [{ key: "cs2" }]);
+  assert.equal(resolveCalls, 0, "snapshot expirat -> ciclul se opreste, fara dispatch pe date vechi");
+});
+
+test("DiscountService.checkForDiscounts: snapshot vechi (>60min) NU este folosit ca fallback", async () => {
+  let resolveCalls = 0;
+  const guild = { _id: "g1", discountsSubscribed: true, discountChannelId: "channel-d", seenDiscounts: [], pendingDiscounts: [], currency: "USD" };
+  const deps = {
+    GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
+    logger: () => undefined,
+    runConcurrent: runConcurrentSafe,
+    resolveOutboundChannel: async () => { resolveCalls++; return { channel: { id: "channel-d", send: async () => ({}) }, abort: true }; },
+    transientErrorMessage: messageOf,
+    normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
+    getDealsCacheData: () => null,
+    fetchDeals: async () => { throw new Error("deals down"); },
+    loadFetchSnapshot: async () => ({ payload: [{ id: "d1" }], fetchedAt: STALE_FETCHED_AT }),
+    DEFAULT_CURRENCY: "USD",
+    GUILD_PROCESS_CONCURRENCY: 1
+  } as unknown as DiscountDeps;
+  const svc = createDiscountNotificationService(deps);
+  await svc.checkForDiscounts({});
+  assert.equal(resolveCalls, 0, "snapshot expirat -> guild-ul este sarit, fara dispatch pe date vechi");
+});
