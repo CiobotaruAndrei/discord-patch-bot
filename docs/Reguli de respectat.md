@@ -11,8 +11,7 @@
 9. Daca se da review la acest repo, review-ul trebuie sa fie onest si sa dea nota pentru fiecare categorie relevanta a botului de Discord. Nota nu trebuie sa fie incurajatoare, ci trebuie sa reflecte nivelul real la care este botul acum. Pentru fiecare categorie notata, trebuie justificat de ce s-a dat nota respectiva si cum s-ar putea imbunatati codul pentru acea categorie.
 10. Daca la un review de cod sunt mai multe lucruri de implementat in repo si nu se pot face toate dintr-o data, AI-ul trebuie sa retina sau sa isi scrie undeva toate lucrurile care sunt de implementat.
 11. Un AI care trebuie sa dea doar review la cod trebuie sa respecte doar regulile din acest fisier care tin de review-ul de cod, nu si regulile care nu au legatura cu review-ul de cod.
-12. Daca se da review la repo, review-ul trebuie facut pe baza regulilor din acest fisier.
-13. Daca o regula noua care urmeaza sa fie adaugata in acest fisier are aceleasi cerinte ca o regula deja existenta mai sus, regula noua nu se mai adauga in fisier.
-14. Cand se adauga o regula noua in acest fisier, se da direct merge, pentru ca nu este nevoie sa se verifice ceva cand este adaugata o regula.
-15. Toate implementarile in cod trebuie sa respecte toate regulile din acest fisier.
-16. Regulile care au legatura cu toate celelalte reguli trebuie puse ultimele in lista de reguli si trebuie facuta renumerotarea.
+12. Daca o regula noua care urmeaza sa fie adaugata in acest fisier are aceleasi cerinte ca o regula deja existenta mai sus, regula noua nu se mai adauga in fisier.
+13. Cand se adauga o regula noua in acest fisier, se da direct merge, pentru ca nu este nevoie sa se verifice ceva cand este adaugata o regula.
+14. Toate implementarile in cod trebuie sa respecte toate regulile din acest fisier.
+15. Regulile care au legatura cu toate celelalte reguli trebuie puse ultimele in lista de reguli si trebuie facuta renumerotarea.
