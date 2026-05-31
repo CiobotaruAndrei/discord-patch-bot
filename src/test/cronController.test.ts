@@ -1,7 +1,75 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createCronController } from "../app/scheduler/cron";
+import { createCronController, computeCronDelay } from "../app/scheduler/cron";
 import type { RuntimeEnv } from "../types";
+
+test("computeCronDelay: fara jitter intoarce exact intervalul", () => {
+  assert.equal(computeCronDelay(600_000, 0, () => 0.5), 600_000);
+});
+
+test("computeCronDelay: jitterul ramane in [interval-jitter, interval+jitter] cu floor 1000ms", () => {
+  assert.equal(computeCronDelay(600_000, 20_000, () => 0), 580_000, "random 0 -> -jitter");
+  assert.equal(computeCronDelay(600_000, 20_000, () => 1), 620_000, "random 1 -> +jitter");
+  assert.equal(computeCronDelay(600_000, 20_000, () => 0.5), 600_000, "mijloc -> fara offset");
+  assert.equal(computeCronDelay(500, 5_000, () => 0), 1000, "delay-ul nu coboara sub 1000ms");
+});
+
+test("cron cycle budget: un ciclu peste buget face urmatorul ciclu sa sara peste reduceri", async () => {
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  globalThis.setTimeout = ((handler: () => unknown) =>
+    ({ handler, unref() {} } as unknown as ReturnType<typeof setTimeout>)) as typeof setTimeout;
+  globalThis.clearTimeout = (() => undefined) as typeof clearTimeout;
+
+  try {
+    let clock = 0;
+    let updatesCalls = 0;
+    let discountsCalls = 0;
+    const metrics = {
+      fetchSuccess: 0, fetchFail: 0, httpRetries: 0, rateLimitHits: 0,
+      cronRuns: 0, cronErrors: 0, cronSkippedDueToLock: 0, cronSkippedDueToHealth: 0,
+      cronAborted: 0, httpRateLimitDrops: 0, startedAt: 0
+    };
+
+    const controller = createCronController({
+      mongoose: { connection: { readyState: 1 } },
+      performance: { now: () => clock },
+      crypto: { randomBytes: () => ({ toString: () => "abc123" }) },
+      logger() {},
+      env: { GLOBAL_HEALTH_WINDOW: 5, GLOBAL_HEALTH_MIN_RATIO: 50 } as RuntimeEnv,
+      parseEnvNumber: (name: string, def: number) =>
+        name === "CRON_CYCLE_BUDGET_MS" ? 50 : name === "CRON_JITTER_MS" ? 0 : def,
+      acquireDbLock: async () => "tok-budget",
+      renewDbLock: async () => true,
+      releaseDbLock: async () => undefined,
+      commands: {
+        setGlobalCacheTtl() {},
+        checkForUpdates: async () => { updatesCalls++; clock += 200; },
+        checkForDiscounts: async () => { discountsCalls++; }
+      },
+      adminAlert: async () => undefined,
+      client: { isReady: () => true },
+      games: [],
+      config: { games: [], checkIntervalMinutes: 30 },
+      metrics,
+      lifecycle: { isShuttingDown: false },
+      errorMessage: (err: unknown) => String(err),
+      errorDetail: (err: unknown) => String(err),
+      requestContext: { run: async (_store, callback) => callback() }
+    });
+
+    await controller.runCronCycle();
+    assert.equal(updatesCalls, 1);
+    assert.equal(discountsCalls, 1, "primul ciclu trimite si reduceri");
+
+    await controller.runCronCycle();
+    assert.equal(updatesCalls, 2, "update-urile ruleaza si in ciclul de recuperare");
+    assert.equal(discountsCalls, 1, "al doilea ciclu sare peste reduceri (ciclul anterior a depasit bugetul)");
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});
 
 test("cron stop clears the scheduled timer handle", () => {
   const originalSetTimeout = globalThis.setTimeout;
