@@ -30,10 +30,13 @@ export interface ResolveOutboundChannelResult {
   abort: boolean;
 }
 
+export type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown }) => Promise<void>;
+
 export interface OutboundChannelResolverDeps {
   logger: NotificationLogger;
   canSendEmbeds(channel: unknown, botId: string): boolean;
   acquireSendSlot?: () => Promise<void>;
+  enqueueOutbox?: EnqueueOutbox;
 }
 
 function rateLimitedChannel(channel: unknown, acquireSendSlot: () => Promise<void>): unknown {
@@ -47,6 +50,13 @@ function rateLimitedChannel(channel: unknown, acquireSendSlot: () => Promise<voi
   };
 }
 
+function outboxChannel(channelId: string, guildId: string, kind: "update" | "discount", enqueueOutbox: EnqueueOutbox): unknown {
+  return {
+    id: channelId,
+    send: async (payload: unknown) => enqueueOutbox({ guildId, channelId, kind, payload })
+  };
+}
+
 export function isPermanentDiscordError(err: unknown): boolean {
   return DISCORD_PERMANENT_ERROR_CODES.has(Number((err as { code?: unknown } | null)?.code));
 }
@@ -57,7 +67,7 @@ async function disableSafely(disableFn: DisableChannelFn, guildId: string, chann
   await Promise.resolve(disableFn(guildId, channelId, message)).catch(() => null);
 }
 
-export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSendSlot }: OutboundChannelResolverDeps) {
+export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSendSlot, enqueueOutbox }: OutboundChannelResolverDeps) {
   const acquire = acquireSendSlot || defaultDiscordSendLimiter.acquire;
   return async function resolveOutboundChannel({
     client,
@@ -94,6 +104,10 @@ export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSe
       return { channel: null, abort: true };
     }
 
+    if (enqueueOutbox) {
+      const kind = context === "CRON_DISCOUNTS" ? "discount" : "update";
+      return { channel: outboxChannel(channelId, String(guild._id), kind, enqueueOutbox), abort: false };
+    }
     return { channel: rateLimitedChannel(channel, acquire), abort: false };
   };
 }

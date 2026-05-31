@@ -36,6 +36,7 @@ function buildMongoContextExports(context: MongoRuntimeContext) {
     FetchSnapshotModel: context.FetchSnapshotModel,
     GuildSeenDiscountModel: context.GuildSeenDiscountModel,
     GuildSeenUpdateModel: context.GuildSeenUpdateModel,
+    NotificationOutboxModel: context.NotificationOutboxModel,
     saveFetchSnapshot: context.saveFetchSnapshot,
     loadFetchSnapshot: context.loadFetchSnapshot,
     loadDealsFetchSnapshots: context.loadDealsFetchSnapshots,

@@ -12,6 +12,7 @@ interface CommandRegistryContext {
   setDealsCache?: (currency: string, data: unknown) => void;
   checkForUpdates?: (games?: GameConfig[]) => MaybePromise<unknown>;
   checkForDiscounts?: RegistryFunction;
+  drainOutbox?: (client: unknown) => MaybePromise<unknown>;
   buildOptimizedGameList?: (allGames: GameConfig[], subscribedGuilds: unknown[]) => GameConfig[];
   registerSlashCommands?: (token: string, clientId: string) => MaybePromise<unknown>;
   buildSlashCommandDefinitions?: RegistryFunction;
@@ -32,6 +33,7 @@ type RequiredCommandRegistryKey =
   | "setDealsCache"
   | "checkForUpdates"
   | "checkForDiscounts"
+  | "drainOutbox"
   | "buildOptimizedGameList"
   | "registerSlashCommands"
   | "buildSlashCommandDefinitions"
@@ -101,6 +103,7 @@ function createCommandRegistry(
     setDealsCache: requireRegistryFunction(context, "setDealsCache"),
     checkForUpdates: requireRegistryFunction(context, "checkForUpdates"),
     checkForDiscounts: requireRegistryFunction(context, "checkForDiscounts"),
+    drainOutbox: requireRegistryFunction(context, "drainOutbox"),
     buildOptimizedGameList: requireRegistryFunction(context, "buildOptimizedGameList"),
     registerSlashCommands: requireRegistryFunction(context, "registerSlashCommands"),
     buildSlashCommandDefinitions: requireRegistryFunction(context, "buildSlashCommandDefinitions"),

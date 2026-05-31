@@ -58,6 +58,7 @@ src/
       deadLetter.ts
       discountNotificationService.ts
       index.ts
+      notificationOutbox.ts
       outboundChannel.ts
       seenRepository.ts
       updateNotificationService.ts
@@ -103,7 +104,8 @@ Zona de notificari este impartita astfel:
 - `discountNotificationService.ts` construieste si trimite notificarile pentru reduceri;
 - `outboundChannel.ts` rezolva canalul Discord de trimitere;
 - `seenRepository.ts` gestioneaza deduplicarea (claim/rollback) pentru update-uri si reduceri. `seen`-ul e in colectii dedicate: `guildSeenDiscounts` (index unic `{ guildId, dealHash }`) si `guildSeenUpdates` (index unic `{ guildId, gameKey, updateId }`), claim = upsert atomic. Verificarea „deja vazut" face dual-read cu sursele legacy de pe documentul guild (array-ul `seenDiscounts`, respectiv map-ul `seen`), iar migrarile `m5`/`m6` le backfilleaza in colectii — astfel o migrare incompleta nu poate produce re-notificari. Cozile `pending` raman deocamdata pe documentul guild-ului;
-- `deadLetter.ts` defineste forma intrarii dead-letter si plafonul cozii.
+- `deadLetter.ts` defineste forma intrarii dead-letter si plafonul cozii;
+- `notificationOutbox.ts` este un outbox optional (`NOTIFICATION_OUTBOX_ENABLED`, implicit oprit). Cand e activ, `outboundChannel.ts` intoarce un canal al carui `send` pune mesajul ca job in colectia `notificationOutbox` (dupa claim-ul `seen`, deci fara duplicate), iar workerul `drainOutbox` (rulat la finalul fiecarui ciclu cron) il trimite cu rate limit, reincearca cu backoff la erori tranzitorii si il trece in dead-letter la epuizare/erori permanente. Decupleaza sendul de detectie si supravietuieste caderii Discord (joburile sunt persistente).
 
 Aceasta impartire reduce riscul de copy-paste in cron jobs si permite teste functionale mai clare.
 
