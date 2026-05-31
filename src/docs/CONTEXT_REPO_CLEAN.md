@@ -172,7 +172,10 @@ npm run test:e2e
 npm run typecheck
 npm run typecheck:strict
 npm run build
+npm run benchmark
 ```
+
+`npm run benchmark` (`scripts/notificationBenchmark.ts`) ruleaza un ciclu de update-uri si unul de reduceri pentru 100/500/1000 de guild-uri (sau `BENCHMARK_GUILDS`) cu dependinte care numara I/O-ul, si raporteaza durata, trimiterile Discord, write-urile Mongo si fetch-urile per dimensiune; util pentru a vedea cum scaleaza un ciclu cron.
 
 Teste relevante pentru structura actuala:
 
