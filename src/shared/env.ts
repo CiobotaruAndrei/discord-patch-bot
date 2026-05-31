@@ -106,6 +106,10 @@ function attachEnv(target: EnvContext): void {
     PROXY_URLS: process.env.PROXY_URLS || "",
 
     FETCH_CONCURRENCY: parseEnvNumber("FETCH_CONCURRENCY", 10, { min: 1, max: 50 }),
+    FETCH_CONCURRENCY_STEAM: parseEnvNumber("FETCH_CONCURRENCY_STEAM", 4, { min: 1, max: 50 }),
+    FETCH_CONCURRENCY_EPIC: parseEnvNumber("FETCH_CONCURRENCY_EPIC", 2, { min: 1, max: 50 }),
+    FETCH_CONCURRENCY_LISTING: parseEnvNumber("FETCH_CONCURRENCY_LISTING", 8, { min: 1, max: 50 }),
+    FETCH_CONCURRENCY_DRIVER: parseEnvNumber("FETCH_CONCURRENCY_DRIVER", 2, { min: 1, max: 50 }),
     MAX_HTML_BYTES: parseEnvNumber("MAX_HTML_BYTES", 500_000, { min: 50_000, max: 50_000_000 }),
     MAX_JSON_BYTES: parseEnvNumber("MAX_JSON_BYTES", 5_000_000, { min: 100_000, max: 100_000_000 }),
     MAX_DEALS: parseEnvNumber("MAX_DEALS", 50, { min: 1, max: 500 }),

@@ -52,6 +52,10 @@ export interface RuntimeEnv {
   LOG_LEVEL: string;
   PROXY_URLS: string;
   FETCH_CONCURRENCY: number;
+  FETCH_CONCURRENCY_STEAM: number;
+  FETCH_CONCURRENCY_EPIC: number;
+  FETCH_CONCURRENCY_LISTING: number;
+  FETCH_CONCURRENCY_DRIVER: number;
   MAX_HTML_BYTES: number;
   MAX_JSON_BYTES: number;
   MAX_DEALS: number;
