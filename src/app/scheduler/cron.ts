@@ -82,6 +82,12 @@ interface HealthEntry {
   durationMs: number;
 }
 
+function computeCronDelay(intervalMs: number, jitterMs: number, random: () => number = Math.random): number {
+  if (jitterMs <= 0) return intervalMs;
+  const offset = Math.round((random() * 2 - 1) * jitterMs);
+  return Math.max(1000, intervalMs + offset);
+}
+
 function createCronController({
   mongoose, performance, crypto, logger, env, parseEnvNumber,
   acquireDbLock, renewDbLock, releaseDbLock, commands, adminAlert,
@@ -113,6 +119,9 @@ function createCronController({
 
   const lockTtlMs = Math.max(cronIntervalMs + 60_000, 5 * 60 * 1000);
   const heartbeatIntervalMs = Math.max(15_000, Math.floor(lockTtlMs / 3));
+  const cronJitterMs = parseEnvNumber("CRON_JITTER_MS", 20_000, { min: 0, max: 120_000 });
+  const cronCycleBudgetMs = parseEnvNumber("CRON_CYCLE_BUDGET_MS", cronIntervalMs, { min: 0, max: lockTtlMs });
+  let shedDiscountsNextCycle = false;
   commands.setGlobalCacheTtl(Math.min(30 * 60 * 1000, cronIntervalMs));
 
   let cronTimerId: TimerHandle | null = null;
@@ -211,7 +220,7 @@ function createCronController({
   function scheduleNextCron(): void {
     if (lifecycle.isShuttingDown) return;
     if (cronTimerId) clearTimeout(cronTimerId);
-    cronTimerId = setTimeout(runCronCycle, cronIntervalMs);
+    cronTimerId = setTimeout(runCronCycle, computeCronDelay(cronIntervalMs, cronJitterMs));
     if (typeof cronTimerId.unref === "function") cronTimerId.unref();
   }
 
@@ -262,14 +271,23 @@ function createCronController({
     const cronReqId = `cron-${metrics.cronRuns}-${crypto.randomBytes(3).toString("hex")}`;
     await requestContext.run({ requestId: cronReqId, abortSignal: currentCronAbortController.signal }, async () => {
       try {
+        const shedDiscounts = shedDiscountsNextCycle;
+        shedDiscountsNextCycle = false;
+        if (shedDiscounts) {
+          logger("WARN", "CRON",
+            `Ciclul anterior a depasit bugetul de ${cronCycleBudgetMs}ms; sar peste reduceri in ciclul #${metrics.cronRuns} pentru recuperare`);
+        }
         logger("INFO", "CRON", `Pornire ciclu cron #${metrics.cronRuns}`);
-        const [updatesResult, discountsResult] = await Promise.allSettled([
-          commands.checkForUpdates(client, games, shouldAbortCron),
-          commands.checkForDiscounts(client, shouldAbortCron)
-        ]);
+        const settled = await Promise.allSettled(
+          shedDiscounts
+            ? [commands.checkForUpdates(client, games, shouldAbortCron)]
+            : [commands.checkForUpdates(client, games, shouldAbortCron), commands.checkForDiscounts(client, shouldAbortCron)]
+        );
+        const updatesResult = settled[0];
+        const discountsResult = shedDiscounts ? undefined : settled[1];
         const failures: Array<{ label: string; reason: unknown }> = [];
-        if (updatesResult.status === "rejected") failures.push({ label: "checkForUpdates", reason: updatesResult.reason });
-        if (discountsResult.status === "rejected") failures.push({ label: "checkForDiscounts", reason: discountsResult.reason });
+        if (updatesResult && updatesResult.status === "rejected") failures.push({ label: "checkForUpdates", reason: updatesResult.reason });
+        if (discountsResult && discountsResult.status === "rejected") failures.push({ label: "checkForDiscounts", reason: discountsResult.reason });
 
         if (failures.length) {
           metrics.cronErrors++;
@@ -295,6 +313,7 @@ function createCronController({
       } finally {
         const durationMs = Math.round(performance.now() - cycleStart);
         recordHealth(success, durationMs);
+        if (cronCycleBudgetMs > 0 && durationMs > cronCycleBudgetMs) shedDiscountsNextCycle = true;
 
         // Invalidam tokenul inainte de stopHeartbeat/releaseDbLock: un tick de heartbeat aflat in zbor vede currentCronToken !== lockToken si nu se re-armeaza dupa eliberarea lock-ului.
         currentCronToken = null;
@@ -318,4 +337,4 @@ function createCronController({
   return { scheduleNextCron, runCronCycle, stop, shouldAbortCron, getHealthSnapshot };
 }
 
-export { createCronController };
+export { createCronController, computeCronDelay };
