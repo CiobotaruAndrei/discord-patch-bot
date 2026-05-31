@@ -165,7 +165,8 @@ function createGuildModel(guild: GuildDoc) {
     },
     find: (filter: MongoFilter) => ({
       lean: async () => matchesFilter(guild, filter) ? [cloneGuild(guild)] : []
-    })
+    }),
+    exists: async (filter: MongoFilter) => matchesFilter(guild, filter) ? { _id: guild._id } : null
   };
 }
 

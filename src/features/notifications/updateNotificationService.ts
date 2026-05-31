@@ -6,6 +6,7 @@ import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pe
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
+const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
@@ -224,12 +225,16 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       }
     } catch (err: unknown) {
       const fallback = loadFetchSnapshot ? await loadFetchSnapshot("updates").catch(() => null) : null;
-      const fallbackResults = fallback && Array.isArray(fallback.payload) ? fallback.payload as UpdateFetchResult[] : null;
+      const fresh = !!fallback && fallback.fetchedAt != null
+        && (Date.now() - new Date(fallback.fetchedAt).getTime()) < SNAPSHOT_FALLBACK_MAX_AGE_MS;
+      const fallbackResults = fresh && fallback && Array.isArray(fallback.payload)
+        ? fallback.payload as UpdateFetchResult[]
+        : null;
       if (!fallbackResults || !fallbackResults.length) {
-        logger("ERROR", "CRON_UPDATES", "Nu am putut prelua update-urile si nu exista snapshot de rezerva", transientErrorMessage(err));
+        logger("ERROR", "CRON_UPDATES", "Nu am putut prelua update-urile si nu exista snapshot de rezerva proaspat", transientErrorMessage(err));
         return;
       }
-      logger("WARN", "CRON_UPDATES", "Fetch esuat — folosesc snapshot-ul din event store pentru dispatch", transientErrorMessage(err));
+      logger("WARN", "CRON_UPDATES", "Fetch esuat — folosesc snapshot-ul recent din event store pentru dispatch", transientErrorMessage(err));
       latestResults = fallbackResults;
     }
     if (shouldAbort?.()) return;

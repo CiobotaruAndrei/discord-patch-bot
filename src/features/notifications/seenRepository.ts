@@ -3,7 +3,7 @@ import type { Model } from "mongoose";
 import type { GuildSettings } from "../../types";
 
 type MongoWriteResult = { matchedCount?: number; modifiedCount?: number };
-type GuildModelLike = Pick<Model<GuildSettings>, "updateOne">;
+type GuildModelLike = Pick<Model<GuildSettings>, "updateOne" | "exists">;
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 
 interface GuildSeenDiscountModelLike {
@@ -41,20 +41,13 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
   const { GuildModel, GuildSeenDiscountModel, GuildSeenUpdateModel, withMongoRetry, OP_UPDATE_OPTS } = deps;
 
   async function claimSeenUpdate(guildId: string, channelId: string, gameKey: string, updateId: string): Promise<MongoWriteResult> {
-    const guard = await withMongoRetry(() => GuildModel.updateOne(
-      {
-        _id: guildId,
-        subscribed: true,
-        notificationChannelId: channelId,
-        updatesInitializing: { $ne: true }
-      },
-      {
-        $pull: { [`pendingUpdates.${gameKey}`]: { id: updateId } },
-        $set: { lastProcessedGameKey: gameKey }
-      },
-      OP_UPDATE_OPTS
-    ), { label: "claimSeenUpdate:guard" });
-    if ((guard.matchedCount ?? 0) === 0) return { matchedCount: 0 };
+    const subscribed = await withMongoRetry(() => GuildModel.exists({
+      _id: guildId,
+      subscribed: true,
+      notificationChannelId: channelId,
+      updatesInitializing: { $ne: true }
+    }), { label: "claimSeenUpdate:guard" });
+    if (!subscribed) return { matchedCount: 0 };
 
     const res = await withMongoRetry(() => GuildSeenUpdateModel.updateOne(
       { guildId, gameKey, updateId },
@@ -88,17 +81,13 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
   }
 
   async function claimSeenDiscount(guildId: string, channelId: string, hash: string): Promise<MongoWriteResult> {
-    const guard = await withMongoRetry(() => GuildModel.updateOne(
-      {
-        _id: guildId,
-        discountsSubscribed: true,
-        discountChannelId: channelId,
-        discountsInitializing: { $ne: true }
-      },
-      { $pull: { pendingDiscounts: { hash } } },
-      OP_UPDATE_OPTS
-    ), { label: "claimSeenDiscount:guard" });
-    if ((guard.matchedCount ?? 0) === 0) return { matchedCount: 0 };
+    const subscribed = await withMongoRetry(() => GuildModel.exists({
+      _id: guildId,
+      discountsSubscribed: true,
+      discountChannelId: channelId,
+      discountsInitializing: { $ne: true }
+    }), { label: "claimSeenDiscount:guard" });
+    if (!subscribed) return { matchedCount: 0 };
 
     const res = await withMongoRetry(() => GuildSeenDiscountModel.updateOne(
       { guildId, dealHash: hash },

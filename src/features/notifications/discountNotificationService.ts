@@ -5,6 +5,7 @@ import type { GuildSettings, DealInfo } from "../../types";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
+const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
@@ -258,8 +259,10 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
           return deals;
         }).catch(async err => {
           const fallback = loadFetchSnapshot ? await loadFetchSnapshot(`deals:${cur}`).catch(() => null) : null;
-          if (fallback && Array.isArray(fallback.payload) && fallback.payload.length) {
-            logger("WARN", "CRON_DISCOUNTS", `Fetch reduceri esuat pentru ${cur} — folosesc snapshot-ul din event store`, transientErrorMessage(err));
+          const fresh = !!fallback && fallback.fetchedAt != null
+            && (Date.now() - new Date(fallback.fetchedAt).getTime()) < SNAPSHOT_FALLBACK_MAX_AGE_MS;
+          if (fresh && fallback && Array.isArray(fallback.payload) && fallback.payload.length) {
+            logger("WARN", "CRON_DISCOUNTS", `Fetch reduceri esuat pentru ${cur} — folosesc snapshot-ul recent din event store`, transientErrorMessage(err));
             return fallback.payload as DealInfo[];
           }
           throw err;

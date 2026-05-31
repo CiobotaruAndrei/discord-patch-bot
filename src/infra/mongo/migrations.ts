@@ -132,13 +132,26 @@ const m6_backfillSeenUpdates: Migration = {
   }
 };
 
+const m7_dropLegacySeenFields: Migration = {
+  id: 7,
+  name: "drop-legacy-seen-fields-from-guilds",
+  async up(db) {
+    const guilds = db.collection("guilds");
+    await guilds.updateMany(
+      { $or: [{ seen: { $exists: true } }, { seenDiscounts: { $exists: true } }] },
+      { $unset: { seen: "", seenDiscounts: "" } }
+    );
+  }
+};
+
 const ALL_MIGRATIONS: Migration[] = [
   m1_addEnabledStores,
   m2_addMaxAbsolutePrice,
   m3_addEnabledGames,
   m4_trimSeenDiscounts,
   m5_backfillSeenDiscounts,
-  m6_backfillSeenUpdates
+  m6_backfillSeenUpdates,
+  m7_dropLegacySeenFields
 ];
 
 const MIGRATION_LOCK_NAME = "db_migrations";
