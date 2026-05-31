@@ -21,10 +21,12 @@ type DisableUpdateSet = {
   discountsLastError?: DisableErrorState;
 };
 
-function makeFakeDeps(opts?: { retriesRequested?: number[] }) {
+function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: string[] }) {
   const calls: MongoCall[] = [];
   let updateOneCallCount = 0;
   const retryAttempts: Array<number | undefined> = [];
+  const seenDiscountUpserts: MongoCall[] = [];
+  const seenDiscountDeletes: unknown[] = [];
 
   const GuildModel = {
     updateOne: async (filter: unknown, update: unknown, mongoOpts?: unknown) => {
@@ -34,6 +36,20 @@ function makeFakeDeps(opts?: { retriesRequested?: number[] }) {
     }
   };
 
+  const GuildSeenDiscountModel = {
+    updateOne: async (filter: unknown, update: unknown, mongoOpts?: unknown) => {
+      seenDiscountUpserts.push({ filter, update, opts: mongoOpts });
+      return { upsertedCount: opts?.seenDiscountInserted === false ? 0 : 1 };
+    },
+    deleteOne: async (filter: unknown) => {
+      seenDiscountDeletes.push(filter);
+      return { deletedCount: 1 };
+    },
+    find: (_filter: unknown, _projection?: unknown) => ({
+      lean: async () => (opts?.seenHashes ?? []).map(dealHash => ({ dealHash }))
+    })
+  };
+
   const withMongoRetry = async <T>(fn: () => Promise<T>, options?: { label?: string; retries?: number }): Promise<T> => {
     retryAttempts.push(options?.retries);
     return fn();
@@ -41,13 +57,14 @@ function makeFakeDeps(opts?: { retriesRequested?: number[] }) {
 
   const repo = createSeenRepository({
     GuildModel: GuildModel as Parameters<typeof createSeenRepository>[0]["GuildModel"],
+    GuildSeenDiscountModel: GuildSeenDiscountModel as Parameters<typeof createSeenRepository>[0]["GuildSeenDiscountModel"],
     withMongoRetry,
     SEEN_PER_GAME_LIMIT: 20,
     DEALS_HISTORY_LIMIT: 300,
     OP_UPDATE_OPTS: { strict: false }
   });
 
-  return { repo, calls, retryAttempts, count: () => updateOneCallCount };
+  return { repo, calls, retryAttempts, seenDiscountUpserts, seenDiscountDeletes, count: () => updateOneCallCount };
 }
 
 test("claimSeenUpdate runs under withMongoRetry with the correct atomic filter+update", async () => {
@@ -81,32 +98,46 @@ test("rollbackSeenUpdate runs under withMongoRetry — critical to recover lost 
   assert.equal(retryAttempts.length, 1, "rollback MUST be wrapped in withMongoRetry");
 });
 
-test("claimSeenDiscount runs under withMongoRetry with the correct atomic filter+update", async () => {
-  const { repo, calls, retryAttempts } = makeFakeDeps();
+test("claimSeenDiscount: guard pe documentul guild (pull pending) + upsert atomic in colectia dedicata", async () => {
+  const { repo, calls, seenDiscountUpserts } = makeFakeDeps();
 
-  await repo.claimSeenDiscount("g1", "ch-d", "hash-abc");
+  const result = await repo.claimSeenDiscount("g1", "ch-d", "hash-abc");
 
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 1, "un singur write pe documentul guild (guard + pull pending)");
   const { filter, update } = calls[0] as { filter: SeenFilter; update: SeenUpdate };
   assert.equal(filter._id, "g1");
   assert.equal(filter.discountsSubscribed, true);
   assert.equal(filter.discountChannelId, "ch-d");
-  assert.deepEqual(filter.seenDiscounts, { $ne: "hash-abc" });
-  assert.deepEqual(update.$push, { seenDiscounts: { $each: ["hash-abc"], $slice: -300 } });
+  assert.equal(update.$push, undefined, "nu mai impingem in seenDiscounts pe documentul guild");
   assert.deepEqual(update.$pull, { pendingDiscounts: { hash: "hash-abc" } });
-  assert.equal(retryAttempts.length, 1);
+
+  assert.equal(seenDiscountUpserts.length, 1, "seen-claim merge in colectia dedicata");
+  const upsert = seenDiscountUpserts[0] as { filter: SeenFilter; update: SeenUpdate; opts?: { upsert?: boolean } };
+  assert.deepEqual(upsert.filter, { guildId: "g1", dealHash: "hash-abc" });
+  assert.equal(upsert.opts?.upsert, true);
+  assert.equal(result.matchedCount, 1, "upsertedCount=1 -> claim nou");
 });
 
-test("rollbackSeenDiscount runs under withMongoRetry — symmetric guard against lost notifications", async () => {
-  const { repo, calls, retryAttempts } = makeFakeDeps();
+test("claimSeenDiscount: hash deja vazut (upsertedCount=0) intoarce matchedCount 0", async () => {
+  const { repo } = makeFakeDeps({ seenDiscountInserted: false });
+  const result = await repo.claimSeenDiscount("g1", "ch-d", "hash-abc");
+  assert.equal(result.matchedCount, 0, "deja in colectie -> nu retrimite");
+});
+
+test("rollbackSeenDiscount sterge intrarea din colectia dedicata", async () => {
+  const { repo, calls, seenDiscountDeletes } = makeFakeDeps();
 
   await repo.rollbackSeenDiscount("g1", "hash-abc");
 
-  assert.equal(calls.length, 1);
-  const { filter, update } = calls[0] as { filter: SeenFilter; update: SeenUpdate };
-  assert.equal(filter._id, "g1");
-  assert.deepEqual(update.$pull, { seenDiscounts: "hash-abc" });
-  assert.equal(retryAttempts.length, 1);
+  assert.equal(calls.length, 0, "rollback nu mai atinge documentul guild");
+  assert.equal(seenDiscountDeletes.length, 1);
+  assert.deepEqual(seenDiscountDeletes[0], { guildId: "g1", dealHash: "hash-abc" });
+});
+
+test("loadSeenDiscountHashes intoarce hash-urile vazute din colectie", async () => {
+  const { repo } = makeFakeDeps({ seenHashes: ["h1", "h2", "h3"] });
+  const hashes = await repo.loadSeenDiscountHashes("g1");
+  assert.deepEqual(hashes, ["h1", "h2", "h3"]);
 });
 
 test("disableUpdatesForChannelError writes the error metadata and clears subscription state", async () => {

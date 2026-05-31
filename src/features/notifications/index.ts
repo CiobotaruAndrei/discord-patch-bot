@@ -44,7 +44,7 @@ function createNotificationRuntime(deps: NotificationsContext) {
     validatePendingDiscountSnapshot, getLatestForAllGames, fetchDeals,
     enrichDealData, dealHash, canSendEmbeds, buildUpdateEmbed,
     buildDealEmbed, setUpdatesCache, getDealsCacheData, setDealsCache,
-    saveFetchSnapshot, loadFetchSnapshot,
+    saveFetchSnapshot, loadFetchSnapshot, GuildSeenDiscountModel,
     normalizeCurrencyKey, normalizePendingUpdateArray,
     normalizePendingDiscountArray, toEntries, rotateAfter, mapToObject,
     dealPassesFilters, sleepIfPositive, withMongoRetry, OP_UPDATE_OPTS,
@@ -62,11 +62,11 @@ function createNotificationRuntime(deps: NotificationsContext) {
   const resolveOutboundChannel = createOutboundChannelResolver({ logger, canSendEmbeds });
 
   const seenRepository = createSeenRepository({
-    GuildModel, withMongoRetry, SEEN_PER_GAME_LIMIT, DEALS_HISTORY_LIMIT, OP_UPDATE_OPTS
+    GuildModel, GuildSeenDiscountModel, withMongoRetry, SEEN_PER_GAME_LIMIT, DEALS_HISTORY_LIMIT, OP_UPDATE_OPTS
   });
   const {
     claimSeenUpdate, rollbackSeenUpdate, disableUpdatesForChannelError,
-    claimSeenDiscount, rollbackSeenDiscount, disableDiscountsForChannelError
+    claimSeenDiscount, rollbackSeenDiscount, loadSeenDiscountHashes, disableDiscountsForChannelError
   } = seenRepository;
 
   const updateService = createUpdateNotificationService({
@@ -82,7 +82,7 @@ function createNotificationRuntime(deps: NotificationsContext) {
 
   const discountService = createDiscountNotificationService({
     GuildModel, logger, runConcurrent, resolveOutboundChannel,
-    claimSeenDiscount, rollbackSeenDiscount, disableDiscountsForChannelError,
+    claimSeenDiscount, rollbackSeenDiscount, loadSeenDiscountHashes, disableDiscountsForChannelError,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingDiscountArray, validatePendingDiscountSnapshot,
     normalizeCurrencyKey, dealPassesFilters, dealHash,

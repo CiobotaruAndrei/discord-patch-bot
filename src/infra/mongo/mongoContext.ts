@@ -34,6 +34,7 @@ function buildMongoContextExports(context: MongoRuntimeContext) {
     JobLockModel: context.JobLockModel,
     AdminAlertCooldownModel: context.AdminAlertCooldownModel,
     FetchSnapshotModel: context.FetchSnapshotModel,
+    GuildSeenDiscountModel: context.GuildSeenDiscountModel,
     saveFetchSnapshot: context.saveFetchSnapshot,
     loadFetchSnapshot: context.loadFetchSnapshot,
     loadDealsFetchSnapshots: context.loadDealsFetchSnapshots,

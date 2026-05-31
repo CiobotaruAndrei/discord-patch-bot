@@ -48,6 +48,7 @@ export interface DiscountNotificationServiceDeps {
 
   claimSeenDiscount: (guildId: string, channelId: string, hash: string) => Promise<MongoWriteResult>;
   rollbackSeenDiscount: (guildId: string, hash: string) => Promise<MongoWriteResult>;
+  loadSeenDiscountHashes: (guildId: string) => Promise<string[]>;
   disableDiscountsForChannelError: (guildId: string, channelId: string, message: string) => Promise<MongoWriteResult>;
 
   isPermanentDiscordError: (err: unknown) => boolean;
@@ -87,7 +88,7 @@ export interface DiscountNotificationService {
 export function createDiscountNotificationService(deps: DiscountNotificationServiceDeps): DiscountNotificationService {
   const {
     GuildModel, logger, runConcurrent, resolveOutboundChannel,
-    claimSeenDiscount, rollbackSeenDiscount, disableDiscountsForChannelError,
+    claimSeenDiscount, rollbackSeenDiscount, loadSeenDiscountHashes, disableDiscountsForChannelError,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingDiscountArray, validatePendingDiscountSnapshot,
     normalizeCurrencyKey, dealPassesFilters, dealHash,
@@ -127,11 +128,11 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     });
     if (abort) return;
 
-    const seenSet = new Set(
-      Array.isArray((guild as { seenDiscounts?: unknown[] }).seenDiscounts)
-        ? (guild as { seenDiscounts: unknown[] }).seenDiscounts.map(String)
-        : []
-    );
+    const legacySeen = Array.isArray((guild as { seenDiscounts?: unknown[] }).seenDiscounts)
+      ? (guild as { seenDiscounts: unknown[] }).seenDiscounts.map(String)
+      : [];
+    const collectionSeen = await loadSeenDiscountHashes(String(guild._id));
+    const seenSet = new Set([...legacySeen, ...collectionSeen]);
     const { dealsByHash, orderedHashes } = getDealsHashIndex(deals);
     const pending: PendingDiscount[] = [];
     for (const old of normalizePendingDiscountArray((guild as { pendingDiscounts?: unknown }).pendingDiscounts)) {

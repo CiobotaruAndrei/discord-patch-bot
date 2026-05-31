@@ -99,6 +99,7 @@ function makeDiscountDeps(counters: Counters): DiscountDeps {
     resolveOutboundChannel: async () => ({ channel, abort: false }),
     claimSeenDiscount: async () => { counters.mongoWrites++; return { matchedCount: 1, modifiedCount: 1 }; },
     rollbackSeenDiscount: async () => ({ matchedCount: 1, modifiedCount: 1 }),
+    loadSeenDiscountHashes: async () => [],
     disableDiscountsForChannelError: async () => ({ matchedCount: 1, modifiedCount: 1 }),
     isPermanentDiscordError: () => false,
     transientErrorMessage: (err: unknown) => String(err),
