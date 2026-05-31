@@ -12,9 +12,15 @@ interface GuildSeenDiscountModelLike {
   find(filter: unknown, projection?: unknown): { lean(): Promise<Array<{ dealHash?: unknown }>> };
 }
 
+interface GuildSeenUpdateModelLike {
+  updateOne(filter: unknown, update: unknown, opts?: unknown): Promise<{ upsertedCount?: number; matchedCount?: number }>;
+  deleteOne(filter: unknown): Promise<{ deletedCount?: number }>;
+}
+
 export interface SeenRepositoryDeps {
   GuildModel: GuildModelLike;
   GuildSeenDiscountModel: GuildSeenDiscountModelLike;
+  GuildSeenUpdateModel: GuildSeenUpdateModelLike;
   withMongoRetry: WithMongoRetry;
   SEEN_PER_GAME_LIMIT: number;
   DEALS_HISTORY_LIMIT: number;
@@ -32,32 +38,38 @@ export interface SeenRepository {
 }
 
 export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
-  const { GuildModel, GuildSeenDiscountModel, withMongoRetry, SEEN_PER_GAME_LIMIT, OP_UPDATE_OPTS } = deps;
+  const { GuildModel, GuildSeenDiscountModel, GuildSeenUpdateModel, withMongoRetry, OP_UPDATE_OPTS } = deps;
 
   async function claimSeenUpdate(guildId: string, channelId: string, gameKey: string, updateId: string): Promise<MongoWriteResult> {
-    return withMongoRetry(() => GuildModel.updateOne(
+    const guard = await withMongoRetry(() => GuildModel.updateOne(
       {
         _id: guildId,
         subscribed: true,
         notificationChannelId: channelId,
-        updatesInitializing: { $ne: true },
-        [`seen.${gameKey}`]: { $ne: updateId }
+        updatesInitializing: { $ne: true }
       },
       {
-        $push: { [`seen.${gameKey}`]: { $each: [updateId], $slice: -SEEN_PER_GAME_LIMIT } },
         $pull: { [`pendingUpdates.${gameKey}`]: { id: updateId } },
         $set: { lastProcessedGameKey: gameKey }
       },
       OP_UPDATE_OPTS
-    ), { label: "claimSeenUpdate" });
+    ), { label: "claimSeenUpdate:guard" });
+    if ((guard.matchedCount ?? 0) === 0) return { matchedCount: 0 };
+
+    const res = await withMongoRetry(() => GuildSeenUpdateModel.updateOne(
+      { guildId, gameKey, updateId },
+      { $setOnInsert: { guildId, gameKey, updateId, seenAt: new Date() } },
+      { upsert: true }
+    ), { label: "claimSeenUpdate:seen" });
+    return { matchedCount: (res.upsertedCount ?? 0) > 0 ? 1 : 0 };
   }
 
   async function rollbackSeenUpdate(guildId: string, gameKey: string, updateId: string): Promise<MongoWriteResult> {
-
-    return withMongoRetry(() => GuildModel.updateOne(
-      { _id: guildId },
-      { $pull: { [`seen.${gameKey}`]: updateId } }
-    ), { label: "rollbackSeenUpdate" });
+    const res = await withMongoRetry(
+      () => GuildSeenUpdateModel.deleteOne({ guildId, gameKey, updateId }),
+      { label: "rollbackSeenUpdate" }
+    );
+    return { matchedCount: res.deletedCount ?? 0 };
   }
 
   async function disableUpdatesForChannelError(guildId: string, channelId: string, message: string): Promise<MongoWriteResult> {

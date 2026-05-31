@@ -134,6 +134,15 @@ const guildSeenDiscountSchema = new mongoose.Schema({
 guildSeenDiscountSchema.index({ guildId: 1, dealHash: 1 }, { unique: true, background: true });
 const GuildSeenDiscountModel = mongoose.model("GuildSeenDiscount", guildSeenDiscountSchema, "guildSeenDiscounts");
 
+const guildSeenUpdateSchema = new mongoose.Schema({
+  guildId: { type: String, required: true },
+  gameKey: { type: String, required: true },
+  updateId: { type: String, required: true },
+  seenAt: { type: Date, default: Date.now }
+}, { minimize: false });
+guildSeenUpdateSchema.index({ guildId: 1, gameKey: 1, updateId: 1 }, { unique: true, background: true });
+const GuildSeenUpdateModel = mongoose.model("GuildSeenUpdate", guildSeenUpdateSchema, "guildSeenUpdates");
+
   Object.assign(target, {
     GuildModel,
     CircuitBreakerModel,
@@ -141,7 +150,8 @@ const GuildSeenDiscountModel = mongoose.model("GuildSeenDiscount", guildSeenDisc
     JobLockModel,
     AdminAlertCooldownModel,
     FetchSnapshotModel,
-    GuildSeenDiscountModel
+    GuildSeenDiscountModel,
+    GuildSeenUpdateModel
   });
 }
 

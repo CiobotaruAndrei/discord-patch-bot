@@ -21,12 +21,14 @@ type DisableUpdateSet = {
   discountsLastError?: DisableErrorState;
 };
 
-function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: string[] }) {
+function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: string[]; seenUpdateInserted?: boolean }) {
   const calls: MongoCall[] = [];
   let updateOneCallCount = 0;
   const retryAttempts: Array<number | undefined> = [];
   const seenDiscountUpserts: MongoCall[] = [];
   const seenDiscountDeletes: unknown[] = [];
+  const seenUpdateUpserts: MongoCall[] = [];
+  const seenUpdateDeletes: unknown[] = [];
 
   const GuildModel = {
     updateOne: async (filter: unknown, update: unknown, mongoOpts?: unknown) => {
@@ -50,6 +52,17 @@ function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: stri
     })
   };
 
+  const GuildSeenUpdateModel = {
+    updateOne: async (filter: unknown, update: unknown, mongoOpts?: unknown) => {
+      seenUpdateUpserts.push({ filter, update, opts: mongoOpts });
+      return { upsertedCount: opts?.seenUpdateInserted === false ? 0 : 1 };
+    },
+    deleteOne: async (filter: unknown) => {
+      seenUpdateDeletes.push(filter);
+      return { deletedCount: 1 };
+    }
+  };
+
   const withMongoRetry = async <T>(fn: () => Promise<T>, options?: { label?: string; retries?: number }): Promise<T> => {
     retryAttempts.push(options?.retries);
     return fn();
@@ -58,44 +71,69 @@ function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: stri
   const repo = createSeenRepository({
     GuildModel: GuildModel as Parameters<typeof createSeenRepository>[0]["GuildModel"],
     GuildSeenDiscountModel: GuildSeenDiscountModel as Parameters<typeof createSeenRepository>[0]["GuildSeenDiscountModel"],
+    GuildSeenUpdateModel: GuildSeenUpdateModel as Parameters<typeof createSeenRepository>[0]["GuildSeenUpdateModel"],
     withMongoRetry,
     SEEN_PER_GAME_LIMIT: 20,
     DEALS_HISTORY_LIMIT: 300,
     OP_UPDATE_OPTS: { strict: false }
   });
 
-  return { repo, calls, retryAttempts, seenDiscountUpserts, seenDiscountDeletes, count: () => updateOneCallCount };
+  return { repo, calls, retryAttempts, seenDiscountUpserts, seenDiscountDeletes, seenUpdateUpserts, seenUpdateDeletes, count: () => updateOneCallCount };
 }
 
-test("claimSeenUpdate runs under withMongoRetry with the correct atomic filter+update", async () => {
-  const { repo, calls, retryAttempts } = makeFakeDeps();
+test("claimSeenUpdate: guard pe documentul guild (pull pending + lastProcessedGameKey) + upsert atomic in colectie", async () => {
+  const { repo, calls, seenUpdateUpserts } = makeFakeDeps();
 
-  await repo.claimSeenUpdate("g1", "ch1", "cs2", "u-99");
+  const result = await repo.claimSeenUpdate("g1", "ch1", "cs2", "u-99");
 
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 1, "un singur write pe documentul guild (guard + pull pending)");
   const { filter, update } = calls[0] as { filter: SeenFilter; update: SeenUpdate };
-
   assert.equal(filter._id, "g1");
   assert.equal(filter.subscribed, true);
   assert.equal(filter.notificationChannelId, "ch1");
-  assert.deepEqual(filter["seen.cs2"], { $ne: "u-99" });
-  assert.deepEqual(update.$push, { "seen.cs2": { $each: ["u-99"], $slice: -20 } });
+  assert.equal(filter["seen.cs2"], undefined, "nu mai filtram pe seen pe documentul guild");
+  assert.equal(update.$push, undefined, "nu mai impingem in seen pe documentul guild");
   assert.deepEqual(update.$pull, { "pendingUpdates.cs2": { id: "u-99" } });
   assert.deepEqual(update.$set, { lastProcessedGameKey: "cs2" });
 
-  assert.equal(retryAttempts.length, 1);
+  assert.equal(seenUpdateUpserts.length, 1, "seen-claim merge in colectia dedicata");
+  const upsert = seenUpdateUpserts[0] as { filter: SeenFilter; opts?: { upsert?: boolean } };
+  assert.deepEqual(upsert.filter, { guildId: "g1", gameKey: "cs2", updateId: "u-99" });
+  assert.equal(upsert.opts?.upsert, true);
+  assert.equal(result.matchedCount, 1, "upsertedCount=1 -> claim nou");
 });
 
-test("rollbackSeenUpdate runs under withMongoRetry — critical to recover lost notifications on transient blips", async () => {
-  const { repo, calls, retryAttempts } = makeFakeDeps();
+test("claimSeenUpdate: update deja vazut (upsertedCount=0) intoarce matchedCount 0", async () => {
+  const { repo } = makeFakeDeps({ seenUpdateInserted: false });
+  const result = await repo.claimSeenUpdate("g1", "ch1", "cs2", "u-99");
+  assert.equal(result.matchedCount, 0);
+});
+
+test("claimSeenUpdate: guard nepotrivit (guild nesubscris) NU face upsert in colectie", async () => {
+  const { repo, seenUpdateUpserts } = makeFakeDeps();
+  const GuildModelUnsub = {
+    updateOne: async () => ({ matchedCount: 0, modifiedCount: 0 })
+  };
+  const repoUnsub = createSeenRepository({
+    GuildModel: GuildModelUnsub as unknown as Parameters<typeof createSeenRepository>[0]["GuildModel"],
+    GuildSeenDiscountModel: { updateOne: async () => ({ upsertedCount: 1 }), deleteOne: async () => ({ deletedCount: 1 }), find: () => ({ lean: async () => [] }) } as unknown as Parameters<typeof createSeenRepository>[0]["GuildSeenDiscountModel"],
+    GuildSeenUpdateModel: { updateOne: async () => { seenUpdateUpserts.push({ filter: {}, update: {} }); return { upsertedCount: 1 }; }, deleteOne: async () => ({ deletedCount: 1 }) } as unknown as Parameters<typeof createSeenRepository>[0]["GuildSeenUpdateModel"],
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    SEEN_PER_GAME_LIMIT: 20, DEALS_HISTORY_LIMIT: 300, OP_UPDATE_OPTS: {}
+  });
+  const result = await repoUnsub.claimSeenUpdate("g1", "ch1", "cs2", "u-99");
+  assert.equal(result.matchedCount, 0, "guard nepotrivit -> claim esuat");
+  assert.equal(seenUpdateUpserts.length, 0, "nu se atinge colectia daca guard-ul nu trece");
+});
+
+test("rollbackSeenUpdate sterge intrarea din colectia dedicata", async () => {
+  const { repo, calls, seenUpdateDeletes } = makeFakeDeps();
 
   await repo.rollbackSeenUpdate("g1", "cs2", "u-99");
 
-  assert.equal(calls.length, 1);
-  const { filter, update } = calls[0] as { filter: SeenFilter; update: SeenUpdate };
-  assert.equal(filter._id, "g1");
-  assert.deepEqual(update.$pull, { "seen.cs2": "u-99" });
-  assert.equal(retryAttempts.length, 1, "rollback MUST be wrapped in withMongoRetry");
+  assert.equal(calls.length, 0, "rollback nu mai atinge documentul guild");
+  assert.equal(seenUpdateDeletes.length, 1);
+  assert.deepEqual(seenUpdateDeletes[0], { guildId: "g1", gameKey: "cs2", updateId: "u-99" });
 });
 
 test("claimSeenDiscount: guard pe documentul guild (pull pending) + upsert atomic in colectia dedicata", async () => {

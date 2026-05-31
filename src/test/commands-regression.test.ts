@@ -62,8 +62,8 @@ const allSource = `${commandsSource}\n${runtimeSource}`;
 test("notification queues keep the duplicate-prevention guardrails", () => {
   expectAll(commandsSource, [
     /async function claimSeenUpdate/,
-    /seen\.\$\{gameKey\}/,
-    /\$ne/,
+    /GuildSeenUpdateModel/,
+    /upsertedCount/,
     /updateId/,
     /async function rollbackSeenUpdate/,
     /rollbackSeenUpdate/,

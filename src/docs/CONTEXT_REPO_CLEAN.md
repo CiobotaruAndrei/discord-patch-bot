@@ -102,7 +102,7 @@ Zona de notificari este impartita astfel:
 - `updateNotificationService.ts` construieste si trimite notificarile pentru update-uri;
 - `discountNotificationService.ts` construieste si trimite notificarile pentru reduceri;
 - `outboundChannel.ts` rezolva canalul Discord de trimitere;
-- `seenRepository.ts` gestioneaza deduplicarea (claim/rollback) pentru update-uri si reduceri. `seen`-ul de reduceri este in colectia dedicata `guildSeenDiscounts` (index unic `{ guildId, dealHash }`, claim = upsert atomic); verificarea „deja vazut" face dual-read (array-ul legacy `seenDiscounts` de pe documentul guild + colectia), iar migrarea `m5` backfilleaza legacy in colectie. `seen`-ul de update-uri si cozile `pending` raman deocamdata pe documentul guild-ului;
+- `seenRepository.ts` gestioneaza deduplicarea (claim/rollback) pentru update-uri si reduceri. `seen`-ul e in colectii dedicate: `guildSeenDiscounts` (index unic `{ guildId, dealHash }`) si `guildSeenUpdates` (index unic `{ guildId, gameKey, updateId }`), claim = upsert atomic. Verificarea „deja vazut" face dual-read cu sursele legacy de pe documentul guild (array-ul `seenDiscounts`, respectiv map-ul `seen`), iar migrarile `m5`/`m6` le backfilleaza in colectii — astfel o migrare incompleta nu poate produce re-notificari. Cozile `pending` raman deocamdata pe documentul guild-ului;
 - `deadLetter.ts` defineste forma intrarii dead-letter si plafonul cozii.
 
 Aceasta impartire reduce riscul de copy-paste in cron jobs si permite teste functionale mai clare.

@@ -44,7 +44,7 @@ function createNotificationRuntime(deps: NotificationsContext) {
     validatePendingDiscountSnapshot, getLatestForAllGames, fetchDeals,
     enrichDealData, dealHash, canSendEmbeds, buildUpdateEmbed,
     buildDealEmbed, setUpdatesCache, getDealsCacheData, setDealsCache,
-    saveFetchSnapshot, loadFetchSnapshot, GuildSeenDiscountModel,
+    saveFetchSnapshot, loadFetchSnapshot, GuildSeenDiscountModel, GuildSeenUpdateModel,
     normalizeCurrencyKey, normalizePendingUpdateArray,
     normalizePendingDiscountArray, toEntries, rotateAfter, mapToObject,
     dealPassesFilters, sleepIfPositive, withMongoRetry, OP_UPDATE_OPTS,
@@ -62,7 +62,7 @@ function createNotificationRuntime(deps: NotificationsContext) {
   const resolveOutboundChannel = createOutboundChannelResolver({ logger, canSendEmbeds });
 
   const seenRepository = createSeenRepository({
-    GuildModel, GuildSeenDiscountModel, withMongoRetry, SEEN_PER_GAME_LIMIT, DEALS_HISTORY_LIMIT, OP_UPDATE_OPTS
+    GuildModel, GuildSeenDiscountModel, GuildSeenUpdateModel, withMongoRetry, SEEN_PER_GAME_LIMIT, DEALS_HISTORY_LIMIT, OP_UPDATE_OPTS
   });
   const {
     claimSeenUpdate, rollbackSeenUpdate, disableUpdatesForChannelError,
