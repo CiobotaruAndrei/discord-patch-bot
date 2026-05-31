@@ -189,8 +189,22 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
   let latestCallCount = 0;
   const replies: unknown[] = [];
   const updatesCache: unknown[] = [];
+  const seenUpdateStore = new Set<string>();
+  const GuildSeenUpdateModel = {
+    updateOne: async (filter: { guildId: string; gameKey: string; updateId: string }) => {
+      const key = `${filter.guildId}|${filter.gameKey}|${filter.updateId}`;
+      if (seenUpdateStore.has(key)) return { upsertedCount: 0 };
+      seenUpdateStore.add(key);
+      return { upsertedCount: 1 };
+    },
+    deleteOne: async (filter: { guildId: string; gameKey: string; updateId: string }) => {
+      seenUpdateStore.delete(`${filter.guildId}|${filter.gameKey}|${filter.updateId}`);
+      return { deletedCount: 1 };
+    }
+  };
   const context = {
     GuildModel: createGuildModel(guild),
+    GuildSeenUpdateModel,
     logger: (_level: string, _context: string, _message: string, _meta?: unknown) => undefined,
     DEFAULT_CURRENCY: "USD",
     runConcurrent: async (items: unknown[], _limit: number, worker: (item: unknown) => Promise<void>) => {
@@ -259,7 +273,7 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
     }
   };
 
-  return { context: context as typeof context & UpdatesRuntime, client, replies, updatesCache };
+  return { context: context as typeof context & UpdatesRuntime, client, replies, updatesCache, seenUpdateStore };
 }
 
 test("/start updates baseline plus cron sends only the next unseen update", async () => {
@@ -279,7 +293,7 @@ test("/start updates baseline plus cron sends only the next unseen update", asyn
       return { id: `message-${sentPayloads.length}` };
     }
   };
-  const { context, client, replies, updatesCache } = buildContext(guild, channel);
+  const { context, client, replies, updatesCache, seenUpdateStore } = buildContext(guild, channel);
 
   await context.handleStartInteraction(makeStartUpdatesInteraction(channel), games);
   await context.checkForUpdates(client, games);
@@ -288,7 +302,8 @@ test("/start updates baseline plus cron sends only the next unseen update", asyn
   assert.equal(sentPayloads.length, 1);
   assert.equal(sentPayloads[0].embeds?.[0]?.title, "New patch");
   assert.equal(sentPayloads[0].embeds?.[0]?.updateId, "new-update");
-  assert.deepEqual((guild.seen as Record<string, string[]>).cs2, ["old-update", "new-update"]);
+  assert.deepEqual((guild.seen as Record<string, string[]>).cs2, ["old-update"], "baseline-ul ramane pe documentul guild (legacy)");
+  assert.ok(seenUpdateStore.has("guild-1|cs2|new-update"), "update-ul nou trimis de cron e claim-uit in colectia dedicata");
   assert.deepEqual(guild.pendingUpdates, {});
   assert.equal(guild.lastProcessedGameKey, "cs2");
   assert.equal(updatesCache.length, 1, "cron should refresh the updates cache once");

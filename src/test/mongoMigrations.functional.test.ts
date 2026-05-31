@@ -8,6 +8,7 @@ interface GuildDoc {
   maxAbsolutePrice?: number;
   enabledGames?: string[];
   seenDiscounts?: string[];
+  seen?: Record<string, string[]>;
 }
 
 interface MigrationStateDoc {
@@ -36,7 +37,8 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
   const releaseCalls: Array<{ name: string; token: string }> = [];
   const guilds: GuildDoc[] = [{
     _id: "guild-1",
-    seenDiscounts: Array.from({ length: 520 }, (_, index) => `deal-${index}`)
+    seenDiscounts: Array.from({ length: 520 }, (_, index) => `deal-${index}`),
+    seen: { cs2: ["u-1", "u-2"], dota: ["u-3"] }
   }];
   let migrationState: MigrationStateDoc | null = null;
 
@@ -59,7 +61,16 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
       }
       return { modifiedCount: 1 };
     },
-    find() {
+    find(filter?: { seen?: unknown; seenDiscounts?: unknown }) {
+      if (filter && "seen" in filter) {
+        const matching = guilds.filter(guild => guild.seen && Object.keys(guild.seen).length > 0);
+        return {
+          async toArray() { return matching.map(guild => ({ _id: guild._id, seen: guild.seen })); },
+          async *[Symbol.asyncIterator]() {
+            for (const guild of matching) yield { _id: guild._id, seen: guild.seen };
+          }
+        };
+      }
       const matching = guilds.filter(guild => Array.isArray(guild.seenDiscounts) && guild.seenDiscounts.length > 0);
       return {
         async toArray() {
@@ -94,6 +105,13 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
       return { upsertedCount: ops.length };
     }
   };
+  const seenUpdateBulkOps: unknown[] = [];
+  const guildSeenUpdateCollection = {
+    async bulkWrite(ops: unknown[]) {
+      seenUpdateBulkOps.push(...ops);
+      return { upsertedCount: ops.length };
+    }
+  };
 
   const connection = {
     db: {},
@@ -101,6 +119,7 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
       if (name === "guilds") return guildCollection;
       if (name === "system") return systemCollection;
       if (name === "guildSeenDiscounts") return guildSeenDiscountCollection;
+      if (name === "guildSeenUpdates") return guildSeenUpdateCollection;
       throw new Error(`Unexpected collection ${name}`);
     }
   };
@@ -115,7 +134,7 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
 
   attachMigrations(context);
   const runtime = context as Parameters<typeof attachMigrations>[0] & MigrationRuntime;
-  return { context: runtime, guilds, get migrationState() { return migrationState; }, updateManyCalls, releaseCalls, seenDiscountBulkOps };
+  return { context: runtime, guilds, get migrationState() { return migrationState; }, updateManyCalls, releaseCalls, seenDiscountBulkOps, seenUpdateBulkOps };
 }
 
 test("Mongo migrations apply pending migrations and release the lock", async () => {
@@ -126,9 +145,9 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
     logs.push({ level, context, message });
   });
 
-  assert.deepEqual(result.applied, [1, 2, 3, 4, 5]);
+  assert.deepEqual(result.applied, [1, 2, 3, 4, 5, 6]);
   assert.equal(result.skipped, 0);
-  assert.equal(fixture.updateManyCalls.length, 4, "m5 foloseste find + bulkWrite, nu updateMany");
+  assert.equal(fixture.updateManyCalls.length, 4, "m5 si m6 folosesc find + bulkWrite, nu updateMany");
   const m4Call = fixture.updateManyCalls[3];
   assert.deepEqual(m4Call.filter, { "seenDiscounts.500": { $exists: true } });
   assert.ok(Array.isArray(m4Call.update), "m4 trebuie sa foloseasca aggregation pipeline (array)");
@@ -142,10 +161,14 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
   const firstBackfill = fixture.seenDiscountBulkOps[0] as { updateOne: { filter: { guildId: string; dealHash: string }; upsert: boolean } };
   assert.deepEqual(firstBackfill.updateOne.filter, { guildId: "guild-1", dealHash: "deal-220" });
   assert.equal(firstBackfill.updateOne.upsert, true);
-  assert.equal(fixture.migrationState?.lastApplied, 5);
+  assert.equal(fixture.seenUpdateBulkOps.length, 3, "m6 backfilleaza cele 3 perechi (gameKey, updateId) din map-ul seen");
+  const firstSeenUpdate = fixture.seenUpdateBulkOps[0] as { updateOne: { filter: { guildId: string; gameKey: string; updateId: string }; upsert: boolean } };
+  assert.deepEqual(firstSeenUpdate.updateOne.filter, { guildId: "guild-1", gameKey: "cs2", updateId: "u-1" });
+  assert.equal(firstSeenUpdate.updateOne.upsert, true);
+  assert.equal(fixture.migrationState?.lastApplied, 6);
   assert.equal(fixture.releaseCalls.length, 1);
   assert.deepEqual(fixture.releaseCalls[0], { name: "db_migrations", token: "migration-lock-token" });
-  assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#5")));
+  assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#6")));
 });
 
 test("Mongo migrations skip safely when another instance holds the lock", async () => {
