@@ -11,3 +11,4 @@
 9. Orice noua implementare de cod in repo trebuie facuta in GitHub pe branch nou si PR, ca implementarea sa fie verificata ca merge.
 10. Cand se adauga o regula noua in acest fisier, se da direct merge, pentru ca nu este nevoie sa se verifice ceva cand este adaugata o regula.
 11. Daca la un review de cod sunt mai multe lucruri de implementat in repo si nu se pot face toate dintr-o data, AI-ul trebuie sa retina sau sa isi scrie undeva toate lucrurile care sunt de implementat.
+12. Fiecare fisier nou trebuie sa primeasca un nume corespunzator functionalitatii sau rolului pe care il are in repo, nu un nume random, de exemplu `notification/codex`. Numele fisierului trebuie sa descrie doar functionalitatea corespunzatoare si nu trebuie sa includa cine a facut acel fisier.
