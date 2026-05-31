@@ -186,8 +186,27 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
   let fetchDealsCallCount = 0;
   const replies: unknown[] = [];
   const dealsCacheWrites: Array<{ currency: string; deals: DealDoc[] }> = [];
+  const seenDiscountStore = new Set<string>();
+  const GuildSeenDiscountModel = {
+    updateOne: async (filter: { guildId: string; dealHash: string }) => {
+      const key = `${filter.guildId}|${filter.dealHash}`;
+      if (seenDiscountStore.has(key)) return { upsertedCount: 0 };
+      seenDiscountStore.add(key);
+      return { upsertedCount: 1 };
+    },
+    deleteOne: async (filter: { guildId: string; dealHash: string }) => {
+      seenDiscountStore.delete(`${filter.guildId}|${filter.dealHash}`);
+      return { deletedCount: 1 };
+    },
+    find: (filter: { guildId: string }) => ({
+      lean: async () => Array.from(seenDiscountStore)
+        .filter(key => key.startsWith(`${filter.guildId}|`))
+        .map(key => ({ dealHash: key.slice(filter.guildId.length + 1) }))
+    })
+  };
   const context = {
     GuildModel: createGuildModel(guild),
+    GuildSeenDiscountModel,
     logger: (_level: string, _context: string, _message: string, _meta?: unknown) => undefined,
     DEFAULT_CURRENCY: "USD",
     runConcurrent: async (items: unknown[], _limit: number, worker: (item: unknown) => Promise<void>) => {
@@ -257,7 +276,7 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
     }
   };
 
-  return { context: context as typeof context & DiscountsRuntime, client, replies, dealsCacheWrites };
+  return { context: context as typeof context & DiscountsRuntime, client, replies, dealsCacheWrites, seenDiscountStore };
 }
 
 test("/start reduceri baseline plus cron sends only the next unseen deal", async () => {
@@ -277,7 +296,7 @@ test("/start reduceri baseline plus cron sends only the next unseen deal", async
       return { id: `message-${sentPayloads.length}` };
     }
   };
-  const { context, client, replies, dealsCacheWrites } = buildContext(guild, channel);
+  const { context, client, replies, dealsCacheWrites, seenDiscountStore } = buildContext(guild, channel);
 
   await context.handleStartInteraction(makeStartDiscountsInteraction(channel), []);
   await context.checkForDiscounts(client);
@@ -287,7 +306,8 @@ test("/start reduceri baseline plus cron sends only the next unseen deal", async
   assert.equal(sentPayloads[0].embeds?.[0]?.title, "New discount");
   assert.equal(sentPayloads[0].embeds?.[0]?.dealId, "new-deal");
   assert.equal(sentPayloads[0].embeds?.[0]?.enriched, true);
-  assert.deepEqual(guild.seenDiscounts, ["old-deal", "new-deal"]);
+  assert.deepEqual(guild.seenDiscounts, ["old-deal"], "baseline-ul ramane pe documentul guild (legacy)");
+  assert.ok(seenDiscountStore.has("guild-1|new-deal"), "deal-ul nou trimis de cron e claim-uit in colectia dedicata");
   assert.deepEqual(guild.pendingDiscounts, []);
   assert.equal(dealsCacheWrites.length, 2, "start reduceri should cache the baseline, then cron should refresh the deals cache");
   assert.deepEqual(

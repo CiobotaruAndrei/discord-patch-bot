@@ -6,8 +6,15 @@ type MongoWriteResult = { matchedCount?: number; modifiedCount?: number };
 type GuildModelLike = Pick<Model<GuildSettings>, "updateOne">;
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 
+interface GuildSeenDiscountModelLike {
+  updateOne(filter: unknown, update: unknown, opts?: unknown): Promise<{ upsertedCount?: number; matchedCount?: number }>;
+  deleteOne(filter: unknown): Promise<{ deletedCount?: number }>;
+  find(filter: unknown, projection?: unknown): { lean(): Promise<Array<{ dealHash?: unknown }>> };
+}
+
 export interface SeenRepositoryDeps {
   GuildModel: GuildModelLike;
+  GuildSeenDiscountModel: GuildSeenDiscountModelLike;
   withMongoRetry: WithMongoRetry;
   SEEN_PER_GAME_LIMIT: number;
   DEALS_HISTORY_LIMIT: number;
@@ -20,11 +27,12 @@ export interface SeenRepository {
   disableUpdatesForChannelError(guildId: string, channelId: string, message: string): Promise<MongoWriteResult>;
   claimSeenDiscount(guildId: string, channelId: string, hash: string): Promise<MongoWriteResult>;
   rollbackSeenDiscount(guildId: string, hash: string): Promise<MongoWriteResult>;
+  loadSeenDiscountHashes(guildId: string): Promise<string[]>;
   disableDiscountsForChannelError(guildId: string, channelId: string, message: string): Promise<MongoWriteResult>;
 }
 
 export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
-  const { GuildModel, withMongoRetry, SEEN_PER_GAME_LIMIT, DEALS_HISTORY_LIMIT, OP_UPDATE_OPTS } = deps;
+  const { GuildModel, GuildSeenDiscountModel, withMongoRetry, SEEN_PER_GAME_LIMIT, OP_UPDATE_OPTS } = deps;
 
   async function claimSeenUpdate(guildId: string, channelId: string, gameKey: string, updateId: string): Promise<MongoWriteResult> {
     return withMongoRetry(() => GuildModel.updateOne(
@@ -68,28 +76,40 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
   }
 
   async function claimSeenDiscount(guildId: string, channelId: string, hash: string): Promise<MongoWriteResult> {
-    return withMongoRetry(() => GuildModel.updateOne(
+    const guard = await withMongoRetry(() => GuildModel.updateOne(
       {
         _id: guildId,
         discountsSubscribed: true,
         discountChannelId: channelId,
-        discountsInitializing: { $ne: true },
-        seenDiscounts: { $ne: hash }
+        discountsInitializing: { $ne: true }
       },
-      {
-        $push: { seenDiscounts: { $each: [hash], $slice: -DEALS_HISTORY_LIMIT } },
-        $pull: { pendingDiscounts: { hash } }
-      },
+      { $pull: { pendingDiscounts: { hash } } },
       OP_UPDATE_OPTS
-    ), { label: "claimSeenDiscount" });
+    ), { label: "claimSeenDiscount:guard" });
+    if ((guard.matchedCount ?? 0) === 0) return { matchedCount: 0 };
+
+    const res = await withMongoRetry(() => GuildSeenDiscountModel.updateOne(
+      { guildId, dealHash: hash },
+      { $setOnInsert: { guildId, dealHash: hash, seenAt: new Date() } },
+      { upsert: true }
+    ), { label: "claimSeenDiscount:seen" });
+    return { matchedCount: (res.upsertedCount ?? 0) > 0 ? 1 : 0 };
   }
 
   async function rollbackSeenDiscount(guildId: string, hash: string): Promise<MongoWriteResult> {
+    const res = await withMongoRetry(
+      () => GuildSeenDiscountModel.deleteOne({ guildId, dealHash: hash }),
+      { label: "rollbackSeenDiscount" }
+    );
+    return { matchedCount: res.deletedCount ?? 0 };
+  }
 
-    return withMongoRetry(() => GuildModel.updateOne(
-      { _id: guildId },
-      { $pull: { seenDiscounts: hash } }
-    ), { label: "rollbackSeenDiscount" });
+  async function loadSeenDiscountHashes(guildId: string): Promise<string[]> {
+    const docs = await withMongoRetry(
+      () => GuildSeenDiscountModel.find({ guildId }, { dealHash: 1 }).lean(),
+      { label: "loadSeenDiscountHashes" }
+    );
+    return docs.map(doc => String(doc.dealHash || "")).filter(Boolean);
   }
 
   async function disableDiscountsForChannelError(guildId: string, channelId: string, message: string): Promise<MongoWriteResult> {
@@ -113,6 +133,7 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
     disableUpdatesForChannelError,
     claimSeenDiscount,
     rollbackSeenDiscount,
+    loadSeenDiscountHashes,
     disableDiscountsForChannelError
   };
 }

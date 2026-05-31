@@ -126,13 +126,22 @@ const fetchSnapshotSchema = new mongoose.Schema({
 }, { minimize: false });
 const FetchSnapshotModel = mongoose.model("FetchSnapshot", fetchSnapshotSchema);
 
+const guildSeenDiscountSchema = new mongoose.Schema({
+  guildId: { type: String, required: true },
+  dealHash: { type: String, required: true },
+  seenAt: { type: Date, default: Date.now }
+}, { minimize: false });
+guildSeenDiscountSchema.index({ guildId: 1, dealHash: 1 }, { unique: true, background: true });
+const GuildSeenDiscountModel = mongoose.model("GuildSeenDiscount", guildSeenDiscountSchema, "guildSeenDiscounts");
+
   Object.assign(target, {
     GuildModel,
     CircuitBreakerModel,
     SystemModel,
     JobLockModel,
     AdminAlertCooldownModel,
-    FetchSnapshotModel
+    FetchSnapshotModel,
+    GuildSeenDiscountModel
   });
 }
 

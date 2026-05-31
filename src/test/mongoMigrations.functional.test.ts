@@ -60,11 +60,13 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
       return { modifiedCount: 1 };
     },
     find() {
+      const matching = guilds.filter(guild => Array.isArray(guild.seenDiscounts) && guild.seenDiscounts.length > 0);
       return {
         async toArray() {
-          return guilds
-            .filter(guild => Array.isArray(guild.seenDiscounts) && guild.seenDiscounts.length > 500)
-            .map(guild => ({ _id: guild._id, seenDiscounts: guild.seenDiscounts }));
+          return matching.map(guild => ({ _id: guild._id, seenDiscounts: guild.seenDiscounts }));
+        },
+        async *[Symbol.asyncIterator]() {
+          for (const guild of matching) yield { _id: guild._id, seenDiscounts: guild.seenDiscounts };
         }
       };
     },
@@ -85,11 +87,20 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
     }
   };
 
+  const seenDiscountBulkOps: unknown[] = [];
+  const guildSeenDiscountCollection = {
+    async bulkWrite(ops: unknown[]) {
+      seenDiscountBulkOps.push(...ops);
+      return { upsertedCount: ops.length };
+    }
+  };
+
   const connection = {
     db: {},
     collection(name: string) {
       if (name === "guilds") return guildCollection;
       if (name === "system") return systemCollection;
+      if (name === "guildSeenDiscounts") return guildSeenDiscountCollection;
       throw new Error(`Unexpected collection ${name}`);
     }
   };
@@ -104,7 +115,7 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
 
   attachMigrations(context);
   const runtime = context as Parameters<typeof attachMigrations>[0] & MigrationRuntime;
-  return { context: runtime, guilds, get migrationState() { return migrationState; }, updateManyCalls, releaseCalls };
+  return { context: runtime, guilds, get migrationState() { return migrationState; }, updateManyCalls, releaseCalls, seenDiscountBulkOps };
 }
 
 test("Mongo migrations apply pending migrations and release the lock", async () => {
@@ -115,9 +126,9 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
     logs.push({ level, context, message });
   });
 
-  assert.deepEqual(result.applied, [1, 2, 3, 4]);
+  assert.deepEqual(result.applied, [1, 2, 3, 4, 5]);
   assert.equal(result.skipped, 0);
-  assert.equal(fixture.updateManyCalls.length, 4);
+  assert.equal(fixture.updateManyCalls.length, 4, "m5 foloseste find + bulkWrite, nu updateMany");
   const m4Call = fixture.updateManyCalls[3];
   assert.deepEqual(m4Call.filter, { "seenDiscounts.500": { $exists: true } });
   assert.ok(Array.isArray(m4Call.update), "m4 trebuie sa foloseasca aggregation pipeline (array)");
@@ -127,10 +138,14 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
   );
   assert.equal(fixture.guilds[0].seenDiscounts?.length, 300);
   assert.equal(fixture.guilds[0].seenDiscounts?.[0], "deal-220");
-  assert.equal(fixture.migrationState?.lastApplied, 4);
+  assert.equal(fixture.seenDiscountBulkOps.length, 300, "m5 backfilleaza cele 300 hash-uri ramase in colectia dedicata");
+  const firstBackfill = fixture.seenDiscountBulkOps[0] as { updateOne: { filter: { guildId: string; dealHash: string }; upsert: boolean } };
+  assert.deepEqual(firstBackfill.updateOne.filter, { guildId: "guild-1", dealHash: "deal-220" });
+  assert.equal(firstBackfill.updateOne.upsert, true);
+  assert.equal(fixture.migrationState?.lastApplied, 5);
   assert.equal(fixture.releaseCalls.length, 1);
   assert.deepEqual(fixture.releaseCalls[0], { name: "db_migrations", token: "migration-lock-token" });
-  assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#4")));
+  assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#5")));
 });
 
 test("Mongo migrations skip safely when another instance holds the lock", async () => {
