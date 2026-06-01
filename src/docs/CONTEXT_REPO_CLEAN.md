@@ -26,6 +26,7 @@ Documentul descrie starea curenta a repo-ului dupa migrarea treptata din fisiere
 src/
   app/
     main.ts
+    appRuntime.ts
     health/
     lifecycle/
     scheduler/

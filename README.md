@@ -89,12 +89,15 @@ Variabile utile suplimentare:
 ```text
 src/
   app/
-    main.ts                 # bootstrap bot
-    scheduler/              # cron, heartbeat, housekeeping
+    main.ts                 # entry subtire: cablare deps + apel boot
+    appRuntime.ts           # createAppRuntime(deps) -> { start, stop, schedulers }
+    scheduler/              # cron, outbox worker, housekeeping
+    lifecycle/              # inregistrare event-uri Discord/Mongo si shutdown
     health/httpServer.ts    # /healthz si /metrics
   config/                   # loader si validator pentru config.json
   domain/deals/             # filtre pure pentru deal-uri si pending queues
   features/
+    command-cache/          # cache-uri in-memory pentru comenzi
     command-registry/       # instalare module de comenzi
     command-runtime/        # context runtime pentru comenzi
     command-definitions/    # definitii slash commands
