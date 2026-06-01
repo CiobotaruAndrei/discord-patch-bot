@@ -63,6 +63,22 @@ export interface AppRuntimeDeps {
   scrapers: { attachMetrics: (metrics: unknown) => void } & Record<string, unknown>;
 }
 
+interface RuntimeServices {
+  client: DiscordClientLike;
+  metrics: Record<string, unknown>;
+  lifecycle: { isShuttingDown: boolean };
+  rateLimiter: unknown;
+  housekeeping: HousekeepingLike;
+  config: unknown;
+  games: unknown[];
+}
+
+interface Schedulers {
+  cronController: CronControllerLike;
+  outboxWorker: OutboxWorkerLike;
+  outboxEnabled: boolean;
+}
+
 export interface AppRuntime {
   start(): Promise<void>;
   stop(signal: string, exitCode?: number): Promise<void>;
@@ -79,19 +95,9 @@ const MONGO_CONNECT_MAX_BACKOFF_MS = 16000;
 const SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
 const BOOT_ALERT_BUDGET_MS = 3000;
 
-function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
-  const {
-    mongoose, crypto, performance, Client, GatewayIntentBits,
-    loadConfig, createMetrics, createRateLimiter, createHousekeeping,
-    createCronController, createOutboxWorker, createHttpServer,
-    registerDiscordEvents, registerMongoEvents, createShutdownController,
-    errorMessage, errorDetail, mongo, commands, scrapers
-  } = deps;
-  const {
-    logger, env, parseEnvNumber, acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
-    waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
-    runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots
-  } = mongo;
+function createRuntimeServices(deps: AppRuntimeDeps): RuntimeServices {
+  const { Client, GatewayIntentBits, loadConfig, createMetrics, createRateLimiter, createHousekeeping, scrapers, commands, errorMessage, mongo } = deps;
+  const { logger, env, cleanGuildCache } = mongo;
 
   const { config, games } = loadConfig();
   const metrics = createMetrics();
@@ -103,11 +109,21 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   const housekeeping = createHousekeeping({
     commands, cleanGuildCache, scrapers, rateLimiter, logger, env, errorMessage
   });
+
+  return { client, metrics, lifecycle, rateLimiter, housekeeping, config, games };
+}
+
+function createSchedulers(deps: AppRuntimeDeps, services: RuntimeServices): Schedulers {
+  const { mongoose, performance, crypto, createCronController, createOutboxWorker, errorMessage, errorDetail, commands, mongo } = deps;
+  const { logger, env, parseEnvNumber, acquireDbLock, renewDbLock, releaseDbLock, adminAlert, requestContext } = mongo;
+  const { client, metrics, lifecycle, config, games } = services;
+
   const cronController = createCronController({
     mongoose, performance, crypto, logger, env, parseEnvNumber,
     acquireDbLock, renewDbLock, releaseDbLock, commands, adminAlert,
     client, games, config, metrics, lifecycle, errorMessage, errorDetail, requestContext
   });
+
   const outboxEnabled = process.env.NOTIFICATION_OUTBOX_ENABLED === "true";
   const outboxDrainLimit = parseEnvNumber("NOTIFICATION_OUTBOX_DRAIN_LIMIT", 50, { min: 1, max: 1000 });
   const outboxPerJobBudgetMs = parseEnvNumber("DISCORD_SEND_RATE_MAX_WAIT_MS", 5000, { min: 0, max: 60000 }) + 2000;
@@ -117,72 +133,65 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
     lifecycle, metrics, errorMessage,
     drainLimit: outboxDrainLimit, perJobBudgetMs: outboxPerJobBudgetMs
   });
-  const httpServer = createHttpServer({
-    mongoose, crypto, env, client, metrics, commands,
-    getGuildCacheSize, scrapers, activeLocks, rateLimiter, cronController
-  });
 
-  registerDiscordEvents({
-    client, logger, commands, env, adminAlert, requestContext, games, crypto,
-    errorMessage, errorDetail,
-    startHousekeeping: housekeeping.start,
-    scheduleNextCron: cronController.scheduleNextCron,
-    startOutboxWorker: outboxEnabled ? outboxWorker.start : undefined
-  });
-  registerMongoEvents({ mongoose, logger, errorMessage });
+  return { cronController, outboxWorker, outboxEnabled };
+}
 
-  const shutdownController = createShutdownController({
-    lifecycle, logger, env, client, mongoose, httpServer, activeLocks,
-    releaseDbLock, cronController, outboxWorker, housekeeping, adminAlert,
-    errorMessage, errorDetail
-  });
-
-  async function connectMongoWithRetry(): Promise<void> {
-    let backoff = MONGO_CONNECT_INITIAL_BACKOFF_MS;
-    for (let attempt = 1; attempt <= MONGO_CONNECT_MAX_ATTEMPTS; attempt++) {
-      try {
-        await mongoose.connect(env.MONGO_URI, { maxPoolSize: env.MONGO_MAX_POOL_SIZE });
-        if (attempt > 1) {
-          logger("INFO", "BOOT", `Mongo conectat la incercarea ${attempt}/${MONGO_CONNECT_MAX_ATTEMPTS}`);
-        }
-        return;
-      } catch (err) {
-        if (attempt === MONGO_CONNECT_MAX_ATTEMPTS) throw err;
-        const jitter = Math.round(backoff * (0.5 + Math.random() * 0.5));
-        logger("WARN", "BOOT",
-          `Mongo connect a esuat (incercarea ${attempt}/${MONGO_CONNECT_MAX_ATTEMPTS}), reincerc in ${jitter}ms`,
-          errorMessage(err));
-        await new Promise(resolve => setTimeout(resolve, jitter));
-        backoff = Math.min(backoff * 2, MONGO_CONNECT_MAX_BACKOFF_MS);
-      }
-    }
-  }
-
-  async function hydrateCaches(): Promise<void> {
-    const now = Date.now();
-    let hydratedUpdates = false;
-    let hydratedDeals = 0;
-    const updatesSnapshot = await loadFetchSnapshot("updates");
-    if (updatesSnapshot && Array.isArray(updatesSnapshot.payload)
-        && now - updatesSnapshot.fetchedAt.getTime() < SNAPSHOT_MAX_AGE_MS) {
-      commands.setUpdatesCache(updatesSnapshot.payload);
-      hydratedUpdates = true;
-    }
-    for (const snapshot of await loadDealsFetchSnapshots()) {
-      if (Array.isArray(snapshot.payload)
-          && now - snapshot.fetchedAt.getTime() < SNAPSHOT_MAX_AGE_MS) {
-        commands.setDealsCache(snapshot.currency, snapshot.payload);
-        hydratedDeals++;
-      }
-    }
-    if (hydratedUpdates || hydratedDeals) {
-      logger("INFO", "BOOT", `Cache hidratat din snapshot DB: updates=${hydratedUpdates}, deals=${hydratedDeals}`);
-    }
-  }
-
-  async function start(): Promise<void> {
+async function connectMongoWithRetry(deps: AppRuntimeDeps): Promise<void> {
+  const { mongoose, errorMessage, mongo } = deps;
+  const { logger, env } = mongo;
+  let backoff = MONGO_CONNECT_INITIAL_BACKOFF_MS;
+  for (let attempt = 1; attempt <= MONGO_CONNECT_MAX_ATTEMPTS; attempt++) {
     try {
-      await connectMongoWithRetry();
+      await mongoose.connect(env.MONGO_URI, { maxPoolSize: env.MONGO_MAX_POOL_SIZE });
+      if (attempt > 1) {
+        logger("INFO", "BOOT", `Mongo conectat la incercarea ${attempt}/${MONGO_CONNECT_MAX_ATTEMPTS}`);
+      }
+      return;
+    } catch (err) {
+      if (attempt === MONGO_CONNECT_MAX_ATTEMPTS) throw err;
+      const jitter = Math.round(backoff * (0.5 + Math.random() * 0.5));
+      logger("WARN", "BOOT",
+        `Mongo connect a esuat (incercarea ${attempt}/${MONGO_CONNECT_MAX_ATTEMPTS}), reincerc in ${jitter}ms`,
+        errorMessage(err));
+      await new Promise(resolve => setTimeout(resolve, jitter));
+      backoff = Math.min(backoff * 2, MONGO_CONNECT_MAX_BACKOFF_MS);
+    }
+  }
+}
+
+async function hydrateStartupCaches(deps: AppRuntimeDeps): Promise<void> {
+  const { commands, mongo } = deps;
+  const { logger, loadFetchSnapshot, loadDealsFetchSnapshots } = mongo;
+  const now = Date.now();
+  let hydratedUpdates = false;
+  let hydratedDeals = 0;
+  const updatesSnapshot = await loadFetchSnapshot("updates");
+  if (updatesSnapshot && Array.isArray(updatesSnapshot.payload)
+      && now - updatesSnapshot.fetchedAt.getTime() < SNAPSHOT_MAX_AGE_MS) {
+    commands.setUpdatesCache(updatesSnapshot.payload);
+    hydratedUpdates = true;
+  }
+  for (const snapshot of await loadDealsFetchSnapshots()) {
+    if (Array.isArray(snapshot.payload)
+        && now - snapshot.fetchedAt.getTime() < SNAPSHOT_MAX_AGE_MS) {
+      commands.setDealsCache(snapshot.currency, snapshot.payload);
+      hydratedDeals++;
+    }
+  }
+  if (hydratedUpdates || hydratedDeals) {
+    logger("INFO", "BOOT", `Cache hidratat din snapshot DB: updates=${hydratedUpdates}, deals=${hydratedDeals}`);
+  }
+}
+
+function createBootSequence(deps: AppRuntimeDeps, ctx: { client: DiscordClientLike; httpServer: HttpServerLike }): () => Promise<void> {
+  const { errorMessage, errorDetail, mongo } = deps;
+  const { logger, env, adminAlert, waitForMongoReady, runMigrations } = mongo;
+  const { client, httpServer } = ctx;
+
+  return async function start(): Promise<void> {
+    try {
+      await connectMongoWithRetry(deps);
       const mongoReady = await waitForMongoReady(10000);
       if (!mongoReady) {
         logger("WARN", "BOOT", "Mongo nu a confirmat conexiunea in timp util");
@@ -199,7 +208,7 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
       }
 
       try {
-        await hydrateCaches();
+        await hydrateStartupCaches(deps);
       } catch (hydrateErr) {
         logger("WARN", "BOOT", "Hidratarea cache-ului din snapshot a esuat", errorMessage(hydrateErr));
       }
@@ -224,7 +233,39 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
       ]);
       throw err;
     }
-  }
+  };
+}
+
+function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
+  const { createHttpServer, registerDiscordEvents, registerMongoEvents, createShutdownController, errorMessage, errorDetail, mongoose, crypto, mongo } = deps;
+  const { logger, env, getGuildCacheSize, activeLocks, releaseDbLock, requestContext, adminAlert } = mongo;
+
+  const services = createRuntimeServices(deps);
+  const { client, metrics, lifecycle, rateLimiter, housekeeping } = services;
+  const schedulers = createSchedulers(deps, services);
+  const { cronController, outboxWorker, outboxEnabled } = schedulers;
+
+  const httpServer = createHttpServer({
+    mongoose, crypto, env, client, metrics, commands: deps.commands,
+    getGuildCacheSize, scrapers: deps.scrapers, activeLocks, rateLimiter, cronController
+  });
+
+  registerDiscordEvents({
+    client, logger, commands: deps.commands, env, adminAlert, requestContext, games: services.games, crypto,
+    errorMessage, errorDetail,
+    startHousekeeping: housekeeping.start,
+    scheduleNextCron: cronController.scheduleNextCron,
+    startOutboxWorker: outboxEnabled ? outboxWorker.start : undefined
+  });
+  registerMongoEvents({ mongoose, logger, errorMessage });
+
+  const shutdownController = createShutdownController({
+    lifecycle, logger, env, client, mongoose, httpServer, activeLocks,
+    releaseDbLock, cronController, outboxWorker, housekeeping, adminAlert,
+    errorMessage, errorDetail
+  });
+
+  const start = createBootSequence(deps, { client, httpServer });
 
   return {
     start,
@@ -237,4 +278,4 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   };
 }
 
-export { createAppRuntime };
+export { createAppRuntime, createRuntimeServices, createSchedulers, connectMongoWithRetry, hydrateStartupCaches, createBootSequence };
