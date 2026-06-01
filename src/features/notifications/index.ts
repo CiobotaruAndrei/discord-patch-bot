@@ -19,7 +19,7 @@ const { defaultDiscordSendLimiter } = require("./discordRateLimiter");
 
 const OUTBOX_MAX_ATTEMPTS = 5;
 const OUTBOX_BACKOFF_MS = 60_000;
-const OUTBOX_DRAIN_LIMIT = 50;
+const OUTBOX_DRAIN_LIMIT = Math.min(1000, Math.max(1, Number(process.env.NOTIFICATION_OUTBOX_DRAIN_LIMIT) || 50));
 
 interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; attempts: number; }
 interface OutboxClient { user: { id: string }; channels: { fetch(channelId: string): Promise<unknown> }; }

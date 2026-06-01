@@ -2,10 +2,19 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createOutboxWorker, OUTBOX_DRAIN_LOCK_NAME } from "../app/scheduler/outboxWorker";
 
+interface DrainResult { sent?: number; retried?: number; deadLettered?: number; queued?: number }
 interface Harness {
   drainCalls: number;
   releaseCalls: Array<{ jobName: string; token: string }>;
   acquireCalls: number;
+  lockTtls: number[];
+  metrics: {
+    outboxSent: number;
+    outboxRetried: number;
+    outboxDeadLettered: number;
+    outboxDrains: number;
+    outboxQueueDepth: number;
+  };
 }
 
 function makeWorker(overrides: {
@@ -14,16 +23,26 @@ function makeWorker(overrides: {
   clientReady?: boolean;
   shuttingDown?: boolean;
   drainThrows?: boolean;
+  drainResult?: DrainResult;
+  drainLimit?: number;
+  perJobBudgetMs?: number;
 } = {}) {
-  const harness: Harness = { drainCalls: 0, releaseCalls: [], acquireCalls: 0 };
+  const harness: Harness = {
+    drainCalls: 0,
+    releaseCalls: [],
+    acquireCalls: 0,
+    lockTtls: [],
+    metrics: { outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxDrains: 0, outboxQueueDepth: 0 }
+  };
   const lifecycle = { isShuttingDown: overrides.shuttingDown ?? false };
   const worker = createOutboxWorker({
     mongoose: { connection: { readyState: overrides.readyState ?? 1 } },
     client: { isReady: () => overrides.clientReady ?? true },
     logger: () => undefined,
     parseEnvNumber: (_name: string, def: number) => def,
-    acquireDbLock: async (jobName: string) => {
+    acquireDbLock: async (jobName: string, ttlMs: number) => {
       harness.acquireCalls++;
+      harness.lockTtls.push(ttlMs);
       assert.equal(jobName, OUTBOX_DRAIN_LOCK_NAME, "worker-ul foloseste lock-ul dedicat outbox_drain");
       return overrides.lockToken === undefined ? "lock-token" : overrides.lockToken;
     },
@@ -33,9 +52,13 @@ function makeWorker(overrides: {
     drainOutbox: async () => {
       harness.drainCalls++;
       if (overrides.drainThrows) throw new Error("drain boom");
+      return overrides.drainResult ?? { sent: 0, retried: 0, deadLettered: 0, queued: 0 };
     },
     lifecycle,
-    errorMessage: (err: unknown) => err instanceof Error ? err.message : String(err)
+    metrics: harness.metrics,
+    errorMessage: (err: unknown) => err instanceof Error ? err.message : String(err),
+    drainLimit: overrides.drainLimit ?? 50,
+    perJobBudgetMs: overrides.perJobBudgetMs ?? 7000
   });
   return { worker, harness, lifecycle };
 }
@@ -89,4 +112,27 @@ test("outboxWorker: eroarea de drain este prinsa si lock-ul tot se elibereaza", 
   assert.equal(harness.drainCalls, 1);
   assert.equal(harness.releaseCalls.length, 1, "lock eliberat chiar daca drain arunca");
   worker.stop();
+});
+
+test("outboxWorker: actualizeaza metrics din rezultatul drenarii", async () => {
+  const { worker, harness } = makeWorker({ drainResult: { sent: 3, retried: 1, deadLettered: 2, queued: 7 } });
+  await worker.drainTick();
+  assert.equal(harness.metrics.outboxDrains, 1, "numara ciclul de drenare");
+  assert.equal(harness.metrics.outboxSent, 3);
+  assert.equal(harness.metrics.outboxRetried, 1);
+  assert.equal(harness.metrics.outboxDeadLettered, 2);
+  assert.equal(harness.metrics.outboxQueueDepth, 7, "queue depth este un gauge setat la valoarea curenta");
+  worker.stop();
+});
+
+test("outboxWorker: TTL-ul lock-ului se dimensioneaza din drainLimit (scalare cu volumul)", async () => {
+  const small = makeWorker({ drainLimit: 50, perJobBudgetMs: 7000 });
+  await small.worker.drainTick();
+  small.worker.stop();
+  const big = makeWorker({ drainLimit: 500, perJobBudgetMs: 7000 });
+  await big.worker.drainTick();
+  big.worker.stop();
+  assert.equal(small.harness.lockTtls[0], 350_000, "50 * 7000 = 350000ms");
+  assert.equal(big.harness.lockTtls[0], 3_500_000, "500 * 7000 = 3.5M, sub plafonul de 1h");
+  assert.ok(big.harness.lockTtls[0] > small.harness.lockTtls[0], "TTL creste cu drainLimit");
 });

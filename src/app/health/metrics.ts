@@ -12,6 +12,11 @@ function createMetrics(): BotMetrics {
     cronSkippedDueToHealth: 0,
     cronAborted: 0,
     httpRateLimitDrops: 0,
+    outboxSent: 0,
+    outboxRetried: 0,
+    outboxDeadLettered: 0,
+    outboxDrains: 0,
+    outboxQueueDepth: 0,
     startedAt: Date.now()
   };
 }

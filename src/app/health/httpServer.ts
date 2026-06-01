@@ -159,6 +159,11 @@ function createHttpServer({
       pushMetric(lines, seenMetricNames, "bot_cache_enriched_deals_size", "gauge", "Enriched deals cache size", scrapers.getEnrichedCacheSize());
       pushMetric(lines, seenMetricNames, "bot_http_rate_limit_map_size", "gauge", "Local HTTP rate limit map size", rateLimiter.size);
       pushMetric(lines, seenMetricNames, "bot_active_locks", "gauge", "Active distributed locks", activeLocks.size);
+      pushMetric(lines, seenMetricNames, "bot_outbox_sent", "counter", "Notification outbox jobs delivered", metrics.outboxSent);
+      pushMetric(lines, seenMetricNames, "bot_outbox_retried", "counter", "Notification outbox jobs retried", metrics.outboxRetried);
+      pushMetric(lines, seenMetricNames, "bot_outbox_dead_lettered", "counter", "Notification outbox jobs dead-lettered", metrics.outboxDeadLettered);
+      pushMetric(lines, seenMetricNames, "bot_outbox_drains", "counter", "Notification outbox drain cycles", metrics.outboxDrains);
+      pushMetric(lines, seenMetricNames, "bot_outbox_queue_depth", "gauge", "Notification outbox jobs currently queued", metrics.outboxQueueDepth);
       res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4" });
       res.end(lines.join("\n") + "\n");
       return;

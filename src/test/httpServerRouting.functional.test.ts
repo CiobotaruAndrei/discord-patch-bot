@@ -31,7 +31,8 @@ function startServer() {
     metrics: {
       startedAt: Date.now(), fetchSuccess: 1, fetchFail: 0, httpRetries: 0,
       rateLimitHits: 0, cronRuns: 0, cronErrors: 0, cronSkippedDueToLock: 0,
-      cronAborted: 0, cronSkippedDueToHealth: 0, httpRateLimitDrops: 0
+      cronAborted: 0, cronSkippedDueToHealth: 0, httpRateLimitDrops: 0,
+      outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxDrains: 0, outboxQueueDepth: 0
     },
     commands: {
       getCacheSizes: () => ({ single: 0, dlc: 0, updatesValid: true, dealsCurrenciesValid: 0, userCooldowns: 0 })
