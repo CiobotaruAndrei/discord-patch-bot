@@ -80,6 +80,9 @@ Variabile utile suplimentare:
 - `ADMIN_WEBHOOK_URL` - webhook optional pentru alerte operationale.
 - `NOTIFICATION_OUTBOX_ENABLED` - feature flag optional (implicit `false`). Cand este `true`, cron-ul nu mai trimite notificarile inline, ci le pune ca job-uri in colectia `notificationOutbox`, iar un worker dedicat le draneaza pe propriul interval (rate limit + retry/backoff + dead-letter). Recomandat pe volum mare de notificari sau cand vrei ca trimiterea sa supravietuiasca caderilor Discord; lasa-l oprit pentru deploy-uri mici.
 - `NOTIFICATION_OUTBOX_DRAIN_INTERVAL_MS` - cat de des draneaza worker-ul outbox-ul, independent de ciclul cron (implicit `15000`; min `2000`, max `600000`). Activ doar cand `NOTIFICATION_OUTBOX_ENABLED=true`.
+- `NOTIFICATION_OUTBOX_DRAIN_LIMIT` - cate job-uri se draneaza intr-un ciclu (implicit `50`; min `1`, max `1000`). TTL-ul lock-ului de drenare se dimensioneaza automat din aceasta valoare si bugetul de trimitere Discord, deci marirea limitei pastreaza lock-ul valid pe toata durata drenarii.
+- `NOTIFICATION_OUTBOX_LOCK_TTL_MS` - override optional pentru TTL-ul lock-ului `outbox_drain` (implicit auto-dimensionat; min `120000`, max `3600000`).
+- Sanatatea outbox-ului este expusa la `/metrics`: `bot_outbox_sent`, `bot_outbox_retried`, `bot_outbox_dead_lettered`, `bot_outbox_drains`, `bot_outbox_queue_depth`.
 
 ## Structura proiectului
 

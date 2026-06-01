@@ -16,6 +16,7 @@ interface OutboxModelLike {
   find(filter: unknown): { sort(spec: unknown): { limit(count: number): { lean(): Promise<OutboxJob[]> } } };
   deleteOne(filter: unknown): Promise<unknown>;
   updateOne(filter: unknown, update: unknown): Promise<unknown>;
+  countDocuments(filter?: unknown): Promise<number>;
 }
 
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
@@ -43,6 +44,7 @@ export interface DrainOutboxResult {
   deadLettered: number;
   retried: number;
   total: number;
+  queued: number;
 }
 
 export interface OutboxRuntime {
@@ -95,10 +97,12 @@ export function createOutboxRuntime({ NotificationOutboxModel, withMongoRetry, l
       retried++;
     }
 
+    const queued = await NotificationOutboxModel.countDocuments({}).catch(() => 0);
+
     if (sent || deadLettered || retried) {
-      logger("INFO", "OUTBOX", `Drain outbox: ${sent} trimise, ${retried} reincercate, ${deadLettered} dead-letter`);
+      logger("INFO", "OUTBOX", `Drain outbox: ${sent} trimise, ${retried} reincercate, ${deadLettered} dead-letter, ${queued} ramase in coada`);
     }
-    return { sent, deadLettered, retried, total: due.length };
+    return { sent, deadLettered, retried, total: due.length, queued };
   }
 
   return { enqueueOutbox, drainOutbox };

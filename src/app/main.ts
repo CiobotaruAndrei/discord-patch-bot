@@ -65,6 +65,8 @@ const cronController = createCronController({
   requestContext
 });
 const outboxEnabled = process.env.NOTIFICATION_OUTBOX_ENABLED === "true";
+const outboxDrainLimit = parseEnvNumber("NOTIFICATION_OUTBOX_DRAIN_LIMIT", 50, { min: 1, max: 1000 });
+const outboxPerJobBudgetMs = parseEnvNumber("DISCORD_SEND_RATE_MAX_WAIT_MS", 5000, { min: 0, max: 60000 }) + 2000;
 const outboxWorker = createOutboxWorker({
   mongoose,
   client,
@@ -74,7 +76,10 @@ const outboxWorker = createOutboxWorker({
   releaseDbLock,
   drainOutbox: (drainClient: unknown) => commands.drainOutbox(drainClient),
   lifecycle,
-  errorMessage
+  metrics,
+  errorMessage,
+  drainLimit: outboxDrainLimit,
+  perJobBudgetMs: outboxPerJobBudgetMs
 });
 const httpServer = createHttpServer({
   mongoose,

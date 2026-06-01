@@ -16,7 +16,8 @@ function makeFakeModel(jobs: OutboxJob[]) {
       })
     }),
     deleteOne: async (filter: unknown) => { deleted.push(filter); return { deletedCount: 1 }; },
-    updateOne: async (filter: unknown, update: unknown) => { updated.push({ filter, update }); return { matchedCount: 1 }; }
+    updateOne: async (filter: unknown, update: unknown) => { updated.push({ filter, update }); return { matchedCount: 1 }; },
+    countDocuments: async () => jobs.length - deleted.length
   };
   return { model, created, deleted, updated };
 }
@@ -50,7 +51,7 @@ test("drainOutbox: livrare reusita -> jobul e sters (sent)", async () => {
     recordDeadLetter: async (j) => { deadLetters.push(j); },
     maxAttempts: 5, backoffMs: 1000, limit: 50
   });
-  assert.deepEqual(result, { sent: 1, deadLettered: 0, retried: 0, total: 1 });
+  assert.deepEqual(result, { sent: 1, deadLettered: 0, retried: 0, total: 1, queued: 0 });
   assert.deepEqual(deleted, [{ _id: "j1" }]);
   assert.equal(updated.length, 0);
   assert.equal(deadLetters.length, 0);
@@ -65,7 +66,7 @@ test("drainOutbox: eroare permanenta -> dead-letter + sters", async () => {
     recordDeadLetter: async (j, reason) => { deadLetters.push({ job: j, reason }); },
     maxAttempts: 5, backoffMs: 1000, limit: 50
   });
-  assert.deepEqual(result, { sent: 0, deadLettered: 1, retried: 0, total: 1 });
+  assert.deepEqual(result, { sent: 0, deadLettered: 1, retried: 0, total: 1, queued: 0 });
   assert.deepEqual(deleted, [{ _id: "j1" }]);
   assert.equal(deadLetters.length, 1);
   assert.equal(deadLetters[0].reason, "permanent");
@@ -80,7 +81,7 @@ test("drainOutbox: esec tranzitoriu sub max -> reincercare cu backoff (attempts+
     recordDeadLetter: async () => undefined,
     maxAttempts: 5, backoffMs: 1000, limit: 50, now
   });
-  assert.deepEqual(result, { sent: 0, deadLettered: 0, retried: 1, total: 1 });
+  assert.deepEqual(result, { sent: 0, deadLettered: 0, retried: 1, total: 1, queued: 1 });
   assert.equal(deleted.length, 0);
   assert.equal(updated.length, 1);
   const update = updated[0].update as { $set: { attempts: number; availableAt: Date } };
@@ -97,7 +98,7 @@ test("drainOutbox: esec tranzitoriu la max attempts -> dead-letter + sters", asy
     recordDeadLetter: async (_j, reason) => { deadLetters.push({ reason }); },
     maxAttempts: 5, backoffMs: 1000, limit: 50
   });
-  assert.deepEqual(result, { sent: 0, deadLettered: 1, retried: 0, total: 1 });
+  assert.deepEqual(result, { sent: 0, deadLettered: 1, retried: 0, total: 1, queued: 0 });
   assert.deepEqual(deleted, [{ _id: "j1" }]);
   assert.equal(updated.length, 0);
   assert.equal(deadLetters[0].reason, "max-attempts");
