@@ -130,7 +130,7 @@ function createSchedulers(deps: AppRuntimeDeps, services: RuntimeServices): Sche
   const outboxWorker = createOutboxWorker({
     mongoose, client, logger, parseEnvNumber, acquireDbLock, releaseDbLock,
     drainOutbox: (drainClient: unknown) => commands.drainOutbox(drainClient),
-    lifecycle, metrics, errorMessage,
+    lifecycle, metrics, errorMessage, adminAlert,
     drainLimit: outboxDrainLimit, perJobBudgetMs: outboxPerJobBudgetMs
   });
 

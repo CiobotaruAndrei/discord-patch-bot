@@ -2,12 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createOutboxWorker, OUTBOX_DRAIN_LOCK_NAME } from "../app/scheduler/outboxWorker";
 
-interface DrainResult { sent?: number; retried?: number; deadLettered?: number; queued?: number; deliveryMsTotal?: number; oldestJobAgeMs?: number; recoveryDuplicates?: number; recoveryFetches?: number; recoveryFailures?: number; recoveryMarkerMissing?: number }
+interface DrainResult { sent?: number; retried?: number; deadLettered?: number; queued?: number; deliveryMsTotal?: number; oldestJobAgeMs?: number; recoveryDuplicates?: number; recoveryFetches?: number; recoveryFailures?: number; recoveryMarkerMissing?: number; markSentFailures?: number }
 interface Harness {
   drainCalls: number;
   releaseCalls: Array<{ jobName: string; token: string }>;
   acquireCalls: number;
   lockTtls: number[];
+  alertKinds: string[];
   metrics: {
     outboxSent: number;
     outboxRetried: number;
@@ -21,6 +22,7 @@ interface Harness {
     outboxRecoveryFetches: number;
     outboxRecoveryFailures: number;
     outboxRecoveryMarkerMissing: number;
+    outboxMarkSentFailures: number;
   };
 }
 
@@ -39,10 +41,12 @@ function makeWorker(overrides: {
     releaseCalls: [],
     acquireCalls: 0,
     lockTtls: [],
+    alertKinds: [],
     metrics: {
       outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxDrains: 0, outboxQueueDepth: 0,
       outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxLockAcquireFailures: 0,
-      outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0, outboxRecoveryMarkerMissing: 0
+      outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0, outboxRecoveryMarkerMissing: 0,
+      outboxMarkSentFailures: 0
     }
   };
   const lifecycle = { isShuttingDown: overrides.shuttingDown ?? false };
@@ -67,6 +71,7 @@ function makeWorker(overrides: {
     },
     lifecycle,
     metrics: harness.metrics,
+    adminAlert: async (kind: string) => { harness.alertKinds.push(kind); return undefined; },
     errorMessage: (err: unknown) => err instanceof Error ? err.message : String(err),
     drainLimit: overrides.drainLimit ?? 50,
     perJobBudgetMs: overrides.perJobBudgetMs ?? 7000
@@ -126,7 +131,7 @@ test("outboxWorker: eroarea de drain este prinsa si lock-ul tot se elibereaza", 
 });
 
 test("outboxWorker: actualizeaza metrics din rezultatul drenarii (countere + latenta + vechime)", async () => {
-  const { worker, harness } = makeWorker({ drainResult: { sent: 3, retried: 1, deadLettered: 2, queued: 7, deliveryMsTotal: 1200, oldestJobAgeMs: 45_000, recoveryDuplicates: 2, recoveryFetches: 5, recoveryFailures: 1, recoveryMarkerMissing: 3 } });
+  const { worker, harness } = makeWorker({ drainResult: { sent: 3, retried: 1, deadLettered: 2, queued: 7, deliveryMsTotal: 1200, oldestJobAgeMs: 45_000, recoveryDuplicates: 2, recoveryFetches: 5, recoveryFailures: 1, recoveryMarkerMissing: 3, markSentFailures: 4 } });
   await worker.drainTick();
   assert.equal(harness.metrics.outboxDrains, 1, "numara ciclul de drenare");
   assert.equal(harness.metrics.outboxSent, 3);
@@ -139,6 +144,28 @@ test("outboxWorker: actualizeaza metrics din rezultatul drenarii (countere + lat
   assert.equal(harness.metrics.outboxRecoveryFetches, 5, "fetch-uri istoric la recovery");
   assert.equal(harness.metrics.outboxRecoveryFailures, 1, "esecuri de verificare la recovery");
   assert.equal(harness.metrics.outboxRecoveryMarkerMissing, 3, "fetch reusit dar marker negasit -> re-trimis");
+  assert.equal(harness.metrics.outboxMarkSentFailures, 4, "esecuri de marcare in istoricul de dedupe");
+  worker.stop();
+});
+
+test("outboxWorker: recoveryFailures > 0 declanseaza admin alert pentru permisiunea de citire istoric", async () => {
+  const { worker, harness } = makeWorker({ drainResult: { sent: 1, recoveryFailures: 2 } });
+  await worker.drainTick();
+  assert.ok(harness.alertKinds.includes("outbox:recovery-read"), "alerteaza adminul cand nu poate citi istoricul canalului");
+  worker.stop();
+});
+
+test("outboxWorker: markSentFailures > 0 declanseaza admin alert pentru risc de duplicare", async () => {
+  const { worker, harness } = makeWorker({ drainResult: { sent: 1, markSentFailures: 1 } });
+  await worker.drainTick();
+  assert.ok(harness.alertKinds.includes("outbox:mark-sent"), "alerteaza adminul cand marcarea livrarii esueaza");
+  worker.stop();
+});
+
+test("outboxWorker: drenare curata nu trimite niciun admin alert", async () => {
+  const { worker, harness } = makeWorker({ drainResult: { sent: 5, retried: 0, deadLettered: 0, recoveryFailures: 0, markSentFailures: 0 } });
+  await worker.drainTick();
+  assert.equal(harness.alertKinds.length, 0, "fara esecuri nu exista alerte");
   worker.stop();
 });
 
