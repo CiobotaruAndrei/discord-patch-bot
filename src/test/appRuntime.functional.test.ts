@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createAppRuntime } from "../app/appRuntime";
+import { createAppRuntime, connectMongoWithRetry, hydrateStartupCaches } from "../app/appRuntime";
 
 process.env.MONGO_URI ||= "mongodb://localhost:27017/discord-patch-bot-test";
 process.env.DISCORD_TOKEN ||= "test_discord_token";
@@ -116,4 +116,37 @@ test("createAppRuntime: cableaza event-urile Discord (cron + housekeeping)", () 
   const opts = h.getEventsOpts();
   assert.equal(typeof opts.scheduleNextCron, "function", "scheduleNextCron este cablat in event-uri");
   assert.equal(typeof opts.startHousekeeping, "function", "startHousekeeping este cablat in event-uri");
+});
+
+test("connectMongoWithRetry: reincearca dupa un esec apoi reuseste", async () => {
+  let attempts = 0;
+  const deps = {
+    mongoose: { connect: async () => { attempts++; if (attempts < 2) throw new Error("ECONNREFUSED"); } },
+    errorMessage: (err: unknown) => String(err),
+    mongo: {
+      logger: () => undefined,
+      env: { MONGO_URI: "mongodb://x", MONGO_MAX_POOL_SIZE: 5 }
+    }
+  };
+  await connectMongoWithRetry(deps as unknown as Parameters<typeof connectMongoWithRetry>[0]);
+  assert.equal(attempts, 2, "a doua incercare reuseste dupa backoff");
+});
+
+test("hydrateStartupCaches: hidrateaza din proaspat, ignora invechit", async () => {
+  const updatesCache: unknown[] = [];
+  const dealsCache: Array<[string, unknown]> = [];
+  const deps = {
+    commands: {
+      setUpdatesCache: (p: unknown) => { updatesCache.push(p); },
+      setDealsCache: (c: string, p: unknown) => { dealsCache.push([c, p]); }
+    },
+    mongo: {
+      logger: () => undefined,
+      loadFetchSnapshot: async () => ({ payload: [{ x: 1 }], fetchedAt: new Date(Date.now() - 31 * 60 * 1000) }),
+      loadDealsFetchSnapshots: async () => [{ currency: "USD", payload: [{ d: 1 }], fetchedAt: new Date() }]
+    }
+  };
+  await hydrateStartupCaches(deps as unknown as Parameters<typeof hydrateStartupCaches>[0]);
+  assert.equal(updatesCache.length, 0, "snapshot updates invechit -> ignorat");
+  assert.deepEqual(dealsCache, [["USD", [{ d: 1 }]]], "snapshot deals proaspat -> hidratat");
 });
