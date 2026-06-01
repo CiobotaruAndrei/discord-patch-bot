@@ -43,6 +43,7 @@ interface RegisterDiscordEventsDeps {
   errorDetail: ErrorFormatter;
   startHousekeeping: () => void;
   scheduleNextCron: () => void;
+  startOutboxWorker?: () => void;
 }
 
 interface MongoConnectionLike {
@@ -62,7 +63,7 @@ interface RegisterMongoEventsDeps {
 
 function registerDiscordEvents({
   client, logger, commands, env, adminAlert, requestContext,
-  games, crypto, errorMessage, errorDetail, startHousekeeping, scheduleNextCron
+  games, crypto, errorMessage, errorDetail, startHousekeeping, scheduleNextCron, startOutboxWorker
 }: RegisterDiscordEventsDeps): void {
   client.once("ready", async () => {
     const userTag = client.user?.tag || "unknown";
@@ -84,6 +85,14 @@ function registerDiscordEvents({
     } catch (err) {
       logger("ERROR", "BOOT", "scheduleNextCron a esuat in handler-ul ready", errorDetail(err));
       adminAlert("boot:cron", "Cron-ul nu a putut fi programat", errorMessage(err)).catch(() => null);
+    }
+    if (startOutboxWorker) {
+      try {
+        startOutboxWorker();
+      } catch (err) {
+        logger("ERROR", "BOOT", "startOutboxWorker a esuat in handler-ul ready", errorDetail(err));
+        adminAlert("boot:outbox", "Worker-ul outbox nu a putut porni", errorMessage(err)).catch(() => null);
+      }
     }
   });
 

@@ -41,6 +41,7 @@ interface CreateShutdownControllerDeps {
   activeLocks: ActiveLocks;
   releaseDbLock(jobName: string, token: string): Promise<unknown>;
   cronController: Pick<CronController, "stop">;
+  outboxWorker?: { stop(): void };
   housekeeping: HousekeepingLike;
   adminAlert: AdminAlert;
   errorMessage: ErrorFormatter;
@@ -49,7 +50,7 @@ interface CreateShutdownControllerDeps {
 
 function createShutdownController({
   lifecycle, logger, env, client, mongoose, httpServer, activeLocks,
-  releaseDbLock, cronController, housekeeping, adminAlert,
+  releaseDbLock, cronController, outboxWorker, housekeeping, adminAlert,
   errorMessage, errorDetail
 }: CreateShutdownControllerDeps): ShutdownController {
   async function shutdown(signal: ShutdownSignal, exitCode = 0): Promise<void> {
@@ -58,6 +59,7 @@ function createShutdownController({
     logger("INFO", "SHUTDOWN", `Semnal primit: ${signal}, inchidere...`);
 
     cronController.stop();
+    outboxWorker?.stop();
     housekeeping.stop();
 
     for (const [jobName, token] of activeLocks.entries()) {
