@@ -158,6 +158,7 @@ export interface BotMetrics {
   outboxRecoveryFetches: number;
   outboxRecoveryFailures: number;
   outboxRecoveryMarkerMissing: number;
+  outboxMarkSentFailures: number;
   startedAt: number;
 }
 
