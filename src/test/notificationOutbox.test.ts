@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOutboxRuntime, OutboxJob, DeliverResult } from "../features/notifications/notificationOutbox";
+import { createOutboxRuntime, OutboxJob, DeliverResult, applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker } from "../features/notifications/notificationOutbox";
 
 function makeFakeModel(jobs: OutboxJob[], initialSent: string[] = []) {
   const created: Record<string, unknown>[] = [];
@@ -85,9 +85,37 @@ test("drainOutbox: claim atomic prin lease (lockedUntil/lockedBy) inainte de liv
     maxAttempts: 5, backoffMs: 1000, limit: 50, workerId: "worker-7"
   });
   assert.ok(claims.length >= 1, "jobul este revendicat printr-un findOneAndUpdate");
-  const claimUpdate = claims[0].update as { $set: { lockedUntil: Date; lockedBy: string } };
+  const claimUpdate = claims[0].update as { $set: { lockedUntil: Date; lockedBy: string }; $inc: { deliveries: number } };
   assert.ok(claimUpdate.$set.lockedUntil instanceof Date, "lease seteaza lockedUntil");
   assert.equal(claimUpdate.$set.lockedBy, "worker-7", "lease seteaza lockedBy");
+  assert.equal(claimUpdate.$inc.deliveries, 1, "claim-ul incrementeaza contorul de livrari (detectie recovery)");
+});
+
+test("applyDedupeMarker: adauga un marker dedupeKey in footer-ul ultimului embed (idempotent)", () => {
+  const payload = { embeds: [{ title: "A" }, { title: "B", footer: { text: "deal" } }] };
+  const dedupeKey = "abcdef0123456789ffff";
+  const marked = applyDedupeMarker(payload, dedupeKey) as { embeds: Array<{ footer?: { text?: string } }> };
+  const marker = outboxDedupeMarker(dedupeKey);
+  assert.ok(marked.embeds[1].footer?.text?.includes(marker), "marker pus in footer-ul ultimului embed");
+  assert.ok(marked.embeds[1].footer?.text?.includes("deal"), "footer-ul existent e pastrat");
+  assert.equal(marked.embeds[0].footer, undefined, "embed-urile anterioare raman neatinse");
+  const again = applyDedupeMarker(marked, dedupeKey) as { embeds: Array<{ footer?: { text?: string } }> };
+  const count = (again.embeds[1].footer?.text?.match(/id:/g) || []).length;
+  assert.equal(count, 1, "nu dubleaza marker-ul daca e deja prezent");
+});
+
+test("applyDedupeMarker: payload fara embeds ramane neschimbat", () => {
+  const payload = { content: "salut" };
+  assert.deepEqual(applyDedupeMarker(payload, "k"), payload);
+});
+
+test("messageHasDedupeMarker: detecteaza marker-ul intr-un mesaj postat", () => {
+  const dedupeKey = "abcdef0123456789ffff";
+  const marker = outboxDedupeMarker(dedupeKey);
+  const message = { embeds: [{ footer: { text: `deal · ${marker}` } }] };
+  assert.equal(messageHasDedupeMarker(message, marker), true);
+  assert.equal(messageHasDedupeMarker({ embeds: [{ footer: { text: "altceva" } }] }, marker), false);
+  assert.equal(messageHasDedupeMarker({}, marker), false);
 });
 
 test("drainOutbox: livrare reusita -> jobul e sters (sent)", async () => {
