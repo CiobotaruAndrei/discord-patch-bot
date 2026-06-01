@@ -146,6 +146,42 @@ test("handles /set stores with steam,epic + rejects unknown store", async () => 
   assert.match(replies[1], /Store necunoscut/);
 });
 
+test("handles /set outbox-recovery-verify on -> writes boolean true, no pending reset", async () => {
+  const { context, updateCalls, replies, cacheInvalidations } = makeContext({});
+  await context.handleInteraction(
+    makeInteraction({ command: "set", group: null, sub: "outbox-recovery-verify", string: { value: "on" } }),
+    []
+  );
+  assert.equal(updateCalls.length, 1);
+  const update = (updateCalls[0].update as { $set: Record<string, unknown> }).$set;
+  assert.equal(update.outboxRecoveryVerify, true);
+  assert.equal("pendingDiscounts" in update, false, "nu e filter change -> nu reseteaza pendingDiscounts");
+  assert.equal(cacheInvalidations[0], "guild-1");
+  assert.match(replies[0], /ON/);
+});
+
+test("handles /set outbox-recovery-verify off -> writes boolean false", async () => {
+  const { context, updateCalls, replies } = makeContext({});
+  await context.handleInteraction(
+    makeInteraction({ command: "set", group: null, sub: "outbox-recovery-verify", string: { value: "off" } }),
+    []
+  );
+  assert.equal(updateCalls.length, 1);
+  const update = (updateCalls[0].update as { $set: Record<string, unknown> }).$set;
+  assert.equal(update.outboxRecoveryVerify, false);
+  assert.match(replies[0], /OFF/);
+});
+
+test("rejects /set outbox-recovery-verify with invalid value without writing", async () => {
+  const { context, updateCalls, replies } = makeContext({});
+  await context.handleInteraction(
+    makeInteraction({ command: "set", group: null, sub: "outbox-recovery-verify", string: { value: "maybe" } }),
+    []
+  );
+  assert.equal(updateCalls.length, 0, "valoare invalida -> nicio scriere");
+  assert.match(replies[0], /doar `on` sau `off`/);
+});
+
 test("unknown sub returns explicit reply without empty $set write", async () => {
   const { context, updateCalls, replies, logs } = makeContext({});
   await context.handleInteraction(

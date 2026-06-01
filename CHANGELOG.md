@@ -8,6 +8,7 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added
 
+- Comanda admin `/set outbox-recovery-verify <on|off>` pentru a comuta verificarea pe istoric la recovery **per-server** (`GuildSettings.outboxRecoveryVerify`), fara a mai edita direct in DB. Pana acum flag-ul per-guild exista in schema si era citit la livrare (override peste `NOTIFICATION_OUTBOX_RECOVERY_VERIFY` global), dar nu putea fi setat dintr-o comanda. Nu este un filtru de reduceri, deci nu reseteaza coada `pending`; scrierea invalideaza cache-ul de guild ca livrarile urmatoare sa foloseasca imediat noua valoare. Acoperit de teste in `setInteractionHandler.functional.test.ts` (on -> `true` fara reset pending, off -> `false`, valoare invalida -> fara scriere).
 - Documentatie publica completa pentru setup, variabile `.env`, comenzi, teste, Docker si release.
 - `SECURITY.md` pentru raportarea vulnerabilitatilor.
 - `LICENSE` MIT.

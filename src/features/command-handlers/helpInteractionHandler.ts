@@ -52,7 +52,8 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
           "`/set maxprice <0-10000>` *(0 = fara limita)*\n" +
           "`/set free <on|off>` - `/set paid <on|off>`\n" +
           "`/set currency <USD|EUR|GBP|RON>`\n" +
-          "`/set stores <steam,epic | reset>`"
+          "`/set stores <steam,epic | reset>`\n" +
+          "`/set outbox-recovery-verify <on|off>`"
       },
       {
         name: "Filtru per-joc (admin)",
