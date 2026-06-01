@@ -172,6 +172,7 @@ test("boot lifecycle and Mongo lock modules keep TypeScript contracts after buil
     /function resolveConfigPath/,
     /function loadConfig/,
     /function registerDiscordEvents/,
+    /startOutboxWorker/,
     /function registerMongoEvents/,
     /function createShutdownController/,
     /function attachLocks/,
