@@ -109,6 +109,19 @@ function buildSetUpdatePlan(
     return plan;
   }
 
+  if (sub === "outbox-recovery-verify") {
+    const value = String(interaction.options.getString("value") || "");
+    if (value !== "on" && value !== "off") {
+      plan.earlyReply = "Eroare: `outbox-recovery-verify` accepta doar `on` sau `off`.";
+      return plan;
+    }
+    plan.updateDoc.outboxRecoveryVerify = value === "on";
+    plan.confirmMsg = value === "on"
+      ? "OK: Verificare recovery outbox: **ON** (extra fetch pe istoric la recovery, dar zero duplicate)."
+      : "OK: Verificare recovery outbox: **OFF** (foloseste flag-ul global daca e setat).";
+    return plan;
+  }
+
   if (sub === "currency") {
     const value = interaction.options.getString("value");
     if (typeof value !== "string" || !value || !(value in supportedCurrencies)) {
