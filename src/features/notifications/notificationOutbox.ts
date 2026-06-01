@@ -11,6 +11,7 @@ export interface OutboxJob {
   kind: OutboxKind;
   payload: unknown;
   attempts: number;
+  deliveries?: number;
   dedupeKey?: string;
   createdAt?: Date;
   availableAt?: Date;
@@ -51,6 +52,35 @@ function stableStringify(value: unknown): string {
 function dedupeKeyFor(job: { guildId: string; channelId: string; kind: OutboxKind; payload: unknown }): string {
   const source = `${job.guildId}|${job.channelId}|${job.kind}|${stableStringify(job.payload)}`;
   return createHash("sha256").update(source).digest("hex");
+}
+
+function outboxDedupeMarker(dedupeKey: string): string {
+  return `id:${dedupeKey.slice(0, 16)}`;
+}
+
+function applyDedupeMarker(payload: unknown, dedupeKey: string | undefined): unknown {
+  if (!dedupeKey || !payload || typeof payload !== "object") return payload;
+  const record = payload as Record<string, unknown>;
+  const embeds = Array.isArray(record.embeds) ? record.embeds : null;
+  if (!embeds || !embeds.length) return payload;
+  const marker = outboxDedupeMarker(dedupeKey);
+  const last = (embeds[embeds.length - 1] && typeof embeds[embeds.length - 1] === "object")
+    ? { ...embeds[embeds.length - 1] as Record<string, unknown> } : {};
+  const footer = (last.footer && typeof last.footer === "object")
+    ? { ...last.footer as Record<string, unknown> } : {};
+  const existing = typeof footer.text === "string" ? footer.text : "";
+  if (existing.includes(marker)) return payload;
+  footer.text = existing ? `${existing} · ${marker}` : marker;
+  last.footer = footer;
+  const nextEmbeds = embeds.slice();
+  nextEmbeds[nextEmbeds.length - 1] = last;
+  return { ...record, embeds: nextEmbeds };
+}
+
+function messageHasDedupeMarker(message: unknown, marker: string): boolean {
+  const embeds = (message && typeof message === "object" && Array.isArray((message as { embeds?: unknown[] }).embeds))
+    ? (message as { embeds: Array<{ footer?: { text?: unknown } }> }).embeds : [];
+  return embeds.some(embed => typeof embed?.footer?.text === "string" && embed.footer.text.includes(marker));
 }
 
 export type DeliverResult = { ok: true } | { ok: false; permanent: boolean };
@@ -119,7 +149,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         availableAt: { $lte: now },
         $or: [{ lockedUntil: { $exists: false } }, { lockedUntil: null }, { lockedUntil: { $lte: now } }]
       },
-      { $set: { lockedUntil: new Date(Date.now() + leaseMs), lockedBy: workerId } },
+      { $set: { lockedUntil: new Date(Date.now() + leaseMs), lockedBy: workerId }, $inc: { deliveries: 1 } },
       { sort: { availableAt: 1 }, new: true }
     );
   }
@@ -191,3 +221,5 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
 
   return { enqueueOutbox, drainOutbox };
 }
+
+export { applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker };

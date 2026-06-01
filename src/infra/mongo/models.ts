@@ -147,6 +147,7 @@ const notificationOutboxSchema = new mongoose.Schema({
   kind: { type: String, enum: ["update", "discount"], required: true },
   payload: { type: mongoose.Schema.Types.Mixed, required: true },
   attempts: { type: Number, default: 0 },
+  deliveries: { type: Number, default: 0 },
   availableAt: { type: Date, default: Date.now },
   lockedUntil: { type: Date, default: null },
   lockedBy: { type: String, default: null },
