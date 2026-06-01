@@ -82,6 +82,7 @@ Variabile utile suplimentare:
 - `NOTIFICATION_OUTBOX_DRAIN_INTERVAL_MS` - cat de des draneaza worker-ul outbox-ul, independent de ciclul cron (implicit `15000`; min `2000`, max `600000`). Activ doar cand `NOTIFICATION_OUTBOX_ENABLED=true`.
 - `NOTIFICATION_OUTBOX_DRAIN_LIMIT` - cate job-uri se draneaza intr-un ciclu (implicit `50`; min `1`, max `1000`). TTL-ul lock-ului de drenare se dimensioneaza automat din aceasta valoare si bugetul de trimitere Discord, deci marirea limitei pastreaza lock-ul valid pe toata durata drenarii.
 - `NOTIFICATION_OUTBOX_LOCK_TTL_MS` - override optional pentru TTL-ul lock-ului `outbox_drain` (implicit auto-dimensionat; min `120000`, max `3600000`).
+- `NOTIFICATION_OUTBOX_SENT_TTL_HOURS` - cat timp se pastreaza istoricul de livrari (`notificationOutboxSent`) folosit pentru a evita re-trimiterea unui job recuperat dupa un crash (implicit `24`; min `1`, max `168`).
 - Sanatatea outbox-ului este expusa la `/metrics`: `bot_outbox_sent`, `bot_outbox_retried`, `bot_outbox_dead_lettered`, `bot_outbox_drains`, `bot_outbox_queue_depth`, `bot_outbox_delivery_ms_total` (latenta cumulata; impreuna cu `bot_outbox_sent` da latenta medie), `bot_outbox_oldest_job_age_seconds` (vechimea celui mai vechi job in coada) si `bot_outbox_lock_acquire_failures`.
 
 ## Structura proiectului
