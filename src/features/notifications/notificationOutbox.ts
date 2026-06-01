@@ -111,6 +111,7 @@ export interface DrainOutboxResult {
   recoveryFetches: number;
   recoveryFailures: number;
   recoveryMarkerMissing: number;
+  markSentFailures: number;
 }
 
 export interface OutboxRuntime {
@@ -126,29 +127,40 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     const alreadySent = await NotificationOutboxSentModel.exists({ dedupeKey }).catch(() => null);
     if (alreadySent) return;
     const at = new Date();
-    await withMongoRetry(() => NotificationOutboxModel.create({
-      guildId: job.guildId,
-      channelId: job.channelId,
-      kind: job.kind,
-      payload: job.payload,
-      attempts: 0,
-      dedupeKey,
-      recoveryVerify: job.recoveryVerify,
-      createdAt: at,
-      availableAt: at
-    }), { label: "enqueueOutbox" });
+    try {
+      await withMongoRetry(() => NotificationOutboxModel.create({
+        guildId: job.guildId,
+        channelId: job.channelId,
+        kind: job.kind,
+        payload: job.payload,
+        attempts: 0,
+        dedupeKey,
+        recoveryVerify: job.recoveryVerify,
+        createdAt: at,
+        availableAt: at
+      }), { label: "enqueueOutbox" });
+    } catch (err) {
+      // un job pending cu acelasi dedupeKey exista deja (index unic) -> nu duplica
+      if ((err as { code?: number } | null)?.code === 11000) return;
+      throw err;
+    }
   }
 
-  async function markSent(dedupeKey: string | undefined): Promise<void> {
-    if (!dedupeKey) return;
-    await withMongoRetry(
-      () => NotificationOutboxSentModel.updateOne(
-        { dedupeKey },
-        { $setOnInsert: { dedupeKey, sentAt: new Date() } },
-        { upsert: true }
-      ),
-      { label: "outboxMarkSent" }
-    ).catch(() => undefined);
+  async function markSent(dedupeKey: string | undefined): Promise<boolean> {
+    if (!dedupeKey) return true;
+    try {
+      await withMongoRetry(
+        () => NotificationOutboxSentModel.updateOne(
+          { dedupeKey },
+          { $setOnInsert: { dedupeKey, sentAt: new Date() } },
+          { upsert: true }
+        ),
+        { label: "outboxMarkSent" }
+      );
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function claimNextJob(now: Date, leaseMs: number, workerId: string): Promise<OutboxJob | null> {
@@ -184,6 +196,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     let recoveryFetches = 0;
     let recoveryFailures = 0;
     let recoveryMarkerMissing = 0;
+    let markSentFailures = 0;
 
     for (let i = 0; i < options.limit; i++) {
       const job = await claimNextJob(now, leaseMs, workerId);
@@ -204,7 +217,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         if (result.recoveryDuplicate) recoveryDuplicates++;
         if (result.recoveryFailed) recoveryFailures++;
         if (result.recoveryMarkerMissing) recoveryMarkerMissing++;
-        await markSent(job.dedupeKey);
+        if (!(await markSent(job.dedupeKey))) markSentFailures++;
         await NotificationOutboxModel.deleteOne({ _id: job._id });
         sent++;
         continue;
@@ -232,7 +245,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     if (sent || deadLettered || retried) {
       logger("INFO", "OUTBOX", `Drain outbox: ${sent} trimise, ${retried} reincercate, ${deadLettered} dead-letter, ${queued} ramase in coada`);
     }
-    return { sent, deadLettered, retried, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing };
+    return { sent, deadLettered, retried, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures };
   }
 
   return { enqueueOutbox, drainOutbox };

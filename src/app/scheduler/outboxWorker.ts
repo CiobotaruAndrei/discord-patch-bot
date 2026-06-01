@@ -32,6 +32,7 @@ interface OutboxMetricsLike {
   outboxRecoveryFetches: number;
   outboxRecoveryFailures: number;
   outboxRecoveryMarkerMissing: number;
+  outboxMarkSentFailures: number;
 }
 
 interface OutboxDrainResult {
@@ -45,7 +46,10 @@ interface OutboxDrainResult {
   recoveryFetches?: number;
   recoveryFailures?: number;
   recoveryMarkerMissing?: number;
+  markSentFailures?: number;
 }
+
+type AdminAlert = (kind: string, title: string, body: string) => Promise<unknown>;
 
 interface CreateOutboxWorkerDeps {
   mongoose: MongooseLike;
@@ -58,6 +62,7 @@ interface CreateOutboxWorkerDeps {
   lifecycle: LifecycleState;
   metrics: OutboxMetricsLike;
   errorMessage: ErrorFormatter;
+  adminAlert: AdminAlert;
   drainLimit: number;
   perJobBudgetMs: number;
 }
@@ -74,7 +79,7 @@ const OUTBOX_LOCK_MAX_TTL_MS = 3_600_000;
 
 function createOutboxWorker({
   mongoose, client, logger, parseEnvNumber,
-  acquireDbLock, releaseDbLock, drainOutbox, lifecycle, metrics, errorMessage,
+  acquireDbLock, releaseDbLock, drainOutbox, lifecycle, metrics, errorMessage, adminAlert,
   drainLimit, perJobBudgetMs
 }: CreateOutboxWorkerDeps): OutboxWorker {
   const intervalMs = parseEnvNumber("NOTIFICATION_OUTBOX_DRAIN_INTERVAL_MS", 15_000, { min: 2_000, max: 600_000 });
@@ -109,8 +114,20 @@ function createOutboxWorker({
     metrics.outboxRecoveryFetches += r.recoveryFetches ?? 0;
     metrics.outboxRecoveryFailures += r.recoveryFailures ?? 0;
     metrics.outboxRecoveryMarkerMissing += r.recoveryMarkerMissing ?? 0;
+    metrics.outboxMarkSentFailures += r.markSentFailures ?? 0;
     if (typeof r.queued === "number") metrics.outboxQueueDepth = r.queued;
     if (typeof r.oldestJobAgeMs === "number") metrics.outboxOldestJobAgeSeconds = Math.round(r.oldestJobAgeMs / 1000);
+
+    if ((r.recoveryFailures ?? 0) > 0) {
+      adminAlert("outbox:recovery-read",
+        "Recovery verify activ, dar nu pot citi istoricul canalului",
+        "Verifica permisiunea Read Message History pentru canalele de notificari.").catch(() => undefined);
+    }
+    if ((r.markSentFailures ?? 0) > 0) {
+      adminAlert("outbox:mark-sent",
+        "Marcarea livrarilor outbox in istoric esueaza",
+        "Mesaje au fost trimise dar nu s-au putut marca in notificationOutboxSent; risc de duplicare la recovery.").catch(() => undefined);
+    }
   }
 
   async function drainTick(): Promise<void> {

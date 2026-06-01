@@ -218,3 +218,82 @@ test("drainOutbox: job cu dedupeKey deja in istoric -> nu re-trimite (recovery d
   assert.equal(result.sent, 0);
   assert.deepEqual(deleted, [{ _id: "j1" }], "jobul ramas dupa crash e curatat fara re-trimitere");
 });
+
+test("drainOutbox: esecul de marcare in istoric incrementeaza markSentFailures dar jobul tot e livrat", async () => {
+  const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "k1" };
+  const pending = [job];
+  const deleted: unknown[] = [];
+  const model = {
+    create: async (doc: Record<string, unknown>) => doc,
+    findOneAndUpdate: async () => pending.shift() ?? null,
+    find: () => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) }),
+    deleteOne: async (filter: unknown) => { deleted.push(filter); return { deletedCount: 1 }; },
+    updateOne: async () => ({ matchedCount: 1 }),
+    countDocuments: async () => 0
+  };
+  const sentModel = {
+    exists: async () => null,
+    updateOne: async () => { throw new Error("mongo down la marcare"); }
+  };
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: model as never,
+    NotificationOutboxSentModel: sentModel as never,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: true }),
+    recordDeadLetter: async () => undefined,
+    maxAttempts: 5, backoffMs: 1000, limit: 50
+  });
+  assert.equal(result.sent, 1, "livrarea a reusit, jobul e considerat trimis");
+  assert.equal(result.markSentFailures, 1, "esecul de marcare in istoricul de dedupe e numarat");
+  assert.deepEqual(deleted, [{ _id: "j1" }], "jobul livrat e sters chiar daca marcarea a esuat");
+});
+
+test("enqueueOutbox: eroarea de cheie duplicata (E11000) e ignorata (job pending identic exista deja)", async () => {
+  let createCalls = 0;
+  const model = {
+    create: async () => { createCalls++; throw Object.assign(new Error("dup key"), { code: 11000 }); },
+    findOneAndUpdate: async () => null,
+    find: () => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) }),
+    deleteOne: async () => ({ deletedCount: 0 }),
+    updateOne: async () => ({ matchedCount: 0 }),
+    countDocuments: async () => 0
+  };
+  const sentModel = { exists: async () => null, updateOne: async () => ({ upsertedCount: 1 }) };
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: model as never,
+    NotificationOutboxSentModel: sentModel as never,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  await assert.doesNotReject(
+    () => runtime.enqueueOutbox({ guildId: "g1", channelId: "c1", kind: "update", payload: { x: 1 } }),
+    "enqueue cu dedupeKey deja in coada nu trebuie sa arunce"
+  );
+  assert.equal(createCalls, 1, "s-a incercat o singura creare");
+});
+
+test("enqueueOutbox: alte erori la create se propaga (nu sunt inghitite)", async () => {
+  const model = {
+    create: async () => { throw new Error("conexiune pierduta"); },
+    findOneAndUpdate: async () => null,
+    find: () => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) }),
+    deleteOne: async () => ({ deletedCount: 0 }),
+    updateOne: async () => ({ matchedCount: 0 }),
+    countDocuments: async () => 0
+  };
+  const sentModel = { exists: async () => null, updateOne: async () => ({ upsertedCount: 1 }) };
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: model as never,
+    NotificationOutboxSentModel: sentModel as never,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  await assert.rejects(
+    () => runtime.enqueueOutbox({ guildId: "g1", channelId: "c1", kind: "update", payload: { x: 1 } }),
+    /conexiune pierduta/,
+    "o eroare care nu e E11000 trebuie sa se propage"
+  );
+});
