@@ -14,7 +14,7 @@ export interface OutboxDeliveryClient {
 }
 
 export type OutboxDeliveryResult =
-  | { ok: true; recoveryFetched?: boolean; recoveryDuplicate?: boolean; recoveryFailed?: boolean }
+  | { ok: true; recoveryFetched?: boolean; recoveryDuplicate?: boolean; recoveryFailed?: boolean; recoveryMarkerMissing?: boolean }
   | { ok: false; permanent: boolean };
 
 export interface OutboxDeliveryDeps {
@@ -66,7 +66,7 @@ export function createOutboxDelivery(deps: OutboxDeliveryDeps) {
         const payload = applyDedupeMarker(job.payload, job.dedupeKey);
         await acquireSendSlot();
         await (channel.send as (payload: unknown) => Promise<unknown>)(payload);
-        return { ok: true, recoveryFetched: !check.failed, recoveryFailed: check.failed };
+        return { ok: true, recoveryFetched: !check.failed, recoveryFailed: check.failed, recoveryMarkerMissing: !check.failed };
       }
 
       const payload = verify ? applyDedupeMarker(job.payload, job.dedupeKey) : job.payload;

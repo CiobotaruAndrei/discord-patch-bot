@@ -85,7 +85,7 @@ function messageHasDedupeMarker(message: unknown, marker: string): boolean {
 }
 
 export type DeliverResult =
-  | { ok: true; recoveryFetched?: boolean; recoveryDuplicate?: boolean; recoveryFailed?: boolean }
+  | { ok: true; recoveryFetched?: boolean; recoveryDuplicate?: boolean; recoveryFailed?: boolean; recoveryMarkerMissing?: boolean }
   | { ok: false; permanent: boolean };
 
 export interface DrainOutboxOptions {
@@ -110,6 +110,7 @@ export interface DrainOutboxResult {
   recoveryDuplicates: number;
   recoveryFetches: number;
   recoveryFailures: number;
+  recoveryMarkerMissing: number;
 }
 
 export interface OutboxRuntime {
@@ -182,6 +183,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     let recoveryDuplicates = 0;
     let recoveryFetches = 0;
     let recoveryFailures = 0;
+    let recoveryMarkerMissing = 0;
 
     for (let i = 0; i < options.limit; i++) {
       const job = await claimNextJob(now, leaseMs, workerId);
@@ -201,6 +203,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         if (result.recoveryFetched) recoveryFetches++;
         if (result.recoveryDuplicate) recoveryDuplicates++;
         if (result.recoveryFailed) recoveryFailures++;
+        if (result.recoveryMarkerMissing) recoveryMarkerMissing++;
         await markSent(job.dedupeKey);
         await NotificationOutboxModel.deleteOne({ _id: job._id });
         sent++;
@@ -229,7 +232,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     if (sent || deadLettered || retried) {
       logger("INFO", "OUTBOX", `Drain outbox: ${sent} trimise, ${retried} reincercate, ${deadLettered} dead-letter, ${queued} ramase in coada`);
     }
-    return { sent, deadLettered, retried, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, recoveryDuplicates, recoveryFetches, recoveryFailures };
+    return { sent, deadLettered, retried, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing };
   }
 
   return { enqueueOutbox, drainOutbox };
