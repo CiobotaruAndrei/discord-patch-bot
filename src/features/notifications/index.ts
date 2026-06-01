@@ -54,7 +54,7 @@ function createNotificationRuntime(deps: NotificationsContext) {
     validatePendingDiscountSnapshot, getLatestForAllGames, fetchDeals,
     enrichDealData, dealHash, canSendEmbeds, buildUpdateEmbed,
     buildDealEmbed, setUpdatesCache, getDealsCacheData, setDealsCache,
-    saveFetchSnapshot, loadFetchSnapshot, GuildSeenDiscountModel, GuildSeenUpdateModel, NotificationOutboxModel,
+    saveFetchSnapshot, loadFetchSnapshot, GuildSeenDiscountModel, GuildSeenUpdateModel, NotificationOutboxModel, NotificationOutboxSentModel,
     normalizeCurrencyKey, normalizePendingUpdateArray,
     normalizePendingDiscountArray, toEntries, rotateAfter, mapToObject,
     dealPassesFilters, sleepIfPositive, withMongoRetry, OP_UPDATE_OPTS,
@@ -70,7 +70,7 @@ function createNotificationRuntime(deps: NotificationsContext) {
   const loadSnapshot = loadFetchSnapshot as ((id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>) | undefined;
 
   const outboxEnabled = process.env.NOTIFICATION_OUTBOX_ENABLED === "true";
-  const outbox = createOutboxRuntime({ NotificationOutboxModel, withMongoRetry, logger });
+  const outbox = createOutboxRuntime({ NotificationOutboxModel, NotificationOutboxSentModel, withMongoRetry, logger });
   const enqueueOutbox = outboxEnabled ? outbox.enqueueOutbox : undefined;
 
   const resolveOutboundChannel = createOutboundChannelResolver({ logger, canSendEmbeds, enqueueOutbox });

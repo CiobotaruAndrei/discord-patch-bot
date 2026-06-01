@@ -9,6 +9,7 @@ export interface OutboxJob {
   kind: OutboxKind;
   payload: unknown;
   attempts: number;
+  dedupeKey?: string;
   createdAt?: Date;
   availableAt?: Date;
 }
@@ -22,13 +23,29 @@ interface OutboxModelLike {
   countDocuments(filter?: unknown): Promise<number>;
 }
 
+interface OutboxSentModelLike {
+  exists(filter: unknown): Promise<unknown>;
+  updateOne(filter: unknown, update: unknown, opts?: unknown): Promise<unknown>;
+}
+
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
 export interface OutboxRuntimeDeps {
   NotificationOutboxModel: OutboxModelLike;
+  NotificationOutboxSentModel: OutboxSentModelLike;
   withMongoRetry: WithMongoRetry;
   logger: Logger;
+}
+
+function dedupeKeyFor(job: { guildId: string; channelId: string; kind: OutboxKind; payload: unknown }): string {
+  const source = `${job.guildId}|${job.channelId}|${job.kind}|${JSON.stringify(job.payload)}`;
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < source.length; i++) {
+    hash ^= source.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
 export type DeliverResult = { ok: true } | { ok: false; permanent: boolean };
@@ -61,8 +78,11 @@ export interface OutboxRuntime {
 
 const DEFAULT_LEASE_MS = 60_000;
 
-export function createOutboxRuntime({ NotificationOutboxModel, withMongoRetry, logger }: OutboxRuntimeDeps): OutboxRuntime {
+export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutboxSentModel, withMongoRetry, logger }: OutboxRuntimeDeps): OutboxRuntime {
   async function enqueueOutbox(job: { guildId: string; channelId: string; kind: OutboxKind; payload: unknown }): Promise<void> {
+    const dedupeKey = dedupeKeyFor(job);
+    const alreadySent = await NotificationOutboxSentModel.exists({ dedupeKey }).catch(() => null);
+    if (alreadySent) return;
     const at = new Date();
     await withMongoRetry(() => NotificationOutboxModel.create({
       guildId: job.guildId,
@@ -70,9 +90,19 @@ export function createOutboxRuntime({ NotificationOutboxModel, withMongoRetry, l
       kind: job.kind,
       payload: job.payload,
       attempts: 0,
+      dedupeKey,
       createdAt: at,
       availableAt: at
     }), { label: "enqueueOutbox" });
+  }
+
+  async function markSent(dedupeKey: string | undefined): Promise<void> {
+    if (!dedupeKey) return;
+    await NotificationOutboxSentModel.updateOne(
+      { dedupeKey },
+      { $setOnInsert: { dedupeKey, sentAt: new Date() } },
+      { upsert: true }
+    ).catch(() => undefined);
   }
 
   function claimNextJob(now: Date, leaseMs: number, workerId: string): Promise<OutboxJob | null> {
@@ -110,11 +140,17 @@ export function createOutboxRuntime({ NotificationOutboxModel, withMongoRetry, l
       if (!job) break;
       processed++;
 
+      if (job.dedupeKey && await NotificationOutboxSentModel.exists({ dedupeKey: job.dedupeKey }).catch(() => null)) {
+        await NotificationOutboxModel.deleteOne({ _id: job._id });
+        continue;
+      }
+
       const startedAt = Date.now();
       const result = await options.deliver(job);
       deliveryMsTotal += Math.max(0, Date.now() - startedAt);
 
       if (result.ok) {
+        await markSent(job.dedupeKey);
         await NotificationOutboxModel.deleteOne({ _id: job._id });
         sent++;
         continue;

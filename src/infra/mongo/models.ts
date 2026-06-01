@@ -150,10 +150,17 @@ const notificationOutboxSchema = new mongoose.Schema({
   availableAt: { type: Date, default: Date.now },
   lockedUntil: { type: Date, default: null },
   lockedBy: { type: String, default: null },
+  dedupeKey: { type: String, default: null },
   createdAt: { type: Date, default: Date.now, expires: 7 * ONE_DAY_MS / 1000 }
 }, { minimize: false });
 notificationOutboxSchema.index({ availableAt: 1, lockedUntil: 1 }, { background: true });
 const NotificationOutboxModel = mongoose.model("NotificationOutbox", notificationOutboxSchema, "notificationOutbox");
+
+const notificationOutboxSentSchema = new mongoose.Schema({
+  dedupeKey: { type: String, required: true, unique: true },
+  sentAt: { type: Date, default: Date.now, expires: ONE_DAY_MS / 24 / 1000 }
+}, { minimize: false });
+const NotificationOutboxSentModel = mongoose.model("NotificationOutboxSent", notificationOutboxSentSchema, "notificationOutboxSent");
 
   Object.assign(target, {
     GuildModel,
@@ -164,7 +171,8 @@ const NotificationOutboxModel = mongoose.model("NotificationOutbox", notificatio
     FetchSnapshotModel,
     GuildSeenDiscountModel,
     GuildSeenUpdateModel,
-    NotificationOutboxModel
+    NotificationOutboxModel,
+    NotificationOutboxSentModel
   });
 }
 

@@ -2,11 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createOutboxRuntime, OutboxJob, DeliverResult } from "../features/notifications/notificationOutbox";
 
-function makeFakeModel(jobs: OutboxJob[]) {
+function makeFakeModel(jobs: OutboxJob[], initialSent: string[] = []) {
   const created: Record<string, unknown>[] = [];
   const deleted: unknown[] = [];
   const updated: Array<{ filter: unknown; update: unknown }> = [];
   const claims: Array<{ filter: unknown; update: unknown }> = [];
+  const sentKeys = new Set<string>(initialSent);
   const pending = [...jobs];
   const model = {
     create: async (doc: Record<string, unknown>) => { created.push(doc); return doc; },
@@ -25,13 +26,18 @@ function makeFakeModel(jobs: OutboxJob[]) {
     updateOne: async (filter: unknown, update: unknown) => { updated.push({ filter, update }); return { matchedCount: 1 }; },
     countDocuments: async () => jobs.length - deleted.length
   };
-  return { model, created, deleted, updated, claims };
+  const sentModel = {
+    exists: async (filter: { dedupeKey: string }) => (sentKeys.has(filter.dedupeKey) ? { _id: filter.dedupeKey } : null),
+    updateOne: async (filter: { dedupeKey: string }) => { sentKeys.add(filter.dedupeKey); return { upsertedCount: 1 }; }
+  };
+  return { model, sentModel, created, deleted, updated, claims, sentKeys };
 }
 
-function makeRuntime(jobs: OutboxJob[]) {
-  const fake = makeFakeModel(jobs);
+function makeRuntime(jobs: OutboxJob[], initialSent: string[] = []) {
+  const fake = makeFakeModel(jobs, initialSent);
   const runtime = createOutboxRuntime({
     NotificationOutboxModel: fake.model as never,
+    NotificationOutboxSentModel: fake.sentModel as never,
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   });
@@ -47,6 +53,18 @@ test("enqueueOutbox creeaza un job cu attempts 0, createdAt si availableAt", asy
   assert.equal(created[0].attempts, 0);
   assert.ok(created[0].availableAt instanceof Date);
   assert.ok(created[0].createdAt instanceof Date);
+  assert.equal(typeof created[0].dedupeKey, "string", "jobul primeste un dedupeKey stabil");
+});
+
+test("enqueueOutbox: nu re-enqueue daca dedupeKey a fost livrat recent (idempotent)", async () => {
+  const probe = makeRuntime([]);
+  const dedupeKey = (await (async () => {
+    await probe.runtime.enqueueOutbox({ guildId: "g1", channelId: "c1", kind: "update", payload: { x: 1 } });
+    return String(probe.created[0].dedupeKey);
+  })());
+  const { runtime, created } = makeRuntime([], [dedupeKey]);
+  await runtime.enqueueOutbox({ guildId: "g1", channelId: "c1", kind: "update", payload: { x: 1 } });
+  assert.equal(created.length, 0, "acelasi continut deja livrat -> nu se mai creeaza job");
 });
 
 test("drainOutbox: claim atomic prin lease (lockedUntil/lockedBy) inainte de livrare", async () => {
@@ -135,4 +153,31 @@ test("drainOutbox: esec tranzitoriu la max attempts -> dead-letter + sters", asy
   assert.deepEqual(deleted, [{ _id: "j1" }]);
   assert.equal(updated.length, 0);
   assert.equal(deadLetters[0].reason, "max-attempts");
+});
+
+test("drainOutbox: livrarea reusita inregistreaza dedupeKey in istoricul de trimiteri", async () => {
+  const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "k1" };
+  const { runtime, deleted, sentKeys } = makeRuntime([job]);
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: true }),
+    recordDeadLetter: async () => undefined,
+    maxAttempts: 5, backoffMs: 1000, limit: 50
+  });
+  assert.equal(result.sent, 1);
+  assert.ok(sentKeys.has("k1"), "dedupeKey marcat ca trimis inainte de stergerea jobului");
+  assert.deepEqual(deleted, [{ _id: "j1" }]);
+});
+
+test("drainOutbox: job cu dedupeKey deja in istoric -> nu re-trimite (recovery dupa crash)", async () => {
+  const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "k1" };
+  const { runtime, deleted } = makeRuntime([job], ["k1"]);
+  let delivered = 0;
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => { delivered++; return { ok: true }; },
+    recordDeadLetter: async () => undefined,
+    maxAttempts: 5, backoffMs: 1000, limit: 50
+  });
+  assert.equal(delivered, 0, "nu se re-trimite ce e deja in istoricul de livrari");
+  assert.equal(result.sent, 0);
+  assert.deepEqual(deleted, [{ _id: "j1" }], "jobul ramas dupa crash e curatat fara re-trimitere");
 });
