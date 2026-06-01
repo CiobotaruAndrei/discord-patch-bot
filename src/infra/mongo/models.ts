@@ -153,6 +153,7 @@ const notificationOutboxSchema = new mongoose.Schema({
   lockedUntil: { type: Date, default: null },
   lockedBy: { type: String, default: null },
   dedupeKey: { type: String, default: null },
+  recoveryVerify: { type: Boolean, default: null },
   createdAt: { type: Date, default: Date.now, expires: 7 * ONE_DAY_MS / 1000 }
 }, { minimize: false });
 notificationOutboxSchema.index({ availableAt: 1, lockedUntil: 1 }, { background: true });

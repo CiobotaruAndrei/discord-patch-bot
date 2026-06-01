@@ -87,14 +87,14 @@ test("outboxDelivery: recovery (deliveries>1) cu marker gasit in istoric -> NU r
 test("outboxDelivery: recovery fara marker in istoric -> trimite (recoveryFetched)", async () => {
   const h = makeHarness({ recoveryVerify: true, history: "missing" });
   const res = await h.delivery.deliver(h.client as never, { channelId: "c1", payload: { embeds: [{}] }, dedupeKey: h.dedupeKey, deliveries: 2 });
-  assert.deepEqual(res, { ok: true, recoveryFetched: true, recoveryFailed: false });
+  assert.deepEqual(res, { ok: true, recoveryFetched: true, recoveryFailed: false, recoveryMarkerMissing: true });
   assert.equal(h.sent.length, 1, "nu e in istoric -> trimite");
 });
 
 test("outboxDelivery: recovery cu fetch istoric esuat -> trimite, marcheaza recoveryFailed", async () => {
   const h = makeHarness({ recoveryVerify: true, history: "throws" });
   const res = await h.delivery.deliver(h.client as never, { channelId: "c1", payload: { embeds: [{}] }, dedupeKey: h.dedupeKey, deliveries: 2 });
-  assert.deepEqual(res, { ok: true, recoveryFetched: false, recoveryFailed: true });
+  assert.deepEqual(res, { ok: true, recoveryFetched: false, recoveryFailed: true, recoveryMarkerMissing: false });
   assert.equal(h.sent.length, 1, "la esec de verificare, trimite (fail-open)");
 });
 

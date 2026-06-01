@@ -31,6 +31,7 @@ interface OutboxMetricsLike {
   outboxRecoveryDuplicates: number;
   outboxRecoveryFetches: number;
   outboxRecoveryFailures: number;
+  outboxRecoveryMarkerMissing: number;
 }
 
 interface OutboxDrainResult {
@@ -43,6 +44,7 @@ interface OutboxDrainResult {
   recoveryDuplicates?: number;
   recoveryFetches?: number;
   recoveryFailures?: number;
+  recoveryMarkerMissing?: number;
 }
 
 interface CreateOutboxWorkerDeps {
@@ -106,6 +108,7 @@ function createOutboxWorker({
     metrics.outboxRecoveryDuplicates += r.recoveryDuplicates ?? 0;
     metrics.outboxRecoveryFetches += r.recoveryFetches ?? 0;
     metrics.outboxRecoveryFailures += r.recoveryFailures ?? 0;
+    metrics.outboxRecoveryMarkerMissing += r.recoveryMarkerMissing ?? 0;
     if (typeof r.queued === "number") metrics.outboxQueueDepth = r.queued;
     if (typeof r.oldestJobAgeMs === "number") metrics.outboxOldestJobAgeSeconds = Math.round(r.oldestJobAgeMs / 1000);
   }

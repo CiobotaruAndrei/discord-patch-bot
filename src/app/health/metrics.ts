@@ -23,6 +23,7 @@ function createMetrics(): BotMetrics {
     outboxRecoveryDuplicates: 0,
     outboxRecoveryFetches: 0,
     outboxRecoveryFailures: 0,
+    outboxRecoveryMarkerMissing: 0,
     startedAt: Date.now()
   };
 }

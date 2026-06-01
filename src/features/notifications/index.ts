@@ -25,6 +25,7 @@ const OUTBOX_DRAIN_LIMIT = Math.min(1000, Math.max(1, Number(process.env.NOTIFIC
 interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; attempts: number; deliveries?: number; dedupeKey?: string; }
 interface OutboxClient { user: { id: string }; channels: { fetch(channelId: string): Promise<unknown> }; }
 const OUTBOX_RECOVERY_VERIFY = process.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY === "true";
+const OUTBOX_RECOVERY_HISTORY_LIMIT = Math.min(100, Math.max(5, Number(process.env.NOTIFICATION_OUTBOX_RECOVERY_HISTORY_LIMIT) || 25));
 
 type GeneratedUpdateDeps =
   | "resolveOutboundChannel"
@@ -82,7 +83,8 @@ function createNotificationRuntime(deps: NotificationsContext) {
     isPermanentDiscordError,
     acquireSendSlot: () => defaultDiscordSendLimiter.acquire(),
     applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker,
-    recoveryVerify: OUTBOX_RECOVERY_VERIFY
+    recoveryVerify: OUTBOX_RECOVERY_VERIFY,
+    historyLimit: OUTBOX_RECOVERY_HISTORY_LIMIT
   });
 
   async function recordOutboxDeadLetter(job: OutboxJobShape, reason: string): Promise<void> {

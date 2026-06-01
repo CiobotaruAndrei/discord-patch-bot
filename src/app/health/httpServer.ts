@@ -170,6 +170,7 @@ function createHttpServer({
       pushMetric(lines, seenMetricNames, "bot_outbox_recovery_duplicates_prevented", "counter", "Outbox recovery-verify duplicate sends prevented", metrics.outboxRecoveryDuplicates);
       pushMetric(lines, seenMetricNames, "bot_outbox_recovery_history_fetches", "counter", "Outbox recovery-verify channel history fetches", metrics.outboxRecoveryFetches);
       pushMetric(lines, seenMetricNames, "bot_outbox_recovery_verify_failures", "counter", "Outbox recovery-verify channel history fetch failures", metrics.outboxRecoveryFailures);
+      pushMetric(lines, seenMetricNames, "bot_outbox_recovery_marker_missing", "counter", "Outbox recovery-verify fetched history but marker not found (re-sent)", metrics.outboxRecoveryMarkerMissing);
       res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4" });
       res.end(lines.join("\n") + "\n");
       return;
