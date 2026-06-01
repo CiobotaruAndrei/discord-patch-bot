@@ -42,6 +42,8 @@ type SubscriptionInteractionDeps = {
   getLatestForAllGames: (games: GameConfig[]) => Promise<FetchResult[]>;
   fetchDeals: (options: { currency: string }) => Promise<DealInfo[]>;
   dealHash: (deal: DealInfo) => string;
+  seedSeenUpdates: (guildId: string, entries: Array<{ gameKey: string; updateId: string }>) => Promise<void>;
+  seedSeenDiscounts: (guildId: string, hashes: string[]) => Promise<void>;
   DEALS_HISTORY_LIMIT: number;
   OP_UPDATE_OPTS: Record<string, unknown>;
   setDealsCache: (currency: string, deals: DealInfo[]) => void;
@@ -61,7 +63,7 @@ type SubscriptionContext = SubscriptionInteractionDeps & {
 function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps) {
   const {
     GuildModel, logger, getGuildSettings, invalidateGuildCache, DEFAULT_CURRENCY,
-    getLatestForAllGames, fetchDeals, dealHash, DEALS_HISTORY_LIMIT,
+    getLatestForAllGames, fetchDeals, dealHash, seedSeenUpdates, seedSeenDiscounts, DEALS_HISTORY_LIMIT,
     OP_UPDATE_OPTS, setDealsCache, safeDefer, safeEdit, canSendEmbeds,
     missingChannelPermsMessage, makeActivationId, formatUserError
   } = deps;
@@ -101,12 +103,10 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
 
         try {
           const results = await getLatestForAllGames(games);
-          const seenPayload: Record<string, unknown> = {
-            updatesInitializing: false
-          };
-          for (const result of results) {
-            if (result.latest) seenPayload[`seen.${result.game.key}`] = [result.latest.id];
-          }
+          const seedEntries = results
+            .filter(result => result.latest)
+            .map(result => ({ gameKey: result.game.key, updateId: result.latest!.id }));
+          await seedSeenUpdates(guildId, seedEntries);
           const activationResult = await GuildModel.updateOne(
             {
               _id: guildId,
@@ -115,7 +115,7 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
               updatesActivationId: activationId
             },
             {
-              $set: seenPayload,
+              $set: { updatesInitializing: false },
               $unset: { updatesActivationId: "", updatesLastError: "" }
             },
             OP_UPDATE_OPTS
@@ -171,6 +171,7 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
         try {
           const deals = await fetchDeals({ currency });
           const initHashes = deals.slice(0, DEALS_HISTORY_LIMIT).map((deal) => dealHash(deal));
+          await seedSeenDiscounts(guildId, initHashes);
           const activationResult = await GuildModel.updateOne(
             {
               _id: guildId,
@@ -180,7 +181,6 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
             },
             {
               $set: {
-                seenDiscounts: initHashes,
                 discountsInitializing: false
               },
               $unset: { discountsActivationId: "", discountsLastError: "" }
@@ -276,6 +276,8 @@ function installSubscriptionInteractions(target: SubscriptionContext) {
     getLatestForAllGames: target.getLatestForAllGames,
     fetchDeals: target.fetchDeals,
     dealHash: target.dealHash,
+    seedSeenUpdates: target.seedSeenUpdates,
+    seedSeenDiscounts: target.seedSeenDiscounts,
     DEALS_HISTORY_LIMIT: target.DEALS_HISTORY_LIMIT,
     OP_UPDATE_OPTS: target.OP_UPDATE_OPTS,
     setDealsCache: target.setDealsCache,

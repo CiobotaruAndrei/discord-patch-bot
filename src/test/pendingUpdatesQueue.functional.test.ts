@@ -65,18 +65,6 @@ test("buildPendingUpdatesQueue scoate pendingUpdates expirate dupa MAX_AGE_MS", 
   assert.equal(result.pendingByGame.has("cs2"), false, "intrarea expirata e scoasa");
 });
 
-test("buildPendingUpdatesQueue scoate pendingUpdates deja seen", () => {
-  const result = runQueue({
-    guild: {
-      _id: "g",
-      seen: { cs2: ["u1"] },
-      pendingUpdates: { cs2: [{ id: "u1", createdAt: new Date(), attempts: 0 }] }
-    },
-    latestResults: []
-  });
-  assert.equal(result.pendingByGame.has("cs2"), false);
-});
-
 test("buildPendingUpdatesQueue scoate pendingUpdates cu attempts >= MAX_ATTEMPTS", () => {
   const result = runQueue(
     {
@@ -172,13 +160,3 @@ test("buildPendingUpdatesQueue cu enabledGames gol = no filter (enabledSet === n
   assert.equal(result.pendingByGame.size, 2, "fara filter, ambele jocuri raman");
 });
 
-test("buildPendingUpdatesQueue seenByGame construit din guild.seen (strict string)", () => {
-  const result = runQueue({
-    guild: { _id: "g", seen: { cs2: ["u1", 2, "u3"] } as unknown as Record<string, string[]>, pendingUpdates: {} },
-    latestResults: []
-  });
-  const seen = result.seenByGame.get("cs2");
-  assert.ok(seen?.has("u1"));
-  assert.ok(seen?.has("2"), "numere coerced la string");
-  assert.ok(seen?.has("u3"));
-});

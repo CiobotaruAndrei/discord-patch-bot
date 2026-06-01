@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   dealPassesFilters,
-  getSeenSet,
   mapToObject,
   normalizePendingDiscountArray,
   normalizePendingUpdateArray,
@@ -87,9 +86,6 @@ test("entry helpers support Map, plain objects and rotation", () => {
   assert.deepEqual(toEntries(new Map([["a", 1]])), [["a", 1]]);
   assert.deepEqual(mapToObject(new Map([["x", 7]])), { x: 7 });
   assert.deepEqual(rotateAfter(["a", "b", "c"], "b"), ["c", "a", "b"]);
-
-  const guild = { seen: new Map([["cs2", ["u1", "u2"]]]) } as Pick<GuildSettings, "seen">;
-  assert.deepEqual(Array.from(getSeenSet(guild, "cs2")), ["u1", "u2"]);
 });
 
 test("normalizePendingUpdateArray coerces invalid createdAt to a fresh Date", () => {

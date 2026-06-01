@@ -10,11 +10,13 @@ interface GuildSeenDiscountModelLike {
   updateOne(filter: unknown, update: unknown, opts?: unknown): Promise<{ upsertedCount?: number; matchedCount?: number }>;
   deleteOne(filter: unknown): Promise<{ deletedCount?: number }>;
   find(filter: unknown, projection?: unknown): { lean(): Promise<Array<{ dealHash?: unknown }>> };
+  bulkWrite(ops: unknown[], opts?: unknown): Promise<unknown>;
 }
 
 interface GuildSeenUpdateModelLike {
   updateOne(filter: unknown, update: unknown, opts?: unknown): Promise<{ upsertedCount?: number; matchedCount?: number }>;
   deleteOne(filter: unknown): Promise<{ deletedCount?: number }>;
+  bulkWrite(ops: unknown[], opts?: unknown): Promise<unknown>;
 }
 
 export interface SeenRepositoryDeps {
@@ -30,9 +32,11 @@ export interface SeenRepositoryDeps {
 export interface SeenRepository {
   claimSeenUpdate(guildId: string, channelId: string, gameKey: string, updateId: string): Promise<MongoWriteResult>;
   rollbackSeenUpdate(guildId: string, gameKey: string, updateId: string): Promise<MongoWriteResult>;
+  seedSeenUpdates(guildId: string, entries: Array<{ gameKey: string; updateId: string }>): Promise<void>;
   disableUpdatesForChannelError(guildId: string, channelId: string, message: string): Promise<MongoWriteResult>;
   claimSeenDiscount(guildId: string, channelId: string, hash: string): Promise<MongoWriteResult>;
   rollbackSeenDiscount(guildId: string, hash: string): Promise<MongoWriteResult>;
+  seedSeenDiscounts(guildId: string, hashes: string[]): Promise<void>;
   loadSeenDiscountHashes(guildId: string): Promise<string[]>;
   disableDiscountsForChannelError(guildId: string, channelId: string, message: string): Promise<MongoWriteResult>;
 }
@@ -63,6 +67,20 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
       { label: "rollbackSeenUpdate" }
     );
     return { matchedCount: res.deletedCount ?? 0 };
+  }
+
+  async function seedSeenUpdates(guildId: string, entries: Array<{ gameKey: string; updateId: string }>): Promise<void> {
+    const ops = entries
+      .filter(entry => entry && entry.gameKey && entry.updateId)
+      .map(entry => ({
+        updateOne: {
+          filter: { guildId, gameKey: entry.gameKey, updateId: entry.updateId },
+          update: { $setOnInsert: { guildId, gameKey: entry.gameKey, updateId: entry.updateId, seenAt: new Date() } },
+          upsert: true
+        }
+      }));
+    if (!ops.length) return;
+    await withMongoRetry(() => GuildSeenUpdateModel.bulkWrite(ops, { ordered: false }), { label: "seedSeenUpdates" });
   }
 
   async function disableUpdatesForChannelError(guildId: string, channelId: string, message: string): Promise<MongoWriteResult> {
@@ -105,6 +123,19 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
     return { matchedCount: res.deletedCount ?? 0 };
   }
 
+  async function seedSeenDiscounts(guildId: string, hashes: string[]): Promise<void> {
+    const ops = Array.from(new Set(hashes.filter(hash => typeof hash === "string" && hash.length > 0)))
+      .map(hash => ({
+        updateOne: {
+          filter: { guildId, dealHash: hash },
+          update: { $setOnInsert: { guildId, dealHash: hash, seenAt: new Date() } },
+          upsert: true
+        }
+      }));
+    if (!ops.length) return;
+    await withMongoRetry(() => GuildSeenDiscountModel.bulkWrite(ops, { ordered: false }), { label: "seedSeenDiscounts" });
+  }
+
   async function loadSeenDiscountHashes(guildId: string): Promise<string[]> {
     const docs = await withMongoRetry(
       () => GuildSeenDiscountModel.find({ guildId }, { dealHash: 1 }).lean(),
@@ -131,9 +162,11 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
   return {
     claimSeenUpdate,
     rollbackSeenUpdate,
+    seedSeenUpdates,
     disableUpdatesForChannelError,
     claimSeenDiscount,
     rollbackSeenDiscount,
+    seedSeenDiscounts,
     loadSeenDiscountHashes,
     disableDiscountsForChannelError
   };

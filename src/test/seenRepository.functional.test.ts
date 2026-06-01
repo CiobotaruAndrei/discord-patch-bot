@@ -8,6 +8,7 @@ type SeenUpdate = {
   $push?: Record<string, unknown>;
   $pull?: Record<string, unknown>;
   $set?: Record<string, unknown>;
+  $setOnInsert?: Record<string, unknown>;
 };
 type DisableErrorState = { message?: string; channelId?: string; at?: Date };
 type DisableUpdateSet = {
@@ -28,8 +29,10 @@ function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: stri
   const retryAttempts: Array<number | undefined> = [];
   const seenDiscountUpserts: MongoCall[] = [];
   const seenDiscountDeletes: unknown[] = [];
+  const seenDiscountBulk: Array<{ ops: unknown[]; opts?: unknown }> = [];
   const seenUpdateUpserts: MongoCall[] = [];
   const seenUpdateDeletes: unknown[] = [];
+  const seenUpdateBulk: Array<{ ops: unknown[]; opts?: unknown }> = [];
 
   const GuildModel = {
     updateOne: async (filter: unknown, update: unknown, mongoOpts?: unknown) => {
@@ -54,7 +57,11 @@ function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: stri
     },
     find: (_filter: unknown, _projection?: unknown) => ({
       lean: async () => (opts?.seenHashes ?? []).map(dealHash => ({ dealHash }))
-    })
+    }),
+    bulkWrite: async (ops: unknown[], mongoOpts?: unknown) => {
+      seenDiscountBulk.push({ ops, opts: mongoOpts });
+      return { upsertedCount: ops.length };
+    }
   };
 
   const GuildSeenUpdateModel = {
@@ -65,6 +72,10 @@ function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: stri
     deleteOne: async (filter: unknown) => {
       seenUpdateDeletes.push(filter);
       return { deletedCount: 1 };
+    },
+    bulkWrite: async (ops: unknown[], mongoOpts?: unknown) => {
+      seenUpdateBulk.push({ ops, opts: mongoOpts });
+      return { upsertedCount: ops.length };
     }
   };
 
@@ -83,7 +94,7 @@ function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: stri
     OP_UPDATE_OPTS: { strict: false }
   });
 
-  return { repo, calls, existsCalls, retryAttempts, seenDiscountUpserts, seenDiscountDeletes, seenUpdateUpserts, seenUpdateDeletes, count: () => updateOneCallCount };
+  return { repo, calls, existsCalls, retryAttempts, seenDiscountUpserts, seenDiscountDeletes, seenDiscountBulk, seenUpdateUpserts, seenUpdateDeletes, seenUpdateBulk, count: () => updateOneCallCount };
 }
 
 test("claimSeenUpdate: guard read (exists) pe documentul guild + upsert ca singura scriere in colectie", async () => {
@@ -169,6 +180,43 @@ test("loadSeenDiscountHashes intoarce hash-urile vazute din colectie", async () 
   const { repo } = makeFakeDeps({ seenHashes: ["h1", "h2", "h3"] });
   const hashes = await repo.loadSeenDiscountHashes("g1");
   assert.deepEqual(hashes, ["h1", "h2", "h3"]);
+});
+
+test("seedSeenUpdates face bulk upsert pentru baseline-ul abonarii (skip intrari invalide)", async () => {
+  const { repo, seenUpdateBulk } = makeFakeDeps();
+  await repo.seedSeenUpdates("g1", [
+    { gameKey: "cs2", updateId: "u-1" },
+    { gameKey: "dota", updateId: "u-2" },
+    { gameKey: "", updateId: "u-3" }
+  ]);
+  assert.equal(seenUpdateBulk.length, 1, "un singur bulkWrite");
+  const ops = seenUpdateBulk[0].ops as Array<{ updateOne: { filter: SeenFilter; update: SeenUpdate; upsert: boolean } }>;
+  assert.equal(ops.length, 2, "intrarea cu gameKey gol e sarita");
+  assert.deepEqual(ops[0].updateOne.filter, { guildId: "g1", gameKey: "cs2", updateId: "u-1" });
+  assert.equal(ops[0].updateOne.upsert, true);
+  assert.ok((ops[0].updateOne.update.$setOnInsert as Record<string, unknown>).seenAt instanceof Date);
+});
+
+test("seedSeenUpdates fara intrari valide nu atinge colectia", async () => {
+  const { repo, seenUpdateBulk } = makeFakeDeps();
+  await repo.seedSeenUpdates("g1", []);
+  assert.equal(seenUpdateBulk.length, 0);
+});
+
+test("seedSeenDiscounts face bulk upsert si deduplica hash-urile", async () => {
+  const { repo, seenDiscountBulk } = makeFakeDeps();
+  await repo.seedSeenDiscounts("g1", ["h1", "h2", "h1", ""]);
+  assert.equal(seenDiscountBulk.length, 1, "un singur bulkWrite");
+  const ops = seenDiscountBulk[0].ops as Array<{ updateOne: { filter: SeenFilter; upsert: boolean } }>;
+  assert.equal(ops.length, 2, "hash duplicat si gol eliminate");
+  assert.deepEqual(ops[0].updateOne.filter, { guildId: "g1", dealHash: "h1" });
+  assert.equal(ops[0].updateOne.upsert, true);
+});
+
+test("seedSeenDiscounts fara hash-uri valide nu atinge colectia", async () => {
+  const { repo, seenDiscountBulk } = makeFakeDeps();
+  await repo.seedSeenDiscounts("g1", ["", ""]);
+  assert.equal(seenDiscountBulk.length, 0);
 });
 
 test("disableUpdatesForChannelError writes the error metadata and clears subscription state", async () => {

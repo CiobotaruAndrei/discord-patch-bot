@@ -201,6 +201,13 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
     deleteOne: async (filter: { guildId: string; gameKey: string; updateId: string }) => {
       seenUpdateStore.delete(`${filter.guildId}|${filter.gameKey}|${filter.updateId}`);
       return { deletedCount: 1 };
+    },
+    bulkWrite: async (ops: Array<{ updateOne: { filter: { guildId: string; gameKey: string; updateId: string } } }>) => {
+      for (const op of ops) {
+        const { guildId, gameKey, updateId } = op.updateOne.filter;
+        seenUpdateStore.add(`${guildId}|${gameKey}|${updateId}`);
+      }
+      return { upsertedCount: ops.length };
     }
   };
   const context = {
@@ -264,8 +271,8 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
     }
   };
 
-  attachInteractions(context);
   attachNotifications(context);
+  attachInteractions(context);
 
   const client = {
     user: { id: "bot-id" },
@@ -303,7 +310,7 @@ test("/start updates baseline plus cron sends only the next unseen update", asyn
   assert.equal(sentPayloads.length, 1);
   assert.equal(sentPayloads[0].embeds?.[0]?.title, "New patch");
   assert.equal(sentPayloads[0].embeds?.[0]?.updateId, "new-update");
-  assert.deepEqual((guild.seen as Record<string, string[]>).cs2, ["old-update"], "baseline-ul ramane pe documentul guild (legacy)");
+  assert.ok(seenUpdateStore.has("guild-1|cs2|old-update"), "baseline-ul de la /start e seed-uit in colectia dedicata");
   assert.ok(seenUpdateStore.has("guild-1|cs2|new-update"), "update-ul nou trimis de cron e claim-uit in colectia dedicata");
   assert.deepEqual(guild.pendingUpdates, {});
   assert.equal(guild.lastProcessedGameKey, "cs2");

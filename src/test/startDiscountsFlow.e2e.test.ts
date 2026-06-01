@@ -203,7 +203,14 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
       lean: async () => Array.from(seenDiscountStore)
         .filter(key => key.startsWith(`${filter.guildId}|`))
         .map(key => ({ dealHash: key.slice(filter.guildId.length + 1) }))
-    })
+    }),
+    bulkWrite: async (ops: Array<{ updateOne: { filter: { guildId: string; dealHash: string } } }>) => {
+      for (const op of ops) {
+        const { guildId, dealHash } = op.updateOne.filter;
+        seenDiscountStore.add(`${guildId}|${dealHash}`);
+      }
+      return { upsertedCount: ops.length };
+    }
   };
   const context = {
     GuildModel: createGuildModel(guild),
@@ -267,8 +274,8 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
     }
   };
 
-  attachInteractions(context);
   attachNotifications(context);
+  attachInteractions(context);
 
   const client = {
     user: { id: "bot-id" },
@@ -307,7 +314,7 @@ test("/start reduceri baseline plus cron sends only the next unseen deal", async
   assert.equal(sentPayloads[0].embeds?.[0]?.title, "New discount");
   assert.equal(sentPayloads[0].embeds?.[0]?.dealId, "new-deal");
   assert.equal(sentPayloads[0].embeds?.[0]?.enriched, true);
-  assert.deepEqual(guild.seenDiscounts, ["old-deal"], "baseline-ul ramane pe documentul guild (legacy)");
+  assert.ok(seenDiscountStore.has("guild-1|old-deal"), "baseline-ul de la /start e seed-uit in colectia dedicata");
   assert.ok(seenDiscountStore.has("guild-1|new-deal"), "deal-ul nou trimis de cron e claim-uit in colectia dedicata");
   assert.deepEqual(guild.pendingDiscounts, []);
   assert.equal(dealsCacheWrites.length, 2, "start reduceri should cache the baseline, then cron should refresh the deals cache");

@@ -46,6 +46,8 @@ function makeBaseContext(operations: MongoCall[], replies: unknown[]) {
     getLatestForAllGames: async () => [{ game: { key: "cs2" }, latest: { id: "update-1" } }],
     fetchDeals: async () => [],
     dealHash: (deal: { id: string }) => deal.id,
+    seedSeenUpdates: async (guildId: string, entries: Array<{ gameKey: string; updateId: string }>) => { operations.push(["seedUpdates", guildId, entries]); },
+    seedSeenDiscounts: async (guildId: string, hashes: string[]) => { operations.push(["seedDiscounts", guildId, hashes]); },
     DEALS_HISTORY_LIMIT: 50,
     OP_UPDATE_OPTS: {},
     setDealsCache: () => undefined,
@@ -68,10 +70,14 @@ test("subscription interaction factory handles /start updates with explicit deps
   assert.equal(replies.at(-1), "OK: Update-uri automate activate.");
   const firstFilter = operations[0][0] as { _id?: string };
   const firstUpdate = operations[0][1] as { $set: { notificationChannelId: string } };
-  const seenUpdate = operations[2][1] as { $set: Record<string, string[]> };
   assert.equal(firstFilter._id, "guild-1");
   assert.equal(firstUpdate.$set.notificationChannelId, "channel-1");
-  assert.equal(seenUpdate.$set["seen.cs2"][0], "update-1");
+  const seedCall = operations.find(op => Array.isArray(op) && op[0] === "seedUpdates") as ["seedUpdates", string, Array<{ gameKey: string; updateId: string }>];
+  assert.ok(seedCall, "baseline-ul de update-uri e seed-uit in colectia dedicata, nu pe documentul guild");
+  assert.equal(seedCall[1], "guild-1");
+  assert.deepEqual(seedCall[2], [{ gameKey: "cs2", updateId: "update-1" }]);
+  const activation = operations.find(op => Array.isArray(op) && op[1] && (op[1] as { $set?: { updatesInitializing?: boolean } }).$set?.updatesInitializing === false) as unknown[];
+  assert.ok(activation, "activarea seteaza doar updatesInitializing=false, fara payload seen pe guild");
 });
 
 test("subscription /start rejects unknown sub-commands instead of leaving the deferReply hanging", async () => {
