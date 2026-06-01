@@ -151,6 +151,9 @@ export interface BotMetrics {
   outboxDeadLettered: number;
   outboxDrains: number;
   outboxQueueDepth: number;
+  outboxDeliveryMsTotal: number;
+  outboxOldestJobAgeSeconds: number;
+  outboxLockAcquireFailures: number;
   startedAt: number;
 }
 

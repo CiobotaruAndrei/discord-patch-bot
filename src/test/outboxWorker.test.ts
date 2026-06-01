@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createOutboxWorker, OUTBOX_DRAIN_LOCK_NAME } from "../app/scheduler/outboxWorker";
 
-interface DrainResult { sent?: number; retried?: number; deadLettered?: number; queued?: number }
+interface DrainResult { sent?: number; retried?: number; deadLettered?: number; queued?: number; deliveryMsTotal?: number; oldestJobAgeMs?: number }
 interface Harness {
   drainCalls: number;
   releaseCalls: Array<{ jobName: string; token: string }>;
@@ -14,6 +14,9 @@ interface Harness {
     outboxDeadLettered: number;
     outboxDrains: number;
     outboxQueueDepth: number;
+    outboxDeliveryMsTotal: number;
+    outboxOldestJobAgeSeconds: number;
+    outboxLockAcquireFailures: number;
   };
 }
 
@@ -32,7 +35,10 @@ function makeWorker(overrides: {
     releaseCalls: [],
     acquireCalls: 0,
     lockTtls: [],
-    metrics: { outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxDrains: 0, outboxQueueDepth: 0 }
+    metrics: {
+      outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxDrains: 0, outboxQueueDepth: 0,
+      outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxLockAcquireFailures: 0
+    }
   };
   const lifecycle = { isShuttingDown: overrides.shuttingDown ?? false };
   const worker = createOutboxWorker({
@@ -114,14 +120,24 @@ test("outboxWorker: eroarea de drain este prinsa si lock-ul tot se elibereaza", 
   worker.stop();
 });
 
-test("outboxWorker: actualizeaza metrics din rezultatul drenarii", async () => {
-  const { worker, harness } = makeWorker({ drainResult: { sent: 3, retried: 1, deadLettered: 2, queued: 7 } });
+test("outboxWorker: actualizeaza metrics din rezultatul drenarii (countere + latenta + vechime)", async () => {
+  const { worker, harness } = makeWorker({ drainResult: { sent: 3, retried: 1, deadLettered: 2, queued: 7, deliveryMsTotal: 1200, oldestJobAgeMs: 45_000 } });
   await worker.drainTick();
   assert.equal(harness.metrics.outboxDrains, 1, "numara ciclul de drenare");
   assert.equal(harness.metrics.outboxSent, 3);
   assert.equal(harness.metrics.outboxRetried, 1);
   assert.equal(harness.metrics.outboxDeadLettered, 2);
   assert.equal(harness.metrics.outboxQueueDepth, 7, "queue depth este un gauge setat la valoarea curenta");
+  assert.equal(harness.metrics.outboxDeliveryMsTotal, 1200, "latenta cumulata de livrare");
+  assert.equal(harness.metrics.outboxOldestJobAgeSeconds, 45, "vechimea celui mai vechi job in secunde");
+  worker.stop();
+});
+
+test("outboxWorker: lock detinut de alta instanta incrementeaza outboxLockAcquireFailures", async () => {
+  const { worker, harness } = makeWorker({ lockToken: null });
+  await worker.drainTick();
+  assert.equal(harness.metrics.outboxLockAcquireFailures, 1, "esecul de lock e numarat");
+  assert.equal(harness.drainCalls, 0);
   worker.stop();
 });
 
