@@ -156,9 +156,10 @@ const notificationOutboxSchema = new mongoose.Schema({
 notificationOutboxSchema.index({ availableAt: 1, lockedUntil: 1 }, { background: true });
 const NotificationOutboxModel = mongoose.model("NotificationOutbox", notificationOutboxSchema, "notificationOutbox");
 
+const OUTBOX_SENT_TTL_HOURS = Math.min(168, Math.max(1, Number(process.env.NOTIFICATION_OUTBOX_SENT_TTL_HOURS) || 24));
 const notificationOutboxSentSchema = new mongoose.Schema({
   dedupeKey: { type: String, required: true, unique: true },
-  sentAt: { type: Date, default: Date.now, expires: ONE_DAY_MS / 24 / 1000 }
+  sentAt: { type: Date, default: Date.now, expires: OUTBOX_SENT_TTL_HOURS * 3600 }
 }, { minimize: false });
 const NotificationOutboxSentModel = mongoose.model("NotificationOutboxSent", notificationOutboxSentSchema, "notificationOutboxSent");
 

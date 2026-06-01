@@ -54,6 +54,15 @@ test("enqueueOutbox creeaza un job cu attempts 0, createdAt si availableAt", asy
   assert.ok(created[0].availableAt instanceof Date);
   assert.ok(created[0].createdAt instanceof Date);
   assert.equal(typeof created[0].dedupeKey, "string", "jobul primeste un dedupeKey stabil");
+  assert.match(String(created[0].dedupeKey), /^[0-9a-f]{64}$/, "dedupeKey este un hash SHA-256 (64 hex)");
+});
+
+test("enqueueOutbox: dedupeKey e stabil indiferent de ordinea cheilor din payload", async () => {
+  const a = makeRuntime([]);
+  await a.runtime.enqueueOutbox({ guildId: "g1", channelId: "c1", kind: "update", payload: { x: 1, y: { p: 2, q: 3 } } });
+  const b = makeRuntime([]);
+  await b.runtime.enqueueOutbox({ guildId: "g1", channelId: "c1", kind: "update", payload: { y: { q: 3, p: 2 }, x: 1 } });
+  assert.equal(a.created[0].dedupeKey, b.created[0].dedupeKey, "normalizare stabila -> acelasi dedupeKey la chei reordonate");
 });
 
 test("enqueueOutbox: nu re-enqueue daca dedupeKey a fost livrat recent (idempotent)", async () => {

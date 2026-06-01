@@ -1,5 +1,7 @@
 "use strict";
 
+const { createHash } = require("crypto");
+
 export type OutboxKind = "update" | "discount";
 
 export interface OutboxJob {
@@ -38,14 +40,17 @@ export interface OutboxRuntimeDeps {
   logger: Logger;
 }
 
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj).sort();
+  return `{${keys.map(key => `${JSON.stringify(key)}:${stableStringify(obj[key])}`).join(",")}}`;
+}
+
 function dedupeKeyFor(job: { guildId: string; channelId: string; kind: OutboxKind; payload: unknown }): string {
-  const source = `${job.guildId}|${job.channelId}|${job.kind}|${JSON.stringify(job.payload)}`;
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < source.length; i++) {
-    hash ^= source.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return (hash >>> 0).toString(16).padStart(8, "0");
+  const source = `${job.guildId}|${job.channelId}|${job.kind}|${stableStringify(job.payload)}`;
+  return createHash("sha256").update(source).digest("hex");
 }
 
 export type DeliverResult = { ok: true } | { ok: false; permanent: boolean };
@@ -98,10 +103,13 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
 
   async function markSent(dedupeKey: string | undefined): Promise<void> {
     if (!dedupeKey) return;
-    await NotificationOutboxSentModel.updateOne(
-      { dedupeKey },
-      { $setOnInsert: { dedupeKey, sentAt: new Date() } },
-      { upsert: true }
+    await withMongoRetry(
+      () => NotificationOutboxSentModel.updateOne(
+        { dedupeKey },
+        { $setOnInsert: { dedupeKey, sentAt: new Date() } },
+        { upsert: true }
+      ),
+      { label: "outboxMarkSent" }
     ).catch(() => undefined);
   }
 
