@@ -164,6 +164,9 @@ function createHttpServer({
       pushMetric(lines, seenMetricNames, "bot_outbox_dead_lettered", "counter", "Notification outbox jobs dead-lettered", metrics.outboxDeadLettered);
       pushMetric(lines, seenMetricNames, "bot_outbox_drains", "counter", "Notification outbox drain cycles", metrics.outboxDrains);
       pushMetric(lines, seenMetricNames, "bot_outbox_queue_depth", "gauge", "Notification outbox jobs currently queued", metrics.outboxQueueDepth);
+      pushMetric(lines, seenMetricNames, "bot_outbox_delivery_ms_total", "counter", "Total ms spent delivering outbox jobs (with bot_outbox_sent gives avg latency)", metrics.outboxDeliveryMsTotal);
+      pushMetric(lines, seenMetricNames, "bot_outbox_oldest_job_age_seconds", "gauge", "Age of the oldest queued outbox job", metrics.outboxOldestJobAgeSeconds);
+      pushMetric(lines, seenMetricNames, "bot_outbox_lock_acquire_failures", "counter", "Outbox drain lock acquisition skipped (held by another instance)", metrics.outboxLockAcquireFailures);
       res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4" });
       res.end(lines.join("\n") + "\n");
       return;
