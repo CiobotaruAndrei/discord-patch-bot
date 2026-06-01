@@ -154,6 +154,9 @@ export interface BotMetrics {
   outboxDeliveryMsTotal: number;
   outboxOldestJobAgeSeconds: number;
   outboxLockAcquireFailures: number;
+  outboxRecoveryDuplicates: number;
+  outboxRecoveryFetches: number;
+  outboxRecoveryFailures: number;
   startedAt: number;
 }
 
@@ -279,6 +282,7 @@ export interface GuildSettings {
   discountsSubscribed?: boolean;
   discountChannelId?: string | null;
   pendingDiscounts?: PendingDiscount[];
+  outboxRecoveryVerify?: boolean;
   minDiscountPercent?: number;
   includeFreeGames?: boolean;
   includePaidDiscounts?: boolean;

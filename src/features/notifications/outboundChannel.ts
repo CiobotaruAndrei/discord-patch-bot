@@ -15,6 +15,7 @@ export interface OutboundChannelClient {
 
 export interface OutboundChannelGuild {
   _id: string | number;
+  outboxRecoveryVerify?: boolean;
 }
 
 export interface ResolveOutboundChannelArgs {
@@ -30,7 +31,7 @@ export interface ResolveOutboundChannelResult {
   abort: boolean;
 }
 
-export type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown }) => Promise<void>;
+export type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; recoveryVerify?: boolean }) => Promise<void>;
 
 export interface OutboundChannelResolverDeps {
   logger: NotificationLogger;
@@ -50,10 +51,10 @@ function rateLimitedChannel(channel: unknown, acquireSendSlot: () => Promise<voi
   };
 }
 
-function outboxChannel(channelId: string, guildId: string, kind: "update" | "discount", enqueueOutbox: EnqueueOutbox): unknown {
+function outboxChannel(channelId: string, guildId: string, kind: "update" | "discount", enqueueOutbox: EnqueueOutbox, recoveryVerify?: boolean): unknown {
   return {
     id: channelId,
-    send: async (payload: unknown) => enqueueOutbox({ guildId, channelId, kind, payload })
+    send: async (payload: unknown) => enqueueOutbox({ guildId, channelId, kind, payload, recoveryVerify })
   };
 }
 
@@ -106,7 +107,7 @@ export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSe
 
     if (enqueueOutbox) {
       const kind = context === "CRON_DISCOUNTS" ? "discount" : "update";
-      return { channel: outboxChannel(channelId, String(guild._id), kind, enqueueOutbox), abort: false };
+      return { channel: outboxChannel(channelId, String(guild._id), kind, enqueueOutbox, guild.outboxRecoveryVerify), abort: false };
     }
     return { channel: rateLimitedChannel(channel, acquire), abort: false };
   };

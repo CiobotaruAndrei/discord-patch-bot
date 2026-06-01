@@ -20,6 +20,9 @@ function createMetrics(): BotMetrics {
     outboxDeliveryMsTotal: 0,
     outboxOldestJobAgeSeconds: 0,
     outboxLockAcquireFailures: 0,
+    outboxRecoveryDuplicates: 0,
+    outboxRecoveryFetches: 0,
+    outboxRecoveryFailures: 0,
     startedAt: Date.now()
   };
 }

@@ -31,6 +31,7 @@ test("cron cycle budget: un ciclu peste buget face urmatorul ciclu sa sara peste
       cronAborted: 0, httpRateLimitDrops: 0,
       outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxDrains: 0, outboxQueueDepth: 0,
       outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxLockAcquireFailures: 0,
+      outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0,
       startedAt: 0
     };
 
@@ -128,6 +129,9 @@ test("cron stop clears the scheduled timer handle", () => {
         outboxDeliveryMsTotal: 0,
         outboxOldestJobAgeSeconds: 0,
         outboxLockAcquireFailures: 0,
+        outboxRecoveryDuplicates: 0,
+        outboxRecoveryFetches: 0,
+        outboxRecoveryFailures: 0,
         startedAt: 0
       },
       lifecycle: { isShuttingDown: false },
@@ -168,6 +172,7 @@ test("cron cycle waits for both jobs when one rejects (Promise.allSettled)", asy
       cronAborted: 0, httpRateLimitDrops: 0,
       outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxDrains: 0, outboxQueueDepth: 0,
       outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxLockAcquireFailures: 0,
+      outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0,
       startedAt: 0
     };
 
@@ -243,6 +248,7 @@ test("cron heartbeat tolerates one transient renew throw but aborts on the secon
       cronAborted: 0, httpRateLimitDrops: 0,
       outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxDrains: 0, outboxQueueDepth: 0,
       outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxLockAcquireFailures: 0,
+      outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0,
       startedAt: 0
     };
 
@@ -317,6 +323,7 @@ test("cron heartbeat aborts immediately when renew returns false (lock genuinely
       cronAborted: 0, httpRateLimitDrops: 0,
       outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxDrains: 0, outboxQueueDepth: 0,
       outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxLockAcquireFailures: 0,
+      outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0,
       startedAt: 0
     };
 
@@ -386,6 +393,7 @@ test("heartbeat tick care se reia in fereastra de release NU mai renew-uie lock-
       cronAborted: 0, httpRateLimitDrops: 0,
       outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxDrains: 0, outboxQueueDepth: 0,
       outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxLockAcquireFailures: 0,
+      outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0,
       startedAt: 0
     };
 

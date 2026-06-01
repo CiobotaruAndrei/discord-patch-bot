@@ -14,6 +14,7 @@ const { createSeenRepository } = require("./seenRepository");
 const { createUpdateNotificationService } = require("./updateNotificationService");
 const { createDiscountNotificationService } = require("./discountNotificationService");
 const { createOutboxRuntime, applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker } = require("./notificationOutbox");
+const { createOutboxDelivery } = require("./outboxDelivery");
 const { buildDeadLetterEntry, deadLetterPush } = require("./deadLetter");
 const { defaultDiscordSendLimiter } = require("./discordRateLimiter");
 
@@ -76,37 +77,13 @@ function createNotificationRuntime(deps: NotificationsContext) {
 
   const resolveOutboundChannel = createOutboundChannelResolver({ logger, canSendEmbeds, enqueueOutbox });
 
-  async function alreadyPostedInChannel(channel: unknown, dedupeKey: string): Promise<boolean> {
-    const fetcher = (channel as { messages?: { fetch?: (opts: unknown) => Promise<unknown> } } | null)?.messages?.fetch;
-    if (typeof fetcher !== "function") return false;
-    try {
-      const recent = await fetcher.call((channel as { messages: unknown }).messages, { limit: 25 });
-      const list = recent && typeof (recent as { values?: () => Iterable<unknown> }).values === "function"
-        ? Array.from((recent as { values: () => Iterable<unknown> }).values())
-        : (Array.isArray(recent) ? recent as unknown[] : []);
-      const marker = outboxDedupeMarker(dedupeKey);
-      return list.some(message => messageHasDedupeMarker(message, marker));
-    } catch {
-      return false;
-    }
-  }
-
-  async function deliverOutboxJob(client: OutboxClient, job: OutboxJobShape) {
-    try {
-      const channel = await client.channels.fetch(job.channelId) as { send?: (payload: unknown) => Promise<unknown> } | null;
-      if (!channel || !canSendEmbeds(channel, client.user.id)) return { ok: false as const, permanent: true };
-      if (OUTBOX_RECOVERY_VERIFY && job.dedupeKey && (job.deliveries ?? 0) > 1
-          && await alreadyPostedInChannel(channel, job.dedupeKey)) {
-        return { ok: true as const };
-      }
-      const payload = OUTBOX_RECOVERY_VERIFY ? applyDedupeMarker(job.payload, job.dedupeKey) : job.payload;
-      await defaultDiscordSendLimiter.acquire();
-      await (channel.send as (payload: unknown) => Promise<unknown>)(payload);
-      return { ok: true as const };
-    } catch (err) {
-      return { ok: false as const, permanent: isPermanentDiscordError(err) };
-    }
-  }
+  const outboxDelivery = createOutboxDelivery({
+    canSendEmbeds,
+    isPermanentDiscordError,
+    acquireSendSlot: () => defaultDiscordSendLimiter.acquire(),
+    applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker,
+    recoveryVerify: OUTBOX_RECOVERY_VERIFY
+  });
 
   async function recordOutboxDeadLetter(job: OutboxJobShape, reason: string): Promise<void> {
     const push = deadLetterPush([buildDeadLetterEntry({
@@ -117,7 +94,7 @@ function createNotificationRuntime(deps: NotificationsContext) {
 
   async function drainOutbox(client: OutboxClient) {
     return outbox.drainOutbox({
-      deliver: (job: OutboxJobShape) => deliverOutboxJob(client, job),
+      deliver: (job: OutboxJobShape) => outboxDelivery.deliver(client, job),
       recordDeadLetter: recordOutboxDeadLetter,
       maxAttempts: OUTBOX_MAX_ATTEMPTS,
       backoffMs: OUTBOX_BACKOFF_MS,

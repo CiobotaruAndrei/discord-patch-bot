@@ -28,6 +28,9 @@ interface OutboxMetricsLike {
   outboxDeliveryMsTotal: number;
   outboxOldestJobAgeSeconds: number;
   outboxLockAcquireFailures: number;
+  outboxRecoveryDuplicates: number;
+  outboxRecoveryFetches: number;
+  outboxRecoveryFailures: number;
 }
 
 interface OutboxDrainResult {
@@ -37,6 +40,9 @@ interface OutboxDrainResult {
   queued?: number;
   deliveryMsTotal?: number;
   oldestJobAgeMs?: number;
+  recoveryDuplicates?: number;
+  recoveryFetches?: number;
+  recoveryFailures?: number;
 }
 
 interface CreateOutboxWorkerDeps {
@@ -97,6 +103,9 @@ function createOutboxWorker({
     metrics.outboxRetried += r.retried ?? 0;
     metrics.outboxDeadLettered += r.deadLettered ?? 0;
     metrics.outboxDeliveryMsTotal += r.deliveryMsTotal ?? 0;
+    metrics.outboxRecoveryDuplicates += r.recoveryDuplicates ?? 0;
+    metrics.outboxRecoveryFetches += r.recoveryFetches ?? 0;
+    metrics.outboxRecoveryFailures += r.recoveryFailures ?? 0;
     if (typeof r.queued === "number") metrics.outboxQueueDepth = r.queued;
     if (typeof r.oldestJobAgeMs === "number") metrics.outboxOldestJobAgeSeconds = Math.round(r.oldestJobAgeMs / 1000);
   }

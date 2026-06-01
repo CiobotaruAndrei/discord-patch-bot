@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createOutboxWorker, OUTBOX_DRAIN_LOCK_NAME } from "../app/scheduler/outboxWorker";
 
-interface DrainResult { sent?: number; retried?: number; deadLettered?: number; queued?: number; deliveryMsTotal?: number; oldestJobAgeMs?: number }
+interface DrainResult { sent?: number; retried?: number; deadLettered?: number; queued?: number; deliveryMsTotal?: number; oldestJobAgeMs?: number; recoveryDuplicates?: number; recoveryFetches?: number; recoveryFailures?: number }
 interface Harness {
   drainCalls: number;
   releaseCalls: Array<{ jobName: string; token: string }>;
@@ -17,6 +17,9 @@ interface Harness {
     outboxDeliveryMsTotal: number;
     outboxOldestJobAgeSeconds: number;
     outboxLockAcquireFailures: number;
+    outboxRecoveryDuplicates: number;
+    outboxRecoveryFetches: number;
+    outboxRecoveryFailures: number;
   };
 }
 
@@ -37,7 +40,8 @@ function makeWorker(overrides: {
     lockTtls: [],
     metrics: {
       outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxDrains: 0, outboxQueueDepth: 0,
-      outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxLockAcquireFailures: 0
+      outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxLockAcquireFailures: 0,
+      outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0
     }
   };
   const lifecycle = { isShuttingDown: overrides.shuttingDown ?? false };
@@ -121,7 +125,7 @@ test("outboxWorker: eroarea de drain este prinsa si lock-ul tot se elibereaza", 
 });
 
 test("outboxWorker: actualizeaza metrics din rezultatul drenarii (countere + latenta + vechime)", async () => {
-  const { worker, harness } = makeWorker({ drainResult: { sent: 3, retried: 1, deadLettered: 2, queued: 7, deliveryMsTotal: 1200, oldestJobAgeMs: 45_000 } });
+  const { worker, harness } = makeWorker({ drainResult: { sent: 3, retried: 1, deadLettered: 2, queued: 7, deliveryMsTotal: 1200, oldestJobAgeMs: 45_000, recoveryDuplicates: 2, recoveryFetches: 5, recoveryFailures: 1 } });
   await worker.drainTick();
   assert.equal(harness.metrics.outboxDrains, 1, "numara ciclul de drenare");
   assert.equal(harness.metrics.outboxSent, 3);
@@ -130,6 +134,9 @@ test("outboxWorker: actualizeaza metrics din rezultatul drenarii (countere + lat
   assert.equal(harness.metrics.outboxQueueDepth, 7, "queue depth este un gauge setat la valoarea curenta");
   assert.equal(harness.metrics.outboxDeliveryMsTotal, 1200, "latenta cumulata de livrare");
   assert.equal(harness.metrics.outboxOldestJobAgeSeconds, 45, "vechimea celui mai vechi job in secunde");
+  assert.equal(harness.metrics.outboxRecoveryDuplicates, 2, "duplicate prevenite la recovery");
+  assert.equal(harness.metrics.outboxRecoveryFetches, 5, "fetch-uri istoric la recovery");
+  assert.equal(harness.metrics.outboxRecoveryFailures, 1, "esecuri de verificare la recovery");
   worker.stop();
 });
 
