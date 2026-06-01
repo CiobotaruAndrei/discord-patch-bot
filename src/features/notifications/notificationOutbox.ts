@@ -13,6 +13,7 @@ export interface OutboxJob {
   attempts: number;
   deliveries?: number;
   dedupeKey?: string;
+  recoveryVerify?: boolean;
   createdAt?: Date;
   availableAt?: Date;
 }
@@ -83,7 +84,9 @@ function messageHasDedupeMarker(message: unknown, marker: string): boolean {
   return embeds.some(embed => typeof embed?.footer?.text === "string" && embed.footer.text.includes(marker));
 }
 
-export type DeliverResult = { ok: true } | { ok: false; permanent: boolean };
+export type DeliverResult =
+  | { ok: true; recoveryFetched?: boolean; recoveryDuplicate?: boolean; recoveryFailed?: boolean }
+  | { ok: false; permanent: boolean };
 
 export interface DrainOutboxOptions {
   deliver: (job: OutboxJob) => Promise<DeliverResult>;
@@ -104,17 +107,20 @@ export interface DrainOutboxResult {
   queued: number;
   deliveryMsTotal: number;
   oldestJobAgeMs: number;
+  recoveryDuplicates: number;
+  recoveryFetches: number;
+  recoveryFailures: number;
 }
 
 export interface OutboxRuntime {
-  enqueueOutbox(job: { guildId: string; channelId: string; kind: OutboxKind; payload: unknown }): Promise<void>;
+  enqueueOutbox(job: { guildId: string; channelId: string; kind: OutboxKind; payload: unknown; recoveryVerify?: boolean }): Promise<void>;
   drainOutbox(options: DrainOutboxOptions): Promise<DrainOutboxResult>;
 }
 
 const DEFAULT_LEASE_MS = 60_000;
 
 export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutboxSentModel, withMongoRetry, logger }: OutboxRuntimeDeps): OutboxRuntime {
-  async function enqueueOutbox(job: { guildId: string; channelId: string; kind: OutboxKind; payload: unknown }): Promise<void> {
+  async function enqueueOutbox(job: { guildId: string; channelId: string; kind: OutboxKind; payload: unknown; recoveryVerify?: boolean }): Promise<void> {
     const dedupeKey = dedupeKeyFor(job);
     const alreadySent = await NotificationOutboxSentModel.exists({ dedupeKey }).catch(() => null);
     if (alreadySent) return;
@@ -126,6 +132,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       payload: job.payload,
       attempts: 0,
       dedupeKey,
+      recoveryVerify: job.recoveryVerify,
       createdAt: at,
       availableAt: at
     }), { label: "enqueueOutbox" });
@@ -172,6 +179,9 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     let retried = 0;
     let processed = 0;
     let deliveryMsTotal = 0;
+    let recoveryDuplicates = 0;
+    let recoveryFetches = 0;
+    let recoveryFailures = 0;
 
     for (let i = 0; i < options.limit; i++) {
       const job = await claimNextJob(now, leaseMs, workerId);
@@ -188,6 +198,9 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       deliveryMsTotal += Math.max(0, Date.now() - startedAt);
 
       if (result.ok) {
+        if (result.recoveryFetched) recoveryFetches++;
+        if (result.recoveryDuplicate) recoveryDuplicates++;
+        if (result.recoveryFailed) recoveryFailures++;
         await markSent(job.dedupeKey);
         await NotificationOutboxModel.deleteOne({ _id: job._id });
         sent++;
@@ -216,7 +229,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     if (sent || deadLettered || retried) {
       logger("INFO", "OUTBOX", `Drain outbox: ${sent} trimise, ${retried} reincercate, ${deadLettered} dead-letter, ${queued} ramase in coada`);
     }
-    return { sent, deadLettered, retried, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs };
+    return { sent, deadLettered, retried, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, recoveryDuplicates, recoveryFetches, recoveryFailures };
   }
 
   return { enqueueOutbox, drainOutbox };
