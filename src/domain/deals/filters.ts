@@ -1,6 +1,5 @@
 import {
   dealPassesFilters,
-  getSeenSet,
   mapToObject,
   normalizePendingDiscountArray,
   normalizePendingUpdateArray,
@@ -16,7 +15,6 @@ const dealFilterExports = {
   normalizePendingDiscountArray,
   toEntries,
   mapToObject,
-  getSeenSet,
   rotateAfter
 };
 

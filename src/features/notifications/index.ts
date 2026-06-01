@@ -108,8 +108,8 @@ function createNotificationRuntime(deps: NotificationsContext) {
     GuildModel, GuildSeenDiscountModel, GuildSeenUpdateModel, withMongoRetry, SEEN_PER_GAME_LIMIT, DEALS_HISTORY_LIMIT, OP_UPDATE_OPTS
   });
   const {
-    claimSeenUpdate, rollbackSeenUpdate, disableUpdatesForChannelError,
-    claimSeenDiscount, rollbackSeenDiscount, loadSeenDiscountHashes, disableDiscountsForChannelError
+    claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, disableUpdatesForChannelError,
+    claimSeenDiscount, rollbackSeenDiscount, seedSeenDiscounts, loadSeenDiscountHashes, disableDiscountsForChannelError
   } = seenRepository;
 
   const updateService = createUpdateNotificationService({
@@ -144,12 +144,14 @@ function createNotificationRuntime(deps: NotificationsContext) {
     resolveOutboundChannel,
     claimSeenUpdate,
     rollbackSeenUpdate,
+    seedSeenUpdates,
     disableUpdatesForChannelError,
     processGuildUpdates: updateService.processGuildUpdates,
     buildOptimizedGameList: updateService.buildOptimizedGameList,
     checkForUpdates: updateService.checkForUpdates,
     claimSeenDiscount,
     rollbackSeenDiscount,
+    seedSeenDiscounts,
     disableDiscountsForChannelError,
     processGuildDiscounts: discountService.processGuildDiscounts,
     checkForDiscounts: discountService.checkForDiscounts,

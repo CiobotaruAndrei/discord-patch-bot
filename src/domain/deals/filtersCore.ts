@@ -60,12 +60,6 @@ export function mapToObject<T>(map: Map<string, T>): Record<string, T> {
   return Object.fromEntries(Array.from(map.entries()));
 }
 
-export function getSeenSet(guild: Pick<GuildSettings, "seen">, gameKey: string): Set<string> {
-  const seenEntries = toEntries(guild.seen as EntrySource);
-  const found = seenEntries.find(([key]) => key === gameKey);
-  return new Set(Array.isArray(found?.[1]) ? found[1].map(String) : []);
-}
-
 export function rotateAfter<T>(keys: T[], lastKey: T | null | undefined): T[] {
   if (!lastKey || !keys.includes(lastKey)) return keys;
   const index = keys.indexOf(lastKey);

@@ -129,11 +129,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     });
     if (abort) return;
 
-    const legacySeen = Array.isArray((guild as { seenDiscounts?: unknown[] }).seenDiscounts)
-      ? (guild as { seenDiscounts: unknown[] }).seenDiscounts.map(String)
-      : [];
-    const collectionSeen = await loadSeenDiscountHashes(String(guild._id));
-    const seenSet = new Set([...legacySeen, ...collectionSeen]);
+    const seenSet = new Set(await loadSeenDiscountHashes(String(guild._id)));
     const { dealsByHash, orderedHashes } = getDealsHashIndex(deals);
     const pending: PendingDiscount[] = [];
     for (const old of normalizePendingDiscountArray((guild as { pendingDiscounts?: unknown }).pendingDiscounts)) {

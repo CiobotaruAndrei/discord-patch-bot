@@ -330,12 +330,12 @@ test("DiscountService: trimite reduceri noi care nu sunt in seenDiscounts", asyn
   assert.equal(sentPayloads.length, 1);
 });
 
-test("DiscountService: hash deja in seenDiscounts NU se mai trimite", async () => {
-  const { deps, sentPayloads, claims } = makeDiscountDeps();
+test("DiscountService: hash deja vazut (in colectia seen) NU se mai trimite", async () => {
+  const { deps, sentPayloads, claims } = makeDiscountDeps({ loadSeenDiscountHashes: async () => ["d1"] });
   const svc = createDiscountNotificationService(deps);
   const guild = {
     _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
-    seenDiscounts: ["d1"], pendingDiscounts: [], currency: "USD"
+    pendingDiscounts: [], currency: "USD"
   } as DiscountGuild;
   const deals = [{ id: "d1", title: "Already seen" }] as DiscountDeals;
   await svc.processGuildDiscounts({}, guild, deals);

@@ -267,11 +267,9 @@ export interface GuildSettings {
   _id: string;
   subscribed?: boolean;
   notificationChannelId?: string | null;
-  seen?: Map<string, string[]> | Record<string, string[]>;
   pendingUpdates?: Map<string, PendingUpdate[]> | Record<string, PendingUpdate[]>;
   discountsSubscribed?: boolean;
   discountChannelId?: string | null;
-  seenDiscounts?: string[];
   pendingDiscounts?: PendingDiscount[];
   minDiscountPercent?: number;
   includeFreeGames?: boolean;

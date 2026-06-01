@@ -102,10 +102,6 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     if (abort) return;
 
     const deadLettered: DeadLetterEntry[] = [];
-    const legacySeen = new Map<string, Set<string>>();
-    for (const [legacyGameKey, legacyIds] of toEntries((guild as { seen?: Record<string, unknown> }).seen)) {
-      legacySeen.set(String(legacyGameKey), new Set((Array.isArray(legacyIds) ? legacyIds : []).map(String)));
-    }
     const { pendingByGame, resultByGameKey } = buildPendingUpdatesQueue({
       normalizePendingUpdateArray, toEntries,
       PENDING_UPDATE_MAX_AGE_MS, PENDING_UPDATE_MAX_ATTEMPTS,
@@ -125,7 +121,6 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       else pendingByGame.delete(gameKey);
       if (!next) continue;
       lastProcessedGameKey = gameKey;
-      if (legacySeen.get(gameKey)?.has(next.id)) continue;
       const claim = await claimSeenUpdate(String(guild._id), channel.id, gameKey, next.id);
       if ((claim.matchedCount ?? 0) === 0) continue;
       const game = resultByGameKey.get(gameKey)?.game || { name: gameKey, key: gameKey };
