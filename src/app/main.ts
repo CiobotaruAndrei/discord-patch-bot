@@ -10,6 +10,7 @@ const { createMetrics } = require("./health/metrics");
 const { createRateLimiter } = require("./health/rateLimit");
 const { createHousekeeping } = require("./scheduler/housekeeping");
 const { createCronController } = require("./scheduler/cron");
+const { createOutboxWorker } = require("./scheduler/outboxWorker");
 const { createHttpServer } = require("./health/httpServer");
 const { registerDiscordEvents, registerMongoEvents } = require("./lifecycle/events");
 const { createShutdownController } = require("./lifecycle/shutdown");
@@ -63,6 +64,18 @@ const cronController = createCronController({
   errorDetail,
   requestContext
 });
+const outboxEnabled = process.env.NOTIFICATION_OUTBOX_ENABLED === "true";
+const outboxWorker = createOutboxWorker({
+  mongoose,
+  client,
+  logger,
+  parseEnvNumber,
+  acquireDbLock,
+  releaseDbLock,
+  drainOutbox: (drainClient: unknown) => commands.drainOutbox(drainClient),
+  lifecycle,
+  errorMessage
+});
 const httpServer = createHttpServer({
   mongoose,
   crypto,
@@ -89,7 +102,8 @@ registerDiscordEvents({
   errorMessage,
   errorDetail,
   startHousekeeping: housekeeping.start,
-  scheduleNextCron: cronController.scheduleNextCron
+  scheduleNextCron: cronController.scheduleNextCron,
+  startOutboxWorker: outboxEnabled ? outboxWorker.start : undefined
 });
 registerMongoEvents({ mongoose, logger, errorMessage });
 
@@ -103,6 +117,7 @@ createShutdownController({
   activeLocks,
   releaseDbLock,
   cronController,
+  outboxWorker,
   housekeeping,
   adminAlert,
   errorMessage,
