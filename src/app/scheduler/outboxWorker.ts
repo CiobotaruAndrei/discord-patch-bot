@@ -25,6 +25,9 @@ interface OutboxMetricsLike {
   outboxDeadLettered: number;
   outboxDrains: number;
   outboxQueueDepth: number;
+  outboxDeliveryMsTotal: number;
+  outboxOldestJobAgeSeconds: number;
+  outboxLockAcquireFailures: number;
 }
 
 interface OutboxDrainResult {
@@ -32,6 +35,8 @@ interface OutboxDrainResult {
   retried?: number;
   deadLettered?: number;
   queued?: number;
+  deliveryMsTotal?: number;
+  oldestJobAgeMs?: number;
 }
 
 interface CreateOutboxWorkerDeps {
@@ -65,9 +70,6 @@ function createOutboxWorker({
   drainLimit, perJobBudgetMs
 }: CreateOutboxWorkerDeps): OutboxWorker {
   const intervalMs = parseEnvNumber("NOTIFICATION_OUTBOX_DRAIN_INTERVAL_MS", 15_000, { min: 2_000, max: 600_000 });
-  // TTL-ul lock-ului trebuie sa depaseasca durata in cel mai rau caz a unui drain
-  // (drainLimit job-uri, fiecare pana la perJobBudgetMs din cauza rate-limiter-ului),
-  // ca lock-ul sa nu expire mid-drain si alta instanta sa trimita dublu.
   const worstCaseDrainMs = Math.max(drainLimit, 1) * Math.max(perJobBudgetMs, 1);
   const defaultLockTtlMs = Math.min(
     OUTBOX_LOCK_MAX_TTL_MS,
@@ -94,7 +96,9 @@ function createOutboxWorker({
     metrics.outboxSent += r.sent ?? 0;
     metrics.outboxRetried += r.retried ?? 0;
     metrics.outboxDeadLettered += r.deadLettered ?? 0;
+    metrics.outboxDeliveryMsTotal += r.deliveryMsTotal ?? 0;
     if (typeof r.queued === "number") metrics.outboxQueueDepth = r.queued;
+    if (typeof r.oldestJobAgeMs === "number") metrics.outboxOldestJobAgeSeconds = Math.round(r.oldestJobAgeMs / 1000);
   }
 
   async function drainTick(): Promise<void> {
@@ -107,7 +111,10 @@ function createOutboxWorker({
     let token: string | null = null;
     try {
       token = await acquireDbLock(OUTBOX_DRAIN_LOCK_NAME, lockTtlMs);
-      if (!token) return;
+      if (!token) {
+        metrics.outboxLockAcquireFailures++;
+        return;
+      }
       recordDrain(await drainOutbox(client));
     } catch (err) {
       logger("WARN", "OUTBOX", "Drain outbox (worker) esuat", errorMessage(err));

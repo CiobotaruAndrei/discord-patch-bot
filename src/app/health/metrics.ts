@@ -17,6 +17,9 @@ function createMetrics(): BotMetrics {
     outboxDeadLettered: 0,
     outboxDrains: 0,
     outboxQueueDepth: 0,
+    outboxDeliveryMsTotal: 0,
+    outboxOldestJobAgeSeconds: 0,
+    outboxLockAcquireFailures: 0,
     startedAt: Date.now()
   };
 }

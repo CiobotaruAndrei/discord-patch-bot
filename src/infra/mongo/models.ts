@@ -148,9 +148,11 @@ const notificationOutboxSchema = new mongoose.Schema({
   payload: { type: mongoose.Schema.Types.Mixed, required: true },
   attempts: { type: Number, default: 0 },
   availableAt: { type: Date, default: Date.now },
+  lockedUntil: { type: Date, default: null },
+  lockedBy: { type: String, default: null },
   createdAt: { type: Date, default: Date.now, expires: 7 * ONE_DAY_MS / 1000 }
 }, { minimize: false });
-notificationOutboxSchema.index({ availableAt: 1 }, { background: true });
+notificationOutboxSchema.index({ availableAt: 1, lockedUntil: 1 }, { background: true });
 const NotificationOutboxModel = mongoose.model("NotificationOutbox", notificationOutboxSchema, "notificationOutbox");
 
   Object.assign(target, {
