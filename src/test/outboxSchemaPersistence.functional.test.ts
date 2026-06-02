@@ -18,9 +18,7 @@ function getOutboxModel(): OutboxModelLike {
     };
     attachMongoModels(target);
     if (target.NotificationOutboxModel) return target.NotificationOutboxModel as OutboxModelLike;
-  } catch {
-    // model already registered in this process — fall through to the registry
-  }
+  } catch {  }
   return mongoose.model("NotificationOutbox") as unknown as OutboxModelLike;
 }
 

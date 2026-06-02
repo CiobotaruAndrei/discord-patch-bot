@@ -132,9 +132,13 @@ npm run test:functional
 npm run test:e2e
 npm run typecheck
 npm run typecheck:strict
+npm run check
+npm run check:comments
 npm run build
 npm audit
 ```
+
+`npm run check` ruleaza si `check:comments` (`scripts/check-no-comments.ts`), care esueaza daca exista comentarii (`//` sau `/* */`) in fisierele sursa `.ts`/`.js`/`.rs`, conform regulii „fara comentarii in cod" (exceptiile sunt explicite intr-un allowlist din script).
 
 Testele acopera zonele importante:
 
