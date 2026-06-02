@@ -24,6 +24,7 @@ interface Harness {
     outboxRecoveryMarkerMissing: number;
     outboxMarkSentFailures: number;
     outboxRecoveryVerifyEnabledGuilds: number;
+    outboxLastDrainAt: number;
   };
 }
 
@@ -48,7 +49,7 @@ function makeWorker(overrides: {
       outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxDrains: 0, outboxQueueDepth: 0,
       outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxLockAcquireFailures: 0,
       outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0, outboxRecoveryMarkerMissing: 0,
-      outboxMarkSentFailures: 0, outboxRecoveryVerifyEnabledGuilds: 0
+      outboxMarkSentFailures: 0, outboxRecoveryVerifyEnabledGuilds: 0, outboxLastDrainAt: 0
     }
   };
   const lifecycle = { isShuttingDown: overrides.shuttingDown ?? false };
@@ -89,14 +90,16 @@ test("outboxWorker: drainTick drenza sub lock si elibereaza lock-ul", async () =
   assert.equal(harness.drainCalls, 1, "drain apelat o data cand lock-ul e obtinut");
   assert.equal(harness.releaseCalls.length, 1, "lock-ul este eliberat dupa drain");
   assert.deepEqual(harness.releaseCalls[0], { jobName: OUTBOX_DRAIN_LOCK_NAME, token: "lock-token" });
+  assert.ok(harness.metrics.outboxLastDrainAt > 0, "o drenare reusita actualizeaza timestamp-ul ultimei drenari");
   worker.stop();
 });
 
-test("outboxWorker: pe pauza -> nu acceseaza lock-ul si nu drenza", async () => {
+test("outboxWorker: pe pauza -> nu acceseaza lock-ul, nu drenza si nu actualizeaza timestamp-ul (staleness vizibil)", async () => {
   const { worker, harness } = makeWorker({ paused: true });
   await worker.drainTick();
   assert.equal(harness.acquireCalls, 0, "pe pauza nu incearca lock-ul");
   assert.equal(harness.drainCalls, 0, "pe pauza nu drenza");
+  assert.equal(harness.metrics.outboxLastDrainAt, 0, "fara drenare, timestamp-ul ramane vechi -> bot_outbox_last_drain_age_seconds creste");
   worker.stop();
 });
 

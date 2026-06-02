@@ -26,6 +26,7 @@ function createMetrics(): BotMetrics {
     outboxRecoveryMarkerMissing: 0,
     outboxMarkSentFailures: 0,
     outboxRecoveryVerifyEnabledGuilds: 0,
+    outboxLastDrainAt: 0,
     startedAt: Date.now()
   };
 }

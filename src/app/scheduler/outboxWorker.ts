@@ -34,6 +34,7 @@ interface OutboxMetricsLike {
   outboxRecoveryMarkerMissing: number;
   outboxMarkSentFailures: number;
   outboxRecoveryVerifyEnabledGuilds: number;
+  outboxLastDrainAt: number;
 }
 
 interface OutboxDrainResult {
@@ -109,6 +110,7 @@ function createOutboxWorker({
   function recordDrain(result: OutboxDrainResult | unknown): void {
     const r = (result && typeof result === "object" ? result : {}) as OutboxDrainResult;
     metrics.outboxDrains++;
+    metrics.outboxLastDrainAt = Date.now();
     metrics.outboxSent += r.sent ?? 0;
     metrics.outboxRetried += r.retried ?? 0;
     metrics.outboxDeadLettered += r.deadLettered ?? 0;

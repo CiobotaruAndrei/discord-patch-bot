@@ -11,6 +11,16 @@ groups:
           summary: "Outbox queue depth high (> 100 for 10m)"
           description: "bot_outbox_queue_depth a stat peste 100 timp de 10m. Drenarea nu tine pasul. Vezi OPERATIONS.md - sectiunea 'Cand creste bot_outbox_queue_depth'."
 
+      - alert: OutboxDrainStale
+        expr: bot_outbox_last_drain_age_seconds > 300
+        for: 5m
+        labels:
+          severity: warning
+          component: outbox
+        annotations:
+          summary: "Outbox drain stale (no completed drain in >5m)"
+          description: "bot_outbox_last_drain_age_seconds > 300: worker-ul nu a finalizat o drenare de peste 5m (pe pauza prin /outbox pause, client Discord ne-ready, Mongo neconectat, sau lock detinut de alta instanta). Metricile de coada pot fi invechite. Vezi OPERATIONS.md."
+
       - alert: OutboxOldestJobAgeHigh
         expr: bot_outbox_oldest_job_age_seconds > 600
         for: 10m

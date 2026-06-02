@@ -7,7 +7,8 @@ metricile expuse de bot la `/metrics`. Pentru ce actiune iei la fiecare alerta, 
 ## Fisiere
 
 - `prometheus-alerts.yml` - reguli de alertare (grup `discord-patch-bot-outbox`) pentru:
-  queue depth mare, vechimea celui mai vechi job, mark-sent failures, recovery-verify
+  queue depth mare, vechimea celui mai vechi job, drenare invechita (`OutboxDrainStale`,
+  pe baza `bot_outbox_last_drain_age_seconds`), mark-sent failures, recovery-verify
   failures, lock-acquire failures, dead-letter in crestere si marker-missing.
 - `grafana-dashboard.json` - dashboard cu panouri pentru coada, latenta, throughput,
   semnale de esec si guild-uri cu recovery-verify activ.
