@@ -17,6 +17,16 @@ jobs:
     defaults:
       run:
         working-directory: src
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval \"db.adminCommand('ping').ok\""
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,9 +38,16 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Validate Rust (clippy + tests)
+        run: |
+          cargo clippy --manifest-path native/Cargo.toml --all-targets -- -D warnings
+          cargo test --manifest-path native/Cargo.toml --quiet
 
       - name: Run project checks
         env:
