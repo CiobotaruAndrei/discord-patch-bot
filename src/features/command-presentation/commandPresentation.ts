@@ -89,7 +89,7 @@ type FindGameResult = {
   suggestion: GameConfig | null;
 };
 
-type CommandUiContext = {
+type CommandUiDeps = {
   crypto: {
     randomBytes(size: number): { toString(encoding: BufferEncoding): string };
   };
@@ -108,10 +108,11 @@ type CommandUiContext = {
   COLLECTOR_TIMEOUT_MS: number;
   MAX_FUZZY_SEARCH_INPUT: number;
   httpReq(method: string, url: string, options?: Record<string, unknown>): Promise<HttpResponse>;
-  [key: string]: unknown;
 };
 
-function createCommandPresentation(deps: CommandUiContext) {
+type CommandUiContext = CommandUiDeps & Record<string, unknown>;
+
+function createCommandPresentation(deps: CommandUiDeps) {
   const {
     crypto, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
     ComponentType, MessageFlags, logger, checkUserCooldown, COLORS,
@@ -467,7 +468,7 @@ type CommandUiInstaller = ((target: CommandUiContext) => void) & {
 };
 
 const attachCommandUi = ((target: CommandUiContext): void => {
-  const deps: CommandUiContext = {
+  const deps: CommandUiDeps = {
     crypto: target.crypto,
     EmbedBuilder: target.EmbedBuilder,
     ActionRowBuilder: target.ActionRowBuilder,

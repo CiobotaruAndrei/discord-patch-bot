@@ -28,7 +28,7 @@ interface PermissionsBitFieldLike {
   };
 }
 
-interface CommandCacheContext {
+interface CommandCacheDeps {
   crypto: {
     randomBytes(size: number): { toString(encoding: BufferEncoding): string };
   };
@@ -36,12 +36,13 @@ interface CommandCacheContext {
   logger: Logger;
   DEFAULT_CURRENCY: string;
   env: RuntimeEnv;
-  [key: string]: unknown;
 }
+
+type CommandCacheContext = CommandCacheDeps & Record<string, unknown>;
 
 const USER_COOLDOWNS_THRESHOLD = 500;
 
-function createCommandCache(deps: CommandCacheContext) {
+function createCommandCache(deps: CommandCacheDeps) {
   const { crypto, PermissionsBitField, logger, DEFAULT_CURRENCY, env } = deps;
 
 const CACHE_TTL_MS = env.CACHE_TTL_MS;
@@ -329,7 +330,7 @@ type CommandCacheInstaller = ((target: CommandCacheContext) => void) & {
 };
 
 const attachCommandCache = ((target: CommandCacheContext): void => {
-  const deps: CommandCacheContext = {
+  const deps: CommandCacheDeps = {
     crypto: target.crypto,
     PermissionsBitField: target.PermissionsBitField,
     logger: target.logger,
