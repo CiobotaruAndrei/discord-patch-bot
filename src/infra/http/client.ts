@@ -107,6 +107,7 @@ function isBlockedExternalHostname(hostname: string): boolean {
   const normalized = normalizeHostname(hostname);
   if (!normalized) return true;
   if (normalized === "localhost" || normalized.endsWith(".localhost")) return true;
+  if (/^[0-9]+$/.test(normalized) || /^0x[0-9a-f]+$/i.test(normalized)) return true;
   const ipVersion = net.isIP(normalized);
   if (ipVersion === 4) return isPrivateIPv4(normalized);
   if (ipVersion === 6) return isPrivateIPv6(normalized);
@@ -227,6 +228,17 @@ function parseRetryAfter(raw: unknown, nowMs: number = Date.now()): number | nul
   return null;
 }
 
+const BUILTIN_DEFAULT_PROXIES = [
+  "https://api.allorigins.win/get?url={url}",
+  "https://api.codetabs.com/v1/proxy?quest={url}"
+];
+
+function resolveDefaultProxies(nodeEnv: string | undefined, isProd: boolean, allowFlag: string | undefined): string[] {
+  if (isProd) return [];
+  const allowed = nodeEnv === "development" || String(allowFlag || "").toLowerCase() === "true";
+  return allowed ? [...BUILTIN_DEFAULT_PROXIES] : [];
+}
+
 function normalizeProxyTemplates(rawTemplates: string, defaults: string[]): string[] {
   const candidates = rawTemplates
     ? rawTemplates.split(",").map(s => s.trim()).filter(Boolean)
@@ -289,11 +301,11 @@ function attachHttpClient(target: HttpClientContext): void {
     decompress: true
   });
 
-  const DEFAULT_PROXIES = env.isProd ? [] : [
-    "https://api.allorigins.win/get?url={url}",
-    "https://api.codetabs.com/v1/proxy?quest={url}"
-  ];
+  const DEFAULT_PROXIES = resolveDefaultProxies(env.NODE_ENV, env.isProd, process.env.ALLOW_DEFAULT_PROXIES);
   const PROXY_TEMPLATES = normalizeProxyTemplates(env.PROXY_URLS, DEFAULT_PROXIES);
+  if (!env.PROXY_URLS && DEFAULT_PROXIES.length && env.NODE_ENV !== "development") {
+    logger("WARN", "HTTP", "Proxy-uri implicite third-party activate prin ALLOW_DEFAULT_PROXIES in afara dev-ului — pot scurge URL-uri tinta catre servicii terte.");
+  }
 
   const CONDITIONAL_CACHE_MAX = 500;
   const conditionalCache = new Map<string, { etag?: string; lastModified?: string; result: unknown }>();
@@ -574,5 +586,6 @@ attachHttpClient.parseRetryAfter = parseRetryAfter;
 attachHttpClient.assertSafeExternalUrl = assertSafeExternalUrl;
 attachHttpClient.assertSafeExternalDnsTarget = assertSafeExternalDnsTarget;
 attachHttpClient.createSafeDnsLookup = createSafeDnsLookup;
+attachHttpClient.resolveDefaultProxies = resolveDefaultProxies;
 
 export = attachHttpClient;

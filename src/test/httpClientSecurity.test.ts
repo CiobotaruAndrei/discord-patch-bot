@@ -13,6 +13,7 @@ type HttpClientRuntime = {
 type HttpClientModule = typeof attachHttpClient & {
   createSafeDnsLookup: (lookup: DnsLookup) => DnsLookup;
   parseRetryAfter: (value: unknown, now?: number) => number | null;
+  resolveDefaultProxies: (nodeEnv: string | undefined, isProd: boolean, allowFlag: string | undefined) => string[];
 };
 type DnsLookup = (hostname: string, options: unknown, callback?: unknown) => void;
 
@@ -169,4 +170,41 @@ test("parseRetryAfter exposed as static helper on attachHttpClient", () => {
   const httpClientModule = attachHttpClient as HttpClientModule;
   assert.equal(typeof httpClientModule.parseRetryAfter, "function");
   assert.equal(httpClientModule.parseRetryAfter("30"), 30_000);
+});
+
+test("HTTP client rejects alternative IP encodings, mapped IPv6 si trailing-dot", () => {
+  const { context } = createHttpClientTestContext();
+  assert.throws(() => context.assertSafeExternalUrl("http://2130706433/admin"), /locala sau privata/, "IPv4 decimal (127.0.0.1) blocat la nivel URL");
+  assert.throws(() => context.assertSafeExternalUrl("http://0x7f000001/admin"), /locala sau privata/, "IPv4 hex blocat");
+  assert.throws(() => context.assertSafeExternalUrl("http://017700000001/admin"), /locala sau privata/, "forma pur numerica (octal-like) blocata");
+  assert.throws(() => context.assertSafeExternalUrl("http://localhost./admin"), /locala sau privata/, "hostname cu punct final normalizat");
+  assert.throws(() => context.assertSafeExternalUrl("http://[::ffff:10.0.0.1]/x"), /locala sau privata/, "IPv6 mapped catre IPv4 privat blocat");
+  assert.throws(() => context.assertSafeExternalUrl("http://[fe80::1]/x"), /locala sau privata/, "IPv6 link-local blocat");
+});
+
+test("HTTP client: redirect/rebinding catre IP privat e prins la nivel DNS (orice forma rezolvata privat)", async () => {
+  const httpClientModule = attachHttpClient as HttpClientModule;
+  const guardedLookup = httpClientModule.createSafeDnsLookup(
+    (hostname: string, options: unknown, callback?: unknown) => {
+      const cb = typeof callback === "function"
+        ? callback as (err: Error | null, result: unknown, family?: number) => void
+        : options as (err: Error | null, result: unknown, family?: number) => void;
+      cb(null, [{ address: "169.254.169.254", family: 4 }]);
+    }
+  );
+  await new Promise<void>((resolve, reject) => {
+    guardedLookup("metadata.evil.example", { all: true }, (err: Error | null) => {
+      try { assert.match(String(err?.message || ""), /adresa locala sau privata/); resolve(); }
+      catch (e) { reject(e); }
+    });
+  });
+});
+
+test("resolveDefaultProxies: proxy-uri implicite doar in dev sau cu opt-in explicit, niciodata in prod", () => {
+  const mod = attachHttpClient as HttpClientModule;
+  assert.deepEqual(mod.resolveDefaultProxies("production", true, "true"), [], "in prod niciodata default-uri, nici cu flag");
+  assert.equal(mod.resolveDefaultProxies("development", false, undefined).length, 2, "dev local pastreaza default-urile");
+  assert.deepEqual(mod.resolveDefaultProxies("staging", false, undefined), [], "staging fara flag -> fara proxy third-party (anti-leak)");
+  assert.equal(mod.resolveDefaultProxies("staging", false, "true").length, 2, "staging cu ALLOW_DEFAULT_PROXIES=true -> opt-in explicit");
+  assert.deepEqual(mod.resolveDefaultProxies("test", false, undefined), [], "test fara flag -> fara default-uri");
 });
