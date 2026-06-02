@@ -132,7 +132,7 @@ function nativeStringFn(name: keyof NativeFuzzyModule, snakeName: keyof NativeFu
   return typeof fn === "function" ? fn.bind(native) as (...args: string[]) => string : null;
 }
 
-function levenshteinFallback(a: string, b: string): number {
+export function levenshteinFallback(a: string, b: string): number {
   if (a.length === 0) return b.length;
   if (b.length === 0) return a.length;
   const row = Array.from({ length: b.length + 1 }, (_, index) => index);
@@ -372,6 +372,10 @@ function findGameKeysFallback(text: unknown, games: GameConfig[], maxInput: numb
 
 export function isRustFuzzyAvailable(): boolean {
   return loadNativeFuzzy() !== null;
+}
+
+export function getNativeFuzzy(): NativeFuzzyModule | null {
+  return loadNativeFuzzy();
 }
 
 export function levenshtein(a: string, b: string): number {
