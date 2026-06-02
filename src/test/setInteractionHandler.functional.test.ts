@@ -45,6 +45,8 @@ function makeContext(opts: {
   prevDelegated?: (interaction: unknown, games: unknown[]) => Promise<unknown>;
   updateOneResult?: { matchedCount: number; modifiedCount: number };
   updateOneThrows?: Error;
+  guildSettings?: { notificationChannelId?: string | null; discountChannelId?: string | null };
+  readHistory?: (channelId: string) => boolean | null;
 }) {
   const updateCalls: Array<{ filter: unknown; update: unknown; opts?: unknown }> = [];
   const replies: string[] = [];
@@ -67,6 +69,8 @@ function makeContext(opts: {
     logger: (level: string, c: string, msg: string) => { logs.push({ level, context: c, msg }); },
     SUPPORTED_CURRENCIES: { USD: {}, EUR: {}, GBP: {}, RON: {} },
     MessageFlags: { Ephemeral: 64 },
+    getGuildSettings: async () => opts.guildSettings ?? null,
+    checkReadMessageHistory: async (_interaction: unknown, channelId: string) => (opts.readHistory ? opts.readHistory(channelId) : null),
     handleInteraction: opts.prevDelegated || (async (interaction: unknown) => {
       delegateCalls.push({ commandName: (interaction as { commandName: string }).commandName });
     })
@@ -158,6 +162,47 @@ test("handles /set outbox-recovery-verify on -> writes boolean true, no pending 
   assert.equal("pendingDiscounts" in update, false, "nu e filter change -> nu reseteaza pendingDiscounts");
   assert.equal(cacheInvalidations[0], "guild-1");
   assert.match(replies[0], /ON/);
+});
+
+test("/set outbox-recovery-verify on warns when bot lacks Read Message History on the channel", async () => {
+  const { context, replies } = makeContext({
+    guildSettings: { notificationChannelId: "chan-1" },
+    readHistory: () => false
+  });
+  await context.handleInteraction(
+    makeInteraction({ command: "set", group: null, sub: "outbox-recovery-verify", string: { value: "on" } }),
+    []
+  );
+  assert.match(replies[0], /ON/);
+  assert.match(replies[0], /Read Message History/);
+  assert.match(replies[0], /<#chan-1>/);
+});
+
+test("/set outbox-recovery-verify on does not warn when permission is present", async () => {
+  const { context, replies } = makeContext({
+    guildSettings: { notificationChannelId: "chan-1" },
+    readHistory: () => true
+  });
+  await context.handleInteraction(
+    makeInteraction({ command: "set", group: null, sub: "outbox-recovery-verify", string: { value: "on" } }),
+    []
+  );
+  assert.match(replies[0], /ON/);
+  assert.equal(/Read Message History/.test(replies[0]), false, "permisiune prezenta -> fara avertisment");
+});
+
+test("/set outbox-recovery-verify off never runs the permission check", async () => {
+  let checked = 0;
+  const { context, replies } = makeContext({
+    guildSettings: { notificationChannelId: "chan-1" },
+    readHistory: () => { checked++; return false; }
+  });
+  await context.handleInteraction(
+    makeInteraction({ command: "set", group: null, sub: "outbox-recovery-verify", string: { value: "off" } }),
+    []
+  );
+  assert.match(replies[0], /OFF/);
+  assert.equal(checked, 0, "la off nu se verifica permisiunea");
 });
 
 test("handles /set outbox-recovery-verify off -> writes boolean false", async () => {

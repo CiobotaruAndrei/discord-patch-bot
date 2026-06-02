@@ -64,6 +64,7 @@ const defaultInstallers: CommandModuleInstaller[] = [
   require("../command-handlers/gameFilterHandlers") as CommandModuleInstaller,
   require("../command-handlers/rolePingHandlers") as CommandModuleInstaller,
   require("../command-handlers/setInteractionHandler") as CommandModuleInstaller,
+  require("../command-handlers/outboxAdminHandler") as CommandModuleInstaller,
   require("../command-handlers/latestInteractionHandler") as CommandModuleInstaller,
   require("../command-handlers/statusInteractionHandler") as CommandModuleInstaller,
   require("../command-handlers/dlcInteractionHandler") as CommandModuleInstaller,

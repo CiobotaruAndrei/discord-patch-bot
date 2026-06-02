@@ -27,6 +27,8 @@ type GuildModelLike = {
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
+type GuildChannelSettings = { notificationChannelId?: string | null; discountChannelId?: string | null } | null;
+
 type SetInteractionDeps = {
   GuildModel: GuildModelLike;
   invalidateGuildCache: (guildId: string) => void;
@@ -35,6 +37,8 @@ type SetInteractionDeps = {
   safeEdit: (interaction: DiscordInteraction, content: string) => Promise<unknown>;
   logger: Logger;
   SUPPORTED_CURRENCIES: Record<string, unknown>;
+  getGuildSettings?: (guildId: string) => Promise<GuildChannelSettings>;
+  checkReadMessageHistory?: (interaction: DiscordInteraction, channelId: string) => Promise<boolean | null>;
 };
 
 type SetContext = SetInteractionDeps & {
@@ -165,8 +169,23 @@ function buildSetUpdatePlan(
 function createSetInteractionHandler(deps: SetInteractionDeps) {
   const {
     GuildModel, invalidateGuildCache, formatUserError, safeDefer, safeEdit, logger,
-    SUPPORTED_CURRENCIES
+    SUPPORTED_CURRENCIES, getGuildSettings, checkReadMessageHistory
   } = deps;
+
+  async function readHistoryWarning(interaction: DiscordInteraction, guildId: string): Promise<string> {
+    if (!getGuildSettings || !checkReadMessageHistory) return "";
+    const settings = await getGuildSettings(guildId).catch(() => null);
+    const channelIds = Array.from(new Set([settings?.notificationChannelId, settings?.discountChannelId]
+      .filter((id): id is string => typeof id === "string" && id.length > 0)));
+    if (!channelIds.length) return "";
+    const missing: string[] = [];
+    for (const channelId of channelIds) {
+      const allowed = await checkReadMessageHistory(interaction, channelId).catch(() => null);
+      if (allowed === false) missing.push(channelId);
+    }
+    if (!missing.length) return "";
+    return `\n:warning: Botul nu are permisiunea **Read Message History** pe ${missing.map(id => `<#${id}>`).join(", ")}; recovery-verify nu poate citi istoricul si va trata fiecare reluare ca duplicat nedetectat.`;
+  }
 
   async function handleSetInteraction(interaction: DiscordInteraction): Promise<unknown> {
     if (!interaction.guild) return undefined;
@@ -193,7 +212,8 @@ function createSetInteractionHandler(deps: SetInteractionDeps) {
       await GuildModel.updateOne({ _id: guildId }, { $set: updateDoc }, { upsert: true });
       invalidateGuildCache(guildId);
       const tail = plan.isFilterChange ? " *(coada de pending a fost resetata)*" : "";
-      return safeEdit(interaction, plan.confirmMsg + tail);
+      const warning = updateDoc.outboxRecoveryVerify === true ? await readHistoryWarning(interaction, guildId) : "";
+      return safeEdit(interaction, plan.confirmMsg + tail + warning);
     } catch (err: unknown) {
       logger("WARN", "SET_COMMAND", `Eroare la salvarea preferintelor pentru ${guildId}`, errorMessage(err));
       return safeEdit(interaction, formatUserError(err, "Eroare la salvarea preferintelor."));
@@ -220,7 +240,9 @@ function installSetInteractionHandler(target: SetContext) {
     safeDefer: target.safeDefer,
     safeEdit: target.safeEdit,
     logger: target.logger,
-    SUPPORTED_CURRENCIES: target.SUPPORTED_CURRENCIES
+    SUPPORTED_CURRENCIES: target.SUPPORTED_CURRENCIES,
+    getGuildSettings: target.getGuildSettings,
+    checkReadMessageHistory: target.checkReadMessageHistory
   });
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
