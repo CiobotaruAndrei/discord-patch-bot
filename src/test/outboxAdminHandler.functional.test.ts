@@ -13,6 +13,7 @@ function makeInteraction(group: string | null, sub: string) {
   return {
     commandName: "outbox",
     guild: { id: "guild-1" },
+    client: { user: { id: "bot-1" }, channels: { fetch: async () => null } },
     options: { getSubcommandGroup: () => group, getSubcommand: () => sub },
     isChatInputCommand: () => true,
     deferred: false,
@@ -35,11 +36,16 @@ function makeDeps(opts: {
   notificationChannelId?: string | null;
   discountChannelId?: string | null;
   channelPermissions?: (channelId: string) => { sendMessages: boolean; embedLinks: boolean; readMessageHistory: boolean } | null;
+  lockToken?: string | null;
+  drainResult?: { sent?: number; retried?: number; deadLettered?: number; queued?: number };
 } = {}) {
   const replies: string[] = [];
   const updateManyCalls: Array<{ filter: unknown; update: unknown }> = [];
   const pauseCalls: boolean[] = [];
   const permissionChecks: string[] = [];
+  const lockCalls: Array<{ name: string; ttl: number }> = [];
+  const releaseCalls: string[] = [];
+  let drainCalls = 0;
   const deps = {
     NotificationOutboxModel: {
       countDocuments: async (filter: { guildId?: string } = {}) => (filter && filter.guildId ? (opts.guildQueued ?? 0) : (opts.totalQueued ?? 0)),
@@ -60,6 +66,15 @@ function makeDeps(opts: {
       permissionChecks.push(channelId);
       return opts.channelPermissions ? opts.channelPermissions(channelId) : null;
     },
+    acquireDbLock: async (name: string, ttl: number) => {
+      lockCalls.push({ name, ttl });
+      return opts.lockToken === undefined ? "lock-token" : opts.lockToken;
+    },
+    releaseDbLock: async (_name: string, token: string) => { releaseCalls.push(token); },
+    drainOutbox: async () => {
+      drainCalls++;
+      return opts.drainResult ?? { sent: 0, retried: 0, deadLettered: 0, queued: 0 };
+    },
     safeDefer: async () => undefined,
     safeEdit: async (_interaction: unknown, content: string) => { replies.push(content); return content; },
     formatUserError: (_err: unknown, fallback: string) => fallback,
@@ -68,7 +83,7 @@ function makeDeps(opts: {
     recoveryVerifyGlobal: opts.recoveryVerifyGlobal ?? false,
     recoveryStrict: opts.recoveryStrict ?? false
   };
-  return { deps, replies, updateManyCalls, pauseCalls, permissionChecks };
+  return { deps, replies, updateManyCalls, pauseCalls, permissionChecks, lockCalls, releaseCalls, getDrainCalls: () => drainCalls };
 }
 
 test("/outbox status afiseaza coada, dead-letter si starea recovery-verify", async () => {
@@ -112,6 +127,36 @@ test("/outbox retry fara joburi raspunde corespunzator", async () => {
   const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
   await handler.handleOutboxInteraction(makeInteraction(null, "retry"));
   assert.match(replies[0], /Nu exista joburi in coada/);
+});
+
+test("/outbox drain-now: lock liber -> dreneaza, elibereaza lock-ul si raporteaza", async () => {
+  const { deps, replies, lockCalls, releaseCalls, getDrainCalls } = makeDeps({ drainResult: { sent: 4, retried: 1, deadLettered: 0, queued: 2 } });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "drain-now"));
+  assert.equal(lockCalls.length, 1);
+  assert.equal(lockCalls[0].name, "outbox_drain", "foloseste lock-ul dedicat outbox_drain");
+  assert.equal(getDrainCalls(), 1, "a drenat o data");
+  assert.equal(releaseCalls.length, 1, "a eliberat lock-ul");
+  assert.match(replies[0], /trimise \*\*4\*\*/);
+  assert.match(replies[0], /ramase in coada \*\*2\*\*/);
+});
+
+test("/outbox drain-now: lock detinut -> raporteaza ocupat, nu dreneaza", async () => {
+  const { deps, replies, getDrainCalls, releaseCalls } = makeDeps({ lockToken: null });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "drain-now"));
+  assert.equal(getDrainCalls(), 0, "nu dreneaza cand lock-ul e detinut");
+  assert.equal(releaseCalls.length, 0, "nu elibereaza un lock pe care nu l-a obtinut");
+  assert.match(replies[0], /detinut de o alta drenare/);
+});
+
+test("/outbox drain-now: outbox dezactivat -> mesaj, fara lock", async () => {
+  const { deps, replies, lockCalls, getDrainCalls } = makeDeps({ outboxEnabled: false });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "drain-now"));
+  assert.equal(lockCalls.length, 0, "nu incearca lock daca outbox-ul e oprit");
+  assert.equal(getDrainCalls(), 0);
+  assert.match(replies[0], /nu este activat/);
 });
 
 test("/outbox status afiseaza starea de drenare (activa/pe pauza)", async () => {
@@ -191,6 +236,9 @@ test("install: deleaga interactiunile non-/outbox catre handler-ul urmator", asy
     getOutboxPaused: async () => false,
     setOutboxPaused: async () => undefined,
     checkChannelPermissions: async () => null,
+    acquireDbLock: async () => "lock-token",
+    releaseDbLock: async () => undefined,
+    drainOutbox: async () => ({ sent: 0, retried: 0, deadLettered: 0, queued: 0 }),
     safeDefer: async () => undefined,
     safeEdit: async () => undefined,
     formatUserError: (_e: unknown, f: string) => f,
