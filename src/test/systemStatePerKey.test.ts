@@ -74,3 +74,38 @@ test("saveSystemTime accepts the three real keys", async () => {
   assert.equal(writes[1].$set["executionTimes.single"], 2000);
   assert.equal(writes[2].$set["executionTimes.reduceri"], 10000);
 });
+
+type PauseTarget = {
+  SystemModel: {
+    findById: (id: string) => { lean: () => Promise<{ outboxPaused?: boolean } | null> };
+    findByIdAndUpdate: (id: string, update: { $set: { outboxPaused: boolean } }, opts?: unknown) => Promise<null>;
+  };
+} & Partial<{ getOutboxPaused: () => Promise<boolean>; setOutboxPaused: (paused: boolean) => Promise<void> }>;
+
+function makePauseTarget(stored: boolean | undefined) {
+  const writes: boolean[] = [];
+  let value = stored;
+  const target: PauseTarget = {
+    SystemModel: {
+      findById: () => ({ lean: async () => (value === undefined ? null : { outboxPaused: value }) }),
+      findByIdAndUpdate: async (_id, update) => { value = update.$set.outboxPaused; writes.push(update.$set.outboxPaused); return null; }
+    }
+  };
+  attachSystemState(target as never);
+  return { runtime: target as PauseTarget & { getOutboxPaused: () => Promise<boolean>; setOutboxPaused: (paused: boolean) => Promise<void> }, writes };
+}
+
+test("getOutboxPaused returns true only when the stored flag is exactly true", async () => {
+  assert.equal(await makePauseTarget(true).runtime.getOutboxPaused(), true);
+  assert.equal(await makePauseTarget(false).runtime.getOutboxPaused(), false);
+  assert.equal(await makePauseTarget(undefined).runtime.getOutboxPaused(), false, "doc lipsa -> nu e pe pauza");
+});
+
+test("setOutboxPaused upserts the boolean flag and getOutboxPaused reflects it", async () => {
+  const { runtime, writes } = makePauseTarget(false);
+  await runtime.setOutboxPaused(true);
+  assert.deepEqual(writes, [true]);
+  assert.equal(await runtime.getOutboxPaused(), true, "dupa pause, flagul e citit ca true");
+  await runtime.setOutboxPaused(false);
+  assert.equal(await runtime.getOutboxPaused(), false);
+});

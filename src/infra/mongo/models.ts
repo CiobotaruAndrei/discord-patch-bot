@@ -101,7 +101,8 @@ const systemSchema = new mongoose.Schema({
     all: { type: Number, default: 35000 },
     single: { type: Number, default: 2000 },
     reduceri: { type: Number, default: 10000 }
-  }
+  },
+  outboxPaused: { type: Boolean, default: false }
 }, { minimize: false });
 const SystemModel = mongoose.model("System", systemSchema);
 

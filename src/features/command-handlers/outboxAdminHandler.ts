@@ -43,6 +43,8 @@ type Logger = (level: string, context: string, msg: string, meta?: unknown) => v
 type OutboxAdminDeps = {
   NotificationOutboxModel: OutboxModelLike;
   getGuildSettings: (guildId: string) => Promise<GuildSettingsLike | null>;
+  getOutboxPaused: () => Promise<boolean>;
+  setOutboxPaused: (paused: boolean) => Promise<void>;
   safeDefer: (interaction: DiscordInteraction) => Promise<unknown>;
   safeEdit: (interaction: DiscordInteraction, content: string) => Promise<unknown>;
   formatUserError: (err: unknown, fallback: string, code?: string) => string;
@@ -73,22 +75,25 @@ function formatDeadLetterEntry(entry: DeadLetterEntryLike): string {
 
 function createOutboxAdminHandler(deps: OutboxAdminDeps) {
   const {
-    NotificationOutboxModel, getGuildSettings, safeDefer, safeEdit, formatUserError, logger,
+    NotificationOutboxModel, getGuildSettings, getOutboxPaused, setOutboxPaused,
+    safeDefer, safeEdit, formatUserError, logger,
     outboxEnabled, recoveryVerifyGlobal, recoveryStrict
   } = deps;
   const previewLimit = deps.deadLetterPreviewLimit ?? DEFAULT_DEAD_LETTER_PREVIEW;
 
   async function renderStatus(guildId: string): Promise<string> {
-    const [guildQueued, totalQueued, settings] = await Promise.all([
+    const [guildQueued, totalQueued, settings, paused] = await Promise.all([
       NotificationOutboxModel.countDocuments({ guildId }).catch(() => 0),
       NotificationOutboxModel.countDocuments({}).catch(() => 0),
-      getGuildSettings(guildId).catch(() => null)
+      getGuildSettings(guildId).catch(() => null),
+      getOutboxPaused().catch(() => false)
     ]);
     const deadLetters = settings?.notificationDeadLetter?.length ?? 0;
     const perGuildVerify = settings?.outboxRecoveryVerify === true;
     return [
       "**Status outbox**",
       `- Outbox activat (global): **${onOff(outboxEnabled)}**`,
+      `- Drenare: **${paused ? "PE PAUZA" : "ACTIVA"}**`,
       `- Joburi in coada (acest server): **${guildQueued}**`,
       `- Joburi in coada (global): **${totalQueued}**`,
       `- Dead-letter (acest server): **${deadLetters}**`,
@@ -142,6 +147,14 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
         if (sub === "status") return safeEdit(interaction, await renderStatus(guildId));
         if (sub === "deadletters") return safeEdit(interaction, await renderDeadLetters(guildId));
         if (sub === "retry") return safeEdit(interaction, await retryQueued(guildId));
+        if (sub === "pause") {
+          await setOutboxPaused(true);
+          return safeEdit(interaction, "OK: Drenarea outbox-ului a fost pusa pe pauza (global). Joburile raman in coada pana la `/outbox resume`.");
+        }
+        if (sub === "resume") {
+          await setOutboxPaused(false);
+          return safeEdit(interaction, "OK: Drenarea outbox-ului a fost reluata (global).");
+        }
       }
       logger("WARN", "OUTBOX_COMMAND", `Subcomanda /outbox necunoscuta: ${group ? `${group} ` : ""}${sub}`);
       return safeEdit(interaction, `Eroare: Subcomanda \`/outbox ${group ? `${group} ` : ""}${sub}\` nu este recunoscuta.`);
@@ -165,6 +178,8 @@ function installOutboxAdminHandler(target: OutboxAdminContext): void {
   const handlers = createOutboxAdminHandler({
     NotificationOutboxModel: target.NotificationOutboxModel,
     getGuildSettings: target.getGuildSettings,
+    getOutboxPaused: target.getOutboxPaused,
+    setOutboxPaused: target.setOutboxPaused,
     safeDefer: target.safeDefer,
     safeEdit: target.safeEdit,
     formatUserError: target.formatUserError,

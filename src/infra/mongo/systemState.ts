@@ -4,6 +4,7 @@ import type { SystemTimes } from "../../types";
 interface SystemStateDoc {
   _id: string;
   executionTimes?: SystemTimes;
+  outboxPaused?: boolean;
 }
 
 type SystemTimesKey = keyof SystemTimes;
@@ -13,6 +14,8 @@ interface SystemStateContext {
   getSystemTimes?: typeof getSystemTimes;
   saveSystemTimes?: typeof saveSystemTimes;
   saveSystemTime?: typeof saveSystemTime;
+  getOutboxPaused?: typeof getOutboxPaused;
+  setOutboxPaused?: typeof setOutboxPaused;
 }
 
 const DEFAULT_SYSTEM_TIMES: SystemTimes = { all: 35000, single: 2000, reduceri: 10000 };
@@ -46,6 +49,23 @@ async function saveSystemTime(key: SystemTimesKey, value: number): Promise<void>
   );
 }
 
+async function getOutboxPaused(): Promise<boolean> {
+  try {
+    const sys = await runtimeContext.SystemModel.findById("system_state").lean() as SystemStateDoc | null;
+    return sys?.outboxPaused === true;
+  } catch {
+    return false;
+  }
+}
+
+async function setOutboxPaused(paused: boolean): Promise<void> {
+  await runtimeContext.SystemModel.findByIdAndUpdate(
+    "system_state",
+    { $set: { outboxPaused: paused === true } },
+    { upsert: true }
+  );
+}
+
 function attachSystemState(target: SystemStateContext): void {
   runtimeContext = {
     SystemModel: target.SystemModel
@@ -54,7 +74,9 @@ function attachSystemState(target: SystemStateContext): void {
   Object.assign(target, {
     getSystemTimes,
     saveSystemTimes,
-    saveSystemTime
+    saveSystemTime,
+    getOutboxPaused,
+    setOutboxPaused
   });
 }
 

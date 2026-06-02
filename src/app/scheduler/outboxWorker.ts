@@ -65,6 +65,7 @@ interface CreateOutboxWorkerDeps {
   metrics: OutboxMetricsLike;
   errorMessage: ErrorFormatter;
   adminAlert: AdminAlert;
+  isPaused?: () => Promise<boolean>;
   drainLimit: number;
   perJobBudgetMs: number;
 }
@@ -81,7 +82,7 @@ const OUTBOX_LOCK_MAX_TTL_MS = 3_600_000;
 
 function createOutboxWorker({
   mongoose, client, logger, parseEnvNumber,
-  acquireDbLock, releaseDbLock, drainOutbox, lifecycle, metrics, errorMessage, adminAlert,
+  acquireDbLock, releaseDbLock, drainOutbox, lifecycle, metrics, errorMessage, adminAlert, isPaused,
   drainLimit, perJobBudgetMs
 }: CreateOutboxWorkerDeps): OutboxWorker {
   const intervalMs = parseEnvNumber("NOTIFICATION_OUTBOX_DRAIN_INTERVAL_MS", 15_000, { min: 2_000, max: 600_000 });
@@ -136,6 +137,10 @@ function createOutboxWorker({
   async function drainTick(): Promise<void> {
     if (lifecycle.isShuttingDown || draining) return;
     if (mongoose.connection.readyState !== 1 || !client.isReady()) {
+      scheduleNext();
+      return;
+    }
+    if (isPaused && await isPaused().catch(() => false)) {
       scheduleNext();
       return;
     }

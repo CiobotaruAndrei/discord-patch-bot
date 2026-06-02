@@ -30,10 +30,12 @@ function makeDeps(opts: {
   outboxEnabled?: boolean;
   recoveryVerifyGlobal?: boolean;
   recoveryStrict?: boolean;
+  paused?: boolean;
   updateManyResult?: { modifiedCount?: number; matchedCount?: number };
 } = {}) {
   const replies: string[] = [];
   const updateManyCalls: Array<{ filter: unknown; update: unknown }> = [];
+  const pauseCalls: boolean[] = [];
   const deps = {
     NotificationOutboxModel: {
       countDocuments: async (filter: { guildId?: string } = {}) => (filter && filter.guildId ? (opts.guildQueued ?? 0) : (opts.totalQueued ?? 0)),
@@ -46,6 +48,8 @@ function makeDeps(opts: {
       outboxRecoveryVerify: opts.perGuildVerify ?? false,
       notificationDeadLetter: opts.deadLetters ?? []
     }),
+    getOutboxPaused: async () => opts.paused ?? false,
+    setOutboxPaused: async (paused: boolean) => { pauseCalls.push(paused); },
     safeDefer: async () => undefined,
     safeEdit: async (_interaction: unknown, content: string) => { replies.push(content); return content; },
     formatUserError: (_err: unknown, fallback: string) => fallback,
@@ -54,7 +58,7 @@ function makeDeps(opts: {
     recoveryVerifyGlobal: opts.recoveryVerifyGlobal ?? false,
     recoveryStrict: opts.recoveryStrict ?? false
   };
-  return { deps, replies, updateManyCalls };
+  return { deps, replies, updateManyCalls, pauseCalls };
 }
 
 test("/outbox status afiseaza coada, dead-letter si starea recovery-verify", async () => {
@@ -100,6 +104,28 @@ test("/outbox retry fara joburi raspunde corespunzator", async () => {
   assert.match(replies[0], /Nu exista joburi in coada/);
 });
 
+test("/outbox status afiseaza starea de drenare (activa/pe pauza)", async () => {
+  const active = makeDeps({ paused: false });
+  const h1 = installOutboxAdmin.createOutboxAdminHandler(active.deps);
+  await h1.handleOutboxInteraction(makeInteraction(null, "status"));
+  assert.match(active.replies[0], /Drenare: \*\*ACTIVA\*\*/);
+
+  const paused = makeDeps({ paused: true });
+  const h2 = installOutboxAdmin.createOutboxAdminHandler(paused.deps);
+  await h2.handleOutboxInteraction(makeInteraction(null, "status"));
+  assert.match(paused.replies[0], /Drenare: \*\*PE PAUZA\*\*/);
+});
+
+test("/outbox pause si /outbox resume comuta flagul de drenare", async () => {
+  const { deps, replies, pauseCalls } = makeDeps({});
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "pause"));
+  await handler.handleOutboxInteraction(makeInteraction(null, "resume"));
+  assert.deepEqual(pauseCalls, [true, false], "pause -> true, resume -> false");
+  assert.match(replies[0], /pusa pe pauza/);
+  assert.match(replies[1], /reluata/);
+});
+
 test("/outbox recovery-verify status afiseaza starea per-guild si globala", async () => {
   const { deps, replies } = makeDeps({ perGuildVerify: true, recoveryVerifyGlobal: false, recoveryStrict: false });
   const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
@@ -120,6 +146,8 @@ test("install: deleaga interactiunile non-/outbox catre handler-ul urmator", asy
   const context: Record<string, unknown> = {
     NotificationOutboxModel: { countDocuments: async () => 0, updateMany: async () => ({}) },
     getGuildSettings: async () => null,
+    getOutboxPaused: async () => false,
+    setOutboxPaused: async () => undefined,
     safeDefer: async () => undefined,
     safeEdit: async () => undefined,
     formatUserError: (_e: unknown, f: string) => f,
