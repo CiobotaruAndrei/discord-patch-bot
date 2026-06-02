@@ -1,0 +1,72 @@
+groups:
+  - name: discord-patch-bot-outbox
+    rules:
+      - alert: OutboxQueueDepthHigh
+        expr: bot_outbox_queue_depth > 100
+        for: 10m
+        labels:
+          severity: warning
+          component: outbox
+        annotations:
+          summary: "Outbox queue depth high (> 100 for 10m)"
+          description: "bot_outbox_queue_depth a stat peste 100 timp de 10m. Drenarea nu tine pasul. Vezi OPERATIONS.md - sectiunea 'Cand creste bot_outbox_queue_depth'."
+
+      - alert: OutboxOldestJobAgeHigh
+        expr: bot_outbox_oldest_job_age_seconds > 600
+        for: 10m
+        labels:
+          severity: warning
+          component: outbox
+        annotations:
+          summary: "Oldest outbox job older than 10 minutes"
+          description: "bot_outbox_oldest_job_age_seconds > 600 timp de 10m. Joburile nu se livreaza (canal/permisiuni/Discord) sau drenarea e pe pauza. Vezi OPERATIONS.md."
+
+      - alert: OutboxMarkSentFailures
+        expr: increase(bot_outbox_mark_sent_failures[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: outbox
+        annotations:
+          summary: "Outbox mark-sent failures (re-send risk)"
+          description: "bot_outbox_mark_sent_failures a crescut in ultimele 15m: mesaje trimise dar nemarcate in istoricul de dedupe. Vezi OPERATIONS.md - 'Cand creste bot_outbox_mark_sent_failures'."
+
+      - alert: OutboxRecoveryVerifyFailures
+        expr: increase(bot_outbox_recovery_verify_failures[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: outbox
+        annotations:
+          summary: "Outbox recovery-verify cannot read channel history"
+          description: "bot_outbox_recovery_verify_failures a crescut: lipseste probabil permisiunea Read Message History. Vezi OPERATIONS.md - 'Cand creste bot_outbox_recovery_verify_failures'."
+
+      - alert: OutboxLockAcquireFailures
+        expr: increase(bot_outbox_lock_acquire_failures[15m]) > 5
+        for: 10m
+        labels:
+          severity: warning
+          component: outbox
+        annotations:
+          summary: "Outbox drain lock contention"
+          description: "bot_outbox_lock_acquire_failures a crescut sustinut: lock-ul outbox_drain e detinut de alta instanta sau nu se elibereaza. Asigura o singura instanta sau verifica TTL-ul lock-ului. Vezi OPERATIONS.md."
+
+      - alert: OutboxDeadLetteredGrowing
+        expr: increase(bot_outbox_dead_lettered[1h]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: outbox
+        annotations:
+          summary: "Outbox deliveries reaching dead-letter"
+          description: "bot_outbox_dead_lettered a crescut in ultima ora: livrari esuate definitiv. Inspecteaza cu /outbox deadletters si verifica permisiunile canalului. Vezi OPERATIONS.md - 'Dead-letter'."
+
+      - alert: OutboxRecoveryMarkerMissingHigh
+        expr: increase(bot_outbox_recovery_marker_missing[30m]) > 3
+        for: 10m
+        labels:
+          severity: info
+          component: outbox
+        annotations:
+          summary: "Recovery-verify re-sending (marker not found)"
+          description: "bot_outbox_recovery_marker_missing crescut: verificarea pe istoric reuseste dar marker-ul nu e gasit (re-trimitere). Pe canale aglomerate creste NOTIFICATION_OUTBOX_RECOVERY_HISTORY_LIMIT. Vezi OPERATIONS.md."
