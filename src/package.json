@@ -15,6 +15,8 @@
     "check:syntax": "npm run build:ts && node dist/scripts/check-syntax.js",
     "check:comments": "npm run build:ts && node dist/scripts/check-no-comments.js",
     "benchmark": "npm run build:ts && node dist/scripts/notificationBenchmark.js",
+    "benchmark:outbox": "npm run build:ts && node dist/scripts/outboxLoadBenchmark.js",
+    "benchmark:cpu": "npm run build && node dist/scripts/cpuBenchmark.js",
     "typecheck": "tsc --noEmit",
     "typecheck:strict": "tsc -p tsconfig.strict.json",
     "lint": "npm run typecheck && npm run typecheck:strict",
