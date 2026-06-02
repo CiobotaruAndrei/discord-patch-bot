@@ -86,9 +86,9 @@ fn extract_date_score_impl(url: &str) -> f64 {
                 + (bytes[i + 6] - b'0') as i32;
       let day   = (bytes[i + 8] - b'0') as i32 * 10
                 + (bytes[i + 9] - b'0') as i32;
-      if year >= 2000 && year <= 2100
-        && month >= 1 && month <= 12
-        && day >= 1 && day <= 31
+      if (2000..=2100).contains(&year)
+        && (1..=12).contains(&month)
+        && (1..=31).contains(&day)
       {
         if let Some(ts) = utc_ms_for_date(year, month as u32, day as u32) {
           return ts;
@@ -232,6 +232,7 @@ pub fn normalize_deal_state(sale_price: String, normal_price: String, savings: S
 }
 
 #[napi]
+#[allow(clippy::too_many_arguments)]
 pub fn deal_passes_filters(
   sale_price_num: f64,
   savings_num: f64,
@@ -583,4 +584,45 @@ fn levenshtein_impl(a: &str, b: &str) -> usize {
   }
 
   row[b_chars.len()]
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn levenshtein_known_distances() {
+    assert_eq!(levenshtein("abc".to_string(), "abc".to_string()), 0);
+    assert_eq!(levenshtein("kitten".to_string(), "sitting".to_string()), 3);
+    assert_eq!(levenshtein("".to_string(), "abc".to_string()), 3);
+  }
+
+  #[test]
+  fn stable_update_id_is_deterministic_and_distinct() {
+    let a = stable_update_id("Patch 1".to_string(), "https://example.com/1".to_string());
+    let b = stable_update_id("Patch 1".to_string(), "https://example.com/1".to_string());
+    let c = stable_update_id("Patch 2".to_string(), "https://example.com/2".to_string());
+    assert_eq!(a, b);
+    assert_ne!(a, c);
+    assert!(!a.is_empty());
+  }
+
+  #[test]
+  fn deal_hash_is_deterministic_and_distinct() {
+    let a = deal_hash("Steam".to_string(), "570".to_string(), String::new(), "Dota".to_string(), "0".to_string(), "20".to_string(), "100".to_string());
+    let b = deal_hash("Steam".to_string(), "570".to_string(), String::new(), "Dota".to_string(), "0".to_string(), "20".to_string(), "100".to_string());
+    let c = deal_hash("Steam".to_string(), "730".to_string(), String::new(), "CS".to_string(), "0".to_string(), "20".to_string(), "100".to_string());
+    assert_eq!(a, b);
+    assert_ne!(a, c);
+    assert!(!a.is_empty());
+  }
+
+  #[test]
+  fn deal_passes_filters_core_cases() {
+    assert!(deal_passes_filters(0.0, 0.0, "Steam".to_string(), 50.0, true, true, 0.0, vec![]));
+    assert!(!deal_passes_filters(0.0, 0.0, "Steam".to_string(), 50.0, false, true, 0.0, vec![]));
+    assert!(!deal_passes_filters(10.0, 5.0, "Steam".to_string(), 20.0, true, true, 0.0, vec![]));
+    assert!(deal_passes_filters(10.0, 50.0, "Steam".to_string(), 20.0, true, true, 0.0, vec!["Steam".to_string()]));
+    assert!(!deal_passes_filters(10.0, 50.0, "Steam".to_string(), 20.0, true, true, 0.0, vec!["Epic Games".to_string()]));
+  }
 }

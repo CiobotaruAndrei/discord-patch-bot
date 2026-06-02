@@ -148,7 +148,10 @@ Testele acopera zonele importante:
 - servicii de notificari pentru update-uri si reduceri;
 - repository-ul `seen` pentru deduplicare;
 - fluxuri E2E pentru update-uri si reduceri;
-- parsere, filtre, shape drift pe scrapers, circuit breaker, cooldown-uri si rate limiting.
+- parsere, filtre, shape drift pe scrapers, circuit breaker, cooldown-uri si rate limiting;
+- integrare pe MongoDB real (`outboxMongoIndex.integration.test.ts`): verifica indexul unic sparse pe `notificationOutbox.dedupeKey`; ruleaza in CI (serviciu `mongo:7`) si local cand `MONGO_URI` indica un Mongo pornit, altfel se auto-sare.
+
+In CI (`ci.yml`), pe langa `npm run check`, se ruleaza si validarea Rust: `cargo clippy --all-targets -- -D warnings` si `cargo test` (teste unitare native in `native/src/lib.rs`). Compilarea Rust se face deja prin `napi build` din `npm run build`.
 
 Testele care folosesc surse externe reale nu confirma comportament live cu token Discord real. Pentru productie, valideaza si cu un server Discord de test si MongoDB real.
 
