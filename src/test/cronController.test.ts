@@ -35,6 +35,7 @@ test("cron cycle budget: un ciclu peste buget face urmatorul ciclu sa sara peste
       outboxRecoveryMarkerMissing: 0,
       outboxMarkSentFailures: 0,
       outboxRecoveryVerifyEnabledGuilds: 0,
+      outboxLastDrainAt: 0,
       startedAt: 0
     };
 
@@ -138,6 +139,7 @@ test("cron stop clears the scheduled timer handle", () => {
         outboxRecoveryMarkerMissing: 0,
         outboxMarkSentFailures: 0,
         outboxRecoveryVerifyEnabledGuilds: 0,
+        outboxLastDrainAt: 0,
         startedAt: 0
       },
       lifecycle: { isShuttingDown: false },
@@ -182,6 +184,7 @@ test("cron cycle waits for both jobs when one rejects (Promise.allSettled)", asy
       outboxRecoveryMarkerMissing: 0,
       outboxMarkSentFailures: 0,
       outboxRecoveryVerifyEnabledGuilds: 0,
+      outboxLastDrainAt: 0,
       startedAt: 0
     };
 
@@ -261,6 +264,7 @@ test("cron heartbeat tolerates one transient renew throw but aborts on the secon
       outboxRecoveryMarkerMissing: 0,
       outboxMarkSentFailures: 0,
       outboxRecoveryVerifyEnabledGuilds: 0,
+      outboxLastDrainAt: 0,
       startedAt: 0
     };
 
@@ -339,6 +343,7 @@ test("cron heartbeat aborts immediately when renew returns false (lock genuinely
       outboxRecoveryMarkerMissing: 0,
       outboxMarkSentFailures: 0,
       outboxRecoveryVerifyEnabledGuilds: 0,
+      outboxLastDrainAt: 0,
       startedAt: 0
     };
 
@@ -412,6 +417,7 @@ test("heartbeat tick care se reia in fereastra de release NU mai renew-uie lock-
       outboxRecoveryMarkerMissing: 0,
       outboxMarkSentFailures: 0,
       outboxRecoveryVerifyEnabledGuilds: 0,
+      outboxLastDrainAt: 0,
       startedAt: 0
     };
 
