@@ -79,6 +79,7 @@ Variabile utile suplimentare:
 - `METRICS_PUBLIC` - permite metrics fara token in development.
 - `LOG_LEVEL` - nivelul de logging.
 - `PROXY_URLS` - proxy-uri HTTP optionale pentru surse externe.
+- `ALLOW_NATIVE_FALLBACK` - in `NODE_ENV=production`, addon-ul Rust e obligatoriu si lipsa lui opreste boot-ul (fail-fast), fiindca fallback-ul TypeScript poate produce hash-uri divergente -> spam de notificari. Seteaza `ALLOW_NATIVE_FALLBACK=true` doar daca accepti explicit rularea pe fallback TS in productie.
 - `ADMIN_WEBHOOK_URL` - webhook optional pentru alerte operationale.
 - `NOTIFICATION_OUTBOX_ENABLED` - feature flag optional (implicit `false`). Cand este `true`, cron-ul nu mai trimite notificarile inline, ci le pune ca job-uri in colectia `notificationOutbox`, iar un worker dedicat le draneaza pe propriul interval (rate limit + retry/backoff + dead-letter). Recomandat pe volum mare de notificari sau cand vrei ca trimiterea sa supravietuiasca caderilor Discord; lasa-l oprit pentru deploy-uri mici.
 - `NOTIFICATION_OUTBOX_DRAIN_INTERVAL_MS` - cat de des draneaza worker-ul outbox-ul, independent de ciclul cron (implicit `15000`; min `2000`, max `600000`). Activ doar cand `NOTIFICATION_OUTBOX_ENABLED=true`.

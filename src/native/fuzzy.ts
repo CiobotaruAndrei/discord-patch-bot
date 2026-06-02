@@ -83,6 +83,18 @@ function loadNativeFuzzy(): NativeFuzzyModule | null {
     }
   }
 
+  const failureDetail = NATIVE_FUZZY_LOAD_FAILURES.length
+    ? JSON.stringify(NATIVE_FUZZY_LOAD_FAILURES)
+    : `addon negasit in: ${searchDirs.join(", ")}`;
+
+  if (!nativeFallbackAllowed()) {
+    throw new Error(
+      `[NATIVE_FUZZY] Addon-ul Rust este obligatoriu in productie dar nu a putut fi incarcat (${failureDetail}). `
+      + "Fallback-ul TypeScript poate produce hash-uri divergente (dealHash / stableUpdateId) fata de o instanta Rust anterioara, "
+      + "deci spam masiv de notificari `seen`. Re-build cu `npm run build:rust`, sau seteaza ALLOW_NATIVE_FALLBACK=true ca sa permiti explicit fallback-ul."
+    );
+  }
+
   nativeModule = null;
   if (NATIVE_FUZZY_LOAD_FAILURES.length) {
     console.error(
@@ -100,6 +112,17 @@ function loadNativeFuzzy(): NativeFuzzyModule | null {
     );
   }
   return nativeModule;
+}
+
+export function nativeFallbackAllowed(
+  nodeEnv: string | undefined = process.env.NODE_ENV,
+  allowFlag: string | undefined = process.env.ALLOW_NATIVE_FALLBACK
+): boolean {
+  return nodeEnv !== "production" || allowFlag === "true";
+}
+
+export function ensureNativeFuzzy(): boolean {
+  return loadNativeFuzzy() !== null;
 }
 
 function normalizeCommandText(value: unknown): string {
