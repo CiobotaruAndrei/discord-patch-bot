@@ -120,6 +120,12 @@ export interface OutboxRuntime {
 }
 
 const DEFAULT_LEASE_MS = 60_000;
+const MAX_BACKOFF_MS = 30 * 60 * 1000;
+
+function backoffWithJitter(baseMs: number, attempts: number): number {
+  const capped = Math.min(baseMs * attempts, MAX_BACKOFF_MS);
+  return Math.round(capped * (0.5 + Math.random()));
+}
 
 export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutboxSentModel, withMongoRetry, logger }: OutboxRuntimeDeps): OutboxRuntime {
   async function enqueueOutbox(job: { guildId: string; channelId: string; kind: OutboxKind; payload: unknown; recoveryVerify?: boolean }): Promise<void> {
@@ -182,7 +188,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
   }
 
   async function drainOutbox(options: DrainOutboxOptions): Promise<DrainOutboxResult> {
-    const now = options.now || new Date();
+    const nowFn = (): Date => options.now || new Date();
     const leaseMs = options.leaseMs ?? DEFAULT_LEASE_MS;
     const workerId = options.workerId ?? "outbox-worker";
 
@@ -196,9 +202,10 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     let recoveryFailures = 0;
     let recoveryMarkerMissing = 0;
     let markSentFailures = 0;
+    let deliverErrors = 0;
 
     for (let i = 0; i < options.limit; i++) {
-      const job = await claimNextJob(now, leaseMs, workerId);
+      const job = await claimNextJob(nowFn(), leaseMs, workerId);
       if (!job) break;
       processed++;
 
@@ -208,7 +215,16 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       }
 
       const startedAt = Date.now();
-      const result = await options.deliver(job);
+      let result: DeliverResult;
+      try {
+        result = await options.deliver(job);
+      } catch (err) {
+        logger("WARN", "OUTBOX",
+          `Livrarea jobului ${String(job._id)} a aruncat o exceptie (tratata ca esec tranzitoriu)`,
+          err instanceof Error ? err.message : String(err));
+        deliverErrors++;
+        result = { ok: false, permanent: false };
+      }
       deliveryMsTotal += Math.max(0, Date.now() - startedAt);
 
       if (result.ok) {
@@ -232,7 +248,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       await NotificationOutboxModel.updateOne(
         { _id: job._id },
         {
-          $set: { attempts, availableAt: new Date(now.getTime() + options.backoffMs * attempts) },
+          $set: { attempts, availableAt: new Date(nowFn().getTime() + backoffWithJitter(options.backoffMs, attempts)) },
           $unset: { lockedUntil: "", lockedBy: "" }
         }
       );
@@ -240,10 +256,11 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     }
 
     const queued = await NotificationOutboxModel.countDocuments({}).catch(() => 0);
-    const oldestAgeMs = await oldestJobAgeMs(now);
+    const oldestAgeMs = await oldestJobAgeMs(nowFn());
 
     if (sent || deadLettered || retried) {
-      logger("INFO", "OUTBOX", `Drain outbox: ${sent} trimise, ${retried} reincercate, ${deadLettered} dead-letter, ${queued} ramase in coada`);
+      const errSuffix = deliverErrors > 0 ? `, ${deliverErrors} exceptii de livrare` : "";
+      logger("INFO", "OUTBOX", `Drain outbox: ${sent} trimise, ${retried} reincercate, ${deadLettered} dead-letter, ${queued} ramase in coada${errSuffix}`);
     }
     return { sent, deadLettered, retried, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures };
   }

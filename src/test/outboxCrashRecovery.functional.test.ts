@@ -96,15 +96,17 @@ test("crash-sim cu recovery-verify: send reuseste, markSent esueaza/crash, worke
 
   await runtime.enqueueOutbox({ guildId: "g1", channelId: "c1", kind: "update", payload: { embeds: [{ title: "Patch 1.2" }] }, recoveryVerify: true });
 
+  const origDelete = store.model.deleteOne;
+  const origSentUpdate = store.sentModel.updateOne;
+  store.model.deleteOne = async () => { throw new Error("crash inainte de delete"); };
+  store.sentModel.updateOne = async () => { throw new Error("crash inainte de markSent"); };
   await assert.rejects(runtime.drainOutbox({
-    deliver: async (job) => {
-      const result = await delivery.deliver(client as never, job as never);
-      assert.equal(result.ok, true, "send-ul reuseste inainte de crash");
-      throw new Error("crash dupa send, inainte de markSent/delete");
-    },
+    deliver: (job) => delivery.deliver(client as never, job as never),
     recordDeadLetter: async () => undefined,
     maxAttempts: 5, backoffMs: 1000, limit: 1
-  }), /crash dupa send/);
+  }), /crash inainte de delete/);
+  store.model.deleteOne = origDelete;
+  store.sentModel.updateOne = origSentUpdate;
 
   assert.equal(sentPayloads.length, 1, "mesajul a fost trimis o data inainte de crash");
   assert.equal(await store.model.countDocuments(), 1, "jobul a ramas in coada (markSent si delete nu s-au facut)");
@@ -136,14 +138,17 @@ test("crash-sim FARA recovery-verify: aceeasi scapare produce un duplicat (demon
 
   await runtime.enqueueOutbox({ guildId: "g1", channelId: "c1", kind: "update", payload: { embeds: [{ title: "Patch 1.2" }] } });
 
+  const origDelete = store.model.deleteOne;
+  const origSentUpdate = store.sentModel.updateOne;
+  store.model.deleteOne = async () => { throw new Error("crash inainte de delete"); };
+  store.sentModel.updateOne = async () => { throw new Error("crash inainte de markSent"); };
   await assert.rejects(runtime.drainOutbox({
-    deliver: async (job) => {
-      await delivery.deliver(client as never, job as never);
-      throw new Error("crash dupa send");
-    },
+    deliver: (job) => delivery.deliver(client as never, job as never),
     recordDeadLetter: async () => undefined,
     maxAttempts: 5, backoffMs: 1000, limit: 1
-  }), /crash dupa send/);
+  }), /crash inainte de delete/);
+  store.model.deleteOne = origDelete;
+  store.sentModel.updateOne = origSentUpdate;
   assert.equal(sentPayloads.length, 1);
 
   store.jobs[0].lockedUntil = undefined;
