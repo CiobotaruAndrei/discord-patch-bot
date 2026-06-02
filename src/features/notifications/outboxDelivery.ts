@@ -15,7 +15,7 @@ export interface OutboxDeliveryClient {
 
 export type OutboxDeliveryResult =
   | { ok: true; recoveryFetched?: boolean; recoveryDuplicate?: boolean; recoveryFailed?: boolean; recoveryMarkerMissing?: boolean }
-  | { ok: false; permanent: boolean };
+  | { ok: false; permanent: boolean; recoveryFailed?: boolean };
 
 export interface OutboxDeliveryDeps {
   canSendEmbeds: (channel: unknown, botId: string) => boolean;
@@ -25,6 +25,7 @@ export interface OutboxDeliveryDeps {
   messageHasDedupeMarker: (message: unknown, marker: string) => boolean;
   outboxDedupeMarker: (dedupeKey: string) => string;
   recoveryVerify: boolean;
+  recoveryStrict?: boolean;
   historyLimit?: number;
 }
 
@@ -34,9 +35,10 @@ export function createOutboxDelivery(deps: OutboxDeliveryDeps) {
   const {
     canSendEmbeds, isPermanentDiscordError, acquireSendSlot,
     applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker,
-    recoveryVerify: globalRecoveryVerify, historyLimit
+    recoveryVerify: globalRecoveryVerify, recoveryStrict, historyLimit
   } = deps;
   const limit = historyLimit ?? DEFAULT_HISTORY_LIMIT;
+  const strict = recoveryStrict === true;
 
   async function alreadyPostedInChannel(channel: unknown, dedupeKey: string): Promise<{ found: boolean; failed: boolean }> {
     const fetcher = (channel as { messages?: { fetch?: (opts: unknown) => Promise<unknown> } } | null)?.messages?.fetch;
@@ -63,6 +65,7 @@ export function createOutboxDelivery(deps: OutboxDeliveryDeps) {
       if (isRecoveryCandidate) {
         const check = await alreadyPostedInChannel(channel, job.dedupeKey as string);
         if (check.found) return { ok: true, recoveryFetched: true, recoveryDuplicate: true };
+        if (check.failed && strict) return { ok: false, permanent: false, recoveryFailed: true };
         const payload = applyDedupeMarker(job.payload, job.dedupeKey);
         await acquireSendSlot();
         await (channel.send as (payload: unknown) => Promise<unknown>)(payload);

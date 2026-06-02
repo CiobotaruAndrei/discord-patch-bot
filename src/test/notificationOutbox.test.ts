@@ -219,6 +219,21 @@ test("drainOutbox: job cu dedupeKey deja in istoric -> nu re-trimite (recovery d
   assert.deepEqual(deleted, [{ _id: "j1" }], "jobul ramas dupa crash e curatat fara re-trimitere");
 });
 
+test("drainOutbox: strict mode (deliver ok:false + recoveryFailed) -> numara recoveryFailures + reprogrameaza", async () => {
+  const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "k1" };
+  const { runtime, updated, deleted } = makeRuntime([job]);
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: false, permanent: false, recoveryFailed: true }),
+    recordDeadLetter: async () => undefined,
+    maxAttempts: 5, backoffMs: 1000, limit: 50
+  });
+  assert.equal(result.recoveryFailures, 1, "esecul de verificare in strict mode e numarat chiar daca nu s-a trimis");
+  assert.equal(result.retried, 1, "jobul e reprogramat cu backoff, nu trimis");
+  assert.equal(result.sent, 0);
+  assert.equal(deleted.length, 0, "jobul nu e sters in strict mode la esec de verificare");
+  assert.equal(updated.length, 1, "lease eliberat + backoff aplicat");
+});
+
 test("drainOutbox: esecul de marcare in istoric incrementeaza markSentFailures dar jobul tot e livrat", async () => {
   const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "k1" };
   const pending = [job];
