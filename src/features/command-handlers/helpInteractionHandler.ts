@@ -68,6 +68,12 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
           "`/set role discounts <rol>` *(gol = oprit)*"
       },
       {
+        name: "Operare outbox (admin)",
+        value:
+          "`/outbox status` - `/outbox deadletters`\n" +
+          "`/outbox retry` - `/outbox recovery-verify status`"
+      },
+      {
         name: "Comenzi Manuale",
         value: "`/latest updates` - `/latest reduceri`\n`/latest update <joc>` - `/latest pret <joc>`\n`/dlc <joc>` - `/status <joc>`"
       }

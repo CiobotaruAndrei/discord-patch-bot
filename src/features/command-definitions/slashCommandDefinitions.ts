@@ -134,6 +134,15 @@ function attachSlashCommands(target: SlashCommandContext): void {
           .addSubcommand(subcommand => subcommand.setName("discounts").setDescription("Rol pingat la reduceri (gol = oprit)")
             .addRoleOption(option => option.setName("value").setDescription("Rolul de mentionat (gol = oprit)").setRequired(false)))),
       new SlashCommandBuilder()
+        .setName("outbox")
+        .setDescription("Operare outbox notificari (admin)")
+        .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
+        .addSubcommand(subcommand => subcommand.setName("status").setDescription("Starea outbox-ului (coada, dead-letter, recovery-verify)"))
+        .addSubcommand(subcommand => subcommand.setName("deadletters").setDescription("Ultimele livrari ajunse in dead-letter pentru acest server"))
+        .addSubcommand(subcommand => subcommand.setName("retry").setDescription("Reprogrameaza joburile din coada ale acestui server pentru livrare imediata"))
+        .addSubcommandGroup(group => group.setName("recovery-verify").setDescription("Verificare recovery outbox")
+          .addSubcommand(subcommand => subcommand.setName("status").setDescription("Starea recovery-verify pentru acest server si global"))),
+      new SlashCommandBuilder()
         .setName("latest")
         .setDescription("Comenzi pentru ultimele update-uri/oferte")
         .addSubcommand(subcommand => subcommand.setName("updates").setDescription("Cele mai recente update-uri pentru toate jocurile"))

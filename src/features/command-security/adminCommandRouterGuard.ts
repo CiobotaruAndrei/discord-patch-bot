@@ -19,7 +19,7 @@ type AdminCommandGuardContext = {
 };
 
 const defaultRequireGuildAdmin = require("./adminPermissionGuard") as RequireGuildAdmin;
-const ADMIN_COMMANDS = new Set(["start", "stop", "set"]);
+const ADMIN_COMMANDS = new Set(["start", "stop", "set", "outbox"]);
 
 function isAdminProtectedCommand(interaction: DiscordInteraction): boolean {
   return interaction?.isChatInputCommand?.() === true

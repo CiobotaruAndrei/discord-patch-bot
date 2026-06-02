@@ -46,6 +46,7 @@ src/
       gameFilterHandlers.ts
       helpInteractionHandler.ts
       latestInteractionHandler.ts
+      outboxAdminHandler.ts
       rolePingHandlers.ts
       setInteractionHandler.ts
       simpleCommandsHandler.ts
@@ -87,7 +88,8 @@ src/
 - `subscriptionNotificationHandlers.ts` - start/stop pentru update-uri si reduceri;
 - `gameFilterHandlers.ts` - filtre si validari pentru jocuri;
 - `rolePingHandlers.ts` - roluri pentru ping-uri;
-- `setInteractionHandler.ts` - subcomenzile `/set`;
+- `setInteractionHandler.ts` - subcomenzile `/set`; la `/set outbox-recovery-verify on` verifica preventiv permisiunea Read Message History pe canalele de notificari (via `checkReadMessageHistory` din runtime) si avertizeaza daca lipseste;
+- `outboxAdminHandler.ts` - comenzile admin `/outbox` (`status`, `deadletters`, `retry`, `recovery-verify status`) pentru operarea outbox-ului (coada per-guild si globala, dead-letter, reprogramare livrari, stare recovery-verify); protejat de admin guard (`outbox` e in lista de comenzi admin);
 - `latestInteractionHandler.ts` - `/latest`;
 - `dlcInteractionHandler.ts` - `/dlc`;
 - `statusInteractionHandler.ts` - `/status`;

@@ -31,6 +31,8 @@ Bot Discord pentru notificari despre update-uri, DLC-uri si reduceri pentru jocu
 - `/dlc` - afiseaza DLC-uri cunoscute.
 - `/status` - afiseaza starea botului pentru server.
 - `/help` - afiseaza paginile de ajutor.
+- `/set outbox-recovery-verify <on|off>` - (admin) comuta recovery-verify per-server; la `on` avertizeaza daca botului ii lipseste permisiunea Read Message History pe canalele de notificari.
+- `/outbox status | deadletters | retry | recovery-verify status` - (admin) operarea outbox-ului: coada (per-server + global), dead-letter, reprogramare livrari si starea recovery-verify.
 
 Comenzile administrative sunt validate atat prin permisiunile slash command declarate in Discord, cat si prin verificari runtime in handler-ele sensibile.
 
@@ -138,7 +140,7 @@ Testele acopera zonele importante:
 
 - validare env si configuratie;
 - registrul de comenzi si guard-uri anti-regresie;
-- handler-e functionale pentru `/help`, `/ping`, `/games`, `/set`, `/latest`, `/dlc`, `/status` si autocomplete;
+- handler-e functionale pentru `/help`, `/ping`, `/games`, `/set`, `/outbox`, `/latest`, `/dlc`, `/status` si autocomplete;
 - servicii de notificari pentru update-uri si reduceri;
 - repository-ul `seen` pentru deduplicare;
 - fluxuri E2E pentru update-uri si reduceri;
