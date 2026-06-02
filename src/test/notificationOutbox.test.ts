@@ -172,8 +172,49 @@ test("drainOutbox: esec tranzitoriu sub max -> reincercare cu backoff + release 
   assert.equal(updated.length, 1);
   const update = updated[0].update as { $set: { attempts: number; availableAt: Date }; $unset: Record<string, string> };
   assert.equal(update.$set.attempts, 2);
-  assert.equal(update.$set.availableAt.getTime(), 10_000 + 1000 * 2, "backoff scaleaza cu attempts");
+  const delay = update.$set.availableAt.getTime() - 10_000;
+  const base = 1000 * 2;
+  assert.ok(delay >= base * 0.5 && delay <= base * 1.5, `backoff cu jitter in [${base * 0.5}, ${base * 1.5}], a fost ${delay}`);
   assert.ok("lockedUntil" in update.$unset && "lockedBy" in update.$unset, "lease eliberat la reincercare");
+});
+
+test("drainOutbox: un deliver care ARUNCA e tratat ca esec tranzitoriu si nu opreste restul drenarii", async () => {
+  const jobs: OutboxJob[] = [
+    { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "k1" },
+    { _id: "j2", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "k2" }
+  ];
+  const { runtime, updated, deleted } = makeRuntime(jobs);
+  let calls = 0;
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => {
+      calls++;
+      if (calls === 1) throw new Error("boom la livrare");
+      return { ok: true };
+    },
+    recordDeadLetter: async () => undefined,
+    maxAttempts: 5, backoffMs: 1000, limit: 50
+  });
+  assert.equal(calls, 2, "ambele joburi au fost procesate (exceptia primului nu a oprit drenarea)");
+  assert.equal(result.sent, 1, "al doilea job a fost livrat");
+  assert.equal(result.retried, 1, "jobul care a aruncat e reprogramat (esec tranzitoriu)");
+  assert.equal(result.deadLettered, 0);
+  assert.equal(updated.length, 1, "jobul care a aruncat e re-pus in coada cu backoff");
+  assert.deepEqual(deleted, [{ _id: "j2" }], "doar jobul livrat e sters");
+});
+
+test("drainOutbox: backoff-ul este plafonat (cap) chiar la attempts/backoff mari", async () => {
+  const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 3 };
+  const { runtime, updated } = makeRuntime([job]);
+  const now = new Date(0);
+  await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: false, permanent: false }),
+    recordDeadLetter: async () => undefined,
+    maxAttempts: 50, backoffMs: 1_000_000, limit: 50, now
+  });
+  const update = updated[0].update as { $set: { availableAt: Date } };
+  const delay = update.$set.availableAt.getTime();
+  const capMs = 30 * 60 * 1000;
+  assert.ok(delay <= capMs * 1.5, `backoff plafonat la <= ${capMs * 1.5}ms (cu jitter), a fost ${delay}`);
 });
 
 test("drainOutbox: esec tranzitoriu la max attempts -> dead-letter + sters", async () => {
