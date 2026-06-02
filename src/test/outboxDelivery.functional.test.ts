@@ -7,6 +7,7 @@ interface SentPayload { embeds?: Array<{ footer?: { text?: string } }> }
 
 function makeHarness(opts: {
   recoveryVerify?: boolean;
+  recoveryStrict?: boolean;
   canSend?: boolean;
   channel?: "missing" | "ok";
   history?: "has" | "missing" | "throws";
@@ -42,7 +43,8 @@ function makeHarness(opts: {
     isPermanentDiscordError: (err: unknown) => (err as { code?: number } | null)?.code === 50001,
     acquireSendSlot: async () => undefined,
     applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker,
-    recoveryVerify: opts.recoveryVerify ?? false
+    recoveryVerify: opts.recoveryVerify ?? false,
+    recoveryStrict: opts.recoveryStrict ?? false
   });
   return { delivery, sent, client, dedupeKey, marker, getHistoryFetches: () => historyFetches };
 }
@@ -96,6 +98,27 @@ test("outboxDelivery: recovery cu fetch istoric esuat -> trimite, marcheaza reco
   const res = await h.delivery.deliver(h.client as never, { channelId: "c1", payload: { embeds: [{}] }, dedupeKey: h.dedupeKey, deliveries: 2 });
   assert.deepEqual(res, { ok: true, recoveryFetched: false, recoveryFailed: true, recoveryMarkerMissing: false });
   assert.equal(h.sent.length, 1, "la esec de verificare, trimite (fail-open)");
+});
+
+test("outboxDelivery: strict mode + fetch istoric esuat -> NU trimite, esec tranzitoriu cu recoveryFailed", async () => {
+  const h = makeHarness({ recoveryVerify: true, recoveryStrict: true, history: "throws" });
+  const res = await h.delivery.deliver(h.client as never, { channelId: "c1", payload: { embeds: [{}] }, dedupeKey: h.dedupeKey, deliveries: 2 });
+  assert.deepEqual(res, { ok: false, permanent: false, recoveryFailed: true }, "strict -> fail-closed, reprogrameaza cu backoff");
+  assert.equal(h.sent.length, 0, "strict: nu trimite cand nu poate verifica istoricul");
+});
+
+test("outboxDelivery: strict mode + marker gasit in istoric -> NU re-trimite (duplicat prevenit)", async () => {
+  const h = makeHarness({ recoveryVerify: true, recoveryStrict: true, history: "has" });
+  const res = await h.delivery.deliver(h.client as never, { channelId: "c1", payload: { embeds: [{}] }, dedupeKey: h.dedupeKey, deliveries: 2 });
+  assert.deepEqual(res, { ok: true, recoveryFetched: true, recoveryDuplicate: true });
+  assert.equal(h.sent.length, 0);
+});
+
+test("outboxDelivery: strict mode + istoric citit fara marker -> trimite normal", async () => {
+  const h = makeHarness({ recoveryVerify: true, recoveryStrict: true, history: "missing" });
+  const res = await h.delivery.deliver(h.client as never, { channelId: "c1", payload: { embeds: [{}] }, dedupeKey: h.dedupeKey, deliveries: 2 });
+  assert.deepEqual(res, { ok: true, recoveryFetched: true, recoveryFailed: false, recoveryMarkerMissing: true });
+  assert.equal(h.sent.length, 1, "verificare reusita, marker absent -> trimite");
 });
 
 test("outboxDelivery: override per-guild (job.recoveryVerify=true) activeaza verificarea desi global e off", async () => {

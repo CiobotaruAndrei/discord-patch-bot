@@ -25,6 +25,7 @@ const OUTBOX_DRAIN_LIMIT = Math.min(1000, Math.max(1, Number(process.env.NOTIFIC
 interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; attempts: number; deliveries?: number; dedupeKey?: string; }
 interface OutboxClient { user: { id: string }; channels: { fetch(channelId: string): Promise<unknown> }; }
 const OUTBOX_RECOVERY_VERIFY = process.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY === "true";
+const OUTBOX_RECOVERY_STRICT = process.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT === "true";
 const OUTBOX_RECOVERY_HISTORY_LIMIT = Math.min(100, Math.max(5, Number(process.env.NOTIFICATION_OUTBOX_RECOVERY_HISTORY_LIMIT) || 25));
 
 type GeneratedUpdateDeps =
@@ -84,6 +85,7 @@ function createNotificationRuntime(deps: NotificationsContext) {
     acquireSendSlot: () => defaultDiscordSendLimiter.acquire(),
     applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker,
     recoveryVerify: OUTBOX_RECOVERY_VERIFY,
+    recoveryStrict: OUTBOX_RECOVERY_STRICT,
     historyLimit: OUTBOX_RECOVERY_HISTORY_LIMIT
   });
 
@@ -95,13 +97,16 @@ function createNotificationRuntime(deps: NotificationsContext) {
   }
 
   async function drainOutbox(client: OutboxClient) {
-    return outbox.drainOutbox({
+    const result = await outbox.drainOutbox({
       deliver: (job: OutboxJobShape) => outboxDelivery.deliver(client, job),
       recordDeadLetter: recordOutboxDeadLetter,
       maxAttempts: OUTBOX_MAX_ATTEMPTS,
       backoffMs: OUTBOX_BACKOFF_MS,
       limit: OUTBOX_DRAIN_LIMIT
     });
+    const guildCounter = GuildModel as unknown as { countDocuments(filter: Record<string, unknown>): Promise<number> };
+    const recoveryVerifyEnabledGuilds = await guildCounter.countDocuments({ outboxRecoveryVerify: true }).catch(() => undefined);
+    return typeof recoveryVerifyEnabledGuilds === "number" ? { ...result, recoveryVerifyEnabledGuilds } : result;
   }
 
   const seenRepository = createSeenRepository({

@@ -33,6 +33,7 @@ interface OutboxMetricsLike {
   outboxRecoveryFailures: number;
   outboxRecoveryMarkerMissing: number;
   outboxMarkSentFailures: number;
+  outboxRecoveryVerifyEnabledGuilds: number;
 }
 
 interface OutboxDrainResult {
@@ -47,6 +48,7 @@ interface OutboxDrainResult {
   recoveryFailures?: number;
   recoveryMarkerMissing?: number;
   markSentFailures?: number;
+  recoveryVerifyEnabledGuilds?: number;
 }
 
 type AdminAlert = (kind: string, title: string, body: string) => Promise<unknown>;
@@ -117,6 +119,7 @@ function createOutboxWorker({
     metrics.outboxMarkSentFailures += r.markSentFailures ?? 0;
     if (typeof r.queued === "number") metrics.outboxQueueDepth = r.queued;
     if (typeof r.oldestJobAgeMs === "number") metrics.outboxOldestJobAgeSeconds = Math.round(r.oldestJobAgeMs / 1000);
+    if (typeof r.recoveryVerifyEnabledGuilds === "number") metrics.outboxRecoveryVerifyEnabledGuilds = r.recoveryVerifyEnabledGuilds;
 
     if ((r.recoveryFailures ?? 0) > 0) {
       adminAlert("outbox:recovery-read",

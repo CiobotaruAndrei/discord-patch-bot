@@ -86,7 +86,7 @@ function messageHasDedupeMarker(message: unknown, marker: string): boolean {
 
 export type DeliverResult =
   | { ok: true; recoveryFetched?: boolean; recoveryDuplicate?: boolean; recoveryFailed?: boolean; recoveryMarkerMissing?: boolean }
-  | { ok: false; permanent: boolean };
+  | { ok: false; permanent: boolean; recoveryFailed?: boolean };
 
 export interface DrainOutboxOptions {
   deliver: (job: OutboxJob) => Promise<DeliverResult>;
@@ -140,7 +140,6 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         availableAt: at
       }), { label: "enqueueOutbox" });
     } catch (err) {
-      // un job pending cu acelasi dedupeKey exista deja (index unic) -> nu duplica
       if ((err as { code?: number } | null)?.code === 11000) return;
       throw err;
     }
@@ -222,6 +221,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         sent++;
         continue;
       }
+      if (result.recoveryFailed) recoveryFailures++;
       const attempts = (job.attempts || 0) + 1;
       if (result.permanent || attempts >= options.maxAttempts) {
         await options.recordDeadLetter(job, result.permanent ? "permanent" : "max-attempts").catch(() => undefined);

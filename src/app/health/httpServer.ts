@@ -172,6 +172,7 @@ function createHttpServer({
       pushMetric(lines, seenMetricNames, "bot_outbox_recovery_verify_failures", "counter", "Outbox recovery-verify channel history fetch failures", metrics.outboxRecoveryFailures);
       pushMetric(lines, seenMetricNames, "bot_outbox_recovery_marker_missing", "counter", "Outbox recovery-verify fetched history but marker not found (re-sent)", metrics.outboxRecoveryMarkerMissing);
       pushMetric(lines, seenMetricNames, "bot_outbox_mark_sent_failures", "counter", "Outbox deliveries that could not be recorded in the sent-dedupe history", metrics.outboxMarkSentFailures);
+      pushMetric(lines, seenMetricNames, "bot_outbox_recovery_verify_enabled_guilds", "gauge", "Guilds with per-guild outbox recovery-verify enabled", metrics.outboxRecoveryVerifyEnabledGuilds);
       res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4" });
       res.end(lines.join("\n") + "\n");
       return;
