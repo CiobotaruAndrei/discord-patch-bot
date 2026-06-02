@@ -30,30 +30,23 @@ interface SteamSearchResponse {
 
 type SteamDetailsResponse = Record<string, { data?: unknown } | undefined>;
 
-interface SteamContext {
+interface SteamSourceDeps {
   logger: LoggerFunction;
   getCurrencyConfig: (code?: SteamCurrencyCode) => CurrencyConfig;
   httpReq: HttpReq;
   safeCheerioLoad: CheerioLoader;
-  searchSteamGameByName?: typeof searchSteamGameByName;
-  levenshtein?: typeof levenshtein;
-  chooseBestSteamMatch?: typeof chooseBestSteamMatch;
-  fetchSteamPriceDetails?: typeof fetchSteamPriceDetails;
-  extractOfferEndFromHtml?: typeof extractOfferEndFromHtml;
-  extractSteamOfferEndDate?: typeof extractSteamOfferEndDate;
-  [key: string]: unknown;
 }
 
-let runtimeContext: Pick<SteamContext, "logger" | "getCurrencyConfig" | "httpReq" | "safeCheerioLoad">;
-
-async function searchSteamGameByName(query: string, currencyCode?: SteamCurrencyCode): Promise<SteamSearchItem[]> {
-  const cc = runtimeContext.getCurrencyConfig(currencyCode).cc;
-  const searchRes = await runtimeContext.httpReq("GET",
-    `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(query)}&cc=${cc}&l=english`,
-    { largeJson: true });
-  const data = searchRes.data as SteamSearchResponse | undefined;
-  return data?.items || [];
+interface SteamSourceApi {
+  searchSteamGameByName: (query: string, currencyCode?: SteamCurrencyCode) => Promise<SteamSearchItem[]>;
+  levenshtein: typeof levenshtein;
+  chooseBestSteamMatch: typeof chooseBestSteamMatch;
+  fetchSteamPriceDetails: (appId: string | number, currencyCode?: SteamCurrencyCode) => Promise<unknown | null>;
+  extractOfferEndFromHtml: (html: unknown) => string | null;
+  extractSteamOfferEndDate: (appId: string | number, currencyCode?: SteamCurrencyCode) => Promise<string | null>;
 }
+
+type SteamSourceContext = SteamSourceDeps & Record<string, unknown>;
 
 function chooseBestSteamMatch(
   items: SteamSearchItem[] | null | undefined,
@@ -105,91 +98,107 @@ function chooseBestSteamMatch(
   return bestMatch;
 }
 
-async function fetchSteamPriceDetails(appId: string | number, currencyCode?: SteamCurrencyCode): Promise<unknown | null> {
-  const cc = runtimeContext.getCurrencyConfig(currencyCode).cc;
-  const detailsUrl = new URL("https://store.steampowered.com/api/appdetails");
-  detailsUrl.searchParams.set("appids", String(appId));
-  detailsUrl.searchParams.set("cc", cc);
-  detailsUrl.searchParams.set("l", "english");
-  const detailsRes = await runtimeContext.httpReq("GET", detailsUrl.toString(), { largeJson: true });
-  const data = (detailsRes.data || {}) as SteamDetailsResponse;
-  return data[String(appId)]?.data || null;
-}
+function createSteamSource(deps: SteamSourceDeps): SteamSourceApi {
+  const { logger, getCurrencyConfig, httpReq, safeCheerioLoad } = deps;
 
-function extractOfferEndFromHtml(html: unknown): string | null {
-  let cheerioThrew = false;
-  try {
-    const $ = runtimeContext.safeCheerioLoad(html);
-    const cdText = $(".game_purchase_discount_countdown").first().text().trim();
-    if (cdText) {
-      const match = cdText.match(/(?:Offer|Sale|Special\s+promotion)\s+ends\s+([^<\n]+)/i)
-        || cdText.match(/Daily\s+Deal!?\s*Offer\s+ends\s+([^<\n]+)/i);
-      if (match && match[1]) return match[1].trim().slice(0, 200).replace(/\s{2,}/g, " ");
+  async function searchSteamGameByName(query: string, currencyCode?: SteamCurrencyCode): Promise<SteamSearchItem[]> {
+    const cc = getCurrencyConfig(currencyCode).cc;
+    const searchRes = await httpReq("GET",
+      `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(query)}&cc=${cc}&l=english`,
+      { largeJson: true });
+    const data = searchRes.data as SteamSearchResponse | undefined;
+    return data?.items || [];
+  }
+
+  async function fetchSteamPriceDetails(appId: string | number, currencyCode?: SteamCurrencyCode): Promise<unknown | null> {
+    const cc = getCurrencyConfig(currencyCode).cc;
+    const detailsUrl = new URL("https://store.steampowered.com/api/appdetails");
+    detailsUrl.searchParams.set("appids", String(appId));
+    detailsUrl.searchParams.set("cc", cc);
+    detailsUrl.searchParams.set("l", "english");
+    const detailsRes = await httpReq("GET", detailsUrl.toString(), { largeJson: true });
+    const data = (detailsRes.data || {}) as SteamDetailsResponse;
+    return data[String(appId)]?.data || null;
+  }
+
+  function extractOfferEndFromHtml(html: unknown): string | null {
+    let cheerioThrew = false;
+    try {
+      const $ = safeCheerioLoad(html);
+      const cdText = $(".game_purchase_discount_countdown").first().text().trim();
+      if (cdText) {
+        const match = cdText.match(/(?:Offer|Sale|Special\s+promotion)\s+ends\s+([^<\n]+)/i)
+          || cdText.match(/Daily\s+Deal!?\s*Offer\s+ends\s+([^<\n]+)/i);
+        if (match && match[1]) return match[1].trim().slice(0, 200).replace(/\s{2,}/g, " ");
+      }
+
+      const scopedText = $(".game_area_purchase, .game_purchase_action, .discount_block").text();
+      const candidates = [
+        /Offer ends\s+([^<\n]+)/i,
+        /Sale ends\s+([^<\n]+)/i,
+        /Special promotion ends\s+([^<\n]+)/i,
+        /Daily Deal!?\s*Offer ends\s+([^<\n]+)/i
+      ];
+      for (const re of candidates) {
+        const match = scopedText.match(re);
+        if (match && match[1]) return match[1].trim().slice(0, 200).replace(/\s{2,}/g, " ");
+      }
+    } catch {
+      cheerioThrew = true;
     }
 
-    const scopedText = $(".game_area_purchase, .game_purchase_action, .discount_block").text();
-    const candidates = [
+    if (!cheerioThrew) return null;
+    const rawText = String(html || "");
+    const rawCandidates = [
       /Offer ends\s+([^<\n]+)/i,
       /Sale ends\s+([^<\n]+)/i,
       /Special promotion ends\s+([^<\n]+)/i,
       /Daily Deal!?\s*Offer ends\s+([^<\n]+)/i
     ];
-    for (const re of candidates) {
-      const match = scopedText.match(re);
+    for (const re of rawCandidates) {
+      const match = rawText.match(re);
       if (match && match[1]) return match[1].trim().slice(0, 200).replace(/\s{2,}/g, " ");
     }
-  } catch {
-    cheerioThrew = true;
-  }
-
-  if (!cheerioThrew) return null;
-  const rawText = String(html || "");
-  const rawCandidates = [
-    /Offer ends\s+([^<\n]+)/i,
-    /Sale ends\s+([^<\n]+)/i,
-    /Special promotion ends\s+([^<\n]+)/i,
-    /Daily Deal!?\s*Offer ends\s+([^<\n]+)/i
-  ];
-  for (const re of rawCandidates) {
-    const match = rawText.match(re);
-    if (match && match[1]) return match[1].trim().slice(0, 200).replace(/\s{2,}/g, " ");
-  }
-  return null;
-}
-
-async function extractSteamOfferEndDate(appId: string | number, currencyCode?: SteamCurrencyCode): Promise<string | null> {
-  const cc = runtimeContext.getCurrencyConfig(currencyCode).cc;
-  try {
-    const safeAppId = encodeURIComponent(String(appId));
-    const htmlUrl = new URL(`https://store.steampowered.com/app/${safeAppId}`);
-    htmlUrl.searchParams.set("cc", cc);
-    htmlUrl.searchParams.set("l", "english");
-    const htmlRes = await runtimeContext.httpReq("GET", htmlUrl.toString(), {
-      headers: { "Cookie": "birthtime=283993201; mature_content=1;" }
-    });
-    return extractOfferEndFromHtml(String(htmlRes.data));
-  } catch (err) {
-    runtimeContext.logger("WARN", "PRICE_SEARCH", `Nu am putut extrage data expirarii pentru app ${appId}`, errorMessage(err));
     return null;
   }
-}
 
-function attachSteam(target: SteamContext): void {
-  runtimeContext = {
-    logger: target.logger,
-    getCurrencyConfig: target.getCurrencyConfig,
-    httpReq: target.httpReq,
-    safeCheerioLoad: target.safeCheerioLoad
-  };
+  async function extractSteamOfferEndDate(appId: string | number, currencyCode?: SteamCurrencyCode): Promise<string | null> {
+    const cc = getCurrencyConfig(currencyCode).cc;
+    try {
+      const safeAppId = encodeURIComponent(String(appId));
+      const htmlUrl = new URL(`https://store.steampowered.com/app/${safeAppId}`);
+      htmlUrl.searchParams.set("cc", cc);
+      htmlUrl.searchParams.set("l", "english");
+      const htmlRes = await httpReq("GET", htmlUrl.toString(), {
+        headers: { "Cookie": "birthtime=283993201; mature_content=1;" }
+      });
+      return extractOfferEndFromHtml(String(htmlRes.data));
+    } catch (err) {
+      logger("WARN", "PRICE_SEARCH", `Nu am putut extrage data expirarii pentru app ${appId}`, errorMessage(err));
+      return null;
+    }
+  }
 
-  Object.assign(target, {
+  return {
     searchSteamGameByName,
     levenshtein,
     chooseBestSteamMatch,
     fetchSteamPriceDetails,
     extractOfferEndFromHtml,
     extractSteamOfferEndDate
-  });
+  };
 }
+
+function attachSteam(target: SteamSourceContext): void {
+  Object.assign(target, createSteamSource({
+    logger: target.logger,
+    getCurrencyConfig: target.getCurrencyConfig,
+    httpReq: target.httpReq,
+    safeCheerioLoad: target.safeCheerioLoad
+  }));
+}
+
+attachSteam.createSteamSource = createSteamSource;
+attachSteam.chooseBestSteamMatch = chooseBestSteamMatch;
 
 export = attachSteam;
