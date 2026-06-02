@@ -71,7 +71,8 @@ Daca livrarile sunt incetinite de rate-limit:
    indica throttling, nu esecuri.
 2. Bot-ul respecta deja un token-bucket global la trimitere; nu forta drenarea agresiv.
 3. Daca e backlog temporar, lasa worker-ul sa-l goleasca; pentru urgente punctuale,
-   `/outbox retry` reprogrameaza joburile acestui server pentru livrare imediata.
+   `/outbox retry` reprogrameaza joburile acestui server pentru livrare imediata, iar
+   `/outbox drain-now` forteaza o drenare pe loc (doar daca lock-ul `outbox_drain` e liber).
 
 ## Mentenanta: pauza drenarii
 

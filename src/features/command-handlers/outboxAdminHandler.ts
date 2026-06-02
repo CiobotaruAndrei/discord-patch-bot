@@ -7,6 +7,7 @@ type GameConfig = { key: string } & Record<string, unknown>;
 type DiscordInteraction = {
   commandName?: string;
   guild?: { id: string } | null;
+  client?: unknown;
   deferred?: boolean;
   replied?: boolean;
   options: {
@@ -17,6 +18,13 @@ type DiscordInteraction = {
   reply: (payload: unknown) => Promise<unknown>;
   followUp?: (payload: unknown) => Promise<unknown>;
 };
+
+interface DrainResultLike {
+  sent?: number;
+  retried?: number;
+  deadLettered?: number;
+  queued?: number;
+}
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 
 interface OutboxModelLike {
@@ -54,6 +62,9 @@ type OutboxAdminDeps = {
   getOutboxPaused: () => Promise<boolean>;
   setOutboxPaused: (paused: boolean) => Promise<void>;
   checkChannelPermissions: (interaction: DiscordInteraction, channelId: string) => Promise<ChannelPermissions | null>;
+  acquireDbLock: (jobName: string, ttlMs: number) => Promise<string | null>;
+  releaseDbLock: (jobName: string, token: string) => Promise<unknown>;
+  drainOutbox: (client: unknown) => Promise<DrainResultLike | unknown>;
   safeDefer: (interaction: DiscordInteraction) => Promise<unknown>;
   safeEdit: (interaction: DiscordInteraction, content: string) => Promise<unknown>;
   formatUserError: (err: unknown, fallback: string, code?: string) => string;
@@ -70,6 +81,8 @@ type OutboxAdminContext = OutboxAdminDeps & {
 };
 
 const DEFAULT_DEAD_LETTER_PREVIEW = 10;
+const OUTBOX_DRAIN_LOCK_NAME = "outbox_drain";
+const DRAIN_NOW_LOCK_TTL_MS = 120_000;
 
 function onOff(value: boolean): string {
   return value ? "ON" : "OFF";
@@ -85,6 +98,7 @@ function formatDeadLetterEntry(entry: DeadLetterEntryLike): string {
 function createOutboxAdminHandler(deps: OutboxAdminDeps) {
   const {
     NotificationOutboxModel, getGuildSettings, getOutboxPaused, setOutboxPaused, checkChannelPermissions,
+    acquireDbLock, releaseDbLock, drainOutbox,
     safeDefer, safeEdit, formatUserError, logger,
     outboxEnabled, recoveryVerifyGlobal, recoveryStrict
   } = deps;
@@ -166,6 +180,23 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
     return lines.join("\n");
   }
 
+  async function drainNow(interaction: DiscordInteraction): Promise<string> {
+    if (!outboxEnabled) {
+      return "Outbox-ul nu este activat (`NOTIFICATION_OUTBOX_ENABLED=false`), nu exista ce drena.";
+    }
+    const token = await acquireDbLock(OUTBOX_DRAIN_LOCK_NAME, DRAIN_NOW_LOCK_TTL_MS);
+    if (!token) {
+      return "Lock-ul `outbox_drain` e detinut de o alta drenare (worker sau alta instanta). Reincearca peste putin.";
+    }
+    try {
+      const result = (await drainOutbox(interaction.client)) as DrainResultLike;
+      const r = result && typeof result === "object" ? result : {};
+      return `OK: drenare imediata - trimise **${r.sent ?? 0}**, reincercate **${r.retried ?? 0}**, dead-letter **${r.deadLettered ?? 0}**, ramase in coada **${r.queued ?? 0}**.`;
+    } finally {
+      await releaseDbLock(OUTBOX_DRAIN_LOCK_NAME, token).catch(() => undefined);
+    }
+  }
+
   async function handleOutboxInteraction(interaction: DiscordInteraction): Promise<unknown> {
     if (!interaction.guild) return undefined;
     const guildId = interaction.guild.id;
@@ -190,6 +221,7 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
           return safeEdit(interaction, "OK: Drenarea outbox-ului a fost reluata (global).");
         }
         if (sub === "permissions") return safeEdit(interaction, await renderPermissions(interaction, guildId));
+        if (sub === "drain-now") return safeEdit(interaction, await drainNow(interaction));
       }
       logger("WARN", "OUTBOX_COMMAND", `Subcomanda /outbox necunoscuta: ${group ? `${group} ` : ""}${sub}`);
       return safeEdit(interaction, `Eroare: Subcomanda \`/outbox ${group ? `${group} ` : ""}${sub}\` nu este recunoscuta.`);
@@ -216,6 +248,9 @@ function installOutboxAdminHandler(target: OutboxAdminContext): void {
     getOutboxPaused: target.getOutboxPaused,
     setOutboxPaused: target.setOutboxPaused,
     checkChannelPermissions: target.checkChannelPermissions,
+    acquireDbLock: target.acquireDbLock,
+    releaseDbLock: target.releaseDbLock,
+    drainOutbox: target.drainOutbox,
     safeDefer: target.safeDefer,
     safeEdit: target.safeEdit,
     formatUserError: target.formatUserError,
