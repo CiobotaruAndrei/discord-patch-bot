@@ -72,7 +72,7 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
         value:
           "`/outbox status` - `/outbox deadletters`\n" +
           "`/outbox retry` - `/outbox pause` - `/outbox resume`\n" +
-          "`/outbox recovery-verify status`"
+          "`/outbox permissions` - `/outbox recovery-verify status`"
       },
       {
         name: "Comenzi Manuale",

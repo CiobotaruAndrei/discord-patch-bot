@@ -47,7 +47,9 @@ permisiunea **Read Message History**). In modul implicit (fail-open) mesajul se 
 
 1. Vei primi si admin alert-ul `outbox:recovery-read`.
 2. Acorda botului permisiunea **Read Message History** pe canalele de notificari/reduceri.
-   `/set outbox-recovery-verify on` avertizeaza deja la activare daca permisiunea lipseste.
+   `/set outbox-recovery-verify on` avertizeaza deja la activare daca permisiunea lipseste,
+   iar `/outbox permissions` auditeaza oricand permisiunile curente (Send Messages / Embed
+   Links / Read Message History) pe canalele configurate.
 3. Daca duplicatele sunt foarte grave si preferi sa NU se trimita pana cand verificarea
    reuseste, porneste modul strict: `NOTIFICATION_OUTBOX_RECOVERY_STRICT=true` (fail-closed:
    reprogrameaza jobul cu backoff in loc sa trimita).

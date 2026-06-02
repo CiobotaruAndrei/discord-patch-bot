@@ -36,6 +36,14 @@ interface DeadLetterEntryLike {
 interface GuildSettingsLike {
   outboxRecoveryVerify?: boolean;
   notificationDeadLetter?: DeadLetterEntryLike[];
+  notificationChannelId?: string | null;
+  discountChannelId?: string | null;
+}
+
+interface ChannelPermissions {
+  sendMessages: boolean;
+  embedLinks: boolean;
+  readMessageHistory: boolean;
 }
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
@@ -45,6 +53,7 @@ type OutboxAdminDeps = {
   getGuildSettings: (guildId: string) => Promise<GuildSettingsLike | null>;
   getOutboxPaused: () => Promise<boolean>;
   setOutboxPaused: (paused: boolean) => Promise<void>;
+  checkChannelPermissions: (interaction: DiscordInteraction, channelId: string) => Promise<ChannelPermissions | null>;
   safeDefer: (interaction: DiscordInteraction) => Promise<unknown>;
   safeEdit: (interaction: DiscordInteraction, content: string) => Promise<unknown>;
   formatUserError: (err: unknown, fallback: string, code?: string) => string;
@@ -75,7 +84,7 @@ function formatDeadLetterEntry(entry: DeadLetterEntryLike): string {
 
 function createOutboxAdminHandler(deps: OutboxAdminDeps) {
   const {
-    NotificationOutboxModel, getGuildSettings, getOutboxPaused, setOutboxPaused,
+    NotificationOutboxModel, getGuildSettings, getOutboxPaused, setOutboxPaused, checkChannelPermissions,
     safeDefer, safeEdit, formatUserError, logger,
     outboxEnabled, recoveryVerifyGlobal, recoveryStrict
   } = deps;
@@ -132,6 +141,31 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
     ].join("\n");
   }
 
+  async function renderPermissions(interaction: DiscordInteraction, guildId: string): Promise<string> {
+    const settings = await getGuildSettings(guildId).catch(() => null);
+    const channels = [
+      { label: "Update-uri", id: settings?.notificationChannelId },
+      { label: "Reduceri", id: settings?.discountChannelId }
+    ].filter((c): c is { label: string; id: string } => typeof c.id === "string" && c.id.length > 0);
+    if (!channels.length) {
+      return "Niciun canal de notificari configurat. Foloseste `/start updates` / `/start reduceri`.";
+    }
+    const mark = (ok: boolean) => (ok ? "OK" : "LIPSA");
+    const lines: string[] = ["**Permisiuni bot pe canale (audit)**"];
+    for (const channel of channels) {
+      const perms = await checkChannelPermissions(interaction, channel.id).catch(() => null);
+      if (!perms) {
+        lines.push(`- ${channel.label} (<#${channel.id}>): necunoscut (canal inaccesibil sau sters?)`);
+        continue;
+      }
+      lines.push(`- ${channel.label} (<#${channel.id}>): Send Messages **${mark(perms.sendMessages)}** | Embed Links **${mark(perms.embedLinks)}** | Read Message History **${mark(perms.readMessageHistory)}**`);
+      if (!perms.readMessageHistory) {
+        lines.push("  :warning: fara Read Message History, recovery-verify nu poate citi istoricul canalului");
+      }
+    }
+    return lines.join("\n");
+  }
+
   async function handleOutboxInteraction(interaction: DiscordInteraction): Promise<unknown> {
     if (!interaction.guild) return undefined;
     const guildId = interaction.guild.id;
@@ -155,6 +189,7 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
           await setOutboxPaused(false);
           return safeEdit(interaction, "OK: Drenarea outbox-ului a fost reluata (global).");
         }
+        if (sub === "permissions") return safeEdit(interaction, await renderPermissions(interaction, guildId));
       }
       logger("WARN", "OUTBOX_COMMAND", `Subcomanda /outbox necunoscuta: ${group ? `${group} ` : ""}${sub}`);
       return safeEdit(interaction, `Eroare: Subcomanda \`/outbox ${group ? `${group} ` : ""}${sub}\` nu este recunoscuta.`);
@@ -180,6 +215,7 @@ function installOutboxAdminHandler(target: OutboxAdminContext): void {
     getGuildSettings: target.getGuildSettings,
     getOutboxPaused: target.getOutboxPaused,
     setOutboxPaused: target.setOutboxPaused,
+    checkChannelPermissions: target.checkChannelPermissions,
     safeDefer: target.safeDefer,
     safeEdit: target.safeEdit,
     formatUserError: target.formatUserError,
