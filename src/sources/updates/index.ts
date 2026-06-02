@@ -107,7 +107,7 @@ interface RobloxVersionResponse {
   clientVersionUpload?: string;
 }
 
-interface UpdatesContext {
+interface UpdatesDeps {
   rssParser: RssParserLike;
   CircuitBreakerModel: Model<CircuitBreakerDoc>;
   logger: LoggerFunction;
@@ -134,27 +134,32 @@ interface UpdatesContext {
   safeCheerioLoad: (html: unknown) => CheerioAPI;
   crypto: typeof import("crypto");
   metricsRef: Pick<BotMetrics, "fetchSuccess" | "fetchFail">;
-  absoluteUrl?: typeof absoluteUrl;
-  isGoodSteamArticleUrl?: typeof isGoodSteamArticleUrl;
-  extractDateScore?: typeof extractDateScore;
-  scoreCandidate?: typeof scoreCandidate;
-  isLikelyPatchNote?: typeof isLikelyPatchNote;
-  fetchSteamUpdate?: typeof fetchSteamUpdate;
-  fetchListingBasedUpdate?: typeof fetchListingBasedUpdate;
-  fetchFortniteUpdate?: typeof fetchFortniteUpdate;
-  fetchAmdUpdate?: typeof fetchAmdUpdate;
-  fetchIntelUpdate?: typeof fetchIntelUpdate;
-  fetchMinecraftUpdate?: typeof fetchMinecraftUpdate;
-  fetchRobloxUpdate?: typeof fetchRobloxUpdate;
-  fetchNvidiaUpdate?: typeof fetchNvidiaUpdate;
-  fetchGameUpdate?: typeof fetchGameUpdate;
-  executeFetchWithCircuitBreaker?: typeof executeFetchWithCircuitBreaker;
-  sourceConcurrencyGroup?: typeof sourceConcurrencyGroup;
-  getLatestForAllGames?: typeof getLatestForAllGames;
-  [key: string]: unknown;
+  executeFetchWithCircuitBreaker?: (game: GameConfig) => Promise<FetchResult>;
 }
 
-let runtimeContext: UpdatesContext;
+interface UpdatesApi {
+  absoluteUrl: typeof absoluteUrl;
+  isGoodSteamArticleUrl: typeof isGoodSteamArticleUrl;
+  extractDateScore: typeof extractDateScore;
+  scoreCandidate: typeof scoreCandidate;
+  isLikelyPatchNote: typeof isLikelyPatchNote;
+  fetchSteamUpdate: typeof fetchSteamUpdate;
+  fetchListingBasedUpdate: typeof fetchListingBasedUpdate;
+  fetchFortniteUpdate: typeof fetchFortniteUpdate;
+  fetchAmdUpdate: typeof fetchAmdUpdate;
+  fetchIntelUpdate: typeof fetchIntelUpdate;
+  fetchMinecraftUpdate: typeof fetchMinecraftUpdate;
+  fetchRobloxUpdate: typeof fetchRobloxUpdate;
+  fetchNvidiaUpdate: typeof fetchNvidiaUpdate;
+  fetchGameUpdate: typeof fetchGameUpdate;
+  executeFetchWithCircuitBreaker: typeof executeFetchWithCircuitBreaker;
+  sourceConcurrencyGroup: typeof sourceConcurrencyGroup;
+  getLatestForAllGames: typeof getLatestForAllGames;
+}
+
+type UpdatesContext = UpdatesDeps & Record<string, unknown>;
+
+let deps: UpdatesDeps;
 const inflightAllGames = new Map<string, Promise<FetchResult[]>>();
 
 function absoluteUrl(base: string | undefined, maybeRelative: string | undefined): string {
@@ -202,7 +207,7 @@ function concurrencyForGroup(group: string): number {
   const {
     FETCH_CONCURRENCY, FETCH_CONCURRENCY_STEAM, FETCH_CONCURRENCY_EPIC,
     FETCH_CONCURRENCY_LISTING, FETCH_CONCURRENCY_DRIVER
-  } = runtimeContext;
+  } = deps;
   if (group === "steam") return FETCH_CONCURRENCY_STEAM;
   if (group === "epic") return FETCH_CONCURRENCY_EPIC;
   if (group === "listing") return FETCH_CONCURRENCY_LISTING;
@@ -211,7 +216,7 @@ function concurrencyForGroup(group: string): number {
 }
 
 async function fetchSteamUpdate(game: GameConfig): Promise<NormalizedUpdate> {
-  const { conditionalGet, normalizeUpdate, cleanText } = runtimeContext;
+  const { conditionalGet, normalizeUpdate, cleanText } = deps;
   const url = `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${game.appId}&count=50&format=json`;
   return conditionalGet(url, (raw) => {
     const data = raw as SteamNewsResponse;
@@ -245,7 +250,7 @@ function computeSteamTimestamp(rawDate: unknown): string {
 }
 
 async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpdate> {
-  const { httpReq, safeCheerioLoad, cleanText, normalizeUpdate, logger, SchemaDriftError } = runtimeContext;
+  const { httpReq, safeCheerioLoad, cleanText, normalizeUpdate, logger, SchemaDriftError } = deps;
   const rawListingUrls: Array<string | undefined> = Array.isArray(game.listingUrls) && game.listingUrls.length
     ? game.listingUrls : [game.listingUrl];
   const listingUrls: string[] = rawListingUrls.filter(
@@ -346,7 +351,7 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
 }
 
 async function fetchFortniteUpdate(): Promise<NormalizedUpdate> {
-  const { fetchWithProxy, rssParser, httpReq, logger, normalizeUpdate, cleanText, stableUpdateId } = runtimeContext;
+  const { fetchWithProxy, rssParser, httpReq, logger, normalizeUpdate, cleanText, stableUpdateId } = deps;
   try {
     const fortniteResponse = JSON.parse(await fetchWithProxy(
       "https://www.fortnite.com/api/blog/getPosts?postsPerPage=10&offset=0&locale=en-US",
@@ -385,7 +390,7 @@ async function fetchFortniteUpdate(): Promise<NormalizedUpdate> {
 }
 
 async function fetchAmdUpdate(game: GameConfig): Promise<NormalizedUpdate> {
-  const { fetchWithProxy, httpReq, rssParser, logger, normalizeUpdate, cleanText, stableUpdateId } = runtimeContext;
+  const { fetchWithProxy, httpReq, rssParser, logger, normalizeUpdate, cleanText, stableUpdateId } = deps;
   try {
     const rawContent = await fetchWithProxy("https://www.amd.com/en/support/download/drivers.html");
     const match = rawContent.match(/Adrenalin Edition\s+([\d\.]+)/i);
@@ -419,7 +424,7 @@ async function fetchAmdUpdate(game: GameConfig): Promise<NormalizedUpdate> {
 }
 
 async function fetchIntelUpdate(game: GameConfig): Promise<NormalizedUpdate> {
-  const { fetchWithProxy, httpReq, rssParser, logger, normalizeUpdate, cleanText, stableUpdateId } = runtimeContext;
+  const { fetchWithProxy, httpReq, rssParser, logger, normalizeUpdate, cleanText, stableUpdateId } = deps;
   try {
     const rawContent = await fetchWithProxy(game.url as string);
     const match = rawContent.match(/\b(\d{2,3}\.\d+\.\d+\.\d+)\b/);
@@ -456,7 +461,7 @@ async function fetchIntelUpdate(game: GameConfig): Promise<NormalizedUpdate> {
 }
 
 async function fetchMinecraftUpdate(): Promise<NormalizedUpdate> {
-  const { conditionalGet, normalizeUpdate } = runtimeContext;
+  const { conditionalGet, normalizeUpdate } = deps;
   return conditionalGet("https://pistonmeta.mojang.com/mc/game/version_manifest_v2.json", (raw) => {
     const manifest = raw as MinecraftVersionManifest;
     const v = manifest.latest?.release;
@@ -472,7 +477,7 @@ async function fetchMinecraftUpdate(): Promise<NormalizedUpdate> {
 }
 
 async function fetchRobloxUpdate(): Promise<NormalizedUpdate> {
-  const { conditionalGet, normalizeUpdate } = runtimeContext;
+  const { conditionalGet, normalizeUpdate } = deps;
   return conditionalGet("https://clientsettings.roblox.com/v2/clientversion/WindowsPlayer", (raw) => {
     const versionInfo = raw as RobloxVersionResponse;
     const v = versionInfo.clientVersionUpload;
@@ -488,7 +493,7 @@ async function fetchRobloxUpdate(): Promise<NormalizedUpdate> {
 }
 
 async function fetchNvidiaUpdate(g: GameConfig): Promise<NormalizedUpdate> {
-  const { conditionalGet, rssParser, normalizeUpdate, cleanText, stableUpdateId } = runtimeContext;
+  const { conditionalGet, rssParser, normalizeUpdate, cleanText, stableUpdateId } = deps;
   const q = g.key === "nvidiastudio" ? '"Studio Driver"' : '"Game Ready Driver"';
   const url = `https://news.google.com/rss/search?q=${encodeURIComponent(`site:nvidia.com ${q} release`)}&hl=en-US`;
   return conditionalGet(url, async (raw) => {
@@ -532,7 +537,7 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
     SchemaDriftError,
     adminAlert,
     metricsRef
-  } = runtimeContext;
+  } = deps;
   let cb: CircuitBreakerDoc | null = null;
   try {
     cb = await CircuitBreakerModel.findOneAndUpdate(
@@ -542,7 +547,7 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
     );
     if (!cb) throw new Error(`Circuit breaker document lipsa pentru ${game.key}`);
   } catch (cbGetErr) {
-    runtimeContext.logger("WARN", "CIRCUIT_BREAKER",
+    deps.logger("WARN", "CIRCUIT_BREAKER",
       `Eroare la citirea state-ului CB pentru ${game.key}, sar fetch-ul ciclului curent`,
       errorMessage(cbGetErr));
     metricsRef.fetchFail++;
@@ -611,7 +616,7 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
         }
       }
     } catch (bookkeepingErr) {
-      runtimeContext.logger("WARN", "CIRCUIT_BREAKER",
+      deps.logger("WARN", "CIRCUIT_BREAKER",
         `Eroare la actualizarea state-ului circuit breaker pentru ${game.key}`,
         errorMessage(bookkeepingErr));
     }
@@ -621,8 +626,8 @@ async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchRe
 }
 
 async function _getLatestForAllGamesImpl(games: GameConfig[], shouldAbort?: AbortPredicate): Promise<FetchResult[]> {
-  const { runConcurrent, logger } = runtimeContext;
-  const exec = runtimeContext.executeFetchWithCircuitBreaker || executeFetchWithCircuitBreaker;
+  const { runConcurrent, logger } = deps;
+  const exec = deps.executeFetchWithCircuitBreaker || executeFetchWithCircuitBreaker;
   const list = games.slice();
   const results = new Array<FetchResult | undefined>(list.length);
 
@@ -665,7 +670,7 @@ async function _getLatestForAllGamesImpl(games: GameConfig[], shouldAbort?: Abor
 }
 
 async function getLatestForAllGames(games: GameConfig[], shouldAbort?: AbortPredicate): Promise<FetchResult[]> {
-  const { crypto, logger, withInflightTimeout, trackInflight } = runtimeContext;
+  const { crypto, logger, withInflightTimeout, trackInflight } = deps;
   const sourceModeBase = shouldAbort ? "cron" : "manual";
   const keysHash = crypto.createHash("sha1")
     .update(games.map(g => String(g.key)).sort().join(","))
@@ -685,10 +690,9 @@ async function getLatestForAllGames(games: GameConfig[], shouldAbort?: AbortPred
   return promise;
 }
 
-function attachUpdates(target: UpdatesContext): void {
-  runtimeContext = target;
-
-  Object.assign(target, {
+function createUpdates(d: UpdatesDeps): UpdatesApi {
+  deps = d;
+  return {
     absoluteUrl,
     isGoodSteamArticleUrl,
     extractDateScore,
@@ -706,9 +710,14 @@ function attachUpdates(target: UpdatesContext): void {
     executeFetchWithCircuitBreaker,
     sourceConcurrencyGroup,
     getLatestForAllGames
-  });
+  };
+}
+
+function attachUpdates(target: UpdatesContext): void {
+  Object.assign(target, createUpdates(target));
 }
 
 attachUpdates.sourceConcurrencyGroup = sourceConcurrencyGroup;
+attachUpdates.createUpdates = createUpdates;
 
 export = attachUpdates;
