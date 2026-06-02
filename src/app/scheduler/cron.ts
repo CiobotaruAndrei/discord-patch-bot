@@ -208,7 +208,6 @@ function createCronController({
           errorMessage(err));
       }
       if (!lifecycle.isShuttingDown && currentCronToken === lockToken) {
-        // Re-armam doar cat timp lock-ul e inca al nostru, ca sa nu reinnoim un lock deja eliberat.
         heartbeatTimerId = setTimeout(tick, heartbeatIntervalMs);
         if (typeof heartbeatTimerId.unref === "function") heartbeatTimerId.unref();
       }
@@ -315,7 +314,6 @@ function createCronController({
         recordHealth(success, durationMs);
         if (cronCycleBudgetMs > 0 && durationMs > cronCycleBudgetMs) shedDiscountsNextCycle = true;
 
-        // Invalidam tokenul inainte de stopHeartbeat/releaseDbLock: un tick de heartbeat aflat in zbor vede currentCronToken !== lockToken si nu se re-armeaza dupa eliberarea lock-ului.
         currentCronToken = null;
         stopHeartbeat();
         await releaseDbLock("cron_main", lockToken).catch(() => null);

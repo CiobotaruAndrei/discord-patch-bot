@@ -22,16 +22,7 @@ const ignoredFiles = new Set<string>([
 ]);
 const checkedExtensions = new Set<string>([".ts", ".js", ".rs"]);
 
-const ALLOWED_COMMENTS: AllowedComment[] = [
-  {
-    file: path.normalize("app/scheduler/cron.ts"),
-    text: "// Re-armam doar cat timp lock-ul e inca al nostru, ca sa nu reinnoim un lock deja eliberat."
-  },
-  {
-    file: path.normalize("app/scheduler/cron.ts"),
-    text: "// Invalidam tokenul inainte de stopHeartbeat/releaseDbLock: un tick de heartbeat aflat in zbor vede currentCronToken !== lockToken si nu se re-armeaza dupa eliberarea lock-ului."
-  }
-];
+const ALLOWED_COMMENTS: AllowedComment[] = [];
 
 function findCommentsTsLike(text: string, fileName: string): FoundComment[] {
   const scriptKind = fileName.endsWith(".js") ? ts.ScriptKind.JS : ts.ScriptKind.TS;
