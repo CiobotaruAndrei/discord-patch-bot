@@ -89,10 +89,9 @@ interface EpicStoreElement {
   };
 }
 
-interface DealsContext {
+interface DealsDeps {
   logger: LoggerFunction;
   getCurrencyConfig: (code?: DealCurrencyCode) => CurrencyConfig;
-  formatPrice?: (value: unknown, currencyCode?: DealCurrencyCode) => string;
   STEAM_REVIEW_BATCH_SIZE: number;
   STEAM_REVIEW_BATCH_DELAY_MS: number;
   ENRICHED_DEAL_CACHE_TTL_MS: number;
@@ -105,23 +104,27 @@ interface DealsContext {
   trackInflight: TrackInflight;
   withInflightTimeout: WithInflightTimeout;
   extractOfferEndFromHtml: (html: unknown) => string | null;
-  fetchSteamReviewData?: typeof fetchSteamReviewData;
-  enrichCacheGet?: typeof enrichCacheGet;
-  enrichCacheSet?: typeof enrichCacheSet;
-  cleanEnrichedCache?: typeof cleanEnrichedCache;
-  getEnrichedCacheSize?: typeof getEnrichedCacheSize;
-  enrichDealData?: typeof enrichDealData;
-  fetchDeals?: typeof fetchDeals;
-  [key: string]: unknown;
 }
 
-let runtimeContext: DealsContext;
+interface DealsApi {
+  fetchSteamReviewData: (appId: string | number) => Promise<SteamReviewData>;
+  enrichCacheGet: (dealId: unknown, currency: string) => DealInfo | null;
+  enrichCacheSet: (dealId: unknown, enriched: DealInfo, currency: string) => void;
+  cleanEnrichedCache: () => void;
+  getEnrichedCacheSize: () => number;
+  enrichDealData: (deal: DealInfo, currencyCode?: DealCurrencyCode) => Promise<DealInfo>;
+  fetchDeals: (opts?: FetchDealsOptions) => Promise<DealInfo[]>;
+}
+
+type DealsContext = DealsDeps & Record<string, unknown>;
+
+let deps: DealsDeps;
 const activeEnrichments = new Map<string, Promise<DealInfo>>();
 const enrichedCache = new Map<string, EnrichedCacheEntry>();
 const inflightDeals = new Map<string, Promise<DealInfo[]>>();
 
 async function fetchSteamReviewData(appId: string | number): Promise<SteamReviewData> {
-  const { httpReq, logger } = runtimeContext;
+  const { httpReq, logger } = deps;
   try {
     const res = await httpReq("GET",
       `https://store.steampowered.com/appreviews/${appId}?json=1&language=all&num_per_page=0`,
@@ -155,7 +158,7 @@ function enrichCacheGet(dealId: unknown, currency: string): DealInfo | null {
 }
 
 function enrichCacheSet(dealId: unknown, enriched: DealInfo, currency: string): void {
-  const { ENRICHED_DEAL_CACHE_MAX_SIZE, ENRICHED_DEAL_CACHE_TTL_MS } = runtimeContext;
+  const { ENRICHED_DEAL_CACHE_MAX_SIZE, ENRICHED_DEAL_CACHE_TTL_MS } = deps;
   if (ENRICHED_DEAL_CACHE_MAX_SIZE === 0 || ENRICHED_DEAL_CACHE_TTL_MS === 0) return;
   const key = enrichCacheKey(dealId, currency);
   if (enrichedCache.has(key)) enrichedCache.delete(key);
@@ -189,7 +192,7 @@ async function enrichDealData(deal: DealInfo, currencyCode?: DealCurrencyCode): 
     logger,
     withInflightTimeout,
     extractOfferEndFromHtml
-  } = runtimeContext;
+  } = deps;
   const currency = String(currencyCode || "USD").toUpperCase();
   if (deal.enriched) return deal;
 
@@ -279,7 +282,7 @@ async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo
     STEAM_REVIEW_BATCH_DELAY_MS,
     EPIC_SPECIALS_LIMIT,
     MAX_DEALS
-  } = runtimeContext;
+  } = deps;
   const cfg = getCurrencyConfig(currencyCode);
   const cc = cfg.cc;
 
@@ -428,7 +431,7 @@ async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo
 }
 
 async function fetchDeals(opts: FetchDealsOptions = {}): Promise<DealInfo[]> {
-  const { logger, withInflightTimeout, trackInflight } = runtimeContext;
+  const { logger, withInflightTimeout, trackInflight } = deps;
   const currency = String(opts.currency || "USD").toUpperCase();
   const contextKey = `${opts.fromCron ? "cron" : "manual"}:${currency}`;
   const existing = inflightDeals.get(contextKey);
@@ -444,10 +447,9 @@ async function fetchDeals(opts: FetchDealsOptions = {}): Promise<DealInfo[]> {
   return promise;
 }
 
-function attachDeals(target: DealsContext): void {
-  runtimeContext = target;
-
-  Object.assign(target, {
+function createDeals(d: DealsDeps): DealsApi {
+  deps = d;
+  return {
     fetchSteamReviewData,
     enrichCacheGet,
     enrichCacheSet,
@@ -455,7 +457,28 @@ function attachDeals(target: DealsContext): void {
     getEnrichedCacheSize,
     enrichDealData,
     fetchDeals
-  });
+  };
 }
+
+function attachDeals(target: DealsContext): void {
+  Object.assign(target, createDeals({
+    logger: target.logger,
+    getCurrencyConfig: target.getCurrencyConfig,
+    httpReq: target.httpReq,
+    normalizeTitleForDedupe: target.normalizeTitleForDedupe,
+    trackInflight: target.trackInflight,
+    withInflightTimeout: target.withInflightTimeout,
+    extractOfferEndFromHtml: target.extractOfferEndFromHtml,
+    STEAM_REVIEW_BATCH_SIZE: target.STEAM_REVIEW_BATCH_SIZE,
+    STEAM_REVIEW_BATCH_DELAY_MS: target.STEAM_REVIEW_BATCH_DELAY_MS,
+    ENRICHED_DEAL_CACHE_TTL_MS: target.ENRICHED_DEAL_CACHE_TTL_MS,
+    ENRICHED_DEAL_CACHE_MAX_SIZE: target.ENRICHED_DEAL_CACHE_MAX_SIZE,
+    STEAM_SPECIALS_LIMIT: target.STEAM_SPECIALS_LIMIT,
+    EPIC_SPECIALS_LIMIT: target.EPIC_SPECIALS_LIMIT,
+    MAX_DEALS: target.MAX_DEALS
+  }));
+}
+
+attachDeals.createDeals = createDeals;
 
 export = attachDeals;
