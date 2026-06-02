@@ -1,0 +1,100 @@
+{
+  "title": "Discord Patch Bot - Outbox",
+  "uid": "discord-patch-bot-outbox",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "tags": ["discord-patch-bot", "outbox"],
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Queue depth",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line" } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "bot_outbox_queue_depth", "legendFormat": "queued" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Oldest job age (seconds)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "bot_outbox_oldest_job_age_seconds", "legendFormat": "oldest age" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Delivery throughput (per 5m)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "refId": "A", "expr": "increase(bot_outbox_sent[5m])", "legendFormat": "sent" },
+        { "refId": "B", "expr": "increase(bot_outbox_retried[5m])", "legendFormat": "retried" },
+        { "refId": "C", "expr": "increase(bot_outbox_dead_lettered[5m])", "legendFormat": "dead-lettered" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Avg delivery latency (ms)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "increase(bot_outbox_delivery_ms_total[5m]) / clamp_min(increase(bot_outbox_sent[5m]), 1)", "legendFormat": "avg ms/send" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Failure signals (per 15m)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        { "refId": "A", "expr": "increase(bot_outbox_mark_sent_failures[15m])", "legendFormat": "mark-sent failures" },
+        { "refId": "B", "expr": "increase(bot_outbox_recovery_verify_failures[15m])", "legendFormat": "recovery-verify failures" },
+        { "refId": "C", "expr": "increase(bot_outbox_recovery_marker_missing[15m])", "legendFormat": "marker missing" },
+        { "refId": "D", "expr": "increase(bot_outbox_lock_acquire_failures[15m])", "legendFormat": "lock acquire failures" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Recovery duplicates prevented (per 15m)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 8, "x": 12, "y": 16 },
+      "targets": [
+        { "refId": "A", "expr": "increase(bot_outbox_recovery_duplicates_prevented[15m])", "legendFormat": "duplicates prevented" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Guilds with recovery-verify",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 4, "x": 20, "y": 16 },
+      "targets": [
+        { "refId": "A", "expr": "bot_outbox_recovery_verify_enabled_guilds", "legendFormat": "enabled" }
+      ]
+    }
+  ]
+}

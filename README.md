@@ -203,6 +203,7 @@ Zonele ramase de imbunatatit sunt reducerea target-ului comun din runtime/regist
 - `src/docs/FUNCTION_MAP_CLEAN.md` - harta pe module si responsabilitati.
 - `CHANGELOG.md` - schimbari publice.
 - `OPERATIONS.md` - runbook de operare (outbox: metrici, alerte, pauza, recovery-verify, setari recomandate).
+- `monitoring/` - reguli de alertare Prometheus (`prometheus-alerts.yml`) si dashboard Grafana (`grafana-dashboard.json`) versionate, cu instructiuni in `monitoring/README.md`.
 - `SECURITY.md` - raportare vulnerabilitati.
 
 ## Securitate
