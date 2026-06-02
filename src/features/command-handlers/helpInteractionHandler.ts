@@ -71,7 +71,8 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
         name: "Operare outbox (admin)",
         value:
           "`/outbox status` - `/outbox deadletters`\n" +
-          "`/outbox retry` - `/outbox recovery-verify status`"
+          "`/outbox retry` - `/outbox pause` - `/outbox resume`\n" +
+          "`/outbox recovery-verify status`"
       },
       {
         name: "Comenzi Manuale",

@@ -36,6 +36,7 @@ function makeWorker(overrides: {
   drainResult?: DrainResult;
   drainLimit?: number;
   perJobBudgetMs?: number;
+  paused?: boolean;
 } = {}) {
   const harness: Harness = {
     drainCalls: 0,
@@ -73,6 +74,7 @@ function makeWorker(overrides: {
     lifecycle,
     metrics: harness.metrics,
     adminAlert: async (kind: string) => { harness.alertKinds.push(kind); return undefined; },
+    isPaused: overrides.paused === undefined ? undefined : async () => overrides.paused === true,
     errorMessage: (err: unknown) => err instanceof Error ? err.message : String(err),
     drainLimit: overrides.drainLimit ?? 50,
     perJobBudgetMs: overrides.perJobBudgetMs ?? 7000
@@ -87,6 +89,21 @@ test("outboxWorker: drainTick drenza sub lock si elibereaza lock-ul", async () =
   assert.equal(harness.drainCalls, 1, "drain apelat o data cand lock-ul e obtinut");
   assert.equal(harness.releaseCalls.length, 1, "lock-ul este eliberat dupa drain");
   assert.deepEqual(harness.releaseCalls[0], { jobName: OUTBOX_DRAIN_LOCK_NAME, token: "lock-token" });
+  worker.stop();
+});
+
+test("outboxWorker: pe pauza -> nu acceseaza lock-ul si nu drenza", async () => {
+  const { worker, harness } = makeWorker({ paused: true });
+  await worker.drainTick();
+  assert.equal(harness.acquireCalls, 0, "pe pauza nu incearca lock-ul");
+  assert.equal(harness.drainCalls, 0, "pe pauza nu drenza");
+  worker.stop();
+});
+
+test("outboxWorker: nu pe pauza -> drenza normal", async () => {
+  const { worker, harness } = makeWorker({ paused: false });
+  await worker.drainTick();
+  assert.equal(harness.drainCalls, 1, "fara pauza drenza normal");
   worker.stop();
 });
 

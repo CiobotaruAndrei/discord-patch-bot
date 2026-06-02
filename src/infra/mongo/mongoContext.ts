@@ -49,6 +49,8 @@ function buildMongoContextExports(context: MongoRuntimeContext) {
     getSystemTimes: context.getSystemTimes,
     saveSystemTimes: context.saveSystemTimes,
     saveSystemTime: context.saveSystemTime,
+    getOutboxPaused: context.getOutboxPaused,
+    setOutboxPaused: context.setOutboxPaused,
     getGuildSettings: context.getGuildSettings,
     invalidateGuildCache: context.invalidateGuildCache,
     cleanGuildCache: context.cleanGuildCache,

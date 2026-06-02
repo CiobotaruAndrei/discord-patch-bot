@@ -27,6 +27,7 @@ interface MongoContextLike {
   cleanGuildCache: AnyFn;
   getGuildCacheSize: () => number;
   adminAlert: (kind: string, title: string, body: string) => Promise<unknown>;
+  getOutboxPaused: () => Promise<boolean>;
   runMigrations: (logger: unknown) => Promise<{ applied: number[] }>;
   requestContext: unknown;
   loadFetchSnapshot: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
@@ -115,7 +116,7 @@ function createRuntimeServices(deps: AppRuntimeDeps): RuntimeServices {
 
 function createSchedulers(deps: AppRuntimeDeps, services: RuntimeServices): Schedulers {
   const { mongoose, performance, crypto, createCronController, createOutboxWorker, errorMessage, errorDetail, commands, mongo } = deps;
-  const { logger, env, parseEnvNumber, acquireDbLock, renewDbLock, releaseDbLock, adminAlert, requestContext } = mongo;
+  const { logger, env, parseEnvNumber, acquireDbLock, renewDbLock, releaseDbLock, adminAlert, requestContext, getOutboxPaused } = mongo;
   const { client, metrics, lifecycle, config, games } = services;
 
   const cronController = createCronController({
@@ -130,7 +131,7 @@ function createSchedulers(deps: AppRuntimeDeps, services: RuntimeServices): Sche
   const outboxWorker = createOutboxWorker({
     mongoose, client, logger, parseEnvNumber, acquireDbLock, releaseDbLock,
     drainOutbox: (drainClient: unknown) => commands.drainOutbox(drainClient),
-    lifecycle, metrics, errorMessage, adminAlert,
+    lifecycle, metrics, errorMessage, adminAlert, isPaused: () => getOutboxPaused(),
     drainLimit: outboxDrainLimit, perJobBudgetMs: outboxPerJobBudgetMs
   });
 
