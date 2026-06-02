@@ -35,7 +35,7 @@ interface AxiosLikeError {
   };
 }
 
-interface HttpClientContext {
+interface HttpClientDeps {
   axios: AxiosStatic;
   cheerio: CheerioModule;
   crypto: CryptoModule;
@@ -44,8 +44,9 @@ interface HttpClientContext {
   logger: LoggerFunction;
   getAbortSignal?: () => AbortSignal | null | undefined;
   metricsRef?: HttpMetricsRef;
-  [key: string]: unknown;
 }
+
+type HttpClientContext = HttpClientDeps & Record<string, unknown>;
 
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
