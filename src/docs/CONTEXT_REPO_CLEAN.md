@@ -90,7 +90,7 @@ src/
 - `gameFilterHandlers.ts` - filtre si validari pentru jocuri;
 - `rolePingHandlers.ts` - roluri pentru ping-uri;
 - `setInteractionHandler.ts` - subcomenzile `/set`; la `/set outbox-recovery-verify on` verifica preventiv permisiunea Read Message History pe canalele de notificari (via `checkReadMessageHistory` din runtime) si avertizeaza daca lipseste;
-- `outboxAdminHandler.ts` - comenzile admin `/outbox` (`status`, `deadletters`, `retry`, `pause`, `resume`, `recovery-verify status`) pentru operarea outbox-ului (coada per-guild si globala, dead-letter, reprogramare livrari, pauza/reluare drenare, stare recovery-verify); protejat de admin guard (`outbox` e in lista de comenzi admin). `pause`/`resume` comuta flagul persistent `outboxPaused` (pe `system_state`, via `getOutboxPaused`/`setOutboxPaused`), pe care worker-ul de drenare il verifica la fiecare tick inainte de a lua lock-ul;
+- `outboxAdminHandler.ts` - comenzile admin `/outbox` (`status`, `deadletters`, `retry`, `pause`, `resume`, `permissions`, `recovery-verify status`) pentru operarea outbox-ului (coada per-guild si globala, dead-letter, reprogramare livrari, pauza/reluare drenare, audit de permisiuni pe canale, stare recovery-verify); protejat de admin guard (`outbox` e in lista de comenzi admin). `pause`/`resume` comuta flagul persistent `outboxPaused` (pe `system_state`, via `getOutboxPaused`/`setOutboxPaused`), pe care worker-ul de drenare il verifica la fiecare tick inainte de a lua lock-ul; `permissions` foloseste `checkChannelPermissions` din runtime (Send Messages / Embed Links / Read Message History) pentru un audit la cerere;
 - `latestInteractionHandler.ts` - `/latest`;
 - `dlcInteractionHandler.ts` - `/dlc`;
 - `statusInteractionHandler.ts` - `/status`;

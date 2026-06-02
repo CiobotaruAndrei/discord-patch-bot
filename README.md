@@ -32,7 +32,7 @@ Bot Discord pentru notificari despre update-uri, DLC-uri si reduceri pentru jocu
 - `/status` - afiseaza starea botului pentru server.
 - `/help` - afiseaza paginile de ajutor.
 - `/set outbox-recovery-verify <on|off>` - (admin) comuta recovery-verify per-server; la `on` avertizeaza daca botului ii lipseste permisiunea Read Message History pe canalele de notificari.
-- `/outbox status | deadletters | retry | pause | resume | recovery-verify status` - (admin) operarea outbox-ului: coada (per-server + global), dead-letter, reprogramare livrari, pauza/reluare drenare (global) si starea recovery-verify.
+- `/outbox status | deadletters | retry | pause | resume | permissions | recovery-verify status` - (admin) operarea outbox-ului: coada (per-server + global), dead-letter, reprogramare livrari, pauza/reluare drenare (global), audit de permisiuni pe canale si starea recovery-verify.
 
 Comenzile administrative sunt validate atat prin permisiunile slash command declarate in Discord, cat si prin verificari runtime in handler-ele sensibile.
 

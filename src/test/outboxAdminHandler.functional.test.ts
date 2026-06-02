@@ -32,10 +32,14 @@ function makeDeps(opts: {
   recoveryStrict?: boolean;
   paused?: boolean;
   updateManyResult?: { modifiedCount?: number; matchedCount?: number };
+  notificationChannelId?: string | null;
+  discountChannelId?: string | null;
+  channelPermissions?: (channelId: string) => { sendMessages: boolean; embedLinks: boolean; readMessageHistory: boolean } | null;
 } = {}) {
   const replies: string[] = [];
   const updateManyCalls: Array<{ filter: unknown; update: unknown }> = [];
   const pauseCalls: boolean[] = [];
+  const permissionChecks: string[] = [];
   const deps = {
     NotificationOutboxModel: {
       countDocuments: async (filter: { guildId?: string } = {}) => (filter && filter.guildId ? (opts.guildQueued ?? 0) : (opts.totalQueued ?? 0)),
@@ -46,10 +50,16 @@ function makeDeps(opts: {
     },
     getGuildSettings: async () => ({
       outboxRecoveryVerify: opts.perGuildVerify ?? false,
-      notificationDeadLetter: opts.deadLetters ?? []
+      notificationDeadLetter: opts.deadLetters ?? [],
+      notificationChannelId: opts.notificationChannelId ?? null,
+      discountChannelId: opts.discountChannelId ?? null
     }),
     getOutboxPaused: async () => opts.paused ?? false,
     setOutboxPaused: async (paused: boolean) => { pauseCalls.push(paused); },
+    checkChannelPermissions: async (_interaction: unknown, channelId: string) => {
+      permissionChecks.push(channelId);
+      return opts.channelPermissions ? opts.channelPermissions(channelId) : null;
+    },
     safeDefer: async () => undefined,
     safeEdit: async (_interaction: unknown, content: string) => { replies.push(content); return content; },
     formatUserError: (_err: unknown, fallback: string) => fallback,
@@ -58,7 +68,7 @@ function makeDeps(opts: {
     recoveryVerifyGlobal: opts.recoveryVerifyGlobal ?? false,
     recoveryStrict: opts.recoveryStrict ?? false
   };
-  return { deps, replies, updateManyCalls, pauseCalls };
+  return { deps, replies, updateManyCalls, pauseCalls, permissionChecks };
 }
 
 test("/outbox status afiseaza coada, dead-letter si starea recovery-verify", async () => {
@@ -126,6 +136,38 @@ test("/outbox pause si /outbox resume comuta flagul de drenare", async () => {
   assert.match(replies[1], /reluata/);
 });
 
+test("/outbox permissions raporteaza permisiunile pe canalele configurate si semnaleaza ce lipseste", async () => {
+  const { deps, replies, permissionChecks } = makeDeps({
+    notificationChannelId: "chan-upd",
+    discountChannelId: "chan-deal",
+    channelPermissions: (id) => id === "chan-upd"
+      ? { sendMessages: true, embedLinks: true, readMessageHistory: true }
+      : { sendMessages: true, embedLinks: true, readMessageHistory: false }
+  });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "permissions"));
+  assert.deepEqual(permissionChecks, ["chan-upd", "chan-deal"], "verifica ambele canale configurate");
+  assert.match(replies[0], /<#chan-upd>/);
+  assert.match(replies[0], /<#chan-deal>/);
+  assert.match(replies[0], /Read Message History \*\*LIPSA\*\*/);
+  assert.match(replies[0], /recovery-verify nu poate citi istoricul/);
+});
+
+test("/outbox permissions fara canale configurate raspunde corespunzator", async () => {
+  const { deps, replies, permissionChecks } = makeDeps({});
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "permissions"));
+  assert.equal(permissionChecks.length, 0, "fara canale nu se verifica permisiuni");
+  assert.match(replies[0], /Niciun canal de notificari configurat/);
+});
+
+test("/outbox permissions: canal inaccesibil -> necunoscut", async () => {
+  const { deps, replies } = makeDeps({ notificationChannelId: "chan-x", channelPermissions: () => null });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "permissions"));
+  assert.match(replies[0], /necunoscut/);
+});
+
 test("/outbox recovery-verify status afiseaza starea per-guild si globala", async () => {
   const { deps, replies } = makeDeps({ perGuildVerify: true, recoveryVerifyGlobal: false, recoveryStrict: false });
   const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
@@ -148,6 +190,7 @@ test("install: deleaga interactiunile non-/outbox catre handler-ul urmator", asy
     getGuildSettings: async () => null,
     getOutboxPaused: async () => false,
     setOutboxPaused: async () => undefined,
+    checkChannelPermissions: async () => null,
     safeDefer: async () => undefined,
     safeEdit: async () => undefined,
     formatUserError: (_e: unknown, f: string) => f,

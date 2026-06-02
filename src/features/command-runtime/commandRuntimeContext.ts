@@ -58,7 +58,13 @@ type PermissionAwareInteraction = {
   } | null;
 };
 
-async function checkReadMessageHistory(interaction: PermissionAwareInteraction, channelId: string): Promise<boolean | null> {
+interface ChannelPermissions {
+  sendMessages: boolean;
+  embedLinks: boolean;
+  readMessageHistory: boolean;
+}
+
+async function resolvePermissionsFor(interaction: PermissionAwareInteraction, channelId: string): Promise<{ has(flag: unknown): boolean } | null> {
   try {
     const guild = interaction?.guild;
     const me = guild?.members?.me;
@@ -68,11 +74,25 @@ async function checkReadMessageHistory(interaction: PermissionAwareInteraction, 
       ? await guild.channels.fetch(channelId).catch(() => null)
       : null)) as PermissionAwareChannel | null;
     if (!channel || typeof channel.permissionsFor !== "function") return null;
-    const perms = channel.permissionsFor(me);
-    return perms ? perms.has(PermissionsBitField.Flags.ReadMessageHistory) : null;
+    return channel.permissionsFor(me);
   } catch {
     return null;
   }
+}
+
+async function checkReadMessageHistory(interaction: PermissionAwareInteraction, channelId: string): Promise<boolean | null> {
+  const perms = await resolvePermissionsFor(interaction, channelId);
+  return perms ? perms.has(PermissionsBitField.Flags.ReadMessageHistory) : null;
+}
+
+async function checkChannelPermissions(interaction: PermissionAwareInteraction, channelId: string): Promise<ChannelPermissions | null> {
+  const perms = await resolvePermissionsFor(interaction, channelId);
+  if (!perms) return null;
+  return {
+    sendMessages: perms.has(PermissionsBitField.Flags.SendMessages),
+    embedLinks: perms.has(PermissionsBitField.Flags.EmbedLinks),
+    readMessageHistory: perms.has(PermissionsBitField.Flags.ReadMessageHistory)
+  };
 }
 
 function createCommandRuntimeContext(): Record<string, unknown> {
@@ -80,7 +100,8 @@ function createCommandRuntimeContext(): Record<string, unknown> {
     ...createDiscordRuntimeBindings(),
     ...data,
     ...scrapers,
-    checkReadMessageHistory
+    checkReadMessageHistory,
+    checkChannelPermissions
   };
 }
 
