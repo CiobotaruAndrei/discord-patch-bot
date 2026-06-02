@@ -5,6 +5,7 @@ const checker = require("../scripts/check-no-comments") as {
   findComments: (text: string, ext: string, fileName?: string) => Array<{ line: number; text: string }>;
   findCommentsRust: (text: string) => Array<{ line: number; text: string }>;
   isAllowed: (relFile: string, commentText: string) => boolean;
+  ALLOWED_COMMENTS: Array<{ file: string; text: string }>;
 };
 
 test("findComments: detecteaza comentariu de linie in TS", () => {
@@ -51,10 +52,9 @@ test("findCommentsRust: cod Rust curat -> niciun comentariu", () => {
   assert.deepEqual(found, []);
 });
 
-test("isAllowed: exceptia documentata din cron.ts este permisa, altele nu", () => {
+test("isAllowed: zero exceptii -> orice comentariu e respins", () => {
   const path = require("path") as typeof import("path");
-  const cron = path.normalize("app/scheduler/cron.ts");
-  assert.equal(checker.isAllowed(cron, "// Re-armam doar cat timp lock-ul e inca al nostru, ca sa nu reinnoim un lock deja eliberat."), true);
-  assert.equal(checker.isAllowed(cron, "// alt comentariu nedocumentat"), false);
+  assert.equal(checker.ALLOWED_COMMENTS.length, 0, "allowlist-ul de comentarii este gol (zero exceptii)");
+  assert.equal(checker.isAllowed(path.normalize("app/scheduler/cron.ts"), "// orice"), false);
   assert.equal(checker.isAllowed(path.normalize("features/notifications/index.ts"), "// orice"), false);
 });

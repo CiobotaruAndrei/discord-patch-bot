@@ -138,7 +138,7 @@ npm run build
 npm audit
 ```
 
-`npm run check` ruleaza si `check:comments` (`scripts/check-no-comments.ts`), care esueaza daca exista comentarii (`//` sau `/* */`) in fisierele sursa `.ts`/`.js`/`.rs`, conform regulii „fara comentarii in cod" (exceptiile sunt explicite intr-un allowlist din script).
+`npm run check` ruleaza si `check:comments` (`scripts/check-no-comments.ts`), care esueaza daca exista comentarii (`//` sau `/* */`) in fisierele sursa `.ts`/`.js`/`.rs`, conform regulii „fara comentarii in cod". Allowlist-ul de exceptii este gol (zero exceptii); rationale-ul subtil de concurenta din `cron.ts` a fost mutat in `src/docs/CONTEXT_REPO_CLEAN.md`.
 
 Testele acopera zonele importante:
 
