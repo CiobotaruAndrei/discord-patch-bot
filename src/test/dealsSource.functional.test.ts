@@ -125,7 +125,7 @@ test("createDeals.fetchDeals construieste oferte din deps.httpReq (Steam + Epic)
   const titles = deals.map(d => d.title).sort();
   assert.deepEqual(titles, ["Epic Deal", "Steam Deal"]);
   assert.ok(calls.some(u => u.includes("featuredcategories")), "a cerut Steam featuredcategories prin deps.httpReq");
-  assert.ok(calls.some(u => u.includes("graphql.epicgames.com")), "a cerut Epic GraphQL prin deps.httpReq");
+  assert.ok(calls.some(u => u === "https://graphql.epicgames.com/graphql"), "a cerut Epic GraphQL prin deps.httpReq");
 });
 
 test("createDeals.fetchDeals coaleseaza apelurile in curs pe acelasi context", async () => {
