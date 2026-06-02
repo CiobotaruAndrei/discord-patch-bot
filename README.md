@@ -151,6 +151,7 @@ Testele acopera zonele importante:
 - parsere, filtre, shape drift pe scrapers, circuit breaker, cooldown-uri si rate limiting;
 - integrare pe MongoDB real (`outboxMongoIndex.integration.test.ts`): verifica indexul unic sparse pe `notificationOutbox.dedupeKey`; ruleaza in CI (serviciu `mongo:7`) si local cand `MONGO_URI` indica un Mongo pornit, altfel se auto-sare.
 - crash-simulation outbox (`outboxCrashRecovery.functional.test.ts`): send reuseste dar `markSent` nu apuca (crash), iar la repornire recovery-verify previne duplicatul (cu test-contrast care arata duplicatul fara recovery-verify).
+- multi-instance pe Mongo real (`outboxMultiInstance.integration.test.ts`): doi workeri dreneaza simultan aceeasi coada si lease-ul atomic garanteaza livrare exact-o-data (zero duplicate); ruleaza in CI / local cu Mongo pornit, altfel se auto-sare.
 
 In CI (`ci.yml`), pe langa `npm run check`, se ruleaza si validarea Rust: `cargo clippy --all-targets -- -D warnings` si `cargo test` (teste unitare native in `native/src/lib.rs`). Compilarea Rust se face deja prin `napi build` din `npm run build`.
 
