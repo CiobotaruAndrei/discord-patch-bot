@@ -1,5 +1,7 @@
 "use strict";
 
+const { ensureNativeFuzzy } = require("../native/fuzzy") as { ensureNativeFuzzy: () => boolean };
+
 type AnyFn = (...args: unknown[]) => unknown;
 
 interface HousekeepingLike { start(): void; stop(): void }
@@ -192,6 +194,9 @@ function createBootSequence(deps: AppRuntimeDeps, ctx: { client: DiscordClientLi
 
   return async function start(): Promise<void> {
     try {
+      if (!ensureNativeFuzzy()) {
+        logger("WARN", "BOOT", "Addon Rust indisponibil — rulez cu fallback TypeScript (permis explicit in afara productiei sau prin ALLOW_NATIVE_FALLBACK).");
+      }
       await connectMongoWithRetry(deps);
       const mongoReady = await waitForMongoReady(10000);
       if (!mongoReady) {
