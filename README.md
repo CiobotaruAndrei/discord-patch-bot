@@ -157,7 +157,12 @@ Testele acopera zonele importante:
 
 In CI (`ci.yml`), pe langa `npm run check`, se ruleaza si validarea Rust: `cargo clippy --all-targets -- -D warnings` si `cargo test` (teste unitare native in `native/src/lib.rs`). Compilarea Rust se face deja prin `napi build` din `npm run build`.
 
-Testele care folosesc surse externe reale nu confirma comportament live cu token Discord real. Pentru productie, valideaza si cu un server Discord de test si MongoDB real, parcurgand checklist-ul manual din `STAGING_SMOKE.md`.
+Testele automate (unit/functional/integrare/E2E) nu confirma singure comportamentul live cu un token Discord real si gateway real. Pentru asta exista un smoke de staging **semi-automatizat** plus un checklist manual, complementare:
+
+- `npm run smoke:staging` (`scripts/stagingSmoke.ts`) — proba HTTP a unei instante de staging: `GET /healthz` (asteapta `status: ok`, `mongo: 1`, `discord: ready`) si `GET /metrics` (metrici cheie `bot_*`). Activata de `STAGING_BASE_URL` (+ optional `STAGING_METRICS_TOKEN`); fara ele, iese 0 (skip).
+- `npm run smoke:staging:discord` (`scripts/stagingDiscordSmoke.ts`) — proba **live Discord** pe un **guild de test**: se autentifica cu token-ul real (token + gateway), verifica prin REST ca slash command-urile sunt inregistrate, verifica permisiunile botului pe canalul de test si — cu `STAGING_DISCORD_SEND_TEST=true` — trimite si sterge un embed real (notificare end-to-end). Activata de `STAGING_DISCORD_TOKEN` / `STAGING_DISCORD_CLIENT_ID` / `STAGING_TEST_GUILD_ID` / `STAGING_TEST_CHANNEL_ID`; fara ele, iese 0 (skip).
+- Workflow-ul `Staging Smoke` (`.github/workflows/staging-smoke.yml`) ruleaza ambele probe saptamanal si la cerere (`workflow_dispatch`), folosind secretele de repo de mai sus.
+- Ce nu poate fi automatizat (un utilizator care *tasteaza* slash commands, notificari live pe un ciclu cron real, ping de rol, shutdown) ramane in checklist-ul manual din `STAGING_SMOKE.md`. Inainte de orice release, gate-ul din `RELEASING.md` cere ca ambele (smoke automat + checklist manual) sa fi trecut.
 
 ## Build, start si release
 
