@@ -26,7 +26,7 @@ Bot Discord pentru notificari despre update-uri, DLC-uri si reduceri pentru jocu
 - `/stop reduceri` - dezactiveaza notificarile de reduceri.
 - `/set games add` - adauga jocuri urmarite.
 - `/set games remove` - elimina jocuri urmarite.
-- `/set game-state` - seteaza manual starea unui joc.
+- `/set mode | mindiscount | maxprice | free | paid | currency | stores` - (admin) configurari de afisare/filtrare per-server.
 - `/latest` - afiseaza ultimele update-uri cunoscute.
 - `/dlc` - afiseaza DLC-uri cunoscute.
 - `/status` - afiseaza starea botului pentru server.
