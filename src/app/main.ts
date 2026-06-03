@@ -15,12 +15,14 @@ const { registerDiscordEvents, registerMongoEvents } = require("./lifecycle/even
 const { createShutdownController } = require("./lifecycle/shutdown");
 const { errorMessage, errorDetail } = require("../shared/errors");
 const { createAppRuntime } = require("./appRuntime");
+import type { AppRuntimeDeps } from "./appRuntime";
 
 const {
   logger, env, parseEnvNumber,
   acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
   waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
-  runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots
+  runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots,
+  getOutboxPaused
 } = require("../infra/mongo/mongoContext");
 const commands = require("../features/command-registry/commandRegistry");
 const scrapers = require("../sources/sourceRegistry");
@@ -34,10 +36,11 @@ const app = createAppRuntime({
   mongo: {
     logger, env, parseEnvNumber, acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
     waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
-    runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots
+    runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots,
+    getOutboxPaused
   },
   commands, scrapers
-});
+} satisfies AppRuntimeDeps);
 
 app.registerProcessHandlers();
 app.start().catch(() => process.exit(1));
