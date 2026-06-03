@@ -22,13 +22,14 @@ obligatoriu inainte de a publica o versiune (tag `vX.Y.Z`, imagine Docker GHCR, 
 
 ## Ce se impune automat
 
-Workflow-ul `release.yml` aplica o parte din gate la build-ul de release:
+Workflow-ul `release.yml` se declanseaza **doar prin `workflow_dispatch`** — nu exista trigger pe push
+de tag, deci nu se poate ocoli confirmarea smoke. La rulare:
 
+- gate-ul cere `smoke_confirmed=true` (confirmarea explicita ca pasii 3 si 4 — staging smoke automat +
+  manual Discord smoke — au fost facuti); altfel **esueaza** primul, inainte de orice build, cu un mesaj
+  care trimite la acest document;
 - ruleaza `npm run check` pe commit-ul tag-uit (release-ul **esueaza** daca CI nu trece);
-- ruleaza `npm audit --omit=dev --audit-level=moderate` (release-ul **esueaza** la vulnerabilitati);
-- la pornirea prin `workflow_dispatch`, cere `smoke_confirmed=true` (confirmarea explicita ca pasii 3
-  si 4 — staging smoke automat + manual Discord smoke — au fost facuti); altfel **esueaza** cu un mesaj
-  care trimite la acest document.
+- ruleaza `npm audit --omit=dev --audit-level=moderate` (release-ul **esueaza** la vulnerabilitati).
 
 Pasii 3–4 nu pot fi verificati complet de un job de CI (necesita o instanta live de staging si
 interactiune Discord reala), deci confirmarea lor ramane responsabilitatea celui care lanseaza, impusa
@@ -37,8 +38,10 @@ prin `smoke_confirmed`.
 ## Cum lansezi
 
 1. Asigura-te ca pasii 1–5 de mai sus sunt indepliniti.
-2. Porneste release-ul prin **`workflow_dispatch`** pe workflow-ul `Release`, cu `tag = vX.Y.Z` si
-   `smoke_confirmed = true`. (Alternativ, un push de tag `vX.Y.Z` declanseaza release-ul, dar ocoleste
-   confirmarea `smoke_confirmed` — foloseste dispatch pentru gate-ul complet.)
-3. Workflow-ul ruleaza CI + audit, construieste imaginea Docker GHCR si creeaza GitHub Release-ul cu
-   notele extrase din `CHANGELOG.md`.
+2. Creeaza si impinge tag-ul: `git tag vX.Y.Z && git push origin vX.Y.Z`. Push-ul de tag **nu**
+   declanseaza singur un release (nu exista trigger pe push de tag).
+3. Porneste release-ul prin **`workflow_dispatch`** pe workflow-ul `Release`, cu `tag = vX.Y.Z` si
+   `smoke_confirmed = true`. Aceasta este singura cale de release, deci confirmarea smoke este
+   obligatorie.
+4. Workflow-ul verifica gate-ul (`smoke_confirmed`), ruleaza CI + audit pe tag, construieste imaginea
+   Docker GHCR si creeaza GitHub Release-ul cu notele extrase din `CHANGELOG.md`.

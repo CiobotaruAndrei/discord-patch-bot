@@ -32,3 +32,15 @@ test("release.yml impune CI + audit + confirmarea smoke la dispatch", () => {
   assert.match(text, /SMOKE_CONFIRMED/, "verifica confirmarea in gate-ul de release");
   assert.match(text, /Release blocat/, "esueaza explicit fara confirmare la dispatch");
 });
+
+test("release.yml se declanseaza doar prin workflow_dispatch (fara cale de tag push care ocoleste smoke)", () => {
+  const text = read(releaseWorkflowPath);
+  const onStart = text.indexOf("\non:");
+  const onEnd = text.indexOf("\npermissions:");
+  assert.ok(onStart >= 0 && onEnd > onStart, "blocul on: este localizabil");
+  const onBlock = text.slice(onStart, onEnd);
+  assert.match(onBlock, /workflow_dispatch:/, "are trigger workflow_dispatch");
+  assert.ok(!/\bpush:/.test(onBlock), "blocul on: nu contine trigger push");
+  assert.ok(!/\btags:/.test(onBlock), "blocul on: nu contine trigger pe push de tag-uri (calea care ocolea confirmarea smoke)");
+  assert.ok(!text.includes("EVENT_NAME"), "gate-ul nu mai e conditionat de tipul evenimentului — cere confirmarea neconditionat");
+});
