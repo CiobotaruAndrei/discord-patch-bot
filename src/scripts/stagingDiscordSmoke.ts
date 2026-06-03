@@ -1,4 +1,6 @@
 import { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } from "discord.js";
+import { buildSmokeResult, writeSmokeResult } from "./smokeResult";
+import type { SmokeCheck } from "./smokeResult";
 
 interface NamedCommand { name?: string }
 interface CommandsEval { ok: boolean; count: number; missing: string[] }
@@ -38,10 +40,11 @@ async function runDiscordSmoke(): Promise<number> {
     console.log("[discord-smoke] Credentiale de staging incomplete - sar proba live Discord (exit 0).");
     console.log("[discord-smoke] Seteaza STAGING_DISCORD_TOKEN, STAGING_DISCORD_CLIENT_ID, STAGING_TEST_GUILD_ID,");
     console.log("[discord-smoke] STAGING_TEST_CHANNEL_ID (+ optional STAGING_DISCORD_SEND_TEST=true) ca sa rulezi proba live.");
+    writeSmokeResult("STAGING_DISCORD_SMOKE_RESULT_FILE", buildSmokeResult("discord", true, []));
     return 0;
   }
 
-  let failures = 0;
+  const checks: SmokeCheck[] = [];
   const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
   try {
@@ -50,6 +53,7 @@ async function runDiscordSmoke(): Promise<number> {
       client.once("error", reject);
       client.login(token).catch(reject);
     }), READY_TIMEOUT_MS, "login + ready");
+    checks.push({ name: "login", ok: true, detail: `READY ca ${client.user?.tag || "?"}` });
     console.log(`[discord-smoke] Gateway READY ca ${client.user?.tag || "?"} (token + gateway OK).`);
 
     try {
@@ -58,14 +62,14 @@ async function runDiscordSmoke(): Promise<number> {
       const globalCmds = await rest.get(Routes.applicationCommands(clientId)) as NamedCommand[];
       const all = [...(Array.isArray(guildCmds) ? guildCmds : []), ...(Array.isArray(globalCmds) ? globalCmds : [])];
       const evalC = evaluateCommands(all);
+      checks.push({ name: "commands", ok: evalC.ok, detail: evalC.ok ? `${evalC.count} inregistrate` : `inregistrate=${evalC.count}, lipsa=${evalC.missing.join(", ") || "(niciuna)"}` });
       if (!evalC.ok) {
-        failures++;
         console.error(`[discord-smoke] Slash commands FAIL: inregistrate=${evalC.count}, lipsa=${evalC.missing.join(", ") || "(niciuna)"}`);
       } else {
         console.log(`[discord-smoke] Slash commands OK (${evalC.count} inregistrate, inclusiv ${REQUIRED_COMMANDS.join("/")}).`);
       }
     } catch (err) {
-      failures++;
+      checks.push({ name: "commands", ok: false, detail: `eroare la citire: ${err instanceof Error ? err.message : String(err)}` });
       console.error(`[discord-smoke] Eroare la citirea slash commands: ${err instanceof Error ? err.message : String(err)}`);
     }
 
@@ -78,8 +82,8 @@ async function runDiscordSmoke(): Promise<number> {
         : null;
       const grantedNames = perms ? perms.toArray() : [];
       const evalP = evaluatePermissions(grantedNames);
+      checks.push({ name: "permissions", ok: evalP.ok, detail: evalP.ok ? "toate prezente" : `lipsesc ${evalP.missing.join(", ")}` });
       if (!evalP.ok) {
-        failures++;
         console.error(`[discord-smoke] Permisiuni canal FAIL: lipsesc ${evalP.missing.join(", ")}`);
       } else {
         console.log("[discord-smoke] Permisiuni canal OK (ViewChannel/SendMessages/EmbedLinks/ReadMessageHistory).");
@@ -92,25 +96,28 @@ async function runDiscordSmoke(): Promise<number> {
             .setDescription(`Mesaj de test trimis de runner-ul de staging la ${new Date().toISOString()}. Se sterge automat.`);
           const message = await sendable.send({ embeds: [embed] });
           await message.delete();
+          checks.push({ name: "send", ok: true, detail: "embed trimis si sters" });
           console.log("[discord-smoke] Trimitere notificare reala OK (embed trimis si sters).");
         }
       }
     } catch (err) {
-      failures++;
+      checks.push({ name: "permissions", ok: false, detail: `eroare canal/permisiuni: ${err instanceof Error ? err.message : String(err)}` });
       console.error(`[discord-smoke] Eroare la verificarea canalului/permisiunilor: ${err instanceof Error ? err.message : String(err)}`);
     }
   } catch (err) {
-    failures++;
+    checks.push({ name: "login", ok: false, detail: `login/gateway esuat: ${err instanceof Error ? err.message : String(err)}` });
     console.error(`[discord-smoke] Login/gateway esuat: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
     await client.destroy().catch(() => undefined);
   }
 
-  if (failures === 0) {
+  const result = buildSmokeResult("discord", false, checks);
+  writeSmokeResult("STAGING_DISCORD_SMOKE_RESULT_FILE", result);
+  if (result.ok) {
     console.log("[discord-smoke] Proba live Discord a trecut.");
     return 0;
   }
-  console.error(`[discord-smoke] ${failures} verificare(i) esuate.`);
+  console.error(`[discord-smoke] ${checks.filter(c => !c.ok).length} verificare(i) esuate.`);
   return 1;
 }
 

@@ -16,6 +16,7 @@ on:
 permissions:
   contents: write
   packages: write
+  actions: read
 
 jobs:
   release:
@@ -30,7 +31,68 @@ jobs:
             echo "::error::Release blocat: porneste cu smoke_confirmed=true dupa ce ai rulat staging smoke (npm run smoke:staging + smoke:staging:discord) si checklist-ul manual Discord. Vezi RELEASING.md."
             exit 1
           fi
-          echo "Release gate OK. CI + audit ruleaza mai jos; staging smoke + manual Discord smoke sunt responsabilitatea releaser-ului (RELEASING.md)."
+          echo "Release gate OK. CI + audit ruleaza mai jos; staging smoke real este verificat din artifact (pasul urmator)."
+
+      - name: Verify recent staging smoke run
+        id: smoke
+        uses: actions/github-script@v7
+        env:
+          STAGING_SMOKE_MAX_AGE_DAYS: ${{ vars.STAGING_SMOKE_MAX_AGE_DAYS || '7' }}
+        with:
+          script: |
+            const maxAgeDays = Number(process.env.STAGING_SMOKE_MAX_AGE_DAYS || '7');
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'staging-smoke.yml',
+              status: 'success',
+              per_page: 20
+            });
+            const now = Date.now();
+            const fresh = runs.data.workflow_runs.filter(r => (now - new Date(r.updated_at).getTime()) <= maxAgeDays * 86400000);
+            if (fresh.length === 0) {
+              core.setFailed(`Release blocat: nu exista rulare Staging Smoke reusita in ultimele ${maxAgeDays} zile. Ruleaza workflow-ul Staging Smoke inainte de release (RELEASING.md).`);
+              return;
+            }
+            for (const run of fresh) {
+              const arts = await github.rest.actions.listWorkflowRunArtifacts({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: run.id
+              });
+              const art = arts.data.artifacts.find(a => a.name === 'staging-smoke-result' && !a.expired);
+              if (art) {
+                core.setOutput('run_id', String(run.id));
+                core.info(`Staging Smoke reusit gasit: run ${run.id} (${run.updated_at}).`);
+                return;
+              }
+            }
+            core.setFailed(`Release blocat: rularile Staging Smoke reusite nu au artifactul 'staging-smoke-result'. Re-ruleaza Staging Smoke (RELEASING.md).`);
+
+      - name: Download staging smoke result
+        uses: actions/download-artifact@v4
+        with:
+          name: staging-smoke-result
+          run-id: ${{ steps.smoke.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: smoke-result
+
+      - name: Assert staging smoke result is a real pass
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs");
+            const files = ["smoke-result/staging-smoke-http.json", "smoke-result/staging-smoke-discord.json"];
+            let failed = false;
+            for (const f of files) {
+              if (!fs.existsSync(f)) { console.error(`::error::Lipseste ${f} din artifactul de staging smoke.`); failed = true; continue; }
+              const r = JSON.parse(fs.readFileSync(f, "utf8"));
+              if (r.skipped) { console.error(`::error::${f}: staging smoke a fost SARIT (skipped=true) - seteaza secretele de staging si re-ruleaza.`); failed = true; }
+              if (!r.ok) { console.error(`::error::${f}: staging smoke a esuat (ok=false).`); failed = true; }
+            }
+            if (failed) process.exit(1);
+            console.log("Staging smoke result verificat: ambele probe au trecut live.");
+          '
 
       - name: Resolve release metadata
         id: release
