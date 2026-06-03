@@ -17,12 +17,25 @@ verifica partea de infrastructura, complementar acestui checklist manual:
 - daca `STAGING_BASE_URL` lipseste, iese 0 cu un mesaj de skip (nu blocheaza CI);
 - optional `STAGING_METRICS_TOKEN` pentru `/metrics` cand nu e public.
 
-Ruleaza periodic (saptamanal) si la cerere prin workflow-ul `Staging Smoke`
-(`.github/workflows/staging-smoke.yml`, `workflow_dispatch` + `schedule`), folosind
-secretele de repo `STAGING_BASE_URL` / `STAGING_METRICS_TOKEN` daca sunt configurate.
-Runner-ul **nu** acopera interactiunile Discord live (slash commands, notificari, ping de rol,
-shutdown) - acelea raman in checklist-ul manual de mai jos. Vezi si `OPERATIONS.md` pentru
-interpretarea metricilor.
+`npm run smoke:staging:discord` (scriptul `scripts/stagingDiscordSmoke.ts`) este o proba
+**live Discord** automata care, daca sunt setate `STAGING_DISCORD_TOKEN`,
+`STAGING_DISCORD_CLIENT_ID`, `STAGING_TEST_GUILD_ID` si `STAGING_TEST_CHANNEL_ID`:
+
+- se autentifica cu token-ul real si asteapta `ready` (valideaza token + gateway);
+- verifica prin REST ca slash command-urile sunt inregistrate (cel putin `ping` si `help`);
+- verifica permisiunile botului pe canalul de test (ViewChannel / SendMessages / EmbedLinks /
+  ReadMessageHistory);
+- daca `STAGING_DISCORD_SEND_TEST=true`, trimite un embed real pe canal si il sterge imediat
+  (valideaza calea de notificare reala end-to-end).
+
+Fara aceste credentiale, iese 0 cu un mesaj de skip. Nu poate simula un utilizator care
+*tasteaza* o slash command (ar necesita un cont/bot secundar), deci raspunsurile interactive
+raman in checklist-ul manual de mai jos.
+
+Ambele probe ruleaza periodic (saptamanal) si la cerere prin workflow-ul `Staging Smoke`
+(`.github/workflows/staging-smoke.yml`, `workflow_dispatch` + `schedule`), folosind secretele de
+repo (`STAGING_BASE_URL` / `STAGING_METRICS_TOKEN` pentru health/metrics; `STAGING_DISCORD_*`
+pentru proba live). Vezi si `OPERATIONS.md` pentru interpretarea metricilor.
 
 ## Pregatire
 

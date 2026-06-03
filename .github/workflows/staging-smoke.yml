@@ -27,8 +27,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run staging smoke probe
+      - name: Run staging smoke probe (health + metrics)
         run: npm run smoke:staging
         env:
           STAGING_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
           STAGING_METRICS_TOKEN: ${{ secrets.STAGING_METRICS_TOKEN }}
+
+      - name: Run live Discord smoke (gateway + commands + permissions)
+        run: npm run smoke:staging:discord
+        env:
+          STAGING_DISCORD_TOKEN: ${{ secrets.STAGING_DISCORD_TOKEN }}
+          STAGING_DISCORD_CLIENT_ID: ${{ secrets.STAGING_DISCORD_CLIENT_ID }}
+          STAGING_TEST_GUILD_ID: ${{ secrets.STAGING_TEST_GUILD_ID }}
+          STAGING_TEST_CHANNEL_ID: ${{ secrets.STAGING_TEST_CHANNEL_ID }}
+          STAGING_DISCORD_SEND_TEST: ${{ secrets.STAGING_DISCORD_SEND_TEST }}
