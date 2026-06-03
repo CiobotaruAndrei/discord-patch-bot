@@ -97,7 +97,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-presentation/commandPresentation.ts`
 
 - Construieste embed-uri, paginare, select menus si raspunsuri user-facing.
-- Contine helper-ul de fuzzy game lookup prin `findGameKeys` din Rust/N-API.
+- Contine helper-ul de fuzzy game lookup prin `findGameKeys` (TS-primary — Rust mai lent pe marshaling-ul NAPI, vezi `BENCHMARKS.md`; nativul ramane pentru benchmark/paritate).
 - Expune `createCommandPresentation`, iar instalarea pe context este doar adapter de compatibilitate.
 - Builder-ele Discord, collector-ul, interactiunile si raspunsurile HTTP sunt modelate local prin interfete mici.
 
@@ -146,7 +146,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-handlers/autocompleteInteractionHandler.ts`
 
 - Gestioneaza autocomplete pentru optiunile slash commands.
-- Delegheaza scoring-ul, sortarea si limitarea optiunilor catre `buildAutocompleteChoices` din Rust/N-API, cu fallback TypeScript.
+- Delegheaza scoring-ul, sortarea si limitarea optiunilor catre `buildAutocompleteChoices` (TS-primary — masurat mai rapid decat nativul pe marshaling, vezi `BENCHMARKS.md`).
 - Trebuie tinut separat de logica de executie a comenzilor.
 
 ### `src/features/command-handlers/fallbackInteractionHandler.ts`
@@ -190,7 +190,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/domain/deals/filtersCore.ts`
 
 - Expune filtre pentru deal-uri, normalizatoare pentru pending queues si helper-e Map/Object.
-- Delegheaza `dealPassesFilters` catre Rust/N-API prin `src/native/fuzzy.ts`, cu fallback TypeScript.
+- Foloseste `dealPassesFilters` din `src/native/fuzzy.ts` (TS-primary — calcul trivial, nativul pierde pe overhead-ul apelului, vezi `BENCHMARKS.md`).
 
 ### `src/sources/sourceRegistry.ts`
 
