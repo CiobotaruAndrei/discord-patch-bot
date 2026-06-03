@@ -5,8 +5,24 @@ comportamentul live cu un token Discord real si un gateway real. Inainte de a pr
 versiune in productie, ruleaza manual acest checklist pe un server Discord de staging,
 cu o aplicatie Discord dedicata (token separat de productie).
 
-Vezi si runner-ul DI de staging (`npm run smoke:staging` daca e configurat) si
-`OPERATIONS.md` pentru interpretarea metricilor.
+## Proba automata (`npm run smoke:staging`)
+
+`npm run smoke:staging` (scriptul `scripts/stagingSmoke.ts`) este un runner automat care
+verifica partea de infrastructura, complementar acestui checklist manual:
+
+- daca `STAGING_BASE_URL` este setat, probeaza `GET /healthz` (asteapta `status: ok`,
+  `mongo: 1`, `discord: ready`) si `GET /metrics` (asteapta prezenta metricilor cheie
+  `bot_uptime_seconds`, `bot_fetch_success`, `bot_outbox_queue_depth`,
+  `bot_native_fallback_total`); iese cu cod non-zero daca ceva esueaza;
+- daca `STAGING_BASE_URL` lipseste, iese 0 cu un mesaj de skip (nu blocheaza CI);
+- optional `STAGING_METRICS_TOKEN` pentru `/metrics` cand nu e public.
+
+Ruleaza periodic (saptamanal) si la cerere prin workflow-ul `Staging Smoke`
+(`.github/workflows/staging-smoke.yml`, `workflow_dispatch` + `schedule`), folosind
+secretele de repo `STAGING_BASE_URL` / `STAGING_METRICS_TOKEN` daca sunt configurate.
+Runner-ul **nu** acopera interactiunile Discord live (slash commands, notificari, ping de rol,
+shutdown) - acelea raman in checklist-ul manual de mai jos. Vezi si `OPERATIONS.md` pentru
+interpretarea metricilor.
 
 ## Pregatire
 
