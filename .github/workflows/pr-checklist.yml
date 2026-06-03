@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   checklist:
-    name: Require docs + tests checkboxes
+    name: Require PR checklist (docs, teste, no-comments, benchmark, conflict)
     runs-on: ubuntu-latest
     steps:
       - name: Verify PR checklist
@@ -24,13 +24,17 @@ jobs:
               return;
             }
             const body = pr.body || "";
-            const docsOk = /-\s*\[[xX]\][^\n]*[Dd]ocument/.test(body);
-            const testsOk = /-\s*\[[xX]\][^\n]*[Tt]este/.test(body);
-            const missing = [];
-            if (!docsOk) missing.push("documentatie (Regula 2)");
-            if (!testsOk) missing.push("teste (Regula 4)");
+            const checked = (keyword) => new RegExp(`-\\s*\\[[xX]\\][^\\n]*${keyword}`).test(body);
+            const required = [
+              { keyword: "\\*\\*[Dd]ocumentatie\\*\\*", label: "documentatie (Regula 2)" },
+              { keyword: "\\*\\*[Tt]este\\*\\*", label: "teste (Regula 4)" },
+              { keyword: "[Cc]omentarii", label: "fara comentarii / fara secrete (Regula 1)" },
+              { keyword: "\\*\\*[Bb]enchmark\\*\\*", label: "benchmark daca e hot-path / schimbare de limbaj (Regula 3 + 6)" },
+              { keyword: "[Cc]onflict cu", label: "fara conflict cu main (Regula 8 + 9)" }
+            ];
+            const missing = required.filter(item => !checked(item.keyword)).map(item => item.label);
             if (missing.length) {
-              core.setFailed(`Checklist PR incomplet: bifeaza in descrierea PR-ului ${missing.join(" si ")}. Sablonul e in .github/pull_request_template.md.`);
+              core.setFailed(`Checklist PR incomplet: bifeaza in descrierea PR-ului ${missing.join("; ")}. Sablonul e in .github/pull_request_template.md.`);
             } else {
-              core.info("Checklist PR complet (docs + teste bifate).");
+              core.info("Checklist PR complet (docs + teste + no-comments + benchmark + conflict bifate).");
             }
