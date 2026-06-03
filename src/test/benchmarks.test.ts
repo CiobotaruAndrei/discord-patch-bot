@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runCpuBenchmark, levenshteinParityMismatches } from "../scripts/cpuBenchmark";
+import { runCpuBenchmark, levenshteinParityMismatches, runAreaBenchmarks } from "../scripts/cpuBenchmark";
 import { runOutboxLoad, OutboxLoadModels } from "../scripts/outboxLoadBenchmark";
 
 interface JobDoc {
@@ -52,6 +52,22 @@ test("cpuBenchmark: runCpuBenchmark intoarce metrici valide", () => {
   if (result.native) {
     assert.ok(result.native.callsPerSecond > 0, "native masurat");
     assert.ok(typeof result.speedup === "number");
+  }
+});
+
+test("cpuBenchmark: runAreaBenchmarks acopera fuzzy/hashing/autocomplete/deal-filters cu paritate native==TS", () => {
+  const results = runAreaBenchmarks(200);
+  const areas = results.map(r => r.area);
+  for (const expected of ["fuzzy-match (findGameKeys)", "hashing (dealHash)", "autocomplete (buildAutocompleteChoices)", "deal-filters (dealPassesFilters)"]) {
+    assert.ok(areas.includes(expected), `acopera zona ${expected}`);
+  }
+  for (const r of results) {
+    assert.ok(r.ts.callsPerSecond > 0, `${r.area}: TS masurat`);
+    assert.equal(r.parityOk, true, `${r.area}: rezultatele native si TS sunt identice (paritate)`);
+    if (r.native) {
+      assert.ok(r.native.callsPerSecond > 0, `${r.area}: native masurat`);
+      assert.ok(typeof r.speedup === "number" && r.speedup > 0, `${r.area}: speedup raportat`);
+    }
   }
 });
 
