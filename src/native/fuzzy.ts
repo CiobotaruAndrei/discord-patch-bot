@@ -125,6 +125,40 @@ export function ensureNativeFuzzy(): boolean {
   return loadNativeFuzzy() !== null;
 }
 
+const nativeFallbackTotals = new Map<string, number>();
+const nativeFallbackLastLogged = new Map<string, number>();
+const NATIVE_FALLBACK_LOG_THROTTLE_MS = 60_000;
+
+export function recordNativeFallback(fnName: string, err: unknown): void {
+  const total = (nativeFallbackTotals.get(fnName) || 0) + 1;
+  nativeFallbackTotals.set(fnName, total);
+  const now = Date.now();
+  const last = nativeFallbackLastLogged.get(fnName) || 0;
+  if (now - last >= NATIVE_FALLBACK_LOG_THROTTLE_MS) {
+    nativeFallbackLastLogged.set(fnName, now);
+    console.warn(
+      `[NATIVE_FUZZY] Apelul nativ \`${fnName}\` a esuat — folosesc fallback TypeScript (total ${total}). `
+      + "Risc de divergenta de rezultat/performanta fata de Rust; verifica build-ul nativ.",
+      err instanceof Error ? err.message : String(err)
+    );
+  }
+}
+
+export function getNativeFallbackTotals(): Record<string, number> {
+  return Object.fromEntries(nativeFallbackTotals);
+}
+
+export function getNativeFallbackTotal(): number {
+  let sum = 0;
+  for (const value of nativeFallbackTotals.values()) sum += value;
+  return sum;
+}
+
+export function resetNativeFallbackTotals(): void {
+  nativeFallbackTotals.clear();
+  nativeFallbackLastLogged.clear();
+}
+
 function normalizeCommandText(value: unknown): string {
   return String(value || "").toLowerCase().replace(/[-_]/g, " ").trim();
 }
@@ -424,7 +458,7 @@ export function classifyPatchNote(title: unknown, contents: unknown, tags: unkno
     if (typeof fn === "function") {
       const tagsList = Array.isArray(tags) ? tags.map(t => String(t)) : [];
       try { return fn.call(native, String(title || ""), String(contents || ""), tagsList); }
-      catch {  }
+      catch (err) { recordNativeFallback("classifyPatchNote", err); }
     }
   }
   return classifyPatchNoteFallback(title, contents, tags);
@@ -437,7 +471,7 @@ export function scoreListingCandidate(href: unknown, text: unknown, keywords: un
     if (typeof fn === "function") {
       const kw = Array.isArray(keywords) ? keywords.map(k => String(k)) : [];
       try { return fn.call(native, String(href || ""), String(text || ""), kw); }
-      catch {  }
+      catch (err) { recordNativeFallback("scoreListingCandidate", err); }
     }
   }
   return scoreListingCandidateFallback(href, text, keywords);
@@ -475,7 +509,8 @@ export function buildAutocompleteChoices(
             value: String(choice?.value || "").substring(0, maxValueLen)
           }));
         }
-      } catch {
+      } catch (err) {
+        recordNativeFallback("buildAutocompleteChoices", err);
       }
     }
   }
@@ -488,7 +523,7 @@ export function isGoodSteamArticleUrl(url: unknown): boolean {
     const fn = typeof native.isGoodSteamArticleUrl === "function" ? native.isGoodSteamArticleUrl : native.is_good_steam_article_url;
     if (typeof fn === "function") {
       try { return fn.call(native, String(url || "")); }
-      catch {  }
+      catch (err) { recordNativeFallback("isGoodSteamArticleUrl", err); }
     }
   }
   return isGoodSteamArticleUrlFallback(url);
@@ -500,7 +535,7 @@ export function extractDateScore(url: unknown): number {
     const fn = typeof native.extractDateScore === "function" ? native.extractDateScore : native.extract_date_score;
     if (typeof fn === "function") {
       try { return fn.call(native, String(url || "")); }
-      catch {  }
+      catch (err) { recordNativeFallback("extractDateScore", err); }
     }
   }
   return extractDateScoreFallback(url);
@@ -541,7 +576,8 @@ export function dealPassesFilters(deal: DealInfo, guild: GuildSettings | null | 
           maxPrice,
           enabledStores
         );
-      } catch {
+      } catch (err) {
+        recordNativeFallback("dealPassesFilters", err);
       }
     }
   }
@@ -568,7 +604,8 @@ export function findGameKeys(text: unknown, games: GameConfig[], maxInput: numbe
       if (typeof fn === "function") {
         return normalizeNativeResult(fn(String(text || ""), toNativeCandidates(games), maxInput));
       }
-    } catch {
+    } catch (err) {
+      recordNativeFallback("findGameKeys", err);
     }
   }
   return findGameKeysFallback(text, games, maxInput);

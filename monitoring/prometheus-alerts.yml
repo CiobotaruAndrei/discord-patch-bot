@@ -80,3 +80,15 @@ groups:
         annotations:
           summary: "Recovery-verify re-sending (marker not found)"
           description: "bot_outbox_recovery_marker_missing crescut: verificarea pe istoric reuseste dar marker-ul nu e gasit (re-trimitere). Pe canale aglomerate creste NOTIFICATION_OUTBOX_RECOVERY_HISTORY_LIMIT. Vezi OPERATIONS.md."
+
+  - name: discord-patch-bot-native
+    rules:
+      - alert: NativeFallbackActive
+        expr: increase(bot_native_fallback_total[30m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+          component: native
+        annotations:
+          summary: "Native (Rust) addon falling back to TypeScript"
+          description: "bot_native_fallback_total a crescut: unul sau mai multe apeluri native (Rust) arunca exceptii si cad pe implementarea TypeScript. Risc de divergenta de rezultat/performanta. Verifica build-ul nativ (`npm run build:rust`) si log-urile [NATIVE_FUZZY]."
