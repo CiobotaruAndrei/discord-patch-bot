@@ -51,6 +51,19 @@ trebuie sa ramana verzi.
 
 ## CPU hot-paths in Rust
 
-Deja evaluat si **decis**: hot-path-urile CPU (`levenshtein`, hashing) raman in Rust
-(`npm run benchmark:cpu` arata ~1.9x fata de fallback-ul TS, cu paritate de rezultat).
-Outbox-ul ramane in TypeScript fiindca e I/O-bound. Vezi `BENCHMARKS.md`.
+Deja evaluat si **decis**: hot-path-urile CPU cu castig masurat (`levenshtein` ~1.9x,
+`dealHash` ~1.5x fata de fallback-ul TS, cu paritate de rezultat) raman in Rust. Outbox-ul
+ramane in TypeScript fiindca e I/O-bound. Vezi `BENCHMARKS.md`.
+
+## Mutare optionala in TS-primary pentru functii native fara castig
+
+Benchmark-ul per-zona (`runAreaBenchmarks`, `BENCHMARKS.md`) arata ca `findGameKeys`,
+`buildAutocompleteChoices` si `dealPassesFilters` sunt **mai lente** in Rust decat in TS
+(overhead de marshaling NAPI al array-urilor de candidati / calcul trivial). Acum nu conteaza:
+nu sunt hot-path-uri, iar costul absolut e de ordinul microsecundelor fata de I/O-ul ciclului.
+
+**Declansator:** daca profilarea in productie arata ca una dintre ele devine semnificativa
+(de ex. > 1% din timpul unui ciclu cron, sau autocomplete perceptibil lent), comuta acea functie
+pe **TS-primary** (functia TS deja exista si e mai rapida; varianta nativa ramane disponibila/parity).
+Pana atunci, raman in Rust ca sursa unica cu paritate verificata, ca sa nu fragmentam implementarile
+fara motiv masurat.

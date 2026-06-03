@@ -265,7 +265,7 @@ function scoreAutocompleteGameFallback(game: GameConfig, input: string): number 
   return score;
 }
 
-function buildAutocompleteChoicesFallback(
+export function buildAutocompleteChoicesFallback(
   games: GameConfig[],
   input: string,
   useNameAsValue: boolean,
@@ -353,7 +353,7 @@ function normalizeDealStateFallback(deal: DealInfo): string {
   ].map(value => String(value).trim().toLowerCase()).join(":");
 }
 
-function dealPassesFiltersFallback(deal: DealInfo, guild: GuildSettings | null | undefined): boolean {
+export function dealPassesFiltersFallback(deal: DealInfo, guild: GuildSettings | null | undefined): boolean {
   const minDisc = guild?.minDiscountPercent ?? 0;
   const incFree = guild?.includeFreeGames !== false;
   const incPaid = guild?.includePaidDiscounts !== false;
@@ -372,7 +372,7 @@ function dealPassesFiltersFallback(deal: DealInfo, guild: GuildSettings | null |
   return true;
 }
 
-function dealHashFallback(deal: DealInfo): string {
+export function dealHashFallback(deal: DealInfo): string {
   let stableKey;
   if (deal.store === "Steam" && deal.steamAppID) {
     stableKey = `steam:${deal.steamAppID}:${normalizeDealStateFallback(deal)}`;
@@ -385,7 +385,7 @@ function dealHashFallback(deal: DealInfo): string {
   return crypto.createHash("sha1").update(stableKey).digest("hex");
 }
 
-function findGameKeysFallback(text: unknown, games: GameConfig[], maxInput: number): FuzzyMatchKeys {
+export function findGameKeysFallback(text: unknown, games: GameConfig[], maxInput: number): FuzzyMatchKeys {
   let search = normalizeCommandText(text);
 
   const searchChars = Array.from(search);

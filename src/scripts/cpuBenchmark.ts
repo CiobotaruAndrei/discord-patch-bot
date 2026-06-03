@@ -1,6 +1,15 @@
 "use strict";
 
-import { getNativeFuzzy, levenshteinFallback, isRustFuzzyAvailable } from "../native/fuzzy";
+import {
+  getNativeFuzzy,
+  levenshteinFallback,
+  isRustFuzzyAvailable,
+  findGameKeysFallback,
+  dealHashFallback,
+  buildAutocompleteChoicesFallback,
+  dealPassesFiltersFallback
+} from "../native/fuzzy";
+import type { DealInfo, GameConfig, GuildSettings } from "../types";
 
 const SAMPLE_PAIRS: Array<[string, string]> = [
   ["counter strike 2", "counter-strike 2"],
@@ -27,11 +36,21 @@ export interface CpuBenchmarkResult {
   speedup: number | null;
 }
 
-function timeLoop(fn: () => void, iterations: number): TimedResult {
+export interface AreaBenchmarkResult {
+  area: string;
+  rustAvailable: boolean;
+  callsPerIteration: number;
+  ts: TimedResult;
+  native: TimedResult | null;
+  speedup: number | null;
+  parityOk: boolean;
+}
+
+function timeLoop(fn: () => void, iterations: number, callsPerIteration: number): TimedResult {
   const start = process.hrtime.bigint();
   for (let i = 0; i < iterations; i++) fn();
   const totalMs = Number(process.hrtime.bigint() - start) / 1e6;
-  const totalCalls = iterations * SAMPLE_PAIRS.length;
+  const totalCalls = iterations * callsPerIteration;
   return { totalMs, callsPerSecond: totalCalls / (totalMs / 1000) };
 }
 
@@ -51,9 +70,9 @@ export function runCpuBenchmark(iterations = Number(process.env.CPU_BENCH_ITER) 
   const native = getNativeFuzzy();
   const tsTimed = timeLoop(() => {
     for (const pair of SAMPLE_PAIRS) levenshteinFallback(pair[0], pair[1]);
-  }, iterations);
+  }, iterations, SAMPLE_PAIRS.length);
   const nativeTimed = native
-    ? timeLoop(() => { for (const pair of SAMPLE_PAIRS) native.levenshtein(pair[0], pair[1]); }, iterations)
+    ? timeLoop(() => { for (const pair of SAMPLE_PAIRS) native.levenshtein(pair[0], pair[1]); }, iterations, SAMPLE_PAIRS.length)
     : null;
   const speedup = nativeTimed ? tsTimed.totalMs / nativeTimed.totalMs : null;
   return {
@@ -66,9 +85,208 @@ export function runCpuBenchmark(iterations = Number(process.env.CPU_BENCH_ITER) 
   };
 }
 
+const SAMPLE_GAMES: GameConfig[] = [
+  { key: "cs2", name: "Counter-Strike 2", aliases: ["counter strike", "csgo"] },
+  { key: "witcher3", name: "The Witcher 3: Wild Hunt", aliases: ["witcher"] },
+  { key: "bg3", name: "Baldur's Gate 3", aliases: ["baldurs gate"] },
+  { key: "cyberpunk", name: "Cyberpunk 2077", aliases: ["cp2077"] },
+  { key: "rdr2", name: "Red Dead Redemption 2", aliases: ["red dead"] },
+  { key: "eldenring", name: "Elden Ring", aliases: [] },
+  { key: "gtav", name: "Grand Theft Auto V", aliases: ["gta 5", "gta"] },
+  { key: "minecraft", name: "Minecraft", aliases: ["mc"] },
+  { key: "valorant", name: "Valorant", aliases: [] },
+  { key: "lol", name: "League of Legends", aliases: ["league"] },
+  { key: "dota2", name: "Dota 2", aliases: ["dota"] },
+  { key: "fortnite", name: "Fortnite", aliases: [] },
+  { key: "apex", name: "Apex Legends", aliases: ["apex legends"] },
+  { key: "warframe", name: "Warframe", aliases: [] },
+  { key: "terraria", name: "Terraria", aliases: [] }
+];
+
+const SAMPLE_GAME_CANDIDATES = SAMPLE_GAMES.map(game => ({
+  key: String(game.key),
+  name: String(game.name),
+  aliases: Array.isArray(game.aliases) ? game.aliases.map(String) : []
+}));
+
+const SAMPLE_QUERIES = ["counter strike 2", "witcher", "baldurs gate", "cyberpunk 2077", "gta 5", "elden ring", "minecraft", "valorant"];
+const MAX_FUZZY = 64;
+
+const SAMPLE_DEALS: DealInfo[] = [
+  { store: "Steam", steamAppID: 730, id: "steam_730", title: "Counter-Strike 2", salePrice: "0.00", normalPrice: "0.00", savings: 0 },
+  { store: "Steam", steamAppID: 292030, id: "steam_292030", title: "The Witcher 3: Wild Hunt", salePrice: "9.99", normalPrice: "39.99", savings: 75 },
+  { store: "Steam", steamAppID: 1086940, id: "steam_1086940", title: "Baldur's Gate 3", salePrice: "47.99", normalPrice: "59.99", savings: 20 },
+  { store: "Epic Games", steamAppID: null, id: "epic_fortnite", title: "Fortnite", salePrice: "0.00", normalPrice: "0.00", savings: 0 },
+  { store: "Epic Games", steamAppID: null, id: "epic_alan-wake-2", title: "Alan Wake 2", salePrice: "29.99", normalPrice: "49.99", savings: 40 },
+  { store: "Steam", steamAppID: 1245620, id: "steam_1245620", title: "Elden Ring", salePrice: "41.99", normalPrice: "59.99", savings: 30 }
+];
+
+const SAMPLE_GUILD: GuildSettings = {
+  _id: "bench-guild",
+  minDiscountPercent: 20,
+  includeFreeGames: true,
+  includePaidDiscounts: true,
+  maxAbsolutePrice: 60,
+  enabledStores: ["Steam", "Epic Games"]
+} as GuildSettings;
+
+function dealHashNativeArgs(deal: DealInfo): [string, string, string, string, string, string, string] {
+  return [
+    String(deal.store),
+    deal.steamAppID ? String(deal.steamAppID) : "",
+    String(deal.id || ""),
+    String(deal.title || ""),
+    String(deal.salePrice ?? ""),
+    String(deal.normalPrice ?? ""),
+    String(deal.savings ?? "")
+  ];
+}
+
+function dealFilterNativeArgs(deal: DealInfo, guild: GuildSettings): [number, number, string, number, boolean, boolean, number, string[]] {
+  return [
+    parseFloat(String(deal.salePrice)),
+    Number(deal.savings),
+    String(deal.store),
+    guild.minDiscountPercent ?? 0,
+    guild.includeFreeGames !== false,
+    guild.includePaidDiscounts !== false,
+    Number(guild.maxAbsolutePrice) || 0,
+    Array.isArray(guild.enabledStores) ? guild.enabledStores.map(String) : []
+  ];
+}
+
+function normalizeKeys(value: unknown): { gameKey: string | null; suggestionKey: string | null } {
+  const v = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const gameKey = typeof v.gameKey === "string" ? v.gameKey : typeof v.game_key === "string" ? v.game_key : null;
+  const suggestionKey = typeof v.suggestionKey === "string" ? v.suggestionKey : typeof v.suggestion_key === "string" ? v.suggestion_key : null;
+  return { gameKey, suggestionKey };
+}
+
+interface NativeFns {
+  findGameKeys?: (text: string, games: unknown[], maxInput: number) => unknown;
+  find_game_keys?: (text: string, games: unknown[], maxInput: number) => unknown;
+  dealHash?: (...args: string[]) => string;
+  deal_hash?: (...args: string[]) => string;
+  buildAutocompleteChoices?: (...args: unknown[]) => Array<{ name: string; value: string }>;
+  build_autocomplete_choices?: (...args: unknown[]) => Array<{ name: string; value: string }>;
+  dealPassesFilters?: (...args: unknown[]) => boolean;
+  deal_passes_filters?: (...args: unknown[]) => boolean;
+}
+
+interface AreaSpec {
+  area: string;
+  callsPerIteration: number;
+  ts: () => void;
+  native: ((n: NativeFns) => void) | null;
+  parityOk: (n: NativeFns) => boolean;
+}
+
+function buildAreaSpecs(native: NativeFns | null): AreaSpec[] {
+  const specs: AreaSpec[] = [];
+
+  specs.push({
+    area: "fuzzy-match (findGameKeys)",
+    callsPerIteration: SAMPLE_QUERIES.length,
+    ts: () => { for (const q of SAMPLE_QUERIES) findGameKeysFallback(q, SAMPLE_GAMES, MAX_FUZZY); },
+    native: native && (native.findGameKeys || native.find_game_keys)
+      ? (n: NativeFns) => {
+          const fn = (n.findGameKeys || n.find_game_keys) as (text: string, games: unknown[], maxInput: number) => unknown;
+          for (const q of SAMPLE_QUERIES) fn(q, SAMPLE_GAME_CANDIDATES, MAX_FUZZY);
+        }
+      : null,
+    parityOk: (n: NativeFns) => {
+      const fn = n.findGameKeys || n.find_game_keys;
+      if (!fn) return true;
+      return SAMPLE_QUERIES.every(q => {
+        const nativeKeys = normalizeKeys(fn(q, SAMPLE_GAME_CANDIDATES, MAX_FUZZY));
+        const tsKeys = findGameKeysFallback(q, SAMPLE_GAMES, MAX_FUZZY);
+        return nativeKeys.gameKey === tsKeys.gameKey && nativeKeys.suggestionKey === tsKeys.suggestionKey;
+      });
+    }
+  });
+
+  specs.push({
+    area: "hashing (dealHash)",
+    callsPerIteration: SAMPLE_DEALS.length,
+    ts: () => { for (const deal of SAMPLE_DEALS) dealHashFallback(deal); },
+    native: native && (native.dealHash || native.deal_hash)
+      ? (n: NativeFns) => {
+          const fn = (n.dealHash || n.deal_hash) as (...args: string[]) => string;
+          for (const deal of SAMPLE_DEALS) fn(...dealHashNativeArgs(deal));
+        }
+      : null,
+    parityOk: (n: NativeFns) => {
+      const fn = n.dealHash || n.deal_hash;
+      if (!fn) return true;
+      return SAMPLE_DEALS.every(deal => fn(...dealHashNativeArgs(deal)) === dealHashFallback(deal));
+    }
+  });
+
+  specs.push({
+    area: "autocomplete (buildAutocompleteChoices)",
+    callsPerIteration: SAMPLE_QUERIES.length,
+    ts: () => { for (const q of SAMPLE_QUERIES) buildAutocompleteChoicesFallback(SAMPLE_GAMES, q, false, 1, 25, 100, 100); },
+    native: native && (native.buildAutocompleteChoices || native.build_autocomplete_choices)
+      ? (n: NativeFns) => {
+          const fn = (n.buildAutocompleteChoices || n.build_autocomplete_choices) as (...args: unknown[]) => Array<{ name: string; value: string }>;
+          for (const q of SAMPLE_QUERIES) fn(SAMPLE_GAME_CANDIDATES, q, false, 1, 25, 100, 100);
+        }
+      : null,
+    parityOk: (n: NativeFns) => {
+      const fn = n.buildAutocompleteChoices || n.build_autocomplete_choices;
+      if (!fn) return true;
+      return SAMPLE_QUERIES.every(q => {
+        const nativeChoices = fn(SAMPLE_GAME_CANDIDATES, q, false, 1, 25, 100, 100).map(c => String(c.value));
+        const tsChoices = buildAutocompleteChoicesFallback(SAMPLE_GAMES, q, false, 1, 25, 100, 100).map(c => String(c.value));
+        return JSON.stringify(nativeChoices) === JSON.stringify(tsChoices);
+      });
+    }
+  });
+
+  specs.push({
+    area: "deal-filters (dealPassesFilters)",
+    callsPerIteration: SAMPLE_DEALS.length,
+    ts: () => { for (const deal of SAMPLE_DEALS) dealPassesFiltersFallback(deal, SAMPLE_GUILD); },
+    native: native && (native.dealPassesFilters || native.deal_passes_filters)
+      ? (n: NativeFns) => {
+          const fn = (n.dealPassesFilters || n.deal_passes_filters) as (...args: unknown[]) => boolean;
+          for (const deal of SAMPLE_DEALS) fn(...dealFilterNativeArgs(deal, SAMPLE_GUILD));
+        }
+      : null,
+    parityOk: (n: NativeFns) => {
+      const fn = n.dealPassesFilters || n.deal_passes_filters;
+      if (!fn) return true;
+      return SAMPLE_DEALS.every(deal => fn(...dealFilterNativeArgs(deal, SAMPLE_GUILD)) === dealPassesFiltersFallback(deal, SAMPLE_GUILD));
+    }
+  });
+
+  return specs;
+}
+
+export function runAreaBenchmarks(iterations = Number(process.env.CPU_BENCH_ITER) || 100_000): AreaBenchmarkResult[] {
+  const native = getNativeFuzzy() as NativeFns | null;
+  const rustAvailable = isRustFuzzyAvailable();
+  return buildAreaSpecs(native).map(spec => {
+    const ts = timeLoop(spec.ts, iterations, spec.callsPerIteration);
+    const nativeFn = spec.native;
+    const nativeTimed = native && nativeFn
+      ? timeLoop(() => nativeFn(native), iterations, spec.callsPerIteration)
+      : null;
+    return {
+      area: spec.area,
+      rustAvailable,
+      callsPerIteration: spec.callsPerIteration,
+      ts,
+      native: nativeTimed,
+      speedup: nativeTimed ? ts.totalMs / nativeTimed.totalMs : null,
+      parityOk: native ? spec.parityOk(native) : true
+    };
+  });
+}
+
 if (require.main === module) {
-  const result = runCpuBenchmark();
   const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
+  const result = runCpuBenchmark();
   console.log(`CPU benchmark (levenshtein), ${fmt(result.iterations)} iteratii x ${result.callsPerIteration} apeluri`);
   console.log(`- TS fallback: ${result.ts.totalMs.toFixed(1)}ms, ${fmt(result.ts.callsPerSecond)} apeluri/s`);
   if (result.native) {
@@ -78,6 +296,15 @@ if (require.main === module) {
     console.log(`- Paritate native==TS: ${mismatches.length === 0 ? "OK" : `${mismatches.length} diferente`}`);
   } else {
     console.log("- Rust native: indisponibil (foloseste fallback TS).");
+  }
+
+  console.log("\nCPU benchmark per zona (TS vs Rust):");
+  for (const area of runAreaBenchmarks()) {
+    if (area.native) {
+      console.log(`- ${area.area}: TS ${fmt(area.ts.callsPerSecond)} ap/s vs Rust ${fmt(area.native.callsPerSecond)} ap/s -> ${area.speedup ? area.speedup.toFixed(2) : "-"}x, paritate ${area.parityOk ? "OK" : "DIFERENTE"}`);
+    } else {
+      console.log(`- ${area.area}: Rust indisponibil, TS ${fmt(area.ts.callsPerSecond)} ap/s`);
+    }
   }
 }
 

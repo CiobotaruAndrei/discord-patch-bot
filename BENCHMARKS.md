@@ -30,9 +30,40 @@ Masuratoare reprezentativa (200.000 iteratii x 8 perechi):
 | TS fallback | ~1,26M | `levenshteinFallback` |
 | Speedup | ~1.9x | paritate native==TS: OK |
 
-**Decizie:** hot-path-urile CPU (fuzzy matching, hashing dedupe) **raman in Rust** — exista
-un castig masurat (~1.9x) si paritate de rezultat cu fallback-ul TS. Fallback-ul TS exista
-pentru robustete (cand addonul nu poate fi incarcat), nu ca implementare principala.
+### Per zona: TS vs Rust (regula 14 demonstrata, nu doar respectata tehnic)
+
+`npm run benchmark:cpu` masoara acum si fiecare functie nativa fata de fallback-ul TS
+echivalent, pe acelasi input (`runAreaBenchmarks`), cu verificare de paritate a rezultatului.
+Masuratoare reprezentativa (100.000 iteratii; cifrele difera intre masini, conteaza raportul):
+
+| Zona (functie) | TS (apeluri/s) | Rust (apeluri/s) | Rust vs TS | Paritate |
+| --- | --- | --- | --- | --- |
+| `levenshtein` | ~1,27M | ~2,40M | **~1.9x** (Rust mai rapid) | OK |
+| `dealHash` (hashing) | ~1,11M | ~1,70M | **~1.5x** (Rust mai rapid) | OK |
+| `findGameKeys` (fuzzy-match) | ~107k | ~76k | ~0.7x (Rust mai lent) | OK |
+| `buildAutocompleteChoices` | ~1,15M | ~99k | ~0.09x (Rust mai lent) | OK |
+| `dealPassesFilters` | ~37M | ~3,1M | ~0.08x (Rust mai lent) | OK |
+
+Interpretare onesta: Rust castiga clar doar acolo unde calculul e dominant si argumentele sunt
+ieftine de trecut peste granita JS<->Rust — `levenshtein` (string-uri) si `dealHash` (string-uri).
+Pentru `findGameKeys` si `buildAutocompleteChoices`, fiecare apel trece un **array de candidati**
+peste granita NAPI (marshaling), iar pentru `dealPassesFilters` calculul e trivial; in aceste
+cazuri overhead-ul apelului nativ depaseste castigul, deci Rust e mai lent decat TS in microbenchmark.
+
+**Decizie:**
+
+- `levenshtein` si hashing-ul de dedupe (`dealHash` / `stableUpdateId`) **raman in Rust** — castig
+  masurat (~1.5–1.9x) + paritate; sunt si cele cu adevarat hot (fuzzy peste toate jocurile, hash la
+  fiecare update/reducere).
+- `findGameKeys`, `buildAutocompleteChoices`, `dealPassesFilters` **raman in Rust ca sursa unica**
+  (cu paritate verificata), desi microbenchmark-ul arata ca nu aduc castig: nu sunt hot-path-uri
+  (autocomplete e per-tasta dar debounce-uit + max 25 elemente; `findGameKeys` per comanda;
+  `dealPassesFilters` ruleaza pe ~zeci de oferte per guild intr-un ciclu cron I/O-bound), iar costul
+  absolut e de ordinul microsecundelor — neglijabil fata de I/O-ul ciclului. Daca vreodata devin hot,
+  varianta TS-primary este masurat mai rapida si ar fi alegerea corecta (vezi `ROADMAP.md`).
+
+Fallback-ul TS exista pentru robustete (cand addonul nu poate fi incarcat), nu ca implementare
+principala — cu exceptia notata mai sus, unde ar fi chiar mai eficient.
 
 ## 2. Outbox: drenare job-by-job (I/O-bound)
 
