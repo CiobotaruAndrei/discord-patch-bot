@@ -17,6 +17,7 @@
     "benchmark": "npm run build:ts && node dist/scripts/notificationBenchmark.js",
     "benchmark:outbox": "npm run build:ts && node dist/scripts/outboxLoadBenchmark.js",
     "benchmark:cpu": "npm run build && node dist/scripts/cpuBenchmark.js",
+    "benchmark:guard": "npm run build && node dist/scripts/benchmarkGuard.js",
     "smoke:staging": "npm run build:ts && node dist/scripts/stagingSmoke.js",
     "smoke:staging:discord": "npm run build:ts && node dist/scripts/stagingDiscordSmoke.js",
     "typecheck": "tsc --noEmit",

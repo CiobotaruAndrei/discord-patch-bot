@@ -56,3 +56,6 @@ jobs:
           DISCORD_CLIENT_ID: test_discord_client_id
           METRICS_PUBLIC: "true"
         run: npm run check
+
+      - name: Benchmark hot-path guard (BENCHMARKS.md)
+        run: node dist/scripts/benchmarkGuard.js
