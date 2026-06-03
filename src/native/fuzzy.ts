@@ -3,6 +3,8 @@ import fs = require("fs");
 import path = require("path");
 import type { DealInfo, GameConfig, GuildSettings } from "../types";
 
+export const HASH_VERSION = 2;
+
 interface NativeGameCandidate {
   key: string;
   name: string;
@@ -342,7 +344,7 @@ function cleanTextFallback(value: unknown): string {
 
 function stableUpdateIdFallback(title: unknown, link: unknown): string {
   const base = `${String(title || "")}|${String(link || "")}`;
-  return crypto.createHash("sha1").update(base).digest("hex").substring(0, 16);
+  return crypto.createHash("sha256").update(base).digest("hex").substring(0, 16);
 }
 
 function normalizeDealStateFallback(deal: DealInfo): string {
@@ -382,7 +384,7 @@ export function dealHashFallback(deal: DealInfo): string {
   } else {
     stableKey = `${deal.store}:${normalizeTitleForDedupeFallback(deal.title)}:${normalizeDealStateFallback(deal)}`;
   }
-  return crypto.createHash("sha1").update(stableKey).digest("hex");
+  return crypto.createHash("sha256").update(stableKey).digest("hex");
 }
 
 export function findGameKeysFallback(text: unknown, games: GameConfig[], maxInput: number): FuzzyMatchKeys {

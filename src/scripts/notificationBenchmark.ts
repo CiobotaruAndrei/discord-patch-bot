@@ -127,14 +127,14 @@ function makeDiscountDeps(counters: Counters): DiscountDeps {
 
 function makeUpdateGuilds(count: number): unknown[] {
   return Array.from({ length: count }, (_, i) => ({
-    _id: `g${i}`, subscribed: true, notificationChannelId: `chan-${i}`,
+    _id: `g${i}`, subscribed: true, notificationChannelId: `chan-${i}`, seenHashVersionUpdates: 2,
     seen: {}, pendingUpdates: {}, enabledGames: []
   }));
 }
 
 function makeDiscountGuilds(count: number): unknown[] {
   return Array.from({ length: count }, (_, i) => ({
-    _id: `g${i}`, discountsSubscribed: true, discountChannelId: `chan-${i}`,
+    _id: `g${i}`, discountsSubscribed: true, discountChannelId: `chan-${i}`, seenHashVersionDiscounts: 2,
     seenDiscounts: [], pendingDiscounts: [], currency: "USD"
   }));
 }

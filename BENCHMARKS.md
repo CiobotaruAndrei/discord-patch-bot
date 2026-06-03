@@ -45,7 +45,8 @@ Masuratoare reprezentativa (100.000 iteratii; cifrele difera intre masini, conte
 | `dealPassesFilters` | ~37M | ~3,1M | ~0.08x (Rust mai lent) | OK |
 
 Interpretare onesta: Rust castiga clar doar acolo unde calculul e dominant si argumentele sunt
-ieftine de trecut peste granita JS<->Rust — `levenshtein` (string-uri) si `dealHash` (string-uri).
+ieftine de trecut peste granita JS<->Rust — `levenshtein` (string-uri) si `dealHash` (SHA-256 pe string-uri;
+~1.5x si dupa trecerea de la SHA-1 la SHA-256, cu paritate native==TS).
 Pentru `findGameKeys` si `buildAutocompleteChoices`, fiecare apel trece un **array de candidati**
 peste granita NAPI (marshaling), iar pentru `dealPassesFilters` calculul e trivial; in aceste
 cazuri overhead-ul apelului nativ depaseste castigul, deci Rust e mai lent decat TS in microbenchmark.

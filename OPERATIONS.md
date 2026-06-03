@@ -85,6 +85,18 @@ de Rust. Alerta `NativeFallbackActive` se declanseaza cand metrica creste.
    dar `dealHash` / `stableUpdateId` au cai separate care nu cad pe acest fallback — daca acolo
    apar erori, vezi sectiunea despre addon-ul nativ din `README` / fail-fast la boot.
 
+## Migrarea hash-ului de dedup (`HASH_VERSION`)
+
+Hash-urile de deduplicare (`dealHash`, `stableUpdateId`) folosesc SHA-256, versionat prin
+`HASH_VERSION`. Cand `HASH_VERSION` creste (schimbare de algoritm), la **primul ciclu cron**
+fiecare guild cu o versiune stocata invechita (`seenHashVersionUpdates` / `seenHashVersionDiscounts`)
+este **re-baseline-uit**: hash-urile curente sunt marcate ca „vazute" si versiunea e actualizata,
+**fara** a trimite notificari in acel ciclu. Asadar, dupa un deploy care schimba algoritmul:
+
+- este normal sa apara in log `Re-baseline dedup ...` pentru guild-uri si sa NU soseasca notificari
+  in primul ciclu — este intentionat (previne spam-ul care ar aparea daca toate hash-urile ar parea noi);
+- notificarile reale revin de la al doilea ciclu, normal. Nu necesita interventie.
+
 ## Rate-limit Discord
 
 Daca livrarile sunt incetinite de rate-limit:

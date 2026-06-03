@@ -114,12 +114,13 @@ function createNotificationRuntime(deps: NotificationsContext) {
   });
   const {
     claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, disableUpdatesForChannelError,
-    claimSeenDiscount, rollbackSeenDiscount, seedSeenDiscounts, loadSeenDiscountHashes, disableDiscountsForChannelError
+    claimSeenDiscount, rollbackSeenDiscount, seedSeenDiscounts, loadSeenDiscountHashes, disableDiscountsForChannelError,
+    setSeenHashVersion
   } = seenRepository;
 
   const updateService = createUpdateNotificationService({
     GuildModel, logger, runConcurrent, resolveOutboundChannel,
-    claimSeenUpdate, rollbackSeenUpdate, disableUpdatesForChannelError,
+    claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, setSeenHashVersion, disableUpdatesForChannelError,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingUpdateArray, toEntries, rotateAfter, mapToObject,
     getLatestForAllGames, setUpdatesCache, persistFetchSnapshot, loadFetchSnapshot: loadSnapshot, buildUpdateEmbed, sleepIfPositive,
@@ -130,7 +131,7 @@ function createNotificationRuntime(deps: NotificationsContext) {
 
   const discountService = createDiscountNotificationService({
     GuildModel, logger, runConcurrent, resolveOutboundChannel,
-    claimSeenDiscount, rollbackSeenDiscount, loadSeenDiscountHashes, disableDiscountsForChannelError,
+    claimSeenDiscount, rollbackSeenDiscount, loadSeenDiscountHashes, seedSeenDiscounts, setSeenHashVersion, disableDiscountsForChannelError,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingDiscountArray, validatePendingDiscountSnapshot,
     normalizeCurrencyKey, dealPassesFilters, dealHash,

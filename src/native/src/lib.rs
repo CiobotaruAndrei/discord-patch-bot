@@ -1,5 +1,5 @@
 use napi_derive::napi;
-use sha1::{Digest, Sha1};
+use sha2::{Digest, Sha256};
 
 #[napi(object)]
 pub struct GameCandidate {
@@ -220,7 +220,7 @@ pub fn build_autocomplete_choices(
 #[napi]
 pub fn stable_update_id(title: String, link: String) -> String {
   let base = format!("{}|{}", title, link);
-  let mut hasher = Sha1::new();
+  let mut hasher = Sha256::new();
   hasher.update(base.as_bytes());
 
   hex_encode(&hasher.finalize()[..8])
@@ -286,7 +286,7 @@ pub fn deal_hash(
     format!("{}:{}:{}", store, normalize_title_for_dedupe_impl(&title), state)
   };
 
-  sha1_hex(&stable_key)
+  sha256_hex(&stable_key)
 }
 
 #[napi]
@@ -541,8 +541,8 @@ fn clean_text_impl(input: &str) -> String {
   out
 }
 
-fn sha1_hex(value: &str) -> String {
-  let mut hasher = Sha1::new();
+fn sha256_hex(value: &str) -> String {
+  let mut hasher = Sha256::new();
   hasher.update(value.as_bytes());
   hex_encode(&hasher.finalize())
 }

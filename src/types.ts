@@ -304,6 +304,8 @@ export interface GuildSettings {
   maxAbsolutePrice?: number;
   notificationRoleId?: string | null;
   discountRoleId?: string | null;
+  seenHashVersionUpdates?: number;
+  seenHashVersionDiscounts?: number;
   [key: string]: unknown;
 }
 
