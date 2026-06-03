@@ -1,5 +1,7 @@
 import http = require("http");
 import https = require("https");
+import { buildSmokeResult, writeSmokeResult } from "./smokeResult";
+import type { SmokeCheck } from "./smokeResult";
 
 interface HealthEval { ok: boolean; problems: string[] }
 interface MetricsEval { ok: boolean; missing: string[] }
@@ -56,10 +58,11 @@ async function runStagingSmoke(): Promise<number> {
     console.log("[staging-smoke] Seteaza STAGING_BASE_URL (si optional STAGING_METRICS_TOKEN) catre instanta de staging");
     console.log("[staging-smoke] ca acest runner sa verifice /healthz si /metrics. Comenzile/notificarile Discord live");
     console.log("[staging-smoke] raman de verificat manual conform STAGING_SMOKE.md.");
+    writeSmokeResult("STAGING_SMOKE_RESULT_FILE", buildSmokeResult("http", true, []));
     return 0;
   }
 
-  let failures = 0;
+  const checks: SmokeCheck[] = [];
 
   try {
     const health = await probe(`${baseUrl}/healthz`);
@@ -70,14 +73,11 @@ async function runStagingSmoke(): Promise<number> {
       parsed = null;
     }
     const evalH = evaluateHealthBody(parsed);
-    if (health.status !== 200 || !evalH.ok) {
-      failures++;
-      console.error(`[staging-smoke] /healthz FAIL (HTTP ${health.status}): ${evalH.problems.join("; ") || "raspuns ne-JSON"}`);
-    } else {
-      console.log("[staging-smoke] /healthz OK (status=ok, mongo + discord ready).");
-    }
+    const ok = health.status === 200 && evalH.ok;
+    checks.push({ name: "healthz", ok, detail: ok ? `HTTP ${health.status}` : `HTTP ${health.status}: ${evalH.problems.join("; ") || "raspuns ne-JSON"}` });
+    console[ok ? "log" : "error"](`[staging-smoke] /healthz ${ok ? "OK (status=ok, mongo + discord ready)." : "FAIL: " + (evalH.problems.join("; ") || "raspuns ne-JSON")}`);
   } catch (err) {
-    failures++;
+    checks.push({ name: "healthz", ok: false, detail: `eroare de retea: ${err instanceof Error ? err.message : String(err)}` });
     console.error(`[staging-smoke] /healthz eroare de retea: ${err instanceof Error ? err.message : String(err)}`);
   }
 
@@ -87,22 +87,21 @@ async function runStagingSmoke(): Promise<number> {
     if (token) headers.Authorization = `Bearer ${token}`;
     const metrics = await probe(`${baseUrl}/metrics`, headers);
     const evalM = evaluateMetricsText(metrics.body);
-    if (metrics.status !== 200 || !evalM.ok) {
-      failures++;
-      console.error(`[staging-smoke] /metrics FAIL (HTTP ${metrics.status}): metrici lipsa: ${evalM.missing.join(", ") || "(niciuna; verifica auth/token)"}`);
-    } else {
-      console.log("[staging-smoke] /metrics OK (metrici cheie prezente).");
-    }
+    const ok = metrics.status === 200 && evalM.ok;
+    checks.push({ name: "metrics", ok, detail: ok ? `HTTP ${metrics.status}` : `HTTP ${metrics.status}: metrici lipsa ${evalM.missing.join(", ") || "(verifica auth/token)"}` });
+    console[ok ? "log" : "error"](`[staging-smoke] /metrics ${ok ? "OK (metrici cheie prezente)." : "FAIL: metrici lipsa " + (evalM.missing.join(", ") || "(verifica auth/token)")}`);
   } catch (err) {
-    failures++;
+    checks.push({ name: "metrics", ok: false, detail: `eroare de retea: ${err instanceof Error ? err.message : String(err)}` });
     console.error(`[staging-smoke] /metrics eroare de retea: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  if (failures === 0) {
+  const result = buildSmokeResult("http", false, checks);
+  writeSmokeResult("STAGING_SMOKE_RESULT_FILE", result);
+  if (result.ok) {
     console.log("[staging-smoke] Proba live a trecut. NB: comenzile/notificarile Discord live raman de verificat manual (STAGING_SMOKE.md).");
     return 0;
   }
-  console.error(`[staging-smoke] ${failures} verificare(i) esuate.`);
+  console.error(`[staging-smoke] ${checks.filter(c => !c.ok).length} verificare(i) esuate.`);
   return 1;
 }
 

@@ -32,6 +32,7 @@ jobs:
         env:
           STAGING_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
           STAGING_METRICS_TOKEN: ${{ secrets.STAGING_METRICS_TOKEN }}
+          STAGING_SMOKE_RESULT_FILE: ${{ github.workspace }}/staging-smoke-http.json
 
       - name: Run live Discord smoke (gateway + commands + permissions)
         run: npm run smoke:staging:discord
@@ -41,3 +42,15 @@ jobs:
           STAGING_TEST_GUILD_ID: ${{ secrets.STAGING_TEST_GUILD_ID }}
           STAGING_TEST_CHANNEL_ID: ${{ secrets.STAGING_TEST_CHANNEL_ID }}
           STAGING_DISCORD_SEND_TEST: ${{ secrets.STAGING_DISCORD_SEND_TEST }}
+          STAGING_DISCORD_SMOKE_RESULT_FILE: ${{ github.workspace }}/staging-smoke-discord.json
+
+      - name: Upload staging smoke result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-smoke-result
+          path: |
+            ${{ github.workspace }}/staging-smoke-http.json
+            ${{ github.workspace }}/staging-smoke-discord.json
+          if-no-files-found: warn
+          retention-days: 30
