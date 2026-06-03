@@ -60,10 +60,13 @@ brusc bottleneck — pur si simplu dureaza proportional cu numarul de joburi.
   nu in calcul).
 - Drenarea **job-by-job (cu lease atomic)** ramane implementarea curenta fiindca garanteaza
   exact-once la nivel de claim si e corecta intre instante. Un `bulkWrite` / claim in batch
-  ar reduce numarul de round-trip-uri, dar este o optimizare **viitoare**, justificata doar
-  daca `bot_outbox_queue_depth` / `bot_outbox_oldest_job_age_seconds` raman sustinut mari la
-  volum real (vezi `OPERATIONS.md`). La ~700 joburi/s per drenare, cu worker pe interval
-  scurt si rate-limit Discord ca factor dominant real, volumul tipic este acoperit confortabil.
+  ar reduce numarul de round-trip-uri, dar este o optimizare **viitoare** cu praguri de
+  declansare concrete documentate in `ROADMAP.md` („Outbox: claim in batch"): pe scurt,
+  `bot_outbox_queue_depth` > 500 sustinut ≥ 2h sau `bot_outbox_oldest_job_age_seconds` > 900
+  sustinut ≥ 30 min **in timp ce worker-ul chiar dreneaza** (nu pe pauza). Alerta
+  `OutboxBatchDrainRecommended` semnaleaza automat aceasta conditie. La ~700 joburi/s per
+  drenare, cu worker pe interval scurt si rate-limit Discord ca factor dominant real, volumul
+  tipic este acoperit confortabil sub aceste praguri.
 
 ## 3. Scalare notificari
 
