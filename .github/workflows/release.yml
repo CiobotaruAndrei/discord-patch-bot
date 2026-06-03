@@ -10,6 +10,11 @@ on:
         description: "Tag to release, for example v1.0.0"
         required: true
         type: string
+      smoke_confirmed:
+        description: "Confirm staging smoke + manual Discord smoke passed (see RELEASING.md)"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -34,6 +39,18 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "image=ghcr.io/$owner/discord-patch-bot" >> "$GITHUB_OUTPUT"
 
+      - name: Release gate (smoke confirmation)
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SMOKE_CONFIRMED: ${{ inputs.smoke_confirmed }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$SMOKE_CONFIRMED" != "true" ]; then
+            echo "::error::Release blocat: porneste prin workflow_dispatch cu smoke_confirmed=true dupa ce ai rulat staging smoke (npm run smoke:staging + smoke:staging:discord) si checklist-ul manual Discord. Vezi RELEASING.md."
+            exit 1
+          fi
+          echo "Release gate OK. CI + audit ruleaza mai jos; staging smoke + manual Discord smoke sunt responsabilitatea releaser-ului (RELEASING.md)."
+
       - name: Checkout release ref
         uses: actions/checkout@v4
         with:
@@ -54,6 +71,10 @@ jobs:
       - name: Run release checks
         working-directory: src
         run: npm run check
+
+      - name: Audit runtime dependencies
+        working-directory: src
+        run: npm audit --omit=dev --audit-level=moderate
 
       - name: Extract release notes
         working-directory: src

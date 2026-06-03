@@ -208,6 +208,8 @@ Zonele ramase de imbunatatit sunt reducerea target-ului comun din runtime/regist
 - `OPERATIONS.md` - runbook de operare (outbox: metrici, alerte, pauza, recovery-verify, setari recomandate).
 - `BENCHMARKS.md` - masuratori de performanta + decizii (ce sta in Rust vs TypeScript); ruleaza cu `npm run benchmark:cpu` si `npm run benchmark:outbox`.
 - `STAGING_SMOKE.md` - checklist manual de smoke pe un server de staging cu bot Discord real (boot, slash commands, notificari live, outbox, shutdown).
+- `RELEASING.md` - gate-ul de release: ce trebuie sa treaca (CI, dependency review, staging smoke automat, manual Discord smoke) inainte de a lansa o versiune.
+- `ROADMAP.md` - optimizari amanate cu praguri concrete de declansare (ex. batch-drain outbox).
 - `monitoring/` - reguli de alertare Prometheus (`prometheus-alerts.yml`) si dashboard Grafana (`grafana-dashboard.json`) versionate, cu instructiuni in `monitoring/README.md`.
 - `SECURITY.md` - raportare vulnerabilitati.
 
