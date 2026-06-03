@@ -29,19 +29,20 @@ The repository runs CodeQL for JavaScript/TypeScript through `.github/workflows/
 Dependency safety is checked in four layers:
 
 - `npm run check:dependencies` verifies that runtime and direct build/dev dependencies are pinned exactly, that direct lockfile entries resolve to the expected versions, and that lockfile package URLs resolve from `https://registry.npmjs.org`.
-- `.github/workflows/dependency-review.yml` checks whether GitHub Dependency graph is enabled. When it is enabled, `actions/dependency-review-action@v4` runs as a blocking pull request check for moderate or higher vulnerability severity.
+- `.github/workflows/dependency-review.yml` runs `actions/dependency-review-action@v4` as a blocking check on **every** pull request to `main` (no path filter), failing on moderate or higher vulnerability severity. It first verifies Dependency graph is enabled; on a public repository the graph is always on.
 - `.github/workflows/dependency-audit.yml` runs `npm audit --omit=dev --audit-level=moderate` weekly and manually.
 - `.github/dependabot.yml` opens grouped weekly version-update pull requests for three ecosystems: npm (`/src`), GitHub Actions (`/`) and Cargo (`/src/native`, the Rust addon), so direct dependencies stay current.
 
-### Required repository settings (owner action)
+### Repository security settings (confirmed enabled)
 
-Some dependency protections depend on repository settings that cannot be committed from a pull request. The repository owner should enable, from GitHub Settings:
+These repository-level protections are configured in GitHub Settings (not committable from a pull request) and are currently **enabled**:
 
-- **Security -> Dependency graph**: makes `actions/dependency-review-action` in `dependency-review.yml` actually run (otherwise that workflow only warns and passes). It also underpins Dependabot alerts and security updates.
-- **Security -> Dependabot security updates**: opens automatic pull requests for known-vulnerable dependencies (separate from the scheduled version updates in `dependabot.yml`).
-- **Branches -> branch protection for `main`**: mark `check` (CI) and `Dependency Review` as **required status checks**, so dependency review is a real merge blocker rather than an informational run.
+- **Dependency graph** — always on for this public repository; underpins the dependency review action, Dependabot alerts and security updates.
+- **Dependabot alerts** and **Dependabot security updates** — enabled; security updates open automatic pull requests for known-vulnerable dependencies (separate from the scheduled version updates in `dependabot.yml`).
+- **Secret scanning** + **push protection** — enabled (especially relevant because the bot uses Discord tokens, Mongo credentials, metrics tokens, webhook URLs and optional proxy URLs).
+- **Branch protection for `main`** — pull requests must be up to date and pass the required status checks `check` (CI: typecheck, build, tests, no-comments, Rust clippy/tests) and `Dependency Review` before merging. `Dependency Review` runs on every pull request, so it is a genuine merge blocker, not an informational run.
 
-Once Dependency graph is enabled no code change is needed — `dependency-review.yml` automatically switches from the warning path to the blocking `dependency-review-action` path.
+Keep these enabled. If the repository is forked or recreated, re-enable them from GitHub Settings -> Security and Settings -> Branches.
 
 Secret scanning for public repositories is handled by GitHub, and repository-level push protection should be enabled from GitHub Settings -> Security -> Advanced Security / Secret Protection when available. Push protection is especially useful here because the bot uses Discord tokens, Mongo credentials, metrics tokens, webhook URLs and optional proxy URLs.
 

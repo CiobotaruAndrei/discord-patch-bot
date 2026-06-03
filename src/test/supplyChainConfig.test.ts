@@ -28,11 +28,13 @@ test("dependency-review ruleaza actiunea blocking gated pe dependency graph", ()
   assert.match(text, /fail-on-severity:\s*moderate/, "blocheaza la severitate moderate+");
   assert.match(text, /dependency_graph\?\.status/, "verifica daca dependency graph e activat");
   assert.match(text, /steps\.dependency-graph\.outputs\.result == 'true'/, "ruleaza actiunea doar cand graph-ul e activat");
+  assert.ok(!/^\s*paths:/m.test(text), "ruleaza pe toate PR-urile catre main (fara filtru paths), deci e requireable ca status check");
 });
 
-test("SECURITY.md documenteaza setarile de repo necesare (owner action)", () => {
+test("SECURITY.md documenteaza setarile de repo de securitate (confirmate enabled)", () => {
   const text = read(securityPath);
-  assert.match(text, /Dependency graph/, "documenteaza activarea dependency graph");
+  assert.match(text, /Dependency graph/, "documenteaza dependency graph");
   assert.match(text, /Dependabot security updates/, "documenteaza Dependabot security updates");
-  assert.match(text, /required status checks/i, "documenteaza marcarea check-urilor ca required in branch protection");
+  assert.match(text, /required status checks/i, "documenteaza required status checks in branch protection");
+  assert.match(text, /Dependency Review/, "documenteaza Dependency Review ca status check pe fiecare PR");
 });
