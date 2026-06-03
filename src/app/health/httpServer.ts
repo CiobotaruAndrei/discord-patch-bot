@@ -8,6 +8,7 @@ import type {
   RateLimiter,
   RuntimeEnv
 } from "../../types";
+import { getNativeFallbackTotal } from "../../native/fuzzy";
 
 interface MongooseLike {
   connection: { readyState: number };
@@ -174,6 +175,7 @@ function createHttpServer({
       pushMetric(lines, seenMetricNames, "bot_outbox_mark_sent_failures", "counter", "Outbox deliveries that could not be recorded in the sent-dedupe history", metrics.outboxMarkSentFailures);
       pushMetric(lines, seenMetricNames, "bot_outbox_recovery_verify_enabled_guilds", "gauge", "Guilds with per-guild outbox recovery-verify enabled", metrics.outboxRecoveryVerifyEnabledGuilds);
       pushMetric(lines, seenMetricNames, "bot_outbox_last_drain_age_seconds", "gauge", "Seconds since the last completed outbox drain (0 = never; grows when the worker is paused/not draining)", metrics.outboxLastDrainAt > 0 ? Math.max(0, Math.round((Date.now() - metrics.outboxLastDrainAt) / 1000)) : 0);
+      pushMetric(lines, seenMetricNames, "bot_native_fallback_total", "counter", "Native (Rust) calls that threw and fell back to the TypeScript implementation (>0 means the native addon is partially failing)", getNativeFallbackTotal());
       res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4" });
       res.end(lines.join("\n") + "\n");
       return;

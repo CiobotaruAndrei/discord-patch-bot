@@ -63,6 +63,21 @@ deci mesajul a fost re-trimis. Diferit de `recovery_verify_failures` (acolo fetc
 2. Daca e mare, marker-ul iese din fereastra de scanare pe canale aglomerate: creste
    `NOTIFICATION_OUTBOX_RECOVERY_HISTORY_LIMIT` (implicit 25; max 100).
 
+## Cand creste `bot_native_fallback_total`
+
+Unul sau mai multe apeluri native (Rust) au aruncat exceptii si au cazut pe implementarea
+TypeScript. Addon-ul nativ s-a incarcat (altfel boot-ul ar fi esuat in productie), dar o
+functie specifica esueaza la runtime — risc de divergenta de rezultat sau de performanta fata
+de Rust. Alerta `NativeFallbackActive` se declanseaza cand metrica creste.
+
+1. Cauta in log-uri liniile `[NATIVE_FUZZY] Apelul nativ \`<functie>\` a esuat` (throttled la o
+   data per minut per functie) ca sa identifici ce functie cade pe fallback.
+2. Cea mai probabila cauza este un addon nativ invechit sau incompatibil (semnatura schimbata
+   intre versiuni). Re-build cu `npm run build:rust` si redeploy.
+3. Pana la remediere, comportamentul ramane corect (fallback-ul TS produce acelasi rezultat),
+   dar `dealHash` / `stableUpdateId` au cai separate care nu cad pe acest fallback — daca acolo
+   apar erori, vezi sectiunea despre addon-ul nativ din `README` / fail-fast la boot.
+
 ## Rate-limit Discord
 
 Daca livrarile sunt incetinite de rate-limit:
