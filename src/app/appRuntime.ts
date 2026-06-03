@@ -1,8 +1,36 @@
 "use strict";
 
+import type { ActiveLocks } from "../types";
+
 const { ensureNativeFuzzy } = require("../native/fuzzy") as { ensureNativeFuzzy: () => boolean };
 
 type AnyFn = (...args: unknown[]) => unknown;
+
+interface AppEnv {
+  MONGO_URI: string;
+  MONGO_MAX_POOL_SIZE: number;
+  PORT: number;
+  DISCORD_TOKEN: string;
+}
+
+interface CommandRuntime {
+  checkForUpdates: (games?: unknown[]) => unknown;
+  checkForDiscounts: (...args: unknown[]) => unknown;
+  cleanCache: () => void;
+  drainOutbox: (client: unknown) => unknown;
+  getCacheSizes: () => unknown;
+  handleInteraction: (interaction: unknown, games: unknown[]) => unknown;
+  registerSlashCommands: (token: string, clientId: string) => unknown;
+  setDealsCache: (currency: string, data: unknown) => void;
+  setGlobalCacheTtl: (ms: number) => void;
+  setUpdatesCache: (data: unknown) => void;
+}
+
+interface ScraperRuntime {
+  attachMetrics: (metrics: unknown) => void;
+  cleanEnrichedCache: () => void;
+  getEnrichedCacheSize: () => number;
+}
 
 interface HousekeepingLike { start(): void; stop(): void }
 interface CronControllerLike { scheduleNextCron(): void; runCronCycle(): Promise<void>; stop(): void; getHealthSnapshot(): unknown }
@@ -19,12 +47,12 @@ interface ShutdownControllerLike {
 
 interface MongoContextLike {
   logger: (level: string, context: string, message: string, meta?: unknown) => void;
-  env: { MONGO_URI: string; MONGO_MAX_POOL_SIZE: number; PORT: number; DISCORD_TOKEN: string } & Record<string, unknown>;
+  env: AppEnv;
   parseEnvNumber: (name: string, def: number, limits: { min?: number; max?: number }) => number;
   acquireDbLock: AnyFn;
   renewDbLock: AnyFn;
   releaseDbLock: AnyFn;
-  activeLocks: { size: number } & Record<string, unknown>;
+  activeLocks: ActiveLocks;
   waitForMongoReady: (timeoutMs: number) => Promise<boolean>;
   cleanGuildCache: AnyFn;
   getGuildCacheSize: () => number;
@@ -62,8 +90,8 @@ export interface AppRuntimeDeps {
   errorMessage: (err: unknown) => string;
   errorDetail: (err: unknown) => string;
   mongo: MongoContextLike;
-  commands: Record<string, AnyFn>;
-  scrapers: { attachMetrics: (metrics: unknown) => void } & Record<string, unknown>;
+  commands: CommandRuntime;
+  scrapers: ScraperRuntime;
 }
 
 interface RuntimeServices {
