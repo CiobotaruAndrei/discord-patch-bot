@@ -81,6 +81,16 @@ groups:
           summary: "Recovery-verify re-sending (marker not found)"
           description: "bot_outbox_recovery_marker_missing crescut: verificarea pe istoric reuseste dar marker-ul nu e gasit (re-trimitere). Pe canale aglomerate creste NOTIFICATION_OUTBOX_RECOVERY_HISTORY_LIMIT. Vezi OPERATIONS.md."
 
+      - alert: OutboxBatchDrainRecommended
+        expr: bot_outbox_queue_depth > 500 and bot_outbox_last_drain_age_seconds < 120
+        for: 2h
+        labels:
+          severity: info
+          component: outbox
+        annotations:
+          summary: "Outbox backlog chronic while actively draining (consider batch claim)"
+          description: "bot_outbox_queue_depth a stat peste 500 timp de 2h in timp ce worker-ul chiar dreneaza (bot_outbox_last_drain_age_seconds mic), deci drenarea job-by-job nu mai tine pasul la volumul real - nu e o pauza/lock. Este pragul de declansare pentru optimizarea de batch claim/bulkWrite. Vezi ROADMAP.md - 'Outbox: claim in batch'."
+
   - name: discord-patch-bot-native
     rules:
       - alert: NativeFallbackActive

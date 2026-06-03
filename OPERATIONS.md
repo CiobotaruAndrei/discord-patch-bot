@@ -26,6 +26,10 @@ Coada de joburi outbox creste mai repede decat reuseste worker-ul sa o dreneze.
    (drenare mai deasa) si/sau creste `NOTIFICATION_OUTBOX_DRAIN_LIMIT` (mai multe joburi per ciclu).
    TTL-ul lock-ului se auto-dimensioneaza din aceste valori, deci nu trebuie ajustat manual.
 5. Daca livrarea e blocata de rate-limit Discord, vezi sectiunea „Rate-limit Discord".
+6. Daca backlog-ul devine **cronic** (queue depth > 500 sustinut ≥ 2h **in timp ce worker-ul
+   chiar dreneaza** — `bot_outbox_last_drain_age_seconds` mic), nu mai e un incident: e pragul
+   de declansare pentru optimizarea de batch claim. Vezi `ROADMAP.md` („Outbox: claim in batch")
+   si alerta `OutboxBatchDrainRecommended`.
 
 ## Cand creste `bot_outbox_mark_sent_failures`
 
