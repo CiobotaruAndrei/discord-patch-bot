@@ -714,7 +714,35 @@ function createUpdates(d: UpdatesDeps): UpdatesApi {
 }
 
 function attachUpdates(target: UpdatesContext): void {
-  Object.assign(target, createUpdates(target));
+  Object.assign(target, createUpdates({
+    rssParser: target.rssParser,
+    CircuitBreakerModel: target.CircuitBreakerModel,
+    logger: target.logger,
+    adminAlert: target.adminAlert,
+    runConcurrent: target.runConcurrent,
+    SchemaDriftError: target.SchemaDriftError,
+    FETCH_CONCURRENCY: target.FETCH_CONCURRENCY,
+    FETCH_CONCURRENCY_STEAM: target.FETCH_CONCURRENCY_STEAM,
+    FETCH_CONCURRENCY_EPIC: target.FETCH_CONCURRENCY_EPIC,
+    FETCH_CONCURRENCY_LISTING: target.FETCH_CONCURRENCY_LISTING,
+    FETCH_CONCURRENCY_DRIVER: target.FETCH_CONCURRENCY_DRIVER,
+    CIRCUIT_BREAKER_FAIL_THRESHOLD: target.CIRCUIT_BREAKER_FAIL_THRESHOLD,
+    CIRCUIT_BREAKER_COOLDOWN_MS: target.CIRCUIT_BREAKER_COOLDOWN_MS,
+    CIRCUIT_BREAKER_JITTER_MS: target.CIRCUIT_BREAKER_JITTER_MS,
+    SCHEMA_DRIFT_THRESHOLD: target.SCHEMA_DRIFT_THRESHOLD,
+    httpReq: target.httpReq,
+    conditionalGet: target.conditionalGet,
+    fetchWithProxy: target.fetchWithProxy,
+    withInflightTimeout: target.withInflightTimeout,
+    trackInflight: target.trackInflight,
+    cleanText: target.cleanText,
+    stableUpdateId: target.stableUpdateId,
+    normalizeUpdate: target.normalizeUpdate,
+    safeCheerioLoad: target.safeCheerioLoad,
+    crypto: target.crypto,
+    metricsRef: target.metricsRef,
+    executeFetchWithCircuitBreaker: target.executeFetchWithCircuitBreaker
+  }));
 }
 
 attachUpdates.sourceConcurrencyGroup = sourceConcurrencyGroup;

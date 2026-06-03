@@ -1,5 +1,6 @@
 "use strict";
 
+import type { Model } from "mongoose";
 import type { SeenRepositoryDeps } from "./seenRepository";
 import type { UpdateNotificationServiceDeps } from "./updateNotificationService";
 import type { DiscountNotificationServiceDeps } from "./discountNotificationService";
@@ -44,15 +45,19 @@ type GeneratedDiscountDeps =
   | "isPermanentDiscordError"
   | "transientErrorMessage";
 
-type NotificationsContext = SeenRepositoryDeps
+type NotificationsRuntimeDeps = SeenRepositoryDeps
   & Omit<UpdateNotificationServiceDeps, GeneratedUpdateDeps>
   & Omit<DiscountNotificationServiceDeps, GeneratedDiscountDeps>
   & {
     canSendEmbeds(channel: unknown, botId: string): boolean;
-  }
-  & Record<string, unknown>;
+    saveFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
+    NotificationOutboxModel: Model<OutboxJobShape>;
+    NotificationOutboxSentModel: Model<{ dedupeKey: string; sentAt?: Date }>;
+  };
 
-function createNotificationRuntime(deps: NotificationsContext) {
+type NotificationsContext = NotificationsRuntimeDeps & Record<string, unknown>;
+
+function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
   const {
     GuildModel, logger, DEFAULT_CURRENCY, runConcurrent,
     validatePendingDiscountSnapshot, getLatestForAllGames, fetchDeals,

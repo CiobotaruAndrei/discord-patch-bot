@@ -37,12 +37,12 @@ function makeUpdatesContext() {
       runCalls.push({ group: "", count: items.length, concurrency });
       for (const item of items) await fn(item);
       return { errors: [] };
-    }
+    },
+    executeFetchWithCircuitBreaker: async (game: Game): Promise<FetchResultLike> => ({
+      game, latest: { id: game.key }, error: null
+    })
   };
   attachUpdates(context as never);
-  context.executeFetchWithCircuitBreaker = async (game: Game): Promise<FetchResultLike> => ({
-    game, latest: { id: game.key }, error: null
-  });
   return { context, runCalls };
 }
 
@@ -84,4 +84,17 @@ test("per-sursa: fiecare grup ruleaza cu concurrency-ul propriu, rezultatele pas
     { count: 1, concurrency: 8 },
     { count: 1, concurrency: 10 }
   ], "epic(2)x1, driver(2)x1, steam(4)x2, listing(8)x1, other(10)x1");
+});
+
+test("attachUpdates decupleaza fabrica de context: o mutatie tarzie a contextului nu se mai scurge in deps", async () => {
+  const { context } = makeUpdatesContext();
+  const getLatest = context.getLatestForAllGames as (games: Game[]) => Promise<FetchResultLike[]>;
+
+  context.executeFetchWithCircuitBreaker = async (game: Game): Promise<FetchResultLike> => ({
+    game, latest: { id: `mutat-${game.key}` }, error: null
+  });
+
+  const results = await getLatest([{ key: "cs2", type: "steam" }]);
+  assert.equal(results[0].latest?.id, "cs2",
+    "fabrica foloseste deps-ul injectat la attach (snapshot), nu mutatia tarzie de pe context — install adapter-ul nu mai partajeaza referinta target");
 });
