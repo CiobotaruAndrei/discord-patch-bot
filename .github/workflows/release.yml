@@ -1,13 +1,10 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to release, for example v1.0.0"
+        description: "Tag to release, for example v1.0.0 (must already be pushed)"
         required: true
         type: string
       smoke_confirmed:
@@ -24,32 +21,26 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      - name: Release gate (smoke confirmation)
+        shell: bash
+        env:
+          SMOKE_CONFIRMED: ${{ inputs.smoke_confirmed }}
+        run: |
+          if [ "$SMOKE_CONFIRMED" != "true" ]; then
+            echo "::error::Release blocat: porneste cu smoke_confirmed=true dupa ce ai rulat staging smoke (npm run smoke:staging + smoke:staging:discord) si checklist-ul manual Discord. Vezi RELEASING.md."
+            exit 1
+          fi
+          echo "Release gate OK. CI + audit ruleaza mai jos; staging smoke + manual Discord smoke sunt responsabilitatea releaser-ului (RELEASING.md)."
+
       - name: Resolve release metadata
         id: release
         shell: bash
         env:
-          EVENT_NAME: ${{ github.event_name }}
           DISPATCH_TAG: ${{ inputs.tag }}
         run: |
           owner="$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
-          tag="$GITHUB_REF_NAME"
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            tag="$DISPATCH_TAG"
-          fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "tag=$DISPATCH_TAG" >> "$GITHUB_OUTPUT"
           echo "image=ghcr.io/$owner/discord-patch-bot" >> "$GITHUB_OUTPUT"
-
-      - name: Release gate (smoke confirmation)
-        shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          SMOKE_CONFIRMED: ${{ inputs.smoke_confirmed }}
-        run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$SMOKE_CONFIRMED" != "true" ]; then
-            echo "::error::Release blocat: porneste prin workflow_dispatch cu smoke_confirmed=true dupa ce ai rulat staging smoke (npm run smoke:staging + smoke:staging:discord) si checklist-ul manual Discord. Vezi RELEASING.md."
-            exit 1
-          fi
-          echo "Release gate OK. CI + audit ruleaza mai jos; staging smoke + manual Discord smoke sunt responsabilitatea releaser-ului (RELEASING.md)."
 
       - name: Checkout release ref
         uses: actions/checkout@v4
