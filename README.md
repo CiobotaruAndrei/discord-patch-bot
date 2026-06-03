@@ -188,22 +188,22 @@ Imaginea este multi-stage, instaleaza dependintele cu `npm ci`, compileaza proie
 
 ## Note arhitecturale
 
-Proiectul este intr-o migrare controlata dintr-un stil vechi CommonJS/context comun spre handler-e si servicii cu dependinte explicite.
+Migrarea dintr-un stil vechi CommonJS/context comun spre handler-e si servicii cu dependinte explicite este **finalizata**: fiecare modul are un factory `createX(deps: XDeps): XApi` cu dependinte explicit tipate (fara `[key: string]: unknown` sau `& Record<string, unknown>` pe contractul de input al factory-ului), iar adaptoarele `attachX(target)` raman doar un strat subtire de compatibilitate la marginea sistemului care construieste obiectul `deps` tipat din contextul de wiring. La boot, `appRuntime` injecteaza dependintele prin contracte explicit tipate (`CommandRuntime`, `ScraperRuntime`, context Mongo cu `AppEnv` + `ActiveLocks`).
 
 Starea curenta:
 
 - handler-ele pentru comenzi cunoscute sunt separate in `src/features/command-handlers/`;
 - `interactions.ts` este router/wiring si delega catre handler-e;
 - `notifications/index.ts` este wiring pentru cron jobs, iar logica principala este in `updateNotificationService.ts` si `discountNotificationService.ts`;
-- `commandCache.ts`, `commandPresentation.ts`, `mongoContext.ts`, `notifications/index.ts` si fallback-ul de interactiuni expun factory-uri explicite; atasarea pe target comun ramane doar strat de compatibilitate;
+- toate modulele expun factory-uri cu deps explicit tipate: handler-ele de comenzi, `commandCache.ts`, `commandPresentation.ts`, `mongoContext.ts`, sursele `steam`/`deals`/`updates` (`createSteamSource`/`createDeals`/`createUpdates`) si `notifications/index.ts` (`createNotificationRuntime`); adaptorul `attachX(target)` construieste obiectul `deps` din campurile numite ale contextului (snapshot), nu mai paseaza punga de context;
 - `domain/deals/filtersCore.ts`, `outboundChannel.ts` si `seenRepository.ts` sunt module tipate, usor de testat separat;
 - `src/native/` contine Rust/N-API pentru hot-path-uri pure: fuzzy matching, autocomplete scoring, hash-uri, normalizare text/scoring si filtrarea ofertelor;
 - `src/tsconfig.strict.json` include incremental fisiere stabilizate, inclusiv modulele de surse Steam/deals/updates si testele directe pe shape drift;
 - `legacy-dynamic.d.ts` a fost eliminat; tipurile trebuie rezolvate local, nu prin extinderea globala a `Object`.
-- codul runtime din `app`, `domain`, `features`, `infra`, `shared` si `sources` nu mai foloseste tipuri wildcard nesigure sau abrevierea legacy de context; adapterele ramase folosesc `target`/`deps` tipate structural.
+- codul runtime din `app`, `domain`, `features`, `infra`, `shared` si `sources` nu mai foloseste tipuri wildcard nesigure sau abrevierea legacy de context; adaptoarele subtiri ramase construiesc `deps` tipat din `target`.
 - fisierele de cod sunt tinute fara comentarii explicative; contextul de arhitectura, operare si mentenanta sta in README, changelog si `src/docs/`.
 
-Zonele ramase de imbunatatit sunt reducerea target-ului comun din runtime/registry, tiparea mai stricta a mock-urilor din teste si mentinerea adapterelor subtiri la marginea sistemului.
+Singurele `[key: string]: unknown` / `& Record<string, unknown>` ramase sunt **intentionate** si nu sunt contracte de input de factory: tipurile de date dinamice (`types.ts`), schema Mongo (`infra/mongo/models.ts`) si punga de wiring `CommandRegistryContext` din `commandRegistry.ts` (echivalentul `Record<string, unknown>` folosit de `sourceRegistry`, populata de installeri cu chei arbitrare). Detalii si exceptii in `src/docs/CONTEXT_REPO_CLEAN.md`.
 
 ## Documentatie suplimentara
 
