@@ -12,6 +12,7 @@ export interface GuardSample {
 export interface GuardConfig {
   failBelow: number;
   warnBelow: Record<string, number>;
+  requireNative: boolean;
 }
 
 export interface GuardOutcome {
@@ -28,7 +29,8 @@ export function defaultGuardConfig(): GuardConfig {
     warnBelow: {
       levenshtein: Number(process.env.BENCH_LEVENSHTEIN_WARN_RATIO) || 1.4,
       dealHash: Number(process.env.BENCH_DEALHASH_WARN_RATIO) || 1.2
-    }
+    },
+    requireNative: process.env.BENCH_GUARD_REQUIRE_NATIVE === "true"
   };
 }
 
@@ -38,7 +40,11 @@ export function evaluateBenchmarkGuard(samples: GuardSample[], config: GuardConf
   const skipped: string[] = [];
   for (const sample of samples) {
     if (!sample.rustAvailable || sample.speedup === null) {
-      skipped.push(`${sample.area}: Rust indisponibil, guard de viteza sarit`);
+      if (config.requireNative) {
+        failures.push(`${sample.area}: addon nativ indisponibil dar BENCH_GUARD_REQUIRE_NATIVE=true — in CI build-ul Rust ruleaza inainte de guard, deci absenta inseamna o problema de build, nu un skip acceptabil`);
+      } else {
+        skipped.push(`${sample.area}: Rust indisponibil, guard de viteza sarit`);
+      }
       continue;
     }
     if (!sample.parityOk) {

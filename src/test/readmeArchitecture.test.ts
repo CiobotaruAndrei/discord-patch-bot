@@ -35,3 +35,13 @@ test("README nu mai listeaza reducerea target-ului comun ca zona ramasa, ci ca e
     "README cadreaza Record<string, unknown>-urile ramase ca exceptii intentionate");
   assert.match(text, /CommandRegistryContext/, "numeste punga de wiring ramasa intentionat dinamica");
 });
+
+test("README descrie folosirea Rust aliniat la BENCHMARKS.md (autocomplete/deal-filters sunt TS-primary)", () => {
+  const text = read();
+  const nativeBullet = text.split("\n").find(line => line.includes("`src/native/`")) || "";
+  assert.ok(nativeBullet.length > 0, "exista bullet-ul despre src/native/");
+  assert.match(nativeBullet, /TS-primary/, "bullet-ul marcheaza zonele mutate in TS ca TS-primary");
+  assert.match(nativeBullet, /buildAutocompleteChoices|autocomplete scoring/, "autocomplete scoring e mentionat ca TS-primary, nu Rust pe productie");
+  assert.match(nativeBullet, /dealPassesFilters|filtrarea ofertelor/, "filtrarea ofertelor e mentionata ca TS-primary, nu Rust pe productie");
+  assert.match(nativeBullet, /benchmark si testele de paritate/, "explica de ce functiile native echivalente raman expuse");
+});

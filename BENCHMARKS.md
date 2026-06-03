@@ -80,7 +80,10 @@ in `ci.yml` dupa `npm run check` (cand addonul nativ e deja construit). Guard-ul
 - **esueaza** daca paritatea native != TS (rezultate divergente) — bug de corectitudine, nu de viteza;
 - **avertizeaza** (`::warning::`, fara a pica) daca speedup-ul scade sub pragul asteptat documentat aici
   (`levenshtein` < `1.4x`, `dealHash` < `1.2x`), ca semnal ca avantajul Rust se erodeaza;
-- se **sare** (CI-safe, exit 0) cand addonul nativ nu e disponibil.
+- se **sare** (CI-safe, exit 0) cand addonul nativ nu e disponibil — **cu exceptia** modului strict
+  `BENCH_GUARD_REQUIRE_NATIVE=true` (setat in `ci.yml`), unde absenta addonului devine **esec**: in CI
+  build-ul Rust ruleaza inainte de guard, deci un addon lipsa inseamna o problema de build, nu un skip
+  acceptabil. Local (fara variabila) guard-ul ramane CI-safe si sare cand nativul lipseste.
 
 Pragurile sunt deliberat tolerante la zgomotul masinilor de CI (best-of-N + prag de esec sub `1.0x`),
 deci nu pica la variatii mici, doar la o regresie clara (Rust devine efectiv mai lent decat TS).

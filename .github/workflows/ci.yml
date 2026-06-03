@@ -58,4 +58,6 @@ jobs:
         run: npm run check
 
       - name: Benchmark hot-path guard (BENCHMARKS.md)
+        env:
+          BENCH_GUARD_REQUIRE_NATIVE: "true"
         run: node dist/scripts/benchmarkGuard.js
