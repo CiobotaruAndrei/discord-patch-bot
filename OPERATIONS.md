@@ -74,8 +74,11 @@ TypeScript. Addon-ul nativ s-a incarcat (altfel boot-ul ar fi esuat in productie
 functie specifica esueaza la runtime — risc de divergenta de rezultat sau de performanta fata
 de Rust. Alerta `NativeFallbackActive` se declanseaza cand metrica creste.
 
-1. Cauta in log-uri liniile `[NATIVE_FUZZY] Apelul nativ \`<functie>\` a esuat` (throttled la o
-   data per minut per functie) ca sa identifici ce functie cade pe fallback.
+1. Identifica functia care cade pe fallback direct din metrica per-functie:
+   `bot_native_fallback_total{fn="..."}` (label `fn` pentru fiecare functie instrumentata —
+   `findGameKeys`, `dealPassesFilters`, `classifyPatchNote`, etc.); agregatul e `sum(bot_native_fallback_total)`.
+   Sau cauta in log-uri liniile `[NATIVE_FUZZY] Apelul nativ \`<functie>\` a esuat` (throttled la o
+   data per minut per functie).
 2. Cea mai probabila cauza este un addon nativ invechit sau incompatibil (semnatura schimbata
    intre versiuni). Re-build cu `npm run build:rust` si redeploy.
 3. Pana la remediere, comportamentul ramane corect (fallback-ul TS produce acelasi rezultat),

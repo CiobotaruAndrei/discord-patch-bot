@@ -8,7 +8,7 @@ import type {
   RateLimiter,
   RuntimeEnv
 } from "../../types";
-import { getNativeFallbackTotal } from "../../native/fuzzy";
+import { getNativeFallbackTotals, NATIVE_FALLBACK_FUNCTIONS } from "../../native/fuzzy";
 
 interface MongooseLike {
   connection: { readyState: number };
@@ -65,21 +65,35 @@ function timingSafeEqualStr(crypto: CryptoLike, a: unknown, b: unknown): boolean
   try { return crypto.timingSafeEqual(bufA, bufB); } catch { return false; }
 }
 
+function formatLabels(labels?: Record<string, string>): string {
+  if (!labels) return "";
+  const entries = Object.entries(labels);
+  if (entries.length === 0) return "";
+  const inner = entries
+    .map(([key, value]) => `${key}="${String(value).replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/\n/g, "\\n")}"`)
+    .join(",");
+  return `{${inner}}`;
+}
+
 function pushMetric(
   lines: string[],
   seenNames: Set<string>,
   name: string,
   type: PrometheusMetricType,
   help: string,
-  value: string | number
+  value: string | number,
+  labels?: Record<string, string>
 ): void {
-  if (seenNames.has(name)) return;
-  seenNames.add(name);
-  lines.push(
-    `# HELP ${name} ${help}`,
-    `# TYPE ${name} ${type}`,
-    `${name} ${value}`
-  );
+  const labeled = Boolean(labels && Object.keys(labels).length > 0);
+  if (seenNames.has(name) && !labeled) return;
+  if (!seenNames.has(name)) {
+    seenNames.add(name);
+    lines.push(
+      `# HELP ${name} ${help}`,
+      `# TYPE ${name} ${type}`
+    );
+  }
+  lines.push(`${name}${formatLabels(labels)} ${value}`);
 }
 
 function createHttpServer({
@@ -175,7 +189,11 @@ function createHttpServer({
       pushMetric(lines, seenMetricNames, "bot_outbox_mark_sent_failures", "counter", "Outbox deliveries that could not be recorded in the sent-dedupe history", metrics.outboxMarkSentFailures);
       pushMetric(lines, seenMetricNames, "bot_outbox_recovery_verify_enabled_guilds", "gauge", "Guilds with per-guild outbox recovery-verify enabled", metrics.outboxRecoveryVerifyEnabledGuilds);
       pushMetric(lines, seenMetricNames, "bot_outbox_last_drain_age_seconds", "gauge", "Seconds since the last completed outbox drain (0 = never; grows when the worker is paused/not draining)", metrics.outboxLastDrainAt > 0 ? Math.max(0, Math.round((Date.now() - metrics.outboxLastDrainAt) / 1000)) : 0);
-      pushMetric(lines, seenMetricNames, "bot_native_fallback_total", "counter", "Native (Rust) calls that threw and fell back to the TypeScript implementation (>0 means the native addon is partially failing)", getNativeFallbackTotal());
+      const nativeFallbackTotals = getNativeFallbackTotals();
+      const nativeFallbackFns = Array.from(new Set([...NATIVE_FALLBACK_FUNCTIONS, ...Object.keys(nativeFallbackTotals)]));
+      for (const fnName of nativeFallbackFns) {
+        pushMetric(lines, seenMetricNames, "bot_native_fallback_total", "counter", "Native (Rust) calls that threw and fell back to the TypeScript implementation, per function (>0 means that native function is partially failing)", nativeFallbackTotals[fnName] || 0, { fn: fnName });
+      }
       res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4" });
       res.end(lines.join("\n") + "\n");
       return;
