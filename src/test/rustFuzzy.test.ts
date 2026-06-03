@@ -172,8 +172,8 @@ test("Rust cleanText strips tags and decodes entities", () => {
   assert.equal(cleanText("<span>caf\u00e9 \u2014 \u4e2d\u6587</span>"), "caf\u00e9 \u2014 \u4e2d\u6587");
 });
 
-test("Rust stable update ids match SHA1 contract", () => {
-  assert.equal(stableUpdateId("Patch", "https://example.com/update"), "7f512d1c3e0464b1");
+test("Rust stable update ids match SHA256 contract (first 8 bytes, 16 hex)", () => {
+  assert.equal(stableUpdateId("Patch", "https://example.com/update"), "c67e53c18e422e9a");
 });
 
 test("stable update id is exactly 16 lowercase hex chars regardless of input", () => {
@@ -226,7 +226,7 @@ test("Rust deal hashes preserve stable Steam, Epic and listing keys", () => {
     salePrice: "9.99",
     normalPrice: "19.99",
     savings: "50"
-  }), "5c0280542102f361747d03b0c15241b65de1b8c6");
+  }), "588c4a3667a42b4bc834e034e908df6f43c5706e4eeca34f00a2c2f32dbd1135");
 
   assert.equal(dealHash({
     store: "Epic Games",
@@ -235,7 +235,7 @@ test("Rust deal hashes preserve stable Steam, Epic and listing keys", () => {
     salePrice: "5.00",
     normalPrice: "10.00",
     savings: "50"
-  }), "624513cc2f304303abd6638f9b6286de4b61eeb1");
+  }), "74c3be8aae2b79f6e5bdb7a4326743ebbd83c35091255edf8cd55e4f4523ca36");
 
   assert.equal(dealHash({
     store: "Itch.io",
@@ -243,7 +243,7 @@ test("Rust deal hashes preserve stable Steam, Epic and listing keys", () => {
     salePrice: "7.50",
     normalPrice: "15.00",
     savings: "50"
-  }), "851f5fc3c20f8379c5d78cff6300dd601c835d02");
+  }), "565fa75d8132e46c5763d5d933f6cf9c0d52c349a5d03ccf3d85a554deeb5916");
 });
 
 export {};

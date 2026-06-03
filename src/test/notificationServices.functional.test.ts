@@ -56,6 +56,8 @@ function makeUpdateDeps(overrides: Record<string, unknown> = {}) {
       return { matchedCount: 1, modifiedCount: 1 };
     },
     disableUpdatesForChannelError: async () => ({ matchedCount: 1, modifiedCount: 1 }),
+    seedSeenUpdates: async () => undefined,
+    setSeenHashVersion: async () => ({ matchedCount: 1, modifiedCount: 1 }),
     isPermanentDiscordError: () => false,
     transientErrorMessage: messageOf,
     normalizePendingUpdateArray: (arr: unknown) => Array.isArray(arr) ? arr : [],
@@ -107,7 +109,7 @@ test("UpdateService: buildOptimizedGameList returneaza toata lista cand un guild
 
 test("UpdateService: checkForUpdates scrie cache cand lista nu e filtrata (full list)", async () => {
   let cacheWrites = 0;
-  const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seen: {}, pendingUpdates: {}, enabledGames: [] };
+  const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2, seen: {}, pendingUpdates: {}, enabledGames: [] };
   const { deps } = makeUpdateDeps({
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }) },
     setUpdatesCache: () => { cacheWrites++; }
@@ -119,7 +121,7 @@ test("UpdateService: checkForUpdates scrie cache cand lista nu e filtrata (full 
 
 test("UpdateService: checkForUpdates NU scrie cache cand lista e filtrata (subset)", async () => {
   let cacheWrites = 0;
-  const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seen: {}, pendingUpdates: {}, enabledGames: ["cs2"] };
+  const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2, seen: {}, pendingUpdates: {}, enabledGames: ["cs2"] };
   const { deps } = makeUpdateDeps({
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }) },
     setUpdatesCache: () => { cacheWrites++; }
@@ -136,6 +138,7 @@ test("UpdateService: processGuildUpdates trimite update + ping rol pe prima trim
     _id: "guild-1",
     subscribed: true,
     notificationChannelId: "channel-1",
+    seenHashVersionUpdates: 2,
     notificationRoleId: "role-42",
     notificationMode: "detailed",
     seen: {},
@@ -156,7 +159,7 @@ test("UpdateService: mai multe update-uri sunt grupate intr-un singur mesaj cu m
   const { deps, sentPayloads, claims } = makeUpdateDeps();
   const svc = createUpdateNotificationService(deps);
   const guild = {
-    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1",
+    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2,
     notificationRoleId: "role-7", seen: {}, pendingUpdates: {}, enabledGames: []
   } as UpdateGuild;
   const latestResults = [
@@ -177,7 +180,7 @@ test("UpdateService: claim race (matchedCount=0) sare item-ul fara send sau roll
   });
   const svc = createUpdateNotificationService(deps);
   const guild = {
-    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1",
+    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2,
     seen: {}, pendingUpdates: {}, enabledGames: []
   } as UpdateGuild;
   const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1" } }] as UpdateResults;
@@ -200,7 +203,7 @@ test("UpdateService: send fail (transient) rollback claim si retry next cycle", 
   });
   const svc = createUpdateNotificationService(deps);
   const guild = {
-    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1",
+    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2,
     seen: {}, pendingUpdates: {}, enabledGames: []
   } as UpdateGuild;
   const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1" } }] as UpdateResults;
@@ -217,7 +220,7 @@ test("UpdateService: livrarea care epuizeaza retry-urile intra in dead-letter (c
   });
   const svc = createUpdateNotificationService(deps);
   const guild = {
-    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1",
+    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2,
     seen: {}, pendingUpdates: {}, enabledGames: []
   } as UpdateGuild;
   const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1", title: "patch" } }] as UpdateResults;
@@ -240,7 +243,7 @@ test("UpdateService: un retry sub max NU scrie dead-letter (fara $push)", async 
   });
   const svc = createUpdateNotificationService(deps);
   const guild = {
-    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1",
+    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2,
     seen: {}, pendingUpdates: {}, enabledGames: []
   } as UpdateGuild;
   const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1" } }] as UpdateResults;
@@ -253,7 +256,7 @@ test("UpdateService: enabledGames filter sare jocurile ne-active", async () => {
   const { deps, sentPayloads } = makeUpdateDeps();
   const svc = createUpdateNotificationService(deps);
   const guild = {
-    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1",
+    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2,
     seen: {}, pendingUpdates: {},
     enabledGames: ["cs2"]
   } as UpdateGuild;
@@ -290,6 +293,8 @@ function makeDiscountDeps(overrides: Record<string, unknown> = {}) {
     },
     rollbackSeenDiscount: async () => ({ matchedCount: 1, modifiedCount: 1 }),
     loadSeenDiscountHashes: async () => [],
+    seedSeenDiscounts: async () => undefined,
+    setSeenHashVersion: async () => ({ matchedCount: 1, modifiedCount: 1 }),
     disableDiscountsForChannelError: async () => ({ matchedCount: 1, modifiedCount: 1 }),
     isPermanentDiscordError: () => false,
     transientErrorMessage: messageOf,
@@ -321,7 +326,7 @@ test("DiscountService: trimite reduceri noi care nu sunt in seenDiscounts", asyn
   const { deps, sentPayloads, claims } = makeDiscountDeps();
   const svc = createDiscountNotificationService(deps);
   const guild = {
-    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
+    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", seenHashVersionDiscounts: 2,
     seenDiscounts: [], pendingDiscounts: [], currency: "USD"
   } as DiscountGuild;
   const deals = [{ id: "d1", title: "Game A" }] as DiscountDeals;
@@ -334,7 +339,7 @@ test("DiscountService: hash deja vazut (in colectia seen) NU se mai trimite", as
   const { deps, sentPayloads, claims } = makeDiscountDeps({ loadSeenDiscountHashes: async () => ["d1"] });
   const svc = createDiscountNotificationService(deps);
   const guild = {
-    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
+    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", seenHashVersionDiscounts: 2,
     pendingDiscounts: [], currency: "USD"
   } as DiscountGuild;
   const deals = [{ id: "d1", title: "Already seen" }] as DiscountDeals;
@@ -347,7 +352,7 @@ test("DiscountService: reducerile sunt grupate intr-un singur mesaj cu ping rol 
   const { deps, sentPayloads } = makeDiscountDeps();
   const svc = createDiscountNotificationService(deps);
   const guild = {
-    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
+    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", seenHashVersionDiscounts: 2,
     seenDiscounts: [], pendingDiscounts: [], currency: "USD",
     discountRoleId: "role-99"
   } as DiscountGuild;
@@ -366,7 +371,7 @@ test("DiscountService: claim race (matchedCount=0) sare deal-ul fara enrich", as
   });
   const svc = createDiscountNotificationService(deps);
   const guild = {
-    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
+    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", seenHashVersionDiscounts: 2,
     seenDiscounts: [], pendingDiscounts: [], currency: "USD"
   } as DiscountGuild;
   await svc.processGuildDiscounts({}, guild, [{ id: "d1" }] as DiscountDeals);
@@ -380,7 +385,7 @@ test("DiscountService: dealPassesFilters=false sare deal-ul (filter-aware)", asy
   });
   const svc = createDiscountNotificationService(deps);
   const guild = {
-    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
+    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", seenHashVersionDiscounts: 2,
     seenDiscounts: [], pendingDiscounts: [], currency: "USD"
   } as DiscountGuild;
   await svc.processGuildDiscounts({}, guild, [{ id: "d1" }] as DiscountDeals);
@@ -395,7 +400,7 @@ test("DiscountService: livrarea care epuizeaza retry-urile intra in dead-letter 
   });
   const svc = createDiscountNotificationService(deps);
   const guild = {
-    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d",
+    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", seenHashVersionDiscounts: 2,
     seenDiscounts: [], pendingDiscounts: [], currency: "USD"
   } as DiscountGuild;
   await svc.processGuildDiscounts({}, guild, [{ id: "d1", title: "Game A" }] as DiscountDeals);
@@ -407,4 +412,49 @@ test("DiscountService: livrarea care epuizeaza retry-urile intra in dead-letter 
     { kind: entries[0].kind, itemId: entries[0].itemId, attempts: entries[0].attempts },
     { kind: "discount", itemId: "d1", attempts: 1 }
   );
+});
+
+test("DiscountService: re-baseline la hashVersion invechit seed-uieste hash-urile curente FARA notificari", async () => {
+  const seeded: string[][] = [];
+  const versions: Array<{ field: string; version: number }> = [];
+  const { deps, sentPayloads } = makeDiscountDeps({
+    seedSeenDiscounts: async (_g: string, hashes: string[]) => { seeded.push(hashes); },
+    setSeenHashVersion: async (_g: string, field: "seenHashVersionUpdates" | "seenHashVersionDiscounts", version: number) => {
+      versions.push({ field, version }); return { matchedCount: 1, modifiedCount: 1 };
+    }
+  });
+  const svc = createDiscountNotificationService(deps);
+  const guild = {
+    _id: "guild-stale", discountsSubscribed: true, discountChannelId: "channel-d",
+    pendingDiscounts: [], currency: "USD"
+  } as DiscountGuild;
+  await svc.processGuildDiscounts({}, guild, [{ id: "d1", title: "A" }, { id: "d2", title: "B" }] as DiscountDeals);
+  assert.equal(sentPayloads.length, 0, "re-baseline nu trimite notificari in ciclul curent");
+  assert.deepEqual(seeded, [["d1", "d2"]], "seed-uieste toate hash-urile curente");
+  assert.deepEqual(versions, [{ field: "seenHashVersionDiscounts", version: 2 }], "marcheaza versiunea curenta de hash");
+});
+
+test("UpdateService: re-baseline la hashVersion invechit seed-uieste update-urile curente FARA notificari", async () => {
+  const seeded: Array<Array<{ gameKey: string; updateId: string }>> = [];
+  const versions: Array<{ field: string; version: number }> = [];
+  const { deps, sentPayloads, claims } = makeUpdateDeps({
+    seedSeenUpdates: async (_g: string, entries: Array<{ gameKey: string; updateId: string }>) => { seeded.push(entries); },
+    setSeenHashVersion: async (_g: string, field: "seenHashVersionUpdates" | "seenHashVersionDiscounts", version: number) => {
+      versions.push({ field, version }); return { matchedCount: 1, modifiedCount: 1 };
+    }
+  });
+  const svc = createUpdateNotificationService(deps);
+  const guild = {
+    _id: "guild-stale", subscribed: true, notificationChannelId: "channel-1",
+    pendingUpdates: {}
+  } as UpdateGuild;
+  const latestResults = [
+    { game: { key: "cs2" }, latest: { id: "u-cs2" } },
+    { game: { key: "dota2" }, latest: { id: "u-dota2" } }
+  ] as UpdateResults;
+  await svc.processGuildUpdates({}, guild, latestResults);
+  assert.equal(sentPayloads.length, 0, "re-baseline nu trimite notificari");
+  assert.equal(claims.length, 0, "nu revendica nimic in ciclul de re-baseline");
+  assert.deepEqual(seeded, [[{ gameKey: "cs2", updateId: "u-cs2" }, { gameKey: "dota2", updateId: "u-dota2" }]]);
+  assert.deepEqual(versions, [{ field: "seenHashVersionUpdates", version: 2 }]);
 });

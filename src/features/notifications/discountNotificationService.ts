@@ -3,6 +3,7 @@
 import type { FilterQuery, Model } from "mongoose";
 import type { GuildSettings, DealInfo } from "../../types";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
+import { HASH_VERSION } from "../../native/fuzzy";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
@@ -50,6 +51,8 @@ export interface DiscountNotificationServiceDeps {
   claimSeenDiscount: (guildId: string, channelId: string, hash: string) => Promise<MongoWriteResult>;
   rollbackSeenDiscount: (guildId: string, hash: string) => Promise<MongoWriteResult>;
   loadSeenDiscountHashes: (guildId: string) => Promise<string[]>;
+  seedSeenDiscounts: (guildId: string, hashes: string[]) => Promise<void>;
+  setSeenHashVersion: (guildId: string, field: "seenHashVersionUpdates" | "seenHashVersionDiscounts", version: number) => Promise<MongoWriteResult>;
   disableDiscountsForChannelError: (guildId: string, channelId: string, message: string) => Promise<MongoWriteResult>;
 
   isPermanentDiscordError: (err: unknown) => boolean;
@@ -89,7 +92,7 @@ export interface DiscountNotificationService {
 export function createDiscountNotificationService(deps: DiscountNotificationServiceDeps): DiscountNotificationService {
   const {
     GuildModel, logger, runConcurrent, resolveOutboundChannel,
-    claimSeenDiscount, rollbackSeenDiscount, loadSeenDiscountHashes, disableDiscountsForChannelError,
+    claimSeenDiscount, rollbackSeenDiscount, loadSeenDiscountHashes, seedSeenDiscounts, setSeenHashVersion, disableDiscountsForChannelError,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingDiscountArray, validatePendingDiscountSnapshot,
     normalizeCurrencyKey, dealPassesFilters, dealHash,
@@ -129,8 +132,16 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     });
     if (abort) return;
 
-    const seenSet = new Set(await loadSeenDiscountHashes(String(guild._id)));
     const { dealsByHash, orderedHashes } = getDealsHashIndex(deals);
+
+    if (Number((guild as { seenHashVersionDiscounts?: unknown }).seenHashVersionDiscounts) !== HASH_VERSION) {
+      if (orderedHashes.length) await seedSeenDiscounts(String(guild._id), orderedHashes);
+      await setSeenHashVersion(String(guild._id), "seenHashVersionDiscounts", HASH_VERSION);
+      logger("INFO", "CRON_DISCOUNTS", `Re-baseline dedup reduceri pentru guild ${guild._id} (hashVersion -> ${HASH_VERSION}); ciclul curent nu trimite notificari`);
+      return;
+    }
+
+    const seenSet = new Set(await loadSeenDiscountHashes(String(guild._id)));
     const pending: PendingDiscount[] = [];
     for (const old of normalizePendingDiscountArray((guild as { pendingDiscounts?: unknown }).pendingDiscounts)) {
       if (seenSet.has(old.hash) || old.attempts >= PENDING_DISCOUNT_MAX_ATTEMPTS) continue;

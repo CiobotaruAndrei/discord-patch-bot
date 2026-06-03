@@ -3,6 +3,7 @@
 import type { DealInfo, FetchResult, GameConfig, GuildSettings } from "../../types";
 
 const { errorDetail, errorMessage } = require("../../shared/errors");
+const { HASH_VERSION } = require("../../native/fuzzy") as { HASH_VERSION: number };
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -115,7 +116,7 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
               updatesActivationId: activationId
             },
             {
-              $set: { updatesInitializing: false },
+              $set: { updatesInitializing: false, seenHashVersionUpdates: HASH_VERSION },
               $unset: { updatesActivationId: "", updatesLastError: "" }
             },
             OP_UPDATE_OPTS
@@ -181,7 +182,8 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
             },
             {
               $set: {
-                discountsInitializing: false
+                discountsInitializing: false,
+                seenHashVersionDiscounts: HASH_VERSION
               },
               $unset: { discountsActivationId: "", discountsLastError: "" }
             },

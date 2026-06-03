@@ -57,6 +57,8 @@ const guildSchema = new mongoose.Schema({
   currency: { type: String, enum: Object.keys(SUPPORTED_CURRENCIES), default: DEFAULT_CURRENCY },
   outboxRecoveryVerify: { type: Boolean, default: false },
   lastProcessedGameKey: { type: String, default: null },
+  seenHashVersionUpdates: { type: Number, default: 0 },
+  seenHashVersionDiscounts: { type: Number, default: 0 },
 
   updatesInitializing: { type: Boolean, default: false },
   updatesActivationId: { type: String, default: null },

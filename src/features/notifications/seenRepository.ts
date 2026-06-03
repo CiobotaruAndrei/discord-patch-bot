@@ -39,6 +39,7 @@ export interface SeenRepository {
   seedSeenDiscounts(guildId: string, hashes: string[]): Promise<void>;
   loadSeenDiscountHashes(guildId: string): Promise<string[]>;
   disableDiscountsForChannelError(guildId: string, channelId: string, message: string): Promise<MongoWriteResult>;
+  setSeenHashVersion(guildId: string, field: "seenHashVersionUpdates" | "seenHashVersionDiscounts", version: number): Promise<MongoWriteResult>;
 }
 
 export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
@@ -159,6 +160,13 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
     );
   }
 
+  async function setSeenHashVersion(guildId: string, field: "seenHashVersionUpdates" | "seenHashVersionDiscounts", version: number): Promise<MongoWriteResult> {
+    return withMongoRetry(
+      () => GuildModel.updateOne({ _id: guildId }, { $set: { [field]: version } }, OP_UPDATE_OPTS),
+      { label: "setSeenHashVersion" }
+    );
+  }
+
   return {
     claimSeenUpdate,
     rollbackSeenUpdate,
@@ -168,6 +176,7 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
     rollbackSeenDiscount,
     seedSeenDiscounts,
     loadSeenDiscountHashes,
-    disableDiscountsForChannelError
+    disableDiscountsForChannelError,
+    setSeenHashVersion
   };
 }

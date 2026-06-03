@@ -4,6 +4,7 @@ import type { FilterQuery, Model } from "mongoose";
 import type { GuildSettings } from "../../types";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
+import { HASH_VERSION } from "../../native/fuzzy";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
@@ -43,6 +44,8 @@ export interface UpdateNotificationServiceDeps {
 
   claimSeenUpdate: (guildId: string, channelId: string, gameKey: string, updateId: string) => Promise<MongoWriteResult>;
   rollbackSeenUpdate: (guildId: string, gameKey: string, updateId: string) => Promise<MongoWriteResult>;
+  seedSeenUpdates: (guildId: string, entries: Array<{ gameKey: string; updateId: string }>) => Promise<void>;
+  setSeenHashVersion: (guildId: string, field: "seenHashVersionUpdates" | "seenHashVersionDiscounts", version: number) => Promise<MongoWriteResult>;
   disableUpdatesForChannelError: (guildId: string, channelId: string, message: string) => Promise<MongoWriteResult>;
 
   isPermanentDiscordError: (err: unknown) => boolean;
@@ -78,7 +81,7 @@ export interface UpdateNotificationService {
 export function createUpdateNotificationService(deps: UpdateNotificationServiceDeps): UpdateNotificationService {
   const {
     GuildModel, logger, runConcurrent, resolveOutboundChannel,
-    claimSeenUpdate, rollbackSeenUpdate, disableUpdatesForChannelError,
+    claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, setSeenHashVersion, disableUpdatesForChannelError,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingUpdateArray, toEntries, rotateAfter, mapToObject,
     getLatestForAllGames, setUpdatesCache, persistFetchSnapshot, loadFetchSnapshot, buildUpdateEmbed, sleepIfPositive,
@@ -107,6 +110,18 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       PENDING_UPDATE_MAX_AGE_MS, PENDING_UPDATE_MAX_ATTEMPTS,
       PENDING_UPDATES_PER_GAME_LIMIT
     }, { guild, latestResults });
+
+    if (Number((guild as { seenHashVersionUpdates?: unknown }).seenHashVersionUpdates) !== HASH_VERSION) {
+      const entries: Array<{ gameKey: string; updateId: string }> = [];
+      for (const [gameKey, result] of resultByGameKey) {
+        const updateId = result?.latest?.id;
+        if (updateId) entries.push({ gameKey: String(gameKey), updateId: String(updateId) });
+      }
+      if (entries.length) await seedSeenUpdates(String(guild._id), entries);
+      await setSeenHashVersion(String(guild._id), "seenHashVersionUpdates", HASH_VERSION);
+      logger("INFO", "CRON_UPDATES", `Re-baseline dedup update-uri pentru guild ${guild._id} (hashVersion -> ${HASH_VERSION}); ciclul curent nu trimite notificari`);
+      return;
+    }
 
     const notificationMode = (guild as { notificationMode?: string }).notificationMode || "detailed";
     const batch: Array<{ gameKey: string; item: PendingUpdate; embed: unknown }> = [];
