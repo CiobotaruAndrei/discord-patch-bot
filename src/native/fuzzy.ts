@@ -129,6 +129,16 @@ const nativeFallbackTotals = new Map<string, number>();
 const nativeFallbackLastLogged = new Map<string, number>();
 const NATIVE_FALLBACK_LOG_THROTTLE_MS = 60_000;
 
+export const NATIVE_FALLBACK_FUNCTIONS = [
+  "classifyPatchNote",
+  "scoreListingCandidate",
+  "buildAutocompleteChoices",
+  "isGoodSteamArticleUrl",
+  "extractDateScore",
+  "dealPassesFilters",
+  "findGameKeys"
+];
+
 export function recordNativeFallback(fnName: string, err: unknown): void {
   const total = (nativeFallbackTotals.get(fnName) || 0) + 1;
   nativeFallbackTotals.set(fnName, total);

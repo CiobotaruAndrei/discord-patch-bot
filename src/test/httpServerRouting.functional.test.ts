@@ -64,6 +64,8 @@ test("/metrics with no query string returns 200", async () => {
     const res = await fetchPath(port, "/metrics");
     assert.equal(res.status, 200);
     assert.match(res.body, /bot_uptime_seconds/);
+    assert.match(res.body, /bot_native_fallback_total\{fn="findGameKeys"\}/, "native fallback este expus per-functie (label fn), nu doar agregat");
+    assert.match(res.body, /bot_native_fallback_total\{fn="dealPassesFilters"\}/, "fiecare functie instrumentata are propria serie");
   } finally { await close(); }
 });
 

@@ -8,6 +8,7 @@ const fuzzy = require("../native/fuzzy") as {
   resetNativeFallbackTotals: () => void;
   classifyPatchNote: (title: unknown, contents: unknown, tags: unknown) => boolean;
   extractDateScore: (url: unknown) => number;
+  NATIVE_FALLBACK_FUNCTIONS: string[];
 };
 
 test("recordNativeFallback: numara per-functie si agregat", () => {
@@ -39,6 +40,13 @@ test("recordNativeFallback: log-ul este throttled per functie (o data per fereas
   }
   assert.equal(warnCount, 2, "log o singura data per functie in fereastra (scoreListingCandidate + extractDateScore)");
   assert.equal(fuzzy.getNativeFallbackTotals().scoreListingCandidate, 3, "counter-ul creste la fiecare fallback, chiar daca log-ul e throttled");
+});
+
+test("NATIVE_FALLBACK_FUNCTIONS enumera cele 7 functii instrumentate (pentru emiterea per-functie)", () => {
+  for (const fn of ["classifyPatchNote", "scoreListingCandidate", "buildAutocompleteChoices", "isGoodSteamArticleUrl", "extractDateScore", "dealPassesFilters", "findGameKeys"]) {
+    assert.ok(fuzzy.NATIVE_FALLBACK_FUNCTIONS.includes(fn), `lista canonica include ${fn}`);
+  }
+  assert.equal(fuzzy.NATIVE_FALLBACK_FUNCTIONS.length, 7);
 });
 
 test("functiile cu fallback raman corecte si nu incrementeaza counter-ul cand nativul nu arunca", () => {
