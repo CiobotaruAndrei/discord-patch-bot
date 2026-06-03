@@ -1,0 +1,36 @@
+name: PR Checklist
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  checklist:
+    name: Require docs + tests checkboxes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify PR checklist
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const login = (pr.user && pr.user.login) || "";
+            if (login.endsWith("[bot]")) {
+              core.info(`Skip checklist pentru PR de la bot: ${login}`);
+              return;
+            }
+            const body = pr.body || "";
+            const docsOk = /-\s*\[[xX]\][^\n]*[Dd]ocument/.test(body);
+            const testsOk = /-\s*\[[xX]\][^\n]*[Tt]este/.test(body);
+            const missing = [];
+            if (!docsOk) missing.push("documentatie (Regula 2)");
+            if (!testsOk) missing.push("teste (Regula 4)");
+            if (missing.length) {
+              core.setFailed(`Checklist PR incomplet: bifeaza in descrierea PR-ului ${missing.join(" si ")}. Sablonul e in .github/pull_request_template.md.`);
+            } else {
+              core.info("Checklist PR complet (docs + teste bifate).");
+            }
