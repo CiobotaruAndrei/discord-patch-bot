@@ -32,9 +32,31 @@ jobs:
               { keyword: "\\*\\*[Bb]enchmark\\*\\*", label: "benchmark daca e hot-path / schimbare de limbaj (Regula 3 + 6)" },
               { keyword: "[Cc]onflict cu", label: "fara conflict cu main (Regula 8 + 9)" }
             ];
-            const missing = required.filter(item => !checked(item.keyword)).map(item => item.label);
-            if (missing.length) {
-              core.setFailed(`Checklist PR incomplet: bifeaza in descrierea PR-ului ${missing.join("; ")}. Sablonul e in .github/pull_request_template.md.`);
+            const problems = required.filter(item => !checked(item.keyword)).map(item => `bifa lipsa: ${item.label}`);
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              per_page: 100
+            });
+            const names = files.map(f => f.filename);
+            const isCode = (f) => (/^src\/.*\.(ts|js)$/.test(f) && !f.startsWith("src/test/")) || /^src\/native\/.*\.rs$/.test(f);
+            const isDoc = (f) => /\.md$/.test(f) || f === ".env.example";
+            const isTest = (f) => f.startsWith("src/test/");
+            const codeChanged = names.some(isCode);
+            const docsChanged = names.some(isDoc);
+            const testChanged = names.some(isTest);
+
+            if (codeChanged && !docsChanged) {
+              problems.push("ai modificat cod (src/**) dar diff-ul nu atinge niciun fisier de documentatie (.md) — bifa de documentatie (Regula 2) nu e sustinuta de diff");
+            }
+            if (codeChanged && !testChanged) {
+              problems.push("ai modificat cod (src/**) dar diff-ul nu atinge niciun fisier de test (src/test/**) — bifa de teste (Regula 4) nu e sustinuta de diff");
+            }
+
+            if (problems.length) {
+              core.setFailed(`Checklist PR incomplet: ${problems.join("; ")}. Sablonul e in .github/pull_request_template.md.`);
             } else {
-              core.info("Checklist PR complet (docs + teste + no-comments + benchmark + conflict bifate).");
+              core.info("Checklist PR complet: bifele cheie sunt marcate, iar pentru schimbarile de cod diff-ul atinge documentatie + teste.");
             }

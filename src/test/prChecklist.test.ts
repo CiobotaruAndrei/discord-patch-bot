@@ -39,3 +39,12 @@ test("workflow-ul PR Checklist impune bifele cheie (docs, teste, no-comments, be
   assert.match(text, /core\.setFailed/, "esueaza check-ul cand lipseste o bifa");
   assert.match(text, /\[bot\]/, "sare peste PR-urile de la boti (ex. dependabot)");
 });
+
+test("workflow-ul PR Checklist verifica adevarul bifelor din diff, nu doar prezenta lor", () => {
+  const text = read(workflowPath);
+  assert.match(text, /listFiles/, "interogheaza fisierele schimbate de PR");
+  assert.match(text, /codeChanged/, "detecteaza daca PR-ul atinge cod");
+  assert.match(text, /sustinuta de diff/, "respinge bife nesustinute de diff");
+  assert.match(text, /src\/test\//, "cere ca diff-ul de cod sa atinga si teste (Regula 4)");
+  assert.match(text, /documentatie \(Regula 2\)/, "cere ca diff-ul de cod sa atinga si documentatie (Regula 2)");
+});
