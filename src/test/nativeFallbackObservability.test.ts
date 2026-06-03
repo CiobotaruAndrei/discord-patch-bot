@@ -42,11 +42,14 @@ test("recordNativeFallback: log-ul este throttled per functie (o data per fereas
   assert.equal(fuzzy.getNativeFallbackTotals().scoreListingCandidate, 3, "counter-ul creste la fiecare fallback, chiar daca log-ul e throttled");
 });
 
-test("NATIVE_FALLBACK_FUNCTIONS enumera cele 7 functii instrumentate (pentru emiterea per-functie)", () => {
-  for (const fn of ["classifyPatchNote", "scoreListingCandidate", "buildAutocompleteChoices", "isGoodSteamArticleUrl", "extractDateScore", "dealPassesFilters", "findGameKeys"]) {
+test("NATIVE_FALLBACK_FUNCTIONS enumera doar functiile inca native-primary (cele care pot face fallback)", () => {
+  for (const fn of ["classifyPatchNote", "scoreListingCandidate", "isGoodSteamArticleUrl", "extractDateScore"]) {
     assert.ok(fuzzy.NATIVE_FALLBACK_FUNCTIONS.includes(fn), `lista canonica include ${fn}`);
   }
-  assert.equal(fuzzy.NATIVE_FALLBACK_FUNCTIONS.length, 7);
+  assert.equal(fuzzy.NATIVE_FALLBACK_FUNCTIONS.length, 4);
+  for (const tsPrimary of ["findGameKeys", "buildAutocompleteChoices", "dealPassesFilters"]) {
+    assert.ok(!fuzzy.NATIVE_FALLBACK_FUNCTIONS.includes(tsPrimary), `${tsPrimary} este TS-primary, nu mai face fallback nativ`);
+  }
 });
 
 test("functiile cu fallback raman corecte si nu incrementeaza counter-ul cand nativul nu arunca", () => {

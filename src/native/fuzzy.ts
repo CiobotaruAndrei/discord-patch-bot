@@ -134,11 +134,8 @@ const NATIVE_FALLBACK_LOG_THROTTLE_MS = 60_000;
 export const NATIVE_FALLBACK_FUNCTIONS = [
   "classifyPatchNote",
   "scoreListingCandidate",
-  "buildAutocompleteChoices",
   "isGoodSteamArticleUrl",
-  "extractDateScore",
-  "dealPassesFilters",
-  "findGameKeys"
+  "extractDateScore"
 ];
 
 export function recordNativeFallback(fnName: string, err: unknown): void {
@@ -173,25 +170,6 @@ export function resetNativeFallbackTotals(): void {
 
 function normalizeCommandText(value: unknown): string {
   return String(value || "").toLowerCase().replace(/[-_]/g, " ").trim();
-}
-
-function normalizeNativeResult(result: unknown): FuzzyMatchKeys {
-  const value = result && typeof result === "object" ? result as Record<string, unknown> : {};
-  const gameKey = typeof value.gameKey === "string"
-    ? value.gameKey
-    : typeof value.game_key === "string" ? value.game_key : null;
-  const suggestionKey = typeof value.suggestionKey === "string"
-    ? value.suggestionKey
-    : typeof value.suggestion_key === "string" ? value.suggestion_key : null;
-  return { gameKey, suggestionKey };
-}
-
-function toNativeCandidates(games: GameConfig[]): NativeGameCandidate[] {
-  return games.map(game => ({
-    key: String(game.key || ""),
-    name: String(game.name || ""),
-    aliases: Array.isArray(game.aliases) ? game.aliases.map(alias => String(alias)) : []
-  }));
 }
 
 function nativeStringFn(name: keyof NativeFuzzyModule, snakeName: keyof NativeFuzzyModule): ((...args: string[]) => string) | null {
@@ -498,34 +476,6 @@ export function buildAutocompleteChoices(
   maxNameLen: number,
   maxValueLen: number
 ): NativeAutocompleteChoice[] {
-  const native = loadNativeFuzzy();
-  if (native) {
-    const fn = typeof native.buildAutocompleteChoices === "function"
-      ? native.buildAutocompleteChoices
-      : native.build_autocomplete_choices;
-    if (typeof fn === "function") {
-      try {
-        const choices = fn.call(
-          native,
-          toNativeCandidates(games),
-          String(input || ""),
-          Boolean(useNameAsValue),
-          minRelevantScore,
-          maxChoices,
-          maxNameLen,
-          maxValueLen
-        );
-        if (Array.isArray(choices)) {
-          return choices.map(choice => ({
-            name: String(choice?.name || "").substring(0, maxNameLen),
-            value: String(choice?.value || "").substring(0, maxValueLen)
-          }));
-        }
-      } catch (err) {
-        recordNativeFallback("buildAutocompleteChoices", err);
-      }
-    }
-  }
   return buildAutocompleteChoicesFallback(games, input, useNameAsValue, minRelevantScore, maxChoices, maxNameLen, maxValueLen);
 }
 
@@ -567,32 +517,6 @@ export function normalizeDealState(deal: DealInfo): string {
 }
 
 export function dealPassesFilters(deal: DealInfo, guild: GuildSettings | null | undefined): boolean {
-  const minDisc = guild?.minDiscountPercent ?? 0;
-  const incFree = guild?.includeFreeGames !== false;
-  const incPaid = guild?.includePaidDiscounts !== false;
-  const maxPrice = Number(guild?.maxAbsolutePrice) || 0;
-  const enabledStores = Array.isArray(guild?.enabledStores) ? guild.enabledStores.map(String) : [];
-  const native = loadNativeFuzzy();
-  if (native) {
-    const fn = typeof native.dealPassesFilters === "function" ? native.dealPassesFilters : native.deal_passes_filters;
-    if (typeof fn === "function") {
-      try {
-        return fn.call(
-          native,
-          parseFloat(String(deal.salePrice)),
-          Number(deal.savings),
-          String(deal.store),
-          minDisc,
-          incFree,
-          incPaid,
-          maxPrice,
-          enabledStores
-        );
-      } catch (err) {
-        recordNativeFallback("dealPassesFilters", err);
-      }
-    }
-  }
   return dealPassesFiltersFallback(deal, guild);
 }
 
@@ -609,16 +533,5 @@ export function dealHash(deal: DealInfo): string {
 }
 
 export function findGameKeys(text: unknown, games: GameConfig[], maxInput: number): FuzzyMatchKeys {
-  const native = loadNativeFuzzy();
-  if (native) {
-    try {
-      const fn = typeof native.findGameKeys === "function" ? native.findGameKeys : native.find_game_keys;
-      if (typeof fn === "function") {
-        return normalizeNativeResult(fn(String(text || ""), toNativeCandidates(games), maxInput));
-      }
-    } catch (err) {
-      recordNativeFallback("findGameKeys", err);
-    }
-  }
   return findGameKeysFallback(text, games, maxInput);
 }

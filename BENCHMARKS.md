@@ -56,12 +56,12 @@ cazuri overhead-ul apelului nativ depaseste castigul, deci Rust e mai lent decat
 - `levenshtein` si hashing-ul de dedupe (`dealHash` / `stableUpdateId`) **raman in Rust** — castig
   masurat (~1.5–1.9x) + paritate; sunt si cele cu adevarat hot (fuzzy peste toate jocurile, hash la
   fiecare update/reducere).
-- `findGameKeys`, `buildAutocompleteChoices`, `dealPassesFilters` **raman in Rust ca sursa unica**
-  (cu paritate verificata), desi microbenchmark-ul arata ca nu aduc castig: nu sunt hot-path-uri
-  (autocomplete e per-tasta dar debounce-uit + max 25 elemente; `findGameKeys` per comanda;
-  `dealPassesFilters` ruleaza pe ~zeci de oferte per guild intr-un ciclu cron I/O-bound), iar costul
-  absolut e de ordinul microsecundelor — neglijabil fata de I/O-ul ciclului. Daca vreodata devin hot,
-  varianta TS-primary este masurat mai rapida si ar fi alegerea corecta (vezi `ROADMAP.md`).
+- `findGameKeys`, `buildAutocompleteChoices`, `dealPassesFilters` sunt acum **TS-primary**: wrapper-ele
+  publice din `native/fuzzy.ts` apeleaza direct implementarea TypeScript (masurat mai rapida — Rust
+  pierde pe marshaling-ul NAPI al array-urilor de candidati / calcul trivial), iar rezultatul e identic
+  (paritate verificata). Functiile native raman expuse prin `getNativeFuzzy()` doar pentru benchmark si
+  testele de paritate, dar nu mai sunt pe calea de productie pentru aceste trei. Astfel regula 14 e
+  respectata in ambele sensuri: limbajul mai rapid pentru fiecare zona, demonstrat cu masuratori.
 
 Fallback-ul TS exista pentru robustete (cand addonul nu poate fi incarcat), nu ca implementare
 principala — cu exceptia notata mai sus, unde ar fi chiar mai eficient.
