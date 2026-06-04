@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createAppRuntime, connectMongoWithRetry, hydrateStartupCaches } from "../app/appRuntime";
+import type { AppRuntimeDeps } from "../app/appRuntime";
 
 process.env.MONGO_URI ||= "mongodb://localhost:27017/discord-patch-bot-test";
 process.env.DISCORD_TOKEN ||= "test_discord_token";
@@ -13,12 +14,15 @@ function makeDeps(overrides: { updatesFetchedAt?: Date } = {}) {
   const shutdownCalls: Array<{ signal: string; code?: number }> = [];
   const registered = { count: 0 };
   let eventsOpts: Record<string, unknown> = {};
+  let outboxWorkerOpts: Record<string, unknown> | undefined;
+  let getOutboxPausedCalls = 0;
+  const pausedValue = false;
 
   class FakeClient {
     login = async () => { order.push("login"); return "ok"; };
   }
 
-  const deps = {
+  const deps: AppRuntimeDeps = {
     mongoose: { connect: async () => { order.push("connect"); }, connection: { readyState: 1 } },
     crypto: {},
     performance: { now: () => 0 },
@@ -34,7 +38,7 @@ function makeDeps(overrides: { updatesFetchedAt?: Date } = {}) {
       stop: () => undefined,
       getHealthSnapshot: () => ({})
     }),
-    createOutboxWorker: () => ({ start: () => undefined, stop: () => undefined }),
+    createOutboxWorker: (opts: Record<string, unknown>) => { outboxWorkerOpts = opts; return { start: () => undefined, stop: () => undefined }; },
     createHttpServer: () => ({
       on: () => undefined,
       listen: (_port: number, cb?: () => void) => { order.push("listen"); if (cb) cb(); },
@@ -55,29 +59,46 @@ function makeDeps(overrides: { updatesFetchedAt?: Date } = {}) {
       acquireDbLock: async () => "tok",
       renewDbLock: async () => true,
       releaseDbLock: async () => undefined,
-      activeLocks: { size: 0 },
+      activeLocks: new Map(),
       waitForMongoReady: async () => { order.push("ready"); return true; },
       cleanGuildCache: () => undefined,
       getGuildCacheSize: () => 0,
       adminAlert: async () => undefined,
+      getOutboxPaused: async () => { getOutboxPausedCalls++; return pausedValue; },
       runMigrations: async () => { order.push("migrate"); return { applied: [1, 2] }; },
       requestContext: {},
       loadFetchSnapshot: async (_id: string) => { order.push("loadUpdates"); return { payload: [{ x: 1 }], fetchedAt: overrides.updatesFetchedAt ?? new Date() }; },
       loadDealsFetchSnapshots: async () => { order.push("loadDeals"); return [{ currency: "USD", payload: [{ d: 1 }], fetchedAt: new Date() }]; }
     },
     commands: {
+      checkForUpdates: async () => undefined,
+      checkForDiscounts: async () => undefined,
+      cleanCache: () => undefined,
       drainOutbox: async () => ({}),
-      setUpdatesCache: (payload: unknown) => { updatesCache.push(payload); },
-      setDealsCache: (currency: string, payload: unknown) => { dealsCache.push([currency, payload]); }
+      getCacheSizes: () => ({}),
+      handleInteraction: async () => undefined,
+      registerSlashCommands: async () => undefined,
+      setDealsCache: (currency: string, payload: unknown) => { dealsCache.push([currency, payload]); },
+      setGlobalCacheTtl: () => undefined,
+      setUpdatesCache: (payload: unknown) => { updatesCache.push(payload); }
     },
-    scrapers: { attachMetrics: () => undefined }
+    scrapers: {
+      attachMetrics: () => undefined,
+      cleanEnrichedCache: () => undefined,
+      getEnrichedCacheSize: () => 0
+    }
   };
-  return { deps, order, updatesCache, dealsCache, shutdownCalls, registered, getEventsOpts: () => eventsOpts };
+  return {
+    deps, order, updatesCache, dealsCache, shutdownCalls, registered,
+    getEventsOpts: () => eventsOpts,
+    getOutboxWorkerOpts: () => outboxWorkerOpts,
+    getOutboxPausedCalls: () => getOutboxPausedCalls
+  };
 }
 
 test("createAppRuntime: start() ruleaza secventa de boot in ordine (connect -> migrate -> hydrate -> listen -> login)", async () => {
   const h = makeDeps();
-  const app = createAppRuntime(h.deps as unknown as Parameters<typeof createAppRuntime>[0]);
+  const app = createAppRuntime(h.deps);
   await app.start();
   assert.deepEqual(
     h.order,
@@ -88,7 +109,7 @@ test("createAppRuntime: start() ruleaza secventa de boot in ordine (connect -> m
 
 test("createAppRuntime: hidrateaza cache-urile din snapshot-uri proaspete", async () => {
   const h = makeDeps();
-  const app = createAppRuntime(h.deps as unknown as Parameters<typeof createAppRuntime>[0]);
+  const app = createAppRuntime(h.deps);
   await app.start();
   assert.equal(h.updatesCache.length, 1, "snapshot updates proaspat -> setUpdatesCache");
   assert.deepEqual(h.dealsCache, [["USD", [{ d: 1 }]]], "snapshot deals proaspat -> setDealsCache");
@@ -96,14 +117,14 @@ test("createAppRuntime: hidrateaza cache-urile din snapshot-uri proaspete", asyn
 
 test("createAppRuntime: snapshot updates invechit (>30min) NU hidrateaza cache-ul", async () => {
   const h = makeDeps({ updatesFetchedAt: new Date(Date.now() - 31 * 60 * 1000) });
-  const app = createAppRuntime(h.deps as unknown as Parameters<typeof createAppRuntime>[0]);
+  const app = createAppRuntime(h.deps);
   await app.start();
   assert.equal(h.updatesCache.length, 0, "snapshot vechi -> fara setUpdatesCache");
 });
 
 test("createAppRuntime: registerProcessHandlers si stop deleaga catre shutdown controller", async () => {
   const h = makeDeps();
-  const app = createAppRuntime(h.deps as unknown as Parameters<typeof createAppRuntime>[0]);
+  const app = createAppRuntime(h.deps);
   app.registerProcessHandlers();
   assert.equal(h.registered.count, 1, "registerProcessHandlers deleaga o data");
   await app.stop("SIGTERM", 0);
@@ -112,10 +133,22 @@ test("createAppRuntime: registerProcessHandlers si stop deleaga catre shutdown c
 
 test("createAppRuntime: cableaza event-urile Discord (cron + housekeeping)", () => {
   const h = makeDeps();
-  createAppRuntime(h.deps as unknown as Parameters<typeof createAppRuntime>[0]);
+  createAppRuntime(h.deps);
   const opts = h.getEventsOpts();
   assert.equal(typeof opts.scheduleNextCron, "function", "scheduleNextCron este cablat in event-uri");
   assert.equal(typeof opts.startHousekeeping, "function", "startHousekeeping este cablat in event-uri");
+});
+
+test("createAppRuntime: outboxWorker primeste isPaused cablat la getOutboxPaused", async () => {
+  const h = makeDeps();
+  createAppRuntime(h.deps);
+  const opts = h.getOutboxWorkerOpts();
+  assert.ok(opts, "createOutboxWorker a primit optiunile");
+  assert.equal(typeof opts!.isPaused, "function", "isPaused este cablat in optiunile worker-ului");
+  const before = h.getOutboxPausedCalls();
+  const result = await (opts!.isPaused as () => Promise<boolean>)();
+  assert.equal(h.getOutboxPausedCalls(), before + 1, "isPaused() deleaga la getOutboxPaused");
+  assert.equal(result, false, "isPaused reflecta valoarea returnata de getOutboxPaused");
 });
 
 test("connectMongoWithRetry: reincearca dupa un esec apoi reuseste", async () => {

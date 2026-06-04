@@ -61,3 +61,10 @@ jobs:
         env:
           BENCH_GUARD_REQUIRE_NATIVE: "true"
         run: node dist/scripts/benchmarkGuard.js
+
+      - name: Run e2e tests explicitly (guard impotriva putrezirii scriptului test:e2e)
+        env:
+          MONGO_URI: mongodb://localhost:27017/discord-patch-bot-test
+          DISCORD_TOKEN: test_discord_token
+          DISCORD_CLIENT_ID: test_discord_client_id
+        run: npm run test:e2e
