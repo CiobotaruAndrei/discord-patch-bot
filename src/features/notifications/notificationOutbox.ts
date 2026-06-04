@@ -234,7 +234,10 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         if (result.recoveryDuplicate) recoveryDuplicates++;
         if (result.recoveryFailed) recoveryFailures++;
         if (result.recoveryMarkerMissing) recoveryMarkerMissing++;
-        if (!(await markSent(job.dedupeKey))) markSentFailures++;
+        if (job.dedupeKey && !(await markSent(job.dedupeKey))) {
+          markSentFailures++;
+          await options.recordDeadLetter(job, "delivered-marksent-failed").catch(() => undefined);
+        }
         await NotificationOutboxModel.deleteOne({ _id: job._id });
         sent++;
         continue;
