@@ -99,6 +99,10 @@ function buildSetUpdatePlan(
 
   if (sub === "free") {
     const value = String(interaction.options.getString("value") || "");
+    if (value !== "on" && value !== "off") {
+      plan.earlyReply = "Eroare: `free` accepta doar `on` sau `off`.";
+      return plan;
+    }
     plan.updateDoc.includeFreeGames = value === "on";
     plan.confirmMsg = `OK: Jocuri free: **${value.toUpperCase()}**`;
     plan.isFilterChange = true;
@@ -107,6 +111,10 @@ function buildSetUpdatePlan(
 
   if (sub === "paid") {
     const value = String(interaction.options.getString("value") || "");
+    if (value !== "on" && value !== "off") {
+      plan.earlyReply = "Eroare: `paid` accepta doar `on` sau `off`.";
+      return plan;
+    }
     plan.updateDoc.includePaidDiscounts = value === "on";
     plan.confirmMsg = `OK: Oferte platite: **${value.toUpperCase()}**`;
     plan.isFilterChange = true;

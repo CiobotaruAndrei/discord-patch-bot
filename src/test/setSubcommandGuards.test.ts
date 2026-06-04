@@ -221,3 +221,57 @@ test("/set currency rejects null and unsupported codes", async () => {
   const [, update] = mongoCalls[0] as [unknown, SetUpdate];
   assert.equal(update.$set.currency, "EUR");
 });
+
+test("/set free rejects null/invalid values instead of mis-reporting them", async () => {
+  const replies: unknown[] = [];
+  const mongoCalls: unknown[][] = [];
+  const context = makeContext(replies, mongoCalls);
+
+  for (const value of [null, "", "maybe", "ON"]) {
+    replies.length = 0;
+    await context.handleInteraction(
+      makeSetInteraction({ group: null, sub: "free", optionGetter: () => value }),
+      []
+    );
+    assert.match(String(replies[0]), /`free` accepta doar `on` sau `off`/, `value=${JSON.stringify(value)} trebuie respinsa`);
+  }
+  assert.equal(mongoCalls.length, 0, "no write on invalid free");
+
+  for (const [value, expected] of [["on", true], ["off", false]] as Array<[string, boolean]>) {
+    mongoCalls.length = 0;
+    await context.handleInteraction(
+      makeSetInteraction({ group: null, sub: "free", optionGetter: () => value }),
+      []
+    );
+    assert.equal(mongoCalls.length, 1, `free=${value} trebuie persistat`);
+    const [, update] = mongoCalls[0] as [unknown, SetUpdate];
+    assert.equal(update.$set.includeFreeGames, expected, `free=${value} -> includeFreeGames=${expected}`);
+  }
+});
+
+test("/set paid rejects null/invalid values instead of mis-reporting them", async () => {
+  const replies: unknown[] = [];
+  const mongoCalls: unknown[][] = [];
+  const context = makeContext(replies, mongoCalls);
+
+  for (const value of [null, "", "maybe", "OFF"]) {
+    replies.length = 0;
+    await context.handleInteraction(
+      makeSetInteraction({ group: null, sub: "paid", optionGetter: () => value }),
+      []
+    );
+    assert.match(String(replies[0]), /`paid` accepta doar `on` sau `off`/, `value=${JSON.stringify(value)} trebuie respinsa`);
+  }
+  assert.equal(mongoCalls.length, 0, "no write on invalid paid");
+
+  for (const [value, expected] of [["on", true], ["off", false]] as Array<[string, boolean]>) {
+    mongoCalls.length = 0;
+    await context.handleInteraction(
+      makeSetInteraction({ group: null, sub: "paid", optionGetter: () => value }),
+      []
+    );
+    assert.equal(mongoCalls.length, 1, `paid=${value} trebuie persistat`);
+    const [, update] = mongoCalls[0] as [unknown, SetUpdate];
+    assert.equal(update.$set.includePaidDiscounts, expected, `paid=${value} -> includePaidDiscounts=${expected}`);
+  }
+});
