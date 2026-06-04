@@ -36,7 +36,7 @@ const GameSchema = z.object({
   url: z.string().url().optional(),
   aliases: z.array(z.string().min(1)).optional(),
   upCRD: z.number().int().min(0).max(1).optional()
-}).passthrough();
+}).strict();
 
 const ConfigSchema = z.object({
   checkIntervalMinutes: z.number().positive().optional(),
