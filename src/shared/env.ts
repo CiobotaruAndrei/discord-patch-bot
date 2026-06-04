@@ -1,5 +1,6 @@
 import type { z as ZodNamespace } from "zod";
 import type { LoggerFunction, ParseEnvNumber, RuntimeEnv } from "../types";
+import { BOOLEAN_ENV_PATTERN, parseBooleanEnv } from "./booleanEnv";
 
 type ZodLike = typeof ZodNamespace;
 
@@ -55,7 +56,7 @@ function attachEnv(target: EnvContext): void {
       .optional(),
     LOG_LEVEL: z.string().optional(),
     PROXY_URLS: z.string().optional(),
-    TRUST_PROXY: z.string().optional(),
+    TRUST_PROXY: z.string().regex(BOOLEAN_ENV_PATTERN, "TRUST_PROXY trebuie sa fie true/false/1/0").optional(),
     TRUSTED_PROXY_COUNT: z.string().regex(/^\d+$/, "TRUSTED_PROXY_COUNT trebuie sa fie un numar intreg >= 0").optional()
   }).superRefine((env, validationContext) => {
     if (isProd) {
@@ -104,7 +105,7 @@ function attachEnv(target: EnvContext): void {
     NODE_ENV: process.env.NODE_ENV || "development",
     METRICS_TOKEN: effectiveMetricsToken,
     METRICS_PUBLIC: String(process.env.METRICS_PUBLIC || "").toLowerCase() === "true",
-    TRUST_PROXY: String(process.env.TRUST_PROXY || "").toLowerCase() === "true",
+    TRUST_PROXY: parseBooleanEnv(process.env.TRUST_PROXY),
     TRUSTED_PROXY_COUNT: parseEnvNumber("TRUSTED_PROXY_COUNT", 1, { min: 0, max: 20 }),
     ADMIN_WEBHOOK_URL: process.env.ADMIN_WEBHOOK_URL || "",
     LOG_LEVEL: RAW_LOG_LEVEL,

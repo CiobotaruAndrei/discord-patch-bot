@@ -164,6 +164,15 @@ test("rateLimit: 1 proxy trusted -> ia hop-ul adaugat de proxy (rightmost), spoo
     "acelasi client real (adaugat de proxy = segments[length-1]) e limitat; spoof-ul leftmost nu creeaza bucket-uri noi");
 });
 
+test("rateLimit: single-proxy [client] count=1 -> client (cazul comun, fara spoof)", () => {
+  const { rl } = makeRateLimiter(true, 1);
+  for (let i = 0; i < 5; i++) assert.equal(rl.check(makeReq({ xff: "client-1.2.3.4" })), true, `req ${i}`);
+  assert.equal(rl.check(makeReq({ xff: "client-1.2.3.4" })), false,
+    "[client] count=1 -> segments[length-1]=client; al 6-lea request al aceluiasi client e limitat");
+  assert.equal(rl.check(makeReq({ xff: "alt-client-5.6.7.8" })), true,
+    "un client diferit (single entry) primeste bucket separat");
+});
+
 test("rateLimit: mai multe proxy-uri trusted -> extrage clientul real, nu proxy-ul cel mai apropiat", () => {
   const { rl } = makeRateLimiter(true, 2);
 

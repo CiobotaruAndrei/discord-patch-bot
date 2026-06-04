@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildDeadLetterEntry, deadLetterPush, NOTIFICATION_DEAD_LETTER_LIMIT } from "../features/notifications/deadLetter";
+import { buildDeadLetterEntry, deadLetterPush, deadLetterTitleFromPayload, NOTIFICATION_DEAD_LETTER_LIMIT } from "../features/notifications/deadLetter";
 
 test("buildDeadLetterEntry: pastreaza campurile de audit (kind, itemId, title, channelId, dedupeKey, reason, attempts)", () => {
   const entry = buildDeadLetterEntry({
@@ -31,6 +31,15 @@ test("buildDeadLetterEntry: campurile lipsa devin string gol, titlul e plafonat 
 
   const long = buildDeadLetterEntry({ kind: "update", itemId: "x", title: "T".repeat(500), reason: "r", attempts: 0 });
   assert.equal(long.title.length, 200, "titlul lung e plafonat la 200 de caractere");
+});
+
+test("deadLetterTitleFromPayload: ia titlul primului embed, apoi content, apoi gol; plafonat la 200", () => {
+  assert.equal(deadLetterTitleFromPayload({ embeds: [{ title: "Cyberpunk 2077 - update" }] }), "Cyberpunk 2077 - update");
+  assert.equal(deadLetterTitleFromPayload({ content: "<@&123> oferta noua" }), "<@&123> oferta noua");
+  assert.equal(deadLetterTitleFromPayload({ embeds: [{}] }), "", "embed fara titlu si fara content -> gol");
+  assert.equal(deadLetterTitleFromPayload({}), "");
+  assert.equal(deadLetterTitleFromPayload(undefined), "");
+  assert.equal(deadLetterTitleFromPayload({ embeds: [{ title: "Z".repeat(400) }] }).length, 200, "titlu lung plafonat la 200");
 });
 
 test("deadLetterPush: construieste $push cu $slice plafonat, sau null daca nu sunt intrari", () => {

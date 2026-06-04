@@ -16,7 +16,7 @@ const { createUpdateNotificationService } = require("./updateNotificationService
 const { createDiscountNotificationService } = require("./discountNotificationService");
 const { createOutboxRuntime, applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker } = require("./notificationOutbox");
 const { createOutboxDelivery } = require("./outboxDelivery");
-const { buildDeadLetterEntry, deadLetterPush } = require("./deadLetter");
+const { buildDeadLetterEntry, deadLetterPush, deadLetterTitleFromPayload } = require("./deadLetter");
 const { defaultDiscordSendLimiter } = require("./discordRateLimiter");
 
 const OUTBOX_MAX_ATTEMPTS = 5;
@@ -96,11 +96,8 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
   });
 
   async function recordOutboxDeadLetter(job: OutboxJobShape, reason: string): Promise<void> {
-    const payload = job.payload && typeof job.payload === "object" ? job.payload as { embeds?: Array<{ title?: unknown }>; content?: unknown } : {};
-    const firstEmbedTitle = Array.isArray(payload.embeds) && payload.embeds[0] ? payload.embeds[0].title : undefined;
-    const title = firstEmbedTitle ?? payload.content ?? "";
     const push = deadLetterPush([buildDeadLetterEntry({
-      kind: job.kind, itemId: String(job._id ?? ""), title, channelId: job.channelId, dedupeKey: job.dedupeKey, reason, attempts: (job.attempts || 0) + 1
+      kind: job.kind, itemId: String(job._id ?? ""), title: deadLetterTitleFromPayload(job.payload), channelId: job.channelId, dedupeKey: job.dedupeKey, reason, attempts: (job.attempts || 0) + 1
     })]);
     if (push) await GuildModel.updateOne({ _id: job.guildId }, { $push: push }).catch(() => undefined);
   }
