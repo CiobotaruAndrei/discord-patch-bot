@@ -177,6 +177,7 @@ function createHttpServer({
       pushMetric(lines, seenMetricNames, "bot_outbox_sent", "counter", "Notification outbox jobs delivered", metrics.outboxSent);
       pushMetric(lines, seenMetricNames, "bot_outbox_retried", "counter", "Notification outbox jobs retried", metrics.outboxRetried);
       pushMetric(lines, seenMetricNames, "bot_outbox_dead_lettered", "counter", "Notification outbox jobs dead-lettered", metrics.outboxDeadLettered);
+      pushMetric(lines, seenMetricNames, "bot_outbox_expired", "counter", "Notification outbox jobs dead-lettered due to age before TTL expiry", metrics.outboxExpired);
       pushMetric(lines, seenMetricNames, "bot_outbox_drains", "counter", "Notification outbox drain cycles", metrics.outboxDrains);
       pushMetric(lines, seenMetricNames, "bot_outbox_queue_depth", "gauge", "Notification outbox jobs currently queued", metrics.outboxQueueDepth);
       pushMetric(lines, seenMetricNames, "bot_outbox_delivery_ms_total", "counter", "Total ms spent delivering outbox jobs (with bot_outbox_sent gives avg latency)", metrics.outboxDeliveryMsTotal);

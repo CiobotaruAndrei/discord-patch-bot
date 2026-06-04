@@ -22,6 +22,7 @@ const { defaultDiscordSendLimiter } = require("./discordRateLimiter");
 const OUTBOX_MAX_ATTEMPTS = 5;
 const OUTBOX_BACKOFF_MS = 60_000;
 const OUTBOX_DRAIN_LIMIT = Math.min(1000, Math.max(1, Number(process.env.NOTIFICATION_OUTBOX_DRAIN_LIMIT) || 50));
+const OUTBOX_MAX_AGE_MS = Math.min(7 * 24 * 3600_000, Math.max(3600_000, Number(process.env.NOTIFICATION_OUTBOX_MAX_AGE_MS) || 6 * 24 * 3600_000));
 
 interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; attempts: number; deliveries?: number; dedupeKey?: string; }
 interface OutboxClient { user: { id: string }; channels: { fetch(channelId: string): Promise<unknown> }; }
@@ -107,7 +108,8 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
       recordDeadLetter: recordOutboxDeadLetter,
       maxAttempts: OUTBOX_MAX_ATTEMPTS,
       backoffMs: OUTBOX_BACKOFF_MS,
-      limit: OUTBOX_DRAIN_LIMIT
+      limit: OUTBOX_DRAIN_LIMIT,
+      maxAgeMs: OUTBOX_MAX_AGE_MS
     });
     const guildCounter = GuildModel as unknown as { countDocuments(filter: Record<string, unknown>): Promise<number> };
     const recoveryVerifyEnabledGuilds = await guildCounter.countDocuments({ outboxRecoveryVerify: true }).catch(() => undefined);

@@ -331,6 +331,52 @@ test("enqueueOutbox: eroarea de cheie duplicata (E11000) e ignorata (job pending
   assert.equal(createCalls, 1, "s-a incercat o singura creare");
 });
 
+test("drainOutbox: sweep — joburi mai vechi decat maxAgeMs -> dead-letter (expired-near-ttl) + sters inainte de TTL", async () => {
+  const stale = [
+    { _id: "s1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, createdAt: new Date(0) },
+    { _id: "s2", guildId: "g2", channelId: "c2", kind: "discount", payload: {}, attempts: 2, createdAt: new Date(1000) }
+  ] as unknown as OutboxJob[];
+  const deleted: unknown[] = [];
+  const findFilters: Array<{ createdAt?: { $lte?: unknown } }> = [];
+  const model = {
+    create: async (d: Record<string, unknown>) => d,
+    findOneAndUpdate: async () => null,
+    find: (filter: { createdAt?: { $lte?: unknown } }) => { findFilters.push(filter); return { sort: () => ({ limit: () => ({ lean: async () => stale }) }) }; },
+    deleteOne: async (f: unknown) => { deleted.push(f); return { deletedCount: 1 }; },
+    updateOne: async () => ({ matchedCount: 1 }),
+    countDocuments: async () => 0
+  };
+  const sentModel = { exists: async () => null, updateOne: async () => ({ upsertedCount: 1 }) };
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: model as never,
+    NotificationOutboxSentModel: sentModel as never,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  const deadLetters: Array<{ reason: string; id: unknown }> = [];
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: true }),
+    recordDeadLetter: async (j, reason) => { deadLetters.push({ reason, id: (j as OutboxJob)._id }); },
+    maxAttempts: 5, backoffMs: 1000, limit: 50, maxAgeMs: 6 * 24 * 3600_000, now: new Date(10 * 24 * 3600_000)
+  });
+  assert.equal(result.expired, 2, "ambele joburi vechi sunt mutate in dead-letter inainte sa le stearga TTL-ul Mongo");
+  assert.equal(deadLetters.length, 2);
+  assert.ok(deadLetters.every(d => d.reason === "expired-near-ttl"), "motivul de dead-letter este expired-near-ttl (audit, nu stergere tacuta)");
+  assert.deepEqual(deleted, [{ _id: "s1" }, { _id: "s2" }], "joburile vechi sunt sterse dupa ce au fost dead-lettered");
+  assert.ok(findFilters.some(f => f.createdAt && f.createdAt.$lte instanceof Date), "sweep-ul cauta joburi cu createdAt sub un cutoff");
+});
+
+test("drainOutbox: fara maxAgeMs (sau 0) nu face sweep (expired=0)", async () => {
+  const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0 };
+  const { runtime } = makeRuntime([job]);
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: true }),
+    recordDeadLetter: async () => undefined,
+    maxAttempts: 5, backoffMs: 1000, limit: 50
+  });
+  assert.equal(result.expired, 0, "fara maxAgeMs nu se face sweep de varsta");
+});
+
 test("enqueueOutbox: alte erori la create se propaga (nu sunt inghitite)", async () => {
   const model = {
     create: async () => { throw new Error("conexiune pierduta"); },

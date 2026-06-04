@@ -15,6 +15,7 @@ function createMetrics(): BotMetrics {
     outboxSent: 0,
     outboxRetried: 0,
     outboxDeadLettered: 0,
+    outboxExpired: 0,
     outboxDrains: 0,
     outboxQueueDepth: 0,
     outboxDeliveryMsTotal: 0,
