@@ -229,8 +229,8 @@ function attachHttpClient(target: HttpClientContext): void {
           throw err;
         }
         const status = requestError.response?.status || "N/A";
-        const { isRateLimit, isRetryable4xx, is5xx, isNetworkErr, isFatalClient } = classifyHttpFailure(status, isIdempotent);
-        if (isFatalClient) {
+        const { isRateLimit, isRetryable4xx, is5xx, isNetworkErr, shouldRetry } = classifyHttpFailure(status, isIdempotent);
+        if (!shouldRetry) {
           throw err;
         }
         if (i === retries) {
