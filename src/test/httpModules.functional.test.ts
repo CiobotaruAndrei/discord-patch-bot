@@ -5,7 +5,7 @@ const retryPolicy = require("../infra/http/retryPolicy") as {
   RETRY_ABLE_4XX: Set<number>;
   parseRetryAfter: (raw: unknown, nowMs?: number) => number | null;
   classifyHttpFailure: (status: number | string, isIdempotent: boolean) => {
-    isRateLimit: boolean; isRetryable4xx: boolean; is5xx: boolean; isNetworkErr: boolean; isFatalClient: boolean;
+    isRateLimit: boolean; isRetryable4xx: boolean; is5xx: boolean; isNetworkErr: boolean; isFatalClient: boolean; shouldRetry: boolean;
   };
   computeBackoffWaitMs: (baseBackoffMs: number, retryAfterMs: number | null, random?: () => number) => number;
 };
@@ -35,6 +35,28 @@ test("classifyHttpFailure: rate-limit, 5xx, network si 4xx fatal vs retryable", 
 
   const network = retryPolicy.classifyHttpFailure("N/A", true);
   assert.ok(network.isNetworkErr && !network.isFatalClient, "eroare de retea (status non-numeric) = retryable");
+});
+
+test("classifyHttpFailure: shouldRetry reincearca 5xx/retea doar pentru cereri idempotente (GET)", () => {
+  const idem5xx = retryPolicy.classifyHttpFailure(503, true);
+  assert.equal(idem5xx.shouldRetry, true, "GET pe 5xx se reincearca");
+  const nonIdem5xx = retryPolicy.classifyHttpFailure(503, false);
+  assert.equal(nonIdem5xx.shouldRetry, false, "non-GET pe 5xx NU se reincearca (poate fi procesat deja -> duplicat)");
+
+  const idemNet = retryPolicy.classifyHttpFailure("N/A", true);
+  assert.equal(idemNet.shouldRetry, true, "GET pe eroare de retea se reincearca");
+  const nonIdemNet = retryPolicy.classifyHttpFailure("N/A", false);
+  assert.equal(nonIdemNet.shouldRetry, false, "non-GET pe eroare de retea NU se reincearca (livrarea poate fi ajuns la server)");
+
+  const rlIdem = retryPolicy.classifyHttpFailure(429, true);
+  const rlNonIdem = retryPolicy.classifyHttpFailure(429, false);
+  assert.equal(rlIdem.shouldRetry, true, "429 idempotent se reincearca");
+  assert.equal(rlNonIdem.shouldRetry, true, "429 se reincearca si non-idempotent: serverul a respins explicit, nu a procesat");
+
+  const fatal = retryPolicy.classifyHttpFailure(404, true);
+  assert.equal(fatal.shouldRetry, false, "404 nu se reincearca niciodata");
+  const timeoutNonIdem = retryPolicy.classifyHttpFailure(408, false);
+  assert.equal(timeoutNonIdem.shouldRetry, false, "408 non-idempotent nu se reincearca");
 });
 
 test("computeBackoffWaitMs: jitter determinist cu rng injectat + plafon 30s pe retry-after", () => {

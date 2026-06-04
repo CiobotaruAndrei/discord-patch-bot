@@ -24,6 +24,7 @@ interface HttpFailureClass {
   is5xx: boolean;
   isNetworkErr: boolean;
   isFatalClient: boolean;
+  shouldRetry: boolean;
 }
 
 function classifyHttpFailure(status: number | string, isIdempotent: boolean): HttpFailureClass {
@@ -32,7 +33,8 @@ function classifyHttpFailure(status: number | string, isIdempotent: boolean): Ht
   const is5xx = typeof status === "number" && status >= 500;
   const isNetworkErr = typeof status !== "number";
   const isFatalClient = typeof status === "number" && status >= 400 && status < 500 && !isRetryable4xx;
-  return { isRateLimit, isRetryable4xx, is5xx, isNetworkErr, isFatalClient };
+  const shouldRetry = isRetryable4xx || ((is5xx || isNetworkErr) && isIdempotent);
+  return { isRateLimit, isRetryable4xx, is5xx, isNetworkErr, isFatalClient, shouldRetry };
 }
 
 function computeBackoffWaitMs(baseBackoffMs: number, retryAfterMs: number | null, random: () => number = Math.random): number {
