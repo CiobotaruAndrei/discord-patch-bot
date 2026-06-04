@@ -41,6 +41,16 @@ groups:
           summary: "Outbox mark-sent failures (re-send risk)"
           description: "bot_outbox_mark_sent_failures a crescut in ultimele 15m: mesaje trimise dar nemarcate in istoricul de dedupe. Vezi OPERATIONS.md - 'Cand creste bot_outbox_mark_sent_failures'."
 
+      - alert: OutboxJobsExpired
+        expr: increase(bot_outbox_expired[1h]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: outbox
+        annotations:
+          summary: "Outbox jobs dead-lettered due to age (nelivrate inainte de TTL)"
+          description: "bot_outbox_expired a crescut: joburi au stat in coada pana aproape de TTL-ul de 7 zile fara sa fie livrate si au fost mutate in dead-letter (in loc sa fie sterse tacut de TTL). Investigheaza de ce nu s-au drenat (outbox dezactivat/pe pauza mult timp, canal stricat, worker oprit). Vezi OPERATIONS.md - 'Migrari... outbox' / sectiunea de dead-letter."
+
       - alert: OutboxRecoveryVerifyFailures
         expr: increase(bot_outbox_recovery_verify_failures[15m]) > 0
         for: 5m

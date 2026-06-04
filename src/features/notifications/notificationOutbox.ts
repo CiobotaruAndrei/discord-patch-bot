@@ -97,12 +97,14 @@ export interface DrainOutboxOptions {
   leaseMs?: number;
   workerId?: string;
   now?: Date;
+  maxAgeMs?: number;
 }
 
 export interface DrainOutboxResult {
   sent: number;
   deadLettered: number;
   retried: number;
+  expired: number;
   total: number;
   queued: number;
   deliveryMsTotal: number;
@@ -255,6 +257,21 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       retried++;
     }
 
+    let expired = 0;
+    const maxAgeMs = options.maxAgeMs ?? 0;
+    if (maxAgeMs > 0) {
+      const cutoff = new Date(nowFn().getTime() - maxAgeMs);
+      const staleJobs = await NotificationOutboxModel.find({ createdAt: { $lte: cutoff } }).sort({ createdAt: 1 }).limit(options.limit).lean().catch(() => [] as OutboxJob[]);
+      for (const job of (Array.isArray(staleJobs) ? staleJobs : [])) {
+        await options.recordDeadLetter(job, "expired-near-ttl").catch(() => undefined);
+        await NotificationOutboxModel.deleteOne({ _id: job._id }).catch(() => undefined);
+        expired++;
+      }
+      if (expired > 0) {
+        logger("WARN", "OUTBOX", `Drain outbox: ${expired} job(uri) prea vechi mutate in dead-letter inainte de expirarea TTL (nelivrate dupa ${Math.round(maxAgeMs / 3600000)}h)`);
+      }
+    }
+
     const queued = await NotificationOutboxModel.countDocuments({}).catch(() => 0);
     const oldestAgeMs = await oldestJobAgeMs(nowFn());
 
@@ -262,7 +279,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       const errSuffix = deliverErrors > 0 ? `, ${deliverErrors} exceptii de livrare` : "";
       logger("INFO", "OUTBOX", `Drain outbox: ${sent} trimise, ${retried} reincercate, ${deadLettered} dead-letter, ${queued} ramase in coada${errSuffix}`);
     }
-    return { sent, deadLettered, retried, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures };
+    return { sent, deadLettered, retried, expired, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures };
   }
 
   return { enqueueOutbox, drainOutbox };

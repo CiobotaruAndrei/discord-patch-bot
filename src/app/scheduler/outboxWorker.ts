@@ -23,6 +23,7 @@ interface OutboxMetricsLike {
   outboxSent: number;
   outboxRetried: number;
   outboxDeadLettered: number;
+  outboxExpired: number;
   outboxDrains: number;
   outboxQueueDepth: number;
   outboxDeliveryMsTotal: number;
@@ -41,6 +42,7 @@ interface OutboxDrainResult {
   sent?: number;
   retried?: number;
   deadLettered?: number;
+  expired?: number;
   queued?: number;
   deliveryMsTotal?: number;
   oldestJobAgeMs?: number;
@@ -114,6 +116,7 @@ function createOutboxWorker({
     metrics.outboxSent += r.sent ?? 0;
     metrics.outboxRetried += r.retried ?? 0;
     metrics.outboxDeadLettered += r.deadLettered ?? 0;
+    metrics.outboxExpired += r.expired ?? 0;
     metrics.outboxDeliveryMsTotal += r.deliveryMsTotal ?? 0;
     metrics.outboxRecoveryDuplicates += r.recoveryDuplicates ?? 0;
     metrics.outboxRecoveryFetches += r.recoveryFetches ?? 0;

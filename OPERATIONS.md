@@ -179,3 +179,11 @@ Cand o livrare epuizeaza reincercarile sau primeste o eroare permanenta, intra i
 dead-letter (pe documentul guild-ului, plafonat). Inspecteaza cu `/outbox deadletters`.
 Daca `bot_outbox_dead_lettered` creste, verifica permisiunile canalului si starea Discord;
 dupa remediere, livrarile noi vor reusi (intrarile dead-letter raman pentru audit).
+
+Joburile au TTL de 7 zile pe `createdAt`. Ca sa nu fie sterse **tacut** de TTL daca raman
+blocate (ex. outbox dezactivat/pe pauza mult timp, worker oprit), un sweep la fiecare drenare
+muta in dead-letter joburile mai vechi decat `NOTIFICATION_OUTBOX_MAX_AGE_MS` (implicit 6 zile,
+inainte de TTL), cu motivul `expired-near-ttl`, si incrementeaza `bot_outbox_expired`. Alerta
+`OutboxJobsExpired` (`increase(bot_outbox_expired[1h]) > 0`) semnaleaza conditia: investigheaza
+de ce nu s-au drenat (outbox oprit, canal stricat, worker cazut) — joburile au un audit clar in
+dead-letter, nu dispar fara urma.

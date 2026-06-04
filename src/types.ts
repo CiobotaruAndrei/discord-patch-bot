@@ -150,6 +150,7 @@ export interface BotMetrics {
   outboxSent: number;
   outboxRetried: number;
   outboxDeadLettered: number;
+  outboxExpired: number;
   outboxDrains: number;
   outboxQueueDepth: number;
   outboxDeliveryMsTotal: number;
