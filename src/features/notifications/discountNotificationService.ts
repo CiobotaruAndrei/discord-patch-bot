@@ -5,6 +5,8 @@ import type { GuildSettings, DealInfo } from "../../types";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
 import { HASH_VERSION } from "../../native/fuzzy";
 
+import { packEmbedsByBudget, embedCharCost } from "../../shared/discordEmbedChunks";
+
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
 
@@ -211,10 +213,11 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     remaining.push(...pending.slice(idx));
 
     const discountRoleId = (guild as { discountRoleId?: string }).discountRoleId;
-    for (let start = 0; start < batch.length; start += DISCORD_EMBEDS_PER_MESSAGE) {
-      const chunk = batch.slice(start, start + DISCORD_EMBEDS_PER_MESSAGE);
+    const messageChunks = packEmbedsByBudget(batch, entry => embedCharCost(entry.embed), { maxCount: DISCORD_EMBEDS_PER_MESSAGE });
+    for (let ci = 0; ci < messageChunks.length; ci++) {
+      const chunk = messageChunks[ci];
       const sendPayload: Record<string, unknown> = { embeds: chunk.map(entry => entry.embed) };
-      if (start === 0 && discountRoleId) {
+      if (ci === 0 && discountRoleId) {
         sendPayload.content = `<@&${discountRoleId}>`;
         sendPayload.allowedMentions = { roles: [discountRoleId] };
       }
@@ -222,7 +225,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
         await channel.send(sendPayload);
         await sleepIfPositive(DISCORD_SEND_DELAY_MS);
       } catch (err: unknown) {
-        const failed = batch.slice(start);
+        const failed = messageChunks.slice(ci).reduce<typeof batch>((acc, c) => { for (const entry of c) acc.push(entry); return acc; }, []);
         for (const entry of failed) await rollbackSeenDiscount(String(guild._id), entry.item.hash).catch(() => null);
         if (isPermanentDiscordError(err)) {
           const reason = `Discord cod ${(err as { code?: unknown }).code}: ${transientErrorMessage(err)}`;
