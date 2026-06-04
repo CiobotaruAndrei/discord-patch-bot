@@ -20,6 +20,23 @@ test("accepts the current supported config shape", () => {
   assert.equal(validated.games.length, 2);
 });
 
+test("rejects unknown fields in a game (typo) instead of passing them through silently", () => {
+  assert.throws(
+    () => validateConfig(baseConfig({
+      games: [{ key: "cs2", name: "Counter-Strike 2", type: "steam", appid: "730" }]
+    }), "unit-test"),
+    /Unrecognized key|appid/i,
+    "un camp gresit scris (appid in loc de appId) trebuie respins, nu acceptat tacut"
+  );
+});
+
+test("accepts a game with only known fields (strict nu respinge config valid)", () => {
+  const validated = validateConfig(baseConfig({
+    games: [{ key: "gta", name: "Grand Theft Auto V", type: "listing_based", baseUrl: "https://example.com", listingUrl: "https://example.com/news" }]
+  }), "unit-test");
+  assert.equal(validated.games.length, 1);
+});
+
 test("rejects unsupported cron intervals", () => {
   assert.throws(
     () => validateConfig(baseConfig({ checkIntervalMinutes: 17 }), "unit-test"),
