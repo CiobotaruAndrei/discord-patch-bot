@@ -205,6 +205,8 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     let recoveryMarkerMissing = 0;
     let markSentFailures = 0;
     let deliverErrors = 0;
+    let expired = 0;
+    const maxAgeMs = options.maxAgeMs ?? 0;
 
     for (let i = 0; i < options.limit; i++) {
       const job = await claimNextJob(nowFn(), leaseMs, workerId);
@@ -213,6 +215,13 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
 
       if (job.dedupeKey && await NotificationOutboxSentModel.exists({ dedupeKey: job.dedupeKey }).catch(() => null)) {
         await NotificationOutboxModel.deleteOne({ _id: job._id });
+        continue;
+      }
+
+      if (maxAgeMs > 0 && job.createdAt && new Date(job.createdAt).getTime() <= nowFn().getTime() - maxAgeMs) {
+        await options.recordDeadLetter(job, "expired-near-ttl").catch(() => undefined);
+        await NotificationOutboxModel.deleteOne({ _id: job._id });
+        expired++;
         continue;
       }
 
@@ -260,8 +269,6 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       retried++;
     }
 
-    let expired = 0;
-    const maxAgeMs = options.maxAgeMs ?? 0;
     if (maxAgeMs > 0) {
       const cutoff = new Date(nowFn().getTime() - maxAgeMs);
       const staleJobs = await NotificationOutboxModel.find({ createdAt: { $lte: cutoff } }).sort({ createdAt: 1 }).limit(options.limit).lean().catch(() => [] as OutboxJob[]);
@@ -270,9 +277,9 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         await NotificationOutboxModel.deleteOne({ _id: job._id }).catch(() => undefined);
         expired++;
       }
-      if (expired > 0) {
-        logger("WARN", "OUTBOX", `Drain outbox: ${expired} job(uri) prea vechi mutate in dead-letter inainte de expirarea TTL (nelivrate dupa ${Math.round(maxAgeMs / 3600000)}h)`);
-      }
+    }
+    if (expired > 0) {
+      logger("WARN", "OUTBOX", `Drain outbox: ${expired} job(uri) prea vechi mutate in dead-letter inainte de expirarea TTL (nelivrate dupa ${Math.round(maxAgeMs / 3600000)}h)`);
     }
 
     const queued = await NotificationOutboxModel.countDocuments({}).catch(() => 0);

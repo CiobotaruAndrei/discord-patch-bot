@@ -23,6 +23,7 @@ interface DrainResultLike {
   sent?: number;
   retried?: number;
   deadLettered?: number;
+  expired?: number;
   queued?: number;
 }
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
@@ -36,6 +37,8 @@ interface DeadLetterEntryLike {
   kind?: string;
   itemId?: string;
   title?: string;
+  channelId?: string;
+  dedupeKey?: string;
   reason?: string;
   attempts?: number;
   failedAt?: Date | string;
@@ -92,7 +95,9 @@ function formatDeadLetterEntry(entry: DeadLetterEntryLike): string {
   const kind = entry.kind === "discount" ? "reducere" : "update";
   const title = entry.title && entry.title.trim() ? entry.title.trim() : (entry.itemId || "(necunoscut)");
   const when = entry.failedAt ? new Date(entry.failedAt).toISOString() : "necunoscut";
-  return `- [${kind}] ${title} - motiv: ${entry.reason || "necunoscut"}, incercari: ${entry.attempts ?? 0}, la: ${when}`;
+  const channel = entry.channelId ? `, canal: <#${entry.channelId}>` : "";
+  const dedupe = entry.dedupeKey ? `, dedupe: ${String(entry.dedupeKey).slice(0, 12)}` : "";
+  return `- [${kind}] ${title} - motiv: ${entry.reason || "necunoscut"}, incercari: ${entry.attempts ?? 0}${channel}${dedupe}, la: ${when}`;
 }
 
 function createOutboxAdminHandler(deps: OutboxAdminDeps) {
@@ -191,7 +196,7 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
     try {
       const result = (await drainOutbox(interaction.client)) as DrainResultLike;
       const r = result && typeof result === "object" ? result : {};
-      return `OK: drenare imediata - trimise **${r.sent ?? 0}**, reincercate **${r.retried ?? 0}**, dead-letter **${r.deadLettered ?? 0}**, ramase in coada **${r.queued ?? 0}**.`;
+      return `OK: drenare imediata - trimise **${r.sent ?? 0}**, reincercate **${r.retried ?? 0}**, dead-letter **${r.deadLettered ?? 0}**, expirate **${r.expired ?? 0}**, ramase in coada **${r.queued ?? 0}**.`;
     } finally {
       await releaseDbLock(OUTBOX_DRAIN_LOCK_NAME, token).catch(() => undefined);
     }

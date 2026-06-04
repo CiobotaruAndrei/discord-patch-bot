@@ -54,7 +54,9 @@ function attachEnv(target: EnvContext): void {
       }, "ADMIN_WEBHOOK_URL trebuie sa fie http:// sau https://")
       .optional(),
     LOG_LEVEL: z.string().optional(),
-    PROXY_URLS: z.string().optional()
+    PROXY_URLS: z.string().optional(),
+    TRUST_PROXY: z.string().optional(),
+    TRUSTED_PROXY_COUNT: z.string().regex(/^\d+$/, "TRUSTED_PROXY_COUNT trebuie sa fie un numar intreg >= 0").optional()
   }).superRefine((env, validationContext) => {
     if (isProd) {
       const hasToken = !!env.METRICS_TOKEN;
@@ -80,7 +82,9 @@ function attachEnv(target: EnvContext): void {
       METRICS_PUBLIC: process.env.METRICS_PUBLIC,
       ADMIN_WEBHOOK_URL: process.env.ADMIN_WEBHOOK_URL,
       LOG_LEVEL: process.env.LOG_LEVEL,
-      PROXY_URLS: process.env.PROXY_URLS
+      PROXY_URLS: process.env.PROXY_URLS,
+      TRUST_PROXY: process.env.TRUST_PROXY,
+      TRUSTED_PROXY_COUNT: process.env.TRUSTED_PROXY_COUNT
     });
   } catch (err) {
     logger("ERROR", "ENV", "Validare variabile de mediu esuata", errorDetail(err));

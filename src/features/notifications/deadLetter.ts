@@ -8,6 +8,8 @@ export interface DeadLetterEntry {
   kind: DeadLetterKind;
   itemId: string;
   title: string;
+  channelId: string;
+  dedupeKey: string;
   reason: string;
   attempts: number;
   failedAt: Date;
@@ -17,6 +19,8 @@ export interface DeadLetterInput {
   kind: DeadLetterKind;
   itemId: unknown;
   title?: unknown;
+  channelId?: unknown;
+  dedupeKey?: unknown;
   reason: string;
   attempts: number;
 }
@@ -25,7 +29,9 @@ export function buildDeadLetterEntry(input: DeadLetterInput): DeadLetterEntry {
   return {
     kind: input.kind,
     itemId: String(input.itemId ?? ""),
-    title: String(input.title ?? ""),
+    title: String(input.title ?? "").slice(0, 200),
+    channelId: String(input.channelId ?? ""),
+    dedupeKey: String(input.dedupeKey ?? ""),
     reason: input.reason,
     attempts: input.attempts,
     failedAt: new Date()
