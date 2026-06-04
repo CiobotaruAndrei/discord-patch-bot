@@ -130,10 +130,11 @@ const fetchSnapshotSchema = new mongoose.Schema({
 }, { minimize: false });
 const FetchSnapshotModel = mongoose.model("FetchSnapshot", fetchSnapshotSchema);
 
+const GUILD_SEEN_DISCOUNT_TTL_DAYS = Math.min(365, Math.max(30, Number(process.env.GUILD_SEEN_DISCOUNT_TTL_DAYS) || 60));
 const guildSeenDiscountSchema = new mongoose.Schema({
   guildId: { type: String, required: true },
   dealHash: { type: String, required: true },
-  seenAt: { type: Date, default: Date.now }
+  seenAt: { type: Date, default: Date.now, expires: GUILD_SEEN_DISCOUNT_TTL_DAYS * ONE_DAY_MS / 1000 }
 }, { minimize: false });
 guildSeenDiscountSchema.index({ guildId: 1, dealHash: 1 }, { unique: true, background: true });
 const GuildSeenDiscountModel = mongoose.model("GuildSeenDiscount", guildSeenDiscountSchema, "guildSeenDiscounts");
