@@ -256,13 +256,3 @@ Teste E2E:
 - flux update: `/start updates` -> guild in Mongo -> cron gaseste update -> trimite embed -> marcheaza seen;
 - flux reduceri: `/start reduceri` -> baseline reduceri -> cron -> deal embed -> `seenDiscounts`.
 
-## Reguli de mentenanta
-
-- Cand muti cod dintr-un fisier mare, creeaza handler/serviciu numit dupa functionalitate.
-- Cand modifici logica, actualizeaza README, changelog si fisierele din `src/docs/` daca responsabilitatile s-au schimbat.
-- Nu reintroduce fisiere duplicate la radacina proiectului.
-- Nu transforma fallback-ul intr-un router mare.
-- Nu muta in Rust logica ce depinde de Discord, Mongo, HTTP sau I/O.
-- Nu activa strict global brusc; extinde `src/tsconfig.strict.json` pe module stabilizate.
-- In cod runtime nou, foloseste `deps` pentru dependinte explicite si `target` doar pentru instalare compatibila; nu reintroduce abrevierea legacy de context.
-- Nu reintroduce comentarii explicative in fisierele de cod. Daca informatia merita pastrata, mut-o in fisierul de documentatie care acopera functionalitatea respectiva.

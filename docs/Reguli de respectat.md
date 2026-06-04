@@ -20,3 +20,4 @@
 18. Cand se adauga o regula noua in acest fisier, se da direct merge, pentru ca nu este nevoie sa se verifice ceva cand este adaugata o regula.
 19. Toate implementarile in cod trebuie sa respecte toate regulile din acest fisier.
 20. Regulile care au legatura cu toate celelalte reguli trebuie puse ultimele in lista de reguli si trebuie facuta renumerotarea.
+21. Doar regulile din acest fisier vor exista pentru acest repo; oricare alta regula din alte fisiere, daca exista, trebuie stearsa.
