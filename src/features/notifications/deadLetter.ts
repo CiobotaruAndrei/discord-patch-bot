@@ -25,6 +25,13 @@ export interface DeadLetterInput {
   attempts: number;
 }
 
+export function deadLetterTitleFromPayload(payload: unknown): string {
+  const p = payload && typeof payload === "object" ? payload as { embeds?: Array<{ title?: unknown }>; content?: unknown } : {};
+  const embedTitle = Array.isArray(p.embeds) && p.embeds[0] ? p.embeds[0].title : undefined;
+  const raw = embedTitle ?? p.content ?? "";
+  return String(raw ?? "").slice(0, 200);
+}
+
 export function buildDeadLetterEntry(input: DeadLetterInput): DeadLetterEntry {
   return {
     kind: input.kind,
