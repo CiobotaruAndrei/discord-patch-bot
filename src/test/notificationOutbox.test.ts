@@ -370,6 +370,40 @@ test("drainOutbox: sweep — joburi mai vechi decat maxAgeMs -> dead-letter (exp
   assert.ok(findFilters.some(f => f.createdAt && f.createdAt.$lte instanceof Date), "sweep-ul cauta joburi cu createdAt sub un cutoff");
 });
 
+test("drainOutbox: job revendicat mai vechi decat maxAgeMs e expirat INAINTE de deliver (nu se livreaza stale)", async () => {
+  const oldJob = { _id: "old", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, createdAt: new Date(0) } as unknown as OutboxJob;
+  const pending = [oldJob];
+  const deleted: unknown[] = [];
+  let delivered = 0;
+  const model = {
+    create: async (d: Record<string, unknown>) => d,
+    findOneAndUpdate: async () => pending.shift() ?? null,
+    find: () => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) }),
+    deleteOne: async (f: unknown) => { deleted.push(f); return { deletedCount: 1 }; },
+    updateOne: async () => ({ matchedCount: 1 }),
+    countDocuments: async () => 0
+  };
+  const sentModel = { exists: async () => null, updateOne: async () => ({ upsertedCount: 1 }) };
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: model as never,
+    NotificationOutboxSentModel: sentModel as never,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  const deadLetters: Array<{ reason: string }> = [];
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => { delivered++; return { ok: true }; },
+    recordDeadLetter: async (_j, reason) => { deadLetters.push({ reason }); },
+    maxAttempts: 5, backoffMs: 1000, limit: 50, maxAgeMs: 6 * 24 * 3600_000, now: new Date(10 * 24 * 3600_000)
+  });
+  assert.equal(delivered, 0, "jobul prea vechi NU e livrat (stale), expirarea se face inainte de deliver");
+  assert.equal(result.expired, 1, "jobul vechi e numarat ca expirat");
+  assert.equal(result.sent, 0);
+  assert.deepEqual(deleted, [{ _id: "old" }]);
+  assert.equal(deadLetters.length, 1);
+  assert.equal(deadLetters[0].reason, "expired-near-ttl");
+});
+
 test("drainOutbox: fara maxAgeMs (sau 0) nu face sweep (expired=0)", async () => {
   const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0 };
   const { runtime } = makeRuntime([job]);
