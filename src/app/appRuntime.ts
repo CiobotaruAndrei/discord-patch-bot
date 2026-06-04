@@ -237,8 +237,13 @@ function createBootSequence(deps: AppRuntimeDeps, ctx: { client: DiscordClientLi
           logger("INFO", "MIGRATE", `Migrari aplicate: ${migrations.applied.join(", ")}`);
         }
       } catch (migErr) {
-        logger("ERROR", "MIGRATE", "Migrari esuate la boot — continui fara ele (retry la urmatorul restart)", errorDetail(migErr));
-        adminAlert("boot:migrations", "Migrari DB esuate la pornire", errorMessage(migErr)).catch(() => null);
+        const continueOnError = process.env.MIGRATIONS_CONTINUE_ON_ERROR === "true";
+        if (!continueOnError) {
+          logger("ERROR", "MIGRATE", "Migrari esuate la boot — opresc pornirea (fail-fast pentru integritatea schemei; seteaza MIGRATIONS_CONTINUE_ON_ERROR=true ca sa pornesti oricum, pe propriul risc)", errorDetail(migErr));
+          throw migErr;
+        }
+        logger("ERROR", "MIGRATE", "Migrari esuate la boot — continui fara ele (MIGRATIONS_CONTINUE_ON_ERROR=true; risc de schema inconsistenta, retry la urmatorul restart)", errorDetail(migErr));
+        adminAlert("boot:migrations", "Migrari DB esuate la pornire (pornit oricum)", errorMessage(migErr)).catch(() => null);
       }
 
       try {

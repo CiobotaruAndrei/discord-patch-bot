@@ -85,6 +85,24 @@ de Rust. Alerta `NativeFallbackActive` se declanseaza cand metrica creste.
    dar `dealHash` / `stableUpdateId` au cai separate care nu cad pe acest fallback — daca acolo
    apar erori, vezi sectiunea despre addon-ul nativ din `README` / fail-fast la boot.
 
+## Migrari DB la boot (fail-fast)
+
+Migrarile de schema ruleaza la pornire, sub un lock (`acquireDbLock`), o singura instanta pe boot.
+Implicit, o migrare esuata este **fatala**: botul **opreste pornirea** (fail-fast) in loc sa ruleze
+cu o schema inconsistenta (ex. fara indexul unic *sparse* pe `notificationOutbox.dedupeKey`, ceea ce
+ar permite notificari duplicate). Procesul iese cu cod non-zero, iar orchestratorul (Docker/k8s) il
+reporneste, deci migrarea se **reincearca** la urmatorul boot — fara fereastra de rulare degradata
+intre timp.
+
+- In log apare `ERROR MIGRATE Migrari esuate la boot — opresc pornirea (fail-fast ...)` urmat de un
+  admin alert `boot:fatal`. Daca botul intra in crash-loop la boot, **cauza e o migrare** care esueaza
+  constant (ex. date care impiedica crearea unui index unic): investigheaza si curata datele, nu
+  reporni orbeste.
+- Escape hatch de urgenta: `MIGRATIONS_CONTINUE_ON_ERROR=true` porneste botul **oricum** peste o migrare
+  esuata (log `ERROR MIGRATE ... continui fara ele` + admin alert `boot:migrations`). Foloseste-l doar
+  temporar, constient ca schema poate fi inconsistenta (risc de duplicate). Revino la fail-fast (scoate
+  variabila) dupa remediere.
+
 ## Migrarea hash-ului de dedup (`HASH_VERSION`)
 
 Hash-urile de deduplicare (`dealHash`, `stableUpdateId`) folosesc SHA-256, versionat prin
