@@ -43,6 +43,11 @@ Mesaje au fost trimise pe Discord, dar marcarea lor in istoricul de dedupe
    (`NOTIFICATION_OUTBOX_SENT_TTL_HOURS`, implicit 24h) si fereastra de risc e mica.
 3. Daca persista si duplicatele sunt costisitoare, activeaza recovery-verify (vezi mai jos)
    sau modul strict, ca o reluare sa nu re-trimita inainte de a verifica istoricul canalului.
+4. Fiecare astfel de esec lasa si o intrare de **audit** in dead-letter cu motivul
+   `delivered-marksent-failed` (vizibila la `/outbox deadletters`): mesajul a fost livrat, dar
+   marker-ul de dedupe nu a putut fi persistat. Jobul nu se re-trimite (e sters, ca sa nu apara
+   duplicat), insa intrarea de audit iti spune exact ce mesaj poarta riscul mic de duplicare la
+   o eventuala recovery — nu e un esec de livrare propriu-zis.
 
 ## Cand creste `bot_outbox_recovery_verify_failures`
 

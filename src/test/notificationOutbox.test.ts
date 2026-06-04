@@ -297,14 +297,18 @@ test("drainOutbox: esecul de marcare in istoric incrementeaza markSentFailures d
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   });
+  const deadLetters: Array<{ reason: string; id: unknown }> = [];
   const result = await runtime.drainOutbox({
     deliver: async (): Promise<DeliverResult> => ({ ok: true }),
-    recordDeadLetter: async () => undefined,
+    recordDeadLetter: async (j, reason) => { deadLetters.push({ reason, id: (j as OutboxJob)._id }); },
     maxAttempts: 5, backoffMs: 1000, limit: 50
   });
   assert.equal(result.sent, 1, "livrarea a reusit, jobul e considerat trimis");
   assert.equal(result.markSentFailures, 1, "esecul de marcare in istoricul de dedupe e numarat");
-  assert.deepEqual(deleted, [{ _id: "j1" }], "jobul livrat e sters chiar daca marcarea a esuat");
+  assert.deepEqual(deleted, [{ _id: "j1" }], "jobul livrat e sters chiar daca marcarea a esuat (nu se re-livreaza -> fara duplicat)");
+  assert.equal(deadLetters.length, 1, "esecul de marcare lasa un audit dead-letter, nu doar un counter tacut");
+  assert.equal(deadLetters[0].reason, "delivered-marksent-failed", "motivul distinge cazul (mesaj livrat, marker de dedupe nepersistat)");
+  assert.equal(deadLetters[0].id, "j1");
 });
 
 test("enqueueOutbox: eroarea de cheie duplicata (E11000) e ignorata (job pending identic exista deja)", async () => {
