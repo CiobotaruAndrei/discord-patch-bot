@@ -101,6 +101,7 @@ function attachEnv(target: EnvContext): void {
     METRICS_TOKEN: effectiveMetricsToken,
     METRICS_PUBLIC: String(process.env.METRICS_PUBLIC || "").toLowerCase() === "true",
     TRUST_PROXY: String(process.env.TRUST_PROXY || "").toLowerCase() === "true",
+    TRUSTED_PROXY_COUNT: parseEnvNumber("TRUSTED_PROXY_COUNT", 1, { min: 0, max: 20 }),
     ADMIN_WEBHOOK_URL: process.env.ADMIN_WEBHOOK_URL || "",
     LOG_LEVEL: RAW_LOG_LEVEL,
     PROXY_URLS: process.env.PROXY_URLS || "",

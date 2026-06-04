@@ -149,25 +149,51 @@ function makeReq(opts: { xff?: string | string[]; remote?: string }) {
   } as unknown as IncomingMessage;
 }
 
-function makeRateLimiter(trustProxy: boolean) {
-  const env = { HTTP_RATE_LIMIT_REQ: 5, HTTP_RATE_LIMIT_WINDOW_MS: 60_000, TRUST_PROXY: trustProxy } as RuntimeEnv;
+function makeRateLimiter(trustProxy: boolean, trustedProxyCount = 1) {
+  const env = { HTTP_RATE_LIMIT_REQ: 5, HTTP_RATE_LIMIT_WINDOW_MS: 60_000, TRUST_PROXY: trustProxy, TRUSTED_PROXY_COUNT: trustedProxyCount } as RuntimeEnv;
   const metrics = { httpRateLimitDrops: 0 } as BotMetrics;
   return { rl: createRateLimiter(env, metrics), metrics };
 }
 
-test("rateLimit: cu trustProxy, foloseste ultimul hop din XFF (anti-spoof)", () => {
-
-  const { rl } = makeRateLimiter(true);
-
+test("rateLimit: 1 proxy trusted -> ia hop-ul adaugat de proxy (rightmost), spoof-ul leftmost e ignorat", () => {
+  const { rl } = makeRateLimiter(true, 1);
   for (let i = 0; i < 5; i++) {
     assert.equal(rl.check(makeReq({ xff: `spoof${i}, 9.9.9.9` })), true, `req ${i}`);
   }
   assert.equal(rl.check(makeReq({ xff: "spoofX, 9.9.9.9" })), false,
-    "al 6-lea request pe acelasi IP real (ultimul hop) trebuie dropat — leftmost spoof nu creeaza bucket-uri noi");
+    "acelasi client real (adaugat de proxy = segments[length-1]) e limitat; spoof-ul leftmost nu creeaza bucket-uri noi");
+});
+
+test("rateLimit: mai multe proxy-uri trusted -> extrage clientul real, nu proxy-ul cel mai apropiat", () => {
+  const { rl } = makeRateLimiter(true, 2);
+
+  assert.equal(rl.check(makeReq({ xff: "clientA, proxy1" })), true, "clientA distinct");
+  assert.equal(rl.check(makeReq({ xff: "clientB, proxy1" })), true, "clientB distinct, NU grupat sub proxy1");
+  for (let i = 0; i < 4; i++) {
+    assert.equal(rl.check(makeReq({ xff: "clientA, proxy1" })), true, `clientA req ${i}`);
+  }
+  assert.equal(rl.check(makeReq({ xff: "clientA, proxy1" })), false,
+    "al 6-lea request al clientA (segments[length-2]) e limitat — clientii din spatele aceluiasi proxy NU mai sunt grupati");
+});
+
+test("rateLimit: spoof leftmost cu mai multe proxy-uri ramane ignorat", () => {
+  const { rl } = makeRateLimiter(true, 2);
+  for (let i = 0; i < 5; i++) {
+    assert.equal(rl.check(makeReq({ xff: `spoof${i}, realclient, proxy1` })), true, `req ${i}`);
+  }
+  assert.equal(rl.check(makeReq({ xff: "spoofZ, realclient, proxy1" })), false,
+    "realclient (segments[length-2]) e cel limitat; spoof-ul leftmost variabil nu creeaza bucket-uri noi");
+});
+
+test("rateLimit: chain XFF mai scurt decat TRUSTED_PROXY_COUNT -> cade pe socket (anti-truncare)", () => {
+  const { rl } = makeRateLimiter(true, 2);
+  for (let i = 0; i < 5; i++) assert.equal(rl.check(makeReq({ xff: "doarunul", remote: "1.1.1.1" })), true);
+  assert.equal(rl.check(makeReq({ xff: "doarunul", remote: "1.1.1.1" })), false,
+    "XFF prea scurt -> folosim socket-ul (nu un hop ne-fiabil)");
 });
 
 test("rateLimit: XFF gol/whitespace cade pe socket, nu pe bucket 'unknown' partajat", () => {
-  const { rl } = makeRateLimiter(true);
+  const { rl } = makeRateLimiter(true, 1);
 
   for (let i = 0; i < 5; i++) assert.equal(rl.check(makeReq({ xff: "   ", remote: "1.1.1.1" })), true);
 

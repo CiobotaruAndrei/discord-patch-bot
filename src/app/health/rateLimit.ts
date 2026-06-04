@@ -12,16 +12,18 @@ function createRateLimiter(env: RuntimeEnv, metrics: BotMetrics): RateLimiter {
   const refillPerMs = cap / windowMs;
   const mapMax = 1000;
   const trustProxy = env.TRUST_PROXY === true;
+  const trustedProxyCount = Math.max(0, Math.trunc(env.TRUSTED_PROXY_COUNT || 0));
   const buckets = new Map<string, RateLimitBucket>();
 
   function getClientIp(req: IncomingMessage): string {
-    if (trustProxy) {
+    if (trustProxy && trustedProxyCount > 0) {
       const forwardedFor = firstHeaderValue(req.headers["x-forwarded-for"]);
       if (forwardedFor) {
-
         const segments = forwardedFor.split(",").map(s => s.trim()).filter(Boolean);
-        const trustedHop = segments[segments.length - 1];
-        if (trustedHop) return trustedHop;
+        const clientIndex = segments.length - trustedProxyCount;
+        if (clientIndex >= 0 && clientIndex < segments.length && segments[clientIndex]) {
+          return segments[clientIndex];
+        }
       }
     }
     return req.socket?.remoteAddress || "unknown";

@@ -48,6 +48,7 @@ export interface RuntimeEnv {
   METRICS_TOKEN: string;
   METRICS_PUBLIC: boolean;
   TRUST_PROXY: boolean;
+  TRUSTED_PROXY_COUNT: number;
   ADMIN_WEBHOOK_URL: string;
   LOG_LEVEL: string;
   PROXY_URLS: string;
