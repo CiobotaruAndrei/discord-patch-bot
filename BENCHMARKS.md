@@ -43,6 +43,7 @@ Masuratoare reprezentativa (100.000 iteratii; cifrele difera intre masini, conte
 | `findGameKeys` (fuzzy-match) | ~107k | ~76k | ~0.7x (Rust mai lent) | OK |
 | `buildAutocompleteChoices` | ~1,15M | ~99k | ~0.09x (Rust mai lent) | OK |
 | `dealPassesFilters` | ~37M | ~3,1M | ~0.08x (Rust mai lent) | OK |
+| `rankListingCandidates` (listing-rank) | ~24k | ~30k | **~1.25x** (Rust mai rapid) | OK |
 
 Interpretare onesta: Rust castiga clar doar acolo unde calculul e dominant si argumentele sunt
 ieftine de trecut peste granita JS<->Rust — `levenshtein` (string-uri) si `dealHash` (SHA-256 pe string-uri;
@@ -56,6 +57,12 @@ cazuri overhead-ul apelului nativ depaseste castigul, deci Rust e mai lent decat
 - `levenshtein` si hashing-ul de dedupe (`dealHash` / `stableUpdateId`) **raman in Rust** — castig
   masurat (~1.5–1.9x) + paritate; sunt si cele cu adevarat hot (fuzzy peste toate jocurile, hash la
   fiecare update/reducere).
+- `rankListingCandidates` (ordonarea ancorelor unei pagini de listing) **trece in Rust** (~1.25x vs
+  fallback-ul TS, paritate verificata). Spre deosebire de `findGameKeys`/`buildAutocompleteChoices`,
+  aici marshaling-ul array-ului se amortizeaza: scanarea de data (byte-level) + sortarea se fac complet
+  nativ intr-un **singur** apel NAPI. Bonus algoritmic: codul vechi recalcula scorul + data in
+  comparatorul de sort (O(n log n) apeluri native pe ancora); acum se calculeaza o singura data per
+  ancora (O(n)) — castigul real fata de productia veche e mult peste 1.25x.
 - `findGameKeys`, `buildAutocompleteChoices`, `dealPassesFilters` sunt acum **TS-primary**: wrapper-ele
   publice din `native/fuzzy.ts` apeleaza direct implementarea TypeScript (masurat mai rapida — Rust
   pierde pe marshaling-ul NAPI al array-urilor de candidati / calcul trivial), iar rezultatul e identic

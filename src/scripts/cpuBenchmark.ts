@@ -7,7 +7,8 @@ import {
   findGameKeysFallback,
   dealHashFallback,
   buildAutocompleteChoicesFallback,
-  dealPassesFiltersFallback
+  dealPassesFiltersFallback,
+  rankListingCandidatesFallback
 } from "../native/fuzzy";
 import type { DealInfo, GameConfig, GuildSettings } from "../types";
 
@@ -130,6 +131,13 @@ const SAMPLE_GUILD: GuildSettings = {
   enabledStores: ["Steam", "Epic Games"]
 } as GuildSettings;
 
+const SAMPLE_LISTING_KEYWORDS = ["patch", "update", "hotfix"];
+const SAMPLE_LISTING_CANDIDATES: Array<{ href: string; text: string; position: number }> = Array.from({ length: 40 }, (_, i) => ({
+  href: `https://example.com/news/2024-${String((i % 12) + 1).padStart(2, "0")}-${String((i % 28) + 1).padStart(2, "0")}/game-article-${i}-patch-notes`,
+  text: i % 3 === 0 ? `Patch ${i} update hotfix notes` : `Community article number ${i}`,
+  position: i
+}));
+
 function dealHashNativeArgs(deal: DealInfo): [string, string, string, string, string, string, string] {
   return [
     String(deal.store),
@@ -171,6 +179,8 @@ interface NativeFns {
   build_autocomplete_choices?: (...args: unknown[]) => Array<{ name: string; value: string }>;
   dealPassesFilters?: (...args: unknown[]) => boolean;
   deal_passes_filters?: (...args: unknown[]) => boolean;
+  rankListingCandidates?: (candidates: Array<{ href: string; text: string; position: number }>, keywords: string[]) => number[];
+  rank_listing_candidates?: (candidates: Array<{ href: string; text: string; position: number }>, keywords: string[]) => number[];
 }
 
 interface AreaSpec {
@@ -257,6 +267,27 @@ function buildAreaSpecs(native: NativeFns | null): AreaSpec[] {
       const fn = n.dealPassesFilters || n.deal_passes_filters;
       if (!fn) return true;
       return SAMPLE_DEALS.every(deal => fn(...dealFilterNativeArgs(deal, SAMPLE_GUILD)) === dealPassesFiltersFallback(deal, SAMPLE_GUILD));
+    }
+  });
+
+  const listingPayload = () => SAMPLE_LISTING_CANDIDATES.map(c => ({ href: c.href, text: c.text, position: c.position }));
+  specs.push({
+    area: "listing-rank (rankListingCandidates)",
+    callsPerIteration: 1,
+    ts: () => { rankListingCandidatesFallback(SAMPLE_LISTING_CANDIDATES, SAMPLE_LISTING_KEYWORDS); },
+    native: native && (native.rankListingCandidates || native.rank_listing_candidates)
+      ? (n: NativeFns) => {
+          const fn = (n.rankListingCandidates || n.rank_listing_candidates) as (candidates: Array<{ href: string; text: string; position: number }>, keywords: string[]) => number[];
+          fn(listingPayload(), SAMPLE_LISTING_KEYWORDS);
+        }
+      : null,
+    parityOk: (n: NativeFns) => {
+      const fn = n.rankListingCandidates || n.rank_listing_candidates;
+      if (!fn) return true;
+      const order = fn(listingPayload(), SAMPLE_LISTING_KEYWORDS);
+      const nativeOrder = order.map(i => SAMPLE_LISTING_CANDIDATES[Number(i)].position);
+      const tsOrder = rankListingCandidatesFallback(SAMPLE_LISTING_CANDIDATES, SAMPLE_LISTING_KEYWORDS).map(c => c.position);
+      return JSON.stringify(nativeOrder) === JSON.stringify(tsOrder);
     }
   });
 
