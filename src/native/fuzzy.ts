@@ -47,6 +47,8 @@ interface NativeFuzzyModule {
   is_good_steam_article_url?(url: string): boolean;
   extractDateScore?(url: string): number;
   extract_date_score?(url: string): number;
+  rankListingCandidates?(candidates: Array<{ href: string; text: string; position: number }>, keywords: string[]): number[];
+  rank_listing_candidates?(candidates: Array<{ href: string; text: string; position: number }>, keywords: string[]): number[];
 }
 
 let nativeModule: NativeFuzzyModule | null | undefined;
@@ -501,6 +503,49 @@ export function extractDateScore(url: unknown): number {
     }
   }
   return extractDateScoreFallback(url);
+}
+
+export interface RankableListingCandidate {
+  href: string;
+  text: string;
+  position: number;
+}
+
+export function rankListingCandidatesFallback<T extends RankableListingCandidate>(candidates: T[], keywords: string[]): T[] {
+  const hasKeywords = Array.isArray(keywords) && keywords.length > 0;
+  const scored = candidates.map(candidate => ({
+    candidate,
+    score: hasKeywords ? scoreListingCandidateFallback(candidate.href, candidate.text, keywords) : 0,
+    date: extractDateScoreFallback(candidate.href)
+  }));
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (b.date !== a.date) return b.date - a.date;
+    return a.candidate.position - b.candidate.position;
+  });
+  return scored.map(entry => entry.candidate);
+}
+
+export function rankListingCandidates<T extends RankableListingCandidate>(candidates: T[], keywords: string[]): T[] {
+  if (!Array.isArray(candidates) || candidates.length === 0) return Array.isArray(candidates) ? candidates : [];
+  const native = loadNativeFuzzy();
+  if (native) {
+    const fn = typeof native.rankListingCandidates === "function" ? native.rankListingCandidates : native.rank_listing_candidates;
+    if (typeof fn === "function") {
+      try {
+        const payload = candidates.map(candidate => ({
+          href: String(candidate.href || ""),
+          text: String(candidate.text || ""),
+          position: Number(candidate.position) || 0
+        }));
+        const order = fn.call(native, payload, Array.isArray(keywords) ? keywords.map(k => String(k)) : []);
+        if (Array.isArray(order) && order.length === candidates.length) {
+          return order.map(index => candidates[Number(index)]);
+        }
+      } catch (err) { recordNativeFallback("rankListingCandidates", err); }
+    }
+  }
+  return rankListingCandidatesFallback(candidates, keywords);
 }
 
 export function stableUpdateId(title: unknown, link: unknown): string {

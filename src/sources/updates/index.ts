@@ -14,6 +14,7 @@ import {
   classifyPatchNote,
   extractDateScore as rustExtractDateScore,
   isGoodSteamArticleUrl as rustIsGoodSteamArticleUrl,
+  rankListingCandidates,
   scoreListingCandidate
 } from "../../native/fuzzy";
 import { errorMessage } from "../../shared/errors";
@@ -300,17 +301,9 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
     seen.add(item.href);
     return true;
   });
-  unique.sort((a, b) => {
-    if (keywords.length) {
-      const s = scoreCandidate(b, keywords) - scoreCandidate(a, keywords);
-      if (s !== 0) return s;
-    }
-    const d = extractDateScore(b.href) - extractDateScore(a.href);
-    if (d !== 0) return d;
-    return a.position - b.position;
-  });
+  const ranked = rankListingCandidates(unique, keywords);
 
-  if (!unique.length) {
+  if (!ranked.length) {
     if (listingFetched > 0) {
       throw new SchemaDriftError(
         `Listing fetch-uit cu succes dar 0 ancore valide pentru ${game.key}`,
@@ -319,10 +312,10 @@ async function fetchListingBasedUpdate(game: GameConfig): Promise<NormalizedUpda
     }
     throw new Error("Nu am găsit ancore valide.");
   }
-  const TRY_LIMIT = Math.min(3, unique.length);
+  const TRY_LIMIT = Math.min(3, ranked.length);
   let lastErr: unknown = null;
   for (let i = 0; i < TRY_LIMIT; i++) {
-    const candidate = unique[i];
+    const candidate = ranked[i];
     const articleUrl = candidate.href;
     try {
       const articleRes = await httpReq("GET", articleUrl, { timeout: 8000 });

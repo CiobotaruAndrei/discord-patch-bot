@@ -16,9 +16,19 @@ const {
   levenshtein,
   normalizeDealState,
   normalizeTitleForDedupe,
+  rankListingCandidates,
+  rankListingCandidatesFallback,
   scoreListingCandidate,
   stableUpdateId
 } = require("../native/fuzzy");
+
+const LISTING_SAMPLE = [
+  { href: "https://x.com/news/2024-01-05/intro", text: "Intro article", position: 0 },
+  { href: "https://x.com/news/2024-03-12/big-patch-notes", text: "Big patch update", position: 1 },
+  { href: "https://x.com/blog/no-date-here/teaser", text: "Teaser hotfix", position: 2 },
+  { href: "https://x.com/news/2024-03-12/older-patch", text: "Another patch", position: 3 },
+  { href: "https://x.com/news/2023-11-20/legacy-update", text: "Legacy update", position: 4 }
+];
 
 const games = [
   { key: "cs2", name: "Counter-Strike 2", aliases: ["counter strike", "cs"] },
@@ -34,6 +44,29 @@ test("Rust levenshtein keeps expected edit distances", () => {
   assert.equal(levenshtein("kitten", "sitting"), 3);
   assert.equal(levenshtein("minecraft", "minecaft"), 1);
   assert.equal(levenshtein("", "cs2"), 3);
+});
+
+test("rankListingCandidates: native si fallback dau aceeasi ordine (paritate)", () => {
+  const keywords = ["patch", "update"];
+  const nativeOrder = rankListingCandidates(LISTING_SAMPLE, keywords).map((c: { position: number }) => c.position);
+  const fallbackOrder = rankListingCandidatesFallback(LISTING_SAMPLE, keywords).map((c: { position: number }) => c.position);
+  assert.deepEqual(nativeOrder, fallbackOrder);
+});
+
+test("rankListingCandidates: scor keyword desc, apoi data desc, apoi pozitie asc", () => {
+  const ranked = rankListingCandidates(LISTING_SAMPLE, ["patch", "update"]).map((c: { position: number }) => c.position);
+  assert.deepEqual(ranked, [1, 3, 4, 0, 2],
+    "pos1 scor 2; apoi scor 1 dupa data desc (pos3 2024-03-12 inainte de pos4 2023-11-20); apoi scor 0 dupa data (pos0 2024-01-05 inainte de pos2 fara data)");
+});
+
+test("rankListingCandidates: fara keywords cade pe data desc apoi pozitie", () => {
+  const ranked = rankListingCandidates(LISTING_SAMPLE, []).map((c: { position: number }) => c.position);
+  assert.deepEqual(ranked, [1, 3, 0, 4, 2],
+    "toate scor 0 -> pur data desc (pos1/pos3 acelasi 2024-03-12 -> pozitie asc), apoi pos0 2024-01-05, pos4 2023-11-20, pos2 fara data");
+});
+
+test("rankListingCandidates: lista goala -> lista goala", () => {
+  assert.deepEqual(rankListingCandidates([], ["patch"]), []);
 });
 
 test("Rust fuzzy matching returns exact game keys", () => {
