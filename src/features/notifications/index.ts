@@ -12,6 +12,7 @@ const {
   transientErrorMessage
 } = require("./outboundChannel");
 const { createSeenRepository } = require("./seenRepository");
+const { createHistoryRepository } = require("./historyRepository");
 const { createUpdateNotificationService } = require("./updateNotificationService");
 const { createDiscountNotificationService } = require("./discountNotificationService");
 const { createOutboxRuntime, applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker } = require("./notificationOutbox");
@@ -54,6 +55,7 @@ type NotificationsRuntimeDeps = SeenRepositoryDeps
     saveFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
     NotificationOutboxModel: Model<OutboxJobShape>;
     NotificationOutboxSentModel: Model<{ dedupeKey: string; sentAt?: Date }>;
+    NotificationHistoryModel: Model<{ guildId: string; kind: string; sentAt?: Date }>;
   };
 
 type NotificationsContext = NotificationsRuntimeDeps & Record<string, unknown>;
@@ -64,7 +66,7 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     validatePendingDiscountSnapshot, getLatestForAllGames, fetchDeals,
     enrichDealData, dealHash, canSendEmbeds, buildUpdateEmbed,
     buildDealEmbed, setUpdatesCache, getDealsCacheData, setDealsCache,
-    saveFetchSnapshot, loadFetchSnapshot, GuildSeenDiscountModel, GuildSeenUpdateModel, NotificationOutboxModel, NotificationOutboxSentModel,
+    saveFetchSnapshot, loadFetchSnapshot, GuildSeenDiscountModel, GuildSeenUpdateModel, NotificationOutboxModel, NotificationOutboxSentModel, NotificationHistoryModel,
     normalizeCurrencyKey, normalizePendingUpdateArray,
     normalizePendingDiscountArray, toEntries, rotateAfter, mapToObject,
     dealPassesFilters, sleepIfPositive, withMongoRetry, OP_UPDATE_OPTS,
@@ -119,6 +121,7 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
   const seenRepository = createSeenRepository({
     GuildModel, GuildSeenDiscountModel, GuildSeenUpdateModel, withMongoRetry, SEEN_PER_GAME_LIMIT, DEALS_HISTORY_LIMIT, OP_UPDATE_OPTS
   });
+  const historyRepository = createHistoryRepository({ NotificationHistoryModel, withMongoRetry, logger });
   const {
     claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, disableUpdatesForChannelError,
     claimSeenDiscount, rollbackSeenDiscount, seedSeenDiscounts, loadSeenDiscountHashes, disableDiscountsForChannelError,
@@ -131,6 +134,7 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingUpdateArray, toEntries, rotateAfter, mapToObject,
     getLatestForAllGames, setUpdatesCache, persistFetchSnapshot, loadFetchSnapshot: loadSnapshot, buildUpdateEmbed, sleepIfPositive,
+    recordSentHistory: historyRepository.recordSent,
     PENDING_UPDATE_MAX_AGE_MS, PENDING_UPDATE_MAX_ATTEMPTS,
     PENDING_UPDATES_PER_GAME_LIMIT, MAX_UPDATES_PER_CYCLE,
     DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY
@@ -144,6 +148,7 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     normalizeCurrencyKey, dealPassesFilters, dealHash,
     fetchDeals, getDealsCacheData, setDealsCache, persistFetchSnapshot, loadFetchSnapshot: loadSnapshot, enrichDealData, buildDealEmbed,
     sleepIfPositive,
+    recordSentHistory: historyRepository.recordSent,
     DEFAULT_CURRENCY, DEALS_HISTORY_LIMIT,
     PENDING_DISCOUNT_MAX_ATTEMPTS, PENDING_DISCOUNT_GRACE_CYCLES,
     PENDING_DISCOUNTS_LIMIT, MAX_DEALS_PER_CYCLE,
@@ -168,7 +173,9 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     disableDiscountsForChannelError,
     processGuildDiscounts: discountService.processGuildDiscounts,
     checkForDiscounts: discountService.checkForDiscounts,
-    drainOutbox
+    drainOutbox,
+    recordSentHistory: historyRepository.recordSent,
+    getNotificationHistory: historyRepository.getRecent
   };
 }
 

@@ -73,6 +73,7 @@ export interface DiscountNotificationServiceDeps {
   loadFetchSnapshot?: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
   enrichDealData: (deal: DealInfo, currency: string) => Promise<DealInfo>;
   buildDealEmbed: (deal: DealInfo, mode: string, currency: string) => unknown;
+  recordSentHistory?: (guildId: string, entries: Array<{ kind: "update" | "discount"; gameKey?: string; title?: string; link?: string }>) => Promise<void>;
 
   sleepIfPositive: (ms: number) => Promise<void>;
 
@@ -99,7 +100,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     normalizePendingDiscountArray, validatePendingDiscountSnapshot,
     normalizeCurrencyKey, dealPassesFilters, dealHash,
     fetchDeals, getDealsCacheData, setDealsCache, persistFetchSnapshot, loadFetchSnapshot, enrichDealData, buildDealEmbed,
-    sleepIfPositive,
+    sleepIfPositive, recordSentHistory,
     DEFAULT_CURRENCY, PENDING_DISCOUNT_MAX_ATTEMPTS, PENDING_DISCOUNT_GRACE_CYCLES,
     PENDING_DISCOUNTS_LIMIT, MAX_DEALS_PER_CYCLE, DISCORD_SEND_DELAY_MS,
     GUILD_PROCESS_CONCURRENCY
@@ -224,6 +225,16 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       try {
         await channel.send(sendPayload);
         await sleepIfPositive(DISCORD_SEND_DELAY_MS);
+        if (recordSentHistory) {
+          await recordSentHistory(String(guild._id), chunk.map(entry => {
+            const snapshot = (entry.item.snapshot || {}) as { title?: unknown; url?: unknown; link?: unknown };
+            return {
+              kind: "discount",
+              title: String(snapshot.title || ""),
+              link: String(snapshot.url || snapshot.link || "")
+            };
+          }));
+        }
       } catch (err: unknown) {
         const failed = messageChunks.slice(ci).reduce<typeof batch>((acc, c) => { for (const entry of c) acc.push(entry); return acc; }, []);
         for (const entry of failed) await rollbackSeenDiscount(String(guild._id), entry.item.hash).catch(() => null);
