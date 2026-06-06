@@ -131,6 +131,33 @@ intre timp.
   temporar, constient ca schema poate fi inconsistenta (risc de duplicate). Revino la fail-fast (scoate
   variabila) dupa remediere.
 
+## Indexuri MongoDB (inventar)
+
+Index-urile sunt declarate in `src/infra/mongo/models.ts` si construite automat de Mongoose la
+pornire (`autoIndex` implicit activ). Verificarea statica `npm run check:db-indexes` confirma ca
+fiecare index e pe un camp real din schema, ca nu exista declaratii duplicate si ca fiecare colectie
+de mai jos e documentata aici; daca un Mongo e disponibil, ruleaza si `syncIndexes` ca sa prinda
+index-uri conflictuale/invalide. Inventarul declarat curent:
+
+| Colectie | Cheie | Optiuni | Rol |
+| --- | --- | --- | --- |
+| `guilds` | `{ subscribed, notificationChannelId }` | — | enumerarea guild-urilor abonate la update-uri la dispatch |
+| `guilds` | `{ discountsSubscribed, discountChannelId }` | — | enumerarea guild-urilor abonate la reduceri |
+| `guildSeenDiscounts` | `{ guildId, dealHash }` | unique | dedup per-guild al reducerilor deja trimise |
+| `guildSeenDiscounts` | `{ seenAt }` | TTL `GUILD_SEEN_DISCOUNT_TTL_DAYS` (implicit 60 zile) | curatare automata a istoricului de reduceri vazute |
+| `guildSeenUpdates` | `{ guildId, gameKey, updateId }` | unique | dedup per-guild al update-urilor deja trimise |
+| `notificationOutbox` | `{ availableAt, lockedUntil }` | — | claim-ul joburilor disponibile la drenare |
+| `notificationOutbox` | `{ dedupeKey }` | unique, sparse | impiedica doua joburi pending cu acelasi `dedupeKey` (sparse: joburile fara cheie coexista) |
+| `notificationOutbox` | `{ createdAt }` | TTL 7 zile | plasa de siguranta pentru joburi nedrenate |
+| `notificationOutboxSent` | `{ dedupeKey }` | unique | istoricul de livrari pentru dedup la recovery |
+| `notificationOutboxSent` | `{ sentAt }` | TTL `NOTIFICATION_OUTBOX_SENT_TTL_HOURS` (implicit 24h) | expirarea istoricului de dedup |
+| `joblocks` | `{ lockedUntil }` | — | gasirea/expirarea lock-urilor distribuite (cron/outbox) |
+| `adminalertcooldowns` | `{ lastSentAt }` | TTL 7 zile | cooldown per-alerta pentru admin alerts |
+| `fetchsnapshots` | `{ fetchedAt }` | TTL 1 zi | event store pe fetch (hidratare cache la boot) |
+
+Cand adaugi/modifici un index in `models.ts`, actualizeaza tabelul de mai sus — altfel
+`check:db-indexes` esueaza (Regula: codul reflectat in documentatie).
+
 ## Migrarea hash-ului de dedup (`HASH_VERSION`)
 
 Hash-urile de deduplicare (`dealHash`, `stableUpdateId`) folosesc SHA-256, versionat prin
