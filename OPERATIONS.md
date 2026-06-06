@@ -178,6 +178,24 @@ brut de membri. Valorile sunt puncte de plecare.
 - Monitorizeaza activ `bot_outbox_queue_depth`, `bot_outbox_oldest_job_age_seconds` si
   `bot_outbox_dead_lettered`; alerteaza pe crestere sustinuta.
 
+## Scalare la multe guild-uri (gateway sharding)
+
+Limita reala de scalare nu e Node/Mongo/limbaj, ci Discord. Doua semnale si ce inseamna:
+
+1. **Te apropii de ~2.500 de guild-uri** → Discord **impune sharding** la gateway (refuza o
+   conexiune ne-shardata peste prag). Clientul curent e single-shard
+   (`new Client({ intents: [Guilds] })`), deci la acest prag trebuie configurat sharding —
+   `shards: 'auto'` (un proces) sau `ShardingManager` (N procese). Plan complet + constrangeri in
+   `ROADMAP.md` („Sharding gateway Discord").
+2. **Throttling la trimitere** (sectiunea „Rate-limit Discord" de mai sus) → e limita REST a
+   token-ului, **per token**; sharding-ul gateway **nu** o mareste. Nu adauga al doilea token (UX/ToS).
+
+Ce e deja pregatit pentru rulare distribuita: munca periodica e coordonata prin lock-urile DB
+`cron_main` (cron) si `outbox_drain` (drenare), deci **un singur** runner executa munca chiar daca
+ruleaza mai multe instante/shard-uri. Ce **nu** e pregatit: gateway-ul (rularea naiva a mai multor
+copii cu acelasi token, fara shard ID-uri, e respinsa de Discord). Pana la pragurile de mai sus,
+single-shard + lock-uri DB e corect si suficient — nu shard-a preventiv.
+
 ## Dead-letter
 
 Cand o livrare epuizeaza reincercarile sau primeste o eroare permanenta, intra in

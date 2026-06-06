@@ -49,6 +49,60 @@ semnaleaza automat conditia de backlog cronic si trimite la acest document.
 testul multi-instance pe Mongo real (zero dublu-claim) si testele de crash-recovery existente
 trebuie sa ramana verzi.
 
+## Sharding gateway Discord (la scara mare)
+
+**Limita reala de scalare a botului nu e Node, Mongo sau limbajul — e Discord.** Doua plafoane:
+
+- **Gateway:** Discord **impune sharding la 2.500 de guild-uri** (refuza o conexiune ne-shardata
+  peste prag). Pana atunci, o singura conexiune e suficienta.
+- **REST / trimitere:** rate-limit global (~50 req/s) + per-route, **per token**. Botul paceuieste
+  deja prin token-bucket-ul de send + outbox; gateway sharding-ul **nu** mareste limita REST globala
+  (ramane per-token), deci sub 2.500 guild-uri rate-limit-ul Discord — nu lipsa shardingului — e
+  factorul dominant (vezi `BENCHMARKS.md` sectiunea 2: outbox-ul e ~98.7% Discord-bound).
+
+**Starea curenta.** Clientul e o singura conexiune: `new Client({ intents: [GatewayIntentBits.Guilds] })`
+(`appRuntime.ts`), fara configurare de sharding (1 shard). **Fundatia pentru rulare distribuita exista
+deja:** munca periodica e coordonata prin lock-uri DB — `cron_main` (ciclul de notificari) si
+`outbox_drain` (drenarea outbox) — deci **un singur runner** executa munca la un moment dat, corect
+intre instante (test multi-instance pe Mongo real). Ce **nu** e pus la punct e partea de gateway:
+rularea naiva a mai multor copii cu **acelasi token fara shard ID-uri** ar fi respinsa de Discord
+(conexiuni duplicate) — scalarea orizontala reala cere sharding propriu (shard ID-uri), nu copii.
+
+**Ce s-ar schimba.** Configurare de sharding gateway, fara a atinge logica de business:
+
+- la scara moderata: `shards: 'auto'` pe acelasi proces (internal sharding) — la 1 shard e identic cu
+  acum, deci e si o pregatire low-risk pentru pragul de 2.500;
+- la scara mare: `ShardingManager` (N procese-shard, fiecare cu shard ID-uri distincte).
+
+Coordonarea cron/outbox **ramane pe lock-urile DB** — sursa unica de adevar pentru „cine ruleaza munca",
+deci nu trebuie presupus „un singur proces". De ajustat la sharding: agregarea metricilor/health
+**per-shard** (guild count, starea fiecarui shard).
+
+**De ce NU multiple token-uri.** Trimiterile de la identitati de bot diferite ar confuza userii si ridica
+probleme de ToS; gateway sharding pe **acelasi** token e calea suportata. Multiple token-uri nu e o
+optimizare, e o regresie de UX/conformitate.
+
+**Praguri de declansare.**
+
+- Te apropii de **2.500 de guild-uri** → gateway sharding devine **obligatoriu** (Discord refuza altfel).
+  Semnal: numarul de guild-uri (din `/health`).
+- Throttling sustinut la **trimiterea** Discord → `bot_outbox_queue_depth` + `bot_outbox_oldest_job_age_seconds`
+  cresc continuu **in timp ce worker-ul chiar dreneaza** (`bot_outbox_last_drain_age_seconds` mic). Acelasi
+  semnal e descris in `OPERATIONS.md` la „Rate-limit Discord". (Nota: `bot_rate_limit_hits` masoara `429`-uri
+  de la fetch-urile **upstream** Steam/Epic prin `httpReq`, **nu** trimiterile Discord — alea trec prin
+  discord.js + token-bucket-ul de send, deci semnalul corect pentru limita de trimitere e backlog-ul de outbox.)
+
+**Constrangeri de pastrat la implementare.**
+
+- lock-urile DB (`cron_main`, `outbox_drain`) raman singura coordonare a muncii periodice — corecte la
+  N shards/procese;
+- exact-once la notificari ramane garantat de outbox + `notificationOutboxSent` (deja multi-instance-safe);
+- un shard care cade nu trebuie sa opreasca restul (proces izolat + restart per shard).
+
+**De ce e amanat.** Botul e (cu mare probabilitate) mult sub 2.500 de guild-uri, iar debitul de trimitere
+e mult sub limita REST globala. Sharding-ul acum = complexitate de multi-proces + coordonare, pentru zero
+beneficiu curent — single-shard + lock-uri DB e corect si suficient pana la prag.
+
 ## CPU hot-paths in Rust
 
 Deja evaluat si **decis**: hot-path-urile CPU cu castig masurat (`levenshtein` ~1.9x,
