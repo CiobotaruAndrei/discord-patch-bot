@@ -23,9 +23,43 @@ interface TextChannelLike {
 
 interface PermissionsBitFieldLike {
   Flags: {
+    ViewChannel: unknown;
     SendMessages: unknown;
     EmbedLinks: unknown;
   };
+}
+
+interface RequiredChannelPerm {
+  flag: unknown;
+  label: string;
+}
+
+function isTextChannelLikeValue(channel: unknown): channel is TextChannelLike {
+  return Boolean(channel)
+    && typeof (channel as { isTextBased?: unknown }).isTextBased === "function"
+    && typeof (channel as { permissionsFor?: unknown }).permissionsFor === "function";
+}
+
+function requiredNotifyPerms(PermissionsBitField: PermissionsBitFieldLike): RequiredChannelPerm[] {
+  return [
+    { flag: PermissionsBitField.Flags.ViewChannel, label: "View Channel" },
+    { flag: PermissionsBitField.Flags.SendMessages, label: "Send Messages" },
+    { flag: PermissionsBitField.Flags.EmbedLinks, label: "Embed Links" }
+  ];
+}
+
+function computeMissingChannelPerms(channel: unknown, botId: string, PermissionsBitField: PermissionsBitFieldLike): string[] | null {
+  if (!isTextChannelLikeValue(channel) || !channel.isTextBased()) return null;
+  const perms = channel.permissionsFor(botId);
+  if (!perms) return null;
+  return requiredNotifyPerms(PermissionsBitField).filter(perm => !perms.has(perm.flag)).map(perm => perm.label);
+}
+
+function formatMissingChannelPerms(missing: string[] | null | undefined): string {
+  if (missing && missing.length > 0) {
+    return `Eroare: Nu pot activa notificarile pe acest canal. Lipsesc permisiunile: ${missing.map(label => `**${label}**`).join(", ")}. Adauga-le rolului botului pe acest canal si reincearca.`;
+  }
+  return "Eroare: Nu pot activa notificarile pe acest canal. Am nevoie de **View Channel**, **Send Messages** si **Embed Links**.";
 }
 
 interface CommandCacheDeps {
@@ -265,8 +299,12 @@ function canSendEmbeds(channel: unknown, botId: string): boolean {
   ]);
 }
 
-function missingChannelPermsMessage(): string {
-  return "Eroare: Nu pot activa notificarile pe acest canal. Am nevoie de permisiunile **Send Messages** si **Embed Links**.";
+function listMissingChannelPerms(channel: unknown, botId: string): string[] | null {
+  return computeMissingChannelPerms(channel, botId, PermissionsBitField);
+}
+
+function missingChannelPermsMessage(missing?: string[] | null): string {
+  return formatMissingChannelPerms(missing);
 }
 
 function makeActivationId(): string {
@@ -319,6 +357,7 @@ async function sleepIfPositive(ms: number): Promise<void> {
     smoothTime,
     formatUserError,
     canSendEmbeds,
+    listMissingChannelPerms,
     missingChannelPermsMessage,
     makeActivationId,
     sleepIfPositive
@@ -327,6 +366,8 @@ async function sleepIfPositive(ms: number): Promise<void> {
 
 type CommandCacheInstaller = ((target: CommandCacheContext) => void) & {
   createCommandCache: typeof createCommandCache;
+  computeMissingChannelPerms: typeof computeMissingChannelPerms;
+  formatMissingChannelPerms: typeof formatMissingChannelPerms;
 };
 
 const attachCommandCache = ((target: CommandCacheContext): void => {
@@ -341,5 +382,7 @@ const attachCommandCache = ((target: CommandCacheContext): void => {
 }) as CommandCacheInstaller;
 
 attachCommandCache.createCommandCache = createCommandCache;
+attachCommandCache.computeMissingChannelPerms = computeMissingChannelPerms;
+attachCommandCache.formatMissingChannelPerms = formatMissingChannelPerms;
 
 export = attachCommandCache;

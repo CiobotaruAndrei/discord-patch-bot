@@ -6,6 +6,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- Permission checker la activare (`/start updates` / `/start reduceri`): cand botul nu poate posta pe canal, mesajul de eroare listeaza acum **exact** ce permisiuni ii lipsesc pe acel canal — dintre **View Channel**, **Send Messages**, **Embed Links** — in loc de mesajul generic „am nevoie de Send Messages si Embed Links". Adresa cea mai frecventa cauza reala de „botul nu trimite notificari": adminul vede precis ce rol/permisiune sa adauge. Gate-ul de activare ramane `canSendEmbeds` (identic cu cel de la dispatch, fara schimbare de comportament); noua functie `listMissingChannelPerms` calculeaza doar diagnosticul precis cand gate-ul pica. Logica pura (`computeMissingChannelPerms` / `formatMissingChannelPerms`, expuse din `commandCache`) e acoperita de `channelPermsReport.test.ts` (canal null/non-text/`permissionsFor` null => null fail-closed; lipsa partiala raportata exact; toate prezente => lista goala; mesaj precis vs generic). Documentat in `README`.
+
 ### Added
 
 - Doua validatoare statice de drift, rulate ca gate in `npm run check` (deci si in CI, pe fiecare PR), urmand exact pattern-ul `check-*` existent (`check-config`/`check-syntax`/`check-no-comments`/`check-dependencies`):
