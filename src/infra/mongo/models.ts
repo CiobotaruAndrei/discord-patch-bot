@@ -173,6 +173,18 @@ const notificationOutboxSentSchema = new mongoose.Schema({
 }, { minimize: false });
 const NotificationOutboxSentModel = mongoose.model("NotificationOutboxSent", notificationOutboxSentSchema, "notificationOutboxSent");
 
+const NOTIFICATION_HISTORY_TTL_DAYS = Math.min(180, Math.max(7, Number(process.env.NOTIFICATION_HISTORY_TTL_DAYS) || 30));
+const notificationHistorySchema = new mongoose.Schema({
+  guildId: { type: String, required: true },
+  kind: { type: String, enum: ["update", "discount"], required: true },
+  gameKey: { type: String, default: "" },
+  title: { type: String, default: "" },
+  link: { type: String, default: "" },
+  sentAt: { type: Date, default: Date.now, expires: NOTIFICATION_HISTORY_TTL_DAYS * ONE_DAY_MS / 1000 }
+}, { minimize: false });
+notificationHistorySchema.index({ guildId: 1, sentAt: -1 }, { background: true });
+const NotificationHistoryModel = mongoose.model("NotificationHistory", notificationHistorySchema, "notificationHistory");
+
   Object.assign(target, {
     GuildModel,
     CircuitBreakerModel,
@@ -183,7 +195,8 @@ const NotificationOutboxSentModel = mongoose.model("NotificationOutboxSent", not
     GuildSeenDiscountModel,
     GuildSeenUpdateModel,
     NotificationOutboxModel,
-    NotificationOutboxSentModel
+    NotificationOutboxSentModel,
+    NotificationHistoryModel
   });
 }
 

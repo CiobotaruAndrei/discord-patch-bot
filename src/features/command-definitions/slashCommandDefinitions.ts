@@ -45,6 +45,7 @@ type SlashCommandBuilderLike = {
   addSubcommand(configure: (subcommand: SlashSubcommandBuilderLike) => SlashSubcommandBuilderLike): SlashCommandBuilderLike;
   addSubcommandGroup(configure: (group: SlashSubcommandGroupBuilderLike) => SlashSubcommandGroupBuilderLike): SlashCommandBuilderLike;
   addStringOption(configure: (option: SlashStringOptionBuilderLike) => SlashStringOptionBuilderLike): SlashCommandBuilderLike;
+  addIntegerOption(configure: (option: SlashIntegerOptionBuilderLike) => SlashIntegerOptionBuilderLike): SlashCommandBuilderLike;
   toJSON(): unknown;
 };
 
@@ -162,7 +163,13 @@ function attachSlashCommands(target: SlashCommandContext): void {
       new SlashCommandBuilder()
         .setName("status")
         .setDescription("Verifica status server pentru un joc")
-        .addStringOption(option => option.setName("joc").setDescription("Numele/porecla jocului").setRequired(true).setAutocomplete(true))
+        .addStringOption(option => option.setName("joc").setDescription("Numele/porecla jocului").setRequired(true).setAutocomplete(true)),
+      new SlashCommandBuilder()
+        .setName("history")
+        .setDescription("Istoricul notificarilor trimise pe acest server")
+        .addStringOption(option => option.setName("tip").setDescription("Ce notificari (implicit toate)").setRequired(false)
+          .addChoices({ name: "updates", value: "updates" }, { name: "reduceri", value: "reduceri" }))
+        .addIntegerOption(option => option.setName("numar").setDescription("Cate intrari (1-25, implicit 10)").setRequired(false).setMinValue(1).setMaxValue(25))
     ].map(command => command.toJSON());
   }
 

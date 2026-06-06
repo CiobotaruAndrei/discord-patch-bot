@@ -11,6 +11,7 @@ type MongoContextExportKey =
   | "GuildModel" | "CircuitBreakerModel" | "SystemModel" | "JobLockModel"
   | "AdminAlertCooldownModel" | "FetchSnapshotModel" | "GuildSeenDiscountModel"
   | "GuildSeenUpdateModel" | "NotificationOutboxModel" | "NotificationOutboxSentModel"
+  | "NotificationHistoryModel"
   | "saveFetchSnapshot" | "loadFetchSnapshot" | "loadDealsFetchSnapshots"
   | "acquireDbLock" | "renewDbLock" | "releaseDbLock" | "activeLocks"
   | "runMigrations" | "ALL_MIGRATIONS" | "getSystemTimes" | "saveSystemTimes"
@@ -54,6 +55,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): Record<MongoCon
     GuildSeenUpdateModel: context.GuildSeenUpdateModel,
     NotificationOutboxModel: context.NotificationOutboxModel,
     NotificationOutboxSentModel: context.NotificationOutboxSentModel,
+    NotificationHistoryModel: context.NotificationHistoryModel,
     saveFetchSnapshot: context.saveFetchSnapshot,
     loadFetchSnapshot: context.loadFetchSnapshot,
     loadDealsFetchSnapshots: context.loadDealsFetchSnapshots,

@@ -30,6 +30,7 @@ Bot Discord pentru notificari despre update-uri, DLC-uri si reduceri pentru jocu
 - `/latest` - afiseaza ultimele update-uri cunoscute.
 - `/dlc` - afiseaza DLC-uri cunoscute.
 - `/status` - afiseaza starea botului pentru server.
+- `/history <tip> <numar>` - afiseaza ultimele notificari (update-uri/reduceri) trimise pe acest server, cu link si timestamp relativ; raspuns ephemeral.
 - `/help` - afiseaza paginile de ajutor.
 - `/set outbox-recovery-verify <on|off>` - (admin) comuta recovery-verify per-server; la `on` avertizeaza daca botului ii lipseste permisiunea Read Message History pe canalele de notificari.
 - `/outbox status | deadletters | retry | drain-now | pause | resume | permissions | recovery-verify status` - (admin) operarea outbox-ului: coada (per-server + global), dead-letter, reprogramare livrari, drenare imediata (daca lock-ul e liber), pauza/reluare drenare (global), audit de permisiuni pe canale si starea recovery-verify.

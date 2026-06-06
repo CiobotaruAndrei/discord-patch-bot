@@ -154,6 +154,7 @@ index-uri conflictuale/invalide. Inventarul declarat curent:
 | `notificationOutbox` | `{ createdAt }` | TTL 7 zile | plasa de siguranta pentru joburi nedrenate |
 | `notificationOutboxSent` | `{ dedupeKey }` | unique | istoricul de livrari pentru dedup la recovery |
 | `notificationOutboxSent` | `{ sentAt }` | TTL `NOTIFICATION_OUTBOX_SENT_TTL_HOURS` (implicit 24h) | expirarea istoricului de dedup |
+| `notificationHistory` | `{ guildId, sentAt }` | TTL `NOTIFICATION_HISTORY_TTL_DAYS` (implicit 30 zile) | istoricul notificarilor trimise per server, pentru comanda `/history` |
 | `joblocks` | `{ lockedUntil }` | — | gasirea/expirarea lock-urilor distribuite (cron/outbox) |
 | `adminalertcooldowns` | `{ lastSentAt }` | TTL 7 zile | cooldown per-alerta pentru admin alerts |
 | `fetchsnapshots` | `{ fetchedAt }` | TTL 1 zi | event store pe fetch (hidratare cache la boot) |
