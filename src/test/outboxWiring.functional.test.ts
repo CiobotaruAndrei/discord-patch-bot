@@ -22,7 +22,8 @@ function makeHarness(startOutboxWorker?: () => void) {
     logger: () => undefined,
     commands: {
       registerSlashCommands: async () => { calls.slash++; },
-      handleInteraction: () => undefined
+      handleInteraction: () => undefined,
+      canSendEmbeds: () => true
     },
     env: { DISCORD_TOKEN: "t", DISCORD_CLIENT_ID: "c" } as Parameters<typeof registerDiscordEvents>[0]["env"],
     adminAlert: async () => undefined,

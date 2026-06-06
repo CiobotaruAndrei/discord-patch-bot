@@ -15,7 +15,8 @@ const REQUIRED_REGISTRY_FUNCTIONS = [
   "cleanCache", "getCacheSizes", "setGlobalCacheTtl", "setUpdatesCache", "setDealsCache",
   "checkForUpdates", "checkForDiscounts", "drainOutbox", "buildOptimizedGameList",
   "registerSlashCommands", "buildSlashCommandDefinitions", "handleInteraction",
-  "buildHelpEmbed", "findGameAndSuggestion", "getFindGameCacheSize", "clearFindGameCache", "formatUserError"
+  "buildHelpEmbed", "findGameAndSuggestion", "getFindGameCacheSize", "clearFindGameCache", "formatUserError",
+  "canSendEmbeds"
 ];
 
 const CRITICAL_CONTEXT_DEPS = [
@@ -27,7 +28,7 @@ const CRITICAL_CONTEXT_DEPS = [
   "checkReadMessageHistory", "checkChannelPermissions", "EmbedBuilder"
 ];
 
-test("wiring DI: lantul complet (mongoContext -> sourceRegistry -> commandRegistry) se incarca si expune cele 17 functii de registru", () => {
+test("wiring DI: lantul complet (mongoContext -> sourceRegistry -> commandRegistry) se incarca si expune cele 18 functii de registru", () => {
   for (const fn of REQUIRED_REGISTRY_FUNCTIONS) {
     assert.equal(typeof commandRegistry[fn], "function", `commandRegistry trebuie sa expuna functia ${fn} (wiring rupt daca lipseste)`);
   }

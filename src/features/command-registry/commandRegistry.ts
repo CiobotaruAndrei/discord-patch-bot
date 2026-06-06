@@ -22,6 +22,7 @@ interface CommandRegistryContext {
   getFindGameCacheSize?: RegistryFunction;
   clearFindGameCache?: RegistryFunction;
   formatUserError?: (err: unknown, fallback: string, code?: string) => string;
+  canSendEmbeds?: (channel: unknown, botId: string) => boolean;
   [key: string]: unknown;
 }
 
@@ -42,7 +43,8 @@ type RequiredCommandRegistryKey =
   | "findGameAndSuggestion"
   | "getFindGameCacheSize"
   | "clearFindGameCache"
-  | "formatUserError";
+  | "formatUserError"
+  | "canSendEmbeds";
 
 type RequiredCommandRegistry = {
   [K in RequiredCommandRegistryKey]: NonNullable<CommandRegistryContext[K]>;
@@ -114,7 +116,8 @@ function createCommandRegistry(
     findGameAndSuggestion: requireRegistryFunction(context, "findGameAndSuggestion"),
     getFindGameCacheSize: requireRegistryFunction(context, "getFindGameCacheSize"),
     clearFindGameCache: requireRegistryFunction(context, "clearFindGameCache"),
-    formatUserError: requireRegistryFunction(context, "formatUserError")
+    formatUserError: requireRegistryFunction(context, "formatUserError"),
+    canSendEmbeds: requireRegistryFunction(context, "canSendEmbeds")
   };
 }
 

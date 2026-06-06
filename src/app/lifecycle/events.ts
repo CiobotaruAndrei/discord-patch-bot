@@ -1,4 +1,5 @@
 import type { GameConfig, RuntimeEnv } from "../../types";
+import { createGuildOnboarding } from "./guildOnboarding";
 
 type LifecycleLogger = (level: "INFO" | "WARN" | "ERROR", context: string, message: string, meta?: unknown) => void;
 type ErrorFormatter = (err: unknown) => string;
@@ -13,6 +14,7 @@ interface DiscordClientLike {
   user?: DiscordUserLike | null;
   once(event: "ready", listener: () => unknown): unknown;
   on(event: "interactionCreate", listener: (interaction: unknown) => unknown): unknown;
+  on(event: "guildCreate", listener: (guild: unknown) => unknown): unknown;
   on(event: "error" | "shardError", listener: (err: unknown) => unknown): unknown;
   on(event: "warn", listener: (message: string) => unknown): unknown;
 }
@@ -20,6 +22,7 @@ interface DiscordClientLike {
 interface CommandsLike {
   registerSlashCommands(token: string, clientId: string): Promise<unknown>;
   handleInteraction(interaction: unknown, games: GameConfig[]): Promise<unknown> | unknown;
+  canSendEmbeds(channel: unknown, botId: string): boolean;
 }
 
 interface CryptoLike {
@@ -107,6 +110,9 @@ function registerDiscordEvents({
       logger("ERROR", "INTERACTION", "Eroare top-level la interactionCreate", errorDetail(err));
     }
   });
+
+  const onboarding = createGuildOnboarding({ logger, canSendEmbeds: commands.canSendEmbeds, errorMessage });
+  client.on("guildCreate", (guild) => { onboarding.handleGuildCreate(guild as Parameters<typeof onboarding.handleGuildCreate>[0]).catch(() => null); });
 
   client.on("error", (err) => logger("ERROR", "DISCORD", "Eroare client Discord", errorMessage(err)));
   client.on("warn", (msg) => logger("WARN", "DISCORD", msg));

@@ -35,7 +35,8 @@ const requiredKeys = [
   "findGameAndSuggestion",
   "getFindGameCacheSize",
   "clearFindGameCache",
-  "formatUserError"
+  "formatUserError",
+  "canSendEmbeds"
 ];
 
 function attachRequiredFunctions(context: Record<string, unknown>) {

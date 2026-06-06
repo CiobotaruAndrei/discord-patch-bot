@@ -20,6 +20,8 @@ Bot Discord pentru notificari despre update-uri, DLC-uri si reduceri pentru jocu
 
 ## Comenzi principale
 
+La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun venit (pe system channel sau primul canal unde poate posta) care ghideaza configurarea: `/start updates`, `/start reduceri`, `/set games add`, `/set role`, `/help`.
+
 - `/start updates` - activeaza notificarile de update-uri pentru server.
 - `/start reduceri` - activeaza notificarile de reduceri pentru server.
 - `/stop updates` - dezactiveaza notificarile de update-uri.
