@@ -20,6 +20,7 @@
     "benchmark:guard": "npm run build && node dist/scripts/benchmarkGuard.js",
     "smoke:staging": "npm run build:ts && node dist/scripts/stagingSmoke.js",
     "smoke:staging:discord": "npm run build:ts && node dist/scripts/stagingDiscordSmoke.js",
+    "canary:sources": "npm run build:ts && node dist/scripts/canarySources.js",
     "typecheck": "tsc --noEmit",
     "typecheck:strict": "tsc -p tsconfig.strict.json",
     "lint": "npm run typecheck && npm run typecheck:strict",

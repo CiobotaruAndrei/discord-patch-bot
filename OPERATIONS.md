@@ -90,6 +90,29 @@ de Rust. Alerta `NativeFallbackActive` se declanseaza cand metrica creste.
    dar `dealHash` / `stableUpdateId` au cai separate care nu cad pe acest fallback — daca acolo
    apar erori, vezi sectiunea despre addon-ul nativ din `README` / fail-fast la boot.
 
+## Canary surse (verificare live programata)
+
+`npm run canary:sources` (script `scripts/canarySources.ts`) face un fetch **live** pe sursele
+**API fiabile** — jocurile `steam` din `src/config.json` (`getLatestForAllGames`, prin ISteamNews) si
+reducerile (`fetchDeals`: Steam specials + Epic GraphQL) — si raporteaza cate jocuri au intors date
+valide. Scop: prinde proactiv cand Steam/Epic isi schimba API-ul/formatul (schema drift), inainte ca
+userii sa observe notificari lipsa. **Sursele scraped/proxy** (`listing_based`, `epic_games`/fortnite
+prin proxy) sunt **excluse intentionat** din canary-ul automat: depind de `PROXY_URLS` si de scraping
+HTML fragil, deci ar genera fals-alarme (timeout/retea) — verifica-le manual cu `PROXY_URLS` setat daca
+banuiesti ca s-au schimbat.
+
+- Ruleaza **programat (nightly) + manual** prin workflow-ul `canary.yml` (`workflow_dispatch` sau cron),
+  **nu** ca check obligatoriu pe PR: poate pica din cauza Steam/Epic/internet, nu a codului, deci n-ar
+  trebui sa blocheze merge-urile. Foloseste un serviciu Mongo doar pentru circuit breaker (fail-open daca
+  lipseste).
+- **Pica (exit 1)** doar cand un **tip de sursa** are **0 jocuri** care intorc date valide — semnal ca
+  integrarea acelei surse e rupta (nu un blip tranzitoriu pe un singur joc, care lasa restul tipului OK).
+  La esec apare `::error::[canary-sources] sursa "<tip>": 0/N ...`.
+- **Cand pica:** verifica daca site-ul sursei si-a schimbat structura (selectoare cheerio / endpoint /
+  format JSON). Daca da, actualizeaza parserul sursei respective (`sources/updates` sau `sources/deals`)
+  si confirma cu `npm run canary:sources` local. Un singur joc esuat dintr-un tip cu mai multe jocuri
+  ramane doar informativ (tranzitoriu), nu pica.
+
 ## Migrari DB la boot (fail-fast)
 
 Migrarile de schema ruleaza la pornire, sub un lock (`acquireDbLock`), o singura instanta pe boot.
