@@ -107,5 +107,7 @@ function createCommandRuntimeContext(): Record<string, unknown> {
 
 export = Object.assign(createCommandRuntimeContext, {
   createCommandRuntimeContext,
-  createDiscordRuntimeBindings
+  createDiscordRuntimeBindings,
+  checkChannelPermissions,
+  checkReadMessageHistory
 });

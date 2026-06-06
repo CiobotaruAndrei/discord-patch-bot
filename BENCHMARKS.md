@@ -78,15 +78,15 @@ principala — cu exceptia notata mai sus, unde ar fi chiar mai eficient.
 Pentru ca deciziile „ramane in Rust pentru ca e mai rapid" sa nu se erodeze tacut, exista un guard
 automat care leaga acest document de CI: `npm run benchmark:guard` (`scripts/benchmarkGuard.ts`), rulat
 in `ci.yml` dupa `npm run check` (cand addonul nativ e deja construit). Guard-ul masoara, best-of-N
-(`BENCH_GUARD_RUNS`, implicit 3), doar functiile hot-path pe care le pastram in Rust — `levenshtein` si
-`dealHash` — fata de fallback-ul TS, si:
+(`BENCH_GUARD_RUNS`, implicit 3), functiile hot-path pe care le pastram in Rust — `levenshtein`,
+`dealHash` si `rankListingCandidates` — fata de fallback-ul TS, si:
 
 - **esueaza** (`::error::`, exit 1) daca o functie hot-path e **mai lenta decat TS** sub pragul de esec
   (`BENCH_HOTPATH_FAIL_RATIO`, implicit `0.85x`) — semn ca decizia din acest document nu mai e valabila
   (regula 6/14: limbajul ramane doar daca e mai bun), deci trebuie mutata in TS sau investigata regresia;
 - **esueaza** daca paritatea native != TS (rezultate divergente) — bug de corectitudine, nu de viteza;
 - **avertizeaza** (`::warning::`, fara a pica) daca speedup-ul scade sub pragul asteptat documentat aici
-  (`levenshtein` < `1.4x`, `dealHash` < `1.2x`), ca semnal ca avantajul Rust se erodeaza;
+  (`levenshtein` < `1.4x`, `dealHash` < `1.2x`, `rankListingCandidates` < `1.1x`), ca semnal ca avantajul Rust se erodeaza;
 - se **sare** (CI-safe, exit 0) cand addonul nativ nu e disponibil — **cu exceptia** modului strict
   `BENCH_GUARD_REQUIRE_NATIVE=true` (setat in `ci.yml`), unde absenta addonului devine **esec**: in CI
   build-ul Rust ruleaza inainte de guard, deci un addon lipsa inseamna o problema de build, nu un skip

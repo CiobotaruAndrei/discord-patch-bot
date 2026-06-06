@@ -84,6 +84,7 @@ test("defaultGuardConfig: praguri implicite + suprascriere prin env + requireNat
   assert.equal(base.failBelow, 0.85);
   assert.equal(base.warnBelow.levenshtein, 1.4);
   assert.equal(base.warnBelow.dealHash, 1.2);
+  assert.equal(base.warnBelow.rankListingCandidates, 1.1);
   assert.equal(base.requireNative, false, "implicit nu cere nativul (CI-safe local)");
 
   const prevFail = process.env.BENCH_HOTPATH_FAIL_RATIO;
@@ -101,7 +102,7 @@ test("defaultGuardConfig: praguri implicite + suprascriere prin env + requireNat
 });
 
 test("HOT_PATH_AREAS enumera doar functiile pe care BENCHMARKS.md le pastreaza in Rust", () => {
-  assert.deepEqual([...HOT_PATH_AREAS], ["levenshtein", "dealHash"]);
+  assert.deepEqual([...HOT_PATH_AREAS], ["levenshtein", "dealHash", "rankListingCandidates"]);
 });
 
 test("CI si package.json ruleaza guard-ul de benchmark", () => {
