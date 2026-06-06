@@ -32,6 +32,62 @@ export interface OutboxLoadResult {
   delivered: number;
 }
 
+export interface OutboxPhaseBreakdown {
+  jobs: number;
+  claimMsPerJob: number;
+  dedupeMsPerJob: number;
+  markSentMsPerJob: number;
+  deleteMsPerJob: number;
+  mongoMsPerJob: number;
+}
+
+export async function runOutboxPhaseBreakdown(models: OutboxLoadModels, jobs: number, marker: string): Promise<OutboxPhaseBreakdown> {
+  const past = new Date(Date.now() - 1000);
+  const docs: Record<string, unknown>[] = [];
+  for (let i = 0; i < jobs; i++) {
+    docs.push({ guildId: marker, channelId: "c1", kind: "update", payload: { i }, attempts: 0, dedupeKey: `${marker}-${i}`, createdAt: past, availableAt: past });
+  }
+  await models.outboxModel.insertMany(docs);
+  const elapsedMs = (from: bigint) => Number(process.hrtime.bigint() - from) / 1e6;
+
+  const claimed: Array<{ _id: unknown; dedupeKey: string }> = [];
+  let phaseStart = process.hrtime.bigint();
+  for (let i = 0; i < jobs; i++) {
+    const now = new Date();
+    const job = await models.outboxModel.findOneAndUpdate(
+      { guildId: marker, availableAt: { $lte: now }, $or: [{ lockedUntil: { $exists: false } }, { lockedUntil: null }, { lockedUntil: { $lte: now } }] },
+      { $set: { lockedUntil: new Date(Date.now() + 60_000), lockedBy: marker }, $inc: { deliveries: 1 } },
+      { sort: { availableAt: 1 }, new: true }
+    ) as { _id: unknown; dedupeKey: string } | null;
+    if (job) claimed.push({ _id: job._id, dedupeKey: job.dedupeKey });
+  }
+  const claimMs = elapsedMs(phaseStart);
+
+  phaseStart = process.hrtime.bigint();
+  for (const job of claimed) await models.sentModel.exists({ dedupeKey: job.dedupeKey });
+  const dedupeMs = elapsedMs(phaseStart);
+
+  phaseStart = process.hrtime.bigint();
+  for (const job of claimed) {
+    await models.sentModel.updateOne({ dedupeKey: job.dedupeKey }, { $setOnInsert: { dedupeKey: job.dedupeKey, sentAt: new Date() } }, { upsert: true });
+  }
+  const markSentMs = elapsedMs(phaseStart);
+
+  phaseStart = process.hrtime.bigint();
+  for (const job of claimed) await models.outboxModel.deleteOne({ _id: job._id });
+  const deleteMs = elapsedMs(phaseStart);
+
+  const n = jobs > 0 ? jobs : 1;
+  return {
+    jobs,
+    claimMsPerJob: claimMs / n,
+    dedupeMsPerJob: dedupeMs / n,
+    markSentMsPerJob: markSentMs / n,
+    deleteMsPerJob: deleteMs / n,
+    mongoMsPerJob: (claimMs + dedupeMs + markSentMs + deleteMs) / n
+  };
+}
+
 export async function runOutboxLoad(models: OutboxLoadModels, jobs: number, marker: string): Promise<OutboxLoadResult> {
   const past = new Date(Date.now() - 1000);
   const docs: Record<string, unknown>[] = [];
@@ -81,6 +137,23 @@ async function main(): Promise<void> {
       await models.outboxModel.deleteMany({ guildId: marker }).catch(() => undefined);
       await models.sentModel.deleteMany({ dedupeKey: { $regex: `^${marker}-` } }).catch(() => undefined);
     }
+  }
+  const breakdownJobs = Number(process.env.OUTBOX_BENCH_BREAKDOWN || 2000) || 2000;
+  const breakdownMarker = `bench-phase-${Date.now()}`;
+  try {
+    const b = await runOutboxPhaseBreakdown(models, breakdownJobs, breakdownMarker);
+    const typicalSendMs = Number(process.env.OUTBOX_BENCH_SEND_MS || 100) || 100;
+    const mongoFraction = (b.mongoMsPerJob / (b.mongoMsPerJob + typicalSendMs)) * 100;
+    console.log(`\nDescompunere pe faze (${fmt(breakdownJobs)} joburi, Mongo real, deliver mock):`);
+    console.log(`- claim (findOneAndUpdate): ${b.claimMsPerJob.toFixed(3)}ms/job`);
+    console.log(`- dedupe-check (exists):    ${b.dedupeMsPerJob.toFixed(3)}ms/job`);
+    console.log(`- markSent (updateOne):     ${b.markSentMsPerJob.toFixed(3)}ms/job`);
+    console.log(`- delete (deleteOne):       ${b.deleteMsPerJob.toFixed(3)}ms/job`);
+    console.log(`- TOTAL Mongo:              ${b.mongoMsPerJob.toFixed(3)}ms/job`);
+    console.log(`- vs trimitere Discord tipica ~${typicalSendMs}ms/job -> Mongo = ${mongoFraction.toFixed(1)}% din timpul real per job`);
+  } finally {
+    await models.outboxModel.deleteMany({ guildId: breakdownMarker }).catch(() => undefined);
+    await models.sentModel.deleteMany({ dedupeKey: { $regex: `^${breakdownMarker}-` } }).catch(() => undefined);
   }
   await mongoose.disconnect();
 }

@@ -117,6 +117,28 @@ Costul per job e dominat de round-trip-urile sincrone catre Mongo (claim atomic
 Scalarea este **liniara** (~1.4ms/job stabil), deci drenarea job-by-job **nu** devine
 brusc bottleneck — pur si simplu dureaza proportional cu numarul de joburi.
 
+`runOutboxPhaseBreakdown` (in acelasi script) descompune cei ~1.3ms/job de Mongo pe faze
+si ii pune in context fata de o trimitere Discord tipica (masuratoare reprezentativa, Mongo
+local, `deliver` mock, `OUTBOX_BENCH_SEND_MS=100`):
+
+| Faza per job | ms/job |
+| --- | --- |
+| claim (`findOneAndUpdate`) | ~0.46 |
+| dedupe-check (`exists`) | ~0.26 |
+| markSent (`updateOne`) | ~0.36 |
+| delete (`deleteOne`) | ~0.25 |
+| **TOTAL Mongo** | **~1.33** |
+| vs trimitere Discord tipica ~100ms | **Mongo = ~1.3% din timpul real per job** |
+
+Asta cuantifica de ce optimizarea ramane viitoare: per job, **~98.7% din timp e trimiterea
+Discord (rate-limited)**, iar Mongo e ~1.3%. Un claim in batch / `bulkWrite` ar reduce doar
+faza `claim` (~0.46ms) — celelalte trei raman per-job din **corectitudine** (claim atomic +
+`markSent`-inainte-de-`deleteOne` pentru crash-safety), deci plafonul realist de castig e
+**sub ~1.3%** pe o cale dominata de Discord. La ~700 joburi/s pe care Mongo le sustine deja
+vs ritmul mult mai mic impus de rate-limit-ul Discord, exista ~60x rezerva de Mongo peste
+ce permite Discord — deci batch-claim ar mari o rezerva oricum nefolosita, cu riscul de a
+rescrie claim-ul atomic multi-instanta (clasa de bug #237). Decizia pe date: **nu acum.**
+
 **Decizie:**
 
 - Outbox-ul **ramane in TypeScript**. Bottleneck-ul este I/O (Mongo + Discord), nu CPU;
