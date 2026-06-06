@@ -21,14 +21,15 @@ export interface GuardOutcome {
   skipped: string[];
 }
 
-export const HOT_PATH_AREAS = ["levenshtein", "dealHash"] as const;
+export const HOT_PATH_AREAS = ["levenshtein", "dealHash", "rankListingCandidates"] as const;
 
 export function defaultGuardConfig(): GuardConfig {
   return {
     failBelow: Number(process.env.BENCH_HOTPATH_FAIL_RATIO) || 0.85,
     warnBelow: {
       levenshtein: Number(process.env.BENCH_LEVENSHTEIN_WARN_RATIO) || 1.4,
-      dealHash: Number(process.env.BENCH_DEALHASH_WARN_RATIO) || 1.2
+      dealHash: Number(process.env.BENCH_DEALHASH_WARN_RATIO) || 1.2,
+      rankListingCandidates: Number(process.env.BENCH_RANKLISTING_WARN_RATIO) || 1.1
     },
     requireNative: process.env.BENCH_GUARD_REQUIRE_NATIVE === "true"
   };
@@ -84,6 +85,12 @@ export function collectGuardSamples(runs = Number(process.env.BENCH_GUARD_RUNS) 
   }, runs);
   const dealHashArea = runAreaBenchmarks().find(a => a.area.includes("dealHash"));
 
+  const listingRankSpeedup = bestSpeedup(() => {
+    const area = runAreaBenchmarks().find(a => a.area.includes("listing-rank"));
+    return area ? area.speedup : null;
+  }, runs);
+  const listingRankArea = runAreaBenchmarks().find(a => a.area.includes("listing-rank"));
+
   return [
     {
       area: "levenshtein",
@@ -96,6 +103,12 @@ export function collectGuardSamples(runs = Number(process.env.BENCH_GUARD_RUNS) 
       rustAvailable: dealHashArea ? dealHashArea.rustAvailable : firstCpu.rustAvailable,
       speedup: dealHashSpeedup,
       parityOk: dealHashArea ? dealHashArea.parityOk : true
+    },
+    {
+      area: "rankListingCandidates",
+      rustAvailable: listingRankArea ? listingRankArea.rustAvailable : firstCpu.rustAvailable,
+      speedup: listingRankSpeedup,
+      parityOk: listingRankArea ? listingRankArea.parityOk : true
     }
   ];
 }
