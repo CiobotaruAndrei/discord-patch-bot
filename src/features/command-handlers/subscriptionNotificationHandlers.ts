@@ -51,7 +51,8 @@ type SubscriptionInteractionDeps = {
   safeDefer: (interaction: DiscordInteraction) => Promise<unknown>;
   safeEdit: (interaction: DiscordInteraction, payload: InteractionPayload) => Promise<unknown>;
   canSendEmbeds: (channel: DiscordChannel | null | undefined, botId: string) => boolean;
-  missingChannelPermsMessage: () => string;
+  listMissingChannelPerms: (channel: DiscordChannel | null | undefined, botId: string) => string[] | null;
+  missingChannelPermsMessage: (missing?: string[] | null) => string;
   makeActivationId: () => string;
   formatUserError: (err: unknown, fallback: string) => string;
 };
@@ -65,7 +66,7 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
   const {
     GuildModel, logger, getGuildSettings, invalidateGuildCache, DEFAULT_CURRENCY,
     getLatestForAllGames, fetchDeals, dealHash, seedSeenUpdates, seedSeenDiscounts, DEALS_HISTORY_LIMIT,
-    OP_UPDATE_OPTS, setDealsCache, safeDefer, safeEdit, canSendEmbeds,
+    OP_UPDATE_OPTS, setDealsCache, safeDefer, safeEdit, canSendEmbeds, listMissingChannelPerms,
     missingChannelPermsMessage, makeActivationId, formatUserError
   } = deps;
 
@@ -77,7 +78,7 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
 
     const botId = interaction.client?.user?.id;
     if (!botId || !canSendEmbeds(interaction.channel, botId)) {
-      return safeEdit(interaction, missingChannelPermsMessage());
+      return safeEdit(interaction, missingChannelPermsMessage(botId ? listMissingChannelPerms(interaction.channel, botId) : null));
     }
     if (!interaction.channel) {
       return safeEdit(interaction, missingChannelPermsMessage());
@@ -286,6 +287,7 @@ function installSubscriptionInteractions(target: SubscriptionContext) {
     safeDefer: target.safeDefer,
     safeEdit: target.safeEdit,
     canSendEmbeds: target.canSendEmbeds,
+    listMissingChannelPerms: target.listMissingChannelPerms,
     missingChannelPermsMessage: target.missingChannelPermsMessage,
     makeActivationId: target.makeActivationId,
     formatUserError: target.formatUserError
