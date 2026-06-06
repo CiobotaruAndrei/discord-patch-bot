@@ -1,7 +1,23 @@
 "use strict";
 
+import { assertNoUndefinedExports } from "../../shared/assertCompleteExports";
+
 type MongoRuntimeContext = Record<string, unknown>;
 type MongoInstaller = (target: MongoRuntimeContext) => void;
+
+type MongoContextExportKey =
+  | "logger" | "env" | "parseEnvNumber" | "runConcurrent" | "waitForMongoReady"
+  | "validatePendingDiscountSnapshot" | "isTransientMongoError" | "withMongoRetry"
+  | "GuildModel" | "CircuitBreakerModel" | "SystemModel" | "JobLockModel"
+  | "AdminAlertCooldownModel" | "FetchSnapshotModel" | "GuildSeenDiscountModel"
+  | "GuildSeenUpdateModel" | "NotificationOutboxModel" | "NotificationOutboxSentModel"
+  | "saveFetchSnapshot" | "loadFetchSnapshot" | "loadDealsFetchSnapshots"
+  | "acquireDbLock" | "renewDbLock" | "releaseDbLock" | "activeLocks"
+  | "runMigrations" | "ALL_MIGRATIONS" | "getSystemTimes" | "saveSystemTimes"
+  | "saveSystemTime" | "getOutboxPaused" | "setOutboxPaused" | "getGuildSettings"
+  | "invalidateGuildCache" | "cleanGuildCache" | "getGuildCacheSize" | "adminAlert"
+  | "SchemaDriftError" | "SUPPORTED_CURRENCIES" | "DEFAULT_CURRENCY" | "getCurrencyConfig"
+  | "formatPrice" | "requestContext" | "getAbortSignal";
 
 const runtimeContext = require("./runtime") as MongoRuntimeContext;
 const defaultInstallers: MongoInstaller[] = [
@@ -18,7 +34,7 @@ const defaultInstallers: MongoInstaller[] = [
   require("./fetchSnapshots")
 ];
 
-function buildMongoContextExports(context: MongoRuntimeContext) {
+function buildMongoContextExports(context: MongoRuntimeContext): Record<MongoContextExportKey, unknown> {
   return {
     logger: context.logger,
     env: context.env,
@@ -76,6 +92,9 @@ function createMongoContext(
   return buildMongoContextExports(context);
 }
 
-const mongoContext = Object.assign(createMongoContext(), { createMongoContext });
+const mongoContext = Object.assign(
+  assertNoUndefinedExports(createMongoContext(), "mongoContext"),
+  { createMongoContext }
+);
 
 export = mongoContext;

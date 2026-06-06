@@ -1,7 +1,18 @@
 "use strict";
 
+import { assertNoUndefinedExports } from "../shared/assertCompleteExports";
+
 type SourceContext = Record<string, unknown>;
 type SourceInstaller = (target: SourceContext) => void;
+
+type SourceRegistryExportKey =
+  | "USER_AGENTS" | "MAX_HTML_BYTES" | "MAX_JSON_BYTES" | "MAX_DEALS" | "FETCH_CONCURRENCY"
+  | "cleanText" | "truncate" | "normalizeTitleForDedupe" | "stableUpdateId" | "normalizeUpdate"
+  | "safeCheerioLoad" | "levenshtein" | "httpReq" | "fetchWithProxy" | "dealHash"
+  | "attachMetrics" | "fetchGameUpdate" | "executeFetchWithCircuitBreaker" | "getLatestForAllGames"
+  | "fetchSteamReviewData" | "enrichDealData" | "fetchDeals" | "searchSteamGameByName"
+  | "chooseBestSteamMatch" | "fetchSteamPriceDetails" | "extractOfferEndFromHtml"
+  | "extractSteamOfferEndDate" | "cleanEnrichedCache" | "getEnrichedCacheSize" | "formatPrice";
 
 const runtimeContext = require("./runtime") as SourceContext;
 const defaultInstallers: SourceInstaller[] = [
@@ -11,7 +22,7 @@ const defaultInstallers: SourceInstaller[] = [
   require("./deals")
 ];
 
-function buildSourceRegistry(context: SourceContext) {
+function buildSourceRegistry(context: SourceContext): Record<SourceRegistryExportKey, unknown> {
   return {
     USER_AGENTS: context.USER_AGENTS,
     MAX_HTML_BYTES: context.MAX_HTML_BYTES,
@@ -55,7 +66,7 @@ function createSourceRegistry(
   return buildSourceRegistry(context);
 }
 
-const registry = createSourceRegistry();
+const registry = assertNoUndefinedExports(createSourceRegistry(), "sourceRegistry");
 
 Object.assign(module.exports, registry, { createSourceRegistry });
 
