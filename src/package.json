@@ -14,6 +14,8 @@
     "check:dependencies": "npm run build:ts && node dist/scripts/check-dependencies.js",
     "check:syntax": "npm run build:ts && node dist/scripts/check-syntax.js",
     "check:comments": "npm run build:ts && node dist/scripts/check-no-comments.js",
+    "check:rules-sync": "npm run build:ts && node dist/scripts/check-rules-sync.js",
+    "check:db-indexes": "npm run build:ts && node dist/scripts/check-db-indexes.js",
     "benchmark": "npm run build:ts && node dist/scripts/notificationBenchmark.js",
     "benchmark:outbox": "npm run build:ts && node dist/scripts/outboxLoadBenchmark.js",
     "benchmark:cpu": "npm run build && node dist/scripts/cpuBenchmark.js",
@@ -30,7 +32,7 @@
     "test:regression": "npm run build && node --test dist/test/commands-regression.test.js dist/test/configValidator.test.js",
     "audit": "npm audit --omit=dev --audit-level=moderate",
     "precommit": "npm run check && npm run audit",
-    "check": "npm run typecheck && npm run typecheck:strict && npm run build && node dist/scripts/check-syntax.js && node dist/scripts/check-no-comments.js && node dist/scripts/check-config.js && node dist/scripts/check-dependencies.js && node --test --test-reporter=spec dist/test/*.test.js"
+    "check": "npm run typecheck && npm run typecheck:strict && npm run build && node dist/scripts/check-syntax.js && node dist/scripts/check-no-comments.js && node dist/scripts/check-config.js && node dist/scripts/check-dependencies.js && node dist/scripts/check-rules-sync.js && node dist/scripts/check-db-indexes.js && node --test --test-reporter=spec dist/test/*.test.js"
   },
   "engines": {
     "node": ">=20"
