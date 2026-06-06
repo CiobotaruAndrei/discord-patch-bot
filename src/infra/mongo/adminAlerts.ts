@@ -2,6 +2,7 @@ import type { AxiosStatic } from "axios";
 import type { Model } from "mongoose";
 import type { LoggerFunction, RuntimeEnv } from "../../types";
 import { errorMessage } from "../../shared/errors";
+import { buildAdminAlertEmbed } from "./adminAlertContent";
 
 interface AdminAlertCooldownDoc {
   _id: string;
@@ -59,15 +60,7 @@ async function adminAlert(kind: string, title: string, body: unknown): Promise<v
 
   if (!allowed) return;
 
-  const payload = {
-    embeds: [{
-      title: `\u26A0\uFE0F ${title}`,
-      description: String(body || "").slice(0, 3500),
-      color: 0xe74c3c,
-      timestamp: now.toISOString(),
-      footer: { text: `kind=${kind}` }
-    }]
-  };
+  const payload = buildAdminAlertEmbed(kind, title, body, now);
   try {
     await axios.post(url, payload, { timeout: 5000 });
     logger("INFO", "ADMIN_ALERT", `Alerta trimisa: ${kind} - ${title}`);

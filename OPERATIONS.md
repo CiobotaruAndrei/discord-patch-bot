@@ -9,7 +9,10 @@ Pe scurt, instrumentele de operare:
 - Metrici Prometheus la `/metrics` (vezi README sectiunea health/metrics).
 - Comenzi admin: `/outbox status | deadletters | retry | pause | resume | recovery-verify status`.
 - Alerte admin (webhook): trimise automat la `recoveryFailures > 0` (`outbox:recovery-read`)
-  si `markSentFailures > 0` (`outbox:mark-sent`).
+  si `markSentFailures > 0` (`outbox:mark-sent`). Fiecare alerta vine ca embed structurat cu
+  **severitate** (FATAL/WARNING/INFO + culoare), **Cauza** (eroarea reala), **Ce inseamna** si
+  **Ce trebuie facut** (remediere per tip de alerta) — maparea kind -> ghidaj e in
+  `src/infra/mongo/adminAlertContent.ts`.
 
 ## Cand creste `bot_outbox_queue_depth`
 
