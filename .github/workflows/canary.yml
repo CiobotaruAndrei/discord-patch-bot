@@ -1,0 +1,45 @@
+name: Canary surse
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval \"db.adminCommand('ping').ok\""
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Canary surse (fetch live API fiabile - steam updates + deals)
+        env:
+          MONGO_URI: mongodb://localhost:27017/discord-patch-bot-canary
+          DISCORD_TOKEN: canary_token
+          DISCORD_CLIENT_ID: canary_client_id
+          METRICS_PUBLIC: "true"
+        run: npm run canary:sources
