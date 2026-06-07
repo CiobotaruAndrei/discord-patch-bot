@@ -40,7 +40,7 @@ jobs:
           tags: discord-patch-bot:scan
 
       - name: Trivy vulnerability scan (SARIF)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: discord-patch-bot:scan
           format: sarif
@@ -57,7 +57,7 @@ jobs:
 
       - name: Generate SBOM (CycloneDX)
         if: always()
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           scan-type: image
           image-ref: discord-patch-bot:scan
@@ -73,7 +73,7 @@ jobs:
           retention-days: 30
 
       - name: Trivy gate (blocheaza pe CRITICAL/HIGH fixabile)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: discord-patch-bot:scan
           format: table
