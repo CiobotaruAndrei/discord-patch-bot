@@ -38,7 +38,7 @@ export function collectDeclaredIndexes(mongoose: MongooseLike, attachMongoModels
   try {
     attachMongoModels({ mongoose, SUPPORTED_CURRENCIES: { USD: {} }, DEFAULT_CURRENCY: "USD", ONE_DAY_MS: 86_400_000 });
   } catch {
-    // modelele sunt deja compilate in acest proces; le citim din registru
+    void 0;
   }
   const out: DeclaredIndex[] = [];
   for (const name of mongoose.modelNames()) {

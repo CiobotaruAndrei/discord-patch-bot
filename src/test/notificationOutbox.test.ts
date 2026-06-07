@@ -368,8 +368,10 @@ test("drainOutbox: sweep — joburi mai vechi decat maxAgeMs -> dead-letter (exp
   assert.equal(result.expired, 2, "ambele joburi vechi sunt mutate in dead-letter inainte sa le stearga TTL-ul Mongo");
   assert.equal(deadLetters.length, 2);
   assert.ok(deadLetters.every(d => d.reason === "expired-near-ttl"), "motivul de dead-letter este expired-near-ttl (audit, nu stergere tacuta)");
-  assert.deepEqual(deleted, [{ _id: "s1" }, { _id: "s2" }], "joburile vechi sunt sterse dupa ce au fost dead-lettered");
+  assert.deepEqual(deleted.map(d => (d as { _id: string })._id), ["s1", "s2"], "joburile vechi sunt sterse dupa ce au fost dead-lettered");
+  assert.ok(deleted.every(d => Array.isArray((d as { $or?: unknown[] }).$or)), "stergerea include garda de lease (nu sterge un job revendicat intre timp)");
   assert.ok(findFilters.some(f => f.createdAt && f.createdAt.$lte instanceof Date), "sweep-ul cauta joburi cu createdAt sub un cutoff");
+  assert.ok(findFilters.some(f => Array.isArray((f as { $or?: unknown[] }).$or)), "sweep-ul exclude joburile cu lease activ");
 });
 
 test("drainOutbox: job revendicat mai vechi decat maxAgeMs e expirat INAINTE de deliver (nu se livreaza stale)", async () => {
@@ -438,4 +440,64 @@ test("enqueueOutbox: alte erori la create se propaga (nu sunt inghitite)", async
     /conexiune pierduta/,
     "o eroare care nu e E11000 trebuie sa se propage"
   );
+});
+
+function leaseFreeMatches(filter: { $or?: Array<{ lockedUntil: unknown }> }, job: { lockedUntil?: Date | null }): boolean {
+  if (!filter || !Array.isArray(filter.$or)) return true;
+  return filter.$or.some(clause => {
+    if (clause.lockedUntil === null) return job.lockedUntil == null;
+    const lte = (clause.lockedUntil as { $lte?: Date } | undefined)?.$lte;
+    return lte ? Boolean(job.lockedUntil && job.lockedUntil <= lte) : false;
+  });
+}
+
+function makeSweepRuntime(job: OutboxJob & { lockedUntil?: Date | null }) {
+  const deleted: unknown[] = [];
+  const deadLettered: unknown[] = [];
+  const model = {
+    findOneAndUpdate: async () => null,
+    find: (filter: { $or?: Array<{ lockedUntil: unknown }> }) => ({
+      sort: () => ({ limit: () => ({ lean: async () => (leaseFreeMatches(filter, job) ? [job] : []) }) })
+    }),
+    deleteOne: async (filter: { _id: string; $or?: Array<{ lockedUntil: unknown }> }) => {
+      const ok = filter._id === job._id && leaseFreeMatches(filter, job);
+      if (ok) deleted.push(filter);
+      return { deletedCount: ok ? 1 : 0 };
+    },
+    updateOne: async () => ({ matchedCount: 1 }),
+    countDocuments: async () => 1
+  };
+  const sentModel = { exists: async () => null, updateOne: async () => ({ upsertedCount: 1 }) };
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: model as never,
+    NotificationOutboxSentModel: sentModel as never,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  return { runtime, deleted, deadLettered };
+}
+
+test("drainOutbox sweep: NU sterge/dead-letter un job vechi inca LEASED (lockedUntil in viitor)", async () => {
+  const job = { _id: "j1", guildId: "g", channelId: "c", kind: "update" as const, payload: {}, attempts: 0, createdAt: new Date(0), lockedUntil: new Date(Date.now() + 60_000) };
+  const { runtime, deleted, deadLettered } = makeSweepRuntime(job);
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: true }),
+    recordDeadLetter: async (j) => { deadLettered.push(j); },
+    maxAttempts: 5, backoffMs: 1000, limit: 10, maxAgeMs: 1
+  });
+  assert.equal(deadLettered.length, 0, "jobul leased nu trebuie dead-letter-uit");
+  assert.equal(deleted.length, 0, "jobul leased nu trebuie sters");
+  assert.equal(result.deadLettered, 0);
+});
+
+test("drainOutbox sweep: sterge + dead-letter un job vechi FARA lease activ", async () => {
+  const job = { _id: "j2", guildId: "g", channelId: "c", kind: "update" as const, payload: {}, attempts: 0, createdAt: new Date(0), lockedUntil: null };
+  const { runtime, deleted, deadLettered } = makeSweepRuntime(job);
+  await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: true }),
+    recordDeadLetter: async (j) => { deadLettered.push(j); },
+    maxAttempts: 5, backoffMs: 1000, limit: 10, maxAgeMs: 1
+  });
+  assert.equal(deadLettered.length, 1, "jobul vechi nelease-uit e dead-letter-uit");
+  assert.equal(deleted.length, 1, "si sters");
 });

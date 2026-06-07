@@ -14,6 +14,7 @@ type HttpClientModule = typeof attachHttpClient & {
   createSafeDnsLookup: (lookup: DnsLookup) => DnsLookup;
   parseRetryAfter: (value: unknown, now?: number) => number | null;
   resolveDefaultProxies: (nodeEnv: string | undefined, isProd: boolean, allowFlag: string | undefined) => string[];
+  assertSafeRedirect: (options: { href?: string; protocol?: string; hostname?: string; host?: string }) => void;
 };
 type DnsLookup = (hostname: string, options: unknown, callback?: unknown) => void;
 
@@ -207,4 +208,20 @@ test("resolveDefaultProxies: proxy-uri implicite doar in dev sau cu opt-in expli
   assert.deepEqual(mod.resolveDefaultProxies("staging", false, undefined), [], "staging fara flag -> fara proxy third-party (anti-leak)");
   assert.equal(mod.resolveDefaultProxies("staging", false, "true").length, 2, "staging cu ALLOW_DEFAULT_PROXIES=true -> opt-in explicit");
   assert.deepEqual(mod.resolveDefaultProxies("test", false, undefined), [], "test fara flag -> fara default-uri");
+});
+
+test("HTTP client: assertSafeRedirect blocheaza redirect-uri catre tinte private/non-http (garda beforeRedirect)", () => {
+  const mod = attachHttpClient as HttpClientModule;
+  assert.throws(() => mod.assertSafeRedirect({ href: "http://127.0.0.1/admin" }), /locala sau privata/, "redirect catre loopback blocat");
+  assert.throws(() => mod.assertSafeRedirect({ href: "http://169.254.169.254/latest/meta-data" }), /locala sau privata/, "redirect catre IMDS link-local blocat");
+  assert.throws(() => mod.assertSafeRedirect({ href: "http://[::1]/x" }), /locala sau privata/, "redirect catre IPv6 loopback blocat");
+  assert.throws(() => mod.assertSafeRedirect({ href: "file:///etc/passwd" }), /http sau https/, "redirect catre schema non-http blocat");
+  assert.throws(() => mod.assertSafeRedirect({ href: "http://2130706433/x" }), /locala sau privata/, "redirect catre IPv4 decimal (127.0.0.1) blocat");
+  assert.throws(() => mod.assertSafeRedirect({ href: "https://user:pass@example.com/" }), /credentiale/, "redirect cu credentiale blocat");
+});
+
+test("HTTP client: assertSafeRedirect permite redirect catre o tinta publica", () => {
+  const mod = attachHttpClient as HttpClientModule;
+  assert.doesNotThrow(() => mod.assertSafeRedirect({ href: "https://example.com/new-location" }));
+  assert.doesNotThrow(() => mod.assertSafeRedirect({ protocol: "https:", host: "example.com" }));
 });
