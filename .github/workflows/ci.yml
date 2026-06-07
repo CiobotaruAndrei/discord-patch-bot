@@ -37,8 +37,9 @@ jobs:
           node-version: 20
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: "1.96.0"
           components: clippy
 
       - name: Install dependencies

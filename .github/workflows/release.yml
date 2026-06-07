@@ -21,6 +21,16 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval \"db.adminCommand('ping').ok\""
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Release gate (smoke confirmation)
         shell: bash
@@ -38,20 +48,33 @@ jobs:
         uses: actions/github-script@v7
         env:
           STAGING_SMOKE_MAX_AGE_DAYS: ${{ vars.STAGING_SMOKE_MAX_AGE_DAYS || '7' }}
+          RELEASE_TAG: ${{ inputs.tag }}
         with:
           script: |
             const maxAgeDays = Number(process.env.STAGING_SMOKE_MAX_AGE_DAYS || '7');
+            const tagRef = process.env.RELEASE_TAG;
+            let tagSha;
+            try {
+              const commit = await github.rest.repos.getCommit({ owner: context.repo.owner, repo: context.repo.repo, ref: tagRef });
+              tagSha = commit.data.sha;
+            } catch (err) {
+              core.setFailed(`Release blocat: nu pot rezolva commit-ul pentru tag-ul '${tagRef}' (${err.message}). Asigura-te ca tag-ul e impins.`);
+              return;
+            }
+            core.info(`Tag '${tagRef}' -> commit ${tagSha}.`);
             const runs = await github.rest.actions.listWorkflowRuns({
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'staging-smoke.yml',
               status: 'success',
-              per_page: 20
+              per_page: 50
             });
             const now = Date.now();
-            const fresh = runs.data.workflow_runs.filter(r => (now - new Date(r.updated_at).getTime()) <= maxAgeDays * 86400000);
+            const fresh = runs.data.workflow_runs.filter(r =>
+              (now - new Date(r.updated_at).getTime()) <= maxAgeDays * 86400000
+              && r.head_sha === tagSha);
             if (fresh.length === 0) {
-              core.setFailed(`Release blocat: nu exista rulare Staging Smoke reusita in ultimele ${maxAgeDays} zile. Ruleaza workflow-ul Staging Smoke inainte de release (RELEASING.md).`);
+              core.setFailed(`Release blocat: nu exista rulare Staging Smoke reusita pe EXACT commit-ul tag-ului (${tagSha.slice(0, 12)}) in ultimele ${maxAgeDays} zile. Ruleaza Staging Smoke pe commit-ul tag-ului inainte de release (RELEASING.md).`);
               return;
             }
             for (const run of fresh) {
@@ -115,14 +138,28 @@ jobs:
           node-version: 20
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.96.0"
+          components: clippy
 
       - name: Install dependencies
         working-directory: src
         run: npm ci
 
+      - name: Validate Rust (clippy + tests)
+        working-directory: src
+        run: |
+          cargo clippy --manifest-path native/Cargo.toml --all-targets -- -D warnings
+          cargo test --manifest-path native/Cargo.toml --quiet
+
       - name: Run release checks
         working-directory: src
+        env:
+          MONGO_URI: mongodb://localhost:27017/discord-patch-bot-release
+          DISCORD_TOKEN: release_check_token
+          DISCORD_CLIENT_ID: release_check_client_id
+          METRICS_PUBLIC: "true"
         run: npm run check
 
       - name: Audit runtime dependencies

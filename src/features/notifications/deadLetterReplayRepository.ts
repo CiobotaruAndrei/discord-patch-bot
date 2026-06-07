@@ -72,15 +72,16 @@ export function createDeadLetterReplayRepository(deps: DeadLetterReplayRepositor
       reason: input.reason,
       itemId: input.itemId || ""
     };
+    const now = new Date();
     try {
       if (dedupeKey) {
         await withMongoRetry(() => NotificationDeadLetterReplayModel.updateOne(
           { guildId: input.guildId, dedupeKey },
-          { $set: fields, $setOnInsert: { createdAt: new Date() } },
+          { $set: { ...fields, updatedAt: now }, $setOnInsert: { createdAt: now } },
           { upsert: true }
         ), { label: "deadLetterReplay:record", retries: 1 });
       } else {
-        await withMongoRetry(() => NotificationDeadLetterReplayModel.create({ ...fields, createdAt: new Date() }), { label: "deadLetterReplay:record", retries: 1 });
+        await withMongoRetry(() => NotificationDeadLetterReplayModel.create({ ...fields, createdAt: now, updatedAt: now }), { label: "deadLetterReplay:record", retries: 1 });
       }
     } catch (err) {
       logger("WARN", "OUTBOX", "Nu am putut salva payload-ul pentru replay dead-letter (best-effort)", err);

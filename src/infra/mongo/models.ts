@@ -207,7 +207,8 @@ const deadLetterReplaySchema = new mongoose.Schema({
   recoveryVerify: { type: Boolean, default: false },
   reason: { type: String, default: "" },
   itemId: { type: String, default: "" },
-  createdAt: { type: Date, default: Date.now, expires: DEAD_LETTER_REPLAY_TTL_DAYS * ONE_DAY_MS / 1000 }
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now, expires: DEAD_LETTER_REPLAY_TTL_DAYS * ONE_DAY_MS / 1000 }
 }, { minimize: false });
 deadLetterReplaySchema.index({ guildId: 1, createdAt: 1 }, { background: true });
 deadLetterReplaySchema.index({ guildId: 1, dedupeKey: 1 }, { unique: true, partialFilterExpression: { dedupeKey: { $gt: "" } }, background: true });

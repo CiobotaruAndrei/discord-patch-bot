@@ -104,7 +104,7 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     const push = deadLetterPush([buildDeadLetterEntry({
       kind: job.kind, itemId: String(job._id ?? ""), title: deadLetterTitleFromPayload(job.payload), channelId: job.channelId, dedupeKey: job.dedupeKey, reason, attempts: (job.attempts || 0) + 1
     })]);
-    if (push) await GuildModel.updateOne({ _id: job.guildId }, { $push: push }).catch(() => undefined);
+    if (push) await GuildModel.updateOne({ _id: job.guildId }, { $push: push }).catch((err: unknown) => logger("WARN", "OUTBOX", `Nu am putut scrie intrarea de audit dead-letter pentru guild ${job.guildId} (poate diverge de payload-ul de replay)`, err));
     await deadLetterReplayRepository.recordPayload({
       guildId: job.guildId, kind: job.kind, channelId: job.channelId, payload: job.payload,
       dedupeKey: job.dedupeKey, recoveryVerify: job.recoveryVerify, reason, itemId: String(job._id ?? "")
