@@ -173,21 +173,31 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
     if (!docs.length) {
       return "Nicio livrare dead-letter cu payload stocat pentru replay. (Doar esecurile pe calea outbox - mai putin `delivered-marksent-failed` - pot fi reluate; cele vechi/expirate au fost curatate prin TTL.)";
     }
-    let replayed = 0;
     const replayedIds: unknown[] = [];
     const dedupeKeys: string[] = [];
+    let failed = false;
     for (const doc of docs) {
-      await enqueueOutbox({ guildId, channelId: doc.channelId, kind: doc.kind, payload: doc.payload, recoveryVerify: doc.recoveryVerify });
-      replayed++;
+      try {
+        await enqueueOutbox({ guildId, channelId: doc.channelId, kind: doc.kind, payload: doc.payload, recoveryVerify: doc.recoveryVerify });
+      } catch (err: unknown) {
+        logger("WARN", "OUTBOX_COMMAND", `Replay dead-letter intrerupt dupa ${replayedIds.length} reusite`, errorMessage(err));
+        failed = true;
+        break;
+      }
       replayedIds.push(doc._id);
       if (doc.dedupeKey) dedupeKeys.push(doc.dedupeKey);
     }
-    await deleteReplayedDeadLetters(guildId, replayedIds).catch(() => undefined);
-    if (dedupeKeys.length) {
-      await GuildModel.updateOne({ _id: guildId }, { $pull: { notificationDeadLetter: { dedupeKey: { $in: dedupeKeys } } } }).catch(() => undefined);
+    if (replayedIds.length) {
+      await deleteReplayedDeadLetters(guildId, replayedIds).catch(() => undefined);
+      if (dedupeKeys.length) {
+        await GuildModel.updateOne({ _id: guildId }, { $pull: { notificationDeadLetter: { dedupeKey: { $in: dedupeKeys } } } }).catch(() => undefined);
+      }
       invalidateGuildCache(guildId);
     }
-    return `OK: ${replayed} livrare(i) dead-letter reintroduse in coada outbox pentru re-trimitere.`;
+    if (failed) {
+      return `Replay partial: ${replayedIds.length} livrare(i) reintroduse in coada outbox (curatate din dead-letter); restul au esuat si raman in dead-letter — reincearca dupa ce verifici cauza.`;
+    }
+    return `OK: ${replayedIds.length} livrare(i) dead-letter reintroduse in coada outbox pentru re-trimitere.`;
   }
 
   async function retryQueued(guildId: string): Promise<string> {
