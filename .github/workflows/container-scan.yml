@@ -6,8 +6,10 @@ on:
       - main
     paths:
       - "Dockerfile"
+      - ".dockerignore"
       - "src/package.json"
       - "src/package-lock.json"
+      - "src/native/**"
       - ".github/workflows/container-scan.yml"
   pull_request:
     branches:
