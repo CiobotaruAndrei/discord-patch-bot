@@ -8,7 +8,8 @@ export type GameType =
   | "listing_based"
   | "nvidia"
   | "amd"
-  | "intel";
+  | "intel"
+  | "rss";
 
 export type CurrencyCode = "USD" | "EUR" | "GBP" | "RON";
 export type NotificationMode = "compact" | "detailed";

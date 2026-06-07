@@ -66,6 +66,8 @@ interface RssItem {
   title?: string;
   link?: string;
   pubDate?: string;
+  guid?: string;
+  contentSnippet?: string;
   contents?: unknown;
   tags?: unknown;
 }
@@ -200,6 +202,7 @@ function sourceConcurrencyGroup(game: GameConfig): string {
   if (!type || type === "steam") return "steam";
   if (type === "epic_games") return "epic";
   if (type === "listing_based") return "listing";
+  if (type === "rss") return "rss";
   if (type === "nvidia" || type === "amd" || type === "intel") return "driver";
   return "other";
 }
@@ -507,6 +510,30 @@ async function fetchNvidiaUpdate(g: GameConfig): Promise<NormalizedUpdate> {
   });
 }
 
+async function fetchRssUpdate(game: GameConfig): Promise<NormalizedUpdate> {
+  const { conditionalGet, rssParser, normalizeUpdate, cleanText, stableUpdateId } = deps;
+  const feedUrl = String(game.url || "");
+  if (!feedUrl) throw new Error(`Sursa rss pentru ${game.key} nu are 'url' (feed).`);
+  return conditionalGet(feedUrl, async (raw) => {
+    const feed = await rssParser.parseString(String(raw || ""));
+    const item = feed.items && feed.items[0];
+    if (!item) throw new Error(`Feed RSS gol pentru ${game.key}.`);
+    const title = cleanText(item.title || "");
+    if (!title) throw new Error(`Primul item RSS pentru ${game.key} nu are titlu.`);
+    const link = item.link || feedUrl;
+    const id = item.guid ? String(item.guid) : stableUpdateId(title, String(link));
+    const excerpt = cleanText(String(item.contentSnippet || "")).slice(0, 300) || "Update RSS detectat.";
+    return normalizeUpdate({
+      id,
+      title,
+      link,
+      excerpt,
+      thumbnail: game.thumbnail,
+      timestamp: item.pubDate
+    });
+  });
+}
+
 async function fetchGameUpdate(game: GameConfig): Promise<NormalizedUpdate> {
   const t = game.type;
   if (!t || t === "steam") return fetchSteamUpdate(game);
@@ -516,6 +543,7 @@ async function fetchGameUpdate(game: GameConfig): Promise<NormalizedUpdate> {
   if (t === "nvidia") return fetchNvidiaUpdate(game);
   if (t === "intel") return fetchIntelUpdate(game);
   if (t === "amd") return fetchAmdUpdate(game);
+  if (t === "rss") return fetchRssUpdate(game);
   if (t === "listing_based" || t === "epic_games") return fetchListingBasedUpdate(game);
   throw new Error("Tip necunoscut.");
 }
