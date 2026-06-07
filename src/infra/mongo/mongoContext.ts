@@ -2,7 +2,6 @@
 
 import { assertNoUndefinedExports } from "../../shared/assertCompleteExports";
 
-type MongoRuntimeContext = Record<string, unknown>;
 type MongoInstaller = (target: MongoRuntimeContext) => void;
 
 type MongoContextExportKey =
@@ -19,6 +18,8 @@ type MongoContextExportKey =
   | "invalidateGuildCache" | "cleanGuildCache" | "getGuildCacheSize" | "adminAlert"
   | "SchemaDriftError" | "SUPPORTED_CURRENCIES" | "DEFAULT_CURRENCY" | "getCurrencyConfig"
   | "formatPrice" | "requestContext" | "getAbortSignal";
+
+type MongoRuntimeContext = Record<MongoContextExportKey, unknown>;
 
 const runtimeContext = require("./runtime") as MongoRuntimeContext;
 const defaultInstallers: MongoInstaller[] = [
