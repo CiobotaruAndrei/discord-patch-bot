@@ -9,6 +9,9 @@ on:
       - "src/package.json"
       - "src/package-lock.json"
       - ".github/workflows/container-scan.yml"
+  pull_request:
+    branches:
+      - main
   schedule:
     - cron: "0 5 * * 1"
   workflow_dispatch:
@@ -37,7 +40,7 @@ jobs:
           tags: discord-patch-bot:scan
 
       - name: Trivy vulnerability scan (SARIF)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: discord-patch-bot:scan
           format: sarif
@@ -46,14 +49,15 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload Trivy SARIF to code scanning
-        if: always()
+        if: always() && github.event_name != 'pull_request'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-results.sarif
           category: trivy-container
 
       - name: Generate SBOM (CycloneDX)
-        uses: aquasecurity/trivy-action@0.28.0
+        if: always()
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           scan-type: image
           image-ref: discord-patch-bot:scan
@@ -61,8 +65,18 @@ jobs:
           output: sbom.cdx.json
 
       - name: Upload SBOM artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sbom-cyclonedx
           path: sbom.cdx.json
           retention-days: 30
+
+      - name: Trivy gate (blocheaza pe CRITICAL/HIGH fixabile)
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: discord-patch-bot:scan
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
