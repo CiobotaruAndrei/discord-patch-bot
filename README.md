@@ -235,6 +235,7 @@ Desi punga de context ramane `Record<string, unknown>` (intentionat), **granita 
 - Foloseste `src/.env.example` ca sablon, nu `src/.env` real.
 - Verifica PR-urile Dependabot si lockfile-ul inainte de merge.
 - Ruleaza `npm audit` si testele inainte de release.
+- Imaginea Docker e scanata cu **Trivy** (vulnerabilitati CRITICAL/HIGH, `ignore-unfixed`) si genereaza un **SBOM CycloneDX** prin workflow-ul `container-scan.yml` (push pe `main` cand se schimba Dockerfile/dependintele, saptamanal si manual); rezultatele Trivy apar in tab-ul Security (cod scanning), iar SBOM-ul e artifact. Completeaza CodeQL + Dependency Review (analiza de cod + dependinte) cu scanarea imaginii (supply chain).
 
 ## Licenta
 
