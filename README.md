@@ -37,7 +37,7 @@ La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun ve
 - `/health` - starea botului (Discord, MongoDB, cache, uptime); raspuns ephemeral. Pentru metrici detaliate (surse, coada outbox, cron) vezi endpoint-ul de metrics.
 - `/help` - afiseaza paginile de ajutor.
 - `/set outbox-recovery-verify <on|off>` - (admin) comuta recovery-verify per-server; la `on` avertizeaza daca botului ii lipseste permisiunea Read Message History pe canalele de notificari.
-- `/outbox status | deadletters | retry | drain-now | pause | resume | permissions | recovery-verify status` - (admin) operarea outbox-ului: coada (per-server + global), dead-letter, reprogramare livrari, drenare imediata (daca lock-ul e liber), pauza/reluare drenare (global), audit de permisiuni pe canale si starea recovery-verify.
+- `/outbox status | deadletters | clear-deadletters | retry | drain-now | pause | resume | permissions | recovery-verify status` - (admin) operarea outbox-ului: coada (per-server + global), dead-letter (listare + golire dupa investigare), reprogramare livrari, drenare imediata (daca lock-ul e liber), pauza/reluare drenare (global), audit de permisiuni pe canale si starea recovery-verify.
 
 Comenzile administrative sunt validate atat prin permisiunile slash command declarate in Discord, cat si prin verificari runtime in handler-ele sensibile. La `/start updates` / `/start reduceri`, daca botul nu poate posta pe canal, mesajul de eroare listeaza **exact** ce permisiuni ii lipsesc pe acel canal (dintre **View Channel**, **Send Messages**, **Embed Links**) in loc de un mesaj generic, ca adminul sa stie precis ce sa adauge.
 
