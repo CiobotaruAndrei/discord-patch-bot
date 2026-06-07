@@ -29,21 +29,22 @@ function findCommentsTsLike(text: string, fileName: string): FoundComment[] {
   const source = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, scriptKind);
   const out: FoundComment[] = [];
   const seen = new Set<number>();
+  function add(pos: number, end: number): void {
+    if (seen.has(pos)) return;
+    seen.add(pos);
+    const lc = source.getLineAndCharacterOfPosition(pos);
+    out.push({ line: lc.line + 1, text: text.slice(pos, end).trim() });
+  }
   function collect(ranges: Array<{ pos: number; end: number }> | undefined): void {
     if (!ranges) return;
-    for (const range of ranges) {
-      if (seen.has(range.pos)) continue;
-      seen.add(range.pos);
-      const lc = source.getLineAndCharacterOfPosition(range.pos);
-      out.push({ line: lc.line + 1, text: text.slice(range.pos, range.end).trim() });
-    }
+    for (const range of ranges) add(range.pos, range.end);
   }
-  function visit(node: { getFullStart(): number; getEnd(): number; forEachChild(cb: (child: never) => void): void }): void {
+  function visit(node: { getFullStart(): number; getEnd(): number; getChildren(src?: unknown): unknown[] }): void {
     collect(ts.getLeadingCommentRanges(text, node.getFullStart()));
     collect(ts.getTrailingCommentRanges(text, node.getEnd()));
-    node.forEachChild(visit as never);
+    for (const child of node.getChildren(source) as Array<typeof node>) visit(child);
   }
-  visit(source);
+  visit(source as never);
   collect(ts.getLeadingCommentRanges(text, source.endOfFileToken.getFullStart()));
   out.sort((a, b) => a.line - b.line);
   return out;

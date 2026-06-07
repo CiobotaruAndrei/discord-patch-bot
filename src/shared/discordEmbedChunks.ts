@@ -21,7 +21,7 @@ function readEmbedJson(embed: unknown): EmbedJsonLike {
     try {
       const json = builder.toJSON();
       if (json && typeof json === "object") return json as EmbedJsonLike;
-    } catch { /* cade pe .data / obiectul brut */ }
+    } catch { void 0; }
   }
   if (builder.data && typeof builder.data === "object") return builder.data as EmbedJsonLike;
   return embed as EmbedJsonLike;

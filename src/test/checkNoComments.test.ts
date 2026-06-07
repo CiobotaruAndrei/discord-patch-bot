@@ -35,6 +35,23 @@ test("findComments: cod TS curat -> niciun comentariu", () => {
   assert.deepEqual(found, []);
 });
 
+test("findComments: prinde comentariu bloc intr-un catch GOL (gap-ul reparat)", () => {
+  const found = checker.findComments("try { g(); } catch { /* inghite */ }\n", ".ts", "f.ts");
+  assert.equal(found.length, 1);
+  assert.match(found[0].text, /inghite/);
+});
+
+test("findComments: prinde comentariu de linie intr-un bloc gol", () => {
+  const found = checker.findComments("function f() {\n  // todo\n}\n", ".ts", "f.ts");
+  assert.equal(found.length, 1);
+  assert.match(found[0].text, /todo/);
+});
+
+test("findComments: prinde comentariu intr-un obiect/array gol", () => {
+  const found = checker.findComments("const o = { /* gol */ };\nconst a = [ /* gol2 */ ];\n", ".ts", "f.ts");
+  assert.equal(found.length, 2);
+});
+
 test("findCommentsRust: detecteaza // si /* */ in Rust", () => {
   const line = checker.findCommentsRust("let a = 1; // nota\n");
   assert.equal(line.length, 1);
