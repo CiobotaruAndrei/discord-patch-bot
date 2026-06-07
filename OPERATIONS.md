@@ -266,6 +266,9 @@ populata doar pe calea outbox la dead-letter, cu TTL `NOTIFICATION_DEAD_LETTER_R
 implicit 7 zile) si curata intrarile re-introduse din lista de audit. Necesita
 `NOTIFICATION_OUTBOX_ENABLED=true`. Nu se reiau livrarile cu motiv `delivered-marksent-failed`
 (au fost deja trimise — re-trimiterea ar duplica) si nici cele al caror payload a expirat prin TTL.
+Daca o reintroducere pica la mijloc, comanda raspunde `Replay partial: N reintroduse` — cele
+reusite sunt deja scoase din dead-letter (nu se vor re-trimite la o noua rulare), iar restul raman
+in dead-letter; reincearca `/outbox replay-deadletters` dupa ce verifici cauza.
 
 Daca preferi sa NU re-trimiti, poti goli lista de audit cu `/outbox clear-deadletters` — sterge
 toate intrarile `notificationDeadLetter` ale serverului curent (scriere atomica + invalidare cache)
