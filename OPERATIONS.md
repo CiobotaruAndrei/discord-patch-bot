@@ -156,7 +156,8 @@ index-uri conflictuale/invalide. Inventarul declarat curent:
 | `notificationOutboxSent` | `{ sentAt }` | TTL `NOTIFICATION_OUTBOX_SENT_TTL_HOURS` (implicit 24h) | expirarea istoricului de dedup |
 | `notificationHistory` | `{ guildId, sentAt }` | TTL `NOTIFICATION_HISTORY_TTL_DAYS` (implicit 30 zile) | istoricul notificarilor trimise per server, pentru comanda `/history` |
 | `feedbackReports` | `{ guildId, createdAt }` | TTL `FEEDBACK_REPORT_TTL_DAYS` (implicit 90 zile) | rapoartele trimise de utilizatori prin comanda `/report` |
-| `notificationDeadLetterReplay` | `{ guildId, createdAt }` | TTL `NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS` (implicit 7 zile) | payload-ul livrarilor dead-letter (calea outbox) pentru `/outbox replay-deadletters` |
+| `notificationDeadLetterReplay` | `{ updatedAt }` | TTL `NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS` (implicit 7 zile) | expira payload-ul de replay; `updatedAt` se reimprospateaza la fiecare re-record, deci TTL se masoara de la ultimul dead-letter |
+| `notificationDeadLetterReplay` | `{ guildId, createdAt }` | — | listare FIFO a payload-urilor de replay per server (`/outbox replay-deadletters`) |
 | `notificationDeadLetterReplay` | `{ guildId, dedupeKey }` | unique, partial (`dedupeKey != ""`) | dedup la re-record (replay esuat -> re-dead-letter nu acumuleaza duplicate) |
 | `joblocks` | `{ lockedUntil }` | — | gasirea/expirarea lock-urilor distribuite (cron/outbox) |
 | `adminalertcooldowns` | `{ lastSentAt }` | TTL 7 zile | cooldown per-alerta pentru admin alerts |

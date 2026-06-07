@@ -38,10 +38,14 @@ test("recordPayload cu dedupeKey face upsert (dedup); fara dedupeKey face create
   assert.equal(upserts.length, 1, "dedupeKey non-gol -> upsert (nu duplica la re-record)");
   assert.deepEqual(upserts[0].filter, { guildId: "g1", dedupeKey: "dk1" });
   assert.deepEqual((upserts[0].opts as { upsert?: boolean }), { upsert: true });
+  const update = upserts[0].update as { $set: { updatedAt?: unknown }; $setOnInsert: { createdAt?: unknown } };
+  assert.ok(update.$set.updatedAt instanceof Date, "updatedAt e in $set -> TTL se reimprospateaza la re-record");
+  assert.ok(update.$setOnInsert.createdAt instanceof Date, "createdAt doar la insert (nu se reseteaza)");
   assert.equal(created.length, 0);
 
   await repo.recordPayload({ guildId: "g1", kind: "update", channelId: "c1", payload: { content: "no-key" }, reason: "max-attempts" });
   assert.equal(created.length, 1, "fara dedupeKey -> create");
+  assert.ok((created[0].createdAt instanceof Date) && (created[0].updatedAt instanceof Date), "create seteaza ambele timestampuri");
 });
 
 test("recordPayload sare peste motive ne-replayabile / fara payload / fara canal", async () => {

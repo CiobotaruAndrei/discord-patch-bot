@@ -40,6 +40,8 @@ function makeDeps(opts: {
   drainResult?: { sent?: number; retried?: number; deadLettered?: number; queued?: number };
   replayDocs?: Array<{ _id: unknown; kind: "update" | "discount"; channelId: string; payload: unknown; dedupeKey: string; recoveryVerify: boolean }>;
   enqueueFailAt?: number;
+  replayDeleteAllFails?: boolean;
+  replayDeleteFails?: boolean;
 } = {}) {
   const replies: string[] = [];
   const updateManyCalls: Array<{ filter: unknown; update: unknown }> = [];
@@ -70,8 +72,8 @@ function makeDeps(opts: {
       enqueueCalls.push(job);
     },
     listReplayableDeadLetters: async () => opts.replayDocs ?? [],
-    deleteReplayedDeadLetters: async (guildId: string, ids: unknown[]) => { replayDeleteCalls.push({ guildId, ids }); },
-    deleteAllReplayPayloads: async (guildId: string) => { replayDeleteAllCalls.push(guildId); },
+    deleteReplayedDeadLetters: async (guildId: string, ids: unknown[]) => { if (opts.replayDeleteFails) throw new Error("delete boom"); replayDeleteCalls.push({ guildId, ids }); },
+    deleteAllReplayPayloads: async (guildId: string) => { if (opts.replayDeleteAllFails) throw new Error("deleteAll boom"); replayDeleteAllCalls.push(guildId); },
     getGuildSettings: async () => ({
       outboxRecoveryVerify: opts.perGuildVerify ?? false,
       notificationDeadLetter: opts.deadLetters ?? [],
@@ -365,4 +367,33 @@ test("/outbox clear-deadletters sterge si payload-urile de replay (fara replay f
   await h2.handleOutboxInteraction(makeInteraction(null, "clear-deadletters"));
   assert.equal(empty.guildUpdateCalls.length, 0, "nu scrie pe doc cand auditul e gol");
   assert.deepEqual(empty.replayDeleteAllCalls, ["guild-1"], "curata payload-urile de replay chiar si cand auditul e gol (orfane TTL/partial)");
+});
+
+test("/outbox clear-deadletters: daca stergerea payload-urilor de replay esueaza, raporteaza avertisment (nu succes fals)", async () => {
+  const { deps, replies, guildUpdateCalls } = makeDeps({ deadLetters: [{ kind: "update" }], replayDeleteAllFails: true });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "clear-deadletters"));
+  assert.match(replies[0], /stergerea payload-urilor de replay a esuat/);
+  assert.equal(guildUpdateCalls.length, 1, "auditul tot e golit");
+});
+
+test("/outbox replay-deadletters: daca curatarea dupa enqueue esueaza, avertizeaza despre risc de duplicat", async () => {
+  const { deps, replies, enqueueCalls } = makeDeps({
+    outboxEnabled: true,
+    replayDeleteFails: true,
+    replayDocs: [{ _id: "r1", kind: "update", channelId: "c1", payload: { content: "A" }, dedupeKey: "dk1", recoveryVerify: false }]
+  });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "replay-deadletters"));
+  assert.equal(enqueueCalls.length, 1, "enqueue-ul a avut loc");
+  assert.match(replies[0], /curatarea din dead-letter a esuat|risc.*duplicat/i);
+});
+
+test("/outbox replay-deadletters: la limita per rulare semnaleaza ca pot exista mai multe", async () => {
+  const docs = Array.from({ length: 50 }, (_v, i) => ({ _id: `r${i}`, kind: "update" as const, channelId: "c1", payload: { i }, dedupeKey: `dk${i}`, recoveryVerify: false }));
+  const { deps, replies, enqueueCalls } = makeDeps({ outboxEnabled: true, replayDocs: docs });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "replay-deadletters"));
+  assert.equal(enqueueCalls.length, 50);
+  assert.match(replies[0], /limita de 50 per rulare/);
 });
