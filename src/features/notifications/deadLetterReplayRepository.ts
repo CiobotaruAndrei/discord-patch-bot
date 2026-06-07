@@ -25,6 +25,7 @@ export interface ReplayPayloadDoc {
 
 interface ReplayModelLike {
   create(doc: Record<string, unknown>): Promise<unknown>;
+  updateOne(filter: unknown, update: unknown, opts?: unknown): Promise<unknown>;
   find(filter: unknown, projection?: unknown): {
     sort(spec: unknown): { limit(count: number): { lean(): Promise<Array<Record<string, unknown>>> } };
   };
@@ -42,6 +43,7 @@ export interface DeadLetterReplayRepository {
   recordPayload(input: ReplayPayloadInput): Promise<void>;
   listForGuild(guildId: string): Promise<ReplayPayloadDoc[]>;
   deleteReplayed(guildId: string, ids: unknown[]): Promise<void>;
+  deleteAllForGuild(guildId: string): Promise<void>;
 }
 
 const NON_REPLAYABLE_REASONS = new Set(["delivered-marksent-failed"]);
@@ -59,18 +61,27 @@ export function createDeadLetterReplayRepository(deps: DeadLetterReplayRepositor
     if (!isReplayableReason(input.reason)) return;
     if (input.payload === undefined || input.payload === null) return;
     if (!input.channelId) return;
+    const dedupeKey = input.dedupeKey || "";
+    const fields = {
+      guildId: input.guildId,
+      kind: input.kind,
+      channelId: input.channelId,
+      payload: input.payload,
+      dedupeKey,
+      recoveryVerify: input.recoveryVerify === true,
+      reason: input.reason,
+      itemId: input.itemId || ""
+    };
     try {
-      await withMongoRetry(() => NotificationDeadLetterReplayModel.create({
-        guildId: input.guildId,
-        kind: input.kind,
-        channelId: input.channelId,
-        payload: input.payload,
-        dedupeKey: input.dedupeKey || "",
-        recoveryVerify: input.recoveryVerify === true,
-        reason: input.reason,
-        itemId: input.itemId || "",
-        createdAt: new Date()
-      }), { label: "deadLetterReplay:record", retries: 1 });
+      if (dedupeKey) {
+        await withMongoRetry(() => NotificationDeadLetterReplayModel.updateOne(
+          { guildId: input.guildId, dedupeKey },
+          { $set: fields, $setOnInsert: { createdAt: new Date() } },
+          { upsert: true }
+        ), { label: "deadLetterReplay:record", retries: 1 });
+      } else {
+        await withMongoRetry(() => NotificationDeadLetterReplayModel.create({ ...fields, createdAt: new Date() }), { label: "deadLetterReplay:record", retries: 1 });
+      }
     } catch (err) {
       logger("WARN", "OUTBOX", "Nu am putut salva payload-ul pentru replay dead-letter (best-effort)", err);
     }
@@ -96,5 +107,9 @@ export function createDeadLetterReplayRepository(deps: DeadLetterReplayRepositor
     await withMongoRetry(() => NotificationDeadLetterReplayModel.deleteMany({ guildId, _id: { $in: ids } }), { label: "deadLetterReplay:delete" });
   }
 
-  return { recordPayload, listForGuild, deleteReplayed };
+  async function deleteAllForGuild(guildId: string): Promise<void> {
+    await withMongoRetry(() => NotificationDeadLetterReplayModel.deleteMany({ guildId }), { label: "deadLetterReplay:deleteAll" });
+  }
+
+  return { recordPayload, listForGuild, deleteReplayed, deleteAllForGuild };
 }

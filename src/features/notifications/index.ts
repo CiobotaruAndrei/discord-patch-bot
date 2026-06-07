@@ -181,9 +181,10 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     processGuildDiscounts: discountService.processGuildDiscounts,
     checkForDiscounts: discountService.checkForDiscounts,
     drainOutbox,
-    enqueueOutbox: outbox.enqueueOutbox,
+    enqueueOutbox,
     listReplayableDeadLetters: deadLetterReplayRepository.listForGuild,
     deleteReplayedDeadLetters: deadLetterReplayRepository.deleteReplayed,
+    deleteAllReplayPayloads: deadLetterReplayRepository.deleteAllForGuild,
     recordSentHistory: historyRepository.recordSent,
     getNotificationHistory: historyRepository.getRecent
   };

@@ -77,6 +77,7 @@ type OutboxAdminDeps = {
   enqueueOutbox?: EnqueueOutbox;
   listReplayableDeadLetters: (guildId: string) => Promise<ReplayDeadLetterDoc[]>;
   deleteReplayedDeadLetters: (guildId: string, ids: unknown[]) => Promise<void>;
+  deleteAllReplayPayloads: (guildId: string) => Promise<void>;
   getGuildSettings: (guildId: string) => Promise<GuildSettingsLike | null>;
   getOutboxPaused: () => Promise<boolean>;
   setOutboxPaused: (paused: boolean) => Promise<void>;
@@ -118,7 +119,7 @@ function formatDeadLetterEntry(entry: DeadLetterEntryLike): string {
 
 function createOutboxAdminHandler(deps: OutboxAdminDeps) {
   const {
-    NotificationOutboxModel, GuildModel, invalidateGuildCache, enqueueOutbox, listReplayableDeadLetters, deleteReplayedDeadLetters,
+    NotificationOutboxModel, GuildModel, invalidateGuildCache, enqueueOutbox, listReplayableDeadLetters, deleteReplayedDeadLetters, deleteAllReplayPayloads,
     getGuildSettings, getOutboxPaused, setOutboxPaused, checkChannelPermissions,
     acquireDbLock, releaseDbLock, drainOutbox,
     safeDefer, safeEdit, formatUserError, logger,
@@ -159,10 +160,14 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
   async function clearDeadLetters(guildId: string): Promise<string> {
     const settings = await getGuildSettings(guildId).catch(() => null);
     const count = Array.isArray(settings?.notificationDeadLetter) ? settings!.notificationDeadLetter!.length : 0;
-    if (count === 0) return "Nicio livrare in dead-letter de sters pentru acest server.";
+    await deleteAllReplayPayloads(guildId).catch(() => undefined);
+    if (count === 0) {
+      invalidateGuildCache(guildId);
+      return "Nicio livrare in dead-letter de sters pentru acest server.";
+    }
     await GuildModel.updateOne({ _id: guildId }, { $set: { notificationDeadLetter: [] } });
     invalidateGuildCache(guildId);
-    return `OK: ${count} intrare(i) dead-letter sterse pentru acest server.`;
+    return `OK: ${count} intrare(i) dead-letter sterse pentru acest server (inclusiv payload-urile de replay).`;
   }
 
   async function replayDeadLetters(guildId: string): Promise<string> {
@@ -317,6 +322,7 @@ function installOutboxAdminHandler(target: OutboxAdminContext): void {
     enqueueOutbox: target.enqueueOutbox as EnqueueOutbox | undefined,
     listReplayableDeadLetters: target.listReplayableDeadLetters as (guildId: string) => Promise<ReplayDeadLetterDoc[]>,
     deleteReplayedDeadLetters: target.deleteReplayedDeadLetters as (guildId: string, ids: unknown[]) => Promise<void>,
+    deleteAllReplayPayloads: target.deleteAllReplayPayloads as (guildId: string) => Promise<void>,
     getGuildSettings: target.getGuildSettings,
     getOutboxPaused: target.getOutboxPaused,
     setOutboxPaused: target.setOutboxPaused,
