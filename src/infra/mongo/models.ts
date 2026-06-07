@@ -197,6 +197,21 @@ const feedbackReportSchema = new mongoose.Schema({
 feedbackReportSchema.index({ guildId: 1, createdAt: -1 }, { background: true });
 const FeedbackReportModel = mongoose.model("FeedbackReport", feedbackReportSchema, "feedbackReports");
 
+const DEAD_LETTER_REPLAY_TTL_DAYS = Math.min(30, Math.max(1, Number(process.env.NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS) || 7));
+const deadLetterReplaySchema = new mongoose.Schema({
+  guildId: { type: String, required: true },
+  kind: { type: String, enum: ["update", "discount"], required: true },
+  channelId: { type: String, required: true },
+  payload: { type: mongoose.Schema.Types.Mixed, required: true },
+  dedupeKey: { type: String, default: "" },
+  recoveryVerify: { type: Boolean, default: false },
+  reason: { type: String, default: "" },
+  itemId: { type: String, default: "" },
+  createdAt: { type: Date, default: Date.now, expires: DEAD_LETTER_REPLAY_TTL_DAYS * ONE_DAY_MS / 1000 }
+}, { minimize: false });
+deadLetterReplaySchema.index({ guildId: 1, createdAt: 1 }, { background: true });
+const NotificationDeadLetterReplayModel = mongoose.model("NotificationDeadLetterReplay", deadLetterReplaySchema, "notificationDeadLetterReplay");
+
   Object.assign(target, {
     GuildModel,
     CircuitBreakerModel,
@@ -209,7 +224,8 @@ const FeedbackReportModel = mongoose.model("FeedbackReport", feedbackReportSchem
     NotificationOutboxModel,
     NotificationOutboxSentModel,
     NotificationHistoryModel,
-    FeedbackReportModel
+    FeedbackReportModel,
+    NotificationDeadLetterReplayModel
   });
 }
 
