@@ -6,6 +6,14 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix-uri din review (P1/P2), verificate intai pe cod (Regula 14):
+  - **check-no-comments rata comentariile din blocuri goale** (`catch {}`, `{}`): mergea pe noduri AST via `forEachChild`, deci un comentariu care nu e leading/trailing pentru niciun nod-copil scapa. Astfel 2 comentarii reale treceau (`check-db-indexes.ts`, `discordEmbedChunks.ts`). Fix: parcurg `getChildren()` (include token-urile `{`/`}`), pur AST, fara fals-pozitive pe regex/URL/template literals (abordarea cu scanner raw dadea fals-pozitive pe `https://` din template literals). Cele 2 comentarii scoase; scanare reala: 208 fisiere, 0 violari.
+  - **Sweep-ul outbox putea sterge un job inca leased**: cauta dupa `createdAt` si stergea dupa `_id`, ignorand `lockedUntil` — un job vechi dar revendicat activ de alta instanta putea fi dead-letter-uit + sters mid-livrare (duplicat/pierdere). Fix: `find` + `deleteOne` exclud joburile cu lease activ (`$or` lockedUntil null/expirat), stergere atomica cu aceeasi garda (no-op daca a fost revendicat intre timp), dead-letter doar daca s-a sters efectiv.
+  - **Garda SSRF pe redirect-uri facuta explicita + testata**: axios urma redirect-uri fara o verificare explicita (doar implicit prin lookup-ul DNS al agentului). Fix: `beforeRedirect = assertSafeRedirect` (valideaza sincron fiecare tinta: IP-uri private/loopback/IMDS literale, scheme non-http, credentiale) + `maxRedirects=5`; testat cu tinte de redirect private vs publice.
+  - **`src/native/Cargo.lock` commis** pentru build Rust reproductibil (Cargo.toml are semver larg). Cargo/napi il folosesc automat.
+
 ### Added
 
 - Comanda `/health` (ephemeral) — stare rapida a botului direct in Discord: **Discord** (conectat + ping gateway), **MongoDB** (stare conexiune), **cache** (single/dlc) si **uptime**, cu embed verde (OK) / portocaliu (degradat). Pana acum sanatatea era doar la endpoint-urile HTTP `/health` + `/metrics`, inaccesibile din Discord. Metricele detaliate (surse picate, coada outbox, ultimul cron) raman la `/metrics` (sursa unica de adevar, fara duplicare de wiring runtime in comenzi) — `/health` trimite acolo prin footer. Render pur `buildHealthEmbed` + `formatUptime` in `healthInteractionHandler`, acoperit de teste (OK vs degradat pe Discord/Mongo; ping afisat/ascuns; format uptime). Documentat in `README`.
