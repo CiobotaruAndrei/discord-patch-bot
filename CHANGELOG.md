@@ -16,6 +16,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- Intarire din review (4 puncte „sub 10/10"), verificate intai pe cod (Regula 14):
+  - **(#2 supply chain blocant pe PR)** `container-scan.yml` ruleaza acum si pe `pull_request` catre `main`, cu un pas-poarta Trivy (`exit-code: 1`, CRITICAL/HIGH, `ignore-unfixed`) care **pica PR-ul** daca imaginea Docker are o vulnerabilitate fixabila — la fel ca `check`, nu doar scan separat pe push/schedule. SARIF (code scanning) ramane doar pe push/schedule, SBOM-ul se genereaza si pe PR. Asa o regresie de supply chain e prinsa **inainte** de merge, nu dupa.
+  - **(#3 calibrare alerte)** runbook nou in `monitoring/README.md` („Calibrarea pragurilor") — proces pas-cu-pas de derivare a pragurilor din baseline real (p95 × factor pentru nivele, fundal observat pentru rate, potrivirea ferestrei `for:`, validare retroactiva pe ultimul incident). Pragurile din `prometheus-alerts.yml` raman valori de plecare conservatoare pana la calibrare pe trafic real.
+
 - Refactor (review P3, continuarea migrarii DI — pasul 6): bag-urile de wiring ale celor doua registre, `MongoRuntimeContext` (`mongoContext.ts`) si `SourceContext` (`sourceRegistry.ts`), au fost stranse de la `Record<string, unknown>` la `Record<MongoContextExportKey, unknown>` / `Record<SourceRegistryExportKey, unknown>`. Citirile din `buildMongoContextExports` / `buildSourceRegistry` (~75 accesari de chei) sunt acum **typo-safe la compilare** — un acces gresit de cheie e eroare `tsc` (verificat: `Property 'cleanTextTYPO' does not exist ... Did you mean 'cleanText'?`), nu `unknown` tacut prins abia la boot de `assertNoUndefinedExports`. Installerii nu sunt afectati (sunt `require`-uiti + cast la `XInstaller`, isi pastreaza tipurile de parametru). Bag-ul de wiring `CommandRegistryContext` ramane intentionat dinamic (chei arbitrare de la installeri). Acoperit de `typedWiringContext.test.ts`; documentat in `src/docs/CONTEXT_REPO_CLEAN.md`.
 
 ### Fixed
