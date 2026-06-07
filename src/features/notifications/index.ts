@@ -18,6 +18,7 @@ const { createDiscountNotificationService } = require("./discountNotificationSer
 const { createOutboxRuntime, applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker } = require("./notificationOutbox");
 const { createOutboxDelivery } = require("./outboxDelivery");
 const { buildDeadLetterEntry, deadLetterPush, deadLetterTitleFromPayload } = require("./deadLetter");
+const { createDeadLetterReplayRepository } = require("./deadLetterReplayRepository");
 const { defaultDiscordSendLimiter } = require("./discordRateLimiter");
 
 const OUTBOX_MAX_ATTEMPTS = 5;
@@ -25,7 +26,7 @@ const OUTBOX_BACKOFF_MS = 60_000;
 const OUTBOX_DRAIN_LIMIT = Math.min(1000, Math.max(1, Number(process.env.NOTIFICATION_OUTBOX_DRAIN_LIMIT) || 50));
 const OUTBOX_MAX_AGE_MS = Math.min(7 * 24 * 3600_000, Math.max(3600_000, Number(process.env.NOTIFICATION_OUTBOX_MAX_AGE_MS) || 6 * 24 * 3600_000));
 
-interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; attempts: number; deliveries?: number; dedupeKey?: string; }
+interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; attempts: number; deliveries?: number; dedupeKey?: string; recoveryVerify?: boolean; }
 interface OutboxClient { user: { id: string }; channels: { fetch(channelId: string): Promise<unknown> }; }
 const OUTBOX_RECOVERY_VERIFY = process.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY === "true";
 const OUTBOX_RECOVERY_STRICT = process.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT === "true";
@@ -56,6 +57,7 @@ type NotificationsRuntimeDeps = SeenRepositoryDeps
     NotificationOutboxModel: Model<OutboxJobShape>;
     NotificationOutboxSentModel: Model<{ dedupeKey: string; sentAt?: Date }>;
     NotificationHistoryModel: Model<{ guildId: string; kind: string; sentAt?: Date }>;
+    NotificationDeadLetterReplayModel: Model<{ guildId: string; kind: string; createdAt?: Date }>;
   };
 
 type NotificationsContext = NotificationsRuntimeDeps & Record<string, unknown>;
@@ -66,7 +68,7 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     validatePendingDiscountSnapshot, getLatestForAllGames, fetchDeals,
     enrichDealData, dealHash, canSendEmbeds, buildUpdateEmbed,
     buildDealEmbed, setUpdatesCache, getDealsCacheData, setDealsCache,
-    saveFetchSnapshot, loadFetchSnapshot, GuildSeenDiscountModel, GuildSeenUpdateModel, NotificationOutboxModel, NotificationOutboxSentModel, NotificationHistoryModel,
+    saveFetchSnapshot, loadFetchSnapshot, GuildSeenDiscountModel, GuildSeenUpdateModel, NotificationOutboxModel, NotificationOutboxSentModel, NotificationHistoryModel, NotificationDeadLetterReplayModel,
     normalizeCurrencyKey, normalizePendingUpdateArray,
     normalizePendingDiscountArray, toEntries, rotateAfter, mapToObject,
     dealPassesFilters, sleepIfPositive, withMongoRetry, OP_UPDATE_OPTS,
@@ -84,6 +86,7 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
   const outboxEnabled = process.env.NOTIFICATION_OUTBOX_ENABLED === "true";
   const outbox = createOutboxRuntime({ NotificationOutboxModel, NotificationOutboxSentModel, withMongoRetry, logger });
   const enqueueOutbox = outboxEnabled ? outbox.enqueueOutbox : undefined;
+  const deadLetterReplayRepository = createDeadLetterReplayRepository({ NotificationDeadLetterReplayModel, withMongoRetry, logger });
 
   const resolveOutboundChannel = createOutboundChannelResolver({ logger, canSendEmbeds, enqueueOutbox });
 
@@ -102,6 +105,10 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
       kind: job.kind, itemId: String(job._id ?? ""), title: deadLetterTitleFromPayload(job.payload), channelId: job.channelId, dedupeKey: job.dedupeKey, reason, attempts: (job.attempts || 0) + 1
     })]);
     if (push) await GuildModel.updateOne({ _id: job.guildId }, { $push: push }).catch(() => undefined);
+    await deadLetterReplayRepository.recordPayload({
+      guildId: job.guildId, kind: job.kind, channelId: job.channelId, payload: job.payload,
+      dedupeKey: job.dedupeKey, recoveryVerify: job.recoveryVerify, reason, itemId: String(job._id ?? "")
+    });
   }
 
   async function drainOutbox(client: OutboxClient) {
@@ -174,6 +181,9 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     processGuildDiscounts: discountService.processGuildDiscounts,
     checkForDiscounts: discountService.checkForDiscounts,
     drainOutbox,
+    enqueueOutbox: outbox.enqueueOutbox,
+    listReplayableDeadLetters: deadLetterReplayRepository.listForGuild,
+    deleteReplayedDeadLetters: deadLetterReplayRepository.deleteReplayed,
     recordSentHistory: historyRepository.recordSent,
     getNotificationHistory: historyRepository.getRecent
   };

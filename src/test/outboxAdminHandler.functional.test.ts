@@ -38,11 +38,14 @@ function makeDeps(opts: {
   channelPermissions?: (channelId: string) => { sendMessages: boolean; embedLinks: boolean; readMessageHistory: boolean } | null;
   lockToken?: string | null;
   drainResult?: { sent?: number; retried?: number; deadLettered?: number; queued?: number };
+  replayDocs?: Array<{ _id: unknown; kind: "update" | "discount"; channelId: string; payload: unknown; dedupeKey: string; recoveryVerify: boolean }>;
 } = {}) {
   const replies: string[] = [];
   const updateManyCalls: Array<{ filter: unknown; update: unknown }> = [];
   const guildUpdateCalls: Array<{ filter: unknown; update: unknown }> = [];
   const invalidatedGuilds: string[] = [];
+  const enqueueCalls: Array<Record<string, unknown>> = [];
+  const replayDeleteCalls: Array<{ guildId: string; ids: unknown[] }> = [];
   const pauseCalls: boolean[] = [];
   const permissionChecks: string[] = [];
   const lockCalls: Array<{ name: string; ttl: number }> = [];
@@ -60,6 +63,9 @@ function makeDeps(opts: {
       updateOne: async (filter: unknown, update: unknown) => { guildUpdateCalls.push({ filter, update }); return { modifiedCount: 1 }; }
     },
     invalidateGuildCache: (guildId: string) => { invalidatedGuilds.push(guildId); },
+    enqueueOutbox: async (job: Record<string, unknown>) => { enqueueCalls.push(job); },
+    listReplayableDeadLetters: async () => opts.replayDocs ?? [],
+    deleteReplayedDeadLetters: async (guildId: string, ids: unknown[]) => { replayDeleteCalls.push({ guildId, ids }); },
     getGuildSettings: async () => ({
       outboxRecoveryVerify: opts.perGuildVerify ?? false,
       notificationDeadLetter: opts.deadLetters ?? [],
@@ -89,7 +95,7 @@ function makeDeps(opts: {
     recoveryVerifyGlobal: opts.recoveryVerifyGlobal ?? false,
     recoveryStrict: opts.recoveryStrict ?? false
   };
-  return { deps, replies, updateManyCalls, guildUpdateCalls, invalidatedGuilds, pauseCalls, permissionChecks, lockCalls, releaseCalls, getDrainCalls: () => drainCalls };
+  return { deps, replies, updateManyCalls, guildUpdateCalls, invalidatedGuilds, enqueueCalls, replayDeleteCalls, pauseCalls, permissionChecks, lockCalls, releaseCalls, getDrainCalls: () => drainCalls };
 }
 
 test("/outbox status afiseaza coada, dead-letter si starea recovery-verify", async () => {
@@ -280,4 +286,41 @@ test("/outbox clear-deadletters cand lista e goala nu scrie nimic", async () => 
   await handler.handleOutboxInteraction(makeInteraction(null, "clear-deadletters"));
   assert.match(replies[0], /Nicio livrare in dead-letter de sters/);
   assert.equal(guildUpdateCalls.length, 0, "nu se scrie cand nu e nimic de sters");
+});
+
+test("/outbox replay-deadletters reintroduce payload-urile in coada, sterge si curata auditul", async () => {
+  const { deps, replies, enqueueCalls, replayDeleteCalls, guildUpdateCalls, invalidatedGuilds } = makeDeps({
+    outboxEnabled: true,
+    replayDocs: [
+      { _id: "r1", kind: "update", channelId: "c1", payload: { embeds: [{ title: "A" }] }, dedupeKey: "dk1", recoveryVerify: true },
+      { _id: "r2", kind: "discount", channelId: "c2", payload: { content: "B" }, dedupeKey: "dk2", recoveryVerify: false }
+    ]
+  });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "replay-deadletters"));
+  assert.match(replies[0], /2 livrare/);
+  assert.equal(enqueueCalls.length, 2, "a re-enqueue-at fiecare payload");
+  assert.equal(enqueueCalls[0].channelId, "c1");
+  assert.equal(enqueueCalls[0].recoveryVerify, true);
+  assert.equal(replayDeleteCalls.length, 1, "a sters payload-urile reluate");
+  assert.deepEqual(replayDeleteCalls[0].ids, ["r1", "r2"]);
+  const pull = guildUpdateCalls[0].update as { $pull: { notificationDeadLetter: { dedupeKey: { $in: string[] } } } };
+  assert.deepEqual(pull.$pull.notificationDeadLetter.dedupeKey.$in, ["dk1", "dk2"], "curata auditul dupa dedupeKey");
+  assert.equal(invalidatedGuilds.length, 1, "invalideaza cache-ul guild-ului");
+});
+
+test("/outbox replay-deadletters refuza cand outbox-ul e dezactivat", async () => {
+  const { deps, replies, enqueueCalls } = makeDeps({ outboxEnabled: false, replayDocs: [{ _id: "r1", kind: "update", channelId: "c1", payload: {}, dedupeKey: "dk", recoveryVerify: false }] });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "replay-deadletters"));
+  assert.match(replies[0], /Replay indisponibil/);
+  assert.equal(enqueueCalls.length, 0, "nu re-enqueue-aza cand outbox-ul e oprit");
+});
+
+test("/outbox replay-deadletters cand nu exista payload-uri stocate", async () => {
+  const { deps, replies, enqueueCalls } = makeDeps({ outboxEnabled: true, replayDocs: [] });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "replay-deadletters"));
+  assert.match(replies[0], /Nicio livrare dead-letter cu payload stocat/);
+  assert.equal(enqueueCalls.length, 0);
 });

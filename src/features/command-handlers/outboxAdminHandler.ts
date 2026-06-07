@@ -59,10 +59,24 @@ interface ChannelPermissions {
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
+interface ReplayDeadLetterDoc {
+  _id: unknown;
+  kind: "update" | "discount";
+  channelId: string;
+  payload: unknown;
+  dedupeKey: string;
+  recoveryVerify: boolean;
+}
+
+type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; recoveryVerify?: boolean }) => Promise<void>;
+
 type OutboxAdminDeps = {
   NotificationOutboxModel: OutboxModelLike;
   GuildModel: { updateOne(filter: unknown, update: unknown): Promise<{ modifiedCount?: number; matchedCount?: number }> };
   invalidateGuildCache: (guildId: string) => void;
+  enqueueOutbox?: EnqueueOutbox;
+  listReplayableDeadLetters: (guildId: string) => Promise<ReplayDeadLetterDoc[]>;
+  deleteReplayedDeadLetters: (guildId: string, ids: unknown[]) => Promise<void>;
   getGuildSettings: (guildId: string) => Promise<GuildSettingsLike | null>;
   getOutboxPaused: () => Promise<boolean>;
   setOutboxPaused: (paused: boolean) => Promise<void>;
@@ -104,7 +118,8 @@ function formatDeadLetterEntry(entry: DeadLetterEntryLike): string {
 
 function createOutboxAdminHandler(deps: OutboxAdminDeps) {
   const {
-    NotificationOutboxModel, GuildModel, invalidateGuildCache, getGuildSettings, getOutboxPaused, setOutboxPaused, checkChannelPermissions,
+    NotificationOutboxModel, GuildModel, invalidateGuildCache, enqueueOutbox, listReplayableDeadLetters, deleteReplayedDeadLetters,
+    getGuildSettings, getOutboxPaused, setOutboxPaused, checkChannelPermissions,
     acquireDbLock, releaseDbLock, drainOutbox,
     safeDefer, safeEdit, formatUserError, logger,
     outboxEnabled, recoveryVerifyGlobal, recoveryStrict
@@ -148,6 +163,31 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
     await GuildModel.updateOne({ _id: guildId }, { $set: { notificationDeadLetter: [] } });
     invalidateGuildCache(guildId);
     return `OK: ${count} intrare(i) dead-letter sterse pentru acest server.`;
+  }
+
+  async function replayDeadLetters(guildId: string): Promise<string> {
+    if (!outboxEnabled || typeof enqueueOutbox !== "function") {
+      return "Replay indisponibil: outbox-ul e dezactivat (porneste-l cu `NOTIFICATION_OUTBOX_ENABLED=true`). Replay-ul reintroduce livrarile esuate in coada outbox.";
+    }
+    const docs = await listReplayableDeadLetters(guildId).catch(() => [] as ReplayDeadLetterDoc[]);
+    if (!docs.length) {
+      return "Nicio livrare dead-letter cu payload stocat pentru replay. (Doar esecurile pe calea outbox - mai putin `delivered-marksent-failed` - pot fi reluate; cele vechi/expirate au fost curatate prin TTL.)";
+    }
+    let replayed = 0;
+    const replayedIds: unknown[] = [];
+    const dedupeKeys: string[] = [];
+    for (const doc of docs) {
+      await enqueueOutbox({ guildId, channelId: doc.channelId, kind: doc.kind, payload: doc.payload, recoveryVerify: doc.recoveryVerify });
+      replayed++;
+      replayedIds.push(doc._id);
+      if (doc.dedupeKey) dedupeKeys.push(doc.dedupeKey);
+    }
+    await deleteReplayedDeadLetters(guildId, replayedIds).catch(() => undefined);
+    if (dedupeKeys.length) {
+      await GuildModel.updateOne({ _id: guildId }, { $pull: { notificationDeadLetter: { dedupeKey: { $in: dedupeKeys } } } }).catch(() => undefined);
+      invalidateGuildCache(guildId);
+    }
+    return `OK: ${replayed} livrare(i) dead-letter reintroduse in coada outbox pentru re-trimitere.`;
   }
 
   async function retryQueued(guildId: string): Promise<string> {
@@ -228,6 +268,7 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
         if (sub === "status") return safeEdit(interaction, await renderStatus(guildId));
         if (sub === "deadletters") return safeEdit(interaction, await renderDeadLetters(guildId));
         if (sub === "clear-deadletters") return safeEdit(interaction, await clearDeadLetters(guildId));
+        if (sub === "replay-deadletters") return safeEdit(interaction, await replayDeadLetters(guildId));
         if (sub === "retry") return safeEdit(interaction, await retryQueued(guildId));
         if (sub === "pause") {
           await setOutboxPaused(true);
@@ -263,6 +304,9 @@ function installOutboxAdminHandler(target: OutboxAdminContext): void {
     NotificationOutboxModel: target.NotificationOutboxModel,
     GuildModel: target.GuildModel,
     invalidateGuildCache: target.invalidateGuildCache,
+    enqueueOutbox: target.enqueueOutbox as EnqueueOutbox | undefined,
+    listReplayableDeadLetters: target.listReplayableDeadLetters as (guildId: string) => Promise<ReplayDeadLetterDoc[]>,
+    deleteReplayedDeadLetters: target.deleteReplayedDeadLetters as (guildId: string, ids: unknown[]) => Promise<void>,
     getGuildSettings: target.getGuildSettings,
     getOutboxPaused: target.getOutboxPaused,
     setOutboxPaused: target.setOutboxPaused,

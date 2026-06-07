@@ -7,7 +7,7 @@ vizibilitate si control direct din Discord.
 Pe scurt, instrumentele de operare:
 
 - Metrici Prometheus la `/metrics` (vezi README sectiunea health/metrics).
-- Comenzi admin: `/outbox status | deadletters | clear-deadletters | retry | pause | resume | recovery-verify status`.
+- Comenzi admin: `/outbox status | deadletters | clear-deadletters | replay-deadletters | retry | pause | resume | recovery-verify status`.
 - Alerte admin (webhook): trimise automat la `recoveryFailures > 0` (`outbox:recovery-read`)
   si `markSentFailures > 0` (`outbox:mark-sent`). Fiecare alerta vine ca embed structurat cu
   **severitate** (FATAL/WARNING/INFO + culoare), **Cauza** (eroarea reala), **Ce inseamna** si
@@ -156,6 +156,7 @@ index-uri conflictuale/invalide. Inventarul declarat curent:
 | `notificationOutboxSent` | `{ sentAt }` | TTL `NOTIFICATION_OUTBOX_SENT_TTL_HOURS` (implicit 24h) | expirarea istoricului de dedup |
 | `notificationHistory` | `{ guildId, sentAt }` | TTL `NOTIFICATION_HISTORY_TTL_DAYS` (implicit 30 zile) | istoricul notificarilor trimise per server, pentru comanda `/history` |
 | `feedbackReports` | `{ guildId, createdAt }` | TTL `FEEDBACK_REPORT_TTL_DAYS` (implicit 90 zile) | rapoartele trimise de utilizatori prin comanda `/report` |
+| `notificationDeadLetterReplay` | `{ guildId, createdAt }` | TTL `NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS` (implicit 7 zile) | payload-ul livrarilor dead-letter (calea outbox) pentru `/outbox replay-deadletters` |
 | `joblocks` | `{ lockedUntil }` | — | gasirea/expirarea lock-urilor distribuite (cron/outbox) |
 | `adminalertcooldowns` | `{ lastSentAt }` | TTL 7 zile | cooldown per-alerta pentru admin alerts |
 | `fetchsnapshots` | `{ fetchedAt }` | TTL 1 zi | event store pe fetch (hidratare cache la boot) |
@@ -258,10 +259,18 @@ dead-letter (pe documentul guild-ului, plafonat). Inspecteaza cu `/outbox deadle
 Daca `bot_outbox_dead_lettered` creste, verifica permisiunile canalului si starea Discord;
 dupa remediere, livrarile noi vor reusi (intrarile dead-letter raman pentru audit).
 
-Dupa ce ai investigat (si, daca e cazul, ai reprogramat livrarile cu `/outbox retry`), poti
-goli lista de audit cu `/outbox clear-deadletters` — sterge toate intrarile `notificationDeadLetter`
-ale serverului curent (scriere atomica + invalidare cache) si raporteaza cate au fost sterse.
-Foloseste-o doar dupa ce ai terminat investigatia: intrarile sunt singura urma a livrarilor esuate.
+Dupa ce ai investigat si ai remediat cauza (ex. permisiuni de canal), poti **re-trimite**
+livrarile esuate cu `/outbox replay-deadletters`: reintroduce in coada outbox fiecare livrare
+dead-letter pentru care exista un **payload stocat** (colectia `notificationDeadLetterReplay`,
+populata doar pe calea outbox la dead-letter, cu TTL `NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS`,
+implicit 7 zile) si curata intrarile re-introduse din lista de audit. Necesita
+`NOTIFICATION_OUTBOX_ENABLED=true`. Nu se reiau livrarile cu motiv `delivered-marksent-failed`
+(au fost deja trimise — re-trimiterea ar duplica) si nici cele al caror payload a expirat prin TTL.
+
+Daca preferi sa NU re-trimiti, poti goli lista de audit cu `/outbox clear-deadletters` — sterge
+toate intrarile `notificationDeadLetter` ale serverului curent (scriere atomica + invalidare cache)
+si raporteaza cate au fost sterse. Foloseste-o doar dupa ce ai terminat investigatia: intrarile
+sunt singura urma a livrarilor esuate.
 
 Joburile au TTL de 7 zile pe `createdAt`. Ca sa nu fie sterse **tacut** de TTL daca raman
 blocate (ex. outbox dezactivat/pe pauza mult timp, worker oprit), un sweep la fiecare drenare
