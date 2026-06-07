@@ -270,12 +270,16 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     }
 
     if (maxAgeMs > 0) {
-      const cutoff = new Date(nowFn().getTime() - maxAgeMs);
-      const staleJobs = await NotificationOutboxModel.find({ createdAt: { $lte: cutoff } }).sort({ createdAt: 1 }).limit(options.limit).lean().catch(() => [] as OutboxJob[]);
+      const sweepNow = nowFn();
+      const cutoff = new Date(sweepNow.getTime() - maxAgeMs);
+      const leaseFree = { $or: [{ lockedUntil: null }, { lockedUntil: { $lte: sweepNow } }] };
+      const staleJobs = await NotificationOutboxModel.find({ createdAt: { $lte: cutoff }, ...leaseFree }).sort({ createdAt: 1 }).limit(options.limit).lean().catch(() => [] as OutboxJob[]);
       for (const job of (Array.isArray(staleJobs) ? staleJobs : [])) {
-        await options.recordDeadLetter(job, "expired-near-ttl").catch(() => undefined);
-        await NotificationOutboxModel.deleteOne({ _id: job._id }).catch(() => undefined);
-        expired++;
+        const del = await NotificationOutboxModel.deleteOne({ _id: job._id, ...leaseFree }).catch(() => ({ deletedCount: 0 }));
+        if (((del as { deletedCount?: number })?.deletedCount ?? 0) > 0) {
+          await options.recordDeadLetter(job, "expired-near-ttl").catch(() => undefined);
+          expired++;
+        }
       }
     }
     if (expired > 0) {
