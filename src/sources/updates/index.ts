@@ -5,6 +5,7 @@ import type {
   BotMetrics,
   FetchResult,
   GameConfig,
+  GameSourceFallback,
   HttpRequestOptions,
   LoggerFunction,
   NormalizedUpdate,
@@ -155,6 +156,7 @@ interface UpdatesApi {
   fetchRobloxUpdate: typeof fetchRobloxUpdate;
   fetchNvidiaUpdate: typeof fetchNvidiaUpdate;
   fetchGameUpdate: typeof fetchGameUpdate;
+  applyFallbackSource: typeof applyFallbackSource;
   executeFetchWithCircuitBreaker: typeof executeFetchWithCircuitBreaker;
   sourceConcurrencyGroup: typeof sourceConcurrencyGroup;
   getLatestForAllGames: typeof getLatestForAllGames;
@@ -534,7 +536,7 @@ async function fetchRssUpdate(game: GameConfig): Promise<NormalizedUpdate> {
   });
 }
 
-async function fetchGameUpdate(game: GameConfig): Promise<NormalizedUpdate> {
+async function fetchGameUpdateForSource(game: GameConfig): Promise<NormalizedUpdate> {
   const t = game.type;
   if (!t || t === "steam") return fetchSteamUpdate(game);
   if (t === "minecraft") return fetchMinecraftUpdate();
@@ -546,6 +548,36 @@ async function fetchGameUpdate(game: GameConfig): Promise<NormalizedUpdate> {
   if (t === "rss") return fetchRssUpdate(game);
   if (t === "listing_based" || t === "epic_games") return fetchListingBasedUpdate(game);
   throw new Error("Tip necunoscut.");
+}
+
+function applyFallbackSource(game: GameConfig, fallback: GameSourceFallback): GameConfig {
+  return {
+    ...game,
+    type: fallback.type,
+    url: fallback.url ?? game.url,
+    listingUrl: fallback.listingUrl ?? game.listingUrl,
+    listingUrls: fallback.listingUrls ?? game.listingUrls,
+    baseUrl: fallback.baseUrl ?? game.baseUrl
+  };
+}
+
+async function fetchGameUpdate(game: GameConfig): Promise<NormalizedUpdate> {
+  try {
+    return await fetchGameUpdateForSource(game);
+  } catch (primaryErr) {
+    const fallbacks = Array.isArray(game.fallbacks) ? game.fallbacks : [];
+    for (const fallback of fallbacks) {
+      if (!fallback || !fallback.type) continue;
+      try {
+        const update = await fetchGameUpdateForSource(applyFallbackSource(game, fallback));
+        deps.logger("INFO", "FALLBACK", `Sursa principala pentru ${game.key} a esuat; am folosit fallback '${fallback.type}'.`);
+        return update;
+      } catch (fallbackErr) {
+        deps.logger("WARN", "FALLBACK", `Sursa fallback '${fallback.type}' pentru ${game.key} a esuat`, errorMessage(fallbackErr));
+      }
+    }
+    throw primaryErr;
+  }
 }
 
 async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchResult> {
@@ -728,6 +760,7 @@ function createUpdates(d: UpdatesDeps): UpdatesApi {
     fetchRobloxUpdate,
     fetchNvidiaUpdate,
     fetchGameUpdate,
+    applyFallbackSource,
     executeFetchWithCircuitBreaker,
     sourceConcurrencyGroup,
     getLatestForAllGames
