@@ -30,7 +30,7 @@ function getOutboxModel(): OutboxModel {
 let connected = false;
 const ready = (async () => {
   try {
-    await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 2000 });
+    await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 2000, dbName: "discord-patch-bot-itest-mongoindex" });
     connected = true;
   } catch {
     connected = false;
