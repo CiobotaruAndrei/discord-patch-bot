@@ -182,7 +182,10 @@ function attachSlashCommands(target: SlashCommandContext): void {
             { name: "Altceva", value: "altceva" }
           ))
         .addStringOption(option => option.setName("detalii").setDescription("Detalii suplimentare (optional)").setRequired(false))
-        .addStringOption(option => option.setName("joc").setDescription("Jocul vizat (optional)").setRequired(false))
+        .addStringOption(option => option.setName("joc").setDescription("Jocul vizat (optional)").setRequired(false)),
+      new SlashCommandBuilder()
+        .setName("health")
+        .setDescription("Starea botului: Discord, MongoDB, cache, uptime")
     ].map(command => command.toJSON());
   }
 

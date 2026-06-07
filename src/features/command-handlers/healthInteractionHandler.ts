@@ -1,0 +1,167 @@
+"use strict";
+
+const { errorDetail } = require("../../shared/errors");
+
+type MaybePromise<T> = T | Promise<T>;
+type GameConfig = { key: string; name: string } & Record<string, unknown>;
+
+type DiscordInteraction = {
+  commandName?: string;
+  guild?: { id?: string } | null;
+  client?: { isReady?: () => boolean; ws?: { ping?: number } } | null;
+  deferred?: boolean;
+  replied?: boolean;
+  isChatInputCommand?: () => boolean;
+  reply: (payload: unknown) => Promise<unknown>;
+  followUp?: (payload: unknown) => Promise<unknown>;
+  options: { getString: (name: string) => string | null };
+};
+
+type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
+type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
+type CommandLogEnd = (status?: string, endExtra?: Record<string, unknown>) => void;
+
+interface CacheSizesLike { single: number; dlc: number; [key: string]: number }
+
+interface HealthSnapshot {
+  discordReady: boolean;
+  discordPing: number;
+  mongoReadyState: number;
+  cacheSizes: CacheSizesLike;
+  uptimeSeconds: number;
+}
+
+interface HealthHandlerDeps {
+  logger: Logger;
+  enforceCooldown: (interaction: DiscordInteraction, command: string) => Promise<boolean>;
+  startCommandLog: (interaction: DiscordInteraction, command: string, extra?: Record<string, unknown>) => CommandLogEnd;
+  safeDefer: (interaction: DiscordInteraction, ephemeral?: boolean) => Promise<void>;
+  safeEdit: (interaction: DiscordInteraction, payload: unknown) => Promise<unknown>;
+  getCacheSizes: () => CacheSizesLike;
+  getMongoReadyState: () => number;
+  MessageFlags: { Ephemeral: number };
+}
+
+type HealthContext = HealthHandlerDeps & { handleInteraction?: NextInteractionHandler };
+
+const MONGO_STATE_LABELS: Record<number, string> = {
+  0: "deconectat",
+  1: "conectat",
+  2: "se conecteaza",
+  3: "se deconecteaza"
+};
+
+function formatUptime(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const parts: string[] = [];
+  if (days) parts.push(`${days}z`);
+  if (hours) parts.push(`${hours}h`);
+  parts.push(`${minutes}m`);
+  return parts.join(" ");
+}
+
+function buildHealthEmbed(snapshot: HealthSnapshot): { title: string; description: string; color: number; fields: Array<{ name: string; value: string; inline: boolean }>; footer: { text: string } } {
+  const mongoOk = snapshot.mongoReadyState === 1;
+  const ok = snapshot.discordReady && mongoOk;
+  const discordLine = `Discord: ${snapshot.discordReady ? "🟢 conectat" : "🔴 neconectat"}${snapshot.discordPing >= 0 ? ` (ping ${snapshot.discordPing}ms)` : ""}`;
+  const mongoLine = `MongoDB: ${mongoOk ? "🟢" : "🔴"} ${MONGO_STATE_LABELS[snapshot.mongoReadyState] || "necunoscut"}`;
+  return {
+    title: ok ? "Stare bot: OK 🟢" : "Stare bot: degradat 🟠",
+    description: `${discordLine}\n${mongoLine}`,
+    color: ok ? 0x2ecc71 : 0xe67e22,
+    fields: [
+      { name: "Uptime", value: formatUptime(snapshot.uptimeSeconds), inline: true },
+      { name: "Cache", value: `single ${snapshot.cacheSizes.single} · dlc ${snapshot.cacheSizes.dlc}`, inline: true }
+    ],
+    footer: { text: "Metrici detaliate (surse, coada outbox, cron) la /metrics" }
+  };
+}
+
+function createHealthInteractionHandler(deps: HealthHandlerDeps) {
+  const { enforceCooldown, startCommandLog, safeDefer, safeEdit, getCacheSizes, getMongoReadyState } = deps;
+
+  async function handleHealthInteraction(interaction: DiscordInteraction): Promise<unknown> {
+    if (!(await enforceCooldown(interaction, "health"))) return undefined;
+    const endLog = startCommandLog(interaction, "health");
+    await safeDefer(interaction, true);
+    const snapshot: HealthSnapshot = {
+      discordReady: interaction.client?.isReady?.() === true,
+      discordPing: Number(interaction.client?.ws?.ping ?? -1),
+      mongoReadyState: getMongoReadyState(),
+      cacheSizes: getCacheSizes(),
+      uptimeSeconds: Math.floor(process.uptime())
+    };
+    endLog("ok");
+    return safeEdit(interaction, { embeds: [buildHealthEmbed(snapshot)] });
+  }
+
+  return { handleHealthInteraction };
+}
+
+function isHealthCommand(interaction: DiscordInteraction): boolean {
+  return interaction?.isChatInputCommand?.() === true
+    && interaction.commandName === "health";
+}
+
+function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
+  return { content: "Eroare: Eroare neasteptata la procesarea comenzii.", flags: MessageFlags.Ephemeral };
+}
+
+type HealthInstaller = ((target: HealthContext) => void) & {
+  createHealthInteractionHandler: typeof createHealthInteractionHandler;
+  buildHealthEmbed: typeof buildHealthEmbed;
+  formatUptime: typeof formatUptime;
+};
+
+const installHealthInteraction = ((target: HealthContext & { GuildModel?: { db?: { readyState?: number } } }): void => {
+  const previousHandleInteraction = target.handleInteraction;
+  const getMongoReadyState = () => {
+    try {
+      return Number(target.GuildModel?.db?.readyState ?? 0);
+    } catch {
+      return 0;
+    }
+  };
+  const handlers = createHealthInteractionHandler({
+    logger: target.logger,
+    enforceCooldown: target.enforceCooldown,
+    startCommandLog: target.startCommandLog,
+    safeDefer: target.safeDefer,
+    safeEdit: target.safeEdit,
+    getCacheSizes: target.getCacheSizes,
+    getMongoReadyState,
+    MessageFlags: target.MessageFlags
+  });
+
+  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
+    if (!isHealthCommand(interaction)) {
+      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
+      return undefined;
+    }
+    try {
+      return await handlers.handleHealthInteraction(interaction);
+    } catch (err: unknown) {
+      target.logger?.("ERROR", "HEALTH_INTERACTION", "Eroare in handler-ul /health", errorDetail(err));
+      const payload = createInteractionErrorPayload(target.MessageFlags);
+      try {
+        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") {
+          await interaction.followUp(payload);
+        } else {
+          await interaction.reply(payload);
+        }
+      } catch {  }
+      return undefined;
+    }
+  }
+
+  Object.assign(target, handlers, { handleInteraction });
+}) as HealthInstaller;
+
+installHealthInteraction.createHealthInteractionHandler = createHealthInteractionHandler;
+installHealthInteraction.buildHealthEmbed = buildHealthEmbed;
+installHealthInteraction.formatUptime = formatUptime;
+
+export = installHealthInteraction;

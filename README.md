@@ -34,6 +34,7 @@ La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun ve
 - `/status` - afiseaza starea botului pentru server.
 - `/history <tip> <numar>` - afiseaza ultimele notificari (update-uri/reduceri) trimise pe acest server, cu link si timestamp relativ; raspuns ephemeral.
 - `/report <tip> <detalii> <joc>` - raporteaza o problema (update gresit, duplicat, joc lipsa, sursa stricata); raportul e salvat si trimis administratorilor.
+- `/health` - starea botului (Discord, MongoDB, cache, uptime); raspuns ephemeral. Pentru metrici detaliate (surse, coada outbox, cron) vezi endpoint-ul de metrics.
 - `/help` - afiseaza paginile de ajutor.
 - `/set outbox-recovery-verify <on|off>` - (admin) comuta recovery-verify per-server; la `on` avertizeaza daca botului ii lipseste permisiunea Read Message History pe canalele de notificari.
 - `/outbox status | deadletters | retry | drain-now | pause | resume | permissions | recovery-verify status` - (admin) operarea outbox-ului: coada (per-server + global), dead-letter, reprogramare livrari, drenare imediata (daca lock-ul e liber), pauza/reluare drenare (global), audit de permisiuni pe canale si starea recovery-verify.
