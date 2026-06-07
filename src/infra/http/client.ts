@@ -32,6 +32,14 @@ import { createConditionalGet } from "./conditionalCache";
 type CheerioModule = typeof import("cheerio");
 type CryptoModule = typeof import("crypto");
 
+const HTTP_MAX_REDIRECTS = 5;
+
+function assertSafeRedirect(options: { href?: string; protocol?: string; hostname?: string; host?: string }): void {
+  const href = options?.href
+    || (options?.protocol && (options.host || options.hostname) ? `${options.protocol}//${options.host || options.hostname}` : "");
+  assertSafeExternalUrl(href, "HTTP redirect target");
+}
+
 interface AxiosLikeError {
   code?: string;
   name?: string;
@@ -101,7 +109,9 @@ function attachHttpClient(target: HttpClientContext): void {
   const axiosClient = axios.create({
     httpAgent,
     httpsAgent,
-    decompress: true
+    decompress: true,
+    maxRedirects: HTTP_MAX_REDIRECTS,
+    beforeRedirect: (redirectOptions: { href?: string; protocol?: string; hostname?: string; host?: string }) => assertSafeRedirect(redirectOptions)
   });
 
   const DEFAULT_PROXIES = resolveDefaultProxies(env.NODE_ENV, env.isProd, process.env.ALLOW_DEFAULT_PROXIES);
@@ -343,6 +353,7 @@ function attachHttpClient(target: HttpClientContext): void {
 }
 
 attachHttpClient.parseRetryAfter = parseRetryAfter;
+attachHttpClient.assertSafeRedirect = assertSafeRedirect;
 attachHttpClient.assertSafeExternalUrl = assertSafeExternalUrl;
 attachHttpClient.assertSafeExternalDnsTarget = assertSafeExternalDnsTarget;
 attachHttpClient.createSafeDnsLookup = createSafeDnsLookup;
