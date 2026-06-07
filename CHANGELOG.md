@@ -6,6 +6,14 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- Imbunatatiri din review (batch 3), verificate intai pe cod (Regula 14; #3 outbox batch-drain si #6 release/GHCR au fost respinse fiindca erau deja amanat-cu-date / deja implementate):
+  - **(#5 supply chain)** workflow nou `container-scan.yml`: scaneaza imaginea Docker cu **Trivy** (CRITICAL/HIGH, `ignore-unfixed`) cu rezultate in tab-ul Security (SARIF/code scanning) + genereaza **SBOM CycloneDX** ca artifact. Ruleaza la push pe `main` (cand se schimba Dockerfile/dependintele), saptamanal si manual — completeaza CodeQL + Dependency Review existente.
+  - **(#7 observability)** dashboard-ul Grafana (`monitoring/grafana-dashboard.json`) nu mai e doar outbox: 3 panouri operationale noi — Fetch surse (succes/esec + rate-limit upstream), Cron (erori + cicluri sarite pe lock/health/abort), Native (Rust) fallback per functie. Acopera fostele metrice „orfane" semnalate de `check:rules-sync`.
+  - **(#8 UX boot)** validarea variabilelor de mediu la pornire da acum un mesaj clar care listeaza fiecare variabila lipsa/invalida + motivul (in loc de dump brut de zod issues), cu pointer la `src/.env.example`; `formatEnvValidationErrors` e pur + testat.
+  - **(#4 operare outbox)** subcomanda noua `/outbox clear-deadletters` — dupa ce un admin a investigat/replay-uit livrarile esuate (`/outbox deadletters` + `/outbox retry`), poate goli explicit lista `notificationDeadLetter` a serverului (scriere atomica `$set: []` + invalidare cache guild). Pana acum dead-letter-ele ramaneau pe document la nesfarsit fara cale de curatare din Discord. Raspuns ephemeral cu numarul de intrari sterse (sau „nimic de sters"). Acoperit de teste in `outboxAdminHandler.functional.test.ts` (goleste + invalideaza cand exista intrari; no-op cand lista e goala). Documentat in `README` + `OPERATIONS.md`.
+
 ### Changed
 
 - Refactor (review P3, continuarea migrarii DI — pasul 6): bag-urile de wiring ale celor doua registre, `MongoRuntimeContext` (`mongoContext.ts`) si `SourceContext` (`sourceRegistry.ts`), au fost stranse de la `Record<string, unknown>` la `Record<MongoContextExportKey, unknown>` / `Record<SourceRegistryExportKey, unknown>`. Citirile din `buildMongoContextExports` / `buildSourceRegistry` (~75 accesari de chei) sunt acum **typo-safe la compilare** — un acces gresit de cheie e eroare `tsc` (verificat: `Property 'cleanTextTYPO' does not exist ... Did you mean 'cleanText'?`), nu `unknown` tacut prins abia la boot de `assertNoUndefinedExports`. Installerii nu sunt afectati (sunt `require`-uiti + cast la `XInstaller`, isi pastreaza tipurile de parametru). Bag-ul de wiring `CommandRegistryContext` ramane intentionat dinamic (chei arbitrare de la installeri). Acoperit de `typedWiringContext.test.ts`; documentat in `src/docs/CONTEXT_REPO_CLEAN.md`.

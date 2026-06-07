@@ -41,6 +41,8 @@ function makeDeps(opts: {
 } = {}) {
   const replies: string[] = [];
   const updateManyCalls: Array<{ filter: unknown; update: unknown }> = [];
+  const guildUpdateCalls: Array<{ filter: unknown; update: unknown }> = [];
+  const invalidatedGuilds: string[] = [];
   const pauseCalls: boolean[] = [];
   const permissionChecks: string[] = [];
   const lockCalls: Array<{ name: string; ttl: number }> = [];
@@ -54,6 +56,10 @@ function makeDeps(opts: {
         return opts.updateManyResult ?? { modifiedCount: opts.guildQueued ?? 0 };
       }
     },
+    GuildModel: {
+      updateOne: async (filter: unknown, update: unknown) => { guildUpdateCalls.push({ filter, update }); return { modifiedCount: 1 }; }
+    },
+    invalidateGuildCache: (guildId: string) => { invalidatedGuilds.push(guildId); },
     getGuildSettings: async () => ({
       outboxRecoveryVerify: opts.perGuildVerify ?? false,
       notificationDeadLetter: opts.deadLetters ?? [],
@@ -83,7 +89,7 @@ function makeDeps(opts: {
     recoveryVerifyGlobal: opts.recoveryVerifyGlobal ?? false,
     recoveryStrict: opts.recoveryStrict ?? false
   };
-  return { deps, replies, updateManyCalls, pauseCalls, permissionChecks, lockCalls, releaseCalls, getDrainCalls: () => drainCalls };
+  return { deps, replies, updateManyCalls, guildUpdateCalls, invalidatedGuilds, pauseCalls, permissionChecks, lockCalls, releaseCalls, getDrainCalls: () => drainCalls };
 }
 
 test("/outbox status afiseaza coada, dead-letter si starea recovery-verify", async () => {
@@ -255,4 +261,23 @@ test("isDirectOutboxCommand recunoaste doar /outbox in guild", () => {
   assert.equal(installOutboxAdmin.isDirectOutboxCommand({ commandName: "outbox", isChatInputCommand: () => true, guild: { id: "g" } }), true);
   assert.equal(installOutboxAdmin.isDirectOutboxCommand({ commandName: "set", isChatInputCommand: () => true, guild: { id: "g" } }), false);
   assert.equal(installOutboxAdmin.isDirectOutboxCommand({ commandName: "outbox", isChatInputCommand: () => true, guild: null }), false);
+});
+
+test("/outbox clear-deadletters goleste lista cand exista intrari + invalideaza cache-ul", async () => {
+  const { deps, replies, guildUpdateCalls, invalidatedGuilds } = makeDeps({ deadLetters: [{ kind: "update" }, { kind: "discount" }] });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "clear-deadletters"));
+  assert.match(replies[0], /2 intrare/);
+  assert.equal(guildUpdateCalls.length, 1, "a scris un updateOne pe guild");
+  const update = guildUpdateCalls[0].update as { $set: { notificationDeadLetter: unknown[] } };
+  assert.deepEqual(update.$set.notificationDeadLetter, [], "lista de dead-letter e golita");
+  assert.equal(invalidatedGuilds.length, 1, "cache-ul guild-ului e invalidat");
+});
+
+test("/outbox clear-deadletters cand lista e goala nu scrie nimic", async () => {
+  const { deps, replies, guildUpdateCalls } = makeDeps({ deadLetters: [] });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "clear-deadletters"));
+  assert.match(replies[0], /Nicio livrare in dead-letter de sters/);
+  assert.equal(guildUpdateCalls.length, 0, "nu se scrie cand nu e nimic de sters");
 });

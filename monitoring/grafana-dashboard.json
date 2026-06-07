@@ -1,10 +1,10 @@
 {
-  "title": "Discord Patch Bot - Outbox",
+  "title": "Discord Patch Bot - Operare",
   "uid": "discord-patch-bot-outbox",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": true,
-  "tags": ["discord-patch-bot", "outbox"],
+  "tags": ["discord-patch-bot", "outbox", "sources", "native"],
   "time": { "from": "now-6h", "to": "now" },
   "refresh": "30s",
   "templating": {
@@ -94,6 +94,41 @@
       "gridPos": { "h": 8, "w": 4, "x": 20, "y": 16 },
       "targets": [
         { "refId": "A", "expr": "bot_outbox_recovery_verify_enabled_guilds", "legendFormat": "enabled" }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Fetch surse: succes vs esec (per 15m)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 24 },
+      "targets": [
+        { "refId": "A", "expr": "increase(bot_fetch_success[15m])", "legendFormat": "fetch success" },
+        { "refId": "B", "expr": "increase(bot_fetch_fail[15m])", "legendFormat": "fetch fail" },
+        { "refId": "C", "expr": "increase(bot_rate_limit_hits[15m])", "legendFormat": "upstream rate-limit hits" }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Cron: erori si cicluri sarite (per 15m)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 24 },
+      "targets": [
+        { "refId": "A", "expr": "increase(bot_cron_errors[15m])", "legendFormat": "cron errors" },
+        { "refId": "B", "expr": "increase(bot_cron_skipped_due_to_lock[15m])", "legendFormat": "skipped (lock)" },
+        { "refId": "C", "expr": "increase(bot_cron_skipped_due_to_health[15m])", "legendFormat": "skipped (health backoff)" },
+        { "refId": "D", "expr": "increase(bot_cron_aborted[15m])", "legendFormat": "aborted" }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Native (Rust) fallback la TypeScript (per 30m)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 24 },
+      "targets": [
+        { "refId": "A", "expr": "increase(bot_native_fallback_total[30m])", "legendFormat": "{{fn}}" }
       ]
     }
   ]

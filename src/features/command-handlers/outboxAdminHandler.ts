@@ -61,6 +61,8 @@ type Logger = (level: string, context: string, msg: string, meta?: unknown) => v
 
 type OutboxAdminDeps = {
   NotificationOutboxModel: OutboxModelLike;
+  GuildModel: { updateOne(filter: unknown, update: unknown): Promise<{ modifiedCount?: number; matchedCount?: number }> };
+  invalidateGuildCache: (guildId: string) => void;
   getGuildSettings: (guildId: string) => Promise<GuildSettingsLike | null>;
   getOutboxPaused: () => Promise<boolean>;
   setOutboxPaused: (paused: boolean) => Promise<void>;
@@ -102,7 +104,7 @@ function formatDeadLetterEntry(entry: DeadLetterEntryLike): string {
 
 function createOutboxAdminHandler(deps: OutboxAdminDeps) {
   const {
-    NotificationOutboxModel, getGuildSettings, getOutboxPaused, setOutboxPaused, checkChannelPermissions,
+    NotificationOutboxModel, GuildModel, invalidateGuildCache, getGuildSettings, getOutboxPaused, setOutboxPaused, checkChannelPermissions,
     acquireDbLock, releaseDbLock, drainOutbox,
     safeDefer, safeEdit, formatUserError, logger,
     outboxEnabled, recoveryVerifyGlobal, recoveryStrict
@@ -137,6 +139,15 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
     const recent = list.slice(-previewLimit).reverse();
     const header = `**Dead-letter (ultimele ${recent.length} din ${list.length})**`;
     return [header, ...recent.map(formatDeadLetterEntry)].join("\n");
+  }
+
+  async function clearDeadLetters(guildId: string): Promise<string> {
+    const settings = await getGuildSettings(guildId).catch(() => null);
+    const count = Array.isArray(settings?.notificationDeadLetter) ? settings!.notificationDeadLetter!.length : 0;
+    if (count === 0) return "Nicio livrare in dead-letter de sters pentru acest server.";
+    await GuildModel.updateOne({ _id: guildId }, { $set: { notificationDeadLetter: [] } });
+    invalidateGuildCache(guildId);
+    return `OK: ${count} intrare(i) dead-letter sterse pentru acest server.`;
   }
 
   async function retryQueued(guildId: string): Promise<string> {
@@ -216,6 +227,7 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
       if (!group) {
         if (sub === "status") return safeEdit(interaction, await renderStatus(guildId));
         if (sub === "deadletters") return safeEdit(interaction, await renderDeadLetters(guildId));
+        if (sub === "clear-deadletters") return safeEdit(interaction, await clearDeadLetters(guildId));
         if (sub === "retry") return safeEdit(interaction, await retryQueued(guildId));
         if (sub === "pause") {
           await setOutboxPaused(true);
@@ -249,6 +261,8 @@ function installOutboxAdminHandler(target: OutboxAdminContext): void {
   const previousHandleInteraction = target.handleInteraction;
   const handlers = createOutboxAdminHandler({
     NotificationOutboxModel: target.NotificationOutboxModel,
+    GuildModel: target.GuildModel,
+    invalidateGuildCache: target.invalidateGuildCache,
     getGuildSettings: target.getGuildSettings,
     getOutboxPaused: target.getOutboxPaused,
     setOutboxPaused: target.setOutboxPaused,

@@ -26,6 +26,22 @@ function errorDetail(err: unknown): unknown {
   return maybe.issues || maybe.message || String(err);
 }
 
+interface EnvProblem {
+  variable: string;
+  problem: string;
+}
+
+function formatEnvValidationErrors(err: unknown): EnvProblem[] {
+  const issues = (err as { issues?: Array<{ path?: unknown[]; message?: string }> })?.issues;
+  if (!Array.isArray(issues) || issues.length === 0) {
+    return [{ variable: "(general)", problem: (err as { message?: string })?.message || String(err) }];
+  }
+  return issues.map(issue => ({
+    variable: Array.isArray(issue.path) && issue.path.length ? String(issue.path[0]) : "(general)",
+    problem: issue.message || "valoare invalida"
+  }));
+}
+
 function attachEnv(target: EnvContext): void {
   const { z, logger, parseEnvNumber, RAW_LOG_LEVEL } = target;
 
@@ -88,7 +104,9 @@ function attachEnv(target: EnvContext): void {
       TRUSTED_PROXY_COUNT: process.env.TRUSTED_PROXY_COUNT
     });
   } catch (err) {
-    logger("ERROR", "ENV", "Validare variabile de mediu esuata", errorDetail(err));
+    const problems = formatEnvValidationErrors(err);
+    const summary = problems.map(p => `${p.variable} (${p.problem})`).join("; ");
+    logger("ERROR", "ENV", `Pornire blocata: ${problems.length} variabila(e) de mediu lipsa sau invalida(e) — ${summary}. Completeaza-le (vezi src/.env.example) si reporneste.`, problems);
     process.exit(1);
   }
 
@@ -203,5 +221,7 @@ function attachEnv(target: EnvContext): void {
     THIRTY_DAYS_MS
   });
 }
+
+attachEnv.formatEnvValidationErrors = formatEnvValidationErrors;
 
 export = attachEnv;

@@ -7,7 +7,7 @@ vizibilitate si control direct din Discord.
 Pe scurt, instrumentele de operare:
 
 - Metrici Prometheus la `/metrics` (vezi README sectiunea health/metrics).
-- Comenzi admin: `/outbox status | deadletters | retry | pause | resume | recovery-verify status`.
+- Comenzi admin: `/outbox status | deadletters | clear-deadletters | retry | pause | resume | recovery-verify status`.
 - Alerte admin (webhook): trimise automat la `recoveryFailures > 0` (`outbox:recovery-read`)
   si `markSentFailures > 0` (`outbox:mark-sent`). Fiecare alerta vine ca embed structurat cu
   **severitate** (FATAL/WARNING/INFO + culoare), **Cauza** (eroarea reala), **Ce inseamna** si
@@ -257,6 +257,11 @@ Cand o livrare epuizeaza reincercarile sau primeste o eroare permanenta, intra i
 dead-letter (pe documentul guild-ului, plafonat). Inspecteaza cu `/outbox deadletters`.
 Daca `bot_outbox_dead_lettered` creste, verifica permisiunile canalului si starea Discord;
 dupa remediere, livrarile noi vor reusi (intrarile dead-letter raman pentru audit).
+
+Dupa ce ai investigat (si, daca e cazul, ai reprogramat livrarile cu `/outbox retry`), poti
+goli lista de audit cu `/outbox clear-deadletters` — sterge toate intrarile `notificationDeadLetter`
+ale serverului curent (scriere atomica + invalidare cache) si raporteaza cate au fost sterse.
+Foloseste-o doar dupa ce ai terminat investigatia: intrarile sunt singura urma a livrarilor esuate.
 
 Joburile au TTL de 7 zile pe `createdAt`. Ca sa nu fie sterse **tacut** de TTL daca raman
 blocate (ex. outbox dezactivat/pe pauza mult timp, worker oprit), un sweep la fiecare drenare
