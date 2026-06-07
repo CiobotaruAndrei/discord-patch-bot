@@ -2,7 +2,6 @@
 
 import { assertNoUndefinedExports } from "../shared/assertCompleteExports";
 
-type SourceContext = Record<string, unknown>;
 type SourceInstaller = (target: SourceContext) => void;
 
 type SourceRegistryExportKey =
@@ -13,6 +12,8 @@ type SourceRegistryExportKey =
   | "fetchSteamReviewData" | "enrichDealData" | "fetchDeals" | "searchSteamGameByName"
   | "chooseBestSteamMatch" | "fetchSteamPriceDetails" | "extractOfferEndFromHtml"
   | "extractSteamOfferEndDate" | "cleanEnrichedCache" | "getEnrichedCacheSize" | "formatPrice";
+
+type SourceContext = Record<SourceRegistryExportKey, unknown>;
 
 const runtimeContext = require("./runtime") as SourceContext;
 const defaultInstallers: SourceInstaller[] = [

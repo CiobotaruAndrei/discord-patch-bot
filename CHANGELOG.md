@@ -6,6 +6,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- Refactor (review P3, continuarea migrarii DI — pasul 6): bag-urile de wiring ale celor doua registre, `MongoRuntimeContext` (`mongoContext.ts`) si `SourceContext` (`sourceRegistry.ts`), au fost stranse de la `Record<string, unknown>` la `Record<MongoContextExportKey, unknown>` / `Record<SourceRegistryExportKey, unknown>`. Citirile din `buildMongoContextExports` / `buildSourceRegistry` (~75 accesari de chei) sunt acum **typo-safe la compilare** — un acces gresit de cheie e eroare `tsc` (verificat: `Property 'cleanTextTYPO' does not exist ... Did you mean 'cleanText'?`), nu `unknown` tacut prins abia la boot de `assertNoUndefinedExports`. Installerii nu sunt afectati (sunt `require`-uiti + cast la `XInstaller`, isi pastreaza tipurile de parametru). Bag-ul de wiring `CommandRegistryContext` ramane intentionat dinamic (chei arbitrare de la installeri). Acoperit de `typedWiringContext.test.ts`; documentat in `src/docs/CONTEXT_REPO_CLEAN.md`.
+
 ### Fixed
 
 - Fix-uri din review (P1/P2), verificate intai pe cod (Regula 14):
