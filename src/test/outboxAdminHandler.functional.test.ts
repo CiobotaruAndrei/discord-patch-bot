@@ -39,6 +39,7 @@ function makeDeps(opts: {
   lockToken?: string | null;
   drainResult?: { sent?: number; retried?: number; deadLettered?: number; queued?: number };
   replayDocs?: Array<{ _id: unknown; kind: "update" | "discount"; channelId: string; payload: unknown; dedupeKey: string; recoveryVerify: boolean }>;
+  enqueueFailAt?: number;
 } = {}) {
   const replies: string[] = [];
   const updateManyCalls: Array<{ filter: unknown; update: unknown }> = [];
@@ -63,7 +64,10 @@ function makeDeps(opts: {
       updateOne: async (filter: unknown, update: unknown) => { guildUpdateCalls.push({ filter, update }); return { modifiedCount: 1 }; }
     },
     invalidateGuildCache: (guildId: string) => { invalidatedGuilds.push(guildId); },
-    enqueueOutbox: async (job: Record<string, unknown>) => { enqueueCalls.push(job); },
+    enqueueOutbox: async (job: Record<string, unknown>) => {
+      if (opts.enqueueFailAt !== undefined && enqueueCalls.length === opts.enqueueFailAt) throw new Error("enqueue boom");
+      enqueueCalls.push(job);
+    },
     listReplayableDeadLetters: async () => opts.replayDocs ?? [],
     deleteReplayedDeadLetters: async (guildId: string, ids: unknown[]) => { replayDeleteCalls.push({ guildId, ids }); },
     getGuildSettings: async () => ({
@@ -323,4 +327,26 @@ test("/outbox replay-deadletters cand nu exista payload-uri stocate", async () =
   await handler.handleOutboxInteraction(makeInteraction(null, "replay-deadletters"));
   assert.match(replies[0], /Nicio livrare dead-letter cu payload stocat/);
   assert.equal(enqueueCalls.length, 0);
+});
+
+test("/outbox replay-deadletters: enqueue pica la al doilea -> primul e curatat, restul raman (fara duplicate)", async () => {
+  const { deps, replies, enqueueCalls, replayDeleteCalls, guildUpdateCalls, invalidatedGuilds } = makeDeps({
+    outboxEnabled: true,
+    enqueueFailAt: 1,
+    replayDocs: [
+      { _id: "r1", kind: "update", channelId: "c1", payload: { embeds: [{ title: "A" }] }, dedupeKey: "dk1", recoveryVerify: false },
+      { _id: "r2", kind: "discount", channelId: "c2", payload: { content: "B" }, dedupeKey: "dk2", recoveryVerify: false },
+      { _id: "r3", kind: "update", channelId: "c3", payload: { content: "C" }, dedupeKey: "dk3", recoveryVerify: false }
+    ]
+  });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "replay-deadletters"));
+  assert.match(replies[0], /Replay partial/);
+  assert.match(replies[0], /1 livrare/);
+  assert.equal(enqueueCalls.length, 1, "doar primul a fost enqueue-at cu succes");
+  assert.equal(replayDeleteCalls.length, 1, "cleanup ruleaza pentru cele reusite");
+  assert.deepEqual(replayDeleteCalls[0].ids, ["r1"], "sterge doar payload-ul reusit (r1), nu r2/r3");
+  const pull = guildUpdateCalls[0].update as { $pull: { notificationDeadLetter: { dedupeKey: { $in: string[] } } } };
+  assert.deepEqual(pull.$pull.notificationDeadLetter.dedupeKey.$in, ["dk1"], "curata din audit doar dk1");
+  assert.equal(invalidatedGuilds.length, 1);
 });
