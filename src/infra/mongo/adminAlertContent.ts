@@ -81,6 +81,11 @@ const FAMILY_GUIDANCE: Record<string, AdminAlertGuidance> = {
     severity: "warning",
     meaning: "Eveniment de proces neasteptat (semnal sau exceptie/respingere neprinsa).",
     action: "Verifica log-urile; la uncaughtException/unhandledRejection investigheaza stack-ul. La SIGTERM/SIGINT e o oprire controlata (deploy/restart), nu necesita actiune."
+  },
+  feedback: {
+    severity: "info",
+    meaning: "Un utilizator a trimis un raport prin comanda /report.",
+    action: "Citeste raportul; daca semnaleaza sursa stricata / joc lipsa / duplicat, investigheaza sursa sau filtrul respectiv. Istoricul rapoartelor are TTL ~90 zile."
   }
 };
 
