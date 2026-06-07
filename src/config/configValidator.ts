@@ -17,7 +17,8 @@ const ALLOWED_GAME_TYPES = new Set<string>([
   "listing_based",
   "nvidia",
   "amd",
-  "intel"
+  "intel",
+  "rss"
 ]);
 
 const ALLOWED_CHECK_INTERVAL_MINUTES = new Set<number>([10, 15, 30, 60]);
@@ -161,6 +162,14 @@ const ConfigSchema = z.object({
         code: z.ZodIssueCode.custom,
         path: [...path, "url"],
         message: "Sursele Intel trebuie sa aiba url"
+      });
+    }
+
+    if (type === "rss" && !game.url) {
+      refinement.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, "url"],
+        message: "Sursele rss trebuie sa aiba url (URL-ul feed-ului RSS/Atom)"
       });
     }
 
