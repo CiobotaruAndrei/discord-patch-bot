@@ -134,6 +134,58 @@ test("createUpdates.fetchGameUpdate tip 'rss' arunca pe feed gol sau lipsa url",
   await assert.rejects(() => fetchGameUpdate({ key: "g2", name: "G2", type: "rss" }), /nu are 'url'/);
 });
 
+type FallbackGame = RssGame & { fallbacks?: Array<{ type: string; url?: string }> };
+
+test("createUpdates.applyFallbackSource suprascrie sursa pastrand identitatea jocului", () => {
+  const { deps } = makeDeps();
+  const api = attachUpdates.createUpdates(deps);
+  const applyFallbackSource = api.applyFallbackSource as (game: FallbackGame, fb: { type: string; url?: string }) => FallbackGame;
+  const merged = applyFallbackSource({ key: "wow", name: "WoW", type: "steam", url: "https://primary" }, { type: "rss", url: "https://fb" });
+  assert.equal(merged.key, "wow");
+  assert.equal(merged.name, "WoW");
+  assert.equal(merged.type, "rss");
+  assert.equal(merged.url, "https://fb");
+});
+
+test("createUpdates.fetchGameUpdate cade pe fallback cand sursa principala esueaza", async () => {
+  let call = 0;
+  const { deps } = makeDeps({
+    conditionalGet: async <T>(url: string, parse: (raw: unknown) => T | Promise<T>) => parse("<rss/>"),
+    rssParser: { parseString: async () => { call++; return call === 1 ? { items: [] } : { items: [{ title: "Fallback Patch", link: "https://fb", guid: "fb-1" }] }; } }
+  });
+  const api = attachUpdates.createUpdates(deps);
+  const fetchGameUpdate = api.fetchGameUpdate as (game: FallbackGame) => Promise<NormalizedUpdateShape>;
+  const update = await fetchGameUpdate({ key: "g", name: "G", type: "rss", url: "https://primary", fallbacks: [{ type: "rss", url: "https://fallback" }] });
+  assert.equal(update.id, "fb-1");
+  assert.equal(call, 2, "a incercat principala apoi fallback-ul");
+});
+
+test("createUpdates.fetchGameUpdate nu apeleaza fallback cand principala reuseste", async () => {
+  let call = 0;
+  const { deps } = makeDeps({
+    conditionalGet: async <T>(url: string, parse: (raw: unknown) => T | Promise<T>) => parse("<rss/>"),
+    rssParser: { parseString: async () => { call++; return { items: [{ title: "Primary", link: "https://p", guid: "p-1" }] }; } }
+  });
+  const api = attachUpdates.createUpdates(deps);
+  const fetchGameUpdate = api.fetchGameUpdate as (game: FallbackGame) => Promise<NormalizedUpdateShape>;
+  const update = await fetchGameUpdate({ key: "g", name: "G", type: "rss", url: "https://p", fallbacks: [{ type: "rss", url: "https://fb" }] });
+  assert.equal(update.id, "p-1");
+  assert.equal(call, 1, "fallback-ul nu trebuie incercat daca principala reuseste");
+});
+
+test("createUpdates.fetchGameUpdate arunca eroarea sursei principale daca toate fallback-urile esueaza", async () => {
+  const { deps } = makeDeps({
+    conditionalGet: async <T>(url: string, parse: (raw: unknown) => T | Promise<T>) => parse("<rss/>"),
+    rssParser: { parseString: async () => ({ items: [] }) }
+  });
+  const api = attachUpdates.createUpdates(deps);
+  const fetchGameUpdate = api.fetchGameUpdate as (game: FallbackGame) => Promise<NormalizedUpdateShape>;
+  await assert.rejects(
+    () => fetchGameUpdate({ key: "g", name: "G", type: "rss", url: "https://p", fallbacks: [{ type: "rss", url: "https://fb" }] }),
+    /Feed RSS gol/
+  );
+});
+
 test("createUpdates.fetchMinecraftUpdate foloseste deps.conditionalGet si deps.normalizeUpdate", async () => {
   const { deps, conditionalUrls } = makeDeps({
     conditionalGet: async <T>(url: string, parse: (raw: unknown) => T | Promise<T>) => {
