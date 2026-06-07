@@ -17,10 +17,19 @@ const ALLOWED_GAME_TYPES = new Set<string>([
   "listing_based",
   "nvidia",
   "amd",
-  "intel"
+  "intel",
+  "rss"
 ]);
 
 const ALLOWED_CHECK_INTERVAL_MINUTES = new Set<number>([10, 15, 30, 60]);
+
+const FallbackSchema = z.object({
+  type: z.string(),
+  url: z.string().url().optional(),
+  listingUrl: z.string().url().optional(),
+  listingUrls: z.array(z.string().url()).optional(),
+  baseUrl: z.string().url().optional()
+}).strict();
 
 const GameSchema = z.object({
   key: z.string().min(1),
@@ -35,7 +44,8 @@ const GameSchema = z.object({
   thumbnail: z.string().url().optional(),
   url: z.string().url().optional(),
   aliases: z.array(z.string().min(1)).optional(),
-  upCRD: z.number().int().min(0).max(1).optional()
+  upCRD: z.number().int().min(0).max(1).optional(),
+  fallbacks: z.array(FallbackSchema).optional()
 }).strict();
 
 const ConfigSchema = z.object({
@@ -163,6 +173,40 @@ const ConfigSchema = z.object({
         message: "Sursele Intel trebuie sa aiba url"
       });
     }
+
+    if (type === "rss" && !game.url) {
+      refinement.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, "url"],
+        message: "Sursele rss trebuie sa aiba url (URL-ul feed-ului RSS/Atom)"
+      });
+    }
+
+    const fallbacks = Array.isArray(game.fallbacks) ? game.fallbacks : [];
+    fallbacks.forEach((fallback, fbIndex) => {
+      const fbPath = [...path, "fallbacks", fbIndex];
+      if (!ALLOWED_GAME_TYPES.has(fallback.type)) {
+        refinement.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [...fbPath, "type"],
+          message: `Tip fallback necunoscut: ${fallback.type}`
+        });
+      }
+      if ((fallback.type === "rss" || fallback.type === "intel") && !fallback.url && !game.url) {
+        refinement.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [...fbPath, "url"],
+          message: `Fallback-ul de tip ${fallback.type} trebuie sa aiba url`
+        });
+      }
+      if ((fallback.type === "listing_based" || fallback.type === "epic_games") && !fallback.listingUrl && !fallback.listingUrls && !game.listingUrl && !game.listingUrls) {
+        refinement.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [...fbPath, "listingUrl"],
+          message: `Fallback-ul de tip ${fallback.type} trebuie sa aiba listingUrl sau listingUrls`
+        });
+      }
+    });
 
     if (type === "epic_games" && game.key !== "fortnite") {
       const hasListing = Boolean(game.listingUrl)

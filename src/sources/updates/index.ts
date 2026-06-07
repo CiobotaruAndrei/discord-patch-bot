@@ -5,6 +5,7 @@ import type {
   BotMetrics,
   FetchResult,
   GameConfig,
+  GameSourceFallback,
   HttpRequestOptions,
   LoggerFunction,
   NormalizedUpdate,
@@ -66,6 +67,8 @@ interface RssItem {
   title?: string;
   link?: string;
   pubDate?: string;
+  guid?: string;
+  contentSnippet?: string;
   contents?: unknown;
   tags?: unknown;
 }
@@ -153,6 +156,7 @@ interface UpdatesApi {
   fetchRobloxUpdate: typeof fetchRobloxUpdate;
   fetchNvidiaUpdate: typeof fetchNvidiaUpdate;
   fetchGameUpdate: typeof fetchGameUpdate;
+  applyFallbackSource: typeof applyFallbackSource;
   executeFetchWithCircuitBreaker: typeof executeFetchWithCircuitBreaker;
   sourceConcurrencyGroup: typeof sourceConcurrencyGroup;
   getLatestForAllGames: typeof getLatestForAllGames;
@@ -200,6 +204,7 @@ function sourceConcurrencyGroup(game: GameConfig): string {
   if (!type || type === "steam") return "steam";
   if (type === "epic_games") return "epic";
   if (type === "listing_based") return "listing";
+  if (type === "rss") return "rss";
   if (type === "nvidia" || type === "amd" || type === "intel") return "driver";
   return "other";
 }
@@ -507,7 +512,31 @@ async function fetchNvidiaUpdate(g: GameConfig): Promise<NormalizedUpdate> {
   });
 }
 
-async function fetchGameUpdate(game: GameConfig): Promise<NormalizedUpdate> {
+async function fetchRssUpdate(game: GameConfig): Promise<NormalizedUpdate> {
+  const { conditionalGet, rssParser, normalizeUpdate, cleanText, stableUpdateId } = deps;
+  const feedUrl = String(game.url || "");
+  if (!feedUrl) throw new Error(`Sursa rss pentru ${game.key} nu are 'url' (feed).`);
+  return conditionalGet(feedUrl, async (raw) => {
+    const feed = await rssParser.parseString(String(raw || ""));
+    const item = feed.items && feed.items[0];
+    if (!item) throw new Error(`Feed RSS gol pentru ${game.key}.`);
+    const title = cleanText(item.title || "");
+    if (!title) throw new Error(`Primul item RSS pentru ${game.key} nu are titlu.`);
+    const link = item.link || feedUrl;
+    const id = item.guid ? String(item.guid) : stableUpdateId(title, String(link));
+    const excerpt = cleanText(String(item.contentSnippet || "")).slice(0, 300) || "Update RSS detectat.";
+    return normalizeUpdate({
+      id,
+      title,
+      link,
+      excerpt,
+      thumbnail: game.thumbnail,
+      timestamp: item.pubDate
+    });
+  });
+}
+
+async function fetchGameUpdateForSource(game: GameConfig): Promise<NormalizedUpdate> {
   const t = game.type;
   if (!t || t === "steam") return fetchSteamUpdate(game);
   if (t === "minecraft") return fetchMinecraftUpdate();
@@ -516,8 +545,39 @@ async function fetchGameUpdate(game: GameConfig): Promise<NormalizedUpdate> {
   if (t === "nvidia") return fetchNvidiaUpdate(game);
   if (t === "intel") return fetchIntelUpdate(game);
   if (t === "amd") return fetchAmdUpdate(game);
+  if (t === "rss") return fetchRssUpdate(game);
   if (t === "listing_based" || t === "epic_games") return fetchListingBasedUpdate(game);
   throw new Error("Tip necunoscut.");
+}
+
+function applyFallbackSource(game: GameConfig, fallback: GameSourceFallback): GameConfig {
+  return {
+    ...game,
+    type: fallback.type,
+    url: fallback.url ?? game.url,
+    listingUrl: fallback.listingUrl ?? game.listingUrl,
+    listingUrls: fallback.listingUrls ?? game.listingUrls,
+    baseUrl: fallback.baseUrl ?? game.baseUrl
+  };
+}
+
+async function fetchGameUpdate(game: GameConfig): Promise<NormalizedUpdate> {
+  try {
+    return await fetchGameUpdateForSource(game);
+  } catch (primaryErr) {
+    const fallbacks = Array.isArray(game.fallbacks) ? game.fallbacks : [];
+    for (const fallback of fallbacks) {
+      if (!fallback || !fallback.type) continue;
+      try {
+        const update = await fetchGameUpdateForSource(applyFallbackSource(game, fallback));
+        deps.logger("INFO", "FALLBACK", `Sursa principala pentru ${game.key} a esuat; am folosit fallback '${fallback.type}'.`);
+        return update;
+      } catch (fallbackErr) {
+        deps.logger("WARN", "FALLBACK", `Sursa fallback '${fallback.type}' pentru ${game.key} a esuat`, errorMessage(fallbackErr));
+      }
+    }
+    throw primaryErr;
+  }
 }
 
 async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchResult> {
@@ -700,6 +760,7 @@ function createUpdates(d: UpdatesDeps): UpdatesApi {
     fetchRobloxUpdate,
     fetchNvidiaUpdate,
     fetchGameUpdate,
+    applyFallbackSource,
     executeFetchWithCircuitBreaker,
     sourceConcurrencyGroup,
     getLatestForAllGames

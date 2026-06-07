@@ -72,6 +72,7 @@ const defaultInstallers: CommandModuleInstaller[] = [
   require("../command-handlers/statusInteractionHandler") as CommandModuleInstaller,
   require("../command-handlers/historyInteractionHandler") as CommandModuleInstaller,
   require("../command-handlers/reportInteractionHandler") as CommandModuleInstaller,
+  require("../command-handlers/healthInteractionHandler") as CommandModuleInstaller,
   require("../command-handlers/dlcInteractionHandler") as CommandModuleInstaller,
   require("../command-handlers/autocompleteInteractionHandler") as CommandModuleInstaller,
   require("../command-security/adminCommandRouterGuard") as CommandModuleInstaller

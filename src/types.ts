@@ -8,7 +8,8 @@ export type GameType =
   | "listing_based"
   | "nvidia"
   | "amd"
-  | "intel";
+  | "intel"
+  | "rss";
 
 export type CurrencyCode = "USD" | "EUR" | "GBP" | "RON";
 export type NotificationMode = "compact" | "detailed";
@@ -108,6 +109,14 @@ export interface RuntimeEnv {
   [key: string]: string | number | boolean | undefined;
 }
 
+export interface GameSourceFallback {
+  type: GameType;
+  url?: string;
+  listingUrl?: string;
+  listingUrls?: string[];
+  baseUrl?: string;
+}
+
 export interface GameConfig {
   key: string;
   name: string;
@@ -122,6 +131,7 @@ export interface GameConfig {
   url?: string;
   aliases?: string[];
   upCRD?: 0 | 1;
+  fallbacks?: GameSourceFallback[];
   [key: string]: unknown;
 }
 
