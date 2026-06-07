@@ -23,6 +23,10 @@ FROM node:20-bookworm-slim AS runtime
 WORKDIR /app/src
 ENV NODE_ENV=production
 
+RUN apt-get update \
+  && apt-get upgrade -y \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY src/package.json src/package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
@@ -32,8 +36,9 @@ COPY --from=build /app/src/native/index.js ./native/
 COPY --from=build /app/src/native/index.d.ts ./native/
 COPY --from=build /app/src/config.json ./config.json
 
-RUN chown -R node:node /app
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+  && chown -R node:node /app
 USER node
 
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["node", "dist/app/main.js"]
