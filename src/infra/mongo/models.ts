@@ -185,6 +185,18 @@ const notificationHistorySchema = new mongoose.Schema({
 notificationHistorySchema.index({ guildId: 1, sentAt: -1 }, { background: true });
 const NotificationHistoryModel = mongoose.model("NotificationHistory", notificationHistorySchema, "notificationHistory");
 
+const FEEDBACK_REPORT_TTL_DAYS = Math.min(365, Math.max(7, Number(process.env.FEEDBACK_REPORT_TTL_DAYS) || 90));
+const feedbackReportSchema = new mongoose.Schema({
+  guildId: { type: String, required: true },
+  userId: { type: String, default: "" },
+  type: { type: String, required: true },
+  gameKey: { type: String, default: "" },
+  detail: { type: String, default: "" },
+  createdAt: { type: Date, default: Date.now, expires: FEEDBACK_REPORT_TTL_DAYS * ONE_DAY_MS / 1000 }
+}, { minimize: false });
+feedbackReportSchema.index({ guildId: 1, createdAt: -1 }, { background: true });
+const FeedbackReportModel = mongoose.model("FeedbackReport", feedbackReportSchema, "feedbackReports");
+
   Object.assign(target, {
     GuildModel,
     CircuitBreakerModel,
@@ -196,7 +208,8 @@ const NotificationHistoryModel = mongoose.model("NotificationHistory", notificat
     GuildSeenUpdateModel,
     NotificationOutboxModel,
     NotificationOutboxSentModel,
-    NotificationHistoryModel
+    NotificationHistoryModel,
+    FeedbackReportModel
   });
 }
 

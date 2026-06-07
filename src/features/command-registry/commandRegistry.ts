@@ -58,6 +58,7 @@ const defaultInstallers: CommandModuleInstaller[] = [
   require("../../domain/deals/filters") as CommandModuleInstaller,
   require("../command-presentation/commandPresentation") as CommandModuleInstaller,
   require("../notifications") as CommandModuleInstaller,
+  require("../feedback/feedbackRepository") as CommandModuleInstaller,
   require("../command-definitions/slashCommandDefinitions") as CommandModuleInstaller,
   require("../command-handlers/fallbackInteractionHandler") as CommandModuleInstaller,
   require("../command-handlers/simpleCommandsHandler") as CommandModuleInstaller,
@@ -70,6 +71,7 @@ const defaultInstallers: CommandModuleInstaller[] = [
   require("../command-handlers/latestInteractionHandler") as CommandModuleInstaller,
   require("../command-handlers/statusInteractionHandler") as CommandModuleInstaller,
   require("../command-handlers/historyInteractionHandler") as CommandModuleInstaller,
+  require("../command-handlers/reportInteractionHandler") as CommandModuleInstaller,
   require("../command-handlers/dlcInteractionHandler") as CommandModuleInstaller,
   require("../command-handlers/autocompleteInteractionHandler") as CommandModuleInstaller,
   require("../command-security/adminCommandRouterGuard") as CommandModuleInstaller

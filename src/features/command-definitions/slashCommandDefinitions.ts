@@ -169,7 +169,20 @@ function attachSlashCommands(target: SlashCommandContext): void {
         .setDescription("Istoricul notificarilor trimise pe acest server")
         .addStringOption(option => option.setName("tip").setDescription("Ce notificari (implicit toate)").setRequired(false)
           .addChoices({ name: "updates", value: "updates" }, { name: "reduceri", value: "reduceri" }))
-        .addIntegerOption(option => option.setName("numar").setDescription("Cate intrari (1-25, implicit 10)").setRequired(false).setMinValue(1).setMaxValue(25))
+        .addIntegerOption(option => option.setName("numar").setDescription("Cate intrari (1-25, implicit 10)").setRequired(false).setMinValue(1).setMaxValue(25)),
+      new SlashCommandBuilder()
+        .setName("report")
+        .setDescription("Raporteaza o problema (update gresit, duplicat, joc lipsa, sursa stricata)")
+        .addStringOption(option => option.setName("tip").setDescription("Tipul problemei").setRequired(true)
+          .addChoices(
+            { name: "Update gresit/inexact", value: "update-gresit" },
+            { name: "Notificare duplicata", value: "duplicat" },
+            { name: "Joc sau sursa lipsa", value: "joc-lipsa" },
+            { name: "Sursa stricata (nu mai vin update-uri)", value: "sursa-stricata" },
+            { name: "Altceva", value: "altceva" }
+          ))
+        .addStringOption(option => option.setName("detalii").setDescription("Detalii suplimentare (optional)").setRequired(false))
+        .addStringOption(option => option.setName("joc").setDescription("Jocul vizat (optional)").setRequired(false))
     ].map(command => command.toJSON());
   }
 
