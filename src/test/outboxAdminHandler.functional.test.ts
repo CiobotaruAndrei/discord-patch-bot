@@ -47,6 +47,7 @@ function makeDeps(opts: {
   const invalidatedGuilds: string[] = [];
   const enqueueCalls: Array<Record<string, unknown>> = [];
   const replayDeleteCalls: Array<{ guildId: string; ids: unknown[] }> = [];
+  const replayDeleteAllCalls: string[] = [];
   const pauseCalls: boolean[] = [];
   const permissionChecks: string[] = [];
   const lockCalls: Array<{ name: string; ttl: number }> = [];
@@ -70,6 +71,7 @@ function makeDeps(opts: {
     },
     listReplayableDeadLetters: async () => opts.replayDocs ?? [],
     deleteReplayedDeadLetters: async (guildId: string, ids: unknown[]) => { replayDeleteCalls.push({ guildId, ids }); },
+    deleteAllReplayPayloads: async (guildId: string) => { replayDeleteAllCalls.push(guildId); },
     getGuildSettings: async () => ({
       outboxRecoveryVerify: opts.perGuildVerify ?? false,
       notificationDeadLetter: opts.deadLetters ?? [],
@@ -99,7 +101,7 @@ function makeDeps(opts: {
     recoveryVerifyGlobal: opts.recoveryVerifyGlobal ?? false,
     recoveryStrict: opts.recoveryStrict ?? false
   };
-  return { deps, replies, updateManyCalls, guildUpdateCalls, invalidatedGuilds, enqueueCalls, replayDeleteCalls, pauseCalls, permissionChecks, lockCalls, releaseCalls, getDrainCalls: () => drainCalls };
+  return { deps, replies, updateManyCalls, guildUpdateCalls, invalidatedGuilds, enqueueCalls, replayDeleteCalls, replayDeleteAllCalls, pauseCalls, permissionChecks, lockCalls, releaseCalls, getDrainCalls: () => drainCalls };
 }
 
 test("/outbox status afiseaza coada, dead-letter si starea recovery-verify", async () => {
@@ -349,4 +351,18 @@ test("/outbox replay-deadletters: enqueue pica la al doilea -> primul e curatat,
   const pull = guildUpdateCalls[0].update as { $pull: { notificationDeadLetter: { dedupeKey: { $in: string[] } } } };
   assert.deepEqual(pull.$pull.notificationDeadLetter.dedupeKey.$in, ["dk1"], "curata din audit doar dk1");
   assert.equal(invalidatedGuilds.length, 1);
+});
+
+test("/outbox clear-deadletters sterge si payload-urile de replay (fara replay fantoma)", async () => {
+  const withEntries = makeDeps({ deadLetters: [{ kind: "update" }, { kind: "discount" }] });
+  const h1 = installOutboxAdmin.createOutboxAdminHandler(withEntries.deps);
+  await h1.handleOutboxInteraction(makeInteraction(null, "clear-deadletters"));
+  assert.match(withEntries.replies[0], /inclusiv payload-urile de replay/);
+  assert.deepEqual(withEntries.replayDeleteAllCalls, ["guild-1"], "curata si colectia de replay");
+
+  const empty = makeDeps({ deadLetters: [] });
+  const h2 = installOutboxAdmin.createOutboxAdminHandler(empty.deps);
+  await h2.handleOutboxInteraction(makeInteraction(null, "clear-deadletters"));
+  assert.equal(empty.guildUpdateCalls.length, 0, "nu scrie pe doc cand auditul e gol");
+  assert.deepEqual(empty.replayDeleteAllCalls, ["guild-1"], "curata payload-urile de replay chiar si cand auditul e gol (orfane TTL/partial)");
 });

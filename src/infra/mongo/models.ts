@@ -210,6 +210,7 @@ const deadLetterReplaySchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now, expires: DEAD_LETTER_REPLAY_TTL_DAYS * ONE_DAY_MS / 1000 }
 }, { minimize: false });
 deadLetterReplaySchema.index({ guildId: 1, createdAt: 1 }, { background: true });
+deadLetterReplaySchema.index({ guildId: 1, dedupeKey: 1 }, { unique: true, partialFilterExpression: { dedupeKey: { $gt: "" } }, background: true });
 const NotificationDeadLetterReplayModel = mongoose.model("NotificationDeadLetterReplay", deadLetterReplaySchema, "notificationDeadLetterReplay");
 
   Object.assign(target, {
