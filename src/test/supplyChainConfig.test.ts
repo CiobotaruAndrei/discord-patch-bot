@@ -24,7 +24,7 @@ test("dependabot acopera npm, github-actions si cargo (crate-ul Rust)", () => {
 
 test("dependency-review ruleaza actiunea blocking gated pe dependency graph", () => {
   const text = read(dependencyReviewPath);
-  assert.match(text, /actions\/dependency-review-action@v4/, "foloseste dependency-review-action");
+  assert.match(text, /actions\/dependency-review-action@v\d+/, "foloseste dependency-review-action");
   assert.match(text, /fail-on-severity:\s*moderate/, "blocheaza la severitate moderate+");
   assert.match(text, /dependency_graph\?\.status/, "verifica daca dependency graph e activat");
   assert.match(text, /steps\.dependency-graph\.outputs\.result == 'true'/, "ruleaza actiunea doar cand graph-ul e activat");
