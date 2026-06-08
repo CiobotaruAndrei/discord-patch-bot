@@ -22,13 +22,22 @@ test("dependabot acopera npm, github-actions si cargo (crate-ul Rust)", () => {
   assert.match(text, /directory:\s*"\/src\/native"/, "cargo pointeaza catre crate-ul Rust din /src/native");
 });
 
-test("dependency-review ruleaza actiunea blocking gated pe dependency graph", () => {
+test("dependency-review ruleaza actiunea blocking neconditionat (fail-closed real)", () => {
   const text = read(dependencyReviewPath);
   assert.match(text, /actions\/dependency-review-action@v\d+/, "foloseste dependency-review-action");
   assert.match(text, /fail-on-severity:\s*moderate/, "blocheaza la severitate moderate+");
-  assert.match(text, /dependency_graph\?\.status/, "verifica daca dependency graph e activat");
-  assert.match(text, /steps\.dependency-graph\.outputs\.result == 'true'/, "ruleaza actiunea doar cand graph-ul e activat");
+  assert.ok(!/dependency-graph\b/.test(text) && !/dependency_graph\?\.status/.test(text), "fara gate pe statusul dependency graph (nesigur pe repo-uri publice, unde graph-ul e mereu activat dar API-ul intoarce undefined - masca faptul ca actiunea nu rula niciodata)");
+  assert.ok(!/if:\s/.test(text), "actiunea ruleaza neconditionat (fara `if:` care ar putea-o sari -> verde fals)");
   assert.ok(!/^\s*paths:/m.test(text), "ruleaza pe toate PR-urile catre main (fara filtru paths), deci e requireable ca status check");
+});
+
+test("scripturile de staging smoke nu mai raporteaza verde la skip fara opt-out explicit", () => {
+  const httpSmoke = read(path.join(repoRoot, "src", "scripts", "stagingSmoke.ts"));
+  const discordSmoke = read(path.join(repoRoot, "src", "scripts", "stagingDiscordSmoke.ts"));
+  for (const text of [httpSmoke, discordSmoke]) {
+    assert.match(text, /ALLOW_STAGING_SMOKE_SKIP/, "skip-ul cere ALLOW_STAGING_SMOKE_SKIP=true");
+    assert.match(text, /return 1/, "fara opt-out, lipsa secretelor inseamna esec (exit non-zero), nu verde fals");
+  }
 });
 
 test("SECURITY.md documenteaza setarile de repo de securitate (confirmate enabled)", () => {

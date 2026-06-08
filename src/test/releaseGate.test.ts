@@ -61,6 +61,15 @@ test("release.yml verifica un artifact real de staging smoke, nu doar smoke_conf
   assert.match(text, /!r\.ok/, "respinge un rezultat esuat (ok=false)");
 });
 
+test("release.yml valideaza semver si publica :latest doar pentru release-uri stabile", () => {
+  const text = read(releaseWorkflowPath);
+  assert.match(text, /\^v\[0-9\]\+\\\.\[0-9\]\+\\\.\[0-9\]\+/, "valideaza forma semver vX.Y.Z a tag-ului");
+  assert.match(text, /Tag invalid/, "respinge tag-urile care nu sunt semver");
+  assert.match(text, /:latest/, "poate publica :latest");
+  assert.match(text, /Pre-release.*fara :latest|fara :latest/, "pre-release-urile NU actualizeaza :latest");
+  assert.match(text, /tags: \$\{\{ steps\.release\.outputs\.tags \}\}/, "tag-urile de imagine sunt calculate (stable -> +latest, pre-release -> doar tag)");
+});
+
 test("staging-smoke.yml scrie fisiere de rezultat si urca artifactul", () => {
   const text = read(stagingSmokeWorkflowPath);
   assert.match(text, /STAGING_SMOKE_RESULT_FILE:/, "seteaza fisierul de rezultat pentru proba HTTP");
