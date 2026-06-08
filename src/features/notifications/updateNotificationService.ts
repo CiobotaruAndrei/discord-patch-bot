@@ -1,6 +1,6 @@
 "use strict";
 
-import type { FilterQuery, Model } from "mongoose";
+import type { QueryFilter, Model } from "mongoose";
 import type { GuildSettings } from "../../types";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
@@ -200,7 +200,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     const push = deadLetterPush(deadLettered);
     if (push) update.$push = push;
     await GuildModel.updateOne(
-      { _id: guild._id, subscribed: true, notificationChannelId: channel.id } as FilterQuery<GuildSettings>,
+      { _id: guild._id, subscribed: true, notificationChannelId: channel.id } as QueryFilter<GuildSettings>,
       update
     );
   }
@@ -229,7 +229,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       subscribed: true,
       notificationChannelId: { $ne: null },
       updatesInitializing: { $ne: true }
-    } as FilterQuery<GuildSettings>).lean();
+    } as QueryFilter<GuildSettings>).lean();
     if (!guilds.length) return;
 
     const optimizedGames = buildOptimizedGameList(games as Array<{ key: string }>, guilds as Array<{ enabledGames?: unknown[] }>);
