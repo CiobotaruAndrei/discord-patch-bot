@@ -6,6 +6,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **Migrare mongoose 8 → 9** (`9.6.3`, pin exact). Singura schimbare de API care ne afecta: tipul de filtru `FilterQuery<T>` a fost redenumit **`QueryFilter<T>`** (mongoose 9 nu mai exporta `FilterQuery`) — actualizat in `updateNotificationService.ts` + `discountNotificationService.ts` (import `type` + cast-urile pe `find`/`updateOne`). Restul stratului de date e neschimbat. Validat **pe pasi siguri**: `tsc` + `tsc strict` curate, `npm run check` cu **681 teste pass** inclusiv **testele de integrare reale pe MongoDB** (index unic sparse pe `dedupeKey`, lease atomic multi-instanta la drenarea outbox), `npm audit` 0 vulnerabilitati. Nota: mongoose 9 cere **Node ≥ 20.19.0** — `node:20-bookworm-slim` (Docker) si `node-version: 20` (CI/release) rezolva la ultimul 20.x, deci cerinta e satisfacuta. Acoperit de o aserțiune noua in `notificationServices.functional.test.ts` care verifica filtrul `QueryFilter` produs la persistare.
+
 ### Fixed
 
 - Intarire din review (9 findings, verificate intai pe cod — Regula 14):

@@ -132,7 +132,7 @@ test("UpdateService: checkForUpdates NU scrie cache cand lista e filtrata (subse
 });
 
 test("UpdateService: processGuildUpdates trimite update + ping rol pe prima trimitere", async () => {
-  const { deps, sentPayloads, claims } = makeUpdateDeps();
+  const { deps, sentPayloads, claims, updateOneCalls } = makeUpdateDeps();
   const svc = createUpdateNotificationService(deps);
   const guild = {
     _id: "guild-1",
@@ -153,6 +153,12 @@ test("UpdateService: processGuildUpdates trimite update + ping rol pe prima trim
   assert.equal(sentPayloads[0].content, "<@&role-42>", "rol ping pe prima trimitere");
   assert.equal(claims.length, 1);
   assert.deepEqual(claims[0], { guildId: "guild-1", gameKey: "cs2", updateId: "u-cs2" });
+  const persist = updateOneCalls.find(c => {
+    const f = c.filter as { _id?: unknown; subscribed?: unknown };
+    return f && f._id === "guild-1" && f.subscribed === true;
+  });
+  assert.ok(persist, "persista cu filtrul QueryFilter (mongoose 9): { _id, subscribed:true, notificationChannelId }");
+  assert.equal((persist!.filter as { notificationChannelId?: unknown }).notificationChannelId, "channel-1", "filtrul include canalul (guard impotriva scrierii pe guild gresit)");
 });
 
 test("UpdateService: mai multe update-uri sunt grupate intr-un singur mesaj cu mai multe embed-uri", async () => {
