@@ -46,8 +46,8 @@
     "zod": "3.22.4"
   },
   "devDependencies": {
-    "@napi-rs/cli": "2.18.4",
-    "@types/node": "20.19.39",
-    "typescript": "5.9.3"
+    "@napi-rs/cli": "3.7.0",
+    "@types/node": "25.9.2",
+    "typescript": "6.0.3"
   }
 }
