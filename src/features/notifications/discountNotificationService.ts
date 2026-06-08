@@ -1,6 +1,6 @@
 "use strict";
 
-import type { FilterQuery, Model } from "mongoose";
+import type { QueryFilter, Model } from "mongoose";
 import type { GuildSettings, DealInfo } from "../../types";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
 import { HASH_VERSION } from "../../native/fuzzy";
@@ -254,7 +254,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     const push = deadLetterPush(deadLettered);
     if (push) discountUpdate.$push = push;
     await GuildModel.updateOne(
-      { _id: guild._id, discountsSubscribed: true, discountChannelId: channel.id } as FilterQuery<GuildSettings>,
+      { _id: guild._id, discountsSubscribed: true, discountChannelId: channel.id } as QueryFilter<GuildSettings>,
       discountUpdate
     );
   }
@@ -265,7 +265,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       discountsSubscribed: true,
       discountChannelId: { $ne: null },
       discountsInitializing: { $ne: true }
-    } as FilterQuery<GuildSettings>).lean();
+    } as QueryFilter<GuildSettings>).lean();
     if (!guilds.length) return;
 
     const dealsPromises = new Map<string, Promise<DealInfo[]>>();
