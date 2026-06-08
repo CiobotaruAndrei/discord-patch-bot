@@ -32,7 +32,14 @@ jobs:
         with:
           fail-on-severity: moderate
 
-      - name: Explain dependency review setup
+      - name: Fail-closed when Dependency graph is disabled
         if: steps.dependency-graph.outputs.result != 'true'
+        env:
+          ALLOW_NO_DEPENDENCY_GRAPH: ${{ vars.ALLOW_NO_DEPENDENCY_GRAPH }}
         run: |
-          echo "::warning::GitHub Dependency Review is skipped until Dependency graph is enabled in repository security settings. After it is enabled, this workflow runs dependency-review-action as a blocking check."
+          if [ "$ALLOW_NO_DEPENDENCY_GRAPH" = "true" ]; then
+            echo "::warning::Dependency Review sarit: Dependency graph nu e activat, dar variabila de repo ALLOW_NO_DEPENDENCY_GRAPH=true permite explicit (opt-out asumat)."
+            exit 0
+          fi
+          echo "::error::Dependency Review nu poate rula: Dependency graph nu e activat in Settings > Security. Activeaza-l (recomandat) sau seteaza variabila de repo ALLOW_NO_DEPENDENCY_GRAPH=true ca opt-out explicit. Fail-closed implicit pentru supply chain - un check verde fara analiza reala ar fi inselator."
+          exit 1

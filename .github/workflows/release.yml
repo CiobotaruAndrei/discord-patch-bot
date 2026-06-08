@@ -124,8 +124,21 @@ jobs:
           DISPATCH_TAG: ${{ inputs.tag }}
         run: |
           owner="$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          image="ghcr.io/$owner/discord-patch-bot"
+          if ! echo "$DISPATCH_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "::error::Tag invalid '$DISPATCH_TAG': asteptat semver vX.Y.Z (optional -prerelease, ex. v1.2.3 sau v1.2.3-rc1)."
+            exit 1
+          fi
+          if echo "$DISPATCH_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            tags="$image:$DISPATCH_TAG"$'\n'"$image:latest"
+            echo "::notice::Release stabil $DISPATCH_TAG -> publica si :latest."
+          else
+            tags="$image:$DISPATCH_TAG"
+            echo "::notice::Pre-release $DISPATCH_TAG -> publica DOAR tag-ul, fara :latest."
+          fi
           echo "tag=$DISPATCH_TAG" >> "$GITHUB_OUTPUT"
-          echo "image=ghcr.io/$owner/discord-patch-bot" >> "$GITHUB_OUTPUT"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          { echo "tags<<EOF"; printf '%s\n' "$tags"; echo "EOF"; } >> "$GITHUB_OUTPUT"
 
       - name: Checkout release ref
         uses: actions/checkout@v4
@@ -186,9 +199,7 @@ jobs:
           context: .
           file: Dockerfile
           push: true
-          tags: |
-            ${{ steps.release.outputs.image }}:${{ steps.release.outputs.tag }}
-            ${{ steps.release.outputs.image }}:latest
+          tags: ${{ steps.release.outputs.tags }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

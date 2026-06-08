@@ -29,6 +29,17 @@ test("dependency-review ruleaza actiunea blocking gated pe dependency graph", ()
   assert.match(text, /dependency_graph\?\.status/, "verifica daca dependency graph e activat");
   assert.match(text, /steps\.dependency-graph\.outputs\.result == 'true'/, "ruleaza actiunea doar cand graph-ul e activat");
   assert.ok(!/^\s*paths:/m.test(text), "ruleaza pe toate PR-urile catre main (fara filtru paths), deci e requireable ca status check");
+  assert.match(text, /ALLOW_NO_DEPENDENCY_GRAPH/, "are opt-out explicit prin variabila de repo");
+  assert.match(text, /exit 1/, "fail-closed: esueaza cand graph-ul e dezactivat fara opt-out (un check verde fara analiza ar fi inselator)");
+});
+
+test("scripturile de staging smoke nu mai raporteaza verde la skip fara opt-out explicit", () => {
+  const httpSmoke = read(path.join(repoRoot, "src", "scripts", "stagingSmoke.ts"));
+  const discordSmoke = read(path.join(repoRoot, "src", "scripts", "stagingDiscordSmoke.ts"));
+  for (const text of [httpSmoke, discordSmoke]) {
+    assert.match(text, /ALLOW_STAGING_SMOKE_SKIP/, "skip-ul cere ALLOW_STAGING_SMOKE_SKIP=true");
+    assert.match(text, /return 1/, "fara opt-out, lipsa secretelor inseamna esec (exit non-zero), nu verde fals");
+  }
 });
 
 test("SECURITY.md documenteaza setarile de repo de securitate (confirmate enabled)", () => {

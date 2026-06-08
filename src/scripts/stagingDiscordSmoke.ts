@@ -37,10 +37,16 @@ async function runDiscordSmoke(): Promise<number> {
   const sendTest = (process.env.STAGING_DISCORD_SEND_TEST || "").trim().toLowerCase() === "true";
 
   if (!token || !clientId || !guildId || !channelId) {
-    console.log("[discord-smoke] Credentiale de staging incomplete - sar proba live Discord (exit 0).");
+    const allowSkip = (process.env.ALLOW_STAGING_SMOKE_SKIP || "").trim().toLowerCase() === "true";
+    console.log("[discord-smoke] Credentiale de staging incomplete - proba live Discord nu poate rula.");
     console.log("[discord-smoke] Seteaza STAGING_DISCORD_TOKEN, STAGING_DISCORD_CLIENT_ID, STAGING_TEST_GUILD_ID,");
     console.log("[discord-smoke] STAGING_TEST_CHANNEL_ID (+ optional STAGING_DISCORD_SEND_TEST=true) ca sa rulezi proba live.");
     writeSmokeResult("STAGING_DISCORD_SMOKE_RESULT_FILE", buildSmokeResult("discord", true, []));
+    if (!allowSkip) {
+      console.error("::error::[discord-smoke] Credentiale de staging incomplete si ALLOW_STAGING_SMOKE_SKIP != true -> esec (nu raporta verde fara proba live). Seteaza secretele de staging sau ALLOW_STAGING_SMOKE_SKIP=true ca sa sari intentionat.");
+      return 1;
+    }
+    console.log("[discord-smoke] ALLOW_STAGING_SMOKE_SKIP=true -> sar proba live Discord (exit 0).");
     return 0;
   }
 

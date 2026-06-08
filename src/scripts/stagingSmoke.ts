@@ -54,11 +54,17 @@ function probe(rawUrl: string, headers: Record<string, string> = {}): Promise<Pr
 async function runStagingSmoke(): Promise<number> {
   const baseUrl = (process.env.STAGING_BASE_URL || "").trim().replace(/\/$/, "");
   if (!baseUrl) {
-    console.log("[staging-smoke] STAGING_BASE_URL nu este setat - sar proba live (exit 0).");
+    const allowSkip = (process.env.ALLOW_STAGING_SMOKE_SKIP || "").trim().toLowerCase() === "true";
+    console.log("[staging-smoke] STAGING_BASE_URL nu este setat - proba live HTTP nu poate rula.");
     console.log("[staging-smoke] Seteaza STAGING_BASE_URL (si optional STAGING_METRICS_TOKEN) catre instanta de staging");
     console.log("[staging-smoke] ca acest runner sa verifice /healthz si /metrics. Comenzile/notificarile Discord live");
     console.log("[staging-smoke] raman de verificat manual conform STAGING_SMOKE.md.");
     writeSmokeResult("STAGING_SMOKE_RESULT_FILE", buildSmokeResult("http", true, []));
+    if (!allowSkip) {
+      console.error("::error::[staging-smoke] STAGING_BASE_URL lipseste si ALLOW_STAGING_SMOKE_SKIP != true -> esec (nu raporta verde fara proba live). Seteaza secretele de staging sau ALLOW_STAGING_SMOKE_SKIP=true ca sa sari intentionat.");
+      return 1;
+    }
+    console.log("[staging-smoke] ALLOW_STAGING_SMOKE_SKIP=true -> sar proba live (exit 0).");
     return 0;
   }
 

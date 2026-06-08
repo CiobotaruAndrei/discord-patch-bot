@@ -30,7 +30,7 @@ Masuratoare reprezentativa (200.000 iteratii x 8 perechi):
 | TS fallback | ~1,26M | `levenshteinFallback` |
 | Speedup | ~1.9x | paritate native==TS: OK |
 
-### Per zona: TS vs Rust (regula 14 demonstrata, nu doar respectata tehnic)
+### Per zona: TS vs Rust (regula limbajului demonstrata cu date, nu doar respectata tehnic)
 
 `npm run benchmark:cpu` masoara acum si fiecare functie nativa fata de fallback-ul TS
 echivalent, pe acelasi input (`runAreaBenchmarks`), cu verificare de paritate a rezultatului.
@@ -67,7 +67,7 @@ cazuri overhead-ul apelului nativ depaseste castigul, deci Rust e mai lent decat
   publice din `native/fuzzy.ts` apeleaza direct implementarea TypeScript (masurat mai rapida — Rust
   pierde pe marshaling-ul NAPI al array-urilor de candidati / calcul trivial), iar rezultatul e identic
   (paritate verificata). Functiile native raman expuse prin `getNativeFuzzy()` doar pentru benchmark si
-  testele de paritate, dar nu mai sunt pe calea de productie pentru aceste trei. Astfel regula 14 e
+  testele de paritate, dar nu mai sunt pe calea de productie pentru aceste trei. Astfel regula limbajului e
   respectata in ambele sensuri: limbajul mai rapid pentru fiecare zona, demonstrat cu masuratori.
 
 Fallback-ul TS exista pentru robustete (cand addonul nu poate fi incarcat), nu ca implementare
@@ -83,7 +83,7 @@ in `ci.yml` dupa `npm run check` (cand addonul nativ e deja construit). Guard-ul
 
 - **esueaza** (`::error::`, exit 1) daca o functie hot-path e **mai lenta decat TS** sub pragul de esec
   (`BENCH_HOTPATH_FAIL_RATIO`, implicit `0.85x`) — semn ca decizia din acest document nu mai e valabila
-  (regula 6/14: limbajul ramane doar daca e mai bun), deci trebuie mutata in TS sau investigata regresia;
+  (regula limbajului: ramane doar daca e mai bun/eficient), deci trebuie mutata in TS sau investigata regresia;
 - **esueaza** daca paritatea native != TS (rezultate divergente) — bug de corectitudine, nu de viteza;
 - **avertizeaza** (`::warning::`, fara a pica) daca speedup-ul scade sub pragul asteptat documentat aici
   (`levenshtein` < `1.4x`, `dealHash` < `1.2x`, `rankListingCandidates` < `1.1x`), ca semnal ca avantajul Rust se erodeaza;
