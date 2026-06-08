@@ -1,25 +1,59 @@
 "use strict";
 
+import type { Model } from "mongoose";
 import { assertNoUndefinedExports } from "../../shared/assertCompleteExports";
 
+type MongoRuntimeContext = {
+  logger: unknown;
+  env: unknown;
+  parseEnvNumber: (name: string, defaultValue: number, limits?: { min?: number; max?: number }) => number;
+  runConcurrent: <T>(items: T[], concurrency: number, fn: (item: T, index: number) => void | Promise<void>, options?: unknown) => Promise<unknown>;
+  waitForMongoReady: (timeoutMs?: number) => Promise<boolean>;
+  validatePendingDiscountSnapshot: (snapshot: unknown) => boolean;
+  isTransientMongoError: (err: unknown) => boolean;
+  withMongoRetry: <T>(fn: () => Promise<T>, ...rest: unknown[]) => Promise<T>;
+  GuildModel: Model<any>;
+  CircuitBreakerModel: Model<any>;
+  SystemModel: Model<any>;
+  JobLockModel: Model<any>;
+  AdminAlertCooldownModel: Model<any>;
+  FetchSnapshotModel: Model<any>;
+  GuildSeenDiscountModel: Model<any>;
+  GuildSeenUpdateModel: Model<any>;
+  NotificationOutboxModel: Model<any>;
+  NotificationOutboxSentModel: Model<any>;
+  NotificationHistoryModel: Model<any>;
+  FeedbackReportModel: Model<any>;
+  NotificationDeadLetterReplayModel: Model<any>;
+  saveFetchSnapshot: (id: string, payload: unknown) => Promise<void>;
+  loadFetchSnapshot: (id: string) => Promise<unknown | null>;
+  loadDealsFetchSnapshots: () => Promise<unknown[]>;
+  acquireDbLock: (jobName: string, ttlMs?: number) => Promise<unknown | null>;
+  renewDbLock: (jobName: string, token: unknown, ttlMs?: number) => Promise<boolean>;
+  releaseDbLock: (jobName: string, token: unknown) => Promise<void>;
+  activeLocks: Map<string, unknown>;
+  runMigrations: (logger: unknown) => Promise<unknown>;
+  ALL_MIGRATIONS: readonly unknown[];
+  getSystemTimes: () => Promise<unknown>;
+  saveSystemTimes: (times: unknown) => Promise<void>;
+  saveSystemTime: (key: string, value: number) => Promise<void>;
+  getOutboxPaused: () => Promise<boolean>;
+  setOutboxPaused: (paused: boolean) => Promise<void>;
+  getGuildSettings: (guildId: string) => Promise<unknown | null>;
+  invalidateGuildCache: (guildId: string) => void;
+  cleanGuildCache: () => void;
+  getGuildCacheSize: () => number;
+  adminAlert: (kind: string, title: string, body: unknown) => Promise<void>;
+  SchemaDriftError: new (...args: unknown[]) => Error;
+  SUPPORTED_CURRENCIES: Record<string, unknown>;
+  DEFAULT_CURRENCY: string;
+  getCurrencyConfig: (code?: unknown) => unknown;
+  formatPrice: (value: unknown, currencyCode?: unknown) => string;
+  requestContext: unknown;
+  getAbortSignal: () => AbortSignal | null;
+};
+
 type MongoInstaller = (target: MongoRuntimeContext) => void;
-
-type MongoContextExportKey =
-  | "logger" | "env" | "parseEnvNumber" | "runConcurrent" | "waitForMongoReady"
-  | "validatePendingDiscountSnapshot" | "isTransientMongoError" | "withMongoRetry"
-  | "GuildModel" | "CircuitBreakerModel" | "SystemModel" | "JobLockModel"
-  | "AdminAlertCooldownModel" | "FetchSnapshotModel" | "GuildSeenDiscountModel"
-  | "GuildSeenUpdateModel" | "NotificationOutboxModel" | "NotificationOutboxSentModel"
-  | "NotificationHistoryModel" | "FeedbackReportModel" | "NotificationDeadLetterReplayModel"
-  | "saveFetchSnapshot" | "loadFetchSnapshot" | "loadDealsFetchSnapshots"
-  | "acquireDbLock" | "renewDbLock" | "releaseDbLock" | "activeLocks"
-  | "runMigrations" | "ALL_MIGRATIONS" | "getSystemTimes" | "saveSystemTimes"
-  | "saveSystemTime" | "getOutboxPaused" | "setOutboxPaused" | "getGuildSettings"
-  | "invalidateGuildCache" | "cleanGuildCache" | "getGuildCacheSize" | "adminAlert"
-  | "SchemaDriftError" | "SUPPORTED_CURRENCIES" | "DEFAULT_CURRENCY" | "getCurrencyConfig"
-  | "formatPrice" | "requestContext" | "getAbortSignal";
-
-type MongoRuntimeContext = Record<MongoContextExportKey, unknown>;
 
 const runtimeContext = require("./runtime") as MongoRuntimeContext;
 const defaultInstallers: MongoInstaller[] = [
@@ -36,7 +70,7 @@ const defaultInstallers: MongoInstaller[] = [
   require("./fetchSnapshots")
 ];
 
-function buildMongoContextExports(context: MongoRuntimeContext): Record<MongoContextExportKey, unknown> {
+function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeContext {
   return {
     logger: context.logger,
     env: context.env,
