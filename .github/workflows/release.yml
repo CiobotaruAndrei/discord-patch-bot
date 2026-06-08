@@ -93,7 +93,7 @@ jobs:
             core.setFailed(`Release blocat: rularile Staging Smoke reusite nu au artifactul 'staging-smoke-result'. Re-ruleaza Staging Smoke (RELEASING.md).`);
 
       - name: Download staging smoke result
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: staging-smoke-result
           run-id: ${{ steps.smoke.outputs.run_id }}
