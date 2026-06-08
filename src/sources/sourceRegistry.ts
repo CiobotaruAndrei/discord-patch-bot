@@ -1,19 +1,44 @@
 "use strict";
 
+import type { CheerioAPI } from "cheerio";
 import { assertNoUndefinedExports } from "../shared/assertCompleteExports";
 
+type SourceRegistryApi = {
+  USER_AGENTS: readonly string[];
+  MAX_HTML_BYTES: number;
+  MAX_JSON_BYTES: number;
+  MAX_DEALS: number;
+  FETCH_CONCURRENCY: number;
+  cleanText: (text: unknown) => string;
+  truncate: (str: unknown, maxLen: number) => string;
+  normalizeTitleForDedupe: (str: unknown) => string;
+  stableUpdateId: (title: unknown, link: unknown) => string;
+  normalizeUpdate: (data: unknown) => unknown;
+  safeCheerioLoad: (html: unknown) => CheerioAPI;
+  levenshtein: (a: string, b: string) => number;
+  httpReq: (...args: unknown[]) => Promise<unknown>;
+  fetchWithProxy: (targetUrl: string, options?: unknown) => Promise<string>;
+  dealHash: (deal: unknown) => string;
+  attachMetrics: (metricsRef: unknown) => void;
+  fetchGameUpdate: (...args: unknown[]) => Promise<unknown>;
+  executeFetchWithCircuitBreaker: (...args: unknown[]) => Promise<unknown>;
+  getLatestForAllGames: (...args: unknown[]) => Promise<unknown>;
+  fetchSteamReviewData: (appId: string | number) => Promise<unknown>;
+  enrichDealData: (...args: unknown[]) => Promise<unknown>;
+  fetchDeals: (...args: unknown[]) => Promise<unknown>;
+  searchSteamGameByName: (query: string, currencyCode?: string) => Promise<unknown[]>;
+  chooseBestSteamMatch: (...args: unknown[]) => unknown;
+  fetchSteamPriceDetails: (appId: string | number, currencyCode?: string) => Promise<unknown | null>;
+  extractOfferEndFromHtml: (html: unknown) => string | null;
+  extractSteamOfferEndDate: (appId: string | number, currencyCode?: string) => Promise<string | null>;
+  cleanEnrichedCache: () => void;
+  getEnrichedCacheSize: () => number;
+  formatPrice: (...args: unknown[]) => string;
+};
+
+type SourceContext = SourceRegistryApi;
+
 type SourceInstaller = (target: SourceContext) => void;
-
-type SourceRegistryExportKey =
-  | "USER_AGENTS" | "MAX_HTML_BYTES" | "MAX_JSON_BYTES" | "MAX_DEALS" | "FETCH_CONCURRENCY"
-  | "cleanText" | "truncate" | "normalizeTitleForDedupe" | "stableUpdateId" | "normalizeUpdate"
-  | "safeCheerioLoad" | "levenshtein" | "httpReq" | "fetchWithProxy" | "dealHash"
-  | "attachMetrics" | "fetchGameUpdate" | "executeFetchWithCircuitBreaker" | "getLatestForAllGames"
-  | "fetchSteamReviewData" | "enrichDealData" | "fetchDeals" | "searchSteamGameByName"
-  | "chooseBestSteamMatch" | "fetchSteamPriceDetails" | "extractOfferEndFromHtml"
-  | "extractSteamOfferEndDate" | "cleanEnrichedCache" | "getEnrichedCacheSize" | "formatPrice";
-
-type SourceContext = Record<SourceRegistryExportKey, unknown>;
 
 const runtimeContext = require("./runtime") as SourceContext;
 const defaultInstallers: SourceInstaller[] = [
@@ -23,7 +48,7 @@ const defaultInstallers: SourceInstaller[] = [
   require("./deals")
 ];
 
-function buildSourceRegistry(context: SourceContext): Record<SourceRegistryExportKey, unknown> {
+function buildSourceRegistry(context: SourceContext): SourceRegistryApi {
   return {
     USER_AGENTS: context.USER_AGENTS,
     MAX_HTML_BYTES: context.MAX_HTML_BYTES,
