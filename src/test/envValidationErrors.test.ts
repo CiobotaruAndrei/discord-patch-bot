@@ -6,6 +6,19 @@ const attachEnv = require("../shared/env") as ((target: unknown) => void) & {
 };
 const { formatEnvValidationErrors } = attachEnv;
 
+const { z } = require("zod") as typeof import("zod");
+
+test("formatEnvValidationErrors: eroare ZodError REALA (zod 4) -> {variable, problem} per camp invalid", () => {
+  const schema = z.object({ DISCORD_TOKEN: z.string().min(1), PORT: z.coerce.number().int().positive() });
+  let realError: unknown;
+  try { schema.parse({ DISCORD_TOKEN: "", PORT: "abc" }); } catch (err) { realError = err; }
+  assert.ok(realError, "parse-ul invalid arunca un ZodError real");
+  const out = formatEnvValidationErrors(realError);
+  const byVar = Object.fromEntries(out.map(p => [p.variable, p.problem]));
+  assert.ok("DISCORD_TOKEN" in byVar && "PORT" in byVar, "ambele campuri invalide sunt mapate dupa numele variabilei");
+  assert.ok(out.every(p => p.variable && p.problem), "fiecare are variabila + motiv (formatul zod e parsat corect)");
+});
+
 test("formatEnvValidationErrors: mapeaza issue-urile zod la {variable, problem} per secret", () => {
   const zodLikeError = {
     issues: [
