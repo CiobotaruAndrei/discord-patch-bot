@@ -5,14 +5,14 @@ Documentul descrie starea curenta a repo-ului dupa migrarea treptata din fisiere
 ## Starea curenta
 
 - Codul principal este in `src/`.
-- `src/package.json`, `src/package-lock.json`, `src/.env.example`, `src/tsconfig.json` si `src/tsconfig.strict.json` sunt fisierele active pentru build/test/runtime Node.
+- `src/package.json`, `src/package-lock.json`, `src/.env.example` si `src/tsconfig.json` sunt fisierele active pentru build/test/runtime Node.
 - Fisierele active sunt grupate pe functionalitati, nu duplicate la radacina.
 - `src/features/command-router/` nu mai reprezinta arhitectura curenta.
 - Comenzile cunoscute si autocomplete-ul sunt mutate in `src/features/command-handlers/`.
 - `fallbackInteractionHandler.ts` este doar fallback de final pentru interactiuni necunoscute sau ramase neacoperite.
 - `notifications/index.ts` este wiring pentru job-uri; logica de update-uri si reduceri este in servicii dedicate.
 - Rust/N-API este folosit doar pentru hot-path-uri pure, cu fallback TypeScript in `src/native/fuzzy.ts`.
-- Migrarea TypeScript strict este incrementala prin `src/tsconfig.strict.json`.
+- TypeScript strict e activ **global** prin `strict: true` in `src/tsconfig.json` (migrarea incrementala s-a incheiat; fostul `tsconfig.strict.json` — un subset cu aceleasi flag-uri — a fost eliminat ca redundant, dubla doar timpul de typecheck).
 - `legacy-dynamic.d.ts` nu mai exista; tipurile dinamice trebuie modelate local.
 - Documentatia istorica versionata a fost scoasa din cod; fisierele curente de documentatie raman sursa de adevar.
 - Comentariile explicative din fisierele de cod au fost eliminate complet (zero exceptii). Daca un rationale trebuie pastrat, el sta in documentatie dupa subiect, nu langa implementare. Regula este aplicata automat de `scripts/check-no-comments.ts` (parte din `npm run check`, deci si in CI): scaneaza `.ts`/`.js`/`.rs` (parser TypeScript pentru TS/JS ca sa nu existe fals pozitive pe regex/URL; scanner cu ignorare de string-uri pentru Rust) si esueaza la orice comentariu; allowlist-ul de exceptii este gol.
@@ -137,7 +137,7 @@ Ca prim pas de decuplare, faza de dispatch foloseste deja event store-ul ca reze
 
 ## TypeScript strict
 
-`src/tsconfig.strict.json` include doar fisiere stabilizate. Nu activa brusc strict pe tot proiectul pana cand zonele cu context dinamic si API-uri Discord complexe nu sunt tipate suficient.
+Strict-ul e activ **global** prin `strict: true` in `src/tsconfig.json` — `npm run typecheck` verifica tot proiectul. Migrarea incrementala (fostul `tsconfig.strict.json`, un subset cu aceleasi flag-uri) s-a incheiat si fisierul a fost eliminat ca redundant.
 
 Zone deja potrivite pentru strict:
 
@@ -178,7 +178,6 @@ npm test
 npm run test:functional
 npm run test:e2e
 npm run typecheck
-npm run typecheck:strict
 npm run build
 npm run benchmark
 ```
