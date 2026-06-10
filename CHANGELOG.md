@@ -27,6 +27,8 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Reducerile Epic Games nu mai apareau deloc — endpoint GraphQL retras de Epic („404 Gone")**. `fetchDeals` trimitea query-ul `searchStoreQuery` la `graphql.epicgames.com/graphql`, pe care Epic l-a **retras** — raspunde `404 Gone` la exact POST-ul codului (verificat live, cu aceleasi headere + body). Esecul era prins de `try/catch` si logat doar ca WARN, deci reducerile Epic **dispareau silentios** din fiecare ciclu (ramaneau doar cele Steam). Fix: hostul schimbat la **`store.epicgames.com/graphql`**, care accepta **acelasi POST neschimbat** (query, variabile, headere identice) si raspunde 200 cu acelasi shape (`data.Catalog.searchStore.elements` — verificat live). Testul din `dealsSource.functional.test.ts` pinuia deja URL-ul strict (`===`) si a fost actualizat la hostul nou, ramanand gard de regresie.
+
 - **Sursa Minecraft era complet moarta — host inexistent in DNS**. `fetchMinecraftUpdate` cerea manifestul de versiuni de pe `pistonmeta.mojang.com` (fara cratima), un host care **nu exista** (`curl: Could not resolve host`); endpoint-ul oficial Mojang e **`piston-meta.mojang.com`** (verificat live: HTTP 200). Cum jocul `minecraft` nu are fallback-uri in `config.json`, fiecare ciclu esua cu eroare DNS → circuit breaker acumula fails + alerte, si **nicio notificare Minecraft nu putea fi trimisa**. Bug prezent de la conversia sursei la TypeScript (testul verifica doar ca URL-ul contine `version_manifest`, nu hostul). Fix: hostul corectat; testul din `updatesSource.functional.test.ts` pinuieste acum hostul oficial `piston-meta.mojang.com` ca gard de regresie.
 
 - Intarire din review (9 findings, verificate intai pe cod — Regula 14):
