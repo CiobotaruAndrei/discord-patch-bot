@@ -52,7 +52,7 @@ export interface DiscountNotificationServiceDeps {
 
   claimSeenDiscount: (guildId: string, channelId: string, hash: string) => Promise<MongoWriteResult>;
   rollbackSeenDiscount: (guildId: string, hash: string) => Promise<MongoWriteResult>;
-  loadSeenDiscountHashes: (guildId: string) => Promise<string[]>;
+  loadSeenDiscountHashes: (guildId: string, candidateHashes?: string[]) => Promise<string[]>;
   seedSeenDiscounts: (guildId: string, hashes: string[]) => Promise<void>;
   setSeenHashVersion: (guildId: string, field: "seenHashVersionUpdates" | "seenHashVersionDiscounts", version: number) => Promise<MongoWriteResult>;
   disableDiscountsForChannelError: (guildId: string, channelId: string, message: string) => Promise<MongoWriteResult>;
@@ -144,9 +144,11 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       return;
     }
 
-    const seenSet = new Set(await loadSeenDiscountHashes(String(guild._id)));
+    const oldPending = normalizePendingDiscountArray((guild as { pendingDiscounts?: unknown }).pendingDiscounts);
+    const candidateHashes = Array.from(new Set([...oldPending.map(item => item.hash), ...orderedHashes]));
+    const seenSet = new Set(await loadSeenDiscountHashes(String(guild._id), candidateHashes));
     const pending: PendingDiscount[] = [];
-    for (const old of normalizePendingDiscountArray((guild as { pendingDiscounts?: unknown }).pendingDiscounts)) {
+    for (const old of oldPending) {
       if (seenSet.has(old.hash) || old.attempts >= PENDING_DISCOUNT_MAX_ATTEMPTS) continue;
       const fresh = dealsByHash.get(old.hash);
       if (fresh) {

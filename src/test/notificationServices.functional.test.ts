@@ -354,6 +354,23 @@ test("DiscountService: hash deja vazut (in colectia seen) NU se mai trimite", as
   assert.equal(sentPayloads.length, 0);
 });
 
+test("DiscountService: cere doar candidatii ciclului la loadSeenDiscountHashes (query marginit, nu tot istoricul)", async () => {
+  const candidateCalls: Array<string[] | undefined> = [];
+  const { deps } = makeDiscountDeps({
+    loadSeenDiscountHashes: async (_gid: string, candidates?: string[]) => { candidateCalls.push(candidates); return []; }
+  });
+  const svc = createDiscountNotificationService(deps);
+  const guild = {
+    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", seenHashVersionDiscounts: 2,
+    pendingDiscounts: [{ hash: "p-old", snapshot: { id: "p-old", title: "Pending" }, lastSeenAt: new Date(), attempts: 0 }], currency: "USD"
+  } as DiscountGuild;
+  await svc.processGuildDiscounts({}, guild, [{ id: "d1", title: "Game A" }] as DiscountDeals);
+  assert.equal(candidateCalls.length, 1);
+  assert.ok(Array.isArray(candidateCalls[0]), "serviciul paseaza lista de candidati, nu mai cere tot istoricul guild-ului");
+  assert.ok((candidateCalls[0] as string[]).includes("d1"), "include hash-urile ofertelor curente");
+  assert.ok((candidateCalls[0] as string[]).includes("p-old"), "include hash-urile pending-urilor vechi");
+});
+
 test("DiscountService: reducerile sunt grupate intr-un singur mesaj cu ping rol o singura data", async () => {
   const { deps, sentPayloads } = makeDiscountDeps();
   const svc = createDiscountNotificationService(deps);

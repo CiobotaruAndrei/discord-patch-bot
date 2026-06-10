@@ -30,6 +30,7 @@ function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: stri
   const seenDiscountUpserts: MongoCall[] = [];
   const seenDiscountDeletes: unknown[] = [];
   const seenDiscountBulk: Array<{ ops: unknown[]; opts?: unknown }> = [];
+  const seenDiscountFinds: unknown[] = [];
   const seenUpdateUpserts: MongoCall[] = [];
   const seenUpdateDeletes: unknown[] = [];
   const seenUpdateBulk: Array<{ ops: unknown[]; opts?: unknown }> = [];
@@ -55,9 +56,20 @@ function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: stri
       seenDiscountDeletes.push(filter);
       return { deletedCount: 1 };
     },
-    find: (_filter: unknown, _projection?: unknown) => ({
-      lean: async () => (opts?.seenHashes ?? []).map(dealHash => ({ dealHash }))
-    }),
+    find: (filter: unknown, _projection?: unknown) => {
+      seenDiscountFinds.push(filter);
+      return {
+        lean: async () => {
+          const all = (opts?.seenHashes ?? []).map(dealHash => ({ dealHash }));
+          const dealHashCond = (filter as { dealHash?: { $in?: string[] } }).dealHash;
+          if (dealHashCond && Array.isArray(dealHashCond.$in)) {
+            const wanted = new Set(dealHashCond.$in);
+            return all.filter(doc => wanted.has(doc.dealHash));
+          }
+          return all;
+        }
+      };
+    },
     bulkWrite: async (ops: unknown[], mongoOpts?: unknown) => {
       seenDiscountBulk.push({ ops, opts: mongoOpts });
       return { upsertedCount: ops.length };
@@ -94,7 +106,7 @@ function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: stri
     OP_UPDATE_OPTS: { strict: false }
   });
 
-  return { repo, calls, existsCalls, retryAttempts, seenDiscountUpserts, seenDiscountDeletes, seenDiscountBulk, seenUpdateUpserts, seenUpdateDeletes, seenUpdateBulk, count: () => updateOneCallCount };
+  return { repo, calls, existsCalls, retryAttempts, seenDiscountUpserts, seenDiscountDeletes, seenDiscountFinds, seenDiscountBulk, seenUpdateUpserts, seenUpdateDeletes, seenUpdateBulk, count: () => updateOneCallCount };
 }
 
 test("claimSeenUpdate: guard read (exists) pe documentul guild + upsert ca singura scriere in colectie", async () => {
@@ -180,6 +192,30 @@ test("loadSeenDiscountHashes intoarce hash-urile vazute din colectie", async () 
   const { repo } = makeFakeDeps({ seenHashes: ["h1", "h2", "h3"] });
   const hashes = await repo.loadSeenDiscountHashes("g1");
   assert.deepEqual(hashes, ["h1", "h2", "h3"]);
+});
+
+test("loadSeenDiscountHashes cu candidati margineste query-ul cu $in (nu mai citeste tot istoricul guild-ului)", async () => {
+  const { repo, seenDiscountFinds } = makeFakeDeps({ seenHashes: ["h1", "h2", "h3"] });
+  const hashes = await repo.loadSeenDiscountHashes("g1", ["h2", "h9", "h2", ""]);
+  assert.deepEqual(hashes, ["h2"], "intoarce doar candidatii vazuti");
+  const filter = seenDiscountFinds[0] as { guildId: string; dealHash?: { $in?: string[] } };
+  assert.equal(filter.guildId, "g1");
+  assert.deepEqual(filter.dealHash?.$in, ["h2", "h9"], "query marginit la candidatii dedupati si nevizi (folosind indexul unic guildId+dealHash)");
+});
+
+test("loadSeenDiscountHashes cu lista de candidati goala nu atinge colectia", async () => {
+  const { repo, seenDiscountFinds } = makeFakeDeps({ seenHashes: ["h1"] });
+  const hashes = await repo.loadSeenDiscountHashes("g1", []);
+  assert.deepEqual(hashes, []);
+  assert.equal(seenDiscountFinds.length, 0, "zero query-uri cand nu exista candidati de verificat");
+});
+
+test("loadSeenDiscountHashes fara candidati pastreaza comportamentul vechi (tot istoricul)", async () => {
+  const { repo, seenDiscountFinds } = makeFakeDeps({ seenHashes: ["h1", "h2"] });
+  const hashes = await repo.loadSeenDiscountHashes("g1");
+  assert.deepEqual(hashes, ["h1", "h2"]);
+  const filter = seenDiscountFinds[0] as { dealHash?: unknown };
+  assert.equal(filter.dealHash, undefined, "fara conditie pe dealHash cand candidatii lipsesc");
 });
 
 test("seedSeenUpdates face bulk upsert pentru baseline-ul abonarii (skip intrari invalide)", async () => {

@@ -37,7 +37,7 @@ export interface SeenRepository {
   claimSeenDiscount(guildId: string, channelId: string, hash: string): Promise<MongoWriteResult>;
   rollbackSeenDiscount(guildId: string, hash: string): Promise<MongoWriteResult>;
   seedSeenDiscounts(guildId: string, hashes: string[]): Promise<void>;
-  loadSeenDiscountHashes(guildId: string): Promise<string[]>;
+  loadSeenDiscountHashes(guildId: string, candidateHashes?: string[]): Promise<string[]>;
   disableDiscountsForChannelError(guildId: string, channelId: string, message: string): Promise<MongoWriteResult>;
   setSeenHashVersion(guildId: string, field: "seenHashVersionUpdates" | "seenHashVersionDiscounts", version: number): Promise<MongoWriteResult>;
 }
@@ -137,9 +137,15 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
     await withMongoRetry(() => GuildSeenDiscountModel.bulkWrite(ops, { ordered: false }), { label: "seedSeenDiscounts" });
   }
 
-  async function loadSeenDiscountHashes(guildId: string): Promise<string[]> {
+  async function loadSeenDiscountHashes(guildId: string, candidateHashes?: string[]): Promise<string[]> {
+    const filter: Record<string, unknown> = { guildId };
+    if (Array.isArray(candidateHashes)) {
+      const unique = Array.from(new Set(candidateHashes.filter(hash => typeof hash === "string" && hash.length > 0)));
+      if (!unique.length) return [];
+      filter.dealHash = { $in: unique };
+    }
     const docs = await withMongoRetry(
-      () => GuildSeenDiscountModel.find({ guildId }, { dealHash: 1 }).lean(),
+      () => GuildSeenDiscountModel.find(filter, { dealHash: 1 }).lean(),
       { label: "loadSeenDiscountHashes" }
     );
     return docs.map(doc => String(doc.dealHash || "")).filter(Boolean);
