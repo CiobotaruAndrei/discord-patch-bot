@@ -13,7 +13,7 @@ interface UpdatesDepsShape {
   runConcurrent: (
     items: Array<{ game: GameShape; idx: number }>,
     concurrency: number,
-    fn: (item: { game: GameShape; idx: number }) => Promise<void>,
+    fn: (item: { game: GameShape; idx: number }, index: number) => Promise<void>,
     options?: unknown
   ) => Promise<{ errors: unknown[] }>;
   FETCH_CONCURRENCY: number;
@@ -27,6 +27,9 @@ interface UpdatesDepsShape {
   rssParser: { parseString: (input: string) => Promise<{ items?: Array<Record<string, unknown>> }> };
   stableUpdateId: (title: string, link: string) => string;
   executeFetchWithCircuitBreaker?: (game: GameShape) => Promise<FetchResultShape>;
+  httpReq?: (method: string, url: string, options?: unknown) => Promise<{ data: unknown }>;
+  safeCheerioLoad?: (html: unknown) => unknown;
+  SchemaDriftError?: new (message: string, source?: string) => Error;
 }
 
 interface UpdatesApiShape {
@@ -54,9 +57,12 @@ function makeDeps(overrides: Partial<UpdatesDepsShape> = {}): { deps: UpdatesDep
       const cleanup = () => { if (map.get(key) === promise) map.delete(key); };
       promise.then(cleanup, cleanup);
     },
-    runConcurrent: async (items, concurrency, fn) => {
+    runConcurrent: async (items, concurrency, fn, options) => {
       runCalls.push({ count: items.length, concurrency });
-      for (const item of items) await fn(item);
+      const opts = options as { errorLogger?: (item: unknown, err: unknown) => void } | undefined;
+      for (let i = 0; i < items.length; i++) {
+        try { await fn(items[i], i); } catch (err) { opts?.errorLogger?.(items[i], err); }
+      }
       return { errors: [] };
     },
     FETCH_CONCURRENCY: 10,
@@ -307,4 +313,44 @@ test("createUpdates: doua instante cu deps diferite nu se suprascriu (regresie: 
   assert.equal(update.id, "A.1", "instanta A foloseste deps-ul ei, nu pe al instantei B create ulterior");
   assert.ok(a.length >= 1);
   assert.equal(b.length, 0, "deps-ul instantei B nu e atins de apelul pe A");
+});
+
+test("createUpdates.fetchListingBasedUpdate margineste fanout-ul pe listingUrls prin runConcurrent (review #2)", async () => {
+  const fakeNode = { each: () => undefined, attr: () => undefined, text: () => "" };
+  const fakeCheerio = () => fakeNode;
+  class DriftErr extends Error {}
+  const { deps, runCalls } = makeDeps({
+    httpReq: async () => ({ data: "<html/>" }),
+    safeCheerioLoad: () => fakeCheerio,
+    SchemaDriftError: DriftErr
+  });
+  const api = attachUpdates.createUpdates(deps);
+  const fetchListing = api.fetchListingBasedUpdate as (game: Record<string, unknown>) => Promise<unknown>;
+  await assert.rejects(() => fetchListing({
+    key: "g", name: "G", type: "listing_based", baseUrl: "https://ex.com",
+    listingUrls: ["https://ex.com/a", "https://ex.com/b", "https://ex.com/c"]
+  }), DriftErr);
+  assert.ok(
+    runCalls.some(call => call.count === 3 && call.concurrency === 8),
+    "cele 3 listingUrls trec prin runConcurrent cu FETCH_CONCURRENCY_LISTING, nu prin fanout nelimitat"
+  );
+});
+
+test("createUpdates.fetchGameUpdate include esecurile fallback-urilor in eroarea finala (review #3)", async () => {
+  const { deps } = makeDeps({
+    conditionalGet: async <T>(url: string, _parse: (raw: unknown) => T | Promise<T>) => {
+      if (url === "https://ex/primary") throw new Error("primary boom");
+      throw new Error("fallback boom");
+    }
+  });
+  const api = attachUpdates.createUpdates(deps);
+  const fetchGameUpdate = api.fetchGameUpdate as (game: Record<string, unknown>) => Promise<unknown>;
+  await assert.rejects(
+    () => fetchGameUpdate({ key: "g", name: "G", type: "rss", url: "https://ex/primary", fallbacks: [{ type: "rss", url: "https://ex/fb" }] }),
+    (err: Error) => {
+      assert.match(err.message, /primary boom/, "pastreaza eroarea primara");
+      assert.match(err.message, /fallback-uri esuate: rss: fallback boom/, "include si esecul fiecarui fallback (inainte se pierdea, ramanea doar in WARN)");
+      return true;
+    }
+  );
 });
