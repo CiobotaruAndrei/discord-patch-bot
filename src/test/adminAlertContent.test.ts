@@ -38,6 +38,12 @@ test("getAlertGuidance: cron:lock e doar info (multi-instanta normal)", () => {
   assert.equal(getAlertGuidance("cron:lock").severity, "info");
 });
 
+test("getAlertGuidance: http:listen indruma catre env-ul real PORT, nu spre variabile inexistente", () => {
+  const g = getAlertGuidance("http:listen");
+  assert.match(g.action, /env PORT/, "ghidajul mentioneaza variabila reala PORT");
+  assert.ok(!g.action.includes("HEALTH_PORT"), "regresie: ghidajul trimitea operatorul la HEALTH_PORT, variabila care nu exista in cod/.env.example");
+});
+
 test("getAlertGuidance: kind necunoscut => default warning", () => {
   const g = getAlertGuidance("ceva:necunoscut");
   assert.equal(g.severity, "warning");
