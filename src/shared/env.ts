@@ -49,6 +49,9 @@ function attachEnv(target: EnvContext): void {
   const PLACEHOLDER_METRICS_TOKEN = "change_me_to_a_long_random_value";
   const rawMetricsToken = process.env.METRICS_TOKEN || "";
   const effectiveMetricsToken = rawMetricsToken === PLACEHOLDER_METRICS_TOKEN ? "" : rawMetricsToken;
+  if (isProd && String(process.env.METRICS_PUBLIC || "").toLowerCase() === "true") {
+    logger("WARN", "ENV", "METRICS_PUBLIC=true este ignorat in productie - /metrics cere token (seteaza METRICS_TOKEN).");
+  }
   if (rawMetricsToken === PLACEHOLDER_METRICS_TOKEN) {
     logger("WARN", "ENV", "METRICS_TOKEN are valoarea placeholder, tratat ca lipsa");
   }
@@ -77,11 +80,10 @@ function attachEnv(target: EnvContext): void {
   }).superRefine((env, validationContext) => {
     if (isProd) {
       const hasToken = !!env.METRICS_TOKEN;
-      const explicitlyPublic = String(env.METRICS_PUBLIC || "").toLowerCase() === "true";
-      if (!hasToken && !explicitlyPublic) {
+      if (!hasToken) {
         validationContext.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "In NODE_ENV=production trebuie setat METRICS_TOKEN, SAU METRICS_PUBLIC=true (opt-in explicit)."
+          message: "In NODE_ENV=production trebuie setat METRICS_TOKEN. METRICS_PUBLIC=true nu mai e acceptat ca opt-in in productie - /metrics fara token ramane permis doar in dev/local."
         });
       }
     }

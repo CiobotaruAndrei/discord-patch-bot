@@ -102,7 +102,7 @@ function createHttpServer({
 }: CreateHttpServerDeps): Server {
   function checkMetricsAuth(req: IncomingMessage): boolean {
 
-    if (env.METRICS_PUBLIC) return true;
+    if (env.METRICS_PUBLIC && !env.isProd) return true;
 
     if (!env.METRICS_TOKEN) return !env.isProd;
     const auth = req.headers["authorization"] || "";
