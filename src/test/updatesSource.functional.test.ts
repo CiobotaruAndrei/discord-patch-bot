@@ -225,7 +225,7 @@ test("createUpdates.fetchMinecraftUpdate cade pe mirror-ul launchermeta cand pis
   const { deps, conditionalUrls } = makeDeps({
     conditionalGet: async <T>(url: string, parse: (raw: unknown) => T | Promise<T>) => {
       conditionalUrls.push(url);
-      if (url.includes("piston-meta.mojang.com")) throw new Error("primary down");
+      if (url.startsWith("https://piston-meta.mojang.com/")) throw new Error("primary down");
       return parse({ latest: { release: "1.22" } });
     }
   });
