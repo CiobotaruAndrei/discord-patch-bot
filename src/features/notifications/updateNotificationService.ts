@@ -142,7 +142,26 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       const claim = await claimSeenUpdate(String(guild._id), channel.id, gameKey, next.id);
       if ((claim.matchedCount ?? 0) === 0) continue;
       const game = resultByGameKey.get(gameKey)?.game || { name: gameKey, key: gameKey };
-      batch.push({ gameKey, item: next, embed: buildUpdateEmbed(game.name, next, notificationMode) });
+      let embed: unknown;
+      try {
+        embed = buildUpdateEmbed(game.name, next, notificationMode);
+      } catch (embedErr: unknown) {
+        await rollbackSeenUpdate(String(guild._id), gameKey, next.id).catch(() => null);
+        next.attempts = (next.attempts || 0) + 1;
+        if (next.attempts < PENDING_UPDATE_MAX_ATTEMPTS) {
+          const requeue = pendingByGame.get(gameKey) || [];
+          requeue.unshift(next);
+          pendingByGame.set(gameKey, requeue);
+        } else {
+          deadLettered.push(buildDeadLetterEntry({
+            kind: "update", itemId: next.id, title: next.title,
+            reason: transientErrorMessage(embedErr), attempts: next.attempts
+          }));
+        }
+        logger("WARN", "CRON_UPDATES", `buildUpdateEmbed a esuat pentru ${gameKey}/${next.id}; claim-ul a fost dat inapoi`, transientErrorMessage(embedErr));
+        continue;
+      }
+      batch.push({ gameKey, item: next, embed });
     }
 
     const notificationRoleId = (guild as { notificationRoleId?: string }).notificationRoleId;
