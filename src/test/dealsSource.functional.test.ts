@@ -169,3 +169,18 @@ test("createDeals.enrichDealData imbogateste oferta Steam folosind deps", async 
   assert.equal(enriched.endDateStr, "31 Dec", "preia data expirarii prin deps.extractOfferEndFromHtml");
   assert.match(String(enriched.extraDetails), /Win/, "adauga platformele din appdetails");
 });
+
+test("createDeals: doua instante cu deps diferite nu se suprascriu (regresie: deps era variabila globala de modul)", async () => {
+  const { deps: depsA, calls: callsA } = makeDeps({
+    httpReq: async (_m, url) => { callsA.push(url); return { data: { query_summary: { total_reviews: 10, total_positive: 9 } } }; }
+  });
+  const { deps: depsB, calls: callsB } = makeDeps({
+    httpReq: async (_m, url) => { callsB.push(url); return { data: { query_summary: { total_reviews: 1, total_positive: 0 } } }; }
+  });
+  const apiA = attachDeals.createDeals(depsA);
+  attachDeals.createDeals(depsB);
+  const review = await apiA.fetchSteamReviewData("620");
+  assert.equal(review.totalReviews, 10, "instanta A foloseste deps-ul ei, nu pe al instantei B create ulterior");
+  assert.equal(callsA.length, 1);
+  assert.equal(callsB.length, 0, "deps-ul instantei B nu e atins de apelul pe A");
+});
