@@ -77,6 +77,12 @@ src/
     deals/
     steam/
     updates/
+      index.ts
+      updateHelpers.ts
+      steamUpdates.ts
+      listingUpdates.ts
+      driverUpdates.ts
+      platformUpdates.ts
     sourceRegistry.ts
   test/
 ```

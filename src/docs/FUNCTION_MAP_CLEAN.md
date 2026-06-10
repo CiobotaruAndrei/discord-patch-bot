@@ -200,11 +200,15 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Sursele Steam/deals/updates sunt incluse in strict TypeScript si au teste directe pentru shape drift.
 - Contractul registrului e **value-tipat din tipuri reale**: `SourceRegistryApi` e compus prin indexed access din `SteamSourceApi`/`DealsApi`/`UpdatesApi` (modulul partajat `sources/sourceApis.ts`) + tipurile-domeniu din `types.ts` (`DealInfo`, `NormalizedUpdate`, `PatchUpdate`) — fara `unknown` pe functiile de sursa; tipul e si exportat (`export type { SourceRegistryApi }`). Acoperit de `sourceRegistryTypedApi.test.ts`.
 
-### `src/sources/updates/index.ts`
+### `src/sources/updates/` (split pe functionalitate)
 
-- Fetch-uieste update-uri din Steam, RSS, HTML listing si surse custom.
-- Sursele `minecraft` si `roblox` incearca mirror-uri oficiale in ordine (`piston-meta` -> `launchermeta`; `clientsettings` -> `clientsettingscdn`) prin `conditionalGetFromMirrors`, ca un singur host cazut sa nu mai omoare sursa.
-- Foloseste Rust pentru curatare text, scoring URL/listing si clasificare patch notes.
+- Fetch-uieste update-uri din Steam, RSS, HTML listing si surse custom; foloseste Rust pentru curatare text, scoring URL/listing si clasificare patch notes.
+- `index.ts` — orchestrator: `createUpdates(deps)` compune sub-modulele, ruteaza sursele (`fetchGameUpdateForSource`), tine lantul de fallback (`fetchGameUpdate`), circuit breaker-ul (`executeFetchWithCircuitBreaker`), `getLatestForAllGames` si coalescing-ul `inflightAllGames`; `attachUpdates` ramane adaptorul public.
+- `updateHelpers.ts` — helpere pure si tipuri partajate: `absoluteUrl`, `isGoodSteamArticleUrl`, `extractDateScore`, `scoreCandidate`, `isLikelyPatchNote`, `sourceConcurrencyGroup`, `applyFallbackSource`.
+- `steamUpdates.ts` — `createSteamUpdates(deps)` -> `fetchSteamUpdate` (Steam news API, conditional GET).
+- `listingUpdates.ts` — `createListingUpdates(deps)` -> `fetchListingBasedUpdate` (HTML listing, fanout marginit prin `runConcurrent`).
+- `driverUpdates.ts` — `createDriverUpdates(deps)` -> `fetchAmdUpdate`, `fetchIntelUpdate`, `fetchNvidiaUpdate` (pagini oficiale + fallback Google News RSS).
+- `platformUpdates.ts` — `createPlatformUpdates(deps)` -> `fetchFortniteUpdate`, `fetchMinecraftUpdate`, `fetchRobloxUpdate`, `fetchRssUpdate`; sursele `minecraft` si `roblox` incearca mirror-uri oficiale in ordine (`piston-meta` -> `launchermeta`; `clientsettings` -> `clientsettingscdn`) prin `conditionalGetFromMirrors`, ca un singur host cazut sa nu mai omoare sursa.
 
 ### `src/sources/deals/index.ts`
 
