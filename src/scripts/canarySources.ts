@@ -23,6 +23,26 @@ export interface CanarySummary {
   pass: boolean;
 }
 
+export const RELIABLE_CANARY_TYPES: ReadonlySet<string> = new Set(["steam", "minecraft", "roblox"]);
+
+export function filterCanaryGames<G extends { type?: string }>(games: G[]): G[] {
+  return (games || []).filter(game => !game.type || RELIABLE_CANARY_TYPES.has(String(game.type)));
+}
+
+export interface DealsStoreBreakdown {
+  byStore: Record<string, number>;
+  epicMissing: boolean;
+}
+
+export function summarizeDealsByStore(deals: Array<{ store?: unknown }>): DealsStoreBreakdown {
+  const byStore: Record<string, number> = {};
+  for (const deal of deals || []) {
+    const store = String((deal && deal.store) || "necunoscut");
+    byStore[store] = (byStore[store] || 0) + 1;
+  }
+  return { byStore, epicMissing: !byStore["Epic Games"] };
+}
+
 export function summarizeCanary(gameResults: CanaryGameResult[], dealsOk: boolean, dealsCount: number): CanarySummary {
   const byTypeMap = new Map<string, { total: number; ok: number }>();
   for (const result of gameResults) {
@@ -73,11 +93,11 @@ async function main(): Promise<void> {
   }
 
   const { games } = loadConfig();
-  const steamGames = games.filter(game => !game.type || game.type === "steam");
+  const canaryGames = filterCanaryGames(games);
 
   let gameResults: CanaryGameResult[] = [];
   try {
-    const results = await sources.getLatestForAllGames(steamGames);
+    const results = await sources.getLatestForAllGames(canaryGames);
     gameResults = results.map(result => ({
       key: String(result.game.key),
       type: String(result.game.type || "steam"),
@@ -90,10 +110,12 @@ async function main(): Promise<void> {
 
   let dealsOk = false;
   let dealsCount = 0;
+  let storeBreakdown: DealsStoreBreakdown | null = null;
   try {
     const deals = await sources.fetchDeals({ currency: "USD" });
     dealsCount = Array.isArray(deals) ? deals.length : 0;
     dealsOk = dealsCount > 0;
+    if (Array.isArray(deals)) storeBreakdown = summarizeDealsByStore(deals as Array<{ store?: unknown }>);
   } catch (err) {
     console.log(`[CANARY] fetchDeals inconcludent (timeout/retea): ${(err as Error).message}`);
     dealsOk = true;
@@ -105,6 +127,13 @@ async function main(): Promise<void> {
     console.log(`- ${type.type}: ${type.ok}/${type.total} OK${type.brokenSource ? "  [SURSA RUPTA]" : ""}`);
   }
   console.log(`- deals: ${summary.dealsOk ? "OK" : "ESEC"} (${summary.dealsCount} oferte)`);
+  if (storeBreakdown) {
+    const parts = Object.entries(storeBreakdown.byStore).map(([store, count]) => `${store}: ${count}`).join(", ");
+    console.log(`- deals pe store: ${parts || "(niciun store)"}`);
+    if (dealsOk && storeBreakdown.epicMissing) {
+      console.warn("::warning::[canary-sources] 0 oferte Epic Games in fetchDeals — endpoint-ul Epic e posibil rupt sau blocheaza IP-ul de runner; totalul e acoperit de Steam, deci canarul nu pica, dar verifica manual integrarea Epic.");
+    }
+  }
   for (const failure of summary.failures) console.error(`::error::[canary-sources] ${failure}`);
 
   if (connected) await mongoose.disconnect().catch(() => undefined);

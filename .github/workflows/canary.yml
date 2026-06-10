@@ -36,7 +36,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Canary surse (fetch live API fiabile - steam updates + deals)
+      - name: Canary surse (fetch live API fiabile - steam/minecraft/roblox updates + deals cu breakdown pe store)
         env:
           MONGO_URI: mongodb://localhost:27017/discord-patch-bot-canary
           DISCORD_TOKEN: canary_token
