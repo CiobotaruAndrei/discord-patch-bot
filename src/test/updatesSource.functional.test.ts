@@ -196,6 +196,7 @@ test("createUpdates.fetchMinecraftUpdate foloseste deps.conditionalGet si deps.n
   const api = attachUpdates.createUpdates(deps);
   const update = await api.fetchMinecraftUpdate();
   assert.equal(update.id, "1.21");
+  assert.match(String(update.thumbnail || ""), /^https:[/][/]upload[.]wikimedia[.]org[/].+[.](png|jpg)$/, "thumbnail PNG/JPG pe host stabil (regresie: SVG-ul wikia si PNG-ul seeklogo au ajuns 404; Discord oricum nu randeaza SVG in embed)");
   assert.match(update.title, /Minecraft 1\.21/);
   assert.ok(conditionalUrls.some(u => u.includes("version_manifest")), "a cerut manifestul de versiune prin deps.conditionalGet");
   assert.ok(
@@ -221,6 +222,43 @@ test("createUpdates.fetchRobloxUpdate cere endpoint-ul oficial client-version si
   );
 });
 
+test("createUpdates.fetchMinecraftUpdate cade pe mirror-ul launchermeta cand piston-meta esueaza", async () => {
+  const { deps, conditionalUrls } = makeDeps({
+    conditionalGet: async <T>(url: string, parse: (raw: unknown) => T | Promise<T>) => {
+      conditionalUrls.push(url);
+      if (url.startsWith("https://piston-meta.mojang.com/")) throw new Error("primary down");
+      return parse({ latest: { release: "1.22" } });
+    }
+  });
+  const api = attachUpdates.createUpdates(deps);
+  const update = await api.fetchMinecraftUpdate();
+  assert.equal(update.id, "1.22");
+  assert.ok(conditionalUrls.some(u => u.startsWith("https://piston-meta.mojang.com/")), "a incercat intai mirror-ul primar");
+  assert.ok(conditionalUrls.some(u => u.startsWith("https://launchermeta.mojang.com/")), "a cazut pe mirror-ul oficial secundar launchermeta (rezilienta: un singur host mort a tinut sursa picata luni de zile)");
+});
+
+test("createUpdates.fetchRobloxUpdate cade pe mirror-ul clientsettingscdn cand clientsettings esueaza", async () => {
+  const { deps, conditionalUrls } = makeDeps({
+    conditionalGet: async <T>(url: string, parse: (raw: unknown) => T | Promise<T>) => {
+      conditionalUrls.push(url);
+      if (url.startsWith("https://clientsettings.roblox.com/")) throw new Error("primary down");
+      return parse({ clientVersionUpload: "version-mirror" });
+    }
+  });
+  const api = attachUpdates.createUpdates(deps);
+  const fetchRobloxUpdate = api.fetchRobloxUpdate as () => Promise<NormalizedUpdateShape>;
+  const update = await fetchRobloxUpdate();
+  assert.equal(update.id, "version-mirror");
+  assert.ok(conditionalUrls.some(u => u.startsWith("https://clientsettingscdn.roblox.com/")), "a cazut pe mirror-ul oficial secundar clientsettingscdn");
+});
+
+test("conditionalGetFromMirrors propaga ultima eroare cand toate mirror-urile esueaza", async () => {
+  const { deps } = makeDeps({
+    conditionalGet: async () => { throw new Error("toate au picat"); }
+  });
+  const api = attachUpdates.createUpdates(deps);
+  await assert.rejects(() => api.fetchMinecraftUpdate(), /toate au picat/);
+});
 test("createUpdates.getLatestForAllGames injecteaza executeFetchWithCircuitBreaker prin deps (decuplat)", async () => {
   const seen: string[] = [];
   const { deps, runCalls } = makeDeps({
