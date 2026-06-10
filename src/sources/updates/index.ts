@@ -476,7 +476,7 @@ async function fetchMinecraftUpdate(): Promise<NormalizedUpdate> {
 
 async function fetchRobloxUpdate(): Promise<NormalizedUpdate> {
   const { conditionalGet, normalizeUpdate } = deps;
-  return conditionalGet("https://clientsettings.roblox.com/v2/clientversion/WindowsPlayer", (raw) => {
+  return conditionalGet("https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", (raw) => {
     const versionInfo = raw as RobloxVersionResponse;
     const v = versionInfo.clientVersionUpload;
     if (!v) throw new Error("Lipsă versiune API");
