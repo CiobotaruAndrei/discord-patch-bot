@@ -35,7 +35,7 @@ jobs:
           toolchain: "1.96.0"
 
       - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+        run: cargo install cargo-audit --locked --version 0.22.2
 
       - name: Audit Rust dependencies (cargo audit)
         run: cargo audit --file native/Cargo.lock --deny warnings
