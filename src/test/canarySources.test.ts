@@ -1,9 +1,36 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { summarizeCanary } from "../scripts/canarySources";
+import { summarizeCanary, filterCanaryGames, summarizeDealsByStore, RELIABLE_CANARY_TYPES } from "../scripts/canarySources";
 import type { CanaryGameResult } from "../scripts/canarySources";
 
 const r = (key: string, type: string, ok: boolean): CanaryGameResult => ({ key, type, ok });
+
+test("filterCanaryGames: include toate API-urile JSON fiabile (steam implicit, minecraft, roblox), nu doar steam", () => {
+  const games = [
+    { key: "cs2" },
+    { key: "dota", type: "steam" },
+    { key: "minecraft", type: "minecraft" },
+    { key: "roblox", type: "roblox" },
+    { key: "fortnite", type: "epic_games" },
+    { key: "lol", type: "listing_based" },
+    { key: "wow", type: "rss" },
+    { key: "nv", type: "nvidia" }
+  ];
+  const filtered = filterCanaryGames(games).map(game => game.key);
+  assert.deepEqual(filtered, ["cs2", "dota", "minecraft", "roblox"],
+    "regresie: canarul verifica doar jocurile steam -> sursele minecraft (host DNS mort) si roblox (path 404) au ramas rupte luni de zile fara alerta");
+  assert.ok(RELIABLE_CANARY_TYPES.has("minecraft") && RELIABLE_CANARY_TYPES.has("roblox"));
+});
+
+test("summarizeDealsByStore: numara ofertele per store si semnaleaza lipsa totala a Epic", () => {
+  const mixed = summarizeDealsByStore([{ store: "Steam" }, { store: "Epic Games" }, { store: "Steam" }]);
+  assert.deepEqual(mixed.byStore, { Steam: 2, "Epic Games": 1 });
+  assert.equal(mixed.epicMissing, false);
+  const steamOnly = summarizeDealsByStore([{ store: "Steam" }, { store: "Steam" }]);
+  assert.equal(steamOnly.epicMissing, true,
+    "regresie: dealsOk=count>0 nu vedea ca Epic a disparut (graphql.epicgames.com retras) cat timp Steam dadea oferte");
+  assert.equal(summarizeDealsByStore([]).epicMissing, true);
+});
 
 test("summarizeCanary: o sursa cu cel putin un joc OK NU e considerata rupta (esec partial = tranzitoriu)", () => {
   const out = summarizeCanary([r("a", "steam", true), r("b", "steam", false)], true, 12);
