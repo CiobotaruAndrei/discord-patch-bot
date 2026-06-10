@@ -1,0 +1,42 @@
+{
+ "specials": {
+  "items": [
+   {
+    "id": 3844970,
+    "type": 0,
+    "name": "Burglin' Gnomes",
+    "discounted": true,
+    "discount_percent": 10,
+    "original_price": 999,
+    "final_price": 899,
+    "currency": "USD",
+    "large_capsule_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3844970/b779b481bdcfbd0fe04bdab741be885d1d13ed14/capsule_616x353.jpg?t=1781100001",
+    "small_capsule_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3844970/e41b58cdb34075d167e6905d090cd0a7f69c2254/capsule_184x69.jpg?t=1781100001",
+    "windows_available": true,
+    "mac_available": false,
+    "linux_available": false,
+    "streamingvideo_available": false,
+    "discount_expiration": 1781715600,
+    "header_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3844970/d6127e4eabda23e1d1c727a1875e6b6cb0e634ae/header.jpg?t=1781100001"
+   },
+   {
+    "id": 4704690,
+    "type": 0,
+    "name": "MECCHA CHAMELEON",
+    "discounted": true,
+    "discount_percent": 20,
+    "original_price": 599,
+    "final_price": 479,
+    "currency": "USD",
+    "large_capsule_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4704690/8c199d9c704956104caa7de32cccef828b3cf3d0/capsule_616x353.jpg?t=1781108224",
+    "small_capsule_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4704690/18d14b8bd834e30a6a25df5ccd7f0a6e644f1577/capsule_184x69.jpg?t=1781108224",
+    "windows_available": true,
+    "mac_available": false,
+    "linux_available": false,
+    "streamingvideo_available": false,
+    "discount_expiration": 1781629235,
+    "header_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4704690/163e2a742e5fb8e1f5d1e3a890da98f04ab809d4/header.jpg?t=1781108224"
+   }
+  ]
+ }
+}
