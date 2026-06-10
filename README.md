@@ -55,8 +55,10 @@ cd src
 npm ci
 cp .env.example .env
 npm run build
-npm start
+npm run start:local
 ```
+
+`npm run start:local` incarca `.env` prin `node --env-file` (botul citeste doar `process.env` — nu exista dotenv). `npm start` (folosit in Docker) NU incarca `.env`: containerul primeste variabilele prin `env_file` din `docker-compose.yml`, iar in productie vin din mediul orchestratorului.
 
 Pentru development local cu MongoDB inclus:
 
