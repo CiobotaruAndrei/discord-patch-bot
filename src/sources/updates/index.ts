@@ -245,7 +245,8 @@ function createUpdates(d: UpdatesDeps): UpdatesApi {
     const hrefRegex = getArticleHrefRegex(game);
 
     type FetchedListing = { url: string; candidates: ListingCandidate[] };
-    const settled = await Promise.allSettled(listingUrls.map(async (url): Promise<FetchedListing> => {
+    const fetched: Array<FetchedListing | null> = new Array(listingUrls.length).fill(null);
+    await deps.runConcurrent(listingUrls, deps.FETCH_CONCURRENCY_LISTING, async (url, index) => {
       const listRes = await httpReq("GET", url);
       const $ = safeCheerioLoad(listRes.data);
       const candidates: ListingCandidate[] = [];
@@ -258,20 +259,18 @@ function createUpdates(d: UpdatesDeps): UpdatesApi {
         if (keywords.length > 0 && scoreCandidate(candidate, keywords) === 0) return;
         candidates.push(candidate);
       });
-      return { url: String(url), candidates };
-    }));
+      fetched[index] = { url: String(url), candidates };
+    }, {
+      errorLogger: (url, err) => logger("WARN", "SCRAPE", `Eroare preluare listing url ${url}`, errorMessage(err))
+    });
 
     const collected: ListingCandidate[] = [];
     let listingFetched = 0;
     let globalPosition = 0;
-    for (let i = 0; i < settled.length; i++) {
-      const r = settled[i];
-      if (r.status === "rejected") {
-        logger("WARN", "SCRAPE", `Eroare preluare listing url ${listingUrls[i]}`, errorMessage(r.reason));
-        continue;
-      }
+    for (const entry of fetched) {
+      if (!entry) continue;
       listingFetched++;
-      for (const c of r.value.candidates) {
+      for (const c of entry.candidates) {
         collected.push({ href: c.href, text: c.text, position: globalPosition++ });
       }
     }
@@ -572,6 +571,7 @@ function createUpdates(d: UpdatesDeps): UpdatesApi {
       return await fetchGameUpdateForSource(game);
     } catch (primaryErr) {
       const fallbacks = Array.isArray(game.fallbacks) ? game.fallbacks : [];
+      const fallbackFailures: string[] = [];
       for (const fallback of fallbacks) {
         if (!fallback || !fallback.type) continue;
         try {
@@ -579,8 +579,17 @@ function createUpdates(d: UpdatesDeps): UpdatesApi {
           deps.logger("INFO", "FALLBACK", `Sursa principala pentru ${game.key} a esuat; am folosit fallback '${fallback.type}'.`);
           return update;
         } catch (fallbackErr) {
+          fallbackFailures.push(`${fallback.type}: ${errorMessage(fallbackErr)}`);
           deps.logger("WARN", "FALLBACK", `Sursa fallback '${fallback.type}' pentru ${game.key} a esuat`, errorMessage(fallbackErr));
         }
+      }
+      if (fallbackFailures.length) {
+        const suffix = ` | fallback-uri esuate: ${fallbackFailures.join("; ")}`;
+        if (primaryErr instanceof Error) {
+          primaryErr.message = `${primaryErr.message}${suffix}`;
+          throw primaryErr;
+        }
+        throw new Error(`${errorMessage(primaryErr)}${suffix}`);
       }
       throw primaryErr;
     }

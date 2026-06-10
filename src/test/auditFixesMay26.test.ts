@@ -46,7 +46,13 @@ test("sources/updates: fetchListingBasedUpdate arunca plain Error (nu SchemaDrif
     cleanText: (value: unknown) => String(value || "").trim(),
     normalizeUpdate,
     logger: () => undefined,
-    SchemaDriftError: TestSchemaDriftError
+    SchemaDriftError: TestSchemaDriftError,
+    runConcurrent: async (items: unknown[], _concurrency: number, fn: (item: unknown, index: number) => Promise<void>, opts?: { errorLogger?: (item: unknown, err: unknown) => void }) => {
+      for (let i = 0; i < items.length; i++) {
+        try { await fn(items[i], i); } catch (err) { opts?.errorLogger?.(items[i], err); }
+      }
+      return { processed: items.length, errors: [] };
+    },
   };
   attachUpdates(context);
   const runtime = context as typeof context & UpdatesRuntime;
