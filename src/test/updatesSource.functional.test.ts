@@ -196,6 +196,7 @@ test("createUpdates.fetchMinecraftUpdate foloseste deps.conditionalGet si deps.n
   const api = attachUpdates.createUpdates(deps);
   const update = await api.fetchMinecraftUpdate();
   assert.equal(update.id, "1.21");
+  assert.match(String(update.thumbnail || ""), /^https:[/][/]upload[.]wikimedia[.]org[/].+[.](png|jpg)$/, "thumbnail PNG/JPG pe host stabil (regresie: SVG-ul wikia si PNG-ul seeklogo au ajuns 404; Discord oricum nu randeaza SVG in embed)");
   assert.match(update.title, /Minecraft 1\.21/);
   assert.ok(conditionalUrls.some(u => u.includes("version_manifest")), "a cerut manifestul de versiune prin deps.conditionalGet");
   assert.ok(

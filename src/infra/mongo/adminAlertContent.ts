@@ -37,7 +37,7 @@ const EXACT_GUIDANCE: Record<string, AdminAlertGuidance> = {
   "http:listen": {
     severity: "warning",
     meaning: "Serverul HTTP de health/metrics nu a putut asculta (probabil portul e ocupat).",
-    action: "Verifica portul de health (HEALTH_PORT) si daca alt proces il foloseste deja; health/metrics raman indisponibile pana la remediere."
+    action: "Verifica portul de health (env PORT, implicit 3000) si daca alt proces il foloseste deja; health/metrics raman indisponibile pana la remediere."
   },
   "slash:register-failed": {
     severity: "warning",

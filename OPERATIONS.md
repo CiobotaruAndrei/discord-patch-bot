@@ -96,13 +96,19 @@ de Rust. Alerta `NativeFallbackActive` se declanseaza cand metrica creste.
 ## Canary surse (verificare live programata)
 
 `npm run canary:sources` (script `scripts/canarySources.ts`) face un fetch **live** pe sursele
-**API fiabile** — jocurile `steam` din `src/config.json` (`getLatestForAllGames`, prin ISteamNews) si
-reducerile (`fetchDeals`: Steam specials + Epic GraphQL) — si raporteaza cate jocuri au intors date
-valide. Scop: prinde proactiv cand Steam/Epic isi schimba API-ul/formatul (schema drift), inainte ca
-userii sa observe notificari lipsa. **Sursele scraped/proxy** (`listing_based`, `epic_games`/fortnite
-prin proxy) sunt **excluse intentionat** din canary-ul automat: depind de `PROXY_URLS` si de scraping
-HTML fragil, deci ar genera fals-alarme (timeout/retea) — verifica-le manual cu `PROXY_URLS` setat daca
-banuiesti ca s-au schimbat.
+**API fiabile** — jocurile cu tip in `RELIABLE_CANARY_TYPES` (`steam` implicit/explicit prin ISteamNews,
+`minecraft` prin manifestul piston-meta, `roblox` prin clientsettings; toate API-uri JSON fara anti-bot,
+selectate de `filterCanaryGames`) si reducerile (`fetchDeals`: Steam specials + Epic GraphQL) — si
+raporteaza cate jocuri au intors date valide. La deals raporteaza si **breakdown-ul pe store**
+(`summarizeDealsByStore`); daca totalul e OK dar **0 oferte vin de la Epic Games**, emite un
+`::warning::` (nu pica — IP-urile de runner pot fi blocate de Epic, dar disparitia totala a Epic merita
+verificata manual; lectie: endpoint-ul `graphql.epicgames.com` a fost retras si nimeni n-a observat).
+Scop: prinde proactiv cand o sursa isi schimba API-ul/formatul (schema drift) — lectie: doar jocurile
+`steam` erau verificate, iar sursele `minecraft` (host DNS inexistent) si `roblox` (path 404) au ramas
+rupte luni de zile fara nicio alerta. **Sursele scraped/proxy** (`listing_based`, `epic_games`/fortnite
+prin proxy, driverele prin Google News RSS) raman **excluse intentionat** din canary-ul automat: depind
+de `PROXY_URLS` si de scraping HTML fragil, deci ar genera fals-alarme (timeout/retea) — verifica-le
+manual cu `PROXY_URLS` setat daca banuiesti ca s-au schimbat.
 
 - Ruleaza **programat (nightly) + manual** prin workflow-ul `canary.yml` (`workflow_dispatch` sau cron),
   **nu** ca check obligatoriu pe PR: poate pica din cauza Steam/Epic/internet, nu a codului, deci n-ar
