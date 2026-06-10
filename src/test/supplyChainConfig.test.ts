@@ -64,3 +64,8 @@ test("SECURITY.md documenteaza setarile de repo de securitate (confirmate enable
   assert.match(text, /required status checks/i, "documenteaza required status checks in branch protection");
   assert.match(text, /Dependency Review/, "documenteaza Dependency Review ca status check pe fiecare PR");
 });
+
+test("dependency-audit pinuieste versiunea cargo-audit (instalarea live flotanta poate schimba rezultatul intre rulari)", () => {
+  const text = read(path.join(repoRoot, ".github", "workflows", "dependency-audit.yml"));
+  assert.match(text, /cargo install cargo-audit --locked --version \d+\.\d+\.\d+/, "cargo-audit instalat cu versiune fixata");
+});
