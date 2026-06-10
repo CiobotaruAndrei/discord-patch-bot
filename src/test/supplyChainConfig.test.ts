@@ -22,9 +22,26 @@ test("dependabot acopera npm, github-actions si cargo (crate-ul Rust)", () => {
   assert.match(text, /directory:\s*"\/src\/native"/, "cargo pointeaza catre crate-ul Rust din /src/native");
 });
 
+test("toate actions din workflow-uri sunt pinuite pe commit SHA (supply chain: tag-urile sunt mutabile)", () => {
+  const workflowsDir = path.join(repoRoot, ".github", "workflows");
+  const offenders: string[] = [];
+  for (const file of fs.readdirSync(workflowsDir).filter((f: string) => f.endsWith(".yml"))) {
+    const text = read(path.join(workflowsDir, file));
+    for (const rawLine of text.split(String.fromCharCode(10))) {
+      const line = rawLine.replace(String.fromCharCode(13), String());
+      const match = line.match(/uses:\s*([^\s]+)/);
+      if (!match) continue;
+      const ref = match[1];
+      if (ref.startsWith("./")) continue;
+      if (!/@[0-9a-f]{40}$/.test(ref)) offenders.push(`${file}: ${ref}`);
+    }
+  }
+  assert.deepEqual(offenders, [], "fiecare uses: extern trebuie pinuit pe SHA de commit (Dependabot github-actions le actualizeaza controlat)");
+});
+
 test("dependency-review ruleaza actiunea blocking neconditionat (fail-closed real)", () => {
   const text = read(dependencyReviewPath);
-  assert.match(text, /actions\/dependency-review-action@v\d+/, "foloseste dependency-review-action");
+  assert.match(text, /actions\/dependency-review-action@[0-9a-f]{40}/, "foloseste dependency-review-action pinuita pe SHA");
   assert.match(text, /fail-on-severity:\s*moderate/, "blocheaza la severitate moderate+");
   assert.ok(!/dependency-graph\b/.test(text) && !/dependency_graph\?\.status/.test(text), "fara gate pe statusul dependency graph (nesigur pe repo-uri publice, unde graph-ul e mereu activat dar API-ul intoarce undefined - masca faptul ca actiunea nu rula niciodata)");
   assert.ok(!/if:\s/.test(text), "actiunea ruleaza neconditionat (fara `if:` care ar putea-o sari -> verde fals)");
