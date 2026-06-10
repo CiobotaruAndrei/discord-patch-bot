@@ -203,6 +203,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/sources/updates/index.ts`
 
 - Fetch-uieste update-uri din Steam, RSS, HTML listing si surse custom.
+- Sursele `minecraft` si `roblox` incearca mirror-uri oficiale in ordine (`piston-meta` -> `launchermeta`; `clientsettings` -> `clientsettingscdn`) prin `conditionalGetFromMirrors`, ca un singur host cazut sa nu mai omoare sursa.
 - Foloseste Rust pentru curatare text, scoring URL/listing si clasificare patch notes.
 
 ### `src/sources/deals/index.ts`

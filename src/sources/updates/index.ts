@@ -458,9 +458,39 @@ async function fetchIntelUpdate(game: GameConfig): Promise<NormalizedUpdate> {
   });
 }
 
+async function conditionalGetFromMirrors<T>(
+  urls: string[],
+  parse: (raw: unknown) => T | Promise<T>,
+  options?: HttpRequestOptions
+): Promise<T> {
+  const { conditionalGet, logger } = deps;
+  let lastErr: unknown = null;
+  for (let i = 0; i < urls.length; i++) {
+    try {
+      return await conditionalGet(urls[i], parse, options);
+    } catch (err) {
+      lastErr = err;
+      if (i + 1 < urls.length) {
+        logger("WARN", "FETCH_UPDATES", `Mirror-ul ${urls[i]} a esuat, incerc ${urls[i + 1]}`, errorMessage(err));
+      }
+    }
+  }
+  throw lastErr;
+}
+
+const MINECRAFT_MANIFEST_MIRRORS = [
+  "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
+  "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json"
+];
+
+const ROBLOX_CLIENT_VERSION_MIRRORS = [
+  "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer",
+  "https://clientsettingscdn.roblox.com/v2/client-version/WindowsPlayer"
+];
+
 async function fetchMinecraftUpdate(): Promise<NormalizedUpdate> {
-  const { conditionalGet, normalizeUpdate } = deps;
-  return conditionalGet("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json", (raw) => {
+  const { normalizeUpdate } = deps;
+  return conditionalGetFromMirrors(MINECRAFT_MANIFEST_MIRRORS, (raw) => {
     const manifest = raw as MinecraftVersionManifest;
     const v = manifest.latest?.release;
     if (!v) throw new Error("Lipsă versiune JSON");
@@ -475,8 +505,8 @@ async function fetchMinecraftUpdate(): Promise<NormalizedUpdate> {
 }
 
 async function fetchRobloxUpdate(): Promise<NormalizedUpdate> {
-  const { conditionalGet, normalizeUpdate } = deps;
-  return conditionalGet("https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", (raw) => {
+  const { normalizeUpdate } = deps;
+  return conditionalGetFromMirrors(ROBLOX_CLIENT_VERSION_MIRRORS, (raw) => {
     const versionInfo = raw as RobloxVersionResponse;
     const v = versionInfo.clientVersionUpload;
     if (!v) throw new Error("Lipsă versiune API");
