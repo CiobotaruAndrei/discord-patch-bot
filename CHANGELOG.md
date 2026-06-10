@@ -27,6 +27,8 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Sursa Minecraft era complet moarta — host inexistent in DNS**. `fetchMinecraftUpdate` cerea manifestul de versiuni de pe `pistonmeta.mojang.com` (fara cratima), un host care **nu exista** (`curl: Could not resolve host`); endpoint-ul oficial Mojang e **`piston-meta.mojang.com`** (verificat live: HTTP 200). Cum jocul `minecraft` nu are fallback-uri in `config.json`, fiecare ciclu esua cu eroare DNS → circuit breaker acumula fails + alerte, si **nicio notificare Minecraft nu putea fi trimisa**. Bug prezent de la conversia sursei la TypeScript (testul verifica doar ca URL-ul contine `version_manifest`, nu hostul). Fix: hostul corectat; testul din `updatesSource.functional.test.ts` pinuieste acum hostul oficial `piston-meta.mojang.com` ca gard de regresie.
+
 - Intarire din review (9 findings, verificate intai pe cod — Regula 14):
   - **(#1 P1, release SHA-match)** `release.yml` accepta orice rulare Staging Smoke reusita din ultimele N zile, indiferent de commit — puteai elibera un tag fara smoke pe acel commit. Acum rezolva commit-ul tag-ului (`repos.getCommit`) si accepta **doar** rulari Staging Smoke cu `head_sha == commit-ul tag-ului`.
   - **(#2 P1, release ⟷ CI la paritate)** release rula doar `npm run check` (fara Mongo, fara Rust), deci mai slab decat CI. Acum jobul de release are **serviciu Mongo** (`MONGO_URI` la check, deci ruleaza si testele de integrare) + **`cargo clippy` + `cargo test`** pe addon-ul nativ, ca CI.

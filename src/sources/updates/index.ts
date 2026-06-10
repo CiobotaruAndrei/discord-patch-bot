@@ -460,7 +460,7 @@ async function fetchIntelUpdate(game: GameConfig): Promise<NormalizedUpdate> {
 
 async function fetchMinecraftUpdate(): Promise<NormalizedUpdate> {
   const { conditionalGet, normalizeUpdate } = deps;
-  return conditionalGet("https://pistonmeta.mojang.com/mc/game/version_manifest_v2.json", (raw) => {
+  return conditionalGet("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json", (raw) => {
     const manifest = raw as MinecraftVersionManifest;
     const v = manifest.latest?.release;
     if (!v) throw new Error("Lipsă versiune JSON");

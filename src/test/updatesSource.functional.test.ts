@@ -198,6 +198,10 @@ test("createUpdates.fetchMinecraftUpdate foloseste deps.conditionalGet si deps.n
   assert.equal(update.id, "1.21");
   assert.match(update.title, /Minecraft 1\.21/);
   assert.ok(conditionalUrls.some(u => u.includes("version_manifest")), "a cerut manifestul de versiune prin deps.conditionalGet");
+  assert.ok(
+    conditionalUrls.some(u => u.startsWith("https://piston-meta.mojang.com/")),
+    "manifestul vine de pe hostul oficial piston-meta.mojang.com (regresie: 'pistonmeta.mojang.com' fara cratima nu exista in DNS, sursa Minecraft era complet moarta)"
+  );
 });
 
 test("createUpdates.getLatestForAllGames injecteaza executeFetchWithCircuitBreaker prin deps (decuplat)", async () => {
