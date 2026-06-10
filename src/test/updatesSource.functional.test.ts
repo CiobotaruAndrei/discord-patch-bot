@@ -204,6 +204,23 @@ test("createUpdates.fetchMinecraftUpdate foloseste deps.conditionalGet si deps.n
   );
 });
 
+test("createUpdates.fetchRobloxUpdate cere endpoint-ul oficial client-version si foloseste clientVersionUpload ca id", async () => {
+  const { deps, conditionalUrls } = makeDeps({
+    conditionalGet: async <T>(url: string, parse: (raw: unknown) => T | Promise<T>) => {
+      conditionalUrls.push(url);
+      return parse({ clientVersionUpload: "version-76173e47a79145c7" });
+    }
+  });
+  const api = attachUpdates.createUpdates(deps);
+  const fetchRobloxUpdate = api.fetchRobloxUpdate as () => Promise<NormalizedUpdateShape>;
+  const update = await fetchRobloxUpdate();
+  assert.equal(update.id, "version-76173e47a79145c7");
+  assert.ok(
+    conditionalUrls.some(u => u.includes("/v2/client-version/WindowsPlayer")),
+    "foloseste path-ul oficial /v2/client-version/ (regresie: '/v2/clientversion/' fara cratima raspunde 404, sursa Roblox era complet moarta)"
+  );
+});
+
 test("createUpdates.getLatestForAllGames injecteaza executeFetchWithCircuitBreaker prin deps (decuplat)", async () => {
   const seen: string[] = [];
   const { deps, runCalls } = makeDeps({
