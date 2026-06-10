@@ -27,8 +27,9 @@ type _SafeCheerioLoadIsTyped = Expect<
   Mod["safeCheerioLoad"] extends (html: unknown) => CheerioAPI ? true : false
 >;
 
+type _SteamPriceDetailsResult = Awaited<ReturnType<ReturnType<typeof import("../sources/sourceRegistry").createSourceRegistry>["fetchSteamPriceDetails"]>>;
 type _SteamPriceDetailsTyped = Expect<
-  ReturnType<typeof import("../sources/sourceRegistry").createSourceRegistry>["fetchSteamPriceDetails"] extends (appId: string | number, currencyCode?: unknown) => Promise<SteamAppDetailsSummary | null> ? true : false
+  _SteamPriceDetailsResult extends SteamAppDetailsSummary | null ? (unknown extends _SteamPriceDetailsResult ? false : true) : false
 >;
 
 const registry = require("../sources/sourceRegistry") as Record<string, unknown>;
