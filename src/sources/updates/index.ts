@@ -138,7 +138,6 @@ interface UpdatesDeps {
 
 type UpdatesContext = UpdatesDeps & Record<string, unknown>;
 
-const inflightAllGames = new Map<string, Promise<FetchResult[]>>();
 
 function absoluteUrl(base: string | undefined, maybeRelative: string | undefined): string {
   try { return new URL(maybeRelative || "", base).href; } catch { return ""; }
@@ -183,6 +182,7 @@ function sourceConcurrencyGroup(game: GameConfig): string {
 }
 
 function createUpdates(d: UpdatesDeps): UpdatesApi {
+  const inflightAllGames = new Map<string, Promise<FetchResult[]>>();
   const deps = d;
 
   function concurrencyForGroup(group: string): number {

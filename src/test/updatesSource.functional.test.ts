@@ -308,3 +308,27 @@ test("createUpdates: doua instante cu deps diferite nu se suprascriu (regresie: 
   assert.ok(a.length >= 1);
   assert.equal(b.length, 0, "deps-ul instantei B nu e atins de apelul pe A");
 });
+
+test("createUpdates: coalescing-ul inflight e per instanta, nu partajat intre instante (regresie: inflightAllGames era global de modul)", async () => {
+  let resolveA!: (value: FetchResultShape[]) => void;
+  const aPending = new Promise<FetchResultShape[]>(resolve => { resolveA = resolve; });
+  const bCalls: string[] = [];
+  const { deps: depsA } = makeDeps({
+    executeFetchWithCircuitBreaker: () => aPending.then(results => results[0])
+  });
+  const { deps: depsB } = makeDeps({
+    executeFetchWithCircuitBreaker: async (game: GameShape) => {
+      bCalls.push(game.key);
+      return { game, latest: { id: "din-B" }, error: null };
+    }
+  });
+  const apiA = attachUpdates.createUpdates(depsA);
+  const apiB = attachUpdates.createUpdates(depsB);
+  const games = [{ key: "cs2", type: "steam" }];
+  const aPromise = apiA.getLatestForAllGames(games);
+  const bResults = await apiB.getLatestForAllGames(games);
+  assert.equal(bCalls.length, 1, "instanta B isi ruleaza propriul fetch, nu refoloseste promisiunea inflight a instantei A");
+  assert.equal(bResults[0]?.latest?.id, "din-B");
+  resolveA([{ game: games[0], latest: { id: "din-A" }, error: null }]);
+  await aPromise;
+});
