@@ -13,7 +13,7 @@ Bifeaza toate inainte de merge. Un check CI (`PR Checklist`) verifica bifele che
 - [ ] **Fara conflict cu `main`**: branch nou plecat din `main`-ul curent, fara conflicte; branch protection cere branch up-to-date (strict) + check-urile CI verzi.
 - [ ] **Tooling nativ**: daca s-a atins `native/`, `cargo test` + `cargo clippy --all-targets -- -D warnings` trec (rulate si in CI, plus `npm run check:native` local). Bifeaza si daca nu e cazul (N/A).
 - [ ] **Fisiere noi numite dupa functionalitate**: fisierele noi au nume descriptive, nu generice sau dupa autor.
-- [ ] `npm run check` trece local (typecheck + typecheck:strict + build + no-comments + config/dependinte + toata suita de teste).
+- [ ] `npm run check` trece local (typecheck strict global + build + no-comments + config/dependinte + toata suita de teste).
 - [ ] `npm audit --omit=dev --audit-level=moderate` = 0 vulnerabilitati.
 
 ## Note

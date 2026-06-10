@@ -142,7 +142,6 @@ npm test
 npm run test:functional
 npm run test:e2e
 npm run typecheck
-npm run typecheck:strict
 npm run check
 npm run check:comments
 npm run build
@@ -207,7 +206,7 @@ Starea curenta:
 - toate modulele expun factory-uri cu deps explicit tipate: handler-ele de comenzi, `commandCache.ts`, `commandPresentation.ts`, `mongoContext.ts`, sursele `steam`/`deals`/`updates` (`createSteamSource`/`createDeals`/`createUpdates`) si `notifications/index.ts` (`createNotificationRuntime`); adaptorul `attachX(target)` construieste obiectul `deps` din campurile numite ale contextului (snapshot), nu mai paseaza punga de context;
 - `domain/deals/filtersCore.ts`, `outboundChannel.ts` si `seenRepository.ts` sunt module tipate, usor de testat separat;
 - `src/native/` contine Rust/N-API folosit pe calea de productie pentru hot-path-urile unde Rust e masurat mai rapid (vezi `BENCHMARKS.md`): hash-urile de dedupe (`dealHash`/`stableUpdateId`), distanta `levenshtein`, normalizarea/curatarea de text, clasificarea de patch notes, scoringul candidatilor de listing, filtrarea URL-urilor de articole Steam si scoringul de data. `findGameKeys` (fuzzy matching), `buildAutocompleteChoices` (autocomplete scoring) si `dealPassesFilters` (filtrarea ofertelor) sunt acum **TS-primary** (masurat mai rapid in TS din cauza marshaling-ului NAPI / calcul trivial); functiile native echivalente raman expuse doar pentru benchmark si testele de paritate, nu pe calea de productie;
-- `src/tsconfig.strict.json` include incremental fisiere stabilizate, inclusiv modulele de surse Steam/deals/updates si testele directe pe shape drift;
+- TypeScript-ul strict e **global**: `src/tsconfig.json` are `strict: true` peste tot codul (migrarea incrementala prin `tsconfig.strict.json` s-a incheiat si fisierul a fost eliminat — `npm run typecheck` e sursa unica de adevar);
 - `legacy-dynamic.d.ts` a fost eliminat; tipurile trebuie rezolvate local, nu prin extinderea globala a `Object`.
 - codul runtime din `app`, `domain`, `features`, `infra`, `shared` si `sources` nu mai foloseste tipuri wildcard nesigure sau abrevierea legacy de context; adaptoarele subtiri ramase construiesc `deps` tipat din `target`.
 - fisierele de cod sunt tinute fara comentarii explicative; contextul de arhitectura, operare si mentenanta sta in README, changelog si `src/docs/`.

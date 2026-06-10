@@ -5,7 +5,7 @@ obligatoriu inainte de a publica o versiune (tag `vX.Y.Z`, imagine Docker GHCR, 
 
 ## Gate obligatoriu (toate trebuie sa fie verzi)
 
-1. **CI (`check`) verde pe `main`** — typecheck + typecheck:strict + build (TS + Rust) + no-comments +
+1. **CI (`check`) verde pe `main`** — typecheck (strict global) + build (TS + Rust) + no-comments +
    config/dependencies + toata suita de teste (`npm run check`). Branch protection cere deja acest
    check ca status obligatoriu pe `main`.
 2. **Dependency Review verde** — `actions/dependency-review-action` ruleaza pe fiecare PR si e status
