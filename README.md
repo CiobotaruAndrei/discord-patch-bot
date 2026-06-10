@@ -83,7 +83,7 @@ Variabile utile suplimentare:
 - `DISCORD_DEV_GUILD_ID` - optional, pentru comenzi guild-scoped in development.
 - `PORT` - portul serverului local de health/metrics.
 - `METRICS_TOKEN` - token optional pentru acces la `/metrics`.
-- `METRICS_PUBLIC` - permite metrics fara token in development.
+- `METRICS_PUBLIC` - permite metrics fara token **doar in dev/local**; in productie e ignorat (METRICS_TOKEN e obligatoriu, altfel boot-ul pica).
 - `LOG_LEVEL` - nivelul de logging.
 - `PROXY_URLS` - proxy-uri HTTP optionale (template cu `{url}`) pentru surse externe; setarea lor inseamna opt-in explicit.
 - `ALLOW_DEFAULT_PROXIES` - proxy-urile implicite third-party (allorigins/codetabs) sunt active doar in `NODE_ENV=development`; in alte medii non-productie (ex. staging) seteaza `ALLOW_DEFAULT_PROXIES=true` ca sa le activezi (altfel raman oprite, ca sa nu scurga URL-uri tinta). In productie raman mereu dezactivate.
