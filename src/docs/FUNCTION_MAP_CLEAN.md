@@ -198,7 +198,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Agrega sursele externe.
 - Gestioneaza fallback-uri si erori de schema prin modulele din `src/sources/`.
 - Sursele Steam/deals/updates sunt incluse in strict TypeScript si au teste directe pentru shape drift.
-- Contractul registrului e **value-tipat**: `SourceContext` si returul lui `buildSourceRegistry` sunt aliasul `SourceRegistryApi`, in care fiecare dintre cele 30 de chei are semnatura concreta (nu `unknown`); cele 4 exporturi named (`dealHash`, `safeCheerioLoad`, `extractOfferEndFromHtml`, `MAX_HTML_BYTES`) au tipuri precise. Vezi `CONTEXT_REPO_CLEAN.md` (Pasul 7) pentru constrangerea `export =` care tine intrarile/iesirile de domeniu pe `unknown`. Acoperit de `sourceRegistryTypedApi.test.ts`.
+- Contractul registrului e **value-tipat din tipuri reale**: `SourceRegistryApi` e compus prin indexed access din `SteamSourceApi`/`DealsApi`/`UpdatesApi` (modulul partajat `sources/sourceApis.ts`) + tipurile-domeniu din `types.ts` (`DealInfo`, `NormalizedUpdate`, `PatchUpdate`) — fara `unknown` pe functiile de sursa; tipul e si exportat (`export type { SourceRegistryApi }`). Acoperit de `sourceRegistryTypedApi.test.ts`.
 
 ### `src/sources/updates/index.ts`
 

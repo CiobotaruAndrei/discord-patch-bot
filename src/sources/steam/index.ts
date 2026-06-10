@@ -7,6 +7,7 @@ import type {
   SteamSearchItem
 } from "../../types";
 import { levenshtein } from "../../native/fuzzy";
+import type { SteamSourceApi, ChooseBestSteamMatchOptions } from "../sourceApis";
 import { errorMessage } from "../../shared/errors";
 
 type SteamCurrencyCode = CurrencyCode | string | null | undefined;
@@ -20,10 +21,6 @@ type HttpReq = (
 ) => Promise<HttpResponse<unknown>>;
 type CheerioLoader = (html: unknown) => CheerioAPI;
 
-interface ChooseBestSteamMatchOptions {
-  forceGameOnly?: boolean;
-}
-
 interface SteamSearchResponse {
   items?: SteamSearchItem[];
 }
@@ -35,15 +32,6 @@ interface SteamSourceDeps {
   getCurrencyConfig: (code?: SteamCurrencyCode) => CurrencyConfig;
   httpReq: HttpReq;
   safeCheerioLoad: CheerioLoader;
-}
-
-interface SteamSourceApi {
-  searchSteamGameByName: (query: string, currencyCode?: SteamCurrencyCode) => Promise<SteamSearchItem[]>;
-  levenshtein: typeof levenshtein;
-  chooseBestSteamMatch: typeof chooseBestSteamMatch;
-  fetchSteamPriceDetails: (appId: string | number, currencyCode?: SteamCurrencyCode) => Promise<unknown | null>;
-  extractOfferEndFromHtml: (html: unknown) => string | null;
-  extractSteamOfferEndDate: (appId: string | number, currencyCode?: SteamCurrencyCode) => Promise<string | null>;
 }
 
 type SteamSourceContext = SteamSourceDeps & Record<string, unknown>;

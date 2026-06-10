@@ -291,3 +291,20 @@ test("createUpdates.getLatestForAllGames injecteaza executeFetchWithCircuitBreak
     { count: 1, concurrency: 10 }
   ], "fiecare grup ruleaza cu concurrency-ul propriu");
 });
+
+test("createUpdates: doua instante cu deps diferite nu se suprascriu (regresie: deps era variabila globala de modul)", async () => {
+  const a: string[] = [];
+  const b: string[] = [];
+  const { deps: depsA } = makeDeps({
+    conditionalGet: async <T>(url: string, parse: (raw: unknown) => T | Promise<T>) => { a.push(url); return parse({ latest: { release: "A.1" } }); }
+  });
+  const { deps: depsB } = makeDeps({
+    conditionalGet: async <T>(url: string, parse: (raw: unknown) => T | Promise<T>) => { b.push(url); return parse({ latest: { release: "B.1" } }); }
+  });
+  const apiA = attachUpdates.createUpdates(depsA);
+  attachUpdates.createUpdates(depsB);
+  const update = await apiA.fetchMinecraftUpdate();
+  assert.equal(update.id, "A.1", "instanta A foloseste deps-ul ei, nu pe al instantei B create ulterior");
+  assert.ok(a.length >= 1);
+  assert.equal(b.length, 0, "deps-ul instantei B nu e atins de apelul pe A");
+});

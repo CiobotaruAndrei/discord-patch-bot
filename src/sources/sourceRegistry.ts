@@ -1,6 +1,8 @@
 "use strict";
 
 import type { CheerioAPI } from "cheerio";
+import type { DealInfo, NormalizedUpdate, PatchUpdate } from "../types";
+import type { DealsApi, SteamSourceApi, UpdatesApi } from "./sourceApis";
 import { assertNoUndefinedExports } from "../shared/assertCompleteExports";
 
 type SourceRegistryApi = {
@@ -13,27 +15,27 @@ type SourceRegistryApi = {
   truncate: (str: unknown, maxLen: number) => string;
   normalizeTitleForDedupe: (str: unknown) => string;
   stableUpdateId: (title: unknown, link: unknown) => string;
-  normalizeUpdate: (data: unknown) => unknown;
+  normalizeUpdate: (data: PatchUpdate) => NormalizedUpdate;
   safeCheerioLoad: (html: unknown) => CheerioAPI;
-  levenshtein: (a: string, b: string) => number;
-  httpReq: (...args: unknown[]) => Promise<unknown>;
+  levenshtein: SteamSourceApi["levenshtein"];
+  httpReq: (method: string, url: string, options?: unknown, retries?: number, backoff?: number) => Promise<{ data: unknown }>;
   fetchWithProxy: (targetUrl: string, options?: unknown) => Promise<string>;
-  dealHash: (deal: unknown) => string;
+  dealHash: (deal: DealInfo) => string;
   attachMetrics: (metricsRef: unknown) => void;
-  fetchGameUpdate: (...args: unknown[]) => Promise<unknown>;
-  executeFetchWithCircuitBreaker: (...args: unknown[]) => Promise<unknown>;
-  getLatestForAllGames: (...args: unknown[]) => Promise<unknown>;
-  fetchSteamReviewData: (appId: string | number) => Promise<unknown>;
-  enrichDealData: (...args: unknown[]) => Promise<unknown>;
-  fetchDeals: (...args: unknown[]) => Promise<unknown>;
-  searchSteamGameByName: (query: string, currencyCode?: string) => Promise<unknown[]>;
-  chooseBestSteamMatch: (...args: unknown[]) => unknown;
-  fetchSteamPriceDetails: (appId: string | number, currencyCode?: string) => Promise<unknown | null>;
-  extractOfferEndFromHtml: (html: unknown) => string | null;
-  extractSteamOfferEndDate: (appId: string | number, currencyCode?: string) => Promise<string | null>;
-  cleanEnrichedCache: () => void;
-  getEnrichedCacheSize: () => number;
-  formatPrice: (...args: unknown[]) => string;
+  fetchGameUpdate: UpdatesApi["fetchGameUpdate"];
+  executeFetchWithCircuitBreaker: UpdatesApi["executeFetchWithCircuitBreaker"];
+  getLatestForAllGames: UpdatesApi["getLatestForAllGames"];
+  fetchSteamReviewData: DealsApi["fetchSteamReviewData"];
+  enrichDealData: DealsApi["enrichDealData"];
+  fetchDeals: DealsApi["fetchDeals"];
+  searchSteamGameByName: SteamSourceApi["searchSteamGameByName"];
+  chooseBestSteamMatch: SteamSourceApi["chooseBestSteamMatch"];
+  fetchSteamPriceDetails: SteamSourceApi["fetchSteamPriceDetails"];
+  extractOfferEndFromHtml: SteamSourceApi["extractOfferEndFromHtml"];
+  extractSteamOfferEndDate: SteamSourceApi["extractSteamOfferEndDate"];
+  cleanEnrichedCache: DealsApi["cleanEnrichedCache"];
+  getEnrichedCacheSize: DealsApi["getEnrichedCacheSize"];
+  formatPrice: (value: unknown, currencyCode?: unknown) => string;
 };
 
 type SourceContext = SourceRegistryApi;
@@ -97,6 +99,7 @@ const registry = assertNoUndefinedExports(createSourceRegistry(), "sourceRegistr
 Object.assign(module.exports, registry, { createSourceRegistry });
 
 export { createSourceRegistry };
+export type { SourceRegistryApi };
 export const dealHash = registry.dealHash;
 export const extractOfferEndFromHtml = registry.extractOfferEndFromHtml;
 export const safeCheerioLoad = registry.safeCheerioLoad;

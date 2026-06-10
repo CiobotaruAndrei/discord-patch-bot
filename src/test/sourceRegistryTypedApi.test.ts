@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { CheerioAPI } from "cheerio";
+import type { DealInfo, FetchDealsOptions } from "../types";
 
 process.env.MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/itest-source-api";
 process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "test-token";
@@ -13,7 +14,10 @@ type _MaxHtmlBytesIsNumber = Expect<
   Mod["MAX_HTML_BYTES"] extends number ? (number extends Mod["MAX_HTML_BYTES"] ? true : false) : false
 >;
 type _DealHashIsTyped = Expect<
-  Mod["dealHash"] extends (deal: unknown) => string ? true : false
+  Mod["dealHash"] extends (deal: DealInfo) => string ? true : false
+>;
+type _FetchDealsReturnsDeals = Expect<
+  ReturnType<typeof import("../sources/sourceRegistry").createSourceRegistry>["fetchDeals"] extends (opts?: FetchDealsOptions) => Promise<DealInfo[]> ? true : false
 >;
 type _ExtractOfferEndIsTyped = Expect<
   Mod["extractOfferEndFromHtml"] extends (html: unknown) => string | null ? true : false
