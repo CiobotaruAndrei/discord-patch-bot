@@ -23,11 +23,23 @@ export interface ChooseBestSteamMatchOptions {
   forceGameOnly?: boolean;
 }
 
+export interface SteamAppDetailsSummary {
+  type?: string;
+  name?: string;
+  header_image?: string;
+  is_free?: boolean;
+  price_overview?: {
+    initial: number;
+    final: number;
+    discount_percent: number;
+  } | null;
+}
+
 export interface SteamSourceApi {
   searchSteamGameByName: (query: string, currencyCode?: SourceCurrencyCode) => Promise<SteamSearchItem[]>;
   levenshtein: (a: string, b: string) => number;
   chooseBestSteamMatch: (items: SteamSearchItem[] | null | undefined, query: string, options?: ChooseBestSteamMatchOptions) => SteamSearchItem | null;
-  fetchSteamPriceDetails: (appId: string | number, currencyCode?: SourceCurrencyCode) => Promise<unknown | null>;
+  fetchSteamPriceDetails: (appId: string | number, currencyCode?: SourceCurrencyCode) => Promise<SteamAppDetailsSummary | null>;
   extractOfferEndFromHtml: (html: unknown) => string | null;
   extractSteamOfferEndDate: (appId: string | number, currencyCode?: SourceCurrencyCode) => Promise<string | null>;
 }

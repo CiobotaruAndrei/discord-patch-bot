@@ -7,7 +7,7 @@ import type {
   SteamSearchItem
 } from "../../types";
 import { levenshtein } from "../../native/fuzzy";
-import type { SteamSourceApi, ChooseBestSteamMatchOptions } from "../sourceApis";
+import type { SteamSourceApi, ChooseBestSteamMatchOptions, SteamAppDetailsSummary } from "../sourceApis";
 import { errorMessage } from "../../shared/errors";
 
 type SteamCurrencyCode = CurrencyCode | string | null | undefined;
@@ -25,7 +25,7 @@ interface SteamSearchResponse {
   items?: SteamSearchItem[];
 }
 
-type SteamDetailsResponse = Record<string, { data?: unknown } | undefined>;
+type SteamDetailsResponse = Record<string, { data?: SteamAppDetailsSummary } | undefined>;
 
 interface SteamSourceDeps {
   logger: LoggerFunction;
@@ -98,7 +98,7 @@ function createSteamSource(deps: SteamSourceDeps): SteamSourceApi {
     return data?.items || [];
   }
 
-  async function fetchSteamPriceDetails(appId: string | number, currencyCode?: SteamCurrencyCode): Promise<unknown | null> {
+  async function fetchSteamPriceDetails(appId: string | number, currencyCode?: SteamCurrencyCode): Promise<SteamAppDetailsSummary | null> {
     const cc = getCurrencyConfig(currencyCode).cc;
     const detailsUrl = new URL("https://store.steampowered.com/api/appdetails");
     detailsUrl.searchParams.set("appids", String(appId));
