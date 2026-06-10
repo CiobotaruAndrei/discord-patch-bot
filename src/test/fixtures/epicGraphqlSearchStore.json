@@ -1,0 +1,72 @@
+{
+ "data": {
+  "Catalog": {
+   "searchStore": {
+    "elements": [
+     {
+      "title": "Contractor: The Clean Up",
+      "id": "90dbbf9f79364be2b14a95a5af73edf0",
+      "urlSlug": "7bd3d0be0b2b498bba93c04844c90dcd",
+      "keyImages": [
+       {
+        "type": "OfferImageWide",
+        "url": "https://cdn1.epicgames.com/spt-assets/f6b9e3bd45f04fd4b36705741a6695f4/contractor-the-clean-up-6w1uf.png"
+       }
+      ],
+      "price": {
+       "totalPrice": {
+        "discountPrice": 239,
+        "originalPrice": 399
+       }
+      },
+      "promotions": {
+       "promotionalOffers": [
+        {
+         "promotionalOffers": [
+          {
+           "endDate": "2026-06-23T12:00:00.000Z",
+           "discountSetting": {
+            "discountPercentage": 60
+           }
+          }
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "title": "KeepUp Survival",
+      "id": "49f79b03b9b14637b10a1ceb7e17365d",
+      "urlSlug": "003551fd0f5147f8b5a6178416bd052c",
+      "keyImages": [
+       {
+        "type": "OfferImageWide",
+        "url": "https://cdn1.epicgames.com/spt-assets/d917a8d1cdd14895b8993f2160c8698b/keepup-survival-6l94r.jpg"
+       }
+      ],
+      "price": {
+       "totalPrice": {
+        "discountPrice": 899,
+        "originalPrice": 1499
+       }
+      },
+      "promotions": {
+       "promotionalOffers": [
+        {
+         "promotionalOffers": [
+          {
+           "endDate": "2026-06-12T16:00:00.000Z",
+           "discountSetting": {
+            "discountPercentage": 60
+           }
+          }
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   }
+  }
+ }
+}

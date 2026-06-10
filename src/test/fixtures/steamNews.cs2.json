@@ -1,0 +1,36 @@
+{
+ "appnews": {
+  "appid": 730,
+  "newsitems": [
+   {
+    "gid": "1833968530889736",
+    "title": "Counter-Strike 2 Update",
+    "url": "https://steamstore-a.akamaihd.net/news/externalpost/steam_community_announcements/1833968530889736",
+    "is_external_url": true,
+    "author": "brianlev",
+    "contents": "[p]\\[ COLOGNE 2026 ][/p][list][*][p]Added ability to bookmark stickers in Cologne 2026 Shop.[/p][/*][/list][p]\\[ MISC ][/p][list][*][p]Added convar r_spectator_flashbang_opacity to control flashbang opacity for remote spectators.[/p][/*][*][p]Flashbang effect for remote spectators now renders underneath the HUD.[/p][/*][*][p]Stability improvements[/p][/*][/list][p]\\[ MAPS ][/p][p]Ancient[/p][list]",
+    "feedlabel": "Community Announcements",
+    "date": 1780013843,
+    "feedname": "steam_community_announcements",
+    "feed_type": 1,
+    "appid": 730,
+    "tags": [
+     "patchnotes"
+    ]
+   },
+   {
+    "gid": "1833334318570412",
+    "title": "IEM Cologne 2026",
+    "url": "https://steamstore-a.akamaihd.net/news/externalpost/steam_community_announcements/1833334318570412",
+    "is_external_url": true,
+    "author": "brianlev",
+    "contents": "The IEM Cologne 2026 Major is fast approaching. Teams are making final adjustments, fine-tuning their strats, and crossing their fingers that they won't face Vitality until the Grand Final. That can only mean one thing: Tournament Items featuring Teams and Player Autographs are now available for purchase!\n\n[h3]The 2026 Cologne Major Shop[/h3]\n[img]https://clan.akamai.steamstatic.com/images/3381077",
+    "feedlabel": "Community Announcements",
+    "date": 1779410446,
+    "feedname": "steam_community_announcements",
+    "feed_type": 1,
+    "appid": 730
+   }
+  ]
+ }
+}
