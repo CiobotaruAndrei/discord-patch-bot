@@ -14,7 +14,7 @@ verifica partea de infrastructura, complementar acestui checklist manual:
   `mongo: 1`, `discord: ready`) si `GET /metrics` (asteapta prezenta metricilor cheie
   `bot_uptime_seconds`, `bot_fetch_success`, `bot_outbox_queue_depth`,
   `bot_native_fallback_total`); iese cu cod non-zero daca ceva esueaza;
-- daca `STAGING_BASE_URL` lipseste, iese 0 cu un mesaj de skip (nu blocheaza CI);
+- daca `STAGING_BASE_URL` lipseste, **esueaza (exit 1, fail-closed)**; pentru skip intentionat seteaza `ALLOW_STAGING_SMOKE_SKIP=true` (iese 0, artifact cu `skipped:true` — respins oricum de gate-ul de release);
 - optional `STAGING_METRICS_TOKEN` pentru `/metrics` cand nu e public.
 
 `npm run smoke:staging:discord` (scriptul `scripts/stagingDiscordSmoke.ts`) este o proba
@@ -28,7 +28,7 @@ verifica partea de infrastructura, complementar acestui checklist manual:
 - daca `STAGING_DISCORD_SEND_TEST=true`, trimite un embed real pe canal si il sterge imediat
   (valideaza calea de notificare reala end-to-end).
 
-Fara aceste credentiale, iese 0 cu un mesaj de skip. Nu poate simula un utilizator care
+Fara aceste credentiale **esueaza (exit 1, fail-closed)**; skip-ul intentionat cere `ALLOW_STAGING_SMOKE_SKIP=true`. Nu poate simula un utilizator care
 *tasteaza* o slash command (ar necesita un cont/bot secundar), deci raspunsurile interactive
 raman in checklist-ul manual de mai jos.
 
