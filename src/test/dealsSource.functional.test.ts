@@ -184,3 +184,26 @@ test("createDeals: doua instante cu deps diferite nu se suprascriu (regresie: de
   assert.equal(callsA.length, 1);
   assert.equal(callsB.length, 0, "deps-ul instantei B nu e atins de apelul pe A");
 });
+
+test("createDeals: coalescing-ul inflight e per instanta, nu partajat intre instante (regresie: inflightDeals era global de modul)", async () => {
+  const never = new Promise<FakeHttpResponse>(() => undefined);
+  const { deps: depsA } = makeDeps({ httpReq: () => never });
+  const { deps: depsB, calls: callsB } = makeDeps({
+    httpReq: async (_m, url) => {
+      callsB.push(url);
+      if (url.includes("featuredcategories")) {
+        return { data: { specials: { items: [{ id: 42, name: "Joc B", original_price: 1000, final_price: 500, discount_percent: 50 }] } } };
+      }
+      return { data: { query_summary: { total_reviews: 5, total_positive: 5 } } };
+    }
+  });
+  const apiA = attachDeals.createDeals(depsA);
+  const apiB = attachDeals.createDeals(depsB);
+  void apiA.fetchDeals({ currency: "USD" });
+  const timeout = new Promise<"timeout">(resolve => setTimeout(() => resolve("timeout"), 500));
+  const raced = await Promise.race([apiB.fetchDeals({ currency: "USD" }), timeout]);
+  assert.notEqual(raced, "timeout", "instanta B nu trebuie sa astepte promisiunea inflight (blocata) a instantei A");
+  const deals = raced as Array<{ id: string }>;
+  assert.equal(deals[0]?.id, "steam_42", "B isi produce propriile rezultate");
+  assert.ok(callsB.length >= 1);
+});
