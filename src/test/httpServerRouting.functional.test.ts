@@ -22,11 +22,11 @@ async function fetchPath(port: number, path: string, extraHeaders: Record<string
   });
 }
 
-function startServer() {
+function startServer(envOverrides: Partial<RuntimeEnv> = {}) {
   const deps = {
     mongoose: { connection: { readyState: 1 } },
     crypto: { timingSafeEqual: () => true },
-    env: { METRICS_PUBLIC: true, METRICS_TOKEN: "", isProd: false } as RuntimeEnv,
+    env: { METRICS_PUBLIC: true, METRICS_TOKEN: "", isProd: false, ...envOverrides } as RuntimeEnv,
     client: { isReady: () => true },
     metrics: {
       startedAt: Date.now(), fetchSuccess: 1, fetchFail: 0, httpRetries: 0,
@@ -57,6 +57,23 @@ function startServer() {
     });
   });
 }
+
+test("/metrics in productie ignora METRICS_PUBLIC=true - fara token raspunde 401 (review #3)", async () => {
+  const { port, close } = await startServer({ isProd: true, METRICS_PUBLIC: true, METRICS_TOKEN: "" });
+  try {
+    const res = await fetchPath(port, "/metrics");
+    assert.equal(res.status, 401, "in productie /metrics cere token chiar daca METRICS_PUBLIC=true (opt-in-ul public ramane doar pentru dev/local)");
+  } finally { await close(); }
+});
+
+test("/metrics in productie cu METRICS_TOKEN valid raspunde 200", async () => {
+  const { port, close } = await startServer({ isProd: true, METRICS_PUBLIC: true, METRICS_TOKEN: "token-de-test-1234" });
+  try {
+    const res = await fetchPath(port, "/metrics", { Authorization: "Bearer token-de-test-1234" });
+    assert.equal(res.status, 200);
+    assert.match(res.body, /bot_uptime_seconds/);
+  } finally { await close(); }
+});
 
 test("/metrics with no query string returns 200", async () => {
   const { port, close } = await startServer();
