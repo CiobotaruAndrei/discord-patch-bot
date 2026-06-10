@@ -55,7 +55,7 @@ test("release.yml verifica un artifact real de staging smoke, nu doar smoke_conf
   assert.match(text, /STAGING_SMOKE_MAX_AGE_DAYS/, "impune o fereastra de prospetime configurabila");
   assert.match(text, /listWorkflowRunArtifacts/, "verifica existenta artifactului de rezultat");
   assert.match(text, /staging-smoke-result/, "cere artifactul staging-smoke-result");
-  assert.match(text, /actions\/download-artifact@v\d+/, "descarca artifactul din rularea de staging smoke");
+  assert.match(text, /actions\/download-artifact@[0-9a-f]{40}/, "descarca artifactul din rularea de staging smoke (action pinuita pe SHA)");
   assert.match(text, /run-id: \$\{\{ steps\.smoke\.outputs\.run_id \}\}/, "descarca din rularea identificata");
   assert.match(text, /r\.skipped/, "respinge un rezultat sarit (skipped=true)");
   assert.match(text, /!r\.ok/, "respinge un rezultat esuat (ok=false)");
@@ -74,7 +74,7 @@ test("staging-smoke.yml scrie fisiere de rezultat si urca artifactul", () => {
   const text = read(stagingSmokeWorkflowPath);
   assert.match(text, /STAGING_SMOKE_RESULT_FILE:/, "seteaza fisierul de rezultat pentru proba HTTP");
   assert.match(text, /STAGING_DISCORD_SMOKE_RESULT_FILE:/, "seteaza fisierul de rezultat pentru proba Discord");
-  assert.match(text, /actions\/upload-artifact@v\d+/, "urca artifactul de rezultat");
+  assert.match(text, /actions\/upload-artifact@[0-9a-f]{40}/, "urca artifactul de rezultat (action pinuita pe SHA)");
   assert.match(text, /name: staging-smoke-result/, "numeste artifactul staging-smoke-result");
   assert.match(text, /if: always\(\)/, "urca artifactul chiar si la esec, pentru audit");
 });
