@@ -109,11 +109,11 @@ interface DealsDeps {
 
 type DealsContext = DealsDeps & Record<string, unknown>;
 
-const activeEnrichments = new Map<string, Promise<DealInfo>>();
 const enrichedCache = new Map<string, EnrichedCacheEntry>();
-const inflightDeals = new Map<string, Promise<DealInfo[]>>();
 
 function createDeals(d: DealsDeps): DealsApi {
+  const activeEnrichments = new Map<string, Promise<DealInfo>>();
+  const inflightDeals = new Map<string, Promise<DealInfo[]>>();
   const deps = d;
 
   async function fetchSteamReviewData(appId: string | number): Promise<SteamReviewData> {
