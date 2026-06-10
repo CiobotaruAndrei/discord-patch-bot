@@ -352,7 +352,7 @@ async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo
       count: EPIC_SPECIALS_LIMIT,
       country: cc, locale: "en-US", onSale: true, withPrice: true
     };
-    const epicRes = await httpReq("POST", "https://graphql.epicgames.com/graphql", {
+    const epicRes = await httpReq("POST", "https://store.epicgames.com/graphql", {
       data: { query: epicQuery, variables: epicVars },
       largeJson: true,
       headers: {
