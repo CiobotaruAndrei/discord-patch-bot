@@ -218,6 +218,30 @@ test("UpdateService: send fail (transient) rollback claim si retry next cycle", 
   assert.equal(rollbacks.length, 1, "rollback obligatoriu pe transient fail");
 });
 
+test("UpdateService: buildUpdateEmbed care arunca da claim-ul inapoi si dead-letter-uieste dupa epuizarea incercarilor", async () => {
+  let sendCalls = 0;
+  const channel = { id: "channel-1", send: async () => { sendCalls++; return {}; } };
+  const { deps, rollbacks, updateOneCalls } = makeUpdateDeps({
+    resolveOutboundChannel: async () => ({ channel, abort: false }),
+    buildUpdateEmbed: () => { throw new Error("embed corupt"); },
+    PENDING_UPDATE_MAX_ATTEMPTS: 2
+  });
+  const svc = createUpdateNotificationService(deps);
+  const guild = {
+    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2,
+    seen: {}, pendingUpdates: {}, enabledGames: []
+  } as UpdateGuild;
+  const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1", title: "patch" } }] as UpdateResults;
+  await svc.processGuildUpdates({}, guild, latestResults);
+  assert.equal(sendCalls, 0, "nimic trimis cand embed-ul crapa");
+  assert.ok(rollbacks.length >= 1, "claim-ul e dat inapoi (regresie: update-ul ramanea marcat seen fara sa fie trimis vreodata)");
+  const update = updateOneCalls[0].update as { $push?: { notificationDeadLetter?: { $each?: unknown[] } } };
+  const entries = (update.$push?.notificationDeadLetter?.$each || []) as Array<{ itemId: string; reason: string }>;
+  assert.equal(entries.length, 1, "dupa epuizarea incercarilor itemul ajunge in dead-letter, nu se pierde tacut");
+  assert.equal(entries[0].itemId, "u-1");
+  assert.match(entries[0].reason, /embed corupt/);
+});
+
 test("UpdateService: livrarea care epuizeaza retry-urile intra in dead-letter (capat $push)", async () => {
   const channel = { id: "channel-1", send: async () => { throw new Error("ECONNRESET"); } };
   const { deps, updateOneCalls } = makeUpdateDeps({
