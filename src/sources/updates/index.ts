@@ -366,7 +366,7 @@ async function fetchFortniteUpdate(): Promise<NormalizedUpdate> {
       title: cleanText(latest.title),
       link: `https://www.fortnite.com/news/${latest.slug}`,
       excerpt: cleanText(latest.shareDescription),
-      thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
+      thumbnail: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/FortniteLogo.svg/330px-FortniteLogo.svg.png",
       timestamp: latest.date
     });
   } catch (err) {
@@ -381,7 +381,7 @@ async function fetchFortniteUpdate(): Promise<NormalizedUpdate> {
       title: cleanText(first.title),
       link: first.link,
       excerpt: "Update oficial Fortnite.",
-      thumbnail: "https://seeklogo.com/images/F/fortnite-logo-4C22EED4A9-seeklogo.com.png",
+      thumbnail: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/FortniteLogo.svg/330px-FortniteLogo.svg.png",
       timestamp: first.pubDate
     });
   }
@@ -469,7 +469,7 @@ async function fetchMinecraftUpdate(): Promise<NormalizedUpdate> {
       title: `Minecraft ${v}`,
       link: `https://www.minecraft.net/en-us/article/minecraft-java-edition-${String(v).replace(/\./g, "-")}`,
       excerpt: `Versiunea ${v}`,
-      thumbnail: "https://static.wikia.nocookie.net/logopedia/images/6/64/Minecraft_Grass_Block.svg"
+      thumbnail: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Minecraft_cube.svg/330px-Minecraft_cube.svg.png"
     });
   }, { largeJson: true });
 }
