@@ -214,3 +214,4 @@ function createHttpServer({
 }
 
 export { createHttpServer, timingSafeEqualStr };
+export type { CreateHttpServerDeps };

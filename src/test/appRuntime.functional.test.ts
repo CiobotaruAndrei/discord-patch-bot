@@ -2,6 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createAppRuntime, connectMongoWithRetry, hydrateStartupCaches } from "../app/appRuntime";
 import type { AppRuntimeDeps } from "../app/appRuntime";
+import type { RuntimeEnv } from "../types";
+import type { CreateOutboxWorkerDeps } from "../app/scheduler/outboxWorker";
+import type { RegisterDiscordEventsDeps } from "../app/lifecycle/events";
+import { createMetrics } from "../app/health/metrics";
 
 process.env.MONGO_URI ||= "mongodb://localhost:27017/discord-patch-bot-test";
 process.env.DISCORD_TOKEN ||= "test_discord_token";
@@ -13,48 +17,58 @@ function makeDeps(overrides: { updatesFetchedAt?: Date } = {}) {
   const dealsCache: Array<[string, unknown]> = [];
   const shutdownCalls: Array<{ signal: string; code?: number }> = [];
   const registered = { count: 0 };
-  let eventsOpts: Record<string, unknown> = {};
-  let outboxWorkerOpts: Record<string, unknown> | undefined;
+  let eventsOpts: RegisterDiscordEventsDeps | undefined;
+  let outboxWorkerOpts: CreateOutboxWorkerDeps | undefined;
   let getOutboxPausedCalls = 0;
   const pausedValue = false;
 
   class FakeClient {
+    user = null;
     login = async () => { order.push("login"); return "ok"; };
+    destroy = () => undefined;
+    isReady = () => true;
+    once = () => undefined;
+    on = () => undefined;
   }
 
   const deps: AppRuntimeDeps = {
-    mongoose: { connect: async () => { order.push("connect"); }, connection: { readyState: 1 } },
-    crypto: {},
+    mongoose: {
+      connect: async () => { order.push("connect"); },
+      connection: { readyState: 1, close: async () => undefined, on: () => undefined }
+    },
+    crypto: { randomBytes: (size: number) => Buffer.alloc(size), timingSafeEqual: () => true },
     performance: { now: () => 0 },
     Client: FakeClient,
     GatewayIntentBits: { Guilds: 1 },
-    loadConfig: () => ({ config: {}, games: [] }),
-    createMetrics: () => ({ startedAt: Date.now() }),
-    createRateLimiter: () => ({ size: 0 }),
+    loadConfig: () => ({ config: { games: [] }, games: [], configPath: "test-config.json" }),
+    createMetrics,
+    createRateLimiter: () => ({ check: () => true, prune: () => undefined, size: 0, retryAfterSeconds: 1 }),
     createHousekeeping: () => ({ start: () => order.push("housekeeping"), stop: () => undefined }),
     createCronController: () => ({
       scheduleNextCron: () => order.push("cron"),
       runCronCycle: async () => undefined,
       stop: () => undefined,
-      getHealthSnapshot: () => ({})
+      shouldAbortCron: () => false,
+      getHealthSnapshot: () => ({ successRatio: null, windowSize: 0, healthSkipScheduled: false })
     }),
-    createOutboxWorker: (opts: Record<string, unknown>) => { outboxWorkerOpts = opts; return { start: () => undefined, stop: () => undefined }; },
+    createOutboxWorker: (opts) => { outboxWorkerOpts = opts; return { start: () => undefined, stop: () => undefined, drainTick: async () => undefined }; },
     createHttpServer: () => ({
       on: () => undefined,
-      listen: (_port: number, cb?: () => void) => { order.push("listen"); if (cb) cb(); },
+      listen: (_port: number | string, cb?: () => void) => { order.push("listen"); if (cb) cb(); },
       close: () => undefined
     }),
-    registerDiscordEvents: (opts: Record<string, unknown>) => { eventsOpts = opts; },
+    registerDiscordEvents: (opts) => { eventsOpts = opts; },
     registerMongoEvents: () => undefined,
     createShutdownController: () => ({
       shutdown: async (signal: string, code?: number) => { shutdownCalls.push({ signal, code }); },
+      handleFatalProcessError: () => undefined,
       registerProcessHandlers: () => { registered.count++; }
     }),
     errorMessage: (err: unknown) => String(err),
     errorDetail: (err: unknown) => String(err),
     mongo: {
       logger: () => undefined,
-      env: { MONGO_URI: "mongodb://x", MONGO_MAX_POOL_SIZE: 5, PORT: 3000, DISCORD_TOKEN: "t" },
+      env: { MONGO_URI: "mongodb://x", MONGO_MAX_POOL_SIZE: 5, PORT: "3000", DISCORD_TOKEN: "t" } as RuntimeEnv & { MONGO_URI: string; DISCORD_TOKEN: string },
       parseEnvNumber: (_n: string, d: number) => d,
       acquireDbLock: async () => "tok",
       renewDbLock: async () => true,
@@ -66,7 +80,7 @@ function makeDeps(overrides: { updatesFetchedAt?: Date } = {}) {
       adminAlert: async () => undefined,
       getOutboxPaused: async () => { getOutboxPausedCalls++; return pausedValue; },
       runMigrations: async () => { order.push("migrate"); return { applied: [1, 2] }; },
-      requestContext: {},
+      requestContext: { run: <T>(_store: { requestId: string }, callback: () => T) => callback() },
       loadFetchSnapshot: async (_id: string) => { order.push("loadUpdates"); return { payload: [{ x: 1 }], fetchedAt: overrides.updatesFetchedAt ?? new Date() }; },
       loadDealsFetchSnapshots: async () => { order.push("loadDeals"); return [{ currency: "USD", payload: [{ d: 1 }], fetchedAt: new Date() }]; }
     },
@@ -75,9 +89,10 @@ function makeDeps(overrides: { updatesFetchedAt?: Date } = {}) {
       checkForDiscounts: async () => undefined,
       cleanCache: () => undefined,
       drainOutbox: async () => ({}),
-      getCacheSizes: () => ({}),
+      getCacheSizes: () => ({ single: 0, dlc: 0, updatesValid: false, dealsCurrenciesValid: 0, userCooldowns: 0 }),
       handleInteraction: async () => undefined,
       registerSlashCommands: async () => undefined,
+      canSendEmbeds: () => true,
       setDealsCache: (currency: string, payload: unknown) => { dealsCache.push([currency, payload]); },
       setGlobalCacheTtl: () => undefined,
       setUpdatesCache: (payload: unknown) => { updatesCache.push(payload); }
@@ -90,7 +105,7 @@ function makeDeps(overrides: { updatesFetchedAt?: Date } = {}) {
   };
   return {
     deps, order, updatesCache, dealsCache, shutdownCalls, registered,
-    getEventsOpts: () => eventsOpts,
+    getEventsOpts: () => eventsOpts!,
     getOutboxWorkerOpts: () => outboxWorkerOpts,
     getOutboxPausedCalls: () => getOutboxPausedCalls
   };

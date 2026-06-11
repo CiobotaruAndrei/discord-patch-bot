@@ -336,3 +336,4 @@ function createCronController({
 }
 
 export { createCronController, computeCronDelay };
+export type { CreateCronControllerDeps };
