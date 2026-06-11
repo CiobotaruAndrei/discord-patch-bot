@@ -213,3 +213,24 @@ test("/latest reduceri returns no_data when dealPassesFilters drops everything",
   );
   assert.match(String(editArg), /Nu am gasit oferte care sa corespunda/);
 });
+
+test("/latest updates: rezultatul integral all-null NU otraveste cache-ul global (audit)", async () => {
+  const cacheWrites: unknown[] = [];
+  const { context } = makeContext({
+    setUpdatesCache: (data: unknown) => { cacheWrites.push(data); },
+    getLatestForAllGames: async (games: TestGame[]) => games.map(game => ({ game, latest: null, error: "ECONNRESET" }))
+  });
+  await context.handleInteraction(makeInteraction({ sub: "updates" }), [{ key: "cs2", name: "CS2" }]);
+  assert.equal(cacheWrites.length, 0,
+    "regresie: o cadere totala a surselor in timpul comenzii bloca /latest pe <Nu am date disponibile> pana expira TTL-ul, fara refetch");
+});
+
+test("/latest updates: rezultatul partial (macar un joc cu date) se cacheaza ca pana acum", async () => {
+  const cacheWrites: unknown[] = [];
+  const { context } = makeContext({
+    setUpdatesCache: (data: unknown) => { cacheWrites.push(data); },
+    getLatestForAllGames: async (games: TestGame[]) => games.map((game, idx) => ({ game, latest: idx === 0 ? { id: `u-${game.key}`, title: "x" } : null }))
+  });
+  await context.handleInteraction(makeInteraction({ sub: "updates" }), [{ key: "cs2", name: "CS2" }, { key: "dota2", name: "Dota" }]);
+  assert.equal(cacheWrites.length, 1, "cu date partiale, cache-ul se scrie exact o data");
+});
