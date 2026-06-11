@@ -1,92 +1,124 @@
 "use strict";
 
-import type { ActiveLocks } from "../types";
+import type {
+  ActiveLocks,
+  BotConfig,
+  BotMetrics,
+  CommandCacheSizes,
+  ConfigLoadResult,
+  CronController,
+  GameConfig,
+  LifecycleState,
+  RateLimiter,
+  RuntimeEnv
+} from "../types";
+import type { CreateCronControllerDeps } from "./scheduler/cron";
+import type { CreateHousekeepingDeps, HousekeepingController } from "./scheduler/housekeeping";
+import type { CreateOutboxWorkerDeps, OutboxWorker } from "./scheduler/outboxWorker";
+import type { CreateHttpServerDeps } from "./health/httpServer";
+import type { RegisterDiscordEventsDeps, RegisterMongoEventsDeps } from "./lifecycle/events";
+import type { CreateShutdownControllerDeps, ShutdownController } from "./lifecycle/shutdown";
 
 const { ensureNativeFuzzy } = require("../native/fuzzy") as { ensureNativeFuzzy: () => boolean };
 
-type AnyFn = (...args: unknown[]) => unknown;
-
-interface AppEnv {
-  MONGO_URI: string;
-  MONGO_MAX_POOL_SIZE: number;
-  PORT: number;
-  DISCORD_TOKEN: string;
-}
-
 interface CommandRuntime {
-  checkForUpdates: (games?: unknown[]) => unknown;
-  checkForDiscounts: (...args: unknown[]) => unknown;
-  cleanCache: () => void;
-  drainOutbox: (client: unknown) => unknown;
-  getCacheSizes: () => unknown;
-  handleInteraction: (interaction: unknown, games: unknown[]) => unknown;
-  registerSlashCommands: (token: string, clientId: string) => unknown;
-  setDealsCache: (currency: string, data: unknown) => void;
-  setGlobalCacheTtl: (ms: number) => void;
-  setUpdatesCache: (data: unknown) => void;
+  checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
+  checkForDiscounts(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
+  cleanCache(): unknown;
+  drainOutbox(client: unknown): Promise<unknown> | unknown;
+  getCacheSizes(): CommandCacheSizes;
+  handleInteraction(interaction: unknown, games: GameConfig[]): Promise<unknown> | unknown;
+  registerSlashCommands(token: string, clientId: string): Promise<unknown>;
+  canSendEmbeds(channel: unknown, botId: string): boolean;
+  setDealsCache(currency: string, data: unknown): void;
+  setGlobalCacheTtl(ms: number): void;
+  setUpdatesCache(data: unknown): void;
 }
 
 interface ScraperRuntime {
-  attachMetrics: (metrics: unknown) => void;
-  cleanEnrichedCache: () => void;
-  getEnrichedCacheSize: () => number;
+  attachMetrics(metrics: BotMetrics): void;
+  cleanEnrichedCache(): unknown;
+  getEnrichedCacheSize(): number;
 }
 
-interface HousekeepingLike { start(): void; stop(): void }
-interface CronControllerLike { scheduleNextCron(): void; runCronCycle(): Promise<void>; stop(): void; getHealthSnapshot(): unknown }
-interface OutboxWorkerLike { start(): void; stop(): void }
 interface HttpServerLike {
   on(event: "error", listener: (err: Error) => void): unknown;
-  listen(port: number, callback?: () => void): unknown;
+  listen(port: number | string, callback?: () => void): unknown;
   close(callback?: (err?: Error) => void): unknown;
 }
-interface ShutdownControllerLike {
-  shutdown(signal: string, exitCode?: number): Promise<void>;
-  registerProcessHandlers(): void;
+
+type BootValidatedEnv = RuntimeEnv & { MONGO_URI: string; DISCORD_TOKEN: string };
+
+interface RequestContextLike {
+  run<T>(store: { requestId: string; abortSignal?: AbortSignal }, callback: () => T): T;
 }
 
 interface MongoContextLike {
   logger: (level: string, context: string, message: string, meta?: unknown) => void;
-  env: AppEnv;
+  env: BootValidatedEnv;
   parseEnvNumber: (name: string, def: number, limits: { min?: number; max?: number }) => number;
-  acquireDbLock: AnyFn;
-  renewDbLock: AnyFn;
-  releaseDbLock: AnyFn;
+  acquireDbLock: (jobName: string, ttlMs: number) => Promise<string | null>;
+  renewDbLock: (jobName: string, token: string, ttlMs: number) => Promise<boolean>;
+  releaseDbLock: (jobName: string, token: string) => Promise<unknown>;
   activeLocks: ActiveLocks;
   waitForMongoReady: (timeoutMs: number) => Promise<boolean>;
-  cleanGuildCache: AnyFn;
+  cleanGuildCache: () => unknown;
   getGuildCacheSize: () => number;
   adminAlert: (kind: string, title: string, body: string) => Promise<unknown>;
   getOutboxPaused: () => Promise<boolean>;
   runMigrations: (logger: unknown) => Promise<{ applied: number[] }>;
-  requestContext: unknown;
+  requestContext: RequestContextLike;
   loadFetchSnapshot: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
   loadDealsFetchSnapshots: () => Promise<Array<{ currency: string; payload: unknown; fetchedAt: Date }>>;
 }
 
 interface MongooseLike {
-  connect(uri: string, opts: Record<string, unknown>): Promise<unknown>;
-  connection: { readyState: number };
+  connect(uri: string, opts: { maxPoolSize: number }): Promise<unknown>;
+  connection: {
+    readyState: number;
+    close(): Promise<void>;
+    on(event: "connected" | "disconnected" | "reconnected", listener: () => unknown): unknown;
+    on(event: "error", listener: (err: unknown) => unknown): unknown;
+  };
 }
 
-interface DiscordClientLike { login(token: string): Promise<unknown> }
+interface CryptoLike {
+  randomBytes(size: number): Buffer;
+  timingSafeEqual(a: Buffer, b: Buffer): boolean;
+}
+
+interface PerformanceLike {
+  now(): number;
+}
+
+interface DiscordClientLike {
+  login(token: string): Promise<unknown>;
+  destroy(): void | Promise<void>;
+  isReady(): boolean;
+  user?: { id?: string; tag?: string } | null;
+  once(event: "ready", listener: () => unknown): unknown;
+  on(event: "interactionCreate", listener: (interaction: unknown) => unknown): unknown;
+  on(event: "guildCreate", listener: (guild: unknown) => unknown): unknown;
+  on(event: "error" | "shardError", listener: (err: unknown) => unknown): unknown;
+  on(event: "warn", listener: (message: string) => unknown): unknown;
+}
 
 export interface AppRuntimeDeps {
   mongoose: MongooseLike;
-  crypto: unknown;
-  performance: unknown;
-  Client: new (opts: unknown) => DiscordClientLike;
+  crypto: CryptoLike;
+  performance: PerformanceLike;
+  Client: new (opts: { intents: number[] }) => DiscordClientLike;
   GatewayIntentBits: Record<string, number>;
-  loadConfig: () => { config: unknown; games: unknown[] };
-  createMetrics: () => Record<string, unknown>;
-  createRateLimiter: (env: unknown, metrics: unknown) => unknown;
-  createHousekeeping: (opts: Record<string, unknown>) => HousekeepingLike;
-  createCronController: (opts: Record<string, unknown>) => CronControllerLike;
-  createOutboxWorker: (opts: Record<string, unknown>) => OutboxWorkerLike;
-  createHttpServer: (opts: Record<string, unknown>) => HttpServerLike;
-  registerDiscordEvents: (opts: Record<string, unknown>) => void;
-  registerMongoEvents: (opts: Record<string, unknown>) => void;
-  createShutdownController: (opts: Record<string, unknown>) => ShutdownControllerLike;
+  loadConfig: () => ConfigLoadResult;
+  createMetrics: () => BotMetrics;
+  createRateLimiter: (env: RuntimeEnv, metrics: BotMetrics) => RateLimiter;
+  createHousekeeping: (opts: CreateHousekeepingDeps) => HousekeepingController;
+  createCronController: (opts: CreateCronControllerDeps) => CronController;
+  createOutboxWorker: (opts: CreateOutboxWorkerDeps) => OutboxWorker;
+  createHttpServer: (opts: CreateHttpServerDeps) => HttpServerLike;
+  registerDiscordEvents: (opts: RegisterDiscordEventsDeps) => void;
+  registerMongoEvents: (opts: RegisterMongoEventsDeps) => void;
+  createShutdownController: (opts: CreateShutdownControllerDeps) => ShutdownController;
   errorMessage: (err: unknown) => string;
   errorDetail: (err: unknown) => string;
   mongo: MongoContextLike;
@@ -96,17 +128,17 @@ export interface AppRuntimeDeps {
 
 interface RuntimeServices {
   client: DiscordClientLike;
-  metrics: Record<string, unknown>;
-  lifecycle: { isShuttingDown: boolean };
-  rateLimiter: unknown;
-  housekeeping: HousekeepingLike;
-  config: unknown;
-  games: unknown[];
+  metrics: BotMetrics;
+  lifecycle: LifecycleState;
+  rateLimiter: RateLimiter;
+  housekeeping: HousekeepingController;
+  config: BotConfig;
+  games: GameConfig[];
 }
 
 interface Schedulers {
-  cronController: CronControllerLike;
-  outboxWorker: OutboxWorkerLike;
+  cronController: CronController;
+  outboxWorker: OutboxWorker;
   outboxEnabled: boolean;
 }
 
@@ -114,10 +146,10 @@ export interface AppRuntime {
   start(): Promise<void>;
   stop(signal: string, exitCode?: number): Promise<void>;
   registerProcessHandlers(): void;
-  cronController: CronControllerLike;
-  outboxWorker: OutboxWorkerLike;
+  cronController: CronController;
+  outboxWorker: OutboxWorker;
   httpServer: HttpServerLike;
-  metrics: Record<string, unknown>;
+  metrics: BotMetrics;
 }
 
 const MONGO_CONNECT_MAX_ATTEMPTS = 5;
@@ -160,7 +192,7 @@ function createSchedulers(deps: AppRuntimeDeps, services: RuntimeServices): Sche
   const outboxPerJobBudgetMs = parseEnvNumber("DISCORD_SEND_RATE_MAX_WAIT_MS", 5000, { min: 0, max: 60000 }) + 2000;
   const outboxWorker = createOutboxWorker({
     mongoose, client, logger, parseEnvNumber, acquireDbLock, releaseDbLock,
-    drainOutbox: (drainClient: unknown) => commands.drainOutbox(drainClient),
+    drainOutbox: async (drainClient) => commands.drainOutbox(drainClient),
     lifecycle, metrics, errorMessage, adminAlert, isPaused: () => getOutboxPaused(),
     drainLimit: outboxDrainLimit, perJobBudgetMs: outboxPerJobBudgetMs
   });
