@@ -75,6 +75,11 @@ src/
   shared/
   sources/
     deals/
+      index.ts
+      dealHelpers.ts
+      steamDeals.ts
+      epicDeals.ts
+      dealEnrichment.ts
     steam/
     updates/
       index.ts

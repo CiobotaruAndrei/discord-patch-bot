@@ -210,10 +210,14 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - `driverUpdates.ts` — `createDriverUpdates(deps)` -> `fetchAmdUpdate`, `fetchIntelUpdate`, `fetchNvidiaUpdate` (pagini oficiale + fallback Google News RSS).
 - `platformUpdates.ts` — `createPlatformUpdates(deps)` -> `fetchFortniteUpdate`, `fetchMinecraftUpdate`, `fetchRobloxUpdate`, `fetchRssUpdate`; sursele `minecraft` si `roblox` incearca mirror-uri oficiale in ordine (`piston-meta` -> `launchermeta`; `clientsettings` -> `clientsettingscdn`) prin `conditionalGetFromMirrors`, ca un singur host cazut sa nu mai omoare sursa.
 
-### `src/sources/deals/index.ts`
+### `src/sources/deals/` (split pe functionalitate)
 
-- Fetch-uieste reduceri Steam/Epic, deduplica si sorteaza ofertele.
-- Foloseste `normalizeTitleForDedupe` si `dealHash` din Rust/N-API prin context.
+- Fetch-uieste reduceri Steam/Epic, deduplica si sorteaza ofertele; foloseste `normalizeTitleForDedupe` si `dealHash` din Rust/N-API prin context.
+- `index.ts` — orchestrator: `createDeals(deps)` compune sub-factory-urile, `_fetchDealsImpl` aduna ofertele Steam + Epic si le trece prin `dedupeAndRankDeals`, iar `fetchDeals` tine coalescing-ul `inflightDeals` in closure; `attachDeals` ramane adaptorul public.
+- `dealHelpers.ts` — tipuri partajate (`HttpReq`, `TrackInflight`, `WithInflightTimeout`, `DealCurrencyCode`) + helperul pur `dedupeAndRankDeals` (dedupe pe titlu normalizat, sortare dupa `popularityScore`, taiere la `MAX_DEALS`).
+- `steamDeals.ts` — `createSteamDeals(deps)` -> `fetchSteamReviewData` + `fetchSteamSpecials` (featured categories + review-uri in batch-uri cu pauza, scor hibrid savings/quality/bonus).
+- `epicDeals.ts` — `createEpicDeals(deps)` -> `fetchEpicSpecials` (GraphQL searchStore, mapare pret/promotii/imagini).
+- `dealEnrichment.ts` — `createDealEnrichment(deps)` -> `enrichDealData` + `enrichCacheGet`/`enrichCacheSet`/`cleanEnrichedCache`/`getEnrichedCacheSize`; cache-ul LRU `enrichedCache` ramane la nivel de modul (cache pur de date, cheie `dealId:currency`), iar `activeEnrichments` traieste in closure-ul instantei.
 
 ### `src/sources/steam/index.ts`
 
