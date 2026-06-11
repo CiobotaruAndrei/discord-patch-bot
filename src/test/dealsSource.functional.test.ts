@@ -207,3 +207,29 @@ test("createDeals: coalescing-ul inflight e per instanta, nu partajat intre inst
   assert.equal(deals[0]?.id, "steam_42", "B isi produce propriile rezultate");
   assert.ok(callsB.length >= 1);
 });
+
+test("createDeals.fetchDeals: Steam si Epic se fetch-uiesc in PARALEL, nu secvential", async () => {
+  let resolveEpicStarted!: () => void;
+  const epicStarted = new Promise<void>(resolve => { resolveEpicStarted = resolve; });
+  const { deps } = makeDeps({
+    httpReq: async (_m, url) => {
+      if (String(url).includes("featuredcategories")) {
+        await Promise.race([
+          epicStarted,
+          new Promise((_resolve, reject) => setTimeout(() => reject(new Error("Epic nu a pornit cat timp Steam era in zbor — fetch-ul a redevenit secvential")), 2000))
+        ]);
+        return { data: { specials: { items: [{ id: 100, name: "Steam Deal", original_price: 2000, final_price: 1000, discount_percent: 50, header_image: null }] } } };
+      }
+      if (String(url).includes("appreviews")) {
+        return { data: { query_summary: { total_reviews: 100, total_positive: 90 } } };
+      }
+      resolveEpicStarted();
+      return { data: { data: { Catalog: { searchStore: { elements: [{ id: "epic-1", title: "Epic Deal", urlSlug: "epic-deal", price: { totalPrice: { originalPrice: 3000, discountPrice: 1500 } } }] } } } } };
+    }
+  });
+  const api = attachDeals.createDeals(deps);
+  const deals = await api.fetchDeals({ currency: "USD" });
+  const titles = deals.map(d => d.title).sort();
+  assert.deepEqual(titles, ["Epic Deal", "Steam Deal"],
+    "Steam-ul (blocat pana porneste Epic) reuseste doar daca cele doua fetch-uri ruleaza concurent");
+});
