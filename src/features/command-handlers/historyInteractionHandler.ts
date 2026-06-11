@@ -61,6 +61,10 @@ function truncateLabel(value: string, max: number): string {
   return `${clean.slice(0, max - 1)}…`;
 }
 
+function escapeMarkdownLinkUrl(url: string): string {
+  return url.replace(/\(/g, "%28").replace(/\)/g, "%29").replace(/\s/g, "%20");
+}
+
 function buildHistoryEmbed(records: HistoryEmbedRecord[], kind: HistoryKind | "all"): { title: string; description: string; color: number; footer: { text: string } } {
   const scopeLabel = kind === "update" ? "update-uri" : kind === "discount" ? "reduceri" : "notificari";
   const footer = { text: "Istoric pastrat ~30 zile (best-effort)" };
@@ -76,7 +80,7 @@ function buildHistoryEmbed(records: HistoryEmbedRecord[], kind: HistoryKind | "a
     const emoji = record.kind === "discount" ? "💸" : "🎮";
     const timestamp = Math.floor(record.sentAt.getTime() / 1000);
     const label = truncateLabel(record.title || record.gameKey || "(fara titlu)", 120);
-    const text = record.link ? `[${label}](${record.link})` : label;
+    const text = record.link ? `[${label}](${escapeMarkdownLinkUrl(record.link)})` : label;
     return `${emoji} ${text} — <t:${timestamp}:R>`;
   });
   return {
