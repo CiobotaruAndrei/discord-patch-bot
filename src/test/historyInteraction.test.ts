@@ -48,3 +48,13 @@ test("buildHistoryEmbed: fallback la gameKey cand title lipseste si curata paran
   assert.match(embed.description, /brackets/);
   assert.doesNotMatch(embed.description, /\[brackets\]/);
 });
+
+test("buildHistoryEmbed: link-urile cu paranteze/spatii sunt escapate, nu sparg markdown-ul", () => {
+  const sentAt = new Date("2026-06-06T12:00:00.000Z");
+  const embed = buildHistoryEmbed([
+    { kind: "update", gameKey: "g", title: "Patch (Hotfix)", link: "https://ex.com/news_(2026)/patch x", sentAt }
+  ], "update");
+  assert.ok(embed.description.includes("(https://ex.com/news_%282026%29/patch%20x)"),
+    "regresie: un URL cu ')' inchidea prematur (...) din [label](url) si rupea link-ul + restul liniei");
+  assert.ok(!embed.description.includes("news_(2026)"), "parantezele brute din URL nu mai ajung in markdown");
+});
