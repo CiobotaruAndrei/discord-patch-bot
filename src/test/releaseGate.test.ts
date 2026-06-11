@@ -89,3 +89,21 @@ test("staging-smoke.yml e rulabil pe un ref explicit, iar SHA-ul testat e cel di
   assert.match(text, /ref: \$\{\{ inputs\.ref \|\| github\.ref \}\}/, "checkout-ul foloseste input-ul ref (fallback: ref-ul de dispatch/cron)");
   assert.match(text, /git rev-parse HEAD/, "SHA-ul testat e rezolvat din checkout-ul real, nu din head_sha al rularii");
 });
+
+test("release.yml pagineaza rularile Staging Smoke (nu doar prima pagina) pana la fereastra de varsta", () => {
+  const text = read(releaseWorkflowPath);
+  assert.match(text, /per_page: 100/, "pagini pline, nu 50 fara paginare");
+  assert.match(text, /page <= MAX_PAGES|for \(let page = 1/, "itereaza paginile de rulari");
+  assert.match(text, /^\s+page\r?$/m, "parametrul page e trimis catre listWorkflowRuns");
+  assert.match(text, /oldest|created_at/, "se opreste cand rularile devin mai vechi decat fereastra, nu citeste la nesfarsit");
+});
+
+test("staging-smoke.yml ruleaza ambele probe independent si da verdictul din JSON-urile de rezultat", () => {
+  const text = read(stagingSmokeWorkflowPath);
+  const probeIfCount = (text.match(/if: \$\{\{ !cancelled\(\) \}\}/g) || []).length;
+  assert.ok(probeIfCount >= 3, "ambele probe + verdictul ruleaza cu if: !cancelled() (proba Discord nu mai e sarita cand pica HTTP-ul)");
+  assert.match(text, /Final verdict/, "exista pasul de verdict final");
+  assert.match(text, /HTTP_RESULT_FILE/, "verdictul citeste rezultatul probei HTTP");
+  assert.match(text, /DISCORD_RESULT_FILE/, "verdictul citeste rezultatul probei Discord");
+  assert.match(text, /!result\.ok/, "verdictul pica job-ul pe ok=false din JSON");
+});

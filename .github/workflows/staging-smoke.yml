@@ -41,7 +41,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Probele ruleaza independent (if: !cancelled()): daca proba HTTP pica, cea Discord
+      # tot ruleaza, ca artifactul sa aiba diagnostic complet; verdictul final pica job-ul
+      # daca oricare dintre rezultate e ok=false.
       - name: Run staging smoke probe (health + metrics)
+        id: http-probe
+        if: ${{ !cancelled() }}
         run: npm run smoke:staging
         env:
           STAGING_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
@@ -49,6 +54,8 @@ jobs:
           STAGING_SMOKE_RESULT_FILE: ${{ github.workspace }}/staging-smoke-http.json
 
       - name: Run live Discord smoke (gateway + commands + permissions)
+        id: discord-probe
+        if: ${{ !cancelled() }}
         run: npm run smoke:staging:discord
         env:
           STAGING_DISCORD_TOKEN: ${{ secrets.STAGING_DISCORD_TOKEN }}
@@ -57,6 +64,33 @@ jobs:
           STAGING_TEST_CHANNEL_ID: ${{ secrets.STAGING_TEST_CHANNEL_ID }}
           STAGING_DISCORD_SEND_TEST: ${{ secrets.STAGING_DISCORD_SEND_TEST }}
           STAGING_DISCORD_SMOKE_RESULT_FILE: ${{ github.workspace }}/staging-smoke-discord.json
+
+      - name: Final verdict (both probes from JSON results)
+        if: ${{ !cancelled() }}
+        env:
+          HTTP_RESULT_FILE: ${{ github.workspace }}/staging-smoke-http.json
+          DISCORD_RESULT_FILE: ${{ github.workspace }}/staging-smoke-discord.json
+        run: |
+          node -e '
+            const fs = require("fs");
+            const files = [process.env.HTTP_RESULT_FILE, process.env.DISCORD_RESULT_FILE];
+            let failed = false;
+            for (const file of files) {
+              if (!file || !fs.existsSync(file)) {
+                console.error(`::error::[staging-smoke] Lipseste fisierul de rezultat ${file} (proba a crapat inainte sa scrie JSON-ul).`);
+                failed = true;
+                continue;
+              }
+              const result = JSON.parse(fs.readFileSync(file, "utf8"));
+              if (!result.ok) {
+                const broken = (result.checks || []).filter(c => !c.ok).map(c => `${c.name}: ${c.detail || "fail"}`).join(" | ");
+                console.error(`::error::[staging-smoke] ${result.kind}: ok=false (${broken || "fara detalii"})`);
+                failed = true;
+              }
+            }
+            if (failed) process.exit(1);
+            console.log("Ambele probe de staging smoke au trecut (sau au fost sarite explicit cu opt-out).");
+          '
 
       # Numele artifactului poarta SHA-ul real al codului testat (poate diferi de head_sha
       # al rularii cand smoke-ul e dispatch-uit cu input-ul ref); gate-ul de release se
