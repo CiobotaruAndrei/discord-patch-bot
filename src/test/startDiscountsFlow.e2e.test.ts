@@ -218,7 +218,12 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
     logger: (_level: string, _context: string, _message: string, _meta?: unknown) => undefined,
     DEFAULT_CURRENCY: "USD",
     runConcurrent: async (items: unknown[], _limit: number, worker: (item: unknown) => Promise<void>) => {
-      for (const item of items) await worker(item);
+      let processed = 0;
+      const errors: Array<{ error: unknown }> = [];
+      for (const item of items) {
+        try { await worker(item); processed++; } catch (error) { errors.push({ error }); }
+      }
+      return { processed, errors };
     },
     validatePendingDiscountSnapshot: (value: unknown) => isPlainRecord(value),
     getLatestForAllGames: async () => [],

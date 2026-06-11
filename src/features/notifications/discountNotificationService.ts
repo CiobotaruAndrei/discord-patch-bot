@@ -35,7 +35,11 @@ type ResolveOutboundChannel = (opts: {
 interface RunConcurrentOptions {
   errorLogger?: (item: unknown, err: unknown) => void;
 }
-type RunConcurrent = <T>(items: T[], concurrency: number, fn: (item: T) => Promise<unknown>, opts?: RunConcurrentOptions) => Promise<void>;
+interface RunConcurrentResult {
+  processed: number;
+  errors: Array<{ error: unknown }>;
+}
+type RunConcurrent = <T>(items: T[], concurrency: number, fn: (item: T) => Promise<unknown>, opts?: RunConcurrentOptions) => Promise<RunConcurrentResult>;
 
 interface PendingDiscount {
   hash: string;
@@ -294,7 +298,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       return dealsPromises.get(cur) as Promise<DealInfo[]>;
     }
 
-    await runConcurrent(guilds as Array<GuildSettings & Record<string, unknown>>, GUILD_PROCESS_CONCURRENCY, async (guild) => {
+    const dispatch = await runConcurrent(guilds as Array<GuildSettings & Record<string, unknown>>, GUILD_PROCESS_CONCURRENCY, async (guild) => {
       if (shouldAbort?.()) return;
       const currency = (guild as { currency?: string }).currency || DEFAULT_CURRENCY;
       const deals = await dealsForCurrency(currency);
@@ -303,6 +307,9 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       errorLogger: (guild: unknown, err: unknown) =>
         logger("WARN", "CRON_DISCOUNTS", `Eroare procesare guild ${(guild as { _id?: unknown })._id}`, transientErrorMessage(err))
     });
+    if (dispatch.processed === 0 && dispatch.errors.length > 0) {
+      throw new Error(`Reducerile au esuat pentru toate cele ${dispatch.errors.length} guild-uri abonate (fetch sau procesare): ${transientErrorMessage(dispatch.errors[0]?.error)}`);
+    }
   }
 
   return { processGuildDiscounts, checkForDiscounts };

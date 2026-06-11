@@ -35,7 +35,11 @@ type ResolveOutboundChannel = (opts: {
 interface RunConcurrentOptions {
   errorLogger?: (item: unknown, err: unknown) => void;
 }
-type RunConcurrent = <T>(items: T[], concurrency: number, fn: (item: T) => Promise<unknown>, opts?: RunConcurrentOptions) => Promise<void>;
+interface RunConcurrentResult {
+  processed: number;
+  errors: Array<{ error: unknown }>;
+}
+type RunConcurrent = <T>(items: T[], concurrency: number, fn: (item: T) => Promise<unknown>, opts?: RunConcurrentOptions) => Promise<RunConcurrentResult>;
 
 export interface UpdateNotificationServiceDeps {
   GuildModel: Pick<Model<GuildSettings>, "find" | "updateOne">;
@@ -272,20 +276,22 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
         ? fallback.payload as UpdateFetchResult[]
         : null;
       if (!fallbackResults || !fallbackResults.length) {
-        logger("ERROR", "CRON_UPDATES", "Nu am putut prelua update-urile si nu exista snapshot de rezerva proaspat", transientErrorMessage(err));
-        return;
+        throw new Error(`Nu am putut prelua update-urile si nu exista snapshot de rezerva proaspat: ${transientErrorMessage(err)}`);
       }
       logger("WARN", "CRON_UPDATES", "Fetch esuat — folosesc snapshot-ul recent din event store pentru dispatch", transientErrorMessage(err));
       latestResults = fallbackResults;
     }
     if (shouldAbort?.()) return;
 
-    await runConcurrent(guilds as Array<GuildSettings & Record<string, unknown>>, GUILD_PROCESS_CONCURRENCY, async (guild) => {
+    const dispatch = await runConcurrent(guilds as Array<GuildSettings & Record<string, unknown>>, GUILD_PROCESS_CONCURRENCY, async (guild) => {
       if (!shouldAbort?.()) await processGuildUpdates(client, guild, latestResults);
     }, {
       errorLogger: (guild: unknown, err: unknown) =>
         logger("WARN", "CRON_UPDATES", `Eroare procesare guild ${(guild as { _id?: unknown })._id}`, transientErrorMessage(err))
     });
+    if (dispatch.processed === 0 && dispatch.errors.length > 0) {
+      throw new Error(`Procesarea update-urilor a esuat pentru toate cele ${dispatch.errors.length} guild-uri abonate: ${transientErrorMessage(dispatch.errors[0]?.error)}`);
+    }
   }
 
   return { processGuildUpdates, buildOptimizedGameList, checkForUpdates };
