@@ -72,8 +72,11 @@ export function createLatestUpdatesHandler(deps: LatestUpdatesHandlerDeps) {
       const startTime = Date.now();
       try {
         data = await getLatestForAllGames(games);
-        setUpdatesCache(data);
-        await saveSystemTime("all", smoothTime(estMs, Date.now() - startTime));
+        const hasAnyData = data.some(record => record.latest !== null);
+        if (hasAnyData) {
+          setUpdatesCache(data);
+          await saveSystemTime("all", smoothTime(estMs, Date.now() - startTime));
+        }
       } catch (err: unknown) {
         endLog("error", { errorMsg: errorMessage(err) });
         return safeEdit(interaction, formatUserError(err, "Nu am reusit sa obtin update-urile.", "ERR_LATEST_UPDATES"));

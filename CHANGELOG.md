@@ -6,6 +6,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`/latest updates` nu mai cacheaza un rezultat integral all-null (audit — simetrie cu fix-ul din cron)**. Pe calea manuala, handler-ul facea `setUpdatesCache(data)` neconditionat dupa fetch: o cadere totala a surselor in timpul comenzii (toate jocurile `latest: null`, erorile per-joc fiind inghitite in surse) otravea cache-ul global pentru tot TTL-ul (pana la 30 min) — comenzile `/latest` urmatoare primeau „Nu am date disponibile" din cache, fara niciun refetch, desi sursele isi puteau reveni intre timp. Cron-ul fusese deja invatat sa nu persiste/cacheze rezultatul all-null (review #6); acum si calea manuala aplica acelasi criteriu: cache-ul (si masuratoarea de durata `saveSystemTime`) se scriu doar daca macar un joc a intors date. Teste: all-null → zero scrieri in cache (urmatoarea comanda refetch-uieste); partial → cache scris exact o data, ca pana acum.
+
 ### Changed
 
 - **Steam si Epic se fetch-uiesc in paralel in `fetchDeals` (audit perf, follow-up promis in #303)**. `_fetchDealsImpl` astepta Steam-ul complet (featured categories + review-uri in batch-uri cu pauze) inainte sa porneasca Epic GraphQL — latenta ciclului de reduceri era suma celor doua surse. Acum cele doua fetch-uri ruleaza prin `Promise.all`: e sigur fara schimbare de semantica fiindca fiecare sursa isi prinde intern erorile si intoarce lista partiala (una cazuta nu o mai blocheaza si nu o respinge pe cealalta), iar ordinea Steam→Epic in lista combinata e pastrata pentru determinismul dedupe-ului. Test nou de concurenta: Steam-ul e tinut blocat pana cand Epic porneste — trece doar daca fetch-urile sunt cu adevarat paralele (regresia la secvential pica testul cu mesaj explicit, nu prin timeout de suita).
