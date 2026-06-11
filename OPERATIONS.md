@@ -106,17 +106,23 @@ verificata manual; lectie: endpoint-ul `graphql.epicgames.com` a fost retras si 
 Scop: prinde proactiv cand o sursa isi schimba API-ul/formatul (schema drift) — lectie: doar jocurile
 `steam` erau verificate, iar sursele `minecraft` (host DNS inexistent) si `roblox` (path 404) au ramas
 rupte luni de zile fara nicio alerta. **Sursele scraped/proxy** (`listing_based`, `epic_games`/fortnite
-prin proxy, driverele prin Google News RSS) raman **excluse intentionat** din canary-ul automat: depind
-de `PROXY_URLS` si de scraping HTML fragil, deci ar genera fals-alarme (timeout/retea) — verifica-le
-manual cu `PROXY_URLS` setat daca banuiesti ca s-au schimbat.
+prin proxy, driverele prin Google News RSS) ruleaza intr-un **pas separat warning-only**
+(`filterFragileCanaryGames` + `buildFragileWarnings`): un tip fragil cu 0 jocuri OK emite
+`::warning::[canary-sources] sursa fragila ...` dar **nu afecteaza exit code-ul** — depind de
+`PROXY_URLS` si de scraping HTML fragil, deci un esec poate fi blocaj de IP/retea, nu sursa rupta;
+daca warning-ul persista mai multe nopti, verifica manual cu `PROXY_URLS` setat.
 
 - Ruleaza **programat (nightly) + manual** prin workflow-ul `canary.yml` (`workflow_dispatch` sau cron),
   **nu** ca check obligatoriu pe PR: poate pica din cauza Steam/Epic/internet, nu a codului, deci n-ar
   trebui sa blocheze merge-urile. Foloseste un serviciu Mongo doar pentru circuit breaker (fail-open daca
   lipseste).
-- **Pica (exit 1)** doar cand un **tip de sursa** are **0 jocuri** care intorc date valide — semnal ca
+- **Pica (exit 1)** cand un **tip de sursa fiabila** are **0 jocuri** care intorc date valide — semnal ca
   integrarea acelei surse e rupta (nu un blip tranzitoriu pe un singur joc, care lasa restul tipului OK).
   La esec apare `::error::[canary-sources] sursa "<tip>": 0/N ...`.
+- **Fail-closed pe crash:** daca `getLatestForAllGames` sau `fetchDeals` **crapa complet** (exceptie, nu
+  doar rezultate goale), canary-ul **pica** in loc sa ramana verde (lectie: catch-ul vechi seta
+  `dealsOk=true`, deci endpoint-ul de reduceri putea muri complet fara alerta). Pentru rulari controlate
+  cu retea instabila exista opt-out-ul explicit `ALLOW_CANARY_NETWORK_SKIP=true` (nesetat in CI).
 - **Cand pica:** verifica daca site-ul sursei si-a schimbat structura (selectoare cheerio / endpoint /
   format JSON). Daca da, actualizeaza parserul sursei respective (`sources/updates` sau `sources/deals`)
   si confirma cu `npm run canary:sources` local. Un singur joc esuat dintr-un tip cu mai multe jocuri
