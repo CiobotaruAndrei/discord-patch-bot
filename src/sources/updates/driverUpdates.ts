@@ -14,97 +14,78 @@ interface DriverUpdatesDeps {
 }
 
 function createDriverUpdates(deps: DriverUpdatesDeps) {
-  async function fetchAmdUpdate(game: GameConfig): Promise<NormalizedUpdate> {
-    const { fetchWithProxy, httpReq, rssParser, logger, normalizeUpdate, cleanText, stableUpdateId } = deps;
-    try {
-      const rawContent = await fetchWithProxy("https://www.amd.com/en/support/download/drivers.html");
-      const match = rawContent.match(/Adrenalin Edition\s+([\d\.]+)/i);
-      if (match) return normalizeUpdate({
-        id: match[1],
-        title: `AMD Radeon Adrenalin v${match[1]}`,
-        link: "https://www.amd.com",
-        excerpt: "Driver disponibil.",
-        thumbnail: game.thumbnail
+  function parseDriverRssFeed(vendor: string, game: GameConfig, excerpt: string) {
+    const { rssParser, normalizeUpdate, cleanText, stableUpdateId } = deps;
+    return async (raw: unknown): Promise<NormalizedUpdate> => {
+      const feed = await rssParser.parseString(String(raw || ""));
+      if (!feed.items || feed.items.length === 0) throw new Error(`Eșec ${vendor}.`);
+      const rawTitle = feed.items[0].title;
+      if (!rawTitle) throw new Error(`${vendor} RSS fara titlu in primul item.`);
+      const cleanTitle = cleanText(rawTitle).split(" - ")[0];
+      if (!cleanTitle) throw new Error(`${vendor} RSS cu titlu gol dupa curatare.`);
+      return normalizeUpdate({
+        id: stableUpdateId(cleanTitle, ""),
+        title: cleanTitle,
+        link: feed.items[0].link,
+        excerpt,
+        thumbnail: game.thumbnail,
+        timestamp: feed.items[0].pubDate
       });
-      logger("WARN", "SCRAPE", "AMD proxy a returnat continut, dar regex-ul `Adrenalin Edition X.Y.Z` nu a prins versiunea — posibil schema drift, fallback RSS");
-    } catch (err) {
-      logger("WARN", "SCRAPE", "Eroare preluare AMD proxy", errorMessage(err));
+    };
+  }
+
+  async function fetchAmdUpdate(game: GameConfig): Promise<NormalizedUpdate> {
+    const { fetchWithProxy, conditionalGet, logger, normalizeUpdate } = deps;
+    try {
+      return await conditionalGet(
+        "https://news.google.com/rss/search?q=site:amd.com+%22AMD+Software:+Adrenalin+Edition%22+release+notes&hl=en-US",
+        parseDriverRssFeed("AMD", game, "Update AMD.com.")
+      );
+    } catch (rssErr) {
+      logger("WARN", "SCRAPE", "AMD RSS (sursa primara) a esuat — incerc pagina oficiala ca fallback", errorMessage(rssErr));
     }
-    const res = await httpReq("GET",
-      "https://news.google.com/rss/search?q=site:amd.com+%22AMD+Software:+Adrenalin+Edition%22+release+notes&hl=en-US");
-    const feed = await rssParser.parseString(String(res.data || ""));
-    if (!feed.items || feed.items.length === 0) throw new Error("Eșec AMD.");
-    const rawTitle = feed.items[0].title;
-    if (!rawTitle) throw new Error("AMD RSS fallback fara titlu in primul item.");
-    const cleanTitle = cleanText(rawTitle).split(" - ")[0];
-    if (!cleanTitle) throw new Error("AMD RSS fallback cu titlu gol dupa curatare.");
+    const rawContent = await fetchWithProxy("https://www.amd.com/en/support/download/drivers.html");
+    const match = rawContent.match(/Adrenalin Edition\s+([\d\.]+)/i);
+    if (!match) throw new Error("Eșec AMD: RSS-ul primar a esuat, iar pagina oficiala nu expune versiunea in HTML static (regex `Adrenalin Edition X.Y.Z` fara match).");
     return normalizeUpdate({
-      id: stableUpdateId(cleanTitle, ""),
-      title: cleanTitle,
-      link: feed.items[0].link,
-      excerpt: "Update AMD.com.",
-      thumbnail: game.thumbnail,
-      timestamp: feed.items[0].pubDate
+      id: match[1],
+      title: `AMD Radeon Adrenalin v${match[1]}`,
+      link: "https://www.amd.com",
+      excerpt: "Driver disponibil.",
+      thumbnail: game.thumbnail
     });
   }
 
   async function fetchIntelUpdate(game: GameConfig): Promise<NormalizedUpdate> {
-    const { fetchWithProxy, httpReq, rssParser, logger, normalizeUpdate, cleanText, stableUpdateId } = deps;
-    try {
-      const rawContent = await fetchWithProxy(game.url as string);
-      const match = rawContent.match(/\b(\d{2,3}\.\d+\.\d+\.\d+)\b/);
-      if (match) return normalizeUpdate({
-        id: match[1],
-        title: `${game.name} v${match[1]}`,
-        link: game.url,
-        excerpt: `Versiune găsită: ${match[1]}`,
-        thumbnail: game.thumbnail
-      });
-      logger("WARN", "SCRAPE", `Intel proxy a returnat continut pentru ${game.key}, dar regex-ul de versiune (\\d+.\\d+.\\d+.\\d+) nu a prins nimic — posibil schema drift, fallback RSS`);
-    } catch (err) {
-      logger("WARN", "SCRAPE", "Eroare preluare Intel proxy", errorMessage(err));
-    }
+    const { fetchWithProxy, conditionalGet, logger, normalizeUpdate } = deps;
     const q = game.key === "intelpro"
       ? 'site:intel.com "Intel Arc Pro Graphics"'
       : 'site:intel.com "Intel Arc & Iris Xe Graphics - Windows"';
-    const res = await httpReq("GET",
-      `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US`);
-    const feed = await rssParser.parseString(String(res.data || ""));
-    if (!feed.items || feed.items.length === 0) throw new Error("Eșec Intel.");
-    const rawTitle = feed.items[0].title;
-    if (!rawTitle) throw new Error("Intel RSS fallback fara titlu in primul item.");
-    const cleanTitle = cleanText(rawTitle).split(" - ")[0];
-    if (!cleanTitle) throw new Error("Intel RSS fallback cu titlu gol dupa curatare.");
+    try {
+      return await conditionalGet(
+        `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US`,
+        parseDriverRssFeed("Intel", game, "Update intel.com detectat.")
+      );
+    } catch (rssErr) {
+      logger("WARN", "SCRAPE", `Intel RSS (sursa primara) a esuat pentru ${game.key} — incerc pagina oficiala ca fallback`, errorMessage(rssErr));
+    }
+    const rawContent = await fetchWithProxy(game.url as string);
+    const match = rawContent.match(/\b(\d{2,3}\.\d+\.\d+\.\d+)\b/);
+    if (!match) throw new Error(`Eșec Intel (${game.key}): RSS-ul primar a esuat, iar pagina oficiala nu expune versiunea in HTML static.`);
     return normalizeUpdate({
-      id: stableUpdateId(cleanTitle, ""),
-      title: cleanTitle,
-      link: feed.items[0].link,
-      excerpt: "Update intel.com detectat.",
-      thumbnail: game.thumbnail,
-      timestamp: feed.items[0].pubDate
+      id: match[1],
+      title: `${game.name} v${match[1]}`,
+      link: game.url,
+      excerpt: `Versiune găsită: ${match[1]}`,
+      thumbnail: game.thumbnail
     });
   }
 
   async function fetchNvidiaUpdate(g: GameConfig): Promise<NormalizedUpdate> {
-    const { conditionalGet, rssParser, normalizeUpdate, cleanText, stableUpdateId } = deps;
+    const { conditionalGet } = deps;
     const q = g.key === "nvidiastudio" ? '"Studio Driver"' : '"Game Ready Driver"';
     const url = `https://news.google.com/rss/search?q=${encodeURIComponent(`site:nvidia.com ${q} release`)}&hl=en-US`;
-    return conditionalGet(url, async (raw) => {
-      const f = await rssParser.parseString(String(raw || ""));
-      if (!f.items || f.items.length === 0) throw new Error("Eșec Nvidia.");
-      const rawTitle = f.items[0].title;
-      if (!rawTitle) throw new Error("Nvidia RSS fallback fara titlu in primul item.");
-      const cleanTitle = cleanText(rawTitle).split(" - ")[0];
-      if (!cleanTitle) throw new Error("Nvidia RSS fallback cu titlu gol dupa curatare.");
-      return normalizeUpdate({
-        id: stableUpdateId(cleanTitle, ""),
-        title: cleanTitle,
-        link: f.items[0].link,
-        excerpt: "Update nvidia.com detectat.",
-        thumbnail: g.thumbnail,
-        timestamp: f.items[0].pubDate
-      });
-    });
+    return conditionalGet(url, parseDriverRssFeed("Nvidia", g, "Update nvidia.com detectat."));
   }
 
   return { fetchAmdUpdate, fetchIntelUpdate, fetchNvidiaUpdate };
