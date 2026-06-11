@@ -58,3 +58,22 @@ test("buildHistoryEmbed: link-urile cu paranteze/spatii sunt escapate, nu sparg 
     "regresie: un URL cu ')' inchidea prematur (...) din [label](url) si rupea link-ul + restul liniei");
   assert.ok(!embed.description.includes("news_(2026)"), "parantezele brute din URL nu mai ajung in markdown");
 });
+
+test("buildHistoryEmbed: bugetul de 4000 caractere taie pe LINII intregi, nu la mijlocul unui link", () => {
+  const sentAt = new Date("2026-06-06T12:00:00.000Z");
+  const longTitle = "T".repeat(119);
+  const longLink = `https://example.com/${"p".repeat(450)}`;
+  const records = Array.from({ length: 25 }, (_, i) => ({
+    kind: "update" as const, gameKey: `g${i}`, title: `${longTitle}${i}`, link: longLink, sentAt
+  }));
+  const embed = buildHistoryEmbed(records, "update");
+  assert.ok(embed.description.length <= 4000, "descrierea respecta limita Discord");
+  const renderedLines = embed.description.split("\n");
+  for (const line of renderedLines) {
+    assert.match(line, /^🎮 \[.*\]\(https:\/\/example\.com\/p+\) — <t:\d+:R>$/,
+      "regresie: slice(0, 4000) putea reteza ultimul link la mijloc ([label](htt...), markdown rupt in embed");
+  }
+  assert.ok(renderedLines.length < records.length, "scenariul chiar depaseste bugetul (altfel testul nu dovedeste nimic)");
+  assert.match(embed.title, new RegExp(`ultimele ${renderedLines.length}\\b`),
+    "titlul raporteaza cate intrari sunt afisate efectiv, nu cate au fost cerute");
+});

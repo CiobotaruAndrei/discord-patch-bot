@@ -25,6 +25,8 @@ type CommandLogEnd = (status?: string, endExtra?: Record<string, unknown>) => vo
 
 type HistoryKind = "update" | "discount";
 
+const HISTORY_DESCRIPTION_MAX_CHARS = 4000;
+
 interface HistoryEmbedRecord {
   kind: HistoryKind;
   gameKey: string;
@@ -76,16 +78,23 @@ function buildHistoryEmbed(records: HistoryEmbedRecord[], kind: HistoryKind | "a
       footer
     };
   }
-  const lines = records.map(record => {
+  const lines: string[] = [];
+  let totalChars = 0;
+  for (const record of records) {
     const emoji = record.kind === "discount" ? "💸" : "🎮";
     const timestamp = Math.floor(record.sentAt.getTime() / 1000);
     const label = truncateLabel(record.title || record.gameKey || "(fara titlu)", 120);
     const text = record.link ? `[${label}](${escapeMarkdownLinkUrl(record.link)})` : label;
-    return `${emoji} ${text} — <t:${timestamp}:R>`;
-  });
+    const line = `${emoji} ${text} — <t:${timestamp}:R>`;
+    const cost = (lines.length ? 1 : 0) + line.length;
+    if (totalChars + cost > HISTORY_DESCRIPTION_MAX_CHARS) break;
+    lines.push(line);
+    totalChars += cost;
+  }
+  if (!lines.length) lines.push(`🎮 ${truncateLabel(records[0].title || records[0].gameKey || "(fara titlu)", 120)}`);
   return {
-    title: `Istoric ${scopeLabel} (ultimele ${records.length})`,
-    description: lines.join("\n").slice(0, 4000),
+    title: `Istoric ${scopeLabel} (ultimele ${lines.length})`,
+    description: lines.join("\n"),
     color: 0x3498db,
     footer
   };
