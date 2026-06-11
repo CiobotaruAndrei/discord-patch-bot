@@ -66,9 +66,11 @@ function createPlatformUpdates(deps: PlatformUpdatesDeps) {
       if (!feed.items || feed.items.length === 0) throw new Error("Eșec total Fortnite.");
       const first = feed.items[0];
       if (!first.title) throw new Error("Fortnite RSS fallback fara titlu in primul item.");
+      const cleanTitle = cleanText(first.title).split(" - ")[0];
+      if (!cleanTitle) throw new Error("Fortnite RSS fallback cu titlu gol dupa curatare.");
       return normalizeUpdate({
-        id: stableUpdateId(first.title, ""),
-        title: cleanText(first.title),
+        id: stableUpdateId(cleanTitle, ""),
+        title: cleanTitle,
         link: first.link,
         excerpt: "Update oficial Fortnite.",
         thumbnail: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/FortniteLogo.svg/330px-FortniteLogo.svg.png",

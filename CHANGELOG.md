@@ -6,6 +6,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fallback-ul RSS al Fortnite curata titlul de sufixul Google News si deriva id-ul din titlul curat (audit)**. Spre deosebire de drivere (care taie sufixul `" - Publisher"` si normalizeaza whitespace-ul), fallback-ul Fortnite folosea titlul **brut** al feed-ului: titlul afisat in notificare pastra sufixul `... - Epic Games`, iar id-ul de dedupe (`stableUpdateId(titlu brut)`) depindea de forma exacta a feed-ului Google News (whitespace, sufix de publisher) — o reformatare minora a feed-ului ar fi produs un id nou si o notificare duplicata. Acum fallback-ul aplica aceeasi curatare ca driverele (`cleanText(...).split(" - ")[0]` + gard pe titlu gol). Posibil duplicat one-time doar pentru guild-urile al caror ultim "seen" Fortnite provine din fallback (calea primara, cea normala, are id-ul din slug si e neatinsa). Test nou pe titlul curatat + id-ul stabil. Bonus DRY in `commandCache`: eliminata copia identica `isTextChannelLike` a guard-ului `isTextChannelLikeValue`.
+
 ### Changed
 
 - **Steam si Epic se fetch-uiesc in paralel in `fetchDeals` (audit perf, follow-up promis in #303)**. `_fetchDealsImpl` astepta Steam-ul complet (featured categories + review-uri in batch-uri cu pauze) inainte sa porneasca Epic GraphQL — latenta ciclului de reduceri era suma celor doua surse. Acum cele doua fetch-uri ruleaza prin `Promise.all`: e sigur fara schimbare de semantica fiindca fiecare sursa isi prinde intern erorile si intoarce lista partiala (una cazuta nu o mai blocheaza si nu o respinge pe cealalta), iar ordinea Steam→Epic in lista combinata e pastrata pentru determinismul dedupe-ului. Test nou de concurenta: Steam-ul e tinut blocat pana cand Epic porneste — trece doar daca fetch-urile sunt cu adevarat paralele (regresia la secvential pica testul cu mesaj explicit, nu prin timeout de suita).
