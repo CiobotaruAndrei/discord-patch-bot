@@ -45,7 +45,14 @@ function makeUpdateDeps(overrides: Record<string, unknown> = {}) {
       }
     },
     logger: () => undefined,
-    runConcurrent: async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>) => { for (const it of items) await fn(it); },
+    runConcurrent: async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>) => {
+      let processed = 0;
+      const errors: Array<{ error: unknown }> = [];
+      for (const it of items) {
+        try { await fn(it); processed++; } catch (error) { errors.push({ error }); }
+      }
+      return { processed, errors };
+    },
     resolveOutboundChannel: async () => ({ channel, abort: false }),
     claimSeenUpdate: async (gid: string, _cid: string, gkey: string, uid: string) => {
       claims.push({ guildId: gid, gameKey: gkey, updateId: uid });
@@ -315,7 +322,14 @@ function makeDiscountDeps(overrides: Record<string, unknown> = {}) {
       }
     },
     logger: () => undefined,
-    runConcurrent: async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>) => { for (const it of items) await fn(it); },
+    runConcurrent: async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>) => {
+      let processed = 0;
+      const errors: Array<{ error: unknown }> = [];
+      for (const it of items) {
+        try { await fn(it); processed++; } catch (error) { errors.push({ error }); }
+      }
+      return { processed, errors };
+    },
     resolveOutboundChannel: async () => ({ channel, abort: false }),
     claimSeenDiscount: async (_gid: string, _cid: string, hash: string) => {
       claims.push(hash);
@@ -504,4 +518,88 @@ test("UpdateService: re-baseline la hashVersion invechit seed-uieste update-uril
   assert.equal(claims.length, 0, "nu revendica nimic in ciclul de re-baseline");
   assert.deepEqual(seeded, [[{ gameKey: "cs2", updateId: "u-cs2" }, { gameKey: "dota2", updateId: "u-dota2" }]]);
   assert.deepEqual(versions, [{ field: "seenHashVersionUpdates", version: 2 }]);
+});
+
+test("UpdateService: fetch esuat FARA snapshot proaspat -> checkForUpdates arunca (cron vede ciclu esuat, review #1)", async () => {
+  const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2, pendingUpdates: {}, enabledGames: [] };
+  const { deps } = makeUpdateDeps({
+    GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }) },
+    getLatestForAllGames: async () => { throw new Error("ECONNRESET total"); }
+  });
+  const svc = createUpdateNotificationService(deps);
+  await assert.rejects(
+    () => svc.checkForUpdates({}, [{ key: "cs2" }]),
+    /snapshot de rezerva proaspat.*ECONNRESET total/,
+    "regresie: functia facea return dupa logger.ERROR -> promisiunea se rezolva si cron-ul marca ciclul drept sanatos"
+  );
+});
+
+test("UpdateService: fetch esuat CU snapshot proaspat -> checkForUpdates NU arunca (fallback functional)", async () => {
+  const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2, pendingUpdates: {}, enabledGames: [] };
+  const { deps } = makeUpdateDeps({
+    GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }) },
+    getLatestForAllGames: async () => { throw new Error("ECONNRESET total"); },
+    loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2" }, latest: { id: "u-cs2" } }], fetchedAt: new Date() })
+  });
+  const svc = createUpdateNotificationService(deps);
+  await svc.checkForUpdates({}, [{ key: "cs2" }]);
+});
+
+test("UpdateService: TOATE guild-urile esueaza la procesare -> checkForUpdates arunca", async () => {
+  const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2, pendingUpdates: {}, enabledGames: [] };
+  const { deps } = makeUpdateDeps({
+    GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }) },
+    resolveOutboundChannel: async () => { throw new Error("Discord indisponibil"); }
+  });
+  const svc = createUpdateNotificationService(deps);
+  await assert.rejects(
+    () => svc.checkForUpdates({}, [{ key: "cs2" }]),
+    /toate cele 1 guild-uri abonate.*Discord indisponibil/
+  );
+});
+
+test("UpdateService: esec PARTIAL pe guild-uri -> checkForUpdates NU arunca (degradare logata, nu fatala)", async () => {
+  const guilds = [
+    { _id: "g-bad", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2, pendingUpdates: {}, enabledGames: [] },
+    { _id: "g-ok", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2, pendingUpdates: {}, enabledGames: [] }
+  ];
+  const { deps, channel } = makeUpdateDeps({
+    GuildModel: { find: () => ({ lean: async () => guilds }), updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }) },
+    resolveOutboundChannel: async ({ guild }: { guild: { _id?: string } }) => {
+      if (guild._id === "g-bad") throw new Error("canal mort");
+      return { channel, abort: false };
+    }
+  });
+  const svc = createUpdateNotificationService(deps);
+  await svc.checkForUpdates({}, [{ key: "cs2" }]);
+});
+
+test("DiscountService: fetchDeals esueaza pentru toate monedele fara snapshot -> checkForDiscounts arunca (review #2)", async () => {
+  const guild = { _id: "g1", discountsSubscribed: true, discountChannelId: "channel-d", seenHashVersionDiscounts: 2, pendingDiscounts: [], currency: "USD" };
+  const { deps } = makeDiscountDeps({
+    GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }) },
+    fetchDeals: async () => { throw new Error("Epic+Steam cazute"); }
+  });
+  const svc = createDiscountNotificationService(deps);
+  await assert.rejects(
+    () => svc.checkForDiscounts({}),
+    /toate cele 1 guild-uri abonate.*Epic\+Steam cazute/,
+    "regresie: runConcurrent inghitea erorile per-guild in { errors } iar caller-ul le ignora -> cron sanatos cu reduceri complet cazute"
+  );
+});
+
+test("DiscountService: esec PARTIAL (o moneda din doua) -> checkForDiscounts NU arunca", async () => {
+  const guilds = [
+    { _id: "g-usd", discountsSubscribed: true, discountChannelId: "channel-d", seenHashVersionDiscounts: 2, pendingDiscounts: [], currency: "USD" },
+    { _id: "g-eur", discountsSubscribed: true, discountChannelId: "channel-d", seenHashVersionDiscounts: 2, pendingDiscounts: [], currency: "EUR" }
+  ];
+  const { deps } = makeDiscountDeps({
+    GuildModel: { find: () => ({ lean: async () => guilds }), updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }) },
+    fetchDeals: async ({ currency }: { currency: string }) => {
+      if (currency === "EUR") throw new Error("EUR indisponibil");
+      return [{ id: "d1", title: "Game A" }];
+    }
+  });
+  const svc = createDiscountNotificationService(deps);
+  await svc.checkForDiscounts({});
 });

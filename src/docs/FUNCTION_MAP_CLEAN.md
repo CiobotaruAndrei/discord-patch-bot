@@ -168,12 +168,14 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Proceseaza update-urile noi.
 - Verifica deduplicarea prin repository.
 - Construieste si trimite embed-uri de update.
+- Esecul total e propagat, nu inghitit: fetch picat fara snapshot proaspat sau toate guild-urile esuate la dispatch -> `checkForUpdates` arunca, deci cron-ul marcheaza ciclul esuat (metrics + admin alert + health window); esecul partial per-guild ramane doar logat.
 
 ### `src/features/notifications/discountNotificationService.ts`
 
 - Proceseaza reducerile noi.
 - Verifica deduplicarea prin repository.
 - Foloseste `dealPassesFilters` pentru a respecta setarile guild-ului.
+- Esecul total e propagat, nu inghitit: `checkForDiscounts` inspecteaza rezultatul `runConcurrent` si arunca daca toate guild-urile abonate au esuat (ex. fetch picat pentru toate monedele, fara snapshot proaspat); esecul partial ramane doar logat.
 
 ### `src/features/notifications/outboundChannel.ts`
 

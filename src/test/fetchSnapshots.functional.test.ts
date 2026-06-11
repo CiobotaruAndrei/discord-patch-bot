@@ -73,7 +73,14 @@ test("UpdateService.checkForUpdates persista snapshot-ul 'updates' dupa fetch (l
   const deps = {
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
     logger: () => undefined,
-    runConcurrent: async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>) => { for (const it of items) await fn(it); },
+    runConcurrent: async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>) => {
+      let processed = 0;
+      const errors: Array<{ error: unknown }> = [];
+      for (const it of items) {
+        try { await fn(it); processed++; } catch (error) { errors.push({ error }); }
+      }
+      return { processed, errors };
+    },
     resolveOutboundChannel: async () => ({ channel: { id: "channel-1", send: async () => ({}) }, abort: true }),
     getLatestForAllGames: async (games: Array<{ key: string }>) => games.map(game => ({ game, latest: { id: `u-${game.key}` } })),
     setUpdatesCache: () => undefined,
@@ -95,7 +102,14 @@ test("DiscountService.checkForDiscounts persista snapshot-ul 'deals:<MONEDA>' du
   const deps = {
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
     logger: () => undefined,
-    runConcurrent: async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>) => { for (const it of items) await fn(it); },
+    runConcurrent: async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>) => {
+      let processed = 0;
+      const errors: Array<{ error: unknown }> = [];
+      for (const it of items) {
+        try { await fn(it); processed++; } catch (error) { errors.push({ error }); }
+      }
+      return { processed, errors };
+    },
     resolveOutboundChannel: async () => ({ channel: { id: "channel-d", send: async () => ({}) }, abort: true }),
     normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     getDealsCacheData: () => null,
@@ -114,9 +128,12 @@ test("DiscountService.checkForDiscounts persista snapshot-ul 'deals:<MONEDA>' du
 
 const messageOf = (value: unknown) => value instanceof Error ? value.message : String(value);
 const runConcurrentSafe = async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>, opts?: { errorLogger?: (item: unknown, err: unknown) => void }) => {
+  let processed = 0;
+  const errors: Array<{ error: unknown }> = [];
   for (const it of items) {
-    try { await fn(it); } catch (err) { opts?.errorLogger?.(it, err); }
+    try { await fn(it); processed++; } catch (err) { opts?.errorLogger?.(it, err); errors.push({ error: err }); }
   }
+  return { processed, errors };
 };
 
 test("UpdateService.checkForUpdates: fetch esuat foloseste snapshot-ul din event store (dispatch continua)", async () => {
@@ -136,7 +153,7 @@ test("UpdateService.checkForUpdates: fetch esuat foloseste snapshot-ul din event
   assert.equal(resolveCalls, 1, "dispatch-ul a continuat de pe snapshot dupa esecul fetch-ului");
 });
 
-test("UpdateService.checkForUpdates: fetch esuat fara snapshot abandoneaza ciclul (fara dispatch)", async () => {
+test("UpdateService.checkForUpdates: fetch esuat fara snapshot arunca (fara dispatch, cron vede esecul)", async () => {
   let resolveCalls = 0;
   const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seen: {}, pendingUpdates: {}, enabledGames: [] };
   const deps = {
@@ -149,7 +166,7 @@ test("UpdateService.checkForUpdates: fetch esuat fara snapshot abandoneaza ciclu
     loadFetchSnapshot: async () => null
   } as unknown as UpdateDeps;
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates({}, [{ key: "cs2" }]);
+  await assert.rejects(() => svc.checkForUpdates({}, [{ key: "cs2" }]), /snapshot de rezerva proaspat.*fetch down/);
   assert.equal(resolveCalls, 0, "fara snapshot, ciclul se opreste inainte de dispatch");
 });
 
@@ -191,8 +208,8 @@ test("DiscountService.checkForDiscounts: fetch esuat fara snapshot sare guild-ul
     GUILD_PROCESS_CONCURRENCY: 1
   } as unknown as DiscountDeps;
   const svc = createDiscountNotificationService(deps);
-  await svc.checkForDiscounts({});
-  assert.equal(resolveCalls, 0, "fara snapshot, guild-ul este sarit");
+  await assert.rejects(() => svc.checkForDiscounts({}), /toate cele 1 guild-uri abonate.*deals down/);
+  assert.equal(resolveCalls, 0, "fara snapshot, niciun dispatch");
 });
 
 const STALE_FETCHED_AT = new Date(Date.now() - 61 * 60 * 1000);
@@ -210,7 +227,7 @@ test("UpdateService.checkForUpdates: snapshot vechi (>60min) NU este folosit ca 
     loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2" }, latest: { id: "u-cs2" } }], fetchedAt: STALE_FETCHED_AT })
   } as unknown as UpdateDeps;
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates({}, [{ key: "cs2" }]);
+  await assert.rejects(() => svc.checkForUpdates({}, [{ key: "cs2" }]), /snapshot de rezerva proaspat/);
   assert.equal(resolveCalls, 0, "snapshot expirat -> ciclul se opreste, fara dispatch pe date vechi");
 });
 
@@ -231,6 +248,6 @@ test("DiscountService.checkForDiscounts: snapshot vechi (>60min) NU este folosit
     GUILD_PROCESS_CONCURRENCY: 1
   } as unknown as DiscountDeps;
   const svc = createDiscountNotificationService(deps);
-  await svc.checkForDiscounts({});
-  assert.equal(resolveCalls, 0, "snapshot expirat -> guild-ul este sarit, fara dispatch pe date vechi");
+  await assert.rejects(() => svc.checkForDiscounts({}), /toate cele 1 guild-uri abonate/);
+  assert.equal(resolveCalls, 0, "snapshot expirat -> fara dispatch pe date vechi");
 });

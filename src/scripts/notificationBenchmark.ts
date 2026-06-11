@@ -29,16 +29,24 @@ export interface BenchmarkOptions {
   gamesPerCycle?: number;
 }
 
-async function runConcurrent<T>(items: T[], concurrency: number, fn: (item: T, idx: number) => Promise<unknown>): Promise<void> {
+async function runConcurrent<T>(items: T[], concurrency: number, fn: (item: T, idx: number) => Promise<unknown>): Promise<{ processed: number; errors: Array<{ error: unknown }> }> {
   let cursor = 0;
+  let processed = 0;
+  const errors: Array<{ error: unknown }> = [];
   const limit = Math.max(1, Math.min(concurrency, items.length));
   const workers = Array.from({ length: limit }, async () => {
     while (cursor < items.length) {
       const idx = cursor++;
-      await fn(items[idx], idx);
+      try {
+        await fn(items[idx], idx);
+        processed++;
+      } catch (error) {
+        errors.push({ error });
+      }
     }
   });
   await Promise.all(workers);
+  return { processed, errors };
 }
 
 function entriesFrom(value: unknown): Array<[string, unknown]> {
