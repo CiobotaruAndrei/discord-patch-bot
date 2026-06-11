@@ -2,6 +2,14 @@ name: Staging Smoke
 
 on:
   workflow_dispatch:
+    inputs:
+      # Pentru release: seteaza exact tag-ul vX.Y.Z, ca smoke-ul sa ruleze codul tag-ului
+      # indiferent de branch-ul din dropdown-ul de dispatch. Gol = ref-ul curent.
+      ref:
+        description: "Tag/branch/SHA pe care ruleaza smoke-ul (gol = ref-ul de dispatch)"
+        required: false
+        type: string
+        default: ""
   schedule:
     - cron: "0 8 * * 1"
 
@@ -18,6 +26,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Resolve tested commit SHA
+        id: smokesha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -44,11 +58,14 @@ jobs:
           STAGING_DISCORD_SEND_TEST: ${{ secrets.STAGING_DISCORD_SEND_TEST }}
           STAGING_DISCORD_SMOKE_RESULT_FILE: ${{ github.workspace }}/staging-smoke-discord.json
 
+      # Numele artifactului poarta SHA-ul real al codului testat (poate diferi de head_sha
+      # al rularii cand smoke-ul e dispatch-uit cu input-ul ref); gate-ul de release se
+      # ancoreaza pe acest nume, nu pe head_sha.
       - name: Upload staging smoke result
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: staging-smoke-result
+          name: staging-smoke-result-${{ steps.smokesha.outputs.sha }}
           path: |
             ${{ github.workspace }}/staging-smoke-http.json
             ${{ github.workspace }}/staging-smoke-discord.json
