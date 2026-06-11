@@ -283,12 +283,13 @@ test("deal and update source modules keep TypeScript contracts after build", () 
   ]);
 });
 
-test("driver RSS fallbacks reject missing and empty titles", () => {
+test("driver RSS parsing rejects missing and empty titles (RSS e sursa primara pentru drivere)", () => {
   expectAll(runtimeSource, [
-    /AMD RSS fallback fara titlu in primul item/,
-    /Intel RSS fallback fara titlu in primul item/,
-    /Nvidia RSS fallback fara titlu in primul item/,
-    /Nvidia RSS fallback cu titlu gol dupa curatare/
+    /RSS fara titlu in primul item/,
+    /RSS cu titlu gol dupa curatare/,
+    /parseDriverRssFeed/,
+    /AMD RSS \(sursa primara\) a esuat/,
+    /Intel RSS \(sursa primara\) a esuat/
   ]);
 });
 
