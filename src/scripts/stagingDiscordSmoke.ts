@@ -1,12 +1,27 @@
-import { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } from "discord.js";
+import { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, SlashCommandBuilder, PermissionsBitField } from "discord.js";
 import { buildSmokeResult, writeSmokeResult } from "./smokeResult";
 import type { SmokeCheck } from "./smokeResult";
+import attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions");
 
 interface NamedCommand { name?: string }
 interface CommandsEval { ok: boolean; count: number; missing: string[] }
 interface PermsEval { ok: boolean; missing: string[] }
 
-const REQUIRED_COMMANDS = ["ping", "help"];
+function expectedCommandNames(): string[] {
+  const definitionsContext: Record<string, unknown> = {
+    SlashCommandBuilder,
+    PermissionsBitField,
+    Routes,
+    REST,
+    SUPPORTED_CURRENCIES: { USD: {} },
+    logger: () => undefined
+  };
+  attachSlashCommands(definitionsContext as never);
+  const build = definitionsContext.buildSlashCommandDefinitions as () => NamedCommand[];
+  return build().map(definition => String(definition?.name || "")).filter(Boolean);
+}
+
+const REQUIRED_COMMANDS = expectedCommandNames();
 const REQUIRED_PERMISSIONS = ["ViewChannel", "SendMessages", "EmbedLinks", "ReadMessageHistory"];
 const READY_TIMEOUT_MS = 30000;
 
@@ -72,7 +87,7 @@ async function runDiscordSmoke(): Promise<number> {
       if (!evalC.ok) {
         console.error(`[discord-smoke] Slash commands FAIL: inregistrate=${evalC.count}, lipsa=${evalC.missing.join(", ") || "(niciuna)"}`);
       } else {
-        console.log(`[discord-smoke] Slash commands OK (${evalC.count} inregistrate, inclusiv ${REQUIRED_COMMANDS.join("/")}).`);
+        console.log(`[discord-smoke] Slash commands OK (${evalC.count} inregistrate; toate cele ${REQUIRED_COMMANDS.length} comenzi din buildSlashCommandDefinitions prezente).`);
       }
     } catch (err) {
       checks.push({ name: "commands", ok: false, detail: `eroare la citire: ${err instanceof Error ? err.message : String(err)}` });
@@ -127,7 +142,7 @@ async function runDiscordSmoke(): Promise<number> {
   return 1;
 }
 
-export { evaluateCommands, evaluatePermissions, REQUIRED_COMMANDS, REQUIRED_PERMISSIONS };
+export { evaluateCommands, evaluatePermissions, expectedCommandNames, REQUIRED_COMMANDS, REQUIRED_PERMISSIONS };
 
 if (require.main === module) {
   runDiscordSmoke()
