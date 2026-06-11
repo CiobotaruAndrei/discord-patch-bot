@@ -69,9 +69,11 @@ function createDeals(d: DealsDeps): DealsApi {
     const cfg = getCurrencyConfig(currencyCode);
     const cc = cfg.cc;
 
-    const deals: DealInfo[] = [];
-    deals.push(...await fetchSteamSpecials(cc, currencyCode));
-    deals.push(...await fetchEpicSpecials(cc, currencyCode));
+    const [steamSpecials, epicSpecials] = await Promise.all([
+      fetchSteamSpecials(cc, currencyCode),
+      fetchEpicSpecials(cc, currencyCode)
+    ]);
+    const deals: DealInfo[] = [...steamSpecials, ...epicSpecials];
 
     const finalTop = dedupeAndRankDeals(deals, normalizeTitleForDedupe, MAX_DEALS);
     if (!finalTop.length) throw new Error("Fără oferte valide.");
