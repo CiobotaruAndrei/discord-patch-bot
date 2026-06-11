@@ -62,4 +62,4 @@ function createHousekeeping({
 }
 
 export { createHousekeeping };
-export type { HousekeepingController };
+export type { CreateHousekeepingDeps, HousekeepingController };
