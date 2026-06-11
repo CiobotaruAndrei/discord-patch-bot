@@ -11,12 +11,25 @@ function read(): string {
   return fs.readFileSync(readmePath, "utf8");
 }
 
-test("README descrie migrarea de arhitectura ca finalizata, nu in curs", () => {
+test("README descrie migrarea ca finalizata la nivel de factory-uri, cu granitele tiparii explicite", () => {
   const text = read();
   assert.doesNotMatch(text, /intr-o migrare controlata/i,
     "README nu mai trebuie sa prezinte arhitectura ca o migrare in curs (formulare stale)");
-  assert.match(text, /migrarea[^.]*este \*\*finalizata\*\*/i,
-    "README afirma explicit ca migrarea spre factory-uri cu deps tipate este finalizata");
+  assert.match(text, /migrarea[^.]*este \*\*finalizata la nivel de factory-uri\*\*/i,
+    "README afirma exact ce e finalizat (contractele de input ale factory-urilor), nu o curatenie totala");
+  assert.match(text, /granitele tiparii/i,
+    "README enumera explicit zonele ramase intentionat mai laxe (adaptoare, bag de wiring, payload-uri unknown)");
+  assert.doesNotMatch(text, /nu mai foloseste tipuri wildcard nesigure/i,
+    "claim-ul absolut despre wildcard-uri (supra-declarare, review #4) nu mai trebuie sa apara");
+});
+
+test("README documenteaza politica de imagini Docker si de rebuild (tag-uri mutabile + compensatii)", () => {
+  const text = read();
+  assert.match(text, /Politica de imagini si rebuild/i, "exista sectiunea de politica Docker");
+  assert.match(text, /node:20-bookworm-slim/, "numeste imaginea de baza a botului");
+  assert.match(text, /mongo:7/, "numeste imaginea de Mongo");
+  assert.match(text, /Trivy/i, "documenteaza scanarea blocanta drept compensatie");
+  assert.match(text, /apt-get upgrade/, "documenteaza patch-urile distro la build");
 });
 
 test("README descrie tiparul de factory cu deps explicit tipate si adaptorul subtire", () => {
