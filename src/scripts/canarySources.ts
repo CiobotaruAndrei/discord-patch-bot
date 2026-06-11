@@ -15,6 +15,11 @@ export interface CanaryTypeSummary {
   brokenSource: boolean;
 }
 
+export interface CanaryCrashes {
+  gamesCrashed?: string;
+  dealsCrashed?: string;
+}
+
 export interface CanarySummary {
   byType: CanaryTypeSummary[];
   dealsOk: boolean;
@@ -27,6 +32,10 @@ export const RELIABLE_CANARY_TYPES: ReadonlySet<string> = new Set(["steam", "min
 
 export function filterCanaryGames<G extends { type?: string }>(games: G[]): G[] {
   return (games || []).filter(game => !game.type || RELIABLE_CANARY_TYPES.has(String(game.type)));
+}
+
+export function filterFragileCanaryGames<G extends { type?: string }>(games: G[]): G[] {
+  return (games || []).filter(game => game.type && !RELIABLE_CANARY_TYPES.has(String(game.type)));
 }
 
 export interface DealsStoreBreakdown {
@@ -43,7 +52,7 @@ export function summarizeDealsByStore(deals: Array<{ store?: unknown }>): DealsS
   return { byStore, epicMissing: !byStore["Epic Games"] };
 }
 
-export function summarizeCanary(gameResults: CanaryGameResult[], dealsOk: boolean, dealsCount: number): CanarySummary {
+export function summarizeByType(gameResults: CanaryGameResult[]): CanaryTypeSummary[] {
   const byTypeMap = new Map<string, { total: number; ok: number }>();
   for (const result of gameResults) {
     const entry = byTypeMap.get(result.type) || { total: 0, ok: 0 };
@@ -51,23 +60,47 @@ export function summarizeCanary(gameResults: CanaryGameResult[], dealsOk: boolea
     if (result.ok) entry.ok += 1;
     byTypeMap.set(result.type, entry);
   }
-  const byType: CanaryTypeSummary[] = Array.from(byTypeMap.entries()).map(([type, entry]) => ({
+  return Array.from(byTypeMap.entries()).map(([type, entry]) => ({
     type,
     total: entry.total,
     ok: entry.ok,
     failed: entry.total - entry.ok,
     brokenSource: entry.total > 0 && entry.ok === 0
   }));
+}
+
+export function summarizeCanary(
+  gameResults: CanaryGameResult[],
+  dealsOk: boolean,
+  dealsCount: number,
+  crashes: CanaryCrashes = {}
+): CanarySummary {
+  const byType = summarizeByType(gameResults);
   const failures: string[] = [];
+  if (crashes.gamesCrashed) {
+    failures.push(`getLatestForAllGames a crapat complet (fail-closed): ${crashes.gamesCrashed} — pentru rulari controlate cu retea instabila seteaza explicit ALLOW_CANARY_NETWORK_SKIP=true`);
+  }
   for (const summary of byType) {
     if (summary.brokenSource) {
       failures.push(`sursa "${summary.type}": 0/${summary.total} jocuri au intors date valide (posibil schimbare de HTML/API la sursa)`);
     }
   }
-  if (!dealsOk) {
+  if (crashes.dealsCrashed) {
+    failures.push(`fetchDeals a crapat complet (fail-closed): ${crashes.dealsCrashed} — pentru rulari controlate cu retea instabila seteaza explicit ALLOW_CANARY_NETWORK_SKIP=true`);
+  } else if (!dealsOk) {
     failures.push("sursa de reduceri (fetchDeals) nu a intors date valide");
   }
   return { byType, dealsOk, dealsCount, failures, pass: failures.length === 0 };
+}
+
+export function buildFragileWarnings(gameResults: CanaryGameResult[]): string[] {
+  const warnings: string[] = [];
+  for (const summary of summarizeByType(gameResults)) {
+    if (summary.brokenSource) {
+      warnings.push(`sursa fragila "${summary.type}": 0/${summary.total} jocuri au intors date valide (scraping HTML/proxy — warning-only, verifica manual cu PROXY_URLS setat daca persista)`);
+    }
+  }
+  return warnings;
 }
 
 interface CanarySources {
@@ -79,6 +112,7 @@ async function main(): Promise<void> {
   process.env.MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/discord-patch-bot-canary";
   process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "canary-token";
   process.env.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "canary-client-id";
+  const allowNetworkSkip = process.env.ALLOW_CANARY_NETWORK_SKIP === "true";
 
   const mongoose = require("mongoose");
   const sources = require("../sources/sourceRegistry") as CanarySources;
@@ -95,6 +129,7 @@ async function main(): Promise<void> {
   const { games } = loadConfig();
   const canaryGames = filterCanaryGames(games);
 
+  const crashes: CanaryCrashes = {};
   let gameResults: CanaryGameResult[] = [];
   try {
     const results = await sources.getLatestForAllGames(canaryGames);
@@ -105,7 +140,11 @@ async function main(): Promise<void> {
       error: result.error
     }));
   } catch (err) {
-    console.log(`[CANARY] getLatestForAllGames inconcludent (timeout/retea, NU sursa rupta): ${(err as Error).message}`);
+    if (allowNetworkSkip) {
+      console.log(`[CANARY] getLatestForAllGames sarit explicit (ALLOW_CANARY_NETWORK_SKIP=true): ${(err as Error).message}`);
+    } else {
+      crashes.gamesCrashed = (err as Error).message;
+    }
   }
 
   let dealsOk = false;
@@ -117,11 +156,16 @@ async function main(): Promise<void> {
     dealsOk = dealsCount > 0;
     if (Array.isArray(deals)) storeBreakdown = summarizeDealsByStore(deals as Array<{ store?: unknown }>);
   } catch (err) {
-    console.log(`[CANARY] fetchDeals inconcludent (timeout/retea): ${(err as Error).message}`);
-    dealsOk = true;
+    if (allowNetworkSkip) {
+      console.log(`[CANARY] fetchDeals sarit explicit (ALLOW_CANARY_NETWORK_SKIP=true): ${(err as Error).message}`);
+      dealsOk = true;
+    } else {
+      crashes.dealsCrashed = (err as Error).message;
+      dealsOk = false;
+    }
   }
 
-  const summary = summarizeCanary(gameResults, dealsOk, dealsCount);
+  const summary = summarizeCanary(gameResults, dealsOk, dealsCount, crashes);
   console.log("Canary surse — verificare live (date din src/config.json):");
   for (const type of summary.byType) {
     console.log(`- ${type.type}: ${type.ok}/${type.total} OK${type.brokenSource ? "  [SURSA RUPTA]" : ""}`);
@@ -136,10 +180,35 @@ async function main(): Promise<void> {
   }
   for (const failure of summary.failures) console.error(`::error::[canary-sources] ${failure}`);
 
+  const fragileGames = filterFragileCanaryGames(games);
+  if (fragileGames.length > 0) {
+    let fragileResults: CanaryGameResult[] = [];
+    try {
+      const results = await sources.getLatestForAllGames(fragileGames);
+      fragileResults = results.map(result => ({
+        key: String(result.game.key),
+        type: String(result.game.type || "steam"),
+        ok: result.latest != null,
+        error: result.error
+      }));
+    } catch (err) {
+      console.warn(`::warning::[canary-sources] verificarea surselor fragile a crapat complet (warning-only): ${(err as Error).message}`);
+    }
+    if (fragileResults.length > 0) {
+      console.log("Canary surse fragile (warning-only, nu afecteaza exit code):");
+      for (const type of summarizeByType(fragileResults)) {
+        console.log(`- [fragil] ${type.type}: ${type.ok}/${type.total} OK${type.brokenSource ? "  [POSIBIL RUPTA]" : ""}`);
+      }
+      for (const warning of buildFragileWarnings(fragileResults)) {
+        console.warn(`::warning::[canary-sources] ${warning}`);
+      }
+    }
+  }
+
   if (connected) await mongoose.disconnect().catch(() => undefined);
 
   if (!summary.pass) {
-    console.error(`Canary surse: ${summary.failures.length} sursa(e) par rupte — verifica daca site-ul si-a schimbat HTML/API.`);
+    console.error(`Canary surse: ${summary.failures.length} problema(e) blocante — verifica daca sursa si-a schimbat HTML/API sau daca fetch-ul a crapat complet.`);
     process.exit(1);
   }
   console.log("Canary surse OK: fiecare tip de sursa a intors date valide.");

@@ -36,7 +36,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Canary surse (fetch live API fiabile - steam/minecraft/roblox updates + deals cu breakdown pe store)
+      # Fail-closed: un crash complet la getLatestForAllGames/fetchDeals pica workflow-ul.
+      # Pentru rulari controlate cu retea instabila se poate seta ALLOW_CANARY_NETWORK_SKIP=true (nu in CI).
+      - name: Canary surse (fail-closed pe API fiabile - steam/minecraft/roblox + deals; sursele fragile ruleaza warning-only)
         env:
           MONGO_URI: mongodb://localhost:27017/discord-patch-bot-canary
           DISCORD_TOKEN: canary_token
