@@ -264,7 +264,13 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     try {
       latestResults = await getLatestForAllGames(optimizedGames, shouldAbort);
 
-      if (optimizedGames.length === games.length) {
+      const allNull = latestResults.length > 0 && latestResults.every(result => result.latest == null);
+      const realErrors = latestResults.filter(result => result.latest == null && result.error && result.error !== "abort");
+      if (allNull && realErrors.length > 0) {
+        throw new Error(`Toate cele ${latestResults.length} jocuri au intors latest: null (${realErrors.length} cu erori reale) — fetch esuat complet, snapshot-ul nu se persista (prima eroare: ${realErrors[0].error})`);
+      }
+
+      if (optimizedGames.length === games.length && !allNull) {
         setUpdatesCache(latestResults);
         if (persistFetchSnapshot) await persistFetchSnapshot("updates", latestResults).catch(() => undefined);
       }
