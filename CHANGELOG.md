@@ -6,6 +6,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Descrierea embed-ului `/history` se taie pe linii intregi, nu la mijlocul unui link (follow-up promis dupa #317)**. `buildHistoryEmbed` aduna toate liniile si aplica `slice(0, 4000)` pe stringul final — in cazul extrem (25 de intrari cu titluri si URL-uri lungi, mai lungi acum si din cauza escaparii procentuale din #317), taietura putea pica in mijlocul ultimului `[titlu](url)`, lasand markdown rupt in embed. Acum liniile se acumuleaza intr-un buget de 4000 de caractere (`HISTORY_DESCRIPTION_MAX_CHARS`) si se opresc **inainte** de linia care nu mai incape, iar titlul embed-ului raporteaza cate intrari sunt afisate efectiv (nu cate au fost cerute). Test nou: 25 de intrari maxime → fiecare linie randata e completa (regex pe forma intreaga `emoji [label](url) — <t:...:R>`), bugetul chiar e depasit in scenariu, iar titlul reflecta numarul afisat.
+
 ### Changed
 
 - **Steam si Epic se fetch-uiesc in paralel in `fetchDeals` (audit perf, follow-up promis in #303)**. `_fetchDealsImpl` astepta Steam-ul complet (featured categories + review-uri in batch-uri cu pauze) inainte sa porneasca Epic GraphQL — latenta ciclului de reduceri era suma celor doua surse. Acum cele doua fetch-uri ruleaza prin `Promise.all`: e sigur fara schimbare de semantica fiindca fiecare sursa isi prinde intern erorile si intoarce lista partiala (una cazuta nu o mai blocheaza si nu o respinge pe cealalta), iar ordinea Steam→Epic in lista combinata e pastrata pentru determinismul dedupe-ului. Test nou de concurenta: Steam-ul e tinut blocat pana cand Epic porneste — trece doar daca fetch-urile sunt cu adevarat paralele (regresia la secvential pica testul cu mesaj explicit, nu prin timeout de suita).
