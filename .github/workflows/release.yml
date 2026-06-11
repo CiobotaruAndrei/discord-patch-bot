@@ -62,6 +62,7 @@ jobs:
               return;
             }
             core.info(`Tag '${tagRef}' -> commit ${tagSha}.`);
+            const expectedArtifact = `staging-smoke-result-${tagSha}`;
             const runs = await github.rest.actions.listWorkflowRuns({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -71,10 +72,9 @@ jobs:
             });
             const now = Date.now();
             const fresh = runs.data.workflow_runs.filter(r =>
-              (now - new Date(r.updated_at).getTime()) <= maxAgeDays * 86400000
-              && r.head_sha === tagSha);
+              (now - new Date(r.updated_at).getTime()) <= maxAgeDays * 86400000);
             if (fresh.length === 0) {
-              core.setFailed(`Release blocat: nu exista rulare Staging Smoke reusita pe EXACT commit-ul tag-ului (${tagSha.slice(0, 12)}) in ultimele ${maxAgeDays} zile. Ruleaza Staging Smoke pe commit-ul tag-ului inainte de release (RELEASING.md).`);
+              core.setFailed(`Release blocat: nicio rulare Staging Smoke reusita in ultimele ${maxAgeDays} zile. Ruleaza workflow-ul Staging Smoke cu input-ul ref='${tagRef}' inainte de release (RELEASING.md).`);
               return;
             }
             for (const run of fresh) {
@@ -83,19 +83,20 @@ jobs:
                 repo: context.repo.repo,
                 run_id: run.id
               });
-              const art = arts.data.artifacts.find(a => a.name === 'staging-smoke-result' && !a.expired);
+              const art = arts.data.artifacts.find(a => a.name === expectedArtifact && !a.expired);
               if (art) {
                 core.setOutput('run_id', String(run.id));
-                core.info(`Staging Smoke reusit gasit: run ${run.id} (${run.updated_at}).`);
+                core.setOutput('artifact_name', expectedArtifact);
+                core.info(`Staging Smoke reusit pe commit-ul tag-ului gasit: run ${run.id} (${run.updated_at}), artifact ${expectedArtifact}.`);
                 return;
               }
             }
-            core.setFailed(`Release blocat: rularile Staging Smoke reusite nu au artifactul 'staging-smoke-result'. Re-ruleaza Staging Smoke (RELEASING.md).`);
+            core.setFailed(`Release blocat: nicio rulare Staging Smoke reusita nu a testat EXACT commit-ul tag-ului (artifact asteptat: '${expectedArtifact}'). Numele artifactului poarta SHA-ul rezolvat din checkout (git rev-parse HEAD), deci o rulare pe alt branch/ref nu poate trece gate-ul. Ruleaza Staging Smoke cu input-ul ref='${tagRef}' (RELEASING.md).`);
 
       - name: Download staging smoke result
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: staging-smoke-result
+          name: ${{ steps.smoke.outputs.artifact_name }}
           run-id: ${{ steps.smoke.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: smoke-result

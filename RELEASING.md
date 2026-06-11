@@ -13,10 +13,13 @@ obligatoriu inainte de a publica o versiune (tag `vX.Y.Z`, imagine Docker GHCR, 
 3. **Staging smoke automat verde** — `npm run smoke:staging` (health + `/metrics`) si
    `npm run smoke:staging:discord` (gateway + slash commands + permisiuni + trimitere reala) au trecut
    pe instanta de staging cu versiunea ce urmeaza a fi lansata. Workflow-ul `Staging Smoke` ruleaza
-   aceste probe (saptamanal + `workflow_dispatch`) si **salveaza rezultatul ca artifact**
-   (`staging-smoke-result`: `staging-smoke-http.json` + `staging-smoke-discord.json`, fiecare cu
-   `ok`/`skipped`/`checks`). Release-ul **verifica automat** acest artifact (vezi mai jos), deci nu se
-   bazeaza doar pe o bifa manuala.
+   aceste probe (saptamanal + `workflow_dispatch`); pentru release **dispatch-uieste-l cu input-ul
+   `ref=<tag>`** (ex. `ref=v1.2.3`), ca probele sa ruleze exact codul tag-ului indiferent de branch-ul
+   ales in dropdown. Workflow-ul rezolva SHA-ul real din checkout (`git rev-parse HEAD`) si **salveaza
+   rezultatul ca artifact al carui nume poarta acel SHA** (`staging-smoke-result-<sha>`:
+   `staging-smoke-http.json` + `staging-smoke-discord.json`, fiecare cu `ok`/`skipped`/`checks`).
+   Release-ul **verifica automat** acest artifact (vezi mai jos), deci nu se bazeaza doar pe o bifa
+   manuala.
 4. **Manual Discord smoke** — checklist-ul din `STAGING_SMOKE.md` a fost parcurs manual pe un server de
    staging cu bot real (slash commands interactive, notificari live fara duplicate, ping de rol,
    shutdown curat) — partea pe care probele automate nu o pot simula.
@@ -32,10 +35,12 @@ de tag, deci nu se poate ocoli confirmarea smoke. La rulare:
   facut); altfel **esueaza** primul, inainte de orice build, cu un mesaj care trimite la acest document;
 - **verifica artifactul de staging smoke** (pasul 3, automat, greu de fatat): cauta in ultimele
   `STAGING_SMOKE_MAX_AGE_DAYS` zile (variabila de repo, implicit 7) o rulare **reusita** a workflow-ului
-  `Staging Smoke` care a urcat artifactul `staging-smoke-result`, il descarca si **esueaza** daca
-  vreuna dintre probe a fost sarita (`skipped=true`, ex. secrete lipsa) sau a esuat (`ok=false`). Astfel
-  o bifa `smoke_confirmed=true` singura nu este suficienta — trebuie sa existe un rezultat real, recent
-  si trecut, produs de instanta de staging;
+  `Staging Smoke` care a urcat artifactul **`staging-smoke-result-<sha-ul commit-ului tag-ului>`** —
+  numele artifactului poarta SHA-ul rezolvat din checkout-ul rularii de smoke, deci o rulare facuta pe
+  alt ref (ex. `main` din greseala) nu poate trece gate-ul; il descarca si **esueaza** daca vreuna
+  dintre probe a fost sarita (`skipped=true`, ex. secrete lipsa) sau a esuat (`ok=false`). Astfel o
+  bifa `smoke_confirmed=true` singura nu este suficienta — trebuie sa existe un rezultat real, recent,
+  trecut si produs exact pe codul tag-ului;
 - ruleaza `npm run check` pe commit-ul tag-uit (release-ul **esueaza** daca CI nu trece);
 - ruleaza `npm audit --omit=dev --audit-level=moderate` (release-ul **esueaza** la vulnerabilitati).
 

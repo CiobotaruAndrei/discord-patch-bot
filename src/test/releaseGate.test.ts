@@ -54,8 +54,11 @@ test("release.yml verifica un artifact real de staging smoke, nu doar smoke_conf
   assert.match(text, /status: 'success'/, "cere o rulare reusita");
   assert.match(text, /STAGING_SMOKE_MAX_AGE_DAYS/, "impune o fereastra de prospetime configurabila");
   assert.match(text, /listWorkflowRunArtifacts/, "verifica existenta artifactului de rezultat");
-  assert.match(text, /staging-smoke-result/, "cere artifactul staging-smoke-result");
+  assert.match(text, /staging-smoke-result-\$\{tagSha\}/, "artifactul asteptat poarta SHA-ul commit-ului tag-ului (proba ca smoke-ul a rulat exact codul tag-ului)");
+  assert.ok(!/head_sha === tagSha/.test(text),
+    "gate-ul NU se mai ancoreaza pe head_sha al rularii (la dispatch cu input ref, head_sha e branch-ul de dispatch, nu codul testat)");
   assert.match(text, /actions\/download-artifact@[0-9a-f]{40}/, "descarca artifactul din rularea de staging smoke (action pinuita pe SHA)");
+  assert.match(text, /name: \$\{\{ steps\.smoke\.outputs\.artifact_name \}\}/, "descarca exact artifactul identificat de gate");
   assert.match(text, /run-id: \$\{\{ steps\.smoke\.outputs\.run_id \}\}/, "descarca din rularea identificata");
   assert.match(text, /r\.skipped/, "respinge un rezultat sarit (skipped=true)");
   assert.match(text, /!r\.ok/, "respinge un rezultat esuat (ok=false)");
@@ -75,6 +78,14 @@ test("staging-smoke.yml scrie fisiere de rezultat si urca artifactul", () => {
   assert.match(text, /STAGING_SMOKE_RESULT_FILE:/, "seteaza fisierul de rezultat pentru proba HTTP");
   assert.match(text, /STAGING_DISCORD_SMOKE_RESULT_FILE:/, "seteaza fisierul de rezultat pentru proba Discord");
   assert.match(text, /actions\/upload-artifact@[0-9a-f]{40}/, "urca artifactul de rezultat (action pinuita pe SHA)");
-  assert.match(text, /name: staging-smoke-result/, "numeste artifactul staging-smoke-result");
+  assert.match(text, /name: staging-smoke-result-\$\{\{ steps\.smokesha\.outputs\.sha \}\}/, "numele artifactului poarta SHA-ul real al codului testat");
   assert.match(text, /if: always\(\)/, "urca artifactul chiar si la esec, pentru audit");
+});
+
+test("staging-smoke.yml e rulabil pe un ref explicit, iar SHA-ul testat e cel din checkout", () => {
+  const text = read(stagingSmokeWorkflowPath);
+  assert.match(text, /workflow_dispatch:\s*\r?\n\s*inputs:/, "dispatch-ul are inputs");
+  assert.match(text, /ref:\s*\r?\n/, "exista input-ul ref pentru tag/branch/SHA");
+  assert.match(text, /ref: \$\{\{ inputs\.ref \|\| github\.ref \}\}/, "checkout-ul foloseste input-ul ref (fallback: ref-ul de dispatch/cron)");
+  assert.match(text, /git rev-parse HEAD/, "SHA-ul testat e rezolvat din checkout-ul real, nu din head_sha al rularii");
 });
