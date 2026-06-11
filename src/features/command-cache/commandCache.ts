@@ -284,14 +284,8 @@ function formatUserError(err: unknown, defaultMsg = "A aparut o eroare interna."
   return `Eroare: ${defaultMsg}${suffix}`;
 }
 
-function isTextChannelLike(channel: unknown): channel is TextChannelLike {
-  return Boolean(channel)
-    && typeof (channel as { isTextBased?: unknown }).isTextBased === "function"
-    && typeof (channel as { permissionsFor?: unknown }).permissionsFor === "function";
-}
-
 function canSendEmbeds(channel: unknown, botId: string): boolean {
-  if (!isTextChannelLike(channel) || !channel.isTextBased()) return false;
+  if (!isTextChannelLikeValue(channel) || !channel.isTextBased()) return false;
   const perms = channel.permissionsFor(botId);
   return !!perms && perms.has([
     PermissionsBitField.Flags.SendMessages,

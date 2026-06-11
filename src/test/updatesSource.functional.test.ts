@@ -28,6 +28,7 @@ interface UpdatesDepsShape {
   stableUpdateId: (title: string, link: string) => string;
   executeFetchWithCircuitBreaker?: (game: GameShape) => Promise<FetchResultShape>;
   httpReq?: (method: string, url: string, options?: unknown) => Promise<{ data: unknown }>;
+  fetchWithProxy?: (targetUrl: string, options?: unknown) => Promise<string>;
   safeCheerioLoad?: (html: unknown) => unknown;
   SchemaDriftError?: new (message: string, source?: string) => Error;
 }
@@ -377,4 +378,20 @@ test("createUpdates: coalescing-ul inflight e per instanta, nu partajat intre in
   assert.equal(bResults[0]?.latest?.id, "din-B");
   resolveA([{ game: games[0], latest: { id: "din-A" }, error: null }]);
   await aPromise;
+});
+
+test("createUpdates.fetchFortniteUpdate fallback RSS: titlul e curatat de sufixul Google News, id-ul vine din titlul curat", async () => {
+  const { deps } = makeDeps({
+    fetchWithProxy: async () => { throw new Error("Fortnite API indisponibil"); },
+    httpReq: async () => ({ data: "<rss/>" }),
+    rssParser: { parseString: async () => ({ items: [{ title: "  Fortnite v34.10 Update   - Epic Games", link: "https://fn/news", pubDate: "2026-06-01" }] }) },
+    cleanText: (text: unknown) => String(text == null ? "" : text).replace(/\s+/g, " ").trim()
+  });
+  const api = attachUpdates.createUpdates(deps);
+  const fetchFortniteUpdate = api.fetchFortniteUpdate as unknown as () => Promise<{ id: string; title: string }>;
+  const update = await fetchFortniteUpdate();
+  assert.equal(update.title, "Fortnite v34.10 Update",
+    "regresie: titlul din fallback pastra sufixul publisher-ului Google News (... - Epic Games)");
+  assert.equal(update.id, "stable:Fortnite v34.10 Update:",
+    "id-ul de dedupe vine din titlul curatat, nu din forma bruta a feed-ului (care varia cu whitespace/sufix)");
 });
