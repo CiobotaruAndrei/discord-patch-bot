@@ -69,3 +69,18 @@ test("dependency-audit pinuieste versiunea cargo-audit (instalarea live flotanta
   const text = read(path.join(repoRoot, ".github", "workflows", "dependency-audit.yml"));
   assert.match(text, /cargo install cargo-audit --locked --version \d+\.\d+\.\d+/, "cargo-audit instalat cu versiune fixata");
 });
+
+test("Dockerfile nu instaleaza rustup prin curl | sh; toolchain-ul vine din imaginea oficiala rust, sincronizata cu rust-toolchain.toml", () => {
+  const dockerfile = read(path.join(repoRoot, "Dockerfile"));
+  assert.ok(!dockerfile.includes("sh.rustup.rs"), "fara script remote executat direct (curl | sh) pentru rustup");
+  assert.ok(!/curl[^\n]*\|\s*sh/.test(dockerfile), "niciun curl | sh in Dockerfile");
+  const imageMatch = dockerfile.match(/FROM rust:(\d+\.\d+\.\d+)-slim-bookworm AS rust-toolchain/);
+  assert.ok(imageMatch, "toolchain-ul Rust vine dintr-un stage FROM rust:<versiune>-slim-bookworm");
+  assert.match(dockerfile, /COPY --from=rust-toolchain \/usr\/local\/rustup \/usr\/local\/rustup/, "copiaza rustup din imaginea oficiala");
+  assert.match(dockerfile, /COPY --from=rust-toolchain \/usr\/local\/cargo \/usr\/local\/cargo/, "copiaza cargo din imaginea oficiala");
+  const toolchainToml = read(path.join(repoRoot, "src", "native", "rust-toolchain.toml"));
+  const channelMatch = toolchainToml.match(/channel = "(\d+\.\d+\.\d+)"/);
+  assert.ok(channelMatch, "rust-toolchain.toml are channel pinuit");
+  assert.equal(imageMatch![1], channelMatch![1],
+    "versiunea imaginii rust din Dockerfile trebuie sa ramana sincronizata cu channel-ul din rust-toolchain.toml");
+});
