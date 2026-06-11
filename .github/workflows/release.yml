@@ -63,35 +63,45 @@ jobs:
             }
             core.info(`Tag '${tagRef}' -> commit ${tagSha}.`);
             const expectedArtifact = `staging-smoke-result-${tagSha}`;
-            const runs = await github.rest.actions.listWorkflowRuns({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'staging-smoke.yml',
-              status: 'success',
-              per_page: 50
-            });
             const now = Date.now();
-            const fresh = runs.data.workflow_runs.filter(r =>
-              (now - new Date(r.updated_at).getTime()) <= maxAgeDays * 86400000);
-            if (fresh.length === 0) {
+            const maxAgeMs = maxAgeDays * 86400000;
+            const MAX_PAGES = 10;
+            let freshCount = 0;
+            for (let page = 1; page <= MAX_PAGES; page++) {
+              const runs = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'staging-smoke.yml',
+                status: 'success',
+                per_page: 100,
+                page
+              });
+              const pageRuns = runs.data.workflow_runs;
+              if (pageRuns.length === 0) break;
+              for (const run of pageRuns) {
+                if (now - new Date(run.updated_at).getTime() > maxAgeMs) continue;
+                freshCount++;
+                const arts = await github.rest.actions.listWorkflowRunArtifacts({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: run.id
+                });
+                const art = arts.data.artifacts.find(a => a.name === expectedArtifact && !a.expired);
+                if (art) {
+                  core.setOutput('run_id', String(run.id));
+                  core.setOutput('artifact_name', expectedArtifact);
+                  core.info(`Staging Smoke reusit pe commit-ul tag-ului gasit: run ${run.id} (${run.updated_at}, pagina ${page}), artifact ${expectedArtifact}.`);
+                  return;
+                }
+              }
+              const oldest = pageRuns[pageRuns.length - 1];
+              if (now - new Date(oldest.created_at).getTime() > maxAgeMs) break;
+            }
+            if (freshCount === 0) {
               core.setFailed(`Release blocat: nicio rulare Staging Smoke reusita in ultimele ${maxAgeDays} zile. Ruleaza workflow-ul Staging Smoke cu input-ul ref='${tagRef}' inainte de release (RELEASING.md).`);
               return;
             }
-            for (const run of fresh) {
-              const arts = await github.rest.actions.listWorkflowRunArtifacts({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                run_id: run.id
-              });
-              const art = arts.data.artifacts.find(a => a.name === expectedArtifact && !a.expired);
-              if (art) {
-                core.setOutput('run_id', String(run.id));
-                core.setOutput('artifact_name', expectedArtifact);
-                core.info(`Staging Smoke reusit pe commit-ul tag-ului gasit: run ${run.id} (${run.updated_at}), artifact ${expectedArtifact}.`);
-                return;
-              }
-            }
-            core.setFailed(`Release blocat: nicio rulare Staging Smoke reusita nu a testat EXACT commit-ul tag-ului (artifact asteptat: '${expectedArtifact}'). Numele artifactului poarta SHA-ul rezolvat din checkout (git rev-parse HEAD), deci o rulare pe alt branch/ref nu poate trece gate-ul. Ruleaza Staging Smoke cu input-ul ref='${tagRef}' (RELEASING.md).`);
+            core.setFailed(`Release blocat: nicio rulare Staging Smoke reusita (${freshCount} verificate, cu paginare) nu a testat EXACT commit-ul tag-ului (artifact asteptat: '${expectedArtifact}'). Numele artifactului poarta SHA-ul rezolvat din checkout (git rev-parse HEAD), deci o rulare pe alt branch/ref nu poate trece gate-ul. Ruleaza Staging Smoke cu input-ul ref='${tagRef}' (RELEASING.md).`);
 
       - name: Download staging smoke result
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
