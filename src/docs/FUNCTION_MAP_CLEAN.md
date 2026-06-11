@@ -61,7 +61,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Construieste exporturile Mongo prin `createMongoContext`.
 - Atasarea pe context ramane compatibila cu runtime-ul existent.
-- Contractul e **value-tipat**: `MongoRuntimeContext` e un alias de obiect in care fiecare dintre cele 46 de chei are semnatura concreta — cele 13 modele sunt `Model<any>` (din `mongoose`), functiile au parametri reali; tipurile-domeniu raman `unknown` din cauza modulelor installer `export =`. Vezi `CONTEXT_REPO_CLEAN.md` (Pasul 7). Acoperit de `mongoContextTypedApi.test.ts`.
+- Contractul e **value-tipat**: `MongoRuntimeContext` e un alias de obiect in care fiecare dintre cele 46 de chei are semnatura concreta — cele 13 modele sunt `Model<XDoc>` cu interfete de document dedicate in `infra/mongo/modelTypes.ts` (`GuildDoc`, `NotificationOutboxDoc`, `JobLockDoc`, `FetchSnapshotDoc` etc., derivate fidel din schemele Mongoose), functiile au parametri reali; tipurile-domeniu ramase `unknown` tin de modulele installer `export =`. Vezi `CONTEXT_REPO_CLEAN.md` (Pasul 7). Acoperit de `mongoContextTypedApi.test.ts`.
 
 ### `src/infra/mongo/locks.ts`
 
