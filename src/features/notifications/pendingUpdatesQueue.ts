@@ -17,6 +17,7 @@ export interface PendingUpdate {
 export interface UpdateFetchResult {
   game: { key: string; name: string } & Record<string, unknown>;
   latest: ({ id: string } & Record<string, unknown>) | null;
+  error?: string;
 }
 
 export interface BuildPendingUpdatesQueueDeps {

@@ -168,7 +168,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Proceseaza update-urile noi.
 - Verifica deduplicarea prin repository.
 - Construieste si trimite embed-uri de update.
-- Esecul total e propagat, nu inghitit: fetch picat fara snapshot proaspat sau toate guild-urile esuate la dispatch -> `checkForUpdates` arunca, deci cron-ul marcheaza ciclul esuat (metrics + admin alert + health window); esecul partial per-guild ramane doar logat.
+- Esecul total e propagat, nu inghitit: fetch picat fara snapshot proaspat, toate guild-urile esuate la dispatch sau **toate jocurile cu `latest: null` si erori reale (non-abort)** -> `checkForUpdates` arunca, deci cron-ul marcheaza ciclul esuat (metrics + admin alert + health window); esecul partial ramane doar logat. Un rezultat integral `latest: null` nu se persista niciodata ca snapshot (ar deveni fallback fals-proaspat care mascheaza caderea).
 
 ### `src/features/notifications/discountNotificationService.ts`
 

@@ -603,3 +603,58 @@ test("DiscountService: esec PARTIAL (o moneda din doua) -> checkForDiscounts NU 
   const svc = createDiscountNotificationService(deps);
   await svc.checkForDiscounts({});
 });
+
+function makeAllNullDeps(results: Array<{ key: string; error?: string; latest?: { id: string } | null }>, extra: Record<string, unknown> = {}) {
+  const persistCalls: string[] = [];
+  const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2, pendingUpdates: {}, enabledGames: [] };
+  const { deps } = makeUpdateDeps({
+    GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }) },
+    getLatestForAllGames: async () => results.map(entry => ({ game: { key: entry.key, name: entry.key }, latest: entry.latest ?? null, error: entry.error })),
+    persistFetchSnapshot: async (id: string) => { persistCalls.push(id); },
+    ...extra
+  });
+  return { deps, persistCalls };
+}
+
+test("UpdateService: toate jocurile cu latest null + erori reale -> ciclu esuat, snapshot NEpersistat (review #1)", async () => {
+  const { deps, persistCalls } = makeAllNullDeps([
+    { key: "cs2", error: "ECONNRESET" },
+    { key: "dota2", error: "schema drift" }
+  ]);
+  const svc = createUpdateNotificationService(deps);
+  await assert.rejects(
+    () => svc.checkForUpdates({}, [{ key: "cs2" }, { key: "dota2" }]),
+    /latest: null.*2 cu erori reale.*snapshot de rezerva proaspat|snapshot de rezerva proaspat.*latest: null/,
+    "regresie: erorile per-joc deveneau { latest: null, error } iar serviciul trata rezultatul ca fetch reusit"
+  );
+  assert.deepEqual(persistCalls, [], "snapshot-ul all-null NU se persista (ar deveni fallback fals-proaspat)");
+});
+
+test("UpdateService: toate null + erori reale, dar CU snapshot proaspat -> dispatch din snapshot, fara persist", async () => {
+  const { deps, persistCalls } = makeAllNullDeps([{ key: "cs2", error: "ECONNRESET" }], {
+    loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2" }, latest: { id: "u-cs2" } }], fetchedAt: new Date() })
+  });
+  const svc = createUpdateNotificationService(deps);
+  await svc.checkForUpdates({}, [{ key: "cs2" }]);
+  assert.deepEqual(persistCalls, [], "nici pe calea de fallback nu se persista rezultatul all-null");
+});
+
+test("UpdateService: toate null doar din abort -> NU e tratat ca sursa rupta (fara throw, fara persist)", async () => {
+  const { deps, persistCalls } = makeAllNullDeps([
+    { key: "cs2", error: "abort" },
+    { key: "dota2", error: "abort" }
+  ]);
+  const svc = createUpdateNotificationService(deps);
+  await svc.checkForUpdates({}, [{ key: "cs2" }, { key: "dota2" }]);
+  assert.deepEqual(persistCalls, [], "rezultatul all-null de la abort nu suprascrie snapshot-ul bun");
+});
+
+test("UpdateService: esec partial (un joc cu date, unul cu eroare) -> ciclu OK si snapshot persistat", async () => {
+  const { deps, persistCalls } = makeAllNullDeps([
+    { key: "cs2", latest: { id: "u-cs2" } },
+    { key: "dota2", error: "ECONNRESET" }
+  ]);
+  const svc = createUpdateNotificationService(deps);
+  await svc.checkForUpdates({}, [{ key: "cs2" }, { key: "dota2" }]);
+  assert.deepEqual(persistCalls, ["updates"], "cu macar un rezultat real, snapshot-ul se persista ca pana acum");
+});
