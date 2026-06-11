@@ -109,35 +109,63 @@ test("fixture Google News RSS real (NVIDIA): fetchNvidiaUpdate parseaza feed-ul 
   assert.equal(update.title, expectedTitle);
 });
 
-test("fixture AMD: pagina reala nu mai expune 'Adrenalin Edition X.Y.Z' in HTML static -> cade pe RSS-ul real", async () => {
+test("fixture AMD: RSS-ul real e sursa PRIMARA — pagina oficiala (care nu mai expune versiunea) nu e atinsa", async () => {
   const xml = fixtureText("googleNewsAmd.rss.xml");
   const parser = new Parser();
   const parsed = await parser.parseString(xml);
   const expectedTitle = String(parsed.items?.[0]?.title || "").split(" - ")[0].replace(/\s+/g, " ").trim();
+  let proxyCalls = 0;
   const deps = makeUpdatesDeps({
-    fetchWithProxy: async () => "<html><body>pagina amd fara versiune in html static</body></html>",
-    httpReq: async () => ({ data: xml })
+    conditionalGet: async <T>(_url: string, parse: (raw: unknown) => T | Promise<T>) => parse(xml),
+    fetchWithProxy: async () => { proxyCalls++; return "<html><body>pagina amd fara versiune in html static</body></html>"; }
   });
   const api = attachUpdates.createUpdates(deps);
   const fetchAmdUpdate = api.fetchAmdUpdate as unknown as (game: Record<string, unknown>) => Promise<Record<string, unknown>>;
   const update = await fetchAmdUpdate({ key: "amd", name: "AMD" });
   assert.equal(update.title, expectedTitle);
   assert.match(String(update.title), /Adrenalin/i, "titlul din feed-ul real contine Adrenalin");
+  assert.equal(proxyCalls, 0, "cu RSS-ul functional, pagina moarta nu mai e fetch-uita deloc (zero request-uri irosite pe ciclu)");
 });
 
-test("fixture Intel: pagina reala nu mai expune versiunea in HTML static -> cade pe RSS-ul real", async () => {
+test("fixture Intel: RSS-ul real e sursa PRIMARA — pagina oficiala nu e atinsa cand feed-ul functioneaza", async () => {
   const xml = fixtureText("googleNewsIntel.rss.xml");
   const parser = new Parser();
   const parsed = await parser.parseString(xml);
   const expectedTitle = String(parsed.items?.[0]?.title || "").split(" - ")[0].replace(/\s+/g, " ").trim();
+  let proxyCalls = 0;
   const deps = makeUpdatesDeps({
-    fetchWithProxy: async () => "<html><body>pagina intel fara versiune in html static</body></html>",
-    httpReq: async () => ({ data: xml })
+    conditionalGet: async <T>(_url: string, parse: (raw: unknown) => T | Promise<T>) => parse(xml),
+    fetchWithProxy: async () => { proxyCalls++; return "<html><body>pagina intel fara versiune in html static</body></html>"; }
   });
   const api = attachUpdates.createUpdates(deps);
   const fetchIntelUpdate = api.fetchIntelUpdate as unknown as (game: Record<string, unknown>) => Promise<Record<string, unknown>>;
   const update = await fetchIntelUpdate({ key: "intelgameon", name: "Intel", url: "https://www.intel.com/x" });
   assert.equal(update.title, expectedTitle);
+  assert.equal(proxyCalls, 0, "cu RSS-ul functional, pagina nu mai e fetch-uita");
+});
+
+test("driver AMD: cand RSS-ul primar pica, pagina oficiala ramane fallback (versiune din HTML)", async () => {
+  const deps = makeUpdatesDeps({
+    conditionalGet: async () => { throw new Error("Google News indisponibil"); },
+    fetchWithProxy: async () => "<html>AMD Software: Adrenalin Edition 25.12.1 Release Notes</html>"
+  });
+  const api = attachUpdates.createUpdates(deps);
+  const fetchAmdUpdate = api.fetchAmdUpdate as unknown as (game: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  const update = await fetchAmdUpdate({ key: "amd", name: "AMD" });
+  assert.equal(update.id, "25.12.1", "fallback-ul pe pagina extrage versiunea cu acelasi regex si acelasi id ca inainte");
+});
+
+test("driver Intel: RSS picat + pagina fara versiune -> eroare clara (ambele cai epuizate)", async () => {
+  const deps = makeUpdatesDeps({
+    conditionalGet: async () => { throw new Error("Google News indisponibil"); },
+    fetchWithProxy: async () => "<html><body>nimic util</body></html>"
+  });
+  const api = attachUpdates.createUpdates(deps);
+  const fetchIntelUpdate = api.fetchIntelUpdate as unknown as (game: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  await assert.rejects(
+    () => fetchIntelUpdate({ key: "intelgameon", name: "Intel", url: "https://www.intel.com/x" }),
+    /Eșec Intel.*RSS-ul primar a esuat/
+  );
 });
 
 test("fixture deals reale: fetchDeals combina Steam specials + Epic GraphQL si calculeaza corect preturile", async () => {
