@@ -1,6 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { Model } from "mongoose";
+import type {
+  FetchSnapshotDoc,
+  GuildDoc,
+  GuildSeenDiscountDoc,
+  GuildSeenUpdateDoc,
+  JobLockDoc,
+  NotificationHistoryDoc,
+  NotificationOutboxDoc
+} from "../infra/mongo/modelTypes";
 
 process.env.MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/itest-mongo-ctx-api";
 process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "test-token";
@@ -12,6 +21,17 @@ type Expect<T extends true> = T;
 type _GuildModelIsMongooseModel = Expect<
   Mod["GuildModel"] extends Model<any> ? true : false
 >;
+type IsAny<T> = 0 extends (1 & T) ? true : false;
+type ModelDoc<M> = M extends Model<infer D> ? D : never;
+type _GuildDocNotAny = Expect<IsAny<ModelDoc<Mod["GuildModel"]>> extends false ? true : false>;
+type _GuildDocTyped = Expect<ModelDoc<Mod["GuildModel"]> extends GuildDoc ? true : false>;
+type _JobLockDocTyped = Expect<ModelDoc<Mod["JobLockModel"]> extends JobLockDoc ? true : false>;
+type _FetchSnapshotDocTyped = Expect<ModelDoc<Mod["FetchSnapshotModel"]> extends FetchSnapshotDoc ? true : false>;
+type _SeenDiscountDocTyped = Expect<ModelDoc<Mod["GuildSeenDiscountModel"]> extends GuildSeenDiscountDoc ? true : false>;
+type _SeenUpdateDocTyped = Expect<ModelDoc<Mod["GuildSeenUpdateModel"]> extends GuildSeenUpdateDoc ? true : false>;
+type _OutboxDocTyped = Expect<ModelDoc<Mod["NotificationOutboxModel"]> extends NotificationOutboxDoc ? true : false>;
+type _HistoryDocTyped = Expect<ModelDoc<Mod["NotificationHistoryModel"]> extends NotificationHistoryDoc ? true : false>;
+type _OutboxDocNotAny = Expect<IsAny<ModelDoc<Mod["NotificationOutboxModel"]>> extends false ? true : false>;
 type _CacheSizeIsNumberFn = Expect<
   Mod["getGuildCacheSize"] extends () => number ? (number extends ReturnType<Mod["getGuildCacheSize"]> ? true : false) : false
 >;

@@ -1,6 +1,21 @@
 "use strict";
 
 import type { Model } from "mongoose";
+import type {
+  AdminAlertCooldownDoc,
+  CircuitBreakerDoc,
+  FeedbackReportDoc,
+  FetchSnapshotDoc,
+  GuildDoc,
+  GuildSeenDiscountDoc,
+  GuildSeenUpdateDoc,
+  JobLockDoc,
+  NotificationDeadLetterReplayDoc,
+  NotificationHistoryDoc,
+  NotificationOutboxDoc,
+  NotificationOutboxSentDoc,
+  SystemDoc
+} from "./modelTypes";
 import { assertNoUndefinedExports } from "../../shared/assertCompleteExports";
 
 type MongoRuntimeContext = {
@@ -12,19 +27,19 @@ type MongoRuntimeContext = {
   validatePendingDiscountSnapshot: (snapshot: unknown) => boolean;
   isTransientMongoError: (err: unknown) => boolean;
   withMongoRetry: <T>(fn: () => Promise<T>, ...rest: unknown[]) => Promise<T>;
-  GuildModel: Model<any>;
-  CircuitBreakerModel: Model<any>;
-  SystemModel: Model<any>;
-  JobLockModel: Model<any>;
-  AdminAlertCooldownModel: Model<any>;
-  FetchSnapshotModel: Model<any>;
-  GuildSeenDiscountModel: Model<any>;
-  GuildSeenUpdateModel: Model<any>;
-  NotificationOutboxModel: Model<any>;
-  NotificationOutboxSentModel: Model<any>;
-  NotificationHistoryModel: Model<any>;
-  FeedbackReportModel: Model<any>;
-  NotificationDeadLetterReplayModel: Model<any>;
+  GuildModel: Model<GuildDoc>;
+  CircuitBreakerModel: Model<CircuitBreakerDoc>;
+  SystemModel: Model<SystemDoc>;
+  JobLockModel: Model<JobLockDoc>;
+  AdminAlertCooldownModel: Model<AdminAlertCooldownDoc>;
+  FetchSnapshotModel: Model<FetchSnapshotDoc>;
+  GuildSeenDiscountModel: Model<GuildSeenDiscountDoc>;
+  GuildSeenUpdateModel: Model<GuildSeenUpdateDoc>;
+  NotificationOutboxModel: Model<NotificationOutboxDoc>;
+  NotificationOutboxSentModel: Model<NotificationOutboxSentDoc>;
+  NotificationHistoryModel: Model<NotificationHistoryDoc>;
+  FeedbackReportModel: Model<FeedbackReportDoc>;
+  NotificationDeadLetterReplayModel: Model<NotificationDeadLetterReplayDoc>;
   saveFetchSnapshot: (id: string, payload: unknown) => Promise<void>;
   loadFetchSnapshot: (id: string) => Promise<unknown | null>;
   loadDealsFetchSnapshots: () => Promise<unknown[]>;
