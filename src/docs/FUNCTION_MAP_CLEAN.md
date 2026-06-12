@@ -78,10 +78,11 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/features/command-registry/commandRegistry.ts`
 
-- Instaleaza modulele de comenzi si interactiuni.
+- Instaleaza modulele de comenzi si interactiuni, importate **static** (lista `defaultInstallers` e formata din importuri numite, nu `require`-uri inline).
 - Leaga handler-ele la contextul runtime.
-- Valideaza ca functiile necesare exista.
-- Ramane o zona de tranzitie pana cand toate dependintele sunt injectate explicit.
+- Valideaza ca functiile necesare exista (fail-fast prin `requireRegistryFunction`).
+- `CommandRegistryContext` e un contract **inchis**: doar cheile declarate, fara `[key: string]: unknown` (gard in `registryClosedContracts.test.ts`); cheile suplimentare schimbate intre installers raman responsabilitatea interfetelor per-modul.
+- Ramane o zona de tranzitie pana cand toate dependintele sunt injectate explicit (factory-uri, fara registru).
 
 ### `src/features/command-runtime/commandRuntimeContext.ts`
 
