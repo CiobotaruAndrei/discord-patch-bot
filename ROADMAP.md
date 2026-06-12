@@ -103,6 +103,29 @@ optimizare, e o regresie de UX/conformitate.
 e mult sub limita REST globala. Sharding-ul acum = complexitate de multi-proces + coordonare, pentru zero
 beneficiu curent — single-shard + lock-uri DB e corect si suficient pana la prag.
 
+## Migrarea registrelor la factory-uri per handler/sursa (datoria arhitecturala ramasa)
+
+**Starea curenta.** Compunerea trece prin doua registre cu installers `export =` care muteaza un
+context comun. Contractele de iesire sunt inchise si tipate (`CommandRegistryContext`,
+`SourceRegistryApi`, `CommandRuntimeContext`), dar granita de instalare ramane nesigura static:
+un singur `as never` per registru, pinuit prin gard AST (`registryClosedContracts.test.ts`).
+Tipizarea directa a compunerii a fost incercata si respinsa cu proba: supratipul comun al
+dependintelor structurale declarate independent per handler colapseaza in `never`/`any`
+(vezi FUNCTION_MAP_CLEAN, sectiunea commandRegistry).
+
+**Pasii de migrare (incremental, cate un PR per grup):**
+
+1. fiecare modul expune deja `createX(deps)` cu dependinte inguste — handler-ele noi se scriu DOAR asa;
+2. `commandRuntimeContext` se sparge in furnizori mici (bindings Discord, exporturi Mongo, surse),
+   iar compozitia apeleaza factory-urile explicit cu `Pick<>`-uri din furnizori, in ordinea dependentelor;
+3. installer-ele `attachX` raman doar ca adaptoare de compatibilitate pana cand toti consumatorii
+   folosesc factory-urile, apoi se sterg impreuna cu registrul si cu granita `as never`;
+4. gardurile AST se actualizeaza la fiecare pas (numarul de `as never` permise scade la zero).
+
+**Limbaj.** Nu se adauga alt limbaj pentru zona asta: outbox/Discord/Mongo sunt I/O-bound, deci
+TypeScript ramane alegerea corecta; orice candidat nou de Rust trece intai prin `npm run benchmark:cpu`
+si prin decizia documentata in `BENCHMARKS.md` (politica existenta, reconfirmata in review #11.5).
+
 ## CPU hot-paths in Rust
 
 Deja evaluat si **decis**: hot-path-urile CPU cu castig masurat (`levenshtein` ~1.9x,

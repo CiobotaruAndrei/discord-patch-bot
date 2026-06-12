@@ -4,6 +4,7 @@ import type { Model } from "mongoose";
 import type { SeenRepositoryDeps } from "./seenRepository";
 import type { UpdateNotificationServiceDeps } from "./updateNotificationService";
 import type { DiscountNotificationServiceDeps } from "./discountNotificationService";
+import type { OutboxDiscordClient } from "./outboundChannel";
 
 const {
   DISCORD_PERMANENT_ERROR_CODES,
@@ -27,7 +28,6 @@ const OUTBOX_DRAIN_LIMIT = Math.min(1000, Math.max(1, Number(process.env.NOTIFIC
 const OUTBOX_MAX_AGE_MS = Math.min(7 * 24 * 3600_000, Math.max(3600_000, Number(process.env.NOTIFICATION_OUTBOX_MAX_AGE_MS) || 6 * 24 * 3600_000));
 
 interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; attempts: number; deliveries?: number; dedupeKey?: string; recoveryVerify?: boolean; }
-interface OutboxClient { user: { id: string }; channels: { fetch(channelId: string): Promise<unknown> }; }
 const OUTBOX_RECOVERY_VERIFY = process.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY === "true";
 const OUTBOX_RECOVERY_STRICT = process.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT === "true";
 const OUTBOX_RECOVERY_HISTORY_LIMIT = Math.min(100, Math.max(5, Number(process.env.NOTIFICATION_OUTBOX_RECOVERY_HISTORY_LIMIT) || 25));
@@ -113,7 +113,7 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     });
   }
 
-  async function drainOutbox(client: OutboxClient) {
+  async function drainOutbox(client: OutboxDiscordClient) {
     const result = await outbox.drainOutbox({
       deliver: (job: OutboxJobShape) => outboxDelivery.deliver(client, job),
       recordDeadLetter: recordOutboxDeadLetter,

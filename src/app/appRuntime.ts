@@ -25,7 +25,7 @@ interface CommandRuntime {
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
   checkForDiscounts(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
   cleanCache(): unknown;
-  drainOutbox(client: unknown): Promise<unknown> | unknown;
+  drainOutbox(client: { isReady(): boolean; user?: { id?: string } | null; channels: { fetch(channelId: string): Promise<unknown> | unknown } }): Promise<unknown> | unknown;
   getCacheSizes(): CommandCacheSizes;
   handleInteraction(interaction: unknown, games: GameConfig[]): Promise<unknown> | unknown;
   registerSlashCommands(token: string, clientId: string): Promise<unknown>;

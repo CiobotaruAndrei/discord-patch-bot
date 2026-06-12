@@ -13,6 +13,8 @@ interface MongooseLike {
 
 interface DiscordClientLike {
   isReady(): boolean;
+  user?: { id?: string } | null;
+  channels: { fetch(channelId: string): Promise<unknown> | unknown };
 }
 
 interface LifecycleState {

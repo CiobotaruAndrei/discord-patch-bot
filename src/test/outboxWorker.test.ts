@@ -56,7 +56,7 @@ function makeWorker(overrides: {
   const lifecycle = { isShuttingDown: overrides.shuttingDown ?? false };
   const worker = createOutboxWorker({
     mongoose: { connection: { readyState: overrides.readyState ?? 1 } },
-    client: { isReady: () => overrides.clientReady ?? true },
+    client: { isReady: () => overrides.clientReady ?? true, channels: { fetch: async () => null } },
     logger: () => undefined,
     parseEnvNumber: (_name: string, def: number) => def,
     acquireDbLock: async (jobName: string, ttlMs: number) => {
