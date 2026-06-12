@@ -4,6 +4,8 @@ const { errorMessage } = require("../../../shared/errors");
 
 type NotificationMode = "compact" | "detailed";
 
+const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
+
 interface DiscordInteraction {
   guild?: { id: string } | null;
   user?: { id: string };
@@ -26,6 +28,7 @@ export interface LatestDealsHandlerDeps {
   getDealsCacheData: (currency: string) => unknown[] | null;
   setDealsCache: (currency: string, deals: unknown[]) => void;
   fetchDeals: (opts: { currency: string }) => Promise<unknown[]>;
+  loadFetchSnapshot?: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
   enrichDealData: (deal: unknown, currency: string) => Promise<unknown>;
   dealPassesFilters: (deal: unknown, guild: GuildSettingsLite | null) => boolean;
   getSystemTimes: () => Promise<{ reduceri?: number }>;
@@ -51,7 +54,7 @@ export interface LatestDealsHandlerDeps {
 export function createLatestDealsHandler(deps: LatestDealsHandlerDeps) {
   const {
     logger, enforceCooldown, startCommandLog, safeDefer, safeEdit,
-    getDealsCacheData, setDealsCache, fetchDeals, enrichDealData, dealPassesFilters,
+    getDealsCacheData, setDealsCache, fetchDeals, loadFetchSnapshot, enrichDealData, dealPassesFilters,
     getSystemTimes, saveSystemTime, smoothTime,
     getGuildSettings, formatUserError, buildDealEmbed, handlePagination,
     DEFAULT_CURRENCY, ITEMS_PER_PAGE, MAX_DEALS
@@ -77,8 +80,16 @@ export function createLatestDealsHandler(deps: LatestDealsHandlerDeps) {
         setDealsCache(currency, deals);
         await saveSystemTime("reduceri", smoothTime(estMs, Date.now() - startTime));
       } catch (err: unknown) {
-        endLog("error", { errorMsg: errorMessage(err) });
-        return safeEdit(interaction, formatUserError(err, "Nu am putut interoga magazinele.", "ERR_LATEST_DEALS"));
+        const snapshot = loadFetchSnapshot ? await loadFetchSnapshot(`deals:${currency}`).catch(() => null) : null;
+        const fresh = snapshot && Array.isArray(snapshot.payload) && snapshot.payload.length
+          && Date.now() - new Date(snapshot.fetchedAt).getTime() <= SNAPSHOT_FALLBACK_MAX_AGE_MS;
+        if (!fresh) {
+          endLog("error", { errorMsg: errorMessage(err) });
+          return safeEdit(interaction, formatUserError(err, "Nu am putut interoga magazinele.", "ERR_LATEST_DEALS"));
+        }
+        logger("WARN", "LATEST_DEALS", `Fetch live esuat, folosesc snapshot-ul persistat pentru ${currency}`, errorMessage(err));
+        deals = snapshot.payload as unknown[];
+        setDealsCache(currency, deals);
       }
     }
     const top = deals.filter(d => dealPassesFilters(d, guild)).slice(0, MAX_DEALS);
