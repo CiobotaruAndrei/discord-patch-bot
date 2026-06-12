@@ -122,14 +122,19 @@ async function runDiscordSmoke(): Promise<number> {
         if (sendTest) {
           const sendability = evaluateSendability(channel);
           if (sendability.sendable) {
-            const sendable = channel as unknown as { send: (payload: unknown) => Promise<{ delete: () => Promise<unknown> }> };
-            const embed = new EmbedBuilder()
-              .setTitle("Staging smoke")
-              .setDescription(`Mesaj de test trimis de runner-ul de staging la ${new Date().toISOString()}. Se sterge automat.`);
-            const message = await sendable.send({ embeds: [embed] });
-            await message.delete();
-            checks.push({ name: "send", ok: true, detail: "embed trimis si sters" });
-            console.log("[discord-smoke] Trimitere notificare reala OK (embed trimis si sters).");
+            try {
+              const sendable = channel as unknown as { send: (payload: unknown) => Promise<{ delete: () => Promise<unknown> }> };
+              const embed = new EmbedBuilder()
+                .setTitle("Staging smoke")
+                .setDescription(`Mesaj de test trimis de runner-ul de staging la ${new Date().toISOString()}. Se sterge automat.`);
+              const message = await sendable.send({ embeds: [embed] });
+              await message.delete();
+              checks.push({ name: "send", ok: true, detail: "embed trimis si sters" });
+              console.log("[discord-smoke] Trimitere notificare reala OK (embed trimis si sters).");
+            } catch (err) {
+              checks.push({ name: "send", ok: false, detail: `trimiterea/stergerea reala a esuat: ${err instanceof Error ? err.message : String(err)}` });
+              console.error(`[discord-smoke] Trimitere notificare reala FAIL: ${err instanceof Error ? err.message : String(err)}`);
+            }
           } else {
             checks.push({ name: "send", ok: false, detail: `test de trimitere cerut, dar ${sendability.detail}` });
             console.error(`[discord-smoke] Trimitere notificare reala FAIL: ${sendability.detail}.`);

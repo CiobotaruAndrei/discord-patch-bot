@@ -59,6 +59,7 @@ function makeContext(overrides: Partial<Record<string, unknown>> = {}) {
     fetchDeals: async (opts: unknown) => { log("fetchDeals", opts); return [{ id: "d1" }]; },
     enrichDealData: async (deal: unknown) => deal,
     dealPassesFilters: () => true,
+    validatePendingDiscountSnapshot: (snapshot: unknown) => !!(snapshot && typeof (snapshot as { title?: unknown }).title === "string"),
     findGameAndSuggestion: () => ({ game: { key: "cs2", name: "CS2" }, suggestion: null }),
     executeFetchWithCircuitBreaker: async (game: unknown) => {
       log("executeFetch", game);
@@ -114,14 +115,26 @@ test("/latest reduceri loads + paginates", async () => {
   assert.ok(calls.some(c => c.name === "handlePagination"));
 });
 
-test("/latest reduceri: fetch live picat + snapshot proaspat -> ofertele vin din snapshot (review #14.2)", async () => {
+test("/latest reduceri: fetch live picat + snapshot proaspat -> ofertele vin din snapshot, cu banner vizibil (review #14.2 + #15.3)", async () => {
   const { context, calls, safeEditPayloads } = makeContext({
     fetchDeals: async () => { throw new Error("ambele magazine picate"); },
-    loadFetchSnapshot: async (id: string) => (id === "deals:USD" ? { payload: [{ id: "snap-1" }], fetchedAt: new Date() } : null)
+    loadFetchSnapshot: async (id: string) => (id === "deals:USD" ? { payload: [{ title: "Snap Deal" }], fetchedAt: new Date(Date.now() - 10 * 60000) } : null)
   });
   await context.handleInteraction(makeInteraction({ sub: "reduceri" }), []);
   assert.ok(calls.some(c => c.name === "handlePagination"), "ofertele din snapshot se afiseaza, nu se da eroare");
   assert.ok(!safeEditPayloads.some(p => String(p).includes("Nu am putut interoga magazinele")), "fara mesaj de eroare cand exista snapshot proaspat");
+  const banner = safeEditPayloads.find(p => String(p).includes("snapshot"));
+  assert.ok(banner, "utilizatorul vede explicit ca datele vin din snapshot, nu live");
+  assert.match(String(banner), /vechime ~10 min/, "banner-ul arata vechimea snapshot-ului");
+});
+
+test("/latest reduceri: snapshot corupt (itemi care nu trec validatorul) -> eroarea explicita, nu render pe date invalide (review #15.2)", async () => {
+  const { context, safeEditPayloads } = makeContext({
+    fetchDeals: async () => { throw new Error("ambele magazine picate"); },
+    loadFetchSnapshot: async () => ({ payload: [{ id: "fara-titlu" }, 42, null], fetchedAt: new Date() })
+  });
+  await context.handleInteraction(makeInteraction({ sub: "reduceri" }), []);
+  assert.ok(safeEditPayloads.some(p => String(p).includes("Nu am putut interoga magazinele")), "snapshot-ul corupt nu ajunge in filtrare/render");
 });
 
 test("/latest reduceri: fetch picat si fara snapshot proaspat -> eroarea existenta (review #14.2)", async () => {

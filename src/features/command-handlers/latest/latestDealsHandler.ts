@@ -29,6 +29,7 @@ export interface LatestDealsHandlerDeps {
   setDealsCache: (currency: string, deals: unknown[]) => void;
   fetchDeals: (opts: { currency: string }) => Promise<unknown[]>;
   loadFetchSnapshot?: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
+  validatePendingDiscountSnapshot: (snapshot: unknown) => boolean;
   enrichDealData: (deal: unknown, currency: string) => Promise<unknown>;
   dealPassesFilters: (deal: unknown, guild: GuildSettingsLite | null) => boolean;
   getSystemTimes: () => Promise<{ reduceri?: number }>;
@@ -54,7 +55,7 @@ export interface LatestDealsHandlerDeps {
 export function createLatestDealsHandler(deps: LatestDealsHandlerDeps) {
   const {
     logger, enforceCooldown, startCommandLog, safeDefer, safeEdit,
-    getDealsCacheData, setDealsCache, fetchDeals, loadFetchSnapshot, enrichDealData, dealPassesFilters,
+    getDealsCacheData, setDealsCache, fetchDeals, loadFetchSnapshot, validatePendingDiscountSnapshot, enrichDealData, dealPassesFilters,
     getSystemTimes, saveSystemTime, smoothTime,
     getGuildSettings, formatUserError, buildDealEmbed, handlePagination,
     DEFAULT_CURRENCY, ITEMS_PER_PAGE, MAX_DEALS
@@ -71,6 +72,7 @@ export function createLatestDealsHandler(deps: LatestDealsHandlerDeps) {
     const mode: NotificationMode = guild?.notificationMode || "detailed";
 
     let deals = getDealsCacheData(currency);
+    let snapshotAgeMin: number | null = null;
     if (!deals) {
       const estMs = (await getSystemTimes()).reduceri || 10000;
       await safeEdit(interaction, `Se incarca: *Durata estimata: **${Math.max(1, Math.ceil(estMs / 1000))} secunde***`);
@@ -81,14 +83,17 @@ export function createLatestDealsHandler(deps: LatestDealsHandlerDeps) {
         await saveSystemTime("reduceri", smoothTime(estMs, Date.now() - startTime));
       } catch (err: unknown) {
         const snapshot = loadFetchSnapshot ? await loadFetchSnapshot(`deals:${currency}`).catch(() => null) : null;
-        const fresh = snapshot && Array.isArray(snapshot.payload) && snapshot.payload.length
-          && Date.now() - new Date(snapshot.fetchedAt).getTime() <= SNAPSHOT_FALLBACK_MAX_AGE_MS;
-        if (!fresh) {
+        const ageMs = snapshot ? Date.now() - new Date(snapshot.fetchedAt).getTime() : Number.POSITIVE_INFINITY;
+        const validDeals = snapshot && Array.isArray(snapshot.payload) && ageMs <= SNAPSHOT_FALLBACK_MAX_AGE_MS
+          ? snapshot.payload.filter(validatePendingDiscountSnapshot)
+          : [];
+        if (!validDeals.length) {
           endLog("error", { errorMsg: errorMessage(err) });
           return safeEdit(interaction, formatUserError(err, "Nu am putut interoga magazinele.", "ERR_LATEST_DEALS"));
         }
         logger("WARN", "LATEST_DEALS", `Fetch live esuat, folosesc snapshot-ul persistat pentru ${currency}`, errorMessage(err));
-        deals = snapshot.payload as unknown[];
+        snapshotAgeMin = Math.max(1, Math.round(ageMs / 60000));
+        deals = validDeals;
         setDealsCache(currency, deals);
       }
     }
@@ -97,7 +102,9 @@ export function createLatestDealsHandler(deps: LatestDealsHandlerDeps) {
       endLog("no_data");
       return safeEdit(interaction, "Eroare: Nu am gasit oferte care sa corespunda setarilor serverului.");
     }
-    const msg = await safeEdit(interaction, "OK: Oferte incarcate!");
+    const msg = await safeEdit(interaction, snapshotAgeMin === null
+      ? "OK: Oferte incarcate!"
+      : `OK: Oferte incarcate din ultimul snapshot salvat (fetch-ul live a esuat) - vechime ~${snapshotAgeMin} min.`);
     const generateEmbeds = async (page: number, totalP: number, currentMode: NotificationMode) => {
       const chunk = top.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
       const dealsToRender = currentMode === "compact"

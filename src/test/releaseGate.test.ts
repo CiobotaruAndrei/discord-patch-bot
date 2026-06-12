@@ -62,6 +62,17 @@ test("release.yml verifica un artifact real de staging smoke, nu doar smoke_conf
   assert.match(text, /run-id: \$\{\{ steps\.smoke\.outputs\.run_id \}\}/, "descarca din rularea identificata");
   assert.match(text, /r\.skipped/, "respinge un rezultat sarit (skipped=true)");
   assert.match(text, /!r\.ok/, "respinge un rezultat esuat (ok=false)");
+  assert.match(text, /c\.name === "send"/, "cere explicit check-ul send in JSON-ul Discord (review #15.1)");
+  assert.match(text, /!sendCheck \|\| !sendCheck\.ok/, "respinge artifactul fara proba reala de trimitere reusita");
+});
+
+test("staging-smoke.yml activeaza implicit testul real de trimitere, iar scriptul izoleaza esecul send-ului (review #15.1)", () => {
+  const text = read(stagingSmokeWorkflowPath);
+  assert.match(text, /STAGING_DISCORD_SEND_TEST: \$\{\{ secrets\.STAGING_DISCORD_SEND_TEST \|\| 'true' \}\}/,
+    "send test-ul e implicit pornit; secretul poate doar sa-l opreasca explicit");
+  const script = fs.readFileSync(path.join(srcRoot, "scripts", "stagingDiscordSmoke.ts"), "utf8");
+  assert.match(script, /name: "send", ok: false, detail: `trimiterea\/stergerea reala a esuat/,
+    "esecul lui send\/delete adauga check-ul send esuat, nu cade in catch-ul de permissions");
 });
 
 test("release.yml valideaza semver si publica :latest doar pentru release-uri stabile", () => {
