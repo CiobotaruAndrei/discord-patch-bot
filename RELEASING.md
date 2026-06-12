@@ -60,7 +60,8 @@ Smoke`, nu doar declarat.
 4. Porneste release-ul prin **`workflow_dispatch`** pe workflow-ul `Release`, cu `tag = vX.Y.Z` si
    `smoke_confirmed = true`. Aceasta este singura cale de release, deci confirmarea smoke este
    obligatorie.
-5. Workflow-ul verifica gate-ul (`smoke_confirmed`) **si** artifactul de staging smoke, ruleaza CI +
+5. Workflow-ul verifica gate-ul (`smoke_confirmed`) **si** artifactul de staging smoke (inclusiv
+   check-ul `send` reusit in proba Discord — fara proba reala de trimitere release-ul e blocat), ruleaza CI +
    audit pe tag si **canary-ul live de surse** (`npm run canary:sources`, fail-closed pe API-urile
    fiabile) pe codul exact al tag-ului. Imaginea Docker se construieste **local**, trece prin gate-ul
    **Trivy blocant** (CRITICAL/HIGH fixabile, `exit-code 1`) pe imaginea exacta, si abia apoi se

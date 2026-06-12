@@ -123,6 +123,10 @@ jobs:
               const r = JSON.parse(fs.readFileSync(f, "utf8"));
               if (r.skipped) { console.error(`::error::${f}: staging smoke a fost SARIT (skipped=true) - seteaza secretele de staging si re-ruleaza.`); failed = true; }
               if (!r.ok) { console.error(`::error::${f}: staging smoke a esuat (ok=false).`); failed = true; }
+              if (f.includes("discord")) {
+                const sendCheck = (r.checks || []).find(c => c.name === "send");
+                if (!sendCheck || !sendCheck.ok) { console.error(`::error::${f}: lipseste proba REALA de trimitere (check send reusit) - ruleaza Staging Smoke cu STAGING_DISCORD_SEND_TEST=true.`); failed = true; }
+              }
             }
             if (failed) process.exit(1);
             console.log("Staging smoke result verificat: ambele probe au trecut live.");
