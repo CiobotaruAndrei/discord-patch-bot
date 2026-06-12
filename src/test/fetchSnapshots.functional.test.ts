@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+
+const noopDiscordClient = { channels: { fetch: async () => null } };
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
 import attachFetchSnapshots = require("../infra/mongo/fetchSnapshots");
@@ -87,7 +89,7 @@ test("UpdateService.checkForUpdates persista snapshot-ul 'updates' dupa fetch (l
     persistFetchSnapshot: async (id: string, payload: unknown) => { persistCalls.push({ id, payload }); }
   } as unknown as UpdateDeps;
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates({}, [{ key: "cs2" }, { key: "fortnite" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }, { key: "fortnite" }]);
   assert.equal(persistCalls.length, 1, "exact un snapshot persistat");
   assert.equal(persistCalls[0].id, "updates");
   assert.deepEqual(persistCalls[0].payload, [
@@ -120,7 +122,7 @@ test("DiscountService.checkForDiscounts persista snapshot-ul 'deals:<MONEDA>' du
     GUILD_PROCESS_CONCURRENCY: 1
   } as unknown as DiscountDeps;
   const svc = createDiscountNotificationService(deps);
-  await svc.checkForDiscounts({});
+  await svc.checkForDiscounts(noopDiscordClient);
   assert.equal(persistCalls.length, 1, "exact un snapshot de reduceri persistat");
   assert.equal(persistCalls[0].id, "deals:USD");
   assert.deepEqual(persistCalls[0].payload, [{ id: "d1" }]);
@@ -149,7 +151,7 @@ test("UpdateService.checkForUpdates: fetch esuat foloseste snapshot-ul din event
     loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2" }, latest: { id: "u-cs2" } }], fetchedAt: new Date() })
   } as unknown as UpdateDeps;
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates({}, [{ key: "cs2" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }]);
   assert.equal(resolveCalls, 1, "dispatch-ul a continuat de pe snapshot dupa esecul fetch-ului");
 });
 
@@ -166,7 +168,7 @@ test("UpdateService.checkForUpdates: fetch esuat fara snapshot arunca (fara disp
     loadFetchSnapshot: async () => null
   } as unknown as UpdateDeps;
   const svc = createUpdateNotificationService(deps);
-  await assert.rejects(() => svc.checkForUpdates({}, [{ key: "cs2" }]), /snapshot de rezerva proaspat.*fetch down/);
+  await assert.rejects(() => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }]), /snapshot de rezerva proaspat.*fetch down/);
   assert.equal(resolveCalls, 0, "fara snapshot, ciclul se opreste inainte de dispatch");
 });
 
@@ -187,7 +189,7 @@ test("DiscountService.checkForDiscounts: fetch esuat foloseste snapshot-ul de re
     GUILD_PROCESS_CONCURRENCY: 1
   } as unknown as DiscountDeps;
   const svc = createDiscountNotificationService(deps);
-  await svc.checkForDiscounts({});
+  await svc.checkForDiscounts(noopDiscordClient);
   assert.equal(resolveCalls, 1, "dispatch-ul a continuat de pe snapshot dupa esecul fetch-ului de reduceri");
 });
 
@@ -208,7 +210,7 @@ test("DiscountService.checkForDiscounts: fetch esuat fara snapshot sare guild-ul
     GUILD_PROCESS_CONCURRENCY: 1
   } as unknown as DiscountDeps;
   const svc = createDiscountNotificationService(deps);
-  await assert.rejects(() => svc.checkForDiscounts({}), /toate cele 1 guild-uri abonate.*deals down/);
+  await assert.rejects(() => svc.checkForDiscounts(noopDiscordClient), /toate cele 1 guild-uri abonate.*deals down/);
   assert.equal(resolveCalls, 0, "fara snapshot, niciun dispatch");
 });
 
@@ -227,7 +229,7 @@ test("UpdateService.checkForUpdates: snapshot vechi (>60min) NU este folosit ca 
     loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2" }, latest: { id: "u-cs2" } }], fetchedAt: STALE_FETCHED_AT })
   } as unknown as UpdateDeps;
   const svc = createUpdateNotificationService(deps);
-  await assert.rejects(() => svc.checkForUpdates({}, [{ key: "cs2" }]), /snapshot de rezerva proaspat/);
+  await assert.rejects(() => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }]), /snapshot de rezerva proaspat/);
   assert.equal(resolveCalls, 0, "snapshot expirat -> ciclul se opreste, fara dispatch pe date vechi");
 });
 
@@ -248,6 +250,6 @@ test("DiscountService.checkForDiscounts: snapshot vechi (>60min) NU este folosit
     GUILD_PROCESS_CONCURRENCY: 1
   } as unknown as DiscountDeps;
   const svc = createDiscountNotificationService(deps);
-  await assert.rejects(() => svc.checkForDiscounts({}), /toate cele 1 guild-uri abonate/);
+  await assert.rejects(() => svc.checkForDiscounts(noopDiscordClient), /toate cele 1 guild-uri abonate/);
   assert.equal(resolveCalls, 0, "snapshot expirat -> fara dispatch pe date vechi");
 });

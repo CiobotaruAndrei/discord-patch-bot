@@ -3,7 +3,7 @@
 import type { QueryFilter, Model } from "mongoose";
 import type { GuildSettings, DealInfo } from "../../types";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
-import type { ResolveOutboundChannelResult } from "./outboundChannel";
+import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
 import { HASH_VERSION } from "../../native/fuzzy";
 
 import { packEmbedsByBudget, embedCharCost } from "../../shared/discordEmbedChunks";
@@ -16,7 +16,7 @@ type Logger = (level: string, context: string, msg: string, meta?: unknown) => v
 interface MongoWriteResult { matchedCount?: number; modifiedCount?: number }
 
 type ResolveOutboundChannel = (opts: {
-  client: unknown;
+  client: NotificationDiscordClient;
   guild: GuildSettings & Record<string, unknown>;
   channelId: string | null | undefined;
   context: string;
@@ -82,8 +82,8 @@ export interface DiscountNotificationServiceDeps {
 }
 
 export interface DiscountNotificationService {
-  processGuildDiscounts: (client: unknown, guild: GuildSettings & Record<string, unknown>, deals: DealInfo[]) => Promise<void>;
-  checkForDiscounts: (client: unknown, shouldAbort?: (() => boolean) | null) => Promise<void>;
+  processGuildDiscounts: (client: NotificationDiscordClient, guild: GuildSettings & Record<string, unknown>, deals: DealInfo[]) => Promise<void>;
+  checkForDiscounts: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
 }
 
 export function createDiscountNotificationService(deps: DiscountNotificationServiceDeps): DiscountNotificationService {
@@ -119,7 +119,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     return cached;
   }
 
-  async function processGuildDiscounts(client: unknown, guild: GuildSettings & Record<string, unknown>, deals: DealInfo[]): Promise<void> {
+  async function processGuildDiscounts(client: NotificationDiscordClient, guild: GuildSettings & Record<string, unknown>, deals: DealInfo[]): Promise<void> {
     const { channel, abort } = await resolveOutboundChannel({
       client,
       guild,
@@ -254,7 +254,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     );
   }
 
-  async function checkForDiscounts(client: unknown, shouldAbort: (() => boolean) | null = null): Promise<void> {
+  async function checkForDiscounts(client: NotificationDiscordClient, shouldAbort: (() => boolean) | null = null): Promise<void> {
     if (shouldAbort?.()) return;
     const guilds = await GuildModel.find({
       discountsSubscribed: true,

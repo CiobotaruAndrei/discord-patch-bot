@@ -1,4 +1,5 @@
 import type { CommandCacheSizes, GameConfig } from "../../types";
+import type { NotificationDiscordClient } from "../notifications/outboundChannel";
 
 type MaybePromise<T> = T | Promise<T>;
 type RegistryFunction = (...args: unknown[]) => MaybePromise<unknown>;
@@ -10,8 +11,8 @@ interface CommandRegistryContext {
   setGlobalCacheTtl?: (ms: number) => void;
   setUpdatesCache?: (data: unknown) => void;
   setDealsCache?: (currency: string, data: unknown) => void;
-  checkForUpdates?: (client: unknown, games: unknown[], shouldAbort?: (() => boolean) | null) => Promise<void>;
-  checkForDiscounts?: (client: unknown, shouldAbort?: (() => boolean) | null) => Promise<void>;
+  checkForUpdates?: (client: NotificationDiscordClient, games: unknown[], shouldAbort?: (() => boolean) | null) => Promise<void>;
+  checkForDiscounts?: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
   drainOutbox?: (client: unknown) => MaybePromise<unknown>;
   buildOptimizedGameList?: (allGames: GameConfig[], subscribedGuilds: unknown[]) => GameConfig[];
   registerSlashCommands?: (token: string, clientId: string) => Promise<unknown>;
