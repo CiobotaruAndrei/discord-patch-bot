@@ -181,6 +181,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Rezolva canalul Discord in care se trimit notificarile.
 - Izoleaza erorile de canal lipsa sau inaccesibil.
+- `send(payload, meta)` accepta optional `meta.historyEntries` (intrarile pentru `/history`): pe calea directa (rate-limited) le scrie best-effort dupa send-ul real catre Discord; pe calea outbox le ataseaza pe job (`job.history`), iar scrierea se face in `notificationOutbox.drainOutbox` abia dupa livrarea reala din coada. Serviciile nu mai scriu istoric direct — altfel `/history` ar raporta ca "trimisa" o notificare doar enqueue-uita.
 
 ### `src/features/notifications/seenRepository.ts`
 

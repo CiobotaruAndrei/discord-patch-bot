@@ -9,7 +9,7 @@ import {
 import { createOutboxDelivery } from "../features/notifications/outboxDelivery";
 
 const { createOutboundChannelResolver } = require("../features/notifications/outboundChannel") as {
-  createOutboundChannelResolver: (deps: Record<string, unknown>) => (args: Record<string, unknown>) => Promise<{ channel: { send: (payload: unknown) => Promise<unknown> } | null; abort: boolean }>;
+  createOutboundChannelResolver: (deps: Record<string, unknown>) => (args: Record<string, unknown>) => Promise<{ channel: { send: (payload: unknown, meta?: { historyEntries?: unknown[] }) => Promise<unknown> } | null; abort: boolean }>;
 };
 
 interface OutboxJobDoc {
@@ -172,4 +172,125 @@ test("E2E outbox: re-enqueue acelasi continut dupa livrare e idempotent (nu reap
 
   await runtime.enqueueOutbox({ guildId: "guild-1", channelId: "chan-1", kind: "update", payload });
   assert.equal(await store.NotificationOutboxModel.countDocuments(), 0, "acelasi continut deja livrat -> nu se re-enqueue");
+});
+
+test("E2E outbox: istoricul nu se scrie la enqueue, ci abia dupa livrarea reala din drain", async () => {
+  const store = makeInMemoryOutbox();
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: store.NotificationOutboxModel as never,
+    NotificationOutboxSentModel: store.NotificationOutboxSentModel as never,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+
+  const historyWrites: Array<{ guildId: string; entries: unknown }> = [];
+  const recordSentHistory = async (guildId: string, entries: unknown) => { historyWrites.push({ guildId, entries }); };
+
+  const resolveOutboundChannel = createOutboundChannelResolver({
+    logger: () => undefined,
+    canSendEmbeds: () => true,
+    enqueueOutbox: runtime.enqueueOutbox,
+    recordSentHistory
+  });
+
+  const resolverClient = {
+    user: { id: "bot-1" },
+    channels: { fetch: async () => ({ id: "chan-1", send: async () => ({ id: "noop" }) }) }
+  };
+  const resolved = await resolveOutboundChannel({
+    client: resolverClient,
+    guild: { _id: "guild-1" },
+    channelId: "chan-1",
+    context: "CRON_UPDATES",
+    disableFn: async () => undefined
+  });
+
+  const entries = [{ kind: "update", gameKey: "cs2", title: "Patch 1.3", link: "https://example.com/patch" }];
+  await resolved.channel!.send({ embeds: [{ title: "Patch 1.3" }] }, { historyEntries: entries });
+
+  assert.equal(historyWrites.length, 0, "enqueue NU scrie istoric");
+  assert.equal(await store.NotificationOutboxModel.countDocuments(), 1);
+  assert.deepEqual((store.jobs[0] as unknown as { history?: unknown }).history, entries, "jobul din coada poarta intrarile de istoric");
+
+  const deliveryChannel = { id: "chan-1", send: async () => ({ id: "msg-1" }) };
+  const deliveryClient = { user: { id: "bot-1" }, channels: { fetch: async () => deliveryChannel } };
+  const delivery = createOutboxDelivery({
+    canSendEmbeds: () => true,
+    isPermanentDiscordError: () => false,
+    acquireSendSlot: async () => undefined,
+    applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker,
+    recoveryVerify: false
+  });
+  const result = await runtime.drainOutbox({
+    deliver: (job) => delivery.deliver(deliveryClient as never, job as never),
+    recordDeadLetter: async () => undefined,
+    recordSentHistory,
+    maxAttempts: 5, backoffMs: 1000, limit: 50
+  });
+
+  assert.equal(result.sent, 1);
+  assert.equal(historyWrites.length, 1, "istoricul se scrie o singura data, dupa livrarea reala");
+  assert.equal(historyWrites[0].guildId, "guild-1");
+  assert.deepEqual(historyWrites[0].entries, entries);
+});
+
+test("E2E outbox: esecul tranzitoriu reincearca jobul fara sa scrie istoric", async () => {
+  const store = makeInMemoryOutbox();
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: store.NotificationOutboxModel as never,
+    NotificationOutboxSentModel: store.NotificationOutboxSentModel as never,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+
+  await runtime.enqueueOutbox({
+    guildId: "guild-1", channelId: "chan-1", kind: "update",
+    payload: { embeds: [{ title: "Patch 1.4" }] },
+    history: [{ kind: "update", gameKey: "cs2", title: "Patch 1.4" }]
+  });
+
+  const historyWrites: unknown[] = [];
+  const result = await runtime.drainOutbox({
+    deliver: async () => ({ ok: false, permanent: false }),
+    recordDeadLetter: async () => undefined,
+    recordSentHistory: async (guildId, entries) => { historyWrites.push({ guildId, entries }); },
+    maxAttempts: 5, backoffMs: 1000, limit: 50
+  });
+
+  assert.equal(result.retried, 1, "jobul ramane in coada pentru reincercare");
+  assert.equal(result.sent, 0);
+  assert.equal(historyWrites.length, 0, "fara livrare reala nu se scrie istoric");
+  assert.equal(await store.NotificationOutboxModel.countDocuments(), 1);
+});
+
+test("E2E outbox: esecul permanent duce jobul in dead-letter fara sa scrie istoric", async () => {
+  const store = makeInMemoryOutbox();
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: store.NotificationOutboxModel as never,
+    NotificationOutboxSentModel: store.NotificationOutboxSentModel as never,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+
+  await runtime.enqueueOutbox({
+    guildId: "guild-1", channelId: "chan-1", kind: "discount",
+    payload: { embeds: [{ title: "Reducere 80%" }] },
+    history: [{ kind: "discount", title: "Reducere 80%", link: "https://example.com/deal" }]
+  });
+
+  const historyWrites: unknown[] = [];
+  const deadLetters: Array<{ reason: string }> = [];
+  const result = await runtime.drainOutbox({
+    deliver: async () => ({ ok: false, permanent: true }),
+    recordDeadLetter: async (_job, reason) => { deadLetters.push({ reason }); },
+    recordSentHistory: async (guildId, entries) => { historyWrites.push({ guildId, entries }); },
+    maxAttempts: 5, backoffMs: 1000, limit: 50
+  });
+
+  assert.equal(result.deadLettered, 1);
+  assert.equal(result.sent, 0);
+  assert.equal(deadLetters.length, 1);
+  assert.equal(deadLetters[0].reason, "permanent");
+  assert.equal(historyWrites.length, 0, "jobul nelivrat nu apare in istoric");
+  assert.equal(await store.NotificationOutboxModel.countDocuments(), 0, "jobul a fost scos din coada");
 });

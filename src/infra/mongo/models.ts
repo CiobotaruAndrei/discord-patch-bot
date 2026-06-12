@@ -148,6 +148,13 @@ const guildSeenUpdateSchema = new mongoose.Schema({
 guildSeenUpdateSchema.index({ guildId: 1, gameKey: 1, updateId: 1 }, { unique: true, background: true });
 const GuildSeenUpdateModel = mongoose.model("GuildSeenUpdate", guildSeenUpdateSchema, "guildSeenUpdates");
 
+const outboxHistoryEntrySchema = new mongoose.Schema({
+  kind: { type: String, enum: ["update", "discount"], required: true },
+  gameKey: { type: String, default: "" },
+  title: { type: String, default: "" },
+  link: { type: String, default: "" }
+}, { _id: false });
+
 const notificationOutboxSchema = new mongoose.Schema({
   guildId: { type: String, required: true },
   channelId: { type: String, required: true },
@@ -160,6 +167,7 @@ const notificationOutboxSchema = new mongoose.Schema({
   lockedBy: { type: String, default: null },
   dedupeKey: { type: String },
   recoveryVerify: { type: Boolean, default: null },
+  history: { type: [outboxHistoryEntrySchema], default: [] },
   createdAt: { type: Date, default: Date.now, expires: 7 * ONE_DAY_MS / 1000 }
 }, { minimize: false });
 notificationOutboxSchema.index({ availableAt: 1, lockedUntil: 1 }, { background: true });

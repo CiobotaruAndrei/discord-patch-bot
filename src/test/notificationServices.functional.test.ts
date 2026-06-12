@@ -14,6 +14,7 @@ type DiscountDeals = Parameters<DiscountService["processGuildDiscounts"]>[2];
 type TestGame = { key: string; name?: string };
 type TestDeal = { id: string; title?: string };
 type SentPayload = { embeds?: unknown; content?: string };
+type SentMeta = { historyEntries?: Array<{ kind: string; gameKey?: string; title?: string; link?: string }> } | undefined;
 
 function entriesFrom(value: unknown): Array<[string, unknown]> {
   if (value instanceof Map) return Array.from(value.entries()).map(([key, val]) => [String(key), val]);
@@ -32,9 +33,10 @@ function makeUpdateDeps(overrides: Record<string, unknown> = {}) {
   const sentPayloads: SentPayload[] = [];
   const claims: Array<{ guildId: string; gameKey: string; updateId: string }> = [];
   const rollbacks: Array<{ guildId: string; gameKey: string; updateId: string }> = [];
+  const sentMetas: SentMeta[] = [];
   const channel = {
     id: "channel-1",
-    send: async (payload: SentPayload) => { sentPayloads.push(payload); return { id: "msg-1" }; }
+    send: async (payload: SentPayload, meta?: SentMeta) => { sentPayloads.push(payload); sentMetas.push(meta); return { id: "msg-1" }; }
   };
   const deps = {
     GuildModel: {
@@ -88,7 +90,7 @@ function makeUpdateDeps(overrides: Record<string, unknown> = {}) {
     GUILD_PROCESS_CONCURRENCY: 1,
     ...overrides
   };
-  return { deps: deps as unknown as UpdateDeps, updateOneCalls, sentPayloads, claims, rollbacks, channel };
+  return { deps: deps as unknown as UpdateDeps, updateOneCalls, sentPayloads, sentMetas, claims, rollbacks, channel };
 }
 
 test("UpdateService: buildOptimizedGameList filtreaza la jocurile active pe macar un guild", () => {
@@ -185,6 +187,23 @@ test("UpdateService: mai multe update-uri sunt grupate intr-un singur mesaj cu m
   assert.equal((sentPayloads[0].embeds as unknown[]).length, 3, "3 embed-uri in mesaj");
   assert.equal(sentPayloads[0].content, "<@&role-7>", "ping rol pe mesajul batch");
   assert.equal(claims.length, 3, "fiecare update este claim-uit inainte de trimitere");
+});
+
+test("UpdateService: send-ul transmite meta.historyEntries pentru scrierea istoricului la livrare", async () => {
+  const { deps, sentMetas } = makeUpdateDeps();
+  const svc = createUpdateNotificationService(deps);
+  const guild = {
+    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2,
+    seen: {}, pendingUpdates: {}, enabledGames: []
+  } as UpdateGuild;
+  const latestResults = [
+    { game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2", title: "Patch 1.5", link: "https://example.com/cs2" } }
+  ] as UpdateResults;
+  await svc.processGuildUpdates({}, guild, latestResults);
+  assert.equal(sentMetas.length, 1);
+  assert.deepEqual(sentMetas[0]?.historyEntries, [
+    { kind: "update", gameKey: "cs2", title: "Patch 1.5", link: "https://example.com/cs2" }
+  ], "serviciul nu mai scrie istoric direct; trimite intrarile prin meta catre canal");
 });
 
 test("UpdateService: claim race (matchedCount=0) sare item-ul fara send sau rollback", async () => {
@@ -309,9 +328,10 @@ function makeDiscountDeps(overrides: Record<string, unknown> = {}) {
   const updateOneCalls: Array<{ filter: unknown; update: unknown }> = [];
   const sentPayloads: SentPayload[] = [];
   const claims: string[] = [];
+  const sentMetas: SentMeta[] = [];
   const channel = {
     id: "channel-d",
-    send: async (payload: SentPayload) => { sentPayloads.push(payload); return { id: "msg-1" }; }
+    send: async (payload: SentPayload, meta?: SentMeta) => { sentPayloads.push(payload); sentMetas.push(meta); return { id: "msg-1" }; }
   };
   const deps = {
     GuildModel: {
@@ -363,7 +383,7 @@ function makeDiscountDeps(overrides: Record<string, unknown> = {}) {
     GUILD_PROCESS_CONCURRENCY: 1,
     ...overrides
   };
-  return { deps: deps as unknown as DiscountDeps, updateOneCalls, sentPayloads, claims, channel };
+  return { deps: deps as unknown as DiscountDeps, updateOneCalls, sentPayloads, sentMetas, claims, channel };
 }
 
 test("DiscountService: trimite reduceri noi care nu sunt in seenDiscounts", async () => {
@@ -377,6 +397,21 @@ test("DiscountService: trimite reduceri noi care nu sunt in seenDiscounts", asyn
   await svc.processGuildDiscounts({}, guild, deals);
   assert.equal(claims.length, 1, "trebuie sa claim-uim hash-ul nou");
   assert.equal(sentPayloads.length, 1);
+});
+
+test("DiscountService: send-ul transmite meta.historyEntries cu titlul si link-ul reducerii", async () => {
+  const { deps, sentMetas } = makeDiscountDeps();
+  const svc = createDiscountNotificationService(deps);
+  const guild = {
+    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", seenHashVersionDiscounts: 2,
+    seenDiscounts: [], pendingDiscounts: [], currency: "USD"
+  } as DiscountGuild;
+  const deals = [{ id: "d1", title: "Game A", url: "https://example.com/deal-a" }] as DiscountDeals;
+  await svc.processGuildDiscounts({}, guild, deals);
+  assert.equal(sentMetas.length, 1);
+  assert.deepEqual(sentMetas[0]?.historyEntries, [
+    { kind: "discount", title: "Game A", link: "https://example.com/deal-a" }
+  ], "serviciul nu mai scrie istoric direct; trimite intrarile prin meta catre canal");
 });
 
 test("DiscountService: hash deja vazut (in colectia seen) NU se mai trimite", async () => {

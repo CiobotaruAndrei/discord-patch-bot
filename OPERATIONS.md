@@ -166,7 +166,7 @@ index-uri conflictuale/invalide. Inventarul declarat curent:
 | `notificationOutbox` | `{ createdAt }` | TTL 7 zile | plasa de siguranta pentru joburi nedrenate |
 | `notificationOutboxSent` | `{ dedupeKey }` | unique | istoricul de livrari pentru dedup la recovery |
 | `notificationOutboxSent` | `{ sentAt }` | TTL `NOTIFICATION_OUTBOX_SENT_TTL_HOURS` (implicit 24h) | expirarea istoricului de dedup |
-| `notificationHistory` | `{ guildId, sentAt }` | TTL `NOTIFICATION_HISTORY_TTL_DAYS` (implicit 30 zile) | istoricul notificarilor trimise per server, pentru comanda `/history` |
+| `notificationHistory` | `{ guildId, sentAt }` | TTL `NOTIFICATION_HISTORY_TTL_DAYS` (implicit 30 zile) | istoricul notificarilor livrate efectiv per server, pentru comanda `/history`; scris dupa send-ul real (cu outbox: la livrarea din coada, nu la enqueue) |
 | `feedbackReports` | `{ guildId, createdAt }` | TTL `FEEDBACK_REPORT_TTL_DAYS` (implicit 90 zile) | rapoartele trimise de utilizatori prin comanda `/report` |
 | `notificationDeadLetterReplay` | `{ updatedAt }` | TTL `NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS` (implicit 7 zile) | expira payload-ul de replay; `updatedAt` se reimprospateaza la fiecare re-record, deci TTL se masoara de la ultimul dead-letter |
 | `notificationDeadLetterReplay` | `{ guildId, createdAt }` | — | listare FIFO a payload-urilor de replay per server (`/outbox replay-deadletters`) |

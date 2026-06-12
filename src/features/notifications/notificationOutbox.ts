@@ -4,6 +4,13 @@ const { createHash } = require("crypto");
 
 export type OutboxKind = "update" | "discount";
 
+export interface OutboxHistoryEntry {
+  kind: OutboxKind;
+  gameKey?: string;
+  title?: string;
+  link?: string;
+}
+
 export interface OutboxJob {
   _id?: unknown;
   guildId: string;
@@ -14,6 +21,7 @@ export interface OutboxJob {
   deliveries?: number;
   dedupeKey?: string;
   recoveryVerify?: boolean;
+  history?: OutboxHistoryEntry[];
   createdAt?: Date;
   availableAt?: Date;
 }
@@ -91,6 +99,7 @@ export type DeliverResult =
 export interface DrainOutboxOptions {
   deliver: (job: OutboxJob) => Promise<DeliverResult>;
   recordDeadLetter: (job: OutboxJob, reason: string) => Promise<void>;
+  recordSentHistory?: (guildId: string, entries: OutboxHistoryEntry[]) => Promise<void>;
   maxAttempts: number;
   backoffMs: number;
   limit: number;
@@ -117,7 +126,7 @@ export interface DrainOutboxResult {
 }
 
 export interface OutboxRuntime {
-  enqueueOutbox(job: { guildId: string; channelId: string; kind: OutboxKind; payload: unknown; recoveryVerify?: boolean }): Promise<void>;
+  enqueueOutbox(job: { guildId: string; channelId: string; kind: OutboxKind; payload: unknown; recoveryVerify?: boolean; history?: OutboxHistoryEntry[] }): Promise<void>;
   drainOutbox(options: DrainOutboxOptions): Promise<DrainOutboxResult>;
 }
 
@@ -130,7 +139,7 @@ function backoffWithJitter(baseMs: number, attempts: number): number {
 }
 
 export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutboxSentModel, withMongoRetry, logger }: OutboxRuntimeDeps): OutboxRuntime {
-  async function enqueueOutbox(job: { guildId: string; channelId: string; kind: OutboxKind; payload: unknown; recoveryVerify?: boolean }): Promise<void> {
+  async function enqueueOutbox(job: { guildId: string; channelId: string; kind: OutboxKind; payload: unknown; recoveryVerify?: boolean; history?: OutboxHistoryEntry[] }): Promise<void> {
     const dedupeKey = dedupeKeyFor(job);
     const alreadySent = await NotificationOutboxSentModel.exists({ dedupeKey }).catch(() => null);
     if (alreadySent) return;
@@ -144,6 +153,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         attempts: 0,
         dedupeKey,
         recoveryVerify: job.recoveryVerify,
+        history: job.history || [],
         createdAt: at,
         availableAt: at
       }), { label: "enqueueOutbox" });
@@ -243,6 +253,9 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         if (result.recoveryDuplicate) recoveryDuplicates++;
         if (result.recoveryFailed) recoveryFailures++;
         if (result.recoveryMarkerMissing) recoveryMarkerMissing++;
+        if (options.recordSentHistory && Array.isArray(job.history) && job.history.length) {
+          await options.recordSentHistory(job.guildId, job.history).catch(() => undefined);
+        }
         if (job.dedupeKey && !(await markSent(job.dedupeKey))) {
           markSentFailures++;
           await options.recordDeadLetter(job, "delivered-marksent-failed").catch(() => undefined);

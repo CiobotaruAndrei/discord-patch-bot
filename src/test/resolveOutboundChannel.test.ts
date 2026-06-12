@@ -180,7 +180,86 @@ test("resolveOutboundChannel: cu outbox activ, send enqueue-uieste in loc sa tri
   await channel.send({ embeds: [{ t: 1 }] });
   assert.equal(directSends, 0, "nu trimite direct cand outbox e activ");
   assert.equal(enqueued.length, 1, "send-ul enqueue-uieste un job");
-  assert.deepEqual(enqueued[0], { guildId: "guild-9", channelId: "channel-9", kind: "discount", payload: { embeds: [{ t: 1 }] }, recoveryVerify: true });
+  assert.deepEqual(enqueued[0], { guildId: "guild-9", channelId: "channel-9", kind: "discount", payload: { embeds: [{ t: 1 }] }, recoveryVerify: true, history: undefined });
+});
+
+test("resolveOutboundChannel: pe calea rate-limited, istoricul se scrie dupa send-ul real", async () => {
+  const order: string[] = [];
+  const recorded: Array<{ guildId: string; entries: unknown }> = [];
+  const recordSentHistory = async (guildId: string, entries: Array<{ kind: "update" | "discount"; gameKey?: string; title?: string; link?: string }>) => {
+    order.push("history");
+    recorded.push({ guildId, entries });
+  };
+  const { resolveOutboundChannel } = buildResolver({ canSendEmbeds: () => true, acquireSendSlot: async () => { order.push("acquire"); }, recordSentHistory });
+  const { fn: disableFn } = makeDisableFnStub();
+  const fakeChannel = { id: "channel-10", isTextBased: () => true, send: async () => { order.push("send"); return { id: "msg" }; } };
+  const client = makeClient(fakeChannel);
+
+  const result = await resolveOutboundChannel({
+    client,
+    guild: { _id: "guild-10" },
+    channelId: "channel-10",
+    context: "TEST_HISTORY",
+    disableFn
+  });
+
+  assert.equal(result.abort, false);
+  const channel = result.channel as { send: (payload: unknown, meta?: { historyEntries?: unknown[] }) => Promise<unknown> };
+  await channel.send({ embeds: [] }, { historyEntries: [{ kind: "update", gameKey: "g1", title: "T", link: "L" }] });
+  assert.deepEqual(order, ["acquire", "send", "history"], "istoricul se scrie abia dupa send-ul real catre Discord");
+  assert.equal(recorded.length, 1);
+  assert.equal(recorded[0].guildId, "guild-10");
+  assert.deepEqual(recorded[0].entries, [{ kind: "update", gameKey: "g1", title: "T", link: "L" }]);
+
+  await channel.send({ embeds: [] });
+  assert.equal(recorded.length, 1, "fara meta.historyEntries nu se scrie istoric");
+});
+
+test("resolveOutboundChannel: esecul scrierii istoricului nu strica send-ul real", async () => {
+  const recordSentHistory = async () => { throw new Error("mongo down"); };
+  const { resolveOutboundChannel } = buildResolver({ canSendEmbeds: () => true, acquireSendSlot: async () => undefined, recordSentHistory });
+  const { fn: disableFn } = makeDisableFnStub();
+  const fakeChannel = { id: "channel-11", isTextBased: () => true, send: async () => ({ id: "msg-11" }) };
+  const client = makeClient(fakeChannel);
+
+  const result = await resolveOutboundChannel({
+    client,
+    guild: { _id: "guild-11" },
+    channelId: "channel-11",
+    context: "TEST_HISTORY_FAIL",
+    disableFn
+  });
+
+  const channel = result.channel as { send: (payload: unknown, meta?: { historyEntries?: unknown[] }) => Promise<unknown> };
+  const sent = await channel.send({ embeds: [] }, { historyEntries: [{ kind: "discount", title: "T" }] }) as { id: string };
+  assert.equal(sent.id, "msg-11", "send-ul reuseste chiar daca scrierea istoricului esueaza");
+});
+
+test("resolveOutboundChannel: cu outbox activ, meta.historyEntries ajunge pe job.history fara scriere directa", async () => {
+  const enqueued: Array<{ history?: unknown }> = [];
+  const enqueueOutbox = async (job: { guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; recoveryVerify?: boolean; history?: unknown }) => {
+    enqueued.push(job);
+  };
+  const recorded: unknown[] = [];
+  const recordSentHistory = async (guildId: string, entries: unknown) => { recorded.push({ guildId, entries }); };
+  const { resolveOutboundChannel } = buildResolver({ canSendEmbeds: () => true, enqueueOutbox, recordSentHistory });
+  const { fn: disableFn } = makeDisableFnStub();
+  const fakeChannel = { id: "channel-12", isTextBased: () => true, send: async () => ({ id: "msg" }) };
+  const client = makeClient(fakeChannel);
+
+  const result = await resolveOutboundChannel({
+    client,
+    guild: { _id: "guild-12" },
+    channelId: "channel-12",
+    context: "CRON_UPDATES",
+    disableFn
+  });
+
+  const channel = result.channel as { send: (payload: unknown, meta?: { historyEntries?: unknown[] }) => Promise<unknown> };
+  await channel.send({ embeds: [] }, { historyEntries: [{ kind: "update", gameKey: "g2", title: "T2", link: "L2" }] });
+  assert.equal(enqueued.length, 1);
+  assert.deepEqual(enqueued[0].history, [{ kind: "update", gameKey: "g2", title: "T2", link: "L2" }]);
+  assert.equal(recorded.length, 0, "la enqueue nu se scrie istoric; scrierea se face la livrarea din coada");
 });
 
 test("isPermanentDiscordError recognizes all four permanent codes", () => {

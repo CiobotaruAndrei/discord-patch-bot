@@ -32,7 +32,7 @@ La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun ve
 - `/latest` - afiseaza ultimele update-uri cunoscute.
 - `/dlc` - afiseaza DLC-uri cunoscute.
 - `/status` - afiseaza starea botului pentru server.
-- `/history <tip> <numar>` - afiseaza ultimele notificari (update-uri/reduceri) trimise pe acest server, cu link si timestamp relativ; raspuns ephemeral.
+- `/history <tip> <numar>` - afiseaza ultimele notificari (update-uri/reduceri) livrate efectiv pe acest server, cu link si timestamp relativ; raspuns ephemeral. Istoricul se scrie dupa send-ul real catre Discord; cu outbox-ul activ, intrarile calatoresc pe job si se scriu abia cand worker-ul livreaza mesajul din coada (nu la enqueue), deci o notificare aflata inca in coada sau esuata nu apare in `/history`.
 - `/report <tip> <detalii> <joc>` - raporteaza o problema (update gresit, duplicat, joc lipsa, sursa stricata); raportul e salvat si trimis administratorilor.
 - `/health` - starea botului (Discord, MongoDB, cache, uptime); raspuns ephemeral. Pentru metrici detaliate (surse, coada outbox, cron) vezi endpoint-ul de metrics.
 - `/help` - afiseaza paginile de ajutor.
