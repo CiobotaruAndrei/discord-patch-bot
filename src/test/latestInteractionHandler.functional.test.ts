@@ -144,6 +144,19 @@ test("/latest reduceri: fetch live picat + snapshot proaspat -> ofertele vin din
   assert.ok(second.some(p => String(p).includes("snapshot")), "si al doilea request vede banner-ul, nu un fals OK din cache");
 });
 
+test("/latest reduceri: backoff negativ - dupa un esec live, urmatorul request nu mai loveste sursele, merge direct pe snapshot (review #17.4)", async () => {
+  let fetchCalls = 0;
+  const { context, safeEditPayloads } = makeContext({
+    fetchDeals: async () => { fetchCalls++; throw new Error("magazine picate"); },
+    loadFetchSnapshot: async () => ({ payload: [makeDealInfo()], fetchedAt: new Date(Date.now() - 5 * 60000) })
+  });
+  await context.handleInteraction(makeInteraction({ sub: "reduceri" }), []);
+  await context.handleInteraction(makeInteraction({ sub: "reduceri" }), []);
+  assert.equal(fetchCalls, 1, "al doilea request in fereastra de backoff nu mai incearca fetch-ul live (sursele externe nu sunt lovite sub outage)");
+  const banners = safeEditPayloads.filter(p => String(p).includes("snapshot"));
+  assert.ok(banners.length >= 2, "ambele request-uri vad banner-ul de snapshot");
+});
+
 test("/latest reduceri: snapshot corupt (itemi care nu trec validatorul) -> eroarea explicita, nu render pe date invalide (review #15.2)", async () => {
   const { context, safeEditPayloads } = makeContext({
     fetchDeals: async () => { throw new Error("ambele magazine picate"); },

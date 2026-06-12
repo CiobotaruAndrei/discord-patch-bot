@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { makeNotificationDiscordClient } from "./typedTestBuilders";
+import { makeDealInfo, makeNotificationDiscordClient } from "./typedTestBuilders";
+const realUtilities = require("../shared/utilities") as { validatePendingDiscountSnapshot: (snapshot: unknown) => boolean; validateUpdateFetchSnapshot: (item: unknown) => boolean };
 const noopDiscordClient = makeNotificationDiscordClient();
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
@@ -90,12 +91,12 @@ test("UpdateService.checkForUpdates persista snapshot-ul 'updates' dupa fetch (l
     persistFetchSnapshot: async (id: string, payload: unknown) => { persistCalls.push({ id, payload }); }
   } as unknown as UpdateDeps;
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }, { key: "fortnite" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }, { key: "fortnite", name: "Fortnite" }]);
   assert.equal(persistCalls.length, 1, "exact un snapshot persistat");
   assert.equal(persistCalls[0].id, "updates");
   assert.deepEqual(persistCalls[0].payload, [
-    { game: { key: "cs2" }, latest: { id: "u-cs2" } },
-    { game: { key: "fortnite" }, latest: { id: "u-fortnite" } }
+    { game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2" } },
+    { game: { key: "fortnite", name: "Fortnite" }, latest: { id: "u-fortnite" } }
   ]);
 });
 
@@ -149,10 +150,11 @@ test("UpdateService.checkForUpdates: fetch esuat foloseste snapshot-ul din event
     resolveOutboundChannel: async () => { resolveCalls++; return { channel: { id: "channel-1", send: async () => ({}) }, abort: true }; },
     transientErrorMessage: messageOf,
     getLatestForAllGames: async () => { throw new Error("fetch down"); },
-    loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2" }, latest: { id: "u-cs2" } }], fetchedAt: new Date() })
+    validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
+    loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2" } }], fetchedAt: new Date() })
   } as unknown as UpdateDeps;
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }]);
   assert.equal(resolveCalls, 1, "dispatch-ul a continuat de pe snapshot dupa esecul fetch-ului");
 });
 
@@ -166,10 +168,11 @@ test("UpdateService.checkForUpdates: fetch esuat fara snapshot arunca (fara disp
     resolveOutboundChannel: async () => { resolveCalls++; return { channel: { id: "channel-1", send: async () => ({}) }, abort: true }; },
     transientErrorMessage: messageOf,
     getLatestForAllGames: async () => { throw new Error("fetch down"); },
+    validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
     loadFetchSnapshot: async () => null
   } as unknown as UpdateDeps;
   const svc = createUpdateNotificationService(deps);
-  await assert.rejects(() => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }]), /snapshot de rezerva proaspat.*fetch down/);
+  await assert.rejects(() => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }]), /snapshot de rezerva proaspat.*fetch down/);
   assert.equal(resolveCalls, 0, "fara snapshot, ciclul se opreste inainte de dispatch");
 });
 
@@ -185,7 +188,8 @@ test("DiscountService.checkForDiscounts: fetch esuat foloseste snapshot-ul de re
     normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     getDealsCacheData: () => null,
     fetchDeals: async () => { throw new Error("deals down"); },
-    loadFetchSnapshot: async () => ({ payload: [{ id: "d1" }], fetchedAt: new Date() }),
+    validatePendingDiscountSnapshot: realUtilities.validatePendingDiscountSnapshot,
+    loadFetchSnapshot: async () => ({ payload: [makeDealInfo({ id: "d1" })], fetchedAt: new Date() }),
     DEFAULT_CURRENCY: "USD",
     GUILD_PROCESS_CONCURRENCY: 1
   } as unknown as DiscountDeps;
@@ -206,6 +210,7 @@ test("DiscountService.checkForDiscounts: fetch esuat fara snapshot sare guild-ul
     normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     getDealsCacheData: () => null,
     fetchDeals: async () => { throw new Error("deals down"); },
+    validatePendingDiscountSnapshot: realUtilities.validatePendingDiscountSnapshot,
     loadFetchSnapshot: async () => null,
     DEFAULT_CURRENCY: "USD",
     GUILD_PROCESS_CONCURRENCY: 1
@@ -213,6 +218,46 @@ test("DiscountService.checkForDiscounts: fetch esuat fara snapshot sare guild-ul
   const svc = createDiscountNotificationService(deps);
   await assert.rejects(() => svc.checkForDiscounts(noopDiscordClient), /toate cele 1 guild-uri abonate.*deals down/);
   assert.equal(resolveCalls, 0, "fara snapshot, niciun dispatch");
+});
+
+test("UpdateService.checkForUpdates: snapshot proaspat dar CORUPT nu trece de validator -> fara dispatch (review #17.1)", async () => {
+  let resolveCalls = 0;
+  const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seen: {}, pendingUpdates: {}, enabledGames: [] };
+  const deps = {
+    GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
+    logger: () => undefined,
+    runConcurrent: runConcurrentSafe,
+    resolveOutboundChannel: async () => { resolveCalls++; return { channel: { id: "channel-1", send: async () => ({}) }, abort: true }; },
+    transientErrorMessage: messageOf,
+    getLatestForAllGames: async () => { throw new Error("fetch down"); },
+    validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
+    loadFetchSnapshot: async () => ({ payload: [{ bogus: true }, 42, { game: { key: "cs2" } }], fetchedAt: new Date() })
+  } as unknown as UpdateDeps;
+  const svc = createUpdateNotificationService(deps);
+  await assert.rejects(() => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }]), /snapshot de rezerva proaspat/);
+  assert.equal(resolveCalls, 0, "snapshot corupt = fallback invalid, niciun dispatch pe date neverificate");
+});
+
+test("DiscountService.checkForDiscounts: snapshot proaspat dar CORUPT (itemii nu trec validatorul DealInfo) -> fara dispatch (review #17.1)", async () => {
+  let resolveCalls = 0;
+  const guild = { _id: "g1", discountsSubscribed: true, discountChannelId: "channel-d", seenDiscounts: [], pendingDiscounts: [], currency: "USD" };
+  const deps = {
+    GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
+    logger: () => undefined,
+    runConcurrent: runConcurrentSafe,
+    resolveOutboundChannel: async () => { resolveCalls++; return { channel: { id: "channel-d", send: async () => ({}) }, abort: true }; },
+    transientErrorMessage: messageOf,
+    normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
+    getDealsCacheData: () => null,
+    fetchDeals: async () => { throw new Error("deals down"); },
+    validatePendingDiscountSnapshot: realUtilities.validatePendingDiscountSnapshot,
+    loadFetchSnapshot: async () => ({ payload: [{ id: "doar-id-fara-restul" }, null, "text"], fetchedAt: new Date() }),
+    DEFAULT_CURRENCY: "USD",
+    GUILD_PROCESS_CONCURRENCY: 1
+  } as unknown as DiscountDeps;
+  const svc = createDiscountNotificationService(deps);
+  await assert.rejects(() => svc.checkForDiscounts(noopDiscordClient), /deals down/);
+  assert.equal(resolveCalls, 0, "snapshot corupt = fallback invalid, niciun dispatch pe date neverificate");
 });
 
 const STALE_FETCHED_AT = new Date(Date.now() - 61 * 60 * 1000);
@@ -227,10 +272,11 @@ test("UpdateService.checkForUpdates: snapshot vechi (>60min) NU este folosit ca 
     resolveOutboundChannel: async () => { resolveCalls++; return { channel: { id: "channel-1", send: async () => ({}) }, abort: true }; },
     transientErrorMessage: messageOf,
     getLatestForAllGames: async () => { throw new Error("fetch down"); },
-    loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2" }, latest: { id: "u-cs2" } }], fetchedAt: STALE_FETCHED_AT })
+    validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
+    loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2" } }], fetchedAt: STALE_FETCHED_AT })
   } as unknown as UpdateDeps;
   const svc = createUpdateNotificationService(deps);
-  await assert.rejects(() => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }]), /snapshot de rezerva proaspat/);
+  await assert.rejects(() => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }]), /snapshot de rezerva proaspat/);
   assert.equal(resolveCalls, 0, "snapshot expirat -> ciclul se opreste, fara dispatch pe date vechi");
 });
 
@@ -246,7 +292,8 @@ test("DiscountService.checkForDiscounts: snapshot vechi (>60min) NU este folosit
     normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     getDealsCacheData: () => null,
     fetchDeals: async () => { throw new Error("deals down"); },
-    loadFetchSnapshot: async () => ({ payload: [{ id: "d1" }], fetchedAt: STALE_FETCHED_AT }),
+    validatePendingDiscountSnapshot: realUtilities.validatePendingDiscountSnapshot,
+    loadFetchSnapshot: async () => ({ payload: [makeDealInfo({ id: "d1" })], fetchedAt: STALE_FETCHED_AT }),
     DEFAULT_CURRENCY: "USD",
     GUILD_PROCESS_CONCURRENCY: 1
   } as unknown as DiscountDeps;

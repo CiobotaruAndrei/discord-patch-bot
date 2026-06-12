@@ -25,6 +25,7 @@ interface UtilitiesContext {
   runConcurrent?: typeof runConcurrent;
   waitForMongoReady?: typeof waitForMongoReady;
   validatePendingDiscountSnapshot?: typeof validatePendingDiscountSnapshot;
+  validateUpdateFetchSnapshot?: typeof validateUpdateFetchSnapshot;
   isTransientMongoError?: typeof isTransientMongoError;
   withMongoRetry?: typeof withMongoRetry;
 }
@@ -99,6 +100,18 @@ async function waitForMongoReady(timeoutMs = 10000): Promise<boolean> {
       resolved = true; cleanup(); resolve(true);
     }
   });
+}
+
+function validateUpdateFetchSnapshot(item: unknown): item is { game: { key: string; name: string }; latest: { id: string } | null } {
+  if (!item || typeof item !== "object") return false;
+  const entry = item as { game?: { key?: unknown; name?: unknown } | null; latest?: unknown };
+  if (!entry.game || typeof entry.game !== "object") return false;
+  if (typeof entry.game.key !== "string" || !entry.game.key) return false;
+  if (typeof entry.game.name !== "string") return false;
+  if (entry.latest === null) return true;
+  if (!entry.latest || typeof entry.latest !== "object") return false;
+  const id = (entry.latest as { id?: unknown }).id;
+  return typeof id === "string" && !!id;
 }
 
 function validatePendingDiscountSnapshot(snapshot: unknown): snapshot is DealInfo {
@@ -182,6 +195,7 @@ function attachUtilities(target: UtilitiesContext): void {
     runConcurrent,
     waitForMongoReady,
     validatePendingDiscountSnapshot,
+    validateUpdateFetchSnapshot,
     isTransientMongoError,
     withMongoRetry
   });
@@ -189,6 +203,7 @@ function attachUtilities(target: UtilitiesContext): void {
 
 Object.assign(attachUtilities, {
   validatePendingDiscountSnapshot,
+  validateUpdateFetchSnapshot,
   isTransientMongoError
 });
 

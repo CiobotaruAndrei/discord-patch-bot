@@ -26,6 +26,7 @@ type MongoRuntimeContext = {
   runConcurrent: <T>(items: T[], concurrency: number, fn: (item: T, index: number) => void | Promise<void>, options?: unknown) => Promise<unknown>;
   waitForMongoReady: (timeoutMs?: number) => Promise<boolean>;
   validatePendingDiscountSnapshot: (snapshot: unknown) => boolean;
+  validateUpdateFetchSnapshot: (item: unknown) => boolean;
   isTransientMongoError: (err: unknown) => boolean;
   withMongoRetry: <T>(fn: () => Promise<T>, ...rest: unknown[]) => Promise<T>;
   GuildModel: Model<GuildDoc>;
@@ -94,6 +95,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     runConcurrent: context.runConcurrent,
     waitForMongoReady: context.waitForMongoReady,
     validatePendingDiscountSnapshot: context.validatePendingDiscountSnapshot,
+    validateUpdateFetchSnapshot: context.validateUpdateFetchSnapshot,
     isTransientMongoError: context.isTransientMongoError,
     withMongoRetry: context.withMongoRetry,
     GuildModel: context.GuildModel,

@@ -15,6 +15,7 @@ type TestGame = { key: string; name?: string };
 type TestDeal = { id: string; title?: string };
 type SentPayload = { embeds?: unknown; content?: string };
 import { makeNotificationDiscordClient } from "./typedTestBuilders";
+const realUtilities = require("../shared/utilities") as { validateUpdateFetchSnapshot: (item: unknown) => boolean };
 const noopDiscordClient = makeNotificationDiscordClient();
 type SentMeta = { historyEntries?: Array<{ kind: string; gameKey?: string; title?: string; link?: string }> } | undefined;
 
@@ -81,6 +82,7 @@ function makeUpdateDeps(overrides: Record<string, unknown> = {}) {
     },
     mapToObject: (m: Map<string, unknown>) => Object.fromEntries(m.entries()),
     getLatestForAllGames: async (games: TestGame[]) => games.map(game => ({ game, latest: { id: `u-${game.key}` } })),
+    validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
     setUpdatesCache: () => undefined,
     buildUpdateEmbed: (name: string) => ({ title: name }),
     sleepIfPositive: async () => undefined,
@@ -110,7 +112,7 @@ test("UpdateService: buildOptimizedGameList filtreaza la jocurile active pe maca
 test("UpdateService: buildOptimizedGameList returneaza toata lista cand un guild are filter gol", () => {
   const { deps } = makeUpdateDeps();
   const svc = createUpdateNotificationService(deps);
-  const games = [{ key: "cs2" }, { key: "fortnite" }];
+  const games = [{ key: "cs2", name: "CS2" }, { key: "fortnite", name: "Fortnite" }];
   const guilds = [
     { enabledGames: ["cs2"] },
     { enabledGames: [] }
@@ -126,7 +128,7 @@ test("UpdateService: checkForUpdates scrie cache cand lista nu e filtrata (full 
     setUpdatesCache: () => { cacheWrites++; }
   });
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }, { key: "fortnite" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }, { key: "fortnite", name: "Fortnite" }]);
   assert.equal(cacheWrites, 1, "lista completa → cache scris exact o data");
 });
 
@@ -138,7 +140,7 @@ test("UpdateService: checkForUpdates NU scrie cache cand lista e filtrata (subse
     setUpdatesCache: () => { cacheWrites++; }
   });
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }, { key: "fortnite" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }, { key: "fortnite", name: "Fortnite" }]);
   assert.equal(cacheWrites, 0, "subset filtrat → cache global nu trebuie scris (ar fi partial)");
 });
 
@@ -565,7 +567,7 @@ test("UpdateService: fetch esuat FARA snapshot proaspat -> checkForUpdates arunc
   });
   const svc = createUpdateNotificationService(deps);
   await assert.rejects(
-    () => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }]),
+    () => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }]),
     /snapshot de rezerva proaspat.*ECONNRESET total/,
     "regresie: functia facea return dupa logger.ERROR -> promisiunea se rezolva si cron-ul marca ciclul drept sanatos"
   );
@@ -576,10 +578,10 @@ test("UpdateService: fetch esuat CU snapshot proaspat -> checkForUpdates NU arun
   const { deps } = makeUpdateDeps({
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }) },
     getLatestForAllGames: async () => { throw new Error("ECONNRESET total"); },
-    loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2" }, latest: { id: "u-cs2" } }], fetchedAt: new Date() })
+    loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2" } }], fetchedAt: new Date() })
   });
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }]);
 });
 
 test("UpdateService: TOATE guild-urile esueaza la procesare -> checkForUpdates arunca", async () => {
@@ -590,7 +592,7 @@ test("UpdateService: TOATE guild-urile esueaza la procesare -> checkForUpdates a
   });
   const svc = createUpdateNotificationService(deps);
   await assert.rejects(
-    () => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }]),
+    () => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }]),
     /toate cele 1 guild-uri abonate.*Discord indisponibil/
   );
 });
@@ -608,7 +610,7 @@ test("UpdateService: esec PARTIAL pe guild-uri -> checkForUpdates NU arunca (deg
     }
   });
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }]);
 });
 
 test("DiscountService: fetchDeals esueaza pentru toate monedele fara snapshot -> checkForDiscounts arunca (review #2)", async () => {
@@ -660,7 +662,7 @@ test("UpdateService: toate jocurile cu latest null + erori reale -> ciclu esuat,
   ]);
   const svc = createUpdateNotificationService(deps);
   await assert.rejects(
-    () => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }, { key: "dota2" }]),
+    () => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }, { key: "dota2", name: "Dota2" }]),
     /latest: null.*2 cu erori reale.*snapshot de rezerva proaspat|snapshot de rezerva proaspat.*latest: null/,
     "regresie: erorile per-joc deveneau { latest: null, error } iar serviciul trata rezultatul ca fetch reusit"
   );
@@ -669,10 +671,10 @@ test("UpdateService: toate jocurile cu latest null + erori reale -> ciclu esuat,
 
 test("UpdateService: toate null + erori reale, dar CU snapshot proaspat -> dispatch din snapshot, fara persist", async () => {
   const { deps, persistCalls } = makeAllNullDeps([{ key: "cs2", error: "ECONNRESET" }], {
-    loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2" }, latest: { id: "u-cs2" } }], fetchedAt: new Date() })
+    loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2" } }], fetchedAt: new Date() })
   });
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }]);
   assert.deepEqual(persistCalls, [], "nici pe calea de fallback nu se persista rezultatul all-null");
 });
 
@@ -682,7 +684,7 @@ test("UpdateService: toate null doar din abort -> NU e tratat ca sursa rupta (fa
     { key: "dota2", error: "abort" }
   ]);
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }, { key: "dota2" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }, { key: "dota2", name: "Dota2" }]);
   assert.deepEqual(persistCalls, [], "rezultatul all-null de la abort nu suprascrie snapshot-ul bun");
 });
 
@@ -692,6 +694,6 @@ test("UpdateService: esec partial (un joc cu date, unul cu eroare) -> ciclu OK s
     { key: "dota2", error: "ECONNRESET" }
   ]);
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }, { key: "dota2" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }, { key: "dota2", name: "Dota2" }]);
   assert.deepEqual(persistCalls, ["updates"], "cu macar un rezultat real, snapshot-ul se persista ca pana acum");
 });
