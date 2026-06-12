@@ -1,4 +1,5 @@
 import type { NotificationDiscordClient, OutboxDiscordClient } from "../features/notifications/outboundChannel";
+import type { DealInfo } from "../types";
 import type { GuildDoc } from "../infra/mongo/modelTypes";
 import type { SourceRegistryApi } from "../sources/sourceRegistry";
 
@@ -14,6 +15,19 @@ export function makeOutboxDiscordClient(overrides: Partial<OutboxDiscordClient> 
   return {
     isReady: () => true,
     ...makeNotificationDiscordClient(),
+    ...overrides
+  };
+}
+
+export function makeDealInfo(overrides: Partial<DealInfo> = {}): DealInfo {
+  return {
+    id: "deal-1",
+    title: "Snap Deal",
+    store: "Steam",
+    link: "https://example.com/deal",
+    salePrice: "10.00",
+    normalPrice: "20.00",
+    savings: 50,
     ...overrides
   };
 }
