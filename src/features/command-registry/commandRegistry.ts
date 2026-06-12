@@ -23,7 +23,6 @@ interface CommandRegistryContext {
   clearFindGameCache?: RegistryFunction;
   formatUserError?: (err: unknown, fallback: string, code?: string) => string;
   canSendEmbeds?: (channel: unknown, botId: string) => boolean;
-  [key: string]: unknown;
 }
 
 type RequiredCommandRegistryKey =
@@ -50,32 +49,55 @@ type RequiredCommandRegistry = {
   [K in RequiredCommandRegistryKey]: NonNullable<CommandRegistryContext[K]>;
 };
 
+import attachCommandCache = require("../command-cache/commandCache");
+import attachDealFilters = require("../../domain/deals/filters");
+import attachCommandPresentation = require("../command-presentation/commandPresentation");
+import attachNotifications = require("../notifications");
+import attachFeedbackRepository = require("../feedback/feedbackRepository");
+import attachSlashCommandDefinitions = require("../command-definitions/slashCommandDefinitions");
+import attachFallbackInteractionHandler = require("../command-handlers/fallbackInteractionHandler");
+import attachSimpleCommandsHandler = require("../command-handlers/simpleCommandsHandler");
+import attachHelpInteractionHandler = require("../command-handlers/helpInteractionHandler");
+import attachSubscriptionNotificationHandlers = require("../command-handlers/subscriptionNotificationHandlers");
+import attachGameFilterHandlers = require("../command-handlers/gameFilterHandlers");
+import attachRolePingHandlers = require("../command-handlers/rolePingHandlers");
+import attachSetInteractionHandler = require("../command-handlers/setInteractionHandler");
+import attachOutboxAdminHandler = require("../command-handlers/outboxAdminHandler");
+import attachLatestInteractionHandler = require("../command-handlers/latestInteractionHandler");
+import attachStatusInteractionHandler = require("../command-handlers/statusInteractionHandler");
+import attachHistoryInteractionHandler = require("../command-handlers/historyInteractionHandler");
+import attachReportInteractionHandler = require("../command-handlers/reportInteractionHandler");
+import attachHealthInteractionHandler = require("../command-handlers/healthInteractionHandler");
+import attachDlcInteractionHandler = require("../command-handlers/dlcInteractionHandler");
+import attachAutocompleteInteractionHandler = require("../command-handlers/autocompleteInteractionHandler");
+import attachAdminCommandRouterGuard = require("../command-security/adminCommandRouterGuard");
+
 const { createCommandRuntimeContext } = require("../command-runtime/commandRuntimeContext") as {
   createCommandRuntimeContext: () => CommandRegistryContext;
 };
 const defaultInstallers: CommandModuleInstaller[] = [
-  require("../command-cache/commandCache") as CommandModuleInstaller,
-  require("../../domain/deals/filters") as CommandModuleInstaller,
-  require("../command-presentation/commandPresentation") as CommandModuleInstaller,
-  require("../notifications") as CommandModuleInstaller,
-  require("../feedback/feedbackRepository") as CommandModuleInstaller,
-  require("../command-definitions/slashCommandDefinitions") as CommandModuleInstaller,
-  require("../command-handlers/fallbackInteractionHandler") as CommandModuleInstaller,
-  require("../command-handlers/simpleCommandsHandler") as CommandModuleInstaller,
-  require("../command-handlers/helpInteractionHandler") as CommandModuleInstaller,
-  require("../command-handlers/subscriptionNotificationHandlers") as CommandModuleInstaller,
-  require("../command-handlers/gameFilterHandlers") as CommandModuleInstaller,
-  require("../command-handlers/rolePingHandlers") as CommandModuleInstaller,
-  require("../command-handlers/setInteractionHandler") as CommandModuleInstaller,
-  require("../command-handlers/outboxAdminHandler") as CommandModuleInstaller,
-  require("../command-handlers/latestInteractionHandler") as CommandModuleInstaller,
-  require("../command-handlers/statusInteractionHandler") as CommandModuleInstaller,
-  require("../command-handlers/historyInteractionHandler") as CommandModuleInstaller,
-  require("../command-handlers/reportInteractionHandler") as CommandModuleInstaller,
-  require("../command-handlers/healthInteractionHandler") as CommandModuleInstaller,
-  require("../command-handlers/dlcInteractionHandler") as CommandModuleInstaller,
-  require("../command-handlers/autocompleteInteractionHandler") as CommandModuleInstaller,
-  require("../command-security/adminCommandRouterGuard") as CommandModuleInstaller
+  attachCommandCache as unknown as CommandModuleInstaller,
+  attachDealFilters as unknown as CommandModuleInstaller,
+  attachCommandPresentation as unknown as CommandModuleInstaller,
+  attachNotifications as unknown as CommandModuleInstaller,
+  attachFeedbackRepository as unknown as CommandModuleInstaller,
+  attachSlashCommandDefinitions as unknown as CommandModuleInstaller,
+  attachFallbackInteractionHandler as unknown as CommandModuleInstaller,
+  attachSimpleCommandsHandler as unknown as CommandModuleInstaller,
+  attachHelpInteractionHandler as unknown as CommandModuleInstaller,
+  attachSubscriptionNotificationHandlers as unknown as CommandModuleInstaller,
+  attachGameFilterHandlers as unknown as CommandModuleInstaller,
+  attachRolePingHandlers as unknown as CommandModuleInstaller,
+  attachSetInteractionHandler as unknown as CommandModuleInstaller,
+  attachOutboxAdminHandler as unknown as CommandModuleInstaller,
+  attachLatestInteractionHandler as unknown as CommandModuleInstaller,
+  attachStatusInteractionHandler as unknown as CommandModuleInstaller,
+  attachHistoryInteractionHandler as unknown as CommandModuleInstaller,
+  attachReportInteractionHandler as unknown as CommandModuleInstaller,
+  attachHealthInteractionHandler as unknown as CommandModuleInstaller,
+  attachDlcInteractionHandler as unknown as CommandModuleInstaller,
+  attachAutocompleteInteractionHandler as unknown as CommandModuleInstaller,
+  attachAdminCommandRouterGuard as unknown as CommandModuleInstaller
 ];
 
 function installCommandModules(

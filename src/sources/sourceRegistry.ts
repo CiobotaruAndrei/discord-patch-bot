@@ -42,12 +42,17 @@ type SourceContext = SourceRegistryApi;
 
 type SourceInstaller = (target: SourceContext) => void;
 
+import attachHttpClient = require("../infra/http/client");
+import attachSteam = require("./steam");
+import attachUpdates = require("./updates");
+import attachDeals = require("./deals");
+
 const runtimeContext = require("./runtime") as SourceContext;
 const defaultInstallers: SourceInstaller[] = [
-  require("../infra/http/client"),
-  require("./steam"),
-  require("./updates"),
-  require("./deals")
+  attachHttpClient as unknown as SourceInstaller,
+  attachSteam as unknown as SourceInstaller,
+  attachUpdates as unknown as SourceInstaller,
+  attachDeals as unknown as SourceInstaller
 ];
 
 function buildSourceRegistry(context: SourceContext): SourceRegistryApi {
