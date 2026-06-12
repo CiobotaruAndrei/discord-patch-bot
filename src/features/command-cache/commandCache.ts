@@ -288,6 +288,7 @@ function canSendEmbeds(channel: unknown, botId: string): boolean {
   if (!isTextChannelLikeValue(channel) || !channel.isTextBased()) return false;
   const perms = channel.permissionsFor(botId);
   return !!perms && perms.has([
+    PermissionsBitField.Flags.ViewChannel,
     PermissionsBitField.Flags.SendMessages,
     PermissionsBitField.Flags.EmbedLinks
   ]);

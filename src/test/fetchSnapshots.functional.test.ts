@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const noopDiscordClient = { channels: { fetch: async () => null } };
+import { makeNotificationDiscordClient } from "./typedTestBuilders";
+const noopDiscordClient = makeNotificationDiscordClient();
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
 import attachFetchSnapshots = require("../infra/mongo/fetchSnapshots");

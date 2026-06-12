@@ -282,6 +282,25 @@ test("resolveOutboundChannel: channelId null inseamna abort fara disable (guild 
     "se logheaza explicit ca guild-ul nu are canal configurat");
 });
 
+test("resolveOutboundChannel: canal cu permisiuni dar FARA functie send -> disable + abort (review #13.2)", async () => {
+  const { resolveOutboundChannel } = buildResolver({ canSendEmbeds: () => true });
+  const { fn: disableFn, calls } = makeDisableFnStub();
+  const nonSendableChannel = { id: "channel-ns", isTextBased: () => true };
+  const client = makeClient(nonSendableChannel);
+
+  const result = await resolveOutboundChannel({
+    client,
+    guild: { _id: "guild-ns" },
+    channelId: "channel-ns",
+    context: "TEST_NON_SENDABLE",
+    disableFn
+  });
+
+  assert.equal(result.abort, true);
+  assert.equal(result.channel, null);
+  assert.equal(calls.length, 1, "canalul fara send e tratat ca invalid (disable), nu castat si lasat sa crape la trimitere");
+});
+
 test("isPermanentDiscordError recognizes all four permanent codes", () => {
   for (const code of [10003, 10004, 50001, 50013]) {
     assert.equal(isPermanentDiscordError({ code }), true, `code ${code} should be permanent`);
