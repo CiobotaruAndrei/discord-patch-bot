@@ -56,6 +56,14 @@ test("selectOnboardingChannel: null cand nu exista botId sau niciun canal trimis
   assert.equal(selectOnboardingChannel(makeGuild({ system: makeChannel("s", false), others: [makeChannel("o", false)] }), "bot", canSend), null);
 });
 
+test("selectOnboardingChannel: canal cu permisiuni dar FARA functie send e sarit (review #13.2)", () => {
+  const noSendSystem = { id: "sys-broken", sendable: true } as unknown as ReturnType<typeof makeChannel>;
+  const good = makeChannel("good", true);
+  const guild = makeGuild({ system: noSendSystem, others: [noSendSystem, good] });
+  assert.equal(selectOnboardingChannel(guild, "bot", canSend), good,
+    "canalul fara send nu mai e castat orbeste; se alege urmatorul canal real trimisibil");
+});
+
 test("handleGuildCreate trimite embed-ul pe canalul ales si logheaza INFO", async () => {
   const sent: unknown[] = [];
   const logs: string[] = [];

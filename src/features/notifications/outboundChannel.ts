@@ -60,8 +60,8 @@ export interface OutboundChannelResolverDeps {
   recordSentHistory?: RecordSentHistory;
 }
 
-function rateLimitedChannel(channel: unknown, guildId: string, acquireSendSlot: () => Promise<void>, recordSentHistory?: RecordSentHistory): OutboundChannel {
-  const raw = channel as { id?: unknown; send: (payload: unknown) => Promise<unknown> };
+function rateLimitedChannel(channel: { id?: unknown; send: (payload: unknown) => Promise<unknown> }, guildId: string, acquireSendSlot: () => Promise<void>, recordSentHistory?: RecordSentHistory): OutboundChannel {
+  const raw = channel;
   return {
     id: String(raw.id ?? ""),
     send: async (payload: unknown, meta?: OutboundSendMeta) => {
@@ -81,6 +81,10 @@ function outboxChannel(channelId: string, guildId: string, kind: "update" | "dis
     send: async (payload: unknown, meta?: OutboundSendMeta) =>
       enqueueOutbox({ guildId, channelId, kind, payload, recoveryVerify, history: meta?.historyEntries })
   };
+}
+
+export function isSendableChannel(channel: unknown): channel is { send: (payload: unknown) => Promise<unknown> } {
+  return !!channel && typeof (channel as { send?: unknown }).send === "function";
 }
 
 export function isPermanentDiscordError(err: unknown): boolean {
@@ -132,7 +136,7 @@ export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSe
       return { channel: null, abort: true };
     }
 
-    if (!canSendEmbeds(channel, botId)) {
+    if (!canSendEmbeds(channel, botId) || !isSendableChannel(channel)) {
       const message = "Canal invalid sau fara permisiuni Send Messages/Embed Links.";
       await disableSafely(disableFn, String(guild._id), channelId, message);
       logger("WARN", context, `${message} Guild ${guild._id}`);

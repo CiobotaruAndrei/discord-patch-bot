@@ -14,7 +14,8 @@ type DiscountDeals = Parameters<DiscountService["processGuildDiscounts"]>[2];
 type TestGame = { key: string; name?: string };
 type TestDeal = { id: string; title?: string };
 type SentPayload = { embeds?: unknown; content?: string };
-const noopDiscordClient = { channels: { fetch: async () => null } };
+import { makeNotificationDiscordClient } from "./typedTestBuilders";
+const noopDiscordClient = makeNotificationDiscordClient();
 type SentMeta = { historyEntries?: Array<{ kind: string; gameKey?: string; title?: string; link?: string }> } | undefined;
 
 function entriesFrom(value: unknown): Array<[string, unknown]> {

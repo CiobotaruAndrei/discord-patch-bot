@@ -1,3 +1,4 @@
+import { isSendableChannel } from "../../features/notifications/outboundChannel";
 "use strict";
 
 type Logger = (level: "INFO" | "WARN" | "ERROR", context: string, message: string, meta?: unknown) => void;
@@ -42,9 +43,9 @@ export function buildOnboardingEmbed(): OnboardingEmbed {
 export function selectOnboardingChannel(guild: OnboardingGuildLike, botId: string, canSend: CanSendEmbeds): SendableChannel | null {
   if (!botId) return null;
   const system = guild.systemChannel;
-  if (system && canSend(system, botId)) return system as SendableChannel;
-  const fallback = guild.channels?.cache?.find?.(channel => canSend(channel, botId));
-  return (fallback as SendableChannel | undefined) || null;
+  if (system && canSend(system, botId) && isSendableChannel(system)) return system;
+  const fallback = guild.channels?.cache?.find?.(channel => canSend(channel, botId) && isSendableChannel(channel));
+  return isSendableChannel(fallback) ? fallback : null;
 }
 
 interface GuildOnboardingDeps {

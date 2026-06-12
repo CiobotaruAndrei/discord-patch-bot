@@ -9,12 +9,9 @@ export interface OutboxDeliveryJob {
 }
 
 import type { OutboxDiscordClient } from "./outboundChannel";
+import { isSendableChannel } from "./outboundChannel";
 
 export type OutboxDeliveryClient = OutboxDiscordClient;
-
-function isSendableChannel(channel: unknown): channel is { send: (payload: unknown) => Promise<unknown> } {
-  return !!channel && typeof (channel as { send?: unknown }).send === "function";
-}
 
 export type OutboxDeliveryResult =
   | { ok: true; recoveryFetched?: boolean; recoveryDuplicate?: boolean; recoveryFailed?: boolean; recoveryMarkerMissing?: boolean }
