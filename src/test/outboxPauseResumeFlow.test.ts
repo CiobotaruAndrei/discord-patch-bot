@@ -44,7 +44,7 @@ test("P2.3: flux pause/resume end-to-end — starea persistata controleaza drena
   let drainCalls = 0;
   const worker = createOutboxWorker({
     mongoose: { connection: { readyState: 1 } },
-    client: { isReady: () => true, channels: { fetch: async () => null } },
+    client: { isReady: () => true, user: { id: "bot-1" }, channels: { fetch: async () => null } },
     logger: () => undefined,
     parseEnvNumber: (_n: string, d: number) => d,
     acquireDbLock: async () => "lock-token",

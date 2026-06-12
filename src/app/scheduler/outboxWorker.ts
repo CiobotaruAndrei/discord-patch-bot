@@ -5,17 +5,15 @@ type ReleaseDbLock = (jobName: string, token: string) => Promise<unknown>;
 type ErrorFormatter = (err: unknown) => string;
 type TimerHandle = ReturnType<typeof setTimeout>;
 
+import type { OutboxDiscordClient } from "../../features/notifications/outboundChannel";
+
 interface MongooseLike {
   connection: {
     readyState: number;
   };
 }
 
-interface DiscordClientLike {
-  isReady(): boolean;
-  user?: { id?: string } | null;
-  channels: { fetch(channelId: string): Promise<unknown> | unknown };
-}
+type DiscordClientLike = OutboxDiscordClient;
 
 interface LifecycleState {
   isShuttingDown: boolean;
@@ -143,7 +141,7 @@ function createOutboxWorker({
 
   async function drainTick(): Promise<void> {
     if (lifecycle.isShuttingDown || draining) return;
-    if (mongoose.connection.readyState !== 1 || !client.isReady()) {
+    if (mongoose.connection.readyState !== 1 || !client.isReady() || !client.user?.id) {
       scheduleNext();
       return;
     }

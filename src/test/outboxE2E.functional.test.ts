@@ -7,6 +7,7 @@ import {
   outboxDedupeMarker
 } from "../features/notifications/notificationOutbox";
 import { createOutboxDelivery } from "../features/notifications/outboxDelivery";
+import type { OutboxDeliveryClient } from "../features/notifications/outboxDelivery";
 
 const { createOutboundChannelResolver } = require("../features/notifications/outboundChannel") as {
   createOutboundChannelResolver: (deps: Record<string, unknown>) => (args: Record<string, unknown>) => Promise<{ channel: { send: (payload: unknown, meta?: { historyEntries?: unknown[] }) => Promise<unknown> } | null; abort: boolean }>;
@@ -117,7 +118,7 @@ test("E2E outbox: cron -> enqueue (cu recoveryVerify) -> drain -> delivery -> ma
 
   const delivered: Array<{ embeds?: Array<{ footer?: { text?: string } }> }> = [];
   const deliveryChannel = { id: "chan-1", send: async (payload: unknown) => { delivered.push(payload as never); return { id: "msg-1" }; } };
-  const deliveryClient = { user: { id: "bot-1" }, channels: { fetch: async () => deliveryChannel } };
+  const deliveryClient: OutboxDeliveryClient = { isReady: () => true, user: { id: "bot-1" }, channels: { fetch: async () => deliveryChannel } };
 
   const delivery = createOutboxDelivery({
     canSendEmbeds: () => true,
@@ -128,7 +129,7 @@ test("E2E outbox: cron -> enqueue (cu recoveryVerify) -> drain -> delivery -> ma
   });
 
   const result = await runtime.drainOutbox({
-    deliver: (job) => delivery.deliver(deliveryClient as never, job as never),
+    deliver: (job) => delivery.deliver(deliveryClient, job),
     recordDeadLetter: async () => undefined,
     maxAttempts: 5, backoffMs: 1000, limit: 50
   });
@@ -155,7 +156,7 @@ test("E2E outbox: re-enqueue acelasi continut dupa livrare e idempotent (nu reap
   await runtime.enqueueOutbox({ guildId: "guild-1", channelId: "chan-1", kind: "update", payload });
 
   const deliveryChannel = { id: "chan-1", send: async () => ({ id: "msg-1" }) };
-  const deliveryClient = { user: { id: "bot-1" }, channels: { fetch: async () => deliveryChannel } };
+  const deliveryClient: OutboxDeliveryClient = { isReady: () => true, user: { id: "bot-1" }, channels: { fetch: async () => deliveryChannel } };
   const delivery = createOutboxDelivery({
     canSendEmbeds: () => true,
     isPermanentDiscordError: () => false,
@@ -164,7 +165,7 @@ test("E2E outbox: re-enqueue acelasi continut dupa livrare e idempotent (nu reap
     recoveryVerify: false
   });
   await runtime.drainOutbox({
-    deliver: (job) => delivery.deliver(deliveryClient as never, job as never),
+    deliver: (job) => delivery.deliver(deliveryClient, job),
     recordDeadLetter: async () => undefined,
     maxAttempts: 5, backoffMs: 1000, limit: 50
   });
@@ -213,7 +214,7 @@ test("E2E outbox: istoricul nu se scrie la enqueue, ci abia dupa livrarea reala 
   assert.deepEqual((store.jobs[0] as unknown as { history?: unknown }).history, entries, "jobul din coada poarta intrarile de istoric");
 
   const deliveryChannel = { id: "chan-1", send: async () => ({ id: "msg-1" }) };
-  const deliveryClient = { user: { id: "bot-1" }, channels: { fetch: async () => deliveryChannel } };
+  const deliveryClient: OutboxDeliveryClient = { isReady: () => true, user: { id: "bot-1" }, channels: { fetch: async () => deliveryChannel } };
   const delivery = createOutboxDelivery({
     canSendEmbeds: () => true,
     isPermanentDiscordError: () => false,
@@ -222,7 +223,7 @@ test("E2E outbox: istoricul nu se scrie la enqueue, ci abia dupa livrarea reala 
     recoveryVerify: false
   });
   const result = await runtime.drainOutbox({
-    deliver: (job) => delivery.deliver(deliveryClient as never, job as never),
+    deliver: (job) => delivery.deliver(deliveryClient, job),
     recordDeadLetter: async () => undefined,
     recordSentHistory,
     maxAttempts: 5, backoffMs: 1000, limit: 50
