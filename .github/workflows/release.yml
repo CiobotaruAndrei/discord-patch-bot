@@ -190,6 +190,17 @@ jobs:
         working-directory: src
         run: npm audit --omit=dev --audit-level=moderate
 
+      # Gate live pe surse: ruleaza canary:sources pe codul exact al tag-ului.
+      # Fail-closed pe API-urile fiabile (steam/minecraft/roblox + deals); sursele fragile raman warning-only.
+      - name: Canary surse live pe codul tag-ului
+        working-directory: src
+        env:
+          MONGO_URI: mongodb://localhost:27017/discord-patch-bot-release
+          DISCORD_TOKEN: release_check_token
+          DISCORD_CLIENT_ID: release_check_client_id
+          METRICS_PUBLIC: "true"
+        run: npm run canary:sources
+
       - name: Extract release notes
         working-directory: src
         run: node dist/scripts/extract-release-notes.js "${{ steps.release.outputs.tag }}" ../release-notes.md
@@ -204,13 +215,37 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and publish Docker image
+      - name: Build Docker image (local, fara push)
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: Dockerfile
-          push: true
-          tags: ${{ steps.release.outputs.tags }}
+          push: false
+          load: true
+          tags: ${{ steps.release.outputs.image }}:release-scan
+
+      - name: Trivy gate pe imaginea exacta de release (blocheaza pe CRITICAL/HIGH fixabile)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          image-ref: ${{ steps.release.outputs.image }}:release-scan
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+      # Publica exact bytes-ii scanati: docker tag + docker push pe imaginea locala,
+      # fara rebuild (un al doilea build-push-action ar reconstrui din cache, nu garantat identic).
+      - name: Publish scanned image
+        shell: bash
+        env:
+          SCAN_IMAGE: ${{ steps.release.outputs.image }}:release-scan
+          RELEASE_TAGS: ${{ steps.release.outputs.tags }}
+        run: |
+          while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            docker tag "$SCAN_IMAGE" "$tag"
+            docker push "$tag"
+          done <<< "$RELEASE_TAGS"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
