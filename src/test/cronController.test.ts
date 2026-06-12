@@ -56,7 +56,7 @@ test("cron cycle budget: un ciclu peste buget face urmatorul ciclu sa sara peste
         checkForDiscounts: async () => { discountsCalls++; }
       },
       adminAlert: async () => undefined,
-      client: { isReady: () => true },
+      client: { isReady: () => true, channels: { fetch: async () => null } },
       games: [],
       config: { games: [], checkIntervalMinutes: 30 },
       metrics,
@@ -111,7 +111,7 @@ test("cron stop clears the scheduled timer handle", () => {
         checkForDiscounts: async () => undefined
       },
       adminAlert: async () => undefined,
-      client: { isReady: () => true },
+      client: { isReady: () => true, channels: { fetch: async () => null } },
       games: [],
       config: { games: [], checkIntervalMinutes: 30 },
       metrics: {
@@ -212,7 +212,7 @@ test("cron cycle waits for both jobs when one rejects (Promise.allSettled)", asy
       adminAlert: async (kind: string, title: string, body: string) => {
         adminAlertCalls.push({ kind, title, body });
       },
-      client: { isReady: () => true },
+      client: { isReady: () => true, channels: { fetch: async () => null } },
       games: [],
       config: { games: [], checkIntervalMinutes: 30 },
       metrics,
@@ -295,7 +295,7 @@ test("cron heartbeat tolerates one transient renew throw but aborts on the secon
         checkForDiscounts: async () => undefined
       },
       adminAlert: async () => undefined,
-      client: { isReady: () => true },
+      client: { isReady: () => true, channels: { fetch: async () => null } },
       games: [],
       config: { games: [], checkIntervalMinutes: 30 },
       metrics,
@@ -372,7 +372,7 @@ test("cron heartbeat aborts immediately when renew returns false (lock genuinely
         checkForDiscounts: async () => undefined
       },
       adminAlert: async () => undefined,
-      client: { isReady: () => true },
+      client: { isReady: () => true, channels: { fetch: async () => null } },
       games: [],
       config: { games: [], checkIntervalMinutes: 30 },
       metrics,
@@ -442,7 +442,7 @@ test("heartbeat tick care se reia in fereastra de release NU mai renew-uie lock-
         checkForDiscounts: async () => undefined
       },
       adminAlert: async () => undefined,
-      client: { isReady: () => true },
+      client: { isReady: () => true, channels: { fetch: async () => null } },
       games: [],
       config: { games: [], checkIntervalMinutes: 30 },
       metrics,

@@ -92,6 +92,7 @@ interface PerformanceLike {
 }
 
 interface DiscordClientLike {
+  channels: { fetch(channelId: string): Promise<unknown> | unknown };
   login(token: string): Promise<unknown>;
   destroy(): void | Promise<void>;
   isReady(): boolean;

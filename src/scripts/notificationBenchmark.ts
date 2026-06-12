@@ -176,7 +176,7 @@ export async function runNotificationBenchmark(
     (updateDeps as unknown as { GuildModel: { find: () => { lean: () => Promise<unknown[]> } } }).GuildModel.find =
       () => ({ lean: async () => updateGuilds });
     const updateService = createUpdateNotificationService(updateDeps);
-    const updates = await measureFlow(() => updateService.checkForUpdates({}, games), updateCounters);
+    const updates = await measureFlow(() => updateService.checkForUpdates({ channels: { fetch: async () => null } }, games), updateCounters);
 
     const discountCounters: Counters = { discordSends: 0, mongoWrites: 0, fetches: 0 };
     const discountGuilds = makeDiscountGuilds(guilds);
@@ -184,7 +184,7 @@ export async function runNotificationBenchmark(
     (discountDeps as unknown as { GuildModel: { find: () => { lean: () => Promise<unknown[]> } } }).GuildModel.find =
       () => ({ lean: async () => discountGuilds });
     const discountService = createDiscountNotificationService(discountDeps);
-    const discounts = await measureFlow(() => discountService.checkForDiscounts({}), discountCounters);
+    const discounts = await measureFlow(() => discountService.checkForDiscounts({ channels: { fetch: async () => null } }), discountCounters);
 
     rows.push({ guilds, updates, discounts });
   }
