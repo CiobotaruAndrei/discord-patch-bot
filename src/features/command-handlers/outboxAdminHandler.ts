@@ -1,5 +1,7 @@
 "use strict";
 
+import type { OutboxDiscordClient } from "../notifications/outboundChannel";
+
 const { errorDetail, errorMessage } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
@@ -7,7 +9,7 @@ type GameConfig = { key: string } & Record<string, unknown>;
 type DiscordInteraction = {
   commandName?: string;
   guild?: { id: string } | null;
-  client?: { isReady(): boolean; user?: { id?: string } | null; channels: { fetch(channelId: string): Promise<unknown> | unknown } };
+  client?: OutboxDiscordClient;
   deferred?: boolean;
   replied?: boolean;
   options: {
@@ -84,7 +86,7 @@ type OutboxAdminDeps = {
   checkChannelPermissions: (interaction: DiscordInteraction, channelId: string) => Promise<ChannelPermissions | null>;
   acquireDbLock: (jobName: string, ttlMs: number) => Promise<string | null>;
   releaseDbLock: (jobName: string, token: string) => Promise<unknown>;
-  drainOutbox: (client: { isReady(): boolean; user?: { id?: string } | null; channels: { fetch(channelId: string): Promise<unknown> | unknown } }) => Promise<DrainResultLike | unknown>;
+  drainOutbox: (client: OutboxDiscordClient) => Promise<DrainResultLike | unknown>;
   safeDefer: (interaction: DiscordInteraction) => Promise<unknown>;
   safeEdit: (interaction: DiscordInteraction, content: string) => Promise<unknown>;
   formatUserError: (err: unknown, fallback: string, code?: string) => string;

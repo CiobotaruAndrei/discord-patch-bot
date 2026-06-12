@@ -12,6 +12,10 @@ import type { OutboxDiscordClient } from "./outboundChannel";
 
 export type OutboxDeliveryClient = OutboxDiscordClient;
 
+function isSendableChannel(channel: unknown): channel is { send: (payload: unknown) => Promise<unknown> } {
+  return !!channel && typeof (channel as { send?: unknown }).send === "function";
+}
+
 export type OutboxDeliveryResult =
   | { ok: true; recoveryFetched?: boolean; recoveryDuplicate?: boolean; recoveryFailed?: boolean; recoveryMarkerMissing?: boolean }
   | { ok: false; permanent: boolean; recoveryFailed?: boolean };
@@ -59,8 +63,9 @@ export function createOutboxDelivery(deps: OutboxDeliveryDeps) {
     try {
       const botId = client.user?.id;
       if (!botId) return { ok: false, permanent: false };
-      const channel = await client.channels.fetch(job.channelId) as { send?: (payload: unknown) => Promise<unknown> } | null;
-      if (!channel || !canSendEmbeds(channel, botId)) return { ok: false, permanent: true };
+      const fetched = await client.channels.fetch(job.channelId);
+      if (!fetched || !canSendEmbeds(fetched, botId) || !isSendableChannel(fetched)) return { ok: false, permanent: true };
+      const channel = fetched;
 
       const isRecoveryCandidate = verify && !!job.dedupeKey && (job.deliveries ?? 0) > 1;
       if (isRecoveryCandidate) {
@@ -69,13 +74,13 @@ export function createOutboxDelivery(deps: OutboxDeliveryDeps) {
         if (check.failed && strict) return { ok: false, permanent: false, recoveryFailed: true };
         const payload = applyDedupeMarker(job.payload, job.dedupeKey);
         await acquireSendSlot();
-        await (channel.send as (payload: unknown) => Promise<unknown>)(payload);
+        await channel.send(payload);
         return { ok: true, recoveryFetched: !check.failed, recoveryFailed: check.failed, recoveryMarkerMissing: !check.failed };
       }
 
       const payload = verify ? applyDedupeMarker(job.payload, job.dedupeKey) : job.payload;
       await acquireSendSlot();
-      await (channel.send as (payload: unknown) => Promise<unknown>)(payload);
+      await channel.send(payload);
       return { ok: true };
     } catch (err) {
       return { ok: false, permanent: isPermanentDiscordError(err) };

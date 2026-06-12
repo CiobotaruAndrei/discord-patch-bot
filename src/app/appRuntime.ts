@@ -18,6 +18,7 @@ import type { CreateOutboxWorkerDeps, OutboxWorker } from "./scheduler/outboxWor
 import type { CreateHttpServerDeps } from "./health/httpServer";
 import type { RegisterDiscordEventsDeps, RegisterMongoEventsDeps } from "./lifecycle/events";
 import type { CreateShutdownControllerDeps, ShutdownController } from "./lifecycle/shutdown";
+import type { OutboxDiscordClient } from "../features/notifications/outboundChannel";
 
 const { ensureNativeFuzzy } = require("../native/fuzzy") as { ensureNativeFuzzy: () => boolean };
 
@@ -25,7 +26,7 @@ interface CommandRuntime {
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
   checkForDiscounts(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
   cleanCache(): unknown;
-  drainOutbox(client: { isReady(): boolean; user?: { id?: string } | null; channels: { fetch(channelId: string): Promise<unknown> | unknown } }): Promise<unknown> | unknown;
+  drainOutbox(client: OutboxDiscordClient): Promise<unknown> | unknown;
   getCacheSizes(): CommandCacheSizes;
   handleInteraction(interaction: unknown, games: GameConfig[]): Promise<unknown> | unknown;
   registerSlashCommands(token: string, clientId: string): Promise<unknown>;

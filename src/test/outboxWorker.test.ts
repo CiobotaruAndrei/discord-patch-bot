@@ -33,6 +33,7 @@ function makeWorker(overrides: {
   lockToken?: string | null;
   readyState?: number;
   clientReady?: boolean;
+  clientUser?: { id?: string } | null;
   shuttingDown?: boolean;
   drainThrows?: boolean;
   drainResult?: DrainResult;
@@ -56,7 +57,7 @@ function makeWorker(overrides: {
   const lifecycle = { isShuttingDown: overrides.shuttingDown ?? false };
   const worker = createOutboxWorker({
     mongoose: { connection: { readyState: overrides.readyState ?? 1 } },
-    client: { isReady: () => overrides.clientReady ?? true, channels: { fetch: async () => null } },
+    client: { isReady: () => overrides.clientReady ?? true, user: overrides.clientUser === undefined ? { id: "bot-1" } : overrides.clientUser, channels: { fetch: async () => null } },
     logger: () => undefined,
     parseEnvNumber: (_name: string, def: number) => def,
     acquireDbLock: async (jobName: string, ttlMs: number) => {
@@ -133,6 +134,14 @@ test("outboxWorker: client Discord not ready -> sare drenarea", async () => {
   await worker.drainTick();
   assert.equal(harness.acquireCalls, 0);
   assert.equal(harness.drainCalls, 0);
+  worker.stop();
+});
+
+test("outboxWorker: client ready dar fara user (user.id lipsa) -> sare drenarea (review #12.2)", async () => {
+  const { worker, harness } = makeWorker({ clientReady: true, clientUser: null });
+  await worker.drainTick();
+  assert.equal(harness.acquireCalls, 0, "nu ia lock-ul cu clientul fara bot id");
+  assert.equal(harness.drainCalls, 0, "nu porneste drenarea fara user.id (livrarea ar esua tranzitoriu per job)");
   worker.stop();
 });
 
