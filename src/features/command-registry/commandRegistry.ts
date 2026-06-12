@@ -1,20 +1,20 @@
-import type { GameConfig } from "../../types";
+import type { CommandCacheSizes, GameConfig } from "../../types";
 
 type MaybePromise<T> = T | Promise<T>;
 type RegistryFunction = (...args: unknown[]) => MaybePromise<unknown>;
-type CommandModuleInstaller = (context: CommandRegistryContext) => void;
+type CommandModuleInstaller = (context: never) => void;
 
 interface CommandRegistryContext {
   cleanCache?: RegistryFunction;
-  getCacheSizes?: RegistryFunction;
-  setGlobalCacheTtl?: RegistryFunction;
+  getCacheSizes?: () => CommandCacheSizes;
+  setGlobalCacheTtl?: (ms: number) => void;
   setUpdatesCache?: (data: unknown) => void;
   setDealsCache?: (currency: string, data: unknown) => void;
-  checkForUpdates?: (games?: GameConfig[]) => MaybePromise<unknown>;
-  checkForDiscounts?: RegistryFunction;
+  checkForUpdates?: (client: unknown, games: unknown[], shouldAbort?: (() => boolean) | null) => Promise<void>;
+  checkForDiscounts?: (client: unknown, shouldAbort?: (() => boolean) | null) => Promise<void>;
   drainOutbox?: (client: unknown) => MaybePromise<unknown>;
   buildOptimizedGameList?: (allGames: GameConfig[], subscribedGuilds: unknown[]) => GameConfig[];
-  registerSlashCommands?: (token: string, clientId: string) => MaybePromise<unknown>;
+  registerSlashCommands?: (token: string, clientId: string) => Promise<unknown>;
   buildSlashCommandDefinitions?: RegistryFunction;
   handleInteraction?: (interaction: unknown, games: GameConfig[]) => MaybePromise<unknown>;
   buildHelpEmbed?: RegistryFunction;
@@ -72,40 +72,39 @@ import attachDlcInteractionHandler = require("../command-handlers/dlcInteraction
 import attachAutocompleteInteractionHandler = require("../command-handlers/autocompleteInteractionHandler");
 import attachAdminCommandRouterGuard = require("../command-security/adminCommandRouterGuard");
 
-const { createCommandRuntimeContext } = require("../command-runtime/commandRuntimeContext") as {
-  createCommandRuntimeContext: () => CommandRegistryContext;
-};
+const { createCommandRuntimeContext } = require("../command-runtime/commandRuntimeContext") as typeof import("../command-runtime/commandRuntimeContext");
+type CommandRuntimeBootContext = ReturnType<typeof createCommandRuntimeContext>;
 const defaultInstallers: CommandModuleInstaller[] = [
-  attachCommandCache as unknown as CommandModuleInstaller,
-  attachDealFilters as unknown as CommandModuleInstaller,
-  attachCommandPresentation as unknown as CommandModuleInstaller,
-  attachNotifications as unknown as CommandModuleInstaller,
-  attachFeedbackRepository as unknown as CommandModuleInstaller,
-  attachSlashCommandDefinitions as unknown as CommandModuleInstaller,
-  attachFallbackInteractionHandler as unknown as CommandModuleInstaller,
-  attachSimpleCommandsHandler as unknown as CommandModuleInstaller,
-  attachHelpInteractionHandler as unknown as CommandModuleInstaller,
-  attachSubscriptionNotificationHandlers as unknown as CommandModuleInstaller,
-  attachGameFilterHandlers as unknown as CommandModuleInstaller,
-  attachRolePingHandlers as unknown as CommandModuleInstaller,
-  attachSetInteractionHandler as unknown as CommandModuleInstaller,
-  attachOutboxAdminHandler as unknown as CommandModuleInstaller,
-  attachLatestInteractionHandler as unknown as CommandModuleInstaller,
-  attachStatusInteractionHandler as unknown as CommandModuleInstaller,
-  attachHistoryInteractionHandler as unknown as CommandModuleInstaller,
-  attachReportInteractionHandler as unknown as CommandModuleInstaller,
-  attachHealthInteractionHandler as unknown as CommandModuleInstaller,
-  attachDlcInteractionHandler as unknown as CommandModuleInstaller,
-  attachAutocompleteInteractionHandler as unknown as CommandModuleInstaller,
-  attachAdminCommandRouterGuard as unknown as CommandModuleInstaller
+  attachCommandCache,
+  attachDealFilters,
+  attachCommandPresentation,
+  attachNotifications,
+  attachFeedbackRepository,
+  attachSlashCommandDefinitions,
+  attachFallbackInteractionHandler,
+  attachSimpleCommandsHandler,
+  attachHelpInteractionHandler,
+  attachSubscriptionNotificationHandlers,
+  attachGameFilterHandlers,
+  attachRolePingHandlers,
+  attachSetInteractionHandler,
+  attachOutboxAdminHandler,
+  attachLatestInteractionHandler,
+  attachStatusInteractionHandler,
+  attachHistoryInteractionHandler,
+  attachReportInteractionHandler,
+  attachHealthInteractionHandler,
+  attachDlcInteractionHandler,
+  attachAutocompleteInteractionHandler,
+  attachAdminCommandRouterGuard
 ];
 
-function installCommandModules(
-  context: CommandRegistryContext,
+function installCommandModules<T>(
+  context: T,
   installers: CommandModuleInstaller[] = defaultInstallers
-): CommandRegistryContext {
-  for (const install of installers) install(context);
-  return context;
+): T & CommandRegistryContext {
+  for (const install of installers) install(context as never);
+  return context as T & CommandRegistryContext;
 }
 
 function requireRegistryFunction<K extends RequiredCommandRegistryKey>(
@@ -120,7 +119,7 @@ function requireRegistryFunction<K extends RequiredCommandRegistryKey>(
 }
 
 function createCommandRegistry(
-  baseContext: CommandRegistryContext = createCommandRuntimeContext(),
+  baseContext: CommandRuntimeBootContext = createCommandRuntimeContext(),
   installers: CommandModuleInstaller[] = defaultInstallers
 ): RequiredCommandRegistry {
   const context = installCommandModules(baseContext, installers);

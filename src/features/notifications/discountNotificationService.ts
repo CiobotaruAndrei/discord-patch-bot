@@ -3,6 +3,7 @@
 import type { QueryFilter, Model } from "mongoose";
 import type { GuildSettings, DealInfo } from "../../types";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
+import type { ResolveOutboundChannelResult } from "./outboundChannel";
 import { HASH_VERSION } from "../../native/fuzzy";
 
 import { packEmbedsByBudget, embedCharCost } from "../../shared/discordEmbedChunks";
@@ -14,23 +15,13 @@ type Logger = (level: string, context: string, msg: string, meta?: unknown) => v
 
 interface MongoWriteResult { matchedCount?: number; modifiedCount?: number }
 
-interface OutboundChannel {
-  id: string;
-  send: (payload: unknown, meta?: { historyEntries?: Array<{ kind: "update" | "discount"; gameKey?: string; title?: string; link?: string }> }) => Promise<unknown>;
-}
-
-interface ResolvedChannel {
-  channel: OutboundChannel;
-  abort: boolean;
-}
-
 type ResolveOutboundChannel = (opts: {
   client: unknown;
   guild: GuildSettings & Record<string, unknown>;
   channelId: string | null | undefined;
   context: string;
   disableFn: (guildId: string, channelId: string, message: string) => Promise<MongoWriteResult>;
-}) => Promise<ResolvedChannel>;
+}) => Promise<ResolveOutboundChannelResult>;
 
 interface RunConcurrentOptions {
   errorLogger?: (item: unknown, err: unknown) => void;

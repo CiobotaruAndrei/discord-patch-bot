@@ -262,6 +262,26 @@ test("resolveOutboundChannel: cu outbox activ, meta.historyEntries ajunge pe job
   assert.equal(recorded.length, 0, "la enqueue nu se scrie istoric; scrierea se face la livrarea din coada");
 });
 
+test("resolveOutboundChannel: channelId null inseamna abort fara disable (guild fara canal configurat)", async () => {
+  const { resolveOutboundChannel, captured } = buildResolver();
+  const { fn: disableFn, calls } = makeDisableFnStub();
+  const client = makeClient({ id: "chan-x", send: async () => ({ id: "msg" }) });
+
+  const result = await resolveOutboundChannel({
+    client,
+    guild: { _id: "guild-nc" },
+    channelId: null,
+    context: "TEST_NO_CHANNEL",
+    disableFn
+  });
+
+  assert.equal(result.abort, true);
+  assert.equal(result.channel, null);
+  assert.equal(calls.length, 0, "lipsa canalului configurat nu declanseaza disable (nu e eroare permanenta de canal)");
+  assert.ok(captured.logs.some(l => l.context === "TEST_NO_CHANNEL" && l.message.includes("fara canal")),
+    "se logheaza explicit ca guild-ul nu are canal configurat");
+});
+
 test("isPermanentDiscordError recognizes all four permanent codes", () => {
   for (const code of [10003, 10004, 50001, 50013]) {
     assert.equal(isPermanentDiscordError({ code }), true, `code ${code} should be permanent`);

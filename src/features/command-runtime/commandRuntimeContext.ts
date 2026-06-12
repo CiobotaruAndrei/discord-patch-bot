@@ -12,10 +12,14 @@ import {
   SlashCommandBuilder
 } from "discord.js";
 
-const data = require("../../infra/mongo/mongoContext");
-const scrapers = require("../../sources/sourceRegistry");
+import type { SourceRegistryApi } from "../../sources/sourceRegistry";
 
-interface DiscordRuntimeBindings {
+type MongoContextExports = typeof import("../../infra/mongo/mongoContext");
+
+const data = require("../../infra/mongo/mongoContext") as MongoContextExports;
+const scrapers = require("../../sources/sourceRegistry") as SourceRegistryApi;
+
+type DiscordRuntimeBindings = {
   crypto: typeof crypto;
   EmbedBuilder: typeof EmbedBuilder;
   ActionRowBuilder: typeof ActionRowBuilder;
@@ -95,7 +99,12 @@ async function checkChannelPermissions(interaction: PermissionAwareInteraction, 
   };
 }
 
-function createCommandRuntimeContext(): Record<string, unknown> {
+type CommandRuntimeContext = DiscordRuntimeBindings & MongoContextExports & SourceRegistryApi & {
+  checkReadMessageHistory: typeof checkReadMessageHistory;
+  checkChannelPermissions: typeof checkChannelPermissions;
+};
+
+function createCommandRuntimeContext(): CommandRuntimeContext {
   return {
     ...createDiscordRuntimeBindings(),
     ...data,

@@ -40,7 +40,7 @@ type SourceRegistryApi = {
 
 type SourceContext = SourceRegistryApi;
 
-type SourceInstaller = (target: SourceContext) => void;
+type SourceInstaller = (target: never) => void;
 
 import attachHttpClient = require("../infra/http/client");
 import attachSteam = require("./steam");
@@ -49,10 +49,10 @@ import attachDeals = require("./deals");
 
 const runtimeContext = require("./runtime") as SourceContext;
 const defaultInstallers: SourceInstaller[] = [
-  attachHttpClient as unknown as SourceInstaller,
-  attachSteam as unknown as SourceInstaller,
-  attachUpdates as unknown as SourceInstaller,
-  attachDeals as unknown as SourceInstaller
+  attachHttpClient,
+  attachSteam,
+  attachUpdates,
+  attachDeals
 ];
 
 function buildSourceRegistry(context: SourceContext): SourceRegistryApi {
@@ -95,11 +95,11 @@ function createSourceRegistry(
   installers: SourceInstaller[] = defaultInstallers
 ) {
   const context = baseContext;
-  for (const install of installers) install(context);
-  return buildSourceRegistry(context);
+  for (const install of installers) install(context as never);
+  return assertNoUndefinedExports(buildSourceRegistry(context), "sourceRegistry");
 }
 
-const registry = assertNoUndefinedExports(createSourceRegistry(), "sourceRegistry");
+const registry = createSourceRegistry();
 
 Object.assign(module.exports, registry, { createSourceRegistry });
 
