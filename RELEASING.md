@@ -61,5 +61,8 @@ Smoke`, nu doar declarat.
    `smoke_confirmed = true`. Aceasta este singura cale de release, deci confirmarea smoke este
    obligatorie.
 5. Workflow-ul verifica gate-ul (`smoke_confirmed`) **si** artifactul de staging smoke, ruleaza CI +
-   audit pe tag, construieste imaginea Docker GHCR si creeaza GitHub Release-ul cu notele extrase din
-   `CHANGELOG.md`.
+   audit pe tag si **canary-ul live de surse** (`npm run canary:sources`, fail-closed pe API-urile
+   fiabile) pe codul exact al tag-ului. Imaginea Docker se construieste **local**, trece prin gate-ul
+   **Trivy blocant** (CRITICAL/HIGH fixabile, `exit-code 1`) pe imaginea exacta, si abia apoi se
+   publica pe GHCR (`docker tag` + `docker push` pe bytes-ii scanati, fara rebuild). La final se
+   creeaza GitHub Release-ul cu notele extrase din `CHANGELOG.md`.
