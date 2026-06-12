@@ -40,24 +40,38 @@ test("source registry can be created with explicit mocked installers", () => {
     context => {
       calls.push("http");
       context.cleanText = (value: unknown) => String(value).trim();
+      context.truncate = (value: unknown) => String(value);
+      context.normalizeTitleForDedupe = (value: unknown) => String(value);
+      context.stableUpdateId = () => "id";
+      context.normalizeUpdate = (data: unknown) => data;
+      context.safeCheerioLoad = () => "cheerio";
+      context.levenshtein = () => 0;
       context.httpReq = () => "http-result";
       context.fetchWithProxy = () => "proxy-result";
+      context.dealHash = (deal: { id: string }) => deal.id;
+      context.attachMetrics = () => undefined;
     },
     context => {
       calls.push("steam");
       context.searchSteamGameByName = () => "steam-search";
+      context.chooseBestSteamMatch = () => "best-match";
+      context.fetchSteamPriceDetails = () => "price-details";
       context.extractOfferEndFromHtml = () => "offer-end";
+      context.extractSteamOfferEndDate = () => "offer-end-date";
     },
     context => {
       calls.push("updates");
       context.fetchGameUpdate = () => "game-update";
+      context.executeFetchWithCircuitBreaker = () => "cb-fetch";
       context.getLatestForAllGames = () => "latest-games";
     },
     context => {
       calls.push("deals");
+      context.fetchSteamReviewData = () => "reviews";
       context.fetchDeals = () => "deals";
       context.enrichDealData = () => "enriched";
-      context.dealHash = (deal: { id: string }) => deal.id;
+      context.cleanEnrichedCache = () => undefined;
+      context.getEnrichedCacheSize = () => 0;
     }
   ];
 
@@ -71,4 +85,16 @@ test("source registry can be created with explicit mocked installers", () => {
   assert.equal(registry.fetchDeals(), "deals");
   assert.equal(registry.dealHash({ id: "deal-1" }), "deal-1");
   assert.equal(registry.MAX_DEALS, 3);
+});
+
+test("createSourceRegistry arunca fail-fast cand un installer mock nu acopera un export (review #9.4)", () => {
+  const incompleteContext: Record<string, unknown> = {
+    USER_AGENTS: ["test-agent"],
+    MAX_HTML_BYTES: 1024
+  };
+  assert.throws(
+    () => sourceRegistry.createSourceRegistry(incompleteContext, [context => { context.cleanText = () => ""; }]),
+    /sourceRegistry/,
+    "un context incomplet nu mai poate produce un registry cu functii undefined"
+  );
 });

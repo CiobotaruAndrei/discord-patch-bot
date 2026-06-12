@@ -1,6 +1,7 @@
 "use strict";
 
 import type { Model } from "mongoose";
+import type { ActiveLocks, LoggerFunction, RuntimeEnv } from "../../types";
 import type {
   AdminAlertCooldownDoc,
   CircuitBreakerDoc,
@@ -19,8 +20,8 @@ import type {
 import { assertNoUndefinedExports } from "../../shared/assertCompleteExports";
 
 type MongoRuntimeContext = {
-  logger: unknown;
-  env: unknown;
+  logger: LoggerFunction;
+  env: RuntimeEnv & { MONGO_URI: string; DISCORD_TOKEN: string };
   parseEnvNumber: (name: string, defaultValue: number, limits?: { min?: number; max?: number }) => number;
   runConcurrent: <T>(items: T[], concurrency: number, fn: (item: T, index: number) => void | Promise<void>, options?: unknown) => Promise<unknown>;
   waitForMongoReady: (timeoutMs?: number) => Promise<boolean>;
@@ -41,13 +42,13 @@ type MongoRuntimeContext = {
   FeedbackReportModel: Model<FeedbackReportDoc>;
   NotificationDeadLetterReplayModel: Model<NotificationDeadLetterReplayDoc>;
   saveFetchSnapshot: (id: string, payload: unknown) => Promise<void>;
-  loadFetchSnapshot: (id: string) => Promise<unknown | null>;
-  loadDealsFetchSnapshots: () => Promise<unknown[]>;
-  acquireDbLock: (jobName: string, ttlMs?: number) => Promise<unknown | null>;
-  renewDbLock: (jobName: string, token: unknown, ttlMs?: number) => Promise<boolean>;
-  releaseDbLock: (jobName: string, token: unknown) => Promise<void>;
-  activeLocks: Map<string, unknown>;
-  runMigrations: (logger: unknown) => Promise<unknown>;
+  loadFetchSnapshot: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
+  loadDealsFetchSnapshots: () => Promise<Array<{ currency: string; payload: unknown; fetchedAt: Date }>>;
+  acquireDbLock: (jobName: string, ttlMs?: number) => Promise<string | null>;
+  renewDbLock: (jobName: string, token: string, ttlMs?: number) => Promise<boolean>;
+  releaseDbLock: (jobName: string, token: string) => Promise<void>;
+  activeLocks: ActiveLocks;
+  runMigrations: (logger: unknown) => Promise<{ applied: number[] }>;
   ALL_MIGRATIONS: readonly unknown[];
   getSystemTimes: () => Promise<unknown>;
   saveSystemTimes: (times: unknown) => Promise<void>;
@@ -64,7 +65,7 @@ type MongoRuntimeContext = {
   DEFAULT_CURRENCY: string;
   getCurrencyConfig: (code?: unknown) => unknown;
   formatPrice: (value: unknown, currencyCode?: unknown) => string;
-  requestContext: unknown;
+  requestContext: { run<T>(store: { requestId: string; abortSignal?: AbortSignal }, callback: () => T): T };
   getAbortSignal: () => AbortSignal | null;
 };
 

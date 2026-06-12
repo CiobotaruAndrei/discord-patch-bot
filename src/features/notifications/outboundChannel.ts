@@ -19,16 +19,11 @@ export interface OutboundChannelGuild {
 }
 
 export interface ResolveOutboundChannelArgs {
-  client: OutboundChannelClient;
+  client: unknown;
   guild: OutboundChannelGuild;
-  channelId: string;
+  channelId: string | null | undefined;
   context: string;
   disableFn: DisableChannelFn;
-}
-
-export interface ResolveOutboundChannelResult {
-  channel: unknown | null;
-  abort: boolean;
 }
 
 export interface OutboundHistoryEntry {
@@ -42,6 +37,15 @@ export interface OutboundSendMeta {
   historyEntries?: OutboundHistoryEntry[];
 }
 
+export interface OutboundChannel {
+  id: string;
+  send(payload: unknown, meta?: OutboundSendMeta): Promise<unknown>;
+}
+
+export type ResolveOutboundChannelResult =
+  | { abort: true; channel: null }
+  | { abort: false; channel: OutboundChannel };
+
 export type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; recoveryVerify?: boolean; history?: OutboundHistoryEntry[] }) => Promise<void>;
 
 export type RecordSentHistory = (guildId: string, entries: OutboundHistoryEntry[]) => Promise<void>;
@@ -54,10 +58,10 @@ export interface OutboundChannelResolverDeps {
   recordSentHistory?: RecordSentHistory;
 }
 
-function rateLimitedChannel(channel: unknown, guildId: string, acquireSendSlot: () => Promise<void>, recordSentHistory?: RecordSentHistory): unknown {
+function rateLimitedChannel(channel: unknown, guildId: string, acquireSendSlot: () => Promise<void>, recordSentHistory?: RecordSentHistory): OutboundChannel {
   const raw = channel as { id?: unknown; send: (payload: unknown) => Promise<unknown> };
   return {
-    id: raw.id,
+    id: String(raw.id ?? ""),
     send: async (payload: unknown, meta?: OutboundSendMeta) => {
       await acquireSendSlot();
       const sent = await raw.send(payload);
@@ -69,7 +73,7 @@ function rateLimitedChannel(channel: unknown, guildId: string, acquireSendSlot: 
   };
 }
 
-function outboxChannel(channelId: string, guildId: string, kind: "update" | "discount", enqueueOutbox: EnqueueOutbox, recoveryVerify?: boolean): unknown {
+function outboxChannel(channelId: string, guildId: string, kind: "update" | "discount", enqueueOutbox: EnqueueOutbox, recoveryVerify?: boolean): OutboundChannel {
   return {
     id: channelId,
     send: async (payload: unknown, meta?: OutboundSendMeta) =>
@@ -96,9 +100,14 @@ export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSe
     context,
     disableFn
   }: ResolveOutboundChannelArgs): Promise<ResolveOutboundChannelResult> {
+    if (!channelId) {
+      logger("WARN", context, `Guild ${guild._id} fara canal configurat pentru acest tip de notificari, sar peste ciclu`);
+      return { channel: null, abort: true };
+    }
+    const discordClient = client as OutboundChannelClient;
     let channel: unknown | null = null;
     try {
-      channel = await client.channels.fetch(channelId);
+      channel = await discordClient.channels.fetch(channelId);
     } catch (err) {
       if (isPermanentDiscordError(err)) {
         const reason = `Discord cod ${(err as { code?: unknown }).code}: ${transientErrorMessage(err)}`;
@@ -117,7 +126,7 @@ export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSe
       return { channel: null, abort: true };
     }
 
-    if (!canSendEmbeds(channel, client.user.id)) {
+    if (!canSendEmbeds(channel, discordClient.user.id)) {
       const message = "Canal invalid sau fara permisiuni Send Messages/Embed Links.";
       await disableSafely(disableFn, String(guild._id), channelId, message);
       logger("WARN", context, `${message} Guild ${guild._id}`);

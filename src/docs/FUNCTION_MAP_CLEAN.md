@@ -11,6 +11,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Conecteaza MongoDB.
 - Creeaza clientul Discord.
 - Instaleaza registrul de comenzi, sursele, job-urile si serverul health/metrics.
+- Toate require-urile de module locale sunt tipate (`as typeof import(...)`, respectiv `SourceRegistryApi`), deci `satisfies AppRuntimeDeps` chiar verifica wiring-ul de boot — un export lipsa sau o semnatura gresita pica la compilare, nu la runtime (gard in `registryClosedContracts.test.ts`).
 
 ### `src/app/health/httpServer.ts`
 
@@ -81,12 +82,14 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Instaleaza modulele de comenzi si interactiuni, importate **static** (lista `defaultInstallers` e formata din importuri numite, nu `require`-uri inline).
 - Leaga handler-ele la contextul runtime.
 - Valideaza ca functiile necesare exista (fail-fast prin `requireRegistryFunction`).
-- `CommandRegistryContext` e un contract **inchis**: doar cheile declarate, fara `[key: string]: unknown` (gard in `registryClosedContracts.test.ts`); cheile suplimentare schimbate intre installers raman responsabilitatea interfetelor per-modul.
+- `CommandRegistryContext` e un contract **inchis**: doar cheile declarate, cu semnaturile reale ale functiilor (ex. `checkForUpdates(client, games, shouldAbort?)`), fara `[key: string]: unknown` (gard in `registryClosedContracts.test.ts`); cheile suplimentare schimbate intre installers raman responsabilitatea interfetelor per-modul.
+- Installerele au tipul `(context: never) => void` si NU sunt coercitate per-modul (`as unknown as` interzis prin gard); singura granita nesigura e `install(context as never)` in bucla de instalare — compunerea nu poate fi probata static cat timp modulele isi modeleaza local dependintele (tipuri "Like" structurale + chei produse de installers anteriori), iar corectitudinea e acoperita de fail-fast (`requireRegistryFunction`) si de testele DI.
 - Ramane o zona de tranzitie pana cand toate dependintele sunt injectate explicit (factory-uri, fara registru).
 
 ### `src/features/command-runtime/commandRuntimeContext.ts`
 
 - Construieste contextul comun folosit de wiring.
+- Return type-ul e contractul **inchis** `CommandRuntimeContext` (bindings Discord & exporturile Mongo value-tipate & `SourceRegistryApi` & helperii de permisiuni), nu `Record<string, unknown>`; spread-urile vin din require-uri tipate.
 - Este una dintre zonele principale de redus treptat.
 - Scopul pe termen lung este sa livreze dependinte mici si tipate catre factory-uri, nu un obiect comun mare de context.
 
@@ -181,7 +184,8 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/notifications/outboundChannel.ts`
 
 - Rezolva canalul Discord in care se trimit notificarile.
-- Izoleaza erorile de canal lipsa sau inaccesibil.
+- Izoleaza erorile de canal lipsa sau inaccesibil; `channelId` null/undefined inseamna abort logat fara disable (guild fara canal configurat).
+- Rezultatul e o uniune discriminata `{ abort: true; channel: null } | { abort: false; channel: OutboundChannel }` — dupa `if (abort) return;` serviciile au canal tipat end-to-end, fara cast-uri locale.
 - `send(payload, meta)` accepta optional `meta.historyEntries` (intrarile pentru `/history`): pe calea directa (rate-limited) le scrie best-effort dupa send-ul real catre Discord; pe calea outbox le ataseaza pe job (`job.history`), iar scrierea se face in `notificationOutbox.drainOutbox` abia dupa livrarea reala din coada. Serviciile nu mai scriu istoric direct — altfel `/history` ar raporta ca "trimisa" o notificare doar enqueue-uita.
 
 ### `src/features/notifications/seenRepository.ts`

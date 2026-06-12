@@ -10,16 +10,16 @@ const {
   createOutboundChannelResolver,
   isPermanentDiscordError,
   transientErrorMessage
-} = require("./outboundChannel");
-const { createSeenRepository } = require("./seenRepository");
-const { createHistoryRepository } = require("./historyRepository");
-const { createUpdateNotificationService } = require("./updateNotificationService");
-const { createDiscountNotificationService } = require("./discountNotificationService");
-const { createOutboxRuntime, applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker } = require("./notificationOutbox");
-const { createOutboxDelivery } = require("./outboxDelivery");
-const { buildDeadLetterEntry, deadLetterPush, deadLetterTitleFromPayload } = require("./deadLetter");
-const { createDeadLetterReplayRepository } = require("./deadLetterReplayRepository");
-const { defaultDiscordSendLimiter } = require("./discordRateLimiter");
+} = require("./outboundChannel") as typeof import("./outboundChannel");
+const { createSeenRepository } = require("./seenRepository") as typeof import("./seenRepository");
+const { createHistoryRepository } = require("./historyRepository") as typeof import("./historyRepository");
+const { createUpdateNotificationService } = require("./updateNotificationService") as typeof import("./updateNotificationService");
+const { createDiscountNotificationService } = require("./discountNotificationService") as typeof import("./discountNotificationService");
+const { createOutboxRuntime, applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker } = require("./notificationOutbox") as typeof import("./notificationOutbox");
+const { createOutboxDelivery } = require("./outboxDelivery") as typeof import("./outboxDelivery");
+const { buildDeadLetterEntry, deadLetterPush, deadLetterTitleFromPayload } = require("./deadLetter") as typeof import("./deadLetter");
+const { createDeadLetterReplayRepository } = require("./deadLetterReplayRepository") as typeof import("./deadLetterReplayRepository");
+const { defaultDiscordSendLimiter } = require("./discordRateLimiter") as typeof import("./discordRateLimiter");
 
 const OUTBOX_MAX_ATTEMPTS = 5;
 const OUTBOX_BACKOFF_MS = 60_000;
