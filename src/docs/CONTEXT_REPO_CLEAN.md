@@ -18,7 +18,7 @@ Documentul descrie starea curenta a repo-ului dupa migrarea treptata din fisiere
 - Documentatia istorica versionata a fost scoasa din cod; fisierele curente de documentatie raman sursa de adevar.
 - Comentariile explicative din fisierele de cod au fost eliminate complet (zero exceptii). Daca un rationale trebuie pastrat, el sta in documentatie dupa subiect, nu langa implementare. Regula este aplicata automat de `scripts/check-no-comments.ts` (parte din `npm run check`, deci si in CI): scaneaza `.ts`/`.js`/`.rs` (parser TypeScript pentru TS/JS ca sa nu existe fals pozitive pe regex/URL; scanner cu ignorare de string-uri pentru Rust) si esueaza la orice comentariu; allowlist-ul de exceptii este gol.
 - Doua puncte de concurenta subtile din `cron.ts` (rationale-ul lor, mutat din cod aici): (1) heartbeat-ul de reinnoire a lock-ului se re-armeaza (`setTimeout(tick)`) **doar** cat timp `currentCronToken === lockToken` — altfel un tick aflat in zbor ar reinnoi un lock deja eliberat, care intre timp poate fi al altei instante. (2) La finalul ciclului, `currentCronToken` este invalidat (`= null`) **inainte** de `stopHeartbeat()` / `releaseDbLock("cron_main")` — astfel un tick de heartbeat aflat in zbor vede `currentCronToken !== lockToken` si nu se re-armeaza dupa eliberarea lock-ului. Ordinea acestor operatii previne reinnoirea unui lock instrainat; orice refactor in `cron.ts` trebuie sa o pastreze.
-- CI (`ci.yml`) valideaza si MongoDB real (serviciu `mongo:7`, folosit de testul de integrare `outboxMongoIndex.integration.test.ts` care verifica indexul unic sparse pe `notificationOutbox.dedupeKey`) si Rust (`cargo clippy --all-targets -- -D warnings` + `cargo test` cu teste unitare in `native/src/lib.rs`, pe langa compilarea prin `napi build`).
+- CI (`ci.yml`) valideaza si MongoDB real (serviciu `mongo:7`, folosit de testul de integrare `outboxMongoIndex.integration.test.ts` care verifica indexul unic sparse pe `notificationOutbox.dedupeKey`) si Rust (`cargo clippy --workspace --all-targets -- -D warnings` + `cargo test -p discord_patch_bot_logic` pe crate-ul pur, pe langa compilarea prin `napi build`).
 - Codul runtime nu mai foloseste abrevierea legacy pentru context; modulele de compatibilitate folosesc `target` pentru atasare si `deps` pentru factory-uri. Migrarea factory-urilor este incheiata: logica modulelor este expusa prin `createX(deps: XDeps): XApi` cu dependinte explicite, iar `attachX(target)` ramane adaptor subtire (`Object.assign(target, createX(...))`). Tiparul este aplicat la `sources/steam`, `sources/deals`, `sources/updates`, `features/notifications/index`, `command-cache`, `command-presentation` si `infra/http/client.ts`; contractele de boot din `appRuntime` folosesc tipuri explicite (`CommandRuntime`, `ScraperRuntime`, `ActiveLocks`), iar factory-urile centrale din boot wiring (`createCronController`, `createOutboxWorker`, `createHttpServer`, `createHousekeeping`, `registerDiscordEvents`/`registerMongoEvents`, `createShutdownController`) primesc tipurile reale de deps exportate de modulele lor, cu `env` complet `RuntimeEnv` (gard compile-time in `appRuntimeTypedDeps.test.ts`). `SourceRegistryApi` si `MongoRuntimeContext` sunt value-tipate, iar `sources/sourceApis.ts` expune tipurile reale ale API-urilor de surse. Coalescing-ul inflight (`inflightAllGames`, `inflightDeals`, `activeEnrichments`) traieste in closure-ul fiecarei instante de factory, deci instantele cu deps diferite nu impart promisiuni. La nivel de modul raman doar cache-uri pure si deterministe (`enrichedCache`, cache-ul de regex). Singurele `[key: string]: unknown` ramase sunt intentionate: tipuri de date dinamice, schema Mongo si bag-ul de wiring `CommandRegistryContext`.
 - Testele din `src/test` nu mai folosesc abrevieri legacy de context sau tipuri wildcard nesigure; mock-urile Discord/Mongo/HTTP folosesc shape-uri locale si `unknown` pentru cazuri intentionat invalide.
 - Helper-ele de test si variabilele de wiring trebuie numite explicit, de exemplu `makeContext`, `runtimeContext` si `validationContext`.
@@ -73,6 +73,7 @@ src/
   native/
     fuzzy.ts
     src/lib.rs
+    core/src/lib.rs
   shared/
   sources/
     deals/
@@ -136,7 +137,7 @@ Ca prim pas de decuplare, faza de dispatch foloseste deja event store-ul ca reze
 
 ## Native Rust/N-API
 
-`src/native/src/lib.rs` contine doar functii deterministe, fara Discord, Mongo sau HTTP:
+`native/` e un workspace Cargo: logica traieste in crate-ul pur `discord_patch_bot_logic` (`src/native/core/src/lib.rs`, rlib fara napi, cu toate testele unitare — `cargo test -p discord_patch_bot_logic` ruleaza fara build-ul N-API), iar `src/native/src/lib.rs` e doar wrapper-ul cdylib `#[napi]` care deleaga la core. Functiile raman deterministe, fara Discord, Mongo sau HTTP:
 
 - fuzzy matching si Levenshtein;
 - normalizare text si titluri;
