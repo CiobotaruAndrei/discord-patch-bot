@@ -138,6 +138,8 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/features/command-handlers/latestInteractionHandler.ts`
 
+- `/latest reduceri`: daca fetch-ul live pica, cade pe snapshot-ul persistat (`deals:<MONEDA>`, max 60 min vechime) inainte sa raporteze eroare — aceeasi plasa de siguranta ca dispatch-ul din cron.
+
 - Gestioneaza `/latest`.
 - Citeste ultimele update-uri sau reduceri cunoscute si raspunde cu embed-uri/paginare.
 

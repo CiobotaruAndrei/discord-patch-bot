@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 const smoke = require("../scripts/stagingDiscordSmoke") as {
   evaluateCommands: (registered: Array<{ name?: string }>, requiredAny?: string[]) => { ok: boolean; count: number; missing: string[] };
   evaluatePermissions: (grantedNames: string[], requiredNames?: string[]) => { ok: boolean; missing: string[] };
+  evaluateSendability: (channel: unknown) => { sendable: true } | { sendable: false; detail: string };
   expectedCommandNames: () => string[];
   REQUIRED_COMMANDS: string[];
   REQUIRED_PERMISSIONS: string[];
@@ -49,6 +50,17 @@ test("evaluatePermissions: permisiuni lipsa sunt raportate", () => {
   const result = smoke.evaluatePermissions(granted);
   assert.equal(result.ok, false);
   assert.deepEqual(result.missing, ["EmbedLinks", "ReadMessageHistory"]);
+});
+
+test("evaluateSendability: canal text cu send -> sendable; non-text sau fara send -> fail explicit (review #14.1)", () => {
+  assert.deepEqual(smoke.evaluateSendability({ isTextBased: () => true, send: async () => undefined }), { sendable: true });
+  const nonText = smoke.evaluateSendability({ isTextBased: () => false, send: async () => undefined });
+  assert.equal(nonText.sendable, false);
+  assert.match((nonText as { detail: string }).detail, /text-based/);
+  const noSend = smoke.evaluateSendability({ isTextBased: () => true });
+  assert.equal(noSend.sendable, false);
+  assert.match((noSend as { detail: string }).detail, /send/);
+  assert.equal(smoke.evaluateSendability(null).sendable, false);
 });
 
 test("constantele expun permisiunile cheie verificate", () => {

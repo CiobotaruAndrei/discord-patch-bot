@@ -137,7 +137,7 @@ export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSe
     }
 
     if (!canSendEmbeds(channel, botId) || !isSendableChannel(channel)) {
-      const message = "Canal invalid sau fara permisiuni Send Messages/Embed Links.";
+      const message = "Canal invalid sau fara permisiuni View Channel/Send Messages/Embed Links.";
       await disableSafely(disableFn, String(guild._id), channelId, message);
       logger("WARN", context, `${message} Guild ${guild._id}`);
       return { channel: null, abort: true };

@@ -4,7 +4,7 @@
 [![Dependency Audit](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/CiobotaruAndrei/discord-patch-bot/actions/workflows/dependency-review.yml)
 ![Node](https://img.shields.io/badge/node-20.x-339933?logo=node.js&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![TypeScript](https://img.shields.io/badge/typescript-strict%20incremental-3178c6?logo=typescript&logoColor=white)
+![TypeScript](https://img.shields.io/badge/typescript-strict%20global-3178c6?logo=typescript&logoColor=white)
 ![Docker](https://img.shields.io/badge/docker-GHCR%20ready-2496ed?logo=docker&logoColor=white)
 
 Bot Discord pentru notificari despre update-uri, DLC-uri si reduceri pentru jocuri urmarite. Proiectul ruleaza pe Node.js/TypeScript, foloseste MongoDB pentru persistenta si include guard-uri pentru scraping fragil, rate limiting, health checks, metrics si deployment cu Docker.

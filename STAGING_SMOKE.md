@@ -25,7 +25,7 @@ verifica partea de infrastructura, complementar acestui checklist manual:
 - verifica prin REST ca slash command-urile sunt inregistrate (cel putin `ping` si `help`);
 - verifica permisiunile botului pe canalul de test (ViewChannel / SendMessages / EmbedLinks /
   ReadMessageHistory);
-- daca `STAGING_DISCORD_SEND_TEST=true`, trimite un embed real pe canal si il sterge imediat
+- daca `STAGING_DISCORD_SEND_TEST=true`, trimite un embed real pe canal si il sterge imediat; daca testul de trimitere e cerut dar canalul nu e text-based sau nu are functia `send`, proba adauga un check `send` esuat explicit (nu mai poate iesi verde fara sa testeze trimiterea reala)
   (valideaza calea de notificare reala end-to-end).
 
 Fara aceste credentiale **esueaza (exit 1, fail-closed)**; skip-ul intentionat cere `ALLOW_STAGING_SMOKE_SKIP=true`. Nu poate simula un utilizator care

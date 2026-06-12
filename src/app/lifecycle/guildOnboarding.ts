@@ -36,7 +36,7 @@ export function buildOnboardingEmbed(): OnboardingEmbed {
     title: "Salut! Sunt botul de update-uri si reduceri 🎮",
     description: `Multumesc ca m-ai adaugat! Configurarea dureaza un minut:\n\n${steps.join("\n")}`,
     color: 0x5865f2,
-    footer: { text: "Comenzile /start si /set cer permisiune de Administrator. Am nevoie de Send Messages + Embed Links pe canalul de notificari." }
+    footer: { text: "Comenzile /start si /set cer permisiune de Administrator. Am nevoie de View Channel + Send Messages + Embed Links pe canalul de notificari." }
   };
 }
 

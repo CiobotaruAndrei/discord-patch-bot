@@ -114,6 +114,25 @@ test("/latest reduceri loads + paginates", async () => {
   assert.ok(calls.some(c => c.name === "handlePagination"));
 });
 
+test("/latest reduceri: fetch live picat + snapshot proaspat -> ofertele vin din snapshot (review #14.2)", async () => {
+  const { context, calls, safeEditPayloads } = makeContext({
+    fetchDeals: async () => { throw new Error("ambele magazine picate"); },
+    loadFetchSnapshot: async (id: string) => (id === "deals:USD" ? { payload: [{ id: "snap-1" }], fetchedAt: new Date() } : null)
+  });
+  await context.handleInteraction(makeInteraction({ sub: "reduceri" }), []);
+  assert.ok(calls.some(c => c.name === "handlePagination"), "ofertele din snapshot se afiseaza, nu se da eroare");
+  assert.ok(!safeEditPayloads.some(p => String(p).includes("Nu am putut interoga magazinele")), "fara mesaj de eroare cand exista snapshot proaspat");
+});
+
+test("/latest reduceri: fetch picat si fara snapshot proaspat -> eroarea existenta (review #14.2)", async () => {
+  const { context, safeEditPayloads } = makeContext({
+    fetchDeals: async () => { throw new Error("ambele magazine picate"); },
+    loadFetchSnapshot: async () => null
+  });
+  await context.handleInteraction(makeInteraction({ sub: "reduceri" }), []);
+  assert.ok(safeEditPayloads.some(p => String(p).includes("Nu am putut interoga magazinele")), "fara snapshot, eroarea ramane explicita");
+});
+
 test("/latest update <joc> calls executeFetchWithCircuitBreaker when cache empty", async () => {
   const { context, calls } = makeContext();
   await context.handleInteraction(

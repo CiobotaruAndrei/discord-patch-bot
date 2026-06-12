@@ -95,6 +95,7 @@ function installLatestInteractionHandler(target: LatestContext) {
     getDealsCacheData: target.getDealsCacheData,
     setDealsCache: target.setDealsCache,
     fetchDeals: target.fetchDeals,
+    loadFetchSnapshot: target.loadFetchSnapshot,
     enrichDealData: target.enrichDealData,
     dealPassesFilters: target.dealPassesFilters,
     buildDealEmbed: target.buildDealEmbed,
