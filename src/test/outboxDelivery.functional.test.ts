@@ -49,6 +49,14 @@ function makeHarness(opts: {
   return { delivery, sent, client, dedupeKey, marker, getHistoryFetches: () => historyFetches };
 }
 
+test("outboxDelivery: client fara user (ne-ready) -> esec tranzitoriu, nu dead-letter (review #11.1)", async () => {
+  const a = makeHarness();
+  const notReadyClient = { user: null, channels: a.client.channels };
+  const result = await a.delivery.deliver(notReadyClient as never, { channelId: "c1", payload: {} });
+  assert.deepEqual(result, { ok: false, permanent: false }, "jobul se reincearca dupa ce clientul devine ready, nu ajunge in dead-letter");
+  assert.equal(a.sent.length, 0, "nimic trimis cu clientul ne-ready");
+});
+
 test("outboxDelivery: canal lipsa sau fara permisiuni -> esec permanent", async () => {
   const a = makeHarness({ channel: "missing" });
   assert.deepEqual(await a.delivery.deliver(a.client as never, { channelId: "c1", payload: {} }), { ok: false, permanent: true });

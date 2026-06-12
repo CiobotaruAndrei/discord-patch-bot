@@ -43,6 +43,8 @@ test("installerele nu mai sunt coercitate cu as unknown as; granita e un singur 
   assert.match(src, /\(target: never\) => void/, "tipul installer-ului nu pretinde un context pe care nu-l poate proba static");
 });
 
+const tsApi = require("typescript") as typeof import("typescript");
+
 function walkTsFiles(dir: string, out: string[] = []): string[] {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
@@ -56,18 +58,53 @@ function walkTsFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-test("as never ramane izolat in cele doua registre; nu se raspandeste in restul codului (review #10.5)", () => {
-  const allowed = new Set([commandRegistryPath, sourceRegistryPath]);
+function countTypeAssertions(filePath: string): { asNever: number; doubleUnknown: number } {
+  const source = tsApi.createSourceFile(filePath, fs.readFileSync(filePath, "utf8"), tsApi.ScriptTarget.Latest, true);
+  const counts = { asNever: 0, doubleUnknown: 0 };
+  const visit = (node: import("typescript").Node): void => {
+    if (tsApi.isAsExpression(node)) {
+      if (node.type.kind === tsApi.SyntaxKind.NeverKeyword) counts.asNever++;
+      if (tsApi.isAsExpression(node.expression) && node.expression.type.kind === tsApi.SyntaxKind.UnknownKeyword) counts.doubleUnknown++;
+    }
+    tsApi.forEachChild(node, visit);
+  };
+  visit(source);
+  return counts;
+}
+
+test("as never ramane izolat in cele doua registre, verificat pe AST, nu pe text (review #10.5 + #11.4)", () => {
+  const allowed = new Map([[commandRegistryPath, 1], [sourceRegistryPath, 1]]);
   const offenders: string[] = [];
   for (const root of ["app", "features", "sources", "infra", "shared", "domain", "config"]) {
     const dir = path.join(srcRoot, root);
     if (!fs.existsSync(dir)) continue;
     for (const file of walkTsFiles(dir)) {
-      if (allowed.has(file)) continue;
-      if (fs.readFileSync(file, "utf8").includes("as never")) offenders.push(path.relative(srcRoot, file));
+      const { asNever } = countTypeAssertions(file);
+      const allowedCount = allowed.get(file) ?? 0;
+      if (asNever !== allowedCount) offenders.push(`${path.relative(srcRoot, file)}: ${asNever} (permis: ${allowedCount})`);
     }
   }
-  assert.deepEqual(offenders, [], "granita as never exista DOAR in registre, pinuita la cate o aparitie");
+  assert.deepEqual(offenders, [], "granita as never exista DOAR in registre, exact cate una, numarata pe nodurile AST (un text pacalitor in string-uri sau formatare nu trece)");
+});
+
+test("fisierele cu contracte inchise nu au double assertions as unknown as, verificat pe AST (review #11.4)", () => {
+  const guardedFiles = [
+    commandRegistryPath,
+    sourceRegistryPath,
+    path.join(srcRoot, "app", "main.ts"),
+    path.join(srcRoot, "features", "command-runtime", "commandRuntimeContext.ts"),
+    path.join(srcRoot, "features", "notifications", "index.ts"),
+    path.join(srcRoot, "features", "notifications", "outboundChannel.ts"),
+    path.join(srcRoot, "features", "notifications", "outboxDelivery.ts"),
+    path.join(srcRoot, "features", "notifications", "updateNotificationService.ts"),
+    path.join(srcRoot, "features", "notifications", "discountNotificationService.ts")
+  ];
+  const offenders: string[] = [];
+  for (const file of guardedFiles) {
+    const { doubleUnknown } = countTypeAssertions(file);
+    if (doubleUnknown > 0) offenders.push(`${path.relative(srcRoot, file)}: ${doubleUnknown}`);
+  }
+  assert.deepEqual(offenders, [], "zero X as unknown as Y in fisierele cu contracte inchise");
 });
 
 test("notifications nu mai are cast pe modelul Mongo, iar clientul Discord e interfata minima, nu unknown (review #10.3 + #10.4)", () => {

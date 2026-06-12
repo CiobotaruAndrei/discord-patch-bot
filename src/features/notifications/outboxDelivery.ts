@@ -8,10 +8,9 @@ export interface OutboxDeliveryJob {
   recoveryVerify?: boolean;
 }
 
-export interface OutboxDeliveryClient {
-  user: { id: string };
-  channels: { fetch(channelId: string): Promise<unknown> };
-}
+import type { OutboxDiscordClient } from "./outboundChannel";
+
+export type OutboxDeliveryClient = OutboxDiscordClient;
 
 export type OutboxDeliveryResult =
   | { ok: true; recoveryFetched?: boolean; recoveryDuplicate?: boolean; recoveryFailed?: boolean; recoveryMarkerMissing?: boolean }
@@ -58,8 +57,10 @@ export function createOutboxDelivery(deps: OutboxDeliveryDeps) {
   async function deliver(client: OutboxDeliveryClient, job: OutboxDeliveryJob): Promise<OutboxDeliveryResult> {
     const verify = job.recoveryVerify ?? globalRecoveryVerify;
     try {
+      const botId = client.user?.id;
+      if (!botId) return { ok: false, permanent: false };
       const channel = await client.channels.fetch(job.channelId) as { send?: (payload: unknown) => Promise<unknown> } | null;
-      if (!channel || !canSendEmbeds(channel, client.user.id)) return { ok: false, permanent: true };
+      if (!channel || !canSendEmbeds(channel, botId)) return { ok: false, permanent: true };
 
       const isRecoveryCandidate = verify && !!job.dedupeKey && (job.deliveries ?? 0) > 1;
       if (isRecoveryCandidate) {

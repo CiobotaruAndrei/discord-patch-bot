@@ -13,6 +13,8 @@ export interface NotificationDiscordClient {
   };
 }
 
+export type OutboxDiscordClient = NotificationDiscordClient & { isReady(): boolean };
+
 export interface OutboundChannelGuild {
   _id: string | number;
   outboxRecoveryVerify?: boolean;
