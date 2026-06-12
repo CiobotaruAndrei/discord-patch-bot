@@ -66,7 +66,7 @@ type NotificationsContext = NotificationsRuntimeDeps & Record<string, unknown>;
 function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
   const {
     GuildModel, logger, DEFAULT_CURRENCY, runConcurrent,
-    validatePendingDiscountSnapshot, getLatestForAllGames, fetchDeals,
+    validatePendingDiscountSnapshot, validateUpdateFetchSnapshot, getLatestForAllGames, fetchDeals,
     enrichDealData, dealHash, canSendEmbeds, buildUpdateEmbed,
     buildDealEmbed, setUpdatesCache, getDealsCacheData, setDealsCache,
     saveFetchSnapshot, loadFetchSnapshot, GuildSeenDiscountModel, GuildSeenUpdateModel, NotificationOutboxModel, NotificationOutboxSentModel, NotificationHistoryModel, NotificationDeadLetterReplayModel,
@@ -141,7 +141,7 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, setSeenHashVersion, disableUpdatesForChannelError,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingUpdateArray, toEntries, rotateAfter, mapToObject,
-    getLatestForAllGames, setUpdatesCache, persistFetchSnapshot, loadFetchSnapshot: loadSnapshot, buildUpdateEmbed, sleepIfPositive,
+    getLatestForAllGames, validateUpdateFetchSnapshot, setUpdatesCache, persistFetchSnapshot, loadFetchSnapshot: loadSnapshot, buildUpdateEmbed, sleepIfPositive,
     PENDING_UPDATE_MAX_AGE_MS, PENDING_UPDATE_MAX_ATTEMPTS,
     PENDING_UPDATES_PER_GAME_LIMIT, MAX_UPDATES_PER_CYCLE,
     DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY

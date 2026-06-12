@@ -138,7 +138,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/features/command-handlers/latestInteractionHandler.ts`
 
-- `/latest reduceri`: daca fetch-ul live pica, cade pe snapshot-ul persistat (`deals:<MONEDA>`, max 60 min vechime) inainte sa raporteze eroare — aceeasi plasa de siguranta ca dispatch-ul din cron. Itemii snapshot-ului trec prin type guard-ul real `validatePendingDiscountSnapshot` (fluxul e tipat `DealInfo[]`, nu `unknown[]`), fallback-ul NU se scrie in cache-ul live (fiecare request in timpul caderii re-citeste snapshot-ul si vede banner-ul cu sursa + vechimea; urmatorul request reincearca fetch-ul live).
+- `/latest reduceri`: daca fetch-ul live pica, cade pe snapshot-ul persistat (`deals:<MONEDA>`, max 60 min vechime) inainte sa raporteze eroare — aceeasi plasa de siguranta ca dispatch-ul din cron. Itemii snapshot-ului trec prin type guard-ul real `validatePendingDiscountSnapshot` (fluxul e tipat `DealInfo[]`, nu `unknown[]`), fallback-ul NU se scrie in cache-ul live, fluxul e tipat `DealInfo[]` pana la embed/paginare (`buildDealEmbed(deal: DealInfo)`, `handlePagination` generic), iar dupa un esec live exista backoff negativ de 60s: request-urile urmatoare merg direct pe snapshot (banner pastrat) fara sa loveasca sursele externe; dupa fereastra, fetch-ul live se reincearca.
 
 - Gestioneaza `/latest`.
 - Citeste ultimele update-uri sau reduceri cunoscute si raspunde cu embed-uri/paginare.
@@ -175,6 +175,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Proceseaza update-urile noi.
 - Verifica deduplicarea prin repository.
 - Construieste si trimite embed-uri de update.
+- Snapshot-ul de rezerva din event store trece prin `validateUpdateFetchSnapshot` (itemii fara `game.key`/`game.name`/`latest.id` valide sunt eliminati; daca nimic nu trece, fallback-ul e tratat ca inexistent, fara dispatch pe date neverificate); `checkForUpdates` e tipat `GameConfig[]` end-to-end (serviciu -> registry -> appRuntime -> cron).
 - Esecul total e propagat, nu inghitit: fetch picat fara snapshot proaspat, toate guild-urile esuate la dispatch sau **toate jocurile cu `latest: null` si erori reale (non-abort)** -> `checkForUpdates` arunca, deci cron-ul marcheaza ciclul esuat (metrics + admin alert + health window); esecul partial ramane doar logat. Un rezultat integral `latest: null` nu se persista niciodata ca snapshot (ar deveni fallback fals-proaspat care mascheaza caderea).
 
 ### `src/features/notifications/discountNotificationService.ts`
@@ -182,6 +183,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Proceseaza reducerile noi.
 - Verifica deduplicarea prin repository.
 - Foloseste `dealPassesFilters` pentru a respecta setarile guild-ului.
+- Snapshot-ul de rezerva pentru reduceri trece prin `validatePendingDiscountSnapshot` (snapshot corupt = fallback inexistent, fara dispatch).
 - Esecul total e propagat, nu inghitit: `checkForDiscounts` inspecteaza rezultatul `runConcurrent` si arunca daca toate guild-urile abonate au esuat (ex. fetch picat pentru toate monedele, fara snapshot proaspat); esecul partial ramane doar logat.
 
 ### `src/features/notifications/outboundChannel.ts`

@@ -11,7 +11,7 @@ interface CommandRegistryContext {
   setGlobalCacheTtl?: (ms: number) => void;
   setUpdatesCache?: (data: unknown) => void;
   setDealsCache?: (currency: string, data: unknown) => void;
-  checkForUpdates?: (client: NotificationDiscordClient, games: unknown[], shouldAbort?: (() => boolean) | null) => Promise<void>;
+  checkForUpdates?: (client: NotificationDiscordClient, games: GameConfig[], shouldAbort?: (() => boolean) | null) => Promise<void>;
   checkForDiscounts?: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
   drainOutbox?: (client: OutboxDiscordClient) => MaybePromise<unknown>;
   buildOptimizedGameList?: (allGames: GameConfig[], subscribedGuilds: unknown[]) => GameConfig[];

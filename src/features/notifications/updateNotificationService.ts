@@ -1,6 +1,7 @@
 "use strict";
 
 import type { QueryFilter, Model } from "mongoose";
+import type { GameConfig } from "../../types";
 import type { GuildSettings } from "../../types";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
@@ -52,7 +53,8 @@ export interface UpdateNotificationServiceDeps {
   rotateAfter: <T>(arr: T[], lastSeen: T | null) => T[];
   mapToObject: <V>(map: Map<string, V>) => Record<string, V>;
 
-  getLatestForAllGames: (games: unknown[], shouldAbort?: (() => boolean) | null) => Promise<UpdateFetchResult[]>;
+  getLatestForAllGames: (games: GameConfig[], shouldAbort?: (() => boolean) | null) => Promise<UpdateFetchResult[]>;
+  validateUpdateFetchSnapshot: (item: unknown) => boolean;
   setUpdatesCache: (data: UpdateFetchResult[]) => void;
   persistFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
   loadFetchSnapshot?: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
@@ -71,7 +73,7 @@ export interface UpdateNotificationServiceDeps {
 export interface UpdateNotificationService {
   processGuildUpdates: (client: NotificationDiscordClient, guild: GuildSettings & Record<string, unknown>, latestResults: UpdateFetchResult[]) => Promise<void>;
   buildOptimizedGameList: <G extends { key: string }>(allGames: G[], subscribedGuilds: Array<{ enabledGames?: unknown[] }>) => G[];
-  checkForUpdates: (client: NotificationDiscordClient, games: unknown[], shouldAbort?: (() => boolean) | null) => Promise<void>;
+  checkForUpdates: (client: NotificationDiscordClient, games: GameConfig[], shouldAbort?: (() => boolean) | null) => Promise<void>;
 }
 
 export function createUpdateNotificationService(deps: UpdateNotificationServiceDeps): UpdateNotificationService {
@@ -80,7 +82,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, setSeenHashVersion, disableUpdatesForChannelError,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingUpdateArray, toEntries, rotateAfter, mapToObject,
-    getLatestForAllGames, setUpdatesCache, persistFetchSnapshot, loadFetchSnapshot, buildUpdateEmbed, sleepIfPositive,
+    getLatestForAllGames, validateUpdateFetchSnapshot, setUpdatesCache, persistFetchSnapshot, loadFetchSnapshot, buildUpdateEmbed, sleepIfPositive,
     PENDING_UPDATE_MAX_AGE_MS, PENDING_UPDATE_MAX_ATTEMPTS,
     PENDING_UPDATES_PER_GAME_LIMIT, MAX_UPDATES_PER_CYCLE,
     DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY
@@ -233,7 +235,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     return filtered.length > 0 ? filtered : allGames;
   }
 
-  async function checkForUpdates(client: NotificationDiscordClient, games: unknown[], shouldAbort: (() => boolean) | null = null): Promise<void> {
+  async function checkForUpdates(client: NotificationDiscordClient, games: GameConfig[], shouldAbort: (() => boolean) | null = null): Promise<void> {
     if (shouldAbort?.()) return;
 
     const guilds = await GuildModel.find({
@@ -243,7 +245,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     } as QueryFilter<GuildSettings>).lean();
     if (!guilds.length) return;
 
-    const optimizedGames = buildOptimizedGameList(games as Array<{ key: string }>, guilds as Array<{ enabledGames?: unknown[] }>);
+    const optimizedGames = buildOptimizedGameList(games, guilds as Array<{ enabledGames?: unknown[] }>);
     if (optimizedGames.length < games.length) {
       logger("INFO", "CRON_UPDATES", `Lista optimizata: ${optimizedGames.length}/${games.length} jocuri folosite de guild-uri`);
     }
@@ -266,8 +268,9 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       const fallback = loadFetchSnapshot ? await loadFetchSnapshot("updates").catch(() => null) : null;
       const fresh = !!fallback && fallback.fetchedAt != null
         && (Date.now() - new Date(fallback.fetchedAt).getTime()) < SNAPSHOT_FALLBACK_MAX_AGE_MS;
+      const isValidFetchResult = (item: unknown): item is UpdateFetchResult => validateUpdateFetchSnapshot(item);
       const fallbackResults = fresh && fallback && Array.isArray(fallback.payload)
-        ? fallback.payload as UpdateFetchResult[]
+        ? fallback.payload.filter(isValidFetchResult)
         : null;
       if (!fallbackResults || !fallbackResults.length) {
         throw new Error(`Nu am putut prelua update-urile si nu exista snapshot de rezerva proaspat: ${transientErrorMessage(err)}`);

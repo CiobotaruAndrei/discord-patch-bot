@@ -277,9 +277,11 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
           const fallback = loadFetchSnapshot ? await loadFetchSnapshot(`deals:${cur}`).catch(() => null) : null;
           const fresh = !!fallback && fallback.fetchedAt != null
             && (Date.now() - new Date(fallback.fetchedAt).getTime()) < SNAPSHOT_FALLBACK_MAX_AGE_MS;
-          if (fresh && fallback && Array.isArray(fallback.payload) && fallback.payload.length) {
+          const isValidDeal = (item: unknown): item is DealInfo => validatePendingDiscountSnapshot(item);
+          const validDeals = fresh && fallback && Array.isArray(fallback.payload) ? fallback.payload.filter(isValidDeal) : [];
+          if (validDeals.length) {
             logger("WARN", "CRON_DISCOUNTS", `Fetch reduceri esuat pentru ${cur} — folosesc snapshot-ul recent din event store`, transientErrorMessage(err));
-            return fallback.payload as DealInfo[];
+            return validDeals;
           }
           throw err;
         }));

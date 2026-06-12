@@ -237,13 +237,13 @@ function buildPaginationButtons(prefix: string, sessionId: string, page: number,
   );
 }
 
-async function handlePagination(
+async function handlePagination<TItem, TEmbed>(
   interactionMessage: InteractionMessage,
   authorId: string,
   prefix: string,
-  items: unknown[],
+  items: TItem[],
   itemsPerPage: number,
-  generateEmbedsFn: (currentPage: number, totalPages: number, mode: NotificationMode) => Promise<unknown[]> | unknown[],
+  generateEmbedsFn: (currentPage: number, totalPages: number, mode: NotificationMode) => Promise<TEmbed[]> | TEmbed[],
   defaultMode: NotificationMode = "detailed"
 ): Promise<void> {
   if (!items || items.length === 0) return;
