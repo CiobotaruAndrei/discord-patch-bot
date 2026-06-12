@@ -6,8 +6,8 @@ export const DISCORD_PERMANENT_ERROR_CODES = new Set([10003, 10004, 50001, 50013
 export type NotificationLogger = (level: string, context: string, message: string, meta?: unknown) => void;
 export type DisableChannelFn = (guildId: string, channelId: string, message: string) => Promise<unknown> | unknown;
 
-export interface OutboundChannelClient {
-  user: { id: string };
+export interface NotificationDiscordClient {
+  user?: { id?: string } | null;
   channels: {
     fetch(channelId: string): Promise<unknown> | unknown;
   };
@@ -19,7 +19,7 @@ export interface OutboundChannelGuild {
 }
 
 export interface ResolveOutboundChannelArgs {
-  client: unknown;
+  client: NotificationDiscordClient;
   guild: OutboundChannelGuild;
   channelId: string | null | undefined;
   context: string;
@@ -104,10 +104,14 @@ export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSe
       logger("WARN", context, `Guild ${guild._id} fara canal configurat pentru acest tip de notificari, sar peste ciclu`);
       return { channel: null, abort: true };
     }
-    const discordClient = client as OutboundChannelClient;
+    const botId = client.user?.id;
+    if (!botId) {
+      logger("WARN", context, `Clientul Discord nu e ready (fara user) pentru guild ${guild._id}, sar peste ciclu`);
+      return { channel: null, abort: true };
+    }
     let channel: unknown | null = null;
     try {
-      channel = await discordClient.channels.fetch(channelId);
+      channel = await client.channels.fetch(channelId);
     } catch (err) {
       if (isPermanentDiscordError(err)) {
         const reason = `Discord cod ${(err as { code?: unknown }).code}: ${transientErrorMessage(err)}`;
@@ -126,7 +130,7 @@ export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSe
       return { channel: null, abort: true };
     }
 
-    if (!canSendEmbeds(channel, discordClient.user.id)) {
+    if (!canSendEmbeds(channel, botId)) {
       const message = "Canal invalid sau fara permisiuni Send Messages/Embed Links.";
       await disableSafely(disableFn, String(guild._id), channelId, message);
       logger("WARN", context, `${message} Guild ${guild._id}`);

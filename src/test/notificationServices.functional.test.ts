@@ -14,6 +14,7 @@ type DiscountDeals = Parameters<DiscountService["processGuildDiscounts"]>[2];
 type TestGame = { key: string; name?: string };
 type TestDeal = { id: string; title?: string };
 type SentPayload = { embeds?: unknown; content?: string };
+const noopDiscordClient = { channels: { fetch: async () => null } };
 type SentMeta = { historyEntries?: Array<{ kind: string; gameKey?: string; title?: string; link?: string }> } | undefined;
 
 function entriesFrom(value: unknown): Array<[string, unknown]> {
@@ -124,7 +125,7 @@ test("UpdateService: checkForUpdates scrie cache cand lista nu e filtrata (full 
     setUpdatesCache: () => { cacheWrites++; }
   });
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates({}, [{ key: "cs2" }, { key: "fortnite" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }, { key: "fortnite" }]);
   assert.equal(cacheWrites, 1, "lista completa → cache scris exact o data");
 });
 
@@ -136,7 +137,7 @@ test("UpdateService: checkForUpdates NU scrie cache cand lista e filtrata (subse
     setUpdatesCache: () => { cacheWrites++; }
   });
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates({}, [{ key: "cs2" }, { key: "fortnite" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }, { key: "fortnite" }]);
   assert.equal(cacheWrites, 0, "subset filtrat → cache global nu trebuie scris (ar fi partial)");
 });
 
@@ -157,7 +158,7 @@ test("UpdateService: processGuildUpdates trimite update + ping rol pe prima trim
   const latestResults = [
     { game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2", title: "patch" } }
   ] as UpdateResults;
-  await svc.processGuildUpdates({}, guild, latestResults);
+  await svc.processGuildUpdates(noopDiscordClient, guild, latestResults);
   assert.equal(sentPayloads.length, 1);
   assert.equal(sentPayloads[0].content, "<@&role-42>", "rol ping pe prima trimitere");
   assert.equal(claims.length, 1);
@@ -182,7 +183,7 @@ test("UpdateService: mai multe update-uri sunt grupate intr-un singur mesaj cu m
     { game: { key: "fortnite", name: "Fortnite" }, latest: { id: "u-fn", title: "b" } },
     { game: { key: "dota2", name: "Dota2" }, latest: { id: "u-dota", title: "c" } }
   ] as UpdateResults;
-  await svc.processGuildUpdates({}, guild, latestResults);
+  await svc.processGuildUpdates(noopDiscordClient, guild, latestResults);
   assert.equal(sentPayloads.length, 1, "3 update-uri intr-un singur mesaj batch");
   assert.equal((sentPayloads[0].embeds as unknown[]).length, 3, "3 embed-uri in mesaj");
   assert.equal(sentPayloads[0].content, "<@&role-7>", "ping rol pe mesajul batch");
@@ -199,7 +200,7 @@ test("UpdateService: send-ul transmite meta.historyEntries pentru scrierea istor
   const latestResults = [
     { game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2", title: "Patch 1.5", link: "https://example.com/cs2" } }
   ] as UpdateResults;
-  await svc.processGuildUpdates({}, guild, latestResults);
+  await svc.processGuildUpdates(noopDiscordClient, guild, latestResults);
   assert.equal(sentMetas.length, 1);
   assert.deepEqual(sentMetas[0]?.historyEntries, [
     { kind: "update", gameKey: "cs2", title: "Patch 1.5", link: "https://example.com/cs2" }
@@ -216,7 +217,7 @@ test("UpdateService: claim race (matchedCount=0) sare item-ul fara send sau roll
     seen: {}, pendingUpdates: {}, enabledGames: []
   } as UpdateGuild;
   const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1" } }] as UpdateResults;
-  await svc.processGuildUpdates({}, guild, latestResults);
+  await svc.processGuildUpdates(noopDiscordClient, guild, latestResults);
   assert.equal(sentPayloads.length, 0, "nu trebuie sa trimitem cand claim-ul nu ne-a aprins");
   assert.equal(rollbacks.length, 0, "nu rollback daca n-am claim-uit");
 });
@@ -239,7 +240,7 @@ test("UpdateService: send fail (transient) rollback claim si retry next cycle", 
     seen: {}, pendingUpdates: {}, enabledGames: []
   } as UpdateGuild;
   const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1" } }] as UpdateResults;
-  await svc.processGuildUpdates({}, guild, latestResults);
+  await svc.processGuildUpdates(noopDiscordClient, guild, latestResults);
   assert.equal(sendCallCount, 1);
   assert.equal(rollbacks.length, 1, "rollback obligatoriu pe transient fail");
 });
@@ -258,7 +259,7 @@ test("UpdateService: buildUpdateEmbed care arunca da claim-ul inapoi si dead-let
     seen: {}, pendingUpdates: {}, enabledGames: []
   } as UpdateGuild;
   const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1", title: "patch" } }] as UpdateResults;
-  await svc.processGuildUpdates({}, guild, latestResults);
+  await svc.processGuildUpdates(noopDiscordClient, guild, latestResults);
   assert.equal(sendCalls, 0, "nimic trimis cand embed-ul crapa");
   assert.ok(rollbacks.length >= 1, "claim-ul e dat inapoi (regresie: update-ul ramanea marcat seen fara sa fie trimis vreodata)");
   const update = updateOneCalls[0].update as { $push?: { notificationDeadLetter?: { $each?: unknown[] } } };
@@ -280,7 +281,7 @@ test("UpdateService: livrarea care epuizeaza retry-urile intra in dead-letter (c
     seen: {}, pendingUpdates: {}, enabledGames: []
   } as UpdateGuild;
   const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1", title: "patch" } }] as UpdateResults;
-  await svc.processGuildUpdates({}, guild, latestResults);
+  await svc.processGuildUpdates(noopDiscordClient, guild, latestResults);
   assert.equal(updateOneCalls.length, 1);
   const update = updateOneCalls[0].update as { $push?: { notificationDeadLetter?: { $each?: unknown[] } } };
   const entries = (update.$push?.notificationDeadLetter?.$each || []) as Array<{ kind: string; itemId: string; attempts: number }>;
@@ -303,7 +304,7 @@ test("UpdateService: un retry sub max NU scrie dead-letter (fara $push)", async 
     seen: {}, pendingUpdates: {}, enabledGames: []
   } as UpdateGuild;
   const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1" } }] as UpdateResults;
-  await svc.processGuildUpdates({}, guild, latestResults);
+  await svc.processGuildUpdates(noopDiscordClient, guild, latestResults);
   const update = updateOneCalls[0].update as { $push?: unknown };
   assert.equal(update.$push, undefined, "cat timp se mai poate reincerca, nu scriem dead-letter");
 });
@@ -320,7 +321,7 @@ test("UpdateService: enabledGames filter sare jocurile ne-active", async () => {
     { game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2" } },
     { game: { key: "fortnite", name: "Fortnite" }, latest: { id: "u-fn" } }
   ] as UpdateResults;
-  await svc.processGuildUpdates({}, guild, latestResults);
+  await svc.processGuildUpdates(noopDiscordClient, guild, latestResults);
   assert.equal(sentPayloads.length, 1, "doar 1 update pentru cs2");
 });
 
@@ -394,7 +395,7 @@ test("DiscountService: trimite reduceri noi care nu sunt in seenDiscounts", asyn
     seenDiscounts: [], pendingDiscounts: [], currency: "USD"
   } as DiscountGuild;
   const deals = [{ id: "d1", title: "Game A" }] as DiscountDeals;
-  await svc.processGuildDiscounts({}, guild, deals);
+  await svc.processGuildDiscounts(noopDiscordClient, guild, deals);
   assert.equal(claims.length, 1, "trebuie sa claim-uim hash-ul nou");
   assert.equal(sentPayloads.length, 1);
 });
@@ -407,7 +408,7 @@ test("DiscountService: send-ul transmite meta.historyEntries cu titlul si link-u
     seenDiscounts: [], pendingDiscounts: [], currency: "USD"
   } as DiscountGuild;
   const deals = [{ id: "d1", title: "Game A", url: "https://example.com/deal-a" }] as DiscountDeals;
-  await svc.processGuildDiscounts({}, guild, deals);
+  await svc.processGuildDiscounts(noopDiscordClient, guild, deals);
   assert.equal(sentMetas.length, 1);
   assert.deepEqual(sentMetas[0]?.historyEntries, [
     { kind: "discount", title: "Game A", link: "https://example.com/deal-a" }
@@ -422,7 +423,7 @@ test("DiscountService: hash deja vazut (in colectia seen) NU se mai trimite", as
     pendingDiscounts: [], currency: "USD"
   } as DiscountGuild;
   const deals = [{ id: "d1", title: "Already seen" }] as DiscountDeals;
-  await svc.processGuildDiscounts({}, guild, deals);
+  await svc.processGuildDiscounts(noopDiscordClient, guild, deals);
   assert.equal(claims.length, 0);
   assert.equal(sentPayloads.length, 0);
 });
@@ -437,7 +438,7 @@ test("DiscountService: cere doar candidatii ciclului la loadSeenDiscountHashes (
     _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", seenHashVersionDiscounts: 2,
     pendingDiscounts: [{ hash: "p-old", snapshot: { id: "p-old", title: "Pending" }, lastSeenAt: new Date(), attempts: 0 }], currency: "USD"
   } as DiscountGuild;
-  await svc.processGuildDiscounts({}, guild, [{ id: "d1", title: "Game A" }] as DiscountDeals);
+  await svc.processGuildDiscounts(noopDiscordClient, guild, [{ id: "d1", title: "Game A" }] as DiscountDeals);
   assert.equal(candidateCalls.length, 1);
   assert.ok(Array.isArray(candidateCalls[0]), "serviciul paseaza lista de candidati, nu mai cere tot istoricul guild-ului");
   assert.ok((candidateCalls[0] as string[]).includes("d1"), "include hash-urile ofertelor curente");
@@ -453,7 +454,7 @@ test("DiscountService: reducerile sunt grupate intr-un singur mesaj cu ping rol 
     discountRoleId: "role-99"
   } as DiscountGuild;
   const deals = [{ id: "d1" }, { id: "d2" }, { id: "d3" }] as DiscountDeals;
-  await svc.processGuildDiscounts({}, guild, deals);
+  await svc.processGuildDiscounts(noopDiscordClient, guild, deals);
   assert.equal(sentPayloads.length, 1, "3 reduceri intr-un singur mesaj batch");
   assert.equal((sentPayloads[0].embeds as unknown[]).length, 3, "3 embed-uri in mesaj");
   assert.equal(sentPayloads[0].content, "<@&role-99>", "ping rol pe mesajul batch");
@@ -470,7 +471,7 @@ test("DiscountService: claim race (matchedCount=0) sare deal-ul fara enrich", as
     _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", seenHashVersionDiscounts: 2,
     seenDiscounts: [], pendingDiscounts: [], currency: "USD"
   } as DiscountGuild;
-  await svc.processGuildDiscounts({}, guild, [{ id: "d1" }] as DiscountDeals);
+  await svc.processGuildDiscounts(noopDiscordClient, guild, [{ id: "d1" }] as DiscountDeals);
   assert.equal(sentPayloads.length, 0);
   assert.equal(enrichCount, 0, "claim ruleaza inainte de enrich; race-ul evita Steam calls");
 });
@@ -484,7 +485,7 @@ test("DiscountService: dealPassesFilters=false sare deal-ul (filter-aware)", asy
     _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", seenHashVersionDiscounts: 2,
     seenDiscounts: [], pendingDiscounts: [], currency: "USD"
   } as DiscountGuild;
-  await svc.processGuildDiscounts({}, guild, [{ id: "d1" }] as DiscountDeals);
+  await svc.processGuildDiscounts(noopDiscordClient, guild, [{ id: "d1" }] as DiscountDeals);
   assert.equal(sentPayloads.length, 0);
 });
 
@@ -499,7 +500,7 @@ test("DiscountService: livrarea care epuizeaza retry-urile intra in dead-letter 
     _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", seenHashVersionDiscounts: 2,
     seenDiscounts: [], pendingDiscounts: [], currency: "USD"
   } as DiscountGuild;
-  await svc.processGuildDiscounts({}, guild, [{ id: "d1", title: "Game A" }] as DiscountDeals);
+  await svc.processGuildDiscounts(noopDiscordClient, guild, [{ id: "d1", title: "Game A" }] as DiscountDeals);
   assert.equal(updateOneCalls.length, 1);
   const update = updateOneCalls[0].update as { $push?: { notificationDeadLetter?: { $each?: unknown[] } } };
   const entries = (update.$push?.notificationDeadLetter?.$each || []) as Array<{ kind: string; itemId: string; attempts: number }>;
@@ -524,7 +525,7 @@ test("DiscountService: re-baseline la hashVersion invechit seed-uieste hash-uril
     _id: "guild-stale", discountsSubscribed: true, discountChannelId: "channel-d",
     pendingDiscounts: [], currency: "USD"
   } as DiscountGuild;
-  await svc.processGuildDiscounts({}, guild, [{ id: "d1", title: "A" }, { id: "d2", title: "B" }] as DiscountDeals);
+  await svc.processGuildDiscounts(noopDiscordClient, guild, [{ id: "d1", title: "A" }, { id: "d2", title: "B" }] as DiscountDeals);
   assert.equal(sentPayloads.length, 0, "re-baseline nu trimite notificari in ciclul curent");
   assert.deepEqual(seeded, [["d1", "d2"]], "seed-uieste toate hash-urile curente");
   assert.deepEqual(versions, [{ field: "seenHashVersionDiscounts", version: 2 }], "marcheaza versiunea curenta de hash");
@@ -548,7 +549,7 @@ test("UpdateService: re-baseline la hashVersion invechit seed-uieste update-uril
     { game: { key: "cs2" }, latest: { id: "u-cs2" } },
     { game: { key: "dota2" }, latest: { id: "u-dota2" } }
   ] as UpdateResults;
-  await svc.processGuildUpdates({}, guild, latestResults);
+  await svc.processGuildUpdates(noopDiscordClient, guild, latestResults);
   assert.equal(sentPayloads.length, 0, "re-baseline nu trimite notificari");
   assert.equal(claims.length, 0, "nu revendica nimic in ciclul de re-baseline");
   assert.deepEqual(seeded, [[{ gameKey: "cs2", updateId: "u-cs2" }, { gameKey: "dota2", updateId: "u-dota2" }]]);
@@ -563,7 +564,7 @@ test("UpdateService: fetch esuat FARA snapshot proaspat -> checkForUpdates arunc
   });
   const svc = createUpdateNotificationService(deps);
   await assert.rejects(
-    () => svc.checkForUpdates({}, [{ key: "cs2" }]),
+    () => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }]),
     /snapshot de rezerva proaspat.*ECONNRESET total/,
     "regresie: functia facea return dupa logger.ERROR -> promisiunea se rezolva si cron-ul marca ciclul drept sanatos"
   );
@@ -577,7 +578,7 @@ test("UpdateService: fetch esuat CU snapshot proaspat -> checkForUpdates NU arun
     loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2" }, latest: { id: "u-cs2" } }], fetchedAt: new Date() })
   });
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates({}, [{ key: "cs2" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }]);
 });
 
 test("UpdateService: TOATE guild-urile esueaza la procesare -> checkForUpdates arunca", async () => {
@@ -588,7 +589,7 @@ test("UpdateService: TOATE guild-urile esueaza la procesare -> checkForUpdates a
   });
   const svc = createUpdateNotificationService(deps);
   await assert.rejects(
-    () => svc.checkForUpdates({}, [{ key: "cs2" }]),
+    () => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }]),
     /toate cele 1 guild-uri abonate.*Discord indisponibil/
   );
 });
@@ -606,7 +607,7 @@ test("UpdateService: esec PARTIAL pe guild-uri -> checkForUpdates NU arunca (deg
     }
   });
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates({}, [{ key: "cs2" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }]);
 });
 
 test("DiscountService: fetchDeals esueaza pentru toate monedele fara snapshot -> checkForDiscounts arunca (review #2)", async () => {
@@ -617,7 +618,7 @@ test("DiscountService: fetchDeals esueaza pentru toate monedele fara snapshot ->
   });
   const svc = createDiscountNotificationService(deps);
   await assert.rejects(
-    () => svc.checkForDiscounts({}),
+    () => svc.checkForDiscounts(noopDiscordClient),
     /toate cele 1 guild-uri abonate.*Epic\+Steam cazute/,
     "regresie: runConcurrent inghitea erorile per-guild in { errors } iar caller-ul le ignora -> cron sanatos cu reduceri complet cazute"
   );
@@ -636,7 +637,7 @@ test("DiscountService: esec PARTIAL (o moneda din doua) -> checkForDiscounts NU 
     }
   });
   const svc = createDiscountNotificationService(deps);
-  await svc.checkForDiscounts({});
+  await svc.checkForDiscounts(noopDiscordClient);
 });
 
 function makeAllNullDeps(results: Array<{ key: string; error?: string; latest?: { id: string } | null }>, extra: Record<string, unknown> = {}) {
@@ -658,7 +659,7 @@ test("UpdateService: toate jocurile cu latest null + erori reale -> ciclu esuat,
   ]);
   const svc = createUpdateNotificationService(deps);
   await assert.rejects(
-    () => svc.checkForUpdates({}, [{ key: "cs2" }, { key: "dota2" }]),
+    () => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }, { key: "dota2" }]),
     /latest: null.*2 cu erori reale.*snapshot de rezerva proaspat|snapshot de rezerva proaspat.*latest: null/,
     "regresie: erorile per-joc deveneau { latest: null, error } iar serviciul trata rezultatul ca fetch reusit"
   );
@@ -670,7 +671,7 @@ test("UpdateService: toate null + erori reale, dar CU snapshot proaspat -> dispa
     loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2" }, latest: { id: "u-cs2" } }], fetchedAt: new Date() })
   });
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates({}, [{ key: "cs2" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }]);
   assert.deepEqual(persistCalls, [], "nici pe calea de fallback nu se persista rezultatul all-null");
 });
 
@@ -680,7 +681,7 @@ test("UpdateService: toate null doar din abort -> NU e tratat ca sursa rupta (fa
     { key: "dota2", error: "abort" }
   ]);
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates({}, [{ key: "cs2" }, { key: "dota2" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }, { key: "dota2" }]);
   assert.deepEqual(persistCalls, [], "rezultatul all-null de la abort nu suprascrie snapshot-ul bun");
 });
 
@@ -690,6 +691,6 @@ test("UpdateService: esec partial (un joc cu date, unul cu eroare) -> ciclu OK s
     { key: "dota2", error: "ECONNRESET" }
   ]);
   const svc = createUpdateNotificationService(deps);
-  await svc.checkForUpdates({}, [{ key: "cs2" }, { key: "dota2" }]);
+  await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2" }, { key: "dota2" }]);
   assert.deepEqual(persistCalls, ["updates"], "cu macar un rezultat real, snapshot-ul se persista ca pana acum");
 });

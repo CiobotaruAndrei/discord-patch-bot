@@ -52,6 +52,7 @@ type NotificationsRuntimeDeps = SeenRepositoryDeps
   & Omit<UpdateNotificationServiceDeps, GeneratedUpdateDeps>
   & Omit<DiscountNotificationServiceDeps, GeneratedDiscountDeps>
   & {
+    GuildModel: { countDocuments(filter: Record<string, unknown>): Promise<number> };
     canSendEmbeds(channel: unknown, botId: string): boolean;
     saveFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
     NotificationOutboxModel: Model<OutboxJobShape>;
@@ -122,8 +123,7 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
       limit: OUTBOX_DRAIN_LIMIT,
       maxAgeMs: OUTBOX_MAX_AGE_MS
     });
-    const guildCounter = GuildModel as unknown as { countDocuments(filter: Record<string, unknown>): Promise<number> };
-    const recoveryVerifyEnabledGuilds = await guildCounter.countDocuments({ outboxRecoveryVerify: true }).catch(() => undefined);
+    const recoveryVerifyEnabledGuilds = await GuildModel.countDocuments({ outboxRecoveryVerify: true }).catch(() => undefined);
     return typeof recoveryVerifyEnabledGuilds === "number" ? { ...result, recoveryVerifyEnabledGuilds } : result;
   }
 

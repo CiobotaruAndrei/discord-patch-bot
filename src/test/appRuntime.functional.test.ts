@@ -24,6 +24,7 @@ function makeDeps(overrides: { updatesFetchedAt?: Date } = {}) {
 
   class FakeClient {
     user = null;
+    channels = { fetch: async () => null };
     login = async () => { order.push("login"); return "ok"; };
     destroy = () => undefined;
     isReady = () => true;

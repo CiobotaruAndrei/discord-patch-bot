@@ -4,7 +4,7 @@ import type { QueryFilter, Model } from "mongoose";
 import type { GuildSettings } from "../../types";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
-import type { ResolveOutboundChannelResult } from "./outboundChannel";
+import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
 import { HASH_VERSION } from "../../native/fuzzy";
 import { packEmbedsByBudget, embedCharCost } from "../../shared/discordEmbedChunks";
 
@@ -16,7 +16,7 @@ type Logger = (level: string, context: string, msg: string, meta?: unknown) => v
 interface MongoWriteResult { matchedCount?: number; modifiedCount?: number }
 
 type ResolveOutboundChannel = (opts: {
-  client: unknown;
+  client: NotificationDiscordClient;
   guild: GuildSettings & Record<string, unknown>;
   channelId: string | null | undefined;
   context: string;
@@ -69,9 +69,9 @@ export interface UpdateNotificationServiceDeps {
 }
 
 export interface UpdateNotificationService {
-  processGuildUpdates: (client: unknown, guild: GuildSettings & Record<string, unknown>, latestResults: UpdateFetchResult[]) => Promise<void>;
+  processGuildUpdates: (client: NotificationDiscordClient, guild: GuildSettings & Record<string, unknown>, latestResults: UpdateFetchResult[]) => Promise<void>;
   buildOptimizedGameList: <G extends { key: string }>(allGames: G[], subscribedGuilds: Array<{ enabledGames?: unknown[] }>) => G[];
-  checkForUpdates: (client: unknown, games: unknown[], shouldAbort?: (() => boolean) | null) => Promise<void>;
+  checkForUpdates: (client: NotificationDiscordClient, games: unknown[], shouldAbort?: (() => boolean) | null) => Promise<void>;
 }
 
 export function createUpdateNotificationService(deps: UpdateNotificationServiceDeps): UpdateNotificationService {
@@ -87,7 +87,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
   } = deps;
 
   async function processGuildUpdates(
-    client: unknown,
+    client: NotificationDiscordClient,
     guild: GuildSettings & Record<string, unknown>,
     latestResults: UpdateFetchResult[]
   ): Promise<void> {
@@ -233,7 +233,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     return filtered.length > 0 ? filtered : allGames;
   }
 
-  async function checkForUpdates(client: unknown, games: unknown[], shouldAbort: (() => boolean) | null = null): Promise<void> {
+  async function checkForUpdates(client: NotificationDiscordClient, games: unknown[], shouldAbort: (() => boolean) | null = null): Promise<void> {
     if (shouldAbort?.()) return;
 
     const guilds = await GuildModel.find({

@@ -43,6 +43,52 @@ test("installerele nu mai sunt coercitate cu as unknown as; granita e un singur 
   assert.match(src, /\(target: never\) => void/, "tipul installer-ului nu pretinde un context pe care nu-l poate proba static");
 });
 
+function walkTsFiles(dir: string, out: string[] = []): string[] {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === "node_modules" || entry.name === "dist" || entry.name === "test" || entry.name === "target") continue;
+      walkTsFiles(full, out);
+    } else if (entry.name.endsWith(".ts")) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+test("as never ramane izolat in cele doua registre; nu se raspandeste in restul codului (review #10.5)", () => {
+  const allowed = new Set([commandRegistryPath, sourceRegistryPath]);
+  const offenders: string[] = [];
+  for (const root of ["app", "features", "sources", "infra", "shared", "domain", "config"]) {
+    const dir = path.join(srcRoot, root);
+    if (!fs.existsSync(dir)) continue;
+    for (const file of walkTsFiles(dir)) {
+      if (allowed.has(file)) continue;
+      if (fs.readFileSync(file, "utf8").includes("as never")) offenders.push(path.relative(srcRoot, file));
+    }
+  }
+  assert.deepEqual(offenders, [], "granita as never exista DOAR in registre, pinuita la cate o aparitie");
+});
+
+test("notifications nu mai are cast pe modelul Mongo, iar clientul Discord e interfata minima, nu unknown (review #10.3 + #10.4)", () => {
+  const notificationsIndexPath = path.join(srcRoot, "features", "notifications", "index.ts");
+  const outboundChannelPath = path.join(srcRoot, "features", "notifications", "outboundChannel.ts");
+  const updateServicePath = path.join(srcRoot, "features", "notifications", "updateNotificationService.ts");
+  const discountServicePath = path.join(srcRoot, "features", "notifications", "discountNotificationService.ts");
+  const indexText = fs.readFileSync(notificationsIndexPath, "utf8");
+  assert.ok(!indexText.includes("as unknown as"), "notifications/index.ts fara cast-uri as unknown as (countDocuments e in contractul deps)");
+  assert.match(indexText, /GuildModel: \{ countDocuments\(/, "capabilitatea countDocuments e declarata explicit in NotificationsRuntimeDeps");
+  const outbound = fs.readFileSync(outboundChannelPath, "utf8");
+  assert.match(outbound, /export interface NotificationDiscordClient/, "interfata minima de client Discord exista si e exportata");
+  assert.match(outbound, /client: NotificationDiscordClient/, "resolver-ul cere interfata minima, nu unknown");
+  assert.ok(!/client: unknown/.test(outbound), "fara client: unknown in outboundChannel");
+  for (const servicePath of [updateServicePath, discountServicePath]) {
+    const text = fs.readFileSync(servicePath, "utf8");
+    assert.match(text, /client: NotificationDiscordClient/, `${path.basename(servicePath)} foloseste interfata minima de client`);
+    assert.ok(!/client: unknown/.test(text), `${path.basename(servicePath)} fara client: unknown`);
+  }
+});
+
 type RuntimeContextModule = typeof import("../features/command-runtime/commandRuntimeContext");
 type RuntimeContextShape = ReturnType<RuntimeContextModule["createCommandRuntimeContext"]>;
 const runtimeContextClosed: HasIndexSignature<RuntimeContextShape> extends false ? true : never = true;
