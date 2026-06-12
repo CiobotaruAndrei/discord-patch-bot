@@ -165,7 +165,7 @@ Testele acopera zonele importante:
 - crash-simulation outbox (`outboxCrashRecovery.functional.test.ts`): send reuseste dar `markSent` nu apuca (crash), iar la repornire recovery-verify previne duplicatul (cu test-contrast care arata duplicatul fara recovery-verify).
 - multi-instance pe Mongo real (`outboxMultiInstance.integration.test.ts`): doi workeri dreneaza simultan aceeasi coada si lease-ul atomic garanteaza livrare exact-o-data (zero duplicate); ruleaza in CI / local cu Mongo pornit, altfel se auto-sare.
 
-In CI (`ci.yml`), pe langa `npm run check`, se ruleaza si validarea Rust: `cargo clippy --all-targets -- -D warnings` si `cargo test` (teste unitare native in `native/src/lib.rs`). Compilarea Rust se face deja prin `napi build` din `npm run build`.
+In CI (`ci.yml`), pe langa `npm run check`, se ruleaza si validarea Rust: `cargo clippy --workspace --all-targets -- -D warnings` si `cargo test -p discord_patch_bot_logic` (teste unitare pe crate-ul pur). `native/` e un workspace Cargo cu doua crate-uri: `native/core/` (`discord_patch_bot_logic`, rlib pur, fara napi — toata logica si testele traiesc aici si ruleaza fara build-ul N-API) si wrapper-ul cdylib `discord_patch_bot_core` (`native/src/lib.rs`, doar conversii `#[napi]` care deleaga la core). Compilarea Rust se face deja prin `napi build` din `npm run build`.
 
 Testele automate (unit/functional/integrare/E2E) nu confirma singure comportamentul live cu un token Discord real si gateway real. Pentru asta exista un smoke de staging **semi-automatizat** plus un checklist manual, complementare:
 

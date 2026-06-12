@@ -229,10 +229,16 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ## Native Rust/N-API
 
+### `src/native/core/src/lib.rs`
+
+- Crate-ul pur `discord_patch_bot_logic` (rlib, fara napi): fuzzy matching, Levenshtein, normalizare text, hash-uri, autocomplete scoring, scoring listing-uri si filtrare deal-uri.
+- Toate testele unitare Rust traiesc aici si ruleaza fara build-ul N-API (`cargo test -p discord_patch_bot_logic`).
+- Nu trebuie sa depinda de Discord, Mongo, HTTP, env sau filesystem.
+
 ### `src/native/src/lib.rs`
 
-- Contine functii deterministe si izolate: fuzzy matching, Levenshtein, normalizare text, hash-uri, autocomplete scoring, scoring listing-uri si filtrare deal-uri.
-- Nu trebuie sa depinda de Discord, Mongo, HTTP, env sau filesystem.
+- Wrapper-ul cdylib N-API (`discord_patch_bot_core`): doar structuri `#[napi(object)]` si functii `#[napi]` care deleaga la `discord_patch_bot_logic`.
+- Numele cdylib-ului ramane neschimbat, deci fisierul `.node`, `index.js` si `index.d.ts` generate de `napi build` raman identice.
 
 ### `src/native/fuzzy.ts`
 
