@@ -1,5 +1,7 @@
 "use strict";
 
+import type { DealInfo } from "../../../types";
+
 const { errorMessage } = require("../../../shared/errors");
 
 type NotificationMode = "compact" | "detailed";
@@ -25,13 +27,13 @@ export interface LatestDealsHandlerDeps {
   startCommandLog: (interaction: DiscordInteraction, command: string, extra?: Record<string, unknown>) => CommandLogEnd;
   safeDefer: (interaction: DiscordInteraction) => Promise<unknown>;
   safeEdit: (interaction: DiscordInteraction, payload: unknown) => Promise<unknown | null>;
-  getDealsCacheData: (currency: string) => unknown[] | null;
-  setDealsCache: (currency: string, deals: unknown[]) => void;
-  fetchDeals: (opts: { currency: string }) => Promise<unknown[]>;
+  getDealsCacheData: (currency: string) => DealInfo[] | null;
+  setDealsCache: (currency: string, deals: DealInfo[]) => void;
+  fetchDeals: (opts: { currency: string }) => Promise<DealInfo[]>;
   loadFetchSnapshot?: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
-  validatePendingDiscountSnapshot: (snapshot: unknown) => boolean;
-  enrichDealData: (deal: unknown, currency: string) => Promise<unknown>;
-  dealPassesFilters: (deal: unknown, guild: GuildSettingsLite | null) => boolean;
+  validatePendingDiscountSnapshot: (snapshot: unknown) => snapshot is DealInfo;
+  enrichDealData: (deal: DealInfo, currency: string) => Promise<DealInfo>;
+  dealPassesFilters: (deal: DealInfo, guild: GuildSettingsLite | null) => boolean;
   getSystemTimes: () => Promise<{ reduceri?: number }>;
   saveSystemTime: (key: string, value: number) => Promise<unknown>;
   smoothTime: (estimate: number, actual: number) => number;
@@ -94,7 +96,6 @@ export function createLatestDealsHandler(deps: LatestDealsHandlerDeps) {
         logger("WARN", "LATEST_DEALS", `Fetch live esuat, folosesc snapshot-ul persistat pentru ${currency}`, errorMessage(err));
         snapshotAgeMin = Math.max(1, Math.round(ageMs / 60000));
         deals = validDeals;
-        setDealsCache(currency, deals);
       }
     }
     const top = deals.filter(d => dealPassesFilters(d, guild)).slice(0, MAX_DEALS);

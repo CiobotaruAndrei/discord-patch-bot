@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { makeDealInfo } from "./typedTestBuilders";
+
+const realUtilities = require("../shared/utilities") as { validatePendingDiscountSnapshot: (snapshot: unknown) => boolean };
+
 const installLatestHandler = require("../features/command-handlers/latestInteractionHandler") as
   ((context: Record<string, unknown>) => void) & { createLatestInteractionHandler?: (deps: unknown) => unknown };
 
@@ -59,7 +63,7 @@ function makeContext(overrides: Partial<Record<string, unknown>> = {}) {
     fetchDeals: async (opts: unknown) => { log("fetchDeals", opts); return [{ id: "d1" }]; },
     enrichDealData: async (deal: unknown) => deal,
     dealPassesFilters: () => true,
-    validatePendingDiscountSnapshot: (snapshot: unknown) => !!(snapshot && typeof (snapshot as { title?: unknown }).title === "string"),
+    validatePendingDiscountSnapshot: realUtilities.validatePendingDiscountSnapshot,
     findGameAndSuggestion: () => ({ game: { key: "cs2", name: "CS2" }, suggestion: null }),
     executeFetchWithCircuitBreaker: async (game: unknown) => {
       log("executeFetch", game);
@@ -115,17 +119,29 @@ test("/latest reduceri loads + paginates", async () => {
   assert.ok(calls.some(c => c.name === "handlePagination"));
 });
 
-test("/latest reduceri: fetch live picat + snapshot proaspat -> ofertele vin din snapshot, cu banner vizibil (review #14.2 + #15.3)", async () => {
+test("/latest reduceri: fetch live picat + snapshot proaspat -> ofertele vin din snapshot, cu banner vizibil (review #14.2 + #15.3 + #16.3)", async () => {
+  const setCacheCalls: unknown[] = [];
   const { context, calls, safeEditPayloads } = makeContext({
     fetchDeals: async () => { throw new Error("ambele magazine picate"); },
-    loadFetchSnapshot: async (id: string) => (id === "deals:USD" ? { payload: [{ title: "Snap Deal" }], fetchedAt: new Date(Date.now() - 10 * 60000) } : null)
+    setDealsCache: (currency: string, deals: unknown[]) => { setCacheCalls.push({ currency, deals }); },
+    loadFetchSnapshot: async (id: string) => (id === "deals:USD" ? { payload: [makeDealInfo()], fetchedAt: new Date(Date.now() - 10 * 60000) } : null)
   });
   await context.handleInteraction(makeInteraction({ sub: "reduceri" }), []);
-  assert.ok(calls.some(c => c.name === "handlePagination"), "ofertele din snapshot se afiseaza, nu se da eroare");
+  assert.ok(calls.some(c => c.name === "handlePagination"), "ofertele din snapshot (fixture DealInfo complet, validator REAL) se afiseaza");
   assert.ok(!safeEditPayloads.some(p => String(p).includes("Nu am putut interoga magazinele")), "fara mesaj de eroare cand exista snapshot proaspat");
   const banner = safeEditPayloads.find(p => String(p).includes("snapshot"));
   assert.ok(banner, "utilizatorul vede explicit ca datele vin din snapshot, nu live");
   assert.match(String(banner), /vechime ~10 min/, "banner-ul arata vechimea snapshot-ului");
+  assert.equal(setCacheCalls.length, 0, "fallback-ul de snapshot NU se scrie in cache-ul live (review #16.1)");
+
+  const second: unknown[] = [];
+  const ctx2 = makeContext({
+    fetchDeals: async () => { throw new Error("ambele magazine picate"); },
+    safeEdit: async (_i: unknown, payload: unknown) => { second.push(payload); return { id: "msg-2" }; },
+    loadFetchSnapshot: async () => ({ payload: [makeDealInfo()], fetchedAt: new Date(Date.now() - 10 * 60000) })
+  });
+  await ctx2.context.handleInteraction(makeInteraction({ sub: "reduceri" }), []);
+  assert.ok(second.some(p => String(p).includes("snapshot")), "si al doilea request vede banner-ul, nu un fals OK din cache");
 });
 
 test("/latest reduceri: snapshot corupt (itemi care nu trec validatorul) -> eroarea explicita, nu render pe date invalide (review #15.2)", async () => {

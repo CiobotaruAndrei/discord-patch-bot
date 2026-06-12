@@ -7,14 +7,23 @@ interface NamedCommand { name?: string }
 interface CommandsEval { ok: boolean; count: number; missing: string[] }
 interface PermsEval { ok: boolean; missing: string[] }
 
-function evaluateSendability(channel: unknown): { sendable: true } | { sendable: false; detail: string } {
+interface SendableSmokeChannel {
+  isTextBased(): boolean;
+  send(payload: unknown): Promise<{ delete(): Promise<unknown> }>;
+}
+
+function isSendableSmokeChannel(channel: unknown): channel is SendableSmokeChannel {
+  return !!channel
+    && typeof (channel as { isTextBased?: unknown }).isTextBased === "function"
+    && (channel as { isTextBased: () => boolean }).isTextBased()
+    && typeof (channel as { send?: unknown }).send === "function";
+}
+
+function sendabilityFailureDetail(channel: unknown): string {
   if (!channel || typeof (channel as { isTextBased?: unknown }).isTextBased !== "function" || !(channel as { isTextBased: () => boolean }).isTextBased()) {
-    return { sendable: false, detail: "canalul nu e text-based" };
+    return "canalul nu e text-based";
   }
-  if (typeof (channel as { send?: unknown }).send !== "function") {
-    return { sendable: false, detail: "canalul nu are functia send" };
-  }
-  return { sendable: true };
+  return "canalul nu are functia send";
 }
 
 function expectedCommandNames(): string[] {
@@ -120,14 +129,12 @@ async function runDiscordSmoke(): Promise<number> {
         console.log("[discord-smoke] Permisiuni canal OK (ViewChannel/SendMessages/EmbedLinks/ReadMessageHistory).");
 
         if (sendTest) {
-          const sendability = evaluateSendability(channel);
-          if (sendability.sendable) {
+          if (isSendableSmokeChannel(channel)) {
             try {
-              const sendable = channel as unknown as { send: (payload: unknown) => Promise<{ delete: () => Promise<unknown> }> };
               const embed = new EmbedBuilder()
                 .setTitle("Staging smoke")
                 .setDescription(`Mesaj de test trimis de runner-ul de staging la ${new Date().toISOString()}. Se sterge automat.`);
-              const message = await sendable.send({ embeds: [embed] });
+              const message = await channel.send({ embeds: [embed] });
               await message.delete();
               checks.push({ name: "send", ok: true, detail: "embed trimis si sters" });
               console.log("[discord-smoke] Trimitere notificare reala OK (embed trimis si sters).");
@@ -136,8 +143,9 @@ async function runDiscordSmoke(): Promise<number> {
               console.error(`[discord-smoke] Trimitere notificare reala FAIL: ${err instanceof Error ? err.message : String(err)}`);
             }
           } else {
-            checks.push({ name: "send", ok: false, detail: `test de trimitere cerut, dar ${sendability.detail}` });
-            console.error(`[discord-smoke] Trimitere notificare reala FAIL: ${sendability.detail}.`);
+            const detail = sendabilityFailureDetail(channel);
+            checks.push({ name: "send", ok: false, detail: `test de trimitere cerut, dar ${detail}` });
+            console.error(`[discord-smoke] Trimitere notificare reala FAIL: ${detail}.`);
           }
         }
       }
@@ -162,7 +170,7 @@ async function runDiscordSmoke(): Promise<number> {
   return 1;
 }
 
-export { evaluateCommands, evaluatePermissions, evaluateSendability, expectedCommandNames, REQUIRED_COMMANDS, REQUIRED_PERMISSIONS };
+export { evaluateCommands, evaluatePermissions, isSendableSmokeChannel, sendabilityFailureDetail, expectedCommandNames, REQUIRED_COMMANDS, REQUIRED_PERMISSIONS };
 
 if (require.main === module) {
   runDiscordSmoke()
