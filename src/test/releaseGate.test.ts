@@ -70,7 +70,33 @@ test("release.yml valideaza semver si publica :latest doar pentru release-uri st
   assert.match(text, /Tag invalid/, "respinge tag-urile care nu sunt semver");
   assert.match(text, /:latest/, "poate publica :latest");
   assert.match(text, /Pre-release.*fara :latest|fara :latest/, "pre-release-urile NU actualizeaza :latest");
-  assert.match(text, /tags: \$\{\{ steps\.release\.outputs\.tags \}\}/, "tag-urile de imagine sunt calculate (stable -> +latest, pre-release -> doar tag)");
+  assert.match(text, /RELEASE_TAGS: \$\{\{ steps\.release\.outputs\.tags \}\}/, "tag-urile de imagine sunt calculate (stable -> +latest, pre-release -> doar tag) si ajung la pasul de publish");
+});
+
+test("release.yml scaneaza cu Trivy exact imaginea pe care o publica, inainte de push (review #8.1)", () => {
+  const text = read(releaseWorkflowPath);
+  assert.match(text, /aquasecurity\/trivy-action@[0-9a-f]{40}/, "Trivy ruleaza in release (action pinuita pe SHA)");
+  assert.match(text, /push: false/, "imaginea se construieste local, nu se publica direct");
+  assert.match(text, /load: true/, "imaginea e incarcata in daemon pentru scanare");
+  assert.ok(!/push: true/.test(text), "niciun build-push direct care sa ocoleasca gate-ul Trivy");
+  assert.match(text, /exit-code: "1"/, "gate-ul Trivy e blocant");
+  assert.match(text, /severity: CRITICAL,HIGH/, "gate-ul acopera CRITICAL/HIGH");
+  assert.match(text, /ignore-unfixed: true/, "gate-ul blocheaza doar vulnerabilitatile fixabile (paritate cu container-scan.yml)");
+  assert.match(text, /docker tag "\$SCAN_IMAGE" "\$tag"/, "tag-urile de release se aplica pe imaginea scanata");
+  assert.match(text, /docker push "\$tag"/, "push-ul publica exact bytes-ii scanati, fara rebuild");
+  const scanIdx = text.indexOf("Trivy gate pe imaginea exacta");
+  const pushIdx = text.indexOf("docker push");
+  assert.ok(scanIdx >= 0 && pushIdx > scanIdx, "scanarea Trivy e inaintea push-ului");
+});
+
+test("release.yml ruleaza canary:sources live pe codul tag-ului, inainte de publicare (review #8.2)", () => {
+  const text = read(releaseWorkflowPath);
+  assert.match(text, /npm run canary:sources/, "release-ul cere un canary live pe surse");
+  const checkoutIdx = text.indexOf("Checkout release ref");
+  const canaryIdx = text.indexOf("npm run canary:sources");
+  const publishIdx = text.indexOf("Publish scanned image");
+  assert.ok(checkoutIdx >= 0 && canaryIdx > checkoutIdx, "canary-ul ruleaza pe checkout-ul tag-ului, nu pe ref-ul de dispatch");
+  assert.ok(publishIdx > canaryIdx, "canary-ul ruleaza inainte de publicarea imaginii");
 });
 
 test("staging-smoke.yml scrie fisiere de rezultat si urca artifactul", () => {
