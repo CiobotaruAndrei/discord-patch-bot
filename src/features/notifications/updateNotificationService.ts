@@ -16,7 +16,7 @@ interface MongoWriteResult { matchedCount?: number; modifiedCount?: number }
 
 interface OutboundChannel {
   id: string;
-  send: (payload: unknown) => Promise<unknown>;
+  send: (payload: unknown, meta?: { historyEntries?: Array<{ kind: "update" | "discount"; gameKey?: string; title?: string; link?: string }> }) => Promise<unknown>;
 }
 
 interface ResolvedChannel {
@@ -66,7 +66,6 @@ export interface UpdateNotificationServiceDeps {
   persistFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
   loadFetchSnapshot?: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
   buildUpdateEmbed: (gameName: string, latest: unknown, mode: string) => unknown;
-  recordSentHistory?: (guildId: string, entries: Array<{ kind: "update" | "discount"; gameKey?: string; title?: string; link?: string }>) => Promise<void>;
 
   sleepIfPositive: (ms: number) => Promise<void>;
 
@@ -91,7 +90,6 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingUpdateArray, toEntries, rotateAfter, mapToObject,
     getLatestForAllGames, setUpdatesCache, persistFetchSnapshot, loadFetchSnapshot, buildUpdateEmbed, sleepIfPositive,
-    recordSentHistory,
     PENDING_UPDATE_MAX_AGE_MS, PENDING_UPDATE_MAX_ATTEMPTS,
     PENDING_UPDATES_PER_GAME_LIMIT, MAX_UPDATES_PER_CYCLE,
     DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY
@@ -178,16 +176,15 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
         sendPayload.allowedMentions = { roles: [notificationRoleId] };
       }
       try {
-        await channel.send(sendPayload);
-        await sleepIfPositive(DISCORD_SEND_DELAY_MS);
-        if (recordSentHistory) {
-          await recordSentHistory(String(guild._id), chunk.map(entry => ({
-            kind: "update",
+        await channel.send(sendPayload, {
+          historyEntries: chunk.map(entry => ({
+            kind: "update" as const,
             gameKey: entry.gameKey,
             title: String((entry.item as { title?: unknown }).title || ""),
             link: String((entry.item as { link?: unknown }).link || "")
-          })));
-        }
+          }))
+        });
+        await sleepIfPositive(DISCORD_SEND_DELAY_MS);
       } catch (err: unknown) {
         const failed = messageChunks.slice(ci).reduce<typeof batch>((acc, c) => { for (const entry of c) acc.push(entry); return acc; }, []);
         for (const entry of failed) await rollbackSeenUpdate(String(guild._id), entry.gameKey, entry.item.id).catch(() => null);

@@ -31,22 +31,40 @@ export interface ResolveOutboundChannelResult {
   abort: boolean;
 }
 
-export type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; recoveryVerify?: boolean }) => Promise<void>;
+export interface OutboundHistoryEntry {
+  kind: "update" | "discount";
+  gameKey?: string;
+  title?: string;
+  link?: string;
+}
+
+export interface OutboundSendMeta {
+  historyEntries?: OutboundHistoryEntry[];
+}
+
+export type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; recoveryVerify?: boolean; history?: OutboundHistoryEntry[] }) => Promise<void>;
+
+export type RecordSentHistory = (guildId: string, entries: OutboundHistoryEntry[]) => Promise<void>;
 
 export interface OutboundChannelResolverDeps {
   logger: NotificationLogger;
   canSendEmbeds(channel: unknown, botId: string): boolean;
   acquireSendSlot?: () => Promise<void>;
   enqueueOutbox?: EnqueueOutbox;
+  recordSentHistory?: RecordSentHistory;
 }
 
-function rateLimitedChannel(channel: unknown, acquireSendSlot: () => Promise<void>): unknown {
+function rateLimitedChannel(channel: unknown, guildId: string, acquireSendSlot: () => Promise<void>, recordSentHistory?: RecordSentHistory): unknown {
   const raw = channel as { id?: unknown; send: (payload: unknown) => Promise<unknown> };
   return {
     id: raw.id,
-    send: async (payload: unknown) => {
+    send: async (payload: unknown, meta?: OutboundSendMeta) => {
       await acquireSendSlot();
-      return raw.send(payload);
+      const sent = await raw.send(payload);
+      if (recordSentHistory && meta?.historyEntries?.length) {
+        await recordSentHistory(guildId, meta.historyEntries).catch(() => undefined);
+      }
+      return sent;
     }
   };
 }
@@ -54,7 +72,8 @@ function rateLimitedChannel(channel: unknown, acquireSendSlot: () => Promise<voi
 function outboxChannel(channelId: string, guildId: string, kind: "update" | "discount", enqueueOutbox: EnqueueOutbox, recoveryVerify?: boolean): unknown {
   return {
     id: channelId,
-    send: async (payload: unknown) => enqueueOutbox({ guildId, channelId, kind, payload, recoveryVerify })
+    send: async (payload: unknown, meta?: OutboundSendMeta) =>
+      enqueueOutbox({ guildId, channelId, kind, payload, recoveryVerify, history: meta?.historyEntries })
   };
 }
 
@@ -68,7 +87,7 @@ async function disableSafely(disableFn: DisableChannelFn, guildId: string, chann
   await Promise.resolve(disableFn(guildId, channelId, message)).catch(() => null);
 }
 
-export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSendSlot, enqueueOutbox }: OutboundChannelResolverDeps) {
+export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSendSlot, enqueueOutbox, recordSentHistory }: OutboundChannelResolverDeps) {
   const acquire = acquireSendSlot || defaultDiscordSendLimiter.acquire;
   return async function resolveOutboundChannel({
     client,
@@ -109,6 +128,6 @@ export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSe
       const kind = context === "CRON_DISCOUNTS" ? "discount" : "update";
       return { channel: outboxChannel(channelId, String(guild._id), kind, enqueueOutbox, guild.outboxRecoveryVerify), abort: false };
     }
-    return { channel: rateLimitedChannel(channel, acquire), abort: false };
+    return { channel: rateLimitedChannel(channel, String(guild._id), acquire, recordSentHistory), abort: false };
   };
 }

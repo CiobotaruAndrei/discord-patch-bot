@@ -114,6 +114,13 @@ export interface GuildSeenUpdateDoc {
   seenAt?: Date;
 }
 
+export interface OutboxHistoryEntry {
+  kind: "update" | "discount";
+  gameKey?: string;
+  title?: string;
+  link?: string;
+}
+
 export interface NotificationOutboxDoc {
   guildId: string;
   channelId: string;
@@ -126,6 +133,7 @@ export interface NotificationOutboxDoc {
   lockedBy?: string | null;
   dedupeKey?: string;
   recoveryVerify?: boolean | null;
+  history?: OutboxHistoryEntry[];
   createdAt?: Date;
 }
 
