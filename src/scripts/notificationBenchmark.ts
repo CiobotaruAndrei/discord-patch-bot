@@ -2,9 +2,18 @@
 
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
+import type { DealInfo, GameConfig } from "../types";
 
 type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];
 type DiscountDeps = Parameters<typeof createDiscountNotificationService>[0];
+type GuildModelDep = UpdateDeps["GuildModel"];
+
+function benchmarkGuildModel(counters: Counters, guilds: unknown[]): GuildModelDep {
+  return {
+    find: () => ({ lean: async () => guilds }),
+    updateOne: async () => { counters.mongoWrites++; return { matchedCount: 1, modifiedCount: 1 }; }
+  } as unknown as GuildModelDep;
+}
 
 interface Counters {
   discordSends: number;
@@ -49,40 +58,40 @@ async function runConcurrent<T>(items: T[], concurrency: number, fn: (item: T, i
   return { processed, errors };
 }
 
-function entriesFrom(value: unknown): Array<[string, unknown]> {
-  if (value instanceof Map) return Array.from(value.entries()).map(([key, val]) => [String(key), val]);
-  if (value && typeof value === "object") return Object.entries(value as Record<string, unknown>);
+function entriesFrom<K, V>(map: Map<K, V> | Record<string, V> | undefined): Array<[K, V]> {
+  if (map instanceof Map) return Array.from(map.entries());
+  if (map && typeof map === "object") return Object.entries(map) as Array<[K, V]>;
   return [];
 }
 
-function makeUpdateDeps(counters: Counters): UpdateDeps {
+function makeUpdateDeps(counters: Counters, guilds: unknown[] = []): UpdateDeps {
   const channel = { id: "chan", send: async () => { counters.discordSends++; return { id: "m" }; } };
   return {
-    GuildModel: {
-      find: () => ({ lean: async () => [] }),
-      updateOne: async () => { counters.mongoWrites++; return { matchedCount: 1, modifiedCount: 1 }; }
-    },
+    GuildModel: benchmarkGuildModel(counters, guilds),
     logger: () => undefined,
     runConcurrent,
     resolveOutboundChannel: async () => ({ channel, abort: false }),
     claimSeenUpdate: async () => { counters.mongoWrites++; return { matchedCount: 1, modifiedCount: 1 }; },
     rollbackSeenUpdate: async () => ({ matchedCount: 1, modifiedCount: 1 }),
+    seedSeenUpdates: async () => undefined,
+    setSeenHashVersion: async () => ({ matchedCount: 1, modifiedCount: 1 }),
     disableUpdatesForChannelError: async () => ({ matchedCount: 1, modifiedCount: 1 }),
     isPermanentDiscordError: () => false,
     transientErrorMessage: (err: unknown) => String(err),
     normalizePendingUpdateArray: (arr: unknown) => Array.isArray(arr) ? arr : [],
     toEntries: entriesFrom,
-    rotateAfter: (keys: string[], lastKey: string | null) => {
-      if (!lastKey) return keys;
-      const idx = keys.indexOf(lastKey);
-      if (idx === -1) return keys;
-      return [...keys.slice(idx + 1), ...keys.slice(0, idx + 1)];
+    rotateAfter: <T>(arr: T[], lastSeen: T | null): T[] => {
+      if (lastSeen == null) return arr;
+      const idx = arr.indexOf(lastSeen);
+      if (idx === -1) return arr;
+      return [...arr.slice(idx + 1), ...arr.slice(0, idx + 1)];
     },
-    mapToObject: (m: Map<string, unknown>) => Object.fromEntries(m.entries()),
-    getLatestForAllGames: async (games: Array<{ key: string; name?: string }>) => {
+    mapToObject: <V>(m: Map<string, V>): Record<string, V> => Object.fromEntries(m.entries()),
+    getLatestForAllGames: async (games: GameConfig[]) => {
       counters.fetches += games.length;
       return games.map(game => ({ game, latest: { id: `u-${game.key}`, title: "patch" } }));
     },
+    validateUpdateFetchSnapshot: () => true,
     setUpdatesCache: () => undefined,
     buildUpdateEmbed: () => ({}),
     sleepIfPositive: async () => undefined,
@@ -92,22 +101,21 @@ function makeUpdateDeps(counters: Counters): UpdateDeps {
     MAX_UPDATES_PER_CYCLE: 5,
     DISCORD_SEND_DELAY_MS: 0,
     GUILD_PROCESS_CONCURRENCY: 3
-  } as unknown as UpdateDeps;
+  };
 }
 
-function makeDiscountDeps(counters: Counters): DiscountDeps {
+function makeDiscountDeps(counters: Counters, guilds: unknown[] = []): DiscountDeps {
   const channel = { id: "chan", send: async () => { counters.discordSends++; return { id: "m" }; } };
   return {
-    GuildModel: {
-      find: () => ({ lean: async () => [] }),
-      updateOne: async () => { counters.mongoWrites++; return { matchedCount: 1, modifiedCount: 1 }; }
-    },
+    GuildModel: benchmarkGuildModel(counters, guilds),
     logger: () => undefined,
     runConcurrent,
     resolveOutboundChannel: async () => ({ channel, abort: false }),
     claimSeenDiscount: async () => { counters.mongoWrites++; return { matchedCount: 1, modifiedCount: 1 }; },
     rollbackSeenDiscount: async () => ({ matchedCount: 1, modifiedCount: 1 }),
     loadSeenDiscountHashes: async () => [],
+    seedSeenDiscounts: async () => undefined,
+    setSeenHashVersion: async () => ({ matchedCount: 1, modifiedCount: 1 }),
     disableDiscountsForChannelError: async () => ({ matchedCount: 1, modifiedCount: 1 }),
     isPermanentDiscordError: () => false,
     transientErrorMessage: (err: unknown) => String(err),
@@ -115,11 +123,11 @@ function makeDiscountDeps(counters: Counters): DiscountDeps {
     validatePendingDiscountSnapshot: () => true,
     normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     dealPassesFilters: () => true,
-    dealHash: (deal: { id?: string }) => String(deal.id || "h"),
-    fetchDeals: async () => { counters.fetches++; return Array.from({ length: 8 }, (_, i) => ({ id: `d${i}` })); },
+    dealHash: (deal: unknown) => String((deal as { id?: unknown }).id || "h"),
+    fetchDeals: async () => { counters.fetches++; return Array.from({ length: 8 }, (_, i) => ({ id: `d${i}` })) as DealInfo[]; },
     getDealsCacheData: () => null,
     setDealsCache: () => undefined,
-    enrichDealData: async (deal: unknown) => deal,
+    enrichDealData: async (deal: DealInfo) => deal,
     buildDealEmbed: () => ({}),
     sleepIfPositive: async () => undefined,
     DEFAULT_CURRENCY: "USD",
@@ -130,7 +138,7 @@ function makeDiscountDeps(counters: Counters): DiscountDeps {
     MAX_DEALS_PER_CYCLE: 8,
     DISCORD_SEND_DELAY_MS: 0,
     GUILD_PROCESS_CONCURRENCY: 3
-  } as unknown as DiscountDeps;
+  };
 }
 
 function makeUpdateGuilds(count: number): unknown[] {
@@ -171,18 +179,12 @@ export async function runNotificationBenchmark(
 
   for (const guilds of guildCounts) {
     const updateCounters: Counters = { discordSends: 0, mongoWrites: 0, fetches: 0 };
-    const updateGuilds = makeUpdateGuilds(guilds);
-    const updateDeps = makeUpdateDeps(updateCounters);
-    (updateDeps as unknown as { GuildModel: { find: () => { lean: () => Promise<unknown[]> } } }).GuildModel.find =
-      () => ({ lean: async () => updateGuilds });
+    const updateDeps = makeUpdateDeps(updateCounters, makeUpdateGuilds(guilds));
     const updateService = createUpdateNotificationService(updateDeps);
     const updates = await measureFlow(() => updateService.checkForUpdates({ channels: { fetch: async () => null } }, games), updateCounters);
 
     const discountCounters: Counters = { discordSends: 0, mongoWrites: 0, fetches: 0 };
-    const discountGuilds = makeDiscountGuilds(guilds);
-    const discountDeps = makeDiscountDeps(discountCounters);
-    (discountDeps as unknown as { GuildModel: { find: () => { lean: () => Promise<unknown[]> } } }).GuildModel.find =
-      () => ({ lean: async () => discountGuilds });
+    const discountDeps = makeDiscountDeps(discountCounters, makeDiscountGuilds(guilds));
     const discountService = createDiscountNotificationService(discountDeps);
     const discounts = await measureFlow(() => discountService.checkForDiscounts({ channels: { fetch: async () => null } }), discountCounters);
 

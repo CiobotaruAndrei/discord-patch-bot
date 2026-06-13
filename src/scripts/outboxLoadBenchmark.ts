@@ -7,19 +7,14 @@ const attachMongoModels = require("../infra/mongo/models");
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/discord-patch-bot-bench";
 
+type OutboxRuntimeModels = Parameters<typeof createOutboxRuntime>[0];
+
 export interface OutboxLoadModels {
-  outboxModel: {
+  outboxModel: OutboxRuntimeModels["NotificationOutboxModel"] & {
     insertMany(docs: Record<string, unknown>[]): Promise<unknown>;
-    findOneAndUpdate(filter: unknown, update: unknown, opts?: unknown): Promise<unknown>;
-    find(filter: unknown): unknown;
-    deleteOne(filter: unknown): Promise<unknown>;
     deleteMany(filter: unknown): Promise<unknown>;
-    updateOne(filter: unknown, update: unknown): Promise<unknown>;
-    countDocuments(filter?: unknown): Promise<number>;
   };
-  sentModel: {
-    exists(filter: unknown): Promise<unknown>;
-    updateOne(filter: unknown, update: unknown, opts?: unknown): Promise<unknown>;
+  sentModel: OutboxRuntimeModels["NotificationOutboxSentModel"] & {
     deleteMany(filter: unknown): Promise<unknown>;
   };
 }
@@ -96,8 +91,8 @@ export async function runOutboxLoad(models: OutboxLoadModels, jobs: number, mark
   }
   await models.outboxModel.insertMany(docs);
   const runtime = createOutboxRuntime({
-    NotificationOutboxModel: models.outboxModel as never,
-    NotificationOutboxSentModel: models.sentModel as never,
+    NotificationOutboxModel: models.outboxModel,
+    NotificationOutboxSentModel: models.sentModel,
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   });
@@ -122,8 +117,8 @@ async function main(): Promise<void> {
   const target: Record<string, unknown> = { mongoose, SUPPORTED_CURRENCIES: { USD: {} }, DEFAULT_CURRENCY: "USD", ONE_DAY_MS: 86_400_000 };
   try { attachMongoModels(target); } catch {  }
   const models: OutboxLoadModels = {
-    outboxModel: (target.NotificationOutboxModel ?? mongoose.model("NotificationOutbox")) as never,
-    sentModel: (target.NotificationOutboxSentModel ?? mongoose.model("NotificationOutboxSent")) as never
+    outboxModel: (target.NotificationOutboxModel ?? mongoose.model("NotificationOutbox")) as OutboxLoadModels["outboxModel"],
+    sentModel: (target.NotificationOutboxSentModel ?? mongoose.model("NotificationOutboxSent")) as OutboxLoadModels["sentModel"]
   };
   const sizes = (process.env.OUTBOX_BENCH_SIZES || "1000,5000,10000").split(",").map(s => Number(s.trim())).filter(n => n > 0);
   const fmt = (n: number) => Math.round(n).toLocaleString("en-US");

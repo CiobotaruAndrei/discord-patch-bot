@@ -1,5 +1,8 @@
 "use strict";
 
+import type { SourceRegistryApi } from "../sources/sourceRegistry";
+import type { ConfigLoadResult, FetchResult, GameConfig } from "../types";
+
 export interface CanaryGameResult {
   key: string;
   type: string;
@@ -103,10 +106,7 @@ export function buildFragileWarnings(gameResults: CanaryGameResult[]): string[] 
   return warnings;
 }
 
-interface CanarySources {
-  getLatestForAllGames: (games: unknown[]) => Promise<Array<{ game: { key: string; type?: string }; latest: unknown; error?: string }>>;
-  fetchDeals: (opts: { currency: string }) => Promise<unknown[]>;
-}
+type CanarySources = Pick<SourceRegistryApi, "getLatestForAllGames" | "fetchDeals">;
 
 async function main(): Promise<void> {
   process.env.MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/discord-patch-bot-canary";
@@ -116,7 +116,7 @@ async function main(): Promise<void> {
 
   const mongoose = require("mongoose");
   const sources = require("../sources/sourceRegistry") as CanarySources;
-  const { loadConfig } = require("../config/configLoader") as { loadConfig: () => { games: Array<{ key: string; type?: string }> } };
+  const { loadConfig } = require("../config/configLoader") as { loadConfig: () => ConfigLoadResult };
 
   let connected = false;
   try {
@@ -137,7 +137,7 @@ async function main(): Promise<void> {
       key: String(result.game.key),
       type: String(result.game.type || "steam"),
       ok: result.latest != null,
-      error: result.error
+      error: result.error || undefined
     }));
   } catch (err) {
     if (allowNetworkSkip) {
@@ -154,7 +154,7 @@ async function main(): Promise<void> {
     const deals = await sources.fetchDeals({ currency: "USD" });
     dealsCount = Array.isArray(deals) ? deals.length : 0;
     dealsOk = dealsCount > 0;
-    if (Array.isArray(deals)) storeBreakdown = summarizeDealsByStore(deals as Array<{ store?: unknown }>);
+    if (Array.isArray(deals)) storeBreakdown = summarizeDealsByStore(deals);
   } catch (err) {
     if (allowNetworkSkip) {
       console.log(`[CANARY] fetchDeals sarit explicit (ALLOW_CANARY_NETWORK_SKIP=true): ${(err as Error).message}`);
@@ -189,7 +189,7 @@ async function main(): Promise<void> {
         key: String(result.game.key),
         type: String(result.game.type || "steam"),
         ok: result.latest != null,
-        error: result.error
+        error: result.error || undefined
       }));
     } catch (err) {
       console.warn(`::warning::[canary-sources] verificarea surselor fragile a crapat complet (warning-only): ${(err as Error).message}`);
