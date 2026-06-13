@@ -16,6 +16,12 @@ type Logger = (level: string, context: string, msg: string, meta?: unknown) => v
 
 interface MongoWriteResult { matchedCount?: number; modifiedCount?: number }
 
+interface GuildModelLike {
+  find(filter: QueryFilter<GuildSettings>): { lean(): Promise<Array<GuildSettings & Record<string, unknown>>> };
+  updateOne(filter: QueryFilter<GuildSettings>, update: unknown): Promise<MongoWriteResult>;
+}
+
+
 type ResolveOutboundChannel = (opts: {
   client: NotificationDiscordClient;
   guild: GuildSettings & Record<string, unknown>;
@@ -34,7 +40,7 @@ interface RunConcurrentResult {
 type RunConcurrent = <T>(items: T[], concurrency: number, fn: (item: T) => Promise<unknown>, opts?: RunConcurrentOptions) => Promise<RunConcurrentResult>;
 
 export interface UpdateNotificationServiceDeps {
-  GuildModel: Pick<Model<GuildSettings>, "find" | "updateOne">;
+  GuildModel: GuildModelLike;
   logger: Logger;
   runConcurrent: RunConcurrent;
   resolveOutboundChannel: ResolveOutboundChannel;

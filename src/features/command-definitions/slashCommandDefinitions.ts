@@ -72,8 +72,16 @@ interface SlashCommandContext {
   registerSlashCommands?: (token: string, clientId: string) => Promise<void>;
 }
 
-function attachSlashCommands(target: SlashCommandContext): void {
-  const { SlashCommandBuilder, PermissionsBitField, Routes, REST, SUPPORTED_CURRENCIES, logger, env } = target;
+type SlashCommandDefinitionsDeps = Pick<SlashCommandContext, "SlashCommandBuilder" | "PermissionsBitField" | "Routes" | "REST" | "SUPPORTED_CURRENCIES" | "logger" | "env">;
+
+interface SlashCommandDefinitions {
+  CURRENCY_CHOICES: SlashChoice[];
+  buildSlashCommandDefinitions: () => unknown[];
+  registerSlashCommands: (token: string, clientId: string) => Promise<void>;
+}
+
+function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): SlashCommandDefinitions {
+  const { SlashCommandBuilder, PermissionsBitField, Routes, REST, SUPPORTED_CURRENCIES, logger, env } = deps;
 
   const CURRENCY_CHOICES: SlashChoice[] = Object.keys(SUPPORTED_CURRENCIES).map(currency => ({
     name: currency,
@@ -204,11 +212,17 @@ function attachSlashCommands(target: SlashCommandContext): void {
     logger("INFO", "SLASH", `Inregistrate ${body.length} slash commands global (propagare ~1h).`);
   }
 
-  Object.assign(target, {
-    CURRENCY_CHOICES,
-    buildSlashCommandDefinitions,
-    registerSlashCommands
-  });
+  return { CURRENCY_CHOICES, buildSlashCommandDefinitions, registerSlashCommands };
 }
+
+type SlashCommandsInstaller = ((target: SlashCommandContext) => void) & {
+  createSlashCommandDefinitions: typeof createSlashCommandDefinitions;
+};
+
+const attachSlashCommands = ((target: SlashCommandContext): void => {
+  Object.assign(target, createSlashCommandDefinitions(target));
+}) as SlashCommandsInstaller;
+
+attachSlashCommands.createSlashCommandDefinitions = createSlashCommandDefinitions;
 
 export = attachSlashCommands;
