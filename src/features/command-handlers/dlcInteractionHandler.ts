@@ -69,13 +69,13 @@ type DlcHandlerDeps = {
   truncate: (str: unknown, maxLen: number) => string;
   EmbedBuilder: new () => ChainableEmbed;
   COLORS: { DLC: number } & Record<string, number>;
-  handlePagination: (
+  handlePagination: <TItem, TEmbed>(
     msg: unknown,
     authorId: string,
     prefix: string,
-    items: unknown[],
+    items: TItem[],
     itemsPerPage: number,
-    generateEmbedsFn: (page: number, totalP: number, mode: string) => Promise<unknown[]> | unknown[],
+    generateEmbedsFn: (page: number, totalP: number, mode: string) => Promise<TEmbed[]> | TEmbed[],
     defaultMode?: string
   ) => Promise<void>;
   MessageFlags: { Ephemeral: number };

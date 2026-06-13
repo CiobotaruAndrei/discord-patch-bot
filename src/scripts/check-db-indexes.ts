@@ -27,6 +27,7 @@ interface IndexSchema {
 interface IndexModel {
   collection: { collectionName: string };
   schema: IndexSchema;
+  syncIndexes(): Promise<unknown>;
 }
 
 interface MongooseLike {
@@ -130,7 +131,7 @@ async function main(): Promise<void> {
   if (connected) {
     try {
       for (const name of mongoose.modelNames()) {
-        await (mongoose.model(name) as unknown as { syncIndexes(): Promise<unknown> }).syncIndexes();
+        await mongoose.model(name).syncIndexes();
       }
       console.log(`[INDEXCHECK] live OK: syncIndexes a reusit pe ${mongoose.modelNames().length} colectii (toate index-urile sunt construibile).`);
     } catch (err) {

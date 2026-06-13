@@ -8,9 +8,14 @@ function makeMockModels(): { models: OutboxLoadModels; calls: Record<string, num
   let claimCounter = 0;
   const models: OutboxLoadModels = {
     outboxModel: {
+      create: async () => undefined,
       insertMany: async () => { calls.insertMany++; return undefined; },
-      findOneAndUpdate: async () => { const id = claimCounter++; return { _id: id, dedupeKey: `k-${id}` }; },
-      find: () => undefined,
+      findOneAndUpdate: async () => {
+        calls.findOneAndUpdate++;
+        const id = claimCounter++;
+        return { guildId: "g", channelId: "c", kind: "update", payload: {}, attempts: 0, _id: id, dedupeKey: `k-${id}` };
+      },
+      find: () => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) }),
       deleteOne: async () => { calls.deleteOne++; return undefined; },
       deleteMany: async () => undefined,
       updateOne: async () => undefined,
@@ -22,8 +27,6 @@ function makeMockModels(): { models: OutboxLoadModels; calls: Record<string, num
       deleteMany: async () => undefined
     }
   };
-  const wrappedFind = models.outboxModel.findOneAndUpdate;
-  models.outboxModel.findOneAndUpdate = async (...args: unknown[]) => { calls.findOneAndUpdate++; return wrappedFind(args[0], args[1], args[2]); };
   return { models, calls };
 }
 

@@ -39,13 +39,13 @@ export interface LatestUpdatesHandlerDeps {
   getGuildSettings: (guildId: string) => Promise<GuildSettingsLite | null>;
   formatUserError: (err: unknown, fallback: string, code?: string) => string;
   buildUpdateEmbed: (gameName: string, latest: unknown, mode: NotificationMode) => { setFooter: (opts: { text: string }) => unknown };
-  handlePagination: (
+  handlePagination: <TItem, TEmbed>(
     msg: unknown,
     authorId: string,
     prefix: string,
-    items: unknown[],
+    items: TItem[],
     itemsPerPage: number,
-    generateEmbedsFn: (page: number, totalP: number, mode: NotificationMode) => Promise<unknown[]> | unknown[],
+    generateEmbedsFn: (page: number, totalP: number, mode: NotificationMode) => Promise<TEmbed[]> | TEmbed[],
     defaultMode?: NotificationMode
   ) => Promise<void>;
   ITEMS_PER_PAGE: number;
