@@ -2,7 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const ts = require("typescript");
+const ts = require("typescript") as typeof import("typescript");
 
 interface FoundComment {
   line: number;
@@ -39,12 +39,12 @@ function findCommentsTsLike(text: string, fileName: string): FoundComment[] {
     if (!ranges) return;
     for (const range of ranges) add(range.pos, range.end);
   }
-  function visit(node: { getFullStart(): number; getEnd(): number; getChildren(src?: unknown): unknown[] }): void {
+  function visit(node: import("typescript").Node): void {
     collect(ts.getLeadingCommentRanges(text, node.getFullStart()));
     collect(ts.getTrailingCommentRanges(text, node.getEnd()));
-    for (const child of node.getChildren(source) as Array<typeof node>) visit(child);
+    for (const child of node.getChildren(source)) visit(child);
   }
-  visit(source as never);
+  visit(source);
   collect(ts.getLeadingCommentRanges(text, source.endOfFileToken.getFullStart()));
   out.sort((a, b) => a.line - b.line);
   return out;
