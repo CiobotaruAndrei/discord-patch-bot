@@ -26,11 +26,11 @@ jobs:
             const body = pr.body || "";
             const checked = (keyword) => new RegExp(`-\\s*\\[[xX]\\][^\\n]*${keyword}`).test(body);
             const required = [
-              { keyword: "\\*\\*[Dd]ocumentatie\\*\\*", label: "documentatie (Regula 2)" },
-              { keyword: "\\*\\*[Tt]este\\*\\*", label: "teste (Regula 4)" },
-              { keyword: "[Cc]omentarii", label: "fara comentarii / fara secrete (Regula 1)" },
-              { keyword: "\\*\\*[Bb]enchmark\\*\\*", label: "benchmark daca e hot-path / schimbare de limbaj (Regula 3 + 6)" },
-              { keyword: "[Cc]onflict cu", label: "fara conflict cu main (Regula 8 + 9)" }
+              { keyword: "\\*\\*[Dd]ocumentatie\\*\\*", label: "documentatie (CHANGELOG + docs reflecta codul)" },
+              { keyword: "\\*\\*[Tt]este\\*\\*", label: "teste (pentru functionalitatea noua)" },
+              { keyword: "[Cc]omentarii", label: "fara comentarii in cod / fara secrete commit-uite" },
+              { keyword: "\\*\\*[Bb]enchmark\\*\\*", label: "benchmark daca e hot-path / schimbare de limbaj" },
+              { keyword: "[Cc]onflict cu", label: "fara conflict cu main (branch nou off main)" }
             ];
             const problems = required.filter(item => !checked(item.keyword)).map(item => `bifa lipsa: ${item.label}`);
 
@@ -49,10 +49,10 @@ jobs:
             const testChanged = names.some(isTest);
 
             if (codeChanged && !docsChanged) {
-              problems.push("ai modificat cod (src/**) dar diff-ul nu atinge niciun fisier de documentatie (.md) — bifa de documentatie (Regula 2) nu e sustinuta de diff");
+              problems.push("ai modificat cod (src/**) dar diff-ul nu atinge niciun fisier de documentatie (.md) — bifa de documentatie nu e sustinuta de diff");
             }
             if (codeChanged && !testChanged) {
-              problems.push("ai modificat cod (src/**) dar diff-ul nu atinge niciun fisier de test (src/test/**) — bifa de teste (Regula 4) nu e sustinuta de diff");
+              problems.push("ai modificat cod (src/**) dar diff-ul nu atinge niciun fisier de test (src/test/**) — bifa de teste nu e sustinuta de diff");
             }
 
             if (problems.length) {

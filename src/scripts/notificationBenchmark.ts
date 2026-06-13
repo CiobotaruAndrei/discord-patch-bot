@@ -2,17 +2,17 @@
 
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
-import type { DealInfo, GameConfig } from "../types";
+import type { DealInfo, GameConfig, GuildSettings } from "../types";
 
 type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];
 type DiscountDeps = Parameters<typeof createDiscountNotificationService>[0];
 type GuildModelDep = UpdateDeps["GuildModel"];
 
-function benchmarkGuildModel(counters: Counters, guilds: unknown[]): GuildModelDep {
+function benchmarkGuildModel(counters: Counters, guilds: Array<GuildSettings & Record<string, unknown>>): GuildModelDep {
   return {
-    find: () => ({ lean: async () => guilds }),
+    find: () => ({ lean: async (): Promise<Array<GuildSettings & Record<string, unknown>>> => guilds }),
     updateOne: async () => { counters.mongoWrites++; return { matchedCount: 1, modifiedCount: 1 }; }
-  } as unknown as GuildModelDep;
+  };
 }
 
 interface Counters {
@@ -64,7 +64,7 @@ function entriesFrom<K, V>(map: Map<K, V> | Record<string, V> | undefined): Arra
   return [];
 }
 
-function makeUpdateDeps(counters: Counters, guilds: unknown[] = []): UpdateDeps {
+function makeUpdateDeps(counters: Counters, guilds: Array<GuildSettings & Record<string, unknown>> = []): UpdateDeps {
   const channel = { id: "chan", send: async () => { counters.discordSends++; return { id: "m" }; } };
   return {
     GuildModel: benchmarkGuildModel(counters, guilds),
@@ -104,7 +104,7 @@ function makeUpdateDeps(counters: Counters, guilds: unknown[] = []): UpdateDeps 
   };
 }
 
-function makeDiscountDeps(counters: Counters, guilds: unknown[] = []): DiscountDeps {
+function makeDiscountDeps(counters: Counters, guilds: Array<GuildSettings & Record<string, unknown>> = []): DiscountDeps {
   const channel = { id: "chan", send: async () => { counters.discordSends++; return { id: "m" }; } };
   return {
     GuildModel: benchmarkGuildModel(counters, guilds),
@@ -141,18 +141,18 @@ function makeDiscountDeps(counters: Counters, guilds: unknown[] = []): DiscountD
   };
 }
 
-function makeUpdateGuilds(count: number): unknown[] {
+function makeUpdateGuilds(count: number): Array<GuildSettings & Record<string, unknown>> {
   return Array.from({ length: count }, (_, i) => ({
     _id: `g${i}`, subscribed: true, notificationChannelId: `chan-${i}`, seenHashVersionUpdates: 2,
     seen: {}, pendingUpdates: {}, enabledGames: []
-  }));
+  } as GuildSettings & Record<string, unknown>));
 }
 
-function makeDiscountGuilds(count: number): unknown[] {
+function makeDiscountGuilds(count: number): Array<GuildSettings & Record<string, unknown>> {
   return Array.from({ length: count }, (_, i) => ({
     _id: `g${i}`, discountsSubscribed: true, discountChannelId: `chan-${i}`, seenHashVersionDiscounts: 2,
     seenDiscounts: [], pendingDiscounts: [], currency: "USD"
-  }));
+  } as GuildSettings & Record<string, unknown>));
 }
 
 async function measureFlow(run: () => Promise<void>, counters: Counters): Promise<FlowMetrics> {
