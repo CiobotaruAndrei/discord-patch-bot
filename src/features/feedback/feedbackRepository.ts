@@ -4,7 +4,7 @@ type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
 interface FeedbackReportModelLike {
-  create(doc: Record<string, unknown>): Promise<unknown>;
+  create(doc: ReportDoc): Promise<unknown>;
   find(filter: unknown, projection?: unknown): {
     sort(spec: unknown): { limit(count: number): { lean(): Promise<Array<Record<string, unknown>>> } };
   };
@@ -79,7 +79,7 @@ function createFeedbackRepository(deps: { FeedbackReportModel: FeedbackReportMod
 
   async function recordReport(input: ReportInput): Promise<ReportDoc> {
     const doc = sanitizeReport(input, new Date());
-    await withMongoRetry(() => FeedbackReportModel.create(doc as unknown as Record<string, unknown>), { label: "feedback:record", retries: 1 });
+    await withMongoRetry(() => FeedbackReportModel.create(doc), { label: "feedback:record", retries: 1 });
     return doc;
   }
 

@@ -27,17 +27,15 @@ function sendabilityFailureDetail(channel: unknown): string {
 }
 
 function expectedCommandNames(): string[] {
-  const definitionsContext: Record<string, unknown> = {
-    SlashCommandBuilder,
+  const { buildSlashCommandDefinitions } = attachSlashCommands.createSlashCommandDefinitions({
+    SlashCommandBuilder: SlashCommandBuilder as unknown as Parameters<typeof attachSlashCommands.createSlashCommandDefinitions>[0]["SlashCommandBuilder"],
     PermissionsBitField,
     Routes,
     REST,
     SUPPORTED_CURRENCIES: { USD: {} },
     logger: () => undefined
-  };
-  attachSlashCommands(definitionsContext as never);
-  const build = definitionsContext.buildSlashCommandDefinitions as () => NamedCommand[];
-  return build().map(definition => String(definition?.name || "")).filter(Boolean);
+  });
+  return (buildSlashCommandDefinitions() as NamedCommand[]).map(definition => String(definition?.name || "")).filter(Boolean);
 }
 
 const REQUIRED_COMMANDS = expectedCommandNames();
