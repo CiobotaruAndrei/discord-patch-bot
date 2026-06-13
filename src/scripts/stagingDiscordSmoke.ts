@@ -28,7 +28,7 @@ function sendabilityFailureDetail(channel: unknown): string {
 
 function expectedCommandNames(): string[] {
   const { buildSlashCommandDefinitions } = attachSlashCommands.createSlashCommandDefinitions({
-    SlashCommandBuilder: SlashCommandBuilder as unknown as Parameters<typeof attachSlashCommands.createSlashCommandDefinitions>[0]["SlashCommandBuilder"],
+    SlashCommandBuilder,
     PermissionsBitField,
     Routes,
     REST,

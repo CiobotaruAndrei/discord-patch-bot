@@ -2,58 +2,10 @@ type Logger = (level: string, context: string, message: string, meta?: unknown) 
 
 type SlashChoice = { name: string; value: string };
 
-type SlashStringOptionBuilderLike = {
-  setName(name: string): SlashStringOptionBuilderLike;
-  setDescription(description: string): SlashStringOptionBuilderLike;
-  setRequired(required: boolean): SlashStringOptionBuilderLike;
-  setAutocomplete(enabled: boolean): SlashStringOptionBuilderLike;
-  addChoices(...choices: SlashChoice[]): SlashStringOptionBuilderLike;
-};
-
-type SlashIntegerOptionBuilderLike = {
-  setName(name: string): SlashIntegerOptionBuilderLike;
-  setDescription(description: string): SlashIntegerOptionBuilderLike;
-  setRequired(required: boolean): SlashIntegerOptionBuilderLike;
-  setMinValue(value: number): SlashIntegerOptionBuilderLike;
-  setMaxValue(value: number): SlashIntegerOptionBuilderLike;
-};
-
-type SlashRoleOptionBuilderLike = {
-  setName(name: string): SlashRoleOptionBuilderLike;
-  setDescription(description: string): SlashRoleOptionBuilderLike;
-  setRequired(required: boolean): SlashRoleOptionBuilderLike;
-};
-
-type SlashSubcommandBuilderLike = {
-  setName(name: string): SlashSubcommandBuilderLike;
-  setDescription(description: string): SlashSubcommandBuilderLike;
-  addStringOption(configure: (option: SlashStringOptionBuilderLike) => SlashStringOptionBuilderLike): SlashSubcommandBuilderLike;
-  addIntegerOption(configure: (option: SlashIntegerOptionBuilderLike) => SlashIntegerOptionBuilderLike): SlashSubcommandBuilderLike;
-  addRoleOption(configure: (option: SlashRoleOptionBuilderLike) => SlashRoleOptionBuilderLike): SlashSubcommandBuilderLike;
-};
-
-type SlashSubcommandGroupBuilderLike = {
-  setName(name: string): SlashSubcommandGroupBuilderLike;
-  setDescription(description: string): SlashSubcommandGroupBuilderLike;
-  addSubcommand(configure: (subcommand: SlashSubcommandBuilderLike) => SlashSubcommandBuilderLike): SlashSubcommandGroupBuilderLike;
-};
-
-type SlashCommandBuilderLike = {
-  setName(name: string): SlashCommandBuilderLike;
-  setDescription(description: string): SlashCommandBuilderLike;
-  setDefaultMemberPermissions(permissions: string): SlashCommandBuilderLike;
-  addSubcommand(configure: (subcommand: SlashSubcommandBuilderLike) => SlashSubcommandBuilderLike): SlashCommandBuilderLike;
-  addSubcommandGroup(configure: (group: SlashSubcommandGroupBuilderLike) => SlashSubcommandGroupBuilderLike): SlashCommandBuilderLike;
-  addStringOption(configure: (option: SlashStringOptionBuilderLike) => SlashStringOptionBuilderLike): SlashCommandBuilderLike;
-  addIntegerOption(configure: (option: SlashIntegerOptionBuilderLike) => SlashIntegerOptionBuilderLike): SlashCommandBuilderLike;
-  toJSON(): unknown;
-};
-
-type SlashCommandBuilderConstructor = new () => SlashCommandBuilderLike;
 type PermissionsBitFieldLike = { Flags: { Administrator: { toString(): string } } };
 
 interface SlashCommandContext {
-  SlashCommandBuilder: SlashCommandBuilderConstructor;
+  SlashCommandBuilder: typeof import("discord.js").SlashCommandBuilder;
   PermissionsBitField: PermissionsBitFieldLike;
   Routes: {
     applicationCommands(clientId: string): string;
