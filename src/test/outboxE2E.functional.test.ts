@@ -6,27 +6,22 @@ import {
   messageHasDedupeMarker,
   outboxDedupeMarker
 } from "../features/notifications/notificationOutbox";
+import type { OutboxJob } from "../features/notifications/notificationOutbox";
 import { createOutboxDelivery } from "../features/notifications/outboxDelivery";
+type OutboxRuntimeDeps = Parameters<typeof createOutboxRuntime>[0];
+type OutboxModelMock = OutboxRuntimeDeps["NotificationOutboxModel"];
+type OutboxSentModelMock = OutboxRuntimeDeps["NotificationOutboxSentModel"];
 import type { OutboxDeliveryClient } from "../features/notifications/outboxDelivery";
 
 const { createOutboundChannelResolver } = require("../features/notifications/outboundChannel") as {
   createOutboundChannelResolver: (deps: Record<string, unknown>) => (args: Record<string, unknown>) => Promise<{ channel: { send: (payload: unknown, meta?: { historyEntries?: unknown[] }) => Promise<unknown> } | null; abort: boolean }>;
 };
 
-interface OutboxJobDoc {
+interface OutboxJobDoc extends OutboxJob {
   _id: string;
-  guildId: string;
-  channelId: string;
-  kind: "update" | "discount";
-  payload: unknown;
-  attempts: number;
-  deliveries?: number;
-  dedupeKey?: string;
-  recoveryVerify?: boolean;
-  availableAt?: Date;
-  createdAt?: Date;
   lockedUntil?: Date | null;
   lockedBy?: string;
+  [key: string]: unknown;
 }
 
 function makeInMemoryOutbox() {
@@ -40,7 +35,7 @@ function makeInMemoryOutbox() {
     return availableOk && lockOk;
   }
 
-  const NotificationOutboxModel = {
+  const NotificationOutboxModel: OutboxModelMock = {
     create: async (doc: Record<string, unknown>) => {
       const job = { _id: `job-${++idCounter}`, ...doc } as OutboxJobDoc;
       jobs.push(job);
@@ -64,14 +59,14 @@ function makeInMemoryOutbox() {
       const job = jobs.find(j => j._id === filter._id);
       if (job) {
         if (update.$set) Object.assign(job, update.$set);
-        if (update.$unset) for (const key of Object.keys(update.$unset)) delete (job as unknown as Record<string, unknown>)[key];
+        if (update.$unset) for (const key of Object.keys(update.$unset)) delete job[key];
       }
       return { matchedCount: job ? 1 : 0 };
     },
     countDocuments: async () => jobs.length
   };
 
-  const NotificationOutboxSentModel = {
+  const NotificationOutboxSentModel: OutboxSentModelMock = {
     exists: async (filter: { dedupeKey: string }) => (sent.has(filter.dedupeKey) ? { _id: filter.dedupeKey } : null),
     updateOne: async (filter: { dedupeKey: string }) => { sent.add(filter.dedupeKey); return { upsertedCount: 1 }; }
   };
@@ -82,8 +77,8 @@ function makeInMemoryOutbox() {
 test("E2E outbox: cron -> enqueue (cu recoveryVerify) -> drain -> delivery -> markSent -> job sters", async () => {
   const store = makeInMemoryOutbox();
   const runtime = createOutboxRuntime({
-    NotificationOutboxModel: store.NotificationOutboxModel as never,
-    NotificationOutboxSentModel: store.NotificationOutboxSentModel as never,
+    NotificationOutboxModel: store.NotificationOutboxModel,
+    NotificationOutboxSentModel: store.NotificationOutboxSentModel,
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   });
@@ -116,8 +111,8 @@ test("E2E outbox: cron -> enqueue (cu recoveryVerify) -> drain -> delivery -> ma
   assert.match(dedupeKey, /^[0-9a-f]{64}$/, "jobul are dedupeKey SHA-256");
   assert.equal(store.jobs[0].recoveryVerify, true, "jobul poarta recoveryVerify din setarea guild-ului");
 
-  const delivered: Array<{ embeds?: Array<{ footer?: { text?: string } }> }> = [];
-  const deliveryChannel = { id: "chan-1", send: async (payload: unknown) => { delivered.push(payload as never); return { id: "msg-1" }; } };
+  const delivered: unknown[] = [];
+  const deliveryChannel = { id: "chan-1", send: async (payload: unknown) => { delivered.push(payload); return { id: "msg-1" }; } };
   const deliveryClient: OutboxDeliveryClient = { isReady: () => true, user: { id: "bot-1" }, channels: { fetch: async () => deliveryChannel } };
 
   const delivery = createOutboxDelivery({
@@ -146,8 +141,8 @@ test("E2E outbox: cron -> enqueue (cu recoveryVerify) -> drain -> delivery -> ma
 test("E2E outbox: re-enqueue acelasi continut dupa livrare e idempotent (nu reapare in coada)", async () => {
   const store = makeInMemoryOutbox();
   const runtime = createOutboxRuntime({
-    NotificationOutboxModel: store.NotificationOutboxModel as never,
-    NotificationOutboxSentModel: store.NotificationOutboxSentModel as never,
+    NotificationOutboxModel: store.NotificationOutboxModel,
+    NotificationOutboxSentModel: store.NotificationOutboxSentModel,
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   });
@@ -178,8 +173,8 @@ test("E2E outbox: re-enqueue acelasi continut dupa livrare e idempotent (nu reap
 test("E2E outbox: istoricul nu se scrie la enqueue, ci abia dupa livrarea reala din drain", async () => {
   const store = makeInMemoryOutbox();
   const runtime = createOutboxRuntime({
-    NotificationOutboxModel: store.NotificationOutboxModel as never,
-    NotificationOutboxSentModel: store.NotificationOutboxSentModel as never,
+    NotificationOutboxModel: store.NotificationOutboxModel,
+    NotificationOutboxSentModel: store.NotificationOutboxSentModel,
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   });
@@ -211,7 +206,7 @@ test("E2E outbox: istoricul nu se scrie la enqueue, ci abia dupa livrarea reala 
 
   assert.equal(historyWrites.length, 0, "enqueue NU scrie istoric");
   assert.equal(await store.NotificationOutboxModel.countDocuments(), 1);
-  assert.deepEqual((store.jobs[0] as unknown as { history?: unknown }).history, entries, "jobul din coada poarta intrarile de istoric");
+  assert.deepEqual(store.jobs[0].history, entries, "jobul din coada poarta intrarile de istoric");
 
   const deliveryChannel = { id: "chan-1", send: async () => ({ id: "msg-1" }) };
   const deliveryClient: OutboxDeliveryClient = { isReady: () => true, user: { id: "bot-1" }, channels: { fetch: async () => deliveryChannel } };
@@ -238,8 +233,8 @@ test("E2E outbox: istoricul nu se scrie la enqueue, ci abia dupa livrarea reala 
 test("E2E outbox: esecul tranzitoriu reincearca jobul fara sa scrie istoric", async () => {
   const store = makeInMemoryOutbox();
   const runtime = createOutboxRuntime({
-    NotificationOutboxModel: store.NotificationOutboxModel as never,
-    NotificationOutboxSentModel: store.NotificationOutboxSentModel as never,
+    NotificationOutboxModel: store.NotificationOutboxModel,
+    NotificationOutboxSentModel: store.NotificationOutboxSentModel,
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   });
@@ -267,8 +262,8 @@ test("E2E outbox: esecul tranzitoriu reincearca jobul fara sa scrie istoric", as
 test("E2E outbox: esecul permanent duce jobul in dead-letter fara sa scrie istoric", async () => {
   const store = makeInMemoryOutbox();
   const runtime = createOutboxRuntime({
-    NotificationOutboxModel: store.NotificationOutboxModel as never,
-    NotificationOutboxSentModel: store.NotificationOutboxSentModel as never,
+    NotificationOutboxModel: store.NotificationOutboxModel,
+    NotificationOutboxSentModel: store.NotificationOutboxSentModel,
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   });
