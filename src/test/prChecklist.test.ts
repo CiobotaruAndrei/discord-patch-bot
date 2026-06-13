@@ -16,13 +16,13 @@ function read(file: string): string {
 test("PR template cere bifele pentru regulile PDF (docs, teste, no-comments, benchmark, conflict, tooling nativ, fisiere)", () => {
   assert.ok(fs.existsSync(templatePath), ".github/pull_request_template.md exista");
   const text = read(templatePath);
-  assert.match(text, /-\s*\[ \][^\n]*\*\*[Dd]ocumentatie\*\*/, "checkbox de documentatie (Regula 2)");
-  assert.match(text, /-\s*\[ \][^\n]*\*\*[Tt]este\*\*/, "checkbox de teste (Regula 4)");
-  assert.match(text, /-\s*\[ \][^\n]*[Cc]omentarii/, "checkbox fara comentarii / secrete (Regula 1)");
-  assert.match(text, /-\s*\[ \][^\n]*\*\*[Bb]enchmark\*\*/, "checkbox benchmark daca e hot-path / schimbare de limbaj (Regula 3 + 6)");
-  assert.match(text, /-\s*\[ \][^\n]*[Cc]onflict cu/, "checkbox fara conflict cu main (Regula 8 + 9)");
-  assert.match(text, /-\s*\[ \][^\n]*[Tt]ooling nativ/, "checkbox tooling nativ Cargo (Regula 7)");
-  assert.match(text, /-\s*\[ \][^\n]*[Ff]isiere noi numite dupa functionalitate/, "checkbox fisiere numite dupa functionalitate (Regula 12)");
+  assert.match(text, /-\s*\[ \][^\n]*\*\*[Dd]ocumentatie\*\*/, "checkbox de documentatie (reflectata in docs)");
+  assert.match(text, /-\s*\[ \][^\n]*\*\*[Tt]este\*\*/, "checkbox de teste (pentru functionalitatea noua)");
+  assert.match(text, /-\s*\[ \][^\n]*[Cc]omentarii/, "checkbox fara comentarii / secrete");
+  assert.match(text, /-\s*\[ \][^\n]*\*\*[Bb]enchmark\*\*/, "checkbox benchmark daca e hot-path / schimbare de limbaj");
+  assert.match(text, /-\s*\[ \][^\n]*[Cc]onflict cu/, "checkbox fara conflict cu main");
+  assert.match(text, /-\s*\[ \][^\n]*[Tt]ooling nativ/, "checkbox tooling nativ Cargo");
+  assert.match(text, /-\s*\[ \][^\n]*[Ff]isiere noi numite dupa functionalitate/, "checkbox fisiere numite dupa functionalitate");
   assert.match(text, /npm run check/, "checklist mentioneaza poarta de verificare");
   assert.match(text, /npm audit/, "checklist mentioneaza auditul de dependinte");
 });
@@ -45,6 +45,6 @@ test("workflow-ul PR Checklist verifica adevarul bifelor din diff, nu doar preze
   assert.match(text, /listFiles/, "interogheaza fisierele schimbate de PR");
   assert.match(text, /codeChanged/, "detecteaza daca PR-ul atinge cod");
   assert.match(text, /sustinuta de diff/, "respinge bife nesustinute de diff");
-  assert.match(text, /src\/test\//, "cere ca diff-ul de cod sa atinga si teste (Regula 4)");
-  assert.match(text, /documentatie \(Regula 2\)/, "cere ca diff-ul de cod sa atinga si documentatie (Regula 2)");
+  assert.match(text, /src\/test\//, "cere ca diff-ul de cod sa atinga si teste");
+  assert.match(text, /bifa de documentatie nu e sustinuta de diff/, "cere ca diff-ul de cod sa atinga si documentatie");
 });

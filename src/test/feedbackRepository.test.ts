@@ -8,14 +8,14 @@ const passThroughRetry = <T>(fn: () => Promise<T>): Promise<T> => fn();
 const noopLogger = () => undefined;
 
 interface FakeModelOpts {
-  onCreate?: (doc: Record<string, unknown>) => void;
+  onCreate?: (doc: unknown) => void;
   onFind?: (filter: unknown) => void;
   docs?: Array<Record<string, unknown>>;
 }
 
 function makeModel(opts: FakeModelOpts) {
   return {
-    create: async (doc: Record<string, unknown>) => { if (opts.onCreate) opts.onCreate(doc); return doc; },
+    create: async (doc: unknown) => { if (opts.onCreate) opts.onCreate(doc); return doc; },
     find: (filter: unknown) => {
       if (opts.onFind) opts.onFind(filter);
       return { sort: () => ({ limit: () => ({ lean: async () => opts.docs || [] }) }) };
@@ -54,7 +54,7 @@ test("sanitizeReport normalizeaza tipul, trunchiaza si seteaza implicit", () => 
 });
 
 test("recordReport salveaza documentul sanitizat si il intoarce", async () => {
-  let created: Record<string, unknown> | null = null;
+  let created: unknown = null;
   const repo = createFeedbackRepository({
     FeedbackReportModel: makeModel({ onCreate: doc => { created = doc; } }),
     withMongoRetry: passThroughRetry,
@@ -63,7 +63,7 @@ test("recordReport salveaza documentul sanitizat si il intoarce", async () => {
   const doc = await repo.recordReport({ guildId: "g1", userId: "u1", type: "joc-lipsa", detail: "Adaugati Hades 2" });
   assert.equal(doc.type, "joc-lipsa");
   assert.ok(created);
-  assert.equal((created as unknown as { type: string }).type, "joc-lipsa");
+  assert.equal((created as { type: string }).type, "joc-lipsa");
 });
 
 test("getRecent filtreaza dupa guildId, clamp pe limita si mapeaza", async () => {
