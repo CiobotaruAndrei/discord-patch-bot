@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const mongoose = require("mongoose");
+const mongoose = require("mongoose") as typeof import("mongoose");
 const attachMongoModels = require("../infra/mongo/models");
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/discord-patch-bot-itest";
@@ -24,7 +24,7 @@ function getOutboxModel(): OutboxModel {
     attachMongoModels(target);
     if (target.NotificationOutboxModel) return target.NotificationOutboxModel as OutboxModel;
   } catch {  }
-  return mongoose.model("NotificationOutbox") as unknown as OutboxModel;
+  return mongoose.model("NotificationOutbox");
 }
 
 let connected = false;
