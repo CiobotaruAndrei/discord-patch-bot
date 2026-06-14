@@ -72,8 +72,6 @@ interface CommandCacheDeps {
   env: RuntimeEnv;
 }
 
-type CommandCacheContext = CommandCacheDeps & Record<string, unknown>;
-
 const USER_COOLDOWNS_THRESHOLD = 500;
 
 function createCommandCache(deps: CommandCacheDeps) {
@@ -358,6 +356,9 @@ async function sleepIfPositive(ms: number): Promise<void> {
     sleepIfPositive
   };
 }
+
+type CommandCacheRuntime = ReturnType<typeof createCommandCache>;
+type CommandCacheContext = CommandCacheDeps & Partial<CommandCacheRuntime>;
 
 type CommandCacheInstaller = ((target: CommandCacheContext) => void) & {
   createCommandCache: typeof createCommandCache;

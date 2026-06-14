@@ -110,8 +110,6 @@ type CommandUiDeps = {
   httpReq(method: string, url: string, options?: Record<string, unknown>): Promise<HttpResponse>;
 };
 
-type CommandUiContext = CommandUiDeps & Record<string, unknown>;
-
 function createCommandPresentation(deps: CommandUiDeps) {
   const {
     crypto, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
@@ -462,6 +460,9 @@ function buildSteamPriceEmbed(gameData: SteamAppDetails, appId: string | number,
     buildSteamPriceEmbed
   };
 }
+
+type CommandUiRuntime = ReturnType<typeof createCommandPresentation>;
+type CommandUiContext = CommandUiDeps & Partial<CommandUiRuntime>;
 
 type CommandUiInstaller = ((target: CommandUiContext) => void) & {
   createCommandPresentation: typeof createCommandPresentation;
