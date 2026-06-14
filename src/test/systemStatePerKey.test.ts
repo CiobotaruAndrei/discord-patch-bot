@@ -2,18 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { SystemTimes } from "../types";
 
-const attachSystemState = require("../infra/mongo/systemState") as (target: SystemStateTarget) => void;
+const attachSystemState = require("../infra/mongo/systemState") as typeof import("../infra/mongo/systemState");
+type SystemStateContext = Parameters<typeof attachSystemState>[0];
 
 type SystemTimesKey = keyof SystemTimes;
 type SystemUpdate = { $set: Record<string, number | SystemTimes> };
 type SaveSystemTime = (key: SystemTimesKey, value: number) => Promise<void>;
 type SystemStateRuntime = { saveSystemTime: SaveSystemTime };
-type SystemStateTarget = {
-  SystemModel: {
-    findByIdAndUpdate: (_id: string, update: SystemUpdate) => Promise<null>;
-    findOneAndUpdate: () => { lean: () => Promise<{ _id: string; executionTimes: SystemTimes }> };
-  };
-} & Partial<SystemStateRuntime>;
+type SystemStateTarget = SystemStateContext & Partial<SystemStateRuntime>;
 
 function makeTarget() {
   const writes: SystemUpdate[] = [];
@@ -26,7 +22,8 @@ function makeTarget() {
       findOneAndUpdate() {
 
         return { lean: async () => ({ _id: "system_state", executionTimes: { all: 1, single: 1, reduceri: 1 } }) };
-      }
+      },
+      findById: () => ({ lean: async () => ({ _id: "system_state", executionTimes: { all: 1, single: 1, reduceri: 1 } }) })
     }
   };
   attachSystemState(target);
@@ -75,23 +72,19 @@ test("saveSystemTime accepts the three real keys", async () => {
   assert.equal(writes[2].$set["executionTimes.reduceri"], 10000);
 });
 
-type PauseTarget = {
-  SystemModel: {
-    findById: (id: string) => { lean: () => Promise<{ outboxPaused?: boolean } | null> };
-    findByIdAndUpdate: (id: string, update: { $set: { outboxPaused: boolean } }, opts?: unknown) => Promise<null>;
-  };
-} & Partial<{ getOutboxPaused: () => Promise<boolean>; setOutboxPaused: (paused: boolean) => Promise<void> }>;
+type PauseTarget = SystemStateContext & Partial<{ getOutboxPaused: () => Promise<boolean>; setOutboxPaused: (paused: boolean) => Promise<void> }>;
 
 function makePauseTarget(stored: boolean | undefined) {
   const writes: boolean[] = [];
   let value = stored;
   const target: PauseTarget = {
     SystemModel: {
-      findById: () => ({ lean: async () => (value === undefined ? null : { outboxPaused: value }) }),
-      findByIdAndUpdate: async (_id, update) => { value = update.$set.outboxPaused; writes.push(update.$set.outboxPaused); return null; }
+      findById: () => ({ lean: async () => (value === undefined ? null : { _id: "system_state", outboxPaused: value }) }),
+      findByIdAndUpdate: async (_id: string, update: { $set: { outboxPaused: boolean } }) => { value = update.$set.outboxPaused; writes.push(update.$set.outboxPaused); return null; },
+      findOneAndUpdate: () => ({ lean: async () => ({ _id: "system_state" }) })
     }
   };
-  attachSystemState(target as never);
+  attachSystemState(target);
   return { runtime: target as PauseTarget & { getOutboxPaused: () => Promise<boolean>; setOutboxPaused: (paused: boolean) => Promise<void> }, writes };
 }
 
