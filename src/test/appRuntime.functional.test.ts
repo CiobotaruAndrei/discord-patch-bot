@@ -169,7 +169,7 @@ test("createAppRuntime: outboxWorker primeste isPaused cablat la getOutboxPaused
 
 test("connectMongoWithRetry: reincearca dupa un esec apoi reuseste", async () => {
   let attempts = 0;
-  const deps = {
+  const deps: Parameters<typeof connectMongoWithRetry>[0] = {
     mongoose: { connect: async () => { attempts++; if (attempts < 2) throw new Error("ECONNREFUSED"); } },
     errorMessage: (err: unknown) => String(err),
     mongo: {
@@ -177,14 +177,14 @@ test("connectMongoWithRetry: reincearca dupa un esec apoi reuseste", async () =>
       env: { MONGO_URI: "mongodb://x", MONGO_MAX_POOL_SIZE: 5 }
     }
   };
-  await connectMongoWithRetry(deps as unknown as Parameters<typeof connectMongoWithRetry>[0]);
+  await connectMongoWithRetry(deps);
   assert.equal(attempts, 2, "a doua incercare reuseste dupa backoff");
 });
 
 test("hydrateStartupCaches: hidrateaza din proaspat, ignora invechit", async () => {
   const updatesCache: unknown[] = [];
   const dealsCache: Array<[string, unknown]> = [];
-  const deps = {
+  const deps: Parameters<typeof hydrateStartupCaches>[0] = {
     commands: {
       setUpdatesCache: (p: unknown) => { updatesCache.push(p); },
       setDealsCache: (c: string, p: unknown) => { dealsCache.push([c, p]); }
@@ -195,7 +195,7 @@ test("hydrateStartupCaches: hidrateaza din proaspat, ignora invechit", async () 
       loadDealsFetchSnapshots: async () => [{ currency: "USD", payload: [{ d: 1 }], fetchedAt: new Date() }]
     }
   };
-  await hydrateStartupCaches(deps as unknown as Parameters<typeof hydrateStartupCaches>[0]);
+  await hydrateStartupCaches(deps);
   assert.equal(updatesCache.length, 0, "snapshot updates invechit -> ignorat");
   assert.deepEqual(dealsCache, [["USD", [{ d: 1 }]]], "snapshot deals proaspat -> hidratat");
 });
