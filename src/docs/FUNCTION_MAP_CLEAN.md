@@ -74,7 +74,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-definitions/slashCommandDefinitions.ts`
 
 - Defineste slash commands pentru Discord.
-- Logica e in factory-ul `createSlashCommandDefinitions(deps)`; installer-ul `attachSlashCommands(target)` doar deleaga (Object.assign). Scripturile (ex. staging smoke) pot construi definitiile direct prin factory, fara context de installer.
+- Logica e in factory-ul `createSlashCommandDefinitions(deps)`; installer-ul `attachSlashCommands(target)` doar deleaga (Object.assign). Scripturile (ex. staging smoke) pot construi definitiile direct prin factory, fara context de installer si fara cast — dep-ul `SlashCommandBuilder` e tipat cu builder-ul discord.js REAL (`typeof import("discord.js").SlashCommandBuilder`), nu cu un tip `Like` scris de mana.
 - Seteaza permisiunile declarative pentru comenzile administrative.
 - Trebuie sa ramana declarativ, fara logica de executie.
 
