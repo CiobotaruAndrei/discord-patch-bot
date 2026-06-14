@@ -2,34 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions") as typeof import("../features/command-definitions/slashCommandDefinitions");
+const { SlashCommandBuilder } = require("discord.js") as typeof import("discord.js");
 
 type SlashRuntime = {
   registerSlashCommands: (token: string, clientId: string) => Promise<void>;
 };
 
-class FakeSlashCommandBuilder {
-  json: Record<string, unknown> = {};
-  setName(name: string) { this.json.name = name; return this; }
-  setDescription(desc: string) { this.json.desc = desc; return this; }
-  setDefaultMemberPermissions(p: string) { this.json.perms = p; return this; }
-  addSubcommand(cb: (b: FakeSlashCommandBuilder) => FakeSlashCommandBuilder) { cb(new FakeSlashCommandBuilder()); return this; }
-  addSubcommandGroup(cb: (b: FakeSlashCommandBuilder) => FakeSlashCommandBuilder) { cb(new FakeSlashCommandBuilder()); return this; }
-  addStringOption(cb: (b: FakeSlashCommandBuilder) => FakeSlashCommandBuilder) { cb(new FakeSlashCommandBuilder()); return this; }
-  addIntegerOption(cb: (b: FakeSlashCommandBuilder) => FakeSlashCommandBuilder) { cb(new FakeSlashCommandBuilder()); return this; }
-  addRoleOption(cb: (b: FakeSlashCommandBuilder) => FakeSlashCommandBuilder) { cb(new FakeSlashCommandBuilder()); return this; }
-  addChoices(..._choices: unknown[]) { return this; }
-  setRequired(_r: boolean) { return this; }
-  setAutocomplete(_a: boolean) { return this; }
-  setMinValue(_v: number) { return this; }
-  setMaxValue(_v: number) { return this; }
-  toJSON() { return this.json; }
-}
-
 function makeContext(devGuildId?: string) {
   const calls: Array<{ route: string; bodyLength: number }> = [];
   const logs: Array<{ level: string; context: string; msg: string }> = [];
-  const context = {
-    SlashCommandBuilder: FakeSlashCommandBuilder,
+  const context: Parameters<typeof attachSlashCommands>[0] & Partial<SlashRuntime> = {
+    SlashCommandBuilder,
     PermissionsBitField: { Flags: { Administrator: { toString: () => "8" } } },
     Routes: {
       applicationCommands: (clientId: string) => `/applications/${clientId}/commands`,
@@ -48,7 +31,7 @@ function makeContext(devGuildId?: string) {
     },
     SUPPORTED_CURRENCIES: { USD: {}, EUR: {}, GBP: {}, RON: {} },
     logger: (level: string, c: string, msg: string) => { logs.push({ level, context: c, msg }); }
-  } as unknown as Parameters<typeof attachSlashCommands>[0] & Partial<SlashRuntime>;
+  };
   if (devGuildId !== undefined) {
     context.env = { DISCORD_DEV_GUILD_ID: devGuildId };
   }
