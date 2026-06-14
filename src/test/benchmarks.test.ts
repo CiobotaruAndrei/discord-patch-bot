@@ -2,21 +2,23 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { runCpuBenchmark, levenshteinParityMismatches, runAreaBenchmarks } from "../scripts/cpuBenchmark";
 import { runOutboxLoad, OutboxLoadModels } from "../scripts/outboxLoadBenchmark";
+import type { OutboxJob } from "../features/notifications/notificationOutbox";
 
-interface JobDoc {
+interface JobDoc extends OutboxJob {
   _id: string;
-  guildId: string;
-  dedupeKey?: string;
-  availableAt?: Date;
   lockedUntil?: Date | null;
   [key: string]: unknown;
 }
+
+type OutboxLoadModel = OutboxLoadModels["outboxModel"];
+type OutboxSentLoadModel = OutboxLoadModels["sentModel"];
 
 function makeInMemoryModels(): OutboxLoadModels & { jobs: JobDoc[] } {
   const jobs: JobDoc[] = [];
   const sent = new Set<string>();
   let idCounter = 0;
-  const outboxModel = {
+  const outboxModel: OutboxLoadModel = {
+    create: async (doc: Record<string, unknown>) => { const job = { _id: `j-${++idCounter}`, ...doc } as JobDoc; jobs.push(job); return job; },
     insertMany: async (docs: Record<string, unknown>[]) => { for (const d of docs) jobs.push({ _id: `j-${++idCounter}`, ...d } as JobDoc); return docs; },
     findOneAndUpdate: async (filter: { availableAt?: { $lte?: Date } }, update: { $set?: Record<string, unknown>; $inc?: { deliveries?: number } }) => {
       const now = filter?.availableAt?.$lte ?? new Date();
@@ -32,12 +34,12 @@ function makeInMemoryModels(): OutboxLoadModels & { jobs: JobDoc[] } {
     updateOne: async () => ({ matchedCount: 1 }),
     countDocuments: async () => jobs.length
   };
-  const sentModel = {
+  const sentModel: OutboxSentLoadModel = {
     exists: async (filter: { dedupeKey: string }) => (sent.has(filter.dedupeKey) ? { _id: filter.dedupeKey } : null),
     updateOne: async (filter: { dedupeKey: string }) => { sent.add(filter.dedupeKey); return { upsertedCount: 1 }; },
     deleteMany: async () => ({ deletedCount: 0 })
   };
-  return { outboxModel: outboxModel as never, sentModel: sentModel as never, jobs };
+  return { outboxModel, sentModel, jobs };
 }
 
 test("cpuBenchmark: native si TS dau acelasi rezultat pentru levenshtein (paritate)", () => {
