@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createCronController, computeCronDelay } from "../app/scheduler/cron";
 import type { RuntimeEnv } from "../types";
+import { fakeTimer } from "./fakeTimer";
 
 test("computeCronDelay: fara jitter intoarce exact intervalul", () => {
   assert.equal(computeCronDelay(600_000, 0, () => 0.5), 600_000);
@@ -18,7 +19,7 @@ test("cron cycle budget: un ciclu peste buget face urmatorul ciclu sa sara peste
   const originalSetTimeout = globalThis.setTimeout;
   const originalClearTimeout = globalThis.clearTimeout;
   globalThis.setTimeout = ((handler: () => unknown) =>
-    ({ handler, unref() {} } as unknown as ReturnType<typeof setTimeout>)) as typeof setTimeout;
+    (fakeTimer())) as typeof setTimeout;
   globalThis.clearTimeout = (() => undefined) as typeof clearTimeout;
 
   try {
@@ -86,9 +87,9 @@ test("cron stop clears the scheduled timer handle", () => {
   let cleared = 0;
 
   globalThis.setTimeout = ((handler: (...args: unknown[]) => void, timeout?: number, ...args: unknown[]) => {
-    const handle = { handler, timeout, args, unref() {} };
+    const handle = { handler, timeout, args };
     handles.push(handle);
-    return handle as unknown as ReturnType<typeof setTimeout>;
+    return fakeTimer();
   }) as typeof setTimeout;
   globalThis.clearTimeout = ((handle?: ReturnType<typeof setTimeout>) => {
     if (handle) cleared += 1;
@@ -164,7 +165,7 @@ test("cron cycle waits for both jobs when one rejects (Promise.allSettled)", asy
   const originalSetTimeout = globalThis.setTimeout;
   const originalClearTimeout = globalThis.clearTimeout;
   globalThis.setTimeout = ((handler: (...args: unknown[]) => void, _timeout?: number) => {
-    return { handler, unref() {} } as unknown as ReturnType<typeof setTimeout>;
+    return fakeTimer();
   }) as typeof setTimeout;
   globalThis.clearTimeout = (() => undefined) as typeof clearTimeout;
 
@@ -246,9 +247,8 @@ test("cron heartbeat tolerates one transient renew throw but aborts on the secon
   const scheduledHandlers: Array<() => unknown> = [];
 
   globalThis.setTimeout = ((handler: () => unknown) => {
-    const entry = { handler, unref() {} };
     scheduledHandlers.push(handler);
-    return entry as unknown as ReturnType<typeof setTimeout>;
+    return fakeTimer();
   }) as typeof setTimeout;
   globalThis.clearTimeout = (() => undefined) as typeof clearTimeout;
 
@@ -325,9 +325,8 @@ test("cron heartbeat aborts immediately when renew returns false (lock genuinely
   const scheduledHandlers: Array<() => unknown> = [];
 
   globalThis.setTimeout = ((handler: () => unknown) => {
-    const entry = { handler, unref() {} };
     scheduledHandlers.push(handler);
-    return entry as unknown as ReturnType<typeof setTimeout>;
+    return fakeTimer();
   }) as typeof setTimeout;
   globalThis.clearTimeout = (() => undefined) as typeof clearTimeout;
 
@@ -399,9 +398,8 @@ test("heartbeat tick care se reia in fereastra de release NU mai renew-uie lock-
   const originalClearTimeout = globalThis.clearTimeout;
   const scheduledHandlers: Array<() => unknown> = [];
   globalThis.setTimeout = ((handler: () => unknown) => {
-    const entry = { handler, unref() {} };
     scheduledHandlers.push(handler);
-    return entry as unknown as ReturnType<typeof setTimeout>;
+    return fakeTimer();
   }) as typeof setTimeout;
   globalThis.clearTimeout = (() => undefined) as typeof clearTimeout;
 
