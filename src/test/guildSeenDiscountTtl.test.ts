@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const mongoose = require("mongoose");
+const mongoose = require("mongoose") as typeof import("mongoose");
 const attachMongoModels = require("../infra/mongo/models");
 
-type SchemaIndex = [Record<string, number>, Record<string, unknown>];
+type SchemaIndex = [Record<string, unknown>, Record<string, unknown>];
 
 interface SchemaLike {
   schema: { indexes(): SchemaIndex[] };
@@ -25,7 +25,7 @@ function attachOnce(): Record<string, unknown> {
 
 function getModel(target: Record<string, unknown>, key: string, modelName: string): SchemaLike {
   if (target[key]) return target[key] as SchemaLike;
-  return mongoose.model(modelName) as unknown as SchemaLike;
+  return mongoose.model(modelName);
 }
 
 function findTtlSeconds(model: SchemaLike, field: string): number | null {
