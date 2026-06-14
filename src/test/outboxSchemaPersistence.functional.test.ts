@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const mongoose = require("mongoose");
+const mongoose = require("mongoose") as typeof import("mongoose");
 const attachMongoModels = require("../infra/mongo/models");
 
 interface OutboxModelLike {
@@ -19,7 +19,7 @@ function getOutboxModel(): OutboxModelLike {
     attachMongoModels(target);
     if (target.NotificationOutboxModel) return target.NotificationOutboxModel as OutboxModelLike;
   } catch {  }
-  return mongoose.model("NotificationOutbox") as unknown as OutboxModelLike;
+  return mongoose.model("NotificationOutbox");
 }
 
 test("notificationOutbox: schema persista recoveryVerify / dedupeKey / deliveries (strict mode nu le sterge)", () => {
