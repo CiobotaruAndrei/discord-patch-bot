@@ -1,20 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createOutboxRuntime, DeliverResult } from "../features/notifications/notificationOutbox";
+import type { Model } from "mongoose";
 
-const mongoose = require("mongoose");
+const mongoose = require("mongoose") as typeof import("mongoose");
 const attachMongoModels = require("../infra/mongo/models");
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/discord-patch-bot-itest";
 
-interface OutboxModel {
-  syncIndexes(): Promise<unknown>;
-  create(doc: Record<string, unknown>): Promise<unknown>;
-  countDocuments(filter: Record<string, unknown>): Promise<number>;
-  deleteMany(filter: Record<string, unknown>): Promise<unknown>;
-}
+type OutboxModel = Model<Record<string, unknown>>;
 
-function getModels(): { outbox: OutboxModel; sent: unknown } {
+function getModels(): { outbox: OutboxModel; sent: OutboxModel } {
   let outbox: unknown;
   let sent: unknown;
   try {
@@ -30,7 +26,7 @@ function getModels(): { outbox: OutboxModel; sent: unknown } {
   } catch {  }
   return {
     outbox: (outbox ?? mongoose.model("NotificationOutbox")) as OutboxModel,
-    sent: sent ?? mongoose.model("NotificationOutboxSent")
+    sent: (sent ?? mongoose.model("NotificationOutboxSent")) as OutboxModel
   };
 }
 
@@ -61,8 +57,8 @@ test("real Mongo: doi workeri care drenaza simultan NU livreaza acelasi job de d
     }
 
     const runtime = createOutboxRuntime({
-      NotificationOutboxModel: outbox as never,
-      NotificationOutboxSentModel: sent as never,
+      NotificationOutboxModel: outbox,
+      NotificationOutboxSentModel: sent,
       withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
       logger: () => undefined
     });

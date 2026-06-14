@@ -2,23 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createOutboxRuntime } from "../features/notifications/notificationOutbox";
 import type { OutboxJob } from "../features/notifications/notificationOutbox";
+import type { Model } from "mongoose";
 
-const mongoose = require("mongoose");
+const mongoose = require("mongoose") as typeof import("mongoose");
 const attachMongoModels = require("../infra/mongo/models");
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/discord-patch-bot-itest";
 
-interface RawCollection {
-  insertOne(doc: Record<string, unknown>): Promise<unknown>;
-}
+type SweepTestModel = Model<Record<string, unknown>>;
 
-interface SweepTestModel {
-  collection: RawCollection;
-  countDocuments(filter: Record<string, unknown>): Promise<number>;
-  deleteMany(filter: Record<string, unknown>): Promise<unknown>;
-}
-
-function getModels(): { outbox: SweepTestModel; sent: unknown } {
+function getModels(): { outbox: SweepTestModel; sent: SweepTestModel } {
   try {
     const target: Record<string, unknown> = {
       mongoose,
@@ -28,12 +21,12 @@ function getModels(): { outbox: SweepTestModel; sent: unknown } {
     };
     attachMongoModels(target);
     if (target.NotificationOutboxModel) {
-      return { outbox: target.NotificationOutboxModel as SweepTestModel, sent: target.NotificationOutboxSentModel };
+      return { outbox: target.NotificationOutboxModel as SweepTestModel, sent: target.NotificationOutboxSentModel as SweepTestModel };
     }
   } catch {  }
   return {
-    outbox: mongoose.model("NotificationOutbox") as unknown as SweepTestModel,
-    sent: mongoose.model("NotificationOutboxSent")
+    outbox: mongoose.model("NotificationOutbox") as SweepTestModel,
+    sent: mongoose.model("NotificationOutboxSent") as SweepTestModel
   };
 }
 
@@ -80,7 +73,7 @@ test("real Mongo: sweep-ul expired-near-ttl prinde si joburile legacy FARA campu
       NotificationOutboxSentModel: sent,
       withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
       logger: () => undefined
-    } as unknown as Parameters<typeof createOutboxRuntime>[0]);
+    });
 
     const result = await runtime.drainOutbox({
       deliver: async () => ({ ok: true }),
