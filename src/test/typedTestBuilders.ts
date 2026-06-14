@@ -1,5 +1,6 @@
+import { load as cheerioLoad } from "cheerio";
 import type { NotificationDiscordClient, OutboxDiscordClient } from "../features/notifications/outboundChannel";
-import type { DealInfo } from "../types";
+import type { DealInfo, NormalizedUpdate } from "../types";
 import type { GuildDoc } from "../infra/mongo/modelTypes";
 import type { SourceRegistryApi } from "../sources/sourceRegistry";
 
@@ -78,6 +79,16 @@ export function makeDiscordInteraction(overrides: Partial<Omit<DiscordInteractio
 }
 
 export function makeSourceRegistryApi(overrides: Partial<SourceRegistryApi> = {}): SourceRegistryApi {
+  const emptyUpdate: NormalizedUpdate = {
+    id: "u-1",
+    title: "",
+    link: "",
+    excerpt: "",
+    fullText: "",
+    image: null,
+    thumbnail: null,
+    timestamp: ""
+  };
   return {
     USER_AGENTS: ["test-agent"],
     MAX_HTML_BYTES: 1024,
@@ -89,23 +100,23 @@ export function makeSourceRegistryApi(overrides: Partial<SourceRegistryApi> = {}
     normalizeTitleForDedupe: value => String(value ?? "").toLowerCase(),
     stableUpdateId: () => "stable-id",
     normalizeUpdate: data => ({ id: "u-1", title: "", link: "", excerpt: "", thumbnail: null, image: null, timestamp: "", ...(data as Record<string, unknown>) }) as ReturnType<SourceRegistryApi["normalizeUpdate"]>,
-    safeCheerioLoad: () => (() => undefined) as unknown as ReturnType<SourceRegistryApi["safeCheerioLoad"]>,
+    safeCheerioLoad: html => cheerioLoad(typeof html === "string" ? html : ""),
     levenshtein: () => 0,
     httpReq: async () => ({ data: "" }),
     fetchWithProxy: async () => "",
     dealHash: deal => String((deal as { id?: unknown }).id ?? "hash"),
     attachMetrics: () => undefined,
-    fetchGameUpdate: (async () => null) as unknown as SourceRegistryApi["fetchGameUpdate"],
-    executeFetchWithCircuitBreaker: (async () => null) as unknown as SourceRegistryApi["executeFetchWithCircuitBreaker"],
-    getLatestForAllGames: (async () => []) as unknown as SourceRegistryApi["getLatestForAllGames"],
-    fetchSteamReviewData: (async () => null) as unknown as SourceRegistryApi["fetchSteamReviewData"],
-    enrichDealData: (async (deal: unknown) => deal) as unknown as SourceRegistryApi["enrichDealData"],
-    fetchDeals: (async () => []) as unknown as SourceRegistryApi["fetchDeals"],
-    searchSteamGameByName: (async () => null) as unknown as SourceRegistryApi["searchSteamGameByName"],
-    chooseBestSteamMatch: (() => null) as unknown as SourceRegistryApi["chooseBestSteamMatch"],
-    fetchSteamPriceDetails: (async () => null) as unknown as SourceRegistryApi["fetchSteamPriceDetails"],
-    extractOfferEndFromHtml: (() => null) as unknown as SourceRegistryApi["extractOfferEndFromHtml"],
-    extractSteamOfferEndDate: (async () => null) as unknown as SourceRegistryApi["extractSteamOfferEndDate"],
+    fetchGameUpdate: async () => emptyUpdate,
+    executeFetchWithCircuitBreaker: async game => ({ game, latest: null, error: null }),
+    getLatestForAllGames: async () => [],
+    fetchSteamReviewData: async () => ({ totalReviews: 0, qualityPercent: 0, success: false }),
+    enrichDealData: async deal => deal,
+    fetchDeals: async () => [],
+    searchSteamGameByName: async () => [],
+    chooseBestSteamMatch: () => null,
+    fetchSteamPriceDetails: async () => null,
+    extractOfferEndFromHtml: () => null,
+    extractSteamOfferEndDate: async () => null,
     cleanEnrichedCache: () => undefined,
     getEnrichedCacheSize: () => 0,
     formatPrice: value => `$${String(value ?? 0)}`,
