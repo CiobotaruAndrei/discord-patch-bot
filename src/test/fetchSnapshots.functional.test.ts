@@ -7,9 +7,12 @@ const noopDiscordClient = makeNotificationDiscordClient();
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
 import attachFetchSnapshots = require("../infra/mongo/fetchSnapshots");
+import type { GameConfig } from "../types";
 
 type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];
 type DiscountDeps = Parameters<typeof createDiscountNotificationService>[0];
+const updateDeps = (deps: Partial<UpdateDeps>): UpdateDeps => deps as UpdateDeps;
+const discountDeps = (deps: Partial<DiscountDeps>): DiscountDeps => deps as DiscountDeps;
 
 interface SnapshotDoc { _id: string; payload: unknown; fetchedAt: Date; }
 
@@ -31,18 +34,25 @@ function makeFakeSnapshotModel() {
   };
 }
 
-function attachRepo() {
-  const target: Record<string, unknown> = {
+type FetchSnapshotsContext = Parameters<typeof attachFetchSnapshots>[0];
+interface RepoMethods {
+  saveFetchSnapshot: (id: string, payload: unknown) => Promise<void>;
+  loadFetchSnapshot: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
+  loadDealsFetchSnapshots: () => Promise<Array<{ currency: string; payload: unknown; fetchedAt: Date }>>;
+}
+
+function attachRepo(): FetchSnapshotsContext & RepoMethods {
+  const target: FetchSnapshotsContext = {
     FetchSnapshotModel: makeFakeSnapshotModel(),
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   };
-  attachFetchSnapshots(target as never);
-  return target as Record<string, unknown> & {
-    saveFetchSnapshot: (id: string, payload: unknown) => Promise<void>;
-    loadFetchSnapshot: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
-    loadDealsFetchSnapshots: () => Promise<Array<{ currency: string; payload: unknown; fetchedAt: Date }>>;
-  };
+  attachFetchSnapshots(target);
+  const { saveFetchSnapshot, loadFetchSnapshot, loadDealsFetchSnapshots } = target;
+  if (!saveFetchSnapshot || !loadFetchSnapshot || !loadDealsFetchSnapshots) {
+    throw new Error("attachFetchSnapshots trebuie sa ataseze metodele de snapshot");
+  }
+  return Object.assign(target, { saveFetchSnapshot, loadFetchSnapshot, loadDealsFetchSnapshots });
 }
 
 test("fetchSnapshots: save apoi load intoarce acelasi payload + un fetchedAt Date", async () => {
@@ -77,7 +87,7 @@ test("UpdateService.checkForUpdates persista snapshot-ul 'updates' dupa fetch (l
   const deps = {
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
     logger: () => undefined,
-    runConcurrent: async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>) => {
+    runConcurrent: async <T>(items: T[], _c: number, fn: (item: T) => Promise<unknown>) => {
       let processed = 0;
       const errors: Array<{ error: unknown }> = [];
       for (const it of items) {
@@ -85,12 +95,12 @@ test("UpdateService.checkForUpdates persista snapshot-ul 'updates' dupa fetch (l
       }
       return { processed, errors };
     },
-    resolveOutboundChannel: async () => ({ channel: { id: "channel-1", send: async () => ({}) }, abort: true }),
-    getLatestForAllGames: async (games: Array<{ key: string }>) => games.map(game => ({ game, latest: { id: `u-${game.key}` } })),
+    resolveOutboundChannel: async () => ({ channel: null, abort: true }),
+    getLatestForAllGames: async (games: GameConfig[]) => games.map(game => ({ game, latest: { id: `u-${game.key}` } })),
     setUpdatesCache: () => undefined,
     persistFetchSnapshot: async (id: string, payload: unknown) => { persistCalls.push({ id, payload }); }
-  } as unknown as UpdateDeps;
-  const svc = createUpdateNotificationService(deps);
+  } satisfies Partial<UpdateDeps>;
+  const svc = createUpdateNotificationService(updateDeps(deps));
   await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }, { key: "fortnite", name: "Fortnite" }]);
   assert.equal(persistCalls.length, 1, "exact un snapshot persistat");
   assert.equal(persistCalls[0].id, "updates");
@@ -106,7 +116,7 @@ test("DiscountService.checkForDiscounts persista snapshot-ul 'deals:<MONEDA>' du
   const deps = {
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
     logger: () => undefined,
-    runConcurrent: async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>) => {
+    runConcurrent: async <T>(items: T[], _c: number, fn: (item: T) => Promise<unknown>) => {
       let processed = 0;
       const errors: Array<{ error: unknown }> = [];
       for (const it of items) {
@@ -114,7 +124,7 @@ test("DiscountService.checkForDiscounts persista snapshot-ul 'deals:<MONEDA>' du
       }
       return { processed, errors };
     },
-    resolveOutboundChannel: async () => ({ channel: { id: "channel-d", send: async () => ({}) }, abort: true }),
+    resolveOutboundChannel: async () => ({ channel: null, abort: true }),
     normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     getDealsCacheData: () => null,
     fetchDeals: async () => [{ id: "d1" }],
@@ -122,8 +132,8 @@ test("DiscountService.checkForDiscounts persista snapshot-ul 'deals:<MONEDA>' du
     persistFetchSnapshot: async (id: string, payload: unknown) => { persistCalls.push({ id, payload }); },
     DEFAULT_CURRENCY: "USD",
     GUILD_PROCESS_CONCURRENCY: 1
-  } as unknown as DiscountDeps;
-  const svc = createDiscountNotificationService(deps);
+  } satisfies Partial<DiscountDeps>;
+  const svc = createDiscountNotificationService(discountDeps(deps));
   await svc.checkForDiscounts(noopDiscordClient);
   assert.equal(persistCalls.length, 1, "exact un snapshot de reduceri persistat");
   assert.equal(persistCalls[0].id, "deals:USD");
@@ -131,7 +141,7 @@ test("DiscountService.checkForDiscounts persista snapshot-ul 'deals:<MONEDA>' du
 });
 
 const messageOf = (value: unknown) => value instanceof Error ? value.message : String(value);
-const runConcurrentSafe = async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>, opts?: { errorLogger?: (item: unknown, err: unknown) => void }) => {
+const runConcurrentSafe = async <T>(items: T[], _c: number, fn: (item: T) => Promise<unknown>, opts?: { errorLogger?: (item: unknown, err: unknown) => void }) => {
   let processed = 0;
   const errors: Array<{ error: unknown }> = [];
   for (const it of items) {
@@ -147,13 +157,13 @@ test("UpdateService.checkForUpdates: fetch esuat foloseste snapshot-ul din event
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
     logger: () => undefined,
     runConcurrent: runConcurrentSafe,
-    resolveOutboundChannel: async () => { resolveCalls++; return { channel: { id: "channel-1", send: async () => ({}) }, abort: true }; },
+    resolveOutboundChannel: async () => { resolveCalls++; return { channel: null, abort: true }; },
     transientErrorMessage: messageOf,
     getLatestForAllGames: async () => { throw new Error("fetch down"); },
     validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
     loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2" } }], fetchedAt: new Date() })
-  } as unknown as UpdateDeps;
-  const svc = createUpdateNotificationService(deps);
+  } satisfies Partial<UpdateDeps>;
+  const svc = createUpdateNotificationService(updateDeps(deps));
   await svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }]);
   assert.equal(resolveCalls, 1, "dispatch-ul a continuat de pe snapshot dupa esecul fetch-ului");
 });
@@ -165,13 +175,13 @@ test("UpdateService.checkForUpdates: fetch esuat fara snapshot arunca (fara disp
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
     logger: () => undefined,
     runConcurrent: runConcurrentSafe,
-    resolveOutboundChannel: async () => { resolveCalls++; return { channel: { id: "channel-1", send: async () => ({}) }, abort: true }; },
+    resolveOutboundChannel: async () => { resolveCalls++; return { channel: null, abort: true }; },
     transientErrorMessage: messageOf,
     getLatestForAllGames: async () => { throw new Error("fetch down"); },
     validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
     loadFetchSnapshot: async () => null
-  } as unknown as UpdateDeps;
-  const svc = createUpdateNotificationService(deps);
+  } satisfies Partial<UpdateDeps>;
+  const svc = createUpdateNotificationService(updateDeps(deps));
   await assert.rejects(() => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }]), /snapshot de rezerva proaspat.*fetch down/);
   assert.equal(resolveCalls, 0, "fara snapshot, ciclul se opreste inainte de dispatch");
 });
@@ -183,7 +193,7 @@ test("DiscountService.checkForDiscounts: fetch esuat foloseste snapshot-ul de re
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
     logger: () => undefined,
     runConcurrent: runConcurrentSafe,
-    resolveOutboundChannel: async () => { resolveCalls++; return { channel: { id: "channel-d", send: async () => ({}) }, abort: true }; },
+    resolveOutboundChannel: async () => { resolveCalls++; return { channel: null, abort: true }; },
     transientErrorMessage: messageOf,
     normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     getDealsCacheData: () => null,
@@ -192,8 +202,8 @@ test("DiscountService.checkForDiscounts: fetch esuat foloseste snapshot-ul de re
     loadFetchSnapshot: async () => ({ payload: [makeDealInfo({ id: "d1" })], fetchedAt: new Date() }),
     DEFAULT_CURRENCY: "USD",
     GUILD_PROCESS_CONCURRENCY: 1
-  } as unknown as DiscountDeps;
-  const svc = createDiscountNotificationService(deps);
+  } satisfies Partial<DiscountDeps>;
+  const svc = createDiscountNotificationService(discountDeps(deps));
   await svc.checkForDiscounts(noopDiscordClient);
   assert.equal(resolveCalls, 1, "dispatch-ul a continuat de pe snapshot dupa esecul fetch-ului de reduceri");
 });
@@ -205,7 +215,7 @@ test("DiscountService.checkForDiscounts: fetch esuat fara snapshot sare guild-ul
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
     logger: () => undefined,
     runConcurrent: runConcurrentSafe,
-    resolveOutboundChannel: async () => { resolveCalls++; return { channel: { id: "channel-d", send: async () => ({}) }, abort: true }; },
+    resolveOutboundChannel: async () => { resolveCalls++; return { channel: null, abort: true }; },
     transientErrorMessage: messageOf,
     normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     getDealsCacheData: () => null,
@@ -214,8 +224,8 @@ test("DiscountService.checkForDiscounts: fetch esuat fara snapshot sare guild-ul
     loadFetchSnapshot: async () => null,
     DEFAULT_CURRENCY: "USD",
     GUILD_PROCESS_CONCURRENCY: 1
-  } as unknown as DiscountDeps;
-  const svc = createDiscountNotificationService(deps);
+  } satisfies Partial<DiscountDeps>;
+  const svc = createDiscountNotificationService(discountDeps(deps));
   await assert.rejects(() => svc.checkForDiscounts(noopDiscordClient), /toate cele 1 guild-uri abonate.*deals down/);
   assert.equal(resolveCalls, 0, "fara snapshot, niciun dispatch");
 });
@@ -227,13 +237,13 @@ test("UpdateService.checkForUpdates: snapshot proaspat dar CORUPT nu trece de va
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
     logger: () => undefined,
     runConcurrent: runConcurrentSafe,
-    resolveOutboundChannel: async () => { resolveCalls++; return { channel: { id: "channel-1", send: async () => ({}) }, abort: true }; },
+    resolveOutboundChannel: async () => { resolveCalls++; return { channel: null, abort: true }; },
     transientErrorMessage: messageOf,
     getLatestForAllGames: async () => { throw new Error("fetch down"); },
     validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
     loadFetchSnapshot: async () => ({ payload: [{ bogus: true }, 42, { game: { key: "cs2" } }], fetchedAt: new Date() })
-  } as unknown as UpdateDeps;
-  const svc = createUpdateNotificationService(deps);
+  } satisfies Partial<UpdateDeps>;
+  const svc = createUpdateNotificationService(updateDeps(deps));
   await assert.rejects(() => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }]), /snapshot de rezerva proaspat/);
   assert.equal(resolveCalls, 0, "snapshot corupt = fallback invalid, niciun dispatch pe date neverificate");
 });
@@ -245,7 +255,7 @@ test("DiscountService.checkForDiscounts: snapshot proaspat dar CORUPT (itemii nu
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
     logger: () => undefined,
     runConcurrent: runConcurrentSafe,
-    resolveOutboundChannel: async () => { resolveCalls++; return { channel: { id: "channel-d", send: async () => ({}) }, abort: true }; },
+    resolveOutboundChannel: async () => { resolveCalls++; return { channel: null, abort: true }; },
     transientErrorMessage: messageOf,
     normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     getDealsCacheData: () => null,
@@ -254,8 +264,8 @@ test("DiscountService.checkForDiscounts: snapshot proaspat dar CORUPT (itemii nu
     loadFetchSnapshot: async () => ({ payload: [{ id: "doar-id-fara-restul" }, null, "text"], fetchedAt: new Date() }),
     DEFAULT_CURRENCY: "USD",
     GUILD_PROCESS_CONCURRENCY: 1
-  } as unknown as DiscountDeps;
-  const svc = createDiscountNotificationService(deps);
+  } satisfies Partial<DiscountDeps>;
+  const svc = createDiscountNotificationService(discountDeps(deps));
   await assert.rejects(() => svc.checkForDiscounts(noopDiscordClient), /deals down/);
   assert.equal(resolveCalls, 0, "snapshot corupt = fallback invalid, niciun dispatch pe date neverificate");
 });
@@ -269,13 +279,13 @@ test("UpdateService.checkForUpdates: snapshot vechi (>60min) NU este folosit ca 
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
     logger: () => undefined,
     runConcurrent: runConcurrentSafe,
-    resolveOutboundChannel: async () => { resolveCalls++; return { channel: { id: "channel-1", send: async () => ({}) }, abort: true }; },
+    resolveOutboundChannel: async () => { resolveCalls++; return { channel: null, abort: true }; },
     transientErrorMessage: messageOf,
     getLatestForAllGames: async () => { throw new Error("fetch down"); },
     validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
     loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2" } }], fetchedAt: STALE_FETCHED_AT })
-  } as unknown as UpdateDeps;
-  const svc = createUpdateNotificationService(deps);
+  } satisfies Partial<UpdateDeps>;
+  const svc = createUpdateNotificationService(updateDeps(deps));
   await assert.rejects(() => svc.checkForUpdates(noopDiscordClient, [{ key: "cs2", name: "CS2" }]), /snapshot de rezerva proaspat/);
   assert.equal(resolveCalls, 0, "snapshot expirat -> ciclul se opreste, fara dispatch pe date vechi");
 });
@@ -287,7 +297,7 @@ test("DiscountService.checkForDiscounts: snapshot vechi (>60min) NU este folosit
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
     logger: () => undefined,
     runConcurrent: runConcurrentSafe,
-    resolveOutboundChannel: async () => { resolveCalls++; return { channel: { id: "channel-d", send: async () => ({}) }, abort: true }; },
+    resolveOutboundChannel: async () => { resolveCalls++; return { channel: null, abort: true }; },
     transientErrorMessage: messageOf,
     normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     getDealsCacheData: () => null,
@@ -296,8 +306,8 @@ test("DiscountService.checkForDiscounts: snapshot vechi (>60min) NU este folosit
     loadFetchSnapshot: async () => ({ payload: [makeDealInfo({ id: "d1" })], fetchedAt: STALE_FETCHED_AT }),
     DEFAULT_CURRENCY: "USD",
     GUILD_PROCESS_CONCURRENCY: 1
-  } as unknown as DiscountDeps;
-  const svc = createDiscountNotificationService(deps);
+  } satisfies Partial<DiscountDeps>;
+  const svc = createDiscountNotificationService(discountDeps(deps));
   await assert.rejects(() => svc.checkForDiscounts(noopDiscordClient), /toate cele 1 guild-uri abonate/);
   assert.equal(resolveCalls, 0, "snapshot expirat -> fara dispatch pe date vechi");
 });
