@@ -1,9 +1,12 @@
-import type { Model } from "mongoose";
 import type { CacheEntry, GuildSettings, RuntimeEnv } from "../../types";
 
+interface GuildSettingsModelLike {
+  findById(id: string): { lean(): Promise<(GuildSettings & Record<string, unknown>) | null> };
+}
+
 interface GuildSettingsContext {
-  env: RuntimeEnv;
-  GuildModel: Model<GuildSettings>;
+  env: Pick<RuntimeEnv, "GUILD_CACHE_TTL_MS" | "GUILD_CACHE_MAX_SIZE">;
+  GuildModel: GuildSettingsModelLike;
   getGuildSettings?: typeof getGuildSettings;
   invalidateGuildCache?: typeof invalidateGuildCache;
   cleanGuildCache?: typeof cleanGuildCache;
@@ -39,7 +42,7 @@ async function getGuildSettings(guildId: string): Promise<GuildSettings | null> 
     touchEntry(guildId, cached);
     return cached.data;
   }
-  const fresh = await runtimeContext.GuildModel.findById(guildId).lean() as GuildSettings | null;
+  const fresh = await runtimeContext.GuildModel.findById(guildId).lean();
   const entry = { data: fresh, expiresAt: now + runtimeContext.env.GUILD_CACHE_TTL_MS };
   guildSettingsCache.delete(guildId);
   guildSettingsCache.set(guildId, entry);

@@ -10,7 +10,7 @@ type GuildSettingsRuntime = {
   getGuildCacheSize: () => number;
 };
 
-function makeContext(maxSize: number, fetchedIds: string[]) {
+function makeContext(maxSize: number, fetchedIds: string[]): Parameters<typeof attachGuildSettings>[0] & Partial<GuildSettingsRuntime> {
   return {
     env: {
       GUILD_CACHE_TTL_MS: 60_000,
@@ -24,7 +24,7 @@ function makeContext(maxSize: number, fetchedIds: string[]) {
         };
       }
     }
-  } as unknown as Parameters<typeof attachGuildSettings>[0] & Partial<GuildSettingsRuntime>;
+  };
 }
 
 function asGuildSettingsRuntime(context: ReturnType<typeof makeContext>): Parameters<typeof attachGuildSettings>[0] & GuildSettingsRuntime {
