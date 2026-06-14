@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { fakeTimer } from "./fakeTimer";
 import { createHousekeeping } from "../app/scheduler/housekeeping";
 
 test("housekeeping start is idempotent", () => {
@@ -9,9 +10,9 @@ test("housekeeping start is idempotent", () => {
   let cleared = 0;
 
   globalThis.setInterval = ((handler: (...args: unknown[]) => void, timeout?: number, ...args: unknown[]) => {
-    const handle = { handler, timeout, args, unref() {} };
+    const handle = { handler, timeout, args };
     handles.push(handle);
-    return handle as unknown as ReturnType<typeof setInterval>;
+    return fakeTimer();
   }) as typeof setInterval;
   globalThis.clearInterval = ((handle?: ReturnType<typeof setInterval>) => {
     if (handle) cleared += 1;

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { fakeTimer, makeFakeTimer } from "./fakeTimer";
 import { createShutdownController } from "../app/lifecycle/shutdown";
 import type { LoggerFunction, RuntimeEnv } from "../types";
 
@@ -32,7 +33,7 @@ function fakeTimers(opts: { fireMs?: number[] } = {}) {
     if (opts.fireMs && typeof ms === "number" && opts.fireMs.includes(ms)) {
       Promise.resolve().then(() => { fired.push(ms); fn(); });
     }
-    return { unref() {} } as unknown as ReturnType<typeof setTimeout>;
+    return fakeTimer();
   }) as typeof setTimeout;
   globalThis.clearTimeout = (() => undefined) as typeof clearTimeout;
   return {
@@ -86,15 +87,11 @@ test("handleFatalProcessError clears the alert-budget timer once adminAlert wins
   let nextId = 1;
   const cleared = new Set<number>();
 
-  globalThis.setTimeout = ((fn: (...args: unknown[]) => void, ms?: number) => {
+  globalThis.setTimeout = ((fn: (...args: unknown[]) => void, ms?: number): NodeJS.Timeout => {
     const id = nextId++;
     const handle: Handle = { id, ms: typeof ms === "number" ? ms : 0, unrefed: false };
     timers.push(handle);
-
-    return {
-      __id: id,
-      unref() { handle.unrefed = true; }
-    } as unknown as ReturnType<typeof setTimeout>;
+    return makeFakeTimer({ __id: id }, () => { handle.unrefed = true; });
   }) as typeof setTimeout;
 
   globalThis.clearTimeout = ((handle: { __id?: number } | undefined) => {
