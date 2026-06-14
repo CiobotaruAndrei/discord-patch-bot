@@ -32,15 +32,17 @@ test("registrele compun modulele prin importuri statice, nu require-uri inline i
   assert.ok(!/^\s+require\("\.\.?\//m.test(src), "fara require-uri anonime inline in lista de installers");
 });
 
-test("installerele nu mai sunt coercitate cu as unknown as; granita e un singur as never per registru (review #9.3 + #9.6)", () => {
+test("installerele nu mai sunt coercitate cu as unknown as sau as never in registre", () => {
   const cmd = fs.readFileSync(commandRegistryPath, "utf8");
   const src = fs.readFileSync(sourceRegistryPath, "utf8");
   assert.ok(!cmd.includes("as unknown as"), "commandRegistry nu mai are bypass-uri as unknown as");
   assert.ok(!src.includes("as unknown as"), "sourceRegistry nu mai are bypass-uri as unknown as");
-  assert.equal((cmd.match(/as never/g) || []).length, 1, "exact o granita as never in commandRegistry (bucla de instalare)");
-  assert.equal((src.match(/as never/g) || []).length, 1, "exact o granita as never in sourceRegistry (bucla de instalare)");
-  assert.match(cmd, /\(context: never\) => void/, "tipul installer-ului nu pretinde un context pe care nu-l poate proba static");
-  assert.match(src, /\(target: never\) => void/, "tipul installer-ului nu pretinde un context pe care nu-l poate proba static");
+  assert.equal((cmd.match(/as never/g) || []).length, 0, "commandRegistry nu mai are granita as never");
+  assert.equal((src.match(/as never/g) || []).length, 0, "sourceRegistry nu mai are granita as never");
+  assert.match(cmd, /type LegacyInstallerTarget = Record<string, unknown>/, "commandRegistry declara tinta legacy explicit, nu never");
+  assert.match(cmd, /function isCommandModuleInstaller/, "commandRegistry verifica runtime ca fiecare installer e functie");
+  assert.match(src, /type SourceRuntimeContext = Partial<SourceRegistryApi>/, "sourceRegistry modeleaza contextul progresiv ca Partial<SourceRegistryApi>");
+  assert.match(src, /function requireSourceValue/, "sourceRegistry citeste exporturile prin garda fail-fast pe chei");
 });
 
 const tsApi = require("typescript") as typeof import("typescript");
@@ -72,19 +74,17 @@ function countTypeAssertions(filePath: string): { asNever: number; doubleUnknown
   return counts;
 }
 
-test("as never ramane izolat in cele doua registre, verificat pe AST, nu pe text (review #10.5 + #11.4)", () => {
-  const allowed = new Map([[commandRegistryPath, 1], [sourceRegistryPath, 1]]);
+test("as never nu mai exista in codul runtime, verificat pe AST, nu pe text", () => {
   const offenders: string[] = [];
   for (const root of ["app", "features", "sources", "infra", "shared", "domain", "config"]) {
     const dir = path.join(srcRoot, root);
     if (!fs.existsSync(dir)) continue;
     for (const file of walkTsFiles(dir)) {
       const { asNever } = countTypeAssertions(file);
-      const allowedCount = allowed.get(file) ?? 0;
-      if (asNever !== allowedCount) offenders.push(`${path.relative(srcRoot, file)}: ${asNever} (permis: ${allowedCount})`);
+      if (asNever !== 0) offenders.push(`${path.relative(srcRoot, file)}: ${asNever}`);
     }
   }
-  assert.deepEqual(offenders, [], "granita as never exista DOAR in registre, exact cate una, numarata pe nodurile AST (un text pacalitor in string-uri sau formatare nu trece)");
+  assert.deepEqual(offenders, [], "zero as never in runtime, numarat pe nodurile AST");
 });
 
 test("fisierele cu contracte inchise nu au double assertions as unknown as, verificat pe AST (review #11.4)", () => {
