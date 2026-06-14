@@ -1,7 +1,7 @@
 "use strict";
 
 import type { Model } from "mongoose";
-import type { ActiveLocks, LoggerFunction, RuntimeEnv } from "../../types";
+import type { ActiveLocks, CurrencyCode, CurrencyConfig, CurrencyRegistry, GuildSettings, LoggerFunction, PriceValue, RuntimeEnv, SystemTimes } from "../../types";
 import type {
   AdminAlertCooldownDoc,
   CircuitBreakerDoc,
@@ -51,21 +51,21 @@ type MongoRuntimeContext = {
   activeLocks: ActiveLocks;
   runMigrations: (logger: unknown) => Promise<{ applied: number[] }>;
   ALL_MIGRATIONS: readonly unknown[];
-  getSystemTimes: () => Promise<unknown>;
-  saveSystemTimes: (times: unknown) => Promise<void>;
-  saveSystemTime: (key: string, value: number) => Promise<void>;
+  getSystemTimes: () => Promise<SystemTimes>;
+  saveSystemTimes: (times: SystemTimes) => Promise<void>;
+  saveSystemTime: (key: keyof SystemTimes, value: number) => Promise<void>;
   getOutboxPaused: () => Promise<boolean>;
   setOutboxPaused: (paused: boolean) => Promise<void>;
-  getGuildSettings: (guildId: string) => Promise<unknown | null>;
+  getGuildSettings: (guildId: string) => Promise<GuildSettings | null>;
   invalidateGuildCache: (guildId: string) => void;
   cleanGuildCache: () => void;
   getGuildCacheSize: () => number;
   adminAlert: (kind: string, title: string, body: unknown) => Promise<void>;
   SchemaDriftError: new (...args: unknown[]) => Error;
-  SUPPORTED_CURRENCIES: Record<string, unknown>;
-  DEFAULT_CURRENCY: string;
-  getCurrencyConfig: (code?: unknown) => unknown;
-  formatPrice: (value: unknown, currencyCode?: unknown) => string;
+  SUPPORTED_CURRENCIES: CurrencyRegistry;
+  DEFAULT_CURRENCY: CurrencyCode;
+  getCurrencyConfig: (code?: CurrencyCode | string | null) => CurrencyConfig;
+  formatPrice: (value: PriceValue, currencyCode?: CurrencyCode | string | null) => string;
   requestContext: { run<T>(store: { requestId: string; abortSignal?: AbortSignal }, callback: () => T): T };
   getAbortSignal: () => AbortSignal | null;
 };

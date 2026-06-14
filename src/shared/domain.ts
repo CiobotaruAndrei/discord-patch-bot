@@ -1,6 +1,4 @@
-import type { CurrencyCode, CurrencyConfig, PriceValue } from "../types";
-
-type CurrencyRegistry = Record<CurrencyCode, CurrencyConfig>;
+import type { CurrencyCode, CurrencyConfig, CurrencyRegistry, PriceValue } from "../types";
 
 class SchemaDriftError extends Error {
   code: "SCHEMA_DRIFT";

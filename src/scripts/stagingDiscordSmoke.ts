@@ -1,11 +1,19 @@
 import { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, SlashCommandBuilder, PermissionsBitField } from "discord.js";
 import { buildSmokeResult, writeSmokeResult } from "./smokeResult";
 import type { SmokeCheck } from "./smokeResult";
+import type { CurrencyRegistry } from "../types";
 import attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions");
 
 interface NamedCommand { name?: string }
 interface CommandsEval { ok: boolean; count: number; missing: string[] }
 interface PermsEval { ok: boolean; missing: string[] }
+
+const SMOKE_CURRENCIES: CurrencyRegistry = {
+  USD: { cc: "US", symbol: "$", placement: "prefix" },
+  EUR: { cc: "DE", symbol: "EUR", placement: "prefix" },
+  GBP: { cc: "GB", symbol: "GBP", placement: "prefix" },
+  RON: { cc: "RO", symbol: " lei", placement: "suffix" }
+};
 
 interface SendableSmokeChannel {
   isTextBased(): boolean;
@@ -32,7 +40,7 @@ function expectedCommandNames(): string[] {
     PermissionsBitField,
     Routes,
     REST,
-    SUPPORTED_CURRENCIES: { USD: {} },
+    SUPPORTED_CURRENCIES: SMOKE_CURRENCIES,
     logger: () => undefined
   });
   return (buildSlashCommandDefinitions() as NamedCommand[]).map(definition => String(definition?.name || "")).filter(Boolean);

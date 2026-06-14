@@ -1,11 +1,12 @@
 "use strict";
 
 import type * as Mongoose from "mongoose";
+import type { CurrencyCode, CurrencyRegistry } from "../../types";
 
 interface MongoModelsContext {
   mongoose: typeof Mongoose;
-  SUPPORTED_CURRENCIES: Record<string, unknown>;
-  DEFAULT_CURRENCY: string;
+  SUPPORTED_CURRENCIES: CurrencyRegistry;
+  DEFAULT_CURRENCY: CurrencyCode;
   ONE_DAY_MS: number;
   [key: string]: unknown;
 }

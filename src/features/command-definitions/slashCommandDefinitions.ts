@@ -1,6 +1,9 @@
+import type { CurrencyRegistry } from "../../types";
+
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
 type SlashChoice = { name: string; value: string };
+type SlashCommandJson = ReturnType<InstanceType<typeof import("discord.js").SlashCommandBuilder>["toJSON"]>;
 
 type PermissionsBitFieldLike = { Flags: { Administrator: { toString(): string } } };
 
@@ -13,14 +16,14 @@ interface SlashCommandContext {
   };
   REST: new (options: { version: string }) => {
     setToken(token: string): {
-      put(route: string, options: { body: unknown[] }): Promise<unknown>;
+      put(route: string, options: { body: SlashCommandJson[] }): Promise<unknown>;
     };
   };
-  SUPPORTED_CURRENCIES: Record<string, unknown>;
+  SUPPORTED_CURRENCIES: CurrencyRegistry;
   logger: Logger;
   env?: { DISCORD_DEV_GUILD_ID?: string };
   CURRENCY_CHOICES?: SlashChoice[];
-  buildSlashCommandDefinitions?: () => unknown[];
+  buildSlashCommandDefinitions?: () => SlashCommandJson[];
   registerSlashCommands?: (token: string, clientId: string) => Promise<void>;
 }
 
@@ -28,7 +31,7 @@ type SlashCommandDefinitionsDeps = Pick<SlashCommandContext, "SlashCommandBuilde
 
 interface SlashCommandDefinitions {
   CURRENCY_CHOICES: SlashChoice[];
-  buildSlashCommandDefinitions: () => unknown[];
+  buildSlashCommandDefinitions: () => SlashCommandJson[];
   registerSlashCommands: (token: string, clientId: string) => Promise<void>;
 }
 
@@ -40,7 +43,7 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
     value: currency
   }));
 
-  function buildSlashCommandDefinitions(): unknown[] {
+  function buildSlashCommandDefinitions(): SlashCommandJson[] {
     return [
       new SlashCommandBuilder().setName("ping").setDescription("Verifica daca botul raspunde"),
       new SlashCommandBuilder().setName("games").setDescription("Listeaza jocurile urmarite (poreclele acceptate)"),
