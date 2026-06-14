@@ -7,21 +7,17 @@ import {
   outboxDedupeMarker
 } from "../features/notifications/notificationOutbox";
 import { createOutboxDelivery } from "../features/notifications/outboxDelivery";
+import type { OutboxDeliveryClient } from "../features/notifications/outboxDelivery";
+import type { OutboxJob } from "../features/notifications/notificationOutbox";
+type OutboxRuntimeDeps = Parameters<typeof createOutboxRuntime>[0];
+type OutboxModelMock = OutboxRuntimeDeps["NotificationOutboxModel"];
+type OutboxSentModelMock = OutboxRuntimeDeps["NotificationOutboxSentModel"];
 
-interface OutboxJobDoc {
+interface OutboxJobDoc extends OutboxJob {
   _id: string;
-  guildId: string;
-  channelId: string;
-  kind: "update" | "discount";
-  payload: unknown;
-  attempts: number;
-  deliveries?: number;
-  dedupeKey?: string;
-  recoveryVerify?: boolean;
-  availableAt?: Date;
-  createdAt?: Date;
   lockedUntil?: Date | null;
   lockedBy?: string;
+  [key: string]: unknown;
 }
 
 function makeStore() {
@@ -33,7 +29,7 @@ function makeStore() {
     const lockOk = !job.lockedUntil || job.lockedUntil.getTime() <= now.getTime();
     return availableOk && lockOk;
   }
-  const model = {
+  const model: OutboxModelMock = {
     create: async (doc: Record<string, unknown>) => { const job = { _id: `job-${++idCounter}`, ...doc } as OutboxJobDoc; jobs.push(job); return job; },
     findOneAndUpdate: async (filter: { availableAt?: { $lte?: Date } }, update: { $set?: Record<string, unknown>; $inc?: { deliveries?: number } }) => {
       const now = filter?.availableAt?.$lte ?? new Date();
@@ -49,13 +45,13 @@ function makeStore() {
       const job = jobs.find(j => j._id === filter._id);
       if (job) {
         if (update.$set) Object.assign(job, update.$set);
-        if (update.$unset) for (const key of Object.keys(update.$unset)) delete (job as unknown as Record<string, unknown>)[key];
+        if (update.$unset) for (const key of Object.keys(update.$unset)) delete job[key];
       }
       return { matchedCount: job ? 1 : 0 };
     },
     countDocuments: async () => jobs.length
   };
-  const sentModel = {
+  const sentModel: OutboxSentModelMock = {
     exists: async (filter: { dedupeKey: string }) => (sent.has(filter.dedupeKey) ? { _id: filter.dedupeKey } : null),
     updateOne: async (filter: { dedupeKey: string }) => { sent.add(filter.dedupeKey); return { upsertedCount: 1 }; }
   };
@@ -63,13 +59,13 @@ function makeStore() {
 }
 
 function makeChannel() {
-  const sentPayloads: Array<{ embeds?: Array<{ footer?: { text?: string } }> }> = [];
+  const sentPayloads: unknown[] = [];
   const channel = {
     id: "c1",
-    send: async (payload: unknown) => { sentPayloads.push(payload as never); return { id: `m${sentPayloads.length}` }; },
+    send: async (payload: unknown) => { sentPayloads.push(payload); return { id: `m${sentPayloads.length}` }; },
     messages: { fetch: async (opts: { limit?: number }) => sentPayloads.slice(-(opts?.limit ?? 50)) }
   };
-  const client = { user: { id: "bot-1" }, channels: { fetch: async () => channel } };
+  const client: OutboxDeliveryClient = { isReady: () => true, user: { id: "bot-1" }, channels: { fetch: async () => channel } };
   return { client, sentPayloads };
 }
 
@@ -86,8 +82,8 @@ function makeDelivery(recoveryVerify: boolean) {
 test("crash-sim cu recovery-verify: send reuseste, markSent esueaza/crash, worker repornit NU duplica", async () => {
   const store = makeStore();
   const runtime = createOutboxRuntime({
-    NotificationOutboxModel: store.model as never,
-    NotificationOutboxSentModel: store.sentModel as never,
+    NotificationOutboxModel: store.model,
+    NotificationOutboxSentModel: store.sentModel,
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   });
@@ -101,7 +97,7 @@ test("crash-sim cu recovery-verify: send reuseste, markSent esueaza/crash, worke
   store.model.deleteOne = async () => { throw new Error("crash inainte de delete"); };
   store.sentModel.updateOne = async () => { throw new Error("crash inainte de markSent"); };
   await assert.rejects(runtime.drainOutbox({
-    deliver: (job) => delivery.deliver(client as never, job as never),
+    deliver: (job) => delivery.deliver(client, job),
     recordDeadLetter: async () => undefined,
     maxAttempts: 5, backoffMs: 1000, limit: 1
   }), /crash inainte de delete/);
@@ -115,7 +111,7 @@ test("crash-sim cu recovery-verify: send reuseste, markSent esueaza/crash, worke
   store.jobs[0].lockedUntil = undefined;
 
   const result = await runtime.drainOutbox({
-    deliver: (job) => delivery.deliver(client as never, job as never),
+    deliver: (job) => delivery.deliver(client, job),
     recordDeadLetter: async () => undefined,
     maxAttempts: 5, backoffMs: 1000, limit: 5
   });
@@ -128,8 +124,8 @@ test("crash-sim cu recovery-verify: send reuseste, markSent esueaza/crash, worke
 test("crash-sim FARA recovery-verify: aceeasi scapare produce un duplicat (demonstreaza valoarea recovery-verify)", async () => {
   const store = makeStore();
   const runtime = createOutboxRuntime({
-    NotificationOutboxModel: store.model as never,
-    NotificationOutboxSentModel: store.sentModel as never,
+    NotificationOutboxModel: store.model,
+    NotificationOutboxSentModel: store.sentModel,
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   });
@@ -143,7 +139,7 @@ test("crash-sim FARA recovery-verify: aceeasi scapare produce un duplicat (demon
   store.model.deleteOne = async () => { throw new Error("crash inainte de delete"); };
   store.sentModel.updateOne = async () => { throw new Error("crash inainte de markSent"); };
   await assert.rejects(runtime.drainOutbox({
-    deliver: (job) => delivery.deliver(client as never, job as never),
+    deliver: (job) => delivery.deliver(client, job),
     recordDeadLetter: async () => undefined,
     maxAttempts: 5, backoffMs: 1000, limit: 1
   }), /crash inainte de delete/);
@@ -154,7 +150,7 @@ test("crash-sim FARA recovery-verify: aceeasi scapare produce un duplicat (demon
   store.jobs[0].lockedUntil = undefined;
 
   await runtime.drainOutbox({
-    deliver: (job) => delivery.deliver(client as never, job as never),
+    deliver: (job) => delivery.deliver(client, job),
     recordDeadLetter: async () => undefined,
     maxAttempts: 5, backoffMs: 1000, limit: 5
   });

@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createOutboxRuntime, OutboxJob, DeliverResult, applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker } from "../features/notifications/notificationOutbox";
+type OutboxRuntimeDeps = Parameters<typeof createOutboxRuntime>[0];
+type OutboxModelMock = OutboxRuntimeDeps["NotificationOutboxModel"];
+type OutboxSentModelMock = OutboxRuntimeDeps["NotificationOutboxSentModel"];
 
 function makeFakeModel(jobs: OutboxJob[], initialSent: string[] = []) {
   const created: Record<string, unknown>[] = [];
@@ -9,7 +12,7 @@ function makeFakeModel(jobs: OutboxJob[], initialSent: string[] = []) {
   const claims: Array<{ filter: unknown; update: unknown }> = [];
   const sentKeys = new Set<string>(initialSent);
   const pending = [...jobs];
-  const model = {
+  const model: OutboxModelMock = {
     create: async (doc: Record<string, unknown>) => { created.push(doc); return doc; },
     findOneAndUpdate: async (filter: unknown, update: unknown) => {
       claims.push({ filter, update });
@@ -26,7 +29,7 @@ function makeFakeModel(jobs: OutboxJob[], initialSent: string[] = []) {
     updateOne: async (filter: unknown, update: unknown) => { updated.push({ filter, update }); return { matchedCount: 1 }; },
     countDocuments: async () => jobs.length - deleted.length
   };
-  const sentModel = {
+  const sentModel: OutboxSentModelMock = {
     exists: async (filter: { dedupeKey: string }) => (sentKeys.has(filter.dedupeKey) ? { _id: filter.dedupeKey } : null),
     updateOne: async (filter: { dedupeKey: string }) => { sentKeys.add(filter.dedupeKey); return { upsertedCount: 1 }; }
   };
@@ -36,8 +39,8 @@ function makeFakeModel(jobs: OutboxJob[], initialSent: string[] = []) {
 function makeRuntime(jobs: OutboxJob[], initialSent: string[] = []) {
   const fake = makeFakeModel(jobs, initialSent);
   const runtime = createOutboxRuntime({
-    NotificationOutboxModel: fake.model as never,
-    NotificationOutboxSentModel: fake.sentModel as never,
+    NotificationOutboxModel: fake.model,
+    NotificationOutboxSentModel: fake.sentModel,
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   });
@@ -279,7 +282,7 @@ test("drainOutbox: esecul de marcare in istoric incrementeaza markSentFailures d
   const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "k1" };
   const pending = [job];
   const deleted: unknown[] = [];
-  const model = {
+  const model: OutboxModelMock = {
     create: async (doc: Record<string, unknown>) => doc,
     findOneAndUpdate: async () => pending.shift() ?? null,
     find: () => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) }),
@@ -287,13 +290,13 @@ test("drainOutbox: esecul de marcare in istoric incrementeaza markSentFailures d
     updateOne: async () => ({ matchedCount: 1 }),
     countDocuments: async () => 0
   };
-  const sentModel = {
+  const sentModel: OutboxSentModelMock = {
     exists: async () => null,
     updateOne: async () => { throw new Error("mongo down la marcare"); }
   };
   const runtime = createOutboxRuntime({
-    NotificationOutboxModel: model as never,
-    NotificationOutboxSentModel: sentModel as never,
+    NotificationOutboxModel: model,
+    NotificationOutboxSentModel: sentModel,
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   });
@@ -315,7 +318,7 @@ test("drainOutbox: esecul de marcare in istoric incrementeaza markSentFailures d
 
 test("enqueueOutbox: eroarea de cheie duplicata (E11000) e ignorata (job pending identic exista deja)", async () => {
   let createCalls = 0;
-  const model = {
+  const model: OutboxModelMock = {
     create: async () => { createCalls++; throw Object.assign(new Error("dup key"), { code: 11000 }); },
     findOneAndUpdate: async () => null,
     find: () => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) }),
@@ -323,10 +326,10 @@ test("enqueueOutbox: eroarea de cheie duplicata (E11000) e ignorata (job pending
     updateOne: async () => ({ matchedCount: 0 }),
     countDocuments: async () => 0
   };
-  const sentModel = { exists: async () => null, updateOne: async () => ({ upsertedCount: 1 }) };
+  const sentModel: OutboxSentModelMock = { exists: async () => null, updateOne: async () => ({ upsertedCount: 1 }) };
   const runtime = createOutboxRuntime({
-    NotificationOutboxModel: model as never,
-    NotificationOutboxSentModel: sentModel as never,
+    NotificationOutboxModel: model,
+    NotificationOutboxSentModel: sentModel,
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   });
@@ -338,13 +341,13 @@ test("enqueueOutbox: eroarea de cheie duplicata (E11000) e ignorata (job pending
 });
 
 test("drainOutbox: sweep — joburi mai vechi decat maxAgeMs -> dead-letter (expired-near-ttl) + sters inainte de TTL", async () => {
-  const stale = [
+  const stale: OutboxJob[] = [
     { _id: "s1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, createdAt: new Date(0) },
     { _id: "s2", guildId: "g2", channelId: "c2", kind: "discount", payload: {}, attempts: 2, createdAt: new Date(1000) }
-  ] as unknown as OutboxJob[];
+  ];
   const deleted: unknown[] = [];
   const findFilters: Array<{ createdAt?: { $lte?: unknown } }> = [];
-  const model = {
+  const model: OutboxModelMock = {
     create: async (d: Record<string, unknown>) => d,
     findOneAndUpdate: async () => null,
     find: (filter: { createdAt?: { $lte?: unknown } }) => { findFilters.push(filter); return { sort: () => ({ limit: () => ({ lean: async () => stale }) }) }; },
@@ -352,10 +355,10 @@ test("drainOutbox: sweep — joburi mai vechi decat maxAgeMs -> dead-letter (exp
     updateOne: async () => ({ matchedCount: 1 }),
     countDocuments: async () => 0
   };
-  const sentModel = { exists: async () => null, updateOne: async () => ({ upsertedCount: 1 }) };
+  const sentModel: OutboxSentModelMock = { exists: async () => null, updateOne: async () => ({ upsertedCount: 1 }) };
   const runtime = createOutboxRuntime({
-    NotificationOutboxModel: model as never,
-    NotificationOutboxSentModel: sentModel as never,
+    NotificationOutboxModel: model,
+    NotificationOutboxSentModel: sentModel,
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   });
@@ -375,11 +378,11 @@ test("drainOutbox: sweep — joburi mai vechi decat maxAgeMs -> dead-letter (exp
 });
 
 test("drainOutbox: job revendicat mai vechi decat maxAgeMs e expirat INAINTE de deliver (nu se livreaza stale)", async () => {
-  const oldJob = { _id: "old", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, createdAt: new Date(0) } as unknown as OutboxJob;
+  const oldJob: OutboxJob = { _id: "old", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, createdAt: new Date(0) };
   const pending = [oldJob];
   const deleted: unknown[] = [];
   let delivered = 0;
-  const model = {
+  const model: OutboxModelMock = {
     create: async (d: Record<string, unknown>) => d,
     findOneAndUpdate: async () => pending.shift() ?? null,
     find: () => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) }),
@@ -387,10 +390,10 @@ test("drainOutbox: job revendicat mai vechi decat maxAgeMs e expirat INAINTE de 
     updateOne: async () => ({ matchedCount: 1 }),
     countDocuments: async () => 0
   };
-  const sentModel = { exists: async () => null, updateOne: async () => ({ upsertedCount: 1 }) };
+  const sentModel: OutboxSentModelMock = { exists: async () => null, updateOne: async () => ({ upsertedCount: 1 }) };
   const runtime = createOutboxRuntime({
-    NotificationOutboxModel: model as never,
-    NotificationOutboxSentModel: sentModel as never,
+    NotificationOutboxModel: model,
+    NotificationOutboxSentModel: sentModel,
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   });
@@ -420,7 +423,7 @@ test("drainOutbox: fara maxAgeMs (sau 0) nu face sweep (expired=0)", async () =>
 });
 
 test("enqueueOutbox: alte erori la create se propaga (nu sunt inghitite)", async () => {
-  const model = {
+  const model: OutboxModelMock = {
     create: async () => { throw new Error("conexiune pierduta"); },
     findOneAndUpdate: async () => null,
     find: () => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) }),
@@ -428,10 +431,10 @@ test("enqueueOutbox: alte erori la create se propaga (nu sunt inghitite)", async
     updateOne: async () => ({ matchedCount: 0 }),
     countDocuments: async () => 0
   };
-  const sentModel = { exists: async () => null, updateOne: async () => ({ upsertedCount: 1 }) };
+  const sentModel: OutboxSentModelMock = { exists: async () => null, updateOne: async () => ({ upsertedCount: 1 }) };
   const runtime = createOutboxRuntime({
-    NotificationOutboxModel: model as never,
-    NotificationOutboxSentModel: sentModel as never,
+    NotificationOutboxModel: model,
+    NotificationOutboxSentModel: sentModel,
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   });
@@ -454,7 +457,8 @@ function leaseFreeMatches(filter: { $or?: Array<{ lockedUntil: unknown }> }, job
 function makeSweepRuntime(job: OutboxJob & { lockedUntil?: Date | null }) {
   const deleted: unknown[] = [];
   const deadLettered: unknown[] = [];
-  const model = {
+  const model: OutboxModelMock = {
+    create: async (doc: Record<string, unknown>) => doc,
     findOneAndUpdate: async () => null,
     find: (filter: { $or?: Array<{ lockedUntil: unknown }> }) => ({
       sort: () => ({ limit: () => ({ lean: async () => (leaseFreeMatches(filter, job) ? [job] : []) }) })
@@ -467,10 +471,10 @@ function makeSweepRuntime(job: OutboxJob & { lockedUntil?: Date | null }) {
     updateOne: async () => ({ matchedCount: 1 }),
     countDocuments: async () => 1
   };
-  const sentModel = { exists: async () => null, updateOne: async () => ({ upsertedCount: 1 }) };
+  const sentModel: OutboxSentModelMock = { exists: async () => null, updateOne: async () => ({ upsertedCount: 1 }) };
   const runtime = createOutboxRuntime({
-    NotificationOutboxModel: model as never,
-    NotificationOutboxSentModel: sentModel as never,
+    NotificationOutboxModel: model,
+    NotificationOutboxSentModel: sentModel,
     withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
     logger: () => undefined
   });
