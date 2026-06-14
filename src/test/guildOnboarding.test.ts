@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 const mod = require("../app/lifecycle/guildOnboarding") as typeof import("../app/lifecycle/guildOnboarding");
 const { buildOnboardingEmbed, selectOnboardingChannel, createGuildOnboarding } = mod;
 
-interface FakeChannel { id: string; sendable: boolean; send: (payload: unknown) => Promise<unknown>; }
+interface FakeChannel { id: string; sendable: boolean; send?: (payload: unknown) => Promise<unknown>; }
 
 function makeChannel(id: string, sendable: boolean, onSend?: (payload: unknown) => void): FakeChannel {
   return {
@@ -57,7 +57,7 @@ test("selectOnboardingChannel: null cand nu exista botId sau niciun canal trimis
 });
 
 test("selectOnboardingChannel: canal cu permisiuni dar FARA functie send e sarit (review #13.2)", () => {
-  const noSendSystem = { id: "sys-broken", sendable: true } as unknown as ReturnType<typeof makeChannel>;
+  const noSendSystem: FakeChannel = { id: "sys-broken", sendable: true };
   const good = makeChannel("good", true);
   const guild = makeGuild({ system: noSendSystem, others: [noSendSystem, good] });
   assert.equal(selectOnboardingChannel(guild, "bot", canSend), good,
