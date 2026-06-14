@@ -1,7 +1,5 @@
 "use strict";
 
-import type { Model } from "mongoose";
-
 interface FetchSnapshotDoc {
   _id: string;
   payload?: unknown;
@@ -20,8 +18,18 @@ interface LoadedDealsFetchSnapshot extends LoadedFetchSnapshot {
   currency: string;
 }
 
+interface FetchSnapshotModelLike {
+  updateOne(
+    filter: { _id: string },
+    update: { $set: { payload: unknown; fetchedAt: Date } },
+    options?: { upsert?: boolean }
+  ): Promise<unknown>;
+  findById(id: string): { lean(): Promise<unknown> };
+  find(filter: { _id: { $regex: string } }): { lean(): Promise<unknown> };
+}
+
 interface FetchSnapshotsContext {
-  FetchSnapshotModel: Model<FetchSnapshotDoc>;
+  FetchSnapshotModel: FetchSnapshotModelLike;
   withMongoRetry: WithMongoRetry;
   logger: Logger;
   saveFetchSnapshot?: typeof saveFetchSnapshot;
