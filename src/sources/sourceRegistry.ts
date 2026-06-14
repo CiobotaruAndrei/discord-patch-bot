@@ -38,16 +38,15 @@ type SourceRegistryApi = {
   formatPrice: (value: unknown, currencyCode?: unknown) => string;
 };
 
-type SourceContext = SourceRegistryApi;
-
-type SourceInstaller = (target: never) => void;
+type SourceRuntimeContext = Partial<SourceRegistryApi> & typeof import("./runtime") & Record<string, unknown>;
+type SourceInstaller = (target: SourceRuntimeContext) => void;
 
 import attachHttpClient = require("../infra/http/client");
 import attachSteam = require("./steam");
 import attachUpdates = require("./updates");
 import attachDeals = require("./deals");
 
-const runtimeContext = require("./runtime") as SourceContext;
+const runtimeContext = require("./runtime") as SourceRuntimeContext;
 const defaultInstallers: SourceInstaller[] = [
   attachHttpClient,
   attachSteam,
@@ -55,47 +54,55 @@ const defaultInstallers: SourceInstaller[] = [
   attachDeals
 ];
 
-function buildSourceRegistry(context: SourceContext): SourceRegistryApi {
+function requireSourceValue<K extends keyof SourceRegistryApi>(context: Partial<SourceRegistryApi>, key: K): SourceRegistryApi[K] {
+  const value = context[key];
+  if (value === undefined) {
+    throw new Error(`sourceRegistry nu a primit exportul necesar din context: ${String(key)}`);
+  }
+  return value;
+}
+
+function buildSourceRegistry(context: Partial<SourceRegistryApi>): SourceRegistryApi {
   return {
-    USER_AGENTS: context.USER_AGENTS,
-    MAX_HTML_BYTES: context.MAX_HTML_BYTES,
-    MAX_JSON_BYTES: context.MAX_JSON_BYTES,
-    MAX_DEALS: context.MAX_DEALS,
-    FETCH_CONCURRENCY: context.FETCH_CONCURRENCY,
-    cleanText: context.cleanText,
-    truncate: context.truncate,
-    normalizeTitleForDedupe: context.normalizeTitleForDedupe,
-    stableUpdateId: context.stableUpdateId,
-    normalizeUpdate: context.normalizeUpdate,
-    safeCheerioLoad: context.safeCheerioLoad,
-    levenshtein: context.levenshtein,
-    httpReq: context.httpReq,
-    fetchWithProxy: context.fetchWithProxy,
-    dealHash: context.dealHash,
-    attachMetrics: context.attachMetrics,
-    fetchGameUpdate: context.fetchGameUpdate,
-    executeFetchWithCircuitBreaker: context.executeFetchWithCircuitBreaker,
-    getLatestForAllGames: context.getLatestForAllGames,
-    fetchSteamReviewData: context.fetchSteamReviewData,
-    enrichDealData: context.enrichDealData,
-    fetchDeals: context.fetchDeals,
-    searchSteamGameByName: context.searchSteamGameByName,
-    chooseBestSteamMatch: context.chooseBestSteamMatch,
-    fetchSteamPriceDetails: context.fetchSteamPriceDetails,
-    extractOfferEndFromHtml: context.extractOfferEndFromHtml,
-    extractSteamOfferEndDate: context.extractSteamOfferEndDate,
-    cleanEnrichedCache: context.cleanEnrichedCache,
-    getEnrichedCacheSize: context.getEnrichedCacheSize,
-    formatPrice: context.formatPrice
+    USER_AGENTS: requireSourceValue(context, "USER_AGENTS"),
+    MAX_HTML_BYTES: requireSourceValue(context, "MAX_HTML_BYTES"),
+    MAX_JSON_BYTES: requireSourceValue(context, "MAX_JSON_BYTES"),
+    MAX_DEALS: requireSourceValue(context, "MAX_DEALS"),
+    FETCH_CONCURRENCY: requireSourceValue(context, "FETCH_CONCURRENCY"),
+    cleanText: requireSourceValue(context, "cleanText"),
+    truncate: requireSourceValue(context, "truncate"),
+    normalizeTitleForDedupe: requireSourceValue(context, "normalizeTitleForDedupe"),
+    stableUpdateId: requireSourceValue(context, "stableUpdateId"),
+    normalizeUpdate: requireSourceValue(context, "normalizeUpdate"),
+    safeCheerioLoad: requireSourceValue(context, "safeCheerioLoad"),
+    levenshtein: requireSourceValue(context, "levenshtein"),
+    httpReq: requireSourceValue(context, "httpReq"),
+    fetchWithProxy: requireSourceValue(context, "fetchWithProxy"),
+    dealHash: requireSourceValue(context, "dealHash"),
+    attachMetrics: requireSourceValue(context, "attachMetrics"),
+    fetchGameUpdate: requireSourceValue(context, "fetchGameUpdate"),
+    executeFetchWithCircuitBreaker: requireSourceValue(context, "executeFetchWithCircuitBreaker"),
+    getLatestForAllGames: requireSourceValue(context, "getLatestForAllGames"),
+    fetchSteamReviewData: requireSourceValue(context, "fetchSteamReviewData"),
+    enrichDealData: requireSourceValue(context, "enrichDealData"),
+    fetchDeals: requireSourceValue(context, "fetchDeals"),
+    searchSteamGameByName: requireSourceValue(context, "searchSteamGameByName"),
+    chooseBestSteamMatch: requireSourceValue(context, "chooseBestSteamMatch"),
+    fetchSteamPriceDetails: requireSourceValue(context, "fetchSteamPriceDetails"),
+    extractOfferEndFromHtml: requireSourceValue(context, "extractOfferEndFromHtml"),
+    extractSteamOfferEndDate: requireSourceValue(context, "extractSteamOfferEndDate"),
+    cleanEnrichedCache: requireSourceValue(context, "cleanEnrichedCache"),
+    getEnrichedCacheSize: requireSourceValue(context, "getEnrichedCacheSize"),
+    formatPrice: requireSourceValue(context, "formatPrice")
   };
 }
 
 function createSourceRegistry(
-  baseContext: SourceContext = runtimeContext,
+  baseContext: SourceRuntimeContext = runtimeContext,
   installers: SourceInstaller[] = defaultInstallers
 ) {
   const context = baseContext;
-  for (const install of installers) install(context as never);
+  for (const install of installers) install(context);
   return assertNoUndefinedExports(buildSourceRegistry(context), "sourceRegistry");
 }
 
