@@ -12,13 +12,13 @@ type ReadyListener = () => unknown;
 function makeHarness(startOutboxWorker?: () => void) {
   let readyListener: ReadyListener | null = null;
   const calls = { housekeeping: 0, cron: 0, outbox: 0, slash: 0 };
-  const client = {
+  const client: Parameters<typeof registerDiscordEvents>[0]["client"] = {
     user: { id: "bot-1", tag: "bot#0001" },
-    once: (event: string, listener: ReadyListener) => { if (event === "ready") readyListener = listener; },
+    once: (event, listener) => { if (event === "ready") readyListener = listener; },
     on: () => undefined
   };
   registerDiscordEvents({
-    client: client as unknown as Parameters<typeof registerDiscordEvents>[0]["client"],
+    client,
     logger: () => undefined,
     commands: {
       registerSlashCommands: async () => { calls.slash++; },
