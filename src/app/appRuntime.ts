@@ -202,7 +202,21 @@ function createSchedulers(deps: AppRuntimeDeps, services: RuntimeServices): Sche
   return { cronController, outboxWorker, outboxEnabled };
 }
 
-async function connectMongoWithRetry(deps: AppRuntimeDeps): Promise<void> {
+type ConnectMongoDeps = {
+  mongoose: Pick<AppRuntimeDeps["mongoose"], "connect">;
+  errorMessage: AppRuntimeDeps["errorMessage"];
+  mongo: {
+    logger: AppRuntimeDeps["mongo"]["logger"];
+    env: Pick<AppRuntimeDeps["mongo"]["env"], "MONGO_URI" | "MONGO_MAX_POOL_SIZE">;
+  };
+};
+
+type HydrateCachesDeps = {
+  commands: Pick<AppRuntimeDeps["commands"], "setUpdatesCache" | "setDealsCache">;
+  mongo: Pick<AppRuntimeDeps["mongo"], "logger" | "loadFetchSnapshot" | "loadDealsFetchSnapshots">;
+};
+
+async function connectMongoWithRetry(deps: ConnectMongoDeps): Promise<void> {
   const { mongoose, errorMessage, mongo } = deps;
   const { logger, env } = mongo;
   let backoff = MONGO_CONNECT_INITIAL_BACKOFF_MS;
@@ -225,7 +239,7 @@ async function connectMongoWithRetry(deps: AppRuntimeDeps): Promise<void> {
   }
 }
 
-async function hydrateStartupCaches(deps: AppRuntimeDeps): Promise<void> {
+async function hydrateStartupCaches(deps: HydrateCachesDeps): Promise<void> {
   const { commands, mongo } = deps;
   const { logger, loadFetchSnapshot, loadDealsFetchSnapshots } = mongo;
   const now = Date.now();
