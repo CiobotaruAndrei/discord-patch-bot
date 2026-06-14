@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
+import type { GameConfig, DealInfo } from "../types";
 
 type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];
 type DiscountDeps = Parameters<typeof createDiscountNotificationService>[0];
@@ -31,7 +32,7 @@ function messageOf(value: unknown): string {
     : String(value);
 }
 
-function makeUpdateDeps(overrides: Record<string, unknown> = {}) {
+function makeUpdateDeps(overrides: Partial<UpdateDeps> = {}) {
   const updateOneCalls: Array<{ filter: unknown; update: unknown }> = [];
   const sentPayloads: SentPayload[] = [];
   const claims: Array<{ guildId: string; gameKey: string; updateId: string }> = [];
@@ -41,7 +42,7 @@ function makeUpdateDeps(overrides: Record<string, unknown> = {}) {
     id: "channel-1",
     send: async (payload: SentPayload, meta?: SentMeta) => { sentPayloads.push(payload); sentMetas.push(meta); return { id: "msg-1" }; }
   };
-  const deps = {
+  const deps: UpdateDeps = {
     GuildModel: {
       find: () => ({ lean: async () => [] }),
       updateOne: async (filter: unknown, update: unknown) => {
@@ -50,7 +51,7 @@ function makeUpdateDeps(overrides: Record<string, unknown> = {}) {
       }
     },
     logger: () => undefined,
-    runConcurrent: async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>) => {
+    runConcurrent: async <T>(items: T[], _c: number, fn: (item: T) => Promise<unknown>) => {
       let processed = 0;
       const errors: Array<{ error: unknown }> = [];
       for (const it of items) {
@@ -73,15 +74,15 @@ function makeUpdateDeps(overrides: Record<string, unknown> = {}) {
     isPermanentDiscordError: () => false,
     transientErrorMessage: messageOf,
     normalizePendingUpdateArray: (arr: unknown) => Array.isArray(arr) ? arr : [],
-    toEntries: entriesFrom,
-    rotateAfter: (keys: string[], lastKey: string | null) => {
+    toEntries: (<K, V>(map: Map<K, V> | Record<string, V> | undefined): Array<[K, V]> => map instanceof Map ? Array.from(map.entries()) : (map ? Object.entries(map) as Array<[K, V]> : [])),
+    rotateAfter: <T>(keys: T[], lastKey: T | null): T[] => {
       if (!lastKey) return keys;
       const idx = keys.indexOf(lastKey);
       if (idx === -1) return keys;
       return [...keys.slice(idx + 1), ...keys.slice(0, idx + 1)];
     },
-    mapToObject: (m: Map<string, unknown>) => Object.fromEntries(m.entries()),
-    getLatestForAllGames: async (games: TestGame[]) => games.map(game => ({ game, latest: { id: `u-${game.key}` } })),
+    mapToObject: <V>(m: Map<string, V>): Record<string, V> => Object.fromEntries(m.entries()),
+    getLatestForAllGames: async (games: GameConfig[]) => games.map(game => ({ game, latest: { id: `u-${game.key}`, title: "", link: "", excerpt: "", fullText: "", image: null, thumbnail: null, timestamp: "" } })),
     validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
     setUpdatesCache: () => undefined,
     buildUpdateEmbed: (name: string) => ({ title: name }),
@@ -94,7 +95,7 @@ function makeUpdateDeps(overrides: Record<string, unknown> = {}) {
     GUILD_PROCESS_CONCURRENCY: 1,
     ...overrides
   };
-  return { deps: deps as unknown as UpdateDeps, updateOneCalls, sentPayloads, sentMetas, claims, rollbacks, channel };
+  return { deps, updateOneCalls, sentPayloads, sentMetas, claims, rollbacks, channel };
 }
 
 test("UpdateService: buildOptimizedGameList filtreaza la jocurile active pe macar un guild", () => {
@@ -328,7 +329,7 @@ test("UpdateService: enabledGames filter sare jocurile ne-active", async () => {
   assert.equal(sentPayloads.length, 1, "doar 1 update pentru cs2");
 });
 
-function makeDiscountDeps(overrides: Record<string, unknown> = {}) {
+function makeDiscountDeps(overrides: Partial<DiscountDeps> = {}) {
   const updateOneCalls: Array<{ filter: unknown; update: unknown }> = [];
   const sentPayloads: SentPayload[] = [];
   const claims: string[] = [];
@@ -337,7 +338,7 @@ function makeDiscountDeps(overrides: Record<string, unknown> = {}) {
     id: "channel-d",
     send: async (payload: SentPayload, meta?: SentMeta) => { sentPayloads.push(payload); sentMetas.push(meta); return { id: "msg-1" }; }
   };
-  const deps = {
+  const deps: DiscountDeps = {
     GuildModel: {
       find: () => ({ lean: async () => [] }),
       updateOne: async (filter: unknown, update: unknown) => {
@@ -346,7 +347,7 @@ function makeDiscountDeps(overrides: Record<string, unknown> = {}) {
       }
     },
     logger: () => undefined,
-    runConcurrent: async (items: unknown[], _c: number, fn: (item: unknown) => Promise<void>) => {
+    runConcurrent: async <T>(items: T[], _c: number, fn: (item: T) => Promise<unknown>) => {
       let processed = 0;
       const errors: Array<{ error: unknown }> = [];
       for (const it of items) {
@@ -370,12 +371,12 @@ function makeDiscountDeps(overrides: Record<string, unknown> = {}) {
     validatePendingDiscountSnapshot: () => true,
     normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     dealPassesFilters: () => true,
-    dealHash: (deal: TestDeal) => deal.id || "h",
+    dealHash: (deal: unknown) => (deal as { id?: string }).id || "h",
     fetchDeals: async () => [{ id: "d1" }],
     getDealsCacheData: () => null,
     setDealsCache: () => undefined,
-    enrichDealData: async (deal: TestDeal) => deal,
-    buildDealEmbed: (deal: TestDeal) => ({ deal: deal.id }),
+    enrichDealData: async (deal: DealInfo) => deal,
+    buildDealEmbed: (deal: DealInfo) => ({ deal: deal.id }),
     sleepIfPositive: async () => undefined,
     DEFAULT_CURRENCY: "USD",
     DEALS_HISTORY_LIMIT: 300,
@@ -387,7 +388,7 @@ function makeDiscountDeps(overrides: Record<string, unknown> = {}) {
     GUILD_PROCESS_CONCURRENCY: 1,
     ...overrides
   };
-  return { deps: deps as unknown as DiscountDeps, updateOneCalls, sentPayloads, sentMetas, claims, channel };
+  return { deps, updateOneCalls, sentPayloads, sentMetas, claims, channel };
 }
 
 test("DiscountService: trimite reduceri noi care nu sunt in seenDiscounts", async () => {
@@ -467,7 +468,7 @@ test("DiscountService: claim race (matchedCount=0) sare deal-ul fara enrich", as
   let enrichCount = 0;
   const { deps, sentPayloads } = makeDiscountDeps({
     claimSeenDiscount: async () => ({ matchedCount: 0, modifiedCount: 0 }),
-    enrichDealData: async (deal: TestDeal) => { enrichCount++; return deal; }
+    enrichDealData: async (deal: DealInfo) => { enrichCount++; return deal; }
   });
   const svc = createDiscountNotificationService(deps);
   const guild = {
