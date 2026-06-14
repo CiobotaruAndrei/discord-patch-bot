@@ -3,7 +3,6 @@ import type { NotificationDiscordClient, OutboxDiscordClient } from "../notifica
 
 type MaybePromise<T> = T | Promise<T>;
 type RegistryFunction = (...args: unknown[]) => MaybePromise<unknown>;
-type CommandModuleInstaller = (context: never) => void;
 
 interface CommandRegistryContext {
   cleanCache?: RegistryFunction;
@@ -75,7 +74,10 @@ import attachAdminCommandRouterGuard = require("../command-security/adminCommand
 
 const { createCommandRuntimeContext } = require("../command-runtime/commandRuntimeContext") as typeof import("../command-runtime/commandRuntimeContext");
 type CommandRuntimeBootContext = ReturnType<typeof createCommandRuntimeContext>;
-const defaultInstallers: CommandModuleInstaller[] = [
+type LegacyInstallerTarget = Record<string, unknown>;
+type CommandModuleInstaller = (context: LegacyInstallerTarget) => void;
+
+const defaultInstallers = [
   attachCommandCache,
   attachDealFilters,
   attachCommandPresentation,
@@ -98,14 +100,24 @@ const defaultInstallers: CommandModuleInstaller[] = [
   attachDlcInteractionHandler,
   attachAutocompleteInteractionHandler,
   attachAdminCommandRouterGuard
-];
+] as const;
+
+function isCommandModuleInstaller(value: unknown): value is CommandModuleInstaller {
+  return typeof value === "function";
+}
 
 function installCommandModules<T>(
   context: T,
-  installers: CommandModuleInstaller[] = defaultInstallers
+  installers: readonly unknown[] = defaultInstallers
 ): T & CommandRegistryContext {
-  for (const install of installers) install(context as never);
-  return context as T & CommandRegistryContext;
+  const installContext = context as T & LegacyInstallerTarget;
+  for (const install of installers) {
+    if (!isCommandModuleInstaller(install)) {
+      throw new Error("commandRegistry a primit un installer invalid");
+    }
+    install(installContext);
+  }
+  return installContext;
 }
 
 function requireRegistryFunction<K extends RequiredCommandRegistryKey>(
@@ -121,7 +133,7 @@ function requireRegistryFunction<K extends RequiredCommandRegistryKey>(
 
 function createCommandRegistry(
   baseContext: CommandRuntimeBootContext = createCommandRuntimeContext(),
-  installers: CommandModuleInstaller[] = defaultInstallers
+  installers: readonly unknown[] = defaultInstallers
 ): RequiredCommandRegistry {
   const context = installCommandModules(baseContext, installers);
   return {
