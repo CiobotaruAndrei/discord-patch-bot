@@ -55,6 +55,20 @@ function makeContext(devGuildId?: string) {
   return { context: context as Parameters<typeof attachSlashCommands>[0] & SlashRuntime, calls, logs };
 }
 
+test("createSlashCommandDefinitions accepta builder-ul discord.js REAL fara cast (tip dep corect, nu Like scris de mana)", () => {
+  const { SlashCommandBuilder, PermissionsBitField, Routes, REST } = require("discord.js") as typeof import("discord.js");
+  const defs = attachSlashCommands.createSlashCommandDefinitions({
+    SlashCommandBuilder,
+    PermissionsBitField,
+    Routes,
+    REST,
+    SUPPORTED_CURRENCIES: { USD: {} },
+    logger: () => undefined
+  });
+  const names = defs.buildSlashCommandDefinitions().map(d => String((d as { name?: unknown }).name || ""));
+  assert.ok(names.includes("ping") && names.includes("start"), "factory-ul produce definitii reale cu builder-ul discord.js, fara as unknown as");
+});
+
 test("registerSlashCommands defaults to global registration when DISCORD_DEV_GUILD_ID is unset", async () => {
   const { context, calls, logs } = makeContext();
   attachSlashCommands(context);
