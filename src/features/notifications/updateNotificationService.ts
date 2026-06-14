@@ -15,9 +15,11 @@ const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
 interface MongoWriteResult { matchedCount?: number; modifiedCount?: number }
+type GuildGameFilter = Pick<GuildSettings, "enabledGames">;
+type GuildSettingsDoc = GuildSettings & Record<string, unknown>;
 
 interface GuildModelLike {
-  find(filter: QueryFilter<GuildSettings>): { lean(): Promise<Array<GuildSettings & Record<string, unknown>>> };
+  find(filter: QueryFilter<GuildSettings>): { lean(): Promise<GuildSettingsDoc[]> };
   updateOne(filter: QueryFilter<GuildSettings>, update: unknown): Promise<MongoWriteResult>;
 }
 
@@ -77,8 +79,8 @@ export interface UpdateNotificationServiceDeps {
 }
 
 export interface UpdateNotificationService {
-  processGuildUpdates: (client: NotificationDiscordClient, guild: GuildSettings & Record<string, unknown>, latestResults: UpdateFetchResult[]) => Promise<void>;
-  buildOptimizedGameList: <G extends { key: string }>(allGames: G[], subscribedGuilds: Array<{ enabledGames?: unknown[] }>) => G[];
+  processGuildUpdates: (client: NotificationDiscordClient, guild: GuildSettingsDoc, latestResults: UpdateFetchResult[]) => Promise<void>;
+  buildOptimizedGameList: <G extends { key: string }>(allGames: G[], subscribedGuilds: readonly GuildGameFilter[]) => G[];
   checkForUpdates: (client: NotificationDiscordClient, games: GameConfig[], shouldAbort?: (() => boolean) | null) => Promise<void>;
 }
 
@@ -96,7 +98,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
 
   async function processGuildUpdates(
     client: NotificationDiscordClient,
-    guild: GuildSettings & Record<string, unknown>,
+    guild: GuildSettingsDoc,
     latestResults: UpdateFetchResult[]
   ): Promise<void> {
     const { channel, abort } = await resolveOutboundChannel({
@@ -226,7 +228,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
 
   function buildOptimizedGameList<G extends { key: string }>(
     allGames: G[],
-    subscribedGuilds: Array<{ enabledGames?: unknown[] }>
+    subscribedGuilds: readonly GuildGameFilter[]
   ): G[] {
     if (!Array.isArray(subscribedGuilds) || subscribedGuilds.length === 0) return allGames;
 
@@ -234,7 +236,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     for (const guild of subscribedGuilds) {
       const filter = Array.isArray(guild.enabledGames) ? guild.enabledGames : [];
       if (filter.length === 0) return allGames;
-      for (const key of filter) used.add(String(key).toLowerCase());
+      for (const key of filter) used.add(key.toLowerCase());
     }
 
     const filtered = allGames.filter(game => used.has(String(game.key).toLowerCase()));
@@ -251,7 +253,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     } as QueryFilter<GuildSettings>).lean();
     if (!guilds.length) return;
 
-    const optimizedGames = buildOptimizedGameList(games, guilds as Array<{ enabledGames?: unknown[] }>);
+    const optimizedGames = buildOptimizedGameList(games, guilds);
     if (optimizedGames.length < games.length) {
       logger("INFO", "CRON_UPDATES", `Lista optimizata: ${optimizedGames.length}/${games.length} jocuri folosite de guild-uri`);
     }
@@ -286,7 +288,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     }
     if (shouldAbort?.()) return;
 
-    const dispatch = await runConcurrent(guilds as Array<GuildSettings & Record<string, unknown>>, GUILD_PROCESS_CONCURRENCY, async (guild) => {
+    const dispatch = await runConcurrent(guilds, GUILD_PROCESS_CONCURRENCY, async (guild) => {
       if (!shouldAbort?.()) await processGuildUpdates(client, guild, latestResults);
     }, {
       errorLogger: (guild: unknown, err: unknown) =>

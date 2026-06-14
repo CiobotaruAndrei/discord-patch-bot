@@ -81,6 +81,33 @@ test("fetchSnapshots: loadDealsFetchSnapshots intoarce doar cheile deals:* cu mo
   assert.deepEqual(byCurrency.get("EUR"), [{ id: "d2" }]);
 });
 
+test("fetchSnapshots: documentele raw cu fetchedAt invalid sunt ignorate", async () => {
+  const target: FetchSnapshotsContext = {
+    FetchSnapshotModel: {
+      updateOne: async () => ({ acknowledged: true }),
+      findById: () => ({ lean: async () => ({ _id: "updates", payload: [{ id: "u1" }], fetchedAt: "not-a-date" }) }),
+      find: () => ({
+        lean: async () => [
+          { _id: "deals:USD", payload: [{ id: "d1" }], fetchedAt: "bad-date" },
+          { _id: "deals:EUR", payload: [{ id: "d2" }], fetchedAt: new Date("2026-01-02T00:00:00.000Z") },
+          { _id: 42, payload: [{ id: "d3" }], fetchedAt: new Date() }
+        ]
+      })
+    },
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  };
+  attachFetchSnapshots(target);
+  if (!target.loadFetchSnapshot || !target.loadDealsFetchSnapshots) {
+    throw new Error("attachFetchSnapshots trebuie sa ataseze metodele de snapshot");
+  }
+  assert.equal(await target.loadFetchSnapshot("updates"), null);
+  const deals = await target.loadDealsFetchSnapshots();
+  assert.equal(deals.length, 1);
+  assert.equal(deals[0].currency, "EUR");
+  assert.deepEqual(deals[0].payload, [{ id: "d2" }]);
+});
+
 test("UpdateService.checkForUpdates persista snapshot-ul 'updates' dupa fetch (lista completa)", async () => {
   const persistCalls: Array<{ id: string; payload: unknown }> = [];
   const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seen: {}, pendingUpdates: {}, enabledGames: [] };

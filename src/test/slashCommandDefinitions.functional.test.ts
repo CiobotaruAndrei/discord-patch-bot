@@ -3,9 +3,17 @@ import assert from "node:assert/strict";
 
 const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions") as typeof import("../features/command-definitions/slashCommandDefinitions");
 const { SlashCommandBuilder } = require("discord.js") as typeof import("discord.js");
+import type { CurrencyRegistry } from "../types";
 
 type SlashRuntime = {
   registerSlashCommands: (token: string, clientId: string) => Promise<void>;
+};
+
+const TEST_CURRENCIES: CurrencyRegistry = {
+  USD: { cc: "US", symbol: "$", placement: "prefix" },
+  EUR: { cc: "DE", symbol: "EUR", placement: "prefix" },
+  GBP: { cc: "GB", symbol: "GBP", placement: "prefix" },
+  RON: { cc: "RO", symbol: " lei", placement: "suffix" }
 };
 
 function makeContext(devGuildId?: string) {
@@ -29,7 +37,7 @@ function makeContext(devGuildId?: string) {
         };
       }
     },
-    SUPPORTED_CURRENCIES: { USD: {}, EUR: {}, GBP: {}, RON: {} },
+    SUPPORTED_CURRENCIES: TEST_CURRENCIES,
     logger: (level: string, c: string, msg: string) => { logs.push({ level, context: c, msg }); }
   };
   if (devGuildId !== undefined) {
@@ -45,7 +53,7 @@ test("createSlashCommandDefinitions accepta builder-ul discord.js REAL fara cast
     PermissionsBitField,
     Routes,
     REST,
-    SUPPORTED_CURRENCIES: { USD: {} },
+    SUPPORTED_CURRENCIES: TEST_CURRENCIES,
     logger: () => undefined
   });
   const names = defs.buildSlashCommandDefinitions().map(d => String((d as { name?: unknown }).name || ""));

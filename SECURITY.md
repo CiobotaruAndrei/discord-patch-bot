@@ -29,7 +29,7 @@ The repository runs CodeQL for JavaScript/TypeScript through `.github/workflows/
 Dependency safety is checked in four layers:
 
 - `npm run check:dependencies` verifies that runtime and direct build/dev dependencies are pinned exactly, that direct lockfile entries resolve to the expected versions, and that lockfile package URLs resolve from `https://registry.npmjs.org`.
-- `.github/workflows/dependency-review.yml` runs `actions/dependency-review-action@v4` as a blocking check on **every** pull request to `main` (no path filter), failing on moderate or higher vulnerability severity. It first verifies Dependency graph is enabled; on a public repository the graph is always on.
+- `.github/workflows/dependency-review.yml` runs `actions/dependency-review-action` pinned by full commit SHA (tracked in the workflow with the `v5.0.0` upstream note) as a blocking check on **every** pull request to `main` (no path filter), failing on moderate or higher vulnerability severity. The workflow runs fail-closed directly; it does not keep a separate Dependency graph preflight gate.
 - `.github/workflows/dependency-audit.yml` runs `npm audit --omit=dev --audit-level=moderate` weekly and manually.
 - `.github/dependabot.yml` opens grouped weekly version-update pull requests for three ecosystems: npm (`/src`), GitHub Actions (`/`) and Cargo (`/src/native`, the Rust addon), so direct dependencies stay current.
 

@@ -31,6 +31,19 @@ export interface OutboxDeliveryDeps {
 
 const DEFAULT_HISTORY_LIMIT = 25;
 
+interface MessageHistoryChannel {
+  messages: {
+    fetch(opts: { limit: number }): Promise<unknown>;
+  };
+}
+
+function hasMessageHistory(channel: unknown): channel is MessageHistoryChannel {
+  return !!channel
+    && typeof channel === "object"
+    && !!(channel as { messages?: unknown }).messages
+    && typeof (channel as { messages: { fetch?: unknown } }).messages.fetch === "function";
+}
+
 export function createOutboxDelivery(deps: OutboxDeliveryDeps) {
   const {
     canSendEmbeds, isPermanentDiscordError, acquireSendSlot,
@@ -41,10 +54,9 @@ export function createOutboxDelivery(deps: OutboxDeliveryDeps) {
   const strict = recoveryStrict === true;
 
   async function alreadyPostedInChannel(channel: unknown, dedupeKey: string): Promise<{ found: boolean; failed: boolean }> {
-    const fetcher = (channel as { messages?: { fetch?: (opts: unknown) => Promise<unknown> } } | null)?.messages?.fetch;
-    if (typeof fetcher !== "function") return { found: false, failed: false };
+    if (!hasMessageHistory(channel)) return { found: false, failed: false };
     try {
-      const recent = await fetcher.call((channel as { messages: unknown }).messages, { limit });
+      const recent = await channel.messages.fetch({ limit });
       const list = recent && typeof (recent as { values?: () => Iterable<unknown> }).values === "function"
         ? Array.from((recent as { values: () => Iterable<unknown> }).values())
         : (Array.isArray(recent) ? recent as unknown[] : []);

@@ -39,6 +39,8 @@ export interface CurrencyConfig {
   placement: CurrencyPlacement;
 }
 
+export type CurrencyRegistry = Record<CurrencyCode, CurrencyConfig>;
+
 export interface RuntimeEnv {
   MONGO_URI?: string;
   DISCORD_TOKEN?: string;
