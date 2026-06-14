@@ -1,4 +1,3 @@
-import type { Model } from "mongoose";
 import type { SystemTimes } from "../../types";
 
 interface SystemStateDoc {
@@ -7,10 +6,16 @@ interface SystemStateDoc {
   outboxPaused?: boolean;
 }
 
+interface SystemStateModelLike {
+  findOneAndUpdate(filter: unknown, update: unknown, options?: unknown): { lean(): Promise<SystemStateDoc | null> };
+  findByIdAndUpdate(id: string, update: unknown, options?: unknown): Promise<unknown>;
+  findById(id: string): { lean(): Promise<SystemStateDoc | null> };
+}
+
 type SystemTimesKey = keyof SystemTimes;
 
 interface SystemStateContext {
-  SystemModel: Model<SystemStateDoc>;
+  SystemModel: SystemStateModelLike;
   getSystemTimes?: typeof getSystemTimes;
   saveSystemTimes?: typeof saveSystemTimes;
   saveSystemTime?: typeof saveSystemTime;
@@ -31,7 +36,7 @@ async function getSystemTimes(): Promise<SystemTimes> {
     { _id: "system_state" },
     { $setOnInsert: { executionTimes: defaultSystemTimes() } },
     { upsert: true, new: true, setDefaultsOnInsert: true }
-  ).lean() as SystemStateDoc | null;
+  ).lean();
   return sys?.executionTimes || defaultSystemTimes();
 }
 
@@ -51,7 +56,7 @@ async function saveSystemTime(key: SystemTimesKey, value: number): Promise<void>
 
 async function getOutboxPaused(): Promise<boolean> {
   try {
-    const sys = await runtimeContext.SystemModel.findById("system_state").lean() as SystemStateDoc | null;
+    const sys = await runtimeContext.SystemModel.findById("system_state").lean();
     return sys?.outboxPaused === true;
   } catch {
     return false;
