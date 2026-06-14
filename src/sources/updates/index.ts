@@ -67,7 +67,7 @@ interface UpdatesDeps {
   executeFetchWithCircuitBreaker?: (game: GameConfig) => Promise<FetchResult>;
 }
 
-type UpdatesContext = UpdatesDeps & Record<string, unknown>;
+type UpdatesContext = UpdatesDeps & Partial<UpdatesApi>;
 
 function createUpdates(d: UpdatesDeps): UpdatesApi {
   const inflightAllGames = new Map<string, Promise<FetchResult[]>>();
