@@ -1,74 +1,92 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import attachUpdates = require("../sources/updates");
+import * as crypto from "crypto";
+import { load as cheerioLoad } from "cheerio";
+import type { GameConfig, FetchResult, NormalizedUpdate } from "../types";
+const attachUpdates = require("../sources/updates") as typeof import("../sources/updates");
 
-type Game = { key: string; type?: string };
-type FetchResultLike = { game: Game; latest: { id: string } | null; error: string | null };
+type UpdatesContext = Parameters<typeof attachUpdates>[0];
+type GetLatest = (games: GameConfig[]) => Promise<FetchResult[]>;
 type RunCall = { group: string; count: number; concurrency: number };
+
+class TestSchemaDriftError extends Error {
+  source?: string;
+  constructor(message: string, source?: string) {
+    super(message);
+    this.source = source;
+  }
+}
+
+function makeUpdate(id: string): NormalizedUpdate {
+  return { id, title: "", link: "", excerpt: "", fullText: "", image: null, thumbnail: null, timestamp: "" };
+}
 
 function makeUpdatesContext() {
   const runCalls: RunCall[] = [];
-  const context: Record<string, unknown> = {
+  const context: UpdatesContext = {
+    rssParser: { parseString: async () => ({ items: [] }) },
+    CircuitBreakerModel: {} as UpdatesContext["CircuitBreakerModel"],
+    logger: () => undefined,
+    adminAlert: async () => undefined,
+    runConcurrent: async (items, concurrency, fn) => {
+      runCalls.push({ group: "", count: items.length, concurrency });
+      for (let i = 0; i < items.length; i++) await fn(items[i], i);
+      return { processed: items.length, errors: [] };
+    },
+    SchemaDriftError: TestSchemaDriftError,
     FETCH_CONCURRENCY: 10,
     FETCH_CONCURRENCY_STEAM: 4,
     FETCH_CONCURRENCY_EPIC: 2,
     FETCH_CONCURRENCY_LISTING: 8,
     FETCH_CONCURRENCY_DRIVER: 2,
-    logger: () => undefined,
-    crypto: {
-      createHash: () => {
-        let captured = "";
-        return {
-          update: (value: unknown) => { captured = String(value); return { digest: () => captured }; }
-        };
-      }
-    },
-    withInflightTimeout: <T>(promise: Promise<T>) => promise,
-    trackInflight: (map: Map<string, Promise<unknown>>, key: string, promise: Promise<unknown>) => {
+    CIRCUIT_BREAKER_FAIL_THRESHOLD: 5,
+    CIRCUIT_BREAKER_COOLDOWN_MS: 60_000,
+    CIRCUIT_BREAKER_JITTER_MS: 0,
+    SCHEMA_DRIFT_THRESHOLD: 3,
+    httpReq: async () => ({ data: {} }),
+    conditionalGet: async (_url, parse) => parse({}),
+    fetchWithProxy: async () => "",
+    withInflightTimeout: promise => promise,
+    trackInflight: (map, key, promise) => {
       map.set(key, promise);
       const cleanup = () => { if (map.get(key) === promise) map.delete(key); };
       promise.then(cleanup, cleanup);
     },
-    runConcurrent: async (
-      items: Array<{ game: Game; idx: number }>,
-      concurrency: number,
-      fn: (item: { game: Game; idx: number }) => Promise<void>
-    ) => {
-      runCalls.push({ group: "", count: items.length, concurrency });
-      for (const item of items) await fn(item);
-      return { errors: [] };
-    },
-    executeFetchWithCircuitBreaker: async (game: Game): Promise<FetchResultLike> => ({
-      game, latest: { id: game.key }, error: null
-    })
+    cleanText: text => String(text == null ? "" : text),
+    stableUpdateId: (title, link) => `stable:${String(title)}:${String(link)}`,
+    normalizeUpdate: () => makeUpdate("u"),
+    safeCheerioLoad: html => cheerioLoad(typeof html === "string" ? html : ""),
+    crypto,
+    metricsRef: { fetchSuccess: 0, fetchFail: 0 },
+    executeFetchWithCircuitBreaker: async game => ({ game, latest: makeUpdate(game.key), error: null })
   };
-  attachUpdates(context as never);
+  attachUpdates(context);
   return { context, runCalls };
 }
 
 test("per-sursa: sourceConcurrencyGroup mapeaza tipurile la grupuri", () => {
   const group = attachUpdates.sourceConcurrencyGroup;
-  assert.equal(group({ key: "a", type: "steam" } as never), "steam");
-  assert.equal(group({ key: "a" } as never), "steam");
-  assert.equal(group({ key: "a", type: "epic_games" } as never), "epic");
-  assert.equal(group({ key: "a", type: "listing_based" } as never), "listing");
-  assert.equal(group({ key: "a", type: "nvidia" } as never), "driver");
-  assert.equal(group({ key: "a", type: "amd" } as never), "driver");
-  assert.equal(group({ key: "a", type: "intel" } as never), "driver");
-  assert.equal(group({ key: "a", type: "minecraft" } as never), "other");
-  assert.equal(group({ key: "a", type: "roblox" } as never), "other");
+  assert.equal(group({ key: "a", name: "A", type: "steam" }), "steam");
+  assert.equal(group({ key: "a", name: "A" }), "steam");
+  assert.equal(group({ key: "a", name: "A", type: "epic_games" }), "epic");
+  assert.equal(group({ key: "a", name: "A", type: "listing_based" }), "listing");
+  assert.equal(group({ key: "a", name: "A", type: "nvidia" }), "driver");
+  assert.equal(group({ key: "a", name: "A", type: "amd" }), "driver");
+  assert.equal(group({ key: "a", name: "A", type: "intel" }), "driver");
+  assert.equal(group({ key: "a", name: "A", type: "minecraft" }), "other");
+  assert.equal(group({ key: "a", name: "A", type: "roblox" }), "other");
 });
 
 test("per-sursa: fiecare grup ruleaza cu concurrency-ul propriu, rezultatele pastreaza ordinea", async () => {
   const { context, runCalls } = makeUpdatesContext();
-  const getLatest = context.getLatestForAllGames as (games: Game[]) => Promise<FetchResultLike[]>;
-  const games: Game[] = [
-    { key: "cs2", type: "steam" },
-    { key: "fortnite", type: "epic_games" },
-    { key: "gta", type: "listing_based" },
-    { key: "nv", type: "nvidia" },
-    { key: "mc", type: "minecraft" },
-    { key: "dota", type: "steam" }
+  const getLatest = context.getLatestForAllGames as GetLatest;
+  const games: GameConfig[] = [
+    { key: "cs2", name: "CS2", type: "steam" },
+    { key: "fortnite", name: "Fortnite", type: "epic_games" },
+    { key: "gta", name: "GTA", type: "listing_based" },
+    { key: "nv", name: "NVIDIA", type: "nvidia" },
+    { key: "mc", name: "Minecraft", type: "minecraft" },
+    { key: "dota", name: "Dota", type: "steam" }
   ];
   const results = await getLatest(games);
 
@@ -88,13 +106,11 @@ test("per-sursa: fiecare grup ruleaza cu concurrency-ul propriu, rezultatele pas
 
 test("attachUpdates decupleaza fabrica de context: o mutatie tarzie a contextului nu se mai scurge in deps", async () => {
   const { context } = makeUpdatesContext();
-  const getLatest = context.getLatestForAllGames as (games: Game[]) => Promise<FetchResultLike[]>;
+  const getLatest = context.getLatestForAllGames as GetLatest;
 
-  context.executeFetchWithCircuitBreaker = async (game: Game): Promise<FetchResultLike> => ({
-    game, latest: { id: `mutat-${game.key}` }, error: null
-  });
+  context.executeFetchWithCircuitBreaker = async game => ({ game, latest: makeUpdate(`mutat-${game.key}`), error: null });
 
-  const results = await getLatest([{ key: "cs2", type: "steam" }]);
+  const results = await getLatest([{ key: "cs2", name: "CS2", type: "steam" }]);
   assert.equal(results[0].latest?.id, "cs2",
     "fabrica foloseste deps-ul injectat la attach (snapshot), nu mutatia tarzie de pe context — install adapter-ul nu mai partajeaza referinta target");
 });
