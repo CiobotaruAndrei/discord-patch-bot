@@ -38,6 +38,7 @@ interface UpdatesApiShape {
   sourceConcurrencyGroup: (game: GameShape) => string;
   isLikelyPatchNote: (item: Record<string, unknown>) => boolean;
   fetchMinecraftUpdate: () => Promise<NormalizedUpdateShape>;
+  fetchFortniteUpdate: () => Promise<NormalizedUpdateShape>;
   getLatestForAllGames: (games: GameShape[], shouldAbort?: () => boolean) => Promise<FetchResultShape[]>;
   [key: string]: unknown;
 }
@@ -388,8 +389,7 @@ test("createUpdates.fetchFortniteUpdate fallback RSS: titlul e curatat de sufixu
     cleanText: (text: unknown) => String(text == null ? "" : text).replace(/\s+/g, " ").trim()
   });
   const api = attachUpdates.createUpdates(deps);
-  const fetchFortniteUpdate = api.fetchFortniteUpdate as unknown as () => Promise<{ id: string; title: string }>;
-  const update = await fetchFortniteUpdate();
+  const update = await api.fetchFortniteUpdate();
   assert.equal(update.title, "Fortnite v34.10 Update",
     "regresie: titlul din fallback pastra sufixul publisher-ului Google News (... - Epic Games)");
   assert.equal(update.id, "stable:Fortnite v34.10 Update:",
