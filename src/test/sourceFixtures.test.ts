@@ -5,8 +5,16 @@ const fs = require("fs") as typeof import("fs");
 const path = require("path") as typeof import("path");
 const Parser = require("rss-parser");
 
+type FixtureUpdate = Record<string, unknown>;
 const attachUpdates = require("../sources/updates") as {
-  createUpdates: (deps: Record<string, unknown>) => Record<string, (...args: never[]) => unknown>;
+  createUpdates: (deps: Record<string, unknown>) => {
+    fetchSteamUpdate: (game: Record<string, unknown>) => Promise<FixtureUpdate>;
+    fetchMinecraftUpdate: () => Promise<FixtureUpdate>;
+    fetchRobloxUpdate: () => Promise<FixtureUpdate>;
+    fetchNvidiaUpdate: (game: Record<string, unknown>) => Promise<FixtureUpdate>;
+    fetchAmdUpdate: (game: Record<string, unknown>) => Promise<FixtureUpdate>;
+    fetchIntelUpdate: (game: Record<string, unknown>) => Promise<FixtureUpdate>;
+  };
 };
 const attachDeals = require("../sources/deals") as {
   createDeals: (deps: Record<string, unknown>) => { fetchDeals: (opts?: { currency?: string }) => Promise<Array<Record<string, unknown>>> };
@@ -65,7 +73,7 @@ test("fixture Steam ISteamNews real: fetchSteamUpdate extrage gid-ul si titlul p
     conditionalGet: async <T>(_url: string, parse: (raw: unknown) => T | Promise<T>) => parse(fixture)
   });
   const api = attachUpdates.createUpdates(deps);
-  const fetchSteamUpdate = api.fetchSteamUpdate as unknown as (game: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  const fetchSteamUpdate = api.fetchSteamUpdate;
   const update = await fetchSteamUpdate({ key: "cs2", name: "CS2", appId: "730" });
   const fixtureGids = fixture.appnews.newsitems.map(item => item.gid);
   assert.ok(fixtureGids.includes(String(update.id)), `id-ul (${update.id}) provine dintr-un newsitem real din fixture`);
@@ -79,7 +87,7 @@ test("fixture Minecraft piston-meta real: fetchMinecraftUpdate citeste latest.re
     conditionalGet: async <T>(_url: string, parse: (raw: unknown) => T | Promise<T>) => parse(fixture)
   });
   const api = attachUpdates.createUpdates(deps);
-  const update = await (api.fetchMinecraftUpdate as unknown as () => Promise<Record<string, unknown>>)();
+  const update = await api.fetchMinecraftUpdate();
   assert.equal(update.id, fixture.latest.release);
   assert.equal(update.title, `Minecraft ${fixture.latest.release}`);
 });
@@ -90,7 +98,7 @@ test("fixture Roblox client-version real: fetchRobloxUpdate citeste clientVersio
     conditionalGet: async <T>(_url: string, parse: (raw: unknown) => T | Promise<T>) => parse(fixture)
   });
   const api = attachUpdates.createUpdates(deps);
-  const update = await (api.fetchRobloxUpdate as unknown as () => Promise<Record<string, unknown>>)();
+  const update = await api.fetchRobloxUpdate();
   assert.equal(update.id, fixture.clientVersionUpload);
 });
 
@@ -104,7 +112,7 @@ test("fixture Google News RSS real (NVIDIA): fetchNvidiaUpdate parseaza feed-ul 
     conditionalGet: async <T>(_url: string, parse: (raw: unknown) => T | Promise<T>) => parse(xml)
   });
   const api = attachUpdates.createUpdates(deps);
-  const fetchNvidiaUpdate = api.fetchNvidiaUpdate as unknown as (game: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  const fetchNvidiaUpdate = api.fetchNvidiaUpdate;
   const update = await fetchNvidiaUpdate({ key: "nvidia", name: "NVIDIA" });
   assert.equal(update.title, expectedTitle);
 });
@@ -120,7 +128,7 @@ test("fixture AMD: RSS-ul real e sursa PRIMARA — pagina oficiala (care nu mai 
     fetchWithProxy: async () => { proxyCalls++; return "<html><body>pagina amd fara versiune in html static</body></html>"; }
   });
   const api = attachUpdates.createUpdates(deps);
-  const fetchAmdUpdate = api.fetchAmdUpdate as unknown as (game: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  const fetchAmdUpdate = api.fetchAmdUpdate;
   const update = await fetchAmdUpdate({ key: "amd", name: "AMD" });
   assert.equal(update.title, expectedTitle);
   assert.match(String(update.title), /Adrenalin/i, "titlul din feed-ul real contine Adrenalin");
@@ -138,7 +146,7 @@ test("fixture Intel: RSS-ul real e sursa PRIMARA — pagina oficiala nu e atinsa
     fetchWithProxy: async () => { proxyCalls++; return "<html><body>pagina intel fara versiune in html static</body></html>"; }
   });
   const api = attachUpdates.createUpdates(deps);
-  const fetchIntelUpdate = api.fetchIntelUpdate as unknown as (game: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  const fetchIntelUpdate = api.fetchIntelUpdate;
   const update = await fetchIntelUpdate({ key: "intelgameon", name: "Intel", url: "https://www.intel.com/x" });
   assert.equal(update.title, expectedTitle);
   assert.equal(proxyCalls, 0, "cu RSS-ul functional, pagina nu mai e fetch-uita");
@@ -150,7 +158,7 @@ test("driver AMD: cand RSS-ul primar pica, pagina oficiala ramane fallback (vers
     fetchWithProxy: async () => "<html>AMD Software: Adrenalin Edition 25.12.1 Release Notes</html>"
   });
   const api = attachUpdates.createUpdates(deps);
-  const fetchAmdUpdate = api.fetchAmdUpdate as unknown as (game: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  const fetchAmdUpdate = api.fetchAmdUpdate;
   const update = await fetchAmdUpdate({ key: "amd", name: "AMD" });
   assert.equal(update.id, "25.12.1", "fallback-ul pe pagina extrage versiunea cu acelasi regex si acelasi id ca inainte");
 });
@@ -161,7 +169,7 @@ test("driver Intel: RSS picat + pagina fara versiune -> eroare clara (ambele cai
     fetchWithProxy: async () => "<html><body>nimic util</body></html>"
   });
   const api = attachUpdates.createUpdates(deps);
-  const fetchIntelUpdate = api.fetchIntelUpdate as unknown as (game: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  const fetchIntelUpdate = api.fetchIntelUpdate;
   await assert.rejects(
     () => fetchIntelUpdate({ key: "intelgameon", name: "Intel", url: "https://www.intel.com/x" }),
     /Eșec Intel.*RSS-ul primar a esuat/
