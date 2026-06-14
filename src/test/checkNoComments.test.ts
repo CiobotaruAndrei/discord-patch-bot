@@ -20,6 +20,13 @@ test("findComments: detecteaza comentariu bloc in TS", () => {
   assert.match(found[0].text, /\/\* doc \*\//);
 });
 
+test("findComments: vizita AST recursiva tipata gaseste comentarii imbricate adanc", () => {
+  const code = "function f() {\n  if (true) {\n    return 1; // adanc\n  }\n}\n";
+  const found = checker.findComments(code, ".ts", "f.ts");
+  assert.equal(found.length, 1, "vizitatorul AST (acum tipat cu ts.Node, fara as never) coboara prin toate nodurile");
+  assert.match(found[0].text, /\/\/ adanc/);
+});
+
 test("findComments: NU da fals pozitiv pe regex cu slash", () => {
   const found = checker.findComments("const r = /a\\/b/g;\nconst x = r.test('a/b');\n", ".ts", "f.ts");
   assert.deepEqual(found, [], "slash-urile din regex nu sunt comentarii");
