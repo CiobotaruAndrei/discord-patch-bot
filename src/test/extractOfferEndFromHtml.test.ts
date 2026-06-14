@@ -86,20 +86,24 @@ test("limiteaza lungimea rezultatului fallback", () => {
   assert.ok((result || "").length <= 200, "fallback trebuie limitat la 200 char");
 });
 
-const attachSteam = require("../sources/steam");
+const attachSteam = require("../sources/steam") as typeof import("../sources/steam");
 
 type SteamRuntime = { extractOfferEndFromHtml: (html: string) => string | null };
-type SteamTestTarget = Parameters<typeof attachSteam>[0] & Partial<SteamRuntime>;
+type SteamContext = Parameters<typeof attachSteam>[0];
 
-function makeSteamContextWithThrowingCheerio() {
-  const context = {
+function makeSteamContextWithThrowingCheerio(): SteamContext & SteamRuntime {
+  const context: SteamContext & Partial<SteamRuntime> = {
     logger: () => undefined,
     httpReq: async () => ({ data: {} }),
-    getCurrencyConfig: () => ({ cc: "us" }),
+    getCurrencyConfig: () => ({ cc: "us", symbol: "$", placement: "suffix" }),
     safeCheerioLoad: () => { throw new Error("cheerio refuses malformed HTML"); }
-  } as unknown as SteamTestTarget;
+  };
   attachSteam(context);
-  return context as Parameters<typeof attachSteam>[0] & SteamRuntime;
+  const extractOfferEndFromHtml = context.extractOfferEndFromHtml;
+  if (!extractOfferEndFromHtml) {
+    throw new Error("attachSteam trebuie sa ataseze extractOfferEndFromHtml");
+  }
+  return Object.assign(context, { extractOfferEndFromHtml });
 }
 
 test("raw fallback matchuieste 'Sale ends' cand cheerio arunca", () => {
