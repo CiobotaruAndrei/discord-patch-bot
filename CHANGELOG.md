@@ -6,6 +6,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **`ROADMAP.md` sincronizat cu starea reala a registrelor de compunere (review manual Medium)**. Sectiunea de migrare la factory-uri inca spunea „un singur `as never` per registru, pinuit prin gard AST", dar codul + testele nu mai au `as never`: gate-ul `check:weakening` impune zero `any`/`as never`/`as unknown as`, iar boundary-ul de instalare e acum un singur `as` de narrowing (`commandRegistry`: `context as T & CommandInstallerTarget`; `sourceRegistry`: `requireSourceValue` pe context proaspat per registry). ROADMAP-ul precizeaza acum ca problema ramasa **nu** mai e `as never`, ci boundary-ul de instalare dinamic in sine — a carui eliminare completa (pentru nota 10) cere DI per handler/sursa, nu tiparea registrului progresiv (deja respinsa cu proba). Pur documentar; codul nu se schimba.
+
 ### Fixed
 
 - **Bookkeeping-ul drain-ului outbox e mai robust: lease pe `now`-ul injectat + stergere care nu mai abandoneaza ciclul (review manual Low/Medium)**. (1) `claimNextJob` seteaza `lockedUntil` din `now`-ul injectat in `drainOutbox` (`now.getTime() + leaseMs`) in loc de `Date.now()`, deci lease-ul e consistent cu ceasul de test/abort. (2) Stergerea job-urilor dupa procesare trece prin helper-ul `deleteJob`, care prinde erorile de `deleteOne` si le numara intr-un contor nou `deleteFailures` in loc sa lase exceptia sa abandoneze tot ciclul — inainte, un Mongo cazut la `deleteOne` facea `drainOutbox` sa arunce, iar worker-ul pierdea complet rezultatul partial (metrici/contoare) al ciclului. Acum job-ul ramane in coada (dedus/reluat la urmatorul ciclu prin `dedupeKey`) si worker-ul ridica admin alert-ul nou `outbox:delete`. Acoperit de `notificationOutbox.test.ts` (lease = `now + leaseMs`; o stergere esuata numara `deleteFailures` fara sa opreasca drain-ul) si `outboxWorker.test.ts` (`deleteFailures > 0` -> alert `outbox:delete`). Documentat in `OPERATIONS.md` si `src/docs/CONTEXT_REPO_CLEAN.md`.
