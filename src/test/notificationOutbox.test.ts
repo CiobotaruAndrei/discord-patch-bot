@@ -94,6 +94,39 @@ test("drainOutbox: claim atomic prin lease (lockedUntil/lockedBy) inainte de liv
   assert.equal(claimUpdate.$inc.deliveries, 1, "claim-ul incrementeaza contorul de livrari (detectie recovery)");
 });
 
+test("drainOutbox: lease-ul foloseste now-ul injectat (lockedUntil = now + leaseMs)", async () => {
+  const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0 };
+  const { runtime, claims } = makeRuntime([job]);
+  const now = new Date("2026-01-01T00:00:00.000Z");
+  await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: true }),
+    recordDeadLetter: async () => undefined,
+    maxAttempts: 5, backoffMs: 1000, limit: 50, now, leaseMs: 90_000
+  });
+  const claimUpdate = claims[0].update as { $set: { lockedUntil: Date } };
+  assert.equal(claimUpdate.$set.lockedUntil.getTime(), now.getTime() + 90_000,
+    "lockedUntil deriva din now-ul injectat, nu din Date.now()");
+});
+
+test("drainOutbox: o stergere esuata nu opreste drain-ul si se numara in deleteFailures", async () => {
+  const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "dk1" };
+  const fake = makeFakeModel([job]);
+  const failingModel: OutboxModelMock = { ...fake.model, deleteOne: async () => { throw new Error("mongo down"); } };
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: failingModel,
+    NotificationOutboxSentModel: fake.sentModel,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: true }),
+    recordDeadLetter: async () => undefined,
+    maxAttempts: 5, backoffMs: 1000, limit: 50
+  });
+  assert.equal(result.sent, 1, "jobul livrat e numarat ca trimis chiar daca stergerea pica");
+  assert.equal(result.deleteFailures, 1, "stergerea esuata e contorizata separat, fara sa abandoneze ciclul");
+});
+
 test("applyDedupeMarker: adauga un marker dedupeKey in footer-ul ultimului embed (idempotent)", () => {
   const payload = { embeds: [{ title: "A" }, { title: "B", footer: { text: "deal" } }] };
   const dedupeKey = "abcdef0123456789ffff";
