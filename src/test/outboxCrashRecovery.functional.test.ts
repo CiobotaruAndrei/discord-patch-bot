@@ -96,14 +96,16 @@ test("crash-sim cu recovery-verify: send reuseste, markSent esueaza/crash, worke
   const origSentUpdate = store.sentModel.updateOne;
   store.model.deleteOne = async () => { throw new Error("crash inainte de delete"); };
   store.sentModel.updateOne = async () => { throw new Error("crash inainte de markSent"); };
-  await assert.rejects(runtime.drainOutbox({
+  const crashResult = await runtime.drainOutbox({
     deliver: (job) => delivery.deliver(client, job),
     recordDeadLetter: async () => undefined,
     maxAttempts: 5, backoffMs: 1000, limit: 1
-  }), /crash inainte de delete/);
+  });
   store.model.deleteOne = origDelete;
   store.sentModel.updateOne = origSentUpdate;
 
+  assert.equal(crashResult.markSentFailures, 1, "markSent a esuat in fereastra de crash");
+  assert.equal(crashResult.deleteFailures, 1, "stergerea a esuat (crash), dar drain-ul a contorizat fara sa arunce");
   assert.equal(sentPayloads.length, 1, "mesajul a fost trimis o data inainte de crash");
   assert.equal(await store.model.countDocuments(), 1, "jobul a ramas in coada (markSent si delete nu s-au facut)");
   assert.equal(store.sent.size, 0, "markSent nu a apucat sa scrie in istoric (fereastra de risc)");
@@ -138,13 +140,14 @@ test("crash-sim FARA recovery-verify: aceeasi scapare produce un duplicat (demon
   const origSentUpdate = store.sentModel.updateOne;
   store.model.deleteOne = async () => { throw new Error("crash inainte de delete"); };
   store.sentModel.updateOne = async () => { throw new Error("crash inainte de markSent"); };
-  await assert.rejects(runtime.drainOutbox({
+  const crashResult = await runtime.drainOutbox({
     deliver: (job) => delivery.deliver(client, job),
     recordDeadLetter: async () => undefined,
     maxAttempts: 5, backoffMs: 1000, limit: 1
-  }), /crash inainte de delete/);
+  });
   store.model.deleteOne = origDelete;
   store.sentModel.updateOne = origSentUpdate;
+  assert.equal(crashResult.deleteFailures, 1, "stergerea a esuat in crash, dar drain-ul a contorizat fara sa arunce");
   assert.equal(sentPayloads.length, 1);
 
   store.jobs[0].lockedUntil = undefined;
