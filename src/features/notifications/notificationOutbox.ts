@@ -305,7 +305,16 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       const leaseFree = { $or: [{ lockedUntil: null }, { lockedUntil: { $lte: sweepNow } }] };
       const staleJobs = await NotificationOutboxModel.find({ createdAt: { $lte: cutoff }, ...leaseFree }).sort({ createdAt: 1 }).limit(options.limit).lean().catch(() => [] as OutboxJob[]);
       for (const job of (Array.isArray(staleJobs) ? staleJobs : [])) {
-        const del = await NotificationOutboxModel.deleteOne({ _id: job._id, ...leaseFree }).catch(() => ({ deletedCount: 0 }));
+        let del: unknown;
+        try {
+          del = await NotificationOutboxModel.deleteOne({ _id: job._id, ...leaseFree });
+        } catch (err) {
+          deleteFailures++;
+          logger("WARN", "OUTBOX",
+            `Stergerea (sweep TTL) jobului ${String(job._id)} a esuat (ramane in coada pana se reia)`,
+            err instanceof Error ? err.message : String(err));
+          continue;
+        }
         if (((del as { deletedCount?: number })?.deletedCount ?? 0) > 0) {
           await options.recordDeadLetter(job, "expired-near-ttl").catch(() => undefined);
           expired++;
