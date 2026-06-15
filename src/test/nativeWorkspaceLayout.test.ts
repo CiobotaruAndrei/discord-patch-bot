@@ -11,12 +11,20 @@ const coreCargoPath = path.join(srcRoot, "native", "core", "Cargo.toml");
 const coreLibPath = path.join(srcRoot, "native", "core", "src", "lib.rs");
 const wrapperLibPath = path.join(srcRoot, "native", "src", "lib.rs");
 const packageJsonPath = path.join(srcRoot, "package.json");
+const nativePackageJsonPath = path.join(srcRoot, "native", "package.json");
 const ciWorkflowPath = path.join(repoRoot, ".github", "workflows", "ci.yml");
 const releaseWorkflowPath = path.join(repoRoot, ".github", "workflows", "release.yml");
 
 function read(file: string): string {
   return fs.readFileSync(file, "utf8");
 }
+
+test("native/package.json foloseste campurile N-API curente (binaryName), nu cele deprecate name/triples (review manual P3 #4)", () => {
+  const napi = (JSON.parse(read(nativePackageJsonPath)) as { napi?: Record<string, unknown> }).napi || {};
+  assert.equal(napi.binaryName, "discord_patch_bot_core", "napi.binaryName seteaza numele binarului .node (acelasi nume ca inainte, fara warning de build)");
+  assert.ok(!("name" in napi), "napi.name (deprecat) a fost scos");
+  assert.ok(!("triples" in napi), "napi.triples (deprecat) a fost scos");
+});
 
 test("crate-ul core e pur: fara napi, cu teste unitare", () => {
   assert.ok(fs.existsSync(coreCargoPath), "native/core/Cargo.toml exista");
