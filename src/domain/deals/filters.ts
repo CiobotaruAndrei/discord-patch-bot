@@ -7,8 +7,6 @@ import {
   toEntries
 } from "./filtersCore";
 
-type DealFiltersContext = Record<string, unknown>;
-
 const dealFilterExports = {
   dealPassesFilters,
   normalizePendingUpdateArray,
@@ -17,6 +15,8 @@ const dealFilterExports = {
   mapToObject,
   rotateAfter
 };
+
+type DealFiltersContext = Partial<typeof dealFilterExports>;
 
 function attachDealFilters(target: DealFiltersContext): void {
   Object.assign(target, dealFilterExports);
