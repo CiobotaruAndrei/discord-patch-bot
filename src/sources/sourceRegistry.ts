@@ -97,8 +97,12 @@ function buildSourceRegistry(context: Partial<SourceRegistryApi>): SourceRegistr
   };
 }
 
+function freshSourceContext(): SourceRuntimeContext {
+  return { ...runtimeContext };
+}
+
 function createSourceRegistry(
-  baseContext: SourceRuntimeContext = runtimeContext,
+  baseContext: SourceRuntimeContext = freshSourceContext(),
   installers: SourceInstaller[] = defaultInstallers
 ) {
   const context = baseContext;
