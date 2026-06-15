@@ -98,3 +98,23 @@ test("createSourceRegistry arunca fail-fast cand un installer mock nu acopera un
     "un context incomplet nu mai poate produce un registry cu functii undefined"
   );
 });
+
+test("createSourceRegistry nu muteaza modulul runtime partajat (context proaspat per registry)", () => {
+  const runtimeModule = require("../sources/runtime") as Record<string, unknown>;
+  const installerKeys = ["httpReq", "fetchDeals", "getLatestForAllGames", "searchSteamGameByName"];
+  const before = Object.keys(runtimeModule).sort();
+  const sourceRegistryFull = require("../sources/sourceRegistry") as {
+    createSourceRegistry: (context?: Record<string, unknown>, installers?: Installer[]) => SourceRegistryRuntime;
+  };
+
+  const registry = sourceRegistryFull.createSourceRegistry();
+
+  assert.equal(typeof registry.fetchDeals, "function",
+    "build-ul default produce un registry cu API-ul complet");
+  assert.deepEqual(Object.keys(runtimeModule).sort(), before,
+    "modulul runtime partajat nu trebuie sa capete chei noi dupa un build");
+  for (const key of installerKeys) {
+    assert.equal(key in runtimeModule, false,
+      `cheia de installer '${key}' nu trebuie sa ajunga pe singletonul runtime (installer-ele muta o copie)`);
+  }
+});
