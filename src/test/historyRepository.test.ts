@@ -38,8 +38,8 @@ test("sanitizeHistoryDocs filtreaza intrarile invalide si seteaza valori implici
   const docs = sanitizeHistoryDocs("g1", [
     { kind: "update", gameKey: "minecraft", title: "1.21", link: "https://x/y" },
     { kind: "discount", title: "Deal" },
-    { kind: "bogus" as unknown as "update", title: "x" },
-    null as unknown as { kind: "update" }
+    { kind: "bogus", title: "x" },
+    null
   ], now);
   assert.equal(docs.length, 2);
   assert.equal(docs[0].guildId, "g1");
