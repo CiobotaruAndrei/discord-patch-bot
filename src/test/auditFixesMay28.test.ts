@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { IncomingMessage } from "node:http";
 import type { BotMetrics, RuntimeEnv } from "../types";
 import { createRateLimiter, firstHeaderValue } from "../app/health/rateLimit";
 
@@ -146,7 +145,7 @@ function makeReq(opts: { xff?: string | string[]; remote?: string }) {
   return {
     headers: opts.xff !== undefined ? { "x-forwarded-for": opts.xff } : {},
     socket: { remoteAddress: opts.remote }
-  } as unknown as IncomingMessage;
+  };
 }
 
 function makeRateLimiter(trustProxy: boolean, trustedProxyCount = 1) {
