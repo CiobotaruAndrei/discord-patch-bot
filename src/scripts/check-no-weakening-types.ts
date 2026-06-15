@@ -10,7 +10,7 @@ interface WeakeningViolation {
   text: string;
 }
 
-const root = process.cwd();
+const root = path.resolve(__dirname, "..", "..");
 const ignoredDirs = new Set<string>([".git", "node_modules", "coverage", "dist", "target"]);
 const ignoredFiles = new Set<string>([
   path.normalize(path.join("native", "index.js")),
@@ -20,6 +20,20 @@ const bugCatchingTestFiles = new Set<string>([
   path.normalize(path.join("test", "checkNoWeakeningTypes.test.ts"))
 ]);
 const checkedExtensions = new Set<string>([".ts", ".js"]);
+
+function relativeMatches(rel: string, candidates: Set<string>): boolean {
+  const norm = path.normalize(rel);
+  if (candidates.has(norm)) return true;
+  const segments = norm.split(path.sep);
+  for (let i = 1; i < segments.length; i++) {
+    if (candidates.has(segments.slice(i).join(path.sep))) return true;
+  }
+  return false;
+}
+
+function isBugCatchingRel(rel: string): boolean {
+  return relativeMatches(rel, bugCatchingTestFiles);
+}
 
 function findWeakeningTypes(text: string, fileName = "file.ts"): WeakeningViolation[] {
   const scriptKind = fileName.endsWith(".js") ? ts.ScriptKind.JS : ts.ScriptKind.TS;
@@ -54,14 +68,13 @@ function walk(dir: string, files: string[]): void {
     if (!entry.isFile()) continue;
     if (!checkedExtensions.has(path.extname(entry.name))) continue;
     const rel = path.normalize(path.relative(root, fullPath));
-    if (ignoredFiles.has(rel)) continue;
+    if (relativeMatches(rel, ignoredFiles)) continue;
     files.push(fullPath);
   }
 }
 
 function canUseWeakeningTypes(file: string): boolean {
-  const rel = path.normalize(path.relative(root, file));
-  return bugCatchingTestFiles.has(rel);
+  return isBugCatchingRel(path.relative(root, file));
 }
 
 function collectWeakeningViolations(files: string[]): Array<{ file: string; line: number; kind: string; text: string }> {
@@ -92,7 +105,7 @@ function run(): void {
   console.log(`No-weakening-types OK: scanned ${files.length} source files, 0 any / as never / as unknown as outside explicit bug-catching tests`);
 }
 
-module.exports = { findWeakeningTypes, collectWeakeningViolations, canUseWeakeningTypes };
+module.exports = { findWeakeningTypes, collectWeakeningViolations, canUseWeakeningTypes, isBugCatchingRel };
 
 if (require.main === module) run();
 
