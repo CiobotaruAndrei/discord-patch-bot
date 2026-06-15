@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createOutboxWorker, OUTBOX_DRAIN_LOCK_NAME } from "../app/scheduler/outboxWorker";
 
-interface DrainResult { sent?: number; retried?: number; deadLettered?: number; queued?: number; deliveryMsTotal?: number; oldestJobAgeMs?: number; recoveryDuplicates?: number; recoveryFetches?: number; recoveryFailures?: number; recoveryMarkerMissing?: number; markSentFailures?: number; recoveryVerifyEnabledGuilds?: number }
+interface DrainResult { sent?: number; retried?: number; deadLettered?: number; queued?: number; deliveryMsTotal?: number; oldestJobAgeMs?: number; recoveryDuplicates?: number; recoveryFetches?: number; recoveryFailures?: number; recoveryMarkerMissing?: number; markSentFailures?: number; deleteFailures?: number; recoveryVerifyEnabledGuilds?: number }
 interface Harness {
   drainCalls: number;
   releaseCalls: Array<{ jobName: string; token: string }>;
@@ -191,6 +191,13 @@ test("outboxWorker: markSentFailures > 0 declanseaza admin alert pentru risc de 
   const { worker, harness } = makeWorker({ drainResult: { sent: 1, markSentFailures: 1 } });
   await worker.drainTick();
   assert.ok(harness.alertKinds.includes("outbox:mark-sent"), "alerteaza adminul cand marcarea livrarii esueaza");
+  worker.stop();
+});
+
+test("outboxWorker: deleteFailures > 0 declanseaza admin alert outbox:delete", async () => {
+  const { worker, harness } = makeWorker({ drainResult: { sent: 1, deleteFailures: 1 } });
+  await worker.drainTick();
+  assert.ok(harness.alertKinds.includes("outbox:delete"), "alerteaza adminul cand stergerea job-urilor procesate esueaza");
   worker.stop();
 });
 

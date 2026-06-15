@@ -123,6 +123,7 @@ export interface DrainOutboxResult {
   recoveryFailures: number;
   recoveryMarkerMissing: number;
   markSentFailures: number;
+  deleteFailures: number;
 }
 
 export interface OutboxRuntime {
@@ -186,7 +187,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         availableAt: { $lte: now },
         $or: [{ lockedUntil: { $exists: false } }, { lockedUntil: null }, { lockedUntil: { $lte: now } }]
       },
-      { $set: { lockedUntil: new Date(Date.now() + leaseMs), lockedBy: workerId }, $inc: { deliveries: 1 } },
+      { $set: { lockedUntil: new Date(now.getTime() + leaseMs), lockedBy: workerId }, $inc: { deliveries: 1 } },
       { sort: { availableAt: 1 }, new: true }
     );
   }
@@ -216,7 +217,21 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     let markSentFailures = 0;
     let deliverErrors = 0;
     let expired = 0;
+    let deleteFailures = 0;
     const maxAgeMs = options.maxAgeMs ?? 0;
+
+    const deleteJob = async (id: unknown): Promise<boolean> => {
+      try {
+        await NotificationOutboxModel.deleteOne({ _id: id });
+        return true;
+      } catch (err) {
+        deleteFailures++;
+        logger("WARN", "OUTBOX",
+          `Stergerea jobului ${String(id)} a esuat dupa procesare (ramane in coada, va fi dedus/reluat la urmatorul ciclu)`,
+          err instanceof Error ? err.message : String(err));
+        return false;
+      }
+    };
 
     for (let i = 0; i < options.limit; i++) {
       const job = await claimNextJob(nowFn(), leaseMs, workerId);
@@ -224,13 +239,13 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       processed++;
 
       if (job.dedupeKey && await NotificationOutboxSentModel.exists({ dedupeKey: job.dedupeKey }).catch(() => null)) {
-        await NotificationOutboxModel.deleteOne({ _id: job._id });
+        await deleteJob(job._id);
         continue;
       }
 
       if (maxAgeMs > 0 && job.createdAt && new Date(job.createdAt).getTime() <= nowFn().getTime() - maxAgeMs) {
         await options.recordDeadLetter(job, "expired-near-ttl").catch(() => undefined);
-        await NotificationOutboxModel.deleteOne({ _id: job._id });
+        await deleteJob(job._id);
         expired++;
         continue;
       }
@@ -261,7 +276,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
           markSentFailures++;
           await options.recordDeadLetter(job, "delivered-marksent-failed").catch(() => undefined);
         }
-        await NotificationOutboxModel.deleteOne({ _id: job._id });
+        await deleteJob(job._id);
         sent++;
         if (markSentFailed) break;
         continue;
@@ -270,7 +285,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       const attempts = (job.attempts || 0) + 1;
       if (result.permanent || attempts >= options.maxAttempts) {
         await options.recordDeadLetter(job, result.permanent ? "permanent" : "max-attempts").catch(() => undefined);
-        await NotificationOutboxModel.deleteOne({ _id: job._id });
+        await deleteJob(job._id);
         deadLettered++;
         continue;
       }
@@ -308,7 +323,10 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       const errSuffix = deliverErrors > 0 ? `, ${deliverErrors} exceptii de livrare` : "";
       logger("INFO", "OUTBOX", `Drain outbox: ${sent} trimise, ${retried} reincercate, ${deadLettered} dead-letter, ${queued} ramase in coada${errSuffix}`);
     }
-    return { sent, deadLettered, retried, expired, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures };
+    if (deleteFailures > 0) {
+      logger("WARN", "OUTBOX", `Drain outbox: ${deleteFailures} stergere(i) de job esuate (job-urile raman in coada si vor fi deduse/reluate)`);
+    }
+    return { sent, deadLettered, retried, expired, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures, deleteFailures };
   }
 
   return { enqueueOutbox, drainOutbox };

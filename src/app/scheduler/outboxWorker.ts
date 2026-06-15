@@ -51,6 +51,7 @@ interface OutboxDrainResult {
   recoveryFailures?: number;
   recoveryMarkerMissing?: number;
   markSentFailures?: number;
+  deleteFailures?: number;
   recoveryVerifyEnabledGuilds?: number;
 }
 
@@ -136,6 +137,11 @@ function createOutboxWorker({
       adminAlert("outbox:mark-sent",
         "Marcarea livrarilor outbox in istoric esueaza",
         "Mesaje au fost trimise dar nu s-au putut marca in notificationOutboxSent; risc de duplicare la recovery.").catch(() => undefined);
+    }
+    if ((r.deleteFailures ?? 0) > 0) {
+      adminAlert("outbox:delete",
+        "Stergerea job-urilor outbox dupa procesare esueaza",
+        "Job-uri procesate nu s-au putut sterge din coada; raman deduse/reluate, dar verifica disponibilitatea Mongo.").catch(() => undefined);
     }
   }
 
