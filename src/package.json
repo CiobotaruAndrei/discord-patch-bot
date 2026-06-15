@@ -4,7 +4,7 @@
   "description": "Bot Discord pentru update-uri automate la jocuri",
   "main": "dist/app/main.js",
   "scripts": {
-    "build:rust": "cd native && napi build --platform --release",
+    "build:rust": "cd native && napi build --platform --release --js index.js --dts index.d.ts",
     "build:ts": "tsc",
     "build": "npm run build:rust && npm run build:ts",
     "start": "node dist/app/main.js",
@@ -48,7 +48,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@napi-rs/cli": "2.18.4",
+    "@napi-rs/cli": "3.7.2",
     "@types/node": "25.9.3",
     "typescript": "6.0.3"
   }
