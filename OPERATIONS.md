@@ -87,8 +87,9 @@ functie specifica esueaza la runtime — risc de divergenta de rezultat sau de p
 de Rust. Alerta `NativeFallbackActive` se declanseaza cand metrica creste.
 
 1. Identifica functia care cade pe fallback direct din metrica per-functie:
-   `bot_native_fallback_total{fn="..."}` (label `fn` pentru fiecare functie instrumentata —
-   `findGameKeys`, `dealPassesFilters`, `classifyPatchNote`, etc.); agregatul e `sum(bot_native_fallback_total)`.
+   `bot_native_fallback_total{fn="..."}` (cele cinci functii inca native-primary, emise mereu ca serie
+   stabila chiar la `0`: `classifyPatchNote`, `scoreListingCandidate`, `rankListingCandidates`,
+   `isGoodSteamArticleUrl`, `extractDateScore`); agregatul e `sum(bot_native_fallback_total)`.
    Sau cauta in log-uri liniile `[NATIVE_FUZZY] Apelul nativ \`<functie>\` a esuat` (throttled la o
    data per minut per functie).
 2. Cea mai probabila cauza este un addon nativ invechit sau incompatibil (semnatura schimbata
