@@ -106,11 +106,11 @@ function isCommandModuleInstaller(value: unknown): value is CommandModuleInstall
   return typeof value === "function";
 }
 
-function installCommandModules<T>(
-  context: T,
+function installCommandModules(
+  context: CommandRuntimeBootContext,
   installers: readonly unknown[] = defaultInstallers
-): T & CommandRegistryContext {
-  const installContext = context as T & CommandInstallerTarget;
+): CommandInstallerTarget {
+  const installContext: CommandInstallerTarget = context;
   for (const install of installers) {
     if (!isCommandModuleInstaller(install)) {
       throw new Error("commandRegistry a primit un installer invalid");

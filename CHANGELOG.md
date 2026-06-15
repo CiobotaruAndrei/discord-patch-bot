@@ -6,6 +6,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- **`commandRegistry` elimina cast-ul de pe boundary-ul de instalare (review manual #4, pas de migrare)**. `installCommandModules` era generic si folosea `const installContext = context as T & CommandInstallerTarget` — exact `commandRegistry.ts:113` semnalat in review ca cea mai mare zona de arhitectura dinamica. Acum functia e non-generica si tinta e o **atribuire tipata explicit** (`const installContext: CommandInstallerTarget = context`), fara niciun cast: `CommandRuntimeBootContext` e assignable la contractul **all-optional** `CommandRegistryContext` (cheile adaugate de installer-e sunt toate optionale, deci absenta lor initiala e validata de tipuri, nu fortata cu `as`). Comportament identic (commands compuse la fel); doar contractul devine mai strict. Garda din `registryClosedContracts.test.ts` pinuieste acum zero `context as` pe boundary + atribuirea tipata. Suita completa 826/826. Pasul ramas pentru eliminarea completa a contextului comun (DI per handler, fara registru progresiv) ramane documentat in `ROADMAP.md`. Documentat in `FUNCTION_MAP_CLEAN.md` + `src/docs/CONTEXT_REPO_CLEAN.md`.
+
 ### Fixed
 
 - **Gate-ul `check:weakening` nu mai depinde de directorul de rulare pentru allowlist (review manual Low)**. `scripts/check-no-weakening-types.ts` calcula root-ul scanarii din `process.cwd()` si compara allowlist-ul de teste bug-catching pe cale relativa (`test/checkNoWeakeningTypes.test.ts`). Rulat din alt director (ex. root-ul repo), relativul devenea `src/test/...`, nu se mai potrivea cu allowlist-ul si testul scannerului ar fi fost marcat fals pozitiv. Acum root-ul e calculat explicit din locatia scriptului (`path.resolve(__dirname, "..", "..")` = `src/`), iar matching-ul de allowlist/ignore (helper-ul nou `relativeMatches`/`isBugCatchingRel`) accepta atat `test/...` cat si `src/test/...`. Acoperit de `checkNoWeakeningTypes.test.ts` (allowlist-ul accepta ambele forme; un test normal nu e allowlistat in niciuna). Documentat in `src/docs/CONTEXT_REPO_CLEAN.md`.
