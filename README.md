@@ -154,6 +154,8 @@ npm audit
 
 Regula „fara comentarii" se aplica **doar codului sursa runtime/test** (`.ts`/`.js`/`.rs`). Fisierele care **nu** sunt cod — workflow-urile GitHub Actions (`.yml`), `Dockerfile`, `Markdown`, `JSON` de config — sunt in afara scope-ului si pot purta comentarii explicative (ex. comentariile care explica gate-urile din `release.yml`). Scanner-ul nici nu le citeste (`checkedExtensions` = `.ts`/`.js`/`.rs`).
 
+`npm run check` ruleaza si `check:weakening` (`scripts/check-no-weakening-types.ts`), care **esueaza** daca exista construcții care **slabesc tiparea** in codul de **producție** (`.ts`/`.js`, exclus `src/test/`), conform regulii 2: `any`, `as never`, sau dubla asertiune `as unknown as`. Verificat pe AST (TypeScript), nu pe text, deci nu da fals pozitiv pe string-uri. **NU** sunt interzise `unknown` (tipul top, type-safe, opusul lui `any`) si nici casturile de **narrowing** care ingusteaza din `unknown`/date dinamice la un tip utilizabil (ex. `value as Record<string, unknown>`, `item as DealInfo`, `require(...) as typeof import(...)`) — acelea intaresc tiparea, nu o slabesc. Exceptia regulii 2 (casturi in teste al caror rol e sa prinda bug-uri, ex. input invalid deliberat) e acoperita prin excluderea `src/test/` din scanare.
+
 Testele acopera zonele importante:
 
 - validare env si configuratie;
