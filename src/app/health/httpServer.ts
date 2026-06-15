@@ -5,10 +5,12 @@ import type {
   CommandCacheSizes,
   CronController,
   CronHealthSnapshot,
+  LoggerFunction,
   RateLimiter,
   RuntimeEnv
 } from "../../types";
 import { getNativeFallbackTotals, NATIVE_FALLBACK_FUNCTIONS } from "../../native/fuzzy";
+import { errorMessage } from "../../shared/errors";
 
 interface MongooseLike {
   connection: { readyState: number };
@@ -48,6 +50,7 @@ interface CreateHttpServerDeps {
   env: RuntimeEnv;
   client: DiscordClientLike;
   metrics: BotMetrics;
+  logger: LoggerFunction;
   commands: CommandsLike;
   getGuildCacheSize: () => number;
   scrapers: ScrapersLike;
@@ -97,7 +100,7 @@ function pushMetric(
 }
 
 function createHttpServer({
-  mongoose, crypto, env, client, metrics, commands,
+  mongoose, crypto, env, client, metrics, logger, commands,
   getGuildCacheSize, scrapers, activeLocks, rateLimiter, cronController = null
 }: CreateHttpServerDeps): Server {
   function checkMetricsAuth(req: IncomingMessage): boolean {
@@ -165,6 +168,7 @@ function createHttpServer({
       pushMetric(lines, seenMetricNames, "bot_cron_aborted", "counter", "Cron aborted", metrics.cronAborted);
       pushMetric(lines, seenMetricNames, "bot_cron_skipped_due_to_health", "counter", "Cron skipped by global health backoff", metrics.cronSkippedDueToHealth || 0);
       pushMetric(lines, seenMetricNames, "bot_http_rate_limit_drops", "counter", "HTTP requests blocked by local rate limiter", metrics.httpRateLimitDrops);
+      pushMetric(lines, seenMetricNames, "bot_http_handler_errors", "counter", "HTTP handler exceptions caught by the top-level try/catch (returned 500; >0 means /health or /metrics rendering threw)", metrics.httpHandlerErrors);
       pushMetric(lines, seenMetricNames, "bot_cache_single", "gauge", "Cache single size", cacheSizes.single);
       pushMetric(lines, seenMetricNames, "bot_cache_dlc", "gauge", "Cache DLC size", cacheSizes.dlc);
       pushMetric(lines, seenMetricNames, "bot_cache_updates_valid", "gauge", "Updates cache valid", cacheSizes.updatesValid ? 1 : 0);
@@ -202,7 +206,9 @@ function createHttpServer({
 
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("Not Found");
-    } catch {
+    } catch (err) {
+      metrics.httpHandlerErrors++;
+      logger("ERROR", "HTTP", `Handler HTTP a aruncat o eroare la ${req.method} ${req.url}`, errorMessage(err));
       try {
         if (!res.headersSent) {
           res.writeHead(500, { "Content-Type": "text/plain" });

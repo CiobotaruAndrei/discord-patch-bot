@@ -333,7 +333,7 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   const { cronController, outboxWorker, outboxEnabled } = schedulers;
 
   const httpServer = createHttpServer({
-    mongoose, crypto, env, client, metrics, commands: deps.commands,
+    mongoose, crypto, env, client, metrics, logger, commands: deps.commands,
     getGuildCacheSize, scrapers: deps.scrapers, activeLocks, rateLimiter, cronController
   });
 
