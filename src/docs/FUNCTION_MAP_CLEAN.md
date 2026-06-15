@@ -216,6 +216,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Gestioneaza fallback-uri si erori de schema prin modulele din `src/sources/`.
 - Sursele Steam/deals/updates sunt incluse in strict TypeScript si au teste directe pentru shape drift.
 - Contractul registrului e **value-tipat din tipuri reale**: `SourceRegistryApi` e compus prin indexed access din `SteamSourceApi`/`DealsApi`/`UpdatesApi` (modulul partajat `sources/sourceApis.ts`) + tipurile-domeniu din `types.ts` (`DealInfo`, `NormalizedUpdate`, `PatchUpdate`) — fara `unknown` pe functiile de sursa; tipul e si exportat (`export type { SourceRegistryApi }`). Acoperit de `sourceRegistryTypedApi.test.ts`.
+- `createSourceRegistry()` construieste un **context proaspat per registry** (`freshSourceContext()` face o copie shallow a modulului `runtime`), deci installer-ele muta copia, nu singletonul `runtime` partajat; exportul singleton `registry` ramane doar un wrapper peste un astfel de build. Garda in `sourceRegistry.functional.test.ts` (modulul `runtime` nu capata chei de installer dupa un build).
 
 ### `src/sources/updates/` (split pe functionalitate)
 
