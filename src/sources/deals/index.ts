@@ -28,7 +28,7 @@ interface DealsDeps {
   extractOfferEndFromHtml: (html: unknown) => string | null;
 }
 
-type DealsContext = DealsDeps & Record<string, unknown>;
+type DealsContext = DealsDeps & Partial<DealsApi>;
 
 function createDeals(d: DealsDeps): DealsApi {
   const deps = d;
