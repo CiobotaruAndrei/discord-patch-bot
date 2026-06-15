@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { request as httpRequest } from "node:http";
 import { AddressInfo } from "node:net";
 import { createHttpServer } from "../app/health/httpServer";
-import type { RuntimeEnv } from "../types";
+import type { CommandCacheSizes, RuntimeEnv } from "../types";
 
 interface ResponseSnapshot { status: number; body: string }
 
@@ -22,21 +22,27 @@ async function fetchPath(port: number, path: string, extraHeaders: Record<string
   });
 }
 
-function startServer(envOverrides: Partial<RuntimeEnv> = {}) {
+function startServer(
+  envOverrides: Partial<RuntimeEnv> = {},
+  commandsOverride?: { getCacheSizes: () => CommandCacheSizes }
+) {
+  const logs: Array<{ level: string; context: string; message: string; meta?: unknown }> = [];
+  const metrics = {
+    startedAt: Date.now(), fetchSuccess: 1, fetchFail: 0, httpRetries: 0,
+    rateLimitHits: 0, cronRuns: 0, cronErrors: 0, cronSkippedDueToLock: 0,
+    cronAborted: 0, cronSkippedDueToHealth: 0, httpRateLimitDrops: 0, httpHandlerErrors: 0,
+    outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxExpired: 0, outboxDrains: 0, outboxQueueDepth: 0,
+    outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxLockAcquireFailures: 0,
+    outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0, outboxRecoveryMarkerMissing: 0, outboxMarkSentFailures: 0, outboxRecoveryVerifyEnabledGuilds: 0, outboxLastDrainAt: 0
+  };
   const deps = {
     mongoose: { connection: { readyState: 1 } },
     crypto: { timingSafeEqual: () => true },
     env: { METRICS_PUBLIC: true, METRICS_TOKEN: "", isProd: false, ...envOverrides } as RuntimeEnv,
     client: { isReady: () => true },
-    metrics: {
-      startedAt: Date.now(), fetchSuccess: 1, fetchFail: 0, httpRetries: 0,
-      rateLimitHits: 0, cronRuns: 0, cronErrors: 0, cronSkippedDueToLock: 0,
-      cronAborted: 0, cronSkippedDueToHealth: 0, httpRateLimitDrops: 0,
-      outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxExpired: 0, outboxDrains: 0, outboxQueueDepth: 0,
-      outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxLockAcquireFailures: 0,
-      outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0, outboxRecoveryMarkerMissing: 0, outboxMarkSentFailures: 0, outboxRecoveryVerifyEnabledGuilds: 0, outboxLastDrainAt: 0
-    },
-    commands: {
+    metrics,
+    logger: (level: string, context: string, message: string, meta?: unknown) => { logs.push({ level, context, message, meta }); },
+    commands: commandsOverride ?? {
       getCacheSizes: () => ({ single: 0, dlc: 0, updatesValid: true, dealsCurrenciesValid: 0, userCooldowns: 0 })
     },
     getGuildCacheSize: () => 0,
@@ -46,12 +52,14 @@ function startServer(envOverrides: Partial<RuntimeEnv> = {}) {
     cronController: null
   };
   const server = createHttpServer(deps);
-  return new Promise<{ server: typeof server; port: number; close: () => Promise<void> }>((resolve) => {
+  return new Promise<{ server: typeof server; port: number; close: () => Promise<void>; metrics: typeof metrics; logs: typeof logs }>((resolve) => {
     server.listen(0, "127.0.0.1", () => {
       const port = (server.address() as AddressInfo).port;
       resolve({
         server,
         port,
+        metrics,
+        logs,
         close: () => new Promise(r => server.close(() => r()))
       });
     });
@@ -92,6 +100,21 @@ test("/metrics?probe=1 still matches the metrics route", async () => {
     const res = await fetchPath(port, "/metrics?probe=1&source=prometheus");
     assert.equal(res.status, 200, "metrics cu query string trebuie sa serveasca 200 nu 404");
     assert.match(res.body, /bot_uptime_seconds/);
+  } finally { await close(); }
+});
+
+test("handler care arunca in render: raspunde 500, incrementeaza bot_http_handler_errors si logheaza ERROR (nu inghite, review #3)", async () => {
+  const { port, close, metrics, logs } = await startServer({}, {
+    getCacheSizes: () => { throw new Error("cache render boom"); }
+  });
+  try {
+    const res = await fetchPath(port, "/metrics");
+    assert.equal(res.status, 500, "exceptia din render-ul /metrics da 500");
+    assert.equal(metrics.httpHandlerErrors, 1, "bot_http_handler_errors creste, nu mai e o eroare invizibila");
+    const errLog = logs.find(l => l.level === "ERROR" && l.context === "HTTP");
+    assert.ok(errLog, "eroarea e logata cu logger-ul injectat");
+    assert.match(errLog!.message, /\/metrics/, "mesajul de log indica ruta care a aruncat");
+    assert.match(String(errLog!.meta), /cache render boom/, "cauza erorii ajunge in meta-ul log-ului");
   } finally { await close(); }
 });
 

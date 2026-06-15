@@ -159,6 +159,7 @@ export interface BotMetrics {
   cronSkippedDueToHealth: number;
   cronAborted: number;
   httpRateLimitDrops: number;
+  httpHandlerErrors: number;
   outboxSent: number;
   outboxRetried: number;
   outboxDeadLettered: number;
