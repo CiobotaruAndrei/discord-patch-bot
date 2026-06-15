@@ -45,7 +45,9 @@ export interface HistoryRepository {
   getRecent(guildId: string, kind: NotificationKind | "all", limit: number): Promise<NotificationHistoryRecord[]>;
 }
 
-export function sanitizeHistoryDocs(guildId: string, entries: NotificationHistoryEntry[], now: Date): NotificationHistoryDoc[] {
+type HistoryEntryLike = { kind?: unknown; gameKey?: unknown; title?: unknown; link?: unknown };
+
+export function sanitizeHistoryDocs(guildId: string, entries: ReadonlyArray<HistoryEntryLike | null | undefined>, now: Date): NotificationHistoryDoc[] {
   const docs: NotificationHistoryDoc[] = [];
   for (const entry of entries || []) {
     if (!entry || (entry.kind !== "update" && entry.kind !== "discount")) continue;

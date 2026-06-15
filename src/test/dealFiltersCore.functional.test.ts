@@ -45,7 +45,7 @@ test("deal filter rejects deals with non-finite savings", () => {
   };
 
   assert.equal(
-    dealPassesFilters({ ...baseDeal, savings: undefined as unknown as number }, guild),
+    dealPassesFilters({ ...baseDeal, savings: undefined }, guild),
     false,
     "deal with undefined savings must fail the min-discount gate"
   );
@@ -56,7 +56,7 @@ test("deal filter rejects deals with non-finite savings", () => {
   );
 
   assert.equal(
-    dealPassesFilters({ ...baseDeal, salePrice: "0", savings: undefined as unknown as number }, guild),
+    dealPassesFilters({ ...baseDeal, salePrice: "0", savings: undefined }, guild),
     true,
     "free deals skip the savings gate even when savings is invalid"
   );
