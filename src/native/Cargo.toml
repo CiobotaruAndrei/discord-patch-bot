@@ -11,7 +11,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 discord_patch_bot_logic = { path = "core" }
-napi = { version = "2", default-features = false, features = ["napi4"] }
+napi = { version = "3", default-features = false, features = ["napi4"] }
 napi-derive = "2"
 
 [build-dependencies]
