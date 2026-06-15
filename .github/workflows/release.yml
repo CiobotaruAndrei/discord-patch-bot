@@ -175,20 +175,14 @@ jobs:
         working-directory: src
         run: npm ci
 
-      - name: Validate Rust (clippy + tests)
-        working-directory: src
-        run: |
-          cargo clippy --manifest-path native/Cargo.toml --workspace --all-targets -- -D warnings
-          cargo test --manifest-path native/Cargo.toml -p discord_patch_bot_logic --quiet
-
-      - name: Run release checks
+      - name: Run release checks (typecheck, build, unit, native, e2e)
         working-directory: src
         env:
           MONGO_URI: mongodb://localhost:27017/discord-patch-bot-release
           DISCORD_TOKEN: release_check_token
           DISCORD_CLIENT_ID: release_check_client_id
           METRICS_PUBLIC: "true"
-        run: npm run check
+        run: npm run check:full
 
       - name: Audit runtime dependencies
         working-directory: src

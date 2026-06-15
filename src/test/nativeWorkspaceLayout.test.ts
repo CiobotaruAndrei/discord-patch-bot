@@ -53,9 +53,9 @@ test("check:native si CI testeaza core-ul pur si dau clippy pe tot workspace-ul"
   const pkg = read(packageJsonPath);
   assert.match(pkg, /cargo clippy --manifest-path native\/Cargo\.toml --workspace --all-targets -- -D warnings/, "clippy acopera ambele crate-uri");
   assert.match(pkg, /cargo test --manifest-path native\/Cargo\.toml -p discord_patch_bot_logic --quiet/, "cargo test ruleaza pe crate-ul pur, fara build-ul N-API");
-  for (const workflow of [ciWorkflowPath, releaseWorkflowPath]) {
-    const text = read(workflow);
-    assert.match(text, /--workspace --all-targets/, `clippy pe workspace in ${path.basename(workflow)}`);
-    assert.match(text, /-p discord_patch_bot_logic/, `testele pure in ${path.basename(workflow)}`);
-  }
+  const ci = read(ciWorkflowPath);
+  assert.match(ci, /--workspace --all-targets/, "clippy pe workspace in ci.yml");
+  assert.match(ci, /-p discord_patch_bot_logic/, "testele pure in ci.yml");
+  const release = read(releaseWorkflowPath);
+  assert.match(release, /npm run check:full/, "release.yml ruleaza check:full, care include check:native (clippy --workspace + cargo test pur), fara a duplica pasul de clippy");
 });
