@@ -5,8 +5,12 @@ import attachHttpClient = require("../infra/http/client");
 type FakeAxios = (config: { url: string; headers?: Record<string, string> }) => Promise<unknown>;
 type ConditionalGet = <T>(url: string, parse: (data: unknown) => T | Promise<T>, options?: unknown) => Promise<T>;
 
+function stubHttpClientContext<T>(stub: Record<string, unknown>): Parameters<typeof attachHttpClient>[0] & T {
+  return stub as Parameters<typeof attachHttpClient>[0] & T;
+}
+
 function buildClient(axiosClient: FakeAxios) {
-  const context = {
+  const context = stubHttpClientContext<{ conditionalGet: ConditionalGet }>({
     axios: { create: () => axiosClient },
     cheerio: { load: (html: string) => ({ html }) },
     crypto: {},
@@ -28,9 +32,9 @@ function buildClient(axiosClient: FakeAxios) {
       SCHEMA_DRIFT_THRESHOLD: 3, ENRICHED_DEAL_CACHE_TTL_MS: 60_000, ENRICHED_DEAL_CACHE_MAX_SIZE: 50,
       PROXY_URLS: "", isProd: false
     }
-  } as unknown as Parameters<typeof attachHttpClient>[0] & { conditionalGet: ConditionalGet };
+  });
   attachHttpClient(context);
-  return context as unknown as { conditionalGet: ConditionalGet };
+  return { conditionalGet: context.conditionalGet };
 }
 
 test("conditionalGet: parseaza la 200, trimite validatori si reuseaza rezultatul la 304", async () => {

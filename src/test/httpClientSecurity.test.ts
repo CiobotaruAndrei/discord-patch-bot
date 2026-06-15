@@ -18,13 +18,17 @@ type HttpClientModule = typeof attachHttpClient & {
 };
 type DnsLookup = (hostname: string, options: unknown, callback?: unknown) => void;
 
+function stubHttpClientContext<T>(stub: Record<string, unknown>): Parameters<typeof attachHttpClient>[0] & T {
+  return stub as Parameters<typeof attachHttpClient>[0] & T;
+}
+
 function createHttpClientTestContext() {
   const requestedUrls: string[] = [];
   const axiosClient = async (config: { url: string }) => {
     requestedUrls.push(config.url);
     return { data: "ok" };
   };
-  const context = {
+  const context = stubHttpClientContext<HttpClientRuntime>({
     axios: { create: () => axiosClient },
     cheerio: { load: (html: string) => ({ html }) },
     crypto: {},
@@ -57,9 +61,9 @@ function createHttpClientTestContext() {
       PROXY_URLS: "https://proxy.example/fetch?url={url}",
       isProd: false
     }
-  } as unknown as Parameters<typeof attachHttpClient>[0] & Partial<HttpClientRuntime>;
+  });
   attachHttpClient(context);
-  return { context: context as Parameters<typeof attachHttpClient>[0] & HttpClientRuntime, requestedUrls };
+  return { context, requestedUrls };
 }
 
 test("HTTP client rejects unsafe external URLs", async () => {
