@@ -51,6 +51,9 @@ Mesaje au fost trimise pe Discord, dar marcarea lor in istoricul de dedupe
    marker-ul de dedupe nu a putut fi persistat. Jobul nu se re-trimite (e sters, ca sa nu apara
    duplicat), insa intrarea de audit iti spune exact ce mesaj poarta riscul mic de duplicare la
    o eventuala recovery — nu e un esec de livrare propriu-zis.
+5. Drain-ul curent se opreste dupa jobul livrat cu `markSent` esuat. Urmatorul tick va reevalua
+   coada normal, dar botul nu continua sa trimita alte joburi in acelasi batch cat timp a observat
+   ca istoricul de dedupe nu poate fi scris.
 
 ## Cand creste `bot_outbox_recovery_verify_failures`
 

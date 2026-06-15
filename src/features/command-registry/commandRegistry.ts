@@ -74,8 +74,8 @@ import attachAdminCommandRouterGuard = require("../command-security/adminCommand
 
 const { createCommandRuntimeContext } = require("../command-runtime/commandRuntimeContext") as typeof import("../command-runtime/commandRuntimeContext");
 type CommandRuntimeBootContext = ReturnType<typeof createCommandRuntimeContext>;
-type LegacyInstallerTarget = Record<string, unknown>;
-type CommandModuleInstaller = (context: LegacyInstallerTarget) => void;
+type CommandInstallerTarget = CommandRuntimeBootContext & CommandRegistryContext;
+type CommandModuleInstaller = (context: CommandInstallerTarget) => void;
 
 const defaultInstallers = [
   attachCommandCache,
@@ -110,7 +110,7 @@ function installCommandModules<T>(
   context: T,
   installers: readonly unknown[] = defaultInstallers
 ): T & CommandRegistryContext {
-  const installContext = context as T & LegacyInstallerTarget;
+  const installContext = context as T & CommandInstallerTarget;
   for (const install of installers) {
     if (!isCommandModuleInstaller(install)) {
       throw new Error("commandRegistry a primit un installer invalid");

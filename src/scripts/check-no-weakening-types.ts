@@ -11,10 +11,13 @@ interface WeakeningViolation {
 }
 
 const root = process.cwd();
-const ignoredDirs = new Set<string>([".git", "node_modules", "coverage", "dist", "target", "test"]);
+const ignoredDirs = new Set<string>([".git", "node_modules", "coverage", "dist", "target"]);
 const ignoredFiles = new Set<string>([
   path.normalize(path.join("native", "index.js")),
   path.normalize(path.join("native", "index.d.ts"))
+]);
+const bugCatchingTestFiles = new Set<string>([
+  path.normalize(path.join("test", "checkNoWeakeningTypes.test.ts"))
 ]);
 const checkedExtensions = new Set<string>([".ts", ".js"]);
 
@@ -56,29 +59,40 @@ function walk(dir: string, files: string[]): void {
   }
 }
 
-function run(): void {
-  const files: string[] = [];
-  walk(root, files);
+function canUseWeakeningTypes(file: string): boolean {
+  const rel = path.normalize(path.relative(root, file));
+  return bugCatchingTestFiles.has(rel);
+}
+
+function collectWeakeningViolations(files: string[]): Array<{ file: string; line: number; kind: string; text: string }> {
   const violations: Array<{ file: string; line: number; kind: string; text: string }> = [];
   for (const file of files.sort()) {
+    if (canUseWeakeningTypes(file)) continue;
     const rel = path.normalize(path.relative(root, file));
     const text = fs.readFileSync(file, "utf8");
     for (const v of findWeakeningTypes(text, file)) {
       violations.push({ file: rel, line: v.line, kind: v.kind, text: v.text });
     }
   }
+  return violations;
+}
+
+function run(): void {
+  const files: string[] = [];
+  walk(root, files);
+  const violations = collectWeakeningViolations(files);
   if (violations.length > 0) {
-    console.error("Type-weakening constructs are not allowed in production code (rule 2): no `any`, `as never`, or `as unknown as`.");
+    console.error("Type-weakening constructs are not allowed in source code (rule 2): no `any`, `as never`, or `as unknown as`.");
     for (const v of violations) {
       console.error(`- ${v.file}:${v.line}  [${v.kind}]  ${v.text}`);
     }
-    console.error(`\nTotal: ${violations.length}. Model the real type, narrow via a structural contract (as Record<string, unknown> from unknown is fine), or move a deliberate-invalid case into a bug-catching test (src/test).`);
+    console.error(`\nTotal: ${violations.length}. Model the real type, narrow via a structural contract (as Record<string, unknown> from unknown is fine), or add the deliberate-invalid case only to the explicit bug-catching test allowlist.`);
     process.exit(1);
   }
-  console.log(`No-weakening-types OK: scanned ${files.length} production files, 0 any / as never / as unknown as`);
+  console.log(`No-weakening-types OK: scanned ${files.length} source files, 0 any / as never / as unknown as outside explicit bug-catching tests`);
 }
 
-module.exports = { findWeakeningTypes };
+module.exports = { findWeakeningTypes, collectWeakeningViolations, canUseWeakeningTypes };
 
 if (require.main === module) run();
 

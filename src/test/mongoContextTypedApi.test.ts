@@ -19,7 +19,7 @@ type Mod = typeof import("../infra/mongo/mongoContext");
 type Expect<T extends true> = T;
 
 type _GuildModelIsMongooseModel = Expect<
-  Mod["GuildModel"] extends Model<any> ? true : false
+  Mod["GuildModel"] extends Model<infer _Doc> ? true : false
 >;
 type IsAny<T> = 0 extends (1 & T) ? true : false;
 type ModelDoc<M> = M extends Model<infer D> ? D : never;
