@@ -11,11 +11,11 @@ interface GuildDoc {
   seen?: Record<string, string[]>;
 }
 
-interface MigrationStateDoc {
+type MigrationStateDoc = {
   _id: string;
   lastApplied?: number;
   lastAppliedAt?: Date;
-}
+};
 
 interface UpdateManyCall {
   collection: string;
@@ -27,9 +27,18 @@ interface FakeMigrationOverrides {
   acquireDbLock?: () => Promise<string | null>;
 }
 
-interface MigrationRuntime {
-  runMigrations: (logger: (level: string, context: string, message: string) => void) => Promise<{ applied: number[]; skipped: number }>;
-  ALL_MIGRATIONS: Array<{ id: number; name: string }>;
+type MigrationContext = Parameters<typeof attachMigrations>[0];
+type MigrationCollection = ReturnType<MigrationContext["mongoose"]["connection"]["collection"]>;
+
+function fakeCollection(impl: Partial<MigrationCollection>): MigrationCollection {
+  return {
+    async updateMany() { return {}; },
+    async updateOne() { return {}; },
+    async findOne() { return null; },
+    async bulkWrite() { return {}; },
+    async *find() {},
+    ...impl
+  };
 }
 
 function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
@@ -115,25 +124,29 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
 
   const connection = {
     db: {},
-    collection(name: string) {
-      if (name === "guilds") return guildCollection;
-      if (name === "system") return systemCollection;
-      if (name === "guildSeenDiscounts") return guildSeenDiscountCollection;
-      if (name === "guildSeenUpdates") return guildSeenUpdateCollection;
+    collection(name: string): MigrationCollection {
+      if (name === "guilds") return fakeCollection(guildCollection);
+      if (name === "system") return fakeCollection(systemCollection);
+      if (name === "guildSeenDiscounts") return fakeCollection(guildSeenDiscountCollection);
+      if (name === "guildSeenUpdates") return fakeCollection(guildSeenUpdateCollection);
       throw new Error(`Unexpected collection ${name}`);
     }
   };
 
-  const context = {
+  const context: MigrationContext = {
     mongoose: { connection },
     acquireDbLock: overrides.acquireDbLock || (async () => "migration-lock-token"),
     releaseDbLock: async (name: string, token: string) => {
       releaseCalls.push({ name, token });
     }
-  } as unknown as Parameters<typeof attachMigrations>[0] & Partial<MigrationRuntime>;
+  };
 
   attachMigrations(context);
-  const runtime = context as Parameters<typeof attachMigrations>[0] & MigrationRuntime;
+  const { runMigrations, ALL_MIGRATIONS } = context;
+  if (!runMigrations || !ALL_MIGRATIONS) {
+    throw new Error("attachMigrations trebuie sa ataseze runMigrations + ALL_MIGRATIONS");
+  }
+  const runtime = Object.assign(context, { runMigrations, ALL_MIGRATIONS });
   return { context: runtime, guilds, get migrationState() { return migrationState; }, updateManyCalls, releaseCalls, seenDiscountBulkOps, seenUpdateBulkOps };
 }
 
