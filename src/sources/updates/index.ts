@@ -22,6 +22,7 @@ import { errorMessage } from "../../shared/errors";
 import type { UpdatesApi, ListingCandidate } from "../sourceApis";
 
 import { applyFallbackSource, isGoodSteamArticleUrl, isLikelyPatchNote, extractDateScore, scoreCandidate, absoluteUrl, sourceConcurrencyGroup } from "./updateHelpers";
+import { buildCoalesceSignature } from "./coalesceSignature";
 import type { HttpReq, RssParserLike, RunConcurrent, SchemaDriftErrorClass, TrackInflight, WithInflightTimeout } from "./updateHelpers";
 import { createSteamUpdates } from "./steamUpdates";
 import { createListingUpdates } from "./listingUpdates";
@@ -279,7 +280,7 @@ function createUpdates(d: UpdatesDeps): UpdatesApi {
     const { crypto, logger, withInflightTimeout, trackInflight } = deps;
     const sourceModeBase = shouldAbort ? "cron" : "manual";
     const keysHash = crypto.createHash("sha1")
-      .update(games.map(g => String(g.key)).sort().join(","))
+      .update(buildCoalesceSignature(games))
       .digest("hex")
       .substring(0, 8);
     const contextKey = `${sourceModeBase}:${keysHash}`;
