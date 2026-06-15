@@ -202,8 +202,13 @@ export interface RateLimitBucket {
   lastRefill: number;
 }
 
+export interface RateLimitRequest {
+  headers: IncomingMessage["headers"];
+  socket?: { remoteAddress?: string };
+}
+
 export interface RateLimiter {
-  check(req: IncomingMessage): boolean;
+  check(req: RateLimitRequest): boolean;
   prune(): void;
   readonly size: number;
   readonly retryAfterSeconds: number;
