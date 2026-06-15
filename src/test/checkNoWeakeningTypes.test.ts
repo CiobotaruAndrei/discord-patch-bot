@@ -8,8 +8,9 @@ const mod = require("../scripts/check-no-weakening-types") as {
   findWeakeningTypes: (text: string, fileName?: string) => Array<{ line: number; kind: string; text: string }>;
   collectWeakeningViolations: (files: string[]) => Array<{ file: string; line: number; kind: string; text: string }>;
   canUseWeakeningTypes: (file: string) => boolean;
+  isBugCatchingRel: (rel: string) => boolean;
 };
-const { findWeakeningTypes, collectWeakeningViolations, canUseWeakeningTypes } = mod;
+const { findWeakeningTypes, collectWeakeningViolations, canUseWeakeningTypes, isBugCatchingRel } = mod;
 
 test("detecteaza dubla asertiune `as unknown as`", () => {
   const violations = findWeakeningTypes("const x = foo as unknown as Bar;");
@@ -66,4 +67,15 @@ test("gate-ul nu exclude toate testele, ci doar allowlist-ul explicit pentru tes
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
+});
+
+test("allowlist-ul nu depinde de directorul de rulare: accepta `test/...` si `src/test/...`", () => {
+  assert.equal(isBugCatchingRel(path.join("test", "checkNoWeakeningTypes.test.ts")), true,
+    "rulat din src/ (rel = test/checkNoWeakeningTypes.test.ts)");
+  assert.equal(isBugCatchingRel(path.join("src", "test", "checkNoWeakeningTypes.test.ts")), true,
+    "rulat din root-ul repo (rel = src/test/checkNoWeakeningTypes.test.ts)");
+  assert.equal(isBugCatchingRel(path.join("test", "mongoContextTypedApi.test.ts")), false,
+    "un test normal nu e allowlistat");
+  assert.equal(isBugCatchingRel(path.join("src", "test", "mongoContextTypedApi.test.ts")), false,
+    "nici prefixat cu src/ nu allowlisteaza un test normal");
 });
