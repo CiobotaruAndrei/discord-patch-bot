@@ -12,6 +12,7 @@ function createMetrics(): BotMetrics {
     cronSkippedDueToHealth: 0,
     cronAborted: 0,
     httpRateLimitDrops: 0,
+    httpHandlerErrors: 0,
     outboxSent: 0,
     outboxRetried: 0,
     outboxDeadLettered: 0,
