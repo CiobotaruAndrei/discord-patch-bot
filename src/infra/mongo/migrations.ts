@@ -1,16 +1,26 @@
-import type { Connection, Mongoose } from "mongoose";
 import type { LockToken, LoggerFunction } from "../../types";
+
+interface MigrationCollectionLike {
+  updateMany(filter: object, update: object): Promise<unknown>;
+  updateOne(filter: object, update: object, options?: object): Promise<unknown>;
+  findOne(filter: object): Promise<Record<string, unknown> | null>;
+  bulkWrite(ops: object[], options?: object): Promise<unknown>;
+  find(filter?: object, options?: object): AsyncIterable<Record<string, unknown>>;
+}
+
+interface MigrationConnectionLike {
+  db?: unknown;
+  collection(name: string): MigrationCollectionLike;
+}
+
+interface MigrationMongooseLike {
+  connection: MigrationConnectionLike;
+}
 
 interface Migration {
   id: number;
   name: string;
-  up: (db: Connection) => Promise<void>;
-}
-
-interface MigrationStateDoc {
-  _id: string;
-  lastApplied?: number;
-  lastAppliedAt?: Date;
+  up: (db: MigrationConnectionLike) => Promise<void>;
 }
 
 interface RunMigrationsResult {
@@ -19,7 +29,7 @@ interface RunMigrationsResult {
 }
 
 interface MigrationsContext {
-  mongoose: Mongoose;
+  mongoose: MigrationMongooseLike;
   acquireDbLock: (jobName: string, ttlMs: number) => Promise<LockToken | null>;
   releaseDbLock: (jobName: string, token: LockToken) => Promise<unknown>;
   runMigrations?: typeof runMigrations;
@@ -173,7 +183,7 @@ async function runMigrations(logger: LoggerFunction): Promise<RunMigrationsResul
   }
 
   try {
-    const sysColl = db.collection<MigrationStateDoc>("system");
+    const sysColl = db.collection("system");
     const stateDoc = await sysColl.findOne({ _id: "migrationState" });
     const lastApplied = stateDoc && typeof stateDoc.lastApplied === "number"
       ? stateDoc.lastApplied
