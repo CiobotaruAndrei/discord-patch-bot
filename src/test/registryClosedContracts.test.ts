@@ -39,7 +39,8 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   assert.ok(!src.includes("as unknown as"), "sourceRegistry nu mai are bypass-uri as unknown as");
   assert.equal((cmd.match(/as never/g) || []).length, 0, "commandRegistry nu mai are granita as never");
   assert.equal((src.match(/as never/g) || []).length, 0, "sourceRegistry nu mai are granita as never");
-  assert.match(cmd, /type LegacyInstallerTarget = Record<string, unknown>/, "commandRegistry declara tinta legacy explicit, nu never");
+  assert.ok(!cmd.includes("LegacyInstallerTarget"), "commandRegistry nu mai are tinta legacy bazata pe Record<string, unknown>");
+  assert.match(cmd, /type CommandInstallerTarget = CommandRuntimeBootContext & CommandRegistryContext/, "commandRegistry foloseste o tinta explicita din boot context + registry context");
   assert.match(cmd, /function isCommandModuleInstaller/, "commandRegistry verifica runtime ca fiecare installer e functie");
   assert.match(src, /type SourceRuntimeContext = Partial<SourceRegistryApi>/, "sourceRegistry modeleaza contextul progresiv ca Partial<SourceRegistryApi>");
   assert.match(src, /function requireSourceValue/, "sourceRegistry citeste exporturile prin garda fail-fast pe chei");

@@ -256,12 +256,14 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         if (options.recordSentHistory && Array.isArray(job.history) && job.history.length) {
           await options.recordSentHistory(job.guildId, job.history).catch(() => undefined);
         }
-        if (job.dedupeKey && !(await markSent(job.dedupeKey))) {
+        const markSentFailed = job.dedupeKey ? !(await markSent(job.dedupeKey)) : false;
+        if (markSentFailed) {
           markSentFailures++;
           await options.recordDeadLetter(job, "delivered-marksent-failed").catch(() => undefined);
         }
         await NotificationOutboxModel.deleteOne({ _id: job._id });
         sent++;
+        if (markSentFailed) break;
         continue;
       }
       if (result.recoveryFailed) recoveryFailures++;

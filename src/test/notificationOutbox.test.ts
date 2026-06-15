@@ -278,9 +278,12 @@ test("drainOutbox: strict mode (deliver ok:false + recoveryFailed) -> numara rec
   assert.equal(updated.length, 1, "lease eliberat + backoff aplicat");
 });
 
-test("drainOutbox: esecul de marcare in istoric incrementeaza markSentFailures dar jobul tot e livrat", async () => {
-  const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "k1" };
-  const pending = [job];
+test("drainOutbox: esecul de marcare in istoric opreste drain-ul curent dupa jobul livrat", async () => {
+  const jobs: OutboxJob[] = [
+    { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "k1" },
+    { _id: "j2", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "k2" }
+  ];
+  const pending = [...jobs];
   const deleted: unknown[] = [];
   const model: OutboxModelMock = {
     create: async (doc: Record<string, unknown>) => doc,
@@ -301,12 +304,15 @@ test("drainOutbox: esecul de marcare in istoric incrementeaza markSentFailures d
     logger: () => undefined
   });
   const deadLetters: Array<{ reason: string; job: OutboxJob }> = [];
+  let deliveries = 0;
   const result = await runtime.drainOutbox({
-    deliver: async (): Promise<DeliverResult> => ({ ok: true }),
+    deliver: async (): Promise<DeliverResult> => { deliveries++; return { ok: true }; },
     recordDeadLetter: async (j, reason) => { deadLetters.push({ reason, job: j }); },
     maxAttempts: 5, backoffMs: 1000, limit: 50
   });
   assert.equal(result.sent, 1, "livrarea a reusit, jobul e considerat trimis");
+  assert.equal(result.total, 1, "drain-ul curent se opreste dupa esecul de markSent, fara sa revendice alte joburi");
+  assert.equal(deliveries, 1, "nu continua livrarea altor joburi cat timp istoricul de dedupe e degradat");
   assert.equal(result.markSentFailures, 1, "esecul de marcare in istoricul de dedupe e numarat");
   assert.deepEqual(deleted, [{ _id: "j1" }], "jobul livrat e sters chiar daca marcarea a esuat (nu se re-livreaza -> fara duplicat)");
   assert.equal(deadLetters.length, 1, "esecul de marcare lasa un audit dead-letter, nu doar un counter tacut");
