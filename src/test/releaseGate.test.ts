@@ -34,6 +34,14 @@ test("release.yml impune CI + audit + confirmarea smoke la dispatch", () => {
   assert.match(text, /Release blocat/, "esueaza explicit fara confirmare la dispatch");
 });
 
+test("release.yml ruleaza check:full (CI + native + e2e), iar check:full include test:e2e (review manual P2 #1)", () => {
+  const text = read(releaseWorkflowPath);
+  assert.match(text, /run: npm run check:full/, "release-ul ruleaza check:full, deci si E2E (nu doar npm run check, cum era inainte)");
+  const pkg = JSON.parse(read(path.join(srcRoot, "package.json"))) as { scripts: Record<string, string> };
+  assert.match(pkg.scripts["check:full"], /\btest:e2e\b/, "check:full include test:e2e — E2E ruleaza la release, nu doar pe CI-ul de PR");
+  assert.match(pkg.scripts["check:full"], /\bcheck:native\b/, "check:full include si validarea Rust (clippy + cargo test)");
+});
+
 test("release.yml se declanseaza doar prin workflow_dispatch (fara cale de tag push care ocoleste smoke)", () => {
   const text = read(releaseWorkflowPath);
   const onStart = text.indexOf("\non:");
