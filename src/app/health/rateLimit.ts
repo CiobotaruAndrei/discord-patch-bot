@@ -1,5 +1,4 @@
-import type { IncomingMessage } from "http";
-import type { BotMetrics, RateLimitBucket, RateLimiter, RuntimeEnv } from "../../types";
+import type { BotMetrics, RateLimitBucket, RateLimiter, RateLimitRequest, RuntimeEnv } from "../../types";
 
 function firstHeaderValue(value: string | string[] | undefined): string | null {
   if (Array.isArray(value)) return value[0] || null;
@@ -15,7 +14,7 @@ function createRateLimiter(env: RuntimeEnv, metrics: BotMetrics): RateLimiter {
   const trustedProxyCount = Math.max(0, Math.trunc(env.TRUSTED_PROXY_COUNT || 0));
   const buckets = new Map<string, RateLimitBucket>();
 
-  function getClientIp(req: IncomingMessage): string {
+  function getClientIp(req: RateLimitRequest): string {
     if (trustProxy && trustedProxyCount > 0) {
       const forwardedFor = firstHeaderValue(req.headers["x-forwarded-for"]);
       if (forwardedFor) {
@@ -51,7 +50,7 @@ function createRateLimiter(env: RuntimeEnv, metrics: BotMetrics): RateLimiter {
     }
   }
 
-  function check(req: IncomingMessage): boolean {
+  function check(req: RateLimitRequest): boolean {
     const ip = getClientIp(req);
     const now = Date.now();
     let entry = buckets.get(ip);
