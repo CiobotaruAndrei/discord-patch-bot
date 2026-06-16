@@ -10,6 +10,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 - **Pin pe versiunile patch-uite ale dep-urilor tranzitive `form-data` si `ws` (deblocheaza gate-ul Trivy)**. Baza de date Trivy (CI-ul `scan`, gate care blocheaza pe CRITICAL/HIGH **fixabile**) a inceput sa semnaleze doua CVE-uri HIGH proaspat fixabile: `form-data` **CVE-2026-12143** (4.0.5, tranzitiv via `axios`) si `ws` **CVE-2026-48779** (8.20.1, DoS prin memory exhaustion din fragmente mici, tranzitiv via `discord.js`/`@discordjs/ws`). Adaugat `overrides` in `src/package.json` (`form-data >=4.0.6`, `ws >=8.21.0`) si regenerat `package-lock.json` -> rezolva `form-data@4.0.6` + `ws@8.21.0`, `npm audit` 0 vulnerabilitati. Pin-urile sunt patch-uri compatibile (acelasi major), build + suita completa (826) raman verzi. Garda noua in `supplyChainConfig.test.ts` pinuieste prezenta override-urilor ca sa nu regreseze.
 
+### Changed
+
+- **`.gitattributes` mapeaza `CHANGELOG.md` pe strategia de merge `union`**. CHANGELOG-ul e append-only (fiecare PR adauga randuri in varful aceleiasi sectiuni), deci PR-urile deschise simultan intrau in conflict pe el la fiecare merge. `merge=union` pastreaza automat ambele variante in loc sa produca un conflict de rezolvat manual, eliminand churn-ul repetitiv intre PR-uri. Garda in `supplyChainConfig.test.ts` pinuieste regula.
+
 ### Fixed
 
 - **README descrie corect runtime-ul Docker (review manual Low)**. Sectiunea de configurare spunea ca `npm start` e „folosit in Docker", dar `Dockerfile`-ul ruleaza direct `node dist/app/main.js` (CMD) si **sterge `npm`/`npx`** din imaginea finala. Textul a fost corectat (`npm start` = `node dist/app/main.js`; imaginea Docker ruleaza direct binarul node, fara npm) si exista o garda noua in `readmeConsistency.test.ts` care citeste `Dockerfile`-ul si verifica: CMD-ul ruleaza `node dist/app/main.js`, imaginea sterge npm, iar README nu mai sustine ca Docker foloseste `npm start`.
