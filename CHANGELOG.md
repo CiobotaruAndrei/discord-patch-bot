@@ -6,6 +6,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Security
+
+- **Pin pe versiunile patch-uite ale dep-urilor tranzitive `form-data` si `ws` (deblocheaza gate-ul Trivy)**. Baza de date Trivy (CI-ul `scan`, gate care blocheaza pe CRITICAL/HIGH **fixabile**) a inceput sa semnaleze doua CVE-uri HIGH proaspat fixabile: `form-data` **CVE-2026-12143** (4.0.5, tranzitiv via `axios`) si `ws` **CVE-2026-48779** (8.20.1, DoS prin memory exhaustion din fragmente mici, tranzitiv via `discord.js`/`@discordjs/ws`). Adaugat `overrides` in `src/package.json` (`form-data >=4.0.6`, `ws >=8.21.0`) si regenerat `package-lock.json` -> rezolva `form-data@4.0.6` + `ws@8.21.0`, `npm audit` 0 vulnerabilitati. Pin-urile sunt patch-uri compatibile (acelasi major), build + suita completa (826) raman verzi. Garda noua in `supplyChainConfig.test.ts` pinuieste prezenta override-urilor ca sa nu regreseze.
+
 ### Fixed
 
 - **Gate-ul `check:weakening` nu mai depinde de directorul de rulare pentru allowlist (review manual Low)**. `scripts/check-no-weakening-types.ts` calcula root-ul scanarii din `process.cwd()` si compara allowlist-ul de teste bug-catching pe cale relativa (`test/checkNoWeakeningTypes.test.ts`). Rulat din alt director (ex. root-ul repo), relativul devenea `src/test/...`, nu se mai potrivea cu allowlist-ul si testul scannerului ar fi fost marcat fals pozitiv. Acum root-ul e calculat explicit din locatia scriptului (`path.resolve(__dirname, "..", "..")` = `src/`), iar matching-ul de allowlist/ignore (helper-ul nou `relativeMatches`/`isBugCatchingRel`) accepta atat `test/...` cat si `src/test/...`. Acoperit de `checkNoWeakeningTypes.test.ts` (allowlist-ul accepta ambele forme; un test normal nu e allowlistat in niciuna). Documentat in `src/docs/CONTEXT_REPO_CLEAN.md`.
