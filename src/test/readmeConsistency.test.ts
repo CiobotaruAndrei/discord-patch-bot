@@ -8,6 +8,7 @@ const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
 const srcRoot = process.cwd();
 const repoRoot = path.resolve(srcRoot, "..");
 const readme = fs.readFileSync(path.join(repoRoot, "README.md"), "utf8");
+const dockerfile = fs.readFileSync(path.join(repoRoot, "Dockerfile"), "utf8");
 const pkg = JSON.parse(fs.readFileSync(path.join(srcRoot, "package.json"), "utf8"));
 
 interface JsonOption { type: number; name: string; options?: JsonOption[] }
@@ -92,4 +93,18 @@ test("P1.4: toate scripturile 'npm run X' documentate in README exista in packag
   for (const script of documented) {
     assert.ok(scripts.has(script), `scriptul documentat 'npm run ${script}' exista in package.json`);
   }
+});
+
+test("Docker: imaginea ruleaza direct `node dist/app/main.js`, fara npm", () => {
+  assert.match(dockerfile, /CMD\s*\[\s*"node"\s*,\s*"dist\/app\/main\.js"\s*\]/,
+    "Dockerfile-ul porneste botul prin `node dist/app/main.js`, nu prin npm");
+  assert.match(dockerfile, /rm -rf[^\n]*\bnpm\b/,
+    "Dockerfile-ul sterge npm/npx din imaginea finala");
+});
+
+test("README descrie corect runtime-ul Docker (consistent cu Dockerfile)", () => {
+  assert.ok(!/`npm start` \(folosit in Docker\)/.test(readme),
+    "README nu mai sustine ca Docker ruleaza prin `npm start` (Dockerfile-ul ruleaza `node dist/app/main.js`)");
+  assert.ok(readme.includes("node dist/app/main.js"),
+    "README mentioneaza runtime-ul real (`node dist/app/main.js`) pentru Docker/npm start");
 });
