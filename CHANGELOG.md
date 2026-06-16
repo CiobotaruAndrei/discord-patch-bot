@@ -6,6 +6,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Security
+
+- **Pin pe versiunile patch-uite ale dep-urilor tranzitive `form-data` si `ws` (deblocheaza gate-ul Trivy)**. Baza de date Trivy (CI-ul `scan`, gate care blocheaza pe CRITICAL/HIGH **fixabile**) a inceput sa semnaleze doua CVE-uri HIGH proaspat fixabile: `form-data` **CVE-2026-12143** (4.0.5, tranzitiv via `axios`) si `ws` **CVE-2026-48779** (8.20.1, DoS prin memory exhaustion din fragmente mici, tranzitiv via `discord.js`/`@discordjs/ws`). Adaugat `overrides` in `src/package.json` (`form-data >=4.0.6`, `ws >=8.21.0`) si regenerat `package-lock.json` -> rezolva `form-data@4.0.6` + `ws@8.21.0`, `npm audit` 0 vulnerabilitati. Pin-urile sunt patch-uri compatibile (acelasi major), build + suita completa (826) raman verzi. Garda noua in `supplyChainConfig.test.ts` pinuieste prezenta override-urilor ca sa nu regreseze.
+
 ### Fixed
 
 - **`rankListingCandidates` apare acum ca serie stabila `0` la `bot_native_fallback_total`, nu doar dupa primul fallback (review manual Medium)**. Functia ruleaza native-primary si raporteaza fallback prin `recordNativeFallback("rankListingCandidates", err)`, dar lipsea din lista canonica `NATIVE_FALLBACK_FUNCTIONS`, asa ca `/metrics` o emitea (`httpServer.ts`, union peste lista + cheile cu fallback) abia dupa ce cadea o data — alertele/dashboard-urile nu o vedeau la `0`. Adaugata in lista (acum toate cele 5 functii care pot face fallback: `classifyPatchNote`, `scoreListingCandidate`, `rankListingCandidates`, `isGoodSteamArticleUrl`, `extractDateScore`). Acoperit de `nativeFallbackObservability.test.ts` (lista include `rankListingCandidates`, lungime 5). `OPERATIONS.md` actualizat cu lista reala (exemplele vechi `findGameKeys`/`dealPassesFilters` erau TS-primary, nu mai fac fallback).
