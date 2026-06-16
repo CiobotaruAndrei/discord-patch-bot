@@ -127,6 +127,31 @@ test("drainOutbox: o stergere esuata nu opreste drain-ul si se numara in deleteF
   assert.equal(result.deleteFailures, 1, "stergerea esuata e contorizata separat, fara sa abandoneze ciclul");
 });
 
+test("drainOutbox: sweep-ul TTL care nu poate sterge job-ul numara deleteFailures (nu il pierde silentios)", async () => {
+  const staleJob: OutboxJob = { _id: "old1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, createdAt: new Date(0) };
+  const fake = makeFakeModel([staleJob]);
+  const sweepFailingModel: OutboxModelMock = {
+    ...fake.model,
+    findOneAndUpdate: async () => null,
+    deleteOne: async () => { throw new Error("mongo down la sweep"); }
+  };
+  const deadLetters: string[] = [];
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: sweepFailingModel,
+    NotificationOutboxSentModel: fake.sentModel,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: true }),
+    recordDeadLetter: async (_job, reason) => { deadLetters.push(reason); },
+    maxAttempts: 5, backoffMs: 1000, limit: 5, maxAgeMs: 1000
+  });
+  assert.equal(result.deleteFailures, 1, "stergerea esuata din sweep-ul TTL e contorizata in deleteFailures");
+  assert.equal(result.expired, 0, "fara o stergere reusita jobul nu e numarat ca expirat");
+  assert.equal(deadLetters.length, 0, "nu se scrie audit dead-letter daca stergerea a esuat");
+});
+
 test("applyDedupeMarker: adauga un marker dedupeKey in footer-ul ultimului embed (idempotent)", () => {
   const payload = { embeds: [{ title: "A" }, { title: "B", footer: { text: "deal" } }] };
   const dedupeKey = "abcdef0123456789ffff";

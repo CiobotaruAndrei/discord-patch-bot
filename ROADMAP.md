@@ -107,11 +107,16 @@ beneficiu curent — single-shard + lock-uri DB e corect si suficient pana la pr
 
 **Starea curenta.** Compunerea trece prin doua registre cu installers `export =` care muteaza un
 context comun. Contractele de iesire sunt inchise si tipate (`CommandRegistryContext`,
-`SourceRegistryApi`, `CommandRuntimeContext`), dar granita de instalare ramane nesigura static:
-un singur `as never` per registru, pinuit prin gard AST (`registryClosedContracts.test.ts`).
-Tipizarea directa a compunerii a fost incercata si respinsa cu proba: supratipul comun al
-dependintelor structurale declarate independent per handler colapseaza in `never`/`any`
-(vezi FUNCTION_MAP_CLEAN, sectiunea commandRegistry).
+`SourceRegistryApi`, `CommandRuntimeContext`), iar granita de instalare nu mai foloseste `as never`
+/ `as unknown as`: `commandRegistry` instaleaza printr-un singur `as` de narrowing
+(`context as T & CommandInstallerTarget`, permis de regula 2), iar `sourceRegistry` citeste
+exporturile prin `requireSourceValue` pe un context proaspat per registry. Zero `as never`
+/ `as unknown as` e impus automat de `check:weakening` (gate AST) plus gardul
+`registryClosedContracts.test.ts`. Problema ramasa nu mai e `as never`, ci boundary-ul de instalare
+dinamic in sine (contextul progresiv mutat de installers). Tipizarea directa a compunerii a fost
+incercata si respinsa cu proba: supratipul comun al dependintelor structurale declarate independent
+per handler colapseaza in `never`/`any` (vezi FUNCTION_MAP_CLEAN, sectiunea commandRegistry), deci
+eliminarea completa a boundary-ului cere DI per handler/sursa, nu tiparea registrului progresiv.
 
 **Pasii de migrare (incremental, cate un PR per grup):**
 
@@ -119,8 +124,10 @@ dependintelor structurale declarate independent per handler colapseaza in `never
 2. `commandRuntimeContext` se sparge in furnizori mici (bindings Discord, exporturi Mongo, surse),
    iar compozitia apeleaza factory-urile explicit cu `Pick<>`-uri din furnizori, in ordinea dependentelor;
 3. installer-ele `attachX` raman doar ca adaptoare de compatibilitate pana cand toti consumatorii
-   folosesc factory-urile, apoi se sterg impreuna cu registrul si cu granita `as never`;
-4. gardurile AST se actualizeaza la fiecare pas (numarul de `as never` permise scade la zero).
+   folosesc factory-urile, apoi se sterg impreuna cu registrul si cu boundary-ul de instalare dinamic
+   (ultimul `as` de narrowing al compozitiei);
+4. `check:weakening` plus gardurile AST din `registryClosedContracts.test.ts` impun deja zero `as never`
+   / `as unknown as` si se mentin la fiecare pas; ultima migrare elimina si `as`-ul de narrowing ramas.
 
 **Limbaj.** Nu se adauga alt limbaj pentru zona asta: outbox/Discord/Mongo sunt I/O-bound, deci
 TypeScript ramane alegerea corecta; orice candidat nou de Rust trece intai prin `npm run benchmark:cpu`
