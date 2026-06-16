@@ -6,6 +6,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Security
+
+- **Pin pe versiunile patch-uite ale dep-urilor tranzitive `form-data` si `ws` (deblocheaza gate-ul Trivy)**. Baza de date Trivy (CI-ul `scan`, gate care blocheaza pe CRITICAL/HIGH **fixabile**) a inceput sa semnaleze doua CVE-uri HIGH proaspat fixabile: `form-data` **CVE-2026-12143** (4.0.5, tranzitiv via `axios`) si `ws` **CVE-2026-48779** (8.20.1, DoS prin memory exhaustion din fragmente mici, tranzitiv via `discord.js`/`@discordjs/ws`). Adaugat `overrides` in `src/package.json` (`form-data >=4.0.6`, `ws >=8.21.0`) si regenerat `package-lock.json` -> rezolva `form-data@4.0.6` + `ws@8.21.0`, `npm audit` 0 vulnerabilitati. Pin-urile sunt patch-uri compatibile (acelasi major), build + suita completa (826) raman verzi. Garda noua in `supplyChainConfig.test.ts` pinuieste prezenta override-urilor ca sa nu regreseze.
+
 ### Fixed
 
 - **Sweep-ul TTL al outbox-ului numara acum esecurile de stergere in `deleteFailures`, nu le mai inghite (review manual Medium)**. Ramura de sweep (stergerea job-urilor prea vechi, cu filtru `leaseFree`) folosea `deleteOne(...).catch(() => ({ deletedCount: 0 }))`, deci o cadere reala la stergere arata identic cu „nimic de sters" si nu intra in `deleteFailures` (nici in alerta `outbox:delete`). PR-ul anterior rezolvase ramurile principale prin helper-ul `deleteJob`, dar sweep-ul ramasese pe comportament silentios. Acum sweep-ul prinde eroarea intr-un `try/catch` dedicat, incrementeaza `deleteFailures` si logheaza `WARN`, deci esecul ajunge la acelasi contor/alerta. Acoperit de `notificationOutbox.test.ts` (sweep cu `deleteOne` care arunca -> `deleteFailures === 1`, `expired === 0`, fara dead-letter). Documentat in `src/docs/CONTEXT_REPO_CLEAN.md`.
