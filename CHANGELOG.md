@@ -13,6 +13,7 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ### Changed
 
 - **`.gitattributes` mapeaza `CHANGELOG.md` pe strategia de merge `union`**. CHANGELOG-ul e append-only (fiecare PR adauga randuri in varful aceleiasi sectiuni), deci PR-urile deschise simultan intrau in conflict pe el la fiecare merge. `merge=union` pastreaza automat ambele variante in loc sa produca un conflict de rezolvat manual, eliminand churn-ul repetitiv intre PR-uri. Garda in `supplyChainConfig.test.ts` pinuieste regula.
+- **`ROADMAP.md` sincronizat cu starea reala a registrelor de compunere (review manual Medium)**. Sectiunea de migrare la factory-uri inca spunea „un singur `as never` per registru, pinuit prin gard AST", dar codul + testele nu mai au `as never`: gate-ul `check:weakening` impune zero `any`/`as never`/`as unknown as`, iar boundary-ul de instalare e acum un singur `as` de narrowing (`commandRegistry`: `context as T & CommandInstallerTarget`; `sourceRegistry`: `requireSourceValue` pe context proaspat per registry). ROADMAP-ul precizeaza acum ca problema ramasa **nu** mai e `as never`, ci boundary-ul de instalare dinamic in sine — a carui eliminare completa (pentru nota 10) cere DI per handler/sursa, nu tiparea registrului progresiv (deja respinsa cu proba). Pur documentar; codul nu se schimba.
 
 ### Fixed
 
