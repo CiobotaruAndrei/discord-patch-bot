@@ -6,6 +6,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Security
+
+- **Pin pe versiunile patch-uite ale dep-urilor tranzitive `form-data` si `ws` (deblocheaza gate-ul Trivy)**. Baza de date Trivy (CI-ul `scan`, gate care blocheaza pe CRITICAL/HIGH **fixabile**) a inceput sa semnaleze doua CVE-uri HIGH proaspat fixabile: `form-data` **CVE-2026-12143** (4.0.5, tranzitiv via `axios`) si `ws` **CVE-2026-48779** (8.20.1, DoS prin memory exhaustion din fragmente mici, tranzitiv via `discord.js`/`@discordjs/ws`). Adaugat `overrides` in `src/package.json` (`form-data >=4.0.6`, `ws >=8.21.0`) si regenerat `package-lock.json` -> rezolva `form-data@4.0.6` + `ws@8.21.0`, `npm audit` 0 vulnerabilitati. Pin-urile sunt patch-uri compatibile (acelasi major), build + suita completa (826) raman verzi. Garda noua in `supplyChainConfig.test.ts` pinuieste prezenta override-urilor ca sa nu regreseze.
+
 ### Changed
 
 - **`ROADMAP.md` sincronizat cu starea reala a registrelor de compunere (review manual Medium)**. Sectiunea de migrare la factory-uri inca spunea „un singur `as never` per registru, pinuit prin gard AST", dar codul + testele nu mai au `as never`: gate-ul `check:weakening` impune zero `any`/`as never`/`as unknown as`, iar boundary-ul de instalare e acum un singur `as` de narrowing (`commandRegistry`: `context as T & CommandInstallerTarget`; `sourceRegistry`: `requireSourceValue` pe context proaspat per registry). ROADMAP-ul precizeaza acum ca problema ramasa **nu** mai e `as never`, ci boundary-ul de instalare dinamic in sine — a carui eliminare completa (pentru nota 10) cere DI per handler/sursa, nu tiparea registrului progresiv (deja respinsa cu proba). Pur documentar; codul nu se schimba.

@@ -84,3 +84,10 @@ test("Dockerfile nu instaleaza rustup prin curl | sh; toolchain-ul vine din imag
   assert.equal(imageMatch![1], channelMatch![1],
     "versiunea imaginii rust din Dockerfile trebuie sa ramana sincronizata cu channel-ul din rust-toolchain.toml");
 });
+
+test("package.json pinuieste prin overrides versiunile patch-uite ale dep-urilor tranzitive cu CVE (form-data, ws)", () => {
+  const pkg = JSON.parse(read(path.join(srcRoot, "package.json"))) as { overrides?: Record<string, string> };
+  assert.ok(pkg.overrides, "exista un camp overrides pentru pin-urile de securitate ale dep-urilor tranzitive");
+  assert.match(String(pkg.overrides?.["form-data"]), />=\s*4\.0\.6/, "form-data pinuit la >=4.0.6 (CVE-2026-12143)");
+  assert.match(String(pkg.overrides?.["ws"]), />=\s*8\.21\.0/, "ws pinuit la >=8.21.0 (CVE-2026-48779, DoS prin fragmente mici)");
+});
