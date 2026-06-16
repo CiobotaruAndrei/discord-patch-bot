@@ -136,6 +136,7 @@ const NATIVE_FALLBACK_LOG_THROTTLE_MS = 60_000;
 export const NATIVE_FALLBACK_FUNCTIONS = [
   "classifyPatchNote",
   "scoreListingCandidate",
+  "rankListingCandidates",
   "isGoodSteamArticleUrl",
   "extractDateScore"
 ];
