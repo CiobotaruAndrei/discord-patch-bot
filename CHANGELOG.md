@@ -6,6 +6,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Security
+
+- **Pin pe versiunile patch-uite ale dep-urilor tranzitive `form-data` si `ws` (deblocheaza gate-ul Trivy)**. Baza de date Trivy (CI-ul `scan`, gate care blocheaza pe CRITICAL/HIGH **fixabile**) a inceput sa semnaleze doua CVE-uri HIGH proaspat fixabile: `form-data` **CVE-2026-12143** (4.0.5, tranzitiv via `axios`) si `ws` **CVE-2026-48779** (8.20.1, DoS prin memory exhaustion din fragmente mici, tranzitiv via `discord.js`/`@discordjs/ws`). Adaugat `overrides` in `src/package.json` (`form-data >=4.0.6`, `ws >=8.21.0`) si regenerat `package-lock.json` -> rezolva `form-data@4.0.6` + `ws@8.21.0`, `npm audit` 0 vulnerabilitati. Pin-urile sunt patch-uri compatibile (acelasi major), build + suita completa (826) raman verzi. Garda noua in `supplyChainConfig.test.ts` pinuieste prezenta override-urilor ca sa nu regreseze.
+
 ### Changed
 
 - **`commandRegistry` elimina cast-ul de pe boundary-ul de instalare (review manual #4, pas de migrare)**. `installCommandModules` era generic si folosea `const installContext = context as T & CommandInstallerTarget` — exact `commandRegistry.ts:113` semnalat in review ca cea mai mare zona de arhitectura dinamica. Acum functia e non-generica si tinta e o **atribuire tipata explicit** (`const installContext: CommandInstallerTarget = context`), fara niciun cast: `CommandRuntimeBootContext` e assignable la contractul **all-optional** `CommandRegistryContext` (cheile adaugate de installer-e sunt toate optionale, deci absenta lor initiala e validata de tipuri, nu fortata cu `as`). Comportament identic (commands compuse la fel); doar contractul devine mai strict. Garda din `registryClosedContracts.test.ts` pinuieste acum zero `context as` pe boundary + atribuirea tipata. Suita completa 826/826. Pasul ramas pentru eliminarea completa a contextului comun (DI per handler, fara registru progresiv) ramane documentat in `ROADMAP.md`. Documentat in `FUNCTION_MAP_CLEAN.md` + `src/docs/CONTEXT_REPO_CLEAN.md`.
