@@ -1,0 +1,5 @@
+# CHANGELOG-ul e append-only: fiecare PR adauga randuri in varful aceleiasi sectiuni.
+# `merge=union` pastreaza automat ambele variante la merge in loc sa produca un
+# conflict de rezolvat manual (cele cateva randuri noi din fiecare ramura se
+# concateneaza). Vezi `git help attributes` sectiunea "Defining a custom merge driver".
+CHANGELOG.md merge=union

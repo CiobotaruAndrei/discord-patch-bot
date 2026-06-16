@@ -91,3 +91,9 @@ test("package.json pinuieste prin overrides versiunile patch-uite ale dep-urilor
   assert.match(String(pkg.overrides?.["form-data"]), />=\s*4\.0\.6/, "form-data pinuit la >=4.0.6 (CVE-2026-12143)");
   assert.match(String(pkg.overrides?.["ws"]), />=\s*8\.21\.0/, "ws pinuit la >=8.21.0 (CVE-2026-48779, DoS prin fragmente mici)");
 });
+
+test("CHANGELOG-ul foloseste strategia de merge union ca sa nu mai produca conflicte intre PR-uri append-only", () => {
+  const gitattributes = read(path.join(repoRoot, ".gitattributes"));
+  assert.match(gitattributes, /^CHANGELOG\.md\s+merge=union\s*$/m,
+    ".gitattributes mapeaza CHANGELOG.md pe merge=union (PR-urile doar adauga randuri in varful aceleiasi sectiuni)");
+});
