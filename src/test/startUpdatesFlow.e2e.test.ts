@@ -265,6 +265,14 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
     PENDING_DISCOUNT_GRACE_CYCLES: 1,
     PENDING_DISCOUNTS_LIMIT: 10,
     MAX_DEALS_PER_CYCLE: 5,
+    env: {
+      NOTIFICATION_OUTBOX_ENABLED: false,
+      NOTIFICATION_OUTBOX_DRAIN_LIMIT: 50,
+      NOTIFICATION_OUTBOX_MAX_AGE_MS: 6 * 24 * 3600_000,
+      NOTIFICATION_OUTBOX_RECOVERY_VERIFY: false,
+      NOTIFICATION_OUTBOX_RECOVERY_STRICT: false,
+      NOTIFICATION_OUTBOX_RECOVERY_HISTORY_LIMIT: 25
+    },
     getGuildSettings: async () => ({ enabledGames: [] }),
     invalidateGuildCache: () => undefined,
     makeActivationId: () => "activation-1",
