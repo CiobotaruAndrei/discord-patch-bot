@@ -52,6 +52,7 @@ interface OutboxDrainResult {
   recoveryMarkerMissing?: number;
   markSentFailures?: number;
   deleteFailures?: number;
+  deadLetterFailures?: number;
   recoveryVerifyEnabledGuilds?: number;
 }
 
@@ -142,6 +143,11 @@ function createOutboxWorker({
       adminAlert("outbox:delete",
         "Stergerea job-urilor outbox dupa procesare esueaza",
         "Job-uri procesate nu s-au putut sterge din coada; raman deduse/reluate, dar verifica disponibilitatea Mongo.").catch(() => undefined);
+    }
+    if ((r.deadLetterFailures ?? 0) > 0) {
+      adminAlert("outbox:deadletter-write",
+        "Scrierea auditului dead-letter la expirare esueaza",
+        "Job-uri expirate NU au fost sterse fiindca auditul dead-letter a esuat (payload-ul de replay e pastrat); raman in coada pana se reia auditul. Verifica disponibilitatea Mongo / colectia de dead-letter.").catch(() => undefined);
     }
   }
 
