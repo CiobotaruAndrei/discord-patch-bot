@@ -60,6 +60,33 @@ test("createSlashCommandDefinitions accepta builder-ul discord.js REAL fara cast
   assert.ok(names.includes("ping") && names.includes("start"), "factory-ul produce definitii reale cu builder-ul discord.js, fara as unknown as");
 });
 
+test("comenzile administrative (inclusiv /health) cer Administrator; cele publice raman deschise", () => {
+  const { SlashCommandBuilder, PermissionsBitField, Routes, REST } = require("discord.js") as typeof import("discord.js");
+  const defs = attachSlashCommands.createSlashCommandDefinitions({
+    SlashCommandBuilder,
+    PermissionsBitField,
+    Routes,
+    REST,
+    SUPPORTED_CURRENCIES: TEST_CURRENCIES,
+    logger: () => undefined
+  });
+  const adminFlag = PermissionsBitField.Flags.Administrator.toString();
+  const byName = new Map<string, string | null | undefined>();
+  for (const d of defs.buildSlashCommandDefinitions()) {
+    const json = d as { name?: string; default_member_permissions?: string | null };
+    byName.set(String(json.name || ""), json.default_member_permissions);
+  }
+  for (const adminCmd of ["start", "stop", "set", "health"]) {
+    assert.equal(byName.get(adminCmd), adminFlag, `/${adminCmd} trebuie sa fie restrictionat la Administrator`);
+  }
+  for (const publicCmd of ["ping", "games", "help", "report"]) {
+    assert.ok(
+      byName.get(publicCmd) === null || byName.get(publicCmd) === undefined,
+      `/${publicCmd} trebuie sa ramana public (fara default_member_permissions)`
+    );
+  }
+});
+
 test("registerSlashCommands defaults to global registration when DISCORD_DEV_GUILD_ID is unset", async () => {
   const { context, calls, logs } = makeContext();
   attachSlashCommands(context);

@@ -7,7 +7,7 @@ const { createSchedulers } = require("../app/appRuntime") as {
 
 interface OutboxWorkerOpts { isPaused: () => Promise<boolean> }
 
-function buildDeps(getOutboxPaused: unknown) {
+function buildDeps(getOutboxPaused: unknown, outboxEnabled = false) {
   let capturedIsPaused: (() => Promise<boolean>) | undefined;
   const deps = {
     mongoose: {}, performance: { now: () => 0 }, crypto: {},
@@ -16,7 +16,7 @@ function buildDeps(getOutboxPaused: unknown) {
     errorMessage: (e: unknown) => String(e), errorDetail: (e: unknown) => String(e),
     commands: { drainOutbox: async () => ({}) },
     mongo: {
-      logger: () => { }, env: { PORT: 3000 }, parseEnvNumber: (_n: string, d: number) => d,
+      logger: () => { }, env: { PORT: 3000, NOTIFICATION_OUTBOX_ENABLED: outboxEnabled }, parseEnvNumber: (_n: string, d: number) => d,
       acquireDbLock: async () => "token", renewDbLock: async () => true, releaseDbLock: async () => { },
       adminAlert: async () => { }, requestContext: {}, getOutboxPaused
     }
@@ -25,20 +25,20 @@ function buildDeps(getOutboxPaused: unknown) {
   return { deps, services, getCaptured: () => capturedIsPaused };
 }
 
-test("createSchedulers cu outbox activ: isPaused e cablat din getOutboxPaused si nu crapa", async () => {
-  const prev = process.env.NOTIFICATION_OUTBOX_ENABLED;
-  process.env.NOTIFICATION_OUTBOX_ENABLED = "true";
-  try {
-    const { deps, services, getCaptured } = buildDeps(async () => true);
-    const schedulers = createSchedulers(deps, services);
-    assert.equal(schedulers.outboxEnabled, true, "NOTIFICATION_OUTBOX_ENABLED=true -> outboxEnabled");
-    const isPaused = getCaptured();
-    assert.equal(typeof isPaused, "function", "isPaused este cablat in worker");
-    const result = await isPaused!();
-    assert.equal(result, true, "isPaused deleaga corect la getOutboxPaused (nu crapa)");
-  } finally {
-    if (prev === undefined) delete process.env.NOTIFICATION_OUTBOX_ENABLED; else process.env.NOTIFICATION_OUTBOX_ENABLED = prev;
-  }
+test("createSchedulers cu outbox activ (flag injectat in env): isPaused e cablat din getOutboxPaused si nu crapa", async () => {
+  const { deps, services, getCaptured } = buildDeps(async () => true, true);
+  const schedulers = createSchedulers(deps, services);
+  assert.equal(schedulers.outboxEnabled, true, "env.NOTIFICATION_OUTBOX_ENABLED=true -> outboxEnabled (citit din env injectat, nu din process.env)");
+  const isPaused = getCaptured();
+  assert.equal(typeof isPaused, "function", "isPaused este cablat in worker");
+  const result = await isPaused!();
+  assert.equal(result, true, "isPaused deleaga corect la getOutboxPaused (nu crapa)");
+});
+
+test("createSchedulers cu outbox dezactivat (flag absent in env): outboxEnabled e false", () => {
+  const { deps, services } = buildDeps(async () => false);
+  const schedulers = createSchedulers(deps, services);
+  assert.equal(schedulers.outboxEnabled, false, "fara flag in env -> outboxEnabled false");
 });
 
 test("createSchedulers: fara getOutboxPaused in mongo, isPaused() arunca (clasa de bug P0.1 — dep lipsa in main.ts)", async () => {
