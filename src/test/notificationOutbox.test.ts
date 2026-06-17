@@ -173,6 +173,52 @@ test("drainOutbox: sweep-ul TTL scrie audit dead-letter inainte de a sterge jobu
   assert.equal(deadLetters.length, 1, "exact un audit dead-letter scris");
 });
 
+test("drainOutbox: sweep-ul TTL NU sterge jobul daca auditul dead-letter esueaza (nu pierde payload-ul de replay, review R5 #2)", async () => {
+  const staleJob: OutboxJob = { _id: "old3", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, createdAt: new Date(0) };
+  const fake = makeFakeModel([staleJob]);
+  const sweepModel: OutboxModelMock = { ...fake.model, findOneAndUpdate: async () => null };
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: sweepModel,
+    NotificationOutboxSentModel: fake.sentModel,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: true }),
+    recordDeadLetter: async () => { throw new Error("colectia dead-letter cazuta"); },
+    maxAttempts: 5, backoffMs: 1000, limit: 5, maxAgeMs: 1000
+  });
+  assert.equal(fake.deleted.length, 0, "auditul esuat -> NU se incearca stergerea (jobul ramane in coada)");
+  assert.equal(result.deadLetterFailures, 1, "esecul auditului dead-letter e contorizat");
+  assert.equal(result.expired, 0, "jobul nu e numarat ca expirat fiindca nu a fost sters");
+  assert.equal(result.deleteFailures, 0, "nicio stergere incercata -> zero deleteFailures");
+});
+
+test("drainOutbox: expirarea in bucla principala NU sterge jobul daca auditul dead-letter esueaza (review R5 #2)", async () => {
+  const staleJob: OutboxJob = { _id: "old4", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, createdAt: new Date(0) };
+  const fake = makeFakeModel([staleJob]);
+  let claimed = false;
+  const loopModel: OutboxModelMock = {
+    ...fake.model,
+    findOneAndUpdate: async () => { if (claimed) return null; claimed = true; return staleJob; },
+    find: () => ({ sort: () => ({ limit: () => ({ lean: async () => [] as OutboxJob[] }) }) })
+  };
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: loopModel,
+    NotificationOutboxSentModel: fake.sentModel,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: true }),
+    recordDeadLetter: async () => { throw new Error("dead-letter cazut"); },
+    maxAttempts: 5, backoffMs: 1000, limit: 5, maxAgeMs: 1000
+  });
+  assert.equal(fake.deleted.length, 0, "expirare in bucla cu audit esuat -> jobul NU e sters");
+  assert.equal(result.deadLetterFailures, 1, "esecul auditului dead-letter e contorizat si in bucla principala");
+  assert.equal(result.expired, 0, "fara stergere, jobul nu e numarat ca expirat");
+});
+
 test("applyDedupeMarker: adauga un marker dedupeKey in footer-ul ultimului embed (idempotent)", () => {
   const payload = { embeds: [{ title: "A" }, { title: "B", footer: { text: "deal" } }] };
   const dedupeKey = "abcdef0123456789ffff";
