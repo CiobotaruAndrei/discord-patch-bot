@@ -25,6 +25,7 @@ interface UpdateManyCall {
 
 interface FakeMigrationOverrides {
   acquireDbLock?: () => Promise<string | null>;
+  initialMigrationState?: MigrationStateDoc | null;
 }
 
 type MigrationContext = Parameters<typeof attachMigrations>[0];
@@ -49,7 +50,7 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
     seenDiscounts: Array.from({ length: 520 }, (_, index) => `deal-${index}`),
     seen: { cs2: ["u-1", "u-2"], dota: ["u-3"] }
   }];
-  let migrationState: MigrationStateDoc | null = null;
+  let migrationState: MigrationStateDoc | null = overrides.initialMigrationState ?? null;
 
   const guildCollection = {
     async updateMany(filter: unknown, update: unknown) {
@@ -187,13 +188,42 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
   assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#7")));
 });
 
-test("Mongo migrations skip safely when another instance holds the lock", async () => {
-  const fixture = createFakeMigrationContext({ acquireDbLock: async () => null });
+test("alta instanta tine lock-ul dar schema e deja sincronizata -> asteapta, continua boot-ul fara throw", async () => {
+  const fixture = createFakeMigrationContext({
+    acquireDbLock: async () => null,
+    initialMigrationState: { _id: "migrationState", lastApplied: 7 }
+  });
+  let slept = 0;
 
-  const result = await fixture.context.runMigrations(() => null);
+  const result = await fixture.context.runMigrations(() => null, {
+    sleep: async () => { slept++; },
+    waitTimeoutMs: 10_000,
+    pollIntervalMs: 100
+  });
 
   assert.deepEqual(result.applied, []);
   assert.equal(result.skipped, fixture.context.ALL_MIGRATIONS.length);
+  assert.equal(result.waited, true, "marcheaza ca a asteptat sincronizarea altei instante");
+  assert.equal(slept, 0, "schema deja la zi (lastApplied=7) -> intoarce la prima verificare, fara sa doarma");
+  assert.equal(fixture.releaseCalls.length, 0, "nu a tinut niciun lock");
+});
+
+test("alta instanta tine lock-ul si nu termina in timeout -> fail-fast (throw)", async () => {
+  const fixture = createFakeMigrationContext({
+    acquireDbLock: async () => null,
+    initialMigrationState: { _id: "migrationState", lastApplied: 3 }
+  });
+  let clock = 0;
+
+  await assert.rejects(
+    fixture.context.runMigrations(() => null, {
+      now: () => clock,
+      sleep: async (ms: number) => { clock += ms; },
+      waitTimeoutMs: 1_000,
+      pollIntervalMs: 100
+    }),
+    /Timeout.*migrarile.*lastApplied=3 < 7.*fail-fast/s,
+    "schema ramane sub target (3 < 7) pana la timeout -> arunca pentru ca boot-ul sa se opreasca"
+  );
   assert.equal(fixture.releaseCalls.length, 0);
-  assert.equal(fixture.migrationState, null);
 });
