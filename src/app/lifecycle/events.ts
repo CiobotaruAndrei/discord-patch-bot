@@ -64,6 +64,26 @@ interface RegisterMongoEventsDeps {
   errorMessage: ErrorFormatter;
 }
 
+const EPHEMERAL_MESSAGE_FLAG = 64;
+
+interface RepliableInteractionLike {
+  isRepliable?: () => boolean;
+  deferred?: boolean;
+  replied?: boolean;
+  reply?: (payload: unknown) => Promise<unknown>;
+  followUp?: (payload: unknown) => Promise<unknown>;
+}
+
+async function replyInteractionError(interaction: unknown): Promise<void> {
+  const inter = interaction as RepliableInteractionLike;
+  if (typeof inter?.isRepliable !== "function" || !inter.isRepliable()) return;
+  const payload = { content: "A aparut o eroare la procesarea comenzii. Incearca din nou mai tarziu.", flags: EPHEMERAL_MESSAGE_FLAG };
+  const send = (inter.deferred || inter.replied) && typeof inter.followUp === "function"
+    ? inter.followUp(payload)
+    : (typeof inter.reply === "function" ? inter.reply(payload) : Promise.resolve(undefined));
+  await Promise.resolve(send).catch(() => null);
+}
+
 function registerDiscordEvents({
   client, logger, commands, env, adminAlert, requestContext,
   games, crypto, errorMessage, errorDetail, startHousekeeping, scheduleNextCron, startOutboxWorker
@@ -100,7 +120,6 @@ function registerDiscordEvents({
   });
 
   client.on("interactionCreate", async (interaction) => {
-
     try {
       const reqId = crypto.randomBytes(6).toString("hex");
       await requestContext.run({ requestId: reqId }, async () => {
@@ -108,6 +127,7 @@ function registerDiscordEvents({
       });
     } catch (err) {
       logger("ERROR", "INTERACTION", "Eroare top-level la interactionCreate", errorDetail(err));
+      await replyInteractionError(interaction);
     }
   });
 

@@ -25,6 +25,13 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Gestioneaza lock distribuit, heartbeat, health window si abort.
 - Nu trebuie sa contina logica de scraping sau de formatat embed-uri.
 
+### `src/app/lifecycle/events.ts`
+
+- `registerDiscordEvents` cableaza handler-ele de client Discord (`ready`, `interactionCreate`, `guildCreate`, `error`/`warn`/`shardError`) prin dependency injection, fara import direct de `discord.js` (pentru testabilitate).
+- Pe `ready` inregistreaza slash commands si porneste housekeeping/cron/outbox worker, fiecare cu try/catch + admin alert dedicat.
+- `interactionCreate` ruleaza `commands.handleInteraction` intr-un `requestContext`; catch-ul top-level logheaza eroarea si apoi `replyInteractionError` trimite best-effort un raspuns ephemeral generic catre user (sare peste autocomplete/non-repliable, `followUp` pe interactiuni `deferred`/`replied`, altfel `reply`; esecul raspunsului e inghitit).
+- `registerMongoEvents` cableaza log-urile de conexiune Mongo.
+
 ## Config si shared
 
 ### `src/shared/env.ts`
