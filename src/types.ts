@@ -114,7 +114,6 @@ export interface RuntimeEnv {
   HTTP_RATE_LIMIT_REQ: number;
   HTTP_RATE_LIMIT_WINDOW_MS: number;
   isProd: boolean;
-  [key: string]: string | number | boolean | undefined;
 }
 
 export interface GameSourceFallback {
