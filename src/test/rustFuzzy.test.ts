@@ -18,6 +18,7 @@ const {
   normalizeTitleForDedupe,
   rankListingCandidates,
   rankListingCandidatesFallback,
+  reorderByValidPermutation,
   scoreListingCandidate,
   stableUpdateId
 } = require("../native/fuzzy");
@@ -277,6 +278,26 @@ test("Rust deal hashes preserve stable Steam, Epic and listing keys", () => {
     normalPrice: "15.00",
     savings: "50"
   }), "565fa75d8132e46c5763d5d933f6cf9c0d52c349a5d03ccf3d85a554deeb5916");
+});
+
+test("reorderByValidPermutation: reordoneaza dupa o permutare valida", () => {
+  assert.deepEqual(reorderByValidPermutation(["a", "b", "c"], [2, 0, 1]), ["c", "a", "b"]);
+  assert.deepEqual(reorderByValidPermutation(["a", "b", "c"], [0, 1, 2]), ["a", "b", "c"]);
+});
+
+test("reorderByValidPermutation: respinge indicii invalizi (out-of-range / NaN / duplicat / lungime gresita)", () => {
+  assert.equal(reorderByValidPermutation(["a", "b", "c"], [0, 1, 3]), null, "index in afara range-ului");
+  assert.equal(reorderByValidPermutation(["a", "b", "c"], [0, 1, -1]), null, "index negativ");
+  assert.equal(reorderByValidPermutation(["a", "b", "c"], [0, 1, NaN]), null, "NaN");
+  assert.equal(reorderByValidPermutation(["a", "b", "c"], [0, 0, 1]), null, "index duplicat");
+  assert.equal(reorderByValidPermutation(["a", "b", "c"], [1.5, 0, 2]), null, "index non-intreg");
+  assert.equal(reorderByValidPermutation(["a", "b", "c"], [0, 1]), null, "lungime diferita");
+});
+
+test("rankListingCandidates: nu introduce undefined cand ordonarea (nativa) ar fi invalida - cade pe fallback corect", () => {
+  const ranked = rankListingCandidates(LISTING_SAMPLE, ["intro"]);
+  assert.equal(ranked.length, LISTING_SAMPLE.length, "lungime pastrata");
+  assert.ok(ranked.every((c: unknown) => c !== undefined), "niciun element undefined in rezultat");
 });
 
 export {};

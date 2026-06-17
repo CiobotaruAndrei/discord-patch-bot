@@ -527,6 +527,19 @@ export function rankListingCandidatesFallback<T extends RankableListingCandidate
   return scored.map(entry => entry.candidate);
 }
 
+export function reorderByValidPermutation<T>(items: T[], order: unknown[]): T[] | null {
+  if (order.length !== items.length) return null;
+  const seen = new Set<number>();
+  const result: T[] = [];
+  for (const raw of order) {
+    const index = Number(raw);
+    if (!Number.isInteger(index) || index < 0 || index >= items.length || seen.has(index)) return null;
+    seen.add(index);
+    result.push(items[index]);
+  }
+  return result;
+}
+
 export function rankListingCandidates<T extends RankableListingCandidate>(candidates: T[], keywords: string[]): T[] {
   if (!Array.isArray(candidates) || candidates.length === 0) return Array.isArray(candidates) ? candidates : [];
   const native = loadNativeFuzzy();
@@ -541,7 +554,9 @@ export function rankListingCandidates<T extends RankableListingCandidate>(candid
         }));
         const order = fn.call(native, payload, Array.isArray(keywords) ? keywords.map(k => String(k)) : []);
         if (Array.isArray(order) && order.length === candidates.length) {
-          return order.map(index => candidates[Number(index)]);
+          const ranked = reorderByValidPermutation(candidates, order);
+          if (ranked) return ranked;
+          recordNativeFallback("rankListingCandidates", new Error("ordonare nativa invalida (index out-of-range / NaN / duplicat)"));
         }
       } catch (err) { recordNativeFallback("rankListingCandidates", err); }
     }
