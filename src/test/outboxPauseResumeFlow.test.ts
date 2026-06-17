@@ -87,23 +87,17 @@ test("P2.3: NOTIFICATION_OUTBOX_ENABLED=true -> scheduler activeaza worker-ul si
     errorMessage: (e: unknown) => String(e), errorDetail: (e: unknown) => String(e),
     commands: { drainOutbox: async () => ({}) },
     mongo: {
-      logger: () => { }, env: { PORT: 3000 }, parseEnvNumber: (_n: string, d: number) => d,
+      logger: () => { }, env: { PORT: 3000, NOTIFICATION_OUTBOX_ENABLED: true }, parseEnvNumber: (_n: string, d: number) => d,
       acquireDbLock: async () => "token", renewDbLock: async () => true, releaseDbLock: async () => { },
       adminAlert: async () => { }, requestContext: {}, getOutboxPaused
     }
   };
   const services = { client: {}, metrics: {}, lifecycle: { isShuttingDown: false }, config: {}, games: [] };
 
-  const prev = process.env.NOTIFICATION_OUTBOX_ENABLED;
-  process.env.NOTIFICATION_OUTBOX_ENABLED = "true";
-  try {
-    const schedulers = createSchedulers(deps, services);
-    assert.equal(schedulers.outboxEnabled, true, "flag-ul activeaza outbox-ul");
-    assert.equal(typeof capturedIsPaused, "function", "isPaused cablat in worker");
-    assert.equal(await capturedIsPaused!(), false, "initial nu e pe pauza");
-    await setOutboxPaused(true);
-    assert.equal(await capturedIsPaused!(), true, "isPaused reflecta /outbox pause prin getOutboxPaused-ul real");
-  } finally {
-    if (prev === undefined) delete process.env.NOTIFICATION_OUTBOX_ENABLED; else process.env.NOTIFICATION_OUTBOX_ENABLED = prev;
-  }
+  const schedulers = createSchedulers(deps, services);
+  assert.equal(schedulers.outboxEnabled, true, "flag-ul (injectat in env) activeaza outbox-ul");
+  assert.equal(typeof capturedIsPaused, "function", "isPaused cablat in worker");
+  assert.equal(await capturedIsPaused!(), false, "initial nu e pe pauza");
+  await setOutboxPaused(true);
+  assert.equal(await capturedIsPaused!(), true, "isPaused reflecta /outbox pause prin getOutboxPaused-ul real");
 });
