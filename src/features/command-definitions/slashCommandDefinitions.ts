@@ -151,6 +151,7 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
       new SlashCommandBuilder()
         .setName("health")
         .setDescription("Starea botului: Discord, MongoDB, cache, uptime")
+        .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
     ].map(command => command.toJSON());
   }
 
