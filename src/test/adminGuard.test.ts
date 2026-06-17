@@ -97,3 +97,16 @@ test("admin command guard delegates protected commands for admins", async () => 
 
   assert.equal(result, "cs2");
 });
+
+test("/health este protejat runtime (defense-in-depth peste setDefaultMemberPermissions), iar comenzile publice nu", () => {
+  for (const cmd of ["start", "stop", "set", "outbox", "health"]) {
+    const { interaction } = makeInteraction(false);
+    interaction.commandName = cmd;
+    assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), true, `/${cmd} trebuie sa treaca prin guard-ul de admin runtime`);
+  }
+  for (const cmd of ["ping", "games", "help", "report", "history", "latest"]) {
+    const { interaction } = makeInteraction(false);
+    interaction.commandName = cmd;
+    assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), false, `/${cmd} ramane public (fara guard de admin)`);
+  }
+});
