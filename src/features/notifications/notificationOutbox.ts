@@ -235,12 +235,12 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       }
     };
 
-    const recordExpiryDeadLetter = async (job: OutboxJob): Promise<boolean> => {
-      const recorded = await options.recordDeadLetter(job, "expired-near-ttl").then(() => true).catch(() => false);
+    const recordDeadLetterOrKeep = async (job: OutboxJob, reason: string): Promise<boolean> => {
+      const recorded = await options.recordDeadLetter(job, reason).then(() => true).catch(() => false);
       if (!recorded) {
         deadLetterFailures++;
         logger("WARN", "OUTBOX",
-          `Audit-ul dead-letter (expirare TTL) pentru jobul ${String(job._id)} a esuat; NU sterg jobul (ramane in coada, reluat la urmatorul ciclu) ca sa nu pierd payload-ul de replay`);
+          `Audit-ul dead-letter (${reason}) pentru jobul ${String(job._id)} a esuat; NU sterg jobul (ramane in coada, reluat la urmatorul ciclu) ca sa nu pierd payload-ul de replay`);
       }
       return recorded;
     };
@@ -256,7 +256,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       }
 
       if (maxAgeMs > 0 && job.createdAt && new Date(job.createdAt).getTime() <= nowFn().getTime() - maxAgeMs) {
-        if (!(await recordExpiryDeadLetter(job))) continue;
+        if (!(await recordDeadLetterOrKeep(job, "expired-near-ttl"))) continue;
         await deleteJob(job._id);
         expired++;
         continue;
@@ -296,7 +296,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       if (result.recoveryFailed) recoveryFailures++;
       const attempts = (job.attempts || 0) + 1;
       if (result.permanent || attempts >= options.maxAttempts) {
-        await options.recordDeadLetter(job, result.permanent ? "permanent" : "max-attempts").catch(() => undefined);
+        if (!(await recordDeadLetterOrKeep(job, result.permanent ? "permanent" : "max-attempts"))) continue;
         await deleteJob(job._id);
         deadLettered++;
         continue;
@@ -317,7 +317,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       const leaseFree = { $or: [{ lockedUntil: null }, { lockedUntil: { $lte: sweepNow } }] };
       const staleJobs = await NotificationOutboxModel.find({ createdAt: { $lte: cutoff }, ...leaseFree }).sort({ createdAt: 1 }).limit(options.limit).lean().catch(() => [] as OutboxJob[]);
       for (const job of (Array.isArray(staleJobs) ? staleJobs : [])) {
-        if (!(await recordExpiryDeadLetter(job))) continue;
+        if (!(await recordDeadLetterOrKeep(job, "expired-near-ttl"))) continue;
         let del: unknown;
         try {
           del = await NotificationOutboxModel.deleteOne({ _id: job._id, ...leaseFree });

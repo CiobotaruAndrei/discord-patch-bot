@@ -219,6 +219,46 @@ test("drainOutbox: expirarea in bucla principala NU sterge jobul daca auditul de
   assert.equal(result.expired, 0, "fara stergere, jobul nu e numarat ca expirat");
 });
 
+test("drainOutbox: livrare permanent-esuata NU sterge jobul daca auditul dead-letter esueaza (review R6 #1)", async () => {
+  const job: OutboxJob = { _id: "perm1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0 };
+  const fake = makeFakeModel([job]);
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: fake.model,
+    NotificationOutboxSentModel: fake.sentModel,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: false, permanent: true }),
+    recordDeadLetter: async () => { throw new Error("colectia dead-letter cazuta"); },
+    maxAttempts: 5, backoffMs: 1000, limit: 5, maxAgeMs: 0
+  });
+  assert.equal(fake.deleted.length, 0, "audit esuat -> jobul terminal NU e sters (payload de replay pastrat)");
+  assert.equal(result.deadLetterFailures, 1, "esecul auditului dead-letter e contorizat si pe calea permanent/max-attempts");
+  assert.equal(result.deadLettered, 0, "jobul nu e numarat ca dead-lettered fiindca nu a fost finalizat/sters");
+});
+
+test("drainOutbox: livrare permanent-esuata cu audit reusit sterge jobul si il numara dead-lettered (happy path)", async () => {
+  const job: OutboxJob = { _id: "perm2", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0 };
+  const fake = makeFakeModel([job]);
+  const deadLetters: string[] = [];
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: fake.model,
+    NotificationOutboxSentModel: fake.sentModel,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: false, permanent: true }),
+    recordDeadLetter: async (_job, reason) => { deadLetters.push(reason); },
+    maxAttempts: 5, backoffMs: 1000, limit: 5, maxAgeMs: 0
+  });
+  assert.equal(result.deadLettered, 1, "audit reusit -> jobul terminal e finalizat in dead-letter");
+  assert.equal(fake.deleted.length, 1, "jobul e sters dupa auditul reusit");
+  assert.equal(result.deadLetterFailures, 0, "fara esec de audit");
+  assert.deepEqual(deadLetters, ["permanent"]);
+});
+
 test("applyDedupeMarker: adauga un marker dedupeKey in footer-ul ultimului embed (idempotent)", () => {
   const payload = { embeds: [{ title: "A" }, { title: "B", footer: { text: "deal" } }] };
   const dedupeKey = "abcdef0123456789ffff";

@@ -11,8 +11,9 @@ Pe scurt, instrumentele de operare:
 - Alerte admin (webhook): trimise automat la `recoveryFailures > 0` (`outbox:recovery-read`),
   `markSentFailures > 0` (`outbox:mark-sent`), `deleteFailures > 0` (`outbox:delete` — job-uri
   procesate care nu s-au putut sterge din coada; raman deduse/reluate) si `deadLetterFailures > 0`
-  (`outbox:deadletter-write` — auditul dead-letter la expirare a esuat, deci job-urile **NU** au fost
-  sterse, ca payload-ul de replay sa nu se piarda; raman in coada pana se reia auditul). Fiecare alerta vine ca embed structurat cu
+  (`outbox:deadletter-write` — auditul dead-letter a esuat pe o cale terminala (expirare sau esec
+  `permanent`/`max-attempts`), deci job-urile **NU** au fost sterse, ca payload-ul de replay sa nu se
+  piarda; raman in coada pana se reia auditul). Fiecare alerta vine ca embed structurat cu
   **severitate** (FATAL/WARNING/INFO + culoare), **Cauza** (eroarea reala), **Ce inseamna** si
   **Ce trebuie facut** (remediere per tip de alerta) — maparea kind -> ghidaj e in
   `src/infra/mongo/adminAlertContent.ts`.
