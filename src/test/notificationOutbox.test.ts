@@ -259,6 +259,45 @@ test("drainOutbox: livrare permanent-esuata cu audit reusit sterge jobul si il n
   assert.deepEqual(deadLetters, ["permanent"]);
 });
 
+test("drainOutbox: livrare la max-attempts NU sterge jobul daca auditul dead-letter esueaza (review R7 #3)", async () => {
+  const job: OutboxJob = { _id: "maxa1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 4 };
+  const fake = makeFakeModel([job]);
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: fake.model,
+    NotificationOutboxSentModel: fake.sentModel,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: false, permanent: false }),
+    recordDeadLetter: async () => { throw new Error("colectia dead-letter cazuta"); },
+    maxAttempts: 5, backoffMs: 1000, limit: 5, maxAgeMs: 0
+  });
+  assert.equal(fake.deleted.length, 0, "esec tranzitoriu la attempts>=maxAttempts cu audit esuat -> jobul NU e sters");
+  assert.equal(result.deadLetterFailures, 1, "esecul auditului dead-letter e contorizat si pe calea max-attempts");
+  assert.equal(result.deadLettered, 0, "jobul nu e numarat ca dead-lettered fiindca nu a fost finalizat/sters");
+});
+
+test("drainOutbox: livrare la max-attempts cu audit reusit sterge jobul cu motivul max-attempts (happy path)", async () => {
+  const job: OutboxJob = { _id: "maxa2", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 4 };
+  const fake = makeFakeModel([job]);
+  const deadLetters: string[] = [];
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: fake.model,
+    NotificationOutboxSentModel: fake.sentModel,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: false, permanent: false }),
+    recordDeadLetter: async (_job, reason) => { deadLetters.push(reason); },
+    maxAttempts: 5, backoffMs: 1000, limit: 5, maxAgeMs: 0
+  });
+  assert.equal(result.deadLettered, 1, "attempts>=maxAttempts cu audit reusit -> dead-letter finalizat");
+  assert.equal(fake.deleted.length, 1, "jobul e sters dupa auditul reusit");
+  assert.deepEqual(deadLetters, ["max-attempts"], "motivul de audit e max-attempts, nu permanent");
+});
+
 test("applyDedupeMarker: adauga un marker dedupeKey in footer-ul ultimului embed (idempotent)", () => {
   const payload = { embeds: [{ title: "A" }, { title: "B", footer: { text: "deal" } }] };
   const dedupeKey = "abcdef0123456789ffff";
