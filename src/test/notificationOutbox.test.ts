@@ -149,7 +149,28 @@ test("drainOutbox: sweep-ul TTL care nu poate sterge job-ul numara deleteFailure
   });
   assert.equal(result.deleteFailures, 1, "stergerea esuata din sweep-ul TTL e contorizata in deleteFailures");
   assert.equal(result.expired, 0, "fara o stergere reusita jobul nu e numarat ca expirat");
-  assert.equal(deadLetters.length, 0, "nu se scrie audit dead-letter daca stergerea a esuat");
+  assert.equal(deadLetters.length, 1, "audit-ul dead-letter e scris INAINTE de delete, deci o stergere esuata nu pierde audit-ul/replay payload-ul (review manual #3)");
+  assert.equal(deadLetters[0], "expired-near-ttl", "motivul de audit e expired-near-ttl");
+});
+
+test("drainOutbox: sweep-ul TTL scrie audit dead-letter inainte de a sterge jobul vechi (happy path)", async () => {
+  const staleJob: OutboxJob = { _id: "old2", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, createdAt: new Date(0) };
+  const fake = makeFakeModel([staleJob]);
+  const sweepModel: OutboxModelMock = { ...fake.model, findOneAndUpdate: async () => null };
+  const deadLetters: string[] = [];
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: sweepModel,
+    NotificationOutboxSentModel: fake.sentModel,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: true }),
+    recordDeadLetter: async (_job, reason) => { deadLetters.push(reason); },
+    maxAttempts: 5, backoffMs: 1000, limit: 5, maxAgeMs: 1000
+  });
+  assert.equal(result.expired, 1, "jobul vechi e numarat ca expirat dupa stergere");
+  assert.equal(deadLetters.length, 1, "exact un audit dead-letter scris");
 });
 
 test("applyDedupeMarker: adauga un marker dedupeKey in footer-ul ultimului embed (idempotent)", () => {
