@@ -145,6 +145,39 @@ adaugarea lor (parsate cu `parseBooleanEnv`) in `RuntimeEnv`, ca `NOTIFICATION_O
 TypeScript ramane alegerea corecta; orice candidat nou de Rust trece intai prin `npm run benchmark:cpu`
 si prin decizia documentata in `BENCHMARKS.md` (politica existenta, reconfirmata in review #11.5).
 
+**Re-confirmare (review manual R4 #5).** Un review ulterior a semnalat din nou cablarea dinamica a
+registrului de comenzi (`commandRegistry`) ca zona de redus. Evaluarea de mai sus ramane valida:
+tipizarea directa a compunerii e respinsa cu proba tsc (supratipul comun colapseaza in `never`/`any`),
+iar pasul corect e DI per handler — nu o re-tipare a registrului progresiv. Niciun cod nou; problema
+e deja urmarita aici.
+
+## Partitionarea `buildOptimizedGameList` (filtered vs unfiltered) la scara mare
+
+**Starea curenta.** `updateNotificationService.buildOptimizedGameList(allGames, subscribedGuilds)` reduce,
+la fiecare ciclu de cron, lista de jocuri fetch-uite la **uniunea** `enabledGames`-urilor tuturor guild-urilor
+abonate. Daca **vreun** guild nu are filtru (`enabledGames` gol = „toate jocurile"), functia face early-exit
+si intoarce `allGames` — deci un singur guild nefiltrat forteaza fetch-ul intregii liste. Calculul e O(guild-uri ×
+marime-filtru) per ciclu, iar la volumul curent (putine guild-uri, putine jocuri) costul e neglijabil fata de
+fetch-ul real (I/O-bound) si de rate-limit-ul Discord.
+
+**Ce s-ar schimba.** La scara mare (multe guild-uri cu filtre diverse) s-ar separa **doua liste precomputate**:
+(1) setul „unfiltered" (jocurile cerute de cel putin un guild fara filtru — mereu fetch-uite) si (2) setul
+„filtered-only" (jocuri cerute doar de guild-uri cu filtru), recalculate doar cand se schimba configul de guild
+(pe `guildCreate`/`/set games`/`/start`/`/stop`), nu la fiecare ciclu. Astfel un guild nefiltrat nu mai anuleaza
+optimizarea pentru restul, iar uniunea nu se mai reconstruieste din zero per ciclu.
+
+**Praguri de declansare (masurate, NU implementate acum).** Implementeaza partitionarea daca **oricare**:
+
+- numarul de guild-uri abonate **> ~2.000** **si** o fractiune semnificativa (> 50%) au filtre `enabledGames`
+  ne-goale (altfel early-exit-ul „un guild nefiltrat -> toate jocurile" domina si partitionarea nu ajuta); **sau**
+- durata medie a unui ciclu de cron creste sustinut **si** profiling-ul arata `buildOptimizedGameList` /
+  re-filtrarea per-guild ca o fractiune masurabila a ciclului (azi e zgomot fata de fetch + send).
+
+Sub aceste praguri, recalcularea per-ciclu ramane alegerea corecta (mai simpla, fara stare derivata de
+invalidat la fiecare schimbare de config). Constrangeri de pastrat la implementare: rezultatul per-guild
+trebuie sa ramana identic (fiecare guild vede exact jocurile lui), iar invalidarea listelor precomputate la
+schimbarea configului trebuie sa fie atomica (un `/set games` nu trebuie sa lase o lista derivata invechita).
+
 ## CPU hot-paths in Rust
 
 Deja evaluat si **decis**: hot-path-urile CPU cu castig masurat (`levenshtein` ~1.9x,
