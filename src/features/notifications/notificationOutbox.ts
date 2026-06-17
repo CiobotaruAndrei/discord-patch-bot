@@ -124,6 +124,7 @@ export interface DrainOutboxResult {
   recoveryMarkerMissing: number;
   markSentFailures: number;
   deleteFailures: number;
+  deadLetterFailures: number;
 }
 
 export interface OutboxRuntime {
@@ -218,6 +219,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     let deliverErrors = 0;
     let expired = 0;
     let deleteFailures = 0;
+    let deadLetterFailures = 0;
     const maxAgeMs = options.maxAgeMs ?? 0;
 
     const deleteJob = async (id: unknown): Promise<boolean> => {
@@ -233,6 +235,16 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       }
     };
 
+    const recordExpiryDeadLetter = async (job: OutboxJob): Promise<boolean> => {
+      const recorded = await options.recordDeadLetter(job, "expired-near-ttl").then(() => true).catch(() => false);
+      if (!recorded) {
+        deadLetterFailures++;
+        logger("WARN", "OUTBOX",
+          `Audit-ul dead-letter (expirare TTL) pentru jobul ${String(job._id)} a esuat; NU sterg jobul (ramane in coada, reluat la urmatorul ciclu) ca sa nu pierd payload-ul de replay`);
+      }
+      return recorded;
+    };
+
     for (let i = 0; i < options.limit; i++) {
       const job = await claimNextJob(nowFn(), leaseMs, workerId);
       if (!job) break;
@@ -244,7 +256,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       }
 
       if (maxAgeMs > 0 && job.createdAt && new Date(job.createdAt).getTime() <= nowFn().getTime() - maxAgeMs) {
-        await options.recordDeadLetter(job, "expired-near-ttl").catch(() => undefined);
+        if (!(await recordExpiryDeadLetter(job))) continue;
         await deleteJob(job._id);
         expired++;
         continue;
@@ -305,7 +317,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       const leaseFree = { $or: [{ lockedUntil: null }, { lockedUntil: { $lte: sweepNow } }] };
       const staleJobs = await NotificationOutboxModel.find({ createdAt: { $lte: cutoff }, ...leaseFree }).sort({ createdAt: 1 }).limit(options.limit).lean().catch(() => [] as OutboxJob[]);
       for (const job of (Array.isArray(staleJobs) ? staleJobs : [])) {
-        await options.recordDeadLetter(job, "expired-near-ttl").catch(() => undefined);
+        if (!(await recordExpiryDeadLetter(job))) continue;
         let del: unknown;
         try {
           del = await NotificationOutboxModel.deleteOne({ _id: job._id, ...leaseFree });
@@ -333,7 +345,10 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     if (deleteFailures > 0) {
       logger("WARN", "OUTBOX", `Drain outbox: ${deleteFailures} stergere(i) de job esuate (job-urile raman in coada si vor fi deduse/reluate)`);
     }
-    return { sent, deadLettered, retried, expired, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures, deleteFailures };
+    if (deadLetterFailures > 0) {
+      logger("WARN", "OUTBOX", `Drain outbox: ${deadLetterFailures} audit(uri) dead-letter esuate la expirare (job-urile NU au fost sterse, raman in coada pana se reia auditul)`);
+    }
+    return { sent, deadLettered, retried, expired, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures, deleteFailures, deadLetterFailures };
   }
 
   return { enqueueOutbox, drainOutbox };

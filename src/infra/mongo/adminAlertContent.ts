@@ -68,6 +68,11 @@ const EXACT_GUIDANCE: Record<string, AdminAlertGuidance> = {
     severity: "warning",
     meaning: "Job-uri outbox procesate nu au putut fi sterse din coada (raman deduse/reluate la urmatorul ciclu).",
     action: "Verifica disponibilitatea Mongo. Drain-ul nu se mai opreste din cauza stergerii esuate, dar persistenta ei indica probleme de scriere. Vezi OPERATIONS.md."
+  },
+  "outbox:deadletter-write": {
+    severity: "warning",
+    meaning: "Auditul dead-letter pentru job-uri expirate a esuat, deci job-urile NU au fost sterse (payload-ul de replay e pastrat, raman in coada pana se reia auditul).",
+    action: "Verifica disponibilitatea Mongo si scrierile in colectia de dead-letter. Job-urile nu se pierd; auditul se reia la urmatorul ciclu. Vezi OPERATIONS.md."
   }
 };
 
