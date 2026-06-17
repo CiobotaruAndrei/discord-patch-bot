@@ -346,7 +346,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       logger("WARN", "OUTBOX", `Drain outbox: ${deleteFailures} stergere(i) de job esuate (job-urile raman in coada si vor fi deduse/reluate)`);
     }
     if (deadLetterFailures > 0) {
-      logger("WARN", "OUTBOX", `Drain outbox: ${deadLetterFailures} audit(uri) dead-letter esuate la expirare (job-urile NU au fost sterse, raman in coada pana se reia auditul)`);
+      logger("WARN", "OUTBOX", `Drain outbox: ${deadLetterFailures} audit(uri) dead-letter esuate (job-urile NU au fost sterse, raman in coada pana se reia auditul)`);
     }
     return { sent, deadLettered, retried, expired, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures, deleteFailures, deadLetterFailures };
   }
