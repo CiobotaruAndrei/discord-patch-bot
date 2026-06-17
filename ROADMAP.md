@@ -129,6 +129,18 @@ eliminarea completa a boundary-ului cere DI per handler/sursa, nu tiparea regist
 4. `check:weakening` plus gardurile AST din `registryClosedContracts.test.ts` impun deja zero `as never`
    / `as unknown as` si se mentin la fiecare pas; ultima migrare elimina si `as`-ul de narrowing ramas.
 
+**Consistenta env in stratul progresiv (follow-up).** Boot-ul scheduler-ului citeste deja
+`NOTIFICATION_OUTBOX_ENABLED` din env-ul centralizat (`RuntimeEnv`, parsat in `shared/env.ts`).
+Citirile ramase directe din `process.env` pentru flag-urile outbox (`notifications/index.ts` pentru
+`NOTIFICATION_OUTBOX_ENABLED`, `outboxAdminHandler.ts` pentru `NOTIFICATION_OUTBOX_ENABLED` +
+`NOTIFICATION_OUTBOX_RECOVERY_VERIFY` + `NOTIFICATION_OUTBOX_RECOVERY_STRICT`) traiesc in stratul
+command-runtime/handler, unde valorile env ajung prin flattening-ul `mongoContext` (`...data`), nu
+prin spread direct de env. Centralizarea lor cere expunerea acestor flag-uri ca exporturi flattened
+in `mongoContext` + extinderea contractelor de context inchise (`CommandRegistryContext`,
+`NotificationsRuntimeDeps`) — se face impreuna cu migrarea per-handler de mai sus, ca sa nu duplice
+plumbing-ul care oricum dispare. Pentru `RECOVERY_VERIFY`/`RECOVERY_STRICT` pasul include si
+adaugarea lor (parsate cu `parseBooleanEnv`) in `RuntimeEnv`, ca `NOTIFICATION_OUTBOX_ENABLED`.
+
 **Limbaj.** Nu se adauga alt limbaj pentru zona asta: outbox/Discord/Mongo sunt I/O-bound, deci
 TypeScript ramane alegerea corecta; orice candidat nou de Rust trece intai prin `npm run benchmark:cpu`
 si prin decizia documentata in `BENCHMARKS.md` (politica existenta, reconfirmata in review #11.5).
