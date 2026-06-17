@@ -1,6 +1,7 @@
 "use strict";
 
 import type { Model } from "mongoose";
+import type { RuntimeEnv } from "../../types";
 import type { SeenRepositoryDeps } from "./seenRepository";
 import type { UpdateNotificationServiceDeps } from "./updateNotificationService";
 import type { DiscountNotificationServiceDeps } from "./discountNotificationService";
@@ -24,13 +25,8 @@ const { defaultDiscordSendLimiter } = require("./discordRateLimiter") as typeof 
 
 const OUTBOX_MAX_ATTEMPTS = 5;
 const OUTBOX_BACKOFF_MS = 60_000;
-const OUTBOX_DRAIN_LIMIT = Math.min(1000, Math.max(1, Number(process.env.NOTIFICATION_OUTBOX_DRAIN_LIMIT) || 50));
-const OUTBOX_MAX_AGE_MS = Math.min(7 * 24 * 3600_000, Math.max(3600_000, Number(process.env.NOTIFICATION_OUTBOX_MAX_AGE_MS) || 6 * 24 * 3600_000));
 
 interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; attempts: number; deliveries?: number; dedupeKey?: string; recoveryVerify?: boolean; }
-const OUTBOX_RECOVERY_VERIFY = process.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY === "true";
-const OUTBOX_RECOVERY_STRICT = process.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT === "true";
-const OUTBOX_RECOVERY_HISTORY_LIMIT = Math.min(100, Math.max(5, Number(process.env.NOTIFICATION_OUTBOX_RECOVERY_HISTORY_LIMIT) || 25));
 
 type GeneratedUpdateDeps =
   | "resolveOutboundChannel"
@@ -52,6 +48,7 @@ type NotificationsRuntimeDeps = SeenRepositoryDeps
   & Omit<UpdateNotificationServiceDeps, GeneratedUpdateDeps>
   & Omit<DiscountNotificationServiceDeps, GeneratedDiscountDeps>
   & {
+    env: RuntimeEnv;
     GuildModel: { countDocuments(filter: Record<string, unknown>): Promise<number> };
     canSendEmbeds(channel: unknown, botId: string): boolean;
     saveFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
@@ -64,6 +61,14 @@ type NotificationsRuntimeDeps = SeenRepositoryDeps
 type NotificationsContext = NotificationsRuntimeDeps & Record<string, unknown>;
 
 function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
+  const {
+    NOTIFICATION_OUTBOX_ENABLED: outboxEnabled,
+    NOTIFICATION_OUTBOX_DRAIN_LIMIT: OUTBOX_DRAIN_LIMIT,
+    NOTIFICATION_OUTBOX_MAX_AGE_MS: OUTBOX_MAX_AGE_MS,
+    NOTIFICATION_OUTBOX_RECOVERY_VERIFY: OUTBOX_RECOVERY_VERIFY,
+    NOTIFICATION_OUTBOX_RECOVERY_STRICT: OUTBOX_RECOVERY_STRICT,
+    NOTIFICATION_OUTBOX_RECOVERY_HISTORY_LIMIT: OUTBOX_RECOVERY_HISTORY_LIMIT
+  } = deps.env;
   const {
     GuildModel, logger, DEFAULT_CURRENCY, runConcurrent,
     validatePendingDiscountSnapshot, validateUpdateFetchSnapshot, getLatestForAllGames, fetchDeals,
@@ -84,7 +89,6 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
   const persistFetchSnapshot = saveFetchSnapshot as ((id: string, payload: unknown) => Promise<void>) | undefined;
   const loadSnapshot = loadFetchSnapshot as ((id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>) | undefined;
 
-  const outboxEnabled = process.env.NOTIFICATION_OUTBOX_ENABLED === "true";
   const outbox = createOutboxRuntime({ NotificationOutboxModel, NotificationOutboxSentModel, withMongoRetry, logger });
   const enqueueOutbox = outboxEnabled ? outbox.enqueueOutbox : undefined;
   const deadLetterReplayRepository = createDeadLetterReplayRepository({ NotificationDeadLetterReplayModel, withMongoRetry, logger });

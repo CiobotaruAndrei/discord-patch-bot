@@ -129,17 +129,18 @@ eliminarea completa a boundary-ului cere DI per handler/sursa, nu tiparea regist
 4. `check:weakening` plus gardurile AST din `registryClosedContracts.test.ts` impun deja zero `as never`
    / `as unknown as` si se mentin la fiecare pas; ultima migrare elimina si `as`-ul de narrowing ramas.
 
-**Consistenta env in stratul progresiv (follow-up).** Boot-ul scheduler-ului citeste deja
-`NOTIFICATION_OUTBOX_ENABLED` din env-ul centralizat (`RuntimeEnv`, parsat in `shared/env.ts`).
-Citirile ramase directe din `process.env` pentru flag-urile outbox (`notifications/index.ts` pentru
-`NOTIFICATION_OUTBOX_ENABLED`, `outboxAdminHandler.ts` pentru `NOTIFICATION_OUTBOX_ENABLED` +
-`NOTIFICATION_OUTBOX_RECOVERY_VERIFY` + `NOTIFICATION_OUTBOX_RECOVERY_STRICT`) traiesc in stratul
-command-runtime/handler, unde valorile env ajung prin flattening-ul `mongoContext` (`...data`), nu
-prin spread direct de env. Centralizarea lor cere expunerea acestor flag-uri ca exporturi flattened
-in `mongoContext` + extinderea contractelor de context inchise (`CommandRegistryContext`,
-`NotificationsRuntimeDeps`) — se face impreuna cu migrarea per-handler de mai sus, ca sa nu duplice
-plumbing-ul care oricum dispare. Pentru `RECOVERY_VERIFY`/`RECOVERY_STRICT` pasul include si
-adaugarea lor (parsate cu `parseBooleanEnv`) in `RuntimeEnv`, ca `NOTIFICATION_OUTBOX_ENABLED`.
+**Consistenta env in stratul progresiv (follow-up).** Boot-ul scheduler-ului si `notifications/index.ts`
+citesc deja toata configuratia outbox (`NOTIFICATION_OUTBOX_ENABLED` + `DRAIN_LIMIT` / `MAX_AGE_MS` /
+`RECOVERY_VERIFY` / `RECOVERY_STRICT` / `RECOVERY_HISTORY_LIMIT`) din env-ul centralizat (`RuntimeEnv`,
+parsat o singura data in `shared/env.ts` cu `parseEnvNumber`/`parseBooleanEnv`): `createNotificationRuntime`
+le ia din `deps.env`, deci sunt injectabile in teste, fara citiri `process.env` la nivel de modul.
+**Citirea ramasa** e in `outboxAdminHandler.ts` (`NOTIFICATION_OUTBOX_ENABLED` +
+`NOTIFICATION_OUTBOX_RECOVERY_VERIFY` + `NOTIFICATION_OUTBOX_RECOVERY_STRICT`, toate acum prezente in
+`RuntimeEnv`): handler-ul traieste in stratul command-runtime, unde nu primeste inca `env` ca dep tipat,
+ci doar cheile flattened din `mongoContext` (`...data`). Mutarea lui pe `env` injectat se face impreuna
+cu migrarea per-handler de mai sus (extinderea contractelor de context inchise `CommandRegistryContext`),
+ca sa nu duplice plumbing-ul care oricum dispare; valorile sunt deja in `RuntimeEnv`, deci pasul ramas e
+doar threading-ul `env`-ului catre handler.
 
 **Limbaj.** Nu se adauga alt limbaj pentru zona asta: outbox/Discord/Mongo sunt I/O-bound, deci
 TypeScript ramane alegerea corecta; orice candidat nou de Rust trece intai prin `npm run benchmark:cpu`
