@@ -21,7 +21,7 @@ const { createOutboxRuntime, applyDedupeMarker, messageHasDedupeMarker, outboxDe
 const { createOutboxDelivery } = require("./outboxDelivery") as typeof import("./outboxDelivery");
 const { buildDeadLetterEntry, deadLetterPush, deadLetterTitleFromPayload } = require("./deadLetter") as typeof import("./deadLetter");
 const { createDeadLetterReplayRepository } = require("./deadLetterReplayRepository") as typeof import("./deadLetterReplayRepository");
-const { defaultDiscordSendLimiter } = require("./discordRateLimiter") as typeof import("./discordRateLimiter");
+const { createDefaultDiscordSendLimiter } = require("./discordRateLimiter") as typeof import("./discordRateLimiter");
 
 const OUTBOX_MAX_ATTEMPTS = 5;
 const OUTBOX_BACKOFF_MS = 60_000;
@@ -94,12 +94,13 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
   const deadLetterReplayRepository = createDeadLetterReplayRepository({ NotificationDeadLetterReplayModel, withMongoRetry, logger });
   const historyRepository = createHistoryRepository({ NotificationHistoryModel, withMongoRetry, logger });
 
-  const resolveOutboundChannel = createOutboundChannelResolver({ logger, canSendEmbeds, enqueueOutbox, recordSentHistory: historyRepository.recordSent });
+  const sendLimiter = createDefaultDiscordSendLimiter(deps.env);
+  const resolveOutboundChannel = createOutboundChannelResolver({ logger, canSendEmbeds, acquireSendSlot: () => sendLimiter.acquire(), enqueueOutbox, recordSentHistory: historyRepository.recordSent });
 
   const outboxDelivery = createOutboxDelivery({
     canSendEmbeds,
     isPermanentDiscordError,
-    acquireSendSlot: () => defaultDiscordSendLimiter.acquire(),
+    acquireSendSlot: () => sendLimiter.acquire(),
     applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker,
     recoveryVerify: OUTBOX_RECOVERY_VERIFY,
     recoveryStrict: OUTBOX_RECOVERY_STRICT,

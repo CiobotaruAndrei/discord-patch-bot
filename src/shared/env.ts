@@ -171,6 +171,9 @@ function attachEnv(target: EnvContext): void {
     STEAM_REVIEW_BATCH_SIZE: parseEnvNumber("STEAM_REVIEW_BATCH_SIZE", 5, { min: 1, max: 50 }),
     STEAM_REVIEW_BATCH_DELAY_MS: parseEnvNumber("STEAM_REVIEW_BATCH_DELAY_MS", 500, { min: 0, max: 60000 }),
     DISCORD_SEND_DELAY_MS: parseEnvNumber("DISCORD_SEND_DELAY_MS", 800, { min: 0, max: 60000 }),
+    DISCORD_SEND_RATE_CAPACITY: parseEnvNumber("DISCORD_SEND_RATE_CAPACITY", 5, { min: 1, max: 1000 }),
+    DISCORD_SEND_RATE_PER_SEC: parseEnvNumber("DISCORD_SEND_RATE_PER_SEC", 5, { min: 1, max: 1000 }),
+    DISCORD_SEND_RATE_MAX_WAIT_MS: parseEnvNumber("DISCORD_SEND_RATE_MAX_WAIT_MS", 5000, { min: 1, max: 60000 }),
 
     MAX_UPDATES_PER_CYCLE: parseEnvNumber("MAX_UPDATES_PER_CYCLE", 5, { min: 1, max: 100 }),
     MAX_DEALS_PER_CYCLE: parseEnvNumber("MAX_DEALS_PER_CYCLE", 8, { min: 1, max: 100 }),
