@@ -1,6 +1,7 @@
 "use strict";
 
 import { runCpuBenchmark, runAreaBenchmarks, levenshteinParityMismatches } from "./cpuBenchmark";
+import type { AreaBenchmarkResult } from "./cpuBenchmark";
 
 export interface GuardSample {
   area: string;
@@ -64,50 +65,71 @@ export function evaluateBenchmarkGuard(samples: GuardSample[], config: GuardConf
   return { failures, warnings, skipped };
 }
 
-function bestSpeedup(runner: () => number | null, runs: number): number | null {
+function bestOf(values: Array<number | null>): number | null {
   let best: number | null = null;
-  for (let i = 0; i < runs; i++) {
-    const value = runner();
+  for (const value of values) {
     if (value === null) return null;
     if (best === null || value > best) best = value;
   }
   return best;
 }
 
-export function collectGuardSamples(runs = Number(process.env.BENCH_GUARD_RUNS) || 3): GuardSample[] {
-  const levenshteinSpeedup = bestSpeedup(() => runCpuBenchmark().speedup, runs);
-  const firstCpu = runCpuBenchmark();
-  const levenshteinParityOk = levenshteinParityMismatches().length === 0;
+export interface GuardBenchmarkDeps {
+  runCpuBenchmark: typeof runCpuBenchmark;
+  runAreaBenchmarks: typeof runAreaBenchmarks;
+  levenshteinParityMismatches: typeof levenshteinParityMismatches;
+}
 
-  const dealHashSpeedup = bestSpeedup(() => {
-    const area = runAreaBenchmarks().find(a => a.area.includes("dealHash"));
-    return area ? area.speedup : null;
-  }, runs);
-  const dealHashArea = runAreaBenchmarks().find(a => a.area.includes("dealHash"));
+const defaultBenchmarkDeps: GuardBenchmarkDeps = { runCpuBenchmark, runAreaBenchmarks, levenshteinParityMismatches };
 
-  const listingRankSpeedup = bestSpeedup(() => {
-    const area = runAreaBenchmarks().find(a => a.area.includes("listing-rank"));
-    return area ? area.speedup : null;
-  }, runs);
-  const listingRankArea = runAreaBenchmarks().find(a => a.area.includes("listing-rank"));
+export function collectGuardSamples(
+  runs = Number(process.env.BENCH_GUARD_RUNS) || 3,
+  deps: GuardBenchmarkDeps = defaultBenchmarkDeps
+): GuardSample[] {
+  const totalRuns = Math.max(1, runs);
+
+  const levenshteinValues: Array<number | null> = [];
+  let levenshteinRustAvailable = false;
+  for (let i = 0; i < totalRuns; i++) {
+    const cpu = deps.runCpuBenchmark();
+    if (i === 0) levenshteinRustAvailable = cpu.rustAvailable;
+    levenshteinValues.push(cpu.speedup);
+  }
+  const levenshteinParityOk = deps.levenshteinParityMismatches().length === 0;
+
+  const dealHashValues: Array<number | null> = [];
+  const listingRankValues: Array<number | null> = [];
+  let dealHashArea: AreaBenchmarkResult | undefined;
+  let listingRankArea: AreaBenchmarkResult | undefined;
+  for (let i = 0; i < totalRuns; i++) {
+    const areas = deps.runAreaBenchmarks();
+    const dealHash = areas.find(a => a.area.includes("dealHash"));
+    const listingRank = areas.find(a => a.area.includes("listing-rank"));
+    if (i === 0) {
+      dealHashArea = dealHash;
+      listingRankArea = listingRank;
+    }
+    dealHashValues.push(dealHash ? dealHash.speedup : null);
+    listingRankValues.push(listingRank ? listingRank.speedup : null);
+  }
 
   return [
     {
       area: "levenshtein",
-      rustAvailable: firstCpu.rustAvailable,
-      speedup: levenshteinSpeedup,
+      rustAvailable: levenshteinRustAvailable,
+      speedup: bestOf(levenshteinValues),
       parityOk: levenshteinParityOk
     },
     {
       area: "dealHash",
-      rustAvailable: dealHashArea ? dealHashArea.rustAvailable : firstCpu.rustAvailable,
-      speedup: dealHashSpeedup,
+      rustAvailable: dealHashArea ? dealHashArea.rustAvailable : levenshteinRustAvailable,
+      speedup: bestOf(dealHashValues),
       parityOk: dealHashArea ? dealHashArea.parityOk : true
     },
     {
       area: "rankListingCandidates",
-      rustAvailable: listingRankArea ? listingRankArea.rustAvailable : firstCpu.rustAvailable,
-      speedup: listingRankSpeedup,
+      rustAvailable: listingRankArea ? listingRankArea.rustAvailable : levenshteinRustAvailable,
+      speedup: bestOf(listingRankValues),
       parityOk: listingRankArea ? listingRankArea.parityOk : true
     }
   ];
