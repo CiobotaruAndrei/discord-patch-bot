@@ -37,7 +37,7 @@ interface MongooseLike {
 
 export function collectDeclaredIndexes(mongoose: MongooseLike, attachMongoModels: (target: Record<string, unknown>) => void): DeclaredIndex[] {
   try {
-    attachMongoModels({ mongoose, SUPPORTED_CURRENCIES: { USD: {} }, DEFAULT_CURRENCY: "USD", ONE_DAY_MS: 86_400_000 });
+    attachMongoModels({ mongoose, SUPPORTED_CURRENCIES: { USD: {} }, DEFAULT_CURRENCY: "USD", ONE_DAY_MS: 86_400_000, env: { GUILD_SEEN_DISCOUNT_TTL_DAYS: 60, NOTIFICATION_OUTBOX_SENT_TTL_HOURS: 24, NOTIFICATION_HISTORY_TTL_DAYS: 30, FEEDBACK_REPORT_TTL_DAYS: 90, NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS: 7 } });
   } catch {
     void 0;
   }
