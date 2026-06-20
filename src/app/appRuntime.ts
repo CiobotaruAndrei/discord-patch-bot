@@ -285,7 +285,7 @@ function createBootSequence(deps: AppRuntimeDeps, ctx: { client: DiscordClientLi
           logger("INFO", "MIGRATE", `Migrari aplicate: ${migrations.applied.join(", ")}`);
         }
       } catch (migErr) {
-        const continueOnError = process.env.MIGRATIONS_CONTINUE_ON_ERROR === "true";
+        const continueOnError = env.MIGRATIONS_CONTINUE_ON_ERROR;
         if (!continueOnError) {
           logger("ERROR", "MIGRATE", "Migrari esuate la boot — opresc pornirea (fail-fast pentru integritatea schemei; seteaza MIGRATIONS_CONTINUE_ON_ERROR=true ca sa pornesti oricum, pe propriul risc)", errorDetail(migErr));
           throw migErr;

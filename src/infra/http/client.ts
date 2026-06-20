@@ -114,7 +114,7 @@ function attachHttpClient(target: HttpClientContext): void {
     beforeRedirect: (redirectOptions: { href?: string; protocol?: string; hostname?: string; host?: string }) => assertSafeRedirect(redirectOptions)
   });
 
-  const DEFAULT_PROXIES = resolveDefaultProxies(env.NODE_ENV, env.isProd, process.env.ALLOW_DEFAULT_PROXIES);
+  const DEFAULT_PROXIES = resolveDefaultProxies(env.NODE_ENV, env.isProd, env.ALLOW_DEFAULT_PROXIES);
   const PROXY_TEMPLATES = normalizeProxyTemplates(env.PROXY_URLS, DEFAULT_PROXIES);
   if (!env.PROXY_URLS && DEFAULT_PROXIES.length && env.NODE_ENV !== "development") {
     logger("WARN", "HTTP", "Proxy-uri implicite third-party activate prin ALLOW_DEFAULT_PROXIES in afara dev-ului — pot scurge URL-uri tinta catre servicii terte.");
