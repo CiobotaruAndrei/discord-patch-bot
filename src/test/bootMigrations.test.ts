@@ -5,7 +5,7 @@ const { createBootSequence } = require("../app/appRuntime") as {
   createBootSequence: (deps: unknown, ctx: unknown) => () => Promise<void>;
 };
 
-function buildBoot(runMigrations: () => Promise<{ applied: number[] }>) {
+function buildBoot(runMigrations: () => Promise<{ applied: number[] }>, continueOnError = false) {
   const calls = { login: 0, listen: 0 };
   const deps = {
     errorMessage: (e: unknown) => String(e),
@@ -14,7 +14,7 @@ function buildBoot(runMigrations: () => Promise<{ applied: number[] }>) {
     commands: { setUpdatesCache() { }, setDealsCache() { } },
     mongo: {
       logger: () => { },
-      env: { MONGO_URI: "mongodb://localhost/test", MONGO_MAX_POOL_SIZE: 10, PORT: 3000, DISCORD_TOKEN: "token" },
+      env: { MONGO_URI: "mongodb://localhost/test", MONGO_MAX_POOL_SIZE: 10, PORT: 3000, DISCORD_TOKEN: "token", MIGRATIONS_CONTINUE_ON_ERROR: continueOnError },
       adminAlert: async () => undefined,
       waitForMongoReady: async () => true,
       runMigrations,
@@ -30,27 +30,15 @@ function buildBoot(runMigrations: () => Promise<{ applied: number[] }>) {
 }
 
 test("P1.1: migrare esuata la boot -> fail-fast (start respinge, nu se ajunge la login)", async () => {
-  const prev = process.env.MIGRATIONS_CONTINUE_ON_ERROR;
-  delete process.env.MIGRATIONS_CONTINUE_ON_ERROR;
-  try {
-    const { start, calls } = buildBoot(async () => { throw new Error("migration boom"); });
-    await assert.rejects(start(), /migration boom/, "boot-ul se opreste cand o migrare esueaza (implicit)");
-    assert.equal(calls.login, 0, "nu s-a ajuns la client.login (boot abandonat inainte de pornirea efectiva)");
-  } finally {
-    if (prev === undefined) delete process.env.MIGRATIONS_CONTINUE_ON_ERROR; else process.env.MIGRATIONS_CONTINUE_ON_ERROR = prev;
-  }
+  const { start, calls } = buildBoot(async () => { throw new Error("migration boom"); });
+  await assert.rejects(start(), /migration boom/, "boot-ul se opreste cand o migrare esueaza (implicit, env.MIGRATIONS_CONTINUE_ON_ERROR=false)");
+  assert.equal(calls.login, 0, "nu s-a ajuns la client.login (boot abandonat inainte de pornirea efectiva)");
 });
 
-test("P1.1: MIGRATIONS_CONTINUE_ON_ERROR=true -> boot continua peste migrarea esuata (escape hatch)", async () => {
-  const prev = process.env.MIGRATIONS_CONTINUE_ON_ERROR;
-  process.env.MIGRATIONS_CONTINUE_ON_ERROR = "true";
-  try {
-    const { start, calls } = buildBoot(async () => { throw new Error("migration boom"); });
-    await start();
-    assert.equal(calls.login, 1, "cu escape-hatch, boot-ul porneste oricum (ajunge la login)");
-  } finally {
-    if (prev === undefined) delete process.env.MIGRATIONS_CONTINUE_ON_ERROR; else process.env.MIGRATIONS_CONTINUE_ON_ERROR = prev;
-  }
+test("P1.1: env.MIGRATIONS_CONTINUE_ON_ERROR=true -> boot continua peste migrarea esuata (escape hatch, injectat prin env)", async () => {
+  const { start, calls } = buildBoot(async () => { throw new Error("migration boom"); }, true);
+  await start();
+  assert.equal(calls.login, 1, "cu escape-hatch (injectat prin env, nu process.env), boot-ul porneste oricum (ajunge la login)");
 });
 
 test("P1.1: migrari reusite -> boot continua normal", async () => {

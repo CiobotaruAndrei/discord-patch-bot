@@ -5,9 +5,9 @@ const BUILTIN_DEFAULT_PROXIES = [
   "https://api.codetabs.com/v1/proxy?quest={url}"
 ];
 
-function resolveDefaultProxies(nodeEnv: string | undefined, isProd: boolean, allowFlag: string | undefined): string[] {
+function resolveDefaultProxies(nodeEnv: string | undefined, isProd: boolean, allowFlag: boolean): string[] {
   if (isProd) return [];
-  const allowed = nodeEnv === "development" || String(allowFlag || "").toLowerCase() === "true";
+  const allowed = nodeEnv === "development" || allowFlag;
   return allowed ? [...BUILTIN_DEFAULT_PROXIES] : [];
 }
 

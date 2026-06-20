@@ -56,6 +56,8 @@ export interface RuntimeEnv {
   NOTIFICATION_OUTBOX_RECOVERY_VERIFY: boolean;
   NOTIFICATION_OUTBOX_RECOVERY_STRICT: boolean;
   NOTIFICATION_OUTBOX_RECOVERY_HISTORY_LIMIT: number;
+  MIGRATIONS_CONTINUE_ON_ERROR: boolean;
+  ALLOW_DEFAULT_PROXIES: boolean;
   TRUST_PROXY: boolean;
   TRUSTED_PROXY_COUNT: number;
   ADMIN_WEBHOOK_URL: string;
@@ -182,6 +184,8 @@ export interface BotMetrics {
   outboxRecoveryFailures: number;
   outboxRecoveryMarkerMissing: number;
   outboxMarkSentFailures: number;
+  outboxDeleteFailures: number;
+  outboxDeadLetterWriteFailures: number;
   outboxRecoveryVerifyEnabledGuilds: number;
   outboxLastDrainAt: number;
   startedAt: number;
