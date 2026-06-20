@@ -156,6 +156,17 @@ intre timp.
   temporar, constient ca schema poate fi inconsistenta (risc de duplicate). Revino la fail-fast (scoate
   variabila) dupa remediere.
 
+## Validarea `.env` la boot (flag-uri booleene)
+
+Toate flag-urile booleene operationale (`METRICS_PUBLIC`, `TRUST_PROXY`, `NOTIFICATION_OUTBOX_ENABLED`,
+`NOTIFICATION_OUTBOX_RECOVERY_VERIFY`, `NOTIFICATION_OUTBOX_RECOVERY_STRICT`, `MIGRATIONS_CONTINUE_ON_ERROR`,
+`ALLOW_DEFAULT_PROXIES`) sunt validate la pornire de schema Zod din `shared/env.ts`: trebuie sa fie
+`true` / `false` / `1` / `0` (case-insensitive). Un **typo** (`treu`, `yes`, `2`) **opreste boot-ul**
+cu `ERROR ENV Pornire blocata: ... <NUME> (<NUME> trebuie sa fie true/false/1/0)` — nu mai e tratat
+silentios ca `false`, ca inainte. O variabila **neset** sau **goala** (`FOO=`) ramane permisa si
+foloseste default-ul. Daca botul refuza sa porneasca cu acest mesaj, corecteaza valoarea flag-ului
+numit (sau scoate-l ca sa revii la default).
+
 ## Indexuri MongoDB (inventar)
 
 Index-urile sunt declarate in `src/infra/mongo/models.ts` si construite automat de Mongoose la

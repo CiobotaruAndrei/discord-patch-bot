@@ -3,6 +3,7 @@
 import type { OutboxDiscordClient } from "../notifications/outboundChannel";
 
 const { errorDetail, errorMessage } = require("../../shared/errors");
+const { parseBooleanEnv } = require("../../shared/booleanEnv") as typeof import("../../shared/booleanEnv");
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string } & Record<string, unknown>;
@@ -361,9 +362,9 @@ function installOutboxAdminHandler(target: OutboxAdminContext): void {
     safeEdit: target.safeEdit,
     formatUserError: target.formatUserError,
     logger: target.logger,
-    outboxEnabled: process.env.NOTIFICATION_OUTBOX_ENABLED === "true",
-    recoveryVerifyGlobal: process.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY === "true",
-    recoveryStrict: process.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT === "true"
+    outboxEnabled: parseBooleanEnv(process.env.NOTIFICATION_OUTBOX_ENABLED),
+    recoveryVerifyGlobal: parseBooleanEnv(process.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY),
+    recoveryStrict: parseBooleanEnv(process.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT)
   });
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
