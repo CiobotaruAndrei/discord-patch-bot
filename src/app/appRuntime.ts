@@ -191,7 +191,7 @@ function createSchedulers(deps: AppRuntimeDeps, services: RuntimeServices): Sche
 
   const outboxEnabled = env.NOTIFICATION_OUTBOX_ENABLED;
   const outboxDrainLimit = parseEnvNumber("NOTIFICATION_OUTBOX_DRAIN_LIMIT", 50, { min: 1, max: 1000 });
-  const outboxPerJobBudgetMs = parseEnvNumber("DISCORD_SEND_RATE_MAX_WAIT_MS", 5000, { min: 0, max: 60000 }) + 2000;
+  const outboxPerJobBudgetMs = env.DISCORD_SEND_RATE_MAX_WAIT_MS + 2000;
   const outboxWorker = createOutboxWorker({
     mongoose, client, logger, parseEnvNumber, acquireDbLock, releaseDbLock,
     drainOutbox: async (drainClient) => commands.drainOutbox(drainClient),

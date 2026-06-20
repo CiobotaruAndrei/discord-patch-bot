@@ -271,7 +271,10 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
       NOTIFICATION_OUTBOX_MAX_AGE_MS: 6 * 24 * 3600_000,
       NOTIFICATION_OUTBOX_RECOVERY_VERIFY: false,
       NOTIFICATION_OUTBOX_RECOVERY_STRICT: false,
-      NOTIFICATION_OUTBOX_RECOVERY_HISTORY_LIMIT: 25
+      NOTIFICATION_OUTBOX_RECOVERY_HISTORY_LIMIT: 25,
+      DISCORD_SEND_RATE_CAPACITY: 5,
+      DISCORD_SEND_RATE_PER_SEC: 5,
+      DISCORD_SEND_RATE_MAX_WAIT_MS: 5000
     },
     getGuildSettings: async () => ({ enabledGames: [] }),
     invalidateGuildCache: () => undefined,

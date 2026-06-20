@@ -65,6 +65,21 @@ function envInt(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+interface DiscordSendRateEnv {
+  DISCORD_SEND_RATE_CAPACITY: number;
+  DISCORD_SEND_RATE_PER_SEC: number;
+  DISCORD_SEND_RATE_MAX_WAIT_MS: number;
+}
+
+export function createDefaultDiscordSendLimiter(env: DiscordSendRateEnv): DiscordRateLimiter {
+  return createDiscordRateLimiter({
+    capacity: env.DISCORD_SEND_RATE_CAPACITY,
+    refillPerInterval: env.DISCORD_SEND_RATE_PER_SEC,
+    intervalMs: 1000,
+    maxWaitMs: env.DISCORD_SEND_RATE_MAX_WAIT_MS
+  });
+}
+
 export const defaultDiscordSendLimiter: DiscordRateLimiter = createDiscordRateLimiter({
   capacity: envInt("DISCORD_SEND_RATE_CAPACITY", 5),
   refillPerInterval: envInt("DISCORD_SEND_RATE_PER_SEC", 5),
