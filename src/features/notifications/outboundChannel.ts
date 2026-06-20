@@ -1,5 +1,4 @@
 import { errorMessage } from "../../shared/errors";
-import { defaultDiscordSendLimiter } from "./discordRateLimiter";
 
 export const DISCORD_PERMANENT_ERROR_CODES = new Set([10003, 10004, 50001, 50013]);
 
@@ -55,7 +54,7 @@ export type RecordSentHistory = (guildId: string, entries: OutboundHistoryEntry[
 export interface OutboundChannelResolverDeps {
   logger: NotificationLogger;
   canSendEmbeds(channel: unknown, botId: string): boolean;
-  acquireSendSlot?: () => Promise<void>;
+  acquireSendSlot: () => Promise<void>;
   enqueueOutbox?: EnqueueOutbox;
   recordSentHistory?: RecordSentHistory;
 }
@@ -98,7 +97,7 @@ async function disableSafely(disableFn: DisableChannelFn, guildId: string, chann
 }
 
 export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSendSlot, enqueueOutbox, recordSentHistory }: OutboundChannelResolverDeps) {
-  const acquire = acquireSendSlot || defaultDiscordSendLimiter.acquire;
+  const acquire = acquireSendSlot;
   return async function resolveOutboundChannel({
     client,
     guild,
