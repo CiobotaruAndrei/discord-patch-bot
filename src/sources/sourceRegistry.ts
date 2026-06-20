@@ -38,7 +38,7 @@ type SourceRegistryApi = {
   formatPrice: (value: unknown, currencyCode?: unknown) => string;
 };
 
-type SourceRuntimeContext = Partial<SourceRegistryApi> & typeof import("./runtime") & Record<string, unknown>;
+type SourceRuntimeContext = Partial<SourceRegistryApi> & typeof import("./runtime");
 type SourceInstaller = (target: SourceRuntimeContext) => void;
 
 import attachHttpClient = require("../infra/http/client");
