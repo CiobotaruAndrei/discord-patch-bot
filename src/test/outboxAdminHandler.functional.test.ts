@@ -271,6 +271,49 @@ test("install: deleaga interactiunile non-/outbox catre handler-ul urmator", asy
   assert.deepEqual(delegated, ["ping"], "comenzile non-outbox sunt delegate mai jos");
 });
 
+test("install: citeste flag-urile outbox cu acelasi parser boolean ca RuntimeEnv", async () => {
+  const previousEnabled = process.env.NOTIFICATION_OUTBOX_ENABLED;
+  const previousVerify = process.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY;
+  const previousStrict = process.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT;
+  process.env.NOTIFICATION_OUTBOX_ENABLED = "1";
+  process.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY = "1";
+  process.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT = "1";
+  const replies: string[] = [];
+  const context: Record<string, unknown> = {
+    NotificationOutboxModel: { countDocuments: async () => 0, updateMany: async () => ({}) },
+    GuildModel: { updateOne: async () => ({ modifiedCount: 1 }) },
+    invalidateGuildCache: () => undefined,
+    listReplayableDeadLetters: async () => [],
+    deleteReplayedDeadLetters: async () => undefined,
+    deleteAllReplayPayloads: async () => undefined,
+    getGuildSettings: async () => ({ outboxRecoveryVerify: false, notificationDeadLetter: [] }),
+    getOutboxPaused: async () => false,
+    setOutboxPaused: async () => undefined,
+    checkChannelPermissions: async () => null,
+    acquireDbLock: async () => "lock-token",
+    releaseDbLock: async () => undefined,
+    drainOutbox: async () => ({ sent: 0, retried: 0, deadLettered: 0, queued: 0 }),
+    safeDefer: async () => undefined,
+    safeEdit: async (_interaction: unknown, content: string) => { replies.push(content); return content; },
+    formatUserError: (_e: unknown, f: string) => f,
+    logger: () => undefined,
+    MessageFlags: { Ephemeral: 64 }
+  };
+  try {
+    installOutboxAdmin(context);
+    await (context.handleInteraction as (i: unknown, g: unknown[]) => Promise<unknown>)(makeInteraction(null, "status"), []);
+  } finally {
+    if (previousEnabled === undefined) delete process.env.NOTIFICATION_OUTBOX_ENABLED;
+    else process.env.NOTIFICATION_OUTBOX_ENABLED = previousEnabled;
+    if (previousVerify === undefined) delete process.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY;
+    else process.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY = previousVerify;
+    if (previousStrict === undefined) delete process.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT;
+    else process.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT = previousStrict;
+  }
+  assert.match(replies[0], /Outbox activat \(global\): \*\*ON\*\*/);
+  assert.match(replies[0], /Recovery-verify global: \*\*ON\*\* \| strict: \*\*ON\*\*/);
+});
+
 test("isDirectOutboxCommand recunoaste doar /outbox in guild", () => {
   assert.equal(installOutboxAdmin.isDirectOutboxCommand({ commandName: "outbox", isChatInputCommand: () => true, guild: { id: "g" } }), true);
   assert.equal(installOutboxAdmin.isDirectOutboxCommand({ commandName: "set", isChatInputCommand: () => true, guild: { id: "g" } }), false);
