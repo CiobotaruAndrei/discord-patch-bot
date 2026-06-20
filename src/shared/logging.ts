@@ -24,6 +24,28 @@ interface LogEntry {
 
 const LOG_LEVELS: Record<LogLevel, number> = { DEBUG: 10, INFO: 20, WARN: 30, ERROR: 40 };
 
+type EnvNumberResolution =
+  | { kind: "ok"; value: number }
+  | { kind: "default"; value: number }
+  | { kind: "clamped"; value: number; message: string }
+  | { kind: "invalid"; value: number; message: string };
+
+function envRangeHint(min: number, max: number): string {
+  if (min === 0 && max === Infinity) return "";
+  return ` (interval permis ${min}..${max === Infinity ? "infinit" : max})`;
+}
+
+function classifyEnvNumber(name: string, raw: string | undefined, defaultValue: number, { min = 0, max = Infinity }: ParseEnvNumberLimits = {}): EnvNumberResolution {
+  if (raw === undefined || raw === "") return { kind: "default", value: defaultValue };
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    return { kind: "invalid", value: defaultValue, message: `${name}="${raw}" nu este un numar valid${envRangeHint(min, max)}` };
+  }
+  if (parsed < min) return { kind: "clamped", value: min, message: `${name}=${parsed} sub minimul ${min}, folosesc minimul` };
+  if (parsed > max) return { kind: "clamped", value: max, message: `${name}=${parsed} peste maximul ${max}, folosesc maximul` };
+  return { kind: "ok", value: parsed };
+}
+
 function attachLogging(target: LoggingContext): void {
   const { AsyncLocalStorage } = target;
 
@@ -92,23 +114,14 @@ function attachLogging(target: LoggingContext): void {
     else console.log(line);
   }
 
-  function parseEnvNumber(name: string, defaultValue: number, { min = 0, max = Infinity }: ParseEnvNumberLimits = {}): number {
-    const raw = process.env[name];
-    if (raw === undefined || raw === "") return defaultValue;
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed)) {
-      logger("WARN", "ENV", `${name}="${raw}" nu este numar valid, folosesc default ${defaultValue}`);
-      return defaultValue;
+  function parseEnvNumber(name: string, defaultValue: number, limits: ParseEnvNumberLimits = {}): number {
+    const resolution = classifyEnvNumber(name, process.env[name], defaultValue, limits);
+    if (resolution.kind === "invalid") {
+      logger("ERROR", "ENV", `Pornire blocata: ${resolution.message}. Corecteaza variabila in mediu (vezi src/.env.example) si reporneste.`);
+      process.exit(1);
     }
-    if (parsed < min) {
-      logger("WARN", "ENV", `${name}=${parsed} sub minimul ${min}, folosesc minimul`);
-      return min;
-    }
-    if (parsed > max) {
-      logger("WARN", "ENV", `${name}=${parsed} peste maximul ${max}, folosesc maximul`);
-      return max;
-    }
-    return parsed;
+    if (resolution.kind === "clamped") logger("WARN", "ENV", resolution.message);
+    return resolution.value;
   }
 
   function getAbortSignal(): AbortSignal | null {
@@ -124,5 +137,7 @@ function attachLogging(target: LoggingContext): void {
     getAbortSignal
   });
 }
+
+attachLogging.classifyEnvNumber = classifyEnvNumber;
 
 export = attachLogging;

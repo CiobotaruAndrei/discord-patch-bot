@@ -156,7 +156,7 @@ intre timp.
   temporar, constient ca schema poate fi inconsistenta (risc de duplicate). Revino la fail-fast (scoate
   variabila) dupa remediere.
 
-## Validarea `.env` la boot (flag-uri booleene)
+## Validarea `.env` la boot (flag-uri booleene si numerice)
 
 Toate flag-urile booleene operationale (`METRICS_PUBLIC`, `TRUST_PROXY`, `NOTIFICATION_OUTBOX_ENABLED`,
 `NOTIFICATION_OUTBOX_RECOVERY_VERIFY`, `NOTIFICATION_OUTBOX_RECOVERY_STRICT`, `MIGRATIONS_CONTINUE_ON_ERROR`,
@@ -166,6 +166,14 @@ cu `ERROR ENV Pornire blocata: ... <NUME> (<NUME> trebuie sa fie true/false/1/0)
 silentios ca `false`, ca inainte. O variabila **neset** sau **goala** (`FOO=`) ramane permisa si
 foloseste default-ul. Daca botul refuza sa porneasca cu acest mesaj, corecteaza valoarea flag-ului
 numit (sau scoate-l ca sa revii la default).
+
+La fel, **toate knob-urile numerice** (`FETCH_CONCURRENCY`, `MAX_DEALS`, `DISCORD_SEND_RATE_*`,
+`NOTIFICATION_OUTBOX_*`, `CRON_*`, limitele de cache etc., citite prin `parseEnvNumber`) sunt
+fail-fast la boot: o valoare **ne-numerica** (typo ca `5oo0` sau `abc`) **opreste boot-ul** cu
+`ERROR ENV Pornire blocata: <NUME>="<valoare>" nu este un numar valid (interval permis ...)` in loc
+sa cada tacut pe default. O variabila **neset/goala** foloseste in continuare default-ul, iar un numar
+valid dar in afara intervalului `[min, max]` ramane **clamp-uit** la margine cu un `WARN` (comportament
+defensiv neschimbat). Daca botul nu porneste cu acest mesaj, corecteaza valoarea numerica a variabilei numite.
 
 ## Indexuri MongoDB (inventar)
 
