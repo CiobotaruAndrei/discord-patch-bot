@@ -121,6 +121,11 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
   async function drainOutbox(client: OutboxDiscordClient) {
     const result = await outbox.drainOutbox({
       deliver: (job: OutboxJobShape) => outboxDelivery.deliver(client, job),
+      isStillSubscribed: (job: OutboxJobShape) => GuildModel.countDocuments(
+        job.kind === "discount"
+          ? { _id: job.guildId, discountsSubscribed: true, discountChannelId: job.channelId }
+          : { _id: job.guildId, subscribed: true, notificationChannelId: job.channelId }
+      ).then(count => count > 0).catch(() => true),
       recordDeadLetter: recordOutboxDeadLetter,
       recordSentHistory: historyRepository.recordSent,
       maxAttempts: OUTBOX_MAX_ATTEMPTS,
