@@ -50,15 +50,15 @@ test("discord rate limiter: serialized acquires do not over-consume tokens", asy
 });
 
 test("createDefaultDiscordSendLimiter: configureaza limiter-ul din RuntimeEnv (capacity + maxWait din env, nu process.env)", async () => {
-  const limiter = createDefaultDiscordSendLimiter({
-    DISCORD_SEND_RATE_CAPACITY: 2,
-    DISCORD_SEND_RATE_PER_SEC: 5,
-    DISCORD_SEND_RATE_MAX_WAIT_MS: 10
-  });
-  const start = Date.now();
+  const state = { clock: 0 };
+  const sleeps: number[] = [];
+  const limiter = createDefaultDiscordSendLimiter(
+    { DISCORD_SEND_RATE_CAPACITY: 2, DISCORD_SEND_RATE_PER_SEC: 5, DISCORD_SEND_RATE_MAX_WAIT_MS: 10 },
+    { now: () => state.clock, sleep: async (ms: number) => { sleeps.push(ms); state.clock += ms; } }
+  );
   await limiter.acquire();
   await limiter.acquire();
-  assert.ok(Date.now() - start < 50, "primele `capacity` (2 din env) acquire-uri nu asteapta");
+  assert.deepEqual(sleeps, [], "primele `capacity` (2 din env) acquire-uri nu asteapta");
   await limiter.acquire();
-  assert.ok(Date.now() - start < 300, "al treilea acquire e plafonat la maxWaitMs din env (10ms), nu la fallback-ul de 5000");
+  assert.deepEqual(sleeps, [10], "al treilea acquire e plafonat la maxWaitMs din env (10ms), nu la fallback-ul de 5000");
 });

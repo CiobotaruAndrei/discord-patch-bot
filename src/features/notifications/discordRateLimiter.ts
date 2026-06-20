@@ -71,12 +71,19 @@ interface DiscordSendRateEnv {
   DISCORD_SEND_RATE_MAX_WAIT_MS: number;
 }
 
-export function createDefaultDiscordSendLimiter(env: DiscordSendRateEnv): DiscordRateLimiter {
+interface DiscordSendRateTimers {
+  now?: () => number;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+export function createDefaultDiscordSendLimiter(env: DiscordSendRateEnv, timers?: DiscordSendRateTimers): DiscordRateLimiter {
   return createDiscordRateLimiter({
     capacity: env.DISCORD_SEND_RATE_CAPACITY,
     refillPerInterval: env.DISCORD_SEND_RATE_PER_SEC,
     intervalMs: 1000,
-    maxWaitMs: env.DISCORD_SEND_RATE_MAX_WAIT_MS
+    maxWaitMs: env.DISCORD_SEND_RATE_MAX_WAIT_MS,
+    now: timers?.now,
+    sleep: timers?.sleep
   });
 }
 
