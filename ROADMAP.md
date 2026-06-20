@@ -136,13 +136,11 @@ parsat o singura data in `shared/env.ts` cu `parseEnvNumber`/`parseBooleanEnv`):
 le ia din `deps.env`, deci sunt injectabile in teste, fara citiri `process.env` la nivel de modul. La fel,
 boot-ul citeste acum `MIGRATIONS_CONTINUE_ON_ERROR` (din `appRuntime`), iar `client.ts` citeste
 `ALLOW_DEFAULT_PROXIES`, ambele din `RuntimeEnv` injectat in loc de `process.env` direct.
-**Citirile ramase** sunt: (1) `outboxAdminHandler.ts` (`NOTIFICATION_OUTBOX_ENABLED` +
-`NOTIFICATION_OUTBOX_RECOVERY_VERIFY` + `NOTIFICATION_OUTBOX_RECOVERY_STRICT`, toate acum prezente in
-`RuntimeEnv`): handler-ul traieste in stratul command-runtime, unde nu primeste inca `env` ca dep tipat,
-ci doar cheile flattened din `mongoContext` (`...data`) — mutarea lui pe `env` injectat se face impreuna
-cu migrarea per-handler de mai sus (extinderea contractelor de context inchise `CommandRegistryContext`),
-ca sa nu duplice plumbing-ul care oricum dispare; valorile sunt deja in `RuntimeEnv`, deci pasul ramas e
-doar threading-ul `env`-ului catre handler. (2) Knob-urile cron (`CRON_CYCLE_BUDGET_MS`, `CRON_JITTER_MS`)
+**Citirile ramase** sunt: (1) ~~`outboxAdminHandler.ts`~~ **REZOLVAT (review manual R11 #3)**: handler-ul
+citeste acum `NOTIFICATION_OUTBOX_ENABLED` / `NOTIFICATION_OUTBOX_RECOVERY_VERIFY` / `NOTIFICATION_OUTBOX_RECOVERY_STRICT`
+din `target.env` (tipat `RuntimeEnv` pe `OutboxAdminContext`), nu din `process.env`. `env` era deja prezent
+in contextul command-runtime prin `MongoContextExports` (parte din `CommandRuntimeContext`), deci a fost
+suficient sa-l tipam pe contractul handler-ului — fara a astepta migrarea completa la factory-uri. (2) Knob-urile cron (`CRON_CYCLE_BUDGET_MS`, `CRON_JITTER_MS`)
 si worker (`NOTIFICATION_OUTBOX_DRAIN_INTERVAL_MS`, `NOTIFICATION_OUTBOX_LOCK_TTL_MS`) sunt deja citite prin
 **`parseEnvNumber` injectat** (acelasi reader centralizat care construieste si `RuntimeEnv`, cu clamp),
 la constructia controller-ului/worker-ului — nu sunt `process.env` raw imprastiate; pre-stocarea lor in
