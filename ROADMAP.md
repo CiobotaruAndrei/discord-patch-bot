@@ -175,6 +175,28 @@ tipizarea directa a compunerii e respinsa cu proba tsc (supratipul comun colapse
 iar pasul corect e DI per handler — nu o re-tipare a registrului progresiv. Niciun cod nou; problema
 e deja urmarita aici.
 
+## Separarea tipurilor brute de sursa de tipurile normalizate (datorie de tipare, review manual R12 #3)
+
+**Starea curenta.** Cateva tipuri de domeniu din `types.ts` pastreaza inca un index `[key: string]: unknown`:
+`GameConfig` (config + campuri per-sursa), `PatchUpdate` (iesirea bruta a scraper-elor), `DealInfo`
+(oferta bruta de la Steam/Epic), `GuildSettings` (documentul Mongo). Indexul e un type-safe escape (nu
+`any`, permis de regula 2) si reflecta realitatea ca **datele de sursa** au forme variabile/in evolutie.
+Riscul semnalat: acelasi tip e folosit si ca model **normalizat** in interiorul botului, deci drift-ul de
+schema/scraper se poate strecura nedetectat in logica normalizata.
+
+**Ce e deja facut (pattern-ul tinta).** Pentru update-uri, separarea exista: `PatchUpdate` (brut, cu index)
+-> `NormalizedUpdate` (inchis, exact `id`/`title`/`link`/`excerpt`/`fullText`/`image`/`thumbnail`/`timestamp`),
+iar logica de notificari consuma `NormalizedUpdate`. Acelasi pattern trebuie extins:
+- `DealInfo` (brut, scraper) -> un `NormalizedDeal` inchis, consumat de filtrare/embed/dedupe;
+- `GuildSettings` -> un tip inchis pentru campurile pe care botul chiar le citeste (restul raman in stratul Mongo);
+- `GameConfig` ramane cu index la **incarcarea** configului (sursa de adevar externa), dar consumatorii interni
+  primesc un `Pick<>` ingust (ce folosesc efectiv), nu intregul `GameConfig`.
+
+**De ce e amanat / efort dedicat.** Nu e o incalcare de reguli (indexul e permis), ci o strangere catre nota 10.
+E un refactor mare: `GameConfig` apare in ~34 de fisiere, `DealInfo` in ~18, `GuildSettings` in ~13 — eliminarea
+indexului cere auditarea fiecarui acces pe cheie dinamica si fie tiparea campului, fie un `Pick<>` la consumator.
+Se face incremental, un tip pe rand (cum s-a facut `PatchUpdate`/`NormalizedUpdate`), cu suita verde la fiecare pas.
+
 ## Partitionarea `buildOptimizedGameList` (filtered vs unfiltered) la scara mare
 
 **Starea curenta.** `updateNotificationService.buildOptimizedGameList(allGames, subscribedGuilds)` reduce,
