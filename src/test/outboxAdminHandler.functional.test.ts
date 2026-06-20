@@ -264,6 +264,7 @@ test("install: deleaga interactiunile non-/outbox catre handler-ul urmator", asy
     formatUserError: (_e: unknown, f: string) => f,
     logger: () => undefined,
     MessageFlags: { Ephemeral: 64 },
+    env: { NOTIFICATION_OUTBOX_ENABLED: false, NOTIFICATION_OUTBOX_RECOVERY_VERIFY: false, NOTIFICATION_OUTBOX_RECOVERY_STRICT: false },
     handleInteraction: async (interaction: { commandName?: string }) => { delegated.push(interaction.commandName || ""); }
   };
   installOutboxAdmin(context);
@@ -271,13 +272,7 @@ test("install: deleaga interactiunile non-/outbox catre handler-ul urmator", asy
   assert.deepEqual(delegated, ["ping"], "comenzile non-outbox sunt delegate mai jos");
 });
 
-test("install: citeste flag-urile outbox cu acelasi parser boolean ca RuntimeEnv", async () => {
-  const previousEnabled = process.env.NOTIFICATION_OUTBOX_ENABLED;
-  const previousVerify = process.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY;
-  const previousStrict = process.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT;
-  process.env.NOTIFICATION_OUTBOX_ENABLED = "1";
-  process.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY = "1";
-  process.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT = "1";
+test("install: citeste flag-urile outbox din env-ul injectat (RuntimeEnv), nu din process.env", async () => {
   const replies: string[] = [];
   const context: Record<string, unknown> = {
     NotificationOutboxModel: { countDocuments: async () => 0, updateMany: async () => ({}) },
@@ -297,19 +292,11 @@ test("install: citeste flag-urile outbox cu acelasi parser boolean ca RuntimeEnv
     safeEdit: async (_interaction: unknown, content: string) => { replies.push(content); return content; },
     formatUserError: (_e: unknown, f: string) => f,
     logger: () => undefined,
-    MessageFlags: { Ephemeral: 64 }
+    MessageFlags: { Ephemeral: 64 },
+    env: { NOTIFICATION_OUTBOX_ENABLED: true, NOTIFICATION_OUTBOX_RECOVERY_VERIFY: true, NOTIFICATION_OUTBOX_RECOVERY_STRICT: true }
   };
-  try {
-    installOutboxAdmin(context);
-    await (context.handleInteraction as (i: unknown, g: unknown[]) => Promise<unknown>)(makeInteraction(null, "status"), []);
-  } finally {
-    if (previousEnabled === undefined) delete process.env.NOTIFICATION_OUTBOX_ENABLED;
-    else process.env.NOTIFICATION_OUTBOX_ENABLED = previousEnabled;
-    if (previousVerify === undefined) delete process.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY;
-    else process.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY = previousVerify;
-    if (previousStrict === undefined) delete process.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT;
-    else process.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT = previousStrict;
-  }
+  installOutboxAdmin(context);
+  await (context.handleInteraction as (i: unknown, g: unknown[]) => Promise<unknown>)(makeInteraction(null, "status"), []);
   assert.match(replies[0], /Outbox activat \(global\): \*\*ON\*\*/);
   assert.match(replies[0], /Recovery-verify global: \*\*ON\*\* \| strict: \*\*ON\*\*/);
 });
