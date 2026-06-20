@@ -27,6 +27,8 @@ function createMetrics(): BotMetrics {
     outboxRecoveryFailures: 0,
     outboxRecoveryMarkerMissing: 0,
     outboxMarkSentFailures: 0,
+    outboxDeleteFailures: 0,
+    outboxDeadLetterWriteFailures: 0,
     outboxRecoveryVerifyEnabledGuilds: 0,
     outboxLastDrainAt: 0,
     startedAt: Date.now()
