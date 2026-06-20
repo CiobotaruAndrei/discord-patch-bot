@@ -1,18 +1,19 @@
 "use strict";
 
 import type * as Mongoose from "mongoose";
-import type { CurrencyCode, CurrencyRegistry } from "../../types";
+import type { CurrencyCode, CurrencyRegistry, RuntimeEnv } from "../../types";
 
 interface MongoModelsContext {
   mongoose: typeof Mongoose;
   SUPPORTED_CURRENCIES: CurrencyRegistry;
   DEFAULT_CURRENCY: CurrencyCode;
   ONE_DAY_MS: number;
+  env: RuntimeEnv;
   [key: string]: unknown;
 }
 
 function attachMongoModels(target: MongoModelsContext): void {
-  const { mongoose, SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, ONE_DAY_MS } = target;
+  const { mongoose, SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, ONE_DAY_MS, env } = target;
 
 const pendingUpdateSchema = new mongoose.Schema({
   id: { type: String, required: true },
@@ -131,7 +132,7 @@ const fetchSnapshotSchema = new mongoose.Schema({
 }, { minimize: false });
 const FetchSnapshotModel = mongoose.model("FetchSnapshot", fetchSnapshotSchema);
 
-const GUILD_SEEN_DISCOUNT_TTL_DAYS = Math.min(365, Math.max(30, Number(process.env.GUILD_SEEN_DISCOUNT_TTL_DAYS) || 60));
+const GUILD_SEEN_DISCOUNT_TTL_DAYS = env.GUILD_SEEN_DISCOUNT_TTL_DAYS;
 const guildSeenDiscountSchema = new mongoose.Schema({
   guildId: { type: String, required: true },
   dealHash: { type: String, required: true },
@@ -175,14 +176,14 @@ notificationOutboxSchema.index({ availableAt: 1, lockedUntil: 1 }, { background:
 notificationOutboxSchema.index({ dedupeKey: 1 }, { unique: true, sparse: true, background: true });
 const NotificationOutboxModel = mongoose.model("NotificationOutbox", notificationOutboxSchema, "notificationOutbox");
 
-const OUTBOX_SENT_TTL_HOURS = Math.min(168, Math.max(1, Number(process.env.NOTIFICATION_OUTBOX_SENT_TTL_HOURS) || 24));
+const OUTBOX_SENT_TTL_HOURS = env.NOTIFICATION_OUTBOX_SENT_TTL_HOURS;
 const notificationOutboxSentSchema = new mongoose.Schema({
   dedupeKey: { type: String, required: true, unique: true },
   sentAt: { type: Date, default: Date.now, expires: OUTBOX_SENT_TTL_HOURS * 3600 }
 }, { minimize: false });
 const NotificationOutboxSentModel = mongoose.model("NotificationOutboxSent", notificationOutboxSentSchema, "notificationOutboxSent");
 
-const NOTIFICATION_HISTORY_TTL_DAYS = Math.min(180, Math.max(7, Number(process.env.NOTIFICATION_HISTORY_TTL_DAYS) || 30));
+const NOTIFICATION_HISTORY_TTL_DAYS = env.NOTIFICATION_HISTORY_TTL_DAYS;
 const notificationHistorySchema = new mongoose.Schema({
   guildId: { type: String, required: true },
   kind: { type: String, enum: ["update", "discount"], required: true },
@@ -194,7 +195,7 @@ const notificationHistorySchema = new mongoose.Schema({
 notificationHistorySchema.index({ guildId: 1, sentAt: -1 }, { background: true });
 const NotificationHistoryModel = mongoose.model("NotificationHistory", notificationHistorySchema, "notificationHistory");
 
-const FEEDBACK_REPORT_TTL_DAYS = Math.min(365, Math.max(7, Number(process.env.FEEDBACK_REPORT_TTL_DAYS) || 90));
+const FEEDBACK_REPORT_TTL_DAYS = env.FEEDBACK_REPORT_TTL_DAYS;
 const feedbackReportSchema = new mongoose.Schema({
   guildId: { type: String, required: true },
   userId: { type: String, default: "" },
@@ -206,7 +207,7 @@ const feedbackReportSchema = new mongoose.Schema({
 feedbackReportSchema.index({ guildId: 1, createdAt: -1 }, { background: true });
 const FeedbackReportModel = mongoose.model("FeedbackReport", feedbackReportSchema, "feedbackReports");
 
-const DEAD_LETTER_REPLAY_TTL_DAYS = Math.min(30, Math.max(1, Number(process.env.NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS) || 7));
+const DEAD_LETTER_REPLAY_TTL_DAYS = env.NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS;
 const deadLetterReplaySchema = new mongoose.Schema({
   guildId: { type: String, required: true },
   kind: { type: String, enum: ["update", "discount"], required: true },

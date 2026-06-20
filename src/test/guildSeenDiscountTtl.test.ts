@@ -15,7 +15,8 @@ function attachOnce(): Record<string, unknown> {
     mongoose,
     SUPPORTED_CURRENCIES: { USD: {} },
     DEFAULT_CURRENCY: "USD",
-    ONE_DAY_MS: 86_400_000
+    ONE_DAY_MS: 86_400_000,
+    env: { GUILD_SEEN_DISCOUNT_TTL_DAYS: 45, NOTIFICATION_OUTBOX_SENT_TTL_HOURS: 24, NOTIFICATION_HISTORY_TTL_DAYS: 30, FEEDBACK_REPORT_TTL_DAYS: 90, NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS: 7 }
   };
   try {
     attachMongoModels(target);
@@ -44,8 +45,7 @@ test("GuildSeenDiscount: index TTL pe seenAt mentine setul de dedup marginit (cl
   const model = getModel(target, "GuildSeenDiscountModel", "GuildSeenDiscount");
   const ttl = findTtlSeconds(model, "seenAt");
   assert.notEqual(ttl, null, "GuildSeenDiscount trebuie sa aiba index TTL pe seenAt");
-  const days = Math.min(365, Math.max(30, Number(process.env.GUILD_SEEN_DISCOUNT_TTL_DAYS) || 60));
-  assert.equal(ttl, days * 86_400, "TTL trebuie sa respecte GUILD_SEEN_DISCOUNT_TTL_DAYS clamped la 30..365 zile");
+  assert.equal(ttl, 45 * 86_400, "TTL-ul schemei provine din env.GUILD_SEEN_DISCOUNT_TTL_DAYS injectat (45 zile), nu din process.env citit local");
 });
 
 test("GuildSeenUpdate: NU are TTL pe seenAt (latest poate ramane valid la nesfarsit -> un TTL ar re-notifica jocurile dormante)", () => {
