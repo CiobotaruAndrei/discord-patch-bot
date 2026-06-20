@@ -31,6 +31,13 @@ interface EnvProblem {
   problem: string;
 }
 
+function makeOptionalBooleanEnv(z: ZodLike, name: string) {
+  return z.preprocess(
+    value => (value === "" ? undefined : value),
+    z.string().regex(BOOLEAN_ENV_PATTERN, `${name} trebuie sa fie true/false/1/0`).optional()
+  );
+}
+
 function formatEnvValidationErrors(err: unknown): EnvProblem[] {
   const issues = (err as { issues?: Array<{ path?: unknown[]; message?: string }> })?.issues;
   if (!Array.isArray(issues) || issues.length === 0) {
@@ -56,6 +63,8 @@ function attachEnv(target: EnvContext): void {
     logger("WARN", "ENV", "METRICS_TOKEN are valoarea placeholder, tratat ca lipsa");
   }
 
+  const optionalBooleanEnv = (name: string) => makeOptionalBooleanEnv(z, name);
+
   const EnvSchema = z.object({
     MONGO_URI: z.string().min(1, "MONGO_URI lipseste"),
     DISCORD_TOKEN: z.string().min(1, "DISCORD_TOKEN lipseste"),
@@ -66,7 +75,7 @@ function attachEnv(target: EnvContext): void {
       .optional(),
     NODE_ENV: z.string().optional(),
     METRICS_TOKEN: z.string().min(8, "METRICS_TOKEN trebuie sa aiba cel putin 8 caractere").optional(),
-    METRICS_PUBLIC: z.string().optional(),
+    METRICS_PUBLIC: optionalBooleanEnv("METRICS_PUBLIC"),
     ADMIN_WEBHOOK_URL: z.string().url("ADMIN_WEBHOOK_URL nu este URL valid")
       .refine(u => {
         try { return ["http:", "https:"].includes(new URL(u).protocol); }
@@ -75,8 +84,13 @@ function attachEnv(target: EnvContext): void {
       .optional(),
     LOG_LEVEL: z.string().optional(),
     PROXY_URLS: z.string().optional(),
-    TRUST_PROXY: z.string().regex(BOOLEAN_ENV_PATTERN, "TRUST_PROXY trebuie sa fie true/false/1/0").optional(),
-    TRUSTED_PROXY_COUNT: z.string().regex(/^\d+$/, "TRUSTED_PROXY_COUNT trebuie sa fie un numar intreg >= 0").optional()
+    TRUST_PROXY: optionalBooleanEnv("TRUST_PROXY"),
+    TRUSTED_PROXY_COUNT: z.string().regex(/^\d+$/, "TRUSTED_PROXY_COUNT trebuie sa fie un numar intreg >= 0").optional(),
+    NOTIFICATION_OUTBOX_ENABLED: optionalBooleanEnv("NOTIFICATION_OUTBOX_ENABLED"),
+    NOTIFICATION_OUTBOX_RECOVERY_VERIFY: optionalBooleanEnv("NOTIFICATION_OUTBOX_RECOVERY_VERIFY"),
+    NOTIFICATION_OUTBOX_RECOVERY_STRICT: optionalBooleanEnv("NOTIFICATION_OUTBOX_RECOVERY_STRICT"),
+    MIGRATIONS_CONTINUE_ON_ERROR: optionalBooleanEnv("MIGRATIONS_CONTINUE_ON_ERROR"),
+    ALLOW_DEFAULT_PROXIES: optionalBooleanEnv("ALLOW_DEFAULT_PROXIES")
   }).superRefine((env, validationContext) => {
     if (isProd) {
       const hasToken = !!env.METRICS_TOKEN;
@@ -103,7 +117,12 @@ function attachEnv(target: EnvContext): void {
       LOG_LEVEL: process.env.LOG_LEVEL,
       PROXY_URLS: process.env.PROXY_URLS,
       TRUST_PROXY: process.env.TRUST_PROXY,
-      TRUSTED_PROXY_COUNT: process.env.TRUSTED_PROXY_COUNT
+      TRUSTED_PROXY_COUNT: process.env.TRUSTED_PROXY_COUNT,
+      NOTIFICATION_OUTBOX_ENABLED: process.env.NOTIFICATION_OUTBOX_ENABLED,
+      NOTIFICATION_OUTBOX_RECOVERY_VERIFY: process.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY,
+      NOTIFICATION_OUTBOX_RECOVERY_STRICT: process.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT,
+      MIGRATIONS_CONTINUE_ON_ERROR: process.env.MIGRATIONS_CONTINUE_ON_ERROR,
+      ALLOW_DEFAULT_PROXIES: process.env.ALLOW_DEFAULT_PROXIES
     });
   } catch (err) {
     const problems = formatEnvValidationErrors(err);
@@ -233,5 +252,6 @@ function attachEnv(target: EnvContext): void {
 }
 
 attachEnv.formatEnvValidationErrors = formatEnvValidationErrors;
+attachEnv.makeOptionalBooleanEnv = makeOptionalBooleanEnv;
 
 export = attachEnv;
