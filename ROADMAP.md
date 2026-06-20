@@ -129,6 +129,17 @@ eliminarea completa a boundary-ului cere DI per handler/sursa, nu tiparea regist
 4. `check:weakening` plus gardurile AST din `registryClosedContracts.test.ts` impun deja zero `as never`
    / `as unknown as` si se mentin la fiecare pas; ultima migrare elimina si `as`-ul de narrowing ramas.
 
+**Boundary-urile `& Record<string, unknown>` ale adaptoarelor (urmatorul pas catre nota 10).** Acelasi
+tipar de installer `attachX` largeste contextul de instalare la `Deps & Record<string, unknown>` ca sa
+accepte cheile adaugate progresiv: `NotificationsContext` (`notifications/index.ts`), `HttpClientContext`
+(`infra/http/client.ts`), plus contextele celor doua registre (`commandRegistry`, `sourceRegistry`).
+**Nu sunt bug-uri** — contractele de iesire raman tipate si inchise, iar `Record<string, unknown>` e un
+index type-safe (nu `any`), permis de regula 2. Sunt insa ultima zona de slabire structurala a tiparii:
+indexul lasa accesul la chei nedeclarate pe contextul de wiring. Curatarea lor (inlocuirea `& Record<string,
+unknown>` cu contracte de wiring inguste, per furnizor) merge **mana in mana** cu migrarea la factory-uri de
+mai sus — cand fiecare consumator primeste `createX(deps)` cu `Pick<>`-uri explicite, contextul-adaptor larg
+dispare cu totul, nu doar se ingusteaza. Pana atunci raman documentate aici ca datorie cunoscuta, nu ca regresie.
+
 **Consistenta env in stratul progresiv (follow-up).** Boot-ul scheduler-ului si `notifications/index.ts`
 citesc deja toata configuratia outbox (`NOTIFICATION_OUTBOX_ENABLED` + `DRAIN_LIMIT` / `MAX_AGE_MS` /
 `RECOVERY_VERIFY` / `RECOVERY_STRICT` / `RECOVERY_HISTORY_LIMIT`) din env-ul centralizat (`RuntimeEnv`,
@@ -137,10 +148,12 @@ le ia din `deps.env`, deci sunt injectabile in teste, fara citiri `process.env` 
 boot-ul citeste acum `MIGRATIONS_CONTINUE_ON_ERROR` (din `appRuntime`), iar `client.ts` citeste
 `ALLOW_DEFAULT_PROXIES`, ambele din `RuntimeEnv` injectat in loc de `process.env` direct.
 **Citirile ramase** sunt: (1) ~~`outboxAdminHandler.ts`~~ **REZOLVAT (review manual R11 #3)**: handler-ul
-citeste acum `NOTIFICATION_OUTBOX_ENABLED` / `NOTIFICATION_OUTBOX_RECOVERY_VERIFY` / `NOTIFICATION_OUTBOX_RECOVERY_STRICT`
-din `target.env` (tipat `RuntimeEnv` pe `OutboxAdminContext`), nu din `process.env`. `env` era deja prezent
-in contextul command-runtime prin `MongoContextExports` (parte din `CommandRuntimeContext`), deci a fost
-suficient sa-l tipam pe contractul handler-ului — fara a astepta migrarea completa la factory-uri. (2) Knob-urile cron (`CRON_CYCLE_BUDGET_MS`, `CRON_JITTER_MS`)
+foloseste deja acelasi parser ca `RuntimeEnv`, deci parsarea era consistenta; problema ramasa era doar
+**sursa** (`process.env` in loc de `env` tipat injectat). Acum citeste `NOTIFICATION_OUTBOX_ENABLED` /
+`NOTIFICATION_OUTBOX_RECOVERY_VERIFY` / `NOTIFICATION_OUTBOX_RECOVERY_STRICT` din `target.env` (tipat
+`RuntimeEnv` pe `OutboxAdminContext`). `env` era deja prezent in contextul command-runtime prin
+`MongoContextExports` (parte din `CommandRuntimeContext`), deci a fost suficient sa-l tipam pe contractul
+handler-ului — fara a astepta migrarea completa la factory-uri. (2) Knob-urile cron (`CRON_CYCLE_BUDGET_MS`, `CRON_JITTER_MS`)
 si worker (`NOTIFICATION_OUTBOX_DRAIN_INTERVAL_MS`, `NOTIFICATION_OUTBOX_LOCK_TTL_MS`) sunt deja citite prin
 **`parseEnvNumber` injectat** (acelasi reader centralizat care construieste si `RuntimeEnv`, cu clamp),
 la constructia controller-ului/worker-ului — nu sunt `process.env` raw imprastiate; pre-stocarea lor in
