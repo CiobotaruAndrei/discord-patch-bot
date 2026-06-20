@@ -98,6 +98,7 @@ export type DeliverResult =
 
 export interface DrainOutboxOptions {
   deliver: (job: OutboxJob) => Promise<DeliverResult>;
+  isStillSubscribed?: (job: OutboxJob) => Promise<boolean>;
   recordDeadLetter: (job: OutboxJob, reason: string) => Promise<void>;
   recordSentHistory?: (guildId: string, entries: OutboxHistoryEntry[]) => Promise<void>;
   maxAttempts: number;
@@ -125,6 +126,7 @@ export interface DrainOutboxResult {
   markSentFailures: number;
   deleteFailures: number;
   deadLetterFailures: number;
+  droppedUnsubscribed: number;
 }
 
 export interface OutboxRuntime {
@@ -220,6 +222,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     let expired = 0;
     let deleteFailures = 0;
     let deadLetterFailures = 0;
+    let droppedUnsubscribed = 0;
     const maxAgeMs = options.maxAgeMs ?? 0;
 
     const deleteJob = async (id: unknown): Promise<boolean> => {
@@ -268,6 +271,12 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         if (!(await recordDeadLetterOrKeep(job, "expired-near-ttl"))) continue;
         await deleteJob(job._id);
         expired++;
+        continue;
+      }
+
+      if (options.isStillSubscribed && !(await options.isStillSubscribed(job).catch(() => true))) {
+        await deleteJob(job._id);
+        droppedUnsubscribed++;
         continue;
       }
 
@@ -357,7 +366,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     if (deadLetterFailures > 0) {
       logger("WARN", "OUTBOX", `Drain outbox: ${deadLetterFailures} audit(uri) dead-letter esuate (job-urile terminale raman in coada pentru reluare; un job deja livrat e sters chiar fara audit - vezi log-urile WARN per job; verifica disponibilitatea Mongo)`);
     }
-    return { sent, deadLettered, retried, expired, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures, deleteFailures, deadLetterFailures };
+    return { sent, deadLettered, retried, expired, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures, deleteFailures, deadLetterFailures, droppedUnsubscribed };
   }
 
   return { enqueueOutbox, drainOutbox };

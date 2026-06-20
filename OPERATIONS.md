@@ -40,6 +40,12 @@ Coada de joburi outbox creste mai repede decat reuseste worker-ul sa o dreneze.
    de declansare pentru optimizarea de batch claim. Vezi `ROADMAP.md` („Outbox: claim in batch")
    si alerta `OutboxBatchDrainRecommended`.
 
+**Dezabonare in timpul drenarii.** Inainte de a livra un job, drain-ul revalideaza ca guild-ul e inca
+abonat pe acel canal (`subscribed`+`notificationChannelId` pentru update / `discountsSubscribed`+`discountChannelId`
+pentru reduceri). Daca cineva a dat `/stop` intre enqueue si drain, jobul e **scos din coada fara livrare**
+(nu e dead-letter, nu e un esec) — asa nu mai trece o ultima notificare dupa `/stop`. Verificarea e fail-open:
+daca interogarea Mongo esueaza tranzitoriu, jobul se livreaza (nu pierdem notificari legitime).
+
 ## Cand creste `bot_outbox_mark_sent_failures`
 
 Mesaje au fost trimise pe Discord, dar marcarea lor in istoricul de dedupe
