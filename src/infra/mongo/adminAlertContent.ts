@@ -71,8 +71,8 @@ const EXACT_GUIDANCE: Record<string, AdminAlertGuidance> = {
   },
   "outbox:deadletter-write": {
     severity: "warning",
-    meaning: "Auditul dead-letter pentru job-uri expirate a esuat, deci job-urile NU au fost sterse (payload-ul de replay e pastrat, raman in coada pana se reia auditul).",
-    action: "Verifica disponibilitatea Mongo si scrierile in colectia de dead-letter. Job-urile nu se pierd; auditul se reia la urmatorul ciclu. Vezi OPERATIONS.md."
+    meaning: "Scrierea unui audit dead-letter a esuat. Pe caile terminale (expirare/permanent/max-attempts) jobul NU e sters (payload-ul de replay e pastrat, ramane in coada pana se reia auditul); pentru un job DEJA LIVRAT cu markSent esuat, jobul e sters chiar fara audit (ca sa nu se duplice mesajul), deci se pierde doar urma de dedupe-degradat a acelui mesaj.",
+    action: "Verifica disponibilitatea Mongo si scrierile in colectia de dead-letter. Coreleaza cu `bot_outbox_mark_sent_failures` pentru cazul deja-livrat. Vezi OPERATIONS.md."
   }
 };
 

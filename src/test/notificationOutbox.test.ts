@@ -298,6 +298,30 @@ test("drainOutbox: livrare la max-attempts cu audit reusit sterge jobul cu motiv
   assert.deepEqual(deadLetters, ["max-attempts"], "motivul de audit e max-attempts, nu permanent");
 });
 
+test("drainOutbox: markSent esuat + audit dead-letter esuat -> esecul auditului nu mai e silentios, dar jobul deja livrat e sters (review R8 #1)", async () => {
+  const job: OutboxJob = { _id: "ms1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "dk-ms1" };
+  const fake = makeFakeModel([job]);
+  const failingSent: OutboxSentModelMock = {
+    ...fake.sentModel,
+    updateOne: async () => { throw new Error("mongo down la markSent"); }
+  };
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: fake.model,
+    NotificationOutboxSentModel: failingSent,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: true }),
+    recordDeadLetter: async () => { throw new Error("colectia dead-letter cazuta"); },
+    maxAttempts: 5, backoffMs: 1000, limit: 5
+  });
+  assert.equal(result.markSentFailures, 1, "markSent esuat e contorizat");
+  assert.equal(result.deadLetterFailures, 1, "esecul auditului dead-letter NU mai e silentios pe calea delivered-marksent-failed");
+  assert.equal(result.sent, 1, "mesajul a fost livrat");
+  assert.equal(fake.deleted.length, 1, "jobul deja livrat e sters chiar daca auditul esueaza, ca sa nu se duplice mesajul");
+});
+
 test("applyDedupeMarker: adauga un marker dedupeKey in footer-ul ultimului embed (idempotent)", () => {
   const payload = { embeds: [{ title: "A" }, { title: "B", footer: { text: "deal" } }] };
   const dedupeKey = "abcdef0123456789ffff";
