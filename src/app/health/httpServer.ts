@@ -192,6 +192,8 @@ function createHttpServer({
       pushMetric(lines, seenMetricNames, "bot_outbox_recovery_verify_failures", "counter", "Outbox recovery-verify channel history fetch failures", metrics.outboxRecoveryFailures);
       pushMetric(lines, seenMetricNames, "bot_outbox_recovery_marker_missing", "counter", "Outbox recovery-verify fetched history but marker not found (re-sent)", metrics.outboxRecoveryMarkerMissing);
       pushMetric(lines, seenMetricNames, "bot_outbox_mark_sent_failures", "counter", "Outbox deliveries that could not be recorded in the sent-dedupe history", metrics.outboxMarkSentFailures);
+      pushMetric(lines, seenMetricNames, "bot_outbox_delete_failures", "counter", "Outbox jobs that could not be deleted after processing (remain queued, deduped/retried)", metrics.outboxDeleteFailures);
+      pushMetric(lines, seenMetricNames, "bot_outbox_deadletter_write_failures", "counter", "Outbox dead-letter audit writes that failed (terminal jobs kept for replay; an already-delivered job is deleted without audit)", metrics.outboxDeadLetterWriteFailures);
       pushMetric(lines, seenMetricNames, "bot_outbox_recovery_verify_enabled_guilds", "gauge", "Guilds with per-guild outbox recovery-verify enabled", metrics.outboxRecoveryVerifyEnabledGuilds);
       pushMetric(lines, seenMetricNames, "bot_outbox_last_drain_age_seconds", "gauge", "Seconds since the last completed outbox drain (0 = never; grows when the worker is paused/not draining)", metrics.outboxLastDrainAt > 0 ? Math.max(0, Math.round((Date.now() - metrics.outboxLastDrainAt) / 1000)) : 0);
       const nativeFallbackTotals = getNativeFallbackTotals();

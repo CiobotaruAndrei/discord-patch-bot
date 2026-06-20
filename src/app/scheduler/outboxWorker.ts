@@ -34,6 +34,8 @@ interface OutboxMetricsLike {
   outboxRecoveryFailures: number;
   outboxRecoveryMarkerMissing: number;
   outboxMarkSentFailures: number;
+  outboxDeleteFailures: number;
+  outboxDeadLetterWriteFailures: number;
   outboxRecoveryVerifyEnabledGuilds: number;
   outboxLastDrainAt: number;
 }
@@ -125,6 +127,8 @@ function createOutboxWorker({
     metrics.outboxRecoveryFailures += r.recoveryFailures ?? 0;
     metrics.outboxRecoveryMarkerMissing += r.recoveryMarkerMissing ?? 0;
     metrics.outboxMarkSentFailures += r.markSentFailures ?? 0;
+    metrics.outboxDeleteFailures += r.deleteFailures ?? 0;
+    metrics.outboxDeadLetterWriteFailures += r.deadLetterFailures ?? 0;
     if (typeof r.queued === "number") metrics.outboxQueueDepth = r.queued;
     if (typeof r.oldestJobAgeMs === "number") metrics.outboxOldestJobAgeSeconds = Math.round(r.oldestJobAgeMs / 1000);
     if (typeof r.recoveryVerifyEnabledGuilds === "number") metrics.outboxRecoveryVerifyEnabledGuilds = r.recoveryVerifyEnabledGuilds;

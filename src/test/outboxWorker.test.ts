@@ -24,6 +24,8 @@ interface Harness {
     outboxRecoveryFailures: number;
     outboxRecoveryMarkerMissing: number;
     outboxMarkSentFailures: number;
+    outboxDeleteFailures: number;
+    outboxDeadLetterWriteFailures: number;
     outboxRecoveryVerifyEnabledGuilds: number;
     outboxLastDrainAt: number;
   };
@@ -51,7 +53,7 @@ function makeWorker(overrides: {
       outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxExpired: 0, outboxDrains: 0, outboxQueueDepth: 0,
       outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxLockAcquireFailures: 0,
       outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0, outboxRecoveryMarkerMissing: 0,
-      outboxMarkSentFailures: 0, outboxRecoveryVerifyEnabledGuilds: 0, outboxLastDrainAt: 0
+      outboxMarkSentFailures: 0, outboxDeleteFailures: 0, outboxDeadLetterWriteFailures: 0, outboxRecoveryVerifyEnabledGuilds: 0, outboxLastDrainAt: 0
     }
   };
   const lifecycle = { isShuttingDown: overrides.shuttingDown ?? false };
@@ -162,7 +164,7 @@ test("outboxWorker: eroarea de drain este prinsa si lock-ul tot se elibereaza", 
 });
 
 test("outboxWorker: actualizeaza metrics din rezultatul drenarii (countere + latenta + vechime)", async () => {
-  const { worker, harness } = makeWorker({ drainResult: { sent: 3, retried: 1, deadLettered: 2, queued: 7, deliveryMsTotal: 1200, oldestJobAgeMs: 45_000, recoveryDuplicates: 2, recoveryFetches: 5, recoveryFailures: 1, recoveryMarkerMissing: 3, markSentFailures: 4, recoveryVerifyEnabledGuilds: 9 } });
+  const { worker, harness } = makeWorker({ drainResult: { sent: 3, retried: 1, deadLettered: 2, queued: 7, deliveryMsTotal: 1200, oldestJobAgeMs: 45_000, recoveryDuplicates: 2, recoveryFetches: 5, recoveryFailures: 1, recoveryMarkerMissing: 3, markSentFailures: 4, deleteFailures: 6, deadLetterFailures: 8, recoveryVerifyEnabledGuilds: 9 } });
   await worker.drainTick();
   assert.equal(harness.metrics.outboxDrains, 1, "numara ciclul de drenare");
   assert.equal(harness.metrics.outboxSent, 3);
@@ -176,6 +178,8 @@ test("outboxWorker: actualizeaza metrics din rezultatul drenarii (countere + lat
   assert.equal(harness.metrics.outboxRecoveryFailures, 1, "esecuri de verificare la recovery");
   assert.equal(harness.metrics.outboxRecoveryMarkerMissing, 3, "fetch reusit dar marker negasit -> re-trimis");
   assert.equal(harness.metrics.outboxMarkSentFailures, 4, "esecuri de marcare in istoricul de dedupe");
+  assert.equal(harness.metrics.outboxDeleteFailures, 6, "esecuri de stergere a job-urilor procesate (-> bot_outbox_delete_failures)");
+  assert.equal(harness.metrics.outboxDeadLetterWriteFailures, 8, "esecuri de scriere a auditului dead-letter (-> bot_outbox_deadletter_write_failures)");
   assert.equal(harness.metrics.outboxRecoveryVerifyEnabledGuilds, 9, "gauge cu numarul de guild-uri cu recovery-verify activ");
   worker.stop();
 });
