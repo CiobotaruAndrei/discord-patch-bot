@@ -108,6 +108,38 @@ test("drainOutbox: lease-ul foloseste now-ul injectat (lockedUntil = now + lease
     "lockedUntil deriva din now-ul injectat, nu din Date.now()");
 });
 
+test("drainOutbox: un job al carui guild s-a dezabonat intre enqueue si drain e scos din coada FARA livrare (R12 #1)", async () => {
+  const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0 };
+  const { runtime, deleted } = makeRuntime([job]);
+  let delivered = 0;
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => { delivered++; return { ok: true }; },
+    isStillSubscribed: async () => false,
+    recordDeadLetter: async () => undefined,
+    maxAttempts: 5, backoffMs: 1000, limit: 50
+  });
+  assert.equal(delivered, 0, "jobul NU este livrat dupa dezabonare");
+  assert.equal(result.sent, 0, "nu se numara ca trimis");
+  assert.equal(result.deadLettered, 0, "dezabonarea nu e un esec -> fara dead-letter");
+  assert.equal(result.droppedUnsubscribed, 1, "jobul e numarat ca scos pentru dezabonare");
+  assert.equal(deleted.length, 1, "jobul e sters din coada (dequeue)");
+});
+
+test("drainOutbox: un job al carui guild e inca abonat se livreaza normal (isStillSubscribed=true)", async () => {
+  const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0 };
+  const { runtime } = makeRuntime([job]);
+  let delivered = 0;
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => { delivered++; return { ok: true }; },
+    isStillSubscribed: async () => true,
+    recordDeadLetter: async () => undefined,
+    maxAttempts: 5, backoffMs: 1000, limit: 50
+  });
+  assert.equal(delivered, 1, "guild inca abonat -> livrare normala");
+  assert.equal(result.sent, 1);
+  assert.equal(result.droppedUnsubscribed, 0);
+});
+
 test("drainOutbox: o stergere esuata nu opreste drain-ul si se numara in deleteFailures", async () => {
   const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "dk1" };
   const fake = makeFakeModel([job]);
