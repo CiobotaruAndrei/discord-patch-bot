@@ -132,13 +132,19 @@ eliminarea completa a boundary-ului cere DI per handler/sursa, nu tiparea regist
 **Boundary-urile `& Record<string, unknown>` ale adaptoarelor (urmatorul pas catre nota 10).** Acelasi
 tipar de installer `attachX` largeste contextul de instalare la `Deps & Record<string, unknown>` ca sa
 accepte cheile adaugate progresiv: `NotificationsContext` (`notifications/index.ts`), `HttpClientContext`
-(`infra/http/client.ts`), plus contextele celor doua registre (`commandRegistry`, `sourceRegistry`).
-**Nu sunt bug-uri** — contractele de iesire raman tipate si inchise, iar `Record<string, unknown>` e un
-index type-safe (nu `any`), permis de regula 2. Sunt insa ultima zona de slabire structurala a tiparii:
-indexul lasa accesul la chei nedeclarate pe contextul de wiring. Curatarea lor (inlocuirea `& Record<string,
-unknown>` cu contracte de wiring inguste, per furnizor) merge **mana in mana** cu migrarea la factory-uri de
-mai sus — cand fiecare consumator primeste `createX(deps)` cu `Pick<>`-uri explicite, contextul-adaptor larg
-dispare cu totul, nu doar se ingusteaza. Pana atunci raman documentate aici ca datorie cunoscuta, nu ca regresie.
+(`infra/http/client.ts`). **Pasi siguri facuti (review manual R11 #4 + #5):** (a) `sourceRegistry` —
+`SourceRuntimeContext` a fost stramtat din `Partial<SourceRegistryApi> & runtime & Record<string, unknown>`
+la exact `Partial<SourceRegistryApi> & runtime` (installer-ele de surse nu adaugau chei in afara API-ului,
+deci indexul larg era inutil); (b) `commandRegistry` — campurile de iesire tipate generic cu
+`RegistryFunction = (...args: unknown[]) => MaybePromise<unknown>` au primit semnaturi precise
+(`cleanCache: () => void`, `buildSlashCommandDefinitions: () => unknown[]`, `getFindGameCacheSize: () => number`
+etc.), iar tipul generic a fost eliminat. **Ce ramane** (tipizarea **uniforma** a boundary-ului de instalare
+in sine — `installers: readonly unknown[]` + apelul dinamic) e in continuare blocat: tiparea installer-elor
+ca un singur `CommandModuleInstaller[]` colapseaza la tsc (varianta pe campuri-functie ca `setDealsCache`,
+proba reconfirmata), deci eliminarea completa cere migrarea la factory-uri `createX(deps)` de mai sus.
+`Record<string, unknown>` ramas (`NotificationsContext`, `HttpClientContext`) e un index type-safe (nu `any`,
+permis de regula 2), nu un bug; dispare odata cu aceeasi migrare. Gardat de `registryClosedContracts.test.ts`
+(fara `Record<string, unknown>` pe `SourceRuntimeContext`, fara `RegistryFunction` generic in `commandRegistry`).
 
 **Consistenta env in stratul progresiv (follow-up).** Boot-ul scheduler-ului si `notifications/index.ts`
 citesc deja toata configuratia outbox (`NOTIFICATION_OUTBOX_ENABLED` + `DRAIN_LIMIT` / `MAX_AGE_MS` /

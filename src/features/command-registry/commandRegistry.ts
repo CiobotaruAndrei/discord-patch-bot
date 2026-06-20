@@ -2,10 +2,9 @@ import type { CommandCacheSizes, GameConfig } from "../../types";
 import type { NotificationDiscordClient, OutboxDiscordClient } from "../notifications/outboundChannel";
 
 type MaybePromise<T> = T | Promise<T>;
-type RegistryFunction = (...args: unknown[]) => MaybePromise<unknown>;
 
 interface CommandRegistryContext {
-  cleanCache?: RegistryFunction;
+  cleanCache?: () => void;
   getCacheSizes?: () => CommandCacheSizes;
   setGlobalCacheTtl?: (ms: number) => void;
   setUpdatesCache?: (data: unknown) => void;
@@ -15,12 +14,12 @@ interface CommandRegistryContext {
   drainOutbox?: (client: OutboxDiscordClient) => MaybePromise<unknown>;
   buildOptimizedGameList?: (allGames: GameConfig[], subscribedGuilds: unknown[]) => GameConfig[];
   registerSlashCommands?: (token: string, clientId: string) => Promise<unknown>;
-  buildSlashCommandDefinitions?: RegistryFunction;
+  buildSlashCommandDefinitions?: () => unknown[];
   handleInteraction?: (interaction: unknown, games: GameConfig[]) => MaybePromise<unknown>;
-  buildHelpEmbed?: RegistryFunction;
+  buildHelpEmbed?: () => unknown;
   findGameAndSuggestion?: (input: string, games: GameConfig[]) => unknown;
-  getFindGameCacheSize?: RegistryFunction;
-  clearFindGameCache?: RegistryFunction;
+  getFindGameCacheSize?: () => number;
+  clearFindGameCache?: () => void;
   formatUserError?: (err: unknown, fallback: string, code?: string) => string;
   canSendEmbeds?: (channel: unknown, botId: string) => boolean;
 }
