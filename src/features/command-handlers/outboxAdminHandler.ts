@@ -1,9 +1,9 @@
 "use strict";
 
 import type { OutboxDiscordClient } from "../notifications/outboundChannel";
+import type { RuntimeEnv } from "../../types";
 
 const { errorDetail, errorMessage } = require("../../shared/errors");
-const { parseBooleanEnv } = require("../../shared/booleanEnv") as typeof import("../../shared/booleanEnv");
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string } & Record<string, unknown>;
@@ -101,6 +101,7 @@ type OutboxAdminDeps = {
 type OutboxAdminContext = OutboxAdminDeps & {
   MessageFlags: { Ephemeral: number };
   handleInteraction?: NextInteractionHandler;
+  env: RuntimeEnv;
 };
 
 const DEFAULT_DEAD_LETTER_PREVIEW = 10;
@@ -362,9 +363,9 @@ function installOutboxAdminHandler(target: OutboxAdminContext): void {
     safeEdit: target.safeEdit,
     formatUserError: target.formatUserError,
     logger: target.logger,
-    outboxEnabled: parseBooleanEnv(process.env.NOTIFICATION_OUTBOX_ENABLED),
-    recoveryVerifyGlobal: parseBooleanEnv(process.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY),
-    recoveryStrict: parseBooleanEnv(process.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT)
+    outboxEnabled: target.env.NOTIFICATION_OUTBOX_ENABLED,
+    recoveryVerifyGlobal: target.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY,
+    recoveryStrict: target.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT
   });
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
