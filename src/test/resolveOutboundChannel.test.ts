@@ -18,6 +18,7 @@ function buildResolver(overrides: Record<string, unknown> = {}) {
       captured.logs.push({ level, context, message, meta });
     },
     canSendEmbeds: () => true,
+    acquireSendSlot: async () => undefined,
     ...overrides
   });
   return { resolveOutboundChannel, captured };

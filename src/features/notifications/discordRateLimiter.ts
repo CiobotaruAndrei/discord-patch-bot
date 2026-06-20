@@ -60,11 +60,6 @@ export function createDiscordRateLimiter(options: DiscordRateLimiterOptions): Di
   return { acquire };
 }
 
-function envInt(name: string, fallback: number): number {
-  const parsed = parseInt(String(process.env[name] || ""), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
 interface DiscordSendRateEnv {
   DISCORD_SEND_RATE_CAPACITY: number;
   DISCORD_SEND_RATE_PER_SEC: number;
@@ -86,10 +81,3 @@ export function createDefaultDiscordSendLimiter(env: DiscordSendRateEnv, timers?
     sleep: timers?.sleep
   });
 }
-
-export const defaultDiscordSendLimiter: DiscordRateLimiter = createDiscordRateLimiter({
-  capacity: envInt("DISCORD_SEND_RATE_CAPACITY", 5),
-  refillPerInterval: envInt("DISCORD_SEND_RATE_PER_SEC", 5),
-  intervalMs: 1000,
-  maxWaitMs: envInt("DISCORD_SEND_RATE_MAX_WAIT_MS", 5000)
-});
