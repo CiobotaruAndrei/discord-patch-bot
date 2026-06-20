@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createDiscordRateLimiter, DiscordRateLimiterOptions } from "../features/notifications/discordRateLimiter";
+import { createDiscordRateLimiter, createDefaultDiscordSendLimiter, DiscordRateLimiterOptions } from "../features/notifications/discordRateLimiter";
 
 function harness(opts: Omit<DiscordRateLimiterOptions, "now" | "sleep">) {
   const state = { clock: 0 };
@@ -47,4 +47,18 @@ test("discord rate limiter: serialized acquires do not over-consume tokens", asy
   const { limiter, sleeps } = harness({ capacity: 2, refillPerInterval: 1, intervalMs: 1000, maxWaitMs: 10000 });
   await Promise.all([limiter.acquire(), limiter.acquire(), limiter.acquire()]);
   assert.deepEqual(sleeps, [1000], "a treia acquire concurenta tot asteapta o reincarcare");
+});
+
+test("createDefaultDiscordSendLimiter: configureaza limiter-ul din RuntimeEnv (capacity + maxWait din env, nu process.env)", async () => {
+  const state = { clock: 0 };
+  const sleeps: number[] = [];
+  const limiter = createDefaultDiscordSendLimiter(
+    { DISCORD_SEND_RATE_CAPACITY: 2, DISCORD_SEND_RATE_PER_SEC: 5, DISCORD_SEND_RATE_MAX_WAIT_MS: 10 },
+    { now: () => state.clock, sleep: async (ms: number) => { sleeps.push(ms); state.clock += ms; } }
+  );
+  await limiter.acquire();
+  await limiter.acquire();
+  assert.deepEqual(sleeps, [], "primele `capacity` (2 din env) acquire-uri nu asteapta");
+  await limiter.acquire();
+  assert.deepEqual(sleeps, [10], "al treilea acquire e plafonat la maxWaitMs din env (10ms), nu la fallback-ul de 5000");
 });
