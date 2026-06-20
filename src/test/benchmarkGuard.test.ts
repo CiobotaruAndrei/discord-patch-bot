@@ -4,8 +4,19 @@ import assert from "node:assert/strict";
 const fs = require("fs") as typeof import("fs");
 const path = require("path") as typeof import("path");
 
-import { evaluateBenchmarkGuard, defaultGuardConfig, HOT_PATH_AREAS } from "../scripts/benchmarkGuard";
-import type { GuardSample, GuardConfig } from "../scripts/benchmarkGuard";
+import { evaluateBenchmarkGuard, defaultGuardConfig, HOT_PATH_AREAS, collectGuardSamples } from "../scripts/benchmarkGuard";
+import type { GuardSample, GuardConfig, GuardBenchmarkDeps } from "../scripts/benchmarkGuard";
+import type { AreaBenchmarkResult, CpuBenchmarkResult } from "../scripts/cpuBenchmark";
+
+const TIMED = { totalMs: 1, callsPerSecond: 1000 };
+
+function cpuResult(speedup: number | null, rustAvailable = true): CpuBenchmarkResult {
+  return { iterations: 1, callsPerIteration: 1, rustAvailable, ts: TIMED, native: rustAvailable ? TIMED : null, speedup };
+}
+
+function areaResult(area: string, speedup: number | null, parityOk = true, rustAvailable = true): AreaBenchmarkResult {
+  return { area, rustAvailable, callsPerIteration: 1, ts: TIMED, native: rustAvailable ? TIMED : null, speedup, parityOk };
+}
 
 const CONFIG: GuardConfig = { failBelow: 0.85, warnBelow: { levenshtein: 1.4, dealHash: 1.2 }, requireNative: false };
 
@@ -103,6 +114,51 @@ test("defaultGuardConfig: praguri implicite + suprascriere prin env + requireNat
 
 test("HOT_PATH_AREAS enumera doar functiile pe care BENCHMARKS.md le pastreaza in Rust", () => {
   assert.deepEqual([...HOT_PATH_AREAS], ["levenshtein", "dealHash", "rankListingCandidates"]);
+});
+
+test("collectGuardSamples: ruleaza fiecare benchmark exact `runs` ori (nu de 4/8) si pastreaza cel mai bun speedup per zona", () => {
+  let cpuCalls = 0;
+  let areaCalls = 0;
+  let parityCalls = 0;
+  const cpuSpeedups = [1.8, 2.5, 2.1];
+  const dealHashSpeedups = [1.3, 1.6, 1.4];
+  const listingSpeedups = [1.1, 1.2, 1.05];
+  const deps: GuardBenchmarkDeps = {
+    runCpuBenchmark: () => cpuResult(cpuSpeedups[cpuCalls++]),
+    runAreaBenchmarks: () => {
+      const i = areaCalls++;
+      return [areaResult("dealHash", dealHashSpeedups[i]), areaResult("listing-rank", listingSpeedups[i]), areaResult("classifyPatchNote", 1.0)];
+    },
+    levenshteinParityMismatches: () => { parityCalls++; return []; }
+  };
+
+  const samples = collectGuardSamples(3, deps);
+
+  assert.equal(cpuCalls, 3, "runCpuBenchmark rulat exact de `runs` ori (nu 4: fara apel separat pentru rustAvailable)");
+  assert.equal(areaCalls, 3, "runAreaBenchmarks rulat exact de `runs` ori (nu 8: ambele zone extrase din acelasi run)");
+  assert.equal(parityCalls, 1, "paritatea levenshtein verificata o singura data");
+  const byArea = Object.fromEntries(samples.map(s => [s.area, s]));
+  assert.equal(byArea.levenshtein.speedup, 2.5, "cel mai bun speedup levenshtein din cele 3 runs");
+  assert.equal(byArea.dealHash.speedup, 1.6, "cel mai bun speedup dealHash din cele 3 runs");
+  assert.equal(byArea.rankListingCandidates.speedup, 1.2, "cel mai bun speedup listing-rank din cele 3 runs");
+  assert.equal(byArea.dealHash.parityOk, true);
+  assert.equal(byArea.levenshtein.rustAvailable, true);
+});
+
+test("collectGuardSamples: o singura masuratoare null propaga null pe acea zona (Rust indisponibil)", () => {
+  const deps: GuardBenchmarkDeps = {
+    runCpuBenchmark: () => cpuResult(null, false),
+    runAreaBenchmarks: () => [areaResult("dealHash", null, true, false), areaResult("listing-rank", 1.2)],
+    levenshteinParityMismatches: () => []
+  };
+
+  const samples = collectGuardSamples(2, deps);
+
+  const byArea = Object.fromEntries(samples.map(s => [s.area, s]));
+  assert.equal(byArea.levenshtein.speedup, null);
+  assert.equal(byArea.levenshtein.rustAvailable, false, "rustAvailable preluat din primul run");
+  assert.equal(byArea.dealHash.speedup, null, "speedup null intr-un run face null intreaga zona (propagare)");
+  assert.equal(byArea.rankListingCandidates.speedup, 1.2);
 });
 
 test("CI si package.json ruleaza guard-ul de benchmark", () => {
