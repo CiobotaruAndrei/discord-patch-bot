@@ -48,6 +48,15 @@ test("dependency-review ruleaza actiunea blocking neconditionat (fail-closed rea
   assert.ok(!/^\s*paths:/m.test(text), "ruleaza pe toate PR-urile catre main (fara filtru paths), deci e requireable ca status check");
 });
 
+test("dependency-audit ruleaza pe PR-urile care schimba lockfile-urile (npm + cargo audit blocheaza, nu doar manual/schedule) (R12 #2)", () => {
+  const text = read(path.join(repoRoot, ".github", "workflows", "dependency-audit.yml"));
+  assert.match(text, /pull_request:/, "are trigger pull_request, deci blocheaza PR-uri, nu doar manual/schedule");
+  assert.match(text, /src\/package-lock\.json/, "ruleaza cand se schimba package-lock.json");
+  assert.match(text, /src\/native\/Cargo\.lock/, "ruleaza cand se schimba Cargo.lock");
+  assert.match(text, /npm audit/, "contine npm audit");
+  assert.match(text, /cargo audit/, "contine cargo audit");
+});
+
 test("scripturile de staging smoke nu mai raporteaza verde la skip fara opt-out explicit", () => {
   const httpSmoke = read(path.join(repoRoot, "src", "scripts", "stagingSmoke.ts"));
   const discordSmoke = read(path.join(repoRoot, "src", "scripts", "stagingDiscordSmoke.ts"));
