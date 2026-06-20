@@ -245,6 +245,15 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       return recorded;
     };
 
+    const recordDeadLetterBeforeDelete = async (job: OutboxJob, reason: string): Promise<void> => {
+      const recorded = await options.recordDeadLetter(job, reason).then(() => true).catch(() => false);
+      if (!recorded) {
+        deadLetterFailures++;
+        logger("WARN", "OUTBOX",
+          `Audit-ul dead-letter (${reason}) pentru jobul ${String(job._id)} a esuat; jobul a fost totusi sters fiindca mesajul era deja livrat (risc de dedupe degradat fara audit) - verifica disponibilitatea Mongo`);
+      }
+    };
+
     for (let i = 0; i < options.limit; i++) {
       const job = await claimNextJob(nowFn(), leaseMs, workerId);
       if (!job) break;
@@ -286,7 +295,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         const markSentFailed = job.dedupeKey ? !(await markSent(job.dedupeKey)) : false;
         if (markSentFailed) {
           markSentFailures++;
-          await options.recordDeadLetter(job, "delivered-marksent-failed").catch(() => undefined);
+          await recordDeadLetterBeforeDelete(job, "delivered-marksent-failed");
         }
         await deleteJob(job._id);
         sent++;
@@ -346,7 +355,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       logger("WARN", "OUTBOX", `Drain outbox: ${deleteFailures} stergere(i) de job esuate (job-urile raman in coada si vor fi deduse/reluate)`);
     }
     if (deadLetterFailures > 0) {
-      logger("WARN", "OUTBOX", `Drain outbox: ${deadLetterFailures} audit(uri) dead-letter esuate (job-urile NU au fost sterse, raman in coada pana se reia auditul)`);
+      logger("WARN", "OUTBOX", `Drain outbox: ${deadLetterFailures} audit(uri) dead-letter esuate (job-urile terminale raman in coada pentru reluare; un job deja livrat e sters chiar fara audit - vezi log-urile WARN per job; verifica disponibilitatea Mongo)`);
     }
     return { sent, deadLettered, retried, expired, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures, deleteFailures, deadLetterFailures };
   }
