@@ -1,5 +1,7 @@
 "use strict";
 
+import type { LoggerFunction } from "../../types";
+
 const { errorDetail } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
@@ -32,7 +34,7 @@ type HelpContext = {
   EmbedBuilder?: EmbedBuilderCtor;
   COLORS?: { DARK: number } & Record<string, number>;
   MessageFlags: { Ephemeral: number };
-  logger?: (...args: unknown[]) => void;
+  logger?: LoggerFunction;
   handleInteraction?: NextInteractionHandler;
 };
 
