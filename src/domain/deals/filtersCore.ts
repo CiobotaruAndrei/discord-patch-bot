@@ -3,7 +3,8 @@ import { dealPassesFilters as nativeDealPassesFilters } from "../../native/fuzzy
 
 export type EntrySource = Map<string, unknown> | Record<string, unknown> | { toObject(): Record<string, unknown> } | null | undefined;
 
-export function dealPassesFilters(deal: DealInfo, guild: GuildSettings | null | undefined): boolean {
+export function dealPassesFilters(deal: DealInfo | null | undefined, guild: GuildSettings | null | undefined): boolean {
+  if (!deal) return false;
   return nativeDealPassesFilters(deal, guild);
 }
 

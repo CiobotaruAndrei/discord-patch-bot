@@ -26,7 +26,7 @@ const { createDefaultDiscordSendLimiter } = require("./discordRateLimiter") as t
 const OUTBOX_MAX_ATTEMPTS = 5;
 const OUTBOX_BACKOFF_MS = 60_000;
 
-interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; attempts: number; deliveries?: number; dedupeKey?: string; recoveryVerify?: boolean; }
+interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; attempts?: number; deliveries?: number; dedupeKey?: string; recoveryVerify?: boolean; }
 
 type GeneratedUpdateDeps =
   | "resolveOutboundChannel"
