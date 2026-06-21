@@ -1,5 +1,7 @@
 "use strict";
 
+import type { GameConfig } from "../../types";
+
 const { errorDetail } = require("../../shared/errors");
 
 type DiscordInteraction = {
@@ -19,13 +21,13 @@ type Logger = (level: string, context: string, msg: string, meta?: unknown) => v
 interface RouterContext {
   MessageFlags: { Ephemeral: number };
   logger: Logger;
-  handleInteraction?: (interaction: DiscordInteraction, games: unknown[]) => Promise<unknown>;
+  handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => Promise<unknown>;
 }
 
 function createFallbackInteractionHandler(deps: RouterContext) {
   const { MessageFlags, logger } = deps;
 
-  async function handleInteraction(interaction: DiscordInteraction, _games: unknown[]) {
+  async function handleInteraction(interaction: DiscordInteraction, _games: GameConfig[]) {
     try {
       if (typeof interaction.isAutocomplete === "function" && interaction.isAutocomplete()) {
         if (typeof interaction.respond === "function") {
