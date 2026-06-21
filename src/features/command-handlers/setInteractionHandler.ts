@@ -33,7 +33,7 @@ type SetInteractionDeps = {
   GuildModel: GuildModelLike;
   invalidateGuildCache: (guildId: string) => void;
   formatUserError: (err: unknown, fallback: string, code?: string) => string;
-  safeDefer: (interaction: DiscordInteraction) => Promise<unknown>;
+  safeDefer: (interaction: DiscordInteraction, ephemeral?: boolean) => Promise<void>;
   safeEdit: (interaction: DiscordInteraction, content: string) => Promise<unknown>;
   logger: Logger;
   SUPPORTED_CURRENCIES: Record<string, unknown>;
