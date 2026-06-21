@@ -5,6 +5,9 @@ import type { RuntimeEnv } from "../../types";
 import type { SeenRepositoryDeps } from "./seenRepository";
 import type { UpdateNotificationServiceDeps } from "./updateNotificationService";
 import type { DiscountNotificationServiceDeps } from "./discountNotificationService";
+import type { OutboxRuntimeDeps } from "./notificationOutbox";
+import type { HistoryRepositoryDeps } from "./historyRepository";
+import type { DeadLetterReplayRepositoryDeps } from "./deadLetterReplayRepository";
 import type { OutboxDiscordClient } from "./outboundChannel";
 
 const {
@@ -57,10 +60,10 @@ type NotificationsRuntimeDeps = SeenRepositoryDeps
     GuildModel: { countDocuments(filter: Record<string, unknown>): Promise<number> };
     canSendEmbeds(channel: unknown, botId: string): boolean;
     saveFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
-    NotificationOutboxModel: Model<OutboxJobShape>;
-    NotificationOutboxSentModel: Model<{ dedupeKey: string; sentAt?: Date }>;
-    NotificationHistoryModel: Model<{ guildId: string; kind: string; sentAt?: Date }>;
-    NotificationDeadLetterReplayModel: Model<{ guildId: string; kind: string; createdAt?: Date }>;
+    NotificationOutboxModel: OutboxRuntimeDeps["NotificationOutboxModel"];
+    NotificationOutboxSentModel: OutboxRuntimeDeps["NotificationOutboxSentModel"];
+    NotificationHistoryModel: HistoryRepositoryDeps["NotificationHistoryModel"];
+    NotificationDeadLetterReplayModel: DeadLetterReplayRepositoryDeps["NotificationDeadLetterReplayModel"];
   };
 
 type NotificationsContext = NotificationsRuntimeDeps & Record<string, unknown>;
