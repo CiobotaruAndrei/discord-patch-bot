@@ -40,6 +40,15 @@ test("registrele compun modulele prin importuri statice, nu require-uri inline i
   assert.ok(!/^\s+require\("\.\.?\//m.test(src), "fara require-uri anonime inline in lista de installers");
 });
 
+test("pregatire migrare commandRegistry: helper-ele partajate safeDefer/safeEdit/enforceCooldown accepta un contract minimal de interactiune (DeferEditInteraction), nu un DiscordInteraction bogat", () => {
+  const text = fs.readFileSync(path.join(srcRoot, "features", "command-presentation", "commandPresentation.ts"), "utf8");
+  assert.match(text, /interface DeferEditInteraction/, "presentation defineste contractul minimal DeferEditInteraction pentru helper-ele expuse handler-elor");
+  assert.match(text, /deferReply\?\(payload\?: unknown\): Promise<unknown>/, "DeferEditInteraction declara deferReply optional (orice DI de handler mai sarac e assignable)");
+  for (const helper of ["safeDefer", "safeEdit", "enforceCooldown"]) {
+    assert.match(text, new RegExp(`function ${helper}\\(interaction: DeferEditInteraction`), `${helper} primeste DeferEditInteraction (param contravariant minimal), nu DiscordInteraction-ul bogat`);
+  }
+});
+
 test("installerele nu mai sunt coercitate cu as unknown as sau as never in registre", () => {
   const cmd = fs.readFileSync(commandRegistryPath, "utf8");
   const src = fs.readFileSync(sourceRegistryPath, "utf8");
