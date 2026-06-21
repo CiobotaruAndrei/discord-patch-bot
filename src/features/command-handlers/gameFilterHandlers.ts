@@ -32,7 +32,7 @@ type GameFilterInteractionDeps = {
   logger?: Logger;
   getGuildSettings: (guildId: string) => Promise<GuildSettings | null>;
   invalidateGuildCache: (guildId: string) => void;
-  safeDefer: (interaction: DiscordInteraction) => Promise<unknown>;
+  safeDefer: (interaction: DiscordInteraction, ephemeral?: boolean) => Promise<void>;
   safeEdit: (interaction: DiscordInteraction, payload: InteractionPayload) => Promise<unknown>;
   formatUserError: (err: unknown, fallback: string) => string;
   MessageFlags: { Ephemeral: number };

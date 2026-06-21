@@ -48,7 +48,7 @@ type SubscriptionInteractionDeps = {
   DEALS_HISTORY_LIMIT: number;
   OP_UPDATE_OPTS: Record<string, unknown>;
   setDealsCache: (currency: string, deals: DealInfo[]) => void;
-  safeDefer: (interaction: DiscordInteraction) => Promise<unknown>;
+  safeDefer: (interaction: DiscordInteraction, ephemeral?: boolean) => Promise<void>;
   safeEdit: (interaction: DiscordInteraction, payload: InteractionPayload) => Promise<unknown>;
   canSendEmbeds: (channel: DiscordChannel | null | undefined, botId: string) => boolean;
   listMissingChannelPerms: (channel: DiscordChannel | null | undefined, botId: string) => string[] | null;

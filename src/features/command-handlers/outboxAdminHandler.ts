@@ -88,7 +88,7 @@ type OutboxAdminDeps = {
   acquireDbLock: (jobName: string, ttlMs: number) => Promise<string | null>;
   releaseDbLock: (jobName: string, token: string) => Promise<unknown>;
   drainOutbox: (client: OutboxDiscordClient) => Promise<DrainResultLike | unknown>;
-  safeDefer: (interaction: DiscordInteraction) => Promise<unknown>;
+  safeDefer: (interaction: DiscordInteraction, ephemeral?: boolean) => Promise<void>;
   safeEdit: (interaction: DiscordInteraction, content: string) => Promise<unknown>;
   formatUserError: (err: unknown, fallback: string, code?: string) => string;
   logger: Logger;
