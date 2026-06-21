@@ -23,6 +23,14 @@ test("CommandRegistryContext si SourceRegistryApi sunt contracte inchise, fara i
   assert.ok(!text.includes("[key: string]: unknown"), "fara index signature in commandRegistry.ts (regresie: contextul redevine bag netipizat)");
 });
 
+test("pregatire migrare commandRegistry: context-urile de handler tipeaza logger canonic (LoggerFunction), nu loose", () => {
+  for (const file of ["simpleCommandsHandler.ts", "helpInteractionHandler.ts"]) {
+    const text = fs.readFileSync(path.join(srcRoot, "features", "command-handlers", file), "utf8");
+    assert.ok(!/logger\??: \(\.\.\.args: unknown\[\]\) => void/.test(text), `${file}: logger nu mai e tipat loose (...args: unknown[]) => void`);
+    assert.match(text, /logger\??: LoggerFunction/, `${file}: logger e tipat canonic LoggerFunction (aliniere pentru compunerea explicita)`);
+  }
+});
+
 test("registrele compun modulele prin importuri statice, nu require-uri inline in array", () => {
   const cmd = fs.readFileSync(commandRegistryPath, "utf8");
   assert.match(cmd, /import attachCommandCache = require\("\.\.\/command-cache\/commandCache"\)/, "module importate static in commandRegistry");

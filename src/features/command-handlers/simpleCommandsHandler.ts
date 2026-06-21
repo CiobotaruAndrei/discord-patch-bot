@@ -1,5 +1,7 @@
 "use strict";
 
+import type { LoggerFunction } from "../../types";
+
 const { errorDetail } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
@@ -21,7 +23,7 @@ type SimpleCommandsDeps = {
 
 type SimpleCommandsContext = SimpleCommandsDeps & {
   MessageFlags: { Ephemeral: number };
-  logger?: (...args: unknown[]) => void;
+  logger?: LoggerFunction;
   handleInteraction?: NextInteractionHandler;
 };
 
