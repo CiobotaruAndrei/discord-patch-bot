@@ -1,5 +1,7 @@
 "use strict";
 
+import type { FetchResult } from "../../../types";
+
 const { errorMessage } = require("../../../shared/errors");
 
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
@@ -11,10 +13,7 @@ interface DiscordInteraction {
   options: { getSubcommand(): string };
 }
 
-interface UpdateRecord {
-  game: GameConfig;
-  latest: ({ id: string } & Record<string, unknown>) | null;
-}
+type UpdateRecord = FetchResult;
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, extra?: Record<string, unknown>) => void;

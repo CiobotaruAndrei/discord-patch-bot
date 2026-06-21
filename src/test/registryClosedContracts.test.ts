@@ -87,6 +87,14 @@ test("pregatire migrare commandRegistry: listele Generated*Deps omit cheile gene
   }
 });
 
+test("pregatire migrare commandRegistry: tipurile de update fetch (notifications + latest) sunt aliniate la FetchResult, nu vederi loose ({id}&Record)", () => {
+  const queue = fs.readFileSync(path.join(srcRoot, "features", "notifications", "pendingUpdatesQueue.ts"), "utf8");
+  assert.match(queue, /export type UpdateFetchResult = FetchResult/, "UpdateFetchResult e alias FetchResult (latest: NormalizedUpdate real, nu {id}&Record)");
+  const latest = fs.readFileSync(path.join(srcRoot, "features", "command-handlers", "latest", "latestUpdatesHandler.ts"), "utf8");
+  assert.match(latest, /type UpdateRecord = FetchResult/, "UpdateRecord e alias FetchResult");
+  assert.ok(!/latest: \(\{ id: string \} & Record<string, unknown>\) \| null/.test(queue + latest), "fara latest loose ({id}&Record)|null in tipurile de update fetch (datoria raw-vs-normalized rezolvata pe calea update)");
+});
+
 test("installerele nu mai sunt coercitate cu as unknown as sau as never in registre", () => {
   const cmd = fs.readFileSync(commandRegistryPath, "utf8");
   const src = fs.readFileSync(sourceRegistryPath, "utf8");

@@ -1,6 +1,6 @@
 "use strict";
 
-import type { GuildSettings } from "../../types";
+import type { GuildSettings, FetchResult } from "../../types";
 
 export interface PendingUpdate {
   id: string;
@@ -14,11 +14,7 @@ export interface PendingUpdate {
   attempts: number;
 }
 
-export interface UpdateFetchResult {
-  game: { key: string; name: string } & Record<string, unknown>;
-  latest: ({ id: string } & Record<string, unknown>) | null;
-  error?: string;
-}
+export type UpdateFetchResult = FetchResult;
 
 export interface BuildPendingUpdatesQueueDeps {
   normalizePendingUpdateArray: (arr: unknown) => PendingUpdate[];

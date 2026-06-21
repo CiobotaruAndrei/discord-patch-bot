@@ -82,7 +82,7 @@ function makeUpdateDeps(overrides: Partial<UpdateDeps> = {}) {
       return [...keys.slice(idx + 1), ...keys.slice(0, idx + 1)];
     },
     mapToObject: <V>(m: Map<string, V>): Record<string, V> => Object.fromEntries(m.entries()),
-    getLatestForAllGames: async (games: GameConfig[]) => games.map(game => ({ game, latest: { id: `u-${game.key}`, title: "", link: "", excerpt: "", fullText: "", image: null, thumbnail: null, timestamp: "" } })),
+    getLatestForAllGames: async (games: GameConfig[]) => games.map(game => ({ game, latest: { id: `u-${game.key}`, title: "", link: "", excerpt: "", fullText: "", image: null, thumbnail: null, timestamp: "" }, error: null })),
     validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
     setUpdatesCache: () => undefined,
     buildUpdateEmbed: (name: string) => ({ title: name }),
@@ -649,7 +649,7 @@ function makeAllNullDeps(results: Array<{ key: string; error?: string; latest?: 
   const guild = { _id: "g1", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2, pendingUpdates: {}, enabledGames: [] };
   const { deps } = makeUpdateDeps({
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }) },
-    getLatestForAllGames: async () => results.map(entry => ({ game: { key: entry.key, name: entry.key }, latest: entry.latest ?? null, error: entry.error })),
+    getLatestForAllGames: async () => results.map(entry => ({ game: { key: entry.key, name: entry.key }, latest: entry.latest ? { id: entry.latest.id, title: "", link: "", excerpt: "", fullText: "", image: null, thumbnail: null, timestamp: "" } : null, error: entry.error ?? null })),
     persistFetchSnapshot: async (id: string) => { persistCalls.push(id); },
     ...extra
   });

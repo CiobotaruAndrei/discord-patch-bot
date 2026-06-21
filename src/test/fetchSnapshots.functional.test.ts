@@ -123,7 +123,7 @@ test("UpdateService.checkForUpdates persista snapshot-ul 'updates' dupa fetch (l
       return { processed, errors };
     },
     resolveOutboundChannel: async () => ({ channel: null, abort: true }),
-    getLatestForAllGames: async (games: GameConfig[]) => games.map(game => ({ game, latest: { id: `u-${game.key}` } })),
+    getLatestForAllGames: async (games: GameConfig[]) => games.map(game => ({ game, latest: { id: `u-${game.key}`, title: "", link: "", excerpt: "", fullText: "", image: null, thumbnail: null, timestamp: "" }, error: null })),
     setUpdatesCache: () => undefined,
     persistFetchSnapshot: async (id: string, payload: unknown) => { persistCalls.push({ id, payload }); }
   } satisfies Partial<UpdateDeps>;
@@ -132,8 +132,8 @@ test("UpdateService.checkForUpdates persista snapshot-ul 'updates' dupa fetch (l
   assert.equal(persistCalls.length, 1, "exact un snapshot persistat");
   assert.equal(persistCalls[0].id, "updates");
   assert.deepEqual(persistCalls[0].payload, [
-    { game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2" } },
-    { game: { key: "fortnite", name: "Fortnite" }, latest: { id: "u-fortnite" } }
+    { game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2", title: "", link: "", excerpt: "", fullText: "", image: null, thumbnail: null, timestamp: "" }, error: null },
+    { game: { key: "fortnite", name: "Fortnite" }, latest: { id: "u-fortnite", title: "", link: "", excerpt: "", fullText: "", image: null, thumbnail: null, timestamp: "" }, error: null }
   ]);
 });
 
