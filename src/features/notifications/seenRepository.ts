@@ -1,9 +1,9 @@
 
-import type { Model } from "mongoose";
-import type { GuildSettings } from "../../types";
-
 type MongoWriteResult = { matchedCount?: number; modifiedCount?: number };
-type GuildModelLike = Pick<Model<GuildSettings>, "updateOne" | "exists">;
+interface GuildModelLike {
+  updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, opts?: Record<string, unknown>): Promise<MongoWriteResult>;
+  exists(filter: Record<string, unknown>): Promise<{ _id: unknown } | null>;
+}
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 
 interface GuildSeenDiscountModelLike {

@@ -1,6 +1,5 @@
 "use strict";
 
-import type { QueryFilter, Model } from "mongoose";
 import type { GuildSettings, DealInfo } from "../../types";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
@@ -16,8 +15,8 @@ type Logger = (level: string, context: string, msg: string, meta?: unknown) => v
 interface MongoWriteResult { matchedCount?: number; modifiedCount?: number }
 
 interface GuildModelLike {
-  find(filter: QueryFilter<GuildSettings>): { lean(): Promise<Array<GuildSettings & Record<string, unknown>>> };
-  updateOne(filter: QueryFilter<GuildSettings>, update: unknown): Promise<MongoWriteResult>;
+  find(filter: Record<string, unknown>): { lean(): Promise<Array<GuildSettings & Record<string, unknown>>> };
+  updateOne(filter: Record<string, unknown>, update: unknown): Promise<MongoWriteResult>;
 }
 
 
@@ -255,7 +254,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     const push = deadLetterPush(deadLettered);
     if (push) discountUpdate.$push = push;
     await GuildModel.updateOne(
-      { _id: guild._id, discountsSubscribed: true, discountChannelId: channel.id } as QueryFilter<GuildSettings>,
+      { _id: guild._id, discountsSubscribed: true, discountChannelId: channel.id },
       discountUpdate
     );
   }
@@ -266,7 +265,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       discountsSubscribed: true,
       discountChannelId: { $ne: null },
       discountsInitializing: { $ne: true }
-    } as QueryFilter<GuildSettings>).lean();
+    }).lean();
     if (!guilds.length) return;
 
     const dealsPromises = new Map<string, Promise<DealInfo[]>>();
