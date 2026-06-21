@@ -1,4 +1,4 @@
-import type { DealInfo, GameConfig, NormalizedUpdate, NotificationMode } from "../../types";
+import type { DealInfo, GameConfig, EmbeddableUpdate, NotificationMode } from "../../types";
 import { findGameKeys } from "../../native/fuzzy";
 import { errorMessage } from "../../shared/errors";
 
@@ -181,7 +181,7 @@ async function safeEdit(interaction: DeferEditInteraction, payload: unknown): Pr
   }
 }
 
-function buildUpdateEmbed(gameName: string, latest: NormalizedUpdate, mode: NotificationMode = "detailed"): ChainableEmbed {
+function buildUpdateEmbed(gameName: string, latest: EmbeddableUpdate, mode: NotificationMode = "detailed"): ChainableEmbed {
   const isCompact = mode === "compact";
   const embed = new EmbedBuilder()
     .setColor(COLORS.SUCCESS)

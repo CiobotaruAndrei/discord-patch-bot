@@ -13,7 +13,7 @@ export type GameType =
 
 export type CurrencyCode = "USD" | "EUR" | "GBP" | "RON";
 export type NotificationMode = "compact" | "detailed";
-export type AbortPredicate = () => boolean;
+export type AbortPredicate = (() => boolean) | null;
 export type MaybePromise<T> = T | Promise<T>;
 export type PriceValue = string | number;
 export type CurrencyPlacement = "prefix" | "suffix";
@@ -259,6 +259,15 @@ export interface NormalizedUpdate {
   image: string | null;
   thumbnail: string | null;
   timestamp: string;
+}
+
+export interface EmbeddableUpdate {
+  title?: string;
+  link?: string;
+  excerpt?: string;
+  image?: unknown;
+  thumbnail?: unknown;
+  timestamp?: string;
 }
 
 export interface FetchResult {

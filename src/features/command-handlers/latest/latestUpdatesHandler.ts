@@ -1,6 +1,6 @@
 "use strict";
 
-import type { FetchResult } from "../../../types";
+import type { FetchResult, EmbeddableUpdate } from "../../../types";
 
 const { errorMessage } = require("../../../shared/errors");
 
@@ -37,7 +37,7 @@ export interface LatestUpdatesHandlerDeps {
   smoothTime: (estimate: number, actual: number) => number;
   getGuildSettings: (guildId: string) => Promise<GuildSettingsLite | null>;
   formatUserError: (err: unknown, fallback: string, code?: string) => string;
-  buildUpdateEmbed: (gameName: string, latest: unknown, mode: NotificationMode) => { setFooter: (opts: { text: string }) => unknown };
+  buildUpdateEmbed: (gameName: string, latest: EmbeddableUpdate, mode: NotificationMode) => { setFooter: (opts: { text: string }) => unknown };
   handlePagination: <TItem, TEmbed>(
     msg: unknown,
     authorId: string,
@@ -85,7 +85,7 @@ export function createLatestUpdatesHandler(deps: LatestUpdatesHandlerDeps) {
     const guild = guildId ? await getGuildSettings(guildId) : null;
     const enabledGames = Array.isArray(guild?.enabledGames) ? guild!.enabledGames! : [];
     const enabledSet = enabledGames.length > 0 ? new Set(enabledGames) : null;
-    const valid = data.filter(r => r.latest !== null && (!enabledSet || enabledSet.has(r.game.key)));
+    const valid = data.filter((r): r is FetchResult & { latest: NonNullable<FetchResult["latest"]> } => r.latest !== null && (!enabledSet || enabledSet.has(r.game.key)));
     if (!valid.length) {
       endLog("no_data");
       return safeEdit(

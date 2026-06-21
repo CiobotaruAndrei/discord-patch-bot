@@ -1,7 +1,7 @@
 "use strict";
 
 import type { GameConfig } from "../../types";
-import type { GuildSettings } from "../../types";
+import type { GuildSettings, EmbeddableUpdate, NotificationMode } from "../../types";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
@@ -65,7 +65,7 @@ export interface UpdateNotificationServiceDeps {
   setUpdatesCache: (data: UpdateFetchResult[]) => void;
   persistFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
   loadFetchSnapshot?: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
-  buildUpdateEmbed: (gameName: string, latest: unknown, mode: string) => unknown;
+  buildUpdateEmbed: (gameName: string, latest: EmbeddableUpdate, mode: NotificationMode) => unknown;
 
   sleepIfPositive: (ms: number) => Promise<void>;
 
@@ -128,7 +128,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       return;
     }
 
-    const notificationMode = (guild as { notificationMode?: string }).notificationMode || "detailed";
+    const notificationMode: NotificationMode = (guild as { notificationMode?: string }).notificationMode === "compact" ? "compact" : "detailed";
     const batch: Array<{ gameKey: string; item: PendingUpdate; embed: unknown }> = [];
     let lastProcessedGameKey: string | null = (guild as { lastProcessedGameKey?: string | null }).lastProcessedGameKey || null;
     while (batch.length < MAX_UPDATES_PER_CYCLE) {

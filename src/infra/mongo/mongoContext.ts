@@ -23,7 +23,7 @@ type MongoRuntimeContext = {
   logger: LoggerFunction;
   env: RuntimeEnv & { MONGO_URI: string; DISCORD_TOKEN: string };
   parseEnvNumber: (name: string, defaultValue: number, limits?: { min?: number; max?: number }) => number;
-  runConcurrent: <T>(items: T[], concurrency: number, fn: (item: T, index: number) => void | Promise<void>, options?: unknown) => Promise<unknown>;
+  runConcurrent: <T>(items: T[], concurrency: number, fn: (item: T, index: number) => void | Promise<unknown>, options?: unknown) => Promise<{ processed: number; errors: Array<{ error: unknown }> }>;
   waitForMongoReady: (timeoutMs?: number) => Promise<boolean>;
   validatePendingDiscountSnapshot: (snapshot: unknown) => boolean;
   validateUpdateFetchSnapshot: (item: unknown) => boolean;
