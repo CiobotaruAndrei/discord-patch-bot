@@ -6,7 +6,7 @@ type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
 type DiscordInteraction = {
   commandName?: string;
-  guild?: unknown;
+  guild?: { id?: unknown } | null;
   deferred?: boolean;
   replied?: boolean;
   isChatInputCommand?: () => boolean;

@@ -60,12 +60,18 @@ interface DiscordInteraction {
 }
 
 interface DeferEditInteraction {
-  user?: { id?: unknown };
+  user?: { id?: unknown } | null;
   deferred?: boolean;
   replied?: boolean;
   deferReply?(payload?: unknown): Promise<unknown>;
   editReply?(payload: unknown): Promise<unknown>;
   reply?(payload: unknown): Promise<unknown>;
+}
+
+interface LoggableInteraction {
+  user?: { id?: unknown } | null;
+  guild?: { id?: unknown } | null;
+  channel?: { id?: unknown } | null;
 }
 
 interface HttpResponse<T = unknown> {
@@ -136,7 +142,7 @@ async function enforceCooldown(interaction: DeferEditInteraction, command: strin
   return false;
 }
 
-function startCommandLog(interaction: DiscordInteraction, command: string, extra: Record<string, unknown> = {}): CommandLogEnd {
+function startCommandLog(interaction: LoggableInteraction, command: string, extra: Record<string, unknown> = {}): CommandLogEnd {
   const startedAt = Date.now();
   logger("INFO", "USER_CMD", `Comanda pornita: ${command}`, {
     userId: interaction.user?.id,

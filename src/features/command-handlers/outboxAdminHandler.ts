@@ -98,7 +98,7 @@ type OutboxAdminDeps = {
   deadLetterPreviewLimit?: number;
 };
 
-type OutboxAdminContext = OutboxAdminDeps & {
+type OutboxAdminContext = Omit<OutboxAdminDeps, "outboxEnabled" | "recoveryVerifyGlobal" | "recoveryStrict"> & {
   MessageFlags: { Ephemeral: number };
   handleInteraction?: NextInteractionHandler;
   env: RuntimeEnv;

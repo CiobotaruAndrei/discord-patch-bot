@@ -42,7 +42,7 @@ interface HealthHandlerDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-type HealthContext = HealthHandlerDeps & { handleInteraction?: NextInteractionHandler };
+type HealthContext = Omit<HealthHandlerDeps, "getMongoReadyState"> & { handleInteraction?: NextInteractionHandler };
 
 const MONGO_STATE_LABELS: Record<number, string> = {
   0: "deconectat",
