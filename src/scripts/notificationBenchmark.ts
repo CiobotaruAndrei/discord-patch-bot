@@ -89,7 +89,7 @@ function makeUpdateDeps(counters: Counters, guilds: Array<GuildSettings & Record
     mapToObject: <V>(m: Map<string, V>): Record<string, V> => Object.fromEntries(m.entries()),
     getLatestForAllGames: async (games: GameConfig[]) => {
       counters.fetches += games.length;
-      return games.map(game => ({ game, latest: { id: `u-${game.key}`, title: "patch" } }));
+      return games.map(game => ({ game, latest: { id: `u-${game.key}`, title: "patch", link: "", excerpt: "", fullText: "", image: null, thumbnail: null, timestamp: "" }, error: null }));
     },
     validateUpdateFetchSnapshot: () => true,
     setUpdatesCache: () => undefined,

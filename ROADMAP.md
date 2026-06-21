@@ -186,7 +186,11 @@ schema/scraper se poate strecura nedetectat in logica normalizata.
 
 **Ce e deja facut (pattern-ul tinta).** Pentru update-uri, separarea exista: `PatchUpdate` (brut, cu index)
 -> `NormalizedUpdate` (inchis, exact `id`/`title`/`link`/`excerpt`/`fullText`/`image`/`thumbnail`/`timestamp`),
-iar logica de notificari consuma `NormalizedUpdate`. Acelasi pattern trebuie extins:
+iar logica de notificari consuma `NormalizedUpdate`. **Vederile loose redundante de pe calea update au fost
+eliminate:** `UpdateFetchResult` (`pendingUpdatesQueue`) si `UpdateRecord` (`latestUpdatesHandler`) tipau
+`latest` ca `({ id: string } & Record<string, unknown>) | null` desi sursele produc deja `FetchResult`
+(`latest: NormalizedUpdate`); sunt acum alias-uri `= FetchResult`, deci calea update e complet normalizata
+end-to-end (a fost si pasul care a deblocat compunerea explicita a `commandRegistry`). Acelasi pattern trebuie extins:
 - `DealInfo` (brut, scraper) -> un `NormalizedDeal` inchis, consumat de filtrare/embed/dedupe;
 - `GuildSettings` -> un tip inchis pentru campurile pe care botul chiar le citeste (restul raman in stratul Mongo);
 - `GameConfig` ramane cu index la **incarcarea** configului (sursa de adevar externa), dar consumatorii interni
