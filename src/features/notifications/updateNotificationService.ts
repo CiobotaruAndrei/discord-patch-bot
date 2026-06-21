@@ -1,6 +1,5 @@
 "use strict";
 
-import type { QueryFilter, Model } from "mongoose";
 import type { GameConfig } from "../../types";
 import type { GuildSettings } from "../../types";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue";
@@ -19,8 +18,8 @@ type GuildGameFilter = Pick<GuildSettings, "enabledGames">;
 type GuildSettingsDoc = GuildSettings & Record<string, unknown>;
 
 interface GuildModelLike {
-  find(filter: QueryFilter<GuildSettings>): { lean(): Promise<GuildSettingsDoc[]> };
-  updateOne(filter: QueryFilter<GuildSettings>, update: unknown): Promise<MongoWriteResult>;
+  find(filter: Record<string, unknown>): { lean(): Promise<GuildSettingsDoc[]> };
+  updateOne(filter: Record<string, unknown>, update: unknown): Promise<MongoWriteResult>;
 }
 
 
@@ -221,7 +220,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     const push = deadLetterPush(deadLettered);
     if (push) update.$push = push;
     await GuildModel.updateOne(
-      { _id: guild._id, subscribed: true, notificationChannelId: channel.id } as QueryFilter<GuildSettings>,
+      { _id: guild._id, subscribed: true, notificationChannelId: channel.id },
       update
     );
   }
@@ -250,7 +249,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       subscribed: true,
       notificationChannelId: { $ne: null },
       updatesInitializing: { $ne: true }
-    } as QueryFilter<GuildSettings>).lean();
+    }).lean();
     if (!guilds.length) return;
 
     const optimizedGames = buildOptimizedGameList(games, guilds);

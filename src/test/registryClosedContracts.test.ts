@@ -65,6 +65,28 @@ test("pregatire migrare commandRegistry: safeDefer e tipat canonic (interaction,
   }
 });
 
+test("pregatire migrare commandRegistry: GuildModel din notifications foloseste contract segregat (filtru Record<string,unknown>), nu Pick<Model> sau cast as QueryFilter", () => {
+  const seen = fs.readFileSync(path.join(srcRoot, "features", "notifications", "seenRepository.ts"), "utf8");
+  assert.ok(!/Pick<Model<GuildSettings>/.test(seen), "seenRepository nu mai deriva GuildModelLike din Pick<Model<GuildSettings>> (invarianta filtrului mongoose blocheaza compunerea explicita)");
+  assert.match(seen, /updateOne\(filter: Record<string, unknown>/, "seenRepository tipeaza filtrul GuildModel ca Record<string, unknown>, aliniat cu sibling-urile din fisier");
+  for (const file of ["updateNotificationService.ts", "discountNotificationService.ts"]) {
+    const text = fs.readFileSync(path.join(srcRoot, "features", "notifications", file), "utf8");
+    assert.ok(!/as QueryFilter<GuildSettings>/.test(text), `${file}: fara cast as QueryFilter<GuildSettings> (filtrul e Record<string, unknown>, deci cast-ul dispare — bonus regula #2)`);
+  }
+});
+
+test("pregatire migrare commandRegistry: listele Generated*Deps omit cheile generate intern de seenRepository (nu se scurg ca input extern)", () => {
+  const index = fs.readFileSync(path.join(srcRoot, "features", "notifications", "index.ts"), "utf8");
+  const updateBlock = index.slice(index.indexOf("type GeneratedUpdateDeps"), index.indexOf("type GeneratedDiscountDeps"));
+  for (const key of ["seedSeenUpdates", "setSeenHashVersion"]) {
+    assert.ok(updateBlock.includes(`"${key}"`), `GeneratedUpdateDeps omite ${key} (generat intern de createSeenRepository)`);
+  }
+  const discountBlock = index.slice(index.indexOf("type GeneratedDiscountDeps"), index.indexOf("type NotificationsRuntimeDeps"));
+  for (const key of ["loadSeenDiscountHashes", "seedSeenDiscounts", "setSeenHashVersion"]) {
+    assert.ok(discountBlock.includes(`"${key}"`), `GeneratedDiscountDeps omite ${key} (generat intern de createSeenRepository)`);
+  }
+});
+
 test("installerele nu mai sunt coercitate cu as unknown as sau as never in registre", () => {
   const cmd = fs.readFileSync(commandRegistryPath, "utf8");
   const src = fs.readFileSync(sourceRegistryPath, "utf8");

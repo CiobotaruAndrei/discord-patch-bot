@@ -32,6 +32,8 @@ type GeneratedUpdateDeps =
   | "resolveOutboundChannel"
   | "claimSeenUpdate"
   | "rollbackSeenUpdate"
+  | "seedSeenUpdates"
+  | "setSeenHashVersion"
   | "disableUpdatesForChannelError"
   | "isPermanentDiscordError"
   | "transientErrorMessage";
@@ -40,6 +42,9 @@ type GeneratedDiscountDeps =
   | "resolveOutboundChannel"
   | "claimSeenDiscount"
   | "rollbackSeenDiscount"
+  | "loadSeenDiscountHashes"
+  | "seedSeenDiscounts"
+  | "setSeenHashVersion"
   | "disableDiscountsForChannelError"
   | "isPermanentDiscordError"
   | "transientErrorMessage";
