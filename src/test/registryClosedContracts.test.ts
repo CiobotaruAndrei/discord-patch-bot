@@ -40,15 +40,24 @@ test("registrele compun modulele prin importuri statice, nu require-uri inline i
   assert.ok(!/^\s+require\("\.\.?\//m.test(src), "fara require-uri anonime inline in lista de installers");
 });
 
+test("pregatire migrare commandRegistry: helper-ele partajate safeDefer/safeEdit/enforceCooldown accepta un contract minimal de interactiune (DeferEditInteraction), nu un DiscordInteraction bogat", () => {
+  const text = fs.readFileSync(path.join(srcRoot, "features", "command-presentation", "commandPresentation.ts"), "utf8");
+  assert.match(text, /interface DeferEditInteraction/, "presentation defineste contractul minimal DeferEditInteraction pentru helper-ele expuse handler-elor");
+  assert.match(text, /deferReply\?\(payload\?: unknown\): Promise<unknown>/, "DeferEditInteraction declara deferReply optional (orice DI de handler mai sarac e assignable)");
+  for (const helper of ["safeDefer", "safeEdit", "enforceCooldown"]) {
+    assert.match(text, new RegExp(`function ${helper}\\(interaction: DeferEditInteraction`), `${helper} primeste DeferEditInteraction (param contravariant minimal), nu DiscordInteraction-ul bogat`);
+  }
+});
+
 test("pregatire migrare commandRegistry: handle-ul fallback tipeaza games ca GameConfig[], nu unknown[]", () => {
   const text = fs.readFileSync(path.join(srcRoot, "features", "command-handlers", "fallbackInteractionHandler.ts"), "utf8");
   assert.ok(!/games: unknown\[\]/.test(text), "fallback nu mai tipeaza games ca unknown[] (aliniat cu lantul handleInteraction)");
   assert.match(text, /handleInteraction\?: \(interaction: DiscordInteraction, games: GameConfig\[\]\) => Promise<unknown>/, "fallback tipeaza handleInteraction din chain cu games: GameConfig[]");
 });
 
-test("pregatire migrare commandRegistry: safeDefer e tipat canonic (interaction, ephemeral?) => Promise<void> peste handlere, ca implementarea reala", () => {
+test("pregatire migrare commandRegistry: safeDefer e tipat canonic (interaction, ephemeral?) => Promise<void> peste handlere si accepta contractul minimal in helper-ul comun", () => {
   const realImpl = fs.readFileSync(path.join(srcRoot, "features", "command-presentation", "commandPresentation.ts"), "utf8");
-  assert.match(realImpl, /async function safeDefer\(interaction: DiscordInteraction, ephemeral = false\): Promise<void>/, "implementarea reala safeDefer ramane (interaction, ephemeral) => Promise<void>");
+  assert.match(realImpl, /async function safeDefer\(interaction: DeferEditInteraction, ephemeral = false\): Promise<void>/, "implementarea reala safeDefer accepta contractul minimal si pastreaza (interaction, ephemeral) => Promise<void>");
   for (const file of ["gameFilterHandlers.ts", "outboxAdminHandler.ts", "rolePingHandlers.ts", "setInteractionHandler.ts", "subscriptionNotificationHandlers.ts"]) {
     const text = fs.readFileSync(path.join(srcRoot, "features", "command-handlers", file), "utf8");
     assert.ok(!/safeDefer: \(interaction: DiscordInteraction\) => Promise<unknown>/.test(text), `${file}: safeDefer nu mai e declarat loose (interaction) => Promise<unknown>`);

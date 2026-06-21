@@ -59,6 +59,15 @@ interface DiscordInteraction {
   reply(payload: unknown): Promise<unknown>;
 }
 
+interface DeferEditInteraction {
+  user?: { id?: unknown };
+  deferred?: boolean;
+  replied?: boolean;
+  deferReply?(payload?: unknown): Promise<unknown>;
+  editReply?(payload: unknown): Promise<unknown>;
+  reply?(payload: unknown): Promise<unknown>;
+}
+
 interface HttpResponse<T = unknown> {
   data: T;
 }
@@ -118,12 +127,12 @@ function createCommandPresentation(deps: CommandUiDeps) {
     MAX_FUZZY_SEARCH_INPUT, httpReq
   } = deps;
 
-async function enforceCooldown(interaction: DiscordInteraction, command: string): Promise<boolean> {
+async function enforceCooldown(interaction: DeferEditInteraction, command: string): Promise<boolean> {
   const { allowed, remainingMs = 0 } = checkUserCooldown(interaction.user?.id, command);
   if (allowed) return true;
   const msg = `Cooldown: Comanda \`${command}\` are cooldown. Reincearca in **${Math.ceil(remainingMs / 1000)}s**.`;
-  if (interaction.deferred || interaction.replied) await interaction.editReply(msg).catch(() => null);
-  else await interaction.reply({ content: msg, flags: MessageFlags.Ephemeral }).catch(() => null);
+  if (interaction.deferred || interaction.replied) await interaction.editReply?.(msg)?.catch(() => null);
+  else await interaction.reply?.({ content: msg, flags: MessageFlags.Ephemeral })?.catch(() => null);
   return false;
 }
 
@@ -148,18 +157,18 @@ function startCommandLog(interaction: DiscordInteraction, command: string, extra
   };
 }
 
-async function safeDefer(interaction: DiscordInteraction, ephemeral = false): Promise<void> {
+async function safeDefer(interaction: DeferEditInteraction, ephemeral = false): Promise<void> {
   try {
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply(ephemeral ? { flags: MessageFlags.Ephemeral } : {});
+      await interaction.deferReply?.(ephemeral ? { flags: MessageFlags.Ephemeral } : {});
     }
   } catch (err) {
     logger("WARN", "INTERACTION", "Eroare la deferReply", errorMessage(err));
   }
 }
 
-async function safeEdit(interaction: DiscordInteraction, payload: unknown): Promise<unknown | null> {
-  try { return await interaction.editReply(payload); }
+async function safeEdit(interaction: DeferEditInteraction, payload: unknown): Promise<unknown | null> {
+  try { return (await interaction.editReply?.(payload)) ?? null; }
   catch (err) {
     logger("WARN", "INTERACTION", "Eroare la editReply", errorMessage(err));
     return null;
