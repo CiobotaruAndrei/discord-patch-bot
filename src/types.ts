@@ -267,7 +267,7 @@ export interface EmbeddableUpdate {
   excerpt?: string;
   image?: unknown;
   thumbnail?: unknown;
-  timestamp?: string;
+  timestamp?: string | Date;
 }
 
 export interface FetchResult {

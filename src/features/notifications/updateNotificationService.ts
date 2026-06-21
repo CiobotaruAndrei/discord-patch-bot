@@ -56,7 +56,7 @@ export interface UpdateNotificationServiceDeps {
   transientErrorMessage: (err: unknown) => string;
 
   normalizePendingUpdateArray: (arr: unknown) => PendingUpdate[];
-  toEntries: <K, V>(map: Map<K, V> | Record<string, V> | undefined) => Array<[K, V]>;
+  toEntries: (map: Map<string, unknown> | Record<string, unknown> | undefined) => Array<[string, unknown]>;
   rotateAfter: <T>(arr: T[], lastSeen: T | null) => T[];
   mapToObject: <V>(map: Map<string, V>) => Record<string, V>;
 
