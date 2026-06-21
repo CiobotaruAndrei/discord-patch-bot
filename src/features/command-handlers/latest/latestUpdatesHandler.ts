@@ -1,6 +1,6 @@
 "use strict";
 
-import type { FetchResult, EmbeddableUpdate } from "../../../types";
+import type { FetchResult, EmbeddableUpdate, InteractionMessage } from "../../../types";
 
 const { errorMessage } = require("../../../shared/errors");
 
@@ -28,7 +28,7 @@ export interface LatestUpdatesHandlerDeps {
   enforceCooldown: (interaction: DiscordInteraction, command: string) => Promise<boolean>;
   startCommandLog: (interaction: DiscordInteraction, command: string, extra?: Record<string, unknown>) => CommandLogEnd;
   safeDefer: (interaction: DiscordInteraction) => Promise<unknown>;
-  safeEdit: (interaction: DiscordInteraction, payload: unknown) => Promise<unknown | null>;
+  safeEdit: (interaction: DiscordInteraction, payload: unknown) => Promise<InteractionMessage | null>;
   getUpdatesCacheData: () => UpdateRecord[] | null;
   setUpdatesCache: (data: UpdateRecord[]) => void;
   getLatestForAllGames: (games: GameConfig[]) => Promise<UpdateRecord[]>;
@@ -39,7 +39,7 @@ export interface LatestUpdatesHandlerDeps {
   formatUserError: (err: unknown, fallback: string, code?: string) => string;
   buildUpdateEmbed: (gameName: string, latest: EmbeddableUpdate, mode: NotificationMode) => { setFooter: (opts: { text: string }) => unknown };
   handlePagination: <TItem, TEmbed>(
-    msg: unknown,
+    msg: InteractionMessage,
     authorId: string,
     prefix: string,
     items: TItem[],

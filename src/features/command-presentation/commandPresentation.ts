@@ -1,4 +1,4 @@
-import type { DealInfo, GameConfig, EmbeddableUpdate, NotificationMode } from "../../types";
+import type { DealInfo, GameConfig, EmbeddableUpdate, NotificationMode, InteractionMessage, ComponentCollector } from "../../types";
 import { findGameKeys } from "../../native/fuzzy";
 import { errorMessage } from "../../shared/errors";
 
@@ -29,24 +29,6 @@ interface ActionRowComponent {
   addComponents(...components: unknown[]): this;
 }
 
-interface ComponentCollector {
-  on(event: "collect", listener: (button: ButtonInteraction) => unknown): this;
-  on(event: "end", listener: () => unknown): this;
-  stop(reason?: string): void;
-}
-
-interface InteractionMessage {
-  editable?: boolean;
-  edit(payload: unknown): Promise<unknown>;
-  createMessageComponentCollector(options: unknown): ComponentCollector;
-}
-
-interface ButtonInteraction {
-  user: { id: string };
-  customId: string;
-  reply(payload: unknown): Promise<unknown>;
-  deferUpdate(): Promise<unknown>;
-}
 
 interface DiscordInteraction {
   user?: { id?: unknown };
@@ -64,7 +46,7 @@ interface DeferEditInteraction {
   deferred?: boolean;
   replied?: boolean;
   deferReply?(payload?: unknown): Promise<unknown>;
-  editReply?(payload: unknown): Promise<unknown>;
+  editReply?(payload: unknown): Promise<InteractionMessage>;
   reply?(payload: unknown): Promise<unknown>;
 }
 
@@ -173,7 +155,7 @@ async function safeDefer(interaction: DeferEditInteraction, ephemeral = false): 
   }
 }
 
-async function safeEdit(interaction: DeferEditInteraction, payload: unknown): Promise<unknown | null> {
+async function safeEdit(interaction: DeferEditInteraction, payload: unknown): Promise<InteractionMessage | null> {
   try { return (await interaction.editReply?.(payload)) ?? null; }
   catch (err) {
     logger("WARN", "INTERACTION", "Eroare la editReply", errorMessage(err));

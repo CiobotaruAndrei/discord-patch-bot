@@ -1,5 +1,7 @@
 "use strict";
 
+import type { EmbeddableUpdate } from "../../../types";
+
 const { errorMessage } = require("../../../shared/errors");
 
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
@@ -27,7 +29,7 @@ export interface LatestSingleHandlerDeps {
   safeDefer: (interaction: DiscordInteraction) => Promise<unknown>;
   safeEdit: (interaction: DiscordInteraction, payload: unknown) => Promise<unknown | null>;
   findGameAndSuggestion: (query: string, games: GameConfig[]) => { game: GameConfig | null; suggestion: GameConfig | null };
-  executeFetchWithCircuitBreaker: (game: GameConfig) => Promise<{ latest?: unknown; error?: string }>;
+  executeFetchWithCircuitBreaker: (game: GameConfig) => Promise<{ latest?: EmbeddableUpdate | null; error?: string | null }>;
   cache: { single: SingleCache };
   cacheGetLRU: <T>(map: Map<string, CacheEntry<T>>, key: string) => T | null;
   cacheSetLRU: <T>(map: Map<string, CacheEntry<T>>, key: string, data: T, ttlMs: number, maxSize: number) => void;
@@ -36,7 +38,7 @@ export interface LatestSingleHandlerDeps {
   smoothTime: (estimate: number, actual: number) => number;
   getGuildSettings: (guildId: string) => Promise<GuildSettingsLite | null>;
   formatUserError: (err: unknown, fallback: string, code?: string) => string;
-  buildUpdateEmbed: (gameName: string, latest: unknown, mode: NotificationMode) => unknown;
+  buildUpdateEmbed: (gameName: string, latest: EmbeddableUpdate, mode: NotificationMode) => unknown;
   CACHE_TTL_MS: number;
   SINGLE_CACHE_MAX_SIZE: number;
   MessageFlags: { Ephemeral: number };

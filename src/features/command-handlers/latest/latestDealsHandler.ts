@@ -1,6 +1,6 @@
 "use strict";
 
-import type { DealInfo } from "../../../types";
+import type { DealInfo, GuildSettings, InteractionMessage } from "../../../types";
 
 const { errorMessage } = require("../../../shared/errors");
 
@@ -17,17 +17,14 @@ interface DiscordInteraction {
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, extra?: Record<string, unknown>) => void;
 
-interface GuildSettingsLite {
-  currency?: string;
-  notificationMode?: NotificationMode;
-}
+type GuildSettingsLite = GuildSettings;
 
 export interface LatestDealsHandlerDeps {
   logger: Logger;
   enforceCooldown: (interaction: DiscordInteraction, command: string) => Promise<boolean>;
   startCommandLog: (interaction: DiscordInteraction, command: string, extra?: Record<string, unknown>) => CommandLogEnd;
   safeDefer: (interaction: DiscordInteraction) => Promise<unknown>;
-  safeEdit: (interaction: DiscordInteraction, payload: unknown) => Promise<unknown | null>;
+  safeEdit: (interaction: DiscordInteraction, payload: unknown) => Promise<InteractionMessage | null>;
   getDealsCacheData: (currency: string) => DealInfo[] | null;
   setDealsCache: (currency: string, deals: DealInfo[]) => void;
   fetchDeals: (opts: { currency: string }) => Promise<DealInfo[]>;
@@ -42,7 +39,7 @@ export interface LatestDealsHandlerDeps {
   formatUserError: (err: unknown, fallback: string, code?: string) => string;
   buildDealEmbed: (deal: DealInfo, mode: NotificationMode, currency: string) => { setFooter: (opts: { text: string }) => unknown };
   handlePagination: (
-    msg: unknown,
+    msg: InteractionMessage,
     authorId: string,
     prefix: string,
     items: DealInfo[],
