@@ -56,18 +56,31 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 
 ## Operare outbox
 
+Outbox-ul este sistemul intern prin care botul tine minte notificarile care trebuie trimise pe Discord. In loc sa trimita totul direct si sa piarda mesajele daca Discord/Mongo/canalul pica temporar, botul pune livrarile intr-o coada si le proceseaza controlat.
+
+Concepte utile pentru admini:
+
+- `coada`: lista de notificari care asteapta sa fie trimise.
+- `job`: o notificare concreta din coada, de exemplu un embed de update sau de reducere pentru un server.
+- `drain`: procesul prin care botul ia joburi din coada si incearca sa le trimita pe Discord.
+- `dead-letter`: zona unde ajung joburile care nu au putut fi trimise dupa incercarile normale sau care au expirat. Practic, este lista de livrari esuate care trebuie investigate.
+- `replay`: reintroducerea unei livrari esuate din dead-letter inapoi in coada, dupa ce ai reparat cauza.
+- `retry`: forteaza joburile care asteapta/reincearca mai tarziu sa fie incercate din nou imediat.
+- `lock`: protectie ca sa nu ruleze doua drenari in acelasi timp si sa trimita aceeasi notificare de doua ori.
+- `recovery-verify`: verificare suplimentara prin care botul incearca sa confirme ca o notificare trimisa exista in canal, folosind istoricul de mesaje.
+
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
-| `/outbox status` | Admin | Afiseaza starea outbox-ului: activ/pauzat, joburi in coada, dead-letter count si recovery-verify. |
-| `/outbox deadletters` | Admin | Listeaza ultimele livrari ajunse in dead-letter pentru server. |
-| `/outbox clear-deadletters` | Admin | Goleste dead-letter-ele serverului dupa investigare sau replay. |
-| `/outbox replay-deadletters` | Admin | Reintroduce in coada livrarile dead-letter care au payload replayable. |
-| `/outbox retry` | Admin | Reprogrameaza joburile din coada ale serverului pentru livrare imediata. |
-| `/outbox drain-now` | Admin | Forteaza o drenare imediata a outbox-ului daca lock-ul de drain este liber. |
-| `/outbox pause` | Admin | Pune pe pauza drenarea outbox-ului la nivel global. |
-| `/outbox resume` | Admin | Reia drenarea outbox-ului la nivel global. |
-| `/outbox permissions` | Admin | Auditeaza permisiunile botului pe canalele configurate pentru update-uri si reduceri. |
-| `/outbox recovery-verify status` | Admin | Afiseaza statusul recovery-verify pentru server si pentru configuratia globala. |
+| `/outbox status` | Admin | Arata daca sistemul de livrare este pornit sau pus pe pauza, cate notificari asteapta in coada, cate livrari au ajuns in dead-letter si daca recovery-verify este activ. Este prima comanda de rulat cand notificarile nu mai apar sau par intarziate. |
+| `/outbox deadletters` | Admin | Listeaza ultimele livrari esuate pentru server. O folosesti ca sa vezi ce notificari nu au ajuns pe canal si motivul aproximativ: canal lipsa, permisiuni lipsa, mesaj imposibil de trimis, job expirat sau alta eroare. |
+| `/outbox clear-deadletters` | Admin | Curata lista de livrari esuate dupa ce ai verificat cauza si nu mai ai nevoie de istoric. Nu repara problema si nu retrimite mesajele; doar sterge raportarea dead-letter pentru server. |
+| `/outbox replay-deadletters` | Admin | Reintroduce in coada livrarile esuate care inca au payload salvat si pot fi retrimise. Ruleaza asta dupa ce ai reparat cauza, de exemplu dupa ce ai dat botului permisiuni pe canal sau ai refacut canalul configurat. |
+| `/outbox retry` | Admin | Pune joburile existente ale serverului la incercare imediata. Este util cand problema a fost temporara, de exemplu Discord a raspuns greu sau botul a fost rate-limited, iar mesajele sunt inca in coada, nu in dead-letter. |
+| `/outbox drain-now` | Admin | Porneste manual procesarea cozii acum, fara sa astepti urmatorul ciclu automat. Comanda ruleaza doar daca nu exista deja un drain activ, ca sa evite dublarea mesajelor. |
+| `/outbox pause` | Admin | Opreste temporar procesarea globala a cozii. Joburile pot ramane/aduna in coada, dar botul nu le mai trimite pana la resume. Este util la mentenanta, probleme de permisiuni sau risc de spam. |
+| `/outbox resume` | Admin | Reporneste procesarea globala a cozii dupa o pauza. Dupa resume, botul poate continua sa trimita joburile care asteptau. |
+| `/outbox permissions` | Admin | Verifica daca botul are permisiunile necesare pe canalele configurate pentru update-uri si reduceri: sa vada canalul, sa trimita mesaje, sa trimita embed-uri si, unde e cazul, sa citeasca istoricul pentru recovery-verify. |
+| `/outbox recovery-verify status` | Admin | Arata daca verificarea suplimentara de recovery este activa pentru server si/sau global. Daca este activa, botul are nevoie de permisiunea `Read Message History` pe canal ca sa poata confirma livrarile dupa recovery. |
 
 ## Update-uri, reduceri si cautari manuale
 
