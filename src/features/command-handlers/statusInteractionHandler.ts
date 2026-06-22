@@ -1,5 +1,7 @@
 "use strict";
 
+import type { CommandHandler } from "../command-registry/commandHandler";
+
 const { errorMessage, errorDetail } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
@@ -84,8 +86,7 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
   };
 }
 
-function installStatusInteraction(target: StatusContext) {
-  const previousHandleInteraction = target.handleInteraction;
+function buildStatusCommandHandler(target: StatusContext) {
   const handlers = createStatusInteractionHandler({
     logger: target.logger,
     enforceCooldown: target.enforceCooldown,
@@ -96,32 +97,44 @@ function installStatusInteraction(target: StatusContext) {
     fetchGameStatus: target.fetchGameStatus,
     MessageFlags: target.MessageFlags
   });
+  const command: CommandHandler = {
+    canHandle: (interaction) => isStatusCommand(interaction as DiscordInteraction),
+    handle: async (interaction, games) => {
+      const di = interaction as DiscordInteraction;
+      try {
+        return await handlers.handleStatusInteraction(di, games as GameConfig[]);
+      } catch (err: unknown) {
+        target.logger?.("ERROR", "STATUS_INTERACTION", "Eroare in handler-ul /status", errorDetail(err));
+        const payload = createInteractionErrorPayload(target.MessageFlags);
+        try {
+          if ((di.deferred || di.replied) && typeof di.followUp === "function") {
+            await di.followUp(payload);
+          } else {
+            await di.reply(payload);
+          }
+        } catch {  }
+        return undefined;
+      }
+    }
+  };
+  return { handlers, ...command };
+}
+
+function installStatusInteraction(target: StatusContext) {
+  const previousHandleInteraction = target.handleInteraction;
+  const { handlers, canHandle, handle } = buildStatusCommandHandler(target);
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!isStatusCommand(interaction)) {
+    if (!canHandle(interaction)) {
       if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
       return undefined;
     }
-
-    try {
-      return await handlers.handleStatusInteraction(interaction, games);
-    } catch (err: unknown) {
-      target.logger?.("ERROR", "STATUS_INTERACTION", "Eroare in handler-ul /status", errorDetail(err));
-      const payload = createInteractionErrorPayload(target.MessageFlags);
-      try {
-        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") {
-          await interaction.followUp(payload);
-        } else {
-          await interaction.reply(payload);
-        }
-      } catch {  }
-      return undefined;
-    }
+    return handle(interaction, games);
   }
 
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installStatusInteraction, { createStatusInteractionHandler });
+Object.assign(installStatusInteraction, { createStatusInteractionHandler, buildCommandHandler: buildStatusCommandHandler });
 
 export = installStatusInteraction;
