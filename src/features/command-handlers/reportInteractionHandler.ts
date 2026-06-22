@@ -1,5 +1,7 @@
 "use strict";
 
+import type { CommandHandler } from "../command-registry/commandHandler";
+
 const { errorDetail } = require("../../shared/errors");
 const feedback = require("../feedback/feedbackRepository") as {
   normalizeReportType: (value: string | null | undefined) => string;
@@ -113,10 +115,10 @@ type ReportInstaller = ((target: ReportContext) => void) & {
   createReportInteractionHandler: typeof createReportInteractionHandler;
   buildReportConfirmEmbed: typeof buildReportConfirmEmbed;
   buildReportAlertBody: typeof buildReportAlertBody;
+  buildCommandHandler: typeof buildReportCommandHandler;
 };
 
-const installReportInteraction = ((target: ReportContext): void => {
-  const previousHandleInteraction = target.handleInteraction;
+function buildReportCommandHandler(target: ReportContext) {
   const handlers = createReportInteractionHandler({
     logger: target.logger,
     enforceCooldown: target.enforceCooldown,
@@ -127,30 +129,45 @@ const installReportInteraction = ((target: ReportContext): void => {
     adminAlert: target.adminAlert,
     MessageFlags: target.MessageFlags
   });
+  const command: CommandHandler = {
+    canHandle: (interaction) => isReportCommand(interaction as DiscordInteraction),
+    handle: async (interaction) => {
+      const di = interaction as DiscordInteraction;
+      try {
+        return await handlers.handleReportInteraction(di);
+      } catch (err: unknown) {
+        target.logger?.("ERROR", "REPORT_INTERACTION", "Eroare in handler-ul /report", errorDetail(err));
+        const payload = createInteractionErrorPayload(target.MessageFlags);
+        try {
+          if ((di.deferred || di.replied) && typeof di.followUp === "function") {
+            await di.followUp(payload);
+          } else {
+            await di.reply(payload);
+          }
+        } catch {  }
+        return undefined;
+      }
+    }
+  };
+  return { handlers, ...command };
+}
+
+const installReportInteraction = ((target: ReportContext): void => {
+  const previousHandleInteraction = target.handleInteraction;
+  const { handlers, canHandle, handle } = buildReportCommandHandler(target);
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!isReportCommand(interaction)) {
+    if (!canHandle(interaction)) {
       if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
       return undefined;
     }
-    try {
-      return await handlers.handleReportInteraction(interaction);
-    } catch (err: unknown) {
-      target.logger?.("ERROR", "REPORT_INTERACTION", "Eroare in handler-ul /report", errorDetail(err));
-      const payload = createInteractionErrorPayload(target.MessageFlags);
-      try {
-        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") {
-          await interaction.followUp(payload);
-        } else {
-          await interaction.reply(payload);
-        }
-      } catch {  }
-      return undefined;
-    }
+    return handle(interaction, games);
   }
 
   Object.assign(target, handlers, { handleInteraction });
 }) as ReportInstaller;
+
+installReportInteraction.buildCommandHandler = buildReportCommandHandler;
 
 installReportInteraction.createReportInteractionHandler = createReportInteractionHandler;
 installReportInteraction.buildReportConfirmEmbed = buildReportConfirmEmbed;
