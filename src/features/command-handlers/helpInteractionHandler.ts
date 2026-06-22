@@ -1,6 +1,7 @@
 "use strict";
 
 import type { LoggerFunction } from "../../types";
+import type { CommandHandler } from "../command-registry/commandHandler";
 
 const { errorDetail } = require("../../shared/errors");
 
@@ -106,44 +107,57 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
   };
 }
 
+function resolveHelpEmbedBuilder(target: HelpContext): () => unknown {
+  if (typeof target.buildHelpEmbed === "function") return target.buildHelpEmbed;
+  if (!target.EmbedBuilder || !target.COLORS) {
+    throw new Error("helpInteractionHandler: needs either buildHelpEmbed or EmbedBuilder plus COLORS");
+  }
+  const EmbedBuilder = target.EmbedBuilder;
+  const COLORS = target.COLORS;
+  return () => buildHelpEmbedFromDeps(EmbedBuilder, COLORS);
+}
+
+function buildHelpCommandHandler(target: HelpContext): CommandHandler & { buildHelpEmbed: () => unknown } {
+  const resolvedBuildHelpEmbed = resolveHelpEmbedBuilder(target);
+  const handlers = createHelpHandler({ buildHelpEmbed: resolvedBuildHelpEmbed });
+  return {
+    canHandle: (interaction) => isHelpCommand(interaction as DiscordInteraction),
+    handle: async (interaction) => {
+      const di = interaction as DiscordInteraction;
+      try {
+        return await handlers.handleHelpInteraction(di);
+      } catch (err: unknown) {
+        target.logger?.("ERROR", "HELP_INTERACTION", "Eroare in handler-ul /help", errorDetail(err));
+        const payload = createInteractionErrorPayload(target.MessageFlags);
+        try {
+          if ((di.deferred || di.replied) && typeof di.followUp === "function") {
+            await di.followUp(payload);
+          } else {
+            await di.reply(payload);
+          }
+        } catch {  }
+        return undefined;
+      }
+    },
+    buildHelpEmbed: resolvedBuildHelpEmbed
+  };
+}
+
 function installHelpHandler(target: HelpContext) {
   const previousHandleInteraction = target.handleInteraction;
-  let resolvedBuildHelpEmbed = target.buildHelpEmbed;
-  if (typeof resolvedBuildHelpEmbed !== "function") {
-    if (!target.EmbedBuilder || !target.COLORS) {
-      throw new Error("helpInteractionHandler: needs either buildHelpEmbed or EmbedBuilder plus COLORS");
-    }
-    const EmbedBuilder = target.EmbedBuilder;
-    const COLORS = target.COLORS;
-    resolvedBuildHelpEmbed = () => buildHelpEmbedFromDeps(EmbedBuilder, COLORS);
-  }
-  const handlers = createHelpHandler({ buildHelpEmbed: resolvedBuildHelpEmbed });
+  const command = buildHelpCommandHandler(target);
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!isHelpCommand(interaction)) {
+    if (!command.canHandle(interaction)) {
       if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
       return undefined;
     }
-
-    try {
-      return await handlers.handleHelpInteraction(interaction);
-    } catch (err: unknown) {
-      target.logger?.("ERROR", "HELP_INTERACTION", "Eroare in handler-ul /help", errorDetail(err));
-      const payload = createInteractionErrorPayload(target.MessageFlags);
-      try {
-        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") {
-          await interaction.followUp(payload);
-        } else {
-          await interaction.reply(payload);
-        }
-      } catch {  }
-      return undefined;
-    }
+    return command.handle(interaction, games);
   }
 
-  Object.assign(target, handlers, { handleInteraction, buildHelpEmbed: resolvedBuildHelpEmbed });
+  Object.assign(target, { handleInteraction, buildHelpEmbed: command.buildHelpEmbed });
 }
 
-Object.assign(installHelpHandler, { createHelpHandler, buildHelpEmbed: buildHelpEmbedFromDeps });
+Object.assign(installHelpHandler, { createHelpHandler, buildHelpEmbed: buildHelpEmbedFromDeps, buildCommandHandler: buildHelpCommandHandler });
 
 export = installHelpHandler;

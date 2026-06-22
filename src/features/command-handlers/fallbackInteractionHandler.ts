@@ -76,7 +76,7 @@ function buildFallbackCommandHandler(target: RouterContext): CommandHandler {
   });
   return {
     canHandle: () => true,
-    handle: (interaction, games) => handleInteraction(interaction as DiscordInteraction, games)
+    handle: (interaction, games) => handleInteraction(interaction as DiscordInteraction, games as GameConfig[])
   };
 }
 
