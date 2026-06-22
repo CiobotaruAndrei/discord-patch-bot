@@ -254,10 +254,10 @@ function buildSetCommandHandler(target: SetContext) {
     checkReadMessageHistory: target.checkReadMessageHistory
   });
 
-  const command: CommandHandler = {
-    canHandle: (interaction) => Boolean(isDirectSetCommand(interaction as DiscordInteraction)),
+  const command: CommandHandler<DiscordInteraction> = {
+    canHandle: (interaction): interaction is DiscordInteraction => Boolean(isDirectSetCommand(interaction as DiscordInteraction)),
     handle: async (interaction) => {
-      const di = interaction as DiscordInteraction;
+      const di = interaction;
       try {
         return await handlers.handleSetInteraction(di);
       } catch (err: unknown) {

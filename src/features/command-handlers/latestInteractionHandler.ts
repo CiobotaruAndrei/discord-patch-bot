@@ -117,10 +117,10 @@ function buildLatestCommandHandler(target: LatestContext) {
     buildSteamPriceEmbed: target.buildSteamPriceEmbed
   });
 
-  const command: CommandHandler = {
-    canHandle: (interaction) => isLatestCommand(interaction as DiscordInteraction),
+  const command: CommandHandler<DiscordInteraction> = {
+    canHandle: (interaction): interaction is DiscordInteraction => isLatestCommand(interaction as DiscordInteraction),
     handle: async (interaction, games) => {
-      const di = interaction as DiscordInteraction;
+      const di = interaction;
       try {
         return await handlers.handleLatestInteraction(di, games as GameConfig[]);
       } catch (err: unknown) {

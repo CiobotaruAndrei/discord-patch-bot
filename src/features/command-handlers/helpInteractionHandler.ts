@@ -117,13 +117,13 @@ function resolveHelpEmbedBuilder(target: HelpContext): () => unknown {
   return () => buildHelpEmbedFromDeps(EmbedBuilder, COLORS);
 }
 
-function buildHelpCommandHandler(target: HelpContext): CommandHandler & { buildHelpEmbed: () => unknown } {
+function buildHelpCommandHandler(target: HelpContext): CommandHandler<DiscordInteraction> & { buildHelpEmbed: () => unknown } {
   const resolvedBuildHelpEmbed = resolveHelpEmbedBuilder(target);
   const handlers = createHelpHandler({ buildHelpEmbed: resolvedBuildHelpEmbed });
   return {
-    canHandle: (interaction) => isHelpCommand(interaction as DiscordInteraction),
+    canHandle: (interaction): interaction is DiscordInteraction => isHelpCommand(interaction as DiscordInteraction),
     handle: async (interaction) => {
-      const di = interaction as DiscordInteraction;
+      const di = interaction;
       try {
         return await handlers.handleHelpInteraction(di);
       } catch (err: unknown) {

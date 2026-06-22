@@ -143,10 +143,10 @@ function buildGameFilterCommandHandler(target: GameFilterContext) {
     MessageFlags: target.MessageFlags
   });
 
-  const command: CommandHandler = {
-    canHandle: (interaction) => Boolean(isSetGamesCommand(interaction as DiscordInteraction)),
+  const command: CommandHandler<DiscordInteraction> = {
+    canHandle: (interaction): interaction is DiscordInteraction => Boolean(isSetGamesCommand(interaction as DiscordInteraction)),
     handle: async (interaction, games) => {
-      const di = interaction as DiscordInteraction;
+      const di = interaction;
       try {
         return await handlers.handleSetGamesInteraction(di, games as GameConfig[]);
       } catch (err: unknown) {

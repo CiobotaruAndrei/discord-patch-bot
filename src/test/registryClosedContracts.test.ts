@@ -253,3 +253,11 @@ test("boot-ul din main.ts foloseste require-uri tipate, ca satisfies AppRuntimeD
   const untypedRequires = (text.match(/= require\("\.[^"]+"\);\r?\n/g) || []).filter(line => !line.includes("as typeof import") && !line.includes("as SourceRegistryApi"));
   assert.deepEqual(untypedRequires, [], "niciun require de modul local netipat in boot");
 });
+
+test("contractul CommandHandler e generic cu type predicate (canHandle ingusteaza interaction, handle primeste tipul validat)", () => {
+  const handlerPath = path.join(srcRoot, "features", "command-registry", "commandHandler.ts");
+  const text = fs.readFileSync(handlerPath, "utf8");
+  assert.match(text, /interface CommandHandler<I = unknown>/, "CommandHandler e generic peste tipul de interactiune validat I");
+  assert.match(text, /canHandle\(interaction: unknown\): interaction is I/, "canHandle e un type guard (interaction is I), nu doar boolean");
+  assert.match(text, /handle\(interaction: I, games: Array<\{ key: string \}>\)/, "handle primeste interactiunea deja ingustata la I (fara cast intern in handler)");
+});

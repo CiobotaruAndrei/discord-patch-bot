@@ -78,6 +78,16 @@ test("P2.1: toate slash command-urile documentate in README exista in buildSlash
   }
 });
 
+test("docs sync: docs/Comenzi Functionalitate.md mentioneaza toate comenzile top-level din slash definitions (anti-drift)", () => {
+  const doc = fs.readFileSync(path.join(repoRoot, "docs", "Comenzi Functionalitate.md"), "utf8");
+  const topLevel = [...definedCommandPaths()].filter(p => !p.includes(" "));
+  assert.ok(topLevel.length >= 10, "exista comenzi top-level in definitii");
+  for (const command of topLevel) {
+    assert.match(doc, new RegExp(`/${command}\\b`),
+      `docs/Comenzi Functionalitate.md mentioneaza /${command} (drift: comanda noua in slash definitions dar absenta din doc)`);
+  }
+});
+
 test("P2.1: definitiile contin comenzile cheie (ancore de sanitate pentru parser)", () => {
   const defined = definedCommandPaths();
   for (const expected of ["ping", "help", "start updates", "set games add", "set outbox-recovery-verify", "outbox status", "outbox recovery-verify status"]) {
@@ -116,10 +126,24 @@ test("docs sync: /status e descris ca status server pentru un joc (nu starea bot
 
   const interactionsExists = ["interactions.ts", path.join("features", "interactions.ts")]
     .some(rel => fs.existsSync(path.join(srcRoot, rel)));
-  assert.ok(!interactionsExists, "interactions.ts nu exista (routing-ul e lantul handleInteraction compus in commandRegistry)");
+  assert.ok(!interactionsExists, "interactions.ts nu exista (routing-ul e lista tipata CommandHandler[] + dispatchCommand din commandRegistry)");
 
   const context = fs.readFileSync(path.join(srcRoot, "docs", "CONTEXT_REPO_CLEAN.md"), "utf8");
   const staleRouterClaim = /`interactions\.ts` (este|trebuie tratat ca)[^\n]*(router|routing|wiring|delega)/;
   assert.ok(!staleRouterClaim.test(readme), "README nu mai revendica `interactions.ts` ca router/wiring activ (fisierul nu mai exista)");
   assert.ok(!staleRouterClaim.test(context), "CONTEXT_REPO_CLEAN.md nu mai revendica `interactions.ts` ca strat de routing activ");
+});
+
+test("docs sync: FUNCTION_MAP_CLEAN si CONTEXT_REPO_CLEAN descriu routing-ul nou (lista tipata CommandHandler[] + dispatchCommand), nu lantul vechi de attachX", () => {
+  const functionMap = fs.readFileSync(path.join(srcRoot, "docs", "FUNCTION_MAP_CLEAN.md"), "utf8");
+  const context = fs.readFileSync(path.join(srcRoot, "docs", "CONTEXT_REPO_CLEAN.md"), "utf8");
+
+  for (const [name, doc] of [["FUNCTION_MAP_CLEAN.md", functionMap], ["CONTEXT_REPO_CLEAN.md", context]] as const) {
+    assert.match(doc, /CommandHandler\[\]/, `${name} descrie routing-ul ca lista tipata CommandHandler[]`);
+    assert.match(doc, /dispatchCommand/, `${name} mentioneaza dispatcher-ul dispatchCommand (loop canHandle/handle)`);
+    assert.ok(!/attachX\(ctx\)[^\n]*(in lant|impacheteaza)/.test(doc),
+      `${name} nu mai descrie routing-ul ca lant de attachX(ctx) care impacheteaza handleInteraction`);
+    assert.ok(!/lant de responsabilitate/.test(doc),
+      `${name} nu mai descrie routing-ul de comenzi ca lant de responsabilitate (e lista tipata + dispatcher)`);
+  }
 });

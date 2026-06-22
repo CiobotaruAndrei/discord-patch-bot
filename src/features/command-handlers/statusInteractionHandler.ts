@@ -97,20 +97,19 @@ function buildStatusCommandHandler(target: StatusContext) {
     fetchGameStatus: target.fetchGameStatus,
     MessageFlags: target.MessageFlags
   });
-  const command: CommandHandler = {
-    canHandle: (interaction) => isStatusCommand(interaction as DiscordInteraction),
+  const command: CommandHandler<DiscordInteraction> = {
+    canHandle: (interaction): interaction is DiscordInteraction => isStatusCommand(interaction as DiscordInteraction),
     handle: async (interaction, games) => {
-      const di = interaction as DiscordInteraction;
       try {
-        return await handlers.handleStatusInteraction(di, games as GameConfig[]);
+        return await handlers.handleStatusInteraction(interaction, games as GameConfig[]);
       } catch (err: unknown) {
         target.logger?.("ERROR", "STATUS_INTERACTION", "Eroare in handler-ul /status", errorDetail(err));
         const payload = createInteractionErrorPayload(target.MessageFlags);
         try {
-          if ((di.deferred || di.replied) && typeof di.followUp === "function") {
-            await di.followUp(payload);
+          if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") {
+            await interaction.followUp(payload);
           } else {
-            await di.reply(payload);
+            await interaction.reply(payload);
           }
         } catch {  }
         return undefined;

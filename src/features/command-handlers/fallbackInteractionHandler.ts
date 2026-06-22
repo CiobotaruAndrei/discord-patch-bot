@@ -69,14 +69,14 @@ function createFallbackInteractionHandler(deps: RouterContext) {
   return { handleInteraction };
 }
 
-function buildFallbackCommandHandler(target: RouterContext): CommandHandler {
+function buildFallbackCommandHandler(target: RouterContext): CommandHandler<DiscordInteraction> {
   const { handleInteraction } = createFallbackInteractionHandler({
     MessageFlags: target.MessageFlags,
     logger: target.logger
   });
   return {
-    canHandle: () => true,
-    handle: (interaction, games) => handleInteraction(interaction as DiscordInteraction, games as GameConfig[])
+    canHandle: (_interaction): _interaction is DiscordInteraction => true,
+    handle: (interaction, games) => handleInteraction(interaction, games as GameConfig[])
   };
 }
 

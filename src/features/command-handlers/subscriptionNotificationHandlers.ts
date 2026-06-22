@@ -293,10 +293,10 @@ function buildSubscriptionCommandHandler(target: SubscriptionContext) {
     formatUserError: target.formatUserError
   });
 
-  const command: CommandHandler = {
-    canHandle: (interaction) => Boolean(isSubscriptionCommand(interaction as DiscordInteraction)),
+  const command: CommandHandler<DiscordInteraction> = {
+    canHandle: (interaction): interaction is DiscordInteraction => Boolean(isSubscriptionCommand(interaction as DiscordInteraction)),
     handle: async (interaction, games) => {
-      const di = interaction as DiscordInteraction;
+      const di = interaction;
       try {
         if (di.commandName === "start") return await handlers.handleStartInteraction(di, games as GameConfig[]);
         return await handlers.handleStopInteraction(di);
