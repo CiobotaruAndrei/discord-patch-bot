@@ -95,6 +95,16 @@ test("pregatire migrare commandRegistry: tipurile de update fetch (notifications
   assert.ok(!/latest: \(\{ id: string \} & Record<string, unknown>\) \| null/.test(queue + latest), "fara latest loose ({id}&Record)|null in tipurile de update fetch (datoria raw-vs-normalized rezolvata pe calea update)");
 });
 
+test("notifications: serviciile nu mai au intersectia redundanta GuildSettings & Record<string, unknown> (GuildSettings poarta deja index-sig), nici caste as { seenHashVersion } evitabile", () => {
+  const types = fs.readFileSync(path.join(srcRoot, "types.ts"), "utf8");
+  assert.match(types, /interface GuildSettings\b[\s\S]*?\[key: string\]: unknown/, "GuildSettings poarta deja index-sig, deci & Record<string, unknown> e redundant");
+  for (const file of ["updateNotificationService.ts", "discountNotificationService.ts"]) {
+    const text = fs.readFileSync(path.join(srcRoot, "features", "notifications", file), "utf8");
+    assert.ok(!/GuildSettings & Record<string, unknown>/.test(text), `${file}: fara intersectia redundanta GuildSettings & Record<string, unknown>`);
+    assert.ok(!/as \{ seenHashVersion(Updates|Discounts)\?: unknown \}/.test(text), `${file}: fara cast redundant as { seenHashVersion... } (index-sig da deja unknown la acces direct)`);
+  }
+});
+
 test("installerele nu mai sunt coercitate cu as unknown as sau as never in registre", () => {
   const cmd = fs.readFileSync(commandRegistryPath, "utf8");
   const src = fs.readFileSync(sourceRegistryPath, "utf8");
