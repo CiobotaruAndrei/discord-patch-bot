@@ -1,6 +1,7 @@
 "use strict";
 
 import { createOutboxRuntime, DeliverResult } from "../features/notifications/notificationOutbox";
+import { strictEnvInt } from "./benchmarkEnv";
 
 const mongoose = require("mongoose");
 const attachMongoModels = require("../infra/mongo/models");
@@ -133,11 +134,11 @@ async function main(): Promise<void> {
       await models.sentModel.deleteMany({ dedupeKey: { $regex: `^${marker}-` } }).catch(() => undefined);
     }
   }
-  const breakdownJobs = Number(process.env.OUTBOX_BENCH_BREAKDOWN || 2000) || 2000;
+  const breakdownJobs = strictEnvInt("OUTBOX_BENCH_BREAKDOWN", 2000);
   const breakdownMarker = `bench-phase-${Date.now()}`;
   try {
     const b = await runOutboxPhaseBreakdown(models, breakdownJobs, breakdownMarker);
-    const typicalSendMs = Number(process.env.OUTBOX_BENCH_SEND_MS || 100) || 100;
+    const typicalSendMs = strictEnvInt("OUTBOX_BENCH_SEND_MS", 100);
     const mongoFraction = (b.mongoMsPerJob / (b.mongoMsPerJob + typicalSendMs)) * 100;
     console.log(`\nDescompunere pe faze (${fmt(breakdownJobs)} joburi, Mongo real, deliver mock):`);
     console.log(`- claim (findOneAndUpdate): ${b.claimMsPerJob.toFixed(3)}ms/job`);
