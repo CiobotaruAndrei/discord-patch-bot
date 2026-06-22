@@ -97,6 +97,7 @@ function buildLatestCommandHandler(target: LatestContext) {
     fetchDeals: target.fetchDeals,
     loadFetchSnapshot: target.loadFetchSnapshot,
     validatePendingDiscountSnapshot: target.validatePendingDiscountSnapshot,
+    validateUpdateFetchSnapshot: target.validateUpdateFetchSnapshot,
     enrichDealData: target.enrichDealData,
     dealPassesFilters: target.dealPassesFilters,
     buildDealEmbed: target.buildDealEmbed,
@@ -122,7 +123,7 @@ function buildLatestCommandHandler(target: LatestContext) {
     handle: async (interaction, games) => {
       const di = interaction;
       try {
-        return await handlers.handleLatestInteraction(di, games as GameConfig[]);
+        return await handlers.handleLatestInteraction(di, games);
       } catch (err: unknown) {
         target.logger?.("ERROR", "LATEST_INTERACTION", "Eroare in handler-ul /latest", errorDetail(err));
         const payload = createInteractionErrorPayload(target.MessageFlags);

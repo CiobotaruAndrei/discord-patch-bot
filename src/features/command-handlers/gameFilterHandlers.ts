@@ -148,7 +148,7 @@ function buildGameFilterCommandHandler(target: GameFilterContext) {
     handle: async (interaction, games) => {
       const di = interaction;
       try {
-        return await handlers.handleSetGamesInteraction(di, games as GameConfig[]);
+        return await handlers.handleSetGamesInteraction(di, games);
       } catch (err: unknown) {
         target.logger?.("ERROR", "GAME_FILTER_INTERACTION", "Eroare in handler-ul /set games", errorDetail(err));
         const payload = createInteractionErrorPayload(target.MessageFlags);

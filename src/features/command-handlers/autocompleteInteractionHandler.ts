@@ -134,7 +134,7 @@ function buildAutocompleteCommandHandler(target: AutocompleteContext) {
     handle: async (interaction, games) => {
       const di = interaction;
       try {
-        return await handlers.handleAutocomplete(di, games as GameConfig[]);
+        return await handlers.handleAutocomplete(di, games);
       } catch (err: unknown) {
         target.logger?.("ERROR", "AUTOCOMPLETE", "Eroare top-level in handler-ul autocomplete", errorDetail(err));
 

@@ -83,7 +83,7 @@ function buildSimpleCommandsCommandHandler(target: SimpleCommandsContext) {
       const di = interaction;
       try {
         if (di.commandName === "ping") return await handlers.handlePingInteraction(di);
-        return await handlers.handleGamesInteraction(di, games as GameConfig[]);
+        return await handlers.handleGamesInteraction(di, games);
       } catch (err: unknown) {
         target.logger?.("ERROR", "SIMPLE_COMMAND", "Eroare in /ping sau /games", errorDetail(err));
         const payload = createInteractionErrorPayload(target.MessageFlags);

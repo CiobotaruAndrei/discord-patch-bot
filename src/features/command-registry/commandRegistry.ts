@@ -1,6 +1,6 @@
 import type { CommandCacheSizes, GameConfig, FetchResult, DealInfo, GuildSettings } from "../../types";
 import type { NotificationDiscordClient, OutboxDiscordClient } from "../notifications/outboundChannel";
-import type { CommandHandler } from "./commandHandler";
+import type { CommandHandler, CommandGame } from "./commandHandler";
 import {
   dealPassesFilters,
   mapToObject,
@@ -25,7 +25,7 @@ interface CommandRegistryContext {
   buildOptimizedGameList?: <G extends { key: string }>(allGames: G[], subscribedGuilds: readonly GuildGameFilter[]) => G[];
   registerSlashCommands?: (token: string, clientId: string) => Promise<unknown>;
   buildSlashCommandDefinitions?: () => unknown[];
-  handleInteraction?: (interaction: unknown, games: Array<{ key: string }>) => Promise<unknown>;
+  handleInteraction?: (interaction: unknown, games: CommandGame[]) => Promise<unknown>;
   buildHelpEmbed?: () => unknown;
   findGameAndSuggestion?: (input: string, games: GameConfig[]) => unknown;
   getFindGameCacheSize?: () => number;
@@ -129,7 +129,7 @@ function createCommandRegistry(): RequiredCommandRegistry {
     attachFallbackInteractionHandler.buildCommandHandler(ctx)
   ];
 
-  async function dispatchCommand(interaction: unknown, games: Array<{ key: string }>): Promise<unknown> {
+  async function dispatchCommand(interaction: unknown, games: CommandGame[]): Promise<unknown> {
     for (const handler of commandHandlers) {
       if (handler.canHandle(interaction)) return handler.handle(interaction, games);
     }

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { makeDealInfo } from "./typedTestBuilders";
 
-const realUtilities = require("../shared/utilities") as { validatePendingDiscountSnapshot: (snapshot: unknown) => boolean };
+const realUtilities = require("../shared/utilities") as { validatePendingDiscountSnapshot: (snapshot: unknown) => boolean; validateUpdateFetchSnapshot: (item: unknown) => boolean };
 
 const installLatestHandler = require("../features/command-handlers/latestInteractionHandler") as
   ((context: Record<string, unknown>) => void) & { createLatestInteractionHandler?: (deps: unknown) => unknown };
@@ -64,6 +64,7 @@ function makeContext(overrides: Partial<Record<string, unknown>> = {}) {
     enrichDealData: async (deal: unknown) => deal,
     dealPassesFilters: () => true,
     validatePendingDiscountSnapshot: realUtilities.validatePendingDiscountSnapshot,
+    validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
     findGameAndSuggestion: () => ({ game: { key: "cs2", name: "CS2" }, suggestion: null }),
     executeFetchWithCircuitBreaker: async (game: unknown) => {
       log("executeFetch", game);
@@ -107,6 +108,28 @@ test("/latest updates loads + paginates", async () => {
   );
   assert.ok(calls.some(c => c.name === "getLatestForAllGames"));
   assert.ok(calls.some(c => c.name === "handlePagination"));
+});
+
+test("/latest updates: fetch live picat + snapshot proaspat -> update-urile vin din snapshot, cu banner vizibil (review #449 #1)", async () => {
+  const { context, safeEditPayloads } = makeContext({
+    getLatestForAllGames: async () => { throw new Error("fetch live picat"); },
+    loadFetchSnapshot: async (id: string) => (id === "updates"
+      ? { payload: [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2", title: "x" } }], fetchedAt: new Date(Date.now() - 10 * 60000) }
+      : null)
+  });
+  await context.handleInteraction(makeInteraction({ sub: "updates" }), [{ key: "cs2", name: "CS2" }]);
+  assert.ok(!safeEditPayloads.some(p => String(p).includes("Nu am reusit sa obtin update-urile")), "fara mesaj de eroare cand exista snapshot proaspat");
+  const banner = safeEditPayloads.find(p => String(p).includes("snapshot"));
+  assert.ok(banner, "exista un banner care anunta ca update-urile vin din snapshot (simetrie cu /latest reduceri si cron)");
+});
+
+test("/latest updates: fetch live picat + fara snapshot -> eroarea ramane explicita (review #449 #1)", async () => {
+  const { context, safeEditPayloads } = makeContext({
+    getLatestForAllGames: async () => { throw new Error("fetch live picat"); },
+    loadFetchSnapshot: async () => null
+  });
+  await context.handleInteraction(makeInteraction({ sub: "updates" }), [{ key: "cs2", name: "CS2" }]);
+  assert.ok(safeEditPayloads.some(p => String(p).includes("Nu am reusit sa obtin update-urile")), "fara snapshot proaspat, eroarea ramane explicita");
 });
 
 test("/latest reduceri loads + paginates", async () => {
