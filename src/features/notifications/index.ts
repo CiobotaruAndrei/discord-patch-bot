@@ -68,7 +68,7 @@ type NotificationsRuntimeDeps = SeenRepositoryDeps
 
 type NotificationsContext = NotificationsRuntimeDeps & Record<string, unknown>;
 
-function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
+function createOutboxServices(deps: NotificationsRuntimeDeps) {
   const {
     NOTIFICATION_OUTBOX_ENABLED: outboxEnabled,
     NOTIFICATION_OUTBOX_DRAIN_LIMIT: OUTBOX_DRAIN_LIMIT,
@@ -78,24 +78,9 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     NOTIFICATION_OUTBOX_RECOVERY_HISTORY_LIMIT: OUTBOX_RECOVERY_HISTORY_LIMIT
   } = deps.env;
   const {
-    GuildModel, logger, DEFAULT_CURRENCY, runConcurrent,
-    validatePendingDiscountSnapshot, validateUpdateFetchSnapshot, getLatestForAllGames, fetchDeals,
-    enrichDealData, dealHash, canSendEmbeds, buildUpdateEmbed,
-    buildDealEmbed, setUpdatesCache, getDealsCacheData, setDealsCache,
-    saveFetchSnapshot, loadFetchSnapshot, GuildSeenDiscountModel, GuildSeenUpdateModel, NotificationOutboxModel, NotificationOutboxSentModel, NotificationHistoryModel, NotificationDeadLetterReplayModel,
-    normalizeCurrencyKey, normalizePendingUpdateArray,
-    normalizePendingDiscountArray, toEntries, rotateAfter, mapToObject,
-    dealPassesFilters, sleepIfPositive, withMongoRetry, OP_UPDATE_OPTS,
-    SEEN_PER_GAME_LIMIT, PENDING_UPDATE_MAX_AGE_MS,
-    PENDING_UPDATE_MAX_ATTEMPTS, PENDING_UPDATES_PER_GAME_LIMIT,
-    MAX_UPDATES_PER_CYCLE, DISCORD_SEND_DELAY_MS,
-    GUILD_PROCESS_CONCURRENCY, DEALS_HISTORY_LIMIT,
-    PENDING_DISCOUNT_MAX_ATTEMPTS, PENDING_DISCOUNT_GRACE_CYCLES,
-    PENDING_DISCOUNTS_LIMIT, MAX_DEALS_PER_CYCLE
+    GuildModel, logger, canSendEmbeds, withMongoRetry,
+    NotificationOutboxModel, NotificationOutboxSentModel, NotificationHistoryModel, NotificationDeadLetterReplayModel
   } = deps;
-
-  const persistFetchSnapshot = saveFetchSnapshot as ((id: string, payload: unknown) => Promise<void>) | undefined;
-  const loadSnapshot = loadFetchSnapshot as ((id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>) | undefined;
 
   const outbox = createOutboxRuntime({ NotificationOutboxModel, NotificationOutboxSentModel, withMongoRetry, logger });
   const enqueueOutbox = outboxEnabled ? outbox.enqueueOutbox : undefined;
@@ -145,14 +130,41 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     return typeof recoveryVerifyEnabledGuilds === "number" ? { ...result, recoveryVerifyEnabledGuilds } : result;
   }
 
-  const seenRepository = createSeenRepository({
+  return { enqueueOutbox, resolveOutboundChannel, drainOutbox, deadLetterReplayRepository, historyRepository };
+}
+
+function createSeenServices(deps: NotificationsRuntimeDeps) {
+  const { GuildModel, GuildSeenDiscountModel, GuildSeenUpdateModel, withMongoRetry, SEEN_PER_GAME_LIMIT, DEALS_HISTORY_LIMIT, OP_UPDATE_OPTS } = deps;
+  return createSeenRepository({
     GuildModel, GuildSeenDiscountModel, GuildSeenUpdateModel, withMongoRetry, SEEN_PER_GAME_LIMIT, DEALS_HISTORY_LIMIT, OP_UPDATE_OPTS
   });
+}
+
+function createNotificationDispatchServices(
+  deps: NotificationsRuntimeDeps,
+  resolveOutboundChannel: ReturnType<typeof createOutboundChannelResolver>,
+  seenRepository: ReturnType<typeof createSeenRepository>
+) {
+  const {
+    GuildModel, logger, DEFAULT_CURRENCY, runConcurrent,
+    validatePendingDiscountSnapshot, validateUpdateFetchSnapshot, getLatestForAllGames, fetchDeals,
+    enrichDealData, dealHash, buildUpdateEmbed,
+    buildDealEmbed, setUpdatesCache, getDealsCacheData, setDealsCache,
+    saveFetchSnapshot, loadFetchSnapshot,
+    normalizeCurrencyKey, normalizePendingUpdateArray,
+    normalizePendingDiscountArray, toEntries, rotateAfter, mapToObject,
+    dealPassesFilters, sleepIfPositive,
+    PENDING_UPDATE_MAX_AGE_MS, PENDING_UPDATE_MAX_ATTEMPTS, PENDING_UPDATES_PER_GAME_LIMIT,
+    MAX_UPDATES_PER_CYCLE, DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY, DEALS_HISTORY_LIMIT,
+    PENDING_DISCOUNT_MAX_ATTEMPTS, PENDING_DISCOUNT_GRACE_CYCLES, PENDING_DISCOUNTS_LIMIT, MAX_DEALS_PER_CYCLE
+  } = deps;
   const {
     claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, disableUpdatesForChannelError,
     claimSeenDiscount, rollbackSeenDiscount, seedSeenDiscounts, loadSeenDiscountHashes, disableDiscountsForChannelError,
     setSeenHashVersion
   } = seenRepository;
+  const persistFetchSnapshot = saveFetchSnapshot as ((id: string, payload: unknown) => Promise<void>) | undefined;
+  const loadSnapshot = loadFetchSnapshot as ((id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>) | undefined;
 
   const updateService = createUpdateNotificationService({
     GuildModel, logger, runConcurrent, resolveOutboundChannel,
@@ -178,6 +190,18 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     PENDING_DISCOUNTS_LIMIT, MAX_DEALS_PER_CYCLE,
     DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY
   });
+
+  return { updateService, discountService };
+}
+
+function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
+  const { enqueueOutbox, resolveOutboundChannel, drainOutbox, deadLetterReplayRepository, historyRepository } = createOutboxServices(deps);
+  const seenRepository = createSeenServices(deps);
+  const { updateService, discountService } = createNotificationDispatchServices(deps, resolveOutboundChannel, seenRepository);
+  const {
+    claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, disableUpdatesForChannelError,
+    claimSeenDiscount, rollbackSeenDiscount, seedSeenDiscounts, disableDiscountsForChannelError
+  } = seenRepository;
 
   return {
     DISCORD_PERMANENT_ERROR_CODES,
