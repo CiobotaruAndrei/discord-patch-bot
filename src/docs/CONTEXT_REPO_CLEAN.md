@@ -183,7 +183,7 @@ Zone care inca trebuie urmarite:
 - `/metrics` trebuie protejat cu token cand este expus in afara mediului local.
 - Token-urile Discord, URI-urile Mongo si webhook-urile nu trebuie comise.
 - Docker trebuie sa ruleze procesul ca user non-root.
-- Prezentarea reducerilor trebuie sa fie robusta la date corupte: `buildDealEmbed` limiteaza procentul afisat la intervalul `[0, 100]`, astfel incat un snapshot `pendingDiscounts` reluat sau alterat sa nu poata produce procente imposibile in embed-uri.
+- Prezentarea reducerilor trebuie sa fie robusta la date corupte: `validatePendingDiscountSnapshot` ingusteaza snapshot-urile persistate la `ValidatedDealInfo` (cu `title`, `store`, `link`, preturi si `savings` obligatorii), iar `buildDealEmbed` limiteaza procentul afisat la intervalul `[0, 100]`, astfel incat un snapshot `pendingDiscounts` reluat sau alterat sa nu poata produce procente imposibile in embed-uri.
 
 ## Teste importante
 

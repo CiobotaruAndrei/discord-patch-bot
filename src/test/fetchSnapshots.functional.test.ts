@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeDealInfo, makeNotificationDiscordClient } from "./typedTestBuilders";
-const realUtilities = require("../shared/utilities") as { validatePendingDiscountSnapshot: (snapshot: unknown) => boolean; validateUpdateFetchSnapshot: (item: unknown) => boolean };
+const realUtilities = require("../shared/utilities") as { validatePendingDiscountSnapshot: (snapshot: unknown) => snapshot is ValidatedDealInfo; validateUpdateFetchSnapshot: (item: unknown) => boolean };
 const noopDiscordClient = makeNotificationDiscordClient();
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
 import attachFetchSnapshots = require("../infra/mongo/fetchSnapshots");
-import type { GameConfig } from "../types";
+import type { GameConfig, ValidatedDealInfo } from "../types";
 
 type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];
 type DiscountDeps = Parameters<typeof createDiscountNotificationService>[0];

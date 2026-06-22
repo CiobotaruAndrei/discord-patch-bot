@@ -1,6 +1,6 @@
 "use strict";
 
-import type { DealInfo, GuildSettings, InteractionMessage } from "../../../types";
+import type { DealInfo, GuildSettings, InteractionMessage, ValidatedDealInfo } from "../../../types";
 
 const { errorMessage } = require("../../../shared/errors");
 
@@ -29,7 +29,7 @@ export interface LatestDealsHandlerDeps {
   setDealsCache: (currency: string, deals: DealInfo[]) => void;
   fetchDeals: (opts: { currency: string }) => Promise<DealInfo[]>;
   loadFetchSnapshot?: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
-  validatePendingDiscountSnapshot: (snapshot: unknown) => snapshot is DealInfo;
+  validatePendingDiscountSnapshot: (snapshot: unknown) => snapshot is ValidatedDealInfo;
   enrichDealData: (deal: DealInfo, currency: string) => Promise<DealInfo>;
   dealPassesFilters: (deal: DealInfo, guild: GuildSettingsLite | null) => boolean;
   getSystemTimes: () => Promise<{ reduceri?: number }>;

@@ -2,7 +2,7 @@
 
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
-import type { DealInfo, GameConfig, GuildSettings } from "../types";
+import type { DealInfo, GameConfig, GuildSettings, ValidatedDealInfo } from "../types";
 
 type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];
 type DiscountDeps = Parameters<typeof createDiscountNotificationService>[0];
@@ -120,7 +120,7 @@ function makeDiscountDeps(counters: Counters, guilds: Array<GuildSettings & Reco
     isPermanentDiscordError: () => false,
     transientErrorMessage: (err: unknown) => String(err),
     normalizePendingDiscountArray: (arr: unknown) => Array.isArray(arr) ? arr : [],
-    validatePendingDiscountSnapshot: () => true,
+    validatePendingDiscountSnapshot: (snapshot: unknown): snapshot is ValidatedDealInfo => Boolean(snapshot),
     normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     dealPassesFilters: () => true,
     dealHash: (deal: unknown) => String((deal as { id?: unknown }).id || "h"),
