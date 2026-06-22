@@ -155,6 +155,4 @@ function installLatestInteractionHandler(target: LatestContext) {
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installLatestInteractionHandler, { createLatestInteractionHandler, buildCommandHandler: buildLatestCommandHandler });
-
-export = installLatestInteractionHandler;
+export = Object.assign(installLatestInteractionHandler, { createLatestInteractionHandler, buildCommandHandler: buildLatestCommandHandler });

@@ -292,6 +292,4 @@ function installSetInteractionHandler(target: SetContext) {
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installSetInteractionHandler, { createSetInteractionHandler, buildSetUpdatePlan, buildCommandHandler: buildSetCommandHandler });
-
-export = installSetInteractionHandler;
+export = Object.assign(installSetInteractionHandler, { createSetInteractionHandler, buildSetUpdatePlan, buildCommandHandler: buildSetCommandHandler });

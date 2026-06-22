@@ -158,6 +158,4 @@ function installHelpHandler(target: HelpContext) {
   Object.assign(target, { handleInteraction, buildHelpEmbed: command.buildHelpEmbed });
 }
 
-Object.assign(installHelpHandler, { createHelpHandler, buildHelpEmbed: buildHelpEmbedFromDeps, buildCommandHandler: buildHelpCommandHandler });
-
-export = installHelpHandler;
+export = Object.assign(installHelpHandler, { createHelpHandler, buildHelpEmbed: buildHelpEmbedFromDeps, buildCommandHandler: buildHelpCommandHandler });

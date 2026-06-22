@@ -178,6 +178,4 @@ function installGameFilterInteractions(target: GameFilterContext) {
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installGameFilterInteractions, { createGameFilterInteractionHandlers, buildCommandHandler: buildGameFilterCommandHandler });
-
-export = installGameFilterInteractions;
+export = Object.assign(installGameFilterInteractions, { createGameFilterInteractionHandlers, buildCommandHandler: buildGameFilterCommandHandler });

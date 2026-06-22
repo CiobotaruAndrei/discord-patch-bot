@@ -161,6 +161,4 @@ function installAutocompleteHandler(target: AutocompleteContext) {
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installAutocompleteHandler, { createAutocompleteHandler, scoreGameAgainstInput, buildCommandHandler: buildAutocompleteCommandHandler });
-
-export = installAutocompleteHandler;
+export = Object.assign(installAutocompleteHandler, { createAutocompleteHandler, scoreGameAgainstInput, buildCommandHandler: buildAutocompleteCommandHandler });

@@ -279,6 +279,4 @@ function installDlcInteraction(target: DlcContext) {
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installDlcInteraction, { createDlcInteractionHandler, buildCommandHandler: buildDlcCommandHandler });
-
-export = installDlcInteraction;
+export = Object.assign(installDlcInteraction, { createDlcInteractionHandler, buildCommandHandler: buildDlcCommandHandler });

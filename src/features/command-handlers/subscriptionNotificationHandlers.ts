@@ -329,6 +329,4 @@ function installSubscriptionInteractions(target: SubscriptionContext) {
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installSubscriptionInteractions, { createSubscriptionInteractionHandlers, buildCommandHandler: buildSubscriptionCommandHandler });
-
-export = installSubscriptionInteractions;
+export = Object.assign(installSubscriptionInteractions, { createSubscriptionInteractionHandlers, buildCommandHandler: buildSubscriptionCommandHandler });

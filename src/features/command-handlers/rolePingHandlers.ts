@@ -145,6 +145,4 @@ function installRolePingInteractions(target: RolePingContext) {
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installRolePingInteractions, { createRolePingInteractionHandlers, buildCommandHandler: buildRolePingCommandHandler });
-
-export = installRolePingInteractions;
+export = Object.assign(installRolePingInteractions, { createRolePingInteractionHandlers, buildCommandHandler: buildRolePingCommandHandler });

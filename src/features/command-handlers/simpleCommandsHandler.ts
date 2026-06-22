@@ -116,6 +116,4 @@ function installSimpleCommandsHandler(target: SimpleCommandsContext) {
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installSimpleCommandsHandler, { createSimpleCommandsHandler, buildCommandHandler: buildSimpleCommandsCommandHandler });
-
-export = installSimpleCommandsHandler;
+export = Object.assign(installSimpleCommandsHandler, { createSimpleCommandsHandler, buildCommandHandler: buildSimpleCommandsCommandHandler });

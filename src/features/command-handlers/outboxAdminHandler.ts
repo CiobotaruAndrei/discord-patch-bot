@@ -416,6 +416,4 @@ function installOutboxAdminHandler(target: OutboxAdminContext): void {
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installOutboxAdminHandler, { createOutboxAdminHandler, isDirectOutboxCommand, buildCommandHandler: buildOutboxAdminCommandHandler });
-
-export = installOutboxAdminHandler;
+export = Object.assign(installOutboxAdminHandler, { createOutboxAdminHandler, isDirectOutboxCommand, buildCommandHandler: buildOutboxAdminCommandHandler });

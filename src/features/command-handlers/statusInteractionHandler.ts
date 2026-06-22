@@ -135,6 +135,4 @@ function installStatusInteraction(target: StatusContext) {
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installStatusInteraction, { createStatusInteractionHandler, buildCommandHandler: buildStatusCommandHandler });
-
-export = installStatusInteraction;
+export = Object.assign(installStatusInteraction, { createStatusInteractionHandler, buildCommandHandler: buildStatusCommandHandler });
