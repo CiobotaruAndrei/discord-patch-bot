@@ -305,7 +305,7 @@ export interface DealInfo {
   steamAppID?: string | number | null;
   normalPrice?: PriceValue;
   salePrice?: PriceValue;
-  savings?: number;
+  savings?: PriceValue;
   discountPercent?: number;
   popularityScore?: number;
   totalReviews?: number;
@@ -318,6 +318,15 @@ export interface DealInfo {
   extraDetails?: string;
   enriched?: boolean;
   [key: string]: unknown;
+}
+
+export interface ValidatedDealInfo extends DealInfo {
+  title: string;
+  link: string;
+  store: string;
+  normalPrice: PriceValue;
+  salePrice: PriceValue;
+  savings: PriceValue;
 }
 
 export interface EnrichedDealInfo extends DealInfo {

@@ -1,6 +1,6 @@
 "use strict";
 
-import type { GuildSettings, DealInfo, PendingDiscount, NotificationMode } from "../../types";
+import type { GuildSettings, DealInfo, PendingDiscount, NotificationMode, ValidatedDealInfo } from "../../types";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
 import { HASH_VERSION } from "../../native/fuzzy";
@@ -54,7 +54,7 @@ export interface DiscountNotificationServiceDeps {
   transientErrorMessage: (err: unknown) => string;
 
   normalizePendingDiscountArray: (arr: unknown) => PendingDiscount[];
-  validatePendingDiscountSnapshot: (snapshot: unknown) => boolean;
+  validatePendingDiscountSnapshot: (snapshot: unknown) => snapshot is ValidatedDealInfo;
   normalizeCurrencyKey: (currency: unknown) => string;
   dealPassesFilters: (deal: DealInfo | null | undefined, guild: GuildSettings | null) => boolean;
   dealHash: (deal: DealInfo) => string;

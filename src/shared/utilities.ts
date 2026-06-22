@@ -4,7 +4,8 @@ import type {
   DealInfo,
   LoggerFunction,
   MaybePromise,
-  RuntimeEnv
+  RuntimeEnv,
+  ValidatedDealInfo
 } from "../types";
 import { errorMessage } from "./errors";
 
@@ -114,7 +115,7 @@ function validateUpdateFetchSnapshot(item: unknown): item is { game: { key: stri
   return typeof id === "string" && !!id;
 }
 
-function validatePendingDiscountSnapshot(snapshot: unknown): snapshot is DealInfo {
+function validatePendingDiscountSnapshot(snapshot: unknown): snapshot is ValidatedDealInfo {
   if (!snapshot || typeof snapshot !== "object") return false;
   const deal = snapshot as DealInfo;
   if (typeof deal.title !== "string" || !deal.title) return false;

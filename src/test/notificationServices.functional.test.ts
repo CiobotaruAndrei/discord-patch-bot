@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
-import type { GameConfig, DealInfo } from "../types";
+import type { GameConfig, DealInfo, ValidatedDealInfo } from "../types";
 
 type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];
 type DiscountDeps = Parameters<typeof createDiscountNotificationService>[0];
@@ -368,7 +368,7 @@ function makeDiscountDeps(overrides: Partial<DiscountDeps> = {}) {
     isPermanentDiscordError: () => false,
     transientErrorMessage: messageOf,
     normalizePendingDiscountArray: (arr: unknown) => Array.isArray(arr) ? arr : [],
-    validatePendingDiscountSnapshot: () => true,
+    validatePendingDiscountSnapshot: (snapshot: unknown): snapshot is ValidatedDealInfo => Boolean(snapshot),
     normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     dealPassesFilters: () => true,
     dealHash: (deal: unknown) => (deal as { id?: string }).id || "h",

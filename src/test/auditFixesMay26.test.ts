@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as cheerio from "cheerio";
+import type { ValidatedDealInfo } from "../types";
 
 type UtilitiesModule = typeof import("../shared/utilities") & {
-  validatePendingDiscountSnapshot: (snapshot: unknown) => boolean;
+  validatePendingDiscountSnapshot: (snapshot: unknown) => snapshot is ValidatedDealInfo;
 };
 type UpdatesRuntime = {
   fetchListingBasedUpdate: (game: Record<string, unknown>) => Promise<unknown>;
@@ -104,6 +105,15 @@ test("validatePendingDiscountSnapshot: accepta savings ca numar finit", () => {
   assert.equal(validatePendingDiscountSnapshot({ ...base, savings: "abc" }), false);
   assert.equal(validatePendingDiscountSnapshot({ ...base, savings: undefined }), false);
   assert.equal(validatePendingDiscountSnapshot({ ...base, savings: null }), false);
+});
+
+test("validatePendingDiscountSnapshot: narrow-uie la deal validat cu savings numeric sau string", () => {
+  const { validatePendingDiscountSnapshot } = require("../shared/utilities") as UtilitiesModule;
+  const candidate: unknown = { title: "Game", store: "Steam", link: "https://x", salePrice: "10", normalPrice: "20", savings: "33" };
+  if (!validatePendingDiscountSnapshot(candidate)) throw new Error("snapshot invalid in fixture");
+  const validated: ValidatedDealInfo = candidate;
+  assert.equal(validated.savings, "33");
+  assert.equal(Number(validated.savings), 33);
 });
 
 test("validatePendingDiscountSnapshot: pastreaza restul validarilor stricte", () => {
