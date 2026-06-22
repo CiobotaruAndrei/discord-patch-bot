@@ -257,6 +257,24 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       }
     };
 
+    const retryOrDeadLetter = async (job: OutboxJob, reason: string, permanent: boolean): Promise<void> => {
+      const attempts = (job.attempts || 0) + 1;
+      if (permanent || attempts >= options.maxAttempts) {
+        if (!(await recordDeadLetterOrKeep(job, permanent ? reason : "max-attempts"))) return;
+        await deleteJob(job._id);
+        deadLettered++;
+        return;
+      }
+      await NotificationOutboxModel.updateOne(
+        { _id: job._id },
+        {
+          $set: { attempts, availableAt: new Date(nowFn().getTime() + backoffWithJitter(options.backoffMs, attempts)) },
+          $unset: { lockedUntil: "", lockedBy: "" }
+        }
+      );
+      retried++;
+    };
+
     for (let i = 0; i < options.limit; i++) {
       const job = await claimNextJob(nowFn(), leaseMs, workerId);
       if (!job) break;
@@ -274,10 +292,22 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         continue;
       }
 
-      if (options.isStillSubscribed && !(await options.isStillSubscribed(job).catch(() => true))) {
-        await deleteJob(job._id);
-        droppedUnsubscribed++;
-        continue;
+      if (options.isStillSubscribed) {
+        let stillSubscribed: boolean;
+        try {
+          stillSubscribed = await options.isStillSubscribed(job);
+        } catch (err) {
+          logger("WARN", "OUTBOX",
+            `Verificarea abonarii pentru jobul ${String(job._id)} a esuat; aman livrarea ca sa nu trimit intr-un canal dezabonat`,
+            err instanceof Error ? err.message : String(err));
+          await retryOrDeadLetter(job, "subscription-check-failed", false);
+          continue;
+        }
+        if (!stillSubscribed) {
+          await deleteJob(job._id);
+          droppedUnsubscribed++;
+          continue;
+        }
       }
 
       const startedAt = Date.now();
@@ -312,21 +342,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         continue;
       }
       if (result.recoveryFailed) recoveryFailures++;
-      const attempts = (job.attempts || 0) + 1;
-      if (result.permanent || attempts >= options.maxAttempts) {
-        if (!(await recordDeadLetterOrKeep(job, result.permanent ? "permanent" : "max-attempts"))) continue;
-        await deleteJob(job._id);
-        deadLettered++;
-        continue;
-      }
-      await NotificationOutboxModel.updateOne(
-        { _id: job._id },
-        {
-          $set: { attempts, availableAt: new Date(nowFn().getTime() + backoffWithJitter(options.backoffMs, attempts)) },
-          $unset: { lockedUntil: "", lockedBy: "" }
-        }
-      );
-      retried++;
+      await retryOrDeadLetter(job, "permanent", result.permanent);
     }
 
     if (maxAgeMs > 0) {

@@ -43,8 +43,9 @@ Coada de joburi outbox creste mai repede decat reuseste worker-ul sa o dreneze.
 **Dezabonare in timpul drenarii.** Inainte de a livra un job, drain-ul revalideaza ca guild-ul e inca
 abonat pe acel canal (`subscribed`+`notificationChannelId` pentru update / `discountsSubscribed`+`discountChannelId`
 pentru reduceri). Daca cineva a dat `/stop` intre enqueue si drain, jobul e **scos din coada fara livrare**
-(nu e dead-letter, nu e un esec) — asa nu mai trece o ultima notificare dupa `/stop`. Verificarea e fail-open:
-daca interogarea Mongo esueaza tranzitoriu, jobul se livreaza (nu pierdem notificari legitime).
+(nu e dead-letter, nu e un esec) — asa nu mai trece o ultima notificare dupa `/stop`. Verificarea e fail-closed
+la eroare Mongo: daca interogarea esueaza tranzitoriu, jobul **nu** se livreaza, ci se reprogrameaza cu backoff si
+ramane in coada pana cand abonarea poate fi confirmata.
 
 ## Cand creste `bot_outbox_mark_sent_failures`
 

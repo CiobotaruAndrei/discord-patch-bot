@@ -140,6 +140,28 @@ test("drainOutbox: un job al carui guild e inca abonat se livreaza normal (isSti
   assert.equal(result.droppedUnsubscribed, 0);
 });
 
+test("drainOutbox: eroarea de verificare a abonarii amana jobul fara livrare fail-open", async () => {
+  const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0 };
+  const { runtime, updated, deleted } = makeRuntime([job]);
+  let delivered = 0;
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => { delivered++; return { ok: true }; },
+    isStillSubscribed: async () => { throw new Error("mongo down"); },
+    recordDeadLetter: async () => undefined,
+    maxAttempts: 5, backoffMs: 1000, limit: 50
+  });
+  assert.equal(delivered, 0, "nu livreaza cand nu poate confirma abonarea");
+  assert.equal(result.sent, 0);
+  assert.equal(result.retried, 1);
+  assert.equal(result.droppedUnsubscribed, 0);
+  assert.equal(deleted.length, 0, "jobul ramane in coada pentru retry");
+  const retryUpdate = updated[0].update as { $set: { attempts: number; availableAt: Date }; $unset: { lockedUntil: string; lockedBy: string } };
+  assert.equal(retryUpdate.$set.attempts, 1);
+  assert.ok(retryUpdate.$set.availableAt instanceof Date);
+  assert.equal(retryUpdate.$unset.lockedUntil, "");
+  assert.equal(retryUpdate.$unset.lockedBy, "");
+});
+
 test("drainOutbox: o stergere esuata nu opreste drain-ul si se numara in deleteFailures", async () => {
   const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "dk1" };
   const fake = makeFakeModel([job]);
