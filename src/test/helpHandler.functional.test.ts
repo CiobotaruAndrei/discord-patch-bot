@@ -38,7 +38,7 @@ function outboxSubcommandsFromSlashDefinitions(): string[] {
   return subs;
 }
 
-function makeHelpInteraction() {
+function makeHelpInteraction(commandValue?: string | null) {
   const replies: unknown[] = [];
   return {
     interaction: {
@@ -47,6 +47,9 @@ function makeHelpInteraction() {
       deferred: false,
       replied: false,
       isChatInputCommand: () => true,
+      options: {
+        getString: (name: string) => name === "command" ? commandValue ?? null : null
+      },
       reply: async (payload: unknown) => { replies.push(payload); return payload; },
       followUp: async (payload: unknown) => { replies.push(payload); return payload; }
     },
@@ -62,6 +65,36 @@ test("help handler replies with the injected help embed", async () => {
   await handlers.handleHelpInteraction(interaction);
 
   assert.deepEqual(replies, [{ embeds: [embed] }]);
+});
+
+test("help handler replies ephemeral with command-specific details", async () => {
+  const { interaction, replies } = makeHelpInteraction("/set games add");
+  const handlers = helpHandler.createHelpHandler({
+    buildHelpEmbed: () => ({ title: "Help" }),
+    MessageFlags: { Ephemeral: 64 }
+  });
+
+  await handlers.handleHelpInteraction(interaction);
+
+  const payload = replies[0] as { content: string; flags: number };
+  assert.equal(payload.flags, 64);
+  assert.match(payload.content, /\/set games add/);
+  assert.match(payload.content, /Permisiuni: Admin/);
+  assert.match(payload.content, /joc:cs2/);
+});
+
+test("help handler reports unknown command values as ephemeral errors", async () => {
+  const { interaction, replies } = makeHelpInteraction("/nu-exista");
+  const handlers = helpHandler.createHelpHandler({
+    buildHelpEmbed: () => ({ title: "Help" }),
+    MessageFlags: { Ephemeral: 64 }
+  });
+
+  await handlers.handleHelpInteraction(interaction);
+
+  const payload = replies[0] as { content: string; flags: number };
+  assert.equal(payload.flags, 64);
+  assert.match(payload.content, /Nu am gasit comanda/);
 });
 
 test("help handler installer intercepts only /help", async () => {

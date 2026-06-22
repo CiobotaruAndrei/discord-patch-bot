@@ -4,6 +4,7 @@ import type { CommandHandler } from "../command-registry/commandHandler";
 
 const { errorMessage, errorDetail } = require("../../shared/errors");
 const { buildAutocompleteChoices } = require("../../native/fuzzy") as typeof import("../../native/fuzzy");
+const { buildCommandHelpChoices } = require("../command-help/commandHelpCatalog") as typeof import("../command-help/commandHelpCatalog");
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string; aliases?: string[] } & Record<string, unknown>;
@@ -86,11 +87,17 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
   async function handleAutocomplete(interaction: DiscordInteraction, games: GameConfig[]): Promise<unknown> {
     try {
       const focused = interaction.options.getFocused(true);
-      if (!focused || focused.name !== "joc") {
+      if (!focused) {
+        return interaction.respond([]).catch(() => null);
+      }
+      const cmd = interaction.commandName;
+      if (cmd === "help" && focused.name === "command") {
+        return interaction.respond(buildCommandHelpChoices(focused.value)).catch(() => null);
+      }
+      if (focused.name !== "joc") {
         return interaction.respond([]).catch(() => null);
       }
       const input = String(focused.value || "").toLowerCase().trim().substring(0, MAX_AUTOCOMPLETE_INPUT_LEN);
-      const cmd = interaction.commandName;
       const sub = interaction.options.getSubcommand(false);
       const group = interaction.options.getSubcommandGroup(false);
 

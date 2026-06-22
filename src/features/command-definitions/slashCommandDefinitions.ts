@@ -47,7 +47,8 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
     return [
       new SlashCommandBuilder().setName("ping").setDescription("Verifica daca botul raspunde"),
       new SlashCommandBuilder().setName("games").setDescription("Listeaza jocurile urmarite (poreclele acceptate)"),
-      new SlashCommandBuilder().setName("help").setDescription("Afiseaza meniul de ajutor"),
+      new SlashCommandBuilder().setName("help").setDescription("Afiseaza meniul de ajutor")
+        .addStringOption(option => option.setName("command").setDescription("Comanda pentru explicatie detaliata").setRequired(false).setAutocomplete(true)),
       new SlashCommandBuilder()
         .setName("start")
         .setDescription("Porneste notificarile automate (admin)")

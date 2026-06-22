@@ -15,6 +15,7 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 | `/ping` | Verifica daca botul raspunde si intoarce `Pong!`. |
 | `/games` | Listeaza jocurile urmarite de bot, cu cheile si poreclele acceptate. |
 | `/help` | Afiseaza meniul de ajutor cu principalele comenzi si categorii. |
+| `/help command:<comanda>` | Afiseaza ephemeral explicatia detaliata pentru o comanda exacta. Optiunea `command` are autocomplete cu comenzile existente, de exemplu `/set games add`, `/outbox deadletters` sau `/latest pret`. |
 
 ## Notificari automate
 
@@ -86,7 +87,7 @@ Concepte utile pentru admini:
 
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
-| `/latest updates` | Public | Afiseaza cele mai recente update-uri pentru jocurile active ale serverului. Foloseste cache cand exista date valide si pagineaza rezultatele. |
+| `/latest updates` | Public | Afiseaza cele mai recente update-uri pentru jocurile active ale serverului. Foloseste cache cand exista date valide, poate folosi ultimul snapshot salvat daca fetch-ul live esueaza temporar si pagineaza rezultatele. |
 | `/latest reduceri` | Public | Afiseaza cele mai bune reduceri curente care trec filtrele serverului. Foloseste cache si poate folosi ultimul snapshot salvat daca fetch-ul live esueaza temporar. |
 | `/latest update joc:<name/key>` | Public, Autocomplete | Cauta ultimul update pentru un joc anume. Foloseste cache per joc si sugereaza o potrivire apropiata cand jocul nu este gasit. |
 | `/latest pret joc:<name>` | Public, Autocomplete | Cauta pretul curent al unui joc pe Steam in valuta serverului si afiseaza detaliile de pret intr-un embed. |
