@@ -250,4 +250,3 @@ jobs:
         with:
           tag_name: ${{ steps.release.outputs.tag }}
           body_path: release-notes.md
-          generate_release_notes: true

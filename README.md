@@ -190,7 +190,7 @@ npm start
 
 `npm start` ruleaza codul deja compilat din `dist/`. In productie, build-ul trebuie facut in CI, Docker image sau pipeline separat.
 
-Workflow-ul de release poate publica un GitHub Release si o imagine Docker pe GitHub Container Registry cand este impins un tag `v*`.
+Workflow-ul de release poate publica un GitHub Release si o imagine Docker pe GitHub Container Registry cand este impins un tag `v*`. Body-ul release-ului vine strict din sectiunea tag-ului din `CHANGELOG.md`, extrasa in `release-notes.md`.
 
 ## Docker
 

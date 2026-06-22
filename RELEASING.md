@@ -23,8 +23,9 @@ obligatoriu inainte de a publica o versiune (tag `vX.Y.Z`, imagine Docker GHCR, 
 4. **Manual Discord smoke** — checklist-ul din `STAGING_SMOKE.md` a fost parcurs manual pe un server de
    staging cu bot real (slash commands interactive, notificari live fara duplicate, ping de rol,
    shutdown curat) — partea pe care probele automate nu o pot simula.
-5. **CHANGELOG actualizat** — sectiunea versiunii in `CHANGELOG.md` (folosita de
-   `extract-release-notes.js` pentru notele de release).
+5. **CHANGELOG actualizat** — sectiunea versiunii in `CHANGELOG.md` este sursa unica pentru
+   body-ul GitHub Release (`extract-release-notes.js` scrie `release-notes.md`; workflow-ul nu
+   combina acest body cu notele generate automat de GitHub).
 
 ## Ce se impune automat
 
@@ -66,4 +67,4 @@ Smoke`, nu doar declarat.
    fiabile) pe codul exact al tag-ului. Imaginea Docker se construieste **local**, trece prin gate-ul
    **Trivy blocant** (CRITICAL/HIGH fixabile, `exit-code 1`) pe imaginea exacta, si abia apoi se
    publica pe GHCR (`docker tag` + `docker push` pe bytes-ii scanati, fara rebuild). La final se
-   creeaza GitHub Release-ul cu notele extrase din `CHANGELOG.md`.
+   creeaza GitHub Release-ul cu body-ul extras din `CHANGELOG.md`.
