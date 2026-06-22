@@ -69,7 +69,7 @@ const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0"
 ];
 
-function attachHttpClient(target: HttpClientContext): void {
+function buildHttpClientFrom(target: HttpClientContext) {
   const { axios, cheerio, env, logger, getAbortSignal } = target;
   const dnsLookup = target.dnsLookup || dns.lookup;
   const safeDnsLookup = createSafeDnsLookup(dnsLookup);
@@ -309,7 +309,7 @@ function attachHttpClient(target: HttpClientContext): void {
     promise.then(cleanup, cleanup);
   }
 
-  Object.assign(target, {
+  return {
     FETCH_CONCURRENCY,
     FETCH_CONCURRENCY_STEAM,
     FETCH_CONCURRENCY_EPIC,
@@ -349,9 +349,14 @@ function attachHttpClient(target: HttpClientContext): void {
     withInflightTimeout,
     trackInflight,
     parseRetryAfter
-  });
+  };
 }
 
+function attachHttpClient(target: HttpClientContext): void {
+  Object.assign(target, buildHttpClientFrom(target));
+}
+
+attachHttpClient.buildFrom = buildHttpClientFrom;
 attachHttpClient.parseRetryAfter = parseRetryAfter;
 attachHttpClient.assertSafeRedirect = assertSafeRedirect;
 attachHttpClient.assertSafeExternalUrl = assertSafeExternalUrl;
