@@ -11,6 +11,32 @@ type InteractionRuntime = {
 };
 
 const helpHandler = require("../features/command-handlers/helpInteractionHandler") as HelpModule;
+const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
+
+interface SlashJsonOption { type: number; name: string; options?: SlashJsonOption[] }
+interface SlashJsonCommand { name: string; options?: SlashJsonOption[] }
+
+function outboxSubcommandsFromSlashDefinitions(): string[] {
+  const target: Record<string, unknown> = {
+    SlashCommandBuilder, PermissionsBitField,
+    SUPPORTED_CURRENCIES: { USD: {}, EUR: {}, GBP: {}, RON: {} },
+    logger: () => undefined, env: {}
+  };
+  const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions") as (t: Record<string, unknown>) => void;
+  attachSlashCommands(target);
+  const defs = (target.buildSlashCommandDefinitions as () => SlashJsonCommand[])();
+  const outbox = defs.find(cmd => cmd.name === "outbox");
+  const subs: string[] = [];
+  for (const opt of outbox?.options || []) {
+    if (opt.type === 1) subs.push(opt.name);
+    else if (opt.type === 2) {
+      for (const sub of opt.options || []) {
+        if (sub.type === 1) subs.push(`${opt.name} ${sub.name}`);
+      }
+    }
+  }
+  return subs;
+}
 
 function makeHelpInteraction() {
   const replies: unknown[] = [];
@@ -77,7 +103,7 @@ class CapturingEmbedBuilder {
   }
 }
 
-test("help handler real (din EmbedBuilder + COLORS) listeaza toate subcomenzile /outbox", async () => {
+test("help handler real (din EmbedBuilder + COLORS) listeaza toate subcomenzile /outbox derivate din slash definitions", async () => {
   const { interaction, replies } = makeHelpInteraction();
   const context = {
     MessageFlags: { Ephemeral: 64 },
@@ -95,22 +121,12 @@ test("help handler real (din EmbedBuilder + COLORS) listeaza toate subcomenzile 
   const outboxField = embed.fields.find(field => field.name.toLowerCase().includes("outbox"));
   assert.ok(outboxField, "embed-ul real de help are sectiunea de operare outbox");
 
-  const expectedSubcommands = [
-    "status",
-    "deadletters",
-    "clear-deadletters",
-    "replay-deadletters",
-    "retry",
-    "drain-now",
-    "pause",
-    "resume",
-    "permissions",
-    "recovery-verify status"
-  ];
-  for (const sub of expectedSubcommands) {
+  const outboxSubcommands = outboxSubcommandsFromSlashDefinitions();
+  assert.ok(outboxSubcommands.length >= 8, "slash definitions expun subcomenzile /outbox (sanity al parserului)");
+  for (const sub of outboxSubcommands) {
     assert.ok(
       outboxField!.value.includes(`/outbox ${sub}`),
-      `/help listeaza /outbox ${sub} (regresie: comanda definita dar absenta din embed-ul real)`
+      `/help listeaza /outbox ${sub} (derivat din slash definitions, nu hardcodat — regresie: subcomanda definita dar absenta din embed-ul real)`
     );
   }
 });
