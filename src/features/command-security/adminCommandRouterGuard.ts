@@ -1,7 +1,7 @@
 "use strict";
 
 type MaybePromise<T> = T | Promise<T>;
-type GameConfig = { key: string } & Record<string, unknown>;
+type GameConfig = { key: string; name: string } & Record<string, unknown>;
 type DiscordInteraction = {
   commandName?: string;
   guild?: unknown;

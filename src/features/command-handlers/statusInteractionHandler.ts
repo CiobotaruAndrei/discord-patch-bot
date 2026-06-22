@@ -101,7 +101,7 @@ function buildStatusCommandHandler(target: StatusContext) {
     canHandle: (interaction): interaction is DiscordInteraction => isStatusCommand(interaction as DiscordInteraction),
     handle: async (interaction, games) => {
       try {
-        return await handlers.handleStatusInteraction(interaction, games as GameConfig[]);
+        return await handlers.handleStatusInteraction(interaction, games);
       } catch (err: unknown) {
         target.logger?.("ERROR", "STATUS_INTERACTION", "Eroare in handler-ul /status", errorDetail(err));
         const payload = createInteractionErrorPayload(target.MessageFlags);

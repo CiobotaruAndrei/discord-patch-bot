@@ -19,6 +19,7 @@ interface Harness {
     outboxDeliveryMsTotal: number;
     outboxOldestJobAgeSeconds: number;
     outboxLockAcquireFailures: number;
+    outboxPauseCheckFailures: number;
     outboxRecoveryDuplicates: number;
     outboxRecoveryFetches: number;
     outboxRecoveryFailures: number;
@@ -42,6 +43,7 @@ function makeWorker(overrides: {
   drainLimit?: number;
   perJobBudgetMs?: number;
   paused?: boolean;
+  pauseThrows?: boolean;
 } = {}) {
   const harness: Harness = {
     drainCalls: 0,
@@ -51,7 +53,7 @@ function makeWorker(overrides: {
     alertKinds: [],
     metrics: {
       outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxExpired: 0, outboxDrains: 0, outboxQueueDepth: 0,
-      outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxLockAcquireFailures: 0,
+      outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxLockAcquireFailures: 0, outboxPauseCheckFailures: 0,
       outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0, outboxRecoveryMarkerMissing: 0,
       outboxMarkSentFailures: 0, outboxDeleteFailures: 0, outboxDeadLetterWriteFailures: 0, outboxRecoveryVerifyEnabledGuilds: 0, outboxLastDrainAt: 0
     }
@@ -79,7 +81,9 @@ function makeWorker(overrides: {
     lifecycle,
     metrics: harness.metrics,
     adminAlert: async (kind: string) => { harness.alertKinds.push(kind); return undefined; },
-    isPaused: overrides.paused === undefined ? undefined : async () => overrides.paused === true,
+    isPaused: overrides.pauseThrows
+      ? async () => { throw new Error("pause check boom"); }
+      : overrides.paused === undefined ? undefined : async () => overrides.paused === true,
     errorMessage: (err: unknown) => err instanceof Error ? err.message : String(err),
     drainLimit: overrides.drainLimit ?? 50,
     perJobBudgetMs: overrides.perJobBudgetMs ?? 7000
@@ -111,6 +115,15 @@ test("outboxWorker: nu pe pauza -> drenza normal", async () => {
   const { worker, harness } = makeWorker({ paused: false });
   await worker.drainTick();
   assert.equal(harness.drainCalls, 1, "fara pauza drenza normal");
+  worker.stop();
+});
+
+test("outboxWorker: citirea flagului de pauza esueaza -> fail-closed (nu drenza, incrementeaza outboxPauseCheckFailures)", async () => {
+  const { worker, harness } = makeWorker({ pauseThrows: true });
+  await worker.drainTick();
+  assert.equal(harness.acquireCalls, 0, "fail-closed: nu atinge lock-ul daca starea de pauza nu poate fi citita");
+  assert.equal(harness.drainCalls, 0, "fail-closed: nu drenza cand starea de pauza e necunoscuta (vs fail-open vechi care continua)");
+  assert.equal(harness.metrics.outboxPauseCheckFailures, 1, "esecul de citire a pauzei e numarat in metrica");
   worker.stop();
 });
 

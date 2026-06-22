@@ -113,6 +113,47 @@ test("dispatcher: comanda admin de la non-admin e blocata de pre-check inainte d
   assert.match(String(reply?.content ?? ""), /Administrator/);
 });
 
+function makeChatInput(commandName: string, options: { admin?: boolean } = {}) {
+  const captured: { payload: unknown } = { payload: null };
+  const record = async (payload: unknown) => { captured.payload = payload; return payload; };
+  const interaction = {
+    isChatInputCommand: () => true,
+    isAutocomplete: () => false,
+    guild: { id: "g1" },
+    commandName,
+    memberPermissions: { has: () => options.admin === true },
+    deferred: false,
+    replied: false,
+    reply: record,
+    deferReply: record,
+    editReply: record,
+    followUp: record,
+    options: { getSubcommandGroup: () => null, getSubcommand: () => "x", getString: () => null }
+  };
+  return { interaction, captured };
+}
+
+test("dispatcher: toate comenzile admin de la non-admin sunt blocate de pre-check (registry real, table-driven)", async () => {
+  const registry = commandRegistry.createCommandRegistry();
+  for (const command of ["start", "stop", "set", "outbox", "health"]) {
+    const { interaction, captured } = makeChatInput(command, { admin: false });
+    await registry.handleInteraction(interaction, []);
+    const payload = captured.payload as { content?: string } | null;
+    assert.ok(payload, `/${command} a primit un raspuns (pre-check-ul admin a rulat in dispatcher)`);
+    assert.match(String(payload?.content ?? ""), /Administrator/, `/${command} blocat de pre-check inainte de handler`);
+  }
+});
+
+test("dispatcher: /ping si /games sunt rutate prin registry catre handler-ul lor si raspund (registry real)", async () => {
+  const registry = commandRegistry.createCommandRegistry();
+  const games = [{ key: "cs2", name: "CS2" }];
+  for (const command of ["ping", "games"]) {
+    const { interaction, captured } = makeChatInput(command);
+    await registry.handleInteraction(interaction, games);
+    assert.ok(captured.payload, `/${command} a fost rutat la handler-ul sau si a raspuns (dispatchCommand -> handle)`);
+  }
+});
+
 test("createCommandRuntimeContext returns a fresh, isolated base on every call", () => {
   const runtimeContextModule = require("../features/command-runtime/commandRuntimeContext") as {
     createCommandRuntimeContext: () => Record<string, unknown>;

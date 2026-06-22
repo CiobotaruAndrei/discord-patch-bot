@@ -29,6 +29,7 @@ interface OutboxMetricsLike {
   outboxDeliveryMsTotal: number;
   outboxOldestJobAgeSeconds: number;
   outboxLockAcquireFailures: number;
+  outboxPauseCheckFailures: number;
   outboxRecoveryDuplicates: number;
   outboxRecoveryFetches: number;
   outboxRecoveryFailures: number;
@@ -161,9 +162,20 @@ function createOutboxWorker({
       scheduleNext();
       return;
     }
-    if (isPaused && await isPaused().catch(() => false)) {
-      scheduleNext();
-      return;
+    if (isPaused) {
+      let paused: boolean;
+      try {
+        paused = await isPaused();
+      } catch (err) {
+        metrics.outboxPauseCheckFailures++;
+        logger("WARN", "OUTBOX", "Citirea flagului de pauza a esuat; skip cycle (fail-closed, nu drenez)", errorMessage(err));
+        scheduleNext();
+        return;
+      }
+      if (paused) {
+        scheduleNext();
+        return;
+      }
     }
     draining = true;
     let token: string | null = null;

@@ -298,7 +298,7 @@ function buildSubscriptionCommandHandler(target: SubscriptionContext) {
     handle: async (interaction, games) => {
       const di = interaction;
       try {
-        if (di.commandName === "start") return await handlers.handleStartInteraction(di, games as GameConfig[]);
+        if (di.commandName === "start") return await handlers.handleStartInteraction(di, games);
         return await handlers.handleStopInteraction(di);
       } catch (err: unknown) {
         target.logger?.("ERROR", "SUBSCRIPTION_INTERACTION", "Eroare in handler-ul de start/stop", errorDetail(err));

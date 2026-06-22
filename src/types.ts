@@ -184,6 +184,7 @@ export interface BotMetrics {
   outboxDeliveryMsTotal: number;
   outboxOldestJobAgeSeconds: number;
   outboxLockAcquireFailures: number;
+  outboxPauseCheckFailures: number;
   outboxRecoveryDuplicates: number;
   outboxRecoveryFetches: number;
   outboxRecoveryFailures: number;
