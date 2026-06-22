@@ -118,6 +118,15 @@ test("release.yml ruleaza canary:sources live pe codul tag-ului, inainte de publ
   assert.ok(publishIdx > canaryIdx, "canary-ul ruleaza inainte de publicarea imaginii");
 });
 
+test("release.yml foloseste o singura sursa pentru body-ul GitHub Release", () => {
+  const text = read(releaseWorkflowPath);
+  assert.match(text, /body_path:\s*release-notes\.md/, "release-ul foloseste notele extrase din CHANGELOG");
+  assert.doesNotMatch(text, /generate_release_notes:\s*true/, "nu combina body_path cu notele generate automat");
+  const extractIdx = text.indexOf("Extract release notes");
+  const releaseIdx = text.indexOf("Create GitHub Release");
+  assert.ok(extractIdx >= 0 && releaseIdx > extractIdx, "release notes sunt extrase inainte de publicarea release-ului");
+});
+
 test("staging-smoke.yml scrie fisiere de rezultat si urca artifactul", () => {
   const text = read(stagingSmokeWorkflowPath);
   assert.match(text, /STAGING_SMOKE_RESULT_FILE:/, "seteaza fisierul de rezultat pentru proba HTTP");
