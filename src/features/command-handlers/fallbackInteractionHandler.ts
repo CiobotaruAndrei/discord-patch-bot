@@ -1,6 +1,7 @@
 "use strict";
 
 import type { GameConfig } from "../../types";
+import type { CommandHandler } from "../command-registry/commandHandler";
 
 const { errorDetail } = require("../../shared/errors");
 
@@ -68,8 +69,20 @@ function createFallbackInteractionHandler(deps: RouterContext) {
   return { handleInteraction };
 }
 
+function buildFallbackCommandHandler(target: RouterContext): CommandHandler {
+  const { handleInteraction } = createFallbackInteractionHandler({
+    MessageFlags: target.MessageFlags,
+    logger: target.logger
+  });
+  return {
+    canHandle: () => true,
+    handle: (interaction, games) => handleInteraction(interaction as DiscordInteraction, games as GameConfig[])
+  };
+}
+
 type FallbackInteractionInstaller = ((target: RouterContext) => void) & {
   createFallbackInteractionHandler: typeof createFallbackInteractionHandler;
+  buildCommandHandler: typeof buildFallbackCommandHandler;
 };
 
 const installFallbackInteractionHandler = ((target: RouterContext): void => {
@@ -80,5 +93,6 @@ const installFallbackInteractionHandler = ((target: RouterContext): void => {
 }) as FallbackInteractionInstaller;
 
 installFallbackInteractionHandler.createFallbackInteractionHandler = createFallbackInteractionHandler;
+installFallbackInteractionHandler.buildCommandHandler = buildFallbackCommandHandler;
 
 export = installFallbackInteractionHandler;

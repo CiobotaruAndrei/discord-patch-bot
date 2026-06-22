@@ -1,5 +1,7 @@
 "use strict";
 
+import type { CommandHandler } from "../command-registry/commandHandler";
+
 const { errorMessage, errorDetail } = require("../../shared/errors");
 const { buildAutocompleteChoices } = require("../../native/fuzzy") as typeof import("../../native/fuzzy");
 
@@ -122,31 +124,41 @@ function isAutocompleteInteraction(interaction: DiscordInteraction): boolean {
   return typeof interaction?.isAutocomplete === "function" && interaction.isAutocomplete() === true;
 }
 
-function installAutocompleteHandler(target: AutocompleteContext) {
-  const previousHandleInteraction = target.handleInteraction;
+function buildAutocompleteCommandHandler(target: AutocompleteContext) {
   const handlers = createAutocompleteHandler({
     logger: target.logger,
     getGuildSettings: target.getGuildSettings
   });
+  const command: CommandHandler = {
+    canHandle: (interaction) => isAutocompleteInteraction(interaction as DiscordInteraction),
+    handle: async (interaction, games) => {
+      const di = interaction as DiscordInteraction;
+      try {
+        return await handlers.handleAutocomplete(di, games as GameConfig[]);
+      } catch (err: unknown) {
+        target.logger?.("ERROR", "AUTOCOMPLETE", "Eroare top-level in handler-ul autocomplete", errorDetail(err));
+
+        try { await di.respond([]); } catch {  }
+        return undefined;
+      }
+    }
+  };
+  return { handlers, ...command };
+}
+
+function installAutocompleteHandler(target: AutocompleteContext) {
+  const previousHandleInteraction = target.handleInteraction;
+  const { handlers, canHandle, handle } = buildAutocompleteCommandHandler(target);
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!isAutocompleteInteraction(interaction)) {
+    if (!canHandle(interaction)) {
       if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
       return undefined;
     }
-    try {
-      return await handlers.handleAutocomplete(interaction, games);
-    } catch (err: unknown) {
-      target.logger?.("ERROR", "AUTOCOMPLETE", "Eroare top-level in handler-ul autocomplete", errorDetail(err));
-
-      try { await interaction.respond([]); } catch {  }
-      return undefined;
-    }
+    return handle(interaction, games);
   }
 
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installAutocompleteHandler, { createAutocompleteHandler, scoreGameAgainstInput });
-
-export = installAutocompleteHandler;
+export = Object.assign(installAutocompleteHandler, { createAutocompleteHandler, scoreGameAgainstInput, buildCommandHandler: buildAutocompleteCommandHandler });

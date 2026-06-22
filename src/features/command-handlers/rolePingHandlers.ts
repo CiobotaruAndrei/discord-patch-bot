@@ -1,6 +1,7 @@
 "use strict";
 
 import type { GameConfig } from "../../types";
+import type { CommandHandler } from "../command-registry/commandHandler";
 
 const { errorDetail } = require("../../shared/errors");
 
@@ -98,8 +99,7 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
   };
 }
 
-function installRolePingInteractions(target: RolePingContext) {
-  const previousHandleInteraction = target.handleInteraction;
+function buildRolePingCommandHandler(target: RolePingContext) {
   const handlers = createRolePingInteractionHandlers({
     GuildModel: target.GuildModel,
     logger: target.logger,
@@ -110,28 +110,39 @@ function installRolePingInteractions(target: RolePingContext) {
     MessageFlags: target.MessageFlags
   });
 
+  const command: CommandHandler = {
+    canHandle: (interaction) => Boolean(isSetRoleCommand(interaction as DiscordInteraction)),
+    handle: async (interaction) => {
+      const di = interaction as DiscordInteraction;
+      try {
+        return await handlers.handleSetRoleInteraction(di);
+      } catch (err: unknown) {
+        target.logger?.("ERROR", "ROLE_PING_INTERACTION", "Eroare in handler-ul /set role", errorDetail(err));
+        const payload = createInteractionErrorPayload(target.MessageFlags);
+        try {
+          if ((di.deferred || di.replied) && typeof di.followUp === "function") await di.followUp(payload);
+          else if (typeof di.reply === "function") await di.reply(payload);
+        } catch {  }
+        return undefined;
+      }
+    }
+  };
+  return { handlers, ...command };
+}
+
+function installRolePingInteractions(target: RolePingContext) {
+  const previousHandleInteraction = target.handleInteraction;
+  const { handlers, canHandle, handle } = buildRolePingCommandHandler(target);
+
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!isSetRoleCommand(interaction)) {
+    if (!canHandle(interaction)) {
       if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
       return undefined;
     }
-
-    try {
-      return await handlers.handleSetRoleInteraction(interaction);
-    } catch (err: unknown) {
-      target.logger?.("ERROR", "ROLE_PING_INTERACTION", "Eroare in handler-ul /set role", errorDetail(err));
-      const payload = createInteractionErrorPayload(target.MessageFlags);
-      try {
-        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") await interaction.followUp(payload);
-        else if (typeof interaction.reply === "function") await interaction.reply(payload);
-      } catch {  }
-      return undefined;
-    }
+    return handle(interaction, games);
   }
 
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installRolePingInteractions, { createRolePingInteractionHandlers });
-
-export = installRolePingInteractions;
+export = Object.assign(installRolePingInteractions, { createRolePingInteractionHandlers, buildCommandHandler: buildRolePingCommandHandler });

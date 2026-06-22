@@ -1,5 +1,6 @@
 import type { CommandCacheSizes, GameConfig, FetchResult, DealInfo, GuildSettings } from "../../types";
 import type { NotificationDiscordClient, OutboxDiscordClient } from "../notifications/outboundChannel";
+import type { CommandHandler } from "./commandHandler";
 import {
   dealPassesFilters,
   mapToObject,
@@ -109,21 +110,34 @@ function createCommandRegistry(): RequiredCommandRegistry {
   });
   const ctx = Object.assign(withFeedback, attachSlashCommandDefinitions.createSlashCommandDefinitions(withFeedback));
 
-  attachFallbackInteractionHandler(ctx);
-  attachSimpleCommandsHandler(ctx);
-  attachHelpInteractionHandler(ctx);
-  attachSubscriptionNotificationHandlers(ctx);
-  attachGameFilterHandlers(ctx);
-  attachRolePingHandlers(ctx);
-  attachSetInteractionHandler(ctx);
-  attachOutboxAdminHandler(ctx);
-  attachLatestInteractionHandler(ctx);
-  attachStatusInteractionHandler(ctx);
-  attachHistoryInteractionHandler(ctx);
-  attachReportInteractionHandler(ctx);
-  attachHealthInteractionHandler(ctx);
-  attachDlcInteractionHandler(ctx);
-  attachAutocompleteInteractionHandler(ctx);
+  const helpCommand = attachHelpInteractionHandler.buildCommandHandler(ctx);
+  const commandHandlers: CommandHandler[] = [
+    attachAutocompleteInteractionHandler.buildCommandHandler(ctx),
+    attachDlcInteractionHandler.buildCommandHandler(ctx),
+    attachHealthInteractionHandler.buildCommandHandler(ctx),
+    attachReportInteractionHandler.buildCommandHandler(ctx),
+    attachHistoryInteractionHandler.buildCommandHandler(ctx),
+    attachStatusInteractionHandler.buildCommandHandler(ctx),
+    attachLatestInteractionHandler.buildCommandHandler(ctx),
+    attachOutboxAdminHandler.buildCommandHandler(ctx),
+    attachSetInteractionHandler.buildCommandHandler(ctx),
+    attachRolePingHandlers.buildCommandHandler(ctx),
+    attachGameFilterHandlers.buildCommandHandler(ctx),
+    attachSubscriptionNotificationHandlers.buildCommandHandler(ctx),
+    helpCommand,
+    attachSimpleCommandsHandler.buildCommandHandler(ctx),
+    attachFallbackInteractionHandler.buildCommandHandler(ctx)
+  ];
+
+  async function dispatchCommand(interaction: unknown, games: Array<{ key: string }>): Promise<unknown> {
+    for (const handler of commandHandlers) {
+      if (handler.canHandle(interaction)) return handler.handle(interaction, games);
+    }
+    return undefined;
+  }
+
+  ctx.handleInteraction = dispatchCommand;
+  ctx.buildHelpEmbed = helpCommand.buildHelpEmbed;
   attachAdminCommandRouterGuard(ctx);
 
   return {

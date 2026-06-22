@@ -1,5 +1,7 @@
 "use strict";
 
+import type { CommandHandler } from "../command-registry/commandHandler";
+
 const { errorDetail } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
@@ -110,14 +112,16 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
   return { content: "Eroare: Eroare neasteptata la procesarea comenzii.", flags: MessageFlags.Ephemeral };
 }
 
+type HealthContextWithDb = HealthContext & { GuildModel?: { db?: { readyState?: number } } };
+
 type HealthInstaller = ((target: HealthContext) => void) & {
   createHealthInteractionHandler: typeof createHealthInteractionHandler;
   buildHealthEmbed: typeof buildHealthEmbed;
   formatUptime: typeof formatUptime;
+  buildCommandHandler: typeof buildHealthCommandHandler;
 };
 
-const installHealthInteraction = ((target: HealthContext & { GuildModel?: { db?: { readyState?: number } } }): void => {
-  const previousHandleInteraction = target.handleInteraction;
+function buildHealthCommandHandler(target: HealthContextWithDb) {
   const getMongoReadyState = () => {
     try {
       return Number(target.GuildModel?.db?.readyState ?? 0);
@@ -135,30 +139,45 @@ const installHealthInteraction = ((target: HealthContext & { GuildModel?: { db?:
     getMongoReadyState,
     MessageFlags: target.MessageFlags
   });
+  const command: CommandHandler = {
+    canHandle: (interaction) => isHealthCommand(interaction as DiscordInteraction),
+    handle: async (interaction) => {
+      const di = interaction as DiscordInteraction;
+      try {
+        return await handlers.handleHealthInteraction(di);
+      } catch (err: unknown) {
+        target.logger?.("ERROR", "HEALTH_INTERACTION", "Eroare in handler-ul /health", errorDetail(err));
+        const payload = createInteractionErrorPayload(target.MessageFlags);
+        try {
+          if ((di.deferred || di.replied) && typeof di.followUp === "function") {
+            await di.followUp(payload);
+          } else {
+            await di.reply(payload);
+          }
+        } catch {  }
+        return undefined;
+      }
+    }
+  };
+  return { handlers, ...command };
+}
+
+const installHealthInteraction = ((target: HealthContextWithDb): void => {
+  const previousHandleInteraction = target.handleInteraction;
+  const { handlers, canHandle, handle } = buildHealthCommandHandler(target);
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!isHealthCommand(interaction)) {
+    if (!canHandle(interaction)) {
       if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
       return undefined;
     }
-    try {
-      return await handlers.handleHealthInteraction(interaction);
-    } catch (err: unknown) {
-      target.logger?.("ERROR", "HEALTH_INTERACTION", "Eroare in handler-ul /health", errorDetail(err));
-      const payload = createInteractionErrorPayload(target.MessageFlags);
-      try {
-        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") {
-          await interaction.followUp(payload);
-        } else {
-          await interaction.reply(payload);
-        }
-      } catch {  }
-      return undefined;
-    }
+    return handle(interaction, games);
   }
 
   Object.assign(target, handlers, { handleInteraction });
 }) as HealthInstaller;
+
+installHealthInteraction.buildCommandHandler = buildHealthCommandHandler;
 
 installHealthInteraction.createHealthInteractionHandler = createHealthInteractionHandler;
 installHealthInteraction.buildHealthEmbed = buildHealthEmbed;

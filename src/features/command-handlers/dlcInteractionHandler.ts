@@ -1,6 +1,7 @@
 "use strict";
 
 import type { CheerioAPI } from "cheerio";
+import type { CommandHandler } from "../command-registry/commandHandler";
 import type { NotificationMode, InteractionMessage } from "../../types";
 
 const { errorMessage, errorDetail } = require("../../shared/errors");
@@ -212,8 +213,7 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
   };
 }
 
-function installDlcInteraction(target: DlcContext) {
-  const previousHandleInteraction = target.handleInteraction;
+function buildDlcCommandHandler(target: DlcContext) {
   const handlers = createDlcInteractionHandler({
     logger: target.logger,
     enforceCooldown: target.enforceCooldown,
@@ -241,31 +241,42 @@ function installDlcInteraction(target: DlcContext) {
     MessageFlags: target.MessageFlags
   });
 
+  const command: CommandHandler = {
+    canHandle: (interaction) => isDlcCommand(interaction as DiscordInteraction),
+    handle: async (interaction) => {
+      const di = interaction as DiscordInteraction;
+      try {
+        return await handlers.handleDlcInteraction(di);
+      } catch (err: unknown) {
+        target.logger?.("ERROR", "DLC_INTERACTION", "Eroare in handler-ul /dlc", errorDetail(err));
+        const payload = createInteractionErrorPayload(target.MessageFlags);
+        try {
+          if ((di.deferred || di.replied) && typeof di.followUp === "function") {
+            await di.followUp(payload);
+          } else {
+            await di.reply(payload);
+          }
+        } catch {  }
+        return undefined;
+      }
+    }
+  };
+  return { handlers, ...command };
+}
+
+function installDlcInteraction(target: DlcContext) {
+  const previousHandleInteraction = target.handleInteraction;
+  const { handlers, canHandle, handle } = buildDlcCommandHandler(target);
+
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!isDlcCommand(interaction)) {
+    if (!canHandle(interaction)) {
       if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
       return undefined;
     }
-
-    try {
-      return await handlers.handleDlcInteraction(interaction);
-    } catch (err: unknown) {
-      target.logger?.("ERROR", "DLC_INTERACTION", "Eroare in handler-ul /dlc", errorDetail(err));
-      const payload = createInteractionErrorPayload(target.MessageFlags);
-      try {
-        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") {
-          await interaction.followUp(payload);
-        } else {
-          await interaction.reply(payload);
-        }
-      } catch {  }
-      return undefined;
-    }
+    return handle(interaction, games);
   }
 
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installDlcInteraction, { createDlcInteractionHandler });
-
-export = installDlcInteraction;
+export = Object.assign(installDlcInteraction, { createDlcInteractionHandler, buildCommandHandler: buildDlcCommandHandler });

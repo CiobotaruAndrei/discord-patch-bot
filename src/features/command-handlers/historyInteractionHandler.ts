@@ -1,5 +1,7 @@
 "use strict";
 
+import type { CommandHandler } from "../command-registry/commandHandler";
+
 const { errorDetail } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
@@ -140,10 +142,10 @@ type HistoryInstaller = ((target: HistoryContext) => void) & {
   createHistoryInteractionHandler: typeof createHistoryInteractionHandler;
   buildHistoryEmbed: typeof buildHistoryEmbed;
   mapHistoryKind: typeof mapHistoryKind;
+  buildCommandHandler: typeof buildHistoryCommandHandler;
 };
 
-const installHistoryInteraction = ((target: HistoryContext): void => {
-  const previousHandleInteraction = target.handleInteraction;
+function buildHistoryCommandHandler(target: HistoryContext) {
   const handlers = createHistoryInteractionHandler({
     logger: target.logger,
     enforceCooldown: target.enforceCooldown,
@@ -153,30 +155,45 @@ const installHistoryInteraction = ((target: HistoryContext): void => {
     getNotificationHistory: target.getNotificationHistory,
     MessageFlags: target.MessageFlags
   });
+  const command: CommandHandler = {
+    canHandle: (interaction) => isHistoryCommand(interaction as DiscordInteraction),
+    handle: async (interaction) => {
+      const di = interaction as DiscordInteraction;
+      try {
+        return await handlers.handleHistoryInteraction(di);
+      } catch (err: unknown) {
+        target.logger?.("ERROR", "HISTORY_INTERACTION", "Eroare in handler-ul /history", errorDetail(err));
+        const payload = createInteractionErrorPayload(target.MessageFlags);
+        try {
+          if ((di.deferred || di.replied) && typeof di.followUp === "function") {
+            await di.followUp(payload);
+          } else {
+            await di.reply(payload);
+          }
+        } catch {  }
+        return undefined;
+      }
+    }
+  };
+  return { handlers, ...command };
+}
+
+const installHistoryInteraction = ((target: HistoryContext): void => {
+  const previousHandleInteraction = target.handleInteraction;
+  const { handlers, canHandle, handle } = buildHistoryCommandHandler(target);
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!isHistoryCommand(interaction)) {
+    if (!canHandle(interaction)) {
       if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
       return undefined;
     }
-    try {
-      return await handlers.handleHistoryInteraction(interaction);
-    } catch (err: unknown) {
-      target.logger?.("ERROR", "HISTORY_INTERACTION", "Eroare in handler-ul /history", errorDetail(err));
-      const payload = createInteractionErrorPayload(target.MessageFlags);
-      try {
-        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") {
-          await interaction.followUp(payload);
-        } else {
-          await interaction.reply(payload);
-        }
-      } catch {  }
-      return undefined;
-    }
+    return handle(interaction, games);
   }
 
   Object.assign(target, handlers, { handleInteraction });
 }) as HistoryInstaller;
+
+installHistoryInteraction.buildCommandHandler = buildHistoryCommandHandler;
 
 installHistoryInteraction.createHistoryInteractionHandler = createHistoryInteractionHandler;
 installHistoryInteraction.buildHistoryEmbed = buildHistoryEmbed;

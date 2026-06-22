@@ -1,6 +1,7 @@
 "use strict";
 
 import type { DealInfo, FetchResult, GameConfig, GuildSettings } from "../../types";
+import type { CommandHandler } from "../command-registry/commandHandler";
 
 const { errorDetail, errorMessage } = require("../../shared/errors");
 const { HASH_VERSION } = require("../../native/fuzzy") as { HASH_VERSION: number };
@@ -268,8 +269,7 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
   };
 }
 
-function installSubscriptionInteractions(target: SubscriptionContext) {
-  const previousHandleInteraction = target.handleInteraction;
+function buildSubscriptionCommandHandler(target: SubscriptionContext) {
   const handlers = createSubscriptionInteractionHandlers({
     GuildModel: target.GuildModel,
     logger: target.logger,
@@ -293,29 +293,40 @@ function installSubscriptionInteractions(target: SubscriptionContext) {
     formatUserError: target.formatUserError
   });
 
+  const command: CommandHandler = {
+    canHandle: (interaction) => Boolean(isSubscriptionCommand(interaction as DiscordInteraction)),
+    handle: async (interaction, games) => {
+      const di = interaction as DiscordInteraction;
+      try {
+        if (di.commandName === "start") return await handlers.handleStartInteraction(di, games as GameConfig[]);
+        return await handlers.handleStopInteraction(di);
+      } catch (err: unknown) {
+        target.logger?.("ERROR", "SUBSCRIPTION_INTERACTION", "Eroare in handler-ul de start/stop", errorDetail(err));
+        const payload = createInteractionErrorPayload(target.MessageFlags);
+        try {
+          if ((di.deferred || di.replied) && typeof di.followUp === "function") await di.followUp(payload);
+          else if (typeof di.reply === "function") await di.reply(payload);
+        } catch {  }
+        return undefined;
+      }
+    }
+  };
+  return { handlers, ...command };
+}
+
+function installSubscriptionInteractions(target: SubscriptionContext) {
+  const previousHandleInteraction = target.handleInteraction;
+  const { handlers, canHandle, handle } = buildSubscriptionCommandHandler(target);
+
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!isSubscriptionCommand(interaction)) {
+    if (!canHandle(interaction)) {
       if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
       return undefined;
     }
-
-    try {
-      if (interaction.commandName === "start") return await handlers.handleStartInteraction(interaction, games);
-      return await handlers.handleStopInteraction(interaction);
-    } catch (err: unknown) {
-      target.logger?.("ERROR", "SUBSCRIPTION_INTERACTION", "Eroare in handler-ul de start/stop", errorDetail(err));
-      const payload = createInteractionErrorPayload(target.MessageFlags);
-      try {
-        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") await interaction.followUp(payload);
-        else if (typeof interaction.reply === "function") await interaction.reply(payload);
-      } catch {  }
-      return undefined;
-    }
+    return handle(interaction, games);
   }
 
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installSubscriptionInteractions, { createSubscriptionInteractionHandlers });
-
-export = installSubscriptionInteractions;
+export = Object.assign(installSubscriptionInteractions, { createSubscriptionInteractionHandlers, buildCommandHandler: buildSubscriptionCommandHandler });

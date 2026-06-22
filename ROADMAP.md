@@ -110,9 +110,12 @@ acum **explicit**, fara mecanismul de installers dinamici. `commandRegistry` nu 
 `installers: unknown[]` + apel dinamic + `as` de narrowing pe `CommandInstallerTarget`: compune explicit
 prin factory-uri reale tipate (`createCommandCache`, dealFilters, `createCommandPresentation`,
 `createNotificationRuntime`, `createFeedbackRepository`, `createSlashCommandDefinitions`) inlantuite cu
-`Object.assign`, plus `attachX(ctx)` pentru cele ~16 handler-e care isi adauga
-`handleInteraction`/`buildHelpEmbed` in lant, si intoarce contractul **inchis** `RequiredCommandRegistry`
-(campurile adaugate de handler-e sunt cerute fail-fast prin `requireInstalled`). `sourceRegistry`
+`Object.assign`, plus o **lista tipata `CommandHandler[]`** (din `attachX.buildCommandHandler(ctx)` pentru
+cele 15 handler-e) rutata de `dispatchCommand` (loop `canHandle`/`handle`, fallback-ul ultimul), cu
+pre-check-ul admin (`requireGuildAdmin`, `adminCommandRouterGuard`) ca **singur wrapper** peste
+`dispatchCommand` — nu mai e un lant ordonat-sensibil care impacheteaza `handleInteraction`. Intoarce
+contractul **inchis** `RequiredCommandRegistry` (`handleInteraction`/`buildHelpEmbed` cerute fail-fast prin
+`requireInstalled`). `sourceRegistry`
 (`createSourceRegistry(): SourceRegistryApi`, fara parametri) nu mai are `SourceInstaller[]` /
 `defaultInstallers` / bucla dinamica: compune prin apeluri `attach*(context)` **ordonate**
 (`http -> steam -> updates -> deals`, in ordinea dependentelor) si extrage exportul inchis prin
