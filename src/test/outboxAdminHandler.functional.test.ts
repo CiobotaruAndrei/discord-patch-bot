@@ -179,6 +179,16 @@ test("/outbox drain-now: outbox dezactivat -> mesaj, fara lock", async () => {
   assert.match(replies[0], /nu este activat/);
 });
 
+test("/outbox drain-now: outbox pe pauza -> refuza fara lock si fara drenare", async () => {
+  const { deps, replies, lockCalls, getDrainCalls } = makeDeps({ paused: true });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "drain-now"));
+  assert.equal(lockCalls.length, 0, "nu ia lock-ul cat outbox-ul este pe pauza");
+  assert.equal(getDrainCalls(), 0, "nu dreneaza manual peste pauza globala");
+  assert.match(replies[0], /pe pauza/);
+  assert.match(replies[0], /\/outbox resume/);
+});
+
 test("/outbox status afiseaza starea de drenare (activa/pe pauza)", async () => {
   const active = makeDeps({ paused: false });
   const h1 = installOutboxAdmin.createOutboxAdminHandler(active.deps);
