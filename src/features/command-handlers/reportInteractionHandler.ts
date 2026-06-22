@@ -129,10 +129,10 @@ function buildReportCommandHandler(target: ReportContext) {
     adminAlert: target.adminAlert,
     MessageFlags: target.MessageFlags
   });
-  const command: CommandHandler = {
-    canHandle: (interaction) => isReportCommand(interaction as DiscordInteraction),
+  const command: CommandHandler<DiscordInteraction> = {
+    canHandle: (interaction): interaction is DiscordInteraction => isReportCommand(interaction as DiscordInteraction),
     handle: async (interaction) => {
-      const di = interaction as DiscordInteraction;
+      const di = interaction;
       try {
         return await handlers.handleReportInteraction(di);
       } catch (err: unknown) {

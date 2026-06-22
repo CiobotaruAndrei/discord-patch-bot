@@ -2,9 +2,9 @@
 
 type MaybePromise<T> = T | Promise<T>;
 
-export interface CommandHandler {
-  canHandle(interaction: unknown): boolean;
-  handle(interaction: unknown, games: Array<{ key: string }>): MaybePromise<unknown>;
+export interface CommandHandler<I = unknown> {
+  canHandle(interaction: unknown): interaction is I;
+  handle(interaction: I, games: Array<{ key: string }>): MaybePromise<unknown>;
 }
 
 export {};

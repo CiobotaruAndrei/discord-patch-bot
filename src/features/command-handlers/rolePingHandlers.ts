@@ -110,10 +110,10 @@ function buildRolePingCommandHandler(target: RolePingContext) {
     MessageFlags: target.MessageFlags
   });
 
-  const command: CommandHandler = {
-    canHandle: (interaction) => Boolean(isSetRoleCommand(interaction as DiscordInteraction)),
+  const command: CommandHandler<DiscordInteraction> = {
+    canHandle: (interaction): interaction is DiscordInteraction => Boolean(isSetRoleCommand(interaction as DiscordInteraction)),
     handle: async (interaction) => {
-      const di = interaction as DiscordInteraction;
+      const di = interaction;
       try {
         return await handlers.handleSetRoleInteraction(di);
       } catch (err: unknown) {

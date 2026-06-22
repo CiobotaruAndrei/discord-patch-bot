@@ -378,10 +378,10 @@ function buildOutboxAdminCommandHandler(target: OutboxAdminContext) {
     recoveryStrict: target.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT
   });
 
-  const command: CommandHandler = {
-    canHandle: (interaction) => Boolean(isDirectOutboxCommand(interaction as DiscordInteraction)),
+  const command: CommandHandler<DiscordInteraction> = {
+    canHandle: (interaction): interaction is DiscordInteraction => Boolean(isDirectOutboxCommand(interaction as DiscordInteraction)),
     handle: async (interaction) => {
-      const di = interaction as DiscordInteraction;
+      const di = interaction;
       try {
         return await handlers.handleOutboxInteraction(di);
       } catch (err: unknown) {

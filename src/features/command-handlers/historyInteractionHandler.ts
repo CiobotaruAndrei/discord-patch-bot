@@ -155,10 +155,10 @@ function buildHistoryCommandHandler(target: HistoryContext) {
     getNotificationHistory: target.getNotificationHistory,
     MessageFlags: target.MessageFlags
   });
-  const command: CommandHandler = {
-    canHandle: (interaction) => isHistoryCommand(interaction as DiscordInteraction),
+  const command: CommandHandler<DiscordInteraction> = {
+    canHandle: (interaction): interaction is DiscordInteraction => isHistoryCommand(interaction as DiscordInteraction),
     handle: async (interaction) => {
-      const di = interaction as DiscordInteraction;
+      const di = interaction;
       try {
         return await handlers.handleHistoryInteraction(di);
       } catch (err: unknown) {

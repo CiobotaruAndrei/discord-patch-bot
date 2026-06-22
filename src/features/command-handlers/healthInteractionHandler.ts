@@ -139,10 +139,10 @@ function buildHealthCommandHandler(target: HealthContextWithDb) {
     getMongoReadyState,
     MessageFlags: target.MessageFlags
   });
-  const command: CommandHandler = {
-    canHandle: (interaction) => isHealthCommand(interaction as DiscordInteraction),
+  const command: CommandHandler<DiscordInteraction> = {
+    canHandle: (interaction): interaction is DiscordInteraction => isHealthCommand(interaction as DiscordInteraction),
     handle: async (interaction) => {
-      const di = interaction as DiscordInteraction;
+      const di = interaction;
       try {
         return await handlers.handleHealthInteraction(di);
       } catch (err: unknown) {

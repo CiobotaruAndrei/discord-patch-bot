@@ -77,10 +77,10 @@ function buildSimpleCommandsCommandHandler(target: SimpleCommandsContext) {
   const handlers = createSimpleCommandsHandler({
     COMMAND_OUTPUT_MAX_CHARS: target.COMMAND_OUTPUT_MAX_CHARS
   });
-  const command: CommandHandler = {
-    canHandle: (interaction) => isSimpleCommand(interaction as DiscordInteraction),
+  const command: CommandHandler<DiscordInteraction> = {
+    canHandle: (interaction): interaction is DiscordInteraction => isSimpleCommand(interaction as DiscordInteraction),
     handle: async (interaction, games) => {
-      const di = interaction as DiscordInteraction;
+      const di = interaction;
       try {
         if (di.commandName === "ping") return await handlers.handlePingInteraction(di);
         return await handlers.handleGamesInteraction(di, games as GameConfig[]);

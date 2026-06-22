@@ -241,10 +241,10 @@ function buildDlcCommandHandler(target: DlcContext) {
     MessageFlags: target.MessageFlags
   });
 
-  const command: CommandHandler = {
-    canHandle: (interaction) => isDlcCommand(interaction as DiscordInteraction),
+  const command: CommandHandler<DiscordInteraction> = {
+    canHandle: (interaction): interaction is DiscordInteraction => isDlcCommand(interaction as DiscordInteraction),
     handle: async (interaction) => {
-      const di = interaction as DiscordInteraction;
+      const di = interaction;
       try {
         return await handlers.handleDlcInteraction(di);
       } catch (err: unknown) {
