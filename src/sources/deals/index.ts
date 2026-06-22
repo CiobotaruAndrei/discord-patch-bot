@@ -108,8 +108,8 @@ function createDeals(d: DealsDeps): DealsApi {
     };
 }
 
-function attachDeals(target: DealsContext): void {
-  Object.assign(target, createDeals({
+function buildDealsFrom(target: DealsContext) {
+  return createDeals({
     logger: target.logger,
     getCurrencyConfig: target.getCurrencyConfig,
     httpReq: target.httpReq,
@@ -124,9 +124,14 @@ function attachDeals(target: DealsContext): void {
     STEAM_SPECIALS_LIMIT: target.STEAM_SPECIALS_LIMIT,
     EPIC_SPECIALS_LIMIT: target.EPIC_SPECIALS_LIMIT,
     MAX_DEALS: target.MAX_DEALS
-  }));
+  });
 }
 
+function attachDeals(target: DealsContext): void {
+  Object.assign(target, buildDealsFrom(target));
+}
+
+attachDeals.buildFrom = buildDealsFrom;
 attachDeals.createDeals = createDeals;
 
 export = attachDeals;
