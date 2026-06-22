@@ -1,6 +1,7 @@
 "use strict";
 
 import type { GameConfig, GuildSettings } from "../../types";
+import type { CommandHandler } from "../command-registry/commandHandler";
 
 const { errorDetail } = require("../../shared/errors");
 
@@ -130,8 +131,7 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
   };
 }
 
-function installGameFilterInteractions(target: GameFilterContext) {
-  const previousHandleInteraction = target.handleInteraction;
+function buildGameFilterCommandHandler(target: GameFilterContext) {
   const handlers = createGameFilterInteractionHandlers({
     GuildModel: target.GuildModel,
     logger: target.logger,
@@ -143,28 +143,41 @@ function installGameFilterInteractions(target: GameFilterContext) {
     MessageFlags: target.MessageFlags
   });
 
+  const command: CommandHandler = {
+    canHandle: (interaction) => isSetGamesCommand(interaction as DiscordInteraction),
+    handle: async (interaction, games) => {
+      const di = interaction as DiscordInteraction;
+      try {
+        return await handlers.handleSetGamesInteraction(di, games as GameConfig[]);
+      } catch (err: unknown) {
+        target.logger?.("ERROR", "GAME_FILTER_INTERACTION", "Eroare in handler-ul /set games", errorDetail(err));
+        const payload = createInteractionErrorPayload(target.MessageFlags);
+        try {
+          if ((di.deferred || di.replied) && typeof di.followUp === "function") await di.followUp(payload);
+          else if (typeof di.reply === "function") await di.reply(payload);
+        } catch {  }
+        return undefined;
+      }
+    }
+  };
+  return { handlers, ...command };
+}
+
+function installGameFilterInteractions(target: GameFilterContext) {
+  const previousHandleInteraction = target.handleInteraction;
+  const { handlers, canHandle, handle } = buildGameFilterCommandHandler(target);
+
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!isSetGamesCommand(interaction)) {
+    if (!canHandle(interaction)) {
       if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
       return undefined;
     }
-
-    try {
-      return await handlers.handleSetGamesInteraction(interaction, games);
-    } catch (err: unknown) {
-      target.logger?.("ERROR", "GAME_FILTER_INTERACTION", "Eroare in handler-ul /set games", errorDetail(err));
-      const payload = createInteractionErrorPayload(target.MessageFlags);
-      try {
-        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") await interaction.followUp(payload);
-        else if (typeof interaction.reply === "function") await interaction.reply(payload);
-      } catch {  }
-      return undefined;
-    }
+    return handle(interaction, games);
   }
 
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installGameFilterInteractions, { createGameFilterInteractionHandlers });
+Object.assign(installGameFilterInteractions, { createGameFilterInteractionHandlers, buildCommandHandler: buildGameFilterCommandHandler });
 
 export = installGameFilterInteractions;
