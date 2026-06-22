@@ -137,8 +137,8 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   assert.ok(!/SourceRuntimeContext = [^\n]*Record<string, unknown>/.test(src), "SourceRuntimeContext nu mai e largit cu Record<string, unknown> (R11 #5): contextul progresiv e exact Partial<SourceRegistryApi> & runtime");
   assert.match(src, /function createSourceRegistry\(\): SourceRegistryApi/, "sourceRegistry compune explicit, cu tip de retur inchis SourceRegistryApi (nu mai accepta installers ca parametru)");
   assert.ok(!src.includes("SourceInstaller"), "sourceRegistry nu mai are tipul SourceInstaller (boundary-ul dinamic installers a fost eliminat)");
-  assert.ok(!src.includes("defaultInstallers"), "sourceRegistry nu mai are lista dinamica defaultInstallers; compune prin apeluri attach* ordonate (http -> steam -> updates -> deals)");
-  assert.match(src, /attachHttpClient\(context\);[\s\S]*attachSteam\(context\);[\s\S]*attachUpdates\(context\);[\s\S]*attachDeals\(context\);/, "sourceRegistry compune modulele prin apeluri explicite ordonate, nu printr-o bucla peste un array de installers");
+  assert.ok(!src.includes("defaultInstallers"), "sourceRegistry nu mai are lista dinamica defaultInstallers; compune prin valori returnate de factory-uri (build*From) ordonate (http -> steam -> updates -> deals)");
+  assert.match(src, /Object\.assign\(context, attachHttpClient\.buildFrom\(context\)\);[\s\S]*Object\.assign\(context, attachSteam\.buildFrom\(context\)\);[\s\S]*Object\.assign\(context, attachUpdates\.buildFrom\(context\)\);[\s\S]*Object\.assign\(context, attachDeals\.buildFrom\(context\)\);/, "sourceRegistry compune prin valorile returnate de build*From (factory-return), ordonate, nu prin mutatie attach*(context) sau bucla peste installers");
   assert.ok(!cmd.includes("(...args: unknown[]) => MaybePromise<unknown>"), "commandRegistry nu mai are tipul generic RegistryFunction = (...args: unknown[]) (R11 #4): campurile contractului au semnaturi precise");
 });
 

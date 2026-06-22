@@ -177,15 +177,20 @@ function createSteamSource(deps: SteamSourceDeps): SteamSourceApi {
   };
 }
 
-function attachSteam(target: SteamSourceContext): void {
-  Object.assign(target, createSteamSource({
+function buildSteamFrom(target: SteamSourceContext) {
+  return createSteamSource({
     logger: target.logger,
     getCurrencyConfig: target.getCurrencyConfig,
     httpReq: target.httpReq,
     safeCheerioLoad: target.safeCheerioLoad
-  }));
+  });
 }
 
+function attachSteam(target: SteamSourceContext): void {
+  Object.assign(target, buildSteamFrom(target));
+}
+
+attachSteam.buildFrom = buildSteamFrom;
 attachSteam.createSteamSource = createSteamSource;
 attachSteam.chooseBestSteamMatch = chooseBestSteamMatch;
 

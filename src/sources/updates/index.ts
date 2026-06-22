@@ -319,8 +319,8 @@ function createUpdates(d: UpdatesDeps): UpdatesApi {
     };
 }
 
-function attachUpdates(target: UpdatesContext): void {
-  Object.assign(target, createUpdates({
+function buildUpdatesFrom(target: UpdatesContext) {
+  return createUpdates({
     rssParser: target.rssParser,
     CircuitBreakerModel: target.CircuitBreakerModel,
     logger: target.logger,
@@ -348,9 +348,14 @@ function attachUpdates(target: UpdatesContext): void {
     crypto: target.crypto,
     metricsRef: target.metricsRef,
     executeFetchWithCircuitBreaker: target.executeFetchWithCircuitBreaker
-  }));
+  });
 }
 
+function attachUpdates(target: UpdatesContext): void {
+  Object.assign(target, buildUpdatesFrom(target));
+}
+
+attachUpdates.buildFrom = buildUpdatesFrom;
 attachUpdates.sourceConcurrencyGroup = sourceConcurrencyGroup;
 attachUpdates.createUpdates = createUpdates;
 

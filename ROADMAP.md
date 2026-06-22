@@ -130,16 +130,17 @@ stramtand deps-urile loose la tipul real (functii contravariante, ex. `dealPasse
 tipurile duplicate care divergeau (`PendingUpdate`/`PendingDiscount` la alias-uri `types.*`). Nu a fost
 nevoie de niciun `as` pe boundary; `tsc` verifica acum compunerea end-to-end.
 
-**`sourceRegistry` — REZOLVAT.** Boundary-ul dinamic (`SourceInstaller[]` + `defaultInstallers` + bucla
-`for (install of installers)`) a fost eliminat: `createSourceRegistry()` apeleaza `attach*(context)`
-explicit, ordonat (`http -> steam -> updates -> deals`), si intoarce `SourceRegistryApi` inchis prin
-`buildSourceRegistry`/`requireSourceValue`. Compunerea a typecheck-uit direct (fara cascada, fara `as`):
-modulele de surse (`infra/http/client`, `sources/steam`/`updates`/`deals`) expuneau deja factory-uri
-`createX(deps)` cu adaptoare `attachX` ordonate, deci unrolarea apelurilor in ordinea dependentelor a fost
-suficienta. `check:weakening` + gardurile din `registryClosedContracts.test.ts` (absenta
-`SourceInstaller`/`defaultInstallers` + apeluri `attach*` ordonate) mentin starea. Pasul ramas (eliminarea
-adaptoarelor `attachX` + a mutatiei progresive in favoarea unui pur factory-return) e cosmetic si urmarit
-mai jos la boundary-urile `& Record<string, unknown>`.
+**`sourceRegistry` — REZOLVAT (inclusiv pasul factory-return).** Boundary-ul dinamic (`SourceInstaller[]`
++ `defaultInstallers` + bucla `for (install of installers)`) a fost eliminat, iar compunerea foloseste acum
+**valorile returnate de factory-uri**, nu mutatie pe context: fiecare modul de sursa (`infra/http/client`,
+`sources/steam`/`updates`/`deals`) expune un `buildFrom(context)` care **intoarce** contributia (`createX`-ul
+sau), iar `attachX` deleaga la el (`Object.assign(target, buildXFrom(target))`) — maparea de deps traieste
+intr-un singur loc, fara duplicare. `createSourceRegistry()` compune ordonat
+(`Object.assign(context, attach*.buildFrom(context))`, `http -> steam -> updates -> deals`) si intoarce
+`SourceRegistryApi` inchis prin `buildSourceRegistry`/`requireSourceValue`. Compunerea a typecheck-uit direct
+(fara cascada, fara `as`). `check:weakening` + gardurile din `registryClosedContracts.test.ts` (absenta
+`SourceInstaller`/`defaultInstallers` + compunere prin `build*From` ordonate) mentin starea. Ambele registre
+sunt acum complet pe factory-return explicit.
 
 **Boundary-urile `& Record<string, unknown>` ale adaptoarelor (urmatorul pas catre nota 10).** Acelasi
 tipar de installer `attachX` largeste contextul de instalare la `Deps & Record<string, unknown>` ca sa

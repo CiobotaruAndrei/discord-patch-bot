@@ -96,10 +96,10 @@ function freshSourceContext(): SourceRuntimeContext {
 
 function createSourceRegistry(): SourceRegistryApi {
   const context = freshSourceContext();
-  attachHttpClient(context);
-  attachSteam(context);
-  attachUpdates(context);
-  attachDeals(context);
+  Object.assign(context, attachHttpClient.buildFrom(context));
+  Object.assign(context, attachSteam.buildFrom(context));
+  Object.assign(context, attachUpdates.buildFrom(context));
+  Object.assign(context, attachDeals.buildFrom(context));
   return assertNoUndefinedExports(buildSourceRegistry(context), "sourceRegistry");
 }
 
