@@ -98,7 +98,7 @@ src/
 
 ## Comenzi si interactiuni
 
-`interactions.ts` trebuie tratat ca strat de routing/wiring. Logica concreta sta in handler-e dedicate:
+Routing-ul interactiunilor e compus de `commandRegistry` ca un **lant de responsabilitate**: fiecare `attachX(ctx)` impacheteaza `handleInteraction`-ul precedent (trateaza comanda lui sau deleaga mai departe), iar `handleInteraction`-ul exportat de registru e punctul de intrare folosit de `app/lifecycle/events.ts`. Nu mai exista un fisier `interactions.ts` separat. Logica concreta sta in handler-e dedicate:
 
 - `simpleCommandsHandler.ts` - comenzi simple precum ping/games;
 - `helpInteractionHandler.ts` - paginare si continut pentru help;
@@ -106,14 +106,14 @@ src/
 - `gameFilterHandlers.ts` - filtre si validari pentru jocuri;
 - `rolePingHandlers.ts` - roluri pentru ping-uri;
 - `setInteractionHandler.ts` - subcomenzile `/set`; la `/set outbox-recovery-verify on` verifica preventiv permisiunea Read Message History pe canalele de notificari (via `checkReadMessageHistory` din runtime) si avertizeaza daca lipseste;
-- `outboxAdminHandler.ts` - comenzile admin `/outbox` (`status`, `deadletters`, `retry`, `drain-now`, `pause`, `resume`, `permissions`, `recovery-verify status`) pentru operarea outbox-ului (coada per-guild si globala, dead-letter, reprogramare livrari, pauza/reluare drenare, audit de permisiuni pe canale, stare recovery-verify); protejat de admin guard (`outbox` e in lista de comenzi admin). `pause`/`resume` comuta flagul persistent `outboxPaused` (pe `system_state`, via `getOutboxPaused`/`setOutboxPaused`), pe care worker-ul de drenare il verifica la fiecare tick inainte de a lua lock-ul; `permissions` foloseste `checkChannelPermissions` din runtime (Send Messages / Embed Links / Read Message History) pentru un audit la cerere; `drain-now` revendica lock-ul `outbox_drain` (acelasi ca worker-ul) si dreneaza imediat doar daca e liber, altfel raporteaza „ocupat" (fara drenari concurente);
+- `outboxAdminHandler.ts` - comenzile admin `/outbox` (`status`, `deadletters`, `clear-deadletters`, `replay-deadletters`, `retry`, `drain-now`, `pause`, `resume`, `permissions`, `recovery-verify status`) pentru operarea outbox-ului (coada per-guild si globala, dead-letter, reprogramare livrari, pauza/reluare drenare, audit de permisiuni pe canale, stare recovery-verify); protejat de admin guard (`outbox` e in lista de comenzi admin). `pause`/`resume` comuta flagul persistent `outboxPaused` (pe `system_state`, via `getOutboxPaused`/`setOutboxPaused`), pe care worker-ul de drenare il verifica la fiecare tick inainte de a lua lock-ul; `permissions` foloseste `checkChannelPermissions` din runtime (Send Messages / Embed Links / Read Message History) pentru un audit la cerere; `drain-now` revendica lock-ul `outbox_drain` (acelasi ca worker-ul) si dreneaza imediat doar daca e liber, altfel raporteaza „ocupat" (fara drenari concurente);
 - `latestInteractionHandler.ts` - `/latest`;
 - `dlcInteractionHandler.ts` - `/dlc`;
 - `statusInteractionHandler.ts` - `/status`;
 - `autocompleteInteractionHandler.ts` - autocomplete pentru optiuni;
 - `fallbackInteractionHandler.ts` - fallback de final.
 
-Directia corecta este ca fiecare handler sa primeasca dependinte explicite si tipate, iar `interactions.ts` sa ramana cat mai subtire.
+Fiecare handler primeste dependinte explicite si tipate (factory `createX(deps)`), iar lantul de routing compus in `commandRegistry` ramane subtire: fiecare veriga trateaza doar comanda ei si deleaga restul mai departe in lant.
 
 ## Notificari
 
