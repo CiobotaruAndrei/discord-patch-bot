@@ -135,6 +135,18 @@ test("staging-smoke.yml e rulabil pe un ref explicit, iar SHA-ul testat e cel di
   assert.match(text, /git rev-parse HEAD/, "SHA-ul testat e rezolvat din checkout-ul real, nu din head_sha al rularii");
 });
 
+test("staging-smoke.yml ruleaza saptamanal (schedule cron) + la cerere, consistent cu README", () => {
+  const text = read(stagingSmokeWorkflowPath);
+  assert.match(text, /schedule:\s*\r?\n\s*- cron: "0 8 \* \* 1"/, "staging-smoke are un trigger schedule saptamanal (luni), nu doar workflow_dispatch");
+  assert.match(text, /workflow_dispatch:/, "staging-smoke se poate rula si la cerere");
+
+  const readme = read(path.join(repoRoot, "README.md"));
+  const stagingLine = readme.split("\n").find(line => line.includes("`Staging Smoke`") && line.includes("staging-smoke.yml")) || "";
+  assert.ok(stagingLine, "README descrie workflow-ul Staging Smoke");
+  assert.match(stagingLine, /saptaman/i, "README descrie corect cadenta saptamanala (workflow-ul ARE schedule cron, nu doar workflow_dispatch)");
+  assert.match(stagingLine, /la cerere|workflow_dispatch/, "README mentioneaza si rularea la cerere");
+});
+
 test("release.yml pagineaza rularile Staging Smoke (nu doar prima pagina) pana la fereastra de varsta", () => {
   const text = read(releaseWorkflowPath);
   assert.match(text, /per_page: 100/, "pagini pline, nu 50 fara paginare");
