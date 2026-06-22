@@ -44,13 +44,13 @@
     "axios": "1.18.0",
     "cheerio": "1.2.0",
     "discord.js": "14.26.4",
-    "mongoose": "9.7.0",
+    "mongoose": "9.7.1",
     "rss-parser": "3.13.0",
     "zod": "4.4.3"
   },
   "devDependencies": {
     "@napi-rs/cli": "3.7.2",
-    "@types/node": "25.9.3",
+    "@types/node": "26.0.0",
     "typescript": "6.0.3"
   },
   "overrides": {
