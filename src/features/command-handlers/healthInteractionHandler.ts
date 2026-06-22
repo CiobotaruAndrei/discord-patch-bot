@@ -21,7 +21,7 @@ type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfi
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, endExtra?: Record<string, unknown>) => void;
 
-interface CacheSizesLike { single: number; dlc: number; [key: string]: number }
+interface CacheSizesLike { single: number; dlc: number }
 
 interface HealthSnapshot {
   discordReady: boolean;
@@ -42,7 +42,7 @@ interface HealthHandlerDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-type HealthContext = HealthHandlerDeps & { handleInteraction?: NextInteractionHandler };
+type HealthContext = Omit<HealthHandlerDeps, "getMongoReadyState"> & { handleInteraction?: NextInteractionHandler };
 
 const MONGO_STATE_LABELS: Record<number, string> = {
   0: "deconectat",

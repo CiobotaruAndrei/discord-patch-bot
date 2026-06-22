@@ -1,4 +1,4 @@
-import type { DealInfo, GameConfig, NormalizedUpdate, NotificationMode } from "../../types";
+import type { DealInfo, GameConfig, EmbeddableUpdate, NotificationMode, InteractionMessage, ComponentCollector } from "../../types";
 import { findGameKeys } from "../../native/fuzzy";
 import { errorMessage } from "../../shared/errors";
 
@@ -29,24 +29,6 @@ interface ActionRowComponent {
   addComponents(...components: unknown[]): this;
 }
 
-interface ComponentCollector {
-  on(event: "collect", listener: (button: ButtonInteraction) => unknown): this;
-  on(event: "end", listener: () => unknown): this;
-  stop(reason?: string): void;
-}
-
-interface InteractionMessage {
-  editable?: boolean;
-  edit(payload: unknown): Promise<unknown>;
-  createMessageComponentCollector(options: unknown): ComponentCollector;
-}
-
-interface ButtonInteraction {
-  user: { id: string };
-  customId: string;
-  reply(payload: unknown): Promise<unknown>;
-  deferUpdate(): Promise<unknown>;
-}
 
 interface DiscordInteraction {
   user?: { id?: unknown };
@@ -60,12 +42,18 @@ interface DiscordInteraction {
 }
 
 interface DeferEditInteraction {
-  user?: { id?: unknown };
+  user?: { id?: unknown } | null;
   deferred?: boolean;
   replied?: boolean;
   deferReply?(payload?: unknown): Promise<unknown>;
-  editReply?(payload: unknown): Promise<unknown>;
+  editReply?(payload: unknown): Promise<InteractionMessage>;
   reply?(payload: unknown): Promise<unknown>;
+}
+
+interface LoggableInteraction {
+  user?: { id?: unknown } | null;
+  guild?: { id?: unknown } | null;
+  channel?: { id?: unknown } | null;
 }
 
 interface HttpResponse<T = unknown> {
@@ -136,7 +124,7 @@ async function enforceCooldown(interaction: DeferEditInteraction, command: strin
   return false;
 }
 
-function startCommandLog(interaction: DiscordInteraction, command: string, extra: Record<string, unknown> = {}): CommandLogEnd {
+function startCommandLog(interaction: LoggableInteraction, command: string, extra: Record<string, unknown> = {}): CommandLogEnd {
   const startedAt = Date.now();
   logger("INFO", "USER_CMD", `Comanda pornita: ${command}`, {
     userId: interaction.user?.id,
@@ -167,7 +155,7 @@ async function safeDefer(interaction: DeferEditInteraction, ephemeral = false): 
   }
 }
 
-async function safeEdit(interaction: DeferEditInteraction, payload: unknown): Promise<unknown | null> {
+async function safeEdit(interaction: DeferEditInteraction, payload: unknown): Promise<InteractionMessage | null> {
   try { return (await interaction.editReply?.(payload)) ?? null; }
   catch (err) {
     logger("WARN", "INTERACTION", "Eroare la editReply", errorMessage(err));
@@ -175,7 +163,7 @@ async function safeEdit(interaction: DeferEditInteraction, payload: unknown): Pr
   }
 }
 
-function buildUpdateEmbed(gameName: string, latest: NormalizedUpdate, mode: NotificationMode = "detailed"): ChainableEmbed {
+function buildUpdateEmbed(gameName: string, latest: EmbeddableUpdate, mode: NotificationMode = "detailed"): ChainableEmbed {
   const isCompact = mode === "compact";
   const embed = new EmbedBuilder()
     .setColor(COLORS.SUCCESS)

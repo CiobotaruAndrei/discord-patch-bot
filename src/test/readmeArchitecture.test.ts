@@ -46,7 +46,7 @@ test("README nu mai listeaza reducerea target-ului comun ca zona ramasa, ci ca e
     "claim-ul stale despre reducerea target-ului comun nu mai trebuie sa apara");
   assert.match(text, /Singurele[^.]*intentionate/i,
     "README cadreaza Record<string, unknown>-urile ramase ca exceptii intentionate");
-  assert.match(text, /CommandRegistryContext/, "numeste punga de wiring ramasa intentionat dinamica");
+  assert.match(text, /RequiredCommandRegistry/, "numeste contractul de export inchis al registrului de comenzi (compunere explicita prin factory-uri, nu punga dinamica)");
 });
 
 test("README descrie folosirea Rust aliniat la BENCHMARKS.md (autocomplete/deal-filters sunt TS-primary)", () => {

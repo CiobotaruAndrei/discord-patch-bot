@@ -103,31 +103,38 @@ optimizare, e o regresie de UX/conformitate.
 e mult sub limita REST globala. Sharding-ul acum = complexitate de multi-proces + coordonare, pentru zero
 beneficiu curent — single-shard + lock-uri DB e corect si suficient pana la prag.
 
-## Migrarea registrelor la factory-uri per handler/sursa (datoria arhitecturala ramasa)
+## Migrarea registrelor la factory-uri per handler/sursa (datoria arhitecturala)
 
-**Starea curenta.** Compunerea trece prin doua registre cu installers `export =` care muteaza un
-context comun. Contractele de iesire sunt inchise si tipate (`CommandRegistryContext`,
-`SourceRegistryApi`, `CommandRuntimeContext`), iar granita de instalare nu mai foloseste `as never`
-/ `as unknown as`: `commandRegistry` instaleaza printr-un singur `as` de narrowing
-(`context as T & CommandInstallerTarget`, permis de regula 2), iar `sourceRegistry` citeste
-exporturile prin `requireSourceValue` pe un context proaspat per registry. Zero `as never`
-/ `as unknown as` e impus automat de `check:weakening` (gate AST) plus gardul
-`registryClosedContracts.test.ts`. Problema ramasa nu mai e `as never`, ci boundary-ul de instalare
-dinamic in sine (contextul progresiv mutat de installers). Tipizarea directa a compunerii a fost
-incercata si respinsa cu proba: supratipul comun al dependintelor structurale declarate independent
-per handler colapseaza in `never`/`any` (vezi FUNCTION_MAP_CLEAN, sectiunea commandRegistry), deci
-eliminarea completa a boundary-ului cere DI per handler/sursa, nu tiparea registrului progresiv.
+**Starea curenta — `commandRegistry` MIGRAT, `sourceRegistry` ramas.** `commandRegistry` nu mai
+foloseste mecanismul de installers dinamici (`installers: unknown[]` + apel dinamic + `as` de
+narrowing pe `CommandInstallerTarget`): compune explicit prin factory-uri reale tipate
+(`createCommandCache`, dealFilters, `createCommandPresentation`, `createNotificationRuntime`,
+`createFeedbackRepository`, `createSlashCommandDefinitions`) inlantuite cu `Object.assign`, plus
+`attachX(ctx)` pentru cele ~16 handler-e care isi adauga `handleInteraction`/`buildHelpEmbed` in lant,
+si intoarce contractul **inchis** `RequiredCommandRegistry` (campurile adaugate de handler-e sunt cerute
+fail-fast prin `requireInstalled`). Intreaga compunere e verificata de `tsc`, nu de un boundary `unknown[]`.
+`sourceRegistry` ramane pe installers, dar citeste exporturile prin `requireSourceValue` pe un context
+proaspat per registry. Zero `as never` / `as unknown as` ramane impus de `check:weakening` (gate AST)
+plus gardul `registryClosedContracts.test.ts`.
 
-**Pasii de migrare (incremental, cate un PR per grup):**
+**Cum a fost deblocata tiparea directa.** Estimarea anterioara (supratipul comun colapseaza in
+`never`/`any`, deci ar fi nevoie de DI per handler) s-a dovedit **prea pesimista**: compunerea explicita a
+trecut reconciliind, dep cu dep, fiecare contract de handler la semnatura factory-ului real — fie
+stramtand deps-urile loose la tipul real (functii contravariante, ex. `dealPassesFilters`,
+`buildUpdateEmbed`), fie prin segregare de interfata (contracte minimale ca `SteamPriceData`,
+`EmbeddableUpdate`, modelele Mongo reduse la `OutboxRuntimeDeps`/`HistoryRepositoryDeps`), fie unificand
+tipurile duplicate care divergeau (`PendingUpdate`/`PendingDiscount` la alias-uri `types.*`). Nu a fost
+nevoie de niciun `as` pe boundary; `tsc` verifica acum compunerea end-to-end.
 
-1. fiecare modul expune deja `createX(deps)` cu dependinte inguste — handler-ele noi se scriu DOAR asa;
-2. `commandRuntimeContext` se sparge in furnizori mici (bindings Discord, exporturi Mongo, surse),
-   iar compozitia apeleaza factory-urile explicit cu `Pick<>`-uri din furnizori, in ordinea dependentelor;
-3. installer-ele `attachX` raman doar ca adaptoare de compatibilitate pana cand toti consumatorii
-   folosesc factory-urile, apoi se sterg impreuna cu registrul si cu boundary-ul de instalare dinamic
-   (ultimul `as` de narrowing al compozitiei);
-4. `check:weakening` plus gardurile AST din `registryClosedContracts.test.ts` impun deja zero `as never`
-   / `as unknown as` si se mentin la fiecare pas; ultima migrare elimina si `as`-ul de narrowing ramas.
+**Pasii ramasi (pentru `sourceRegistry`, acelasi pattern):**
+
+1. fiecare modul expune deja `createX(deps)` cu dependinte inguste — handler-ele/sursele noi se scriu DOAR asa;
+2. `sourceRegistry` se compune explicit apeland factory-urile de surse cu `Pick<>`-uri din furnizori, in
+   ordinea dependentelor, exact ca `commandRegistry`;
+3. installer-ele `attachX` de surse raman adaptoare de compatibilitate pana cand toti consumatorii
+   folosesc factory-urile, apoi se sterg impreuna cu boundary-ul de instalare dinamic ramas;
+4. `check:weakening` plus gardurile AST din `registryClosedContracts.test.ts` impun zero `as never`
+   / `as unknown as` si se mentin la fiecare pas.
 
 **Boundary-urile `& Record<string, unknown>` ale adaptoarelor (urmatorul pas catre nota 10).** Acelasi
 tipar de installer `attachX` largeste contextul de instalare la `Deps & Record<string, unknown>` ca sa
@@ -138,13 +145,13 @@ la exact `Partial<SourceRegistryApi> & runtime` (installer-ele de surse nu adaug
 deci indexul larg era inutil); (b) `commandRegistry` — campurile de iesire tipate generic cu
 `RegistryFunction = (...args: unknown[]) => MaybePromise<unknown>` au primit semnaturi precise
 (`cleanCache: () => void`, `buildSlashCommandDefinitions: () => unknown[]`, `getFindGameCacheSize: () => number`
-etc.), iar tipul generic a fost eliminat. **Ce ramane** (tipizarea **uniforma** a boundary-ului de instalare
-in sine — `installers: readonly unknown[]` + apelul dinamic) e in continuare blocat: tiparea installer-elor
-ca un singur `CommandModuleInstaller[]` colapseaza la tsc (varianta pe campuri-functie ca `setDealsCache`,
-proba reconfirmata), deci eliminarea completa cere migrarea la factory-uri `createX(deps)` de mai sus.
-`Record<string, unknown>` ramas (`NotificationsContext`, `HttpClientContext`) e un index type-safe (nu `any`,
-permis de regula 2), nu un bug; dispare odata cu aceeasi migrare. Gardat de `registryClosedContracts.test.ts`
-(fara `Record<string, unknown>` pe `SourceRuntimeContext`, fara `RegistryFunction` generic in `commandRegistry`).
+etc.), iar tipul generic a fost eliminat. **Ce ramane** (boundary-ul de instalare dinamic in sine) a fost
+**rezolvat pentru `commandRegistry`** prin compunerea explicita de mai sus — `installers: unknown[]` +
+apelul dinamic au disparut, iar `tsc` verifica fiecare factory. Mai raman `& Record<string, unknown>`-urile
+adaptoarelor `attachX` care alimenteaza `sourceRegistry` si `NotificationsContext` / `HttpClientContext`
+(index type-safe, nu `any`, permis de regula 2); dispar odata cu migrarea explicita a `sourceRegistry`.
+Gardat de `registryClosedContracts.test.ts` (fara `Record<string, unknown>` pe `SourceRuntimeContext`,
+fara `CommandInstallerTarget` / `isCommandModuleInstaller` / `installers` in `commandRegistry`).
 
 **Consistenta env in stratul progresiv (follow-up).** Boot-ul scheduler-ului si `notifications/index.ts`
 citesc deja toata configuratia outbox (`NOTIFICATION_OUTBOX_ENABLED` + `DRAIN_LIMIT` / `MAX_AGE_MS` /
@@ -169,11 +176,11 @@ la constructia controller-ului/worker-ului — nu sunt `process.env` raw imprast
 TypeScript ramane alegerea corecta; orice candidat nou de Rust trece intai prin `npm run benchmark:cpu`
 si prin decizia documentata in `BENCHMARKS.md` (politica existenta, reconfirmata in review #11.5).
 
-**Re-confirmare (review manual R4 #5).** Un review ulterior a semnalat din nou cablarea dinamica a
-registrului de comenzi (`commandRegistry`) ca zona de redus. Evaluarea de mai sus ramane valida:
-tipizarea directa a compunerii e respinsa cu proba tsc (supratipul comun colapseaza in `never`/`any`),
-iar pasul corect e DI per handler — nu o re-tipare a registrului progresiv. Niciun cod nou; problema
-e deja urmarita aici.
+**Rezolvat (migrarea `commandRegistry`).** Un review ulterior (R4 #5) semnalase din nou cablarea dinamica a
+registrului de comenzi ca zona de redus. Estimarea de atunci (tipizarea directa respinsa cu proba tsc, DI per
+handler obligatoriu) a fost depasita: compunerea explicita a `commandRegistry` e acum completa, reconciliind
+fiecare contract de handler la factory-ul real (stramtare de deps + segregare de interfata + unificare de
+tipuri duplicate), fara `as` pe boundary. Ramane `sourceRegistry`, urmarit la pasii de mai sus.
 
 ## Separarea tipurilor brute de sursa de tipurile normalizate (datorie de tipare, review manual R12 #3)
 

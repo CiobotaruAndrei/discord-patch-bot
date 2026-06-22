@@ -13,7 +13,7 @@ export type GameType =
 
 export type CurrencyCode = "USD" | "EUR" | "GBP" | "RON";
 export type NotificationMode = "compact" | "detailed";
-export type AbortPredicate = () => boolean;
+export type AbortPredicate = (() => boolean) | null;
 export type MaybePromise<T> = T | Promise<T>;
 export type PriceValue = string | number;
 export type CurrencyPlacement = "prefix" | "suffix";
@@ -259,6 +259,34 @@ export interface NormalizedUpdate {
   image: string | null;
   thumbnail: string | null;
   timestamp: string;
+}
+
+export interface EmbeddableUpdate {
+  title?: string;
+  link?: string;
+  excerpt?: string;
+  image?: unknown;
+  thumbnail?: unknown;
+  timestamp?: string | Date;
+}
+
+export interface PaginationButtonInteraction {
+  user: { id: string };
+  customId: string;
+  reply(payload: unknown): Promise<unknown>;
+  deferUpdate(): Promise<unknown>;
+}
+
+export interface ComponentCollector {
+  on(event: "collect", listener: (button: PaginationButtonInteraction) => unknown): this;
+  on(event: "end", listener: () => unknown): this;
+  stop(reason?: string): void;
+}
+
+export interface InteractionMessage {
+  editable?: boolean;
+  edit(payload: unknown): Promise<unknown>;
+  createMessageComponentCollector(options: unknown): ComponentCollector;
 }
 
 export interface FetchResult {

@@ -5,6 +5,9 @@ import type { RuntimeEnv } from "../../types";
 import type { SeenRepositoryDeps } from "./seenRepository";
 import type { UpdateNotificationServiceDeps } from "./updateNotificationService";
 import type { DiscountNotificationServiceDeps } from "./discountNotificationService";
+import type { OutboxRuntimeDeps } from "./notificationOutbox";
+import type { HistoryRepositoryDeps } from "./historyRepository";
+import type { DeadLetterReplayRepositoryDeps } from "./deadLetterReplayRepository";
 import type { OutboxDiscordClient } from "./outboundChannel";
 
 const {
@@ -26,7 +29,7 @@ const { createDefaultDiscordSendLimiter } = require("./discordRateLimiter") as t
 const OUTBOX_MAX_ATTEMPTS = 5;
 const OUTBOX_BACKOFF_MS = 60_000;
 
-interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; attempts: number; deliveries?: number; dedupeKey?: string; recoveryVerify?: boolean; }
+interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; attempts?: number; deliveries?: number; dedupeKey?: string; recoveryVerify?: boolean; }
 
 type GeneratedUpdateDeps =
   | "resolveOutboundChannel"
@@ -57,10 +60,10 @@ type NotificationsRuntimeDeps = SeenRepositoryDeps
     GuildModel: { countDocuments(filter: Record<string, unknown>): Promise<number> };
     canSendEmbeds(channel: unknown, botId: string): boolean;
     saveFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
-    NotificationOutboxModel: Model<OutboxJobShape>;
-    NotificationOutboxSentModel: Model<{ dedupeKey: string; sentAt?: Date }>;
-    NotificationHistoryModel: Model<{ guildId: string; kind: string; sentAt?: Date }>;
-    NotificationDeadLetterReplayModel: Model<{ guildId: string; kind: string; createdAt?: Date }>;
+    NotificationOutboxModel: OutboxRuntimeDeps["NotificationOutboxModel"];
+    NotificationOutboxSentModel: OutboxRuntimeDeps["NotificationOutboxSentModel"];
+    NotificationHistoryModel: HistoryRepositoryDeps["NotificationHistoryModel"];
+    NotificationDeadLetterReplayModel: DeadLetterReplayRepositoryDeps["NotificationDeadLetterReplayModel"];
   };
 
 type NotificationsContext = NotificationsRuntimeDeps & Record<string, unknown>;

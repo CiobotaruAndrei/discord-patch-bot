@@ -40,7 +40,7 @@ interface MongoErrorLike {
 async function runConcurrent<T>(
   items: T[],
   concurrency: number,
-  fn: (item: T, index: number) => MaybePromise<void>,
+  fn: (item: T, index: number) => MaybePromise<unknown>,
   { shouldAbort = null, errorLogger = null }: ConcurrentRunOptions<T> = {}
 ): Promise<ConcurrentRunResult<T>> {
   if (!Array.isArray(items) || items.length === 0) return { processed: 0, errors: [] };

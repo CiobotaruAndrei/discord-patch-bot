@@ -15,6 +15,10 @@ interface GuildSettingsLite {
   currency?: string;
 }
 
+interface SteamPriceData {
+  price_overview?: { initial: number; final: number; discount_percent: number } | null;
+}
+
 export interface PriceSearchHandlerDeps {
   logger: Logger;
   enforceCooldown: (interaction: DiscordInteraction, command: string) => Promise<boolean>;
@@ -27,11 +31,9 @@ export interface PriceSearchHandlerDeps {
     query: string,
     options?: { forceGameOnly?: boolean }
   ) => { id?: string | number } | null;
-  fetchSteamPriceDetails: (appId: string | number, currency: string) => Promise<{
-    price_overview?: { discount_percent?: number };
-  } | null>;
+  fetchSteamPriceDetails: (appId: string | number, currency: string) => Promise<SteamPriceData | null>;
   extractSteamOfferEndDate: (appId: string | number, currency: string) => Promise<string | null>;
-  buildSteamPriceEmbed: (gameData: unknown, appId: string | number, offerEndDate: string | null, currency: string) => unknown;
+  buildSteamPriceEmbed: (gameData: SteamPriceData, appId: string | number, offerEndDate: string | null, currency: string) => unknown;
   getGuildSettings: (guildId: string) => Promise<GuildSettingsLite | null>;
   DEFAULT_CURRENCY: string;
   MessageFlags: { Ephemeral: number };

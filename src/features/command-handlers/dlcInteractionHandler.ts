@@ -1,6 +1,7 @@
 "use strict";
 
 import type { CheerioAPI } from "cheerio";
+import type { NotificationMode, InteractionMessage } from "../../types";
 
 const { errorMessage, errorDetail } = require("../../shared/errors");
 
@@ -51,7 +52,7 @@ type DlcHandlerDeps = {
   enforceCooldown: (interaction: DiscordInteraction, command: string) => Promise<boolean>;
   startCommandLog: (interaction: DiscordInteraction, command: string, extra?: Record<string, unknown>) => CommandLogEnd;
   safeDefer: (interaction: DiscordInteraction, ephemeral?: boolean) => Promise<void>;
-  safeEdit: (interaction: DiscordInteraction, payload: unknown) => Promise<unknown | null>;
+  safeEdit: (interaction: DiscordInteraction, payload: unknown) => Promise<InteractionMessage | null>;
   getGuildSettings: (guildId: string) => Promise<{ currency?: string } | null>;
   DEFAULT_CURRENCY: string;
   searchSteamGameByName: (query: string, currencyCode: string) => Promise<SteamSearchItem[]>;
@@ -70,13 +71,13 @@ type DlcHandlerDeps = {
   EmbedBuilder: new () => ChainableEmbed;
   COLORS: { DLC: number } & Record<string, number>;
   handlePagination: <TItem, TEmbed>(
-    msg: unknown,
+    msg: InteractionMessage,
     authorId: string,
     prefix: string,
     items: TItem[],
     itemsPerPage: number,
-    generateEmbedsFn: (page: number, totalP: number, mode: string) => Promise<TEmbed[]> | TEmbed[],
-    defaultMode?: string
+    generateEmbedsFn: (page: number, totalP: number, mode: NotificationMode) => Promise<TEmbed[]> | TEmbed[],
+    defaultMode?: NotificationMode
   ) => Promise<void>;
   MessageFlags: { Ephemeral: number };
 };

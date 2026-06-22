@@ -1,6 +1,6 @@
 "use strict";
 
-import type { GuildSettings, DealInfo } from "../../types";
+import type { GuildSettings, DealInfo, PendingDiscount, NotificationMode } from "../../types";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
 import { HASH_VERSION } from "../../native/fuzzy";
@@ -37,13 +37,6 @@ interface RunConcurrentResult {
 }
 type RunConcurrent = <T>(items: T[], concurrency: number, fn: (item: T) => Promise<unknown>, opts?: RunConcurrentOptions) => Promise<RunConcurrentResult>;
 
-interface PendingDiscount {
-  hash: string;
-  snapshot: DealInfo | null;
-  lastSeenAt: Date;
-  attempts: number;
-}
-
 export interface DiscountNotificationServiceDeps {
   GuildModel: GuildModelLike;
   logger: Logger;
@@ -63,8 +56,8 @@ export interface DiscountNotificationServiceDeps {
   normalizePendingDiscountArray: (arr: unknown) => PendingDiscount[];
   validatePendingDiscountSnapshot: (snapshot: unknown) => boolean;
   normalizeCurrencyKey: (currency: unknown) => string;
-  dealPassesFilters: (deal: unknown, guild: GuildSettings | null) => boolean;
-  dealHash: (deal: unknown) => string;
+  dealPassesFilters: (deal: DealInfo | null | undefined, guild: GuildSettings | null) => boolean;
+  dealHash: (deal: DealInfo) => string;
 
   fetchDeals: (opts: { currency: string; fromCron?: boolean }) => Promise<DealInfo[]>;
   getDealsCacheData: (currency: string) => DealInfo[] | null;
@@ -72,7 +65,7 @@ export interface DiscountNotificationServiceDeps {
   persistFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
   loadFetchSnapshot?: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
   enrichDealData: (deal: DealInfo, currency: string) => Promise<DealInfo>;
-  buildDealEmbed: (deal: DealInfo, mode: string, currency: string) => unknown;
+  buildDealEmbed: (deal: DealInfo, mode: NotificationMode, currency: string) => unknown;
 
   sleepIfPositive: (ms: number) => Promise<void>;
 
@@ -148,13 +141,13 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     const seenSet = new Set(await loadSeenDiscountHashes(String(guild._id), candidateHashes));
     const pending: PendingDiscount[] = [];
     for (const old of oldPending) {
-      if (seenSet.has(old.hash) || old.attempts >= PENDING_DISCOUNT_MAX_ATTEMPTS) continue;
+      if (seenSet.has(old.hash) || (old.attempts ?? 0) >= PENDING_DISCOUNT_MAX_ATTEMPTS) continue;
       const fresh = dealsByHash.get(old.hash);
       if (fresh) {
         if (dealPassesFilters(fresh, guild)) {
           pending.push({ hash: old.hash, snapshot: fresh, lastSeenAt: new Date(), attempts: old.attempts || 0 });
         }
-      } else if (old.attempts < PENDING_DISCOUNT_GRACE_CYCLES
+      } else if ((old.attempts ?? 0) < PENDING_DISCOUNT_GRACE_CYCLES
           && validatePendingDiscountSnapshot(old.snapshot)
           && dealPassesFilters(old.snapshot, guild)) {
         pending.push({ ...old, attempts: (old.attempts || 0) + 1 });
@@ -174,10 +167,10 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     const remaining: PendingDiscount[] = [];
     const deadLettered: DeadLetterEntry[] = [];
     const currency = (guild as { currency?: string }).currency || DEFAULT_CURRENCY;
-    const notificationMode = (guild as { notificationMode?: string }).notificationMode || "detailed";
+    const notificationMode: NotificationMode = (guild as { notificationMode?: string }).notificationMode === "compact" ? "compact" : "detailed";
 
     function retryOrDeadLetter(item: PendingDiscount, err: unknown): void {
-      const retry: PendingDiscount = { ...item, attempts: (item.attempts || 0) + 1 };
+      const retry = { ...item, attempts: (item.attempts || 0) + 1 };
       if (retry.attempts < PENDING_DISCOUNT_MAX_ATTEMPTS) remaining.push(retry);
       else deadLettered.push(buildDeadLetterEntry({
         kind: "discount", itemId: item.hash, title: (item.snapshot as { title?: unknown } | null)?.title,

@@ -54,6 +54,7 @@ type PermissionAwareChannel = {
 };
 type PermissionAwareInteraction = {
   guild?: {
+    id?: unknown;
     members?: { me?: unknown };
     channels?: {
       cache?: { get(channelId: string): unknown };

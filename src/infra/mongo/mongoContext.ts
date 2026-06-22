@@ -1,7 +1,7 @@
 "use strict";
 
 import type { Model } from "mongoose";
-import type { ActiveLocks, CurrencyCode, CurrencyConfig, CurrencyRegistry, GuildSettings, LoggerFunction, PriceValue, RuntimeEnv, SystemTimes } from "../../types";
+import type { ActiveLocks, CurrencyCode, CurrencyConfig, CurrencyRegistry, DealInfo, GuildSettings, LoggerFunction, PriceValue, RuntimeEnv, SystemTimes } from "../../types";
 import type {
   AdminAlertCooldownDoc,
   CircuitBreakerDoc,
@@ -23,9 +23,9 @@ type MongoRuntimeContext = {
   logger: LoggerFunction;
   env: RuntimeEnv & { MONGO_URI: string; DISCORD_TOKEN: string };
   parseEnvNumber: (name: string, defaultValue: number, limits?: { min?: number; max?: number }) => number;
-  runConcurrent: <T>(items: T[], concurrency: number, fn: (item: T, index: number) => void | Promise<void>, options?: unknown) => Promise<unknown>;
+  runConcurrent: <T>(items: T[], concurrency: number, fn: (item: T, index: number) => void | Promise<unknown>, options?: unknown) => Promise<{ processed: number; errors: Array<{ error: unknown }> }>;
   waitForMongoReady: (timeoutMs?: number) => Promise<boolean>;
-  validatePendingDiscountSnapshot: (snapshot: unknown) => boolean;
+  validatePendingDiscountSnapshot: (snapshot: unknown) => snapshot is DealInfo;
   validateUpdateFetchSnapshot: (item: unknown) => boolean;
   isTransientMongoError: (err: unknown) => boolean;
   withMongoRetry: <T>(fn: () => Promise<T>, ...rest: unknown[]) => Promise<T>;

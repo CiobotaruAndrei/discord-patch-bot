@@ -1,24 +1,14 @@
 "use strict";
 
-import type { GuildSettings, FetchResult } from "../../types";
+import type { GuildSettings, FetchResult, PendingUpdate } from "../../types";
 
-export interface PendingUpdate {
-  id: string;
-  title?: string;
-  link?: string;
-  excerpt?: string;
-  thumbnail?: unknown;
-  image?: unknown;
-  timestamp?: string;
-  createdAt: Date;
-  attempts: number;
-}
+export type { PendingUpdate };
 
 export type UpdateFetchResult = FetchResult;
 
 export interface BuildPendingUpdatesQueueDeps {
   normalizePendingUpdateArray: (arr: unknown) => PendingUpdate[];
-  toEntries: <K, V>(map: Map<K, V> | Record<string, V> | undefined) => Array<[K, V]>;
+  toEntries: (map: Map<string, unknown> | Record<string, unknown> | undefined) => Array<[string, unknown]>;
   PENDING_UPDATE_MAX_AGE_MS: number;
   PENDING_UPDATE_MAX_ATTEMPTS: number;
   PENDING_UPDATES_PER_GAME_LIMIT: number;
@@ -60,12 +50,12 @@ export function buildPendingUpdatesQueue(
   const enabledSet = hasGameFilter ? new Set(enabledGames as string[]) : null;
 
   const pendingByGame = new Map<string, PendingUpdate[]>();
-  for (const [gameKey, arr] of toEntries<string, unknown>(guild.pendingUpdates as UnknownEntrySource)) {
+  for (const [gameKey, arr] of toEntries(guild.pendingUpdates as UnknownEntrySource)) {
     if (enabledSet && !enabledSet.has(gameKey)) continue;
     const cleaned = normalizePendingUpdateArray(arr).filter(item => {
-      const age = now - new Date(item.createdAt).getTime();
+      const age = now - new Date(item.createdAt ?? now).getTime();
       return age <= PENDING_UPDATE_MAX_AGE_MS
-        && item.attempts < PENDING_UPDATE_MAX_ATTEMPTS;
+        && (item.attempts ?? 0) < PENDING_UPDATE_MAX_ATTEMPTS;
     }).slice(-PENDING_UPDATES_PER_GAME_LIMIT);
     if (cleaned.length) pendingByGame.set(gameKey, cleaned);
   }
