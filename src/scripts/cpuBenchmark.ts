@@ -11,6 +11,7 @@ import {
   rankListingCandidatesFallback
 } from "../native/fuzzy";
 import type { DealInfo, GameConfig, GuildSettings } from "../types";
+import { strictEnvInt } from "./benchmarkEnv";
 
 const SAMPLE_PAIRS: Array<[string, string]> = [
   ["counter strike 2", "counter-strike 2"],
@@ -67,7 +68,7 @@ export function levenshteinParityMismatches(): Array<{ pair: [string, string]; n
   return mismatches;
 }
 
-export function runCpuBenchmark(iterations = Number(process.env.CPU_BENCH_ITER) || 200_000): CpuBenchmarkResult {
+export function runCpuBenchmark(iterations = strictEnvInt("CPU_BENCH_ITER", 200_000)): CpuBenchmarkResult {
   const native = getNativeFuzzy();
   const tsTimed = timeLoop(() => {
     for (const pair of SAMPLE_PAIRS) levenshteinFallback(pair[0], pair[1]);
@@ -294,7 +295,7 @@ function buildAreaSpecs(native: NativeFns | null): AreaSpec[] {
   return specs;
 }
 
-export function runAreaBenchmarks(iterations = Number(process.env.CPU_BENCH_ITER) || 100_000): AreaBenchmarkResult[] {
+export function runAreaBenchmarks(iterations = strictEnvInt("CPU_BENCH_ITER", 100_000)): AreaBenchmarkResult[] {
   const native = getNativeFuzzy() as NativeFns | null;
   const rustAvailable = isRustFuzzyAvailable();
   return buildAreaSpecs(native).map(spec => {

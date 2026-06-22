@@ -2,6 +2,7 @@
 
 import { runCpuBenchmark, runAreaBenchmarks, levenshteinParityMismatches } from "./cpuBenchmark";
 import type { AreaBenchmarkResult } from "./cpuBenchmark";
+import { strictEnvFloat, strictEnvInt } from "./benchmarkEnv";
 
 export interface GuardSample {
   area: string;
@@ -26,11 +27,11 @@ export const HOT_PATH_AREAS = ["levenshtein", "dealHash", "rankListingCandidates
 
 export function defaultGuardConfig(): GuardConfig {
   return {
-    failBelow: Number(process.env.BENCH_HOTPATH_FAIL_RATIO) || 0.85,
+    failBelow: strictEnvFloat("BENCH_HOTPATH_FAIL_RATIO", 0.85),
     warnBelow: {
-      levenshtein: Number(process.env.BENCH_LEVENSHTEIN_WARN_RATIO) || 1.4,
-      dealHash: Number(process.env.BENCH_DEALHASH_WARN_RATIO) || 1.2,
-      rankListingCandidates: Number(process.env.BENCH_RANKLISTING_WARN_RATIO) || 1.1
+      levenshtein: strictEnvFloat("BENCH_LEVENSHTEIN_WARN_RATIO", 1.4),
+      dealHash: strictEnvFloat("BENCH_DEALHASH_WARN_RATIO", 1.2),
+      rankListingCandidates: strictEnvFloat("BENCH_RANKLISTING_WARN_RATIO", 1.1)
     },
     requireNative: process.env.BENCH_GUARD_REQUIRE_NATIVE === "true"
   };
@@ -83,7 +84,7 @@ export interface GuardBenchmarkDeps {
 const defaultBenchmarkDeps: GuardBenchmarkDeps = { runCpuBenchmark, runAreaBenchmarks, levenshteinParityMismatches };
 
 export function collectGuardSamples(
-  runs = Number(process.env.BENCH_GUARD_RUNS) || 3,
+  runs = strictEnvInt("BENCH_GUARD_RUNS", 3),
   deps: GuardBenchmarkDeps = defaultBenchmarkDeps
 ): GuardSample[] {
   const totalRuns = Math.max(1, runs);
