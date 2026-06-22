@@ -39,7 +39,6 @@ type SourceRegistryApi = {
 };
 
 type SourceRuntimeContext = Partial<SourceRegistryApi> & typeof import("./runtime");
-type SourceInstaller = (target: SourceRuntimeContext) => void;
 
 import attachHttpClient = require("../infra/http/client");
 import attachSteam = require("./steam");
@@ -47,12 +46,6 @@ import attachUpdates = require("./updates");
 import attachDeals = require("./deals");
 
 const runtimeContext = require("./runtime") as SourceRuntimeContext;
-const defaultInstallers: SourceInstaller[] = [
-  attachHttpClient,
-  attachSteam,
-  attachUpdates,
-  attachDeals
-];
 
 function requireSourceValue<K extends keyof SourceRegistryApi>(context: Partial<SourceRegistryApi>, key: K): SourceRegistryApi[K] {
   const value = context[key];
@@ -101,12 +94,12 @@ function freshSourceContext(): SourceRuntimeContext {
   return { ...runtimeContext };
 }
 
-function createSourceRegistry(
-  baseContext: SourceRuntimeContext = freshSourceContext(),
-  installers: SourceInstaller[] = defaultInstallers
-) {
-  const context = baseContext;
-  for (const install of installers) install(context);
+function createSourceRegistry(): SourceRegistryApi {
+  const context = freshSourceContext();
+  attachHttpClient(context);
+  attachSteam(context);
+  attachUpdates(context);
+  attachDeals(context);
   return assertNoUndefinedExports(buildSourceRegistry(context), "sourceRegistry");
 }
 

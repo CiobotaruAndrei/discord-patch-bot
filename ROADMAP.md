@@ -103,19 +103,23 @@ optimizare, e o regresie de UX/conformitate.
 e mult sub limita REST globala. Sharding-ul acum = complexitate de multi-proces + coordonare, pentru zero
 beneficiu curent — single-shard + lock-uri DB e corect si suficient pana la prag.
 
-## Migrarea registrelor la factory-uri per handler/sursa (datoria arhitecturala)
+## Migrarea registrelor la factory-uri per handler/sursa (REZOLVATA)
 
-**Starea curenta — `commandRegistry` MIGRAT, `sourceRegistry` ramas.** `commandRegistry` nu mai
-foloseste mecanismul de installers dinamici (`installers: unknown[]` + apel dinamic + `as` de
-narrowing pe `CommandInstallerTarget`): compune explicit prin factory-uri reale tipate
-(`createCommandCache`, dealFilters, `createCommandPresentation`, `createNotificationRuntime`,
-`createFeedbackRepository`, `createSlashCommandDefinitions`) inlantuite cu `Object.assign`, plus
-`attachX(ctx)` pentru cele ~16 handler-e care isi adauga `handleInteraction`/`buildHelpEmbed` in lant,
-si intoarce contractul **inchis** `RequiredCommandRegistry` (campurile adaugate de handler-e sunt cerute
-fail-fast prin `requireInstalled`). Intreaga compunere e verificata de `tsc`, nu de un boundary `unknown[]`.
-`sourceRegistry` ramane pe installers, dar citeste exporturile prin `requireSourceValue` pe un context
-proaspat per registry. Zero `as never` / `as unknown as` ramane impus de `check:weakening` (gate AST)
-plus gardul `registryClosedContracts.test.ts`.
+**Starea curenta — `commandRegistry` si `sourceRegistry` MIGRATE.** Ambele registre de wiring compun
+acum **explicit**, fara mecanismul de installers dinamici. `commandRegistry` nu mai foloseste
+`installers: unknown[]` + apel dinamic + `as` de narrowing pe `CommandInstallerTarget`: compune explicit
+prin factory-uri reale tipate (`createCommandCache`, dealFilters, `createCommandPresentation`,
+`createNotificationRuntime`, `createFeedbackRepository`, `createSlashCommandDefinitions`) inlantuite cu
+`Object.assign`, plus `attachX(ctx)` pentru cele ~16 handler-e care isi adauga
+`handleInteraction`/`buildHelpEmbed` in lant, si intoarce contractul **inchis** `RequiredCommandRegistry`
+(campurile adaugate de handler-e sunt cerute fail-fast prin `requireInstalled`). `sourceRegistry`
+(`createSourceRegistry(): SourceRegistryApi`, fara parametri) nu mai are `SourceInstaller[]` /
+`defaultInstallers` / bucla dinamica: compune prin apeluri `attach*(context)` **ordonate**
+(`http -> steam -> updates -> deals`, in ordinea dependentelor) si extrage exportul inchis prin
+`buildSourceRegistry`/`requireSourceValue` (fail-fast pe cheie lipsa). Intreaga compunere a ambelor e
+verificata de `tsc`, nu de un boundary `unknown[]`. Zero `as never` / `as unknown as` ramane impus de
+`check:weakening` (gate AST) plus gardul `registryClosedContracts.test.ts` (care pinuieste si absenta
+`SourceInstaller`/`defaultInstallers` + apelurile `attach*` ordonate).
 
 **Cum a fost deblocata tiparea directa.** Estimarea anterioara (supratipul comun colapseaza in
 `never`/`any`, deci ar fi nevoie de DI per handler) s-a dovedit **prea pesimista**: compunerea explicita a
@@ -126,15 +130,16 @@ stramtand deps-urile loose la tipul real (functii contravariante, ex. `dealPasse
 tipurile duplicate care divergeau (`PendingUpdate`/`PendingDiscount` la alias-uri `types.*`). Nu a fost
 nevoie de niciun `as` pe boundary; `tsc` verifica acum compunerea end-to-end.
 
-**Pasii ramasi (pentru `sourceRegistry`, acelasi pattern):**
-
-1. fiecare modul expune deja `createX(deps)` cu dependinte inguste — handler-ele/sursele noi se scriu DOAR asa;
-2. `sourceRegistry` se compune explicit apeland factory-urile de surse cu `Pick<>`-uri din furnizori, in
-   ordinea dependentelor, exact ca `commandRegistry`;
-3. installer-ele `attachX` de surse raman adaptoare de compatibilitate pana cand toti consumatorii
-   folosesc factory-urile, apoi se sterg impreuna cu boundary-ul de instalare dinamic ramas;
-4. `check:weakening` plus gardurile AST din `registryClosedContracts.test.ts` impun zero `as never`
-   / `as unknown as` si se mentin la fiecare pas.
+**`sourceRegistry` — REZOLVAT.** Boundary-ul dinamic (`SourceInstaller[]` + `defaultInstallers` + bucla
+`for (install of installers)`) a fost eliminat: `createSourceRegistry()` apeleaza `attach*(context)`
+explicit, ordonat (`http -> steam -> updates -> deals`), si intoarce `SourceRegistryApi` inchis prin
+`buildSourceRegistry`/`requireSourceValue`. Compunerea a typecheck-uit direct (fara cascada, fara `as`):
+modulele de surse (`infra/http/client`, `sources/steam`/`updates`/`deals`) expuneau deja factory-uri
+`createX(deps)` cu adaptoare `attachX` ordonate, deci unrolarea apelurilor in ordinea dependentelor a fost
+suficienta. `check:weakening` + gardurile din `registryClosedContracts.test.ts` (absenta
+`SourceInstaller`/`defaultInstallers` + apeluri `attach*` ordonate) mentin starea. Pasul ramas (eliminarea
+adaptoarelor `attachX` + a mutatiei progresive in favoarea unui pur factory-return) e cosmetic si urmarit
+mai jos la boundary-urile `& Record<string, unknown>`.
 
 **Boundary-urile `& Record<string, unknown>` ale adaptoarelor (urmatorul pas catre nota 10).** Acelasi
 tipar de installer `attachX` largeste contextul de instalare la `Deps & Record<string, unknown>` ca sa
@@ -180,7 +185,9 @@ si prin decizia documentata in `BENCHMARKS.md` (politica existenta, reconfirmata
 registrului de comenzi ca zona de redus. Estimarea de atunci (tipizarea directa respinsa cu proba tsc, DI per
 handler obligatoriu) a fost depasita: compunerea explicita a `commandRegistry` e acum completa, reconciliind
 fiecare contract de handler la factory-ul real (stramtare de deps + segregare de interfata + unificare de
-tipuri duplicate), fara `as` pe boundary. Ramane `sourceRegistry`, urmarit la pasii de mai sus.
+tipuri duplicate), fara `as` pe boundary. `sourceRegistry` a fost migrat la fel (apeluri `attach*`
+explicite ordonate, fara `SourceInstaller[]`), typecheck direct fara cascada — ambele registre sunt acum
+explicite.
 
 ## Separarea tipurilor brute de sursa de tipurile normalizate (datorie de tipare, review manual R12 #3)
 

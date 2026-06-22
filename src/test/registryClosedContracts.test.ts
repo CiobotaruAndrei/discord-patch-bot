@@ -122,6 +122,10 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   assert.match(src, /type SourceRuntimeContext = Partial<SourceRegistryApi>/, "sourceRegistry modeleaza contextul progresiv ca Partial<SourceRegistryApi>");
   assert.match(src, /function requireSourceValue/, "sourceRegistry citeste exporturile prin garda fail-fast pe chei");
   assert.ok(!/SourceRuntimeContext = [^\n]*Record<string, unknown>/.test(src), "SourceRuntimeContext nu mai e largit cu Record<string, unknown> (R11 #5): contextul progresiv e exact Partial<SourceRegistryApi> & runtime");
+  assert.match(src, /function createSourceRegistry\(\): SourceRegistryApi/, "sourceRegistry compune explicit, cu tip de retur inchis SourceRegistryApi (nu mai accepta installers ca parametru)");
+  assert.ok(!src.includes("SourceInstaller"), "sourceRegistry nu mai are tipul SourceInstaller (boundary-ul dinamic installers a fost eliminat)");
+  assert.ok(!src.includes("defaultInstallers"), "sourceRegistry nu mai are lista dinamica defaultInstallers; compune prin apeluri attach* ordonate (http -> steam -> updates -> deals)");
+  assert.match(src, /attachHttpClient\(context\);[\s\S]*attachSteam\(context\);[\s\S]*attachUpdates\(context\);[\s\S]*attachDeals\(context\);/, "sourceRegistry compune modulele prin apeluri explicite ordonate, nu printr-o bucla peste un array de installers");
   assert.ok(!cmd.includes("(...args: unknown[]) => MaybePromise<unknown>"), "commandRegistry nu mai are tipul generic RegistryFunction = (...args: unknown[]) (R11 #4): campurile contractului au semnaturi precise");
 });
 
