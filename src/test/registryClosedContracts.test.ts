@@ -127,11 +127,15 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   assert.equal((src.match(/as never/g) || []).length, 0, "sourceRegistry nu mai are granita as never");
   assert.ok(!cmd.includes("LegacyInstallerTarget"), "commandRegistry nu mai are tinta legacy bazata pe Record<string, unknown>");
   assert.match(cmd, /function createCommandRegistry\(\): RequiredCommandRegistry/, "commandRegistry compune explicit, cu tip de retur inchis RequiredCommandRegistry (nu mai accepta installers ca parametru)");
-  assert.ok(!/installers/.test(cmd), "commandRegistry nu mai are mecanismul de installers dinamici: compunere prin factory-uri reale + Object.assign + attach*(ctx)");
+  assert.ok(!/installers/.test(cmd), "commandRegistry nu mai are mecanismul de installers dinamici: compunere prin factory-uri reale + Object.assign + lista tipata CommandHandler[]");
   assert.ok(!cmd.includes("CommandInstallerTarget"), "commandRegistry nu mai are CommandInstallerTarget (boundary-ul dinamic installers: unknown[] a fost eliminat)");
   assert.ok(!cmd.includes("isCommandModuleInstaller"), "commandRegistry nu mai are garda runtime isCommandModuleInstaller (compunerea e statica, verificata de tsc)");
   assert.ok(!/context as /.test(cmd), "boundary-ul de compunere nu foloseste cast-uri (`context as T`), ci factory-uri tipate si Object.assign");
   assert.match(cmd, /function requireInstalled/, "commandRegistry verifica fail-fast ca functiile adaugate de handlere (handleInteraction/buildHelpEmbed) exista dupa compunere");
+  assert.match(cmd, /const commandHandlers: CommandHandler\[\]/, "routing-ul e o lista tipata CommandHandler[] (din attach*.buildCommandHandler(ctx)), nu un lant de installX care impacheteaza handleInteraction");
+  assert.match(cmd, /async function dispatchCommand/, "commandRegistry ruteaza prin dispatchCommand (loop canHandle/handle, fallback ultimul), nu prin lant ordonat-sensibil de installX");
+  assert.match(cmd, /attachAdminCommandRouterGuard\(ctx\)/, "pre-check-ul admin (requireGuildAdmin) ramane singurul wrapper peste dispatchCommand");
+  assert.ok((cmd.match(/\.buildCommandHandler\(ctx\)/g) || []).length >= 15, "fiecare handler de comanda contribuie la lista tipata prin buildCommandHandler(ctx) (>= 15 ocurente)");
   assert.match(src, /type SourceRuntimeContext = Partial<SourceRegistryApi>/, "sourceRegistry modeleaza contextul progresiv ca Partial<SourceRegistryApi>");
   assert.match(src, /function requireSourceValue/, "sourceRegistry citeste exporturile prin garda fail-fast pe chei");
   assert.ok(!/SourceRuntimeContext = [^\n]*Record<string, unknown>/.test(src), "SourceRuntimeContext nu mai e largit cu Record<string, unknown> (R11 #5): contextul progresiv e exact Partial<SourceRegistryApi> & runtime");

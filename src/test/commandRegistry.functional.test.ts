@@ -52,6 +52,67 @@ test("createCommandRegistry intoarce un registru proaspat si izolat la fiecare a
   assert.notEqual(first.handleInteraction, second.handleInteraction);
 });
 
+test("dispatcher: /help este rutat catre handler-ul de help prin canHandle loop", async () => {
+  const registry = commandRegistry.createCommandRegistry();
+  let captured: Record<string, unknown> | null = null;
+  const interaction = {
+    isChatInputCommand: () => true,
+    isAutocomplete: () => false,
+    guild: { id: "g1" },
+    commandName: "help",
+    deferred: false,
+    replied: false,
+    reply: async (payload: Record<string, unknown>) => { captured = payload; return payload; }
+  };
+
+  await registry.handleInteraction(interaction, []);
+
+  const reply = captured as Record<string, unknown> | null;
+  assert.ok(reply, "handler-ul de help a apelat reply()");
+  assert.ok(Array.isArray(reply?.embeds), "raspunsul /help contine embeds");
+});
+
+test("dispatcher: o comanda necunoscuta cade pe fallback (canHandle mereu true, ultimul)", async () => {
+  const registry = commandRegistry.createCommandRegistry();
+  let captured: { content?: string } | null = null;
+  const interaction = {
+    isChatInputCommand: () => true,
+    isAutocomplete: () => false,
+    guild: { id: "g1" },
+    commandName: "comanda-inexistenta",
+    deferred: false,
+    replied: false,
+    reply: async (payload: { content?: string }) => { captured = payload; return payload; }
+  };
+
+  await registry.handleInteraction(interaction, []);
+
+  const reply = captured as { content?: string } | null;
+  assert.ok(reply, "fallback a apelat reply()");
+  assert.match(String(reply?.content ?? ""), /nu este recunoscuta/);
+});
+
+test("dispatcher: comanda admin de la non-admin e blocata de pre-check inainte de orice handler", async () => {
+  const registry = commandRegistry.createCommandRegistry();
+  let captured: { content?: string } | null = null;
+  const interaction = {
+    isChatInputCommand: () => true,
+    isAutocomplete: () => false,
+    guild: { id: "g1" },
+    commandName: "health",
+    memberPermissions: { has: () => false },
+    deferred: false,
+    replied: false,
+    reply: async (payload: { content?: string }) => { captured = payload; return payload; }
+  };
+
+  await registry.handleInteraction(interaction, []);
+
+  const reply = captured as { content?: string } | null;
+  assert.ok(reply, "pre-check-ul admin a apelat reply() de respingere");
+  assert.match(String(reply?.content ?? ""), /Administrator/);
+});
+
 test("createCommandRuntimeContext returns a fresh, isolated base on every call", () => {
   const runtimeContextModule = require("../features/command-runtime/commandRuntimeContext") as {
     createCommandRuntimeContext: () => Record<string, unknown>;
