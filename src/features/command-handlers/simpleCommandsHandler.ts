@@ -1,6 +1,7 @@
 "use strict";
 
 import type { LoggerFunction } from "../../types";
+import type { CommandHandler } from "../command-registry/commandHandler";
 
 const { errorDetail } = require("../../shared/errors");
 
@@ -72,37 +73,49 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
   };
 }
 
-function installSimpleCommandsHandler(target: SimpleCommandsContext) {
-  const previousHandleInteraction = target.handleInteraction;
+function buildSimpleCommandsCommandHandler(target: SimpleCommandsContext) {
   const handlers = createSimpleCommandsHandler({
     COMMAND_OUTPUT_MAX_CHARS: target.COMMAND_OUTPUT_MAX_CHARS
   });
+  const command: CommandHandler = {
+    canHandle: (interaction) => isSimpleCommand(interaction as DiscordInteraction),
+    handle: async (interaction, games) => {
+      const di = interaction as DiscordInteraction;
+      try {
+        if (di.commandName === "ping") return await handlers.handlePingInteraction(di);
+        return await handlers.handleGamesInteraction(di, games as GameConfig[]);
+      } catch (err: unknown) {
+        target.logger?.("ERROR", "SIMPLE_COMMAND", "Eroare in /ping sau /games", errorDetail(err));
+        const payload = createInteractionErrorPayload(target.MessageFlags);
+        try {
+          if ((di.deferred || di.replied) && typeof di.followUp === "function") {
+            await di.followUp(payload);
+          } else {
+            await di.reply(payload);
+          }
+        } catch {  }
+        return undefined;
+      }
+    }
+  };
+  return { handlers, ...command };
+}
+
+function installSimpleCommandsHandler(target: SimpleCommandsContext) {
+  const previousHandleInteraction = target.handleInteraction;
+  const { handlers, canHandle, handle } = buildSimpleCommandsCommandHandler(target);
 
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!isSimpleCommand(interaction)) {
+    if (!canHandle(interaction)) {
       if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
       return undefined;
     }
-    try {
-      if (interaction.commandName === "ping") return await handlers.handlePingInteraction(interaction);
-      return await handlers.handleGamesInteraction(interaction, games);
-    } catch (err: unknown) {
-      target.logger?.("ERROR", "SIMPLE_COMMAND", "Eroare in /ping sau /games", errorDetail(err));
-      const payload = createInteractionErrorPayload(target.MessageFlags);
-      try {
-        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") {
-          await interaction.followUp(payload);
-        } else {
-          await interaction.reply(payload);
-        }
-      } catch {  }
-      return undefined;
-    }
+    return handle(interaction, games);
   }
 
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installSimpleCommandsHandler, { createSimpleCommandsHandler });
+Object.assign(installSimpleCommandsHandler, { createSimpleCommandsHandler, buildCommandHandler: buildSimpleCommandsCommandHandler });
 
 export = installSimpleCommandsHandler;
