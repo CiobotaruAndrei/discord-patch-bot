@@ -284,6 +284,16 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
     if (!outboxEnabled) {
       return "Outbox-ul nu este activat (`NOTIFICATION_OUTBOX_ENABLED=false`), nu exista ce drena.";
     }
+    let paused: boolean;
+    try {
+      paused = await getOutboxPaused();
+    } catch (err: unknown) {
+      logger("WARN", "OUTBOX_COMMAND", "Nu pot confirma starea de pauza inainte de drain-now", errorMessage(err));
+      return "Nu pot confirma daca outbox-ul este pe pauza, deci nu pornesc drenarea manuala.";
+    }
+    if (paused) {
+      return "Drenarea outbox-ului este pe pauza. Ruleaza `/outbox resume` inainte de `/outbox drain-now`.";
+    }
     const token = await acquireDbLock(OUTBOX_DRAIN_LOCK_NAME, DRAIN_NOW_LOCK_TTL_MS);
     if (!token) {
       return "Lock-ul `outbox_drain` e detinut de o alta drenare (worker sau alta instanta). Reincearca peste putin.";

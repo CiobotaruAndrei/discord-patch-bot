@@ -7,7 +7,7 @@ vizibilitate si control direct din Discord.
 Pe scurt, instrumentele de operare:
 
 - Metrici Prometheus la `/metrics` (vezi README sectiunea health/metrics).
-- Comenzi admin: `/outbox status | deadletters | clear-deadletters | replay-deadletters | retry | pause | resume | recovery-verify status`.
+- Comenzi admin: `/outbox status | deadletters | clear-deadletters | replay-deadletters | retry | drain-now | pause | resume | recovery-verify status`.
 - Alerte admin (webhook): trimise automat la `recoveryFailures > 0` (`outbox:recovery-read`),
   `markSentFailures > 0` (`outbox:mark-sent`), `deleteFailures > 0` (`outbox:delete` — job-uri
   procesate care nu s-au putut sterge din coada; raman deduse/reluate) si `deadLetterFailures > 0`
@@ -235,7 +235,7 @@ Daca livrarile sunt incetinite de rate-limit:
 2. Bot-ul respecta deja un token-bucket global la trimitere; nu forta drenarea agresiv.
 3. Daca e backlog temporar, lasa worker-ul sa-l goleasca; pentru urgente punctuale,
    `/outbox retry` reprogrameaza joburile acestui server pentru livrare imediata, iar
-   `/outbox drain-now` forteaza o drenare pe loc (doar daca lock-ul `outbox_drain` e liber).
+   `/outbox drain-now` porneste o drenare pe loc doar daca drenarea nu e pe pauza si lock-ul `outbox_drain` e liber.
 
 ## Mentenanta: pauza drenarii
 
@@ -244,6 +244,7 @@ Pentru interventii (canal in remediere, migrare, debugging) fara a opri tot botu
 - `/outbox pause` — opreste drenarea (global); joburile raman in coada, lock-ul nu e atins.
 - `/outbox resume` — reia drenarea de unde a ramas.
 - `/outbox status` arata starea (`Drenare: ACTIVA | PE PAUZA`).
+- `/outbox drain-now` respecta aceeasi pauza globala; daca drenarea e pe pauza, refuza pornirea manuala si cere `/outbox resume`.
 
 ## Cand activezi / dezactivezi `/set outbox-recovery-verify`
 
