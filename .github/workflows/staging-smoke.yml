@@ -75,6 +75,7 @@ jobs:
             const fs = require("fs");
             const files = [process.env.HTTP_RESULT_FILE, process.env.DISCORD_RESULT_FILE];
             let failed = false;
+            const skipped = [];
             for (const file of files) {
               if (!file || !fs.existsSync(file)) {
                 console.error(`::error::[staging-smoke] Lipseste fisierul de rezultat ${file} (proba a crapat inainte sa scrie JSON-ul).`);
@@ -82,14 +83,30 @@ jobs:
                 continue;
               }
               const result = JSON.parse(fs.readFileSync(file, "utf8"));
+              if (result.skipped) {
+                skipped.push(result.kind);
+                console.error(`::warning::[staging-smoke] ${result.kind}: SARIT (skipped=true) - NU e o proba live reala. Verde-le acestui job NU confirma staging-ul; gate-ul de release respinge skipped, deci pentru release ruleaza cu secretele de staging setate.`);
+                continue;
+              }
               if (!result.ok) {
                 const broken = (result.checks || []).filter(c => !c.ok).map(c => `${c.name}: ${c.detail || "fail"}`).join(" | ");
                 console.error(`::error::[staging-smoke] ${result.kind}: ok=false (${broken || "fara detalii"})`);
                 failed = true;
               }
             }
+            const summaryFile = process.env.GITHUB_STEP_SUMMARY;
+            if (summaryFile) {
+              const line = skipped.length
+                ? `:warning: Staging smoke SARIT pentru: ${skipped.join(", ")} (skipped=true) - nu e proba live, nu folosi pentru release.`
+                : ":white_check_mark: Staging smoke: ambele probe au trecut LIVE.";
+              try { fs.appendFileSync(summaryFile, line + String.fromCharCode(10)); } catch (e) {}
+            }
             if (failed) process.exit(1);
-            console.log("Ambele probe de staging smoke au trecut (sau au fost sarite explicit cu opt-out).");
+            if (skipped.length) {
+              console.log(`Staging smoke: ${skipped.join(", ")} SARIT(e) explicit (skipped=true) - dry-run, nu proba live.`);
+            } else {
+              console.log("Ambele probe de staging smoke au trecut LIVE.");
+            }
           '
 
       # Numele artifactului poarta SHA-ul real al codului testat (poate diferi de head_sha
