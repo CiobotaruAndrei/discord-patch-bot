@@ -294,7 +294,7 @@ function buildSubscriptionCommandHandler(target: SubscriptionContext) {
   });
 
   const command: CommandHandler = {
-    canHandle: (interaction) => isSubscriptionCommand(interaction as DiscordInteraction),
+    canHandle: (interaction) => Boolean(isSubscriptionCommand(interaction as DiscordInteraction)),
     handle: async (interaction, games) => {
       const di = interaction as DiscordInteraction;
       try {

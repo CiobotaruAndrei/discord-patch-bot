@@ -144,7 +144,7 @@ function buildGameFilterCommandHandler(target: GameFilterContext) {
   });
 
   const command: CommandHandler = {
-    canHandle: (interaction) => isSetGamesCommand(interaction as DiscordInteraction),
+    canHandle: (interaction) => Boolean(isSetGamesCommand(interaction as DiscordInteraction)),
     handle: async (interaction, games) => {
       const di = interaction as DiscordInteraction;
       try {

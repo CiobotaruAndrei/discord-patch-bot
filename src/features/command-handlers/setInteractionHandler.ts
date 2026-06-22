@@ -1,5 +1,7 @@
 "use strict";
 
+import type { CommandHandler } from "../command-registry/commandHandler";
+
 const { errorDetail, errorMessage } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
@@ -239,8 +241,7 @@ function isDirectSetCommand(interaction: DiscordInteraction): boolean {
   return group !== "games" && group !== "role";
 }
 
-function installSetInteractionHandler(target: SetContext) {
-  const previousHandleInteraction = target.handleInteraction;
+function buildSetCommandHandler(target: SetContext) {
   const handlers = createSetInteractionHandler({
     GuildModel: target.GuildModel,
     invalidateGuildCache: target.invalidateGuildCache,
@@ -253,30 +254,44 @@ function installSetInteractionHandler(target: SetContext) {
     checkReadMessageHistory: target.checkReadMessageHistory
   });
 
+  const command: CommandHandler = {
+    canHandle: (interaction) => Boolean(isDirectSetCommand(interaction as DiscordInteraction)),
+    handle: async (interaction) => {
+      const di = interaction as DiscordInteraction;
+      try {
+        return await handlers.handleSetInteraction(di);
+      } catch (err: unknown) {
+        target.logger?.("ERROR", "SET_INTERACTION", "Eroare in handler-ul /set", errorDetail(err));
+        const payload = { content: "Eroare: Eroare neasteptata la procesarea comenzii.", flags: target.MessageFlags.Ephemeral };
+        try {
+          if ((di.deferred || di.replied) && typeof di.followUp === "function") {
+            await di.followUp(payload);
+          } else {
+            await di.reply(payload);
+          }
+        } catch {  }
+        return undefined;
+      }
+    }
+  };
+  return { handlers, ...command };
+}
+
+function installSetInteractionHandler(target: SetContext) {
+  const previousHandleInteraction = target.handleInteraction;
+  const { handlers, canHandle, handle } = buildSetCommandHandler(target);
+
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!isDirectSetCommand(interaction)) {
+    if (!canHandle(interaction)) {
       if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
       return undefined;
     }
-    try {
-      return await handlers.handleSetInteraction(interaction);
-    } catch (err: unknown) {
-      target.logger?.("ERROR", "SET_INTERACTION", "Eroare in handler-ul /set", errorDetail(err));
-      const payload = { content: "Eroare: Eroare neasteptata la procesarea comenzii.", flags: target.MessageFlags.Ephemeral };
-      try {
-        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") {
-          await interaction.followUp(payload);
-        } else {
-          await interaction.reply(payload);
-        }
-      } catch {  }
-      return undefined;
-    }
+    return handle(interaction, games);
   }
 
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installSetInteractionHandler, { createSetInteractionHandler, buildSetUpdatePlan });
+Object.assign(installSetInteractionHandler, { createSetInteractionHandler, buildSetUpdatePlan, buildCommandHandler: buildSetCommandHandler });
 
 export = installSetInteractionHandler;

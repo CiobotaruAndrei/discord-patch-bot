@@ -2,6 +2,7 @@
 
 import type { OutboxDiscordClient } from "../notifications/outboundChannel";
 import type { RuntimeEnv } from "../../types";
+import type { CommandHandler } from "../command-registry/commandHandler";
 
 const { errorDetail, errorMessage } = require("../../shared/errors");
 
@@ -352,8 +353,7 @@ function isDirectOutboxCommand(interaction: DiscordInteraction): boolean {
     && interaction.commandName === "outbox";
 }
 
-function installOutboxAdminHandler(target: OutboxAdminContext): void {
-  const previousHandleInteraction = target.handleInteraction;
+function buildOutboxAdminCommandHandler(target: OutboxAdminContext) {
   const handlers = createOutboxAdminHandler({
     NotificationOutboxModel: target.NotificationOutboxModel,
     GuildModel: target.GuildModel,
@@ -378,30 +378,44 @@ function installOutboxAdminHandler(target: OutboxAdminContext): void {
     recoveryStrict: target.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT
   });
 
+  const command: CommandHandler = {
+    canHandle: (interaction) => Boolean(isDirectOutboxCommand(interaction as DiscordInteraction)),
+    handle: async (interaction) => {
+      const di = interaction as DiscordInteraction;
+      try {
+        return await handlers.handleOutboxInteraction(di);
+      } catch (err: unknown) {
+        target.logger?.("ERROR", "OUTBOX_INTERACTION", "Eroare in handler-ul /outbox", errorDetail(err));
+        const payload = { content: "Eroare: Eroare neasteptata la procesarea comenzii.", flags: target.MessageFlags.Ephemeral };
+        try {
+          if ((di.deferred || di.replied) && typeof di.followUp === "function") {
+            await di.followUp(payload);
+          } else {
+            await di.reply(payload);
+          }
+        } catch {  }
+        return undefined;
+      }
+    }
+  };
+  return { handlers, ...command };
+}
+
+function installOutboxAdminHandler(target: OutboxAdminContext): void {
+  const previousHandleInteraction = target.handleInteraction;
+  const { handlers, canHandle, handle } = buildOutboxAdminCommandHandler(target);
+
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!isDirectOutboxCommand(interaction)) {
+    if (!canHandle(interaction)) {
       if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
       return undefined;
     }
-    try {
-      return await handlers.handleOutboxInteraction(interaction);
-    } catch (err: unknown) {
-      target.logger?.("ERROR", "OUTBOX_INTERACTION", "Eroare in handler-ul /outbox", errorDetail(err));
-      const payload = { content: "Eroare: Eroare neasteptata la procesarea comenzii.", flags: target.MessageFlags.Ephemeral };
-      try {
-        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") {
-          await interaction.followUp(payload);
-        } else {
-          await interaction.reply(payload);
-        }
-      } catch {  }
-      return undefined;
-    }
+    return handle(interaction, games);
   }
 
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installOutboxAdminHandler, { createOutboxAdminHandler, isDirectOutboxCommand });
+Object.assign(installOutboxAdminHandler, { createOutboxAdminHandler, isDirectOutboxCommand, buildCommandHandler: buildOutboxAdminCommandHandler });
 
 export = installOutboxAdminHandler;
