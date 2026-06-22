@@ -108,3 +108,18 @@ test("README descrie corect runtime-ul Docker (consistent cu Dockerfile)", () =>
   assert.ok(readme.includes("node dist/app/main.js"),
     "README mentioneaza runtime-ul real (`node dist/app/main.js`) pentru Docker/npm start");
 });
+
+test("docs sync: /status e descris ca status server pentru un joc (nu starea botului), iar interactions.ts nu mai e revendicat ca router activ", () => {
+  const statusLine = readme.split("\n").find(line => /^- `\/status\b/.test(line)) || "";
+  assert.ok(statusLine, "README listeaza comanda /status");
+  assert.match(statusLine, /joc/, "README descrie /status ca status server pentru un joc, nu 'starea botului' (aceea e /health)");
+
+  const interactionsExists = ["interactions.ts", path.join("features", "interactions.ts")]
+    .some(rel => fs.existsSync(path.join(srcRoot, rel)));
+  assert.ok(!interactionsExists, "interactions.ts nu exista (routing-ul e lantul handleInteraction compus in commandRegistry)");
+
+  const context = fs.readFileSync(path.join(srcRoot, "docs", "CONTEXT_REPO_CLEAN.md"), "utf8");
+  const staleRouterClaim = /`interactions\.ts` (este|trebuie tratat ca)[^\n]*(router|routing|wiring|delega)/;
+  assert.ok(!staleRouterClaim.test(readme), "README nu mai revendica `interactions.ts` ca router/wiring activ (fisierul nu mai exista)");
+  assert.ok(!staleRouterClaim.test(context), "CONTEXT_REPO_CLEAN.md nu mai revendica `interactions.ts` ca strat de routing activ");
+});
