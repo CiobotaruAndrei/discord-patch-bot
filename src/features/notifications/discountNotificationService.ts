@@ -15,14 +15,14 @@ type Logger = (level: string, context: string, msg: string, meta?: unknown) => v
 interface MongoWriteResult { matchedCount?: number; modifiedCount?: number }
 
 interface GuildModelLike {
-  find(filter: Record<string, unknown>): { lean(): Promise<Array<GuildSettings & Record<string, unknown>>> };
+  find(filter: Record<string, unknown>): { lean(): Promise<Array<GuildSettings>> };
   updateOne(filter: Record<string, unknown>, update: unknown): Promise<MongoWriteResult>;
 }
 
 
 type ResolveOutboundChannel = (opts: {
   client: NotificationDiscordClient;
-  guild: GuildSettings & Record<string, unknown>;
+  guild: GuildSettings;
   channelId: string | null | undefined;
   context: string;
   disableFn: (guildId: string, channelId: string, message: string) => Promise<MongoWriteResult>;
@@ -80,7 +80,7 @@ export interface DiscountNotificationServiceDeps {
 }
 
 export interface DiscountNotificationService {
-  processGuildDiscounts: (client: NotificationDiscordClient, guild: GuildSettings & Record<string, unknown>, deals: DealInfo[]) => Promise<void>;
+  processGuildDiscounts: (client: NotificationDiscordClient, guild: GuildSettings, deals: DealInfo[]) => Promise<void>;
   checkForDiscounts: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
 }
 
@@ -117,7 +117,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     return cached;
   }
 
-  async function processGuildDiscounts(client: NotificationDiscordClient, guild: GuildSettings & Record<string, unknown>, deals: DealInfo[]): Promise<void> {
+  async function processGuildDiscounts(client: NotificationDiscordClient, guild: GuildSettings, deals: DealInfo[]): Promise<void> {
     const { channel, abort } = await resolveOutboundChannel({
       client,
       guild,
@@ -129,7 +129,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
 
     const { dealsByHash, orderedHashes } = getDealsHashIndex(deals);
 
-    if (Number((guild as { seenHashVersionDiscounts?: unknown }).seenHashVersionDiscounts) !== HASH_VERSION) {
+    if (Number(guild.seenHashVersionDiscounts) !== HASH_VERSION) {
       if (orderedHashes.length) await seedSeenDiscounts(String(guild._id), orderedHashes);
       await setSeenHashVersion(String(guild._id), "seenHashVersionDiscounts", HASH_VERSION);
       logger("INFO", "CRON_DISCOUNTS", `Re-baseline dedup reduceri pentru guild ${guild._id} (hashVersion -> ${HASH_VERSION}); ciclul curent nu trimite notificari`);
@@ -287,7 +287,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       return dealsPromises.get(cur) as Promise<DealInfo[]>;
     }
 
-    const dispatch = await runConcurrent(guilds as Array<GuildSettings & Record<string, unknown>>, GUILD_PROCESS_CONCURRENCY, async (guild) => {
+    const dispatch = await runConcurrent(guilds, GUILD_PROCESS_CONCURRENCY, async (guild) => {
       if (shouldAbort?.()) return;
       const currency = (guild as { currency?: string }).currency || DEFAULT_CURRENCY;
       const deals = await dealsForCurrency(currency);

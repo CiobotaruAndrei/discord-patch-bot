@@ -15,7 +15,7 @@ type Logger = (level: string, context: string, msg: string, meta?: unknown) => v
 
 interface MongoWriteResult { matchedCount?: number; modifiedCount?: number }
 type GuildGameFilter = Pick<GuildSettings, "enabledGames">;
-type GuildSettingsDoc = GuildSettings & Record<string, unknown>;
+type GuildSettingsDoc = GuildSettings;
 
 interface GuildModelLike {
   find(filter: Record<string, unknown>): { lean(): Promise<GuildSettingsDoc[]> };
@@ -25,7 +25,7 @@ interface GuildModelLike {
 
 type ResolveOutboundChannel = (opts: {
   client: NotificationDiscordClient;
-  guild: GuildSettings & Record<string, unknown>;
+  guild: GuildSettings;
   channelId: string | null | undefined;
   context: string;
   disableFn: (guildId: string, channelId: string, message: string) => Promise<MongoWriteResult>;
@@ -116,7 +116,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       PENDING_UPDATES_PER_GAME_LIMIT
     }, { guild, latestResults });
 
-    if (Number((guild as { seenHashVersionUpdates?: unknown }).seenHashVersionUpdates) !== HASH_VERSION) {
+    if (Number(guild.seenHashVersionUpdates) !== HASH_VERSION) {
       const entries: Array<{ gameKey: string; updateId: string }> = [];
       for (const [gameKey, result] of resultByGameKey) {
         const updateId = result?.latest?.id;

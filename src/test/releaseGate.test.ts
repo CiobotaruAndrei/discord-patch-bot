@@ -151,4 +151,6 @@ test("staging-smoke.yml ruleaza ambele probe independent si da verdictul din JSO
   assert.match(text, /HTTP_RESULT_FILE/, "verdictul citeste rezultatul probei HTTP");
   assert.match(text, /DISCORD_RESULT_FILE/, "verdictul citeste rezultatul probei Discord");
   assert.match(text, /!result\.ok/, "verdictul pica job-ul pe ok=false din JSON");
+  assert.match(text, /result\.skipped/, "verdictul standalone detecteaza rezultatele sarite (skipped=true), nu le lasa sa treaca tacut ca verde");
+  assert.match(text, /::warning::\[staging-smoke\][^\n]*SARIT/, "verdictul emite un warning vizibil cand o proba a fost sarita, ca verde-le job-ului sa nu para o proba live reala");
 });
