@@ -87,6 +87,19 @@ test("pregatire migrare commandRegistry: listele Generated*Deps omit cheile gene
   }
 });
 
+test("notifications/index: wiring-ul central e impartit in 3 sub-factory-uri (outbox / seen / dispatch), iar createNotificationRuntime doar le compune", () => {
+  const index = fs.readFileSync(path.join(srcRoot, "features", "notifications", "index.ts"), "utf8");
+  for (const builder of ["function createOutboxServices(", "function createSeenServices(", "function createNotificationDispatchServices("]) {
+    assert.ok(index.includes(builder), `notifications/index expune sub-factory-ul ${builder.replace("function ", "").replace("(", "")} (wiring decuplat)`);
+  }
+  const runtimeStart = index.indexOf("function createNotificationRuntime(");
+  const runtimeBody = index.slice(runtimeStart, index.indexOf("\n}", runtimeStart));
+  assert.match(runtimeBody, /createOutboxServices\(deps\)/, "createNotificationRuntime deleaga la createOutboxServices");
+  assert.match(runtimeBody, /createSeenServices\(deps\)/, "createNotificationRuntime deleaga la createSeenServices");
+  assert.match(runtimeBody, /createNotificationDispatchServices\(deps, resolveOutboundChannel, seenRepository\)/, "createNotificationRuntime deleaga la createNotificationDispatchServices (dispatch consuma resolveOutboundChannel + seenRepository)");
+  assert.ok(!/createOutboxRuntime\(/.test(runtimeBody), "createNotificationRuntime nu mai construieste direct sub-serviciile (outbox e in createOutboxServices), ci doar compune");
+});
+
 test("pregatire migrare commandRegistry: tipurile de update fetch (notifications + latest) sunt aliniate la FetchResult, nu vederi loose ({id}&Record)", () => {
   const queue = fs.readFileSync(path.join(srcRoot, "features", "notifications", "pendingUpdatesQueue.ts"), "utf8");
   assert.match(queue, /export type UpdateFetchResult = FetchResult/, "UpdateFetchResult e alias FetchResult (latest: NormalizedUpdate real, nu {id}&Record)");
