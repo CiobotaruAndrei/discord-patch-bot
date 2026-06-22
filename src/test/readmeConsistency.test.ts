@@ -78,6 +78,16 @@ test("P2.1: toate slash command-urile documentate in README exista in buildSlash
   }
 });
 
+test("docs sync: docs/Comenzi Functionalitate.md mentioneaza toate comenzile top-level din slash definitions (anti-drift)", () => {
+  const doc = fs.readFileSync(path.join(repoRoot, "docs", "Comenzi Functionalitate.md"), "utf8");
+  const topLevel = [...definedCommandPaths()].filter(p => !p.includes(" "));
+  assert.ok(topLevel.length >= 10, "exista comenzi top-level in definitii");
+  for (const command of topLevel) {
+    assert.match(doc, new RegExp(`/${command}\\b`),
+      `docs/Comenzi Functionalitate.md mentioneaza /${command} (drift: comanda noua in slash definitions dar absenta din doc)`);
+  }
+});
+
 test("P2.1: definitiile contin comenzile cheie (ancore de sanitate pentru parser)", () => {
   const defined = definedCommandPaths();
   for (const expected of ["ping", "help", "start updates", "set games add", "set outbox-recovery-verify", "outbox status", "outbox recovery-verify status"]) {
