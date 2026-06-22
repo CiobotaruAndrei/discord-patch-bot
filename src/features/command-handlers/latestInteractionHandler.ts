@@ -1,5 +1,6 @@
 "use strict";
 
+import type { CommandHandler } from "../command-registry/commandHandler";
 import type { LatestUpdatesHandlerDeps } from "./latest/latestUpdatesHandler";
 import type { LatestDealsHandlerDeps } from "./latest/latestDealsHandler";
 import type { LatestSingleHandlerDeps } from "./latest/latestSingleHandler";
@@ -73,8 +74,7 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
   };
 }
 
-function installLatestInteractionHandler(target: LatestContext) {
-  const previousHandleInteraction = target.handleInteraction;
+function buildLatestCommandHandler(target: LatestContext) {
   const handlers = createLatestInteractionHandler({
     logger: target.logger,
     enforceCooldown: target.enforceCooldown,
@@ -117,30 +117,44 @@ function installLatestInteractionHandler(target: LatestContext) {
     buildSteamPriceEmbed: target.buildSteamPriceEmbed
   });
 
+  const command: CommandHandler = {
+    canHandle: (interaction) => isLatestCommand(interaction as DiscordInteraction),
+    handle: async (interaction, games) => {
+      const di = interaction as DiscordInteraction;
+      try {
+        return await handlers.handleLatestInteraction(di, games as GameConfig[]);
+      } catch (err: unknown) {
+        target.logger?.("ERROR", "LATEST_INTERACTION", "Eroare in handler-ul /latest", errorDetail(err));
+        const payload = createInteractionErrorPayload(target.MessageFlags);
+        try {
+          if ((di.deferred || di.replied) && typeof di.followUp === "function") {
+            await di.followUp(payload);
+          } else {
+            await di.reply(payload);
+          }
+        } catch {  }
+        return undefined;
+      }
+    }
+  };
+  return { handlers, ...command };
+}
+
+function installLatestInteractionHandler(target: LatestContext) {
+  const previousHandleInteraction = target.handleInteraction;
+  const { handlers, canHandle, handle } = buildLatestCommandHandler(target);
+
   async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!isLatestCommand(interaction)) {
+    if (!canHandle(interaction)) {
       if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
       return undefined;
     }
-    try {
-      return await handlers.handleLatestInteraction(interaction, games);
-    } catch (err: unknown) {
-      target.logger?.("ERROR", "LATEST_INTERACTION", "Eroare in handler-ul /latest", errorDetail(err));
-      const payload = createInteractionErrorPayload(target.MessageFlags);
-      try {
-        if ((interaction.deferred || interaction.replied) && typeof interaction.followUp === "function") {
-          await interaction.followUp(payload);
-        } else {
-          await interaction.reply(payload);
-        }
-      } catch {  }
-      return undefined;
-    }
+    return handle(interaction, games);
   }
 
   Object.assign(target, handlers, { handleInteraction });
 }
 
-Object.assign(installLatestInteractionHandler, { createLatestInteractionHandler });
+Object.assign(installLatestInteractionHandler, { createLatestInteractionHandler, buildCommandHandler: buildLatestCommandHandler });
 
 export = installLatestInteractionHandler;
