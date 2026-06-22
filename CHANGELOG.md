@@ -6,6 +6,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`/help` listeaza acum toate subcomenzile `/outbox`, inclusiv `clear-deadletters` si `replay-deadletters` (review P2)**. Cele doua comenzi existau in `slashCommandDefinitions.ts` si erau documentate in `docs/Comenzi Functionalitate.md`, dar embed-ul `/help` (`helpInteractionHandler.ts`) le omitea din sectiunea "Operare outbox (admin)", deci un admin nu le descoperea din bot. Adaugate in embed pe o linie dedicata. Testul de help (`helpHandler.functional.test.ts`) injecta un embed mock si nu verifica lista reala; adaugat un test care construieste embed-ul real (din `EmbedBuilder` + `COLORS`) si asserteaza ca toate cele 10 subcomenzi `/outbox` (status, deadletters, clear-deadletters, replay-deadletters, retry, drain-now, pause, resume, permissions, recovery-verify status) apar in sectiune — gard impotriva regresiei "comanda definita dar absenta din /help".
+
 ### Security
 
 - **`Dependency Audit` (`npm audit` + `cargo audit`) ruleaza acum si pe PR-urile care schimba lockfile-urile, nu doar manual/schedule (review manual R12 #2)**. Workflow-ul `dependency-audit.yml` avea doar `workflow_dispatch` + `schedule` (saptamanal), desi continea `npm audit --omit=dev --audit-level=moderate` si `cargo audit --deny warnings` — deci un PR care introducea o dependenta vulnerabila trecea neauditat pana la urmatorul scan programat. Adaugat trigger `pull_request` cu filtru `paths` pe `src/package.json` / `src/package-lock.json` / `src/native/Cargo.toml` / `src/native/Cargo.lock`, deci auditul devine un check blocant exact pe PR-urile care ating arborele de dependente (npm sau cargo), fara sa ruleze inutil pe PR-uri care nu schimba deps. Acoperit de `supplyChainConfig.test.ts` (garda: workflow-ul are `pull_request` pe caile de lockfile + contine `npm audit`/`cargo audit`).

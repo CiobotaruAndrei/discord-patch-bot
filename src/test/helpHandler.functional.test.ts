@@ -65,3 +65,52 @@ test("help handler installer intercepts only /help", async () => {
   assert.deepEqual(delegated, ["latest"]);
   assert.equal(result, "delegated");
 });
+
+class CapturingEmbedBuilder {
+  fields: Array<{ name: string; value: string }> = [];
+  setColor() { return this; }
+  setTitle() { return this; }
+  setDescription() { return this; }
+  addFields(...fields: Array<{ name: string; value: string }>) {
+    this.fields.push(...fields);
+    return this;
+  }
+}
+
+test("help handler real (din EmbedBuilder + COLORS) listeaza toate subcomenzile /outbox", async () => {
+  const { interaction, replies } = makeHelpInteraction();
+  const context = {
+    MessageFlags: { Ephemeral: 64 },
+    logger: () => undefined,
+    EmbedBuilder: CapturingEmbedBuilder,
+    COLORS: { DARK: 0 }
+  };
+
+  helpHandler(context);
+  const runtime = context as typeof context & InteractionRuntime;
+  await runtime.handleInteraction(interaction, []);
+
+  const payload = replies[0] as { embeds: CapturingEmbedBuilder[] };
+  const embed = payload.embeds[0];
+  const outboxField = embed.fields.find(field => field.name.toLowerCase().includes("outbox"));
+  assert.ok(outboxField, "embed-ul real de help are sectiunea de operare outbox");
+
+  const expectedSubcommands = [
+    "status",
+    "deadletters",
+    "clear-deadletters",
+    "replay-deadletters",
+    "retry",
+    "drain-now",
+    "pause",
+    "resume",
+    "permissions",
+    "recovery-verify status"
+  ];
+  for (const sub of expectedSubcommands) {
+    assert.ok(
+      outboxField!.value.includes(`/outbox ${sub}`),
+      `/help listeaza /outbox ${sub} (regresie: comanda definita dar absenta din embed-ul real)`
+    );
+  }
+});
