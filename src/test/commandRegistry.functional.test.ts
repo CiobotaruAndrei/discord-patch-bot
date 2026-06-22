@@ -7,13 +7,9 @@ process.env.DISCORD_CLIENT_ID ||= "test_discord_client_id";
 process.env.METRICS_PUBLIC ||= "true";
 
 type RegistryTestFunction = (...args: unknown[]) => unknown;
-type Installer = (context: Record<string, unknown>) => void;
 
-interface CommandRegistryExports extends Record<string, unknown> {
-  createCommandRegistry: (
-    context: Record<string, unknown>,
-    installers: Installer[]
-  ) => Record<string, RegistryTestFunction>;
+interface CommandRegistryExports {
+  createCommandRegistry: () => Record<string, RegistryTestFunction>;
 }
 
 const commandRegistry = require("../features/command-registry/commandRegistry") as CommandRegistryExports;
@@ -39,45 +35,21 @@ const requiredKeys = [
   "canSendEmbeds"
 ];
 
-function attachRequiredFunctions(context: Record<string, unknown>) {
+test("command registry compune explicit toate functiile cerute, fara installers dinamici", () => {
+  const registry = commandRegistry.createCommandRegistry();
   for (const key of requiredKeys) {
-    context[key] = (...args: unknown[]) => ({ key, args });
+    assert.equal(typeof registry[key], "function", `registry expune ${key} ca functie dupa compunerea explicita prin factory-uri`);
   }
-}
-
-test("command registry can be created with explicit mocked installers", () => {
-  const calls: string[] = [];
-  const baseContext: Record<string, unknown> = {};
-  const installers: Installer[] = [
-    context => {
-      calls.push("cache");
-      attachRequiredFunctions(context);
-    },
-    context => {
-      calls.push("interactions");
-      context.handleInteraction = (interaction: unknown, games: unknown[]) => ({ interaction, games });
-    }
-  ];
-
-  const registry = commandRegistry.createCommandRegistry(baseContext, installers);
-
-  assert.deepEqual(calls, ["cache", "interactions"]);
-  assert.equal(typeof registry.handleInteraction, "function");
-  assert.deepEqual(registry.handleInteraction("interaction", [{ key: "cs2" }]), {
-    interaction: "interaction",
-    games: [{ key: "cs2" }]
-  });
-  assert.deepEqual(registry.cleanCache(), { key: "cleanCache", args: [] });
 });
 
-test("command registry fails early when an installer misses a required function", () => {
-  assert.throws(
-    () => commandRegistry.createCommandRegistry({}, [context => {
+test("createCommandRegistry intoarce un registru proaspat si izolat la fiecare apel", () => {
+  const first = commandRegistry.createCommandRegistry();
+  const second = commandRegistry.createCommandRegistry();
 
-      context.unrelated = () => null;
-    }]),
-    /cleanCache/
-  );
+  assert.notEqual(first, second);
+  assert.equal(typeof first.handleInteraction, "function");
+  assert.equal(typeof second.handleInteraction, "function");
+  assert.notEqual(first.handleInteraction, second.handleInteraction);
 });
 
 test("createCommandRuntimeContext returns a fresh, isolated base on every call", () => {
