@@ -6,6 +6,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- **`/help` are acum optiunea `command:<comanda>` cu autocomplete si raspuns ephemeral detaliat pentru o comanda exacta.** Catalogul `commandHelpCatalog.ts` tine descrierile, permisiunile, exemplele si notele operationale pentru comenzile botului; autocomplete-ul sugereaza comenzile existente, iar handler-ul `/help` pastreaza meniul general cand optiunea lipseste. Acoperit de `helpHandler.functional.test.ts`, `autocompleteInteractionHandler.functional.test.ts` si `commandHelpCatalog.test.ts`. Documentat in `README.md` si `docs/Comenzi Functionalitate.md`.
+
 ### Fixed
 
 - **`/latest updates` foloseste acum snapshot-ul persistat cand fetch-ul live pica, simetric cu `/latest reduceri` si cu cron-ul (review #449 #1)**. Pana acum, daca `getLatestForAllGames` arunca, handler-ul manual `/latest updates` afisa direct o eroare (`Nu am reusit sa obtin update-urile`), desi cron-ul si `/latest reduceri` au de mult fallback pe snapshot. Acum handler-ul incearca `loadFetchSnapshot("updates")` + `validateUpdateFetchSnapshot` (acelasi event-store + acelasi validator ca cron-ul, prag de prospetime 60 min), iar daca gaseste un snapshot proaspat il foloseste cu un banner clar (`OK: Update-uri incarcate din ultimul snapshot salvat (fetch-ul live a esuat) - vechime ~N min.`) + un `WARN`; fara snapshot proaspat, eroarea ramane explicita. `validateUpdateFetchSnapshot` era deja expus pe runtime de `attachUtilities` (langa `validatePendingDiscountSnapshot`). Acoperit de `latestInteractionHandler.functional.test.ts` (fetch picat + snapshot proaspat -> banner; fetch picat + fara snapshot -> eroare explicita).
