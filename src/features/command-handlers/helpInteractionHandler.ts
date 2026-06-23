@@ -67,6 +67,7 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
           "`/set free <on|off>` - `/set paid <on|off>`\n" +
           "`/set currency <USD|EUR|GBP|RON>`\n" +
           "`/set stores <steam,epic | reset>`\n" +
+          "`/config`\n" +
           "`/set outbox-recovery-verify <on|off>`"
       },
       {
@@ -92,7 +93,11 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
       },
       {
         name: "Comenzi Manuale",
-        value: "`/latest updates` - `/latest reduceri`\n`/latest update <joc>` - `/latest pret <joc>`\n`/dlc <joc>` - `/status <joc>`"
+        value: "`/latest updates` - `/latest reduceri`\n`/latest update <joc>` - `/latest pret <joc>`\n`/dlc <joc>` - `/status <joc>`\n`/sources status`"
+      },
+      {
+        name: "Raportare",
+        value: "`/report submit` - trimite o problema\n`/report list` - `/report resolve` *(admin)*"
       }
     );
 }

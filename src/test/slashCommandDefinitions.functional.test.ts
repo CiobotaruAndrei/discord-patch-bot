@@ -76,7 +76,7 @@ test("comenzile administrative (inclusiv /health) cer Administrator; cele public
     const json = d as { name?: string; default_member_permissions?: string | null };
     byName.set(String(json.name || ""), json.default_member_permissions);
   }
-  for (const adminCmd of ["start", "stop", "set", "health"]) {
+  for (const adminCmd of ["start", "stop", "set", "health", "config", "sources"]) {
     assert.equal(byName.get(adminCmd), adminFlag, `/${adminCmd} trebuie sa fie restrictionat la Administrator`);
   }
   for (const publicCmd of ["ping", "games", "help", "report"]) {

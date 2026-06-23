@@ -18,6 +18,7 @@ export const COMMAND_HELP_ENTRIES: readonly CommandHelpEntry[] = [
   { command: "/ping", permissions: "Public", description: "Verifica rapid daca botul raspunde la Discord.", example: "/ping" },
   { command: "/games", permissions: "Public", description: "Listeaza jocurile cunoscute de bot si cheile/poreclele pe care le poti folosi in comenzile cu joc.", example: "/games" },
   { command: "/help", permissions: "Public", description: "Afiseaza meniul general de ajutor. Daca alegi o comanda in optiunea command, primesti explicatia detaliata pentru comanda aceea.", example: "/help command:/set games add" },
+  { command: "/config", permissions: "Admin, Ephemeral", description: "Afiseaza intr-un singur loc setarile curente ale serverului: mode, filtre de reduceri, valuta, store-uri, jocuri active, roluri si canale.", example: "/config" },
   { command: "/start updates", permissions: "Admin", description: "Porneste notificarile automate de update-uri pe canalul curent si face baseline, ca botul sa nu trimita retroactiv toate update-urile vechi.", example: "/start updates" },
   { command: "/start reduceri", permissions: "Admin", description: "Porneste alertele automate de reduceri pe canalul curent si face baseline, ca botul sa trimita doar reducerile noi gasite dupa activare.", example: "/start reduceri" },
   { command: "/stop updates", permissions: "Admin", description: "Opreste notificarile automate de update-uri pentru server.", example: "/stop updates" },
@@ -52,8 +53,11 @@ export const COMMAND_HELP_ENTRIES: readonly CommandHelpEntry[] = [
   { command: "/latest pret", permissions: "Public", description: "Cauta pretul curent al unui joc pe Steam.", example: "/latest pret joc:Counter-Strike 2" },
   { command: "/dlc", permissions: "Public", description: "Cauta DLC-uri pentru un joc.", example: "/dlc joc:Counter-Strike 2" },
   { command: "/status", permissions: "Public", description: "Afiseaza statusul unei surse sau al unui joc urmarit.", example: "/status joc:minecraft" },
+  { command: "/sources status", permissions: "Admin, Ephemeral", description: "Afiseaza starea ultimelor snapshot-uri pentru sursele de date: reduceri Steam/Epic, feed-uri de update si vechimea ultimului fetch.", example: "/sources status" },
   { command: "/history", permissions: "Public, ephemeral", description: "Afiseaza istoricul recent al notificarilor trimise pe server, filtrat optional dupa update-uri sau reduceri.", example: "/history tip:updates numar:10" },
-  { command: "/report", permissions: "Public, ephemeral", description: "Trimite un raport despre o problema observata la bot, de exemplu sursa stricata, pret gresit sau update lipsa.", example: "/report tip:source-broken detalii:Steam nu raspunde" },
+  { command: "/report submit", permissions: "Public, ephemeral", description: "Trimite un raport despre o problema observata la bot, de exemplu sursa stricata, pret gresit sau update lipsa.", example: "/report submit tip:sursa-stricata detalii:Steam nu raspunde" },
+  { command: "/report list", permissions: "Admin runtime, Ephemeral", description: "Listeaza rapoartele recente ale serverului, cu ID-ul necesar pentru rezolvare.", example: "/report list numar:10" },
+  { command: "/report resolve", permissions: "Admin runtime, Ephemeral", description: "Marcheaza un raport ca rezolvat dupa ce problema a fost verificata sau reparata.", example: "/report resolve id:64a1f2b3c4d5e6f789012345" },
   { command: "/health", permissions: "Admin", description: "Afiseaza starea tehnica a botului: conexiune Discord, MongoDB, uptime si cache.", example: "/health" }
 ];
 

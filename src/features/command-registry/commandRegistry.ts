@@ -77,6 +77,8 @@ import attachStatusInteractionHandler = require("../command-handlers/statusInter
 import attachHistoryInteractionHandler = require("../command-handlers/historyInteractionHandler");
 import attachReportInteractionHandler = require("../command-handlers/reportInteractionHandler");
 import attachHealthInteractionHandler = require("../command-handlers/healthInteractionHandler");
+import attachConfigInteractionHandler = require("../command-handlers/configInteractionHandler");
+import attachSourcesStatusHandler = require("../command-handlers/sourcesStatusHandler");
 import attachDlcInteractionHandler = require("../command-handlers/dlcInteractionHandler");
 import attachAutocompleteInteractionHandler = require("../command-handlers/autocompleteInteractionHandler");
 import attachAdminCommandRouterGuard = require("../command-security/adminCommandRouterGuard");
@@ -106,7 +108,8 @@ function createCommandRegistry(): RequiredCommandRegistry {
   const feedbackRepository = attachFeedbackRepository.createFeedbackRepository(withNotifications);
   const withFeedback = Object.assign(withNotifications, {
     recordFeedbackReport: feedbackRepository.recordReport,
-    getRecentFeedbackReports: feedbackRepository.getRecent
+    getRecentFeedbackReports: feedbackRepository.getRecent,
+    resolveFeedbackReport: feedbackRepository.resolveReport
   });
   const ctx = Object.assign(withFeedback, attachSlashCommandDefinitions.createSlashCommandDefinitions(withFeedback));
 
@@ -114,6 +117,8 @@ function createCommandRegistry(): RequiredCommandRegistry {
   const commandHandlers: CommandHandler[] = [
     attachAutocompleteInteractionHandler.buildCommandHandler(ctx),
     attachDlcInteractionHandler.buildCommandHandler(ctx),
+    attachSourcesStatusHandler.buildCommandHandler(ctx),
+    attachConfigInteractionHandler.buildCommandHandler(ctx),
     attachHealthInteractionHandler.buildCommandHandler(ctx),
     attachReportInteractionHandler.buildCommandHandler(ctx),
     attachHistoryInteractionHandler.buildCommandHandler(ctx),

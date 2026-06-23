@@ -98,7 +98,8 @@ test("command help catalog: permisiunea declarata (Admin/Public) coincide cu set
   for (const entry of COMMAND_HELP_ENTRIES) {
     const topLevel = entry.command.replace(/^\//, "").split(/\s+/)[0];
     const isAdmin = admin.has(topLevel);
-    assert.equal(entry.permissions.startsWith("Admin"), isAdmin, `${entry.command}: catalogul declara permisiunea "${entry.permissions}" dar slash definitions impun ${isAdmin ? "Admin" : "Public"} (drift de permisiuni)`);
+    const runtimeAdmin = entry.permissions.includes("Admin runtime");
+    assert.equal(entry.permissions.startsWith("Admin") && !runtimeAdmin, isAdmin, `${entry.command}: catalogul declara permisiunea "${entry.permissions}" dar slash definitions impun ${isAdmin ? "Admin" : "Public"} la nivel top-level`);
   }
 });
 

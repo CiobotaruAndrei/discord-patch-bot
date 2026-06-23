@@ -10,7 +10,9 @@ const noopLogger = () => undefined;
 interface FakeModelOpts {
   onCreate?: (doc: unknown) => void;
   onFind?: (filter: unknown) => void;
+  onFindOneAndUpdate?: (filter: unknown, update: unknown) => void;
   docs?: Array<Record<string, unknown>>;
+  resolvedDoc?: Record<string, unknown> | null;
 }
 
 function makeModel(opts: FakeModelOpts) {
@@ -19,6 +21,10 @@ function makeModel(opts: FakeModelOpts) {
     find: (filter: unknown) => {
       if (opts.onFind) opts.onFind(filter);
       return { sort: () => ({ limit: () => ({ lean: async () => opts.docs || [] }) }) };
+    },
+    findOneAndUpdate: (filter: unknown, update: unknown) => {
+      if (opts.onFindOneAndUpdate) opts.onFindOneAndUpdate(filter, update);
+      return { lean: async () => opts.resolvedDoc ?? null };
     }
   };
 }
@@ -71,7 +77,7 @@ test("getRecent filtreaza dupa guildId, clamp pe limita si mapeaza", async () =>
   const repo = createFeedbackRepository({
     FeedbackReportModel: makeModel({
       onFind: filter => { capturedFilter = filter as Record<string, unknown>; },
-      docs: [{ userId: "u1", type: "duplicat", gameKey: "", detail: "x", createdAt: new Date("2026-06-01T00:00:00Z") }]
+      docs: [{ _id: "64a1f2b3c4d5e6f789012345", userId: "u1", type: "duplicat", gameKey: "", detail: "x", createdAt: new Date("2026-06-01T00:00:00Z"), resolvedAt: new Date("2026-06-02T00:00:00Z"), resolvedBy: "admin" }]
     }),
     withMongoRetry: passThroughRetry,
     logger: noopLogger
@@ -79,6 +85,29 @@ test("getRecent filtreaza dupa guildId, clamp pe limita si mapeaza", async () =>
   const records = await repo.getRecent("g1", 100);
   assert.deepEqual(capturedFilter, { guildId: "g1" });
   assert.equal(records.length, 1);
+  assert.equal(records[0].id, "64a1f2b3c4d5e6f789012345");
   assert.equal(records[0].type, "duplicat");
   assert.ok(records[0].createdAt instanceof Date);
+  assert.ok(records[0].resolvedAt instanceof Date);
+  assert.equal(records[0].resolvedBy, "admin");
+});
+
+test("resolveReport marcheaza raportul ca rezolvat doar pentru id valid", async () => {
+  const calls: Array<{ filter: unknown; update: unknown }> = [];
+  const repo = createFeedbackRepository({
+    FeedbackReportModel: makeModel({
+      onFindOneAndUpdate: (filter, update) => { calls.push({ filter, update }); },
+      resolvedDoc: { _id: "64a1f2b3c4d5e6f789012345" }
+    }),
+    withMongoRetry: passThroughRetry,
+    logger: noopLogger
+  });
+
+  assert.equal(await repo.resolveReport("g1", "bad-id", "admin"), false);
+  assert.equal(calls.length, 0);
+  assert.equal(await repo.resolveReport("g1", "64a1f2b3c4d5e6f789012345", "admin"), true);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].filter, { _id: "64a1f2b3c4d5e6f789012345", guildId: "g1" });
+  assert.match(JSON.stringify(calls[0].update), /resolvedAt/);
+  assert.match(JSON.stringify(calls[0].update), /admin/);
 });

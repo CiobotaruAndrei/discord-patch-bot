@@ -38,6 +38,7 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 | `/set currency value:<currency>` | Admin | Seteaza valuta folosita pentru preturi si reduceri. Optiunile vin din registrul de valute suportate de bot. Reseteaza coada de reduceri in asteptare. |
 | `/set stores value:<steam,epic|reset>` | Admin | Filtreaza reducerile dupa magazinele permise. `reset` revine la filtrul implicit. Reseteaza coada de reduceri in asteptare. |
 | `/set outbox-recovery-verify value:<on|off>` | Admin | Activeaza sau dezactiveaza verificarea de recovery outbox pentru server. Cand este activata, botul avertizeaza daca ii lipseste `Read Message History` pe canalele configurate. |
+| `/config` | Admin, Ephemeral | Afiseaza setarile curente ale serverului intr-un singur embed: mod, reducere minima, pret maxim, filtre free/paid, valuta, magazine, jocuri active, roluri de ping si canale pentru update-uri/reduceri. |
 
 ## Filtru de jocuri pentru update-uri
 
@@ -93,16 +94,19 @@ Concepte utile pentru admini:
 | `/latest pret joc:<name>` | Public, Autocomplete | Cauta pretul curent al unui joc pe Steam in valuta serverului si afiseaza detaliile de pret intr-un embed. |
 | `/dlc joc:<name>` | Public, Autocomplete | Cauta DLC-urile disponibile pentru un joc pe Steam si le afiseaza paginat. |
 | `/status joc:<name/key>` | Public, Autocomplete | Verifica statusul/serverele pentru jocul cerut si intoarce un embed de stare. |
+| `/sources status` | Admin, Ephemeral | Afiseaza starea ultimelor snapshot-uri persistate pentru sursele externe: Steam/Epic, feed-urile de update pe joc, erori recente si varsta ultimei verificari cunoscute. Nu face fetch live; arata ce stie botul din ultima rulare salvata. |
 
 ## Istoric, raportare si sanatate
 
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
 | `/history tip:<updates|reduceri> numar:<1-25>` | Public, Ephemeral | Afiseaza istoricul notificarilor trimise pe server. `tip` este optional si poate filtra dupa update-uri sau reduceri; `numar` este optional, implicit 10 si maxim 25. |
-| `/report tip:<tip> detalii:<text> joc:<name>` | Public, Ephemeral | Trimite un raport despre o problema observata: update gresit, duplicat, joc/sursa lipsa, sursa stricata sau altceva. Salveaza raportul si trimite alerta administrativa. |
+| `/report submit tip:<tip> detalii:<text> joc:<name>` | Public, Ephemeral | Trimite un raport despre o problema observata: update gresit, duplicat, joc/sursa lipsa, sursa stricata sau altceva. Salveaza raportul si trimite alerta administrativa. |
+| `/report list numar:<1-25>` | Admin runtime, Ephemeral | Listeaza ultimele rapoarte trimise pe server, cu ID, tip, joc, detalii scurte si status rezolvat/nerezolvat. Este pentru administratori, chiar daca top-level-ul `/report` ramane public ca sa permita `/report submit`. |
+| `/report resolve id:<id>` | Admin runtime, Ephemeral | Marcheaza un raport existent ca rezolvat. ID-ul este cel afisat de `/report list`; daca ID-ul nu exista pe server sau are format invalid, botul raspunde explicit fara sa modifice date. |
 | `/health` | Admin, Ephemeral | Afiseaza starea botului: conexiune Discord, MongoDB, cache-uri, uptime si detalii despre endpoint-ul de metrics. |
 
-## Tipuri acceptate de `/report`
+## Tipuri acceptate de `/report submit`
 
 | Valoare | Semnificatie |
 | --- | --- |
