@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { CheerioAPI } from "cheerio";
-import type { DealInfo, FetchDealsOptions } from "../types";
+import type { DealInfo, FetchDealsOptions, HttpRequestOptions } from "../types";
 import type { SteamAppDetailsSummary } from "../sources/sourceApis";
 
 process.env.MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/itest-source-api";
@@ -25,6 +25,13 @@ type _ExtractOfferEndIsTyped = Expect<
 >;
 type _SafeCheerioLoadIsTyped = Expect<
   Mod["safeCheerioLoad"] extends (html: unknown) => CheerioAPI ? true : false
+>;
+type _Registry = ReturnType<typeof import("../sources/sourceRegistry").createSourceRegistry>;
+type _HttpReqOptionsTyped = Expect<
+  Parameters<_Registry["httpReq"]>[2] extends HttpRequestOptions | undefined ? true : false
+>;
+type _FetchWithProxyOptionsTyped = Expect<
+  Parameters<_Registry["fetchWithProxy"]>[1] extends HttpRequestOptions | undefined ? true : false
 >;
 
 type _SteamPriceDetailsResult = Awaited<ReturnType<ReturnType<typeof import("../sources/sourceRegistry").createSourceRegistry>["fetchSteamPriceDetails"]>>;

@@ -9,6 +9,7 @@ export interface OutboxHistoryEntry {
   gameKey?: string;
   title?: string;
   link?: string;
+  itemId?: string;
 }
 
 export interface OutboxJob {

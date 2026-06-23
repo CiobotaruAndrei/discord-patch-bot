@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const mod = require("../features/notifications/historyRepository") as typeof import("../features/notifications/historyRepository");
-const { sanitizeHistoryDocs, clampHistoryLimit, createHistoryRepository } = mod;
+const { sanitizeHistoryDocs, clampHistoryLimit, createHistoryRepository, buildHistoryDedupeKey } = mod;
 
 const passThroughRetry = <T>(fn: () => Promise<T>): Promise<T> => fn();
 const noopLogger = () => undefined;
@@ -89,23 +89,37 @@ test("recordSent: intrarile cu identitate (link/title) sunt scrise idempotent pr
     withMongoRetry: passThroughRetry,
     logger: noopLogger
   });
-  await repo.recordSent("g1", [{ kind: "update", gameKey: "cs2", title: "Patch", link: "https://x/y" }]);
+  await repo.recordSent("g1", [{ kind: "update", gameKey: "cs2", title: "Patch", link: "https://x/y", itemId: "u-123" }]);
   const ops = captured as Array<{ updateOne: { filter: Record<string, unknown>; update: Record<string, unknown>; upsert: boolean } }> | null;
   assert.ok(ops && ops.length === 1, "o operatie de upsert per intrare cu identitate");
   assert.equal(ops![0].updateOne.upsert, true, "upsert: true -> idempotent la re-livrare (crash recovery)");
-  assert.deepEqual(ops![0].updateOne.filter, { guildId: "g1", dedupeKey: "update:cs2:https://x/y" }, "filtrul de dedup e (guildId, dedupeKey) derivat din kind:gameKey:link");
+  assert.deepEqual(ops![0].updateOne.filter, { guildId: "g1", dedupeKey: buildHistoryDedupeKey("update", "cs2", "https://x/y", "Patch", "u-123") }, "filtrul de dedup e (guildId, dedupeKey) cu cheie hash stabila");
+  assert.match(String(ops![0].updateOne.filter.dedupeKey), /^[0-9a-f]{40}$/, "dedupeKey e un hash sha1 (rezistent la coliziuni de separator)");
   assert.ok("$setOnInsert" in ops![0].updateOne.update, "scrie doar la insert (nu suprascrie la re-livrare)");
 });
 
-test("sanitizeHistoryDocs deriva dedupeKey din kind:gameKey:link (fallback pe title), gol cand nu exista identitate", () => {
+test("buildHistoryDedupeKey: hash determinist, distinct per identitate, gol cand nu exista identitate", () => {
+  const a = buildHistoryDedupeKey("update", "cs2", "https://x/y", "Patch", "u-1");
+  assert.equal(a, buildHistoryDedupeKey("update", "cs2", "https://x/y", "Patch", "u-1"), "acelasi input -> aceeasi cheie (dedup la re-livrare)");
+  assert.notEqual(a, buildHistoryDedupeKey("update", "cs2", "https://x/y", "Patch", "u-2"), "itemId diferit -> cheie diferita (nu colapseaza notificari distincte)");
+  assert.equal(buildHistoryDedupeKey("update", "", "", "", ""), "", "fara identitate -> cheie goala (nu intra in index-ul unic partial)");
+});
+
+test("buildHistoryDedupeKey: separatorul nu cauzeaza coliziuni (hash peste JSON structurat)", () => {
+  const split = buildHistoryDedupeKey("update", "a", "b:c", "", "");
+  const shifted = buildHistoryDedupeKey("update", "a:b", "c", "", "");
+  assert.notEqual(split, shifted, "valorile care contin ':' nu se ciocnesc (vechiul `${kind}:${gameKey}:${link}` le-ar fi colapsat)");
+});
+
+test("sanitizeHistoryDocs: doua notificari fara link cu acelasi titlu dar itemId diferit raman distincte", () => {
   const docs = sanitizeHistoryDocs("g", [
-    { kind: "update", gameKey: "cs2", title: "Patch", link: "https://x/y" },
-    { kind: "discount", title: "Deal fara link" },
+    { kind: "update", gameKey: "cs2", title: "Patch", itemId: "u-1" },
+    { kind: "update", gameKey: "cs2", title: "Patch", itemId: "u-2" },
     { kind: "update" }
   ], new Date());
-  assert.equal(docs[0].dedupeKey, "update:cs2:https://x/y", "cu link -> link in cheie");
-  assert.equal(docs[1].dedupeKey, "discount::Deal fara link", "fara link -> fallback pe title");
-  assert.equal(docs[2].dedupeKey, "", "fara link si fara title -> dedupeKey gol (nu intra in index-ul unic partial)");
+  assert.notEqual(docs[0].dedupeKey, docs[1].dedupeKey, "itemId diferit -> intrari distincte chiar fara link/titlu diferit");
+  assert.match(docs[0].dedupeKey, /^[0-9a-f]{40}$/);
+  assert.equal(docs[2].dedupeKey, "", "fara link, titlu sau itemId -> dedupeKey gol");
 });
 
 test("recordSent nu apeleaza insertMany cand nu sunt intrari valide", async () => {

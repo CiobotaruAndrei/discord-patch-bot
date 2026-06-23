@@ -39,10 +39,45 @@ function slashCommandPaths(): string[] {
   return paths;
 }
 
+function adminTopLevelCommands(): Set<string> {
+  const target: Record<string, unknown> = {
+    SlashCommandBuilder,
+    PermissionsBitField,
+    SUPPORTED_CURRENCIES: { USD: {}, EUR: {}, GBP: {}, RON: {} },
+    logger: () => undefined,
+    env: {}
+  };
+  const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions") as (t: Record<string, unknown>) => void;
+  attachSlashCommands(target);
+  const defs = (target.buildSlashCommandDefinitions as () => Array<{ name: string; default_member_permissions?: string | number | null }>)();
+  const admin = new Set<string>();
+  for (const def of defs) {
+    if (def.default_member_permissions != null) admin.add(def.name);
+  }
+  return admin;
+}
+
 test("command help catalog acopera toate slash command paths", () => {
   const helpPaths = new Set(COMMAND_HELP_ENTRIES.map(entry => normalizeCommandHelpQuery(entry.command)));
   for (const path of slashCommandPaths()) {
     assert.ok(helpPaths.has(normalizeCommandHelpQuery(path)), `lipseste help entry pentru ${path}`);
+  }
+});
+
+test("command help catalog: fiecare entry corespunde unei comenzi reale din slash definitions (fara entries stale)", () => {
+  const realPaths = new Set(slashCommandPaths().map(normalizeCommandHelpQuery));
+  for (const entry of COMMAND_HELP_ENTRIES) {
+    assert.ok(realPaths.has(normalizeCommandHelpQuery(entry.command)), `entry de catalog pentru comanda inexistenta (drift): ${entry.command}`);
+  }
+});
+
+test("command help catalog: permisiunea declarata (Admin/Public) coincide cu setDefaultMemberPermissions din slash definitions", () => {
+  const admin = adminTopLevelCommands();
+  assert.ok(admin.size > 0, "slash definitions au comenzi admin (sanity)");
+  for (const entry of COMMAND_HELP_ENTRIES) {
+    const topLevel = entry.command.replace(/^\//, "").split(/\s+/)[0];
+    const isAdmin = admin.has(topLevel);
+    assert.equal(entry.permissions.startsWith("Admin"), isAdmin, `${entry.command}: catalogul declara permisiunea "${entry.permissions}" dar slash definitions impun ${isAdmin ? "Admin" : "Public"} (drift de permisiuni)`);
   }
 });
 
