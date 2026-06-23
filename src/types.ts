@@ -375,6 +375,7 @@ export interface GuildSettings {
   discountsActivationId?: string | null;
   discountsLastError?: LastErrorInfo;
   enabledGames?: string[];
+  commandSnoozes?: Map<string, Date | string | number> | Record<string, Date | string | number>;
   enabledStores?: string[];
   maxAbsolutePrice?: number;
   notificationRoleId?: string | null;

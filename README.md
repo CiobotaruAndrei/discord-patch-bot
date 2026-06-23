@@ -20,15 +20,16 @@ Bot Discord pentru notificari despre update-uri, DLC-uri si reduceri pentru jocu
 
 ## Comenzi principale
 
-La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun venit (pe system channel sau primul canal unde poate posta) care ghideaza configurarea: `/start updates`, `/start reduceri`, `/set games add`, `/set role`, `/help`.
+La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun venit (pe system channel sau primul canal unde poate posta) care ghideaza configurarea: `/start updates`, `/start reduceri`, `/watchlist add`, `/set role`, `/help`.
 
 - `/start updates` - activeaza notificarile de update-uri pentru server.
 - `/start reduceri` - activeaza notificarile de reduceri pentru server.
 - `/stop updates` - dezactiveaza notificarile de update-uri.
 - `/stop reduceri` - dezactiveaza notificarile de reduceri.
-- `/set games add` - adauga jocuri urmarite.
-- `/set games remove` - elimina jocuri urmarite.
+- `/watchlist show | add | remove | reset` - (admin) afiseaza si gestioneaza jocurile urmarite explicit pe server; `reset` revine la toate jocurile configurate.
+- `/set games add`, `/set games remove`, `/set games reset` - (admin) gestioneaza acelasi filtru per-joc prin suprafata veche, fara listare; pentru afisare foloseste `/watchlist show`.
 - `/set mode | mindiscount | maxprice | free | paid | currency | stores` - (admin) configurari de afisare/filtrare per-server.
+- `/snooze` si `/unsnooze` - (admin) pune temporar pe pauza o comanda existenta, apoi o reporneste manual inainte de expirare daca este nevoie; optiunea `command` are autocomplete ca optiunea `command` din `/help`.
 - `/config` - (admin) afiseaza intr-un singur loc setarile curente ale serverului: mod, reduceri minime, pret maxim, free/paid, valuta, magazine, jocuri active, roluri si canale de notificare.
 - `/latest` - afiseaza ultimele update-uri cunoscute.
 - `/dlc` - afiseaza DLC-uri cunoscute.
@@ -37,7 +38,7 @@ La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun ve
 - `/report submit <tip> <detalii> <joc> | list | resolve <id>` - raporteaza o problema, listeaza ultimele rapoarte sau marcheaza un raport ca rezolvat; `list` si `resolve` cer Administrator la runtime.
 - `/health` - (admin) starea botului (Discord, MongoDB, cache, uptime); raspuns ephemeral, restrictionat la Administrator fiindca expune stare interna a infrastructurii. Restrictia e dubla (defense-in-depth): permisiunea slash declarata in Discord **plus** guard-ul runtime din `adminCommandRouterGuard` (lista `ADMIN_COMMANDS`). Pentru metrici detaliate (surse, coada outbox, cron) vezi endpoint-ul de metrics.
 - `/sources status` - (admin) afiseaza starea ultimelor snapshot-uri de surse externe: Steam/Epic, feed-uri de update pe joc si varsta ultimei verificari persistate.
-- `/help` - afiseaza meniul general de ajutor; optiunea `command:<comanda>` intoarce ephemeral explicatia detaliata pentru o comanda exacta, cu autocomplete pe comenzile existente.
+- `/help` - afiseaza meniul general de ajutor; optiunea `command` intoarce ephemeral explicatia detaliata pentru o comanda exacta, cu autocomplete pe comenzile existente.
 - `/set outbox-recovery-verify <on|off>` - (admin) comuta recovery-verify per-server; la `on` avertizeaza daca botului ii lipseste permisiunea Read Message History pe canalele de notificari.
 - `/outbox status | deadletters | clear-deadletters | replay-deadletters | retry | drain-now | pause | resume | permissions | recovery-verify status` - (admin) operarea outbox-ului: coada (per-server + global), dead-letter (listare, re-trimitere prin replay dupa remediere, golire dupa investigare), reprogramare livrari, drenare imediata (daca drenarea nu e pe pauza si lock-ul e liber), pauza/reluare drenare (global), audit de permisiuni pe canale si starea recovery-verify.
 
@@ -162,7 +163,7 @@ Testele acopera zonele importante:
 
 - validare env si configuratie;
 - registrul de comenzi si guard-uri anti-regresie;
-- handler-e functionale pentru `/help`, `/ping`, `/games`, `/set`, `/outbox`, `/latest`, `/dlc`, `/status` si autocomplete;
+- handler-e functionale pentru `/help`, `/ping`, `/games`, `/set`, `/watchlist`, `/snooze`, `/unsnooze`, `/outbox`, `/latest`, `/dlc`, `/status` si autocomplete;
 - servicii de notificari pentru update-uri si reduceri;
 - repository-ul `seen` pentru deduplicare;
 - fluxuri E2E pentru update-uri si reduceri;
@@ -213,7 +214,7 @@ Granitele tiparii — ce ramane intentionat mai lax (ca afirmatiile de mai sus s
 Starea curenta:
 
 - handler-ele pentru comenzi cunoscute sunt separate in `src/features/command-handlers/`;
-- routing-ul interactiunilor e o **lista tipata `CommandHandler[]`** compusa in `commandRegistry`: fiecare handler expune `buildCommandHandler(ctx): CommandHandler` (`{ canHandle, handle }`), iar `dispatchCommand` itereaza lista si deleaga la primul `canHandle` adevarat (fallback-ul, mereu `canHandle: () => true`, e ultimul); comenzile admin (`start`/`stop`/`set`/`outbox`/`health`) trec intai printr-un pre-check `requireGuildAdmin` (singurul wrapper ramas peste `dispatchCommand`, prin `adminCommandRouterGuard`); nu mai exista lantul de `attachX` care impacheteaza `handleInteraction` si nici un fisier `interactions.ts` separat;
+- routing-ul interactiunilor e o **lista tipata `CommandHandler[]`** compusa in `commandRegistry`: fiecare handler expune `buildCommandHandler(ctx): CommandHandler` (`{ canHandle, handle }`), iar `dispatchCommand` itereaza lista si deleaga la primul `canHandle` adevarat (fallback-ul, mereu `canHandle: () => true`, e ultimul); comenzile admin (`start`/`stop`/`set`/`watchlist`/`snooze`/`unsnooze`/`outbox`/`health`/`config`/`sources`) trec intai printr-un pre-check `requireGuildAdmin`, apoi comenzile snoozed trec prin `commandSnoozeGuard` inainte de dispatcher; nu mai exista lantul de `attachX` care impacheteaza `handleInteraction` si nici un fisier `interactions.ts` separat;
 - `notifications/index.ts` este wiring pentru cron jobs, iar logica principala este in `updateNotificationService.ts` si `discountNotificationService.ts`;
 - toate modulele expun factory-uri cu deps explicit tipate: handler-ele de comenzi, `commandCache.ts`, `commandPresentation.ts`, `mongoContext.ts`, sursele `steam`/`deals`/`updates` (`createSteamSource`/`createDeals`/`createUpdates`) si `notifications/index.ts` (`createNotificationRuntime`); adaptorul `attachX(target)` construieste obiectul `deps` din campurile numite ale contextului (snapshot), nu mai paseaza punga de context;
 - `domain/deals/filtersCore.ts`, `outboundChannel.ts` si `seenRepository.ts` sunt module tipate, usor de testat separat;

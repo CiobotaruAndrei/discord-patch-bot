@@ -80,6 +80,7 @@ const guildSchema = new mongoose.Schema({
   },
 
   enabledGames: { type: [String], default: [] },
+  commandSnoozes: { type: Map, of: Date, default: {} },
   enabledStores: { type: [String], default: [] },
   maxAbsolutePrice: { type: Number, default: 0 },
   notificationRoleId: { type: String, default: null },

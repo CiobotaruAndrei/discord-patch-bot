@@ -88,7 +88,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-registry/commandRegistry.ts`
 
 - Compune modulele de comenzi si interactiuni, importate **static** (importuri numite `attachX = require(...)`, nu `require`-uri inline).
-- Compunere **explicita** (fara installers dinamici): apeleaza factory-urile reale tipate (`createCommandCache`, `createCommandPresentation`, `createNotificationRuntime`, `createFeedbackRepository`, `createSlashCommandDefinitions`) inlantuite cu `Object.assign`, apoi construieste o **lista tipata `CommandHandler[]`** din `attachX.buildCommandHandler(ctx)` (cele 17 handler-e de comenzi) rutata de `dispatchCommand` (loop `canHandle`/`handle`, fallback-ul mereu `canHandle: () => true` ultimul). Pre-check-ul admin (`requireGuildAdmin` prin `attachAdminCommandRouterGuard(ctx)`) ramane **singurul wrapper** peste `dispatchCommand`; nu mai e un lant de `attachX` care impacheteaza `handleInteraction`. `buildHelpEmbed` e cablat din `helpCommand.buildHelpEmbed`.
+- Compunere **explicita** (fara installers dinamici): apeleaza factory-urile reale tipate (`createCommandCache`, `createCommandPresentation`, `createNotificationRuntime`, `createFeedbackRepository`, `createSlashCommandDefinitions`) inlantuite cu `Object.assign`, apoi construieste o **lista tipata `CommandHandler[]`** din `attachX.buildCommandHandler(ctx)` (cele 18 handler-e de comenzi) rutata de `dispatchCommand` (loop `canHandle`/`handle`, fallback-ul mereu `canHandle: () => true` ultimul). Pre-check-ul admin (`requireGuildAdmin` prin `attachAdminCommandRouterGuard(ctx)`) ruleaza peste `commandSnoozeGuard`, care blocheaza comenzile puse temporar pe pauza inainte de `dispatchCommand`; nu mai e un lant de `attachX` care impacheteaza `handleInteraction`. `buildHelpEmbed` e cablat din `helpCommand.buildHelpEmbed`.
 - Valideaza ca functiile adaugate de handler-e exista dupa compunere (fail-fast prin `requireInstalled`) si intoarce contractul inchis `RequiredCommandRegistry` (toate cheile `NonNullable`).
 - `CommandRegistryContext` e un contract **inchis**: doar cheile declarate, cu semnaturile reale ale functiilor (ex. `checkForUpdates(client, games, shouldAbort?)`), fara `[key: string]: unknown` (gard in `registryClosedContracts.test.ts`, pe `ReturnType<createCommandRegistry>`).
 - Boundary-ul de instalare dinamic (`installers: unknown[]` + `install(context as never)` + `LegacyInstallerTarget` + `CommandInstallerTarget` + `isCommandModuleInstaller`) a fost **eliminat**: compunerea e statica si verificata integral de `tsc`, fara niciun `as` pe boundary. **Cum a fost deblocata** estimarea anterioara (registrul ar trebui sa satisfaca simultan toate contextele locale, colapsand in `never`/`any`): reconciliind dep cu dep fiecare contract de handler la factory-ul real — stramtarea deps-urilor loose la semnaturi contravariante reale, segregare de interfata (contracte minimale ca `SteamPriceData`/`EmbeddableUpdate`, modele Mongo reduse la `OutboxRuntimeDeps`/`HistoryRepositoryDeps`) si unificarea tipurilor duplicate (`PendingUpdate`/`PendingDiscount` la alias-uri `types.*`). Garda din `registryClosedContracts.test.ts` pinuieste zero `installers`/`CommandInstallerTarget`/`isCommandModuleInstaller` si prezenta `requireInstalled`.
@@ -132,8 +132,18 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/features/command-handlers/gameFilterHandlers.ts`
 
-- Gestioneaza `/set games`.
+- Gestioneaza `/set games` si `/watchlist`.
 - Normalizeaza si valideaza input-ul pentru jocuri urmarite.
+
+### `src/features/command-handlers/snoozeInteractionHandler.ts`
+
+- Gestioneaza `/snooze` si `/unsnooze`.
+- Valideaza comanda aleasa prin catalogul `/help command` si salveaza pauzele temporare in setarile guild-ului.
+
+### `src/features/command-security/commandSnoozeGuard.ts`
+
+- Verifica fiecare comanda chat input inainte de dispatcher.
+- Blocheaza comenzile cu snooze activ si lasa `/snooze`/`/unsnooze` disponibile permanent pentru administrare.
 
 ### `src/features/command-handlers/rolePingHandlers.ts`
 

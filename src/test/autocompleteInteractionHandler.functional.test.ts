@@ -80,6 +80,19 @@ test("autocomplete suggests bot commands for /help command", async () => {
   assert.ok(responses[0].some(choice => choice.value === "/outbox deadletters"));
 });
 
+test("autocomplete suggests bot commands for /snooze command fara comenzile de control", async () => {
+  const { context } = makeContext();
+  const { interaction, responses } = makeInteraction({
+    command: "snooze",
+    focused: { name: "command", value: "latest" }
+  });
+  await context.handleInteraction(interaction, GAMES);
+  assert.equal(responses.length, 1);
+  assert.ok(responses[0].some(choice => choice.value === "/latest updates"));
+  assert.ok(!responses[0].some(choice => choice.value === "/snooze"));
+  assert.ok(!responses[0].some(choice => choice.value === "/unsnooze"));
+});
+
 test("autocomplete returns top matches sorted by score then alphabetically", async () => {
   const { context } = makeContext();
   const { interaction, responses } = makeInteraction({
@@ -154,6 +167,24 @@ test("/set games remove restricts pool to enabledGames + stale placeholders", as
 
   assert.ok(!keys.includes("fortnite"));
   assert.ok(!keys.includes("dota2"));
+});
+
+test("/watchlist remove restricts pool to enabledGames + stale placeholders", async () => {
+  const { context } = makeContext({
+    getGuildSettings: async (_id: string) => ({ enabledGames: ["cs2", "ghost_game_no_longer_in_config"] })
+  });
+  const { interaction, responses } = makeInteraction({
+    command: "watchlist",
+    sub: "remove",
+    focused: { name: "joc", value: "" },
+    guildId: "guild-1"
+  });
+  await context.handleInteraction(interaction, GAMES);
+  const choices = responses[0] as Array<{ name: string; value: string }>;
+  const keys = choices.map(c => c.value);
+  assert.ok(keys.includes("cs2"));
+  assert.ok(keys.includes("ghost_game_no_longer_in_config"));
+  assert.ok(!keys.includes("fortnite"));
 });
 
 test("/set games remove without guild context falls back to full games pool (no crash)", async () => {

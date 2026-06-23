@@ -10,6 +10,7 @@ type MaybePromise<T> = T | Promise<T>;
 type InteractionPayload = string | Record<string, unknown>;
 type MongoWriteResult = { matchedCount?: number; modifiedCount?: number };
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
+type GameFilterSurface = "set-games" | "watchlist";
 
 interface DiscordInteraction {
   commandName?: string;
@@ -46,25 +47,31 @@ type GameFilterContext = GameFilterInteractionDeps & {
 function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
   const { GuildModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit, formatUserError, logger } = deps;
 
-  async function handleSetGames(interaction: DiscordInteraction, games: GameConfig[], sub: string, guildId: string) {
-    if (sub === "list") {
+  async function handleGameFilterOperation(
+    interaction: DiscordInteraction,
+    games: GameConfig[],
+    sub: string,
+    guildId: string,
+    surface: GameFilterSurface
+  ) {
+    if (sub === "show" || sub === "list") {
       const guild = await getGuildSettings(guildId);
       const enabled = Array.isArray(guild?.enabledGames) ? guild.enabledGames.map(String) : [];
       if (enabled.length === 0) {
-        return safeEdit(interaction, "OK: Filtru per-joc: **dezactivat** (toate jocurile configurate sunt active).");
+        return safeEdit(interaction, "OK: Watchlist: **toate jocurile configurate sunt active**.");
       }
       const lines = enabled.map((key) => {
         const game = games.find((candidate) => candidate.key === key);
         return game ? `- **${game.name}** (\`${game.key}\`)` : `- \`${key}\` *(cheie necunoscuta in config)*`;
       });
-      return safeEdit(interaction, `OK: Jocuri active explicit (${enabled.length}):\n` + lines.join("\n"));
+      return safeEdit(interaction, `OK: Jocuri in watchlist (${enabled.length}):\n` + lines.join("\n"));
     }
 
     if (sub === "reset") {
       try {
         await GuildModel.updateOne({ _id: guildId }, { $set: { enabledGames: [] } }, { upsert: true });
         invalidateGuildCache(guildId);
-        return safeEdit(interaction, "OK: Filtru per-joc resetat. Toate jocurile sunt active.");
+        return safeEdit(interaction, "OK: Watchlist resetat. Toate jocurile sunt active.");
       } catch (err: unknown) {
         return safeEdit(interaction, formatUserError(err, "Eroare la resetare."));
       }
@@ -84,7 +91,7 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
           { upsert: true }
         );
         invalidateGuildCache(guildId);
-        return safeEdit(interaction, `OK: **${game.name}** adaugat la lista activa.`);
+        return safeEdit(interaction, `OK: **${game.name}** adaugat in watchlist.`);
       }
       if (sub === "remove") {
         const result = await GuildModel.updateOne(
@@ -95,15 +102,21 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
         const displayName = game ? game.name : String(gameKey);
         const note = game ? "" : " *(cheie nu mai exista in config — am curatat-o)*";
         if (result.modifiedCount === 0) {
-          return safeEdit(interaction, `Info: **${displayName}** nu era in lista activa, nimic de scos.`);
+          return safeEdit(interaction, `Info: **${displayName}** nu era in watchlist, nimic de scos.`);
         }
-        return safeEdit(interaction, `OK: **${displayName}** scos din lista activa.${note}`);
+        return safeEdit(interaction, `OK: **${displayName}** scos din watchlist.${note}`);
       }
     } catch (err: unknown) {
       return safeEdit(interaction, formatUserError(err, "Eroare la modificarea listei de jocuri."));
     }
-    logger?.("WARN", "SET_GAMES", `Subcomanda /set games necunoscuta: ${sub}`);
-    return safeEdit(interaction, `Eroare: Subcomanda \`/set games ${sub}\` nu este recunoscuta.`);
+    const label = surface === "watchlist" ? "/watchlist" : "/set games";
+    const logContext = surface === "watchlist" ? "WATCHLIST" : "SET_GAMES";
+    logger?.("WARN", logContext, `Subcomanda ${label} necunoscuta: ${sub}`);
+    return safeEdit(interaction, `Eroare: Subcomanda \`${label} ${sub}\` nu este recunoscuta.`);
+  }
+
+  async function handleSetGames(interaction: DiscordInteraction, games: GameConfig[], sub: string, guildId: string) {
+    return handleGameFilterOperation(interaction, games, sub, guildId, "set-games");
   }
 
   async function handleSetGamesInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
@@ -114,7 +127,15 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
     return handleSetGames(interaction, games, sub, guildId);
   }
 
-  return { handleSetGames, handleSetGamesInteraction };
+  async function handleWatchlistInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
+    const guildId = interaction.guild?.id;
+    if (!guildId) return undefined;
+    const sub = interaction.options.getSubcommand();
+    await safeDefer(interaction);
+    return handleGameFilterOperation(interaction, games, sub, guildId, "watchlist");
+  }
+
+  return { handleGameFilterOperation, handleSetGames, handleSetGamesInteraction, handleWatchlistInteraction };
 }
 
 function isSetGamesCommand(interaction: DiscordInteraction) {
@@ -122,6 +143,12 @@ function isSetGamesCommand(interaction: DiscordInteraction) {
     && interaction.guild
     && interaction.commandName === "set"
     && interaction.options?.getSubcommandGroup?.(false) === "games";
+}
+
+function isWatchlistCommand(interaction: DiscordInteraction) {
+  return interaction?.isChatInputCommand?.() === true
+    && interaction.guild
+    && interaction.commandName === "watchlist";
 }
 
 function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
@@ -144,18 +171,21 @@ function buildGameFilterCommandHandler(target: GameFilterContext) {
   });
 
   const command: CommandHandler<DiscordInteraction> = {
-    canHandle: (interaction): interaction is DiscordInteraction => Boolean(isSetGamesCommand(interaction as DiscordInteraction)),
+    canHandle: (interaction): interaction is DiscordInteraction => Boolean(
+      isSetGamesCommand(interaction as DiscordInteraction) || isWatchlistCommand(interaction as DiscordInteraction)
+    ),
     handle: async (interaction, games) => {
       const di = interaction;
       try {
+        if (isWatchlistCommand(di)) return await handlers.handleWatchlistInteraction(di, games);
         return await handlers.handleSetGamesInteraction(di, games);
       } catch (err: unknown) {
-        target.logger?.("ERROR", "GAME_FILTER_INTERACTION", "Eroare in handler-ul /set games", errorDetail(err));
+        target.logger?.("ERROR", "GAME_FILTER_INTERACTION", "Eroare in handler-ul de filtru jocuri", errorDetail(err));
         const payload = createInteractionErrorPayload(target.MessageFlags);
         try {
           if ((di.deferred || di.replied) && typeof di.followUp === "function") await di.followUp(payload);
           else if (typeof di.reply === "function") await di.reply(payload);
-        } catch {  }
+        } catch {}
         return undefined;
       }
     }

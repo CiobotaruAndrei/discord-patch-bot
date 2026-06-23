@@ -1,6 +1,7 @@
 "use strict";
 
 type AutocompleteChoice = { name: string; value: string };
+type CommandHelpChoiceOptions = { excludeCommands?: readonly string[] };
 
 export type CommandHelpEntry = {
   command: string;
@@ -19,6 +20,8 @@ export const COMMAND_HELP_ENTRIES: readonly CommandHelpEntry[] = [
   { command: "/games", permissions: "Public", description: "Listeaza jocurile cunoscute de bot si cheile/poreclele pe care le poti folosi in comenzile cu joc.", example: "/games" },
   { command: "/help", permissions: "Public", description: "Afiseaza meniul general de ajutor. Daca alegi o comanda in optiunea command, primesti explicatia detaliata pentru comanda aceea.", example: "/help command:/set games add" },
   { command: "/config", permissions: "Admin, Ephemeral", description: "Afiseaza intr-un singur loc setarile curente ale serverului: mode, filtre de reduceri, valuta, store-uri, jocuri active, roluri si canale.", example: "/config" },
+  { command: "/snooze", permissions: "Admin, Ephemeral", description: "Pune temporar pe pauza o comanda existenta a botului pentru server. Comanda aleasa vine din autocomplete, iar durata accepta valori precum 30m, 2h sau 1d.", example: "/snooze command:/latest updates durata:2h", notes: ["Nu poate opri /snooze sau /unsnooze, ca adminii sa poata gestiona mereu pauzele."] },
+  { command: "/unsnooze", permissions: "Admin, Ephemeral", description: "Scoate pauza temporara de pe o comanda pusa anterior in snooze.", example: "/unsnooze command:/latest updates" },
   { command: "/start updates", permissions: "Admin", description: "Porneste notificarile automate de update-uri pe canalul curent si face baseline, ca botul sa nu trimita retroactiv toate update-urile vechi.", example: "/start updates" },
   { command: "/start reduceri", permissions: "Admin", description: "Porneste alertele automate de reduceri pe canalul curent si face baseline, ca botul sa trimita doar reducerile noi gasite dupa activare.", example: "/start reduceri" },
   { command: "/stop updates", permissions: "Admin", description: "Opreste notificarile automate de update-uri pentru server.", example: "/stop updates" },
@@ -34,7 +37,10 @@ export const COMMAND_HELP_ENTRIES: readonly CommandHelpEntry[] = [
   { command: "/set games add", permissions: "Admin", description: "Adauga un joc deja cunoscut de bot in lista explicita de jocuri active pentru server.", example: "/set games add joc:cs2", notes: ["Nu adauga un joc nou in codul botului; doar activeaza pentru server un joc existent in configuratie."] },
   { command: "/set games remove", permissions: "Admin", description: "Scoate un joc din lista explicita de jocuri active pentru server.", example: "/set games remove joc:cs2" },
   { command: "/set games reset", permissions: "Admin", description: "Reseteaza filtrul per-joc. Dupa reset, serverul foloseste toate jocurile cunoscute de bot.", example: "/set games reset" },
-  { command: "/set games list", permissions: "Admin", description: "Afiseaza lista explicita de jocuri active pentru server.", example: "/set games list" },
+  { command: "/watchlist show", permissions: "Admin", description: "Afiseaza jocurile urmarite explicit pe server. Daca lista este goala, serverul foloseste toate jocurile configurate.", example: "/watchlist show" },
+  { command: "/watchlist add", permissions: "Admin", description: "Adauga un joc deja cunoscut de bot in watchlist-ul serverului.", example: "/watchlist add joc:cs2" },
+  { command: "/watchlist remove", permissions: "Admin", description: "Scoate un joc din watchlist-ul serverului.", example: "/watchlist remove joc:cs2" },
+  { command: "/watchlist reset", permissions: "Admin", description: "Reseteaza watchlist-ul. Dupa reset, toate jocurile configurate sunt active.", example: "/watchlist reset" },
   { command: "/set role updates", permissions: "Admin", description: "Seteaza rolul pingat la notificarile de update-uri. Daca nu alegi rol, ping-ul se opreste.", example: "/set role updates value:@Updates" },
   { command: "/set role discounts", permissions: "Admin", description: "Seteaza rolul pingat la alertele de reduceri. Daca nu alegi rol, ping-ul se opreste.", example: "/set role discounts value:@Deals" },
   { command: "/outbox status", permissions: "Admin", description: "Afiseaza starea cozii de notificari: cate mesaje asteapta livrare, cate sunt in dead-letter, daca drenarea e pe pauza si starea recovery-verify.", example: "/outbox status", notes: ["Outbox inseamna coada persistenta in MongoDB in care botul pune mesajele de trimis, ca sa nu le piarda la restart sau erori temporare."] },
@@ -92,9 +98,11 @@ function scoreEntry(entry: CommandHelpEntry, input: string): number {
   return score;
 }
 
-export function buildCommandHelpChoices(inputValue: unknown): AutocompleteChoice[] {
+export function buildCommandHelpChoices(inputValue: unknown, options: CommandHelpChoiceOptions = {}): AutocompleteChoice[] {
   const input = normalizeCommandHelpQuery(inputValue).slice(0, 100);
+  const excluded = new Set((options.excludeCommands || []).map(normalizeCommandHelpQuery));
   return COMMAND_HELP_ENTRIES
+    .filter(entry => !excluded.has(normalizeCommandHelpQuery(entry.command)))
     .map((entry, index) => ({ entry, index, score: scoreEntry(entry, input) }))
     .filter(item => item.score >= 0)
     .sort((a, b) => b.score - a.score || a.index - b.index)

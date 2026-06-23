@@ -78,9 +78,11 @@ import attachHistoryInteractionHandler = require("../command-handlers/historyInt
 import attachReportInteractionHandler = require("../command-handlers/reportInteractionHandler");
 import attachHealthInteractionHandler = require("../command-handlers/healthInteractionHandler");
 import attachConfigInteractionHandler = require("../command-handlers/configInteractionHandler");
+import attachSnoozeInteractionHandler = require("../command-handlers/snoozeInteractionHandler");
 import attachSourcesStatusHandler = require("../command-handlers/sourcesStatusHandler");
 import attachDlcInteractionHandler = require("../command-handlers/dlcInteractionHandler");
 import attachAutocompleteInteractionHandler = require("../command-handlers/autocompleteInteractionHandler");
+import attachCommandSnoozeGuard = require("../command-security/commandSnoozeGuard");
 import attachAdminCommandRouterGuard = require("../command-security/adminCommandRouterGuard");
 
 const { createCommandRuntimeContext } = require("../command-runtime/commandRuntimeContext") as typeof import("../command-runtime/commandRuntimeContext");
@@ -119,6 +121,7 @@ function createCommandRegistry(): RequiredCommandRegistry {
     attachDlcInteractionHandler.buildCommandHandler(ctx),
     attachSourcesStatusHandler.buildCommandHandler(ctx),
     attachConfigInteractionHandler.buildCommandHandler(ctx),
+    attachSnoozeInteractionHandler.buildCommandHandler(ctx),
     attachHealthInteractionHandler.buildCommandHandler(ctx),
     attachReportInteractionHandler.buildCommandHandler(ctx),
     attachHistoryInteractionHandler.buildCommandHandler(ctx),
@@ -143,6 +146,7 @@ function createCommandRegistry(): RequiredCommandRegistry {
 
   ctx.handleInteraction = dispatchCommand;
   ctx.buildHelpEmbed = helpCommand.buildHelpEmbed;
+  attachCommandSnoozeGuard(ctx);
   attachAdminCommandRouterGuard(ctx);
 
   return {

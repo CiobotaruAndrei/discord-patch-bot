@@ -17,6 +17,13 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 | `/help` | Afiseaza meniul de ajutor cu principalele comenzi si categorii. |
 | `/help command:<comanda>` | Afiseaza ephemeral explicatia detaliata pentru o comanda exacta. Optiunea `command` are autocomplete cu comenzile existente, de exemplu `/set games add`, `/outbox deadletters` sau `/latest pret`. |
 
+## Pauze temporare pentru comenzi
+
+| Comanda | Permisiuni | Ce face |
+| --- | --- | --- |
+| `/snooze command:<comanda> durata:<timp>` | Admin, Ephemeral | Pune temporar pe pauza o comanda existenta a botului pentru server. Optiunea `command` are autocomplete ca `/help command`, iar `durata` accepta valori precum `30m`, `2h` sau `1d`. Nu poate opri `/snooze` sau `/unsnooze`, ca adminii sa poata gestiona mereu pauzele. |
+| `/unsnooze command:<comanda>` | Admin, Ephemeral | Scoate pauza temporara de pe comanda aleasa inainte sa expire automat. Foloseste acelasi autocomplete pe comenzile existente. |
+
 ## Notificari automate
 
 | Comanda | Permisiuni | Ce face |
@@ -47,7 +54,10 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 | `/set games add joc:<key>` | Admin, Autocomplete | Adauga un joc in lista explicita de jocuri active pentru server. |
 | `/set games remove joc:<key>` | Admin, Autocomplete | Scoate un joc din lista explicita de jocuri active pentru server. |
 | `/set games reset` | Admin | Reseteaza filtrul de jocuri. Dupa reset, toate jocurile configurate sunt active. |
-| `/set games list` | Admin | Afiseaza jocurile active explicit. Daca lista este goala, serverul foloseste toate jocurile configurate. |
+| `/watchlist show` | Admin | Afiseaza jocurile urmarite explicit. Daca lista este goala, serverul foloseste toate jocurile configurate. |
+| `/watchlist add joc:<key>` | Admin, Autocomplete | Adauga un joc in watchlist-ul serverului. |
+| `/watchlist remove joc:<key>` | Admin, Autocomplete | Scoate un joc din watchlist-ul serverului. |
+| `/watchlist reset` | Admin | Reseteaza watchlist-ul. Dupa reset, toate jocurile configurate sunt active. |
 
 ## Roluri ping pentru notificari
 

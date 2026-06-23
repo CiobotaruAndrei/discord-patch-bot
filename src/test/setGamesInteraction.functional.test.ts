@@ -66,7 +66,7 @@ test("/set games add builds the expected Mongo update and confirmation", async (
   assert.deepEqual(calls[0].update, { $addToSet: { enabledGames: "cs2" } });
   assert.deepEqual(calls[0].options, { upsert: true });
   assert.deepEqual(invalidatedGuilds, ["guild-1"]);
-  assert.equal(replies[0], "OK: **Counter-Strike 2** adaugat la lista activa.");
+  assert.equal(replies[0], "OK: **Counter-Strike 2** adaugat in watchlist.");
 });
 
 test("/set games add rejects unknown game keys before writing", async () => {
@@ -89,5 +89,5 @@ test("/set games remove builds the expected pull update", async () => {
   assert.deepEqual(calls[0].update, { $pull: { enabledGames: "fortnite" } });
   assert.equal(calls[0].options, undefined);
   assert.deepEqual(invalidatedGuilds, ["guild-2"]);
-  assert.equal(replies[0], "OK: **Fortnite** scos din lista activa.");
+  assert.equal(replies[0], "OK: **Fortnite** scos din watchlist.");
 });
