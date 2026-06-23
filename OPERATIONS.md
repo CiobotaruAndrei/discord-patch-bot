@@ -7,7 +7,7 @@ vizibilitate si control direct din Discord.
 Pe scurt, instrumentele de operare:
 
 - Metrici Prometheus la `/metrics` (vezi README sectiunea health/metrics).
-- Comenzi admin: `/outbox status | deadletters | clear-deadletters | replay-deadletters | retry | drain-now | pause | resume | recovery-verify status`.
+- Comenzi admin: `/outbox status | deadletters | clear-deadletters | replay-deadletters | retry | drain-now | pause | resume | permissions | recovery-verify status`.
 - Alerte admin (webhook): trimise automat la `recoveryFailures > 0` (`outbox:recovery-read`),
   `markSentFailures > 0` (`outbox:mark-sent`), `deleteFailures > 0` (`outbox:delete` — job-uri
   procesate care nu s-au putut sterge din coada; raman deduse/reluate) si `deadLetterFailures > 0`

@@ -16,6 +16,7 @@ export interface NotificationHistoryDoc {
   gameKey: string;
   title: string;
   link: string;
+  dedupeKey: string;
   sentAt: Date;
 }
 
@@ -29,6 +30,7 @@ export interface NotificationHistoryRecord {
 
 interface NotificationHistoryModelLike {
   insertMany(docs: unknown[], opts?: unknown): Promise<unknown>;
+  bulkWrite(ops: unknown[], opts?: unknown): Promise<unknown>;
   find(filter: unknown, projection?: unknown): {
     sort(spec: unknown): { limit(count: number): { lean(): Promise<Array<Record<string, unknown>>> } };
   };
@@ -51,12 +53,17 @@ export function sanitizeHistoryDocs(guildId: string, entries: ReadonlyArray<Hist
   const docs: NotificationHistoryDoc[] = [];
   for (const entry of entries || []) {
     if (!entry || (entry.kind !== "update" && entry.kind !== "discount")) continue;
+    const gameKey = String(entry.gameKey || "").slice(0, 100);
+    const title = String(entry.title || "").slice(0, 300);
+    const link = String(entry.link || "").slice(0, 500);
+    const identity = link || title;
     docs.push({
       guildId,
       kind: entry.kind,
-      gameKey: String(entry.gameKey || "").slice(0, 100),
-      title: String(entry.title || "").slice(0, 300),
-      link: String(entry.link || "").slice(0, 500),
+      gameKey,
+      title,
+      link,
+      dedupeKey: identity ? `${entry.kind}:${gameKey}:${identity}` : "",
       sentAt: now
     });
   }
@@ -73,8 +80,22 @@ export function createHistoryRepository(deps: HistoryRepositoryDeps): HistoryRep
   async function recordSent(guildId: string, entries: NotificationHistoryEntry[]): Promise<void> {
     const docs = sanitizeHistoryDocs(guildId, entries, new Date());
     if (docs.length === 0) return;
+    const keyed = docs.filter(doc => doc.dedupeKey);
+    const unkeyed = docs.filter(doc => !doc.dedupeKey);
     try {
-      await withMongoRetry(() => NotificationHistoryModel.insertMany(docs, { ordered: false }), { label: "history:record", retries: 1 });
+      if (keyed.length > 0) {
+        const ops = keyed.map(doc => ({
+          updateOne: {
+            filter: { guildId: doc.guildId, dedupeKey: doc.dedupeKey },
+            update: { $setOnInsert: doc },
+            upsert: true
+          }
+        }));
+        await withMongoRetry(() => NotificationHistoryModel.bulkWrite(ops, { ordered: false }), { label: "history:record", retries: 1 });
+      }
+      if (unkeyed.length > 0) {
+        await withMongoRetry(() => NotificationHistoryModel.insertMany(unkeyed, { ordered: false }), { label: "history:record-unkeyed", retries: 1 });
+      }
     } catch (err) {
       logger("WARN", "HISTORY", "Nu am putut scrie istoricul notificarilor (best-effort, livrarea nu e afectata)", err);
     }

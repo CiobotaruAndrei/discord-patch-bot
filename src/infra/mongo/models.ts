@@ -190,9 +190,11 @@ const notificationHistorySchema = new mongoose.Schema({
   gameKey: { type: String, default: "" },
   title: { type: String, default: "" },
   link: { type: String, default: "" },
+  dedupeKey: { type: String, default: "" },
   sentAt: { type: Date, default: Date.now, expires: NOTIFICATION_HISTORY_TTL_DAYS * ONE_DAY_MS / 1000 }
 }, { minimize: false });
 notificationHistorySchema.index({ guildId: 1, sentAt: -1 }, { background: true });
+notificationHistorySchema.index({ guildId: 1, dedupeKey: 1 }, { unique: true, partialFilterExpression: { dedupeKey: { $gt: "" } }, background: true });
 const NotificationHistoryModel = mongoose.model("NotificationHistory", notificationHistorySchema, "notificationHistory");
 
 const FEEDBACK_REPORT_TTL_DAYS = env.FEEDBACK_REPORT_TTL_DAYS;

@@ -10,6 +10,8 @@ const noopLogger = () => undefined;
 interface FakeModelOpts {
   onInsert?: () => void;
   insertThrows?: boolean;
+  onBulkWrite?: (ops: unknown[]) => void;
+  bulkWriteThrows?: boolean;
   onFind?: (filter: unknown) => void;
   onLimit?: (count: number) => void;
   docs?: Array<Record<string, unknown>>;
@@ -20,6 +22,10 @@ function makeModel(opts: FakeModelOpts) {
     insertMany: async () => {
       if (opts.insertThrows) throw new Error("mongo down");
       if (opts.onInsert) opts.onInsert();
+    },
+    bulkWrite: async (ops: unknown[]) => {
+      if (opts.bulkWriteThrows) throw new Error("mongo down");
+      if (opts.onBulkWrite) opts.onBulkWrite(ops);
     },
     find: (filter: unknown) => {
       if (opts.onFind) opts.onFind(filter);
@@ -65,15 +71,41 @@ test("clampHistoryLimit: implicit 10, minim 1, maxim 25", () => {
   assert.equal(clampHistoryLimit(100), 25);
 });
 
-test("recordSent e best-effort: nu arunca daca insertMany esueaza", async () => {
+test("recordSent e best-effort: nu arunca daca scrierea esueaza", async () => {
   let logged = false;
   const repo = createHistoryRepository({
-    NotificationHistoryModel: makeModel({ insertThrows: true }),
+    NotificationHistoryModel: makeModel({ bulkWriteThrows: true }),
     withMongoRetry: passThroughRetry,
     logger: () => { logged = true; }
   });
   await repo.recordSent("g1", [{ kind: "update", title: "x" }]);
   assert.equal(logged, true, "esecul trebuie logat, nu aruncat");
+});
+
+test("recordSent: intrarile cu identitate (link/title) sunt scrise idempotent prin upsert pe (guildId, dedupeKey)", async () => {
+  let captured: unknown[] | null = null;
+  const repo = createHistoryRepository({
+    NotificationHistoryModel: makeModel({ onBulkWrite: ops => { captured = ops; } }),
+    withMongoRetry: passThroughRetry,
+    logger: noopLogger
+  });
+  await repo.recordSent("g1", [{ kind: "update", gameKey: "cs2", title: "Patch", link: "https://x/y" }]);
+  const ops = captured as Array<{ updateOne: { filter: Record<string, unknown>; update: Record<string, unknown>; upsert: boolean } }> | null;
+  assert.ok(ops && ops.length === 1, "o operatie de upsert per intrare cu identitate");
+  assert.equal(ops![0].updateOne.upsert, true, "upsert: true -> idempotent la re-livrare (crash recovery)");
+  assert.deepEqual(ops![0].updateOne.filter, { guildId: "g1", dedupeKey: "update:cs2:https://x/y" }, "filtrul de dedup e (guildId, dedupeKey) derivat din kind:gameKey:link");
+  assert.ok("$setOnInsert" in ops![0].updateOne.update, "scrie doar la insert (nu suprascrie la re-livrare)");
+});
+
+test("sanitizeHistoryDocs deriva dedupeKey din kind:gameKey:link (fallback pe title), gol cand nu exista identitate", () => {
+  const docs = sanitizeHistoryDocs("g", [
+    { kind: "update", gameKey: "cs2", title: "Patch", link: "https://x/y" },
+    { kind: "discount", title: "Deal fara link" },
+    { kind: "update" }
+  ], new Date());
+  assert.equal(docs[0].dedupeKey, "update:cs2:https://x/y", "cu link -> link in cheie");
+  assert.equal(docs[1].dedupeKey, "discount::Deal fara link", "fara link -> fallback pe title");
+  assert.equal(docs[2].dedupeKey, "", "fara link si fara title -> dedupeKey gol (nu intra in index-ul unic partial)");
 });
 
 test("recordSent nu apeleaza insertMany cand nu sunt intrari valide", async () => {
