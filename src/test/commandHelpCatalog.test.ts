@@ -73,10 +73,22 @@ test("command help catalog: fiecare entry corespunde unei comenzi reale din slas
   }
 });
 
-test("command help catalog: fiecare comanda din catalog e documentata in docs/Comenzi Functionalitate.md (anti-drift docs<->catalog)", () => {
+function normalizeDocCommand(command: string): string {
+  return command.replace(/\s+[a-z]+:.*$/, "").replace(/\s+<.*$/, "").trim();
+}
+
+test("command help catalog: setul de comenzi din tabelul docs/Comenzi Functionalitate.md coincide BIDIRECTIONAL cu catalogul (anti-drift, nu doar includes)", () => {
   const doc = fs.readFileSync(path.join(process.cwd(), "..", "docs", "Comenzi Functionalitate.md"), "utf8");
-  for (const entry of COMMAND_HELP_ENTRIES) {
-    assert.ok(doc.includes(entry.command), `docs/Comenzi Functionalitate.md nu mentioneaza ${entry.command} (catalogul /help si tabelul docs au divergiat)`);
+  const docCommands = new Set<string>();
+  for (const match of doc.matchAll(/^\|\s*`(\/[^`]+)`/gm)) docCommands.add(normalizeDocCommand(match[1]));
+  const catalogCommands = new Set(COMMAND_HELP_ENTRIES.map(entry => normalizeDocCommand(entry.command)));
+  assert.ok(docCommands.size > 10, "tabelul de comenzi a fost parsat");
+
+  for (const command of catalogCommands) {
+    assert.ok(docCommands.has(command), `docs/Comenzi Functionalitate.md nu documenteaza comanda din catalog: ${command}`);
+  }
+  for (const command of docCommands) {
+    assert.ok(catalogCommands.has(command), `docs/Comenzi Functionalitate.md documenteaza o comanda care nu mai e in catalogul /help (entry stale): ${command}`);
   }
 });
 

@@ -203,6 +203,7 @@ index-uri conflictuale/invalide. Inventarul declarat curent:
 | `notificationOutboxSent` | `{ dedupeKey }` | unique | istoricul de livrari pentru dedup la recovery |
 | `notificationOutboxSent` | `{ sentAt }` | TTL `NOTIFICATION_OUTBOX_SENT_TTL_HOURS` (implicit 24h) | expirarea istoricului de dedup |
 | `notificationHistory` | `{ guildId, sentAt }` | TTL `NOTIFICATION_HISTORY_TTL_DAYS` (implicit 30 zile) | istoricul notificarilor livrate efectiv per server, pentru comanda `/history`; scris dupa send-ul real (cu outbox: la livrarea din coada, nu la enqueue) |
+| `notificationHistory` | `{ guildId, dedupeKey }` | unique, partial (`dedupeKey > ""`) | idempotenta `/history`: o re-livrare/recovery a aceleiasi notificari nu adauga un al doilea rand (upsert pe `dedupeKey`) |
 | `feedbackReports` | `{ guildId, createdAt }` | TTL `FEEDBACK_REPORT_TTL_DAYS` (implicit 90 zile) | rapoartele trimise de utilizatori prin comanda `/report` |
 | `notificationDeadLetterReplay` | `{ updatedAt }` | TTL `NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS` (implicit 7 zile) | expira payload-ul de replay; `updatedAt` se reimprospateaza la fiecare re-record, deci TTL se masoara de la ultimul dead-letter |
 | `notificationDeadLetterReplay` | `{ guildId, createdAt }` | — | listare FIFO a payload-urilor de replay per server (`/outbox replay-deadletters`) |
@@ -213,6 +214,22 @@ index-uri conflictuale/invalide. Inventarul declarat curent:
 
 Cand adaugi/modifici un index in `models.ts`, actualizeaza tabelul de mai sus — altfel
 `check:db-indexes` esueaza (Regula: codul reflectat in documentatie).
+
+### Formatul cheii de dedup `/history` si tranzitia de versiune
+
+`dedupeKey` din `notificationHistory` este versionat: `history:v1:<sha256>`, unde `<sha256>` e
+hash-ul peste identitatea structurata a notificarii (`kind`, `gameKey`, `link`, `title`, `itemId` =
+`updateId`/`dealHash`). Prefixul de versiune izoleaza explicit formatul, ca o schimbare viitoare de
+algoritm/inputuri sa fie `history:v2:...` si sa nu coliziona cu cheile vechi.
+
+O schimbare de format **nu produce duplicate de NOTIFICARI** — dedup-ul de trimitere e separat si
+neafectat (colectiile `guildSeenUpdate`/`guildSeenDiscount` + `notificationOutboxSent`). Singurul
+efect posibil este, **doar in fereastra unui deploy** in care exista re-livrari/recovery ale aceleiasi
+notificari fix peste momentul schimbarii de format, **una-doua intrari duplicate in `/history`** pentru
+aceeasi livrare (cheile vechi si cele noi nu se mai recunosc reciproc). Acestea **expira automat** prin
+TTL-ul `notificationHistory` (implicit 30 zile), deci nu e necesara o migrare a istoricului. Daca vrei un
+istoric perfect curat imediat dupa o schimbare de format, fa o migrare unica (recalculeaza `dedupeKey`
+sau golesti colectia) — altfel, fereastra se inchide singura.
 
 ## Migrarea hash-ului de dedup (`HASH_VERSION`)
 
