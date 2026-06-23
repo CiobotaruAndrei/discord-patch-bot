@@ -69,6 +69,17 @@ test("autocomplete returns empty when focused option is not `joc`", async () => 
   assert.deepEqual(responses[0], []);
 });
 
+test("autocomplete suggests bot commands for /help command", async () => {
+  const { context } = makeContext();
+  const { interaction, responses } = makeInteraction({
+    command: "help",
+    focused: { name: "command", value: "dead" }
+  });
+  await context.handleInteraction(interaction, GAMES);
+  assert.equal(responses.length, 1);
+  assert.ok(responses[0].some(choice => choice.value === "/outbox deadletters"));
+});
+
 test("autocomplete returns top matches sorted by score then alphabetically", async () => {
   const { context } = makeContext();
   const { interaction, responses } = makeInteraction({

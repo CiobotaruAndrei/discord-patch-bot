@@ -4,6 +4,10 @@ import type { LoggerFunction } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 
 const { errorDetail } = require("../../shared/errors");
+const {
+  findCommandHelpEntry,
+  renderCommandHelpEntry
+} = require("../command-help/commandHelpCatalog") as typeof import("../command-help/commandHelpCatalog");
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
@@ -13,6 +17,9 @@ type DiscordInteraction = {
   deferred?: boolean;
   replied?: boolean;
   isChatInputCommand?: () => boolean;
+  options?: {
+    getString(name: string, required?: boolean): string | null;
+  };
   reply: (payload: unknown) => Promise<unknown>;
   followUp?: (payload: unknown) => Promise<unknown>;
 };
@@ -28,6 +35,9 @@ type EmbedBuilderCtor = new () => EmbedBuilderInstance;
 
 type HelpHandlerDeps = {
   buildHelpEmbed: () => unknown;
+  MessageFlags?: { Ephemeral: number };
+  findCommandHelpEntry?: typeof findCommandHelpEntry;
+  renderCommandHelpEntry?: typeof renderCommandHelpEntry;
 };
 
 type HelpContext = {
@@ -46,6 +56,7 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
     .setDescription("Toate comenzile sunt slash commands. Incepe cu `/` pentru autocomplete.")
     .addFields(
       { name: "Utilitare", value: "`/ping` - `/games` - `/help`" },
+      { name: "Ajutor pe comanda", value: "`/help command:<comanda>` - explicatie detaliata pentru o comanda exacta" },
       { name: "Notificari Automate (admin)", value: "`/start updates` - `/stop updates`\n`/start reduceri` - `/stop reduceri`" },
       {
         name: "Preferinte Server (admin)",
@@ -86,8 +97,30 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
     );
 }
 
+function commandHelpPayload(content: string, MessageFlags?: { Ephemeral: number }) {
+  if (!MessageFlags) return { content };
+  return { content, flags: MessageFlags.Ephemeral };
+}
+
+function readRequestedCommand(interaction: DiscordInteraction): string | null {
+  const value = interaction.options?.getString("command", false);
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
 function createHelpHandler(deps: HelpHandlerDeps) {
   async function handleHelpInteraction(interaction: DiscordInteraction) {
+    const requestedCommand = readRequestedCommand(interaction);
+    if (requestedCommand) {
+      const findEntry = deps.findCommandHelpEntry || findCommandHelpEntry;
+      const renderEntry = deps.renderCommandHelpEntry || renderCommandHelpEntry;
+      const entry = findEntry(requestedCommand);
+      if (!entry) {
+        return interaction.reply(commandHelpPayload(`Eroare: Nu am gasit comanda \`${requestedCommand}\`. Alege o comanda din autocomplete la \`/help command:\`.`, deps.MessageFlags));
+      }
+      return interaction.reply(commandHelpPayload(renderEntry(entry), deps.MessageFlags));
+    }
     return interaction.reply({ embeds: [deps.buildHelpEmbed()] });
   }
 
@@ -119,7 +152,7 @@ function resolveHelpEmbedBuilder(target: HelpContext): () => unknown {
 
 function buildHelpCommandHandler(target: HelpContext): CommandHandler<DiscordInteraction> & { buildHelpEmbed: () => unknown } {
   const resolvedBuildHelpEmbed = resolveHelpEmbedBuilder(target);
-  const handlers = createHelpHandler({ buildHelpEmbed: resolvedBuildHelpEmbed });
+  const handlers = createHelpHandler({ buildHelpEmbed: resolvedBuildHelpEmbed, MessageFlags: target.MessageFlags });
   return {
     canHandle: (interaction): interaction is DiscordInteraction => isHelpCommand(interaction as DiscordInteraction),
     handle: async (interaction) => {
