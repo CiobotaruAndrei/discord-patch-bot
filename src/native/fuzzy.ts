@@ -342,7 +342,7 @@ function cleanTextFallback(value: unknown): string {
   return replaced.replace(/\s+/g, " ").trim();
 }
 
-function stableUpdateIdFallback(title: unknown, link: unknown): string {
+export function stableUpdateIdFallback(title: unknown, link: unknown): string {
   const base = `${String(title || "")}|${String(link || "")}`;
   return crypto.createHash("sha256").update(base).digest("hex").substring(0, 16);
 }

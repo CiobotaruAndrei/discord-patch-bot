@@ -95,6 +95,7 @@ test("defaultGuardConfig: praguri implicite + suprascriere prin env + requireNat
   assert.equal(base.failBelow, 0.85);
   assert.equal(base.warnBelow.levenshtein, 1.4);
   assert.equal(base.warnBelow.dealHash, 1.2);
+  assert.equal(base.warnBelow.stableUpdateId, 1.2);
   assert.equal(base.warnBelow.rankListingCandidates, 1.1);
   assert.equal(base.requireNative, false, "implicit nu cere nativul (CI-safe local)");
 
@@ -113,7 +114,7 @@ test("defaultGuardConfig: praguri implicite + suprascriere prin env + requireNat
 });
 
 test("HOT_PATH_AREAS enumera doar functiile pe care BENCHMARKS.md le pastreaza in Rust", () => {
-  assert.deepEqual([...HOT_PATH_AREAS], ["levenshtein", "dealHash", "rankListingCandidates"]);
+  assert.deepEqual([...HOT_PATH_AREAS], ["levenshtein", "dealHash", "stableUpdateId", "rankListingCandidates"]);
 });
 
 test("collectGuardSamples: ruleaza fiecare benchmark exact `runs` ori (nu de 4/8) si pastreaza cel mai bun speedup per zona", () => {
@@ -122,12 +123,13 @@ test("collectGuardSamples: ruleaza fiecare benchmark exact `runs` ori (nu de 4/8
   let parityCalls = 0;
   const cpuSpeedups = [1.8, 2.5, 2.1];
   const dealHashSpeedups = [1.3, 1.6, 1.4];
+  const stableUpdateIdSpeedups = [1.25, 1.5, 1.35];
   const listingSpeedups = [1.1, 1.2, 1.05];
   const deps: GuardBenchmarkDeps = {
     runCpuBenchmark: () => cpuResult(cpuSpeedups[cpuCalls++]),
     runAreaBenchmarks: () => {
       const i = areaCalls++;
-      return [areaResult("dealHash", dealHashSpeedups[i]), areaResult("listing-rank", listingSpeedups[i]), areaResult("classifyPatchNote", 1.0)];
+      return [areaResult("dealHash", dealHashSpeedups[i]), areaResult("stableUpdateId", stableUpdateIdSpeedups[i]), areaResult("listing-rank", listingSpeedups[i]), areaResult("classifyPatchNote", 1.0)];
     },
     levenshteinParityMismatches: () => { parityCalls++; return []; }
   };
@@ -140,6 +142,7 @@ test("collectGuardSamples: ruleaza fiecare benchmark exact `runs` ori (nu de 4/8
   const byArea = Object.fromEntries(samples.map(s => [s.area, s]));
   assert.equal(byArea.levenshtein.speedup, 2.5, "cel mai bun speedup levenshtein din cele 3 runs");
   assert.equal(byArea.dealHash.speedup, 1.6, "cel mai bun speedup dealHash din cele 3 runs");
+  assert.equal(byArea.stableUpdateId.speedup, 1.5, "cel mai bun speedup stableUpdateId din cele 3 runs");
   assert.equal(byArea.rankListingCandidates.speedup, 1.2, "cel mai bun speedup listing-rank din cele 3 runs");
   assert.equal(byArea.dealHash.parityOk, true);
   assert.equal(byArea.levenshtein.rustAvailable, true);

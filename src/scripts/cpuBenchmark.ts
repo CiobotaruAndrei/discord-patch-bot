@@ -6,6 +6,7 @@ import {
   isRustFuzzyAvailable,
   findGameKeysFallback,
   dealHashFallback,
+  stableUpdateIdFallback,
   buildAutocompleteChoicesFallback,
   dealPassesFiltersFallback,
   rankListingCandidatesFallback
@@ -123,6 +124,15 @@ const SAMPLE_DEALS: DealInfo[] = [
   { store: "Steam", steamAppID: 1245620, id: "steam_1245620", title: "Elden Ring", salePrice: "41.99", normalPrice: "59.99", savings: 30 }
 ];
 
+const SAMPLE_UPDATES: Array<[string, string]> = [
+  ["Patch 1.2.0 - balance pass", "https://example.com/news/patch-1-2-0"],
+  ["Hotfix: crash on startup", "https://example.com/news/hotfix-crash"],
+  ["Season 3 update notes", "https://store.steampowered.com/news/app/730/view/123456"],
+  ["Major content drop", "https://example.com/news/major-content-drop"],
+  ["Weekly community update", "https://example.com/news/weekly-update-week-42"],
+  ["The Witcher 3: next-gen patch", "https://example.com/news/witcher3-nextgen"]
+];
+
 const SAMPLE_GUILD: GuildSettings = {
   _id: "bench-guild",
   minDiscountPercent: 20,
@@ -176,6 +186,8 @@ interface NativeFns {
   find_game_keys?: (text: string, games: unknown[], maxInput: number) => unknown;
   dealHash?: (...args: string[]) => string;
   deal_hash?: (...args: string[]) => string;
+  stableUpdateId?: (title: string, link: string) => string;
+  stable_update_id?: (title: string, link: string) => string;
   buildAutocompleteChoices?: (...args: unknown[]) => Array<{ name: string; value: string }>;
   build_autocomplete_choices?: (...args: unknown[]) => Array<{ name: string; value: string }>;
   dealPassesFilters?: (...args: unknown[]) => boolean;
@@ -230,6 +242,23 @@ function buildAreaSpecs(native: NativeFns | null): AreaSpec[] {
       const fn = n.dealHash || n.deal_hash;
       if (!fn) return true;
       return SAMPLE_DEALS.every(deal => fn(...dealHashNativeArgs(deal)) === dealHashFallback(deal));
+    }
+  });
+
+  specs.push({
+    area: "hashing (stableUpdateId)",
+    callsPerIteration: SAMPLE_UPDATES.length,
+    ts: () => { for (const [title, link] of SAMPLE_UPDATES) stableUpdateIdFallback(title, link); },
+    native: native && (native.stableUpdateId || native.stable_update_id)
+      ? (n: NativeFns) => {
+          const fn = (n.stableUpdateId || n.stable_update_id) as (title: string, link: string) => string;
+          for (const [title, link] of SAMPLE_UPDATES) fn(title, link);
+        }
+      : null,
+    parityOk: (n: NativeFns) => {
+      const fn = n.stableUpdateId || n.stable_update_id;
+      if (!fn) return true;
+      return SAMPLE_UPDATES.every(([title, link]) => fn(title, link) === stableUpdateIdFallback(title, link));
     }
   });
 

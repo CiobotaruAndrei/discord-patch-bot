@@ -52,9 +52,12 @@ export interface HistoryRepository {
 
 type HistoryEntryLike = { kind?: unknown; gameKey?: unknown; title?: unknown; link?: unknown; itemId?: unknown };
 
+export const HISTORY_DEDUPE_VERSION = "history:v1";
+
 export function buildHistoryDedupeKey(kind: NotificationKind, gameKey: string, link: string, title: string, itemId: string): string {
   if (!itemId && !link && !title) return "";
-  return crypto.createHash("sha1").update(JSON.stringify([kind, gameKey, link, title, itemId])).digest("hex");
+  const digest = crypto.createHash("sha256").update(JSON.stringify([kind, gameKey, link, title, itemId])).digest("hex");
+  return `${HISTORY_DEDUPE_VERSION}:${digest}`;
 }
 
 export function sanitizeHistoryDocs(guildId: string, entries: ReadonlyArray<HistoryEntryLike | null | undefined>, now: Date): NotificationHistoryDoc[] {
