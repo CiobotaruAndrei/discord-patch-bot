@@ -29,12 +29,14 @@ La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun ve
 - `/set games add` - adauga jocuri urmarite.
 - `/set games remove` - elimina jocuri urmarite.
 - `/set mode | mindiscount | maxprice | free | paid | currency | stores` - (admin) configurari de afisare/filtrare per-server.
+- `/config` - (admin) afiseaza intr-un singur loc setarile curente ale serverului: mod, reduceri minime, pret maxim, free/paid, valuta, magazine, jocuri active, roluri si canale de notificare.
 - `/latest` - afiseaza ultimele update-uri cunoscute.
 - `/dlc` - afiseaza DLC-uri cunoscute.
 - `/status <joc>` - verifica starea serverelor unui joc (ex. online/mentenanta), nu starea botului; pentru starea botului foloseste `/health`.
 - `/history <tip> <numar>` - afiseaza ultimele notificari (update-uri/reduceri) livrate efectiv pe acest server, cu link si timestamp relativ; raspuns ephemeral. Istoricul se scrie dupa send-ul real catre Discord; cu outbox-ul activ, intrarile calatoresc pe job si se scriu abia cand worker-ul livreaza mesajul din coada (nu la enqueue), deci o notificare aflata inca in coada sau esuata nu apare in `/history`.
-- `/report <tip> <detalii> <joc>` - raporteaza o problema (update gresit, duplicat, joc lipsa, sursa stricata); raportul e salvat si trimis administratorilor.
+- `/report submit <tip> <detalii> <joc> | list | resolve <id>` - raporteaza o problema, listeaza ultimele rapoarte sau marcheaza un raport ca rezolvat; `list` si `resolve` cer Administrator la runtime.
 - `/health` - (admin) starea botului (Discord, MongoDB, cache, uptime); raspuns ephemeral, restrictionat la Administrator fiindca expune stare interna a infrastructurii. Restrictia e dubla (defense-in-depth): permisiunea slash declarata in Discord **plus** guard-ul runtime din `adminCommandRouterGuard` (lista `ADMIN_COMMANDS`). Pentru metrici detaliate (surse, coada outbox, cron) vezi endpoint-ul de metrics.
+- `/sources status` - (admin) afiseaza starea ultimelor snapshot-uri de surse externe: Steam/Epic, feed-uri de update pe joc si varsta ultimei verificari persistate.
 - `/help` - afiseaza meniul general de ajutor; optiunea `command:<comanda>` intoarce ephemeral explicatia detaliata pentru o comanda exacta, cu autocomplete pe comenzile existente.
 - `/set outbox-recovery-verify <on|off>` - (admin) comuta recovery-verify per-server; la `on` avertizeaza daca botului ii lipseste permisiunea Read Message History pe canalele de notificari.
 - `/outbox status | deadletters | clear-deadletters | replay-deadletters | retry | drain-now | pause | resume | permissions | recovery-verify status` - (admin) operarea outbox-ului: coada (per-server + global), dead-letter (listare, re-trimitere prin replay dupa remediere, golire dupa investigare), reprogramare livrari, drenare imediata (daca drenarea nu e pe pauza si lock-ul e liber), pauza/reluare drenare (global), audit de permisiuni pe canale si starea recovery-verify.

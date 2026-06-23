@@ -46,15 +46,18 @@ src/
     command-definitions/
     command-handlers/
       autocompleteInteractionHandler.ts
+      configInteractionHandler.ts
       dlcInteractionHandler.ts
       fallbackInteractionHandler.ts
       gameFilterHandlers.ts
       helpInteractionHandler.ts
       latestInteractionHandler.ts
       outboxAdminHandler.ts
+      reportInteractionHandler.ts
       rolePingHandlers.ts
       setInteractionHandler.ts
       simpleCommandsHandler.ts
+      sourcesStatusHandler.ts
       statusInteractionHandler.ts
       subscriptionNotificationHandlers.ts
     command-presentation/
@@ -98,7 +101,7 @@ src/
 
 ## Comenzi si interactiuni
 
-Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `CommandHandler[]`**: fiecare handler expune `buildCommandHandler(ctx): CommandHandler` (`{ canHandle, handle }`), iar `dispatchCommand` itereaza lista si deleaga la primul `canHandle` adevarat (fallback-ul, mereu `canHandle: () => true`, e ultimul). Comenzile admin (`start`/`stop`/`set`/`outbox`/`health`) trec intai printr-un pre-check `requireGuildAdmin` (singurul wrapper ramas peste `dispatchCommand`, prin `adminCommandRouterGuard`). `handleInteraction`-ul exportat de registru (= pre-check admin + `dispatchCommand`) e punctul de intrare folosit de `app/lifecycle/events.ts`. Nu mai exista un lant de `attachX` care impacheteaza `handleInteraction` si nici un fisier `interactions.ts` separat. Logica concreta sta in handler-e dedicate:
+Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `CommandHandler[]`**: fiecare handler expune `buildCommandHandler(ctx): CommandHandler` (`{ canHandle, handle }`), iar `dispatchCommand` itereaza lista si deleaga la primul `canHandle` adevarat (fallback-ul, mereu `canHandle: () => true`, e ultimul). Comenzile admin (`start`/`stop`/`set`/`outbox`/`health`/`config`/`sources`) trec intai printr-un pre-check `requireGuildAdmin` (singurul wrapper ramas peste `dispatchCommand`, prin `adminCommandRouterGuard`). `handleInteraction`-ul exportat de registru (= pre-check admin + `dispatchCommand`) e punctul de intrare folosit de `app/lifecycle/events.ts`. Nu mai exista un lant de `attachX` care impacheteaza `handleInteraction` si nici un fisier `interactions.ts` separat. Logica concreta sta in handler-e dedicate:
 
 - `simpleCommandsHandler.ts` - comenzi simple precum ping/games;
 - `helpInteractionHandler.ts` - paginare si continut pentru help;
@@ -106,10 +109,13 @@ Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `Co
 - `gameFilterHandlers.ts` - filtre si validari pentru jocuri;
 - `rolePingHandlers.ts` - roluri pentru ping-uri;
 - `setInteractionHandler.ts` - subcomenzile `/set`; la `/set outbox-recovery-verify on` verifica preventiv permisiunea Read Message History pe canalele de notificari (via `checkReadMessageHistory` din runtime) si avertizeaza daca lipseste;
+- `configInteractionHandler.ts` - `/config`, sumarul setarilor curente ale serverului intr-un embed ephemeral pentru admini;
 - `outboxAdminHandler.ts` - comenzile admin `/outbox` (`status`, `deadletters`, `clear-deadletters`, `replay-deadletters`, `retry`, `drain-now`, `pause`, `resume`, `permissions`, `recovery-verify status`) pentru operarea outbox-ului (coada per-guild si globala, dead-letter, reprogramare livrari, pauza/reluare drenare, audit de permisiuni pe canale, stare recovery-verify); protejat de admin guard (`outbox` e in lista de comenzi admin). `pause`/`resume` comuta flagul persistent `outboxPaused` (pe `system_state`, via `getOutboxPaused`/`setOutboxPaused`), pe care worker-ul de drenare il verifica la fiecare tick inainte de a lua lock-ul; `permissions` foloseste `checkChannelPermissions` din runtime (Send Messages / Embed Links / Read Message History) pentru un audit la cerere; `drain-now` verifica acelasi flag de pauza inainte de lock, revendica lock-ul `outbox_drain` (acelasi ca worker-ul) si dreneaza imediat doar daca drenarea nu e pe pauza si lock-ul e liber, altfel raporteaza starea fara drenari concurente;
 - `latestInteractionHandler.ts` - `/latest`;
 - `dlcInteractionHandler.ts` - `/dlc`;
 - `statusInteractionHandler.ts` - `/status`;
+- `sourcesStatusHandler.ts` - `/sources status`, sumarul ultimelor snapshot-uri persistate pentru sursele externe;
+- `reportInteractionHandler.ts` - `/report submit`, `/report list` si `/report resolve`; `submit` este public, iar `list`/`resolve` au verificare runtime de administrator;
 - `autocompleteInteractionHandler.ts` - autocomplete pentru optiuni;
 - `fallbackInteractionHandler.ts` - fallback de final.
 

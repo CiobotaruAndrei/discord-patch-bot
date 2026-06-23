@@ -204,6 +204,8 @@ const feedbackReportSchema = new mongoose.Schema({
   type: { type: String, required: true },
   gameKey: { type: String, default: "" },
   detail: { type: String, default: "" },
+  resolvedAt: { type: Date, default: null },
+  resolvedBy: { type: String, default: "" },
   createdAt: { type: Date, default: Date.now, expires: FEEDBACK_REPORT_TTL_DAYS * ONE_DAY_MS / 1000 }
 }, { minimize: false });
 feedbackReportSchema.index({ guildId: 1, createdAt: -1 }, { background: true });

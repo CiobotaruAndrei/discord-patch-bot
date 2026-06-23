@@ -88,7 +88,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-registry/commandRegistry.ts`
 
 - Compune modulele de comenzi si interactiuni, importate **static** (importuri numite `attachX = require(...)`, nu `require`-uri inline).
-- Compunere **explicita** (fara installers dinamici): apeleaza factory-urile reale tipate (`createCommandCache`, `createCommandPresentation`, `createNotificationRuntime`, `createFeedbackRepository`, `createSlashCommandDefinitions`) inlantuite cu `Object.assign`, apoi construieste o **lista tipata `CommandHandler[]`** din `attachX.buildCommandHandler(ctx)` (cele 15 handler-e de comenzi) rutata de `dispatchCommand` (loop `canHandle`/`handle`, fallback-ul mereu `canHandle: () => true` ultimul). Pre-check-ul admin (`requireGuildAdmin` prin `attachAdminCommandRouterGuard(ctx)`) ramane **singurul wrapper** peste `dispatchCommand`; nu mai e un lant de `attachX` care impacheteaza `handleInteraction`. `buildHelpEmbed` e cablat din `helpCommand.buildHelpEmbed`.
+- Compunere **explicita** (fara installers dinamici): apeleaza factory-urile reale tipate (`createCommandCache`, `createCommandPresentation`, `createNotificationRuntime`, `createFeedbackRepository`, `createSlashCommandDefinitions`) inlantuite cu `Object.assign`, apoi construieste o **lista tipata `CommandHandler[]`** din `attachX.buildCommandHandler(ctx)` (cele 17 handler-e de comenzi) rutata de `dispatchCommand` (loop `canHandle`/`handle`, fallback-ul mereu `canHandle: () => true` ultimul). Pre-check-ul admin (`requireGuildAdmin` prin `attachAdminCommandRouterGuard(ctx)`) ramane **singurul wrapper** peste `dispatchCommand`; nu mai e un lant de `attachX` care impacheteaza `handleInteraction`. `buildHelpEmbed` e cablat din `helpCommand.buildHelpEmbed`.
 - Valideaza ca functiile adaugate de handler-e exista dupa compunere (fail-fast prin `requireInstalled`) si intoarce contractul inchis `RequiredCommandRegistry` (toate cheile `NonNullable`).
 - `CommandRegistryContext` e un contract **inchis**: doar cheile declarate, cu semnaturile reale ale functiilor (ex. `checkForUpdates(client, games, shouldAbort?)`), fara `[key: string]: unknown` (gard in `registryClosedContracts.test.ts`, pe `ReturnType<createCommandRegistry>`).
 - Boundary-ul de instalare dinamic (`installers: unknown[]` + `install(context as never)` + `LegacyInstallerTarget` + `CommandInstallerTarget` + `isCommandModuleInstaller`) a fost **eliminat**: compunerea e statica si verificata integral de `tsc`, fara niciun `as` pe boundary. **Cum a fost deblocata** estimarea anterioara (registrul ar trebui sa satisfaca simultan toate contextele locale, colapsand in `never`/`any`): reconciliind dep cu dep fiecare contract de handler la factory-ul real — stramtarea deps-urilor loose la semnaturi contravariante reale, segregare de interfata (contracte minimale ca `SteamPriceData`/`EmbeddableUpdate`, modele Mongo reduse la `OutboxRuntimeDeps`/`HistoryRepositoryDeps`) si unificarea tipurilor duplicate (`PendingUpdate`/`PendingDiscount` la alias-uri `types.*`). Garda din `registryClosedContracts.test.ts` pinuieste zero `installers`/`CommandInstallerTarget`/`isCommandModuleInstaller` si prezenta `requireInstalled`.
@@ -144,6 +144,11 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Gestioneaza subcomenzile directe `/set`.
 - Trebuie sa aiba verificari runtime pentru administrator in operatiile sensibile.
 
+### `src/features/command-handlers/configInteractionHandler.ts`
+
+- Gestioneaza `/config`.
+- Citeste setarile guild-ului si lista de jocuri configurate, apoi afiseaza intr-un embed ephemeral starea curenta a serverului: filtre reduceri, valuta, magazine, jocuri active, roluri si canale.
+
 ### `src/features/command-handlers/latestInteractionHandler.ts`
 
 - `/latest reduceri`: daca fetch-ul live pica, cade pe snapshot-ul persistat (`deals:<MONEDA>`, max 60 min vechime) inainte sa raporteze eroare — aceeasi plasa de siguranta ca dispatch-ul din cron. Itemii snapshot-ului trec prin type guard-ul real `validatePendingDiscountSnapshot` (fluxul e tipat `ValidatedDealInfo[]`, nu `unknown[]`; `savings` poate fi numar sau string numeric validat), fallback-ul NU se scrie in cache-ul live, fluxul ramane assignable la `DealInfo[]` pana la embed/paginare (`buildDealEmbed(deal: DealInfo)`, `handlePagination` generic), iar dupa un esec live exista backoff negativ de 60s: request-urile urmatoare merg direct pe snapshot (banner pastrat) fara sa loveasca sursele externe; dupa fereastra, fetch-ul live se reincearca.
@@ -158,6 +163,16 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-handlers/statusInteractionHandler.ts`
 
 - Gestioneaza `/status`.
+
+### `src/features/command-handlers/sourcesStatusHandler.ts`
+
+- Gestioneaza `/sources status`.
+- Citeste snapshot-urile persistate pentru update-uri si reduceri, fara fetch live, si sumarizeaza starea surselor externe si varsta ultimei verificari cunoscute.
+
+### `src/features/command-handlers/reportInteractionHandler.ts`
+
+- Gestioneaza `/report submit`, `/report list` si `/report resolve`.
+- `submit` ramane public pentru raportarea problemelor, iar `list`/`resolve` folosesc guard runtime de administrator fiindca top-level-ul `/report` trebuie sa ramana accesibil public pentru raportare.
 
 ### `src/features/command-handlers/autocompleteInteractionHandler.ts`
 
@@ -287,6 +302,9 @@ Teste functionale curente:
 - `latestInteractionHandler.functional.test.ts`;
 - `dlcInteractionHandler.functional.test.ts`;
 - `statusInteractionHandler.functional.test.ts`;
+- `configInteractionHandler.functional.test.ts`;
+- `sourcesStatusHandler.functional.test.ts`;
+- `reportInteraction.test.ts`;
 - `autocompleteInteractionHandler.functional.test.ts`;
 - `notificationServices.functional.test.ts`;
 - `seenRepository.functional.test.ts`;
