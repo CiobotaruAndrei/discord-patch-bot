@@ -223,7 +223,8 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
             return {
               kind: "discount" as const,
               title: String(snapshot.title || ""),
-              link: String(snapshot.url || snapshot.link || "")
+              link: String(snapshot.url || snapshot.link || ""),
+              itemId: String((entry.item as { hash?: unknown }).hash || "")
             };
           })
         });

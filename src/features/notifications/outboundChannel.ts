@@ -32,6 +32,7 @@ export interface OutboundHistoryEntry {
   gameKey?: string;
   title?: string;
   link?: string;
+  itemId?: string;
 }
 
 export interface OutboundSendMeta {

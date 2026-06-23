@@ -181,7 +181,8 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
             kind: "update" as const,
             gameKey: entry.gameKey,
             title: String((entry.item as { title?: unknown }).title || ""),
-            link: String((entry.item as { link?: unknown }).link || "")
+            link: String((entry.item as { link?: unknown }).link || ""),
+            itemId: String((entry.item as { id?: unknown }).id || "")
           }))
         });
         await sleepIfPositive(DISCORD_SEND_DELAY_MS);

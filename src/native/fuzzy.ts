@@ -54,6 +54,17 @@ interface NativeFuzzyModule {
 let nativeModule: NativeFuzzyModule | null | undefined;
 const NATIVE_FUZZY_LOAD_FAILURES: Array<{ file: string; error: string }> = [];
 
+const CRITICAL_NATIVE_HASH_EXPORTS: Array<[keyof NativeFuzzyModule, keyof NativeFuzzyModule]> = [
+  ["stableUpdateId", "stable_update_id"],
+  ["dealHash", "deal_hash"]
+];
+
+export function missingCriticalNativeExports(mod: NativeFuzzyModule): string[] {
+  return CRITICAL_NATIVE_HASH_EXPORTS
+    .filter(([camel, snake]) => typeof mod[camel] !== "function" && typeof mod[snake] !== "function")
+    .map(([camel]) => String(camel));
+}
+
 function loadNativeFuzzy(): NativeFuzzyModule | null {
   if (nativeModule !== undefined) return nativeModule;
 
@@ -71,8 +82,16 @@ function loadNativeFuzzy(): NativeFuzzyModule | null {
       try {
         const loaded = require(path.join(dir, file)) as NativeFuzzyModule;
         if (typeof loaded.levenshtein === "function") {
-          nativeModule = loaded;
-          return nativeModule;
+          const missingCritical = missingCriticalNativeExports(loaded);
+          if (missingCritical.length === 0) {
+            nativeModule = loaded;
+            return nativeModule;
+          }
+          NATIVE_FUZZY_LOAD_FAILURES.push({
+            file: path.join(dir, file),
+            error: `addon loaded but missing critical hash exports: ${missingCritical.join(", ")} (stale/partial build — hash-urile de dedupe ar diverge fata de Rust -> spam de notificari seen)`
+          });
+          continue;
         }
         NATIVE_FUZZY_LOAD_FAILURES.push({
           file: path.join(dir, file),

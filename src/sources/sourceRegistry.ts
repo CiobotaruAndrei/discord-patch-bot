@@ -1,7 +1,7 @@
 "use strict";
 
 import type { CheerioAPI } from "cheerio";
-import type { DealInfo, NormalizedUpdate, PatchUpdate } from "../types";
+import type { DealInfo, NormalizedUpdate, PatchUpdate, HttpRequestOptions } from "../types";
 import type { DealsApi, SteamSourceApi, UpdatesApi } from "./sourceApis";
 import { assertNoUndefinedExports } from "../shared/assertCompleteExports";
 
@@ -18,8 +18,8 @@ type SourceRegistryApi = {
   normalizeUpdate: (data: PatchUpdate) => NormalizedUpdate;
   safeCheerioLoad: (html: unknown) => CheerioAPI;
   levenshtein: SteamSourceApi["levenshtein"];
-  httpReq: (method: string, url: string, options?: unknown, retries?: number, backoff?: number) => Promise<{ data: unknown }>;
-  fetchWithProxy: (targetUrl: string, options?: unknown) => Promise<string>;
+  httpReq: (method: string, url: string, options?: HttpRequestOptions, retries?: number, backoff?: number) => Promise<{ data: unknown }>;
+  fetchWithProxy: (targetUrl: string, options?: HttpRequestOptions) => Promise<string>;
   dealHash: (deal: DealInfo) => string;
   attachMetrics: (metricsRef: unknown) => void;
   fetchGameUpdate: UpdatesApi["fetchGameUpdate"];

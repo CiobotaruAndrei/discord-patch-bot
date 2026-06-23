@@ -1,3 +1,5 @@
+const crypto = require("crypto") as typeof import("crypto");
+
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
@@ -8,6 +10,7 @@ export interface NotificationHistoryEntry {
   gameKey?: string;
   title?: string;
   link?: string;
+  itemId?: string;
 }
 
 export interface NotificationHistoryDoc {
@@ -47,7 +50,12 @@ export interface HistoryRepository {
   getRecent(guildId: string, kind: NotificationKind | "all", limit: number): Promise<NotificationHistoryRecord[]>;
 }
 
-type HistoryEntryLike = { kind?: unknown; gameKey?: unknown; title?: unknown; link?: unknown };
+type HistoryEntryLike = { kind?: unknown; gameKey?: unknown; title?: unknown; link?: unknown; itemId?: unknown };
+
+export function buildHistoryDedupeKey(kind: NotificationKind, gameKey: string, link: string, title: string, itemId: string): string {
+  if (!itemId && !link && !title) return "";
+  return crypto.createHash("sha1").update(JSON.stringify([kind, gameKey, link, title, itemId])).digest("hex");
+}
 
 export function sanitizeHistoryDocs(guildId: string, entries: ReadonlyArray<HistoryEntryLike | null | undefined>, now: Date): NotificationHistoryDoc[] {
   const docs: NotificationHistoryDoc[] = [];
@@ -56,14 +64,14 @@ export function sanitizeHistoryDocs(guildId: string, entries: ReadonlyArray<Hist
     const gameKey = String(entry.gameKey || "").slice(0, 100);
     const title = String(entry.title || "").slice(0, 300);
     const link = String(entry.link || "").slice(0, 500);
-    const identity = link || title;
+    const itemId = String(entry.itemId || "").slice(0, 300);
     docs.push({
       guildId,
       kind: entry.kind,
       gameKey,
       title,
       link,
-      dedupeKey: identity ? `${entry.kind}:${gameKey}:${identity}` : "",
+      dedupeKey: buildHistoryDedupeKey(entry.kind, gameKey, link, title, itemId),
       sentAt: now
     });
   }

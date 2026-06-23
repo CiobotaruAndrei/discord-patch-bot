@@ -207,8 +207,8 @@ test("UpdateService: send-ul transmite meta.historyEntries pentru scrierea istor
   await svc.processGuildUpdates(noopDiscordClient, guild, latestResults);
   assert.equal(sentMetas.length, 1);
   assert.deepEqual(sentMetas[0]?.historyEntries, [
-    { kind: "update", gameKey: "cs2", title: "Patch 1.5", link: "https://example.com/cs2" }
-  ], "serviciul nu mai scrie istoric direct; trimite intrarile prin meta catre canal");
+    { kind: "update", gameKey: "cs2", title: "Patch 1.5", link: "https://example.com/cs2", itemId: "u-cs2" }
+  ], "serviciul nu mai scrie istoric direct; trimite intrarile prin meta catre canal (cu itemId pentru dedup stabil)");
 });
 
 test("UpdateService: claim race (matchedCount=0) sare item-ul fara send sau rollback", async () => {
@@ -415,8 +415,8 @@ test("DiscountService: send-ul transmite meta.historyEntries cu titlul si link-u
   await svc.processGuildDiscounts(noopDiscordClient, guild, deals);
   assert.equal(sentMetas.length, 1);
   assert.deepEqual(sentMetas[0]?.historyEntries, [
-    { kind: "discount", title: "Game A", link: "https://example.com/deal-a" }
-  ], "serviciul nu mai scrie istoric direct; trimite intrarile prin meta catre canal");
+    { kind: "discount", title: "Game A", link: "https://example.com/deal-a", itemId: "d1" }
+  ], "serviciul nu mai scrie istoric direct; trimite intrarile prin meta catre canal (cu itemId=dealHash pentru dedup stabil)");
 });
 
 test("DiscountService: hash deja vazut (in colectia seen) NU se mai trimite", async () => {
