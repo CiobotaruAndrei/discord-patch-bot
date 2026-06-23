@@ -51,6 +51,16 @@ groups:
           summary: "Outbox job delete failures (Mongo write issues)"
           description: "bot_outbox_delete_failures a crescut in ultimele 15m: job-uri procesate care nu s-au putut sterge din coada (raman deduse/reluate). Verifica disponibilitatea Mongo. Vezi OPERATIONS.md - admin alert outbox:delete."
 
+      - alert: OutboxPauseCheckFailures
+        expr: increase(bot_outbox_pause_check_failures[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: outbox
+        annotations:
+          summary: "Outbox pause-flag reads failing (worker skips cycles fail-closed)"
+          description: "bot_outbox_pause_check_failures a crescut in ultimele 15m: worker-ul nu a putut citi starea de pauza (`/outbox pause`) si a sarit ciclul fail-closed (nu drenza pe stare necunoscuta). Cauza tipica: Mongo indisponibil/lent la citirea flagului de pauza. Coada poate creste cat timp citirea esueaza; distinct de OutboxDrainStale, care nu spune de ce. Vezi OPERATIONS.md."
+
       - alert: OutboxDeadLetterWriteFailures
         expr: increase(bot_outbox_deadletter_write_failures[15m]) > 0
         for: 5m
