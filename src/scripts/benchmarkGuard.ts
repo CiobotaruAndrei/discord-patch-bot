@@ -107,9 +107,9 @@ export function collectGuardSamples(
   let listingRankArea: AreaBenchmarkResult | undefined;
   for (let i = 0; i < totalRuns; i++) {
     const areas = deps.runAreaBenchmarks();
-    const dealHash = areas.find(a => a.area.includes("dealHash"));
-    const stableUpdateId = areas.find(a => a.area.includes("stableUpdateId"));
-    const listingRank = areas.find(a => a.area.includes("listing-rank"));
+    const dealHash = areas.find(a => a.key === "dealHash");
+    const stableUpdateId = areas.find(a => a.key === "stableUpdateId");
+    const listingRank = areas.find(a => a.key === "rankListingCandidates");
     if (i === 0) {
       dealHashArea = dealHash;
       stableUpdateIdArea = stableUpdateId;

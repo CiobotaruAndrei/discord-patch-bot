@@ -40,6 +40,7 @@ export interface CpuBenchmarkResult {
 }
 
 export interface AreaBenchmarkResult {
+  key: string;
   area: string;
   rustAvailable: boolean;
   callsPerIteration: number;
@@ -197,6 +198,7 @@ interface NativeFns {
 }
 
 interface AreaSpec {
+  key: string;
   area: string;
   callsPerIteration: number;
   ts: () => void;
@@ -208,6 +210,7 @@ function buildAreaSpecs(native: NativeFns | null): AreaSpec[] {
   const specs: AreaSpec[] = [];
 
   specs.push({
+    key: "findGameKeys",
     area: "fuzzy-match (findGameKeys)",
     callsPerIteration: SAMPLE_QUERIES.length,
     ts: () => { for (const q of SAMPLE_QUERIES) findGameKeysFallback(q, SAMPLE_GAMES, MAX_FUZZY); },
@@ -229,6 +232,7 @@ function buildAreaSpecs(native: NativeFns | null): AreaSpec[] {
   });
 
   specs.push({
+    key: "dealHash",
     area: "hashing (dealHash)",
     callsPerIteration: SAMPLE_DEALS.length,
     ts: () => { for (const deal of SAMPLE_DEALS) dealHashFallback(deal); },
@@ -246,6 +250,7 @@ function buildAreaSpecs(native: NativeFns | null): AreaSpec[] {
   });
 
   specs.push({
+    key: "stableUpdateId",
     area: "hashing (stableUpdateId)",
     callsPerIteration: SAMPLE_UPDATES.length,
     ts: () => { for (const [title, link] of SAMPLE_UPDATES) stableUpdateIdFallback(title, link); },
@@ -263,6 +268,7 @@ function buildAreaSpecs(native: NativeFns | null): AreaSpec[] {
   });
 
   specs.push({
+    key: "buildAutocompleteChoices",
     area: "autocomplete (buildAutocompleteChoices)",
     callsPerIteration: SAMPLE_QUERIES.length,
     ts: () => { for (const q of SAMPLE_QUERIES) buildAutocompleteChoicesFallback(SAMPLE_GAMES, q, false, 1, 25, 100, 100); },
@@ -284,6 +290,7 @@ function buildAreaSpecs(native: NativeFns | null): AreaSpec[] {
   });
 
   specs.push({
+    key: "dealPassesFilters",
     area: "deal-filters (dealPassesFilters)",
     callsPerIteration: SAMPLE_DEALS.length,
     ts: () => { for (const deal of SAMPLE_DEALS) dealPassesFiltersFallback(deal, SAMPLE_GUILD); },
@@ -302,6 +309,7 @@ function buildAreaSpecs(native: NativeFns | null): AreaSpec[] {
 
   const listingPayload = () => SAMPLE_LISTING_CANDIDATES.map(c => ({ href: c.href, text: c.text, position: c.position }));
   specs.push({
+    key: "rankListingCandidates",
     area: "listing-rank (rankListingCandidates)",
     callsPerIteration: 1,
     ts: () => { rankListingCandidatesFallback(SAMPLE_LISTING_CANDIDATES, SAMPLE_LISTING_KEYWORDS); },
@@ -334,6 +342,7 @@ export function runAreaBenchmarks(iterations = strictEnvInt("CPU_BENCH_ITER", 10
       ? timeLoop(() => nativeFn(native), iterations, spec.callsPerIteration)
       : null;
     return {
+      key: spec.key,
       area: spec.area,
       rustAvailable,
       callsPerIteration: spec.callsPerIteration,

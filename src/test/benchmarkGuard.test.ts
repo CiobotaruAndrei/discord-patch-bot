@@ -14,8 +14,8 @@ function cpuResult(speedup: number | null, rustAvailable = true): CpuBenchmarkRe
   return { iterations: 1, callsPerIteration: 1, rustAvailable, ts: TIMED, native: rustAvailable ? TIMED : null, speedup };
 }
 
-function areaResult(area: string, speedup: number | null, parityOk = true, rustAvailable = true): AreaBenchmarkResult {
-  return { area, rustAvailable, callsPerIteration: 1, ts: TIMED, native: rustAvailable ? TIMED : null, speedup, parityOk };
+function areaResult(key: string, speedup: number | null, parityOk = true, rustAvailable = true): AreaBenchmarkResult {
+  return { key, area: "label-de-afisare-redenumit", rustAvailable, callsPerIteration: 1, ts: TIMED, native: rustAvailable ? TIMED : null, speedup, parityOk };
 }
 
 const CONFIG: GuardConfig = { failBelow: 0.85, warnBelow: { levenshtein: 1.4, dealHash: 1.2 }, requireNative: false };
@@ -129,7 +129,7 @@ test("collectGuardSamples: ruleaza fiecare benchmark exact `runs` ori (nu de 4/8
     runCpuBenchmark: () => cpuResult(cpuSpeedups[cpuCalls++]),
     runAreaBenchmarks: () => {
       const i = areaCalls++;
-      return [areaResult("dealHash", dealHashSpeedups[i]), areaResult("stableUpdateId", stableUpdateIdSpeedups[i]), areaResult("listing-rank", listingSpeedups[i]), areaResult("classifyPatchNote", 1.0)];
+      return [areaResult("dealHash", dealHashSpeedups[i]), areaResult("stableUpdateId", stableUpdateIdSpeedups[i]), areaResult("rankListingCandidates", listingSpeedups[i]), areaResult("classifyPatchNote", 1.0)];
     },
     levenshteinParityMismatches: () => { parityCalls++; return []; }
   };
@@ -151,7 +151,7 @@ test("collectGuardSamples: ruleaza fiecare benchmark exact `runs` ori (nu de 4/8
 test("collectGuardSamples: o singura masuratoare null propaga null pe acea zona (Rust indisponibil)", () => {
   const deps: GuardBenchmarkDeps = {
     runCpuBenchmark: () => cpuResult(null, false),
-    runAreaBenchmarks: () => [areaResult("dealHash", null, true, false), areaResult("listing-rank", 1.2)],
+    runAreaBenchmarks: () => [areaResult("dealHash", null, true, false), areaResult("rankListingCandidates", 1.2)],
     levenshteinParityMismatches: () => []
   };
 
