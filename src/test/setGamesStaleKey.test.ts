@@ -131,7 +131,7 @@ test("/set games remove accepts a stale key not in the current config", async ()
   assert.deepEqual(filter, { _id: "guild-1" });
   assert.deepEqual(update.$pull, { enabledGames: "old-removed-game" });
   assert.match(String(replies[0]),
-    /scos din lista activa.*cheie nu mai exista in config/,
+    /scos din watchlist.*cheie nu mai exista in config/,
     "user should see a clear note that the key was stale-cleaned");
 });
 
@@ -151,7 +151,7 @@ test("/set games remove reports 'nothing to remove' when key was not in enabledG
 
   assert.equal(mongoCalls.length, 1);
   assert.match(String(replies[0]),
-    /nu era in lista activa, nimic de scos/,
+    /nu era in watchlist, nimic de scos/,
     "user should see a clear info message when nothing was actually removed");
 });
 

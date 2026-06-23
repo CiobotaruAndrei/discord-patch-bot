@@ -94,6 +94,9 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
       if (cmd === "help" && focused.name === "command") {
         return interaction.respond(buildCommandHelpChoices(focused.value)).catch(() => null);
       }
+      if ((cmd === "snooze" || cmd === "unsnooze") && focused.name === "command") {
+        return interaction.respond(buildCommandHelpChoices(focused.value, { excludeCommands: ["/snooze", "/unsnooze"] })).catch(() => null);
+      }
       if (focused.name !== "joc") {
         return interaction.respond([]).catch(() => null);
       }
@@ -104,7 +107,7 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
       const useNameAsValue = (cmd === "dlc") || (cmd === "latest" && sub === "pret");
 
       let pool = games;
-      if (cmd === "set" && group === "games" && sub === "remove") {
+      if ((cmd === "set" && group === "games" && sub === "remove") || (cmd === "watchlist" && sub === "remove")) {
         pool = await buildSetGamesRemovePool(interaction, games);
       }
 

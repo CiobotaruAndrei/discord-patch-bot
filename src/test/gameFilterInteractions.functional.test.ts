@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 
 type GameFilterModule = ((context: Record<string, unknown>) => void) & {
   createGameFilterInteractionHandlers: (deps: Record<string, unknown>) => {
+    handleGameFilterOperation: (interaction: Record<string, unknown>, games: Array<Record<string, unknown>>, sub: string, guildId: string, surface: "set-games" | "watchlist") => Promise<unknown>;
     handleSetGames: (interaction: Record<string, unknown>, games: Array<Record<string, unknown>>, sub: string, guildId: string) => Promise<unknown>;
     handleSetGamesInteraction: (interaction: Record<string, unknown>, games: Array<Record<string, unknown>>) => Promise<unknown>;
+    handleWatchlistInteraction: (interaction: Record<string, unknown>, games: Array<Record<string, unknown>>) => Promise<unknown>;
   };
 };
 
@@ -29,6 +31,23 @@ function makeSetGamesInteraction(sub: string, gameKey: string | null = "cs2") {
     isChatInputCommand: () => true,
     options: {
       getSubcommandGroup: () => "games",
+      getSubcommand: () => sub,
+      getString: (name: string) => name === "joc" ? gameKey : null
+    },
+    followUp: async () => undefined,
+    reply: async () => undefined
+  };
+}
+
+function makeWatchlistInteraction(sub: string, gameKey: string | null = "cs2") {
+  return {
+    commandName: "watchlist",
+    guild: { id: "guild-1" },
+    deferred: false,
+    replied: false,
+    isChatInputCommand: () => true,
+    options: {
+      getSubcommandGroup: () => null,
       getSubcommand: () => sub,
       getString: (name: string) => name === "joc" ? gameKey : null
     },
@@ -66,7 +85,7 @@ test("game filter factory writes /set games add through explicit deps", async ()
   assert.deepEqual(calls[0][1], { $addToSet: { enabledGames: "cs2" } });
   assert.deepEqual(calls[0][2], { upsert: true });
   assert.deepEqual(calls[1], ["invalidate", "guild-1"]);
-  assert.equal(replies[0], "OK: **Counter-Strike 2** adaugat la lista activa.");
+  assert.equal(replies[0], "OK: **Counter-Strike 2** adaugat in watchlist.");
 });
 
 test("game filter allows /set games remove for stale keys not in current config", async () => {
@@ -79,7 +98,7 @@ test("game filter allows /set games remove for stale keys not in current config"
   assert.deepEqual(calls[0][0], { _id: "guild-1" });
   assert.deepEqual(calls[0][1], { $pull: { enabledGames: "starcraft2" } });
   assert.deepEqual(calls[1], ["invalidate", "guild-1"]);
-  assert.match(String(replies[0]), /starcraft2.*scos din lista activa/);
+  assert.match(String(replies[0]), /starcraft2.*scos din watchlist/);
   assert.match(String(replies[0]), /cheie nu mai exista in config/,
     "must explicitly note the key was stale so operators understand the curatare");
 });
@@ -110,7 +129,18 @@ test("game filter reports no-op when /set games remove finds nothing to pull", a
 
   await handlers.handleSetGames(makeSetGamesInteraction("remove", "cs2"), games, "remove", "guild-1");
 
-  assert.match(String(replies[0]), /nu era in lista activa, nimic de scos/);
+  assert.match(String(replies[0]), /nu era in watchlist, nimic de scos/);
+});
+
+test("watchlist show afiseaza jocurile active explicit", async () => {
+  const calls: MongoCall[] = [];
+  const replies: unknown[] = [];
+  const handlers = gameFilterInteractions.createGameFilterInteractionHandlers(makeBaseContext(calls, replies));
+
+  await handlers.handleWatchlistInteraction(makeWatchlistInteraction("show"), games);
+
+  assert.match(String(replies[0]), /Jocuri in watchlist/);
+  assert.match(String(replies[0]), /Counter-Strike 2/);
 });
 
 test("game filter rejects unknown sub-commands explicitly instead of leaving deferReply hanging", async () => {
@@ -129,7 +159,7 @@ test("game filter rejects unknown sub-commands explicitly instead of leaving def
   assert.ok(logs.some(([level, context]) => level === "WARN" && context === "SET_GAMES"));
 });
 
-test("game filter installer intercepts only /set games commands", async () => {
+test("game filter installer intercepts /set games si /watchlist commands", async () => {
   const calls: MongoCall[] = [];
   const replies: unknown[] = [];
   const delegated: string[] = [];
@@ -143,6 +173,7 @@ test("game filter installer intercepts only /set games commands", async () => {
   gameFilterInteractions(runtimeContext);
   const runtime = runtimeContext as typeof context & InteractionRuntime;
   await runtime.handleInteraction(makeSetGamesInteraction("remove", "fortnite"), games);
+  await runtime.handleInteraction(makeWatchlistInteraction("add", "cs2"), games);
   const result = await runtime.handleInteraction({
     commandName: "latest",
     guild: { id: "guild-1" },
@@ -151,7 +182,9 @@ test("game filter installer intercepts only /set games commands", async () => {
   }, []);
 
   assert.deepEqual(calls[0][1], { $pull: { enabledGames: "fortnite" } });
-  assert.equal(replies[0], "OK: **Fortnite** scos din lista activa.");
+  assert.equal(replies[0], "OK: **Fortnite** scos din watchlist.");
+  assert.deepEqual(calls[2][1], { $addToSet: { enabledGames: "cs2" } });
+  assert.equal(replies[1], "OK: **Counter-Strike 2** adaugat in watchlist.");
   assert.deepEqual(delegated, ["latest"]);
   assert.equal(result, "delegated");
 });

@@ -58,6 +58,7 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
       { name: "Utilitare", value: "`/ping` - `/games` - `/help`" },
       { name: "Ajutor pe comanda", value: "`/help command:<comanda>` - explicatie detaliata pentru o comanda exacta" },
       { name: "Notificari Automate (admin)", value: "`/start updates` - `/stop updates`\n`/start reduceri` - `/stop reduceri`" },
+      { name: "Pauza temporara (admin)", value: "`/snooze command:<comanda> durata:<timp>`\n`/unsnooze command:<comanda>`" },
       {
         name: "Preferinte Server (admin)",
         value:
@@ -73,8 +74,9 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
       {
         name: "Filtru per-joc (admin)",
         value:
-          "`/set games add <joc>` - `/set games remove <joc>`\n" +
-          "`/set games list` - `/set games reset`"
+          "`/watchlist show` - `/watchlist reset`\n" +
+          "`/watchlist add <joc>` - `/watchlist remove <joc>`\n" +
+          "`/set games add <joc>` - `/set games remove <joc>`"
       },
       {
         name: "Ping-uri rol (admin)",
