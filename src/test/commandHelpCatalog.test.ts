@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { COMMAND_HELP_ENTRIES, normalizeCommandHelpQuery, buildCommandHelpChoices, findCommandHelpEntry, renderCommandHelpEntry } from "../features/command-help/commandHelpCatalog";
 
 const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
+const fs = require("fs") as typeof import("fs");
+const path = require("path") as typeof import("path");
 
 interface SlashJsonOption { type: number; name: string; options?: SlashJsonOption[] }
 interface SlashJsonCommand { name: string; options?: SlashJsonOption[] }
@@ -68,6 +70,13 @@ test("command help catalog: fiecare entry corespunde unei comenzi reale din slas
   const realPaths = new Set(slashCommandPaths().map(normalizeCommandHelpQuery));
   for (const entry of COMMAND_HELP_ENTRIES) {
     assert.ok(realPaths.has(normalizeCommandHelpQuery(entry.command)), `entry de catalog pentru comanda inexistenta (drift): ${entry.command}`);
+  }
+});
+
+test("command help catalog: fiecare comanda din catalog e documentata in docs/Comenzi Functionalitate.md (anti-drift docs<->catalog)", () => {
+  const doc = fs.readFileSync(path.join(process.cwd(), "..", "docs", "Comenzi Functionalitate.md"), "utf8");
+  for (const entry of COMMAND_HELP_ENTRIES) {
+    assert.ok(doc.includes(entry.command), `docs/Comenzi Functionalitate.md nu mentioneaza ${entry.command} (catalogul /help si tabelul docs au divergiat)`);
   }
 });
 

@@ -23,7 +23,7 @@ export interface GuardOutcome {
   skipped: string[];
 }
 
-export const HOT_PATH_AREAS = ["levenshtein", "dealHash", "rankListingCandidates"] as const;
+export const HOT_PATH_AREAS = ["levenshtein", "dealHash", "stableUpdateId", "rankListingCandidates"] as const;
 
 export function defaultGuardConfig(): GuardConfig {
   return {
@@ -31,6 +31,7 @@ export function defaultGuardConfig(): GuardConfig {
     warnBelow: {
       levenshtein: strictEnvFloat("BENCH_LEVENSHTEIN_WARN_RATIO", 1.4),
       dealHash: strictEnvFloat("BENCH_DEALHASH_WARN_RATIO", 1.2),
+      stableUpdateId: strictEnvFloat("BENCH_STABLEUPDATE_WARN_RATIO", 1.2),
       rankListingCandidates: strictEnvFloat("BENCH_RANKLISTING_WARN_RATIO", 1.1)
     },
     requireNative: process.env.BENCH_GUARD_REQUIRE_NATIVE === "true"
@@ -99,18 +100,23 @@ export function collectGuardSamples(
   const levenshteinParityOk = deps.levenshteinParityMismatches().length === 0;
 
   const dealHashValues: Array<number | null> = [];
+  const stableUpdateIdValues: Array<number | null> = [];
   const listingRankValues: Array<number | null> = [];
   let dealHashArea: AreaBenchmarkResult | undefined;
+  let stableUpdateIdArea: AreaBenchmarkResult | undefined;
   let listingRankArea: AreaBenchmarkResult | undefined;
   for (let i = 0; i < totalRuns; i++) {
     const areas = deps.runAreaBenchmarks();
     const dealHash = areas.find(a => a.area.includes("dealHash"));
+    const stableUpdateId = areas.find(a => a.area.includes("stableUpdateId"));
     const listingRank = areas.find(a => a.area.includes("listing-rank"));
     if (i === 0) {
       dealHashArea = dealHash;
+      stableUpdateIdArea = stableUpdateId;
       listingRankArea = listingRank;
     }
     dealHashValues.push(dealHash ? dealHash.speedup : null);
+    stableUpdateIdValues.push(stableUpdateId ? stableUpdateId.speedup : null);
     listingRankValues.push(listingRank ? listingRank.speedup : null);
   }
 
@@ -126,6 +132,12 @@ export function collectGuardSamples(
       rustAvailable: dealHashArea ? dealHashArea.rustAvailable : levenshteinRustAvailable,
       speedup: bestOf(dealHashValues),
       parityOk: dealHashArea ? dealHashArea.parityOk : true
+    },
+    {
+      area: "stableUpdateId",
+      rustAvailable: stableUpdateIdArea ? stableUpdateIdArea.rustAvailable : levenshteinRustAvailable,
+      speedup: bestOf(stableUpdateIdValues),
+      parityOk: stableUpdateIdArea ? stableUpdateIdArea.parityOk : true
     },
     {
       area: "rankListingCandidates",

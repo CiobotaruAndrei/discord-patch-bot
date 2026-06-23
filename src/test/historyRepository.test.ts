@@ -94,7 +94,7 @@ test("recordSent: intrarile cu identitate (link/title) sunt scrise idempotent pr
   assert.ok(ops && ops.length === 1, "o operatie de upsert per intrare cu identitate");
   assert.equal(ops![0].updateOne.upsert, true, "upsert: true -> idempotent la re-livrare (crash recovery)");
   assert.deepEqual(ops![0].updateOne.filter, { guildId: "g1", dedupeKey: buildHistoryDedupeKey("update", "cs2", "https://x/y", "Patch", "u-123") }, "filtrul de dedup e (guildId, dedupeKey) cu cheie hash stabila");
-  assert.match(String(ops![0].updateOne.filter.dedupeKey), /^[0-9a-f]{40}$/, "dedupeKey e un hash sha1 (rezistent la coliziuni de separator)");
+  assert.match(String(ops![0].updateOne.filter.dedupeKey), /^history:v1:[0-9a-f]{64}$/, "dedupeKey e un hash sha256 cu prefix de versiune (rezistent la coliziuni de separator)");
   assert.ok("$setOnInsert" in ops![0].updateOne.update, "scrie doar la insert (nu suprascrie la re-livrare)");
 });
 
@@ -118,7 +118,7 @@ test("sanitizeHistoryDocs: doua notificari fara link cu acelasi titlu dar itemId
     { kind: "update" }
   ], new Date());
   assert.notEqual(docs[0].dedupeKey, docs[1].dedupeKey, "itemId diferit -> intrari distincte chiar fara link/titlu diferit");
-  assert.match(docs[0].dedupeKey, /^[0-9a-f]{40}$/);
+  assert.match(docs[0].dedupeKey, /^history:v1:[0-9a-f]{64}$/);
   assert.equal(docs[2].dedupeKey, "", "fara link, titlu sau itemId -> dedupeKey gol");
 });
 

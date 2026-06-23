@@ -18,7 +18,7 @@ type SentPayload = { embeds?: unknown; content?: string };
 import { makeNotificationDiscordClient } from "./typedTestBuilders";
 const realUtilities = require("../shared/utilities") as { validateUpdateFetchSnapshot: (item: unknown) => boolean };
 const noopDiscordClient = makeNotificationDiscordClient();
-type SentMeta = { historyEntries?: Array<{ kind: string; gameKey?: string; title?: string; link?: string }> } | undefined;
+type SentMeta = { historyEntries?: Array<{ kind: string; gameKey?: string; title?: string; link?: string; itemId?: string }> } | undefined;
 
 function entriesFrom(value: unknown): Array<[string, unknown]> {
   if (value instanceof Map) return Array.from(value.entries()).map(([key, val]) => [String(key), val]);
