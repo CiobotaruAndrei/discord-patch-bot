@@ -108,6 +108,7 @@ function buildConfigEmbed(settings: GuildSettings | null, games: GameConfig[], d
           `rol reduceri: ${formatRole(settings?.discountRoleId)}`,
           `canal update: ${formatChannel(settings?.notificationChannelId, settings?.subscribed)}`,
           `canal reduceri: ${formatChannel(settings?.discountChannelId, settings?.discountsSubscribed)}`,
+          `canal YouTube: ${formatChannel(settings?.youtubeNotificationChannelId, settings?.youtubeNotificationsEnabled)}`,
           `canal alerte admin: ${formatAdminAlertChannel(settings?.adminAlertChannelId)}`
         ].join("\n"),
         inline: false
@@ -115,6 +116,11 @@ function buildConfigEmbed(settings: GuildSettings | null, games: GameConfig[], d
       {
         name: "Alerte de pret",
         value: `${Array.isArray(settings?.priceAlerts) ? settings.priceAlerts.length : 0} configurate`,
+        inline: false
+      },
+      {
+        name: "YouTube",
+        value: `${Array.isArray(settings?.youtubeChannels) ? settings.youtubeChannels.length : 0} canale urmarite`,
         inline: false
       }
     ]

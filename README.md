@@ -7,14 +7,15 @@
 ![TypeScript](https://img.shields.io/badge/typescript-strict%20global-3178c6?logo=typescript&logoColor=white)
 ![Docker](https://img.shields.io/badge/docker-GHCR%20ready-2496ed?logo=docker&logoColor=white)
 
-Bot Discord pentru notificari despre update-uri, DLC-uri si reduceri pentru jocuri urmarite. Proiectul ruleaza pe Node.js/TypeScript, foloseste MongoDB pentru persistenta si include guard-uri pentru scraping fragil, rate limiting, health checks, metrics si deployment cu Docker.
+Bot Discord pentru notificari despre update-uri, DLC-uri, reduceri si videoclipuri noi de pe canale YouTube urmarite. Proiectul ruleaza pe Node.js/TypeScript, foloseste MongoDB pentru persistenta si include guard-uri pentru scraping fragil, rate limiting, health checks, metrics si deployment cu Docker.
 
 ## Ce face botul
 
 - Monitorizeaza jocuri configurate per server Discord.
 - Trimite notificari pentru update-uri noi si reduceri relevante.
+- Urmareste canale YouTube publice prin feed-urile Atom oficiale si posteaza videoclipurile noi intr-un canal Discord configurat.
 - Expune comenzi slash pentru abonare, configurare, verificari manuale si status.
-- Evita duplicatele prin `seenUpdates` si `seenDiscounts` persistate in MongoDB.
+- Evita duplicatele prin colectii `seen` persistate in MongoDB pentru update-uri, reduceri si videoclipuri YouTube.
 - Are fallback-uri, validare DNS/IP pentru request-uri externe si circuit breaker pentru surse fragile.
 - Expune endpoint-uri locale `/healthz` si `/metrics`.
 
@@ -34,10 +35,14 @@ La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun ve
 - `/reset-config` - (admin) cu optiunea obligatorie `confirm:true`, reseteaza setarile serverului la valorile implicite, fara sa stearga istoricul rapoartelor sau al notificarilor.
 - `/admin-alerts set` si `/admin-alerts off` - (admin) configureaza sau dezactiveaza canalul Discord pentru alerte operationale, dead-letter, permisiuni si rapoarte noi.
 - `/price-alert add`, `/price-alert remove` si `/price-alert list` - (admin) gestioneaza alerte de pret. Alerta se trimite pe canalul activat prin `/start reduceri`, se declanseaza o singura data cand pretul ajunge la/sub prag si se rearmeaza dupa ce pretul urca peste prag.
+- `/youtube subscribe`, `/youtube unsubscribe` si `/youtube list` - (admin) gestioneaza canalele YouTube publice urmarite; adaugarea accepta link, handle `@nume` sau channel ID si face baseline ca sa nu posteze retroactiv.
+- `/youtube notify channel`, `/youtube notify on`, `/youtube notify off` si `/youtube notify status` - (admin) configureaza canalul Discord si porneste/opreste postarile automate fara sa stearga abonamentele.
+- `/youtube filter shorts`, `/youtube filter lives`, `/youtube filter premieres`, `/youtube filter min-duration` si `/youtube filter status` - (admin) controleaza ce tipuri de videoclipuri pot fi postate.
+- `/youtube status`, `/youtube errors`, `/youtube permissions` si `/youtube clear-errors` - (admin) ofera diagnoza completa pentru monitorizarea YouTube.
 - `/latest` - afiseaza ultimele update-uri cunoscute.
 - `/dlc` - afiseaza DLC-uri cunoscute.
 - `/status <joc>` - verifica starea serverelor unui joc (ex. online/mentenanta), nu starea botului; pentru starea botului foloseste `/health`.
-- `/history <tip> <numar>` - afiseaza ultimele notificari (update-uri/reduceri) livrate efectiv pe acest server, cu link si timestamp relativ; raspuns ephemeral. Istoricul se scrie dupa send-ul real catre Discord; cu outbox-ul activ, intrarile calatoresc pe job si se scriu abia cand worker-ul livreaza mesajul din coada (nu la enqueue), deci o notificare aflata inca in coada sau esuata nu apare in `/history`.
+- `/history <tip> <numar>` - afiseaza ultimele notificari (update-uri/reduceri/YouTube) livrate efectiv pe acest server, cu link si timestamp relativ; raspuns ephemeral. Istoricul se scrie dupa send-ul real catre Discord; cu outbox-ul activ, intrarile calatoresc pe job si se scriu abia cand worker-ul livreaza mesajul din coada (nu la enqueue), deci o notificare aflata inca in coada sau esuata nu apare in `/history`.
 - `/report submit <tip> <detalii> <joc> | list | resolve <id>` - raporteaza o problema, listeaza ultimele rapoarte sau marcheaza un raport ca rezolvat; `list` si `resolve` cer Administrator la runtime.
 - `/health` - (admin) starea botului (Discord, MongoDB, cache, uptime); raspuns ephemeral, restrictionat la Administrator fiindca expune stare interna a infrastructurii. Restrictia e dubla (defense-in-depth): permisiunea slash declarata in Discord **plus** guard-ul runtime din `adminCommandRouterGuard` (lista `ADMIN_COMMANDS`). Pentru metrici detaliate (surse, coada outbox, cron) vezi endpoint-ul de metrics.
 - `/sources status` - (admin) afiseaza starea ultimelor snapshot-uri de surse externe: Steam/Epic, feed-uri de update pe joc si varsta ultimei verificari persistate.
@@ -129,7 +134,8 @@ src/
     command-presentation/   # embed-uri, paginare si UI Discord
     command-security/       # guard-uri admin runtime
     command-handlers/       # handler-e tipate pentru comenzi si autocomplete
-    notifications/          # wiring notificari, seen repo, servicii update/reduceri
+    notifications/          # wiring notificari, outbox si servicii update/reduceri/YouTube
+    youtube/                # rezolvare canal, feed Atom, filtre, deduplicare si dispatch YouTube
   infra/
     http/                   # client HTTP, proxy, retry, limitari, DNS/IP guard
     mongo/                  # conexiune, modele, locks, migratii
@@ -166,10 +172,10 @@ Testele acopera zonele importante:
 
 - validare env si configuratie;
 - registrul de comenzi si guard-uri anti-regresie;
-- handler-e functionale pentru `/help`, `/ping`, `/games`, `/set`, `/watchlist`, `/snooze`, `/unsnooze`, `/outbox`, `/latest`, `/dlc`, `/status` si autocomplete;
-- servicii de notificari pentru update-uri si reduceri;
+- handler-e functionale pentru `/help`, `/ping`, `/games`, `/set`, `/watchlist`, `/snooze`, `/unsnooze`, `/outbox`, `/youtube`, `/latest`, `/dlc`, `/status` si autocomplete;
+- servicii de notificari pentru update-uri, reduceri si YouTube;
 - repository-ul `seen` pentru deduplicare;
-- fluxuri E2E pentru update-uri si reduceri;
+- fluxuri E2E pentru update-uri si reduceri, plus teste functionale directe pentru sursa, repository-ul, serviciul si comenzile YouTube;
 - parsere, filtre, shape drift pe scrapers, circuit breaker, cooldown-uri si rate limiting;
 - integrare pe MongoDB real (`outboxMongoIndex.integration.test.ts`): verifica indexul unic sparse pe `notificationOutbox.dedupeKey`; ruleaza in CI (serviciu `mongo:7`) si local cand `MONGO_URI` indica un Mongo pornit, altfel se auto-sare.
 - crash-simulation outbox (`outboxCrashRecovery.functional.test.ts`): send reuseste dar `markSent` nu apuca (crash), iar la repornire recovery-verify previne duplicatul (cu test-contrast care arata duplicatul fara recovery-verify).

@@ -101,6 +101,11 @@ const FAMILY_GUIDANCE: Record<string, AdminAlertGuidance> = {
     severity: "warning",
     meaning: "Botul a pierdut accesul la un canal configurat sau canalul nu mai permite trimiterea mesajelor necesare.",
     action: "Verifica daca acel canal mai exista si acorda botului View Channel, Send Messages si Embed Links, apoi reactiveaza notificarile sau seteaza din nou canalul."
+  },
+  youtube: {
+    severity: "warning",
+    meaning: "Monitorizarea YouTube nu a putut rezolva un canal, citi feed-ul sau metadatele unui videoclip.",
+    action: "Ruleaza /youtube status si /youtube errors, verifica linkul canalului si conectivitatea catre youtube.com, apoi curata erorile cu /youtube clear-errors dupa remediere."
   }
 };
 

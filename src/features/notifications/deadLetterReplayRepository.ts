@@ -1,7 +1,7 @@
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
-export type ReplayKind = "update" | "discount";
+export type ReplayKind = "update" | "discount" | "youtube";
 
 export interface ReplayPayloadInput {
   guildId: string;
@@ -95,7 +95,7 @@ export function createDeadLetterReplayRepository(deps: DeadLetterReplayRepositor
     );
     return docs.map(doc => ({
       _id: doc._id,
-      kind: doc.kind === "discount" ? "discount" : "update",
+      kind: doc.kind === "discount" ? "discount" : doc.kind === "youtube" ? "youtube" : "update",
       channelId: String(doc.channelId || ""),
       payload: doc.payload,
       dedupeKey: String(doc.dedupeKey || ""),

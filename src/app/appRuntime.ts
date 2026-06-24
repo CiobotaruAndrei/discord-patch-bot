@@ -25,6 +25,7 @@ const { ensureNativeFuzzy } = require("../native/fuzzy") as { ensureNativeFuzzy:
 interface CommandRuntime {
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
   checkForDiscounts(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
+  checkForYouTube(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
   cleanCache(): unknown;
   drainOutbox(client: OutboxDiscordClient): Promise<unknown> | unknown;
   getCacheSizes(): CommandCacheSizes;

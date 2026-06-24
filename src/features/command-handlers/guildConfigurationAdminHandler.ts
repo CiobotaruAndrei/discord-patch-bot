@@ -85,7 +85,17 @@ function buildResetConfiguration(defaultCurrency: CurrencyCode): Record<string, 
     notificationRoleId: null,
     discountRoleId: null,
     adminAlertChannelId: null,
-    priceAlerts: []
+    priceAlerts: [],
+    youtubeChannels: [],
+    youtubeNotificationChannelId: null,
+    youtubeNotificationsEnabled: false,
+    youtubeFilters: {
+      excludeShorts: true,
+      excludeLives: true,
+      excludePremieres: true,
+      minDurationSeconds: 0
+    },
+    youtubeErrors: []
   };
 }
 

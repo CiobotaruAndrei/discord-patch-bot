@@ -184,6 +184,24 @@ sa cada tacut pe default. O variabila **neset/goala** foloseste in continuare de
 valid dar in afara intervalului `[min, max]` ramane **clamp-uit** la margine cu un `WARN` (comportament
 defensiv neschimbat). Daca botul nu porneste cu acest mesaj, corecteaza valoarea numerica a variabilei numite.
 
+## Operare monitorizare YouTube
+
+Monitorizarea YouTube foloseste feed-ul Atom public al fiecarui canal, fara API key si fara acces la contul personal YouTube al administratorului. La `/youtube subscribe`, botul rezolva channel ID-ul si salveaza videoclipurile curente ca baseline. Cron-ul grupeaza abonamentele dupa channel ID, citeste fiecare feed o singura data per ciclu si distribuie rezultatele catre guild-urile interesate.
+
+Deduplicarea este atomica in colectia `guildSeenYoutube`. Un videoclip este revendicat inainte de trimitere si revendicarea este anulata daca metadatele sau livrarea esueaza, astfel incat ciclul urmator sa poata reincerca. Cand outbox-ul este activ, joburile folosesc `kind: youtube`, sunt revalidate pe `youtubeNotificationsEnabled` si `youtubeNotificationChannelId`, iar istoricul `/history` este scris numai dupa livrarea reala.
+
+Filtrele Shorts/live/premiere necesita o citire a paginii videoclipului. Filtrul de durata minima este fail-closed: daca este configurat peste `0` si durata nu poate fi determinata, videoclipul nu este trimis. Aceasta alegere evita postarea unui clip care nu respecta politica serverului.
+
+Diagnostic recomandat:
+
+1. `/youtube status` pentru configurarea completa si ultima verificare.
+2. `/youtube permissions` pentru accesul la canalul Discord.
+3. `/youtube errors` pentru ultimele erori de feed, metadate sau livrare.
+4. Verifica accesul outbound HTTPS catre `www.youtube.com`, `youtube.com/feeds/videos.xml` si `i.ytimg.com`.
+5. Dupa remediere, `/youtube clear-errors` curata istoricul operational.
+
+Un canal Discord sters sau devenit permanent inaccesibil dezactiveaza notificarile YouTube pentru guild, ca botul sa nu repete la nesfarsit aceeasi livrare imposibila. Lista canalelor YouTube ramane salvata si poate fi reactivata dupa configurarea unui canal Discord valid.
+
 ## Indexuri MongoDB (inventar)
 
 Index-urile sunt declarate in `src/infra/mongo/models.ts` si construite automat de Mongoose la
@@ -196,9 +214,11 @@ index-uri conflictuale/invalide. Inventarul declarat curent:
 | --- | --- | --- | --- |
 | `guilds` | `{ subscribed, notificationChannelId }` | — | enumerarea guild-urilor abonate la update-uri la dispatch |
 | `guilds` | `{ discountsSubscribed, discountChannelId }` | — | enumerarea guild-urilor abonate la reduceri |
+| `guilds` | `{ youtubeNotificationsEnabled, youtubeNotificationChannelId }` | — | enumerarea guild-urilor cu monitorizarea YouTube activa |
 | `guildSeenDiscounts` | `{ guildId, dealHash }` | unique | dedup per-guild al reducerilor deja trimise |
 | `guildSeenDiscounts` | `{ seenAt }` | TTL `GUILD_SEEN_DISCOUNT_TTL_DAYS` (implicit 60 zile) | curatare automata a istoricului de reduceri vazute |
 | `guildSeenUpdates` | `{ guildId, gameKey, updateId }` | unique | dedup per-guild al update-urilor deja trimise |
+| `guildSeenYoutube` | `{ guildId, channelId, videoId }` | unique | claim si dedup atomic per-guild pentru videoclipurile YouTube |
 | `notificationOutbox` | `{ availableAt, lockedUntil }` | — | claim-ul joburilor disponibile la drenare |
 | `notificationOutbox` | `{ dedupeKey }` | unique, sparse | impiedica doua joburi pending cu acelasi `dedupeKey` (sparse: joburile fara cheie coexista) |
 | `notificationOutbox` | `{ createdAt }` | TTL 7 zile | plasa de siguranta pentru joburi nedrenate |

@@ -65,14 +65,14 @@ type Logger = (level: string, context: string, msg: string, meta?: unknown) => v
 
 interface ReplayDeadLetterDoc {
   _id: unknown;
-  kind: "update" | "discount";
+  kind: "update" | "discount" | "youtube";
   channelId: string;
   payload: unknown;
   dedupeKey: string;
   recoveryVerify: boolean;
 }
 
-type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; recoveryVerify?: boolean }) => Promise<void>;
+type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount" | "youtube"; payload: unknown; recoveryVerify?: boolean }) => Promise<void>;
 
 type OutboxAdminDeps = {
   NotificationOutboxModel: OutboxModelLike;
@@ -115,7 +115,7 @@ function onOff(value: boolean): string {
 }
 
 function formatDeadLetterEntry(entry: DeadLetterEntryLike): string {
-  const kind = entry.kind === "discount" ? "reducere" : "update";
+  const kind = entry.kind === "discount" ? "reducere" : entry.kind === "youtube" ? "youtube" : "update";
   const title = entry.title && entry.title.trim() ? entry.title.trim() : (entry.itemId || "(necunoscut)");
   const when = entry.failedAt ? new Date(entry.failedAt).toISOString() : "necunoscut";
   const channel = entry.channelId ? `, canal: <#${entry.channelId}>` : "";

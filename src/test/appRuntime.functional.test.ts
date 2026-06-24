@@ -89,6 +89,7 @@ function makeDeps(overrides: { updatesFetchedAt?: Date } = {}) {
     commands: {
       checkForUpdates: async () => undefined,
       checkForDiscounts: async () => undefined,
+      checkForYouTube: async () => undefined,
       cleanCache: () => undefined,
       drainOutbox: async () => ({}),
       getCacheSizes: () => ({ single: 0, dlc: 0, updatesValid: false, dealsCurrenciesValid: 0, userCooldowns: 0 }),

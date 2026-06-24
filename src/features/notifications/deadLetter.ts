@@ -2,7 +2,7 @@
 
 export const NOTIFICATION_DEAD_LETTER_LIMIT = 50;
 
-export type DeadLetterKind = "update" | "discount";
+export type DeadLetterKind = "update" | "discount" | "youtube";
 
 export interface DeadLetterEntry {
   kind: DeadLetterKind;

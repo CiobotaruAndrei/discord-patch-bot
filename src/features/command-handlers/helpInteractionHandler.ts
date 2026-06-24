@@ -80,6 +80,16 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
           "`/admin-alerts set <channel>` - `/admin-alerts off`"
       },
       {
+        name: "YouTube (admin)",
+        value:
+          "`/youtube subscribe <canal>` - `/youtube unsubscribe <canal>`\n" +
+          "`/youtube list` - `/youtube notify channel <canal>`\n" +
+          "`/youtube notify on|off|status`\n" +
+          "`/youtube filter shorts|lives|premieres <on|off>`\n" +
+          "`/youtube filter min-duration <secunde>` - `/youtube filter status`\n" +
+          "`/youtube status` - `/youtube errors` - `/youtube permissions` - `/youtube clear-errors`"
+      },
+      {
         name: "Filtru per-joc (admin)",
         value:
           "`/watchlist show` - `/watchlist reset`\n" +
