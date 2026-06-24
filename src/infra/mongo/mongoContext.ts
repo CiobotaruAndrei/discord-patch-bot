@@ -10,6 +10,7 @@ import type {
   GuildDoc,
   GuildSeenDiscountDoc,
   GuildSeenUpdateDoc,
+  GuildSeenYoutubeDoc,
   JobLockDoc,
   NotificationDeadLetterReplayDoc,
   NotificationHistoryDoc,
@@ -37,6 +38,7 @@ type MongoRuntimeContext = {
   FetchSnapshotModel: Model<FetchSnapshotDoc>;
   GuildSeenDiscountModel: Model<GuildSeenDiscountDoc>;
   GuildSeenUpdateModel: Model<GuildSeenUpdateDoc>;
+  GuildSeenYoutubeModel: Model<GuildSeenYoutubeDoc>;
   NotificationOutboxModel: Model<NotificationOutboxDoc>;
   NotificationOutboxSentModel: Model<NotificationOutboxSentDoc>;
   NotificationHistoryModel: Model<NotificationHistoryDoc>;
@@ -107,6 +109,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     FetchSnapshotModel: context.FetchSnapshotModel,
     GuildSeenDiscountModel: context.GuildSeenDiscountModel,
     GuildSeenUpdateModel: context.GuildSeenUpdateModel,
+    GuildSeenYoutubeModel: context.GuildSeenYoutubeModel,
     NotificationOutboxModel: context.NotificationOutboxModel,
     NotificationOutboxSentModel: context.NotificationOutboxSentModel,
     NotificationHistoryModel: context.NotificationHistoryModel,

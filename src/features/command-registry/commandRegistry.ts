@@ -21,6 +21,7 @@ interface CommandRegistryContext {
   setDealsCache?: (currency: unknown, data: DealInfo[]) => void;
   checkForUpdates?: (client: NotificationDiscordClient, games: GameConfig[], shouldAbort?: (() => boolean) | null) => Promise<void>;
   checkForDiscounts?: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
+  checkForYouTube?: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
   drainOutbox?: (client: OutboxDiscordClient) => MaybePromise<unknown>;
   buildOptimizedGameList?: <G extends { key: string }>(allGames: G[], subscribedGuilds: readonly GuildGameFilter[]) => G[];
   registerSlashCommands?: (token: string, clientId: string) => Promise<unknown>;
@@ -42,6 +43,7 @@ type RequiredCommandRegistryKey =
   | "setDealsCache"
   | "checkForUpdates"
   | "checkForDiscounts"
+  | "checkForYouTube"
   | "drainOutbox"
   | "buildOptimizedGameList"
   | "registerSlashCommands"
@@ -80,6 +82,7 @@ import attachHealthInteractionHandler = require("../command-handlers/healthInter
 import attachConfigInteractionHandler = require("../command-handlers/configInteractionHandler");
 import attachGuildConfigurationAdminHandler = require("../command-handlers/guildConfigurationAdminHandler");
 import attachPriceAlertInteractionHandler = require("../command-handlers/priceAlertInteractionHandler");
+import attachYouTubeInteractionHandler = require("../command-handlers/youtubeInteractionHandler");
 import attachSnoozeInteractionHandler = require("../command-handlers/snoozeInteractionHandler");
 import attachSourcesStatusHandler = require("../command-handlers/sourcesStatusHandler");
 import attachDlcInteractionHandler = require("../command-handlers/dlcInteractionHandler");
@@ -125,6 +128,7 @@ function createCommandRegistry(): RequiredCommandRegistry {
     attachConfigInteractionHandler.buildCommandHandler(ctx),
     attachGuildConfigurationAdminHandler.buildCommandHandler(ctx),
     attachPriceAlertInteractionHandler.buildCommandHandler(ctx),
+    attachYouTubeInteractionHandler.buildCommandHandler(ctx),
     attachSnoozeInteractionHandler.buildCommandHandler(ctx),
     attachHealthInteractionHandler.buildCommandHandler(ctx),
     attachReportInteractionHandler.buildCommandHandler(ctx),
@@ -161,6 +165,7 @@ function createCommandRegistry(): RequiredCommandRegistry {
     setDealsCache: ctx.setDealsCache,
     checkForUpdates: ctx.checkForUpdates,
     checkForDiscounts: ctx.checkForDiscounts,
+    checkForYouTube: ctx.checkForYouTube,
     drainOutbox: ctx.drainOutbox,
     buildOptimizedGameList: ctx.buildOptimizedGameList,
     registerSlashCommands: ctx.registerSlashCommands,

@@ -56,7 +56,8 @@ test("cron cycle budget: un ciclu peste buget face urmatorul ciclu sa sara peste
       commands: {
         setGlobalCacheTtl() {},
         checkForUpdates: async () => { updatesCalls++; clock += 200; },
-        checkForDiscounts: async () => { discountsCalls++; }
+        checkForDiscounts: async () => { discountsCalls++; },
+        checkForYouTube: async () => undefined
       },
       adminAlert: async () => undefined,
       client: { isReady: () => true, channels: { fetch: async () => null } },
@@ -111,7 +112,8 @@ test("cron stop clears the scheduled timer handle", () => {
       commands: {
         setGlobalCacheTtl() {},
         checkForUpdates: async () => undefined,
-        checkForDiscounts: async () => undefined
+        checkForDiscounts: async () => undefined,
+        checkForYouTube: async () => undefined
       },
       adminAlert: async () => undefined,
       client: { isReady: () => true, channels: { fetch: async () => null } },
@@ -214,7 +216,8 @@ test("cron cycle waits for both jobs when one rejects (Promise.allSettled)", asy
           await new Promise(resolve => setImmediate(resolve));
           discountsResolved = true;
           discountsFinishedAt = Date.now();
-        }
+        },
+        checkForYouTube: async () => undefined
       },
       adminAlert: async (kind: string, title: string, body: string) => {
         adminAlertCalls.push({ kind, title, body });
@@ -300,7 +303,8 @@ test("cron heartbeat tolerates one transient renew throw but aborts on the secon
             if (next) await next();
           }
         },
-        checkForDiscounts: async () => undefined
+        checkForDiscounts: async () => undefined,
+        checkForYouTube: async () => undefined
       },
       adminAlert: async () => undefined,
       client: { isReady: () => true, channels: { fetch: async () => null } },
@@ -378,7 +382,8 @@ test("cron heartbeat aborts immediately when renew returns false (lock genuinely
             if (next) await next();
           }
         },
-        checkForDiscounts: async () => undefined
+        checkForDiscounts: async () => undefined,
+        checkForYouTube: async () => undefined
       },
       adminAlert: async () => undefined,
       client: { isReady: () => true, channels: { fetch: async () => null } },
@@ -449,7 +454,8 @@ test("heartbeat tick care se reia in fereastra de release NU mai renew-uie lock-
       commands: {
         setGlobalCacheTtl() {},
         checkForUpdates: async () => undefined,
-        checkForDiscounts: async () => undefined
+        checkForDiscounts: async () => undefined,
+        checkForYouTube: async () => undefined
       },
       adminAlert: async () => undefined,
       client: { isReady: () => true, channels: { fetch: async () => null } },

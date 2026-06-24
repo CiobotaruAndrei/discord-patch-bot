@@ -2,7 +2,7 @@
 
 const { createHash } = require("crypto");
 
-export type OutboxKind = "update" | "discount";
+export type OutboxKind = "update" | "discount" | "youtube";
 
 export interface OutboxHistoryEntry {
   kind: OutboxKind;

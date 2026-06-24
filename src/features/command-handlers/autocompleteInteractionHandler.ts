@@ -25,7 +25,11 @@ type DiscordInteraction = {
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
-type GuildSettingsLite = { enabledGames?: string[]; priceAlerts?: Array<{ gameKey?: string }> };
+type GuildSettingsLite = {
+  enabledGames?: string[];
+  priceAlerts?: Array<{ gameKey?: string }>;
+  youtubeChannels?: Array<{ channelId?: string; channelName?: string }>;
+};
 
 type AutocompleteHandlerDeps = {
   logger: Logger;
@@ -107,6 +111,26 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
     }
   }
 
+  async function buildYouTubeChannelChoices(interaction: DiscordInteraction, inputValue: unknown): Promise<AutocompleteChoice[]> {
+    if (!interaction.guild) return [];
+    try {
+      const guild = await getGuildSettings(interaction.guild.id);
+      const input = String(inputValue ?? "").toLowerCase().trim().slice(0, MAX_AUTOCOMPLETE_INPUT_LEN);
+      return (guild?.youtubeChannels || [])
+        .map(channel => ({
+          name: String(channel.channelName || channel.channelId || "").slice(0, MAX_CHOICE_NAME_LEN),
+          value: String(channel.channelId || "").slice(0, MAX_CHOICE_VALUE_LEN)
+        }))
+        .filter(choice => choice.value && (!input
+          || choice.name.toLowerCase().includes(input)
+          || choice.value.toLowerCase().includes(input)))
+        .slice(0, MAX_AUTOCOMPLETE_CHOICES);
+    } catch (err: unknown) {
+      logger("WARN", "AUTOCOMPLETE", "Nu am putut citi canalele YouTube ale guild-ului", errorMessage(err));
+      return [];
+    }
+  }
+
   async function handleAutocomplete(interaction: DiscordInteraction, games: GameConfig[]): Promise<unknown> {
     try {
       const focused = interaction.options.getFocused(true);
@@ -119,6 +143,9 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
       }
       if ((cmd === "snooze" || cmd === "unsnooze") && focused.name === "command") {
         return interaction.respond(buildCommandHelpChoices(focused.value, { excludeCommands: ["/snooze", "/unsnooze"] })).catch(() => null);
+      }
+      if (cmd === "youtube" && focused.name === "canal") {
+        return interaction.respond(await buildYouTubeChannelChoices(interaction, focused.value)).catch(() => null);
       }
       if (focused.name !== "joc") {
         return interaction.respond([]).catch(() => null);

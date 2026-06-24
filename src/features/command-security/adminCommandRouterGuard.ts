@@ -21,7 +21,7 @@ type AdminCommandGuardContext = {
 const defaultRequireGuildAdmin = require("./adminPermissionGuard") as RequireGuildAdmin;
 const ADMIN_COMMANDS = new Set([
   "start", "stop", "set", "outbox", "health", "config", "reset-config",
-  "admin-alerts", "price-alert", "sources", "watchlist", "snooze", "unsnooze"
+  "admin-alerts", "price-alert", "youtube", "sources", "watchlist", "snooze", "unsnooze"
 ]);
 
 function isAdminProtectedCommand(interaction: DiscordInteraction): boolean {

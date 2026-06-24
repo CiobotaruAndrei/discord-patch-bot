@@ -45,8 +45,8 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 | `/set currency value:<currency>` | Admin | Seteaza valuta folosita pentru preturi si reduceri. Optiunile vin din registrul de valute suportate de bot. Reseteaza coada de reduceri in asteptare. |
 | `/set stores value:<steam,epic|reset>` | Admin | Filtreaza reducerile dupa magazinele permise. `reset` revine la filtrul implicit. Reseteaza coada de reduceri in asteptare. |
 | `/set outbox-recovery-verify value:<on|off>` | Admin | Activeaza sau dezactiveaza verificarea de recovery outbox pentru server. Cand este activata, botul avertizeaza daca ii lipseste `Read Message History` pe canalele configurate. |
-| `/config` | Admin, Ephemeral | Afiseaza setarile curente ale serverului intr-un singur embed: mod, reducere minima, pret maxim, filtre free/paid, valuta, magazine, jocuri active, roluri de ping, canale pentru update-uri/reduceri, canalul administrativ si numarul alertelor de pret. |
-| `/reset-config confirm:true` | Admin, Ephemeral | Reseteaza toate setarile botului pentru server: abonari, canale, roluri, filtre, watchlist, snooze-uri, alerte de pret si canal administrativ. Confirmarea trebuie sa fie explicit `true`. Istoricul rapoartelor si notificarilor nu este sters. |
+| `/config` | Admin, Ephemeral | Afiseaza setarile curente ale serverului intr-un singur embed: mod, reducere minima, pret maxim, filtre free/paid, valuta, magazine, jocuri active, roluri de ping, canale pentru update-uri/reduceri/YouTube, canalul administrativ, alertele de pret si numarul canalelor YouTube urmarite. |
+| `/reset-config confirm:true` | Admin, Ephemeral | Reseteaza toate setarile botului pentru server: abonari, canale, roluri, filtre, watchlist, snooze-uri, alerte de pret, configurarea YouTube si canalul administrativ. Confirmarea trebuie sa fie explicit `true`. Istoricul rapoartelor si notificarilor nu este sters. |
 
 ## Alerte de pret
 
@@ -66,6 +66,31 @@ O alerta declansata nu este retrimisa la fiecare ciclu. Ea ramane marcata ca dec
 | `/admin-alerts off` | Admin, Ephemeral | Opreste alertele administrative Discord pentru server. Webhook-ul global, daca este configurat prin env, ramane independent. |
 
 Canalul administrativ primeste alerte operationale cu severitate, cauza, explicatie si actiune recomandata. Rapoartele trimise prin `/report submit` sunt directionate numai catre canalul serverului respectiv. Alertele globale despre cron, surse, outbox sau proces sunt distribuite canalelor administrative configurate. Daca un canal este sters sau botul pierde permanent accesul, configurarea acelui canal este dezactivata automat.
+
+## Monitorizare YouTube
+
+Modulul YouTube urmareste canale publice pentru serverul Discord. Nu se autentifica in contul personal YouTube al administratorului si nu modifica abonamentele acelui cont. Botul rezolva canalul din link, handle sau channel ID, citeste feed-ul Atom oficial si face baseline la adaugare, astfel incat sa posteze numai videoclipurile aparute dupa abonare.
+
+| Comanda | Permisiuni | Ce face |
+| --- | --- | --- |
+| `/youtube subscribe canal:<link|handle|id>` | Admin, Ephemeral | Adauga un canal YouTube in lista urmarita. Accepta un link `youtube.com`, un handle precum `@numeCanal` sau un channel ID care incepe cu `UC`. Botul memoreaza videoclipurile deja existente ca baseline si nu le posteaza retroactiv. |
+| `/youtube unsubscribe canal:<canal>` | Admin, Autocomplete, Ephemeral | Scoate canalul ales din lista urmarita si elimina deduplicarea persistata pentru acel canal. Autocomplete-ul sugereaza numai canalele deja salvate pe server. |
+| `/youtube list` | Admin, Ephemeral | Listeaza canalele urmarite, linkul fiecaruia, ultima verificare reusita si ultima eroare cunoscuta. |
+| `/youtube notify channel channel:<canal>` | Admin, Ephemeral | Seteaza canalul Discord in care vor fi postate videoclipurile noi. Inainte de salvare verifica `View Channel`, `Send Messages` si `Embed Links`. |
+| `/youtube notify on` | Admin, Ephemeral | Porneste postarile automate. Necesita cel putin un canal YouTube urmarit si un canal Discord configurat. |
+| `/youtube notify off` | Admin, Ephemeral | Opreste postarile automate fara sa stearga lista canalelor YouTube sau filtrele. Feed-urile continua sa poata fi folosite pentru baseline, ca reactivarea sa nu produca un val de videoclipuri vechi. |
+| `/youtube notify status` | Admin, Ephemeral | Afiseaza daca postarile sunt active, canalul Discord, numarul de canale urmarite, filtrele curente, ultima verificare si numarul erorilor recente. |
+| `/youtube filter shorts state:<on|off>` | Admin, Ephemeral | Cand este `on`, exclude videoclipurile marcate ca Shorts si clipurile cu durata de cel mult 60 de secunde. |
+| `/youtube filter lives state:<on|off>` | Admin, Ephemeral | Cand este `on`, exclude livestream-urile detectate din metadatele paginii videoclipului. |
+| `/youtube filter premieres state:<on|off>` | Admin, Ephemeral | Cand este `on`, exclude premierele programate. |
+| `/youtube filter min-duration seconds:<numar>` | Admin, Ephemeral | Seteaza durata minima acceptata in secunde. `0` dezactiveaza limita. Daca limita este activa si durata nu poate fi confirmata, filtrul este fail-closed si videoclipul nu este postat. |
+| `/youtube filter status` | Admin, Ephemeral | Afiseaza starea filtrelor Shorts, livestream, premiere si durata minima. |
+| `/youtube status` | Admin, Ephemeral | Afiseaza starea completa a modulului: notificari, canal Discord, canale urmarite, ultima verificare, filtre si erori recente. |
+| `/youtube errors` | Admin, Ephemeral | Listeaza ultimele erori de rezolvare canal, citire feed, citire metadate sau livrare Discord. Lista este plafonata, ca documentul serverului sa nu creasca nelimitat. |
+| `/youtube permissions` | Admin, Ephemeral | Verifica permisiunile botului pe canalul Discord configurat pentru YouTube si indica exact ce lipseste. |
+| `/youtube clear-errors` | Admin, Ephemeral | Curata istoricul local al erorilor YouTube dupa ce problema a fost investigata sau rezolvata. Nu modifica abonamentele si nu porneste/opreste notificarile. |
+
+Pentru configurarea initiala: ruleaza `/youtube notify channel`, adauga unul sau mai multe canale cu `/youtube subscribe`, seteaza filtrele dorite si porneste postarile cu `/youtube notify on`. Comenzile `/youtube status`, `/youtube errors` si `/youtube permissions` sunt primele verificari cand un videoclip nu apare.
 
 ## Filtru de jocuri pentru update-uri
 
@@ -111,7 +136,7 @@ Concepte utile pentru admini:
 | `/outbox drain-now` | Admin | Porneste manual procesarea cozii acum, fara sa astepti urmatorul ciclu automat. Comanda ruleaza doar daca drenarea globala nu este pe pauza si nu exista deja un drain activ, ca sa evite trimiterea peste o interventie de mentenanta sau dublarea mesajelor. Daca outbox-ul este pe pauza, foloseste intai `/outbox resume`. |
 | `/outbox pause` | Admin | Opreste temporar procesarea globala a cozii. Joburile pot ramane/aduna in coada, dar botul nu le mai trimite pana la resume. Este util la mentenanta, probleme de permisiuni sau risc de spam. |
 | `/outbox resume` | Admin | Reporneste procesarea globala a cozii dupa o pauza. Dupa resume, botul poate continua sa trimita joburile care asteptau. |
-| `/outbox permissions` | Admin | Verifica daca botul are permisiunile necesare pe canalele configurate pentru update-uri si reduceri: sa vada canalul, sa trimita mesaje, sa trimita embed-uri si, unde e cazul, sa citeasca istoricul pentru recovery-verify. |
+| `/outbox permissions` | Admin | Verifica daca botul are permisiunile necesare pe canalele configurate pentru update-uri, reduceri si YouTube: sa vada canalul, sa trimita mesaje, sa trimita embed-uri si, unde e cazul, sa citeasca istoricul pentru recovery-verify. |
 | `/outbox recovery-verify status` | Admin | Arata daca verificarea suplimentara de recovery este activa pentru server si/sau global. Daca este activa, botul are nevoie de permisiunea `Read Message History` pe canal ca sa poata confirma livrarile dupa recovery. |
 
 ## Update-uri, reduceri si cautari manuale
@@ -130,7 +155,7 @@ Concepte utile pentru admini:
 
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
-| `/history tip:<updates|reduceri> numar:<1-25>` | Public, Ephemeral | Afiseaza istoricul notificarilor trimise pe server. `tip` este optional si poate filtra dupa update-uri sau reduceri; `numar` este optional, implicit 10 si maxim 25. |
+| `/history tip:<updates|reduceri|youtube> numar:<1-25>` | Public, Ephemeral | Afiseaza istoricul notificarilor trimise pe server. `tip` este optional si poate filtra dupa update-uri, reduceri sau YouTube; `numar` este optional, implicit 10 si maxim 25. |
 | `/report submit tip:<tip> detalii:<text> joc:<name>` | Public, Ephemeral | Trimite un raport despre o problema observata: update gresit, duplicat, joc/sursa lipsa, sursa stricata sau altceva. Salveaza raportul si trimite alerta administrativa. |
 | `/report list numar:<1-25>` | Admin runtime, Ephemeral | Listeaza ultimele rapoarte trimise pe server, cu ID, tip, joc, detalii scurte si status rezolvat/nerezolvat. Este pentru administratori, chiar daca top-level-ul `/report` ramane public ca sa permita `/report submit`. |
 | `/report resolve id:<id>` | Admin runtime, Ephemeral | Marcheaza un raport existent ca rezolvat. ID-ul este cel afisat de `/report list`; daca ID-ul nu exista pe server sau are format invalid, botul raspunde explicit fara sa modifice date. |

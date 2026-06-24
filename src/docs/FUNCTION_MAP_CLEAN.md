@@ -189,6 +189,12 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Gestioneaza `/sources status`.
 - Citeste snapshot-urile persistate pentru update-uri si reduceri, fara fetch live, si sumarizeaza starea surselor externe si varsta ultimei verificari cunoscute.
 
+### `src/features/command-handlers/youtubeInteractionHandler.ts`
+
+- Gestioneaza toate subcomenzile `/youtube`.
+- Rezolva si salveaza canale YouTube publice, face baseline la abonare, configureaza canalul Discord, porneste/opreste notificarile si administreaza filtrele.
+- Expune diagnoza prin `status`, `errors`, `permissions` si `clear-errors`; toate operatiile sunt protejate de admin guard si raspund ephemeral.
+
 ### `src/features/command-handlers/reportInteractionHandler.ts`
 
 - Gestioneaza `/report submit`, `/report list` si `/report resolve`.
@@ -210,8 +216,9 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/notifications/index.ts`
 
 - Instaleaza job-urile de notificari.
-- Conecteaza serviciile de update-uri, reduceri si alerte de pret la runtime.
+- Conecteaza serviciile de update-uri, reduceri, YouTube si alerte de pret la runtime.
 - `priceAlertService` reutilizeaza fetch-urile per valuta ale ciclului de reduceri.
+- Compune `youtubeSource`, `youtubeRepository` si `youtubeNotificationService`, apoi expune functiile necesare comenzilor si cron-ului prin contractul inchis al registrului.
 - Trebuie sa ramana wiring, nu locul principal pentru logica de notificari.
 
 ### `src/features/notifications/priceAlertService.ts`
@@ -250,6 +257,24 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Citeste si scrie elementele deja vazute.
 - Acopera atat update-uri, cat si reduceri.
 - Este modulul central pentru evitarea duplicatelor.
+
+### `src/features/youtube/youtubeSource.ts`
+
+- Accepta link YouTube, handle `@nume` sau channel ID si rezolva identitatea canonica a canalului numai pe hosturi YouTube aprobate.
+- Citeste feed-ul Atom oficial `feeds/videos.xml`, normalizeaza videoclipurile si obtine metadatele paginii necesare filtrelor Shorts, live, premiere si durata minima.
+- Filtrul de durata este fail-closed cand durata nu poate fi confirmata.
+
+### `src/features/youtube/youtubeRepository.ts`
+
+- Seed-uieste baseline-ul in `guildSeenYoutube` si revendica atomic fiecare `videoId` prin indexul unic `{ guildId, channelId, videoId }`.
+- Face rollback la esec de metadate/livrare, actualizeaza ultima verificare a canalului si pastreaza o lista plafonata de erori.
+- Dezactiveaza notificarile cand canalul Discord devine permanent invalid, fara sa stearga abonamentele YouTube.
+
+### `src/features/youtube/youtubeNotificationService.ts`
+
+- Grupeaza abonamentele tuturor guild-urilor dupa channel ID, astfel incat fiecare feed sa fie citit o singura data per ciclu.
+- Aplica filtrele per-guild, revendica videoclipurile inainte de send si livreaza embed-urile prin `outboundChannel`, outbox si history cu `kind: youtube`.
+- Cron-ul apeleaza `checkForYouTube` in paralel cu update-urile si reducerile; esecurile sunt izolate per feed/guild si devin vizibile in erorile YouTube si admin alerts.
 
 ## Domain, scrapers si sources
 
@@ -341,5 +366,6 @@ Teste functionale curente:
 Teste E2E:
 
 - flux update: `/start updates` -> guild in Mongo -> cron gaseste update -> trimite embed -> marcheaza seen;
-- flux reduceri: `/start reduceri` -> baseline reduceri -> cron -> deal embed -> `seenDiscounts`.
+- flux reduceri: `/start reduceri` -> baseline reduceri -> cron -> deal embed -> `seenDiscounts`;
+- flux YouTube: `/youtube subscribe` -> baseline `guildSeenYoutube` -> `/youtube notify on` -> cron grupeaza feed-urile -> filtre/metadate -> embed/outbox/history.
 
