@@ -78,6 +78,8 @@ import attachHistoryInteractionHandler = require("../command-handlers/historyInt
 import attachReportInteractionHandler = require("../command-handlers/reportInteractionHandler");
 import attachHealthInteractionHandler = require("../command-handlers/healthInteractionHandler");
 import attachConfigInteractionHandler = require("../command-handlers/configInteractionHandler");
+import attachGuildConfigurationAdminHandler = require("../command-handlers/guildConfigurationAdminHandler");
+import attachPriceAlertInteractionHandler = require("../command-handlers/priceAlertInteractionHandler");
 import attachSnoozeInteractionHandler = require("../command-handlers/snoozeInteractionHandler");
 import attachSourcesStatusHandler = require("../command-handlers/sourcesStatusHandler");
 import attachDlcInteractionHandler = require("../command-handlers/dlcInteractionHandler");
@@ -121,6 +123,8 @@ function createCommandRegistry(): RequiredCommandRegistry {
     attachDlcInteractionHandler.buildCommandHandler(ctx),
     attachSourcesStatusHandler.buildCommandHandler(ctx),
     attachConfigInteractionHandler.buildCommandHandler(ctx),
+    attachGuildConfigurationAdminHandler.buildCommandHandler(ctx),
+    attachPriceAlertInteractionHandler.buildCommandHandler(ctx),
     attachSnoozeInteractionHandler.buildCommandHandler(ctx),
     attachHealthInteractionHandler.buildCommandHandler(ctx),
     attachReportInteractionHandler.buildCommandHandler(ctx),

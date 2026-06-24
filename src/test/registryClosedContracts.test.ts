@@ -260,5 +260,5 @@ test("contractul CommandHandler e generic cu type predicate (canHandle ingusteaz
   assert.match(text, /interface CommandHandler<I = unknown>/, "CommandHandler e generic peste tipul de interactiune validat I");
   assert.match(text, /canHandle\(interaction: unknown\): interaction is I/, "canHandle e un type guard (interaction is I), nu doar boolean");
   assert.match(text, /handle\(interaction: I, games: CommandGame\[\]\)/, "handle primeste interactiunea deja ingustata la I (fara cast intern) si games tipat onest CommandGame, nu Array<{ key }>");
-  assert.match(text, /type CommandGame = \{ key: string; name: string \}/, "contractul games e onest: jocurile au cel putin key + name (nu doar key)");
+  assert.match(text, /type CommandGame = Pick<GameConfig, "key" \| "name" \| "appId" \| "aliases">/, "contractul games deriva campurile necesare din GameConfig, inclusiv identitatea folosita de alertele de pret");
 });

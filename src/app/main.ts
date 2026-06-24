@@ -23,7 +23,7 @@ const {
   acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
   waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
   runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots,
-  getOutboxPaused
+  getOutboxPaused, setAdminAlertDiscordClient
 } = require("../infra/mongo/mongoContext") as typeof import("../infra/mongo/mongoContext");
 const commands = require("../features/command-registry/commandRegistry") as typeof import("../features/command-registry/commandRegistry");
 const scrapers = require("../sources/sourceRegistry") as SourceRegistryApi;
@@ -38,7 +38,7 @@ const app = createAppRuntime({
     logger, env, parseEnvNumber, acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
     waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
     runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots,
-    getOutboxPaused
+    getOutboxPaused, setAdminAlertDiscordClient
   },
   commands, scrapers
 } satisfies AppRuntimeDeps);

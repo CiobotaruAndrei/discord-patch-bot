@@ -135,7 +135,10 @@ function makeChatInput(commandName: string, options: { admin?: boolean } = {}) {
 
 test("dispatcher: toate comenzile admin de la non-admin sunt blocate de pre-check (registry real, table-driven)", async () => {
   const registry = commandRegistry.createCommandRegistry();
-  for (const command of ["start", "stop", "set", "outbox", "health", "config", "sources", "watchlist", "snooze", "unsnooze"]) {
+  for (const command of [
+    "start", "stop", "set", "outbox", "health", "config", "reset-config",
+    "admin-alerts", "price-alert", "sources", "watchlist", "snooze", "unsnooze"
+  ]) {
     const { interaction, captured } = makeChatInput(command, { admin: false });
     await registry.handleInteraction(interaction, []);
     const payload = captured.payload as { content?: string } | null;

@@ -8,7 +8,7 @@ Pe scurt, instrumentele de operare:
 
 - Metrici Prometheus la `/metrics` (vezi README sectiunea health/metrics).
 - Comenzi admin: `/outbox status | deadletters | clear-deadletters | replay-deadletters | retry | drain-now | pause | resume | permissions | recovery-verify status`.
-- Alerte admin (webhook): trimise automat la `recoveryFailures > 0` (`outbox:recovery-read`),
+- Alerte admin (webhook si/sau canale Discord configurate cu `/admin-alerts set channel:<canal>`): trimise automat la `recoveryFailures > 0` (`outbox:recovery-read`),
   `markSentFailures > 0` (`outbox:mark-sent`), `deleteFailures > 0` (`outbox:delete` — job-uri
   procesate care nu s-au putut sterge din coada; raman deduse/reluate) si `deadLetterFailures > 0`
   (`outbox:deadletter-write` — scrierea unui audit dead-letter a esuat: pe caile terminale (expirare /
@@ -19,6 +19,8 @@ Pe scurt, instrumentele de operare:
   **severitate** (FATAL/WARNING/INFO + culoare), **Cauza** (eroarea reala), **Ce inseamna** si
   **Ce trebuie facut** (remediere per tip de alerta) — maparea kind -> ghidaj e in
   `src/infra/mongo/adminAlertContent.ts`.
+
+Canalele configurate prin `/admin-alerts set` primesc aceeasi structura de embed ca webhook-ul global. Rapoartele noi sunt limitate la serverul care le-a generat; alertele operationale globale sunt distribuite tuturor canalelor administrative configurate. Daca fetch-ul canalului esueaza cu o eroare Discord permanenta, `adminAlertChannelId` este resetat automat ca botul sa nu repete la nesfarsit livrari imposibile. `/admin-alerts off` dezactiveaza doar destinatia Discord a serverului, nu si `ADMIN_WEBHOOK_URL`.
 
 ## Cand creste `bot_outbox_queue_depth`
 

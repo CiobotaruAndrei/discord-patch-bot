@@ -53,6 +53,10 @@ function formatRole(id: string | null | undefined): string {
   return id ? `<@&${id}>` : "neconfigurat";
 }
 
+function formatAdminAlertChannel(id: string | null | undefined): string {
+  return id ? `<#${id}>` : "oprit";
+}
+
 function formatGames(settings: GuildSettings | null, games: GameConfig[]): string {
   const enabled = Array.isArray(settings?.enabledGames) ? settings.enabledGames : [];
   if (!enabled.length) return "toate jocurile configurate";
@@ -103,8 +107,14 @@ function buildConfigEmbed(settings: GuildSettings | null, games: GameConfig[], d
           `rol update: ${formatRole(settings?.notificationRoleId)}`,
           `rol reduceri: ${formatRole(settings?.discountRoleId)}`,
           `canal update: ${formatChannel(settings?.notificationChannelId, settings?.subscribed)}`,
-          `canal reduceri: ${formatChannel(settings?.discountChannelId, settings?.discountsSubscribed)}`
+          `canal reduceri: ${formatChannel(settings?.discountChannelId, settings?.discountsSubscribed)}`,
+          `canal alerte admin: ${formatAdminAlertChannel(settings?.adminAlertChannelId)}`
         ].join("\n"),
+        inline: false
+      },
+      {
+        name: "Alerte de pret",
+        value: `${Array.isArray(settings?.priceAlerts) ? settings.priceAlerts.length : 0} configurate`,
         inline: false
       }
     ]

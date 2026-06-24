@@ -187,6 +187,29 @@ test("/watchlist remove restricts pool to enabledGames + stale placeholders", as
   assert.ok(!keys.includes("fortnite"));
 });
 
+test("/price-alert remove sugereaza doar jocurile care au alerte", async () => {
+  const { context } = makeContext({
+    getGuildSettings: async (_id: string) => ({
+      priceAlerts: [
+        { gameKey: "cs2" },
+        { gameKey: "removed-game" }
+      ]
+    })
+  });
+  const { interaction, responses } = makeInteraction({
+    command: "price-alert",
+    sub: "remove",
+    focused: { name: "joc", value: "" },
+    guildId: "guild-1"
+  });
+  await context.handleInteraction(interaction, GAMES);
+  const choices = responses[0] as Array<{ name: string; value: string }>;
+  const keys = choices.map(choice => choice.value);
+  assert.ok(keys.includes("cs2"));
+  assert.ok(keys.includes("removed-game"));
+  assert.ok(!keys.includes("fortnite"));
+});
+
 test("/set games remove without guild context falls back to full games pool (no crash)", async () => {
   const { context, logs } = makeContext({
     getGuildSettings: async () => { throw new Error("trebuie sa nu fie apelat"); }

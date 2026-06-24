@@ -378,6 +378,7 @@ function makeDiscountDeps(overrides: Partial<DiscountDeps> = {}) {
     enrichDealData: async (deal: DealInfo) => deal,
     buildDealEmbed: (deal: DealInfo) => ({ deal: deal.id }),
     sleepIfPositive: async () => undefined,
+    processGuildPriceAlerts: async () => undefined,
     DEFAULT_CURRENCY: "USD",
     DEALS_HISTORY_LIMIT: 300,
     PENDING_DISCOUNT_MAX_ATTEMPTS: 5,

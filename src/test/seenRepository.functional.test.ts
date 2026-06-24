@@ -34,6 +34,7 @@ function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: stri
   const seenUpdateUpserts: MongoCall[] = [];
   const seenUpdateDeletes: unknown[] = [];
   const seenUpdateBulk: Array<{ ops: unknown[]; opts?: unknown }> = [];
+  const adminAlerts: Array<{ kind: string; title: string; body: unknown; guildId?: string }> = [];
 
   const GuildModel = {
     updateOne: async (filter: unknown, update: unknown, mongoOpts?: unknown) => {
@@ -103,10 +104,13 @@ function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: stri
     withMongoRetry,
     SEEN_PER_GAME_LIMIT: 20,
     DEALS_HISTORY_LIMIT: 300,
-    OP_UPDATE_OPTS: { strict: false }
+    OP_UPDATE_OPTS: { strict: false },
+    adminAlert: async (kind, title, body, guildId) => {
+      adminAlerts.push({ kind, title, body, guildId });
+    }
   });
 
-  return { repo, calls, existsCalls, retryAttempts, seenDiscountUpserts, seenDiscountDeletes, seenDiscountFinds, seenDiscountBulk, seenUpdateUpserts, seenUpdateDeletes, seenUpdateBulk, count: () => updateOneCallCount };
+  return { repo, calls, existsCalls, retryAttempts, seenDiscountUpserts, seenDiscountDeletes, seenDiscountFinds, seenDiscountBulk, seenUpdateUpserts, seenUpdateDeletes, seenUpdateBulk, adminAlerts, count: () => updateOneCallCount };
 }
 
 test("claimSeenUpdate: guard read (exists) pe documentul guild + upsert ca singura scriere in colectie", async () => {
@@ -257,7 +261,7 @@ test("seedSeenDiscounts fara hash-uri valide nu atinge colectia", async () => {
 
 test("disableUpdatesForChannelError writes the error metadata and clears subscription state", async () => {
 
-  const { repo, calls, retryAttempts } = makeFakeDeps();
+  const { repo, calls, retryAttempts, adminAlerts } = makeFakeDeps();
 
   await repo.disableUpdatesForChannelError("g1", "ch1", "Missing Access");
 
@@ -271,10 +275,13 @@ test("disableUpdatesForChannelError writes the error metadata and clears subscri
   assert.equal(setDoc.updatesLastError?.channelId, "ch1");
   assert.ok(setDoc.updatesLastError?.at instanceof Date);
   assert.equal(retryAttempts.length, 0, "disable path does NOT need withMongoRetry");
+  assert.deepEqual(adminAlerts.map(alert => ({ kind: alert.kind, guildId: alert.guildId })), [
+    { kind: "discord:updates-channel-disabled", guildId: "g1" }
+  ]);
 });
 
 test("disableDiscountsForChannelError mirrors disableUpdatesForChannelError on the discounts schema", async () => {
-  const { repo, calls } = makeFakeDeps();
+  const { repo, calls, adminAlerts } = makeFakeDeps();
 
   await repo.disableDiscountsForChannelError("g1", "ch-d", "Unknown Channel");
 
@@ -285,4 +292,7 @@ test("disableDiscountsForChannelError mirrors disableUpdatesForChannelError on t
   assert.equal(setDoc.discountChannelId, null);
   assert.equal(setDoc.discountsInitializing, false);
   assert.equal(setDoc.discountsLastError?.message, "Unknown Channel");
+  assert.deepEqual(adminAlerts.map(alert => ({ kind: alert.kind, guildId: alert.guildId })), [
+    { kind: "discord:discounts-channel-disabled", guildId: "g1" }
+  ]);
 });

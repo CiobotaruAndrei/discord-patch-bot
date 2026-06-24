@@ -63,6 +63,18 @@ export interface GuildDoc {
   maxAbsolutePrice?: number;
   notificationRoleId?: string | null;
   discountRoleId?: string | null;
+  adminAlertChannelId?: string | null;
+  priceAlerts?: Array<{
+    gameKey: string;
+    gameName: string;
+    appId?: string;
+    aliases?: string[];
+    threshold: number;
+    currency: string;
+    triggeredAt?: Date | null;
+    lastObservedPrice?: number | null;
+    lastObservedAt?: Date | null;
+  }>;
 }
 
 export interface CircuitBreakerDoc {

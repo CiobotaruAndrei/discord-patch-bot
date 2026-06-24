@@ -65,7 +65,8 @@ interface MongoContextLike {
   waitForMongoReady: (timeoutMs: number) => Promise<boolean>;
   cleanGuildCache: () => unknown;
   getGuildCacheSize: () => number;
-  adminAlert: (kind: string, title: string, body: string) => Promise<unknown>;
+  adminAlert: (kind: string, title: string, body: string, guildId?: string) => Promise<unknown>;
+  setAdminAlertDiscordClient(client: DiscordClientLike | null): void;
   getOutboxPaused: () => Promise<boolean>;
   runMigrations: (logger: unknown) => Promise<{ applied: number[] }>;
   requestContext: RequestContextLike;
@@ -162,13 +163,14 @@ const BOOT_ALERT_BUDGET_MS = 3000;
 
 function createRuntimeServices(deps: AppRuntimeDeps): RuntimeServices {
   const { Client, GatewayIntentBits, loadConfig, createMetrics, createRateLimiter, createHousekeeping, scrapers, commands, errorMessage, mongo } = deps;
-  const { logger, env, cleanGuildCache } = mongo;
+  const { logger, env, cleanGuildCache, setAdminAlertDiscordClient } = mongo;
 
   const { config, games } = loadConfig();
   const metrics = createMetrics();
   scrapers.attachMetrics(metrics);
 
   const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+  setAdminAlertDiscordClient(client);
   const lifecycle = { isShuttingDown: false };
   const rateLimiter = createRateLimiter(env, metrics);
   const housekeeping = createHousekeeping({
