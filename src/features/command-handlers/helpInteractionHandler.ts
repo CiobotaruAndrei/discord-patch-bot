@@ -69,7 +69,15 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
           "`/set currency <USD|EUR|GBP|RON>`\n" +
           "`/set stores <steam,epic | reset>`\n" +
           "`/config`\n" +
+          "`/reset-config confirm:true`\n" +
           "`/set outbox-recovery-verify <on|off>`"
+      },
+      {
+        name: "Alerte dedicate (admin)",
+        value:
+          "`/price-alert add <joc> <price> <currency>`\n" +
+          "`/price-alert remove <joc>` - `/price-alert list`\n" +
+          "`/admin-alerts set <channel>` - `/admin-alerts off`"
       },
       {
         name: "Filtru per-joc (admin)",

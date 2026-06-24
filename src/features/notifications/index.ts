@@ -1,7 +1,7 @@
 "use strict";
 
 import type { Model } from "mongoose";
-import type { RuntimeEnv } from "../../types";
+import type { PriceValue, RuntimeEnv } from "../../types";
 import type { SeenRepositoryDeps } from "./seenRepository";
 import type { UpdateNotificationServiceDeps } from "./updateNotificationService";
 import type { DiscountNotificationServiceDeps } from "./discountNotificationService";
@@ -25,6 +25,7 @@ const { createOutboxDelivery } = require("./outboxDelivery") as typeof import(".
 const { buildDeadLetterEntry, deadLetterPush, deadLetterTitleFromPayload } = require("./deadLetter") as typeof import("./deadLetter");
 const { createDeadLetterReplayRepository } = require("./deadLetterReplayRepository") as typeof import("./deadLetterReplayRepository");
 const { createDefaultDiscordSendLimiter } = require("./discordRateLimiter") as typeof import("./discordRateLimiter");
+const { createPriceAlertService } = require("./priceAlertService") as typeof import("./priceAlertService");
 
 const OUTBOX_MAX_ATTEMPTS = 5;
 const OUTBOX_BACKOFF_MS = 60_000;
@@ -49,8 +50,10 @@ type GeneratedDiscountDeps =
   | "seedSeenDiscounts"
   | "setSeenHashVersion"
   | "disableDiscountsForChannelError"
+  | "rollbackTriggeredAlert"
   | "isPermanentDiscordError"
-  | "transientErrorMessage";
+  | "transientErrorMessage"
+  | "processGuildPriceAlerts";
 
 type NotificationsRuntimeDeps = SeenRepositoryDeps
   & Omit<UpdateNotificationServiceDeps, GeneratedUpdateDeps>
@@ -59,6 +62,7 @@ type NotificationsRuntimeDeps = SeenRepositoryDeps
     env: RuntimeEnv;
     GuildModel: { countDocuments(filter: Record<string, unknown>): Promise<number> };
     canSendEmbeds(channel: unknown, botId: string): boolean;
+    formatPrice(value: PriceValue, currencyCode?: string | null): string;
     saveFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
     NotificationOutboxModel: OutboxRuntimeDeps["NotificationOutboxModel"];
     NotificationOutboxSentModel: OutboxRuntimeDeps["NotificationOutboxSentModel"];
@@ -136,7 +140,8 @@ function createOutboxServices(deps: NotificationsRuntimeDeps) {
 function createSeenServices(deps: NotificationsRuntimeDeps) {
   const { GuildModel, GuildSeenDiscountModel, GuildSeenUpdateModel, withMongoRetry, SEEN_PER_GAME_LIMIT, DEALS_HISTORY_LIMIT, OP_UPDATE_OPTS } = deps;
   return createSeenRepository({
-    GuildModel, GuildSeenDiscountModel, GuildSeenUpdateModel, withMongoRetry, SEEN_PER_GAME_LIMIT, DEALS_HISTORY_LIMIT, OP_UPDATE_OPTS
+    GuildModel, GuildSeenDiscountModel, GuildSeenUpdateModel, withMongoRetry,
+    SEEN_PER_GAME_LIMIT, DEALS_HISTORY_LIMIT, OP_UPDATE_OPTS, adminAlert: deps.adminAlert
   });
 }
 
@@ -177,6 +182,17 @@ function createNotificationDispatchServices(
     DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY
   });
 
+  const priceAlertService = createPriceAlertService({
+    GuildModel,
+    logger,
+    resolveOutboundChannel,
+    disableDiscountsForChannelError,
+    rollbackTriggeredAlert: seenRepository.rollbackTriggeredAlert,
+    formatPrice: deps.formatPrice,
+    sleepIfPositive,
+    DISCORD_SEND_DELAY_MS
+  });
+
   const discountService = createDiscountNotificationService({
     GuildModel, logger, runConcurrent, resolveOutboundChannel,
     claimSeenDiscount, rollbackSeenDiscount, loadSeenDiscountHashes, seedSeenDiscounts, setSeenHashVersion, disableDiscountsForChannelError,
@@ -184,20 +200,20 @@ function createNotificationDispatchServices(
     normalizePendingDiscountArray, validatePendingDiscountSnapshot,
     normalizeCurrencyKey, dealPassesFilters, dealHash,
     fetchDeals, getDealsCacheData, setDealsCache, persistFetchSnapshot, loadFetchSnapshot: loadSnapshot, enrichDealData, buildDealEmbed,
-    sleepIfPositive,
+    sleepIfPositive, processGuildPriceAlerts: priceAlertService.processGuildPriceAlerts,
     DEFAULT_CURRENCY, DEALS_HISTORY_LIMIT,
     PENDING_DISCOUNT_MAX_ATTEMPTS, PENDING_DISCOUNT_GRACE_CYCLES,
     PENDING_DISCOUNTS_LIMIT, MAX_DEALS_PER_CYCLE,
     DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY
   });
 
-  return { updateService, discountService };
+  return { updateService, discountService, priceAlertService };
 }
 
 function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
   const { enqueueOutbox, resolveOutboundChannel, drainOutbox, deadLetterReplayRepository, historyRepository } = createOutboxServices(deps);
   const seenRepository = createSeenServices(deps);
-  const { updateService, discountService } = createNotificationDispatchServices(deps, resolveOutboundChannel, seenRepository);
+  const { updateService, discountService, priceAlertService } = createNotificationDispatchServices(deps, resolveOutboundChannel, seenRepository);
   const {
     claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, disableUpdatesForChannelError,
     claimSeenDiscount, rollbackSeenDiscount, seedSeenDiscounts, disableDiscountsForChannelError
@@ -220,6 +236,7 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     seedSeenDiscounts,
     disableDiscountsForChannelError,
     processGuildDiscounts: discountService.processGuildDiscounts,
+    processGuildPriceAlerts: priceAlertService.processGuildPriceAlerts,
     checkForDiscounts: discountService.checkForDiscounts,
     drainOutbox,
     enqueueOutbox,

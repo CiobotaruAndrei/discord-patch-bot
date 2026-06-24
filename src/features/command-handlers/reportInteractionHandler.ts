@@ -55,7 +55,7 @@ interface ReportHandlerDeps {
   getRecentFeedbackReports: (guildId: string, limit: number) => Promise<ReportRecord[]>;
   resolveFeedbackReport: (guildId: string, reportId: string, resolvedBy: string) => Promise<boolean>;
   requireGuildAdmin: RequireGuildAdmin;
-  adminAlert: (kind: string, title: string, body: string) => Promise<unknown>;
+  adminAlert: (kind: string, title: string, body: string, guildId?: string) => Promise<unknown>;
   MessageFlags: { Ephemeral: number };
 }
 
@@ -143,7 +143,7 @@ function createReportInteractionHandler(deps: ReportHandlerDeps) {
     await safeDefer(interaction, true);
     try {
       const record = await recordFeedbackReport({ guildId, userId, type, gameKey, detail });
-      adminAlert("feedback:report", `Raport nou: ${feedback.reportTypeLabel(record.type)}`, buildReportAlertBody(record)).catch(() => null);
+      adminAlert("feedback:report", `Raport nou: ${feedback.reportTypeLabel(record.type)}`, buildReportAlertBody(record), guildId).catch(() => null);
       endLog("ok");
       return safeEdit(interaction, { embeds: [buildReportConfirmEmbed(record)] });
     } catch (err) {

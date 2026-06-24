@@ -96,6 +96,11 @@ const FAMILY_GUIDANCE: Record<string, AdminAlertGuidance> = {
     severity: "info",
     meaning: "Un utilizator a trimis un raport prin comanda /report.",
     action: "Citeste raportul; daca semnaleaza sursa stricata / joc lipsa / duplicat, investigheaza sursa sau filtrul respectiv. Istoricul rapoartelor are TTL ~90 zile."
+  },
+  discord: {
+    severity: "warning",
+    meaning: "Botul a pierdut accesul la un canal configurat sau canalul nu mai permite trimiterea mesajelor necesare.",
+    action: "Verifica daca acel canal mai exista si acorda botului View Channel, Send Messages si Embed Links, apoi reactiveaza notificarile sau seteaza din nou canalul."
   }
 };
 

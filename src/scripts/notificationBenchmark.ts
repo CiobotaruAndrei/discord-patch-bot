@@ -130,6 +130,7 @@ function makeDiscountDeps(counters: Counters, guilds: Array<GuildSettings & Reco
     enrichDealData: async (deal: DealInfo) => deal,
     buildDealEmbed: () => ({}),
     sleepIfPositive: async () => undefined,
+    processGuildPriceAlerts: async () => undefined,
     DEFAULT_CURRENCY: "USD",
     DEALS_HISTORY_LIMIT: 300,
     PENDING_DISCOUNT_MAX_ATTEMPTS: 10,

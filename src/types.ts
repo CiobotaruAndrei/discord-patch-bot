@@ -353,6 +353,18 @@ export interface LastErrorInfo {
   at?: Date | string | null;
 }
 
+export interface PriceAlertRule {
+  gameKey: string;
+  gameName: string;
+  appId?: string;
+  aliases?: string[];
+  threshold: number;
+  currency: CurrencyCode | string;
+  triggeredAt?: Date | string | null;
+  lastObservedPrice?: number | null;
+  lastObservedAt?: Date | string | null;
+}
+
 export interface GuildSettings {
   _id: string;
   subscribed?: boolean;
@@ -380,6 +392,8 @@ export interface GuildSettings {
   maxAbsolutePrice?: number;
   notificationRoleId?: string | null;
   discountRoleId?: string | null;
+  adminAlertChannelId?: string | null;
+  priceAlerts?: PriceAlertRule[];
   seenHashVersionUpdates?: number;
   seenHashVersionDiscounts?: number;
   [key: string]: unknown;

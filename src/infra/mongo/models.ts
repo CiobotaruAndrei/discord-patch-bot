@@ -45,6 +45,18 @@ const deadLetterEntrySchema = new mongoose.Schema({
   failedAt: { type: Date, default: Date.now }
 }, { _id: false });
 
+const priceAlertSchema = new mongoose.Schema({
+  gameKey: { type: String, required: true },
+  gameName: { type: String, required: true },
+  appId: { type: String, default: "" },
+  aliases: { type: [String], default: [] },
+  threshold: { type: Number, required: true, min: 0.01, max: 10000 },
+  currency: { type: String, enum: Object.keys(SUPPORTED_CURRENCIES), required: true },
+  triggeredAt: { type: Date, default: null },
+  lastObservedPrice: { type: Number, default: null },
+  lastObservedAt: { type: Date, default: null }
+}, { _id: false });
+
 const guildSchema = new mongoose.Schema({
   _id: String,
   subscribed: { type: Boolean, default: false },
@@ -84,7 +96,9 @@ const guildSchema = new mongoose.Schema({
   enabledStores: { type: [String], default: [] },
   maxAbsolutePrice: { type: Number, default: 0 },
   notificationRoleId: { type: String, default: null },
-  discountRoleId: { type: String, default: null }
+  discountRoleId: { type: String, default: null },
+  adminAlertChannelId: { type: String, default: null },
+  priceAlerts: { type: [priceAlertSchema], default: [] }
 }, { minimize: false });
 
 guildSchema.index({ subscribed: 1, notificationChannelId: 1 }, { background: true });

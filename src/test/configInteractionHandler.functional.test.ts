@@ -19,7 +19,9 @@ test("buildConfigEmbed afiseaza setarile importante ale serverului", () => {
     enabledGames: ["cs2"],
     maxAbsolutePrice: 30,
     notificationRoleId: "role-updates",
-    discountRoleId: "role-deals"
+    discountRoleId: "role-deals",
+    adminAlertChannelId: "chan-admin",
+    priceAlerts: [{ gameKey: "cs2", gameName: "Counter-Strike 2", threshold: 20, currency: "EUR" }]
   }, [{ key: "cs2", name: "Counter-Strike 2" }], "USD");
 
   const text = JSON.stringify(embed);
@@ -33,6 +35,8 @@ test("buildConfigEmbed afiseaza setarile importante ale serverului", () => {
   assert.match(text, /Counter-Strike 2/);
   assert.match(text, /<@&role-updates>/);
   assert.match(text, /<#chan-updates>/);
+  assert.match(text, /<#chan-admin>/);
+  assert.match(text, /1 configurate/);
 });
 
 test("/config citeste guild settings si raspunde ephemeral cu embed", async () => {

@@ -11,8 +11,13 @@ import type { GameConfig, ValidatedDealInfo } from "../types";
 
 type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];
 type DiscountDeps = Parameters<typeof createDiscountNotificationService>[0];
+const messageOf = (value: unknown) => value instanceof Error ? value.message : String(value);
 const updateDeps = (deps: Partial<UpdateDeps>): UpdateDeps => deps as UpdateDeps;
-const discountDeps = (deps: Partial<DiscountDeps>): DiscountDeps => deps as DiscountDeps;
+const discountDeps = (deps: Partial<DiscountDeps>): DiscountDeps => ({
+  transientErrorMessage: messageOf,
+  processGuildPriceAlerts: async () => undefined,
+  ...deps
+}) as DiscountDeps;
 
 interface SnapshotDoc { _id: string; payload: unknown; fetchedAt: Date; }
 
@@ -167,7 +172,6 @@ test("DiscountService.checkForDiscounts persista snapshot-ul 'deals:<MONEDA>' du
   assert.deepEqual(persistCalls[0].payload, [{ id: "d1" }]);
 });
 
-const messageOf = (value: unknown) => value instanceof Error ? value.message : String(value);
 const runConcurrentSafe = async <T>(items: T[], _c: number, fn: (item: T) => Promise<unknown>, opts?: { errorLogger?: (item: unknown, err: unknown) => void }) => {
   let processed = 0;
   const errors: Array<{ error: unknown }> = [];

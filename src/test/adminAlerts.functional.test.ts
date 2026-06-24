@@ -8,7 +8,11 @@ type CooldownDoc = { _id: string; lastSentAt: Date };
 type CooldownFilter = { _id: string; lastSentAt?: { $lte: Date } };
 type CooldownUpdate = { $set: { lastSentAt: Date } };
 type AdminAlertsRuntime = {
-  adminAlert: (kind: string, title: string, body: unknown) => Promise<void>;
+  adminAlert: (kind: string, title: string, body: unknown, guildId?: string) => Promise<void>;
+  setAdminAlertDiscordClient: (client: {
+    user?: { id?: string } | null;
+    channels: { fetch(channelId: string): Promise<unknown> | unknown };
+  } | null) => void;
 };
 type AdminAlertsTarget = {
   env: { ADMIN_WEBHOOK_URL: string; ADMIN_ALERT_COOLDOWN_MS: number };
@@ -17,6 +21,10 @@ type AdminAlertsTarget = {
     create: (doc: CooldownDoc) => Promise<CooldownDoc>;
     updateOne: (filter: Pick<CooldownDoc, "_id">, update: CooldownUpdate) => Promise<{ matchedCount: number; modifiedCount: number }>;
   };
+  GuildModel: {
+    find: (filter: Record<string, unknown>) => { lean: () => Promise<Array<{ _id: string; adminAlertChannelId?: string | null }>> };
+    updateOne: (filter: Record<string, unknown>, update: Record<string, unknown>) => Promise<unknown>;
+  };
   axios: { post: (url: string, payload: unknown) => Promise<{ status: number }> };
   logger: (level: string, context: string, msg: string) => void;
 } & Partial<AdminAlertsRuntime>;
@@ -24,6 +32,8 @@ type AdminAlertsTarget = {
 function makeAdminAlertsContext(opts: {
   axiosPostFails?: boolean;
   initialCooldown?: CooldownDoc | null;
+  webhookUrl?: string;
+  guilds?: Array<{ _id: string; adminAlertChannelId?: string | null }>;
 }) {
   const updates: Array<{ filter: Record<string, unknown>; update: Record<string, unknown> }> = [];
   const creates: CooldownDoc[] = [];
@@ -76,8 +86,12 @@ function makeAdminAlertsContext(opts: {
   };
 
   const target: AdminAlertsTarget = {
-    env: { ADMIN_WEBHOOK_URL: "https://discord.example/webhook", ADMIN_ALERT_COOLDOWN_MS: 60_000 },
+    env: { ADMIN_WEBHOOK_URL: opts.webhookUrl ?? "https://discord.example/webhook", ADMIN_ALERT_COOLDOWN_MS: 60_000 },
     AdminAlertCooldownModel,
+    GuildModel: {
+      find: () => ({ lean: async () => opts.guilds || [] }),
+      updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 })
+    },
     axios,
     logger: (level: string, context: string, msg: string) => { logs.push({ level, context, msg }); }
   };
@@ -85,6 +99,7 @@ function makeAdminAlertsContext(opts: {
   const runtime = target as AdminAlertsTarget & AdminAlertsRuntime;
   return {
     adminAlert: runtime.adminAlert,
+    setAdminAlertDiscordClient: runtime.setAdminAlertDiscordClient,
     updates, creates, posts, logs,
     getCooldownState: () => cooldownState
   };
@@ -136,6 +151,10 @@ test("adminAlert skip when ADMIN_WEBHOOK_URL is empty", async () => {
       create: async () => { throw new Error("trebuie sa nu fie apelat"); },
       updateOne: async () => { throw new Error("trebuie sa nu fie apelat"); }
     },
+    GuildModel: {
+      find: () => ({ lean: async () => [] }),
+      updateOne: async () => ({ matchedCount: 0, modifiedCount: 0 })
+    },
     axios: { post: async () => { throw new Error("trebuie sa nu fie apelat"); } },
     logger: () => undefined
   };
@@ -143,4 +162,30 @@ test("adminAlert skip when ADMIN_WEBHOOK_URL is empty", async () => {
   const runtime = target as AdminAlertsTarget & AdminAlertsRuntime;
 
   await runtime.adminAlert("test", "test", "test");
+});
+
+test("adminAlert trimite in canalul Discord configurat pentru guild-ul cerut", async () => {
+  const sent: unknown[] = [];
+  const runtime = makeAdminAlertsContext({
+    webhookUrl: "",
+    guilds: [{ _id: "guild-1", adminAlertChannelId: "admin-channel" }]
+  });
+  runtime.setAdminAlertDiscordClient({
+    user: { id: "bot-1" },
+    channels: {
+      fetch: async channelId => ({
+        send: async (payload: unknown) => {
+          assert.equal(channelId, "admin-channel");
+          sent.push(payload);
+          return { id: "message-1" };
+        }
+      })
+    }
+  });
+
+  await runtime.adminAlert("feedback:report", "Raport nou", "Detalii", "guild-1");
+
+  assert.equal(sent.length, 1);
+  assert.match(JSON.stringify(sent[0]), /Raport nou/);
+  runtime.setAdminAlertDiscordClient(null);
 });

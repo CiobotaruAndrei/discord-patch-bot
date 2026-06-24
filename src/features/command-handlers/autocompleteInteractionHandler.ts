@@ -25,7 +25,7 @@ type DiscordInteraction = {
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
-type GuildSettingsLite = { enabledGames?: string[] };
+type GuildSettingsLite = { enabledGames?: string[]; priceAlerts?: Array<{ gameKey?: string }> };
 
 type AutocompleteHandlerDeps = {
   logger: Logger;
@@ -84,6 +84,29 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
     }
   }
 
+  async function buildPriceAlertRemovePool(interaction: DiscordInteraction, games: GameConfig[]): Promise<GameConfig[]> {
+    if (!interaction.guild) return games;
+    try {
+      const guild = await getGuildSettings(interaction.guild.id);
+      const alertKeys = Array.from(new Set(
+        (Array.isArray(guild?.priceAlerts) ? guild.priceAlerts : [])
+          .map(alert => String(alert.gameKey || ""))
+          .filter(Boolean)
+      ));
+      if (!alertKeys.length) return [];
+      const keys = new Set(alertKeys);
+      const configured = games.filter(game => keys.has(game.key));
+      const configuredKeys = new Set(configured.map(game => game.key));
+      const stale = alertKeys
+        .filter(key => !configuredKeys.has(key))
+        .map(key => ({ key, name: `${key} (cheie indisponibila)`, aliases: [] }));
+      return [...configured, ...stale];
+    } catch (err: unknown) {
+      logger("WARN", "AUTOCOMPLETE", "Nu am putut citi alertele de pret ale guild-ului", errorMessage(err));
+      return games;
+    }
+  }
+
   async function handleAutocomplete(interaction: DiscordInteraction, games: GameConfig[]): Promise<unknown> {
     try {
       const focused = interaction.options.getFocused(true);
@@ -109,6 +132,9 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
       let pool = games;
       if ((cmd === "set" && group === "games" && sub === "remove") || (cmd === "watchlist" && sub === "remove")) {
         pool = await buildSetGamesRemovePool(interaction, games);
+      }
+      if (cmd === "price-alert" && sub === "remove") {
+        pool = await buildPriceAlertRemovePool(interaction, games);
       }
 
       const choices: AutocompleteChoice[] = buildAutocompleteChoices(
