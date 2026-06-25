@@ -21,7 +21,16 @@ test("buildConfigEmbed afiseaza setarile importante ale serverului", () => {
     notificationRoleId: "role-updates",
     discountRoleId: "role-deals",
     adminAlertChannelId: "chan-admin",
-    priceAlerts: [{ gameKey: "cs2", gameName: "Counter-Strike 2", threshold: 20, currency: "EUR" }]
+    priceAlerts: [{ gameKey: "cs2", gameName: "Counter-Strike 2", threshold: 20, currency: "EUR" }],
+    youtubeChannels: [{
+      channelId: "UC123",
+      channelName: "Creator",
+      channelUrl: "https://www.youtube.com/channel/UC123",
+      subscribedAt: new Date()
+    }],
+    youtubeChannelRoutes: [{ channelId: "UC123", discordChannelIds: ["route-1", "route-2"] }],
+    youtubeTitleIncludeWords: ["patch"],
+    youtubeMessageTemplate: "{title} {url}"
   }, [{ key: "cs2", name: "Counter-Strike 2" }], "USD");
 
   const text = JSON.stringify(embed);
@@ -37,6 +46,9 @@ test("buildConfigEmbed afiseaza setarile importante ale serverului", () => {
   assert.match(text, /<#chan-updates>/);
   assert.match(text, /<#chan-admin>/);
   assert.match(text, /1 configurate/);
+  assert.match(text, /2 rute speciale/);
+  assert.match(text, /1 filtre de titlu/);
+  assert.match(text, /sablon mesaj: personalizat/);
 });
 
 test("/config citeste guild settings si raspunde ephemeral cu embed", async () => {

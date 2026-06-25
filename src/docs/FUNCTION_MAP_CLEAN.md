@@ -192,7 +192,8 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-handlers/youtubeInteractionHandler.ts`
 
 - Gestioneaza toate subcomenzile `/youtube`.
-- Rezolva si salveaza canale YouTube publice, face baseline la abonare, configureaza canalul Discord, porneste/opreste notificarile si administreaza filtrele.
+- Rezolva si salveaza canale YouTube publice, configureaza prima activare, canalul principal, rutele speciale, sablonul mesajului si filtrele de continut sau titlu.
+- Expune afisarea manuala a videoclipurilor din ultima luna fara sa modifice deduplicarea automata.
 - Expune diagnoza prin `status`, `errors`, `permissions` si `clear-errors`; toate operatiile sunt protejate de admin guard si raspund ephemeral.
 
 ### `src/features/command-handlers/reportInteractionHandler.ts`
@@ -268,12 +269,18 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Seed-uieste baseline-ul in `guildSeenYoutube` si revendica atomic fiecare `videoId` prin indexul unic `{ guildId, channelId, videoId }`.
 - Face rollback la esec de metadate/livrare, actualizeaza ultima verificare a canalului si pastreaza o lista plafonata de erori.
-- Dezactiveaza notificarile cand canalul Discord devine permanent invalid, fara sa stearga abonamentele YouTube.
+- Dezactiveaza notificarile cand canalul principal devine permanent invalid si elimina numai rutele speciale devenite invalide.
+
+### `src/features/youtube/youtubeDeliveryPolicy.ts`
+
+- Centralizeaza fereastra recenta de o luna, loturile de 5, pauza de 10 minute, sablonul implicit, variabilele permise, filtrul inclusiv de titlu si rezolvarea destinatiilor.
+- Valideaza referintele canalelor Discord si pastreaza aceleasi reguli pentru livrarea automata si cea manuala.
 
 ### `src/features/youtube/youtubeNotificationService.ts`
 
 - Grupeaza abonamentele tuturor guild-urilor dupa channel ID, astfel incat fiecare feed sa fie citit o singura data per ciclu.
-- Aplica filtrele per-guild, revendica videoclipurile inainte de send si livreaza embed-urile prin `outboundChannel`, outbox si history cu `kind: youtube`.
+- Aplica filtrele per-guild, sablonul si rutele speciale, revendica videoclipurile automate inainte de send si livreaza loturi de maximum 5 prin `outboundChannel`, outbox si history cu `kind: youtube`.
+- `showYouTubeVideos` reutilizeaza aceeasi pregatire si livrare, dar ocoleste outbox-ul si nu revendica videoclipurile.
 - Cron-ul apeleaza `checkForYouTube` in paralel cu update-urile si reducerile; esecurile sunt izolate per feed/guild si devin vizibile in erorile YouTube si admin alerts.
 
 ## Domain, scrapers si sources

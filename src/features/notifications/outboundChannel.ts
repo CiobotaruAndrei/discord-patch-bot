@@ -25,6 +25,7 @@ export interface ResolveOutboundChannelArgs {
   channelId: string | null | undefined;
   context: string;
   disableFn: DisableChannelFn;
+  bypassOutbox?: boolean;
 }
 
 export interface OutboundHistoryEntry {
@@ -104,7 +105,8 @@ export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSe
     guild,
     channelId,
     context,
-    disableFn
+    disableFn,
+    bypassOutbox
   }: ResolveOutboundChannelArgs): Promise<ResolveOutboundChannelResult> {
     if (!channelId) {
       logger("WARN", context, `Guild ${guild._id} fara canal configurat pentru acest tip de notificari, sar peste ciclu`);
@@ -143,7 +145,7 @@ export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSe
       return { channel: null, abort: true };
     }
 
-    if (enqueueOutbox) {
+    if (enqueueOutbox && !bypassOutbox) {
       const kind = context === "CRON_DISCOUNTS" ? "discount" : context === "CRON_YOUTUBE" ? "youtube" : "update";
       return { channel: outboxChannel(channelId, String(guild._id), kind, enqueueOutbox, guild.outboxRecoveryVerify), abort: false };
     }

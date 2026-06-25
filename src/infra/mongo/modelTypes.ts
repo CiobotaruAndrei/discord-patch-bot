@@ -86,12 +86,19 @@ export interface GuildDoc {
   }>;
   youtubeNotificationChannelId?: string | null;
   youtubeNotificationsEnabled?: boolean;
+  youtubeHasActivated?: boolean;
   youtubeFilters?: {
     excludeShorts?: boolean;
     excludeLives?: boolean;
     excludePremieres?: boolean;
     minDurationSeconds?: number;
   };
+  youtubeMessageTemplate?: string | null;
+  youtubeChannelRoutes?: Array<{
+    channelId: string;
+    discordChannelIds: string[];
+  }>;
+  youtubeTitleIncludeWords?: string[];
   youtubeErrors?: Array<{
     channelId: string;
     channelName: string;

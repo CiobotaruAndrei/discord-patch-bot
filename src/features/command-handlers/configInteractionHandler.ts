@@ -120,7 +120,12 @@ function buildConfigEmbed(settings: GuildSettings | null, games: GameConfig[], d
       },
       {
         name: "YouTube",
-        value: `${Array.isArray(settings?.youtubeChannels) ? settings.youtubeChannels.length : 0} canale urmarite`,
+        value: [
+          `${Array.isArray(settings?.youtubeChannels) ? settings.youtubeChannels.length : 0} canale urmarite`,
+          `${Array.isArray(settings?.youtubeChannelRoutes) ? settings.youtubeChannelRoutes.reduce((total, route) => total + route.discordChannelIds.length, 0) : 0} rute speciale`,
+          `${Array.isArray(settings?.youtubeTitleIncludeWords) ? settings.youtubeTitleIncludeWords.length : 0} filtre de titlu`,
+          `sablon mesaj: ${settings?.youtubeMessageTemplate ? "personalizat" : "implicit"}`
+        ].join("\n"),
         inline: false
       }
     ]

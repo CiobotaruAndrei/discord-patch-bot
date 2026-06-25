@@ -19,6 +19,7 @@ type DiscordInteraction = {
     getFocused(detailed: true): FocusedOption | null;
     getSubcommand(required: false): string | null;
     getSubcommandGroup(required: false): string | null;
+    getString(name: string, required: false): string | null;
   };
   respond: (choices: AutocompleteChoice[]) => Promise<unknown>;
 };
@@ -29,6 +30,8 @@ type GuildSettingsLite = {
   enabledGames?: string[];
   priceAlerts?: Array<{ gameKey?: string }>;
   youtubeChannels?: Array<{ channelId?: string; channelName?: string }>;
+  youtubeChannelRoutes?: Array<{ channelId?: string; discordChannelIds?: string[] }>;
+  youtubeTitleIncludeWords?: string[];
 };
 
 type AutocompleteHandlerDeps = {
@@ -111,12 +114,16 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
     }
   }
 
-  async function buildYouTubeChannelChoices(interaction: DiscordInteraction, inputValue: unknown): Promise<AutocompleteChoice[]> {
+  async function buildYouTubeChannelChoices(
+    interaction: DiscordInteraction,
+    inputValue: unknown,
+    includeAll: boolean
+  ): Promise<AutocompleteChoice[]> {
     if (!interaction.guild) return [];
     try {
       const guild = await getGuildSettings(interaction.guild.id);
       const input = String(inputValue ?? "").toLowerCase().trim().slice(0, MAX_AUTOCOMPLETE_INPUT_LEN);
-      return (guild?.youtubeChannels || [])
+      const choices = (guild?.youtubeChannels || [])
         .map(channel => ({
           name: String(channel.channelName || channel.channelId || "").slice(0, MAX_CHOICE_NAME_LEN),
           value: String(channel.channelId || "").slice(0, MAX_CHOICE_VALUE_LEN)
@@ -124,9 +131,45 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
         .filter(choice => choice.value && (!input
           || choice.name.toLowerCase().includes(input)
           || choice.value.toLowerCase().includes(input)))
-        .slice(0, MAX_AUTOCOMPLETE_CHOICES);
+        .slice(0, includeAll ? MAX_AUTOCOMPLETE_CHOICES - 1 : MAX_AUTOCOMPLETE_CHOICES);
+      return includeAll
+        ? [{ name: "Toate canalele urmarite", value: "toate" }, ...choices]
+        : choices;
     } catch (err: unknown) {
       logger("WARN", "AUTOCOMPLETE", "Nu am putut citi canalele YouTube ale guild-ului", errorMessage(err));
+      return [];
+    }
+  }
+
+  async function buildYouTubeRouteChoices(interaction: DiscordInteraction, inputValue: unknown): Promise<AutocompleteChoice[]> {
+    if (!interaction.guild) return [];
+    try {
+      const guild = await getGuildSettings(interaction.guild.id);
+      const youtubeChannelId = interaction.options.getString("canal", false);
+      const input = String(inputValue ?? "").toLowerCase().trim().slice(0, MAX_AUTOCOMPLETE_INPUT_LEN);
+      const route = (guild?.youtubeChannelRoutes || []).find(item => item.channelId === youtubeChannelId);
+      const routed = (route?.discordChannelIds || [])
+        .map(channelId => ({ name: `#${channelId}`, value: channelId }))
+        .filter(choice => !input || choice.name.includes(input) || choice.value.includes(input))
+        .slice(0, MAX_AUTOCOMPLETE_CHOICES - 1);
+      return [{ name: "Toate rutele speciale", value: "toate" }, ...routed];
+    } catch (err: unknown) {
+      logger("WARN", "AUTOCOMPLETE", "Nu am putut citi rutele YouTube ale guild-ului", errorMessage(err));
+      return [];
+    }
+  }
+
+  async function buildYouTubeTitleWordChoices(interaction: DiscordInteraction, inputValue: unknown): Promise<AutocompleteChoice[]> {
+    if (!interaction.guild) return [];
+    try {
+      const guild = await getGuildSettings(interaction.guild.id);
+      const input = String(inputValue ?? "").toLowerCase().trim().slice(0, MAX_AUTOCOMPLETE_INPUT_LEN);
+      return (guild?.youtubeTitleIncludeWords || [])
+        .filter(word => !input || word.toLowerCase().includes(input))
+        .map(word => ({ name: word.slice(0, MAX_CHOICE_NAME_LEN), value: word.slice(0, MAX_CHOICE_VALUE_LEN) }))
+        .slice(0, MAX_AUTOCOMPLETE_CHOICES);
+    } catch (err: unknown) {
+      logger("WARN", "AUTOCOMPLETE", "Nu am putut citi filtrul de titlu YouTube", errorMessage(err));
       return [];
     }
   }
@@ -138,6 +181,8 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
         return interaction.respond([]).catch(() => null);
       }
       const cmd = interaction.commandName;
+      const sub = interaction.options.getSubcommand(false);
+      const group = interaction.options.getSubcommandGroup(false);
       if (cmd === "help" && focused.name === "command") {
         return interaction.respond(buildCommandHelpChoices(focused.value)).catch(() => null);
       }
@@ -145,15 +190,22 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
         return interaction.respond(buildCommandHelpChoices(focused.value, { excludeCommands: ["/snooze", "/unsnooze"] })).catch(() => null);
       }
       if (cmd === "youtube" && focused.name === "canal") {
-        return interaction.respond(await buildYouTubeChannelChoices(interaction, focused.value)).catch(() => null);
+        return interaction.respond(await buildYouTubeChannelChoices(
+          interaction,
+          focused.value,
+          group === "videos" && sub === "show"
+        )).catch(() => null);
+      }
+      if (cmd === "youtube" && group === "channel-route" && sub === "remove" && focused.name === "discord") {
+        return interaction.respond(await buildYouTubeRouteChoices(interaction, focused.value)).catch(() => null);
+      }
+      if (cmd === "youtube" && group === "title-filter" && sub === "remove" && focused.name === "word") {
+        return interaction.respond(await buildYouTubeTitleWordChoices(interaction, focused.value)).catch(() => null);
       }
       if (focused.name !== "joc") {
         return interaction.respond([]).catch(() => null);
       }
       const input = String(focused.value || "").toLowerCase().trim().substring(0, MAX_AUTOCOMPLETE_INPUT_LEN);
-      const sub = interaction.options.getSubcommand(false);
-      const group = interaction.options.getSubcommandGroup(false);
-
       const useNameAsValue = (cmd === "dlc") || (cmd === "latest" && sub === "pret");
 
       let pool = games;

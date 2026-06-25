@@ -186,11 +186,11 @@ defensiv neschimbat). Daca botul nu porneste cu acest mesaj, corecteaza valoarea
 
 ## Operare monitorizare YouTube
 
-Monitorizarea YouTube foloseste feed-ul Atom public al fiecarui canal, fara API key si fara acces la contul personal YouTube al administratorului. La `/youtube subscribe`, botul rezolva channel ID-ul si salveaza videoclipurile curente ca baseline. Cron-ul grupeaza abonamentele dupa channel ID, citeste fiecare feed o singura data per ciclu si distribuie rezultatele catre guild-urile interesate.
+Monitorizarea YouTube foloseste feed-ul Atom public al fiecarui canal, fara API key si fara acces la contul personal YouTube al administratorului. La `/youtube subscribe`, botul rezolva channel ID-ul, marcheaza drept baseline numai videoclipurile mai vechi de o luna si lasa continutul recent eligibil pentru prima `/youtube notify on`. Dupa prima activare, continutul aparut cat timp notificarile sunt oprite este revendicat fara livrare, ca reactivarea sa nu creeze backlog. Cron-ul grupeaza abonamentele dupa channel ID, citeste fiecare feed o singura data per ciclu si distribuie rezultatele catre guild-urile interesate.
 
-Deduplicarea este atomica in colectia `guildSeenYoutube`. Un videoclip este revendicat inainte de trimitere si revendicarea este anulata daca metadatele sau livrarea esueaza, astfel incat ciclul urmator sa poata reincerca. Cand outbox-ul este activ, joburile folosesc `kind: youtube`, sunt revalidate pe `youtubeNotificationsEnabled` si `youtubeNotificationChannelId`, iar istoricul `/history` este scris numai dupa livrarea reala.
+Deduplicarea este atomica in colectia `guildSeenYoutube`, pe combinatia server + canal YouTube + ID video. Schimbarea titlului sau a thumbnail-ului nu retrimite acelasi ID; un reupload cu ID nou este continut nou. Un videoclip este revendicat inainte de trimitere si revendicarea este anulata daca metadatele sau toate destinatiile de livrare esueaza, astfel incat ciclul urmator sa poata reincerca. Afisarea manuala `/youtube videos show` nu modifica deduplicarea. Cand outbox-ul este activ, joburile folosesc `kind: youtube`, sunt revalidate pe `youtubeNotificationsEnabled` si pe canalul principal sau una dintre rutele speciale, iar istoricul `/history` este scris numai dupa livrarea reala.
 
-Filtrele Shorts/live/premiere necesita o citire a paginii videoclipului. Filtrul de durata minima este fail-closed: daca este configurat peste `0` si durata nu poate fi determinata, videoclipul nu este trimis. Aceasta alegere evita postarea unui clip care nu respecta politica serverului.
+Filtrele Shorts/live/premiere necesita o citire a paginii videoclipului. Filtrul de durata minima este fail-closed: daca este configurat peste `0` si durata nu poate fi determinata, videoclipul nu este trimis. Filtrul inclusiv de titlu accepta un videoclip daca titlul contine cel putin una dintre valorile configurate. Sablonul mesajului permite numai `{channel}`, `{title}` si `{url}`, iar payload-ul dezactiveaza mentiunile Discord. Livrarea automata si manuala trimite maximum 5 videoclipuri per mesaj si asteapta 10 minute intre loturile suplimentare.
 
 Diagnostic recomandat:
 
@@ -200,7 +200,7 @@ Diagnostic recomandat:
 4. Verifica accesul outbound HTTPS catre `www.youtube.com`, `youtube.com/feeds/videos.xml` si `i.ytimg.com`.
 5. Dupa remediere, `/youtube clear-errors` curata istoricul operational.
 
-Un canal Discord sters sau devenit permanent inaccesibil dezactiveaza notificarile YouTube pentru guild, ca botul sa nu repete la nesfarsit aceeasi livrare imposibila. Lista canalelor YouTube ramane salvata si poate fi reactivata dupa configurarea unui canal Discord valid.
+Un canal Discord principal sters sau devenit permanent inaccesibil dezactiveaza notificarile YouTube pentru guild. O ruta speciala invalida este eliminata fara sa dezactiveze celelalte destinatii. Daca un canal YouTube nu mai are rute speciale, livrarea revine la canalul principal.
 
 ## Indexuri MongoDB (inventar)
 
