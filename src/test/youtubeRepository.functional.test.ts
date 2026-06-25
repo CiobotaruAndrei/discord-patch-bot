@@ -74,3 +74,30 @@ test("YouTube repository limiteaza erorile si dezactiveaza canalul Discord perma
   assert.match(JSON.stringify(writes[0].update), /youtubeErrors/);
   assert.match(JSON.stringify(writes[1].update), /youtubeNotificationsEnabled/);
 });
+
+test("YouTube repository elimina o ruta Discord invalida fara sa opreasca modulul", async () => {
+  const writes: Array<{ filter: object; update: object; options?: object }> = [];
+  const repository = createYouTubeRepository({
+    GuildModel: {
+      updateOne: async (filter, update, options) => {
+        writes.push({ filter, update, options });
+        return { modifiedCount: 1 };
+      }
+    },
+    GuildSeenYoutubeModel: {
+      create: async () => ({}),
+      bulkWrite: async () => ({}),
+      deleteOne: async () => ({}),
+      deleteMany: async () => ({})
+    },
+    withMongoRetry: async fn => fn(),
+    invalidateGuildCache: () => undefined,
+    adminAlert: async () => undefined,
+    logger: () => undefined
+  } satisfies RepositoryDeps);
+  await repository.removeRouteForChannelError("g1", "route-1", "Missing Access");
+  assert.equal(writes.length, 2);
+  assert.match(JSON.stringify(writes[0].update), /youtubeChannelRoutes/);
+  assert.doesNotMatch(JSON.stringify(writes[0].update), /youtubeNotificationsEnabled/);
+  assert.match(JSON.stringify(writes[1].update), /\$size/);
+});

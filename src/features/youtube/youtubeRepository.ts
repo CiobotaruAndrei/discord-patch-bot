@@ -200,6 +200,44 @@ export function createYouTubeRepository(deps: YouTubeRepositoryDeps) {
     return result;
   }
 
+  async function removeRouteForChannelError(
+    guildId: string,
+    discordChannelId: string,
+    message: string
+  ): Promise<MongoWriteResult> {
+    const result = await GuildModel.updateOne(
+      { _id: guildId },
+      {
+        $pull: {
+          "youtubeChannelRoutes.$[].discordChannelIds": discordChannelId
+        },
+        $push: {
+          youtubeErrors: {
+            $each: [{
+              channelId: "",
+              channelName: "Ruta Discord YouTube",
+              message: message.slice(0, 500),
+              at: new Date()
+            }],
+            $slice: -YOUTUBE_ERROR_LIMIT
+          }
+        }
+      }
+    );
+    await GuildModel.updateOne(
+      { _id: guildId },
+      { $pull: { youtubeChannelRoutes: { discordChannelIds: { $size: 0 } } } }
+    );
+    invalidateGuildCache(guildId);
+    adminAlert(
+      "discord:youtube-route",
+      "O ruta YouTube invalida a fost eliminata",
+      message,
+      guildId
+    ).catch(error => logger("WARN", "YOUTUBE", "Alerta de ruta YouTube a esuat", error));
+    return result;
+  }
+
   return {
     seedSeenVideos,
     claimVideo,
@@ -208,6 +246,7 @@ export function createYouTubeRepository(deps: YouTubeRepositoryDeps) {
     recordChannelSuccess,
     recordChannelError,
     clearErrors,
-    disableNotificationsForChannelError
+    disableNotificationsForChannelError,
+    removeRouteForChannelError
   };
 }

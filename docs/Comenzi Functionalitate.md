@@ -69,28 +69,39 @@ Canalul administrativ primeste alerte operationale cu severitate, cauza, explica
 
 ## Monitorizare YouTube
 
-Modulul YouTube urmareste canale publice pentru serverul Discord. Nu se autentifica in contul personal YouTube al administratorului si nu modifica abonamentele acelui cont. Botul rezolva canalul din link, handle sau channel ID, citeste feed-ul Atom oficial si face baseline la adaugare, astfel incat sa posteze numai videoclipurile aparute dupa abonare.
+Modulul YouTube urmareste canale publice pentru serverul Discord. Nu se autentifica in contul personal YouTube al administratorului si nu modifica abonamentele acelui cont. Botul rezolva canalul din link, handle sau channel ID si citeste feed-ul Atom oficial. La adaugare ignora continutul mai vechi de o luna, iar videoclipurile recente raman eligibile pentru prima activare.
 
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
-| `/youtube subscribe canal:<link|handle|id>` | Admin, Ephemeral | Adauga un canal YouTube in lista urmarita. Accepta un link `youtube.com`, un handle precum `@numeCanal` sau un channel ID care incepe cu `UC`. Botul memoreaza videoclipurile deja existente ca baseline si nu le posteaza retroactiv. |
+| `/youtube subscribe canal:<link|handle|id>` | Admin, Ephemeral | Adauga un canal YouTube in lista urmarita. Accepta un link `youtube.com`, un handle precum `@numeCanal` sau un channel ID care incepe cu `UC`. Videoclipurile mai vechi de o luna sunt memorate ca baseline; cele recente pot fi livrate la prima activare. |
 | `/youtube unsubscribe canal:<canal>` | Admin, Autocomplete, Ephemeral | Scoate canalul ales din lista urmarita si elimina deduplicarea persistata pentru acel canal. Autocomplete-ul sugereaza numai canalele deja salvate pe server. |
 | `/youtube list` | Admin, Ephemeral | Listeaza canalele urmarite, linkul fiecaruia, ultima verificare reusita si ultima eroare cunoscuta. |
 | `/youtube notify channel channel:<canal>` | Admin, Ephemeral | Seteaza canalul Discord in care vor fi postate videoclipurile noi. Inainte de salvare verifica `View Channel`, `Send Messages` si `Embed Links`. |
 | `/youtube notify on` | Admin, Ephemeral | Porneste postarile automate. Necesita cel putin un canal YouTube urmarit si un canal Discord configurat. |
-| `/youtube notify off` | Admin, Ephemeral | Opreste postarile automate fara sa stearga lista canalelor YouTube sau filtrele. Feed-urile continua sa poata fi folosite pentru baseline, ca reactivarea sa nu produca un val de videoclipuri vechi. |
+| `/youtube notify off` | Admin, Ephemeral | Opreste postarile automate fara sa stearga lista canalelor YouTube sau filtrele. Dupa prima activare, videoclipurile aparute in pauza sunt memorate fara livrare, ca reactivarea sa nu produca un val retroactiv. |
 | `/youtube notify status` | Admin, Ephemeral | Afiseaza daca postarile sunt active, canalul Discord, numarul de canale urmarite, filtrele curente, ultima verificare si numarul erorilor recente. |
 | `/youtube filter shorts state:<on|off>` | Admin, Ephemeral | Cand este `on`, exclude videoclipurile marcate ca Shorts si clipurile cu durata de cel mult 60 de secunde. |
 | `/youtube filter lives state:<on|off>` | Admin, Ephemeral | Cand este `on`, exclude livestream-urile detectate din metadatele paginii videoclipului. |
 | `/youtube filter premieres state:<on|off>` | Admin, Ephemeral | Cand este `on`, exclude premierele programate. |
 | `/youtube filter min-duration seconds:<numar>` | Admin, Ephemeral | Seteaza durata minima acceptata in secunde. `0` dezactiveaza limita. Daca limita este activa si durata nu poate fi confirmata, filtrul este fail-closed si videoclipul nu este postat. |
 | `/youtube filter status` | Admin, Ephemeral | Afiseaza starea filtrelor Shorts, livestream, premiere si durata minima. |
+| `/youtube message-template set text:<text>` | Admin, Ephemeral | Seteaza textul atasat notificarilor. Variabilele acceptate sunt `{channel}`, `{title}` si `{url}`. Alte variabile sunt respinse, iar mentiunile Discord sunt dezactivate la trimitere. |
+| `/youtube message-template reset` | Admin, Ephemeral | Revine la sablonul implicit `Videoclip nou de la {channel}: {title}\n{url}`. |
+| `/youtube message-template status` | Admin, Ephemeral | Afiseaza sablonul folosit in prezent. |
+| `/youtube channel-route add canal:<canal> discord:<#canal>` | Admin, Ephemeral | Adauga o ruta Discord speciala pentru canalul YouTube ales. Pot exista mai multe rute. Cat timp exista cel putin una, videoclipurile acelui canal sunt trimise numai pe rutele speciale, nu si pe canalul principal. |
+| `/youtube channel-route remove canal:<canal> discord:<#canal|toate>` | Admin, Autocomplete, Ephemeral | Sterge o ruta sau toate rutele speciale ale canalului YouTube. Dupa stergerea ultimei rute, livrarea revine automat la canalul principal. |
+| `/youtube channel-route list` | Admin, Ephemeral | Listeaza canalele YouTube care au rute speciale si toate destinatiile Discord aferente. |
+| `/youtube title-filter add word:<valoare>` | Admin, Ephemeral | Adauga un cuvant sau o expresie in filtrul inclusiv. Cand lista nu este goala, titlul trebuie sa contina cel putin una dintre valori; compararea nu tine cont de litere mari sau mici. |
+| `/youtube title-filter remove word:<valoare>` | Admin, Autocomplete, Ephemeral | Elimina o valoare din filtrul inclusiv. |
+| `/youtube title-filter list` | Admin, Ephemeral | Listeaza toate valorile filtrului inclusiv. |
+| `/youtube title-filter clear` | Admin, Ephemeral | Goleste filtrul inclusiv, astfel incat toate titlurile sa poata trece acest filtru. |
+| `/youtube videos show canal:<canal|toate>` | Admin, Autocomplete, Ephemeral | Posteaza manual videoclipurile din ultima luna pentru canalul ales sau pentru toate canalele urmarite. Aplica aceleasi filtre, sablon si rute ca fluxul automat, dar nu marcheaza videoclipurile ca vazute. Pana la 5 rezultate sunt trimise imediat; restul sunt impartite in loturi de 5, cu 10 minute intre loturi. |
 | `/youtube status` | Admin, Ephemeral | Afiseaza starea completa a modulului: notificari, canal Discord, canale urmarite, ultima verificare, filtre si erori recente. |
 | `/youtube errors` | Admin, Ephemeral | Listeaza ultimele erori de rezolvare canal, citire feed, citire metadate sau livrare Discord. Lista este plafonata, ca documentul serverului sa nu creasca nelimitat. |
 | `/youtube permissions` | Admin, Ephemeral | Verifica permisiunile botului pe canalul Discord configurat pentru YouTube si indica exact ce lipseste. |
 | `/youtube clear-errors` | Admin, Ephemeral | Curata istoricul local al erorilor YouTube dupa ce problema a fost investigata sau rezolvata. Nu modifica abonamentele si nu porneste/opreste notificarile. |
 
-Pentru configurarea initiala: ruleaza `/youtube notify channel`, adauga unul sau mai multe canale cu `/youtube subscribe`, seteaza filtrele dorite si porneste postarile cu `/youtube notify on`. Comenzile `/youtube status`, `/youtube errors` si `/youtube permissions` sunt primele verificari cand un videoclip nu apare.
+Pentru configurarea initiala: ruleaza `/youtube notify channel`, adauga unul sau mai multe canale cu `/youtube subscribe`, seteaza filtrele dorite si porneste postarile cu `/youtube notify on`. La prima activare sunt eligibile numai videoclipurile din ultima luna. Pentru 6 sau mai multe rezultate, botul trimite loturi de cate 5 si asteapta 10 minute intre ele. Deduplicarea automata foloseste serverul, canalul YouTube si ID-ul videoclipului; schimbarea titlului sau a thumbnail-ului nu retrimite acelasi ID, iar un reupload cu ID nou este tratat ca videoclip nou. Comenzile `/youtube status`, `/youtube errors` si `/youtube permissions` sunt primele verificari cand un videoclip nu apare.
 
 ## Filtru de jocuri pentru update-uri
 

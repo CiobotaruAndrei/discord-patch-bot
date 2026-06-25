@@ -80,6 +80,11 @@ const youtubeErrorSchema = new mongoose.Schema({
   at: { type: Date, default: Date.now }
 }, { _id: false });
 
+const youtubeChannelRouteSchema = new mongoose.Schema({
+  channelId: { type: String, required: true },
+  discordChannelIds: { type: [String], default: [] }
+}, { _id: false });
+
 const guildSchema = new mongoose.Schema({
   _id: String,
   subscribed: { type: Boolean, default: false },
@@ -125,12 +130,16 @@ const guildSchema = new mongoose.Schema({
   youtubeChannels: { type: [youtubeChannelSchema], default: [] },
   youtubeNotificationChannelId: { type: String, default: null },
   youtubeNotificationsEnabled: { type: Boolean, default: false },
+  youtubeHasActivated: { type: Boolean, default: false },
   youtubeFilters: {
     excludeShorts: { type: Boolean, default: true },
     excludeLives: { type: Boolean, default: true },
     excludePremieres: { type: Boolean, default: true },
     minDurationSeconds: { type: Number, default: 0, min: 0, max: 86400 }
   },
+  youtubeMessageTemplate: { type: String, default: null, maxlength: 1000 },
+  youtubeChannelRoutes: { type: [youtubeChannelRouteSchema], default: [] },
+  youtubeTitleIncludeWords: { type: [String], default: [] },
   youtubeErrors: { type: [youtubeErrorSchema], default: [] }
 }, { minimize: false });
 

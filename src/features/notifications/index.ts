@@ -133,7 +133,14 @@ function createOutboxServices(deps: NotificationsRuntimeDeps) {
         job.kind === "discount"
           ? { _id: job.guildId, discountsSubscribed: true, discountChannelId: job.channelId }
           : job.kind === "youtube"
-            ? { _id: job.guildId, youtubeNotificationsEnabled: true, youtubeNotificationChannelId: job.channelId }
+            ? {
+                _id: job.guildId,
+                youtubeNotificationsEnabled: true,
+                $or: [
+                  { youtubeNotificationChannelId: job.channelId },
+                  { "youtubeChannelRoutes.discordChannelIds": job.channelId }
+                ]
+              }
             : { _id: job.guildId, subscribed: true, notificationChannelId: job.channelId }
       ).then(count => count > 0).catch(() => true),
       recordDeadLetter: recordOutboxDeadLetter,
@@ -246,10 +253,10 @@ function createNotificationDispatchServices(
     recordChannelSuccess: youtubeRepository.recordChannelSuccess,
     recordChannelError: youtubeRepository.recordChannelError,
     disableNotificationsForChannelError: youtubeRepository.disableNotificationsForChannelError,
+    removeRouteForChannelError: youtubeRepository.removeRouteForChannelError,
     resolveOutboundChannel,
     sleepIfPositive,
     transientErrorMessage,
-    DISCORD_SEND_DELAY_MS,
     GUILD_PROCESS_CONCURRENCY,
     FETCH_CONCURRENCY: deps.FETCH_CONCURRENCY
   });
@@ -307,6 +314,7 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     removeSeenChannel: youtubeRepository.removeSeenChannel,
     clearYouTubeErrors: youtubeRepository.clearErrors,
     checkForYouTube: youtubeService.checkForYouTube,
+    showYouTubeVideos: youtubeService.showYouTubeVideos,
     drainOutbox,
     enqueueOutbox,
     listReplayableDeadLetters: deadLetterReplayRepository.listForGuild,

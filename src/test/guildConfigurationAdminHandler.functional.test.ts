@@ -57,6 +57,10 @@ test("/reset-config confirm:true reseteaza toate suprafetele de configurare", as
   assert.deepEqual(setDoc.enabledGames, []);
   assert.deepEqual(setDoc.priceAlerts, []);
   assert.equal(setDoc.adminAlertChannelId, null);
+  assert.equal(setDoc.youtubeHasActivated, false);
+  assert.equal(setDoc.youtubeMessageTemplate, null);
+  assert.deepEqual(setDoc.youtubeChannelRoutes, []);
+  assert.deepEqual(setDoc.youtubeTitleIncludeWords, []);
   assert.match(String(replies[0]), /resetata la valorile implicite/);
 });
 

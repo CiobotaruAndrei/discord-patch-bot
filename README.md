@@ -35,9 +35,11 @@ La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun ve
 - `/reset-config` - (admin) cu optiunea obligatorie `confirm:true`, reseteaza setarile serverului la valorile implicite, fara sa stearga istoricul rapoartelor sau al notificarilor.
 - `/admin-alerts set` si `/admin-alerts off` - (admin) configureaza sau dezactiveaza canalul Discord pentru alerte operationale, dead-letter, permisiuni si rapoarte noi.
 - `/price-alert add`, `/price-alert remove` si `/price-alert list` - (admin) gestioneaza alerte de pret. Alerta se trimite pe canalul activat prin `/start reduceri`, se declanseaza o singura data cand pretul ajunge la/sub prag si se rearmeaza dupa ce pretul urca peste prag.
-- `/youtube subscribe`, `/youtube unsubscribe` si `/youtube list` - (admin) gestioneaza canalele YouTube publice urmarite; adaugarea accepta link, handle `@nume` sau channel ID si face baseline ca sa nu posteze retroactiv.
+- `/youtube subscribe`, `/youtube unsubscribe` si `/youtube list` - (admin) gestioneaza canalele YouTube publice urmarite; adaugarea accepta link, handle `@nume` sau channel ID si pastreaza eligibile numai videoclipurile din ultima luna pentru prima activare.
 - `/youtube notify channel`, `/youtube notify on`, `/youtube notify off` si `/youtube notify status` - (admin) configureaza canalul Discord si porneste/opreste postarile automate fara sa stearga abonamentele.
 - `/youtube filter shorts`, `/youtube filter lives`, `/youtube filter premieres`, `/youtube filter min-duration` si `/youtube filter status` - (admin) controleaza ce tipuri de videoclipuri pot fi postate.
+- `/youtube message-template set`, `/youtube message-template reset`, `/youtube message-template status`, `/youtube channel-route add`, `/youtube channel-route remove`, `/youtube channel-route list`, `/youtube title-filter add`, `/youtube title-filter remove`, `/youtube title-filter list` si `/youtube title-filter clear` - (admin) personalizeaza mesajul, ruteaza separat creatorii si permite numai titlurile care contin cel putin una dintre valorile configurate.
+- `/youtube videos show` - (admin) posteaza manual videoclipurile din ultima luna fara sa modifice deduplicarea automata; rezultatele sunt livrate in loturi de maximum 5, cu 10 minute intre loturile suplimentare.
 - `/youtube status`, `/youtube errors`, `/youtube permissions` si `/youtube clear-errors` - (admin) ofera diagnoza completa pentru monitorizarea YouTube.
 - `/latest` - afiseaza ultimele update-uri cunoscute.
 - `/dlc` - afiseaza DLC-uri cunoscute.

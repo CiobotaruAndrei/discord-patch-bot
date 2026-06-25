@@ -8,7 +8,16 @@ import type {
   YouTubeVideo
 } from "../../types";
 import type { CommandGame, CommandHandler } from "../command-registry/commandHandler";
+import type { NotificationDiscordClient } from "../notifications/outboundChannel";
 import type { ResolvedYouTubeChannel } from "../youtube/youtubeSource";
+import {
+  DEFAULT_YOUTUBE_MESSAGE_TEMPLATE,
+  YOUTUBE_TITLE_WORD_LIMIT,
+  isRecentYouTubeVideo,
+  normalizeYouTubeTitleWord,
+  parseDiscordChannelReference,
+  validateYouTubeMessageTemplate
+} from "../youtube/youtubeDeliveryPolicy";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
@@ -23,6 +32,7 @@ interface DiscordInteraction {
   guild?: { id: string } | null;
   deferred?: boolean;
   replied?: boolean;
+  client?: NotificationDiscordClient;
   isChatInputCommand?: () => boolean;
   options: {
     getSubcommand(): string;
@@ -57,6 +67,11 @@ interface YouTubeInteractionDeps {
   seedSeenVideos(guildId: string, channelId: string, videos: YouTubeVideo[]): Promise<void>;
   removeSeenChannel(guildId: string, channelId: string): Promise<void>;
   clearYouTubeErrors(guildId: string): Promise<void>;
+  showYouTubeVideos(
+    client: NotificationDiscordClient,
+    guild: GuildSettings,
+    selectedChannelId: string
+  ): Promise<{ videos: number; batches: number; destinations: number }>;
   checkChannelPermissions(interaction: DiscordInteraction, channelId: string): Promise<ChannelPermissions | null>;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
@@ -116,6 +131,9 @@ function formatYouTubeStatus(settings: GuildSettings | null): string {
     `notificari: ${onOff(settings?.youtubeNotificationsEnabled === true)}`,
     `canal Discord: ${settings?.youtubeNotificationChannelId ? `<#${settings.youtubeNotificationChannelId}>` : "neconfigurat"}`,
     `canale urmarite: ${channels.length}`,
+    `rute speciale: ${(settings?.youtubeChannelRoutes || []).reduce((total, route) => total + route.discordChannelIds.length, 0)}`,
+    `filtre titlu: ${settings?.youtubeTitleIncludeWords?.length || 0}`,
+    `sablon mesaj: ${settings?.youtubeMessageTemplate ? "personalizat" : "implicit"}`,
     `ultima verificare: ${lastChecked > 0 ? `<t:${Math.floor(lastChecked / 1000)}:R>` : "niciodata"}`,
     `erori recente: ${settings?.youtubeErrors?.length || 0}`,
     formatFilters(defaultFilters(settings))
@@ -132,6 +150,7 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     seedSeenVideos,
     removeSeenChannel,
     clearYouTubeErrors,
+    showYouTubeVideos,
     checkChannelPermissions,
     safeDefer,
     safeEdit
@@ -150,8 +169,9 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
       return safeEdit(interaction, `Info: **${resolved.channelName}** este deja urmarit.`);
     }
     const videos = await fetchYouTubeFeed(resolved);
-    await seedSeenVideos(guildId, resolved.channelId, videos);
     const now = new Date();
+    const olderVideos = videos.filter(video => !isRecentYouTubeVideo(video, now));
+    await seedSeenVideos(guildId, resolved.channelId, olderVideos);
     const subscription: YouTubeChannelSubscription = {
       ...resolved,
       subscribedAt: now,
@@ -173,7 +193,7 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     }
     return safeEdit(
       interaction,
-      `OK: **${resolved.channelName}** a fost adaugat. Am memorat ${videos.length} videoclipuri existente ca baseline, deci nu vor fi postate retroactiv.`
+      `OK: **${resolved.channelName}** a fost adaugat. Am ignorat ${olderVideos.length} videoclipuri mai vechi de o luna; cele recente pot fi livrate la prima activare.`
     );
   }
 
@@ -184,7 +204,7 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     const channel = settings?.youtubeChannels?.find(item => item.channelId === channelId);
     const result = await GuildModel.updateOne(
       { _id: guildId },
-      { $pull: { youtubeChannels: { channelId } } }
+      { $pull: { youtubeChannels: { channelId }, youtubeChannelRoutes: { channelId } } }
     );
     if ((result.modifiedCount ?? 0) === 0) {
       return safeEdit(interaction, `Info: canalul \`${channelId}\` nu era urmarit.`);
@@ -225,7 +245,7 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
       }
       await GuildModel.updateOne(
         { _id: guildId },
-        { $set: { youtubeNotificationsEnabled: true } },
+        { $set: { youtubeNotificationsEnabled: true, youtubeHasActivated: true } },
         { upsert: true }
       );
       invalidateGuildCache(guildId);
@@ -280,6 +300,170 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     return safeEdit(interaction, `OK: filtrul YouTube ${subcommand} este ${onOff(enabled)}.`);
   }
 
+  async function messageTemplate(
+    interaction: DiscordInteraction,
+    guildId: string,
+    subcommand: string
+  ): Promise<unknown> {
+    if (subcommand === "status") {
+      const template = (await getGuildSettings(guildId))?.youtubeMessageTemplate || DEFAULT_YOUTUBE_MESSAGE_TEMPLATE;
+      return safeEdit(interaction, `Sablon YouTube curent:\n\`\`\`\n${template}\n\`\`\``);
+    }
+    if (subcommand === "reset") {
+      await GuildModel.updateOne(
+        { _id: guildId },
+        { $set: { youtubeMessageTemplate: null } },
+        { upsert: true }
+      );
+      invalidateGuildCache(guildId);
+      return safeEdit(interaction, `OK: sablonul YouTube a revenit la valoarea implicita:\n\`${DEFAULT_YOUTUBE_MESSAGE_TEMPLATE}\``);
+    }
+    const rawTemplate = interaction.options.getString("text", true);
+    if (!rawTemplate) return safeEdit(interaction, "Eroare: trebuie sa introduci textul sablonului.");
+    try {
+      const template = validateYouTubeMessageTemplate(rawTemplate);
+      await GuildModel.updateOne(
+        { _id: guildId },
+        { $set: { youtubeMessageTemplate: template } },
+        { upsert: true }
+      );
+      invalidateGuildCache(guildId);
+      return safeEdit(interaction, "OK: sablonul mesajului YouTube a fost actualizat.");
+    } catch (error) {
+      return safeEdit(interaction, `Eroare: ${errorDetail(error)}`);
+    }
+  }
+
+  function formatYouTubeRoutes(settings: GuildSettings | null): string {
+    const routes = settings?.youtubeChannelRoutes || [];
+    if (!routes.length) return "Nu exista rute speciale YouTube. Toate videoclipurile folosesc canalul principal.";
+    const channelNames = new Map((settings?.youtubeChannels || []).map(channel => [channel.channelId, channel.channelName]));
+    return routes.map(route => {
+      const destinations = route.discordChannelIds.map(channelId => `<#${channelId}>`).join(", ");
+      return `- **${channelNames.get(route.channelId) || route.channelId}**: ${destinations || "fara destinatii"}`;
+    }).join("\n");
+  }
+
+  async function channelRoute(
+    interaction: DiscordInteraction,
+    guildId: string,
+    subcommand: string
+  ): Promise<unknown> {
+    const settings = await getGuildSettings(guildId);
+    if (subcommand === "list") return safeEdit(interaction, formatYouTubeRoutes(settings));
+    const youtubeChannelId = interaction.options.getString("canal", true);
+    const subscription = settings?.youtubeChannels?.find(channel => channel.channelId === youtubeChannelId);
+    if (!youtubeChannelId || !subscription) {
+      return safeEdit(interaction, "Eroare: alege un canal YouTube urmarit.");
+    }
+    const existingRoute = (settings?.youtubeChannelRoutes || []).find(route => route.channelId === youtubeChannelId);
+    if (subcommand === "add") {
+      const discordChannel = interaction.options.getChannel("discord", true);
+      if (!discordChannel?.id) return safeEdit(interaction, "Eroare: alege un canal Discord valid.");
+      const permissions = await checkChannelPermissions(interaction, discordChannel.id);
+      if (!permissions?.sendMessages || !permissions.embedLinks) {
+        return safeEdit(interaction, "Eroare: botul are nevoie de Send Messages si Embed Links pe canalul ales.");
+      }
+      const update = existingRoute
+        ? { $addToSet: { "youtubeChannelRoutes.$[route].discordChannelIds": discordChannel.id } }
+        : { $push: { youtubeChannelRoutes: { channelId: youtubeChannelId, discordChannelIds: [discordChannel.id] } } };
+      const options = existingRoute
+        ? { arrayFilters: [{ "route.channelId": youtubeChannelId }] }
+        : { upsert: true };
+      await GuildModel.updateOne({ _id: guildId }, update, options);
+      invalidateGuildCache(guildId);
+      return safeEdit(interaction, `OK: videoclipurile de la **${subscription.channelName}** vor fi trimise exclusiv in rutele speciale configurate, inclusiv <#${discordChannel.id}>.`);
+    }
+    const requested = interaction.options.getString("discord", true);
+    if (!requested) return safeEdit(interaction, "Eroare: alege canalul Discord sau valoarea `toate`.");
+    if (!existingRoute) return safeEdit(interaction, "Info: canalul YouTube nu are rute speciale configurate.");
+    if (requested === "toate") {
+      await GuildModel.updateOne(
+        { _id: guildId },
+        { $pull: { youtubeChannelRoutes: { channelId: youtubeChannelId } } }
+      );
+      invalidateGuildCache(guildId);
+      return safeEdit(interaction, `OK: toate rutele speciale pentru **${subscription.channelName}** au fost sterse. Se foloseste din nou canalul principal.`);
+    }
+    const discordChannelId = parseDiscordChannelReference(requested);
+    if (!discordChannelId || !existingRoute.discordChannelIds.includes(discordChannelId)) {
+      return safeEdit(interaction, "Eroare: ruta Discord aleasa nu exista pentru acest canal YouTube.");
+    }
+    const update = existingRoute.discordChannelIds.length === 1
+      ? { $pull: { youtubeChannelRoutes: { channelId: youtubeChannelId } } }
+      : { $pull: { "youtubeChannelRoutes.$[route].discordChannelIds": discordChannelId } };
+    const options = existingRoute.discordChannelIds.length === 1
+      ? undefined
+      : { arrayFilters: [{ "route.channelId": youtubeChannelId }] };
+    await GuildModel.updateOne({ _id: guildId }, update, options);
+    invalidateGuildCache(guildId);
+    return safeEdit(interaction, `OK: ruta <#${discordChannelId}> a fost stearsa pentru **${subscription.channelName}**.`);
+  }
+
+  async function titleFilter(
+    interaction: DiscordInteraction,
+    guildId: string,
+    subcommand: string
+  ): Promise<unknown> {
+    const settings = await getGuildSettings(guildId);
+    const words = settings?.youtubeTitleIncludeWords || [];
+    if (subcommand === "list") {
+      return safeEdit(interaction, words.length
+        ? `Filtrul inclusiv accepta titluri care contin cel putin una dintre valorile:\n${words.map(word => `- \`${word}\``).join("\n")}`
+        : "Filtrul inclusiv de titlu este gol. Toate titlurile trec acest filtru.");
+    }
+    if (subcommand === "clear") {
+      await GuildModel.updateOne({ _id: guildId }, { $set: { youtubeTitleIncludeWords: [] } }, { upsert: true });
+      invalidateGuildCache(guildId);
+      return safeEdit(interaction, "OK: filtrul inclusiv de titlu a fost golit.");
+    }
+    const rawWord = interaction.options.getString("word", true);
+    if (!rawWord) return safeEdit(interaction, "Eroare: introdu o valoare pentru filtrul de titlu.");
+    try {
+      const word = normalizeYouTubeTitleWord(rawWord);
+      if (subcommand === "add") {
+        if (words.length >= YOUTUBE_TITLE_WORD_LIMIT && !words.includes(word)) {
+          return safeEdit(interaction, `Eroare: filtrul poate avea cel mult ${YOUTUBE_TITLE_WORD_LIMIT} valori.`);
+        }
+        await GuildModel.updateOne(
+          { _id: guildId },
+          { $addToSet: { youtubeTitleIncludeWords: word } },
+          { upsert: true }
+        );
+        invalidateGuildCache(guildId);
+        return safeEdit(interaction, `OK: \`${word}\` a fost adaugat in filtrul inclusiv de titlu.`);
+      }
+      await GuildModel.updateOne(
+        { _id: guildId },
+        { $pull: { youtubeTitleIncludeWords: word } }
+      );
+      invalidateGuildCache(guildId);
+      return safeEdit(interaction, `OK: \`${word}\` a fost eliminat din filtrul inclusiv de titlu.`);
+    } catch (error) {
+      return safeEdit(interaction, `Eroare: ${errorDetail(error)}`);
+    }
+  }
+
+  async function showVideos(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
+    const selectedChannelId = interaction.options.getString("canal", true);
+    const settings = await getGuildSettings(guildId);
+    if (!selectedChannelId || !settings?.youtubeChannels?.length) {
+      return safeEdit(interaction, "Eroare: serverul nu are canale YouTube urmarite.");
+    }
+    if (selectedChannelId !== "toate" && !settings.youtubeChannels.some(channel => channel.channelId === selectedChannelId)) {
+      return safeEdit(interaction, "Eroare: alege un canal YouTube urmarit sau valoarea `toate`.");
+    }
+    if (!interaction.client) return safeEdit(interaction, "Eroare: clientul Discord nu este disponibil.");
+    await safeEdit(interaction, "Pornesc afisarea videoclipurilor din ultima luna. Pentru mai mult de 5 videoclipuri, livrarea continua in loturi de cate 5 la interval de 10 minute.");
+    const result = await showYouTubeVideos(interaction.client, settings, selectedChannelId);
+    deps.logger(
+      "INFO",
+      "YOUTUBE_COMMAND",
+      `Afisarea manuala YouTube pentru guild ${guildId}: ${result.videos} videoclipuri, ${result.batches} loturi, ${result.destinations} destinatii`
+    );
+    return result;
+  }
+
   async function errors(guildId: string): Promise<InteractionPayload> {
     const entries = (await getGuildSettings(guildId))?.youtubeErrors || [];
     if (!entries.length) return safeEditPlaceholder("Nu exista erori YouTube inregistrate.");
@@ -316,6 +500,10 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     const subcommand = interaction.options.getSubcommand();
     if (group === "notify") return notify(interaction, guildId, subcommand);
     if (group === "filter") return filter(interaction, guildId, subcommand);
+    if (group === "message-template") return messageTemplate(interaction, guildId, subcommand);
+    if (group === "channel-route") return channelRoute(interaction, guildId, subcommand);
+    if (group === "title-filter") return titleFilter(interaction, guildId, subcommand);
+    if (group === "videos" && subcommand === "show") return showVideos(interaction, guildId);
     if (subcommand === "subscribe") return subscribe(interaction, guildId);
     if (subcommand === "unsubscribe") return unsubscribe(interaction, guildId);
     if (subcommand === "list") return safeEdit(interaction, formatYouTubeList(await getGuildSettings(guildId)));

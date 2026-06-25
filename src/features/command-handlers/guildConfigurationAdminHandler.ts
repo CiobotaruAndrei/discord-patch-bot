@@ -89,12 +89,16 @@ function buildResetConfiguration(defaultCurrency: CurrencyCode): Record<string, 
     youtubeChannels: [],
     youtubeNotificationChannelId: null,
     youtubeNotificationsEnabled: false,
+    youtubeHasActivated: false,
     youtubeFilters: {
       excludeShorts: true,
       excludeLives: true,
       excludePremieres: true,
       minDurationSeconds: 0
     },
+    youtubeMessageTemplate: null,
+    youtubeChannelRoutes: [],
+    youtubeTitleIncludeWords: [],
     youtubeErrors: []
   };
 }

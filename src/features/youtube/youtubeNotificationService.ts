@@ -10,7 +10,15 @@ import type {
   NotificationDiscordClient,
   ResolveOutboundChannelResult
 } from "../notifications/outboundChannel";
-import { embedCharCost, packEmbedsByBudget } from "../../shared/discordEmbedChunks";
+import { embedCharCost } from "../../shared/discordEmbedChunks";
+import {
+  YOUTUBE_BATCH_DELAY_MS,
+  YOUTUBE_BATCH_SIZE,
+  isRecentYouTubeVideo,
+  renderYouTubeMessageTemplate,
+  videoPassesYouTubeTitleFilter,
+  youtubeDestinationIds
+} from "./youtubeDeliveryPolicy";
 
 interface GuildFindResult {
   lean(): Promise<GuildSettings[]>;
@@ -36,18 +44,21 @@ interface YouTubeNotificationServiceDeps {
   recordChannelSuccess(guildId: string, channel: YouTubeChannelSubscription, newestVideoId: string): Promise<void>;
   recordChannelError(guildId: string, channel: YouTubeChannelSubscription, message: string): Promise<void>;
   disableNotificationsForChannelError(guildId: string, channelId: string, message: string): Promise<object>;
+  removeRouteForChannelError(guildId: string, channelId: string, message: string): Promise<object>;
   resolveOutboundChannel(args: {
     client: NotificationDiscordClient;
     guild: GuildSettings;
     channelId: string | null | undefined;
     context: string;
     disableFn: (guildId: string, channelId: string, message: string) => Promise<object>;
+    bypassOutbox?: boolean;
   }): Promise<ResolveOutboundChannelResult>;
   sleepIfPositive(ms: number): Promise<void>;
   transientErrorMessage(error: unknown): string;
-  DISCORD_SEND_DELAY_MS: number;
   GUILD_PROCESS_CONCURRENCY: number;
   FETCH_CONCURRENCY: number;
+  youtubeBatchDelayMs?: number;
+  now?: () => Date;
 }
 
 interface FeedResult {
@@ -55,13 +66,24 @@ interface FeedResult {
   error: string;
 }
 
-interface ClaimedVideo {
+interface PreparedVideo {
   channel: YouTubeChannelSubscription;
   video: YouTubeVideo;
   metadata: YouTubeVideoMetadata;
 }
 
-function buildYouTubeEmbed(item: ClaimedVideo): object {
+interface DeliveryState {
+  item: PreparedVideo;
+  successful: boolean;
+}
+
+interface DeliveryResult {
+  videos: number;
+  batches: number;
+  destinations: number;
+}
+
+function buildYouTubeEmbed(item: PreparedVideo): object {
   const duration = item.metadata.durationSeconds === null
     ? "necunoscuta"
     : `${Math.floor(item.metadata.durationSeconds / 60)}m ${item.metadata.durationSeconds % 60}s`;
@@ -87,6 +109,35 @@ function sortedVideos(videos: YouTubeVideo[]): YouTubeVideo[] {
   });
 }
 
+function packYouTubeDeliveries(items: PreparedVideo[], template: string | null | undefined): PreparedVideo[][] {
+  const batches: PreparedVideo[][] = [];
+  let current: PreparedVideo[] = [];
+  let currentEmbedChars = 0;
+  let currentContentChars = 0;
+  for (const item of items) {
+    const embedChars = embedCharCost(buildYouTubeEmbed(item));
+    const contentChars = renderYouTubeMessageTemplate(template, item.channel, item.video).length + (current.length ? 2 : 0);
+    if (
+      current.length > 0
+      && (
+        current.length >= YOUTUBE_BATCH_SIZE
+        || currentEmbedChars + embedChars > 5800
+        || currentContentChars + contentChars > 1900
+      )
+    ) {
+      batches.push(current);
+      current = [];
+      currentEmbedChars = 0;
+      currentContentChars = 0;
+    }
+    current.push(item);
+    currentEmbedChars += embedChars;
+    currentContentChars += renderYouTubeMessageTemplate(template, item.channel, item.video).length + (current.length > 1 ? 2 : 0);
+  }
+  if (current.length) batches.push(current);
+  return batches;
+}
+
 export function createYouTubeNotificationService(deps: YouTubeNotificationServiceDeps) {
   const {
     GuildModel,
@@ -100,13 +151,15 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     recordChannelSuccess,
     recordChannelError,
     disableNotificationsForChannelError,
+    removeRouteForChannelError,
     resolveOutboundChannel,
     sleepIfPositive,
     transientErrorMessage,
-    DISCORD_SEND_DELAY_MS,
     GUILD_PROCESS_CONCURRENCY,
     FETCH_CONCURRENCY
   } = deps;
+  const batchDelayMs = deps.youtubeBatchDelayMs ?? YOUTUBE_BATCH_DELAY_MS;
+  const now = deps.now || (() => new Date());
 
   async function loadFeeds(guilds: GuildSettings[]): Promise<Map<string, FeedResult>> {
     const unique = new Map<string, { channelId: string; channelName: string }>();
@@ -139,6 +192,96 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     return results;
   }
 
+  async function prepareVideo(
+    guild: GuildSettings,
+    channel: YouTubeChannelSubscription,
+    video: YouTubeVideo
+  ): Promise<PreparedVideo | null> {
+    const metadata = await fetchYouTubeVideoMetadata(video);
+    if (!videoPassesYouTubeFilters(metadata, guild.youtubeFilters)) return null;
+    if (!videoPassesYouTubeTitleFilter(video, guild.youtubeTitleIncludeWords)) return null;
+    return { channel, video, metadata };
+  }
+
+  async function deliverPrepared(
+    client: NotificationDiscordClient,
+    guild: GuildSettings,
+    items: PreparedVideo[],
+    bypassOutbox: boolean,
+    shouldAbort: () => boolean
+  ): Promise<{ result: DeliveryResult; states: DeliveryState[] }> {
+    const states = items.map(item => ({ item, successful: false }));
+    const stateByItem = new Map(items.map((item, index) => [item, states[index]]));
+    const groups = new Map<string, PreparedVideo[]>();
+    for (const item of items) {
+      for (const destinationId of youtubeDestinationIds(guild, item.channel.channelId)) {
+        const destinationItems = groups.get(destinationId) || [];
+        destinationItems.push(item);
+        groups.set(destinationId, destinationItems);
+      }
+    }
+    let batches = 0;
+    let destinations = 0;
+    for (const [destinationId, destinationItems] of groups) {
+      if (shouldAbort()) break;
+      const isMainDestination = destinationId === guild.youtubeNotificationChannelId;
+      const resolved = await resolveOutboundChannel({
+        client,
+        guild,
+        channelId: destinationId,
+        context: "CRON_YOUTUBE",
+        disableFn: isMainDestination
+          ? disableNotificationsForChannelError
+          : removeRouteForChannelError,
+        bypassOutbox
+      });
+      if (resolved.abort) continue;
+      destinations++;
+      const chunks = packYouTubeDeliveries(destinationItems, guild.youtubeMessageTemplate);
+      for (let index = 0; index < chunks.length; index++) {
+        if (shouldAbort()) break;
+        const chunk = chunks[index];
+        try {
+          await resolved.channel.send(
+            {
+              content: chunk
+                .map(item => renderYouTubeMessageTemplate(guild.youtubeMessageTemplate, item.channel, item.video))
+                .join("\n\n"),
+              embeds: chunk.map(buildYouTubeEmbed),
+              allowedMentions: { parse: [] }
+            },
+            {
+              historyEntries: chunk.map(item => ({
+                kind: "youtube" as const,
+                gameKey: `youtube:${item.channel.channelId}`,
+                title: item.video.title,
+                link: item.video.link,
+                itemId: item.video.videoId
+              }))
+            }
+          );
+          batches++;
+          for (const item of chunk) {
+            const state = stateByItem.get(item);
+            if (state) state.successful = true;
+          }
+          if (index < chunks.length - 1) await sleepIfPositive(batchDelayMs);
+        } catch (error) {
+          logger("WARN", "YOUTUBE", `Livrarea YouTube a esuat pentru guild ${guild._id} si canalul ${destinationId}`, error);
+          break;
+        }
+      }
+    }
+    return {
+      result: {
+        videos: states.filter(state => state.successful).length,
+        batches,
+        destinations
+      },
+      states
+    };
+  }
+
   async function processGuild(
     client: NotificationDiscordClient,
     guild: GuildSettings,
@@ -146,15 +289,16 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     shouldAbort: () => boolean
   ): Promise<void> {
     const guildId = String(guild._id);
-    const claimed: ClaimedVideo[] = [];
-    const rollbackClaimed = async (items: ClaimedVideo[]): Promise<void> => {
+    const prepared: PreparedVideo[] = [];
+    const claimedPrepared: PreparedVideo[] = [];
+    const rollbackPrepared = async (items: PreparedVideo[]): Promise<void> => {
       for (const item of items) {
         await rollbackVideo(guildId, item.channel.channelId, item.video.videoId).catch(() => undefined);
       }
     };
     for (const channel of guild.youtubeChannels || []) {
       if (shouldAbort()) {
-        await rollbackClaimed(claimed);
+        await rollbackPrepared(claimedPrepared);
         return;
       }
       const result = feeds.get(channel.channelId);
@@ -166,70 +310,68 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
       await recordChannelSuccess(guildId, channel, ordered.at(-1)?.videoId || channel.lastVideoId || "");
       for (const video of ordered) {
         if (shouldAbort()) {
-          await rollbackClaimed(claimed);
+          await rollbackPrepared(claimedPrepared);
           return;
         }
+        const recent = isRecentYouTubeVideo(video, now());
+        if (!recent) {
+          await claimVideo(guildId, channel.channelId, video.videoId);
+          continue;
+        }
+        if (!guild.youtubeNotificationsEnabled) {
+          if (guild.youtubeHasActivated) await claimVideo(guildId, channel.channelId, video.videoId);
+          continue;
+        }
         if (!(await claimVideo(guildId, channel.channelId, video.videoId))) continue;
-        if (!guild.youtubeNotificationsEnabled || !guild.youtubeNotificationChannelId) continue;
         try {
-          const metadata = await fetchYouTubeVideoMetadata(video);
-          if (shouldAbort()) {
+          const item = await prepareVideo(guild, channel, video);
+          if (!item) continue;
+          if (!youtubeDestinationIds(guild, channel.channelId).length) {
             await rollbackVideo(guildId, channel.channelId, video.videoId).catch(() => undefined);
-            await rollbackClaimed(claimed);
-            return;
+            continue;
           }
-          if (!videoPassesYouTubeFilters(metadata, guild.youtubeFilters)) continue;
-          claimed.push({ channel, video, metadata });
+          prepared.push(item);
+          claimedPrepared.push(item);
         } catch (error) {
           await rollbackVideo(guildId, channel.channelId, video.videoId).catch(() => undefined);
           await recordChannelError(guildId, channel, transientErrorMessage(error));
         }
       }
     }
-    if (!claimed.length) return;
+    if (!prepared.length) return;
     if (shouldAbort()) {
-      await rollbackClaimed(claimed);
+      await rollbackPrepared(claimedPrepared);
       return;
     }
-    const resolved = await resolveOutboundChannel({
-      client,
-      guild,
-      channelId: guild.youtubeNotificationChannelId,
-      context: "CRON_YOUTUBE",
-      disableFn: disableNotificationsForChannelError
-    });
-    if (resolved.abort) {
-      await rollbackClaimed(claimed);
-      return;
-    }
-    const chunks = packEmbedsByBudget(
-      claimed,
-      item => embedCharCost(buildYouTubeEmbed(item)),
-      { maxCount: 10 }
+    const delivery = await deliverPrepared(client, guild, prepared, false, shouldAbort);
+    const failed = delivery.states.filter(state => !state.successful).map(state => state.item);
+    await rollbackPrepared(failed);
+  }
+
+  async function showYouTubeVideos(
+    client: NotificationDiscordClient,
+    guild: GuildSettings,
+    selectedChannelId: string
+  ): Promise<DeliveryResult> {
+    const selectedChannels = (guild.youtubeChannels || []).filter(channel =>
+      selectedChannelId === "toate" || channel.channelId === selectedChannelId
     );
-    for (let index = 0; index < chunks.length; index++) {
-      const chunk = chunks[index];
+    const prepared: PreparedVideo[] = [];
+    for (const channel of selectedChannels) {
       try {
-        await resolved.channel.send(
-          { embeds: chunk.map(buildYouTubeEmbed) },
-          {
-            historyEntries: chunk.map(item => ({
-              kind: "youtube" as const,
-              gameKey: `youtube:${item.channel.channelId}`,
-              title: item.video.title,
-              link: item.video.link,
-              itemId: item.video.videoId
-            }))
-          }
-        );
-        await sleepIfPositive(DISCORD_SEND_DELAY_MS);
+        const videos = sortedVideos(await fetchYouTubeFeed(channel));
+        await recordChannelSuccess(String(guild._id), channel, videos.at(-1)?.videoId || channel.lastVideoId || "");
+        for (const video of videos) {
+          if (!isRecentYouTubeVideo(video, now())) continue;
+          const item = await prepareVideo(guild, channel, video);
+          if (item) prepared.push(item);
+        }
       } catch (error) {
-        const pending = chunks.slice(index).flat();
-        await rollbackClaimed(pending);
-        logger("WARN", "YOUTUBE", `Livrarea YouTube a esuat pentru guild ${guildId}`, error);
-        return;
+        await recordChannelError(String(guild._id), channel, transientErrorMessage(error));
       }
     }
+    const delivery = await deliverPrepared(client, guild, prepared, true, () => false);
+    return delivery.result;
   }
 
   async function checkForYouTube(
@@ -252,7 +394,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     }
   }
 
-  return { checkForYouTube, processGuild, loadFeeds };
+  return { checkForYouTube, processGuild, loadFeeds, showYouTubeVideos };
 }
 
-export { buildYouTubeEmbed, sortedVideos };
+export { buildYouTubeEmbed, packYouTubeDeliveries, sortedVideos };

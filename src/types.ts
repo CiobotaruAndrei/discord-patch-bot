@@ -382,6 +382,11 @@ export interface YouTubeFilters {
   minDurationSeconds?: number;
 }
 
+export interface YouTubeChannelRoute {
+  channelId: string;
+  discordChannelIds: string[];
+}
+
 export interface YouTubeErrorEntry {
   channelId: string;
   channelName: string;
@@ -438,7 +443,11 @@ export interface GuildSettings {
   youtubeChannels?: YouTubeChannelSubscription[];
   youtubeNotificationChannelId?: string | null;
   youtubeNotificationsEnabled?: boolean;
+  youtubeHasActivated?: boolean;
   youtubeFilters?: YouTubeFilters;
+  youtubeMessageTemplate?: string | null;
+  youtubeChannelRoutes?: YouTubeChannelRoute[];
+  youtubeTitleIncludeWords?: string[];
   youtubeErrors?: YouTubeErrorEntry[];
   seenHashVersionUpdates?: number;
   seenHashVersionDiscounts?: number;
