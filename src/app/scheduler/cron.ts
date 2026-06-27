@@ -55,6 +55,7 @@ interface CronCommands {
   setGlobalCacheTtl(ms: number): void;
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
   checkForDiscounts(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
+  checkForYouTube(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
 }
 
 interface CreateCronControllerDeps {
@@ -279,16 +280,18 @@ function createCronController({
             `Ciclul anterior a depasit bugetul de ${cronCycleBudgetMs}ms; sar peste reduceri in ciclul #${metrics.cronRuns} pentru recuperare`);
         }
         logger("INFO", "CRON", `Pornire ciclu cron #${metrics.cronRuns}`);
-        const settled = await Promise.allSettled(
-          shedDiscounts
-            ? [commands.checkForUpdates(client, games, shouldAbortCron)]
-            : [commands.checkForUpdates(client, games, shouldAbortCron), commands.checkForDiscounts(client, shouldAbortCron)]
-        );
+        const settled = await Promise.allSettled([
+          commands.checkForUpdates(client, games, shouldAbortCron),
+          ...(shedDiscounts ? [] : [commands.checkForDiscounts(client, shouldAbortCron)]),
+          commands.checkForYouTube(client, shouldAbortCron)
+        ]);
         const updatesResult = settled[0];
         const discountsResult = shedDiscounts ? undefined : settled[1];
+        const youtubeResult = settled[shedDiscounts ? 1 : 2];
         const failures: Array<{ label: string; reason: unknown }> = [];
         if (updatesResult && updatesResult.status === "rejected") failures.push({ label: "checkForUpdates", reason: updatesResult.reason });
         if (discountsResult && discountsResult.status === "rejected") failures.push({ label: "checkForDiscounts", reason: discountsResult.reason });
+        if (youtubeResult && youtubeResult.status === "rejected") failures.push({ label: "checkForYouTube", reason: youtubeResult.reason });
 
         if (failures.length) {
           metrics.cronErrors++;

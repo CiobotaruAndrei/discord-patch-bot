@@ -1,6 +1,7 @@
 "use strict";
 
 type AutocompleteChoice = { name: string; value: string };
+type CommandHelpChoiceOptions = { excludeCommands?: readonly string[] };
 
 export type CommandHelpEntry = {
   command: string;
@@ -18,6 +19,42 @@ export const COMMAND_HELP_ENTRIES: readonly CommandHelpEntry[] = [
   { command: "/ping", permissions: "Public", description: "Verifica rapid daca botul raspunde la Discord.", example: "/ping" },
   { command: "/games", permissions: "Public", description: "Listeaza jocurile cunoscute de bot si cheile/poreclele pe care le poti folosi in comenzile cu joc.", example: "/games" },
   { command: "/help", permissions: "Public", description: "Afiseaza meniul general de ajutor. Daca alegi o comanda in optiunea command, primesti explicatia detaliata pentru comanda aceea.", example: "/help command:/set games add" },
+  { command: "/config", permissions: "Admin, Ephemeral", description: "Afiseaza intr-un singur loc setarile curente ale serverului: mode, filtre de reduceri, valuta, store-uri, jocuri active, roluri si canale.", example: "/config" },
+  { command: "/reset-config", permissions: "Admin, Ephemeral", description: "Reseteaza toate setarile botului pentru server la valorile implicite. Istoricul rapoartelor si al notificarilor ramane pastrat.", example: "/reset-config confirm:true", notes: ["Resetarea ruleaza numai cand confirm este true."] },
+  { command: "/admin-alerts set", permissions: "Admin, Ephemeral", description: "Seteaza canalul in care botul trimite alerte administrative despre erori operationale, dead-letter, permisiuni si rapoarte noi.", example: "/admin-alerts set channel:#bot-logs" },
+  { command: "/admin-alerts off", permissions: "Admin, Ephemeral", description: "Opreste livrarea alertelor administrative in Discord pentru server.", example: "/admin-alerts off" },
+  { command: "/price-alert add", permissions: "Admin, Ephemeral", description: "Adauga sau actualizeaza o alerta care se declanseaza cand jocul ajunge la sau sub pragul ales, in valuta aleasa.", example: "/price-alert add joc:elden-ring price:30 currency:EUR", notes: ["Alerta foloseste canalul configurat prin /start reduceri si se rearmeaza dupa ce pretul urca din nou peste prag."] },
+  { command: "/price-alert remove", permissions: "Admin, Ephemeral", description: "Sterge toate alertele de pret configurate pentru jocul ales.", example: "/price-alert remove joc:elden-ring" },
+  { command: "/price-alert list", permissions: "Admin, Ephemeral", description: "Listeaza alertele de pret, pragurile, valutele si starea armata sau declansata.", example: "/price-alert list" },
+  { command: "/youtube subscribe", permissions: "Admin, Ephemeral", description: "Adauga un canal YouTube in lista urmarita folosind un link, un handle @nume sau un channel ID. Videoclipurile mai vechi de o luna sunt ignorate, iar cele recente pot fi livrate la prima activare.", example: "/youtube subscribe canal:@numeCanal" },
+  { command: "/youtube unsubscribe", permissions: "Admin, Ephemeral", description: "Scoate un canal YouTube din lista urmarita. Autocomplete afiseaza numai canalele salvate pe server.", example: "/youtube unsubscribe canal:UCxxxxxxxxxxxxxxxxxxxxxx" },
+  { command: "/youtube list", permissions: "Admin, Ephemeral", description: "Listeaza canalele YouTube urmarite, ultima verificare si ultima eroare cunoscuta pentru fiecare.", example: "/youtube list" },
+  { command: "/youtube notify channel", permissions: "Admin, Ephemeral", description: "Seteaza canalul Discord unde botul posteaza videoclipurile noi si verifica permisiunile Send Messages si Embed Links.", example: "/youtube notify channel channel:#youtube" },
+  { command: "/youtube notify on", permissions: "Admin, Ephemeral", description: "Porneste postarile automate pentru canalele YouTube urmarite, folosind canalul Discord configurat.", example: "/youtube notify on" },
+  { command: "/youtube notify off", permissions: "Admin, Ephemeral", description: "Opreste postarile automate fara sa stearga lista canalelor YouTube urmarite.", example: "/youtube notify off" },
+  { command: "/youtube notify status", permissions: "Admin, Ephemeral", description: "Afiseaza starea notificarilor, canalul Discord, numarul de canale urmarite, filtrele si erorile recente.", example: "/youtube notify status" },
+  { command: "/youtube filter shorts", permissions: "Admin, Ephemeral", description: "Activeaza sau dezactiveaza filtrul care evita videoclipurile YouTube Shorts si clipurile de cel mult 60 de secunde.", example: "/youtube filter shorts state:on" },
+  { command: "/youtube filter lives", permissions: "Admin, Ephemeral", description: "Activeaza sau dezactiveaza filtrul care evita continutul marcat de YouTube ca livestream.", example: "/youtube filter lives state:on" },
+  { command: "/youtube filter premieres", permissions: "Admin, Ephemeral", description: "Activeaza sau dezactiveaza filtrul care evita premierele programate.", example: "/youtube filter premieres state:on" },
+  { command: "/youtube filter min-duration", permissions: "Admin, Ephemeral", description: "Seteaza durata minima acceptata pentru un videoclip. Valoarea 0 dezactiveaza limita.", example: "/youtube filter min-duration seconds:61" },
+  { command: "/youtube filter status", permissions: "Admin, Ephemeral", description: "Afiseaza filtrele YouTube active si durata minima configurata.", example: "/youtube filter status" },
+  { command: "/youtube message-template set", permissions: "Admin, Ephemeral", description: "Seteaza textul atasat notificarilor YouTube. Sunt acceptate variabilele {channel}, {title} si {url}; mentiunile Discord sunt dezactivate.", example: "/youtube message-template set text:Video nou de la {channel}: {title} {url}" },
+  { command: "/youtube message-template reset", permissions: "Admin, Ephemeral", description: "Sterge sablonul personalizat si revine la mesajul YouTube implicit.", example: "/youtube message-template reset" },
+  { command: "/youtube message-template status", permissions: "Admin, Ephemeral", description: "Afiseaza sablonul de mesaj YouTube folosit in prezent.", example: "/youtube message-template status" },
+  { command: "/youtube channel-route add", permissions: "Admin, Ephemeral", description: "Adauga un canal Discord special pentru un canal YouTube urmarit. Cand exista rute speciale, canalul principal nu mai primeste videoclipurile acelui canal YouTube.", example: "/youtube channel-route add canal:UCxxxxxxxxxxxxxxxxxxxxxx discord:#creator" },
+  { command: "/youtube channel-route remove", permissions: "Admin, Ephemeral", description: "Sterge o ruta Discord sau toate rutele speciale ale canalului YouTube ales. Dupa eliminarea tuturor se foloseste din nou canalul principal.", example: "/youtube channel-route remove canal:UCxxxxxxxxxxxxxxxxxxxxxx discord:toate" },
+  { command: "/youtube channel-route list", permissions: "Admin, Ephemeral", description: "Listeaza toate rutele speciale dintre canalele YouTube si canalele Discord.", example: "/youtube channel-route list" },
+  { command: "/youtube title-filter add", permissions: "Admin, Ephemeral", description: "Adauga un cuvant sau o expresie in filtrul inclusiv. Cand lista nu este goala, un titlu trece daca include cel putin una dintre valori.", example: "/youtube title-filter add word:patch notes" },
+  { command: "/youtube title-filter remove", permissions: "Admin, Ephemeral", description: "Elimina o valoare din filtrul inclusiv de titlu.", example: "/youtube title-filter remove word:patch notes" },
+  { command: "/youtube title-filter list", permissions: "Admin, Ephemeral", description: "Listeaza cuvintele si expresiile acceptate de filtrul inclusiv de titlu.", example: "/youtube title-filter list" },
+  { command: "/youtube title-filter clear", permissions: "Admin, Ephemeral", description: "Goleste filtrul inclusiv, astfel incat titlul sa nu mai fie restrictionat.", example: "/youtube title-filter clear" },
+  { command: "/youtube videos show", permissions: "Admin, Ephemeral", description: "Posteaza manual videoclipurile din ultima luna pentru un canal urmarit sau pentru toate. Nu modifica deduplicarea automata; peste 5 rezultate sunt trimise in loturi de 5 la 10 minute.", example: "/youtube videos show canal:toate" },
+  { command: "/youtube status", permissions: "Admin, Ephemeral", description: "Afiseaza starea completa a modulului YouTube: notificari, canal Discord, canale urmarite, ultima verificare, erori si filtre.", example: "/youtube status" },
+  { command: "/youtube errors", permissions: "Admin, Ephemeral", description: "Afiseaza ultimele erori de rezolvare canal, citire feed, metadate video sau livrare Discord.", example: "/youtube errors" },
+  { command: "/youtube permissions", permissions: "Admin, Ephemeral", description: "Verifica permisiunile botului pe canalul Discord configurat pentru notificarile YouTube.", example: "/youtube permissions" },
+  { command: "/youtube clear-errors", permissions: "Admin, Ephemeral", description: "Curata istoricul local al erorilor YouTube dupa ce problema a fost investigata sau rezolvata.", example: "/youtube clear-errors" },
+  { command: "/snooze", permissions: "Admin, Ephemeral", description: "Pune temporar pe pauza o comanda existenta a botului pentru server. Comanda aleasa vine din autocomplete, iar durata accepta valori precum 30m, 2h sau 1d.", example: "/snooze command:/latest updates durata:2h", notes: ["Nu poate opri /snooze sau /unsnooze, ca adminii sa poata gestiona mereu pauzele."] },
+  { command: "/unsnooze", permissions: "Admin, Ephemeral", description: "Scoate pauza temporara de pe o comanda pusa anterior in snooze.", example: "/unsnooze command:/latest updates" },
   { command: "/start updates", permissions: "Admin", description: "Porneste notificarile automate de update-uri pe canalul curent si face baseline, ca botul sa nu trimita retroactiv toate update-urile vechi.", example: "/start updates" },
   { command: "/start reduceri", permissions: "Admin", description: "Porneste alertele automate de reduceri pe canalul curent si face baseline, ca botul sa trimita doar reducerile noi gasite dupa activare.", example: "/start reduceri" },
   { command: "/stop updates", permissions: "Admin", description: "Opreste notificarile automate de update-uri pentru server.", example: "/stop updates" },
@@ -33,7 +70,10 @@ export const COMMAND_HELP_ENTRIES: readonly CommandHelpEntry[] = [
   { command: "/set games add", permissions: "Admin", description: "Adauga un joc deja cunoscut de bot in lista explicita de jocuri active pentru server.", example: "/set games add joc:cs2", notes: ["Nu adauga un joc nou in codul botului; doar activeaza pentru server un joc existent in configuratie."] },
   { command: "/set games remove", permissions: "Admin", description: "Scoate un joc din lista explicita de jocuri active pentru server.", example: "/set games remove joc:cs2" },
   { command: "/set games reset", permissions: "Admin", description: "Reseteaza filtrul per-joc. Dupa reset, serverul foloseste toate jocurile cunoscute de bot.", example: "/set games reset" },
-  { command: "/set games list", permissions: "Admin", description: "Afiseaza lista explicita de jocuri active pentru server.", example: "/set games list" },
+  { command: "/watchlist show", permissions: "Admin", description: "Afiseaza jocurile urmarite explicit pe server. Daca lista este goala, serverul foloseste toate jocurile configurate.", example: "/watchlist show" },
+  { command: "/watchlist add", permissions: "Admin", description: "Adauga un joc deja cunoscut de bot in watchlist-ul serverului.", example: "/watchlist add joc:cs2" },
+  { command: "/watchlist remove", permissions: "Admin", description: "Scoate un joc din watchlist-ul serverului.", example: "/watchlist remove joc:cs2" },
+  { command: "/watchlist reset", permissions: "Admin", description: "Reseteaza watchlist-ul. Dupa reset, toate jocurile configurate sunt active.", example: "/watchlist reset" },
   { command: "/set role updates", permissions: "Admin", description: "Seteaza rolul pingat la notificarile de update-uri. Daca nu alegi rol, ping-ul se opreste.", example: "/set role updates value:@Updates" },
   { command: "/set role discounts", permissions: "Admin", description: "Seteaza rolul pingat la alertele de reduceri. Daca nu alegi rol, ping-ul se opreste.", example: "/set role discounts value:@Deals" },
   { command: "/outbox status", permissions: "Admin", description: "Afiseaza starea cozii de notificari: cate mesaje asteapta livrare, cate sunt in dead-letter, daca drenarea e pe pauza si starea recovery-verify.", example: "/outbox status", notes: ["Outbox inseamna coada persistenta in MongoDB in care botul pune mesajele de trimis, ca sa nu le piarda la restart sau erori temporare."] },
@@ -52,8 +92,11 @@ export const COMMAND_HELP_ENTRIES: readonly CommandHelpEntry[] = [
   { command: "/latest pret", permissions: "Public", description: "Cauta pretul curent al unui joc pe Steam.", example: "/latest pret joc:Counter-Strike 2" },
   { command: "/dlc", permissions: "Public", description: "Cauta DLC-uri pentru un joc.", example: "/dlc joc:Counter-Strike 2" },
   { command: "/status", permissions: "Public", description: "Afiseaza statusul unei surse sau al unui joc urmarit.", example: "/status joc:minecraft" },
+  { command: "/sources status", permissions: "Admin, Ephemeral", description: "Afiseaza starea ultimelor snapshot-uri pentru sursele de date: reduceri Steam/Epic, feed-uri de update si vechimea ultimului fetch.", example: "/sources status" },
   { command: "/history", permissions: "Public, ephemeral", description: "Afiseaza istoricul recent al notificarilor trimise pe server, filtrat optional dupa update-uri sau reduceri.", example: "/history tip:updates numar:10" },
-  { command: "/report", permissions: "Public, ephemeral", description: "Trimite un raport despre o problema observata la bot, de exemplu sursa stricata, pret gresit sau update lipsa.", example: "/report tip:sursa-stricata detalii:Steam nu mai trimite update-uri" },
+  { command: "/report submit", permissions: "Public, ephemeral", description: "Trimite un raport despre o problema observata la bot, de exemplu sursa stricata, pret gresit sau update lipsa.", example: "/report submit tip:sursa-stricata detalii:Steam nu raspunde" },
+  { command: "/report list", permissions: "Admin runtime, Ephemeral", description: "Listeaza rapoartele recente ale serverului, cu ID-ul necesar pentru rezolvare.", example: "/report list numar:10" },
+  { command: "/report resolve", permissions: "Admin runtime, Ephemeral", description: "Marcheaza un raport ca rezolvat dupa ce problema a fost verificata sau reparata.", example: "/report resolve id:64a1f2b3c4d5e6f789012345" },
   { command: "/health", permissions: "Admin", description: "Afiseaza starea tehnica a botului: conexiune Discord, MongoDB, uptime si cache.", example: "/health" }
 ];
 
@@ -88,9 +131,11 @@ function scoreEntry(entry: CommandHelpEntry, input: string): number {
   return score;
 }
 
-export function buildCommandHelpChoices(inputValue: unknown): AutocompleteChoice[] {
+export function buildCommandHelpChoices(inputValue: unknown, options: CommandHelpChoiceOptions = {}): AutocompleteChoice[] {
   const input = normalizeCommandHelpQuery(inputValue).slice(0, 100);
+  const excluded = new Set((options.excludeCommands || []).map(normalizeCommandHelpQuery));
   return COMMAND_HELP_ENTRIES
+    .filter(entry => !excluded.has(normalizeCommandHelpQuery(entry.command)))
     .map((entry, index) => ({ entry, index, score: scoreEntry(entry, input) }))
     .filter(item => item.score >= 0)
     .sort((a, b) => b.score - a.score || a.index - b.index)

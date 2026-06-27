@@ -26,7 +26,10 @@ type AdminCommandGuardContext = {
 };
 
 const defaultRequireGuildAdmin = require("./adminPermissionGuard") as RequireGuildAdmin;
-const ADMIN_COMMANDS = new Set(["start", "stop", "set", "outbox", "health"]);
+const ADMIN_COMMANDS = new Set([
+  "start", "stop", "set", "outbox", "health", "config", "reset-config",
+  "admin-alerts", "price-alert", "youtube", "sources", "watchlist", "snooze", "unsnooze"
+]);
 const ADMIN_OUTSIDE_GUILD_MESSAGE = "Eroare: Comenzile administrative sunt disponibile doar pe servere, nu in mesaje directe.";
 
 function isAdminProtectedCommand(interaction: DiscordInteraction): boolean {

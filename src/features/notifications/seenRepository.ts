@@ -5,6 +5,7 @@ interface GuildModelLike {
   exists(filter: Record<string, unknown>): Promise<{ _id: unknown } | null>;
 }
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
+import type { PriceAlertRule } from "../../types";
 
 interface GuildSeenDiscountModelLike {
   updateOne(filter: unknown, update: unknown, opts?: unknown): Promise<{ upsertedCount?: number; matchedCount?: number }>;
@@ -27,6 +28,7 @@ export interface SeenRepositoryDeps {
   SEEN_PER_GAME_LIMIT: number;
   DEALS_HISTORY_LIMIT: number;
   OP_UPDATE_OPTS: Record<string, unknown>;
+  adminAlert?: (kind: string, title: string, body: unknown, guildId?: string) => Promise<unknown>;
 }
 
 export interface SeenRepository {
@@ -40,6 +42,7 @@ export interface SeenRepository {
   loadSeenDiscountHashes(guildId: string, candidateHashes?: string[]): Promise<string[]>;
   disableDiscountsForChannelError(guildId: string, channelId: string, message: string): Promise<MongoWriteResult>;
   setSeenHashVersion(guildId: string, field: "seenHashVersionUpdates" | "seenHashVersionDiscounts", version: number): Promise<MongoWriteResult>;
+  rollbackTriggeredAlert(guildId: string, alert: PriceAlertRule): Promise<MongoWriteResult>;
 }
 
 export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
@@ -85,7 +88,7 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
   }
 
   async function disableUpdatesForChannelError(guildId: string, channelId: string, message: string): Promise<MongoWriteResult> {
-    return GuildModel.updateOne(
+    const result = await GuildModel.updateOne(
       { _id: guildId },
       {
         $set: {
@@ -97,6 +100,13 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
       },
       OP_UPDATE_OPTS
     );
+    deps.adminAlert?.(
+      "discord:updates-channel-disabled",
+      "Notificarile de update-uri au fost oprite automat",
+      `Canal: ${channelId}\nMotiv: ${message}`,
+      guildId
+    ).catch(() => undefined);
+    return result;
   }
 
   async function claimSeenDiscount(guildId: string, channelId: string, hash: string): Promise<MongoWriteResult> {
@@ -152,7 +162,7 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
   }
 
   async function disableDiscountsForChannelError(guildId: string, channelId: string, message: string): Promise<MongoWriteResult> {
-    return GuildModel.updateOne(
+    const result = await GuildModel.updateOne(
       { _id: guildId },
       {
         $set: {
@@ -164,12 +174,30 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
       },
       OP_UPDATE_OPTS
     );
+    deps.adminAlert?.(
+      "discord:discounts-channel-disabled",
+      "Alertele de reduceri au fost oprite automat",
+      `Canal: ${channelId}\nMotiv: ${message}`,
+      guildId
+    ).catch(() => undefined);
+    return result;
   }
 
   async function setSeenHashVersion(guildId: string, field: "seenHashVersionUpdates" | "seenHashVersionDiscounts", version: number): Promise<MongoWriteResult> {
     return withMongoRetry(
       () => GuildModel.updateOne({ _id: guildId }, { $set: { [field]: version } }, OP_UPDATE_OPTS),
       { label: "setSeenHashVersion" }
+    );
+  }
+
+  async function rollbackTriggeredAlert(guildId: string, alert: PriceAlertRule): Promise<MongoWriteResult> {
+    return GuildModel.updateOne(
+      { _id: guildId },
+      { $set: { "priceAlerts.$[alert].triggeredAt": null } },
+      {
+        ...OP_UPDATE_OPTS,
+        arrayFilters: [{ "alert.gameKey": alert.gameKey, "alert.currency": alert.currency }]
+      }
     );
   }
 
@@ -183,6 +211,7 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
     seedSeenDiscounts,
     loadSeenDiscountHashes,
     disableDiscountsForChannelError,
-    setSeenHashVersion
+    setSeenHashVersion,
+    rollbackTriggeredAlert
   };
 }

@@ -68,6 +68,7 @@ export interface DiscountNotificationServiceDeps {
   buildDealEmbed: (deal: DealInfo, mode: NotificationMode, currency: string) => unknown;
 
   sleepIfPositive: (ms: number) => Promise<void>;
+  processGuildPriceAlerts: ReturnType<typeof import("./priceAlertService").createPriceAlertService>["processGuildPriceAlerts"];
 
   DEFAULT_CURRENCY: string;
   DEALS_HISTORY_LIMIT: number;
@@ -92,7 +93,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     normalizePendingDiscountArray, validatePendingDiscountSnapshot,
     normalizeCurrencyKey, dealPassesFilters, dealHash,
     fetchDeals, getDealsCacheData, setDealsCache, persistFetchSnapshot, loadFetchSnapshot, enrichDealData, buildDealEmbed,
-    sleepIfPositive,
+    sleepIfPositive, processGuildPriceAlerts,
     DEFAULT_CURRENCY, PENDING_DISCOUNT_MAX_ATTEMPTS, PENDING_DISCOUNT_GRACE_CYCLES,
     PENDING_DISCOUNTS_LIMIT, MAX_DEALS_PER_CYCLE, DISCORD_SEND_DELAY_MS,
     GUILD_PROCESS_CONCURRENCY
@@ -290,9 +291,23 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
 
     const dispatch = await runConcurrent(guilds, GUILD_PROCESS_CONCURRENCY, async (guild) => {
       if (shouldAbort?.()) return;
-      const currency = (guild as { currency?: string }).currency || DEFAULT_CURRENCY;
+      const currency = normalizeCurrencyKey((guild as { currency?: string }).currency || DEFAULT_CURRENCY);
       const deals = await dealsForCurrency(currency);
       await processGuildDiscounts(client, guild, deals);
+      const dealsByCurrency = new Map<string, DealInfo[]>([[currency, deals]]);
+      const alertCurrencies = Array.from(new Set(
+        (Array.isArray(guild.priceAlerts) ? guild.priceAlerts : [])
+          .map(alert => normalizeCurrencyKey(alert.currency))
+          .filter(alertCurrency => alertCurrency !== currency)
+      ));
+      for (const alertCurrency of alertCurrencies) {
+        try {
+          dealsByCurrency.set(alertCurrency, await dealsForCurrency(alertCurrency));
+        } catch (err: unknown) {
+          logger("WARN", "PRICE_ALERT", `Nu am putut citi ofertele ${alertCurrency} pentru guild ${guild._id}`, transientErrorMessage(err));
+        }
+      }
+      await processGuildPriceAlerts(client, guild, dealsByCurrency);
     }, {
       errorLogger: (guild: unknown, err: unknown) =>
         logger("WARN", "CRON_DISCOUNTS", `Eroare procesare guild ${(guild as { _id?: unknown })._id}`, transientErrorMessage(err))

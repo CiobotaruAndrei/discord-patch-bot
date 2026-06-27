@@ -79,6 +79,7 @@ function makeDeps(overrides: { updatesFetchedAt?: Date } = {}) {
       cleanGuildCache: () => undefined,
       getGuildCacheSize: () => 0,
       adminAlert: async () => undefined,
+      setAdminAlertDiscordClient: () => undefined,
       getOutboxPaused: async () => { getOutboxPausedCalls++; return pausedValue; },
       runMigrations: async () => { order.push("migrate"); return { applied: [1, 2] }; },
       requestContext: { run: <T>(_store: { requestId: string }, callback: () => T) => callback() },
@@ -88,6 +89,7 @@ function makeDeps(overrides: { updatesFetchedAt?: Date } = {}) {
     commands: {
       checkForUpdates: async () => undefined,
       checkForDiscounts: async () => undefined,
+      checkForYouTube: async () => undefined,
       cleanCache: () => undefined,
       drainOutbox: async () => ({}),
       getCacheSizes: () => ({ single: 0, dlc: 0, updatesValid: false, dealsCurrenciesValid: 0, userCooldowns: 0 }),

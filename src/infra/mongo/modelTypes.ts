@@ -18,7 +18,7 @@ export interface PendingDiscountEntry {
 }
 
 export interface DeadLetterEntry {
-  kind: "update" | "discount";
+  kind: "update" | "discount" | "youtube";
   itemId?: string;
   title?: string;
   channelId?: string;
@@ -63,6 +63,48 @@ export interface GuildDoc {
   maxAbsolutePrice?: number;
   notificationRoleId?: string | null;
   discountRoleId?: string | null;
+  adminAlertChannelId?: string | null;
+  priceAlerts?: Array<{
+    gameKey: string;
+    gameName: string;
+    appId?: string;
+    aliases?: string[];
+    threshold: number;
+    currency: string;
+    triggeredAt?: Date | null;
+    lastObservedPrice?: number | null;
+    lastObservedAt?: Date | null;
+  }>;
+  youtubeChannels?: Array<{
+    channelId: string;
+    channelName: string;
+    channelUrl: string;
+    subscribedAt: Date;
+    lastCheckedAt?: Date | null;
+    lastVideoId?: string;
+    lastError?: NotificationLastError;
+  }>;
+  youtubeNotificationChannelId?: string | null;
+  youtubeNotificationsEnabled?: boolean;
+  youtubeHasActivated?: boolean;
+  youtubeFilters?: {
+    excludeShorts?: boolean;
+    excludeLives?: boolean;
+    excludePremieres?: boolean;
+    minDurationSeconds?: number;
+  };
+  youtubeMessageTemplate?: string | null;
+  youtubeChannelRoutes?: Array<{
+    channelId: string;
+    discordChannelIds: string[];
+  }>;
+  youtubeTitleIncludeWords?: string[];
+  youtubeErrors?: Array<{
+    channelId: string;
+    channelName: string;
+    message: string;
+    at: Date;
+  }>;
 }
 
 export interface CircuitBreakerDoc {
@@ -114,8 +156,15 @@ export interface GuildSeenUpdateDoc {
   seenAt?: Date;
 }
 
+export interface GuildSeenYoutubeDoc {
+  guildId: string;
+  channelId: string;
+  videoId: string;
+  seenAt?: Date;
+}
+
 export interface OutboxHistoryEntry {
-  kind: "update" | "discount";
+  kind: "update" | "discount" | "youtube";
   gameKey?: string;
   title?: string;
   link?: string;
@@ -124,7 +173,7 @@ export interface OutboxHistoryEntry {
 export interface NotificationOutboxDoc {
   guildId: string;
   channelId: string;
-  kind: "update" | "discount";
+  kind: "update" | "discount" | "youtube";
   payload: unknown;
   attempts?: number;
   deliveries?: number;
@@ -144,7 +193,7 @@ export interface NotificationOutboxSentDoc {
 
 export interface NotificationHistoryDoc {
   guildId: string;
-  kind: "update" | "discount";
+  kind: "update" | "discount" | "youtube";
   gameKey?: string;
   title?: string;
   link?: string;
@@ -162,7 +211,7 @@ export interface FeedbackReportDoc {
 
 export interface NotificationDeadLetterReplayDoc {
   guildId: string;
-  kind: "update" | "discount";
+  kind: "update" | "discount" | "youtube";
   channelId: string;
   payload: unknown;
   dedupeKey?: string;

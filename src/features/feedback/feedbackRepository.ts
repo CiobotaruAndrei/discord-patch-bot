@@ -11,6 +11,9 @@ interface FeedbackReportModelLike {
   find(filter: unknown, projection?: unknown): {
     sort(spec: unknown): { limit(count: number): { lean(): Promise<Array<Record<string, unknown>>> } };
   };
+  findOneAndUpdate(filter: unknown, update: unknown, options: unknown): {
+    lean(): Promise<Record<string, unknown> | null>;
+  };
 }
 
 interface FeedbackRepositoryContext {
@@ -19,6 +22,7 @@ interface FeedbackRepositoryContext {
   logger: Logger;
   recordFeedbackReport?: unknown;
   getRecentFeedbackReports?: unknown;
+  resolveFeedbackReport?: unknown;
 }
 
 interface ReportInput {
@@ -30,12 +34,15 @@ interface ReportInput {
 }
 
 interface ReportDoc {
+  id?: string;
   guildId: string;
   userId: string;
   type: string;
   gameKey: string;
   detail: string;
   createdAt: Date;
+  resolvedAt?: Date | null;
+  resolvedBy?: string;
 }
 
 function normalizeReportType(value: string | null | undefined): string {
@@ -59,9 +66,22 @@ function sanitizeReport(input: ReportInput, now: Date): ReportDoc {
   };
 }
 
+function stringifyMongoId(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object" && typeof (value as { toString?: () => string }).toString === "function") {
+    return String((value as { toString: () => string }).toString());
+  }
+  return "";
+}
+
+function isValidReportId(value: string): boolean {
+  return /^[a-f0-9]{24}$/i.test(value);
+}
+
 interface FeedbackRepository {
   recordReport(input: ReportInput): Promise<ReportDoc>;
   getRecent(guildId: string, limit: number): Promise<ReportDoc[]>;
+  resolveReport(guildId: string, reportId: string, resolvedBy: string): Promise<boolean>;
 }
 
 function createFeedbackRepository(deps: { FeedbackReportModel: FeedbackReportModelLike; withMongoRetry: WithMongoRetry; logger: Logger }): FeedbackRepository {
@@ -76,20 +96,36 @@ function createFeedbackRepository(deps: { FeedbackReportModel: FeedbackReportMod
   async function getRecent(guildId: string, limit: number): Promise<ReportDoc[]> {
     const safeLimit = Math.min(25, Math.max(1, Math.floor(limit) || 10));
     const docs = await withMongoRetry(
-      () => FeedbackReportModel.find({ guildId }, { userId: 1, type: 1, gameKey: 1, detail: 1, createdAt: 1 }).sort({ createdAt: -1 }).limit(safeLimit).lean(),
+      () => FeedbackReportModel.find({ guildId }, { userId: 1, type: 1, gameKey: 1, detail: 1, createdAt: 1, resolvedAt: 1, resolvedBy: 1 }).sort({ createdAt: -1 }).limit(safeLimit).lean(),
       { label: "feedback:getRecent" }
     );
     return docs.map(raw => ({
+      id: stringifyMongoId(raw._id),
       guildId,
       userId: String(raw.userId || ""),
       type: normalizeReportType(String(raw.type || "")),
       gameKey: String(raw.gameKey || ""),
       detail: String(raw.detail || ""),
-      createdAt: raw.createdAt instanceof Date ? raw.createdAt : new Date(String(raw.createdAt))
+      createdAt: raw.createdAt instanceof Date ? raw.createdAt : new Date(String(raw.createdAt)),
+      resolvedAt: raw.resolvedAt ? (raw.resolvedAt instanceof Date ? raw.resolvedAt : new Date(String(raw.resolvedAt))) : null,
+      resolvedBy: String(raw.resolvedBy || "")
     }));
   }
 
-  return { recordReport, getRecent };
+  async function resolveReport(guildId: string, reportId: string, resolvedBy: string): Promise<boolean> {
+    if (!isValidReportId(reportId)) return false;
+    const doc = await withMongoRetry(
+      () => FeedbackReportModel.findOneAndUpdate(
+        { _id: reportId, guildId },
+        { $set: { resolvedAt: new Date(), resolvedBy: String(resolvedBy || "").slice(0, 40) } },
+        { new: true }
+      ).lean(),
+      { label: "feedback:resolve" }
+    );
+    return doc !== null;
+  }
+
+  return { recordReport, getRecent, resolveReport };
 }
 
 type FeedbackInstaller = ((target: FeedbackRepositoryContext) => void) & {
@@ -108,7 +144,8 @@ const attachFeedbackRepository = ((target: FeedbackRepositoryContext): void => {
   });
   Object.assign(target, {
     recordFeedbackReport: repository.recordReport,
-    getRecentFeedbackReports: repository.getRecent
+    getRecentFeedbackReports: repository.getRecent,
+    resolveFeedbackReport: repository.resolveReport
   });
 }) as FeedbackInstaller;
 

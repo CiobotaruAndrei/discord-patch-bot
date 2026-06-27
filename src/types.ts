@@ -353,6 +353,64 @@ export interface LastErrorInfo {
   at?: Date | string | null;
 }
 
+export interface PriceAlertRule {
+  gameKey: string;
+  gameName: string;
+  appId?: string;
+  aliases?: string[];
+  threshold: number;
+  currency: CurrencyCode | string;
+  triggeredAt?: Date | string | null;
+  lastObservedPrice?: number | null;
+  lastObservedAt?: Date | string | null;
+}
+
+export interface YouTubeChannelSubscription {
+  channelId: string;
+  channelName: string;
+  channelUrl: string;
+  subscribedAt: Date | string;
+  lastCheckedAt?: Date | string | null;
+  lastVideoId?: string;
+  lastError?: LastErrorInfo;
+}
+
+export interface YouTubeFilters {
+  excludeShorts?: boolean;
+  excludeLives?: boolean;
+  excludePremieres?: boolean;
+  minDurationSeconds?: number;
+}
+
+export interface YouTubeChannelRoute {
+  channelId: string;
+  discordChannelIds: string[];
+}
+
+export interface YouTubeErrorEntry {
+  channelId: string;
+  channelName: string;
+  message: string;
+  at: Date | string;
+}
+
+export interface YouTubeVideo {
+  videoId: string;
+  channelId: string;
+  channelName: string;
+  title: string;
+  link: string;
+  publishedAt: string;
+  thumbnail: string;
+}
+
+export interface YouTubeVideoMetadata {
+  durationSeconds: number | null;
+  isShort: boolean;
+  isLive: boolean;
+  isPremiere: boolean;
+}
+
 export interface GuildSettings {
   _id: string;
   subscribed?: boolean;
@@ -375,10 +433,22 @@ export interface GuildSettings {
   discountsActivationId?: string | null;
   discountsLastError?: LastErrorInfo;
   enabledGames?: string[];
+  commandSnoozes?: Map<string, Date | string | number> | Record<string, Date | string | number>;
   enabledStores?: string[];
   maxAbsolutePrice?: number;
   notificationRoleId?: string | null;
   discountRoleId?: string | null;
+  adminAlertChannelId?: string | null;
+  priceAlerts?: PriceAlertRule[];
+  youtubeChannels?: YouTubeChannelSubscription[];
+  youtubeNotificationChannelId?: string | null;
+  youtubeNotificationsEnabled?: boolean;
+  youtubeHasActivated?: boolean;
+  youtubeFilters?: YouTubeFilters;
+  youtubeMessageTemplate?: string | null;
+  youtubeChannelRoutes?: YouTubeChannelRoute[];
+  youtubeTitleIncludeWords?: string[];
+  youtubeErrors?: YouTubeErrorEntry[];
   seenHashVersionUpdates?: number;
   seenHashVersionDiscounts?: number;
   [key: string]: unknown;

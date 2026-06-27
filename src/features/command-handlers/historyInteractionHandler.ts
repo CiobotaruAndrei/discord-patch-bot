@@ -25,7 +25,7 @@ type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfi
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, endExtra?: Record<string, unknown>) => void;
 
-type HistoryKind = "update" | "discount";
+type HistoryKind = "update" | "discount" | "youtube";
 
 const HISTORY_DESCRIPTION_MAX_CHARS = 4000;
 
@@ -56,6 +56,7 @@ type HistoryContext = HistoryHandlerDeps & {
 function mapHistoryKind(tip: string | null): HistoryKind | "all" {
   if (tip === "updates") return "update";
   if (tip === "reduceri") return "discount";
+  if (tip === "youtube") return "youtube";
   return "all";
 }
 
@@ -70,7 +71,7 @@ function escapeMarkdownLinkUrl(url: string): string {
 }
 
 function buildHistoryEmbed(records: HistoryEmbedRecord[], kind: HistoryKind | "all"): { title: string; description: string; color: number; footer: { text: string } } {
-  const scopeLabel = kind === "update" ? "update-uri" : kind === "discount" ? "reduceri" : "notificari";
+  const scopeLabel = kind === "update" ? "update-uri" : kind === "discount" ? "reduceri" : kind === "youtube" ? "YouTube" : "notificari";
   const footer = { text: "Istoric pastrat ~30 zile (best-effort)" };
   if (!records.length) {
     return {
@@ -83,7 +84,7 @@ function buildHistoryEmbed(records: HistoryEmbedRecord[], kind: HistoryKind | "a
   const lines: string[] = [];
   let totalChars = 0;
   for (const record of records) {
-    const emoji = record.kind === "discount" ? "💸" : "🎮";
+    const emoji = record.kind === "discount" ? "💸" : record.kind === "youtube" ? "📺" : "🎮";
     const timestamp = Math.floor(record.sentAt.getTime() / 1000);
     const label = truncateLabel(record.title || record.gameKey || "(fara titlu)", 120);
     const text = record.link ? `[${label}](${escapeMarkdownLinkUrl(record.link)})` : label;

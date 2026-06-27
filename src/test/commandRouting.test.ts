@@ -18,6 +18,12 @@ function build(moduleName: string): BuiltHandler {
 const handlers: Record<string, BuiltHandler> = {
   autocomplete: build("autocompleteInteractionHandler"),
   dlc: build("dlcInteractionHandler"),
+  sources: build("sourcesStatusHandler"),
+  config: build("configInteractionHandler"),
+  guildConfigAdmin: build("guildConfigurationAdminHandler"),
+  priceAlert: build("priceAlertInteractionHandler"),
+  youtube: build("youtubeInteractionHandler"),
+  snooze: build("snoozeInteractionHandler"),
   health: build("healthInteractionHandler"),
   report: build("reportInteractionHandler"),
   history: build("historyInteractionHandler"),
@@ -32,7 +38,7 @@ const handlers: Record<string, BuiltHandler> = {
   simple: build("simpleCommandsHandler")
 };
 
-function chatInput(commandName: string, group: string | null = null): unknown {
+function chatInput(commandName: string, group: string | null = null, subcommand = "x"): unknown {
   return {
     isChatInputCommand: () => true,
     isAutocomplete: () => false,
@@ -40,7 +46,7 @@ function chatInput(commandName: string, group: string | null = null): unknown {
     commandName,
     options: {
       getSubcommandGroup: (_required?: boolean) => group,
-      getSubcommand: () => "x"
+      getSubcommand: () => subcommand
     }
   };
 }
@@ -79,12 +85,21 @@ const expectedOwnerByCommand: Record<string, string> = {
   ping: "simple",
   games: "simple",
   help: "help",
+  config: "config",
+  "reset-config": "guildConfigAdmin",
+  "admin-alerts": "guildConfigAdmin",
+  "price-alert": "priceAlert",
+  youtube: "youtube",
+  snooze: "snooze",
+  unsnooze: "snooze",
   start: "subscription",
   stop: "subscription",
   set: "set",
+  watchlist: "setGames",
   latest: "latest",
   dlc: "dlc",
   status: "status",
+  sources: "sources",
   history: "history",
   report: "report",
   health: "health",
@@ -99,7 +114,8 @@ test("routing: fiecare slash command top-level e revendicat de exact un handler 
     const expectedOwner = expectedOwnerByCommand[command];
     assert.ok(expectedOwner, `comanda /${command} are un handler asteptat in tabel (familie noua = adauga maparea + buildCommandHandler)`);
 
-    const claimants = soleClaimant(chatInput(command));
+    const subcommand = command === "sources" ? "status" : "x";
+    const claimants = soleClaimant(chatInput(command, null, subcommand));
     assert.deepEqual(claimants, [expectedOwner], `/${command} e rutat exact catre handler-ul ${expectedOwner}, nimic altceva nu il revendica`);
   }
 });
@@ -125,6 +141,7 @@ test("routing: un handler de comanda nu revendica comanda altui handler", () => 
 test("routing: toate familiile de comenzi din tabel au un handler care le revendica", () => {
   for (const [command, owner] of Object.entries(expectedOwnerByCommand)) {
     const group = command === "set" ? null : null;
-    assert.equal(handlers[owner].canHandle(chatInput(command, group)), true, `${owner} revendica /${command}`);
+    const subcommand = command === "sources" ? "status" : "x";
+    assert.equal(handlers[owner].canHandle(chatInput(command, group, subcommand)), true, `${owner} revendica /${command}`);
   }
 });

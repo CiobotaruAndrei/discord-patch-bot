@@ -19,13 +19,20 @@ type DiscordInteraction = {
     getFocused(detailed: true): FocusedOption | null;
     getSubcommand(required: false): string | null;
     getSubcommandGroup(required: false): string | null;
+    getString(name: string, required: false): string | null;
   };
   respond: (choices: AutocompleteChoice[]) => Promise<unknown>;
 };
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
-type GuildSettingsLite = { enabledGames?: string[] };
+type GuildSettingsLite = {
+  enabledGames?: string[];
+  priceAlerts?: Array<{ gameKey?: string }>;
+  youtubeChannels?: Array<{ channelId?: string; channelName?: string }>;
+  youtubeChannelRoutes?: Array<{ channelId?: string; discordChannelIds?: string[] }>;
+  youtubeTitleIncludeWords?: string[];
+};
 
 type AutocompleteHandlerDeps = {
   logger: Logger;
@@ -84,6 +91,89 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
     }
   }
 
+  async function buildPriceAlertRemovePool(interaction: DiscordInteraction, games: GameConfig[]): Promise<GameConfig[]> {
+    if (!interaction.guild) return games;
+    try {
+      const guild = await getGuildSettings(interaction.guild.id);
+      const alertKeys = Array.from(new Set(
+        (Array.isArray(guild?.priceAlerts) ? guild.priceAlerts : [])
+          .map(alert => String(alert.gameKey || ""))
+          .filter(Boolean)
+      ));
+      if (!alertKeys.length) return [];
+      const keys = new Set(alertKeys);
+      const configured = games.filter(game => keys.has(game.key));
+      const configuredKeys = new Set(configured.map(game => game.key));
+      const stale = alertKeys
+        .filter(key => !configuredKeys.has(key))
+        .map(key => ({ key, name: `${key} (cheie indisponibila)`, aliases: [] }));
+      return [...configured, ...stale];
+    } catch (err: unknown) {
+      logger("WARN", "AUTOCOMPLETE", "Nu am putut citi alertele de pret ale guild-ului", errorMessage(err));
+      return games;
+    }
+  }
+
+  async function buildYouTubeChannelChoices(
+    interaction: DiscordInteraction,
+    inputValue: unknown,
+    includeAll: boolean
+  ): Promise<AutocompleteChoice[]> {
+    if (!interaction.guild) return [];
+    try {
+      const guild = await getGuildSettings(interaction.guild.id);
+      const input = String(inputValue ?? "").toLowerCase().trim().slice(0, MAX_AUTOCOMPLETE_INPUT_LEN);
+      const choices = (guild?.youtubeChannels || [])
+        .map(channel => ({
+          name: String(channel.channelName || channel.channelId || "").slice(0, MAX_CHOICE_NAME_LEN),
+          value: String(channel.channelId || "").slice(0, MAX_CHOICE_VALUE_LEN)
+        }))
+        .filter(choice => choice.value && (!input
+          || choice.name.toLowerCase().includes(input)
+          || choice.value.toLowerCase().includes(input)))
+        .slice(0, includeAll ? MAX_AUTOCOMPLETE_CHOICES - 1 : MAX_AUTOCOMPLETE_CHOICES);
+      return includeAll
+        ? [{ name: "Toate canalele urmarite", value: "toate" }, ...choices]
+        : choices;
+    } catch (err: unknown) {
+      logger("WARN", "AUTOCOMPLETE", "Nu am putut citi canalele YouTube ale guild-ului", errorMessage(err));
+      return [];
+    }
+  }
+
+  async function buildYouTubeRouteChoices(interaction: DiscordInteraction, inputValue: unknown): Promise<AutocompleteChoice[]> {
+    if (!interaction.guild) return [];
+    try {
+      const guild = await getGuildSettings(interaction.guild.id);
+      const youtubeChannelId = interaction.options.getString("canal", false);
+      const input = String(inputValue ?? "").toLowerCase().trim().slice(0, MAX_AUTOCOMPLETE_INPUT_LEN);
+      const route = (guild?.youtubeChannelRoutes || []).find(item => item.channelId === youtubeChannelId);
+      const routed = (route?.discordChannelIds || [])
+        .map(channelId => ({ name: `#${channelId}`, value: channelId }))
+        .filter(choice => !input || choice.name.includes(input) || choice.value.includes(input))
+        .slice(0, MAX_AUTOCOMPLETE_CHOICES - 1);
+      return [{ name: "Toate rutele speciale", value: "toate" }, ...routed];
+    } catch (err: unknown) {
+      logger("WARN", "AUTOCOMPLETE", "Nu am putut citi rutele YouTube ale guild-ului", errorMessage(err));
+      return [];
+    }
+  }
+
+  async function buildYouTubeTitleWordChoices(interaction: DiscordInteraction, inputValue: unknown): Promise<AutocompleteChoice[]> {
+    if (!interaction.guild) return [];
+    try {
+      const guild = await getGuildSettings(interaction.guild.id);
+      const input = String(inputValue ?? "").toLowerCase().trim().slice(0, MAX_AUTOCOMPLETE_INPUT_LEN);
+      return (guild?.youtubeTitleIncludeWords || [])
+        .filter(word => !input || word.toLowerCase().includes(input))
+        .map(word => ({ name: word.slice(0, MAX_CHOICE_NAME_LEN), value: word.slice(0, MAX_CHOICE_VALUE_LEN) }))
+        .slice(0, MAX_AUTOCOMPLETE_CHOICES);
+    } catch (err: unknown) {
+      logger("WARN", "AUTOCOMPLETE", "Nu am putut citi filtrul de titlu YouTube", errorMessage(err));
+      return [];
+    }
+  }
+
   async function handleAutocomplete(interaction: DiscordInteraction, games: GameConfig[]): Promise<unknown> {
     try {
       const focused = interaction.options.getFocused(true);
@@ -91,21 +181,39 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
         return interaction.respond([]).catch(() => null);
       }
       const cmd = interaction.commandName;
+      const sub = interaction.options.getSubcommand(false);
+      const group = interaction.options.getSubcommandGroup(false);
       if (cmd === "help" && focused.name === "command") {
         return interaction.respond(buildCommandHelpChoices(focused.value)).catch(() => null);
+      }
+      if ((cmd === "snooze" || cmd === "unsnooze") && focused.name === "command") {
+        return interaction.respond(buildCommandHelpChoices(focused.value, { excludeCommands: ["/snooze", "/unsnooze"] })).catch(() => null);
+      }
+      if (cmd === "youtube" && focused.name === "canal") {
+        return interaction.respond(await buildYouTubeChannelChoices(
+          interaction,
+          focused.value,
+          group === "videos" && sub === "show"
+        )).catch(() => null);
+      }
+      if (cmd === "youtube" && group === "channel-route" && sub === "remove" && focused.name === "discord") {
+        return interaction.respond(await buildYouTubeRouteChoices(interaction, focused.value)).catch(() => null);
+      }
+      if (cmd === "youtube" && group === "title-filter" && sub === "remove" && focused.name === "word") {
+        return interaction.respond(await buildYouTubeTitleWordChoices(interaction, focused.value)).catch(() => null);
       }
       if (focused.name !== "joc") {
         return interaction.respond([]).catch(() => null);
       }
       const input = String(focused.value || "").toLowerCase().trim().substring(0, MAX_AUTOCOMPLETE_INPUT_LEN);
-      const sub = interaction.options.getSubcommand(false);
-      const group = interaction.options.getSubcommandGroup(false);
-
       const useNameAsValue = (cmd === "dlc") || (cmd === "latest" && sub === "pret");
 
       let pool = games;
-      if (cmd === "set" && group === "games" && sub === "remove") {
+      if ((cmd === "set" && group === "games" && sub === "remove") || (cmd === "watchlist" && sub === "remove")) {
         pool = await buildSetGamesRemovePool(interaction, games);
+      }
+      if (cmd === "price-alert" && sub === "remove") {
+        pool = await buildPriceAlertRemovePool(interaction, games);
       }
 
       const choices: AutocompleteChoice[] = buildAutocompleteChoices(

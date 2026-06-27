@@ -8,7 +8,7 @@ Pe scurt, instrumentele de operare:
 
 - Metrici Prometheus la `/metrics` (vezi README sectiunea health/metrics).
 - Comenzi admin: `/outbox status | deadletters | clear-deadletters | replay-deadletters | retry | drain-now | pause | resume | permissions | recovery-verify status`.
-- Alerte admin (webhook): trimise automat la `recoveryFailures > 0` (`outbox:recovery-read`),
+- Alerte admin (webhook si/sau canale Discord configurate cu `/admin-alerts set channel:<canal>`): trimise automat la `recoveryFailures > 0` (`outbox:recovery-read`),
   `markSentFailures > 0` (`outbox:mark-sent`), `deleteFailures > 0` (`outbox:delete` — job-uri
   procesate care nu s-au putut sterge din coada; raman deduse/reluate) si `deadLetterFailures > 0`
   (`outbox:deadletter-write` — scrierea unui audit dead-letter a esuat: pe caile terminale (expirare /
@@ -19,6 +19,8 @@ Pe scurt, instrumentele de operare:
   **severitate** (FATAL/WARNING/INFO + culoare), **Cauza** (eroarea reala), **Ce inseamna** si
   **Ce trebuie facut** (remediere per tip de alerta) — maparea kind -> ghidaj e in
   `src/infra/mongo/adminAlertContent.ts`.
+
+Canalele configurate prin `/admin-alerts set` primesc aceeasi structura de embed ca webhook-ul global. Rapoartele noi sunt limitate la serverul care le-a generat; alertele operationale globale sunt distribuite tuturor canalelor administrative configurate. Daca fetch-ul canalului esueaza cu o eroare Discord permanenta, `adminAlertChannelId` este resetat automat ca botul sa nu repete la nesfarsit livrari imposibile. `/admin-alerts off` dezactiveaza doar destinatia Discord a serverului, nu si `ADMIN_WEBHOOK_URL`.
 
 ## Cand creste `bot_outbox_queue_depth`
 
@@ -182,6 +184,24 @@ sa cada tacut pe default. O variabila **neset/goala** foloseste in continuare de
 valid dar in afara intervalului `[min, max]` ramane **clamp-uit** la margine cu un `WARN` (comportament
 defensiv neschimbat). Daca botul nu porneste cu acest mesaj, corecteaza valoarea numerica a variabilei numite.
 
+## Operare monitorizare YouTube
+
+Monitorizarea YouTube foloseste feed-ul Atom public al fiecarui canal, fara API key si fara acces la contul personal YouTube al administratorului. La `/youtube subscribe`, botul rezolva channel ID-ul, marcheaza drept baseline numai videoclipurile mai vechi de o luna si lasa continutul recent eligibil pentru prima `/youtube notify on`. Dupa prima activare, continutul aparut cat timp notificarile sunt oprite este revendicat fara livrare, ca reactivarea sa nu creeze backlog. Cron-ul grupeaza abonamentele dupa channel ID, citeste fiecare feed o singura data per ciclu si distribuie rezultatele catre guild-urile interesate.
+
+Deduplicarea este atomica in colectia `guildSeenYoutube`, pe combinatia server + canal YouTube + ID video. Schimbarea titlului sau a thumbnail-ului nu retrimite acelasi ID; un reupload cu ID nou este continut nou. Un videoclip este revendicat inainte de trimitere si revendicarea este anulata daca metadatele sau toate destinatiile de livrare esueaza, astfel incat ciclul urmator sa poata reincerca. Afisarea manuala `/youtube videos show` nu modifica deduplicarea. Cand outbox-ul este activ, joburile folosesc `kind: youtube`, sunt revalidate pe `youtubeNotificationsEnabled` si pe canalul principal sau una dintre rutele speciale, iar istoricul `/history` este scris numai dupa livrarea reala.
+
+Filtrele Shorts/live/premiere necesita o citire a paginii videoclipului. Filtrul de durata minima este fail-closed: daca este configurat peste `0` si durata nu poate fi determinata, videoclipul nu este trimis. Filtrul inclusiv de titlu accepta un videoclip daca titlul contine cel putin una dintre valorile configurate. Sablonul mesajului permite numai `{channel}`, `{title}` si `{url}`, iar payload-ul dezactiveaza mentiunile Discord. Livrarea automata si manuala trimite maximum 5 videoclipuri per mesaj si asteapta 10 minute intre loturile suplimentare.
+
+Diagnostic recomandat:
+
+1. `/youtube status` pentru configurarea completa si ultima verificare.
+2. `/youtube permissions` pentru accesul la canalul Discord.
+3. `/youtube errors` pentru ultimele erori de feed, metadate sau livrare.
+4. Verifica accesul outbound HTTPS catre `www.youtube.com`, `youtube.com/feeds/videos.xml` si `i.ytimg.com`.
+5. Dupa remediere, `/youtube clear-errors` curata istoricul operational.
+
+Un canal Discord principal sters sau devenit permanent inaccesibil dezactiveaza notificarile YouTube pentru guild. O ruta speciala invalida este eliminata fara sa dezactiveze celelalte destinatii. Daca un canal YouTube nu mai are rute speciale, livrarea revine la canalul principal.
+
 ## Indexuri MongoDB (inventar)
 
 Index-urile sunt declarate in `src/infra/mongo/models.ts` si construite automat de Mongoose la
@@ -194,9 +214,11 @@ index-uri conflictuale/invalide. Inventarul declarat curent:
 | --- | --- | --- | --- |
 | `guilds` | `{ subscribed, notificationChannelId }` | — | enumerarea guild-urilor abonate la update-uri la dispatch |
 | `guilds` | `{ discountsSubscribed, discountChannelId }` | — | enumerarea guild-urilor abonate la reduceri |
+| `guilds` | `{ youtubeNotificationsEnabled, youtubeNotificationChannelId }` | — | enumerarea guild-urilor cu monitorizarea YouTube activa |
 | `guildSeenDiscounts` | `{ guildId, dealHash }` | unique | dedup per-guild al reducerilor deja trimise |
 | `guildSeenDiscounts` | `{ seenAt }` | TTL `GUILD_SEEN_DISCOUNT_TTL_DAYS` (implicit 60 zile) | curatare automata a istoricului de reduceri vazute |
 | `guildSeenUpdates` | `{ guildId, gameKey, updateId }` | unique | dedup per-guild al update-urilor deja trimise |
+| `guildSeenYoutube` | `{ guildId, channelId, videoId }` | unique | claim si dedup atomic per-guild pentru videoclipurile YouTube |
 | `notificationOutbox` | `{ availableAt, lockedUntil }` | — | claim-ul joburilor disponibile la drenare |
 | `notificationOutbox` | `{ dedupeKey }` | unique, sparse | impiedica doua joburi pending cu acelasi `dedupeKey` (sparse: joburile fara cheie coexista) |
 | `notificationOutbox` | `{ createdAt }` | TTL 7 zile | plasa de siguranta pentru joburi nedrenate |

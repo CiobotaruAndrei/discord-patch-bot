@@ -7,35 +7,48 @@
 ![TypeScript](https://img.shields.io/badge/typescript-strict%20global-3178c6?logo=typescript&logoColor=white)
 ![Docker](https://img.shields.io/badge/docker-GHCR%20ready-2496ed?logo=docker&logoColor=white)
 
-Bot Discord pentru notificari despre update-uri, DLC-uri si reduceri pentru jocuri urmarite. Proiectul ruleaza pe Node.js/TypeScript, foloseste MongoDB pentru persistenta si include guard-uri pentru scraping fragil, rate limiting, health checks, metrics si deployment cu Docker.
+Bot Discord pentru notificari despre update-uri, DLC-uri, reduceri si videoclipuri noi de pe canale YouTube urmarite. Proiectul ruleaza pe Node.js/TypeScript, foloseste MongoDB pentru persistenta si include guard-uri pentru scraping fragil, rate limiting, health checks, metrics si deployment cu Docker.
 
 ## Ce face botul
 
 - Monitorizeaza jocuri configurate per server Discord.
 - Trimite notificari pentru update-uri noi si reduceri relevante.
+- Urmareste canale YouTube publice prin feed-urile Atom oficiale si posteaza videoclipurile noi intr-un canal Discord configurat.
 - Expune comenzi slash pentru abonare, configurare, verificari manuale si status.
-- Evita duplicatele prin `seenUpdates` si `seenDiscounts` persistate in MongoDB.
+- Evita duplicatele prin colectii `seen` persistate in MongoDB pentru update-uri, reduceri si videoclipuri YouTube.
 - Are fallback-uri, validare DNS/IP pentru request-uri externe si circuit breaker pentru surse fragile.
 - Expune endpoint-uri locale `/healthz` si `/metrics`.
 
 ## Comenzi principale
 
-La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun venit (pe system channel sau primul canal unde poate posta) care ghideaza configurarea: `/start updates`, `/start reduceri`, `/set games add`, `/set role updates`, `/help`.
+La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun venit (pe system channel sau primul canal unde poate posta) care ghideaza configurarea: `/start updates`, `/start reduceri`, `/watchlist add`, `/set role updates`, `/help`.
 
 - `/start updates` - activeaza notificarile de update-uri pentru server.
 - `/start reduceri` - activeaza notificarile de reduceri pentru server.
 - `/stop updates` - dezactiveaza notificarile de update-uri.
 - `/stop reduceri` - dezactiveaza notificarile de reduceri.
-- `/set games add` - adauga jocuri urmarite.
-- `/set games remove` - elimina jocuri urmarite.
+- `/watchlist show | add | remove | reset` - (admin) afiseaza si gestioneaza jocurile urmarite explicit pe server; `reset` revine la toate jocurile configurate.
+- `/set games add`, `/set games remove`, `/set games reset` - (admin) gestioneaza acelasi filtru per-joc prin suprafata veche, fara listare; pentru afisare foloseste `/watchlist show`.
 - `/set mode | mindiscount | maxprice | free | paid | currency | stores` - (admin) configurari de afisare/filtrare per-server.
+- `/snooze` si `/unsnooze` - (admin) pune temporar pe pauza o comanda existenta, apoi o reporneste manual inainte de expirare daca este nevoie; optiunea `command` are autocomplete ca optiunea `command` din `/help`.
+- `/config` - (admin) afiseaza intr-un singur loc setarile curente ale serverului: mod, reduceri minime, pret maxim, free/paid, valuta, magazine, jocuri active, roluri si canale de notificare.
+- `/reset-config` - (admin) cu optiunea obligatorie `confirm:true`, reseteaza setarile serverului la valorile implicite, fara sa stearga istoricul rapoartelor sau al notificarilor.
+- `/admin-alerts set` si `/admin-alerts off` - (admin) configureaza sau dezactiveaza canalul Discord pentru alerte operationale, dead-letter, permisiuni si rapoarte noi.
+- `/price-alert add`, `/price-alert remove` si `/price-alert list` - (admin) gestioneaza alerte de pret. Alerta se trimite pe canalul activat prin `/start reduceri`, se declanseaza o singura data cand pretul ajunge la/sub prag si se rearmeaza dupa ce pretul urca peste prag.
+- `/youtube subscribe`, `/youtube unsubscribe` si `/youtube list` - (admin) gestioneaza canalele YouTube publice urmarite; adaugarea accepta link, handle `@nume` sau channel ID si pastreaza eligibile numai videoclipurile din ultima luna pentru prima activare.
+- `/youtube notify channel`, `/youtube notify on`, `/youtube notify off` si `/youtube notify status` - (admin) configureaza canalul Discord si porneste/opreste postarile automate fara sa stearga abonamentele.
+- `/youtube filter shorts`, `/youtube filter lives`, `/youtube filter premieres`, `/youtube filter min-duration` si `/youtube filter status` - (admin) controleaza ce tipuri de videoclipuri pot fi postate.
+- `/youtube message-template set`, `/youtube message-template reset`, `/youtube message-template status`, `/youtube channel-route add`, `/youtube channel-route remove`, `/youtube channel-route list`, `/youtube title-filter add`, `/youtube title-filter remove`, `/youtube title-filter list` si `/youtube title-filter clear` - (admin) personalizeaza mesajul, ruteaza separat creatorii si permite numai titlurile care contin cel putin una dintre valorile configurate.
+- `/youtube videos show` - (admin) posteaza manual videoclipurile din ultima luna fara sa modifice deduplicarea automata; rezultatele sunt livrate in loturi de maximum 5, cu 10 minute intre loturile suplimentare.
+- `/youtube status`, `/youtube errors`, `/youtube permissions` si `/youtube clear-errors` - (admin) ofera diagnoza completa pentru monitorizarea YouTube.
 - `/latest updates` / `/latest reduceri` - cele mai recente update-uri / reduceri pentru server; `/latest update` si `/latest pret` pentru un joc anume (cu optiunea `joc`).
 - `/dlc` - afiseaza DLC-uri cunoscute.
 - `/status <joc>` - verifica starea serverelor unui joc (ex. online/mentenanta), nu starea botului; pentru starea botului foloseste `/health`.
-- `/history <tip> <numar>` - afiseaza ultimele notificari (update-uri/reduceri) livrate efectiv pe acest server, cu link si timestamp relativ; raspuns ephemeral. Istoricul se scrie dupa send-ul real catre Discord; cu outbox-ul activ, intrarile calatoresc pe job si se scriu abia cand worker-ul livreaza mesajul din coada (nu la enqueue), deci o notificare aflata inca in coada sau esuata nu apare in `/history`.
-- `/report <tip> <detalii> <joc>` - raporteaza o problema (update gresit, duplicat, joc lipsa, sursa stricata); raportul e salvat si trimis administratorilor.
+- `/history <tip> <numar>` - afiseaza ultimele notificari (update-uri/reduceri/YouTube) livrate efectiv pe acest server, cu link si timestamp relativ; raspuns ephemeral. Istoricul se scrie dupa send-ul real catre Discord; cu outbox-ul activ, intrarile calatoresc pe job si se scriu abia cand worker-ul livreaza mesajul din coada (nu la enqueue), deci o notificare aflata inca in coada sau esuata nu apare in `/history`.
+- `/report submit <tip> <detalii> <joc> | list | resolve <id>` - raporteaza o problema, listeaza ultimele rapoarte sau marcheaza un raport ca rezolvat; `list` si `resolve` cer Administrator la runtime.
 - `/health` - (admin) starea botului (Discord, MongoDB, cache, uptime); raspuns ephemeral, restrictionat la Administrator fiindca expune stare interna a infrastructurii. Restrictia e dubla (defense-in-depth): permisiunea slash declarata in Discord **plus** guard-ul runtime din `adminCommandRouterGuard` (lista `ADMIN_COMMANDS`). Pentru metrici detaliate (surse, coada outbox, cron) vezi endpoint-ul de metrics.
-- `/help` - afiseaza meniul general de ajutor; optiunea `command:<comanda>` intoarce ephemeral explicatia detaliata pentru o comanda exacta, cu autocomplete pe comenzile existente.
+- `/sources status` - (admin) afiseaza starea ultimelor snapshot-uri de surse externe: Steam/Epic, feed-uri de update pe joc si varsta ultimei verificari persistate.
+- `/help` - afiseaza meniul general de ajutor; optiunea `command` intoarce ephemeral explicatia detaliata pentru o comanda exacta, cu autocomplete pe comenzile existente.
 - `/set outbox-recovery-verify <on|off>` - (admin) comuta recovery-verify per-server; la `on` avertizeaza daca botului ii lipseste permisiunea Read Message History pe canalele de notificari.
 - `/outbox status | deadletters | clear-deadletters | replay-deadletters | retry | drain-now | pause | resume | permissions | recovery-verify status` - (admin) operarea outbox-ului: coada (per-server + global), dead-letter (listare, re-trimitere prin replay dupa remediere, golire dupa investigare), reprogramare livrari, drenare imediata (daca drenarea nu e pe pauza si lock-ul e liber), pauza/reluare drenare (global), audit de permisiuni pe canale si starea recovery-verify.
 
@@ -90,7 +103,7 @@ Variabile utile suplimentare:
 - `TRUST_PROXY` / `TRUSTED_PROXY_COUNT` - cand botul ruleaza in spatele unui reverse proxy/LB, seteaza `TRUST_PROXY=true` ca rate limiter-ul sa ia IP-ul clientului din `X-Forwarded-For`. `TRUSTED_PROXY_COUNT` (implicit `1`) = cate proxy-uri trusted ai in fata botului; IP-ul clientului e al **`TRUSTED_PROXY_COUNT`-lea IP numarand de la dreapta** din `X-Forwarded-For` (`segments[length - TRUSTED_PROXY_COUNT]`) — adica IP-ul inregistrat de proxy-ul tau cel mai din exterior (acelasi model ca `trust proxy = N` din Express/`proxy-addr`). Intrarile mai din stanga sunt puse de client si sunt **ignorate** (anti-spoof). Pentru un singur reverse proxy/LB lasa `1` (XFF are doar IP-ul real al clientului, adaugat de proxy); mareste-l (ex. `2` pentru `CDN -> LB -> bot`) ca toti clientii din spatele aceluiasi proxy sa NU fie grupati pe acelasi IP. Un lant XFF mai scurt decat valoarea cade pe IP-ul socket-ului (anti-truncare).
 - `ALLOW_NATIVE_FALLBACK` - in `NODE_ENV=production`, addon-ul Rust e obligatoriu si lipsa lui opreste boot-ul (fail-fast), fiindca fallback-ul TypeScript poate produce hash-uri divergente -> spam de notificari. Seteaza `ALLOW_NATIVE_FALLBACK=true` doar daca accepti explicit rularea pe fallback TS in productie.
 - `MIGRATIONS_CONTINUE_ON_ERROR` - migrarile DB ruleaza la boot; implicit o migrare esuata este fatala (fail-fast), deci botul nu porneste cu o schema inconsistenta (ex. lipsa indexului unic de dedupe -> notificari duplicate), iar repornirea orchestratorului reincearca migrarea. Cand **alta instanta** tine deja lock-ul de migrari, instanta curenta nu mai sare peste boot orbeste, ci **asteapta** pana cand `migrationState.lastApplied` ajunge la ultima migrare (schema sincronizata) si abia apoi continua; daca nu se sincronizeaza intr-un timeout (lock TTL + 1 min), porneste fail-fast (nu serveste trafic pe o schema posibil neactualizata). Seteaza `MIGRATIONS_CONTINUE_ON_ERROR=true` doar ca escape hatch de urgenta, pentru a porni oricum peste o migrare esuata sau peste timeout-ul de asteptare (pe propriul risc).
-- `ADMIN_WEBHOOK_URL` - webhook optional pentru alerte operationale.
+- `ADMIN_WEBHOOK_URL` - webhook optional pentru alerte operationale. Aceleasi embed-uri pot fi livrate per-server intr-un canal Discord configurat cu `/admin-alerts set`; rapoartele utilizatorilor sunt trimise numai serverului lor, iar alertele globale ale botului ajung la toate canalele administrative configurate.
 - `NOTIFICATION_OUTBOX_ENABLED` - feature flag optional (implicit `false`). Cand este `true`, cron-ul nu mai trimite notificarile inline, ci le pune ca job-uri in colectia `notificationOutbox`, iar un worker dedicat le draneaza pe propriul interval (rate limit + retry/backoff + dead-letter). Inainte de livrare, worker-ul revalideaza abonarea pe guild/canal; daca verificarea Mongo esueaza, jobul este reprogramat cu backoff in loc sa fie trimis fail-open. Recomandat pe volum mare de notificari sau cand vrei ca trimiterea sa supravietuiasca caderilor Discord; lasa-l oprit pentru deploy-uri mici.
 - `NOTIFICATION_OUTBOX_DRAIN_INTERVAL_MS` - cat de des draneaza worker-ul outbox-ul, independent de ciclul cron (implicit `15000`; min `2000`, max `600000`). Activ doar cand `NOTIFICATION_OUTBOX_ENABLED=true`.
 - `NOTIFICATION_OUTBOX_DRAIN_LIMIT` - cate job-uri se draneaza intr-un ciclu (implicit `50`; min `1`, max `1000`). TTL-ul lock-ului de drenare se dimensioneaza automat din aceasta valoare si bugetul de trimitere Discord, deci marirea limitei pastreaza lock-ul valid pe toata durata drenarii.
@@ -123,7 +136,8 @@ src/
     command-presentation/   # embed-uri, paginare si UI Discord
     command-security/       # guard-uri admin runtime
     command-handlers/       # handler-e tipate pentru comenzi si autocomplete
-    notifications/          # wiring notificari, seen repo, servicii update/reduceri
+    notifications/          # wiring notificari, outbox si servicii update/reduceri/YouTube
+    youtube/                # rezolvare canal, feed Atom, filtre, deduplicare si dispatch YouTube
   infra/
     http/                   # client HTTP, proxy, retry, limitari, DNS/IP guard
     mongo/                  # conexiune, modele, locks, migratii
@@ -160,10 +174,10 @@ Testele acopera zonele importante:
 
 - validare env si configuratie;
 - registrul de comenzi si guard-uri anti-regresie;
-- handler-e functionale pentru `/help`, `/ping`, `/games`, `/set`, `/outbox`, `/latest`, `/dlc`, `/status` si autocomplete;
-- servicii de notificari pentru update-uri si reduceri;
+- handler-e functionale pentru `/help`, `/ping`, `/games`, `/set`, `/watchlist`, `/snooze`, `/unsnooze`, `/outbox`, `/youtube`, `/latest`, `/dlc`, `/status` si autocomplete;
+- servicii de notificari pentru update-uri, reduceri si YouTube;
 - repository-ul `seen` pentru deduplicare;
-- fluxuri E2E pentru update-uri si reduceri;
+- fluxuri E2E pentru update-uri si reduceri, plus teste functionale directe pentru sursa, repository-ul, serviciul si comenzile YouTube;
 - parsere, filtre, shape drift pe scrapers, circuit breaker, cooldown-uri si rate limiting;
 - integrare pe MongoDB real (`outboxMongoIndex.integration.test.ts`): verifica indexul unic sparse pe `notificationOutbox.dedupeKey`; ruleaza in CI (serviciu `mongo:7`) si local cand `MONGO_URI` indica un Mongo pornit, altfel se auto-sare.
 - crash-simulation outbox (`outboxCrashRecovery.functional.test.ts`): send reuseste dar `markSent` nu apuca (crash), iar la repornire recovery-verify previne duplicatul (cu test-contrast care arata duplicatul fara recovery-verify).
@@ -211,7 +225,7 @@ Granitele tiparii — ce ramane intentionat mai lax (ca afirmatiile de mai sus s
 Starea curenta:
 
 - handler-ele pentru comenzi cunoscute sunt separate in `src/features/command-handlers/`;
-- routing-ul interactiunilor e o **lista tipata `CommandHandler[]`** compusa in `commandRegistry`: fiecare handler expune `buildCommandHandler(ctx): CommandHandler` (`{ canHandle, handle }`), iar `dispatchCommand` itereaza lista si deleaga la primul `canHandle` adevarat (fallback-ul, mereu `canHandle: () => true`, e ultimul); comenzile admin (`start`/`stop`/`set`/`outbox`/`health`) trec intai printr-un pre-check `requireGuildAdmin` (singurul wrapper ramas peste `dispatchCommand`, prin `adminCommandRouterGuard`); nu mai exista lantul de `attachX` care impacheteaza `handleInteraction` si nici un fisier `interactions.ts` separat;
+- routing-ul interactiunilor e o **lista tipata `CommandHandler[]`** compusa in `commandRegistry`: fiecare handler expune `buildCommandHandler(ctx): CommandHandler` (`{ canHandle, handle }`), iar `dispatchCommand` itereaza lista si deleaga la primul `canHandle` adevarat (fallback-ul, mereu `canHandle: () => true`, e ultimul); comenzile admin (`start`/`stop`/`set`/`watchlist`/`snooze`/`unsnooze`/`outbox`/`health`/`config`/`sources`) trec intai printr-un pre-check `requireGuildAdmin`, apoi comenzile snoozed trec prin `commandSnoozeGuard` inainte de dispatcher; nu mai exista lantul de `attachX` care impacheteaza `handleInteraction` si nici un fisier `interactions.ts` separat;
 - `notifications/index.ts` este wiring pentru cron jobs, iar logica principala este in `updateNotificationService.ts` si `discountNotificationService.ts`;
 - toate modulele expun factory-uri cu deps explicit tipate: handler-ele de comenzi, `commandCache.ts`, `commandPresentation.ts`, `mongoContext.ts`, sursele `steam`/`deals`/`updates` (`createSteamSource`/`createDeals`/`createUpdates`) si `notifications/index.ts` (`createNotificationRuntime`); adaptorul `attachX(target)` construieste obiectul `deps` din campurile numite ale contextului (snapshot), nu mai paseaza punga de context;
 - `domain/deals/filtersCore.ts`, `outboundChannel.ts` si `seenRepository.ts` sunt module tipate, usor de testat separat;

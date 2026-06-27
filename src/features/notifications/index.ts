@@ -1,7 +1,7 @@
 "use strict";
 
 import type { Model } from "mongoose";
-import type { RuntimeEnv } from "../../types";
+import type { PriceValue, RuntimeEnv } from "../../types";
 import type { SeenRepositoryDeps } from "./seenRepository";
 import type { UpdateNotificationServiceDeps } from "./updateNotificationService";
 import type { DiscountNotificationServiceDeps } from "./discountNotificationService";
@@ -9,6 +9,8 @@ import type { OutboxRuntimeDeps } from "./notificationOutbox";
 import type { HistoryRepositoryDeps } from "./historyRepository";
 import type { DeadLetterReplayRepositoryDeps } from "./deadLetterReplayRepository";
 import type { OutboxDiscordClient } from "./outboundChannel";
+import type { SourceRegistryApi } from "../../sources/sourceRegistry";
+import type { GuildSeenYoutubeDoc } from "../../infra/mongo/modelTypes";
 
 const {
   DISCORD_PERMANENT_ERROR_CODES,
@@ -25,11 +27,15 @@ const { createOutboxDelivery } = require("./outboxDelivery") as typeof import(".
 const { buildDeadLetterEntry, deadLetterPush, deadLetterTitleFromPayload } = require("./deadLetter") as typeof import("./deadLetter");
 const { createDeadLetterReplayRepository } = require("./deadLetterReplayRepository") as typeof import("./deadLetterReplayRepository");
 const { createDefaultDiscordSendLimiter } = require("./discordRateLimiter") as typeof import("./discordRateLimiter");
+const { createPriceAlertService } = require("./priceAlertService") as typeof import("./priceAlertService");
+const { createYouTubeSource } = require("../youtube/youtubeSource") as typeof import("../youtube/youtubeSource");
+const { createYouTubeRepository } = require("../youtube/youtubeRepository") as typeof import("../youtube/youtubeRepository");
+const { createYouTubeNotificationService } = require("../youtube/youtubeNotificationService") as typeof import("../youtube/youtubeNotificationService");
 
 const OUTBOX_MAX_ATTEMPTS = 5;
 const OUTBOX_BACKOFF_MS = 60_000;
 
-interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; attempts?: number; deliveries?: number; dedupeKey?: string; recoveryVerify?: boolean; }
+interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount" | "youtube"; payload: unknown; attempts?: number; deliveries?: number; dedupeKey?: string; recoveryVerify?: boolean; }
 
 type GeneratedUpdateDeps =
   | "resolveOutboundChannel"
@@ -49,8 +55,10 @@ type GeneratedDiscountDeps =
   | "seedSeenDiscounts"
   | "setSeenHashVersion"
   | "disableDiscountsForChannelError"
+  | "rollbackTriggeredAlert"
   | "isPermanentDiscordError"
-  | "transientErrorMessage";
+  | "transientErrorMessage"
+  | "processGuildPriceAlerts";
 
 type NotificationsRuntimeDeps = SeenRepositoryDeps
   & Omit<UpdateNotificationServiceDeps, GeneratedUpdateDeps>
@@ -59,11 +67,18 @@ type NotificationsRuntimeDeps = SeenRepositoryDeps
     env: RuntimeEnv;
     GuildModel: { countDocuments(filter: Record<string, unknown>): Promise<number> };
     canSendEmbeds(channel: unknown, botId: string): boolean;
+    formatPrice(value: PriceValue, currencyCode?: string | null): string;
     saveFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
     NotificationOutboxModel: OutboxRuntimeDeps["NotificationOutboxModel"];
     NotificationOutboxSentModel: OutboxRuntimeDeps["NotificationOutboxSentModel"];
     NotificationHistoryModel: HistoryRepositoryDeps["NotificationHistoryModel"];
     NotificationDeadLetterReplayModel: DeadLetterReplayRepositoryDeps["NotificationDeadLetterReplayModel"];
+    GuildSeenYoutubeModel: Model<GuildSeenYoutubeDoc>;
+    httpReq: SourceRegistryApi["httpReq"];
+    safeCheerioLoad: SourceRegistryApi["safeCheerioLoad"];
+    FETCH_CONCURRENCY: number;
+    invalidateGuildCache(guildId: string): void;
+    adminAlert?: (kind: string, title: string, body: unknown, guildId?: string) => Promise<unknown>;
   };
 
 type NotificationsContext = NotificationsRuntimeDeps & Record<string, unknown>;
@@ -117,7 +132,16 @@ function createOutboxServices(deps: NotificationsRuntimeDeps) {
       isStillSubscribed: (job: OutboxJobShape) => GuildModel.countDocuments(
         job.kind === "discount"
           ? { _id: job.guildId, discountsSubscribed: true, discountChannelId: job.channelId }
-          : { _id: job.guildId, subscribed: true, notificationChannelId: job.channelId }
+          : job.kind === "youtube"
+            ? {
+                _id: job.guildId,
+                youtubeNotificationsEnabled: true,
+                $or: [
+                  { youtubeNotificationChannelId: job.channelId },
+                  { "youtubeChannelRoutes.discordChannelIds": job.channelId }
+                ]
+              }
+            : { _id: job.guildId, subscribed: true, notificationChannelId: job.channelId }
       ).then(count => count > 0).catch(() => true),
       recordDeadLetter: recordOutboxDeadLetter,
       recordSentHistory: historyRepository.recordSent,
@@ -136,7 +160,8 @@ function createOutboxServices(deps: NotificationsRuntimeDeps) {
 function createSeenServices(deps: NotificationsRuntimeDeps) {
   const { GuildModel, GuildSeenDiscountModel, GuildSeenUpdateModel, withMongoRetry, SEEN_PER_GAME_LIMIT, DEALS_HISTORY_LIMIT, OP_UPDATE_OPTS } = deps;
   return createSeenRepository({
-    GuildModel, GuildSeenDiscountModel, GuildSeenUpdateModel, withMongoRetry, SEEN_PER_GAME_LIMIT, DEALS_HISTORY_LIMIT, OP_UPDATE_OPTS
+    GuildModel, GuildSeenDiscountModel, GuildSeenUpdateModel, withMongoRetry,
+    SEEN_PER_GAME_LIMIT, DEALS_HISTORY_LIMIT, OP_UPDATE_OPTS, adminAlert: deps.adminAlert
   });
 }
 
@@ -177,6 +202,17 @@ function createNotificationDispatchServices(
     DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY
   });
 
+  const priceAlertService = createPriceAlertService({
+    GuildModel,
+    logger,
+    resolveOutboundChannel,
+    disableDiscountsForChannelError,
+    rollbackTriggeredAlert: seenRepository.rollbackTriggeredAlert,
+    formatPrice: deps.formatPrice,
+    sleepIfPositive,
+    DISCORD_SEND_DELAY_MS
+  });
+
   const discountService = createDiscountNotificationService({
     GuildModel, logger, runConcurrent, resolveOutboundChannel,
     claimSeenDiscount, rollbackSeenDiscount, loadSeenDiscountHashes, seedSeenDiscounts, setSeenHashVersion, disableDiscountsForChannelError,
@@ -184,20 +220,68 @@ function createNotificationDispatchServices(
     normalizePendingDiscountArray, validatePendingDiscountSnapshot,
     normalizeCurrencyKey, dealPassesFilters, dealHash,
     fetchDeals, getDealsCacheData, setDealsCache, persistFetchSnapshot, loadFetchSnapshot: loadSnapshot, enrichDealData, buildDealEmbed,
-    sleepIfPositive,
+    sleepIfPositive, processGuildPriceAlerts: priceAlertService.processGuildPriceAlerts,
     DEFAULT_CURRENCY, DEALS_HISTORY_LIMIT,
     PENDING_DISCOUNT_MAX_ATTEMPTS, PENDING_DISCOUNT_GRACE_CYCLES,
     PENDING_DISCOUNTS_LIMIT, MAX_DEALS_PER_CYCLE,
     DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY
   });
 
-  return { updateService, discountService };
+  const youtubeSource = createYouTubeSource({
+    httpReq: deps.httpReq,
+    safeCheerioLoad: deps.safeCheerioLoad
+  });
+  const youtubeRepository = createYouTubeRepository({
+    GuildModel: deps.GuildModel,
+    GuildSeenYoutubeModel: deps.GuildSeenYoutubeModel,
+    withMongoRetry: deps.withMongoRetry,
+    invalidateGuildCache: deps.invalidateGuildCache,
+    adminAlert: async (kind, title, body, guildId) => {
+      await deps.adminAlert?.(kind, title, body, guildId);
+    },
+    logger
+  });
+  const youtubeService = createYouTubeNotificationService({
+    GuildModel: deps.GuildModel,
+    logger,
+    runConcurrent,
+    fetchYouTubeFeed: youtubeSource.fetchYouTubeFeed,
+    fetchYouTubeVideoMetadata: youtubeSource.fetchYouTubeVideoMetadata,
+    videoPassesYouTubeFilters: youtubeSource.videoPassesYouTubeFilters,
+    claimVideo: youtubeRepository.claimVideo,
+    rollbackVideo: youtubeRepository.rollbackVideo,
+    recordChannelSuccess: youtubeRepository.recordChannelSuccess,
+    recordChannelError: youtubeRepository.recordChannelError,
+    disableNotificationsForChannelError: youtubeRepository.disableNotificationsForChannelError,
+    removeRouteForChannelError: youtubeRepository.removeRouteForChannelError,
+    resolveOutboundChannel,
+    sleepIfPositive,
+    transientErrorMessage,
+    GUILD_PROCESS_CONCURRENCY,
+    FETCH_CONCURRENCY: deps.FETCH_CONCURRENCY
+  });
+
+  return {
+    updateService,
+    discountService,
+    priceAlertService,
+    youtubeSource,
+    youtubeRepository,
+    youtubeService
+  };
 }
 
 function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
   const { enqueueOutbox, resolveOutboundChannel, drainOutbox, deadLetterReplayRepository, historyRepository } = createOutboxServices(deps);
   const seenRepository = createSeenServices(deps);
-  const { updateService, discountService } = createNotificationDispatchServices(deps, resolveOutboundChannel, seenRepository);
+  const {
+    updateService,
+    discountService,
+    priceAlertService,
+    youtubeSource,
+    youtubeRepository,
+    youtubeService
+  } = createNotificationDispatchServices(deps, resolveOutboundChannel, seenRepository);
   const {
     claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, disableUpdatesForChannelError,
     claimSeenDiscount, rollbackSeenDiscount, seedSeenDiscounts, disableDiscountsForChannelError
@@ -220,7 +304,17 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     seedSeenDiscounts,
     disableDiscountsForChannelError,
     processGuildDiscounts: discountService.processGuildDiscounts,
+    processGuildPriceAlerts: priceAlertService.processGuildPriceAlerts,
     checkForDiscounts: discountService.checkForDiscounts,
+    resolveYouTubeChannel: youtubeSource.resolveYouTubeChannel,
+    fetchYouTubeFeed: youtubeSource.fetchYouTubeFeed,
+    fetchYouTubeVideoMetadata: youtubeSource.fetchYouTubeVideoMetadata,
+    videoPassesYouTubeFilters: youtubeSource.videoPassesYouTubeFilters,
+    seedSeenVideos: youtubeRepository.seedSeenVideos,
+    removeSeenChannel: youtubeRepository.removeSeenChannel,
+    clearYouTubeErrors: youtubeRepository.clearErrors,
+    checkForYouTube: youtubeService.checkForYouTube,
+    showYouTubeVideos: youtubeService.showYouTubeVideos,
     drainOutbox,
     enqueueOutbox,
     listReplayableDeadLetters: deadLetterReplayRepository.listForGuild,

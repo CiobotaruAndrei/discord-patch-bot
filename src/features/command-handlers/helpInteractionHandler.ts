@@ -58,6 +58,7 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
       { name: "Utilitare", value: "`/ping` - `/games` - `/help`" },
       { name: "Ajutor pe comanda", value: "`/help command:<comanda>` - explicatie detaliata pentru o comanda exacta" },
       { name: "Notificari Automate (admin)", value: "`/start updates` - `/stop updates`\n`/start reduceri` - `/stop reduceri`" },
+      { name: "Pauza temporara (admin)", value: "`/snooze command:<comanda> durata:<timp>`\n`/unsnooze command:<comanda>`" },
       {
         name: "Preferinte Server (admin)",
         value:
@@ -67,13 +68,33 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
           "`/set free <on|off>` - `/set paid <on|off>`\n" +
           "`/set currency <USD|EUR|GBP|RON>`\n" +
           "`/set stores <steam,epic | reset>`\n" +
+          "`/config`\n" +
+          "`/reset-config confirm:true`\n" +
           "`/set outbox-recovery-verify <on|off>`"
+      },
+      {
+        name: "Alerte dedicate (admin)",
+        value:
+          "`/price-alert add <joc> <price> <currency>`\n" +
+          "`/price-alert remove <joc>` - `/price-alert list`\n" +
+          "`/admin-alerts set <channel>` - `/admin-alerts off`"
+      },
+      {
+        name: "YouTube (admin)",
+        value:
+          "`/youtube subscribe <canal>` - `/youtube unsubscribe <canal>`\n" +
+          "`/youtube list` - `/youtube notify channel <canal>`\n" +
+          "`/youtube notify on|off|status`\n" +
+          "`/youtube filter shorts|lives|premieres <on|off>`\n" +
+          "`/youtube filter min-duration <secunde>` - `/youtube filter status`\n" +
+          "`/youtube status` - `/youtube errors` - `/youtube permissions` - `/youtube clear-errors`"
       },
       {
         name: "Filtru per-joc (admin)",
         value:
-          "`/set games add <joc>` - `/set games remove <joc>`\n" +
-          "`/set games list` - `/set games reset`"
+          "`/watchlist show` - `/watchlist reset`\n" +
+          "`/watchlist add <joc>` - `/watchlist remove <joc>`\n" +
+          "`/set games add <joc>` - `/set games remove <joc>`"
       },
       {
         name: "Ping-uri rol (admin)",
@@ -92,7 +113,11 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
       },
       {
         name: "Comenzi Manuale",
-        value: "`/latest updates` - `/latest reduceri`\n`/latest update <joc>` - `/latest pret <joc>`\n`/dlc <joc>` - `/status <joc>`"
+        value: "`/latest updates` - `/latest reduceri`\n`/latest update <joc>` - `/latest pret <joc>`\n`/dlc <joc>` - `/status <joc>`\n`/sources status`"
+      },
+      {
+        name: "Raportare",
+        value: "`/report submit` - trimite o problema\n`/report list` - `/report resolve` *(admin)*"
       }
     );
 }

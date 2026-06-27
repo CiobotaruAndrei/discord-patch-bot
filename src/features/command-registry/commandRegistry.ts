@@ -21,6 +21,7 @@ interface CommandRegistryContext {
   setDealsCache?: (currency: unknown, data: DealInfo[]) => void;
   checkForUpdates?: (client: NotificationDiscordClient, games: GameConfig[], shouldAbort?: (() => boolean) | null) => Promise<void>;
   checkForDiscounts?: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
+  checkForYouTube?: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
   drainOutbox?: (client: OutboxDiscordClient) => MaybePromise<unknown>;
   buildOptimizedGameList?: <G extends { key: string }>(allGames: G[], subscribedGuilds: readonly GuildGameFilter[]) => G[];
   registerSlashCommands?: (token: string, clientId: string) => Promise<unknown>;
@@ -42,6 +43,7 @@ type RequiredCommandRegistryKey =
   | "setDealsCache"
   | "checkForUpdates"
   | "checkForDiscounts"
+  | "checkForYouTube"
   | "drainOutbox"
   | "buildOptimizedGameList"
   | "registerSlashCommands"
@@ -77,8 +79,15 @@ import attachStatusInteractionHandler = require("../command-handlers/statusInter
 import attachHistoryInteractionHandler = require("../command-handlers/historyInteractionHandler");
 import attachReportInteractionHandler = require("../command-handlers/reportInteractionHandler");
 import attachHealthInteractionHandler = require("../command-handlers/healthInteractionHandler");
+import attachConfigInteractionHandler = require("../command-handlers/configInteractionHandler");
+import attachGuildConfigurationAdminHandler = require("../command-handlers/guildConfigurationAdminHandler");
+import attachPriceAlertInteractionHandler = require("../command-handlers/priceAlertInteractionHandler");
+import attachYouTubeInteractionHandler = require("../command-handlers/youtubeInteractionHandler");
+import attachSnoozeInteractionHandler = require("../command-handlers/snoozeInteractionHandler");
+import attachSourcesStatusHandler = require("../command-handlers/sourcesStatusHandler");
 import attachDlcInteractionHandler = require("../command-handlers/dlcInteractionHandler");
 import attachAutocompleteInteractionHandler = require("../command-handlers/autocompleteInteractionHandler");
+import attachCommandSnoozeGuard = require("../command-security/commandSnoozeGuard");
 import attachAdminCommandRouterGuard = require("../command-security/adminCommandRouterGuard");
 
 const { createCommandRuntimeContext } = require("../command-runtime/commandRuntimeContext") as typeof import("../command-runtime/commandRuntimeContext");
@@ -106,7 +115,8 @@ function createCommandRegistry(): RequiredCommandRegistry {
   const feedbackRepository = attachFeedbackRepository.createFeedbackRepository(withNotifications);
   const withFeedback = Object.assign(withNotifications, {
     recordFeedbackReport: feedbackRepository.recordReport,
-    getRecentFeedbackReports: feedbackRepository.getRecent
+    getRecentFeedbackReports: feedbackRepository.getRecent,
+    resolveFeedbackReport: feedbackRepository.resolveReport
   });
   const ctx = Object.assign(withFeedback, attachSlashCommandDefinitions.createSlashCommandDefinitions(withFeedback));
 
@@ -114,6 +124,12 @@ function createCommandRegistry(): RequiredCommandRegistry {
   const commandHandlers: CommandHandler[] = [
     attachAutocompleteInteractionHandler.buildCommandHandler(ctx),
     attachDlcInteractionHandler.buildCommandHandler(ctx),
+    attachSourcesStatusHandler.buildCommandHandler(ctx),
+    attachConfigInteractionHandler.buildCommandHandler(ctx),
+    attachGuildConfigurationAdminHandler.buildCommandHandler(ctx),
+    attachPriceAlertInteractionHandler.buildCommandHandler(ctx),
+    attachYouTubeInteractionHandler.buildCommandHandler(ctx),
+    attachSnoozeInteractionHandler.buildCommandHandler(ctx),
     attachHealthInteractionHandler.buildCommandHandler(ctx),
     attachReportInteractionHandler.buildCommandHandler(ctx),
     attachHistoryInteractionHandler.buildCommandHandler(ctx),
@@ -138,6 +154,7 @@ function createCommandRegistry(): RequiredCommandRegistry {
 
   ctx.handleInteraction = dispatchCommand;
   ctx.buildHelpEmbed = helpCommand.buildHelpEmbed;
+  attachCommandSnoozeGuard(ctx);
   attachAdminCommandRouterGuard(ctx);
 
   return {
@@ -148,6 +165,7 @@ function createCommandRegistry(): RequiredCommandRegistry {
     setDealsCache: ctx.setDealsCache,
     checkForUpdates: ctx.checkForUpdates,
     checkForDiscounts: ctx.checkForDiscounts,
+    checkForYouTube: ctx.checkForYouTube,
     drainOutbox: ctx.drainOutbox,
     buildOptimizedGameList: ctx.buildOptimizedGameList,
     registerSlashCommands: ctx.registerSlashCommands,

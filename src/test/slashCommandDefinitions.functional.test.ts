@@ -78,9 +78,17 @@ test("comenzile administrative (inclusiv /health) cer Administrator; cele public
     byName.set(String(json.name || ""), json.default_member_permissions);
     dmByName.set(String(json.name || ""), json.dm_permission);
   }
-  for (const adminCmd of ["start", "stop", "set", "outbox", "health"]) {
+  for (const adminCmd of [
+    "start", "stop", "set", "outbox", "health", "config", "reset-config",
+    "admin-alerts", "price-alert", "youtube", "sources", "watchlist", "snooze", "unsnooze"
+  ]) {
     assert.equal(byName.get(adminCmd), adminFlag, `/${adminCmd} trebuie sa fie restrictionat la Administrator`);
     assert.equal(dmByName.get(adminCmd), false, `/${adminCmd} trebuie sa fie indisponibil in DM (dm_permission=false), ca sa nu ocoleasca guard-ul de admin`);
+  }
+  for (const [name, perms] of byName) {
+    if (perms === adminFlag) {
+      assert.equal(dmByName.get(name), false, `/${name} (admin) trebuie sa fie indisponibil in DM (dm_permission=false) - invariant pentru orice comanda admin noua`);
+    }
   }
   for (const publicCmd of ["ping", "games", "help", "report"]) {
     assert.ok(

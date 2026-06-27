@@ -27,6 +27,7 @@ function makeInteraction(opts: {
   sub?: string | null;
   group?: string | null;
   guildId?: string | null;
+  strings?: Record<string, string>;
 }) {
   const responses: AutocompleteChoice[][] = [];
   return {
@@ -38,7 +39,8 @@ function makeInteraction(opts: {
       options: {
         getFocused: () => opts.focused ?? null,
         getSubcommand: () => opts.sub ?? null,
-        getSubcommandGroup: () => opts.group ?? null
+        getSubcommandGroup: () => opts.group ?? null,
+        getString: (name: string) => opts.strings?.[name] ?? null
       },
       respond: async (choices: AutocompleteChoice[]) => { responses.push(choices); }
     },
@@ -78,6 +80,19 @@ test("autocomplete suggests bot commands for /help command", async () => {
   await context.handleInteraction(interaction, GAMES);
   assert.equal(responses.length, 1);
   assert.ok(responses[0].some(choice => choice.value === "/outbox deadletters"));
+});
+
+test("autocomplete suggests bot commands for /snooze command fara comenzile de control", async () => {
+  const { context } = makeContext();
+  const { interaction, responses } = makeInteraction({
+    command: "snooze",
+    focused: { name: "command", value: "latest" }
+  });
+  await context.handleInteraction(interaction, GAMES);
+  assert.equal(responses.length, 1);
+  assert.ok(responses[0].some(choice => choice.value === "/latest updates"));
+  assert.ok(!responses[0].some(choice => choice.value === "/snooze"));
+  assert.ok(!responses[0].some(choice => choice.value === "/unsnooze"));
 });
 
 test("autocomplete returns top matches sorted by score then alphabetically", async () => {
@@ -156,6 +171,108 @@ test("/set games remove restricts pool to enabledGames + stale placeholders", as
   assert.ok(!keys.includes("dota2"));
 });
 
+test("/watchlist remove restricts pool to enabledGames + stale placeholders", async () => {
+  const { context } = makeContext({
+    getGuildSettings: async (_id: string) => ({ enabledGames: ["cs2", "ghost_game_no_longer_in_config"] })
+  });
+  const { interaction, responses } = makeInteraction({
+    command: "watchlist",
+    sub: "remove",
+    focused: { name: "joc", value: "" },
+    guildId: "guild-1"
+  });
+  await context.handleInteraction(interaction, GAMES);
+  const choices = responses[0] as Array<{ name: string; value: string }>;
+  const keys = choices.map(c => c.value);
+  assert.ok(keys.includes("cs2"));
+  assert.ok(keys.includes("ghost_game_no_longer_in_config"));
+  assert.ok(!keys.includes("fortnite"));
+});
+
+test("/price-alert remove sugereaza doar jocurile care au alerte", async () => {
+  const { context } = makeContext({
+    getGuildSettings: async (_id: string) => ({
+      priceAlerts: [
+        { gameKey: "cs2" },
+        { gameKey: "removed-game" }
+      ]
+    })
+  });
+  const { interaction, responses } = makeInteraction({
+    command: "price-alert",
+    sub: "remove",
+    focused: { name: "joc", value: "" },
+    guildId: "guild-1"
+  });
+  await context.handleInteraction(interaction, GAMES);
+  const choices = responses[0] as Array<{ name: string; value: string }>;
+  const keys = choices.map(choice => choice.value);
+  assert.ok(keys.includes("cs2"));
+  assert.ok(keys.includes("removed-game"));
+  assert.ok(!keys.includes("fortnite"));
+});
+
+test("/youtube videos show include optiunea toate si canalele urmarite", async () => {
+  const { context } = makeContext({
+    getGuildSettings: async () => ({
+      youtubeChannels: [
+        { channelId: "UC123", channelName: "Creator A" },
+        { channelId: "UC456", channelName: "Creator B" }
+      ]
+    })
+  });
+  const { interaction, responses } = makeInteraction({
+    command: "youtube",
+    group: "videos",
+    sub: "show",
+    focused: { name: "canal", value: "" },
+    guildId: "guild-1"
+  });
+  await context.handleInteraction(interaction, GAMES);
+  assert.deepEqual(responses[0].map(choice => choice.value), ["toate", "UC123", "UC456"]);
+});
+
+test("/youtube channel-route remove sugereaza toate si rutele canalului ales", async () => {
+  const { context } = makeContext({
+    getGuildSettings: async () => ({
+      youtubeChannelRoutes: [{
+        channelId: "UC123",
+        discordChannelIds: ["123456789012345678", "987654321098765432"]
+      }]
+    })
+  });
+  const { interaction, responses } = makeInteraction({
+    command: "youtube",
+    group: "channel-route",
+    sub: "remove",
+    focused: { name: "discord", value: "" },
+    guildId: "guild-1",
+    strings: { canal: "UC123" }
+  });
+  await context.handleInteraction(interaction, GAMES);
+  assert.deepEqual(
+    responses[0].map(choice => choice.value),
+    ["toate", "123456789012345678", "987654321098765432"]
+  );
+});
+
+test("/youtube title-filter remove sugereaza numai valorile configurate", async () => {
+  const { context } = makeContext({
+    getGuildSettings: async () => ({
+      youtubeTitleIncludeWords: ["patch notes", "update"]
+    })
+  });
+  const { interaction, responses } = makeInteraction({
+    command: "youtube",
+    group: "title-filter",
+    sub: "remove",
+    focused: { name: "word", value: "patch" },
+    guildId: "guild-1"
+  });
+  await context.handleInteraction(interaction, GAMES);
+  assert.deepEqual(responses[0], [{ name: "patch notes", value: "patch notes" }]);
+});
+
 test("/set games remove without guild context falls back to full games pool (no crash)", async () => {
   const { context, logs } = makeContext({
     getGuildSettings: async () => { throw new Error("trebuie sa nu fie apelat"); }
@@ -210,7 +327,8 @@ test("respond rejection is swallowed (Discord side closed connection)", async ()
     options: {
       getFocused: () => ({ name: "joc", value: "cs" }),
       getSubcommand: () => "update",
-      getSubcommandGroup: () => null
+      getSubcommandGroup: () => null,
+      getString: () => null
     },
     respond: async () => { throw new Error("Unknown interaction (10062)"); }
   };

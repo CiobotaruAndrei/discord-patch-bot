@@ -70,15 +70,16 @@ function reportTipChoiceValues(): string[] {
   };
   const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions") as (t: Record<string, unknown>) => void;
   attachSlashCommands(target);
-  const defs = (target.buildSlashCommandDefinitions as () => Array<{ name: string; options?: Array<{ name: string; choices?: Array<{ value: string }> }> }>)();
+  const defs = (target.buildSlashCommandDefinitions as () => Array<{ name: string; options?: Array<{ name: string; choices?: Array<{ value: string }>; options?: Array<{ name: string; choices?: Array<{ value: string }> }> }> }>)();
   const report = defs.find(def => def.name === "report");
-  const tip = report?.options?.find(option => option.name === "tip");
+  const submit = report?.options?.find(option => option.name === "submit");
+  const tip = submit?.options?.find(option => option.name === "tip");
   return (tip?.choices || []).map(choice => choice.value);
 }
 
-test("command help catalog: exemplul /report foloseste o optiune tip reala (sursa unica REPORT_TYPES, fara slug inventat)", () => {
-  const reportEntry = COMMAND_HELP_ENTRIES.find(entry => entry.command === "/report");
-  assert.ok(reportEntry, "exista intrarea /report in catalog");
+test("command help catalog: exemplul /report submit foloseste o optiune tip reala (sursa unica REPORT_TYPES, fara slug inventat)", () => {
+  const reportEntry = COMMAND_HELP_ENTRIES.find(entry => entry.command === "/report submit");
+  assert.ok(reportEntry, "exista intrarea /report submit in catalog");
   const match = /\btip:(\S+)/.exec(reportEntry.example);
   assert.ok(match, "exemplul /report contine o optiune tip:<valoare>");
   const tipValue = match[1];
@@ -127,7 +128,8 @@ test("command help catalog: permisiunea declarata (Admin/Public) coincide cu set
   for (const entry of COMMAND_HELP_ENTRIES) {
     const topLevel = entry.command.replace(/^\//, "").split(/\s+/)[0];
     const isAdmin = admin.has(topLevel);
-    assert.equal(entry.permissions.startsWith("Admin"), isAdmin, `${entry.command}: catalogul declara permisiunea "${entry.permissions}" dar slash definitions impun ${isAdmin ? "Admin" : "Public"} (drift de permisiuni)`);
+    const runtimeAdmin = entry.permissions.includes("Admin runtime");
+    assert.equal(entry.permissions.startsWith("Admin") && !runtimeAdmin, isAdmin, `${entry.command}: catalogul declara permisiunea "${entry.permissions}" dar slash definitions impun ${isAdmin ? "Admin" : "Public"} la nivel top-level`);
   }
 });
 

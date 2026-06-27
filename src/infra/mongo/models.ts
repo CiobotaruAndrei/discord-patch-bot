@@ -35,7 +35,7 @@ const pendingDiscountSchema = new mongoose.Schema({
 }, { _id: false });
 
 const deadLetterEntrySchema = new mongoose.Schema({
-  kind: { type: String, enum: ["update", "discount"], required: true },
+  kind: { type: String, enum: ["update", "discount", "youtube"], required: true },
   itemId: { type: String, default: "" },
   title: { type: String, default: "" },
   channelId: { type: String, default: "" },
@@ -43,6 +43,46 @@ const deadLetterEntrySchema = new mongoose.Schema({
   reason: { type: String, default: "" },
   attempts: { type: Number, default: 0 },
   failedAt: { type: Date, default: Date.now }
+}, { _id: false });
+
+const priceAlertSchema = new mongoose.Schema({
+  gameKey: { type: String, required: true },
+  gameName: { type: String, required: true },
+  appId: { type: String, default: "" },
+  aliases: { type: [String], default: [] },
+  threshold: { type: Number, required: true, min: 0.01, max: 10000 },
+  currency: { type: String, enum: Object.keys(SUPPORTED_CURRENCIES), required: true },
+  triggeredAt: { type: Date, default: null },
+  lastObservedPrice: { type: Number, default: null },
+  lastObservedAt: { type: Date, default: null }
+}, { _id: false });
+
+const youtubeLastErrorSchema = new mongoose.Schema({
+  message: { type: String, default: "" },
+  channelId: { type: String, default: null },
+  at: { type: Date, default: null }
+}, { _id: false });
+
+const youtubeChannelSchema = new mongoose.Schema({
+  channelId: { type: String, required: true },
+  channelName: { type: String, required: true },
+  channelUrl: { type: String, required: true },
+  subscribedAt: { type: Date, default: Date.now },
+  lastCheckedAt: { type: Date, default: null },
+  lastVideoId: { type: String, default: "" },
+  lastError: { type: youtubeLastErrorSchema, default: () => ({}) }
+}, { _id: false });
+
+const youtubeErrorSchema = new mongoose.Schema({
+  channelId: { type: String, required: true },
+  channelName: { type: String, default: "" },
+  message: { type: String, required: true },
+  at: { type: Date, default: Date.now }
+}, { _id: false });
+
+const youtubeChannelRouteSchema = new mongoose.Schema({
+  channelId: { type: String, required: true },
+  discordChannelIds: { type: [String], default: [] }
 }, { _id: false });
 
 const guildSchema = new mongoose.Schema({
@@ -80,14 +120,32 @@ const guildSchema = new mongoose.Schema({
   },
 
   enabledGames: { type: [String], default: [] },
+  commandSnoozes: { type: Map, of: Date, default: {} },
   enabledStores: { type: [String], default: [] },
   maxAbsolutePrice: { type: Number, default: 0 },
   notificationRoleId: { type: String, default: null },
-  discountRoleId: { type: String, default: null }
+  discountRoleId: { type: String, default: null },
+  adminAlertChannelId: { type: String, default: null },
+  priceAlerts: { type: [priceAlertSchema], default: [] },
+  youtubeChannels: { type: [youtubeChannelSchema], default: [] },
+  youtubeNotificationChannelId: { type: String, default: null },
+  youtubeNotificationsEnabled: { type: Boolean, default: false },
+  youtubeHasActivated: { type: Boolean, default: false },
+  youtubeFilters: {
+    excludeShorts: { type: Boolean, default: true },
+    excludeLives: { type: Boolean, default: true },
+    excludePremieres: { type: Boolean, default: true },
+    minDurationSeconds: { type: Number, default: 0, min: 0, max: 86400 }
+  },
+  youtubeMessageTemplate: { type: String, default: null, maxlength: 1000 },
+  youtubeChannelRoutes: { type: [youtubeChannelRouteSchema], default: [] },
+  youtubeTitleIncludeWords: { type: [String], default: [] },
+  youtubeErrors: { type: [youtubeErrorSchema], default: [] }
 }, { minimize: false });
 
 guildSchema.index({ subscribed: 1, notificationChannelId: 1 }, { background: true });
 guildSchema.index({ discountsSubscribed: 1, discountChannelId: 1 }, { background: true });
+guildSchema.index({ youtubeNotificationsEnabled: 1, youtubeNotificationChannelId: 1 }, { background: true });
 
 const GuildModel = mongoose.model("Guild", guildSchema);
 
@@ -150,8 +208,17 @@ const guildSeenUpdateSchema = new mongoose.Schema({
 guildSeenUpdateSchema.index({ guildId: 1, gameKey: 1, updateId: 1 }, { unique: true, background: true });
 const GuildSeenUpdateModel = mongoose.model("GuildSeenUpdate", guildSeenUpdateSchema, "guildSeenUpdates");
 
+const guildSeenYoutubeSchema = new mongoose.Schema({
+  guildId: { type: String, required: true },
+  channelId: { type: String, required: true },
+  videoId: { type: String, required: true },
+  seenAt: { type: Date, default: Date.now }
+}, { minimize: false });
+guildSeenYoutubeSchema.index({ guildId: 1, channelId: 1, videoId: 1 }, { unique: true, background: true });
+const GuildSeenYoutubeModel = mongoose.model("GuildSeenYoutube", guildSeenYoutubeSchema, "guildSeenYoutube");
+
 const outboxHistoryEntrySchema = new mongoose.Schema({
-  kind: { type: String, enum: ["update", "discount"], required: true },
+  kind: { type: String, enum: ["update", "discount", "youtube"], required: true },
   gameKey: { type: String, default: "" },
   title: { type: String, default: "" },
   link: { type: String, default: "" }
@@ -160,7 +227,7 @@ const outboxHistoryEntrySchema = new mongoose.Schema({
 const notificationOutboxSchema = new mongoose.Schema({
   guildId: { type: String, required: true },
   channelId: { type: String, required: true },
-  kind: { type: String, enum: ["update", "discount"], required: true },
+  kind: { type: String, enum: ["update", "discount", "youtube"], required: true },
   payload: { type: mongoose.Schema.Types.Mixed, required: true },
   attempts: { type: Number, default: 0 },
   deliveries: { type: Number, default: 0 },
@@ -186,7 +253,7 @@ const NotificationOutboxSentModel = mongoose.model("NotificationOutboxSent", not
 const NOTIFICATION_HISTORY_TTL_DAYS = env.NOTIFICATION_HISTORY_TTL_DAYS;
 const notificationHistorySchema = new mongoose.Schema({
   guildId: { type: String, required: true },
-  kind: { type: String, enum: ["update", "discount"], required: true },
+  kind: { type: String, enum: ["update", "discount", "youtube"], required: true },
   gameKey: { type: String, default: "" },
   title: { type: String, default: "" },
   link: { type: String, default: "" },
@@ -204,6 +271,8 @@ const feedbackReportSchema = new mongoose.Schema({
   type: { type: String, required: true },
   gameKey: { type: String, default: "" },
   detail: { type: String, default: "" },
+  resolvedAt: { type: Date, default: null },
+  resolvedBy: { type: String, default: "" },
   createdAt: { type: Date, default: Date.now, expires: FEEDBACK_REPORT_TTL_DAYS * ONE_DAY_MS / 1000 }
 }, { minimize: false });
 feedbackReportSchema.index({ guildId: 1, createdAt: -1 }, { background: true });
@@ -212,7 +281,7 @@ const FeedbackReportModel = mongoose.model("FeedbackReport", feedbackReportSchem
 const DEAD_LETTER_REPLAY_TTL_DAYS = env.NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS;
 const deadLetterReplaySchema = new mongoose.Schema({
   guildId: { type: String, required: true },
-  kind: { type: String, enum: ["update", "discount"], required: true },
+  kind: { type: String, enum: ["update", "discount", "youtube"], required: true },
   channelId: { type: String, required: true },
   payload: { type: mongoose.Schema.Types.Mixed, required: true },
   dedupeKey: { type: String, default: "" },
@@ -235,6 +304,7 @@ const NotificationDeadLetterReplayModel = mongoose.model("NotificationDeadLetter
     FetchSnapshotModel,
     GuildSeenDiscountModel,
     GuildSeenUpdateModel,
+    GuildSeenYoutubeModel,
     NotificationOutboxModel,
     NotificationOutboxSentModel,
     NotificationHistoryModel,

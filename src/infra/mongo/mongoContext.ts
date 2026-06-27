@@ -10,6 +10,7 @@ import type {
   GuildDoc,
   GuildSeenDiscountDoc,
   GuildSeenUpdateDoc,
+  GuildSeenYoutubeDoc,
   JobLockDoc,
   NotificationDeadLetterReplayDoc,
   NotificationHistoryDoc,
@@ -37,6 +38,7 @@ type MongoRuntimeContext = {
   FetchSnapshotModel: Model<FetchSnapshotDoc>;
   GuildSeenDiscountModel: Model<GuildSeenDiscountDoc>;
   GuildSeenUpdateModel: Model<GuildSeenUpdateDoc>;
+  GuildSeenYoutubeModel: Model<GuildSeenYoutubeDoc>;
   NotificationOutboxModel: Model<NotificationOutboxDoc>;
   NotificationOutboxSentModel: Model<NotificationOutboxSentDoc>;
   NotificationHistoryModel: Model<NotificationHistoryDoc>;
@@ -60,7 +62,8 @@ type MongoRuntimeContext = {
   invalidateGuildCache: (guildId: string) => void;
   cleanGuildCache: () => void;
   getGuildCacheSize: () => number;
-  adminAlert: (kind: string, title: string, body: unknown) => Promise<void>;
+  adminAlert: (kind: string, title: string, body: unknown, guildId?: string) => Promise<void>;
+  setAdminAlertDiscordClient: (client: { user?: { id?: string } | null; channels: { fetch(channelId: string): Promise<unknown> | unknown } } | null) => void;
   SchemaDriftError: new (...args: unknown[]) => Error;
   SUPPORTED_CURRENCIES: CurrencyRegistry;
   DEFAULT_CURRENCY: CurrencyCode;
@@ -106,6 +109,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     FetchSnapshotModel: context.FetchSnapshotModel,
     GuildSeenDiscountModel: context.GuildSeenDiscountModel,
     GuildSeenUpdateModel: context.GuildSeenUpdateModel,
+    GuildSeenYoutubeModel: context.GuildSeenYoutubeModel,
     NotificationOutboxModel: context.NotificationOutboxModel,
     NotificationOutboxSentModel: context.NotificationOutboxSentModel,
     NotificationHistoryModel: context.NotificationHistoryModel,
@@ -130,6 +134,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     cleanGuildCache: context.cleanGuildCache,
     getGuildCacheSize: context.getGuildCacheSize,
     adminAlert: context.adminAlert,
+    setAdminAlertDiscordClient: context.setAdminAlertDiscordClient,
     SchemaDriftError: context.SchemaDriftError,
     SUPPORTED_CURRENCIES: context.SUPPORTED_CURRENCIES,
     DEFAULT_CURRENCY: context.DEFAULT_CURRENCY,
