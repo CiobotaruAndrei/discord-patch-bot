@@ -198,9 +198,9 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
   }
 
   async function oldestJobAgeMs(now: Date): Promise<number> {
-    const rows = await NotificationOutboxModel.find({ availableAt: { $lte: now } }).sort({ createdAt: 1 }).limit(1).lean().catch(() => [] as OutboxJob[]);
+    const rows = await NotificationOutboxModel.find({ availableAt: { $lte: now } }).sort({ availableAt: 1 }).limit(1).lean().catch(() => [] as OutboxJob[]);
     const oldest = Array.isArray(rows) ? rows[0] : undefined;
-    const stamp = oldest?.createdAt ?? oldest?.availableAt;
+    const stamp = oldest?.availableAt ?? oldest?.createdAt;
     if (!stamp) return 0;
     return Math.max(0, now.getTime() - new Date(stamp).getTime());
   }

@@ -41,10 +41,7 @@ jobs:
               per_page: 100
             });
             const names = files.map(f => f.filename);
-            const isCode = (f) => (/^src\/.*\.(ts|js)$/.test(f) && !f.startsWith("src/test/")) || /^src\/native\/.*\.rs$/.test(f);
-            const isDoc = (f) => /\.md$/.test(f) || f === ".env.example";
-            const isTest = (f) => f.startsWith("src/test/");
-            const isInfra = (f) => f === "Dockerfile" || /^Dockerfile\./.test(f) || /^docker-compose.*\.ya?ml$/.test(f) || /^\.github\/workflows\/.*\.ya?ml$/.test(f) || /^monitoring\//.test(f) || /^config(\.schema)?\.json$/.test(f);
+            const { isCode, isDoc, isTest, isInfra } = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/pr-checklist-file-classifiers.js`);
             const codeChanged = names.some(isCode);
             const docsChanged = names.some(isDoc);
             const testChanged = names.some(isTest);

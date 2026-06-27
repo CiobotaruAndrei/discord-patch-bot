@@ -46,6 +46,7 @@ function makeDeps(opts: {
   replayDeleteAllFails?: boolean;
   replayDeleteFails?: boolean;
   outboxGlobalAdminIds?: string[];
+  pausedReadFails?: boolean;
 } = {}) {
   const replies: string[] = [];
   const updateManyCalls: Array<{ filter: unknown; update: unknown }> = [];
@@ -86,7 +87,10 @@ function makeDeps(opts: {
       youtubeNotificationChannelId: opts.youtubeNotificationChannelId ?? null,
       youtubeChannelRoutes: opts.youtubeChannelRoutes ?? []
     }),
-    getOutboxPaused: async () => opts.paused ?? false,
+    getOutboxPaused: async () => {
+      if (opts.pausedReadFails) throw new Error("citire pauza esuata");
+      return opts.paused ?? false;
+    },
     setOutboxPaused: async (paused: boolean) => { pauseCalls.push(paused); },
     checkChannelPermissions: async (_interaction: unknown, channelId: string) => {
       permissionChecks.push(channelId);
@@ -157,9 +161,9 @@ test("/outbox retry fara joburi raspunde corespunzator", async () => {
 });
 
 test("/outbox drain-now: lock liber -> dreneaza, elibereaza lock-ul si raporteaza", async () => {
-  const { deps, replies, lockCalls, releaseCalls, getDrainCalls } = makeDeps({ drainResult: { sent: 4, retried: 1, deadLettered: 0, queued: 2 } });
+  const { deps, replies, lockCalls, releaseCalls, getDrainCalls } = makeDeps({ drainResult: { sent: 4, retried: 1, deadLettered: 0, queued: 2 }, outboxGlobalAdminIds: ["op-1"] });
   const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
-  await handler.handleOutboxInteraction(makeInteraction(null, "drain-now"));
+  await handler.handleOutboxInteraction(makeInteraction(null, "drain-now", "op-1"));
   assert.equal(lockCalls.length, 1);
   assert.equal(lockCalls[0].name, "outbox_drain", "foloseste lock-ul dedicat outbox_drain");
   assert.equal(getDrainCalls(), 1, "a drenat o data");
@@ -169,31 +173,41 @@ test("/outbox drain-now: lock liber -> dreneaza, elibereaza lock-ul si raporteaz
 });
 
 test("/outbox drain-now: lock detinut -> raporteaza ocupat, nu dreneaza", async () => {
-  const { deps, replies, getDrainCalls, releaseCalls } = makeDeps({ lockToken: null });
+  const { deps, replies, getDrainCalls, releaseCalls } = makeDeps({ lockToken: null, outboxGlobalAdminIds: ["op-1"] });
   const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
-  await handler.handleOutboxInteraction(makeInteraction(null, "drain-now"));
+  await handler.handleOutboxInteraction(makeInteraction(null, "drain-now", "op-1"));
   assert.equal(getDrainCalls(), 0, "nu dreneaza cand lock-ul e detinut");
   assert.equal(releaseCalls.length, 0, "nu elibereaza un lock pe care nu l-a obtinut");
   assert.match(replies[0], /detinut de o alta drenare/);
 });
 
 test("/outbox drain-now: outbox dezactivat -> mesaj, fara lock", async () => {
-  const { deps, replies, lockCalls, getDrainCalls } = makeDeps({ outboxEnabled: false });
+  const { deps, replies, lockCalls, getDrainCalls } = makeDeps({ outboxEnabled: false, outboxGlobalAdminIds: ["op-1"] });
   const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
-  await handler.handleOutboxInteraction(makeInteraction(null, "drain-now"));
+  await handler.handleOutboxInteraction(makeInteraction(null, "drain-now", "op-1"));
   assert.equal(lockCalls.length, 0, "nu incearca lock daca outbox-ul e oprit");
   assert.equal(getDrainCalls(), 0);
   assert.match(replies[0], /nu este activat/);
 });
 
 test("/outbox drain-now: outbox pe pauza -> refuza fara lock si fara drenare", async () => {
-  const { deps, replies, lockCalls, getDrainCalls } = makeDeps({ paused: true });
+  const { deps, replies, lockCalls, getDrainCalls } = makeDeps({ paused: true, outboxGlobalAdminIds: ["op-1"] });
   const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
-  await handler.handleOutboxInteraction(makeInteraction(null, "drain-now"));
+  await handler.handleOutboxInteraction(makeInteraction(null, "drain-now", "op-1"));
   assert.equal(lockCalls.length, 0, "nu ia lock-ul cat outbox-ul este pe pauza");
   assert.equal(getDrainCalls(), 0, "nu dreneaza manual peste pauza globala");
   assert.match(replies[0], /pe pauza/);
   assert.match(replies[0], /\/outbox resume/);
+});
+
+test("/outbox drain-now refuza un admin care NU e operator bot (operatie globala, R13 #1)", async () => {
+  const { deps, replies, lockCalls, getDrainCalls } = makeDeps({ outboxGlobalAdminIds: ["op-1"] });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "drain-now", "alt-admin"));
+  assert.equal(lockCalls.length, 0, "un admin din afara allowlist-ului nu poate porni drenarea globala");
+  assert.equal(getDrainCalls(), 0, "nu dreneaza pentru un ne-operator");
+  assert.match(replies[0], /operatie globala/i);
+  assert.match(replies[0], /NOTIFICATION_OUTBOX_GLOBAL_ADMIN_IDS/);
 });
 
 test("/outbox status afiseaza starea de drenare (activa/pe pauza)", async () => {
@@ -206,6 +220,14 @@ test("/outbox status afiseaza starea de drenare (activa/pe pauza)", async () => 
   const h2 = installOutboxAdmin.createOutboxAdminHandler(paused.deps);
   await h2.handleOutboxInteraction(makeInteraction(null, "status"));
   assert.match(paused.replies[0], /Drenare: \*\*PE PAUZA\*\*/);
+});
+
+test("/outbox status afiseaza NECUNOSCUTA cand citirea starii de pauza esueaza, nu ACTIVA (fail-safe, R13 #4)", async () => {
+  const { deps, replies } = makeDeps({ pausedReadFails: true });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "status"));
+  assert.match(replies[0], /Drenare: \*\*NECUNOSCUTA/, "o citire esuata nu trebuie raportata ca ACTIVA");
+  assert.doesNotMatch(replies[0], /Drenare: \*\*ACTIVA\*\*/, "nu pretinde ca drenarea e activa pe stare necunoscuta");
 });
 
 test("/outbox pause si /outbox resume comuta flagul de drenare cand apelantul e operator bot (in allowlist)", async () => {

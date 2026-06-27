@@ -152,14 +152,15 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
       NotificationOutboxModel.countDocuments({ guildId }).catch(() => 0),
       NotificationOutboxModel.countDocuments({}).catch(() => 0),
       getGuildSettings(guildId).catch(() => null),
-      getOutboxPaused().catch(() => false)
+      getOutboxPaused().then(value => value as boolean | null).catch(() => null)
     ]);
     const deadLetters = settings?.notificationDeadLetter?.length ?? 0;
     const perGuildVerify = settings?.outboxRecoveryVerify === true;
+    const drainState = paused === null ? "NECUNOSCUTA (citirea starii de pauza a esuat)" : paused ? "PE PAUZA" : "ACTIVA";
     return [
       "**Status outbox**",
       `- Outbox activat (global): **${onOff(outboxEnabled)}**`,
-      `- Drenare: **${paused ? "PE PAUZA" : "ACTIVA"}**`,
+      `- Drenare: **${drainState}**`,
       `- Joburi in coada (acest server): **${guildQueued}**`,
       `- Joburi in coada (global): **${totalQueued}**`,
       `- Dead-letter (acest server): **${deadLetters}**`,
@@ -301,6 +302,8 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
   }
 
   async function drainNow(interaction: DiscordInteraction): Promise<string> {
+    const refusal = globalOperationRefusal(interaction, "drain-now");
+    if (refusal) return refusal;
     if (!interaction.client) {
       return "Interactiunea nu are clientul Discord atasat, nu pot drena.";
     }
