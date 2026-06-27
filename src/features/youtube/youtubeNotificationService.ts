@@ -66,7 +66,7 @@ interface FeedResult {
   error: string;
 }
 
-interface PreparedVideo {
+export interface PreparedVideo {
   channel: YouTubeChannelSubscription;
   video: YouTubeVideo;
   metadata: YouTubeVideoMetadata;
@@ -366,31 +366,53 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     await rollbackPrepared(failed);
   }
 
+  async function prepareManualVideos(
+    guild: GuildSettings,
+    selectedChannelId: string
+  ): Promise<PreparedVideo[]> {
+    const selectedChannels = (guild.youtubeChannels || []).filter(channel =>
+      selectedChannelId === "toate" || channel.channelId === selectedChannelId
+    );
+    const resolveMetadata = createMetadataCache();
+    const feedByChannel = new Map<string, YouTubeVideo[]>();
+    await runConcurrent(selectedChannels, Math.max(1, FETCH_CONCURRENCY), async channel => {
+      try {
+        const videos = sortedVideos(await fetchYouTubeFeed(channel));
+        await recordChannelSuccess(String(guild._id), channel, videos.at(-1)?.videoId || channel.lastVideoId || "");
+        feedByChannel.set(channel.channelId, videos);
+      } catch (error) {
+        await recordChannelError(String(guild._id), channel, transientErrorMessage(error));
+      }
+    });
+    const prepared: PreparedVideo[] = [];
+    for (const channel of selectedChannels) {
+      const videos = feedByChannel.get(channel.channelId);
+      if (!videos) continue;
+      for (const video of videos) {
+        if (!isRecentYouTubeVideo(video, now())) continue;
+        const item = await prepareVideo(guild, channel, video, resolveMetadata);
+        if (item) prepared.push(item);
+      }
+    }
+    return prepared;
+  }
+
+  async function deliverManualVideos(
+    client: NotificationDiscordClient,
+    guild: GuildSettings,
+    prepared: PreparedVideo[]
+  ): Promise<DeliveryResult> {
+    const delivery = await deliverPrepared(client, guild, prepared, true, () => false);
+    return delivery.result;
+  }
+
   async function showYouTubeVideos(
     client: NotificationDiscordClient,
     guild: GuildSettings,
     selectedChannelId: string
   ): Promise<DeliveryResult> {
-    const selectedChannels = (guild.youtubeChannels || []).filter(channel =>
-      selectedChannelId === "toate" || channel.channelId === selectedChannelId
-    );
-    const resolveMetadata = createMetadataCache();
-    const prepared: PreparedVideo[] = [];
-    for (const channel of selectedChannels) {
-      try {
-        const videos = sortedVideos(await fetchYouTubeFeed(channel));
-        await recordChannelSuccess(String(guild._id), channel, videos.at(-1)?.videoId || channel.lastVideoId || "");
-        for (const video of videos) {
-          if (!isRecentYouTubeVideo(video, now())) continue;
-          const item = await prepareVideo(guild, channel, video, resolveMetadata);
-          if (item) prepared.push(item);
-        }
-      } catch (error) {
-        await recordChannelError(String(guild._id), channel, transientErrorMessage(error));
-      }
-    }
-    const delivery = await deliverPrepared(client, guild, prepared, true, () => false);
-    return delivery.result;
+    const prepared = await prepareManualVideos(guild, selectedChannelId);
+    return deliverManualVideos(client, guild, prepared);
   }
 
   async function checkForYouTube(
@@ -414,7 +436,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     }
   }
 
-  return { checkForYouTube, processGuild, loadFeeds, showYouTubeVideos };
+  return { checkForYouTube, processGuild, loadFeeds, showYouTubeVideos, prepareManualVideos, deliverManualVideos };
 }
 
 export { buildYouTubeEmbed, packYouTubeDeliveries, sortedVideos };
