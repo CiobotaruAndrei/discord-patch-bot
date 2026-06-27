@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 type TestInteraction = {
   commandName: string;
-  guild: { id: string };
+  guild: { id: string } | null;
   deferred: boolean;
   replied: boolean;
   isChatInputCommand: () => boolean;
@@ -96,6 +96,36 @@ test("admin command guard delegates protected commands for admins", async () => 
   const result = await guard.handleAdminProtectedCommand(interaction, [{ key: "cs2" }], async (_handledInteraction, games) => games[0].key);
 
   assert.equal(result, "cs2");
+});
+
+test("admin command guard refuza explicit comenzile admin in DM (fara guild) si NU deleaga la handler (fix bypass /health in DM)", async () => {
+  const replies: unknown[] = [];
+  const dmInteraction: TestInteraction = {
+    commandName: "health",
+    guild: null,
+    deferred: false,
+    replied: false,
+    isChatInputCommand: () => true,
+    memberPermissions: { has: () => false },
+    reply: async (payload: unknown) => { replies.push(payload); },
+    followUp: async () => {}
+  };
+  const delegated: string[] = [];
+  let requireGuildAdminCalled = false;
+  const guard = adminCommandGuard.createAdminCommandGuard({
+    requireGuildAdmin: async () => { requireGuildAdminCalled = true; return true; }
+  });
+
+  const result = await guard.handleAdminProtectedCommand(dmInteraction, [], async () => { delegated.push("ran"); return "delegated"; });
+
+  assert.equal(adminCommandGuard.isAdminProtectedCommand(dmInteraction), true, "/health in DM ramane comanda admin (match pe nume, nu pe guild)");
+  assert.equal(result, undefined);
+  assert.deepEqual(delegated, [], "handler-ul NU ruleaza fara guild (fix bypass)");
+  assert.equal(requireGuildAdminCalled, false, "refuzat inainte de verificarea de admin (in DM nu exista permisiuni de server)");
+  assert.equal(replies.length, 1, "raspuns explicit de refuz");
+  const reply = replies[0] as { content: string; flags: number };
+  assert.match(reply.content, /doar pe servere/);
+  assert.equal(reply.flags, 64, "raspuns ephemeral");
 });
 
 test("toate comenzile administrative sunt protejate runtime, iar comenzile publice nu", () => {

@@ -21,7 +21,7 @@ Bot Discord pentru notificari despre update-uri, DLC-uri, reduceri si videoclipu
 
 ## Comenzi principale
 
-La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun venit (pe system channel sau primul canal unde poate posta) care ghideaza configurarea: `/start updates`, `/start reduceri`, `/watchlist add`, `/set role`, `/help`.
+La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun venit (pe system channel sau primul canal unde poate posta) care ghideaza configurarea: `/start updates`, `/start reduceri`, `/watchlist add`, `/set role updates`, `/help`.
 
 - `/start updates` - activeaza notificarile de update-uri pentru server.
 - `/start reduceri` - activeaza notificarile de reduceri pentru server.
@@ -41,7 +41,7 @@ La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun ve
 - `/youtube message-template set`, `/youtube message-template reset`, `/youtube message-template status`, `/youtube channel-route add`, `/youtube channel-route remove`, `/youtube channel-route list`, `/youtube title-filter add`, `/youtube title-filter remove`, `/youtube title-filter list` si `/youtube title-filter clear` - (admin) personalizeaza mesajul, ruteaza separat creatorii si permite numai titlurile care contin cel putin una dintre valorile configurate.
 - `/youtube videos show` - (admin) posteaza manual videoclipurile din ultima luna fara sa modifice deduplicarea automata; rezultatele sunt livrate in loturi de maximum 5, cu 10 minute intre loturile suplimentare.
 - `/youtube status`, `/youtube errors`, `/youtube permissions` si `/youtube clear-errors` - (admin) ofera diagnoza completa pentru monitorizarea YouTube.
-- `/latest` - afiseaza ultimele update-uri cunoscute.
+- `/latest updates` / `/latest reduceri` - cele mai recente update-uri / reduceri pentru server; `/latest update` si `/latest pret` pentru un joc anume (cu optiunea `joc`).
 - `/dlc` - afiseaza DLC-uri cunoscute.
 - `/status <joc>` - verifica starea serverelor unui joc (ex. online/mentenanta), nu starea botului; pentru starea botului foloseste `/health`.
 - `/history <tip> <numar>` - afiseaza ultimele notificari (update-uri/reduceri/YouTube) livrate efectiv pe acest server, cu link si timestamp relativ; raspuns ephemeral. Istoricul se scrie dupa send-ul real catre Discord; cu outbox-ul activ, intrarile calatoresc pe job si se scriu abia cand worker-ul livreaza mesajul din coada (nu la enqueue), deci o notificare aflata inca in coada sau esuata nu apare in `/history`.

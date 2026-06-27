@@ -39,8 +39,16 @@ export interface CpuBenchmarkResult {
   speedup: number | null;
 }
 
+export type BenchmarkAreaKey =
+  | "findGameKeys"
+  | "dealHash"
+  | "stableUpdateId"
+  | "buildAutocompleteChoices"
+  | "dealPassesFilters"
+  | "rankListingCandidates";
+
 export interface AreaBenchmarkResult {
-  key: string;
+  key: BenchmarkAreaKey;
   area: string;
   rustAvailable: boolean;
   callsPerIteration: number;
@@ -198,7 +206,7 @@ interface NativeFns {
 }
 
 interface AreaSpec {
-  key: string;
+  key: BenchmarkAreaKey;
   area: string;
   callsPerIteration: number;
   ts: () => void;

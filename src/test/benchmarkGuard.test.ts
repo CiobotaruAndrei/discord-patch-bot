@@ -6,7 +6,7 @@ const path = require("path") as typeof import("path");
 
 import { evaluateBenchmarkGuard, defaultGuardConfig, HOT_PATH_AREAS, collectGuardSamples } from "../scripts/benchmarkGuard";
 import type { GuardSample, GuardConfig, GuardBenchmarkDeps } from "../scripts/benchmarkGuard";
-import type { AreaBenchmarkResult, CpuBenchmarkResult } from "../scripts/cpuBenchmark";
+import type { AreaBenchmarkResult, CpuBenchmarkResult, BenchmarkAreaKey } from "../scripts/cpuBenchmark";
 
 const TIMED = { totalMs: 1, callsPerSecond: 1000 };
 
@@ -14,7 +14,7 @@ function cpuResult(speedup: number | null, rustAvailable = true): CpuBenchmarkRe
   return { iterations: 1, callsPerIteration: 1, rustAvailable, ts: TIMED, native: rustAvailable ? TIMED : null, speedup };
 }
 
-function areaResult(key: string, speedup: number | null, parityOk = true, rustAvailable = true): AreaBenchmarkResult {
+function areaResult(key: BenchmarkAreaKey, speedup: number | null, parityOk = true, rustAvailable = true): AreaBenchmarkResult {
   return { key, area: "label-de-afisare-redenumit", rustAvailable, callsPerIteration: 1, ts: TIMED, native: rustAvailable ? TIMED : null, speedup, parityOk };
 }
 
@@ -129,7 +129,7 @@ test("collectGuardSamples: ruleaza fiecare benchmark exact `runs` ori (nu de 4/8
     runCpuBenchmark: () => cpuResult(cpuSpeedups[cpuCalls++]),
     runAreaBenchmarks: () => {
       const i = areaCalls++;
-      return [areaResult("dealHash", dealHashSpeedups[i]), areaResult("stableUpdateId", stableUpdateIdSpeedups[i]), areaResult("rankListingCandidates", listingSpeedups[i]), areaResult("classifyPatchNote", 1.0)];
+      return [areaResult("dealHash", dealHashSpeedups[i]), areaResult("stableUpdateId", stableUpdateIdSpeedups[i]), areaResult("rankListingCandidates", listingSpeedups[i]), areaResult("dealPassesFilters", 1.0)];
     },
     levenshteinParityMismatches: () => { parityCalls++; return []; }
   };

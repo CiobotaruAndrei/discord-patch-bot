@@ -72,15 +72,23 @@ test("comenzile administrative (inclusiv /health) cer Administrator; cele public
   });
   const adminFlag = PermissionsBitField.Flags.Administrator.toString();
   const byName = new Map<string, string | null | undefined>();
+  const dmByName = new Map<string, boolean | undefined>();
   for (const d of defs.buildSlashCommandDefinitions()) {
-    const json = d as { name?: string; default_member_permissions?: string | null };
+    const json = d as { name?: string; default_member_permissions?: string | null; dm_permission?: boolean };
     byName.set(String(json.name || ""), json.default_member_permissions);
+    dmByName.set(String(json.name || ""), json.dm_permission);
   }
   for (const adminCmd of [
-    "start", "stop", "set", "health", "config", "reset-config",
-    "admin-alerts", "price-alert", "sources", "watchlist", "snooze", "unsnooze"
+    "start", "stop", "set", "outbox", "health", "config", "reset-config",
+    "admin-alerts", "price-alert", "youtube", "sources", "watchlist", "snooze", "unsnooze"
   ]) {
     assert.equal(byName.get(adminCmd), adminFlag, `/${adminCmd} trebuie sa fie restrictionat la Administrator`);
+    assert.equal(dmByName.get(adminCmd), false, `/${adminCmd} trebuie sa fie indisponibil in DM (dm_permission=false), ca sa nu ocoleasca guard-ul de admin`);
+  }
+  for (const [name, perms] of byName) {
+    if (perms === adminFlag) {
+      assert.equal(dmByName.get(name), false, `/${name} (admin) trebuie sa fie indisponibil in DM (dm_permission=false) - invariant pentru orice comanda admin noua`);
+    }
   }
   for (const publicCmd of ["ping", "games", "help", "report"]) {
     assert.ok(
