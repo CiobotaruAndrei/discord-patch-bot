@@ -80,7 +80,8 @@ interface YouTubeInteractionDeps {
   deliverManualYouTubeVideos(
     client: NotificationDiscordClient,
     guild: GuildSettings,
-    prepared: PreparedVideo[]
+    prepared: PreparedVideo[],
+    bypassOutbox?: boolean
   ): Promise<{ videos: number; batches: number; destinations: number }>;
   checkChannelPermissions(interaction: DiscordInteraction, channelId: string): Promise<ChannelPermissions | null>;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
@@ -478,18 +479,20 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     if (!prepared.length) {
       return safeEdit(interaction, "Info: nu exista videoclipuri recente (din ultima luna) de afisat pentru aceasta selectie.");
     }
-    const hasDestination = prepared.some(item => youtubeDestinationIds(settings, item.channel.channelId).length > 0);
-    if (!hasDestination) {
+    const deliverable = prepared.filter(item => youtubeDestinationIds(settings, item.channel.channelId).length > 0);
+    const skipped = prepared.length - deliverable.length;
+    if (!deliverable.length) {
       return safeEdit(interaction, "Eroare: niciun canal de destinatie configurat pentru aceste videoclipuri. Seteaza un canal cu `/youtube notify channel` sau adauga o ruta cu `/youtube channel-route add` inainte de afisarea manuala.");
     }
-    const immediate = prepared.slice(0, YOUTUBE_MANUAL_IMMEDIATE_BATCH);
-    const remaining = prepared.slice(YOUTUBE_MANUAL_IMMEDIATE_BATCH);
+    const skippedNote = skipped > 0 ? ` (${skipped} sarite: canalul lor YouTube nu are nici ruta, nici canal principal de destinatie)` : "";
+    const immediate = deliverable.slice(0, YOUTUBE_MANUAL_IMMEDIATE_BATCH);
+    const remaining = deliverable.slice(YOUTUBE_MANUAL_IMMEDIATE_BATCH);
     const firstResult = await deliverManualYouTubeVideos(client, settings, immediate);
     if (!remaining.length) {
-      return safeEdit(interaction, `OK: am postat ${firstResult.videos} videoclip(e) pe ${firstResult.destinations} canal(e).`);
+      return safeEdit(interaction, `OK: am postat ${firstResult.videos} videoclip(e) pe ${firstResult.destinations} canal(e)${skippedNote}.`);
     }
-    await safeEdit(interaction, `OK: am postat imediat primele ${firstResult.videos} videoclip(e). Restul de ${remaining.length} continua in fundal, in loturi de cate ${YOUTUBE_MANUAL_IMMEDIATE_BATCH} la interval de 10 minute; daca botul reporneste in acest interval, reia comanda pentru loturile ramase.`);
-    void deliverManualYouTubeVideos(client, settings, remaining)
+    await safeEdit(interaction, `OK: am postat imediat primele ${firstResult.videos} videoclip(e)${skippedNote}. Restul de ${remaining.length} sunt programate prin outbox-ul durabil (cand e activat) si livrate in loturi de cate ${YOUTUBE_MANUAL_IMMEDIATE_BATCH} la interval de 10 minute, ca sa supravietuiasca unui restart.`);
+    void deliverManualYouTubeVideos(client, settings, remaining, false)
       .then(result => deps.logger(
         "INFO",
         "YOUTUBE_COMMAND",
@@ -520,17 +523,26 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
 
   async function permissions(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     const settings = await getGuildSettings(guildId);
-    const channelId = settings?.youtubeNotificationChannelId;
-    if (!channelId) return safeEdit(interaction, "Canalul Discord pentru YouTube nu este configurat.");
-    const resolved = await checkChannelPermissions(interaction, channelId);
-    if (!resolved) return safeEdit(interaction, `Nu am putut verifica permisiunile pe <#${channelId}>.`);
-    return safeEdit(interaction, [
-      `Permisiuni YouTube pe <#${channelId}>:`,
-      `View Channel: verificat prin accesul la canal`,
-      `Send Messages: ${onOff(resolved.sendMessages)}`,
-      `Embed Links: ${onOff(resolved.embedLinks)}`,
-      `Read Message History: ${onOff(resolved.readMessageHistory)}`
-    ].join("\n"));
+    const channelIds = new Set<string>();
+    if (settings?.youtubeNotificationChannelId) channelIds.add(settings.youtubeNotificationChannelId);
+    for (const route of settings?.youtubeChannelRoutes || []) {
+      for (const id of route.discordChannelIds || []) {
+        if (id) channelIds.add(id);
+      }
+    }
+    if (!channelIds.size) {
+      return safeEdit(interaction, "Canalul Discord pentru YouTube nu este configurat (nici canal principal cu `/youtube notify channel`, nici rute cu `/youtube channel-route add`).");
+    }
+    const lines: string[] = ["Permisiuni YouTube (canal principal + rute speciale):"];
+    for (const id of channelIds) {
+      const resolved = await checkChannelPermissions(interaction, id);
+      if (!resolved) {
+        lines.push(`- <#${id}>: nu am putut verifica (canal inaccesibil sau sters?)`);
+        continue;
+      }
+      lines.push(`- <#${id}>: Send Messages ${onOff(resolved.sendMessages)} | Embed Links ${onOff(resolved.embedLinks)} | Read Message History ${onOff(resolved.readMessageHistory)}`);
+    }
+    return safeEdit(interaction, clampJoinedList(lines, 2000));
   }
 
   async function handleYouTubeInteraction(interaction: DiscordInteraction): Promise<unknown> {

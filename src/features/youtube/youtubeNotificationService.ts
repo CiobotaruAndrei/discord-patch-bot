@@ -400,9 +400,10 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
   async function deliverManualVideos(
     client: NotificationDiscordClient,
     guild: GuildSettings,
-    prepared: PreparedVideo[]
+    prepared: PreparedVideo[],
+    bypassOutbox = true
   ): Promise<DeliveryResult> {
-    const delivery = await deliverPrepared(client, guild, prepared, true, () => false);
+    const delivery = await deliverPrepared(client, guild, prepared, bypassOutbox, () => false);
     return delivery.result;
   }
 

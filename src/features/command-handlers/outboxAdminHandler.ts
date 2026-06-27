@@ -55,6 +55,7 @@ interface GuildSettingsLike {
   notificationChannelId?: string | null;
   discountChannelId?: string | null;
   youtubeNotificationChannelId?: string | null;
+  youtubeChannelRoutes?: Array<{ channelId?: string; discordChannelIds?: string[] }>;
 }
 
 interface ChannelPermissions {
@@ -65,6 +66,14 @@ interface ChannelPermissions {
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
+interface ReplayHistoryEntryLike {
+  kind: "update" | "discount" | "youtube";
+  gameKey?: string;
+  title?: string;
+  link?: string;
+  itemId?: string;
+}
+
 interface ReplayDeadLetterDoc {
   _id: unknown;
   kind: "update" | "discount" | "youtube";
@@ -72,9 +81,10 @@ interface ReplayDeadLetterDoc {
   payload: unknown;
   dedupeKey: string;
   recoveryVerify: boolean;
+  history?: ReplayHistoryEntryLike[];
 }
 
-type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount" | "youtube"; payload: unknown; recoveryVerify?: boolean }) => Promise<void>;
+type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount" | "youtube"; payload: unknown; recoveryVerify?: boolean; history?: ReplayHistoryEntryLike[] }) => Promise<void>;
 
 type OutboxAdminDeps = {
   NotificationOutboxModel: OutboxModelLike;
@@ -201,7 +211,7 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
     let failed = false;
     for (const doc of docs) {
       try {
-        await enqueueOutbox({ guildId, channelId: doc.channelId, kind: doc.kind, payload: doc.payload, recoveryVerify: doc.recoveryVerify });
+        await enqueueOutbox({ guildId, channelId: doc.channelId, kind: doc.kind, payload: doc.payload, recoveryVerify: doc.recoveryVerify, history: doc.history });
       } catch (err: unknown) {
         logger("WARN", "OUTBOX_COMMAND", `Replay dead-letter intrerupt dupa ${replayedIds.length} reusite`, errorMessage(err));
         failed = true;
@@ -257,10 +267,17 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
 
   async function renderPermissions(interaction: DiscordInteraction, guildId: string): Promise<string> {
     const settings = await getGuildSettings(guildId).catch(() => null);
+    const routeChannelIds = new Set<string>();
+    for (const route of settings?.youtubeChannelRoutes || []) {
+      for (const id of route.discordChannelIds || []) {
+        if (typeof id === "string" && id.length > 0) routeChannelIds.add(id);
+      }
+    }
     const channels = [
       { label: "Update-uri", id: settings?.notificationChannelId },
       { label: "Reduceri", id: settings?.discountChannelId },
-      { label: "YouTube", id: settings?.youtubeNotificationChannelId }
+      { label: "YouTube", id: settings?.youtubeNotificationChannelId },
+      ...Array.from(routeChannelIds).map(id => ({ label: "YouTube ruta", id }))
     ].filter((c): c is { label: string; id: string } => typeof c.id === "string" && c.id.length > 0);
     if (!channels.length) {
       return "Niciun canal de notificari configurat. Foloseste `/start updates` / `/start reduceri` / `/youtube notify channel`.";

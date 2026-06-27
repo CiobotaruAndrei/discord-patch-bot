@@ -36,6 +36,7 @@ function makeDeps(opts: {
   notificationChannelId?: string | null;
   discountChannelId?: string | null;
   youtubeNotificationChannelId?: string | null;
+  youtubeChannelRoutes?: Array<{ channelId?: string; discordChannelIds?: string[] }>;
   channelPermissions?: (channelId: string) => { sendMessages: boolean; embedLinks: boolean; readMessageHistory: boolean } | null;
   lockToken?: string | null;
   drainResult?: { sent?: number; retried?: number; deadLettered?: number; queued?: number };
@@ -80,7 +81,8 @@ function makeDeps(opts: {
       notificationDeadLetter: opts.deadLetters ?? [],
       notificationChannelId: opts.notificationChannelId ?? null,
       discountChannelId: opts.discountChannelId ?? null,
-      youtubeNotificationChannelId: opts.youtubeNotificationChannelId ?? null
+      youtubeNotificationChannelId: opts.youtubeNotificationChannelId ?? null,
+      youtubeChannelRoutes: opts.youtubeChannelRoutes ?? []
     }),
     getOutboxPaused: async () => opts.paused ?? false,
     setOutboxPaused: async (paused: boolean) => { pauseCalls.push(paused); },
@@ -240,6 +242,23 @@ test("/outbox permissions auditeaza si canalul YouTube (documentatia spune ca in
   await handler.handleOutboxInteraction(makeInteraction(null, "permissions"));
   assert.deepEqual(permissionChecks, ["chan-upd", "chan-yt"], "auditul include canalul YouTube");
   assert.match(replies[0], /YouTube \(<#chan-yt>\)/, "raportul listeaza canalul YouTube");
+});
+
+test("/outbox permissions auditeaza si canalele din rutele speciale YouTube, nu doar canalul principal", async () => {
+  const { deps, replies, permissionChecks } = makeDeps({
+    youtubeNotificationChannelId: "chan-yt-main",
+    youtubeChannelRoutes: [
+      { channelId: "UCaaa", discordChannelIds: ["chan-route-1", "chan-route-2"] },
+      { channelId: "UCbbb", discordChannelIds: ["chan-route-2"] }
+    ],
+    channelPermissions: () => ({ sendMessages: true, embedLinks: true, readMessageHistory: true })
+  });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "permissions"));
+  for (const id of ["chan-yt-main", "chan-route-1", "chan-route-2"]) {
+    assert.ok(permissionChecks.includes(id), `auditul verifica ${id}`);
+    assert.match(replies[0], new RegExp(`<#${id}>`), `raportul listeaza ${id}`);
+  }
 });
 
 test("/outbox permissions fara canale configurate raspunde corespunzator", async () => {

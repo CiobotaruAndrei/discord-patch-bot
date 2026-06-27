@@ -14,7 +14,7 @@ function makeModel() {
     create: async (doc: Record<string, unknown>) => { created.push(doc); return doc; },
     updateOne: async (filter: unknown, update: unknown, opts: unknown) => { upserts.push({ filter, update, opts }); return { upsertedCount: 1 }; },
     find: (filter: Record<string, unknown>) => ({ sort: () => ({ limit: () => ({ lean: async () => [
-      { _id: "a", kind: "discount", channelId: "c9", payload: { content: "hi" }, dedupeKey: "dk", recoveryVerify: true },
+      { _id: "a", kind: "discount", channelId: "c9", payload: { content: "hi" }, dedupeKey: "dk", recoveryVerify: true, history: [{ kind: "discount", title: "Reducere X", link: "https://x", itemId: "deal-1" }] },
       { _id: "b", kind: "weird", channelId: "c8", payload: { x: 1 } }
     ] }) }), _filter: filter }),
     deleteMany: async (filter: Record<string, unknown>) => { deletes.push(filter); return { deletedCount: 2 }; }
@@ -46,6 +46,21 @@ test("recordPayload cu dedupeKey face upsert (dedup); fara dedupeKey face create
   await repo.recordPayload({ guildId: "g1", kind: "update", channelId: "c1", payload: { content: "no-key" }, reason: "max-attempts" });
   assert.equal(created.length, 1, "fara dedupeKey -> create");
   assert.ok((created[0].createdAt instanceof Date) && (created[0].updatedAt instanceof Date), "create seteaza ambele timestampuri");
+});
+
+test("recordPayload persista history-ul, iar listForGuild il intoarce (ca replay-ul sa repopuleze /history)", async () => {
+  const { model, created } = makeModel();
+  const repo = createDeadLetterReplayRepository({ NotificationDeadLetterReplayModel: model, withMongoRetry: passthroughRetry, logger: noopLogger });
+
+  await repo.recordPayload({
+    guildId: "g1", kind: "update", channelId: "c1", payload: { content: "x" }, reason: "max-attempts",
+    history: [{ kind: "update", gameKey: "cs2", title: "Update CS2", link: "https://patch", itemId: "u-1" }]
+  });
+  assert.deepEqual(created[0].history, [{ kind: "update", gameKey: "cs2", title: "Update CS2", link: "https://patch", itemId: "u-1" }], "history-ul e persistat in payload-ul de replay");
+
+  const docs = await repo.listForGuild("g1");
+  assert.deepEqual(docs[0].history, [{ kind: "discount", gameKey: undefined, title: "Reducere X", link: "https://x", itemId: "deal-1" }], "listForGuild intoarce history-ul (normalizat) pentru replay");
+  assert.deepEqual(docs[1].history, [], "docul fara history primeste o lista goala, nu undefined");
 });
 
 test("recordPayload sare peste motive ne-replayabile / fara payload / fara canal", async () => {

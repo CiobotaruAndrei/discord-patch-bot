@@ -5,7 +5,7 @@ import type { PriceValue, RuntimeEnv } from "../../types";
 import type { SeenRepositoryDeps } from "./seenRepository";
 import type { UpdateNotificationServiceDeps } from "./updateNotificationService";
 import type { DiscountNotificationServiceDeps } from "./discountNotificationService";
-import type { OutboxRuntimeDeps } from "./notificationOutbox";
+import type { OutboxRuntimeDeps, OutboxHistoryEntry } from "./notificationOutbox";
 import type { HistoryRepositoryDeps } from "./historyRepository";
 import type { DeadLetterReplayRepositoryDeps } from "./deadLetterReplayRepository";
 import type { OutboxDiscordClient } from "./outboundChannel";
@@ -35,7 +35,7 @@ const { createYouTubeNotificationService } = require("../youtube/youtubeNotifica
 const OUTBOX_MAX_ATTEMPTS = 5;
 const OUTBOX_BACKOFF_MS = 60_000;
 
-interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount" | "youtube"; payload: unknown; attempts?: number; deliveries?: number; dedupeKey?: string; recoveryVerify?: boolean; }
+interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount" | "youtube"; payload: unknown; attempts?: number; deliveries?: number; dedupeKey?: string; recoveryVerify?: boolean; history?: OutboxHistoryEntry[]; }
 
 type GeneratedUpdateDeps =
   | "resolveOutboundChannel"
@@ -123,7 +123,8 @@ function createOutboxServices(deps: NotificationsRuntimeDeps) {
     if (push) await GuildModel.updateOne({ _id: job.guildId }, { $push: push }).catch((err: unknown) => logger("WARN", "OUTBOX", `Nu am putut scrie intrarea de audit dead-letter pentru guild ${job.guildId} (poate diverge de payload-ul de replay)`, err));
     await deadLetterReplayRepository.recordPayload({
       guildId: job.guildId, kind: job.kind, channelId: job.channelId, payload: job.payload,
-      dedupeKey: job.dedupeKey, recoveryVerify: job.recoveryVerify, reason, itemId: String(job._id ?? "")
+      dedupeKey: job.dedupeKey, recoveryVerify: job.recoveryVerify, reason, itemId: String(job._id ?? ""),
+      history: job.history
     });
   }
 
