@@ -158,8 +158,8 @@ test("resolveOutboundChannel: healthy channel returns a rate-limited channel tha
 });
 
 test("resolveOutboundChannel: cu outbox activ, send enqueue-uieste in loc sa trimita direct", async () => {
-  const enqueued: Array<{ guildId: string; channelId: string; kind: string; payload: unknown; recoveryVerify?: boolean }> = [];
-  const enqueueOutbox = async (job: { guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; recoveryVerify?: boolean }) => {
+  const enqueued: Array<{ guildId: string; channelId: string; kind: string; payload: unknown; recoveryVerify?: boolean; availableAt?: Date }> = [];
+  const enqueueOutbox = async (job: { guildId: string; channelId: string; kind: "update" | "discount"; payload: unknown; recoveryVerify?: boolean; availableAt?: Date }) => {
     enqueued.push(job);
   };
   const { resolveOutboundChannel } = buildResolver({ canSendEmbeds: () => true, enqueueOutbox });
@@ -181,7 +181,7 @@ test("resolveOutboundChannel: cu outbox activ, send enqueue-uieste in loc sa tri
   await channel.send({ embeds: [{ t: 1 }] });
   assert.equal(directSends, 0, "nu trimite direct cand outbox e activ");
   assert.equal(enqueued.length, 1, "send-ul enqueue-uieste un job");
-  assert.deepEqual(enqueued[0], { guildId: "guild-9", channelId: "channel-9", kind: "discount", payload: { embeds: [{ t: 1 }] }, recoveryVerify: true, history: undefined });
+  assert.deepEqual(enqueued[0], { guildId: "guild-9", channelId: "channel-9", kind: "discount", payload: { embeds: [{ t: 1 }] }, recoveryVerify: true, history: undefined, availableAt: undefined });
 });
 
 test("resolveOutboundChannel: pe calea rate-limited, istoricul se scrie dupa send-ul real", async () => {

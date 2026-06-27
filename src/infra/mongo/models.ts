@@ -222,7 +222,8 @@ const outboxHistoryEntrySchema = new mongoose.Schema({
   kind: { type: String, enum: ["update", "discount", "youtube"], required: true },
   gameKey: { type: String, default: "" },
   title: { type: String, default: "" },
-  link: { type: String, default: "" }
+  link: { type: String, default: "" },
+  itemId: { type: String, default: "" }
 }, { _id: false });
 
 const notificationOutboxSchema = new mongoose.Schema({

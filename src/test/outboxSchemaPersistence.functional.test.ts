@@ -33,14 +33,14 @@ test("notificationOutbox: schema persista recoveryVerify / dedupeKey / deliverie
     dedupeKey: "k-1",
     deliveries: 2,
     recoveryVerify: true,
-    history: [{ kind: "update", gameKey: "cs2", title: "Patch", link: "https://example.com" }]
+    history: [{ kind: "update", gameKey: "cs2", title: "Patch", link: "https://example.com", itemId: "u-77" }]
   });
   const obj = doc.toObject();
   assert.equal(obj.recoveryVerify, true, "recoveryVerify trebuie declarat in schema, altfel strict mode il sterge la salvare");
   assert.equal(obj.dedupeKey, "k-1", "dedupeKey persistat");
   assert.equal(obj.deliveries, 2, "deliveries persistat");
-  assert.deepEqual(obj.history, [{ kind: "update", gameKey: "cs2", title: "Patch", link: "https://example.com" }],
-    "history (intrarile pentru /history) trebuie declarat in schema, altfel jobul pierde istoricul la enqueue");
+  assert.deepEqual(obj.history, [{ kind: "update", gameKey: "cs2", title: "Patch", link: "https://example.com", itemId: "u-77" }],
+    "history (inclusiv itemId, pentru dedup-ul /history) trebuie declarat in schema, altfel jobul pierde istoricul la enqueue");
 });
 
 test("notificationOutbox: campurile necunoscute sunt eliminate de strict mode (confirma ca testul de mai sus e relevant)", () => {

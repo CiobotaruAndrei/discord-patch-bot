@@ -38,6 +38,7 @@ export interface OutboundHistoryEntry {
 
 export interface OutboundSendMeta {
   historyEntries?: OutboundHistoryEntry[];
+  availableAt?: Date;
 }
 
 export interface OutboundChannel {
@@ -49,7 +50,7 @@ export type ResolveOutboundChannelResult =
   | { abort: true; channel: null }
   | { abort: false; channel: OutboundChannel };
 
-export type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount" | "youtube"; payload: unknown; recoveryVerify?: boolean; history?: OutboundHistoryEntry[] }) => Promise<void>;
+export type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount" | "youtube"; payload: unknown; recoveryVerify?: boolean; history?: OutboundHistoryEntry[]; availableAt?: Date }) => Promise<void>;
 
 export type RecordSentHistory = (guildId: string, entries: OutboundHistoryEntry[]) => Promise<void>;
 
@@ -80,7 +81,7 @@ function outboxChannel(channelId: string, guildId: string, kind: "update" | "dis
   return {
     id: channelId,
     send: async (payload: unknown, meta?: OutboundSendMeta) =>
-      enqueueOutbox({ guildId, channelId, kind, payload, recoveryVerify, history: meta?.historyEntries })
+      enqueueOutbox({ guildId, channelId, kind, payload, recoveryVerify, history: meta?.historyEntries, availableAt: meta?.availableAt })
   };
 }
 

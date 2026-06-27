@@ -131,7 +131,7 @@ export interface DrainOutboxResult {
 }
 
 export interface OutboxRuntime {
-  enqueueOutbox(job: { guildId: string; channelId: string; kind: OutboxKind; payload: unknown; recoveryVerify?: boolean; history?: OutboxHistoryEntry[] }): Promise<void>;
+  enqueueOutbox(job: { guildId: string; channelId: string; kind: OutboxKind; payload: unknown; recoveryVerify?: boolean; history?: OutboxHistoryEntry[]; availableAt?: Date }): Promise<void>;
   drainOutbox(options: DrainOutboxOptions): Promise<DrainOutboxResult>;
 }
 
@@ -144,7 +144,7 @@ function backoffWithJitter(baseMs: number, attempts: number): number {
 }
 
 export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutboxSentModel, withMongoRetry, logger }: OutboxRuntimeDeps): OutboxRuntime {
-  async function enqueueOutbox(job: { guildId: string; channelId: string; kind: OutboxKind; payload: unknown; recoveryVerify?: boolean; history?: OutboxHistoryEntry[] }): Promise<void> {
+  async function enqueueOutbox(job: { guildId: string; channelId: string; kind: OutboxKind; payload: unknown; recoveryVerify?: boolean; history?: OutboxHistoryEntry[]; availableAt?: Date }): Promise<void> {
     const dedupeKey = dedupeKeyFor(job);
     const alreadySent = await NotificationOutboxSentModel.exists({ dedupeKey }).catch(() => null);
     if (alreadySent) return;
@@ -160,7 +160,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         recoveryVerify: job.recoveryVerify,
         history: job.history || [],
         createdAt: at,
-        availableAt: at
+        availableAt: job.availableAt && job.availableAt.getTime() > at.getTime() ? job.availableAt : at
       }), { label: "enqueueOutbox" });
     } catch (err) {
       if ((err as { code?: number } | null)?.code === 11000) return;

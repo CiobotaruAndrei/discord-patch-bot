@@ -146,8 +146,22 @@ export interface AdminAlertEmbedPayload {
     fields: AdminAlertEmbedField[];
     footer: { text: string };
   }>;
+}
+
+export interface AdminAlertChannelPayload extends AdminAlertEmbedPayload {
   allowedMentions: { parse: string[] };
+}
+
+export interface AdminAlertWebhookPayload extends AdminAlertEmbedPayload {
   allowed_mentions: { parse: string[] };
+}
+
+export function toAdminAlertChannelPayload(payload: AdminAlertEmbedPayload): AdminAlertChannelPayload {
+  return { ...payload, allowedMentions: { parse: [] } };
+}
+
+export function toAdminAlertWebhookPayload(payload: AdminAlertEmbedPayload): AdminAlertWebhookPayload {
+  return { ...payload, allowed_mentions: { parse: [] } };
 }
 
 export function buildAdminAlertEmbed(kind: string, title: string, body: unknown, now: Date): AdminAlertEmbedPayload {
@@ -165,8 +179,6 @@ export function buildAdminAlertEmbed(kind: string, title: string, body: unknown,
         { name: "Ce trebuie facut", value: guidance.action.slice(0, 1024) }
       ],
       footer: { text: `kind=${kind} - severity=${guidance.severity}` }
-    }],
-    allowedMentions: { parse: [] },
-    allowed_mentions: { parse: [] }
+    }]
   };
 }

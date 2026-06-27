@@ -89,10 +89,12 @@ interface YouTubeInteractionDeps {
   formatUserError(error: unknown, fallback: string): string;
   logger: LoggerFunction;
   MessageFlags: { Ephemeral: number };
+  outboxEnabled?: boolean;
 }
 
 type YouTubeContext = YouTubeInteractionDeps & {
   handleInteraction?: (interaction: DiscordInteraction, games: CommandGame[]) => Promise<unknown> | unknown;
+  env?: { NOTIFICATION_OUTBOX_ENABLED?: boolean };
 };
 
 const MAX_YOUTUBE_CHANNELS = 25;
@@ -491,8 +493,12 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     if (!remaining.length) {
       return safeEdit(interaction, `OK: am postat ${firstResult.videos} videoclip(e) pe ${firstResult.destinations} canal(e)${skippedNote}.`);
     }
-    await safeEdit(interaction, `OK: am postat imediat primele ${firstResult.videos} videoclip(e)${skippedNote}. Restul de ${remaining.length} sunt programate prin outbox-ul durabil (cand e activat) si livrate in loturi de cate ${YOUTUBE_MANUAL_IMMEDIATE_BATCH} la interval de 10 minute, ca sa supravietuiasca unui restart.`);
-    void deliverManualYouTubeVideos(client, settings, remaining, false)
+    const durable = deps.outboxEnabled === true;
+    const restNote = durable
+      ? `Restul de ${remaining.length} sunt programate prin outbox-ul durabil si livrate in loturi de cate ${YOUTUBE_MANUAL_IMMEDIATE_BATCH} la interval de 10 minute, ca sa supravietuiasca unui restart.`
+      : `Restul de ${remaining.length} continua in fundal in loturi de cate ${YOUTUBE_MANUAL_IMMEDIATE_BATCH} la interval de 10 minute; outbox-ul e dezactivat (NOTIFICATION_OUTBOX_ENABLED=false), deci NU sunt durabile la restart - reia comanda daca botul reporneste.`;
+    await safeEdit(interaction, `OK: am postat imediat primele ${firstResult.videos} videoclip(e)${skippedNote}. ${restNote}`);
+    void deliverManualYouTubeVideos(client, settings, remaining, !durable)
       .then(result => deps.logger(
         "INFO",
         "YOUTUBE_COMMAND",
@@ -583,7 +589,9 @@ function isYouTubeCommand(interaction: DiscordInteraction): boolean {
 }
 
 function buildYouTubeCommandHandler(target: YouTubeContext) {
-  const handlers = createYouTubeInteractionHandler(target);
+  const handlers = createYouTubeInteractionHandler(
+    Object.assign(target, { outboxEnabled: target.env?.NOTIFICATION_OUTBOX_ENABLED === true })
+  );
   const command: CommandHandler<DiscordInteraction> = {
     canHandle: (interaction): interaction is DiscordInteraction => isYouTubeCommand(interaction as DiscordInteraction),
     handle: async interaction => {
