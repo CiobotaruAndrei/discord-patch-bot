@@ -245,7 +245,7 @@ hash-ul peste identitatea structurata a notificarii (`kind`, `gameKey`, `link`, 
 algoritm/inputuri sa fie `history:v2:...` si sa nu coliziona cu cheile vechi.
 
 O schimbare de format **nu produce duplicate de NOTIFICARI** — dedup-ul de trimitere e separat si
-neafectat (colectiile `guildSeenUpdate`/`guildSeenDiscount` + `notificationOutboxSent`). Singurul
+neafectat (colectiile `guildSeenUpdates`/`guildSeenDiscounts` + `notificationOutboxSent`). Singurul
 efect posibil este, **doar in fereastra unui deploy** in care exista re-livrari/recovery ale aceleiasi
 notificari fix peste momentul schimbarii de format, **una-doua intrari duplicate in `/history`** pentru
 aceeasi livrare (cheile vechi si cele noi nu se mai recunosc reciproc). Acestea **expira automat** prin

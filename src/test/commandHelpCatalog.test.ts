@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { COMMAND_HELP_ENTRIES, normalizeCommandHelpQuery, buildCommandHelpChoices, findCommandHelpEntry, renderCommandHelpEntry } from "../features/command-help/commandHelpCatalog";
+import { REPORT_TYPE_VALUES } from "../features/feedback/reportTypes";
 
 const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
 const fs = require("fs") as typeof import("fs");
@@ -58,6 +59,35 @@ function adminTopLevelCommands(): Set<string> {
   }
   return admin;
 }
+
+function reportTipChoiceValues(): string[] {
+  const target: Record<string, unknown> = {
+    SlashCommandBuilder,
+    PermissionsBitField,
+    SUPPORTED_CURRENCIES: { USD: {}, EUR: {}, GBP: {}, RON: {} },
+    logger: () => undefined,
+    env: {}
+  };
+  const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions") as (t: Record<string, unknown>) => void;
+  attachSlashCommands(target);
+  const defs = (target.buildSlashCommandDefinitions as () => Array<{ name: string; options?: Array<{ name: string; choices?: Array<{ value: string }>; options?: Array<{ name: string; choices?: Array<{ value: string }> }> }> }>)();
+  const report = defs.find(def => def.name === "report");
+  const submit = report?.options?.find(option => option.name === "submit");
+  const tip = submit?.options?.find(option => option.name === "tip");
+  return (tip?.choices || []).map(choice => choice.value);
+}
+
+test("command help catalog: exemplul /report submit foloseste o optiune tip reala (sursa unica REPORT_TYPES, fara slug inventat)", () => {
+  const reportEntry = COMMAND_HELP_ENTRIES.find(entry => entry.command === "/report submit");
+  assert.ok(reportEntry, "exista intrarea /report submit in catalog");
+  const match = /\btip:(\S+)/.exec(reportEntry.example);
+  assert.ok(match, "exemplul /report contine o optiune tip:<valoare>");
+  const tipValue = match[1];
+  const slashChoiceValues = reportTipChoiceValues();
+  assert.ok(slashChoiceValues.length > 0, "comanda slash /report expune choices pentru tip");
+  assert.deepEqual(slashChoiceValues, [...REPORT_TYPE_VALUES], "choice-urile slash /report provin din sursa unica REPORT_TYPES");
+  assert.ok(slashChoiceValues.includes(tipValue), `tip:${tipValue} din exemplu nu e o optiune reala (${slashChoiceValues.join(", ")})`);
+});
 
 test("command help catalog acopera toate slash command paths", () => {
   const helpPaths = new Set(COMMAND_HELP_ENTRIES.map(entry => normalizeCommandHelpQuery(entry.command)));
