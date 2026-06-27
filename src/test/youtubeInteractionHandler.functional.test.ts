@@ -255,6 +255,53 @@ test("/youtube channel-route gestioneaza rute multiple si revenirea la canalul p
   assert.match(String(removeHarness.replies[0]), /canalul principal/);
 });
 
+test("/youtube channel-route add refuza un nou canal Discord peste limita de fanout per canal YouTube", async () => {
+  const youtubeChannelId = "UC1234567890123456789012";
+  const harness = createHarness({
+    youtubeChannels: [{
+      channelId: youtubeChannelId,
+      channelName: "Canal Test",
+      channelUrl: `https://www.youtube.com/channel/${youtubeChannelId}`,
+      subscribedAt: new Date()
+    }],
+    youtubeChannelRoutes: [{
+      channelId: youtubeChannelId,
+      discordChannelIds: ["100", "200", "300", "400", "500"]
+    }]
+  });
+  await harness.handler.handleYouTubeInteraction(makeInteraction({
+    group: "channel-route",
+    subcommand: "add",
+    strings: { canal: youtubeChannelId },
+    channelId: "999999999999999999"
+  }));
+  assert.equal(harness.writes.length, 0, "nu se scrie nicio ruta noua peste limita de fanout");
+  assert.match(String(harness.replies[0]), /limita/);
+});
+
+test("/youtube channel-route add accepta re-adaugarea unui canal deja existent (idempotent, nu numara dublu)", async () => {
+  const youtubeChannelId = "UC1234567890123456789012";
+  const harness = createHarness({
+    youtubeChannels: [{
+      channelId: youtubeChannelId,
+      channelName: "Canal Test",
+      channelUrl: `https://www.youtube.com/channel/${youtubeChannelId}`,
+      subscribedAt: new Date()
+    }],
+    youtubeChannelRoutes: [{
+      channelId: youtubeChannelId,
+      discordChannelIds: ["100", "200", "300", "400", "500"]
+    }]
+  });
+  await harness.handler.handleYouTubeInteraction(makeInteraction({
+    group: "channel-route",
+    subcommand: "add",
+    strings: { canal: youtubeChannelId },
+    channelId: "300"
+  }));
+  assert.equal(harness.writes.length, 1, "re-adaugarea unui canal deja prezent trece (addToSet idempotent)");
+});
+
 test("/youtube title-filter gestioneaza lista inclusiva fara duplicate", async () => {
   const harness = createHarness();
   await harness.handler.handleYouTubeInteraction(makeInteraction({

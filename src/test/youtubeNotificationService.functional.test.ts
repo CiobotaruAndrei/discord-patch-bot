@@ -559,6 +559,42 @@ test("YouTube manual afiseaza numai ultima luna fara sa modifice deduplicarea", 
   assert.equal(result.videos, 1);
 });
 
+test("YouTube manual (videos show) refoloseste cache-ul de metadata per apel: acelasi videoId pe doua canale -> 1 fetch", async () => {
+  let metadataCalls = 0;
+  const channelA = { ...channel, channelId: "UCAAAAAAAAAAAAAAAAAAAAA" };
+  const channelB = { ...channel, channelId: "UCBBBBBBBBBBBBBBBBBBBBB" };
+  const service = createYouTubeNotificationService({
+    GuildModel: { find: () => ({ lean: async () => [] }) },
+    logger: () => undefined,
+    runConcurrent: sequentialRunConcurrent,
+    fetchYouTubeFeed: async () => [video],
+    fetchYouTubeVideoMetadata: async () => {
+      metadataCalls++;
+      return { durationSeconds: 120, isShort: false, isLive: false, isPremiere: false };
+    },
+    videoPassesYouTubeFilters: () => true,
+    claimVideo: async () => true,
+    rollbackVideo: async () => undefined,
+    recordChannelSuccess: async () => undefined,
+    recordChannelError: async () => undefined,
+    disableNotificationsForChannelError: async () => ({}),
+    removeRouteForChannelError: async () => ({}),
+    resolveOutboundChannel: async () => ({ abort: false, channel: { id: "main", send: async () => ({}) } }),
+    sleepIfPositive: async () => undefined,
+    transientErrorMessage: error => String(error),
+    GUILD_PROCESS_CONCURRENCY: 1,
+    FETCH_CONCURRENCY: 1,
+    youtubeBatchDelayMs: 0,
+    now: () => new Date("2026-06-25T06:00:00.000Z")
+  } satisfies ServiceDeps);
+  await service.showYouTubeVideos(
+    { user: { id: "bot" }, channels: { fetch: async () => null } },
+    { _id: "g1", youtubeChannels: [channelA, channelB], youtubeNotificationChannelId: "main" },
+    "toate"
+  );
+  assert.equal(metadataCalls, 1, "metadata pentru acelasi videoId se descarca o singura data in manual show (cache per apel)");
+});
+
 test("YouTube livreaza cel mult 5 videoclipuri per lot si asteapta numai intre loturi", async () => {
   const counts: number[] = [];
   const waits: number[] = [];

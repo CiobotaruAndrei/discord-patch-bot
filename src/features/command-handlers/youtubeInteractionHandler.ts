@@ -86,6 +86,7 @@ type YouTubeContext = YouTubeInteractionDeps & {
 };
 
 const MAX_YOUTUBE_CHANNELS = 25;
+const MAX_YOUTUBE_ROUTE_DESTINATIONS = 5;
 
 function defaultFilters(settings: GuildSettings | null): Required<YouTubeFilters> {
   return {
@@ -340,10 +341,11 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     const routes = settings?.youtubeChannelRoutes || [];
     if (!routes.length) return "Nu exista rute speciale YouTube. Toate videoclipurile folosesc canalul principal.";
     const channelNames = new Map((settings?.youtubeChannels || []).map(channel => [channel.channelId, channel.channelName]));
-    return routes.map(route => {
+    const lines = routes.map(route => {
       const destinations = route.discordChannelIds.map(channelId => `<#${channelId}>`).join(", ");
       return `- **${channelNames.get(route.channelId) || route.channelId}**: ${destinations || "fara destinatii"}`;
-    }).join("\n");
+    });
+    return clampJoinedList(lines, 2000);
   }
 
   async function channelRoute(
@@ -365,6 +367,10 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
       const permissions = await checkChannelPermissions(interaction, discordChannel.id);
       if (!permissions?.sendMessages || !permissions.embedLinks) {
         return safeEdit(interaction, "Eroare: botul are nevoie de Send Messages si Embed Links pe canalul ales.");
+      }
+      const currentDestinations = existingRoute?.discordChannelIds || [];
+      if (!currentDestinations.includes(discordChannel.id) && currentDestinations.length >= MAX_YOUTUBE_ROUTE_DESTINATIONS) {
+        return safeEdit(interaction, `Eroare: ai atins limita de ${MAX_YOUTUBE_ROUTE_DESTINATIONS} canale Discord pentru ruta lui **${subscription.channelName}**. Scoate o destinatie cu \`/youtube channel-route remove\` inainte sa adaugi alta.`);
       }
       const update = existingRoute
         ? { $addToSet: { "youtubeChannelRoutes.$[route].discordChannelIds": discordChannel.id } }
@@ -410,8 +416,9 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     const settings = await getGuildSettings(guildId);
     const words = settings?.youtubeTitleIncludeWords || [];
     if (subcommand === "list") {
+      const header = "Filtrul inclusiv accepta titluri care contin cel putin una dintre valorile:\n";
       return safeEdit(interaction, words.length
-        ? `Filtrul inclusiv accepta titluri care contin cel putin una dintre valorile:\n${words.map(word => `- \`${word}\``).join("\n")}`
+        ? `${header}${clampJoinedList(words.map(word => `- \`${word}\``), 2000 - header.length)}`
         : "Filtrul inclusiv de titlu este gol. Toate titlurile trec acest filtru.");
     }
     if (subcommand === "clear") {

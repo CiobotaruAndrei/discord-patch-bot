@@ -374,6 +374,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     const selectedChannels = (guild.youtubeChannels || []).filter(channel =>
       selectedChannelId === "toate" || channel.channelId === selectedChannelId
     );
+    const resolveMetadata = createMetadataCache();
     const prepared: PreparedVideo[] = [];
     for (const channel of selectedChannels) {
       try {
@@ -381,7 +382,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
         await recordChannelSuccess(String(guild._id), channel, videos.at(-1)?.videoId || channel.lastVideoId || "");
         for (const video of videos) {
           if (!isRecentYouTubeVideo(video, now())) continue;
-          const item = await prepareVideo(guild, channel, video);
+          const item = await prepareVideo(guild, channel, video, resolveMetadata);
           if (item) prepared.push(item);
         }
       } catch (error) {

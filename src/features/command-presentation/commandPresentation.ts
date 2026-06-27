@@ -48,6 +48,7 @@ interface DeferEditInteraction {
   deferReply?(payload?: unknown): Promise<unknown>;
   editReply?(payload: unknown): Promise<InteractionMessage>;
   reply?(payload: unknown): Promise<unknown>;
+  followUp?(payload: unknown): Promise<unknown>;
 }
 
 interface LoggableInteraction {
@@ -159,6 +160,14 @@ async function safeEdit(interaction: DeferEditInteraction, payload: unknown): Pr
   try { return (await interaction.editReply?.(payload)) ?? null; }
   catch (err) {
     logger("WARN", "INTERACTION", "Eroare la editReply", errorMessage(err));
+    try {
+      await interaction.followUp?.({
+        content: "Eroare: nu am putut afisa raspunsul (prea lung sau eroare temporara). Reincearca sau restrange filtrele.",
+        flags: MessageFlags.Ephemeral
+      });
+    } catch (followErr) {
+      logger("WARN", "INTERACTION", "Eroare la followUp-ul de fallback dupa editReply esuat", errorMessage(followErr));
+    }
     return null;
   }
 }

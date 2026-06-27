@@ -2,6 +2,7 @@
 
 import type { GameConfig, GuildSettings } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { clampJoinedList } from "../command-presentation/discordListLimit";
 
 const { errorDetail } = require("../../shared/errors");
 
@@ -64,7 +65,8 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
         const game = games.find((candidate) => candidate.key === key);
         return game ? `- **${game.name}** (\`${game.key}\`)` : `- \`${key}\` *(cheie necunoscuta in config)*`;
       });
-      return safeEdit(interaction, `OK: Jocuri in watchlist (${enabled.length}):\n` + lines.join("\n"));
+      const header = `OK: Jocuri in watchlist (${enabled.length}):\n`;
+      return safeEdit(interaction, `${header}${clampJoinedList(lines, 2000 - header.length)}`);
     }
 
     if (sub === "reset") {
