@@ -1,4 +1,5 @@
 import type { CurrencyRegistry } from "../../types";
+import { REPORT_TYPES } from "../feedback/reportTypes";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
@@ -53,18 +54,21 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
         .setName("start")
         .setDescription("Porneste notificarile automate (admin)")
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
+        .setDMPermission(false)
         .addSubcommand(subcommand => subcommand.setName("updates").setDescription("Porneste update-urile pe acest canal"))
         .addSubcommand(subcommand => subcommand.setName("reduceri").setDescription("Porneste alertele de reduceri pe acest canal")),
       new SlashCommandBuilder()
         .setName("stop")
         .setDescription("Opreste notificarile automate (admin)")
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
+        .setDMPermission(false)
         .addSubcommand(subcommand => subcommand.setName("updates").setDescription("Opreste update-urile"))
         .addSubcommand(subcommand => subcommand.setName("reduceri").setDescription("Opreste alertele de reduceri")),
       new SlashCommandBuilder()
         .setName("set")
         .setDescription("Configureaza preferintele serverului (admin)")
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
+        .setDMPermission(false)
         .addSubcommand(subcommand => subcommand.setName("mode").setDescription("Mod afisare embed")
           .addStringOption(option => option.setName("value").setDescription("compact sau detailed").setRequired(true)
             .addChoices({ name: "compact", value: "compact" }, { name: "detailed", value: "detailed" })))
@@ -102,6 +106,7 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
         .setName("outbox")
         .setDescription("Operare outbox notificari (admin)")
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
+        .setDMPermission(false)
         .addSubcommand(subcommand => subcommand.setName("status").setDescription("Starea outbox-ului (coada, dead-letter, recovery-verify)"))
         .addSubcommand(subcommand => subcommand.setName("deadletters").setDescription("Ultimele livrari ajunse in dead-letter pentru acest server"))
         .addSubcommand(subcommand => subcommand.setName("clear-deadletters").setDescription("Goleste lista de dead-letter a acestui server (dupa ce ai investigat/replay-uit)"))
@@ -140,19 +145,14 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
         .setName("report")
         .setDescription("Raporteaza o problema (update gresit, duplicat, joc lipsa, sursa stricata)")
         .addStringOption(option => option.setName("tip").setDescription("Tipul problemei").setRequired(true)
-          .addChoices(
-            { name: "Update gresit/inexact", value: "update-gresit" },
-            { name: "Notificare duplicata", value: "duplicat" },
-            { name: "Joc sau sursa lipsa", value: "joc-lipsa" },
-            { name: "Sursa stricata (nu mai vin update-uri)", value: "sursa-stricata" },
-            { name: "Altceva", value: "altceva" }
-          ))
+          .addChoices(...REPORT_TYPES.map(type => ({ name: type.label, value: type.value }))))
         .addStringOption(option => option.setName("detalii").setDescription("Detalii suplimentare (optional)").setRequired(false))
         .addStringOption(option => option.setName("joc").setDescription("Jocul vizat (optional)").setRequired(false)),
       new SlashCommandBuilder()
         .setName("health")
         .setDescription("Starea botului: Discord, MongoDB, cache, uptime")
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
+        .setDMPermission(false)
     ].map(command => command.toJSON());
   }
 

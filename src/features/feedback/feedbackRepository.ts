@@ -1,5 +1,8 @@
 "use strict";
 
+import { REPORT_TYPES } from "./reportTypes";
+import type { ReportType } from "./reportTypes";
+
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
@@ -34,19 +37,6 @@ interface ReportDoc {
   detail: string;
   createdAt: Date;
 }
-
-interface ReportType {
-  value: string;
-  label: string;
-}
-
-const REPORT_TYPES: ReportType[] = [
-  { value: "update-gresit", label: "Update gresit/inexact" },
-  { value: "duplicat", label: "Notificare duplicata" },
-  { value: "joc-lipsa", label: "Joc sau sursa lipsa" },
-  { value: "sursa-stricata", label: "Sursa stricata (nu mai vin update-uri)" },
-  { value: "altceva", label: "Altceva" }
-];
 
 function normalizeReportType(value: string | null | undefined): string {
   const found = REPORT_TYPES.find(type => type.value === value);
@@ -107,7 +97,7 @@ type FeedbackInstaller = ((target: FeedbackRepositoryContext) => void) & {
   sanitizeReport: typeof sanitizeReport;
   normalizeReportType: typeof normalizeReportType;
   reportTypeLabel: typeof reportTypeLabel;
-  REPORT_TYPES: ReportType[];
+  REPORT_TYPES: readonly ReportType[];
 };
 
 const attachFeedbackRepository = ((target: FeedbackRepositoryContext): void => {
