@@ -57,6 +57,7 @@ export interface RuntimeEnv {
   NOTIFICATION_OUTBOX_RECOVERY_STRICT: boolean;
   NOTIFICATION_OUTBOX_RECOVERY_HISTORY_LIMIT: number;
   NOTIFICATION_OUTBOX_SENT_TTL_HOURS: number;
+  NOTIFICATION_OUTBOX_GLOBAL_ADMIN_IDS: string[];
   NOTIFICATION_HISTORY_TTL_DAYS: number;
   NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS: number;
   GUILD_SEEN_DISCOUNT_TTL_DAYS: number;
@@ -184,6 +185,7 @@ export interface BotMetrics {
   outboxQueueDepth: number;
   outboxDeliveryMsTotal: number;
   outboxOldestJobAgeSeconds: number;
+  outboxFutureScheduledJobs: number;
   outboxLockAcquireFailures: number;
   outboxPauseCheckFailures: number;
   outboxRecoveryDuplicates: number;

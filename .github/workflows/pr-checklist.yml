@@ -44,15 +44,20 @@ jobs:
             const isCode = (f) => (/^src\/.*\.(ts|js)$/.test(f) && !f.startsWith("src/test/")) || /^src\/native\/.*\.rs$/.test(f);
             const isDoc = (f) => /\.md$/.test(f) || f === ".env.example";
             const isTest = (f) => f.startsWith("src/test/");
+            const isInfra = (f) => f === "Dockerfile" || /^Dockerfile\./.test(f) || /^docker-compose.*\.ya?ml$/.test(f) || /^\.github\/workflows\/.*\.ya?ml$/.test(f) || /^monitoring\//.test(f) || /^config(\.schema)?\.json$/.test(f);
             const codeChanged = names.some(isCode);
             const docsChanged = names.some(isDoc);
             const testChanged = names.some(isTest);
+            const infraChanged = names.some(isInfra);
 
             if (codeChanged && !docsChanged) {
               problems.push("ai modificat cod (src/**) dar diff-ul nu atinge niciun fisier de documentatie (.md) — bifa de documentatie nu e sustinuta de diff");
             }
             if (codeChanged && !testChanged) {
               problems.push("ai modificat cod (src/**) dar diff-ul nu atinge niciun fisier de test (src/test/**) — bifa de teste nu e sustinuta de diff");
+            }
+            if (infraChanged && !docsChanged) {
+              problems.push("ai modificat infrastructura/deploy (Dockerfile / .github/workflows / monitoring / config) dar diff-ul nu atinge niciun fisier de documentatie (.md) — schimbarile de infra trebuie reflectate in docs");
             }
 
             if (problems.length) {

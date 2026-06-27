@@ -280,8 +280,8 @@ Daca livrarile sunt incetinite de rate-limit:
 
 Pentru interventii (canal in remediere, migrare, debugging) fara a opri tot botul:
 
-- `/outbox pause` — opreste drenarea (global); joburile raman in coada, lock-ul nu e atins.
-- `/outbox resume` — reia drenarea de unde a ramas.
+- `/outbox pause` — opreste drenarea (global); joburile raman in coada, lock-ul nu e atins. **Operatie globala**: permisa doar utilizatorilor din `NOTIFICATION_OUTBOX_GLOBAL_ADMIN_IDS` (operatorii botului), nu oricarui admin de guild, fiindca afecteaza toate serverele. Daca lista e goala, comanda e indisponibila (seteaza env-ul ca s-o activezi).
+- `/outbox resume` — reia drenarea de unde a ramas. Aceeasi restrictie de operator global ca `pause`.
 - `/outbox status` arata starea (`Drenare: ACTIVA | PE PAUZA`).
 - `/outbox drain-now` respecta aceeasi pauza globala; daca drenarea e pe pauza, refuza pornirea manuala si cere `/outbox resume`.
 

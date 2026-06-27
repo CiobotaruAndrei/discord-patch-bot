@@ -51,6 +51,19 @@ test("buildConfigEmbed afiseaza setarile importante ale serverului", () => {
   assert.match(text, /sablon mesaj: personalizat/);
 });
 
+test("buildConfigEmbed arata canalul salvat chiar cand notificarile sunt oprite, ca adminul sa stie ce ramane configurat (R12 #4)", () => {
+  const embed = mod.buildConfigEmbed({
+    _id: "g2",
+    subscribed: false,
+    notificationChannelId: "chan-updates",
+    discountsSubscribed: false,
+    discountChannelId: null
+  }, [], "USD");
+  const text = JSON.stringify(embed);
+  assert.match(text, /<#chan-updates> \(oprit\)/, "canalul de update ramane vizibil cu eticheta (oprit), nu doar 'oprit'");
+  assert.match(text, /neconfigurat \(oprit\)/, "canalul de reduceri lipsa apare ca 'neconfigurat (oprit)', nu doar 'oprit'");
+});
+
 test("/config citeste guild settings si raspunde ephemeral cu embed", async () => {
   const edits: unknown[] = [];
   const handler = mod.createConfigInteractionHandler({

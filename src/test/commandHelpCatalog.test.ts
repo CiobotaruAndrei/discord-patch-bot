@@ -148,3 +148,10 @@ test("command help autocomplete filtreaza si pastreaza valori selectabile", () =
     assert.ok(choice.value.startsWith("/"));
   }
 });
+
+test("command help catalog: descrierea /youtube permissions mentioneaza si rutele speciale, nu doar canalul principal (R12 #5, aliniere cu implementarea)", () => {
+  const entry = COMMAND_HELP_ENTRIES.find(e => e.command === "/youtube permissions");
+  assert.ok(entry, "exista un entry pentru /youtube permissions");
+  assert.match(entry!.description, /rute/i, "implementarea verifica si canalele din rute (youtubeChannelRoutes), deci help-ul trebuie sa le mentioneze, nu doar canalul principal");
+  assert.match(entry!.description, /principal/i, "mentioneaza si canalul principal");
+});

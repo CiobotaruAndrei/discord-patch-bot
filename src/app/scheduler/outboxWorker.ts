@@ -28,6 +28,7 @@ interface OutboxMetricsLike {
   outboxQueueDepth: number;
   outboxDeliveryMsTotal: number;
   outboxOldestJobAgeSeconds: number;
+  outboxFutureScheduledJobs: number;
   outboxLockAcquireFailures: number;
   outboxPauseCheckFailures: number;
   outboxRecoveryDuplicates: number;
@@ -49,6 +50,7 @@ interface OutboxDrainResult {
   queued?: number;
   deliveryMsTotal?: number;
   oldestJobAgeMs?: number;
+  futureScheduledCount?: number;
   recoveryDuplicates?: number;
   recoveryFetches?: number;
   recoveryFailures?: number;
@@ -132,6 +134,7 @@ function createOutboxWorker({
     metrics.outboxDeadLetterWriteFailures += r.deadLetterFailures ?? 0;
     if (typeof r.queued === "number") metrics.outboxQueueDepth = r.queued;
     if (typeof r.oldestJobAgeMs === "number") metrics.outboxOldestJobAgeSeconds = Math.round(r.oldestJobAgeMs / 1000);
+    if (typeof r.futureScheduledCount === "number") metrics.outboxFutureScheduledJobs = r.futureScheduledCount;
     if (typeof r.recoveryVerifyEnabledGuilds === "number") metrics.outboxRecoveryVerifyEnabledGuilds = r.recoveryVerifyEnabledGuilds;
 
     if ((r.recoveryFailures ?? 0) > 0) {
