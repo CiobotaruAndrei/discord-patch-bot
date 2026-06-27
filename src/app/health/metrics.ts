@@ -21,6 +21,7 @@ function createMetrics(): BotMetrics {
     outboxQueueDepth: 0,
     outboxDeliveryMsTotal: 0,
     outboxOldestJobAgeSeconds: 0,
+    outboxFutureScheduledJobs: 0,
     outboxLockAcquireFailures: 0,
     outboxPauseCheckFailures: 0,
     outboxRecoveryDuplicates: 0,

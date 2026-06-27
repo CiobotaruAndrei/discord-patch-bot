@@ -9,10 +9,11 @@ const installOutboxAdmin = require("../features/command-handlers/outboxAdminHand
 
 type DeadLetterEntry = { kind?: string; itemId?: string; title?: string; reason?: string; attempts?: number; failedAt?: Date };
 
-function makeInteraction(group: string | null, sub: string) {
+function makeInteraction(group: string | null, sub: string, userId = "user-1") {
   return {
     commandName: "outbox",
     guild: { id: "guild-1" },
+    user: { id: userId },
     client: { user: { id: "bot-1" }, channels: { fetch: async () => null } },
     options: { getSubcommandGroup: () => group, getSubcommand: () => sub },
     isChatInputCommand: () => true,
@@ -44,6 +45,7 @@ function makeDeps(opts: {
   enqueueFailAt?: number;
   replayDeleteAllFails?: boolean;
   replayDeleteFails?: boolean;
+  outboxGlobalAdminIds?: string[];
 } = {}) {
   const replies: string[] = [];
   const updateManyCalls: Array<{ filter: unknown; update: unknown }> = [];
@@ -105,7 +107,8 @@ function makeDeps(opts: {
     logger: () => undefined,
     outboxEnabled: opts.outboxEnabled ?? true,
     recoveryVerifyGlobal: opts.recoveryVerifyGlobal ?? false,
-    recoveryStrict: opts.recoveryStrict ?? false
+    recoveryStrict: opts.recoveryStrict ?? false,
+    outboxGlobalAdminIds: opts.outboxGlobalAdminIds ?? []
   };
   return { deps, replies, updateManyCalls, guildUpdateCalls, invalidatedGuilds, enqueueCalls, replayDeleteCalls, replayDeleteAllCalls, pauseCalls, permissionChecks, lockCalls, releaseCalls, getDrainCalls: () => drainCalls };
 }
@@ -205,14 +208,32 @@ test("/outbox status afiseaza starea de drenare (activa/pe pauza)", async () => 
   assert.match(paused.replies[0], /Drenare: \*\*PE PAUZA\*\*/);
 });
 
-test("/outbox pause si /outbox resume comuta flagul de drenare", async () => {
-  const { deps, replies, pauseCalls } = makeDeps({});
+test("/outbox pause si /outbox resume comuta flagul de drenare cand apelantul e operator bot (in allowlist)", async () => {
+  const { deps, replies, pauseCalls } = makeDeps({ outboxGlobalAdminIds: ["op-1"] });
   const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
-  await handler.handleOutboxInteraction(makeInteraction(null, "pause"));
-  await handler.handleOutboxInteraction(makeInteraction(null, "resume"));
+  await handler.handleOutboxInteraction(makeInteraction(null, "pause", "op-1"));
+  await handler.handleOutboxInteraction(makeInteraction(null, "resume", "op-1"));
   assert.deepEqual(pauseCalls, [true, false], "pause -> true, resume -> false");
   assert.match(replies[0], /pusa pe pauza/);
   assert.match(replies[1], /reluata/);
+});
+
+test("/outbox pause refuza un admin de guild care NU e in allowlist-ul de operatori (operatie globala, R12 #1)", async () => {
+  const { deps, replies, pauseCalls } = makeDeps({ outboxGlobalAdminIds: ["op-1"] });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "pause", "alt-admin"));
+  assert.equal(pauseCalls.length, 0, "un admin din afara allowlist-ului nu poate pune outbox-ul global pe pauza");
+  assert.match(replies[0], /operatie globala/i);
+  assert.match(replies[0], /NOTIFICATION_OUTBOX_GLOBAL_ADMIN_IDS/);
+});
+
+test("/outbox resume e indisponibil cand allowlist-ul de operatori e gol (safe-by-default, R12 #1)", async () => {
+  const { deps, replies, pauseCalls } = makeDeps({ outboxGlobalAdminIds: [] });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "resume", "op-1"));
+  assert.equal(pauseCalls.length, 0, "fara allowlist configurat, nimeni nu poate comuta pauza globala");
+  assert.match(replies[0], /indisponibila/i);
+  assert.match(replies[0], /NOTIFICATION_OUTBOX_GLOBAL_ADMIN_IDS/);
 });
 
 test("/outbox permissions raporteaza permisiunile pe canalele configurate si semnaleaza ce lipseste", async () => {

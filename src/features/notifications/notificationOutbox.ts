@@ -120,6 +120,7 @@ export interface DrainOutboxResult {
   queued: number;
   deliveryMsTotal: number;
   oldestJobAgeMs: number;
+  futureScheduledCount: number;
   recoveryDuplicates: number;
   recoveryFetches: number;
   recoveryFailures: number;
@@ -197,11 +198,15 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
   }
 
   async function oldestJobAgeMs(now: Date): Promise<number> {
-    const rows = await NotificationOutboxModel.find({}).sort({ createdAt: 1 }).limit(1).lean().catch(() => [] as OutboxJob[]);
+    const rows = await NotificationOutboxModel.find({ availableAt: { $lte: now } }).sort({ createdAt: 1 }).limit(1).lean().catch(() => [] as OutboxJob[]);
     const oldest = Array.isArray(rows) ? rows[0] : undefined;
     const stamp = oldest?.createdAt ?? oldest?.availableAt;
     if (!stamp) return 0;
     return Math.max(0, now.getTime() - new Date(stamp).getTime());
+  }
+
+  async function futureScheduledCount(now: Date): Promise<number> {
+    return NotificationOutboxModel.countDocuments({ availableAt: { $gt: now } }).catch(() => 0);
   }
 
   async function drainOutbox(options: DrainOutboxOptions): Promise<DrainOutboxResult> {
@@ -372,6 +377,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
 
     const queued = await NotificationOutboxModel.countDocuments({}).catch(() => 0);
     const oldestAgeMs = await oldestJobAgeMs(nowFn());
+    const futureScheduled = await futureScheduledCount(nowFn());
 
     if (sent || deadLettered || retried) {
       const errSuffix = deliverErrors > 0 ? `, ${deliverErrors} exceptii de livrare` : "";
@@ -383,7 +389,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     if (deadLetterFailures > 0) {
       logger("WARN", "OUTBOX", `Drain outbox: ${deadLetterFailures} audit(uri) dead-letter esuate (job-urile terminale raman in coada pentru reluare; un job deja livrat e sters chiar fara audit - vezi log-urile WARN per job; verifica disponibilitatea Mongo)`);
     }
-    return { sent, deadLettered, retried, expired, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures, deleteFailures, deadLetterFailures, droppedUnsubscribed };
+    return { sent, deadLettered, retried, expired, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, futureScheduledCount: futureScheduled, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures, deleteFailures, deadLetterFailures, droppedUnsubscribed };
   }
 
   return { enqueueOutbox, drainOutbox };

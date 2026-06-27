@@ -793,3 +793,47 @@ test("drainOutbox sweep: sterge + dead-letter un job vechi FARA lease activ", as
   assert.equal(deadLettered.length, 1, "jobul vechi nelease-uit e dead-letter-uit");
   assert.equal(deleted.length, 1, "si sters");
 });
+
+function makeMetricsModel(jobs: OutboxJob[]): OutboxModelMock {
+  return {
+    create: async (doc: Record<string, unknown>) => doc,
+    findOneAndUpdate: async () => null,
+    find: (filter: { availableAt?: { $lte?: Date } }) => {
+      const lte = filter?.availableAt?.$lte;
+      const due = lte
+        ? jobs.filter(j => j.availableAt && new Date(j.availableAt).getTime() <= lte.getTime())
+        : jobs.slice();
+      const sorted = due.slice().sort((a, b) => new Date(a.createdAt as Date).getTime() - new Date(b.createdAt as Date).getTime());
+      return { sort: () => ({ limit: () => ({ lean: async () => sorted.slice(0, 1) }) }) };
+    },
+    deleteOne: async () => ({ deletedCount: 0 }),
+    updateOne: async () => ({ matchedCount: 0 }),
+    countDocuments: async (filter?: { availableAt?: { $gt?: Date } }) => {
+      const gt = filter?.availableAt?.$gt;
+      if (gt) return jobs.filter(j => j.availableAt && new Date(j.availableAt).getTime() > gt.getTime()).length;
+      return jobs.length;
+    }
+  } as OutboxModelMock;
+}
+
+test("drainOutbox metrics: oldestJobAgeMs numara doar joburile DUE (availableAt<=now), iar cele programate in viitor merg in futureScheduledCount (R12 #2)", async () => {
+  const now = new Date("2026-06-25T12:00:00.000Z");
+  const jobs: OutboxJob[] = [
+    { _id: "due", guildId: "g", channelId: "c", kind: "update", payload: {}, attempts: 0, createdAt: new Date(now.getTime() - 100_000), availableAt: new Date(now.getTime() - 50_000) },
+    { _id: "fut1", guildId: "g", channelId: "c", kind: "update", payload: {}, attempts: 0, createdAt: new Date(now.getTime() - 200_000), availableAt: new Date(now.getTime() + 600_000) },
+    { _id: "fut2", guildId: "g", channelId: "c", kind: "update", payload: {}, attempts: 0, createdAt: new Date(now.getTime() - 30_000), availableAt: new Date(now.getTime() + 1_200_000) }
+  ];
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: makeMetricsModel(jobs),
+    NotificationOutboxSentModel: makeFakeModel([]).sentModel,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: true }),
+    recordDeadLetter: async () => undefined,
+    maxAttempts: 5, backoffMs: 1000, limit: 50, now, maxAgeMs: 0
+  });
+  assert.equal(result.oldestJobAgeMs, 100_000, "vechimea celui mai vechi job DUE (100s), NU a celui programat in viitor desi a fost creat mai devreme (200s)");
+  assert.equal(result.futureScheduledCount, 2, "cele doua joburi cu availableAt>now sunt raportate separat, ca sa nu para coada veche/blocata");
+});

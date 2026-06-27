@@ -185,7 +185,8 @@ function createHttpServer({
       pushMetric(lines, seenMetricNames, "bot_outbox_drains", "counter", "Notification outbox drain cycles", metrics.outboxDrains);
       pushMetric(lines, seenMetricNames, "bot_outbox_queue_depth", "gauge", "Notification outbox jobs currently queued", metrics.outboxQueueDepth);
       pushMetric(lines, seenMetricNames, "bot_outbox_delivery_ms_total", "counter", "Total ms spent delivering outbox jobs (with bot_outbox_sent gives avg latency)", metrics.outboxDeliveryMsTotal);
-      pushMetric(lines, seenMetricNames, "bot_outbox_oldest_job_age_seconds", "gauge", "Age of the oldest queued outbox job", metrics.outboxOldestJobAgeSeconds);
+      pushMetric(lines, seenMetricNames, "bot_outbox_oldest_job_age_seconds", "gauge", "Age of the oldest DUE outbox job (availableAt <= now); jobs scheduled for the future are excluded", metrics.outboxOldestJobAgeSeconds);
+      pushMetric(lines, seenMetricNames, "bot_outbox_future_scheduled_jobs", "gauge", "Outbox jobs scheduled for future delivery (availableAt > now, e.g. staggered manual batches or backoff retries)", metrics.outboxFutureScheduledJobs);
       pushMetric(lines, seenMetricNames, "bot_outbox_lock_acquire_failures", "counter", "Outbox drain lock acquisition skipped (held by another instance)", metrics.outboxLockAcquireFailures);
       pushMetric(lines, seenMetricNames, "bot_outbox_pause_check_failures", "counter", "Outbox pause-flag reads that failed (worker skips the cycle fail-closed)", metrics.outboxPauseCheckFailures);
       pushMetric(lines, seenMetricNames, "bot_outbox_recovery_duplicates_prevented", "counter", "Outbox recovery-verify duplicate sends prevented", metrics.outboxRecoveryDuplicates);

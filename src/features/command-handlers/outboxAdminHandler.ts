@@ -12,6 +12,7 @@ type GameConfig = { key: string; name: string } & Record<string, unknown>;
 type DiscordInteraction = {
   commandName?: string;
   guild?: { id: string } | null;
+  user?: { id?: string } | null;
   client?: OutboxDiscordClient;
   deferred?: boolean;
   replied?: boolean;
@@ -108,10 +109,11 @@ type OutboxAdminDeps = {
   outboxEnabled: boolean;
   recoveryVerifyGlobal: boolean;
   recoveryStrict: boolean;
+  outboxGlobalAdminIds: string[];
   deadLetterPreviewLimit?: number;
 };
 
-type OutboxAdminContext = Omit<OutboxAdminDeps, "outboxEnabled" | "recoveryVerifyGlobal" | "recoveryStrict"> & {
+type OutboxAdminContext = Omit<OutboxAdminDeps, "outboxEnabled" | "recoveryVerifyGlobal" | "recoveryStrict" | "outboxGlobalAdminIds"> & {
   MessageFlags: { Ephemeral: number };
   handleInteraction?: NextInteractionHandler;
   env: RuntimeEnv;
@@ -141,7 +143,7 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
     getGuildSettings, getOutboxPaused, setOutboxPaused, checkChannelPermissions,
     acquireDbLock, releaseDbLock, drainOutbox,
     safeDefer, safeEdit, formatUserError, logger,
-    outboxEnabled, recoveryVerifyGlobal, recoveryStrict
+    outboxEnabled, recoveryVerifyGlobal, recoveryStrict, outboxGlobalAdminIds
   } = deps;
   const previewLimit = deps.deadLetterPreviewLimit ?? DEFAULT_DEAD_LETTER_PREVIEW;
 
@@ -328,6 +330,17 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
     }
   }
 
+  function globalOperationRefusal(interaction: DiscordInteraction, operation: string): string | null {
+    if (outboxGlobalAdminIds.length === 0) {
+      return `Operatie globala indisponibila: \`/outbox ${operation}\` afecteaza drenarea pentru TOATE serverele, deci e rezervata operatorilor botului. Seteaza \`NOTIFICATION_OUTBOX_GLOBAL_ADMIN_IDS\` cu ID-urile lor ca sa o activezi.`;
+    }
+    const userId = interaction.user?.id;
+    if (!userId || !outboxGlobalAdminIds.includes(userId)) {
+      return `Eroare: \`/outbox ${operation}\` e o operatie globala (afecteaza toate serverele) si e permisa doar operatorilor botului din \`NOTIFICATION_OUTBOX_GLOBAL_ADMIN_IDS\`.`;
+    }
+    return null;
+  }
+
   async function handleOutboxInteraction(interaction: DiscordInteraction): Promise<unknown> {
     if (!interaction.guild) return undefined;
     const guildId = interaction.guild.id;
@@ -346,10 +359,14 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
         if (sub === "replay-deadletters") return safeEdit(interaction, await replayDeadLetters(guildId));
         if (sub === "retry") return safeEdit(interaction, await retryQueued(guildId));
         if (sub === "pause") {
+          const refusal = globalOperationRefusal(interaction, "pause");
+          if (refusal) return safeEdit(interaction, refusal);
           await setOutboxPaused(true);
           return safeEdit(interaction, "OK: Drenarea outbox-ului a fost pusa pe pauza (global). Joburile raman in coada pana la `/outbox resume`.");
         }
         if (sub === "resume") {
+          const refusal = globalOperationRefusal(interaction, "resume");
+          if (refusal) return safeEdit(interaction, refusal);
           await setOutboxPaused(false);
           return safeEdit(interaction, "OK: Drenarea outbox-ului a fost reluata (global).");
         }
@@ -395,7 +412,8 @@ function buildOutboxAdminCommandHandler(target: OutboxAdminContext) {
     logger: target.logger,
     outboxEnabled: target.env.NOTIFICATION_OUTBOX_ENABLED,
     recoveryVerifyGlobal: target.env.NOTIFICATION_OUTBOX_RECOVERY_VERIFY,
-    recoveryStrict: target.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT
+    recoveryStrict: target.env.NOTIFICATION_OUTBOX_RECOVERY_STRICT,
+    outboxGlobalAdminIds: target.env.NOTIFICATION_OUTBOX_GLOBAL_ADMIN_IDS
   });
 
   const command: CommandHandler<DiscordInteraction> = {

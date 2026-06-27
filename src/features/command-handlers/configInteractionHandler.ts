@@ -46,8 +46,8 @@ function onOff(value: boolean | undefined, fallback: boolean): string {
 }
 
 function formatChannel(id: string | null | undefined, active: boolean | undefined): string {
-  if (!active) return "oprit";
-  return id ? `<#${id}>` : "neconfigurat";
+  const target = id ? `<#${id}>` : "neconfigurat";
+  return active ? target : `${target} (oprit)`;
 }
 
 function formatRole(id: string | null | undefined): string {
