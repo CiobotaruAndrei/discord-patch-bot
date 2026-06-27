@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const mod = require("../infra/mongo/adminAlertContent") as typeof import("../infra/mongo/adminAlertContent");
-const { getAlertGuidance, alertKindFamily, buildAdminAlertEmbed } = mod;
+const { getAlertGuidance, alertKindFamily, buildAdminAlertEmbed, toAdminAlertChannelPayload, toAdminAlertWebhookPayload } = mod;
 
 test("alertKindFamily extrage prefixul inainte de ':'", () => {
   assert.equal(alertKindFamily("drift:minecraft"), "drift");
@@ -66,10 +66,19 @@ test("buildAdminAlertEmbed: are fields 'Ce inseamna' + 'Ce trebuie facut', culoa
   assert.equal(embed.timestamp, now.toISOString());
 });
 
-test("buildAdminAlertEmbed: dezactiveaza explicit mention-urile (parse: []) pe ambele cai (channel.send + webhook)", () => {
-  const payload = buildAdminAlertEmbed("feedback:report", "Raport nou", "@everyone please ping <@123>", new Date());
-  assert.deepEqual(payload.allowedMentions, { parse: [] }, "channel.send (discord.js): nicio mentiune nu pinga");
-  assert.deepEqual(payload.allowed_mentions, { parse: [] }, "webhook (REST): nicio mentiune nu pinga");
+test("adaptoarele de alerta admin dezactiveaza explicit mention-urile (parse: []), separat pe cele doua cai", () => {
+  const embed = buildAdminAlertEmbed("feedback:report", "Raport nou", "@everyone please ping <@123>", new Date());
+  assert.ok(!("allowedMentions" in embed) && !("allowed_mentions" in embed), "embed-ul de baza nu mai cupleaza ambele forme de transport");
+
+  const channelPayload = toAdminAlertChannelPayload(embed);
+  assert.deepEqual(channelPayload.allowedMentions, { parse: [] }, "channel.send (discord.js): camelCase, nicio mentiune nu pinga");
+  assert.ok(!("allowed_mentions" in channelPayload), "payload-ul de canal nu poarta forma de webhook");
+
+  const webhookPayload = toAdminAlertWebhookPayload(embed);
+  assert.deepEqual(webhookPayload.allowed_mentions, { parse: [] }, "webhook (REST): snake_case, nicio mentiune nu pinga");
+  assert.ok(!("allowedMentions" in webhookPayload), "payload-ul de webhook nu poarta forma de channel.send");
+
+  assert.deepEqual(channelPayload.embeds, embed.embeds, "ambele adaptoare pastreaza embed-ul");
 });
 
 test("buildAdminAlertEmbed: body gol => '(fara detalii)' si culoare warning pentru kind necunoscut", () => {

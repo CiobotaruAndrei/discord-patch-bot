@@ -661,6 +661,57 @@ test("YouTube manual descarca feed-urile in paralel dar pastreaza ordinea canale
   assert.deepEqual(sentTitles, ["Video A", "Video B"], "ordinea canalelor (A, B) e pastrata desi feed-ul A se rezolva dupa B (fetch paralel)");
 });
 
+test("YouTube manual prin outbox (bypassOutbox=false): enqueue TOATE loturile imediat, fara sleep, cu availableAt decalat per lot (durabil la restart, 16 clipuri -> 4 loturi)", async () => {
+  const now = new Date("2026-06-25T06:00:00.000Z");
+  const batchDelayMs = 600000;
+  const enqueuedAvailableAt: Array<number | undefined> = [];
+  let sleepCalls = 0;
+  const prepared = Array.from({ length: 16 }, (_value, index) => ({
+    channel,
+    video: { ...video, videoId: `vid${String(index).padStart(8, "0")}` },
+    metadata: { durationSeconds: 120, isShort: false, isLive: false, isPremiere: false }
+  }));
+  const service = createYouTubeNotificationService({
+    GuildModel: { find: () => ({ lean: async () => [] }) },
+    logger: () => undefined,
+    runConcurrent: sequentialRunConcurrent,
+    fetchYouTubeFeed: async () => [],
+    fetchYouTubeVideoMetadata: async () => ({ durationSeconds: 120, isShort: false, isLive: false, isPremiere: false }),
+    videoPassesYouTubeFilters: () => true,
+    claimVideo: async () => true,
+    rollbackVideo: async () => undefined,
+    recordChannelSuccess: async () => undefined,
+    recordChannelError: async () => undefined,
+    disableNotificationsForChannelError: async () => ({}),
+    removeRouteForChannelError: async () => ({}),
+    resolveOutboundChannel: async () => ({
+      abort: false,
+      channel: {
+        id: "main",
+        send: async (_payload, meta) => {
+          enqueuedAvailableAt.push((meta as { availableAt?: Date } | undefined)?.availableAt?.getTime());
+          return {};
+        }
+      }
+    }),
+    sleepIfPositive: async () => { sleepCalls++; },
+    transientErrorMessage: error => String(error),
+    GUILD_PROCESS_CONCURRENCY: 1,
+    FETCH_CONCURRENCY: 1,
+    youtubeBatchDelayMs: batchDelayMs,
+    now: () => now
+  } satisfies ServiceDeps);
+  await service.deliverManualVideos(
+    { user: { id: "bot" }, channels: { fetch: async () => null } },
+    { _id: "g1", youtubeChannels: [channel], youtubeNotificationChannelId: "main" },
+    prepared,
+    false
+  );
+  assert.equal(enqueuedAvailableAt.length, 4, "16 videoclipuri -> 4 loturi (5/5/5/1), toate enqueue-uite imediat");
+  assert.equal(sleepCalls, 0, "calea outbox NU doarme intre loturi (drain-ul pace-uieste prin availableAt); un restart nu mai pierde loturile neenqueue-uite");
+  assert.deepEqual(enqueuedAvailableAt, [0, 1, 2, 3].map(i => now.getTime() + i * batchDelayMs), "fiecare lot are availableAt decalat cu batchDelayMs, ca drain-ul sa-l livreze esalonat");
+});
+
 test("YouTube livreaza cel mult 5 videoclipuri per lot si asteapta numai intre loturi", async () => {
   const counts: number[] = [];
   const waits: number[] = [];

@@ -2,7 +2,8 @@ import type { AxiosStatic } from "axios";
 import type { Model } from "mongoose";
 import type { LoggerFunction, RuntimeEnv } from "../../types";
 import { errorMessage } from "../../shared/errors";
-import { buildAdminAlertEmbed } from "./adminAlertContent";
+import { buildAdminAlertEmbed, toAdminAlertChannelPayload, toAdminAlertWebhookPayload } from "./adminAlertContent";
+import type { AdminAlertEmbedPayload } from "./adminAlertContent";
 
 interface AdminAlertCooldownDoc {
   _id: string;
@@ -63,7 +64,7 @@ function isPermanentDiscordChannelError(err: unknown): boolean {
 }
 
 async function sendDiscordAdminAlerts(
-  payload: unknown,
+  payload: AdminAlertEmbedPayload,
   guildId: string | undefined
 ): Promise<{ attempted: number; succeeded: number }> {
   const { GuildModel, logger } = runtimeContext;
@@ -84,7 +85,7 @@ async function sendDiscordAdminAlerts(
     try {
       const channel = await client.channels.fetch(channelId);
       if (!isSendableChannel(channel)) throw Object.assign(new Error("Canal administrativ invalid"), { code: 10003 });
-      await channel.send(payload);
+      await channel.send(toAdminAlertChannelPayload(payload));
       succeeded++;
     } catch (err: unknown) {
       logger("WARN", "ADMIN_ALERT", `Nu am putut trimite alerta in canalul administrativ ${channelId}`, errorMessage(err));
@@ -154,7 +155,7 @@ async function adminAlert(kind: string, title: string, body: unknown, guildId?: 
   if (url) {
     attempted++;
     try {
-      await axios.post(url, payload, { timeout: 5000 });
+      await axios.post(url, toAdminAlertWebhookPayload(payload), { timeout: 5000 });
       succeeded++;
     } catch (err) {
       logger("WARN", "ADMIN_ALERT", "Nu am putut trimite webhook admin", errorMessage(err));

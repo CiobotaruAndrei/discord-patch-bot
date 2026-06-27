@@ -221,7 +221,8 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     guild: GuildSettings,
     items: PreparedVideo[],
     bypassOutbox: boolean,
-    shouldAbort: () => boolean
+    shouldAbort: () => boolean,
+    enqueueStaggered = false
   ): Promise<{ result: DeliveryResult; states: DeliveryState[] }> {
     const states: DeliveryState[] = items.map(item => ({ item, successful: false, pendingDestinations: 0 }));
     const stateByItem = new Map(items.map((item, index) => [item, states[index]]));
@@ -273,7 +274,8 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
                 title: item.video.title,
                 link: item.video.link,
                 itemId: item.video.videoId
-              }))
+              })),
+              availableAt: enqueueStaggered ? new Date(now().getTime() + index * batchDelayMs) : undefined
             }
           );
           batches++;
@@ -281,7 +283,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
             const state = stateByItem.get(item);
             if (state) state.pendingDestinations = Math.max(0, state.pendingDestinations - 1);
           }
-          if (index < chunks.length - 1) await sleepIfPositive(batchDelayMs);
+          if (!enqueueStaggered && index < chunks.length - 1) await sleepIfPositive(batchDelayMs);
         } catch (error) {
           logger("WARN", "YOUTUBE", `Livrarea YouTube a esuat pentru guild ${guild._id} si canalul ${destinationId}`, error);
           break;
@@ -403,7 +405,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     prepared: PreparedVideo[],
     bypassOutbox = true
   ): Promise<DeliveryResult> {
-    const delivery = await deliverPrepared(client, guild, prepared, bypassOutbox, () => false);
+    const delivery = await deliverPrepared(client, guild, prepared, bypassOutbox, () => false, !bypassOutbox);
     return delivery.result;
   }
 

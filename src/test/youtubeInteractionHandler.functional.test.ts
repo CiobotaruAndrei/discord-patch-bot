@@ -29,7 +29,7 @@ function makeInteraction(options: InteractionOptions): HandlerInteraction {
   };
 }
 
-function createHarness(settingsOverrides: object = {}, preparedCount = 3) {
+function createHarness(settingsOverrides: object = {}, preparedCount = 3, outboxEnabled = false) {
   const replies: unknown[] = [];
   const writes: Array<{ filter: object; update: object; options?: object }> = [];
   const seeded: string[][] = [];
@@ -104,7 +104,8 @@ function createHarness(settingsOverrides: object = {}, preparedCount = 3) {
     safeEdit: async (_interaction, payload) => { replies.push(payload); return {}; },
     formatUserError: (_error, fallback) => fallback,
     logger: () => undefined,
-    MessageFlags: { Ephemeral: 64 }
+    MessageFlags: { Ephemeral: 64 },
+    outboxEnabled
   } satisfies HandlerDeps;
   return {
     handler: installYouTube.createYouTubeInteractionHandler(deps),
@@ -390,7 +391,7 @@ test("/youtube videos show porneste afisarea manuala pentru toate canalele", asy
   assert.deepEqual(harness.manualDeliveries, [3], "cele 3 videoclipuri (sub limita de lot) se livreaza imediat si durabil, nu in fundal");
 });
 
-test("/youtube videos show livreaza primul lot imediat (durabil) si trimite restul in fundal pentru selectii mari", async () => {
+test("/youtube videos show livreaza primul lot imediat (durabil) si trimite restul prin outbox cand e activat", async () => {
   const channelId = "UC1234567890123456789012";
   const harness = createHarness({
     youtubeNotificationChannelId: "discord-main",
@@ -400,7 +401,7 @@ test("/youtube videos show livreaza primul lot imediat (durabil) si trimite rest
       channelUrl: `https://www.youtube.com/channel/${channelId}`,
       subscribedAt: new Date()
     }]
-  }, 7);
+  }, 7, true);
   await harness.handler.handleYouTubeInteraction(makeInteraction({
     group: "videos",
     subcommand: "show",
@@ -409,7 +410,28 @@ test("/youtube videos show livreaza primul lot imediat (durabil) si trimite rest
   assert.deepEqual(harness.manualDeliveries, [5, 2], "primul lot de 5 imediat (sincron), restul de 2 durabil");
   assert.deepEqual(harness.manualBypassOutbox, [true, false], "primul lot ocoleste outbox-ul (livrare directa imediata), restul trece prin outbox-ul durabil");
   assert.match(String(harness.replies[0]), /imediat primele 5/, "raporteaza primul lot livrat imediat");
-  assert.match(String(harness.replies[0]), /Restul de 2/, "raporteaza cate raman programate durabil");
+  assert.match(String(harness.replies[0]), /outbox-ul durabil/, "promite durabilitate doar cand outbox-ul e activat");
+});
+
+test("/youtube videos show NU promite durabilitate cand outbox-ul e dezactivat (mesaj onest, livrare directa paced)", async () => {
+  const channelId = "UC1234567890123456789012";
+  const harness = createHarness({
+    youtubeNotificationChannelId: "discord-main",
+    youtubeChannels: [{
+      channelId,
+      channelName: "Canal Test",
+      channelUrl: `https://www.youtube.com/channel/${channelId}`,
+      subscribedAt: new Date()
+    }]
+  }, 7, false);
+  await harness.handler.handleYouTubeInteraction(makeInteraction({
+    group: "videos",
+    subcommand: "show",
+    strings: { canal: "toate" }
+  }));
+  assert.deepEqual(harness.manualBypassOutbox, [true, true], "cu outbox-ul dezactivat, restul se livreaza tot direct (paced), nu prin outbox");
+  assert.match(String(harness.replies[0]), /NU sunt durabile/, "mesaj onest: nu promite durabilitate fara outbox");
+  assert.match(String(harness.replies[0]), /NOTIFICATION_OUTBOX_ENABLED/, "indica de ce nu sunt durabile");
 });
 
 test("/youtube videos show posteaza doar videoclipurile cu destinatie si raporteaza cate au fost sarite (caz mixt: un canal cu ruta, altul fara)", async () => {
