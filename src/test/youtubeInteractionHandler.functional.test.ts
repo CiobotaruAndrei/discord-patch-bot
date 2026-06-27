@@ -354,6 +354,7 @@ test("/youtube title-filter gestioneaza lista inclusiva fara duplicate", async (
 test("/youtube videos show porneste afisarea manuala pentru toate canalele", async () => {
   const channelId = "UC1234567890123456789012";
   const harness = createHarness({
+    youtubeNotificationChannelId: "discord-main",
     youtubeChannels: [{
       channelId,
       channelName: "Canal Test",
@@ -367,9 +368,51 @@ test("/youtube videos show porneste afisarea manuala pentru toate canalele", asy
     strings: { canal: "toate" }
   }));
   assert.deepEqual(harness.manualShows, ["toate"], "pregatirea (rapida) a fost apelata");
-  assert.match(String(harness.replies[0]), /am programat 3/, "raspunde imediat cu numarul de videoclipuri programate");
-  assert.match(String(harness.replies[0]), /fundal/, "comunica livrarea in fundal (nu blocheaza comanda)");
-  assert.deepEqual(harness.manualDeliveries, [3], "livrarea (lenta, cu sleep intre loturi) ruleaza in fundal cu cele 3 videoclipuri pregatite");
+  assert.match(String(harness.replies[0]), /am postat 3/, "raspunde cu cate videoclipuri a postat imediat");
+  assert.deepEqual(harness.manualDeliveries, [3], "cele 3 videoclipuri (sub limita de lot) se livreaza imediat si durabil, nu in fundal");
+});
+
+test("/youtube videos show livreaza primul lot imediat (durabil) si trimite restul in fundal pentru selectii mari", async () => {
+  const channelId = "UC1234567890123456789012";
+  const harness = createHarness({
+    youtubeNotificationChannelId: "discord-main",
+    youtubeChannels: [{
+      channelId,
+      channelName: "Canal Test",
+      channelUrl: `https://www.youtube.com/channel/${channelId}`,
+      subscribedAt: new Date()
+    }]
+  }, 7);
+  await harness.handler.handleYouTubeInteraction(makeInteraction({
+    group: "videos",
+    subcommand: "show",
+    strings: { canal: "toate" }
+  }));
+  assert.deepEqual(harness.manualDeliveries, [5, 2], "primul lot de 5 imediat (sincron), restul de 2 in fundal");
+  assert.match(String(harness.replies[0]), /imediat primele 5/, "raporteaza primul lot livrat imediat");
+  assert.match(String(harness.replies[0]), /Restul de 2/, "raporteaza cate raman in fundal");
+});
+
+test("/youtube videos show fara canal de destinatie configurat nu programeaza nimic si cere /youtube notify channel", async () => {
+  const channelId = "UC1234567890123456789012";
+  const harness = createHarness({
+    youtubeNotificationChannelId: null,
+    youtubeChannelRoutes: [],
+    youtubeChannels: [{
+      channelId,
+      channelName: "Canal Test",
+      channelUrl: `https://www.youtube.com/channel/${channelId}`,
+      subscribedAt: new Date()
+    }]
+  });
+  await harness.handler.handleYouTubeInteraction(makeInteraction({
+    group: "videos",
+    subcommand: "show",
+    strings: { canal: "toate" }
+  }));
+  assert.deepEqual(harness.manualDeliveries, [], "nu se programeaza nicio livrare cand nu exista destinatie");
+  assert.match(String(harness.replies[0]), /niciun canal de destinatie/, "raspunde clar ca lipseste destinatia");
+  assert.match(String(harness.replies[0]), /youtube notify channel/, "indruma spre configurarea canalului");
 });
 
 test("/youtube videos show fara videoclipuri recente nu programeaza nicio livrare in fundal", async () => {

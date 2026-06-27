@@ -18,7 +18,8 @@ import {
   isRecentYouTubeVideo,
   normalizeYouTubeTitleWord,
   parseDiscordChannelReference,
-  validateYouTubeMessageTemplate
+  validateYouTubeMessageTemplate,
+  youtubeDestinationIds
 } from "../youtube/youtubeDeliveryPolicy";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 
@@ -94,6 +95,7 @@ type YouTubeContext = YouTubeInteractionDeps & {
 };
 
 const MAX_YOUTUBE_CHANNELS = 25;
+const YOUTUBE_MANUAL_IMMEDIATE_BATCH = 5;
 
 function defaultFilters(settings: GuildSettings | null): Required<YouTubeFilters> {
   return {
@@ -476,12 +478,22 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     if (!prepared.length) {
       return safeEdit(interaction, "Info: nu exista videoclipuri recente (din ultima luna) de afisat pentru aceasta selectie.");
     }
-    await safeEdit(interaction, `OK: am programat ${prepared.length} videoclip(e) pentru afisare. Livrarea continua in fundal, in loturi de cate 5 la interval de 10 minute, fara sa blocheze comanda.`);
-    void deliverManualYouTubeVideos(client, settings, prepared)
+    const hasDestination = prepared.some(item => youtubeDestinationIds(settings, item.channel.channelId).length > 0);
+    if (!hasDestination) {
+      return safeEdit(interaction, "Eroare: niciun canal de destinatie configurat pentru aceste videoclipuri. Seteaza un canal cu `/youtube notify channel` sau adauga o ruta cu `/youtube channel-route add` inainte de afisarea manuala.");
+    }
+    const immediate = prepared.slice(0, YOUTUBE_MANUAL_IMMEDIATE_BATCH);
+    const remaining = prepared.slice(YOUTUBE_MANUAL_IMMEDIATE_BATCH);
+    const firstResult = await deliverManualYouTubeVideos(client, settings, immediate);
+    if (!remaining.length) {
+      return safeEdit(interaction, `OK: am postat ${firstResult.videos} videoclip(e) pe ${firstResult.destinations} canal(e).`);
+    }
+    await safeEdit(interaction, `OK: am postat imediat primele ${firstResult.videos} videoclip(e). Restul de ${remaining.length} continua in fundal, in loturi de cate ${YOUTUBE_MANUAL_IMMEDIATE_BATCH} la interval de 10 minute; daca botul reporneste in acest interval, reia comanda pentru loturile ramase.`);
+    void deliverManualYouTubeVideos(client, settings, remaining)
       .then(result => deps.logger(
         "INFO",
         "YOUTUBE_COMMAND",
-        `Afisarea manuala YouTube pentru guild ${guildId}: ${result.videos} videoclipuri, ${result.batches} loturi, ${result.destinations} destinatii`
+        `Afisarea manuala YouTube (loturi suplimentare) pentru guild ${guildId}: ${result.videos} videoclipuri, ${result.batches} loturi, ${result.destinations} destinatii`
       ))
       .catch(error => deps.logger(
         "WARN",
