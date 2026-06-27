@@ -3,6 +3,14 @@ type Logger = (level: string, context: string, message: string, meta?: unknown) 
 
 export type ReplayKind = "update" | "discount" | "youtube";
 
+export interface ReplayHistoryEntry {
+  kind: ReplayKind;
+  gameKey?: string;
+  title?: string;
+  link?: string;
+  itemId?: string;
+}
+
 export interface ReplayPayloadInput {
   guildId: string;
   kind: ReplayKind;
@@ -12,6 +20,7 @@ export interface ReplayPayloadInput {
   recoveryVerify?: boolean;
   reason: string;
   itemId?: string;
+  history?: ReplayHistoryEntry[];
 }
 
 export interface ReplayPayloadDoc {
@@ -21,6 +30,7 @@ export interface ReplayPayloadDoc {
   payload: unknown;
   dedupeKey: string;
   recoveryVerify: boolean;
+  history: ReplayHistoryEntry[];
 }
 
 interface ReplayModelLike {
@@ -53,6 +63,24 @@ export function isReplayableReason(reason: string): boolean {
   return Boolean(reason) && !NON_REPLAYABLE_REASONS.has(reason);
 }
 
+function normalizeHistory(raw: unknown): ReplayHistoryEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ReplayHistoryEntry[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const fields = entry as Record<string, unknown>;
+    const kind: ReplayKind = fields.kind === "discount" ? "discount" : fields.kind === "youtube" ? "youtube" : "update";
+    out.push({
+      kind,
+      gameKey: typeof fields.gameKey === "string" ? fields.gameKey : undefined,
+      title: typeof fields.title === "string" ? fields.title : undefined,
+      link: typeof fields.link === "string" ? fields.link : undefined,
+      itemId: typeof fields.itemId === "string" ? fields.itemId : undefined
+    });
+  }
+  return out;
+}
+
 export function createDeadLetterReplayRepository(deps: DeadLetterReplayRepositoryDeps): DeadLetterReplayRepository {
   const { NotificationDeadLetterReplayModel, withMongoRetry, logger } = deps;
   const limit = Math.min(200, Math.max(1, deps.limit ?? DEFAULT_REPLAY_LIMIT));
@@ -70,7 +98,8 @@ export function createDeadLetterReplayRepository(deps: DeadLetterReplayRepositor
       dedupeKey,
       recoveryVerify: input.recoveryVerify === true,
       reason: input.reason,
-      itemId: input.itemId || ""
+      itemId: input.itemId || "",
+      history: Array.isArray(input.history) ? input.history : []
     };
     const now = new Date();
     try {
@@ -90,7 +119,7 @@ export function createDeadLetterReplayRepository(deps: DeadLetterReplayRepositor
 
   async function listForGuild(guildId: string): Promise<ReplayPayloadDoc[]> {
     const docs = await withMongoRetry(
-      () => NotificationDeadLetterReplayModel.find({ guildId }, { kind: 1, channelId: 1, payload: 1, dedupeKey: 1, recoveryVerify: 1 }).sort({ createdAt: 1 }).limit(limit).lean(),
+      () => NotificationDeadLetterReplayModel.find({ guildId }, { kind: 1, channelId: 1, payload: 1, dedupeKey: 1, recoveryVerify: 1, history: 1 }).sort({ createdAt: 1 }).limit(limit).lean(),
       { label: "deadLetterReplay:list" }
     );
     return docs.map(doc => ({
@@ -99,7 +128,8 @@ export function createDeadLetterReplayRepository(deps: DeadLetterReplayRepositor
       channelId: String(doc.channelId || ""),
       payload: doc.payload,
       dedupeKey: String(doc.dedupeKey || ""),
-      recoveryVerify: doc.recoveryVerify === true
+      recoveryVerify: doc.recoveryVerify === true,
+      history: normalizeHistory(doc.history)
     }));
   }
 

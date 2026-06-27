@@ -66,6 +66,12 @@ test("buildAdminAlertEmbed: are fields 'Ce inseamna' + 'Ce trebuie facut', culoa
   assert.equal(embed.timestamp, now.toISOString());
 });
 
+test("buildAdminAlertEmbed: dezactiveaza explicit mention-urile (parse: []) pe ambele cai (channel.send + webhook)", () => {
+  const payload = buildAdminAlertEmbed("feedback:report", "Raport nou", "@everyone please ping <@123>", new Date());
+  assert.deepEqual(payload.allowedMentions, { parse: [] }, "channel.send (discord.js): nicio mentiune nu pinga");
+  assert.deepEqual(payload.allowed_mentions, { parse: [] }, "webhook (REST): nicio mentiune nu pinga");
+});
+
 test("buildAdminAlertEmbed: body gol => '(fara detalii)' si culoare warning pentru kind necunoscut", () => {
   const payload = buildAdminAlertEmbed("x:y", "T", null, new Date());
   assert.match(payload.embeds[0].description, /\(fara detalii\)/);

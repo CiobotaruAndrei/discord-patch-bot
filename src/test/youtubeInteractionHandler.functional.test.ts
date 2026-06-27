@@ -36,6 +36,7 @@ function createHarness(settingsOverrides: object = {}, preparedCount = 3) {
   const removed: string[] = [];
   const manualShows: string[] = [];
   const manualDeliveries: number[] = [];
+  const manualBypassOutbox: boolean[] = [];
   let cleared = 0;
   const settings = {
     _id: "guild-1",
@@ -89,8 +90,9 @@ function createHarness(settingsOverrides: object = {}, preparedCount = 3) {
         metadata: { durationSeconds: 120, isShort: false, isLive: false, isPremiere: false }
       }));
     },
-    deliverManualYouTubeVideos: async (_client, _guild, prepared) => {
+    deliverManualYouTubeVideos: async (_client, _guild, prepared, bypassOutbox = true) => {
       manualDeliveries.push(prepared.length);
+      manualBypassOutbox.push(bypassOutbox);
       return { videos: prepared.length, batches: 1, destinations: 1 };
     },
     checkChannelPermissions: async () => ({
@@ -112,6 +114,7 @@ function createHarness(settingsOverrides: object = {}, preparedCount = 3) {
     removed,
     manualShows,
     manualDeliveries,
+    manualBypassOutbox,
     getCleared: () => cleared
   };
 }
@@ -206,8 +209,23 @@ test("/youtube errors, permissions si clear-errors expun mentenanta modulului", 
   await harness.handler.handleYouTubeInteraction(makeInteraction({ subcommand: "permissions" }));
   await harness.handler.handleYouTubeInteraction(makeInteraction({ subcommand: "clear-errors" }));
   assert.match(JSON.stringify(harness.replies[0]), /feed indisponibil/);
-  assert.match(String(harness.replies[1]), /Send Messages: ON/);
+  assert.match(String(harness.replies[1]), /<#discord-1>: Send Messages ON/);
   assert.equal(harness.getCleared(), 1);
+});
+
+test("/youtube permissions verifica si canalele din rutele speciale, nu doar canalul principal", async () => {
+  const harness = createHarness({
+    youtubeNotificationChannelId: "discord-main",
+    youtubeChannelRoutes: [
+      { channelId: "UCaaa", discordChannelIds: ["route-1", "route-2"] },
+      { channelId: "UCbbb", discordChannelIds: ["route-2"] }
+    ]
+  });
+  await harness.handler.handleYouTubeInteraction(makeInteraction({ subcommand: "permissions" }));
+  const reply = String(harness.replies[0]);
+  for (const id of ["discord-main", "route-1", "route-2"]) {
+    assert.match(reply, new RegExp(`<#${id}>`), `permisiunile pentru <#${id}> sunt raportate`);
+  }
 });
 
 test("/youtube errors taie raspunsul sub limita Discord cand erorile sunt multe si lungi", async () => {
@@ -388,9 +406,28 @@ test("/youtube videos show livreaza primul lot imediat (durabil) si trimite rest
     subcommand: "show",
     strings: { canal: "toate" }
   }));
-  assert.deepEqual(harness.manualDeliveries, [5, 2], "primul lot de 5 imediat (sincron), restul de 2 in fundal");
+  assert.deepEqual(harness.manualDeliveries, [5, 2], "primul lot de 5 imediat (sincron), restul de 2 durabil");
+  assert.deepEqual(harness.manualBypassOutbox, [true, false], "primul lot ocoleste outbox-ul (livrare directa imediata), restul trece prin outbox-ul durabil");
   assert.match(String(harness.replies[0]), /imediat primele 5/, "raporteaza primul lot livrat imediat");
-  assert.match(String(harness.replies[0]), /Restul de 2/, "raporteaza cate raman in fundal");
+  assert.match(String(harness.replies[0]), /Restul de 2/, "raporteaza cate raman programate durabil");
+});
+
+test("/youtube videos show posteaza doar videoclipurile cu destinatie si raporteaza cate au fost sarite (caz mixt: un canal cu ruta, altul fara)", async () => {
+  const harness = createHarness({
+    youtubeNotificationChannelId: null,
+    youtubeChannelRoutes: [{ channelId: "UC0", discordChannelIds: ["route-x"] }],
+    youtubeChannels: [
+      { channelId: "UC0", channelName: "Cu ruta", channelUrl: "https://www.youtube.com/UC0", subscribedAt: new Date() },
+      { channelId: "UC1", channelName: "Fara ruta", channelUrl: "https://www.youtube.com/UC1", subscribedAt: new Date() }
+    ]
+  }, 3);
+  await harness.handler.handleYouTubeInteraction(makeInteraction({
+    group: "videos",
+    subcommand: "show",
+    strings: { canal: "toate" }
+  }));
+  assert.deepEqual(harness.manualDeliveries, [1], "se posteaza doar videoclipul cu destinatie (UC0 cu ruta), nu si UC1/UC2 fara destinatie");
+  assert.match(String(harness.replies[0]), /2 sarite/, "raporteaza cate videoclipuri au fost sarite (fara destinatie)");
 });
 
 test("/youtube videos show fara canal de destinatie configurat nu programeaza nimic si cere /youtube notify channel", async () => {

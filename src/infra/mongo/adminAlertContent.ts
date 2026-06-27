@@ -146,6 +146,8 @@ export interface AdminAlertEmbedPayload {
     fields: AdminAlertEmbedField[];
     footer: { text: string };
   }>;
+  allowedMentions: { parse: string[] };
+  allowed_mentions: { parse: string[] };
 }
 
 export function buildAdminAlertEmbed(kind: string, title: string, body: unknown, now: Date): AdminAlertEmbedPayload {
@@ -163,6 +165,8 @@ export function buildAdminAlertEmbed(kind: string, title: string, body: unknown,
         { name: "Ce trebuie facut", value: guidance.action.slice(0, 1024) }
       ],
       footer: { text: `kind=${kind} - severity=${guidance.severity}` }
-    }]
+    }],
+    allowedMentions: { parse: [] },
+    allowed_mentions: { parse: [] }
   };
 }

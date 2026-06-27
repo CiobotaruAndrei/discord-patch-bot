@@ -289,6 +289,7 @@ const deadLetterReplaySchema = new mongoose.Schema({
   recoveryVerify: { type: Boolean, default: false },
   reason: { type: String, default: "" },
   itemId: { type: String, default: "" },
+  history: { type: [mongoose.Schema.Types.Mixed], default: [] },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now, expires: DEAD_LETTER_REPLAY_TTL_DAYS * ONE_DAY_MS / 1000 }
 }, { minimize: false });
