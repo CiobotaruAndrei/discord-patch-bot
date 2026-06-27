@@ -1,6 +1,7 @@
 "use strict";
 
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { clampJoinedList } from "../command-presentation/discordListLimit";
 
 const { errorDetail } = require("../../shared/errors");
 const defaultRequireGuildAdmin = require("../command-security/adminPermissionGuard") as RequireGuildAdmin;
@@ -121,7 +122,7 @@ function buildReportListEmbed(records: ReportRecord[]): { title: string; descrip
 
   return {
     title: `Rapoarte recente (${records.length})`,
-    description: lines.join("\n"),
+    description: clampJoinedList(lines, 4096),
     color: records.some(record => !record.resolvedAt) ? 0xe67e22 : 0x2ecc71,
     footer: { text: "Rezolvare: /report resolve id:<id>" }
   };

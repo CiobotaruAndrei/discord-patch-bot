@@ -3,6 +3,7 @@
 import type { OutboxDiscordClient } from "../notifications/outboundChannel";
 import type { RuntimeEnv } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { clampJoinedList } from "../command-presentation/discordListLimit";
 
 const { errorDetail, errorMessage } = require("../../shared/errors");
 
@@ -159,8 +160,8 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
     const list = Array.isArray(settings?.notificationDeadLetter) ? settings!.notificationDeadLetter! : [];
     if (!list.length) return "Nicio livrare in dead-letter pentru acest server.";
     const recent = list.slice(-previewLimit).reverse();
-    const header = `**Dead-letter (ultimele ${recent.length} din ${list.length})**`;
-    return [header, ...recent.map(formatDeadLetterEntry)].join("\n");
+    const header = `**Dead-letter (ultimele ${recent.length} din ${list.length})**\n`;
+    return `${header}${clampJoinedList(recent.map(formatDeadLetterEntry), 2000 - header.length)}`;
   }
 
   async function clearDeadLetters(guildId: string): Promise<string> {

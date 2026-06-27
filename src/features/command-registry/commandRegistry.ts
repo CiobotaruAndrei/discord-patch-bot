@@ -103,8 +103,10 @@ function requireInstalled<T>(value: T | undefined, key: string): T {
   return value;
 }
 
-function createCommandRegistry(): RequiredCommandRegistry {
-  const base: CommandRuntimeBootContext & HandlerMutableContext = createCommandRuntimeContext();
+function createCommandRegistry(
+  overrides: Partial<CommandRuntimeBootContext & HandlerMutableContext> = {}
+): RequiredCommandRegistry {
+  const base: CommandRuntimeBootContext & HandlerMutableContext = Object.assign(createCommandRuntimeContext(), overrides);
 
   const withCache = Object.assign(base, attachCommandCache.createCommandCache(base));
   const withFilters = Object.assign(withCache, {

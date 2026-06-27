@@ -126,7 +126,7 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   assert.equal((cmd.match(/as never/g) || []).length, 0, "commandRegistry nu mai are granita as never");
   assert.equal((src.match(/as never/g) || []).length, 0, "sourceRegistry nu mai are granita as never");
   assert.ok(!cmd.includes("LegacyInstallerTarget"), "commandRegistry nu mai are tinta legacy bazata pe Record<string, unknown>");
-  assert.match(cmd, /function createCommandRegistry\(\): RequiredCommandRegistry/, "commandRegistry compune explicit, cu tip de retur inchis RequiredCommandRegistry (nu mai accepta installers ca parametru)");
+  assert.match(cmd, /function createCommandRegistry\(\s*overrides: Partial<[^)]+> = \{\}\s*\): RequiredCommandRegistry/, "commandRegistry compune explicit, cu tip de retur inchis RequiredCommandRegistry; singurul parametru e un override TIPAT Partial<context> pentru injectare in teste (nu un boundary de installers dinamici)");
   assert.ok(!/installers/.test(cmd), "commandRegistry nu mai are mecanismul de installers dinamici: compunere prin factory-uri reale + Object.assign + lista tipata CommandHandler[]");
   assert.ok(!cmd.includes("CommandInstallerTarget"), "commandRegistry nu mai are CommandInstallerTarget (boundary-ul dinamic installers: unknown[] a fost eliminat)");
   assert.ok(!cmd.includes("isCommandModuleInstaller"), "commandRegistry nu mai are garda runtime isCommandModuleInstaller (compunerea e statica, verificata de tsc)");

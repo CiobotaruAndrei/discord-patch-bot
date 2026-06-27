@@ -6,6 +6,7 @@ import { createRateLimiter, firstHeaderValue } from "../app/health/rateLimit";
 type CommandPresentation = {
   buildDealEmbed: (...args: unknown[]) => unknown;
   buildSteamPriceEmbed: (...args: unknown[]) => unknown;
+  safeEdit: (interaction: unknown, payload: unknown) => Promise<unknown>;
 };
 type RecordingEmbed = Record<string, unknown> & { _state: Record<string, unknown> };
 
@@ -49,6 +50,34 @@ function makePresentationContext() {
   const ui = attachCommandUi.createCommandPresentation(context);
   return { ui, embeds };
 }
+
+test("safeEdit: cand editReply esueaza, trimite un followUp ephemeral de fallback (nu lasa userul fara raspuns)", async () => {
+  const { ui } = makePresentationContext();
+  const followUps: Array<Record<string, unknown>> = [];
+  const interaction = {
+    deferred: true,
+    replied: false,
+    editReply: async () => { throw new Error("Invalid Form Body (mesaj prea lung)"); },
+    followUp: async (payload: Record<string, unknown>) => { followUps.push(payload); return {}; }
+  };
+  const result = await ui.safeEdit(interaction, { content: "x".repeat(5000) });
+  assert.equal(result, null, "safeEdit intoarce null la esec");
+  assert.equal(followUps.length, 1, "s-a trimis un followUp de fallback");
+  assert.equal(followUps[0].flags, 64, "fallback-ul e ephemeral");
+  assert.match(String(followUps[0].content), /nu am putut afisa/i);
+});
+
+test("safeEdit: daca si followUp-ul de fallback esueaza, nu arunca (best-effort)", async () => {
+  const { ui } = makePresentationContext();
+  const interaction = {
+    deferred: true,
+    replied: false,
+    editReply: async () => { throw new Error("edit fail"); },
+    followUp: async () => { throw new Error("followUp fail"); }
+  };
+  const result = await ui.safeEdit(interaction, { content: "x" });
+  assert.equal(result, null);
+});
 
 test("buildDealEmbed: savings undefined/null/NaN nu produce 'undefined%' sau 'NaN%'", () => {
   const { ui, embeds } = makePresentationContext();
