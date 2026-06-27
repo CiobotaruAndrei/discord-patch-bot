@@ -2,6 +2,7 @@
 
 import type { CommandHandler } from "../command-registry/commandHandler";
 import type { CurrencyCode, GameConfig, GuildSettings, NotificationMode } from "../../types";
+import { clampJoinedList } from "../command-presentation/discordListLimit";
 
 const { errorDetail } = require("../../shared/errors");
 
@@ -61,10 +62,11 @@ function formatGames(settings: GuildSettings | null, games: GameConfig[]): strin
   const enabled = Array.isArray(settings?.enabledGames) ? settings.enabledGames : [];
   if (!enabled.length) return "toate jocurile configurate";
   const byKey = new Map(games.map(game => [String(game.key).toLowerCase(), game]));
-  return enabled.map(key => {
+  const items = enabled.map(key => {
     const game = byKey.get(String(key).toLowerCase());
     return game ? `${game.name} (${game.key})` : String(key);
-  }).join(", ");
+  });
+  return clampJoinedList(items, 1024, { separator: ", " });
 }
 
 function formatStores(settings: GuildSettings | null): string {

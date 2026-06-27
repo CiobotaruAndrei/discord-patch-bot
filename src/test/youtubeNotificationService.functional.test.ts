@@ -101,6 +101,45 @@ test("YouTube cron descarca un feed comun o singura data si livreaza per guild c
   assert.match(JSON.stringify(sent[0].meta), /youtube/);
 });
 
+test("YouTube cron descarca metadata HTML a unui videoclip o singura data per ciclu, chiar daca mai multe servere il urmaresc", async () => {
+  let metadataCalls = 0;
+  const guilds = ["g1", "g2", "g3"].map(id => ({
+    _id: id,
+    youtubeChannels: [channel],
+    youtubeNotificationChannelId: `discord-${id}`,
+    youtubeNotificationsEnabled: true
+  }));
+  const service = createYouTubeNotificationService({
+    GuildModel: { find: () => ({ lean: async () => guilds }) },
+    logger: () => undefined,
+    runConcurrent: sequentialRunConcurrent,
+    fetchYouTubeFeed: async () => [video],
+    fetchYouTubeVideoMetadata: async () => {
+      metadataCalls++;
+      return { durationSeconds: 120, isShort: false, isLive: false, isPremiere: false };
+    },
+    videoPassesYouTubeFilters: () => true,
+    claimVideo: async () => true,
+    rollbackVideo: async () => undefined,
+    recordChannelSuccess: async () => undefined,
+    recordChannelError: async () => undefined,
+    disableNotificationsForChannelError: async () => ({}),
+    resolveOutboundChannel: async () => ({
+      abort: false,
+      channel: { id: "discord", send: async () => ({}) }
+    }),
+    sleepIfPositive: async () => undefined,
+    transientErrorMessage: error => String(error),
+    removeRouteForChannelError: async () => ({}),
+    youtubeBatchDelayMs: 0,
+    now: () => new Date("2026-06-25T06:00:00.000Z"),
+    GUILD_PROCESS_CONCURRENCY: 3,
+    FETCH_CONCURRENCY: 3
+  } satisfies ServiceDeps);
+  await service.checkForYouTube({ user: { id: "bot" }, channels: { fetch: async () => null } });
+  assert.equal(metadataCalls, 1, "acelasi videoId nu mai declanseaza un fetch de metadata per server (cache per ciclu)");
+});
+
 test("YouTube cron marcheaza videoclipurile vazute fara livrare cand notificarile sunt oprite", async () => {
   let claims = 0;
   let resolves = 0;
@@ -194,6 +233,56 @@ test("YouTube cron face rollback daca pierde lock-ul dupa claim si inainte de li
   );
   assert.deepEqual(rolledBack, [video.videoId]);
   assert.equal(sends, 0);
+});
+
+test("YouTube cron face rollback la un videoclip livrat partial pe rute (A reuseste, B esueaza) ca sa reincerce ruta esuata", async () => {
+  const rolledBack: string[] = [];
+  const sentTo: string[] = [];
+  const service = createYouTubeNotificationService({
+    GuildModel: { find: () => ({ lean: async () => [] }) },
+    logger: () => undefined,
+    runConcurrent: sequentialRunConcurrent,
+    fetchYouTubeFeed: async () => [video],
+    fetchYouTubeVideoMetadata: async () => ({ durationSeconds: 120, isShort: false, isLive: false, isPremiere: false }),
+    videoPassesYouTubeFilters: () => true,
+    claimVideo: async () => true,
+    rollbackVideo: async (_guildId, _channelId, videoId) => { rolledBack.push(videoId); },
+    recordChannelSuccess: async () => undefined,
+    recordChannelError: async () => undefined,
+    disableNotificationsForChannelError: async () => ({}),
+    resolveOutboundChannel: async (options) => ({
+      abort: false,
+      channel: {
+        id: String(options.channelId),
+        send: async () => {
+          if (options.channelId === "discord-B") throw new Error("rate limited");
+          sentTo.push(String(options.channelId));
+          return {};
+        }
+      }
+    }),
+    sleepIfPositive: async () => undefined,
+    transientErrorMessage: error => String(error),
+    removeRouteForChannelError: async () => ({}),
+    youtubeBatchDelayMs: 0,
+    now: () => new Date("2026-06-25T06:00:00.000Z"),
+    GUILD_PROCESS_CONCURRENCY: 1,
+    FETCH_CONCURRENCY: 1
+  } satisfies ServiceDeps);
+  await service.processGuild(
+    { user: { id: "bot" }, channels: { fetch: async () => null } },
+    {
+      _id: "g1",
+      youtubeChannels: [channel],
+      youtubeNotificationsEnabled: true,
+      youtubeNotificationChannelId: "discord-main",
+      youtubeChannelRoutes: [{ channelId: channel.channelId, discordChannelIds: ["discord-A", "discord-B"] }]
+    },
+    new Map([[channel.channelId, { videos: [video], error: "" }]]),
+    () => false
+  );
+  assert.deepEqual(sentTo, ["discord-A"], "ruta A a primit livrarea");
+  assert.deepEqual(rolledBack, [video.videoId], "videoclipul livrat doar partial (A da, B nu) e rollback-uit ca sa reincerce ruta B");
 });
 
 test("YouTube cron imparte embed-urile si dupa bugetul Discord de caractere", async () => {

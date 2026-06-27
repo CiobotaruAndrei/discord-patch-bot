@@ -75,6 +75,7 @@ interface PreparedVideo {
 interface DeliveryState {
   item: PreparedVideo;
   successful: boolean;
+  pendingDestinations: number;
 }
 
 interface DeliveryResult {
@@ -192,12 +193,24 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     return results;
   }
 
+  function createMetadataCache(): (video: YouTubeVideo) => Promise<YouTubeVideoMetadata> {
+    const cache = new Map<string, Promise<YouTubeVideoMetadata>>();
+    return (video: YouTubeVideo) => {
+      const cached = cache.get(video.videoId);
+      if (cached) return cached;
+      const pending = fetchYouTubeVideoMetadata(video);
+      cache.set(video.videoId, pending);
+      return pending;
+    };
+  }
+
   async function prepareVideo(
     guild: GuildSettings,
     channel: YouTubeChannelSubscription,
-    video: YouTubeVideo
+    video: YouTubeVideo,
+    resolveMetadata: (video: YouTubeVideo) => Promise<YouTubeVideoMetadata> = fetchYouTubeVideoMetadata
   ): Promise<PreparedVideo | null> {
-    const metadata = await fetchYouTubeVideoMetadata(video);
+    const metadata = await resolveMetadata(video);
     if (!videoPassesYouTubeFilters(metadata, guild.youtubeFilters)) return null;
     if (!videoPassesYouTubeTitleFilter(video, guild.youtubeTitleIncludeWords)) return null;
     return { channel, video, metadata };
@@ -210,11 +223,14 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     bypassOutbox: boolean,
     shouldAbort: () => boolean
   ): Promise<{ result: DeliveryResult; states: DeliveryState[] }> {
-    const states = items.map(item => ({ item, successful: false }));
+    const states: DeliveryState[] = items.map(item => ({ item, successful: false, pendingDestinations: 0 }));
     const stateByItem = new Map(items.map((item, index) => [item, states[index]]));
     const groups = new Map<string, PreparedVideo[]>();
     for (const item of items) {
-      for (const destinationId of youtubeDestinationIds(guild, item.channel.channelId)) {
+      const destinationIds = youtubeDestinationIds(guild, item.channel.channelId);
+      const state = stateByItem.get(item);
+      if (state) state.pendingDestinations = destinationIds.length;
+      for (const destinationId of destinationIds) {
         const destinationItems = groups.get(destinationId) || [];
         destinationItems.push(item);
         groups.set(destinationId, destinationItems);
@@ -263,7 +279,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
           batches++;
           for (const item of chunk) {
             const state = stateByItem.get(item);
-            if (state) state.successful = true;
+            if (state) state.pendingDestinations = Math.max(0, state.pendingDestinations - 1);
           }
           if (index < chunks.length - 1) await sleepIfPositive(batchDelayMs);
         } catch (error) {
@@ -272,6 +288,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
         }
       }
     }
+    for (const state of states) state.successful = state.pendingDestinations === 0;
     return {
       result: {
         videos: states.filter(state => state.successful).length,
@@ -286,7 +303,8 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     client: NotificationDiscordClient,
     guild: GuildSettings,
     feeds: ReadonlyMap<string, FeedResult>,
-    shouldAbort: () => boolean
+    shouldAbort: () => boolean,
+    resolveMetadata: (video: YouTubeVideo) => Promise<YouTubeVideoMetadata> = fetchYouTubeVideoMetadata
   ): Promise<void> {
     const guildId = String(guild._id);
     const prepared: PreparedVideo[] = [];
@@ -324,7 +342,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
         }
         if (!(await claimVideo(guildId, channel.channelId, video.videoId))) continue;
         try {
-          const item = await prepareVideo(guild, channel, video);
+          const item = await prepareVideo(guild, channel, video, resolveMetadata);
           if (!item) continue;
           if (!youtubeDestinationIds(guild, channel.channelId).length) {
             await rollbackVideo(guildId, channel.channelId, video.videoId).catch(() => undefined);
@@ -382,10 +400,11 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     const guilds = await GuildModel.find({ "youtubeChannels.0": { $exists: true } }).lean();
     if (!guilds.length || abort()) return;
     const feeds = await loadFeeds(guilds);
+    const resolveMetadata = createMetadataCache();
     const result = await runConcurrent(
       guilds,
       Math.max(1, GUILD_PROCESS_CONCURRENCY),
-      guild => processGuild(client, guild, feeds, abort)
+      guild => processGuild(client, guild, feeds, abort, resolveMetadata)
     );
     if (result.errors.length === guilds.length && guilds.length > 0) {
       throw new Error(

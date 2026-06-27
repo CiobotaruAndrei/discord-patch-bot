@@ -54,7 +54,8 @@ const priceAlertSchema = new mongoose.Schema({
   currency: { type: String, enum: Object.keys(SUPPORTED_CURRENCIES), required: true },
   triggeredAt: { type: Date, default: null },
   lastObservedPrice: { type: Number, default: null },
-  lastObservedAt: { type: Date, default: null }
+  lastObservedAt: { type: Date, default: null },
+  absentCycles: { type: Number, default: 0 }
 }, { _id: false });
 
 const youtubeLastErrorSchema = new mongoose.Schema({

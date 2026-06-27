@@ -32,7 +32,7 @@ test("price alert matcher prefera appId si selecteaza cea mai ieftina oferta", (
   assert.equal(cheapestMatchingDeal(deals, alert)?.price, 24.5);
 });
 
-function makeService(claimMatched = true) {
+function makeService(claimMatched = true, rearmAbsentCycles = 3) {
   const updates: Array<{ filter: Record<string, unknown>; update: Record<string, unknown>; options?: Record<string, unknown> }> = [];
   const sent: Array<Record<string, unknown>> = [];
   const service = createPriceAlertService({
@@ -57,7 +57,8 @@ function makeService(claimMatched = true) {
     rollbackTriggeredAlert: async () => ({ matchedCount: 1, modifiedCount: 1 }),
     formatPrice: (value, currency) => `${value} ${currency}`,
     sleepIfPositive: async () => undefined,
-    DISCORD_SEND_DELAY_MS: 0
+    DISCORD_SEND_DELAY_MS: 0,
+    rearmAbsentCycles
   });
   return { service, updates, sent };
 }
@@ -110,4 +111,58 @@ test("price alert service rearmeaza alerta dupa ce pretul urca peste prag", asyn
     const setDoc = call.update.$set as Record<string, unknown> | undefined;
     return setDoc?.["priceAlerts.$[alert].triggeredAt"] === null;
   }));
+});
+
+test("price alert service rearmeaza dupa N cicluri in care jocul lipseste din feed-ul de reduceri (oferta s-a terminat)", async () => {
+  const { service, updates, sent } = makeService(true, 2);
+  const triggered = { ...alert, triggeredAt: new Date("2026-06-24T06:00:00Z"), absentCycles: 1 };
+  const deals = new Map([["EUR", [{ title: "Cu totul alt joc", salePrice: 5 }]]]);
+
+  await service.processGuildPriceAlerts(makeNotificationDiscordClient(), guild(triggered), deals);
+
+  assert.equal(sent.length, 0);
+  const rearm = updates.find(call => {
+    const setDoc = call.update.$set as Record<string, unknown> | undefined;
+    return setDoc?.["priceAlerts.$[alert].triggeredAt"] === null;
+  });
+  assert.ok(rearm, "alerta s-a rearmat la al doilea ciclu de absenta (absentCycles 1 -> 2 >= prag)");
+  assert.equal((rearm.update.$set as Record<string, unknown>)["priceAlerts.$[alert].absentCycles"], 0, "contorul de absenta se reseteaza la rearmare");
+});
+
+test("price alert service doar incrementeaza contorul de absenta sub pragul de rearmare (nu rearmeaza inca)", async () => {
+  const { service, updates, sent } = makeService(true, 3);
+  const triggered = { ...alert, triggeredAt: new Date("2026-06-24T06:00:00Z"), absentCycles: 0 };
+  const deals = new Map([["EUR", [{ title: "Cu totul alt joc", salePrice: 5 }]]]);
+
+  await service.processGuildPriceAlerts(makeNotificationDiscordClient(), guild(triggered), deals);
+
+  assert.equal(sent.length, 0);
+  assert.equal(updates.length, 1);
+  const setDoc = updates[0].update.$set as Record<string, unknown>;
+  assert.equal(setDoc["priceAlerts.$[alert].absentCycles"], 1, "contorul creste la 1");
+  assert.ok(!("priceAlerts.$[alert].triggeredAt" in setDoc), "nu se rearmeaza inca (sub prag)");
+});
+
+test("price alert service NU rearmeaza pe esec global de sursa (moneda lipseste din feed) - nicio scriere", async () => {
+  const { service, updates, sent } = makeService(true, 1);
+  const triggered = { ...alert, triggeredAt: new Date("2026-06-24T06:00:00Z"), absentCycles: 5 };
+  const dealsWithoutCurrency = new Map<string, Array<Record<string, unknown>>>();
+
+  await service.processGuildPriceAlerts(makeNotificationDiscordClient(), guild(triggered), dealsWithoutCurrency);
+
+  assert.equal(sent.length, 0);
+  assert.equal(updates.length, 0, "fara feed pentru moneda (esec de sursa) nu se observa nimic, deci nu se rearmeaza");
+});
+
+test("price alert service reseteaza contorul de absenta cand jocul reapare in feed", async () => {
+  const { service, updates } = makeService(true);
+  const observed = { ...alert, triggeredAt: new Date("2026-06-24T06:00:00Z"), absentCycles: 2 };
+  const deals = new Map([["EUR", [{ title: "Elden Ring", appId: "1245620", salePrice: 25 }]]]);
+
+  await service.processGuildPriceAlerts(makeNotificationDiscordClient(), guild(observed), deals);
+
+  assert.ok(updates.some(call => {
+    const setDoc = call.update.$set as Record<string, unknown> | undefined;
+    return setDoc?.["priceAlerts.$[alert].absentCycles"] === 0;
+  }), "observarea jocului reseteaza absentCycles la 0");
 });

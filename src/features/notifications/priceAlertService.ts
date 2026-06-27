@@ -31,6 +31,7 @@ export interface PriceAlertServiceDeps {
   formatPrice(value: PriceValue, currencyCode?: string | null): string;
   sleepIfPositive(ms: number): Promise<void>;
   DISCORD_SEND_DELAY_MS: number;
+  rearmAbsentCycles: number;
 }
 
 interface TriggeredPriceAlert {
@@ -116,13 +117,16 @@ function splitIntoChunks<T>(items: T[], size: number): T[][] {
 export function createPriceAlertService(deps: PriceAlertServiceDeps) {
   const {
     GuildModel, logger, resolveOutboundChannel, disableDiscountsForChannelError,
-    rollbackTriggeredAlert, formatPrice, sleepIfPositive, DISCORD_SEND_DELAY_MS
+    rollbackTriggeredAlert, formatPrice, sleepIfPositive, DISCORD_SEND_DELAY_MS, rearmAbsentCycles
   } = deps;
+
+  const rearmThreshold = Math.max(1, Math.floor(rearmAbsentCycles) || 1);
 
   async function updateObservedPrice(guildId: string, alert: PriceAlertRule, price: number, rearm: boolean): Promise<void> {
     const setDoc: Record<string, unknown> = {
       "priceAlerts.$[alert].lastObservedPrice": price,
-      "priceAlerts.$[alert].lastObservedAt": new Date()
+      "priceAlerts.$[alert].lastObservedAt": new Date(),
+      "priceAlerts.$[alert].absentCycles": 0
     };
     if (rearm) setDoc["priceAlerts.$[alert].triggeredAt"] = null;
     await GuildModel.updateOne(
@@ -130,6 +134,22 @@ export function createPriceAlertService(deps: PriceAlertServiceDeps) {
       { $set: setDoc },
       { arrayFilters: [{ "alert.gameKey": alert.gameKey, "alert.currency": alert.currency }] }
     );
+  }
+
+  async function registerAbsentObservation(guildId: string, alert: PriceAlertRule, nextAbsent: number): Promise<void> {
+    const rearm = nextAbsent >= rearmThreshold;
+    const setDoc: Record<string, unknown> = {
+      "priceAlerts.$[alert].absentCycles": rearm ? 0 : nextAbsent
+    };
+    if (rearm) setDoc["priceAlerts.$[alert].triggeredAt"] = null;
+    await GuildModel.updateOne(
+      { _id: guildId },
+      { $set: setDoc },
+      { arrayFilters: [{ "alert.gameKey": alert.gameKey, "alert.currency": alert.currency }] }
+    );
+    if (rearm) {
+      logger("INFO", "PRICE_ALERT", `Alerta de pret rearmata (jocul ${alert.gameKey} a lipsit ${nextAbsent} cicluri din feed-ul de reduceri) pentru guild ${guildId}`);
+    }
   }
 
   async function claimTrigger(guildId: string, alert: PriceAlertRule, price: number): Promise<boolean> {
@@ -148,7 +168,8 @@ export function createPriceAlertService(deps: PriceAlertServiceDeps) {
         $set: {
           "priceAlerts.$.triggeredAt": new Date(),
           "priceAlerts.$.lastObservedPrice": price,
-          "priceAlerts.$.lastObservedAt": new Date()
+          "priceAlerts.$.lastObservedAt": new Date(),
+          "priceAlerts.$.absentCycles": 0
         }
       }
     );
@@ -169,7 +190,12 @@ export function createPriceAlertService(deps: PriceAlertServiceDeps) {
       const deals = dealsByCurrency.get(currency);
       if (!deals) continue;
       const selected = cheapestMatchingDeal(deals, alert);
-      if (!selected) continue;
+      if (!selected) {
+        if (alert.triggeredAt) {
+          await registerAbsentObservation(guildId, alert, (Number(alert.absentCycles) || 0) + 1);
+        }
+        continue;
+      }
       if (selected.price > alert.threshold) {
         await updateObservedPrice(guildId, alert, selected.price, Boolean(alert.triggeredAt));
         continue;
