@@ -803,7 +803,7 @@ function makeMetricsModel(jobs: OutboxJob[]): OutboxModelMock {
       const due = lte
         ? jobs.filter(j => j.availableAt && new Date(j.availableAt).getTime() <= lte.getTime())
         : jobs.slice();
-      const sorted = due.slice().sort((a, b) => new Date(a.createdAt as Date).getTime() - new Date(b.createdAt as Date).getTime());
+      const sorted = due.slice().sort((a, b) => new Date(a.availableAt as Date).getTime() - new Date(b.availableAt as Date).getTime());
       return { sort: () => ({ limit: () => ({ lean: async () => sorted.slice(0, 1) }) }) };
     },
     deleteOne: async () => ({ deletedCount: 0 }),
@@ -834,6 +834,26 @@ test("drainOutbox metrics: oldestJobAgeMs numara doar joburile DUE (availableAt<
     recordDeadLetter: async () => undefined,
     maxAttempts: 5, backoffMs: 1000, limit: 50, now, maxAgeMs: 0
   });
-  assert.equal(result.oldestJobAgeMs, 100_000, "vechimea celui mai vechi job DUE (100s), NU a celui programat in viitor desi a fost creat mai devreme (200s)");
+  assert.equal(result.oldestJobAgeMs, 50_000, "vechimea se masoara de cand jobul DUE a devenit eligibil (now - availableAt = 50s), nu de la createdAt; joburile viitoare sunt excluse");
   assert.equal(result.futureScheduledCount, 2, "cele doua joburi cu availableAt>now sunt raportate separat, ca sa nu para coada veche/blocata");
+});
+
+test("drainOutbox metrics: oldestJobAgeMs se calculeaza din availableAt, nu createdAt - un retry creat demult dar abia devenit due NU pare batran (R13 #2)", async () => {
+  const now = new Date("2026-06-25T12:00:00.000Z");
+  const jobs: OutboxJob[] = [
+    { _id: "old-created-recent-due", guildId: "g", channelId: "c", kind: "update", payload: {}, attempts: 3, createdAt: new Date(now.getTime() - 500_000), availableAt: new Date(now.getTime() - 10_000) },
+    { _id: "new-created-long-due", guildId: "g", channelId: "c", kind: "update", payload: {}, attempts: 0, createdAt: new Date(now.getTime() - 20_000), availableAt: new Date(now.getTime() - 300_000) }
+  ];
+  const runtime = createOutboxRuntime({
+    NotificationOutboxModel: makeMetricsModel(jobs),
+    NotificationOutboxSentModel: makeFakeModel([]).sentModel,
+    withMongoRetry: async <T>(fn: () => Promise<T>) => fn(),
+    logger: () => undefined
+  });
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: true }),
+    recordDeadLetter: async () => undefined,
+    maxAttempts: 5, backoffMs: 1000, limit: 50, now, maxAgeMs: 0
+  });
+  assert.equal(result.oldestJobAgeMs, 300_000, "cel mai vechi DUE e cel cu availableAt minim (due de 300s); jobul de retry creat acum 500s dar due abia de 10s NU domina metrica");
 });

@@ -13,6 +13,8 @@ jobs:
     name: Require PR checklist (docs, teste, no-comments, benchmark, conflict)
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Verify PR checklist
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
@@ -41,10 +43,7 @@ jobs:
               per_page: 100
             });
             const names = files.map(f => f.filename);
-            const isCode = (f) => (/^src\/.*\.(ts|js)$/.test(f) && !f.startsWith("src/test/")) || /^src\/native\/.*\.rs$/.test(f);
-            const isDoc = (f) => /\.md$/.test(f) || f === ".env.example";
-            const isTest = (f) => f.startsWith("src/test/");
-            const isInfra = (f) => f === "Dockerfile" || /^Dockerfile\./.test(f) || /^docker-compose.*\.ya?ml$/.test(f) || /^\.github\/workflows\/.*\.ya?ml$/.test(f) || /^monitoring\//.test(f) || /^config(\.schema)?\.json$/.test(f);
+            const { isCode, isDoc, isTest, isInfra } = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/pr-checklist-file-classifiers.js`);
             const codeChanged = names.some(isCode);
             const docsChanged = names.some(isDoc);
             const testChanged = names.some(isTest);
