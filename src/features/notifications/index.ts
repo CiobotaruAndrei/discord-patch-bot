@@ -77,6 +77,7 @@ type NotificationsRuntimeDeps = SeenRepositoryDeps
     httpReq: SourceRegistryApi["httpReq"];
     safeCheerioLoad: SourceRegistryApi["safeCheerioLoad"];
     FETCH_CONCURRENCY: number;
+    PRICE_ALERT_REARM_ABSENT_CYCLES: number;
     invalidateGuildCache(guildId: string): void;
     adminAlert?: (kind: string, title: string, body: unknown, guildId?: string) => Promise<unknown>;
   };
@@ -181,7 +182,8 @@ function createNotificationDispatchServices(
     dealPassesFilters, sleepIfPositive,
     PENDING_UPDATE_MAX_AGE_MS, PENDING_UPDATE_MAX_ATTEMPTS, PENDING_UPDATES_PER_GAME_LIMIT,
     MAX_UPDATES_PER_CYCLE, DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY, DEALS_HISTORY_LIMIT,
-    PENDING_DISCOUNT_MAX_ATTEMPTS, PENDING_DISCOUNT_GRACE_CYCLES, PENDING_DISCOUNTS_LIMIT, MAX_DEALS_PER_CYCLE
+    PENDING_DISCOUNT_MAX_ATTEMPTS, PENDING_DISCOUNT_GRACE_CYCLES, PENDING_DISCOUNTS_LIMIT, MAX_DEALS_PER_CYCLE,
+    PRICE_ALERT_REARM_ABSENT_CYCLES
   } = deps;
   const {
     claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, disableUpdatesForChannelError,
@@ -210,7 +212,8 @@ function createNotificationDispatchServices(
     rollbackTriggeredAlert: seenRepository.rollbackTriggeredAlert,
     formatPrice: deps.formatPrice,
     sleepIfPositive,
-    DISCORD_SEND_DELAY_MS
+    DISCORD_SEND_DELAY_MS,
+    rearmAbsentCycles: PRICE_ALERT_REARM_ABSENT_CYCLES
   });
 
   const discountService = createDiscountNotificationService({

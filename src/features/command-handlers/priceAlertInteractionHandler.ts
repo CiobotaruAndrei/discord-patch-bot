@@ -2,6 +2,7 @@
 
 import type { CurrencyCode, GameConfig, GuildSettings, PriceAlertRule } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { clampJoinedList } from "../command-presentation/discordListLimit";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
@@ -155,7 +156,8 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
     if (!alerts.length) {
       return safeEdit(interaction, "Nu exista alerte de pret configurate. Adauga una cu `/price-alert add`.");
     }
-    return safeEdit(interaction, `Alerte de pret (${alerts.length}/${MAX_PRICE_ALERTS_PER_GUILD}):\n${alerts.map(formatAlertLine).join("\n")}`);
+    const header = `Alerte de pret (${alerts.length}/${MAX_PRICE_ALERTS_PER_GUILD}):\n`;
+    return safeEdit(interaction, `${header}${clampJoinedList(alerts.map(formatAlertLine), 2000 - header.length)}`);
   }
 
   async function handlePriceAlertInteraction(interaction: DiscordInteraction, games: GameConfig[]): Promise<unknown> {

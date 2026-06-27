@@ -18,6 +18,7 @@ import {
   parseDiscordChannelReference,
   validateYouTubeMessageTemplate
 } from "../youtube/youtubeDeliveryPolicy";
+import { clampJoinedList } from "../command-presentation/discordListLimit";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
@@ -107,10 +108,11 @@ function formatTime(value: Date | string | null | undefined): string {
 function formatYouTubeList(settings: GuildSettings | null): string {
   const channels = settings?.youtubeChannels || [];
   if (!channels.length) return "Nu exista canale YouTube urmarite.";
-  return channels.map((channel, index) => {
+  const lines = channels.map((channel, index) => {
     const error = channel.lastError?.message ? `, ultima eroare: ${channel.lastError.message}` : "";
     return `${index + 1}. **${channel.channelName}** (\`${channel.channelId}\`) - ultima verificare ${formatTime(channel.lastCheckedAt)}${error}`;
-  }).join("\n");
+  });
+  return clampJoinedList(lines, 2000);
 }
 
 function formatFilters(filters: Required<YouTubeFilters>): string {

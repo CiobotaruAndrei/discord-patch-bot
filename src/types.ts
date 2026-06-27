@@ -93,6 +93,7 @@ export interface RuntimeEnv {
   PENDING_DISCOUNTS_LIMIT: number;
   PENDING_UPDATE_MAX_AGE_MS: number;
   PENDING_DISCOUNT_GRACE_CYCLES: number;
+  PRICE_ALERT_REARM_ABSENT_CYCLES: number;
   PENDING_UPDATE_MAX_ATTEMPTS: number;
   PENDING_DISCOUNT_MAX_ATTEMPTS: number;
   MAX_FUZZY_SEARCH_INPUT: number;
@@ -363,6 +364,7 @@ export interface PriceAlertRule {
   triggeredAt?: Date | string | null;
   lastObservedPrice?: number | null;
   lastObservedAt?: Date | string | null;
+  absentCycles?: number | null;
 }
 
 export interface YouTubeChannelSubscription {
