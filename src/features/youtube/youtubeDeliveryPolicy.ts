@@ -67,12 +67,14 @@ export function parseDiscordChannelReference(value: string): string | null {
   return match ? String(match[1] || match[2]) : null;
 }
 
+export const MAX_YOUTUBE_ROUTE_DESTINATIONS = 5;
+
 export function youtubeDestinationIds(
   guild: GuildSettings,
   youtubeChannelId: string
 ): string[] {
   const route = (guild.youtubeChannelRoutes || []).find(item => item.channelId === youtubeChannelId);
   const routed = Array.from(new Set((route?.discordChannelIds || []).filter(Boolean)));
-  if (routed.length) return routed;
+  if (routed.length) return routed.slice(0, MAX_YOUTUBE_ROUTE_DESTINATIONS);
   return guild.youtubeNotificationChannelId ? [guild.youtubeNotificationChannelId] : [];
 }

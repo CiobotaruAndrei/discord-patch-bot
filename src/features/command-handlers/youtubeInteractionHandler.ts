@@ -10,8 +10,10 @@ import type {
 import type { CommandGame, CommandHandler } from "../command-registry/commandHandler";
 import type { NotificationDiscordClient } from "../notifications/outboundChannel";
 import type { ResolvedYouTubeChannel } from "../youtube/youtubeSource";
+import type { PreparedVideo } from "../youtube/youtubeNotificationService";
 import {
   DEFAULT_YOUTUBE_MESSAGE_TEMPLATE,
+  MAX_YOUTUBE_ROUTE_DESTINATIONS,
   YOUTUBE_TITLE_WORD_LIMIT,
   isRecentYouTubeVideo,
   normalizeYouTubeTitleWord,
@@ -73,6 +75,12 @@ interface YouTubeInteractionDeps {
     guild: GuildSettings,
     selectedChannelId: string
   ): Promise<{ videos: number; batches: number; destinations: number }>;
+  prepareManualYouTubeVideos(guild: GuildSettings, selectedChannelId: string): Promise<PreparedVideo[]>;
+  deliverManualYouTubeVideos(
+    client: NotificationDiscordClient,
+    guild: GuildSettings,
+    prepared: PreparedVideo[]
+  ): Promise<{ videos: number; batches: number; destinations: number }>;
   checkChannelPermissions(interaction: DiscordInteraction, channelId: string): Promise<ChannelPermissions | null>;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
@@ -86,7 +94,6 @@ type YouTubeContext = YouTubeInteractionDeps & {
 };
 
 const MAX_YOUTUBE_CHANNELS = 25;
-const MAX_YOUTUBE_ROUTE_DESTINATIONS = 5;
 
 function defaultFilters(settings: GuildSettings | null): Required<YouTubeFilters> {
   return {
@@ -153,7 +160,8 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     seedSeenVideos,
     removeSeenChannel,
     clearYouTubeErrors,
-    showYouTubeVideos,
+    prepareManualYouTubeVideos,
+    deliverManualYouTubeVideos,
     checkChannelPermissions,
     safeDefer,
     safeEdit
@@ -463,14 +471,25 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
       return safeEdit(interaction, "Eroare: alege un canal YouTube urmarit sau valoarea `toate`.");
     }
     if (!interaction.client) return safeEdit(interaction, "Eroare: clientul Discord nu este disponibil.");
-    await safeEdit(interaction, "Pornesc afisarea videoclipurilor din ultima luna. Pentru mai mult de 5 videoclipuri, livrarea continua in loturi de cate 5 la interval de 10 minute.");
-    const result = await showYouTubeVideos(interaction.client, settings, selectedChannelId);
-    deps.logger(
-      "INFO",
-      "YOUTUBE_COMMAND",
-      `Afisarea manuala YouTube pentru guild ${guildId}: ${result.videos} videoclipuri, ${result.batches} loturi, ${result.destinations} destinatii`
-    );
-    return result;
+    const client = interaction.client;
+    const prepared = await prepareManualYouTubeVideos(settings, selectedChannelId);
+    if (!prepared.length) {
+      return safeEdit(interaction, "Info: nu exista videoclipuri recente (din ultima luna) de afisat pentru aceasta selectie.");
+    }
+    await safeEdit(interaction, `OK: am programat ${prepared.length} videoclip(e) pentru afisare. Livrarea continua in fundal, in loturi de cate 5 la interval de 10 minute, fara sa blocheze comanda.`);
+    void deliverManualYouTubeVideos(client, settings, prepared)
+      .then(result => deps.logger(
+        "INFO",
+        "YOUTUBE_COMMAND",
+        `Afisarea manuala YouTube pentru guild ${guildId}: ${result.videos} videoclipuri, ${result.batches} loturi, ${result.destinations} destinatii`
+      ))
+      .catch(error => deps.logger(
+        "WARN",
+        "YOUTUBE_COMMAND",
+        `Afisarea manuala YouTube a esuat in fundal pentru guild ${guildId}`,
+        errorDetail(error)
+      ));
+    return undefined;
   }
 
   async function errors(guildId: string): Promise<InteractionPayload> {
@@ -479,7 +498,8 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     const lines = entries.slice(-10).reverse().map(entry =>
       `- ${formatTime(entry.at)} - **${entry.channelName || entry.channelId || "YouTube"}**: ${entry.message}`
     );
-    return safeEditPlaceholder(`Ultimele erori YouTube:\n${lines.join("\n")}`);
+    const header = "Ultimele erori YouTube:\n";
+    return safeEditPlaceholder(`${header}${clampJoinedList(lines, 2000 - header.length)}`);
   }
 
   function safeEditPlaceholder(content: string): InteractionPayload {

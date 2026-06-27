@@ -318,6 +318,8 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     clearYouTubeErrors: youtubeRepository.clearErrors,
     checkForYouTube: youtubeService.checkForYouTube,
     showYouTubeVideos: youtubeService.showYouTubeVideos,
+    prepareManualYouTubeVideos: youtubeService.prepareManualVideos,
+    deliverManualYouTubeVideos: youtubeService.deliverManualVideos,
     drainOutbox,
     enqueueOutbox,
     listReplayableDeadLetters: deadLetterReplayRepository.listForGuild,

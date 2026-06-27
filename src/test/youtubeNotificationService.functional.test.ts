@@ -41,6 +41,21 @@ function sequentialRunConcurrent<T>(
   })();
 }
 
+function parallelRunConcurrent<T>(
+  items: T[],
+  _concurrency: number,
+  fn: (item: T) => Promise<unknown>
+): Promise<{ processed: number; errors: Array<{ error: unknown }> }> {
+  return (async () => {
+    const errors: Array<{ error: unknown }> = [];
+    await Promise.all(items.map(async item => {
+      try { await fn(item); }
+      catch (error) { errors.push({ error }); }
+    }));
+    return { processed: items.length - errors.length, errors };
+  })();
+}
+
 test("YouTube cron descarca un feed comun o singura data si livreaza per guild cu dedupe", async () => {
   const sent: Array<{ payload: unknown; meta: unknown }> = [];
   const claims = new Set<string>();
@@ -593,6 +608,57 @@ test("YouTube manual (videos show) refoloseste cache-ul de metadata per apel: ac
     "toate"
   );
   assert.equal(metadataCalls, 1, "metadata pentru acelasi videoId se descarca o singura data in manual show (cache per apel)");
+});
+
+test("YouTube manual descarca feed-urile in paralel dar pastreaza ordinea canalelor la livrare", async () => {
+  const channelA = { ...channel, channelId: "UCAAAAAAAAAAAAAAAAAAAAA" };
+  const channelB = { ...channel, channelId: "UCBBBBBBBBBBBBBBBBBBBBB" };
+  const videoA = { ...video, videoId: "aaaaaaaaaaa", channelId: channelA.channelId, title: "Video A" };
+  const videoB = { ...video, videoId: "bbbbbbbbbbb", channelId: channelB.channelId, title: "Video B" };
+  const sentTitles: string[] = [];
+  const service = createYouTubeNotificationService({
+    GuildModel: { find: () => ({ lean: async () => [] }) },
+    logger: () => undefined,
+    runConcurrent: parallelRunConcurrent,
+    fetchYouTubeFeed: async channel => {
+      if (channel.channelId === channelA.channelId) {
+        await new Promise(resolve => setTimeout(resolve, 15));
+        return [videoA];
+      }
+      return [videoB];
+    },
+    fetchYouTubeVideoMetadata: async () => ({ durationSeconds: 120, isShort: false, isLive: false, isPremiere: false }),
+    videoPassesYouTubeFilters: () => true,
+    claimVideo: async () => true,
+    rollbackVideo: async () => undefined,
+    recordChannelSuccess: async () => undefined,
+    recordChannelError: async () => undefined,
+    disableNotificationsForChannelError: async () => ({}),
+    removeRouteForChannelError: async () => ({}),
+    resolveOutboundChannel: async () => ({
+      abort: false,
+      channel: {
+        id: "main",
+        send: async payload => {
+          const embeds = (payload as { embeds?: Array<{ title?: string }> }).embeds || [];
+          sentTitles.push(...embeds.map(embed => String(embed.title || "")));
+          return {};
+        }
+      }
+    }),
+    sleepIfPositive: async () => undefined,
+    transientErrorMessage: error => String(error),
+    GUILD_PROCESS_CONCURRENCY: 1,
+    FETCH_CONCURRENCY: 4,
+    youtubeBatchDelayMs: 0,
+    now: () => new Date("2026-06-25T06:00:00.000Z")
+  } satisfies ServiceDeps);
+  await service.showYouTubeVideos(
+    { user: { id: "bot" }, channels: { fetch: async () => null } },
+    { _id: "g1", youtubeChannels: [channelA, channelB], youtubeNotificationChannelId: "main" },
+    "toate"
+  );
+  assert.deepEqual(sentTitles, ["Video A", "Video B"], "ordinea canalelor (A, B) e pastrata desi feed-ul A se rezolva dupa B (fetch paralel)");
 });
 
 test("YouTube livreaza cel mult 5 videoclipuri per lot si asteapta numai intre loturi", async () => {

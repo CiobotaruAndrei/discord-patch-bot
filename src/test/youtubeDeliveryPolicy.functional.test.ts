@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   DEFAULT_YOUTUBE_MESSAGE_TEMPLATE,
+  MAX_YOUTUBE_ROUTE_DESTINATIONS,
   isRecentYouTubeVideo,
   normalizeYouTubeTitleWord,
   parseDiscordChannelReference,
@@ -64,4 +65,15 @@ test("politica YouTube prefera rutele speciale si valideaza referintele Discord"
   }, "UC123"), ["main"]);
   assert.equal(parseDiscordChannelReference("<#123456789012345678>"), "123456789012345678");
   assert.equal(parseDiscordChannelReference("invalid"), null);
+});
+
+test("politica YouTube limiteaza fanout-ul la livrare chiar daca datele vechi/corupte au mai multe rute decat limita", () => {
+  const manyDestinations = Array.from({ length: 20 }, (_value, index) => `route-${index}`);
+  const result = youtubeDestinationIds({
+    _id: "g1",
+    youtubeNotificationChannelId: "main",
+    youtubeChannelRoutes: [{ channelId: "UC123", discordChannelIds: manyDestinations }]
+  }, "UC123");
+  assert.equal(result.length, MAX_YOUTUBE_ROUTE_DESTINATIONS, "livrarea foloseste cel mult limita, nu toate cele 20 din DB");
+  assert.deepEqual(result, manyDestinations.slice(0, MAX_YOUTUBE_ROUTE_DESTINATIONS), "pastreaza primele destinatii, in ordine");
 });

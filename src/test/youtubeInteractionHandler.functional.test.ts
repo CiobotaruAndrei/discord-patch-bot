@@ -29,12 +29,13 @@ function makeInteraction(options: InteractionOptions): HandlerInteraction {
   };
 }
 
-function createHarness(settingsOverrides: object = {}) {
+function createHarness(settingsOverrides: object = {}, preparedCount = 3) {
   const replies: unknown[] = [];
   const writes: Array<{ filter: object; update: object; options?: object }> = [];
   const seeded: string[][] = [];
   const removed: string[] = [];
   const manualShows: string[] = [];
+  const manualDeliveries: number[] = [];
   let cleared = 0;
   const settings = {
     _id: "guild-1",
@@ -80,6 +81,18 @@ function createHarness(settingsOverrides: object = {}) {
       manualShows.push(selectedChannelId);
       return { videos: 3, batches: 1, destinations: 1 };
     },
+    prepareManualYouTubeVideos: async (_guild, selectedChannelId) => {
+      manualShows.push(selectedChannelId);
+      return Array.from({ length: preparedCount }, (_unused, index) => ({
+        channel: { channelId: `UC${index}`, channelName: "x", channelUrl: "https://www.youtube.com/x", subscribedAt: new Date() },
+        video: { videoId: `v${index}`, channelId: `UC${index}`, channelName: "x", title: "t", link: "https://www.youtube.com/watch?v=x", publishedAt: "2026-06-24T06:00:00.000Z", thumbnail: "" },
+        metadata: { durationSeconds: 120, isShort: false, isLive: false, isPremiere: false }
+      }));
+    },
+    deliverManualYouTubeVideos: async (_client, _guild, prepared) => {
+      manualDeliveries.push(prepared.length);
+      return { videos: prepared.length, batches: 1, destinations: 1 };
+    },
     checkChannelPermissions: async () => ({
       sendMessages: true,
       embedLinks: true,
@@ -98,6 +111,7 @@ function createHarness(settingsOverrides: object = {}) {
     seeded,
     removed,
     manualShows,
+    manualDeliveries,
     getCleared: () => cleared
   };
 }
@@ -194,6 +208,23 @@ test("/youtube errors, permissions si clear-errors expun mentenanta modulului", 
   assert.match(JSON.stringify(harness.replies[0]), /feed indisponibil/);
   assert.match(String(harness.replies[1]), /Send Messages: ON/);
   assert.equal(harness.getCleared(), 1);
+});
+
+test("/youtube errors taie raspunsul sub limita Discord cand erorile sunt multe si lungi", async () => {
+  const longMessage = "x".repeat(500);
+  const harness = createHarness({
+    youtubeErrors: Array.from({ length: 10 }, (_value, index) => ({
+      channelId: `UC${index}`,
+      channelName: `Canal ${index}`,
+      message: longMessage,
+      at: new Date("2026-06-24T06:00:00.000Z")
+    }))
+  });
+  await harness.handler.handleYouTubeInteraction(makeInteraction({ subcommand: "errors" }));
+  const reply = harness.replies[0];
+  const content = typeof reply === "string" ? reply : String((reply as { content?: unknown }).content ?? "");
+  assert.ok(content.length <= 2000, `raspunsul /youtube errors (${content.length}) trebuie sa ramana sub limita Discord`);
+  assert.match(content, /si inca \d+/, "include nota de trunchiere");
 });
 
 test("/youtube message-template valideaza variabilele, salveaza si reseteaza sablonul", async () => {
@@ -335,6 +366,28 @@ test("/youtube videos show porneste afisarea manuala pentru toate canalele", asy
     subcommand: "show",
     strings: { canal: "toate" }
   }));
-  assert.deepEqual(harness.manualShows, ["toate"]);
-  assert.match(String(harness.replies[0]), /loturi/);
+  assert.deepEqual(harness.manualShows, ["toate"], "pregatirea (rapida) a fost apelata");
+  assert.match(String(harness.replies[0]), /am programat 3/, "raspunde imediat cu numarul de videoclipuri programate");
+  assert.match(String(harness.replies[0]), /fundal/, "comunica livrarea in fundal (nu blocheaza comanda)");
+  assert.deepEqual(harness.manualDeliveries, [3], "livrarea (lenta, cu sleep intre loturi) ruleaza in fundal cu cele 3 videoclipuri pregatite");
+});
+
+test("/youtube videos show fara videoclipuri recente nu programeaza nicio livrare in fundal", async () => {
+  const channelId = "UC1234567890123456789012";
+  const harness = createHarness({
+    youtubeChannels: [{
+      channelId,
+      channelName: "Canal Test",
+      channelUrl: `https://www.youtube.com/channel/${channelId}`,
+      subscribedAt: new Date()
+    }]
+  }, 0);
+  await harness.handler.handleYouTubeInteraction(makeInteraction({
+    group: "videos",
+    subcommand: "show",
+    strings: { canal: "toate" }
+  }));
+  assert.deepEqual(harness.manualShows, ["toate"], "pregatirea a fost apelata");
+  assert.match(String(harness.replies[0]), /nu exista videoclipuri/, "raspunde ca nu sunt videoclipuri recente");
+  assert.deepEqual(harness.manualDeliveries, [], "nu se programeaza nicio livrare in fundal");
 });
