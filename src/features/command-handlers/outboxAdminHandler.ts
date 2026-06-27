@@ -54,6 +54,7 @@ interface GuildSettingsLike {
   notificationDeadLetter?: DeadLetterEntryLike[];
   notificationChannelId?: string | null;
   discountChannelId?: string | null;
+  youtubeNotificationChannelId?: string | null;
 }
 
 interface ChannelPermissions {
@@ -258,10 +259,11 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
     const settings = await getGuildSettings(guildId).catch(() => null);
     const channels = [
       { label: "Update-uri", id: settings?.notificationChannelId },
-      { label: "Reduceri", id: settings?.discountChannelId }
+      { label: "Reduceri", id: settings?.discountChannelId },
+      { label: "YouTube", id: settings?.youtubeNotificationChannelId }
     ].filter((c): c is { label: string; id: string } => typeof c.id === "string" && c.id.length > 0);
     if (!channels.length) {
-      return "Niciun canal de notificari configurat. Foloseste `/start updates` / `/start reduceri`.";
+      return "Niciun canal de notificari configurat. Foloseste `/start updates` / `/start reduceri` / `/youtube notify channel`.";
     }
     const mark = (ok: boolean) => (ok ? "OK" : "LIPSA");
     const lines: string[] = ["**Permisiuni bot pe canale (audit)**"];

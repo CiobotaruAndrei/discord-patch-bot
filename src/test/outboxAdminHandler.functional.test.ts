@@ -35,6 +35,7 @@ function makeDeps(opts: {
   updateManyResult?: { modifiedCount?: number; matchedCount?: number };
   notificationChannelId?: string | null;
   discountChannelId?: string | null;
+  youtubeNotificationChannelId?: string | null;
   channelPermissions?: (channelId: string) => { sendMessages: boolean; embedLinks: boolean; readMessageHistory: boolean } | null;
   lockToken?: string | null;
   drainResult?: { sent?: number; retried?: number; deadLettered?: number; queued?: number };
@@ -78,7 +79,8 @@ function makeDeps(opts: {
       outboxRecoveryVerify: opts.perGuildVerify ?? false,
       notificationDeadLetter: opts.deadLetters ?? [],
       notificationChannelId: opts.notificationChannelId ?? null,
-      discountChannelId: opts.discountChannelId ?? null
+      discountChannelId: opts.discountChannelId ?? null,
+      youtubeNotificationChannelId: opts.youtubeNotificationChannelId ?? null
     }),
     getOutboxPaused: async () => opts.paused ?? false,
     setOutboxPaused: async (paused: boolean) => { pauseCalls.push(paused); },
@@ -226,6 +228,18 @@ test("/outbox permissions raporteaza permisiunile pe canalele configurate si sem
   assert.match(replies[0], /<#chan-deal>/);
   assert.match(replies[0], /Read Message History \*\*LIPSA\*\*/);
   assert.match(replies[0], /recovery-verify nu poate citi istoricul/);
+});
+
+test("/outbox permissions auditeaza si canalul YouTube (documentatia spune ca include YouTube)", async () => {
+  const { deps, replies, permissionChecks } = makeDeps({
+    notificationChannelId: "chan-upd",
+    youtubeNotificationChannelId: "chan-yt",
+    channelPermissions: () => ({ sendMessages: true, embedLinks: true, readMessageHistory: true })
+  });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "permissions"));
+  assert.deepEqual(permissionChecks, ["chan-upd", "chan-yt"], "auditul include canalul YouTube");
+  assert.match(replies[0], /YouTube \(<#chan-yt>\)/, "raportul listeaza canalul YouTube");
 });
 
 test("/outbox permissions fara canale configurate raspunde corespunzator", async () => {
