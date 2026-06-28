@@ -372,7 +372,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     guild: GuildSettings,
     selectedChannelId: string,
     force = false
-  ): Promise<PreparedVideo[]> {
+  ): Promise<{ deliverable: PreparedVideo[]; skipped: number; claimed: boolean }> {
     const selectedChannels = (guild.youtubeChannels || []).filter(channel =>
       selectedChannelId === "toate" || channel.channelId === selectedChannelId
     );
@@ -387,7 +387,8 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
         await recordChannelError(String(guild._id), channel, transientErrorMessage(error));
       }
     });
-    const prepared: PreparedVideo[] = [];
+    const deliverable: PreparedVideo[] = [];
+    let skipped = 0;
     for (const channel of selectedChannels) {
       const videos = feedByChannel.get(channel.channelId);
       if (!videos) continue;
@@ -395,13 +396,15 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
         if (!isRecentYouTubeVideo(video, now())) continue;
         const item = await prepareVideo(guild, channel, video, resolveMetadata);
         if (!item) continue;
-        if (!force && youtubeDestinationIds(guild, channel.channelId).length > 0) {
-          if (!(await claimVideo(String(guild._id), channel.channelId, video.videoId))) continue;
+        if (youtubeDestinationIds(guild, channel.channelId).length === 0) {
+          skipped++;
+          continue;
         }
-        prepared.push(item);
+        if (!force && !(await claimVideo(String(guild._id), channel.channelId, video.videoId))) continue;
+        deliverable.push(item);
       }
     }
-    return prepared;
+    return { deliverable, skipped, claimed: !force };
   }
 
   async function deliverManualVideos(

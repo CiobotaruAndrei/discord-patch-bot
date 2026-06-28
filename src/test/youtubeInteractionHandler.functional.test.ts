@@ -31,7 +31,7 @@ function makeInteraction(options: InteractionOptions): HandlerInteraction {
   };
 }
 
-function createHarness(settingsOverrides: object = {}, preparedCount = 3, outboxEnabled = false) {
+function createHarness(settingsOverrides: object = {}, preparedCount = 3, outboxEnabled = false, skippedCount = 0) {
   const replies: unknown[] = [];
   const writes: Array<{ filter: object; update: object; options?: object }> = [];
   const seeded: string[][] = [];
@@ -39,6 +39,7 @@ function createHarness(settingsOverrides: object = {}, preparedCount = 3, outbox
   const manualShows: string[] = [];
   const manualDeliveries: number[] = [];
   const manualBypassOutbox: boolean[] = [];
+  const manualClaimed: boolean[] = [];
   let cleared = 0;
   const settings = {
     _id: "guild-1",
@@ -80,17 +81,22 @@ function createHarness(settingsOverrides: object = {}, preparedCount = 3, outbox
     seedSeenVideos: async (_guildId, _channelId, videos) => { seeded.push(videos.map(video => video.videoId)); },
     removeSeenChannel: async (_guildId, channelId) => { removed.push(channelId); },
     clearYouTubeErrors: async () => { cleared++; },
-    prepareManualYouTubeVideos: async (_guild, selectedChannelId) => {
+    prepareManualYouTubeVideos: async (_guild, selectedChannelId, force = false) => {
       manualShows.push(selectedChannelId);
-      return Array.from({ length: preparedCount }, (_unused, index) => ({
-        channel: { channelId: `UC${index}`, channelName: "x", channelUrl: "https://www.youtube.com/x", subscribedAt: new Date() },
-        video: { videoId: `v${index}`, channelId: `UC${index}`, channelName: "x", title: "t", link: "https://www.youtube.com/watch?v=x", publishedAt: "2026-06-24T06:00:00.000Z", thumbnail: "" },
-        metadata: { durationSeconds: 120, isShort: false, isLive: false, isPremiere: false }
-      }));
+      return {
+        deliverable: Array.from({ length: preparedCount }, (_unused, index) => ({
+          channel: { channelId: `UC${index}`, channelName: "x", channelUrl: "https://www.youtube.com/x", subscribedAt: new Date() },
+          video: { videoId: `v${index}`, channelId: `UC${index}`, channelName: "x", title: "t", link: "https://www.youtube.com/watch?v=x", publishedAt: "2026-06-24T06:00:00.000Z", thumbnail: "" },
+          metadata: { durationSeconds: 120, isShort: false, isLive: false, isPremiere: false }
+        })),
+        skipped: skippedCount,
+        claimed: !force
+      };
     },
-    deliverManualYouTubeVideos: async (_client, _guild, prepared, bypassOutbox = true) => {
+    deliverManualYouTubeVideos: async (_client, _guild, prepared, bypassOutbox = true, claimed = false) => {
       manualDeliveries.push(prepared.length);
       manualBypassOutbox.push(bypassOutbox);
+      manualClaimed.push(claimed);
       return { videos: prepared.length, batches: 1, destinations: 1 };
     },
     checkChannelPermissions: async () => ({
@@ -113,6 +119,7 @@ function createHarness(settingsOverrides: object = {}, preparedCount = 3, outbox
     removed,
     manualShows,
     manualDeliveries,
+    manualClaimed,
     manualBypassOutbox,
     getCleared: () => cleared
   };
@@ -441,14 +448,14 @@ test("/youtube videos show posteaza doar videoclipurile cu destinatie si raporte
       { channelId: "UC0", channelName: "Cu ruta", channelUrl: "https://www.youtube.com/UC0", subscribedAt: new Date() },
       { channelId: "UC1", channelName: "Fara ruta", channelUrl: "https://www.youtube.com/UC1", subscribedAt: new Date() }
     ]
-  }, 3);
+  }, 1, false, 2);
   await harness.handler.handleYouTubeInteraction(makeInteraction({
     group: "videos",
     subcommand: "show",
     strings: { canal: "toate" }
   }));
-  assert.deepEqual(harness.manualDeliveries, [1], "se posteaza doar videoclipul cu destinatie (UC0 cu ruta), nu si UC1/UC2 fara destinatie");
-  assert.match(String(harness.replies[0]), /2 sarite/, "raporteaza cate videoclipuri au fost sarite (fara destinatie)");
+  assert.deepEqual(harness.manualDeliveries, [1], "se posteaza doar videoclipul cu destinatie (serviciul intoarce deliverable=1), nu si cele fara destinatie");
+  assert.match(String(harness.replies[0]), /2 sarite/, "raporteaza `skipped`-ul intors de serviciu (2 fara destinatie)");
 });
 
 test("/youtube videos show fara canal de destinatie configurat nu programeaza nimic si cere /youtube notify channel", async () => {
@@ -462,13 +469,13 @@ test("/youtube videos show fara canal de destinatie configurat nu programeaza ni
       channelUrl: `https://www.youtube.com/channel/${channelId}`,
       subscribedAt: new Date()
     }]
-  });
+  }, 0, false, 3);
   await harness.handler.handleYouTubeInteraction(makeInteraction({
     group: "videos",
     subcommand: "show",
     strings: { canal: "toate" }
   }));
-  assert.deepEqual(harness.manualDeliveries, [], "nu se programeaza nicio livrare cand nu exista destinatie");
+  assert.deepEqual(harness.manualDeliveries, [], "nu se programeaza nicio livrare cand nu exista destinatie (deliverable=0)");
   assert.match(String(harness.replies[0]), /niciun canal de destinatie/, "raspunde clar ca lipseste destinatia");
   assert.match(String(harness.replies[0]), /youtube notify channel/, "indruma spre configurarea canalului");
 });

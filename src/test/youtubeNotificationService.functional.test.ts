@@ -12,7 +12,7 @@ async function manualShow(
   selectedChannelId: string
 ) {
   const prepared = await service.prepareManualVideos(guild, selectedChannelId);
-  return service.deliverManualVideos(client, guild, prepared, true, true);
+  return service.deliverManualVideos(client, guild, prepared.deliverable, true, prepared.claimed);
 }
 
 const channel = {
@@ -554,11 +554,13 @@ test("YouTube manual: a doua rulare implicita NU repostează videoclipul deja af
   } satisfies ServiceDeps);
 
   const first = await service.prepareManualVideos(guild, "toate");
-  assert.equal(first.length, 1, "prima rulare pregateste si claim-uieste videoclipul recent");
+  assert.equal(first.deliverable.length, 1, "prima rulare pregateste si claim-uieste videoclipul recent");
+  assert.equal(first.claimed, true, "implicit (fara force) videoclipurile sunt claim-uite");
   const second = await service.prepareManualVideos(guild, "toate");
-  assert.equal(second.length, 0, "a doua rulare implicita nu mai pregateste nimic (deja claim-uit) -> fara duplicate");
+  assert.equal(second.deliverable.length, 0, "a doua rulare implicita nu mai pregateste nimic (deja claim-uit) -> fara duplicate");
   const forced = await service.prepareManualVideos(guild, "toate", true);
-  assert.equal(forced.length, 1, "repeta=true ignora claim-ul si repostează videoclipul");
+  assert.equal(forced.deliverable.length, 1, "repeta=true ignora claim-ul si repostează videoclipul");
+  assert.equal(forced.claimed, false, "cu force, videoclipurile NU sunt claim-uite (deci deliverManualVideos nu face rollback)");
 });
 
 test("YouTube manual afiseaza numai ultima luna si claim-uieste implicit videoclipurile cu destinatie (dedup pe re-rulare, R14 #1)", async () => {
@@ -623,7 +625,7 @@ test("YouTube manual afiseaza numai ultima luna si claim-uieste implicit videocl
   assert.equal(result.videos, 1);
 });
 
-test("YouTube showYouTubeVideos: la esec de livrare face rollback la claim, ca videoclipul sa poata fi reincercat (consistent cu handler-ul, R16 #1)", async () => {
+test("YouTube manual (prepareManualVideos + deliverManualVideos): la esec de livrare face rollback la claim, ca videoclipul sa poata fi reincercat (R16 #1)", async () => {
   const claims = new Set<string>();
   const rolledBack: string[] = [];
   const service = createYouTubeNotificationService({

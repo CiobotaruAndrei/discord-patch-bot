@@ -149,7 +149,9 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   assert.match(src, /function createSourceRegistry\(\): SourceRegistryApi/, "sourceRegistry compune explicit, cu tip de retur inchis SourceRegistryApi (nu mai accepta installers ca parametru)");
   assert.ok(!src.includes("SourceInstaller"), "sourceRegistry nu mai are tipul SourceInstaller (boundary-ul dinamic installers a fost eliminat)");
   assert.ok(!src.includes("defaultInstallers"), "sourceRegistry nu mai are lista dinamica defaultInstallers; compune prin valori returnate de factory-uri (build*From) ordonate (http -> steam -> updates -> deals)");
-  assert.match(src, /Object\.assign\(context, attachHttpClient\.buildFrom\(context\)\);[\s\S]*Object\.assign\(context, attachSteam\.buildFrom\(context\)\);[\s\S]*Object\.assign\(context, attachUpdates\.buildFrom\(context\)\);[\s\S]*Object\.assign\(context, attachDeals\.buildFrom\(context\)\);/, "sourceRegistry compune prin valorile returnate de build*From (factory-return), ordonate, nu prin mutatie attach*(context) sau bucla peste installers");
+  assert.match(src, /attachHttpClient\.buildFrom\(base\)[\s\S]*attachSteam\.buildFrom\(withHttp\)[\s\S]*attachUpdates\.buildFrom\(withSteam\)[\s\S]*attachDeals\.buildFrom\(withUpdates\)/, "sourceRegistry compune prin valorile returnate de build*From, ordonate http->steam->updates->deals, prin spread in obiecte noi (la fel ca commandRegistry)");
+  assert.ok(!/Object\.assign\(\s*context\b/.test(src), "sourceRegistry nu mai muteaza in-place un context partajat (fara Object.assign(context, ...)): compunere imutabila prin spread (R18 #4)");
+  assert.match(src, /return Object\.freeze\(assertNoUndefinedExports/, "registrul de surse returnat e inghetat (Object.freeze), ca registrul public sa nu poata fi mutat dupa compunere");
   assert.ok(!cmd.includes("(...args: unknown[]) => MaybePromise<unknown>"), "commandRegistry nu mai are tipul generic RegistryFunction = (...args: unknown[]) (R11 #4): campurile contractului au semnaturi precise");
 });
 
