@@ -185,22 +185,28 @@ async function withMongoRetry<T>(
 
 let runtimeContext: Pick<UtilitiesContext, "mongoose" | "logger" | "env">;
 
-function attachUtilities(target: UtilitiesContext): void {
+function buildUtilitiesFrom(context: UtilitiesContext) {
   runtimeContext = {
-    mongoose: target.mongoose,
-    logger: target.logger,
-    env: target.env
+    mongoose: context.mongoose,
+    logger: context.logger,
+    env: context.env
   };
 
-  Object.assign(target, {
+  return {
     runConcurrent,
     waitForMongoReady,
     validatePendingDiscountSnapshot,
     validateUpdateFetchSnapshot,
     isTransientMongoError,
     withMongoRetry
-  });
+  };
 }
+
+function attachUtilities(target: UtilitiesContext): void {
+  Object.assign(target, buildUtilitiesFrom(target));
+}
+
+attachUtilities.buildFrom = buildUtilitiesFrom;
 
 Object.assign(attachUtilities, {
   validatePendingDiscountSnapshot,

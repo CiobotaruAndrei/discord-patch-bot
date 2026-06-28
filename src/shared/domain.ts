@@ -42,14 +42,20 @@ interface DomainContext {
   formatPrice?: typeof formatPrice;
 }
 
-function attachDomain(target: DomainContext): void {
-  Object.assign(target, {
+function buildDomainFrom(_context: DomainContext) {
+  return {
     SchemaDriftError,
     SUPPORTED_CURRENCIES,
     DEFAULT_CURRENCY,
     getCurrencyConfig,
     formatPrice
-  });
+  };
 }
+
+function attachDomain(target: DomainContext): void {
+  Object.assign(target, buildDomainFrom(target));
+}
+
+attachDomain.buildFrom = buildDomainFrom;
 
 export = attachDomain;

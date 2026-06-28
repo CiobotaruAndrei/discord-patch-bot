@@ -149,20 +149,22 @@ intr-un singur loc, fara duplicare. `createSourceRegistry()` compune **imutabil*
 `SourceInstaller`/`defaultInstallers` + compunere prin `build*From` ordonate) mentin starea. Ambele registre
 sunt acum complet pe factory-return explicit.
 
-**`mongoContext` — installer-ul dinamic eliminat (compunere explicita, pe context proaspat, export inghetat).**
-`createMongoContext` folosea ultimul boundary de tip „installer dinamic pe context mutabil": un array
-`defaultInstallers: MongoInstaller[]` (11 `require`-uri) parcurs cu `for (const install of installers)
-install(context)`, unde `context` era **chiar singletonul `runtime`** (deci compunerea muta modulul partajat).
-Acum porneste de la o **copie proaspata** (`{ ...baseContext }`, ca `freshSourceContext`), aplica installer-ele
-prin **apeluri explicite ordonate** (`attachLogging -> attachDomain -> attachEnv -> attachUtilities ->
-attachModels -> attachLocks -> attachMigrations -> attachSystemState -> attachGuildSettings -> attachAdminAlerts
--> attachFetchSnapshots`, in ordinea dependentelor) si intoarce un export `Object.freeze`-uit. Spre deosebire de
-registre, modulele Mongo/shared **isi pastreaza** adaptorul `attachX(target)` (mutatie pe input) fiindca e
-folosit si direct de scripturi/teste de integrare (`check-db-indexes`, `acquireDbLock`, `guildSettingsCache`,
-`outboxMongoIndex` etc.); ce dispare e *lista dinamica* + bucla + mutarea *singletonului* partajat. Echivalenta
-de comportament confirmata de suita completa (incl. testele de integrare Mongo). Gardat de
-`registryClosedContracts.test.ts` (absenta `defaultInstallers`/buclei, copie proaspata, apeluri ordonate, export
-inghetat).
+**`mongoContext` — REZOLVAT complet pe factory-return (pasul final, ca `sourceRegistry`).**
+Pasul 1 (PR #477) a scos boundary-ul dinamic (`defaultInstallers: MongoInstaller[]` + bucla `for (install of
+installers)` peste singletonul `runtime`), trecand la apeluri explicite ordonate `attachX(context)` pe o copie
+proaspata. Pasul 2 (review #21 #5) duce compunerea **pana la capat**, exact ca `sourceRegistry`: fiecare modul
+installer (cele 4 din `shared/` + cele 7 din `infra/mongo/`) expune acum un `buildFrom(context)` care **intoarce**
+contributia, iar `attachX(target)` deleaga la el (`Object.assign(target, buildXFrom(target))`). `createMongoContext`
+compune prin **spread in obiecte noi** (`{ ...prev, ...attachX.buildFrom(prev) }`) in ordinea dependentelor
+(`logging -> domain -> env -> utilities -> models -> locks -> migrations -> systemState -> guildSettings ->
+adminAlerts -> fetchSnapshots`), fara nicio mutatie pe un context partajat in timpul compunerii, si intoarce un
+export `Object.freeze`-uit. Ordinea garanteaza ca niciun `buildFrom` nu citeste un camp adaugat ulterior (fara
+forward-reference; echivalenta de comportament confirmata de suita completa, incl. testele de integrare Mongo).
+Modulele Mongo/shared **isi pastreaza** adaptorul `attachX(target)` ca thin-wrapper fiindca e folosit si direct
+de scripturi/teste de integrare (`check-db-indexes`, `acquireDbLock`, `guildSettingsCache`, `outboxMongoIndex`).
+Gardat de `registryClosedContracts.test.ts` (compunere prin `build*From` ordonat, fara `attachX(context)`, export
+inghetat). Toate cele trei zone de compunere (`commandRegistry`, `sourceRegistry`, `mongoContext`) sunt acum pe
+factory-return explicit.
 
 **`createAppServices()` imutabil — IMPLEMENTAT (review manual R14 #4, Low).**
 `createCommandRegistry` muta anterior **un singur obiect `base`** prin lantul

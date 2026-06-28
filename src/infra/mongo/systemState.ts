@@ -71,18 +71,24 @@ async function setOutboxPaused(paused: boolean): Promise<void> {
   );
 }
 
-function attachSystemState(target: SystemStateContext): void {
+function buildSystemStateFrom(context: SystemStateContext) {
   runtimeContext = {
-    SystemModel: target.SystemModel
+    SystemModel: context.SystemModel
   };
 
-  Object.assign(target, {
+  return {
     getSystemTimes,
     saveSystemTimes,
     saveSystemTime,
     getOutboxPaused,
     setOutboxPaused
-  });
+  };
 }
+
+function attachSystemState(target: SystemStateContext): void {
+  Object.assign(target, buildSystemStateFrom(target));
+}
+
+attachSystemState.buildFrom = buildSystemStateFrom;
 
 export = attachSystemState;

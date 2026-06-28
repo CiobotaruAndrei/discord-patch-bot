@@ -171,16 +171,22 @@ async function adminAlert(kind: string, title: string, body: unknown, guildId?: 
   await resetCooldown(cooldownId);
 }
 
-function attachAdminAlerts(target: AdminAlertsContext): void {
+function buildAdminAlertsFrom(context: AdminAlertsContext) {
   runtimeContext = {
-    env: target.env,
-    AdminAlertCooldownModel: target.AdminAlertCooldownModel,
-    GuildModel: target.GuildModel,
-    axios: target.axios,
-    logger: target.logger
+    env: context.env,
+    AdminAlertCooldownModel: context.AdminAlertCooldownModel,
+    GuildModel: context.GuildModel,
+    axios: context.axios,
+    logger: context.logger
   };
 
-  Object.assign(target, { adminAlert, setAdminAlertDiscordClient });
+  return { adminAlert, setAdminAlertDiscordClient };
 }
+
+function attachAdminAlerts(target: AdminAlertsContext): void {
+  Object.assign(target, buildAdminAlertsFrom(target));
+}
+
+attachAdminAlerts.buildFrom = buildAdminAlertsFrom;
 
 export = attachAdminAlerts;

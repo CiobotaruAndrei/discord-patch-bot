@@ -155,13 +155,15 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   assert.ok(!cmd.includes("(...args: unknown[]) => MaybePromise<unknown>"), "commandRegistry nu mai are tipul generic RegistryFunction = (...args: unknown[]) (R11 #4): campurile contractului au semnaturi precise");
 });
 
-test("mongoContext nu mai foloseste un installer dinamic pe context mutabil: compunere explicita ordonata, pe o copie proaspata, export inghetat", () => {
+test("mongoContext compune prin factory-return (build*From) imutabil, ca sourceRegistry: fara installer dinamic, fara mutatie pe context, export inghetat", () => {
   const mongo = fs.readFileSync(path.join(srcRoot, "infra", "mongo", "mongoContext.ts"), "utf8");
   assert.ok(!/defaultInstallers/.test(mongo), "mongoContext nu mai are lista dinamica defaultInstallers");
   assert.ok(!/for \(const install of/.test(mongo), "mongoContext nu mai are bucla dinamica peste installers");
   assert.ok(!/installers: MongoInstaller\[\]/.test(mongo), "createMongoContext nu mai primeste un array de installers ca parametru");
-  assert.match(mongo, /const context: MongoRuntimeContext = \{ \.\.\.baseContext \}/, "compune pe o copie proaspata, nu muteaza singletonul runtime");
-  assert.match(mongo, /attachLogging\(context\);[\s\S]*attachModels\(context\);[\s\S]*attachFetchSnapshots\(context\)/, "apeluri explicite ordonate ale installer-elor, nu o bucla peste un array");
+  assert.match(mongo, /const base: MongoRuntimeContext = \{ \.\.\.baseContext \}/, "porneste de la o copie proaspata, nu muteaza singletonul runtime");
+  assert.match(mongo, /\{ \.\.\.base, \.\.\.attachLogging\.buildFrom\(base\) \}/, "compune prin valorile returnate de build*From (factory-return), nu prin mutatie attachX(context)");
+  assert.match(mongo, /attachModels\.buildFrom\(withUtilities\)[\s\S]*attachFetchSnapshots\.buildFrom\(withAdminAlerts\)/, "spread imutabil ordonat in obiecte noi (fiecare strat citeste doar campurile straturilor anterioare)");
+  assert.ok(!/attachLogging\(context\)/.test(mongo), "nu mai exista apeluri de mutatie attachX(context) in compunere");
   assert.match(mongo, /Object\.freeze\(\{ \.\.\.createMongoContext\(\), createMongoContext \}\)/, "exportul mongoContext e inghetat (Object.freeze)");
 });
 
