@@ -107,7 +107,7 @@ function buildResetConfiguration(defaultCurrency: CurrencyCode): Record<string, 
 function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps) {
   const {
     GuildModel, invalidateGuildCache, deleteAllReplayPayloads, safeDefer, safeEdit,
-    checkChannelPermissions, DEFAULT_CURRENCY
+    checkChannelPermissions, DEFAULT_CURRENCY, logger
   } = deps;
 
   async function handleResetConfiguration(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
@@ -119,9 +119,17 @@ function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps)
       { $set: buildResetConfiguration(DEFAULT_CURRENCY) },
       { upsert: true }
     );
-    await deleteAllReplayPayloads(guildId).catch(() => undefined);
+    let replayCleanupOk = true;
+    try {
+      await deleteAllReplayPayloads(guildId);
+    } catch (err: unknown) {
+      replayCleanupOk = false;
+      logger("WARN", "GUILD_CONFIG_ADMIN", `Reset config: stergerea payload-urilor de replay a esuat pentru guild ${guildId}`, errorDetail(err));
+    }
     invalidateGuildCache(guildId);
-    return safeEdit(interaction, "OK: configuratia serverului a fost resetata la valorile implicite. Lista dead-letter si payload-urile de replay au fost sterse; istoricul rapoartelor si al notificarilor livrate nu a fost sters.");
+    return safeEdit(interaction, replayCleanupOk
+      ? "OK: configuratia serverului a fost resetata la valorile implicite. Lista dead-letter si payload-urile de replay au fost sterse; istoricul rapoartelor si al notificarilor livrate nu a fost sters."
+      : "Partial: configuratia serverului a fost resetata si lista dead-letter golita, dar stergerea payload-urilor de replay a ESUAT (probabil Mongo indisponibil). Reincearca `/outbox clear-deadletters` ca sa le cureti; istoricul notificarilor livrate nu a fost sters.");
   }
 
   async function handleAdminAlerts(interaction: DiscordInteraction, guildId: string): Promise<unknown> {

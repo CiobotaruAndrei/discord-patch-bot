@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 const mod = require("../features/command-handlers/guildConfigurationAdminHandler") as typeof import("../features/command-handlers/guildConfigurationAdminHandler");
 
-function makeHarness(permissionState = { sendMessages: true, embedLinks: true, readMessageHistory: true }) {
+function makeHarness(permissionState = { sendMessages: true, embedLinks: true, readMessageHistory: true }, replayCleanupFails = false) {
   const calls: Array<{ filter: Record<string, unknown>; update: Record<string, unknown>; options?: Record<string, unknown> }> = [];
   const replies: unknown[] = [];
   const replayPayloadDeletes: string[] = [];
@@ -15,7 +15,10 @@ function makeHarness(permissionState = { sendMessages: true, embedLinks: true, r
       }
     },
     invalidateGuildCache: () => undefined,
-    deleteAllReplayPayloads: async (guildId: string) => { replayPayloadDeletes.push(guildId); },
+    deleteAllReplayPayloads: async (guildId: string) => {
+      replayPayloadDeletes.push(guildId);
+      if (replayCleanupFails) throw new Error("Mongo indisponibil la stergerea payload-urilor de replay");
+    },
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
     checkChannelPermissions: async () => permissionState,
@@ -67,6 +70,19 @@ test("/reset-config confirm:true reseteaza toate suprafetele de configurare", as
   assert.deepEqual(replayPayloadDeletes, ["guild-1"], "reset-ul sterge si payload-urile de replay din colectia separata, ca sa nu ramana orfane (R14 #2)");
   assert.match(String(replies[0]), /resetata la valorile implicite/);
   assert.match(String(replies[0]), /payload-urile de replay au fost sterse/);
+});
+
+test("/reset-config confirm:true: daca stergerea payload-urilor de replay esueaza, raspunsul spune onest ca cleanup-ul a esuat, nu succes total (R15 #2)", async () => {
+  const { handler, calls, replies } = makeHarness(undefined, true);
+
+  await handler.handleGuildConfigurationAdmin(interaction("reset-config", "set", { confirm: true }));
+
+  assert.ok(calls.length >= 1, "configuratia tot a fost resetata (updateOne a rulat)");
+  const reply = String(replies[0]);
+  assert.match(reply, /Partial/i, "raspunsul nu mai pretinde succes total");
+  assert.match(reply, /ESUAT|esuat/, "raspunsul spune clar ca stergerea payload-urilor de replay a esuat");
+  assert.match(reply, /clear-deadletters/, "indica remediere: reia /outbox clear-deadletters");
+  assert.doesNotMatch(reply, /payload-urile de replay au fost sterse/, "nu mai afirma fals ca payload-urile au fost sterse");
 });
 
 test("/reset-config refuza operatia fara confirm:true (nu sterge payload-urile de replay)", async () => {

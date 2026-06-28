@@ -62,7 +62,7 @@ export interface OutboundChannelResolverDeps {
   recordSentHistory?: RecordSentHistory;
 }
 
-function rateLimitedChannel(channel: { id?: unknown; send: (payload: unknown) => Promise<unknown> }, guildId: string, acquireSendSlot: () => Promise<void>, recordSentHistory?: RecordSentHistory): OutboundChannel {
+function rateLimitedChannel(channel: { id?: unknown; send: (payload: unknown) => Promise<unknown> }, guildId: string, acquireSendSlot: () => Promise<void>, logger: NotificationLogger, recordSentHistory?: RecordSentHistory): OutboundChannel {
   const raw = channel;
   return {
     id: String(raw.id ?? ""),
@@ -70,7 +70,9 @@ function rateLimitedChannel(channel: { id?: unknown; send: (payload: unknown) =>
       await acquireSendSlot();
       const sent = await raw.send(payload);
       if (recordSentHistory && meta?.historyEntries?.length) {
-        await recordSentHistory(guildId, meta.historyEntries).catch(() => undefined);
+        await recordSentHistory(guildId, meta.historyEntries).catch((err: unknown) => {
+          logger("WARN", "HISTORY", `Scrierea istoricului /history a esuat pentru guild ${guildId} (livrare directa); mesajul a fost trimis, dar /history poate fi incomplet`, errorMessage(err));
+        });
       }
       return sent;
     }
@@ -150,6 +152,6 @@ export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSe
       const kind = context === "CRON_DISCOUNTS" ? "discount" : context === "CRON_YOUTUBE" ? "youtube" : "update";
       return { channel: outboxChannel(channelId, String(guild._id), kind, enqueueOutbox, guild.outboxRecoveryVerify), abort: false };
     }
-    return { channel: rateLimitedChannel(channel, String(guild._id), acquire, recordSentHistory), abort: false };
+    return { channel: rateLimitedChannel(channel, String(guild._id), acquire, logger, recordSentHistory), abort: false };
   };
 }

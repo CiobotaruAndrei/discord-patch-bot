@@ -857,3 +857,17 @@ test("drainOutbox metrics: oldestJobAgeMs se calculeaza din availableAt, nu crea
   });
   assert.equal(result.oldestJobAgeMs, 300_000, "cel mai vechi DUE e cel cu availableAt minim (due de 300s); jobul de retry creat acum 500s dar due abia de 10s NU domina metrica");
 });
+
+test("drainOutbox: o scriere de history esuata NU blocheaza livrarea, dar e contorizata in historyWriteFailures (R15 #4)", async () => {
+  const job: OutboxJob = { _id: "h1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "k-h1", history: [{ kind: "update", title: "Patch", itemId: "i1" }] };
+  const { runtime, deleted } = makeRuntime([job]);
+  const result = await runtime.drainOutbox({
+    deliver: async (): Promise<DeliverResult> => ({ ok: true }),
+    recordDeadLetter: async () => undefined,
+    recordSentHistory: async () => { throw new Error("history mongo indisponibil"); },
+    maxAttempts: 5, backoffMs: 1000, limit: 50
+  });
+  assert.equal(result.sent, 1, "livrarea reuseste chiar daca scrierea /history a esuat (nu blocheaza trimiterea)");
+  assert.equal(result.historyWriteFailures, 1, "esecul de scriere /history e contorizat (vizibilitate prin bot_history_write_failures + admin alert)");
+  assert.equal(deleted.length, 1, "jobul livrat e sters normal");
+});

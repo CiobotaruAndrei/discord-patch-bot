@@ -434,6 +434,7 @@ test("/youtube videos show NU promite durabilitate cand outbox-ul e dezactivat (
   assert.deepEqual(harness.manualBypassOutbox, [true, true], "cu outbox-ul dezactivat, restul se livreaza tot direct (paced), nu prin outbox");
   assert.match(String(harness.replies[0]), /NU sunt durabile/, "mesaj onest: nu promite durabilitate fara outbox");
   assert.match(String(harness.replies[0]), /NOTIFICATION_OUTBOX_ENABLED/, "indica de ce nu sunt durabile");
+  assert.match(String(harness.replies[0]), /repeta:true/, "indica calea de recuperare la crash: reia cu repeta:true (videoclipurile claim-uite nu reapar la o rulare normala) (R15 #1)");
 });
 
 test("/youtube videos show posteaza doar videoclipurile cu destinatie si raporteaza cate au fost sarite (caz mixt: un canal cu ruta, altul fara)", async () => {

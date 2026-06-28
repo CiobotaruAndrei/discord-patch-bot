@@ -38,6 +38,7 @@ interface OutboxMetricsLike {
   outboxMarkSentFailures: number;
   outboxDeleteFailures: number;
   outboxDeadLetterWriteFailures: number;
+  outboxHistoryWriteFailures: number;
   outboxRecoveryVerifyEnabledGuilds: number;
   outboxLastDrainAt: number;
 }
@@ -58,6 +59,7 @@ interface OutboxDrainResult {
   markSentFailures?: number;
   deleteFailures?: number;
   deadLetterFailures?: number;
+  historyWriteFailures?: number;
   recoveryVerifyEnabledGuilds?: number;
 }
 
@@ -132,6 +134,7 @@ function createOutboxWorker({
     metrics.outboxMarkSentFailures += r.markSentFailures ?? 0;
     metrics.outboxDeleteFailures += r.deleteFailures ?? 0;
     metrics.outboxDeadLetterWriteFailures += r.deadLetterFailures ?? 0;
+    metrics.outboxHistoryWriteFailures += r.historyWriteFailures ?? 0;
     if (typeof r.queued === "number") metrics.outboxQueueDepth = r.queued;
     if (typeof r.oldestJobAgeMs === "number") metrics.outboxOldestJobAgeSeconds = Math.round(r.oldestJobAgeMs / 1000);
     if (typeof r.futureScheduledCount === "number") metrics.outboxFutureScheduledJobs = r.futureScheduledCount;
@@ -156,6 +159,11 @@ function createOutboxWorker({
       adminAlert("outbox:deadletter-write",
         "Scrierea auditului dead-letter la expirare esueaza",
         "Job-uri expirate NU au fost sterse fiindca auditul dead-letter a esuat (payload-ul de replay e pastrat); raman in coada pana se reia auditul. Verifica disponibilitatea Mongo / colectia de dead-letter.").catch(() => undefined);
+    }
+    if ((r.historyWriteFailures ?? 0) > 0) {
+      adminAlert("outbox:history-write",
+        "Scrierea istoricului /history esueaza pentru livrari reusite",
+        "Mesaje au fost trimise dar nu s-au putut scrie in notificationHistory; livrarea e OK, dar /history poate fi incomplet. Verifica disponibilitatea Mongo / colectia de istoric.").catch(() => undefined);
     }
   }
 

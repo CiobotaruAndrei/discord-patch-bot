@@ -195,6 +195,7 @@ export interface BotMetrics {
   outboxMarkSentFailures: number;
   outboxDeleteFailures: number;
   outboxDeadLetterWriteFailures: number;
+  outboxHistoryWriteFailures: number;
   outboxRecoveryVerifyEnabledGuilds: number;
   outboxLastDrainAt: number;
   startedAt: number;
