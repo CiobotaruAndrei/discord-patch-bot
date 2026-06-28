@@ -11,6 +11,7 @@ import type {
   ResolveOutboundChannelResult
 } from "../notifications/outboundChannel";
 import { embedCharCost } from "../../shared/discordEmbedChunks";
+import { rollbackOrReport, type ReportRollbackFailure } from "../notifications/rollbackReporter";
 import {
   YOUTUBE_BATCH_DELAY_MS,
   YOUTUBE_BATCH_SIZE,
@@ -60,6 +61,7 @@ interface YouTubeNotificationServiceDeps {
   FETCH_CONCURRENCY: number;
   youtubeBatchDelayMs?: number;
   now?: () => Date;
+  reportRollbackFailure?: ReportRollbackFailure;
 }
 
 interface FeedResult {
@@ -168,6 +170,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
   } = deps;
   const batchDelayMs = deps.youtubeBatchDelayMs ?? YOUTUBE_BATCH_DELAY_MS;
   const now = deps.now || (() => new Date());
+  const reportRollbackFailure = deps.reportRollbackFailure;
 
   async function loadFeeds(guilds: GuildSettings[]): Promise<Map<string, FeedResult>> {
     const unique = new Map<string, { channelId: string; channelName: string }>();
@@ -325,7 +328,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     const claimedPrepared: PreparedVideo[] = [];
     const rollbackPrepared = async (items: PreparedVideo[]): Promise<void> => {
       for (const item of items) {
-        await rollbackVideo(guildId, item.channel.channelId, item.video.videoId).catch(() => undefined);
+        await rollbackOrReport(() => rollbackVideo(guildId, item.channel.channelId, item.video.videoId), logger, { guildId, kind: "youtube", itemId: item.video.videoId }, reportRollbackFailure);
       }
     };
     for (const channel of guild.youtubeChannels || []) {
@@ -363,7 +366,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
           prepared.push(item);
           claimedPrepared.push(item);
         } catch (error) {
-          await rollbackVideo(guildId, channel.channelId, video.videoId).catch(() => undefined);
+          await rollbackOrReport(() => rollbackVideo(guildId, channel.channelId, video.videoId), logger, { guildId, kind: "youtube", itemId: video.videoId }, reportRollbackFailure);
           await recordChannelError(guildId, channel, transientErrorMessage(error));
         }
       }
@@ -429,7 +432,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
       const guildId = String(guild._id);
       for (const state of delivery.states) {
         if (!state.successful) {
-          await rollbackVideo(guildId, state.item.channel.channelId, state.item.video.videoId).catch(() => undefined);
+          await rollbackOrReport(() => rollbackVideo(guildId, state.item.channel.channelId, state.item.video.videoId), logger, { guildId, kind: "youtube", itemId: state.item.video.videoId }, reportRollbackFailure);
         }
       }
     }

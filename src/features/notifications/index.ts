@@ -11,6 +11,7 @@ import type { DeadLetterReplayRepositoryDeps } from "./deadLetterReplayRepositor
 import type { OutboxDiscordClient } from "./outboundChannel";
 import type { SourceRegistryApi } from "../../sources/sourceRegistry";
 import type { GuildSeenYoutubeDoc } from "../../infra/mongo/modelTypes";
+import type { ReportRollbackFailure } from "./rollbackReporter";
 
 const {
   DISCORD_PERMANENT_ERROR_CODES,
@@ -200,6 +201,15 @@ function createNotificationDispatchServices(
   const persistFetchSnapshot = saveFetchSnapshot as ((id: string, payload: unknown) => Promise<void>) | undefined;
   const loadSnapshot = loadFetchSnapshot as ((id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>) | undefined;
 
+  const reportRollbackFailure: ReportRollbackFailure = (context, error) => {
+    void deps.adminAlert?.(
+      `rollback-failed:${context.kind}`,
+      "Rollback deduplicare esuat",
+      `${context.kind} ${context.itemId} (guild ${context.guildId}): ${error instanceof Error ? error.message : String(error)}`,
+      context.guildId
+    )?.catch(() => undefined);
+  };
+
   const updateService = createUpdateNotificationService({
     GuildModel, logger, runConcurrent, resolveOutboundChannel,
     claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, setSeenHashVersion, disableUpdatesForChannelError,
@@ -220,7 +230,8 @@ function createNotificationDispatchServices(
     formatPrice: deps.formatPrice,
     sleepIfPositive,
     DISCORD_SEND_DELAY_MS,
-    rearmAbsentCycles: PRICE_ALERT_REARM_ABSENT_CYCLES
+    rearmAbsentCycles: PRICE_ALERT_REARM_ABSENT_CYCLES,
+    reportRollbackFailure
   });
 
   const discountService = createDiscountNotificationService({
@@ -268,7 +279,8 @@ function createNotificationDispatchServices(
     sleepIfPositive,
     transientErrorMessage,
     GUILD_PROCESS_CONCURRENCY,
-    FETCH_CONCURRENCY: deps.FETCH_CONCURRENCY
+    FETCH_CONCURRENCY: deps.FETCH_CONCURRENCY,
+    reportRollbackFailure
   });
 
   return {

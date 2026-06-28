@@ -111,6 +111,11 @@ const FAMILY_GUIDANCE: Record<string, AdminAlertGuidance> = {
     severity: "warning",
     meaning: "Monitorizarea YouTube nu a putut rezolva un canal, citi feed-ul sau metadatele unui videoclip.",
     action: "Ruleaza /youtube status si /youtube errors, verifica linkul canalului si conectivitatea catre youtube.com, apoi curata erorile cu /youtube clear-errors dupa remediere."
+  },
+  "rollback-failed": {
+    severity: "warning",
+    meaning: "Anularea (rollback) unei revendicari de deduplicare a esuat dupa o livrare nereusita (Mongo indisponibil sau eroare la scriere). Elementul ramane marcat ca vazut si NU va fi re-livrat automat.",
+    action: "Verifica disponibilitatea/latenta MongoDB. Pentru YouTube, re-posteaza videoclipul afectat cu /youtube videos show repeta:true. Pentru alertele de pret, regula se va re-arma si re-declansa la urmatorul ciclu cand pretul ramane sub prag."
   }
 };
 

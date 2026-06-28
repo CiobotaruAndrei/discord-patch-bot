@@ -223,10 +223,14 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Verificarea abonarii din `drainOutbox` traieste in `createIsStillSubscribed(GuildModel)` + `outboxSubscriptionFilter(job)` (fara `.catch(() => true)`): o eroare Mongo se **propaga** la `notificationOutbox.drainOutbox`, care e **fail-closed** (amana livrarea / dead-letter, nu livreaza orbeste intr-un canal posibil dezabonat). Filtrul cere pentru job-urile YouTube **automate** `youtubeNotificationsEnabled: true`, dar pentru job-urile **manuale** (`job.manual`, setat de `/youtube videos show` prin `enqueueOutbox`) verifica doar existenta destinatiei (canal principal sau ruta), ca afisarea manuala explicita sa supravietuiasca unui `/youtube notify off`. Acoperit de `outboxSubscriptionFilter.test.ts`.
 - Trebuie sa ramana wiring, nu locul principal pentru logica de notificari.
 
+### `src/features/notifications/rollbackReporter.ts`
+
+- `rollbackOrReport(rollback, logger, context, report?)`: ruleaza anularea (rollback) unei revendicari de deduplicare; la esec **nu mai inghite** eroarea, ci logheaza WARN (context `ROLLBACK`, cu elementul + guild-ul) si invoca callback-ul optional `reportRollbackFailure` (conectat in wiring la `adminAlert`, familia `rollback-failed`). Folosit de `youtubeNotificationService` (3 site-uri) si `priceAlertService` ca un esec de rollback (Mongo indisponibil) sa devina vizibil operational, nu o pierdere tacuta.
+
 ### `src/features/notifications/priceAlertService.ts`
 
 - Potriveste ofertele prin `appId` sau titlu/alias normalizat si alege cea mai ieftina oferta valida.
-- Revendica atomic alerta in documentul guild-ului inainte de send, face rollback la esec si o rearmeaza numai dupa ce pretul revine peste prag.
+- Revendica atomic alerta in documentul guild-ului inainte de send, face rollback la esec (prin `rollbackOrReport`, deci un rollback esuat e raportat) si o rearmeaza numai dupa ce pretul revine peste prag.
 
 ### `src/features/notifications/updateNotificationService.ts`
 

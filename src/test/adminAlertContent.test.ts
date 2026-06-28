@@ -94,3 +94,11 @@ test("buildAdminAlertEmbed: trunchiaza cauza foarte lunga la <= 1024 in field/de
   assert.ok(embed.description.length <= 4096);
   for (const field of embed.fields) assert.ok(field.value.length <= 1024);
 });
+
+test("getAlertGuidance: familia rollback-failed are ghidaj propriu (cauza + remediere), R21 #3", () => {
+  const guidance = getAlertGuidance("rollback-failed:youtube");
+  assert.equal(guidance.severity, "warning");
+  assert.match(guidance.meaning, /rollback|revendic/i, "explica ce inseamna esecul de rollback");
+  assert.match(guidance.action, /MongoDB|repeta:true|re-arma|ciclu/i, "spune ce trebuie facut");
+  assert.equal(getAlertGuidance("rollback-failed:price-alert").meaning, guidance.meaning, "aceeasi familie pentru price-alert");
+});
