@@ -193,7 +193,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Gestioneaza toate subcomenzile `/youtube`.
 - Rezolva si salveaza canale YouTube publice, configureaza prima activare, canalul principal, rutele speciale, sablonul mesajului si filtrele de continut sau titlu.
-- Expune afisarea manuala a videoclipurilor din ultima luna fara sa modifice deduplicarea automata.
+- Expune afisarea manuala a videoclipurilor din ultima luna; implicit revendica (claim) videoclipurile cu destinatie pe care le afiseaza, deci o a doua rulare nu le mai reposteaza (optiunea `repeta:true` forteaza repostarea, ignorand claim-ul).
 - Expune diagnoza prin `status`, `errors`, `permissions` si `clear-errors`; toate operatiile sunt protejate de admin guard si raspund ephemeral.
 
 ### `src/features/command-handlers/reportInteractionHandler.ts`
@@ -280,7 +280,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Grupeaza abonamentele tuturor guild-urilor dupa channel ID, astfel incat fiecare feed sa fie citit o singura data per ciclu.
 - Aplica filtrele per-guild, sablonul si rutele speciale, revendica videoclipurile automate inainte de send si livreaza loturi de maximum 5 prin `outboundChannel`, outbox si history cu `kind: youtube`.
-- `showYouTubeVideos` reutilizeaza aceeasi pregatire si livrare, dar ocoleste outbox-ul si nu revendica videoclipurile.
+- Afisarea manuala (`/youtube videos show`) ruleaza prin `prepareManualVideos` (claim implicit la videoclipurile cu destinatie, fara `force`) + `deliverManualVideos` (`claimed=true` -> rollback la esec de livrare): primul lot direct/imediat, restul prin outbox-ul durabil cand e activat. Nu mai exista un wrapper `showYouTubeVideos` separat (era cale moarta, duplica logica handler-ului) — handler-ul cheama direct `prepareManualVideos`/`deliverManualVideos`.
 - Cron-ul apeleaza `checkForYouTube` in paralel cu update-urile si reducerile; esecurile sunt izolate per feed/guild si devin vizibile in erorile YouTube si admin alerts.
 
 ## Domain, scrapers si sources
