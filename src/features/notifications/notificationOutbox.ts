@@ -1,6 +1,7 @@
 "use strict";
 
 const { createHash } = require("crypto");
+const { errorMessage } = require("../../shared/errors") as typeof import("../../shared/errors");
 
 export type OutboxKind = "update" | "discount" | "youtube";
 
@@ -128,6 +129,7 @@ export interface DrainOutboxResult {
   markSentFailures: number;
   deleteFailures: number;
   deadLetterFailures: number;
+  historyWriteFailures: number;
   droppedUnsubscribed: number;
 }
 
@@ -228,6 +230,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     let expired = 0;
     let deleteFailures = 0;
     let deadLetterFailures = 0;
+    let historyWriteFailures = 0;
     let droppedUnsubscribed = 0;
     const maxAgeMs = options.maxAgeMs ?? 0;
 
@@ -335,7 +338,10 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         if (result.recoveryFailed) recoveryFailures++;
         if (result.recoveryMarkerMissing) recoveryMarkerMissing++;
         if (options.recordSentHistory && Array.isArray(job.history) && job.history.length) {
-          await options.recordSentHistory(job.guildId, job.history).catch(() => undefined);
+          await options.recordSentHistory(job.guildId, job.history).catch((err: unknown) => {
+            historyWriteFailures++;
+            logger("WARN", "OUTBOX", `Scrierea istoricului /history a esuat pentru un job livrat (guild ${job.guildId}); livrarea a reusit, dar /history poate fi incomplet`, errorMessage(err));
+          });
         }
         const markSentFailed = job.dedupeKey ? !(await markSent(job.dedupeKey)) : false;
         if (markSentFailed) {
@@ -389,7 +395,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     if (deadLetterFailures > 0) {
       logger("WARN", "OUTBOX", `Drain outbox: ${deadLetterFailures} audit(uri) dead-letter esuate (job-urile terminale raman in coada pentru reluare; un job deja livrat e sters chiar fara audit - vezi log-urile WARN per job; verifica disponibilitatea Mongo)`);
     }
-    return { sent, deadLettered, retried, expired, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, futureScheduledCount: futureScheduled, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures, deleteFailures, deadLetterFailures, droppedUnsubscribed };
+    return { sent, deadLettered, retried, expired, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, futureScheduledCount: futureScheduled, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures, deleteFailures, deadLetterFailures, historyWriteFailures, droppedUnsubscribed };
   }
 
   return { enqueueOutbox, drainOutbox };

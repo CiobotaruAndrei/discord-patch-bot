@@ -64,6 +64,11 @@ const EXACT_GUIDANCE: Record<string, AdminAlertGuidance> = {
     meaning: "Un mesaj a fost trimis dar nu a putut fi marcat in istoricul de dedup (risc de re-trimitere).",
     action: "Verifica conectivitatea Mongo si conditiile de scriere. Vezi OPERATIONS.md - 'bot_outbox_mark_sent_failures'."
   },
+  "outbox:history-write": {
+    severity: "warning",
+    meaning: "Un mesaj a fost livrat cu succes, dar scrierea lui in istoricul /history (notificationHistory) a esuat, deci /history poate fi incomplet pentru acel server. Livrarea NU e afectata.",
+    action: "Verifica disponibilitatea Mongo si scrierile in colectia de istoric. Coreleaza cu metrica `bot_history_write_failures`. Vezi OPERATIONS.md."
+  },
   "outbox:delete": {
     severity: "warning",
     meaning: "Job-uri outbox procesate nu au putut fi sterse din coada (raman deduse/reluate la urmatorul ciclu).",

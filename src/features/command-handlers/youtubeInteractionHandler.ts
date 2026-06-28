@@ -501,7 +501,7 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     const durable = deps.outboxEnabled === true;
     const restNote = durable
       ? `Restul de ${remaining.length} sunt programate prin outbox-ul durabil si livrate in loturi de cate ${YOUTUBE_MANUAL_IMMEDIATE_BATCH} la interval de 10 minute, ca sa supravietuiasca unui restart.`
-      : `Restul de ${remaining.length} continua in fundal in loturi de cate ${YOUTUBE_MANUAL_IMMEDIATE_BATCH} la interval de 10 minute; outbox-ul e dezactivat (NOTIFICATION_OUTBOX_ENABLED=false), deci NU sunt durabile la restart - reia comanda daca botul reporneste.`;
+      : `Restul de ${remaining.length} continua in fundal in loturi de cate ${YOUTUBE_MANUAL_IMMEDIATE_BATCH} la interval de 10 minute; outbox-ul e dezactivat (NOTIFICATION_OUTBOX_ENABLED=false), deci NU sunt durabile la restart. Daca botul reporneste inainte sa termine, acele videoclipuri raman marcate ca afisate dar pot sa nu fi fost trimise - reia comanda cu \`repeta:true\` ca sa le repostezi.`;
     await safeEdit(interaction, `OK: am postat imediat primele ${firstResult.videos} videoclip(e)${skippedNote}. ${restNote}`);
     void deliverManualYouTubeVideos(client, settings, remaining, !durable, !force)
       .then(result => deps.logger(
