@@ -72,6 +72,11 @@ export interface PreparedVideo {
   metadata: YouTubeVideoMetadata;
 }
 
+export interface ManualVideoBatch {
+  items: PreparedVideo[];
+  claimed: boolean;
+}
+
 interface DeliveryState {
   item: PreparedVideo;
   successful: boolean;
@@ -392,14 +397,15 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     for (const channel of selectedChannels) {
       const videos = feedByChannel.get(channel.channelId);
       if (!videos) continue;
+      const hasDestination = youtubeDestinationIds(guild, channel.channelId).length > 0;
       for (const video of videos) {
         if (!isRecentYouTubeVideo(video, now())) continue;
-        const item = await prepareVideo(guild, channel, video, resolveMetadata);
-        if (!item) continue;
-        if (youtubeDestinationIds(guild, channel.channelId).length === 0) {
+        if (!hasDestination) {
           skipped++;
           continue;
         }
+        const item = await prepareVideo(guild, channel, video, resolveMetadata);
+        if (!item) continue;
         if (!force && !(await claimVideo(String(guild._id), channel.channelId, video.videoId))) continue;
         deliverable.push(item);
       }
@@ -410,12 +416,11 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
   async function deliverManualVideos(
     client: NotificationDiscordClient,
     guild: GuildSettings,
-    prepared: PreparedVideo[],
-    bypassOutbox = true,
-    claimed = false
+    batch: ManualVideoBatch,
+    bypassOutbox = true
   ): Promise<DeliveryResult> {
-    const delivery = await deliverPrepared(client, guild, prepared, bypassOutbox, () => false, !bypassOutbox);
-    if (claimed) {
+    const delivery = await deliverPrepared(client, guild, batch.items, bypassOutbox, () => false, !bypassOutbox);
+    if (batch.claimed) {
       const guildId = String(guild._id);
       for (const state of delivery.states) {
         if (!state.successful) {

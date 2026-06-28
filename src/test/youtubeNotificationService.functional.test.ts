@@ -12,7 +12,7 @@ async function manualShow(
   selectedChannelId: string
 ) {
   const prepared = await service.prepareManualVideos(guild, selectedChannelId);
-  return service.deliverManualVideos(client, guild, prepared.deliverable, true, prepared.claimed);
+  return service.deliverManualVideos(client, guild, { items: prepared.deliverable, claimed: prepared.claimed }, true);
 }
 
 const channel = {
@@ -563,6 +563,37 @@ test("YouTube manual: a doua rulare implicita NU repostează videoclipul deja af
   assert.equal(forced.claimed, false, "cu force, videoclipurile NU sunt claim-uite (deci deliverManualVideos nu face rollback)");
 });
 
+test("YouTube prepareManualVideos: NU descarca metadata pentru canale fara destinatie (verificarea destinatiei e inainte de prepare/metadata, R19 #1)", async () => {
+  let metadataCalls = 0;
+  const guild = { _id: "g1", youtubeChannels: [channel], youtubeNotificationChannelId: null, youtubeChannelRoutes: [] };
+  const service = createYouTubeNotificationService({
+    GuildModel: { find: () => ({ lean: async () => [] }) },
+    logger: () => undefined,
+    runConcurrent: sequentialRunConcurrent,
+    fetchYouTubeFeed: async () => [video],
+    fetchYouTubeVideoMetadata: async () => { metadataCalls++; return { durationSeconds: 120, isShort: false, isLive: false, isPremiere: false }; },
+    videoPassesYouTubeFilters: () => true,
+    claimVideo: async () => true,
+    rollbackVideo: async () => undefined,
+    recordChannelSuccess: async () => undefined,
+    recordChannelError: async () => undefined,
+    disableNotificationsForChannelError: async () => ({}),
+    removeRouteForChannelError: async () => ({}),
+    resolveOutboundChannel: async () => ({ abort: false, channel: { id: "x", send: async () => ({}) } }),
+    sleepIfPositive: async () => undefined,
+    transientErrorMessage: error => String(error),
+    GUILD_PROCESS_CONCURRENCY: 1,
+    FETCH_CONCURRENCY: 1,
+    youtubeBatchDelayMs: 0,
+    now: () => new Date("2026-06-25T06:00:00.000Z")
+  } satisfies ServiceDeps);
+
+  const result = await service.prepareManualVideos(guild, "toate");
+  assert.equal(metadataCalls, 0, "niciun fetch de metadata pentru un canal fara destinatie (verificarea destinatiei ruleaza inainte de prepareVideo, nu dupa)");
+  assert.equal(result.deliverable.length, 0, "nimic livrabil fara destinatie");
+  assert.equal(result.skipped, 1, "videoclipul recent de pe canalul fara destinatie e numarat ca sarit");
+});
+
 test("YouTube manual afiseaza numai ultima luna si claim-uieste implicit videoclipurile cu destinatie (dedup pe re-rulare, R14 #1)", async () => {
   let claims = 0;
   const sentTitles: string[] = [];
@@ -797,7 +828,7 @@ test("YouTube manual prin outbox (bypassOutbox=false): enqueue TOATE loturile im
   await service.deliverManualVideos(
     { user: { id: "bot" }, channels: { fetch: async () => null } },
     { _id: "g1", youtubeChannels: [channel], youtubeNotificationChannelId: "main" },
-    prepared,
+    { items: prepared, claimed: false },
     false
   );
   assert.equal(enqueuedAvailableAt.length, 4, "16 videoclipuri -> 4 loturi (5/5/5/1), toate enqueue-uite imediat");
