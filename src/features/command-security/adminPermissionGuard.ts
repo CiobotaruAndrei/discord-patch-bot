@@ -2,7 +2,7 @@
 
 const { MessageFlags, PermissionsBitField } = require("discord.js");
 
-const ADMIN_REQUIRED_MESSAGE = "Eroare: Ai nevoie de Administrator pentru aceasta comanda.";
+const ADMIN_REQUIRED_MESSAGE = "Access denied.";
 
 type AdminGuardPayload = {
   content: string;
@@ -13,16 +13,44 @@ type PermissionSetLike = {
   has: (permission: unknown) => boolean;
 };
 
+type RoleCacheLike = {
+  has: (roleId: string) => boolean;
+};
+
+type MemberRolesLike = RoleCacheLike | { cache?: RoleCacheLike | null };
+
+type MemberLike = {
+  roles?: MemberRolesLike | null;
+};
+
 type AdminGuardInteraction = {
   memberPermissions?: PermissionSetLike | null;
+  member?: MemberLike | null;
   deferred?: boolean;
   replied?: boolean;
   reply?: (payload: AdminGuardPayload) => Promise<unknown>;
   followUp?: (payload: AdminGuardPayload) => Promise<unknown>;
 };
 
+function parseIdList(value: string | undefined): string[] {
+  return String(value || "").split(",").map(id => id.trim()).filter(Boolean);
+}
+
 function isGuildAdmin(interaction: Pick<AdminGuardInteraction, "memberPermissions">): boolean {
   return interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator) === true;
+}
+
+function roleHas(roles: MemberRolesLike | null | undefined, roleId: string): boolean {
+  if (!roles) return false;
+  if (typeof (roles as RoleCacheLike).has === "function") return (roles as RoleCacheLike).has(roleId);
+  const cache = (roles as { cache?: RoleCacheLike | null }).cache;
+  return typeof cache?.has === "function" ? cache.has(roleId) : false;
+}
+
+function hasAllowedAdminRole(interaction: Pick<AdminGuardInteraction, "member">): boolean {
+  const allowed = parseIdList(process.env.BOT_ADMIN_ROLE_IDS);
+  if (!allowed.length) return false;
+  return allowed.some(roleId => roleHas(interaction.member?.roles, roleId));
 }
 
 async function rejectNonAdmin(interaction: AdminGuardInteraction): Promise<void> {
@@ -42,7 +70,7 @@ async function rejectNonAdmin(interaction: AdminGuardInteraction): Promise<void>
 }
 
 async function requireGuildAdmin(interaction: AdminGuardInteraction): Promise<boolean> {
-  if (isGuildAdmin(interaction)) return true;
+  if (isGuildAdmin(interaction) || hasAllowedAdminRole(interaction)) return true;
   await rejectNonAdmin(interaction);
   return false;
 }
@@ -50,6 +78,8 @@ async function requireGuildAdmin(interaction: AdminGuardInteraction): Promise<bo
 Object.assign(requireGuildAdmin, {
   ADMIN_REQUIRED_MESSAGE,
   isGuildAdmin,
+  hasAllowedAdminRole,
+  parseIdList,
   rejectNonAdmin
 });
 

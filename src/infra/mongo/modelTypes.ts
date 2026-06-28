@@ -34,6 +34,37 @@ export interface NotificationLastError {
   at?: Date | null;
 }
 
+export interface ConfigBackupRecord {
+  name: string;
+  createdBy: string;
+  createdAt: Date;
+  snapshot: Record<string, unknown>;
+}
+
+export interface BotAuditLogEntry {
+  userId: string;
+  command: string;
+  result: string;
+  serverId: string;
+  details?: string;
+  at: Date;
+}
+
+export interface ServerAuditLogEntry {
+  userId: string;
+  action: string;
+  serverId: string;
+  details?: string;
+  at: Date;
+}
+
+export interface SuggestedCommandEntry {
+  commandName: string;
+  description: string;
+  createdBy: string;
+  createdAt: Date;
+}
+
 export interface GuildDoc {
   _id: string;
   subscribed?: boolean;
@@ -105,6 +136,10 @@ export interface GuildDoc {
     message: string;
     at: Date;
   }>;
+  configBackups?: ConfigBackupRecord[];
+  botAuditLog?: BotAuditLogEntry[];
+  serverAuditLog?: ServerAuditLogEntry[];
+  suggestedCommands?: SuggestedCommandEntry[];
 }
 
 export interface CircuitBreakerDoc {

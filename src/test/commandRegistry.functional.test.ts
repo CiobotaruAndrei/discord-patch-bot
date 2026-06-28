@@ -123,7 +123,7 @@ test("dispatcher: comanda admin de la non-admin e blocata de pre-check inainte d
 
   const reply = captured as { content?: string } | null;
   assert.ok(reply, "pre-check-ul admin a apelat reply() de respingere");
-  assert.match(String(reply?.content ?? ""), /Administrator/);
+  assert.equal(String(reply?.content ?? ""), "Access denied.");
 });
 
 function makeChatInput(commandName: string, options: { admin?: boolean } = {}) {
@@ -150,13 +150,14 @@ test("dispatcher: toate comenzile admin de la non-admin sunt blocate de pre-chec
   const registry = commandRegistry.createCommandRegistry({ getGuildSettings: async () => null });
   for (const command of [
     "start", "stop", "set", "outbox", "health", "config", "reset-config",
-    "admin-alerts", "price-alert", "sources", "watchlist", "snooze", "unsnooze"
+    "admin-alerts", "price-alert", "sources", "watchlist", "snooze", "unsnooze",
+    "backup", "bot-log", "server-log"
   ]) {
     const { interaction, captured } = makeChatInput(command, { admin: false });
     await registry.handleInteraction(interaction, []);
     const payload = captured.payload as { content?: string } | null;
     assert.ok(payload, `/${command} a primit un raspuns (pre-check-ul admin a rulat in dispatcher)`);
-    assert.match(String(payload?.content ?? ""), /Administrator/, `/${command} blocat de pre-check inainte de handler`);
+    assert.equal(String(payload?.content ?? ""), "Access denied.", `/${command} blocat de pre-check inainte de handler`);
   }
 });
 

@@ -88,7 +88,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-registry/commandRegistry.ts`
 
 - Compune modulele de comenzi si interactiuni, importate **static** (importuri numite `attachX = require(...)`, nu `require`-uri inline).
-- Compunere **explicita si imutabila** (fara installers dinamici): un `createAppServices` apeleaza factory-urile reale tipate (`createCommandCache`, `createCommandPresentation`, `createNotificationRuntime`, `createFeedbackRepository`, `createSlashCommandDefinitions`) compunand fiecare zona prin **spread in obiecte noi** (`{ ...prev, ...createX(prev) }`), fara `Object.assign(base, ...)` pe un singur obiect mutat in loc; `createCommandRegistry` intoarce un registru **`Object.freeze`-uit**, apoi construieste o **lista tipata `CommandHandler[]`** din `attachX.buildCommandHandler(ctx)` rutata de `dispatchCommand` (loop `canHandle`/`handle`, fallback-ul mereu `canHandle: () => true` ultimul). Pre-check-ul admin (`requireGuildAdmin` prin `attachAdminCommandRouterGuard(ctx)`) ruleaza peste `commandSnoozeGuard`, care blocheaza comenzile puse temporar pe pauza inainte de `dispatchCommand`; nu mai e un lant de `attachX` care impacheteaza `handleInteraction`. `buildHelpEmbed` e cablat din `helpCommand.buildHelpEmbed`.
+- Compunere **explicita si imutabila** (fara installers dinamici): un `createAppServices` apeleaza factory-urile reale tipate (`createCommandCache`, `createCommandPresentation`, `createNotificationRuntime`, `createFeedbackRepository`, `createSlashCommandDefinitions`) compunand fiecare zona prin **spread in obiecte noi** (`{ ...prev, ...createX(prev) }`), fara `Object.assign(base, ...)` pe un singur obiect mutat in loc; `createCommandRegistry` intoarce un registru **`Object.freeze`-uit**, apoi construieste o **lista tipata `CommandHandler[]`** din `attachX.buildCommandHandler(ctx)` rutata de `dispatchCommand` (loop `canHandle`/`handle`, fallback-ul mereu `canHandle: () => true` ultimul). Pre-check-ul admin (`requireGuildAdmin` prin `attachAdminCommandRouterGuard(ctx)`) ruleaza peste `commandSnoozeGuard`, accepta `Administrator` sau role ID-uri din `BOT_ADMIN_ROLE_IDS`, scrie audit in `botAuditLog` si poate cere user ID din `BOT_SENSITIVE_USER_IDS` pentru comenzi sensibile; nu mai e un lant de `attachX` care impacheteaza `handleInteraction`. `buildHelpEmbed` e cablat din `helpCommand.buildHelpEmbed`.
 - Valideaza ca functiile adaugate de handler-e exista dupa compunere (fail-fast prin `requireInstalled`) si intoarce contractul inchis `RequiredCommandRegistry` (toate cheile `NonNullable`).
 - `CommandRegistryContext` e un contract **inchis**: doar cheile declarate, cu semnaturile reale ale functiilor (ex. `checkForUpdates(client, games, shouldAbort?)`), fara `[key: string]: unknown` (gard in `registryClosedContracts.test.ts`, pe `ReturnType<createCommandRegistry>`).
 - Boundary-ul de instalare dinamic (`installers: unknown[]` + `install(context as never)` + `LegacyInstallerTarget` + `CommandInstallerTarget` + `isCommandModuleInstaller`) a fost **eliminat**: compunerea e statica si verificata integral de `tsc`, fara niciun `as` pe boundary. **Cum a fost deblocata** estimarea anterioara (registrul ar trebui sa satisfaca simultan toate contextele locale, colapsand in `never`/`any`): reconciliind dep cu dep fiecare contract de handler la factory-ul real — stramtarea deps-urilor loose la semnaturi contravariante reale, segregare de interfata (contracte minimale ca `SteamPriceData`/`EmbeddableUpdate`, modele Mongo reduse la `OutboxRuntimeDeps`/`HistoryRepositoryDeps`) si unificarea tipurilor duplicate (`PendingUpdate`/`PendingDiscount` la alias-uri `types.*`). Garda din `registryClosedContracts.test.ts` pinuieste zero `installers`/`CommandInstallerTarget`/`isCommandModuleInstaller` si prezenta `requireInstalled`.
@@ -114,6 +114,12 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Contine helper-ul de fuzzy game lookup prin `findGameKeys` (TS-primary — Rust mai lent pe marshaling-ul NAPI, vezi `BENCHMARKS.md`; nativul ramane pentru benchmark/paritate).
 - Expune `createCommandPresentation`, iar instalarea pe context este doar adapter de compatibilitate.
 - Builder-ele Discord, collector-ul, interactiunile si raspunsurile HTTP sunt modelate local prin interfete mici.
+
+### `src/features/admin-records/adminRecordsRepository.ts`
+
+- Centralizeaza backup-urile de configuratie, auditul comenzilor admin, auditul de server si sugestiile de comenzi salvate in documentul guild-ului.
+- Backup-ul copiaza doar campurile de configuratie ale botului, nu istoric sau cozi operationale, si pastreaza lista limitata ca documentul Mongo sa ramana controlat.
+- Functiile de listare sorteaza descrescator dupa timp si lasa handler-ele sa decida formatul Discord.
 
 ## Command handlers
 
@@ -145,6 +151,18 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Verifica fiecare comanda chat input inainte de dispatcher.
 - Blocheaza comenzile cu snooze activ si lasa `/snooze`/`/unsnooze` disponibile permanent pentru administrare.
 
+### `src/features/command-security/adminPermissionGuard.ts`
+
+- Verifica accesul runtime la comenzile admin.
+- Accepta permisiunea Discord `Administrator` sau un rol al carui ID este in `BOT_ADMIN_ROLE_IDS`.
+- Refuzul vizibil este `Access denied.`.
+
+### `src/features/command-security/adminCommandRouterGuard.ts`
+
+- Intercepteaza top-level comenzile admin inainte de dispatcher si le blocheaza in DM.
+- Scrie rezultatul in `botAuditLog` ca `Access granted.`, `Access denied.` sau `Error.`.
+- Pentru comenzi sensibile, daca `BOT_SENSITIVE_USER_IDS` este setat, cere si user ID autorizat.
+
 ### `src/features/command-handlers/rolePingHandlers.ts`
 
 - Gestioneaza `/set role`.
@@ -168,6 +186,27 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Gestioneaza `/price-alert add`, `/price-alert remove` si `/price-alert list`.
 - Persistenta este per joc+valuta, cu maximum 25 de reguli per server si stare de declansare/rearmare vizibila adminului.
+
+### `src/features/command-handlers/backupInteractionHandler.ts`
+
+- Gestioneaza `/backup add`, `/backup list`, `/backup preview`, `/backup load` si `/backup delete`.
+- `load` si `delete` cer `confirm:true`; `preview` afiseaza setarile si ID-urile de canale/roluri care vor fi restaurate.
+- Scrie audit server pentru backup-uri salvate, incarcate sau sterse.
+
+### `src/features/command-handlers/auditLogInteractionHandler.ts`
+
+- Gestioneaza `/bot-log` si `/server-log`.
+- Citeste intrarile sortate din `adminRecordsRepository` si le limiteaza la 1-25 intrari pentru raspunsuri Discord sigure.
+
+### `src/features/command-handlers/priceCheckInteractionHandler.ts`
+
+- Gestioneaza `/price-check`.
+- Cauta jocul pe Steam, afiseaza pretul Steam in embed verde si compara cu ofertele similare din feed-ul de reduceri deja folosit de bot.
+
+### `src/features/command-handlers/suggestCommandInteractionHandler.ts`
+
+- Gestioneaza `/suggest-command add` si `/suggest-command list`.
+- `add` ramane public pentru sugestii de useri, iar `list` cere admin la runtime pentru administrarea propunerilor.
 
 ### `src/features/command-handlers/latestInteractionHandler.ts`
 
