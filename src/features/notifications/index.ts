@@ -35,7 +35,26 @@ const { createYouTubeNotificationService } = require("../youtube/youtubeNotifica
 const OUTBOX_MAX_ATTEMPTS = 5;
 const OUTBOX_BACKOFF_MS = 60_000;
 
-interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount" | "youtube"; payload: unknown; attempts?: number; deliveries?: number; dedupeKey?: string; recoveryVerify?: boolean; history?: OutboxHistoryEntry[]; }
+interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount" | "youtube"; payload: unknown; attempts?: number; deliveries?: number; dedupeKey?: string; recoveryVerify?: boolean; manual?: boolean; history?: OutboxHistoryEntry[]; }
+
+function outboxSubscriptionFilter(job: OutboxJobShape): Record<string, unknown> {
+  if (job.kind === "discount") return { _id: job.guildId, discountsSubscribed: true, discountChannelId: job.channelId };
+  if (job.kind === "youtube") {
+    return {
+      _id: job.guildId,
+      ...(job.manual ? {} : { youtubeNotificationsEnabled: true }),
+      $or: [
+        { youtubeNotificationChannelId: job.channelId },
+        { "youtubeChannelRoutes.discordChannelIds": job.channelId }
+      ]
+    };
+  }
+  return { _id: job.guildId, subscribed: true, notificationChannelId: job.channelId };
+}
+
+function createIsStillSubscribed(GuildModel: { countDocuments(filter: Record<string, unknown>): Promise<number> }) {
+  return (job: OutboxJobShape): Promise<boolean> => GuildModel.countDocuments(outboxSubscriptionFilter(job)).then(count => count > 0);
+}
 
 type GeneratedUpdateDeps =
   | "resolveOutboundChannel"
@@ -131,20 +150,7 @@ function createOutboxServices(deps: NotificationsRuntimeDeps) {
   async function drainOutbox(client: OutboxDiscordClient) {
     const result = await outbox.drainOutbox({
       deliver: (job: OutboxJobShape) => outboxDelivery.deliver(client, job),
-      isStillSubscribed: (job: OutboxJobShape) => GuildModel.countDocuments(
-        job.kind === "discount"
-          ? { _id: job.guildId, discountsSubscribed: true, discountChannelId: job.channelId }
-          : job.kind === "youtube"
-            ? {
-                _id: job.guildId,
-                youtubeNotificationsEnabled: true,
-                $or: [
-                  { youtubeNotificationChannelId: job.channelId },
-                  { "youtubeChannelRoutes.discordChannelIds": job.channelId }
-                ]
-              }
-            : { _id: job.guildId, subscribed: true, notificationChannelId: job.channelId }
-      ).then(count => count > 0).catch(() => true),
+      isStillSubscribed: createIsStillSubscribed(GuildModel),
       recordDeadLetter: recordOutboxDeadLetter,
       recordSentHistory: historyRepository.recordSent,
       maxAttempts: OUTBOX_MAX_ATTEMPTS,
@@ -332,6 +338,8 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
 
 type NotificationsInstaller = ((target: NotificationsContext) => void) & {
   createNotificationRuntime: typeof createNotificationRuntime;
+  createIsStillSubscribed: typeof createIsStillSubscribed;
+  outboxSubscriptionFilter: typeof outboxSubscriptionFilter;
 };
 
 const installNotifications = ((target: NotificationsContext): void => {
@@ -339,5 +347,7 @@ const installNotifications = ((target: NotificationsContext): void => {
 }) as NotificationsInstaller;
 
 installNotifications.createNotificationRuntime = createNotificationRuntime;
+installNotifications.createIsStillSubscribed = createIsStillSubscribed;
+installNotifications.outboxSubscriptionFilter = outboxSubscriptionFilter;
 
 export = installNotifications;

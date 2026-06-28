@@ -220,6 +220,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Conecteaza serviciile de update-uri, reduceri, YouTube si alerte de pret la runtime.
 - `priceAlertService` reutilizeaza fetch-urile per valuta ale ciclului de reduceri.
 - Compune `youtubeSource`, `youtubeRepository` si `youtubeNotificationService`, apoi expune functiile necesare comenzilor si cron-ului prin contractul inchis al registrului.
+- Verificarea abonarii din `drainOutbox` traieste in `createIsStillSubscribed(GuildModel)` + `outboxSubscriptionFilter(job)` (fara `.catch(() => true)`): o eroare Mongo se **propaga** la `notificationOutbox.drainOutbox`, care e **fail-closed** (amana livrarea / dead-letter, nu livreaza orbeste intr-un canal posibil dezabonat). Filtrul cere pentru job-urile YouTube **automate** `youtubeNotificationsEnabled: true`, dar pentru job-urile **manuale** (`job.manual`, setat de `/youtube videos show` prin `enqueueOutbox`) verifica doar existenta destinatiei (canal principal sau ruta), ca afisarea manuala explicita sa supravietuiasca unui `/youtube notify off`. Acoperit de `outboxSubscriptionFilter.test.ts`.
 - Trebuie sa ramana wiring, nu locul principal pentru logica de notificari.
 
 ### `src/features/notifications/priceAlertService.ts`

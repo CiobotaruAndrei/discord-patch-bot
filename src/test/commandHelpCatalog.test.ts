@@ -155,3 +155,11 @@ test("command help catalog: descrierea /youtube permissions mentioneaza si rutel
   assert.match(entry!.description, /rute/i, "implementarea verifica si canalele din rute (youtubeChannelRoutes), deci help-ul trebuie sa le mentioneze, nu doar canalul principal");
   assert.match(entry!.description, /principal/i, "mentioneaza si canalul principal");
 });
+
+test("command help catalog: descrierea /youtube videos show reflecta ca afisarea manuala revendica (claim) videoclipurile, nu ca nu modifica deduplicarea (R21 #4)", () => {
+  const entry = COMMAND_HELP_ENTRIES.find(e => e.command === "/youtube videos show");
+  assert.ok(entry, "exista un entry pentru /youtube videos show");
+  assert.doesNotMatch(entry!.description, /nu modifica deduplicarea/i, "textul vechi contrazicea codul: afisarea manuala revendica videoclipurile");
+  assert.match(entry!.description, /revendica|claim/i, "mentioneaza ca revendica (claim) videoclipurile postate");
+  assert.match(entry!.description, /repeta:true/, "mentioneaza optiunea repeta:true pentru repostare");
+});
