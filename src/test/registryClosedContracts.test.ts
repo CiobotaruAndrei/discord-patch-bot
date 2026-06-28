@@ -155,6 +155,16 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   assert.ok(!cmd.includes("(...args: unknown[]) => MaybePromise<unknown>"), "commandRegistry nu mai are tipul generic RegistryFunction = (...args: unknown[]) (R11 #4): campurile contractului au semnaturi precise");
 });
 
+test("mongoContext nu mai foloseste un installer dinamic pe context mutabil: compunere explicita ordonata, pe o copie proaspata, export inghetat", () => {
+  const mongo = fs.readFileSync(path.join(srcRoot, "infra", "mongo", "mongoContext.ts"), "utf8");
+  assert.ok(!/defaultInstallers/.test(mongo), "mongoContext nu mai are lista dinamica defaultInstallers");
+  assert.ok(!/for \(const install of/.test(mongo), "mongoContext nu mai are bucla dinamica peste installers");
+  assert.ok(!/installers: MongoInstaller\[\]/.test(mongo), "createMongoContext nu mai primeste un array de installers ca parametru");
+  assert.match(mongo, /const context: MongoRuntimeContext = \{ \.\.\.baseContext \}/, "compune pe o copie proaspata, nu muteaza singletonul runtime");
+  assert.match(mongo, /attachLogging\(context\);[\s\S]*attachModels\(context\);[\s\S]*attachFetchSnapshots\(context\)/, "apeluri explicite ordonate ale installer-elor, nu o bucla peste un array");
+  assert.match(mongo, /Object\.freeze\(\{ \.\.\.createMongoContext\(\), createMongoContext \}\)/, "exportul mongoContext e inghetat (Object.freeze)");
+});
+
 const tsApi = require("typescript") as typeof import("typescript");
 
 function walkTsFiles(dir: string, out: string[] = []): string[] {

@@ -76,19 +76,17 @@ type MongoRuntimeContext = {
 type MongoInstaller = (target: MongoRuntimeContext) => void;
 
 const runtimeContext = require("./runtime") as MongoRuntimeContext;
-const defaultInstallers: MongoInstaller[] = [
-  require("../../shared/logging"),
-  require("../../shared/domain"),
-  require("../../shared/env"),
-  require("../../shared/utilities"),
-  require("./models"),
-  require("./locks"),
-  require("./migrations"),
-  require("./systemState"),
-  require("./guildSettings"),
-  require("./adminAlerts"),
-  require("./fetchSnapshots")
-];
+const attachLogging = require("../../shared/logging") as MongoInstaller;
+const attachDomain = require("../../shared/domain") as MongoInstaller;
+const attachEnv = require("../../shared/env") as MongoInstaller;
+const attachUtilities = require("../../shared/utilities") as MongoInstaller;
+const attachModels = require("./models") as MongoInstaller;
+const attachLocks = require("./locks") as MongoInstaller;
+const attachMigrations = require("./migrations") as MongoInstaller;
+const attachSystemState = require("./systemState") as MongoInstaller;
+const attachGuildSettings = require("./guildSettings") as MongoInstaller;
+const attachAdminAlerts = require("./adminAlerts") as MongoInstaller;
+const attachFetchSnapshots = require("./fetchSnapshots") as MongoInstaller;
 
 function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeContext {
   return {
@@ -145,18 +143,22 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
   };
 }
 
-function createMongoContext(
-  baseContext: MongoRuntimeContext = runtimeContext,
-  installers: MongoInstaller[] = defaultInstallers
-) {
-  const context = baseContext;
-  for (const install of installers) install(context);
-  return buildMongoContextExports(context);
+function createMongoContext(baseContext: MongoRuntimeContext = runtimeContext): MongoRuntimeContext {
+  const context: MongoRuntimeContext = { ...baseContext };
+  attachLogging(context);
+  attachDomain(context);
+  attachEnv(context);
+  attachUtilities(context);
+  attachModels(context);
+  attachLocks(context);
+  attachMigrations(context);
+  attachSystemState(context);
+  attachGuildSettings(context);
+  attachAdminAlerts(context);
+  attachFetchSnapshots(context);
+  return assertNoUndefinedExports(buildMongoContextExports(context), "mongoContext");
 }
 
-const mongoContext = Object.assign(
-  assertNoUndefinedExports(createMongoContext(), "mongoContext"),
-  { createMongoContext }
-);
+const mongoContext = Object.freeze({ ...createMongoContext(), createMongoContext });
 
 export = mongoContext;
