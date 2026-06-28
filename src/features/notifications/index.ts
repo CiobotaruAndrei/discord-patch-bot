@@ -318,7 +318,6 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     removeSeenChannel: youtubeRepository.removeSeenChannel,
     clearYouTubeErrors: youtubeRepository.clearErrors,
     checkForYouTube: youtubeService.checkForYouTube,
-    showYouTubeVideos: youtubeService.showYouTubeVideos,
     prepareManualYouTubeVideos: youtubeService.prepareManualVideos,
     deliverManualYouTubeVideos: youtubeService.deliverManualVideos,
     drainOutbox,

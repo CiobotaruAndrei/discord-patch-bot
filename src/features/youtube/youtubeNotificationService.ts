@@ -423,15 +423,6 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     return delivery.result;
   }
 
-  async function showYouTubeVideos(
-    client: NotificationDiscordClient,
-    guild: GuildSettings,
-    selectedChannelId: string
-  ): Promise<DeliveryResult> {
-    const prepared = await prepareManualVideos(guild, selectedChannelId);
-    return deliverManualVideos(client, guild, prepared, true, true);
-  }
-
   async function checkForYouTube(
     client: NotificationDiscordClient,
     shouldAbort: (() => boolean) | null = null
@@ -453,7 +444,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     }
   }
 
-  return { checkForYouTube, processGuild, loadFeeds, showYouTubeVideos, prepareManualVideos, deliverManualVideos };
+  return { checkForYouTube, processGuild, loadFeeds, prepareManualVideos, deliverManualVideos };
 }
 
 export { buildYouTubeEmbed, packYouTubeDeliveries, sortedVideos };

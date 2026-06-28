@@ -3,6 +3,17 @@ import assert from "node:assert/strict";
 
 const { createYouTubeNotificationService } = require("../features/youtube/youtubeNotificationService") as typeof import("../features/youtube/youtubeNotificationService");
 type ServiceDeps = Parameters<typeof createYouTubeNotificationService>[0];
+type YouTubeService = ReturnType<typeof createYouTubeNotificationService>;
+
+async function manualShow(
+  service: YouTubeService,
+  client: Parameters<YouTubeService["deliverManualVideos"]>[0],
+  guild: Parameters<YouTubeService["prepareManualVideos"]>[0],
+  selectedChannelId: string
+) {
+  const prepared = await service.prepareManualVideos(guild, selectedChannelId);
+  return service.deliverManualVideos(client, guild, prepared, true, true);
+}
 
 const channel = {
   channelId: "UC1234567890123456789012",
@@ -598,7 +609,7 @@ test("YouTube manual afiseaza numai ultima luna si claim-uieste implicit videocl
     youtubeBatchDelayMs: 0,
     now: () => new Date("2026-06-25T06:00:00.000Z")
   } satisfies ServiceDeps);
-  const result = await service.showYouTubeVideos(
+  const result = await manualShow(service,
     { user: { id: "bot" }, channels: { fetch: async () => null } },
     {
       _id: "g1",
@@ -645,7 +656,7 @@ test("YouTube showYouTubeVideos: la esec de livrare face rollback la claim, ca v
     now: () => new Date("2026-06-25T06:00:00.000Z")
   } satisfies ServiceDeps);
 
-  const result = await service.showYouTubeVideos(
+  const result = await manualShow(service,
     { user: { id: "bot" }, channels: { fetch: async () => null } },
     { _id: "g1", youtubeChannels: [channel], youtubeNotificationChannelId: "main" },
     "toate"
@@ -682,7 +693,7 @@ test("YouTube manual (videos show) refoloseste cache-ul de metadata per apel: ac
     youtubeBatchDelayMs: 0,
     now: () => new Date("2026-06-25T06:00:00.000Z")
   } satisfies ServiceDeps);
-  await service.showYouTubeVideos(
+  await manualShow(service,
     { user: { id: "bot" }, channels: { fetch: async () => null } },
     { _id: "g1", youtubeChannels: [channelA, channelB], youtubeNotificationChannelId: "main" },
     "toate"
@@ -733,7 +744,7 @@ test("YouTube manual descarca feed-urile in paralel dar pastreaza ordinea canale
     youtubeBatchDelayMs: 0,
     now: () => new Date("2026-06-25T06:00:00.000Z")
   } satisfies ServiceDeps);
-  await service.showYouTubeVideos(
+  await manualShow(service,
     { user: { id: "bot" }, channels: { fetch: async () => null } },
     { _id: "g1", youtubeChannels: [channelA, channelB], youtubeNotificationChannelId: "main" },
     "toate"
