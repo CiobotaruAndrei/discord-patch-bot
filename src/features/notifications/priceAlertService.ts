@@ -2,6 +2,7 @@
 
 import type { DealInfo, GuildSettings, PriceAlertRule, PriceValue } from "../../types";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
+import { rollbackOrReport, type ReportRollbackFailure } from "./rollbackReporter";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type MongoWriteResult = { matchedCount?: number; modifiedCount?: number };
@@ -32,6 +33,7 @@ export interface PriceAlertServiceDeps {
   sleepIfPositive(ms: number): Promise<void>;
   DISCORD_SEND_DELAY_MS: number;
   rearmAbsentCycles: number;
+  reportRollbackFailure?: ReportRollbackFailure;
 }
 
 interface TriggeredPriceAlert {
@@ -118,7 +120,8 @@ function splitIntoChunks<T>(items: T[], size: number): T[][] {
 export function createPriceAlertService(deps: PriceAlertServiceDeps) {
   const {
     GuildModel, logger, resolveOutboundChannel, disableDiscountsForChannelError,
-    rollbackTriggeredAlert, formatPrice, sleepIfPositive, DISCORD_SEND_DELAY_MS, rearmAbsentCycles
+    rollbackTriggeredAlert, formatPrice, sleepIfPositive, DISCORD_SEND_DELAY_MS, rearmAbsentCycles,
+    reportRollbackFailure
   } = deps;
 
   const rearmThreshold = Math.max(1, Math.floor(rearmAbsentCycles) || 1);
@@ -225,7 +228,7 @@ export function createPriceAlertService(deps: PriceAlertServiceDeps) {
       disableFn: disableDiscountsForChannelError
     });
     if (resolved.abort) {
-      for (const item of triggered) await rollbackTriggeredAlert(guildId, item.alert).catch(() => undefined);
+      for (const item of triggered) await rollbackOrReport(() => rollbackTriggeredAlert(guildId, item.alert), logger, { guildId, kind: "price-alert", itemId: `${item.alert.gameKey}:${item.alert.currency}` }, reportRollbackFailure);
       return;
     }
     const chunks = splitIntoChunks(triggered, 10);

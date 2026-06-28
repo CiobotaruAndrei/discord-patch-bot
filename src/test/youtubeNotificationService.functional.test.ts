@@ -976,3 +976,40 @@ test("YouTube deliverManualVideos: un item fara destinatie NU e marcat ca livrat
   assert.equal(result.videos, 0, "un item fara destinatie nu e numarat ca livrat (totalDestinations === 0 nu mai inseamna succes)");
   assert.equal(rollbackId, video.videoId, "claim-ul item-ului fara destinatie e anulat (rollback), nu lasat marcat ca vazut");
 });
+
+test("YouTube deliverManualVideos: cand rollback-ul claim-ului arunca, esecul e raportat (admin alert), nu inghitit (R21 #3)", async () => {
+  const reported: Array<{ kind: string; itemId: string; guildId: string }> = [];
+  const service = createYouTubeNotificationService({
+    GuildModel: { find: () => ({ lean: async () => [] }) },
+    logger: () => undefined,
+    runConcurrent: sequentialRunConcurrent,
+    fetchYouTubeFeed: async () => [],
+    fetchYouTubeVideoMetadata: async () => ({ durationSeconds: 120, isShort: false, isLive: false, isPremiere: false }),
+    videoPassesYouTubeFilters: () => true,
+    claimVideo: async () => true,
+    rollbackVideo: async () => { throw new Error("mongo down"); },
+    recordChannelSuccess: async () => undefined,
+    recordChannelError: async () => undefined,
+    disableNotificationsForChannelError: async () => ({}),
+    removeRouteForChannelError: async () => ({}),
+    resolveOutboundChannel: async () => ({ abort: false, channel: { id: "x", send: async () => ({}) } }),
+    sleepIfPositive: async () => undefined,
+    transientErrorMessage: error => String(error),
+    GUILD_PROCESS_CONCURRENCY: 1,
+    FETCH_CONCURRENCY: 1,
+    youtubeBatchDelayMs: 0,
+    now: () => new Date("2026-06-25T06:00:00.000Z"),
+    reportRollbackFailure: context => reported.push({ kind: context.kind, itemId: context.itemId, guildId: context.guildId })
+  } satisfies ServiceDeps);
+
+  const guild = { _id: "g1", youtubeChannels: [channel], youtubeNotificationChannelId: null, youtubeChannelRoutes: [] };
+  const item = { channel, video, metadata: { durationSeconds: 120, isShort: false, isLive: false, isPremiere: false } };
+  await service.deliverManualVideos(
+    { user: { id: "bot" }, channels: { fetch: async () => null } },
+    guild,
+    { items: [item], claimed: true },
+    true
+  );
+
+  assert.deepEqual(reported, [{ kind: "youtube", itemId: video.videoId, guildId: "g1" }], "esecul de rollback al claim-ului devine vizibil operational");
+});
