@@ -182,6 +182,7 @@ export interface NotificationOutboxDoc {
   lockedBy?: string | null;
   dedupeKey?: string;
   recoveryVerify?: boolean | null;
+  manual?: boolean;
   history?: OutboxHistoryEntry[];
   createdAt?: Date;
 }

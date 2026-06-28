@@ -52,6 +52,7 @@ interface YouTubeNotificationServiceDeps {
     context: string;
     disableFn: (guildId: string, channelId: string, message: string) => Promise<object>;
     bypassOutbox?: boolean;
+    manual?: boolean;
   }): Promise<ResolveOutboundChannelResult>;
   sleepIfPositive(ms: number): Promise<void>;
   transientErrorMessage(error: unknown): string;
@@ -228,7 +229,8 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     items: PreparedVideo[],
     bypassOutbox: boolean,
     shouldAbort: () => boolean,
-    enqueueStaggered = false
+    enqueueStaggered = false,
+    manual = false
   ): Promise<{ result: DeliveryResult; states: DeliveryState[] }> {
     const states: DeliveryState[] = items.map(item => ({ item, successful: false, pendingDestinations: 0, totalDestinations: 0 }));
     const stateByItem = new Map(items.map((item, index) => [item, states[index]]));
@@ -259,7 +261,8 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
         disableFn: isMainDestination
           ? disableNotificationsForChannelError
           : removeRouteForChannelError,
-        bypassOutbox
+        bypassOutbox,
+        manual
       });
       if (resolved.abort) continue;
       destinations++;
@@ -421,7 +424,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     batch: ManualVideoBatch,
     bypassOutbox = true
   ): Promise<DeliveryResult> {
-    const delivery = await deliverPrepared(client, guild, batch.items, bypassOutbox, () => false, !bypassOutbox);
+    const delivery = await deliverPrepared(client, guild, batch.items, bypassOutbox, () => false, !bypassOutbox, true);
     if (batch.claimed) {
       const guildId = String(guild._id);
       for (const state of delivery.states) {

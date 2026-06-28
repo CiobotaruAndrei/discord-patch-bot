@@ -238,6 +238,7 @@ const notificationOutboxSchema = new mongoose.Schema({
   lockedBy: { type: String, default: null },
   dedupeKey: { type: String },
   recoveryVerify: { type: Boolean, default: null },
+  manual: { type: Boolean, default: false },
   history: { type: [outboxHistoryEntrySchema], default: [] },
   createdAt: { type: Date, default: Date.now, expires: 7 * ONE_DAY_MS / 1000 }
 }, { minimize: false });
