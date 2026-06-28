@@ -73,20 +73,21 @@ type MongoRuntimeContext = {
   getAbortSignal: () => AbortSignal | null;
 };
 
-type MongoInstaller = (target: MongoRuntimeContext) => void;
+type MongoContribution = (context: MongoRuntimeContext) => Partial<MongoRuntimeContext>;
+type MongoModule = { buildFrom: MongoContribution };
 
 const runtimeContext = require("./runtime") as MongoRuntimeContext;
-const attachLogging = require("../../shared/logging") as MongoInstaller;
-const attachDomain = require("../../shared/domain") as MongoInstaller;
-const attachEnv = require("../../shared/env") as MongoInstaller;
-const attachUtilities = require("../../shared/utilities") as MongoInstaller;
-const attachModels = require("./models") as MongoInstaller;
-const attachLocks = require("./locks") as MongoInstaller;
-const attachMigrations = require("./migrations") as MongoInstaller;
-const attachSystemState = require("./systemState") as MongoInstaller;
-const attachGuildSettings = require("./guildSettings") as MongoInstaller;
-const attachAdminAlerts = require("./adminAlerts") as MongoInstaller;
-const attachFetchSnapshots = require("./fetchSnapshots") as MongoInstaller;
+const attachLogging = require("../../shared/logging") as MongoModule;
+const attachDomain = require("../../shared/domain") as MongoModule;
+const attachEnv = require("../../shared/env") as MongoModule;
+const attachUtilities = require("../../shared/utilities") as MongoModule;
+const attachModels = require("./models") as MongoModule;
+const attachLocks = require("./locks") as MongoModule;
+const attachMigrations = require("./migrations") as MongoModule;
+const attachSystemState = require("./systemState") as MongoModule;
+const attachGuildSettings = require("./guildSettings") as MongoModule;
+const attachAdminAlerts = require("./adminAlerts") as MongoModule;
+const attachFetchSnapshots = require("./fetchSnapshots") as MongoModule;
 
 function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeContext {
   return {
@@ -144,19 +145,19 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
 }
 
 function createMongoContext(baseContext: MongoRuntimeContext = runtimeContext): MongoRuntimeContext {
-  const context: MongoRuntimeContext = { ...baseContext };
-  attachLogging(context);
-  attachDomain(context);
-  attachEnv(context);
-  attachUtilities(context);
-  attachModels(context);
-  attachLocks(context);
-  attachMigrations(context);
-  attachSystemState(context);
-  attachGuildSettings(context);
-  attachAdminAlerts(context);
-  attachFetchSnapshots(context);
-  return assertNoUndefinedExports(buildMongoContextExports(context), "mongoContext");
+  const base: MongoRuntimeContext = { ...baseContext };
+  const withLogging = { ...base, ...attachLogging.buildFrom(base) };
+  const withDomain = { ...withLogging, ...attachDomain.buildFrom(withLogging) };
+  const withEnv = { ...withDomain, ...attachEnv.buildFrom(withDomain) };
+  const withUtilities = { ...withEnv, ...attachUtilities.buildFrom(withEnv) };
+  const withModels = { ...withUtilities, ...attachModels.buildFrom(withUtilities) };
+  const withLocks = { ...withModels, ...attachLocks.buildFrom(withModels) };
+  const withMigrations = { ...withLocks, ...attachMigrations.buildFrom(withLocks) };
+  const withSystemState = { ...withMigrations, ...attachSystemState.buildFrom(withMigrations) };
+  const withGuildSettings = { ...withSystemState, ...attachGuildSettings.buildFrom(withSystemState) };
+  const withAdminAlerts = { ...withGuildSettings, ...attachAdminAlerts.buildFrom(withGuildSettings) };
+  const withFetchSnapshots = { ...withAdminAlerts, ...attachFetchSnapshots.buildFrom(withAdminAlerts) };
+  return assertNoUndefinedExports(buildMongoContextExports(withFetchSnapshots), "mongoContext");
 }
 
 const mongoContext = Object.freeze({ ...createMongoContext(), createMongoContext });

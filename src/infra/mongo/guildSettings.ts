@@ -66,18 +66,24 @@ function getGuildCacheSize(): number {
   return guildSettingsCache.size;
 }
 
-function attachGuildSettings(target: GuildSettingsContext): void {
+function buildGuildSettingsFrom(context: GuildSettingsContext) {
   runtimeContext = {
-    env: target.env,
-    GuildModel: target.GuildModel
+    env: context.env,
+    GuildModel: context.GuildModel
   };
 
-  Object.assign(target, {
+  return {
     getGuildSettings,
     invalidateGuildCache,
     cleanGuildCache,
     getGuildCacheSize
-  });
+  };
 }
+
+function attachGuildSettings(target: GuildSettingsContext): void {
+  Object.assign(target, buildGuildSettingsFrom(target));
+}
+
+attachGuildSettings.buildFrom = buildGuildSettingsFrom;
 
 export = attachGuildSettings;

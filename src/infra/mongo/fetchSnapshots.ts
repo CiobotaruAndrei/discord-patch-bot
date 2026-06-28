@@ -108,18 +108,24 @@ async function loadDealsFetchSnapshots(): Promise<LoadedDealsFetchSnapshot[]> {
   }
 }
 
-function attachFetchSnapshots(target: FetchSnapshotsContext): void {
+function buildFetchSnapshotsFrom(context: FetchSnapshotsContext) {
   runtimeContext = {
-    FetchSnapshotModel: target.FetchSnapshotModel,
-    withMongoRetry: target.withMongoRetry,
-    logger: target.logger
+    FetchSnapshotModel: context.FetchSnapshotModel,
+    withMongoRetry: context.withMongoRetry,
+    logger: context.logger
   };
 
-  Object.assign(target, {
+  return {
     saveFetchSnapshot,
     loadFetchSnapshot,
     loadDealsFetchSnapshots
-  });
+  };
 }
+
+function attachFetchSnapshots(target: FetchSnapshotsContext): void {
+  Object.assign(target, buildFetchSnapshotsFrom(target));
+}
+
+attachFetchSnapshots.buildFrom = buildFetchSnapshotsFrom;
 
 export = attachFetchSnapshots;

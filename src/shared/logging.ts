@@ -46,8 +46,8 @@ function classifyEnvNumber(name: string, raw: string | undefined, defaultValue: 
   return { kind: "ok", value: parsed };
 }
 
-function attachLogging(target: LoggingContext): void {
-  const { AsyncLocalStorage } = target;
+function buildLoggingFrom(context: LoggingContext) {
+  const { AsyncLocalStorage } = context;
 
   const requestContext = new AsyncLocalStorage<RequestContextStore>();
 
@@ -128,16 +128,21 @@ function attachLogging(target: LoggingContext): void {
     return requestContext.getStore()?.abortSignal || null;
   }
 
-  Object.assign(target, {
+  return {
     requestContext,
     logger,
     parseEnvNumber,
     RAW_LOG_LEVEL,
     LOG_SAMPLE_RATE,
     getAbortSignal
-  });
+  };
 }
 
+function attachLogging(target: LoggingContext): void {
+  Object.assign(target, buildLoggingFrom(target));
+}
+
+attachLogging.buildFrom = buildLoggingFrom;
 attachLogging.classifyEnvNumber = classifyEnvNumber;
 
 export = attachLogging;

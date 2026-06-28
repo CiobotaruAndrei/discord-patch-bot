@@ -49,8 +49,8 @@ function formatEnvValidationErrors(err: unknown): EnvProblem[] {
   }));
 }
 
-function attachEnv(target: EnvContext): void {
-  const { z, logger, parseEnvNumber, RAW_LOG_LEVEL } = target;
+function buildEnvFrom(context: EnvContext) {
+  const { z, logger, parseEnvNumber, RAW_LOG_LEVEL } = context;
 
   const isProd = process.env.NODE_ENV === "production";
   const PLACEHOLDER_METRICS_TOKEN = "change_me_to_a_long_random_value";
@@ -252,15 +252,20 @@ function attachEnv(target: EnvContext): void {
     METRICS_TOKEN_SET: !!env.METRICS_TOKEN
   });
 
-  Object.assign(target, {
+  return {
     env,
     isProd,
     ONE_HOUR_MS,
     ONE_DAY_MS,
     THIRTY_DAYS_MS
-  });
+  };
 }
 
+function attachEnv(target: EnvContext): void {
+  Object.assign(target, buildEnvFrom(target));
+}
+
+attachEnv.buildFrom = buildEnvFrom;
 attachEnv.formatEnvValidationErrors = formatEnvValidationErrors;
 attachEnv.makeOptionalBooleanEnv = makeOptionalBooleanEnv;
 

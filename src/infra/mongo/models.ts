@@ -12,8 +12,8 @@ interface MongoModelsContext {
   [key: string]: unknown;
 }
 
-function attachMongoModels(target: MongoModelsContext): void {
-  const { mongoose, SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, ONE_DAY_MS, env } = target;
+function buildMongoModelsFrom(context: MongoModelsContext) {
+  const { mongoose, SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, ONE_DAY_MS, env } = context;
 
 const pendingUpdateSchema = new mongoose.Schema({
   id: { type: String, required: true },
@@ -299,7 +299,7 @@ deadLetterReplaySchema.index({ guildId: 1, createdAt: 1 }, { background: true })
 deadLetterReplaySchema.index({ guildId: 1, dedupeKey: 1 }, { unique: true, partialFilterExpression: { dedupeKey: { $gt: "" } }, background: true });
 const NotificationDeadLetterReplayModel = mongoose.model("NotificationDeadLetterReplay", deadLetterReplaySchema, "notificationDeadLetterReplay");
 
-  Object.assign(target, {
+  return {
     GuildModel,
     CircuitBreakerModel,
     SystemModel,
@@ -314,7 +314,13 @@ const NotificationDeadLetterReplayModel = mongoose.model("NotificationDeadLetter
     NotificationHistoryModel,
     FeedbackReportModel,
     NotificationDeadLetterReplayModel
-  });
+  };
 }
+
+function attachMongoModels(target: MongoModelsContext): void {
+  Object.assign(target, buildMongoModelsFrom(target));
+}
+
+attachMongoModels.buildFrom = buildMongoModelsFrom;
 
 export = attachMongoModels;

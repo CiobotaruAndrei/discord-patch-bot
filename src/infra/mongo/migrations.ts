@@ -262,17 +262,23 @@ async function runMigrations(logger: LoggerFunction, options: RunMigrationsOptio
   }
 }
 
-function attachMigrations(target: MigrationsContext): void {
+function buildMigrationsFrom(context: MigrationsContext) {
   runtimeContext = {
-    mongoose: target.mongoose,
-    acquireDbLock: target.acquireDbLock,
-    releaseDbLock: target.releaseDbLock
+    mongoose: context.mongoose,
+    acquireDbLock: context.acquireDbLock,
+    releaseDbLock: context.releaseDbLock
   };
 
-  Object.assign(target, {
+  return {
     runMigrations,
     ALL_MIGRATIONS
-  });
+  };
 }
+
+function attachMigrations(target: MigrationsContext): void {
+  Object.assign(target, buildMigrationsFrom(target));
+}
+
+attachMigrations.buildFrom = buildMigrationsFrom;
 
 export = attachMigrations;
