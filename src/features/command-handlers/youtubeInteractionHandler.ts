@@ -72,11 +72,6 @@ interface YouTubeInteractionDeps {
   seedSeenVideos(guildId: string, channelId: string, videos: YouTubeVideo[]): Promise<void>;
   removeSeenChannel(guildId: string, channelId: string): Promise<void>;
   clearYouTubeErrors(guildId: string): Promise<void>;
-  showYouTubeVideos(
-    client: NotificationDiscordClient,
-    guild: GuildSettings,
-    selectedChannelId: string
-  ): Promise<{ videos: number; batches: number; destinations: number }>;
   prepareManualYouTubeVideos(guild: GuildSettings, selectedChannelId: string, force?: boolean): Promise<PreparedVideo[]>;
   deliverManualYouTubeVideos(
     client: NotificationDiscordClient,

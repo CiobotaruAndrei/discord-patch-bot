@@ -612,6 +612,48 @@ test("YouTube manual afiseaza numai ultima luna si claim-uieste implicit videocl
   assert.equal(result.videos, 1);
 });
 
+test("YouTube showYouTubeVideos: la esec de livrare face rollback la claim, ca videoclipul sa poata fi reincercat (consistent cu handler-ul, R16 #1)", async () => {
+  const claims = new Set<string>();
+  const rolledBack: string[] = [];
+  const service = createYouTubeNotificationService({
+    GuildModel: { find: () => ({ lean: async () => [] }) },
+    logger: () => undefined,
+    runConcurrent: sequentialRunConcurrent,
+    fetchYouTubeFeed: async () => [video],
+    fetchYouTubeVideoMetadata: async () => ({ durationSeconds: 120, isShort: false, isLive: false, isPremiere: false }),
+    videoPassesYouTubeFilters: () => true,
+    claimVideo: async (guildId, _channelId, videoId) => {
+      const key = `${guildId}:${videoId}`;
+      if (claims.has(key)) return false;
+      claims.add(key);
+      return true;
+    },
+    rollbackVideo: async (guildId, _channelId, videoId) => { rolledBack.push(`${guildId}:${videoId}`); },
+    recordChannelSuccess: async () => undefined,
+    recordChannelError: async () => undefined,
+    disableNotificationsForChannelError: async () => ({}),
+    removeRouteForChannelError: async () => ({}),
+    resolveOutboundChannel: async () => ({
+      abort: false,
+      channel: { id: "main", send: async () => { throw new Error("Discord send esuat"); } }
+    }),
+    sleepIfPositive: async () => undefined,
+    transientErrorMessage: error => String(error),
+    GUILD_PROCESS_CONCURRENCY: 1,
+    FETCH_CONCURRENCY: 1,
+    youtubeBatchDelayMs: 0,
+    now: () => new Date("2026-06-25T06:00:00.000Z")
+  } satisfies ServiceDeps);
+
+  const result = await service.showYouTubeVideos(
+    { user: { id: "bot" }, channels: { fetch: async () => null } },
+    { _id: "g1", youtubeChannels: [channel], youtubeNotificationChannelId: "main" },
+    "toate"
+  );
+  assert.equal(result.videos, 0, "nimic livrat fiindca send-ul a esuat");
+  assert.deepEqual(rolledBack, [`g1:${video.videoId}`], "videoclipul claim-uit dar nelivrat e rollback-uit (claimed=true), ca o re-rulare normala sa-l poata reposta");
+});
+
 test("YouTube manual (videos show) refoloseste cache-ul de metadata per apel: acelasi videoId pe doua canale -> 1 fetch", async () => {
   let metadataCalls = 0;
   const channelA = { ...channel, channelId: "UCAAAAAAAAAAAAAAAAAAAAA" };

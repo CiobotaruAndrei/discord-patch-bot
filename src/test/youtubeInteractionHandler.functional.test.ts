@@ -80,10 +80,6 @@ function createHarness(settingsOverrides: object = {}, preparedCount = 3, outbox
     seedSeenVideos: async (_guildId, _channelId, videos) => { seeded.push(videos.map(video => video.videoId)); },
     removeSeenChannel: async (_guildId, channelId) => { removed.push(channelId); },
     clearYouTubeErrors: async () => { cleared++; },
-    showYouTubeVideos: async (_client, _guild, selectedChannelId) => {
-      manualShows.push(selectedChannelId);
-      return { videos: 3, batches: 1, destinations: 1 };
-    },
     prepareManualYouTubeVideos: async (_guild, selectedChannelId) => {
       manualShows.push(selectedChannelId);
       return Array.from({ length: preparedCount }, (_unused, index) => ({
