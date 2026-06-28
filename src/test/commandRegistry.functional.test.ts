@@ -52,6 +52,19 @@ test("createCommandRegistry intoarce un registru proaspat si izolat la fiecare a
   assert.notEqual(first.handleInteraction, second.handleInteraction);
 });
 
+test("createCommandRegistry intoarce un registru INGHETAT (imutabil), compus prin createAppServices fara mutatie in-place (R14 #4)", () => {
+  const registry = commandRegistry.createCommandRegistry({ getGuildSettings: async () => null });
+  assert.ok(Object.isFrozen(registry), "registrul public e inghetat: consumatorii nu mai pot muta wiring-ul dupa compunere");
+  const before = registry.handleInteraction;
+  try {
+    (registry as Record<string, unknown>).handleInteraction = () => undefined;
+  } catch {
+    assert.ok(true);
+  }
+  assert.equal(registry.handleInteraction, before, "o scriere pe registrul inghetat nu schimba valoarea (ignorata sau aruncata)");
+  assert.equal(typeof registry.checkForUpdates, "function", "contractul inchis ramane complet");
+});
+
 test("dispatcher: /help este rutat catre handler-ul de help prin canHandle loop", async () => {
   const registry = commandRegistry.createCommandRegistry({ getGuildSettings: async () => null });
   let captured: Record<string, unknown> | null = null;
