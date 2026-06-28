@@ -81,6 +81,7 @@ interface DeliveryState {
   item: PreparedVideo;
   successful: boolean;
   pendingDestinations: number;
+  totalDestinations: number;
 }
 
 interface DeliveryResult {
@@ -229,13 +230,16 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     shouldAbort: () => boolean,
     enqueueStaggered = false
   ): Promise<{ result: DeliveryResult; states: DeliveryState[] }> {
-    const states: DeliveryState[] = items.map(item => ({ item, successful: false, pendingDestinations: 0 }));
+    const states: DeliveryState[] = items.map(item => ({ item, successful: false, pendingDestinations: 0, totalDestinations: 0 }));
     const stateByItem = new Map(items.map((item, index) => [item, states[index]]));
     const groups = new Map<string, PreparedVideo[]>();
     for (const item of items) {
       const destinationIds = youtubeDestinationIds(guild, item.channel.channelId);
       const state = stateByItem.get(item);
-      if (state) state.pendingDestinations = destinationIds.length;
+      if (state) {
+        state.pendingDestinations = destinationIds.length;
+        state.totalDestinations = destinationIds.length;
+      }
       for (const destinationId of destinationIds) {
         const destinationItems = groups.get(destinationId) || [];
         destinationItems.push(item);
@@ -295,7 +299,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
         }
       }
     }
-    for (const state of states) state.successful = state.pendingDestinations === 0;
+    for (const state of states) state.successful = state.totalDestinations > 0 && state.pendingDestinations === 0;
     return {
       result: {
         videos: states.filter(state => state.successful).length,
@@ -333,6 +337,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
       }
       const ordered = sortedVideos(result.videos);
       await recordChannelSuccess(guildId, channel, ordered.at(-1)?.videoId || channel.lastVideoId || "");
+      const hasDestination = youtubeDestinationIds(guild, channel.channelId).length > 0;
       for (const video of ordered) {
         if (shouldAbort()) {
           await rollbackPrepared(claimedPrepared);
@@ -347,14 +352,11 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
           if (guild.youtubeHasActivated) await claimVideo(guildId, channel.channelId, video.videoId);
           continue;
         }
+        if (!hasDestination) continue;
         if (!(await claimVideo(guildId, channel.channelId, video.videoId))) continue;
         try {
           const item = await prepareVideo(guild, channel, video, resolveMetadata);
           if (!item) continue;
-          if (!youtubeDestinationIds(guild, channel.channelId).length) {
-            await rollbackVideo(guildId, channel.channelId, video.videoId).catch(() => undefined);
-            continue;
-          }
           prepared.push(item);
           claimedPrepared.push(item);
         } catch (error) {

@@ -893,3 +893,86 @@ test("YouTube livreaza cel mult 5 videoclipuri per lot si asteapta numai intre l
   assert.deepEqual(counts, [5, 5, 1]);
   assert.deepEqual(waits, [600000, 600000]);
 });
+
+test("YouTube cron: NU revendica si NU descarca metadata pentru un canal recent fara destinatie (verificarea destinatiei e inainte de claim/prepare, R20 #1)", async () => {
+  let metadataCalls = 0;
+  let claimCalls = 0;
+  let rollbacks = 0;
+  let sends = 0;
+  const service = createYouTubeNotificationService({
+    GuildModel: { find: () => ({ lean: async () => [] }) },
+    logger: () => undefined,
+    runConcurrent: sequentialRunConcurrent,
+    fetchYouTubeFeed: async () => [video],
+    fetchYouTubeVideoMetadata: async () => { metadataCalls++; return { durationSeconds: 120, isShort: false, isLive: false, isPremiere: false }; },
+    videoPassesYouTubeFilters: () => true,
+    claimVideo: async () => { claimCalls++; return true; },
+    rollbackVideo: async () => { rollbacks++; },
+    recordChannelSuccess: async () => undefined,
+    recordChannelError: async () => undefined,
+    disableNotificationsForChannelError: async () => ({}),
+    removeRouteForChannelError: async () => ({}),
+    resolveOutboundChannel: async () => ({ abort: false, channel: { id: "x", send: async () => { sends++; return {}; } } }),
+    sleepIfPositive: async () => undefined,
+    transientErrorMessage: error => String(error),
+    GUILD_PROCESS_CONCURRENCY: 1,
+    FETCH_CONCURRENCY: 1,
+    youtubeBatchDelayMs: 0,
+    now: () => new Date("2026-06-25T06:00:00.000Z")
+  } satisfies ServiceDeps);
+
+  await service.processGuild(
+    { user: { id: "bot" }, channels: { fetch: async () => null } },
+    {
+      _id: "g1",
+      youtubeChannels: [channel],
+      youtubeNotificationsEnabled: true,
+      youtubeNotificationChannelId: null,
+      youtubeChannelRoutes: []
+    },
+    new Map([[channel.channelId, { videos: [video], error: "" }]]),
+    () => false
+  );
+
+  assert.equal(metadataCalls, 0, "niciun fetch de metadata pentru un canal fara destinatie");
+  assert.equal(claimCalls, 0, "videoclipul recent nu mai e revendicat-apoi-rollback-uit cand nu exista destinatie");
+  assert.equal(rollbacks, 0, "nimic de anulat: nu s-a revendicat nimic");
+  assert.equal(sends, 0, "nicio livrare");
+});
+
+test("YouTube deliverManualVideos: un item fara destinatie NU e marcat ca livrat (deliverPrepared refuza intern) si claim-ul e anulat (R20 #3)", async () => {
+  let rollbackId = "";
+  const service = createYouTubeNotificationService({
+    GuildModel: { find: () => ({ lean: async () => [] }) },
+    logger: () => undefined,
+    runConcurrent: sequentialRunConcurrent,
+    fetchYouTubeFeed: async () => [],
+    fetchYouTubeVideoMetadata: async () => ({ durationSeconds: 120, isShort: false, isLive: false, isPremiere: false }),
+    videoPassesYouTubeFilters: () => true,
+    claimVideo: async () => true,
+    rollbackVideo: async (_guildId, _channelId, videoId) => { rollbackId = videoId; },
+    recordChannelSuccess: async () => undefined,
+    recordChannelError: async () => undefined,
+    disableNotificationsForChannelError: async () => ({}),
+    removeRouteForChannelError: async () => ({}),
+    resolveOutboundChannel: async () => ({ abort: false, channel: { id: "x", send: async () => ({}) } }),
+    sleepIfPositive: async () => undefined,
+    transientErrorMessage: error => String(error),
+    GUILD_PROCESS_CONCURRENCY: 1,
+    FETCH_CONCURRENCY: 1,
+    youtubeBatchDelayMs: 0,
+    now: () => new Date("2026-06-25T06:00:00.000Z")
+  } satisfies ServiceDeps);
+
+  const guild = { _id: "g1", youtubeChannels: [channel], youtubeNotificationChannelId: null, youtubeChannelRoutes: [] };
+  const item = { channel, video, metadata: { durationSeconds: 120, isShort: false, isLive: false, isPremiere: false } };
+  const result = await service.deliverManualVideos(
+    { user: { id: "bot" }, channels: { fetch: async () => null } },
+    guild,
+    { items: [item], claimed: true },
+    true
+  );
+
+  assert.equal(result.videos, 0, "un item fara destinatie nu e numarat ca livrat (totalDestinations === 0 nu mai inseamna succes)");
+  assert.equal(rollbackId, video.videoId, "claim-ul item-ului fara destinatie e anulat (rollback), nu lasat marcat ca vazut");
+});
