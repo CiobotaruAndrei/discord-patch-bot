@@ -145,6 +145,17 @@ intr-un singur loc, fara duplicare. `createSourceRegistry()` compune ordonat
 `SourceInstaller`/`defaultInstallers` + compunere prin `build*From` ordonate) mentin starea. Ambele registre
 sunt acum complet pe factory-return explicit.
 
+**Urmatorul pas gradual — `createAppServices()` imutabil per zona (deferat, review manual R14 #4, Low).**
+`createCommandRegistry` compune corect si verificat de `tsc`, dar inca **muteaza un singur obiect `base`** prin
+lantul `Object.assign(base, attach*.createX(base))` (`withCache -> withFilters -> withPresentation ->
+withNotifications -> withFeedback -> ...`): contextul ramane mutabil si fiecare strat vede campurile
+adaugate de straturile anterioare. Nu e un bug (contractul de iesire e inchis prin `RequiredCommandRegistry`),
+dar limiteaza nota de arhitectura. Directia gradata: un `createAppServices()` care intoarce obiecte
+**imutabile per zona** (`commands`, `notifications`, `sources`, `infra`), compuse prin spread in obiecte noi
+(nu mutatie in loc), ca dependentele intre zone sa fie explicite si o zona sa nu poata vedea accidental
+campurile alteia. Deferat intr-un PR dedicat (refactor de wiring, fara schimbare de comportament), ca sa nu se
+amestece cu fix-urile de comportament; nu se face big-bang peste cele 15 handler-e intr-un PR de bug-fix.
+
 **Boundary-urile `& Record<string, unknown>` ale adaptoarelor (urmatorul pas catre nota 10).** Acelasi
 tipar de installer `attachX` largeste contextul de instalare la `Deps & Record<string, unknown>` ca sa
 accepte cheile adaugate progresiv: `NotificationsContext` (`notifications/index.ts`), `HttpClientContext`

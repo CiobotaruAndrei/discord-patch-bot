@@ -512,7 +512,45 @@ test("YouTube cron aplica filtrul inclusiv de titlu", async () => {
   assert.equal(sends, 0);
 });
 
-test("YouTube manual afiseaza numai ultima luna fara sa modifice deduplicarea", async () => {
+test("YouTube manual: a doua rulare implicita NU repostează videoclipul deja afisat; repeta=true repostează (R14 #1)", async () => {
+  const claims = new Set<string>();
+  const guild = { _id: "g1", youtubeChannels: [channel], youtubeNotificationChannelId: "discord-main" };
+  const service = createYouTubeNotificationService({
+    GuildModel: { find: () => ({ lean: async () => [] }) },
+    logger: () => undefined,
+    runConcurrent: sequentialRunConcurrent,
+    fetchYouTubeFeed: async () => [video],
+    fetchYouTubeVideoMetadata: async () => ({ durationSeconds: 120, isShort: false, isLive: false, isPremiere: false }),
+    videoPassesYouTubeFilters: () => true,
+    claimVideo: async (guildId, _channelId, videoId) => {
+      const key = `${guildId}:${videoId}`;
+      if (claims.has(key)) return false;
+      claims.add(key);
+      return true;
+    },
+    rollbackVideo: async () => undefined,
+    recordChannelSuccess: async () => undefined,
+    recordChannelError: async () => undefined,
+    disableNotificationsForChannelError: async () => ({}),
+    removeRouteForChannelError: async () => ({}),
+    resolveOutboundChannel: async () => ({ abort: false, channel: { id: "discord-main", send: async () => ({}) } }),
+    sleepIfPositive: async () => undefined,
+    transientErrorMessage: error => String(error),
+    GUILD_PROCESS_CONCURRENCY: 1,
+    FETCH_CONCURRENCY: 1,
+    youtubeBatchDelayMs: 0,
+    now: () => new Date("2026-06-25T06:00:00.000Z")
+  } satisfies ServiceDeps);
+
+  const first = await service.prepareManualVideos(guild, "toate");
+  assert.equal(first.length, 1, "prima rulare pregateste si claim-uieste videoclipul recent");
+  const second = await service.prepareManualVideos(guild, "toate");
+  assert.equal(second.length, 0, "a doua rulare implicita nu mai pregateste nimic (deja claim-uit) -> fara duplicate");
+  const forced = await service.prepareManualVideos(guild, "toate", true);
+  assert.equal(forced.length, 1, "repeta=true ignora claim-ul si repostează videoclipul");
+});
+
+test("YouTube manual afiseaza numai ultima luna si claim-uieste implicit videoclipurile cu destinatie (dedup pe re-rulare, R14 #1)", async () => {
   let claims = 0;
   const sentTitles: string[] = [];
   const oldVideo = {
@@ -569,7 +607,7 @@ test("YouTube manual afiseaza numai ultima luna fara sa modifice deduplicarea", 
     },
     "toate"
   );
-  assert.equal(claims, 0);
+  assert.equal(claims, 1, "videoclipul recent cu destinatie e claim-uit (ca a doua rulare sa nu-l reposteze); cel vechi e filtrat dupa recenta inainte de claim");
   assert.deepEqual(sentTitles, ["Videoclip nou"]);
   assert.equal(result.videos, 1);
 });

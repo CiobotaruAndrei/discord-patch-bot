@@ -35,6 +35,7 @@ test("price alert matcher prefera appId si selecteaza cea mai ieftina oferta", (
 function makeService(claimMatched = true, rearmAbsentCycles = 3) {
   const updates: Array<{ filter: Record<string, unknown>; update: Record<string, unknown>; options?: Record<string, unknown> }> = [];
   const sent: Array<Record<string, unknown>> = [];
+  const sentMeta: unknown[] = [];
   const service = createPriceAlertService({
     GuildModel: {
       updateOne: async (filter, update, options) => {
@@ -50,7 +51,7 @@ function makeService(claimMatched = true, rearmAbsentCycles = 3) {
       abort: false,
       channel: {
         id: "deals-channel",
-        send: async payload => { sent.push(payload as Record<string, unknown>); return { id: "message-1" }; }
+        send: async (payload, meta) => { sent.push(payload as Record<string, unknown>); sentMeta.push(meta); return { id: "message-1" }; }
       }
     }),
     disableDiscountsForChannelError: async () => ({ matchedCount: 1, modifiedCount: 1 }),
@@ -60,7 +61,7 @@ function makeService(claimMatched = true, rearmAbsentCycles = 3) {
     DISCORD_SEND_DELAY_MS: 0,
     rearmAbsentCycles
   });
-  return { service, updates, sent };
+  return { service, updates, sent, sentMeta };
 }
 
 function guild(rule: PriceAlertRule): GuildSettings {
@@ -88,6 +89,22 @@ test("price alert service revendica atomic si trimite o singura alerta sub prag"
   assert.equal(sent.length, 1);
   assert.match(JSON.stringify(sent[0]), /Alerta de pret: Elden Ring/);
   assert.ok(updates.some(call => JSON.stringify(call.filter).includes("$elemMatch")));
+});
+
+test("price alert: itemId-ul de history include momentul declansarii, ca re-armarile la acelasi pret sa nu fie deduplicate (R14 #3)", async () => {
+  const { service, sentMeta } = makeService(true);
+  const deals = new Map([["EUR", [{
+    id: "deal-1", title: "Elden Ring", appId: "1245620", salePrice: 25, store: "Steam", link: "https://example.com/elden-ring"
+  }]]]);
+  const before = Date.now();
+  await service.processGuildPriceAlerts(makeNotificationDiscordClient(), guild(alert), deals);
+  const after = Date.now();
+
+  const meta = sentMeta[0] as { historyEntries?: Array<{ itemId?: string }> } | undefined;
+  const itemId = String(meta?.historyEntries?.[0]?.itemId || "");
+  assert.match(itemId, /^price-alert:elden-ring:EUR:25:\d+$/, "itemId include sufixul cu momentul declansarii (gameKey:currency:price:triggeredAt)");
+  const ts = Number(itemId.split(":").at(-1));
+  assert.ok(ts >= before && ts <= after, "sufixul e timestamp-ul real al declansarii, deci doua re-armari la acelasi pret produc itemId-uri diferite (history nu le mai deduplica)");
 });
 
 test("price alert service nu trimite daca alta instanta a revendicat deja alerta", async () => {

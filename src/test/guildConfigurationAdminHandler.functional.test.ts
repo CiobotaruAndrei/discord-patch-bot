@@ -6,6 +6,7 @@ const mod = require("../features/command-handlers/guildConfigurationAdminHandler
 function makeHarness(permissionState = { sendMessages: true, embedLinks: true, readMessageHistory: true }) {
   const calls: Array<{ filter: Record<string, unknown>; update: Record<string, unknown>; options?: Record<string, unknown> }> = [];
   const replies: unknown[] = [];
+  const replayPayloadDeletes: string[] = [];
   const handler = mod.createGuildConfigurationAdminHandler({
     GuildModel: {
       updateOne: async (filter, update, options) => {
@@ -14,6 +15,7 @@ function makeHarness(permissionState = { sendMessages: true, embedLinks: true, r
       }
     },
     invalidateGuildCache: () => undefined,
+    deleteAllReplayPayloads: async (guildId: string) => { replayPayloadDeletes.push(guildId); },
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
     checkChannelPermissions: async () => permissionState,
@@ -21,7 +23,7 @@ function makeHarness(permissionState = { sendMessages: true, embedLinks: true, r
     logger: () => undefined,
     MessageFlags: { Ephemeral: 64 }
   });
-  return { handler, calls, replies };
+  return { handler, calls, replies, replayPayloadDeletes };
 }
 
 function interaction(
@@ -46,7 +48,7 @@ function interaction(
 }
 
 test("/reset-config confirm:true reseteaza toate suprafetele de configurare", async () => {
-  const { handler, calls, replies } = makeHarness();
+  const { handler, calls, replies, replayPayloadDeletes } = makeHarness();
 
   await handler.handleGuildConfigurationAdmin(interaction("reset-config", "set", { confirm: true }));
 
@@ -61,13 +63,17 @@ test("/reset-config confirm:true reseteaza toate suprafetele de configurare", as
   assert.equal(setDoc.youtubeMessageTemplate, null);
   assert.deepEqual(setDoc.youtubeChannelRoutes, []);
   assert.deepEqual(setDoc.youtubeTitleIncludeWords, []);
+  assert.deepEqual(setDoc.notificationDeadLetter, [], "lista dead-letter vizibila e golita");
+  assert.deepEqual(replayPayloadDeletes, ["guild-1"], "reset-ul sterge si payload-urile de replay din colectia separata, ca sa nu ramana orfane (R14 #2)");
   assert.match(String(replies[0]), /resetata la valorile implicite/);
+  assert.match(String(replies[0]), /payload-urile de replay au fost sterse/);
 });
 
-test("/reset-config refuza operatia fara confirm:true", async () => {
-  const { handler, calls, replies } = makeHarness();
+test("/reset-config refuza operatia fara confirm:true (nu sterge payload-urile de replay)", async () => {
+  const { handler, calls, replies, replayPayloadDeletes } = makeHarness();
 
   await handler.handleGuildConfigurationAdmin(interaction("reset-config", "set", { confirm: false }));
+  assert.deepEqual(replayPayloadDeletes, [], "fara confirm nu se sterge nimic");
 
   assert.equal(calls.length, 0);
   assert.match(String(replies[0]), /anulata/);

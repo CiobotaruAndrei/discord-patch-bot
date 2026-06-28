@@ -370,7 +370,8 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
 
   async function prepareManualVideos(
     guild: GuildSettings,
-    selectedChannelId: string
+    selectedChannelId: string,
+    force = false
   ): Promise<PreparedVideo[]> {
     const selectedChannels = (guild.youtubeChannels || []).filter(channel =>
       selectedChannelId === "toate" || channel.channelId === selectedChannelId
@@ -393,7 +394,11 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
       for (const video of videos) {
         if (!isRecentYouTubeVideo(video, now())) continue;
         const item = await prepareVideo(guild, channel, video, resolveMetadata);
-        if (item) prepared.push(item);
+        if (!item) continue;
+        if (!force && youtubeDestinationIds(guild, channel.channelId).length > 0) {
+          if (!(await claimVideo(String(guild._id), channel.channelId, video.videoId))) continue;
+        }
+        prepared.push(item);
       }
     }
     return prepared;
@@ -403,9 +408,18 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     client: NotificationDiscordClient,
     guild: GuildSettings,
     prepared: PreparedVideo[],
-    bypassOutbox = true
+    bypassOutbox = true,
+    claimed = false
   ): Promise<DeliveryResult> {
     const delivery = await deliverPrepared(client, guild, prepared, bypassOutbox, () => false, !bypassOutbox);
+    if (claimed) {
+      const guildId = String(guild._id);
+      for (const state of delivery.states) {
+        if (!state.successful) {
+          await rollbackVideo(guildId, state.item.channel.channelId, state.item.video.videoId).catch(() => undefined);
+        }
+      }
+    }
     return delivery.result;
   }
 
