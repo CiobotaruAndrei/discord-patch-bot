@@ -142,9 +142,9 @@ nevoie de niciun `as` pe boundary; `tsc` verifica acum compunerea end-to-end.
 **valorile returnate de factory-uri**, nu mutatie pe context: fiecare modul de sursa (`infra/http/client`,
 `sources/steam`/`updates`/`deals`) expune un `buildFrom(context)` care **intoarce** contributia (`createX`-ul
 sau), iar `attachX` deleaga la el (`Object.assign(target, buildXFrom(target))`) — maparea de deps traieste
-intr-un singur loc, fara duplicare. `createSourceRegistry()` compune ordonat
-(`Object.assign(context, attach*.buildFrom(context))`, `http -> steam -> updates -> deals`) si intoarce
-`SourceRegistryApi` inchis prin `buildSourceRegistry`/`requireSourceValue`. Compunerea a typecheck-uit direct
+intr-un singur loc, fara duplicare. `createSourceRegistry()` compune **imutabil**, ordonat
+(spread in obiecte noi `{ ...prev, ...attach*.buildFrom(prev) }`, fara `Object.assign(context, ...)` in-place,
+`http -> steam -> updates -> deals`) si intoarce un `SourceRegistryApi` inchis si **`Object.freeze`-uit** prin `buildSourceRegistry`/`requireSourceValue`. Compunerea a typecheck-uit direct
 (fara cascada, fara `as`). `check:weakening` + gardurile din `registryClosedContracts.test.ts` (absenta
 `SourceInstaller`/`defaultInstallers` + compunere prin `build*From` ordonate) mentin starea. Ambele registre
 sunt acum complet pe factory-return explicit.

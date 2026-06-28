@@ -18,8 +18,7 @@ import {
   isRecentYouTubeVideo,
   normalizeYouTubeTitleWord,
   parseDiscordChannelReference,
-  validateYouTubeMessageTemplate,
-  youtubeDestinationIds
+  validateYouTubeMessageTemplate
 } from "../youtube/youtubeDeliveryPolicy";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 
@@ -72,7 +71,7 @@ interface YouTubeInteractionDeps {
   seedSeenVideos(guildId: string, channelId: string, videos: YouTubeVideo[]): Promise<void>;
   removeSeenChannel(guildId: string, channelId: string): Promise<void>;
   clearYouTubeErrors(guildId: string): Promise<void>;
-  prepareManualYouTubeVideos(guild: GuildSettings, selectedChannelId: string, force?: boolean): Promise<PreparedVideo[]>;
+  prepareManualYouTubeVideos(guild: GuildSettings, selectedChannelId: string, force?: boolean): Promise<{ deliverable: PreparedVideo[]; skipped: number; claimed: boolean }>;
   deliverManualYouTubeVideos(
     client: NotificationDiscordClient,
     guild: GuildSettings,
@@ -475,21 +474,19 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     }
     if (!interaction.client) return safeEdit(interaction, "Eroare: clientul Discord nu este disponibil.");
     const client = interaction.client;
-    const prepared = await prepareManualYouTubeVideos(settings, selectedChannelId, force);
-    if (!prepared.length) {
+    const { deliverable, skipped, claimed } = await prepareManualYouTubeVideos(settings, selectedChannelId, force);
+    if (!deliverable.length && skipped === 0) {
       return safeEdit(interaction, force
         ? "Info: nu exista videoclipuri recente (din ultima luna) de afisat pentru aceasta selectie."
         : "Info: nu exista videoclipuri recente noi de afisat (cele din ultima luna au fost deja postate manual). Foloseste `repeta:true` ca sa le repostezi pe toate.");
     }
-    const deliverable = prepared.filter(item => youtubeDestinationIds(settings, item.channel.channelId).length > 0);
-    const skipped = prepared.length - deliverable.length;
     if (!deliverable.length) {
       return safeEdit(interaction, "Eroare: niciun canal de destinatie configurat pentru aceste videoclipuri. Seteaza un canal cu `/youtube notify channel` sau adauga o ruta cu `/youtube channel-route add` inainte de afisarea manuala.");
     }
     const skippedNote = skipped > 0 ? ` (${skipped} sarite: canalul lor YouTube nu are nici ruta, nici canal principal de destinatie)` : "";
     const immediate = deliverable.slice(0, YOUTUBE_MANUAL_IMMEDIATE_BATCH);
     const remaining = deliverable.slice(YOUTUBE_MANUAL_IMMEDIATE_BATCH);
-    const firstResult = await deliverManualYouTubeVideos(client, settings, immediate, true, !force);
+    const firstResult = await deliverManualYouTubeVideos(client, settings, immediate, true, claimed);
     if (!remaining.length) {
       return safeEdit(interaction, `OK: am postat ${firstResult.videos} videoclip(e) pe ${firstResult.destinations} canal(e)${skippedNote}.`);
     }
@@ -498,7 +495,7 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
       ? `Restul de ${remaining.length} sunt programate prin outbox-ul durabil si livrate in loturi de cate ${YOUTUBE_MANUAL_IMMEDIATE_BATCH} la interval de 10 minute, ca sa supravietuiasca unui restart.`
       : `Restul de ${remaining.length} continua in fundal in loturi de cate ${YOUTUBE_MANUAL_IMMEDIATE_BATCH} la interval de 10 minute; outbox-ul e dezactivat (NOTIFICATION_OUTBOX_ENABLED=false), deci NU sunt durabile la restart. Daca botul reporneste inainte sa termine, acele videoclipuri raman marcate ca afisate dar pot sa nu fi fost trimise - reia comanda cu \`repeta:true\` ca sa le repostezi.`;
     await safeEdit(interaction, `OK: am postat imediat primele ${firstResult.videos} videoclip(e)${skippedNote}. ${restNote}`);
-    void deliverManualYouTubeVideos(client, settings, remaining, !durable, !force)
+    void deliverManualYouTubeVideos(client, settings, remaining, !durable, claimed)
       .then(result => deps.logger(
         "INFO",
         "YOUTUBE_COMMAND",
