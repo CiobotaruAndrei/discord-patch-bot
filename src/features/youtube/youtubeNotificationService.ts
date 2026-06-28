@@ -429,7 +429,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     selectedChannelId: string
   ): Promise<DeliveryResult> {
     const prepared = await prepareManualVideos(guild, selectedChannelId);
-    return deliverManualVideos(client, guild, prepared);
+    return deliverManualVideos(client, guild, prepared, true, true);
   }
 
   async function checkForYouTube(
