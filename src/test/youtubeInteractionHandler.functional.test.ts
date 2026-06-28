@@ -10,6 +10,7 @@ interface InteractionOptions {
   subcommand: string;
   strings?: Record<string, string>;
   integers?: Record<string, number>;
+  booleans?: Record<string, boolean>;
   channelId?: string;
 }
 
@@ -24,6 +25,7 @@ function makeInteraction(options: InteractionOptions): HandlerInteraction {
       getSubcommandGroup: () => options.group || null,
       getString: name => options.strings?.[name] ?? null,
       getInteger: name => options.integers?.[name] ?? null,
+      getBoolean: name => options.booleans?.[name] ?? null,
       getChannel: () => options.channelId ? { id: options.channelId } : null
     }
   };

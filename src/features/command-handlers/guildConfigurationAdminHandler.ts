@@ -42,6 +42,7 @@ interface GuildConfigurationAdminDeps {
     ): Promise<unknown>;
   };
   invalidateGuildCache(guildId: string): void;
+  deleteAllReplayPayloads(guildId: string): Promise<void>;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
   checkChannelPermissions(interaction: DiscordInteraction, channelId: string): Promise<ChannelPermissions | null>;
@@ -105,7 +106,7 @@ function buildResetConfiguration(defaultCurrency: CurrencyCode): Record<string, 
 
 function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps) {
   const {
-    GuildModel, invalidateGuildCache, safeDefer, safeEdit,
+    GuildModel, invalidateGuildCache, deleteAllReplayPayloads, safeDefer, safeEdit,
     checkChannelPermissions, DEFAULT_CURRENCY
   } = deps;
 
@@ -118,8 +119,9 @@ function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps)
       { $set: buildResetConfiguration(DEFAULT_CURRENCY) },
       { upsert: true }
     );
+    await deleteAllReplayPayloads(guildId).catch(() => undefined);
     invalidateGuildCache(guildId);
-    return safeEdit(interaction, "OK: configuratia serverului a fost resetata la valorile implicite. Istoricul rapoartelor si notificarilor nu a fost sters.");
+    return safeEdit(interaction, "OK: configuratia serverului a fost resetata la valorile implicite. Lista dead-letter si payload-urile de replay au fost sterse; istoricul rapoartelor si al notificarilor livrate nu a fost sters.");
   }
 
   async function handleAdminAlerts(interaction: DiscordInteraction, guildId: string): Promise<unknown> {

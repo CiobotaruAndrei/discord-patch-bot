@@ -38,6 +38,7 @@ interface TriggeredPriceAlert {
   alert: PriceAlertRule;
   deal: DealInfo;
   price: number;
+  triggeredAt: Date;
   embed: Record<string, unknown>;
 }
 
@@ -152,7 +153,8 @@ export function createPriceAlertService(deps: PriceAlertServiceDeps) {
     }
   }
 
-  async function claimTrigger(guildId: string, alert: PriceAlertRule, price: number): Promise<boolean> {
+  async function claimTrigger(guildId: string, alert: PriceAlertRule, price: number): Promise<Date | null> {
+    const triggeredAt = new Date();
     const result = await GuildModel.updateOne(
       {
         _id: guildId,
@@ -166,14 +168,14 @@ export function createPriceAlertService(deps: PriceAlertServiceDeps) {
       },
       {
         $set: {
-          "priceAlerts.$.triggeredAt": new Date(),
+          "priceAlerts.$.triggeredAt": triggeredAt,
           "priceAlerts.$.lastObservedPrice": price,
-          "priceAlerts.$.lastObservedAt": new Date(),
+          "priceAlerts.$.lastObservedAt": triggeredAt,
           "priceAlerts.$.absentCycles": 0
         }
       }
     );
-    return (result.matchedCount ?? 0) > 0;
+    return (result.matchedCount ?? 0) > 0 ? triggeredAt : null;
   }
 
   async function processGuildPriceAlerts(
@@ -204,11 +206,13 @@ export function createPriceAlertService(deps: PriceAlertServiceDeps) {
         await updateObservedPrice(guildId, alert, selected.price, false);
         continue;
       }
-      if (!(await claimTrigger(guildId, alert, selected.price))) continue;
+      const triggeredAt = await claimTrigger(guildId, alert, selected.price);
+      if (!triggeredAt) continue;
       triggered.push({
         alert,
         deal: selected.deal,
         price: selected.price,
+        triggeredAt,
         embed: buildPriceAlertEmbed(alert, selected.deal, selected.price, formatPrice)
       });
     }
@@ -238,7 +242,7 @@ export function createPriceAlertService(deps: PriceAlertServiceDeps) {
             kind: "discount" as const,
             title: `Alerta pret: ${item.alert.gameName}`,
             link: String(item.deal.url || item.deal.link || ""),
-            itemId: `price-alert:${item.alert.gameKey}:${item.alert.currency}:${item.price}`
+            itemId: `price-alert:${item.alert.gameKey}:${item.alert.currency}:${item.price}:${item.triggeredAt.getTime()}`
           }))
         });
         await sleepIfPositive(DISCORD_SEND_DELAY_MS);
