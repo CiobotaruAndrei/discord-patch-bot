@@ -93,11 +93,11 @@ function createHarness(settingsOverrides: object = {}, preparedCount = 3, outbox
         claimed: !force
       };
     },
-    deliverManualYouTubeVideos: async (_client, _guild, prepared, bypassOutbox = true, claimed = false) => {
-      manualDeliveries.push(prepared.length);
+    deliverManualYouTubeVideos: async (_client, _guild, batch, bypassOutbox = true) => {
+      manualDeliveries.push(batch.items.length);
       manualBypassOutbox.push(bypassOutbox);
-      manualClaimed.push(claimed);
-      return { videos: prepared.length, batches: 1, destinations: 1 };
+      manualClaimed.push(batch.claimed);
+      return { videos: batch.items.length, batches: 1, destinations: 1 };
     },
     checkChannelPermissions: async () => ({
       sendMessages: true,

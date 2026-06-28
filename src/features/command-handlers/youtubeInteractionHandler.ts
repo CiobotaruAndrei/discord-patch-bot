@@ -10,7 +10,7 @@ import type {
 import type { CommandGame, CommandHandler } from "../command-registry/commandHandler";
 import type { NotificationDiscordClient } from "../notifications/outboundChannel";
 import type { ResolvedYouTubeChannel } from "../youtube/youtubeSource";
-import type { PreparedVideo } from "../youtube/youtubeNotificationService";
+import type { PreparedVideo, ManualVideoBatch } from "../youtube/youtubeNotificationService";
 import {
   DEFAULT_YOUTUBE_MESSAGE_TEMPLATE,
   MAX_YOUTUBE_ROUTE_DESTINATIONS,
@@ -75,9 +75,8 @@ interface YouTubeInteractionDeps {
   deliverManualYouTubeVideos(
     client: NotificationDiscordClient,
     guild: GuildSettings,
-    prepared: PreparedVideo[],
-    bypassOutbox?: boolean,
-    claimed?: boolean
+    batch: ManualVideoBatch,
+    bypassOutbox?: boolean
   ): Promise<{ videos: number; batches: number; destinations: number }>;
   checkChannelPermissions(interaction: DiscordInteraction, channelId: string): Promise<ChannelPermissions | null>;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
@@ -486,7 +485,7 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     const skippedNote = skipped > 0 ? ` (${skipped} sarite: canalul lor YouTube nu are nici ruta, nici canal principal de destinatie)` : "";
     const immediate = deliverable.slice(0, YOUTUBE_MANUAL_IMMEDIATE_BATCH);
     const remaining = deliverable.slice(YOUTUBE_MANUAL_IMMEDIATE_BATCH);
-    const firstResult = await deliverManualYouTubeVideos(client, settings, immediate, true, claimed);
+    const firstResult = await deliverManualYouTubeVideos(client, settings, { items: immediate, claimed }, true);
     if (!remaining.length) {
       return safeEdit(interaction, `OK: am postat ${firstResult.videos} videoclip(e) pe ${firstResult.destinations} canal(e)${skippedNote}.`);
     }
@@ -495,7 +494,7 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
       ? `Restul de ${remaining.length} sunt programate prin outbox-ul durabil si livrate in loturi de cate ${YOUTUBE_MANUAL_IMMEDIATE_BATCH} la interval de 10 minute, ca sa supravietuiasca unui restart.`
       : `Restul de ${remaining.length} continua in fundal in loturi de cate ${YOUTUBE_MANUAL_IMMEDIATE_BATCH} la interval de 10 minute; outbox-ul e dezactivat (NOTIFICATION_OUTBOX_ENABLED=false), deci NU sunt durabile la restart. Daca botul reporneste inainte sa termine, acele videoclipuri raman marcate ca afisate dar pot sa nu fi fost trimise - reia comanda cu \`repeta:true\` ca sa le repostezi.`;
     await safeEdit(interaction, `OK: am postat imediat primele ${firstResult.videos} videoclip(e)${skippedNote}. ${restNote}`);
-    void deliverManualYouTubeVideos(client, settings, remaining, !durable, claimed)
+    void deliverManualYouTubeVideos(client, settings, { items: remaining, claimed }, !durable)
       .then(result => deps.logger(
         "INFO",
         "YOUTUBE_COMMAND",
@@ -587,7 +586,7 @@ function isYouTubeCommand(interaction: DiscordInteraction): boolean {
 
 function buildYouTubeCommandHandler(target: YouTubeContext) {
   const handlers = createYouTubeInteractionHandler(
-    Object.assign(target, { outboxEnabled: target.env?.NOTIFICATION_OUTBOX_ENABLED === true })
+    { ...target, outboxEnabled: target.env?.NOTIFICATION_OUTBOX_ENABLED === true }
   );
   const command: CommandHandler<DiscordInteraction> = {
     canHandle: (interaction): interaction is DiscordInteraction => isYouTubeCommand(interaction as DiscordInteraction),
