@@ -109,8 +109,12 @@ beneficiu curent — single-shard + lock-uri DB e corect si suficient pana la pr
 acum **explicit**, fara mecanismul de installers dinamici. `commandRegistry` nu mai foloseste
 `installers: unknown[]` + apel dinamic + `as` de narrowing pe `CommandInstallerTarget`: compune explicit
 prin factory-uri reale tipate (`createCommandCache`, dealFilters, `createCommandPresentation`,
-`createNotificationRuntime`, `createFeedbackRepository`, `createSlashCommandDefinitions`) inlantuite cu
-`Object.assign`, plus o **lista tipata `CommandHandler[]`** (din `attachX.buildCommandHandler(ctx)` pentru
+`createNotificationRuntime`, `createFeedbackRepository`, `createSlashCommandDefinitions`) compuse **imutabil**
+intr-un `createAppServices()` dedicat — fiecare zona se obtine prin **spread in obiecte noi**
+(`{ ...prev, ...createX(prev) }`), nu prin `Object.assign(base, ...)` care muta in loc un singur obiect
+partajat; registrul public returnat e `Object.freeze`-uit (consumatorii nu mai pot muta wiring-ul). Singurul
+seam de mutatie ramas e late-binding-ul `handleInteraction`/`buildHelpEmbed` + guard-urile pe `ctx`
+(recursie mutuala dispatcher<->handlers, izolata si explicita). Plus o **lista tipata `CommandHandler[]`** (din `attachX.buildCommandHandler(ctx)` pentru
 cele 15 handler-e) rutata de `dispatchCommand` (loop `canHandle`/`handle`, fallback-ul ultimul), cu
 pre-check-ul admin (`requireGuildAdmin`, `adminCommandRouterGuard`) ca **singur wrapper** peste
 `dispatchCommand` — nu mai e un lant ordonat-sensibil care impacheteaza `handleInteraction`. Intoarce
@@ -145,16 +149,17 @@ intr-un singur loc, fara duplicare. `createSourceRegistry()` compune ordonat
 `SourceInstaller`/`defaultInstallers` + compunere prin `build*From` ordonate) mentin starea. Ambele registre
 sunt acum complet pe factory-return explicit.
 
-**Urmatorul pas gradual — `createAppServices()` imutabil per zona (deferat, review manual R14 #4, Low).**
-`createCommandRegistry` compune corect si verificat de `tsc`, dar inca **muteaza un singur obiect `base`** prin
-lantul `Object.assign(base, attach*.createX(base))` (`withCache -> withFilters -> withPresentation ->
-withNotifications -> withFeedback -> ...`): contextul ramane mutabil si fiecare strat vede campurile
-adaugate de straturile anterioare. Nu e un bug (contractul de iesire e inchis prin `RequiredCommandRegistry`),
-dar limiteaza nota de arhitectura. Directia gradata: un `createAppServices()` care intoarce obiecte
-**imutabile per zona** (`commands`, `notifications`, `sources`, `infra`), compuse prin spread in obiecte noi
-(nu mutatie in loc), ca dependentele intre zone sa fie explicite si o zona sa nu poata vedea accidental
-campurile alteia. Deferat intr-un PR dedicat (refactor de wiring, fara schimbare de comportament), ca sa nu se
-amestece cu fix-urile de comportament; nu se face big-bang peste cele 15 handler-e intr-un PR de bug-fix.
+**`createAppServices()` imutabil — IMPLEMENTAT (review manual R14 #4, Low).**
+`createCommandRegistry` muta anterior **un singur obiect `base`** prin lantul
+`Object.assign(base, attach*.createX(base))` (`withCache -> withFilters -> ...`): contextul era mutabil si
+fiecare strat vedea/putea muta campurile celorlalte. Acum compunerea zonelor traieste intr-un
+`createAppServices()` dedicat, unde fiecare zona se obtine prin **spread in obiecte noi**
+(`{ ...prev, ...createX(prev) }`) — fara mutatie in-place a unui base partajat — iar `createCommandRegistry`
+intoarce un obiect **`Object.freeze`-uit** (consumatorii nu mai pot muta wiring-ul dupa compunere). Singurul
+seam de mutatie ramas e late-binding-ul `handleInteraction`/`buildHelpEmbed` + guard-urile pe `ctx` (recursie
+mutuala dispatcher<->handlers, izolata si explicita). Fara schimbare de comportament (intreaga suita trece
+neschimbata). Gardat de `commandRegistry.functional.test.ts` (registru inghetat) +
+`registryClosedContracts.test.ts` (compunere prin `createAppServices`, fara `Object.assign(base, ...)`).
 
 **Boundary-urile `& Record<string, unknown>` ale adaptoarelor (urmatorul pas catre nota 10).** Acelasi
 tipar de installer `attachX` largeste contextul de instalare la `Deps & Record<string, unknown>` ca sa

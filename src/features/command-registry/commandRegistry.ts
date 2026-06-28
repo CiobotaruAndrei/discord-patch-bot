@@ -103,24 +103,31 @@ function requireInstalled<T>(value: T | undefined, key: string): T {
   return value;
 }
 
-function createCommandRegistry(
+function createAppServices(
   overrides: Partial<CommandRuntimeBootContext & HandlerMutableContext> = {}
-): RequiredCommandRegistry {
-  const base: CommandRuntimeBootContext & HandlerMutableContext = Object.assign(createCommandRuntimeContext(), overrides);
-
-  const withCache = Object.assign(base, attachCommandCache.createCommandCache(base));
-  const withFilters = Object.assign(withCache, {
+) {
+  const runtime = { ...createCommandRuntimeContext(), ...overrides };
+  const cache = { ...runtime, ...attachCommandCache.createCommandCache(runtime) };
+  const filters = {
+    ...cache,
     dealPassesFilters, normalizePendingUpdateArray, normalizePendingDiscountArray, toEntries, mapToObject, rotateAfter
-  });
-  const withPresentation = Object.assign(withFilters, attachCommandPresentation.createCommandPresentation(withFilters));
-  const withNotifications = Object.assign(withPresentation, attachNotifications.createNotificationRuntime(withPresentation));
-  const feedbackRepository = attachFeedbackRepository.createFeedbackRepository(withNotifications);
-  const withFeedback = Object.assign(withNotifications, {
+  };
+  const presentation = { ...filters, ...attachCommandPresentation.createCommandPresentation(filters) };
+  const notifications = { ...presentation, ...attachNotifications.createNotificationRuntime(presentation) };
+  const feedbackRepository = attachFeedbackRepository.createFeedbackRepository(notifications);
+  const feedback = {
+    ...notifications,
     recordFeedbackReport: feedbackRepository.recordReport,
     getRecentFeedbackReports: feedbackRepository.getRecent,
     resolveFeedbackReport: feedbackRepository.resolveReport
-  });
-  const ctx = Object.assign(withFeedback, attachSlashCommandDefinitions.createSlashCommandDefinitions(withFeedback));
+  };
+  return { ...feedback, ...attachSlashCommandDefinitions.createSlashCommandDefinitions(feedback) };
+}
+
+function createCommandRegistry(
+  overrides: Partial<CommandRuntimeBootContext & HandlerMutableContext> = {}
+): RequiredCommandRegistry {
+  const ctx = createAppServices(overrides);
 
   const helpCommand = attachHelpInteractionHandler.buildCommandHandler(ctx);
   const commandHandlers: CommandHandler[] = [
@@ -159,7 +166,7 @@ function createCommandRegistry(
   attachCommandSnoozeGuard(ctx);
   attachAdminCommandRouterGuard(ctx);
 
-  return {
+  return Object.freeze({
     cleanCache: ctx.cleanCache,
     getCacheSizes: ctx.getCacheSizes,
     setGlobalCacheTtl: ctx.setGlobalCacheTtl,
@@ -179,9 +186,9 @@ function createCommandRegistry(
     clearFindGameCache: ctx.clearFindGameCache,
     formatUserError: ctx.formatUserError,
     canSendEmbeds: ctx.canSendEmbeds
-  };
+  });
 }
 
-const commands = Object.assign(createCommandRegistry(), { createCommandRegistry });
+const commands = Object.freeze({ ...createCommandRegistry(), createCommandRegistry });
 
 export = commands;

@@ -40,6 +40,13 @@ test("registrele compun modulele prin importuri statice, nu require-uri inline i
   assert.ok(!/^\s+require\("\.\.?\//m.test(src), "fara require-uri anonime inline in lista de installers");
 });
 
+test("commandRegistry: zonele se compun in createAppServices prin spread imutabil, fara mutatie in-place a unui base partajat (R14 #4)", () => {
+  const cmd = fs.readFileSync(commandRegistryPath, "utf8");
+  assert.match(cmd, /function createAppServices/, "compunerea zonelor traieste intr-un createAppServices dedicat");
+  assert.ok(!/Object\.assign\(\s*base\b/.test(cmd), "zonele nu se mai compun prin Object.assign(base, ...) pe un singur obiect mutat in loc");
+  assert.ok(!/const withCache = Object\.assign/.test(cmd), "lantul withCache/withFilters/withPresentation prin Object.assign a fost inlocuit cu spread-uri in obiecte noi");
+});
+
 test("pregatire migrare commandRegistry: helper-ele partajate safeDefer/safeEdit/enforceCooldown accepta un contract minimal de interactiune (DeferEditInteraction), nu un DiscordInteraction bogat", () => {
   const text = fs.readFileSync(path.join(srcRoot, "features", "command-presentation", "commandPresentation.ts"), "utf8");
   assert.match(text, /interface DeferEditInteraction/, "presentation defineste contractul minimal DeferEditInteraction pentru helper-ele expuse handler-elor");
