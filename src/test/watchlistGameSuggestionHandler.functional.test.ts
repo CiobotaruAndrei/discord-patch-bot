@@ -29,21 +29,27 @@ function makeInteraction(subcommand: string, values: { game?: string; numar?: nu
   };
 }
 
-function makeHarness(settings: GuildSettings | null, adminAllowed = true) {
+function makeHarness(settings: GuildSettings | null, adminAllowed = true, cooldownAllowed = true) {
   const calls: MongoCall[] = [];
   const replies: unknown[] = [];
   const invalidated: string[] = [];
+  const existing = Array.isArray(settings?.watchlistGameSuggestions) ? settings.watchlistGameSuggestions : [];
   const handler = installWatchlistGame.createWatchlistGameSuggestionHandler({
     GuildModel: {
       updateOne: async (filter, update, options) => {
         calls.push({ filter, update, options });
         return { matchedCount: 1, modifiedCount: 1 };
+      },
+      findOneAndUpdate: async (filter, update, options) => {
+        calls.push({ filter, update, options });
+        return { watchlistGameSuggestions: existing };
       }
     },
     getGuildSettings: async () => settings,
     invalidateGuildCache: guildId => { invalidated.push(guildId); },
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
+    enforceCooldown: async () => cooldownAllowed,
     requireGuildAdmin: async () => adminAllowed,
     logger: () => undefined,
     MessageFlags: { Ephemeral: 64 }
@@ -104,4 +110,21 @@ test("/watchlist-game delete nu modifica lista daca runtime admin guard refuza, 
   const audit = ((calls[0].update as { $push?: { botAuditLog?: { $each?: Array<{ command?: string; result?: string }> } } }).$push)?.botAuditLog?.$each?.[0];
   assert.equal(audit?.command, "/watchlist-game delete");
   assert.equal(audit?.result, "Access denied.");
+});
+
+test("/watchlist-game add deduplica: jocul deja propus nu se adauga din nou (R[Medium] #2)", async () => {
+  const { handler, replies } = makeHarness({
+    _id: "guild-1",
+    watchlistGameSuggestions: [{ gameName: "silksong", createdBy: "u2", createdAt: new Date() }]
+  });
+  await handler.handleWatchlistGameSuggestion(makeInteraction("add", { game: " Silksong " }));
+  assert.match(String(replies[0]), /deja in lista/, "jocul existent (normalizat identic) nu se dubleaza");
+});
+
+test("/watchlist-game add respecta cooldown-ul per user (R[Medium] #2)", async () => {
+  const { handler, calls, replies } = makeHarness({ _id: "guild-1" }, true, false);
+  const result = await handler.handleWatchlistGameSuggestion(makeInteraction("add", { game: "silksong" }));
+  assert.equal(result, undefined);
+  assert.deepEqual(calls, [], "cooldown activ => nicio scriere in DB");
+  assert.deepEqual(replies, []);
 });

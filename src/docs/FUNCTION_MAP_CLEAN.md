@@ -216,11 +216,13 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Gestioneaza `/add suggestion`, `/suggest-command list` si `/suggest-command delete`.
 - `/add suggestion` ramane public pentru sugestii de useri, iar `list`/`delete` cer admin la runtime pentru administrarea propunerilor; fiindca top-level-ul e public, `delete` scrie explicit in `botAuditLog` (`/bot-log`), nu trece prin auditul central al guard-ului.
+- Anti-spam pe comanda publica `/add suggestion`: cooldown per user (`enforceCooldown`) + dedupe atomic in `saveSuggestedCommand` (pipeline `$cond` care nu dubleaza un nume normalizat deja propus), cu raspuns „e deja in lista" cand exista.
 
 ### `src/features/command-handlers/watchlistGameSuggestionHandler.ts`
 
 - Gestioneaza `/watchlist-game add`, `/watchlist-game list` si `/watchlist-game delete`.
 - Permite userilor sa propuna jocuri noi pentru bot, iar adminilor sa stearga propunerile nepotrivite; `delete` (admin runtime pe comanda publica) scrie in `botAuditLog`.
+- Anti-spam pe `/watchlist-game add`: cooldown per user + dedupe atomic in `saveWatchlistGameSuggestion`, la fel ca la sugestiile de comenzi.
 
 ### `src/features/command-handlers/futureReleaseInteractionHandler.ts`
 
