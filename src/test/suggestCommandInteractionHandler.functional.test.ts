@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import type { GuildSettings } from "../types";
+import { escapeInlineText } from "../shared/discordText";
 
 const installSuggestCommand = require("../features/command-handlers/suggestCommandInteractionHandler") as typeof import("../features/command-handlers/suggestCommandInteractionHandler");
 
@@ -83,9 +84,10 @@ test("/suggest-command list cere admin runtime si afiseaza propunerile", async (
 
   await handler.handleSuggestCommandInteraction(makeInteraction("list", { numar: 10 }));
 
-  assert.match(String(replies[0]), /calendar/);
-  assert.match(String(replies[0]), /arata calendarul/);
-  assert.match(String(replies[0]), /<@user-2>/);
+  const content = String((replies[0] as { content?: string }).content ?? replies[0]);
+  assert.match(content, /calendar/);
+  assert.match(content, /arata calendarul/);
+  assert.match(content, /<@user-2>/);
 });
 
 test("/suggest-command list nu afiseaza lista daca runtime admin guard refuza", async () => {
@@ -95,4 +97,25 @@ test("/suggest-command list nu afiseaza lista daca runtime admin guard refuza", 
 
   assert.equal(result, undefined);
   assert.deepEqual(replies, []);
+});
+
+test("/suggest-command list escapeaza textul user-provided si dezactiveaza mentiunile (R[P3])", async () => {
+  const settings: GuildSettings = {
+    _id: "guild-1",
+    suggestedCommands: [{
+      commandName: "hack",
+      description: "`break out` **bold** @everyone <@123>",
+      createdBy: "user-1",
+      createdAt: new Date()
+    }]
+  };
+  const { handler, replies } = makeHarness(settings, true);
+  await handler.handleSuggestCommandInteraction(makeInteraction("list", { numar: 10 }));
+
+  const payload = replies.at(-1) as { content: string; allowedMentions?: unknown };
+  assert.equal(typeof payload, "object", "raspunsul e un payload structurat, nu doar string");
+  assert.deepEqual(payload.allowedMentions, { parse: [] }, "fara ping-uri (allowedMentions gol)");
+  const escaped = escapeInlineText("`break out` **bold** @everyone <@123>", 500);
+  assert.ok(payload.content.includes(escaped), "descrierea user-provided e trecuta prin escapeInlineText (backtick/bold/mentiuni neutralizate)");
+  assert.ok(!payload.content.includes(" `break out` "), "backtick-urile NU mai apar ne-escapate (nu pot inchide blocul de cod al liniei)");
 });

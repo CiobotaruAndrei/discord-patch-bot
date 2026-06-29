@@ -79,14 +79,35 @@ function steamPriceLine(data: SteamPriceData, currency: string, formatPrice: Pri
   return `Steam [verde]: ${formatPrice(current, currency)}`;
 }
 
-function findComparableDeals(deals: DealInfo[], query: string, steamName: string): DealInfo[] {
-  const targets = [query, steamName].map(normalizeTitle).filter(Boolean);
+function titleTokens(value: string): string[] {
+  return normalizeTitle(value).split(" ").filter(token => token.length >= 2);
+}
+
+function titlesComparable(target: string, title: string): boolean {
+  const normalizedTarget = normalizeTitle(target);
+  const normalizedTitle = normalizeTitle(title);
+  if (!normalizedTarget || !normalizedTitle) return false;
+  if (normalizedTarget === normalizedTitle) return true;
+  const targetTokens = new Set(titleTokens(target));
+  const dealTokens = new Set(titleTokens(title));
+  if (targetTokens.size === 0 || dealTokens.size === 0) return false;
+  let shared = 0;
+  for (const token of targetTokens) if (dealTokens.has(token)) shared++;
+  const coverage = shared / targetTokens.size;
+  const union = targetTokens.size + dealTokens.size - shared;
+  const jaccard = union > 0 ? shared / union : 0;
+  return coverage === 1 || jaccard >= 0.6;
+}
+
+function findComparableDeals(deals: DealInfo[], query: string, steamName: string, appId: string | number): DealInfo[] {
+  const appIdStr = String(appId ?? "").trim();
+  const targets = [query, steamName].map(value => String(value || "")).filter(Boolean);
   return deals.filter(deal => {
     const store = normalizeTitle(String(deal.store || ""));
     if (store.includes("steam")) return false;
-    const title = normalizeTitle(String(deal.title || ""));
-    if (!title) return false;
-    return targets.some(target => title.includes(target) || target.includes(title));
+    if (appIdStr && String(deal.appId ?? "").trim() === appIdStr) return true;
+    if (!normalizeTitle(String(deal.title || ""))) return false;
+    return targets.some(target => titlesComparable(target, String(deal.title || "")));
   }).slice(0, 5);
 }
 
@@ -175,7 +196,7 @@ function createPriceCheckInteractionHandler(deps: PriceCheckDeps) {
         return safeEdit(interaction, "Eroare: am gasit jocul pe Steam, dar pretul nu este disponibil.");
       }
       const comparable = await loadComparableDeals(currency);
-      const externalDeals = findComparableDeals(comparable.deals, query, steamData.name || best.name || query);
+      const externalDeals = findComparableDeals(comparable.deals, query, steamData.name || best.name || query, best.id ?? "");
       endLog("ok", { appId: best.id, externalDeals: externalDeals.length });
       return safeEdit(interaction, {
         content: "OK: comparatia de pret este gata.",
@@ -236,10 +257,14 @@ const installPriceCheckInteractionHandler = ((target: PriceCheckContext): void =
   createPriceCheckInteractionHandler: typeof createPriceCheckInteractionHandler;
   buildPriceCheckEmbed: typeof buildPriceCheckEmbed;
   buildCommandHandler: typeof buildPriceCheckCommandHandler;
+  findComparableDeals: typeof findComparableDeals;
+  titlesComparable: typeof titlesComparable;
 };
 
 installPriceCheckInteractionHandler.createPriceCheckInteractionHandler = createPriceCheckInteractionHandler;
 installPriceCheckInteractionHandler.buildPriceCheckEmbed = buildPriceCheckEmbed;
 installPriceCheckInteractionHandler.buildCommandHandler = buildPriceCheckCommandHandler;
+installPriceCheckInteractionHandler.findComparableDeals = findComparableDeals;
+installPriceCheckInteractionHandler.titlesComparable = titlesComparable;
 
 export = installPriceCheckInteractionHandler;

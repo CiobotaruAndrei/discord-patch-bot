@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import type { GuildSettings } from "../types";
 import {
+  buildConfigRestoreUpdate,
   buildConfigSnapshot,
   findBackup,
   listBackups,
@@ -72,11 +73,11 @@ test("admin records: load si listarile folosesc snapshot-uri si ordonare descend
 
   await loadConfigBackup(model, "guild-1", newer);
 
-  assert.deepEqual(calls[0], {
-    filter: { _id: "guild-1" },
-    update: { $set: { subscribed: true } },
-    options: { upsert: true }
-  });
+  assert.deepEqual(calls[0].filter, { _id: "guild-1" });
+  assert.deepEqual(calls[0].options, { upsert: true });
+  const update = calls[0].update as { $set?: Record<string, unknown>; $unset?: Record<string, string> };
+  assert.deepEqual(update.$set, { subscribed: true }, "cheia din snapshot se seteaza");
+  assert.equal(update.$unset?.youtubeChannelRoutes, "", "cheile absente din snapshot se curata (restore complet, nu doar $set)");
 });
 
 test("admin records: auditul si sugestiile sunt limitate prin push slice si listate descrescator", async () => {
@@ -109,4 +110,28 @@ test("admin records: auditul si sugestiile sunt limitate prin push slice si list
   assert.deepEqual(listBotAuditEntries(settings, 1).map(entry => entry.command), ["/new"]);
   assert.deepEqual(listServerAuditEntries(settings, 1).map(entry => entry.action), ["new"]);
   assert.deepEqual(listSuggestedCommands(settings, 1).map(entry => entry.commandName), ["new"]);
+});
+
+test("buildConfigRestoreUpdate face $unset pentru cheile lipsa din snapshot, nu doar $set (R[P1] restore complet)", () => {
+  const update = buildConfigRestoreUpdate({
+    name: "vechi",
+    createdBy: "user-1",
+    createdAt: new Date(),
+    snapshot: { subscribed: true, currency: "EUR" }
+  }) as { $set?: Record<string, unknown>; $unset?: Record<string, string> };
+
+  assert.deepEqual(update.$set, { subscribed: true, currency: "EUR" }, "cheile din snapshot se seteaza");
+  assert.ok(update.$unset, "exista $unset pentru cheile care lipsesc din snapshot");
+  for (const key of ["youtubeChannelRoutes", "priceAlerts", "commandSnoozes", "enabledGames"]) {
+    assert.equal(update.$unset?.[key], "", `${key} (adaugat dupa backup) e curatat la restore, nu lasat activ`);
+  }
+  assert.equal("subscribed" in (update.$unset ?? {}), false, "o cheie din snapshot nu apare si in $unset");
+});
+
+test("loadConfigBackup aplica $set + $unset intr-un singur updateOne", async () => {
+  const calls: Array<{ update: Record<string, unknown> }> = [];
+  const GuildModel = { updateOne: async (_f: Record<string, unknown>, update: Record<string, unknown>) => { calls.push({ update }); return { modifiedCount: 1 }; } };
+  await loadConfigBackup(GuildModel, "guild-1", { name: "v", createdBy: "", createdAt: new Date(), snapshot: { subscribed: false } });
+  assert.equal(calls.length, 1);
+  assert.ok((calls[0].update as { $unset?: unknown }).$unset, "restore-ul cere $unset, deci sterge setarile absente din backup");
 });

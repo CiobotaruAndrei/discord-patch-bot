@@ -211,3 +211,41 @@ test("toate comenzile administrative sunt protejate runtime, iar comenzile publi
     assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), false, `/${cmd} ramane public (fara guard de admin)`);
   }
 });
+
+test("guard: handler care intoarce handledCommandError e auditat ca 'Command error.', nu 'Access granted.' (R[P2] audit onest)", async () => {
+  const mod = require("../features/command-security/adminCommandRouterGuard") as AdminCommandGuardModule & {
+    createAdminCommandGuard: (deps: { requireGuildAdmin: (interaction: TestInteraction) => Promise<boolean> }, target?: { GuildModel?: unknown }) => {
+      handleAdminProtectedCommand: (interaction: TestInteraction, games: TestGame[], next?: (interaction: TestInteraction, games: TestGame[]) => Promise<unknown>) => Promise<unknown>;
+    };
+  };
+  const { handledCommandError } = require("../features/command-security/commandOutcome") as typeof import("../features/command-security/commandOutcome");
+
+  const audits: string[] = [];
+  const target = {
+    GuildModel: {
+      updateOne: async (_filter: unknown, update: Record<string, unknown>) => {
+        const entry = (update.$push as { botAuditLog?: { $each?: Array<{ result?: string }> } } | undefined)?.botAuditLog?.$each?.[0];
+        if (entry?.result) audits.push(entry.result);
+        return { modifiedCount: 1 };
+      }
+    }
+  };
+  const guard = mod.createAdminCommandGuard({ requireGuildAdmin: async () => true }, target);
+  const interaction = {
+    commandName: "config",
+    guild: { id: "guild-1" },
+    user: { id: "user-1" },
+    deferred: false,
+    replied: false,
+    isChatInputCommand: () => true,
+    memberPermissions: { has: () => true },
+    options: { getSubcommand: () => "", getSubcommandGroup: () => null },
+    reply: async () => undefined,
+    followUp: async () => undefined
+  } satisfies TestInteraction;
+
+  await guard.handleAdminProtectedCommand(interaction, [], async () => handledCommandError("mongo down"));
+  await guard.handleAdminProtectedCommand(interaction, [], async () => ({ content: "ok" }));
+
+  assert.deepEqual(audits, ["Command error.", "Access granted."], "un handler care si-a tratat eroarea intern e auditat onest, nu ca succes");
+});

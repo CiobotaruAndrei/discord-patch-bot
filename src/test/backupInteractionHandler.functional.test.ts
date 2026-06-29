@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import type { GuildSettings } from "../types";
+import { isHandledCommandError } from "../features/command-security/commandOutcome";
 
 const installBackup = require("../features/command-handlers/backupInteractionHandler") as typeof import("../features/command-handlers/backupInteractionHandler");
 
@@ -122,8 +123,43 @@ test("/backup load cu confirmare restaureaza snapshot-ul si scrie server-log", a
   await handler.handleBackupInteraction(makeInteraction("load", { name: "prod", confirm: true }));
 
   assert.equal(calls.length, 2);
-  assert.deepEqual(calls[0].update, { $set: { subscribed: true, discountChannelId: "deals-channel" } });
+  const restore = calls[0].update as { $set?: Record<string, unknown>; $unset?: Record<string, string> };
+  assert.deepEqual(restore.$set, { subscribed: true, discountChannelId: "deals-channel" });
+  assert.equal(restore.$unset?.youtubeChannelRoutes, "", "restore-ul curata si cheile absente din snapshot");
   assert.match(JSON.stringify(calls[1].update), /backup_load/);
   assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /incarcat/);
+});
+
+test("/backup load invalideaza cache-ul chiar daca scrierea in server-log esueaza, si raporteaza partial (R[P2])", async () => {
+  const settings: GuildSettings = {
+    _id: "guild-1",
+    configBackups: [{ name: "prod", createdBy: "user-1", createdAt: new Date(), snapshot: { subscribed: true } }]
+  };
+  const invalidated: string[] = [];
+  const replies: unknown[] = [];
+  let restored = false;
+  const handler = installBackup.createBackupInteractionHandler({
+    GuildModel: {
+      updateOne: async (_filter, update: Record<string, unknown>) => {
+        if (JSON.stringify(update).includes("serverAuditLog")) throw new Error("mongo down");
+        restored = true;
+        return { matchedCount: 1, modifiedCount: 1 };
+      }
+    },
+    getGuildSettings: async () => settings,
+    invalidateGuildCache: guildId => { invalidated.push(guildId); },
+    safeDefer: async () => undefined,
+    safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
+    formatUserError: (_err, fallback) => fallback,
+    logger: () => undefined,
+    MessageFlags: { Ephemeral: 64 }
+  });
+
+  const result = await handler.handleBackupInteraction(makeInteraction("load", { name: "prod", confirm: true }));
+
+  assert.equal(restored, true, "restore-ul s-a aplicat in Mongo");
+  assert.deepEqual(invalidated, ["guild-1"], "cache-ul e invalidat dupa mutatia reala, chiar daca auditul a esuat");
+  assert.match(String(replies.at(-1)), /server-log/, "raspunsul anunta ca auditul a esuat (partial), nu ascunde restore-ul");
+  assert.equal(isHandledCommandError(result), false, "un esec de audit best-effort nu transforma comanda intr-o eroare");
 });
