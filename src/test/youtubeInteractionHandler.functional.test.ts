@@ -287,8 +287,8 @@ test("/youtube channel-route gestioneaza rute multiple si revenirea la canalul p
   };
   const addHarness = createHarness(baseSettings);
   await addHarness.handler.handleYouTubeInteraction(makeInteraction({
-    group: "channel-route",
-    subcommand: "add",
+    group: "add",
+    subcommand: "channel-route",
     strings: { canal: youtubeChannelId },
     channelId: "123456789012345678"
   }));
@@ -302,8 +302,8 @@ test("/youtube channel-route gestioneaza rute multiple si revenirea la canalul p
     }]
   });
   await removeHarness.handler.handleYouTubeInteraction(makeInteraction({
-    group: "channel-route",
-    subcommand: "remove",
+    group: "remove",
+    subcommand: "channel-route",
     strings: { canal: youtubeChannelId, discord: "toate" }
   }));
   assert.match(JSON.stringify(removeHarness.writes[0].update), /\$pull/);
@@ -325,8 +325,8 @@ test("/youtube channel-route add refuza un nou canal Discord peste limita de fan
     }]
   });
   await harness.handler.handleYouTubeInteraction(makeInteraction({
-    group: "channel-route",
-    subcommand: "add",
+    group: "add",
+    subcommand: "channel-route",
     strings: { canal: youtubeChannelId },
     channelId: "999999999999999999"
   }));
@@ -349,8 +349,8 @@ test("/youtube channel-route add accepta re-adaugarea unui canal deja existent (
     }]
   });
   await harness.handler.handleYouTubeInteraction(makeInteraction({
-    group: "channel-route",
-    subcommand: "add",
+    group: "add",
+    subcommand: "channel-route",
     strings: { canal: youtubeChannelId },
     channelId: "300"
   }));
@@ -360,8 +360,8 @@ test("/youtube channel-route add accepta re-adaugarea unui canal deja existent (
 test("/youtube title-filter gestioneaza lista inclusiva fara duplicate", async () => {
   const harness = createHarness();
   await harness.handler.handleYouTubeInteraction(makeInteraction({
-    group: "title-filter",
-    subcommand: "add",
+    group: "add",
+    subcommand: "title-filter",
     strings: { word: "Patch Notes" }
   }));
   assert.match(JSON.stringify(harness.writes[0].update), /patch notes/);

@@ -94,7 +94,7 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
         value:
           "`/watchlist show` - `/watchlist reset`\n" +
           "`/watchlist add <joc>` - `/watchlist remove <joc>`\n" +
-          "`/set games add <joc>` - `/set games remove <joc>`"
+          "`/set add games <joc>` - `/set remove games <joc>`"
       },
       {
         name: "Ping-uri rol (admin)",

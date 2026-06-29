@@ -15,7 +15,7 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 | `/ping` | Verifica daca botul raspunde si intoarce `Pong!`. |
 | `/games` | Listeaza jocurile urmarite de bot, cu cheile si poreclele acceptate. |
 | `/help` | Afiseaza meniul de ajutor cu principalele comenzi si categorii. |
-| `/help command:<comanda>` | Afiseaza ephemeral explicatia detaliata pentru o comanda exacta. Optiunea `command` are autocomplete cu comenzile existente, de exemplu `/set games add`, `/outbox deadletters` sau `/latest pret`. |
+| `/help command:<comanda>` | Afiseaza ephemeral explicatia detaliata pentru o comanda exacta. Optiunea `command` are autocomplete cu comenzile existente, de exemplu `/set add games`, `/outbox deadletters` sau `/latest pret`. |
 
 ## Pauze temporare pentru comenzi
 
@@ -110,11 +110,11 @@ Modulul YouTube urmareste canale publice pentru serverul Discord. Nu se autentif
 | `/youtube message-template set text:<text>` | Admin, Ephemeral | Seteaza textul atasat notificarilor. Variabilele acceptate sunt `{channel}`, `{title}` si `{url}`. Alte variabile sunt respinse, iar mentiunile Discord sunt dezactivate la trimitere. |
 | `/youtube message-template reset` | Admin, Ephemeral | Revine la sablonul implicit `Videoclip nou de la {channel}: {title}\n{url}`. |
 | `/youtube message-template status` | Admin, Ephemeral | Afiseaza sablonul folosit in prezent. |
-| `/youtube channel-route add canal:<canal> discord:<#canal>` | Admin, Ephemeral | Adauga o ruta Discord speciala pentru canalul YouTube ales. Pot exista mai multe rute. Cat timp exista cel putin una, videoclipurile acelui canal sunt trimise numai pe rutele speciale, nu si pe canalul principal. |
-| `/youtube channel-route remove canal:<canal> discord:<#canal|toate>` | Admin, Autocomplete, Ephemeral | Sterge o ruta sau toate rutele speciale ale canalului YouTube. Dupa stergerea ultimei rute, livrarea revine automat la canalul principal. |
+| `/youtube add channel-route canal:<canal> discord:<#canal>` | Admin, Ephemeral | Adauga o ruta Discord speciala pentru canalul YouTube ales. Pot exista mai multe rute. Cat timp exista cel putin una, videoclipurile acelui canal sunt trimise numai pe rutele speciale, nu si pe canalul principal. |
+| `/youtube remove channel-route canal:<canal> discord:<#canal|toate>` | Admin, Autocomplete, Ephemeral | Sterge o ruta sau toate rutele speciale ale canalului YouTube. Dupa stergerea ultimei rute, livrarea revine automat la canalul principal. |
 | `/youtube channel-route list` | Admin, Ephemeral | Listeaza canalele YouTube care au rute speciale si toate destinatiile Discord aferente. |
-| `/youtube title-filter add word:<valoare>` | Admin, Ephemeral | Adauga un cuvant sau o expresie in filtrul inclusiv. Cand lista nu este goala, titlul trebuie sa contina cel putin una dintre valori; compararea nu tine cont de litere mari sau mici. |
-| `/youtube title-filter remove word:<valoare>` | Admin, Autocomplete, Ephemeral | Elimina o valoare din filtrul inclusiv. |
+| `/youtube add title-filter word:<valoare>` | Admin, Ephemeral | Adauga un cuvant sau o expresie in filtrul inclusiv. Cand lista nu este goala, titlul trebuie sa contina cel putin una dintre valori; compararea nu tine cont de litere mari sau mici. |
+| `/youtube remove title-filter word:<valoare>` | Admin, Autocomplete, Ephemeral | Elimina o valoare din filtrul inclusiv. |
 | `/youtube title-filter list` | Admin, Ephemeral | Listeaza toate valorile filtrului inclusiv. |
 | `/youtube title-filter clear` | Admin, Ephemeral | Goleste filtrul inclusiv, astfel incat toate titlurile sa poata trece acest filtru. |
 | `/youtube videos show canal:<canal\|toate> [repeta:<true\|false>]` | Admin, Autocomplete, Ephemeral | Posteaza manual videoclipurile din ultima luna pentru canalul ales sau pentru toate canalele urmarite. Aplica aceleasi filtre, sablon si rute ca fluxul automat. Implicit marcheaza ca vazute videoclipurile cu destinatie pe care le afiseaza, deci o a doua rulare nu le mai reposteaza (fara duplicate); `repeta:true` reposteaza tot, ignorand claim-ul. Pana la 5 rezultate sunt trimise imediat; restul sunt impartite in loturi de 5, cu 10 minute intre loturi. La esec de livrare, claim-ul e anulat (rollback). Cand outbox-ul e activ (`NOTIFICATION_OUTBOX_ENABLED=true`), restul se programeaza prin outbox-ul durabil si supravietuiesc unui restart; cand outbox-ul e dezactivat, restul se livreaza direct in fundal si NU sunt durabile la restart - daca botul reporneste inainte sa termine, reia comanda cu `repeta:true` ca sa repostezi clipurile claim-uite dar netrimise. |
@@ -129,8 +129,8 @@ Pentru configurarea initiala: ruleaza `/youtube notify channel`, adauga unul sau
 
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
-| `/set games add joc:<key>` | Admin, Autocomplete | Adauga un joc in lista explicita de jocuri active pentru server. |
-| `/set games remove joc:<key>` | Admin, Autocomplete | Scoate un joc din lista explicita de jocuri active pentru server. |
+| `/set add games joc:<key>` | Admin, Autocomplete | Adauga un joc in lista explicita de jocuri active pentru server. |
+| `/set remove games joc:<key>` | Admin, Autocomplete | Scoate un joc din lista explicita de jocuri active pentru server. |
 | `/set games reset` | Admin | Reseteaza filtrul de jocuri. Dupa reset, toate jocurile configurate sunt active. |
 | `/watchlist show` | Admin | Afiseaza jocurile urmarite explicit. Daca lista este goala, serverul foloseste toate jocurile configurate. |
 | `/watchlist add joc:<key>` | Admin, Autocomplete | Adauga un joc in watchlist-ul serverului. |

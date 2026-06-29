@@ -243,8 +243,8 @@ test("/youtube channel-route remove sugereaza toate si rutele canalului ales", a
   });
   const { interaction, responses } = makeInteraction({
     command: "youtube",
-    group: "channel-route",
-    sub: "remove",
+    group: "remove",
+    sub: "channel-route",
     focused: { name: "discord", value: "" },
     guildId: "guild-1",
     strings: { canal: "UC123" }
@@ -264,8 +264,8 @@ test("/youtube title-filter remove sugereaza numai valorile configurate", async 
   });
   const { interaction, responses } = makeInteraction({
     command: "youtube",
-    group: "title-filter",
-    sub: "remove",
+    group: "remove",
+    sub: "title-filter",
     focused: { name: "word", value: "patch" },
     guildId: "guild-1"
   });

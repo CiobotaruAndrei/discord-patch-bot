@@ -68,7 +68,7 @@ test("help handler replies with the injected help embed", async () => {
 });
 
 test("help handler replies ephemeral with command-specific details", async () => {
-  const { interaction, replies } = makeHelpInteraction("/set games add");
+  const { interaction, replies } = makeHelpInteraction("/set add games");
   const handlers = helpHandler.createHelpHandler({
     buildHelpEmbed: () => ({ title: "Help" }),
     MessageFlags: { Ephemeral: 64 }
@@ -78,7 +78,7 @@ test("help handler replies ephemeral with command-specific details", async () =>
 
   const payload = replies[0] as { content: string; flags: number };
   assert.equal(payload.flags, 64);
-  assert.match(payload.content, /\/set games add/);
+  assert.match(payload.content, /\/set add games/);
   assert.match(payload.content, /Permisiuni: Admin/);
   assert.match(payload.content, /joc:cs2/);
 });
