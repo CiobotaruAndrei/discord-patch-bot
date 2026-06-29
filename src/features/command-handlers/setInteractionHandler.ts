@@ -2,6 +2,7 @@
 
 import type { CommandHandler } from "../command-registry/commandHandler";
 
+import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail, errorMessage } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
@@ -226,7 +227,8 @@ function createSetInteractionHandler(deps: SetInteractionDeps) {
       return safeEdit(interaction, plan.confirmMsg + tail + warning);
     } catch (err: unknown) {
       logger("WARN", "SET_COMMAND", `Eroare la salvarea preferintelor pentru ${guildId}`, errorMessage(err));
-      return safeEdit(interaction, formatUserError(err, "Eroare la salvarea preferintelor."));
+      await safeEdit(interaction, formatUserError(err, "Eroare la salvarea preferintelor."));
+      return handledCommandError(errorDetail(err));
     }
   }
 
@@ -270,7 +272,7 @@ function buildSetCommandHandler(target: SetContext) {
             await di.reply(payload);
           }
         } catch {  }
-        return undefined;
+        return handledCommandError(errorDetail(err));
       }
     }
   };

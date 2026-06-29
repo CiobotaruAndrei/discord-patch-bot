@@ -4,6 +4,7 @@ import type { CurrencyCode, GameConfig, GuildSettings, PriceAlertRule } from "..
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 
+import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
 type InteractionPayload = string | Record<string, unknown>;
@@ -32,6 +33,11 @@ interface PriceAlertInteractionDeps {
       update: Record<string, unknown> | Array<Record<string, unknown>>,
       options?: Record<string, unknown>
     ): Promise<MongoWriteResult>;
+    findOneAndUpdate(
+      filter: Record<string, unknown>,
+      update: Record<string, unknown> | Array<Record<string, unknown>>,
+      options?: Record<string, unknown>
+    ): Promise<{ priceAlerts?: PriceAlertRule[] } | null>;
   };
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
   invalidateGuildCache(guildId: string): void;
@@ -132,12 +138,17 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
       return safeEdit(interaction, `Eroare: serverul are deja limita de ${MAX_PRICE_ALERTS_PER_GUILD} alerte de pret.`);
     }
     const rule = buildPriceAlertRule(game, threshold, currency);
-    await GuildModel.updateOne(
+    const updated = await GuildModel.findOneAndUpdate(
       { _id: guildId },
       buildPriceAlertUpsertPipeline(rule, MAX_PRICE_ALERTS_PER_GUILD),
-      { upsert: true }
+      { upsert: true, new: true }
     );
     invalidateGuildCache(guildId);
+    const saved = (Array.isArray(updated?.priceAlerts) ? updated.priceAlerts : [])
+      .some(alert => alert.gameKey === game.key && alert.currency === currency);
+    if (!saved) {
+      return safeEdit(interaction, `Eroare: serverul are deja limita de ${MAX_PRICE_ALERTS_PER_GUILD} alerte de pret (o comanda concurenta a ocupat ultimul loc). Sterge o alerta cu \`/price-alert remove\` si reincearca.`);
+    }
     const activation = settings?.discountsSubscribed && settings.discountChannelId
       ? `Alerta va fi trimisa in <#${settings.discountChannelId}>.`
       : "Alerta este salvata, dar devine activa dupa `/start reduceri`, care stabileste canalul de livrare.";
@@ -180,7 +191,8 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
       return safeEdit(interaction, `Eroare: subcomanda \`/price-alert ${subcommand}\` nu este recunoscuta.`);
     } catch (err: unknown) {
       deps.logger("WARN", "PRICE_ALERT_COMMAND", "Nu am putut modifica alertele de pret", errorDetail(err));
-      return safeEdit(interaction, formatUserError(err, "Eroare la modificarea alertelor de pret."));
+      await safeEdit(interaction, formatUserError(err, "Eroare la modificarea alertelor de pret."));
+      return handledCommandError(errorDetail(err));
     }
   }
 
@@ -210,7 +222,7 @@ function buildPriceAlertCommandHandler(target: PriceAlertContext) {
             await interaction.reply(payload);
           }
         } catch {}
-        return undefined;
+        return handledCommandError(errorDetail(err));
       }
     }
   };

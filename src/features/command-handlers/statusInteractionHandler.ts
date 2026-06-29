@@ -2,6 +2,7 @@
 
 import type { CommandHandler } from "../command-registry/commandHandler";
 
+import { handledCommandError } from "../command-security/commandOutcome";
 const { errorMessage, errorDetail } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
@@ -66,7 +67,8 @@ function createStatusInteractionHandler(deps: StatusHandlerDeps) {
     } catch (err: unknown) {
       endLog("error", { gameKey: game.key, errorMsg: errorMessage(err) });
       logger("ERROR", "STATUS", "Eroare la comanda status", errorMessage(err));
-      return safeEdit(interaction, "Eroare: A aparut o eroare la preluarea statusului. `[ERR_STATUS_GENERAL]`");
+      await safeEdit(interaction, "Eroare: A aparut o eroare la preluarea statusului. `[ERR_STATUS_GENERAL]`");
+      return handledCommandError(errorDetail(err));
     }
   }
 
@@ -112,7 +114,7 @@ function buildStatusCommandHandler(target: StatusContext) {
             await interaction.reply(payload);
           }
         } catch {  }
-        return undefined;
+        return handledCommandError(errorDetail(err));
       }
     }
   };

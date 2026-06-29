@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import type { PriceAlertRule } from "../types";
+import { isHandledCommandError } from "../features/command-security/commandOutcome";
+
 const mod = require("../features/command-handlers/priceAlertInteractionHandler") as typeof import("../features/command-handlers/priceAlertInteractionHandler");
 
 type MongoCall = {
@@ -9,15 +12,27 @@ type MongoCall = {
   options?: Record<string, unknown>;
 };
 
+function ruleFromPipeline(update: unknown): Record<string, unknown> {
+  const stage = (Array.isArray(update) ? update[0] : undefined) as { $set?: { priceAlerts?: { $let?: { in?: { $cond?: unknown[] } } } } } | undefined;
+  const cond = stage?.$set?.priceAlerts?.$let?.in?.$cond as Array<{ $concatArrays?: unknown[] }> | undefined;
+  const appended = cond?.[1]?.$concatArrays?.[1] as unknown[] | undefined;
+  return (appended?.[0] as Record<string, unknown>) ?? {};
+}
+
 function makeHarness(settings: Record<string, unknown> = {}) {
   const calls: MongoCall[] = [];
   const replies: unknown[] = [];
   const invalidated: string[] = [];
+  const existing = Array.isArray((settings as { priceAlerts?: unknown[] }).priceAlerts) ? (settings as { priceAlerts: unknown[] }).priceAlerts : [];
   const handler = mod.createPriceAlertInteractionHandler({
     GuildModel: {
       updateOne: async (filter, update, options) => {
         calls.push({ filter, update, options });
         return { matchedCount: 1, modifiedCount: 1 };
+      },
+      findOneAndUpdate: async (filter, update, options) => {
+        calls.push({ filter, update, options });
+        return { priceAlerts: [...existing, ruleFromPipeline(update)] } as { priceAlerts: PriceAlertRule[] };
       }
     },
     getGuildSettings: async () => ({ _id: "guild-1", ...settings }),
@@ -80,7 +95,7 @@ test("/price-alert add salveaza regula tipata si pastreaza o singura regula per 
   assert.match(serialized, /elden-ring/);
   assert.match(serialized, /1245620/);
   assert.match(serialized, /EUR/);
-  assert.deepEqual(calls[0].options, { upsert: true });
+  assert.deepEqual(calls[0].options, { upsert: true, new: true }, "findOneAndUpdate cu new:true ca handler-ul sa confirme din doc-ul actualizat");
   assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /30 EUR/);
   assert.match(String(replies[0]), /deals-channel/);
@@ -132,7 +147,10 @@ test("/price-alert add: refuza un joc NOU peste limita (pre-check), fara sa scri
   const calls: MongoCall[] = [];
   const replies: unknown[] = [];
   const handler = mod.createPriceAlertInteractionHandler({
-    GuildModel: { updateOne: async (filter, update, options) => { calls.push({ filter, update, options }); return { matchedCount: 1, modifiedCount: 1 }; } },
+    GuildModel: {
+      updateOne: async (filter, update, options) => { calls.push({ filter, update, options }); return { matchedCount: 1, modifiedCount: 1 }; },
+      findOneAndUpdate: async (filter, update, options) => { calls.push({ filter, update, options }); return { priceAlerts: full as PriceAlertRule[] }; }
+    },
     getGuildSettings: async () => ({ _id: "guild-1", priceAlerts: full }),
     invalidateGuildCache: () => undefined,
     safeDefer: async () => undefined,
@@ -147,4 +165,43 @@ test("/price-alert add: refuza un joc NOU peste limita (pre-check), fara sa scri
 
   assert.equal(calls.length, 0, "pre-check-ul respinge un joc nou peste limita, fara scriere");
   assert.match(String(replies.at(-1)), /limita de 25/, "raspunde cu eroarea de limita; pipeline-ul atomic ramane plasa de siguranta pentru race-uri concurente");
+});
+
+test("/price-alert add: cand findOneAndUpdate confirma ca regula NU s-a salvat (race la limita), raspunde cu eroare, nu fals OK (R[P3] #4)", async () => {
+  const full = Array.from({ length: 25 }, (_unused, index) => ({ gameKey: `g${index}`, gameName: `G${index}`, threshold: 5, currency: "EUR" } as PriceAlertRule));
+  const replies: unknown[] = [];
+  const handler = mod.createPriceAlertInteractionHandler({
+    GuildModel: {
+      updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }),
+      findOneAndUpdate: async () => ({ priceAlerts: full })
+    },
+    getGuildSettings: async () => ({ _id: "guild-1", priceAlerts: full.slice(0, 24) }),
+    invalidateGuildCache: () => undefined,
+    safeDefer: async () => undefined,
+    safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
+    formatUserError: (_err, fallback) => fallback,
+    SUPPORTED_CURRENCIES: { USD: {}, EUR: {}, GBP: {}, RON: {} },
+    logger: () => undefined,
+    MessageFlags: { Ephemeral: 64 }
+  });
+
+  await handler.handlePriceAlertInteraction(interaction("add", { joc: "elden-ring", price: 30, currency: "EUR" }), games);
+
+  assert.match(String(replies.at(-1)), /limita de 25/, "doc-ul returnat de findOneAndUpdate nu contine regula -> handler-ul nu mai confirma fals succesul");
+});
+
+test("/price-alert: o eroare interna intoarce handledCommandError (audit onest, R[P2] #2)", async () => {
+  const command = mod.buildCommandHandler({
+    GuildModel: { updateOne: async () => ({}), findOneAndUpdate: async () => { throw new Error("mongo down"); } },
+    getGuildSettings: async () => ({ _id: "guild-1", priceAlerts: [] }),
+    invalidateGuildCache: () => undefined,
+    safeDefer: async () => undefined,
+    safeEdit: async () => undefined,
+    formatUserError: (_e: unknown, f: string) => f,
+    SUPPORTED_CURRENCIES: { EUR: {} },
+    logger: () => undefined,
+    MessageFlags: { Ephemeral: 64 }
+  });
+  const result = await command.handle(interaction("add", { joc: "elden-ring", price: 30, currency: "EUR" }), games);
+  assert.equal(isHandledCommandError(result), true, "eroarea interna devine handledCommandError, deci /bot-log nu mai zice Access granted.");
 });

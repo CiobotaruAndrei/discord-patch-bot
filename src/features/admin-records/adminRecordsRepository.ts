@@ -13,7 +13,7 @@ type MongoWriteResult = { modifiedCount?: number; matchedCount?: number };
 type GuildModelLike = {
   updateOne(
     filter: Record<string, unknown>,
-    update: Record<string, unknown>,
+    update: Record<string, unknown> | Array<Record<string, unknown>>,
     options?: Record<string, unknown>
   ): Promise<MongoWriteResult>;
 };
@@ -23,7 +23,7 @@ const MAX_BOT_AUDIT_LOGS = 100;
 const MAX_SERVER_AUDIT_LOGS = 100;
 const MAX_SUGGESTED_COMMANDS = 100;
 
-const CONFIG_BACKUP_KEYS = [
+export const CONFIG_BACKUP_KEYS = [
   "subscribed",
   "notificationChannelId",
   "discountsSubscribed",
@@ -99,12 +99,24 @@ export async function saveConfigBackup(
   };
   await GuildModel.updateOne(
     { _id: guildId },
-    { $pull: { configBackups: { name: normalized } } },
-    { upsert: true }
-  );
-  await GuildModel.updateOne(
-    { _id: guildId },
-    { $push: { configBackups: { $each: [record], $slice: -MAX_CONFIG_BACKUPS } } },
+    [{
+      $set: {
+        configBackups: {
+          $let: {
+            vars: {
+              kept: {
+                $filter: {
+                  input: { $ifNull: ["$configBackups", []] },
+                  as: "backup",
+                  cond: { $ne: ["$$backup.name", normalized] }
+                }
+              }
+            },
+            in: { $slice: [{ $concatArrays: ["$$kept", [record]] }, -MAX_CONFIG_BACKUPS] }
+          }
+        }
+      }
+    }],
     { upsert: true }
   );
   return record;
