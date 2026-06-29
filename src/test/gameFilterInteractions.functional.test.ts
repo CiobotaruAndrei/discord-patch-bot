@@ -188,3 +188,25 @@ test("game filter installer intercepts /set games si /watchlist commands", async
   assert.deepEqual(delegated, ["latest"]);
   assert.equal(result, "delegated");
 });
+
+function makeVerbWatchlistInteraction(commandName: "add" | "remove", gameKey: string | null = "cs2") {
+  const base = makeWatchlistInteraction("watchlist", gameKey);
+  return { ...base, commandName, options: { ...base.options, getSubcommand: () => "watchlist" } };
+}
+
+test("/add watchlist (verb in fata) adauga jocul prin handleWatchlistInteraction", async () => {
+  const calls: MongoCall[] = [];
+  const replies: unknown[] = [];
+  const handlers = gameFilterInteractions.createGameFilterInteractionHandlers(makeBaseContext(calls, replies));
+  await handlers.handleWatchlistInteraction(makeVerbWatchlistInteraction("add", "cs2"), games);
+  assert.deepEqual(calls[0][1], { $addToSet: { enabledGames: "cs2" } }, "/add watchlist deriva actiunea add din commandName, nu din subcomanda");
+  assert.equal(replies[0], "OK: **Counter-Strike 2** adaugat in watchlist.");
+});
+
+test("/remove watchlist (verb in fata) scoate jocul", async () => {
+  const calls: MongoCall[] = [];
+  const replies: unknown[] = [];
+  const handlers = gameFilterInteractions.createGameFilterInteractionHandlers(makeBaseContext(calls, replies));
+  await handlers.handleWatchlistInteraction(makeVerbWatchlistInteraction("remove", "cs2"), games);
+  assert.deepEqual(calls[0][1], { $pull: { enabledGames: "cs2" } }, "/remove watchlist deriva actiunea remove din commandName");
+});

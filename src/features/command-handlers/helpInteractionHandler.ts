@@ -75,8 +75,8 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
       {
         name: "Alerte dedicate (admin)",
         value:
-          "`/price-alert add <joc> <price> <currency>`\n" +
-          "`/price-alert remove <joc>` - `/price-alert list`\n" +
+          "`/add price-alert <joc> <price> <currency>`\n" +
+          "`/remove price-alert <joc>` - `/price-alert list`\n" +
           "`/admin-alerts set <channel>` - `/admin-alerts off`"
       },
       {
@@ -93,7 +93,7 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
         name: "Filtru per-joc (admin)",
         value:
           "`/watchlist show` - `/watchlist reset`\n" +
-          "`/watchlist add <joc>` - `/watchlist remove <joc>`\n" +
+          "`/add watchlist <joc>` - `/remove watchlist <joc>`\n" +
           "`/set add games <joc>` - `/set remove games <joc>`"
       },
       {

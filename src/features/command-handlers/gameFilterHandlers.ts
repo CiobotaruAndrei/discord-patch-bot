@@ -133,7 +133,8 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
   async function handleWatchlistInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     const guildId = interaction.guild?.id;
     if (!guildId) return undefined;
-    const sub = interaction.options.getSubcommand();
+    const cmd = interaction.commandName;
+    const sub = cmd === "add" || cmd === "remove" ? cmd : interaction.options.getSubcommand();
     await safeDefer(interaction);
     return handleGameFilterOperation(interaction, games, sub, guildId, "watchlist");
   }
@@ -149,9 +150,10 @@ function isSetGamesCommand(interaction: DiscordInteraction) {
 }
 
 function isWatchlistCommand(interaction: DiscordInteraction) {
-  return interaction?.isChatInputCommand?.() === true
-    && interaction.guild
-    && interaction.commandName === "watchlist";
+  if (!(interaction?.isChatInputCommand?.() === true && interaction.guild)) return false;
+  if (interaction.commandName === "watchlist") return true;
+  const cmd = interaction.commandName;
+  return (cmd === "add" || cmd === "remove") && interaction.options?.getSubcommand?.() === "watchlist";
 }
 
 function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {

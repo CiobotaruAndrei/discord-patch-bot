@@ -212,6 +212,40 @@ test("/price-alert remove sugereaza doar jocurile care au alerte", async () => {
   assert.ok(!keys.includes("fortnite"));
 });
 
+test("/remove watchlist (verb in fata) restrange pool-ul la enabledGames", async () => {
+  const { context } = makeContext({
+    getGuildSettings: async (_id: string) => ({ enabledGames: ["cs2", "ghost_game_no_longer_in_config"] })
+  });
+  const { interaction, responses } = makeInteraction({
+    command: "remove",
+    sub: "watchlist",
+    focused: { name: "joc", value: "" },
+    guildId: "guild-1"
+  });
+  await context.handleInteraction(interaction, GAMES);
+  const keys = (responses[0] as Array<{ value: string }>).map(c => c.value);
+  assert.ok(keys.includes("cs2"));
+  assert.ok(keys.includes("ghost_game_no_longer_in_config"));
+  assert.ok(!keys.includes("fortnite"), "/remove watchlist foloseste pool-ul restrans, nu toate jocurile");
+});
+
+test("/remove price-alert (verb in fata) sugereaza doar jocurile cu alerte", async () => {
+  const { context } = makeContext({
+    getGuildSettings: async (_id: string) => ({ priceAlerts: [{ gameKey: "cs2" }, { gameKey: "removed-game" }] })
+  });
+  const { interaction, responses } = makeInteraction({
+    command: "remove",
+    sub: "price-alert",
+    focused: { name: "joc", value: "" },
+    guildId: "guild-1"
+  });
+  await context.handleInteraction(interaction, GAMES);
+  const keys = (responses[0] as Array<{ value: string }>).map(c => c.value);
+  assert.ok(keys.includes("cs2"));
+  assert.ok(keys.includes("removed-game"));
+  assert.ok(!keys.includes("fortnite"));
+});
+
 test("/youtube videos show include optiunea toate si canalele urmarite", async () => {
   const { context } = makeContext({
     getGuildSettings: async () => ({

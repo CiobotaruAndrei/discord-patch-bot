@@ -100,7 +100,7 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
     const guildId = interaction.guild?.id;
     if (!guildId) return undefined;
     await safeDefer(interaction, true);
-    const subcommand = interaction.options.getSubcommand();
+    const subcommand = interaction.commandName === "add" ? "add" : interaction.options.getSubcommand();
     if (subcommand === "add") return handleAdd(interaction, guildId);
     if (subcommand === "list") return handleList(interaction, guildId);
     if (subcommand === "delete") return handleDelete(interaction, guildId);
@@ -111,9 +111,14 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
 }
 
 function isSuggestCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && Boolean(interaction.guild)
-    && interaction.commandName === "suggest-command";
+  if (!(interaction?.isChatInputCommand?.() === true && Boolean(interaction.guild))) return false;
+  if (interaction.commandName === "suggest-command") return true;
+  if (interaction.commandName !== "add") return false;
+  try {
+    return interaction.options.getSubcommand() === "suggestion";
+  } catch {
+    return false;
+  }
 }
 
 function buildSuggestCommandHandler(target: SuggestCommandContext) {

@@ -41,6 +41,7 @@ const ADMIN_COMMANDS = new Set([
   "admin-alerts", "price-alert", "youtube", "sources", "watchlist", "snooze", "unsnooze",
   "backup", "bot-log", "server-log", "future-release", "maintenance"
 ]);
+const PUBLIC_VERB_SUBCOMMANDS = new Set(["suggestion"]);
 const SENSITIVE_ADMIN_COMMANDS = new Set(["reset-config"]);
 const SENSITIVE_BACKUP_SUBCOMMANDS = new Set(["load", "delete"]);
 const SENSITIVE_OUTBOX_SUBCOMMANDS = new Set(["clear-deadletters", "replay-deadletters", "pause", "resume", "drain-now"]);
@@ -48,9 +49,12 @@ const ADMIN_OUTSIDE_GUILD_MESSAGE = "Eroare: Comenzile administrative sunt dispo
 const ADMIN_SENSITIVE_USER_MESSAGE = "Access denied.";
 
 function isAdminProtectedCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && typeof interaction.commandName === "string"
-    && ADMIN_COMMANDS.has(interaction.commandName);
+  if (interaction?.isChatInputCommand?.() !== true || typeof interaction.commandName !== "string") return false;
+  const commandName = interaction.commandName;
+  if (commandName === "add" || commandName === "remove") {
+    return !(commandName === "add" && PUBLIC_VERB_SUBCOMMANDS.has(getCommandSubcommand(interaction)));
+  }
+  return ADMIN_COMMANDS.has(commandName);
 }
 
 function parseIdList(value: string | undefined): string[] {

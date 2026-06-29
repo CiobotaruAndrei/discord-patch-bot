@@ -184,12 +184,12 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/features/command-handlers/priceAlertInteractionHandler.ts`
 
-- Gestioneaza `/price-alert add`, `/price-alert remove` si `/price-alert list`.
+- Gestioneaza `/add price-alert`, `/remove price-alert` si `/price-alert list`.
 - Persistenta este per joc+valuta, cu maximum 25 de reguli per server si stare de declansare/rearmare vizibila adminului.
 
 ### `src/features/command-handlers/backupInteractionHandler.ts`
 
-- Gestioneaza `/backup add`, `/backup list`, `/backup preview`, `/backup load` si `/backup delete`.
+- Gestioneaza `/add backup`, `/backup list`, `/backup preview`, `/backup load` si `/backup delete`.
 - `load` si `delete` cer `confirm:true`; `preview` afiseaza setarile si ID-urile de canale/roluri care vor fi restaurate.
 - Scrie audit server pentru backup-uri salvate, incarcate sau sterse.
 
@@ -210,8 +210,8 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/features/command-handlers/suggestCommandInteractionHandler.ts`
 
-- Gestioneaza `/suggest-command add`, `/suggest-command list` si `/suggest-command delete`.
-- `add` ramane public pentru sugestii de useri, iar `list`/`delete` cer admin la runtime pentru administrarea propunerilor.
+- Gestioneaza `/add suggestion`, `/suggest-command list` si `/suggest-command delete`.
+- `/add suggestion` ramane public pentru sugestii de useri, iar `list`/`delete` cer admin la runtime pentru administrarea propunerilor.
 
 ### `src/features/command-handlers/watchlistGameSuggestionHandler.ts`
 

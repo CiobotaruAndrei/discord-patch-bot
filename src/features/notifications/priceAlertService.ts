@@ -99,7 +99,7 @@ function buildPriceAlertEmbed(
     color: 0x2ecc71,
     fields: [
       { name: "Magazin", value: store, inline: true },
-      { name: "Comanda", value: `/price-alert remove joc:${alert.gameKey}`, inline: false }
+      { name: "Comanda", value: `/remove price-alert joc:${alert.gameKey}`, inline: false }
     ],
     timestamp: new Date().toISOString()
   };

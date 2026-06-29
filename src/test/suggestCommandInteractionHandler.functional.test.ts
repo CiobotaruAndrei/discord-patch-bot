@@ -153,3 +153,16 @@ test("/suggest-command list scrie in /bot-log (subcomanda admin sub comanda publ
   await handler.handleSuggestCommandInteraction(makeInteraction("list", { numar: 5 }));
   assert.deepEqual(audits.map(a => a.command), ["/suggest-command list"], "subcomanda admin /suggest-command list apare in /bot-log");
 });
+
+test("/add suggestion (verb in fata) ruteaza la handleAdd si salveaza propunerea", async () => {
+  const { handler, calls, replies, invalidated } = makeHarness({ _id: "guild-1" });
+  const verb = {
+    ...makeInteraction("suggestion", { name: "/ calendar   updates ", description: "Sa afiseze update-uri programate" }),
+    commandName: "add"
+  };
+  await handler.handleSuggestCommandInteraction(verb);
+  assert.equal(calls.length, 1);
+  assert.match(JSON.stringify(calls[0].update), /suggestedCommands/, "/add suggestion deriva actiunea add din commandName");
+  assert.match(JSON.stringify(calls[0].update), /calendar updates/);
+  assert.deepEqual(invalidated, ["guild-1"]);
+});

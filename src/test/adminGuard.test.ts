@@ -212,6 +212,23 @@ test("toate comenzile administrative sunt protejate runtime, iar comenzile publi
   }
 });
 
+test("comenzile verb /add si /remove sunt protejate runtime, exceptie /add suggestion (public)", () => {
+  const adminCases: Array<[string, string]> = [
+    ["add", "price-alert"], ["add", "watchlist"], ["add", "backup"],
+    ["remove", "price-alert"], ["remove", "watchlist"]
+  ];
+  for (const [cmd, sub] of adminCases) {
+    const { interaction } = makeInteraction(false);
+    interaction.commandName = cmd;
+    interaction.options.getSubcommand = () => sub;
+    assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), true, `/${cmd} ${sub} trece prin guard-ul de admin runtime`);
+  }
+  const { interaction: pub } = makeInteraction(false);
+  pub.commandName = "add";
+  pub.options.getSubcommand = () => "suggestion";
+  assert.equal(adminCommandGuard.isAdminProtectedCommand(pub), false, "/add suggestion ramane public (oricine poate propune o comanda)");
+});
+
 test("guard: handler care intoarce handledCommandError e auditat ca 'Command error.', nu 'Access granted.' (R[P2] audit onest)", async () => {
   const mod = require("../features/command-security/adminCommandRouterGuard") as AdminCommandGuardModule & {
     createAdminCommandGuard: (deps: { requireGuildAdmin: (interaction: TestInteraction) => Promise<boolean> }, target?: { GuildModel?: unknown }) => {

@@ -147,7 +147,7 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
     const saved = (Array.isArray(updated?.priceAlerts) ? updated.priceAlerts : [])
       .some(alert => alert.gameKey === game.key && alert.currency === currency);
     if (!saved) {
-      return safeEdit(interaction, `Eroare: serverul are deja limita de ${MAX_PRICE_ALERTS_PER_GUILD} alerte de pret (o comanda concurenta a ocupat ultimul loc). Sterge o alerta cu \`/price-alert remove\` si reincearca.`);
+      return safeEdit(interaction, `Eroare: serverul are deja limita de ${MAX_PRICE_ALERTS_PER_GUILD} alerte de pret (o comanda concurenta a ocupat ultimul loc). Sterge o alerta cu \`/remove price-alert\` si reincearca.`);
     }
     const activation = settings?.discountsSubscribed && settings.discountChannelId
       ? `Alerta va fi trimisa in <#${settings.discountChannelId}>.`
@@ -173,7 +173,7 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
     const settings = await getGuildSettings(guildId);
     const alerts = Array.isArray(settings?.priceAlerts) ? settings.priceAlerts : [];
     if (!alerts.length) {
-      return safeEdit(interaction, "Nu exista alerte de pret configurate. Adauga una cu `/price-alert add`.");
+      return safeEdit(interaction, "Nu exista alerte de pret configurate. Adauga una cu `/add price-alert`.");
     }
     const header = `Alerte de pret (${alerts.length}/${MAX_PRICE_ALERTS_PER_GUILD}):\n`;
     return safeEdit(interaction, `${header}${clampJoinedList(alerts.map(formatAlertLine), 2000 - header.length)}`);
@@ -183,7 +183,8 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
     const guildId = interaction.guild?.id;
     if (!guildId) return undefined;
     await safeDefer(interaction, true);
-    const subcommand = interaction.options.getSubcommand();
+    const cmd = interaction.commandName;
+    const subcommand = cmd === "add" || cmd === "remove" ? cmd : interaction.options.getSubcommand();
     try {
       if (subcommand === "add") return await handleAdd(interaction, games, guildId);
       if (subcommand === "remove") return await handleRemove(interaction, games, guildId);
@@ -200,9 +201,15 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
 }
 
 function isPriceAlertCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && Boolean(interaction.guild)
-    && interaction.commandName === "price-alert";
+  if (!(interaction?.isChatInputCommand?.() === true && Boolean(interaction.guild))) return false;
+  if (interaction.commandName === "price-alert") return true;
+  const cmd = interaction.commandName;
+  if (cmd !== "add" && cmd !== "remove") return false;
+  try {
+    return interaction.options.getSubcommand() === "price-alert";
+  } catch {
+    return false;
+  }
 }
 
 function buildPriceAlertCommandHandler(target: PriceAlertContext) {

@@ -173,3 +173,16 @@ test("/backup preview arata explicit ce setari se vor STERGE la load (exista acu
   assert.match(preview, /youtubeChannelRoutes/, "cheia care exista acum dar lipseste din backup e listata ca stearsa");
   assert.match(preview, /priceAlerts/, "si alertele de pret adaugate dupa backup sunt anuntate ca sterse");
 });
+
+test("/add backup (verb in fata) ruteaza la handleAdd si scrie configBackups", async () => {
+  const { handler, calls, invalidated, replies } = makeHarness({
+    _id: "guild-1",
+    subscribed: true,
+    notificationChannelId: "updates-channel"
+  });
+  const verb = { ...makeInteraction("backup", { name: "Prod Backup" }), commandName: "add" };
+  await handler.handleBackupInteraction(verb);
+  assert.match(JSON.stringify(calls[0].update), /configBackups/, "/add backup deriva actiunea add din commandName");
+  assert.deepEqual(invalidated, ["guild-1"]);
+  assert.match(String(replies[0]), /prod-backup/);
+});

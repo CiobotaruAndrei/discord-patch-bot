@@ -128,12 +128,12 @@ Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `Co
 - `setInteractionHandler.ts` - subcomenzile `/set`; la `/set outbox-recovery-verify on` verifica preventiv permisiunea Read Message History pe canalele de notificari (via `checkReadMessageHistory` din runtime) si avertizeaza daca lipseste;
 - `configInteractionHandler.ts` - `/config`, sumarul setarilor curente ale serverului intr-un embed ephemeral pentru admini;
 - `guildConfigurationAdminHandler.ts` - `/reset-config` si `/admin-alerts`, cu confirmare explicita la reset si verificarea permisiunilor canalului administrativ;
-- `priceAlertInteractionHandler.ts` - `/price-alert add/remove/list`, persistenta regulilor joc+prag+valuta si autocomplete pentru joc;
-- `backupInteractionHandler.ts` - `/backup add/list/preview/load/delete`, backup-uri ale configuratiei botului pentru server, confirmare la load/delete si audit server la schimbari;
+- `priceAlertInteractionHandler.ts` - `/add price-alert`, `/remove price-alert` si `/price-alert list`, persistenta regulilor joc+prag+valuta si autocomplete pentru joc;
+- `backupInteractionHandler.ts` - `/add backup` si `/backup list/preview/load/delete`, backup-uri ale configuratiei botului pentru server, confirmare la load/delete si audit server la schimbari;
 - `auditLogInteractionHandler.ts` - `/bot-log recent/older` si `/server-log recent/older`, citire audit admin si audit server din setarile guild-ului;
 - `priceCheckInteractionHandler.ts` - `/price-check`, compara pretul Steam cu sursele externe de reduceri deja folosite de bot;
 - `dealScoreInteractionHandler.ts` - `/deal-score`, scor 1-10 pentru oferte active pe baza reducerii, pretului, semnalelor de calitate/popularitate si magazinului;
-- `suggestCommandInteractionHandler.ts` - `/suggest-command add/list/delete`, propuneri publice de comenzi si administrare runtime;
+- `suggestCommandInteractionHandler.ts` - `/add suggestion` si `/suggest-command list/delete`, propuneri publice de comenzi si administrare runtime;
 - `watchlistGameSuggestionHandler.ts` - `/watchlist-game add/list/delete`, propuneri publice de jocuri pentru watchlist si stergere admin runtime;
 - `futureReleaseInteractionHandler.ts` - `/future-release add/list/delete/start/stop`, lista de maxim 20 jocuri viitoare si canalul pentru notificari future-release;
 - `maintenanceInteractionHandler.ts` - `/maintenance`, sumar operational pentru surse, outbox, dead-letter, backup-uri, canale si module active;
