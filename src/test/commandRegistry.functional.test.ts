@@ -151,7 +151,7 @@ test("dispatcher: toate comenzile admin de la non-admin sunt blocate de pre-chec
   for (const command of [
     "start", "stop", "set", "outbox", "health", "config", "reset-config",
     "admin-alerts", "price-alert", "sources", "watchlist", "snooze", "unsnooze",
-    "backup", "bot-log", "server-log"
+    "backup", "bot-log", "server-log", "future-release", "maintenance"
   ]) {
     const { interaction, captured } = makeChatInput(command, { admin: false });
     await registry.handleInteraction(interaction, []);

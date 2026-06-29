@@ -3,9 +3,11 @@
 import type {
   BotAuditLogEntry,
   ConfigBackupRecord,
+  FutureReleaseGameEntry,
   GuildSettings,
   ServerAuditLogEntry,
-  SuggestedCommandEntry
+  SuggestedCommandEntry,
+  WatchlistGameSuggestionEntry
 } from "../../types";
 
 type MongoWriteResult = { modifiedCount?: number; matchedCount?: number };
@@ -22,6 +24,8 @@ const MAX_CONFIG_BACKUPS = 20;
 const MAX_BOT_AUDIT_LOGS = 100;
 const MAX_SERVER_AUDIT_LOGS = 100;
 const MAX_SUGGESTED_COMMANDS = 100;
+const MAX_WATCHLIST_GAME_SUGGESTIONS = 100;
+const MAX_FUTURE_RELEASE_GAMES = 20;
 
 export const CONFIG_BACKUP_KEYS = [
   "subscribed",
@@ -49,7 +53,17 @@ export const CONFIG_BACKUP_KEYS = [
   "youtubeFilters",
   "youtubeMessageTemplate",
   "youtubeChannelRoutes",
-  "youtubeTitleIncludeWords"
+  "youtubeTitleIncludeWords",
+  "watchlistGameSuggestions",
+  "futureReleaseGames",
+  "futureReleaseSubscribed",
+  "futureReleaseChannelId",
+  "futureReleaseInitializing",
+  "futureReleaseActivationId",
+  "dlcSubscribed",
+  "dlcChannelId",
+  "dlcInitializing",
+  "dlcActivationId"
 ] as const;
 
 function cloneRecord(value: Record<string, unknown>): Record<string, unknown> {
@@ -184,6 +198,17 @@ export function listBotAuditEntries(settings: GuildSettings | null, limit: numbe
     .slice(0, limit);
 }
 
+export function listBotAuditEntriesInRange(settings: GuildSettings | null, start: Date, end: Date, limit: number, offset = 0): BotAuditLogEntry[] {
+  const entries = Array.isArray(settings?.botAuditLog) ? settings.botAuditLog : [];
+  return [...entries]
+    .filter(entry => {
+      const at = new Date(entry.at).getTime();
+      return Number.isFinite(at) && at >= start.getTime() && at < end.getTime();
+    })
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+    .slice(Math.max(0, offset), Math.max(0, offset) + limit);
+}
+
 export async function recordServerAuditEntry(
   GuildModel: GuildModelLike,
   guildId: string,
@@ -206,6 +231,17 @@ export function listServerAuditEntries(settings: GuildSettings | null, limit: nu
   return [...entries]
     .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
     .slice(0, limit);
+}
+
+export function listServerAuditEntriesInRange(settings: GuildSettings | null, start: Date, end: Date, limit: number, offset = 0): ServerAuditLogEntry[] {
+  const entries = Array.isArray(settings?.serverAuditLog) ? settings.serverAuditLog : [];
+  return [...entries]
+    .filter(entry => {
+      const at = new Date(entry.at).getTime();
+      return Number.isFinite(at) && at >= start.getTime() && at < end.getTime();
+    })
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+    .slice(Math.max(0, offset), Math.max(0, offset) + limit);
 }
 
 export async function saveSuggestedCommand(
@@ -232,3 +268,80 @@ export function listSuggestedCommands(settings: GuildSettings | null, limit: num
     .slice(0, limit);
 }
 
+export async function deleteSuggestedCommand(GuildModel: GuildModelLike, guildId: string, name: string): Promise<boolean> {
+  const normalized = name.trim().replace(/^\/+/, "").replace(/\s+/g, " ").toLowerCase();
+  const result = await GuildModel.updateOne(
+    { _id: guildId },
+    { $pull: { suggestedCommands: { commandName: normalized } } }
+  );
+  return (result.modifiedCount ?? 0) > 0;
+}
+
+export async function saveWatchlistGameSuggestion(
+  GuildModel: GuildModelLike,
+  guildId: string,
+  entry: Omit<WatchlistGameSuggestionEntry, "createdAt">
+): Promise<WatchlistGameSuggestionEntry> {
+  const record: WatchlistGameSuggestionEntry = {
+    ...entry,
+    createdAt: new Date()
+  };
+  await GuildModel.updateOne(
+    { _id: guildId },
+    { $push: { watchlistGameSuggestions: { $each: [record], $slice: -MAX_WATCHLIST_GAME_SUGGESTIONS } } },
+    { upsert: true }
+  );
+  return record;
+}
+
+export function listWatchlistGameSuggestions(settings: GuildSettings | null, limit: number): WatchlistGameSuggestionEntry[] {
+  const entries = Array.isArray(settings?.watchlistGameSuggestions) ? settings.watchlistGameSuggestions : [];
+  return [...entries]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, limit);
+}
+
+export async function deleteWatchlistGameSuggestion(GuildModel: GuildModelLike, guildId: string, gameName: string): Promise<boolean> {
+  const normalized = gameName.trim().toLowerCase();
+  const result = await GuildModel.updateOne(
+    { _id: guildId },
+    { $pull: { watchlistGameSuggestions: { gameName: normalized } } }
+  );
+  return (result.modifiedCount ?? 0) > 0;
+}
+
+export async function saveFutureReleaseGame(
+  GuildModel: GuildModelLike,
+  guildId: string,
+  entry: Omit<FutureReleaseGameEntry, "addedAt">
+): Promise<FutureReleaseGameEntry> {
+  const record: FutureReleaseGameEntry = {
+    ...entry,
+    addedAt: new Date()
+  };
+  await GuildModel.updateOne(
+    { _id: guildId },
+    { $pull: { futureReleaseGames: { gameName: record.gameName } } },
+    { upsert: true }
+  );
+  await GuildModel.updateOne(
+    { _id: guildId },
+    { $push: { futureReleaseGames: { $each: [record], $slice: -MAX_FUTURE_RELEASE_GAMES } } },
+    { upsert: true }
+  );
+  return record;
+}
+
+export function listFutureReleaseGames(settings: GuildSettings | null): FutureReleaseGameEntry[] {
+  const entries = Array.isArray(settings?.futureReleaseGames) ? settings.futureReleaseGames : [];
+  return [...entries].sort((a, b) => String(a.gameName).localeCompare(String(b.gameName)));
+}
+
+export async function deleteFutureReleaseGame(GuildModel: GuildModelLike, guildId: string, gameName: string): Promise<boolean> {
+  const normalized = gameName.trim().toLowerCase();
+  const result = await GuildModel.updateOne(
+    { _id: guildId },
+    { $pull: { futureReleaseGames: { gameName: normalized } } }
+  );
+  return (result.modifiedCount ?? 0) > 0;
+}

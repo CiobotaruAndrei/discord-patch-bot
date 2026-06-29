@@ -133,7 +133,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/features/command-handlers/subscriptionNotificationHandlers.ts`
 
-- Gestioneaza `/start` si `/stop` pentru update-uri si reduceri.
+- Gestioneaza `/start` si `/stop` pentru update-uri, reduceri si canalul DLC.
 - Actualizeaza configuratia guild-ului si canalele de notificare.
 
 ### `src/features/command-handlers/gameFilterHandlers.ts`
@@ -195,18 +195,38 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/features/command-handlers/auditLogInteractionHandler.ts`
 
-- Gestioneaza `/bot-log` si `/server-log`.
-- Citeste intrarile sortate din `adminRecordsRepository` si le limiteaza la 1-25 intrari pentru raspunsuri Discord sigure.
+- Gestioneaza `/bot-log recent/older` si `/server-log recent/older`.
+- Citeste intrarile sortate din `adminRecordsRepository`, le poate filtra pe zi/saptamana/luna si le limiteaza la 1-25 intrari pentru raspunsuri Discord sigure.
 
 ### `src/features/command-handlers/priceCheckInteractionHandler.ts`
 
 - Gestioneaza `/price-check`.
 - Cauta jocul pe Steam, afiseaza pretul Steam in embed verde si compara cu ofertele similare din feed-ul de reduceri deja folosit de bot.
 
+### `src/features/command-handlers/dealScoreInteractionHandler.ts`
+
+- Gestioneaza `/deal-score`.
+- Calculeaza un scor 1-10 pentru o oferta activa pe baza reducerii, pretului, semnalelor de calitate/popularitate si magazinului.
+
 ### `src/features/command-handlers/suggestCommandInteractionHandler.ts`
 
-- Gestioneaza `/suggest-command add` si `/suggest-command list`.
-- `add` ramane public pentru sugestii de useri, iar `list` cere admin la runtime pentru administrarea propunerilor.
+- Gestioneaza `/suggest-command add`, `/suggest-command list` si `/suggest-command delete`.
+- `add` ramane public pentru sugestii de useri, iar `list`/`delete` cer admin la runtime pentru administrarea propunerilor.
+
+### `src/features/command-handlers/watchlistGameSuggestionHandler.ts`
+
+- Gestioneaza `/watchlist-game add`, `/watchlist-game list` si `/watchlist-game delete`.
+- Permite userilor sa propuna jocuri noi pentru bot, iar adminilor sa stearga propunerile nepotrivite.
+
+### `src/features/command-handlers/futureReleaseInteractionHandler.ts`
+
+- Gestioneaza `/future-release add`, `/future-release list`, `/future-release delete`, `/future-release start` si `/future-release stop`.
+- Pastreaza lista de maxim 20 jocuri viitoare si canalul configurat pentru notificarile future-release.
+
+### `src/features/command-handlers/maintenanceInteractionHandler.ts`
+
+- Gestioneaza `/maintenance`.
+- Afiseaza sumar operational pentru surse cu erori, outbox, dead-letter, backup, canale lipsa si module de notificare active.
 
 ### `src/features/command-handlers/latestInteractionHandler.ts`
 

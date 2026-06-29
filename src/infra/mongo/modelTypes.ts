@@ -65,6 +65,20 @@ export interface SuggestedCommandEntry {
   createdAt: Date;
 }
 
+export interface WatchlistGameSuggestionEntry {
+  gameName: string;
+  createdBy: string;
+  createdAt: Date;
+}
+
+export interface FutureReleaseGameEntry {
+  gameName: string;
+  addedBy: string;
+  addedAt: Date;
+  releaseDate?: string;
+  preorderPrice?: string;
+}
+
 export interface GuildDoc {
   _id: string;
   subscribed?: boolean;
@@ -140,6 +154,16 @@ export interface GuildDoc {
   botAuditLog?: BotAuditLogEntry[];
   serverAuditLog?: ServerAuditLogEntry[];
   suggestedCommands?: SuggestedCommandEntry[];
+  watchlistGameSuggestions?: WatchlistGameSuggestionEntry[];
+  futureReleaseGames?: FutureReleaseGameEntry[];
+  futureReleaseSubscribed?: boolean;
+  futureReleaseChannelId?: string | null;
+  futureReleaseInitializing?: boolean;
+  futureReleaseActivationId?: string | null;
+  dlcSubscribed?: boolean;
+  dlcChannelId?: string | null;
+  dlcInitializing?: boolean;
+  dlcActivationId?: string | null;
 }
 
 export interface CircuitBreakerDoc {

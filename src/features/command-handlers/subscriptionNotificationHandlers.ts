@@ -219,6 +219,28 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
       }
     }
 
+    if (sub === "dlc") {
+      try {
+        const activationId = makeActivationId();
+        await GuildModel.updateOne(
+          { _id: guildId },
+          {
+            $set: {
+              dlcSubscribed: true,
+              dlcChannelId: interaction.channel.id,
+              dlcInitializing: false,
+              dlcActivationId: activationId
+            }
+          },
+          { upsert: true, ...OP_UPDATE_OPTS }
+        );
+        invalidateGuildCache(guildId);
+        return safeEdit(interaction, "OK: canalul pentru notificarile DLC a fost configurat. Motorul automat DLC foloseste lista jocurilor active cand este activ in runtime.");
+      } catch (err: unknown) {
+        return safeEdit(interaction, formatUserError(err, "Eroare la configurarea notificarilor DLC."));
+      }
+    }
+
     logger?.("WARN", "START_COMMAND", `Subcomanda /start necunoscuta: ${sub}`);
     return safeEdit(interaction, `Eroare: Subcomanda \`/start ${sub}\` nu este recunoscuta.`);
   }
@@ -244,6 +266,14 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
         }, OP_UPDATE_OPTS);
         invalidateGuildCache(guildId);
         return safeEdit(interaction, "OK: Reduceri oprite.");
+      }
+      if (sub === "dlc") {
+        await GuildModel.updateOne({ _id: guildId }, {
+          $set: { dlcSubscribed: false, dlcChannelId: null, dlcInitializing: false },
+          $unset: { dlcActivationId: "" }
+        }, OP_UPDATE_OPTS);
+        invalidateGuildCache(guildId);
+        return safeEdit(interaction, "OK: Notificarile DLC au fost oprite.");
       }
     } catch (err: unknown) {
       return safeEdit(interaction, formatUserError(err, "Eroare la baza de date."));

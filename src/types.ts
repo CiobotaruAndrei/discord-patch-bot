@@ -401,6 +401,20 @@ export interface SuggestedCommandEntry {
   createdAt: Date | string;
 }
 
+export interface WatchlistGameSuggestionEntry {
+  gameName: string;
+  createdBy: string;
+  createdAt: Date | string;
+}
+
+export interface FutureReleaseGameEntry {
+  gameName: string;
+  addedBy: string;
+  addedAt: Date | string;
+  releaseDate?: string;
+  preorderPrice?: string;
+}
+
 export interface YouTubeChannelSubscription {
   channelId: string;
   channelName: string;
@@ -428,6 +442,14 @@ export interface YouTubeErrorEntry {
   channelName: string;
   message: string;
   at: Date | string;
+}
+
+export interface DeadLetterEntry {
+  kind: string;
+  itemId: string;
+  reason: string;
+  at?: Date | string;
+  attempts?: number;
 }
 
 export interface YouTubeVideo {
@@ -488,7 +510,18 @@ export interface GuildSettings {
   configBackups?: ConfigBackupRecord[];
   botAuditLog?: BotAuditLogEntry[];
   serverAuditLog?: ServerAuditLogEntry[];
+  notificationDeadLetter?: DeadLetterEntry[];
   suggestedCommands?: SuggestedCommandEntry[];
+  watchlistGameSuggestions?: WatchlistGameSuggestionEntry[];
+  futureReleaseGames?: FutureReleaseGameEntry[];
+  futureReleaseSubscribed?: boolean;
+  futureReleaseChannelId?: string | null;
+  futureReleaseInitializing?: boolean;
+  futureReleaseActivationId?: string | null;
+  dlcSubscribed?: boolean;
+  dlcChannelId?: string | null;
+  dlcInitializing?: boolean;
+  dlcActivationId?: string | null;
   seenHashVersionUpdates?: number;
   seenHashVersionDiscounts?: number;
   [key: string]: unknown;

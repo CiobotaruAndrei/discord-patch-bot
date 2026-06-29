@@ -112,6 +112,8 @@ function buildConfigEmbed(settings: GuildSettings | null, games: GameConfig[], d
           `canal update: ${formatChannel(settings?.notificationChannelId, settings?.subscribed)}`,
           `canal reduceri: ${formatChannel(settings?.discountChannelId, settings?.discountsSubscribed)}`,
           `canal YouTube: ${formatChannel(settings?.youtubeNotificationChannelId, settings?.youtubeNotificationsEnabled)}`,
+          `canal future-release: ${formatChannel(settings?.futureReleaseChannelId, settings?.futureReleaseSubscribed)}`,
+          `canal DLC automat: ${formatChannel(settings?.dlcChannelId, settings?.dlcSubscribed)}`,
           `canal alerte admin: ${formatAdminAlertChannel(settings?.adminAlertChannelId)}`
         ].join("\n"),
         inline: false
@@ -119,6 +121,14 @@ function buildConfigEmbed(settings: GuildSettings | null, games: GameConfig[], d
       {
         name: "Alerte de pret",
         value: `${Array.isArray(settings?.priceAlerts) ? settings.priceAlerts.length : 0} configurate`,
+        inline: false
+      },
+      {
+        name: "Liste propuse",
+        value: [
+          `${Array.isArray(settings?.watchlistGameSuggestions) ? settings.watchlistGameSuggestions.length : 0} jocuri propuse pentru watchlist`,
+          `${Array.isArray(settings?.futureReleaseGames) ? settings.futureReleaseGames.length : 0} jocuri future-release`
+        ].join("\n"),
         inline: false
       },
       {

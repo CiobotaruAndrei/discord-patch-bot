@@ -101,7 +101,17 @@ function buildResetConfiguration(defaultCurrency: CurrencyCode): Record<string, 
     youtubeMessageTemplate: null,
     youtubeChannelRoutes: [],
     youtubeTitleIncludeWords: [],
-    youtubeErrors: []
+    youtubeErrors: [],
+    watchlistGameSuggestions: [],
+    futureReleaseGames: [],
+    futureReleaseSubscribed: false,
+    futureReleaseChannelId: null,
+    futureReleaseInitializing: false,
+    futureReleaseActivationId: null,
+    dlcSubscribed: false,
+    dlcChannelId: null,
+    dlcInitializing: false,
+    dlcActivationId: null
   };
 }
 

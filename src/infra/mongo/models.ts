@@ -117,6 +117,20 @@ const suggestedCommandSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 }, { _id: false });
 
+const watchlistGameSuggestionSchema = new mongoose.Schema({
+  gameName: { type: String, required: true },
+  createdBy: { type: String, default: "" },
+  createdAt: { type: Date, default: Date.now }
+}, { _id: false });
+
+const futureReleaseGameSchema = new mongoose.Schema({
+  gameName: { type: String, required: true },
+  addedBy: { type: String, default: "" },
+  addedAt: { type: Date, default: Date.now },
+  releaseDate: { type: String, default: "" },
+  preorderPrice: { type: String, default: "" }
+}, { _id: false });
+
 const guildSchema = new mongoose.Schema({
   _id: String,
   subscribed: { type: Boolean, default: false },
@@ -176,12 +190,24 @@ const guildSchema = new mongoose.Schema({
   configBackups: { type: [configBackupSchema], default: [] },
   botAuditLog: { type: [botAuditLogSchema], default: [] },
   serverAuditLog: { type: [serverAuditLogSchema], default: [] },
-  suggestedCommands: { type: [suggestedCommandSchema], default: [] }
+  suggestedCommands: { type: [suggestedCommandSchema], default: [] },
+  watchlistGameSuggestions: { type: [watchlistGameSuggestionSchema], default: [] },
+  futureReleaseGames: { type: [futureReleaseGameSchema], default: [] },
+  futureReleaseSubscribed: { type: Boolean, default: false },
+  futureReleaseChannelId: { type: String, default: null },
+  futureReleaseInitializing: { type: Boolean, default: false },
+  futureReleaseActivationId: { type: String, default: null },
+  dlcSubscribed: { type: Boolean, default: false },
+  dlcChannelId: { type: String, default: null },
+  dlcInitializing: { type: Boolean, default: false },
+  dlcActivationId: { type: String, default: null }
 }, { minimize: false });
 
 guildSchema.index({ subscribed: 1, notificationChannelId: 1 }, { background: true });
 guildSchema.index({ discountsSubscribed: 1, discountChannelId: 1 }, { background: true });
 guildSchema.index({ youtubeNotificationsEnabled: 1, youtubeNotificationChannelId: 1 }, { background: true });
+guildSchema.index({ futureReleaseSubscribed: 1, futureReleaseChannelId: 1 }, { background: true });
+guildSchema.index({ dlcSubscribed: 1, dlcChannelId: 1 }, { background: true });
 
 const GuildModel = mongoose.model("Guild", guildSchema);
 

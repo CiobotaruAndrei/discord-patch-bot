@@ -199,13 +199,13 @@ test("toate comenzile administrative sunt protejate runtime, iar comenzile publi
   for (const cmd of [
     "start", "stop", "set", "outbox", "health", "config", "reset-config",
     "admin-alerts", "price-alert", "sources", "watchlist", "snooze", "unsnooze",
-    "backup", "bot-log", "server-log"
+    "backup", "bot-log", "server-log", "future-release", "maintenance"
   ]) {
     const { interaction } = makeInteraction(false);
     interaction.commandName = cmd;
     assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), true, `/${cmd} trebuie sa treaca prin guard-ul de admin runtime`);
   }
-  for (const cmd of ["ping", "games", "help", "report", "history", "latest", "price-check", "suggest-command"]) {
+  for (const cmd of ["ping", "games", "help", "report", "history", "latest", "price-check", "deal-score", "suggest-command", "watchlist-game"]) {
     const { interaction } = makeInteraction(false);
     interaction.commandName = cmd;
     assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), false, `/${cmd} ramane public (fara guard de admin)`);
