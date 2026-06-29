@@ -195,7 +195,7 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
     const guildId = interaction.guild?.id;
     if (!guildId) return undefined;
     await safeDefer(interaction, true);
-    const subcommand = interaction.options.getSubcommand();
+    const subcommand = interaction.commandName === "add" ? "add" : interaction.options.getSubcommand();
     try {
       if (subcommand === "add") return await handleAdd(interaction, guildId);
       if (subcommand === "list") return await handleList(interaction, guildId);
@@ -214,9 +214,14 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
 }
 
 function isBackupCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && Boolean(interaction.guild)
-    && interaction.commandName === "backup";
+  if (!(interaction?.isChatInputCommand?.() === true && Boolean(interaction.guild))) return false;
+  if (interaction.commandName === "backup") return true;
+  if (interaction.commandName !== "add") return false;
+  try {
+    return interaction.options.getSubcommand() === "backup";
+  } catch {
+    return false;
+  }
 }
 
 function buildBackupCommandHandler(target: BackupContext) {

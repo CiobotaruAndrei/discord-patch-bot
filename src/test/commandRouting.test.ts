@@ -123,11 +123,14 @@ const expectedOwnerByCommand: Record<string, string> = {
   outbox: "outbox"
 };
 
+const MULTIPLEXED_VERB_COMMANDS = new Set(["add", "remove"]);
+
 test("routing: fiecare slash command top-level e revendicat de exact un handler (din slash definitions)", () => {
   const commands = definedTopLevelCommands();
   assert.ok(commands.length > 0, "buildSlashCommandDefinitions intoarce comenzi");
 
   for (const command of commands) {
+    if (MULTIPLEXED_VERB_COMMANDS.has(command)) continue;
     const expectedOwner = expectedOwnerByCommand[command];
     assert.ok(expectedOwner, `comanda /${command} are un handler asteptat in tabel (familie noua = adauga maparea + buildCommandHandler)`);
 
@@ -135,6 +138,18 @@ test("routing: fiecare slash command top-level e revendicat de exact un handler 
     const claimants = soleClaimant(chatInput(command, null, subcommand));
     assert.deepEqual(claimants, [expectedOwner], `/${command} e rutat exact catre handler-ul ${expectedOwner}, nimic altceva nu il revendica`);
   }
+});
+
+test("routing: /add si /remove sunt multiplexate pe subcomanda catre handler-ul resursei", () => {
+  const commands = definedTopLevelCommands();
+  assert.ok(commands.includes("add") && commands.includes("remove"), "definitiile contin /add si /remove");
+
+  assert.deepEqual(soleClaimant(chatInput("add", null, "price-alert")), ["priceAlert"], "/add price-alert -> priceAlert");
+  assert.deepEqual(soleClaimant(chatInput("add", null, "watchlist")), ["setGames"], "/add watchlist -> gameFilterHandlers");
+  assert.deepEqual(soleClaimant(chatInput("add", null, "backup")), ["backup"], "/add backup -> backup");
+  assert.deepEqual(soleClaimant(chatInput("add", null, "suggestion")), ["suggestCommand"], "/add suggestion -> suggestCommand");
+  assert.deepEqual(soleClaimant(chatInput("remove", null, "price-alert")), ["priceAlert"], "/remove price-alert -> priceAlert");
+  assert.deepEqual(soleClaimant(chatInput("remove", null, "watchlist")), ["setGames"], "/remove watchlist -> gameFilterHandlers");
 });
 
 test("routing: subcomenzile /set sunt rutate catre handler-e distincte si mutual-exclusive", () => {

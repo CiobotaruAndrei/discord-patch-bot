@@ -54,7 +54,7 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
-| `/backup add name:<nume>` | Admin, Ephemeral | Salveaza configuratia curenta a botului pentru server intr-un backup numit. Include abonari, canale, roluri, filtre, watchlist, snooze-uri, alerte de pret si configurarea YouTube. Daca exista deja un backup cu acel nume, este inlocuit. |
+| `/add backup name:<nume>` | Admin, Ephemeral | Salveaza configuratia curenta a botului pentru server intr-un backup numit. Include abonari, canale, roluri, filtre, watchlist, snooze-uri, alerte de pret si configurarea YouTube. Daca exista deja un backup cu acel nume, este inlocuit. |
 | `/backup list` | Admin, Ephemeral | Afiseaza backup-urile salvate, cine le-a creat si data crearii. Lista este limitata ca documentul serverului sa ramana controlat. |
 | `/backup preview name:<nume>` | Admin, Ephemeral | Arata ce setari vor fi restaurate si ce canale/roluri sunt referite de backup. Preview-ul trebuie verificat inainte de load, mai ales daca intre timp au fost sterse canale sau roluri din Discord. |
 | `/backup load name:<nume> confirm:true` | Admin, Ephemeral | Incarca backup-ul si restaureaza configuratia botului pentru server. Cere confirmare explicita si salveaza schimbarea in `server-log`. Daca un canal sau rol salvat nu mai exista in Discord, botul restaureaza ID-ul salvat, iar adminul trebuie sa refaca setarea dupa load. |
@@ -64,8 +64,8 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
-| `/price-alert add joc:<key> price:<0.01-10000> currency:<valuta>` | Admin, Autocomplete, Ephemeral | Adauga sau actualizeaza alerta pentru perechea joc+valuta. Botul cauta oferta jocului in ciclul de reduceri si trimite un embed cand pretul ajunge la sau sub prag. Necesita un canal activ prin `/start reduceri`. |
-| `/price-alert remove joc:<key>` | Admin, Autocomplete, Ephemeral | Sterge toate alertele acelui joc, indiferent de valuta. Autocomplete-ul sugereaza numai jocurile care au alerte configurate. |
+| `/add price-alert joc:<key> price:<0.01-10000> currency:<valuta>` | Admin, Autocomplete, Ephemeral | Adauga sau actualizeaza alerta pentru perechea joc+valuta. Botul cauta oferta jocului in ciclul de reduceri si trimite un embed cand pretul ajunge la sau sub prag. Necesita un canal activ prin `/start reduceri`. |
+| `/remove price-alert joc:<key>` | Admin, Autocomplete, Ephemeral | Sterge toate alertele acelui joc, indiferent de valuta. Autocomplete-ul sugereaza numai jocurile care au alerte configurate. |
 | `/price-alert list` | Admin, Ephemeral | Afiseaza fiecare alerta, pragul, valuta, ultimul pret observat si daca alerta este armata sau deja declansata. |
 | `/price-check joc:<name>` | Public, Autocomplete | Cauta pretul jocului pe Steam si il compara cu ofertele similare din sursele externe de reduceri deja folosite de bot. Embed-ul are culoarea verde pentru pretul Steam; celelalte randuri arata magazinele externe gasite sau explica lipsa unei potriviri. |
 | `/deal-score game:<name>` | Public, Autocomplete | Calculeaza un scor 1-10 pentru oferta activa a jocului, folosind reducerea, pretul curent, semnalele de calitate/popularitate si magazinul. In lipsa unui istoric complet de pret, scorul este un indicator operational, nu o garantie ca oferta este minim istoric. |
@@ -90,8 +90,8 @@ Canalul administrativ primeste alerte operationale cu severitate, cauza, explica
 | `/bot-log older` | Admin, Ephemeral | Afiseaza comenzi admin dintr-un interval istoric controlat: o zi, o saptamana sau o luna. Pentru `luna`, `start` foloseste formatul `YYYY-MM`; pentru `zi` si `saptamana`, formatul `YYYY-MM-DD`. Rezultatele sunt paginate cu `offset`, cate 25 pe lot. |
 | `/server-log recent` | Admin, Ephemeral | Afiseaza cele mai recente schimbari importante salvate pentru server. In implementarea curenta include actiuni persistate de bot, cum ar fi incarcarea unui backup; integrarea cu toate evenimentele Discord necesita intent-uri si permisiuni de audit pe server. |
 | `/server-log older` | Admin, Ephemeral | Afiseaza schimbari server dintr-o zi, o saptamana sau o luna anume, cu aceeasi paginare sigura ca `/bot-log older`. |
-| `/suggest-command add name:<nume> description:<ce-face>` | Public, Ephemeral | Permite unui user sa propuna o comanda noua. Userul completeaza numele comenzii propuse si descrierea; botul salveaza sugestia in lista serverului. |
-| `/suggest-command list numar:<1-25>` | Admin runtime, Ephemeral | Afiseaza comenzile sugerate de useri, cu numele propus si ce ar trebui sa faca fiecare. Este runtime admin deoarece top-level-ul ramane public pentru `/suggest-command add`. |
+| `/add suggestion name:<nume> description:<ce-face>` | Public, Ephemeral | Permite unui user sa propuna o comanda noua. Userul completeaza numele comenzii propuse si descrierea; botul salveaza sugestia in lista serverului. |
+| `/suggest-command list numar:<1-25>` | Admin runtime, Ephemeral | Afiseaza comenzile sugerate de useri, cu numele propus si ce ar trebui sa faca fiecare. Este runtime admin deoarece top-level-ul ramane public pentru `/add suggestion`. |
 | `/suggest-command delete name:<nume>` | Admin runtime, Ephemeral | Sterge o comanda sugerata din lista serverului impreuna cu descrierea ei. |
 
 ## Propuneri watchlist si future-release
@@ -153,8 +153,8 @@ Pentru configurarea initiala: ruleaza `/youtube notify channel`, adauga unul sau
 | `/set remove games joc:<key>` | Admin, Autocomplete | Scoate un joc din lista explicita de jocuri active pentru server. |
 | `/set games reset` | Admin | Reseteaza filtrul de jocuri. Dupa reset, toate jocurile configurate sunt active. |
 | `/watchlist show` | Admin | Afiseaza jocurile urmarite explicit. Daca lista este goala, serverul foloseste toate jocurile configurate. |
-| `/watchlist add joc:<key>` | Admin, Autocomplete | Adauga un joc in watchlist-ul serverului. |
-| `/watchlist remove joc:<key>` | Admin, Autocomplete | Scoate un joc din watchlist-ul serverului. |
+| `/add watchlist joc:<key>` | Admin, Autocomplete | Adauga un joc in watchlist-ul serverului. |
+| `/remove watchlist joc:<key>` | Admin, Autocomplete | Scoate un joc din watchlist-ul serverului. |
 | `/watchlist reset` | Admin | Reseteaza watchlist-ul. Dupa reset, toate jocurile configurate sunt active. |
 
 ## Roluri ping pentru notificari

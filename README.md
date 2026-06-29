@@ -21,7 +21,7 @@ Bot Discord pentru notificari despre update-uri, DLC-uri, reduceri si videoclipu
 
 ## Comenzi principale
 
-La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun venit (pe system channel sau primul canal unde poate posta) care ghideaza configurarea: `/start updates`, `/start reduceri`, `/watchlist add`, `/set role updates`, `/help`.
+La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun venit (pe system channel sau primul canal unde poate posta) care ghideaza configurarea: `/start updates`, `/start reduceri`, `/add watchlist`, `/set role updates`, `/help`.
 
 - `/start updates` - activeaza notificarile de update-uri pentru server.
 - `/start reduceri` - activeaza notificarile de reduceri pentru server.
@@ -29,15 +29,15 @@ La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun ve
 - `/stop updates` - dezactiveaza notificarile de update-uri.
 - `/stop reduceri` - dezactiveaza notificarile de reduceri.
 - `/stop dlc` - opreste notificarile DLC si curata canalul salvat.
-- `/watchlist show | add | remove | reset` - (admin) afiseaza si gestioneaza jocurile urmarite explicit pe server; `reset` revine la toate jocurile configurate.
+- `/watchlist show | reset` - (admin) afiseaza si reseteaza jocurile urmarite explicit pe server; `reset` revine la toate jocurile configurate. Adaugarea/scoaterea unui joc se face cu `/add watchlist` si `/remove watchlist`.
 - `/set add games`, `/set remove games`, `/set games reset` - (admin) gestioneaza acelasi filtru per-joc prin suprafata veche, fara listare; pentru afisare foloseste `/watchlist show`.
 - `/set mode | mindiscount | maxprice | free | paid | currency | stores` - (admin) configurari de afisare/filtrare per-server.
 - `/snooze` si `/unsnooze` - (admin) pune temporar pe pauza o comanda existenta, apoi o reporneste manual inainte de expirare daca este nevoie; optiunea `command` are autocomplete ca optiunea `command` din `/help`.
 - `/config` - (admin) afiseaza intr-un singur loc setarile curente ale serverului: mod, reduceri minime, pret maxim, free/paid, valuta, magazine, jocuri active, roluri si canale de notificare.
-- `/backup add`, `/backup list`, `/backup preview`, `/backup load` si `/backup delete` - (admin) gestioneaza backup-uri ale configuratiei botului pentru server. `load` si `delete` cer `confirm:true`, iar `preview` arata setarile si ID-urile de canale/roluri care vor fi restaurate.
+- `/add backup`, `/backup list`, `/backup preview`, `/backup load` si `/backup delete` - (admin) gestioneaza backup-uri ale configuratiei botului pentru server. `load` si `delete` cer `confirm:true`, iar `preview` arata setarile si ID-urile de canale/roluri care vor fi restaurate.
 - `/reset-config` - (admin) cu optiunea obligatorie `confirm:true`, reseteaza setarile serverului la valorile implicite. Goleste si lista dead-letter vizibila **si** payload-urile de replay din colectia separata (ca sa nu ramana orfane, la fel ca `/outbox clear-deadletters`); istoricul rapoartelor si al notificarilor deja livrate (`/history`) nu este sters.
 - `/admin-alerts set` si `/admin-alerts off` - (admin) configureaza sau dezactiveaza canalul Discord pentru alerte operationale, dead-letter, permisiuni si rapoarte noi.
-- `/price-alert add`, `/price-alert remove` si `/price-alert list` - (admin) gestioneaza alerte de pret. Alerta se trimite pe canalul activat prin `/start reduceri`, se declanseaza o singura data cand pretul ajunge la/sub prag si se rearmeaza fie cand pretul urca peste prag, fie cand jocul lipseste din feed-ul de reduceri `PRICE_ALERT_REARM_ABSENT_CYCLES` cicluri la rand (oferta s-a terminat si jocul a iesit din feed); rearmarea pe absenta nu se face pe esec de fetch al surselor.
+- `/add price-alert`, `/remove price-alert` si `/price-alert list` - (admin) gestioneaza alerte de pret. Alerta se trimite pe canalul activat prin `/start reduceri`, se declanseaza o singura data cand pretul ajunge la/sub prag si se rearmeaza fie cand pretul urca peste prag, fie cand jocul lipseste din feed-ul de reduceri `PRICE_ALERT_REARM_ABSENT_CYCLES` cicluri la rand (oferta s-a terminat si jocul a iesit din feed); rearmarea pe absenta nu se face pe esec de fetch al surselor.
 - `/price-check` - compara pretul Steam al unui joc cu ofertele comparabile din sursele externe de reduceri folosite de bot; pretul Steam este afisat in embed verde.
 - `/youtube subscribe`, `/youtube unsubscribe` si `/youtube list` - (admin) gestioneaza canalele YouTube publice urmarite; adaugarea accepta link, handle `@nume` sau channel ID si pastreaza eligibile numai videoclipurile din ultima luna pentru prima activare.
 - `/youtube notify channel`, `/youtube notify on`, `/youtube notify off` si `/youtube notify status` - (admin) configureaza canalul Discord si porneste/opreste postarile automate fara sa stearga abonamentele.
@@ -51,7 +51,7 @@ La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun ve
 - `/status <joc>` - verifica starea serverelor unui joc (ex. online/mentenanta), nu starea botului; pentru starea botului foloseste `/health`.
 - `/history <tip> <numar>` - afiseaza ultimele notificari (update-uri/reduceri/YouTube) livrate efectiv pe acest server, cu link si timestamp relativ; raspuns ephemeral. Istoricul se scrie dupa send-ul real catre Discord; cu outbox-ul activ, intrarile calatoresc pe job si se scriu abia cand worker-ul livreaza mesajul din coada (nu la enqueue), deci o notificare aflata inca in coada sau esuata nu apare in `/history`.
 - `/report submit <tip> <detalii> <joc> | list | resolve <id>` - raporteaza o problema, listeaza ultimele rapoarte sau marcheaza un raport ca rezolvat; `list` si `resolve` cer Administrator la runtime.
-- `/suggest-command add`, `/suggest-command list` si `/suggest-command delete` - utilizatorii pot propune comenzi noi, iar adminii pot lista sau sterge propunerile salvate pe server.
+- `/add suggestion`, `/suggest-command list` si `/suggest-command delete` - utilizatorii pot propune comenzi noi, iar adminii pot lista sau sterge propunerile salvate pe server.
 - `/watchlist-game add`, `/watchlist-game list` si `/watchlist-game delete` - utilizatorii pot propune jocuri noi pentru bot, iar adminii pot curata lista de propuneri.
 - `/future-release add`, `/future-release list`, `/future-release delete`, `/future-release start` si `/future-release stop` - (admin) gestioneaza lista de maxim 20 jocuri care urmeaza sa apara si canalul folosit pentru notificarile future-release.
 - `/deal-score` - calculeaza un scor 1-10 pentru o oferta activa folosind reducerea, pretul, semnalele de calitate/popularitate si magazinul.

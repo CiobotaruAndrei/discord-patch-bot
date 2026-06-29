@@ -205,3 +205,23 @@ test("/price-alert: o eroare interna intoarce handledCommandError (audit onest, 
   const result = await command.handle(interaction("add", { joc: "elden-ring", price: 30, currency: "EUR" }), games);
   assert.equal(isHandledCommandError(result), true, "eroarea interna devine handledCommandError, deci /bot-log nu mai zice Access granted.");
 });
+
+function verbInteraction(commandName: "add" | "remove", values: { joc?: string; price?: number; currency?: string } = {}) {
+  const base = interaction("price-alert", values);
+  return { ...base, commandName, options: { ...base.options, getSubcommand: () => "price-alert" } };
+}
+
+test("/add price-alert (verb in fata) ruteaza la add si salveaza regula", async () => {
+  const { handler, calls, replies } = makeHarness({ discountsSubscribed: true, discountChannelId: "deals", priceAlerts: [] });
+  await handler.handlePriceAlertInteraction(verbInteraction("add", { joc: "elden-ring", price: 30, currency: "EUR" }), games);
+  assert.equal(calls.length, 1);
+  assert.ok(Array.isArray(calls[0].update), "/add price-alert foloseste pipeline-ul de upsert (actiunea vine din commandName, nu din subcomanda)");
+  assert.match(String(replies[0]), /alerta pentru \*\*Elden Ring\*\*/);
+});
+
+test("/remove price-alert (verb in fata) ruteaza la remove ($pull)", async () => {
+  const { handler, calls } = makeHarness({ priceAlerts: [] });
+  await handler.handlePriceAlertInteraction(verbInteraction("remove", { joc: "elden-ring" }), games);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].update, { $pull: { priceAlerts: { gameKey: "elden-ring" } } });
+});

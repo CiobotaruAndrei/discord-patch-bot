@@ -209,10 +209,10 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
       const useNameAsValue = (cmd === "dlc") || (cmd === "latest" && sub === "pret");
 
       let pool = games;
-      if ((cmd === "set" && group === "games" && sub === "remove") || (cmd === "watchlist" && sub === "remove")) {
+      if ((cmd === "set" && group === "games" && sub === "remove") || (cmd === "watchlist" && sub === "remove") || (cmd === "remove" && sub === "watchlist")) {
         pool = await buildSetGamesRemovePool(interaction, games);
       }
-      if (cmd === "price-alert" && sub === "remove") {
+      if ((cmd === "price-alert" && sub === "remove") || (cmd === "remove" && sub === "price-alert")) {
         pool = await buildPriceAlertRemovePool(interaction, games);
       }
 
