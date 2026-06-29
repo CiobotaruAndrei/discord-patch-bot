@@ -3,7 +3,7 @@
 import type { GameConfig, GuildSettings, WatchlistGameSuggestionEntry } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
-import { deleteWatchlistGameSuggestion, listWatchlistGameSuggestions, saveWatchlistGameSuggestion } from "../admin-records/adminRecordsRepository";
+import { deleteWatchlistGameSuggestion, listWatchlistGameSuggestions, recordBotAuditEntry, saveWatchlistGameSuggestion } from "../admin-records/adminRecordsRepository";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
@@ -85,6 +85,12 @@ function createWatchlistGameSuggestionHandler(deps: WatchlistGameSuggestionDeps)
     if (!gameName) return safeEdit(interaction, "Eroare: trebuie sa scrii numele jocului de sters.");
     const deleted = await deleteWatchlistGameSuggestion(GuildModel, guildId, gameName);
     invalidateGuildCache(guildId);
+    await recordBotAuditEntry(GuildModel, guildId, {
+      userId: interaction.user?.id || "",
+      command: "/watchlist-game delete",
+      result: "Access granted.",
+      details: deleted ? `stearsa: ${gameName}` : `negasita: ${gameName}`
+    }).catch(() => undefined);
     return deleted
       ? safeEdit(interaction, `OK: jocul \`${gameName}\` a fost sters din propunerile watchlist.`)
       : safeEdit(interaction, `Nu am gasit jocul \`${gameName}\` in propunerile watchlist.`);

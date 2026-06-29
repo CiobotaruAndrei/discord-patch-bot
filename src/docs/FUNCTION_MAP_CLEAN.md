@@ -211,17 +211,17 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-handlers/suggestCommandInteractionHandler.ts`
 
 - Gestioneaza `/add suggestion`, `/suggest-command list` si `/suggest-command delete`.
-- `/add suggestion` ramane public pentru sugestii de useri, iar `list`/`delete` cer admin la runtime pentru administrarea propunerilor.
+- `/add suggestion` ramane public pentru sugestii de useri, iar `list`/`delete` cer admin la runtime pentru administrarea propunerilor; fiindca top-level-ul e public, `delete` scrie explicit in `botAuditLog` (`/bot-log`), nu trece prin auditul central al guard-ului.
 
 ### `src/features/command-handlers/watchlistGameSuggestionHandler.ts`
 
 - Gestioneaza `/watchlist-game add`, `/watchlist-game list` si `/watchlist-game delete`.
-- Permite userilor sa propuna jocuri noi pentru bot, iar adminilor sa stearga propunerile nepotrivite.
+- Permite userilor sa propuna jocuri noi pentru bot, iar adminilor sa stearga propunerile nepotrivite; `delete` (admin runtime pe comanda publica) scrie in `botAuditLog`.
 
 ### `src/features/command-handlers/futureReleaseInteractionHandler.ts`
 
 - Gestioneaza `/future-release add`, `/future-release list`, `/future-release delete`, `/future-release start` si `/future-release stop`.
-- Pastreaza lista de maxim 20 jocuri viitoare si canalul configurat pentru notificarile future-release.
+- Pastreaza lista de maxim 20 jocuri viitoare si canalul configurat pentru notificarile future-release. `add` salveaza printr-un singur pipeline atomic (`saveFutureReleaseGame` cu `findOneAndUpdate` + `$cond`) care refuza al 21-lea joc in loc sa evacueze tacut; `list` afiseaza clar cand modulul e activ fara canal salvat, fara `<#undefined>`.
 
 ### `src/features/command-handlers/maintenanceInteractionHandler.ts`
 

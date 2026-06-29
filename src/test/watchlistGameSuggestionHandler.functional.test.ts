@@ -86,6 +86,9 @@ test("/watchlist-game delete cere admin runtime si sterge propunerea", async () 
   await handler.handleWatchlistGameSuggestion(makeInteraction("delete", { game: " Silksong " }));
 
   assert.deepEqual(calls[0].update, { $pull: { watchlistGameSuggestions: { gameName: "silksong" } } });
+  const audit = ((calls[1].update as { $push?: { botAuditLog?: { $each?: Array<{ command?: string; details?: string }> } } }).$push)?.botAuditLog?.$each?.[0];
+  assert.equal(audit?.command, "/watchlist-game delete", "stergerea propunerii (admin runtime pe comanda publica) intra in /bot-log");
+  assert.match(String(audit?.details), /stearsa: silksong/);
   assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /silksong/);
 });

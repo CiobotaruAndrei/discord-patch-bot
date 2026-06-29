@@ -20,6 +20,14 @@ type GuildModelLike = {
   ): Promise<MongoWriteResult>;
 };
 
+type FutureReleaseGuildModel = GuildModelLike & {
+  findOneAndUpdate(
+    filter: Record<string, unknown>,
+    update: Record<string, unknown> | Array<Record<string, unknown>>,
+    options?: Record<string, unknown>
+  ): Promise<{ futureReleaseGames?: FutureReleaseGameEntry[] } | null>;
+};
+
 const MAX_CONFIG_BACKUPS = 20;
 const MAX_BOT_AUDIT_LOGS = 100;
 const MAX_SERVER_AUDIT_LOGS = 100;
@@ -310,26 +318,53 @@ export async function deleteWatchlistGameSuggestion(GuildModel: GuildModelLike, 
   return (result.modifiedCount ?? 0) > 0;
 }
 
+export function buildFutureReleaseUpsertPipeline(
+  record: FutureReleaseGameEntry,
+  maxGames: number
+): Array<Record<string, unknown>> {
+  return [{
+    $set: {
+      futureReleaseGames: {
+        $let: {
+          vars: {
+            kept: {
+              $filter: {
+                input: { $ifNull: ["$futureReleaseGames", []] },
+                as: "game",
+                cond: { $ne: ["$$game.gameName", record.gameName] }
+              }
+            }
+          },
+          in: {
+            $cond: [
+              { $lt: [{ $size: "$$kept" }, maxGames] },
+              { $concatArrays: ["$$kept", [record]] },
+              "$$kept"
+            ]
+          }
+        }
+      }
+    }
+  }];
+}
+
 export async function saveFutureReleaseGame(
-  GuildModel: GuildModelLike,
+  GuildModel: FutureReleaseGuildModel,
   guildId: string,
   entry: Omit<FutureReleaseGameEntry, "addedAt">
-): Promise<FutureReleaseGameEntry> {
+): Promise<{ record: FutureReleaseGameEntry; saved: boolean }> {
   const record: FutureReleaseGameEntry = {
     ...entry,
     addedAt: new Date()
   };
-  await GuildModel.updateOne(
+  const updated = await GuildModel.findOneAndUpdate(
     { _id: guildId },
-    { $pull: { futureReleaseGames: { gameName: record.gameName } } },
-    { upsert: true }
+    buildFutureReleaseUpsertPipeline(record, MAX_FUTURE_RELEASE_GAMES),
+    { upsert: true, new: true }
   );
-  await GuildModel.updateOne(
-    { _id: guildId },
-    { $push: { futureReleaseGames: { $each: [record], $slice: -MAX_FUTURE_RELEASE_GAMES } } },
-    { upsert: true }
-  );
-  return record;
+  const games = Array.isArray(updated?.futureReleaseGames) ? updated.futureReleaseGames : [];
+  const saved = games.some(game => game.gameName === record.gameName);
+  return { record, saved };
 }
 
 export function listFutureReleaseGames(settings: GuildSettings | null): FutureReleaseGameEntry[] {

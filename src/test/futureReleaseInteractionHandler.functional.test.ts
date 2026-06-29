@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { GuildSettings } from "../types";
+import type { FutureReleaseGameEntry, GuildSettings } from "../types";
 
 const installFutureRelease = require("../features/command-handlers/futureReleaseInteractionHandler") as typeof import("../features/command-handlers/futureReleaseInteractionHandler");
 
@@ -10,6 +10,13 @@ type MongoCall = {
   update: Record<string, unknown> | Record<string, unknown>[];
   options?: Record<string, unknown>;
 };
+
+function recordFromPipeline(update: unknown): FutureReleaseGameEntry {
+  const stage = (Array.isArray(update) ? update[0] : undefined) as { $set?: { futureReleaseGames?: { $let?: { in?: { $cond?: unknown[] } } } } } | undefined;
+  const cond = stage?.$set?.futureReleaseGames?.$let?.in?.$cond as Array<{ $concatArrays?: unknown[] }> | undefined;
+  const appended = cond?.[1]?.$concatArrays?.[1] as FutureReleaseGameEntry[] | undefined;
+  return appended?.[0] ?? { gameName: "", addedBy: "", addedAt: new Date() };
+}
 
 function makeInteraction(subcommand: string, values: { game?: string; releaseDate?: string; preorderPrice?: string } = {}) {
   return {
@@ -39,11 +46,19 @@ function makeHarness(settings: GuildSettings | null) {
   const calls: MongoCall[] = [];
   const replies: unknown[] = [];
   const invalidated: string[] = [];
+  const existingGames: FutureReleaseGameEntry[] = Array.isArray(settings?.futureReleaseGames) ? settings.futureReleaseGames : [];
   const handler = installFutureRelease.createFutureReleaseInteractionHandler({
     GuildModel: {
       updateOne: async (filter, update, options) => {
         calls.push({ filter, update, options });
         return { matchedCount: 1, modifiedCount: 1 };
+      },
+      findOneAndUpdate: async (filter, update, options) => {
+        calls.push({ filter, update, options });
+        const record = recordFromPipeline(update);
+        const kept = existingGames.filter(game => game.gameName !== record.gameName);
+        const futureReleaseGames = kept.length < 20 ? [...kept, record] : kept;
+        return { futureReleaseGames };
       }
     },
     getGuildSettings: async () => settings,
@@ -70,11 +85,38 @@ test("/future-release add salveaza jocul cu data si pretul de preorder", async (
     preorderPrice: "indisponibil"
   }));
 
-  assert.equal(calls.length, 2);
-  assert.match(JSON.stringify(calls[1].update), /futureReleaseGames/);
-  assert.match(JSON.stringify(calls[1].update), /silksong/);
+  assert.equal(calls.length, 1, "salvarea atomica foloseste un singur findOneAndUpdate cu pipeline");
+  assert.ok(Array.isArray(calls[0].update), "update-ul e un aggregation pipeline atomic");
+  assert.match(JSON.stringify(calls[0].update), /futureReleaseGames/);
+  assert.match(JSON.stringify(calls[0].update), /silksong/);
   assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /silksong/);
+});
+
+test("/future-release list afiseaza canalul cand modulul e activ", async () => {
+  const games = [{ gameName: "silksong", addedBy: "admin", addedAt: new Date() }];
+  const { handler, replies } = makeHarness({ _id: "guild-1", futureReleaseGames: games, futureReleaseSubscribed: true, futureReleaseChannelId: "chan-9" });
+  await handler.handleFutureRelease(makeInteraction("list"));
+  const content = String((replies[0] as { content?: string }).content ?? replies[0]);
+  assert.match(content, /ON in <#chan-9>/);
+});
+
+test("/future-release list semnaleaza canal lipsa cand modulul e activ fara canal", async () => {
+  const games = [{ gameName: "silksong", addedBy: "admin", addedAt: new Date() }];
+  const { handler, replies } = makeHarness({ _id: "guild-1", futureReleaseGames: games, futureReleaseSubscribed: true });
+  await handler.handleFutureRelease(makeInteraction("list"));
+  const content = String((replies[0] as { content?: string }).content ?? replies[0]);
+  assert.doesNotMatch(content, /<#undefined>/, "nu afiseaza canal invalid");
+  assert.match(content, /canalul lipseste/);
+  assert.match(content, /\/future-release start/);
+});
+
+test("/future-release list arata OFF cand modulul e oprit", async () => {
+  const games = [{ gameName: "silksong", addedBy: "admin", addedAt: new Date() }];
+  const { handler, replies } = makeHarness({ _id: "guild-1", futureReleaseGames: games });
+  await handler.handleFutureRelease(makeInteraction("list"));
+  const content = String((replies[0] as { content?: string }).content ?? replies[0]);
+  assert.match(content, /Notificari: OFF/);
 });
 
 test("/future-release add refuza al 21-lea joc nou", async () => {
