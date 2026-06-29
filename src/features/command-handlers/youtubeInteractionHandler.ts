@@ -379,7 +379,7 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
       }
       const currentDestinations = existingRoute?.discordChannelIds || [];
       if (!currentDestinations.includes(discordChannel.id) && currentDestinations.length >= MAX_YOUTUBE_ROUTE_DESTINATIONS) {
-        return safeEdit(interaction, `Eroare: ai atins limita de ${MAX_YOUTUBE_ROUTE_DESTINATIONS} canale Discord pentru ruta lui **${subscription.channelName}**. Scoate o destinatie cu \`/youtube channel-route remove\` inainte sa adaugi alta.`);
+        return safeEdit(interaction, `Eroare: ai atins limita de ${MAX_YOUTUBE_ROUTE_DESTINATIONS} canale Discord pentru ruta lui **${subscription.channelName}**. Scoate o destinatie cu \`/youtube remove channel-route\` inainte sa adaugi alta.`);
       }
       const update = existingRoute
         ? { $addToSet: { "youtubeChannelRoutes.$[route].discordChannelIds": discordChannel.id } }
@@ -481,7 +481,7 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
         : "Info: nu exista videoclipuri recente noi de afisat (cele din ultima luna au fost deja postate manual). Foloseste `repeta:true` ca sa le repostezi pe toate.");
     }
     if (!deliverable.length) {
-      return safeEdit(interaction, "Eroare: niciun canal de destinatie configurat pentru aceste videoclipuri. Seteaza un canal cu `/youtube notify channel` sau adauga o ruta cu `/youtube channel-route add` inainte de afisarea manuala.");
+      return safeEdit(interaction, "Eroare: niciun canal de destinatie configurat pentru aceste videoclipuri. Seteaza un canal cu `/youtube notify channel` sau adauga o ruta cu `/youtube add channel-route` inainte de afisarea manuala.");
     }
     const skippedNote = skipped > 0 ? ` (${skipped} sarite: canalul lor YouTube nu are nici ruta, nici canal principal de destinatie)` : "";
     const immediate = deliverable.slice(0, YOUTUBE_MANUAL_IMMEDIATE_BATCH);
@@ -534,7 +534,7 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
       }
     }
     if (!channelIds.size) {
-      return safeEdit(interaction, "Canalul Discord pentru YouTube nu este configurat (nici canal principal cu `/youtube notify channel`, nici rute cu `/youtube channel-route add`).");
+      return safeEdit(interaction, "Canalul Discord pentru YouTube nu este configurat (nici canal principal cu `/youtube notify channel`, nici rute cu `/youtube add channel-route`).");
     }
     const lines: string[] = ["Permisiuni YouTube (canal principal + rute speciale):"];
     for (const id of channelIds) {
@@ -557,6 +557,10 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     if (group === "notify") return notify(interaction, guildId, subcommand);
     if (group === "filter") return filter(interaction, guildId, subcommand);
     if (group === "message-template") return messageTemplate(interaction, guildId, subcommand);
+    if (group === "add" || group === "remove") {
+      if (subcommand === "channel-route") return channelRoute(interaction, guildId, group);
+      if (subcommand === "title-filter") return titleFilter(interaction, guildId, group);
+    }
     if (group === "channel-route") return channelRoute(interaction, guildId, subcommand);
     if (group === "title-filter") return titleFilter(interaction, guildId, subcommand);
     if (group === "videos" && subcommand === "show") return showVideos(interaction, guildId);

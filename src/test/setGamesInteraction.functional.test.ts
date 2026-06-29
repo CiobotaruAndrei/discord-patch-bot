@@ -14,6 +14,7 @@ type UpdateCall = {
 type Game = { key: string; name: string };
 type GameFilterRuntime = {
   handleSetGames: (interaction: unknown, games: Game[], sub: string, guildId: string) => Promise<unknown>;
+  handleSetGamesInteraction: (interaction: unknown, games: Game[]) => Promise<unknown>;
 };
 
 const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as (context: Record<string, unknown>) => void;
@@ -42,7 +43,8 @@ function buildContext() {
       return payload;
     },
     formatUserError: (_err: unknown, fallback: string) => fallback,
-    getGuildSettings: async () => ({ enabledGames: [] })
+    getGuildSettings: async () => ({ enabledGames: [] }),
+    safeDefer: async () => undefined
   };
   installGameFilterHandlers(context);
   return { context: context as typeof context & GameFilterRuntime, calls, replies, invalidatedGuilds };
@@ -90,4 +92,47 @@ test("/set games remove builds the expected pull update", async () => {
   assert.equal(calls[0].options, undefined);
   assert.deepEqual(invalidatedGuilds, ["guild-2"]);
   assert.equal(replies[0], "OK: **Fortnite** scos din watchlist.");
+});
+
+test("/set add games (structura noua: verb-grup) ruteaza la add", async () => {
+  const { context, calls, replies } = buildContext();
+  const interaction = {
+    guild: { id: "guild-1" },
+    options: {
+      getSubcommandGroup: (_required: false) => "add",
+      getSubcommand: () => "games",
+      getString: (name: string) => name === "joc" ? "cs2" : null
+    }
+  };
+  await context.handleSetGamesInteraction(interaction, games);
+  assert.deepEqual(calls[0].update, { $addToSet: { enabledGames: "cs2" } }, "/set add games adauga jocul (verbul din grup, nu din subcomanda)");
+  assert.equal(replies[0], "OK: **Counter-Strike 2** adaugat in watchlist.");
+});
+
+test("/set remove games (structura noua) ruteaza la remove", async () => {
+  const { context, calls } = buildContext();
+  const interaction = {
+    guild: { id: "guild-1" },
+    options: {
+      getSubcommandGroup: (_required: false) => "remove",
+      getSubcommand: () => "games",
+      getString: (name: string) => name === "joc" ? "cs2" : null
+    }
+  };
+  await context.handleSetGamesInteraction(interaction, games);
+  assert.deepEqual(calls[0].update, { $pull: { enabledGames: "cs2" } }, "/set remove games scoate jocul");
+});
+
+test("/set games reset (verbul ramane subcomanda) inca merge", async () => {
+  const { context, calls } = buildContext();
+  const interaction = {
+    guild: { id: "guild-1" },
+    options: {
+      getSubcommandGroup: (_required: false) => "games",
+      getSubcommand: () => "reset",
+      getString: () => null
+    }
+  };
+  await context.handleSetGamesInteraction(interaction, games);
+  assert.deepEqual(calls[0].update, { $set: { enabledGames: [] } }, "reset ramane sub grupul games");
 });

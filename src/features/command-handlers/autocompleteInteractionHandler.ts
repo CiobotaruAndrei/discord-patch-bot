@@ -196,10 +196,10 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
           group === "videos" && sub === "show"
         )).catch(() => null);
       }
-      if (cmd === "youtube" && group === "channel-route" && sub === "remove" && focused.name === "discord") {
+      if (cmd === "youtube" && group === "remove" && sub === "channel-route" && focused.name === "discord") {
         return interaction.respond(await buildYouTubeRouteChoices(interaction, focused.value)).catch(() => null);
       }
-      if (cmd === "youtube" && group === "title-filter" && sub === "remove" && focused.name === "word") {
+      if (cmd === "youtube" && group === "remove" && sub === "title-filter" && focused.name === "word") {
         return interaction.respond(await buildYouTubeTitleWordChoices(interaction, focused.value)).catch(() => null);
       }
       if (focused.name !== "joc") {

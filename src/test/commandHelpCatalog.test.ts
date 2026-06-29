@@ -134,9 +134,9 @@ test("command help catalog: permisiunea declarata (Admin/Public) coincide cu set
 });
 
 test("command help catalog raspunde la input cu sau fara slash", () => {
-  const entry = findCommandHelpEntry("set games add");
+  const entry = findCommandHelpEntry("set add games");
   assert.ok(entry);
-  assert.equal(entry.command, "/set games add");
+  assert.equal(entry.command, "/set add games");
   assert.match(renderCommandHelpEntry(entry), /Permisiuni: Admin/);
 });
 

@@ -90,7 +90,7 @@ test("docs sync: docs/Comenzi Functionalitate.md mentioneaza toate comenzile top
 
 test("P2.1: definitiile contin comenzile cheie (ancore de sanitate pentru parser)", () => {
   const defined = definedCommandPaths();
-  for (const expected of ["ping", "help", "start updates", "set games add", "set outbox-recovery-verify", "outbox status", "outbox recovery-verify status"]) {
+  for (const expected of ["ping", "help", "start updates", "set add games", "set outbox-recovery-verify", "outbox status", "outbox recovery-verify status"]) {
     assert.ok(defined.has(expected), `definitiile contin '${expected}'`);
   }
   assert.ok(!defined.has("set game-state"), "nu exista subcomanda 'set game-state' (de aceea a fost scoasa din README)");
