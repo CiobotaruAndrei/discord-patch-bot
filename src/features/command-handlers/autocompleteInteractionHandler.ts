@@ -206,10 +206,10 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
         return interaction.respond([]).catch(() => null);
       }
       const input = String(focused.value || "").toLowerCase().trim().substring(0, MAX_AUTOCOMPLETE_INPUT_LEN);
-      const useNameAsValue = (cmd === "dlc") || (cmd === "latest" && sub === "pret");
+      const useNameAsValue = (cmd === "dlc") || (cmd === "deal-score") || (cmd === "latest" && sub === "pret");
 
       let pool = games;
-      if ((cmd === "set" && group === "games" && sub === "remove") || (cmd === "watchlist" && sub === "remove") || (cmd === "remove" && sub === "watchlist")) {
+      if ((cmd === "set" && group === "remove" && sub === "games") || (cmd === "watchlist" && sub === "remove") || (cmd === "remove" && sub === "watchlist")) {
         pool = await buildSetGamesRemovePool(interaction, games);
       }
       if ((cmd === "price-alert" && sub === "remove") || (cmd === "remove" && sub === "price-alert")) {

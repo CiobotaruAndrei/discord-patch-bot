@@ -4,6 +4,7 @@ import type { GameConfig, GuildSettings, WatchlistGameSuggestionEntry } from "..
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 import { deleteWatchlistGameSuggestion, listWatchlistGameSuggestions, recordBotAuditEntry, saveWatchlistGameSuggestion } from "../admin-records/adminRecordsRepository";
+import { requireGuildAdminAudited } from "../command-security/runtimeAdminAudit";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
@@ -80,7 +81,7 @@ function createWatchlistGameSuggestionHandler(deps: WatchlistGameSuggestionDeps)
   }
 
   async function handleDelete(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
-    if (!(await requireGuildAdmin(interaction))) return undefined;
+    if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildModel, interaction, guildId, "/watchlist-game delete"))) return undefined;
     const gameName = normalizeGameName(String(interaction.options.getString("game", true) || ""));
     if (!gameName) return safeEdit(interaction, "Eroare: trebuie sa scrii numele jocului de sters.");
     const deleted = await deleteWatchlistGameSuggestion(GuildModel, guildId, gameName);

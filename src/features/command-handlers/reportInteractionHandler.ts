@@ -3,6 +3,7 @@
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 import { recordBotAuditEntry } from "../admin-records/adminRecordsRepository";
+import { requireGuildAdminAudited } from "../command-security/runtimeAdminAudit";
 
 const { errorDetail } = require("../../shared/errors");
 const defaultRequireGuildAdmin = require("../command-security/adminPermissionGuard") as RequireGuildAdmin;
@@ -161,7 +162,7 @@ function createReportInteractionHandler(deps: ReportHandlerDeps) {
   }
 
   async function handleReportList(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
-    if (!(await requireGuildAdmin(interaction))) return undefined;
+    if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildModel, interaction, guildId, "/report list"))) return undefined;
     if (!(await enforceCooldown(interaction, "report:list"))) return undefined;
     const limit = interaction.options.getInteger?.("numar") ?? 10;
     const endLog = startCommandLog(interaction, "report:list", { limit });
@@ -173,7 +174,7 @@ function createReportInteractionHandler(deps: ReportHandlerDeps) {
   }
 
   async function handleReportResolve(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
-    if (!(await requireGuildAdmin(interaction))) return undefined;
+    if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildModel, interaction, guildId, "/report resolve"))) return undefined;
     if (!(await enforceCooldown(interaction, "report:resolve"))) return undefined;
     const reportId = String(interaction.options.getString("id") || "").trim();
     if (!reportId) {

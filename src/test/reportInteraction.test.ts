@@ -154,3 +154,23 @@ test("/report list scrie in /bot-log (audit central pentru subcomanda admin sub 
   assert.deepEqual(audits.map(a => a.command), ["/report list"], "subcomanda admin /report list apare acum in /bot-log, ca /set sau /backup");
   assert.equal(audits[0].result, "Access granted.");
 });
+
+test("/report list auditeaza si REFUZUL de acces, nu doar succesul (R[Medium] #3)", async () => {
+  const audits: Array<{ command?: string; result?: string }> = [];
+  const edits: unknown[] = [];
+  const handler = mod.createReportInteractionHandler(makeDeps({
+    requireGuildAdmin: async () => false,
+    safeEdit: async (_interaction, payload) => { edits.push(payload); return payload; },
+    GuildModel: {
+      updateOne: async (_filter: Record<string, unknown>, update: Record<string, unknown>) => {
+        const entry = (update.$push as { botAuditLog?: { $each?: Array<{ command?: string; result?: string }> } } | undefined)?.botAuditLog?.$each?.[0];
+        if (entry) audits.push(entry);
+        return { modifiedCount: 1 };
+      }
+    }
+  }));
+  const { interaction } = makeInteraction("list", { numar: 5 });
+  await handler.handleReportInteraction(interaction);
+  assert.deepEqual(audits.map(a => a.command), ["/report list"], "refuzul de acces e scris in /bot-log");
+  assert.equal(audits[0].result, "Access denied.");
+});
