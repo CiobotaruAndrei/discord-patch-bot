@@ -44,6 +44,22 @@ test("buildMaintenanceReport semnaleaza outbox, dead-letter, backup vechi si can
   assert.match(report, /ATENTIE: drenare outbox - pe pauza/);
   assert.match(report, /ATENTIE: backup configuratie/);
   assert.match(report, /ATENTIE: canale notificari/);
+  assert.match(report, /lipseste canalul pentru: update-uri/, "raportul (P5) listeaza exact ce modul are canalul lipsa, nu generic");
+});
+
+test("buildMaintenanceReport enumera toate modulele cu canal lipsa", async () => {
+  const settings: GuildSettings = {
+    _id: "guild-1",
+    subscribed: true,
+    notificationChannelId: null,
+    futureReleaseSubscribed: true,
+    futureReleaseChannelId: null,
+    dlcSubscribed: true,
+    dlcChannelId: "dlc-ok"
+  };
+  const report = await installMaintenance.buildMaintenanceReport(makeDeps(settings, 0, false), "guild-1");
+  assert.match(report, /lipseste canalul pentru: update-uri, future-release/);
+  assert.doesNotMatch(report, /lipseste canalul pentru:[^\n]*DLC/, "DLC are canal configurat, deci nu apare ca lipsa");
 });
 
 test("/maintenance ruleaza cooldown, log si returneaza raport ephemeral", async () => {

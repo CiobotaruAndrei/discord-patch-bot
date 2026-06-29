@@ -68,6 +68,16 @@ async function buildMaintenanceReport(deps: MaintenanceDeps, guildId: string): P
   const youtubeChannelOk = settings?.youtubeNotificationsEnabled ? Boolean(settings.youtubeNotificationChannelId) : true;
   const futureReleaseOk = settings?.futureReleaseSubscribed ? Boolean(settings.futureReleaseChannelId) : true;
   const dlcOk = settings?.dlcSubscribed ? Boolean(settings.dlcChannelId) : true;
+  const missingChannels = [
+    updateChannelOk ? null : "update-uri",
+    discountChannelOk ? null : "reduceri",
+    youtubeChannelOk ? null : "YouTube",
+    futureReleaseOk ? null : "future-release",
+    dlcOk ? null : "DLC"
+  ].filter((name): name is string => name !== null);
+  const channelsDetail = missingChannels.length === 0
+    ? "toate modulele active au canalul configurat"
+    : `lipseste canalul pentru: ${missingChannels.join(", ")}`;
   const lines = [
     "**Maintenance check**",
     issueLine(youtubeErrors === 0, "surse YouTube", youtubeErrors === 0 ? "fara erori recente salvate" : `${youtubeErrors} erori recente`),
@@ -77,7 +87,7 @@ async function buildMaintenanceReport(deps: MaintenanceDeps, guildId: string): P
     issueLine(deadLetters === 0, "dead-letter", deadLetters === 0 ? "gol" : `${deadLetters} livrari esuate definitiv`),
     issueLine(paused !== true, "drenare outbox", paused === null ? "stare necunoscuta" : paused ? "pe pauza" : "activa"),
     issueLine(!backupsOld, "backup configuratie", backupsOld ? "lipseste sau e mai vechi de 30 zile" : "recent"),
-    issueLine(updateChannelOk && discountChannelOk && youtubeChannelOk && futureReleaseOk && dlcOk, "canale notificari", "verificare prezenta ID-uri pentru modulele active"),
+    issueLine(missingChannels.length === 0, "canale notificari", channelsDetail),
     issueLine(settings?.subscribed === true || settings?.discountsSubscribed === true || settings?.youtubeNotificationsEnabled === true || settings?.futureReleaseSubscribed === true || settings?.dlcSubscribed === true, "notificari", "cel putin un modul de notificare este activ")
   ];
   return lines.join("\n");

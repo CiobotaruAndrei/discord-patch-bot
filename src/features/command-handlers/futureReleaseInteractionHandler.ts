@@ -61,9 +61,17 @@ function normalizeGameName(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLowerCase().slice(0, 120);
 }
 
+function futureReleaseStateLine(settings?: GuildSettings | null): string {
+  if (!settings?.futureReleaseSubscribed) return "Notificari: OFF";
+  if (!settings.futureReleaseChannelId) {
+    return "Notificari: ON, dar canalul lipseste - ruleaza `/future-release start` ca sa il setezi";
+  }
+  return `Notificari: ON in <#${settings.futureReleaseChannelId}>`;
+}
+
 function renderFutureReleaseGames(entries: FutureReleaseGameEntry[], settings?: GuildSettings | null): string {
   if (!entries.length) return "Nu exista jocuri future-release urmarite pentru acest server.";
-  const state = settings?.futureReleaseSubscribed ? `Notificari: ON in <#${settings.futureReleaseChannelId}>` : "Notificari: OFF";
+  const state = futureReleaseStateLine(settings);
   const lines = entries.map(entry => {
     const release = entry.releaseDate ? `lansare: ${escapeInlineText(entry.releaseDate, 40)}` : "lansare: indisponibila";
     const preorder = entry.preorderPrice ? `preorder: ${escapeInlineText(entry.preorderPrice, 80)}` : "preorder: indisponibil";
@@ -86,13 +94,16 @@ function createFutureReleaseInteractionHandler(deps: FutureReleaseDeps) {
     if (!existing.some(entry => entry.gameName === gameName) && existing.length >= 20) {
       return safeEdit(interaction, "Eroare: lista future-release poate avea maxim 20 de jocuri.");
     }
-    const record = await saveFutureReleaseGame(GuildModel, guildId, {
+    const { record, saved } = await saveFutureReleaseGame(GuildModel, guildId, {
       gameName,
       releaseDate: String(interaction.options.getString("release-date") || "").trim().slice(0, 40),
       preorderPrice: String(interaction.options.getString("preorder-price") || "").trim().slice(0, 80),
       addedBy: interaction.user?.id || ""
     });
     invalidateGuildCache(guildId);
+    if (!saved) {
+      return safeEdit(interaction, "Eroare: lista future-release poate avea maxim 20 de jocuri (o comanda concurenta a ocupat ultimul loc).");
+    }
     return safeEdit(interaction, `OK: \`${record.gameName}\` a fost adaugat in lista future-release.`);
   }
 

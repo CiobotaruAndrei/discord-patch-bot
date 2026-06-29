@@ -46,7 +46,7 @@ type SuggestCommandContext = Omit<SuggestCommandDeps, "requireGuildAdmin"> & {
 };
 
 function normalizeCommandName(value: string): string {
-  return value.trim().replace(/^\/+/, "").replace(/\s+/g, " ").toLowerCase().slice(0, 80);
+  return value.trim().replace(/^\/+/, "").trim().replace(/\s+/g, " ").toLowerCase().slice(0, 80);
 }
 
 function formatUserReference(userId: string): string {
@@ -91,6 +91,12 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
     if (!commandName) return safeEdit(interaction, "Eroare: trebuie sa alegi numele comenzii sugerate.");
     const deleted = await deleteSuggestedCommand(GuildModel, guildId, commandName);
     invalidateGuildCache(guildId);
+    await recordBotAuditEntry(GuildModel, guildId, {
+      userId: interaction.user?.id || "",
+      command: "/suggest-command delete",
+      result: "Access granted.",
+      details: deleted ? `stearsa: ${commandName}` : `negasita: ${commandName}`
+    }).catch(() => undefined);
     return deleted
       ? safeEdit(interaction, `OK: sugestia \`/${commandName}\` a fost stearsa.`)
       : safeEdit(interaction, `Nu am gasit sugestia \`/${commandName}\`.`);
