@@ -4,6 +4,7 @@ import type { CommandHandler } from "../command-registry/commandHandler";
 import type { CurrencyCode, GameConfig, GuildSettings, NotificationMode } from "../../types";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 
+import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
@@ -197,7 +198,7 @@ function buildConfigCommandHandler(target: ConfigContext) {
             await di.reply(payload);
           }
         } catch {  }
-        return undefined;
+        return handledCommandError(errorDetail(err));
       }
     }
   };

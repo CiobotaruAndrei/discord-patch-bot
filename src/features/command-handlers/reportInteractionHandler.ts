@@ -2,6 +2,7 @@
 
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
+import { recordBotAuditEntry } from "../admin-records/adminRecordsRepository";
 
 const { errorDetail } = require("../../shared/errors");
 const defaultRequireGuildAdmin = require("../command-security/adminPermissionGuard") as RequireGuildAdmin;
@@ -57,6 +58,7 @@ interface ReportHandlerDeps {
   resolveFeedbackReport: (guildId: string, reportId: string, resolvedBy: string) => Promise<boolean>;
   requireGuildAdmin: RequireGuildAdmin;
   adminAlert: (kind: string, title: string, body: string, guildId?: string) => Promise<unknown>;
+  GuildModel: Parameters<typeof recordBotAuditEntry>[0];
   MessageFlags: { Ephemeral: number };
 }
 
@@ -131,8 +133,12 @@ function buildReportListEmbed(records: ReportRecord[]): { title: string; descrip
 function createReportInteractionHandler(deps: ReportHandlerDeps) {
   const {
     enforceCooldown, startCommandLog, safeDefer, safeEdit, recordFeedbackReport,
-    getRecentFeedbackReports, resolveFeedbackReport, requireGuildAdmin, adminAlert, MessageFlags
+    getRecentFeedbackReports, resolveFeedbackReport, requireGuildAdmin, adminAlert, GuildModel, MessageFlags
   } = deps;
+
+  async function auditAdminSubcommand(interaction: DiscordInteraction, guildId: string, command: string, result: string): Promise<void> {
+    await recordBotAuditEntry(GuildModel, guildId, { userId: interaction.user?.id || "", command, result }).catch(() => undefined);
+  }
 
   async function handleReportSubmit(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     if (!(await enforceCooldown(interaction, "report"))) return undefined;
@@ -162,6 +168,7 @@ function createReportInteractionHandler(deps: ReportHandlerDeps) {
     await safeDefer(interaction, true);
     const records = await getRecentFeedbackReports(guildId, limit);
     endLog("ok", { count: records.length });
+    await auditAdminSubcommand(interaction, guildId, "/report list", "Access granted.");
     return safeEdit(interaction, { embeds: [buildReportListEmbed(records)] });
   }
 
@@ -176,6 +183,7 @@ function createReportInteractionHandler(deps: ReportHandlerDeps) {
     await safeDefer(interaction, true);
     const ok = await resolveFeedbackReport(guildId, reportId, interaction.user?.id || "");
     endLog(ok ? "ok" : "not_found");
+    await auditAdminSubcommand(interaction, guildId, "/report resolve", ok ? "Access granted." : "Not found.");
     return safeEdit(interaction, ok
       ? `OK: raportul \`${reportId}\` a fost marcat ca rezolvat.`
       : `Nu am gasit un raport cu id-ul \`${reportId}\` pe acest server.`);
@@ -225,6 +233,7 @@ function buildReportCommandHandler(target: ReportContext) {
     resolveFeedbackReport: target.resolveFeedbackReport,
     requireGuildAdmin: target.requireGuildAdmin || defaultRequireGuildAdmin,
     adminAlert: target.adminAlert,
+    GuildModel: target.GuildModel,
     MessageFlags: target.MessageFlags
   });
   const command: CommandHandler<DiscordInteraction> = {

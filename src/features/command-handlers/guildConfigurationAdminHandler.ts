@@ -3,6 +3,7 @@
 import type { CurrencyCode, GameConfig } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 
+import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
 type InteractionPayload = string | Record<string, unknown>;
@@ -198,7 +199,7 @@ function buildGuildConfigurationAdminCommandHandler(target: GuildConfigurationAd
             await interaction.reply(payload);
           }
         } catch {}
-        return undefined;
+        return handledCommandError(errorDetail(err));
       }
     }
   };

@@ -2,6 +2,7 @@
 
 import type { CommandHandler } from "../command-registry/commandHandler";
 
+import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
@@ -155,7 +156,7 @@ function buildHealthCommandHandler(target: HealthContextWithDb) {
             await di.reply(payload);
           }
         } catch {  }
-        return undefined;
+        return handledCommandError(errorDetail(err));
       }
     }
   };

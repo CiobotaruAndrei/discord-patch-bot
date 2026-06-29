@@ -3,6 +3,7 @@
 import type { CommandHandler } from "../command-registry/commandHandler";
 import type { GameConfig } from "../../types";
 
+import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
@@ -204,7 +205,7 @@ function buildSourcesStatusCommandHandler(target: SourcesStatusContext) {
             await di.reply(payload);
           }
         } catch {  }
-        return undefined;
+        return handledCommandError(errorDetail(err));
       }
     }
   };

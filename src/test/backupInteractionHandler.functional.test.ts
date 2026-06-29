@@ -8,7 +8,7 @@ const installBackup = require("../features/command-handlers/backupInteractionHan
 
 type MongoCall = {
   filter: Record<string, unknown>;
-  update: Record<string, unknown>;
+  update: Record<string, unknown> | Array<Record<string, unknown>>;
   options?: Record<string, unknown>;
 };
 
@@ -100,9 +100,9 @@ test("/backup add salveaza backup-ul si auditul serverului", async () => {
 
   await handler.handleBackupInteraction(makeInteraction("add", { name: "Prod Backup" }));
 
-  assert.equal(calls.length, 3);
-  assert.match(JSON.stringify(calls[1].update), /configBackups/);
-  assert.match(JSON.stringify(calls[2].update), /serverAuditLog/);
+  assert.equal(calls.length, 2, "salvarea atomica (1 op) + auditul server-log (1 op)");
+  assert.match(JSON.stringify(calls[0].update), /configBackups/);
+  assert.match(JSON.stringify(calls[1].update), /serverAuditLog/);
   assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /prod-backup/);
 });
@@ -162,4 +162,14 @@ test("/backup load invalideaza cache-ul chiar daca scrierea in server-log esueaz
   assert.deepEqual(invalidated, ["guild-1"], "cache-ul e invalidat dupa mutatia reala, chiar daca auditul a esuat");
   assert.match(String(replies.at(-1)), /server-log/, "raspunsul anunta ca auditul a esuat (partial), nu ascunde restore-ul");
   assert.equal(isHandledCommandError(result), false, "un esec de audit best-effort nu transforma comanda intr-o eroare");
+});
+
+test("/backup preview arata explicit ce setari se vor STERGE la load (exista acum, lipsesc din backup) (R[P2] #1)", () => {
+  const preview = installBackup.renderBackupPreview(
+    { name: "vechi", createdBy: "u1", createdAt: new Date(), snapshot: { subscribed: true } },
+    { _id: "guild-1", subscribed: false, youtubeChannelRoutes: [{ channelId: "c", discordChannelIds: ["d"] }], priceAlerts: [{ gameKey: "x", gameName: "X", threshold: 5, currency: "EUR" }] }
+  );
+  assert.match(preview, /se vor STERGE/i, "preview-ul are o sectiune de stergeri");
+  assert.match(preview, /youtubeChannelRoutes/, "cheia care exista acum dar lipseste din backup e listata ca stearsa");
+  assert.match(preview, /priceAlerts/, "si alertele de pret adaugate dupa backup sunt anuntate ca sterse");
 });

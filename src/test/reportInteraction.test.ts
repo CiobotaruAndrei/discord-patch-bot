@@ -70,6 +70,7 @@ function makeDeps(overrides: Partial<Parameters<typeof mod.createReportInteracti
     resolveFeedbackReport: async () => true,
     requireGuildAdmin: async () => true,
     adminAlert: async () => undefined,
+    GuildModel: { updateOne: async () => ({ modifiedCount: 1 }) },
     MessageFlags: { Ephemeral: 64 },
     ...overrides
   };
@@ -134,4 +135,22 @@ test("/report resolve cere admin si marcheaza raportul ca rezolvat", async () =>
 
   assert.equal(capturedId, "64a1f2b3c4d5e6f789012345");
   assert.match(String(edits[0]), /marcat ca rezolvat/);
+});
+
+test("/report list scrie in /bot-log (audit central pentru subcomanda admin sub comanda publica) (R[P2] #3)", async () => {
+  const audits: Array<{ command?: string; result?: string }> = [];
+  const handler = mod.createReportInteractionHandler(makeDeps({
+    requireGuildAdmin: async () => true,
+    GuildModel: {
+      updateOne: async (_filter: Record<string, unknown>, update: Record<string, unknown>) => {
+        const entry = (update.$push as { botAuditLog?: { $each?: Array<{ command?: string; result?: string }> } } | undefined)?.botAuditLog?.$each?.[0];
+        if (entry) audits.push(entry);
+        return { modifiedCount: 1 };
+      }
+    }
+  }));
+  const { interaction } = makeInteraction("list", { numar: 5 });
+  await handler.handleReportInteraction(interaction);
+  assert.deepEqual(audits.map(a => a.command), ["/report list"], "subcomanda admin /report list apare acum in /bot-log, ca /set sau /backup");
+  assert.equal(audits[0].result, "Access granted.");
 });

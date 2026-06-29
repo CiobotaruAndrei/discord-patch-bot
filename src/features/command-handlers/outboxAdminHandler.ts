@@ -5,6 +5,7 @@ import type { RuntimeEnv } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 
+import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail, errorMessage } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
@@ -380,7 +381,8 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
       return safeEdit(interaction, `Eroare: Subcomanda \`/outbox ${group ? `${group} ` : ""}${sub}\` nu este recunoscuta.`);
     } catch (err: unknown) {
       logger("WARN", "OUTBOX_COMMAND", `Eroare la /outbox ${sub}`, errorMessage(err));
-      return safeEdit(interaction, formatUserError(err, "Eroare la procesarea comenzii /outbox."));
+      await safeEdit(interaction, formatUserError(err, "Eroare la procesarea comenzii /outbox."));
+      return handledCommandError(errorDetail(err));
     }
   }
 
@@ -435,7 +437,7 @@ function buildOutboxAdminCommandHandler(target: OutboxAdminContext) {
             await di.reply(payload);
           }
         } catch {  }
-        return undefined;
+        return handledCommandError(errorDetail(err));
       }
     }
   };

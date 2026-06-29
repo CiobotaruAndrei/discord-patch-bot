@@ -54,10 +54,12 @@ test("admin records: backup-ul normalizeaza numele si copiaza doar configuratia 
   assert.equal(record.snapshot.subscribed, true);
   assert.equal(record.snapshot.notificationChannelId, "updates");
   assert.equal(record.snapshot.botAuditLog, undefined);
-  assert.equal(calls.length, 2);
-  assert.deepEqual(calls[0].update, { $pull: { configBackups: { name: "inainte-de-test" } } });
-  assert.deepEqual(calls[1].options, { upsert: true });
-  assert.match(JSON.stringify(calls[1].update), /configBackups/);
+  assert.equal(calls.length, 1, "salvarea e o singura operatie atomica (pipeline), nu $pull + $push separate (R[P3] #5)");
+  assert.deepEqual(calls[0].options, { upsert: true });
+  const serialized = JSON.stringify(calls[0].update);
+  assert.match(serialized, /configBackups/);
+  assert.match(serialized, /inainte-de-test/);
+  assert.match(serialized, /\$slice/, "pipeline-ul filtreaza acelasi nume si limiteaza prin $slice intr-un singur update");
 });
 
 test("admin records: load si listarile folosesc snapshot-uri si ordonare descendenta", async () => {

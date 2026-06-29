@@ -2,6 +2,7 @@
 
 import type { CommandHandler } from "../command-registry/commandHandler";
 
+import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail } = require("../../shared/errors");
 const {
   commandCanBeSnoozed,
@@ -145,7 +146,7 @@ function buildSnoozeCommandHandler(target: SnoozeContext) {
           }
         } catch {
         }
-        return undefined;
+        return handledCommandError(errorDetail(err));
       }
     }
   };

@@ -8,7 +8,7 @@ const installSuggestCommand = require("../features/command-handlers/suggestComma
 
 type MongoCall = {
   filter: Record<string, unknown>;
-  update: Record<string, unknown>;
+  update: Record<string, unknown> | Array<Record<string, unknown>>;
   options?: Record<string, unknown>;
 };
 
@@ -118,4 +118,27 @@ test("/suggest-command list escapeaza textul user-provided si dezactiveaza menti
   const escaped = escapeInlineText("`break out` **bold** @everyone <@123>", 500);
   assert.ok(payload.content.includes(escaped), "descrierea user-provided e trecuta prin escapeInlineText (backtick/bold/mentiuni neutralizate)");
   assert.ok(!payload.content.includes(" `break out` "), "backtick-urile NU mai apar ne-escapate (nu pot inchide blocul de cod al liniei)");
+});
+
+test("/suggest-command list scrie in /bot-log (subcomanda admin sub comanda publica) (R[P2] #3)", async () => {
+  const audits: Array<{ command?: string }> = [];
+  const settings: GuildSettings = { _id: "guild-1", suggestedCommands: [] };
+  const handler = installSuggestCommand.createSuggestCommandInteractionHandler({
+    GuildModel: {
+      updateOne: async (_filter, update) => {
+        const entry = ((update as { $push?: { botAuditLog?: { $each?: Array<{ command?: string }> } } }).$push)?.botAuditLog?.$each?.[0];
+        if (entry) audits.push(entry);
+        return { matchedCount: 1, modifiedCount: 1 };
+      }
+    },
+    getGuildSettings: async () => settings,
+    invalidateGuildCache: () => undefined,
+    safeDefer: async () => undefined,
+    safeEdit: async (_interaction, payload) => payload,
+    requireGuildAdmin: async () => true,
+    logger: () => undefined,
+    MessageFlags: { Ephemeral: 64 }
+  });
+  await handler.handleSuggestCommandInteraction(makeInteraction("list", { numar: 5 }));
+  assert.deepEqual(audits.map(a => a.command), ["/suggest-command list"], "subcomanda admin /suggest-command list apare in /bot-log");
 });

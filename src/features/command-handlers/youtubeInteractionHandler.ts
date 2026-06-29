@@ -22,6 +22,7 @@ import {
 } from "../youtube/youtubeDeliveryPolicy";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 
+import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
 type InteractionPayload = string | { content?: string; embeds?: object[]; flags?: number };
@@ -606,7 +607,7 @@ function buildYouTubeCommandHandler(target: YouTubeContext) {
             await interaction.reply(payload);
           }
         } catch {}
-        return undefined;
+        return handledCommandError(errorDetail(error));
       }
     }
   };
