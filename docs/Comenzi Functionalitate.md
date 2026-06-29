@@ -30,8 +30,10 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 | --- | --- | --- |
 | `/start updates` | Admin | Porneste notificarile automate de update-uri in canalul curent. Verifica permisiunile canalului, salveaza canalul in setarile serverului si face baseline initial ca sa nu trimita update-uri vechi. |
 | `/start reduceri` | Admin | Porneste alertele automate de reduceri in canalul curent. Verifica permisiunile canalului, salveaza canalul si face baseline initial pentru ofertele deja vazute. |
+| `/start dlc` | Admin | Configureaza canalul curent pentru notificarile DLC ale jocurilor active. Verifica permisiunile canalului si salveaza starea necesara pentru motorul DLC cand acesta ruleaza in runtime. |
 | `/stop updates` | Admin | Opreste notificarile automate de update-uri pentru server si curata coada/starea aferenta. |
 | `/stop reduceri` | Admin | Opreste alertele automate de reduceri pentru server si curata coada/starea aferenta. |
+| `/stop dlc` | Admin | Opreste notificarile DLC si sterge canalul salvat pentru acest modul. |
 
 ## Setari server
 
@@ -45,7 +47,7 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 | `/set currency value:<currency>` | Admin | Seteaza valuta folosita pentru preturi si reduceri. Optiunile vin din registrul de valute suportate de bot. Reseteaza coada de reduceri in asteptare. |
 | `/set stores value:<steam,epic|reset>` | Admin | Filtreaza reducerile dupa magazinele permise. `reset` revine la filtrul implicit. Reseteaza coada de reduceri in asteptare. |
 | `/set outbox-recovery-verify value:<on|off>` | Admin | Activeaza sau dezactiveaza verificarea de recovery outbox pentru server. Cand este activata, botul avertizeaza daca ii lipseste `Read Message History` pe canalele configurate. |
-| `/config` | Admin, Ephemeral | Afiseaza setarile curente ale serverului intr-un singur embed: mod, reducere minima, pret maxim, filtre free/paid, valuta, magazine, jocuri active, roluri de ping, canale pentru update-uri/reduceri/YouTube, canalul administrativ, alertele de pret si numarul canalelor YouTube urmarite. |
+| `/config` | Admin, Ephemeral | Afiseaza setarile curente ale serverului intr-un singur embed: mod, reducere minima, pret maxim, filtre free/paid, valuta, magazine, jocuri active, roluri de ping, canale pentru update-uri/reduceri/YouTube/future-release/DLC, canalul administrativ, alertele de pret, propunerile salvate si numarul canalelor YouTube urmarite. |
 | `/reset-config confirm:true` | Admin, Ephemeral | Reseteaza toate setarile botului pentru server: abonari, canale, roluri, filtre, watchlist, snooze-uri, alerte de pret, configurarea YouTube si canalul administrativ. Confirmarea trebuie sa fie explicit `true`. Goleste lista dead-letter vizibila si payload-urile de replay din colectia separata (ca sa nu ramana orfane); istoricul rapoartelor si al notificarilor deja livrate nu este sters. |
 
 ## Backup configuratie
@@ -66,6 +68,7 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 | `/price-alert remove joc:<key>` | Admin, Autocomplete, Ephemeral | Sterge toate alertele acelui joc, indiferent de valuta. Autocomplete-ul sugereaza numai jocurile care au alerte configurate. |
 | `/price-alert list` | Admin, Ephemeral | Afiseaza fiecare alerta, pragul, valuta, ultimul pret observat si daca alerta este armata sau deja declansata. |
 | `/price-check joc:<name>` | Public, Autocomplete | Cauta pretul jocului pe Steam si il compara cu ofertele similare din sursele externe de reduceri deja folosite de bot. Embed-ul are culoarea verde pentru pretul Steam; celelalte randuri arata magazinele externe gasite sau explica lipsa unei potriviri. |
+| `/deal-score game:<name>` | Public, Autocomplete | Calculeaza un scor 1-10 pentru oferta activa a jocului, folosind reducerea, pretul curent, semnalele de calitate/popularitate si magazinul. In lipsa unui istoric complet de pret, scorul este un indicator operational, nu o garantie ca oferta este minim istoric. |
 
 O alerta declansata nu este retrimisa la fiecare ciclu. Ea ramane marcata ca declansata cat timp pretul este sub prag si se rearmeaza automat cand pretul urca din nou peste prag. Claim-ul este atomic in Mongo, astfel incat doua instante ale botului nu pot trimite aceeasi alerta simultan.
 
@@ -75,6 +78,7 @@ O alerta declansata nu este retrimisa la fiecare ciclu. Ea ramane marcata ca dec
 | --- | --- | --- |
 | `/admin-alerts set channel:<canal>` | Admin, Ephemeral | Configureaza canalul pentru embed-uri administrative. Inainte de salvare verifica permisiunile `Send Messages` si `Embed Links`. |
 | `/admin-alerts off` | Admin, Ephemeral | Opreste alertele administrative Discord pentru server. Webhook-ul global, daca este configurat prin env, ramane independent. |
+| `/maintenance` | Admin, Ephemeral | Afiseaza intr-un singur raspuns zonele care trebuie verificate operational: erori YouTube/update-uri/reduceri, joburi in outbox, dead-letter, drenare pusa pe pauza, backup vechi, canale lipsa pentru module active si daca exista macar un modul de notificare pornit. |
 
 Canalul administrativ primeste alerte operationale cu severitate, cauza, explicatie si actiune recomandata. Rapoartele trimise prin `/report submit` sunt directionate numai catre canalul serverului respectiv. Alertele globale despre cron, surse, outbox sau proces sunt distribuite canalelor administrative configurate. Daca un canal este sters sau botul pierde permanent accesul, configurarea acelui canal este dezactivata automat.
 
@@ -82,10 +86,26 @@ Canalul administrativ primeste alerte operationale cu severitate, cauza, explica
 
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
-| `/bot-log numar:<1-25>` | Admin, Ephemeral | Afiseaza ultimele comenzi admin executate pe server, cu user, comanda, data, server si rezultat. Auditul este scris de guard-ul runtime pentru comenzile admin protejate. |
-| `/server-log numar:<1-25>` | Admin, Ephemeral | Afiseaza schimbarile importante salvate pentru server. In implementarea curenta include actiuni persistate de bot, cum ar fi incarcarea unui backup; integrarea cu toate evenimentele Discord necesita intent-uri si permisiuni de audit pe server. |
+| `/bot-log recent` | Admin, Ephemeral | Afiseaza cele mai recente comenzi admin executate pe server, cu user, comanda, data, server si rezultat. Auditul este scris de guard-ul runtime pentru comenzile admin protejate. |
+| `/bot-log older` | Admin, Ephemeral | Afiseaza comenzi admin dintr-un interval istoric controlat: o zi, o saptamana sau o luna. Pentru `luna`, `start` foloseste formatul `YYYY-MM`; pentru `zi` si `saptamana`, formatul `YYYY-MM-DD`. Rezultatele sunt paginate cu `offset`, cate 25 pe lot. |
+| `/server-log recent` | Admin, Ephemeral | Afiseaza cele mai recente schimbari importante salvate pentru server. In implementarea curenta include actiuni persistate de bot, cum ar fi incarcarea unui backup; integrarea cu toate evenimentele Discord necesita intent-uri si permisiuni de audit pe server. |
+| `/server-log older` | Admin, Ephemeral | Afiseaza schimbari server dintr-o zi, o saptamana sau o luna anume, cu aceeasi paginare sigura ca `/bot-log older`. |
 | `/suggest-command add name:<nume> description:<ce-face>` | Public, Ephemeral | Permite unui user sa propuna o comanda noua. Userul completeaza numele comenzii propuse si descrierea; botul salveaza sugestia in lista serverului. |
 | `/suggest-command list numar:<1-25>` | Admin runtime, Ephemeral | Afiseaza comenzile sugerate de useri, cu numele propus si ce ar trebui sa faca fiecare. Este runtime admin deoarece top-level-ul ramane public pentru `/suggest-command add`. |
+| `/suggest-command delete name:<nume>` | Admin runtime, Ephemeral | Sterge o comanda sugerata din lista serverului impreuna cu descrierea ei. |
+
+## Propuneri watchlist si future-release
+
+| Comanda | Permisiuni | Ce face |
+| --- | --- | --- |
+| `/watchlist-game add game:<nume>` | Public, Ephemeral | Permite unui user sa propuna un joc nou pentru lista botului. Propunerea este salvata separat si nu activeaza automat jocul pentru update-uri sau reduceri. |
+| `/watchlist-game list` | Public, Ephemeral | Afiseaza jocurile propuse de useri pentru a fi analizate de admini. |
+| `/watchlist-game delete game:<nume>` | Admin runtime, Ephemeral | Sterge un joc din lista de propuneri watchlist-game. Top-level-ul ramane public pentru `/watchlist-game add`, deci stergerea este protejata prin guard runtime. |
+| `/future-release add game:<nume>` | Admin, Ephemeral | Adauga un joc care urmeaza sa apara in lista future-release a serverului. Lista are maxim 20 de jocuri si poate pastra data lansarii si pretul de preorder daca sunt cunoscute. |
+| `/future-release list` | Admin, Ephemeral | Afiseaza jocurile future-release urmarite, data lansarii si pretul de preorder salvat. |
+| `/future-release delete game:<nume>` | Admin, Ephemeral | Sterge un joc din lista future-release. |
+| `/future-release start` | Admin, Ephemeral | Configureaza canalul curent pentru notificarile future-release si marcheaza modulul activ pentru server. Verifica permisiunile de postare embed inainte sa salveze canalul. |
+| `/future-release stop` | Admin, Ephemeral | Opreste notificarile future-release si sterge canalul salvat pentru modul. |
 
 Comenzile admin accepta doua cai de autorizare: permisiunea Discord `Administrator` sau un rol al carui ID este listat in `BOT_ADMIN_ROLE_IDS`. Pentru comenzile sensibile, daca `BOT_SENSITIVE_USER_IDS` este setat, userul trebuie sa fie si in acea lista privata de user ID-uri. ID-urile sunt folosite direct, nu numele rolurilor sau userilor.
 

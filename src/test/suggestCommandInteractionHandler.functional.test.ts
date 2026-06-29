@@ -99,6 +99,17 @@ test("/suggest-command list nu afiseaza lista daca runtime admin guard refuza", 
   assert.deepEqual(replies, []);
 });
 
+test("/suggest-command delete cere admin runtime si sterge sugestia normalizata", async () => {
+  const { handler, calls, replies, invalidated } = makeHarness({ _id: "guild-1" }, true);
+
+  await handler.handleSuggestCommandInteraction(makeInteraction("delete", { name: "/ Calendar   Updates " }));
+
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].update, { $pull: { suggestedCommands: { commandName: "calendar updates" } } });
+  assert.deepEqual(invalidated, ["guild-1"]);
+  assert.match(String(replies[0]), /calendar updates/);
+});
+
 test("/suggest-command list escapeaza textul user-provided si dezactiveaza mentiunile (R[P3])", async () => {
   const settings: GuildSettings = {
     _id: "guild-1",

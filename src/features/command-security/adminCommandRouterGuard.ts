@@ -39,7 +39,7 @@ const defaultRequireGuildAdmin = require("./adminPermissionGuard") as RequireGui
 const ADMIN_COMMANDS = new Set([
   "start", "stop", "set", "outbox", "health", "config", "reset-config",
   "admin-alerts", "price-alert", "youtube", "sources", "watchlist", "snooze", "unsnooze",
-  "backup", "bot-log", "server-log"
+  "backup", "bot-log", "server-log", "future-release", "maintenance"
 ]);
 const SENSITIVE_ADMIN_COMMANDS = new Set(["reset-config"]);
 const SENSITIVE_BACKUP_SUBCOMMANDS = new Set(["load", "delete"]);

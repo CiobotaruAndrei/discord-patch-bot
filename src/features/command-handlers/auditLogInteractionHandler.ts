@@ -3,7 +3,7 @@
 import type { BotAuditLogEntry, GameConfig, GuildSettings, ServerAuditLogEntry } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
-import { listBotAuditEntries, listServerAuditEntries } from "../admin-records/adminRecordsRepository";
+import { listBotAuditEntries, listBotAuditEntriesInRange, listServerAuditEntries, listServerAuditEntriesInRange } from "../admin-records/adminRecordsRepository";
 import { handledCommandError } from "../command-security/commandOutcome";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
@@ -17,7 +17,9 @@ interface DiscordInteraction {
   deferred?: boolean;
   replied?: boolean;
   options: {
+    getSubcommand(required?: boolean): string;
     getInteger(name: string, required?: boolean): number | null;
+    getString(name: string, required?: boolean): string | null;
   };
   isChatInputCommand?: () => boolean;
   reply?: (payload: unknown) => Promise<unknown>;
@@ -39,6 +41,37 @@ type AuditLogContext = AuditLogDeps & {
 function limitFromInteraction(interaction: DiscordInteraction): number {
   const raw = interaction.options.getInteger("numar") ?? 10;
   return Math.max(1, Math.min(25, raw));
+}
+
+function offsetFromInteraction(interaction: DiscordInteraction): number {
+  const raw = interaction.options.getInteger("offset") ?? 0;
+  return Math.max(0, raw);
+}
+
+function parseDateRange(period: string | null, start: string | null): { start: Date; end: Date; label: string } | null {
+  const p = String(period || "").trim().toLowerCase();
+  const raw = String(start || "").trim();
+  if (p === "luna") {
+    const match = /^(\d{4})-(\d{2})$/.exec(raw);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    if (month < 1 || month > 12) return null;
+    const from = new Date(Date.UTC(year, month - 1, 1));
+    const to = new Date(Date.UTC(year, month, 1));
+    return { start: from, end: to, label: raw };
+  }
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const from = new Date(Date.UTC(year, month - 1, day));
+  if (from.getUTCFullYear() !== year || from.getUTCMonth() !== month - 1 || from.getUTCDate() !== day) return null;
+  const days = p === "zi" ? 1 : p === "saptamana" ? 7 : 0;
+  if (days === 0) return null;
+  const to = new Date(from.getTime() + days * 24 * 60 * 60 * 1000);
+  return { start: from, end: to, label: p === "zi" ? raw : `${raw} + 7 zile` };
 }
 
 function formatDate(value: Date | string): string {
@@ -72,6 +105,11 @@ function renderServerLog(entries: ServerAuditLogEntry[]): string {
   return `Server log (${entries.length}):\n${clampJoinedList(lines, 1900)}`;
 }
 
+function withMoreHint(text: string, count: number, offset: number): string {
+  if (count < 25) return text;
+  return `${text}\n\nMai pot exista intrari mai vechi. Ruleaza aceeasi comanda cu \`offset:${offset + 25}\` ca sa vezi urmatorul lot de 25.`;
+}
+
 function createAuditLogInteractionHandler(deps: AuditLogDeps) {
   const { getGuildSettings, safeDefer, safeEdit } = deps;
 
@@ -79,11 +117,23 @@ function createAuditLogInteractionHandler(deps: AuditLogDeps) {
     const guildId = interaction.guild?.id;
     if (!guildId) return undefined;
     await safeDefer(interaction, true);
-    const limit = limitFromInteraction(interaction);
+    const subcommand = typeof interaction.options.getSubcommand === "function" ? interaction.options.getSubcommand(false) : "recent";
     const settings = await getGuildSettings(guildId);
-    if (interaction.commandName === "bot-log") {
-      return safeEdit(interaction, renderBotLog(listBotAuditEntries(settings, limit)));
+    if (subcommand === "older") {
+      const range = parseDateRange(interaction.options.getString("period", true), interaction.options.getString("start", true));
+      if (!range) {
+        return safeEdit(interaction, "Eroare: foloseste `period:zi` sau `period:saptamana` cu `start:YYYY-MM-DD`, ori `period:luna` cu `start:YYYY-MM`.");
+      }
+      const offset = offsetFromInteraction(interaction);
+      if (interaction.commandName === "bot-log") {
+        const entries = listBotAuditEntriesInRange(settings, range.start, range.end, 25, offset);
+        return safeEdit(interaction, withMoreHint(`Interval ${range.label}\n${renderBotLog(entries)}`, entries.length, offset));
+      }
+      const entries = listServerAuditEntriesInRange(settings, range.start, range.end, 25, offset);
+      return safeEdit(interaction, withMoreHint(`Interval ${range.label}\n${renderServerLog(entries)}`, entries.length, offset));
     }
+    const limit = limitFromInteraction(interaction);
+    if (interaction.commandName === "bot-log") return safeEdit(interaction, renderBotLog(listBotAuditEntries(settings, limit)));
     return safeEdit(interaction, renderServerLog(listServerAuditEntries(settings, limit)));
   }
 

@@ -3,7 +3,7 @@
 import type { GameConfig, GuildSettings, SuggestedCommandEntry } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
-import { listSuggestedCommands, recordBotAuditEntry, saveSuggestedCommand } from "../admin-records/adminRecordsRepository";
+import { deleteSuggestedCommand, listSuggestedCommands, recordBotAuditEntry, saveSuggestedCommand } from "../admin-records/adminRecordsRepository";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
@@ -46,7 +46,7 @@ type SuggestCommandContext = Omit<SuggestCommandDeps, "requireGuildAdmin"> & {
 };
 
 function normalizeCommandName(value: string): string {
-  return value.trim().replace(/^\/+/, "").replace(/\s+/g, " ").slice(0, 80);
+  return value.trim().replace(/^\/+/, "").replace(/\s+/g, " ").toLowerCase().slice(0, 80);
 }
 
 function formatUserReference(userId: string): string {
@@ -85,6 +85,17 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
     return safeEdit(interaction, { content: renderSuggestedCommands(listSuggestedCommands(settings, limit)), allowedMentions: NO_MENTIONS });
   }
 
+  async function handleDelete(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
+    if (!(await requireGuildAdmin(interaction))) return undefined;
+    const commandName = normalizeCommandName(String(interaction.options.getString("name", true) || ""));
+    if (!commandName) return safeEdit(interaction, "Eroare: trebuie sa alegi numele comenzii sugerate.");
+    const deleted = await deleteSuggestedCommand(GuildModel, guildId, commandName);
+    invalidateGuildCache(guildId);
+    return deleted
+      ? safeEdit(interaction, `OK: sugestia \`/${commandName}\` a fost stearsa.`)
+      : safeEdit(interaction, `Nu am gasit sugestia \`/${commandName}\`.`);
+  }
+
   async function handleSuggestCommandInteraction(interaction: DiscordInteraction): Promise<unknown> {
     const guildId = interaction.guild?.id;
     if (!guildId) return undefined;
@@ -92,6 +103,7 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
     const subcommand = interaction.options.getSubcommand();
     if (subcommand === "add") return handleAdd(interaction, guildId);
     if (subcommand === "list") return handleList(interaction, guildId);
+    if (subcommand === "delete") return handleDelete(interaction, guildId);
     return safeEdit(interaction, `Eroare: subcomanda \`/suggest-command ${subcommand}\` nu este recunoscuta.`);
   }
 

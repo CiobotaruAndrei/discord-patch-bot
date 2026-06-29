@@ -73,12 +73,24 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
         .setName("bot-log")
         .setDescription("Afiseaza ultimele comenzi admin executate pe server (admin)")
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
-        .addIntegerOption(option => option.setName("numar").setDescription("Cate intrari (1-25, implicit 10)").setRequired(false).setMinValue(1).setMaxValue(25)),
+        .addSubcommand(subcommand => subcommand.setName("recent").setDescription("Afiseaza cele mai recente comenzi admin")
+          .addIntegerOption(option => option.setName("numar").setDescription("Cate intrari (1-25, implicit 10)").setRequired(false).setMinValue(1).setMaxValue(25)))
+        .addSubcommand(subcommand => subcommand.setName("older").setDescription("Afiseaza comenzi admin dintr-un interval istoric")
+          .addStringOption(option => option.setName("period").setDescription("Intervalul permis").setRequired(true)
+            .addChoices({ name: "zi", value: "zi" }, { name: "saptamana", value: "saptamana" }, { name: "luna", value: "luna" }))
+          .addStringOption(option => option.setName("start").setDescription("YYYY-MM-DD pentru zi/saptamana sau YYYY-MM pentru luna").setRequired(true))
+          .addIntegerOption(option => option.setName("offset").setDescription("De unde incepe urmatorul lot de 25").setRequired(false).setMinValue(0).setMaxValue(1000))),
       new SlashCommandBuilder()
         .setName("server-log")
         .setDescription("Afiseaza ultimele schimbari importante salvate pentru server (admin)")
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
-        .addIntegerOption(option => option.setName("numar").setDescription("Cate intrari (1-25, implicit 10)").setRequired(false).setMinValue(1).setMaxValue(25)),
+        .addSubcommand(subcommand => subcommand.setName("recent").setDescription("Afiseaza cele mai recente schimbari server")
+          .addIntegerOption(option => option.setName("numar").setDescription("Cate intrari (1-25, implicit 10)").setRequired(false).setMinValue(1).setMaxValue(25)))
+        .addSubcommand(subcommand => subcommand.setName("older").setDescription("Afiseaza schimbari server dintr-un interval istoric")
+          .addStringOption(option => option.setName("period").setDescription("Intervalul permis").setRequired(true)
+            .addChoices({ name: "zi", value: "zi" }, { name: "saptamana", value: "saptamana" }, { name: "luna", value: "luna" }))
+          .addStringOption(option => option.setName("start").setDescription("YYYY-MM-DD pentru zi/saptamana sau YYYY-MM pentru luna").setRequired(true))
+          .addIntegerOption(option => option.setName("offset").setDescription("De unde incepe urmatorul lot de 25").setRequired(false).setMinValue(0).setMaxValue(1000))),
       new SlashCommandBuilder()
         .setName("reset-config")
         .setDescription("Reseteaza toate setarile botului pentru server (admin)")
@@ -107,13 +119,45 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
         .setDescription("Compara pretul Steam al unui joc cu sursele externe de reduceri")
         .addStringOption(option => option.setName("joc").setDescription("Numele jocului").setRequired(true).setAutocomplete(true)),
       new SlashCommandBuilder()
+        .setName("deal-score")
+        .setDescription("Calculeaza cat de buna este oferta activa a unui joc")
+        .addStringOption(option => option.setName("game").setDescription("Numele jocului").setRequired(true).setAutocomplete(true)),
+      new SlashCommandBuilder()
         .setName("suggest-command")
         .setDescription("Propune sau listeaza comenzi sugerate de useri")
         .addSubcommand(subcommand => subcommand.setName("add").setDescription("Propune o comanda noua")
           .addStringOption(option => option.setName("name").setDescription("Numele comenzii propuse").setRequired(true).setMaxLength(80))
           .addStringOption(option => option.setName("description").setDescription("Ce ar trebui sa faca aceasta comanda").setRequired(true).setMaxLength(500)))
         .addSubcommand(subcommand => subcommand.setName("list").setDescription("Listeaza comenzile sugerate (admin)")
-          .addIntegerOption(option => option.setName("numar").setDescription("Cate sugestii (1-25, implicit 10)").setRequired(false).setMinValue(1).setMaxValue(25))),
+          .addIntegerOption(option => option.setName("numar").setDescription("Cate sugestii (1-25, implicit 10)").setRequired(false).setMinValue(1).setMaxValue(25)))
+        .addSubcommand(subcommand => subcommand.setName("delete").setDescription("Sterge o comanda sugerata (admin)")
+          .addStringOption(option => option.setName("name").setDescription("Numele comenzii sugerate").setRequired(true).setMaxLength(80))),
+      new SlashCommandBuilder()
+        .setName("watchlist-game")
+        .setDescription("Propune jocuri noi pentru lista botului")
+        .addSubcommand(subcommand => subcommand.setName("add").setDescription("Propune un joc nou pentru bot")
+          .addStringOption(option => option.setName("game").setDescription("Numele jocului propus").setRequired(true).setMaxLength(100)))
+        .addSubcommand(subcommand => subcommand.setName("list").setDescription("Listeaza jocurile propuse")
+          .addIntegerOption(option => option.setName("numar").setDescription("Cate propuneri (1-25, implicit 10)").setRequired(false).setMinValue(1).setMaxValue(25)))
+        .addSubcommand(subcommand => subcommand.setName("delete").setDescription("Sterge un joc propus (admin)")
+          .addStringOption(option => option.setName("game").setDescription("Numele jocului propus").setRequired(true).setMaxLength(100))),
+      new SlashCommandBuilder()
+        .setName("future-release")
+        .setDescription("Gestioneaza jocurile future-release urmarite de bot (admin)")
+        .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
+        .addSubcommand(subcommand => subcommand.setName("add").setDescription("Adauga un joc care urmeaza sa apara")
+          .addStringOption(option => option.setName("game").setDescription("Numele jocului").setRequired(true).setMaxLength(120))
+          .addStringOption(option => option.setName("release-date").setDescription("Data lansarii, daca este cunoscuta").setRequired(false).setMaxLength(40))
+          .addStringOption(option => option.setName("preorder-price").setDescription("Pret preorder, daca este cunoscut").setRequired(false).setMaxLength(80)))
+        .addSubcommand(subcommand => subcommand.setName("list").setDescription("Listeaza jocurile future-release"))
+        .addSubcommand(subcommand => subcommand.setName("delete").setDescription("Sterge un joc future-release")
+          .addStringOption(option => option.setName("game").setDescription("Numele jocului").setRequired(true).setMaxLength(120)))
+        .addSubcommand(subcommand => subcommand.setName("start").setDescription("Porneste canalul pentru notificarile future-release"))
+        .addSubcommand(subcommand => subcommand.setName("stop").setDescription("Opreste notificarile future-release")),
+      new SlashCommandBuilder()
+        .setName("maintenance")
+        .setDescription("Afiseaza problemele operationale care trebuie verificate (admin)")
+        .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString()),
       new SlashCommandBuilder()
         .setName("youtube")
         .setDescription("Urmareste canale YouTube si posteaza videoclipurile noi (admin)")
@@ -188,13 +232,15 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
         .setDescription("Porneste notificarile automate (admin)")
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
         .addSubcommand(subcommand => subcommand.setName("updates").setDescription("Porneste update-urile pe acest canal"))
-        .addSubcommand(subcommand => subcommand.setName("reduceri").setDescription("Porneste alertele de reduceri pe acest canal")),
+        .addSubcommand(subcommand => subcommand.setName("reduceri").setDescription("Porneste alertele de reduceri pe acest canal"))
+        .addSubcommand(subcommand => subcommand.setName("dlc").setDescription("Configureaza canalul pentru notificarile DLC")),
       new SlashCommandBuilder()
         .setName("stop")
         .setDescription("Opreste notificarile automate (admin)")
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
         .addSubcommand(subcommand => subcommand.setName("updates").setDescription("Opreste update-urile"))
-        .addSubcommand(subcommand => subcommand.setName("reduceri").setDescription("Opreste alertele de reduceri")),
+        .addSubcommand(subcommand => subcommand.setName("reduceri").setDescription("Opreste alertele de reduceri"))
+        .addSubcommand(subcommand => subcommand.setName("dlc").setDescription("Opreste notificarile DLC")),
       new SlashCommandBuilder()
         .setName("set")
         .setDescription("Configureaza preferintele serverului (admin)")

@@ -202,7 +202,7 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
       if (cmd === "youtube" && group === "remove" && sub === "title-filter" && focused.name === "word") {
         return interaction.respond(await buildYouTubeTitleWordChoices(interaction, focused.value)).catch(() => null);
       }
-      if (focused.name !== "joc") {
+      if (focused.name !== "joc" && !(cmd === "deal-score" && focused.name === "game")) {
         return interaction.respond([]).catch(() => null);
       }
       const input = String(focused.value || "").toLowerCase().trim().substring(0, MAX_AUTOCOMPLETE_INPUT_LEN);
