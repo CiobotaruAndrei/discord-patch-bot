@@ -36,6 +36,7 @@ interface SuggestCommandDeps {
   invalidateGuildCache(guildId: string): void;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
+  enforceCooldown(interaction: DiscordInteraction, command: string): Promise<boolean>;
   requireGuildAdmin: RequireGuildAdmin;
   logger: Logger;
   MessageFlags: { Ephemeral: number };
@@ -61,21 +62,24 @@ function renderSuggestedCommands(entries: SuggestedCommandEntry[]): string {
 }
 
 function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
-  const { GuildModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit, requireGuildAdmin } = deps;
+  const { GuildModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit, enforceCooldown, requireGuildAdmin } = deps;
 
   async function handleAdd(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
+    if (!(await enforceCooldown(interaction, "suggest-command:add"))) return undefined;
     const commandName = normalizeCommandName(String(interaction.options.getString("name", true) || ""));
     const description = String(interaction.options.getString("description", true) || "").trim().slice(0, 500);
     if (!commandName || !description) {
       return safeEdit(interaction, "Eroare: trebuie sa completezi numele comenzii si ce ar trebui sa faca.");
     }
-    const record = await saveSuggestedCommand(GuildModel, guildId, {
+    const { record, added } = await saveSuggestedCommand(GuildModel, guildId, {
       commandName,
       description,
       createdBy: interaction.user?.id || ""
     });
     invalidateGuildCache(guildId);
-    return safeEdit(interaction, `OK: sugestia \`/${record.commandName}\` a fost salvata.`);
+    return added
+      ? safeEdit(interaction, `OK: sugestia \`/${record.commandName}\` a fost salvata.`)
+      : safeEdit(interaction, `Info: comanda \`/${record.commandName}\` e deja in lista de sugestii a serverului.`);
   }
 
   async function handleList(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
@@ -135,6 +139,7 @@ function buildSuggestCommandHandler(target: SuggestCommandContext) {
     invalidateGuildCache: target.invalidateGuildCache,
     safeDefer: target.safeDefer,
     safeEdit: target.safeEdit,
+    enforceCooldown: target.enforceCooldown,
     requireGuildAdmin: target.requireGuildAdmin || defaultRequireGuildAdmin,
     logger: target.logger,
     MessageFlags: target.MessageFlags

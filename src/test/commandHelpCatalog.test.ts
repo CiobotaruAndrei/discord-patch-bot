@@ -149,6 +149,12 @@ test("command help autocomplete filtreaza si pastreaza valori selectabile", () =
   }
 });
 
+test("command help catalog: descrierea /history mentioneaza si YouTube (def + handler suporta tip:youtube) (R[Low] #3)", () => {
+  const entry = COMMAND_HELP_ENTRIES.find(e => e.command === "/history");
+  assert.ok(entry, "exista un entry pentru /history");
+  assert.match(entry!.description, /youtube/i, "tip:youtube exista in slash definitions si in handler, deci help-ul trebuie sa-l mentioneze");
+});
+
 test("command help catalog: descrierea /youtube permissions mentioneaza si rutele speciale, nu doar canalul principal (R12 #5, aliniere cu implementarea)", () => {
   const entry = COMMAND_HELP_ENTRIES.find(e => e.command === "/youtube permissions");
   assert.ok(entry, "exista un entry pentru /youtube permissions");

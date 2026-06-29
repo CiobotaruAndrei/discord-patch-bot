@@ -36,6 +36,7 @@ interface WatchlistGameSuggestionDeps {
   invalidateGuildCache(guildId: string): void;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
+  enforceCooldown(interaction: DiscordInteraction, command: string): Promise<boolean>;
   requireGuildAdmin: RequireGuildAdmin;
   logger: Logger;
   MessageFlags: { Ephemeral: number };
@@ -61,17 +62,20 @@ function renderWatchlistGameSuggestions(entries: WatchlistGameSuggestionEntry[])
 }
 
 function createWatchlistGameSuggestionHandler(deps: WatchlistGameSuggestionDeps) {
-  const { GuildModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit, requireGuildAdmin } = deps;
+  const { GuildModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit, enforceCooldown, requireGuildAdmin } = deps;
 
   async function handleAdd(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
+    if (!(await enforceCooldown(interaction, "watchlist-game:add"))) return undefined;
     const gameName = normalizeGameName(String(interaction.options.getString("game", true) || ""));
     if (!gameName) return safeEdit(interaction, "Eroare: trebuie sa scrii numele jocului propus.");
-    const record = await saveWatchlistGameSuggestion(GuildModel, guildId, {
+    const { record, added } = await saveWatchlistGameSuggestion(GuildModel, guildId, {
       gameName,
       createdBy: interaction.user?.id || ""
     });
     invalidateGuildCache(guildId);
-    return safeEdit(interaction, `OK: jocul \`${record.gameName}\` a fost adaugat in lista de propuneri.`);
+    return added
+      ? safeEdit(interaction, `OK: jocul \`${record.gameName}\` a fost adaugat in lista de propuneri.`)
+      : safeEdit(interaction, `Info: jocul \`${record.gameName}\` e deja in lista de propuneri a serverului.`);
   }
 
   async function handleList(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
@@ -124,6 +128,7 @@ function buildWatchlistGameSuggestionCommandHandler(target: WatchlistGameSuggest
     invalidateGuildCache: target.invalidateGuildCache,
     safeDefer: target.safeDefer,
     safeEdit: target.safeEdit,
+    enforceCooldown: target.enforceCooldown,
     requireGuildAdmin: target.requireGuildAdmin || defaultRequireGuildAdmin,
     logger: target.logger,
     MessageFlags: target.MessageFlags

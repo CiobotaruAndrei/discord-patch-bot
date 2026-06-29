@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { FutureReleaseGameEntry, GuildSettings } from "../types";
+import type { FutureReleaseGameEntry, GuildSettings, SuggestedCommandEntry } from "../types";
 import {
   buildConfigRestoreUpdate,
   buildConfigSnapshot,
@@ -32,6 +32,10 @@ function makeGuildModel() {
       updateOne: async (filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>) => {
         calls.push({ filter, update, options });
         return { matchedCount: 1, modifiedCount: 1 };
+      },
+      findOneAndUpdate: async (filter: Record<string, unknown>, update: Record<string, unknown> | Array<Record<string, unknown>>, options?: Record<string, unknown>) => {
+        calls.push({ filter, update: update as Record<string, unknown>, options });
+        return null;
       }
     },
     calls
@@ -172,4 +176,32 @@ test("saveFutureReleaseGame refuza al 21-lea joc nou fara sa evacueze tacut alt 
   const model = futureReleaseModel(full);
   const result = await saveFutureReleaseGame(model, "guild-1", { gameName: "silksong", releaseDate: "", preorderPrice: "", addedBy: "admin" });
   assert.equal(result.saved, false, "lista plina => add refuzat atomic (concurenta nu poate depasi limita)");
+});
+
+function suggestedCommandModel(existing: SuggestedCommandEntry[]) {
+  const calls: Array<{ update: unknown; options?: unknown }> = [];
+  return {
+    calls,
+    updateOne: async (_filter: Record<string, unknown>, _update: unknown, _options?: Record<string, unknown>) => {
+      throw new Error("saveSuggestedCommand nu trebuie sa foloseasca updateOne");
+    },
+    findOneAndUpdate: async (_filter: Record<string, unknown>, update: unknown, options?: Record<string, unknown>): Promise<{ suggestedCommands?: SuggestedCommandEntry[] } | null> => {
+      calls.push({ update, options });
+      return { suggestedCommands: existing };
+    }
+  };
+}
+
+test("saveSuggestedCommand salveaza atomic (findOneAndUpdate + pipeline) si raporteaza added pentru un nume nou", async () => {
+  const model = suggestedCommandModel([]);
+  const result = await saveSuggestedCommand(model, "guild-1", { commandName: "calendar", description: "x", createdBy: "u1" });
+  assert.equal(result.added, true);
+  assert.equal(model.calls.length, 1, "o singura operatie atomica, nu $push separat");
+  assert.ok(Array.isArray(model.calls[0].update), "update-ul e un aggregation pipeline (dedupe)");
+});
+
+test("saveSuggestedCommand nu dubleaza un nume deja propus (idempotent)", async () => {
+  const model = suggestedCommandModel([{ commandName: "calendar", description: "x", createdBy: "u1", createdAt: new Date() }]);
+  const result = await saveSuggestedCommand(model, "guild-1", { commandName: "calendar", description: "alta", createdBy: "u2" });
+  assert.equal(result.added, false, "numele deja prezent => added=false (nu se dubleaza)");
 });

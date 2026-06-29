@@ -412,7 +412,13 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
           skipped++;
           continue;
         }
-        const item = await prepareVideo(guild, channel, video, resolveMetadata);
+        let item: PreparedVideo | null;
+        try {
+          item = await prepareVideo(guild, channel, video, resolveMetadata);
+        } catch (error) {
+          await recordChannelError(String(guild._id), channel, transientErrorMessage(error));
+          continue;
+        }
         if (!item) continue;
         if (!force && !(await claimVideo(String(guild._id), channel.channelId, video.videoId))) continue;
         deliverable.push(item);

@@ -1013,3 +1013,42 @@ test("YouTube deliverManualVideos: cand rollback-ul claim-ului arunca, esecul e 
 
   assert.deepEqual(reported, [{ kind: "youtube", itemId: video.videoId, guildId: "g1" }], "esecul de rollback al claim-ului devine vizibil operational");
 });
+
+test("YouTube manual: un videoclip cu metadata defecta nu pica tot batch-ul (R[Medium] #1)", async () => {
+  const errors: string[] = [];
+  const badVideo = { ...video, videoId: "badbadbad11", link: "https://www.youtube.com/watch?v=badbadbad11" };
+  const goodVideo = { ...video, videoId: "goodgood111", link: "https://www.youtube.com/watch?v=goodgood111" };
+  const service = createYouTubeNotificationService({
+    GuildModel: { find: () => ({ lean: async () => [] }) },
+    logger: () => undefined,
+    runConcurrent: sequentialRunConcurrent,
+    fetchYouTubeFeed: async () => [badVideo, goodVideo],
+    fetchYouTubeVideoMetadata: async (vid) => {
+      if (vid.videoId === "badbadbad11") throw new Error("metadata HTML invalid");
+      return { durationSeconds: 120, isShort: false, isLive: false, isPremiere: false };
+    },
+    videoPassesYouTubeFilters: () => true,
+    claimVideo: async () => true,
+    rollbackVideo: async () => undefined,
+    recordChannelSuccess: async () => undefined,
+    recordChannelError: async (_guildId, _channel, message) => { errors.push(message); },
+    disableNotificationsForChannelError: async () => ({}),
+    resolveOutboundChannel: async () => ({ abort: false, channel: { id: "discord", send: async () => ({}) } }),
+    sleepIfPositive: async () => undefined,
+    transientErrorMessage: error => String(error),
+    removeRouteForChannelError: async () => ({}),
+    youtubeBatchDelayMs: 0,
+    now: () => new Date("2026-06-25T06:00:00.000Z"),
+    GUILD_PROCESS_CONCURRENCY: 1,
+    FETCH_CONCURRENCY: 1
+  } satisfies ServiceDeps);
+  const prepared = await service.prepareManualVideos({
+    _id: "g1",
+    youtubeChannels: [channel],
+    youtubeNotificationsEnabled: true,
+    youtubeNotificationChannelId: "discord"
+  }, "toate");
+  assert.equal(prepared.deliverable.length, 1, "al doilea video e pregatit chiar daca primul a aruncat la metadata");
+  assert.equal(prepared.deliverable[0].video.videoId, "goodgood111");
+  assert.equal(errors.length, 1, "eroarea de metadata e inregistrata (recordChannelError), nu propagata ca sa avorteze batch-ul");
+});

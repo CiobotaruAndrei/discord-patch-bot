@@ -20,13 +20,17 @@ type GuildModelLike = {
   ): Promise<MongoWriteResult>;
 };
 
-type FutureReleaseGuildModel = GuildModelLike & {
+type FindOneAndUpdateGuildModel<TDoc> = GuildModelLike & {
   findOneAndUpdate(
     filter: Record<string, unknown>,
     update: Record<string, unknown> | Array<Record<string, unknown>>,
     options?: Record<string, unknown>
-  ): Promise<{ futureReleaseGames?: FutureReleaseGameEntry[] } | null>;
+  ): Promise<TDoc | null>;
 };
+
+type FutureReleaseGuildModel = FindOneAndUpdateGuildModel<{ futureReleaseGames?: FutureReleaseGameEntry[] }>;
+type SuggestedCommandGuildModel = FindOneAndUpdateGuildModel<{ suggestedCommands?: SuggestedCommandEntry[] }>;
+type WatchlistGameGuildModel = FindOneAndUpdateGuildModel<{ watchlistGameSuggestions?: WatchlistGameSuggestionEntry[] }>;
 
 const MAX_CONFIG_BACKUPS = 20;
 const MAX_BOT_AUDIT_LOGS = 100;
@@ -252,21 +256,42 @@ export function listServerAuditEntriesInRange(settings: GuildSettings | null, st
     .slice(Math.max(0, offset), Math.max(0, offset) + limit);
 }
 
+export function buildSuggestedCommandUpsertPipeline(record: SuggestedCommandEntry, maxItems: number): Array<Record<string, unknown>> {
+  return [{
+    $set: {
+      suggestedCommands: {
+        $let: {
+          vars: { existing: { $ifNull: ["$suggestedCommands", []] } },
+          in: {
+            $cond: [
+              { $in: [record.commandName, { $map: { input: "$$existing", as: "entry", in: "$$entry.commandName" } }] },
+              "$$existing",
+              { $slice: [{ $concatArrays: ["$$existing", [record]] }, -maxItems] }
+            ]
+          }
+        }
+      }
+    }
+  }];
+}
+
 export async function saveSuggestedCommand(
-  GuildModel: GuildModelLike,
+  GuildModel: SuggestedCommandGuildModel,
   guildId: string,
   entry: Omit<SuggestedCommandEntry, "createdAt">
-): Promise<SuggestedCommandEntry> {
+): Promise<{ record: SuggestedCommandEntry; added: boolean }> {
   const record: SuggestedCommandEntry = {
     ...entry,
     createdAt: new Date()
   };
-  await GuildModel.updateOne(
+  const before = await GuildModel.findOneAndUpdate(
     { _id: guildId },
-    { $push: { suggestedCommands: { $each: [record], $slice: -MAX_SUGGESTED_COMMANDS } } },
+    buildSuggestedCommandUpsertPipeline(record, MAX_SUGGESTED_COMMANDS),
     { upsert: true }
   );
-  return record;
+  const existed = (Array.isArray(before?.suggestedCommands) ? before.suggestedCommands : [])
+    .some(entryItem => entryItem.commandName === record.commandName);
+  return { record, added: !existed };
 }
 
 export function listSuggestedCommands(settings: GuildSettings | null, limit: number): SuggestedCommandEntry[] {
@@ -285,21 +310,42 @@ export async function deleteSuggestedCommand(GuildModel: GuildModelLike, guildId
   return (result.modifiedCount ?? 0) > 0;
 }
 
+export function buildWatchlistGameSuggestionUpsertPipeline(record: WatchlistGameSuggestionEntry, maxItems: number): Array<Record<string, unknown>> {
+  return [{
+    $set: {
+      watchlistGameSuggestions: {
+        $let: {
+          vars: { existing: { $ifNull: ["$watchlistGameSuggestions", []] } },
+          in: {
+            $cond: [
+              { $in: [record.gameName, { $map: { input: "$$existing", as: "entry", in: "$$entry.gameName" } }] },
+              "$$existing",
+              { $slice: [{ $concatArrays: ["$$existing", [record]] }, -maxItems] }
+            ]
+          }
+        }
+      }
+    }
+  }];
+}
+
 export async function saveWatchlistGameSuggestion(
-  GuildModel: GuildModelLike,
+  GuildModel: WatchlistGameGuildModel,
   guildId: string,
   entry: Omit<WatchlistGameSuggestionEntry, "createdAt">
-): Promise<WatchlistGameSuggestionEntry> {
+): Promise<{ record: WatchlistGameSuggestionEntry; added: boolean }> {
   const record: WatchlistGameSuggestionEntry = {
     ...entry,
     createdAt: new Date()
   };
-  await GuildModel.updateOne(
+  const before = await GuildModel.findOneAndUpdate(
     { _id: guildId },
-    { $push: { watchlistGameSuggestions: { $each: [record], $slice: -MAX_WATCHLIST_GAME_SUGGESTIONS } } },
+    buildWatchlistGameSuggestionUpsertPipeline(record, MAX_WATCHLIST_GAME_SUGGESTIONS),
     { upsert: true }
   );
-  return record;
+  const existed = (Array.isArray(before?.watchlistGameSuggestions) ? before.watchlistGameSuggestions : [])
+    .some(entryItem => entryItem.gameName === record.gameName);
+  return { record, added: !existed };
 }
 
 export function listWatchlistGameSuggestions(settings: GuildSettings | null, limit: number): WatchlistGameSuggestionEntry[] {

@@ -34,21 +34,27 @@ function makeInteraction(subcommand: string, values: { name?: string; descriptio
   };
 }
 
-function makeHarness(settings: GuildSettings | null, adminAllowed = true) {
+function makeHarness(settings: GuildSettings | null, adminAllowed = true, cooldownAllowed = true) {
   const calls: MongoCall[] = [];
   const replies: unknown[] = [];
   const invalidated: string[] = [];
+  const existing = Array.isArray(settings?.suggestedCommands) ? settings.suggestedCommands : [];
   const handler = installSuggestCommand.createSuggestCommandInteractionHandler({
     GuildModel: {
       updateOne: async (filter, update, options) => {
         calls.push({ filter, update, options });
         return { matchedCount: 1, modifiedCount: 1 };
+      },
+      findOneAndUpdate: async (filter, update, options) => {
+        calls.push({ filter, update, options });
+        return { suggestedCommands: existing };
       }
     },
     getGuildSettings: async () => settings,
     invalidateGuildCache: guildId => { invalidated.push(guildId); },
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
+    enforceCooldown: async () => cooldownAllowed,
     requireGuildAdmin: async () => adminAllowed,
     logger: () => undefined,
     MessageFlags: { Ephemeral: 64 }
@@ -146,12 +152,14 @@ test("/suggest-command list scrie in /bot-log (subcomanda admin sub comanda publ
         const entry = ((update as { $push?: { botAuditLog?: { $each?: Array<{ command?: string }> } } }).$push)?.botAuditLog?.$each?.[0];
         if (entry) audits.push(entry);
         return { matchedCount: 1, modifiedCount: 1 };
-      }
+      },
+      findOneAndUpdate: async () => ({ suggestedCommands: [] })
     },
     getGuildSettings: async () => settings,
     invalidateGuildCache: () => undefined,
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => payload,
+    enforceCooldown: async () => true,
     requireGuildAdmin: async () => true,
     logger: () => undefined,
     MessageFlags: { Ephemeral: 64 }
@@ -171,4 +179,21 @@ test("/add suggestion (verb in fata) ruteaza la handleAdd si salveaza propunerea
   assert.match(JSON.stringify(calls[0].update), /suggestedCommands/, "/add suggestion deriva actiunea add din commandName");
   assert.match(JSON.stringify(calls[0].update), /calendar updates/);
   assert.deepEqual(invalidated, ["guild-1"]);
+});
+
+test("/add suggestion deduplica: comanda deja propusa nu se adauga din nou (R[Medium] #2)", async () => {
+  const { handler, replies } = makeHarness({
+    _id: "guild-1",
+    suggestedCommands: [{ commandName: "calendar updates", description: "x", createdBy: "u2", createdAt: new Date() }]
+  });
+  await handler.handleSuggestCommandInteraction(makeInteraction("add", { name: "/ Calendar   Updates ", description: "alta descriere" }));
+  assert.match(String(replies[0]), /deja in lista/, "comanda existenta (normalizata identic) nu se dubleaza");
+});
+
+test("/add suggestion respecta cooldown-ul per user (R[Medium] #2)", async () => {
+  const { handler, calls, replies } = makeHarness({ _id: "guild-1" }, true, false);
+  const result = await handler.handleSuggestCommandInteraction(makeInteraction("add", { name: "calendar", description: "x" }));
+  assert.equal(result, undefined);
+  assert.deepEqual(calls, [], "cooldown activ => nicio scriere in DB");
+  assert.deepEqual(replies, []);
 });
