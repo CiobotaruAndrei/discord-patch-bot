@@ -110,6 +110,23 @@ export async function saveConfigBackup(
   return record;
 }
 
+export function buildConfigRestoreUpdate(backup: ConfigBackupRecord): Record<string, unknown> {
+  const snapshot = backup.snapshot ?? {};
+  const set: Record<string, unknown> = {};
+  const unset: Record<string, ""> = {};
+  for (const key of CONFIG_BACKUP_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(snapshot, key) && snapshot[key] !== undefined) {
+      set[key] = snapshot[key];
+    } else {
+      unset[key] = "";
+    }
+  }
+  const update: Record<string, unknown> = {};
+  if (Object.keys(set).length > 0) update.$set = set;
+  if (Object.keys(unset).length > 0) update.$unset = unset;
+  return update;
+}
+
 export async function loadConfigBackup(
   GuildModel: GuildModelLike,
   guildId: string,
@@ -117,7 +134,7 @@ export async function loadConfigBackup(
 ): Promise<void> {
   await GuildModel.updateOne(
     { _id: guildId },
-    { $set: backup.snapshot },
+    buildConfigRestoreUpdate(backup),
     { upsert: true }
   );
 }

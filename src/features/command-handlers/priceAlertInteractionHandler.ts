@@ -63,27 +63,35 @@ function buildPriceAlertRule(game: GameConfig, threshold: number, currency: stri
   };
 }
 
-function buildPriceAlertUpsertPipeline(rule: PriceAlertRule): Array<Record<string, unknown>> {
+function buildPriceAlertUpsertPipeline(rule: PriceAlertRule, maxAlerts: number): Array<Record<string, unknown>> {
   return [{
     $set: {
       priceAlerts: {
-        $concatArrays: [
-          {
-            $filter: {
-              input: { $ifNull: ["$priceAlerts", []] },
-              as: "alert",
-              cond: {
-                $not: {
-                  $and: [
-                    { $eq: ["$$alert.gameKey", rule.gameKey] },
-                    { $eq: ["$$alert.currency", rule.currency] }
-                  ]
+        $let: {
+          vars: {
+            kept: {
+              $filter: {
+                input: { $ifNull: ["$priceAlerts", []] },
+                as: "alert",
+                cond: {
+                  $not: {
+                    $and: [
+                      { $eq: ["$$alert.gameKey", rule.gameKey] },
+                      { $eq: ["$$alert.currency", rule.currency] }
+                    ]
+                  }
                 }
               }
             }
           },
-          [rule]
-        ]
+          in: {
+            $cond: [
+              { $lt: [{ $size: "$$kept" }, maxAlerts] },
+              { $concatArrays: ["$$kept", [rule]] },
+              "$$kept"
+            ]
+          }
+        }
       }
     }
   }];
@@ -126,7 +134,7 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
     const rule = buildPriceAlertRule(game, threshold, currency);
     await GuildModel.updateOne(
       { _id: guildId },
-      buildPriceAlertUpsertPipeline(rule),
+      buildPriceAlertUpsertPipeline(rule, MAX_PRICE_ALERTS_PER_GUILD),
       { upsert: true }
     );
     invalidateGuildCache(guildId);

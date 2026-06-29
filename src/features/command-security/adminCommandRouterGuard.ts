@@ -1,6 +1,7 @@
 "use strict";
 
 import { recordBotAuditEntry } from "../admin-records/adminRecordsRepository";
+import { isHandledCommandError } from "./commandOutcome";
 
 const { MessageFlags } = require("discord.js");
 
@@ -158,7 +159,11 @@ function createAdminCommandGuard(
     if (typeof next === "function") {
       try {
         const result = await next(interaction, games);
-        await recordAdminAudit(target, interaction, "Access granted.");
+        if (isHandledCommandError(result)) {
+          await recordAdminAudit(target, interaction, "Command error.", result.reason);
+        } else {
+          await recordAdminAudit(target, interaction, "Access granted.");
+        }
         return result;
       } catch (err: unknown) {
         await recordAdminAudit(target, interaction, "Error.", String(err instanceof Error ? err.message : err));

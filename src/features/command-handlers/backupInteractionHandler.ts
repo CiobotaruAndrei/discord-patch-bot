@@ -11,6 +11,7 @@ import {
   saveConfigBackup,
   recordServerAuditEntry
 } from "../admin-records/adminRecordsRepository";
+import { handledCommandError } from "../command-security/commandOutcome";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
@@ -110,18 +111,26 @@ function renderBackupPreview(backup: ConfigBackupRecord, current: GuildSettings 
 function createBackupInteractionHandler(deps: BackupInteractionDeps) {
   const { GuildModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit, formatUserError } = deps;
 
+  async function auditBestEffort(guildId: string, userId: string, action: string, details: string): Promise<boolean> {
+    try {
+      await recordServerAuditEntry(GuildModel, guildId, { userId, action, details });
+      return true;
+    } catch (err: unknown) {
+      deps.logger("WARN", "BACKUP_COMMAND", `Jurnalul server-log a esuat pentru ${action}; operatia a reusit, dar /server-log poate fi incomplet`, errorDetail(err));
+      return false;
+    }
+  }
+
   async function handleAdd(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     const name = backupName(interaction);
     if (!name) return safeEdit(interaction, "Eroare: trebuie sa dai un nume pentru backup.");
     const settings = await getGuildSettings(guildId);
     const record = await saveConfigBackup(GuildModel, guildId, name, interaction.user?.id || "", settings);
-    await recordServerAuditEntry(GuildModel, guildId, {
-      userId: interaction.user?.id || "",
-      action: "backup_add",
-      details: `Saved backup ${record.name}`
-    });
     invalidateGuildCache(guildId);
-    return safeEdit(interaction, `OK: backup-ul \`${record.name}\` a fost salvat.`);
+    const audited = await auditBestEffort(guildId, interaction.user?.id || "", "backup_add", `Saved backup ${record.name}`);
+    return safeEdit(interaction, audited
+      ? `OK: backup-ul \`${record.name}\` a fost salvat.`
+      : `OK: backup-ul \`${record.name}\` a fost salvat (dar nu am putut scrie in /server-log - vezi log-urile botului).`);
   }
 
   async function handleList(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
@@ -146,13 +155,11 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
     const backup = findBackup(settings, name);
     if (!backup) return safeEdit(interaction, `Nu exista backup-ul \`${name}\`.`);
     await loadConfigBackup(GuildModel, guildId, backup);
-    await recordServerAuditEntry(GuildModel, guildId, {
-      userId: interaction.user?.id || "",
-      action: "backup_load",
-      details: `Loaded backup ${backup.name}`
-    });
     invalidateGuildCache(guildId);
-    return safeEdit(interaction, `OK: backup-ul \`${backup.name}\` a fost incarcat.`);
+    const audited = await auditBestEffort(guildId, interaction.user?.id || "", "backup_load", `Loaded backup ${backup.name}`);
+    return safeEdit(interaction, audited
+      ? `OK: backup-ul \`${backup.name}\` a fost incarcat.`
+      : `OK: backup-ul \`${backup.name}\` a fost incarcat (dar nu am putut scrie in /server-log - vezi log-urile botului).`);
   }
 
   async function handleDelete(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
@@ -161,15 +168,12 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
     }
     const name = backupName(interaction);
     const deleted = await deleteConfigBackup(GuildModel, guildId, name);
-    if (deleted) {
-      await recordServerAuditEntry(GuildModel, guildId, {
-        userId: interaction.user?.id || "",
-        action: "backup_delete",
-        details: `Deleted backup ${name}`
-      });
-    }
     invalidateGuildCache(guildId);
-    return safeEdit(interaction, deleted ? `OK: backup-ul \`${name}\` a fost sters.` : `Nu exista backup-ul \`${name}\`.`);
+    if (!deleted) return safeEdit(interaction, `Nu exista backup-ul \`${name}\`.`);
+    const audited = await auditBestEffort(guildId, interaction.user?.id || "", "backup_delete", `Deleted backup ${name}`);
+    return safeEdit(interaction, audited
+      ? `OK: backup-ul \`${name}\` a fost sters.`
+      : `OK: backup-ul \`${name}\` a fost sters (dar nu am putut scrie in /server-log - vezi log-urile botului).`);
   }
 
   async function handleBackupInteraction(interaction: DiscordInteraction): Promise<unknown> {
@@ -186,7 +190,8 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
       return safeEdit(interaction, `Eroare: subcomanda \`/backup ${subcommand}\` nu este recunoscuta.`);
     } catch (err: unknown) {
       deps.logger("WARN", "BACKUP_COMMAND", "Nu am putut procesa /backup", errorDetail(err));
-      return safeEdit(interaction, formatUserError(err, "Eroare la procesarea backup-ului."));
+      await safeEdit(interaction, formatUserError(err, "Eroare la procesarea backup-ului."));
+      return handledCommandError(errorDetail(err));
     }
   }
 
@@ -216,7 +221,7 @@ function buildBackupCommandHandler(target: BackupContext) {
             await interaction.reply(payload);
           }
         } catch {}
-        return undefined;
+        return handledCommandError(errorDetail(err));
       }
     }
   };

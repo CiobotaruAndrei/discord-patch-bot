@@ -4,6 +4,7 @@ import type { GameConfig, GuildSettings, SuggestedCommandEntry } from "../../typ
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 import { listSuggestedCommands, saveSuggestedCommand } from "../admin-records/adminRecordsRepository";
+import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 const defaultRequireGuildAdmin = require("../command-security/adminPermissionGuard") as RequireGuildAdmin;
@@ -54,7 +55,7 @@ function formatUserReference(userId: string): string {
 
 function renderSuggestedCommands(entries: SuggestedCommandEntry[]): string {
   if (!entries.length) return "Nu exista comenzi sugerate pentru acest server.";
-  const lines = entries.map(entry => `- \`/${entry.commandName}\` propusa de ${formatUserReference(entry.createdBy || "")}: ${entry.description}`);
+  const lines = entries.map(entry => `- \`/${escapeInlineText(entry.commandName, 80)}\` propusa de ${formatUserReference(entry.createdBy || "")}: ${escapeInlineText(entry.description, 500)}`);
   return `Comenzi sugerate (${entries.length}):\n${clampJoinedList(lines, 1900)}`;
 }
 
@@ -80,7 +81,7 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
     if (!(await requireGuildAdmin(interaction))) return undefined;
     const limit = Math.max(1, Math.min(25, interaction.options.getInteger("numar") ?? 10));
     const settings = await getGuildSettings(guildId);
-    return safeEdit(interaction, renderSuggestedCommands(listSuggestedCommands(settings, limit)));
+    return safeEdit(interaction, { content: renderSuggestedCommands(listSuggestedCommands(settings, limit)), allowedMentions: NO_MENTIONS });
   }
 
   async function handleSuggestCommandInteraction(interaction: DiscordInteraction): Promise<unknown> {

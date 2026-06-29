@@ -4,6 +4,7 @@ import type { BotAuditLogEntry, GameConfig, GuildSettings, ServerAuditLogEntry }
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 import { listBotAuditEntries, listServerAuditEntries } from "../admin-records/adminRecordsRepository";
+import { handledCommandError } from "../command-security/commandOutcome";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
@@ -112,7 +113,7 @@ function buildAuditLogCommandHandler(target: AuditLogContext) {
             await interaction.reply(payload);
           }
         } catch {}
-        return undefined;
+        return handledCommandError(errorDetail(err));
       }
     }
   };

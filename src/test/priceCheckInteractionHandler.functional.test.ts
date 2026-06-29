@@ -77,3 +77,26 @@ test("/price-check embed explica lipsa surselor externe cand fetch-ul pica", () 
   assert.equal(embed.color, 0x2ecc71);
   assert.ok(fields.some(field => field.name === "Alte surse" && /timeout/.test(field.value)));
 });
+
+test("findComparableDeals: nu mai face false-match pe substring pentru nume generice (R[P3])", () => {
+  const deals: DealInfo[] = [
+    { title: "Lego Worlds", store: "GOG", salePrice: 5, currency: "EUR" },
+    { title: "DOOM Eternal", store: "Humble", salePrice: 10, currency: "EUR" },
+    { title: "Elden Ring", store: "Steam", salePrice: 30, currency: "EUR" }
+  ];
+  const matches = installPriceCheck.findComparableDeals(deals, "doom", "DOOM Eternal", "");
+  assert.deepEqual(matches.map(deal => deal.title), ["DOOM Eternal"], "doar potrivirea pe token reala; 'doom' nu mai prinde 'lego' prin substring, iar magazinul Steam e exclus");
+});
+
+test("findComparableDeals: appId Steam exact = potrivire sigura chiar daca titlul difera (R[P3])", () => {
+  const deals: DealInfo[] = [{ title: "titlu localizat diferit", store: "GOG", appId: "1245620", salePrice: 20, currency: "EUR" }];
+  const matches = installPriceCheck.findComparableDeals(deals, "elden ring", "ELDEN RING", "1245620");
+  assert.equal(matches.length, 1, "acelasi appId Steam confirma jocul indiferent de titlu");
+});
+
+test("titlesComparable: token generic nu se potriveste, dar jocul real (cu DLC/editie) da", () => {
+  assert.equal(installPriceCheck.titlesComparable("go", "Lego Worlds"), false);
+  assert.equal(installPriceCheck.titlesComparable("doom", "Doomsday Survivors"), false);
+  assert.equal(installPriceCheck.titlesComparable("elden ring", "Elden Ring Deluxe Edition"), true);
+  assert.equal(installPriceCheck.titlesComparable("Elden Ring", "elden ring"), true);
+});

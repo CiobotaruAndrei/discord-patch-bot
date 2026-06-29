@@ -117,3 +117,34 @@ test("/price-alert list afiseaza pragul si starea fiecarei alerte", async () => 
   assert.match(String(replies[0]), /armata/);
   assert.match(String(replies[0]), /49.99 EUR/);
 });
+
+test("buildPriceAlertUpsertPipeline are conditie atomica de dimensiune ($size < max), nu doar concat (R[P2/P3] race)", () => {
+  const rule = mod.buildPriceAlertRule(games[0], 30, "EUR");
+  const pipeline = mod.buildPriceAlertUpsertPipeline(rule, 25);
+  const json = JSON.stringify(pipeline);
+  assert.match(json, /\$cond/, "append-ul e conditionat (nu neconditionat)");
+  assert.match(json, /"\$size"/, "conditia foloseste dimensiunea array-ului");
+  assert.match(json, /"\$lt":\[\{"\$size":"\$\$kept"\},25\]/, "apendeaza doar daca dimensiunea curenta < max");
+});
+
+test("/price-alert add: refuza un joc NOU peste limita (pre-check), fara sa scrie in Mongo (R[P2/P3])", async () => {
+  const full = Array.from({ length: 25 }, (_unused, index) => ({ gameKey: `g${index}`, gameName: `G${index}`, threshold: 5, currency: "EUR" }));
+  const calls: MongoCall[] = [];
+  const replies: unknown[] = [];
+  const handler = mod.createPriceAlertInteractionHandler({
+    GuildModel: { updateOne: async (filter, update, options) => { calls.push({ filter, update, options }); return { matchedCount: 1, modifiedCount: 1 }; } },
+    getGuildSettings: async () => ({ _id: "guild-1", priceAlerts: full }),
+    invalidateGuildCache: () => undefined,
+    safeDefer: async () => undefined,
+    safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
+    formatUserError: (_err, fallback) => fallback,
+    SUPPORTED_CURRENCIES: { USD: {}, EUR: {}, GBP: {}, RON: {} },
+    logger: () => undefined,
+    MessageFlags: { Ephemeral: 64 }
+  });
+
+  await handler.handlePriceAlertInteraction(interaction("add", { joc: "elden-ring", price: 30, currency: "EUR" }), games);
+
+  assert.equal(calls.length, 0, "pre-check-ul respinge un joc nou peste limita, fara scriere");
+  assert.match(String(replies.at(-1)), /limita de 25/, "raspunde cu eroarea de limita; pipeline-ul atomic ramane plasa de siguranta pentru race-uri concurente");
+});
