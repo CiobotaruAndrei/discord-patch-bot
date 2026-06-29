@@ -45,7 +45,7 @@ jobs:
 
       - name: Verify recent staging smoke run
         id: smoke
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           STAGING_SMOKE_MAX_AGE_DAYS: ${{ vars.STAGING_SMOKE_MAX_AGE_DAYS || '7' }}
           RELEASE_TAG: ${{ inputs.tag }}
@@ -207,7 +207,7 @@ jobs:
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
