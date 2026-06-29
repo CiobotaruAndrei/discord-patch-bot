@@ -4,6 +4,7 @@ import type { GameConfig, GuildSettings, SuggestedCommandEntry } from "../../typ
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 import { deleteSuggestedCommand, listSuggestedCommands, recordBotAuditEntry, saveSuggestedCommand } from "../admin-records/adminRecordsRepository";
+import { requireGuildAdminAudited } from "../command-security/runtimeAdminAudit";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
@@ -78,7 +79,7 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
   }
 
   async function handleList(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
-    if (!(await requireGuildAdmin(interaction))) return undefined;
+    if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildModel, interaction, guildId, "/suggest-command list"))) return undefined;
     const limit = Math.max(1, Math.min(25, interaction.options.getInteger("numar") ?? 10));
     const settings = await getGuildSettings(guildId);
     await recordBotAuditEntry(GuildModel, guildId, { userId: interaction.user?.id || "", command: "/suggest-command list", result: "Access granted." }).catch(() => undefined);
@@ -86,7 +87,7 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
   }
 
   async function handleDelete(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
-    if (!(await requireGuildAdmin(interaction))) return undefined;
+    if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildModel, interaction, guildId, "/suggest-command delete"))) return undefined;
     const commandName = normalizeCommandName(String(interaction.options.getString("name", true) || ""));
     if (!commandName) return safeEdit(interaction, "Eroare: trebuie sa alegi numele comenzii sugerate.");
     const deleted = await deleteSuggestedCommand(GuildModel, guildId, commandName);

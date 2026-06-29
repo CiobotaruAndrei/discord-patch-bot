@@ -163,6 +163,10 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Scrie rezultatul in `botAuditLog` ca `Access granted.`, `Access denied.` sau `Error.`.
 - Pentru comenzi sensibile, daca `BOT_SENSITIVE_USER_IDS` este setat, cere si user ID autorizat.
 
+### `src/features/command-security/runtimeAdminAudit.ts`
+
+- `requireGuildAdminAudited`: pentru subcomenzile admin-runtime din comenzi **publice** (`/report list|resolve`, `/suggest-command list|delete`, `/watchlist-game delete`) care nu trec prin guard-ul central; ruleaza `requireGuildAdmin` si, daca respinge, scrie `Access denied.` in `botAuditLog` (refuzul e auditat, nu doar succesul).
+
 ### `src/features/command-handlers/rolePingHandlers.ts`
 
 - Gestioneaza `/set role`.

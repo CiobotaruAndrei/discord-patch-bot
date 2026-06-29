@@ -147,14 +147,26 @@ test("autocomplete uses game.name as value for /latest pret", async () => {
   assert.equal(choices[0].value, "Fortnite");
 });
 
-test("/set games remove restricts pool to enabledGames + stale placeholders", async () => {
+test("/deal-score foloseste game.name ca value (handler-ul cauta oferta dupa titlu, nu dupa cheie) (R[Major] #1)", async () => {
+  const { context } = makeContext();
+  const { interaction, responses } = makeInteraction({
+    command: "deal-score",
+    focused: { name: "game", value: "counter" }
+  });
+  await context.handleInteraction(interaction, GAMES);
+  const choices = responses[0] as Array<{ name: string; value: string }>;
+  assert.ok(choices.length > 0);
+  assert.equal(choices[0].value, "Counter-Strike 2", "value trebuie sa fie numele jocului, ca sa se potriveasca cu titlul ofertei");
+});
+
+test("/set remove games restricts pool to enabledGames + stale placeholders", async () => {
   const { context } = makeContext({
     getGuildSettings: async (_id: string) => ({ enabledGames: ["cs2", "ghost_game_no_longer_in_config"] })
   });
   const { interaction, responses } = makeInteraction({
     command: "set",
-    group: "games",
-    sub: "remove",
+    group: "remove",
+    sub: "games",
     focused: { name: "joc", value: "" },
     guildId: "guild-1"
   });
@@ -330,8 +342,8 @@ test("autocomplete falls back to default pool on getGuildSettings throw (logs WA
   });
   const { interaction, responses } = makeInteraction({
     command: "set",
-    group: "games",
-    sub: "remove",
+    group: "remove",
+    sub: "games",
     focused: { name: "joc", value: "" },
     guildId: "guild-1"
   });

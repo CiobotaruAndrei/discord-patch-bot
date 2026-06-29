@@ -90,13 +90,16 @@ test("/suggest-command list cere admin runtime si afiseaza propunerile", async (
   assert.match(content, /<@user-2>/);
 });
 
-test("/suggest-command list nu afiseaza lista daca runtime admin guard refuza", async () => {
-  const { handler, replies } = makeHarness({ _id: "guild-1" }, false);
+test("/suggest-command list nu afiseaza lista daca runtime admin guard refuza, dar auditeaza refuzul (R[Medium] #3)", async () => {
+  const { handler, replies, calls } = makeHarness({ _id: "guild-1" }, false);
 
   const result = await handler.handleSuggestCommandInteraction(makeInteraction("list"));
 
   assert.equal(result, undefined);
   assert.deepEqual(replies, []);
+  const audit = ((calls[0]?.update as { $push?: { botAuditLog?: { $each?: Array<{ command?: string; result?: string }> } } })?.$push)?.botAuditLog?.$each?.[0];
+  assert.equal(audit?.command, "/suggest-command list", "refuzul de acces e scris in /bot-log");
+  assert.equal(audit?.result, "Access denied.");
 });
 
 test("/suggest-command delete cere admin runtime si sterge sugestia normalizata", async () => {

@@ -93,12 +93,15 @@ test("/watchlist-game delete cere admin runtime si sterge propunerea", async () 
   assert.match(String(replies[0]), /silksong/);
 });
 
-test("/watchlist-game delete nu modifica lista daca runtime admin guard refuza", async () => {
+test("/watchlist-game delete nu modifica lista daca runtime admin guard refuza, dar auditeaza refuzul (R[Medium] #3)", async () => {
   const { handler, calls, replies } = makeHarness({ _id: "guild-1" }, false);
 
   const result = await handler.handleWatchlistGameSuggestion(makeInteraction("delete", { game: "silksong" }));
 
   assert.equal(result, undefined);
-  assert.deepEqual(calls, []);
   assert.deepEqual(replies, []);
+  assert.equal(calls.length, 1, "doar auditul refuzului, niciun $pull pe lista");
+  const audit = ((calls[0].update as { $push?: { botAuditLog?: { $each?: Array<{ command?: string; result?: string }> } } }).$push)?.botAuditLog?.$each?.[0];
+  assert.equal(audit?.command, "/watchlist-game delete");
+  assert.equal(audit?.result, "Access denied.");
 });
