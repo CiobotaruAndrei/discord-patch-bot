@@ -86,6 +86,37 @@ const youtubeChannelRouteSchema = new mongoose.Schema({
   discordChannelIds: { type: [String], default: [] }
 }, { _id: false });
 
+const configBackupSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  createdBy: { type: String, default: "" },
+  createdAt: { type: Date, default: Date.now },
+  snapshot: { type: mongoose.Schema.Types.Mixed, required: true }
+}, { _id: false });
+
+const botAuditLogSchema = new mongoose.Schema({
+  userId: { type: String, default: "" },
+  command: { type: String, required: true },
+  result: { type: String, required: true },
+  serverId: { type: String, default: "" },
+  details: { type: String, default: "" },
+  at: { type: Date, default: Date.now }
+}, { _id: false });
+
+const serverAuditLogSchema = new mongoose.Schema({
+  userId: { type: String, default: "" },
+  action: { type: String, required: true },
+  serverId: { type: String, default: "" },
+  details: { type: String, default: "" },
+  at: { type: Date, default: Date.now }
+}, { _id: false });
+
+const suggestedCommandSchema = new mongoose.Schema({
+  commandName: { type: String, required: true },
+  description: { type: String, required: true },
+  createdBy: { type: String, default: "" },
+  createdAt: { type: Date, default: Date.now }
+}, { _id: false });
+
 const guildSchema = new mongoose.Schema({
   _id: String,
   subscribed: { type: Boolean, default: false },
@@ -141,7 +172,11 @@ const guildSchema = new mongoose.Schema({
   youtubeMessageTemplate: { type: String, default: null, maxlength: 1000 },
   youtubeChannelRoutes: { type: [youtubeChannelRouteSchema], default: [] },
   youtubeTitleIncludeWords: { type: [String], default: [] },
-  youtubeErrors: { type: [youtubeErrorSchema], default: [] }
+  youtubeErrors: { type: [youtubeErrorSchema], default: [] },
+  configBackups: { type: [configBackupSchema], default: [] },
+  botAuditLog: { type: [botAuditLogSchema], default: [] },
+  serverAuditLog: { type: [serverAuditLogSchema], default: [] },
+  suggestedCommands: { type: [suggestedCommandSchema], default: [] }
 }, { minimize: false });
 
 guildSchema.index({ subscribed: 1, notificationChannelId: 1 }, { background: true });

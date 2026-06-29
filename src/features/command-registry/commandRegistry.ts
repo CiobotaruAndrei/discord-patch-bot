@@ -82,6 +82,10 @@ import attachHealthInteractionHandler = require("../command-handlers/healthInter
 import attachConfigInteractionHandler = require("../command-handlers/configInteractionHandler");
 import attachGuildConfigurationAdminHandler = require("../command-handlers/guildConfigurationAdminHandler");
 import attachPriceAlertInteractionHandler = require("../command-handlers/priceAlertInteractionHandler");
+import attachBackupInteractionHandler = require("../command-handlers/backupInteractionHandler");
+import attachAuditLogInteractionHandler = require("../command-handlers/auditLogInteractionHandler");
+import attachSuggestCommandInteractionHandler = require("../command-handlers/suggestCommandInteractionHandler");
+import attachPriceCheckInteractionHandler = require("../command-handlers/priceCheckInteractionHandler");
 import attachYouTubeInteractionHandler = require("../command-handlers/youtubeInteractionHandler");
 import attachSnoozeInteractionHandler = require("../command-handlers/snoozeInteractionHandler");
 import attachSourcesStatusHandler = require("../command-handlers/sourcesStatusHandler");
@@ -137,6 +141,10 @@ function createCommandRegistry(
     attachConfigInteractionHandler.buildCommandHandler(ctx),
     attachGuildConfigurationAdminHandler.buildCommandHandler(ctx),
     attachPriceAlertInteractionHandler.buildCommandHandler(ctx),
+    attachBackupInteractionHandler.buildCommandHandler(ctx),
+    attachAuditLogInteractionHandler.buildCommandHandler(ctx),
+    attachSuggestCommandInteractionHandler.buildCommandHandler(ctx),
+    attachPriceCheckInteractionHandler.buildCommandHandler(ctx),
     attachYouTubeInteractionHandler.buildCommandHandler(ctx),
     attachSnoozeInteractionHandler.buildCommandHandler(ctx),
     attachHealthInteractionHandler.buildCommandHandler(ctx),

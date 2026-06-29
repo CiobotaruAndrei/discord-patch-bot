@@ -370,6 +370,37 @@ export interface PriceAlertRule {
   absentCycles?: number | null;
 }
 
+export interface ConfigBackupRecord {
+  name: string;
+  createdBy: string;
+  createdAt: Date | string;
+  snapshot: Record<string, unknown>;
+}
+
+export interface BotAuditLogEntry {
+  userId: string;
+  command: string;
+  result: string;
+  serverId: string;
+  details?: string;
+  at: Date | string;
+}
+
+export interface ServerAuditLogEntry {
+  userId: string;
+  action: string;
+  serverId: string;
+  details?: string;
+  at: Date | string;
+}
+
+export interface SuggestedCommandEntry {
+  commandName: string;
+  description: string;
+  createdBy: string;
+  createdAt: Date | string;
+}
+
 export interface YouTubeChannelSubscription {
   channelId: string;
   channelName: string;
@@ -454,6 +485,10 @@ export interface GuildSettings {
   youtubeChannelRoutes?: YouTubeChannelRoute[];
   youtubeTitleIncludeWords?: string[];
   youtubeErrors?: YouTubeErrorEntry[];
+  configBackups?: ConfigBackupRecord[];
+  botAuditLog?: BotAuditLogEntry[];
+  serverAuditLog?: ServerAuditLogEntry[];
+  suggestedCommands?: SuggestedCommandEntry[];
   seenHashVersionUpdates?: number;
   seenHashVersionDiscounts?: number;
   [key: string]: unknown;

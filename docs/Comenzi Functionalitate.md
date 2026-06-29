@@ -48,6 +48,16 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 | `/config` | Admin, Ephemeral | Afiseaza setarile curente ale serverului intr-un singur embed: mod, reducere minima, pret maxim, filtre free/paid, valuta, magazine, jocuri active, roluri de ping, canale pentru update-uri/reduceri/YouTube, canalul administrativ, alertele de pret si numarul canalelor YouTube urmarite. |
 | `/reset-config confirm:true` | Admin, Ephemeral | Reseteaza toate setarile botului pentru server: abonari, canale, roluri, filtre, watchlist, snooze-uri, alerte de pret, configurarea YouTube si canalul administrativ. Confirmarea trebuie sa fie explicit `true`. Goleste lista dead-letter vizibila si payload-urile de replay din colectia separata (ca sa nu ramana orfane); istoricul rapoartelor si al notificarilor deja livrate nu este sters. |
 
+## Backup configuratie
+
+| Comanda | Permisiuni | Ce face |
+| --- | --- | --- |
+| `/backup add name:<nume>` | Admin, Ephemeral | Salveaza configuratia curenta a botului pentru server intr-un backup numit. Include abonari, canale, roluri, filtre, watchlist, snooze-uri, alerte de pret si configurarea YouTube. Daca exista deja un backup cu acel nume, este inlocuit. |
+| `/backup list` | Admin, Ephemeral | Afiseaza backup-urile salvate, cine le-a creat si data crearii. Lista este limitata ca documentul serverului sa ramana controlat. |
+| `/backup preview name:<nume>` | Admin, Ephemeral | Arata ce setari vor fi restaurate si ce canale/roluri sunt referite de backup. Preview-ul trebuie verificat inainte de load, mai ales daca intre timp au fost sterse canale sau roluri din Discord. |
+| `/backup load name:<nume> confirm:true` | Admin, Ephemeral | Incarca backup-ul si restaureaza configuratia botului pentru server. Cere confirmare explicita si salveaza schimbarea in `server-log`. Daca un canal sau rol salvat nu mai exista in Discord, botul restaureaza ID-ul salvat, iar adminul trebuie sa refaca setarea dupa load. |
+| `/backup delete name:<nume> confirm:true` | Admin, Ephemeral | Sterge backup-ul ales din lista de backup-uri salvate. Cere confirmare explicita ca sa evite stergerile accidentale. |
+
 ## Alerte de pret
 
 | Comanda | Permisiuni | Ce face |
@@ -55,6 +65,7 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 | `/price-alert add joc:<key> price:<0.01-10000> currency:<valuta>` | Admin, Autocomplete, Ephemeral | Adauga sau actualizeaza alerta pentru perechea joc+valuta. Botul cauta oferta jocului in ciclul de reduceri si trimite un embed cand pretul ajunge la sau sub prag. Necesita un canal activ prin `/start reduceri`. |
 | `/price-alert remove joc:<key>` | Admin, Autocomplete, Ephemeral | Sterge toate alertele acelui joc, indiferent de valuta. Autocomplete-ul sugereaza numai jocurile care au alerte configurate. |
 | `/price-alert list` | Admin, Ephemeral | Afiseaza fiecare alerta, pragul, valuta, ultimul pret observat si daca alerta este armata sau deja declansata. |
+| `/price-check joc:<name>` | Public, Autocomplete | Cauta pretul jocului pe Steam si il compara cu ofertele similare din sursele externe de reduceri deja folosite de bot. Embed-ul are culoarea verde pentru pretul Steam; celelalte randuri arata magazinele externe gasite sau explica lipsa unei potriviri. |
 
 O alerta declansata nu este retrimisa la fiecare ciclu. Ea ramane marcata ca declansata cat timp pretul este sub prag si se rearmeaza automat cand pretul urca din nou peste prag. Claim-ul este atomic in Mongo, astfel incat doua instante ale botului nu pot trimite aceeasi alerta simultan.
 
@@ -66,6 +77,17 @@ O alerta declansata nu este retrimisa la fiecare ciclu. Ea ramane marcata ca dec
 | `/admin-alerts off` | Admin, Ephemeral | Opreste alertele administrative Discord pentru server. Webhook-ul global, daca este configurat prin env, ramane independent. |
 
 Canalul administrativ primeste alerte operationale cu severitate, cauza, explicatie si actiune recomandata. Rapoartele trimise prin `/report submit` sunt directionate numai catre canalul serverului respectiv. Alertele globale despre cron, surse, outbox sau proces sunt distribuite canalelor administrative configurate. Daca un canal este sters sau botul pierde permanent accesul, configurarea acelui canal este dezactivata automat.
+
+## Audit, loguri si sugestii de comenzi
+
+| Comanda | Permisiuni | Ce face |
+| --- | --- | --- |
+| `/bot-log numar:<1-25>` | Admin, Ephemeral | Afiseaza ultimele comenzi admin executate pe server, cu user, comanda, data, server si rezultat. Auditul este scris de guard-ul runtime pentru comenzile admin protejate. |
+| `/server-log numar:<1-25>` | Admin, Ephemeral | Afiseaza schimbarile importante salvate pentru server. In implementarea curenta include actiuni persistate de bot, cum ar fi incarcarea unui backup; integrarea cu toate evenimentele Discord necesita intent-uri si permisiuni de audit pe server. |
+| `/suggest-command add name:<nume> description:<ce-face>` | Public, Ephemeral | Permite unui user sa propuna o comanda noua. Userul completeaza numele comenzii propuse si descrierea; botul salveaza sugestia in lista serverului. |
+| `/suggest-command list numar:<1-25>` | Admin runtime, Ephemeral | Afiseaza comenzile sugerate de useri, cu numele propus si ce ar trebui sa faca fiecare. Este runtime admin deoarece top-level-ul ramane public pentru `/suggest-command add`. |
+
+Comenzile admin accepta doua cai de autorizare: permisiunea Discord `Administrator` sau un rol al carui ID este listat in `BOT_ADMIN_ROLE_IDS`. Pentru comenzile sensibile, daca `BOT_SENSITIVE_USER_IDS` este setat, userul trebuie sa fie si in acea lista privata de user ID-uri. ID-urile sunt folosite direct, nu numele rolurilor sau userilor.
 
 ## Monitorizare YouTube
 

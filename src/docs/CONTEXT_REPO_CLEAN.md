@@ -42,10 +42,13 @@ src/
     deals/
       filtersCore.ts
   features/
+    admin-records/
     command-cache/
     command-definitions/
     command-handlers/
+      auditLogInteractionHandler.ts
       autocompleteInteractionHandler.ts
+      backupInteractionHandler.ts
       configInteractionHandler.ts
       dlcInteractionHandler.ts
       fallbackInteractionHandler.ts
@@ -60,6 +63,8 @@ src/
       snoozeInteractionHandler.ts
       sourcesStatusHandler.ts
       statusInteractionHandler.ts
+      priceCheckInteractionHandler.ts
+      suggestCommandInteractionHandler.ts
       subscriptionNotificationHandlers.ts
       youtubeInteractionHandler.ts
     command-presentation/
@@ -109,7 +114,7 @@ src/
 
 ## Comenzi si interactiuni
 
-Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `CommandHandler[]`**: fiecare handler expune `buildCommandHandler(ctx): CommandHandler` (`{ canHandle, handle }`), iar `dispatchCommand` itereaza lista si deleaga la primul `canHandle` adevarat (fallback-ul, mereu `canHandle: () => true`, e ultimul). Comenzile admin (`start`/`stop`/`set`/`watchlist`/`snooze`/`unsnooze`/`outbox`/`health`/`config`/`reset-config`/`admin-alerts`/`price-alert`/`sources`/`youtube`) trec intai printr-un pre-check `requireGuildAdmin`, apoi `commandSnoozeGuard` blocheaza comenzile puse temporar pe pauza inainte de `dispatchCommand`. `handleInteraction`-ul exportat de registru (= pre-check admin + snooze guard + `dispatchCommand`) e punctul de intrare folosit de `app/lifecycle/events.ts`. Nu mai exista un lant de `attachX` care impacheteaza `handleInteraction` si nici un fisier `interactions.ts` separat. Logica concreta sta in handler-e dedicate:
+Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `CommandHandler[]`**: fiecare handler expune `buildCommandHandler(ctx): CommandHandler` (`{ canHandle, handle }`), iar `dispatchCommand` itereaza lista si deleaga la primul `canHandle` adevarat (fallback-ul, mereu `canHandle: () => true`, e ultimul). Comenzile admin (`start`/`stop`/`set`/`watchlist`/`snooze`/`unsnooze`/`backup`/`bot-log`/`server-log`/`outbox`/`health`/`config`/`reset-config`/`admin-alerts`/`price-alert`/`sources`/`youtube`) trec intai printr-un pre-check `requireGuildAdmin`, care accepta `Administrator` sau role ID-uri din `BOT_ADMIN_ROLE_IDS` si scrie rezultatul in `botAuditLog`; comenzile sensibile pot cere si user ID in `BOT_SENSITIVE_USER_IDS`. Apoi `commandSnoozeGuard` blocheaza comenzile puse temporar pe pauza inainte de `dispatchCommand`. `handleInteraction`-ul exportat de registru (= pre-check admin + snooze guard + `dispatchCommand`) e punctul de intrare folosit de `app/lifecycle/events.ts`. Nu mai exista un lant de `attachX` care impacheteaza `handleInteraction` si nici un fisier `interactions.ts` separat. Logica concreta sta in handler-e dedicate:
 
 - `simpleCommandsHandler.ts` - comenzi simple precum ping/games;
 - `helpInteractionHandler.ts` - paginare si continut pentru help;
@@ -120,6 +125,10 @@ Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `Co
 - `configInteractionHandler.ts` - `/config`, sumarul setarilor curente ale serverului intr-un embed ephemeral pentru admini;
 - `guildConfigurationAdminHandler.ts` - `/reset-config` si `/admin-alerts`, cu confirmare explicita la reset si verificarea permisiunilor canalului administrativ;
 - `priceAlertInteractionHandler.ts` - `/price-alert add/remove/list`, persistenta regulilor joc+prag+valuta si autocomplete pentru joc;
+- `backupInteractionHandler.ts` - `/backup add/list/preview/load/delete`, backup-uri ale configuratiei botului pentru server, confirmare la load/delete si audit server la schimbari;
+- `auditLogInteractionHandler.ts` - `/bot-log` si `/server-log`, citire audit admin si audit server din setarile guild-ului;
+- `priceCheckInteractionHandler.ts` - `/price-check`, compara pretul Steam cu sursele externe de reduceri deja folosite de bot;
+- `suggestCommandInteractionHandler.ts` - `/suggest-command add/list`, propuneri publice de comenzi si listare admin runtime;
 - `snoozeInteractionHandler.ts` - `/snooze` si `/unsnooze`, cu comanda tinta validata prin catalogul `/help command`;
 - `outboxAdminHandler.ts` - comenzile admin `/outbox` (`status`, `deadletters`, `clear-deadletters`, `replay-deadletters`, `retry`, `drain-now`, `pause`, `resume`, `permissions`, `recovery-verify status`) pentru operarea outbox-ului (coada per-guild si globala, dead-letter, reprogramare livrari, pauza/reluare drenare, audit de permisiuni pe canale, stare recovery-verify); protejat de admin guard (`outbox` e in lista de comenzi admin). `pause`/`resume` comuta flagul persistent `outboxPaused` (pe `system_state`, via `getOutboxPaused`/`setOutboxPaused`), pe care worker-ul de drenare il verifica la fiecare tick inainte de a lua lock-ul; `permissions` foloseste `checkChannelPermissions` din runtime (Send Messages / Embed Links / Read Message History) pentru un audit la cerere; `drain-now` verifica acelasi flag de pauza inainte de lock, revendica lock-ul `outbox_drain` (acelasi ca worker-ul) si dreneaza imediat doar daca drenarea nu e pe pauza si lock-ul e liber, altfel raporteaza starea fara drenari concurente;
 - `latestInteractionHandler.ts` - `/latest`;
