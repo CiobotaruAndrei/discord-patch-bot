@@ -37,8 +37,10 @@ function makeDeps(opts: {
   notificationChannelId?: string | null;
   discountChannelId?: string | null;
   youtubeNotificationChannelId?: string | null;
+  dlcChannelId?: string | null;
+  futureReleaseChannelId?: string | null;
   youtubeChannelRoutes?: Array<{ channelId?: string; discordChannelIds?: string[] }>;
-  channelPermissions?: (channelId: string) => { sendMessages: boolean; embedLinks: boolean; readMessageHistory: boolean } | null;
+  channelPermissions?: (channelId: string) => { viewChannel: boolean; sendMessages: boolean; embedLinks: boolean; readMessageHistory: boolean } | null;
   lockToken?: string | null;
   drainResult?: { sent?: number; retried?: number; deadLettered?: number; queued?: number };
   replayDocs?: Array<{ _id: unknown; kind: "update" | "discount"; channelId: string; payload: unknown; dedupeKey: string; recoveryVerify: boolean }>;
@@ -85,6 +87,8 @@ function makeDeps(opts: {
       notificationChannelId: opts.notificationChannelId ?? null,
       discountChannelId: opts.discountChannelId ?? null,
       youtubeNotificationChannelId: opts.youtubeNotificationChannelId ?? null,
+      dlcChannelId: opts.dlcChannelId ?? null,
+      futureReleaseChannelId: opts.futureReleaseChannelId ?? null,
       youtubeChannelRoutes: opts.youtubeChannelRoutes ?? []
     }),
     getOutboxPaused: async () => {
@@ -263,8 +267,8 @@ test("/outbox permissions raporteaza permisiunile pe canalele configurate si sem
     notificationChannelId: "chan-upd",
     discountChannelId: "chan-deal",
     channelPermissions: (id) => id === "chan-upd"
-      ? { sendMessages: true, embedLinks: true, readMessageHistory: true }
-      : { sendMessages: true, embedLinks: true, readMessageHistory: false }
+      ? { viewChannel: true, sendMessages: true, embedLinks: true, readMessageHistory: true }
+      : { viewChannel: true, sendMessages: true, embedLinks: true, readMessageHistory: false }
   });
   const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
   await handler.handleOutboxInteraction(makeInteraction(null, "permissions"));
@@ -275,11 +279,28 @@ test("/outbox permissions raporteaza permisiunile pe canalele configurate si sem
   assert.match(replies[0], /recovery-verify nu poate citi istoricul/);
 });
 
+test("/outbox permissions auditeaza si canalele DLC + future-release si afiseaza View Channel (R[Medium] #1)", async () => {
+  const { deps, replies, permissionChecks } = makeDeps({
+    notificationChannelId: "chan-upd",
+    dlcChannelId: "chan-dlc",
+    futureReleaseChannelId: "chan-fr",
+    channelPermissions: (id) => id === "chan-dlc"
+      ? { viewChannel: false, sendMessages: true, embedLinks: true, readMessageHistory: true }
+      : { viewChannel: true, sendMessages: true, embedLinks: true, readMessageHistory: true }
+  });
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "permissions"));
+  assert.deepEqual(permissionChecks, ["chan-upd", "chan-dlc", "chan-fr"], "auditul include si canalele DLC + future-release, nu doar updates/reduceri/YouTube");
+  assert.match(replies[0], /DLC \(<#chan-dlc>\)/);
+  assert.match(replies[0], /Future-release \(<#chan-fr>\)/);
+  assert.match(replies[0], /View Channel \*\*LIPSA\*\*/, "raportul afiseaza si permisiunea View Channel (lipsa pe canalul DLC)");
+});
+
 test("/outbox permissions auditeaza si canalul YouTube (documentatia spune ca include YouTube)", async () => {
   const { deps, replies, permissionChecks } = makeDeps({
     notificationChannelId: "chan-upd",
     youtubeNotificationChannelId: "chan-yt",
-    channelPermissions: () => ({ sendMessages: true, embedLinks: true, readMessageHistory: true })
+    channelPermissions: () => ({ viewChannel: true, sendMessages: true, embedLinks: true, readMessageHistory: true })
   });
   const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
   await handler.handleOutboxInteraction(makeInteraction(null, "permissions"));
@@ -294,7 +315,7 @@ test("/outbox permissions auditeaza si canalele din rutele speciale YouTube, nu 
       { channelId: "UCaaa", discordChannelIds: ["chan-route-1", "chan-route-2"] },
       { channelId: "UCbbb", discordChannelIds: ["chan-route-2"] }
     ],
-    channelPermissions: () => ({ sendMessages: true, embedLinks: true, readMessageHistory: true })
+    channelPermissions: () => ({ viewChannel: true, sendMessages: true, embedLinks: true, readMessageHistory: true })
   });
   const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
   await handler.handleOutboxInteraction(makeInteraction(null, "permissions"));

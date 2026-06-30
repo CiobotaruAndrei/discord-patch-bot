@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 const mod = require("../features/command-handlers/guildConfigurationAdminHandler") as typeof import("../features/command-handlers/guildConfigurationAdminHandler");
 
-function makeHarness(permissionState = { sendMessages: true, embedLinks: true, readMessageHistory: true }, replayCleanupFails = false) {
+function makeHarness(permissionState = { viewChannel: true, sendMessages: true, embedLinks: true, readMessageHistory: true }, replayCleanupFails = false) {
   const calls: Array<{ filter: Record<string, unknown>; update: Record<string, unknown>; options?: Record<string, unknown> }> = [];
   const replies: unknown[] = [];
   const replayPayloadDeletes: string[] = [];
@@ -106,6 +106,7 @@ test("/admin-alerts set verifica permisiunile si salveaza canalul", async () => 
 
 test("/admin-alerts set refuza canalul fara Embed Links", async () => {
   const { handler, calls, replies } = makeHarness({
+    viewChannel: true,
     sendMessages: true,
     embedLinks: false,
     readMessageHistory: true
@@ -115,4 +116,18 @@ test("/admin-alerts set refuza canalul fara Embed Links", async () => {
 
   assert.equal(calls.length, 0);
   assert.match(String(replies[0]), /Embed Links/);
+});
+
+test("/admin-alerts set refuza canalul fara View Channel (R[Medium] #2)", async () => {
+  const { handler, calls, replies } = makeHarness({
+    viewChannel: false,
+    sendMessages: true,
+    embedLinks: true,
+    readMessageHistory: true
+  });
+
+  await handler.handleGuildConfigurationAdmin(interaction("admin-alerts", "set", { channelId: "bot-logs" }));
+
+  assert.equal(calls.length, 0, "fara View Channel nu se salveaza canalul de alerte");
+  assert.match(String(replies[0]), /View Channel/, "mesajul listeaza permisiunea lipsa View Channel (livrarea reala o cere)");
 });
