@@ -104,7 +104,7 @@ function labelMode(mode: string | null | undefined): string {
 
 function formatCurrentAccess(access: GuildAdminAccessDoc["adminCommandAccess"]): string {
   if (!access?.roleId || !access.mode) {
-    return "Acces admin: implicit. Pana ownerul seteaza o regula de rol, comenzile admin raman disponibile doar pentru utilizatorii cu `Administrator`.";
+    return "Acces admin: implicit. Pana ownerul seteaza o regula de rol, comenzile admin raman disponibile pentru utilizatorii cu `Administrator` sau cu acces temporar activat prin cod.";
   }
   const updatedAt = access.updatedAt ? `\nActualizat la: ${String(access.updatedAt)}` : "";
   const updatedBy = access.updatedBy ? `\nActualizat de: <@${access.updatedBy}>` : "";
@@ -152,7 +152,7 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
     }
     await GuildModel.updateOne({ _id: guildId }, { $set: { adminCommandAccess: null } }, { upsert: true });
     invalidateGuildCache(guildId);
-    return safeEdit(interaction, "OK: regula de rol pentru comenzi admin a fost stearsa. Ramane accesul implicit: Administrator.");
+    return safeEdit(interaction, "OK: regula de rol pentru comenzi admin a fost stearsa. Ramane accesul implicit: Administrator sau cod de acces activ.");
   }
 
   async function handleAdminCommandAccess(interaction: DiscordInteraction): Promise<unknown> {

@@ -24,6 +24,11 @@ type AdminGuardModule = ((interaction: TestInteraction) => Promise<boolean>) & {
   isGuildAdmin: (interaction: TestInteraction) => boolean;
   hasAllowedAdminRole: (interaction: TestInteraction) => boolean;
   hasConfiguredAdminRole: (interaction: TestInteraction, config: { mode?: "role" | "role-or-higher" | null; roleId?: string | null } | null) => boolean;
+  hasActiveAdminAccessCodeGrant: (
+    interaction: TestInteraction,
+    grants: ReadonlyArray<{ userId?: string | null; expiresAt?: Date | string | null }> | null | undefined,
+    now?: Date
+  ) => boolean;
 };
 
 type AdminCommandGuardModule = ((context: Record<string, unknown>) => void) & {
@@ -112,6 +117,19 @@ test("admin guard respinge cand member.roles e array fara rolul configurat (nu a
   assert.equal(requireGuildAdmin.hasConfiguredAdminRole(interaction, { mode: "role", roleId: "role-allowed" }), false);
 });
 
+test("admin guard accepts active admin access-code grants without Discord Administrator", () => {
+  const now = new Date("2026-06-30T10:00:00.000Z");
+  const { interaction } = makeInteraction(false);
+
+  assert.equal(requireGuildAdmin.hasActiveAdminAccessCodeGrant(interaction, [
+    { userId: "other-user", expiresAt: "2026-06-30T10:30:00.000Z" },
+    { userId: "user-1", expiresAt: "2026-06-30T10:30:00.000Z" }
+  ], now), true);
+  assert.equal(requireGuildAdmin.hasActiveAdminAccessCodeGrant(interaction, [
+    { userId: "user-1", expiresAt: "2026-06-30T09:59:00.000Z" }
+  ], now), false);
+});
+
 test("admin guard accepts configured role-or-higher by Discord role position", () => {
   const { interaction } = makeInteraction(false);
   interaction.guild = {
@@ -192,6 +210,35 @@ test("admin command guard delegates protected commands for admins", async () => 
   assert.equal(result, "cs2");
 });
 
+test("admin command guard delegates protected commands for active access-code grants", async () => {
+  const { interaction } = makeInteraction(false);
+  interaction.commandName = "config";
+  const delegated: string[] = [];
+  const target: Record<string, unknown> & {
+    handleInteraction: (handledInteraction: TestInteraction, games: TestGame[]) => Promise<unknown>;
+  } = {
+    GuildModel: {
+      db: { readyState: 1 },
+      findOne: () => ({
+        lean: async () => ({
+          adminAccessCodeGrants: [{ userId: "user-1", expiresAt: new Date(Date.now() + 60_000) }]
+        })
+      }),
+      updateOne: async () => ({ modifiedCount: 1 })
+    },
+    handleInteraction: async (handledInteraction: TestInteraction, _games: TestGame[]) => {
+      delegated.push(handledInteraction.commandName);
+      return "delegated";
+    }
+  };
+
+  adminCommandGuard(target);
+  const result = await target.handleInteraction(interaction, []);
+
+  assert.equal(result, "delegated");
+  assert.deepEqual(delegated, ["config"]);
+});
+
 test("admin command guard refuza explicit comenzile admin in DM (fara guild) si NU deleaga la handler (fix bypass /health in DM)", async () => {
   const replies: unknown[] = [];
   const dmInteraction: TestInteraction = {
@@ -238,7 +285,7 @@ test("toate comenzile administrative sunt protejate runtime, iar comenzile publi
     interaction.commandName = cmd;
     assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), true, `/${cmd} trebuie sa treaca prin guard-ul de admin runtime`);
   }
-  for (const cmd of ["ping", "games", "help", "report", "history", "latest", "price-check", "deal-score", "suggest-command", "watchlist-game"]) {
+  for (const cmd of ["ping", "games", "help", "admin-access", "report", "history", "latest", "price-check", "deal-score", "suggest-command", "watchlist-game"]) {
     const { interaction } = makeInteraction(false);
     interaction.commandName = cmd;
     assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), false, `/${cmd} ramane public (fara guard de admin)`);

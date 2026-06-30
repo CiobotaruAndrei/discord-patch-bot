@@ -34,7 +34,11 @@ type RoleCacheLike = {
 type MemberRolesLike = RoleCacheLike | { cache?: RoleCacheLike | null; highest?: RoleLike | null };
 type AdminRoleAccessMode = "role" | "role-or-higher";
 type AdminCommandAccessConfig = { mode?: AdminRoleAccessMode | null; roleId?: string | null };
-type GuildAdminAccessDoc = { adminCommandAccess?: AdminCommandAccessConfig | null };
+type AdminAccessCodeGrant = { userId?: string | null; expiresAt?: Date | string | null };
+type GuildAdminAccessDoc = {
+  adminCommandAccess?: AdminCommandAccessConfig | null;
+  adminAccessCodeGrants?: readonly AdminAccessCodeGrant[] | null;
+};
 type GuildAdminAccessQuery = { lean: () => Promise<GuildAdminAccessDoc | null> };
 type GuildAdminAccessModel = Parameters<typeof recordBotAuditEntry>[0] & {
   findOne?: (filter: { _id: string }) => GuildAdminAccessQuery | Promise<GuildAdminAccessDoc | null>;
@@ -54,6 +58,11 @@ type AdminCommandGuardContext = {
 type DefaultRequireGuildAdmin = RequireGuildAdmin & {
   isGuildAdmin: (interaction: DiscordInteraction) => boolean;
   hasConfiguredAdminRole: (interaction: DiscordInteraction, config: AdminCommandAccessConfig | null | undefined) => boolean;
+  hasActiveAdminAccessCodeGrant: (
+    interaction: DiscordInteraction,
+    grants: readonly AdminAccessCodeGrant[] | null | undefined,
+    now?: Date
+  ) => boolean;
   rejectNonAdmin: (interaction: DiscordInteraction) => Promise<void>;
 };
 
@@ -155,11 +164,18 @@ async function loadAdminCommandAccessConfig(
   target: AdminCommandGuardContext | null | undefined,
   guildId: string
 ): Promise<AdminCommandAccessConfig | null> {
+  return (await loadAdminAccessDoc(target, guildId))?.adminCommandAccess || null;
+}
+
+async function loadAdminAccessDoc(
+  target: AdminCommandGuardContext | null | undefined,
+  guildId: string
+): Promise<GuildAdminAccessDoc | null> {
   const model = target?.GuildModel;
   if (!canUseGuildModel(model) || typeof model.findOne !== "function") return null;
   const result = model.findOne({ _id: guildId });
   const doc = hasLean(result) ? await result.lean() : await result;
-  return doc?.adminCommandAccess || null;
+  return doc || null;
 }
 
 async function requireGuildAdminWithConfiguredAccess(
@@ -168,8 +184,9 @@ async function requireGuildAdminWithConfiguredAccess(
 ): Promise<boolean> {
   if (defaultRequireGuildAdmin.isGuildAdmin(interaction)) return true;
   const guildId = guildIdOf(interaction);
-  const config = guildId ? await loadAdminCommandAccessConfig(target, guildId).catch(() => null) : null;
-  if (defaultRequireGuildAdmin.hasConfiguredAdminRole(interaction, config)) return true;
+  const accessDoc = guildId ? await loadAdminAccessDoc(target, guildId).catch(() => null) : null;
+  if (defaultRequireGuildAdmin.hasActiveAdminAccessCodeGrant(interaction, accessDoc?.adminAccessCodeGrants)) return true;
+  if (defaultRequireGuildAdmin.hasConfiguredAdminRole(interaction, accessDoc?.adminCommandAccess)) return true;
   await defaultRequireGuildAdmin.rejectNonAdmin(interaction);
   return false;
 }
@@ -253,7 +270,8 @@ Object.assign(installAdminCommandGuard, {
   isAdminProtectedCommand,
   isSensitiveAdminCommand,
   hasSensitiveUserAccess,
-  loadAdminCommandAccessConfig
+  loadAdminCommandAccessConfig,
+  loadAdminAccessDoc
 });
 
 export = installAdminCommandGuard;
