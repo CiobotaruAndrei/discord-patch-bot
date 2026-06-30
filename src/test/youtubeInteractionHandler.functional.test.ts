@@ -31,11 +31,20 @@ function makeInteraction(options: InteractionOptions): HandlerInteraction {
   };
 }
 
-function createHarness(settingsOverrides: object = {}, preparedCount = 3, outboxEnabled = false, skippedCount = 0) {
+type FindOneAndUpdateImpl = (filter: object, update: object, options?: object) => Promise<{ youtubeChannels?: Array<{ channelId: string }>; youtubeChannelRoutes?: Array<{ channelId: string; discordChannelIds: string[] }> } | null>;
+type HarnessOverrides = {
+  findOneAndUpdate?: FindOneAndUpdateImpl;
+  checkChannelPermissions?: () => Promise<{ viewChannel: boolean; sendMessages: boolean; embedLinks: boolean; readMessageHistory: boolean } | null>;
+  removeSeenChannel?: (guildId: string, channelId: string) => Promise<void>;
+};
+
+function createHarness(settingsOverrides: object = {}, preparedCount = 3, outboxEnabled = false, skippedCount = 0, overrides: HarnessOverrides = {}) {
+  const findOneAndUpdateOverride = overrides.findOneAndUpdate;
   const replies: unknown[] = [];
   const writes: Array<{ filter: object; update: object; options?: object }> = [];
   const seeded: string[][] = [];
   const removed: string[] = [];
+  const invalidated: string[] = [];
   const manualShows: string[] = [];
   const manualDeliveries: number[] = [];
   const manualBypassOutbox: boolean[] = [];
@@ -60,10 +69,34 @@ function createHarness(settingsOverrides: object = {}, preparedCount = 3, outbox
       updateOne: async (filter, update, options) => {
         writes.push({ filter, update, options });
         return { matchedCount: 1, modifiedCount: 1 };
+      },
+      findOneAndUpdate: async (filter, update, options) => {
+        writes.push({ filter, update, options });
+        if (findOneAndUpdateOverride) return findOneAndUpdateOverride(filter, update, options);
+        const stage = (Array.isArray(update) ? update[0] : {}) as { $set?: Record<string, unknown> };
+        if (stage.$set && "youtubeChannels" in stage.$set) {
+          return { youtubeChannels: settings.youtubeChannels || [] };
+        }
+        const literal = (((((((stage.$set?.youtubeChannelRoutes as { $let?: { in?: { $cond?: unknown[] } } })?.$let)?.in)?.$cond)?.[2]) as { $concatArrays?: unknown[] })?.$concatArrays)?.[1] as Array<{ channelId: string; discordChannelIds: string[] }> | undefined;
+        const newRoute = literal?.[0];
+        const currentRoutes = (settings as { youtubeChannelRoutes?: Array<{ channelId: string; discordChannelIds: string[] }> }).youtubeChannelRoutes || [];
+        const routes = currentRoutes.map(route => ({ ...route, discordChannelIds: [...(route.discordChannelIds || [])] }));
+        if (newRoute) {
+          const existingRoute = routes.find(route => route.channelId === newRoute.channelId);
+          const discordId = newRoute.discordChannelIds[0];
+          if (existingRoute) {
+            if (!existingRoute.discordChannelIds.includes(discordId) && existingRoute.discordChannelIds.length < 5) {
+              existingRoute.discordChannelIds.push(discordId);
+            }
+          } else {
+            routes.push(newRoute);
+          }
+        }
+        return { youtubeChannelRoutes: routes };
       }
     },
     getGuildSettings: async () => settings,
-    invalidateGuildCache: () => undefined,
+    invalidateGuildCache: (guildId: string) => { invalidated.push(guildId); },
     resolveYouTubeChannel: async () => ({
       channelId: "UC1234567890123456789012",
       channelName: "Canal Test",
@@ -79,7 +112,7 @@ function createHarness(settingsOverrides: object = {}, preparedCount = 3, outbox
       thumbnail: ""
     }],
     seedSeenVideos: async (_guildId, _channelId, videos) => { seeded.push(videos.map(video => video.videoId)); },
-    removeSeenChannel: async (_guildId, channelId) => { removed.push(channelId); },
+    removeSeenChannel: overrides.removeSeenChannel || (async (_guildId, channelId) => { removed.push(channelId); }),
     clearYouTubeErrors: async () => { cleared++; },
     prepareManualYouTubeVideos: async (_guild, selectedChannelId, force = false) => {
       manualShows.push(selectedChannelId);
@@ -99,11 +132,12 @@ function createHarness(settingsOverrides: object = {}, preparedCount = 3, outbox
       manualClaimed.push(batch.claimed);
       return { videos: batch.items.length, batches: 1, destinations: 1 };
     },
-    checkChannelPermissions: async () => ({
+    checkChannelPermissions: overrides.checkChannelPermissions || (async () => ({
+      viewChannel: true,
       sendMessages: true,
       embedLinks: true,
       readMessageHistory: true
-    }),
+    })),
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { replies.push(payload); return {}; },
     formatUserError: (_error, fallback) => fallback,
@@ -117,6 +151,7 @@ function createHarness(settingsOverrides: object = {}, preparedCount = 3, outbox
     writes,
     seeded,
     removed,
+    invalidated,
     manualShows,
     manualDeliveries,
     manualClaimed,
@@ -215,7 +250,7 @@ test("/youtube errors, permissions si clear-errors expun mentenanta modulului", 
   await harness.handler.handleYouTubeInteraction(makeInteraction({ subcommand: "permissions" }));
   await harness.handler.handleYouTubeInteraction(makeInteraction({ subcommand: "clear-errors" }));
   assert.match(JSON.stringify(harness.replies[0]), /feed indisponibil/);
-  assert.match(String(harness.replies[1]), /<#discord-1>: Send Messages ON/);
+  assert.match(String(harness.replies[1]), /<#discord-1>: View Channel ON \| Send Messages ON/);
   assert.equal(harness.getCleared(), 1);
 });
 
@@ -498,4 +533,51 @@ test("/youtube videos show fara videoclipuri recente nu programeaza nicio livrar
   assert.deepEqual(harness.manualShows, ["toate"], "pregatirea a fost apelata");
   assert.match(String(harness.replies[0]), /nu exista videoclipuri/, "raspunde ca nu sunt videoclipuri recente");
   assert.deepEqual(harness.manualDeliveries, [], "nu se programeaza nicio livrare in fundal");
+});
+
+test("/youtube subscribe salveaza atomic si refuza la limita atinsa concurent (R[Medium] #1)", async () => {
+  const ok = createHarness({ youtubeChannels: [] });
+  await ok.handler.handleYouTubeInteraction(makeInteraction({ subcommand: "subscribe", strings: { canal: "https://www.youtube.com/@x" } }));
+  assert.ok(Array.isArray(ok.writes[0].update), "subscribe salveaza printr-un aggregation pipeline atomic, nu $push neprotejat");
+
+  const full = createHarness({ youtubeChannels: [] }, 3, false, 0, {
+    findOneAndUpdate: async () => ({ youtubeChannels: Array.from({ length: 25 }, (_unused, index) => ({ channelId: `UC${index}` })) })
+  });
+  await full.handler.handleYouTubeInteraction(makeInteraction({ subcommand: "subscribe", strings: { canal: "https://www.youtube.com/@x" } }));
+  assert.match(String(full.replies.at(-1)), /limita/, "daca o comanda concurenta a umplut limita, subscribe raspunde eroare in loc sa adauge peste");
+});
+
+test("/youtube channel-route add refuza fanout-ul atins concurent (atomic) (R[Medium] #2)", async () => {
+  const youtubeChannelId = "UC1234567890123456789012";
+  const baseChannel = { channelId: youtubeChannelId, channelName: "Canal Test", channelUrl: `https://www.youtube.com/channel/${youtubeChannelId}`, subscribedAt: new Date() };
+  const harness = createHarness({
+    youtubeChannels: [baseChannel],
+    youtubeChannelRoutes: [{ channelId: youtubeChannelId, discordChannelIds: ["100", "200", "300", "400"] }]
+  }, 3, false, 0, {
+    findOneAndUpdate: async () => ({ youtubeChannelRoutes: [{ channelId: youtubeChannelId, discordChannelIds: ["100", "200", "300", "400", "500"] }] })
+  });
+  await harness.handler.handleYouTubeInteraction(makeInteraction({ group: "add", subcommand: "channel-route", strings: { canal: youtubeChannelId }, channelId: "999999999999999999" }));
+  assert.ok(Array.isArray(harness.writes[0].update), "ruta se adauga printr-un pipeline atomic");
+  assert.match(String(harness.replies.at(-1)), /limita/, "daca o comanda concurenta a umplut fanout-ul, raspunde eroare in loc sa depaseasca");
+});
+
+test("/youtube notify channel blocheaza configurarea fara View Channel (R[Medium] #3)", async () => {
+  const harness = createHarness({}, 3, false, 0, {
+    checkChannelPermissions: async () => ({ viewChannel: false, sendMessages: true, embedLinks: true, readMessageHistory: true })
+  });
+  await harness.handler.handleYouTubeInteraction(makeInteraction({ group: "notify", subcommand: "channel", channelId: "111111111111111111" }));
+  assert.equal(harness.writes.length, 0, "fara View Channel nu se salveaza canalul");
+  assert.match(String(harness.replies.at(-1)), /View Channel/, "mesajul listeaza permisiunea lipsa View Channel");
+});
+
+test("/youtube unsubscribe invalideaza cache-ul chiar daca curatarea seen esueaza (R[Low] #4)", async () => {
+  const youtubeChannelId = "UC1234567890123456789012";
+  const harness = createHarness({
+    youtubeChannels: [{ channelId: youtubeChannelId, channelName: "Canal Test", channelUrl: `https://www.youtube.com/channel/${youtubeChannelId}`, subscribedAt: new Date() }]
+  }, 3, false, 0, {
+    removeSeenChannel: async () => { throw new Error("colectia seen indisponibila"); }
+  });
+  await harness.handler.handleYouTubeInteraction(makeInteraction({ subcommand: "unsubscribe", strings: { canal: youtubeChannelId } }));
+  assert.deepEqual(harness.invalidated, ["guild-1"], "cache-ul a fost invalidat imediat dupa update-ul principal, inainte de cleanup-ul seen care a esuat");
+  assert.match(String(harness.replies.at(-1)), /nu mai este urmarit/, "abonarea a fost scoasa, cleanup-ul seen e best-effort");
 });

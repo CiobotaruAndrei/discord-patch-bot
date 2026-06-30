@@ -64,6 +64,7 @@ type PermissionAwareInteraction = {
 };
 
 interface ChannelPermissions {
+  viewChannel: boolean;
   sendMessages: boolean;
   embedLinks: boolean;
   readMessageHistory: boolean;
@@ -94,6 +95,7 @@ async function checkChannelPermissions(interaction: PermissionAwareInteraction, 
   const perms = await resolvePermissionsFor(interaction, channelId);
   if (!perms) return null;
   return {
+    viewChannel: perms.has(PermissionsBitField.Flags.ViewChannel),
     sendMessages: perms.has(PermissionsBitField.Flags.SendMessages),
     embedLinks: perms.has(PermissionsBitField.Flags.EmbedLinks),
     readMessageHistory: perms.has(PermissionsBitField.Flags.ReadMessageHistory)
