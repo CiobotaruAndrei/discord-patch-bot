@@ -233,16 +233,16 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
         }
       } catch (err: unknown) {
         cleanupFailed = true;
-        logger("WARN", "OUTBOX_COMMAND", `replay-deadletters: curatarea dupa re-enqueue a esuat pentru guild ${guildId} (risc de duplicat la o noua rulare)`, errorMessage(err));
+        logger("WARN", "OUTBOX_COMMAND", `replay-deadletters: curatarea dupa re-enqueue a esuat pentru guild ${guildId} (re-rularea NU re-trimite — dedupe pe dedupeKey; raman intrari dead-letter de curatat)`, errorMessage(err));
       }
       invalidateGuildCache(guildId);
     }
     if (failed) {
-      const cleanupNote = cleanupFailed ? " (ATENTIE: curatarea a esuat — risc de duplicat la o noua rulare)" : " (curatate din dead-letter)";
+      const cleanupNote = cleanupFailed ? " (curatarea dead-letter a esuat, dar o re-rulare NU re-trimite — dedupe pe outbox; ruleaza clear-deadletters ca sa cureti intrarile ramase)" : " (curatate din dead-letter)";
       return `Replay partial: ${replayedIds.length} livrare(i) reintroduse in coada outbox${cleanupNote}; restul au esuat si raman in dead-letter — reincearca dupa ce verifici cauza.`;
     }
     if (cleanupFailed) {
-      return `Atentie: ${replayedIds.length} livrare(i) reintroduse in coada outbox, dar curatarea din dead-letter a esuat — la o noua rulare s-ar putea re-trimite (duplicat). Verifica si reincearca clear-deadletters.`;
+      return `Atentie: ${replayedIds.length} livrare(i) reintroduse in coada outbox, dar curatarea din dead-letter a esuat. O re-rulare NU le re-trimite (dedupe pe dedupeKey: index unique pe outbox + colectia Sent); ruleaza \`/outbox clear-deadletters\` ca sa cureti intrarile dead-letter ramase.`;
     }
     const moreHint = docs.length >= REPLAY_PER_RUN_LIMIT ? ` (s-a atins limita de ${REPLAY_PER_RUN_LIMIT} per rulare — pot exista mai multe; ruleaza din nou)` : "";
     return `OK: ${replayedIds.length} livrare(i) dead-letter reintroduse in coada outbox pentru re-trimitere${moreHint}.`;

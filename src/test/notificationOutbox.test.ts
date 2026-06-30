@@ -5,7 +5,7 @@ type OutboxRuntimeDeps = Parameters<typeof createOutboxRuntime>[0];
 type OutboxModelMock = OutboxRuntimeDeps["NotificationOutboxModel"];
 type OutboxSentModelMock = OutboxRuntimeDeps["NotificationOutboxSentModel"];
 
-function makeFakeModel(jobs: OutboxJob[], initialSent: string[] = []) {
+function makeFakeModel(jobs: OutboxJob[], initialSent: string[] = [], enforceUniqueDedupe = false) {
   const created: Record<string, unknown>[] = [];
   const deleted: unknown[] = [];
   const updated: Array<{ filter: unknown; update: unknown }> = [];
@@ -13,7 +13,13 @@ function makeFakeModel(jobs: OutboxJob[], initialSent: string[] = []) {
   const sentKeys = new Set<string>(initialSent);
   const pending = [...jobs];
   const model: OutboxModelMock = {
-    create: async (doc: Record<string, unknown>) => { created.push(doc); return doc; },
+    create: async (doc: Record<string, unknown>) => {
+      if (enforceUniqueDedupe && doc.dedupeKey && created.some(existing => existing.dedupeKey === doc.dedupeKey)) {
+        throw Object.assign(new Error("E11000 duplicate key error"), { code: 11000 });
+      }
+      created.push(doc);
+      return doc;
+    },
     findOneAndUpdate: async (filter: unknown, update: unknown) => {
       claims.push({ filter, update });
       return pending.shift() ?? null;
@@ -36,8 +42,8 @@ function makeFakeModel(jobs: OutboxJob[], initialSent: string[] = []) {
   return { model, sentModel, created, deleted, updated, claims, sentKeys };
 }
 
-function makeRuntime(jobs: OutboxJob[], initialSent: string[] = []) {
-  const fake = makeFakeModel(jobs, initialSent);
+function makeRuntime(jobs: OutboxJob[], initialSent: string[] = [], enforceUniqueDedupe = false) {
+  const fake = makeFakeModel(jobs, initialSent, enforceUniqueDedupe);
   const runtime = createOutboxRuntime({
     NotificationOutboxModel: fake.model,
     NotificationOutboxSentModel: fake.sentModel,
@@ -77,6 +83,14 @@ test("enqueueOutbox: nu re-enqueue daca dedupeKey a fost livrat recent (idempote
   const { runtime, created } = makeRuntime([], [dedupeKey]);
   await runtime.enqueueOutbox({ guildId: "g1", channelId: "c1", kind: "update", payload: { x: 1 } });
   assert.equal(created.length, 0, "acelasi continut deja livrat -> nu se mai creeaza job");
+});
+
+test("enqueueOutbox: indexul unique pe dedupeKey previne duplicatul in-flight la re-enqueue (replay idempotent, R #5)", async () => {
+  const { runtime, created } = makeRuntime([], [], true);
+  const job = { guildId: "g1", channelId: "c1", kind: "update" as const, payload: { x: 1 } };
+  await runtime.enqueueOutbox(job);
+  await runtime.enqueueOutbox(job);
+  assert.equal(created.length, 1, "al doilea enqueue cu acelasi continut, cat primul e inca in coada (nelivrat), e respins de indexul unique (11000) -> niciun duplicat, replay-ul e idempotent");
 });
 
 test("drainOutbox: claim atomic prin lease (lockedUntil/lockedBy) inainte de livrare", async () => {
