@@ -28,6 +28,7 @@ type DiscordInteraction = {
   commandName?: string;
   guild?: DiscordGuild | null;
   user?: { id?: string } | null;
+  globalAccessCodeAuthorized?: boolean;
   deferred?: boolean;
   replied?: boolean;
   options: {
@@ -68,10 +69,18 @@ type AdminCommandAccessDeps = {
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
   logger: Logger;
   MessageFlags: { Ephemeral: number };
+  adminAlert?: (kind: string, title: string, body: string, guildId?: string) => Promise<unknown>;
 };
 
 type AdminCommandAccessContext = AdminCommandAccessDeps & {
   handleInteraction?: (interaction: DiscordInteraction, games: CommandGame[]) => Promise<unknown> | unknown;
+};
+
+const adminCommandRouterGuard = require("../command-security/adminCommandRouterGuard") as {
+  promptGlobalAccessCode(
+    target: Pick<AdminCommandAccessDeps, "GuildModel"> & Pick<AdminCommandAccessDeps, "adminAlert">,
+    interaction: DiscordInteraction
+  ): Promise<DiscordInteraction | null>;
 };
 
 function hasLean(result: GuildFindQuery | Promise<GuildAdminAccessDoc | null>): result is GuildFindQuery {
@@ -104,7 +113,7 @@ function labelMode(mode: string | null | undefined): string {
 
 function formatCurrentAccess(access: GuildAdminAccessDoc["adminCommandAccess"]): string {
   if (!access?.roleId || !access.mode) {
-    return "Acces admin: implicit. Pana ownerul seteaza o regula de rol, comenzile admin raman disponibile pentru utilizatorii cu `Administrator` sau cu acces temporar activat prin cod.";
+    return "Acces admin: implicit. Pana ownerul seteaza o regula de rol, comenzile admin raman disponibile prin `Administrator` sau codul global de acces.";
   }
   const updatedAt = access.updatedAt ? `\nActualizat la: ${String(access.updatedAt)}` : "";
   const updatedBy = access.updatedBy ? `\nActualizat de: <@${access.updatedBy}>` : "";
@@ -121,10 +130,13 @@ function normalizeMode(value: string | null): AdminAccessMode | null {
 function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
   const { GuildModel, invalidateGuildCache, safeDefer, safeEdit, logger } = deps;
 
-  async function requireOwner(interaction: DiscordInteraction): Promise<boolean> {
-    if (await isGuildOwner(interaction)) return true;
-    await safeEdit(interaction, { content: "Access denied. Doar ownerul serverului poate modifica regulile de acces admin.", flags: deps.MessageFlags.Ephemeral });
-    return false;
+  async function authorizeOwner(interaction: DiscordInteraction): Promise<DiscordInteraction | null> {
+    if (await isGuildOwner(interaction)) return interaction;
+    if (interaction.globalAccessCodeAuthorized === true) return interaction;
+    return adminCommandRouterGuard.promptGlobalAccessCode({
+      GuildModel,
+      adminAlert: deps.adminAlert
+    }, interaction);
   }
 
   async function handleSet(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
@@ -152,19 +164,20 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
     }
     await GuildModel.updateOne({ _id: guildId }, { $set: { adminCommandAccess: null } }, { upsert: true });
     invalidateGuildCache(guildId);
-    return safeEdit(interaction, "OK: regula de rol pentru comenzi admin a fost stearsa. Ramane accesul implicit: Administrator sau cod de acces activ.");
+    return safeEdit(interaction, "OK: regula de rol pentru comenzi admin a fost stearsa. Ramane accesul implicit: Administrator sau cod global de acces.");
   }
 
   async function handleAdminCommandAccess(interaction: DiscordInteraction): Promise<unknown> {
     const guildId = interaction.guild?.id;
     if (!guildId) return undefined;
-    await safeDefer(interaction, true);
-    if (!(await requireOwner(interaction))) return handledCommandError("owner-only-admin-command-access");
-    const subcommand = interaction.options.getSubcommand(false);
-    if (interaction.commandName === "set" && subcommand === "admin-command-access") return handleSet(interaction, guildId);
-    if (interaction.commandName === "delete" && subcommand === "admin-command-access") return handleDelete(interaction, guildId);
-    if (interaction.commandName === "admin-command-access" && subcommand === "list") return handleList(interaction, guildId);
-    return safeEdit(interaction, "Eroare: subcomanda de acces admin nu este recunoscuta.");
+    const authorizedInteraction = await authorizeOwner(interaction);
+    if (!authorizedInteraction) return handledCommandError("owner-only-admin-command-access");
+    await safeDefer(authorizedInteraction, true);
+    const subcommand = authorizedInteraction.options.getSubcommand(false);
+    if (authorizedInteraction.commandName === "set" && subcommand === "admin-command-access") return handleSet(authorizedInteraction, guildId);
+    if (authorizedInteraction.commandName === "delete" && subcommand === "admin-command-access") return handleDelete(authorizedInteraction, guildId);
+    if (authorizedInteraction.commandName === "admin-command-access" && subcommand === "list") return handleList(authorizedInteraction, guildId);
+    return safeEdit(authorizedInteraction, "Eroare: subcomanda de acces admin nu este recunoscuta.");
   }
 
   return { handleAdminCommandAccess };
@@ -174,7 +187,7 @@ function isAdminCommandAccessCommand(interaction: DiscordInteraction): boolean {
   if (interaction?.isChatInputCommand?.() !== true || !interaction.guild) return false;
   if (interaction.commandName === "admin-command-access") return true;
   if (interaction.commandName === "set") return interaction.options.getSubcommand(false) === "admin-command-access";
-  if (interaction.commandName === "delete") return true;
+  if (interaction.commandName === "delete") return interaction.options.getSubcommand(false) === "admin-command-access";
   return false;
 }
 

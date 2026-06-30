@@ -86,12 +86,6 @@ export interface AdminCommandAccessConfig {
   updatedAt: Date;
 }
 
-export interface AdminAccessCodeGrant {
-  userId: string;
-  grantedAt: Date;
-  expiresAt: Date;
-}
-
 export interface GuildDoc {
   _id: string;
   subscribed?: boolean;
@@ -170,7 +164,6 @@ export interface GuildDoc {
   watchlistGameSuggestions?: WatchlistGameSuggestionEntry[];
   futureReleaseGames?: FutureReleaseGameEntry[];
   adminCommandAccess?: AdminCommandAccessConfig | null;
-  adminAccessCodeGrants?: AdminAccessCodeGrant[];
   futureReleaseSubscribed?: boolean;
   futureReleaseChannelId?: string | null;
   futureReleaseInitializing?: boolean;

@@ -21,7 +21,6 @@ const handlers: Record<string, BuiltHandler> = {
   sources: build("sourcesStatusHandler"),
   config: build("configInteractionHandler"),
   guildConfigAdmin: build("guildConfigurationAdminHandler"),
-  adminAccessCode: build("adminAccessCodeHandler"),
   adminCommandAccess: build("adminCommandAccessHandler"),
   priceAlert: build("priceAlertInteractionHandler"),
   backup: build("backupInteractionHandler"),
@@ -99,7 +98,6 @@ const expectedOwnerByCommand: Record<string, string> = {
   config: "config",
   "reset-config": "guildConfigAdmin",
   "admin-alerts": "guildConfigAdmin",
-  "admin-access": "adminAccessCode",
   "admin-command-access": "adminCommandAccess",
   delete: "adminCommandAccess",
   "price-alert": "priceAlert",
@@ -148,7 +146,7 @@ test("routing: fiecare slash command top-level e revendicat de exact un handler 
     const expectedOwner = expectedOwnerByCommand[command];
     assert.ok(expectedOwner, `comanda /${command} are un handler asteptat in tabel (familie noua = adauga maparea + buildCommandHandler)`);
 
-    const subcommand = command === "sources" ? "status" : "x";
+    const subcommand = command === "sources" ? "status" : command === "delete" ? "admin-command-access" : "x";
     const claimants = soleClaimant(chatInput(command, null, subcommand));
     assert.deepEqual(claimants, [expectedOwner], `/${command} e rutat exact catre handler-ul ${expectedOwner}, nimic altceva nu il revendica`);
   }
@@ -188,7 +186,7 @@ test("routing: un handler de comanda nu revendica comanda altui handler", () => 
 test("routing: toate familiile de comenzi din tabel au un handler care le revendica", () => {
   for (const [command, owner] of Object.entries(expectedOwnerByCommand)) {
     const group = command === "set" ? null : null;
-    const subcommand = command === "sources" ? "status" : "x";
+    const subcommand = command === "sources" ? "status" : command === "delete" ? "admin-command-access" : "x";
     assert.equal(handlers[owner].canHandle(chatInput(command, group, subcommand)), true, `${owner} revendica /${command}`);
   }
 });
