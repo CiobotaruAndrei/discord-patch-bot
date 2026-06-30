@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 
 type TestInteraction = {
   commandName: string;
-  guild: { id: string } | null;
+  guild: { id: string; roles?: { cache?: { has: (roleId: string) => boolean; get?: (roleId: string) => { position?: number } | undefined } } } | null;
   user?: { id: string };
   deferred: boolean;
   replied: boolean;
   isChatInputCommand: () => boolean;
   memberPermissions: { has: (permission?: unknown) => boolean };
-  member?: { roles?: { has?: (roleId: string) => boolean; cache?: { has: (roleId: string) => boolean } } | readonly string[] };
+  member?: { roles?: { has?: (roleId: string) => boolean; cache?: { has: (roleId: string) => boolean }; highest?: { position?: number } } | readonly string[] };
   options?: {
     getSubcommand?: (required?: boolean) => string;
     getSubcommandGroup?: (required?: boolean) => string | null;
@@ -23,6 +23,7 @@ type AdminGuardModule = ((interaction: TestInteraction) => Promise<boolean>) & {
   ADMIN_REQUIRED_MESSAGE: string;
   isGuildAdmin: (interaction: TestInteraction) => boolean;
   hasAllowedAdminRole: (interaction: TestInteraction) => boolean;
+  hasConfiguredAdminRole: (interaction: TestInteraction, config: { mode?: "role" | "role-or-higher" | null; roleId?: string | null } | null) => boolean;
 };
 
 type AdminCommandGuardModule = ((context: Record<string, unknown>) => void) & {
@@ -41,7 +42,7 @@ type AdminCommandGuardModule = ((context: Record<string, unknown>) => void) & {
 const requireGuildAdmin = require("../features/command-security/adminPermissionGuard") as AdminGuardModule;
 const adminCommandGuard = require("../features/command-security/adminCommandRouterGuard") as AdminCommandGuardModule;
 
-function makeInteraction(isAdmin: boolean, deferred = false) {
+function makeInteraction(isAdmin: boolean, deferred = false): { interaction: TestInteraction; replies: unknown[]; followUps: unknown[] } {
   const replies: unknown[] = [];
   const followUps: unknown[] = [];
   return {
@@ -74,73 +75,52 @@ test("admin guard accepts guild administrators without replying", async () => {
   assert.deepEqual(replies, []);
 });
 
-test("admin guard accepts configured admin role IDs without Discord Administrator", async () => {
+test("admin guard nu mai accepta BOT_ADMIN_ROLE_IDS ca regula implicita", async () => {
   const previous = process.env.BOT_ADMIN_ROLE_IDS;
   process.env.BOT_ADMIN_ROLE_IDS = "role-allowed";
   try {
     const { interaction, replies } = makeInteraction(false);
     interaction.member = { roles: { has: (roleId: string) => roleId === "role-allowed" } };
 
-    assert.equal(requireGuildAdmin.hasAllowedAdminRole(interaction), true);
-    assert.equal(await requireGuildAdmin(interaction), true);
-    assert.deepEqual(replies, []);
+    assert.equal(requireGuildAdmin.hasAllowedAdminRole(interaction), false);
+    assert.equal(await requireGuildAdmin(interaction), false);
+    assert.deepEqual(replies, [{ content: requireGuildAdmin.ADMIN_REQUIRED_MESSAGE, flags: 64 }]);
   } finally {
     if (previous === undefined) delete process.env.BOT_ADMIN_ROLE_IDS;
     else process.env.BOT_ADMIN_ROLE_IDS = previous;
   }
 });
 
-test("admin guard accepts admin role IDs cand member.roles e un array brut de ID-uri (interactiune necache-uita) (R[Medium] #2)", async () => {
-  const previous = process.env.BOT_ADMIN_ROLE_IDS;
-  process.env.BOT_ADMIN_ROLE_IDS = "role-allowed";
-  try {
-    const replies: unknown[] = [];
-    const interaction: TestInteraction = {
-      commandName: "set",
-      guild: { id: "guild-1" },
-      user: { id: "user-1" },
-      deferred: false,
-      replied: false,
-      isChatInputCommand: () => true,
-      memberPermissions: { has: () => false },
-      member: { roles: ["role-other", "role-allowed"] },
-      options: { getSubcommand: () => "", getSubcommandGroup: () => null },
-      reply: async (payload: unknown) => { replies.push(payload); },
-      followUp: async () => {}
-    };
+test("admin guard accepts configured exact admin role without Discord Administrator", () => {
+  const { interaction } = makeInteraction(false);
+  interaction.member = { roles: { has: (roleId: string) => roleId === "role-allowed" } };
 
-    assert.equal(requireGuildAdmin.hasAllowedAdminRole(interaction), true, "rolul permis e gasit chiar daca roles e un array de ID-uri, nu un manager cu .has/.cache");
-    assert.equal(await requireGuildAdmin(interaction), true);
-    assert.deepEqual(replies, [], "admin prin rol-array => fara refuz");
-  } finally {
-    if (previous === undefined) delete process.env.BOT_ADMIN_ROLE_IDS;
-    else process.env.BOT_ADMIN_ROLE_IDS = previous;
-  }
+  assert.equal(requireGuildAdmin.hasConfiguredAdminRole(interaction, { mode: "role", roleId: "role-allowed" }), true);
 });
 
-test("admin guard respinge cand member.roles e array fara rolul permis (nu accepta orbeste orice array) (R[Medium] #2)", async () => {
-  const previous = process.env.BOT_ADMIN_ROLE_IDS;
-  process.env.BOT_ADMIN_ROLE_IDS = "role-allowed";
-  try {
-    const interaction: TestInteraction = {
-      commandName: "set",
-      guild: { id: "guild-1" },
-      user: { id: "user-1" },
-      deferred: false,
-      replied: false,
-      isChatInputCommand: () => true,
-      memberPermissions: { has: () => false },
-      member: { roles: ["role-x", "role-y"] },
-      options: { getSubcommand: () => "", getSubcommandGroup: () => null },
-      reply: async () => {},
-      followUp: async () => {}
-    };
+test("admin guard accepts configured role IDs cand member.roles e un array brut de ID-uri (interactiune necache-uita) (R[Medium] #2)", () => {
+  const { interaction } = makeInteraction(false);
+  interaction.member = { roles: ["role-other", "role-allowed"] };
 
-    assert.equal(requireGuildAdmin.hasAllowedAdminRole(interaction), false, "array fara rolul permis => nu acorda admin");
-  } finally {
-    if (previous === undefined) delete process.env.BOT_ADMIN_ROLE_IDS;
-    else process.env.BOT_ADMIN_ROLE_IDS = previous;
-  }
+  assert.equal(requireGuildAdmin.hasConfiguredAdminRole(interaction, { mode: "role", roleId: "role-allowed" }), true);
+});
+
+test("admin guard respinge cand member.roles e array fara rolul configurat (nu accepta orbeste orice array) (R[Medium] #2)", () => {
+  const { interaction } = makeInteraction(false);
+  interaction.member = { roles: ["role-x", "role-y"] };
+
+  assert.equal(requireGuildAdmin.hasConfiguredAdminRole(interaction, { mode: "role", roleId: "role-allowed" }), false);
+});
+
+test("admin guard accepts configured role-or-higher by Discord role position", () => {
+  const { interaction } = makeInteraction(false);
+  interaction.guild = {
+    id: "guild-1",
+    roles: { cache: { has: () => false, get: (roleId: string) => roleId === "role-required" ? { position: 5 } : undefined } }
+  };
+  interaction.member = { roles: { has: () => false, highest: { position: 7 } } };
+
+  assert.equal(requireGuildAdmin.hasConfiguredAdminRole(interaction, { mode: "role-or-higher", roleId: "role-required" }), true);
 });
 
 test("admin guard rejects non-admins with an ephemeral reply", async () => {
@@ -252,7 +232,7 @@ test("toate comenzile administrative sunt protejate runtime, iar comenzile publi
   for (const cmd of [
     "start", "stop", "set", "outbox", "health", "config", "reset-config",
     "admin-alerts", "price-alert", "sources", "watchlist", "snooze", "unsnooze",
-    "backup", "bot-log", "server-log", "future-release", "maintenance"
+    "backup", "bot-log", "server-log", "future-release", "maintenance", "admin-command-access", "delete"
   ]) {
     const { interaction } = makeInteraction(false);
     interaction.commandName = cmd;
@@ -273,12 +253,12 @@ test("comenzile verb /add si /remove sunt protejate runtime, exceptie /add sugge
   for (const [cmd, sub] of adminCases) {
     const { interaction } = makeInteraction(false);
     interaction.commandName = cmd;
-    interaction.options.getSubcommand = () => sub;
+    interaction.options!.getSubcommand = () => sub;
     assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), true, `/${cmd} ${sub} trece prin guard-ul de admin runtime`);
   }
   const { interaction: pub } = makeInteraction(false);
   pub.commandName = "add";
-  pub.options.getSubcommand = () => "suggestion";
+  pub.options!.getSubcommand = () => "suggestion";
   assert.equal(adminCommandGuard.isAdminProtectedCommand(pub), false, "/add suggestion ramane public (oricine poate propune o comanda)");
 });
 

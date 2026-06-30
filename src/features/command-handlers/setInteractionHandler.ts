@@ -202,7 +202,7 @@ function createSetInteractionHandler(deps: SetInteractionDeps) {
     if (!interaction.guild) return undefined;
     const guildId = interaction.guild.id;
     const sub = interaction.options.getSubcommand();
-    await safeDefer(interaction);
+    await safeDefer(interaction, true);
 
     const plan = buildSetUpdatePlan(sub, interaction, SUPPORTED_CURRENCIES);
 
@@ -240,7 +240,8 @@ function isDirectSetCommand(interaction: DiscordInteraction): boolean {
   if (!interaction.guild) return false;
   if (interaction.commandName !== "set") return false;
   const group = interaction.options?.getSubcommandGroup?.(false);
-  return group !== "games" && group !== "role";
+  const subcommand = interaction.options?.getSubcommand?.();
+  return group !== "games" && group !== "role" && subcommand !== "admin-command-access";
 }
 
 function buildSetCommandHandler(target: SetContext) {

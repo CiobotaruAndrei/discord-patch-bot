@@ -28,25 +28,28 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
-| `/start updates` | Admin | Porneste notificarile automate de update-uri in canalul curent. Verifica permisiunile canalului, salveaza canalul in setarile serverului si face baseline initial ca sa nu trimita update-uri vechi. |
-| `/start reduceri` | Admin | Porneste alertele automate de reduceri in canalul curent. Verifica permisiunile canalului, salveaza canalul si face baseline initial pentru ofertele deja vazute. |
-| `/start dlc` | Admin | Configureaza canalul curent pentru notificarile DLC ale jocurilor active. Verifica permisiunile canalului si salveaza starea necesara pentru motorul DLC cand acesta ruleaza in runtime. |
-| `/stop updates` | Admin | Opreste notificarile automate de update-uri pentru server si curata coada/starea aferenta. |
-| `/stop reduceri` | Admin | Opreste alertele automate de reduceri pentru server si curata coada/starea aferenta. |
-| `/stop dlc` | Admin | Opreste notificarile DLC si sterge canalul salvat pentru acest modul. |
+| `/start updates` | Admin, Ephemeral | Porneste notificarile automate de update-uri in canalul curent. Verifica permisiunile canalului, salveaza canalul in setarile serverului si face baseline initial ca sa nu trimita update-uri vechi. |
+| `/start reduceri` | Admin, Ephemeral | Porneste alertele automate de reduceri in canalul curent. Verifica permisiunile canalului, salveaza canalul si face baseline initial pentru ofertele deja vazute. |
+| `/start dlc` | Admin, Ephemeral | Configureaza canalul curent pentru notificarile DLC ale jocurilor active. Verifica permisiunile canalului si salveaza starea necesara pentru motorul DLC cand acesta ruleaza in runtime. |
+| `/stop updates` | Admin, Ephemeral | Opreste notificarile automate de update-uri pentru server si curata coada/starea aferenta. |
+| `/stop reduceri` | Admin, Ephemeral | Opreste alertele automate de reduceri pentru server si curata coada/starea aferenta. |
+| `/stop dlc` | Admin, Ephemeral | Opreste notificarile DLC si sterge canalul salvat pentru acest modul. |
 
 ## Setari server
 
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
-| `/set mode value:<compact|detailed>` | Admin | Alege modul de afisare al embed-urilor. `compact` afiseaza mai scurt, `detailed` include mai multe detalii. |
-| `/set mindiscount value:<0-100>` | Admin | Seteaza procentul minim de reducere acceptat pentru alertele de reduceri. Reseteaza coada de reduceri in asteptare. |
-| `/set maxprice value:<0-10000>` | Admin | Seteaza pretul maxim absolut pentru reduceri. Valoarea `0` dezactiveaza limita. Reseteaza coada de reduceri in asteptare. |
-| `/set free value:<on|off>` | Admin | Activeaza sau dezactiveaza afisarea jocurilor gratuite in alertele de reduceri. Reseteaza coada de reduceri in asteptare. |
-| `/set paid value:<on|off>` | Admin | Activeaza sau dezactiveaza afisarea ofertelor platite in alertele de reduceri. Reseteaza coada de reduceri in asteptare. |
-| `/set currency value:<currency>` | Admin | Seteaza valuta folosita pentru preturi si reduceri. Optiunile vin din registrul de valute suportate de bot. Reseteaza coada de reduceri in asteptare. |
-| `/set stores value:<steam,epic|reset>` | Admin | Filtreaza reducerile dupa magazinele permise. `reset` revine la filtrul implicit. Reseteaza coada de reduceri in asteptare. |
-| `/set outbox-recovery-verify value:<on|off>` | Admin | Activeaza sau dezactiveaza verificarea de recovery outbox pentru server. Cand este activata, botul avertizeaza daca ii lipseste `Read Message History` pe canalele configurate. |
+| `/set mode value:<compact|detailed>` | Admin, Ephemeral | Alege modul de afisare al embed-urilor. `compact` afiseaza mai scurt, `detailed` include mai multe detalii. |
+| `/set mindiscount value:<0-100>` | Admin, Ephemeral | Seteaza procentul minim de reducere acceptat pentru alertele de reduceri. Reseteaza coada de reduceri in asteptare. |
+| `/set maxprice value:<0-10000>` | Admin, Ephemeral | Seteaza pretul maxim absolut pentru reduceri. Valoarea `0` dezactiveaza limita. Reseteaza coada de reduceri in asteptare. |
+| `/set free value:<on|off>` | Admin, Ephemeral | Activeaza sau dezactiveaza afisarea jocurilor gratuite in alertele de reduceri. Reseteaza coada de reduceri in asteptare. |
+| `/set paid value:<on|off>` | Admin, Ephemeral | Activeaza sau dezactiveaza afisarea ofertelor platite in alertele de reduceri. Reseteaza coada de reduceri in asteptare. |
+| `/set currency value:<currency>` | Admin, Ephemeral | Seteaza valuta folosita pentru preturi si reduceri. Optiunile vin din registrul de valute suportate de bot. Reseteaza coada de reduceri in asteptare. |
+| `/set stores value:<steam,epic|reset>` | Admin, Ephemeral | Filtreaza reducerile dupa magazinele permise. `reset` revine la filtrul implicit. Reseteaza coada de reduceri in asteptare. |
+| `/set outbox-recovery-verify value:<on|off>` | Admin, Ephemeral | Activeaza sau dezactiveaza verificarea de recovery outbox pentru server. Cand este activata, botul avertizeaza daca ii lipseste `Read Message History` pe canalele configurate. |
+| `/set admin-command-access role:<rol> mode:<role|role-or-higher>` | Owner-only, Ephemeral | Seteaza conditia de rol pentru folosirea comenzilor admin. `role` accepta doar rolul ales, iar `role-or-higher` accepta rolul ales sau un rol mai mare in ierarhia Discord. Pana ownerul seteaza aceasta regula, rolurile nu dau acces admin; ramane doar `Administrator`. |
+| `/admin-command-access list` | Owner-only, Ephemeral | Afiseaza regula curenta de acces prin rol pentru comenzile admin. Daca nu exista regula, confirma explicit ca serverul foloseste accesul implicit. |
+| `/delete admin-command-access confirm:true` | Owner-only, Ephemeral | Sterge regula de rol pentru comenzile admin si revine la accesul implicit: doar `Administrator`. |
 | `/config` | Admin, Ephemeral | Afiseaza setarile curente ale serverului intr-un singur embed: mod, reducere minima, pret maxim, filtre free/paid, valuta, magazine, jocuri active, roluri de ping, canale pentru update-uri/reduceri/YouTube/future-release/DLC, canalul administrativ, alertele de pret, propunerile salvate si numarul canalelor YouTube urmarite. |
 | `/reset-config confirm:true` | Admin, Ephemeral | Reseteaza toate setarile botului pentru server: abonari, canale, roluri, filtre, watchlist, snooze-uri, alerte de pret, configurarea YouTube si canalul administrativ. Confirmarea trebuie sa fie explicit `true`. Goleste lista dead-letter vizibila si payload-urile de replay din colectia separata (ca sa nu ramana orfane); istoricul rapoartelor si al notificarilor deja livrate nu este sters. |
 
@@ -69,6 +72,8 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 | `/price-alert list` | Admin, Ephemeral | Afiseaza fiecare alerta, pragul, valuta, ultimul pret observat si daca alerta este armata sau deja declansata. |
 | `/price-check joc:<name>` | Public, Autocomplete | Cauta pretul jocului pe Steam si il compara cu ofertele similare din sursele externe de reduceri deja folosite de bot. Embed-ul are culoarea verde pentru pretul Steam; celelalte randuri arata magazinele externe gasite sau explica lipsa unei potriviri. |
 | `/deal-score game:<name>` | Public, Autocomplete | Calculeaza un scor 1-10 pentru oferta activa a jocului, folosind reducerea, pretul curent, semnalele de calitate/popularitate si magazinul. In lipsa unui istoric complet de pret, scorul este un indicator operational, nu o garantie ca oferta este minim istoric. |
+| `/best deals under buget:<numar> currency:<valuta> numar:<1-10>` | Public | Cauta cele mai bune reduceri sub bugetul ales in toate sursele de deals active, nu doar in watchlist-ul serverului. Sorteaza rezultatele dupa reducere, pret, calitate si popularitate. |
+| `/ending deals currency:<valuta> numar:<1-10>` | Public | Afiseaza ofertele cu termen de expirare detectat si le sorteaza dupa cat de aproape este expirarea. Daca sursele nu expun termen clar, comanda spune explicit asta. |
 
 O alerta declansata nu este retrimisa la fiecare ciclu. Ea ramane marcata ca declansata cat timp pretul este sub prag si se rearmeaza automat cand pretul urca din nou peste prag. Claim-ul este atomic in Mongo, astfel incat doua instante ale botului nu pot trimite aceeasi alerta simultan.
 
@@ -107,7 +112,7 @@ Canalul administrativ primeste alerte operationale cu severitate, cauza, explica
 | `/future-release start` | Admin, Ephemeral | Configureaza canalul curent pentru notificarile future-release si marcheaza modulul activ pentru server. Verifica permisiunile de postare embed inainte sa salveze canalul. |
 | `/future-release stop` | Admin, Ephemeral | Opreste notificarile future-release si sterge canalul salvat pentru modul. |
 
-Comenzile admin accepta doua cai de autorizare: permisiunea Discord `Administrator` sau un rol al carui ID este listat in `BOT_ADMIN_ROLE_IDS`. Pentru comenzile sensibile, daca `BOT_SENSITIVE_USER_IDS` este setat, userul trebuie sa fie si in acea lista privata de user ID-uri. ID-urile sunt folosite direct, nu numele rolurilor sau userilor.
+Comenzile admin accepta implicit doar permisiunea Discord `Administrator`. Ownerul serverului poate extinde accesul cu `/set admin-command-access`, alegand un rol exact sau regula rol/sau-mai-mare; pana atunci rolurile nu dau acces admin. Pentru comenzile sensibile, daca `BOT_SENSITIVE_USER_IDS` este setat, userul trebuie sa fie si in acea lista privata de user ID-uri. ID-urile sunt folosite direct, nu numele rolurilor sau userilor.
 
 ## Monitorizare YouTube
 
@@ -149,20 +154,20 @@ Pentru configurarea initiala: ruleaza `/youtube notify channel`, adauga unul sau
 
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
-| `/set add games joc:<key>` | Admin, Autocomplete | Adauga un joc in lista explicita de jocuri active pentru server. |
-| `/set remove games joc:<key>` | Admin, Autocomplete | Scoate un joc din lista explicita de jocuri active pentru server. |
-| `/set games reset` | Admin | Reseteaza filtrul de jocuri. Dupa reset, toate jocurile configurate sunt active. |
-| `/watchlist show` | Admin | Afiseaza jocurile urmarite explicit. Daca lista este goala, serverul foloseste toate jocurile configurate. |
-| `/add watchlist joc:<key>` | Admin, Autocomplete | Adauga un joc in watchlist-ul serverului. |
-| `/remove watchlist joc:<key>` | Admin, Autocomplete | Scoate un joc din watchlist-ul serverului. |
-| `/watchlist reset` | Admin | Reseteaza watchlist-ul. Dupa reset, toate jocurile configurate sunt active. |
+| `/set add games joc:<key>` | Admin, Autocomplete, Ephemeral | Adauga un joc in lista explicita de jocuri active pentru server. |
+| `/set remove games joc:<key>` | Admin, Autocomplete, Ephemeral | Scoate un joc din lista explicita de jocuri active pentru server. |
+| `/set games reset` | Admin, Ephemeral | Reseteaza filtrul de jocuri. Dupa reset, toate jocurile configurate sunt active. |
+| `/watchlist show` | Admin, Ephemeral | Afiseaza jocurile urmarite explicit. Daca lista este goala, serverul foloseste toate jocurile configurate. |
+| `/add watchlist joc:<key>` | Admin, Autocomplete, Ephemeral | Adauga un joc in watchlist-ul serverului. |
+| `/remove watchlist joc:<key>` | Admin, Autocomplete, Ephemeral | Scoate un joc din watchlist-ul serverului. |
+| `/watchlist reset` | Admin, Ephemeral | Reseteaza watchlist-ul. Dupa reset, toate jocurile configurate sunt active. |
 
 ## Roluri ping pentru notificari
 
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
-| `/set role updates value:<role>` | Admin | Seteaza rolul mentionat la notificarile de update-uri. Daca rolul lipseste, opreste ping-ul pentru update-uri. |
-| `/set role discounts value:<role>` | Admin | Seteaza rolul mentionat la notificarile de reduceri. Daca rolul lipseste, opreste ping-ul pentru reduceri. |
+| `/set role updates value:<role>` | Admin, Ephemeral | Seteaza rolul mentionat la notificarile de update-uri. Daca rolul lipseste, opreste ping-ul pentru update-uri. |
+| `/set role discounts value:<role>` | Admin, Ephemeral | Seteaza rolul mentionat la notificarile de reduceri. Daca rolul lipseste, opreste ping-ul pentru reduceri. |
 
 ## Operare outbox
 
@@ -181,16 +186,16 @@ Concepte utile pentru admini:
 
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
-| `/outbox status` | Admin | Arata daca sistemul de livrare este pornit sau pus pe pauza, cate notificari asteapta in coada, cate livrari au ajuns in dead-letter si daca recovery-verify este activ. Este prima comanda de rulat cand notificarile nu mai apar sau par intarziate. |
-| `/outbox deadletters` | Admin | Listeaza ultimele livrari esuate pentru server. O folosesti ca sa vezi ce notificari nu au ajuns pe canal si motivul aproximativ: canal lipsa, permisiuni lipsa, mesaj imposibil de trimis, job expirat sau alta eroare. |
-| `/outbox clear-deadletters` | Admin | Curata lista de livrari esuate dupa ce ai verificat cauza si nu mai ai nevoie de istoric. Nu repara problema si nu retrimite mesajele; doar sterge raportarea dead-letter pentru server. |
-| `/outbox replay-deadletters` | Admin | Reintroduce in coada livrarile esuate care inca au payload salvat si pot fi retrimise. Ruleaza asta dupa ce ai reparat cauza, de exemplu dupa ce ai dat botului permisiuni pe canal sau ai refacut canalul configurat. |
-| `/outbox retry` | Admin | Pune joburile existente ale serverului la incercare imediata. Este util cand problema a fost temporara, de exemplu Discord a raspuns greu sau botul a fost rate-limited, iar mesajele sunt inca in coada, nu in dead-letter. |
-| `/outbox drain-now` | Admin + operator | Porneste manual procesarea cozii acum, fara sa astepti urmatorul ciclu automat. Comanda ruleaza doar daca drenarea globala nu este pe pauza si nu exista deja un drain activ, ca sa evite trimiterea peste o interventie de mentenanta sau dublarea mesajelor. Daca outbox-ul este pe pauza, foloseste intai `/outbox resume`. **Operatie globala: pe langa Administrator, apelantul trebuie sa fie operator al botului (`NOTIFICATION_OUTBOX_GLOBAL_ADMIN_IDS`); lista goala => indisponibila.** |
-| `/outbox pause` | Admin + operator | Opreste temporar procesarea globala a cozii. Joburile pot ramane/aduna in coada, dar botul nu le mai trimite pana la resume. Este util la mentenanta, probleme de permisiuni sau risc de spam. **Operatie globala (afecteaza toate serverele): permisa doar operatorilor botului din `NOTIFICATION_OUTBOX_GLOBAL_ADMIN_IDS`, nu oricarui admin de guild; lista goala => indisponibila.** |
-| `/outbox resume` | Admin + operator | Reporneste procesarea globala a cozii dupa o pauza. Dupa resume, botul poate continua sa trimita joburile care asteptau. **Aceeasi restrictie de operator global ca `pause`/`drain-now`.** |
-| `/outbox permissions` | Admin | Verifica daca botul are permisiunile necesare pe toate canalele de notificari configurate (update-uri, reduceri, YouTube + rutele speciale, DLC, future-release): View Channel, Send Messages, Embed Links si, unde e cazul, Read Message History pentru recovery-verify. |
-| `/outbox recovery-verify status` | Admin | Arata daca verificarea suplimentara de recovery este activa pentru server si/sau global. Daca este activa, botul are nevoie de permisiunea `Read Message History` pe canal ca sa poata confirma livrarile dupa recovery. |
+| `/outbox status` | Admin, Ephemeral | Arata daca sistemul de livrare este pornit sau pus pe pauza, cate notificari asteapta in coada, cate livrari au ajuns in dead-letter si daca recovery-verify este activ. Este prima comanda de rulat cand notificarile nu mai apar sau par intarziate. |
+| `/outbox deadletters` | Admin, Ephemeral | Listeaza ultimele livrari esuate pentru server. O folosesti ca sa vezi ce notificari nu au ajuns pe canal si motivul aproximativ: canal lipsa, permisiuni lipsa, mesaj imposibil de trimis, job expirat sau alta eroare. |
+| `/outbox clear-deadletters` | Admin, Ephemeral | Curata lista de livrari esuate dupa ce ai verificat cauza si nu mai ai nevoie de istoric. Nu repara problema si nu retrimite mesajele; doar sterge raportarea dead-letter pentru server. |
+| `/outbox replay-deadletters` | Admin, Ephemeral | Reintroduce in coada livrarile esuate care inca au payload salvat si pot fi retrimise. Ruleaza asta dupa ce ai reparat cauza, de exemplu dupa ce ai dat botului permisiuni pe canal sau ai refacut canalul configurat. |
+| `/outbox retry` | Admin, Ephemeral | Pune joburile existente ale serverului la incercare imediata. Este util cand problema a fost temporara, de exemplu Discord a raspuns greu sau botul a fost rate-limited, iar mesajele sunt inca in coada, nu in dead-letter. |
+| `/outbox drain-now` | Admin + operator, Ephemeral | Porneste manual procesarea cozii acum, fara sa astepti urmatorul ciclu automat. Comanda ruleaza doar daca drenarea globala nu este pe pauza si nu exista deja un drain activ, ca sa evite trimiterea peste o interventie de mentenanta sau dublarea mesajelor. Daca outbox-ul este pe pauza, foloseste intai `/outbox resume`. **Operatie globala: pe langa Administrator, apelantul trebuie sa fie operator al botului (`NOTIFICATION_OUTBOX_GLOBAL_ADMIN_IDS`); lista goala => indisponibila.** |
+| `/outbox pause` | Admin + operator, Ephemeral | Opreste temporar procesarea globala a cozii. Joburile pot ramane/aduna in coada, dar botul nu le mai trimite pana la resume. Este util la mentenanta, probleme de permisiuni sau risc de spam. **Operatie globala (afecteaza toate serverele): permisa doar operatorilor botului din `NOTIFICATION_OUTBOX_GLOBAL_ADMIN_IDS`, nu oricarui admin de guild; lista goala => indisponibila.** |
+| `/outbox resume` | Admin + operator, Ephemeral | Reporneste procesarea globala a cozii dupa o pauza. Dupa resume, botul poate continua sa trimita joburile care asteptau. **Aceeasi restrictie de operator global ca `pause`/`drain-now`.** |
+| `/outbox permissions` | Admin, Ephemeral | Verifica daca botul are permisiunile necesare pe toate canalele de notificari configurate (update-uri, reduceri, YouTube + rutele speciale, DLC, future-release): View Channel, Send Messages, Embed Links si, unde e cazul, Read Message History pentru recovery-verify. |
+| `/outbox recovery-verify status` | Admin, Ephemeral | Arata daca verificarea suplimentara de recovery este activa pentru server si/sau global. Daca este activa, botul are nevoie de permisiunea `Read Message History` pe canal ca sa poata confirma livrarile dupa recovery. |
 
 ## Update-uri, reduceri si cautari manuale
 
@@ -202,6 +207,12 @@ Concepte utile pentru admini:
 | `/latest pret joc:<name>` | Public, Autocomplete | Cauta pretul curent al unui joc pe Steam in valuta serverului si afiseaza detaliile de pret intr-un embed. |
 | `/dlc joc:<name>` | Public, Autocomplete | Cauta DLC-urile disponibile pentru un joc pe Steam si le afiseaza paginat. |
 | `/status joc:<name/key>` | Public, Autocomplete | Verifica statusul/serverele pentru jocul cerut si intoarce un embed de stare. |
+| `/review-trend game game:<name>` | Public, Autocomplete | Afiseaza semnalul curent al review-urilor Steam pentru joc: procent pozitiv, numar de review-uri si interpretare operationala. Trend istoric real cere stocare pe timp si este semnalat ca limitare cand lipseste. |
+| `/crossplay game game:<name>` | Public, Autocomplete | Verifica metadatele Steam pentru semnale de crossplay si cross-save. Cand Steam nu confirma informatia, raspunsul spune explicit ca nu este detectata in sursa curenta. |
+| `/platforms game game:<name>` | Public, Autocomplete | Afiseaza platformele Steam detectate si magazinele externe gasite in sursele de reduceri pentru jocul cautat. |
+| `/co-op game game:<name>` | Public, Autocomplete | Afiseaza modurile detectate in Steam pentru joc: single-player, online co-op, local/split-screen co-op, PvP sau MMO. |
+| `/system requirements game game:<name>` | Public, Autocomplete | Afiseaza cerintele minime si recomandate returnate de Steam pentru joc. |
+| `/game-size game game:<name>` | Public, Autocomplete | Extrage dimensiunea aproximativa de instalare din cerintele de sistem Steam, cand informatia este disponibila. |
 | `/sources status` | Admin, Ephemeral | Afiseaza starea ultimelor snapshot-uri persistate pentru sursele externe: Steam/Epic, feed-urile de update pe joc, erori recente si varsta ultimei verificari cunoscute. Nu face fetch live; arata ce stie botul din ultima rulare salvata. |
 
 ## Istoric, raportare si sanatate

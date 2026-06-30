@@ -131,6 +131,13 @@ const futureReleaseGameSchema = new mongoose.Schema({
   preorderPrice: { type: String, default: "" }
 }, { _id: false });
 
+const adminCommandAccessSchema = new mongoose.Schema({
+  mode: { type: String, enum: ["role", "role-or-higher"], required: true },
+  roleId: { type: String, required: true },
+  updatedBy: { type: String, default: "" },
+  updatedAt: { type: Date, default: Date.now }
+}, { _id: false });
+
 const guildSchema = new mongoose.Schema({
   _id: String,
   subscribed: { type: Boolean, default: false },
@@ -193,6 +200,7 @@ const guildSchema = new mongoose.Schema({
   suggestedCommands: { type: [suggestedCommandSchema], default: [] },
   watchlistGameSuggestions: { type: [watchlistGameSuggestionSchema], default: [] },
   futureReleaseGames: { type: [futureReleaseGameSchema], default: [] },
+  adminCommandAccess: { type: adminCommandAccessSchema, default: null },
   futureReleaseSubscribed: { type: Boolean, default: false },
   futureReleaseChannelId: { type: String, default: null },
   futureReleaseInitializing: { type: Boolean, default: false },

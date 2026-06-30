@@ -28,6 +28,23 @@ export interface SteamAppDetailsSummary {
   name?: string;
   header_image?: string;
   is_free?: boolean;
+  platforms?: {
+    windows?: boolean;
+    mac?: boolean;
+    linux?: boolean;
+  };
+  categories?: Array<{
+    id?: number;
+    description?: string;
+  }>;
+  genres?: Array<{
+    id?: string;
+    description?: string;
+  }>;
+  pc_requirements?: {
+    minimum?: string;
+    recommended?: string;
+  } | string | readonly string[] | null;
   price_overview?: {
     initial: number;
     final: number;

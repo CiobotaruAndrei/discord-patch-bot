@@ -355,7 +355,7 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
     const guildId = interaction.guild.id;
     const group = interaction.options.getSubcommandGroup(false);
     const sub = interaction.options.getSubcommand();
-    await safeDefer(interaction);
+    await safeDefer(interaction, true);
 
     try {
       if (group === "recovery-verify" && sub === "status") {

@@ -78,7 +78,7 @@ function createRolePingInteractionHandlers(deps: RolePingInteractionDeps) {
     const guildId = interaction.guild?.id;
     if (!guildId) return undefined;
     const sub = interaction.options.getSubcommand();
-    await safeDefer(interaction);
+    await safeDefer(interaction, true);
     return handleSetRole(interaction, sub, guildId);
   }
 

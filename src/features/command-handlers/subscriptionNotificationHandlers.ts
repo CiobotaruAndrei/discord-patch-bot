@@ -75,7 +75,7 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
     const sub = interaction.options.getSubcommand();
     const guildId = interaction.guild?.id;
     if (!guildId) return undefined;
-    await safeDefer(interaction);
+    await safeDefer(interaction, true);
 
     const botId = interaction.client?.user?.id;
     if (!botId || !canSendEmbeds(interaction.channel, botId)) {
@@ -249,7 +249,7 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
     const sub = interaction.options.getSubcommand();
     const guildId = interaction.guild?.id;
     if (!guildId) return undefined;
-    await safeDefer(interaction);
+    await safeDefer(interaction, true);
     try {
       if (sub === "updates") {
         await GuildModel.updateOne({ _id: guildId }, {
