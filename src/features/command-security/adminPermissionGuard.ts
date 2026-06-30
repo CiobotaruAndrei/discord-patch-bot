@@ -51,11 +51,6 @@ type AdminCommandAccessConfig = {
   roleId?: string | null;
 };
 
-type AdminAccessCodeGrant = {
-  userId?: string | null;
-  expiresAt?: Date | string | null;
-};
-
 function parseIdList(value: string | undefined): string[] {
   return String(value || "").split(",").map(id => id.trim()).filter(Boolean);
 }
@@ -109,24 +104,6 @@ function hasConfiguredAdminRole(
   return requiredPosition !== null && memberPosition !== null && memberPosition >= requiredPosition;
 }
 
-function expiresAtMs(value: Date | string | null | undefined): number | null {
-  if (value instanceof Date) return value.getTime();
-  if (typeof value !== "string" || !value) return null;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function hasActiveAdminAccessCodeGrant(
-  interaction: Pick<AdminGuardInteraction, "user">,
-  grants: readonly AdminAccessCodeGrant[] | null | undefined,
-  now = new Date()
-): boolean {
-  const userId = interaction.user?.id || "";
-  if (!userId || !Array.isArray(grants)) return false;
-  const nowMs = now.getTime();
-  return grants.some(grant => grant?.userId === userId && (expiresAtMs(grant.expiresAt) ?? 0) > nowMs);
-}
-
 async function rejectNonAdmin(interaction: AdminGuardInteraction): Promise<void> {
   const payload = {
     content: ADMIN_REQUIRED_MESSAGE,
@@ -154,7 +131,6 @@ Object.assign(requireGuildAdmin, {
   isGuildAdmin,
   hasAllowedAdminRole,
   hasConfiguredAdminRole,
-  hasActiveAdminAccessCodeGrant,
   roleHas,
   parseIdList,
   rejectNonAdmin

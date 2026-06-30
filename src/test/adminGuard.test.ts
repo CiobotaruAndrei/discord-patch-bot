@@ -3,8 +3,14 @@ import assert from "node:assert/strict";
 
 type TestInteraction = {
   commandName: string;
-  guild: { id: string; roles?: { cache?: { has: (roleId: string) => boolean; get?: (roleId: string) => { position?: number } | undefined } } } | null;
+  guild: {
+    id: string;
+    ownerId?: string | null;
+    fetchOwner?: () => Promise<{ id?: string; user?: { id?: string } | null } | null>;
+    roles?: { cache?: { has: (roleId: string) => boolean; get?: (roleId: string) => { position?: number } | undefined } };
+  } | null;
   user?: { id: string };
+  globalAccessCodeAuthorized?: boolean;
   deferred: boolean;
   replied: boolean;
   isChatInputCommand: () => boolean;
@@ -16,19 +22,29 @@ type TestInteraction = {
   };
   reply: (payload: unknown) => Promise<void>;
   followUp: (payload: unknown) => Promise<void>;
+  deferReply?: (payload?: unknown) => Promise<void>;
+  editReply?: (payload: unknown) => Promise<void>;
+  showModal?: (modal: unknown) => Promise<void>;
+  awaitModalSubmit?: (options: { filter: (interaction: TestModalSubmit) => boolean; time: number }) => Promise<TestModalSubmit>;
 };
 type TestGame = { key: string };
+type TestModalSubmit = {
+  customId: string;
+  user: { id: string };
+  deferred: boolean;
+  replied: boolean;
+  fields: { getTextInputValue: (customId: string) => string };
+  reply: (payload: unknown) => Promise<void>;
+  followUp: (payload: unknown) => Promise<void>;
+  deferReply: (payload?: unknown) => Promise<void>;
+  editReply: (payload: unknown) => Promise<void>;
+};
 
 type AdminGuardModule = ((interaction: TestInteraction) => Promise<boolean>) & {
   ADMIN_REQUIRED_MESSAGE: string;
   isGuildAdmin: (interaction: TestInteraction) => boolean;
   hasAllowedAdminRole: (interaction: TestInteraction) => boolean;
   hasConfiguredAdminRole: (interaction: TestInteraction, config: { mode?: "role" | "role-or-higher" | null; roleId?: string | null } | null) => boolean;
-  hasActiveAdminAccessCodeGrant: (
-    interaction: TestInteraction,
-    grants: ReadonlyArray<{ userId?: string | null; expiresAt?: Date | string | null }> | null | undefined,
-    now?: Date
-  ) => boolean;
 };
 
 type AdminCommandGuardModule = ((context: Record<string, unknown>) => void) & {
@@ -42,10 +58,13 @@ type AdminCommandGuardModule = ((context: Record<string, unknown>) => void) & {
   isAdminProtectedCommand: (interaction: TestInteraction) => boolean;
   isSensitiveAdminCommand: (interaction: TestInteraction) => boolean;
   hasSensitiveUserAccess: (interaction: TestInteraction) => boolean;
+  isOwnerOnlyAdminAccessCommand: (interaction: TestInteraction) => boolean;
+  isGuildOwner: (interaction: TestInteraction) => Promise<boolean>;
 };
 
 const requireGuildAdmin = require("../features/command-security/adminPermissionGuard") as AdminGuardModule;
 const adminCommandGuard = require("../features/command-security/adminCommandRouterGuard") as AdminCommandGuardModule;
+const globalAccessCode = require("../features/command-security/globalAccessCode") as typeof import("../features/command-security/globalAccessCode");
 
 function makeInteraction(isAdmin: boolean, deferred = false): { interaction: TestInteraction; replies: unknown[]; followUps: unknown[] } {
   const replies: unknown[] = [];
@@ -115,19 +134,6 @@ test("admin guard respinge cand member.roles e array fara rolul configurat (nu a
   interaction.member = { roles: ["role-x", "role-y"] };
 
   assert.equal(requireGuildAdmin.hasConfiguredAdminRole(interaction, { mode: "role", roleId: "role-allowed" }), false);
-});
-
-test("admin guard accepts active admin access-code grants without Discord Administrator", () => {
-  const now = new Date("2026-06-30T10:00:00.000Z");
-  const { interaction } = makeInteraction(false);
-
-  assert.equal(requireGuildAdmin.hasActiveAdminAccessCodeGrant(interaction, [
-    { userId: "other-user", expiresAt: "2026-06-30T10:30:00.000Z" },
-    { userId: "user-1", expiresAt: "2026-06-30T10:30:00.000Z" }
-  ], now), true);
-  assert.equal(requireGuildAdmin.hasActiveAdminAccessCodeGrant(interaction, [
-    { userId: "user-1", expiresAt: "2026-06-30T09:59:00.000Z" }
-  ], now), false);
 });
 
 test("admin guard accepts configured role-or-higher by Discord role position", () => {
@@ -210,9 +216,157 @@ test("admin command guard delegates protected commands for admins", async () => 
   assert.equal(result, "cs2");
 });
 
-test("admin command guard delegates protected commands for active access-code grants", async () => {
+function modalCustomId(modal: unknown): string {
+  const json = (modal as { toJSON?: () => { custom_id?: string } }).toJSON?.();
+  return String(json?.custom_id || "");
+}
+
+function attachAccessCodeModal(interaction: TestInteraction, code: string, modalReplies: unknown[], modalEdits: unknown[]): void {
+  let customId = "";
+  interaction.showModal = async modal => { customId = modalCustomId(modal); };
+  interaction.awaitModalSubmit = async options => {
+    const submit: TestModalSubmit = {
+      customId,
+      user: { id: interaction.user?.id || "" },
+      deferred: false,
+      replied: false,
+      fields: { getTextInputValue: () => code },
+      reply: async payload => { submit.replied = true; modalReplies.push(payload); },
+      followUp: async payload => { modalReplies.push(payload); },
+      deferReply: async () => { submit.deferred = true; },
+      editReply: async payload => { modalEdits.push(payload); }
+    };
+    assert.equal(options.filter(submit), true);
+    return submit;
+  };
+}
+
+test("global access code hash verifica secretul fara text simplu", () => {
+  const hash = globalAccessCode.sha256Hex("test-access-code-123");
+
+  assert.equal(globalAccessCode.verifyGlobalAccessCode("test-access-code-123", { BOT_GLOBAL_ACCESS_CODE_HASH: hash }), "valid");
+  assert.equal(globalAccessCode.verifyGlobalAccessCode("gresit", { BOT_GLOBAL_ACCESS_CODE_HASH: hash }), "invalid");
+  assert.equal(globalAccessCode.verifyGlobalAccessCode("test-access-code-123", { BOT_GLOBAL_ACCESS_CODE_HASH: "change_me" }), "not-configured");
+});
+
+test("admin command guard delegates protected commands dupa codul global corect introdus in modal", async () => {
+  const previousHash = process.env.BOT_GLOBAL_ACCESS_CODE_HASH;
+  const previousPlain = process.env.BOT_GLOBAL_ACCESS_CODE;
+  process.env.BOT_GLOBAL_ACCESS_CODE_HASH = globalAccessCode.sha256Hex("test-access-code-123");
+  delete process.env.BOT_GLOBAL_ACCESS_CODE;
+  try {
+    const { interaction } = makeInteraction(false);
+    interaction.commandName = "config";
+    const modalReplies: unknown[] = [];
+    const modalEdits: unknown[] = [];
+    attachAccessCodeModal(interaction, "test-access-code-123", modalReplies, modalEdits);
+    const delegated: Array<boolean | undefined> = [];
+    const target: Record<string, unknown> & {
+      handleInteraction: (handledInteraction: TestInteraction, games: TestGame[]) => Promise<unknown>;
+    } = {
+      GuildModel: {
+        db: { readyState: 1 },
+        findOne: () => ({ lean: async () => ({ adminCommandAccess: null }) }),
+        updateOne: async () => ({ modifiedCount: 1 })
+      },
+      adminAlert: async () => undefined,
+      handleInteraction: async handledInteraction => {
+        delegated.push(handledInteraction.globalAccessCodeAuthorized);
+        await handledInteraction.editReply?.({ content: "config ok" });
+        return "delegated";
+      }
+    };
+
+    adminCommandGuard(target);
+    const result = await target.handleInteraction(interaction, []);
+
+    assert.equal(result, "delegated");
+    assert.deepEqual(delegated, [true]);
+    assert.deepEqual(modalReplies, [{ content: "Access granted.", flags: 64 }]);
+    assert.deepEqual(modalEdits, [{ content: "config ok" }]);
+  } finally {
+    if (previousHash === undefined) delete process.env.BOT_GLOBAL_ACCESS_CODE_HASH;
+    else process.env.BOT_GLOBAL_ACCESS_CODE_HASH = previousHash;
+    if (previousPlain === undefined) delete process.env.BOT_GLOBAL_ACCESS_CODE;
+    else process.env.BOT_GLOBAL_ACCESS_CODE = previousPlain;
+  }
+});
+
+test("admin command guard lasa ownerul serverului sa configureze accesul admin fara Administrator sau cod global", async () => {
+  const { interaction } = makeInteraction(false);
+  interaction.commandName = "set";
+  interaction.guild = { id: "guild-1", ownerId: "user-1" };
+  interaction.options = {
+    getSubcommand: () => "admin-command-access",
+    getSubcommandGroup: () => null
+  };
+  const delegated: string[] = [];
+  const target: Record<string, unknown> & {
+    handleInteraction: (handledInteraction: TestInteraction, games: TestGame[]) => Promise<unknown>;
+  } = {
+    GuildModel: {
+      db: { readyState: 1 },
+      findOne: () => ({ lean: async () => ({ adminCommandAccess: null }) }),
+      updateOne: async () => ({ modifiedCount: 1 })
+    },
+    handleInteraction: async handledInteraction => {
+      delegated.push(handledInteraction.commandName);
+      return "delegated";
+    }
+  };
+
+  assert.equal(adminCommandGuard.isOwnerOnlyAdminAccessCommand(interaction), true);
+  assert.equal(await adminCommandGuard.isGuildOwner(interaction), true);
+  adminCommandGuard(target);
+  const result = await target.handleInteraction(interaction, []);
+
+  assert.equal(result, "delegated");
+  assert.deepEqual(delegated, ["set"]);
+});
+
+test("admin command guard refuza codul global gresit si alerteaza dupa incercari repetate", async () => {
+  const previousHash = process.env.BOT_GLOBAL_ACCESS_CODE_HASH;
+  const previousPlain = process.env.BOT_GLOBAL_ACCESS_CODE;
+  process.env.BOT_GLOBAL_ACCESS_CODE_HASH = globalAccessCode.sha256Hex("test-access-code-123");
+  delete process.env.BOT_GLOBAL_ACCESS_CODE;
+  try {
+    const alerts: string[] = [];
+    const delegated: string[] = [];
+    const target: Record<string, unknown> & {
+      handleInteraction: (handledInteraction: TestInteraction, games: TestGame[]) => Promise<unknown>;
+    } = {
+      GuildModel: {
+        db: { readyState: 1 },
+        findOne: () => ({ lean: async () => ({ adminCommandAccess: null }) }),
+        updateOne: async () => ({ modifiedCount: 1 })
+      },
+      adminAlert: async (kind: string) => { alerts.push(String(kind)); },
+      handleInteraction: async handledInteraction => { delegated.push(handledInteraction.commandName); return "delegated"; }
+    };
+    adminCommandGuard(target);
+
+    for (let i = 0; i < 5; i += 1) {
+      const { interaction } = makeInteraction(false);
+      interaction.commandName = "config";
+      interaction.user = { id: "bad-code-user" };
+      attachAccessCodeModal(interaction, "gresit", [], []);
+      await target.handleInteraction(interaction, []);
+    }
+
+    assert.deepEqual(delegated, []);
+    assert.deepEqual(alerts, ["security:access-code"]);
+  } finally {
+    if (previousHash === undefined) delete process.env.BOT_GLOBAL_ACCESS_CODE_HASH;
+    else process.env.BOT_GLOBAL_ACCESS_CODE_HASH = previousHash;
+    if (previousPlain === undefined) delete process.env.BOT_GLOBAL_ACCESS_CODE;
+    else process.env.BOT_GLOBAL_ACCESS_CODE = previousPlain;
+  }
+});
+
+test("admin command guard delegates protected commands for configured role access", async () => {
   const { interaction } = makeInteraction(false);
   interaction.commandName = "config";
+  interaction.member = { roles: { has: (roleId: string) => roleId === "role-allowed" } };
   const delegated: string[] = [];
   const target: Record<string, unknown> & {
     handleInteraction: (handledInteraction: TestInteraction, games: TestGame[]) => Promise<unknown>;
@@ -221,7 +375,7 @@ test("admin command guard delegates protected commands for active access-code gr
       db: { readyState: 1 },
       findOne: () => ({
         lean: async () => ({
-          adminAccessCodeGrants: [{ userId: "user-1", expiresAt: new Date(Date.now() + 60_000) }]
+          adminCommandAccess: { mode: "role", roleId: "role-allowed" }
         })
       }),
       updateOne: async () => ({ modifiedCount: 1 })
@@ -285,7 +439,7 @@ test("toate comenzile administrative sunt protejate runtime, iar comenzile publi
     interaction.commandName = cmd;
     assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), true, `/${cmd} trebuie sa treaca prin guard-ul de admin runtime`);
   }
-  for (const cmd of ["ping", "games", "help", "admin-access", "report", "history", "latest", "price-check", "deal-score", "suggest-command", "watchlist-game"]) {
+  for (const cmd of ["ping", "games", "help", "report", "history", "latest", "price-check", "deal-score", "suggest-command", "watchlist-game"]) {
     const { interaction } = makeInteraction(false);
     interaction.commandName = cmd;
     assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), false, `/${cmd} ramane public (fara guard de admin)`);

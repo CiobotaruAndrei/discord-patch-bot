@@ -138,12 +138,6 @@ const adminCommandAccessSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 }, { _id: false });
 
-const adminAccessCodeGrantSchema = new mongoose.Schema({
-  userId: { type: String, required: true },
-  grantedAt: { type: Date, default: Date.now },
-  expiresAt: { type: Date, required: true }
-}, { _id: false });
-
 const guildSchema = new mongoose.Schema({
   _id: String,
   subscribed: { type: Boolean, default: false },
@@ -207,7 +201,6 @@ const guildSchema = new mongoose.Schema({
   watchlistGameSuggestions: { type: [watchlistGameSuggestionSchema], default: [] },
   futureReleaseGames: { type: [futureReleaseGameSchema], default: [] },
   adminCommandAccess: { type: adminCommandAccessSchema, default: null },
-  adminAccessCodeGrants: { type: [adminAccessCodeGrantSchema], default: [] },
   futureReleaseSubscribed: { type: Boolean, default: false },
   futureReleaseChannelId: { type: String, default: null },
   futureReleaseInitializing: { type: Boolean, default: false },

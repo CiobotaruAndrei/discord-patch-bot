@@ -134,13 +134,6 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
         .addSubcommand(subcommand => subcommand.setName("list").setDescription("Afiseaza regula curenta pentru acces admin prin rol")),
       new SlashCommandBuilder()
-        .setName("admin-access")
-        .setDescription("Activeaza temporar accesul admin prin cod")
-        .addSubcommand(subcommand => subcommand.setName("unlock").setDescription("Activeaza temporar accesul admin pentru userul tau")
-          .addStringOption(option => option.setName("code").setDescription("Codul de acces primit de la owner/operator").setRequired(true).setMinLength(8).setMaxLength(128)))
-        .addSubcommand(subcommand => subcommand.setName("status").setDescription("Afiseaza daca userul tau are acces admin prin cod activ"))
-        .addSubcommand(subcommand => subcommand.setName("revoke").setDescription("Revoca accesul admin prin cod pentru userul tau")),
-      new SlashCommandBuilder()
         .setName("price-alert")
         .setDescription("Gestioneaza alertele de pret pentru jocuri (admin)")
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
@@ -434,8 +427,6 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
     ].map(command => command.toJSON())
       .map(definition => definition.default_member_permissions === PermissionsBitField.Flags.Administrator.toString()
         ? { ...definition, dm_permission: false }
-        : definition.name === "admin-access"
-          ? { ...definition, dm_permission: false }
         : definition);
   }
 

@@ -81,7 +81,6 @@ import attachReportInteractionHandler = require("../command-handlers/reportInter
 import attachHealthInteractionHandler = require("../command-handlers/healthInteractionHandler");
 import attachConfigInteractionHandler = require("../command-handlers/configInteractionHandler");
 import attachGuildConfigurationAdminHandler = require("../command-handlers/guildConfigurationAdminHandler");
-import attachAdminAccessCodeHandler = require("../command-handlers/adminAccessCodeHandler");
 import attachAdminCommandAccessHandler = require("../command-handlers/adminCommandAccessHandler");
 import attachPriceAlertInteractionHandler = require("../command-handlers/priceAlertInteractionHandler");
 import attachBackupInteractionHandler = require("../command-handlers/backupInteractionHandler");
@@ -147,7 +146,6 @@ function createCommandRegistry(
     attachSourcesStatusHandler.buildCommandHandler(ctx),
     attachConfigInteractionHandler.buildCommandHandler(ctx),
     attachGuildConfigurationAdminHandler.buildCommandHandler(ctx),
-    attachAdminAccessCodeHandler.buildCommandHandler(ctx),
     attachAdminCommandAccessHandler.buildCommandHandler(ctx),
     attachPriceAlertInteractionHandler.buildCommandHandler(ctx),
     attachBackupInteractionHandler.buildCommandHandler(ctx),

@@ -91,13 +91,12 @@ test("comenzile administrative (inclusiv /health) cer Administrator; cele public
       assert.equal(dmByName.get(name), false, `/${name} (admin) trebuie sa fie indisponibil in DM (dm_permission=false) - invariant pentru orice comanda admin noua`);
     }
   }
-  for (const publicCmd of ["ping", "games", "help", "admin-access", "report", "price-check", "deal-score", "suggest-command", "watchlist-game"]) {
+  for (const publicCmd of ["ping", "games", "help", "report", "price-check", "deal-score", "suggest-command", "watchlist-game"]) {
     assert.ok(
       byName.get(publicCmd) === null || byName.get(publicCmd) === undefined,
       `/${publicCmd} trebuie sa ramana public (fara default_member_permissions)`
     );
   }
-  assert.equal(dmByName.get("admin-access"), false, "/admin-access ramane public, dar este indisponibil in DM fiindca grantul este per server");
 });
 
 test("registerSlashCommands defaults to global registration when DISCORD_DEV_GUILD_ID is unset", async () => {
