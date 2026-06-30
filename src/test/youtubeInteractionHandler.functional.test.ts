@@ -31,7 +31,7 @@ function makeInteraction(options: InteractionOptions): HandlerInteraction {
   };
 }
 
-type FindOneAndUpdateImpl = (filter: object, update: object, options?: object) => Promise<{ youtubeChannels?: Array<{ channelId: string }>; youtubeChannelRoutes?: Array<{ channelId: string; discordChannelIds: string[] }> } | null>;
+type FindOneAndUpdateImpl = (filter: object, update: object, options?: object) => Promise<{ youtubeChannels?: Array<{ channelId: string }>; youtubeChannelRoutes?: Array<{ channelId: string; discordChannelIds: string[] }>; youtubeTitleIncludeWords?: string[] } | null>;
 type HarnessOverrides = {
   findOneAndUpdate?: FindOneAndUpdateImpl;
   checkChannelPermissions?: () => Promise<{ viewChannel: boolean; sendMessages: boolean; embedLinks: boolean; readMessageHistory: boolean } | null>;
@@ -76,6 +76,14 @@ function createHarness(settingsOverrides: object = {}, preparedCount = 3, outbox
         const stage = (Array.isArray(update) ? update[0] : {}) as { $set?: Record<string, unknown> };
         if (stage.$set && "youtubeChannels" in stage.$set) {
           return { youtubeChannels: settings.youtubeChannels || [] };
+        }
+        if (stage.$set && "youtubeTitleIncludeWords" in stage.$set) {
+          const word = (((((((stage.$set?.youtubeTitleIncludeWords as { $let?: { in?: { $cond?: unknown[] } } })?.$let)?.in)?.$cond)?.[2]) as { $concatArrays?: unknown[] })?.$concatArrays)?.[1] as string[] | undefined;
+          const current = (settings as { youtubeTitleIncludeWords?: string[] }).youtubeTitleIncludeWords || [];
+          const next = [...current];
+          const newWord = word?.[0];
+          if (newWord && !next.includes(newWord) && next.length < 10) next.push(newWord);
+          return { youtubeTitleIncludeWords: next };
         }
         const literal = (((((((stage.$set?.youtubeChannelRoutes as { $let?: { in?: { $cond?: unknown[] } } })?.$let)?.in)?.$cond)?.[2]) as { $concatArrays?: unknown[] })?.$concatArrays)?.[1] as Array<{ channelId: string; discordChannelIds: string[] }> | undefined;
         const newRoute = literal?.[0];
@@ -399,7 +407,9 @@ test("/youtube title-filter gestioneaza lista inclusiva fara duplicate", async (
     subcommand: "title-filter",
     strings: { word: "Patch Notes" }
   }));
+  assert.ok(Array.isArray(harness.writes[0].update), "title-filter add salveaza printr-un pipeline atomic");
   assert.match(JSON.stringify(harness.writes[0].update), /patch notes/);
+  assert.match(String(harness.replies[0]), /a fost adaugat/);
 
   const listed = createHarness({ youtubeTitleIncludeWords: ["patch notes", "update"] });
   await listed.handler.handleYouTubeInteraction(makeInteraction({
@@ -408,6 +418,15 @@ test("/youtube title-filter gestioneaza lista inclusiva fara duplicate", async (
   }));
   assert.match(String(listed.replies[0]), /patch notes/);
   assert.match(String(listed.replies[0]), /update/);
+});
+
+test("/youtube add title-filter refuza la limita atinsa concurent (atomic) (R[Medium-Low] #3)", async () => {
+  const harness = createHarness({ youtubeTitleIncludeWords: ["a", "b", "c"] }, 3, false, 0, {
+    findOneAndUpdate: async () => ({ youtubeTitleIncludeWords: Array.from({ length: 10 }, (_unused, index) => `w${index}`) })
+  });
+  await harness.handler.handleYouTubeInteraction(makeInteraction({ group: "add", subcommand: "title-filter", strings: { word: "Patch Notes" } }));
+  assert.ok(Array.isArray(harness.writes[0].update), "title-filter add foloseste pipeline atomic");
+  assert.match(String(harness.replies.at(-1)), /comanda concurenta/, "daca o comanda concurenta a umplut limita, raspunde eroare in loc sa depaseasca");
 });
 
 test("/youtube videos show porneste afisarea manuala pentru toate canalele", async () => {

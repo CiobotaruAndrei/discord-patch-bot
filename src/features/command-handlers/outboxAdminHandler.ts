@@ -57,10 +57,13 @@ interface GuildSettingsLike {
   notificationChannelId?: string | null;
   discountChannelId?: string | null;
   youtubeNotificationChannelId?: string | null;
+  dlcChannelId?: string | null;
+  futureReleaseChannelId?: string | null;
   youtubeChannelRoutes?: Array<{ channelId?: string; discordChannelIds?: string[] }>;
 }
 
 interface ChannelPermissions {
+  viewChannel: boolean;
   sendMessages: boolean;
   embedLinks: boolean;
   readMessageHistory: boolean;
@@ -281,6 +284,8 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
       { label: "Update-uri", id: settings?.notificationChannelId },
       { label: "Reduceri", id: settings?.discountChannelId },
       { label: "YouTube", id: settings?.youtubeNotificationChannelId },
+      { label: "DLC", id: settings?.dlcChannelId },
+      { label: "Future-release", id: settings?.futureReleaseChannelId },
       ...Array.from(routeChannelIds).map(id => ({ label: "YouTube ruta", id }))
     ].filter((c): c is { label: string; id: string } => typeof c.id === "string" && c.id.length > 0);
     if (!channels.length) {
@@ -294,7 +299,7 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
         lines.push(`- ${channel.label} (<#${channel.id}>): necunoscut (canal inaccesibil sau sters?)`);
         continue;
       }
-      lines.push(`- ${channel.label} (<#${channel.id}>): Send Messages **${mark(perms.sendMessages)}** | Embed Links **${mark(perms.embedLinks)}** | Read Message History **${mark(perms.readMessageHistory)}**`);
+      lines.push(`- ${channel.label} (<#${channel.id}>): View Channel **${mark(perms.viewChannel)}** | Send Messages **${mark(perms.sendMessages)}** | Embed Links **${mark(perms.embedLinks)}** | Read Message History **${mark(perms.readMessageHistory)}**`);
       if (!perms.readMessageHistory) {
         lines.push("  :warning: fara Read Message History, recovery-verify nu poate citi istoricul canalului");
       }

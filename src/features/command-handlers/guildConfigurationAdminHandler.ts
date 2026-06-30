@@ -29,6 +29,7 @@ interface DiscordInteraction {
 }
 
 interface ChannelPermissions {
+  viewChannel: boolean;
   sendMessages: boolean;
   embedLinks: boolean;
   readMessageHistory: boolean;
@@ -160,6 +161,7 @@ function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps)
       return safeEdit(interaction, "Eroare: nu am putut verifica permisiunile botului pe canalul ales.");
     }
     const missing = [
+      !permissions.viewChannel ? "View Channel" : "",
       !permissions.sendMessages ? "Send Messages" : "",
       !permissions.embedLinks ? "Embed Links" : ""
     ].filter(Boolean);

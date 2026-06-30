@@ -76,7 +76,7 @@ O alerta declansata nu este retrimisa la fiecare ciclu. Ea ramane marcata ca dec
 
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
-| `/admin-alerts set channel:<canal>` | Admin, Ephemeral | Configureaza canalul pentru embed-uri administrative. Inainte de salvare verifica permisiunile `Send Messages` si `Embed Links`. |
+| `/admin-alerts set channel:<canal>` | Admin, Ephemeral | Configureaza canalul pentru embed-uri administrative. Inainte de salvare verifica permisiunile `View Channel`, `Send Messages` si `Embed Links`. |
 | `/admin-alerts off` | Admin, Ephemeral | Opreste alertele administrative Discord pentru server. Webhook-ul global, daca este configurat prin env, ramane independent. |
 | `/maintenance` | Admin, Ephemeral | Afiseaza intr-un singur raspuns zonele care trebuie verificate operational: erori YouTube/update-uri/reduceri, joburi in outbox, dead-letter, drenare pusa pe pauza, backup vechi, canale lipsa pentru module active si daca exista macar un modul de notificare pornit. |
 
@@ -189,7 +189,7 @@ Concepte utile pentru admini:
 | `/outbox drain-now` | Admin + operator | Porneste manual procesarea cozii acum, fara sa astepti urmatorul ciclu automat. Comanda ruleaza doar daca drenarea globala nu este pe pauza si nu exista deja un drain activ, ca sa evite trimiterea peste o interventie de mentenanta sau dublarea mesajelor. Daca outbox-ul este pe pauza, foloseste intai `/outbox resume`. **Operatie globala: pe langa Administrator, apelantul trebuie sa fie operator al botului (`NOTIFICATION_OUTBOX_GLOBAL_ADMIN_IDS`); lista goala => indisponibila.** |
 | `/outbox pause` | Admin + operator | Opreste temporar procesarea globala a cozii. Joburile pot ramane/aduna in coada, dar botul nu le mai trimite pana la resume. Este util la mentenanta, probleme de permisiuni sau risc de spam. **Operatie globala (afecteaza toate serverele): permisa doar operatorilor botului din `NOTIFICATION_OUTBOX_GLOBAL_ADMIN_IDS`, nu oricarui admin de guild; lista goala => indisponibila.** |
 | `/outbox resume` | Admin + operator | Reporneste procesarea globala a cozii dupa o pauza. Dupa resume, botul poate continua sa trimita joburile care asteptau. **Aceeasi restrictie de operator global ca `pause`/`drain-now`.** |
-| `/outbox permissions` | Admin | Verifica daca botul are permisiunile necesare pe canalele configurate pentru update-uri, reduceri si YouTube: sa vada canalul, sa trimita mesaje, sa trimita embed-uri si, unde e cazul, sa citeasca istoricul pentru recovery-verify. |
+| `/outbox permissions` | Admin | Verifica daca botul are permisiunile necesare pe toate canalele de notificari configurate (update-uri, reduceri, YouTube + rutele speciale, DLC, future-release): View Channel, Send Messages, Embed Links si, unde e cazul, Read Message History pentru recovery-verify. |
 | `/outbox recovery-verify status` | Admin | Arata daca verificarea suplimentara de recovery este activa pentru server si/sau global. Daca este activa, botul are nevoie de permisiunea `Read Message History` pe canal ca sa poata confirma livrarile dupa recovery. |
 
 ## Update-uri, reduceri si cautari manuale

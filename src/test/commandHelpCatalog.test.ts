@@ -155,6 +155,12 @@ test("command help catalog: descrierea /history mentioneaza si YouTube (def + ha
   assert.match(entry!.description, /youtube/i, "tip:youtube exista in slash definitions si in handler, deci help-ul trebuie sa-l mentioneze");
 });
 
+test("command help catalog: descrierea /youtube notify channel mentioneaza si View Channel (codul + docs o cer) (R[Low] #4)", () => {
+  const entry = COMMAND_HELP_ENTRIES.find(e => e.command === "/youtube notify channel");
+  assert.ok(entry, "exista un entry pentru /youtube notify channel");
+  assert.match(entry!.description, /View Channel/, "handler-ul blocheaza configurarea fara View Channel, deci help-ul trebuie sa o listeze");
+});
+
 test("command help catalog: descrierea /youtube permissions mentioneaza si rutele speciale, nu doar canalul principal (R12 #5, aliniere cu implementarea)", () => {
   const entry = COMMAND_HELP_ENTRIES.find(e => e.command === "/youtube permissions");
   assert.ok(entry, "exista un entry pentru /youtube permissions");

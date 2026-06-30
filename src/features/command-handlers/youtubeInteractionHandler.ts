@@ -65,7 +65,7 @@ interface ChannelPermissions {
 interface YouTubeInteractionDeps {
   GuildModel: {
     updateOne(filter: object, update: object, options?: object): Promise<MongoWriteResult>;
-    findOneAndUpdate(filter: object, update: object, options?: object): Promise<{ youtubeChannels?: Array<{ channelId: string }>; youtubeChannelRoutes?: Array<{ channelId: string; discordChannelIds: string[] }> } | null>;
+    findOneAndUpdate(filter: object, update: object, options?: object): Promise<{ youtubeChannels?: Array<{ channelId: string }>; youtubeChannelRoutes?: Array<{ channelId: string; discordChannelIds: string[] }>; youtubeTitleIncludeWords?: string[] } | null>;
   };
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
   invalidateGuildCache(guildId: string): void;
@@ -112,6 +112,28 @@ function buildYouTubeChannelUpsertPipeline(subscription: YouTubeChannelSubscript
               ] },
               "$$existing",
               { $concatArrays: ["$$existing", [subscription]] }
+            ]
+          }
+        }
+      }
+    }
+  }];
+}
+
+function buildYouTubeTitleWordAddPipeline(word: string, maxWords: number): Array<Record<string, unknown>> {
+  return [{
+    $set: {
+      youtubeTitleIncludeWords: {
+        $let: {
+          vars: { existing: { $ifNull: ["$youtubeTitleIncludeWords", []] } },
+          in: {
+            $cond: [
+              { $or: [
+                { $in: [word, "$$existing"] },
+                { $gte: [{ $size: "$$existing" }, maxWords] }
+              ] },
+              "$$existing",
+              { $concatArrays: ["$$existing", [word]] }
             ]
           }
         }
@@ -514,12 +536,15 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
         if (words.length >= YOUTUBE_TITLE_WORD_LIMIT && !words.includes(word)) {
           return safeEdit(interaction, `Eroare: filtrul poate avea cel mult ${YOUTUBE_TITLE_WORD_LIMIT} valori.`);
         }
-        await GuildModel.updateOne(
+        const updated = await GuildModel.findOneAndUpdate(
           { _id: guildId },
-          { $addToSet: { youtubeTitleIncludeWords: word } },
-          { upsert: true }
+          buildYouTubeTitleWordAddPipeline(word, YOUTUBE_TITLE_WORD_LIMIT),
+          { upsert: true, new: true }
         );
         invalidateGuildCache(guildId);
+        if (!(updated?.youtubeTitleIncludeWords || []).includes(word)) {
+          return safeEdit(interaction, `Eroare: filtrul poate avea cel mult ${YOUTUBE_TITLE_WORD_LIMIT} valori (o comanda concurenta a ocupat ultimul loc).`);
+        }
         return safeEdit(interaction, `OK: \`${word}\` a fost adaugat in filtrul inclusiv de titlu.`);
       }
       await GuildModel.updateOne(
