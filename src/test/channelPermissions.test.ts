@@ -8,7 +8,7 @@ process.env.METRICS_PUBLIC = process.env.METRICS_PUBLIC || "true";
 
 const { PermissionsBitField } = require("discord.js");
 const { checkChannelPermissions, checkReadMessageHistory } = require("../features/command-runtime/commandRuntimeContext") as {
-  checkChannelPermissions: (interaction: unknown, channelId: string) => Promise<{ sendMessages: boolean; embedLinks: boolean; readMessageHistory: boolean } | null>;
+  checkChannelPermissions: (interaction: unknown, channelId: string) => Promise<{ viewChannel: boolean; sendMessages: boolean; embedLinks: boolean; readMessageHistory: boolean } | null>;
   checkReadMessageHistory: (interaction: unknown, channelId: string) => Promise<boolean | null>;
 };
 
@@ -39,16 +39,22 @@ test("checkChannelPermissions: null (fail-closed) cand lipseste guild / membrul 
 test("checkChannelPermissions: canal din cache -> booleene corecte din permissionsFor(me)", async () => {
   const channel = { permissionsFor: (member: unknown) => (member === me ? permsGranting() : null) };
   const res = await checkChannelPermissions(interactionWith(channel), "c1");
-  assert.deepEqual(res, { sendMessages: true, embedLinks: true, readMessageHistory: true });
+  assert.deepEqual(res, { viewChannel: true, sendMessages: true, embedLinks: true, readMessageHistory: true });
 });
 
 test("checkChannelPermissions: fetch cand nu e in cache; fetch care arunca -> null (fail-closed)", async () => {
   const channel = { permissionsFor: () => permsGranting() };
   const viaFetch = await checkChannelPermissions(interactionWith(channel, { cached: false }), "c1");
-  assert.deepEqual(viaFetch, { sendMessages: true, embedLinks: true, readMessageHistory: true });
+  assert.deepEqual(viaFetch, { viewChannel: true, sendMessages: true, embedLinks: true, readMessageHistory: true });
 
   const thrown = await checkChannelPermissions(interactionWith(channel, { cached: false, fetchThrows: true }), "c1");
   assert.equal(thrown, null);
+});
+
+test("checkChannelPermissions: raporteaza viewChannel:false cand View Channel e refuzat (R[Medium] #3)", async () => {
+  const channel = { permissionsFor: () => permsGranting([PermissionsBitField.Flags.ViewChannel]) };
+  const res = await checkChannelPermissions(interactionWith(channel), "c1");
+  assert.deepEqual(res, { viewChannel: false, sendMessages: true, embedLinks: true, readMessageHistory: true });
 });
 
 test("checkChannelPermissions: canal fara permissionsFor -> null (fail-closed)", async () => {

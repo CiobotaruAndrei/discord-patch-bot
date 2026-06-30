@@ -257,7 +257,8 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-handlers/youtubeInteractionHandler.ts`
 
 - Gestioneaza toate subcomenzile `/youtube`.
-- Rezolva si salveaza canale YouTube publice, configureaza prima activare, canalul principal, rutele speciale, sablonul mesajului si filtrele de continut sau titlu.
+- Rezolva si salveaza canale YouTube publice, configureaza prima activare, canalul principal, rutele speciale, sablonul mesajului si filtrele de continut sau titlu. `subscribe` (limita 25 canale) si `channel-route add` (limita de fanout per canal) salveaza prin **pipeline-uri atomice** (`findOneAndUpdate` cu `$cond`) care refuza depasirea sub comenzi concurente. `unsubscribe` invalideaza cache-ul imediat dupa `$pull`, iar curatarea colectiei seen e best-effort.
+- Configurarea unui canal Discord (`notify channel`, `add channel-route`) cere `View Channel` + `Send Messages` + `Embed Links`; `permissions` afiseaza fiecare permisiune per canal.
 - Expune afisarea manuala a videoclipurilor din ultima luna; implicit revendica (claim) videoclipurile cu destinatie pe care le afiseaza, deci o a doua rulare nu le mai reposteaza (optiunea `repeta:true` forteaza repostarea, ignorand claim-ul).
 - Expune diagnoza prin `status`, `errors`, `permissions` si `clear-errors`; toate operatiile sunt protejate de admin guard si raspund ephemeral.
 

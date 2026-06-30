@@ -56,6 +56,7 @@ interface MongoWriteResult {
 }
 
 interface ChannelPermissions {
+  viewChannel: boolean;
   sendMessages: boolean;
   embedLinks: boolean;
   readMessageHistory: boolean;
@@ -64,6 +65,7 @@ interface ChannelPermissions {
 interface YouTubeInteractionDeps {
   GuildModel: {
     updateOne(filter: object, update: object, options?: object): Promise<MongoWriteResult>;
+    findOneAndUpdate(filter: object, update: object, options?: object): Promise<{ youtubeChannels?: Array<{ channelId: string }>; youtubeChannelRoutes?: Array<{ channelId: string; discordChannelIds: string[] }> } | null>;
   };
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
   invalidateGuildCache(guildId: string): void;
@@ -95,6 +97,67 @@ type YouTubeContext = YouTubeInteractionDeps & {
 
 const MAX_YOUTUBE_CHANNELS = 25;
 const YOUTUBE_MANUAL_IMMEDIATE_BATCH = 5;
+
+function buildYouTubeChannelUpsertPipeline(subscription: YouTubeChannelSubscription, maxChannels: number): Array<Record<string, unknown>> {
+  return [{
+    $set: {
+      youtubeChannels: {
+        $let: {
+          vars: { existing: { $ifNull: ["$youtubeChannels", []] } },
+          in: {
+            $cond: [
+              { $or: [
+                { $in: [subscription.channelId, { $map: { input: "$$existing", as: "channel", in: "$$channel.channelId" } }] },
+                { $gte: [{ $size: "$$existing" }, maxChannels] }
+              ] },
+              "$$existing",
+              { $concatArrays: ["$$existing", [subscription]] }
+            ]
+          }
+        }
+      }
+    }
+  }];
+}
+
+function buildYouTubeRouteAddPipeline(youtubeChannelId: string, discordChannelId: string, maxDestinations: number): Array<Record<string, unknown>> {
+  return [{
+    $set: {
+      youtubeChannelRoutes: {
+        $let: {
+          vars: { routes: { $ifNull: ["$youtubeChannelRoutes", []] } },
+          in: {
+            $cond: [
+              { $in: [youtubeChannelId, { $map: { input: "$$routes", as: "route", in: "$$route.channelId" } }] },
+              { $map: { input: "$$routes", as: "route", in: {
+                $cond: [
+                  { $eq: ["$$route.channelId", youtubeChannelId] },
+                  { $mergeObjects: ["$$route", { discordChannelIds: {
+                    $let: {
+                      vars: { ids: { $ifNull: ["$$route.discordChannelIds", []] } },
+                      in: {
+                        $cond: [
+                          { $or: [
+                            { $in: [discordChannelId, "$$ids"] },
+                            { $gte: [{ $size: "$$ids" }, maxDestinations] }
+                          ] },
+                          "$$ids",
+                          { $concatArrays: ["$$ids", [discordChannelId]] }
+                        ]
+                      }
+                    }
+                  } }] },
+                  "$$route"
+                ]
+              } } },
+              { $concatArrays: ["$$routes", [{ channelId: youtubeChannelId, discordChannelIds: [discordChannelId] }]] }
+            ]
+          }
+        }
+      }
+    }
+  }];
+}
 
 function defaultFilters(settings: GuildSettings | null): Required<YouTubeFilters> {
   return {
@@ -191,17 +254,18 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
       lastVideoId: videos[0]?.videoId || "",
       lastError: { message: "", channelId: null, at: null }
     };
-    const result = await GuildModel.updateOne(
-      {
-        _id: guildId,
-        "youtubeChannels.channelId": { $ne: resolved.channelId }
-      },
-      { $push: { youtubeChannels: subscription } },
+    const before = await GuildModel.findOneAndUpdate(
+      { _id: guildId },
+      buildYouTubeChannelUpsertPipeline(subscription, MAX_YOUTUBE_CHANNELS),
       { upsert: true }
     );
     invalidateGuildCache(guildId);
-    if ((result.modifiedCount ?? 0) === 0 && (result.matchedCount ?? 0) > 0) {
+    const existingChannels = before?.youtubeChannels || [];
+    if (existingChannels.some(item => item.channelId === resolved.channelId)) {
       return safeEdit(interaction, `Info: **${resolved.channelName}** este deja urmarit.`);
+    }
+    if (existingChannels.length >= MAX_YOUTUBE_CHANNELS) {
+      return safeEdit(interaction, `Eroare: serverul a atins limita de ${MAX_YOUTUBE_CHANNELS} canale YouTube (o comanda concurenta a ocupat ultimul loc).`);
     }
     return safeEdit(
       interaction,
@@ -221,8 +285,12 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     if ((result.modifiedCount ?? 0) === 0) {
       return safeEdit(interaction, `Info: canalul \`${channelId}\` nu era urmarit.`);
     }
-    await removeSeenChannel(guildId, channelId);
     invalidateGuildCache(guildId);
+    try {
+      await removeSeenChannel(guildId, channelId);
+    } catch (error) {
+      deps.logger("WARN", "YOUTUBE_COMMAND", `Curatarea colectiei seen pentru canalul ${channelId} a esuat (best-effort, abonarea a fost deja scoasa)`, errorDetail(error));
+    }
     return safeEdit(interaction, `OK: **${channel?.channelName || channelId}** nu mai este urmarit.`);
   }
 
@@ -234,6 +302,7 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
       const permissions = await checkChannelPermissions(interaction, channel.id);
       if (!permissions) return safeEdit(interaction, "Eroare: nu am putut verifica permisiunile botului pe canal.");
       const missing = [
+        !permissions.viewChannel ? "View Channel" : "",
         !permissions.sendMessages ? "Send Messages" : "",
         !permissions.embedLinks ? "Embed Links" : ""
       ].filter(Boolean);
@@ -374,21 +443,23 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
       const discordChannel = interaction.options.getChannel("discord", true);
       if (!discordChannel?.id) return safeEdit(interaction, "Eroare: alege un canal Discord valid.");
       const permissions = await checkChannelPermissions(interaction, discordChannel.id);
-      if (!permissions?.sendMessages || !permissions.embedLinks) {
-        return safeEdit(interaction, "Eroare: botul are nevoie de Send Messages si Embed Links pe canalul ales.");
+      if (!permissions?.viewChannel || !permissions.sendMessages || !permissions.embedLinks) {
+        return safeEdit(interaction, "Eroare: botul are nevoie de View Channel, Send Messages si Embed Links pe canalul ales.");
       }
       const currentDestinations = existingRoute?.discordChannelIds || [];
       if (!currentDestinations.includes(discordChannel.id) && currentDestinations.length >= MAX_YOUTUBE_ROUTE_DESTINATIONS) {
         return safeEdit(interaction, `Eroare: ai atins limita de ${MAX_YOUTUBE_ROUTE_DESTINATIONS} canale Discord pentru ruta lui **${subscription.channelName}**. Scoate o destinatie cu \`/youtube remove channel-route\` inainte sa adaugi alta.`);
       }
-      const update = existingRoute
-        ? { $addToSet: { "youtubeChannelRoutes.$[route].discordChannelIds": discordChannel.id } }
-        : { $push: { youtubeChannelRoutes: { channelId: youtubeChannelId, discordChannelIds: [discordChannel.id] } } };
-      const options = existingRoute
-        ? { arrayFilters: [{ "route.channelId": youtubeChannelId }] }
-        : { upsert: true };
-      await GuildModel.updateOne({ _id: guildId }, update, options);
+      const updated = await GuildModel.findOneAndUpdate(
+        { _id: guildId },
+        buildYouTubeRouteAddPipeline(youtubeChannelId, discordChannel.id, MAX_YOUTUBE_ROUTE_DESTINATIONS),
+        { upsert: true, new: true }
+      );
       invalidateGuildCache(guildId);
+      const savedRoute = (updated?.youtubeChannelRoutes || []).find(route => route.channelId === youtubeChannelId);
+      if (!(savedRoute?.discordChannelIds || []).includes(discordChannel.id)) {
+        return safeEdit(interaction, `Eroare: ai atins limita de ${MAX_YOUTUBE_ROUTE_DESTINATIONS} canale Discord pentru ruta lui **${subscription.channelName}** (o comanda concurenta a ocupat ultimul loc). Scoate o destinatie cu \`/youtube remove channel-route\` inainte sa adaugi alta.`);
+      }
       return safeEdit(interaction, `OK: videoclipurile de la **${subscription.channelName}** vor fi trimise exclusiv in rutele speciale configurate, inclusiv <#${discordChannel.id}>.`);
     }
     const requested = interaction.options.getString("discord", true);
@@ -543,7 +614,7 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
         lines.push(`- <#${id}>: nu am putut verifica (canal inaccesibil sau sters?)`);
         continue;
       }
-      lines.push(`- <#${id}>: Send Messages ${onOff(resolved.sendMessages)} | Embed Links ${onOff(resolved.embedLinks)} | Read Message History ${onOff(resolved.readMessageHistory)}`);
+      lines.push(`- <#${id}>: View Channel ${onOff(resolved.viewChannel)} | Send Messages ${onOff(resolved.sendMessages)} | Embed Links ${onOff(resolved.embedLinks)} | Read Message History ${onOff(resolved.readMessageHistory)}`);
     }
     return safeEdit(interaction, clampJoinedList(lines, 2000));
   }
