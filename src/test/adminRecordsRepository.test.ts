@@ -67,6 +67,38 @@ test("admin records: backup-ul normalizeaza numele si copiaza doar configuratia 
   assert.match(serialized, /\$slice/, "pipeline-ul filtreaza acelasi nume si limiteaza prin $slice intr-un singur update");
 });
 
+test("admin records: backup-ul nu include starea operationala tranzitorie (dlc/future-release init + activationId) (R[Low] #4)", () => {
+  const settings: GuildSettings = {
+    _id: "guild-1",
+    subscribed: true,
+    dlcSubscribed: true,
+    dlcChannelId: "dlc-chan",
+    dlcInitializing: true,
+    dlcActivationId: "act-dlc-123",
+    futureReleaseSubscribed: true,
+    futureReleaseChannelId: "fr-chan",
+    futureReleaseInitializing: true,
+    futureReleaseActivationId: "act-fr-456"
+  };
+
+  const snapshot = buildConfigSnapshot(settings);
+  assert.equal(snapshot.dlcSubscribed, true, "configuratia stabila DLC se pastreaza");
+  assert.equal(snapshot.dlcChannelId, "dlc-chan", "canalul DLC e configuratie stabila");
+  assert.equal(snapshot.futureReleaseChannelId, "fr-chan", "canalul future-release e configuratie stabila");
+  for (const key of ["dlcInitializing", "dlcActivationId", "futureReleaseInitializing", "futureReleaseActivationId"]) {
+    assert.equal(key in snapshot, false, `${key} e stare operationala tranzitorie, nu trebuie salvata in backup`);
+  }
+
+  const update = buildConfigRestoreUpdate({ name: "v", createdBy: "u", createdAt: new Date(), snapshot }) as {
+    $set?: Record<string, unknown>;
+    $unset?: Record<string, string>;
+  };
+  for (const key of ["dlcInitializing", "dlcActivationId", "futureReleaseInitializing", "futureReleaseActivationId"]) {
+    assert.equal(key in (update.$set ?? {}), false, `restore nu seteaza ${key} (stare vie, nu se restaureaza)`);
+    assert.equal(key in (update.$unset ?? {}), false, `restore nu sterge ${key} (nu atinge starea operationala vie)`);
+  }
+});
+
 test("admin records: load si listarile folosesc snapshot-uri si ordonare descendenta", async () => {
   const { model, calls } = makeGuildModel();
   const older = { name: "old", createdBy: "u1", createdAt: "2024-01-01T00:00:00.000Z", snapshot: { subscribed: false } };

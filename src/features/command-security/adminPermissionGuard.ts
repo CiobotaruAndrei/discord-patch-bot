@@ -17,7 +17,7 @@ type RoleCacheLike = {
   has: (roleId: string) => boolean;
 };
 
-type MemberRolesLike = RoleCacheLike | { cache?: RoleCacheLike | null };
+type MemberRolesLike = RoleCacheLike | { cache?: RoleCacheLike | null } | readonly string[];
 
 type MemberLike = {
   roles?: MemberRolesLike | null;
@@ -42,6 +42,7 @@ function isGuildAdmin(interaction: Pick<AdminGuardInteraction, "memberPermission
 
 function roleHas(roles: MemberRolesLike | null | undefined, roleId: string): boolean {
   if (!roles) return false;
+  if (Array.isArray(roles)) return roles.includes(roleId);
   if (typeof (roles as RoleCacheLike).has === "function") return (roles as RoleCacheLike).has(roleId);
   const cache = (roles as { cache?: RoleCacheLike | null }).cache;
   return typeof cache?.has === "function" ? cache.has(roleId) : false;

@@ -289,7 +289,7 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
       ...Array.from(routeChannelIds).map(id => ({ label: "YouTube ruta", id }))
     ].filter((c): c is { label: string; id: string } => typeof c.id === "string" && c.id.length > 0);
     if (!channels.length) {
-      return "Niciun canal de notificari configurat. Foloseste `/start updates` / `/start reduceri` / `/youtube notify channel`.";
+      return "Niciun canal de notificari configurat. Foloseste `/start updates` / `/start reduceri` / `/youtube notify channel` / `/start dlc` / `/future-release start`.";
     }
     const mark = (ok: boolean) => (ok ? "OK" : "LIPSA");
     const lines: string[] = ["**Permisiuni bot pe canale (audit)**"];

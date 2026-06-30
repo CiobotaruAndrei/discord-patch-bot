@@ -9,7 +9,7 @@ type TestInteraction = {
   replied: boolean;
   isChatInputCommand: () => boolean;
   memberPermissions: { has: (permission?: unknown) => boolean };
-  member?: { roles?: { has?: (roleId: string) => boolean; cache?: { has: (roleId: string) => boolean } } };
+  member?: { roles?: { has?: (roleId: string) => boolean; cache?: { has: (roleId: string) => boolean } } | readonly string[] };
   options?: {
     getSubcommand?: (required?: boolean) => string;
     getSubcommandGroup?: (required?: boolean) => string | null;
@@ -84,6 +84,59 @@ test("admin guard accepts configured admin role IDs without Discord Administrato
     assert.equal(requireGuildAdmin.hasAllowedAdminRole(interaction), true);
     assert.equal(await requireGuildAdmin(interaction), true);
     assert.deepEqual(replies, []);
+  } finally {
+    if (previous === undefined) delete process.env.BOT_ADMIN_ROLE_IDS;
+    else process.env.BOT_ADMIN_ROLE_IDS = previous;
+  }
+});
+
+test("admin guard accepts admin role IDs cand member.roles e un array brut de ID-uri (interactiune necache-uita) (R[Medium] #2)", async () => {
+  const previous = process.env.BOT_ADMIN_ROLE_IDS;
+  process.env.BOT_ADMIN_ROLE_IDS = "role-allowed";
+  try {
+    const replies: unknown[] = [];
+    const interaction: TestInteraction = {
+      commandName: "set",
+      guild: { id: "guild-1" },
+      user: { id: "user-1" },
+      deferred: false,
+      replied: false,
+      isChatInputCommand: () => true,
+      memberPermissions: { has: () => false },
+      member: { roles: ["role-other", "role-allowed"] },
+      options: { getSubcommand: () => "", getSubcommandGroup: () => null },
+      reply: async (payload: unknown) => { replies.push(payload); },
+      followUp: async () => {}
+    };
+
+    assert.equal(requireGuildAdmin.hasAllowedAdminRole(interaction), true, "rolul permis e gasit chiar daca roles e un array de ID-uri, nu un manager cu .has/.cache");
+    assert.equal(await requireGuildAdmin(interaction), true);
+    assert.deepEqual(replies, [], "admin prin rol-array => fara refuz");
+  } finally {
+    if (previous === undefined) delete process.env.BOT_ADMIN_ROLE_IDS;
+    else process.env.BOT_ADMIN_ROLE_IDS = previous;
+  }
+});
+
+test("admin guard respinge cand member.roles e array fara rolul permis (nu accepta orbeste orice array) (R[Medium] #2)", async () => {
+  const previous = process.env.BOT_ADMIN_ROLE_IDS;
+  process.env.BOT_ADMIN_ROLE_IDS = "role-allowed";
+  try {
+    const interaction: TestInteraction = {
+      commandName: "set",
+      guild: { id: "guild-1" },
+      user: { id: "user-1" },
+      deferred: false,
+      replied: false,
+      isChatInputCommand: () => true,
+      memberPermissions: { has: () => false },
+      member: { roles: ["role-x", "role-y"] },
+      options: { getSubcommand: () => "", getSubcommandGroup: () => null },
+      reply: async () => {},
+      followUp: async () => {}
+    };
+
+    assert.equal(requireGuildAdmin.hasAllowedAdminRole(interaction), false, "array fara rolul permis => nu acorda admin");
   } finally {
     if (previous === undefined) delete process.env.BOT_ADMIN_ROLE_IDS;
     else process.env.BOT_ADMIN_ROLE_IDS = previous;

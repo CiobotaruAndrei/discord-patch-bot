@@ -107,6 +107,38 @@ test("price alert: itemId-ul de history include momentul declansarii, ca re-arma
   assert.ok(ts >= before && ts <= after, "sufixul e timestamp-ul real al declansarii, deci doua re-armari la acelasi pret produc itemId-uri diferite (history nu le mai deduplica)");
 });
 
+test("price alert: la esec de send urmat de esec de rollback, esecul e RAPORTAT (reportRollbackFailure), nu inghitit (R[Medium] #1)", async () => {
+  const reported: Array<{ guildId: string; kind: string; itemId: string }> = [];
+  const service = createPriceAlertService({
+    GuildModel: {
+      updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 })
+    },
+    logger: () => undefined,
+    resolveOutboundChannel: async () => ({
+      abort: false,
+      channel: {
+        id: "deals-channel",
+        send: async () => { throw new Error("discord 500 la send"); }
+      }
+    }),
+    disableDiscountsForChannelError: async () => ({ matchedCount: 1, modifiedCount: 1 }),
+    rollbackTriggeredAlert: async () => { throw new Error("mongo indisponibil la rollback"); },
+    formatPrice: (value, currency) => `${value} ${currency}`,
+    sleepIfPositive: async () => undefined,
+    DISCORD_SEND_DELAY_MS: 0,
+    rearmAbsentCycles: 3,
+    reportRollbackFailure: (context) => { reported.push(context); }
+  });
+  const deals = new Map([["EUR", [{
+    id: "deal-1", title: "Elden Ring", appId: "1245620", salePrice: 25, store: "Steam", link: "https://example.com/elden-ring"
+  }]]]);
+
+  await service.processGuildPriceAlerts(makeNotificationDiscordClient(), guild(alert), deals);
+
+  assert.equal(reported.length, 1, "rollback-ul esuat dupa un send esuat e raportat ca alerta de admin, nu inghitit prin .catch(()=>undefined)");
+  assert.deepEqual(reported[0], { guildId: "guild-1", kind: "price-alert", itemId: "elden-ring:EUR" }, "contextul raportat identifica jocul si moneda alertei ramase marcate ca declansate");
+});
+
 test("price alert service nu trimite daca alta instanta a revendicat deja alerta", async () => {
   const { service, sent } = makeService(false);
   const deals = new Map([["EUR", [{ title: "Elden Ring", appId: "1245620", salePrice: 25 }]]]);
