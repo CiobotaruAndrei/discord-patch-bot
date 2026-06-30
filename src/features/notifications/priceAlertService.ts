@@ -251,7 +251,7 @@ export function createPriceAlertService(deps: PriceAlertServiceDeps) {
         await sleepIfPositive(DISCORD_SEND_DELAY_MS);
       } catch (err: unknown) {
         const failed = chunks.slice(index).flat();
-        for (const item of failed) await rollbackTriggeredAlert(guildId, item.alert).catch(() => undefined);
+        for (const item of failed) await rollbackOrReport(() => rollbackTriggeredAlert(guildId, item.alert), logger, { guildId, kind: "price-alert", itemId: `${item.alert.gameKey}:${item.alert.currency}` }, reportRollbackFailure);
         logger("WARN", "PRICE_ALERT", `Trimiterea alertelor de pret a esuat pentru guild ${guildId}`, err);
         break;
       }

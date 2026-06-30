@@ -5,6 +5,7 @@ import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 import { listBotAuditEntries, listBotAuditEntriesInRange, listServerAuditEntries, listServerAuditEntriesInRange } from "../admin-records/adminRecordsRepository";
 import { handledCommandError } from "../command-security/commandOutcome";
+import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
@@ -89,8 +90,8 @@ function renderBotLog(entries: BotAuditLogEntry[]): string {
   const lines = entries.map(entry => [
     `- ${formatDate(entry.at)} ${formatUserReference(entry.userId || "")}`,
     `comanda: \`${entry.command}\``,
-    `rezultat: ${entry.result}`,
-    entry.details ? `detalii: ${entry.details}` : ""
+    `rezultat: ${escapeInlineText(entry.result, 200)}`,
+    entry.details ? `detalii: ${escapeInlineText(entry.details, 400)}` : ""
   ].filter(Boolean).join(" | "));
   return `Bot log (${entries.length}):\n${clampJoinedList(lines, 1900)}`;
 }
@@ -100,7 +101,7 @@ function renderServerLog(entries: ServerAuditLogEntry[]): string {
   const lines = entries.map(entry => [
     `- ${formatDate(entry.at)} ${formatUserReference(entry.userId || "")}`,
     `actiune: \`${entry.action}\``,
-    entry.details ? `detalii: ${entry.details}` : ""
+    entry.details ? `detalii: ${escapeInlineText(entry.details, 400)}` : ""
   ].filter(Boolean).join(" | "));
   return `Server log (${entries.length}):\n${clampJoinedList(lines, 1900)}`;
 }
@@ -117,24 +118,25 @@ function createAuditLogInteractionHandler(deps: AuditLogDeps) {
     const guildId = interaction.guild?.id;
     if (!guildId) return undefined;
     await safeDefer(interaction, true);
+    const respond = (content: string): Promise<unknown> => safeEdit(interaction, { content, allowedMentions: NO_MENTIONS });
     const subcommand = typeof interaction.options.getSubcommand === "function" ? interaction.options.getSubcommand(false) : "recent";
     const settings = await getGuildSettings(guildId);
     if (subcommand === "older") {
       const range = parseDateRange(interaction.options.getString("period", true), interaction.options.getString("start", true));
       if (!range) {
-        return safeEdit(interaction, "Eroare: foloseste `period:zi` sau `period:saptamana` cu `start:YYYY-MM-DD`, ori `period:luna` cu `start:YYYY-MM`.");
+        return respond("Eroare: foloseste `period:zi` sau `period:saptamana` cu `start:YYYY-MM-DD`, ori `period:luna` cu `start:YYYY-MM`.");
       }
       const offset = offsetFromInteraction(interaction);
       if (interaction.commandName === "bot-log") {
         const entries = listBotAuditEntriesInRange(settings, range.start, range.end, 25, offset);
-        return safeEdit(interaction, withMoreHint(`Interval ${range.label}\n${renderBotLog(entries)}`, entries.length, offset));
+        return respond(withMoreHint(`Interval ${range.label}\n${renderBotLog(entries)}`, entries.length, offset));
       }
       const entries = listServerAuditEntriesInRange(settings, range.start, range.end, 25, offset);
-      return safeEdit(interaction, withMoreHint(`Interval ${range.label}\n${renderServerLog(entries)}`, entries.length, offset));
+      return respond(withMoreHint(`Interval ${range.label}\n${renderServerLog(entries)}`, entries.length, offset));
     }
     const limit = limitFromInteraction(interaction);
-    if (interaction.commandName === "bot-log") return safeEdit(interaction, renderBotLog(listBotAuditEntries(settings, limit)));
-    return safeEdit(interaction, renderServerLog(listServerAuditEntries(settings, limit)));
+    if (interaction.commandName === "bot-log") return respond(renderBotLog(listBotAuditEntries(settings, limit)));
+    return respond(renderServerLog(listServerAuditEntries(settings, limit)));
   }
 
   return { handleAuditLogInteraction };

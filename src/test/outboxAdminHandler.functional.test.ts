@@ -333,6 +333,14 @@ test("/outbox permissions fara canale configurate raspunde corespunzator", async
   assert.match(replies[0], /Niciun canal de notificari configurat/);
 });
 
+test("/outbox permissions fara canale: hint-ul indica si comenzile de setup DLC + future-release, nu doar updates/reduceri/YouTube (R[Low] #5)", async () => {
+  const { deps, replies } = makeDeps({});
+  const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
+  await handler.handleOutboxInteraction(makeInteraction(null, "permissions"));
+  assert.match(replies[0], /\/start dlc/, "auditul cunoaste canalul DLC, deci hint-ul trebuie sa spuna cum se configureaza");
+  assert.match(replies[0], /\/future-release start/, "auditul cunoaste canalul future-release, deci hint-ul trebuie sa indice comanda de setup");
+});
+
 test("/outbox permissions: canal inaccesibil -> necunoscut", async () => {
   const { deps, replies } = makeDeps({ notificationChannelId: "chan-x", channelPermissions: () => null });
   const handler = installOutboxAdmin.createOutboxAdminHandler(deps);

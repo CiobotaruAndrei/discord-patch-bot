@@ -70,12 +70,8 @@ export const CONFIG_BACKUP_KEYS = [
   "futureReleaseGames",
   "futureReleaseSubscribed",
   "futureReleaseChannelId",
-  "futureReleaseInitializing",
-  "futureReleaseActivationId",
   "dlcSubscribed",
-  "dlcChannelId",
-  "dlcInitializing",
-  "dlcActivationId"
+  "dlcChannelId"
 ] as const;
 
 function cloneRecord(value: Record<string, unknown>): Record<string, unknown> {
