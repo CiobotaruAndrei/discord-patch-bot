@@ -79,6 +79,13 @@ export interface FutureReleaseGameEntry {
   preorderPrice?: string;
 }
 
+export interface AdminCommandAccessConfig {
+  mode: "role" | "role-or-higher";
+  roleId: string;
+  updatedBy: string;
+  updatedAt: Date;
+}
+
 export interface GuildDoc {
   _id: string;
   subscribed?: boolean;
@@ -156,6 +163,7 @@ export interface GuildDoc {
   suggestedCommands?: SuggestedCommandEntry[];
   watchlistGameSuggestions?: WatchlistGameSuggestionEntry[];
   futureReleaseGames?: FutureReleaseGameEntry[];
+  adminCommandAccess?: AdminCommandAccessConfig | null;
   futureReleaseSubscribed?: boolean;
   futureReleaseChannelId?: string | null;
   futureReleaseInitializing?: boolean;

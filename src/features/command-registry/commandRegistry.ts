@@ -81,6 +81,7 @@ import attachReportInteractionHandler = require("../command-handlers/reportInter
 import attachHealthInteractionHandler = require("../command-handlers/healthInteractionHandler");
 import attachConfigInteractionHandler = require("../command-handlers/configInteractionHandler");
 import attachGuildConfigurationAdminHandler = require("../command-handlers/guildConfigurationAdminHandler");
+import attachAdminCommandAccessHandler = require("../command-handlers/adminCommandAccessHandler");
 import attachPriceAlertInteractionHandler = require("../command-handlers/priceAlertInteractionHandler");
 import attachBackupInteractionHandler = require("../command-handlers/backupInteractionHandler");
 import attachAuditLogInteractionHandler = require("../command-handlers/auditLogInteractionHandler");
@@ -88,6 +89,7 @@ import attachSuggestCommandInteractionHandler = require("../command-handlers/sug
 import attachWatchlistGameSuggestionHandler = require("../command-handlers/watchlistGameSuggestionHandler");
 import attachPriceCheckInteractionHandler = require("../command-handlers/priceCheckInteractionHandler");
 import attachDealScoreInteractionHandler = require("../command-handlers/dealScoreInteractionHandler");
+import attachGameInfoInteractionHandler = require("../command-handlers/gameInfoInteractionHandler");
 import attachMaintenanceInteractionHandler = require("../command-handlers/maintenanceInteractionHandler");
 import attachFutureReleaseInteractionHandler = require("../command-handlers/futureReleaseInteractionHandler");
 import attachYouTubeInteractionHandler = require("../command-handlers/youtubeInteractionHandler");
@@ -144,6 +146,7 @@ function createCommandRegistry(
     attachSourcesStatusHandler.buildCommandHandler(ctx),
     attachConfigInteractionHandler.buildCommandHandler(ctx),
     attachGuildConfigurationAdminHandler.buildCommandHandler(ctx),
+    attachAdminCommandAccessHandler.buildCommandHandler(ctx),
     attachPriceAlertInteractionHandler.buildCommandHandler(ctx),
     attachBackupInteractionHandler.buildCommandHandler(ctx),
     attachAuditLogInteractionHandler.buildCommandHandler(ctx),
@@ -151,6 +154,7 @@ function createCommandRegistry(
     attachWatchlistGameSuggestionHandler.buildCommandHandler(ctx),
     attachPriceCheckInteractionHandler.buildCommandHandler(ctx),
     attachDealScoreInteractionHandler.buildCommandHandler(ctx),
+    attachGameInfoInteractionHandler.buildCommandHandler(ctx),
     attachMaintenanceInteractionHandler.buildCommandHandler(ctx),
     attachFutureReleaseInteractionHandler.buildCommandHandler(ctx),
     attachYouTubeInteractionHandler.buildCommandHandler(ctx),

@@ -1,0 +1,107 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { load } from "cheerio";
+
+import type { DealInfo } from "../types";
+
+const installGameInfo = require("../features/command-handlers/gameInfoInteractionHandler") as typeof import("../features/command-handlers/gameInfoInteractionHandler");
+
+function makeInteraction(commandName: string, values: Record<string, string | number | null>) {
+  return {
+    commandName,
+    guild: { id: "guild-1" },
+    deferred: false,
+    replied: false,
+    isChatInputCommand: () => true,
+    options: {
+      getSubcommand: () => commandName === "best" ? "under" : commandName === "ending" ? "deals" : "game",
+      getSubcommandGroup: () => commandName === "best" ? "deals" : commandName === "system" ? "requirements" : null,
+      getString: (name: string) => typeof values[name] === "string" ? String(values[name]) : null,
+      getNumber: (name: string) => typeof values[name] === "number" ? Number(values[name]) : null,
+      getInteger: (name: string) => typeof values[name] === "number" ? Number(values[name]) : null
+    },
+    reply: async (payload: string | object) => typeof payload === "object" ? payload : {},
+    followUp: async (payload: string | object) => typeof payload === "object" ? payload : {}
+  };
+}
+
+function makeDeps(deals: DealInfo[] = []) {
+  const replies: Array<string | object> = [];
+  const deferModes: boolean[] = [];
+  const deps = {
+    logger: () => undefined,
+    enforceCooldown: async () => true,
+    startCommandLog: () => () => undefined,
+    safeDefer: async (_interaction: object, ephemeral?: boolean) => { deferModes.push(ephemeral === true); },
+    safeEdit: async (_interaction: object, payload: string | object) => {
+      replies.push(payload);
+      return typeof payload === "object" ? payload : null;
+    },
+    searchSteamGameByName: async () => [{ id: "10", name: "Portal" }],
+    chooseBestSteamMatch: (items: Array<{ id?: string | number; name?: string }>) => items[0] ?? null,
+    fetchSteamPriceDetails: async () => ({
+      name: "Portal",
+      platforms: { windows: true, mac: true, linux: true },
+      categories: [
+        { id: 1, description: "Single-player" },
+        { id: 2, description: "Cross-Platform Multiplayer" },
+        { id: 3, description: "Steam Cloud" }
+      ],
+      pc_requirements: {
+        minimum: "<strong>Storage:</strong> 8 GB available space",
+        recommended: "<strong>Storage:</strong> 12 GB available space"
+      },
+      price_overview: { initial: 999, final: 199, discount_percent: 80 }
+    }),
+    fetchSteamReviewData: async () => ({ totalReviews: 12000, qualityPercent: 96, success: true }),
+    getDealsCacheData: () => deals,
+    setDealsCache: () => undefined,
+    fetchDeals: async () => deals,
+    enrichDealData: async (deal: DealInfo) => deal,
+    getGuildSettings: async () => ({ _id: "guild-1", currency: "EUR", enabledGames: ["cs2"] }),
+    formatPrice: (value: string | number, currency?: string | null) => `${value} ${currency || "EUR"}`,
+    safeCheerioLoad: load,
+    DEFAULT_CURRENCY: "EUR",
+    MessageFlags: { Ephemeral: 64 }
+  };
+  return { deps, replies, deferModes };
+}
+
+test("/best deals under cauta in toate sursele, nu doar in watchlist-ul serverului", async () => {
+  const deals: DealInfo[] = [
+    { title: "Counter-Strike 2", store: "Steam", salePrice: 0, normalPrice: 0, currency: "EUR", savings: 0, link: "https://store.test/cs2" },
+    { title: "Portal", store: "Humble", salePrice: 3, normalPrice: 10, currency: "EUR", savings: 70, qualityScore: 95, totalReviews: 10000, link: "https://store.test/portal" },
+    { title: "Expensive", store: "GOG", salePrice: 99, normalPrice: 100, currency: "EUR", savings: 1, link: "https://store.test/expensive" }
+  ];
+  const { deps, replies, deferModes } = makeDeps(deals);
+  const handler = installGameInfo.createGameInfoInteractionHandler(deps);
+
+  await handler.handleGameInfo(makeInteraction("best", { buget: 5, currency: "EUR", numar: 5 }));
+
+  assert.deepEqual(deferModes, [false]);
+  const payload = replies[0] as { embeds?: Array<{ fields?: Array<{ value: string }> }> };
+  const fieldValues = payload.embeds?.[0]?.fields?.map(field => field.value).join("\n") || "";
+  assert.match(fieldValues, /Portal/);
+  assert.doesNotMatch(fieldValues, /Expensive/);
+});
+
+test("comenzile Steam metadata folosesc appdetails pentru crossplay si dimensiune instalare", () => {
+  const details = {
+    name: "Portal",
+    platforms: { windows: true, mac: true },
+    categories: [
+      { id: 2, description: "Cross-Platform Multiplayer" },
+      { id: 3, description: "Steam Cloud" }
+    ],
+    pc_requirements: {
+      minimum: "<strong>Storage:</strong> 8 GB available space",
+      recommended: "<strong>Storage:</strong> 12 GB available space"
+    }
+  };
+
+  const crossplay = installGameInfo.buildCrossplayEmbed("portal", 10, details);
+  const gameSize = installGameInfo.buildGameSizeEmbed("portal", 10, details, load);
+
+  assert.match(String(crossplay.fields?.[0]?.value), /Cross-Platform Multiplayer/);
+  assert.match(String(gameSize.description), /8 GB/);
+});

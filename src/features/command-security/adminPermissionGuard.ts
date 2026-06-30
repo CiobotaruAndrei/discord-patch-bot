@@ -15,21 +15,39 @@ type PermissionSetLike = {
 
 type RoleCacheLike = {
   has: (roleId: string) => boolean;
+  get?: (roleId: string) => RoleLike | undefined;
 };
 
-type MemberRolesLike = RoleCacheLike | { cache?: RoleCacheLike | null } | readonly string[];
+type RoleLike = {
+  id?: string;
+  position?: number;
+};
+
+type MemberRolesLike = RoleCacheLike | { cache?: RoleCacheLike | null; highest?: RoleLike | null } | readonly string[];
 
 type MemberLike = {
   roles?: MemberRolesLike | null;
 };
 
+type GuildLike = {
+  roles?: { cache?: RoleCacheLike | null } | null;
+};
+
 type AdminGuardInteraction = {
   memberPermissions?: PermissionSetLike | null;
   member?: MemberLike | null;
+  guild?: GuildLike | null;
   deferred?: boolean;
   replied?: boolean;
   reply?: (payload: AdminGuardPayload) => Promise<unknown>;
   followUp?: (payload: AdminGuardPayload) => Promise<unknown>;
+};
+
+type AdminRoleAccessMode = "role" | "role-or-higher";
+
+type AdminCommandAccessConfig = {
+  mode?: AdminRoleAccessMode | null;
+  roleId?: string | null;
 };
 
 function parseIdList(value: string | undefined): string[] {
@@ -40,18 +58,49 @@ function isGuildAdmin(interaction: Pick<AdminGuardInteraction, "memberPermission
   return interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator) === true;
 }
 
+function roleCache(roles: MemberRolesLike | null | undefined): RoleCacheLike | null {
+  if (!roles) return null;
+  if (Array.isArray(roles)) return null;
+  if ("has" in roles && typeof roles.has === "function") return roles;
+  if ("cache" in roles) return roles.cache || null;
+  return null;
+}
+
 function roleHas(roles: MemberRolesLike | null | undefined, roleId: string): boolean {
   if (!roles) return false;
   if (Array.isArray(roles)) return roles.includes(roleId);
-  if (typeof (roles as RoleCacheLike).has === "function") return (roles as RoleCacheLike).has(roleId);
-  const cache = (roles as { cache?: RoleCacheLike | null }).cache;
+  const cache = roleCache(roles);
   return typeof cache?.has === "function" ? cache.has(roleId) : false;
 }
 
+function rolePosition(cache: RoleCacheLike | null | undefined, roleId: string): number | null {
+  if (typeof cache?.get !== "function") return null;
+  const position = cache.get(roleId)?.position;
+  return typeof position === "number" ? position : null;
+}
+
+function highestMemberRolePosition(roles: MemberRolesLike | null | undefined): number | null {
+  if (!roles || !("highest" in roles)) return null;
+  const position = roles.highest?.position;
+  return typeof position === "number" ? position : null;
+}
+
 function hasAllowedAdminRole(interaction: Pick<AdminGuardInteraction, "member">): boolean {
-  const allowed = parseIdList(process.env.BOT_ADMIN_ROLE_IDS);
-  if (!allowed.length) return false;
-  return allowed.some(roleId => roleHas(interaction.member?.roles, roleId));
+  return false;
+}
+
+function hasConfiguredAdminRole(
+  interaction: Pick<AdminGuardInteraction, "guild" | "member">,
+  config: AdminCommandAccessConfig | null | undefined
+): boolean {
+  const roleId = config?.roleId || "";
+  if (!roleId || !config?.mode) return false;
+  const memberRoles = interaction.member?.roles;
+  if (roleHas(memberRoles, roleId)) return true;
+  if (config.mode !== "role-or-higher") return false;
+  const requiredPosition = rolePosition(interaction.guild?.roles?.cache, roleId);
+  const memberPosition = highestMemberRolePosition(memberRoles);
+  return requiredPosition !== null && memberPosition !== null && memberPosition >= requiredPosition;
 }
 
 async function rejectNonAdmin(interaction: AdminGuardInteraction): Promise<void> {
@@ -71,7 +120,7 @@ async function rejectNonAdmin(interaction: AdminGuardInteraction): Promise<void>
 }
 
 async function requireGuildAdmin(interaction: AdminGuardInteraction): Promise<boolean> {
-  if (isGuildAdmin(interaction) || hasAllowedAdminRole(interaction)) return true;
+  if (isGuildAdmin(interaction)) return true;
   await rejectNonAdmin(interaction);
   return false;
 }
@@ -80,6 +129,8 @@ Object.assign(requireGuildAdmin, {
   ADMIN_REQUIRED_MESSAGE,
   isGuildAdmin,
   hasAllowedAdminRole,
+  hasConfiguredAdminRole,
+  roleHas,
   parseIdList,
   rejectNonAdmin
 });

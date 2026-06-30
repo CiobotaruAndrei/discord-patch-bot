@@ -81,7 +81,7 @@ test("comenzile administrative (inclusiv /health) cer Administrator; cele public
   for (const adminCmd of [
     "start", "stop", "set", "outbox", "health", "config", "reset-config",
     "admin-alerts", "price-alert", "youtube", "sources", "watchlist", "snooze", "unsnooze",
-    "backup", "bot-log", "server-log", "future-release", "maintenance"
+    "backup", "bot-log", "server-log", "future-release", "maintenance", "admin-command-access", "delete"
   ]) {
     assert.equal(byName.get(adminCmd), adminFlag, `/${adminCmd} trebuie sa fie restrictionat la Administrator`);
     assert.equal(dmByName.get(adminCmd), false, `/${adminCmd} trebuie sa fie indisponibil in DM (dm_permission=false), ca sa nu ocoleasca guard-ul de admin`);

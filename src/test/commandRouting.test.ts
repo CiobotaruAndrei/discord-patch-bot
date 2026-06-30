@@ -21,6 +21,7 @@ const handlers: Record<string, BuiltHandler> = {
   sources: build("sourcesStatusHandler"),
   config: build("configInteractionHandler"),
   guildConfigAdmin: build("guildConfigurationAdminHandler"),
+  adminCommandAccess: build("adminCommandAccessHandler"),
   priceAlert: build("priceAlertInteractionHandler"),
   backup: build("backupInteractionHandler"),
   auditLog: build("auditLogInteractionHandler"),
@@ -28,6 +29,7 @@ const handlers: Record<string, BuiltHandler> = {
   watchlistGame: build("watchlistGameSuggestionHandler"),
   futureRelease: build("futureReleaseInteractionHandler"),
   dealScore: build("dealScoreInteractionHandler"),
+  gameInfo: build("gameInfoInteractionHandler"),
   maintenance: build("maintenanceInteractionHandler"),
   priceCheck: build("priceCheckInteractionHandler"),
   youtube: build("youtubeInteractionHandler"),
@@ -96,6 +98,8 @@ const expectedOwnerByCommand: Record<string, string> = {
   config: "config",
   "reset-config": "guildConfigAdmin",
   "admin-alerts": "guildConfigAdmin",
+  "admin-command-access": "adminCommandAccess",
+  delete: "adminCommandAccess",
   "price-alert": "priceAlert",
   backup: "backup",
   "bot-log": "auditLog",
@@ -105,6 +109,14 @@ const expectedOwnerByCommand: Record<string, string> = {
   "suggest-command": "suggestCommand",
   "watchlist-game": "watchlistGame",
   "future-release": "futureRelease",
+  best: "gameInfo",
+  ending: "gameInfo",
+  "review-trend": "gameInfo",
+  crossplay: "gameInfo",
+  platforms: "gameInfo",
+  "co-op": "gameInfo",
+  system: "gameInfo",
+  "game-size": "gameInfo",
   maintenance: "maintenance",
   youtube: "youtube",
   snooze: "snooze",
@@ -154,6 +166,7 @@ test("routing: /add si /remove sunt multiplexate pe subcomanda catre handler-ul 
 
 test("routing: subcomenzile /set sunt rutate catre handler-e distincte si mutual-exclusive", () => {
   assert.deepEqual(soleClaimant(chatInput("set", null)), ["set"], "/set fara grup -> setInteractionHandler");
+  assert.deepEqual(soleClaimant(chatInput("set", null, "admin-command-access")), ["adminCommandAccess"], "/set admin-command-access -> adminCommandAccessHandler");
   assert.deepEqual(soleClaimant(chatInput("set", "games")), ["setGames"], "/set games -> gameFilterHandlers");
   assert.deepEqual(soleClaimant(chatInput("set", "role")), ["setRole"], "/set role -> rolePingHandlers");
 });
