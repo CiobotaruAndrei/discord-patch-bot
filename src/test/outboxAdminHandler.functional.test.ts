@@ -493,7 +493,7 @@ test("/outbox clear-deadletters: daca stergerea payload-urilor de replay esueaza
   assert.equal(guildUpdateCalls.length, 1, "auditul tot e golit");
 });
 
-test("/outbox replay-deadletters: daca curatarea dupa enqueue esueaza, avertizeaza despre risc de duplicat", async () => {
+test("/outbox replay-deadletters: daca curatarea dupa enqueue esueaza, mesajul spune corect ca o re-rulare NU re-trimite (R #5)", async () => {
   const { deps, replies, enqueueCalls } = makeDeps({
     outboxEnabled: true,
     replayDeleteFails: true,
@@ -502,7 +502,8 @@ test("/outbox replay-deadletters: daca curatarea dupa enqueue esueaza, avertizea
   const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
   await handler.handleOutboxInteraction(makeInteraction(null, "replay-deadletters"));
   assert.equal(enqueueCalls.length, 1, "enqueue-ul a avut loc");
-  assert.match(replies[0], /curatarea din dead-letter a esuat|risc.*duplicat/i);
+  assert.match(replies[0], /curatarea din dead-letter a esuat/);
+  assert.match(replies[0], /NU le re-trimite/, "mesajul e acurat: dedupe pe dedupeKey (index unique + Sent) face re-rularea idempotenta, nu avertizeaza fals despre duplicat");
 });
 
 test("/outbox replay-deadletters: la limita per rulare semnaleaza ca pot exista mai multe", async () => {
