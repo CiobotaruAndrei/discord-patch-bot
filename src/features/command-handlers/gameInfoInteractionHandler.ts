@@ -6,6 +6,7 @@ import type { SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../../s
 import type { CommandHandler } from "../command-registry/commandHandler";
 
 const { errorDetail, errorMessage } = require("../../shared/errors");
+const { mapWithConcurrency } = require("../../shared/utilities") as typeof import("../../shared/utilities");
 
 type MaybePromise<T> = T | Promise<T>;
 type Logger = (level: string, context: string, message: string, meta?: Record<string, string | number | boolean | null>) => void;
@@ -80,6 +81,7 @@ const GAME_INFO_COMMANDS = new Set(["best", "ending", "review-trend", "crossplay
 const RESULT_LIMIT_DEFAULT = 5;
 const RESULT_LIMIT_MAX = 10;
 const TOP_ACTIVE_PLAYER_COUNT_CONCURRENCY = 5;
+const TOP_ACTIVE_CANDIDATE_CAP = 25;
 const INFO_COLOR = 0x3498db;
 const DEAL_COLOR = 0x2ecc71;
 const WARNING_COLOR = 0xf1c40f;
@@ -95,21 +97,6 @@ function numericPrice(value: PriceValue | undefined): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
-}
-
-async function mapWithConcurrency<T, R>(items: readonly T[], limit: number, mapper: (item: T) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let cursor = 0;
-  const worker = async (): Promise<void> => {
-    while (cursor < items.length) {
-      const index = cursor;
-      cursor += 1;
-      results[index] = await mapper(items[index]);
-    }
-  };
-  const workerCount = Math.max(1, Math.min(limit, items.length));
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
-  return results;
 }
 
 function clampResultLimit(value: number | null): number {
@@ -371,7 +358,7 @@ function buildPlayerCountEmbed(query: string, appId: string | number, details: S
   };
 }
 
-function buildTopActiveGamesEmbed(items: Array<{ game: GameConfig; players: SteamCurrentPlayersSummary }>, filteredByServer: boolean, limit = RESULT_LIMIT_DEFAULT): DiscordEmbed {
+function buildTopActiveGamesEmbed(items: Array<{ game: GameConfig; players: SteamCurrentPlayersSummary }>, filteredByServer: boolean, limit = RESULT_LIMIT_DEFAULT, notChecked = 0): DiscordEmbed {
   const successful = items
     .filter(item => item.players.success)
     .sort((left, right) => right.players.playerCount - left.players.playerCount)
@@ -385,11 +372,12 @@ function buildTopActiveGamesEmbed(items: Array<{ game: GameConfig; players: Stea
     };
   }
   const base = filteredByServer ? "Top calculat din jocurile urmarite de server." : "Top calculat din jocurile configurate care au Steam appId.";
-  const warning = missing > 0 ? ` (${missing} joc(uri) nu au putut fi verificate pe Steam acum si au fost omise)` : "";
+  const missingNote = missing > 0 ? ` ${missing} joc(uri) nu au putut fi verificate pe Steam acum si au fost omise.` : "";
+  const subsetNote = notChecked > 0 ? ` Topul e calculat din primele ${items.length} jocuri verificate; alte ${notChecked} nu au fost verificate (restrange lista prin \`/start player-count\` pentru un top exact).` : "";
   return {
     title: "Top active games",
     color: INFO_COLOR,
-    description: `${base}${warning}`,
+    description: `${base}${missingNote}${subsetNote}`,
     fields: successful.map((item, index) => ({
       name: `${index + 1}. ${item.game.name}`,
       value: `${formatPlayerCount(item.players.playerCount)} jucatori activi pe Steam`,
@@ -414,15 +402,15 @@ function findExternalStores(deals: DealInfo[], query: string, steamName: string,
   return stores.slice(0, 6);
 }
 
-function selectTopActiveGames(games: GameConfig[], guild: GuildSettings | null, limit: number): { games: GameConfig[]; filteredByServer: boolean } {
+function selectTopActiveGames(games: GameConfig[], guild: GuildSettings | null, limit: number): { games: GameConfig[]; filteredByServer: boolean; totalCandidates: number } {
   const playerCountKeys = Array.isArray(guild?.playerCountGames) ? guild.playerCountGames.map(String).filter(Boolean) : [];
   const enabledKeys = Array.isArray(guild?.enabledGames) ? guild.enabledGames.map(String).filter(Boolean) : [];
   const keyFilter = playerCountKeys.length ? new Set(playerCountKeys) : enabledKeys.length ? new Set(enabledKeys) : null;
-  const candidates = games
+  const eligible = games
     .filter(game => Boolean(game.appId))
-    .filter(game => !keyFilter || keyFilter.has(game.key))
-    .slice(0, Math.max(limit, 25));
-  return { games: candidates, filteredByServer: Boolean(keyFilter) };
+    .filter(game => !keyFilter || keyFilter.has(game.key));
+  const candidates = eligible.slice(0, Math.max(limit, TOP_ACTIVE_CANDIDATE_CAP));
+  return { games: candidates, filteredByServer: Boolean(keyFilter), totalCandidates: eligible.length };
 }
 
 function createGameInfoInteractionHandler(deps: GameInfoDeps) {
@@ -509,7 +497,8 @@ function createGameInfoInteractionHandler(deps: GameInfoDeps) {
         return { game, players: { appId, playerCount: 0, success: false } };
       }
     });
-    return safeEdit(interaction, { embeds: [buildTopActiveGamesEmbed(playerCounts, selected.filteredByServer, limit)] });
+    const notChecked = Math.max(0, selected.totalCandidates - selected.games.length);
+    return safeEdit(interaction, { embeds: [buildTopActiveGamesEmbed(playerCounts, selected.filteredByServer, limit, notChecked)] });
   }
 
   async function handleGameInfo(interaction: DiscordInteraction, games: GameConfig[] = []): Promise<object | void | null> {
