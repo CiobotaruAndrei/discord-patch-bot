@@ -6,12 +6,20 @@ import { handledCommandError } from "../command-security/commandOutcome";
 import {
   buildAdminCommandAccessScopeLookupKeys,
   displayAdminCommandAccessScope,
+  findAdminCommandAccessScopeConflicts,
   listScopedAdminCommandAccess,
   normalizeAdminCommandAccessScope,
   readAdminCommandAccessForScope,
   type AdminCommandAccessByCommand
 } from "../command-security/adminCommandAccessScope";
+import { listAdminCommandScopePaths } from "../command-help/commandHelpCatalog";
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
+
+const KNOWN_ADMIN_COMMAND_SCOPES = new Set(listAdminCommandScopePaths().map(normalizeAdminCommandAccessScope));
+
+function isSettableAdminScope(scope: string): boolean {
+  return scope === "global" || KNOWN_ADMIN_COMMAND_SCOPES.has(scope);
+}
 
 type InteractionPayload = string | { content: string; flags?: number };
 type AdminAccessMode = "role" | "role-or-higher";
@@ -135,6 +143,13 @@ function formatAccessList(doc: GuildAdminAccessDoc | null): string {
   for (const [scope, access] of listScopedAdminCommandAccess(doc?.adminCommandAccessByCommand)) {
     lines.push(formatCurrentAccess(scope, access));
   }
+  const conflicts = findAdminCommandAccessScopeConflicts(doc?.adminCommandAccessByCommand);
+  if (conflicts.length) {
+    const conflictLines = conflicts.map(conflict =>
+      `- ${displayAdminCommandAccessScope(conflict.scope)}: chei vechi diferite ${conflict.keys.map(key => `\`${key}\``).join(", ")}. Ruleaza din nou \`/set admin-command-access\` pe acest modul ca sa unifici regula (regula noua le inlocuieste).`
+    );
+    lines.push([":warning: **Reguli in conflict** (chei vechi `start:`/`stop:` cu roluri diferite pentru acelasi modul, altfel ascunse la listare):", ...conflictLines].join("\n"));
+  }
   return lines.join("\n\n");
 }
 
@@ -177,10 +192,19 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
     const scope = readTargetScope(interaction);
     if (!role?.id) return safeEdit(interaction, "Eroare: trebuie sa alegi un rol valid.");
     if (!mode) return safeEdit(interaction, "Eroare: mode accepta doar `role` sau `role-or-higher`.");
+    if (!isSettableAdminScope(scope)) {
+      return safeEdit(interaction, `Eroare: ${displayAdminCommandAccessScope(scope)} nu este o comanda admin pe care o pot restrictiona, deci regula nu ar fi aplicata niciodata. Alege o comanda admin reala din autocomplete sau lasa \`command\` gol pentru regula globala.`);
+    }
     const access = { mode, roleId: role.id, updatedBy: interaction.user?.id || "", updatedAt: new Date() };
+    const legacyKeys = scope === "global" ? [] : buildAdminCommandAccessScopeLookupKeys(scope).filter(key => key !== scope);
     const update = scope === "global"
       ? { $set: { adminCommandAccess: access } }
-      : { $set: { [`adminCommandAccessByCommand.${scope}`]: access } };
+      : legacyKeys.length
+        ? {
+            $set: { [`adminCommandAccessByCommand.${scope}`]: access },
+            $unset: Object.fromEntries(legacyKeys.map(key => [`adminCommandAccessByCommand.${key}`, ""]))
+          }
+        : { $set: { [`adminCommandAccessByCommand.${scope}`]: access } };
     await GuildModel.updateOne(
       { _id: guildId },
       update,

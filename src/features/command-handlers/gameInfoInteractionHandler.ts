@@ -79,6 +79,7 @@ type GameInfoContext = GameInfoDeps & {
 const GAME_INFO_COMMANDS = new Set(["best", "ending", "review-trend", "crossplay", "platforms", "co-op", "system", "game-size", "player-count", "top"]);
 const RESULT_LIMIT_DEFAULT = 5;
 const RESULT_LIMIT_MAX = 10;
+const TOP_ACTIVE_PLAYER_COUNT_CONCURRENCY = 5;
 const INFO_COLOR = 0x3498db;
 const DEAL_COLOR = 0x2ecc71;
 const WARNING_COLOR = 0xf1c40f;
@@ -94,6 +95,21 @@ function numericPrice(value: PriceValue | undefined): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+async function mapWithConcurrency<T, R>(items: readonly T[], limit: number, mapper: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const worker = async (): Promise<void> => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await mapper(items[index]);
+    }
+  };
+  const workerCount = Math.max(1, Math.min(limit, items.length));
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
 }
 
 function clampResultLimit(value: number | null): number {
@@ -360,6 +376,7 @@ function buildTopActiveGamesEmbed(items: Array<{ game: GameConfig; players: Stea
     .filter(item => item.players.success)
     .sort((left, right) => right.players.playerCount - left.players.playerCount)
     .slice(0, limit);
+  const missing = items.length - items.filter(item => item.players.success).length;
   if (!successful.length) {
     return {
       title: "Top active games",
@@ -367,10 +384,12 @@ function buildTopActiveGamesEmbed(items: Array<{ game: GameConfig; players: Stea
       description: "Steam nu a returnat date valide de player count pentru jocurile verificate."
     };
   }
+  const base = filteredByServer ? "Top calculat din jocurile urmarite de server." : "Top calculat din jocurile configurate care au Steam appId.";
+  const warning = missing > 0 ? ` (${missing} joc(uri) nu au putut fi verificate pe Steam acum si au fost omise)` : "";
   return {
     title: "Top active games",
     color: INFO_COLOR,
-    description: filteredByServer ? "Top calculat din jocurile urmarite de server." : "Top calculat din jocurile configurate care au Steam appId.",
+    description: `${base}${warning}`,
     fields: successful.map((item, index) => ({
       name: `${index + 1}. ${item.game.name}`,
       value: `${formatPlayerCount(item.players.playerCount)} jucatori activi pe Steam`,
@@ -481,10 +500,15 @@ function createGameInfoInteractionHandler(deps: GameInfoDeps) {
     if (!selected.games.length) {
       return safeEdit(interaction, "Eroare: nu am jocuri cu Steam appId pentru player-count in configuratia curenta.");
     }
-    const playerCounts = await Promise.all(selected.games.map(async game => ({
-      game,
-      players: await fetchSteamCurrentPlayers(String(game.appId))
-    })));
+    const playerCounts = await mapWithConcurrency(selected.games, TOP_ACTIVE_PLAYER_COUNT_CONCURRENCY, async game => {
+      const appId = String(game.appId);
+      try {
+        return { game, players: await fetchSteamCurrentPlayers(appId) };
+      } catch (err) {
+        deps.logger("WARN", "GAME_INFO", "Player count Steam esuat pentru un joc din top", { appId, error: errorMessage(err) });
+        return { game, players: { appId, playerCount: 0, success: false } };
+      }
+    });
     return safeEdit(interaction, { embeds: [buildTopActiveGamesEmbed(playerCounts, selected.filteredByServer, limit)] });
   }
 

@@ -186,6 +186,30 @@ export function buildCommandHelpChoices(inputValue: unknown, options: CommandHel
     }));
 }
 
+function isAdminHelpEntry(entry: CommandHelpEntry): boolean {
+  return entry.permissions.startsWith("Admin");
+}
+
+export function listAdminCommandScopePaths(): string[] {
+  return COMMAND_HELP_ENTRIES.filter(isAdminHelpEntry).map(entry => entry.command);
+}
+
+export function buildAdminCommandScopeChoices(inputValue: unknown): AutocompleteChoice[] {
+  const input = normalizeCommandHelpQuery(inputValue).slice(0, 100);
+  const scoped = COMMAND_HELP_ENTRIES
+    .filter(isAdminHelpEntry)
+    .map((entry, index) => ({ entry, index, score: scoreEntry(entry, input) }))
+    .filter(item => item.score >= 0)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map(({ entry }) => ({
+      name: truncateText(`${entry.command} (${entry.permissions})`, MAX_CHOICE_NAME_LEN),
+      value: entry.command
+    }));
+  const includeGlobal = !input || "global".includes(input) || "toate".includes(input);
+  const head = includeGlobal ? [{ name: "global (toate comenzile admin)", value: "global" }] : [];
+  return [...head, ...scoped].slice(0, MAX_AUTOCOMPLETE_CHOICES);
+}
+
 export function renderCommandHelpEntry(entry: CommandHelpEntry): string {
   const lines = [
     entry.command,
