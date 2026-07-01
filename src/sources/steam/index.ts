@@ -7,7 +7,7 @@ import type {
   SteamSearchItem
 } from "../../types";
 import { levenshtein } from "../../native/fuzzy";
-import type { SteamSourceApi, ChooseBestSteamMatchOptions, SteamAppDetailsSummary } from "../sourceApis";
+import type { SteamSourceApi, ChooseBestSteamMatchOptions, SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../sourceApis";
 import { errorMessage } from "../../shared/errors";
 
 type SteamCurrencyCode = CurrencyCode | string | null | undefined;
@@ -109,6 +109,26 @@ function createSteamSource(deps: SteamSourceDeps): SteamSourceApi {
     return data[String(appId)]?.data || null;
   }
 
+  function recordValue(value: unknown, key: string): unknown {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+    return Object.entries(value).find(([entryKey]) => entryKey === key)?.[1];
+  }
+
+  function parseCurrentPlayers(data: unknown, appId: string): SteamCurrentPlayersSummary {
+    const response = recordValue(data, "response");
+    const rawCount = recordValue(response, "player_count");
+    const parsed = typeof rawCount === "number" ? rawCount : Number(rawCount);
+    const success = Number.isFinite(parsed) && parsed >= 0;
+    return { appId, playerCount: success ? Math.floor(parsed) : 0, success };
+  }
+
+  async function fetchSteamCurrentPlayers(appId: string | number): Promise<SteamCurrentPlayersSummary> {
+    const url = new URL("https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/");
+    url.searchParams.set("appid", String(appId));
+    const playersRes = await httpReq("GET", url.toString(), { largeJson: true });
+    return parseCurrentPlayers(playersRes.data, String(appId));
+  }
+
   function extractOfferEndFromHtml(html: unknown): string | null {
     let cheerioThrew = false;
     try {
@@ -172,6 +192,7 @@ function createSteamSource(deps: SteamSourceDeps): SteamSourceApi {
     levenshtein,
     chooseBestSteamMatch,
     fetchSteamPriceDetails,
+    fetchSteamCurrentPlayers,
     extractOfferEndFromHtml,
     extractSteamOfferEndDate
   };

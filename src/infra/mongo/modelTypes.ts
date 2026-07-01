@@ -164,6 +164,10 @@ export interface GuildDoc {
   watchlistGameSuggestions?: WatchlistGameSuggestionEntry[];
   futureReleaseGames?: FutureReleaseGameEntry[];
   adminCommandAccess?: AdminCommandAccessConfig | null;
+  adminCommandAccessByCommand?: Record<string, AdminCommandAccessConfig | null | undefined>;
+  playerCountSubscribed?: boolean;
+  playerCountChannelId?: string | null;
+  playerCountGames?: string[];
   futureReleaseSubscribed?: boolean;
   futureReleaseChannelId?: string | null;
   futureReleaseInitializing?: boolean;

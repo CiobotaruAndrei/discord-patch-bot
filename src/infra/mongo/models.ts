@@ -201,6 +201,10 @@ const guildSchema = new mongoose.Schema({
   watchlistGameSuggestions: { type: [watchlistGameSuggestionSchema], default: [] },
   futureReleaseGames: { type: [futureReleaseGameSchema], default: [] },
   adminCommandAccess: { type: adminCommandAccessSchema, default: null },
+  adminCommandAccessByCommand: { type: Map, of: adminCommandAccessSchema, default: {} },
+  playerCountSubscribed: { type: Boolean, default: false },
+  playerCountChannelId: { type: String, default: null },
+  playerCountGames: { type: [String], default: [] },
   futureReleaseSubscribed: { type: Boolean, default: false },
   futureReleaseChannelId: { type: String, default: null },
   futureReleaseInitializing: { type: Boolean, default: false },
@@ -216,6 +220,7 @@ guildSchema.index({ discountsSubscribed: 1, discountChannelId: 1 }, { background
 guildSchema.index({ youtubeNotificationsEnabled: 1, youtubeNotificationChannelId: 1 }, { background: true });
 guildSchema.index({ futureReleaseSubscribed: 1, futureReleaseChannelId: 1 }, { background: true });
 guildSchema.index({ dlcSubscribed: 1, dlcChannelId: 1 }, { background: true });
+guildSchema.index({ playerCountSubscribed: 1, playerCountChannelId: 1 }, { background: true });
 
 const GuildModel = mongoose.model("Guild", guildSchema);
 

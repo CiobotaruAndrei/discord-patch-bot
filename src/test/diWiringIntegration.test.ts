@@ -24,7 +24,7 @@ const CRITICAL_CONTEXT_DEPS = [
   "getGuildSettings", "invalidateGuildCache", "withMongoRetry", "adminAlert",
   "getCurrencyConfig", "formatPrice",
   "fetchDeals", "getLatestForAllGames", "enrichDealData", "fetchSteamPriceDetails",
-  "searchSteamGameByName", "dealHash", "httpReq", "safeCheerioLoad", "fetchGameUpdate",
+  "fetchSteamCurrentPlayers", "searchSteamGameByName", "dealHash", "httpReq", "safeCheerioLoad", "fetchGameUpdate",
   "checkReadMessageHistory", "checkChannelPermissions", "EmbedBuilder"
 ];
 

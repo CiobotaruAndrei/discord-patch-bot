@@ -3,6 +3,13 @@
 import type { CommandGame, CommandHandler } from "../command-registry/commandHandler";
 
 import { handledCommandError } from "../command-security/commandOutcome";
+import {
+  displayAdminCommandAccessScope,
+  listScopedAdminCommandAccess,
+  normalizeAdminCommandAccessScope,
+  readAdminCommandAccessForScope,
+  type AdminCommandAccessByCommand
+} from "../command-security/adminCommandAccessScope";
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
 type InteractionPayload = string | { content: string; flags?: number };
@@ -49,6 +56,7 @@ type GuildAdminAccessDoc = {
     updatedBy?: string | null;
     updatedAt?: Date | string | null;
   } | null;
+  adminCommandAccessByCommand?: AdminCommandAccessByCommand | null;
 };
 
 type GuildFindQuery = {
@@ -87,10 +95,10 @@ function hasLean(result: GuildFindQuery | Promise<GuildAdminAccessDoc | null>): 
   return "lean" in result && typeof result.lean === "function";
 }
 
-async function loadAdminCommandAccess(GuildModel: GuildModelLike, guildId: string): Promise<GuildAdminAccessDoc["adminCommandAccess"]> {
+async function loadAdminCommandAccess(GuildModel: GuildModelLike, guildId: string): Promise<GuildAdminAccessDoc | null> {
   const result = GuildModel.findOne({ _id: guildId });
   const doc = hasLean(result) ? await result.lean() : await result;
-  return doc?.adminCommandAccess || null;
+  return doc || null;
 }
 
 async function resolveOwnerId(guild: DiscordGuild): Promise<string> {
@@ -111,13 +119,32 @@ function labelMode(mode: string | null | undefined): string {
   return mode === "role-or-higher" ? "rol sau rol mai mare" : "rol exact";
 }
 
-function formatCurrentAccess(access: GuildAdminAccessDoc["adminCommandAccess"]): string {
+function formatCurrentAccess(scope: string, access: GuildAdminAccessDoc["adminCommandAccess"]): string {
+  const scopeText = displayAdminCommandAccessScope(scope);
   if (!access?.roleId || !access.mode) {
-    return "Acces admin: implicit. Pana ownerul seteaza o regula de rol, comenzile admin raman disponibile prin `Administrator` sau codul global de acces.";
+    return `Acces admin pentru ${scopeText}: implicit. Pana ownerul seteaza o regula de rol, comenzile admin raman disponibile prin \`Administrator\` sau codul global de acces.`;
   }
   const updatedAt = access.updatedAt ? `\nActualizat la: ${String(access.updatedAt)}` : "";
   const updatedBy = access.updatedBy ? `\nActualizat de: <@${access.updatedBy}>` : "";
-  return `Acces admin configurat: ${labelMode(access.mode)} pentru <@&${access.roleId}>.${updatedBy}${updatedAt}`;
+  return `Acces admin pentru ${scopeText}: ${labelMode(access.mode)} pentru <@&${access.roleId}>.${updatedBy}${updatedAt}`;
+}
+
+function formatAccessList(doc: GuildAdminAccessDoc | null): string {
+  const lines = [formatCurrentAccess("global", doc?.adminCommandAccess || null)];
+  for (const [scope, access] of listScopedAdminCommandAccess(doc?.adminCommandAccessByCommand)) {
+    lines.push(formatCurrentAccess(scope, access));
+  }
+  return lines.join("\n\n");
+}
+
+function formatScopedAccess(doc: GuildAdminAccessDoc | null, scope: string): string {
+  const exact = readAdminCommandAccessForScope(doc?.adminCommandAccessByCommand, scope);
+  if (exact) return formatCurrentAccess(scope, exact);
+  const fallback = doc?.adminCommandAccess || null;
+  if (fallback) {
+    return `${displayAdminCommandAccessScope(scope)} nu are regula dedicata si foloseste fallback-ul global.\n\n${formatCurrentAccess("global", fallback)}`;
+  }
+  return formatCurrentAccess(scope, null);
 }
 
 function normalizeMode(value: string | null): AdminAccessMode | null {
@@ -125,6 +152,10 @@ function normalizeMode(value: string | null): AdminAccessMode | null {
   if (value === "exact") return "role";
   if (value === "or-higher") return "role-or-higher";
   return null;
+}
+
+function readTargetScope(interaction: DiscordInteraction): string {
+  return normalizeAdminCommandAccessScope(interaction.options.getString("command", false));
 }
 
 function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
@@ -142,29 +173,42 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
   async function handleSet(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     const role = interaction.options.getRole("role", true);
     const mode = normalizeMode(interaction.options.getString("mode", true));
+    const scope = readTargetScope(interaction);
     if (!role?.id) return safeEdit(interaction, "Eroare: trebuie sa alegi un rol valid.");
     if (!mode) return safeEdit(interaction, "Eroare: mode accepta doar `role` sau `role-or-higher`.");
+    const access = { mode, roleId: role.id, updatedBy: interaction.user?.id || "", updatedAt: new Date() };
+    const update = scope === "global"
+      ? { $set: { adminCommandAccess: access } }
+      : { $set: { [`adminCommandAccessByCommand.${scope}`]: access } };
     await GuildModel.updateOne(
       { _id: guildId },
-      { $set: { adminCommandAccess: { mode, roleId: role.id, updatedBy: interaction.user?.id || "", updatedAt: new Date() } } },
+      update,
       { upsert: true }
     );
     invalidateGuildCache(guildId);
-    return safeEdit(interaction, `OK: comenzile admin pot fi folosite de Administrator si de ${labelMode(mode)}: <@&${role.id}>.`);
+    return safeEdit(interaction, `OK: ${displayAdminCommandAccessScope(scope)} poate fi folosita de Administrator si de ${labelMode(mode)}: <@&${role.id}>.`);
   }
 
   async function handleList(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
-    const access = await loadAdminCommandAccess(GuildModel, guildId);
-    return safeEdit(interaction, formatCurrentAccess(access));
+    const scope = readTargetScope(interaction);
+    const doc = await loadAdminCommandAccess(GuildModel, guildId);
+    if (scope !== "global") {
+      return safeEdit(interaction, formatScopedAccess(doc, scope));
+    }
+    return safeEdit(interaction, formatAccessList(doc));
   }
 
   async function handleDelete(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
+    const scope = readTargetScope(interaction);
     if (interaction.options.getBoolean("confirm", true) !== true) {
       return safeEdit(interaction, "Stergerea a fost anulata. Foloseste `confirm:true` numai daca vrei sa revii la accesul implicit.");
     }
-    await GuildModel.updateOne({ _id: guildId }, { $set: { adminCommandAccess: null } }, { upsert: true });
+    const update = scope === "global"
+      ? { $set: { adminCommandAccess: null } }
+      : { $unset: { [`adminCommandAccessByCommand.${scope}`]: "" } };
+    await GuildModel.updateOne({ _id: guildId }, update, { upsert: true });
     invalidateGuildCache(guildId);
-    return safeEdit(interaction, "OK: regula de rol pentru comenzi admin a fost stearsa. Ramane accesul implicit: Administrator sau cod global de acces.");
+    return safeEdit(interaction, `OK: regula de rol pentru ${displayAdminCommandAccessScope(scope)} a fost stearsa. Ramane accesul implicit: Administrator sau cod global de acces.`);
   }
 
   async function handleAdminCommandAccess(interaction: DiscordInteraction): Promise<unknown> {

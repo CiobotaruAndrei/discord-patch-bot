@@ -22,15 +22,16 @@ type TestInteraction = {
   options: {
     getSubcommand: () => string;
     getRole: () => { id: string; name: string };
-    getString: () => string;
+    getString: (name?: string) => string | null;
     getBoolean: () => boolean;
   };
   reply: (payload?: unknown) => Promise<void>;
   followUp: (payload?: unknown) => Promise<void>;
 };
 
-function makeHarness(initial: StoredAccess = null) {
+function makeHarness(initial: StoredAccess = null, scopedInitial: Record<string, StoredAccess> = {}) {
   let stored = initial;
+  const scoped: Record<string, StoredAccess> = { ...scopedInitial };
   const edits: unknown[] = [];
   const alerts: string[] = [];
   const updateCalls: Array<{ filter: object; update: object; options?: object }> = [];
@@ -39,12 +40,23 @@ function makeHarness(initial: StoredAccess = null) {
     GuildModel: {
       updateOne: async (filter: object, update: object, options?: object) => {
         updateCalls.push({ filter, update, options });
-        const set = (update as { $set?: { adminCommandAccess?: StoredAccess } }).$set;
+        const set = (update as { $set?: Record<string, StoredAccess | undefined> }).$set;
         if (set && "adminCommandAccess" in set) stored = set.adminCommandAccess ?? null;
+        if (set) {
+          for (const [key, value] of Object.entries(set)) {
+            if (key.startsWith("adminCommandAccessByCommand.")) scoped[key.slice("adminCommandAccessByCommand.".length)] = value ?? null;
+          }
+        }
+        const unset = (update as { $unset?: Record<string, string> }).$unset;
+        if (unset) {
+          for (const key of Object.keys(unset)) {
+            if (key.startsWith("adminCommandAccessByCommand.")) delete scoped[key.slice("adminCommandAccessByCommand.".length)];
+          }
+        }
         return { modifiedCount: 1 };
       },
       findOne: () => ({
-        lean: async () => ({ adminCommandAccess: stored })
+        lean: async () => ({ adminCommandAccess: stored, adminCommandAccessByCommand: scoped })
       })
     },
     invalidateGuildCache: (guildId: string) => { invalidated.push(guildId); },
@@ -56,10 +68,10 @@ function makeHarness(initial: StoredAccess = null) {
   };
   const handler = attachAdminCommandAccess.createAdminCommandAccessHandler(deps);
   const commandHandler = attachAdminCommandAccess.buildCommandHandler(deps);
-  return { handler, commandHandler, edits, alerts, updateCalls, invalidated, getStored: () => stored };
+  return { handler, commandHandler, edits, alerts, updateCalls, invalidated, getStored: () => stored, getScoped: () => scoped };
 }
 
-function interaction(commandName: string, subcommand: string, owner = true): TestInteraction {
+function interaction(commandName: string, subcommand: string, owner = true, commandScope: string | null = null): TestInteraction {
   return {
     commandName,
     guild: { id: "guild-1", ownerId: owner ? "user-1" : "owner-1" },
@@ -70,7 +82,7 @@ function interaction(commandName: string, subcommand: string, owner = true): Tes
     options: {
       getSubcommand: () => subcommand,
       getRole: () => ({ id: "role-admin", name: "Moderatori" }),
-      getString: () => "role-or-higher",
+      getString: (name?: string) => name === "command" ? commandScope : "role-or-higher",
       getBoolean: () => true
     },
     reply: async () => undefined,
@@ -131,6 +143,18 @@ test("/set admin-command-access salveaza rolul si modul configurat de owner", as
   assert.match(String(harness.edits[0]), /role-admin/);
 });
 
+test("/set admin-command-access cu command salveaza regula doar pentru acea comanda admin", async () => {
+  const harness = makeHarness({ mode: "role", roleId: "role-global", updatedBy: "owner", updatedAt: new Date() });
+
+  await harness.handler.handleAdminCommandAccess(interaction("set", "admin-command-access", true, "/start updates"));
+
+  assert.equal(harness.getStored()?.roleId, "role-global");
+  assert.equal(harness.getScoped()["start:updates"]?.roleId, "role-admin");
+  assert.equal(harness.getScoped()["start:updates"]?.mode, "role-or-higher");
+  assert.deepEqual(harness.invalidated, ["guild-1"]);
+  assert.match(String(harness.edits[0]), /start updates/);
+});
+
 test("/admin-command-access list explica accesul implicit cand nu exista regula", async () => {
   const harness = makeHarness();
 
@@ -140,12 +164,38 @@ test("/admin-command-access list explica accesul implicit cand nu exista regula"
   assert.match(String(harness.edits[0]), /Administrator/);
 });
 
+test("/admin-command-access list pentru command arata regula dedicata sau fallback global", async () => {
+  const globalRule = { mode: "role" as const, roleId: "role-global", updatedBy: "owner", updatedAt: new Date() };
+  const scopedRule = { mode: "role-or-higher" as const, roleId: "role-start", updatedBy: "owner", updatedAt: new Date() };
+  const harness = makeHarness(globalRule, { "start:updates": scopedRule });
+
+  await harness.handler.handleAdminCommandAccess(interaction("admin-command-access", "list", true, "/start updates"));
+  await harness.handler.handleAdminCommandAccess(interaction("admin-command-access", "list", true, "/stop updates"));
+
+  assert.match(String(harness.edits[0]), /start updates/);
+  assert.match(String(harness.edits[0]), /role-start/);
+  assert.match(String(harness.edits[1]), /fallback-ul global/);
+  assert.match(String(harness.edits[1]), /role-global/);
+});
+
 test("/delete admin-command-access sterge regula configurata", async () => {
   const harness = makeHarness({ mode: "role", roleId: "role-admin", updatedBy: "user-1", updatedAt: new Date() });
 
   await harness.handler.handleAdminCommandAccess(interaction("delete", "admin-command-access"));
 
   assert.equal(harness.getStored(), null);
+  assert.deepEqual(harness.invalidated, ["guild-1"]);
+});
+
+test("/delete admin-command-access cu command sterge doar regula dedicata", async () => {
+  const globalRule = { mode: "role" as const, roleId: "role-global", updatedBy: "owner", updatedAt: new Date() };
+  const scopedRule = { mode: "role" as const, roleId: "role-start", updatedBy: "owner", updatedAt: new Date() };
+  const harness = makeHarness(globalRule, { "start:updates": scopedRule });
+
+  await harness.handler.handleAdminCommandAccess(interaction("delete", "admin-command-access", true, "/start updates"));
+
+  assert.equal(harness.getStored()?.roleId, "role-global");
+  assert.equal("start:updates" in harness.getScoped(), false);
   assert.deepEqual(harness.invalidated, ["guild-1"]);
 });
 
@@ -170,7 +220,7 @@ test("admin-command-access permite non-owner dupa codul global autorizat de guar
 
   await harness.handler.handleAdminCommandAccess(nonOwner);
 
-  assert.match(String(harness.edits[0]), /Acces admin: implicit/);
+  assert.match(String(harness.edits[0]), /Acces admin pentru toate comenzile admin: implicit/);
   assert.match(String(harness.edits[0]), /codul global de acces/);
 });
 

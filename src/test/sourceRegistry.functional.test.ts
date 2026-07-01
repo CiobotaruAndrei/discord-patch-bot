@@ -39,6 +39,7 @@ const requiredKeys = [
   "searchSteamGameByName",
   "chooseBestSteamMatch",
   "fetchSteamPriceDetails",
+  "fetchSteamCurrentPlayers",
   "extractOfferEndFromHtml",
   "extractSteamOfferEndDate",
   "cleanEnrichedCache",
@@ -51,7 +52,7 @@ test("source registry compune explicit toate exporturile prin factory-urile real
   for (const key of requiredKeys) {
     assert.ok(registry[key] !== undefined, `registry expune ${key} dupa compunerea explicita (http -> steam -> updates -> deals)`);
   }
-  for (const fn of ["cleanText", "httpReq", "searchSteamGameByName", "getLatestForAllGames", "fetchDeals", "dealHash"]) {
+  for (const fn of ["cleanText", "httpReq", "searchSteamGameByName", "fetchSteamCurrentPlayers", "getLatestForAllGames", "fetchDeals", "dealHash"]) {
     assert.equal(typeof registry[fn], "function", `${fn} e o functie pe registry-ul compus`);
   }
 });

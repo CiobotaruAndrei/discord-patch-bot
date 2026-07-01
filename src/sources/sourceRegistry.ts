@@ -31,6 +31,7 @@ type SourceRegistryApi = {
   searchSteamGameByName: SteamSourceApi["searchSteamGameByName"];
   chooseBestSteamMatch: SteamSourceApi["chooseBestSteamMatch"];
   fetchSteamPriceDetails: SteamSourceApi["fetchSteamPriceDetails"];
+  fetchSteamCurrentPlayers: SteamSourceApi["fetchSteamCurrentPlayers"];
   extractOfferEndFromHtml: SteamSourceApi["extractOfferEndFromHtml"];
   extractSteamOfferEndDate: SteamSourceApi["extractSteamOfferEndDate"];
   cleanEnrichedCache: DealsApi["cleanEnrichedCache"];
@@ -82,6 +83,7 @@ function buildSourceRegistry(context: Partial<SourceRegistryApi>): SourceRegistr
     searchSteamGameByName: requireSourceValue(context, "searchSteamGameByName"),
     chooseBestSteamMatch: requireSourceValue(context, "chooseBestSteamMatch"),
     fetchSteamPriceDetails: requireSourceValue(context, "fetchSteamPriceDetails"),
+    fetchSteamCurrentPlayers: requireSourceValue(context, "fetchSteamCurrentPlayers"),
     extractOfferEndFromHtml: requireSourceValue(context, "extractOfferEndFromHtml"),
     extractSteamOfferEndDate: requireSourceValue(context, "extractSteamOfferEndDate"),
     cleanEnrichedCache: requireSourceValue(context, "cleanEnrichedCache"),
@@ -111,5 +113,6 @@ export { createSourceRegistry };
 export type { SourceRegistryApi };
 export const dealHash = registry.dealHash;
 export const extractOfferEndFromHtml = registry.extractOfferEndFromHtml;
+export const fetchSteamCurrentPlayers = registry.fetchSteamCurrentPlayers;
 export const safeCheerioLoad = registry.safeCheerioLoad;
 export const MAX_HTML_BYTES = registry.MAX_HTML_BYTES;

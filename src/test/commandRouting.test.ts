@@ -117,6 +117,8 @@ const expectedOwnerByCommand: Record<string, string> = {
   "co-op": "gameInfo",
   system: "gameInfo",
   "game-size": "gameInfo",
+  "player-count": "gameInfo",
+  top: "gameInfo",
   maintenance: "maintenance",
   youtube: "youtube",
   snooze: "snooze",

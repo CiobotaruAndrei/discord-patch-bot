@@ -2,7 +2,7 @@
 
 import type { CheerioAPI } from "cheerio";
 import type { DealInfo, GameConfig, GuildSettings, PriceValue, SteamReviewData } from "../../types";
-import type { SteamAppDetailsSummary } from "../../sources/sourceApis";
+import type { SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../../sources/sourceApis";
 import type { CommandHandler } from "../command-registry/commandHandler";
 
 const { errorDetail, errorMessage } = require("../../shared/errors");
@@ -59,6 +59,7 @@ interface GameInfoDeps {
   searchSteamGameByName(query: string, currency: string): Promise<SteamSearchCandidate[]>;
   chooseBestSteamMatch(items: SteamSearchCandidate[], query: string, options?: { forceGameOnly?: boolean }): SteamSearchCandidate | null;
   fetchSteamPriceDetails(appId: string | number, currency: string): Promise<SteamAppDetailsSummary | null>;
+  fetchSteamCurrentPlayers(appId: string | number): Promise<SteamCurrentPlayersSummary>;
   fetchSteamReviewData(appId: string | number): Promise<SteamReviewData>;
   getDealsCacheData(currency: string): DealInfo[] | null;
   setDealsCache(currency: string, deals: DealInfo[]): void;
@@ -75,7 +76,7 @@ type GameInfoContext = GameInfoDeps & {
   handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<object | void | null>;
 };
 
-const GAME_INFO_COMMANDS = new Set(["best", "ending", "review-trend", "crossplay", "platforms", "co-op", "system", "game-size"]);
+const GAME_INFO_COMMANDS = new Set(["best", "ending", "review-trend", "crossplay", "platforms", "co-op", "system", "game-size", "player-count", "top"]);
 const RESULT_LIMIT_DEFAULT = 5;
 const RESULT_LIMIT_MAX = 10;
 const INFO_COLOR = 0x3498db;
@@ -339,6 +340,45 @@ function buildGameSizeEmbed(query: string, appId: string | number, details: Stea
   };
 }
 
+function formatPlayerCount(count: number): string {
+  return new Intl.NumberFormat("en-US").format(count);
+}
+
+function buildPlayerCountEmbed(query: string, appId: string | number, details: SteamAppDetailsSummary, players: SteamCurrentPlayersSummary): DiscordEmbed {
+  return {
+    title: `Player count: ${details.name || query}`,
+    url: `https://store.steampowered.com/app/${appId}`,
+    color: players.success ? INFO_COLOR : WARNING_COLOR,
+    description: players.success
+      ? `Jucatori activi pe Steam acum: **${formatPlayerCount(players.playerCount)}**.`
+      : "Steam nu a returnat un numar valid de jucatori activi pentru acest joc."
+  };
+}
+
+function buildTopActiveGamesEmbed(items: Array<{ game: GameConfig; players: SteamCurrentPlayersSummary }>, filteredByServer: boolean, limit = RESULT_LIMIT_DEFAULT): DiscordEmbed {
+  const successful = items
+    .filter(item => item.players.success)
+    .sort((left, right) => right.players.playerCount - left.players.playerCount)
+    .slice(0, limit);
+  if (!successful.length) {
+    return {
+      title: "Top active games",
+      color: WARNING_COLOR,
+      description: "Steam nu a returnat date valide de player count pentru jocurile verificate."
+    };
+  }
+  return {
+    title: "Top active games",
+    color: INFO_COLOR,
+    description: filteredByServer ? "Top calculat din jocurile urmarite de server." : "Top calculat din jocurile configurate care au Steam appId.",
+    fields: successful.map((item, index) => ({
+      name: `${index + 1}. ${item.game.name}`,
+      value: `${formatPlayerCount(item.players.playerCount)} jucatori activi pe Steam`,
+      inline: false
+    }))
+  };
+}
+
 function findExternalStores(deals: DealInfo[], query: string, steamName: string, appId: string | number): string[] {
   const appIdStr = String(appId);
   const queryNorm = normalizeText(query);
@@ -355,11 +395,22 @@ function findExternalStores(deals: DealInfo[], query: string, steamName: string,
   return stores.slice(0, 6);
 }
 
+function selectTopActiveGames(games: GameConfig[], guild: GuildSettings | null, limit: number): { games: GameConfig[]; filteredByServer: boolean } {
+  const playerCountKeys = Array.isArray(guild?.playerCountGames) ? guild.playerCountGames.map(String).filter(Boolean) : [];
+  const enabledKeys = Array.isArray(guild?.enabledGames) ? guild.enabledGames.map(String).filter(Boolean) : [];
+  const keyFilter = playerCountKeys.length ? new Set(playerCountKeys) : enabledKeys.length ? new Set(enabledKeys) : null;
+  const candidates = games
+    .filter(game => Boolean(game.appId))
+    .filter(game => !keyFilter || keyFilter.has(game.key))
+    .slice(0, Math.max(limit, 25));
+  return { games: candidates, filteredByServer: Boolean(keyFilter) };
+}
+
 function createGameInfoInteractionHandler(deps: GameInfoDeps) {
   const {
     enforceCooldown, startCommandLog, safeDefer, safeEdit, searchSteamGameByName,
     chooseBestSteamMatch, fetchSteamPriceDetails, fetchSteamReviewData, getDealsCacheData,
-    setDealsCache, fetchDeals, getGuildSettings, DEFAULT_CURRENCY
+    setDealsCache, fetchDeals, getGuildSettings, fetchSteamCurrentPlayers, DEFAULT_CURRENCY
   } = deps;
 
   async function resolveCurrency(interaction: DiscordInteraction): Promise<string> {
@@ -415,11 +466,29 @@ function createGameInfoInteractionHandler(deps: GameInfoDeps) {
     if (interaction.commandName === "co-op") return safeEdit(interaction, { embeds: [buildCoopEmbed(query, appId, details)] });
     if (interaction.commandName === "system") return safeEdit(interaction, { embeds: [buildSystemRequirementsEmbed(query, appId, details, deps.safeCheerioLoad)] });
     if (interaction.commandName === "game-size") return safeEdit(interaction, { embeds: [buildGameSizeEmbed(query, appId, details, deps.safeCheerioLoad)] });
+    if (interaction.commandName === "player-count") {
+      const players = await fetchSteamCurrentPlayers(appId);
+      return safeEdit(interaction, { embeds: [buildPlayerCountEmbed(query, appId, details, players)] });
+    }
     const deals = await loadDeals(currency).catch(() => []);
     return safeEdit(interaction, { embeds: [buildPlatformsEmbed(query, appId, details, findExternalStores(deals, query, details.name || query, appId))] });
   }
 
-  async function handleGameInfo(interaction: DiscordInteraction): Promise<object | void | null> {
+  async function handleTopActiveCommand(interaction: DiscordInteraction, games: GameConfig[]): Promise<object | void | null> {
+    const guild = interaction.guild?.id ? await getGuildSettings(interaction.guild.id) : null;
+    const limit = clampResultLimit(interaction.options.getInteger("numar", false));
+    const selected = selectTopActiveGames(games, guild, limit);
+    if (!selected.games.length) {
+      return safeEdit(interaction, "Eroare: nu am jocuri cu Steam appId pentru player-count in configuratia curenta.");
+    }
+    const playerCounts = await Promise.all(selected.games.map(async game => ({
+      game,
+      players: await fetchSteamCurrentPlayers(String(game.appId))
+    })));
+    return safeEdit(interaction, { embeds: [buildTopActiveGamesEmbed(playerCounts, selected.filteredByServer, limit)] });
+  }
+
+  async function handleGameInfo(interaction: DiscordInteraction, games: GameConfig[] = []): Promise<object | void | null> {
     const command = interaction.commandName || "";
     if (!(await enforceCooldown(interaction, command))) return undefined;
     const endLog = startCommandLog(interaction, command);
@@ -427,6 +496,8 @@ function createGameInfoInteractionHandler(deps: GameInfoDeps) {
     try {
       const result = command === "best" || command === "ending"
         ? await handleDealsCommand(interaction)
+        : command === "top"
+          ? await handleTopActiveCommand(interaction, games)
         : await handleSteamInfoCommand(interaction);
       endLog("ok");
       return result;
@@ -457,9 +528,9 @@ function buildGameInfoCommandHandler(target: GameInfoContext) {
   const handlers = createGameInfoInteractionHandler(target);
   const command: CommandHandler<DiscordInteraction> = {
     canHandle: isGameInfoCommand,
-    handle: async (interaction) => {
+    handle: async (interaction, games) => {
       try {
-        return await handlers.handleGameInfo(interaction);
+        return await handlers.handleGameInfo(interaction, games);
       } catch (err) {
         target.logger("ERROR", "GAME_INFO", "Eroare neasteptata in handler-ul de game info", { errorMsg: err instanceof Error ? err.message : String(err) });
         const payload = { content: "Eroare: nu am putut procesa comanda.", flags: target.MessageFlags.Ephemeral };
@@ -497,6 +568,9 @@ export = Object.assign(installGameInfoInteractionHandler, {
   buildCoopEmbed,
   buildSystemRequirementsEmbed,
   buildGameSizeEmbed,
+  buildPlayerCountEmbed,
+  buildTopActiveGamesEmbed,
+  selectTopActiveGames,
   extractInstallSize,
   buildCommandHandler: buildGameInfoCommandHandler
 });

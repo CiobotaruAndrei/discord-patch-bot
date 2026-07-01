@@ -25,6 +25,7 @@ interface DiscordInteraction {
   replied?: boolean;
   options: {
     getSubcommand(): string;
+    getString?(name: string, required?: boolean): string | null;
   };
   isChatInputCommand?: () => boolean;
   reply?: (payload: unknown) => Promise<unknown>;
@@ -70,6 +71,19 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
     OP_UPDATE_OPTS, setDealsCache, safeDefer, safeEdit, canSendEmbeds, listMissingChannelPerms,
     missingChannelPermsMessage, makeActivationId, formatUserError
   } = deps;
+
+  function normalizeGameKey(value: string): string {
+    return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  }
+
+  function findConfiguredGame(games: GameConfig[], value: string | null): GameConfig | null {
+    const input = normalizeGameKey(String(value || ""));
+    if (!input) return null;
+    return games.find(game => {
+      if (normalizeGameKey(game.key) === input || normalizeGameKey(game.name) === input) return true;
+      return Array.isArray(game.aliases) && game.aliases.some(alias => normalizeGameKey(String(alias)) === input);
+    }) || null;
+  }
 
   async function handleStartInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     const sub = interaction.options.getSubcommand();
@@ -241,11 +255,31 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
       }
     }
 
+    if (sub === "player-count") {
+      const game = findConfiguredGame(games, interaction.options.getString?.("game", true) || null);
+      if (!game) return safeEdit(interaction, "Eroare: jocul nu exista in lista configurata a botului.");
+      if (!game.appId) return safeEdit(interaction, `Eroare: \`${game.name}\` nu are Steam appId configurat, deci nu poate avea player-count Steam.`);
+      try {
+        await GuildModel.updateOne(
+          { _id: guildId },
+          {
+            $set: { playerCountSubscribed: true, playerCountChannelId: interaction.channel.id },
+            $addToSet: { playerCountGames: game.key }
+          },
+          { upsert: true, ...OP_UPDATE_OPTS }
+        );
+        invalidateGuildCache(guildId);
+        return safeEdit(interaction, `OK: player-count pornit pentru **${game.name}** pe acest server.`);
+      } catch (err: unknown) {
+        return safeEdit(interaction, formatUserError(err, "Eroare la pornirea player-count."));
+      }
+    }
+
     logger?.("WARN", "START_COMMAND", `Subcomanda /start necunoscuta: ${sub}`);
     return safeEdit(interaction, `Eroare: Subcomanda \`/start ${sub}\` nu este recunoscuta.`);
   }
 
-  async function handleStopInteraction(interaction: DiscordInteraction) {
+  async function handleStopInteraction(interaction: DiscordInteraction, games: GameConfig[] = []) {
     const sub = interaction.options.getSubcommand();
     const guildId = interaction.guild?.id;
     if (!guildId) return undefined;
@@ -274,6 +308,25 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
         }, OP_UPDATE_OPTS);
         invalidateGuildCache(guildId);
         return safeEdit(interaction, "OK: Notificarile DLC au fost oprite.");
+      }
+      if (sub === "player-count") {
+        const requested = interaction.options.getString?.("game", true) || null;
+        const game = findConfiguredGame(games, requested);
+        const requestedKey = game?.key || String(requested || "").trim();
+        if (!requestedKey) return safeEdit(interaction, "Eroare: trebuie sa specifici jocul pentru care opresti player-count.");
+        const existingGuild = await getGuildSettings(guildId);
+        const current = Array.isArray(existingGuild?.playerCountGames) ? existingGuild.playerCountGames.map(String) : [];
+        const normalizedRequested = normalizeGameKey(requestedKey);
+        const remaining = current.filter(key => normalizeGameKey(key) !== normalizedRequested);
+        await GuildModel.updateOne({ _id: guildId }, {
+          $set: {
+            playerCountGames: remaining,
+            playerCountSubscribed: remaining.length > 0,
+            playerCountChannelId: remaining.length > 0 ? existingGuild?.playerCountChannelId || null : null
+          }
+        }, OP_UPDATE_OPTS);
+        invalidateGuildCache(guildId);
+        return safeEdit(interaction, `OK: player-count oprit pentru \`${game?.name || requestedKey}\`.`);
       }
     } catch (err: unknown) {
       return safeEdit(interaction, formatUserError(err, "Eroare la baza de date."));
@@ -329,7 +382,7 @@ function buildSubscriptionCommandHandler(target: SubscriptionContext) {
       const di = interaction;
       try {
         if (di.commandName === "start") return await handlers.handleStartInteraction(di, games);
-        return await handlers.handleStopInteraction(di);
+        return await handlers.handleStopInteraction(di, games);
       } catch (err: unknown) {
         target.logger?.("ERROR", "SUBSCRIPTION_INTERACTION", "Eroare in handler-ul de start/stop", errorDetail(err));
         const payload = createInteractionErrorPayload(target.MessageFlags);

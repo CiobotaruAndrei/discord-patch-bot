@@ -115,6 +115,7 @@ export function makeSourceRegistryApi(overrides: Partial<SourceRegistryApi> = {}
     searchSteamGameByName: async () => [],
     chooseBestSteamMatch: () => null,
     fetchSteamPriceDetails: async () => null,
+    fetchSteamCurrentPlayers: async appId => ({ appId: String(appId), playerCount: 0, success: false }),
     extractOfferEndFromHtml: () => null,
     extractSteamOfferEndDate: async () => null,
     cleanEnrichedCache: () => undefined,

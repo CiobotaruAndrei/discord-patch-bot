@@ -31,9 +31,11 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 | `/start updates` | Admin, Ephemeral | Porneste notificarile automate de update-uri in canalul curent. Verifica permisiunile canalului, salveaza canalul in setarile serverului si face baseline initial ca sa nu trimita update-uri vechi. |
 | `/start reduceri` | Admin, Ephemeral | Porneste alertele automate de reduceri in canalul curent. Verifica permisiunile canalului, salveaza canalul si face baseline initial pentru ofertele deja vazute. |
 | `/start dlc` | Admin, Ephemeral | Configureaza canalul curent pentru notificarile DLC ale jocurilor active. Verifica permisiunile canalului si salveaza starea necesara pentru motorul DLC cand acesta ruleaza in runtime. |
+| `/start player-count game:<key>` | Admin, Autocomplete, Ephemeral | Adauga jocul ales in lista de jocuri urmarite pentru player-count pe server si salveaza canalul curent pentru acest modul. Jocul trebuie sa aiba Steam appId configurat. |
 | `/stop updates` | Admin, Ephemeral | Opreste notificarile automate de update-uri pentru server si curata coada/starea aferenta. |
 | `/stop reduceri` | Admin, Ephemeral | Opreste alertele automate de reduceri pentru server si curata coada/starea aferenta. |
 | `/stop dlc` | Admin, Ephemeral | Opreste notificarile DLC si sterge canalul salvat pentru acest modul. |
+| `/stop player-count game:<key>` | Admin, Autocomplete, Ephemeral | Scoate jocul ales din lista de player-count a serverului. Daca nu mai ramane niciun joc in lista, modulul player-count este oprit pentru server. |
 
 ## Setari server
 
@@ -47,9 +49,9 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 | `/set currency value:<currency>` | Admin, Ephemeral | Seteaza valuta folosita pentru preturi si reduceri. Optiunile vin din registrul de valute suportate de bot. Reseteaza coada de reduceri in asteptare. |
 | `/set stores value:<steam,epic|reset>` | Admin, Ephemeral | Filtreaza reducerile dupa magazinele permise. `reset` revine la filtrul implicit. Reseteaza coada de reduceri in asteptare. |
 | `/set outbox-recovery-verify value:<on|off>` | Admin, Ephemeral | Activeaza sau dezactiveaza verificarea de recovery outbox pentru server. Cand este activata, botul avertizeaza daca ii lipseste `Read Message History` pe canalele configurate. |
-| `/set admin-command-access role:<rol> mode:<role|role-or-higher>` | Owner-only, Ephemeral | Seteaza conditia de rol pentru folosirea comenzilor admin. `role` accepta doar rolul ales, iar `role-or-higher` accepta rolul ales sau un rol mai mare in ierarhia Discord. Pana ownerul seteaza aceasta regula, rolurile nu dau acces admin; raman doar `Administrator` si codul global de acces. |
-| `/admin-command-access list` | Owner-only, Ephemeral | Afiseaza regula curenta de acces prin rol pentru comenzile admin. Daca nu exista regula, confirma explicit ca serverul foloseste accesul implicit. |
-| `/delete admin-command-access confirm:true` | Owner-only, Ephemeral | Sterge regula de rol pentru comenzile admin si revine la accesul implicit: `Administrator` sau cod global de acces. |
+| `/set admin-command-access` | Owner-only, Ephemeral | Seteaza conditia de rol pentru folosirea comenzilor admin. Primeste `role`, `mode` si optional `command`. Fara `command`, regula devine fallback global. Cu `command`, regula se aplica doar acelei comenzi sau acelui pachet, de exemplu `/start updates`. `role` accepta doar rolul ales, iar `role-or-higher` accepta rolul ales sau un rol mai mare in ierarhia Discord. |
+| `/admin-command-access list` | Owner-only, Ephemeral | Afiseaza regula globala si regulile dedicate pe comenzi admin. Cu optiunea `command`, arata regula exacta pentru comanda aleasa sau fallback-ul global folosit. |
+| `/delete admin-command-access` | Owner-only, Ephemeral | Sterge regula globala sau regula dedicata comenzii alese. Cere `confirm:true`; cu optiunea `command` sterge doar regula dedicata. Daca stergi o regula dedicata, comanda revine la fallback-ul global, iar daca nu exista fallback ramane accesul implicit: `Administrator` sau cod global de acces. |
 | `/config` | Admin, Ephemeral | Afiseaza setarile curente ale serverului intr-un singur embed: mod, reducere minima, pret maxim, filtre free/paid, valuta, magazine, jocuri active, roluri de ping, canale pentru update-uri/reduceri/YouTube/future-release/DLC, canalul administrativ, alertele de pret, propunerile salvate si numarul canalelor YouTube urmarite. |
 | `/reset-config confirm:true` | Admin, Ephemeral | Reseteaza toate setarile botului pentru server: abonari, canale, roluri, filtre, watchlist, snooze-uri, alerte de pret, configurarea YouTube si canalul administrativ. Confirmarea trebuie sa fie explicit `true`. Goleste lista dead-letter vizibila si payload-urile de replay din colectia separata (ca sa nu ramana orfane); istoricul rapoartelor si al notificarilor deja livrate nu este sters. |
 
@@ -112,7 +114,7 @@ Canalul administrativ primeste alerte operationale cu severitate, cauza, explica
 | `/future-release start` | Admin, Ephemeral | Configureaza canalul curent pentru notificarile future-release si marcheaza modulul activ pentru server. Verifica permisiunile de postare embed inainte sa salveze canalul. |
 | `/future-release stop` | Admin, Ephemeral | Opreste notificarile future-release si sterge canalul salvat pentru modul. |
 
-Comenzile admin accepta implicit permisiunea Discord `Administrator`, apoi regula de rol configurata de owner prin `/set admin-command-access`, apoi codul global de acces introdus prin modal ephemeral. Daca ownerul nu a configurat inca o regula de rol, rolurile simple nu dau acces admin; raman doar `Administrator` si codul global corect. Comenzile owner-only accepta ownerul serverului sau codul global corect. Codul global se tine in env/deployment secrets prin `BOT_GLOBAL_ACCESS_CODE_HASH`, cu `BOT_GLOBAL_ACCESS_CODE` doar ca fallback local. Pentru comenzile sensibile, daca `BOT_SENSITIVE_USER_IDS` este setat, userul trebuie sa fie si in acea lista privata de user ID-uri. ID-urile sunt folosite direct, nu numele rolurilor sau userilor.
+Comenzile admin accepta implicit permisiunea Discord `Administrator`, apoi regula de rol dedicata comenzii daca ownerul a setat una prin `/set admin-command-access` cu optiunea `command:<comanda>`, apoi fallback-ul global configurat prin `/set admin-command-access` fara `command`, apoi codul global de acces introdus prin modal ephemeral. Daca ownerul nu a configurat inca o regula de rol, rolurile simple nu dau acces admin; raman doar `Administrator` si codul global corect. Comenzile owner-only accepta ownerul serverului sau codul global corect. Codul global se tine in env/deployment secrets prin `BOT_GLOBAL_ACCESS_CODE_HASH`, cu `BOT_GLOBAL_ACCESS_CODE` doar ca fallback local. Pentru comenzile sensibile, daca `BOT_SENSITIVE_USER_IDS` este setat, userul trebuie sa fie si in acea lista privata de user ID-uri. ID-urile sunt folosite direct, nu numele rolurilor sau userilor.
 
 ## Monitorizare YouTube
 
@@ -213,6 +215,8 @@ Concepte utile pentru admini:
 | `/co-op game game:<name>` | Public, Autocomplete | Afiseaza modurile detectate in Steam pentru joc: single-player, online co-op, local/split-screen co-op, PvP sau MMO. |
 | `/system requirements game game:<name>` | Public, Autocomplete | Afiseaza cerintele minime si recomandate returnate de Steam pentru joc. |
 | `/game-size game game:<name>` | Public, Autocomplete | Extrage dimensiunea aproximativa de instalare din cerintele de sistem Steam, cand informatia este disponibila. |
+| `/player-count game game:<name>` | Public, Autocomplete | Afiseaza numarul curent de jucatori activi pe Steam pentru jocul ales, cand jocul are Steam appId configurat si API-ul Steam raspunde. |
+| `/top active games` | Public | Afiseaza topul jocurilor active dupa player-count Steam. Daca serverul are lista player-count sau watchlist configurata, topul se limiteaza la acele jocuri; altfel foloseste jocurile configurate cu Steam appId. |
 | `/sources status` | Admin, Ephemeral | Afiseaza starea ultimelor snapshot-uri persistate pentru sursele externe: Steam/Epic, feed-urile de update pe joc, erori recente si varsta ultimei verificari cunoscute. Nu face fetch live; arata ce stie botul din ultima rulare salvata. |
 
 ## Istoric, raportare si sanatate

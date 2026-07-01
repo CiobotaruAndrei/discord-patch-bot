@@ -52,11 +52,18 @@ export interface SteamAppDetailsSummary {
   } | null;
 }
 
+export interface SteamCurrentPlayersSummary {
+  appId: string;
+  playerCount: number;
+  success: boolean;
+}
+
 export interface SteamSourceApi {
   searchSteamGameByName: (query: string, currencyCode?: SourceCurrencyCode) => Promise<SteamSearchItem[]>;
   levenshtein: (a: string, b: string) => number;
   chooseBestSteamMatch: (items: SteamSearchItem[] | null | undefined, query: string, options?: ChooseBestSteamMatchOptions) => SteamSearchItem | null;
   fetchSteamPriceDetails: (appId: string | number, currencyCode?: SourceCurrencyCode) => Promise<SteamAppDetailsSummary | null>;
+  fetchSteamCurrentPlayers: (appId: string | number) => Promise<SteamCurrentPlayersSummary>;
   extractOfferEndFromHtml: (html: unknown) => string | null;
   extractSteamOfferEndDate: (appId: string | number, currencyCode?: SourceCurrencyCode) => Promise<string | null>;
 }
