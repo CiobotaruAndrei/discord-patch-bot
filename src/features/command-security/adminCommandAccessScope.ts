@@ -27,6 +27,7 @@ type CommandPathInteraction = {
 };
 
 const GLOBAL_SCOPE = "global";
+const START_STOP_SCOPE = "start-stop";
 
 function readCommandPart(read?: (required?: boolean) => string | null): string {
   if (typeof read !== "function") return "";
@@ -46,7 +47,11 @@ export function normalizeAdminCommandAccessScope(value: string | null | undefine
     .replace(/\s+/g, " ")
     .trim();
   if (!cleaned || cleaned === "*" || cleaned === "all" || cleaned === GLOBAL_SCOPE) return GLOBAL_SCOPE;
-  return cleaned.replace(/\s+/g, ":").slice(0, 100);
+  const parts = cleaned.split(" ").filter(Boolean);
+  if ((parts[0] === "start" || parts[0] === "stop") && parts.length > 1) {
+    parts[0] = START_STOP_SCOPE;
+  }
+  return parts.join(":").slice(0, 100);
 }
 
 export function buildAdminCommandAccessScope(interaction: CommandPathInteraction): string {
@@ -60,7 +65,19 @@ export function buildAdminCommandAccessScope(interaction: CommandPathInteraction
 
 export function displayAdminCommandAccessScope(scope: string): string {
   const normalized = normalizeAdminCommandAccessScope(scope);
-  return normalized === GLOBAL_SCOPE ? "toate comenzile admin" : `/${normalized.replace(/:/g, " ")}`;
+  if (normalized === GLOBAL_SCOPE) return "toate comenzile admin";
+  const parts = normalized.split(":");
+  if (parts[0] === START_STOP_SCOPE && parts.length > 1) return `/start sau /stop ${parts.slice(1).join(" ")}`;
+  return `/${parts.join(" ")}`;
+}
+
+export function buildAdminCommandAccessScopeLookupKeys(scope: string): string[] {
+  const normalized = normalizeAdminCommandAccessScope(scope);
+  if (normalized === GLOBAL_SCOPE) return [GLOBAL_SCOPE];
+  const parts = normalized.split(":");
+  if (parts[0] !== START_STOP_SCOPE || parts.length <= 1) return [normalized];
+  const rest = parts.slice(1).join(":");
+  return [normalized, `start:${rest}`, `stop:${rest}`];
 }
 
 function hasMapGetter(value: AdminCommandAccessByCommand): value is Map<string, AdminCommandAccessConfig | null | undefined> {
@@ -72,9 +89,11 @@ export function readAdminCommandAccessForScope(
   scope: string
 ): AdminCommandAccessConfig | null {
   if (!scoped) return null;
-  const key = normalizeAdminCommandAccessScope(scope);
-  const value = hasMapGetter(scoped) ? scoped.get(key) : scoped[key];
-  return value || null;
+  for (const key of buildAdminCommandAccessScopeLookupKeys(scope)) {
+    const value = hasMapGetter(scoped) ? scoped.get(key) : scoped[key];
+    if (value) return value;
+  }
+  return null;
 }
 
 export function resolveAdminCommandAccessForScope(
@@ -89,7 +108,11 @@ export function listScopedAdminCommandAccess(scoped: AdminCommandAccessByCommand
   const entries = hasMapGetter(scoped)
     ? Array.from(scoped.entries())
     : Object.entries(scoped);
-  return entries
-    .filter((entry): entry is [string, AdminCommandAccessConfig] => Boolean(entry[1]?.roleId && entry[1]?.mode))
-    .sort(([left], [right]) => left.localeCompare(right));
+  const normalizedEntries = new Map<string, AdminCommandAccessConfig>();
+  for (const [scope, access] of entries) {
+    if (!access?.roleId || !access.mode) continue;
+    const normalized = normalizeAdminCommandAccessScope(scope);
+    if (!normalizedEntries.has(normalized)) normalizedEntries.set(normalized, access);
+  }
+  return Array.from(normalizedEntries.entries()).sort(([left], [right]) => left.localeCompare(right));
 }

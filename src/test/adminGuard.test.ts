@@ -393,7 +393,7 @@ test("admin command guard delegates protected commands for configured role acces
   assert.deepEqual(delegated, ["config"]);
 });
 
-test("admin command guard foloseste regula dedicata pe comanda inaintea fallback-ului global", async () => {
+test("admin command guard foloseste regula dedicata start/stop pe pachet inaintea fallback-ului global", async () => {
   const { interaction: startInteraction } = makeInteraction(false);
   startInteraction.commandName = "start";
   startInteraction.options = {
@@ -411,7 +411,7 @@ test("admin command guard foloseste regula dedicata pe comanda inaintea fallback
         lean: async () => ({
           adminCommandAccess: { mode: "role", roleId: "role-global" },
           adminCommandAccessByCommand: {
-            "start:updates": { mode: "role", roleId: "role-start" }
+            "start-stop:updates": { mode: "role", roleId: "role-start" }
           }
         })
       }),
@@ -439,9 +439,9 @@ test("admin command guard foloseste regula dedicata pe comanda inaintea fallback
 
   const stopResult = await target.handleInteraction(stopInteraction, []);
 
-  assert.equal(stopResult, undefined);
-  assert.deepEqual(delegated, ["start:updates"]);
-  assert.deepEqual(replies, [{ content: "Access denied.", flags: 64 }]);
+  assert.equal(stopResult, "delegated");
+  assert.deepEqual(delegated, ["start:updates", "stop:updates"]);
+  assert.deepEqual(replies, []);
 });
 
 test("admin command guard refuza explicit comenzile admin in DM (fara guild) si NU deleaga la handler (fix bypass /health in DM)", async () => {

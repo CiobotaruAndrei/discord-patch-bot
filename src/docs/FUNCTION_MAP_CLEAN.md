@@ -154,7 +154,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-security/adminPermissionGuard.ts`
 
 - Verifica accesul runtime la comenzile admin.
-- Accepta implicit permisiunea Discord `Administrator`; rolurile sunt acceptate doar daca ownerul serverului seteaza explicit o regula dedicata in `adminCommandAccessByCommand` sau fallback-ul global `adminCommandAccess` prin `/set admin-command-access`; codul global de acces este fallback-ul runtime cerut prin modal ephemeral cand utilizatorul nu trece verificarile configurate.
+- Accepta implicit permisiunea Discord `Administrator`; rolurile sunt acceptate doar daca ownerul serverului seteaza explicit o regula dedicata in `adminCommandAccessByCommand` sau fallback-ul global `adminCommandAccess` prin `/set admin-command-access`; codul global de acces este fallback-ul runtime cerut prin modal ephemeral cand utilizatorul nu trece verificarile configurate. Scope-urile `start`/`stop` sunt normalizate pe acelasi modul, astfel incat o regula pentru `/start player-count` se aplica si la `/stop player-count`.
 - Refuzul vizibil este `Access denied.`.
 
 ### `src/features/command-security/adminCommandRouterGuard.ts`
