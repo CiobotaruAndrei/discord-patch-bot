@@ -2,6 +2,12 @@
 
 import { recordBotAuditEntry } from "../admin-records/adminRecordsRepository";
 import { isHandledCommandError } from "./commandOutcome";
+import {
+  buildAdminCommandAccessScope,
+  resolveAdminCommandAccessForScope,
+  type AdminCommandAccessByCommand,
+  type AdminCommandAccessConfig
+} from "./adminCommandAccessScope";
 import globalAccessCode = require("./globalAccessCode");
 
 const {
@@ -64,10 +70,9 @@ type RoleCacheLike = {
   get?: (roleId: string) => RoleLike | undefined;
 };
 type MemberRolesLike = RoleCacheLike | { cache?: RoleCacheLike | null; highest?: RoleLike | null };
-type AdminRoleAccessMode = "role" | "role-or-higher";
-type AdminCommandAccessConfig = { mode?: AdminRoleAccessMode | null; roleId?: string | null };
 type GuildAdminAccessDoc = {
   adminCommandAccess?: AdminCommandAccessConfig | null;
+  adminCommandAccessByCommand?: AdminCommandAccessByCommand | null;
 };
 type GuildAdminAccessQuery = { lean: () => Promise<GuildAdminAccessDoc | null> };
 type GuildAdminAccessModel = Parameters<typeof recordBotAuditEntry>[0] & {
@@ -218,9 +223,11 @@ function canUseGuildModel(model: GuildModelLike | null | undefined): model is Gu
 
 async function loadAdminCommandAccessConfig(
   target: AdminCommandGuardContext | null | undefined,
-  guildId: string
+  guildId: string,
+  interaction?: DiscordInteraction
 ): Promise<AdminCommandAccessConfig | null> {
-  return (await loadAdminAccessDoc(target, guildId))?.adminCommandAccess || null;
+  const doc = await loadAdminAccessDoc(target, guildId);
+  return interaction ? resolveAdminCommandAccessForScope(doc, buildAdminCommandAccessScope(interaction)) : doc?.adminCommandAccess || null;
 }
 
 async function replyEphemeral(interaction: DiscordInteraction | ModalSubmitLike, content: string): Promise<void> {
@@ -348,7 +355,8 @@ async function authorizeGuildAdminWithConfiguredAccess(
   if (defaultRequireGuildAdmin.isGuildAdmin(interaction)) return interaction;
   const guildId = guildIdOf(interaction);
   const accessDoc = guildId ? await loadAdminAccessDoc(target, guildId).catch(() => null) : null;
-  if (defaultRequireGuildAdmin.hasConfiguredAdminRole(interaction, accessDoc?.adminCommandAccess)) return interaction;
+  const accessConfig = resolveAdminCommandAccessForScope(accessDoc, buildAdminCommandAccessScope(interaction));
+  if (defaultRequireGuildAdmin.hasConfiguredAdminRole(interaction, accessConfig)) return interaction;
   return promptGlobalAccessCode(target, interaction);
 }
 

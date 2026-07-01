@@ -14,6 +14,7 @@ interface SteamSourceApiShape {
   searchSteamGameByName: (query: string, currencyCode?: string) => Promise<SteamSearchItemShape[]>;
   chooseBestSteamMatch: (items: SteamSearchItemShape[] | null, query: string, options?: { forceGameOnly?: boolean }) => SteamSearchItemShape | null;
   fetchSteamPriceDetails: (appId: string | number, currencyCode?: string) => Promise<unknown>;
+  fetchSteamCurrentPlayers: (appId: string | number) => Promise<{ appId: string; playerCount: number; success: boolean }>;
   extractOfferEndFromHtml: (html: unknown) => string | null;
   extractSteamOfferEndDate: (appId: string | number, currencyCode?: string) => Promise<string | null>;
 }
@@ -37,7 +38,7 @@ function makeDeps(overrides: Partial<SteamSourceDepsShape> = {}): { deps: SteamS
 test("createSteamSource: factory decuplat cu deps explicit tipate (fara target/Object.assign)", () => {
   const { deps } = makeDeps();
   const api = attachSteam.createSteamSource(deps);
-  for (const fn of ["searchSteamGameByName", "chooseBestSteamMatch", "fetchSteamPriceDetails", "extractOfferEndFromHtml", "extractSteamOfferEndDate"] as const) {
+  for (const fn of ["searchSteamGameByName", "chooseBestSteamMatch", "fetchSteamPriceDetails", "fetchSteamCurrentPlayers", "extractOfferEndFromHtml", "extractSteamOfferEndDate"] as const) {
     assert.equal(typeof api[fn], "function", `api expune ${fn}`);
   }
 });
@@ -62,6 +63,18 @@ test("createSteamSource.chooseBestSteamMatch alege potrivirea exacta peste fuzzy
     "half-life"
   );
   assert.equal(best?.id, 2, "alege titlul care se potriveste exact");
+});
+
+test("createSteamSource.fetchSteamCurrentPlayers citeste player_count din Steam", async () => {
+  const { deps, calls } = makeDeps({
+    httpReq: async (_m, url) => { calls.push(url); return { data: { response: { player_count: 12345, result: 1 } } }; }
+  });
+  const api = attachSteam.createSteamSource(deps);
+
+  const result = await api.fetchSteamCurrentPlayers(730);
+
+  assert.deepEqual(result, { appId: "730", playerCount: 12345, success: true });
+  assert.ok(calls.some(u => u.includes("GetNumberOfCurrentPlayers") && u.includes("appid=730")));
 });
 
 test("createSteamSource.extractSteamOfferEndDate citeste pagina prin httpReq si parseaza", async () => {

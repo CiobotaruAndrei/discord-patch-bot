@@ -393,6 +393,57 @@ test("admin command guard delegates protected commands for configured role acces
   assert.deepEqual(delegated, ["config"]);
 });
 
+test("admin command guard foloseste regula dedicata pe comanda inaintea fallback-ului global", async () => {
+  const { interaction: startInteraction } = makeInteraction(false);
+  startInteraction.commandName = "start";
+  startInteraction.options = {
+    getSubcommand: () => "updates",
+    getSubcommandGroup: () => null
+  };
+  startInteraction.member = { roles: { has: (roleId: string) => roleId === "role-start" } };
+  const delegated: string[] = [];
+  const target: Record<string, unknown> & {
+    handleInteraction: (handledInteraction: TestInteraction, games: TestGame[]) => Promise<unknown>;
+  } = {
+    GuildModel: {
+      db: { readyState: 1 },
+      findOne: () => ({
+        lean: async () => ({
+          adminCommandAccess: { mode: "role", roleId: "role-global" },
+          adminCommandAccessByCommand: {
+            "start:updates": { mode: "role", roleId: "role-start" }
+          }
+        })
+      }),
+      updateOne: async () => ({ modifiedCount: 1 })
+    },
+    handleInteraction: async (handledInteraction: TestInteraction) => {
+      delegated.push(`${handledInteraction.commandName}:${handledInteraction.options?.getSubcommand?.(false) || ""}`);
+      return "delegated";
+    }
+  };
+  adminCommandGuard(target);
+
+  const startResult = await target.handleInteraction(startInteraction, []);
+
+  assert.equal(startResult, "delegated");
+  assert.deepEqual(delegated, ["start:updates"]);
+
+  const { interaction: stopInteraction, replies } = makeInteraction(false);
+  stopInteraction.commandName = "stop";
+  stopInteraction.options = {
+    getSubcommand: () => "updates",
+    getSubcommandGroup: () => null
+  };
+  stopInteraction.member = { roles: { has: (roleId: string) => roleId === "role-start" } };
+
+  const stopResult = await target.handleInteraction(stopInteraction, []);
+
+  assert.equal(stopResult, undefined);
+  assert.deepEqual(delegated, ["start:updates"]);
+  assert.deepEqual(replies, [{ content: "Access denied.", flags: 64 }]);
+});
+
 test("admin command guard refuza explicit comenzile admin in DM (fara guild) si NU deleaga la handler (fix bypass /health in DM)", async () => {
   const replies: unknown[] = [];
   const dmInteraction: TestInteraction = {
@@ -439,7 +490,7 @@ test("toate comenzile administrative sunt protejate runtime, iar comenzile publi
     interaction.commandName = cmd;
     assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), true, `/${cmd} trebuie sa treaca prin guard-ul de admin runtime`);
   }
-  for (const cmd of ["ping", "games", "help", "report", "history", "latest", "price-check", "deal-score", "suggest-command", "watchlist-game"]) {
+  for (const cmd of ["ping", "games", "help", "report", "history", "latest", "price-check", "deal-score", "player-count", "top", "suggest-command", "watchlist-game"]) {
     const { interaction } = makeInteraction(false);
     interaction.commandName = cmd;
     assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), false, `/${cmd} ramane public (fara guard de admin)`);

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { CheerioAPI } from "cheerio";
 import type { DealInfo, FetchDealsOptions, HttpRequestOptions } from "../types";
-import type { SteamAppDetailsSummary } from "../sources/sourceApis";
+import type { SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../sources/sourceApis";
 
 process.env.MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/itest-source-api";
 process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "test-token";
@@ -38,6 +38,10 @@ type _SteamPriceDetailsResult = Awaited<ReturnType<ReturnType<typeof import("../
 type _SteamPriceDetailsTyped = Expect<
   _SteamPriceDetailsResult extends SteamAppDetailsSummary | null ? (unknown extends _SteamPriceDetailsResult ? false : true) : false
 >;
+type _SteamCurrentPlayersResult = Awaited<ReturnType<ReturnType<typeof import("../sources/sourceRegistry").createSourceRegistry>["fetchSteamCurrentPlayers"]>>;
+type _SteamCurrentPlayersTyped = Expect<
+  _SteamCurrentPlayersResult extends SteamCurrentPlayersSummary ? (unknown extends _SteamCurrentPlayersResult ? false : true) : false
+>;
 
 const registry = require("../sources/sourceRegistry") as Record<string, unknown>;
 
@@ -50,8 +54,9 @@ test("sourceRegistry expune constantele tipate (numere + lista de user-agents)",
   assert.ok((registry.USER_AGENTS as unknown[]).length > 0, "USER_AGENTS nu e gol");
 });
 
-test("sourceRegistry expune cele 4 exporturi named ca valori de tipul declarat", () => {
+test("sourceRegistry expune exporturile named ca valori de tipul declarat", () => {
   assert.equal(typeof registry.dealHash, "function", "dealHash e functie -> string");
+  assert.equal(typeof registry.fetchSteamCurrentPlayers, "function", "fetchSteamCurrentPlayers e functie -> SteamCurrentPlayersSummary");
   assert.equal(typeof registry.safeCheerioLoad, "function", "safeCheerioLoad e functie -> CheerioAPI");
   assert.equal(typeof registry.extractOfferEndFromHtml, "function", "extractOfferEndFromHtml e functie -> string|null");
   assert.equal(typeof registry.MAX_HTML_BYTES, "number", "MAX_HTML_BYTES e numar");
@@ -63,7 +68,7 @@ test("sourceRegistry expune utilele cross-cutting si functiile de sursa ca funct
     "levenshtein", "httpReq", "fetchWithProxy", "attachMetrics", "formatPrice",
     "fetchGameUpdate", "executeFetchWithCircuitBreaker", "getLatestForAllGames",
     "fetchSteamReviewData", "enrichDealData", "fetchDeals", "searchSteamGameByName",
-    "chooseBestSteamMatch", "fetchSteamPriceDetails", "extractSteamOfferEndDate",
+    "chooseBestSteamMatch", "fetchSteamPriceDetails", "fetchSteamCurrentPlayers", "extractSteamOfferEndDate",
     "cleanEnrichedCache", "getEnrichedCacheSize"
   ]) {
     assert.equal(typeof registry[key], "function", `sourceRegistry.${key} e functie`);

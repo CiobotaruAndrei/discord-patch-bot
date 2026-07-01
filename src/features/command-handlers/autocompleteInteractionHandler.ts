@@ -72,6 +72,13 @@ function scoreGameAgainstInput(game: GameConfig, input: string): number {
 function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
   const { logger, getGuildSettings } = deps;
 
+  function acceptsGameOption(commandName: string | undefined, group: string | null, subcommand: string | null, optionName: string | undefined): boolean {
+    if (optionName === "joc") return true;
+    if (optionName !== "game") return false;
+    if (commandName === "deal-score" || commandName === "player-count") return true;
+    return (commandName === "start" || commandName === "stop") && subcommand === "player-count" && group === null;
+  }
+
   async function buildSetGamesRemovePool(interaction: DiscordInteraction, games: GameConfig[]): Promise<GameConfig[]> {
     if (!interaction.guild) return games;
     try {
@@ -189,6 +196,9 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
       if ((cmd === "snooze" || cmd === "unsnooze") && focused.name === "command") {
         return interaction.respond(buildCommandHelpChoices(focused.value, { excludeCommands: ["/snooze", "/unsnooze"] })).catch(() => null);
       }
+      if ((cmd === "set" || cmd === "delete" || cmd === "admin-command-access") && focused.name === "command") {
+        return interaction.respond(buildCommandHelpChoices(focused.value)).catch(() => null);
+      }
       if (cmd === "youtube" && focused.name === "canal") {
         return interaction.respond(await buildYouTubeChannelChoices(
           interaction,
@@ -202,11 +212,11 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
       if (cmd === "youtube" && group === "remove" && sub === "title-filter" && focused.name === "word") {
         return interaction.respond(await buildYouTubeTitleWordChoices(interaction, focused.value)).catch(() => null);
       }
-      if (focused.name !== "joc" && !(cmd === "deal-score" && focused.name === "game")) {
+      if (!acceptsGameOption(cmd, group, sub, focused.name)) {
         return interaction.respond([]).catch(() => null);
       }
       const input = String(focused.value || "").toLowerCase().trim().substring(0, MAX_AUTOCOMPLETE_INPUT_LEN);
-      const useNameAsValue = (cmd === "dlc") || (cmd === "deal-score") || (cmd === "latest" && sub === "pret");
+      const useNameAsValue = (cmd === "dlc") || (cmd === "deal-score") || (cmd === "player-count") || (cmd === "latest" && sub === "pret");
 
       let pool = games;
       if ((cmd === "set" && group === "remove" && sub === "games") || (cmd === "watchlist" && sub === "remove") || (cmd === "remove" && sub === "watchlist")) {

@@ -514,6 +514,9 @@ export interface GuildSettings {
   suggestedCommands?: SuggestedCommandEntry[];
   watchlistGameSuggestions?: WatchlistGameSuggestionEntry[];
   futureReleaseGames?: FutureReleaseGameEntry[];
+  playerCountSubscribed?: boolean;
+  playerCountChannelId?: string | null;
+  playerCountGames?: string[];
   futureReleaseSubscribed?: boolean;
   futureReleaseChannelId?: string | null;
   futureReleaseInitializing?: boolean;

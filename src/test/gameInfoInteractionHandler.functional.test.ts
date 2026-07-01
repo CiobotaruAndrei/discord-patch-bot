@@ -14,8 +14,8 @@ function makeInteraction(commandName: string, values: Record<string, string | nu
     replied: false,
     isChatInputCommand: () => true,
     options: {
-      getSubcommand: () => commandName === "best" ? "under" : commandName === "ending" ? "deals" : "game",
-      getSubcommandGroup: () => commandName === "best" ? "deals" : commandName === "system" ? "requirements" : null,
+      getSubcommand: () => commandName === "best" ? "under" : commandName === "ending" ? "deals" : commandName === "top" ? "games" : "game",
+      getSubcommandGroup: () => commandName === "best" ? "deals" : commandName === "system" ? "requirements" : commandName === "top" ? "active" : null,
       getString: (name: string) => typeof values[name] === "string" ? String(values[name]) : null,
       getNumber: (name: string) => typeof values[name] === "number" ? Number(values[name]) : null,
       getInteger: (name: string) => typeof values[name] === "number" ? Number(values[name]) : null
@@ -54,6 +54,7 @@ function makeDeps(deals: DealInfo[] = []) {
       price_overview: { initial: 999, final: 199, discount_percent: 80 }
     }),
     fetchSteamReviewData: async () => ({ totalReviews: 12000, qualityPercent: 96, success: true }),
+    fetchSteamCurrentPlayers: async (appId: string | number) => ({ appId: String(appId), playerCount: String(appId) === "730" ? 1200000 : 550, success: true }),
     getDealsCacheData: () => deals,
     setDealsCache: () => undefined,
     fetchDeals: async () => deals,
@@ -104,4 +105,38 @@ test("comenzile Steam metadata folosesc appdetails pentru crossplay si dimensiun
 
   assert.match(String(crossplay.fields?.[0]?.value), /Cross-Platform Multiplayer/);
   assert.match(String(gameSize.description), /8 GB/);
+});
+
+test("/player-count game afiseaza numarul curent de jucatori Steam", async () => {
+  const { deps, replies } = makeDeps();
+  deps.searchSteamGameByName = async () => [{ id: "730", name: "Counter-Strike 2" }];
+  deps.fetchSteamPriceDetails = async () => ({
+    name: "Counter-Strike 2",
+    platforms: { windows: true, mac: false, linux: true },
+    categories: [],
+    pc_requirements: { minimum: "", recommended: "" },
+    price_overview: { initial: 0, final: 0, discount_percent: 0 }
+  });
+  const handler = installGameInfo.createGameInfoInteractionHandler(deps);
+
+  await handler.handleGameInfo(makeInteraction("player-count", { game: "Counter-Strike 2" }));
+
+  const payload = replies[0] as { embeds?: Array<{ description?: string }> };
+  assert.match(String(payload.embeds?.[0]?.description), /1,200,000/);
+});
+
+test("/top active games sorteaza jocurile urmarite dupa player-count", async () => {
+  const { deps, replies } = makeDeps();
+  deps.getGuildSettings = async () => ({ _id: "guild-1", currency: "EUR", enabledGames: ["cs2"], playerCountGames: ["cs2", "portal"] });
+  const handler = installGameInfo.createGameInfoInteractionHandler(deps);
+
+  await handler.handleGameInfo(makeInteraction("top", { numar: 2 }), [
+    { key: "portal", name: "Portal", appId: "10" },
+    { key: "cs2", name: "Counter-Strike 2", appId: "730" },
+    { key: "minecraft", name: "Minecraft" }
+  ]);
+
+  const payload = replies[0] as { embeds?: Array<{ fields?: Array<{ name: string; value: string }> }> };
+  assert.match(String(payload.embeds?.[0]?.fields?.[0]?.name), /Counter-Strike 2/);
+  assert.match(String(payload.embeds?.[0]?.fields?.[0]?.value), /1,200,000/);
 });

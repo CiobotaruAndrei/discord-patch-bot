@@ -17,7 +17,7 @@ const MONGO_CONTEXT_KEYS = [
 const SOURCE_REGISTRY_KEYS = [
   "USER_AGENTS", "cleanText", "httpReq", "fetchWithProxy", "dealHash", "fetchGameUpdate",
   "getLatestForAllGames", "executeFetchWithCircuitBreaker", "enrichDealData", "fetchDeals",
-  "searchSteamGameByName", "fetchSteamPriceDetails", "cleanEnrichedCache", "getEnrichedCacheSize", "formatPrice"
+  "searchSteamGameByName", "fetchSteamPriceDetails", "fetchSteamCurrentPlayers", "cleanEnrichedCache", "getEnrichedCacheSize", "formatPrice"
 ];
 
 test("mongoContext expune toate cheile contractului tipat, niciuna undefined", () => {

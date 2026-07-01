@@ -76,7 +76,8 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
         .setDescription("Sterge configurari owner-only ale botului")
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
         .addSubcommand(subcommand => subcommand.setName("admin-command-access").setDescription("Sterge regula de rol pentru comenzile admin")
-          .addBooleanOption(option => option.setName("confirm").setDescription("Confirma revenirea la accesul implicit").setRequired(true))),
+          .addBooleanOption(option => option.setName("confirm").setDescription("Confirma revenirea la accesul implicit").setRequired(true))
+          .addStringOption(option => option.setName("command").setDescription("Comanda/pachetul pentru care stergi regula (gol = global)").setRequired(false).setAutocomplete(true))),
       new SlashCommandBuilder()
         .setName("config")
         .setDescription("Afiseaza configuratia curenta a serverului (admin)")
@@ -132,7 +133,8 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
         .setName("admin-command-access")
         .setDescription("Afiseaza regula de acces prin rol pentru comenzile admin (owner-only)")
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
-        .addSubcommand(subcommand => subcommand.setName("list").setDescription("Afiseaza regula curenta pentru acces admin prin rol")),
+        .addSubcommand(subcommand => subcommand.setName("list").setDescription("Afiseaza regula curenta pentru acces admin prin rol")
+          .addStringOption(option => option.setName("command").setDescription("Comanda/pachetul admin de verificat (gol = toate)").setRequired(false).setAutocomplete(true))),
       new SlashCommandBuilder()
         .setName("price-alert")
         .setDescription("Gestioneaza alertele de pret pentru jocuri (admin)")
@@ -197,6 +199,18 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
         .addSubcommand(subcommand => subcommand.setName("game").setDescription("Dimensiune instalare pentru joc")
           .addStringOption(option => option.setName("game").setDescription("Numele jocului").setRequired(true).setAutocomplete(true))
           .addStringOption(option => option.setName("currency").setDescription("Valuta pentru cautarea Steam").setRequired(false).addChoices(...CURRENCY_CHOICES))),
+      new SlashCommandBuilder()
+        .setName("player-count")
+        .setDescription("Afiseaza numarul curent de jucatori activi pe Steam")
+        .addSubcommand(subcommand => subcommand.setName("game").setDescription("Player-count pentru un joc")
+          .addStringOption(option => option.setName("game").setDescription("Numele jocului").setRequired(true).setAutocomplete(true))
+          .addStringOption(option => option.setName("currency").setDescription("Valuta pentru cautarea Steam").setRequired(false).addChoices(...CURRENCY_CHOICES))),
+      new SlashCommandBuilder()
+        .setName("top")
+        .setDescription("Afiseaza topuri operationale din sursele botului")
+        .addSubcommandGroup(group => group.setName("active").setDescription("Topuri dupa activitate")
+          .addSubcommand(subcommand => subcommand.setName("games").setDescription("Top jocuri active dupa player-count Steam")
+            .addIntegerOption(option => option.setName("numar").setDescription("Cate rezultate (1-10, implicit 5)").setRequired(false).setMinValue(1).setMaxValue(10)))),
       new SlashCommandBuilder()
         .setName("suggest-command")
         .setDescription("Listeaza comenzi sugerate de useri (propunerea se face cu /add suggestion)")
@@ -305,14 +319,18 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
         .addSubcommand(subcommand => subcommand.setName("updates").setDescription("Porneste update-urile pe acest canal"))
         .addSubcommand(subcommand => subcommand.setName("reduceri").setDescription("Porneste alertele de reduceri pe acest canal"))
-        .addSubcommand(subcommand => subcommand.setName("dlc").setDescription("Configureaza canalul pentru notificarile DLC")),
+        .addSubcommand(subcommand => subcommand.setName("dlc").setDescription("Configureaza canalul pentru notificarile DLC"))
+        .addSubcommand(subcommand => subcommand.setName("player-count").setDescription("Porneste urmarirea player-count pentru un joc")
+          .addStringOption(option => option.setName("game").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true))),
       new SlashCommandBuilder()
         .setName("stop")
         .setDescription("Opreste notificarile automate (admin)")
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
         .addSubcommand(subcommand => subcommand.setName("updates").setDescription("Opreste update-urile"))
         .addSubcommand(subcommand => subcommand.setName("reduceri").setDescription("Opreste alertele de reduceri"))
-        .addSubcommand(subcommand => subcommand.setName("dlc").setDescription("Opreste notificarile DLC")),
+        .addSubcommand(subcommand => subcommand.setName("dlc").setDescription("Opreste notificarile DLC"))
+        .addSubcommand(subcommand => subcommand.setName("player-count").setDescription("Opreste urmarirea player-count pentru un joc")
+          .addStringOption(option => option.setName("game").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true))),
       new SlashCommandBuilder()
         .setName("set")
         .setDescription("Configureaza preferintele serverului (admin)")
@@ -341,7 +359,8 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
         .addSubcommand(subcommand => subcommand.setName("admin-command-access").setDescription("Seteaza regula owner-only pentru roluri care pot folosi comenzi admin")
           .addRoleOption(option => option.setName("role").setDescription("Rolul permis pentru comenzi admin").setRequired(true))
           .addStringOption(option => option.setName("mode").setDescription("role = doar rolul; role-or-higher = rolul sau rol mai mare").setRequired(true)
-            .addChoices({ name: "role", value: "role" }, { name: "role-or-higher", value: "role-or-higher" })))
+            .addChoices({ name: "role", value: "role" }, { name: "role-or-higher", value: "role-or-higher" }))
+          .addStringOption(option => option.setName("command").setDescription("Comanda/pachetul admin pentru regula (gol = global)").setRequired(false).setAutocomplete(true)))
         .addSubcommandGroup(group => group.setName("add").setDescription("Adauga in watchlist")
           .addSubcommand(subcommand => subcommand.setName("games").setDescription("Adauga un joc in watchlist")
             .addStringOption(option => option.setName("joc").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true))))
