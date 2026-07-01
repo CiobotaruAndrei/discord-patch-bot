@@ -72,6 +72,22 @@ async function runConcurrent<T>(
   return { processed, errors };
 }
 
+async function mapWithConcurrency<T, R>(items: readonly T[], concurrency: number, mapper: (item: T, index: number) => MaybePromise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  if (items.length === 0) return results;
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+  let nextIndex = 0;
+  async function worker(): Promise<void> {
+    while (true) {
+      const myIndex = nextIndex++;
+      if (myIndex >= items.length) return;
+      results[myIndex] = await mapper(items[myIndex], myIndex);
+    }
+  }
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
 async function waitForMongoReady(timeoutMs = 10000): Promise<boolean> {
   const { mongoose } = runtimeContext;
   if (mongoose.connection.readyState === 1) return true;
@@ -213,5 +229,8 @@ Object.assign(attachUtilities, {
   validateUpdateFetchSnapshot,
   isTransientMongoError
 });
+
+attachUtilities.runConcurrent = runConcurrent;
+attachUtilities.mapWithConcurrency = mapWithConcurrency;
 
 export = attachUtilities;

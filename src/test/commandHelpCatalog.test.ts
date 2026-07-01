@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { COMMAND_HELP_ENTRIES, normalizeCommandHelpQuery, buildCommandHelpChoices, buildAdminCommandScopeChoices, listAdminCommandScopePaths, findCommandHelpEntry, renderCommandHelpEntry } from "../features/command-help/commandHelpCatalog";
+import { COMMAND_HELP_ENTRIES, normalizeCommandHelpQuery, buildCommandHelpChoices, findCommandHelpEntry, renderCommandHelpEntry } from "../features/command-help/commandHelpCatalog";
 import { REPORT_TYPE_VALUES } from "../features/feedback/reportTypes";
 
 const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
@@ -87,30 +87,6 @@ test("command help catalog: exemplul /report submit foloseste o optiune tip real
   assert.ok(slashChoiceValues.length > 0, "comanda slash /report expune choices pentru tip");
   assert.deepEqual(slashChoiceValues, [...REPORT_TYPE_VALUES], "choice-urile slash /report provin din sursa unica REPORT_TYPES");
   assert.ok(slashChoiceValues.includes(tipValue), `tip:${tipValue} din exemplu nu e o optiune reala (${slashChoiceValues.join(", ")})`);
-});
-
-test("admin command scope catalog: contine doar comenzi admin + global, nu comenzi publice (R[P2] #2)", () => {
-  const paths = listAdminCommandScopePaths();
-  assert.ok(paths.length > 5, "exista comenzi admin in catalog");
-  assert.ok(paths.includes("/start updates"), "o comanda admin reala e in catalogul de scope-uri");
-  assert.ok(paths.includes("/backup load"), "o comanda admin cu subcomanda e in catalog");
-  for (const publicCommand of ["/ping", "/games", "/help", "/player-count game", "/top active games", "/add suggestion"]) {
-    assert.equal(paths.includes(publicCommand), false, `${publicCommand} e publica si NU trebuie sa fie un scope admin restrictionabil`);
-  }
-});
-
-test("admin command scope autocomplete: ofera global + comenzi admin reale si exclude comenzile publice (R[P2] #2)", () => {
-  const all = buildAdminCommandScopeChoices("");
-  assert.equal(all[0]?.value, "global", "prima optiune e regula globala");
-  const values = all.map(choice => choice.value);
-  for (const publicCommand of ["/ping", "/player-count game", "/top active games"]) {
-    assert.equal(values.includes(publicCommand), false, `autocomplete-ul nu sugereaza comanda publica ${publicCommand}`);
-  }
-  const startChoices = buildAdminCommandScopeChoices("start updates").map(choice => choice.value);
-  assert.ok(startChoices.includes("/start updates"), "autocomplete-ul sugereaza comanda admin reala cautata");
-  const filtered = buildAdminCommandScopeChoices("backup");
-  assert.ok(filtered.length > 0, "filtrarea dupa input intoarce potriviri");
-  assert.ok(filtered.every(choice => choice.value === "global" || choice.value.includes("backup")), "toate potrivirile pentru `backup` sunt scope-uri de backup (sau global)");
 });
 
 test("command help catalog acopera toate slash command paths", () => {

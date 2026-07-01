@@ -4,7 +4,8 @@ import type { CommandHandler } from "../command-registry/commandHandler";
 
 const { errorMessage, errorDetail } = require("../../shared/errors");
 const { buildAutocompleteChoices } = require("../../native/fuzzy") as typeof import("../../native/fuzzy");
-const { buildCommandHelpChoices, buildAdminCommandScopeChoices } = require("../command-help/commandHelpCatalog") as typeof import("../command-help/commandHelpCatalog");
+const { buildCommandHelpChoices } = require("../command-help/commandHelpCatalog") as typeof import("../command-help/commandHelpCatalog");
+const { buildSettableAdminScopeChoices } = require("../command-security/adminSettableScopeCatalog") as typeof import("../command-security/adminSettableScopeCatalog");
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string; aliases?: string[] } & Record<string, unknown>;
@@ -197,7 +198,7 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
         return interaction.respond(buildCommandHelpChoices(focused.value, { excludeCommands: ["/snooze", "/unsnooze"] })).catch(() => null);
       }
       if ((cmd === "set" || cmd === "delete" || cmd === "admin-command-access") && focused.name === "command") {
-        return interaction.respond(buildAdminCommandScopeChoices(focused.value)).catch(() => null);
+        return interaction.respond(buildSettableAdminScopeChoices(focused.value)).catch(() => null);
       }
       if (cmd === "youtube" && focused.name === "canal") {
         return interaction.respond(await buildYouTubeChannelChoices(

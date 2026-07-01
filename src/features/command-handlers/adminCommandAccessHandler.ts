@@ -12,14 +12,8 @@ import {
   readAdminCommandAccessForScope,
   type AdminCommandAccessByCommand
 } from "../command-security/adminCommandAccessScope";
-import { listAdminCommandScopePaths } from "../command-help/commandHelpCatalog";
+import { isSettableAdminScope } from "../command-security/adminSettableScopeCatalog";
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
-
-const KNOWN_ADMIN_COMMAND_SCOPES = new Set(listAdminCommandScopePaths().map(normalizeAdminCommandAccessScope));
-
-function isSettableAdminScope(scope: string): boolean {
-  return scope === "global" || KNOWN_ADMIN_COMMAND_SCOPES.has(scope);
-}
 
 type InteractionPayload = string | { content: string; flags?: number };
 type AdminAccessMode = "role" | "role-or-higher";
