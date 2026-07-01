@@ -155,6 +155,36 @@ test("/set admin-command-access cu command salveaza regula doar pentru acea coma
   assert.match(String(harness.edits[0]), /start sau \/stop updates/);
 });
 
+test("/set admin-command-access respinge o comanda publica (nu se aplica niciodata) fara sa salveze regula (R[P2] #2)", async () => {
+  const harness = makeHarness();
+
+  await harness.handler.handleAdminCommandAccess(interaction("set", "admin-command-access", true, "/ping"));
+
+  assert.equal(harness.updateCalls.length, 0, "nu se scrie nicio regula pentru o comanda care nu e admin");
+  assert.equal("ping" in harness.getScoped(), false);
+  assert.deepEqual(harness.invalidated, []);
+  assert.match(String(harness.edits[0]), /nu este o comanda admin/);
+});
+
+test("/set admin-command-access respinge un typo de comanda admin (bakup load) (R[P2] #2)", async () => {
+  const harness = makeHarness();
+
+  await harness.handler.handleAdminCommandAccess(interaction("set", "admin-command-access", true, "bakup load"));
+
+  assert.equal(harness.updateCalls.length, 0, "un scope inexistent (typo) e respins, nu salvat ca regula silentioasa");
+  assert.equal("bakup:load" in harness.getScoped(), false);
+  assert.match(String(harness.edits[0]), /nu este o comanda admin/);
+});
+
+test("/set admin-command-access accepta o comanda admin reala cu subcomanda (backup load) (R[P2] #2)", async () => {
+  const harness = makeHarness();
+
+  await harness.handler.handleAdminCommandAccess(interaction("set", "admin-command-access", true, "/backup load"));
+
+  assert.equal(harness.getScoped()["backup:load"]?.roleId, "role-admin", "un scope admin real e salvat");
+  assert.deepEqual(harness.invalidated, ["guild-1"]);
+});
+
 test("/admin-command-access list explica accesul implicit cand nu exista regula", async () => {
   const harness = makeHarness();
 

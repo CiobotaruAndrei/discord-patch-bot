@@ -140,3 +140,25 @@ test("/top active games sorteaza jocurile urmarite dupa player-count", async () 
   assert.match(String(payload.embeds?.[0]?.fields?.[0]?.name), /Counter-Strike 2/);
   assert.match(String(payload.embeds?.[0]?.fields?.[0]?.value), /1,200,000/);
 });
+
+test("/top active games nu pica complet daca un request Steam esueaza: rezultate partiale + avertisment (R[P2] #1)", async () => {
+  const { deps, replies } = makeDeps();
+  deps.getGuildSettings = async () => ({ _id: "guild-1", currency: "EUR", enabledGames: ["cs2"], playerCountGames: ["cs2", "portal"] });
+  deps.fetchSteamCurrentPlayers = async (appId: string | number) => {
+    if (String(appId) === "10") throw new Error("Steam 500 pentru portal");
+    return { appId: String(appId), playerCount: 1200000, success: true };
+  };
+  const handler = installGameInfo.createGameInfoInteractionHandler(deps);
+
+  await handler.handleGameInfo(makeInteraction("top", { numar: 5 }), [
+    { key: "portal", name: "Portal", appId: "10" },
+    { key: "cs2", name: "Counter-Strike 2", appId: "730" }
+  ]);
+
+  const payload = replies[0] as { embeds?: Array<{ description?: string; fields?: Array<{ name: string; value: string }> }> };
+  const embed = payload.embeds?.[0];
+  assert.ok(embed, "comanda a raspuns cu un embed, nu a picat complet din cauza unui singur request esuat");
+  assert.equal(embed.fields?.length, 1, "jocul cu request reusit apare in top");
+  assert.match(String(embed.fields?.[0]?.name), /Counter-Strike 2/);
+  assert.match(String(embed.description), /nu au putut fi verificate/, "embed-ul avertizeaza ca un joc a fost omis");
+});
