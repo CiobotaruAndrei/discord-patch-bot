@@ -149,10 +149,10 @@ test("/set admin-command-access cu command salveaza regula doar pentru acea coma
   await harness.handler.handleAdminCommandAccess(interaction("set", "admin-command-access", true, "/start updates"));
 
   assert.equal(harness.getStored()?.roleId, "role-global");
-  assert.equal(harness.getScoped()["start:updates"]?.roleId, "role-admin");
-  assert.equal(harness.getScoped()["start:updates"]?.mode, "role-or-higher");
+  assert.equal(harness.getScoped()["start-stop:updates"]?.roleId, "role-admin");
+  assert.equal(harness.getScoped()["start-stop:updates"]?.mode, "role-or-higher");
   assert.deepEqual(harness.invalidated, ["guild-1"]);
-  assert.match(String(harness.edits[0]), /start updates/);
+  assert.match(String(harness.edits[0]), /start sau \/stop updates/);
 });
 
 test("/admin-command-access list explica accesul implicit cand nu exista regula", async () => {
@@ -167,15 +167,15 @@ test("/admin-command-access list explica accesul implicit cand nu exista regula"
 test("/admin-command-access list pentru command arata regula dedicata sau fallback global", async () => {
   const globalRule = { mode: "role" as const, roleId: "role-global", updatedBy: "owner", updatedAt: new Date() };
   const scopedRule = { mode: "role-or-higher" as const, roleId: "role-start", updatedBy: "owner", updatedAt: new Date() };
-  const harness = makeHarness(globalRule, { "start:updates": scopedRule });
+  const harness = makeHarness(globalRule, { "start-stop:updates": scopedRule });
 
   await harness.handler.handleAdminCommandAccess(interaction("admin-command-access", "list", true, "/start updates"));
   await harness.handler.handleAdminCommandAccess(interaction("admin-command-access", "list", true, "/stop updates"));
 
-  assert.match(String(harness.edits[0]), /start updates/);
+  assert.match(String(harness.edits[0]), /start sau \/stop updates/);
   assert.match(String(harness.edits[0]), /role-start/);
-  assert.match(String(harness.edits[1]), /fallback-ul global/);
-  assert.match(String(harness.edits[1]), /role-global/);
+  assert.match(String(harness.edits[1]), /start sau \/stop updates/);
+  assert.match(String(harness.edits[1]), /role-start/);
 });
 
 test("/delete admin-command-access sterge regula configurata", async () => {
@@ -190,12 +190,18 @@ test("/delete admin-command-access sterge regula configurata", async () => {
 test("/delete admin-command-access cu command sterge doar regula dedicata", async () => {
   const globalRule = { mode: "role" as const, roleId: "role-global", updatedBy: "owner", updatedAt: new Date() };
   const scopedRule = { mode: "role" as const, roleId: "role-start", updatedBy: "owner", updatedAt: new Date() };
-  const harness = makeHarness(globalRule, { "start:updates": scopedRule });
+  const harness = makeHarness(globalRule, {
+    "start-stop:updates": scopedRule,
+    "start:updates": scopedRule,
+    "stop:updates": scopedRule
+  });
 
   await harness.handler.handleAdminCommandAccess(interaction("delete", "admin-command-access", true, "/start updates"));
 
   assert.equal(harness.getStored()?.roleId, "role-global");
+  assert.equal("start-stop:updates" in harness.getScoped(), false);
   assert.equal("start:updates" in harness.getScoped(), false);
+  assert.equal("stop:updates" in harness.getScoped(), false);
   assert.deepEqual(harness.invalidated, ["guild-1"]);
 });
 

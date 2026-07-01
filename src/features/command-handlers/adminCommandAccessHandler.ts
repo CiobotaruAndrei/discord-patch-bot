@@ -4,6 +4,7 @@ import type { CommandGame, CommandHandler } from "../command-registry/commandHan
 
 import { handledCommandError } from "../command-security/commandOutcome";
 import {
+  buildAdminCommandAccessScopeLookupKeys,
   displayAdminCommandAccessScope,
   listScopedAdminCommandAccess,
   normalizeAdminCommandAccessScope,
@@ -205,7 +206,11 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
     }
     const update = scope === "global"
       ? { $set: { adminCommandAccess: null } }
-      : { $unset: { [`adminCommandAccessByCommand.${scope}`]: "" } };
+      : {
+          $unset: Object.fromEntries(
+            buildAdminCommandAccessScopeLookupKeys(scope).map(key => [`adminCommandAccessByCommand.${key}`, ""])
+          )
+        };
     await GuildModel.updateOne({ _id: guildId }, update, { upsert: true });
     invalidateGuildCache(guildId);
     return safeEdit(interaction, `OK: regula de rol pentru ${displayAdminCommandAccessScope(scope)} a fost stearsa. Ramane accesul implicit: Administrator sau cod global de acces.`);
