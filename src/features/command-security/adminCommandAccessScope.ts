@@ -103,6 +103,38 @@ export function resolveAdminCommandAccessForScope(
   return readAdminCommandAccessForScope(doc?.adminCommandAccessByCommand, scope) || doc?.adminCommandAccess || null;
 }
 
+export function canonicalAdminCommandAccessScope(scope: string): string {
+  const normalized = normalizeAdminCommandAccessScope(scope);
+  if (normalized === GLOBAL_SCOPE) return GLOBAL_SCOPE;
+  const parts = normalized.split(":");
+  if ((parts[0] === "start" || parts[0] === "stop") && parts.length > 1) {
+    return [START_STOP_SCOPE, ...parts.slice(1)].join(":");
+  }
+  return normalized;
+}
+
+export function findAdminCommandAccessScopeConflicts(
+  scoped: AdminCommandAccessByCommand | null | undefined
+): Array<{ scope: string; keys: string[] }> {
+  if (!scoped) return [];
+  const entries = hasMapGetter(scoped) ? Array.from(scoped.entries()) : Object.entries(scoped);
+  const byScope = new Map<string, Map<string, string>>();
+  for (const [key, access] of entries) {
+    if (!access?.roleId || !access.mode) continue;
+    const canonical = canonicalAdminCommandAccessScope(key);
+    const signatures = byScope.get(canonical) || new Map<string, string>();
+    signatures.set(key, `${access.mode}:${access.roleId}`);
+    byScope.set(canonical, signatures);
+  }
+  const conflicts: Array<{ scope: string; keys: string[] }> = [];
+  for (const [scope, signatures] of byScope) {
+    if (new Set(signatures.values()).size > 1) {
+      conflicts.push({ scope, keys: Array.from(signatures.keys()).sort() });
+    }
+  }
+  return conflicts.sort((left, right) => left.scope.localeCompare(right.scope));
+}
+
 export function listScopedAdminCommandAccess(scoped: AdminCommandAccessByCommand | null | undefined): Array<[string, AdminCommandAccessConfig]> {
   if (!scoped) return [];
   const entries = hasMapGetter(scoped)

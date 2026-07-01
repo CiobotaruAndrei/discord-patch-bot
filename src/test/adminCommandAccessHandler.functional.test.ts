@@ -155,6 +155,32 @@ test("/set admin-command-access cu command salveaza regula doar pentru acea coma
   assert.match(String(harness.edits[0]), /start sau \/stop updates/);
 });
 
+test("/admin-command-access list semnaleaza conflictul dintre chei vechi start:/stop: cu roluri diferite, nu il ascunde (R[P3] #3)", async () => {
+  const roleA = { mode: "role" as const, roleId: "role-a", updatedBy: "o", updatedAt: new Date() };
+  const roleB = { mode: "role-or-higher" as const, roleId: "role-b", updatedBy: "o", updatedAt: new Date() };
+  const harness = makeHarness(null, { "start:updates": roleA, "stop:updates": roleB });
+
+  await harness.handler.handleAdminCommandAccess(interaction("admin-command-access", "list"));
+
+  const out = String(harness.edits[0]);
+  assert.match(out, /Reguli in conflict/, "listarea nu mai ascunde conflictul, il raporteaza");
+  assert.match(out, /start:updates/);
+  assert.match(out, /stop:updates/);
+});
+
+test("/set admin-command-access canonicalizeaza: seteaza cheia start-stop si curata cheile vechi start:/stop: (R[P3] #3)", async () => {
+  const roleA = { mode: "role" as const, roleId: "role-a", updatedBy: "o", updatedAt: new Date() };
+  const roleB = { mode: "role" as const, roleId: "role-b", updatedBy: "o", updatedAt: new Date() };
+  const harness = makeHarness(null, { "start:updates": roleA, "stop:updates": roleB });
+
+  await harness.handler.handleAdminCommandAccess(interaction("set", "admin-command-access", true, "/start updates"));
+
+  const scoped = harness.getScoped();
+  assert.equal(scoped["start-stop:updates"]?.roleId, "role-admin", "regula noua e scrisa sub cheia canonica");
+  assert.equal("start:updates" in scoped, false, "cheia veche start: e curatata (nu mai poate genera conflict ascuns)");
+  assert.equal("stop:updates" in scoped, false, "cheia veche stop: e curatata");
+});
+
 test("/set admin-command-access respinge o comanda publica (nu se aplica niciodata) fara sa salveze regula (R[P2] #2)", async () => {
   const harness = makeHarness();
 
