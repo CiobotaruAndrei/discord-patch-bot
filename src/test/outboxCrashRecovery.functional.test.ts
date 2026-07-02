@@ -13,12 +13,12 @@ type OutboxRuntimeDeps = Parameters<typeof createOutboxRuntime>[0];
 type OutboxModelMock = OutboxRuntimeDeps["NotificationOutboxModel"];
 type OutboxSentModelMock = OutboxRuntimeDeps["NotificationOutboxSentModel"];
 
-interface OutboxJobDoc extends OutboxJob {
+type OutboxJobDoc = OutboxJob & {
   _id: string;
   lockedUntil?: Date | null;
   lockedBy?: string;
   [key: string]: unknown;
-}
+};
 
 function makeStore() {
   const jobs: OutboxJobDoc[] = [];
