@@ -61,6 +61,7 @@ interface GameInfoDeps {
   chooseBestSteamMatch(items: SteamSearchCandidate[], query: string, options?: { forceGameOnly?: boolean }): SteamSearchCandidate | null;
   fetchSteamPriceDetails(appId: string | number, currency: string): Promise<SteamAppDetailsSummary | null>;
   fetchSteamCurrentPlayers(appId: string | number): Promise<SteamCurrentPlayersSummary>;
+  readPlayerCountSnapshots?(appIds: readonly (string | number)[]): Promise<Map<string, { appId: string; gameKey: string; playerCount: number; fetchedAt: Date }>>;
   fetchSteamReviewData(appId: string | number): Promise<SteamReviewData>;
   getDealsCacheData(currency: string): DealInfo[] | null;
   setDealsCache(currency: string, deals: DealInfo[]): void;
@@ -82,6 +83,7 @@ const RESULT_LIMIT_DEFAULT = 5;
 const RESULT_LIMIT_MAX = 10;
 const TOP_ACTIVE_PLAYER_COUNT_CONCURRENCY = 5;
 const TOP_ACTIVE_CANDIDATE_CAP = 25;
+const PLAYER_COUNT_SNAPSHOT_FRESH_MS = 15 * 60_000;
 const INFO_COLOR = 0x3498db;
 const DEAL_COLOR = 0x2ecc71;
 const WARNING_COLOR = 0xf1c40f;
@@ -402,15 +404,14 @@ function findExternalStores(deals: DealInfo[], query: string, steamName: string,
   return stores.slice(0, 6);
 }
 
-function selectTopActiveGames(games: GameConfig[], guild: GuildSettings | null, limit: number): { games: GameConfig[]; filteredByServer: boolean; totalCandidates: number } {
+function selectTopActiveGames(games: GameConfig[], guild: GuildSettings | null): { games: GameConfig[]; filteredByServer: boolean } {
   const playerCountKeys = Array.isArray(guild?.playerCountGames) ? guild.playerCountGames.map(String).filter(Boolean) : [];
   const enabledKeys = Array.isArray(guild?.enabledGames) ? guild.enabledGames.map(String).filter(Boolean) : [];
   const keyFilter = playerCountKeys.length ? new Set(playerCountKeys) : enabledKeys.length ? new Set(enabledKeys) : null;
   const eligible = games
     .filter(game => Boolean(game.appId))
     .filter(game => !keyFilter || keyFilter.has(game.key));
-  const candidates = eligible.slice(0, Math.max(limit, TOP_ACTIVE_CANDIDATE_CAP));
-  return { games: candidates, filteredByServer: Boolean(keyFilter), totalCandidates: eligible.length };
+  return { games: eligible, filteredByServer: Boolean(keyFilter) };
 }
 
 function createGameInfoInteractionHandler(deps: GameInfoDeps) {
@@ -474,21 +475,56 @@ function createGameInfoInteractionHandler(deps: GameInfoDeps) {
     if (interaction.commandName === "system") return safeEdit(interaction, { embeds: [buildSystemRequirementsEmbed(query, appId, details, deps.safeCheerioLoad)] });
     if (interaction.commandName === "game-size") return safeEdit(interaction, { embeds: [buildGameSizeEmbed(query, appId, details, deps.safeCheerioLoad)] });
     if (interaction.commandName === "player-count") {
-      const players = await fetchSteamCurrentPlayers(appId);
+      const fresh = await readFreshSnapshots([String(appId)]);
+      const snapshot = fresh.get(String(appId));
+      const players = snapshot
+        ? { appId: String(appId), playerCount: snapshot.playerCount, success: true }
+        : await fetchSteamCurrentPlayers(appId);
       return safeEdit(interaction, { embeds: [buildPlayerCountEmbed(query, appId, details, players)] });
     }
     const deals = await loadDeals(currency).catch(() => []);
     return safeEdit(interaction, { embeds: [buildPlatformsEmbed(query, appId, details, findExternalStores(deals, query, details.name || query, appId))] });
   }
 
+  async function readFreshSnapshots(appIds: readonly string[]): Promise<Map<string, { playerCount: number; fetchedAt: Date }>> {
+    if (typeof deps.readPlayerCountSnapshots !== "function") return new Map();
+    try {
+      const snapshots = await deps.readPlayerCountSnapshots(appIds);
+      const fresh = new Map<string, { playerCount: number; fetchedAt: Date }>();
+      const now = Date.now();
+      for (const [appId, snapshot] of snapshots) {
+        if (now - snapshot.fetchedAt.getTime() <= PLAYER_COUNT_SNAPSHOT_FRESH_MS) {
+          fresh.set(appId, { playerCount: snapshot.playerCount, fetchedAt: snapshot.fetchedAt });
+        }
+      }
+      return fresh;
+    } catch (err) {
+      deps.logger("WARN", "GAME_INFO", "Citirea snapshot-urilor de player-count a esuat, revin la fetch live", { error: errorMessage(err) });
+      return new Map();
+    }
+  }
+
   async function handleTopActiveCommand(interaction: DiscordInteraction, games: GameConfig[]): Promise<object | void | null> {
     const guild = interaction.guild?.id ? await getGuildSettings(interaction.guild.id) : null;
     const limit = clampResultLimit(interaction.options.getInteger("numar", false));
-    const selected = selectTopActiveGames(games, guild, limit);
+    const selected = selectTopActiveGames(games, guild);
     if (!selected.games.length) {
       return safeEdit(interaction, "Eroare: nu am jocuri cu Steam appId pentru player-count in configuratia curenta.");
     }
-    const playerCounts = await mapWithConcurrency(selected.games, TOP_ACTIVE_PLAYER_COUNT_CONCURRENCY, async game => {
+    const fresh = await readFreshSnapshots(selected.games.map(game => String(game.appId)));
+    const snapshotItems: Array<{ game: GameConfig; players: SteamCurrentPlayersSummary }> = [];
+    const missing: GameConfig[] = [];
+    for (const game of selected.games) {
+      const appId = String(game.appId);
+      const snapshot = fresh.get(appId);
+      if (snapshot) {
+        snapshotItems.push({ game, players: { appId, playerCount: snapshot.playerCount, success: true } });
+      } else {
+        missing.push(game);
+      }
+    }
+    const toFetch = missing.slice(0, TOP_ACTIVE_CANDIDATE_CAP);
+    const liveItems = await mapWithConcurrency(toFetch, TOP_ACTIVE_PLAYER_COUNT_CONCURRENCY, async game => {
       const appId = String(game.appId);
       try {
         return { game, players: await fetchSteamCurrentPlayers(appId) };
@@ -497,7 +533,8 @@ function createGameInfoInteractionHandler(deps: GameInfoDeps) {
         return { game, players: { appId, playerCount: 0, success: false } };
       }
     });
-    const notChecked = Math.max(0, selected.totalCandidates - selected.games.length);
+    const notChecked = Math.max(0, missing.length - toFetch.length);
+    const playerCounts = [...snapshotItems, ...liveItems];
     return safeEdit(interaction, { embeds: [buildTopActiveGamesEmbed(playerCounts, selected.filteredByServer, limit, notChecked)] });
   }
 

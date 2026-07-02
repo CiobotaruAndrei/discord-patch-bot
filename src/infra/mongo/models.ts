@@ -265,6 +265,14 @@ const fetchSnapshotSchema = new mongoose.Schema({
 }, { minimize: false });
 const FetchSnapshotModel = mongoose.model("FetchSnapshot", fetchSnapshotSchema);
 
+const playerCountSnapshotSchema = new mongoose.Schema({
+  _id: String,
+  gameKey: { type: String, default: "" },
+  playerCount: { type: Number, default: 0 },
+  fetchedAt: { type: Date, default: Date.now, expires: ONE_DAY_MS / 1000 }
+}, { minimize: false });
+const PlayerCountSnapshotModel = mongoose.model("PlayerCountSnapshot", playerCountSnapshotSchema, "playerCountSnapshots");
+
 const GUILD_SEEN_DISCOUNT_TTL_DAYS = env.GUILD_SEEN_DISCOUNT_TTL_DAYS;
 const guildSeenDiscountSchema = new mongoose.Schema({
   guildId: { type: String, required: true },
@@ -380,6 +388,7 @@ const NotificationDeadLetterReplayModel = mongoose.model("NotificationDeadLetter
     JobLockModel,
     AdminAlertCooldownModel,
     FetchSnapshotModel,
+    PlayerCountSnapshotModel,
     GuildSeenDiscountModel,
     GuildSeenUpdateModel,
     GuildSeenYoutubeModel,
