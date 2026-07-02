@@ -3,20 +3,10 @@ import https = require("https");
 import dns = require("dns");
 import type { AxiosRequestConfig, AxiosResponse, AxiosStatic } from "axios";
 import type {
-  DealInfo,
   HttpRequestOptions,
   LoggerFunction,
-  NormalizedUpdate,
-  PatchUpdate,
   RuntimeEnv
 } from "../../types";
-import {
-  cleanText as rustCleanText,
-  dealHash as rustDealHash,
-  normalizeDealState as rustNormalizeDealState,
-  normalizeTitleForDedupe as rustNormalizeTitleForDedupe,
-  stableUpdateId as rustStableUpdateId
-} from "../../native/fuzzy";
 import { errorMessage } from "../../shared/errors";
 import {
   assertSafeExternalUrl,
@@ -28,9 +18,13 @@ import { parseRetryAfter, classifyHttpFailure, computeBackoffWaitMs } from "./re
 import { resolveDefaultProxies, normalizeProxyTemplates } from "./proxyTemplates";
 import { createInitialHttpMetrics, type HttpMetricsRef } from "./httpMetrics";
 import { createConditionalGet } from "./conditionalCache";
+import { createContentNormalization } from "./contentNormalization";
+import { createInflightTracker } from "./inflightTracker";
+import { createProxyClient } from "./proxyClient";
 
 type CheerioModule = typeof import("cheerio");
 type CryptoModule = typeof import("crypto");
+type ContentNormalization = ReturnType<typeof createContentNormalization>;
 
 const HTTP_MAX_REDIRECTS = 5;
 
@@ -129,61 +123,7 @@ function buildHttpClientFrom(target: HttpClientContext) {
 
   function attachMetrics(m: HttpMetricsRef): void { target.metricsRef = m; }
 
-  function cleanText(text: unknown): string {
-    return rustCleanText(text);
-  }
-
-  function truncate(str: unknown, maxLen: number): string {
-    const t = String(str || "");
-    return t.length > maxLen ? t.substring(0, maxLen - 3) + "..." : t;
-  }
-
-  function normalizeTitleForDedupe(str: unknown): string {
-    return rustNormalizeTitleForDedupe(str);
-  }
-
-  function stableUpdateId(title: unknown, link: unknown): string {
-    return rustStableUpdateId(title, link);
-  }
-
-  function normalizeUpdate(data: PatchUpdate): NormalizedUpdate {
-    let id = String(data.id || "");
-    if (!id) id = stableUpdateId(data.title, data.link);
-    return {
-      id,
-      title: truncate(data.title || "Update nou", 250),
-      link: String(data.link || ""),
-      excerpt: truncate(data.excerpt || "", 700),
-      fullText: truncate(data.fullText || "", 3500),
-      image: data.image || null,
-      thumbnail: data.thumbnail || null,
-      timestamp: data.timestamp || ""
-    } as NormalizedUpdate;
-  }
-
-  function safeCheerioLoad(html: unknown) {
-    const str = typeof html === "string" ? html : String(html || "");
-    if (str.length * 4 <= MAX_HTML_BYTES) return cheerio.load(str);
-    const byteLen = Buffer.byteLength(str, "utf8");
-    if (byteLen <= MAX_HTML_BYTES) return cheerio.load(str);
-
-    const buf = Buffer.from(str, "utf8");
-    let end = Math.min(buf.length, MAX_HTML_BYTES);
-    while (end > 0) {
-      const nextByte = buf[end];
-      if (nextByte === undefined || (nextByte & 0xC0) !== 0x80) break;
-      end--;
-    }
-    return cheerio.load(buf.subarray(0, end).toString("utf8"));
-  }
-
-  function normalizeDealState(deal: DealInfo): string {
-    return rustNormalizeDealState(deal);
-  }
-
-  function dealHash(deal: DealInfo): string {
-    return rustDealHash(deal);
-  }
+  const contentNormalization: ContentNormalization = createContentNormalization({ cheerio, maxHtmlBytes: MAX_HTML_BYTES });
 
   async function httpReq(
     method: string,
@@ -266,48 +206,13 @@ function buildHttpClientFrom(target: HttpClientContext) {
 
   const conditionalGet = createConditionalGet(httpReq, CONDITIONAL_CACHE_MAX);
 
-  async function fetchWithProxy(targetUrl: string, options: HttpRequestOptions = {}): Promise<string> {
-    const safeTargetUrl = await assertSafeExternalDnsTarget(targetUrl, "Proxy target URL", dnsLookup);
-    if (!PROXY_TEMPLATES.length) {
-      throw new Error("Proxy fallback neconfigurat. Seteaza PROXY_URLS pentru aceasta sursa.");
-    }
-    let lastErr: unknown;
-    for (const template of PROXY_TEMPLATES) {
-      const proxyUrl = template.replace("{url}", encodeURIComponent(safeTargetUrl));
-      try {
-        const res = await httpReq("GET", proxyUrl, options);
-        if (template.includes("allorigins")) {
-          return String(res?.data?.contents || "");
-        }
-        return typeof res.data === "string" ? res.data : JSON.stringify(res.data);
-      } catch (err) { lastErr = err; }
-    }
-    const lastMessage = lastErr && typeof lastErr === "object" && "message" in lastErr
-      ? String((lastErr as { message?: unknown }).message)
-      : String(lastErr);
-    throw new Error(`Proxy fallback epuizat: ${lastMessage}`);
-  }
+  const { fetchWithProxy } = createProxyClient({
+    proxyTemplates: PROXY_TEMPLATES,
+    httpReq,
+    assertSafeTarget: (rawUrl, label) => assertSafeExternalDnsTarget(rawUrl, label, dnsLookup)
+  });
 
-  function withInflightTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(
-        () => reject(new Error(`Inflight timeout (${label})`)),
-        INFLIGHT_PROMISE_TIMEOUT_MS
-      );
-    });
-    return Promise.race([promise, timeoutPromise]).finally(() => {
-      if (timeoutId) clearTimeout(timeoutId);
-    });
-  }
-
-  function trackInflight<T>(map: Map<string, Promise<T>>, key: string, promise: Promise<T>): void {
-    map.set(key, promise);
-    const cleanup = () => {
-      if (map.get(key) === promise) map.delete(key);
-    };
-    promise.then(cleanup, cleanup);
-  }
+  const { withInflightTimeout, trackInflight } = createInflightTracker(INFLIGHT_PROMISE_TIMEOUT_MS);
 
   return {
     FETCH_CONCURRENCY,
@@ -335,14 +240,7 @@ function buildHttpClientFrom(target: HttpClientContext) {
     assertSafeExternalDnsTarget: (rawUrl: unknown, label?: string) =>
       assertSafeExternalDnsTarget(rawUrl, label, dnsLookup),
     attachMetrics,
-    cleanText,
-    truncate,
-    normalizeTitleForDedupe,
-    stableUpdateId,
-    normalizeUpdate,
-    safeCheerioLoad,
-    normalizeDealState,
-    dealHash,
+    ...contentNormalization,
     httpReq,
     conditionalGet,
     fetchWithProxy,
