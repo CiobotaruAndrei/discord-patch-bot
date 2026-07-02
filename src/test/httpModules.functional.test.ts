@@ -114,3 +114,85 @@ test("createConditionalGet: evictie LRU la depasirea maxSize (intrarea cea mai v
   await conditionalGet("https://a.test/", identity);
   assert.equal(validatorByUrl["https://a.test/"], undefined, "a a fost evinsa (cea mai veche) -> niciun validator");
 });
+
+const { createInflightTracker } = require("../infra/http/inflightTracker") as typeof import("../infra/http/inflightTracker");
+const { createProxyClient } = require("../infra/http/proxyClient") as typeof import("../infra/http/proxyClient");
+const { createContentNormalization } = require("../infra/http/contentNormalization") as typeof import("../infra/http/contentNormalization");
+const cheerioModule = require("cheerio") as typeof import("cheerio");
+
+test("inflightTracker: timeout-ul respinge promisiunile blocate si curata timerul la settle (R[Arh] #8)", async () => {
+  const tracker = createInflightTracker(15);
+  await assert.rejects(
+    () => tracker.withInflightTimeout(new Promise(() => undefined), "blocat"),
+    /Inflight timeout \(blocat\)/
+  );
+  assert.equal(await tracker.withInflightTimeout(Promise.resolve("ok"), "rapid"), "ok");
+});
+
+test("inflightTracker: trackInflight curata cheia din map la resolve si la reject, dar nu sterge o promisiune inlocuita", async () => {
+  const tracker = createInflightTracker(1000);
+  const map = new Map<string, Promise<string>>();
+  const first = Promise.resolve("primul");
+  tracker.trackInflight(map, "k", first);
+  const second = Promise.reject(new Error("al doilea pica")).catch(() => "recuperat") as Promise<string>;
+  tracker.trackInflight(map, "k", second);
+  await first;
+  await second;
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(map.has("k"), false, "dupa settle-ul ambelor, cheia e curatata (cleanup-ul primului nu sterge inlocuitorul inainte de settle-ul lui)");
+});
+
+test("proxyClient: itereaza template-urile la esec, extrage contents pentru allorigins si raporteaza epuizarea (R[Arh] #8)", async () => {
+  const calls: string[] = [];
+  const client = createProxyClient({
+    proxyTemplates: ["https://p1.example/{url}", "https://api.allorigins.win/get?url={url}"],
+    httpReq: async (_method, url) => {
+      calls.push(url);
+      if (url.startsWith("https://p1")) throw new Error("proxy 1 picat");
+      return { data: { contents: "<html>ok</html>" } } as Awaited<ReturnType<Parameters<typeof createProxyClient>[0]["httpReq"]>>;
+    },
+    assertSafeTarget: async raw => raw
+  });
+
+  const body = await client.fetchWithProxy("https://target.example/pagina");
+  assert.equal(body, "<html>ok</html>", "raspunsul allorigins e despachetat din .contents");
+  assert.equal(calls.length, 2, "primul template picat => se trece la urmatorul");
+  assert.match(calls[0], /p1\.example/);
+
+  const empty = createProxyClient({ proxyTemplates: [], httpReq: async () => { throw new Error("nu se ajunge"); }, assertSafeTarget: async raw => raw });
+  await assert.rejects(() => empty.fetchWithProxy("https://target.example"), /neconfigurat/);
+
+  const exhausted = createProxyClient({
+    proxyTemplates: ["https://p1.example/{url}"],
+    httpReq: async () => { throw new Error("mereu pica"); },
+    assertSafeTarget: async raw => raw
+  });
+  await assert.rejects(() => exhausted.fetchWithProxy("https://target.example"), /Proxy fallback epuizat: mereu pica/);
+});
+
+test("contentNormalization: normalizeUpdate genereaza id stabil cand lipseste si trunchiaza campurile lungi (R[Arh] #8)", () => {
+  const normalization = createContentNormalization({ cheerio: cheerioModule, maxHtmlBytes: 1024 });
+  const update = normalization.normalizeUpdate({
+    id: "",
+    title: "T".repeat(300),
+    link: "https://example.com/patch",
+    excerpt: "E".repeat(800),
+    fullText: "F".repeat(4000),
+    image: null,
+    thumbnail: null,
+    timestamp: ""
+  });
+  assert.equal(update.id, normalization.stableUpdateId("T".repeat(300), "https://example.com/patch"), "id-ul lipsa e derivat stabil din titlu+link");
+  assert.equal(update.title.length, 250);
+  assert.equal(update.excerpt.length, 700);
+  assert.equal(update.fullText.length, 3500);
+});
+
+test("contentNormalization: safeCheerioLoad taie HTML-ul urias la limita de bytes fara sa rupa un caracter multibyte", () => {
+  const normalization = createContentNormalization({ cheerio: cheerioModule, maxHtmlBytes: 64 });
+  const html = `<p>${"ă".repeat(200)}</p>`;
+  const $ = normalization.safeCheerioLoad(html);
+  const text = $("p").text();
+  assert.ok(text.length > 0 && text.length < 200, "continutul e taiat la limita");
+  assert.doesNotMatch(text, /�/, "taierea nu produce caractere invalide (nu rupe secvente utf8)");
+});
