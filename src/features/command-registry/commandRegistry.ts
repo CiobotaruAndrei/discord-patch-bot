@@ -22,6 +22,7 @@ interface CommandRegistryContext {
   checkForUpdates?: (client: NotificationDiscordClient, games: GameConfig[], shouldAbort?: (() => boolean) | null) => Promise<void>;
   checkForDiscounts?: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
   checkForYouTube?: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
+  refreshPlayerCountSnapshots?: (games: GameConfig[], shouldAbort?: (() => boolean) | null) => Promise<{ refreshed: number; failed: number }>;
   drainOutbox?: (client: OutboxDiscordClient) => MaybePromise<unknown>;
   buildOptimizedGameList?: <G extends { key: string }>(allGames: G[], subscribedGuilds: readonly GuildGameFilter[]) => G[];
   registerSlashCommands?: (token: string, clientId: string) => Promise<unknown>;
@@ -44,6 +45,7 @@ type RequiredCommandRegistryKey =
   | "checkForUpdates"
   | "checkForDiscounts"
   | "checkForYouTube"
+  | "refreshPlayerCountSnapshots"
   | "drainOutbox"
   | "buildOptimizedGameList"
   | "registerSlashCommands"
@@ -64,6 +66,7 @@ import attachCommandCache = require("../command-cache/commandCache");
 import attachDealFilters = require("../../domain/deals/filters");
 import attachCommandPresentation = require("../command-presentation/commandPresentation");
 import attachNotifications = require("../notifications");
+import attachPlayerCountSnapshots = require("../player-count/playerCountSnapshotService");
 import attachFeedbackRepository = require("../feedback/feedbackRepository");
 import attachSlashCommandDefinitions = require("../command-definitions/slashCommandDefinitions");
 import attachFallbackInteractionHandler = require("../command-handlers/fallbackInteractionHandler");
@@ -124,9 +127,10 @@ function createAppServices(
   };
   const presentation = { ...filters, ...attachCommandPresentation.createCommandPresentation(filters) };
   const notifications = { ...presentation, ...attachNotifications.createNotificationRuntime(presentation) };
-  const feedbackRepository = attachFeedbackRepository.createFeedbackRepository(notifications);
+  const playerCounts = { ...notifications, ...attachPlayerCountSnapshots.createPlayerCountSnapshotService(notifications) };
+  const feedbackRepository = attachFeedbackRepository.createFeedbackRepository(playerCounts);
   const feedback = {
-    ...notifications,
+    ...playerCounts,
     recordFeedbackReport: feedbackRepository.recordReport,
     getRecentFeedbackReports: feedbackRepository.getRecent,
     resolveFeedbackReport: feedbackRepository.resolveReport
@@ -195,6 +199,7 @@ function createCommandRegistry(
     checkForUpdates: ctx.checkForUpdates,
     checkForDiscounts: ctx.checkForDiscounts,
     checkForYouTube: ctx.checkForYouTube,
+    refreshPlayerCountSnapshots: ctx.refreshPlayerCountSnapshots,
     drainOutbox: ctx.drainOutbox,
     buildOptimizedGameList: ctx.buildOptimizedGameList,
     registerSlashCommands: ctx.registerSlashCommands,
