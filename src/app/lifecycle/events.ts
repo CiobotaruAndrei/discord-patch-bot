@@ -1,28 +1,15 @@
 import type { GameConfig, RuntimeEnv } from "../../types";
+import type { LifecycleDiscordChannel, LifecycleDiscordGuild, LifecycleDiscordInteraction, LifecycleEventClient } from "./lifecycleContracts";
 import { createGuildOnboarding } from "./guildOnboarding";
 
 type LifecycleLogger = (level: "INFO" | "WARN" | "ERROR", context: string, message: string, meta?: unknown) => void;
 type ErrorFormatter = (err: unknown) => string;
 type AdminAlert = (kind: string, title: string, body: string) => Promise<unknown>;
 
-interface DiscordUserLike {
-  id?: string;
-  tag?: string;
-}
-
-interface DiscordClientLike {
-  user?: DiscordUserLike | null;
-  once(event: "ready", listener: () => unknown): unknown;
-  on(event: "interactionCreate", listener: (interaction: unknown) => unknown): unknown;
-  on(event: "guildCreate", listener: (guild: unknown) => unknown): unknown;
-  on(event: "error" | "shardError", listener: (err: unknown) => unknown): unknown;
-  on(event: "warn", listener: (message: string) => unknown): unknown;
-}
-
 interface CommandsLike {
   registerSlashCommands(token: string, clientId: string): Promise<unknown>;
-  handleInteraction(interaction: unknown, games: GameConfig[]): Promise<unknown> | unknown;
-  canSendEmbeds(channel: unknown, botId: string): boolean;
+  handleInteraction(interaction: LifecycleDiscordInteraction, games: GameConfig[]): Promise<unknown> | unknown;
+  canSendEmbeds(channel: LifecycleDiscordChannel, botId: string): boolean;
 }
 
 interface CryptoLike {
@@ -34,7 +21,7 @@ interface RequestContextLike {
 }
 
 interface RegisterDiscordEventsDeps {
-  client: DiscordClientLike;
+  client: LifecycleEventClient;
   logger: LifecycleLogger;
   commands: CommandsLike;
   env: RuntimeEnv;
@@ -66,16 +53,7 @@ interface RegisterMongoEventsDeps {
 
 const EPHEMERAL_MESSAGE_FLAG = 64;
 
-interface RepliableInteractionLike {
-  isRepliable?: () => boolean;
-  deferred?: boolean;
-  replied?: boolean;
-  reply?: (payload: unknown) => Promise<unknown>;
-  followUp?: (payload: unknown) => Promise<unknown>;
-}
-
-async function replyInteractionError(interaction: unknown): Promise<void> {
-  const inter = interaction as RepliableInteractionLike;
+async function replyInteractionError(inter: LifecycleDiscordInteraction): Promise<void> {
   if (typeof inter?.isRepliable !== "function" || !inter.isRepliable()) return;
   const payload = { content: "A aparut o eroare la procesarea comenzii. Incearca din nou mai tarziu.", flags: EPHEMERAL_MESSAGE_FLAG };
   const send = (inter.deferred || inter.replied) && typeof inter.followUp === "function"
@@ -132,7 +110,7 @@ function registerDiscordEvents({
   });
 
   const onboarding = createGuildOnboarding({ logger, canSendEmbeds: commands.canSendEmbeds, errorMessage });
-  client.on("guildCreate", (guild) => { onboarding.handleGuildCreate(guild as Parameters<typeof onboarding.handleGuildCreate>[0]).catch(() => null); });
+  client.on("guildCreate", (guild: LifecycleDiscordGuild) => { onboarding.handleGuildCreate(guild).catch(() => null); });
 
   client.on("error", (err) => logger("ERROR", "DISCORD", "Eroare client Discord", errorMessage(err)));
   client.on("warn", (msg) => logger("WARN", "DISCORD", msg));

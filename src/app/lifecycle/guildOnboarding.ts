@@ -1,21 +1,16 @@
+import type { LifecycleDiscordChannel, LifecycleDiscordGuild } from "./lifecycleContracts";
 import { isSendableChannel } from "../../features/notifications/outboundChannel";
 "use strict";
 
 type Logger = (level: "INFO" | "WARN" | "ERROR", context: string, message: string, meta?: unknown) => void;
-type CanSendEmbeds = (channel: unknown, botId: string) => boolean;
+type CanSendEmbeds = (channel: LifecycleDiscordChannel, botId: string) => boolean;
 type ErrorFormatter = (err: unknown) => string;
 
 interface SendableChannel {
   send(payload: unknown): Promise<unknown>;
 }
 
-interface OnboardingGuildLike {
-  id?: string;
-  name?: string;
-  systemChannel?: unknown;
-  channels?: { cache?: { find(predicate: (channel: unknown) => boolean): unknown } };
-  client?: { user?: { id?: string } | null };
-}
+type OnboardingGuildLike = LifecycleDiscordGuild;
 
 export interface OnboardingEmbed {
   title: string;
