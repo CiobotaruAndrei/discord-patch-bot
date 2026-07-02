@@ -180,6 +180,53 @@ test("/youtube subscribe pastreaza nevazute videoclipurile recente si salveaza a
   assert.match(String(harness.replies[0]), /o luna/);
 });
 
+test("/youtube subscribe: limita atinsa CONCURENT => baseline-ul seen abia scris e curatat (rollback, R[Arh] #6)", async () => {
+  const fullChannels = Array.from({ length: 25 }, (_v, index) => ({ channelId: `UCalt${index}` }));
+  const harness = createHarness({}, 3, false, 0, {
+    findOneAndUpdate: async () => ({ youtubeChannels: fullChannels })
+  });
+
+  await harness.handler.handleYouTubeInteraction(makeInteraction({
+    subcommand: "subscribe",
+    strings: { canal: "@canal-test" }
+  }));
+
+  assert.equal(harness.seeded.length, 1, "baseline-ul seen a fost scris inainte de refuzul concurent");
+  assert.deepEqual(harness.removed, ["UC1234567890123456789012"], "refuzul concurent curata baseline-ul seen abia scris (fara intrari orfane)");
+  assert.match(String(harness.replies[0]), /o comanda concurenta/);
+});
+
+test("/youtube subscribe: salvarea abonarii arunca => baseline-ul seen e curatat si eroarea se propaga (R[Arh] #6)", async () => {
+  const harness = createHarness({}, 3, false, 0, {
+    findOneAndUpdate: async () => { throw new Error("mongo indisponibil la salvare"); }
+  });
+
+  await assert.rejects(
+    () => harness.handler.handleYouTubeInteraction(makeInteraction({
+      subcommand: "subscribe",
+      strings: { canal: "@canal-test" }
+    })),
+    /mongo indisponibil/
+  );
+
+  assert.deepEqual(harness.removed, ["UC1234567890123456789012"], "esecul salvarii curata baseline-ul seen inainte sa propage eroarea");
+});
+
+test("/youtube subscribe: esecul rollback-ului nu mascheaza eroarea originala de salvare (best-effort + log)", async () => {
+  const harness = createHarness({}, 3, false, 0, {
+    findOneAndUpdate: async () => { throw new Error("mongo indisponibil la salvare"); },
+    removeSeenChannel: async () => { throw new Error("si colectia seen e indisponibila"); }
+  });
+
+  await assert.rejects(
+    () => harness.handler.handleYouTubeInteraction(makeInteraction({
+      subcommand: "subscribe",
+      strings: { canal: "@canal-test" }
+    })),
+    /mongo indisponibil la salvare/
+  );
+});
+
 test("/youtube unsubscribe foloseste channel ID-ul din autocomplete si curata deduplicarea", async () => {
   const channelId = "UC1234567890123456789012";
   const harness = createHarness({

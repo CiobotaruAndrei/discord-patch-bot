@@ -14,6 +14,14 @@ const { errorDetail } = require("../../../shared/errors") as typeof import("../.
 export function createYouTubeSubscriptionCommands(deps: YouTubeInteractionDeps) {
   const { GuildModel, getGuildSettings, invalidateGuildCache, resolveYouTubeChannel, fetchYouTubeFeed, seedSeenVideos, removeSeenChannel, safeEdit } = deps;
 
+  async function rollbackSeenBaseline(guildId: string, channelId: string, why: string): Promise<void> {
+    try {
+      await removeSeenChannel(guildId, channelId);
+    } catch (cleanupError) {
+      deps.logger("WARN", "YOUTUBE_COMMAND", `Rollback-ul baseline-ului seen pentru canalul ${channelId} a esuat (${why}); pot ramane intrari seen orfane`, errorDetail(cleanupError));
+    }
+  }
+
   async function subscribe(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     const input = interaction.options.getString("canal", true);
     if (!input) return safeEdit(interaction, "Eroare: trebuie sa introduci canalul YouTube.");
@@ -37,12 +45,19 @@ export function createYouTubeSubscriptionCommands(deps: YouTubeInteractionDeps) 
       lastVideoId: videos[0]?.videoId || "",
       lastError: { message: "", channelId: null, at: null }
     };
-    const outcome = await addYouTubeChannelSubscription(GuildModel, guildId, subscription);
+    let outcome: Awaited<ReturnType<typeof addYouTubeChannelSubscription>>;
+    try {
+      outcome = await addYouTubeChannelSubscription(GuildModel, guildId, subscription);
+    } catch (error) {
+      await rollbackSeenBaseline(guildId, resolved.channelId, "salvarea abonarii a esuat");
+      throw error;
+    }
     invalidateGuildCache(guildId);
     if (outcome.alreadySubscribed) {
       return safeEdit(interaction, `Info: **${resolved.channelName}** este deja urmarit.`);
     }
     if (outcome.limitReached) {
+      await rollbackSeenBaseline(guildId, resolved.channelId, "limita de canale a fost ocupata concurent");
       return safeEdit(interaction, `Eroare: serverul a atins limita de ${MAX_YOUTUBE_CHANNELS} canale YouTube (o comanda concurenta a ocupat ultimul loc).`);
     }
     return safeEdit(
