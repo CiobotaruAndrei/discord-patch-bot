@@ -261,6 +261,11 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Gestioneaza `/sources status`.
 - Citeste snapshot-urile persistate pentru update-uri si reduceri, fara fetch live, si sumarizeaza starea surselor externe si varsta ultimei verificari cunoscute.
 
+### `src/features/youtube/youtubeNotificationService.ts` + sub-serviciile lui
+
+- Serviciul principal e orchestratorul fluxului automat (`checkForYouTube`/`processGuild`) si manual (`prepareManualVideos`/`deliverManualVideos`); sub-serviciile compuse, fiecare cu dependinte minime: `youtubeFeedLoader` (feed-uri unice per canal cu concurenta marginita, erorile devin `FeedResult.error`), `youtubeMetadataResolver` (cache memoizat de metadata per videoId), `youtubeFilterEngine` (`prepareVideo`: metadata + filtrele guild-ului + filtrul de titlu), `youtubeDeliveryPlanner` (pur: `buildYouTubeEmbed`, `sortedVideos`, `packYouTubeDeliveries` cu limite de caractere/batch), `youtubeDeliveryExecutor` (`deliverPrepared`: grupare pe destinatii, resolve outbound cu disable/remove-route la eroare permanenta, chunking + stagger prin outbox), `youtubeRollbackPolicy` (rollback-ul claim-urilor prin `rollbackOrReport`, cu raportare la esec).
+- Semantica claim/rollback: videoclipurile vechi sau cu notificarile oprite (dupa prima activare) sunt doar claim-uite; cele livrabile sunt claim-uite inainte de preparare, iar esecul de preparare/livrare/abort face rollback (raportat) ca sa poata fi reluate.
+
 ### `src/features/command-handlers/youtubeInteractionHandler.ts` + `youtube/` (module dedicate)
 
 - Fisierul principal e doar **router**: dispatch pe grup/subcomanda catre modulele dedicate din `command-handlers/youtube/` si pastreaza instalarea/catch-ul de erori; API-ul public (install + `createYouTubeInteractionHandler` + `buildCommandHandler` + formatters) e neschimbat.
