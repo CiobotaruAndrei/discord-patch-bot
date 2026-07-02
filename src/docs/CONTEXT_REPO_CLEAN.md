@@ -65,6 +65,9 @@ src/
       fallbackInteractionHandler.ts
       futureReleaseInteractionHandler.ts
       gameFilterHandlers.ts
+      gameInfoEmbeds.ts
+      gameInfoInteractionHandler.ts
+      gameInfoLookupService.ts
       helpInteractionHandler.ts
       latestInteractionHandler.ts
       maintenanceInteractionHandler.ts
