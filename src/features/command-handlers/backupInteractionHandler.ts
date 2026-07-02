@@ -9,9 +9,9 @@ import {
   findBackup,
   listBackups,
   loadConfigBackup,
-  saveConfigBackup,
-  recordServerAuditEntry
-} from "../admin-records/adminRecordsRepository";
+  saveConfigBackup
+} from "../admin-records/configBackupRepository";
+import { recordServerAuditEntry } from "../admin-records/auditLogRepository";
 import { handledCommandError } from "../command-security/commandOutcome";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");

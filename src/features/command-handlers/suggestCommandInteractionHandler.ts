@@ -3,7 +3,8 @@
 import type { GameConfig, GuildSettings, SuggestedCommandEntry } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
-import { deleteSuggestedCommand, listSuggestedCommands, recordBotAuditEntry, saveSuggestedCommand } from "../admin-records/adminRecordsRepository";
+import { deleteSuggestedCommand, listSuggestedCommands, saveSuggestedCommand } from "../admin-records/suggestedCommandsRepository";
+import { recordBotAuditEntry } from "../admin-records/auditLogRepository";
 import { requireGuildAdminAudited } from "../command-security/runtimeAdminAudit";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
 

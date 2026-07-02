@@ -3,7 +3,7 @@
 import type { FutureReleaseGameEntry, GameConfig, GuildSettings } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
-import { deleteFutureReleaseGame, listFutureReleaseGames, saveFutureReleaseGame } from "../admin-records/adminRecordsRepository";
+import { deleteFutureReleaseGame, listFutureReleaseGames, saveFutureReleaseGame } from "../admin-records/futureReleaseGamesRepository";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");

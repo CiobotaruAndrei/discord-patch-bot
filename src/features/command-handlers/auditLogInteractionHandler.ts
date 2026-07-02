@@ -3,7 +3,7 @@
 import type { BotAuditLogEntry, GameConfig, GuildSettings, ServerAuditLogEntry } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
-import { listBotAuditEntries, listBotAuditEntriesInRange, listServerAuditEntries, listServerAuditEntriesInRange } from "../admin-records/adminRecordsRepository";
+import { listBotAuditEntries, listBotAuditEntriesInRange, listServerAuditEntries, listServerAuditEntriesInRange } from "../admin-records/auditLogRepository";
 import { handledCommandError } from "../command-security/commandOutcome";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
 

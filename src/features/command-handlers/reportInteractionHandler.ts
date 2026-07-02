@@ -2,7 +2,7 @@
 
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
-import { recordBotAuditEntry } from "../admin-records/adminRecordsRepository";
+import { recordBotAuditEntry } from "../admin-records/auditLogRepository";
 import { requireGuildAdminAudited } from "../command-security/runtimeAdminAudit";
 
 const { errorDetail } = require("../../shared/errors");
