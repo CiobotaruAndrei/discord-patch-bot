@@ -43,6 +43,7 @@ src/
       filtersCore.ts
   features/
     admin-records/
+      adminRecordsTypes.ts
     command-cache/
     command-definitions/
     command-handlers/
@@ -81,6 +82,7 @@ src/
       discountNotificationService.ts
       index.ts
       notificationOutbox.ts
+      notificationTypes.ts
       outboundChannel.ts
       seenRepository.ts
       updateNotificationService.ts
@@ -89,6 +91,7 @@ src/
       youtubeNotificationService.ts
       youtubeRepository.ts
       youtubeSource.ts
+      youtubeTypes.ts
   infra/
     http/
     mongo/
@@ -113,6 +116,7 @@ src/
       driverUpdates.ts
       platformUpdates.ts
     sourceRegistry.ts
+    sourceTypes.ts
   test/
 ```
 

@@ -1,4 +1,71 @@
 import type { IncomingMessage } from "http";
+import type {
+  ConfigBackupRecord,
+  BotAuditLogEntry,
+  ServerAuditLogEntry,
+  SuggestedCommandEntry,
+  WatchlistGameSuggestionEntry,
+  FutureReleaseGameEntry
+} from "./features/admin-records/adminRecordsTypes";
+import type {
+  NotificationMode,
+  PendingUpdate,
+  PendingDiscount,
+  LastErrorInfo,
+  PriceAlertRule,
+  DeadLetterEntry
+} from "./features/notifications/notificationTypes";
+import type {
+  YouTubeChannelSubscription,
+  YouTubeFilters,
+  YouTubeChannelRoute,
+  YouTubeErrorEntry
+} from "./features/youtube/youtubeTypes";
+import type {
+  NormalizedUpdate,
+  FetchResult,
+  DealInfo,
+  DlcCacheEntry
+} from "./sources/sourceTypes";
+
+export type {
+  ConfigBackupRecord,
+  BotAuditLogEntry,
+  ServerAuditLogEntry,
+  SuggestedCommandEntry,
+  WatchlistGameSuggestionEntry,
+  FutureReleaseGameEntry
+} from "./features/admin-records/adminRecordsTypes";
+export type {
+  NotificationMode,
+  PendingUpdate,
+  PendingDiscount,
+  LastErrorInfo,
+  PriceAlertRule,
+  DeadLetterEntry
+} from "./features/notifications/notificationTypes";
+export type {
+  YouTubeChannelSubscription,
+  YouTubeFilters,
+  YouTubeChannelRoute,
+  YouTubeErrorEntry,
+  YouTubeVideo,
+  YouTubeVideoMetadata
+} from "./features/youtube/youtubeTypes";
+export type {
+  PatchUpdate,
+  NormalizedUpdate,
+  EmbeddableUpdate,
+  FetchResult,
+  DealInfo,
+  ValidatedDealInfo,
+  EnrichedDealInfo,
+  DlcInfo,
+  DlcCacheEntry,
+  SteamSearchItem,
+  SteamReviewData,
+  FetchDealsOptions
+} from "./sources/sourceTypes";
 
 export type GameType =
   | "steam"
@@ -12,7 +79,6 @@ export type GameType =
   | "rss";
 
 export type CurrencyCode = "USD" | "EUR" | "GBP" | "RON";
-export type NotificationMode = "compact" | "detailed";
 export type AbortPredicate = (() => boolean) | null;
 export type MaybePromise<T> = T | Promise<T>;
 export type PriceValue = string | number;
@@ -237,44 +303,6 @@ export interface RateLimiter {
   readonly retryAfterSeconds: number;
 }
 
-export interface PatchUpdate {
-  id?: string;
-  title?: string;
-  url?: string;
-  link?: string;
-  summary?: string;
-  excerpt?: string;
-  content?: string;
-  fullText?: string;
-  publishedAt?: string | Date;
-  date?: string | Date;
-  timestamp?: string | Date;
-  author?: string;
-  image?: string | null;
-  thumbnail?: string | null;
-  [key: string]: unknown;
-}
-
-export interface NormalizedUpdate {
-  id: string;
-  title: string;
-  link: string;
-  excerpt: string;
-  fullText: string;
-  image: string | null;
-  thumbnail: string | null;
-  timestamp: string;
-}
-
-export interface EmbeddableUpdate {
-  title?: string;
-  link?: string;
-  excerpt?: string;
-  image?: unknown;
-  thumbnail?: unknown;
-  timestamp?: string | Date;
-}
-
 export interface PaginationButtonInteraction {
   user: { id: string };
   customId: string;
@@ -292,181 +320,6 @@ export interface InteractionMessage {
   editable?: boolean;
   edit(payload: unknown): Promise<unknown>;
   createMessageComponentCollector(options: unknown): ComponentCollector;
-}
-
-export interface FetchResult {
-  game: GameConfig;
-  latest: NormalizedUpdate | null;
-  error: string | null;
-}
-
-export interface DealInfo {
-  id?: string;
-  title?: string;
-  url?: string;
-  link?: string;
-  store?: string;
-  appId?: string;
-  steamAppID?: string | number | null;
-  normalPrice?: PriceValue;
-  salePrice?: PriceValue;
-  savings?: PriceValue;
-  discountPercent?: number;
-  popularityScore?: number;
-  totalReviews?: number;
-  qualityScore?: number;
-  currency?: CurrencyCode | string;
-  image?: string | null;
-  thumbnail?: string | null;
-  endsAt?: string | Date | null;
-  endDateStr?: string | null;
-  extraDetails?: string;
-  enriched?: boolean;
-  [key: string]: unknown;
-}
-
-export interface ValidatedDealInfo extends DealInfo {
-  title: string;
-  link: string;
-  store: string;
-  normalPrice: PriceValue;
-  salePrice: PriceValue;
-  savings: PriceValue;
-}
-
-export interface EnrichedDealInfo extends DealInfo {
-  enriched: true;
-}
-
-export interface PendingUpdate extends PatchUpdate {
-  id: string;
-  attempts?: number;
-  createdAt?: Date | string;
-}
-
-export interface PendingDiscount {
-  hash: string;
-  snapshot?: DealInfo | null;
-  lastSeenAt?: Date | string;
-  attempts?: number;
-}
-
-export interface LastErrorInfo {
-  message?: string;
-  channelId?: string | null;
-  at?: Date | string | null;
-}
-
-export interface PriceAlertRule {
-  gameKey: string;
-  gameName: string;
-  appId?: string;
-  aliases?: string[];
-  threshold: number;
-  currency: CurrencyCode | string;
-  triggeredAt?: Date | string | null;
-  lastObservedPrice?: number | null;
-  lastObservedAt?: Date | string | null;
-  absentCycles?: number | null;
-}
-
-export interface ConfigBackupRecord {
-  name: string;
-  createdBy: string;
-  createdAt: Date | string;
-  snapshot: Record<string, unknown>;
-}
-
-export interface BotAuditLogEntry {
-  userId: string;
-  command: string;
-  result: string;
-  serverId: string;
-  details?: string;
-  at: Date | string;
-}
-
-export interface ServerAuditLogEntry {
-  userId: string;
-  action: string;
-  serverId: string;
-  details?: string;
-  at: Date | string;
-}
-
-export interface SuggestedCommandEntry {
-  commandName: string;
-  description: string;
-  createdBy: string;
-  createdAt: Date | string;
-}
-
-export interface WatchlistGameSuggestionEntry {
-  gameName: string;
-  createdBy: string;
-  createdAt: Date | string;
-}
-
-export interface FutureReleaseGameEntry {
-  gameName: string;
-  addedBy: string;
-  addedAt: Date | string;
-  releaseDate?: string;
-  preorderPrice?: string;
-}
-
-export interface YouTubeChannelSubscription {
-  channelId: string;
-  channelName: string;
-  channelUrl: string;
-  subscribedAt: Date | string;
-  lastCheckedAt?: Date | string | null;
-  lastVideoId?: string;
-  lastError?: LastErrorInfo;
-}
-
-export interface YouTubeFilters {
-  excludeShorts?: boolean;
-  excludeLives?: boolean;
-  excludePremieres?: boolean;
-  minDurationSeconds?: number;
-}
-
-export interface YouTubeChannelRoute {
-  channelId: string;
-  discordChannelIds: string[];
-}
-
-export interface YouTubeErrorEntry {
-  channelId: string;
-  channelName: string;
-  message: string;
-  at: Date | string;
-}
-
-export interface DeadLetterEntry {
-  kind: string;
-  itemId: string;
-  reason: string;
-  at?: Date | string;
-  attempts?: number;
-}
-
-export interface YouTubeVideo {
-  videoId: string;
-  channelId: string;
-  channelName: string;
-  title: string;
-  link: string;
-  publishedAt: string;
-  thumbnail: string;
-}
-
-export interface YouTubeVideoMetadata {
-  durationSeconds: number | null;
-  isShort: boolean;
-  isLive: boolean;
-  isPremiere: boolean;
 }
 
 export interface GuildSettings {
@@ -562,34 +415,6 @@ export interface CooldownResult {
   remainingMs?: number;
 }
 
-export interface DlcInfo {
-  name: string;
-  price: string;
-}
-
-export interface DlcCacheEntry {
-  dlcList: DlcInfo[];
-  title: string;
-  appId: string | number;
-  thumbUrl: string;
-  totalExtracted: number;
-}
-
-export interface SteamSearchItem {
-  id?: string | number;
-  name?: string;
-  type?: string;
-  tiny_image?: string;
-  price?: unknown;
-  [key: string]: unknown;
-}
-
-export interface SteamReviewData {
-  totalReviews: number;
-  qualityPercent: number;
-  success: boolean;
-}
-
 export interface HttpRequestOptions {
   timeout?: number;
   headers?: Record<string, string>;
@@ -600,11 +425,6 @@ export interface HttpRequestOptions {
   signal?: AbortSignal;
   acceptNotModified?: boolean;
   [key: string]: unknown;
-}
-
-export interface FetchDealsOptions {
-  currency?: CurrencyCode | string;
-  fromCron?: boolean;
 }
 
 export interface ConcurrentRunResult<T> {
