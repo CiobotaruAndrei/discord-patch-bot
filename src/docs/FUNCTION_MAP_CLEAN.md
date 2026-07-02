@@ -258,13 +258,13 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Gestioneaza `/sources status`.
 - Citeste snapshot-urile persistate pentru update-uri si reduceri, fara fetch live, si sumarizeaza starea surselor externe si varsta ultimei verificari cunoscute.
 
-### `src/features/command-handlers/youtubeInteractionHandler.ts`
+### `src/features/command-handlers/youtubeInteractionHandler.ts` + `youtube/` (module dedicate)
 
-- Gestioneaza toate subcomenzile `/youtube`.
-- Rezolva si salveaza canale YouTube publice, configureaza prima activare, canalul principal, rutele speciale, sablonul mesajului si filtrele de continut sau titlu. `subscribe` (limita 25 canale) si `channel-route add` (limita de fanout per canal) salveaza prin **pipeline-uri atomice** (`findOneAndUpdate` cu `$cond`) care refuza depasirea sub comenzi concurente. `unsubscribe` invalideaza cache-ul imediat dupa `$pull`, iar curatarea colectiei seen e best-effort.
+- Fisierul principal e doar **router**: dispatch pe grup/subcomanda catre modulele dedicate din `command-handlers/youtube/` si pastreaza instalarea/catch-ul de erori; API-ul public (install + `createYouTubeInteractionHandler` + `buildCommandHandler` + formatters) e neschimbat.
+- `youtubeSubscriptionCommands.ts` — `subscribe`/`unsubscribe`; `youtubeNotifyCommands.ts` — `notify`, `message-template`, `channel-route`; `youtubeFilterCommands.ts` — `filter`, `title-filter`; `youtubeManualVideoCommands.ts` — `videos show` (claim + loturi + nota outbox); `youtubeDiagnosticsCommands.ts` — `errors`, `permissions`; `youtubePresentation.ts` — formatters puri (list/status/rute/filtre).
+- **Zero pipeline-uri Mongo in handlere**: toate scrierile stau in `features/youtube/youtubeGuildConfigRepository.ts` — `subscribe` (limita 25 canale), `channel-route add` (limita de fanout) si `title-filter add` salveaza prin pipeline-uri atomice (`findOneAndUpdate` cu `$cond`) care refuza depasirea sub comenzi concurente; handler-ele fac doar input, autorizare, apel de repository si raspuns. `unsubscribe` invalideaza cache-ul imediat dupa `$pull`, iar curatarea colectiei seen e best-effort.
 - Configurarea unui canal Discord (`notify channel`, `add channel-route`) cere `View Channel` + `Send Messages` + `Embed Links`; `permissions` afiseaza fiecare permisiune per canal.
-- Expune afisarea manuala a videoclipurilor din ultima luna; implicit revendica (claim) videoclipurile cu destinatie pe care le afiseaza, deci o a doua rulare nu le mai reposteaza (optiunea `repeta:true` forteaza repostarea, ignorand claim-ul).
-- Expune diagnoza prin `status`, `errors`, `permissions` si `clear-errors`; toate operatiile sunt protejate de admin guard si raspund ephemeral.
+- Afisarea manuala a videoclipurilor din ultima luna revendica (claim) implicit videoclipurile cu destinatie (optiunea `repeta:true` forteaza repostarea); diagnoza prin `status`, `errors`, `permissions`, `clear-errors`; toate operatiile sunt protejate de admin guard si raspund ephemeral.
 
 ### `src/features/command-handlers/reportInteractionHandler.ts`
 
