@@ -92,3 +92,43 @@ test("manifest: derivarile sensitive si owner-only pastreaza exact comportamentu
   assert.equal(isRuntimeAdminCommandPath("watchlist-game", "delete"), true);
   assert.equal(isRuntimeAdminCommandPath("watchlist-game", "add"), false);
 });
+
+const fs = require("fs") as typeof import("fs");
+const path = require("path") as typeof import("path");
+
+function docsCommandRows(): Array<{ command: string; permissions: string | null }> {
+  const doc = fs.readFileSync(path.join(process.cwd(), "..", "docs", "Comenzi Functionalitate.md"), "utf8");
+  const rows: Array<{ command: string; permissions: string | null }> = [];
+  for (const line of doc.split("\n")) {
+    const match = /^\|\s*`(\/[^`]+)`\s*\|([^|]*)\|/.exec(line);
+    if (!match) continue;
+    const cells = line.split("|").filter(cell => cell.trim().length > 0);
+    rows.push({ command: match[1], permissions: cells.length >= 3 ? match[2].trim() : null });
+  }
+  return rows;
+}
+
+function normalizeDocCommandPath(command: string): { name: string; sub: string } {
+  const cleaned = command.replace(/\s+[a-z-]+:.*$/, "").replace(/\s+<.*$/, "").trim();
+  return pathParts(cleaned);
+}
+
+test("coloana Permisiuni din docs/Comenzi Functionalitate.md coincide cu manifestul de acces (finalizare #13: docs verificate din manifest)", () => {
+  const rows = docsCommandRows();
+  assert.ok(rows.length > 40, "tabelele de comenzi au fost parsate");
+  for (const row of rows) {
+    const { name, sub } = normalizeDocCommandPath(row.command);
+    const owner = isOwnerOnlyCommandPath(name, sub);
+    const router = isRouterAdminCommandPath(name, sub);
+    const runtime = isRuntimeAdminCommandPath(name, sub);
+    const derivedAdmin = owner || router || runtime;
+    if (row.permissions === null) {
+      assert.equal(derivedAdmin, false, `${row.command}: apare intr-un tabel fara coloana de permisiuni (public), dar manifestul o deriva ca admin`);
+      continue;
+    }
+    const docsSaysOwner = /owner-only/i.test(row.permissions);
+    const docsSaysAdmin = /admin/i.test(row.permissions) || docsSaysOwner;
+    assert.equal(docsSaysOwner, owner, `${row.command}: docs declara "${row.permissions}", manifestul deriva owner-only=${owner}`);
+    assert.equal(docsSaysAdmin, derivedAdmin, `${row.command}: docs declara "${row.permissions}", manifestul deriva admin=${derivedAdmin} (router=${router}, runtime=${runtime}, owner=${owner})`);
+  }
+});
