@@ -25,6 +25,10 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Gestioneaza lock distribuit, heartbeat, health window si abort.
 - Nu trebuie sa contina logica de scraping sau de formatat embed-uri.
 
+### `src/app/lifecycle/bootPhases.ts`
+
+- Fazele de boot ca functii numite, compuse in ordine de `createBootSequence` din `appRuntime.ts`: `runDatabaseStartupPhase` (connect cu retry + confirmarea ready + migrari cu politica fail-fast/continue-on-error si admin alert), `runCacheHydrationPhase` (hidratarea din snapshot, esec doar cu WARN), `runHttpStartupPhase` (handler-ul de eroare legat inainte de listen + alerta `http:listen`), `runDiscordStartupPhase` (login). Fiecare faza primeste dependinte minime tipizate, deci e testabila izolat.
+
 ### `src/app/lifecycle/events.ts`
 
 - `registerDiscordEvents` cableaza handler-ele de client Discord (`ready`, `interactionCreate`, `guildCreate`, `error`/`warn`/`shardError`) prin dependency injection, fara import direct de `discord.js` (pentru testabilitate).

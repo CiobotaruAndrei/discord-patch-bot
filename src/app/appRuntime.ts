@@ -21,6 +21,7 @@ import type { CreateShutdownControllerDeps, ShutdownController } from "./lifecyc
 import type { OutboxDiscordClient } from "../features/notifications/outboundChannel";
 
 const { ensureNativeFuzzy } = require("../native/fuzzy") as { ensureNativeFuzzy: () => boolean };
+import { runCacheHydrationPhase, runDatabaseStartupPhase, runDiscordStartupPhase, runHttpStartupPhase } from "./lifecycle/bootPhases";
 
 interface CommandRuntime {
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
@@ -276,42 +277,19 @@ function createBootSequence(deps: AppRuntimeDeps, ctx: { client: DiscordClientLi
       if (!ensureNativeFuzzy()) {
         logger("WARN", "BOOT", "Addon Rust indisponibil — rulez cu fallback TypeScript (permis explicit in afara productiei sau prin ALLOW_NATIVE_FALLBACK).");
       }
-      await connectMongoWithRetry(deps);
-      const mongoReady = await waitForMongoReady(10000);
-      if (!mongoReady) {
-        logger("WARN", "BOOT", "Mongo nu a confirmat conexiunea in timp util");
-      }
-
-      try {
-        const migrations = await runMigrations(logger);
-        if (migrations.applied.length) {
-          logger("INFO", "MIGRATE", `Migrari aplicate: ${migrations.applied.join(", ")}`);
-        }
-      } catch (migErr) {
-        const continueOnError = env.MIGRATIONS_CONTINUE_ON_ERROR;
-        if (!continueOnError) {
-          logger("ERROR", "MIGRATE", "Migrari esuate la boot — opresc pornirea (fail-fast pentru integritatea schemei; seteaza MIGRATIONS_CONTINUE_ON_ERROR=true ca sa pornesti oricum, pe propriul risc)", errorDetail(migErr));
-          throw migErr;
-        }
-        logger("ERROR", "MIGRATE", "Migrari esuate la boot — continui fara ele (MIGRATIONS_CONTINUE_ON_ERROR=true; risc de schema inconsistenta, retry la urmatorul restart)", errorDetail(migErr));
-        adminAlert("boot:migrations", "Migrari DB esuate la pornire (pornit oricum)", errorMessage(migErr)).catch(() => null);
-      }
-
-      try {
-        await hydrateStartupCaches(deps);
-      } catch (hydrateErr) {
-        logger("WARN", "BOOT", "Hidratarea cache-ului din snapshot a esuat", errorMessage(hydrateErr));
-      }
-
-      httpServer.on("error", (err: Error) => {
-        logger("ERROR", "HTTP", `httpServer error (port=${env.PORT})`, errorDetail(err));
-        adminAlert("http:listen", "Eroare HTTP server", errorMessage(err)).catch(() => null);
+      await runDatabaseStartupPhase({
+        connectMongo: () => connectMongoWithRetry(deps),
+        waitForMongoReady,
+        runMigrations,
+        migrationsContinueOnError: env.MIGRATIONS_CONTINUE_ON_ERROR,
+        logger, adminAlert, errorMessage, errorDetail
       });
-      httpServer.listen(env.PORT, () => {
-        logger("INFO", "HTTP", `Health/metrics server pornit pe port ${env.PORT}`);
+      await runCacheHydrationPhase({
+        hydrateCaches: () => hydrateStartupCaches(deps),
+        logger, errorMessage
       });
-
-      await client.login(env.DISCORD_TOKEN);
+      runHttpStartupPhase({ httpServer, port: env.PORT, logger, adminAlert, errorMessage, errorDetail });
+      await runDiscordStartupPhase({ client, token: env.DISCORD_TOKEN });
     } catch (err) {
       logger("ERROR", "BOOT", "Eroare la pornire", errorDetail(err));
       await Promise.race([
