@@ -381,3 +381,12 @@ inainte de TTL), cu motivul `expired-near-ttl`, si incrementeaza `bot_outbox_exp
 `OutboxJobsExpired` (`increase(bot_outbox_expired[1h]) > 0`) semnaleaza conditia: investigheaza
 de ce nu s-au drenat (outbox oprit, canal stricat, worker cazut) — joburile au un audit clar in
 dead-letter, nu dispar fara urma.
+
+De ce calea de succes a drenarii NU foloseste tranzactii Mongo (decizie, nu lipsa): scrierile
+separate (`markSent` -> `delete`) sunt deja sigure fara tranzactie — daca `delete` esueaza dupa
+`markSent`, urmatorul claim gaseste `dedupeKey` in istoricul `notificationOutboxSent` si sterge
+jobul FARA re-livrare (pasul de validare), deci fereastra dintre cele doua scrieri nu poate
+produce duplicat. Singurul risc real de duplicare (mesaj trimis pe Discord, apoi Mongo pica
+inainte de `markSent`) nu poate fi acoperit de nicio tranzactie, pentru ca send-ul Discord nu
+e tranzactional — pentru acel caz exista recovery-verify. O tranzactie ar cere si replica set
+(indisponibil pe deployment-uri standalone) fara sa elimine niciun risc ramas.
