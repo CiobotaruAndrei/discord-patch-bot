@@ -228,9 +228,10 @@ explicite.
 
 ## Separarea tipurilor brute de sursa de tipurile normalizate (datorie de tipare, review manual R12 #3)
 
-**Starea curenta.** Cateva tipuri de domeniu din `types.ts` pastreaza inca un index `[key: string]: unknown`:
-`GameConfig` (config + campuri per-sursa), `PatchUpdate` (iesirea bruta a scraper-elor), `DealInfo`
-(oferta bruta de la Steam/Epic), `GuildSettings` (documentul Mongo). Indexul e un type-safe escape (nu
+**Starea curenta.** Cateva tipuri de domeniu pastreaza inca un index `[key: string]: unknown`:
+`GameConfig` (config + campuri per-sursa, in `types.ts`), `PatchUpdate` (iesirea bruta a scraper-elor) si
+`DealInfo` (oferta bruta de la Steam/Epic) — ambele in `sources/sourceTypes.ts`, re-exportate prin
+agregatorul `types.ts` — si `GuildSettings` (documentul Mongo, in `types.ts`). Indexul e un type-safe escape (nu
 `any`, permis de regula 2) si reflecta realitatea ca **datele de sursa** au forme variabile/in evolutie.
 Riscul semnalat: acelasi tip e folosit si ca model **normalizat** in interiorul botului, deci drift-ul de
 schema/scraper se poate strecura nedetectat in logica normalizata.
