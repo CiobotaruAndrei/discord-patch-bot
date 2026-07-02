@@ -366,6 +366,14 @@ toate intrarile `notificationDeadLetter` ale serverului curent (scriere atomica 
 si raporteaza cate au fost sterse. Foloseste-o doar dupa ce ai terminat investigatia: intrarile
 sunt singura urma a livrarilor esuate.
 
+Drenarea proceseaza fiecare job in pasi expliciti: **claim** (lease atomic) -> **validate**
+(dedupe pe `notificationOutboxSent`, expirare aproape de TTL, abonarea guild-ului, apoi forma
+payload-ului) -> **deliver** -> **markSent** -> **delete** (sau **retry** cu backoff / **dead-letter**).
+Pasul de validare muta in dead-letter, cu motivul `invalid-payload` (terminal, fara retry), joburile
+al caror payload nu mai e un obiect trimisibil (ex. corupt la replay/serializare: `null`, string,
+array) — un astfel de job nu ar putea fi livrat niciodata si altfel ar consuma incercari degeaba;
+validarea e strict structurala, regulile Discord (embeds goale etc.) raman ale pasului `deliver`.
+
 Joburile au TTL de 7 zile pe `createdAt`. Ca sa nu fie sterse **tacut** de TTL daca raman
 blocate (ex. outbox dezactivat/pe pauza mult timp, worker oprit), un sweep la fiecare drenare
 muta in dead-letter joburile mai vechi decat `NOTIFICATION_OUTBOX_MAX_AGE_MS` (implicit 6 zile,

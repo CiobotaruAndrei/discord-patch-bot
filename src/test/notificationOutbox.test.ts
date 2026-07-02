@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOutboxRuntime, OutboxJob, DeliverResult, applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker } from "../features/notifications/notificationOutbox";
+import { createOutboxRuntime, OutboxJob, DeliverResult, applyDedupeMarker, isDeliverableOutboxPayload, messageHasDedupeMarker, outboxDedupeMarker } from "../features/notifications/notificationOutbox";
 type OutboxRuntimeDeps = Parameters<typeof createOutboxRuntime>[0];
 type OutboxModelMock = OutboxRuntimeDeps["NotificationOutboxModel"];
 type OutboxSentModelMock = OutboxRuntimeDeps["NotificationOutboxSentModel"];
@@ -884,4 +884,57 @@ test("drainOutbox: o scriere de history esuata NU blocheaza livrarea, dar e cont
   assert.equal(result.sent, 1, "livrarea reuseste chiar daca scrierea /history a esuat (nu blocheaza trimiterea)");
   assert.equal(result.historyWriteFailures, 1, "esecul de scriere /history e contorizat (vizibilitate prin bot_history_write_failures + admin alert)");
   assert.equal(deleted.length, 1, "jobul livrat e sters normal");
+});
+
+test("isDeliverableOutboxPayload valideaza structural payload-ul (obiect simplu), fara reguli de business Discord (validate step) (R[Arh] #5)", () => {
+  assert.equal(isDeliverableOutboxPayload({ content: "salut" }), true);
+  assert.equal(isDeliverableOutboxPayload({ embeds: [{ title: "t" }] }), true);
+  assert.equal(isDeliverableOutboxPayload({}), true, "obiect gol ramane treaba lui deliver (Discord decide), nu a cozii");
+  assert.equal(isDeliverableOutboxPayload({ embeds: [] }), true);
+  assert.equal(isDeliverableOutboxPayload(null), false);
+  assert.equal(isDeliverableOutboxPayload(undefined), false);
+  assert.equal(isDeliverableOutboxPayload("text-corupt"), false, "un payload serializat gresit (string) nu poate fi trimis niciodata");
+  assert.equal(isDeliverableOutboxPayload(42), false);
+  assert.equal(isDeliverableOutboxPayload([{ content: "x" }]), false, "array-ul e semn de corupte la replay/serializare");
+});
+
+test("drain: payload nelivrabil e mutat in dead-letter cu motivul invalid-payload, fara sa apeleze deliver, iar drenarea continua (R[Arh] #5)", async () => {
+  const invalidJob: OutboxJob = { _id: "j-invalid", guildId: "g1", channelId: "c1", kind: "update", payload: "payload-corupt", attempts: 0 };
+  const validJob: OutboxJob = { _id: "j-valid", guildId: "g1", channelId: "c1", kind: "discount", payload: { embeds: [{ title: "ok" }] }, attempts: 0 };
+  const { runtime, deleted } = makeRuntime([invalidJob, validJob]);
+  const deliveredIds: unknown[] = [];
+  const deadLetters: Array<{ id: unknown; reason: string }> = [];
+
+  const result = await runtime.drainOutbox({
+    deliver: async job => { deliveredIds.push(job._id); return { ok: true }; },
+    recordDeadLetter: async (job, reason) => { deadLetters.push({ id: job._id, reason }); },
+    maxAttempts: 5,
+    backoffMs: 1000,
+    limit: 10
+  });
+
+  assert.deepEqual(deadLetters, [{ id: "j-invalid", reason: "invalid-payload" }], "payload-ul gol e terminal (permanent), nu reincercat");
+  assert.deepEqual(deliveredIds, ["j-valid"], "deliver nu e apelat pentru payload nelivrabil, dar drenarea continua cu urmatorul job");
+  assert.equal(result.deadLettered, 1);
+  assert.equal(result.sent, 1);
+  assert.ok(deleted.some(filter => (filter as { _id?: unknown })._id === "j-invalid"), "jobul invalid e sters dupa auditul dead-letter");
+});
+
+test("drain: verificarea abonarii ruleaza INAINTEA validarii de payload (un job dezabonat cu payload corupt e doar drop, nu dead-letter)", async () => {
+  const job: OutboxJob = { _id: "j-unsub", guildId: "g1", channelId: "c1", kind: "youtube", payload: "payload-corupt", attempts: 0 };
+  const { runtime } = makeRuntime([job]);
+  const deadLetters: string[] = [];
+
+  const result = await runtime.drainOutbox({
+    deliver: async () => ({ ok: true }),
+    isStillSubscribed: async () => false,
+    recordDeadLetter: async (_job, reason) => { deadLetters.push(reason); },
+    maxAttempts: 5,
+    backoffMs: 1000,
+    limit: 10
+  });
+
+  assert.deepEqual(deadLetters, [], "jobul dezabonat nu ajunge la validarea de payload");
+  assert.equal(result.droppedUnsubscribed, 1);
+  assert.equal(result.deadLettered, 0);
 });

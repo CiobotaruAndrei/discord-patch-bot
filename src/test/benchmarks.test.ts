@@ -4,11 +4,11 @@ import { runCpuBenchmark, levenshteinParityMismatches, runAreaBenchmarks } from 
 import { runOutboxLoad, OutboxLoadModels } from "../scripts/outboxLoadBenchmark";
 import type { OutboxJob } from "../features/notifications/notificationOutbox";
 
-interface JobDoc extends OutboxJob {
+type JobDoc = OutboxJob & {
   _id: string;
   lockedUntil?: Date | null;
   [key: string]: unknown;
-}
+};
 
 type OutboxLoadModel = OutboxLoadModels["outboxModel"];
 type OutboxSentLoadModel = OutboxLoadModels["sentModel"];

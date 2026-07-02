@@ -13,11 +13,10 @@ export interface OutboxHistoryEntry {
   itemId?: string;
 }
 
-export interface OutboxJob {
+interface OutboxJobBase {
   _id?: unknown;
   guildId: string;
   channelId: string;
-  kind: OutboxKind;
   payload: unknown;
   attempts: number;
   deliveries?: number;
@@ -27,6 +26,22 @@ export interface OutboxJob {
   history?: OutboxHistoryEntry[];
   createdAt?: Date;
   availableAt?: Date;
+}
+
+export interface UpdateOutboxJob extends OutboxJobBase { kind: "update" }
+export interface DiscountOutboxJob extends OutboxJobBase { kind: "discount" }
+export interface YouTubeOutboxJob extends OutboxJobBase { kind: "youtube" }
+
+export type OutboxJob = UpdateOutboxJob | DiscountOutboxJob | YouTubeOutboxJob;
+
+export interface OutboxMessagePayload {
+  content?: string;
+  embeds?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+export function isDeliverableOutboxPayload(payload: unknown): payload is OutboxMessagePayload {
+  return Boolean(payload) && typeof payload === "object" && !Array.isArray(payload);
 }
 
 interface OutboxModelLike {
@@ -286,23 +301,20 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       retried++;
     };
 
-    for (let i = 0; i < options.limit; i++) {
-      const job = await claimNextJob(nowFn(), leaseMs, workerId);
-      if (!job) break;
-      processed++;
-
+    const validateClaimedJob = async (job: OutboxJob): Promise<
+      | { step: "deliver" }
+      | { step: "drop-duplicate" }
+      | { step: "expire" }
+      | { step: "drop-unsubscribed" }
+      | { step: "retry"; reason: string }
+      | { step: "dead-letter"; reason: string }
+    > => {
       if (job.dedupeKey && await NotificationOutboxSentModel.exists({ dedupeKey: job.dedupeKey }).catch(() => null)) {
-        await deleteJob(job._id);
-        continue;
+        return { step: "drop-duplicate" };
       }
-
       if (maxAgeMs > 0 && job.createdAt && new Date(job.createdAt).getTime() <= nowFn().getTime() - maxAgeMs) {
-        if (!(await recordDeadLetterOrKeep(job, "expired-near-ttl"))) continue;
-        await deleteJob(job._id);
-        expired++;
-        continue;
+        return { step: "expire" };
       }
-
       if (options.isStillSubscribed) {
         let stillSubscribed: boolean;
         try {
@@ -311,16 +323,19 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
           logger("WARN", "OUTBOX",
             `Verificarea abonarii pentru jobul ${String(job._id)} a esuat; aman livrarea ca sa nu trimit intr-un canal dezabonat`,
             err instanceof Error ? err.message : String(err));
-          await retryOrDeadLetter(job, "subscription-check-failed", false);
-          continue;
+          return { step: "retry", reason: "subscription-check-failed" };
         }
-        if (!stillSubscribed) {
-          await deleteJob(job._id);
-          droppedUnsubscribed++;
-          continue;
-        }
+        if (!stillSubscribed) return { step: "drop-unsubscribed" };
       }
+      if (!isDeliverableOutboxPayload(job.payload)) {
+        logger("WARN", "OUTBOX",
+          `Payload-ul jobului ${String(job._id)} nu e livrabil (fara content/embeds valide); il mut in dead-letter ca sa nu ocupe coada`);
+        return { step: "dead-letter", reason: "invalid-payload" };
+      }
+      return { step: "deliver" };
+    };
 
+    const deliverClaimedJob = async (job: OutboxJob): Promise<DeliverResult> => {
       const startedAt = Date.now();
       let result: DeliverResult;
       try {
@@ -333,26 +348,67 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         result = { ok: false, permanent: false };
       }
       deliveryMsTotal += Math.max(0, Date.now() - startedAt);
+      return result;
+    };
 
-      if (result.ok) {
-        if (result.recoveryFetched) recoveryFetches++;
-        if (result.recoveryDuplicate) recoveryDuplicates++;
-        if (result.recoveryFailed) recoveryFailures++;
-        if (result.recoveryMarkerMissing) recoveryMarkerMissing++;
-        if (options.recordSentHistory && Array.isArray(job.history) && job.history.length) {
-          await options.recordSentHistory(job.guildId, job.history).catch((err: unknown) => {
-            historyWriteFailures++;
-            logger("WARN", "OUTBOX", `Scrierea istoricului /history a esuat pentru un job livrat (guild ${job.guildId}); livrarea a reusit, dar /history poate fi incomplet`, errorMessage(err));
-          });
-        }
-        const markSentFailed = job.dedupeKey ? !(await markSent(job.dedupeKey)) : false;
-        if (markSentFailed) {
-          markSentFailures++;
-          await recordDeadLetterBeforeDelete(job, "delivered-marksent-failed");
-        }
+    const finalizeDeliveredJob = async (
+      job: OutboxJob,
+      result: Extract<DeliverResult, { ok: true }>
+    ): Promise<{ stopDrain: boolean }> => {
+      if (result.recoveryFetched) recoveryFetches++;
+      if (result.recoveryDuplicate) recoveryDuplicates++;
+      if (result.recoveryFailed) recoveryFailures++;
+      if (result.recoveryMarkerMissing) recoveryMarkerMissing++;
+      if (options.recordSentHistory && Array.isArray(job.history) && job.history.length) {
+        await options.recordSentHistory(job.guildId, job.history).catch((err: unknown) => {
+          historyWriteFailures++;
+          logger("WARN", "OUTBOX", `Scrierea istoricului /history a esuat pentru un job livrat (guild ${job.guildId}); livrarea a reusit, dar /history poate fi incomplet`, errorMessage(err));
+        });
+      }
+      const markSentFailed = job.dedupeKey ? !(await markSent(job.dedupeKey)) : false;
+      if (markSentFailed) {
+        markSentFailures++;
+        await recordDeadLetterBeforeDelete(job, "delivered-marksent-failed");
+      }
+      await deleteJob(job._id);
+      sent++;
+      return { stopDrain: markSentFailed };
+    };
+
+    for (let i = 0; i < options.limit; i++) {
+      const job = await claimNextJob(nowFn(), leaseMs, workerId);
+      if (!job) break;
+      processed++;
+
+      const verdict = await validateClaimedJob(job);
+      if (verdict.step === "drop-duplicate") {
         await deleteJob(job._id);
-        sent++;
-        if (markSentFailed) break;
+        continue;
+      }
+      if (verdict.step === "expire") {
+        if (!(await recordDeadLetterOrKeep(job, "expired-near-ttl"))) continue;
+        await deleteJob(job._id);
+        expired++;
+        continue;
+      }
+      if (verdict.step === "drop-unsubscribed") {
+        await deleteJob(job._id);
+        droppedUnsubscribed++;
+        continue;
+      }
+      if (verdict.step === "retry") {
+        await retryOrDeadLetter(job, verdict.reason, false);
+        continue;
+      }
+      if (verdict.step === "dead-letter") {
+        await retryOrDeadLetter(job, verdict.reason, true);
+        continue;
+      }
+
+      const result = await deliverClaimedJob(job);
+      if (result.ok) {
+        const { stopDrain } = await finalizeDeliveredJob(job, result);
+        if (stopDrain) break;
         continue;
       }
       if (result.recoveryFailed) recoveryFailures++;

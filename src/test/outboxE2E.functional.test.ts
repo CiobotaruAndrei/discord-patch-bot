@@ -17,12 +17,12 @@ const { createOutboundChannelResolver } = require("../features/notifications/out
   createOutboundChannelResolver: (deps: Record<string, unknown>) => (args: Record<string, unknown>) => Promise<{ channel: { send: (payload: unknown, meta?: { historyEntries?: unknown[] }) => Promise<unknown> } | null; abort: boolean }>;
 };
 
-interface OutboxJobDoc extends OutboxJob {
+type OutboxJobDoc = OutboxJob & {
   _id: string;
   lockedUntil?: Date | null;
   lockedBy?: string;
   [key: string]: unknown;
-}
+};
 
 function makeInMemoryOutbox() {
   const jobs: OutboxJobDoc[] = [];
