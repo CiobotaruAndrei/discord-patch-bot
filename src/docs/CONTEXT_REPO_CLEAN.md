@@ -95,6 +95,11 @@ src/
       index.ts
       notificationOutbox.ts
       notificationTypes.ts
+      outboxDedupe.ts
+      outboxDeliveryFinalizer.ts
+      outboxRepository.ts
+      outboxStateMachine.ts
+      outboxTypes.ts
       outboundChannel.ts
       seenRepository.ts
       updateNotificationService.ts
