@@ -9,6 +9,7 @@ import {
   type AdminCommandAccessConfig
 } from "./adminCommandAccessScope";
 import globalAccessCode = require("./globalAccessCode");
+import { isOwnerOnlyCommandPath, isRouterAdminCommandPath, isSensitiveCommandPath } from "./commandAccessManifest";
 
 const {
   MessageFlags,
@@ -99,15 +100,6 @@ type DefaultRequireGuildAdmin = RequireGuildAdmin & {
 };
 
 const defaultRequireGuildAdmin = require("./adminPermissionGuard") as DefaultRequireGuildAdmin;
-const ADMIN_COMMANDS = new Set([
-  "start", "stop", "set", "outbox", "health", "config", "reset-config",
-  "admin-alerts", "price-alert", "youtube", "sources", "watchlist", "snooze", "unsnooze",
-  "backup", "bot-log", "server-log", "future-release", "maintenance", "admin-command-access", "delete"
-]);
-const PUBLIC_VERB_SUBCOMMANDS = new Set(["suggestion"]);
-const SENSITIVE_ADMIN_COMMANDS = new Set(["reset-config"]);
-const SENSITIVE_BACKUP_SUBCOMMANDS = new Set(["load", "delete"]);
-const SENSITIVE_OUTBOX_SUBCOMMANDS = new Set(["clear-deadletters", "replay-deadletters", "pause", "resume", "drain-now"]);
 const ADMIN_OUTSIDE_GUILD_MESSAGE = "Eroare: Comenzile administrative sunt disponibile doar pe servere, nu in mesaje directe.";
 const ADMIN_SENSITIVE_USER_MESSAGE = "Access denied.";
 const ACCESS_CODE_MODAL_INPUT_ID = "access-code";
@@ -119,11 +111,7 @@ const accessCodeFailures = new Map<string, { count: number; firstFailedAt: numbe
 
 function isAdminProtectedCommand(interaction: DiscordInteraction): boolean {
   if (interaction?.isChatInputCommand?.() !== true || typeof interaction.commandName !== "string") return false;
-  const commandName = interaction.commandName;
-  if (commandName === "add" || commandName === "remove") {
-    return !(commandName === "add" && PUBLIC_VERB_SUBCOMMANDS.has(getCommandSubcommand(interaction)));
-  }
-  return ADMIN_COMMANDS.has(commandName);
+  return isRouterAdminCommandPath(interaction.commandName, getCommandSubcommand(interaction));
 }
 
 function parseIdList(value: string | undefined): string[] {
@@ -153,21 +141,11 @@ function commandAuditName(interaction: DiscordInteraction): string {
 }
 
 function isSensitiveAdminCommand(interaction: DiscordInteraction): boolean {
-  const commandName = interaction.commandName || "";
-  const subcommand = getCommandSubcommand(interaction);
-  if (SENSITIVE_ADMIN_COMMANDS.has(commandName)) return true;
-  if (commandName === "backup") return SENSITIVE_BACKUP_SUBCOMMANDS.has(subcommand);
-  if (commandName === "outbox") return SENSITIVE_OUTBOX_SUBCOMMANDS.has(subcommand);
-  return false;
+  return isSensitiveCommandPath(interaction.commandName || "", getCommandSubcommand(interaction));
 }
 
 function isOwnerOnlyAdminAccessCommand(interaction: DiscordInteraction): boolean {
-  const commandName = interaction.commandName || "";
-  const subcommand = getCommandSubcommand(interaction);
-  if (commandName === "admin-command-access") return true;
-  if (commandName === "set") return subcommand === "admin-command-access";
-  if (commandName === "delete") return subcommand === "admin-command-access";
-  return false;
+  return isOwnerOnlyCommandPath(interaction.commandName || "", getCommandSubcommand(interaction));
 }
 
 async function resolveOwnerId(interaction: DiscordInteraction): Promise<string> {

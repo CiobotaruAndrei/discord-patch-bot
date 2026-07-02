@@ -160,3 +160,21 @@ rescrie claim-ul atomic multi-instanta (clasa de bug #237). Decizia pe date: **n
 O(surse) (partajata intre guild-uri), iar dispatch-ul este O(guild-uri) cu un singur mesaj
 batch (pana la 10 embed-uri) per guild — deci costul creste cu numarul de servere abonate,
 nu cu numarul de jocuri.
+
+## 4. Politica limbaje: cand folosim Rust si cand TypeScript
+
+Regula practica derivata din masuratorile de mai sus (si aliniata cu regulile 6 si 20 din
+`docs/Reguli de respectat.md`):
+
+- **Rust merita doar pentru logica pura CPU-bound**: fuzzy matching pe volume mari,
+  normalizare masiva de text, parsare/scoring de preturi sau dedupe pe liste mari. Chiar si
+  acolo, decizia se ia pe benchmark real (`npm run benchmark:cpu`), nu pe intuitie —
+  sectiunea 1 arata ca `buildAutocompleteChoices` a iesit ~0.09x in Rust (boundary cost NAPI
+  peste un workload mic), deci a ramas TS-primary.
+- **Nu mutam I/O in Rust**: orchestrarea Discord, Mongo, HTTP, cron si fluxul YouTube sunt
+  dominate de latenta de retea/DB (sectiunea 2: outbox-ul e I/O-bound, rate-limit Discord e
+  factorul real), unde Rust nu aduce nimic si complica build-ul si review-ul. Pentru acestea
+  TypeScript ramane alegerea corecta.
+- **Orice mutare noua in Rust cere**: benchmark inainte/dupa in acest fisier, prag de
+  regresie in `benchmarkGuard` (gardul pica daca avantajul Rust dispare) si fallback TS
+  echivalent testat pentru paritate.
