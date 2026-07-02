@@ -58,12 +58,11 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ## Infra
 
-### `src/infra/http/client.ts`
+### `src/infra/http/` (client compus din module pe responsabilitati)
 
-- Client HTTP cu retry, proxy templates, limite de dimensiune si validare URL externa.
-- Valideaza hosturile externe si prin DNS/IP, ca request-urile sa nu ajunga in adrese locale sau private.
-- Expune `cleanText`, `normalizeUpdate`, `stableUpdateId`, `dealHash` si helper-ele HTTP pe context.
-- Foloseste wrapper-ele Rust din `src/native/fuzzy.ts` pentru hot-path-uri pure.
+- `client.ts` e orchestratorul `safeHttpRequest`: agentii keep-alive cu DNS lookup sigur, `httpReq` (retry cu backoff/Retry-After prin `retryPolicy`, limite de dimensiune, User-Agent rotativ, abort signal) si expunerea constantelor de env pe context. Valideaza hosturile externe si prin DNS/IP (`ssrfGuard`), inclusiv redirecturile.
+- Responsabilitatile sunt module dedicate compuse de client: `ssrfGuard` (validare URL/DNS/IP), `retryPolicy` (clasificare esecuri + backoff), `proxyTemplates` + `proxyClient` (fallback prin proxy-uri, extractie allorigins, epuizare raportata), `conditionalCache` (ETag/Last-Modified), `httpMetrics`, `inflightTracker` (timeout pe promisiuni blocate + curatarea map-urilor de deduplicare), `contentNormalization` (`cleanText`, `truncate`, `normalizeUpdate`, `stableUpdateId`, `normalizeDealState`, `dealHash`, `safeCheerioLoad` cu taiere la limita de bytes fara sa rupa utf8).
+- `contentNormalization` foloseste wrapper-ele Rust din `src/native/fuzzy.ts` pentru hot-path-urile pure; contractul expus pe context de `buildHttpClientFrom` e neschimbat.
 
 ### `src/infra/mongo/models.ts`
 
