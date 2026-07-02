@@ -3,7 +3,8 @@
 import type { GameConfig, GuildSettings, WatchlistGameSuggestionEntry } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
-import { deleteWatchlistGameSuggestion, listWatchlistGameSuggestions, recordBotAuditEntry, saveWatchlistGameSuggestion } from "../admin-records/adminRecordsRepository";
+import { deleteWatchlistGameSuggestion, listWatchlistGameSuggestions, saveWatchlistGameSuggestion } from "../admin-records/watchlistGameSuggestionsRepository";
+import { recordBotAuditEntry } from "../admin-records/auditLogRepository";
 import { requireGuildAdminAudited } from "../command-security/runtimeAdminAudit";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
 

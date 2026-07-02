@@ -115,11 +115,14 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Expune `createCommandPresentation`, iar instalarea pe context este doar adapter de compatibilitate.
 - Builder-ele Discord, collector-ul, interactiunile si raspunsurile HTTP sunt modelate local prin interfete mici.
 
-### `src/features/admin-records/adminRecordsRepository.ts`
+### `src/features/admin-records/` (repositories dedicate)
 
-- Centralizeaza backup-urile de configuratie, auditul comenzilor admin, auditul de server si sugestiile de comenzi salvate in documentul guild-ului.
-- Backup-ul copiaza doar campurile de configuratie ale botului, nu istoric sau cozi operationale, si pastreaza lista limitata ca documentul Mongo sa ramana controlat.
-- Functiile de listare sorteaza descrescator dupa timp si lasa handler-ele sa decida formatul Discord.
+- `configBackupRepository.ts` — backup-urile de configuratie: clasifica TOATE campurile din `guildSchema` in `GUILD_SETTINGS_FIELD_ROLES` (`config` / `security` / `operational`), iar `CONFIG_BACKUP_KEYS` e derivat din clasificare (nu lista manuala); un test de sincronizare bidirectional cu schema reala forteaza clasificarea oricarui camp nou. Campurile `security` (`adminCommandAccess*`) sunt deliberat excluse: `/backup load` e admin-level si nu are voie sa rescrie reguli owner-only.
+- `auditLogRepository.ts` — auditul comenzilor bot si al schimbarilor de server: scriere atomica cu `$push + $slice`, listari sortate descrescator si filtrare pe interval `[start, end)` cu offset.
+- `suggestedCommandsRepository.ts` — sugestiile de comenzi: upsert atomic prin pipeline cu dedupe pe nume, listare si stergere cu nume normalizat.
+- `watchlistGameSuggestionsRepository.ts` — propunerile de jocuri pentru watchlist: acelasi model atomic de dedupe.
+- `futureReleaseGamesRepository.ts` — jocurile future-release: pipeline atomic care refuza depasirea limitei de 20, listare alfabetica si stergere normalizata.
+- Functiile de listare lasa handler-ele sa decida formatul Discord.
 
 ## Command handlers
 

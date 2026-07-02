@@ -1,6 +1,6 @@
 "use strict";
 
-import { recordBotAuditEntry } from "../admin-records/adminRecordsRepository";
+import { recordBotAuditEntry } from "../admin-records/auditLogRepository";
 import { isHandledCommandError } from "./commandOutcome";
 import {
   buildAdminCommandAccessScope,
