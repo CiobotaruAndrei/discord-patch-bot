@@ -18,8 +18,8 @@ type HttpClientModule = typeof attachHttpClient & {
 };
 type DnsLookup = (hostname: string, options: unknown, callback?: unknown) => void;
 
-function stubHttpClientContext<T>(stub: Record<string, unknown>): Parameters<typeof attachHttpClient>[0] & T {
-  return stub as Parameters<typeof attachHttpClient>[0] & T;
+function stubHttpClientContext<T>(stub: Record<string, unknown>): Parameters<typeof attachHttpClient.buildFrom>[0] & T {
+  return stub as Parameters<typeof attachHttpClient.buildFrom>[0] & T;
 }
 
 function createHttpClientTestContext() {
@@ -62,7 +62,7 @@ function createHttpClientTestContext() {
       isProd: false
     }
   });
-  attachHttpClient(context);
+  Object.assign(context, attachHttpClient.buildFrom(context));
   return { context, requestedUrls };
 }
 
@@ -129,7 +129,7 @@ test("proxy templates must include the target placeholder", () => {
   assert.throws(() => {
     const { context } = createHttpClientTestContext();
     context.env.PROXY_URLS = "https://proxy.example/fetch";
-    attachHttpClient(context);
+    Object.assign(context, attachHttpClient.buildFrom(context));
   }, /placeholder-ul \{url\}/);
 });
 

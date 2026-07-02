@@ -63,7 +63,8 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - `client.ts` e orchestratorul `safeHttpRequest`: agentii keep-alive cu DNS lookup sigur, `httpReq` (retry cu backoff/Retry-After prin `retryPolicy`, limite de dimensiune, User-Agent rotativ, abort signal) si expunerea constantelor de env pe context. Valideaza hosturile externe si prin DNS/IP (`ssrfGuard`), inclusiv redirecturile.
 - Responsabilitatile sunt module dedicate compuse de client: `ssrfGuard` (validare URL/DNS/IP), `retryPolicy` (clasificare esecuri + backoff), `proxyTemplates` + `proxyClient` (fallback prin proxy-uri, extractie allorigins, epuizare raportata), `conditionalCache` (ETag/Last-Modified), `httpMetrics`, `inflightTracker` (timeout pe promisiuni blocate + curatarea map-urilor de deduplicare), `contentNormalization` (`cleanText`, `truncate`, `normalizeUpdate`, `stableUpdateId`, `normalizeDealState`, `dealHash`, `safeCheerioLoad` cu taiere la limita de bytes fara sa rupa utf8).
-- `contentNormalization` foloseste wrapper-ele Rust din `src/native/fuzzy.ts` pentru hot-path-urile pure; contractul expus pe context de `buildHttpClientFrom` e neschimbat.
+- `contentNormalization` foloseste wrapper-ele Rust din `src/native/fuzzy.ts` pentru hot-path-urile pure; contractul intors de `buildHttpClientFrom` e neschimbat.
+- Boundary-ul e complet tipat: `buildHttpClientFrom(deps: HttpClientDeps)` primeste exact dependintele declarate (fara `& Record<string, unknown>`), iar modulul exporta un obiect (`buildFrom` + helper-ele SSRF/proxy/retry), nu un installer `attachHttpClient(target)` cu `Object.assign` — compunerea se face doar prin valoarea returnata (`{ ...base, ...client.buildFrom(base) }` in `sourceRegistry`).
 
 ### `src/infra/mongo/models.ts`
 
