@@ -19,6 +19,7 @@ import type { CreateHousekeepingDeps, HousekeepingController } from "./scheduler
 import type { CreateOutboxWorkerDeps, OutboxWorker } from "./scheduler/outboxWorker";
 import type { CreateHttpServerDeps } from "./health/httpServer";
 import type { RegisterDiscordEventsDeps, RegisterMongoEventsDeps } from "./lifecycle/events";
+import type { LifecycleDiscordChannel, LifecycleDiscordInteraction, LifecycleEventClient } from "./lifecycle/lifecycleContracts";
 import type { CreateShutdownControllerDeps, ShutdownController } from "./lifecycle/shutdown";
 import type { OutboxDiscordClient } from "../features/notifications/outboundChannel";
 
@@ -32,9 +33,9 @@ interface CommandRuntime {
   cleanCache(): void;
   drainOutbox(client: OutboxDiscordClient): Promise<unknown> | unknown;
   getCacheSizes(): CommandCacheSizes;
-  handleInteraction(interaction: unknown, games: GameConfig[]): Promise<unknown> | unknown;
+  handleInteraction(interaction: LifecycleDiscordInteraction, games: GameConfig[]): Promise<unknown> | unknown;
   registerSlashCommands(token: string, clientId: string): Promise<unknown>;
-  canSendEmbeds(channel: unknown, botId: string): boolean;
+  canSendEmbeds(channel: LifecycleDiscordChannel, botId: string): boolean;
   setDealsCache(currency: string, data: DealInfo[]): void;
   setGlobalCacheTtl(ms: number): void;
   setUpdatesCache(data: FetchResult[] | null): void;
@@ -72,7 +73,7 @@ interface MongoContextLike {
   adminAlert: (kind: string, title: string, body: string, guildId?: string) => Promise<unknown>;
   setAdminAlertDiscordClient(client: DiscordClientLike | null): void;
   getOutboxPaused: () => Promise<boolean>;
-  runMigrations: (logger: unknown) => Promise<{ applied: number[] }>;
+  runMigrations: (logger: MongoContextLike["logger"]) => Promise<{ applied: number[] }>;
   requestContext: RequestContextLike;
   loadFetchSnapshot: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
   loadDealsFetchSnapshots: () => Promise<Array<{ currency: string; payload: unknown; fetchedAt: Date }>>;
@@ -97,17 +98,11 @@ interface PerformanceLike {
   now(): number;
 }
 
-interface DiscordClientLike {
-  channels: { fetch(channelId: string): Promise<unknown> | unknown };
+interface DiscordClientLike extends LifecycleEventClient {
+  channels: { fetch(channelId: string): Promise<LifecycleDiscordChannel | null> | LifecycleDiscordChannel | null };
   login(token: string): Promise<unknown>;
   destroy(): void | Promise<void>;
   isReady(): boolean;
-  user?: { id?: string; tag?: string } | null;
-  once(event: "ready", listener: () => unknown): unknown;
-  on(event: "interactionCreate", listener: (interaction: unknown) => unknown): unknown;
-  on(event: "guildCreate", listener: (guild: unknown) => unknown): unknown;
-  on(event: "error" | "shardError", listener: (err: unknown) => unknown): unknown;
-  on(event: "warn", listener: (message: string) => unknown): unknown;
 }
 
 export interface AppRuntimeDeps {

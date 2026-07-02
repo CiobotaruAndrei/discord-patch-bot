@@ -35,6 +35,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Pe `ready` inregistreaza slash commands si porneste housekeeping/cron/outbox worker, fiecare cu try/catch + admin alert dedicat.
 - `interactionCreate` ruleaza `commands.handleInteraction` intr-un `requestContext`; catch-ul top-level logheaza eroarea si apoi `replyInteractionError` trimite best-effort un raspuns ephemeral generic catre user (sare peste autocomplete/non-repliable, `followUp` pe interactiuni `deferred`/`replied`, altfel `reply`; esecul raspunsului e inghitit).
 - `registerMongoEvents` cableaza log-urile de conexiune Mongo.
+- Contractele Discord ale stratului lifecycle sunt tipuri dedicate in `lifecycleContracts.ts` (`LifecycleDiscordInteraction`, `LifecycleDiscordChannel`, `LifecycleDiscordGuild`, `LifecycleEventClient`), nu `unknown`: listener-ele `interactionCreate`/`guildCreate` primesc tipurile structurale, `replyInteractionError` nu mai are cast, `handleGuildCreate` primeste guild-ul direct (fara `as Parameters<...>`), iar `commands.handleInteraction`/`canSendEmbeds` din deps sunt declarate pe aceste tipuri (implementarea din registry, care accepta `unknown`, le satisface prin contravarianta). `appRuntime.DiscordClientLike` extinde `LifecycleEventClient` si tipizeaza `channels.fetch` la `LifecycleDiscordChannel | null`. Gardat de `lifecycleContracts.test.ts` (checks compile-time ca parametrii nu mai sunt `unknown` + un client discord.js-like satisface structural contractul).
 
 ## Config si shared
 

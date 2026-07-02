@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import type { LifecycleDiscordChannel } from "../app/lifecycle/lifecycleContracts";
+
 const mod = require("../app/lifecycle/guildOnboarding") as typeof import("../app/lifecycle/guildOnboarding");
 const { buildOnboardingEmbed, selectOnboardingChannel, createGuildOnboarding } = mod;
 
@@ -14,7 +16,7 @@ function makeChannel(id: string, sendable: boolean, onSend?: (payload: unknown) 
   };
 }
 
-const canSend = (channel: unknown, botId: string): boolean => botId === "bot" && (channel as FakeChannel)?.sendable === true;
+const canSend = (channel: LifecycleDiscordChannel, botId: string): boolean => botId === "bot" && (channel as FakeChannel)?.sendable === true;
 
 function makeGuild(opts: { system?: FakeChannel | null; others?: FakeChannel[]; botId?: string | null }) {
   const others = opts.others || [];
@@ -22,7 +24,7 @@ function makeGuild(opts: { system?: FakeChannel | null; others?: FakeChannel[]; 
     id: "g1",
     name: "Test Guild",
     systemChannel: opts.system ?? null,
-    channels: { cache: { find: (predicate: (channel: unknown) => boolean) => others.find(predicate) } },
+    channels: { cache: { find: (predicate: (channel: LifecycleDiscordChannel) => boolean) => others.find(predicate) } },
     client: { user: opts.botId === undefined ? { id: "bot" } : (opts.botId === null ? null : { id: opts.botId }) }
   };
 }
