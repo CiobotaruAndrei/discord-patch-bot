@@ -245,7 +245,7 @@ test("Mongo state and migration modules keep TypeScript contracts after build", 
 
 test("HTTP client module keeps TypeScript contracts after build", () => {
   expectAll(runtimeSource, [
-    /function attachHttpClient/,
+    /function buildHttpClientFrom/,
     /function attachMetrics/,
     /function cleanText/,
     /function normalizeUpdate/,

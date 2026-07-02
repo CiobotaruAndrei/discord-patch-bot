@@ -54,7 +54,6 @@ interface HttpClientDeps {
   metricsRef?: HttpMetricsRef;
 }
 
-type HttpClientContext = HttpClientDeps & Record<string, unknown>;
 
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -63,7 +62,7 @@ const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0"
 ];
 
-function buildHttpClientFrom(target: HttpClientContext) {
+function buildHttpClientFrom(target: HttpClientDeps) {
   const { axios, cheerio, env, logger, getAbortSignal } = target;
   const dnsLookup = target.dnsLookup || dns.lookup;
   const safeDnsLookup = createSafeDnsLookup(dnsLookup);
@@ -250,16 +249,14 @@ function buildHttpClientFrom(target: HttpClientContext) {
   };
 }
 
-function attachHttpClient(target: HttpClientContext): void {
-  Object.assign(target, buildHttpClientFrom(target));
-}
+const httpClientModule = {
+  buildFrom: buildHttpClientFrom,
+  parseRetryAfter,
+  assertSafeRedirect,
+  assertSafeExternalUrl,
+  assertSafeExternalDnsTarget,
+  createSafeDnsLookup,
+  resolveDefaultProxies
+};
 
-attachHttpClient.buildFrom = buildHttpClientFrom;
-attachHttpClient.parseRetryAfter = parseRetryAfter;
-attachHttpClient.assertSafeRedirect = assertSafeRedirect;
-attachHttpClient.assertSafeExternalUrl = assertSafeExternalUrl;
-attachHttpClient.assertSafeExternalDnsTarget = assertSafeExternalDnsTarget;
-attachHttpClient.createSafeDnsLookup = createSafeDnsLookup;
-attachHttpClient.resolveDefaultProxies = resolveDefaultProxies;
-
-export = attachHttpClient;
+export = httpClientModule;

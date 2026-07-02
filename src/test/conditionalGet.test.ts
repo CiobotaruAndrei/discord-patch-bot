@@ -5,8 +5,8 @@ import attachHttpClient = require("../infra/http/client");
 type FakeAxios = (config: { url: string; headers?: Record<string, string> }) => Promise<unknown>;
 type ConditionalGet = <T>(url: string, parse: (data: unknown) => T | Promise<T>, options?: unknown) => Promise<T>;
 
-function stubHttpClientContext<T>(stub: Record<string, unknown>): Parameters<typeof attachHttpClient>[0] & T {
-  return stub as Parameters<typeof attachHttpClient>[0] & T;
+function stubHttpClientContext<T>(stub: Record<string, unknown>): Parameters<typeof attachHttpClient.buildFrom>[0] & T {
+  return stub as Parameters<typeof attachHttpClient.buildFrom>[0] & T;
 }
 
 function buildClient(axiosClient: FakeAxios) {
@@ -33,7 +33,7 @@ function buildClient(axiosClient: FakeAxios) {
       PROXY_URLS: "", isProd: false
     }
   });
-  attachHttpClient(context);
+  Object.assign(context, attachHttpClient.buildFrom(context));
   return { conditionalGet: context.conditionalGet };
 }
 
