@@ -6,6 +6,8 @@ import type {
   BotMetrics,
   CommandCacheSizes,
   ConfigLoadResult,
+  DealInfo,
+  FetchResult,
   CronController,
   GameConfig,
   LifecycleState,
@@ -27,15 +29,15 @@ interface CommandRuntime {
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
   checkForDiscounts(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
   checkForYouTube(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
-  cleanCache(): unknown;
+  cleanCache(): void;
   drainOutbox(client: OutboxDiscordClient): Promise<unknown> | unknown;
   getCacheSizes(): CommandCacheSizes;
   handleInteraction(interaction: unknown, games: GameConfig[]): Promise<unknown> | unknown;
   registerSlashCommands(token: string, clientId: string): Promise<unknown>;
   canSendEmbeds(channel: unknown, botId: string): boolean;
-  setDealsCache(currency: string, data: unknown): void;
+  setDealsCache(currency: string, data: DealInfo[]): void;
   setGlobalCacheTtl(ms: number): void;
-  setUpdatesCache(data: unknown): void;
+  setUpdatesCache(data: FetchResult[] | null): void;
 }
 
 interface ScraperRuntime {
@@ -252,13 +254,13 @@ async function hydrateStartupCaches(deps: HydrateCachesDeps): Promise<void> {
   const updatesSnapshot = await loadFetchSnapshot("updates");
   if (updatesSnapshot && Array.isArray(updatesSnapshot.payload)
       && now - updatesSnapshot.fetchedAt.getTime() < SNAPSHOT_MAX_AGE_MS) {
-    commands.setUpdatesCache(updatesSnapshot.payload);
+    commands.setUpdatesCache(updatesSnapshot.payload as FetchResult[]);
     hydratedUpdates = true;
   }
   for (const snapshot of await loadDealsFetchSnapshots()) {
     if (Array.isArray(snapshot.payload)
         && now - snapshot.fetchedAt.getTime() < SNAPSHOT_MAX_AGE_MS) {
-      commands.setDealsCache(snapshot.currency, snapshot.payload);
+      commands.setDealsCache(snapshot.currency, snapshot.payload as DealInfo[]);
       hydratedDeals++;
     }
   }

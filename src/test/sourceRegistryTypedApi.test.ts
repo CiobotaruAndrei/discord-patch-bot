@@ -74,3 +74,13 @@ test("sourceRegistry expune utilele cross-cutting si functiile de sursa ca funct
     assert.equal(typeof registry[key], "function", `sourceRegistry.${key} e functie`);
   }
 });
+
+type RegistryApi = import("../sources/sourceRegistry").SourceRegistryApi;
+type NotUnknown<T> = unknown extends T ? false : true;
+
+test("semnaturile interne stranse nu se pot relaxa inapoi la unknown (R[Arh] #11)", () => {
+  const attachMetricsParamIsTyped: NotUnknown<Parameters<RegistryApi["attachMetrics"]>[0]> = true;
+  const formatPriceValueIsTyped: NotUnknown<Parameters<RegistryApi["formatPrice"]>[0]> = true;
+  assert.equal(attachMetricsParamIsTyped, true);
+  assert.equal(formatPriceValueIsTyped, true);
+});

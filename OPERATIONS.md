@@ -382,6 +382,27 @@ inainte de TTL), cu motivul `expired-near-ttl`, si incrementeaza `bot_outbox_exp
 de ce nu s-au drenat (outbox oprit, canal stricat, worker cazut) — joburile au un audit clar in
 dead-letter, nu dispar fara urma.
 
+## Politica de atomicitate pentru operatiile critice
+
+Regula generala: fiecare operatie critica este fie **o singura scriere Mongo atomica**
+(pipeline/`$set`+`$unset` intr-un singur `updateOne`/`findOneAndUpdate`), fie o **unitate
+logica cu fail-safe documentat** (ordinea scrierilor aleasa astfel incat orice intrerupere
+lasa sistemul recuperabil, plus rollback/raportare unde e cazul). Tranzactiile Mongo NU sunt
+folosite: ar cere replica set (indisponibil pe deployment-uri standalone) si — pentru
+singurul flux unde ar parea utile (outbox) — nu ar acoperi riscul real, pentru ca send-ul
+Discord nu e tranzactional (vezi paragraful dedicat drenarii de mai jos).
+
+| Operatie | Mecanism | Fail-safe |
+| --- | --- | --- |
+| Livrare outbox | state machine claim->validate->deliver->markSent->delete | dedupe pe `dedupeKey` la claim face fereastra `markSent`->`delete` inofensiva; `delivered-marksent-failed` auditat + circuit-break; joburile terminale nu se sterg fara audit |
+| Backup restore (`/backup load`) | UN singur `updateOne` cu `$set` (cheile din snapshot) + `$unset` (cheile lipsa) | nu exista stare partiala: ori se aplica tot update-ul, ori nimic |
+| Salvare backup (`/add backup`) | UN singur pipeline (`$filter` + `$concatArrays` + `$slice`) | inlocuire + limitare intr-o singura scriere, fara `$pull`+`$push` separate |
+| `/youtube subscribe` | unitate logica: seed baseline seen -> salvare abonare prin pipeline atomic (`$cond` cu dedupe+limita) | esec la salvare sau limita ocupata concurent => rollback best-effort al baseline-ului (`removeSeenChannel`), logat daca pica |
+| `/youtube unsubscribe` | UN `updateOne` cu `$pull` combinat (abonare + rute) | cache invalidat imediat; curatarea colectiei seen e best-effort dupa |
+| Alerte de pret (declansare) | `claimTrigger` atomic (`$elemMatch` pe `triggeredAt: null`) | doua instante nu dubleaza alerta; esec de send => `rollbackOrReport` (re-armare + raportare daca rollback-ul pica) |
+| Reguli admin-command-access | UN `updateOne` per operatie; set-ul canonic face `$set` + `$unset` pe cheile vechi in aceeasi scriere | conflictele ramase intre chei vechi sunt raportate la listare, nu ascunse |
+| Sugestii / watchlist-game / future-release | pipeline-uri atomice cu `$cond` (dedupe + limita in aceeasi scriere) | refuzul concurent e detectat din documentul intors si raportat userului |
+
 De ce calea de succes a drenarii NU foloseste tranzactii Mongo (decizie, nu lipsa): scrierile
 separate (`markSent` -> `delete`) sunt deja sigure fara tranzactie — daca `delete` esueaza dupa
 `markSent`, urmatorul claim gaseste `dedupeKey` in istoricul `notificationOutboxSent` si sterge
