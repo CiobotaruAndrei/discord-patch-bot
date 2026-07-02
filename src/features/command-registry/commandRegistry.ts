@@ -138,11 +138,7 @@ function createAppServices(
   return { ...feedback, ...attachSlashCommandDefinitions.createSlashCommandDefinitions(feedback) };
 }
 
-function createCommandRegistry(
-  overrides: Partial<CommandRuntimeBootContext & HandlerMutableContext> = {}
-): RequiredCommandRegistry {
-  const ctx = createAppServices(overrides);
-
+function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): { commandHandlers: CommandHandler[]; helpCommand: ReturnType<typeof attachHelpInteractionHandler.buildCommandHandler> } {
   const helpCommand = attachHelpInteractionHandler.buildCommandHandler(ctx);
   const commandHandlers: CommandHandler[] = [
     attachAutocompleteInteractionHandler.buildCommandHandler(ctx),
@@ -177,6 +173,14 @@ function createCommandRegistry(
     attachSimpleCommandsHandler.buildCommandHandler(ctx),
     attachFallbackInteractionHandler.buildCommandHandler(ctx)
   ];
+  return { commandHandlers, helpCommand };
+}
+
+function createCommandRegistry(
+  overrides: Partial<CommandRuntimeBootContext & HandlerMutableContext> = {}
+): RequiredCommandRegistry {
+  const ctx = createAppServices(overrides);
+  const { commandHandlers, helpCommand } = buildCommandHandlerList(ctx);
 
   async function dispatchCommand(interaction: unknown, games: CommandGame[]): Promise<unknown> {
     for (const handler of commandHandlers) {
@@ -214,6 +218,6 @@ function createCommandRegistry(
   });
 }
 
-const commands = Object.freeze({ ...createCommandRegistry(), createCommandRegistry });
+const commands = Object.freeze({ ...createCommandRegistry(), createCommandRegistry, createAppServices, buildCommandHandlerList });
 
 export = commands;
