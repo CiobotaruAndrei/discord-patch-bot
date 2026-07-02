@@ -233,6 +233,7 @@ index-uri conflictuale/invalide. Inventarul declarat curent:
 | `joblocks` | `{ lockedUntil }` | — | gasirea/expirarea lock-urilor distribuite (cron/outbox) |
 | `adminalertcooldowns` | `{ lastSentAt }` | TTL 7 zile | cooldown per-alerta pentru admin alerts |
 | `fetchsnapshots` | `{ fetchedAt }` | TTL 1 zi | event store pe fetch (hidratare cache la boot) |
+| `playerCountSnapshots` | `{ fetchedAt }` | TTL 1 zi | snapshot periodic de player-count per appId (scris de cron, citit de `/top active games` si `/player-count`); jocurile scoase din configuratie expira automat |
 
 Cand adaugi/modifici un index in `models.ts`, actualizeaza tabelul de mai sus — altfel
 `check:db-indexes` esueaza (Regula: codul reflectat in documentatie).

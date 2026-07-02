@@ -16,6 +16,7 @@ import type {
   NotificationHistoryDoc,
   NotificationOutboxDoc,
   NotificationOutboxSentDoc,
+  PlayerCountSnapshotDoc,
   SystemDoc
 } from "./modelTypes";
 import { assertNoUndefinedExports } from "../../shared/assertCompleteExports";
@@ -36,6 +37,7 @@ type MongoRuntimeContext = {
   JobLockModel: Model<JobLockDoc>;
   AdminAlertCooldownModel: Model<AdminAlertCooldownDoc>;
   FetchSnapshotModel: Model<FetchSnapshotDoc>;
+  PlayerCountSnapshotModel: Model<PlayerCountSnapshotDoc>;
   GuildSeenDiscountModel: Model<GuildSeenDiscountDoc>;
   GuildSeenUpdateModel: Model<GuildSeenUpdateDoc>;
   GuildSeenYoutubeModel: Model<GuildSeenYoutubeDoc>;
@@ -106,6 +108,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     JobLockModel: context.JobLockModel,
     AdminAlertCooldownModel: context.AdminAlertCooldownModel,
     FetchSnapshotModel: context.FetchSnapshotModel,
+    PlayerCountSnapshotModel: context.PlayerCountSnapshotModel,
     GuildSeenDiscountModel: context.GuildSeenDiscountModel,
     GuildSeenUpdateModel: context.GuildSeenUpdateModel,
     GuildSeenYoutubeModel: context.GuildSeenYoutubeModel,

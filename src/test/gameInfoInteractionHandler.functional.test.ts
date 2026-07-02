@@ -162,3 +162,118 @@ test("/top active games nu pica complet daca un request Steam esueaza: rezultate
   assert.match(String(embed.fields?.[0]?.name), /Counter-Strike 2/);
   assert.match(String(embed.description), /nu au putut fi verificate/, "embed-ul avertizeaza ca un joc a fost omis");
 });
+
+function freshSnapshot(playerCount: number) {
+  return { appId: "", gameKey: "", playerCount, fetchedAt: new Date() };
+}
+
+test("/top active games foloseste snapshot-urile proaspete din cron si nu mai apeleaza Steam live (R[Arh] #7)", async () => {
+  const { deps, replies } = makeDeps();
+  let liveCalls = 0;
+  const depsWithSnapshots = {
+    ...deps,
+    getGuildSettings: async () => ({ _id: "guild-1", currency: "EUR", enabledGames: ["cs2"], playerCountGames: ["cs2", "portal"] }),
+    fetchSteamCurrentPlayers: async (appId: string | number) => {
+      liveCalls += 1;
+      return { appId: String(appId), playerCount: 1, success: true };
+    },
+    readPlayerCountSnapshots: async (appIds: readonly (string | number)[]) => {
+      const map = new Map<string, { appId: string; gameKey: string; playerCount: number; fetchedAt: Date }>();
+      for (const id of appIds) {
+        map.set(String(id), { ...freshSnapshot(String(id) === "730" ? 900000 : 40000), appId: String(id) });
+      }
+      return map;
+    }
+  };
+  const handler = installGameInfo.createGameInfoInteractionHandler(depsWithSnapshots);
+
+  await handler.handleGameInfo(makeInteraction("top", { numar: 5 }), [
+    { key: "portal", name: "Portal", appId: "10" },
+    { key: "cs2", name: "Counter-Strike 2", appId: "730" }
+  ]);
+
+  assert.equal(liveCalls, 0, "cu snapshot-uri proaspete pentru toate jocurile nu se face niciun request Steam la comanda");
+  const payload = replies[0] as { embeds?: Array<{ description?: string; fields?: Array<{ name: string }> }> };
+  assert.match(String(payload.embeds?.[0]?.fields?.[0]?.name), /Counter-Strike 2/, "topul e sortat dupa valorile din snapshot");
+  assert.doesNotMatch(String(payload.embeds?.[0]?.description), /nu au fost verificate/, "toate jocurile au fost acoperite");
+});
+
+test("/top active games cu snapshot-uri acopera si liste peste 25 de jocuri (cap-ul se aplica doar fetch-ului live) (R[Arh] #7)", async () => {
+  const { deps, replies } = makeDeps();
+  let liveCalls = 0;
+  const games = Array.from({ length: 30 }, (_v, index) => ({ key: `game-${index}`, name: `Game ${index}`, appId: String(1000 + index) }));
+  const depsWithSnapshots = {
+    ...deps,
+    getGuildSettings: async () => ({ _id: "guild-1", currency: "EUR", enabledGames: [] as string[] }),
+    fetchSteamCurrentPlayers: async (appId: string | number) => {
+      liveCalls += 1;
+      return { appId: String(appId), playerCount: 1, success: true };
+    },
+    readPlayerCountSnapshots: async (appIds: readonly (string | number)[]) => {
+      const map = new Map<string, { appId: string; gameKey: string; playerCount: number; fetchedAt: Date }>();
+      for (const id of appIds) map.set(String(id), { ...freshSnapshot(Number(id)), appId: String(id) });
+      return map;
+    }
+  };
+  const handler = installGameInfo.createGameInfoInteractionHandler(depsWithSnapshots);
+
+  await handler.handleGameInfo(makeInteraction("top", { numar: 5 }), games);
+
+  assert.equal(liveCalls, 0, "toate cele 30 de jocuri sunt acoperite din snapshot, fara fetch live");
+  const payload = replies[0] as { embeds?: Array<{ description?: string; fields?: Array<{ name: string }> }> };
+  assert.match(String(payload.embeds?.[0]?.fields?.[0]?.name), /Game 29/, "jocul cu cei mai multi jucatori (peste pozitia 25) intra in top");
+  assert.doesNotMatch(String(payload.embeds?.[0]?.description), /nu au fost verificate/, "nu mai exista subset nedeclarat");
+});
+
+test("/top active games: snapshot vechi (stale) => se face fetch live pentru jocul respectiv (R[Arh] #7)", async () => {
+  const { deps, replies } = makeDeps();
+  const liveFor: string[] = [];
+  const depsWithSnapshots = {
+    ...deps,
+    getGuildSettings: async () => ({ _id: "guild-1", currency: "EUR", enabledGames: ["cs2"], playerCountGames: ["cs2", "portal"] }),
+    fetchSteamCurrentPlayers: async (appId: string | number) => {
+      liveFor.push(String(appId));
+      return { appId: String(appId), playerCount: 777, success: true };
+    },
+    readPlayerCountSnapshots: async () => {
+      const map = new Map<string, { appId: string; gameKey: string; playerCount: number; fetchedAt: Date }>();
+      map.set("730", { appId: "730", gameKey: "cs2", playerCount: 900000, fetchedAt: new Date() });
+      map.set("10", { appId: "10", gameKey: "portal", playerCount: 5, fetchedAt: new Date(Date.now() - 16 * 60_000) });
+      return map;
+    }
+  };
+  const handler = installGameInfo.createGameInfoInteractionHandler(depsWithSnapshots);
+
+  await handler.handleGameInfo(makeInteraction("top", { numar: 5 }), [
+    { key: "portal", name: "Portal", appId: "10" },
+    { key: "cs2", name: "Counter-Strike 2", appId: "730" }
+  ]);
+
+  assert.deepEqual(liveFor, ["10"], "doar jocul cu snapshot expirat e verificat live");
+  const payload = replies[0] as { embeds?: Array<{ fields?: Array<{ name: string; value: string }> }> };
+  assert.equal(payload.embeds?.[0]?.fields?.length, 2, "ambele jocuri apar in top (snapshot + live)");
+});
+
+test("/player-count foloseste snapshot-ul proaspat si sare peste fetch-ul live (R[Arh] #7)", async () => {
+  const { deps, replies } = makeDeps();
+  let liveCalls = 0;
+  const depsWithSnapshots = {
+    ...deps,
+    fetchSteamCurrentPlayers: async (appId: string | number) => {
+      liveCalls += 1;
+      return { appId: String(appId), playerCount: 1, success: true };
+    },
+    readPlayerCountSnapshots: async (appIds: readonly (string | number)[]) => {
+      const map = new Map<string, { appId: string; gameKey: string; playerCount: number; fetchedAt: Date }>();
+      map.set(String(appIds[0]), { ...freshSnapshot(4321), appId: String(appIds[0]) });
+      return map;
+    }
+  };
+  const handler = installGameInfo.createGameInfoInteractionHandler(depsWithSnapshots);
+
+  await handler.handleGameInfo(makeInteraction("player-count", { game: "Portal" }));
+
+  assert.equal(liveCalls, 0, "snapshot proaspat => fara request live");
+  const payload = replies[0] as { embeds?: Array<{ description?: string }> };
+  assert.match(String(payload.embeds?.[0]?.description), /4,321/, "embed-ul afiseaza player count-ul din snapshot");
+});

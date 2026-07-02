@@ -214,6 +214,13 @@ export interface FetchSnapshotDoc {
   fetchedAt?: Date;
 }
 
+export interface PlayerCountSnapshotDoc {
+  _id: string;
+  gameKey?: string;
+  playerCount?: number;
+  fetchedAt?: Date;
+}
+
 export interface GuildSeenDiscountDoc {
   guildId: string;
   dealHash: string;
