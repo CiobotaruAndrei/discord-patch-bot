@@ -46,6 +46,15 @@ src/
       adminRecordsTypes.ts
     command-cache/
     command-definitions/
+      slashCommandDefinitions.ts
+      slashDefinitionTools.ts
+      coreCommandDefinitions.ts
+      adminCommandDefinitions.ts
+      notificationCommandDefinitions.ts
+      dealsCommandDefinitions.ts
+      gameInfoCommandDefinitions.ts
+      youtubeCommandDefinitions.ts
+      outboxCommandDefinitions.ts
     command-handlers/
       auditLogInteractionHandler.ts
       autocompleteInteractionHandler.ts
