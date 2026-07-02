@@ -1,7 +1,8 @@
 "use strict";
 
 import type { CheerioAPI } from "cheerio";
-import type { DealInfo, NormalizedUpdate, PatchUpdate, HttpRequestOptions } from "../types";
+import type { CurrencyCode, DealInfo, NormalizedUpdate, PatchUpdate, PriceValue, HttpRequestOptions } from "../types";
+import type { HttpMetricsRef } from "../infra/http/httpMetrics";
 import type { DealsApi, SteamSourceApi, UpdatesApi } from "./sourceApis";
 import { assertNoUndefinedExports } from "../shared/assertCompleteExports";
 
@@ -21,7 +22,7 @@ type SourceRegistryApi = {
   httpReq: (method: string, url: string, options?: HttpRequestOptions, retries?: number, backoff?: number) => Promise<{ data: unknown }>;
   fetchWithProxy: (targetUrl: string, options?: HttpRequestOptions) => Promise<string>;
   dealHash: (deal: DealInfo) => string;
-  attachMetrics: (metricsRef: unknown) => void;
+  attachMetrics: (metricsRef: HttpMetricsRef) => void;
   fetchGameUpdate: UpdatesApi["fetchGameUpdate"];
   executeFetchWithCircuitBreaker: UpdatesApi["executeFetchWithCircuitBreaker"];
   getLatestForAllGames: UpdatesApi["getLatestForAllGames"];
@@ -36,7 +37,7 @@ type SourceRegistryApi = {
   extractSteamOfferEndDate: SteamSourceApi["extractSteamOfferEndDate"];
   cleanEnrichedCache: DealsApi["cleanEnrichedCache"];
   getEnrichedCacheSize: DealsApi["getEnrichedCacheSize"];
-  formatPrice: (value: unknown, currencyCode?: unknown) => string;
+  formatPrice: (value: PriceValue, currencyCode?: CurrencyCode | string | null) => string;
 };
 
 type SourceRuntimeContext = Partial<SourceRegistryApi> & typeof import("./runtime");
