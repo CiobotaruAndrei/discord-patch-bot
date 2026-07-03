@@ -1,7 +1,7 @@
 import * as path from "path";
 import { validateConfig } from "./configValidator";
 import { errorMessage } from "../shared/errors";
-import type { BotConfig, ConfigLoadResult, GameConfig } from "../types";
+import type { BotConfig, ConfigLoadResult, GameConfig } from "./configTypes";
 
 function resolveConfigPath(configPath: string): string {
   return path.isAbsolute(configPath) ? configPath : path.resolve(process.cwd(), configPath);

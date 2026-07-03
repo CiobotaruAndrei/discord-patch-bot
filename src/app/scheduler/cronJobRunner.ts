@@ -1,4 +1,4 @@
-import type { GameConfig } from "../../types";
+import type { GameConfig } from "../../config/configTypes";
 
 type ShouldAbort = () => boolean;
 

@@ -1,4 +1,5 @@
-import type { CronHealthSnapshot, RuntimeEnv } from "../../types";
+import type { RuntimeEnv } from "../../types";
+import type { CronHealthSnapshot } from "./schedulerTypes";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
