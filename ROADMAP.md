@@ -295,3 +295,32 @@ pe **TS-primary**: wrapper-ele publice din `native/fuzzy.ts` apeleaza direct imp
 cu rezultat identic (paritate verificata). Variantele native raman expuse prin `getNativeFuzzy()` doar
 pentru benchmark/paritate. Daca vreodata devin hot-path si profilul Rust devine favorabil, pot fi
 re-comutate pe nativ (functia nativa exista inca).
+
+## Catalog unic de comenzi — re-evaluat si respins din nou, cu garantii echivalente prin verificare (review runda 3, items 1 + 12)
+
+**Cererea din review.** O sursa unica `commandCatalog` tipata din care sa derive slash definitions,
+help-ul, regulile de acces, autocomplete-ul de snooze, verificarile din docs si acoperirea de routing;
+plus generarea tabelului `docs/Comenzi Functionalitate.md` din catalog in loc de intretinere manuala.
+
+**Verdictul (regula 20, re-evaluat pe starea curenta).** Respins din nou, din aceleasi motive ca la
+prima evaluare, care raman valabile si dupa spargerea definitiilor pe domenii:
+
+1. **Handler-ele nu sunt 1:1 cu comenzile** (un handler acopera zeci de subcomenzi `/set`; fallback-ul
+   e catch-all pozitional), deci un catalog nu poate deriva rutarea fara sa ascunda exact invariantele
+   semantice care conteaza (ordinea listei de handler-e).
+2. **Riscul real este drift-ul silentios, nu duplicarea in sine** — iar drift-ul e deja imposibil de
+   introdus fara sa pice CI: manifestul de acces ⇔ slash definitions ⇔ help catalog ⇔ tabelul din docs
+   (coloana Permisiuni + prezenta bidirectionala) sunt sincronizate prin teste dedicate, acoperirea de
+   routing e gardata de `commandHandlerCoverage.test.ts` (orice comanda noua fara handler dedicat pica
+   CI cu numele caii lipsa), iar modulele de definitii pe domenii sunt gardate de
+   `slashDefinitionsDomainSplit.test.ts` (nume unice, compozitie = reuniune).
+3. **Generarea tabelului din docs ar pierde curatoria manuala**: descrierile din
+   `docs/Comenzi Functionalitate.md` sunt formulate editorial (nu identice cu help-ul), iar testul de
+   sincronizare existent verifica deja bidirectional prezenta comenzilor si permisiunile — partea care
+   poate drifta periculos. Un generator ar inlocui text curat de om cu text de catalog fara sa adauge
+   vreo garantie noua.
+
+**Ce s-ar schimba daca apare nevoia reala.** Daca numarul de comenzi creste semnificativ sau apare un
+al doilea consumator de metadate (ex. un dashboard web), catalogul devine justificat: pasul corect ar fi
+sa se extinda `commandAccessManifest` (deja tipat si central) cu descrieri si optiuni, apoi help-ul si
+definitiile sa se mute treptat pe el, pastrand guard-urile existente ca plasa de siguranta in tranzitie.
