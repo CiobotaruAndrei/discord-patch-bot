@@ -66,6 +66,11 @@ src/
       futureReleaseInteractionHandler.ts
       gameFilterHandlers.ts
       gameInfoEmbeds.ts
+      gameInfoEmbedPrimitives.ts
+      dealsEmbeds.ts
+      comparisonEmbeds.ts
+      steamMetadataEmbeds.ts
+      playerCountEmbeds.ts
       gameInfoInteractionHandler.ts
       gameInfoLookupService.ts
       helpInteractionHandler.ts
