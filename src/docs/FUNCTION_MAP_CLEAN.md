@@ -437,11 +437,13 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Wrapper-ul cdylib N-API (`discord_patch_bot_core`): doar structuri `#[napi(object)]` si functii `#[napi]` care deleaga la `discord_patch_bot_logic`.
 - Numele cdylib-ului ramane neschimbat, deci fisierul `.node`, `index.js` si `index.d.ts` generate de `napi build` raman identice.
 
-### `src/native/fuzzy.ts`
+### `src/native/fuzzy.ts` (+ `fuzzyNativeBridge.ts`, `fuzzyFallbacks.ts`, `fuzzyFallbackMetrics.ts`)
 
-- Incarca addon-ul `.node` si expune fallback TypeScript.
-- Trebuie sa pastreze contract identic intre Rust si TypeScript.
-- Logheaza explicit cand addon-ul nativ lipseste in productie.
+- `fuzzy.ts` e API-ul public: wrapper-ele care incearca nativul si cad pe fallback-ul TypeScript, cu acelasi set de exporturi ca inainte de split (inclusiv fallback-urile si helper-ele re-exportate).
+- `fuzzyNativeBridge.ts` incarca addon-ul `.node` (cautare, validarea exporturilor critice de hash, fail-fast in productie fara ALLOW_NATIVE_FALLBACK, stare unica de modul incarcat) si expune `getNativeFuzzy`/`ensureNativeFuzzy`/`nativeStringFn`.
+- `fuzzyFallbacks.ts` tine implementarile TypeScript pure (levenshtein, clasificare patch-note, scoring listing/autocomplete, hash-uri, filtre de deal, `findGameKeysFallback`, `rankListingCandidatesFallback`, `reorderByValidPermutation`) + `HASH_VERSION`.
+- `fuzzyFallbackMetrics.ts` tine contoarele de fallback per functie (`recordNativeFallback` cu throttle de log, `getNativeFallbackTotals`, `NATIVE_FALLBACK_FUNCTIONS` pentru seriile de metrici).
+- Trebuie sa pastreze contract identic intre Rust si TypeScript; bridge-ul logheaza explicit cand addon-ul nativ lipseste in productie. Gardat de `fuzzyModuleSplit.test.ts` (re-exporturile sunt aceleasi referinte, stare nativa partajata, coerenta wrapper/fallback).
 
 ## Test map
 
