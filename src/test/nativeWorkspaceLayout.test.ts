@@ -59,3 +59,18 @@ test("check:native si CI testeaza core-ul pur si dau clippy pe tot workspace-ul"
   const release = read(releaseWorkflowPath);
   assert.match(release, /npm run check:full/, "release.yml ruleaza check:full, care include check:native (clippy --workspace + cargo test pur), fara a duplica pasul de clippy");
 });
+
+test("crate-ul core pur e organizat pe module pe responsabilitate, iar lib.rs doar le declara si le re-exporta", () => {
+  const coreSrcDir = path.join(srcRoot, "native", "core", "src");
+  const modules = ["types", "text", "hashing", "deals", "updates", "autocomplete", "listing_rank", "fuzzy"];
+  for (const name of modules) {
+    assert.ok(fs.existsSync(path.join(coreSrcDir, `${name}.rs`)), `native/core/src/${name}.rs exista`);
+  }
+  const lib = read(coreLibPath);
+  for (const name of modules) {
+    assert.match(lib, new RegExp(`mod ${name};`), `lib.rs declara modulul ${name}`);
+  }
+  assert.match(lib, /pub use fuzzy::find_game_keys;/, "lib.rs re-exporta find_game_keys din modulul fuzzy");
+  assert.match(lib, /pub use hashing::\{[^}]*deal_hash[^}]*\};/, "lib.rs re-exporta deal_hash din modulul hashing");
+  assert.ok(!/\npub fn (levenshtein|deal_hash|find_game_keys|classify_patch_note)\(/.test(lib), "logica nu mai e definita inline in lib.rs (mutata in module), doar re-exportata");
+});

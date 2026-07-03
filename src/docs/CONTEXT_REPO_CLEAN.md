@@ -135,7 +135,16 @@ src/
     fuzzyFallbacks.ts
     fuzzyFallbackMetrics.ts
     src/lib.rs
-    core/src/lib.rs
+    core/src/
+      lib.rs
+      types.rs
+      text.rs
+      hashing.rs
+      deals.rs
+      updates.rs
+      autocomplete.rs
+      listing_rank.rs
+      fuzzy.rs
   shared/
   sources/
     deals/
