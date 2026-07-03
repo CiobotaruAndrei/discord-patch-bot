@@ -88,6 +88,13 @@ src/
       watchlistGameSuggestionHandler.ts
       youtubeInteractionHandler.ts
     command-presentation/
+      commandPresentation.ts
+      presentationContracts.ts
+      interactionReplyHelpers.ts
+      notificationEmbeds.ts
+      paginationControls.ts
+      gameLookupCache.ts
+      gameStatusEmbeds.ts
     command-registry/
     command-runtime/
     command-snooze/

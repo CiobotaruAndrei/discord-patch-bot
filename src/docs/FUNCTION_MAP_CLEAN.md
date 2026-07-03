@@ -114,12 +114,11 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Expune `createCommandCache`, iar atasarea pe context ramane adapter de compatibilitate.
 - Foloseste tipuri structurale pentru permisiuni/canale, nu tipuri wildcard nesigure.
 
-### `src/features/command-presentation/commandPresentation.ts`
+### `src/features/command-presentation/commandPresentation.ts` (+ module pe responsabilitati)
 
-- Construieste embed-uri, paginare, select menus si raspunsuri user-facing.
-- Contine helper-ul de fuzzy game lookup prin `findGameKeys` (TS-primary — Rust mai lent pe marshaling-ul NAPI, vezi `BENCHMARKS.md`; nativul ramane pentru benchmark/paritate).
-- Expune `createCommandPresentation`, iar instalarea pe context este doar adapter de compatibilitate.
-- Builder-ele Discord, collector-ul, interactiunile si raspunsurile HTTP sunt modelate local prin interfete mici.
+- Construieste embed-uri, paginare si raspunsuri user-facing; `commandPresentation.ts` e orchestratorul care compune sub-factory-urile si intoarce acelasi contract public (`createCommandPresentation` cu cele 14 functii; instalarea pe context ramane doar adapter de compatibilitate).
+- Responsabilitatile sunt module dedicate: `interactionReplyHelpers.ts` (`enforceCooldown`/`startCommandLog`/`safeDefer`/`safeEdit` pe contractul minimal `DeferEditInteraction`), `notificationEmbeds.ts` (`buildUpdateEmbed`/`buildDealEmbed`, pure — gardate de `notificationEmbeds.test.ts`), `paginationControls.ts` (sesiune + butoane + `handlePagination` cu collector), `gameLookupCache.ts` (fuzzy game lookup prin `findGameKeys`, TS-primary — Rust mai lent pe marshaling-ul NAPI, vezi `BENCHMARKS.md` — cu cache LRU per instanta si guard pe lista de jocuri), `gameStatusEmbeds.ts` (`fetchGameStatus` + `buildSteamPriceEmbed`).
+- Tipurile partajate (embed/butoane/interactiuni minimale) stau in `presentationContracts.ts`; builder-ele Discord, collector-ul si raspunsurile HTTP raman modelate local prin interfete mici.
 
 ### `src/features/admin-records/` (repositories dedicate)
 
