@@ -16,6 +16,18 @@ export function evaluateCommandReferenceDoc(existing: string | null, rendered: s
   return { inSync: normalizeNewlines(existing) === normalizeNewlines(rendered), missing: false };
 }
 
+function writeCommandReferenceDocAtomic(fs: typeof import("fs"), path: typeof import("path"), target: string, rendered: string): void {
+  const targetDir = path.dirname(target);
+  const tempDir = fs.mkdtempSync(path.join(targetDir, ".command-reference-"));
+  const tempTarget = path.join(tempDir, path.basename(target));
+  try {
+    fs.writeFileSync(tempTarget, rendered, "utf8");
+    fs.renameSync(tempTarget, target);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 function main(): void {
   const fs = require("fs") as typeof import("fs");
   const path = require("path") as typeof import("path");
@@ -23,10 +35,10 @@ function main(): void {
   const target = path.join(repoRoot, COMMAND_REFERENCE_DOC_RELATIVE_PATH);
   const rendered = renderCommandReferenceDoc();
   const checkMode = process.argv.includes("--check");
-  const existing = fs.existsSync(target) ? fs.readFileSync(target, "utf8") : null;
-  const evaluation = evaluateCommandReferenceDoc(existing, rendered);
 
   if (checkMode) {
+    const existing = fs.existsSync(target) ? fs.readFileSync(target, "utf8") : null;
+    const evaluation = evaluateCommandReferenceDoc(existing, rendered);
     if (evaluation.missing) {
       console.error(`::error::[check-docs-commands] ${COMMAND_REFERENCE_DOC_RELATIVE_PATH} lipseste. Ruleaza 'npm run docs:commands'.`);
       process.exit(1);
@@ -42,11 +54,7 @@ function main(): void {
     return;
   }
 
-  if (evaluation.inSync) {
-    console.log(`${COMMAND_REFERENCE_DOC_RELATIVE_PATH} deja sincronizat, nimic de scris.`);
-    return;
-  }
-  fs.writeFileSync(target, rendered);
+  writeCommandReferenceDocAtomic(fs, path, target, rendered);
   console.log(`${COMMAND_REFERENCE_DOC_RELATIVE_PATH} regenerat din COMMAND_CATALOG_HELP.`);
 }
 
