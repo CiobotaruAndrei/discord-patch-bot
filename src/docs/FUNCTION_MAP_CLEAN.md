@@ -19,11 +19,12 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Protejeaza metrics cu token optional si comparatie sigura.
 - Nu trebuie sa contina logica de business pentru Discord sau scraping.
 
-### `src/app/scheduler/cron.ts`
+### `src/app/scheduler/cron.ts` (+ `cronScheduleConfig.ts`, `cronHealthWindow.ts`, `cronJobRunner.ts`)
 
-- Orchestreaza ciclurile de update-uri si reduceri.
-- Gestioneaza lock distribuit, heartbeat, health window si abort.
-- Nu trebuie sa contina logica de scraping sau de formatat embed-uri.
+- `cron.ts` e controller-ul: `createCronController` compune modulele si tine orchestrarea ciclului (`runCronCycle`), lock-ul distribuit + heartbeat-ul (cu invariantele de concurenta pe `currentCronToken`, vezi `CONTEXT_REPO_CLEAN.md`), programarea (`scheduleNextCron`) si abort-ul (`stop`). Nu trebuie sa contina logica de scraping sau de formatat embed-uri.
+- `cronScheduleConfig.ts` — `resolveCronScheduleConfig(config, env, parseEnvNumber, logger)` calculeaza intervalul (validat pe 10/15/30/60 min), `lockTtlMs`, `heartbeatIntervalMs`, jitter-ul si bugetul de ciclu; `computeCronDelay` (interval + jitter marginit) traieste tot aici si e re-exportat de `cron.ts`.
+- `cronHealthWindow.ts` — `createCronHealthWindow(env, logger)`: fereastra de succes/durata (`recordHealth`), decizia de backoff cand rata scade sub prag (`shouldSkipForGlobalHealth`, un skip programat o singura data) si `getHealthSnapshot`.
+- `cronJobRunner.ts` — `buildCronCycleJobs` (lista de joburi ale ciclului: updates, reduceri — omise cand `shedDiscounts`, YouTube, player-count optional) + `runCronJobs` (runner generic `Promise.allSettled` care intoarce doar esecurile cu labelul lor). Gardat de `cronModules.test.ts`.
 
 ### `src/app/lifecycle/bootPhases.ts`
 

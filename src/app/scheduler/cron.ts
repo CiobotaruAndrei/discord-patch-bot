@@ -2,10 +2,12 @@ import type {
   BotConfig,
   BotMetrics,
   CronController,
-  CronHealthSnapshot,
   GameConfig,
   RuntimeEnv
 } from "../../types";
+import { createCronHealthWindow } from "./cronHealthWindow";
+import { computeCronDelay, resolveCronScheduleConfig } from "./cronScheduleConfig";
+import { buildCronCycleJobs, runCronJobs } from "./cronJobRunner";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type ParseEnvNumber = (name: string, defaultValue: number, limits: { min?: number; max?: number }) => number;
@@ -81,97 +83,23 @@ interface CreateCronControllerDeps {
   requestContext: RequestContext;
 }
 
-interface HealthEntry {
-  success: boolean;
-  durationMs: number;
-}
-
-function computeCronDelay(intervalMs: number, jitterMs: number, random: () => number = Math.random): number {
-  if (jitterMs <= 0) return intervalMs;
-  const offset = Math.round((random() * 2 - 1) * jitterMs);
-  return Math.max(1000, intervalMs + offset);
-}
-
 function createCronController({
   mongoose, performance, crypto, logger, env, parseEnvNumber,
   acquireDbLock, renewDbLock, releaseDbLock, commands, adminAlert,
   client, games, config, metrics, lifecycle, errorMessage, errorDetail,
   requestContext
 }: CreateCronControllerDeps): CronController {
-  const allowedIntervals = new Set([
-    10 * 60 * 1000,
-    15 * 60 * 1000,
-    30 * 60 * 1000,
-    60 * 60 * 1000
-  ]);
-  const configuredIntervalMinutes = config.checkIntervalMinutes;
-  const configIntervalMs = typeof configuredIntervalMinutes === "number"
-    && Number.isFinite(configuredIntervalMinutes)
-    && configuredIntervalMinutes > 0
-    ? Math.round(configuredIntervalMinutes * 60 * 1000)
-    : 30 * 60 * 1000;
-  const requestedIntervalMs = parseEnvNumber("CRON_INTERVAL_MS", configIntervalMs, {
-    min: 10 * 60 * 1000,
-    max: 60 * 60 * 1000
-  });
-  const cronIntervalMs = allowedIntervals.has(requestedIntervalMs) ? requestedIntervalMs : configIntervalMs;
-  if (requestedIntervalMs !== cronIntervalMs) {
-    logger("WARN", "CONFIG",
-      `CRON_INTERVAL_MS=${requestedIntervalMs} nu este intr-o valoare suportata ` +
-      `(10/15/30/60 min). Folosesc default ${configIntervalMs}.`);
-  }
-
-  const lockTtlMs = Math.max(cronIntervalMs + 60_000, 5 * 60 * 1000);
-  const heartbeatIntervalMs = Math.max(15_000, Math.floor(lockTtlMs / 3));
-  const cronJitterMs = parseEnvNumber("CRON_JITTER_MS", 20_000, { min: 0, max: 120_000 });
-  const cronCycleBudgetMs = parseEnvNumber("CRON_CYCLE_BUDGET_MS", cronIntervalMs, { min: 0, max: lockTtlMs });
+  const { cronIntervalMs, lockTtlMs, heartbeatIntervalMs, cronJitterMs, cronCycleBudgetMs } =
+    resolveCronScheduleConfig(config, env, parseEnvNumber, logger);
   let shedDiscountsNextCycle = false;
   commands.setGlobalCacheTtl(Math.min(30 * 60 * 1000, cronIntervalMs));
+
+  const health = createCronHealthWindow(env, logger);
 
   let cronTimerId: TimerHandle | null = null;
   let heartbeatTimerId: TimerHandle | null = null;
   let currentCronAbortController: AbortController | null = null;
   let currentCronToken: string | null = null;
-  const healthWindow: HealthEntry[] = [];
-  let healthSkipScheduled = false;
-
-  function recordHealth(success: boolean, durationMs: number): void {
-    healthWindow.push({ success, durationMs });
-    if (healthWindow.length > env.GLOBAL_HEALTH_WINDOW) healthWindow.shift();
-  }
-
-  function shouldSkipForGlobalHealth(): boolean {
-    if (healthSkipScheduled) {
-      healthSkipScheduled = false;
-      healthWindow.length = 0;
-      return false;
-    }
-    if (healthWindow.length < env.GLOBAL_HEALTH_WINDOW) return false;
-    const successCount = healthWindow.filter(entry => entry.success).length;
-    const ratio = (successCount / healthWindow.length) * 100;
-    if (ratio < env.GLOBAL_HEALTH_MIN_RATIO) {
-      healthSkipScheduled = true;
-      logger("WARN", "CRON_HEALTH",
-        `Global health rate ${ratio.toFixed(0)}% < ${env.GLOBAL_HEALTH_MIN_RATIO}% in ultimele ${healthWindow.length} cicluri. ` +
-        "Sar ciclul curent pentru backoff.");
-      return true;
-    }
-    return false;
-  }
-
-  function getHealthSnapshot(): CronHealthSnapshot {
-    if (!healthWindow.length) {
-      return { successRatio: null, windowSize: 0, healthSkipScheduled };
-    }
-    const successCount = healthWindow.filter(entry => entry.success).length;
-    const totalDurationMs = healthWindow.reduce((sum, entry) => sum + entry.durationMs, 0);
-    return {
-      successRatio: Math.round((successCount / healthWindow.length) * 100),
-      windowSize: healthWindow.length,
-      healthSkipScheduled,
-      avgDurationMs: Math.round(totalDurationMs / healthWindow.length)
-    };
-  }
 
   function shouldAbortCron(): boolean {
     return lifecycle.isShuttingDown || (currentCronAbortController?.signal.aborted ?? false);
@@ -239,7 +167,7 @@ function createCronController({
       scheduleNextCron();
       return;
     }
-    if (shouldSkipForGlobalHealth()) {
+    if (health.shouldSkipForGlobalHealth()) {
       metrics.cronSkippedDueToHealth = (metrics.cronSkippedDueToHealth || 0) + 1;
       scheduleNextCron();
       return;
@@ -251,7 +179,7 @@ function createCronController({
       lockToken = await acquireDbLock("cron_main", lockTtlMs);
     } catch (err) {
       metrics.cronErrors++;
-      recordHealth(false, Math.round(performance.now() - lockAttemptStart));
+      health.recordHealth(false, Math.round(performance.now() - lockAttemptStart));
       logger("ERROR", "CRON", "Nu am putut obtine lock-ul cron", errorDetail(err));
       adminAlert("cron:lock", "Botul nu a putut obtine lock-ul cron", errorMessage(err)).catch(() => null);
       scheduleNextCron();
@@ -281,19 +209,8 @@ function createCronController({
             `Ciclul anterior a depasit bugetul de ${cronCycleBudgetMs}ms; sar peste reduceri in ciclul #${metrics.cronRuns} pentru recuperare`);
         }
         logger("INFO", "CRON", `Pornire ciclu cron #${metrics.cronRuns}`);
-        const tasks: Array<{ label: string; run: Promise<unknown> }> = [
-          { label: "checkForUpdates", run: commands.checkForUpdates(client, games, shouldAbortCron) },
-          ...(shedDiscounts ? [] : [{ label: "checkForDiscounts", run: commands.checkForDiscounts(client, shouldAbortCron) }]),
-          { label: "checkForYouTube", run: commands.checkForYouTube(client, shouldAbortCron) },
-          ...(typeof commands.refreshPlayerCountSnapshots === "function"
-            ? [{ label: "refreshPlayerCountSnapshots", run: commands.refreshPlayerCountSnapshots(games, shouldAbortCron) }]
-            : [])
-        ];
-        const settled = await Promise.allSettled(tasks.map(task => task.run));
-        const failures: Array<{ label: string; reason: unknown }> = [];
-        settled.forEach((result, index) => {
-          if (result.status === "rejected") failures.push({ label: tasks[index].label, reason: result.reason });
-        });
+        const jobs = buildCronCycleJobs(commands, client, games, shedDiscounts, shouldAbortCron);
+        const failures = await runCronJobs(jobs);
 
         if (failures.length) {
           metrics.cronErrors++;
@@ -318,7 +235,7 @@ function createCronController({
         adminAlert("cron:fatal", `Eroare cron ciclu #${metrics.cronRuns}`, errorMessage(err)).catch(() => null);
       } finally {
         const durationMs = Math.round(performance.now() - cycleStart);
-        recordHealth(success, durationMs);
+        health.recordHealth(success, durationMs);
         if (cronCycleBudgetMs > 0 && durationMs > cronCycleBudgetMs) shedDiscountsNextCycle = true;
 
         currentCronToken = null;
@@ -339,7 +256,7 @@ function createCronController({
     stopHeartbeat();
   }
 
-  return { scheduleNextCron, runCronCycle, stop, shouldAbortCron, getHealthSnapshot };
+  return { scheduleNextCron, runCronCycle, stop, shouldAbortCron, getHealthSnapshot: health.getHealthSnapshot };
 }
 
 export { createCronController, computeCronDelay };
