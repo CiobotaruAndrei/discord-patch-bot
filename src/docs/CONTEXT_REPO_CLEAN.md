@@ -156,6 +156,10 @@ src/
     steam/
     updates/
       index.ts
+      updatesContracts.ts
+      updatesSourceDispatch.ts
+      updatesCircuitBreaker.ts
+      updatesFetchOrchestrator.ts
       updateHelpers.ts
       steamUpdates.ts
       listingUpdates.ts
