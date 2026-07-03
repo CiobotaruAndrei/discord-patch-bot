@@ -1,4 +1,3 @@
-import type { IncomingMessage } from "http";
 import type {
   ConfigBackupRecord,
   BotAuditLogEntry,
@@ -66,17 +65,23 @@ export type {
   SteamReviewData,
   FetchDealsOptions
 } from "./sources/sourceTypes";
-
-export type GameType =
-  | "steam"
-  | "minecraft"
-  | "epic_games"
-  | "roblox"
-  | "listing_based"
-  | "nvidia"
-  | "amd"
-  | "intel"
-  | "rss";
+export type {
+  GameType,
+  GameSourceFallback,
+  GameConfig,
+  BotConfig,
+  ConfigLoadResult
+} from "./config/configTypes";
+export type { BotMetrics } from "./app/health/metricsTypes";
+export type {
+  RateLimitBucket,
+  RateLimitRequest,
+  RateLimiter
+} from "./app/health/rateLimitTypes";
+export type {
+  CronHealthSnapshot,
+  CronController
+} from "./app/scheduler/schedulerTypes";
 
 export type CurrencyCode = "USD" | "EUR" | "GBP" | "RON";
 export type AbortPredicate = (() => boolean) | null;
@@ -194,113 +199,8 @@ export interface RuntimeEnv {
   isProd: boolean;
 }
 
-export interface GameSourceFallback {
-  type: GameType;
-  url?: string;
-  listingUrl?: string;
-  listingUrls?: string[];
-  baseUrl?: string;
-}
-
-export interface GameConfig {
-  key: string;
-  name: string;
-  type?: GameType;
-  appId?: string;
-  listingUrl?: string;
-  listingUrls?: string[];
-  baseUrl?: string;
-  articleHrefRegex?: string;
-  requireKeywords?: string[];
-  thumbnail?: string;
-  url?: string;
-  aliases?: string[];
-  upCRD?: 0 | 1;
-  fallbacks?: GameSourceFallback[];
-  [key: string]: unknown;
-}
-
-export interface BotConfig {
-  checkIntervalMinutes?: number;
-  games: GameConfig[];
-}
-
-export interface ConfigLoadResult {
-  config: BotConfig;
-  games: GameConfig[];
-  configPath: string;
-}
-
-export interface BotMetrics {
-  fetchSuccess: number;
-  fetchFail: number;
-  httpRetries: number;
-  rateLimitHits: number;
-  cronRuns: number;
-  cronErrors: number;
-  cronSkippedDueToLock: number;
-  cronSkippedDueToHealth: number;
-  cronAborted: number;
-  httpRateLimitDrops: number;
-  httpHandlerErrors: number;
-  outboxSent: number;
-  outboxRetried: number;
-  outboxDeadLettered: number;
-  outboxExpired: number;
-  outboxDrains: number;
-  outboxQueueDepth: number;
-  outboxDeliveryMsTotal: number;
-  outboxOldestJobAgeSeconds: number;
-  outboxFutureScheduledJobs: number;
-  outboxLockAcquireFailures: number;
-  outboxPauseCheckFailures: number;
-  outboxRecoveryDuplicates: number;
-  outboxRecoveryFetches: number;
-  outboxRecoveryFailures: number;
-  outboxRecoveryMarkerMissing: number;
-  outboxMarkSentFailures: number;
-  outboxDeleteFailures: number;
-  outboxDeadLetterWriteFailures: number;
-  outboxHistoryWriteFailures: number;
-  outboxRecoveryVerifyEnabledGuilds: number;
-  outboxLastDrainAt: number;
-  startedAt: number;
-}
-
-export interface CronHealthSnapshot {
-  successRatio: number | null;
-  windowSize: number;
-  healthSkipScheduled: boolean;
-  avgDurationMs?: number;
-}
-
-export interface CronController {
-  scheduleNextCron(): void;
-  runCronCycle(): Promise<void>;
-  stop(): void;
-  shouldAbortCron(): boolean;
-  getHealthSnapshot(): CronHealthSnapshot;
-}
-
 export interface LifecycleState {
   isShuttingDown: boolean;
-}
-
-export interface RateLimitBucket {
-  tokens: number;
-  lastRefill: number;
-}
-
-export interface RateLimitRequest {
-  headers: IncomingMessage["headers"];
-  socket?: { remoteAddress?: string };
-}
-
-export interface RateLimiter {
-  check(req: RateLimitRequest): boolean;
-  prune(): void;
-  readonly size: number;
-  readonly retryAfterSeconds: number;
 }
 
 export interface PaginationButtonInteraction {

@@ -1,5 +1,5 @@
 import { z, type ZodIssue } from "zod";
-import type { BotConfig } from "../types";
+import type { BotConfig } from "./configTypes";
 
 type IssuePath = Array<string | number>;
 type SeenSearchTerm = {
