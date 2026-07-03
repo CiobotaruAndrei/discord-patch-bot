@@ -1,4 +1,5 @@
 import { errorMessage } from "../../shared/errors";
+import type { OutboxMessagePayload } from "./outboxTypes";
 
 export const DISCORD_PERMANENT_ERROR_CODES = new Set([10003, 10004, 50001, 50013]);
 
@@ -44,14 +45,14 @@ export interface OutboundSendMeta {
 
 export interface OutboundChannel {
   id: string;
-  send(payload: unknown, meta?: OutboundSendMeta): Promise<unknown>;
+  send(payload: OutboxMessagePayload, meta?: OutboundSendMeta): Promise<unknown>;
 }
 
 export type ResolveOutboundChannelResult =
   | { abort: true; channel: null }
   | { abort: false; channel: OutboundChannel };
 
-export type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount" | "youtube"; payload: unknown; recoveryVerify?: boolean; manual?: boolean; history?: OutboundHistoryEntry[]; availableAt?: Date }) => Promise<void>;
+export type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount" | "youtube"; payload: OutboxMessagePayload; recoveryVerify?: boolean; manual?: boolean; history?: OutboundHistoryEntry[]; availableAt?: Date }) => Promise<void>;
 
 export type RecordSentHistory = (guildId: string, entries: OutboundHistoryEntry[]) => Promise<void>;
 
@@ -67,7 +68,7 @@ function rateLimitedChannel(channel: { id?: unknown; send: (payload: unknown) =>
   const raw = channel;
   return {
     id: String(raw.id ?? ""),
-    send: async (payload: unknown, meta?: OutboundSendMeta) => {
+    send: async (payload: OutboxMessagePayload, meta?: OutboundSendMeta) => {
       await acquireSendSlot();
       const sent = await raw.send(payload);
       if (recordSentHistory && meta?.historyEntries?.length) {
@@ -83,7 +84,7 @@ function rateLimitedChannel(channel: { id?: unknown; send: (payload: unknown) =>
 function outboxChannel(channelId: string, guildId: string, kind: "update" | "discount" | "youtube", enqueueOutbox: EnqueueOutbox, recoveryVerify?: boolean, manual?: boolean): OutboundChannel {
   return {
     id: channelId,
-    send: async (payload: unknown, meta?: OutboundSendMeta) =>
+    send: async (payload: OutboxMessagePayload, meta?: OutboundSendMeta) =>
       enqueueOutbox({ guildId, channelId, kind, payload, recoveryVerify, manual, history: meta?.historyEntries, availableAt: meta?.availableAt })
   };
 }

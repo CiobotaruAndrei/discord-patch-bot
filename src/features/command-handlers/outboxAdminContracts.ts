@@ -1,6 +1,7 @@
 "use strict";
 
 import type { OutboxDiscordClient } from "../notifications/outboundChannel";
+import type { OutboxMessagePayload } from "../notifications/outboxTypes";
 
 export type OutboxAdminInteraction = {
   commandName?: string;
@@ -80,7 +81,7 @@ export interface ReplayDeadLetterDoc {
   history?: ReplayHistoryEntryLike[];
 }
 
-export type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount" | "youtube"; payload: unknown; recoveryVerify?: boolean; history?: ReplayHistoryEntryLike[] }) => Promise<void>;
+export type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount" | "youtube"; payload: OutboxMessagePayload; recoveryVerify?: boolean; history?: ReplayHistoryEntryLike[] }) => Promise<void>;
 
 export function onOff(value: boolean): string {
   return value ? "ON" : "OFF";

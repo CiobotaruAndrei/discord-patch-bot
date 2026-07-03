@@ -108,7 +108,7 @@ export interface EnqueueOutboxJobInput {
   guildId: string;
   channelId: string;
   kind: OutboxKind;
-  payload: unknown;
+  payload: OutboxMessagePayload;
   recoveryVerify?: boolean;
   manual?: boolean;
   history?: OutboxHistoryEntry[];

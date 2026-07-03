@@ -1,6 +1,7 @@
 "use strict";
 
 import type { OutboxDiscordClient } from "../notifications/outboundChannel";
+import { isDeliverableOutboxPayload } from "../notifications/outboxTypes";
 import type {
   DrainResultLike,
   EnqueueOutbox,
@@ -70,7 +71,12 @@ export function createOutboxAdminOperations(deps: OutboxAdminOperationsDeps) {
     if (!outboxEnabled || typeof enqueueOutbox !== "function") {
       return "Replay indisponibil: outbox-ul e dezactivat (porneste-l cu `NOTIFICATION_OUTBOX_ENABLED=true`). Replay-ul reintroduce livrarile esuate in coada outbox.";
     }
-    const docs = await listReplayableDeadLetters(guildId).catch(() => [] as ReplayDeadLetterDoc[]);
+    const allDocs = await listReplayableDeadLetters(guildId).catch(() => [] as ReplayDeadLetterDoc[]);
+    const docs = allDocs.filter(doc => {
+      if (isDeliverableOutboxPayload(doc.payload)) return true;
+      logger("WARN", "OUTBOX_COMMAND", `replay-deadletters: payload nelivrabil pentru intrarea ${String(doc._id)} (guild ${guildId}); o sar la replay ca sa nu reintre in bucla invalid-payload`);
+      return false;
+    });
     if (!docs.length) {
       return "Nicio livrare dead-letter cu payload stocat pentru replay. (Doar esecurile pe calea outbox - mai putin `delivered-marksent-failed` - pot fi reluate; cele vechi/expirate au fost curatate prin TTL.)";
     }
@@ -79,6 +85,7 @@ export function createOutboxAdminOperations(deps: OutboxAdminOperationsDeps) {
     let failed = false;
     for (const doc of docs) {
       try {
+        if (!isDeliverableOutboxPayload(doc.payload)) continue;
         await enqueueOutbox({ guildId, channelId: doc.channelId, kind: doc.kind, payload: doc.payload, recoveryVerify: doc.recoveryVerify, history: doc.history });
       } catch (err: unknown) {
         logger("WARN", "OUTBOX_COMMAND", `Replay dead-letter intrerupt dupa ${replayedIds.length} reusite`, errorMessage(err));
