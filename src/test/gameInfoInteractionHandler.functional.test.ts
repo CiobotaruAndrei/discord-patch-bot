@@ -125,9 +125,9 @@ test("/player-count game afiseaza numarul curent de jucatori Steam", async () =>
   assert.match(String(payload.embeds?.[0]?.description), /1,200,000/);
 });
 
-test("/top active games sorteaza jocurile urmarite dupa player-count", async () => {
+test("/top active games calculeaza global din jocurile botului, nu din watchlist-ul serverului", async () => {
   const { deps, replies } = makeDeps();
-  deps.getGuildSettings = async () => ({ _id: "guild-1", currency: "EUR", enabledGames: ["cs2"], playerCountGames: ["cs2", "portal"] });
+  deps.getGuildSettings = async () => ({ _id: "guild-1", currency: "EUR", enabledGames: ["portal"], playerCountGames: ["portal"] });
   const handler = installGameInfo.createGameInfoInteractionHandler(deps);
 
   await handler.handleGameInfo(makeInteraction("top", { numar: 2 }), [

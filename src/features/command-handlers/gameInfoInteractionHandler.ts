@@ -88,7 +88,7 @@ const TOP_ACTIVE_CANDIDATE_CAP = 25;
 function createGameInfoInteractionHandler(deps: GameInfoDeps) {
   const {
     enforceCooldown, startCommandLog, safeDefer, safeEdit,
-    fetchSteamReviewData, getGuildSettings, fetchSteamCurrentPlayers
+    fetchSteamReviewData, fetchSteamCurrentPlayers
   } = deps;
 
   const lookup = createGameInfoLookupService(deps);
@@ -140,16 +140,15 @@ function createGameInfoInteractionHandler(deps: GameInfoDeps) {
   }
 
   async function handleTopActiveCommand(interaction: DiscordInteraction, games: GameConfig[]): Promise<object | void | null> {
-    const guild = interaction.guild?.id ? await getGuildSettings(interaction.guild.id) : null;
     const limit = clampResultLimit(interaction.options.getInteger("numar", false));
-    const selected = selectTopActiveGames(games, guild);
-    if (!selected.games.length) {
-      return safeEdit(interaction, "Eroare: nu am jocuri cu Steam appId pentru player-count in configuratia curenta.");
+    const selectedGames = selectTopActiveGames(games);
+    if (!selectedGames.length) {
+      return safeEdit(interaction, "Eroare: nu am jocuri cunoscute cu Steam appId pentru player-count.");
     }
-    const fresh = await lookup.readFreshSnapshots(selected.games.map(game => String(game.appId)));
+    const fresh = await lookup.readFreshSnapshots(selectedGames.map(game => String(game.appId)));
     const snapshotItems: Array<{ game: GameConfig; players: SteamCurrentPlayersSummary }> = [];
     const missing: GameConfig[] = [];
-    for (const game of selected.games) {
+    for (const game of selectedGames) {
       const appId = String(game.appId);
       const snapshot = fresh.get(appId);
       if (snapshot) {
@@ -170,7 +169,7 @@ function createGameInfoInteractionHandler(deps: GameInfoDeps) {
     });
     const notChecked = Math.max(0, missing.length - toFetch.length);
     const playerCounts = [...snapshotItems, ...liveItems];
-    return safeEdit(interaction, { embeds: [buildTopActiveGamesEmbed(playerCounts, selected.filteredByServer, limit, notChecked)] });
+    return safeEdit(interaction, { embeds: [buildTopActiveGamesEmbed(playerCounts, limit, notChecked)] });
   }
 
   async function handleGameInfo(interaction: DiscordInteraction, games: GameConfig[] = []): Promise<object | void | null> {

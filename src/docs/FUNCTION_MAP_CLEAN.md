@@ -151,7 +151,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/features/command-handlers/gameInfoInteractionHandler.ts` (+ `gameInfoLookupService.ts`, `gameInfoEmbeds.ts`)
 
-- Gestioneaza comenzile de informatii joc: `/best deals under`, `/ending deals`, `/review-trend`, `/crossplay`, `/platforms`, `/co-op`, `/system requirements`, `/game-size`, `/player-count`, `/top active games`.
+- Gestioneaza comenzile de informatii joc: `/best deals under`, `/ending deals`, `/review-trend`, `/crossplay`, `/platforms`, `/co-op`, `/system requirements`, `/game-size`, `/player-count`, `/top active games`; topul active games este calculat global din jocurile cunoscute de bot cu Steam appId, nu din watchlist-ul serverului.
 - Handler-ul e orchestratorul (cooldown + defer + rutarea pe subcomanda + catch cu raspuns ephemeral); achizitia de date sta in `gameInfoLookupService.ts` (`createGameInfoLookupService`: `resolveCurrency` explicit -> guild -> default, `loadDeals` cu cache, `resolveSteam` cautare + best match + detalii, `readFreshSnapshots` cu prag de prospetime si fallback pe fetch live la eroare), iar formatarea sta in `gameInfoEmbeds.ts` (builder-e pure de embed + helper-e de pret/discount/cerinte de sistem, fara dependinte de Discord sau Mongo).
 - Contractul public al modulului e neschimbat (`createGameInfoInteractionHandler`, `buildCommandHandler`, builder-ele re-exportate). Acoperit de `gameInfoInteractionHandler.functional.test.ts` si `gameInfoLookupService.test.ts`.
 

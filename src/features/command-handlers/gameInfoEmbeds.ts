@@ -1,7 +1,7 @@
 "use strict";
 
 import type { CheerioAPI } from "cheerio";
-import type { DealInfo, GameConfig, GuildSettings, PriceValue, SteamReviewData } from "../../types";
+import type { DealInfo, GameConfig, PriceValue, SteamReviewData } from "../../types";
 import type { SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../../sources/sourceApis";
 
 export type SafeCheerioLoad = (html: string) => CheerioAPI;
@@ -305,7 +305,7 @@ export function buildPlayerCountEmbed(query: string, appId: string | number, det
   };
 }
 
-export function buildTopActiveGamesEmbed(items: Array<{ game: GameConfig; players: SteamCurrentPlayersSummary }>, filteredByServer: boolean, limit = RESULT_LIMIT_DEFAULT, notChecked = 0): DiscordEmbed {
+export function buildTopActiveGamesEmbed(items: Array<{ game: GameConfig; players: SteamCurrentPlayersSummary }>, limit = RESULT_LIMIT_DEFAULT, notChecked = 0): DiscordEmbed {
   const successful = items
     .filter(item => item.players.success)
     .sort((left, right) => right.players.playerCount - left.players.playerCount)
@@ -318,9 +318,9 @@ export function buildTopActiveGamesEmbed(items: Array<{ game: GameConfig; player
       description: "Steam nu a returnat date valide de player count pentru jocurile verificate."
     };
   }
-  const base = filteredByServer ? "Top calculat din jocurile urmarite de server." : "Top calculat din jocurile configurate care au Steam appId.";
+  const base = "Top calculat din toate jocurile cunoscute de bot care au Steam appId.";
   const missingNote = missing > 0 ? ` ${missing} joc(uri) nu au putut fi verificate pe Steam acum si au fost omise.` : "";
-  const subsetNote = notChecked > 0 ? ` Topul e calculat din primele ${items.length} jocuri verificate; alte ${notChecked} nu au fost verificate (restrange lista prin \`/start player-count\` pentru un top exact).` : "";
+  const subsetNote = notChecked > 0 ? ` Topul e calculat din primele ${items.length} jocuri verificate; alte ${notChecked} nu au fost verificate in acest raspuns.` : "";
   return {
     title: "Top active games",
     color: INFO_COLOR,
@@ -349,12 +349,6 @@ export function findExternalStores(deals: DealInfo[], query: string, steamName: 
   return stores.slice(0, 6);
 }
 
-export function selectTopActiveGames(games: GameConfig[], guild: GuildSettings | null): { games: GameConfig[]; filteredByServer: boolean } {
-  const playerCountKeys = Array.isArray(guild?.playerCountGames) ? guild.playerCountGames.map(String).filter(Boolean) : [];
-  const enabledKeys = Array.isArray(guild?.enabledGames) ? guild.enabledGames.map(String).filter(Boolean) : [];
-  const keyFilter = playerCountKeys.length ? new Set(playerCountKeys) : enabledKeys.length ? new Set(enabledKeys) : null;
-  const eligible = games
-    .filter(game => Boolean(game.appId))
-    .filter(game => !keyFilter || keyFilter.has(game.key));
-  return { games: eligible, filteredByServer: Boolean(keyFilter) };
+export function selectTopActiveGames(games: GameConfig[]): GameConfig[] {
+  return games.filter(game => Boolean(game.appId));
 }

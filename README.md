@@ -58,7 +58,7 @@ La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun ve
 - `/watchlist-game add`, `/watchlist-game list` si `/watchlist-game delete` - utilizatorii pot propune jocuri noi pentru bot, iar adminii pot curata lista de propuneri.
 - `/future-release add`, `/future-release list`, `/future-release delete`, `/future-release start` si `/future-release stop` - (admin) gestioneaza lista de maxim 20 jocuri care urmeaza sa apara si canalul folosit pentru notificarile future-release.
 - `/deal-score` - calculeaza un scor 1-10 pentru o oferta activa folosind reducerea, pretul, semnalele de calitate/popularitate si magazinul.
-- `/player-count game` si `/top active games` - afiseaza numarul curent de jucatori Steam pentru un joc sau topul jocurilor active dupa player-count.
+- `/player-count game` si `/top active games` - afiseaza numarul curent de jucatori Steam pentru un joc sau topul global al jocurilor cunoscute de bot cu Steam appId, fara limitare la watchlist-ul serverului.
 - `/maintenance` - (admin) afiseaza zonele operationale care trebuie verificate: surse cu erori, outbox, dead-letter, backup, canale lipsa si module de notificare oprite.
 - `/health` - (admin) starea botului (Discord, MongoDB, cache, uptime); raspuns ephemeral, restrictionat la Administrator fiindca expune stare interna a infrastructurii. Restrictia e dubla (defense-in-depth): permisiunea slash declarata in Discord **plus** guard-ul runtime din `adminCommandRouterGuard` (lista `ADMIN_COMMANDS`). Pentru metrici detaliate (surse, coada outbox, cron) vezi endpoint-ul de metrics.
 - `/sources status` - (admin) afiseaza starea ultimelor snapshot-uri de surse externe: Steam/Epic, feed-uri de update pe joc si varsta ultimei verificari persistate.
