@@ -166,6 +166,20 @@ Gardat de `registryClosedContracts.test.ts` (compunere prin `build*From` ordonat
 inghetat). Toate cele trei zone de compunere (`commandRegistry`, `sourceRegistry`, `mongoContext`) sunt acum pe
 factory-return explicit.
 
+**Izolarea compat `attachX` — EVALUAT (review arhitectura R4 #15): RESPINS, deja izolat.** Punctul cerea izolarea
+adaptoarelor de compatibilitate `attachX`. Evaluare pe cod real: productia **nu** mai compune prin `attachX(context)`
+(sourceRegistry compune prin `build*From` in 4 pasi, `mongoContext` in 11, `commandRegistry` prin factory-uri tipate +
+`CommandHandler[]`), deci `attachX(target)` nu mai are rol de compunere in runtime. Adaptoarele raman **thin-wrappers**
+(`Object.assign(target, buildXFrom(target))`) folosite direct doar de **2 scripturi** (`check-db-indexes`,
+`outboxLoadBenchmark`) si de **~13 teste** integration/functional (`acquireDbLock`, `adminAlerts`, `fetchSnapshots`,
+`guildSettingsCache`, `mongoMigrations`, `outboxMongoIndex`, `outboxMultiInstance`, `systemStatePerKey` etc.), care
+exercita un singur modul mongo in izolare fara sa porneasca tot contextul. Eliminarea lor ar forta acei ~15 consumatori
+sa booteze contextul complet sau sa duplice wiring-ul — deci adaptoarele isi platesc rolul de seam de testabilitate si
+raman justificate. Nota: `attachMetrics` (`app/health/metrics` prin `createMetrics()` + setter-ul de pe scraper/http
+runtime) este injectie DI la runtime a referintei partajate `BotMetrics`, **nu** un adaptor de compunere legacy — nu
+intra sub acest punct. Invariantul (compunere imutabila, fara mutatie de context) este deja pinuit de
+`registryClosedContracts.test.ts`; nu e nevoie de cod nou.
+
 **`createAppServices()` imutabil — IMPLEMENTAT (review manual R14 #4, Low).**
 `createCommandRegistry` muta anterior **un singur obiect `base`** prin lantul
 `Object.assign(base, attach*.createX(base))` (`withCache -> withFilters -> ...`): contextul era mutabil si
