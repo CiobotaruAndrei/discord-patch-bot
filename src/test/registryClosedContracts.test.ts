@@ -48,7 +48,10 @@ test("commandRegistry: zonele se compun in createAppServices prin spread imutabi
 });
 
 test("pregatire migrare commandRegistry: helper-ele partajate safeDefer/safeEdit/enforceCooldown accepta un contract minimal de interactiune (DeferEditInteraction), nu un DiscordInteraction bogat", () => {
-  const text = fs.readFileSync(path.join(srcRoot, "features", "command-presentation", "commandPresentation.ts"), "utf8");
+  const text = [
+    fs.readFileSync(path.join(srcRoot, "features", "command-presentation", "presentationContracts.ts"), "utf8"),
+    fs.readFileSync(path.join(srcRoot, "features", "command-presentation", "interactionReplyHelpers.ts"), "utf8")
+  ].join("\n");
   assert.match(text, /interface DeferEditInteraction/, "presentation defineste contractul minimal DeferEditInteraction pentru helper-ele expuse handler-elor");
   assert.match(text, /deferReply\?\(payload\?: unknown\): Promise<unknown>/, "DeferEditInteraction declara deferReply optional (orice DI de handler mai sarac e assignable)");
   for (const helper of ["safeDefer", "safeEdit", "enforceCooldown"]) {
@@ -63,7 +66,7 @@ test("pregatire migrare commandRegistry: handle-ul fallback tipeaza games ca Gam
 });
 
 test("pregatire migrare commandRegistry: safeDefer e tipat canonic (interaction, ephemeral?) => Promise<void> peste handlere si accepta contractul minimal in helper-ul comun", () => {
-  const realImpl = fs.readFileSync(path.join(srcRoot, "features", "command-presentation", "commandPresentation.ts"), "utf8");
+  const realImpl = fs.readFileSync(path.join(srcRoot, "features", "command-presentation", "interactionReplyHelpers.ts"), "utf8");
   assert.match(realImpl, /async function safeDefer\(interaction: DeferEditInteraction, ephemeral = false\): Promise<void>/, "implementarea reala safeDefer accepta contractul minimal si pastreaza (interaction, ephemeral) => Promise<void>");
   for (const file of ["gameFilterHandlers.ts", "outboxAdminHandler.ts", "rolePingHandlers.ts", "setInteractionHandler.ts", "subscriptionNotificationHandlers.ts"]) {
     const text = fs.readFileSync(path.join(srcRoot, "features", "command-handlers", file), "utf8");
