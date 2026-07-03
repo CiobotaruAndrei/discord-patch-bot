@@ -71,7 +71,10 @@ src/
       helpInteractionHandler.ts
       latestInteractionHandler.ts
       maintenanceInteractionHandler.ts
+      outboxAdminContracts.ts
       outboxAdminHandler.ts
+      outboxAdminOperations.ts
+      outboxAdminViews.ts
       reportInteractionHandler.ts
       rolePingHandlers.ts
       setInteractionHandler.ts
