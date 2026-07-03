@@ -87,6 +87,8 @@ src/
       subscriptionNotificationHandlers.ts
       watchlistGameSuggestionHandler.ts
       youtubeInteractionHandler.ts
+    command-catalog/
+      commandCatalog.ts
     command-presentation/
       commandPresentation.ts
       presentationContracts.ts
