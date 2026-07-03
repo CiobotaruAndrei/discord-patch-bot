@@ -124,6 +124,9 @@ src/
     mongo/
   native/
     fuzzy.ts
+    fuzzyNativeBridge.ts
+    fuzzyFallbacks.ts
+    fuzzyFallbackMetrics.ts
     src/lib.rs
     core/src/lib.rs
   shared/
