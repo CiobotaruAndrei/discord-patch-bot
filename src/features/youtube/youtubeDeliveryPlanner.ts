@@ -10,7 +10,7 @@ export interface PreparedVideo {
   metadata: YouTubeVideoMetadata;
 }
 
-export function buildYouTubeEmbed(item: PreparedVideo): object {
+export function buildYouTubeEmbed(item: PreparedVideo): Record<string, unknown> {
   const duration = item.metadata.durationSeconds === null
     ? "necunoscuta"
     : `${Math.floor(item.metadata.durationSeconds / 60)}m ${item.metadata.durationSeconds % 60}s`;
