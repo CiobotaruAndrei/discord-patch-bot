@@ -18,6 +18,8 @@
     "check:weakening": "npm run build:ts && node dist/scripts/check-no-weakening-types.js",
     "check:rules-sync": "npm run build:ts && node dist/scripts/check-rules-sync.js",
     "check:db-indexes": "npm run build:ts && node dist/scripts/check-db-indexes.js",
+    "check:docs-commands": "npm run build:ts && node dist/scripts/generate-command-reference.js --check",
+    "docs:commands": "npm run build:ts && node dist/scripts/generate-command-reference.js",
     "benchmark": "npm run build:ts && node dist/scripts/notificationBenchmark.js",
     "benchmark:outbox": "npm run build:ts && node dist/scripts/outboxLoadBenchmark.js",
     "benchmark:cpu": "npm run build && node dist/scripts/cpuBenchmark.js",
@@ -33,7 +35,7 @@
     "test:regression": "npm run build && node --test dist/test/commands-regression.test.js dist/test/configValidator.test.js",
     "audit": "npm audit --omit=dev --audit-level=moderate",
     "precommit": "npm run check:full && npm run audit",
-    "check": "npm run typecheck && npm run build && node dist/scripts/check-syntax.js && node dist/scripts/check-no-comments.js && node dist/scripts/check-no-weakening-types.js && node dist/scripts/check-config.js && node dist/scripts/check-dependencies.js && node dist/scripts/check-rules-sync.js && node dist/scripts/check-db-indexes.js && node --test --test-reporter=spec dist/test/*.test.js",
+    "check": "npm run typecheck && npm run build && node dist/scripts/check-syntax.js && node dist/scripts/check-no-comments.js && node dist/scripts/check-no-weakening-types.js && node dist/scripts/check-config.js && node dist/scripts/check-dependencies.js && node dist/scripts/check-rules-sync.js && node dist/scripts/check-db-indexes.js && node dist/scripts/generate-command-reference.js --check && node --test --test-reporter=spec dist/test/*.test.js",
     "check:native": "cargo clippy --manifest-path native/Cargo.toml --workspace --all-targets -- -D warnings && cargo test --manifest-path native/Cargo.toml -p discord_patch_bot_logic --quiet",
     "check:full": "npm run check && npm run check:native && npm run test:e2e"
   },

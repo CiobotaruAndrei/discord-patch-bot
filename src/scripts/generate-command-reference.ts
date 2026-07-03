@@ -1,0 +1,57 @@
+"use strict";
+
+import { renderCommandReferenceDoc, COMMAND_REFERENCE_DOC_RELATIVE_PATH } from "../features/command-catalog/commandReferenceDoc";
+
+export interface CommandReferenceEvaluation {
+  inSync: boolean;
+  missing: boolean;
+}
+
+function normalizeNewlines(value: string): string {
+  return value.replace(/\r\n/g, "\n");
+}
+
+export function evaluateCommandReferenceDoc(existing: string | null, rendered: string): CommandReferenceEvaluation {
+  if (existing === null) return { inSync: false, missing: true };
+  return { inSync: normalizeNewlines(existing) === normalizeNewlines(rendered), missing: false };
+}
+
+function main(): void {
+  const fs = require("fs") as typeof import("fs");
+  const path = require("path") as typeof import("path");
+  const repoRoot = path.resolve(process.cwd(), "..");
+  const target = path.join(repoRoot, COMMAND_REFERENCE_DOC_RELATIVE_PATH);
+  const rendered = renderCommandReferenceDoc();
+  const checkMode = process.argv.includes("--check");
+  const existing = fs.existsSync(target) ? fs.readFileSync(target, "utf8") : null;
+  const evaluation = evaluateCommandReferenceDoc(existing, rendered);
+
+  if (checkMode) {
+    if (evaluation.missing) {
+      console.error(`::error::[check-docs-commands] ${COMMAND_REFERENCE_DOC_RELATIVE_PATH} lipseste. Ruleaza 'npm run docs:commands'.`);
+      process.exit(1);
+    }
+    if (!evaluation.inSync) {
+      console.error(
+        `::error::[check-docs-commands] ${COMMAND_REFERENCE_DOC_RELATIVE_PATH} a divergat de catalogul de comenzi. ` +
+        "Ruleaza 'npm run docs:commands' si comite fisierul regenerat."
+      );
+      process.exit(1);
+    }
+    console.log(`check-docs-commands OK: ${COMMAND_REFERENCE_DOC_RELATIVE_PATH} este sincronizat cu COMMAND_CATALOG_HELP.`);
+    return;
+  }
+
+  if (evaluation.inSync) {
+    console.log(`${COMMAND_REFERENCE_DOC_RELATIVE_PATH} deja sincronizat, nimic de scris.`);
+    return;
+  }
+  fs.writeFileSync(target, rendered);
+  console.log(`${COMMAND_REFERENCE_DOC_RELATIVE_PATH} regenerat din COMMAND_CATALOG_HELP.`);
+}
+
+if (require.main === module) {
+  main();
+}
+
+export {};
