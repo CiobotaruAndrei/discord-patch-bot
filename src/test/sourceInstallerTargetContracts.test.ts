@@ -11,7 +11,7 @@ function readSource(relativePath: string): string {
 
 test("deals si updates isi limiteaza target-ul installer-ului la deps plus api partial", () => {
   const deals = readSource("sources/deals/index.ts");
-  const updates = readSource("sources/updates/index.ts");
+  const updates = readSource("sources/updates/updatesContracts.ts");
 
   assert.ok(!deals.includes("DealsDeps & Record<string, unknown>"));
   assert.match(deals, /type DealsContext = DealsDeps & Partial<DealsApi>/);
