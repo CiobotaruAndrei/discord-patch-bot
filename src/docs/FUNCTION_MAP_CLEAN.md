@@ -436,10 +436,10 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ## Native Rust/N-API
 
-### `src/native/core/src/lib.rs`
+### `src/native/core/src/` (crate-ul pur `discord_patch_bot_logic`, module pe responsabilitate)
 
-- Crate-ul pur `discord_patch_bot_logic` (rlib, fara napi): fuzzy matching, Levenshtein, normalizare text, hash-uri, autocomplete scoring, scoring listing-uri si filtrare deal-uri.
-- Toate testele unitare Rust traiesc aici si ruleaza fara build-ul N-API (`cargo test -p discord_patch_bot_logic`).
+- `lib.rs` e doar declaratiile de module + `pub use` (contractul public al crate-ului, neschimbat fata de consumatorul N-API) + testele unitare (`cargo test -p discord_patch_bot_logic`, fara build N-API).
+- Modulele: `types.rs` (structurile de date partajate `GameCandidateData`/`FuzzyMatch`/`AutocompleteChoiceData`/`ListingCandidateData`), `text.rs` (helper-ele pure de text: `levenshtein`, `normalize_title_for_dedupe`, `clean_text`, `normalize_command_text`, `truncate_chars`), `hashing.rs` (`stable_update_id`, `normalize_deal_state`, `deal_hash` + `sha256_hex`/`hex_encode`), `deals.rs` (`deal_passes_filters`), `updates.rs` (`is_good_steam_article_url`, `extract_date_score` + aritmetica de data, `classify_patch_note` + listele de cuvinte), `autocomplete.rs` (`build_autocomplete_choices` + scoring), `listing_rank.rs` (`score_listing_candidate`, `rank_listing_candidates`), `fuzzy.rs` (`find_game_keys` + `game_identifiers`).
 - Nu trebuie sa depinda de Discord, Mongo, HTTP, env sau filesystem.
 
 ### `src/native/src/lib.rs`
