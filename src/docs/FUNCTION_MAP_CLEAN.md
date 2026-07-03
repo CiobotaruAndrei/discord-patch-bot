@@ -139,10 +139,12 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Gestioneaza `/help` si paginarea help-ului.
 
-### `src/features/command-handlers/subscriptionNotificationHandlers.ts`
+### `src/features/command-handlers/subscriptionNotificationHandlers.ts` (+ `startStopCommandFactory.ts`, familii per modul, `subscriptionCommandContracts.ts`)
 
-- Gestioneaza `/start` si `/stop` pentru update-uri, reduceri si canalul DLC.
-- Actualizeaza configuratia guild-ului si canalele de notificare.
+- Gestioneaza `/start` si `/stop` pentru update-uri, reduceri, canalul DLC si player-count; orchestratorul ramane cu export public identic (installer + `createSubscriptionInteractionHandlers` + `buildCommandHandler`).
+- `startStopCommandFactory.ts` (`createStartStopHandlers`) tine framework-ul comun: defer, verificarea permisiunilor de canal la start, rutarea pe subcomanda catre familia potrivita, mesajul de subcomanda necunoscuta, `try/catch`-ul de baza de date la stop.
+- Fiecare familie e un modul cu `start`/`stop` dedicat: `updatesSubscriptionFamily.ts` (activare cu baseline seed + activation-id guard + rollback la esec), `discountsSubscriptionFamily.ts` (la fel, cu valuta + cache-ul de deals), `dlcSubscriptionFamily.ts` (configurarea canalului DLC), `playerCountSubscriptionFamily.ts` (adaugare/scoatere joc din lista de player-count, cu `findConfiguredGame`/`normalizeGameKey`).
+- `subscriptionCommandContracts.ts` tine tipurile partajate (`SubscriptionInteraction`, `SubscriptionInteractionDeps`, `SubscriptionFamily`, `SubscriptionContext`), inclusiv `safeDefer` tipat canonic. Gardat de `startStopCommandFactory.test.ts` (rutarea pe subcomanda, subcomanda necunoscuta, refuz la lipsa permisiunilor, `try/catch`-ul de stop) si de testele functionale existente de subscriptie (neatinse).
 
 ### `src/features/command-handlers/gameFilterHandlers.ts`
 

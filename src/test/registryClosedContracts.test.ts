@@ -68,10 +68,17 @@ test("pregatire migrare commandRegistry: handle-ul fallback tipeaza games ca Gam
 test("pregatire migrare commandRegistry: safeDefer e tipat canonic (interaction, ephemeral?) => Promise<void> peste handlere si accepta contractul minimal in helper-ul comun", () => {
   const realImpl = fs.readFileSync(path.join(srcRoot, "features", "command-presentation", "interactionReplyHelpers.ts"), "utf8");
   assert.match(realImpl, /async function safeDefer\(interaction: DeferEditInteraction, ephemeral = false\): Promise<void>/, "implementarea reala safeDefer accepta contractul minimal si pastreaza (interaction, ephemeral) => Promise<void>");
-  for (const file of ["gameFilterHandlers.ts", "outboxAdminHandler.ts", "rolePingHandlers.ts", "setInteractionHandler.ts", "subscriptionNotificationHandlers.ts"]) {
+  const canonicalSafeDeferFiles: Array<{ file: string; interactionType: string }> = [
+    { file: "gameFilterHandlers.ts", interactionType: "DiscordInteraction" },
+    { file: "outboxAdminHandler.ts", interactionType: "DiscordInteraction" },
+    { file: "rolePingHandlers.ts", interactionType: "DiscordInteraction" },
+    { file: "setInteractionHandler.ts", interactionType: "DiscordInteraction" },
+    { file: "subscriptionCommandContracts.ts", interactionType: "SubscriptionInteraction" }
+  ];
+  for (const { file, interactionType } of canonicalSafeDeferFiles) {
     const text = fs.readFileSync(path.join(srcRoot, "features", "command-handlers", file), "utf8");
-    assert.ok(!/safeDefer: \(interaction: DiscordInteraction\) => Promise<unknown>/.test(text), `${file}: safeDefer nu mai e declarat loose (interaction) => Promise<unknown>`);
-    assert.match(text, /safeDefer: \(interaction: DiscordInteraction, ephemeral\?: boolean\) => Promise<void>/, `${file}: safeDefer e tipat canonic, ca implementarea reala`);
+    assert.ok(!new RegExp(`safeDefer: \\(interaction: ${interactionType}\\) => Promise<unknown>`).test(text), `${file}: safeDefer nu mai e declarat loose (interaction) => Promise<unknown>`);
+    assert.match(text, new RegExp(`safeDefer: \\(interaction: ${interactionType}, ephemeral\\?: boolean\\) => Promise<void>`), `${file}: safeDefer e tipat canonic, ca implementarea reala`);
   }
 });
 
