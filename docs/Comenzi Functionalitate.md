@@ -2,6 +2,8 @@
 
 Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in comportamentul curent al repo-ului.
 
+> Pentru o lista completa, mereu sincronizata cu codul, vezi [Referinta Comenzi](./Referinta%20Comenzi.md) — un tabel generat automat din `COMMAND_CATALOG_HELP` (aceeasi sursa unica folosita de `/help`), regenerat cu `npm run docs:commands` si verificat anti-drift de `npm run check:docs-commands`. Sectiunile de mai jos raman explicatia narativa, grupata pe functionalitate.
+
 ## Legenda
 
 - `Admin`: comanda cere permisiunea Discord `Administrator`.
