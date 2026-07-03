@@ -1,0 +1,35 @@
+export interface BotMetrics {
+  fetchSuccess: number;
+  fetchFail: number;
+  httpRetries: number;
+  rateLimitHits: number;
+  cronRuns: number;
+  cronErrors: number;
+  cronSkippedDueToLock: number;
+  cronSkippedDueToHealth: number;
+  cronAborted: number;
+  httpRateLimitDrops: number;
+  httpHandlerErrors: number;
+  outboxSent: number;
+  outboxRetried: number;
+  outboxDeadLettered: number;
+  outboxExpired: number;
+  outboxDrains: number;
+  outboxQueueDepth: number;
+  outboxDeliveryMsTotal: number;
+  outboxOldestJobAgeSeconds: number;
+  outboxFutureScheduledJobs: number;
+  outboxLockAcquireFailures: number;
+  outboxPauseCheckFailures: number;
+  outboxRecoveryDuplicates: number;
+  outboxRecoveryFetches: number;
+  outboxRecoveryFailures: number;
+  outboxRecoveryMarkerMissing: number;
+  outboxMarkSentFailures: number;
+  outboxDeleteFailures: number;
+  outboxDeadLetterWriteFailures: number;
+  outboxHistoryWriteFailures: number;
+  outboxRecoveryVerifyEnabledGuilds: number;
+  outboxLastDrainAt: number;
+  startedAt: number;
+}
