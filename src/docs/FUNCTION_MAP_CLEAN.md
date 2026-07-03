@@ -171,6 +171,12 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Accepta implicit permisiunea Discord `Administrator`; rolurile sunt acceptate doar daca ownerul serverului seteaza explicit o regula dedicata in `adminCommandAccessByCommand` sau fallback-ul global `adminCommandAccess` prin `/set admin-command-access`; codul global de acces este fallback-ul runtime cerut prin modal ephemeral cand utilizatorul nu trece verificarile configurate. Scope-urile `start`/`stop` sunt normalizate pe acelasi modul, astfel incat o regula pentru `/start player-count` se aplica si la `/stop player-count`.
 - Refuzul vizibil este `Access denied.`.
 
+### `src/features/command-catalog/commandCatalog.ts`
+
+- Sursa unica pentru faptele per comanda: manifestul de acces (`COMMAND_ACCESS_MANIFEST`: tier public/admin, `discordAdminPermissions`, exceptii de subcomenzi publice/admin-runtime, owner-only, cai sensibile) + intrarile de help per cale (`COMMAND_CATALOG_HELP`: descriere, exemplu, note, aliases, flag `ephemeral` doar pentru caile publice ephemeral).
+- Etichetele de permisiuni din help NU mai sunt scrise de mana: `permissionsLabelFor(path, ephemeral?)` le deriveaza din regulile de acces (Public / Public, Ephemeral / Admin, Ephemeral / Admin runtime, Ephemeral / owner-only), deci un fapt de acces e definit O SINGURA DATA si eticheta nu poate drifta.
+- `commandAccessManifest.ts` (command-security) si `commandHelpCatalog.ts` (command-help) sunt derivari subtiri din catalog, cu API-ul lor public neschimbat; toate testele de sincronizare existente (manifest ⇔ slash defs ⇔ help ⇔ docs) raman active peste datele derivate. Gardat de `commandCatalog.test.ts` (derivarile de eticheta, formele cunoscute, flag-ul ephemeral doar pe cai publice, acoperirea bidirectionala manifest ⇔ help).
+
 ### `src/features/command-security/adminCommandRouterGuard.ts`
 
 - Intercepteaza top-level comenzile admin inainte de dispatcher si le blocheaza in DM.
