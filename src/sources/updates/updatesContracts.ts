@@ -1,0 +1,54 @@
+import type { Model } from "mongoose";
+import type { CheerioAPI } from "cheerio";
+import type {
+  BotMetrics,
+  FetchResult,
+  GameConfig,
+  HttpRequestOptions,
+  LoggerFunction,
+  NormalizedUpdate,
+  PatchUpdate
+} from "../../types";
+import type { UpdatesApi } from "../sourceApis";
+import type { HttpReq, RssParserLike, RunConcurrent, SchemaDriftErrorClass, TrackInflight, WithInflightTimeout } from "./updateHelpers";
+
+export interface CircuitBreakerDoc {
+  _id: string;
+  fails: number;
+  cooldownUntil?: Date | string | null;
+  alertSent?: boolean;
+  schemaDriftFails: number;
+  schemaDriftAlertSent?: boolean;
+}
+
+export interface UpdatesDeps {
+  rssParser: RssParserLike;
+  CircuitBreakerModel: Model<CircuitBreakerDoc>;
+  logger: LoggerFunction;
+  adminAlert: (kind: string, title: string, body: string) => Promise<void>;
+  runConcurrent: RunConcurrent;
+  SchemaDriftError: SchemaDriftErrorClass;
+  FETCH_CONCURRENCY: number;
+  FETCH_CONCURRENCY_STEAM: number;
+  FETCH_CONCURRENCY_EPIC: number;
+  FETCH_CONCURRENCY_LISTING: number;
+  FETCH_CONCURRENCY_DRIVER: number;
+  CIRCUIT_BREAKER_FAIL_THRESHOLD: number;
+  CIRCUIT_BREAKER_COOLDOWN_MS: number;
+  CIRCUIT_BREAKER_JITTER_MS: number;
+  SCHEMA_DRIFT_THRESHOLD: number;
+  httpReq: HttpReq;
+  conditionalGet: <T>(url: string, parse: (data: unknown) => T | Promise<T>, options?: HttpRequestOptions) => Promise<T>;
+  fetchWithProxy: (targetUrl: string, options?: HttpRequestOptions) => Promise<string>;
+  withInflightTimeout: WithInflightTimeout;
+  trackInflight: TrackInflight;
+  cleanText: (text: unknown) => string;
+  stableUpdateId: (title: unknown, link: unknown) => string;
+  normalizeUpdate: (data: PatchUpdate) => NormalizedUpdate;
+  safeCheerioLoad: (html: unknown) => CheerioAPI;
+  crypto: typeof import("crypto");
+  metricsRef: Pick<BotMetrics, "fetchSuccess" | "fetchFail">;
+  executeFetchWithCircuitBreaker?: (game: GameConfig) => Promise<FetchResult>;
+}
+
+export type UpdatesContext = UpdatesDeps & Partial<UpdatesApi>;

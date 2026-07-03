@@ -1,0 +1,124 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import * as crypto from "crypto";
+import { load as cheerioLoad } from "cheerio";
+import type { GameConfig, NormalizedUpdate } from "../types";
+import { createUpdatesCircuitBreaker } from "../sources/updates/updatesCircuitBreaker";
+import { createUpdatesSourceDispatch } from "../sources/updates/updatesSourceDispatch";
+import type { CircuitBreakerDoc, UpdatesDeps } from "../sources/updates/updatesContracts";
+
+class TestSchemaDriftError extends Error {
+  source?: string;
+  constructor(message: string, source?: string) {
+    super(message);
+    this.source = source;
+  }
+}
+
+function makeUpdate(id: string): NormalizedUpdate {
+  return { id, title: "", link: "", excerpt: "", fullText: "", image: null, thumbnail: null, timestamp: "" };
+}
+
+function makeCbModel(initial: Partial<CircuitBreakerDoc> = {}) {
+  const doc: CircuitBreakerDoc = { _id: "g", fails: 0, cooldownUntil: null, alertSent: false, schemaDriftFails: 0, schemaDriftAlertSent: false, ...initial };
+  const updates: Array<Record<string, unknown>> = [];
+  const model = Object.assign({} as UpdatesDeps["CircuitBreakerModel"], {
+    findOneAndUpdate: async (_filter: unknown, update: { $inc?: Record<string, number> }) => {
+      if (update.$inc?.fails) doc.fails += update.$inc.fails;
+      if (update.$inc?.schemaDriftFails) doc.schemaDriftFails += update.$inc.schemaDriftFails;
+      return { ...doc };
+    },
+    updateOne: async (_filter: unknown, update: { $set?: Record<string, unknown> }) => {
+      if (update.$set) { Object.assign(doc, update.$set); updates.push(update.$set); }
+      return { matchedCount: 1 };
+    }
+  });
+  return { model, doc, updates };
+}
+
+function makeDeps(cbModel: UpdatesDeps["CircuitBreakerModel"], overrides: Partial<UpdatesDeps> = {}): UpdatesDeps & { alerts: Array<{ kind: string }> } {
+  const alerts: Array<{ kind: string }> = [];
+  return {
+    alerts,
+    rssParser: { parseString: async () => ({ items: [] }) },
+    CircuitBreakerModel: cbModel,
+    logger: () => undefined,
+    adminAlert: async (kind: string) => { alerts.push({ kind }); },
+    runConcurrent: async () => ({ processed: 0, errors: [] }),
+    SchemaDriftError: TestSchemaDriftError,
+    FETCH_CONCURRENCY: 10, FETCH_CONCURRENCY_STEAM: 4, FETCH_CONCURRENCY_EPIC: 2,
+    FETCH_CONCURRENCY_LISTING: 8, FETCH_CONCURRENCY_DRIVER: 2,
+    CIRCUIT_BREAKER_FAIL_THRESHOLD: 3, CIRCUIT_BREAKER_COOLDOWN_MS: 60_000, CIRCUIT_BREAKER_JITTER_MS: 0,
+    SCHEMA_DRIFT_THRESHOLD: 2,
+    httpReq: async () => ({ data: {} }),
+    conditionalGet: async (_url, parse) => parse({}),
+    fetchWithProxy: async () => "",
+    withInflightTimeout: promise => promise,
+    trackInflight: () => {},
+    cleanText: text => String(text == null ? "" : text),
+    stableUpdateId: (title, link) => `${String(title)}:${String(link)}`,
+    normalizeUpdate: () => makeUpdate("u"),
+    safeCheerioLoad: html => cheerioLoad(typeof html === "string" ? html : ""),
+    crypto,
+    metricsRef: { fetchSuccess: 0, fetchFail: 0 },
+    ...overrides
+  } as UpdatesDeps & { alerts: Array<{ kind: string }> };
+}
+
+const game: GameConfig = { key: "g", name: "Jocul" };
+
+test("executeFetchWithCircuitBreaker: succes incrementeaza fetchSuccess si intoarce update-ul", async () => {
+  const { model } = makeCbModel();
+  const deps = makeDeps(model);
+  const { executeFetchWithCircuitBreaker } = createUpdatesCircuitBreaker(deps, async () => makeUpdate("ok"));
+  const result = await executeFetchWithCircuitBreaker(game);
+  assert.equal(result.error, null);
+  assert.equal(result.latest?.id, "ok");
+  assert.equal(deps.metricsRef.fetchSuccess, 1);
+});
+
+test("executeFetchWithCircuitBreaker: cooldown activ raspunde imediat cu 'Circuit Breaker Activ' fara fetch", async () => {
+  const { model } = makeCbModel({ cooldownUntil: new Date(Date.now() + 60_000) });
+  const deps = makeDeps(model);
+  let fetched = false;
+  const { executeFetchWithCircuitBreaker } = createUpdatesCircuitBreaker(deps, async () => { fetched = true; return makeUpdate("x"); });
+  const result = await executeFetchWithCircuitBreaker(game);
+  assert.equal(result.error, "Circuit Breaker Activ");
+  assert.equal(fetched, false);
+});
+
+test("executeFetchWithCircuitBreaker: la pragul de esecuri seteaza cooldown si trimite alerta cb", async () => {
+  const { model, updates } = makeCbModel({ fails: 2 });
+  const deps = makeDeps(model);
+  const { executeFetchWithCircuitBreaker } = createUpdatesCircuitBreaker(deps, async () => { throw new Error("sursa moarta"); });
+  const result = await executeFetchWithCircuitBreaker(game);
+  assert.match(String(result.error), /sursa moarta/);
+  assert.equal(deps.metricsRef.fetchFail, 1);
+  assert.ok(updates.some(u => "cooldownUntil" in u), "cooldown-ul a fost setat la prag");
+  assert.ok(deps.alerts.some(a => a.kind === "cb:g"), "alerta de circuit breaker trimisa");
+});
+
+test("executeFetchWithCircuitBreaker: SchemaDriftError la prag trimite alerta drift, nu cb", async () => {
+  const { model } = makeCbModel({ schemaDriftFails: 1 });
+  const deps = makeDeps(model);
+  const { executeFetchWithCircuitBreaker } = createUpdatesCircuitBreaker(deps, async () => { throw new TestSchemaDriftError("0 rezultate", "steam"); });
+  const result = await executeFetchWithCircuitBreaker(game);
+  assert.equal(result.error, "0 rezultate");
+  assert.ok(deps.alerts.some(a => a.kind === "drift:g"), "alerta de schema drift trimisa");
+  assert.ok(!deps.alerts.some(a => a.kind === "cb:g"), "nu s-a trimis alerta de circuit breaker pe drift");
+});
+
+test("createUpdatesSourceDispatch: fetchGameUpdate incearca fallback-urile si adauga esecurile lor la eroarea principala", async () => {
+  const { model } = makeCbModel();
+  const deps = makeDeps(model);
+  deps.rssParser.parseString = async () => { throw new Error("rss down"); };
+  const dispatch = createUpdatesSourceDispatch(deps);
+  const withFallback: GameConfig = {
+    key: "g", name: "Jocul", type: "rss",
+    fallbacks: [{ type: "rss", url: "https://example.com/feed" }]
+  };
+  await assert.rejects(
+    () => dispatch.fetchGameUpdate(withFallback),
+    (err: Error) => /rss down/.test(err.message) && /fallback-uri esuate/.test(err.message)
+  );
+});
