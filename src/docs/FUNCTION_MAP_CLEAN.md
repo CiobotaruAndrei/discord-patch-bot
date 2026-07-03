@@ -177,12 +177,14 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Etichetele de permisiuni din help NU mai sunt scrise de mana: `permissionsLabelFor(path, ephemeral?)` le deriveaza din regulile de acces (Public / Public, Ephemeral / Admin, Ephemeral / Admin runtime, Ephemeral / owner-only), deci un fapt de acces e definit O SINGURA DATA si eticheta nu poate drifta.
 - `commandAccessManifest.ts` (command-security) si `commandHelpCatalog.ts` (command-help) sunt derivari subtiri din catalog, cu API-ul lor public neschimbat; toate testele de sincronizare existente (manifest ⇔ slash defs ⇔ help ⇔ docs) raman active peste datele derivate. Gardat de `commandCatalog.test.ts` (derivarile de eticheta, formele cunoscute, flag-ul ephemeral doar pe cai publice, acoperirea bidirectionala manifest ⇔ help).
 
-### `src/features/command-security/adminCommandRouterGuard.ts`
+### `src/features/command-security/adminCommandRouterGuard.ts` (+ `adminAccessResolver.ts`, `globalAccessCodeModal.ts`, `adminAuditRecorder.ts`, `adminGuardContracts.ts`)
 
-- Intercepteaza top-level comenzile admin inainte de dispatcher si le blocheaza in DM.
-- Gestioneaza fallback-ul prin cod global de acces configurat in `BOT_GLOBAL_ACCESS_CODE_HASH` sau, doar local/secret manager, `BOT_GLOBAL_ACCESS_CODE`.
-- Scrie rezultatul in `botAuditLog` ca `Access granted.`, `Access denied.` sau `Error.`.
-- Pentru comenzi sensibile, daca `BOT_SENSITIVE_USER_IDS` este setat, cere si user ID autorizat.
+- `adminCommandRouterGuard.ts` e middleware-ul: intercepteaza top-level comenzile admin inainte de dispatcher, le blocheaza in DM, autorizeaza (owner-only -> Discord admin -> rol configurat pe scope -> modal cu cod global) si scrie auditul in jurul handler-ului urmator; exportul public (installer + toate staticele) e neschimbat.
+- `adminAccessResolver.ts` tine clasificarea cailor si citirile: subcomanda/grupul/numele de audit, `isAdminProtectedCommand`/`isSensitiveAdminCommand`/`isOwnerOnlyAdminAccessCommand` (peste manifest), `resolveOwnerId`/`isGuildOwner`, allowlist-ul `BOT_SENSITIVE_USER_IDS`, guard-ul de conexiune Mongo (`canUseGuildModel`) si incarcarea configului de acces pe scope. Acoperit de `adminAccessResolver.test.ts`.
+- `globalAccessCodeModal.ts` tine modalul de cod global + lockout-ul: fereastra de esecuri, blocarea la 5 esecuri/10 min pentru 15 min, alerta `security:access-code`, verificarea prin `globalAccessCode` si re-legarea interactiunii pe modal submit.
+- `adminAuditRecorder.ts` scrie `botAuditLog` (`Access granted.` / `Access denied.` / `Command error.` / `Error.`) prin `recordBotAuditEntry`, best-effort.
+- `adminGuardContracts.ts` tine tipurile partajate (interactiunea minimala de guard, modelul de acces, contextul, contractul `adminPermissionGuard`).
+- Gestioneaza fallback-ul prin cod global de acces configurat in `BOT_GLOBAL_ACCESS_CODE_HASH` sau, doar local/secret manager, `BOT_GLOBAL_ACCESS_CODE`; pentru comenzi sensibile, daca `BOT_SENSITIVE_USER_IDS` este setat, cere si user ID autorizat.
 
 ### `src/features/command-security/runtimeAdminAudit.ts`
 
