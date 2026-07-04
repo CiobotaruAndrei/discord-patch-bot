@@ -178,3 +178,19 @@ Regula practica derivata din masuratorile de mai sus (si aliniata cu regulile 6 
 - **Orice mutare noua in Rust cere**: benchmark inainte/dupa in acest fisier, prag de
   regresie in `benchmarkGuard` (gardul pica daca avantajul Rust dispare) si fallback TS
   echivalent testat pentru paritate.
+
+**Confirmare review "Backlog Refactor" #10 (2026-07-04).** Recomandarea review-ului — "nu muta
+HTTP/Mongo/Discord in Rust; investigheaza doar hot-path-uri CPU-bound cu benchmark:
+dedupe/ranking oferte, normalizare string, scoring fuzzy suplimentar, eventual packing de
+loturi mari" — coincide cu politica de mai sus, iar candidatii numiti sunt deja masurati si
+decisi cu date in sectiunea 1: dedupe-ul de oferte (`dealHash`) si ranking-ul
+(`rankListingCandidates`) ruleaza in crate-ul Rust (cu praguri in `benchmarkGuard`),
+normalizarea de string (`normalize_title_for_dedupe`/`clean_text`) si fuzzy matching-ul
+(`find_game_keys`/`levenshtein`) la fel, iar scoring-ul suplimentar de autocomplete
+(`buildAutocompleteChoices`) a iesit ~0.09x in Rust si a ramas intentionat TS-primary.
+Singurul candidat numit si nemasurat — "packing de loturi mari" (gruparea embed-urilor in
+mesaje batch si a joburilor de outbox) — nu e un hot-path CPU: gruparea e slicing liniar pe
+liste mici (max 10 embed-uri/mesaj), iar costul real e I/O-ul Discord (sectiunea 2, ~98.7%
+Discord-bound), deci ramane TypeScript; devine candidat de benchmark doar daca profilarea
+arata altceva la volume mult mai mari. Concluzie: niciun port nou in Rust fara un benchmark
+care arata castig real — exact regula existenta, confirmata.
