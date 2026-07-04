@@ -3,6 +3,7 @@
 import type { CommandGame, CommandHandler } from "../command-registry/commandHandler";
 
 import { handledCommandError } from "../command-security/commandOutcome";
+import { buildServerAuditPush } from "../admin-records/auditLogRepository";
 import {
   buildAdminCommandAccessScopeLookupKeys,
   displayAdminCommandAccessScope,
@@ -199,9 +200,17 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
             $unset: Object.fromEntries(legacyKeys.map(key => [`adminCommandAccessByCommand.${key}`, ""]))
           }
         : { $set: { [`adminCommandAccessByCommand.${scope}`]: access } };
+    const updateWithAudit = {
+      ...update,
+      $push: buildServerAuditPush(guildId, {
+        userId: interaction.user?.id || "",
+        action: "admin_access_set",
+        details: `${displayAdminCommandAccessScope(scope)}: ${labelMode(mode)} <@&${role.id}>`
+      })
+    };
     await GuildModel.updateOne(
       { _id: guildId },
-      update,
+      updateWithAudit,
       { upsert: true }
     );
     invalidateGuildCache(guildId);
@@ -229,7 +238,15 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
             buildAdminCommandAccessScopeLookupKeys(scope).map(key => [`adminCommandAccessByCommand.${key}`, ""])
           )
         };
-    await GuildModel.updateOne({ _id: guildId }, update, { upsert: true });
+    const updateWithAudit = {
+      ...update,
+      $push: buildServerAuditPush(guildId, {
+        userId: interaction.user?.id || "",
+        action: "admin_access_delete",
+        details: displayAdminCommandAccessScope(scope)
+      })
+    };
+    await GuildModel.updateOne({ _id: guildId }, updateWithAudit, { upsert: true });
     invalidateGuildCache(guildId);
     return safeEdit(interaction, `OK: regula de rol pentru ${displayAdminCommandAccessScope(scope)} a fost stearsa. Ramane accesul implicit: Administrator sau cod global de acces.`);
   }

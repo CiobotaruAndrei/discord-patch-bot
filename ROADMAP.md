@@ -364,11 +364,12 @@ strategia repo-ului e claim/rollback explicit + scrieri combinate pe acelasi doc
   `deleteConfigBackupWithAudit`: filtru pe existenta backup-ului + `$pull` + `$push`, deci
   auditul nu se scrie pentru un delete inexistent, iar `matchedCount` da raspunsul "Nu exista").
   Ambele-sau-niciuna: a disparut calea degradata "restaurat dar fara audit".
-- **Config reset + curatarea replay payloads** — RAMANE compensare explicita: reset-ul e o
-  singura scriere `$set` pe documentul guild, dar payload-urile de replay sunt alta colectie
-  (`notificationDeadLetterReplay`); fara tranzactii cross-colectie, esecul curatarii e raportat
-  ONEST userului ("Partial: ... reincearca /outbox clear-deadletters") — acesta e design-ul,
-  nu un gap.
+- **Config reset + audit** — IMPLEMENTAT in R6 #7: reset-ul si intrarea de audit `reset_config`
+  sunt acum o singura scriere (`$set` + `$push serverAuditLog` in acelasi `updateOne`); la fel
+  `admin_access_set`/`admin_access_delete` pentru regulile de acces admin. Curatarea replay
+  payloads RAMANE compensare explicita: alta colectie (`notificationDeadLetterReplay`), fara
+  tranzactii cross-colectie, esecul e raportat ONEST userului ("Partial: ... reincearca
+  /outbox clear-deadletters").
 - **Report resolve + log** — RAMANE best-effort cross-colectie: resolve-ul e
   `findOneAndUpdate` atomic pe colectia de rapoarte; jurnalul de comenzi admin (bot-log) e
   scris de router guard pe documentul guild, alta colectie. Aceeasi limitare de tranzactii;
