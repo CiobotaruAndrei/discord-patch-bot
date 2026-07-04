@@ -428,9 +428,9 @@ Consumatorii (/sources status, canary, admin alerts, politici de retry) pot adop
 
 **Declansator de revizuire:** daca un tip nou de drift are nevoie de date structurate mai bogate
 decat ierarhia de clase de eroare + `FetchResult.error` (ex. cod masina + context de retry
-per-camp), boundary-ul CB e locul unde s-ar introduce un `SourceResult` imbogatit — nu scraperele.
+per-camp), boundary-ul CB e locul unde s-ar introduce un `SourceResult` imbogatit - nu scraperele.
 
-## Migrarea completa la ESM — EVALUAT (R6 #10): RESPINS/AMANAT
+## Migrarea completa la ESM - EVALUAT (R6 #10): RESPINS/AMANAT
 
 Tinta propusa ("ESM/factory-only complet") are doua jumatati cu sorti diferite:
 
@@ -450,7 +450,7 @@ Tinta propusa ("ESM/factory-only complet") are doua jumatati cu sorti diferite:
 ## Acces Mongo prin repositories pe documentul Guild (plan R6 #6)
 
 Pas executat in R6 #6 (exemplarele): `command-security/adminAccessRepository.ts` (citirea canonica
-`loadAdminAccessDoc` — consolidata din DOUA implementari duplicate, resolver + handler — plus
+`loadAdminAccessDoc` - consolidata din DOUA implementari duplicate, resolver + handler - plus
 `saveAdminAccessRule`/`deleteAdminAccessRule` cu auditul atomic din R6 #7) si
 `features/notifications/priceAlertRepository.ts` (`buildPriceAlertRule`/`buildPriceAlertUpsertPipeline`
 mutate + `upsertPriceAlert`/`removePriceAlertsForGame`); handler-ele delega, testele functionale trec
@@ -458,10 +458,50 @@ neatinse. Repositories deja existente dinainte: seenRepository, youtubeRepositor
 configBackupRepository, auditLogRepository, feedbackRepository, historyRepository,
 deadLetterReplayRepository.
 
-**Urmatorii candidati** (extras cand se atinge zona, acelasi tipar — functii pure + model-like minimal):
+**Urmatorii candidati** (extras cand se atinge zona, acelasi tipar - functii pure + model-like minimal):
 - `GuildConfigRepository`: scrierile din `/set` (mode/filters/currency/stores/games) si
   `/reset-config` din guildConfigurationAdminHandler + setInteractionHandler;
 - `NotificationSubscriptionRepository`: start/stop updates/reduceri/dlc/player-count
-  (subscriptionNotificationHandlers) — scrierile de abonare + baseline;
+  (subscriptionNotificationHandlers) - scrierile de abonare + baseline;
 - `YouTubeGuildRepository` exista deja ca `youtubeRepository`; ramane doar mutarea scrierilor
   de configurare (notify channel/filters/routes/template) din youtubeInteractionHandler.
+
+## Tipuri brute vs normalizate (`DealInfo`/`GameConfig`/`GuildSettings`) — EVALUAT (R6 #5): AMANAT cu plan
+
+Pattern-ul cerut (`PatchUpdate` → `NormalizedUpdate`) exista deja PARTIAL si pe deals:
+`DealInfo` → `ValidatedDealInfo` → `EnrichedDealInfo` (sursele produc brut, validarea filtreaza,
+enrichment-ul imbogateste). Zonele dinamice ramase sunt intentionate si ancorate:
+
+- `GameConfig` `[key: string]: unknown` — cheile extra vin din `config.json` (validat de zod in
+  `configValidator`); pasul urmator natural: un `NormalizedGameConfig` STRICT produs de
+  `loadConfig` dupa validare (fara index-sig), consumat de fetchers — de facut cand se atinge
+  `config/` (ripple pe ~76 de consumatori ai `GameConfig`).
+- `GuildSettings` index-sig — documentul Mongo real are campuri istorice; gardul
+  `registryClosedContracts` ancoreaza explicit decizia ("poarta index-sig"). Normalizarea ar
+  cere un strat read-model per domeniu — directia deja inceputa cu repositories (R6 #6);
+  se face treptat, per repository, nu big-bang.
+
+**Declansator:** un bug real cauzat de o cheie dinamica gresita (azi prinse de validare/garduri).
+
+## Testele functionale de 400-500 de linii — EVALUAT (R6 #12): AMANAT (chiar reviewerul: "nu e urgent")
+
+Ramase: `youtubeNotificationService` (505), `youtubeManualDelivery` (487), `autocomplete` (394)
+— fiecare testeaza UN singur serviciu/handler coeziv, fara seam de domeniu real (split-urile cu
+seam au fost facute in #545/#546). **Prag:** se sparg cand depasesc ~550 de linii sau capata al
+doilea domeniu, cu pattern-ul kit + fisiere pe scenarii.
+
+## Gardurile text/regex pe sursa — EVALUAT (R6 #13): PASTRATE, cu politica de repointare
+
+Evaluare onesta: gardurile pe sursa NU sunt accidente — fiecare pineaza o decizie ceruta explicit
+de un review anterior (installers dinamici eliminati, compunere imutabila, factory-only, contracte
+inchise), iar regulile repo-ului (no-comments, no-weakening) sunt deja pe AST, nu pe text. Costul
+real observat in rundele 4-6: la refactoruri legitime gardurile cer repointare — dar exact asta e
+functia lor: fac mutarea EXPLICITA in diff, nu tacuta. Politica (aplicata deja in practica):
+
+- cand un refactor legitim atinge un gard, gardul se REPOINTEAZA in acelasi PR (protectia ramane,
+  locatia se muta) — nu se sterge;
+- cand un gard ancoreaza forma incidentala (nu o decizie), se inlocuieste cu un contract
+  comportamental in PR-ul care il atinge, cu justificare per caz (regula 8: nimic sters fara
+  confirmare);
+- nu se face conversie in masa: gardurile care pineaza decizii de review raman sursa executabila
+  a acelor decizii.
