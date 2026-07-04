@@ -378,3 +378,45 @@ strategia repo-ului e claim/rollback explicit + scrieri combinate pe acelasi doc
 perechile cross-colectie (reset + replay cleanup; resolve + log) pot deveni tranzactii — dar
 sub un singur nod Mongo, combinatia scriere-unica-pe-document + compensare raportata onest
 ramane corecta si mai simpla.
+
+## Catalog unic per comanda (definition + help + handler + accessPolicy) — EVALUAT (R5 #5): RESPINS/AMANAT
+
+Propunerea: fiecare comanda sa exporte impreuna `definition`, `help`, `handler` si `accessPolicy`,
+iar registry-ul sa compuna din acele module. Evaluare pe cod real: **garantia urmarita (o singura
+sursa, fara drift intre cele patru fatete) exista deja**, obtinuta altfel:
+
+- `COMMAND_ACCESS_MANIFEST` + `COMMAND_CATALOG_HELP` (command-catalog) sunt sursa unica pentru
+  acces + help: din ele deriva `/help` (`COMMAND_HELP_ENTRIES`), etichetele de permisiuni,
+  guard-urile runtime (router/owner/sensitive prin `commandAccessManifest`) si referinta
+  generata `docs/Referinta Comenzi.md` (cu `check:docs-commands` anti-drift in CI).
+- Sincronizarea catalog <-> slash definitions <-> handlere e impusa de teste care parcurg
+  definitiile reale (`commandHelpCatalog.test.ts`, `commandAccessManifest.test.ts`,
+  `commandCatalog.test.ts`, `commandRouting.test.ts`): o comanda noua fara intrare de
+  help/acces PICA suita — driftul pe care l-ar preveni colocarea e deja imposibil.
+- Costul colocarii: ~122 de comenzi / 40+ fisiere de handler + definitiile grupate
+  intentionat pe domenii (dupa restructurarea add/remove) ar fi rescrise mecanic, fara nicio
+  garantie noua.
+
+**Declansator de revizuire:** daca adaugarea de comenzi noi arata frictiune reala pe care
+gardurile n-o prind (o fateta lipsa nedetectata), colocarea redevine candidat.
+
+## `Result<T, E>` / `SourceResult` pentru sursele externe — EVALUAT (R5 #8): RESPINS/AMANAT
+
+Propunerea: tip `SourceResult` in loc de throw/catch in `sources/updates` si `sources/deals`.
+Evaluare pe cod real: **granita consumatorului are deja un result-type**:
+
+- Circuit breaker-ul intoarce `FetchResult { game, latest, error: string | null }` — cron-ul
+  si dispatch-ul nu primesc niciodata exceptii de la surse, ci date; fallback-chain-ul
+  agrega esecurile fallback-urilor in mesajul erorii primare.
+- Taxonomia erorilor exista si e actionabila: `SchemaDriftError` vs esec tranzitoriu
+  (alerte `drift:` vs `cb:`), metrici Prometheus per-sursa si per-tip-de-eroare, praguri
+  separate de circuit breaker si de schema drift.
+- In interiorul scraperelor, exceptiile raman transportul natural (axios/cheerio/parsere
+  arunca oricum); convertirea intregului lant (`conditionalGet`, `fetchWithProxy`, parserele
+  per-sursa) la `Result` ar fi churn mare fara predictibilitate noua — punctul UNIC in care
+  eroarea devine data e boundary-ul CB, deja testat (`updatesCircuitBreaker.test.ts`,
+  `perSourceConcurrency.test.ts`, `sourceScraperShapeDrift.test.ts`).
+
+**Declansator de revizuire:** daca un tip nou de drift are nevoie de date structurate mai bogate
+decat ierarhia de clase de eroare + `FetchResult.error` (ex. cod masina + context de retry
+per-camp), boundary-ul CB e locul unde s-ar introduce un `SourceResult` imbogatit — nu scraperele.
