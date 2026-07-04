@@ -3,7 +3,7 @@
 import type { CommandGame, CommandHandler } from "../command-registry/commandHandler";
 
 import { handledCommandError } from "../command-security/commandOutcome";
-import { buildServerAuditPush } from "../admin-records/auditLogRepository";
+import { deleteAdminAccessRule, loadAdminAccessDoc, saveAdminAccessRule } from "../command-security/adminAccessRepository";
 import {
   buildAdminCommandAccessScopeLookupKeys,
   displayAdminCommandAccessScope,
@@ -99,11 +99,7 @@ function hasLean(result: GuildFindQuery | Promise<GuildAdminAccessDoc | null>): 
   return "lean" in result && typeof result.lean === "function";
 }
 
-async function loadAdminCommandAccess(GuildModel: GuildModelLike, guildId: string): Promise<GuildAdminAccessDoc | null> {
-  const result = GuildModel.findOne({ _id: guildId });
-  const doc = hasLean(result) ? await result.lean() : await result;
-  return doc || null;
-}
+
 
 async function resolveOwnerId(guild: DiscordGuild): Promise<string> {
   if (typeof guild.ownerId === "string" && guild.ownerId) return guild.ownerId;
@@ -192,34 +188,23 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
     }
     const access = { mode, roleId: role.id, updatedBy: interaction.user?.id || "", updatedAt: new Date() };
     const legacyKeys = scope === "global" ? [] : buildAdminCommandAccessScopeLookupKeys(scope).filter(key => key !== scope);
-    const update = scope === "global"
-      ? { $set: { adminCommandAccess: access } }
-      : legacyKeys.length
-        ? {
-            $set: { [`adminCommandAccessByCommand.${scope}`]: access },
-            $unset: Object.fromEntries(legacyKeys.map(key => [`adminCommandAccessByCommand.${key}`, ""]))
-          }
-        : { $set: { [`adminCommandAccessByCommand.${scope}`]: access } };
-    const updateWithAudit = {
-      ...update,
-      $push: buildServerAuditPush(guildId, {
+    await saveAdminAccessRule(GuildModel, guildId, {
+      scope,
+      access,
+      legacyKeys,
+      audit: {
         userId: interaction.user?.id || "",
         action: "admin_access_set",
         details: `${displayAdminCommandAccessScope(scope)}: ${labelMode(mode)} <@&${role.id}>`
-      })
-    };
-    await GuildModel.updateOne(
-      { _id: guildId },
-      updateWithAudit,
-      { upsert: true }
-    );
+      }
+    });
     invalidateGuildCache(guildId);
     return safeEdit(interaction, `OK: ${displayAdminCommandAccessScope(scope)} poate fi folosita de Administrator si de ${labelMode(mode)}: <@&${role.id}>.`);
   }
 
   async function handleList(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     const scope = readTargetScope(interaction);
-    const doc = await loadAdminCommandAccess(GuildModel, guildId);
+    const doc = await loadAdminAccessDoc(GuildModel, guildId);
     if (scope !== "global") {
       return safeEdit(interaction, formatScopedAccess(doc, scope));
     }
@@ -231,22 +216,15 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
     if (interaction.options.getBoolean("confirm", true) !== true) {
       return safeEdit(interaction, "Stergerea a fost anulata. Foloseste `confirm:true` numai daca vrei sa revii la accesul implicit.");
     }
-    const update = scope === "global"
-      ? { $set: { adminCommandAccess: null } }
-      : {
-          $unset: Object.fromEntries(
-            buildAdminCommandAccessScopeLookupKeys(scope).map(key => [`adminCommandAccessByCommand.${key}`, ""])
-          )
-        };
-    const updateWithAudit = {
-      ...update,
-      $push: buildServerAuditPush(guildId, {
+    await deleteAdminAccessRule(GuildModel, guildId, {
+      scope,
+      lookupKeys: buildAdminCommandAccessScopeLookupKeys(scope),
+      audit: {
         userId: interaction.user?.id || "",
         action: "admin_access_delete",
         details: displayAdminCommandAccessScope(scope)
-      })
-    };
-    await GuildModel.updateOne({ _id: guildId }, updateWithAudit, { upsert: true });
+      }
+    });
     invalidateGuildCache(guildId);
     return safeEdit(interaction, `OK: regula de rol pentru ${displayAdminCommandAccessScope(scope)} a fost stearsa. Ramane accesul implicit: Administrator sau cod global de acces.`);
   }
