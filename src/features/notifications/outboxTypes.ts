@@ -30,6 +30,7 @@ export interface DiscountOutboxJob extends OutboxJobBase { kind: "discount" }
 export interface YouTubeOutboxJob extends OutboxJobBase { kind: "youtube" }
 
 export type OutboxJob = UpdateOutboxJob | DiscountOutboxJob | YouTubeOutboxJob;
+export type OutboxJobOfKind<K extends OutboxKind> = Extract<OutboxJob, { kind: K }>;
 
 export interface OutboxMessagePayload {
   content?: string;
