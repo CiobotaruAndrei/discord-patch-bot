@@ -2,6 +2,8 @@
 
 import { isHandledCommandError } from "./commandOutcome";
 import { buildAdminCommandAccessScope, resolveAdminCommandAccessForScope } from "./adminCommandAccessScope";
+import { decideAdminAccess, decideSensitiveAccess } from "./adminAccessPolicy";
+import type { AdminAccessPolicyFacts } from "./adminAccessPolicy";
 import {
   guildIdOf,
   hasSensitiveUserAccess,
@@ -10,7 +12,8 @@ import {
   isOwnerOnlyAdminAccessCommand,
   isSensitiveAdminCommand,
   loadAdminAccessDoc,
-  loadAdminCommandAccessConfig
+  loadAdminCommandAccessConfig,
+  parseIdList
 } from "./adminAccessResolver";
 import { promptGlobalAccessCode } from "./globalAccessCodeModal";
 import { recordAdminAudit } from "./adminAuditRecorder";
@@ -48,17 +51,37 @@ async function rejectSensitiveUser(interaction: AdminGuardInteraction): Promise<
   if (typeof interaction.reply === "function") await interaction.reply(payload);
 }
 
+async function gatherAdminAccessFacts(
+  target: AdminCommandGuardContext,
+  interaction: AdminGuardInteraction
+): Promise<AdminAccessPolicyFacts> {
+  const ownerOnlyCommand = isOwnerOnlyAdminAccessCommand(interaction);
+  const isOwner = ownerOnlyCommand ? await isGuildOwner(interaction) : false;
+  const isDiscordAdmin = defaultRequireGuildAdmin.isGuildAdmin(interaction);
+  let configuredRoleMatches = false;
+  if (!isDiscordAdmin && !(ownerOnlyCommand && isOwner)) {
+    const guildId = guildIdOf(interaction);
+    const accessDoc = guildId ? await loadAdminAccessDoc(target, guildId).catch(() => null) : null;
+    const accessConfig = resolveAdminCommandAccessForScope(accessDoc, buildAdminCommandAccessScope(interaction));
+    configuredRoleMatches = defaultRequireGuildAdmin.hasConfiguredAdminRole(interaction, accessConfig);
+  }
+  return {
+    inGuild: Boolean(interaction.guild),
+    ownerOnlyCommand,
+    isGuildOwner: isOwner,
+    isDiscordAdmin,
+    configuredRoleMatches
+  };
+}
+
 async function authorizeGuildAdminWithConfiguredAccess(
   target: AdminCommandGuardContext,
   interaction: AdminGuardInteraction
 ): Promise<AdminGuardInteraction | null> {
-  if (isOwnerOnlyAdminAccessCommand(interaction) && await isGuildOwner(interaction)) return interaction;
-  if (defaultRequireGuildAdmin.isGuildAdmin(interaction)) return interaction;
-  const guildId = guildIdOf(interaction);
-  const accessDoc = guildId ? await loadAdminAccessDoc(target, guildId).catch(() => null) : null;
-  const accessConfig = resolveAdminCommandAccessForScope(accessDoc, buildAdminCommandAccessScope(interaction));
-  if (defaultRequireGuildAdmin.hasConfiguredAdminRole(interaction, accessConfig)) return interaction;
-  return promptGlobalAccessCode(target, interaction);
+  const decision = decideAdminAccess(await gatherAdminAccessFacts(target, interaction));
+  if (decision.outcome === "allow") return interaction;
+  if (decision.outcome === "needs-global-code") return promptGlobalAccessCode(target, interaction);
+  return null;
 }
 
 async function requireGuildAdminWithConfiguredAccess(
@@ -88,7 +111,12 @@ function createAdminCommandGuard(
       await recordAdminAudit(target, interaction, "Access denied.");
       return undefined;
     }
-    if (isSensitiveAdminCommand(authorizedInteraction) && !hasSensitiveUserAccess(authorizedInteraction)) {
+    const sensitiveDecision = decideSensitiveAccess({
+      sensitiveCommand: isSensitiveAdminCommand(authorizedInteraction),
+      allowlist: parseIdList(process.env.BOT_SENSITIVE_USER_IDS),
+      userId: authorizedInteraction.user?.id || ""
+    });
+    if (sensitiveDecision.blocked) {
       await rejectSensitiveUser(authorizedInteraction);
       await recordAdminAudit(target, authorizedInteraction, "Access denied.");
       return undefined;
