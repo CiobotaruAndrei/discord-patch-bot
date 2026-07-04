@@ -113,7 +113,7 @@ export async function promptGlobalAccessCode(target: AdminCommandGuardContext, i
   }).catch(() => null);
   if (!submit) return null;
   const candidate = submit.fields?.getTextInputValue?.(ACCESS_CODE_MODAL_INPUT_ID) || "";
-  const result = globalAccessCode.verifyGlobalAccessCode(candidate);
+  const result = globalAccessCode.verifyGlobalAccessCode(candidate, target?.env ?? process.env);
   if (result !== "valid") {
     await recordAccessCodeFailure(target, interaction);
     await replyEphemeral(submit, "Access denied.");

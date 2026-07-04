@@ -47,7 +47,7 @@ export type AdminGuardModule = ((interaction: TestInteraction) => Promise<boolea
 };
 
 export type AdminCommandGuardModule = ((context: Record<string, unknown>) => void) & {
-  createAdminCommandGuard: (deps: { requireGuildAdmin: (interaction: TestInteraction) => Promise<boolean> }) => {
+  createAdminCommandGuard: (deps: { requireGuildAdmin: (interaction: TestInteraction) => Promise<boolean> }, target?: Record<string, unknown>) => {
     handleAdminProtectedCommand: (
       interaction: TestInteraction,
       games: TestGame[],
