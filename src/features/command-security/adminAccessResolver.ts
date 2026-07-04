@@ -7,11 +7,11 @@ import {
 } from "./adminCommandAccessScope";
 import { isOwnerOnlyCommandPath, isRouterAdminCommandPath, isSensitiveCommandPath } from "./commandAccessManifest";
 import { isSensitiveUserAllowed } from "./adminAccessPolicy";
+import { loadAdminAccessDoc as loadAdminAccessDocFromModel } from "./adminAccessRepository";
 import type {
   AdminCommandGuardContext,
   AdminGuardInteraction,
   GuildAdminAccessDoc,
-  GuildAdminAccessQuery,
   GuildModelLike
 } from "./adminGuardContracts";
 
@@ -80,10 +80,6 @@ export function guildIdOf(interaction: AdminGuardInteraction): string {
   return typeof interaction.guild?.id === "string" ? interaction.guild.id : "";
 }
 
-function hasLean(result: GuildAdminAccessQuery | Promise<GuildAdminAccessDoc | null>): result is GuildAdminAccessQuery {
-  return "lean" in result && typeof result.lean === "function";
-}
-
 export function canUseGuildModel(model: GuildModelLike | null | undefined): model is GuildModelLike {
   return Boolean(model) && !(typeof model?.db?.readyState === "number" && model.db.readyState !== 1);
 }
@@ -93,10 +89,8 @@ export async function loadAdminAccessDoc(
   guildId: string
 ): Promise<GuildAdminAccessDoc | null> {
   const model = target?.GuildModel;
-  if (!canUseGuildModel(model) || typeof model.findOne !== "function") return null;
-  const result = model.findOne({ _id: guildId });
-  const doc = hasLean(result) ? await result.lean() : await result;
-  return doc || null;
+  if (!canUseGuildModel(model)) return null;
+  return loadAdminAccessDocFromModel(model, guildId);
 }
 
 export async function loadAdminCommandAccessConfig(
