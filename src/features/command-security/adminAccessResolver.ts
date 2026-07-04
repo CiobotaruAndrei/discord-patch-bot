@@ -6,6 +6,7 @@ import {
   type AdminCommandAccessConfig
 } from "./adminCommandAccessScope";
 import { isOwnerOnlyCommandPath, isRouterAdminCommandPath, isSensitiveCommandPath } from "./commandAccessManifest";
+import { isSensitiveUserAllowed } from "./adminAccessPolicy";
 import type {
   AdminCommandGuardContext,
   AdminGuardInteraction,
@@ -68,10 +69,7 @@ export async function isGuildOwner(interaction: AdminGuardInteraction): Promise<
 }
 
 export function hasSensitiveUserAccess(interaction: AdminGuardInteraction): boolean {
-  const allowed = parseIdList(process.env.BOT_SENSITIVE_USER_IDS);
-  if (!allowed.length) return true;
-  const userId = interaction.user?.id || "";
-  return allowed.includes(userId);
+  return isSensitiveUserAllowed(parseIdList(process.env.BOT_SENSITIVE_USER_IDS), interaction.user?.id || "");
 }
 
 export function guildIdOf(interaction: AdminGuardInteraction): string {
