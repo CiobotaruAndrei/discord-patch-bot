@@ -54,6 +54,12 @@ src/
     admin-records/
       adminRecordsTypes.ts
     command-cache/
+      commandCache.ts
+      runtimeLimits.ts
+      commandCaches.ts
+      userCooldowns.ts
+      channelPermissionChecks.ts
+      userErrorFormatting.ts
     command-definitions/
       slashCommandDefinitions.ts
       slashDefinitionTools.ts
