@@ -25,7 +25,7 @@ function getHistoryModel(): HistoryModel {
       ONE_DAY_MS: 86_400_000,
       env: { GUILD_SEEN_DISCOUNT_TTL_DAYS: 60, NOTIFICATION_OUTBOX_SENT_TTL_HOURS: 24, NOTIFICATION_HISTORY_TTL_DAYS: 30, FEEDBACK_REPORT_TTL_DAYS: 90, NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS: 7 }
     };
-    attachMongoModels(target);
+    Object.assign(target, attachMongoModels.buildFrom(target));
     if (target.NotificationHistoryModel) return target.NotificationHistoryModel as HistoryModel;
   } catch {  }
   return mongoose.model("NotificationHistory") as HistoryModel;

@@ -116,7 +116,7 @@ async function main(): Promise<void> {
     return;
   }
   const target: Record<string, unknown> = { mongoose, SUPPORTED_CURRENCIES: { USD: {} }, DEFAULT_CURRENCY: "USD", ONE_DAY_MS: 86_400_000 };
-  try { attachMongoModels(target); } catch {  }
+  try { Object.assign(target, attachMongoModels.buildFrom(target)); } catch {  }
   const models: OutboxLoadModels = {
     outboxModel: (target.NotificationOutboxModel ?? mongoose.model("NotificationOutbox")) as OutboxLoadModels["outboxModel"],
     sentModel: (target.NotificationOutboxSentModel ?? mongoose.model("NotificationOutboxSent")) as OutboxLoadModels["sentModel"]
