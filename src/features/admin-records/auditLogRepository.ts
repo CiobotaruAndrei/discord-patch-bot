@@ -50,19 +50,26 @@ export function listBotAuditEntriesInRange(settings: GuildSettings | null, start
     .slice(Math.max(0, offset), Math.max(0, offset) + limit);
 }
 
-export async function recordServerAuditEntry(
-  GuildModel: GuildModelLike,
+export function buildServerAuditPush(
   guildId: string,
   entry: Omit<ServerAuditLogEntry, "serverId" | "at">
-): Promise<void> {
+): Record<string, unknown> {
   const record: ServerAuditLogEntry = {
     ...entry,
     serverId: guildId,
     at: new Date()
   };
+  return { serverAuditLog: { $each: [record], $slice: -MAX_SERVER_AUDIT_LOGS } };
+}
+
+export async function recordServerAuditEntry(
+  GuildModel: GuildModelLike,
+  guildId: string,
+  entry: Omit<ServerAuditLogEntry, "serverId" | "at">
+): Promise<void> {
   await GuildModel.updateOne(
     { _id: guildId },
-    { $push: { serverAuditLog: { $each: [record], $slice: -MAX_SERVER_AUDIT_LOGS } } },
+    { $push: buildServerAuditPush(guildId, entry) },
     { upsert: true }
   );
 }

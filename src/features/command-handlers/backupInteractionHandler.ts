@@ -5,10 +5,10 @@ import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 import {
   CONFIG_BACKUP_KEYS,
-  deleteConfigBackup,
+  deleteConfigBackupWithAudit,
   findBackup,
   listBackups,
-  loadConfigBackup,
+  loadConfigBackupWithAudit,
   saveConfigBackup
 } from "../admin-records/configBackupRepository";
 import { recordServerAuditEntry } from "../admin-records/auditLogRepository";
@@ -169,12 +169,13 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
     const settings = await getGuildSettings(guildId);
     const backup = findBackup(settings, name);
     if (!backup) return safeEdit(interaction, `Nu exista backup-ul \`${name}\`.`);
-    await loadConfigBackup(GuildModel, guildId, backup);
+    await loadConfigBackupWithAudit(GuildModel, guildId, backup, {
+      userId: interaction.user?.id || "",
+      action: "backup_load",
+      details: `Loaded backup ${backup.name}`
+    });
     invalidateGuildCache(guildId);
-    const audited = await auditBestEffort(guildId, interaction.user?.id || "", "backup_load", `Loaded backup ${backup.name}`);
-    return safeEdit(interaction, audited
-      ? `OK: backup-ul \`${backup.name}\` a fost incarcat.`
-      : `OK: backup-ul \`${backup.name}\` a fost incarcat (dar nu am putut scrie in /server-log - vezi log-urile botului).`);
+    return safeEdit(interaction, `OK: backup-ul \`${backup.name}\` a fost incarcat.`);
   }
 
   async function handleDelete(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
@@ -182,13 +183,14 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
       return safeEdit(interaction, "Stergerea a fost anulata. Ruleaza comanda cu `confirm:true` daca vrei sa stergi backup-ul.");
     }
     const name = backupName(interaction);
-    const deleted = await deleteConfigBackup(GuildModel, guildId, name);
+    const deleted = await deleteConfigBackupWithAudit(GuildModel, guildId, name, {
+      userId: interaction.user?.id || "",
+      action: "backup_delete",
+      details: `Deleted backup ${name}`
+    });
     invalidateGuildCache(guildId);
     if (!deleted) return safeEdit(interaction, `Nu exista backup-ul \`${name}\`.`);
-    const audited = await auditBestEffort(guildId, interaction.user?.id || "", "backup_delete", `Deleted backup ${name}`);
-    return safeEdit(interaction, audited
-      ? `OK: backup-ul \`${name}\` a fost sters.`
-      : `OK: backup-ul \`${name}\` a fost sters (dar nu am putut scrie in /server-log - vezi log-urile botului).`);
+    return safeEdit(interaction, `OK: backup-ul \`${name}\` a fost sters.`);
   }
 
   async function handleBackupInteraction(interaction: DiscordInteraction): Promise<unknown> {
