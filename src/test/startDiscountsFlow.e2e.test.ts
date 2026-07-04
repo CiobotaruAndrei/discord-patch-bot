@@ -32,7 +32,12 @@ type DiscountsRuntime = {
 };
 
 const attachInteractions = require("../features/command-handlers/subscriptionNotificationHandlers") as (context: Record<string, unknown>) => void;
-const attachNotifications = require("../features/notifications") as (context: Record<string, unknown>) => void;
+const attachNotifications = require("../features/notifications") as typeof import("../features/notifications");
+import type { NotificationsRuntimeDeps } from "../features/notifications/notificationRuntimeContracts";
+
+function notificationDeps(context: Record<string, unknown>): NotificationsRuntimeDeps {
+  return context as Record<string, unknown> & NotificationsRuntimeDeps;
+}
 
 const oldDeal: DealDoc = {
   id: "old-deal",
@@ -290,7 +295,7 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
     }
   };
 
-  attachNotifications(context);
+  Object.assign(context, attachNotifications.createNotificationRuntime(notificationDeps(context)));
   attachInteractions(context);
 
   const client = {

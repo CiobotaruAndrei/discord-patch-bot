@@ -184,10 +184,8 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   };
 }
 
-function attachMongoModels(target: MongoModelsContext): void {
-  Object.assign(target, buildMongoModelsFrom(target));
-}
+const mongoModelsModule = {
+  buildFrom: buildMongoModelsFrom
+};
 
-attachMongoModels.buildFrom = buildMongoModelsFrom;
-
-export = attachMongoModels;
+export = mongoModelsModule;

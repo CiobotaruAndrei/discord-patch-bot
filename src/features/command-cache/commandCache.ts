@@ -66,28 +66,10 @@ function createCommandCache(deps: CommandCacheDeps) {
   };
 }
 
-type CommandCacheRuntime = ReturnType<typeof createCommandCache>;
-type CommandCacheContext = CommandCacheDeps & Partial<CommandCacheRuntime>;
-
-type CommandCacheInstaller = ((target: CommandCacheContext) => void) & {
-  createCommandCache: typeof createCommandCache;
-  computeMissingChannelPerms: typeof computeMissingChannelPerms;
-  formatMissingChannelPerms: typeof formatMissingChannelPerms;
+const commandCacheModule = {
+  createCommandCache,
+  computeMissingChannelPerms,
+  formatMissingChannelPerms
 };
 
-const attachCommandCache = ((target: CommandCacheContext): void => {
-  const deps: CommandCacheDeps = {
-    crypto: target.crypto,
-    PermissionsBitField: target.PermissionsBitField,
-    logger: target.logger,
-    DEFAULT_CURRENCY: target.DEFAULT_CURRENCY,
-    env: target.env
-  };
-  Object.assign(target, createCommandCache(deps));
-}) as CommandCacheInstaller;
-
-attachCommandCache.createCommandCache = createCommandCache;
-attachCommandCache.computeMissingChannelPerms = computeMissingChannelPerms;
-attachCommandCache.formatMissingChannelPerms = formatMissingChannelPerms;
-
-export = attachCommandCache;
+export = commandCacheModule;
