@@ -29,10 +29,6 @@ type CommandSnoozeGuardDeps = {
   logger?: LoggerFunction;
 };
 
-type CommandSnoozeGuardContext = CommandSnoozeGuardDeps & {
-  handleInteraction?: NextInteractionHandler;
-};
-
 function formatDiscordTimestamp(date: Date): string {
   return `<t:${Math.floor(date.getTime() / 1000)}:R>`;
 }
@@ -76,22 +72,9 @@ function createCommandSnoozeGuard(deps: CommandSnoozeGuardDeps) {
   return { handleSnoozedCommand };
 }
 
-function installCommandSnoozeGuard(target: CommandSnoozeGuardContext) {
-  const previousHandleInteraction = target.handleInteraction;
-  const guard = createCommandSnoozeGuard({
-    getGuildSettings: target.getGuildSettings,
-    MessageFlags: target.MessageFlags,
-    logger: target.logger
-  });
-
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    return guard.handleSnoozedCommand(interaction, games, previousHandleInteraction);
-  }
-
-  Object.assign(target, { handleInteraction });
-}
-
-export = Object.assign(installCommandSnoozeGuard, {
+const commandSnoozeGuardModule = {
   createCommandSnoozeGuard,
   isSnoozeEligibleInteraction
-});
+};
+
+export = commandSnoozeGuardModule;
