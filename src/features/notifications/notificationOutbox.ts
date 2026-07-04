@@ -35,6 +35,10 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
   const repository = createOutboxRepository({ NotificationOutboxModel, NotificationOutboxSentModel, withMongoRetry });
 
   async function enqueueOutbox(job: EnqueueOutboxJobInput): Promise<void> {
+    if (!isDeliverableOutboxPayload(job.payload)) {
+      logger("WARN", "OUTBOX", `Refuz enqueue pentru guild ${job.guildId} (${job.kind}): payload-ul nu e un obiect de mesaj livrabil`);
+      throw new Error(`Payload outbox nelivrabil pentru ${job.kind} (guild ${job.guildId}); jobul a fost refuzat la enqueue`);
+    }
     const dedupeKey = dedupeKeyFor(job);
     if (await repository.alreadySent(dedupeKey)) return;
     await repository.insertJob(job, dedupeKey, new Date());

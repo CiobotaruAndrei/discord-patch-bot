@@ -155,3 +155,18 @@ test("isDeliverableOutboxPayload valideaza structural payload-ul (obiect simplu)
   assert.equal(isDeliverableOutboxPayload(42), false);
   assert.equal(isDeliverableOutboxPayload([{ content: "x" }]), false, "array-ul e semn de corupte la replay/serializare");
 });
+
+test("enqueueOutbox refuza payload-urile nelivrabile (corupte la serializare) inainte sa intre in coada (R6 #8)", async () => {
+  const { runtime, created } = makeRuntime([]);
+  const corruptPayloads: unknown[] = ["text-corupt", 42, null, [{ content: "x" }]];
+  for (const payload of corruptPayloads) {
+    await assert.rejects(
+      () => runtime.enqueueOutbox({ guildId: "g1", channelId: "c1", kind: "youtube", payload: payload as import("../features/notifications/outboxTypes").OutboxMessagePayload }),
+      /nelivrabil/,
+      `payload-ul ${JSON.stringify(payload)} trebuie refuzat la enqueue`
+    );
+  }
+  assert.equal(created.length, 0, "niciun job corupt nu a intrat in coada");
+  await runtime.enqueueOutbox({ guildId: "g1", channelId: "c1", kind: "youtube", payload: { content: "ok" } });
+  assert.equal(created.length, 1, "payload-ul valid trece de validare");
+});
