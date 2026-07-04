@@ -111,11 +111,11 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Este una dintre zonele principale de redus treptat.
 - Scopul pe termen lung este sa livreze dependinte mici si tipate catre factory-uri, nu un obiect comun mare de context.
 
-### `src/features/command-cache/commandCache.ts`
+### `src/features/command-cache/commandCache.ts` (+ module pe responsabilitati)
 
-- Gestioneaza cache-uri runtime pentru updates, deals, DLC, single lookup si cooldown-uri user.
-- `canSendEmbeds` cere toate cele trei permisiuni din `requiredNotifyPerms` (View Channel + Send Messages + Embed Links) — paritate garantata prin `canSendEmbedsPermissions.test.ts`.
-- Expune `createCommandCache`, iar atasarea pe context ramane adapter de compatibilitate.
+- `commandCache.ts` e orchestratorul: `createCommandCache(deps)` compune cele cinci module de responsabilitate si intoarce acelasi API plat ca inainte de split (limitele + functiile de cache + cooldown + permisiuni + formatare erori + utilitarele marunte `smoothTime`/`makeActivationId`/`sleepIfPositive`); atasarea pe context ramane adapter de compatibilitate.
+- Responsabilitatile sunt module dedicate: `runtimeLimits.ts` (limitele mapate 1:1 din `RuntimeEnv` + `COLORS`/`OP_UPDATE_OPTS` inghetate), `commandCaches.ts` (cache-urile LRU+TTL pentru updates/deals/single/DLC, `cacheGetLRU`/`evictLRU`/`cacheSetLRU` pure exportate, `cleanCache`/`getCacheSizes` cu delegare la cooldown-urile injectate), `userCooldowns.ts` (fereastra per user+comanda, curatare periodica cu prag si hard-max), `channelPermissionChecks.ts` (`isTextChannelLikeValue`/`computeMissingChannelPerms`/`formatMissingChannelPerms` pure + `createChannelPermissionChecks` cu `canSendEmbeds`), `userErrorFormatting.ts` (`formatUserError` cu logging conditionat).
+- `canSendEmbeds` cere toate cele trei permisiuni din `requiredNotifyPerms` (View Channel + Send Messages + Embed Links) — paritate garantata prin `canSendEmbedsPermissions.test.ts`; modulele sunt acoperite de `commandCacheModules.test.ts`.
 - Foloseste tipuri structurale pentru permisiuni/canale, nu tipuri wildcard nesigure.
 
 ### `src/features/command-presentation/commandPresentation.ts` (+ module pe responsabilitati)
