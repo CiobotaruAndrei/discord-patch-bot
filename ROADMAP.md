@@ -425,3 +425,26 @@ taxonomia structurata, asa ca boundary-ul CB clasifica acum fiecare rezultat: `F
 → schema-drift; cooldown-ul propriului breaker → rate-limited; restul → transient). Exact cum era
 planificat: imbogatirea s-a facut LA BOUNDARY, nu in scrapere — scraperele raman pe exceptii.
 Consumatorii (/sources status, canary, admin alerts, politici de retry) pot adopta `outcome` treptat.
+
+**Declansator de revizuire:** daca un tip nou de drift are nevoie de date structurate mai bogate
+decat ierarhia de clase de eroare + `FetchResult.error` (ex. cod masina + context de retry
+per-camp), boundary-ul CB e locul unde s-ar introduce un `SourceResult` imbogatit — nu scraperele.
+
+## Acces Mongo prin repositories pe documentul Guild (plan R6 #6)
+
+Pas executat in R6 #6 (exemplarele): `command-security/adminAccessRepository.ts` (citirea canonica
+`loadAdminAccessDoc` — consolidata din DOUA implementari duplicate, resolver + handler — plus
+`saveAdminAccessRule`/`deleteAdminAccessRule` cu auditul atomic din R6 #7) si
+`features/notifications/priceAlertRepository.ts` (`buildPriceAlertRule`/`buildPriceAlertUpsertPipeline`
+mutate + `upsertPriceAlert`/`removePriceAlertsForGame`); handler-ele delega, testele functionale trec
+neatinse. Repositories deja existente dinainte: seenRepository, youtubeRepository,
+configBackupRepository, auditLogRepository, feedbackRepository, historyRepository,
+deadLetterReplayRepository.
+
+**Urmatorii candidati** (extras cand se atinge zona, acelasi tipar — functii pure + model-like minimal):
+- `GuildConfigRepository`: scrierile din `/set` (mode/filters/currency/stores/games) si
+  `/reset-config` din guildConfigurationAdminHandler + setInteractionHandler;
+- `NotificationSubscriptionRepository`: start/stop updates/reduceri/dlc/player-count
+  (subscriptionNotificationHandlers) — scrierile de abonare + baseline;
+- `YouTubeGuildRepository` exista deja ca `youtubeRepository`; ramane doar mutarea scrierilor
+  de configurare (notify channel/filters/routes/template) din youtubeInteractionHandler.
