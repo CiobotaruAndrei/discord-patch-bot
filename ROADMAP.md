@@ -426,6 +426,46 @@ taxonomia structurata, asa ca boundary-ul CB clasifica acum fiecare rezultat: `F
 planificat: imbogatirea s-a facut LA BOUNDARY, nu in scrapere — scraperele raman pe exceptii.
 Consumatorii (/sources status, canary, admin alerts, politici de retry) pot adopta `outcome` treptat.
 
+**Declansator de revizuire:** daca un tip nou de drift are nevoie de date structurate mai bogate
+decat ierarhia de clase de eroare + `FetchResult.error` (ex. cod masina + context de retry
+per-camp), boundary-ul CB e locul unde s-ar introduce un `SourceResult` imbogatit - nu scraperele.
+
+## Migrarea completa la ESM - EVALUAT (R6 #10): RESPINS/AMANAT
+
+Tinta propusa ("ESM/factory-only complet") are doua jumatati cu sorti diferite:
+
+- **Factory-only: EXECUTAT progresiv** (R5 #3 + R6 #2 + R6 #10-parte): notifications/index,
+  commandCache, models, commandSnoozeGuard si acum sources/steam + sources/deals +
+  sources/updates exporta doar obiecte de factory-uri (`{ buildFrom, create*, statics }`),
+  fara callable de atasare; consumatorii de test au fost migrati pe `buildFrom` cu downcast-ul
+  acceptat (un singur `as`, `Record & Ctx`). Seam-urile ramase cu install-form (handler-ele de
+  comenzi, slashCommandDefinitions, dealFilters, adminCommandRouterGuard, modulele Mongo/shared
+  per-instanta) au fiecare apelanti reali de test si sunt documentate ca granita.
+- **ESM propriu-zis: RESPINS.** Repo-ul e CommonJS deliberat (`tsconfig module: commonjs`,
+  idiomul `export =` + `require(...) as typeof import(...)` care face wiring-ul verificabil de
+  tsc, addon-ul NAPI incarcat cu `require`, suita rulata pe `dist/` cu node --test). Migrarea la
+  ESM ar churn-ui fiecare modul si scripturile de build/test pentru zero castig functional;
+  devine relevanta doar daca un dependency major devine ESM-only fara alternativa CJS.
+
+## Acces Mongo prin repositories pe documentul Guild (plan R6 #6)
+
+Pas executat in R6 #6 (exemplarele): `command-security/adminAccessRepository.ts` (citirea canonica
+`loadAdminAccessDoc` - consolidata din DOUA implementari duplicate, resolver + handler - plus
+`saveAdminAccessRule`/`deleteAdminAccessRule` cu auditul atomic din R6 #7) si
+`features/notifications/priceAlertRepository.ts` (`buildPriceAlertRule`/`buildPriceAlertUpsertPipeline`
+mutate + `upsertPriceAlert`/`removePriceAlertsForGame`); handler-ele delega, testele functionale trec
+neatinse. Repositories deja existente dinainte: seenRepository, youtubeRepository,
+configBackupRepository, auditLogRepository, feedbackRepository, historyRepository,
+deadLetterReplayRepository.
+
+**Urmatorii candidati** (extras cand se atinge zona, acelasi tipar - functii pure + model-like minimal):
+- `GuildConfigRepository`: scrierile din `/set` (mode/filters/currency/stores/games) si
+  `/reset-config` din guildConfigurationAdminHandler + setInteractionHandler;
+- `NotificationSubscriptionRepository`: start/stop updates/reduceri/dlc/player-count
+  (subscriptionNotificationHandlers) - scrierile de abonare + baseline;
+- `YouTubeGuildRepository` exista deja ca `youtubeRepository`; ramane doar mutarea scrierilor
+  de configurare (notify channel/filters/routes/template) din youtubeInteractionHandler.
+
 ## Tipuri brute vs normalizate (`DealInfo`/`GameConfig`/`GuildSettings`) — EVALUAT (R6 #5): AMANAT cu plan
 
 Pattern-ul cerut (`PatchUpdate` → `NormalizedUpdate`) exista deja PARTIAL si pe deals:
@@ -465,4 +505,3 @@ functia lor: fac mutarea EXPLICITA in diff, nu tacuta. Politica (aplicata deja i
   confirmare);
 - nu se face conversie in masa: gardurile care pineaza decizii de review raman sursa executabila
   a acelor decizii.
-
