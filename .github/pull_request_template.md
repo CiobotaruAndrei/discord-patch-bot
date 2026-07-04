@@ -6,7 +6,7 @@
 
 Bifeaza toate inainte de merge. Un check CI (`PR Checklist`) verifica bifele cheie. Vezi `RELEASING.md` pentru gate-ul complet de release.
 
-- [ ] **Documentatie** actualizata: `CHANGELOG.md` + docs relevante (`README.md` / `OPERATIONS.md` / `BENCHMARKS.md` / `ROADMAP.md` / `src/docs/` etc.) reflecta schimbarea.
+- [ ] **Documentatie** actualizata: `CHANGELOG.md` + docs relevante (`README.md` / `OPERATIONS.md` / `BENCHMARKS.md` / `ROADMAP.md` / `docs/` etc.) reflecta schimbarea.
 - [ ] **Teste** pentru functionalitatea noua: teste adaugate/actualizate care acopera comportamentul nou.
 - [ ] **Fara comentarii** in cod si fara secrete commit-uite (token Discord, URI Mongo, METRICS_TOKEN, webhook-uri, proxy URLs).
 - [ ] **Benchmark** daca s-a atins un hot-path sau s-a adaugat/scos cod nativ: `npm run benchmark:cpu` rulat si `BENCHMARKS.md` reflecta decizia TS-vs-Rust pe baza de date masurate. Bifeaza si daca nu e cazul (N/A — nu e hot-path, fara schimbare de limbaj).
