@@ -128,15 +128,15 @@ test("docs sync: /status e descris ca status server pentru un joc (nu starea bot
     .some(rel => fs.existsSync(path.join(srcRoot, rel)));
   assert.ok(!interactionsExists, "interactions.ts nu exista (routing-ul e lista tipata CommandHandler[] + dispatchCommand din commandRegistry)");
 
-  const context = fs.readFileSync(path.join(srcRoot, "docs", "CONTEXT_REPO_CLEAN.md"), "utf8");
+  const context = fs.readFileSync(path.join(repoRoot, "docs", "CONTEXT_REPO_CLEAN.md"), "utf8");
   const staleRouterClaim = /`interactions\.ts` (este|trebuie tratat ca)[^\n]*(router|routing|wiring|delega)/;
   assert.ok(!staleRouterClaim.test(readme), "README nu mai revendica `interactions.ts` ca router/wiring activ (fisierul nu mai exista)");
   assert.ok(!staleRouterClaim.test(context), "CONTEXT_REPO_CLEAN.md nu mai revendica `interactions.ts` ca strat de routing activ");
 });
 
 test("docs sync: FUNCTION_MAP_CLEAN si CONTEXT_REPO_CLEAN descriu routing-ul nou (lista tipata CommandHandler[] + dispatchCommand), nu lantul vechi de attachX", () => {
-  const functionMap = fs.readFileSync(path.join(srcRoot, "docs", "FUNCTION_MAP_CLEAN.md"), "utf8");
-  const context = fs.readFileSync(path.join(srcRoot, "docs", "CONTEXT_REPO_CLEAN.md"), "utf8");
+  const functionMap = fs.readFileSync(path.join(repoRoot, "docs", "FUNCTION_MAP_CLEAN.md"), "utf8");
+  const context = fs.readFileSync(path.join(repoRoot, "docs", "CONTEXT_REPO_CLEAN.md"), "utf8");
 
   for (const [name, doc] of [["FUNCTION_MAP_CLEAN.md", functionMap], ["CONTEXT_REPO_CLEAN.md", context]] as const) {
     assert.match(doc, /CommandHandler\[\]/, `${name} descrie routing-ul ca lista tipata CommandHandler[]`);
