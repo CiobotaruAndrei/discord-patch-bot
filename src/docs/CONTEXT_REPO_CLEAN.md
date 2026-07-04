@@ -109,6 +109,13 @@ src/
       youtubeInteractionHandler.ts
     command-catalog/
       commandCatalog.ts
+      commandCatalogTypes.ts
+      coreCatalog.ts
+      gameInfoCatalog.ts
+      notificationsCatalog.ts
+      youtubeCatalog.ts
+      adminCatalog.ts
+      commandModuleDescriptors.ts
       commandReferenceDoc.ts
     command-presentation/
       commandPresentation.ts
