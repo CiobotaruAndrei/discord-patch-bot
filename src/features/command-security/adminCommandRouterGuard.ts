@@ -113,7 +113,7 @@ function createAdminCommandGuard(
     }
     const sensitiveDecision = decideSensitiveAccess({
       sensitiveCommand: isSensitiveAdminCommand(authorizedInteraction),
-      allowlist: parseIdList(process.env.BOT_SENSITIVE_USER_IDS),
+      allowlist: target?.env?.BOT_SENSITIVE_USER_IDS ?? parseIdList(process.env.BOT_SENSITIVE_USER_IDS),
       userId: authorizedInteraction.user?.id || ""
     });
     if (sensitiveDecision.blocked) {

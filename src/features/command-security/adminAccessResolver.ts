@@ -68,8 +68,12 @@ export async function isGuildOwner(interaction: AdminGuardInteraction): Promise<
   return Boolean(userId && (await resolveOwnerId(interaction)) === userId);
 }
 
-export function hasSensitiveUserAccess(interaction: AdminGuardInteraction): boolean {
-  return isSensitiveUserAllowed(parseIdList(process.env.BOT_SENSITIVE_USER_IDS), interaction.user?.id || "");
+export function hasSensitiveUserAccess(
+  interaction: AdminGuardInteraction,
+  env?: { BOT_SENSITIVE_USER_IDS?: readonly string[] }
+): boolean {
+  const allowlist = env?.BOT_SENSITIVE_USER_IDS ?? parseIdList(process.env.BOT_SENSITIVE_USER_IDS);
+  return isSensitiveUserAllowed(allowlist, interaction.user?.id || "");
 }
 
 export function guildIdOf(interaction: AdminGuardInteraction): string {

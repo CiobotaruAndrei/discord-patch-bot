@@ -77,9 +77,16 @@ export type AdminCommandGuardDeps = {
   authorizeGuildAdmin?: (interaction: AdminGuardInteraction) => Promise<AdminGuardInteraction | null>;
 };
 
+export type SecurityEnvSlice = {
+  BOT_SENSITIVE_USER_IDS?: readonly string[];
+  BOT_GLOBAL_ACCESS_CODE?: string;
+  BOT_GLOBAL_ACCESS_CODE_HASH?: string;
+};
+
 export type AdminCommandGuardContext = {
   handleInteraction?: NextInteractionHandler;
   GuildModel?: GuildModelLike;
+  env?: SecurityEnvSlice;
   adminAlert?: (kind: string, title: string, body: string, guildId?: string) => Promise<unknown>;
 };
 
