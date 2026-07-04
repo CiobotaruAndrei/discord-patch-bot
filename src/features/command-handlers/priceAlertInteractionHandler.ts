@@ -1,6 +1,13 @@
 "use strict";
 
 import type { CurrencyCode, GameConfig, GuildSettings, PriceAlertRule } from "../../types";
+import {
+  MAX_PRICE_ALERTS_PER_GUILD,
+  buildPriceAlertRule,
+  buildPriceAlertUpsertPipeline,
+  removePriceAlertsForGame,
+  upsertPriceAlert
+} from "../notifications/priceAlertRepository";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 
@@ -53,56 +60,6 @@ type PriceAlertContext = PriceAlertInteractionDeps & {
   handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => Promise<unknown> | unknown;
 };
 
-const MAX_PRICE_ALERTS_PER_GUILD = 25;
-
-function buildPriceAlertRule(game: GameConfig, threshold: number, currency: string): PriceAlertRule {
-  return {
-    gameKey: game.key,
-    gameName: game.name,
-    appId: typeof game.appId === "string" ? game.appId : "",
-    aliases: Array.isArray(game.aliases) ? game.aliases.map(String) : [],
-    threshold,
-    currency,
-    triggeredAt: null,
-    lastObservedPrice: null,
-    lastObservedAt: null
-  };
-}
-
-function buildPriceAlertUpsertPipeline(rule: PriceAlertRule, maxAlerts: number): Array<Record<string, unknown>> {
-  return [{
-    $set: {
-      priceAlerts: {
-        $let: {
-          vars: {
-            kept: {
-              $filter: {
-                input: { $ifNull: ["$priceAlerts", []] },
-                as: "alert",
-                cond: {
-                  $not: {
-                    $and: [
-                      { $eq: ["$$alert.gameKey", rule.gameKey] },
-                      { $eq: ["$$alert.currency", rule.currency] }
-                    ]
-                  }
-                }
-              }
-            }
-          },
-          in: {
-            $cond: [
-              { $lt: [{ $size: "$$kept" }, maxAlerts] },
-              { $concatArrays: ["$$kept", [rule]] },
-              "$$kept"
-            ]
-          }
-        }
-      }
-    }
-  }];
-}
-
 function formatAlertLine(alert: PriceAlertRule, index: number): string {
   const state = alert.triggeredAt ? "declansata, asteapta rearmare" : "armata";
   const observed = typeof alert.lastObservedPrice === "number"
@@ -138,14 +95,8 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
       return safeEdit(interaction, `Eroare: serverul are deja limita de ${MAX_PRICE_ALERTS_PER_GUILD} alerte de pret.`);
     }
     const rule = buildPriceAlertRule(game, threshold, currency);
-    const updated = await GuildModel.findOneAndUpdate(
-      { _id: guildId },
-      buildPriceAlertUpsertPipeline(rule, MAX_PRICE_ALERTS_PER_GUILD),
-      { upsert: true, new: true }
-    );
+    const { saved } = await upsertPriceAlert(GuildModel, guildId, rule, MAX_PRICE_ALERTS_PER_GUILD);
     invalidateGuildCache(guildId);
-    const saved = (Array.isArray(updated?.priceAlerts) ? updated.priceAlerts : [])
-      .some(alert => alert.gameKey === game.key && alert.currency === currency);
     if (!saved) {
       return safeEdit(interaction, `Eroare: serverul are deja limita de ${MAX_PRICE_ALERTS_PER_GUILD} alerte de pret (o comanda concurenta a ocupat ultimul loc). Sterge o alerta cu \`/remove price-alert\` si reincearca.`);
     }
@@ -156,14 +107,11 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
   }
 
   async function handleRemove(interaction: DiscordInteraction, games: GameConfig[], guildId: string): Promise<unknown> {
-    const gameKey = interaction.options.getString("joc", true);
+    const gameKey = interaction.options.getString("joc", true) || "";
     const game = games.find(candidate => candidate.key === gameKey);
-    const result = await GuildModel.updateOne(
-      { _id: guildId },
-      { $pull: { priceAlerts: { gameKey } } }
-    );
+    const removedCount = await removePriceAlertsForGame(GuildModel, guildId, gameKey);
     invalidateGuildCache(guildId);
-    if ((result.modifiedCount ?? 0) === 0) {
+    if (removedCount === 0) {
       return safeEdit(interaction, `Info: nu exista nicio alerta de pret pentru \`${gameKey}\`.`);
     }
     return safeEdit(interaction, `OK: toate alertele de pret pentru **${game?.name || gameKey}** au fost sterse.`);
