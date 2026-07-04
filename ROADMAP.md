@@ -425,3 +425,20 @@ taxonomia structurata, asa ca boundary-ul CB clasifica acum fiecare rezultat: `F
 → schema-drift; cooldown-ul propriului breaker → rate-limited; restul → transient). Exact cum era
 planificat: imbogatirea s-a facut LA BOUNDARY, nu in scrapere — scraperele raman pe exceptii.
 Consumatorii (/sources status, canary, admin alerts, politici de retry) pot adopta `outcome` treptat.
+
+## Migrarea completa la ESM — EVALUAT (R6 #10): RESPINS/AMANAT
+
+Tinta propusa ("ESM/factory-only complet") are doua jumatati cu sorti diferite:
+
+- **Factory-only: EXECUTAT progresiv** (R5 #3 + R6 #2 + R6 #10-parte): notifications/index,
+  commandCache, models, commandSnoozeGuard si acum sources/steam + sources/deals +
+  sources/updates exporta doar obiecte de factory-uri (`{ buildFrom, create*, statics }`),
+  fara callable de atasare; consumatorii de test au fost migrati pe `buildFrom` cu downcast-ul
+  acceptat (un singur `as`, `Record & Ctx`). Seam-urile ramase cu install-form (handler-ele de
+  comenzi, slashCommandDefinitions, dealFilters, adminCommandRouterGuard, modulele Mongo/shared
+  per-instanta) au fiecare apelanti reali de test si sunt documentate ca granita.
+- **ESM propriu-zis: RESPINS.** Repo-ul e CommonJS deliberat (`tsconfig module: commonjs`,
+  idiomul `export =` + `require(...) as typeof import(...)` care face wiring-ul verificabil de
+  tsc, addon-ul NAPI incarcat cu `require`, suita rulata pe `dist/` cu node --test). Migrarea la
+  ESM ar churn-ui fiecare modul si scripturile de build/test pentru zero castig functional;
+  devine relevanta doar daca un dependency major devine ESM-only fara alternativa CJS.

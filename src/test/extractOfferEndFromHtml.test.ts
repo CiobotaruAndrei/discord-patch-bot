@@ -89,16 +89,16 @@ test("limiteaza lungimea rezultatului fallback", () => {
 const attachSteam = require("../sources/steam") as typeof import("../sources/steam");
 
 type SteamRuntime = { extractOfferEndFromHtml: (html: string) => string | null };
-type SteamContext = Parameters<typeof attachSteam>[0];
+type SteamContext = Parameters<typeof attachSteam.buildFrom>[0];
 
 function makeSteamContextWithThrowingCheerio(): SteamContext & SteamRuntime {
   const context: SteamContext & Partial<SteamRuntime> = {
     logger: () => undefined,
     httpReq: async () => ({ data: {} }),
-    getCurrencyConfig: () => ({ cc: "us", symbol: "$", placement: "suffix" }),
+    getCurrencyConfig: () => ({ cc: "us", symbol: "$", placement: "suffix" as const }),
     safeCheerioLoad: () => { throw new Error("cheerio refuses malformed HTML"); }
   };
-  attachSteam(context);
+  Object.assign(context, attachSteam.buildFrom(context));
   const extractOfferEndFromHtml = context.extractOfferEndFromHtml;
   if (!extractOfferEndFromHtml) {
     throw new Error("attachSteam trebuie sa ataseze extractOfferEndFromHtml");
