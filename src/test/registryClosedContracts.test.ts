@@ -93,28 +93,44 @@ test("pregatire migrare commandRegistry: GuildModel din notifications foloseste 
 });
 
 test("pregatire migrare commandRegistry: listele Generated*Deps omit cheile generate intern de seenRepository (nu se scurg ca input extern)", () => {
-  const index = fs.readFileSync(path.join(srcRoot, "features", "notifications", "index.ts"), "utf8");
-  const updateBlock = index.slice(index.indexOf("type GeneratedUpdateDeps"), index.indexOf("type GeneratedDiscountDeps"));
+  const contracts = fs.readFileSync(path.join(srcRoot, "features", "notifications", "notificationRuntimeContracts.ts"), "utf8");
+  const updateBlock = contracts.slice(contracts.indexOf("type GeneratedUpdateDeps"), contracts.indexOf("type GeneratedDiscountDeps"));
   for (const key of ["seedSeenUpdates", "setSeenHashVersion"]) {
     assert.ok(updateBlock.includes(`"${key}"`), `GeneratedUpdateDeps omite ${key} (generat intern de createSeenRepository)`);
   }
-  const discountBlock = index.slice(index.indexOf("type GeneratedDiscountDeps"), index.indexOf("type NotificationsRuntimeDeps"));
+  const discountBlock = contracts.slice(contracts.indexOf("type GeneratedDiscountDeps"), contracts.indexOf("type NotificationsRuntimeDeps"));
   for (const key of ["loadSeenDiscountHashes", "seedSeenDiscounts", "setSeenHashVersion"]) {
     assert.ok(discountBlock.includes(`"${key}"`), `GeneratedDiscountDeps omite ${key} (generat intern de createSeenRepository)`);
   }
 });
 
-test("notifications/index: wiring-ul central e impartit in 3 sub-factory-uri (outbox / seen / dispatch), iar createNotificationRuntime doar le compune", () => {
+test("notifications: wiring-ul central traieste in module-factory pe domenii, iar index.ts doar le compune", () => {
   const index = fs.readFileSync(path.join(srcRoot, "features", "notifications", "index.ts"), "utf8");
-  for (const builder of ["function createOutboxServices(", "function createSeenServices(", "function createNotificationDispatchServices("]) {
-    assert.ok(index.includes(builder), `notifications/index expune sub-factory-ul ${builder.replace("function ", "").replace("(", "")} (wiring decuplat)`);
+  const outboxFactory = fs.readFileSync(path.join(srcRoot, "features", "notifications", "outboxRuntimeFactory.ts"), "utf8");
+  const seenFactory = fs.readFileSync(path.join(srcRoot, "features", "notifications", "seenRuntimeFactory.ts"), "utf8");
+  assert.ok(outboxFactory.includes("function createOutboxServices("), "outboxRuntimeFactory detine createOutboxServices");
+  assert.ok(seenFactory.includes("function createSeenServices("), "seenRuntimeFactory detine createSeenServices");
+  for (const [file, builder] of [
+    ["updateNotificationRuntime.ts", "function createUpdateNotificationRuntime("],
+    ["discountNotificationRuntime.ts", "function createDiscountNotificationRuntime("],
+    ["youtubeNotificationRuntime.ts", "function createYouTubeNotificationRuntime("]
+  ] as const) {
+    const text = fs.readFileSync(path.join(srcRoot, "features", "notifications", file), "utf8");
+    assert.ok(text.includes(builder), `${file} detine ${builder.replace("function ", "").replace("(", "")}`);
   }
+  assert.ok(index.includes("function createNotificationDispatchServices("), "index.ts pastreaza compozitorul de dispatch");
+  const dispatchStart = index.indexOf("function createNotificationDispatchServices(");
+  const dispatchBody = index.slice(dispatchStart, index.indexOf("\n}", dispatchStart));
+  assert.match(dispatchBody, /createUpdateNotificationRuntime\(deps, resolveOutboundChannel, seenRepository\)/, "dispatch-ul compune runtime-ul de update din modulul lui");
+  assert.match(dispatchBody, /createDiscountNotificationRuntime\(deps, resolveOutboundChannel, seenRepository\)/, "dispatch-ul compune runtime-ul de discount (+ price alerts) din modulul lui");
+  assert.match(dispatchBody, /createYouTubeNotificationRuntime\(deps, resolveOutboundChannel\)/, "dispatch-ul compune runtime-ul YouTube din modulul lui");
   const runtimeStart = index.indexOf("function createNotificationRuntime(");
   const runtimeBody = index.slice(runtimeStart, index.indexOf("\n}", runtimeStart));
   assert.match(runtimeBody, /createOutboxServices\(deps\)/, "createNotificationRuntime deleaga la createOutboxServices");
   assert.match(runtimeBody, /createSeenServices\(deps\)/, "createNotificationRuntime deleaga la createSeenServices");
   assert.match(runtimeBody, /createNotificationDispatchServices\(deps, resolveOutboundChannel, seenRepository\)/, "createNotificationRuntime deleaga la createNotificationDispatchServices (dispatch consuma resolveOutboundChannel + seenRepository)");
   assert.ok(!/createOutboxRuntime\(/.test(runtimeBody), "createNotificationRuntime nu mai construieste direct sub-serviciile (outbox e in createOutboxServices), ci doar compune");
+  assert.ok(!/createUpdateNotificationService\(|createDiscountNotificationService\(|createYouTubeNotificationService\(/.test(index), "index.ts nu mai construieste direct serviciile de domeniu — doar compune module-factory");
 });
 
 test("pregatire migrare commandRegistry: tipurile de update fetch (notifications + latest) sunt aliniate la FetchResult, nu vederi loose ({id}&Record)", () => {
@@ -246,7 +262,8 @@ test("notifications nu mai are cast pe modelul Mongo, iar clientul Discord e int
   const discountServicePath = path.join(srcRoot, "features", "notifications", "discountNotificationService.ts");
   const indexText = fs.readFileSync(notificationsIndexPath, "utf8");
   assert.ok(!indexText.includes("as unknown as"), "notifications/index.ts fara cast-uri as unknown as (countDocuments e in contractul deps)");
-  assert.match(indexText, /GuildModel: \{ countDocuments\(/, "capabilitatea countDocuments e declarata explicit in NotificationsRuntimeDeps");
+  const contractsText = fs.readFileSync(path.join(srcRoot, "features", "notifications", "notificationRuntimeContracts.ts"), "utf8");
+  assert.match(contractsText, /GuildModel: \{ countDocuments\(/, "capabilitatea countDocuments e declarata explicit in NotificationsRuntimeDeps");
   const outbound = fs.readFileSync(outboundChannelPath, "utf8");
   assert.match(outbound, /export interface NotificationDiscordClient/, "interfata minima de client Discord exista si e exportata");
   assert.match(outbound, /client: NotificationDiscordClient/, "resolver-ul cere interfata minima, nu unknown");
