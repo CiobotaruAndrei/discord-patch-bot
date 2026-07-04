@@ -151,6 +151,14 @@ src/
   infra/
     http/
     mongo/
+      models.ts
+      modelTypes.ts
+      guildNotificationSchemas.ts
+      guildYoutubeSchemas.ts
+      guildAdminRecordSchemas.ts
+      operationalSchemas.ts
+      seenSchemas.ts
+      outboxSchemas.ts
   native/
     fuzzy.ts
     fuzzyNativeBridge.ts
