@@ -418,6 +418,10 @@ Evaluare pe cod real: **granita consumatorului are deja un result-type**:
   eroarea devine data e boundary-ul CB, deja testat (`updatesCircuitBreaker.test.ts`,
   `perSourceConcurrency.test.ts`, `sourceScraperShapeDrift.test.ts`).
 
-**Declansator de revizuire:** daca un tip nou de drift are nevoie de date structurate mai bogate
-decat ierarhia de clase de eroare + `FetchResult.error` (ex. cod masina + context de retry
-per-camp), boundary-ul CB e locul unde s-ar introduce un `SourceResult` imbogatit — nu scraperele.
+**Declansatorul S-A ACTIVAT si pasul a fost executat (R6 #9):** review-ul urmator a cerut exact
+taxonomia structurata, asa ca boundary-ul CB clasifica acum fiecare rezultat: `FetchResult.outcome:
+"ok" | "transient-error" | "permanent-error" | "schema-drift" | "rate-limited"` (clasificator pur in
+`sources/sourceOutcome.ts`: 429/rate-limit → rate-limited; "Tip necunoscut" → permanent; SchemaDriftError
+→ schema-drift; cooldown-ul propriului breaker → rate-limited; restul → transient). Exact cum era
+planificat: imbogatirea s-a facut LA BOUNDARY, nu in scrapere — scraperele raman pe exceptii.
+Consumatorii (/sources status, canary, admin alerts, politici de retry) pot adopta `outcome` treptat.
