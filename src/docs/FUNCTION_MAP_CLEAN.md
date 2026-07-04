@@ -67,9 +67,12 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - `contentNormalization` foloseste wrapper-ele Rust din `src/native/fuzzy.ts` pentru hot-path-urile pure; contractul intors de `buildHttpClientFrom` e neschimbat.
 - Boundary-ul e complet tipat: `buildHttpClientFrom(deps: HttpClientDeps)` primeste exact dependintele declarate (fara `& Record<string, unknown>`), iar modulul exporta un obiect (`buildFrom` + helper-ele SSRF/proxy/retry), nu un installer `attachHttpClient(target)` cu `Object.assign` — compunerea se face doar prin valoarea returnata (`{ ...base, ...client.buildFrom(base) }` in `sourceRegistry`).
 
-### `src/infra/mongo/models.ts`
+### `src/infra/mongo/models.ts` (+ scheme pe domenii)
 
-- Defineste modelele Mongoose.
+- `models.ts` e asamblorul: construieste `guildSchema` din sub-schemele de domeniu, inregistreaza toate modelele si intoarce acelasi contract (`buildMongoModelsFrom` + adapterul `attachMongoModels`).
+- Sub-schemele guild traiesc in module pe domenii: `guildNotificationSchemas.ts` (pendingUpdate/pendingDiscount/deadLetterEntry/priceAlert), `guildYoutubeSchemas.ts` (youtubeChannel/youtubeError/youtubeChannelRoute/youtubeLastError), `guildAdminRecordSchemas.ts` (configBackup/botAuditLog/serverAuditLog/suggestedCommand/watchlistGameSuggestion/futureReleaseGame/adminCommandAccess).
+- Schemele de colectii sunt grupate tot pe domenii: `operationalSchemas.ts` (circuitBreaker/system/jobLock/adminAlertCooldown/fetchSnapshot/playerCountSnapshot/feedbackReport), `seenSchemas.ts` (guildSeenDiscount/guildSeenUpdate/guildSeenYoutube, cu indexurile unice), `outboxSchemas.ts` (notificationOutbox/outboxSent/notificationHistory/deadLetterReplay, cu indexurile si TTL-urile lor). Indexurile raman definite langa schema lor; `check-db-indexes` ramane verde.
+- `modelTypes.ts` (`GuildDoc` etc.) este aliniat 1:1 cu campurile top-level din `guildSchema` — paritatea e gardata de `mongoSchemaDomains.test.ts` (extractie de campuri din ambele directii; a prins si a corectat driftul real: `commandSnoozes` si `priceAlerts.absentCycles` lipseau din tip).
 
 ### `src/infra/mongo/mongoContext.ts`
 

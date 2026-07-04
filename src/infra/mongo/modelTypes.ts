@@ -111,6 +111,7 @@ export interface GuildDoc {
   discountsActivationId?: string | null;
   discountsLastError?: NotificationLastError;
   enabledGames?: string[];
+  commandSnoozes?: Map<string, Date> | Record<string, Date>;
   enabledStores?: string[];
   maxAbsolutePrice?: number;
   notificationRoleId?: string | null;
@@ -126,6 +127,7 @@ export interface GuildDoc {
     triggeredAt?: Date | null;
     lastObservedPrice?: number | null;
     lastObservedAt?: Date | null;
+    absentCycles?: number;
   }>;
   youtubeChannels?: Array<{
     channelId: string;
