@@ -167,7 +167,12 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   assert.match(cmd, /function requireInstalled/, "commandRegistry verifica fail-fast ca functiile adaugate de handlere (handleInteraction/buildHelpEmbed) exista dupa compunere");
   assert.match(cmd, /const commandHandlers: CommandHandler\[\]/, "routing-ul e o lista tipata CommandHandler[] (din attach*.buildCommandHandler(ctx)), nu un lant de installX care impacheteaza handleInteraction");
   assert.match(cmd, /async function dispatchCommand/, "commandRegistry ruteaza prin dispatchCommand (loop canHandle/handle, fallback ultimul), nu prin lant ordonat-sensibil de installX");
-  assert.match(cmd, /attachAdminCommandRouterGuard\(ctx\)/, "pre-check-ul admin (requireGuildAdmin) ramane singurul wrapper peste dispatchCommand");
+  assert.ok(!/attachAdminCommandRouterGuard\(ctx\)|attachCommandSnoozeGuard\(ctx\)/.test(cmd), "guard-urile nu se mai instaleaza prin mutarea contextului (fara attachX(ctx))");
+  assert.match(cmd, /createCommandSnoozeGuard\(\{/, "snooze guard-ul e construit ca factory in registry");
+  assert.match(cmd, /createAdminCommandGuard\(\{/, "admin guard-ul e construit ca factory in registry");
+  assert.match(cmd, /handleSnoozedCommand\(interaction as SnoozeInteraction, games, dispatchCommand\)/, "pipeline explicit: snooze guard -> dispatchCommand");
+  assert.match(cmd, /handleAdminProtectedCommand\(interaction as AdminInteraction, games, dispatchWithSnoozeGuard as AdminNext\)/, "pipeline explicit: admin guard (exterior) -> snooze -> dispatcher, aceeasi ordine ca inainte");
+  assert.match(cmd, /ctx\.handleInteraction = handleInteraction/, "registry-ul seteaza handleInteraction o singura data, la finalul compunerii");
   assert.ok((cmd.match(/\.buildCommandHandler\(ctx\)/g) || []).length >= 15, "fiecare handler de comanda contribuie la lista tipata prin buildCommandHandler(ctx) (>= 15 ocurente)");
   assert.match(src, /type SourceRuntimeContext = Partial<SourceRegistryApi>/, "sourceRegistry modeleaza contextul progresiv ca Partial<SourceRegistryApi>");
   assert.match(src, /function requireSourceValue/, "sourceRegistry citeste exporturile prin garda fail-fast pe chei");
