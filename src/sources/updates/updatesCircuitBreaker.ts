@@ -1,5 +1,6 @@
 import type { FetchResult, GameConfig, NormalizedUpdate } from "../../types";
 import { errorMessage } from "../../shared/errors";
+import { classifySourceError } from "../sourceOutcome";
 import type { CircuitBreakerDoc, UpdatesDeps } from "./updatesContracts";
 
 export function createUpdatesCircuitBreaker(deps: UpdatesDeps, fetchGameUpdate: (game: GameConfig) => Promise<NormalizedUpdate>) {
@@ -27,10 +28,10 @@ export function createUpdatesCircuitBreaker(deps: UpdatesDeps, fetchGameUpdate: 
         `Eroare la citirea state-ului CB pentru ${game.key}, sar fetch-ul ciclului curent`,
         errorMessage(cbGetErr));
       metricsRef.fetchFail++;
-      return { game, latest: null, error: errorMessage(cbGetErr) };
+      return { game, latest: null, error: errorMessage(cbGetErr), outcome: "transient-error" };
     }
     if (cb.cooldownUntil && new Date() < new Date(cb.cooldownUntil)) {
-      return { game, latest: null, error: "Circuit Breaker Activ" };
+      return { game, latest: null, error: "Circuit Breaker Activ", outcome: "rate-limited" };
     }
     try {
       const latest = await fetchGameUpdate(game);
@@ -41,7 +42,7 @@ export function createUpdatesCircuitBreaker(deps: UpdatesDeps, fetchGameUpdate: 
         );
       }
       metricsRef.fetchSuccess++;
-      return { game, latest, error: null };
+      return { game, latest, error: null, outcome: "ok" };
     } catch (error) {
       try {
         if (error instanceof SchemaDriftError) {
@@ -67,7 +68,7 @@ export function createUpdatesCircuitBreaker(deps: UpdatesDeps, fetchGameUpdate: 
             }
           }
           metricsRef.fetchFail++;
-          return { game, latest: null, error: error.message };
+          return { game, latest: null, error: error.message, outcome: "schema-drift" };
         }
 
         const updatedCb = await CircuitBreakerModel.findOneAndUpdate(
@@ -97,7 +98,7 @@ export function createUpdatesCircuitBreaker(deps: UpdatesDeps, fetchGameUpdate: 
           errorMessage(bookkeepingErr));
       }
       metricsRef.fetchFail++;
-      return { game, latest: null, error: errorMessage(error) };
+      return { game, latest: null, error: errorMessage(error), outcome: classifySourceError(errorMessage(error)) };
     }
   }
 

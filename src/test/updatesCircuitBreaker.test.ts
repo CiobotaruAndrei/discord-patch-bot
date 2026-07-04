@@ -122,3 +122,40 @@ test("createUpdatesSourceDispatch: fetchGameUpdate incearca fallback-urile si ad
     (err: Error) => /rss down/.test(err.message) && /fallback-uri esuate/.test(err.message)
   );
 });
+
+import { classifySourceError } from "../sources/sourceOutcome";
+
+test("classifySourceError: 429/rate limit -> rate-limited, tip necunoscut -> permanent, restul -> transient (R6 #9)", () => {
+  assert.equal(classifySourceError("HTTP 429 Too Many Requests"), "rate-limited");
+  assert.equal(classifySourceError("rate limit exceeded"), "rate-limited");
+  assert.equal(classifySourceError("Tip necunoscut."), "permanent-error");
+  assert.equal(classifySourceError("ECONNRESET"), "transient-error");
+  assert.equal(classifySourceError("socket hang up"), "transient-error");
+});
+
+test("executeFetchWithCircuitBreaker clasifica outcome pe toate caile: ok, rate-limited (cooldown), schema-drift, transient (R6 #9)", async () => {
+  const okModel = makeCbModel();
+  const okDeps = makeDeps(okModel.model);
+  const okCb = createUpdatesCircuitBreaker(okDeps, async () => makeUpdate("ok"));
+  assert.equal((await okCb.executeFetchWithCircuitBreaker(game)).outcome, "ok");
+
+  const coolModel = makeCbModel({ cooldownUntil: new Date(Date.now() + 60_000) });
+  const coolDeps = makeDeps(coolModel.model);
+  const coolCb = createUpdatesCircuitBreaker(coolDeps, async () => makeUpdate("x"));
+  assert.equal((await coolCb.executeFetchWithCircuitBreaker(game)).outcome, "rate-limited");
+
+  const driftModel = makeCbModel();
+  const driftDeps = makeDeps(driftModel.model);
+  const driftCb = createUpdatesCircuitBreaker(driftDeps, async () => { throw new TestSchemaDriftError("0 rezultate", "steam"); });
+  assert.equal((await driftCb.executeFetchWithCircuitBreaker(game)).outcome, "schema-drift");
+
+  const failModel = makeCbModel();
+  const failDeps = makeDeps(failModel.model);
+  const failCb = createUpdatesCircuitBreaker(failDeps, async () => { throw new Error("ECONNRESET"); });
+  assert.equal((await failCb.executeFetchWithCircuitBreaker(game)).outcome, "transient-error");
+
+  const rateModel = makeCbModel();
+  const rateDeps = makeDeps(rateModel.model);
+  const rateCb = createUpdatesCircuitBreaker(rateDeps, async () => { throw new Error("Request failed with status code 429"); });
+  assert.equal((await rateCb.executeFetchWithCircuitBreaker(game)).outcome, "rate-limited");
+});

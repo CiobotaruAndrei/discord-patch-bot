@@ -38,10 +38,13 @@ export interface EmbeddableUpdate {
   timestamp?: string | Date;
 }
 
+export type SourceFetchOutcome = "ok" | "transient-error" | "permanent-error" | "schema-drift" | "rate-limited";
+
 export interface FetchResult {
   game: GameConfig;
   latest: NormalizedUpdate | null;
   error: string | null;
+  outcome?: SourceFetchOutcome;
 }
 
 export interface DealInfo {
