@@ -482,7 +482,7 @@ Teste functionale curente:
 - `sourcesStatusHandler.functional.test.ts`;
 - `reportInteraction.test.ts`;
 - `autocompleteInteractionHandler.functional.test.ts`;
-- `notificationServices.functional.test.ts`;
+- `updateNotificationService.functional.test.ts` si `discountNotificationService.functional.test.ts` (helpers partajate in `notificationServiceTestKit.ts`);
 - `seenRepository.functional.test.ts`;
 - `dealFiltersCore.functional.test.ts`;
 - `rustFuzzy.test.ts`.
