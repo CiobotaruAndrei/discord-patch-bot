@@ -1,6 +1,7 @@
 "use strict";
 
-import type { ConfigBackupRecord, GuildSettings } from "../../types";
+import type { ConfigBackupRecord, GuildSettings, ServerAuditLogEntry } from "../../types";
+import { buildServerAuditPush } from "./auditLogRepository";
 
 type MongoWriteResult = { modifiedCount?: number; matchedCount?: number };
 
@@ -180,6 +181,34 @@ export async function loadConfigBackup(
     buildConfigRestoreUpdate(backup),
     { upsert: true }
   );
+}
+
+export async function loadConfigBackupWithAudit(
+  GuildModel: GuildModelLike,
+  guildId: string,
+  backup: ConfigBackupRecord,
+  audit: Omit<ServerAuditLogEntry, "serverId" | "at">
+): Promise<void> {
+  const update = buildConfigRestoreUpdate(backup);
+  update.$push = buildServerAuditPush(guildId, audit);
+  await GuildModel.updateOne({ _id: guildId }, update, { upsert: true });
+}
+
+export async function deleteConfigBackupWithAudit(
+  GuildModel: GuildModelLike,
+  guildId: string,
+  name: string,
+  audit: Omit<ServerAuditLogEntry, "serverId" | "at">
+): Promise<boolean> {
+  const normalized = normalizeBackupName(name);
+  const result = await GuildModel.updateOne(
+    { _id: guildId, "configBackups.name": normalized },
+    {
+      $pull: { configBackups: { name: normalized } },
+      $push: buildServerAuditPush(guildId, audit)
+    }
+  );
+  return (result.matchedCount ?? 0) > 0;
 }
 
 export async function deleteConfigBackup(GuildModel: GuildModelLike, guildId: string, name: string): Promise<boolean> {

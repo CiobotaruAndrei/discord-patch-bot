@@ -345,3 +345,36 @@ prima evaluare, care raman valabile si dupa spargerea definitiilor pe domenii:
 al doilea consumator de metadate (ex. un dashboard web), catalogul devine justificat: pasul corect ar fi
 sa se extinda `commandAccessManifest` (deja tipat si central) cu descrieri si optiuni, apoi help-ul si
 definitiile sa se mute treptat pe el, pastrand guard-urile existente ca plasa de siguranta in tranzitie.
+
+## Unit-of-work atomic pentru operatiile multi-step (audit R5 #7)
+
+Auditul fluxurilor numite de review si starea lor (Mongo standalone, fara tranzactii —
+strategia repo-ului e claim/rollback explicit + scrieri combinate pe acelasi document):
+
+- **YouTube subscribe (baseline + abonare)** — REZOLVAT anterior: claim atomic cu limita
+  (`findOneAndUpdate` conditionat), iar la esec baseline-ul seen abia scris e curatat
+  (rollback, cu erorile de rollback logate best-effort). Gardat de
+  `youtubeSubscriptionInteraction.functional.test.ts`.
+- **Price-alert trigger + starea seen** — REZOLVAT anterior: trecerea sub prag e revendicata
+  atomic per regula (`rollbackTriggeredAlert` la esec de livrare, re-arm dupa revenirea peste
+  prag). Gardat de `priceAlertService.functional.test.ts`.
+- **Backup load/delete + audit server-log** — IMPLEMENTAT in R5 #7: restore-ul si intrarea de
+  audit sunt pe ACELASI document guild, deci acum sunt o singura scriere `updateOne`
+  (`loadConfigBackupWithAudit`: `$set`/`$unset` + `$push serverAuditLog`;
+  `deleteConfigBackupWithAudit`: filtru pe existenta backup-ului + `$pull` + `$push`, deci
+  auditul nu se scrie pentru un delete inexistent, iar `matchedCount` da raspunsul "Nu exista").
+  Ambele-sau-niciuna: a disparut calea degradata "restaurat dar fara audit".
+- **Config reset + curatarea replay payloads** — RAMANE compensare explicita: reset-ul e o
+  singura scriere `$set` pe documentul guild, dar payload-urile de replay sunt alta colectie
+  (`notificationDeadLetterReplay`); fara tranzactii cross-colectie, esecul curatarii e raportat
+  ONEST userului ("Partial: ... reincearca /outbox clear-deadletters") — acesta e design-ul,
+  nu un gap.
+- **Report resolve + log** — RAMANE best-effort cross-colectie: resolve-ul e
+  `findOneAndUpdate` atomic pe colectia de rapoarte; jurnalul de comenzi admin (bot-log) e
+  scris de router guard pe documentul guild, alta colectie. Aceeasi limitare de tranzactii;
+  auditul e jurnal operational, nu sursa de adevar, deci best-effort e suficient.
+
+**Cand ar deveni relevante tranzactiile reale:** daca deployment-ul trece pe replica set,
+perechile cross-colectie (reset + replay cleanup; resolve + log) pot deveni tranzactii — dar
+sub un singur nod Mongo, combinatia scriere-unica-pe-document + compensare raportata onest
+ramane corecta si mai simpla.
