@@ -316,3 +316,18 @@ test("handlerul admin-command-access nu prinde /delete suggestion", () => {
 
   assert.equal(harness.commandHandler.canHandle(interaction("delete", "suggestion")), false);
 });
+
+test("/set si /delete admin-command-access scriu regula si auditul admin_access intr-o singura scriere atomica (R6 #7)", async () => {
+  const setHarness = makeHarness();
+  await setHarness.handler.handleAdminCommandAccess(interaction("set", "admin-command-access"));
+  assert.equal(setHarness.updateCalls.length, 1, "set + audit = un singur updateOne");
+  const setUpdate = setHarness.updateCalls[0].update as { $push?: Record<string, unknown> };
+  assert.match(JSON.stringify(setUpdate.$push), /serverAuditLog/);
+  assert.match(JSON.stringify(setUpdate.$push), /admin_access_set/);
+
+  const deleteHarness = makeHarness({ mode: "role", roleId: "role-global", updatedBy: "owner", updatedAt: new Date() });
+  await deleteHarness.handler.handleAdminCommandAccess(interaction("delete", "admin-command-access", true));
+  assert.equal(deleteHarness.updateCalls.length, 1, "delete + audit = un singur updateOne");
+  const deleteUpdate = deleteHarness.updateCalls[0].update as { $push?: Record<string, unknown> };
+  assert.match(JSON.stringify(deleteUpdate.$push), /admin_access_delete/);
+});
