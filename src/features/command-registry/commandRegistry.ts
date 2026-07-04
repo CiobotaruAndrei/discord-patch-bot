@@ -189,10 +189,33 @@ function createCommandRegistry(
     return undefined;
   }
 
-  ctx.handleInteraction = dispatchCommand;
+  const snoozeGuard = attachCommandSnoozeGuard.createCommandSnoozeGuard({
+    getGuildSettings: ctx.getGuildSettings,
+    MessageFlags: ctx.MessageFlags,
+    logger: ctx.logger
+  });
+  const adminGuard = attachAdminCommandRouterGuard.createAdminCommandGuard({
+    requireGuildAdmin: interaction => attachAdminCommandRouterGuard.requireGuildAdminWithConfiguredAccess(ctx, interaction),
+    authorizeGuildAdmin: interaction => attachAdminCommandRouterGuard.authorizeGuildAdminWithConfiguredAccess(ctx, interaction)
+  }, ctx);
+
+  type SnoozeInteraction = Parameters<typeof snoozeGuard.handleSnoozedCommand>[0];
+  type AdminInteraction = Parameters<typeof adminGuard.handleAdminProtectedCommand>[0];
+  type AdminNext = Parameters<typeof adminGuard.handleAdminProtectedCommand>[2];
+
+  async function dispatchWithSnoozeGuard(interaction: unknown, games: CommandGame[]): Promise<unknown> {
+    return snoozeGuard.handleSnoozedCommand(interaction as SnoozeInteraction, games, dispatchCommand);
+  }
+
+  async function handleInteraction(interaction: unknown, games: CommandGame[]): Promise<unknown> {
+    if (attachAdminCommandRouterGuard.isAdminProtectedCommand(interaction as AdminInteraction)) {
+      return adminGuard.handleAdminProtectedCommand(interaction as AdminInteraction, games, dispatchWithSnoozeGuard as AdminNext);
+    }
+    return dispatchWithSnoozeGuard(interaction, games);
+  }
+
+  ctx.handleInteraction = handleInteraction;
   ctx.buildHelpEmbed = helpCommand.buildHelpEmbed;
-  attachCommandSnoozeGuard(ctx);
-  attachAdminCommandRouterGuard(ctx);
 
   return Object.freeze({
     cleanCache: ctx.cleanCache,

@@ -160,7 +160,7 @@ function installAdminCommandGuard(target: AdminCommandGuardContext) {
   Object.assign(target, { handleInteraction });
 }
 
-Object.assign(installAdminCommandGuard, {
+const adminCommandRouterGuardModule = Object.assign(installAdminCommandGuard, {
   createAdminCommandGuard,
   isAdminProtectedCommand,
   isSensitiveAdminCommand,
@@ -174,4 +174,4 @@ Object.assign(installAdminCommandGuard, {
   authorizeGuildAdminWithConfiguredAccess
 });
 
-export = installAdminCommandGuard;
+export = adminCommandRouterGuardModule;
