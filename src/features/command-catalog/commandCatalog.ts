@@ -72,5 +72,3 @@ export function permissionsLabelFor(path: string, ephemeral?: boolean): string {
   }
   return ephemeral ? "Public, Ephemeral" : "Public";
 }
-
-

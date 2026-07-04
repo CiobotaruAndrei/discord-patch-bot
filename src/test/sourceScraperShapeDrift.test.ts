@@ -2,9 +2,22 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as cheerio from "cheerio";
 
-const attachUpdates = require("../sources/updates") as (context: Record<string, unknown>) => void;
-const attachDeals = require("../sources/deals") as (context: Record<string, unknown>) => void;
-const attachSteam = require("../sources/steam") as (context: Record<string, unknown>) => void;
+const attachUpdates = require("../sources/updates") as typeof import("../sources/updates");
+const attachDeals = require("../sources/deals") as typeof import("../sources/deals");
+const attachSteam = require("../sources/steam") as typeof import("../sources/steam");
+
+type UpdatesBuildContext = Parameters<typeof attachUpdates.buildFrom>[0];
+type DealsBuildContext = Parameters<typeof attachDeals.buildFrom>[0];
+type SteamBuildContext = Parameters<typeof attachSteam.buildFrom>[0];
+function asUpdatesContext(context: Record<string, unknown>): UpdatesBuildContext {
+  return context as Record<string, unknown> & UpdatesBuildContext;
+}
+function asDealsContext(context: Record<string, unknown>): DealsBuildContext {
+  return context as Record<string, unknown> & DealsBuildContext;
+}
+function asSteamContext(context: Record<string, unknown>): SteamBuildContext {
+  return context as Record<string, unknown> & SteamBuildContext;
+}
 
 type UpdatesRuntime = {
   fetchSteamUpdate: (game: Record<string, unknown>) => Promise<unknown>;
@@ -63,7 +76,7 @@ test("updates source rejects Steam newsitems without gid", async () => {
       return { processed: items.length, errors: [] };
     },
   });
-  attachUpdates(context);
+  Object.assign(context, attachUpdates.buildFrom(asUpdatesContext(context)));
   const runtime = context as typeof context & UpdatesRuntime;
 
   await assert.rejects(
@@ -90,7 +103,7 @@ test("updates source reports schema drift when listing HTML has no valid anchors
       return { processed: items.length, errors: [] };
     },
   });
-  attachUpdates(context);
+  Object.assign(context, attachUpdates.buildFrom(asUpdatesContext(context)));
   const runtime = context as typeof context & UpdatesRuntime;
 
   await assert.rejects(
@@ -110,7 +123,7 @@ test("updates source reports schema drift when listing HTML has no valid anchors
 function makeDealsContext(httpReq: (method: string, url: string, options?: unknown) => Promise<unknown>) {
   const context = {
     logger() {},
-    getCurrencyConfig: () => ({ cc: "US", symbol: "$", placement: "prefix" }),
+    getCurrencyConfig: () => ({ cc: "US", symbol: "$", placement: "prefix" as const }),
     httpReq,
     normalizeTitleForDedupe: (value: unknown) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(),
     trackInflight: <T>(map: Map<string, Promise<T>>, key: string, promise: Promise<T>) => {
@@ -129,7 +142,7 @@ function makeDealsContext(httpReq: (method: string, url: string, options?: unkno
     EPIC_SPECIALS_LIMIT: 10,
     MAX_DEALS: 10
   };
-  attachDeals(context);
+  Object.assign(context, attachDeals.buildFrom(asDealsContext(context)));
   return context as typeof context & DealsRuntime;
 }
 
@@ -187,11 +200,11 @@ test("deals source keeps fallback end date when Epic sends malformed promo date"
 test("steam source tolerates storesearch JSON without items array", async () => {
   const context = {
     logger() {},
-    getCurrencyConfig: () => ({ cc: "US", symbol: "$", placement: "prefix" }),
+    getCurrencyConfig: () => ({ cc: "US", symbol: "$", placement: "prefix" as const }),
     safeCheerioLoad: (html: unknown) => cheerio.load(String(html || "")),
     httpReq: async () => ({ data: { unexpected: true } })
   };
-  attachSteam(context);
+  Object.assign(context, attachSteam.buildFrom(asSteamContext(context)));
   const runtime = context as typeof context & SteamRuntime;
 
   const items = await runtime.searchSteamGameByName("Counter-Strike 2", "USD");

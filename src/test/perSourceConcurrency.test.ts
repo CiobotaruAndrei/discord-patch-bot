@@ -5,7 +5,7 @@ import { load as cheerioLoad } from "cheerio";
 import type { GameConfig, FetchResult, NormalizedUpdate } from "../types";
 const attachUpdates = require("../sources/updates") as typeof import("../sources/updates");
 
-type UpdatesContext = Parameters<typeof attachUpdates>[0];
+type UpdatesContext = Parameters<typeof attachUpdates.buildFrom>[0];
 type GetLatest = (games: GameConfig[]) => Promise<FetchResult[]>;
 type RunCall = { group: string; count: number; concurrency: number };
 
@@ -60,7 +60,7 @@ function makeUpdatesContext() {
     metricsRef: { fetchSuccess: 0, fetchFail: 0 },
     executeFetchWithCircuitBreaker: async game => ({ game, latest: makeUpdate(game.key), error: null })
   };
-  attachUpdates(context);
+  Object.assign(context, attachUpdates.buildFrom(context));
   return { context, runCalls };
 }
 
@@ -108,7 +108,7 @@ test("attachUpdates decupleaza fabrica de context: o mutatie tarzie a contextulu
   const { context } = makeUpdatesContext();
   const getLatest = context.getLatestForAllGames as GetLatest;
 
-  context.executeFetchWithCircuitBreaker = async game => ({ game, latest: makeUpdate(`mutat-${game.key}`), error: null });
+  context.executeFetchWithCircuitBreaker = async (game: GameConfig) => ({ game, latest: makeUpdate(`mutat-${game.key}`), error: null });
 
   const results = await getLatest([{ key: "cs2", name: "CS2", type: "steam" }]);
   assert.equal(results[0].latest?.id, "cs2",
