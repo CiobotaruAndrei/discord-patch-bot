@@ -15,8 +15,6 @@ const { createUpdateNotificationRuntime } = require("./updateNotificationRuntime
 const { createDiscountNotificationRuntime } = require("./discountNotificationRuntime") as typeof import("./discountNotificationRuntime");
 const { createYouTubeNotificationRuntime } = require("./youtubeNotificationRuntime") as typeof import("./youtubeNotificationRuntime");
 
-type NotificationsContext = NotificationsRuntimeDeps & Record<string, unknown>;
-
 function createNotificationDispatchServices(
   deps: NotificationsRuntimeDeps,
   resolveOutboundChannel: OutboundChannelResolver,
@@ -91,18 +89,10 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
   };
 }
 
-type NotificationsInstaller = ((target: NotificationsContext) => void) & {
-  createNotificationRuntime: typeof createNotificationRuntime;
-  createIsStillSubscribed: typeof createIsStillSubscribed;
-  outboxSubscriptionFilter: typeof outboxSubscriptionFilter;
+const notificationsModule = {
+  createNotificationRuntime,
+  createIsStillSubscribed,
+  outboxSubscriptionFilter
 };
 
-const installNotifications = ((target: NotificationsContext): void => {
-  Object.assign(target, createNotificationRuntime(target));
-}) as NotificationsInstaller;
-
-installNotifications.createNotificationRuntime = createNotificationRuntime;
-installNotifications.createIsStillSubscribed = createIsStillSubscribed;
-installNotifications.outboxSubscriptionFilter = outboxSubscriptionFilter;
-
-export = installNotifications;
+export = notificationsModule;

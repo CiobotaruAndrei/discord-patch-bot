@@ -19,7 +19,7 @@ function attachOnce(): Record<string, unknown> {
     env: { GUILD_SEEN_DISCOUNT_TTL_DAYS: 45, NOTIFICATION_OUTBOX_SENT_TTL_HOURS: 24, NOTIFICATION_HISTORY_TTL_DAYS: 30, FEEDBACK_REPORT_TTL_DAYS: 90, NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS: 7 }
   };
   try {
-    attachMongoModels(target);
+    Object.assign(target, attachMongoModels.buildFrom(target));
   } catch {  }
   return target;
 }
