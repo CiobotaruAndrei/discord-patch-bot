@@ -207,12 +207,10 @@ function buildSteamFrom(target: SteamSourceContext) {
   });
 }
 
-function attachSteam(target: SteamSourceContext): void {
-  Object.assign(target, buildSteamFrom(target));
-}
+const steamSourceModule = {
+  buildFrom: buildSteamFrom,
+  createSteamSource,
+  chooseBestSteamMatch
+};
 
-attachSteam.buildFrom = buildSteamFrom;
-attachSteam.createSteamSource = createSteamSource;
-attachSteam.chooseBestSteamMatch = chooseBestSteamMatch;
-
-export = attachSteam;
+export = steamSourceModule;

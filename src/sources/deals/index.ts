@@ -127,11 +127,9 @@ function buildDealsFrom(target: DealsContext) {
   });
 }
 
-function attachDeals(target: DealsContext): void {
-  Object.assign(target, buildDealsFrom(target));
-}
+const dealsSourceModule = {
+  buildFrom: buildDealsFrom,
+  createDeals
+};
 
-attachDeals.buildFrom = buildDealsFrom;
-attachDeals.createDeals = createDeals;
-
-export = attachDeals;
+export = dealsSourceModule;

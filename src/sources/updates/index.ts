@@ -66,12 +66,10 @@ function buildUpdatesFrom(target: UpdatesContext) {
   });
 }
 
-function attachUpdates(target: UpdatesContext): void {
-  Object.assign(target, buildUpdatesFrom(target));
-}
+const updatesSourceModule = {
+  buildFrom: buildUpdatesFrom,
+  sourceConcurrencyGroup,
+  createUpdates
+};
 
-attachUpdates.buildFrom = buildUpdatesFrom;
-attachUpdates.sourceConcurrencyGroup = sourceConcurrencyGroup;
-attachUpdates.createUpdates = createUpdates;
-
-export = attachUpdates;
+export = updatesSourceModule;

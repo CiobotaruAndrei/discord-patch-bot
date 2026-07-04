@@ -10,7 +10,11 @@ type UpdatesRuntime = {
   fetchListingBasedUpdate: (game: Record<string, unknown>) => Promise<unknown>;
 };
 
-const attachUpdates = require("../sources/updates") as (context: Record<string, unknown>) => void;
+const attachUpdates = require("../sources/updates") as typeof import("../sources/updates");
+type UpdatesBuildContext = Parameters<typeof attachUpdates.buildFrom>[0];
+function asUpdatesContext(context: Record<string, unknown>): UpdatesBuildContext {
+  return context as Record<string, unknown> & UpdatesBuildContext;
+}
 
 class TestSchemaDriftError extends Error {
   source?: string;
@@ -55,7 +59,7 @@ test("sources/updates: fetchListingBasedUpdate arunca plain Error (nu SchemaDrif
       return { processed: items.length, errors: [] };
     },
   };
-  attachUpdates(context);
+  Object.assign(context, attachUpdates.buildFrom(asUpdatesContext(context)));
   const runtime = context as typeof context & UpdatesRuntime;
 
   await assert.rejects(
