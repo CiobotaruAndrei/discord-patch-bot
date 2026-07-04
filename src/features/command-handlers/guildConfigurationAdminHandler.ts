@@ -1,6 +1,7 @@
 "use strict";
 
 import type { CurrencyCode, GameConfig } from "../../types";
+import { buildServerAuditPush } from "../admin-records/auditLogRepository";
 import type { CommandHandler } from "../command-registry/commandHandler";
 
 import { handledCommandError } from "../command-security/commandOutcome";
@@ -16,6 +17,7 @@ interface DiscordChannel {
 interface DiscordInteraction {
   commandName?: string;
   guild?: { id: string } | null;
+  user?: { id?: string } | null;
   deferred?: boolean;
   replied?: boolean;
   options: {
@@ -133,7 +135,14 @@ function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps)
     }
     await GuildModel.updateOne(
       { _id: guildId },
-      { $set: buildResetConfiguration(DEFAULT_CURRENCY) },
+      {
+        $set: buildResetConfiguration(DEFAULT_CURRENCY),
+        $push: buildServerAuditPush(guildId, {
+          userId: interaction.user?.id || "",
+          action: "reset_config",
+          details: "Configuratia serverului a fost resetata la valorile implicite"
+        })
+      },
       { upsert: true }
     );
     let replayCleanupOk = true;

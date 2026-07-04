@@ -131,3 +131,13 @@ test("/admin-alerts set refuza canalul fara View Channel (R[Medium] #2)", async 
   assert.equal(calls.length, 0, "fara View Channel nu se salveaza canalul de alerte");
   assert.match(String(replies[0]), /View Channel/, "mesajul listeaza permisiunea lipsa View Channel (livrarea reala o cere)");
 });
+
+test("/reset-config scrie resetul si intrarea de audit reset_config intr-o singura scriere atomica (R6 #7)", async () => {
+  const { handler, calls } = makeHarness();
+  await handler.handleGuildConfigurationAdmin(interaction("reset-config", "set", { confirm: true }));
+  assert.equal(calls.length, 1, "reset + audit = un singur updateOne pe documentul guild");
+  const update = calls[0].update as { $set?: Record<string, unknown>; $push?: Record<string, unknown> };
+  assert.ok(update.$set, "reset-ul ramane in $set");
+  assert.match(JSON.stringify(update.$push), /serverAuditLog/, "auditul face parte din aceeasi scriere");
+  assert.match(JSON.stringify(update.$push), /reset_config/);
+});
