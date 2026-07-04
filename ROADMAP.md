@@ -166,7 +166,14 @@ Gardat de `registryClosedContracts.test.ts` (compunere prin `build*From` ordonat
 inghetat). Toate cele trei zone de compunere (`commandRegistry`, `sourceRegistry`, `mongoContext`) sunt acum pe
 factory-return explicit.
 
-**Izolarea compat `attachX` — EVALUAT (review arhitectura R4 #15): RESPINS, deja izolat.** Punctul cerea izolarea
+**Izolarea compat `attachX` — EVALUAT (R4 #15), apoi PAS EXECUTAT (R5 #3: factory-only pe modulele numite).**
+In runda 5, cele trei module numite explicit de review au trecut complet pe factory-only, fara nicio forma de atasare
+pe target: `features/notifications/index` (export `{ createNotificationRuntime, createIsStillSubscribed,
+outboxSubscriptionFilter }`), `features/command-cache/commandCache` (export `{ createCommandCache,
+computeMissingChannelPerms, formatMissingChannelPerms }`) si `infra/mongo/models` (export `{ buildFrom }`).
+Consumatorii lor directi (2 teste e2e, `check-db-indexes`, `outboxLoadBenchmark`, 6 teste de integrare) au fost
+migrati pe factory/`buildFrom` si isi fac singuri `Object.assign` pe contextul propriu; gardat de
+`commandInstallerTargetContracts.test.ts`. Evaluarea initiala R4 #15 ramane valabila pentru restul adaptoarelor: Punctul cerea izolarea
 adaptoarelor de compatibilitate `attachX`. Evaluare pe cod real: productia **nu** mai compune prin `attachX(context)`
 (sourceRegistry compune prin `build*From` in 4 pasi, `mongoContext` in 11, `commandRegistry` prin factory-uri tipate +
 `CommandHandler[]`), deci `attachX(target)` nu mai are rol de compunere in runtime. Adaptoarele raman **thin-wrappers**
