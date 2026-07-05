@@ -1,14 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { loadAdminAccessDoc, saveAdminAccessRule, deleteAdminAccessRule } from "../features/command-security/adminAccessRepository";
+import { parseAdminScopeId } from "../features/command-security/adminScopeIds";
 import { upsertPriceAlert, removePriceAlertsForGame, buildPriceAlertRule, MAX_PRICE_ALERTS_PER_GUILD } from "../features/notifications/priceAlertRepository";
 import type { PriceAlertRule } from "../types";
 
 test("adminAccessRepository: save/delete scriu regula si auditul intr-un singur updateOne (R6 #6 + #7)", async () => {
   const calls: Array<{ filter: object; update: Record<string, unknown> }> = [];
   const model = { updateOne: async (filter: object, update: object) => { calls.push({ filter, update: update as Record<string, unknown> }); return {}; } };
+  const scope = parseAdminScopeId("/start updates");
+  assert.ok(scope, "scope-ul canonic exista in catalogul settable");
   await saveAdminAccessRule(model, "g1", {
-    scope: "start-stop updates",
+    scope,
     access: { mode: "role" as const, roleId: "r1", updatedBy: "u1", updatedAt: new Date() },
     legacyKeys: ["start:updates"],
     audit: { userId: "u1", action: "admin_access_set", details: "test" }

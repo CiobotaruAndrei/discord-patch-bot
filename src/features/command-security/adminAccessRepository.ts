@@ -3,6 +3,7 @@
 import { buildServerAuditPush } from "../admin-records/auditLogRepository";
 import type { ServerAuditLogEntry } from "../../types";
 import type { AdminCommandAccessConfig } from "./adminCommandAccessScope";
+import type { AdminScopeId } from "./adminScopeIds";
 import type { GuildAdminAccessDoc, GuildAdminAccessQuery } from "./adminGuardContracts";
 
 export interface AdminAccessReadModelLike {
@@ -28,7 +29,7 @@ export async function saveAdminAccessRule(
   GuildModel: AdminAccessWriteModelLike,
   guildId: string,
   input: {
-    scope: string;
+    scope: AdminScopeId;
     access: AdminCommandAccessConfig & { updatedBy: string; updatedAt: Date };
     legacyKeys: readonly string[];
     audit: Omit<ServerAuditLogEntry, "serverId" | "at">;
