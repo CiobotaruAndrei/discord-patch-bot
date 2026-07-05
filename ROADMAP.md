@@ -644,3 +644,56 @@ cu deciziile (un plan intocmit inainte de claim ar putea trimite duplicat intre 
 Calea de reduceri are aceeasi forma dar alte reguli (valuta, cache, praguri) — extractia ei se
 face cand apare un bug real de drift intre cele doua cai sau un al doilea consumator al
 planner-ului (acelasi tip de declansator ca la celelalte evaluari).
+
+## Review „arhitectura mare" (runda 9, itemele 3-10) — verdicte pe cod real
+
+Reviewul descrie in buna parte un ALT bot: giveaways, FIFA market checks, DBD shrine, levels,
+reaction-roles, welcome, mutes/timeouts programate, security scans, premium si limba serverului
+NU exista ca functionalitati in acest repo. Verdictele de mai jos acopera doar ce se aplica
+codului real (regula 20); functionalitatile inexistente sunt produs nou, nu refactor, si nu se
+implementeaza speculativ. Itemele 1-2 ale reviewului nu au fost furnizate.
+
+- **#3 Queue/job system — EXISTA.** „Sistemul propriu pe Mongo" sugerat de review e exact
+  outbox-ul de notificari: coada persistata cu claim atomic per job (`findOneAndUpdate` +
+  `lockedUntil`), retry cu backoff plafonat + jitter, dead-letter cu audit si replay, drain
+  worker coordonat prin lock DB, exact-once intre instante (test pe Mongo real). „Retry la
+  notificari esuate" = outbox; „verificari periodice" = ciclul cron cu lock `cron_main`;
+  „player-count snapshots" = `PlayerCountSnapshotModel`, deja persistat. BullMQ + Redis:
+  RESPINS — ar adauga o piesa de infrastructura pentru capabilitati deja acoperite; pragurile
+  masurabile din sectiunea „Outbox: claim in batch" raman singurul declansator de schimbare.
+- **#4 Worker separat — fundatia EXISTA, split-ul de proces AMANAT.** Munca periodica e deja
+  coordonata prin lock-uri DB (`cron_main`, `outbox_drain`), corecta la N instante — poti rula
+  AZI un al doilea proces care preia munca, fara modificari de cod (vezi sectiunea de sharding).
+  Fetch-urile externe sunt I/O asincron cu buget de ciclu si shedding, deci nu blocheaza
+  event-loop-ul de comenzi. Declansator pentru split-ul efectiv: latenta comenzilor masurabil
+  degradata in timpul ciclurilor de fetch — masurabila direct cu metricile per comanda
+  (`bot_command_duration_ms_total`, introduse la #6).
+- **#5 Sharding — DEJA EVALUAT.** Reviewerul insusi: „nu e prioritar acum". Sectiunea
+  „Sharding gateway Discord (la scara mare)" de mai sus are deja starea, calea si pragurile
+  (2.500 guild-uri / backlog sustinut de trimitere). Nimic de schimbat.
+- **#7 Logging centralizat — EXISTA; extensia AMANATA.** Logger-ul e structurat (nivel,
+  context, mesaj, meta) cu `requestId` per interactiune (`requestContext.run` la
+  `interactionCreate`); „cine a rulat comenzi admin" = `botAuditLog` (+ `/bot-log`), „cine a
+  schimbat setari" = `serverAuditLog` scris atomic cu actiunea (+ `/server-log`); erorile de
+  surse au context propriu si metrici per sursa. Reviewerul insusi: „ai inceput deja partea
+  asta". Extensia (jurnal persistat pentru TOATE comenzile publice) ramane amanata:
+  declansator — o nevoie reala de investigare pe care log-urile si auditul curent nu o acopera;
+  costul e volum de scriere per interactiune publica.
+- **#8 Module/plugin system — EXISTA ca arhitectura.** Pentru functionalitatile reale, repo-ul
+  e deja organizat pe module cu exact fatetele cerute: `features/*` per domeniu (command-catalog
+  pe 5 domenii, command-security, command-handlers cu youtube/ split pe use-case-uri,
+  notifications, guild-config, admin-records), `sources/*` per sursa, fiecare cu contracte,
+  repositories, teste si documentatie; descriptorii per comanda (R6 #4) leaga comanda de
+  domeniu + acces + help cu fail-fast pe drift. Modulele din lista reviewului care nu exista
+  (giveaways/fifa/dbd/levels/reaction-roles/welcome) sunt functionalitati noi de produs.
+- **#9 Config per server — EXISTA.** Documentul Guild tine per server: module active
+  (updates/reduceri/DLC/player-count/YouTube/future-release), canale si roluri, praguri
+  (`minDiscountPercent`, `maxAbsolutePrice`, filtre), permisiuni (`adminCommandAccess` pe
+  scope-uri canonice), mesaje custom (`youtubeMessageTemplate`), snooze-uri per comanda —
+  cu valorile implicite intr-o singura sursa (`guildConfigDefaults`). „Limba serverului" si
+  „premium status" nu exista ca concepte — decizii de produs, nu refactor.
+- **#10 Deployment scalabil — AMANAT chiar de review** („mai tarziu, nu acum"). Exista deja:
+  Docker + compose (bot + Mongo), configuratie de monitoring (Prometheus + alerte in repo),
+  backup offline (`npm run db:export:guilds`) si `/backup` per server. Redis, dashboard web si
+  reverse proxy se adauga cand apare nevoia lor reala, pe fundatia de lock-uri DB care permite
+  deja multi-proces.
