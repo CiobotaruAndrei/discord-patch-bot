@@ -491,9 +491,17 @@ neatinse. Repositories deja existente dinainte: seenRepository, youtubeRepositor
 configBackupRepository, auditLogRepository, feedbackRepository, historyRepository,
 deadLetterReplayRepository.
 
+**Pas executat in R7 #3 (etapa GuildConfig):** modul nou `features/guild-config/` —
+`guildConfigDefaults.ts` (sursa unica a valorilor implicite per server, `buildResetConfiguration`
+mutat 1:1 din handler) + `guildConfigRepository.ts` (`resetGuildConfigurationWithAudit` — reset +
+audit `reset_config` in acelasi `updateOne`, decizia R6 #7 pastrata — si `setAdminAlertChannel`).
+`guildConfigurationAdminHandler` delega; snapshot-urile si auditul erau deja repositories
+(`configBackupRepository` = Snapshot, `auditLogRepository` = Audit), deci fatetele cerute de
+review (Defaults/Repository/Snapshot/Audit) au acum fiecare modulul ei.
+
 **Urmatorii candidati** (extras cand se atinge zona, acelasi tipar - functii pure + model-like minimal):
-- `GuildConfigRepository`: scrierile din `/set` (mode/filters/currency/stores/games) si
-  `/reset-config` din guildConfigurationAdminHandler + setInteractionHandler;
+- restul `GuildConfigRepository`: scrierile din `/set` (mode/filters/currency/stores/games) din
+  setInteractionHandler (multe subcomenzi, se muta treptat cand se atinge zona);
 - `NotificationSubscriptionRepository`: start/stop updates/reduceri/dlc/player-count
   (subscriptionNotificationHandlers) - scrierile de abonare + baseline;
 - `YouTubeGuildRepository` exista deja ca `youtubeRepository`; ramane doar mutarea scrierilor
