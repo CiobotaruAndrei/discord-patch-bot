@@ -191,6 +191,21 @@ runtime) este injectie DI la runtime a referintei partajate `BotMetrics`, **nu**
 intra sub acest punct. Invariantul (compunere imutabila, fara mutatie de context) este deja pinuit de
 `registryClosedContracts.test.ts`; nu e nevoie de cod nou.
 
+**Re-verificat la review R7 (#1) + pas exemplar pe handler-e.** Cererea („eliminarea completa a
+stilului vechi de installer/context in commandRegistry — handlers atasati pe context,
+previousHandleInteraction, Object.assign, install dinamic → createXHandler(deps) + rutare tipata")
+a fost re-verificata pe cod (regula 20): pentru **registry** e deja starea repo-ului — zero
+`previousHandleInteraction`/`Object.assign(target, ...)` in `commandRegistry.ts`, compunere prin
+factory-uri tipate + lista `CommandHandler[]` rutata de `dispatchCommand`. Rezidualul real sunt
+**install-form-urile de pe modulele de handler** (callable-ul `installX(target)` cu lantul
+`previousHandleInteraction`), pastrate DOAR ca seam de test — productia nu le apeleaza. Pas
+exemplar executat: `latestInteractionHandler` a trecut pe **factory-only**
+(`export = { createLatestInteractionHandler, buildCommandHandler }`, installer-ul sters), iar
+testul lui functional isi construieste explicit lantul din `buildCommandHandler` — acelasi tipar
+ca migrarea surselor (R5 #3/R6 #1). Restul handler-elor se migreaza per modul, cand se atinge
+modulul (acelasi ritm ca la repositories), nu big-bang: fiecare are teste care apeleaza forma de
+install si trebuie repointate individual (regula 8).
+
 **`createAppServices()` imutabil — IMPLEMENTAT (review manual R14 #4, Low).**
 `createCommandRegistry` muta anterior **un singur obiect `base`** prin lantul
 `Object.assign(base, attach*.createX(base))` (`withCache -> withFilters -> ...`): contextul era mutabil si
