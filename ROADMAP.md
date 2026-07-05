@@ -514,15 +514,20 @@ audit `reset_config` in acelasi `updateOne`, decizia R6 #7 pastrata — si `setA
 (`configBackupRepository` = Snapshot, `auditLogRepository` = Audit), deci fatetele cerute de
 review (Defaults/Repository/Snapshot/Audit) au acum fiecare modulul ei.
 
-**Candidatii, actualizati la runda 10 (inchiderea amanarilor):**
+**Candidatii, INCHISI la runda 10 (executarea amanarilor):**
+- `GuildConfigRepository` — EXECUTAT: `applyGuildConfigUpdate` (generic `$set` cu upsert
+  configurabil, folosit de `/set` mode/filters/currency/stores/maxprice si de `/set role`
+  set/clear), `addWatchlistGame`/`removeWatchlistGame` (`$addToSet`/`$pull enabledGames`) si
+  `setCommandSnooze`/`clearCommandSnooze` (`$set`/`$unset commandSnoozes.<key>`);
+  `setInteractionHandler`, `gameFilterHandlers`, `rolePingHandlers`, `snoozeInteractionHandler`
+  deleaga.
 - `NotificationSubscriptionRepository` — EXECUTAT: updates/reduceri in `subscriptionService`
-  (R7 #4), iar DLC + player-count mutate acum in acelasi serviciu (`startDlc`/`stopDlc`,
-  `addPlayerCountGame`/`setPlayerCountGames`); familiile raman doar prezentare.
-- Scrierile de configurare YouTube — ERAU DEJA EXECUTATE (amanare stale): exista
-  `features/youtube/youtubeGuildConfigRepository.ts` (notify channel/enabled, template, filtre,
-  rute, title-filters), iar comenzile din `command-handlers/youtube/` deleaga la el.
-- restul `GuildConfigRepository`: scrierile din `/set` (mode/filters/currency/stores/games) din
-  setInteractionHandler — singurul candidat ramas, in lucru in aceeasi runda.
+  (R7 #4), DLC + player-count adaugate in acelasi serviciu la runda 10.
+- `YouTubeGuildRepository` — DEJA EXISTA ca `youtubeGuildConfigRepository` (notify
+  channel/enabled, template, filtre, rute, title-filters); comenzile deleaga la el.
+
+Cu asta, planul de repositories pe documentul Guild (R6 #6) e complet: toate scrierile cu
+semnificatie de configurare/abonare traiesc in repositories dedicate.
 
 ## Tipuri brute vs normalizate (`DealInfo`/`GameConfig`/`GuildSettings`) — EVALUAT (R6 #5): AMANAT cu plan
 

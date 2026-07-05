@@ -1,5 +1,6 @@
 "use strict";
 
+import { addWatchlistGame, applyGuildConfigUpdate, removeWatchlistGame } from "../guild-config/guildConfigRepository";
 import type { GameConfig, GuildSettings } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
@@ -71,7 +72,7 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
 
     if (sub === "reset") {
       try {
-        await GuildModel.updateOne({ _id: guildId }, { $set: { enabledGames: [] } }, { upsert: true });
+        await applyGuildConfigUpdate(GuildModel, guildId, { enabledGames: [] });
         invalidateGuildCache(guildId);
         return safeEdit(interaction, "OK: Watchlist resetat. Toate jocurile sunt active.");
       } catch (err: unknown) {
@@ -87,19 +88,12 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
         if (!game) {
           return safeEdit(interaction, `Eroare: Cheia \`${gameKey}\` nu exista in config. Foloseste \`/games\` pentru a vedea cheile valide.`);
         }
-        await GuildModel.updateOne(
-          { _id: guildId },
-          { $addToSet: { enabledGames: gameKey } },
-          { upsert: true }
-        );
+        await addWatchlistGame(GuildModel, guildId, game.key);
         invalidateGuildCache(guildId);
         return safeEdit(interaction, `OK: **${game.name}** adaugat in watchlist.`);
       }
       if (sub === "remove") {
-        const result = await GuildModel.updateOne(
-          { _id: guildId },
-          { $pull: { enabledGames: gameKey } }
-        );
+        const result = await removeWatchlistGame(GuildModel, guildId, gameKey);
         invalidateGuildCache(guildId);
         const displayName = game ? game.name : String(gameKey);
         const note = game ? "" : " *(cheie nu mai exista in config — am curatat-o)*";

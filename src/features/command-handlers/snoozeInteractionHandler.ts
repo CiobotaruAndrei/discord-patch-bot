@@ -1,5 +1,6 @@
 "use strict";
 
+import { clearCommandSnooze, setCommandSnooze } from "../guild-config/guildConfigRepository";
 import type { CommandHandler } from "../command-registry/commandHandler";
 
 import { handledCommandError } from "../command-security/commandOutcome";
@@ -87,7 +88,7 @@ function createSnoozeInteractionHandler(deps: SnoozeInteractionDeps) {
 
     if (interaction.commandName === "unsnooze") {
       await safeDefer(interaction, true);
-      await GuildModel.updateOne({ _id: guildId }, { $unset: { [`commandSnoozes.${key}`]: "" } });
+      await clearCommandSnooze(GuildModel, guildId, key);
       invalidateGuildCache(guildId);
       return safeEdit(interaction, `OK: ${commandLabel} nu mai este in pauza.`);
     }
@@ -98,11 +99,7 @@ function createSnoozeInteractionHandler(deps: SnoozeInteractionDeps) {
     }
 
     await safeDefer(interaction, true);
-    await GuildModel.updateOne(
-      { _id: guildId },
-      { $set: { [`commandSnoozes.${key}`]: duration.until } },
-      { upsert: true }
-    );
+    await setCommandSnooze(GuildModel, guildId, key, duration.until);
     invalidateGuildCache(guildId);
     return safeEdit(interaction, `OK: ${commandLabel} este in pauza pana ${formatDiscordTimestamp(duration.until)}.`);
   }

@@ -44,7 +44,7 @@ interface GuildConfigurationAdminDeps {
       filter: Record<string, unknown>,
       update: Record<string, unknown>,
       options?: Record<string, unknown>
-    ): Promise<unknown>;
+    ): Promise<{ matchedCount?: number; modifiedCount?: number }>;
   };
   invalidateGuildCache(guildId: string): void;
   deleteAllReplayPayloads(guildId: string): Promise<void>;

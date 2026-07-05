@@ -1,5 +1,6 @@
 "use strict";
 
+import { applyGuildConfigUpdate } from "../guild-config/guildConfigRepository";
 import type { GameConfig } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 
@@ -61,12 +62,12 @@ function createRolePingInteractionHandlers(deps: RolePingInteractionDeps) {
     const { field, label } = knownSub;
     try {
       if (role) {
-        await GuildModel.updateOne({ _id: guildId }, { $set: { [field]: role.id } }, { upsert: true });
+        await applyGuildConfigUpdate(GuildModel, guildId, { [field]: role.id });
         invalidateGuildCache(guildId);
         return safeEdit(interaction, `OK: Rol pentru ${label}: <@&${role.id}> *(ping doar la prima notificare per ciclu)*`);
       }
 
-      await GuildModel.updateOne({ _id: guildId }, { $set: { [field]: null } });
+      await applyGuildConfigUpdate(GuildModel, guildId, { [field]: null }, { upsert: false });
       invalidateGuildCache(guildId);
       return safeEdit(interaction, `OK: Rol pentru ${label} eliminat (fara ping).`);
     } catch (err: unknown) {
