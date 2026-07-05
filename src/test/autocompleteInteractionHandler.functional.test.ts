@@ -1,8 +1,9 @@
 import test from "node:test";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
 import assert from "node:assert/strict";
 
 const installAutocomplete = require("../features/command-handlers/autocompleteInteractionHandler") as
-  ((context: Record<string, unknown>) => void) & {
+  ChainableCommandModule & {
     createAutocompleteHandler?: (deps: unknown) => unknown;
     scoreGameAgainstInput?: (game: TestGame, input: string) => number;
   };
@@ -57,7 +58,7 @@ function makeContext(overrides: Partial<Record<string, unknown>> = {}) {
     handleInteraction: async (interaction: { commandName: string }) => { delegated.push(interaction.commandName); },
     ...overrides
   };
-  installAutocomplete(context);
+  installCommandChain(context, [installAutocomplete]);
   return { context: context as typeof context & InteractionRuntime, logs, delegated };
 }
 

@@ -1,7 +1,8 @@
 import test from "node:test";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
 import assert from "node:assert/strict";
 
-type SubscriptionModule = ((context: Record<string, unknown>) => void) & {
+type SubscriptionModule = ChainableCommandModule & {
   createSubscriptionInteractionHandlers: (deps: Record<string, unknown>) => {
     handleStartInteraction: (interaction: Record<string, unknown>, games: Array<Record<string, unknown>>) => Promise<unknown>;
     handleStopInteraction: (interaction: Record<string, unknown>) => Promise<unknown>;
@@ -135,7 +136,7 @@ test("subscription installer intercepts start/stop and delegates other interacti
     return "delegated";
   };
 
-  subscriptionInteractions(runtimeContext);
+  installCommandChain(runtimeContext, [subscriptionInteractions]);
   const runtime = runtimeContext as typeof context & InteractionRuntime;
   await runtime.handleInteraction(makeStartInteraction(), [{ key: "cs2" }]);
   const result = await runtime.handleInteraction({

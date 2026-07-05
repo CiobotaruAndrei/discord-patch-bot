@@ -1,7 +1,8 @@
 import test from "node:test";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
 import assert from "node:assert/strict";
 
-type StatusModule = ((context: Record<string, unknown>) => void) & {
+type StatusModule = ChainableCommandModule & {
   createStatusInteractionHandler: (deps: Record<string, unknown>) => {
     handleStatusInteraction: (interaction: Record<string, unknown>, games: Array<Record<string, unknown>>) => Promise<unknown>;
   };
@@ -124,7 +125,7 @@ test("status installer intercepts only /status and delegates everything else", a
     }
   };
 
-  statusHandler(context);
+  installCommandChain(context, [statusHandler]);
   const runtime = context as typeof context & InteractionRuntime;
   await runtime.handleInteraction(interaction, [{ key: "cs2", name: "Counter-Strike 2" }]);
   const result = await runtime.handleInteraction({

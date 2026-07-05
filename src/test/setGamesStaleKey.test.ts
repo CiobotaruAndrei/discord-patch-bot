@@ -1,18 +1,17 @@
 import test from "node:test";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
 import assert from "node:assert/strict";
 
-const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as (context: Record<string, unknown>) => void;
-const installStatusHandler = require("../features/command-handlers/statusInteractionHandler") as (context: Record<string, unknown>) => void;
-const installSetHandler = require("../features/command-handlers/setInteractionHandler") as (context: Record<string, unknown>) => void;
+const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as ChainableCommandModule;
+const installStatusHandler = require("../features/command-handlers/statusInteractionHandler") as ChainableCommandModule;
+const installSetHandler = require("../features/command-handlers/setInteractionHandler") as ChainableCommandModule;
 
 function attachInteractions(context: Record<string, unknown>): void {
 
   if (typeof context.handleInteraction !== "function") {
     context.handleInteraction = async () => undefined;
   }
-  installGameFilterHandlers(context);
-  installSetHandler(context);
-  installStatusHandler(context);
+  installCommandChain(context, [installGameFilterHandlers, installSetHandler, installStatusHandler]);
 }
 
 type Game = { key: string; name: string };

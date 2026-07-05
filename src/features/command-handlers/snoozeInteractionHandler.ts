@@ -150,22 +150,7 @@ function buildSnoozeCommandHandler(target: SnoozeContext) {
   return { handlers, ...command };
 }
 
-function installSnoozeInteractionHandler(target: SnoozeContext) {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildSnoozeCommandHandler(target);
-
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-
-  Object.assign(target, handlers, { handleInteraction });
-}
-
-export = Object.assign(installSnoozeInteractionHandler, {
+export = {
   createSnoozeInteractionHandler,
   buildCommandHandler: buildSnoozeCommandHandler
-});
+};

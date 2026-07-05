@@ -1,5 +1,6 @@
+import type { ChainableCommandModule } from "./commandChainTestKit";
 export const installOutboxAdmin = require("../features/command-handlers/outboxAdminHandler") as
-  ((context: Record<string, unknown>) => void) & {
+  ChainableCommandModule & {
     createOutboxAdminHandler: (deps: Record<string, unknown>) => { handleOutboxInteraction: (interaction: unknown) => Promise<unknown> };
     isDirectOutboxCommand: (interaction: unknown) => boolean;
   };

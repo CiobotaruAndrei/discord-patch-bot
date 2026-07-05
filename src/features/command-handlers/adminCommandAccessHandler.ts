@@ -277,23 +277,7 @@ function buildAdminCommandAccessCommandHandler(target: AdminCommandAccessContext
   return { handlers, ...command };
 }
 
-const installAdminCommandAccessHandler = ((target: AdminCommandAccessContext): void => {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildAdminCommandAccessCommandHandler(target);
-  async function handleInteraction(interaction: DiscordInteraction, games: CommandGame[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-  Object.assign(target, handlers, { handleInteraction });
-}) as ((target: AdminCommandAccessContext) => void) & {
-  createAdminCommandAccessHandler: typeof createAdminCommandAccessHandler;
-  buildCommandHandler: typeof buildAdminCommandAccessCommandHandler;
+export = {
+  createAdminCommandAccessHandler,
+  buildCommandHandler: buildAdminCommandAccessCommandHandler
 };
-
-installAdminCommandAccessHandler.createAdminCommandAccessHandler = createAdminCommandAccessHandler;
-installAdminCommandAccessHandler.buildCommandHandler = buildAdminCommandAccessCommandHandler;
-
-export = installAdminCommandAccessHandler;

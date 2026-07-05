@@ -79,19 +79,4 @@ function buildSubscriptionCommandHandler(target: SubscriptionContext) {
   return { handlers, ...command };
 }
 
-function installSubscriptionInteractions(target: SubscriptionContext) {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildSubscriptionCommandHandler(target);
-
-  async function handleInteraction(interaction: SubscriptionInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-
-  Object.assign(target, handlers, { handleInteraction });
-}
-
-export = Object.assign(installSubscriptionInteractions, { createSubscriptionInteractionHandlers, buildCommandHandler: buildSubscriptionCommandHandler });
+export = { createSubscriptionInteractionHandlers, buildCommandHandler: buildSubscriptionCommandHandler };

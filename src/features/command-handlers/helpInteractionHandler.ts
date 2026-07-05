@@ -201,19 +201,4 @@ function buildHelpCommandHandler(target: HelpContext): CommandHandler<DiscordInt
   };
 }
 
-function installHelpHandler(target: HelpContext) {
-  const previousHandleInteraction = target.handleInteraction;
-  const command = buildHelpCommandHandler(target);
-
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!command.canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return command.handle(interaction, games);
-  }
-
-  Object.assign(target, { handleInteraction, buildHelpEmbed: command.buildHelpEmbed });
-}
-
-export = Object.assign(installHelpHandler, { createHelpHandler, buildHelpEmbed: buildHelpEmbedFromDeps, buildCommandHandler: buildHelpCommandHandler });
+export = { createHelpHandler, buildHelpEmbed: buildHelpEmbedFromDeps, buildCommandHandler: buildHelpCommandHandler };

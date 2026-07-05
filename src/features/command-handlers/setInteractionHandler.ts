@@ -281,19 +281,4 @@ function buildSetCommandHandler(target: SetContext) {
   return { handlers, ...command };
 }
 
-function installSetInteractionHandler(target: SetContext) {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildSetCommandHandler(target);
-
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-
-  Object.assign(target, handlers, { handleInteraction });
-}
-
-export = Object.assign(installSetInteractionHandler, { createSetInteractionHandler, buildSetUpdatePlan, buildCommandHandler: buildSetCommandHandler });
+export = { createSetInteractionHandler, buildSetUpdatePlan, buildCommandHandler: buildSetCommandHandler };

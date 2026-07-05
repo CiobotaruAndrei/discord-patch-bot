@@ -212,23 +212,8 @@ function buildSourcesStatusCommandHandler(target: SourcesStatusContext) {
   return { handlers, ...command };
 }
 
-const installSourcesStatus = ((target: SourcesStatusContext): void => {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildSourcesStatusCommandHandler(target);
-
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-
-  Object.assign(target, handlers, { handleInteraction });
-}) as SourcesStatusInstaller;
-
-installSourcesStatus.buildCommandHandler = buildSourcesStatusCommandHandler;
-installSourcesStatus.createSourcesStatusHandler = createSourcesStatusHandler;
-installSourcesStatus.buildSourcesStatusEmbed = buildSourcesStatusEmbed;
-
-export = installSourcesStatus;
+export = {
+  buildCommandHandler: buildSourcesStatusCommandHandler,
+  createSourcesStatusHandler,
+  buildSourcesStatusEmbed
+};

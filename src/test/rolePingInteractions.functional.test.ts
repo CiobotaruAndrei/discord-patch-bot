@@ -1,7 +1,8 @@
 import test from "node:test";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
 import assert from "node:assert/strict";
 
-type RolePingModule = ((context: Record<string, unknown>) => void) & {
+type RolePingModule = ChainableCommandModule & {
   createRolePingInteractionHandlers: (deps: Record<string, unknown>) => {
     handleSetRole: (interaction: Record<string, unknown>, sub: string, guildId: string) => Promise<unknown>;
     handleSetRoleInteraction: (interaction: Record<string, unknown>) => Promise<unknown>;
@@ -106,7 +107,7 @@ test("role ping installer intercepts only /set role commands", async () => {
     return "delegated";
   };
 
-  rolePingInteractions(runtimeContext);
+  installCommandChain(runtimeContext, [rolePingInteractions]);
   const runtime = runtimeContext as typeof context & InteractionRuntime;
   await runtime.handleInteraction(makeSetRoleInteraction("updates"), []);
   const result = await runtime.handleInteraction({

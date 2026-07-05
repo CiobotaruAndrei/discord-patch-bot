@@ -1,4 +1,5 @@
 import test from "node:test";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
 import assert from "node:assert/strict";
 import {
   dealPassesFilters,
@@ -31,7 +32,7 @@ type UpdatesRuntime = {
   checkForUpdates: (client: unknown, games: Game[]) => Promise<unknown>;
 };
 
-const attachInteractions = require("../features/command-handlers/subscriptionNotificationHandlers") as (context: Record<string, unknown>) => void;
+const attachInteractions = require("../features/command-handlers/subscriptionNotificationHandlers") as ChainableCommandModule;
 const attachNotifications = require("../features/notifications") as typeof import("../features/notifications");
 import type { NotificationsRuntimeDeps } from "../features/notifications/notificationRuntimeContracts";
 
@@ -293,7 +294,7 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
   };
 
   Object.assign(context, attachNotifications.createNotificationRuntime(notificationDeps(context)));
-  attachInteractions(context);
+  installCommandChain(context, [attachInteractions]);
 
   const client = {
     user: { id: "bot-id" },

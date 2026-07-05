@@ -131,19 +131,4 @@ function buildRolePingCommandHandler(target: RolePingContext) {
   return { handlers, ...command };
 }
 
-function installRolePingInteractions(target: RolePingContext) {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildRolePingCommandHandler(target);
-
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-
-  Object.assign(target, handlers, { handleInteraction });
-}
-
-export = Object.assign(installRolePingInteractions, { createRolePingInteractionHandlers, buildCommandHandler: buildRolePingCommandHandler });
+export = { createRolePingInteractionHandlers, buildCommandHandler: buildRolePingCommandHandler };

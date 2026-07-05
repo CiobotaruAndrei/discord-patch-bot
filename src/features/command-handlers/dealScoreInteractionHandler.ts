@@ -192,27 +192,9 @@ function buildDealScoreCommandHandler(target: DealScoreContext) {
   return { handlers, ...command };
 }
 
-const installDealScoreInteractionHandler = ((target: DealScoreContext): void => {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildDealScoreCommandHandler(target);
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-  Object.assign(target, handlers, { handleInteraction });
-}) as ((target: DealScoreContext) => void) & {
-  createDealScoreInteractionHandler: typeof createDealScoreInteractionHandler;
-  scoreDeal: typeof scoreDeal;
-  findBestDeal: typeof findBestDeal;
-  buildCommandHandler: typeof buildDealScoreCommandHandler;
+export = {
+  createDealScoreInteractionHandler,
+  scoreDeal,
+  findBestDeal,
+  buildCommandHandler: buildDealScoreCommandHandler
 };
-
-installDealScoreInteractionHandler.createDealScoreInteractionHandler = createDealScoreInteractionHandler;
-installDealScoreInteractionHandler.scoreDeal = scoreDeal;
-installDealScoreInteractionHandler.findBestDeal = findBestDeal;
-installDealScoreInteractionHandler.buildCommandHandler = buildDealScoreCommandHandler;
-
-export = installDealScoreInteractionHandler;

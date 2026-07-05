@@ -179,25 +179,9 @@ function buildHistoryCommandHandler(target: HistoryContext) {
   return { handlers, ...command };
 }
 
-const installHistoryInteraction = ((target: HistoryContext): void => {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildHistoryCommandHandler(target);
-
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-
-  Object.assign(target, handlers, { handleInteraction });
-}) as HistoryInstaller;
-
-installHistoryInteraction.buildCommandHandler = buildHistoryCommandHandler;
-
-installHistoryInteraction.createHistoryInteractionHandler = createHistoryInteractionHandler;
-installHistoryInteraction.buildHistoryEmbed = buildHistoryEmbed;
-installHistoryInteraction.mapHistoryKind = mapHistoryKind;
-
-export = installHistoryInteraction;
+export = {
+  buildCommandHandler: buildHistoryCommandHandler,
+  createHistoryInteractionHandler,
+  buildHistoryEmbed,
+  mapHistoryKind
+};

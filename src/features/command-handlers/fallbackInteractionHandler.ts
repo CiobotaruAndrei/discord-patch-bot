@@ -80,19 +80,4 @@ function buildFallbackCommandHandler(target: RouterContext): CommandHandler<Disc
   };
 }
 
-type FallbackInteractionInstaller = ((target: RouterContext) => void) & {
-  createFallbackInteractionHandler: typeof createFallbackInteractionHandler;
-  buildCommandHandler: typeof buildFallbackCommandHandler;
-};
-
-const installFallbackInteractionHandler = ((target: RouterContext): void => {
-  Object.assign(target, createFallbackInteractionHandler({
-    MessageFlags: target.MessageFlags,
-    logger: target.logger
-  }));
-}) as FallbackInteractionInstaller;
-
-installFallbackInteractionHandler.createFallbackInteractionHandler = createFallbackInteractionHandler;
-installFallbackInteractionHandler.buildCommandHandler = buildFallbackCommandHandler;
-
-export = installFallbackInteractionHandler;
+export = { createFallbackInteractionHandler, buildCommandHandler: buildFallbackCommandHandler };

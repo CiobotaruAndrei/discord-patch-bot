@@ -229,20 +229,7 @@ function buildGameInfoCommandHandler(target: GameInfoContext) {
   return { handlers, ...command };
 }
 
-function installGameInfoInteractionHandler(target: GameInfoContext): void {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildGameInfoCommandHandler(target);
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-  Object.assign(target, handlers, { handleInteraction });
-}
-
-export = Object.assign(installGameInfoInteractionHandler, {
+export = {
   createGameInfoInteractionHandler,
   buildBestDealsEmbed,
   buildEndingDealsEmbed,
@@ -257,4 +244,4 @@ export = Object.assign(installGameInfoInteractionHandler, {
   selectTopActiveGames,
   extractInstallSize,
   buildCommandHandler: buildGameInfoCommandHandler
-});
+};

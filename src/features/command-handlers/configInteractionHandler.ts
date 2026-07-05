@@ -215,23 +215,8 @@ function buildConfigCommandHandler(target: ConfigContext) {
   return { handlers, ...command };
 }
 
-const installConfigInteraction = ((target: ConfigContext): void => {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildConfigCommandHandler(target);
-
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-
-  Object.assign(target, handlers, { handleInteraction });
-}) as ConfigInstaller;
-
-installConfigInteraction.buildCommandHandler = buildConfigCommandHandler;
-installConfigInteraction.createConfigInteractionHandler = createConfigInteractionHandler;
-installConfigInteraction.buildConfigEmbed = buildConfigEmbed;
-
-export = installConfigInteraction;
+export = {
+  buildCommandHandler: buildConfigCommandHandler,
+  createConfigInteractionHandler,
+  buildConfigEmbed
+};

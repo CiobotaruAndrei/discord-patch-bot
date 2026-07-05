@@ -264,19 +264,4 @@ function buildDlcCommandHandler(target: DlcContext) {
   return { handlers, ...command };
 }
 
-function installDlcInteraction(target: DlcContext) {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildDlcCommandHandler(target);
-
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-
-  Object.assign(target, handlers, { handleInteraction });
-}
-
-export = Object.assign(installDlcInteraction, { createDlcInteractionHandler, buildCommandHandler: buildDlcCommandHandler });
+export = { createDlcInteractionHandler, buildCommandHandler: buildDlcCommandHandler };
