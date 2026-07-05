@@ -212,8 +212,11 @@ Un canal Discord principal sters sau devenit permanent inaccesibil dezactiveaza 
 Index-urile sunt declarate in `src/infra/mongo/models.ts` si construite automat de Mongoose la
 pornire (`autoIndex` implicit activ). Verificarea statica `npm run check:db-indexes` confirma ca
 fiecare index e pe un camp real din schema, ca nu exista declaratii duplicate si ca fiecare colectie
-de mai jos e documentata aici; daca un Mongo e disponibil, ruleaza si `syncIndexes` ca sa prinda
-index-uri conflictuale/invalide. Inventarul declarat curent:
+de mai jos e documentata aici; daca un Mongo e disponibil (`MONGO_URI`), ruleaza si `syncIndexes()`
+pe toate modelele — adica SINCRONIZEAZA efectiv index-urile serverului cu schema (creeaza-le pe cele
+lipsa, sterge-le pe cele divergente) si prinde index-uri conflictuale/invalide; fara Mongo ramane
+doar validarea statica. Nu exista un script separat de "sync": `check:db-indexes` cu `MONGO_URI`
+setat ESTE sincronizarea. Inventarul declarat curent:
 
 | Colectie | Cheie | Optiuni | Rol |
 | --- | --- | --- | --- |
