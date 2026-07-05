@@ -1,6 +1,7 @@
 "use strict";
 
-import type { GuildSettings, WatchlistGameSuggestionEntry } from "../../types";
+import type { GuildSettings, ServerAuditLogEntry, WatchlistGameSuggestionEntry } from "../../types";
+import { buildServerAuditPush } from "./auditLogRepository";
 
 type MongoWriteResult = { modifiedCount?: number; matchedCount?: number };
 
@@ -67,11 +68,19 @@ export function listWatchlistGameSuggestions(settings: GuildSettings | null, lim
     .slice(0, limit);
 }
 
-export async function deleteWatchlistGameSuggestion(GuildModel: GuildModelLike, guildId: string, gameName: string): Promise<boolean> {
+export async function deleteWatchlistGameSuggestion(
+  GuildModel: GuildModelLike,
+  guildId: string,
+  gameName: string,
+  audit: Omit<ServerAuditLogEntry, "serverId" | "at">
+): Promise<boolean> {
   const normalized = gameName.trim().toLowerCase();
   const result = await GuildModel.updateOne(
-    { _id: guildId },
-    { $pull: { watchlistGameSuggestions: { gameName: normalized } } }
+    { _id: guildId, "watchlistGameSuggestions.gameName": normalized },
+    {
+      $pull: { watchlistGameSuggestions: { gameName: normalized } },
+      $push: buildServerAuditPush(guildId, audit)
+    }
   );
-  return (result.modifiedCount ?? 0) > 0;
+  return (result.matchedCount ?? 0) > 0;
 }
