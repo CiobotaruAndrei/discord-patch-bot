@@ -1,8 +1,9 @@
 "use strict";
 
 import type { CurrencyCode, GameConfig } from "../../types";
-import { buildServerAuditPush } from "../admin-records/auditLogRepository";
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { buildResetConfiguration } from "../guild-config/guildConfigDefaults";
+import { resetGuildConfigurationWithAudit, setAdminAlertChannel } from "../guild-config/guildConfigRepository";
 
 import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
@@ -59,70 +60,6 @@ type GuildConfigurationAdminContext = GuildConfigurationAdminDeps & {
   handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => Promise<unknown> | unknown;
 };
 
-function buildResetConfiguration(defaultCurrency: CurrencyCode): Record<string, unknown> {
-  return {
-    subscribed: false,
-    notificationChannelId: null,
-    pendingUpdates: {},
-    discountsSubscribed: false,
-    discountChannelId: null,
-    pendingDiscounts: [],
-    notificationDeadLetter: [],
-    minDiscountPercent: 70,
-    includeFreeGames: true,
-    includePaidDiscounts: true,
-    notificationMode: "detailed",
-    currency: defaultCurrency,
-    outboxRecoveryVerify: false,
-    lastProcessedGameKey: null,
-    seenHashVersionUpdates: 0,
-    seenHashVersionDiscounts: 0,
-    updatesInitializing: false,
-    updatesActivationId: null,
-    updatesLastError: { message: "", channelId: null, at: null },
-    discountsInitializing: false,
-    discountsActivationId: null,
-    discountsLastError: { message: "", channelId: null, at: null },
-    enabledGames: [],
-    commandSnoozes: {},
-    enabledStores: [],
-    maxAbsolutePrice: 0,
-    notificationRoleId: null,
-    discountRoleId: null,
-    adminAlertChannelId: null,
-    priceAlerts: [],
-    youtubeChannels: [],
-    youtubeNotificationChannelId: null,
-    youtubeNotificationsEnabled: false,
-    youtubeHasActivated: false,
-    youtubeFilters: {
-      excludeShorts: true,
-      excludeLives: true,
-      excludePremieres: true,
-      minDurationSeconds: 0
-    },
-    youtubeMessageTemplate: null,
-    youtubeChannelRoutes: [],
-    youtubeTitleIncludeWords: [],
-    youtubeErrors: [],
-    watchlistGameSuggestions: [],
-    playerCountSubscribed: false,
-    playerCountChannelId: null,
-    playerCountGames: [],
-    futureReleaseGames: [],
-    adminCommandAccess: null,
-    adminCommandAccessByCommand: {},
-    futureReleaseSubscribed: false,
-    futureReleaseChannelId: null,
-    futureReleaseInitializing: false,
-    futureReleaseActivationId: null,
-    dlcSubscribed: false,
-    dlcChannelId: null,
-    dlcInitializing: false,
-    dlcActivationId: null
-  };
-}
-
 function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps) {
   const {
     GuildModel, invalidateGuildCache, deleteAllReplayPayloads, safeDefer, safeEdit,
@@ -133,18 +70,11 @@ function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps)
     if (interaction.options.getBoolean("confirm", true) !== true) {
       return safeEdit(interaction, "Resetarea a fost anulata. Foloseste `confirm:true` numai daca vrei sa stergi toate setarile serverului.");
     }
-    await GuildModel.updateOne(
-      { _id: guildId },
-      {
-        $set: buildResetConfiguration(DEFAULT_CURRENCY),
-        $push: buildServerAuditPush(guildId, {
-          userId: interaction.user?.id || "",
-          action: "reset_config",
-          details: "Configuratia serverului a fost resetata la valorile implicite"
-        })
-      },
-      { upsert: true }
-    );
+    await resetGuildConfigurationWithAudit(GuildModel, guildId, DEFAULT_CURRENCY, {
+      userId: interaction.user?.id || "",
+      action: "reset_config",
+      details: "Configuratia serverului a fost resetata la valorile implicite"
+    });
     let replayCleanupOk = true;
     try {
       await deleteAllReplayPayloads(guildId);
@@ -161,7 +91,7 @@ function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps)
   async function handleAdminAlerts(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     const subcommand = interaction.options.getSubcommand();
     if (subcommand === "off") {
-      await GuildModel.updateOne({ _id: guildId }, { $set: { adminAlertChannelId: null } }, { upsert: true });
+      await setAdminAlertChannel(GuildModel, guildId, null);
       invalidateGuildCache(guildId);
       return safeEdit(interaction, "OK: alertele administrative Discord au fost oprite pentru acest server.");
     }
@@ -182,11 +112,7 @@ function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps)
     if (missing.length) {
       return safeEdit(interaction, `Eroare: botului ii lipsesc permisiunile ${missing.join(", ")} pe <#${channel.id}>.`);
     }
-    await GuildModel.updateOne(
-      { _id: guildId },
-      { $set: { adminAlertChannelId: channel.id } },
-      { upsert: true }
-    );
+    await setAdminAlertChannel(GuildModel, guildId, channel.id);
     invalidateGuildCache(guildId);
     return safeEdit(interaction, `OK: alertele administrative vor fi trimise in <#${channel.id}>.`);
   }

@@ -3,7 +3,28 @@ import assert from "node:assert/strict";
 import { loadAdminAccessDoc, saveAdminAccessRule, deleteAdminAccessRule } from "../features/command-security/adminAccessRepository";
 import { parseAdminScopeId } from "../features/command-security/adminScopeIds";
 import { upsertPriceAlert, removePriceAlertsForGame, buildPriceAlertRule, MAX_PRICE_ALERTS_PER_GUILD } from "../features/notifications/priceAlertRepository";
+import { resetGuildConfigurationWithAudit, setAdminAlertChannel } from "../features/guild-config/guildConfigRepository";
+import { buildResetConfiguration } from "../features/guild-config/guildConfigDefaults";
 import type { PriceAlertRule } from "../types";
+
+test("guildConfigRepository: reset-ul scrie valorile implicite si auditul intr-un singur updateOne cu upsert (R7 #3)", async () => {
+  const calls: Array<{ filter: object; update: Record<string, unknown>; options?: Record<string, unknown> }> = [];
+  const model = { updateOne: async (filter: object, update: object, options?: object) => { calls.push({ filter, update: update as Record<string, unknown>, options: options as Record<string, unknown> }); return {}; } };
+  await resetGuildConfigurationWithAudit(model, "g1", "EUR", { userId: "u1", action: "reset_config", details: "test" });
+  assert.equal(calls.length, 1, "reset + audit = o singura scriere");
+  const setDoc = calls[0].update.$set as Record<string, unknown>;
+  assert.equal(setDoc.subscribed, false);
+  assert.equal(setDoc.currency, "EUR");
+  assert.deepEqual(setDoc, buildResetConfiguration("EUR"), "reset-ul foloseste exact sursa unica de valori implicite");
+  assert.match(JSON.stringify(calls[0].update.$push), /reset_config/);
+  assert.equal(calls[0].options?.upsert, true);
+
+  await setAdminAlertChannel(model, "g1", "c9");
+  await setAdminAlertChannel(model, "g1", null);
+  assert.deepEqual((calls[1].update.$set as Record<string, unknown>), { adminAlertChannelId: "c9" });
+  assert.deepEqual((calls[2].update.$set as Record<string, unknown>), { adminAlertChannelId: null });
+  assert.equal(calls[2].options?.upsert, true);
+});
 
 test("adminAccessRepository: save/delete scriu regula si auditul intr-un singur updateOne (R6 #6 + #7)", async () => {
   const calls: Array<{ filter: object; update: Record<string, unknown> }> = [];
