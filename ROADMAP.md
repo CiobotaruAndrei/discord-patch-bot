@@ -282,16 +282,22 @@ iar logica de notificari consuma `NormalizedUpdate`. **Vederile loose redundante
 eliminate:** `UpdateFetchResult` (`pendingUpdatesQueue`) si `UpdateRecord` (`latestUpdatesHandler`) tipau
 `latest` ca `({ id: string } & Record<string, unknown>) | null` desi sursele produc deja `FetchResult`
 (`latest: NormalizedUpdate`); sunt acum alias-uri `= FetchResult`, deci calea update e complet normalizata
-end-to-end (a fost si pasul care a deblocat compunerea explicita a `commandRegistry`). Acelasi pattern trebuie extins:
-- `DealInfo` (brut, scraper) -> un `NormalizedDeal` inchis, consumat de filtrare/embed/dedupe;
+end-to-end (a fost si pasul care a deblocat compunerea explicita a `commandRegistry`). Acelasi pattern extins:
+- `DealInfo` — EXECUTAT (runda 10): index signature-ul `[key: string]: unknown` a fost eliminat, iar
+  `DealInfo` e acum un tip INCHIS consumat de filtrare/embed/dedupe. S-a dovedit ca niciun consumator nu se
+  baza pe chei dinamice tipate (compilarea a trecut fara nicio modificare de call-site; casturile explicite
+  `item as DealInfo` de la snapshot-urile Mongo raman escape-ul corect pentru date dinamice).
+  `ValidatedDealInfo`/`EnrichedDealInfo` raman rafinari (`extends DealInfo`). Gardat de un test in
+  `domainTypesLocality.test.ts` (DealInfo fara index signature).
 - `GuildSettings` -> un tip inchis pentru campurile pe care botul chiar le citeste (restul raman in stratul Mongo);
 - `GameConfig` ramane cu index la **incarcarea** configului (sursa de adevar externa), dar consumatorii interni
   primesc un `Pick<>` ingust (ce folosesc efectiv), nu intregul `GameConfig`.
 
-**De ce e amanat / efort dedicat.** Nu e o incalcare de reguli (indexul e permis), ci o strangere catre nota 10.
-E un refactor mare: `GameConfig` apare in ~34 de fisiere, `DealInfo` in ~18, `GuildSettings` in ~13 — eliminarea
-indexului cere auditarea fiecarui acces pe cheie dinamica si fie tiparea campului, fie un `Pick<>` la consumator.
-Se face incremental, un tip pe rand (cum s-a facut `PatchUpdate`/`NormalizedUpdate`), cu suita verde la fiecare pas.
+**De ce restul e amanat / efort dedicat.** Nu e o incalcare de reguli (indexul e permis), ci o strangere catre
+nota 10. `GuildSettings` (~56 de fisiere) si `GameConfig` (~34) raman refactoruri mari: eliminarea indexului cere
+auditarea fiecarui acces pe cheie dinamica si fie tiparea campului, fie un `Pick<>` la consumator. Se face
+incremental, un tip pe rand (cum s-a facut `PatchUpdate`/`NormalizedUpdate` si acum `DealInfo`), cu suita verde
+la fiecare pas — declansatorul practic e atingerea zonei respective sau un bug de cheie dinamica gresita.
 
 ## Partitionarea `buildOptimizedGameList` (filtered vs unfiltered) la scara mare
 

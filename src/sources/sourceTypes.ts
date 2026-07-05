@@ -69,7 +69,6 @@ export interface DealInfo {
   endDateStr?: string | null;
   extraDetails?: string;
   enriched?: boolean;
-  [key: string]: unknown;
 }
 
 export interface ValidatedDealInfo extends DealInfo {

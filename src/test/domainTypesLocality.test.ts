@@ -146,3 +146,15 @@ test("modulele de domeniu detin definitiile (nu agregatorul types.ts): config/he
   assert.match(aggregator, /export type \{ BotMetrics \} from "\.\/app\/health\/metricsTypes"/);
   assert.match(aggregator, /from "\.\/app\/scheduler\/schedulerTypes"/);
 });
+
+test("DealInfo este un tip INCHIS (fara index signature) — normalizarea sursa->consum e completa (R12 #3, runda 10)", () => {
+  const fs = require("fs") as typeof import("fs");
+  const path = require("path") as typeof import("path");
+  const sourceTypes = fs.readFileSync(path.join(process.cwd(), "sources/sourceTypes.ts"), "utf8");
+  const dealBlock = sourceTypes.slice(
+    sourceTypes.indexOf("export interface DealInfo {"),
+    sourceTypes.indexOf("export interface ValidatedDealInfo")
+  );
+  assert.ok(dealBlock.length > 0, "blocul DealInfo exista");
+  assert.ok(!/\[key: string\]:/.test(dealBlock), "DealInfo nu mai are index signature — filtrarea/embed-ul/dedupe consuma un tip inchis, driftul de scraper nu se mai strecoara tacut");
+});
