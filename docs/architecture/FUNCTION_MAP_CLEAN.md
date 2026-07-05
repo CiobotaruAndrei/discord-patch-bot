@@ -499,3 +499,6 @@ Teste E2E:
 - flux reduceri: `/start reduceri` -> baseline reduceri -> cron -> deal embed -> `seenDiscounts`;
 - flux YouTube: `/youtube subscribe` -> baseline `guildSeenYoutube` -> `/youtube notify on` -> cron grupeaza feed-urile -> filtre/metadate -> embed/outbox/history.
 
+### `src/sources/sourceHealth.ts` + `src/infra/mongo/sourceHealth.ts`
+
+- `sourceHealth.ts` (pur): `classifySourceHealth` (healthy/degraded/cooling-down/schema-drift din starea circuit breaker-ului per joc) + `summarizeSourceHealth`. `infra/mongo/sourceHealth.ts` incarca starea din `CircuitBreakerModel` (`loadSourceHealth`, wired in `mongoContext` dupa fetchSnapshots). `/sources status` afiseaza sumarul + sursele cu probleme. Acoperit de `sourceHealth.test.ts` si `sourcesStatusHandler.functional.test.ts`.

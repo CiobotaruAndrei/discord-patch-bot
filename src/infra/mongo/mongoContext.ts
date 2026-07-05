@@ -49,6 +49,7 @@ type MongoRuntimeContext = {
   saveFetchSnapshot: (id: string, payload: unknown) => Promise<void>;
   loadFetchSnapshot: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
   loadDealsFetchSnapshots: () => Promise<Array<{ currency: string; payload: unknown; fetchedAt: Date }>>;
+  loadSourceHealth: () => Promise<import("../../sources/sourceHealth").SourceHealthDoc[]>;
   acquireDbLock: (jobName: string, ttlMs?: number) => Promise<string | null>;
   renewDbLock: (jobName: string, token: string, ttlMs?: number) => Promise<boolean>;
   releaseDbLock: (jobName: string, token: string) => Promise<void>;
@@ -90,6 +91,7 @@ const attachSystemState = require("./systemState") as MongoModule;
 const attachGuildSettings = require("./guildSettings") as MongoModule;
 const attachAdminAlerts = require("./adminAlerts") as MongoModule;
 const attachFetchSnapshots = require("./fetchSnapshots") as MongoModule;
+const attachSourceHealth = require("./sourceHealth") as MongoModule;
 
 function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeContext {
   return {
@@ -119,6 +121,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     NotificationDeadLetterReplayModel: context.NotificationDeadLetterReplayModel,
     saveFetchSnapshot: context.saveFetchSnapshot,
     loadFetchSnapshot: context.loadFetchSnapshot,
+    loadSourceHealth: context.loadSourceHealth,
     loadDealsFetchSnapshots: context.loadDealsFetchSnapshots,
     acquireDbLock: context.acquireDbLock,
     renewDbLock: context.renewDbLock,
@@ -160,7 +163,8 @@ function createMongoContext(baseContext: MongoRuntimeContext = runtimeContext): 
   const withGuildSettings = { ...withSystemState, ...attachGuildSettings.buildFrom(withSystemState) };
   const withAdminAlerts = { ...withGuildSettings, ...attachAdminAlerts.buildFrom(withGuildSettings) };
   const withFetchSnapshots = { ...withAdminAlerts, ...attachFetchSnapshots.buildFrom(withAdminAlerts) };
-  return assertNoUndefinedExports(buildMongoContextExports(withFetchSnapshots), "mongoContext");
+  const withSourceHealth = { ...withFetchSnapshots, ...attachSourceHealth.buildFrom(withFetchSnapshots) };
+  return assertNoUndefinedExports(buildMongoContextExports(withSourceHealth), "mongoContext");
 }
 
 const mongoContext = Object.freeze({ ...createMongoContext(), createMongoContext });
