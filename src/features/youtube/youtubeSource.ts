@@ -1,3 +1,4 @@
+import { requestOptionsFor } from "../../sources/sourcePolicies";
 import Parser = require("rss-parser");
 import type { CheerioAPI } from "cheerio";
 import type { HttpRequestOptions, YouTubeFilters, YouTubeVideo, YouTubeVideoMetadata } from "../../types";
@@ -157,7 +158,7 @@ export function createYouTubeSource(deps: YouTubeSourceDeps) {
   async function resolveYouTubeChannel(input: string): Promise<ResolvedYouTubeChannel> {
     const normalized = normalizeYouTubeInput(input);
     const response = await httpReq("GET", normalized.pageUrl, {
-      timeout: 15000,
+      ...requestOptionsFor("youtube-channel-page"),
       headers: { "Accept-Language": "en-US,en;q=0.9" }
     });
     const html = String(response.data ?? "");
@@ -176,7 +177,7 @@ export function createYouTubeSource(deps: YouTubeSourceDeps) {
   async function fetchYouTubeFeed(channel: ResolvedYouTubeChannel | { channelId: string; channelName: string }): Promise<YouTubeVideo[]> {
     const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channel.channelId)}`;
     const response = await httpReq("GET", feedUrl, {
-      timeout: 15000,
+      ...requestOptionsFor("youtube-feed"),
       headers: { Accept: "application/atom+xml,application/xml;q=0.9,text/xml;q=0.8" }
     });
     const feed = await parser.parseString(String(response.data ?? ""));
@@ -200,7 +201,7 @@ export function createYouTubeSource(deps: YouTubeSourceDeps) {
 
   async function fetchYouTubeVideoMetadata(video: YouTubeVideo): Promise<YouTubeVideoMetadata> {
     const response = await httpReq("GET", video.link, {
-      timeout: 15000,
+      ...requestOptionsFor("youtube-video-metadata"),
       headers: { "Accept-Language": "en-US,en;q=0.9" }
     });
     const html = String(response.data ?? "");

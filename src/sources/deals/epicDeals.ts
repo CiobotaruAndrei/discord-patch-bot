@@ -1,3 +1,4 @@
+import { requestOptionsFor } from "../sourcePolicies";
 import type { DealInfo, LoggerFunction } from "../../types";
 import { errorMessage } from "../../shared/errors";
 import type { DealCurrencyCode, HttpReq } from "./dealHelpers";
@@ -50,8 +51,8 @@ export function createEpicDeals(deps: EpicDealsDeps) {
         country: cc, locale: "en-US", onSale: true, withPrice: true
       };
       const epicRes = await httpReq("POST", "https://store.epicgames.com/graphql", {
+        ...requestOptionsFor("epic-graphql-deals"),
         data: { query: epicQuery, variables: epicVars },
-        largeJson: true,
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
           "Origin": "https://store.epicgames.com",

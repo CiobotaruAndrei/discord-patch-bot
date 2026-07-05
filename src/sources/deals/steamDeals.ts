@@ -1,3 +1,4 @@
+import { requestOptionsFor, SOURCE_POLICIES } from "../sourcePolicies";
 import type { DealInfo, LoggerFunction, SteamReviewData } from "../../types";
 import { errorMessage } from "../../shared/errors";
 import type { DealCurrencyCode, HttpReq } from "./dealHelpers";
@@ -38,7 +39,7 @@ export function createSteamDeals(deps: SteamDealsDeps) {
     try {
       const res = await httpReq("GET",
         `https://store.steampowered.com/appreviews/${appId}?json=1&language=all&num_per_page=0`,
-        { largeJson: true }, 3, 800);
+        requestOptionsFor("steam-reviews"), SOURCE_POLICIES["steam-reviews"].retries, SOURCE_POLICIES["steam-reviews"].retryDelayMs);
       const summary = (res.data as SteamReviewResponse).query_summary;
       if (summary) {
         const totalReviews = summary.total_reviews || 0;
@@ -65,7 +66,7 @@ export function createSteamDeals(deps: SteamDealsDeps) {
     try {
       const steamRes = await httpReq("GET",
         `https://store.steampowered.com/api/featuredcategories/?cc=${cc}&l=english`,
-        { largeJson: true });
+        requestOptionsFor("steam-featured-deals"));
       const steamSpecials = ((steamRes.data as SteamFeaturedCategoriesResponse).specials?.items || []).slice(0, STEAM_SPECIALS_LIMIT);
 
       const reviewsData: SteamReviewData[] = [];
