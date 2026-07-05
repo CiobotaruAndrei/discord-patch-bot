@@ -356,10 +356,33 @@ al doilea consumator de metadate (ex. un dashboard web), catalogul devine justif
 sa se extinda `commandAccessManifest` (deja tipat si central) cu descrieri si optiuni, apoi help-ul si
 definitiile sa se mute treptat pe el, pastrand guard-urile existente ca plasa de siguranta in tranzitie.
 
-## Unit-of-work atomic pentru operatiile multi-step (audit R5 #7)
+## Unit-of-work atomic pentru operatiile multi-step (audit R5 #7, extins la R7 #13)
 
 Auditul fluxurilor numite de review si starea lor (Mongo standalone, fara tranzactii —
 strategia repo-ului e claim/rollback explicit + scrieri combinate pe acelasi document):
+
+- **Start/stop abonari (updates + reduceri)** — IMPLEMENTAT in R7 #4: tranzactia de stare
+  (activare cu `activationId`, finalize conditionat de activation-id, rollback cu `lastError`,
+  stop cu golirea pending-ului) traieste in `features/notifications/subscriptionService.ts`
+  ca use-case explicit cu rezultat tipat (`activated`/`superseded`/`baseline-failed`), separat
+  de prezentarea Discord. Gardat de `subscriptionService.test.ts` + testele functionale de
+  subscriptie.
+- **Price-alert add/remove** — REZOLVAT in R6 #6: `upsertPriceAlert` foloseste pipeline-ul
+  atomic cu conditie de dimensiune (`buildPriceAlertUpsertPipeline`, max 25/guild intr-o
+  singura scriere), `removePriceAlertsForGame` e un singur `updateOne`. Gardat de
+  `guildRepositories.test.ts`.
+- **Suggest-command delete + watchlist-game delete + audit server-log** — IMPLEMENTAT in
+  R7 #13: `$pull`-ul si intrarea de audit (`suggest_command_delete`/`watchlist_game_delete`)
+  sunt in ACELASI `updateOne`, cu filtru pe existenta intrarii — auditul nu se scrie pentru un
+  delete inexistent, iar `matchedCount` da raspunsul "Nu am gasit". Acelasi tipar ca backup
+  delete (R5 #7) si regulile de acces admin (R6 #7). Bot-log-ul ("Access granted.") ramane
+  jurnal best-effort separat, prin design.
+- **Outbox replay/dead-letter** — REZOLVAT anterior, per-item prin design: replay-ul valideaza
+  fiecare payload cu guard-ul structural si sare intrarile nelivrabile cu WARN (R4 #5),
+  dead-letter-ul se inregistreaza INAINTE de stergerea jobului pe toate caile terminale
+  (R4 #3), iar esecurile de scriere sunt contorizate in metrici (`deadLetterFailures`,
+  `deleteFailures`). Coada si istoricul sunt colectii diferite — compensare raportata onest,
+  nu tranzactie.
 
 - **YouTube subscribe (baseline + abonare)** — REZOLVAT anterior: claim atomic cu limita
   (`findOneAndUpdate` conditionat), iar la esec baseline-ul seen abia scris e curatat

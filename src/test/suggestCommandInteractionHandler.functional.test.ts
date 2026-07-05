@@ -113,8 +113,10 @@ test("/suggest-command delete cere admin runtime si sterge sugestia normalizata"
 
   await handler.handleSuggestCommandInteraction(makeInteraction("delete", { name: "/ Calendar   Updates " }));
 
-  assert.equal(calls.length, 2, "stergerea (P2): un $pull + un audit /bot-log");
-  assert.deepEqual(calls[0].update, { $pull: { suggestedCommands: { commandName: "calendar updates" } } });
+  assert.equal(calls.length, 2, "stergerea (P2): un $pull+audit server-log atomic + un audit /bot-log");
+  const deleteUpdate = calls[0].update as { $pull?: Record<string, unknown>; $push?: { serverAuditLog?: { $each?: Array<{ action?: string }> } } };
+  assert.deepEqual(deleteUpdate.$pull, { suggestedCommands: { commandName: "calendar updates" } });
+  assert.equal(deleteUpdate.$push?.serverAuditLog?.$each?.[0]?.action, "suggest_command_delete", "auditul server-log e in aceeasi scriere cu $pull (R7 #13)");
   const audit = ((calls[1].update as { $push?: { botAuditLog?: { $each?: Array<{ command?: string; result?: string; details?: string }> } } }).$push)?.botAuditLog?.$each?.[0];
   assert.equal(audit?.command, "/suggest-command delete", "stergerea sugestiei (admin runtime pe comanda publica) intra in /bot-log");
   assert.match(String(audit?.details), /stearsa: calendar updates/);

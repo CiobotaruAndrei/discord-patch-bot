@@ -1,6 +1,7 @@
 "use strict";
 
-import type { GuildSettings, SuggestedCommandEntry } from "../../types";
+import type { GuildSettings, ServerAuditLogEntry, SuggestedCommandEntry } from "../../types";
+import { buildServerAuditPush } from "./auditLogRepository";
 
 type MongoWriteResult = { modifiedCount?: number; matchedCount?: number };
 
@@ -67,11 +68,19 @@ export function listSuggestedCommands(settings: GuildSettings | null, limit: num
     .slice(0, limit);
 }
 
-export async function deleteSuggestedCommand(GuildModel: GuildModelLike, guildId: string, name: string): Promise<boolean> {
+export async function deleteSuggestedCommand(
+  GuildModel: GuildModelLike,
+  guildId: string,
+  name: string,
+  audit: Omit<ServerAuditLogEntry, "serverId" | "at">
+): Promise<boolean> {
   const normalized = name.trim().replace(/^\/+/, "").replace(/\s+/g, " ").toLowerCase();
   const result = await GuildModel.updateOne(
-    { _id: guildId },
-    { $pull: { suggestedCommands: { commandName: normalized } } }
+    { _id: guildId, "suggestedCommands.commandName": normalized },
+    {
+      $pull: { suggestedCommands: { commandName: normalized } },
+      $push: buildServerAuditPush(guildId, audit)
+    }
   );
-  return (result.modifiedCount ?? 0) > 0;
+  return (result.matchedCount ?? 0) > 0;
 }
