@@ -160,5 +160,7 @@ export function buildAdminCommandDefinitions({ SlashCommandBuilder, PermissionsB
       .setDescription("Starea surselor externe folosite de bot (admin)")
       .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
       .addSubcommand(subcommand => subcommand.setName("status").setDescription("Afiseaza starea ultimelor snapshot-uri pentru surse"))
+      .addSubcommand(subcommand => subcommand.setName("refresh").setDescription("Forteaza un fetch live pentru un joc si arata rezultatul brut (inspectie, nu trimite notificari)")
+        .addStringOption(option => option.setName("game").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true)))
   ];
 }

@@ -2,7 +2,7 @@
 
 > Fisier generat automat din `COMMAND_CATALOG_HELP` (`src/features/command-catalog/commandCatalog.ts`), aceeasi sursa unica pe care o foloseste comanda `/help` in Discord. Nu edita manual acest fisier: ruleaza `npm run docs:commands` din `src/`. Sincronizarea catalog <-> fisier este verificata de `commandReferenceDoc.test.ts` si de `npm run check:docs-commands`.
 
-Total comenzi documentate: 124.
+Total comenzi documentate: 123.
 
 | Comanda | Permisiuni | Ce face | Exemplu |
 | --- | --- | --- | --- |
@@ -64,8 +64,6 @@ Total comenzi documentate: 124.
 | `/set paid` | Admin, Ephemeral | Porneste sau opreste afisarea ofertelor platite in alertele de reduceri. | `/set paid value:on` |
 | `/set currency` | Admin, Ephemeral | Alege valuta folosita pentru preturi si alerte de reduceri. | `/set currency value:EUR` |
 | `/set stores` | Admin, Ephemeral | Filtreaza reducerile dupa magazine, de exemplu Steam si Epic, sau reseteaza filtrul. | `/set stores value:steam,epic` |
-| `/set update-template` | Admin, Ephemeral | Personalizeaza mesajul (text deasupra embed-urilor) trimis la notificarile de update. Foloseste {count} pentru numarul de update-uri. Lasa gol pentru a reveni la implicit. | `/set update-template value:Au aparut {count} update-uri noi!` |
-| `/set discount-template` | Admin, Ephemeral | Personalizeaza mesajul trimis la notificarile de reduceri. Foloseste {count} pentru numarul de reduceri. Lasa gol pentru a reveni la implicit. | `/set discount-template value:{count} reduceri noi!` |
 | `/set outbox-recovery-verify` | Admin, Ephemeral | Activeaza sau dezactiveaza verificarea de recovery pentru outbox pe server. Cand este activa, botul verifica istoricul canalului ca sa previna retrimiterea aceluiasi mesaj dupa un crash. | `/set outbox-recovery-verify value:on` |
 | `/set add games` | Admin, Ephemeral | Adauga un joc deja cunoscut de bot in lista explicita de jocuri active pentru server. Nota: Nu adauga un joc nou in codul botului; doar activeaza pentru server un joc existent in configuratie. | `/set add games joc:cs2` |
 | `/set remove games` | Admin, Ephemeral | Scoate un joc din lista explicita de jocuri active pentru server. | `/set remove games joc:cs2` |
@@ -89,6 +87,7 @@ Total comenzi documentate: 124.
 | `/latest update` | Public | Cauta ultimul update pentru un joc anume. | `/latest update joc:cs2` |
 | `/latest pret` | Public | Cauta pretul curent al unui joc pe Steam. | `/latest pret joc:Counter-Strike 2` |
 | `/sources status` | Admin, Ephemeral | Afiseaza starea ultimelor snapshot-uri pentru sursele de date: reduceri Steam/Epic, feed-uri de update si vechimea ultimului fetch. | `/sources status` |
+| `/sources refresh` | Admin, Ephemeral | Forteaza un fetch live pentru un joc si arata rezultatul brut (titlu, link, sau eroare/outcome). Inspectie: nu marcheaza update-ul ca vazut si nu trimite notificari. | `/sources refresh game:cs2` |
 | `/youtube subscribe` | Admin, Ephemeral | Adauga un canal YouTube in lista urmarita folosind un link, un handle @nume sau un channel ID. Videoclipurile mai vechi de o luna sunt ignorate, iar cele recente pot fi livrate la prima activare. | `/youtube subscribe canal:@numeCanal` |
 | `/youtube unsubscribe` | Admin, Ephemeral | Scoate un canal YouTube din lista urmarita. Autocomplete afiseaza numai canalele salvate pe server. | `/youtube unsubscribe canal:UCxxxxxxxxxxxxxxxxxxxxxx` |
 | `/youtube list` | Admin, Ephemeral | Listeaza canalele YouTube urmarite, ultima verificare si ultima eroare cunoscuta pentru fiecare. | `/youtube list` |

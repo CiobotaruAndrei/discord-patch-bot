@@ -63,5 +63,6 @@ export const NOTIFICATIONS_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   { command: "/latest reduceri", description: "Afiseaza cele mai bune reduceri curente care trec filtrele serverului.", example: "/latest reduceri" },
   { command: "/latest update", description: "Cauta ultimul update pentru un joc anume.", example: "/latest update joc:cs2" },
   { command: "/latest pret", description: "Cauta pretul curent al unui joc pe Steam.", example: "/latest pret joc:Counter-Strike 2" },
-  { command: "/sources status", description: "Afiseaza starea ultimelor snapshot-uri pentru sursele de date: reduceri Steam/Epic, feed-uri de update si vechimea ultimului fetch.", example: "/sources status" }
+  { command: "/sources status", description: "Afiseaza starea ultimelor snapshot-uri pentru sursele de date: reduceri Steam/Epic, feed-uri de update si vechimea ultimului fetch.", example: "/sources status" },
+  { command: "/sources refresh", description: "Forteaza un fetch live pentru un joc si arata rezultatul brut (titlu, link, sau eroare/outcome). Inspectie: nu marcheaza update-ul ca vazut si nu trimite notificari.", example: "/sources refresh game:cs2" }
 ];
