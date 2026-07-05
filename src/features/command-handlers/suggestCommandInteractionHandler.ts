@@ -95,7 +95,11 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
     if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildModel, interaction, guildId, "/suggest-command delete"))) return undefined;
     const commandName = normalizeCommandName(String(interaction.options.getString("name", true) || ""));
     if (!commandName) return safeEdit(interaction, "Eroare: trebuie sa alegi numele comenzii sugerate.");
-    const deleted = await deleteSuggestedCommand(GuildModel, guildId, commandName);
+    const deleted = await deleteSuggestedCommand(GuildModel, guildId, commandName, {
+      userId: interaction.user?.id || "",
+      action: "suggest_command_delete",
+      details: commandName
+    });
     invalidateGuildCache(guildId);
     await recordBotAuditEntry(GuildModel, guildId, {
       userId: interaction.user?.id || "",

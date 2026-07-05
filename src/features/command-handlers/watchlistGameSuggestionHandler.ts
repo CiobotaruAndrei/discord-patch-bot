@@ -89,7 +89,11 @@ function createWatchlistGameSuggestionHandler(deps: WatchlistGameSuggestionDeps)
     if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildModel, interaction, guildId, "/watchlist-game delete"))) return undefined;
     const gameName = normalizeGameName(String(interaction.options.getString("game", true) || ""));
     if (!gameName) return safeEdit(interaction, "Eroare: trebuie sa scrii numele jocului de sters.");
-    const deleted = await deleteWatchlistGameSuggestion(GuildModel, guildId, gameName);
+    const deleted = await deleteWatchlistGameSuggestion(GuildModel, guildId, gameName, {
+      userId: interaction.user?.id || "",
+      action: "watchlist_game_delete",
+      details: gameName
+    });
     invalidateGuildCache(guildId);
     await recordBotAuditEntry(GuildModel, guildId, {
       userId: interaction.user?.id || "",

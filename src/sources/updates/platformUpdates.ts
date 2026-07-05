@@ -1,3 +1,4 @@
+import { requestOptionsFor, SOURCE_POLICIES } from "../sourcePolicies";
 import type { GameConfig, HttpRequestOptions, NormalizedUpdate, PatchUpdate } from "../../types";
 import { errorMessage } from "../../shared/errors";
 import type { HttpReq, RssParserLike } from "./updateHelpers";
@@ -43,7 +44,7 @@ function createPlatformUpdates(deps: PlatformUpdatesDeps) {
     try {
       const fortniteResponse = JSON.parse(await fetchWithProxy(
         "https://www.fortnite.com/api/blog/getPosts?postsPerPage=10&offset=0&locale=en-US",
-        { timeout: 15000 }
+        { timeout: SOURCE_POLICIES["platform-fortnite-blog"].timeoutMs }
       ) || "{}") as FortniteBlogResponse;
       const posts = fortniteResponse.blogList || [];
       const valid = posts.filter((p): p is FortnitePost & { slug: string } =>
@@ -62,7 +63,7 @@ function createPlatformUpdates(deps: PlatformUpdatesDeps) {
     } catch (err) {
       logger("WARN", "SCRAPE", "Fortnite primary path a esuat, fallback la RSS Google News", errorMessage(err));
       const backupUrl = "https://news.google.com/rss/search?q=site:fortnite.com/news+update&hl=en-US";
-      const feed = await rssParser.parseString(String((await httpReq("GET", backupUrl)).data || ""));
+      const feed = await rssParser.parseString(String((await httpReq("GET", backupUrl, requestOptionsFor("platform-rss-fallback"))).data || ""));
       if (!feed.items || feed.items.length === 0) throw new Error("Eșec total Fortnite.");
       const first = feed.items[0];
       if (!first.title) throw new Error("Fortnite RSS fallback fara titlu in primul item.");
@@ -122,7 +123,7 @@ function createPlatformUpdates(deps: PlatformUpdatesDeps) {
         excerpt: `Versiunea ${v}`,
         thumbnail: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Minecraft_cube.svg/330px-Minecraft_cube.svg.png"
       });
-    }, { largeJson: true });
+    }, requestOptionsFor("platform-minecraft-manifest"));
   }
 
   async function fetchRobloxUpdate(): Promise<NormalizedUpdate> {

@@ -1,3 +1,4 @@
+import { requestOptionsFor } from "../sourcePolicies";
 import type { CheerioAPI } from "cheerio";
 import type { GameConfig, NormalizedUpdate, PatchUpdate } from "../../types";
 import { rankListingCandidates } from "../../native/fuzzy";
@@ -34,7 +35,7 @@ function createListingUpdates(deps: ListingUpdatesDeps) {
     type FetchedListing = { url: string; candidates: ListingCandidate[] };
     const fetched: Array<FetchedListing | null> = new Array(listingUrls.length).fill(null);
     await deps.runConcurrent(listingUrls, deps.FETCH_CONCURRENCY_LISTING, async (url, index) => {
-      const listRes = await httpReq("GET", url);
+      const listRes = await httpReq("GET", url, requestOptionsFor("listing-index"));
       const $ = safeCheerioLoad(listRes.data);
       const candidates: ListingCandidate[] = [];
       let localPosition = 0;
@@ -85,7 +86,7 @@ function createListingUpdates(deps: ListingUpdatesDeps) {
       const candidate = ranked[i];
       const articleUrl = candidate.href;
       try {
-        const articleRes = await httpReq("GET", articleUrl, { timeout: 8000 });
+        const articleRes = await httpReq("GET", articleUrl, requestOptionsFor("listing-article"));
         const $art = safeCheerioLoad(articleRes.data || "");
         const ogTitle = $art('meta[property="og:title"]').attr("content") || $art("title").text() || "";
         const ogDesc = $art('meta[property="og:description"]').attr("content") || "";

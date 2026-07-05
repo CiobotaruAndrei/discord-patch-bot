@@ -8,15 +8,18 @@ import {
   saveWatchlistGameSuggestion
 } from "../features/admin-records/watchlistGameSuggestionsRepository";
 
-function watchlistModel(existing: WatchlistGameSuggestionEntry[]) {
+function watchlistModel(existing: WatchlistGameSuggestionEntry[], deleteMatchedCount = 1) {
   const calls: Array<{ update: unknown; options?: unknown }> = [];
   const pulls: Array<Record<string, unknown>> = [];
+  const filters: Array<Record<string, unknown>> = [];
   return {
     calls,
     pulls,
-    updateOne: async (_filter: Record<string, unknown>, update: Record<string, unknown>, _options?: Record<string, unknown>) => {
+    filters,
+    updateOne: async (filter: Record<string, unknown>, update: Record<string, unknown>, _options?: Record<string, unknown>) => {
+      filters.push(filter);
       pulls.push(update);
-      return { matchedCount: 1, modifiedCount: 1 };
+      return { matchedCount: deleteMatchedCount, modifiedCount: deleteMatchedCount };
     },
     findOneAndUpdate: async (_filter: Record<string, unknown>, update: unknown, options?: Record<string, unknown>): Promise<{ watchlistGameSuggestions?: WatchlistGameSuggestionEntry[] } | null> => {
       calls.push({ update, options });
@@ -51,7 +54,17 @@ test("listWatchlistGameSuggestions sorteaza descrescator; deleteWatchlistGameSug
   assert.deepEqual(listWatchlistGameSuggestions(settings, 1).map(entry => entry.gameName), ["new"]);
 
   const model = watchlistModel([]);
-  const removed = await deleteWatchlistGameSuggestion(model, "guild-1", "  Silksong  ");
+  const removed = await deleteWatchlistGameSuggestion(model, "guild-1", "  Silksong  ", { userId: "admin-1", action: "watchlist_game_delete", details: "silksong" });
   assert.equal(removed, true);
-  assert.deepEqual(model.pulls[0], { $pull: { watchlistGameSuggestions: { gameName: "silksong" } } }, "numele e normalizat (trim + lowercase) inainte de $pull");
+  assert.deepEqual(model.filters[0], { _id: "guild-1", "watchlistGameSuggestions.gameName": "silksong" }, "filtrul cere existenta propunerii, ca auditul sa nu se scrie pentru un delete inexistent");
+  assert.deepEqual(model.pulls[0].$pull, { watchlistGameSuggestions: { gameName: "silksong" } }, "numele e normalizat (trim + lowercase) inainte de $pull");
+  const auditPush = model.pulls[0].$push as { serverAuditLog: { $each: Array<Record<string, unknown>> } };
+  assert.equal(auditPush.serverAuditLog.$each[0].action, "watchlist_game_delete", "auditul server-log e in ACEEASI scriere cu $pull");
+});
+
+test("deleteWatchlistGameSuggestion: propunerea inexistenta => false (matchedCount 0), fara audit scris", async () => {
+  const model = watchlistModel([], 0);
+  const removed = await deleteWatchlistGameSuggestion(model, "guild-1", "inexistent", { userId: "admin-1", action: "watchlist_game_delete", details: "inexistent" });
+  assert.equal(removed, false);
+  assert.equal(model.pulls.length, 1, "o singura incercare de scriere, refuzata de filtrul de existenta");
 });

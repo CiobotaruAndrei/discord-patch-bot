@@ -1,3 +1,4 @@
+import { requestOptionsFor } from "../sourcePolicies";
 import type { CurrencyConfig, DealInfo, LoggerFunction } from "../../types";
 import { errorMessage } from "../../shared/errors";
 import type { DealCurrencyCode, HttpReq, WithInflightTimeout } from "./dealHelpers";
@@ -114,11 +115,12 @@ export function createDealEnrichment(deps: DealEnrichmentDeps) {
           detailsUrl.searchParams.set("l", "english");
           const [detailsRes, htmlRes] = await Promise.all([
             httpReq("GET", detailsUrl.toString(),
-              { timeout: 5000, largeJson: true }).catch(e => {
+              requestOptionsFor("deal-enrichment-appdetails")).catch(e => {
                 logger("WARN", "STEAM_ENRICH", `appdetails fail appID ${enriched.steamAppID}`, errorMessage(e));
                 return null;
               }),
             httpReq("GET", htmlUrl, {
+              ...requestOptionsFor("deal-enrichment-store-html"),
               headers: { "Cookie": "birthtime=283993201; mature_content=1;" }
             }).catch(e => {
               logger("WARN", "STEAM_ENRICH", `html fetch fail appID ${enriched.steamAppID}`, errorMessage(e));

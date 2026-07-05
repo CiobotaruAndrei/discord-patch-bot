@@ -8,15 +8,18 @@ import {
   saveSuggestedCommand
 } from "../features/admin-records/suggestedCommandsRepository";
 
-function suggestedCommandModel(existing: SuggestedCommandEntry[]) {
+function suggestedCommandModel(existing: SuggestedCommandEntry[], deleteMatchedCount = 1) {
   const calls: Array<{ update: unknown; options?: unknown }> = [];
   const pulls: Array<Record<string, unknown>> = [];
+  const filters: Array<Record<string, unknown>> = [];
   return {
     calls,
     pulls,
-    updateOne: async (_filter: Record<string, unknown>, update: Record<string, unknown>, _options?: Record<string, unknown>) => {
+    filters,
+    updateOne: async (filter: Record<string, unknown>, update: Record<string, unknown>, _options?: Record<string, unknown>) => {
+      filters.push(filter);
       pulls.push(update);
-      return { matchedCount: 1, modifiedCount: 1 };
+      return { matchedCount: deleteMatchedCount, modifiedCount: deleteMatchedCount };
     },
     findOneAndUpdate: async (_filter: Record<string, unknown>, update: unknown, options?: Record<string, unknown>): Promise<{ suggestedCommands?: SuggestedCommandEntry[] } | null> => {
       calls.push({ update, options });
@@ -51,7 +54,18 @@ test("listSuggestedCommands sorteaza descrescator si limiteaza; deleteSuggestedC
   assert.deepEqual(listSuggestedCommands(settings, 1).map(entry => entry.commandName), ["new"]);
 
   const model = suggestedCommandModel([]);
-  const removed = await deleteSuggestedCommand(model, "guild-1", "  /Calendar  ");
+  const removed = await deleteSuggestedCommand(model, "guild-1", "  /Calendar  ", { userId: "admin-1", action: "suggest_command_delete", details: "calendar" });
   assert.equal(removed, true);
-  assert.deepEqual(model.pulls[0], { $pull: { suggestedCommands: { commandName: "calendar" } } }, "numele e normalizat (fara slash, lowercase) inainte de $pull");
+  assert.deepEqual(model.filters[0], { _id: "guild-1", "suggestedCommands.commandName": "calendar" }, "filtrul cere existenta sugestiei, ca auditul sa nu se scrie pentru un delete inexistent");
+  assert.deepEqual(model.pulls[0].$pull, { suggestedCommands: { commandName: "calendar" } }, "numele e normalizat (fara slash, lowercase) inainte de $pull");
+  const auditPush = model.pulls[0].$push as { serverAuditLog: { $each: Array<Record<string, unknown>> } };
+  assert.equal(auditPush.serverAuditLog.$each[0].action, "suggest_command_delete", "auditul server-log e in ACEEASI scriere cu $pull");
+  assert.equal(auditPush.serverAuditLog.$each[0].userId, "admin-1");
+});
+
+test("deleteSuggestedCommand: sugestia inexistenta => false, iar auditul nu se scrie (matchedCount 0)", async () => {
+  const model = suggestedCommandModel([], 0);
+  const removed = await deleteSuggestedCommand(model, "guild-1", "inexistenta", { userId: "admin-1", action: "suggest_command_delete", details: "inexistenta" });
+  assert.equal(removed, false);
+  assert.equal(model.pulls.length, 1, "o singura incercare de scriere, refuzata de filtrul de existenta");
 });
