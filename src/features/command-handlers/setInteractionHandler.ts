@@ -1,5 +1,6 @@
 "use strict";
 
+import { applyGuildConfigUpdate } from "../guild-config/guildConfigRepository";
 import type { CommandHandler } from "../command-registry/commandHandler";
 
 import { handledCommandError } from "../command-security/commandOutcome";
@@ -220,7 +221,7 @@ function createSetInteractionHandler(deps: SetInteractionDeps) {
     if (plan.isFilterChange) updateDoc.pendingDiscounts = [];
 
     try {
-      await GuildModel.updateOne({ _id: guildId }, { $set: updateDoc }, { upsert: true });
+      await applyGuildConfigUpdate(GuildModel, guildId, updateDoc);
       invalidateGuildCache(guildId);
       const tail = plan.isFilterChange ? " *(coada de pending a fost resetata)*" : "";
       const warning = updateDoc.outboxRecoveryVerify === true ? await readHistoryWarning(interaction, guildId) : "";

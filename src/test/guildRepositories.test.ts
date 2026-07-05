@@ -3,9 +3,52 @@ import assert from "node:assert/strict";
 import { loadAdminAccessDoc, saveAdminAccessRule, deleteAdminAccessRule } from "../features/command-security/adminAccessRepository";
 import { parseAdminScopeId } from "../features/command-security/adminScopeIds";
 import { upsertPriceAlert, removePriceAlertsForGame, buildPriceAlertRule, MAX_PRICE_ALERTS_PER_GUILD } from "../features/notifications/priceAlertRepository";
-import { resetGuildConfigurationWithAudit, setAdminAlertChannel } from "../features/guild-config/guildConfigRepository";
+import {
+  resetGuildConfigurationWithAudit,
+  setAdminAlertChannel,
+  applyGuildConfigUpdate,
+  addWatchlistGame,
+  removeWatchlistGame,
+  setCommandSnooze,
+  clearCommandSnooze
+} from "../features/guild-config/guildConfigRepository";
 import { buildResetConfiguration } from "../features/guild-config/guildConfigDefaults";
 import type { PriceAlertRule } from "../types";
+
+test("guildConfigRepository: scrierile /set (config/watchlist/snooze) pastreaza forma exacta a fiecarui operator (runda 10)", async () => {
+  const calls: Array<{ filter: object; update: Record<string, unknown>; options?: Record<string, unknown> }> = [];
+  const model = {
+    updateOne: async (filter: object, update: object, options?: object) => {
+      calls.push({ filter, update: update as Record<string, unknown>, options: options as Record<string, unknown> });
+      return { matchedCount: 1, modifiedCount: 1 };
+    }
+  };
+
+  await applyGuildConfigUpdate(model, "g1", { notificationMode: "compact", currency: "EUR" });
+  assert.deepEqual(calls[0].filter, { _id: "g1" });
+  assert.deepEqual(calls[0].update.$set, { notificationMode: "compact", currency: "EUR" });
+  assert.equal(calls[0].options?.upsert, true, "config-ul /set face upsert implicit");
+
+  await applyGuildConfigUpdate(model, "g1", { notificationRoleId: null }, { upsert: false });
+  assert.equal(calls[1].options?.upsert, false, "eliminarea rolului nu face upsert (paritate cu handler-ul)");
+
+  await addWatchlistGame(model, "g1", "cs2");
+  assert.deepEqual(calls[2].update.$addToSet, { enabledGames: "cs2" });
+  assert.equal(calls[2].options?.upsert, true);
+
+  const removed = await removeWatchlistGame(model, "g1", "dota");
+  assert.deepEqual(calls[3].update.$pull, { enabledGames: "dota" });
+  assert.equal(calls[3].options, undefined, "remove-ul nu face upsert");
+  assert.equal(removed.modifiedCount, 1, "raporteaza modifiedCount pentru mesajul de negasit din handler");
+
+  await setCommandSnooze(model, "g1", "start:updates", new Date("2026-07-05T12:00:00.000Z"));
+  assert.ok(calls[4].update.$set && (calls[4].update.$set as Record<string, unknown>)["commandSnoozes.start:updates"] instanceof Date);
+  assert.equal(calls[4].options?.upsert, true);
+
+  await clearCommandSnooze(model, "g1", "start:updates");
+  assert.deepEqual(calls[5].update.$unset, { "commandSnoozes.start:updates": "" });
+  assert.equal(calls[5].options, undefined, "unsnooze nu face upsert");
+});
 
 test("guildConfigRepository: reset-ul scrie valorile implicite si auditul intr-un singur updateOne cu upsert (R7 #3)", async () => {
   const calls: Array<{ filter: object; update: Record<string, unknown>; options?: Record<string, unknown> }> = [];
