@@ -419,3 +419,7 @@ produce duplicat. Singurul risc real de duplicare (mesaj trimis pe Discord, apoi
 inainte de `markSent`) nu poate fi acoperit de nicio tranzactie, pentru ca send-ul Discord nu
 e tranzactional — pentru acel caz exista recovery-verify. O tranzactie ar cere si replica set
 (indisponibil pe deployment-uri standalone) fara sa elimine niciun risc ramas.
+
+## Sanatatea surselor (`/sources status`)
+
+`/sources status` include un sumar de sanatate derivat din circuit breaker-ele per sursa (`CircuitBreakerModel`, cheie = jocul): cate surse sunt sanatoase, degradate (au esuat recent dar sub prag), in cooldown (breaker activ, sursa sarita temporar) sau cu schema-drift suspectat (HTTP OK dar 0 rezultate valide, probabil selectorii s-au schimbat). Sursele cu probleme sunt listate cu starea lor. Alertele administrative `cb:`/`drift:` semnaleaza deja intrarea in cooldown; comanda ofera imaginea de ansamblu la cerere.

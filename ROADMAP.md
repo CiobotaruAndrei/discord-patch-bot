@@ -724,3 +724,38 @@ implementeaza speculativ. Itemele 1-2 ale reviewului nu au fost furnizate.
   backup offline (`npm run db:export:guilds`) si `/backup` per server. Redis, dashboard web si
   reverse proxy se adauga cand apare nevoia lor reala, pe fundatia de lock-uri DB care permite
   deja multi-proces.
+
+## Review „PatchBot arhitectura" (runda 11, itemele 1-9) — verdicte pe cod real
+
+Ca si runda 9, reviewul compara botul cu un „PatchBot" ipotetic mare. Verificat pe cod (regula 20);
+itemul 4 lipseste din capturi. Majoritatea exista deja sau e amanata cu prag.
+
+- **#1 Source pipeline (adapters/normalizer/dedupe/health/retry/fallback/istoric) — EXISTA in mare,
+  cu un gol inchis.** Surse per tip (steam/listing/driver/platform/rss), circuit breaker cu
+  retry+cooldown per sursa, fallback multi-sursa (R5 #5), seen repositories (dedupe atomic),
+  `sourcePolicies` cu fail-mode per sursa (R7 #10), `FetchResult.outcome` clasificat la boundary
+  (R6 #9), `PatchUpdate`→`NormalizedUpdate` (normalizer). Golul real: **sanatatea surselor nu era
+  expusa** — EXECUTAT la R11, `/sources status` arata acum sumarul de circuit breaker. „Istoric de
+  schimbari pe joc" = `/history` (per server) + snapshot-urile de fetch.
+- **#2 Queue + worker separat — DEJA EVALUAT (R9 #4).** Outbox = coada; fundatia de multi-proces
+  exista (lock-uri DB); split-ul de proces amanat cu declansator masurabil (latenta comenzilor din
+  metricile R9 #6). Nimic de schimbat.
+- **#3 Redis / cache extern — DEJA EVALUAT (R9 #3).** Cooldown-uri, rate-limits, lock-uri, joburi,
+  cache de surse traiesc pe Mongo + in-memory; Redis + BullMQ RESPINSE fara nevoie masurata.
+- **#5 Observability / monitoring — EXISTA in mare.** Metrici outbox (trimise/esuate/latenta),
+  per-sursa fetch, per-comanda (R9 #6), `/healthz` (Mongo + gateway), `/health`, `/sources status`,
+  `/maintenance`, alerte Prometheus + admin-alerts. „Ce surse sunt picate" = sanatatea surselor (#1).
+- **#6 Admin/backoffice tools — partial EXISTA.** `/backup` (rollback config), audit admin
+  (`botAuditLog`/`serverAuditLog`), `/outbox retry`/`replay` (retry manual), `/stop` (disable modul),
+  „inspect source result" = `/sources status` + sanatatea surselor (#1). „Force refresh / lista
+  servere / server health global / admin console" raman product scope (owner-only global), nu refactor.
+- **#7 Game catalog management — EXISTA.** `GameConfig` din `config.json` acopera key/appId/aliases/
+  surse/fallbacks; `sourceHealth`/`lastCheckedAt` sunt derivate din circuit breaker si expuse acum
+  (#1). Un „catalog editabil la runtime" (logo/officialSite/enabled per joc, editat prin comenzi) e
+  o schimbare de model de produs (config-as-code azi), nu un refactor.
+- **#8 Template engine pentru mesaje — PARTIAL.** `notificationMode` (compact/detaliat),
+  `youtubeMessageTemplate`, mentiuni de rol exista. Un engine complet per-server pentru update/discount
+  (link-only, imagine, platforme, changelog scurt) si i18n RO/EN sunt product scope, nu datorie tehnica.
+- **#9 Rate-limit manager Discord — EXISTA.** Token-bucket global pentru trimiteri (PR U) + outbox
+  cu coada per guild/channel + retry dupa rate-limit. „Prioritizare mesaje importante" e o adaugare
+  mica, amanata pana apare o nevoie reala (toate notificarile au azi aceeasi prioritate operationala).

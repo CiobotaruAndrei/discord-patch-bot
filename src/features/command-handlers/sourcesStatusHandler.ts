@@ -2,6 +2,7 @@
 
 import type { CommandHandler } from "../command-registry/commandHandler";
 import type { GameConfig } from "../../types";
+import { summarizeSourceHealth, type SourceHealthDoc, type SourceHealthSummary } from "../../sources/sourceHealth";
 
 import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail } = require("../../shared/errors");
@@ -52,6 +53,7 @@ interface SourcesStatusDeps {
   safeEdit: (interaction: DiscordInteraction, payload: InteractionPayload) => Promise<unknown>;
   loadFetchSnapshot: (id: string) => Promise<LoadedFetchSnapshot | null>;
   loadDealsFetchSnapshots: () => Promise<LoadedDealsFetchSnapshot[]>;
+  loadSourceHealth?: () => Promise<SourceHealthDoc[]>;
   MessageFlags: { Ephemeral: number };
 }
 
@@ -115,10 +117,22 @@ function renderLine(line: SourceStatusLine): string {
   return `${line.label}: ${line.state}${suffix}`;
 }
 
+function renderHealthLines(summary: SourceHealthSummary): string {
+  if (summary.total === 0) return "Sanatate surse (circuit breaker): nu exista date inca.";
+  const head = `Sanatate surse (circuit breaker): ${summary.healthy}/${summary.total} sanatoase`
+    + `, ${summary.degraded} degradate, ${summary.coolingDown} in cooldown, ${summary.schemaDrift} schema-drift`;
+  if (!summary.unhealthy.length) return head;
+  const labels: Record<string, string> = { degraded: "degradata", "cooling-down": "in cooldown", "schema-drift": "schema-drift" };
+  const detail = summary.unhealthy.slice(0, 10).map(item => `${item.key} (${labels[item.state] || item.state})`).join(", ");
+  const more = summary.unhealthy.length > 10 ? `, +${summary.unhealthy.length - 10}` : "";
+  return `${head}\nSurse cu probleme: ${detail}${more}`;
+}
+
 function buildSourcesStatusEmbed(
   games: GameConfig[],
   updatesSnapshot: LoadedFetchSnapshot | null,
   dealSnapshots: LoadedDealsFetchSnapshot[],
+  healthSummary: SourceHealthSummary | null = null,
   now = new Date()
 ): SourcesStatusEmbed {
   const lines: SourceStatusLine[] = [
@@ -131,30 +145,36 @@ function buildSourcesStatusEmbed(
   const newest = newestFetchDate(updatesSnapshot, dealSnapshots);
   const failures = lines.filter(line => line.state === "eroare").length;
   const missing = lines.filter(line => line.state === "fara date").length;
-  const color = failures > 0 ? 0xe67e22 : missing > 0 ? 0xf1c40f : 0x2ecc71;
+  const unhealthySources = healthSummary ? healthSummary.total - healthSummary.healthy : 0;
+  const color = failures > 0 || (healthSummary && (healthSummary.coolingDown > 0 || healthSummary.schemaDrift > 0))
+    ? 0xe67e22
+    : missing > 0 || unhealthySources > 0 ? 0xf1c40f : 0x2ecc71;
   const lastFetch = newest ? formatAge(now.getTime(), newest) : "nu exista snapshot";
+  const healthBlock = healthSummary ? `\n\n${renderHealthLines(healthSummary)}` : "";
 
   return {
     title: "Status surse",
-    description: `${visible.join("\n")}\n\nUltimul fetch: ${lastFetch}`,
+    description: `${visible.join("\n")}${healthBlock}\n\nUltimul fetch: ${lastFetch}`,
     color,
-    footer: { text: "Status calculat din snapshot-urile persistate ale ultimelor fetch-uri." }
+    footer: { text: "Status calculat din snapshot-urile persistate + starea circuit breaker-elor de surse." }
   };
 }
 
 function createSourcesStatusHandler(deps: SourcesStatusDeps) {
-  const { enforceCooldown, startCommandLog, safeDefer, safeEdit, loadFetchSnapshot, loadDealsFetchSnapshots } = deps;
+  const { enforceCooldown, startCommandLog, safeDefer, safeEdit, loadFetchSnapshot, loadDealsFetchSnapshots, loadSourceHealth } = deps;
 
   async function handleSourcesStatus(interaction: DiscordInteraction, games: GameConfig[]): Promise<unknown> {
     if (!(await enforceCooldown(interaction, "sources"))) return undefined;
     const endLog = startCommandLog(interaction, "sources:status");
     await safeDefer(interaction, true);
-    const [updatesSnapshot, dealSnapshots] = await Promise.all([
+    const [updatesSnapshot, dealSnapshots, healthDocs] = await Promise.all([
       loadFetchSnapshot("updates"),
-      loadDealsFetchSnapshots()
+      loadDealsFetchSnapshots(),
+      loadSourceHealth ? loadSourceHealth() : Promise.resolve([])
     ]);
-    const embed = buildSourcesStatusEmbed(games, updatesSnapshot, dealSnapshots);
-    endLog("ok", { dealSnapshots: dealSnapshots.length });
+    const healthSummary = loadSourceHealth ? summarizeSourceHealth(healthDocs) : null;
+    const embed = buildSourcesStatusEmbed(games, updatesSnapshot, dealSnapshots, healthSummary);
+    endLog("ok", { dealSnapshots: dealSnapshots.length, unhealthySources: healthSummary ? healthSummary.total - healthSummary.healthy : 0 });
     return safeEdit(interaction, { embeds: [embed] });
   }
 
@@ -172,12 +192,6 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }): Int
   return { content: "Eroare: Eroare neasteptata la procesarea comenzii.", flags: MessageFlags.Ephemeral };
 }
 
-type SourcesStatusInstaller = ((target: SourcesStatusContext) => void) & {
-  createSourcesStatusHandler: typeof createSourcesStatusHandler;
-  buildSourcesStatusEmbed: typeof buildSourcesStatusEmbed;
-  buildCommandHandler: typeof buildSourcesStatusCommandHandler;
-};
-
 function buildSourcesStatusCommandHandler(target: SourcesStatusContext) {
   const handlers = createSourcesStatusHandler({
     logger: target.logger,
@@ -187,6 +201,7 @@ function buildSourcesStatusCommandHandler(target: SourcesStatusContext) {
     safeEdit: target.safeEdit,
     loadFetchSnapshot: target.loadFetchSnapshot,
     loadDealsFetchSnapshots: target.loadDealsFetchSnapshots,
+    loadSourceHealth: target.loadSourceHealth,
     MessageFlags: target.MessageFlags
   });
   const command: CommandHandler<DiscordInteraction> = {
