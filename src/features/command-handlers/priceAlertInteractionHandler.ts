@@ -184,27 +184,9 @@ function buildPriceAlertCommandHandler(target: PriceAlertContext) {
   return { handlers, ...command };
 }
 
-const installPriceAlertInteractionHandler = ((target: PriceAlertContext): void => {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildPriceAlertCommandHandler(target);
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-  Object.assign(target, handlers, { handleInteraction });
-}) as ((target: PriceAlertContext) => void) & {
-  createPriceAlertInteractionHandler: typeof createPriceAlertInteractionHandler;
-  buildPriceAlertRule: typeof buildPriceAlertRule;
-  buildPriceAlertUpsertPipeline: typeof buildPriceAlertUpsertPipeline;
-  buildCommandHandler: typeof buildPriceAlertCommandHandler;
+export = {
+  createPriceAlertInteractionHandler,
+  buildPriceAlertRule,
+  buildPriceAlertUpsertPipeline,
+  buildCommandHandler: buildPriceAlertCommandHandler
 };
-
-installPriceAlertInteractionHandler.createPriceAlertInteractionHandler = createPriceAlertInteractionHandler;
-installPriceAlertInteractionHandler.buildPriceAlertRule = buildPriceAlertRule;
-installPriceAlertInteractionHandler.buildPriceAlertUpsertPipeline = buildPriceAlertUpsertPipeline;
-installPriceAlertInteractionHandler.buildCommandHandler = buildPriceAlertCommandHandler;
-
-export = installPriceAlertInteractionHandler;

@@ -204,25 +204,8 @@ function buildFutureReleaseCommandHandler(target: FutureReleaseContext) {
   return { handlers, ...command };
 }
 
-const installFutureReleaseInteractionHandler = ((target: FutureReleaseContext): void => {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildFutureReleaseCommandHandler(target);
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-  Object.assign(target, handlers, { handleInteraction });
-}) as ((target: FutureReleaseContext) => void) & {
-  createFutureReleaseInteractionHandler: typeof createFutureReleaseInteractionHandler;
-  renderFutureReleaseGames: typeof renderFutureReleaseGames;
-  buildCommandHandler: typeof buildFutureReleaseCommandHandler;
+export = {
+  createFutureReleaseInteractionHandler,
+  renderFutureReleaseGames,
+  buildCommandHandler: buildFutureReleaseCommandHandler
 };
-
-installFutureReleaseInteractionHandler.createFutureReleaseInteractionHandler = createFutureReleaseInteractionHandler;
-installFutureReleaseInteractionHandler.renderFutureReleaseGames = renderFutureReleaseGames;
-installFutureReleaseInteractionHandler.buildCommandHandler = buildFutureReleaseCommandHandler;
-
-export = installFutureReleaseInteractionHandler;

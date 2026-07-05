@@ -95,24 +95,9 @@ function buildYouTubeCommandHandler(target: YouTubeContext) {
   return { handlers, ...command };
 }
 
-const installYouTubeInteractionHandler = ((target: YouTubeContext): void => {
-  const previous = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildYouTubeCommandHandler(target);
-  async function handleInteraction(interaction: DiscordInteraction, games: CommandGame[]) {
-    if (!canHandle(interaction)) return previous?.(interaction, games);
-    return handle(interaction, games);
-  }
-  Object.assign(target, handlers, { handleInteraction });
-}) as ((target: YouTubeContext) => void) & {
-  createYouTubeInteractionHandler: typeof createYouTubeInteractionHandler;
-  buildCommandHandler: typeof buildYouTubeCommandHandler;
-  formatYouTubeList: typeof formatYouTubeList;
-  formatYouTubeStatus: typeof formatYouTubeStatus;
+export = {
+  createYouTubeInteractionHandler,
+  buildCommandHandler: buildYouTubeCommandHandler,
+  formatYouTubeList,
+  formatYouTubeStatus
 };
-
-installYouTubeInteractionHandler.createYouTubeInteractionHandler = createYouTubeInteractionHandler;
-installYouTubeInteractionHandler.buildCommandHandler = buildYouTubeCommandHandler;
-installYouTubeInteractionHandler.formatYouTubeList = formatYouTubeList;
-installYouTubeInteractionHandler.formatYouTubeStatus = formatYouTubeStatus;
-
-export = installYouTubeInteractionHandler;

@@ -121,19 +121,4 @@ function buildStatusCommandHandler(target: StatusContext) {
   return { handlers, ...command };
 }
 
-function installStatusInteraction(target: StatusContext) {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildStatusCommandHandler(target);
-
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-
-  Object.assign(target, handlers, { handleInteraction });
-}
-
-export = Object.assign(installStatusInteraction, { createStatusInteractionHandler, buildCommandHandler: buildStatusCommandHandler });
+export = { createStatusInteractionHandler, buildCommandHandler: buildStatusCommandHandler };

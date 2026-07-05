@@ -1,8 +1,9 @@
 import test from "node:test";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
 import assert from "node:assert/strict";
 
 const installSetHandler = require("../features/command-handlers/setInteractionHandler") as
-  ((context: Record<string, unknown>) => void) & { createSetInteractionHandler?: (deps: unknown) => unknown };
+  ChainableCommandModule & { createSetInteractionHandler?: (deps: unknown) => unknown };
 
 type SetInteractionRuntime = {
   handleInteraction: (interaction: unknown, games?: unknown[]) => Promise<unknown>;
@@ -76,7 +77,7 @@ function makeContext(opts: {
     })
   };
 
-  installSetHandler(context);
+  installCommandChain(context, [installSetHandler]);
   return { context: context as typeof context & SetInteractionRuntime, updateCalls, replies, delegateCalls, cacheInvalidations, logs };
 }
 

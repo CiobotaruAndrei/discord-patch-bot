@@ -201,10 +201,16 @@ factory-uri tipate + lista `CommandHandler[]` rutata de `dispatchCommand`. Rezid
 `previousHandleInteraction`), pastrate DOAR ca seam de test — productia nu le apeleaza. Pas
 exemplar executat: `latestInteractionHandler` a trecut pe **factory-only**
 (`export = { createLatestInteractionHandler, buildCommandHandler }`, installer-ul sters), iar
-testul lui functional isi construieste explicit lantul din `buildCommandHandler` — acelasi tipar
-ca migrarea surselor (R5 #3/R6 #1). Restul handler-elor se migreaza per modul, cand se atinge
-modulul (acelasi ritm ca la repositories), nu big-bang: fiecare are teste care apeleaza forma de
-install si trebuie repointate individual (regula 8).
+testul lui functional isi construieste explicit lantul din `buildCommandHandler`.
+
+**INCHIS COMPLET la runda 10.** Toate cele ~30 de handler-e de comenzi au trecut pe factory-only:
+niciun `installX` callable, niciun `previousHandleInteraction`, niciun `Object.assign(target, ...)`
+in `features/command-handlers/` — fiecare exporta doar `{ createX, buildCommandHandler, ...statics }`.
+Registry-ul folosea deja exclusiv `attach*.buildCommandHandler(ctx)`, deci productia e neschimbata.
+Testele care exercitau lantul de install (`installX(context)` + delegare) au fost repointate pe un
+test-kit nou `commandChainTestKit.installCommandChain(context, [module1, ...])` care reconstruieste
+exact acelasi lant din `buildCommandHandler` (regula 8 — protectia ramane, forma se muta). Seam-ul
+de install a disparut din cod; comportamentul de rutare/delegare e testat identic prin kit.
 
 **`createAppServices()` imutabil — IMPLEMENTAT (review manual R14 #4, Low).**
 `createCommandRegistry` muta anterior **un singur obiect `base`** prin lantul

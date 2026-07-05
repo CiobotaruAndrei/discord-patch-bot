@@ -192,19 +192,4 @@ function buildGameFilterCommandHandler(target: GameFilterContext) {
   return { handlers, ...command };
 }
 
-function installGameFilterInteractions(target: GameFilterContext) {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildGameFilterCommandHandler(target);
-
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-
-  Object.assign(target, handlers, { handleInteraction });
-}
-
-export = Object.assign(installGameFilterInteractions, { createGameFilterInteractionHandlers, buildCommandHandler: buildGameFilterCommandHandler });
+export = { createGameFilterInteractionHandlers, buildCommandHandler: buildGameFilterCommandHandler };

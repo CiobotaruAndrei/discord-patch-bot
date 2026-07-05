@@ -158,25 +158,8 @@ function buildGuildConfigurationAdminCommandHandler(target: GuildConfigurationAd
   return { handlers, ...command };
 }
 
-const installGuildConfigurationAdminHandler = ((target: GuildConfigurationAdminContext): void => {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildGuildConfigurationAdminCommandHandler(target);
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-  Object.assign(target, handlers, { handleInteraction });
-}) as ((target: GuildConfigurationAdminContext) => void) & {
-  createGuildConfigurationAdminHandler: typeof createGuildConfigurationAdminHandler;
-  buildResetConfiguration: typeof buildResetConfiguration;
-  buildCommandHandler: typeof buildGuildConfigurationAdminCommandHandler;
+export = {
+  createGuildConfigurationAdminHandler,
+  buildResetConfiguration,
+  buildCommandHandler: buildGuildConfigurationAdminCommandHandler
 };
-
-installGuildConfigurationAdminHandler.createGuildConfigurationAdminHandler = createGuildConfigurationAdminHandler;
-installGuildConfigurationAdminHandler.buildResetConfiguration = buildResetConfiguration;
-installGuildConfigurationAdminHandler.buildCommandHandler = buildGuildConfigurationAdminCommandHandler;
-
-export = installGuildConfigurationAdminHandler;

@@ -172,27 +172,9 @@ function buildAuditLogCommandHandler(target: AuditLogContext) {
   return { handlers, ...command };
 }
 
-const installAuditLogInteractionHandler = ((target: AuditLogContext): void => {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildAuditLogCommandHandler(target);
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-  Object.assign(target, handlers, { handleInteraction });
-}) as ((target: AuditLogContext) => void) & {
-  createAuditLogInteractionHandler: typeof createAuditLogInteractionHandler;
-  renderBotLog: typeof renderBotLog;
-  renderServerLog: typeof renderServerLog;
-  buildCommandHandler: typeof buildAuditLogCommandHandler;
+export = {
+  createAuditLogInteractionHandler,
+  renderBotLog,
+  renderServerLog,
+  buildCommandHandler: buildAuditLogCommandHandler
 };
-
-installAuditLogInteractionHandler.createAuditLogInteractionHandler = createAuditLogInteractionHandler;
-installAuditLogInteractionHandler.renderBotLog = renderBotLog;
-installAuditLogInteractionHandler.renderServerLog = renderServerLog;
-installAuditLogInteractionHandler.buildCommandHandler = buildAuditLogCommandHandler;
-
-export = installAuditLogInteractionHandler;

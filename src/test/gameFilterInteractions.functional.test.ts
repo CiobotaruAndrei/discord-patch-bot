@@ -1,7 +1,8 @@
 import test from "node:test";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
 import assert from "node:assert/strict";
 
-type GameFilterModule = ((context: Record<string, unknown>) => void) & {
+type GameFilterModule = ChainableCommandModule & {
   createGameFilterInteractionHandlers: (deps: Record<string, unknown>) => {
     handleGameFilterOperation: (interaction: Record<string, unknown>, games: Array<Record<string, unknown>>, sub: string, guildId: string, surface: "set-games" | "watchlist") => Promise<unknown>;
     handleSetGames: (interaction: Record<string, unknown>, games: Array<Record<string, unknown>>, sub: string, guildId: string) => Promise<unknown>;
@@ -170,7 +171,7 @@ test("game filter installer intercepts /set games si /watchlist commands", async
     return "delegated";
   };
 
-  gameFilterInteractions(runtimeContext);
+  installCommandChain(runtimeContext, [gameFilterInteractions]);
   const runtime = runtimeContext as typeof context & InteractionRuntime;
   await runtime.handleInteraction(makeSetGamesInteraction("remove", "fortnite"), games);
   await runtime.handleInteraction(makeWatchlistInteraction("add", "cs2"), games);

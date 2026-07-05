@@ -1,4 +1,5 @@
 import test from "node:test";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
 import assert from "node:assert/strict";
 
 process.env.MONGO_URI ||= "mongodb://localhost:27017/discord-patch-bot-test";
@@ -17,7 +18,7 @@ type GameFilterRuntime = {
   handleSetGamesInteraction: (interaction: unknown, games: Game[]) => Promise<unknown>;
 };
 
-const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as (context: Record<string, unknown>) => void;
+const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as ChainableCommandModule;
 
 const games = [
   { key: "cs2", name: "Counter-Strike 2" },
@@ -46,7 +47,7 @@ function buildContext() {
     getGuildSettings: async () => ({ enabledGames: [] }),
     safeDefer: async () => undefined
   };
-  installGameFilterHandlers(context);
+  installCommandChain(context, [installGameFilterHandlers]);
   return { context: context as typeof context & GameFilterRuntime, calls, replies, invalidatedGuilds };
 }
 

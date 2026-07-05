@@ -250,25 +250,8 @@ function buildBackupCommandHandler(target: BackupContext) {
   return { handlers, ...command };
 }
 
-const installBackupInteractionHandler = ((target: BackupContext): void => {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildBackupCommandHandler(target);
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-  Object.assign(target, handlers, { handleInteraction });
-}) as ((target: BackupContext) => void) & {
-  createBackupInteractionHandler: typeof createBackupInteractionHandler;
-  renderBackupPreview: typeof renderBackupPreview;
-  buildCommandHandler: typeof buildBackupCommandHandler;
+export = {
+  createBackupInteractionHandler,
+  renderBackupPreview,
+  buildCommandHandler: buildBackupCommandHandler
 };
-
-installBackupInteractionHandler.createBackupInteractionHandler = createBackupInteractionHandler;
-installBackupInteractionHandler.renderBackupPreview = renderBackupPreview;
-installBackupInteractionHandler.buildCommandHandler = buildBackupCommandHandler;
-
-export = installBackupInteractionHandler;

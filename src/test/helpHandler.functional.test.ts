@@ -1,7 +1,8 @@
 import test from "node:test";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
 import assert from "node:assert/strict";
 
-type HelpModule = ((context: Record<string, unknown>) => void) & {
+type HelpModule = ChainableCommandModule & {
   createHelpHandler: (deps: Record<string, unknown>) => {
     handleHelpInteraction: (interaction: Record<string, unknown>) => Promise<unknown>;
   };
@@ -110,7 +111,7 @@ test("help handler installer intercepts only /help", async () => {
     }
   };
 
-  helpHandler(context);
+  installCommandChain(context, [helpHandler]);
   const runtime = context as typeof context & InteractionRuntime;
   await runtime.handleInteraction(interaction, []);
   const result = await runtime.handleInteraction({
@@ -145,7 +146,7 @@ test("help handler real (din EmbedBuilder + COLORS) listeaza toate subcomenzile 
     COLORS: { DARK: 0 }
   };
 
-  helpHandler(context);
+  installCommandChain(context, [helpHandler]);
   const runtime = context as typeof context & InteractionRuntime;
   await runtime.handleInteraction(interaction, []);
 

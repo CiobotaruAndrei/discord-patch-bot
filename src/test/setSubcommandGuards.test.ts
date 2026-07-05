@@ -1,9 +1,10 @@
 import test from "node:test";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
 import assert from "node:assert/strict";
 
-const installSetHandler = require("../features/command-handlers/setInteractionHandler") as (context: Record<string, unknown>) => void;
-const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as (context: Record<string, unknown>) => void;
-const installRolePingHandlers = require("../features/command-handlers/rolePingHandlers") as (context: Record<string, unknown>) => void;
+const installSetHandler = require("../features/command-handlers/setInteractionHandler") as ChainableCommandModule;
+const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as ChainableCommandModule;
+const installRolePingHandlers = require("../features/command-handlers/rolePingHandlers") as ChainableCommandModule;
 
 type InteractionRuntime = {
   handleInteraction: (interaction: unknown, games?: Array<Record<string, unknown>>) => Promise<unknown>;
@@ -30,9 +31,7 @@ function makeContext(replies: unknown[], mongoCalls: unknown[][]) {
     handleInteraction: async (_interaction?: unknown, _games?: Array<Record<string, unknown>>) => {  }
   };
 
-  installGameFilterHandlers(context);
-  installRolePingHandlers(context);
-  installSetHandler(context);
+  installCommandChain(context, [installGameFilterHandlers, installRolePingHandlers, installSetHandler]);
   return context as typeof context & InteractionRuntime;
 }
 

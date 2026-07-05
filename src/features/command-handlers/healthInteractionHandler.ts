@@ -163,25 +163,9 @@ function buildHealthCommandHandler(target: HealthContextWithDb) {
   return { handlers, ...command };
 }
 
-const installHealthInteraction = ((target: HealthContextWithDb): void => {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildHealthCommandHandler(target);
-
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-
-  Object.assign(target, handlers, { handleInteraction });
-}) as HealthInstaller;
-
-installHealthInteraction.buildCommandHandler = buildHealthCommandHandler;
-
-installHealthInteraction.createHealthInteractionHandler = createHealthInteractionHandler;
-installHealthInteraction.buildHealthEmbed = buildHealthEmbed;
-installHealthInteraction.formatUptime = formatUptime;
-
-export = installHealthInteraction;
+export = {
+  buildCommandHandler: buildHealthCommandHandler,
+  createHealthInteractionHandler,
+  buildHealthEmbed,
+  formatUptime
+};

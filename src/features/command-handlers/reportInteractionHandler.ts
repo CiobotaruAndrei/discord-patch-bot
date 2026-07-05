@@ -260,26 +260,10 @@ function buildReportCommandHandler(target: ReportContext) {
   return { handlers, ...command };
 }
 
-const installReportInteraction = ((target: ReportContext): void => {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildReportCommandHandler(target);
-
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-
-  Object.assign(target, handlers, { handleInteraction });
-}) as ReportInstaller;
-
-installReportInteraction.buildCommandHandler = buildReportCommandHandler;
-
-installReportInteraction.createReportInteractionHandler = createReportInteractionHandler;
-installReportInteraction.buildReportConfirmEmbed = buildReportConfirmEmbed;
-installReportInteraction.buildReportAlertBody = buildReportAlertBody;
-installReportInteraction.buildReportListEmbed = buildReportListEmbed;
-
-export = installReportInteraction;
+export = {
+  buildCommandHandler: buildReportCommandHandler,
+  createReportInteractionHandler,
+  buildReportConfirmEmbed,
+  buildReportAlertBody,
+  buildReportListEmbed
+};

@@ -157,25 +157,8 @@ function buildWatchlistGameSuggestionCommandHandler(target: WatchlistGameSuggest
   return { handlers, ...command };
 }
 
-const installWatchlistGameSuggestionHandler = ((target: WatchlistGameSuggestionContext): void => {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildWatchlistGameSuggestionCommandHandler(target);
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-  Object.assign(target, handlers, { handleInteraction });
-}) as ((target: WatchlistGameSuggestionContext) => void) & {
-  createWatchlistGameSuggestionHandler: typeof createWatchlistGameSuggestionHandler;
-  renderWatchlistGameSuggestions: typeof renderWatchlistGameSuggestions;
-  buildCommandHandler: typeof buildWatchlistGameSuggestionCommandHandler;
+export = {
+  createWatchlistGameSuggestionHandler,
+  renderWatchlistGameSuggestions,
+  buildCommandHandler: buildWatchlistGameSuggestionCommandHandler
 };
-
-installWatchlistGameSuggestionHandler.createWatchlistGameSuggestionHandler = createWatchlistGameSuggestionHandler;
-installWatchlistGameSuggestionHandler.renderWatchlistGameSuggestions = renderWatchlistGameSuggestions;
-installWatchlistGameSuggestionHandler.buildCommandHandler = buildWatchlistGameSuggestionCommandHandler;
-
-export = installWatchlistGameSuggestionHandler;

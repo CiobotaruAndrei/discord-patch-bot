@@ -1,7 +1,8 @@
 import test from "node:test";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
 import assert from "node:assert/strict";
 
-type DlcModule = ((context: Record<string, unknown>) => void) & {
+type DlcModule = ChainableCommandModule & {
   createDlcInteractionHandler: (deps: Record<string, unknown>) => {
     handleDlcInteraction: (interaction: Record<string, unknown>) => Promise<unknown>;
   };
@@ -189,7 +190,7 @@ test("dlc installer intercepts only /dlc and delegates everything else", async (
     }
   };
 
-  dlcHandler(context);
+  installCommandChain(context, [dlcHandler]);
   const runtime = context as typeof context & InteractionRuntime;
   await runtime.handleInteraction(interaction, []);
   const result = await runtime.handleInteraction({

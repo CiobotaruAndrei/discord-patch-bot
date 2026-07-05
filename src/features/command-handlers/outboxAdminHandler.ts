@@ -187,19 +187,4 @@ function buildOutboxAdminCommandHandler(target: OutboxAdminContext) {
   return { handlers, ...command };
 }
 
-function installOutboxAdminHandler(target: OutboxAdminContext): void {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildOutboxAdminCommandHandler(target);
-
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-
-  Object.assign(target, handlers, { handleInteraction });
-}
-
-export = Object.assign(installOutboxAdminHandler, { createOutboxAdminHandler, isDirectOutboxCommand, buildCommandHandler: buildOutboxAdminCommandHandler });
+export = { createOutboxAdminHandler, isDirectOutboxCommand, buildCommandHandler: buildOutboxAdminCommandHandler };

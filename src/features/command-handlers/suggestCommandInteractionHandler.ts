@@ -171,25 +171,8 @@ function buildSuggestCommandHandler(target: SuggestCommandContext) {
   return { handlers, ...command };
 }
 
-const installSuggestCommandInteractionHandler = ((target: SuggestCommandContext): void => {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildSuggestCommandHandler(target);
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-  Object.assign(target, handlers, { handleInteraction });
-}) as ((target: SuggestCommandContext) => void) & {
-  createSuggestCommandInteractionHandler: typeof createSuggestCommandInteractionHandler;
-  renderSuggestedCommands: typeof renderSuggestedCommands;
-  buildCommandHandler: typeof buildSuggestCommandHandler;
+export = {
+  createSuggestCommandInteractionHandler,
+  renderSuggestedCommands,
+  buildCommandHandler: buildSuggestCommandHandler
 };
-
-installSuggestCommandInteractionHandler.createSuggestCommandInteractionHandler = createSuggestCommandInteractionHandler;
-installSuggestCommandInteractionHandler.renderSuggestedCommands = renderSuggestedCommands;
-installSuggestCommandInteractionHandler.buildCommandHandler = buildSuggestCommandHandler;
-
-export = installSuggestCommandInteractionHandler;

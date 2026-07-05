@@ -135,25 +135,8 @@ function buildMaintenanceCommandHandler(target: MaintenanceContext) {
   return { handlers, ...command };
 }
 
-const installMaintenanceInteractionHandler = ((target: MaintenanceContext): void => {
-  const previousHandleInteraction = target.handleInteraction;
-  const { handlers, canHandle, handle } = buildMaintenanceCommandHandler(target);
-  async function handleInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
-    if (!canHandle(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-    return handle(interaction, games);
-  }
-  Object.assign(target, handlers, { handleInteraction });
-}) as ((target: MaintenanceContext) => void) & {
-  createMaintenanceInteractionHandler: typeof createMaintenanceInteractionHandler;
-  buildMaintenanceReport: typeof buildMaintenanceReport;
-  buildCommandHandler: typeof buildMaintenanceCommandHandler;
+export = {
+  createMaintenanceInteractionHandler,
+  buildMaintenanceReport,
+  buildCommandHandler: buildMaintenanceCommandHandler
 };
-
-installMaintenanceInteractionHandler.createMaintenanceInteractionHandler = createMaintenanceInteractionHandler;
-installMaintenanceInteractionHandler.buildMaintenanceReport = buildMaintenanceReport;
-installMaintenanceInteractionHandler.buildCommandHandler = buildMaintenanceCommandHandler;
-
-export = installMaintenanceInteractionHandler;

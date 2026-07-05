@@ -1,7 +1,8 @@
 import test from "node:test";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
 import assert from "node:assert/strict";
 
-const installSimpleHandlers = require("../features/command-handlers/simpleCommandsHandler") as (context: Record<string, unknown>) => void;
+const installSimpleHandlers = require("../features/command-handlers/simpleCommandsHandler") as ChainableCommandModule;
 
 type InteractionRuntime = {
   handleInteraction: (interaction: unknown, games?: unknown[]) => Promise<unknown>;
@@ -38,7 +39,7 @@ function makeContext(opts: { maxChars?: number } = {}) {
     logger: (level: string, c: string, msg: string) => { logs.push({ level, context: c, msg }); },
     handleInteraction: async (interaction: { commandName: string }) => { delegated.push(interaction.commandName); }
   };
-  installSimpleHandlers(context);
+  installCommandChain(context, [installSimpleHandlers]);
   return { context: context as typeof context & InteractionRuntime, delegated, logs };
 }
 
