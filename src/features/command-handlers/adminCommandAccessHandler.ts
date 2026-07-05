@@ -13,7 +13,7 @@ import {
   readAdminCommandAccessForScope,
   type AdminCommandAccessByCommand
 } from "../command-security/adminCommandAccessScope";
-import { isSettableAdminScope } from "../command-security/adminSettableScopeCatalog";
+import { parseAdminScopeId } from "../command-security/adminScopeIds";
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
 type InteractionPayload = string | { content: string; flags?: number };
@@ -180,11 +180,11 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
   async function handleSet(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     const role = interaction.options.getRole("role", true);
     const mode = normalizeMode(interaction.options.getString("mode", true));
-    const scope = readTargetScope(interaction);
+    const scope = parseAdminScopeId(interaction.options.getString("command", false));
     if (!role?.id) return safeEdit(interaction, "Eroare: trebuie sa alegi un rol valid.");
     if (!mode) return safeEdit(interaction, "Eroare: mode accepta doar `role` sau `role-or-higher`.");
-    if (!isSettableAdminScope(scope)) {
-      return safeEdit(interaction, `Eroare: ${displayAdminCommandAccessScope(scope)} nu este o comanda admin pe care o pot restrictiona, deci regula nu ar fi aplicata niciodata. Alege o comanda admin reala din autocomplete sau lasa \`command\` gol pentru regula globala.`);
+    if (!scope) {
+      return safeEdit(interaction, `Eroare: ${displayAdminCommandAccessScope(readTargetScope(interaction))} nu este o comanda admin pe care o pot restrictiona, deci regula nu ar fi aplicata niciodata. Alege o comanda admin reala din autocomplete sau lasa \`command\` gol pentru regula globala.`);
     }
     const access = { mode, roleId: role.id, updatedBy: interaction.user?.id || "", updatedAt: new Date() };
     const legacyKeys = scope === "global" ? [] : buildAdminCommandAccessScopeLookupKeys(scope).filter(key => key !== scope);
