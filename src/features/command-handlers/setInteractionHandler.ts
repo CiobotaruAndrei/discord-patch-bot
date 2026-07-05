@@ -1,6 +1,7 @@
 "use strict";
 
 import { applyGuildConfigUpdate } from "../guild-config/guildConfigRepository";
+import { normalizeNotificationTemplate } from "../notifications/notificationTemplate";
 import type { CommandHandler } from "../command-registry/commandHandler";
 
 import { handledCommandError } from "../command-security/commandOutcome";
@@ -172,6 +173,17 @@ function buildSetUpdatePlan(
     plan.updateDoc.enabledStores = Array.from(new Set(selected));
     plan.confirmMsg = `OK: Store-uri active: **${(plan.updateDoc.enabledStores as string[]).join(", ")}**`;
     plan.isFilterChange = true;
+    return plan;
+  }
+
+  if (sub === "update-template" || sub === "discount-template") {
+    const field = sub === "update-template" ? "updateMessageTemplate" : "discountMessageTemplate";
+    const label = sub === "update-template" ? "update-uri" : "reduceri";
+    const template = normalizeNotificationTemplate(interaction.options.getString("value"));
+    plan.updateDoc[field] = template;
+    plan.confirmMsg = template
+      ? `OK: Sablon mesaj pentru ${label} setat: ${template}`
+      : `OK: Sablon mesaj pentru ${label} resetat la implicit (doar mentiunea de rol, daca e configurata).`;
     return plan;
   }
 

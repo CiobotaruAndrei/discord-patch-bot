@@ -7,6 +7,7 @@ import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLet
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
 import { HASH_VERSION } from "../../native/fuzzy";
 import { packEmbedsByBudget, embedCharCost } from "../../shared/discordEmbedChunks";
+import { buildNotificationContent } from "./notificationTemplate";
 import { planPendingFailure, planRebaselineEntries, requeueFront, takeNextPending } from "./updateNotificationPlanner";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
@@ -157,13 +158,13 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     }
 
     const notificationRoleId = (guild as { notificationRoleId?: string }).notificationRoleId;
+    const messageTemplate = (guild as { updateMessageTemplate?: string | null }).updateMessageTemplate;
     const messageChunks = packEmbedsByBudget(batch, entry => embedCharCost(entry.embed), { maxCount: DISCORD_EMBEDS_PER_MESSAGE });
     for (let ci = 0; ci < messageChunks.length; ci++) {
       const chunk = messageChunks[ci];
       const sendPayload: Record<string, unknown> = { embeds: chunk.map(entry => entry.embed) };
-      if (ci === 0 && notificationRoleId) {
-        sendPayload.content = `<@&${notificationRoleId}>`;
-        sendPayload.allowedMentions = { roles: [notificationRoleId] };
+      if (ci === 0) {
+        Object.assign(sendPayload, buildNotificationContent(messageTemplate, { count: batch.length }, notificationRoleId || null));
       }
       try {
         await channel.send(sendPayload, {
