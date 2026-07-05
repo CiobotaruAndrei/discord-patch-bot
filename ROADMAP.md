@@ -604,3 +604,28 @@ records/backups, audit), prin repositories-urile existente (call-site-urile nu s
 perechile care azi se scriu atomic pe acelasi document (config + audit) fie raman impreuna, fie
 trec explicit pe compensare raportata onest (ca replay-cleanup-ul la reset) — nu se pierde tacut
 atomicitatea.
+
+## Planner/executor pentru serviciile de notificari — EVALUAT (R7 #5): primul pas executat pe calea de update, restul AMANAT
+
+**Cererea din review.** Separarea planner (ce se trimite) / executor (trimiterea) / repository /
+service in `updateNotificationService` si `discountNotificationService`.
+
+**Ce era deja separat.** Deciziile pure majore traiau deja in module dedicate:
+`pendingUpdatesQueue.ts` (`buildPendingUpdatesQueue` — dedupe + imbatranire + limita per joc),
+`shared/discordEmbedChunks.ts` (`packEmbedsByBudget` — impartirea pe mesaje dupa buget),
+`buildOptimizedGameList` (filtrarea jocurilor pe guild-uri), plus repositories pentru seen/dead-letter.
+
+**Pas executat (R7 #5).** `features/notifications/updateNotificationPlanner.ts` extrage si restul
+deciziilor pure din bucla de dispatch a update-urilor: `planRebaselineEntries` (derivarea seed-ului
+la schimbarea de hash version), `takeNextPending` (selectia round-robin a urmatorului joc +
+scoaterea din coada), `planPendingFailure` (decizia requeue-sub-prag / dead-letter-la-prag, care
+era DUPLICATA pe cele doua cai de esec — embed esuat si send esuat) si `requeueFront`. Serviciul
+delega — comportament identic, testele functionale existente trec neatinse; teste noi in
+`updateNotificationPlanner.test.ts`.
+
+**De ce restul e amanat.** Un „executor" complet separat ar rupe ordinea corectitudine-critica
+claim-inainte-de-build/send cu rollback la esec: claim-ul atomic per item e IMPLETIT intentionat
+cu deciziile (un plan intocmit inainte de claim ar putea trimite duplicat intre instante).
+Calea de reduceri are aceeasi forma dar alte reguli (valuta, cache, praguri) — extractia ei se
+face cand apare un bug real de drift intre cele doua cai sau un al doilea consumator al
+planner-ului (acelasi tip de declansator ca la celelalte evaluari).
