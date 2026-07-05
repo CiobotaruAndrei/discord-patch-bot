@@ -2,6 +2,7 @@
 
 import type { GameConfig } from "../../types";
 import type { DiscordChannel, SubscriptionFamily, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts";
+import { createSubscriptionService } from "../notifications/subscriptionService";
 
 export function normalizeGameKey(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -17,22 +18,15 @@ export function findConfiguredGame(games: GameConfig[], value: string | null): G
 }
 
 export function createPlayerCountSubscriptionFamily(deps: SubscriptionInteractionDeps): SubscriptionFamily {
-  const { GuildModel, getGuildSettings, invalidateGuildCache, OP_UPDATE_OPTS, safeEdit, formatUserError } = deps;
+  const { getGuildSettings, safeEdit, formatUserError } = deps;
+  const service = createSubscriptionService(deps);
 
   async function start(interaction: SubscriptionInteraction, guildId: string, channel: DiscordChannel, games: GameConfig[]) {
     const game = findConfiguredGame(games, interaction.options.getString?.("game", true) || null);
     if (!game) return safeEdit(interaction, "Eroare: jocul nu exista in lista configurata a botului.");
     if (!game.appId) return safeEdit(interaction, `Eroare: \`${game.name}\` nu are Steam appId configurat, deci nu poate avea player-count Steam.`);
     try {
-      await GuildModel.updateOne(
-        { _id: guildId },
-        {
-          $set: { playerCountSubscribed: true, playerCountChannelId: channel.id },
-          $addToSet: { playerCountGames: game.key }
-        },
-        { upsert: true, ...OP_UPDATE_OPTS }
-      );
-      invalidateGuildCache(guildId);
+      await service.addPlayerCountGame(guildId, channel.id, game.key);
       return safeEdit(interaction, `OK: player-count pornit pentru **${game.name}** pe acest server.`);
     } catch (err: unknown) {
       return safeEdit(interaction, formatUserError(err, "Eroare la pornirea player-count."));
@@ -48,14 +42,7 @@ export function createPlayerCountSubscriptionFamily(deps: SubscriptionInteractio
     const current = Array.isArray(existingGuild?.playerCountGames) ? existingGuild.playerCountGames.map(String) : [];
     const normalizedRequested = normalizeGameKey(requestedKey);
     const remaining = current.filter(key => normalizeGameKey(key) !== normalizedRequested);
-    await GuildModel.updateOne({ _id: guildId }, {
-      $set: {
-        playerCountGames: remaining,
-        playerCountSubscribed: remaining.length > 0,
-        playerCountChannelId: remaining.length > 0 ? existingGuild?.playerCountChannelId || null : null
-      }
-    }, OP_UPDATE_OPTS);
-    invalidateGuildCache(guildId);
+    await service.setPlayerCountGames(guildId, remaining, existingGuild?.playerCountChannelId || null);
     return safeEdit(interaction, `OK: player-count oprit pentru \`${game?.name || requestedKey}\`.`);
   }
 
