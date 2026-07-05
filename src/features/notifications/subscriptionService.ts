@@ -156,6 +156,47 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
     invalidateGuildCache(guildId);
   }
 
+  async function startDlc(guildId: string, channelId: string): Promise<void> {
+    const activationId = makeActivationId();
+    await GuildModel.updateOne(
+      { _id: guildId },
+      { $set: { dlcSubscribed: true, dlcChannelId: channelId, dlcInitializing: false, dlcActivationId: activationId } },
+      { upsert: true, ...OP_UPDATE_OPTS }
+    );
+    invalidateGuildCache(guildId);
+  }
+
+  async function stopDlc(guildId: string): Promise<void> {
+    await GuildModel.updateOne({ _id: guildId }, {
+      $set: { dlcSubscribed: false, dlcChannelId: null, dlcInitializing: false },
+      $unset: { dlcActivationId: "" }
+    }, OP_UPDATE_OPTS);
+    invalidateGuildCache(guildId);
+  }
+
+  async function addPlayerCountGame(guildId: string, channelId: string, gameKey: string): Promise<void> {
+    await GuildModel.updateOne(
+      { _id: guildId },
+      {
+        $set: { playerCountSubscribed: true, playerCountChannelId: channelId },
+        $addToSet: { playerCountGames: gameKey }
+      },
+      { upsert: true, ...OP_UPDATE_OPTS }
+    );
+    invalidateGuildCache(guildId);
+  }
+
+  async function setPlayerCountGames(guildId: string, remaining: string[], keepChannelId: string | null): Promise<void> {
+    await GuildModel.updateOne({ _id: guildId }, {
+      $set: {
+        playerCountGames: remaining,
+        playerCountSubscribed: remaining.length > 0,
+        playerCountChannelId: remaining.length > 0 ? keepChannelId : null
+      }
+    }, OP_UPDATE_OPTS);
+    invalidateGuildCache(guildId);
+  }
+
   return {
     startUpdates: (guildId: string, channelId: string, seedBaseline: () => Promise<void>) =>
       startSubscription("updates", guildId, channelId, seedBaseline),
@@ -163,6 +204,10 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
     startDiscounts: (guildId: string, channelId: string, seedBaseline: () => Promise<void>) =>
       startSubscription("discounts", guildId, channelId, seedBaseline),
     stopDiscounts: (guildId: string) => stopSubscription("discounts", guildId),
+    startDlc,
+    stopDlc,
+    addPlayerCountGame,
+    setPlayerCountGames,
     rollbackActivation
   };
 }
