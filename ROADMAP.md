@@ -49,6 +49,10 @@ semnaleaza automat conditia de backlog cronic si trimite la acest document.
 testul multi-instance pe Mongo real (zero dublu-claim) si testele de crash-recovery existente
 trebuie sa ramana verzi.
 
+**Confirmat la review R7 (#15).** Reviewerul a cerut batch claim „doar daca apar metrice care o
+justifica" — exact gating-ul de mai sus: pragurile pe `/metrics` + alerta `OutboxBatchDrainRecommended`
+sunt declansatorul, nu o decizie speculativa. Nimic de schimbat.
+
 ## Sharding gateway Discord (la scara mare)
 
 **Limita reala de scalare a botului nu e Node, Mongo sau limbajul — e Discord.** Doua plafoane:
@@ -307,6 +311,12 @@ Deja evaluat si **decis**: hot-path-urile CPU cu castig masurat (`levenshtein` ~
 `dealHash` ~1.5x fata de fallback-ul TS, cu paritate de rezultat) raman in Rust. Outbox-ul
 ramane in TypeScript fiindca e I/O-bound. Vezi `BENCHMARKS.md`.
 
+**Confirmat la review R7 (#14).** Reviewerul a cerut explicit ca Rust sa NU fie extins dincolo
+de hot-path-urile masurate — exact politica documentata aici si in sectiunea TS-primary de mai
+jos: extinderea se face doar pe baza de benchmark (`npm run benchmark:cpu`) cu castig dovedit,
+nu pe preferinta de limbaj (regula 9: un limbaj nu inlocuieste altul decat daca inlocuitorul e
+masurabil mai bun pe zona respectiva).
+
 ## TS-primary pentru functiile native fara castig (IMPLEMENTAT)
 
 Benchmark-ul per-zona (`runAreaBenchmarks`, `BENCHMARKS.md`) a aratat ca `findGameKeys`,
@@ -505,3 +515,36 @@ functia lor: fac mutarea EXPLICITA in diff, nu tacuta. Politica (aplicata deja i
   confirmare);
 - nu se face conversie in masa: gardurile care pineaza decizii de review raman sursa executabila
   a acelor decizii.
+
+## Spargerea documentului Guild pe colectii — EVALUAT (R7 #7): AMANAT cu praguri
+
+**Cererea din review.** Modelul Mongo `Guild` e „prea incarcat" — tine config, stare de abonare,
+configurarea YouTube, backup-uri, audit si sugestii intr-un singur document (~58 de campuri
+top-level in `infra/mongo/models.ts`). Chiar reviewerul precizeaza: „nu trebuie spart tot acum...
+daca repo-ul creste" — deci cererea e explicit conditionata de crestere, nu un defect curent.
+
+**Starea curenta (de ce e corect acum).** Partile cu crestere nemarginita au fost DEJA extrase in
+colectii separate cu TTL/indexi proprii: `guildSeenDiscounts`, `guildSeenUpdates`,
+`guildSeenYoutube` (istoricul „vazut", singurul volum care creste cu timpul), plus outbox-ul,
+dead-letter-ele si snapshot-urile de fetch in colectiile lor. Ce ramane pe document e config +
+stare marginita: listele limitate explicit (`priceAlerts` max 25/guild, `serverAuditLog`/`botAuditLog`
+cu cap de intrari prin `buildServerAuditPush`, `configBackups` limitate) nu pot creste nemarginit.
+Documentul unic cumpara exact proprietatea pe care se sprijina corectitudinea: scrierile
+config + audit sunt atomice pe acelasi document (`$set`/`$pull` + `$push serverAuditLog` intr-un
+singur `updateOne` — decizia R6 #7), fara tranzactii multi-document. Accesul e deja mediat de
+repositories (R6 #6, plan in sectiunea dedicata), deci consumatorii nu depind de forma documentului.
+
+**Praguri de declansare (oricare sustinut):**
+
+- un camp-lista marginit isi pierde limita din cerinte de produs (ex. mai mult de ~100 de intrari
+  reale per guild) — acel camp se extrage in colectia lui, pe modelul `guildSeen*`;
+- dimensiunea medie a documentului Guild se apropie de ~1MB (masurabil cu `Object.bsonsize` /
+  `collStats.avgObjSize`) sau apar avertismente Mongo de document mare;
+- contentia pe scrieri concurente pe acelasi guild devine masurabila (conflicte/timeout-uri pe
+  `updateOne` in logs/metrici), semn ca zonele independente au nevoie de documente separate.
+
+**Constrangeri la implementare (cand se declanseaza).** Extractia se face per zona (YouTube,
+records/backups, audit), prin repositories-urile existente (call-site-urile nu se schimba), iar
+perechile care azi se scriu atomic pe acelasi document (config + audit) fie raman impreuna, fie
+trec explicit pe compensare raportata onest (ca replay-cleanup-ul la reset) — nu se pierde tacut
+atomicitatea.
