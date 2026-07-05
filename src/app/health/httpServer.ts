@@ -199,6 +199,16 @@ function createHttpServer({
       pushMetric(lines, seenMetricNames, "bot_history_write_failures", "counter", "Delivered notifications whose /history write failed (delivery succeeded; /history may be incomplete)", metrics.outboxHistoryWriteFailures);
       pushMetric(lines, seenMetricNames, "bot_outbox_recovery_verify_enabled_guilds", "gauge", "Guilds with per-guild outbox recovery-verify enabled", metrics.outboxRecoveryVerifyEnabledGuilds);
       pushMetric(lines, seenMetricNames, "bot_outbox_last_drain_age_seconds", "gauge", "Seconds since the last completed outbox drain (0 = never; grows when the worker is paused/not draining)", metrics.outboxLastDrainAt > 0 ? Math.max(0, Math.round((Date.now() - metrics.outboxLastDrainAt) / 1000)) : 0);
+      const commandNames = Array.from(new Set([...Object.keys(metrics.commandRuns), ...Object.keys(metrics.commandErrors)])).sort();
+      for (const commandName of commandNames) {
+        pushMetric(lines, seenMetricNames, "bot_commands_total", "counter", "Slash command interactions handled, per top-level command", metrics.commandRuns[commandName] || 0, { command: commandName });
+      }
+      for (const commandName of commandNames) {
+        pushMetric(lines, seenMetricNames, "bot_command_errors_total", "counter", "Slash command interactions that escaped to the top-level interaction handler, per command", metrics.commandErrors[commandName] || 0, { command: commandName });
+      }
+      for (const commandName of commandNames) {
+        pushMetric(lines, seenMetricNames, "bot_command_duration_ms_total", "counter", "Total handling time in ms per top-level command (avg = duration_ms_total / commands_total)", metrics.commandDurationMsTotal[commandName] || 0, { command: commandName });
+      }
       const nativeFallbackTotals = getNativeFallbackTotals();
       const nativeFallbackFns = Array.from(new Set([...NATIVE_FALLBACK_FUNCTIONS, ...Object.keys(nativeFallbackTotals)]));
       for (const fnName of nativeFallbackFns) {

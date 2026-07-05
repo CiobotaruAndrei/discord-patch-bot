@@ -1,4 +1,5 @@
 import type { GameConfig, RuntimeEnv } from "../../types";
+import type { BotMetrics } from "../health/metricsTypes";
 import type { LifecycleDiscordChannel, LifecycleDiscordGuild, LifecycleDiscordInteraction, LifecycleEventClient } from "./lifecycleContracts";
 import { createGuildOnboarding } from "./guildOnboarding";
 
@@ -24,6 +25,7 @@ interface RegisterDiscordEventsDeps {
   client: LifecycleEventClient;
   logger: LifecycleLogger;
   commands: CommandsLike;
+  metrics: BotMetrics;
   env: RuntimeEnv;
   adminAlert: AdminAlert;
   requestContext: RequestContextLike;
@@ -63,7 +65,7 @@ async function replyInteractionError(inter: LifecycleDiscordInteraction): Promis
 }
 
 function registerDiscordEvents({
-  client, logger, commands, env, adminAlert, requestContext,
+  client, logger, commands, metrics, env, adminAlert, requestContext,
   games, crypto, errorMessage, errorDetail, startHousekeeping, scheduleNextCron, startOutboxWorker
 }: RegisterDiscordEventsDeps): void {
   client.once("ready", async () => {
@@ -98,14 +100,24 @@ function registerDiscordEvents({
   });
 
   client.on("interactionCreate", async (interaction) => {
+    const commandName = interaction.isChatInputCommand?.() === true && typeof interaction.commandName === "string"
+      ? interaction.commandName
+      : "";
+    const startedAt = Date.now();
     try {
       const reqId = crypto.randomBytes(6).toString("hex");
       await requestContext.run({ requestId: reqId }, async () => {
         await commands.handleInteraction(interaction, games);
       });
     } catch (err) {
+      if (commandName) metrics.commandErrors[commandName] = (metrics.commandErrors[commandName] || 0) + 1;
       logger("ERROR", "INTERACTION", "Eroare top-level la interactionCreate", errorDetail(err));
       await replyInteractionError(interaction);
+    } finally {
+      if (commandName) {
+        metrics.commandRuns[commandName] = (metrics.commandRuns[commandName] || 0) + 1;
+        metrics.commandDurationMsTotal[commandName] = (metrics.commandDurationMsTotal[commandName] || 0) + (Date.now() - startedAt);
+      }
     }
   });
 

@@ -33,7 +33,7 @@ function startServer(
     cronAborted: 0, cronSkippedDueToHealth: 0, httpRateLimitDrops: 0, httpHandlerErrors: 0,
     outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxExpired: 0, outboxDrains: 0, outboxQueueDepth: 0,
     outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxFutureScheduledJobs: 0, outboxLockAcquireFailures: 0, outboxPauseCheckFailures: 0,
-    outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0, outboxRecoveryMarkerMissing: 0, outboxMarkSentFailures: 0, outboxDeleteFailures: 0, outboxDeadLetterWriteFailures: 0, outboxHistoryWriteFailures: 0, outboxRecoveryVerifyEnabledGuilds: 0, outboxLastDrainAt: 0
+    outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0, outboxRecoveryMarkerMissing: 0, outboxMarkSentFailures: 0, outboxDeleteFailures: 0, outboxDeadLetterWriteFailures: 0, outboxHistoryWriteFailures: 0, outboxRecoveryVerifyEnabledGuilds: 0, outboxLastDrainAt: 0, commandRuns: {}, commandErrors: {}, commandDurationMsTotal: {}
   };
   const deps = {
     mongoose: { connection: { readyState: 1 } },
@@ -91,6 +91,21 @@ test("/metrics with no query string returns 200", async () => {
     assert.match(res.body, /bot_uptime_seconds/);
     assert.match(res.body, /bot_native_fallback_total\{fn="extractDateScore"\}/, "native fallback este expus per-functie (label fn), nu doar agregat");
     assert.match(res.body, /bot_native_fallback_total\{fn="classifyPatchNote"\}/, "fiecare functie inca native-primary are propria serie");
+  } finally { await close(); }
+});
+
+test("/metrics expune seriile per comanda cand exista interactiuni inregistrate (R9 #6)", async () => {
+  const { port, close, metrics } = await startServer();
+  try {
+    metrics.commandRuns = { ping: 3 };
+    metrics.commandDurationMsTotal = { ping: 42 };
+    metrics.commandErrors = { backup: 1 };
+    const res = await fetchPath(port, "/metrics");
+    assert.equal(res.status, 200);
+    assert.match(res.body, /bot_commands_total\{command="ping"\} 3/);
+    assert.match(res.body, /bot_command_duration_ms_total\{command="ping"\} 42/);
+    assert.match(res.body, /bot_command_errors_total\{command="backup"\} 1/);
+    assert.match(res.body, /bot_commands_total\{command="backup"\} 0/, "o comanda cu erori dar fara runs apare cu 0, nu dispare din serie");
   } finally { await close(); }
 });
 
