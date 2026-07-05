@@ -316,7 +316,7 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   });
 
   registerDiscordEvents({
-    client, logger, commands: deps.commands, env, adminAlert, requestContext, games: services.games, crypto,
+    client, logger, commands: deps.commands, metrics, env, adminAlert, requestContext, games: services.games, crypto,
     errorMessage, errorDetail,
     startHousekeeping: housekeeping.start,
     scheduleNextCron: cronController.scheduleNextCron,

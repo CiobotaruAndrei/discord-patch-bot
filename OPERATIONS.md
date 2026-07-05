@@ -6,7 +6,12 @@ vizibilitate si control direct din Discord.
 
 Pe scurt, instrumentele de operare:
 
-- Metrici Prometheus la `/metrics` (vezi README sectiunea health/metrics).
+- Metrici Prometheus la `/metrics` (vezi README sectiunea health/metrics). Pe langa seriile de
+  fetch/cron/outbox/cache, exista si metrici per comanda slash: `bot_commands_total{command}`
+  (interactiuni tratate per comanda top-level), `bot_command_errors_total{command}` (erori
+  scapate pana la handler-ul top-level de interactiuni) si `bot_command_duration_ms_total{command}`
+  (timp total de procesare; media = duration_ms_total / commands_total). Seriile apar dupa prima
+  interactiune a comenzii respective.
 - Comenzi admin: `/outbox status | deadletters | clear-deadletters | replay-deadletters | retry | drain-now | pause | resume | permissions | recovery-verify status`.
 - Alerte admin (webhook si/sau canale Discord configurate cu `/admin-alerts set channel:<canal>`): trimise automat la `recoveryFailures > 0` (`outbox:recovery-read`),
   `markSentFailures > 0` (`outbox:mark-sent`), `deleteFailures > 0` (`outbox:delete` — job-uri

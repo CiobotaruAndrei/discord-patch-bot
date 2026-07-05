@@ -31,5 +31,8 @@ export interface BotMetrics {
   outboxHistoryWriteFailures: number;
   outboxRecoveryVerifyEnabledGuilds: number;
   outboxLastDrainAt: number;
+  commandRuns: Record<string, number>;
+  commandErrors: Record<string, number>;
+  commandDurationMsTotal: Record<string, number>;
   startedAt: number;
 }

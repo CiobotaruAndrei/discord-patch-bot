@@ -39,6 +39,9 @@ test("cron cycle budget: un ciclu peste buget face urmatorul ciclu sa sara peste
       outboxDeadLetterWriteFailures: 0, outboxHistoryWriteFailures: 0,
       outboxRecoveryVerifyEnabledGuilds: 0,
       outboxLastDrainAt: 0,
+      commandRuns: {},
+      commandErrors: {},
+      commandDurationMsTotal: {},
       startedAt: 0
     };
 
@@ -148,6 +151,9 @@ test("cron stop clears the scheduled timer handle", () => {
         outboxDeadLetterWriteFailures: 0, outboxHistoryWriteFailures: 0,
         outboxRecoveryVerifyEnabledGuilds: 0,
         outboxLastDrainAt: 0,
+      commandRuns: {},
+      commandErrors: {},
+      commandDurationMsTotal: {},
         startedAt: 0
       },
       lifecycle: { isShuttingDown: false },
@@ -195,6 +201,9 @@ test("cron cycle waits for both jobs when one rejects (Promise.allSettled)", asy
       outboxDeadLetterWriteFailures: 0, outboxHistoryWriteFailures: 0,
       outboxRecoveryVerifyEnabledGuilds: 0,
       outboxLastDrainAt: 0,
+      commandRuns: {},
+      commandErrors: {},
+      commandDurationMsTotal: {},
       startedAt: 0
     };
 
@@ -277,6 +286,9 @@ test("cron heartbeat tolerates one transient renew throw but aborts on the secon
       outboxDeadLetterWriteFailures: 0, outboxHistoryWriteFailures: 0,
       outboxRecoveryVerifyEnabledGuilds: 0,
       outboxLastDrainAt: 0,
+      commandRuns: {},
+      commandErrors: {},
+      commandDurationMsTotal: {},
       startedAt: 0
     };
 
@@ -358,6 +370,9 @@ test("cron heartbeat aborts immediately when renew returns false (lock genuinely
       outboxDeadLetterWriteFailures: 0, outboxHistoryWriteFailures: 0,
       outboxRecoveryVerifyEnabledGuilds: 0,
       outboxLastDrainAt: 0,
+      commandRuns: {},
+      commandErrors: {},
+      commandDurationMsTotal: {},
       startedAt: 0
     };
 
@@ -434,6 +449,9 @@ test("heartbeat tick care se reia in fereastra de release NU mai renew-uie lock-
       outboxDeadLetterWriteFailures: 0, outboxHistoryWriteFailures: 0,
       outboxRecoveryVerifyEnabledGuilds: 0,
       outboxLastDrainAt: 0,
+      commandRuns: {},
+      commandErrors: {},
+      commandDurationMsTotal: {},
       startedAt: 0
     };
 
