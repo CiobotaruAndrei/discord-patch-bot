@@ -86,6 +86,8 @@ npm run build
 npm run start:local
 ```
 
+`npm run check:env` valideaza mediul FARA sa porneasca botul (preflight): esueaza daca lipseste vreo variabila obligatorie (`MONGO_URI`, `DISCORD_TOKEN`, `DISCORD_CLIENT_ID` — exact cele pe care boot-ul le cere fail-fast) si avertizeaza non-blocant pe recomandari (cod global in clar fara `BOT_GLOBAL_ACCESS_CODE_HASH`, fallback-ul de cod dezactivat complet, `NODE_ENV` nesetat). Pentru a verifica fisierul `.env` local: `node --env-file=.env dist/scripts/check-env.js`.
+
 `npm run start:local` incarca `.env` prin `node --env-file` (botul citeste doar `process.env` — nu exista dotenv). `npm start` (`node dist/app/main.js`) NU incarca `.env`. Imaginea Docker nu ruleaza `npm start`: CMD-ul din `Dockerfile` porneste direct `node dist/app/main.js` (iar `npm`/`npx` sunt sterse din imaginea finala), deci nici acolo nu se incarca `.env` — containerul primeste variabilele prin `env_file` din `docker-compose.yml`, iar in productie vin din mediul orchestratorului.
 
 Pentru development local cu MongoDB inclus:
