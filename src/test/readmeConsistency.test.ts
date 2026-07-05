@@ -105,6 +105,28 @@ test("P1.4: toate scripturile 'npm run X' documentate in README exista in packag
   }
 });
 
+test("package.json: orice 'npm run X' referit din alt script exista (compunerile nu pot drifta)", () => {
+  const scripts = (pkg.scripts || {}) as Record<string, string>;
+  const names = new Set(Object.keys(scripts));
+  for (const [name, command] of Object.entries(scripts)) {
+    const re = /npm run ([a-z0-9:_-]+)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(command)) !== null) {
+      assert.ok(names.has(m[1]), `scriptul '${name}' refera 'npm run ${m[1]}', care nu exista in package.json`);
+    }
+  }
+});
+
+test("scripturile de conveniena R8: exista, iar audit:strict e mai strict decat audit (fara prag de severitate)", () => {
+  const scripts = (pkg.scripts || {}) as Record<string, string>;
+  for (const name of ["clean", "rebuild", "check:quick", "test:notifications", "audit:strict"]) {
+    assert.ok(typeof scripts[name] === "string" && scripts[name].length > 0, `scriptul '${name}' exista`);
+  }
+  assert.ok(!scripts["audit:strict"].includes("--audit-level"), "audit:strict nu are prag de severitate — esueaza la orice vulnerabilitate");
+  assert.ok(scripts["audit"].includes("--audit-level=moderate"), "audit ramane pe pragul moderate");
+  assert.ok(scripts["clean"].includes("rmSync") && scripts["clean"].includes("dist"), "clean sterge dist/ cross-platform prin node, nu prin rm");
+});
+
 test("Docker: imaginea ruleaza direct `node dist/app/main.js`, fara npm", () => {
   assert.match(dockerfile, /CMD\s*\[\s*"node"\s*,\s*"dist\/app\/main\.js"\s*\]/,
     "Dockerfile-ul porneste botul prin `node dist/app/main.js`, nu prin npm");
