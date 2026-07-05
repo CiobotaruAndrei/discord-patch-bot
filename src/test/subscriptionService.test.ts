@@ -99,6 +99,31 @@ test("stopUpdates/stopDiscounts: o singura scriere care goleste pending si scoat
   assert.deepEqual(invalidated, ["g1", "g1"]);
 });
 
+test("startDlc/stopDlc: configurarea canalului DLC cu activation-id la start si $unset la stop (runda 10)", async () => {
+  const { service, writes, invalidated } = makeHarness();
+  await service.startDlc("g1", "c1");
+  assert.equal(setOf(writes[0]).dlcSubscribed, true);
+  assert.equal(setOf(writes[0]).dlcChannelId, "c1");
+  assert.equal(setOf(writes[0]).dlcActivationId, "act-1");
+  assert.equal(writes[0].options?.upsert, true);
+  await service.stopDlc("g1");
+  assert.equal(setOf(writes[1]).dlcSubscribed, false);
+  assert.equal(setOf(writes[1]).dlcChannelId, null);
+  assert.deepEqual(writes[1].update.$unset, { dlcActivationId: "" });
+  assert.deepEqual(invalidated, ["g1", "g1"]);
+});
+
+test("addPlayerCountGame/setPlayerCountGames: $addToSet la pornire; lista goala opreste modulul si goleste canalul (runda 10)", async () => {
+  const { service, writes } = makeHarness();
+  await service.addPlayerCountGame("g1", "c1", "cs2");
+  assert.deepEqual(writes[0].update.$addToSet, { playerCountGames: "cs2" });
+  assert.equal(setOf(writes[0]).playerCountSubscribed, true);
+  await service.setPlayerCountGames("g1", ["dota"], "c1");
+  assert.deepEqual(setOf(writes[1]), { playerCountGames: ["dota"], playerCountSubscribed: true, playerCountChannelId: "c1" });
+  await service.setPlayerCountGames("g1", [], "c1");
+  assert.deepEqual(setOf(writes[2]), { playerCountGames: [], playerCountSubscribed: false, playerCountChannelId: null }, "lista goala dezaboneaza si goleste canalul");
+});
+
 test("rollbackActivation: esecul scrierii de rollback nu arunca, dar tot logheaza si invalideaza", async () => {
   const { service, logs, invalidated } = makeHarness({ rejectWrites: true });
   await service.rollbackActivation("discounts", "g3", "c3", "act-x", new Error("seed a picat"));

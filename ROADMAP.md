@@ -520,13 +520,15 @@ audit `reset_config` in acelasi `updateOne`, decizia R6 #7 pastrata — si `setA
 (`configBackupRepository` = Snapshot, `auditLogRepository` = Audit), deci fatetele cerute de
 review (Defaults/Repository/Snapshot/Audit) au acum fiecare modulul ei.
 
-**Urmatorii candidati** (extras cand se atinge zona, acelasi tipar - functii pure + model-like minimal):
+**Candidatii, actualizati la runda 10 (inchiderea amanarilor):**
+- `NotificationSubscriptionRepository` — EXECUTAT: updates/reduceri in `subscriptionService`
+  (R7 #4), iar DLC + player-count mutate acum in acelasi serviciu (`startDlc`/`stopDlc`,
+  `addPlayerCountGame`/`setPlayerCountGames`); familiile raman doar prezentare.
+- Scrierile de configurare YouTube — ERAU DEJA EXECUTATE (amanare stale): exista
+  `features/youtube/youtubeGuildConfigRepository.ts` (notify channel/enabled, template, filtre,
+  rute, title-filters), iar comenzile din `command-handlers/youtube/` deleaga la el.
 - restul `GuildConfigRepository`: scrierile din `/set` (mode/filters/currency/stores/games) din
-  setInteractionHandler (multe subcomenzi, se muta treptat cand se atinge zona);
-- `NotificationSubscriptionRepository`: start/stop updates/reduceri/dlc/player-count
-  (subscriptionNotificationHandlers) - scrierile de abonare + baseline;
-- `YouTubeGuildRepository` exista deja ca `youtubeRepository`; ramane doar mutarea scrierilor
-  de configurare (notify channel/filters/routes/template) din youtubeInteractionHandler.
+  setInteractionHandler — singurul candidat ramas, in lucru in aceeasi runda.
 
 ## Tipuri brute vs normalizate (`DealInfo`/`GameConfig`/`GuildSettings`) — EVALUAT (R6 #5): AMANAT cu plan
 
