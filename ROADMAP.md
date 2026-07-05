@@ -191,6 +191,21 @@ runtime) este injectie DI la runtime a referintei partajate `BotMetrics`, **nu**
 intra sub acest punct. Invariantul (compunere imutabila, fara mutatie de context) este deja pinuit de
 `registryClosedContracts.test.ts`; nu e nevoie de cod nou.
 
+**Re-verificat la review R7 (#1) + pas exemplar pe handler-e.** Cererea („eliminarea completa a
+stilului vechi de installer/context in commandRegistry — handlers atasati pe context,
+previousHandleInteraction, Object.assign, install dinamic → createXHandler(deps) + rutare tipata")
+a fost re-verificata pe cod (regula 20): pentru **registry** e deja starea repo-ului — zero
+`previousHandleInteraction`/`Object.assign(target, ...)` in `commandRegistry.ts`, compunere prin
+factory-uri tipate + lista `CommandHandler[]` rutata de `dispatchCommand`. Rezidualul real sunt
+**install-form-urile de pe modulele de handler** (callable-ul `installX(target)` cu lantul
+`previousHandleInteraction`), pastrate DOAR ca seam de test — productia nu le apeleaza. Pas
+exemplar executat: `latestInteractionHandler` a trecut pe **factory-only**
+(`export = { createLatestInteractionHandler, buildCommandHandler }`, installer-ul sters), iar
+testul lui functional isi construieste explicit lantul din `buildCommandHandler` — acelasi tipar
+ca migrarea surselor (R5 #3/R6 #1). Restul handler-elor se migreaza per modul, cand se atinge
+modulul (acelasi ritm ca la repositories), nu big-bang: fiecare are teste care apeleaza forma de
+install si trebuie repointate individual (regula 8).
+
 **`createAppServices()` imutabil — IMPLEMENTAT (review manual R14 #4, Low).**
 `createCommandRegistry` muta anterior **un singur obiect `base`** prin lantul
 `Object.assign(base, attach*.createX(base))` (`withCache -> withFilters -> ...`): contextul era mutabil si
@@ -604,3 +619,28 @@ records/backups, audit), prin repositories-urile existente (call-site-urile nu s
 perechile care azi se scriu atomic pe acelasi document (config + audit) fie raman impreuna, fie
 trec explicit pe compensare raportata onest (ca replay-cleanup-ul la reset) — nu se pierde tacut
 atomicitatea.
+
+## Planner/executor pentru serviciile de notificari — EVALUAT (R7 #5): primul pas executat pe calea de update, restul AMANAT
+
+**Cererea din review.** Separarea planner (ce se trimite) / executor (trimiterea) / repository /
+service in `updateNotificationService` si `discountNotificationService`.
+
+**Ce era deja separat.** Deciziile pure majore traiau deja in module dedicate:
+`pendingUpdatesQueue.ts` (`buildPendingUpdatesQueue` — dedupe + imbatranire + limita per joc),
+`shared/discordEmbedChunks.ts` (`packEmbedsByBudget` — impartirea pe mesaje dupa buget),
+`buildOptimizedGameList` (filtrarea jocurilor pe guild-uri), plus repositories pentru seen/dead-letter.
+
+**Pas executat (R7 #5).** `features/notifications/updateNotificationPlanner.ts` extrage si restul
+deciziilor pure din bucla de dispatch a update-urilor: `planRebaselineEntries` (derivarea seed-ului
+la schimbarea de hash version), `takeNextPending` (selectia round-robin a urmatorului joc +
+scoaterea din coada), `planPendingFailure` (decizia requeue-sub-prag / dead-letter-la-prag, care
+era DUPLICATA pe cele doua cai de esec — embed esuat si send esuat) si `requeueFront`. Serviciul
+delega — comportament identic, testele functionale existente trec neatinse; teste noi in
+`updateNotificationPlanner.test.ts`.
+
+**De ce restul e amanat.** Un „executor" complet separat ar rupe ordinea corectitudine-critica
+claim-inainte-de-build/send cu rollback la esec: claim-ul atomic per item e IMPLETIT intentionat
+cu deciziile (un plan intocmit inainte de claim ar putea trimite duplicat intre instante).
+Calea de reduceri are aceeasi forma dar alte reguli (valuta, cache, praguri) — extractia ei se
+face cand apare un bug real de drift intre cele doua cai sau un al doilea consumator al
+planner-ului (acelasi tip de declansator ca la celelalte evaluari).

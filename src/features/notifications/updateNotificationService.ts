@@ -7,6 +7,7 @@ import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLet
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
 import { HASH_VERSION } from "../../native/fuzzy";
 import { packEmbedsByBudget, embedCharCost } from "../../shared/discordEmbedChunks";
+import { planPendingFailure, planRebaselineEntries, requeueFront, takeNextPending } from "./updateNotificationPlanner";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
@@ -117,11 +118,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     }, { guild, latestResults });
 
     if (Number(guild.seenHashVersionUpdates) !== HASH_VERSION) {
-      const entries: Array<{ gameKey: string; updateId: string }> = [];
-      for (const [gameKey, result] of resultByGameKey) {
-        const updateId = result?.latest?.id;
-        if (updateId) entries.push({ gameKey: String(gameKey), updateId: String(updateId) });
-      }
+      const entries = planRebaselineEntries(resultByGameKey);
       if (entries.length) await seedSeenUpdates(String(guild._id), entries);
       await setSeenHashVersion(String(guild._id), "seenHashVersionUpdates", HASH_VERSION);
       logger("INFO", "CRON_UPDATES", `Re-baseline dedup update-uri pentru guild ${guild._id} (hashVersion -> ${HASH_VERSION}); ciclul curent nu trimite notificari`);
@@ -132,14 +129,9 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     const batch: Array<{ gameKey: string; item: PendingUpdate; embed: unknown }> = [];
     let lastProcessedGameKey: string | null = (guild as { lastProcessedGameKey?: string | null }).lastProcessedGameKey || null;
     while (batch.length < MAX_UPDATES_PER_CYCLE) {
-      const keys = Array.from(pendingByGame.keys()).filter(key => (pendingByGame.get(key) || []).length);
-      if (!keys.length) break;
-      const gameKey = rotateAfter(keys, lastProcessedGameKey)[0] as string;
-      const queue = pendingByGame.get(gameKey) || [];
-      const next = queue.shift();
-      if (queue.length) pendingByGame.set(gameKey, queue);
-      else pendingByGame.delete(gameKey);
-      if (!next) continue;
+      const selection = takeNextPending(pendingByGame, lastProcessedGameKey, rotateAfter);
+      if (!selection) break;
+      const { gameKey, item: next } = selection;
       lastProcessedGameKey = gameKey;
       const claim = await claimSeenUpdate(String(guild._id), channel.id, gameKey, next.id);
       if ((claim.matchedCount ?? 0) === 0) continue;
@@ -149,15 +141,13 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
         embed = buildUpdateEmbed(game.name, next, notificationMode);
       } catch (embedErr: unknown) {
         await rollbackSeenUpdate(String(guild._id), gameKey, next.id).catch(() => null);
-        next.attempts = (next.attempts || 0) + 1;
-        if (next.attempts < PENDING_UPDATE_MAX_ATTEMPTS) {
-          const requeue = pendingByGame.get(gameKey) || [];
-          requeue.unshift(next);
-          pendingByGame.set(gameKey, requeue);
+        const embedFailure = planPendingFailure(next, PENDING_UPDATE_MAX_ATTEMPTS);
+        if (embedFailure.action === "requeue") {
+          requeueFront(pendingByGame, gameKey, next);
         } else {
           deadLettered.push(buildDeadLetterEntry({
             kind: "update", itemId: next.id, title: next.title,
-            reason: transientErrorMessage(embedErr), attempts: next.attempts
+            reason: transientErrorMessage(embedErr), attempts: embedFailure.attempts
           }));
         }
         logger("WARN", "CRON_UPDATES", `buildUpdateEmbed a esuat pentru ${gameKey}/${next.id}; claim-ul a fost dat inapoi`, transientErrorMessage(embedErr));
@@ -197,15 +187,13 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
         }
         for (let j = failed.length - 1; j >= 0; j--) {
           const entry = failed[j];
-          entry.item.attempts = (entry.item.attempts || 0) + 1;
-          if (entry.item.attempts < PENDING_UPDATE_MAX_ATTEMPTS) {
-            const requeue = pendingByGame.get(entry.gameKey) || [];
-            requeue.unshift(entry.item);
-            pendingByGame.set(entry.gameKey, requeue);
+          const sendFailure = planPendingFailure(entry.item, PENDING_UPDATE_MAX_ATTEMPTS);
+          if (sendFailure.action === "requeue") {
+            requeueFront(pendingByGame, entry.gameKey, entry.item);
           } else {
             deadLettered.push(buildDeadLetterEntry({
               kind: "update", itemId: entry.item.id, title: (entry.item as { title?: unknown }).title,
-              reason: transientErrorMessage(err), attempts: entry.item.attempts
+              reason: transientErrorMessage(err), attempts: sendFailure.attempts
             }));
           }
         }
