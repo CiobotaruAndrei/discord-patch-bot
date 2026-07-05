@@ -516,6 +516,31 @@ enrichment-ul imbogateste). Zonele dinamice ramase sunt intentionate si ancorate
 
 **Declansator:** un bug real cauzat de o cheie dinamica gresita (azi prinse de validare/garduri).
 
+**Re-verificat la review R7 (#11).** Cererea ("DTO-uri brute per sursa — SteamRawDeal,
+CheapSharkRawDeal, YoutubeFeedEntry — in loc de `Record<string, unknown>` la parse") a fost
+verificata din nou pe cod (regula 20): DTO-urile brute per sursa EXISTA deja si sunt folosite la
+fiecare parse — `SteamSearchResponse`/`SteamAppDetailsResponse`/`SteamFeaturedCategoriesResponse`/
+`SteamReviewResponse` (Steam), raspunsul GraphQL Epic, `FortniteBlogResponse`/`MinecraftVersionManifest`
+(platforme), `YouTubeFeedItem` (feed-ul Atom) — toate mapate la modelele normalizate
+(`DealInfo` → `ValidatedDealInfo` → `EnrichedDealInfo`, `NormalizedUpdate`, `YouTubeVideo`).
+CheapShark NU exista ca sursa in repo (exemplu inventat de review). In `sources/` nu mai exista
+`Record<string, unknown>` la parse — raman doar tipurile de context si semnaturile documentate mai
+sus (`GameConfig`/`GuildSettings` cu index-sig), pentru care planul si declansatorul de mai sus
+raman neschimbate.
+
+## Split-ul handler-ului YouTube pe use-case-uri — CONFIRMAT LIVRAT (re-cerut la R7 #9)
+
+Cererea ("sparge handler-ul de interactiuni YouTube in use-case-uri: subscribe/unsubscribe,
+configurare notificari, filtre, erori/permisiuni") a fost verificata pe cod (regula 20): e DEJA
+livrata dintr-o runda anterioara de arhitectura. `youtubeInteractionHandler.ts` are 118 linii si
+e doar router-ul subtire; use-case-urile traiesc in `command-handlers/youtube/`:
+`youtubeSubscriptionCommands.ts` (subscribe/unsubscribe, cu subscribe ca unitate logica cu
+rollback pe baseline-ul seen), `youtubeNotifyCommands.ts` (notify/message-template/channel-route),
+`youtubeFilterCommands.ts` (filter/title-filter), `youtubeManualVideoCommands.ts` (videos show),
+`youtubeDiagnosticsCommands.ts` (errors/permissions), `youtubePresentation.ts` (list/status) si
+`youtubeCommandTypes.ts` (contractele). Testele sunt si ele pe module
+(youtubeSubscriptionInteraction/Config/ManualVideos + test kit). Nimic de facut.
+
 ## Testele functionale de 400-500 de linii — EVALUAT (R6 #12): AMANAT (chiar reviewerul: "nu e urgent")
 
 Ramase: `youtubeNotificationService` (505), `youtubeManualDelivery` (487), `autocomplete` (394)
