@@ -24,6 +24,7 @@
     "check:docs-commands": "npm run build:ts && node dist/scripts/generate-command-reference.js --check",
     "check:quick": "npm run typecheck && npm run check:syntax && npm run check:config",
     "docs:commands": "npm run build:ts && node dist/scripts/generate-command-reference.js",
+    "db:export:guilds": "npm run build:ts && node dist/scripts/export-guild-configs.js",
     "benchmark": "npm run build:ts && node dist/scripts/notificationBenchmark.js",
     "benchmark:outbox": "npm run build:ts && node dist/scripts/outboxLoadBenchmark.js",
     "benchmark:cpu": "npm run build && node dist/scripts/cpuBenchmark.js",

@@ -6,7 +6,12 @@ vizibilitate si control direct din Discord.
 
 Pe scurt, instrumentele de operare:
 
-- Metrici Prometheus la `/metrics` (vezi README sectiunea health/metrics).
+- Metrici Prometheus la `/metrics` (vezi README sectiunea health/metrics). Pe langa seriile de
+  fetch/cron/outbox/cache, exista si metrici per comanda slash: `bot_commands_total{command}`
+  (interactiuni tratate per comanda top-level), `bot_command_errors_total{command}` (erori
+  scapate pana la handler-ul top-level de interactiuni) si `bot_command_duration_ms_total{command}`
+  (timp total de procesare; media = duration_ms_total / commands_total). Seriile apar dupa prima
+  interactiune a comenzii respective.
 - Comenzi admin: `/outbox status | deadletters | clear-deadletters | replay-deadletters | retry | drain-now | pause | resume | permissions | recovery-verify status`.
 - Alerte admin (webhook si/sau canale Discord configurate cu `/admin-alerts set channel:<canal>`): trimise automat la `recoveryFailures > 0` (`outbox:recovery-read`),
   `markSentFailures > 0` (`outbox:mark-sent`), `deleteFailures > 0` (`outbox:delete` — job-uri
@@ -207,8 +212,11 @@ Un canal Discord principal sters sau devenit permanent inaccesibil dezactiveaza 
 Index-urile sunt declarate in `src/infra/mongo/models.ts` si construite automat de Mongoose la
 pornire (`autoIndex` implicit activ). Verificarea statica `npm run check:db-indexes` confirma ca
 fiecare index e pe un camp real din schema, ca nu exista declaratii duplicate si ca fiecare colectie
-de mai jos e documentata aici; daca un Mongo e disponibil, ruleaza si `syncIndexes` ca sa prinda
-index-uri conflictuale/invalide. Inventarul declarat curent:
+de mai jos e documentata aici; daca un Mongo e disponibil (`MONGO_URI`), ruleaza si `syncIndexes()`
+pe toate modelele — adica SINCRONIZEAZA efectiv index-urile serverului cu schema (creeaza-le pe cele
+lipsa, sterge-le pe cele divergente) si prinde index-uri conflictuale/invalide; fara Mongo ramane
+doar validarea statica. Nu exista un script separat de "sync": `check:db-indexes` cu `MONGO_URI`
+setat ESTE sincronizarea. Inventarul declarat curent:
 
 | Colectie | Cheie | Optiuni | Rol |
 | --- | --- | --- | --- |
