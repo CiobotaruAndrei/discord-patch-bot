@@ -1,3 +1,4 @@
+import { requestOptionsFor } from "../sourcePolicies";
 import type { CheerioAPI } from "cheerio";
 import type {
   CurrencyCode,
@@ -93,7 +94,7 @@ function createSteamSource(deps: SteamSourceDeps): SteamSourceApi {
     const cc = getCurrencyConfig(currencyCode).cc;
     const searchRes = await httpReq("GET",
       `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(query)}&cc=${cc}&l=english`,
-      { largeJson: true });
+      requestOptionsFor("steam-search"));
     const data = searchRes.data as SteamSearchResponse | undefined;
     return data?.items || [];
   }
@@ -104,7 +105,7 @@ function createSteamSource(deps: SteamSourceDeps): SteamSourceApi {
     detailsUrl.searchParams.set("appids", String(appId));
     detailsUrl.searchParams.set("cc", cc);
     detailsUrl.searchParams.set("l", "english");
-    const detailsRes = await httpReq("GET", detailsUrl.toString(), { largeJson: true });
+    const detailsRes = await httpReq("GET", detailsUrl.toString(), requestOptionsFor("steam-appdetails"));
     const data = (detailsRes.data || {}) as SteamDetailsResponse;
     return data[String(appId)]?.data || null;
   }
@@ -125,7 +126,7 @@ function createSteamSource(deps: SteamSourceDeps): SteamSourceApi {
   async function fetchSteamCurrentPlayers(appId: string | number): Promise<SteamCurrentPlayersSummary> {
     const url = new URL("https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/");
     url.searchParams.set("appid", String(appId));
-    const playersRes = await httpReq("GET", url.toString(), { largeJson: true });
+    const playersRes = await httpReq("GET", url.toString(), requestOptionsFor("steam-players"));
     return parseCurrentPlayers(playersRes.data, String(appId));
   }
 
@@ -178,6 +179,7 @@ function createSteamSource(deps: SteamSourceDeps): SteamSourceApi {
       htmlUrl.searchParams.set("cc", cc);
       htmlUrl.searchParams.set("l", "english");
       const htmlRes = await httpReq("GET", htmlUrl.toString(), {
+        ...requestOptionsFor("steam-offer-end-html"),
         headers: { "Cookie": "birthtime=283993201; mature_content=1;" }
       });
       return extractOfferEndFromHtml(String(htmlRes.data));
