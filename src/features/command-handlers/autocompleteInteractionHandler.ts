@@ -77,6 +77,7 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
     if (optionName === "joc") return true;
     if (optionName !== "game") return false;
     if (commandName === "deal-score" || commandName === "player-count") return true;
+    if (commandName === "sources" && subcommand === "refresh") return true;
     return (commandName === "start" || commandName === "stop") && subcommand === "player-count" && group === null;
   }
 

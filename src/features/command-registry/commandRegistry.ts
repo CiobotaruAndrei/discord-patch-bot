@@ -98,6 +98,7 @@ import attachFutureReleaseInteractionHandler = require("../command-handlers/futu
 import attachYouTubeInteractionHandler = require("../command-handlers/youtubeInteractionHandler");
 import attachSnoozeInteractionHandler = require("../command-handlers/snoozeInteractionHandler");
 import attachSourcesStatusHandler = require("../command-handlers/sourcesStatusHandler");
+import attachSourcesRefreshHandler = require("../command-handlers/sourcesRefreshHandler");
 import attachDlcInteractionHandler = require("../command-handlers/dlcInteractionHandler");
 import attachAutocompleteInteractionHandler = require("../command-handlers/autocompleteInteractionHandler");
 import attachCommandSnoozeGuard = require("../command-security/commandSnoozeGuard");
@@ -144,6 +145,7 @@ function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): { c
     attachAutocompleteInteractionHandler.buildCommandHandler(ctx),
     attachDlcInteractionHandler.buildCommandHandler(ctx),
     attachSourcesStatusHandler.buildCommandHandler(ctx),
+    attachSourcesRefreshHandler.buildCommandHandler(ctx),
     attachConfigInteractionHandler.buildCommandHandler(ctx),
     attachGuildConfigurationAdminHandler.buildCommandHandler(ctx),
     attachAdminCommandAccessHandler.buildCommandHandler(ctx),
