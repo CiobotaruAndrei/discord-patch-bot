@@ -2,7 +2,7 @@
 
 > Fisier generat automat din `COMMAND_CATALOG_HELP` (`src/features/command-catalog/commandCatalog.ts`), aceeasi sursa unica pe care o foloseste comanda `/help` in Discord. Nu edita manual acest fisier: ruleaza `npm run docs:commands` din `src/`. Sincronizarea catalog <-> fisier este verificata de `commandReferenceDoc.test.ts` si de `npm run check:docs-commands`.
 
-Total comenzi documentate: 122.
+Total comenzi documentate: 124.
 
 | Comanda | Permisiuni | Ce face | Exemplu |
 | --- | --- | --- | --- |
@@ -64,6 +64,8 @@ Total comenzi documentate: 122.
 | `/set paid` | Admin, Ephemeral | Porneste sau opreste afisarea ofertelor platite in alertele de reduceri. | `/set paid value:on` |
 | `/set currency` | Admin, Ephemeral | Alege valuta folosita pentru preturi si alerte de reduceri. | `/set currency value:EUR` |
 | `/set stores` | Admin, Ephemeral | Filtreaza reducerile dupa magazine, de exemplu Steam si Epic, sau reseteaza filtrul. | `/set stores value:steam,epic` |
+| `/set update-template` | Admin, Ephemeral | Personalizeaza mesajul (text deasupra embed-urilor) trimis la notificarile de update. Foloseste {count} pentru numarul de update-uri. Lasa gol pentru a reveni la implicit. | `/set update-template value:Au aparut {count} update-uri noi!` |
+| `/set discount-template` | Admin, Ephemeral | Personalizeaza mesajul trimis la notificarile de reduceri. Foloseste {count} pentru numarul de reduceri. Lasa gol pentru a reveni la implicit. | `/set discount-template value:{count} reduceri noi!` |
 | `/set outbox-recovery-verify` | Admin, Ephemeral | Activeaza sau dezactiveaza verificarea de recovery pentru outbox pe server. Cand este activa, botul verifica istoricul canalului ca sa previna retrimiterea aceluiasi mesaj dupa un crash. | `/set outbox-recovery-verify value:on` |
 | `/set add games` | Admin, Ephemeral | Adauga un joc deja cunoscut de bot in lista explicita de jocuri active pentru server. Nota: Nu adauga un joc nou in codul botului; doar activeaza pentru server un joc existent in configuratie. | `/set add games joc:cs2` |
 | `/set remove games` | Admin, Ephemeral | Scoate un joc din lista explicita de jocuri active pentru server. | `/set remove games joc:cs2` |

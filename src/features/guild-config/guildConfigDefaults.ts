@@ -15,6 +15,8 @@ export function buildResetConfiguration(defaultCurrency: CurrencyCode): Record<s
     includeFreeGames: true,
     includePaidDiscounts: true,
     notificationMode: "detailed",
+    updateMessageTemplate: null,
+    discountMessageTemplate: null,
     currency: defaultCurrency,
     outboxRecoveryVerify: false,
     lastProcessedGameKey: null,

@@ -6,6 +6,7 @@ import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./
 import { HASH_VERSION } from "../../native/fuzzy";
 
 import { packEmbedsByBudget, embedCharCost } from "../../shared/discordEmbedChunks";
+import { buildNotificationContent } from "./notificationTemplate";
 import { buildDealsHashIndex, planDiscountFailure, planPendingDiscounts } from "./discountNotificationPlanner";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
@@ -189,13 +190,13 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     remaining.push(...pending.slice(idx));
 
     const discountRoleId = (guild as { discountRoleId?: string }).discountRoleId;
+    const messageTemplate = (guild as { discountMessageTemplate?: string | null }).discountMessageTemplate;
     const messageChunks = packEmbedsByBudget(batch, entry => embedCharCost(entry.embed), { maxCount: DISCORD_EMBEDS_PER_MESSAGE });
     for (let ci = 0; ci < messageChunks.length; ci++) {
       const chunk = messageChunks[ci];
       const sendPayload: Record<string, unknown> = { embeds: chunk.map(entry => entry.embed) };
-      if (ci === 0 && discountRoleId) {
-        sendPayload.content = `<@&${discountRoleId}>`;
-        sendPayload.allowedMentions = { roles: [discountRoleId] };
+      if (ci === 0) {
+        Object.assign(sendPayload, buildNotificationContent(messageTemplate, { count: batch.length }, discountRoleId || null));
       }
       try {
         await channel.send(sendPayload, {

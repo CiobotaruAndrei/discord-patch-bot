@@ -26,6 +26,8 @@ export const GUILD_SETTINGS_FIELD_ROLES: Readonly<Record<string, GuildSettingsFi
   includeFreeGames: "config",
   includePaidDiscounts: "config",
   notificationMode: "config",
+  updateMessageTemplate: "config",
+  discountMessageTemplate: "config",
   currency: "config",
   outboxRecoveryVerify: "config",
   enabledGames: "config",

@@ -99,6 +99,8 @@ export interface GuildDoc {
   includeFreeGames?: boolean;
   includePaidDiscounts?: boolean;
   notificationMode?: "compact" | "detailed";
+  updateMessageTemplate?: string | null;
+  discountMessageTemplate?: string | null;
   currency?: string;
   outboxRecoveryVerify?: boolean;
   lastProcessedGameKey?: string | null;

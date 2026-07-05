@@ -238,6 +238,8 @@ export interface GuildSettings {
   includeFreeGames?: boolean;
   includePaidDiscounts?: boolean;
   notificationMode?: NotificationMode;
+  updateMessageTemplate?: string | null;
+  discountMessageTemplate?: string | null;
   currency?: CurrencyCode | string;
   lastProcessedGameKey?: string | null;
   updatesInitializing?: boolean;

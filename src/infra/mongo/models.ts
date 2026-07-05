@@ -55,6 +55,8 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     includeFreeGames: { type: Boolean, default: true },
     includePaidDiscounts: { type: Boolean, default: true },
     notificationMode: { type: String, enum: ["compact", "detailed"], default: "detailed" },
+    updateMessageTemplate: { type: String, default: null, maxlength: 500 },
+    discountMessageTemplate: { type: String, default: null, maxlength: 500 },
     currency: { type: String, enum: Object.keys(SUPPORTED_CURRENCIES), default: DEFAULT_CURRENCY },
     outboxRecoveryVerify: { type: Boolean, default: false },
     lastProcessedGameKey: { type: String, default: null },
