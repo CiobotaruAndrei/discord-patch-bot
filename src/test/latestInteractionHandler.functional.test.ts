@@ -5,8 +5,13 @@ import { makeDealInfo } from "./typedTestBuilders";
 
 const realUtilities = require("../shared/utilities") as { validatePendingDiscountSnapshot: (snapshot: unknown) => boolean; validateUpdateFetchSnapshot: (item: unknown) => boolean };
 
-const installLatestHandler = require("../features/command-handlers/latestInteractionHandler") as
-  ((context: Record<string, unknown>) => void) & { createLatestInteractionHandler?: (deps: unknown) => unknown };
+const latestHandlerModule = require("../features/command-handlers/latestInteractionHandler") as {
+  createLatestInteractionHandler?: (deps: unknown) => unknown;
+  buildCommandHandler: (target: Record<string, unknown>) => {
+    canHandle: (interaction: unknown) => boolean;
+    handle: (interaction: unknown, games?: TestGame[]) => Promise<unknown>;
+  };
+};
 
 type Recorded = { name: string; args: unknown[] };
 type TestGame = { key: string; name?: string };
@@ -96,7 +101,13 @@ function makeContext(overrides: Partial<Record<string, unknown>> = {}) {
   };
 
   for (const [k, v] of Object.entries(overrides)) (context as Record<string, unknown>)[k] = v;
-  installLatestHandler(context);
+  const previousHandleInteraction = context.handleInteraction;
+  const { canHandle, handle } = latestHandlerModule.buildCommandHandler(context as Record<string, unknown>);
+  const chainedHandleInteraction = async (interaction: { commandName: string }, games?: TestGame[]) => {
+    if (!canHandle(interaction)) return previousHandleInteraction(interaction);
+    return handle(interaction, games);
+  };
+  (context as Record<string, unknown>).handleInteraction = chainedHandleInteraction;
   return { context: context as typeof context & LatestRuntime, calls, safeEditPayloads };
 }
 
