@@ -6,6 +6,7 @@ import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./
 import { HASH_VERSION } from "../../native/fuzzy";
 
 import { packEmbedsByBudget, embedCharCost } from "../../shared/discordEmbedChunks";
+import { buildDealsHashIndex, planDiscountFailure, planPendingDiscounts } from "./discountNotificationPlanner";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
@@ -99,21 +100,12 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     GUILD_PROCESS_CONCURRENCY
   } = deps;
 
-  const dealsHashIndexCache = new WeakMap<DealInfo[], { dealsByHash: Map<string, DealInfo>; orderedHashes: string[] }>();
+  const dealsHashIndexCache = new WeakMap<DealInfo[], ReturnType<typeof buildDealsHashIndex>>();
 
   function getDealsHashIndex(deals: DealInfo[]) {
     let cached = dealsHashIndexCache.get(deals);
     if (cached) return cached;
-    const dealsByHash = new Map<string, DealInfo>();
-    const orderedHashes: string[] = [];
-    for (const deal of deals) {
-      const hash = dealHash(deal);
-      if (!dealsByHash.has(hash)) {
-        dealsByHash.set(hash, deal);
-        orderedHashes.push(hash);
-      }
-    }
-    cached = { dealsByHash, orderedHashes };
+    cached = buildDealsHashIndex(deals, dealHash);
     dealsHashIndexCache.set(deals, cached);
     return cached;
   }
@@ -140,30 +132,18 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     const oldPending = normalizePendingDiscountArray((guild as { pendingDiscounts?: unknown }).pendingDiscounts);
     const candidateHashes = Array.from(new Set([...oldPending.map(item => item.hash), ...orderedHashes]));
     const seenSet = new Set(await loadSeenDiscountHashes(String(guild._id), candidateHashes));
-    const pending: PendingDiscount[] = [];
-    for (const old of oldPending) {
-      if (seenSet.has(old.hash) || (old.attempts ?? 0) >= PENDING_DISCOUNT_MAX_ATTEMPTS) continue;
-      const fresh = dealsByHash.get(old.hash);
-      if (fresh) {
-        if (dealPassesFilters(fresh, guild)) {
-          pending.push({ hash: old.hash, snapshot: fresh, lastSeenAt: new Date(), attempts: old.attempts || 0 });
-        }
-      } else if ((old.attempts ?? 0) < PENDING_DISCOUNT_GRACE_CYCLES
-          && validatePendingDiscountSnapshot(old.snapshot)
-          && dealPassesFilters(old.snapshot, guild)) {
-        pending.push({ ...old, attempts: (old.attempts || 0) + 1 });
-      }
-    }
-
-    const pendingHashes = new Set(pending.map(item => item.hash));
-    for (const hash of orderedHashes) {
-      if (seenSet.has(hash) || pendingHashes.has(hash)) continue;
-      const deal = dealsByHash.get(hash);
-      if (!deal || !dealPassesFilters(deal, guild)) continue;
-      pending.push({ hash, snapshot: deal, lastSeenAt: new Date(), attempts: 0 });
-      pendingHashes.add(hash);
-      if (pending.length >= PENDING_DISCOUNTS_LIMIT) break;
-    }
+    const pending = planPendingDiscounts({
+      oldPending,
+      orderedHashes,
+      dealsByHash,
+      seenSet,
+      now: new Date(),
+      maxAttempts: PENDING_DISCOUNT_MAX_ATTEMPTS,
+      graceCycles: PENDING_DISCOUNT_GRACE_CYCLES,
+      limit: PENDING_DISCOUNTS_LIMIT,
+      passesFilters: deal => dealPassesFilters(deal, guild),
+      validateSnapshot: validatePendingDiscountSnapshot
+    });
 
     const remaining: PendingDiscount[] = [];
     const deadLettered: DeadLetterEntry[] = [];
@@ -171,11 +151,11 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     const notificationMode: NotificationMode = (guild as { notificationMode?: string }).notificationMode === "compact" ? "compact" : "detailed";
 
     function retryOrDeadLetter(item: PendingDiscount, err: unknown): void {
-      const retry = { ...item, attempts: (item.attempts || 0) + 1 };
-      if (retry.attempts < PENDING_DISCOUNT_MAX_ATTEMPTS) remaining.push(retry);
+      const failure = planDiscountFailure(item, PENDING_DISCOUNT_MAX_ATTEMPTS);
+      if (failure.action === "requeue") remaining.push(failure.retry);
       else deadLettered.push(buildDeadLetterEntry({
         kind: "discount", itemId: item.hash, title: (item.snapshot as { title?: unknown } | null)?.title,
-        reason: transientErrorMessage(err), attempts: retry.attempts
+        reason: transientErrorMessage(err), attempts: failure.attempts
       }));
     }
 
