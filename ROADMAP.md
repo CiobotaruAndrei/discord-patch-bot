@@ -638,12 +638,20 @@ era DUPLICATA pe cele doua cai de esec — embed esuat si send esuat) si `requeu
 delega — comportament identic, testele functionale existente trec neatinse; teste noi in
 `updateNotificationPlanner.test.ts`.
 
-**De ce restul e amanat.** Un „executor" complet separat ar rupe ordinea corectitudine-critica
-claim-inainte-de-build/send cu rollback la esec: claim-ul atomic per item e IMPLETIT intentionat
-cu deciziile (un plan intocmit inainte de claim ar putea trimite duplicat intre instante).
-Calea de reduceri are aceeasi forma dar alte reguli (valuta, cache, praguri) — extractia ei se
-face cand apare un bug real de drift intre cele doua cai sau un al doilea consumator al
-planner-ului (acelasi tip de declansator ca la celelalte evaluari).
+**Pas executat si pe calea de reduceri (runda 10 — cererea explicita de a inchide amanarile).**
+`features/notifications/discountNotificationPlanner.ts` extrage deciziile pure din
+`discountNotificationService`: `buildDealsHashIndex` (indexul hash → deal cu dedupe si ordinea
+primei aparitii), `planPendingDiscounts` (construirea listei pending: drop pe seen/max-attempts,
+reimprospatarea snapshotului din feed, ciclurile de gratie cu attempts incrementat, intrarea
+hash-urilor noi filtrate pana la limita) si `planDiscountFailure` (requeue-sub-prag pe copie /
+dead-letter-la-prag). Serviciul delega — comportament identic, testele functionale existente
+raman verzi; teste noi in `discountNotificationPlanner.test.ts`. Cache-ul WeakMap per referinta
+de feed ramane in serviciu (e memoizare, nu decizie).
+
+**Ce ramane amanat (si de ce).** Un „executor" complet separat ar rupe ordinea
+corectitudine-critica claim-inainte-de-build/send cu rollback la esec: claim-ul atomic per item
+e IMPLETIT intentionat cu deciziile (un plan intocmit inainte de claim ar putea trimite duplicat
+intre instante). Asta nu e munca amanata, ci o granita de corectitudine.
 
 ## Review „arhitectura mare" (runda 9, itemele 3-10) — verdicte pe cod real
 
