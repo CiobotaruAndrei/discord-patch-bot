@@ -84,6 +84,7 @@ export type {
 } from "./app/scheduler/schedulerTypes";
 
 export type CurrencyCode = "USD" | "EUR" | "GBP" | "RON";
+export type BotRole = "all" | "web" | "worker";
 export type AbortPredicate = (() => boolean) | null;
 export type MaybePromise<T> = T | Promise<T>;
 export type PriceValue = string | number;
@@ -117,6 +118,7 @@ export interface RuntimeEnv {
   DISCORD_TOKEN?: string;
   DISCORD_CLIENT_ID?: string;
   REDIS_URL?: string;
+  BOT_ROLE: BotRole;
   DISCORD_DEV_GUILD_ID: string;
   PORT: string;
   NODE_ENV: string;

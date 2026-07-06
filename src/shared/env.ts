@@ -1,6 +1,7 @@
 import type { z as ZodNamespace } from "zod";
 import type { LoggerFunction, ParseEnvNumber, RuntimeEnv } from "../types";
 import { BOOLEAN_ENV_PATTERN, parseBooleanEnv } from "./booleanEnv";
+import { resolveBotRole, BOT_ROLES } from "./botRole";
 
 type ZodLike = typeof ZodNamespace;
 
@@ -83,6 +84,7 @@ function buildEnvFrom(context: EnvContext) {
       }, "ADMIN_WEBHOOK_URL trebuie sa fie http:// sau https://")
       .optional(),
     LOG_LEVEL: z.string().optional(),
+    BOT_ROLE: z.string().refine(v => (BOT_ROLES as readonly string[]).includes(v), "BOT_ROLE trebuie sa fie all, web sau worker").optional(),
     PROXY_URLS: z.string().optional(),
     REDIS_URL: z.string()
       .refine(u => {
@@ -121,6 +123,7 @@ function buildEnvFrom(context: EnvContext) {
       METRICS_PUBLIC: process.env.METRICS_PUBLIC,
       ADMIN_WEBHOOK_URL: process.env.ADMIN_WEBHOOK_URL,
       LOG_LEVEL: process.env.LOG_LEVEL,
+      BOT_ROLE: process.env.BOT_ROLE,
       PROXY_URLS: process.env.PROXY_URLS,
       REDIS_URL: process.env.REDIS_URL,
       TRUST_PROXY: process.env.TRUST_PROXY,
@@ -172,6 +175,7 @@ function buildEnvFrom(context: EnvContext) {
     TRUSTED_PROXY_COUNT: parseEnvNumber("TRUSTED_PROXY_COUNT", 1, { min: 0, max: 20 }),
     ADMIN_WEBHOOK_URL: process.env.ADMIN_WEBHOOK_URL || "",
     LOG_LEVEL: RAW_LOG_LEVEL,
+    BOT_ROLE: resolveBotRole(process.env.BOT_ROLE),
     PROXY_URLS: process.env.PROXY_URLS || "",
     REDIS_URL: process.env.REDIS_URL,
 
