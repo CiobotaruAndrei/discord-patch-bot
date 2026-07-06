@@ -66,6 +66,18 @@ test("createRedisRuntime: close() cheama quit() doar cand clientul e deschis", a
   assert.equal(open.calls.quit, 1, "client deschis -> quit() apelat o data");
 });
 
+test("createRedisRuntime: status() -> disabled fara URL, connected cand clientul e deschis, disconnected cand e inchis", () => {
+  const logger: LoggerFunction = () => undefined;
+
+  assert.equal(mod.createRedisRuntime({}, logger, () => { throw new Error("nu se apeleaza"); }).status(), "disabled");
+
+  const open = makeFakeClient({ isOpen: true });
+  assert.equal(mod.createRedisRuntime({ REDIS_URL: "redis://h:6379" }, logger, () => open.client).status(), "connected");
+
+  const closed = makeFakeClient({ isOpen: false });
+  assert.equal(mod.createRedisRuntime({ REDIS_URL: "redis://h:6379" }, logger, () => closed.client).status(), "disconnected");
+});
+
 test("createRedisRuntime: evenimentul 'error' al clientului e logat ca ERROR", () => {
   const { client, calls } = makeFakeClient();
   const factory: RedisClientFactory = () => client;

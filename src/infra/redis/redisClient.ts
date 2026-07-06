@@ -12,6 +12,8 @@ interface RedisClientLike {
 
 type RedisClientFactory = (options: { url: string }) => RedisClientLike;
 
+type RedisStatus = "disabled" | "connected" | "disconnected";
+
 interface RedisRuntimeEnv {
   REDIS_URL?: string;
 }
@@ -19,6 +21,7 @@ interface RedisRuntimeEnv {
 interface RedisRuntime {
   readonly enabled: boolean;
   getClient(): RedisClientLike | null;
+  status(): RedisStatus;
   connect(): Promise<void>;
   close(): Promise<void>;
 }
@@ -35,6 +38,7 @@ function createRedisRuntime(
     return {
       enabled: false,
       getClient: () => null,
+      status: () => "disabled",
       connect: async () => {
         logger("INFO", "REDIS", "REDIS_URL nu e setat — Redis dezactivat, botul continua fara cache extern.");
       },
@@ -48,6 +52,7 @@ function createRedisRuntime(
   return {
     enabled: true,
     getClient: () => client,
+    status: () => (client.isOpen ? "connected" : "disconnected"),
     connect: async () => {
       await client.connect();
       logger("INFO", "REDIS", "Redis conectat");
@@ -60,4 +65,4 @@ function createRedisRuntime(
 }
 
 export { createRedisRuntime };
-export type { RedisRuntime, RedisClientLike, RedisClientFactory, RedisRuntimeEnv };
+export type { RedisRuntime, RedisStatus, RedisClientLike, RedisClientFactory, RedisRuntimeEnv };

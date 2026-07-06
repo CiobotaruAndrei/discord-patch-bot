@@ -146,6 +146,7 @@ Redis este **optional** momentan si serveste ca fundatie pentru un cache extern 
 - Fara `REDIS_URL`, botul porneste normal si nu deschide nicio conexiune (`connect()` devine no-op cu un log informativ, iar preflight-ul de env doar avertizeaza).
 - Cu `REDIS_URL` setat, clientul se creeaza din URL (`createClient({ url: REDIS_URL })`) si se conecteaza la boot dupa Mongo si inainte de hidratarea cache-ului. Daca URL-ul e setat dar conexiunea esueaza, boot-ul se opreste fail-fast (nu pornim cu o dependenta configurata dar indisponibila).
 - La shutdown, conexiunea se inchide cu `quit()` (doar daca e deschisa) dupa oprirea cron/outbox/housekeeping si inainte de inchiderea Mongo/HTTP; o eroare de inchidere e logata ca WARN si nu blocheaza shutdown-ul.
+- Comanda `/health` afiseaza statusul Redis pe una dintre starile `⚪ dezactivat` (fara `REDIS_URL`), `🟢 conectat` sau `🔴 deconectat` (`REDIS_URL` setat dar clientul nu e deschis). Statusul e pur informativ — Redis fiind optional, nu marcheaza botul ca degradat.
 
 Exemplu `.env` (parola de mai jos este doar un placeholder):
 

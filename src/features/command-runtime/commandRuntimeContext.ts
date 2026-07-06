@@ -18,6 +18,7 @@ type MongoContextExports = typeof import("../../infra/mongo/mongoContext");
 
 const data = require("../../infra/mongo/mongoContext") as MongoContextExports;
 const scrapers = require("../../sources/sourceRegistry") as SourceRegistryApi;
+const redis = require("../../infra/redis/redisContext") as typeof import("../../infra/redis/redisContext");
 
 type DiscordRuntimeBindings = {
   crypto: typeof crypto;
@@ -105,6 +106,7 @@ async function checkChannelPermissions(interaction: PermissionAwareInteraction, 
 type CommandRuntimeContext = DiscordRuntimeBindings & MongoContextExports & SourceRegistryApi & {
   checkReadMessageHistory: typeof checkReadMessageHistory;
   checkChannelPermissions: typeof checkChannelPermissions;
+  redis: typeof redis;
 };
 
 function createCommandRuntimeContext(): CommandRuntimeContext {
@@ -113,7 +115,8 @@ function createCommandRuntimeContext(): CommandRuntimeContext {
     ...data,
     ...scrapers,
     checkReadMessageHistory,
-    checkChannelPermissions
+    checkChannelPermissions,
+    redis
   };
 }
 

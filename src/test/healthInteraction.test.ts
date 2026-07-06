@@ -7,15 +7,18 @@ const mod = require("../features/command-handlers/healthInteractionHandler") as 
 };
 const { buildHealthEmbed, formatUptime } = mod;
 
+type RedisStatus = "disabled" | "connected" | "disconnected";
+
 interface HealthSnapshot {
   discordReady: boolean;
   discordPing: number;
   mongoReadyState: number;
+  redisStatus: RedisStatus;
   cacheSizes: { single: number; dlc: number; [key: string]: number };
   uptimeSeconds: number;
 }
 
-const base: HealthSnapshot = { discordReady: true, discordPing: 42, mongoReadyState: 1, cacheSizes: { single: 3, dlc: 1 }, uptimeSeconds: 90061 };
+const base: HealthSnapshot = { discordReady: true, discordPing: 42, mongoReadyState: 1, redisStatus: "disabled", cacheSizes: { single: 3, dlc: 1 }, uptimeSeconds: 90061 };
 
 test("formatUptime formateaza zile/ore/minute", () => {
   assert.equal(formatUptime(0), "0m");
@@ -47,4 +50,19 @@ test("buildHealthEmbed: Discord neconectat => degradat, fara ping daca -1", () =
   assert.match(embed.title, /degradat/);
   assert.match(embed.description, /Discord: 🔴 neconectat/);
   assert.doesNotMatch(embed.description, /ping/);
+});
+
+test("buildHealthEmbed: statusul Redis apare pe toate cele 3 stari, fara sa schimbe OK/degradat (Redis e optional)", () => {
+  const disabled = buildHealthEmbed({ ...base, redisStatus: "disabled" });
+  assert.match(disabled.description, /Redis: ⚪ dezactivat/);
+  assert.match(disabled.title, /OK/, "Redis dezactivat NU degradeaza botul");
+  assert.equal(disabled.color, 0x2ecc71);
+
+  const connected = buildHealthEmbed({ ...base, redisStatus: "connected" });
+  assert.match(connected.description, /Redis: 🟢 conectat/);
+  assert.match(connected.title, /OK/);
+
+  const disconnected = buildHealthEmbed({ ...base, redisStatus: "disconnected" });
+  assert.match(disconnected.description, /Redis: 🔴 deconectat/);
+  assert.match(disconnected.title, /OK/, "Redis deconectat NU degradeaza botul (Mongo+Discord sunt OK)");
 });

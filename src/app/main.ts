@@ -15,7 +15,7 @@ const { registerDiscordEvents, registerMongoEvents } = require("./lifecycle/even
 const { createShutdownController } = require("./lifecycle/shutdown") as typeof import("./lifecycle/shutdown");
 const { errorMessage, errorDetail } = require("../shared/errors") as typeof import("../shared/errors");
 const { createAppRuntime } = require("./appRuntime") as typeof import("./appRuntime");
-const { createRedisRuntime } = require("../infra/redis/redisClient") as typeof import("../infra/redis/redisClient");
+const redis = require("../infra/redis/redisContext") as typeof import("../infra/redis/redisContext");
 import type { AppRuntimeDeps } from "./appRuntime";
 import type { SourceRegistryApi } from "../sources/sourceRegistry";
 
@@ -28,8 +28,6 @@ const {
 } = require("../infra/mongo/mongoContext") as typeof import("../infra/mongo/mongoContext");
 const commands = require("../features/command-registry/commandRegistry") as typeof import("../features/command-registry/commandRegistry");
 const scrapers = require("../sources/sourceRegistry") as SourceRegistryApi;
-
-const redis = createRedisRuntime(env, logger);
 
 const app = createAppRuntime({
   mongoose, crypto, performance, Client, GatewayIntentBits,
