@@ -31,6 +31,11 @@ export interface BotMetrics {
   outboxHistoryWriteFailures: number;
   outboxRecoveryVerifyEnabledGuilds: number;
   outboxLastDrainAt: number;
+  redisConnectSuccess: number;
+  redisConnectFailure: number;
+  redisCacheHit: number;
+  redisCacheMiss: number;
+  redisErrors: number;
   commandRuns: Record<string, number>;
   commandErrors: Record<string, number>;
   commandDurationMsTotal: Record<string, number>;

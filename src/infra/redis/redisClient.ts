@@ -2,6 +2,7 @@ import type { LoggerFunction } from "../../types";
 
 const { createClient } = require("redis") as typeof import("redis");
 const { errorMessage } = require("../../shared/errors") as typeof import("../../shared/errors");
+const redisMetrics = require("./redisMetrics") as typeof import("./redisMetrics");
 
 interface RedisClientLike {
   on(event: "error", listener: (err: unknown) => void): unknown;
@@ -51,14 +52,23 @@ function createRedisRuntime(
   }
 
   const client = createClientImpl({ url });
-  client.on("error", err => logger("ERROR", "REDIS", "Eroare client Redis", errorMessage(err)));
+  client.on("error", err => {
+    redisMetrics.recordRedisError();
+    logger("ERROR", "REDIS", "Eroare client Redis", errorMessage(err));
+  });
 
   return {
     enabled: true,
     getClient: () => client,
     status: () => (client.isOpen ? "connected" : "disconnected"),
     connect: async () => {
-      await client.connect();
+      try {
+        await client.connect();
+      } catch (err) {
+        redisMetrics.recordRedisConnectFailure();
+        throw err;
+      }
+      redisMetrics.recordRedisConnectSuccess();
       logger("INFO", "REDIS", "Redis conectat");
     },
     close: async () => {
