@@ -148,6 +148,7 @@ Redis este **optional** momentan si serveste ca fundatie pentru un cache extern 
 - La shutdown, conexiunea se inchide cu `quit()` (doar daca e deschisa) dupa oprirea cron/outbox/housekeeping si inainte de inchiderea Mongo/HTTP; o eroare de inchidere e logata ca WARN si nu blocheaza shutdown-ul.
 - Comanda `/health` afiseaza statusul Redis pe una dintre starile `⚪ dezactivat` (fara `REDIS_URL`), `🟢 conectat` sau `🔴 deconectat` (`REDIS_URL` setat dar clientul nu e deschis). Statusul e pur informativ — Redis fiind optional, nu marcheaza botul ca degradat.
 - `npm run check:redis` verifica rapid conexiunea fara sa porneasca botul: fara `REDIS_URL` raporteaza „dezactivat" si iese cu cod `0`; cu `REDIS_URL` se conecteaza, trimite `PING`, inchide conexiunea si iese cu `0` la succes sau `1` la esec. Cu `.env` local: `node --env-file=.env dist/scripts/check-redis.js`.
+- Cand Redis e activ, numararea de jucatori Steam pentru player-count e cache-uita scurt (cheie `player-count:steam:<appId>`, TTL 60s) ca sa nu se reinterogheze Steam pentru acelasi joc de mai multe ori la rand. E best-effort: fara `REDIS_URL` sau la orice eroare de Redis se cade automat pe fetch-ul live (rezultatul comenzii `/player-count` ramane identic), iar Mongo ramane sursa persistenta a snapshot-urilor.
 
 Exemplu `.env` (parola de mai jos este doar un placeholder):
 

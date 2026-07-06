@@ -8,6 +8,9 @@ interface RedisClientLike {
   connect(): Promise<unknown>;
   quit(): Promise<unknown>;
   ping(): Promise<unknown>;
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string, options?: { EX?: number }): Promise<unknown>;
+  del(key: string): Promise<unknown>;
   readonly isOpen: boolean;
 }
 

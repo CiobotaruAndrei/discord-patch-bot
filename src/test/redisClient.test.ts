@@ -13,6 +13,9 @@ function makeFakeClient(opts: { isOpen?: boolean } = {}) {
     connect: async () => { calls.connect++; open = true; return client; },
     quit: async () => { calls.quit++; open = false; return "OK"; },
     ping: async () => "PONG",
+    get: async () => null,
+    set: async () => "OK",
+    del: async () => 0,
     get isOpen() { return open; }
   };
   return { client, calls };
