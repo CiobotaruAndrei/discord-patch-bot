@@ -6,6 +6,10 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **CI: `github/codeql-action` sincronizat la 4.36.3 pe toti pasii (`init`/`analyze`/`upload-sarif`)**. Bump-ul Dependabot atinsese doar `codeql-action/init`, lasand `analyze` pe versiunea veche; cei doi pasi CodeQL trebuie sa ruleze aceeasi versiune, altfel jobul „Analyze JavaScript and TypeScript" pica cu `Loaded a configuration file for version '4.36.3', but running version '4.36.2'`. Toate referintele `codeql-action` din `.github/workflows/` sunt acum pe acelasi SHA (`54f647b`, v4.36.3), inclusiv `upload-sarif` din `container-scan.yml`, ca sa nu ramana drift de versiune.
+
 ### Changed
 
 - **Scrierile `/set`, watchlist si snooze mutate in `guildConfigRepository` — inchide planul repositories R6 #6 (runda 10)**. `guildConfigRepository` capata `applyGuildConfigUpdate` (generic `$set` cu upsert configurabil — folosit de `/set` mode/mindiscount/maxprice/free/paid/currency/stores si de `/set role` set/clear, ultimul fara upsert ca inainte), `addWatchlistGame`/`removeWatchlistGame` (`$addToSet`/`$pull enabledGames`, remove-ul intoarce `modifiedCount` pentru mesajul de negasit) si `setCommandSnooze`/`clearCommandSnooze` (`$set`/`$unset commandSnoozes.<key>`). Handler-ele `setInteractionHandler`, `gameFilterHandlers`, `rolePingHandlers` si `snoozeInteractionHandler` deleaga — scrieri 1:1, aceleasi filtre/optiuni/operatori, testele functionale existente trec neatinse. Cu asta planul de repositories pe documentul Guild (R6 #6) e complet inchis. Teste noi in `guildRepositories.test.ts` (forma exacta a fiecarui operator + upsert-ul per operatie).
