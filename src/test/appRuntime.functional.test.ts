@@ -70,6 +70,7 @@ function makeDeps(overrides: { updatesFetchedAt?: Date } = {}) {
     redis: {
       enabled: false,
       getClient: () => null,
+      status: () => "disabled",
       connect: async () => { order.push("redis.connect"); },
       close: async () => { order.push("redis.close"); }
     },

@@ -1,6 +1,7 @@
 "use strict";
 
 import type { CommandHandler } from "../command-registry/commandHandler";
+import type { RedisStatus } from "../../infra/redis/redisClient";
 
 import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail } = require("../../shared/errors");
@@ -30,6 +31,7 @@ interface HealthSnapshot {
   discordReady: boolean;
   discordPing: number;
   mongoReadyState: number;
+  redisStatus: RedisStatus;
   cacheSizes: CacheSizesLike;
   uptimeSeconds: number;
 }
@@ -42,16 +44,23 @@ interface HealthHandlerDeps {
   safeEdit: (interaction: DiscordInteraction, payload: unknown) => Promise<unknown>;
   getCacheSizes: () => CacheSizesLike;
   getMongoReadyState: () => number;
+  getRedisStatus: () => RedisStatus;
   MessageFlags: { Ephemeral: number };
 }
 
-type HealthContext = Omit<HealthHandlerDeps, "getMongoReadyState"> & { handleInteraction?: NextInteractionHandler };
+type HealthContext = Omit<HealthHandlerDeps, "getMongoReadyState" | "getRedisStatus"> & { handleInteraction?: NextInteractionHandler };
 
 const MONGO_STATE_LABELS: Record<number, string> = {
   0: "deconectat",
   1: "conectat",
   2: "se conecteaza",
   3: "se deconecteaza"
+};
+
+const REDIS_STATUS_LABELS: Record<RedisStatus, string> = {
+  disabled: "⚪ dezactivat",
+  connected: "🟢 conectat",
+  disconnected: "🔴 deconectat"
 };
 
 function formatUptime(totalSeconds: number): string {
@@ -71,9 +80,10 @@ function buildHealthEmbed(snapshot: HealthSnapshot): { title: string; descriptio
   const ok = snapshot.discordReady && mongoOk;
   const discordLine = `Discord: ${snapshot.discordReady ? "🟢 conectat" : "🔴 neconectat"}${snapshot.discordPing >= 0 ? ` (ping ${snapshot.discordPing}ms)` : ""}`;
   const mongoLine = `MongoDB: ${mongoOk ? "🟢" : "🔴"} ${MONGO_STATE_LABELS[snapshot.mongoReadyState] || "necunoscut"}`;
+  const redisLine = `Redis: ${REDIS_STATUS_LABELS[snapshot.redisStatus]}`;
   return {
     title: ok ? "Stare bot: OK 🟢" : "Stare bot: degradat 🟠",
-    description: `${discordLine}\n${mongoLine}`,
+    description: `${discordLine}\n${mongoLine}\n${redisLine}`,
     color: ok ? 0x2ecc71 : 0xe67e22,
     fields: [
       { name: "Uptime", value: formatUptime(snapshot.uptimeSeconds), inline: true },
@@ -84,7 +94,7 @@ function buildHealthEmbed(snapshot: HealthSnapshot): { title: string; descriptio
 }
 
 function createHealthInteractionHandler(deps: HealthHandlerDeps) {
-  const { enforceCooldown, startCommandLog, safeDefer, safeEdit, getCacheSizes, getMongoReadyState } = deps;
+  const { enforceCooldown, startCommandLog, safeDefer, safeEdit, getCacheSizes, getMongoReadyState, getRedisStatus } = deps;
 
   async function handleHealthInteraction(interaction: DiscordInteraction): Promise<unknown> {
     if (!(await enforceCooldown(interaction, "health"))) return undefined;
@@ -94,6 +104,7 @@ function createHealthInteractionHandler(deps: HealthHandlerDeps) {
       discordReady: interaction.client?.isReady?.() === true,
       discordPing: Number(interaction.client?.ws?.ping ?? -1),
       mongoReadyState: getMongoReadyState(),
+      redisStatus: getRedisStatus(),
       cacheSizes: getCacheSizes(),
       uptimeSeconds: Math.floor(process.uptime())
     };
@@ -113,7 +124,10 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
   return { content: "Eroare: Eroare neasteptata la procesarea comenzii.", flags: MessageFlags.Ephemeral };
 }
 
-type HealthContextWithDb = HealthContext & { GuildModel?: { db?: { readyState?: number } } };
+type HealthContextWithDb = HealthContext & {
+  GuildModel?: { db?: { readyState?: number } };
+  redis?: { status(): RedisStatus };
+};
 
 type HealthInstaller = ((target: HealthContext) => void) & {
   createHealthInteractionHandler: typeof createHealthInteractionHandler;
@@ -130,6 +144,13 @@ function buildHealthCommandHandler(target: HealthContextWithDb) {
       return 0;
     }
   };
+  const getRedisStatus = (): RedisStatus => {
+    try {
+      return target.redis?.status() ?? "disabled";
+    } catch {
+      return "disabled";
+    }
+  };
   const handlers = createHealthInteractionHandler({
     logger: target.logger,
     enforceCooldown: target.enforceCooldown,
@@ -138,6 +159,7 @@ function buildHealthCommandHandler(target: HealthContextWithDb) {
     safeEdit: target.safeEdit,
     getCacheSizes: target.getCacheSizes,
     getMongoReadyState,
+    getRedisStatus,
     MessageFlags: target.MessageFlags
   });
   const command: CommandHandler<DiscordInteraction> = {
