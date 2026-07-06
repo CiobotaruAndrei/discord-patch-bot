@@ -8,7 +8,8 @@ const FULL_ENV = {
   DISCORD_TOKEN: "token",
   DISCORD_CLIENT_ID: "123",
   BOT_GLOBAL_ACCESS_CODE_HASH: "abc",
-  NODE_ENV: "production"
+  NODE_ENV: "production",
+  REDIS_URL: "redis://localhost:6379"
 };
 
 test("evaluateEnvPreflight: variabilele obligatorii sunt exact cele cerute fail-fast la boot de shared/env", () => {
@@ -45,4 +46,11 @@ test("evaluateEnvPreflight: NODE_ENV nesetat => avertisment informativ, nu esec"
   assert.equal(report.ok, true);
   assert.equal(report.warnings.length, 1);
   assert.match(report.warnings[0], /NODE_ENV/);
+});
+
+test("evaluateEnvPreflight: REDIS_URL nesetat => avertisment ca Redis e dezactivat, dar nu blocheaza boot-ul", () => {
+  const report = evaluateEnvPreflight({ ...FULL_ENV, REDIS_URL: undefined });
+  assert.equal(report.ok, true, "REDIS_URL lipsa nu opreste boot-ul (Redis e optional)");
+  assert.equal(report.warnings.length, 1);
+  assert.equal(report.warnings[0], "REDIS_URL nu e setat — Redis/cache extern dezactivat.");
 });

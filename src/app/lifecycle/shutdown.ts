@@ -43,6 +43,7 @@ interface CreateShutdownControllerDeps {
   cronController: Pick<CronController, "stop">;
   outboxWorker?: { stop(): void };
   housekeeping: HousekeepingLike;
+  redis?: { close(): Promise<void> };
   adminAlert: AdminAlert;
   errorMessage: ErrorFormatter;
   errorDetail: ErrorFormatter;
@@ -50,7 +51,7 @@ interface CreateShutdownControllerDeps {
 
 function createShutdownController({
   lifecycle, logger, env, client, mongoose, httpServer, activeLocks,
-  releaseDbLock, cronController, outboxWorker, housekeeping, adminAlert,
+  releaseDbLock, cronController, outboxWorker, housekeeping, redis, adminAlert,
   errorMessage, errorDetail
 }: CreateShutdownControllerDeps): ShutdownController {
   async function shutdown(signal: ShutdownSignal, exitCode = 0): Promise<void> {
@@ -61,6 +62,11 @@ function createShutdownController({
     cronController.stop();
     outboxWorker?.stop();
     housekeeping.stop();
+
+    if (redis) {
+      try { await redis.close(); }
+      catch (err) { logger("WARN", "SHUTDOWN", "Eroare la inchiderea Redis", errorMessage(err)); }
+    }
 
     for (const [jobName, token] of activeLocks.entries()) {
       try { await releaseDbLock(jobName, token); }

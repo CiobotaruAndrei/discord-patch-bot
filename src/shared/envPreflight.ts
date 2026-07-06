@@ -29,6 +29,9 @@ export function evaluateEnvPreflight(env: Record<string, string | undefined>): E
   if (!env.NODE_ENV) {
     warnings.push("NODE_ENV nu e setat — botul ruleaza cu comportamentul implicit non-production.");
   }
+  if (!env.REDIS_URL) {
+    warnings.push("REDIS_URL nu e setat — Redis/cache extern dezactivat.");
+  }
 
   return { ok: missingRequired.length === 0, missingRequired, presentRequired, warnings };
 }

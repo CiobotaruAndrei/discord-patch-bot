@@ -18,6 +18,7 @@ function makeBaseDeps() {
       releaseDbLock: async () => undefined,
       cronController: { stop: () => { order.push("cron.stop"); } },
       housekeeping: { stop: () => { order.push("housekeeping.stop"); } },
+      redis: { close: async () => { order.push("redis.close"); } },
       adminAlert: async () => undefined,
       errorMessage: (e: unknown) => String(e),
       errorDetail: (e: unknown) => String(e)
@@ -131,6 +132,42 @@ test("handleFatalProcessError clears the alert-budget timer once adminAlert wins
   } finally {
     globalThis.setTimeout = originalSetTimeout;
     globalThis.clearTimeout = originalClearTimeout;
+  }
+});
+
+test("shutdown inchide Redis dupa housekeeping si inainte de Mongo", async () => {
+  const timers = fakeTimers();
+  try {
+    const { order, deps } = makeBaseDeps();
+    const httpServer = { close(cb?: (err?: Error) => void) { if (cb) cb(); return httpServer; } };
+    const controller = createShutdownController({ ...deps, httpServer });
+    await controller.shutdown("SIGTERM");
+    assert.ok(order.indexOf("housekeeping.stop") < order.indexOf("redis.close"),
+      "redis.close ruleaza dupa oprirea housekeeping-ului");
+    assert.ok(order.indexOf("redis.close") < order.indexOf("mongo.close"),
+      "redis.close ruleaza inainte de inchiderea Mongo");
+  } finally {
+    timers.restore();
+  }
+});
+
+test("shutdown: o eroare la redis.close() e logata WARN dar nu blocheaza restul opririi", async () => {
+  const timers = fakeTimers();
+  try {
+    const { order, deps } = makeBaseDeps();
+    const warnings: string[] = [];
+    const httpServer = { close(cb?: (err?: Error) => void) { if (cb) cb(); return httpServer; } };
+    const controller = createShutdownController({
+      ...deps,
+      logger: ((level: string, _context: string, message: string) => { if (level === "WARN") warnings.push(message); }) as LoggerFunction,
+      redis: { close: async () => { throw new Error("redis indisponibil"); } },
+      httpServer
+    });
+    await controller.shutdown("SIGTERM");
+    assert.ok(order.includes("mongo.close"), "shutdown-ul continua pana la mongo.close chiar daca redis.close arunca");
+    assert.ok(warnings.some(m => /Redis/.test(m)), "eroarea la redis.close e logata ca WARN");
+  } finally {
+    timers.restore();
   }
 });
 
