@@ -12,6 +12,7 @@ function makeFakeClient(opts: { isOpen?: boolean } = {}) {
     on(event, listener) { if (event === "error") calls.errorListeners.push(listener); return client; },
     connect: async () => { calls.connect++; open = true; return client; },
     quit: async () => { calls.quit++; open = false; return "OK"; },
+    ping: async () => "PONG",
     get isOpen() { return open; }
   };
   return { client, calls };
