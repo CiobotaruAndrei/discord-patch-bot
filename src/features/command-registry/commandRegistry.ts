@@ -67,6 +67,8 @@ import attachDealFilters = require("../../domain/deals/filters");
 import attachCommandPresentation = require("../command-presentation/commandPresentation");
 import attachNotifications = require("../notifications");
 import attachPlayerCountSnapshots = require("../player-count/playerCountSnapshotService");
+import attachCachedSteamPlayerCount = require("../player-count/cachedSteamPlayerCount");
+import playerCountCache = require("../../infra/redis/redisCacheContext");
 import attachFeedbackRepository = require("../feedback/feedbackRepository");
 import attachSlashCommandDefinitions = require("../command-definitions/slashCommandDefinitions");
 import attachFallbackInteractionHandler = require("../command-handlers/fallbackInteractionHandler");
@@ -110,6 +112,8 @@ type RegistryInteractionHandler = NonNullable<CommandRegistryContext["handleInte
 type RegistryHelpEmbed = NonNullable<CommandRegistryContext["buildHelpEmbed"]>;
 type HandlerMutableContext = { handleInteraction?: RegistryInteractionHandler; buildHelpEmbed?: RegistryHelpEmbed };
 
+const PLAYER_COUNT_CACHE_TTL_SECONDS = 60;
+
 function requireInstalled<T>(value: T | undefined, key: string): T {
   if (typeof value !== "function") {
     throw new Error(`commandRegistry: functia necesara lipseste dupa compunere: ${key}`);
@@ -128,7 +132,15 @@ function createAppServices(
   };
   const presentation = { ...filters, ...attachCommandPresentation.createCommandPresentation(filters) };
   const notifications = { ...presentation, ...attachNotifications.createNotificationRuntime(presentation) };
-  const playerCounts = { ...notifications, ...attachPlayerCountSnapshots.createPlayerCountSnapshotService(notifications) };
+  const cachedFetchSteamCurrentPlayers = attachCachedSteamPlayerCount.createCachedSteamPlayerCount({
+    fetchSteamCurrentPlayers: notifications.fetchSteamCurrentPlayers,
+    cache: playerCountCache,
+    ttlSeconds: PLAYER_COUNT_CACHE_TTL_SECONDS
+  });
+  const playerCounts = {
+    ...notifications,
+    ...attachPlayerCountSnapshots.createPlayerCountSnapshotService({ ...notifications, fetchSteamCurrentPlayers: cachedFetchSteamCurrentPlayers })
+  };
   const feedbackRepository = attachFeedbackRepository.createFeedbackRepository(playerCounts);
   const feedback = {
     ...playerCounts,
