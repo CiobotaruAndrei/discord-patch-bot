@@ -15,6 +15,7 @@
     "dev": "npm run start:build",
     "check:config": "npm run build:ts && node dist/scripts/check-config.js",
     "check:env": "npm run build:ts && node dist/scripts/check-env.js",
+    "check:redis": "npm run build:ts && node dist/scripts/check-redis.js",
     "check:dependencies": "npm run build:ts && node dist/scripts/check-dependencies.js",
     "check:syntax": "npm run build:ts && node dist/scripts/check-syntax.js",
     "check:comments": "npm run build:ts && node dist/scripts/check-no-comments.js",

@@ -7,6 +7,7 @@ interface RedisClientLike {
   on(event: "error", listener: (err: unknown) => void): unknown;
   connect(): Promise<unknown>;
   quit(): Promise<unknown>;
+  ping(): Promise<unknown>;
   readonly isOpen: boolean;
 }
 
