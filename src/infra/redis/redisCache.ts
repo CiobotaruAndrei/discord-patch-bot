@@ -1,6 +1,7 @@
 import type { LoggerFunction } from "../../types";
 
 const { errorMessage } = require("../../shared/errors") as typeof import("../../shared/errors");
+const redisMetrics = require("./redisMetrics") as typeof import("./redisMetrics");
 
 interface RedisCacheClient {
   get(key: string): Promise<string | null>;
@@ -35,9 +36,14 @@ function createRedisCache({ runtime, logger }: RedisCacheDeps): RedisCache {
     if (!client) return null;
     try {
       const raw = await client.get(key);
-      if (raw === null) return null;
+      if (raw === null) {
+        redisMetrics.recordRedisCacheMiss();
+        return null;
+      }
+      redisMetrics.recordRedisCacheHit();
       return JSON.parse(raw) as T;
     } catch (err) {
+      redisMetrics.recordRedisError();
       logger("WARN", "REDIS_CACHE", `getJson(${key}) a esuat — cad pe fallback`, errorMessage(err));
       return null;
     }
@@ -49,6 +55,7 @@ function createRedisCache({ runtime, logger }: RedisCacheDeps): RedisCache {
     try {
       await client.set(key, JSON.stringify(value), { EX: ttlSeconds });
     } catch (err) {
+      redisMetrics.recordRedisError();
       logger("WARN", "REDIS_CACHE", `setJson(${key}) a esuat — ignor (cache best-effort)`, errorMessage(err));
     }
   }
@@ -59,6 +66,7 @@ function createRedisCache({ runtime, logger }: RedisCacheDeps): RedisCache {
     try {
       await client.del(key);
     } catch (err) {
+      redisMetrics.recordRedisError();
       logger("WARN", "REDIS_CACHE", `deleteKey(${key}) a esuat — ignor (cache best-effort)`, errorMessage(err));
     }
   }

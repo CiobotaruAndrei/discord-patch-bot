@@ -25,6 +25,7 @@ import type { OutboxDiscordClient } from "../features/notifications/outboundChan
 import type { RedisRuntime } from "../infra/redis/redisClient";
 
 const { ensureNativeFuzzy } = require("../native/fuzzy") as { ensureNativeFuzzy: () => boolean };
+const { attachRedisMetrics } = require("../infra/redis/redisMetrics") as typeof import("../infra/redis/redisMetrics");
 import { runCacheHydrationPhase, runDatabaseStartupPhase, runDiscordStartupPhase, runHttpStartupPhase } from "./lifecycle/bootPhases";
 
 interface CommandRuntime {
@@ -169,6 +170,7 @@ function createRuntimeServices(deps: AppRuntimeDeps): RuntimeServices {
   const { config, games } = loadConfig();
   const metrics = createMetrics();
   scrapers.attachMetrics(metrics);
+  attachRedisMetrics(metrics);
 
   const client = new Client({ intents: [GatewayIntentBits.Guilds] });
   setAdminAlertDiscordClient(client);

@@ -199,6 +199,11 @@ function createHttpServer({
       pushMetric(lines, seenMetricNames, "bot_history_write_failures", "counter", "Delivered notifications whose /history write failed (delivery succeeded; /history may be incomplete)", metrics.outboxHistoryWriteFailures);
       pushMetric(lines, seenMetricNames, "bot_outbox_recovery_verify_enabled_guilds", "gauge", "Guilds with per-guild outbox recovery-verify enabled", metrics.outboxRecoveryVerifyEnabledGuilds);
       pushMetric(lines, seenMetricNames, "bot_outbox_last_drain_age_seconds", "gauge", "Seconds since the last completed outbox drain (0 = never; grows when the worker is paused/not draining)", metrics.outboxLastDrainAt > 0 ? Math.max(0, Math.round((Date.now() - metrics.outboxLastDrainAt) / 1000)) : 0);
+      pushMetric(lines, seenMetricNames, "bot_redis_connect_success", "counter", "Redis connection successes at boot (0 when REDIS_URL is unset)", metrics.redisConnectSuccess);
+      pushMetric(lines, seenMetricNames, "bot_redis_connect_failure", "counter", "Redis connection failures at boot", metrics.redisConnectFailure);
+      pushMetric(lines, seenMetricNames, "bot_redis_cache_hit", "counter", "Redis cache reads that returned a value (JSON cache)", metrics.redisCacheHit);
+      pushMetric(lines, seenMetricNames, "bot_redis_cache_miss", "counter", "Redis cache reads that missed (key absent)", metrics.redisCacheMiss);
+      pushMetric(lines, seenMetricNames, "bot_redis_errors", "counter", "Redis client/cache errors (client error events + cache operation failures)", metrics.redisErrors);
       const commandNames = Array.from(new Set([...Object.keys(metrics.commandRuns), ...Object.keys(metrics.commandErrors)])).sort();
       for (const commandName of commandNames) {
         pushMetric(lines, seenMetricNames, "bot_commands_total", "counter", "Slash command interactions handled, per top-level command", metrics.commandRuns[commandName] || 0, { command: commandName });
