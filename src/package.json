@@ -12,6 +12,8 @@
     "start": "node dist/app/main.js",
     "start:local": "node --env-file=.env dist/app/main.js",
     "start:build": "npm run build && node dist/app/main.js",
+    "start:worker": "node dist/app/worker.js",
+    "start:worker:local": "node --env-file=.env dist/app/worker.js",
     "dev": "npm run start:build",
     "check:config": "npm run build:ts && node dist/scripts/check-config.js",
     "check:env": "npm run build:ts && node dist/scripts/check-env.js",

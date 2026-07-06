@@ -4,6 +4,7 @@ import type {
   ActiveLocks,
   BotConfig,
   BotMetrics,
+  BotRole,
   CommandCacheSizes,
   ConfigLoadResult,
   DealInfo,
@@ -126,6 +127,7 @@ export interface AppRuntimeDeps {
   errorMessage: (err: unknown) => string;
   errorDetail: (err: unknown) => string;
   redis: RedisRuntime;
+  role?: BotRole;
   mongo: MongoContextLike;
   commands: CommandRuntime;
   scrapers: ScraperRuntime;
@@ -325,7 +327,8 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
     errorMessage, errorDetail,
     startHousekeeping: housekeeping.start,
     scheduleNextCron: cronController.scheduleNextCron,
-    startOutboxWorker: outboxEnabled ? outboxWorker.start : undefined
+    startOutboxWorker: outboxEnabled ? outboxWorker.start : undefined,
+    role: deps.role
   });
   registerMongoEvents({ mongoose, logger, errorMessage });
 

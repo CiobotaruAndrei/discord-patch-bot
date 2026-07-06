@@ -116,6 +116,7 @@ Variabile utile suplimentare:
 - `METRICS_TOKEN` - token optional pentru acces la `/metrics`.
 - `METRICS_PUBLIC` - permite metrics fara token **doar in dev/local**; in productie e ignorat (METRICS_TOKEN e obligatoriu, altfel boot-ul pica).
 - `LOG_LEVEL` - nivelul de logging.
+- `BOT_ROLE` - `all` (implicit), `web` sau `worker`. `all` = un singur proces care face tot (comportamentul actual). `web` = doar interactiuni Discord + slash commands + HTTP, fara job-uri de fundal. `worker` = doar job-urile de fundal (cron, drain outbox, housekeeping) + HTTP health/metrics, fara sa trateze interactiuni. Cele doua roluri se pot rula ca procese separate (`npm start` / `npm run start:worker`) si se coordoneaza prin lock-urile DB. Vezi sectiunea [Worker separat](#worker-separat).
 - `REDIS_URL` - optional (implicit gol). Cand este setat, botul deschide o conexiune Redis la boot (dupa Mongo, inainte de hidratarea cache-ului) si o inchide curat la shutdown. Cand lipseste, Redis ramane dezactivat si botul porneste normal. Vezi sectiunea [Redis](#redis).
 - `PROXY_URLS` - proxy-uri HTTP optionale (template cu `{url}`) pentru surse externe; setarea lor inseamna opt-in explicit.
 - `ALLOW_DEFAULT_PROXIES` - proxy-urile implicite third-party (allorigins/codetabs) sunt active doar in `NODE_ENV=development`; in alte medii non-productie (ex. staging) seteaza `ALLOW_DEFAULT_PROXIES=true` ca sa le activezi (altfel raman oprite, ca sa nu scurga URL-uri tinta). In productie raman mereu dezactivate.
@@ -158,6 +159,29 @@ REDIS_URL=redis://default:password@host:port
 ```
 
 Parola si URL-ul Redis se tin **doar in env / secret manager**, niciodata in cod si niciodata comise pe GitHub. Fisierul local `.env` este in `.gitignore`, iar `src/.env.example` pastreaza doar un placeholder.
+
+## Worker separat
+
+Botul poate rula ca **un singur proces** (implicit) sau impartit in **doua roluri** care ruleaza ca procese separate din aceeasi imagine/cod, controlate de variabila `BOT_ROLE`:
+
+- `all` (implicit) — un proces face tot: interactiuni Discord + slash commands + toate job-urile de fundal (cron update-uri/reduceri/YouTube, drain outbox, housekeeping) + HTTP. **Comportamentul actual, neschimbat.**
+- `web` — doar interactiunile Discord (slash commands, onboarding la guild nou) + HTTP. **Nu** porneste niciun job de fundal.
+- `worker` — doar job-urile de fundal (cron, drain outbox, housekeeping) + HTTP health/metrics. **Nu** inregistreaza slash commands si **nu** trateaza interactiuni.
+
+Rulare:
+
+```bash
+# un singur proces (implicit)
+npm start                       # BOT_ROLE=all (sau nesetat)
+
+# impartit in doua procese
+BOT_ROLE=web  npm start          # procesul care raspunde la comenzi
+npm run start:worker             # procesul de fundal (forteaza BOT_ROLE=worker)
+```
+
+Cele doua procese se **coordoneaza prin lock-urile distribuite din MongoDB** (`acquireDbLock`), la fel ca doua instante `all`: cron-ul si drain-ul outbox nu se pot dubla, iar interactiunile sunt tratate doar de `web`. Cand rulezi doua procese pe aceeasi masina, da-le **`PORT` diferit** (fiecare rol expune propriul `/healthz` + `/metrics`).
+
+Nota (un singur bot token): ambele roluri deschid o conexiune la gateway-ul Discord (`worker`-ul are nevoie de client ca sa trimita notificarile). Pentru un bot ne-shardat, varianta cea mai simpla ramane `all` intr-un singur proces; impartirea `web`/`worker` e utila cand vrei sa separi incarcarea, tinand cont ca lock-urile DB previn dublarea job-urilor, iar interactiunile raman doar pe `web`. Sharding-ul propriu-zis ramane un pas ulterior (vezi `docs/architecture/scaling-readiness.md`).
 
 ## Structura proiectului
 

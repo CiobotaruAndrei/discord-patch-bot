@@ -1,7 +1,8 @@
-import type { GameConfig, RuntimeEnv } from "../../types";
+import type { BotRole, GameConfig, RuntimeEnv } from "../../types";
 import type { BotMetrics } from "../health/metricsTypes";
 import type { LifecycleDiscordChannel, LifecycleDiscordGuild, LifecycleDiscordInteraction, LifecycleEventClient } from "./lifecycleContracts";
 import { createGuildOnboarding } from "./guildOnboarding";
+import { roleRunsSchedulers, roleRunsInteractions } from "../../shared/botRole";
 
 type LifecycleLogger = (level: "INFO" | "WARN" | "ERROR", context: string, message: string, meta?: unknown) => void;
 type ErrorFormatter = (err: unknown) => string;
@@ -36,6 +37,7 @@ interface RegisterDiscordEventsDeps {
   startHousekeeping: () => void;
   scheduleNextCron: () => void;
   startOutboxWorker?: () => void;
+  role?: BotRole;
 }
 
 interface MongoConnectionLike {
@@ -66,63 +68,73 @@ async function replyInteractionError(inter: LifecycleDiscordInteraction): Promis
 
 function registerDiscordEvents({
   client, logger, commands, metrics, env, adminAlert, requestContext,
-  games, crypto, errorMessage, errorDetail, startHousekeeping, scheduleNextCron, startOutboxWorker
+  games, crypto, errorMessage, errorDetail, startHousekeeping, scheduleNextCron, startOutboxWorker, role
 }: RegisterDiscordEventsDeps): void {
+  const effectiveRole = role ?? "all";
+  const runsSchedulers = roleRunsSchedulers(effectiveRole);
+  const runsInteractions = roleRunsInteractions(effectiveRole);
+
   client.once("ready", async () => {
     const userTag = client.user?.tag || "unknown";
-    logger("INFO", "DISCORD", `Conectat ca ${userTag}`);
-    try {
-      await commands.registerSlashCommands(String(env.DISCORD_TOKEN || ""), String(env.DISCORD_CLIENT_ID || ""));
-    } catch (err) {
-      logger("ERROR", "DISCORD", "Esec inregistrare slash commands", errorMessage(err));
-      adminAlert("slash:register-failed", "Slash commands nu au putut fi inregistrate", errorMessage(err)).catch(() => null);
-    }
-    try {
-      startHousekeeping();
-    } catch (err) {
-      logger("ERROR", "BOOT", "startHousekeeping a esuat in handler-ul ready", errorDetail(err));
-      adminAlert("boot:housekeeping", "Housekeeping nu a pornit", errorMessage(err)).catch(() => null);
-    }
-    try {
-      scheduleNextCron();
-    } catch (err) {
-      logger("ERROR", "BOOT", "scheduleNextCron a esuat in handler-ul ready", errorDetail(err));
-      adminAlert("boot:cron", "Cron-ul nu a putut fi programat", errorMessage(err)).catch(() => null);
-    }
-    if (startOutboxWorker) {
+    logger("INFO", "DISCORD", `Conectat ca ${userTag} (rol: ${effectiveRole})`);
+    if (runsInteractions) {
       try {
-        startOutboxWorker();
+        await commands.registerSlashCommands(String(env.DISCORD_TOKEN || ""), String(env.DISCORD_CLIENT_ID || ""));
       } catch (err) {
-        logger("ERROR", "BOOT", "startOutboxWorker a esuat in handler-ul ready", errorDetail(err));
-        adminAlert("boot:outbox", "Worker-ul outbox nu a putut porni", errorMessage(err)).catch(() => null);
+        logger("ERROR", "DISCORD", "Esec inregistrare slash commands", errorMessage(err));
+        adminAlert("slash:register-failed", "Slash commands nu au putut fi inregistrate", errorMessage(err)).catch(() => null);
+      }
+    }
+    if (runsSchedulers) {
+      try {
+        startHousekeeping();
+      } catch (err) {
+        logger("ERROR", "BOOT", "startHousekeeping a esuat in handler-ul ready", errorDetail(err));
+        adminAlert("boot:housekeeping", "Housekeeping nu a pornit", errorMessage(err)).catch(() => null);
+      }
+      try {
+        scheduleNextCron();
+      } catch (err) {
+        logger("ERROR", "BOOT", "scheduleNextCron a esuat in handler-ul ready", errorDetail(err));
+        adminAlert("boot:cron", "Cron-ul nu a putut fi programat", errorMessage(err)).catch(() => null);
+      }
+      if (startOutboxWorker) {
+        try {
+          startOutboxWorker();
+        } catch (err) {
+          logger("ERROR", "BOOT", "startOutboxWorker a esuat in handler-ul ready", errorDetail(err));
+          adminAlert("boot:outbox", "Worker-ul outbox nu a putut porni", errorMessage(err)).catch(() => null);
+        }
       }
     }
   });
 
-  client.on("interactionCreate", async (interaction) => {
-    const commandName = interaction.isChatInputCommand?.() === true && typeof interaction.commandName === "string"
-      ? interaction.commandName
-      : "";
-    const startedAt = Date.now();
-    try {
-      const reqId = crypto.randomBytes(6).toString("hex");
-      await requestContext.run({ requestId: reqId }, async () => {
-        await commands.handleInteraction(interaction, games);
-      });
-    } catch (err) {
-      if (commandName) metrics.commandErrors[commandName] = (metrics.commandErrors[commandName] || 0) + 1;
-      logger("ERROR", "INTERACTION", "Eroare top-level la interactionCreate", errorDetail(err));
-      await replyInteractionError(interaction);
-    } finally {
-      if (commandName) {
-        metrics.commandRuns[commandName] = (metrics.commandRuns[commandName] || 0) + 1;
-        metrics.commandDurationMsTotal[commandName] = (metrics.commandDurationMsTotal[commandName] || 0) + (Date.now() - startedAt);
+  if (runsInteractions) {
+    client.on("interactionCreate", async (interaction) => {
+      const commandName = interaction.isChatInputCommand?.() === true && typeof interaction.commandName === "string"
+        ? interaction.commandName
+        : "";
+      const startedAt = Date.now();
+      try {
+        const reqId = crypto.randomBytes(6).toString("hex");
+        await requestContext.run({ requestId: reqId }, async () => {
+          await commands.handleInteraction(interaction, games);
+        });
+      } catch (err) {
+        if (commandName) metrics.commandErrors[commandName] = (metrics.commandErrors[commandName] || 0) + 1;
+        logger("ERROR", "INTERACTION", "Eroare top-level la interactionCreate", errorDetail(err));
+        await replyInteractionError(interaction);
+      } finally {
+        if (commandName) {
+          metrics.commandRuns[commandName] = (metrics.commandRuns[commandName] || 0) + 1;
+          metrics.commandDurationMsTotal[commandName] = (metrics.commandDurationMsTotal[commandName] || 0) + (Date.now() - startedAt);
+        }
       }
-    }
-  });
+    });
 
-  const onboarding = createGuildOnboarding({ logger, canSendEmbeds: commands.canSendEmbeds, errorMessage });
-  client.on("guildCreate", (guild: LifecycleDiscordGuild) => { onboarding.handleGuildCreate(guild).catch(() => null); });
+    const onboarding = createGuildOnboarding({ logger, canSendEmbeds: commands.canSendEmbeds, errorMessage });
+    client.on("guildCreate", (guild: LifecycleDiscordGuild) => { onboarding.handleGuildCreate(guild).catch(() => null); });
+  }
 
   client.on("error", (err) => logger("ERROR", "DISCORD", "Eroare client Discord", errorMessage(err)));
   client.on("warn", (msg) => logger("WARN", "DISCORD", msg));

@@ -245,6 +245,7 @@ test("fisierele cu contracte inchise nu au double assertions as unknown as, veri
     commandRegistryPath,
     sourceRegistryPath,
     path.join(srcRoot, "app", "main.ts"),
+    path.join(srcRoot, "app", "bootstrap.ts"),
     path.join(srcRoot, "features", "command-runtime", "commandRuntimeContext.ts"),
     path.join(srcRoot, "features", "notifications", "index.ts"),
     path.join(srcRoot, "features", "notifications", "outboundChannel.ts"),
@@ -296,15 +297,18 @@ test("createCommandRuntimeContext intoarce un contract inchis, nu Record<string,
   assert.match(text, /createCommandRuntimeContext\(\): CommandRuntimeContext/, "return type numit si inchis");
 });
 
-test("boot-ul din main.ts foloseste require-uri tipate, ca satisfies AppRuntimeDeps sa nu fie pacalit de any (review #9.1 + #9.6)", () => {
-  const mainPath = path.join(srcRoot, "app", "main.ts");
-  const text = fs.readFileSync(mainPath, "utf8");
+test("boot-ul (app/bootstrap.ts) foloseste require-uri tipate, ca satisfies AppRuntimeDeps sa nu fie pacalit de any (review #9.1 + #9.6)", () => {
+  const bootstrapPath = path.join(srcRoot, "app", "bootstrap.ts");
+  const text = fs.readFileSync(bootstrapPath, "utf8");
   assert.match(text, /require\("\.\.\/infra\/mongo\/mongoContext"\) as typeof import\("\.\.\/infra\/mongo\/mongoContext"\)/, "mongoContext tipat");
   assert.match(text, /require\("\.\.\/features\/command-registry\/commandRegistry"\) as typeof import\("\.\.\/features\/command-registry\/commandRegistry"\)/, "commandRegistry tipat");
   assert.match(text, /require\("\.\.\/sources\/sourceRegistry"\) as SourceRegistryApi/, "sourceRegistry tipat cu API-ul value-tipat");
   assert.match(text, /satisfies AppRuntimeDeps/, "wiring-ul de boot ramane verificat cu satisfies");
   const untypedRequires = (text.match(/= require\("\.[^"]+"\);\r?\n/g) || []).filter(line => !line.includes("as typeof import") && !line.includes("as SourceRegistryApi"));
   assert.deepEqual(untypedRequires, [], "niciun require de modul local netipat in boot");
+
+  const mainText = fs.readFileSync(path.join(srcRoot, "app", "main.ts"), "utf8");
+  assert.match(mainText, /require\("\.\/bootstrap"\) as typeof import\("\.\/bootstrap"\)/, "main.ts e un entry subtire care deleaga catre bootstrap-ul tipat");
 });
 
 test("contractul CommandHandler e generic cu type predicate (canHandle ingusteaza interaction, handle primeste tipul validat)", () => {
