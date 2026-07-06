@@ -84,6 +84,12 @@ function buildEnvFrom(context: EnvContext) {
       .optional(),
     LOG_LEVEL: z.string().optional(),
     PROXY_URLS: z.string().optional(),
+    REDIS_URL: z.string()
+      .refine(u => {
+        try { return ["redis:", "rediss:"].includes(new URL(u).protocol); }
+        catch { return false; }
+      }, "REDIS_URL trebuie sa fie un URL redis:// sau rediss://")
+      .optional(),
     TRUST_PROXY: optionalBooleanEnv("TRUST_PROXY"),
     TRUSTED_PROXY_COUNT: z.string().regex(/^\d+$/, "TRUSTED_PROXY_COUNT trebuie sa fie un numar intreg >= 0").optional(),
     NOTIFICATION_OUTBOX_ENABLED: optionalBooleanEnv("NOTIFICATION_OUTBOX_ENABLED"),
@@ -116,6 +122,7 @@ function buildEnvFrom(context: EnvContext) {
       ADMIN_WEBHOOK_URL: process.env.ADMIN_WEBHOOK_URL,
       LOG_LEVEL: process.env.LOG_LEVEL,
       PROXY_URLS: process.env.PROXY_URLS,
+      REDIS_URL: process.env.REDIS_URL,
       TRUST_PROXY: process.env.TRUST_PROXY,
       TRUSTED_PROXY_COUNT: process.env.TRUSTED_PROXY_COUNT,
       NOTIFICATION_OUTBOX_ENABLED: process.env.NOTIFICATION_OUTBOX_ENABLED,
@@ -166,6 +173,7 @@ function buildEnvFrom(context: EnvContext) {
     ADMIN_WEBHOOK_URL: process.env.ADMIN_WEBHOOK_URL || "",
     LOG_LEVEL: RAW_LOG_LEVEL,
     PROXY_URLS: process.env.PROXY_URLS || "",
+    REDIS_URL: process.env.REDIS_URL,
 
     FETCH_CONCURRENCY: parseEnvNumber("FETCH_CONCURRENCY", 10, { min: 1, max: 50 }),
     FETCH_CONCURRENCY_STEAM: parseEnvNumber("FETCH_CONCURRENCY_STEAM", 4, { min: 1, max: 50 }),

@@ -11,6 +11,7 @@ function buildBoot(runMigrations: () => Promise<{ applied: number[] }>, continue
     errorMessage: (e: unknown) => String(e),
     errorDetail: (e: unknown) => String(e),
     mongoose: { connect: async () => undefined, connection: { readyState: 1 } },
+    redis: { connect: async () => undefined, close: async () => undefined },
     commands: { setUpdatesCache() { }, setDealsCache() { } },
     mongo: {
       logger: () => { },

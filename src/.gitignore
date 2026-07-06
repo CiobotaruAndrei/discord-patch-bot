@@ -4,3 +4,6 @@ native/target/
 native/*.node
 native/index.js
 native/index.d.ts
+.env
+.env.local
+.env.*.local

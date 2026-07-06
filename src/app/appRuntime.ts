@@ -22,6 +22,7 @@ import type { RegisterDiscordEventsDeps, RegisterMongoEventsDeps } from "./lifec
 import type { LifecycleDiscordChannel, LifecycleDiscordInteraction, LifecycleEventClient } from "./lifecycle/lifecycleContracts";
 import type { CreateShutdownControllerDeps, ShutdownController } from "./lifecycle/shutdown";
 import type { OutboxDiscordClient } from "../features/notifications/outboundChannel";
+import type { RedisRuntime } from "../infra/redis/redisClient";
 
 const { ensureNativeFuzzy } = require("../native/fuzzy") as { ensureNativeFuzzy: () => boolean };
 import { runCacheHydrationPhase, runDatabaseStartupPhase, runDiscordStartupPhase, runHttpStartupPhase } from "./lifecycle/bootPhases";
@@ -123,6 +124,7 @@ export interface AppRuntimeDeps {
   createShutdownController: (opts: CreateShutdownControllerDeps) => ShutdownController;
   errorMessage: (err: unknown) => string;
   errorDetail: (err: unknown) => string;
+  redis: RedisRuntime;
   mongo: MongoContextLike;
   commands: CommandRuntime;
   scrapers: ScraperRuntime;
@@ -265,7 +267,7 @@ async function hydrateStartupCaches(deps: HydrateCachesDeps): Promise<void> {
 }
 
 function createBootSequence(deps: AppRuntimeDeps, ctx: { client: DiscordClientLike; httpServer: HttpServerLike }): () => Promise<void> {
-  const { errorMessage, errorDetail, mongo } = deps;
+  const { errorMessage, errorDetail, redis, mongo } = deps;
   const { logger, env, adminAlert, waitForMongoReady, runMigrations } = mongo;
   const { client, httpServer } = ctx;
 
@@ -281,6 +283,7 @@ function createBootSequence(deps: AppRuntimeDeps, ctx: { client: DiscordClientLi
         migrationsContinueOnError: env.MIGRATIONS_CONTINUE_ON_ERROR,
         logger, adminAlert, errorMessage, errorDetail
       });
+      await redis.connect();
       await runCacheHydrationPhase({
         hydrateCaches: () => hydrateStartupCaches(deps),
         logger, errorMessage
@@ -327,7 +330,7 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   const shutdownController = createShutdownController({
     lifecycle, logger, env, client, mongoose, httpServer, activeLocks,
     releaseDbLock, cronController, outboxWorker, housekeeping, adminAlert,
-    errorMessage, errorDetail
+    redis: deps.redis, errorMessage, errorDetail
   });
 
   const start = createBootSequence(deps, { client, httpServer });

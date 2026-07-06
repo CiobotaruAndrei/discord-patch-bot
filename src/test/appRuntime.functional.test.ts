@@ -67,6 +67,12 @@ function makeDeps(overrides: { updatesFetchedAt?: Date } = {}) {
     }),
     errorMessage: (err: unknown) => String(err),
     errorDetail: (err: unknown) => String(err),
+    redis: {
+      enabled: false,
+      getClient: () => null,
+      connect: async () => { order.push("redis.connect"); },
+      close: async () => { order.push("redis.close"); }
+    },
     mongo: {
       logger: () => undefined,
       env: { MONGO_URI: "mongodb://x", MONGO_MAX_POOL_SIZE: 5, PORT: "3000", DISCORD_TOKEN: "t" } as RuntimeEnv & { MONGO_URI: string; DISCORD_TOKEN: string },
@@ -120,9 +126,19 @@ test("createAppRuntime: start() ruleaza secventa de boot in ordine (connect -> m
   await app.start();
   assert.deepEqual(
     h.order,
-    ["connect", "ready", "migrate", "loadUpdates", "loadDeals", "listen", "login"],
-    "boot-ul respecta ordinea connect -> ready -> migrate -> hydrate -> listen -> login"
+    ["connect", "ready", "migrate", "redis.connect", "loadUpdates", "loadDeals", "listen", "login"],
+    "boot-ul respecta ordinea connect -> ready -> migrate -> redis -> hydrate -> listen -> login"
   );
+});
+
+test("createAppRuntime: boot-ul conecteaza Redis dupa startup-ul Mongo si inainte de hidratarea cache-ului", async () => {
+  const h = makeDeps();
+  const app = createAppRuntime(h.deps);
+  await app.start();
+  const at = (label: string) => h.order.indexOf(label);
+  assert.ok(at("redis.connect") !== -1, "boot-ul apeleaza redis.connect()");
+  assert.ok(at("redis.connect") > at("migrate"), "redis.connect ruleaza dupa startup-ul Mongo");
+  assert.ok(at("redis.connect") < at("loadUpdates"), "redis.connect ruleaza inainte de hidratarea cache-ului");
 });
 
 test("createAppRuntime: hidrateaza cache-urile din snapshot-uri proaspete", async () => {
