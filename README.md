@@ -287,6 +287,7 @@ Ambele registre de wiring compun acum **explicit** (apeluri ordonate, fara `inst
 
 - `docs/architecture/CONTEXT_REPO_CLEAN.md` - stare curenta, structura si zone ramase.
 - `docs/architecture/FUNCTION_MAP_CLEAN.md` - harta pe module si responsabilitati.
+- `docs/architecture/redis.md` - integrarea Redis (optionala): rol, limite, ce sta in Mongo vs Redis, ce nu e inca inclus.
 - `CHANGELOG.md` - schimbari publice.
 - `OPERATIONS.md` - runbook de operare (outbox: metrici, alerte, pauza, recovery-verify, setari recomandate).
 - `BENCHMARKS.md` - masuratori de performanta + decizii (ce sta in Rust vs TypeScript); ruleaza cu `npm run benchmark:cpu` si `npm run benchmark:outbox`.
