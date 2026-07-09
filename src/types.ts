@@ -85,6 +85,7 @@ export type {
 
 export type CurrencyCode = "USD" | "EUR" | "GBP" | "RON";
 export type BotRole = "all" | "web" | "worker";
+export type DiscordReplyPayload = string | Record<string, unknown>;
 export type AbortPredicate = (() => boolean) | null;
 export type MaybePromise<T> = T | Promise<T>;
 export type PriceValue = string | number;

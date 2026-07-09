@@ -1,6 +1,6 @@
 "use strict";
 
-import type { CurrencyCode, GameConfig } from "../../types";
+import type { CurrencyCode, DiscordReplyPayload, GameConfig } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { buildResetConfiguration } from "../guild-config/guildConfigDefaults";
 import { resetGuildConfigurationWithAudit, setAdminAlertChannel } from "../guild-config/guildConfigRepository";
@@ -8,7 +8,7 @@ import { resetGuildConfigurationWithAudit, setAdminAlertChannel } from "../guild
 import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
-type InteractionPayload = string | Record<string, unknown>;
+type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
 interface DiscordChannel {
