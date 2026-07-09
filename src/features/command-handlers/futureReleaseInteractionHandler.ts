@@ -3,7 +3,7 @@
 import type { FutureReleaseGameEntry, GameConfig, GuildSettings } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
-import { deleteFutureReleaseGame, listFutureReleaseGames, saveFutureReleaseGame } from "../admin-records/futureReleaseGamesRepository";
+import { deleteFutureReleaseGame, listFutureReleaseGames, saveFutureReleaseGame, startFutureReleaseNotifications, stopFutureReleaseNotifications } from "../admin-records/futureReleaseGamesRepository";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
@@ -129,34 +129,13 @@ function createFutureReleaseInteractionHandler(deps: FutureReleaseDeps) {
     }
     if (!interaction.channel?.id) return safeEdit(interaction, missingChannelPermsMessage());
     const activationId = makeActivationId();
-    await GuildModel.updateOne(
-      { _id: guildId },
-      {
-        $set: {
-          futureReleaseSubscribed: true,
-          futureReleaseChannelId: interaction.channel.id,
-          futureReleaseInitializing: false,
-          futureReleaseActivationId: activationId
-        }
-      },
-      { upsert: true }
-    );
+    await startFutureReleaseNotifications(GuildModel, guildId, interaction.channel.id, activationId);
     invalidateGuildCache(guildId);
     return safeEdit(interaction, `OK: future-release este activ pe <#${interaction.channel.id}>. Botul foloseste lista din \`/future-release list\`.`);
   }
 
   async function handleStop(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
-    await GuildModel.updateOne(
-      { _id: guildId },
-      {
-        $set: {
-          futureReleaseSubscribed: false,
-          futureReleaseChannelId: null,
-          futureReleaseInitializing: false
-        },
-        $unset: { futureReleaseActivationId: "" }
-      }
-    );
+    await stopFutureReleaseNotifications(GuildModel, guildId);
     invalidateGuildCache(guildId);
     return safeEdit(interaction, "OK: notificarile future-release au fost oprite pentru acest server.");
   }

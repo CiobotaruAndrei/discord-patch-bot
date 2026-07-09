@@ -5,8 +5,21 @@ import type { FutureReleaseGameEntry, GuildSettings } from "../types";
 import {
   deleteFutureReleaseGame,
   listFutureReleaseGames,
-  saveFutureReleaseGame
+  saveFutureReleaseGame,
+  startFutureReleaseNotifications,
+  stopFutureReleaseNotifications
 } from "../features/admin-records/futureReleaseGamesRepository";
+
+function captureModel() {
+  const calls: Array<{ filter: Record<string, unknown>; update: Record<string, unknown>; options?: Record<string, unknown> }> = [];
+  return {
+    calls,
+    updateOne: async (filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>) => {
+      calls.push({ filter, update, options });
+      return { matchedCount: 1, modifiedCount: 1 };
+    }
+  };
+}
 
 function futureReleaseModel(existing: FutureReleaseGameEntry[]) {
   const calls: Array<{ update: unknown; options?: unknown }> = [];
@@ -60,4 +73,32 @@ test("listFutureReleaseGames sorteaza alfabetic; deleteFutureReleaseGame normali
   const removed = await deleteFutureReleaseGame(model, "guild-1", "  Silksong  ");
   assert.equal(removed, true);
   assert.deepEqual(model.pulls[0], { $pull: { futureReleaseGames: { gameName: "silksong" } } }, "numele e normalizat inainte de $pull");
+});
+
+test("startFutureReleaseNotifications: $set subscribe/canal/activare cu upsert (scriere mutata din handler)", async () => {
+  const model = captureModel();
+  await startFutureReleaseNotifications(model, "guild-1", "chan-9", "act-abc");
+  assert.equal(model.calls.length, 1);
+  assert.deepEqual(model.calls[0].filter, { _id: "guild-1" });
+  assert.deepEqual(model.calls[0].update, {
+    $set: {
+      futureReleaseSubscribed: true,
+      futureReleaseChannelId: "chan-9",
+      futureReleaseInitializing: false,
+      futureReleaseActivationId: "act-abc"
+    }
+  });
+  assert.deepEqual(model.calls[0].options, { upsert: true });
+});
+
+test("stopFutureReleaseNotifications: $set unsubscribe + $unset activationId, fara upsert", async () => {
+  const model = captureModel();
+  await stopFutureReleaseNotifications(model, "guild-1");
+  assert.equal(model.calls.length, 1);
+  assert.deepEqual(model.calls[0].filter, { _id: "guild-1" });
+  assert.deepEqual(model.calls[0].update, {
+    $set: { futureReleaseSubscribed: false, futureReleaseChannelId: null, futureReleaseInitializing: false },
+    $unset: { futureReleaseActivationId: "" }
+  });
+  assert.equal(model.calls[0].options, undefined, "stop nu foloseste upsert");
 });
