@@ -292,6 +292,12 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-handlers/dlcInteractionHandler.ts`
 
 - Gestioneaza `/dlc`.
+- Delegheaza parsarea paginii Steam (`dlcPageHasAgeGate`/`parseDlcRows`/`dlcPageLooksLikeStorePage`) modulului pur `dlcSteamPage.ts`.
+
+### `src/features/command-handlers/dlcSteamPage.ts`
+
+- Functii pure de parsare a paginii de magazin Steam pe baza unui `CheerioAPI` deja incarcat: `dlcPageHasAgeGate` (detecteaza age-gate-ul), `parseDlcRows` (extrage numele + pretul DLC-urilor, deduplicat dupa `data-ds-appid`, cu `Pret indisponibil` la pret lipsa) si `dlcPageLooksLikeStorePage` (distinge schema drift de o pagina fara DLC-uri).
+- Fara acces la retea/DI; testabil izolat cu cheerio real pe HTML-fixtura.
 
 ### `src/features/command-handlers/statusInteractionHandler.ts`
 
