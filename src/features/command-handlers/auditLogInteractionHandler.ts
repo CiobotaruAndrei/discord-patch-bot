@@ -1,6 +1,6 @@
 "use strict";
 
-import type { BotAuditLogEntry, GameConfig, GuildSettings, ServerAuditLogEntry } from "../../types";
+import type { BotAuditLogEntry, DiscordReplyPayload, GameConfig, GuildSettings, ServerAuditLogEntry } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 import { listBotAuditEntries, listBotAuditEntriesInRange, listServerAuditEntries, listServerAuditEntriesInRange } from "../admin-records/auditLogRepository";
@@ -9,7 +9,7 @@ import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
-type InteractionPayload = string | Record<string, unknown>;
+type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
 interface DiscordInteraction {

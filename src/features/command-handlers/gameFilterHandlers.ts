@@ -1,7 +1,7 @@
 "use strict";
 
 import { addWatchlistGame, applyGuildConfigUpdate, removeWatchlistGame } from "../guild-config/guildConfigRepository";
-import type { GameConfig, GuildSettings, MongoWriteOutcome } from "../../types";
+import type { DiscordReplyPayload, GameConfig, GuildSettings, MongoWriteOutcome } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 
@@ -9,7 +9,7 @@ const { errorDetail } = require("../../shared/errors");
 
 type MaybePromise<T> = T | Promise<T>;
 
-type InteractionPayload = string | Record<string, unknown>;
+type InteractionPayload = DiscordReplyPayload;
 type MongoWriteResult = MongoWriteOutcome;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type GameFilterSurface = "set-games" | "watchlist";

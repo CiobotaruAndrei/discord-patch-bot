@@ -1,6 +1,6 @@
 "use strict";
 
-import type { GameConfig, GuildSettings, SuggestedCommandEntry } from "../../types";
+import type { DiscordReplyPayload, GameConfig, GuildSettings, SuggestedCommandEntry } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 import { deleteSuggestedCommand, listSuggestedCommands, saveSuggestedCommand } from "../admin-records/suggestedCommandsRepository";
@@ -11,7 +11,7 @@ import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 const defaultRequireGuildAdmin = require("../command-security/adminPermissionGuard") as RequireGuildAdmin;
 
-type InteractionPayload = string | Record<string, unknown>;
+type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type RequireGuildAdmin = (interaction: DiscordInteraction) => Promise<boolean>;
 
