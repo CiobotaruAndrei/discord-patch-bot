@@ -319,6 +319,12 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Gestioneaza `/report submit`, `/report list` si `/report resolve`.
 - `submit` ramane public pentru raportarea problemelor, iar `list`/`resolve` folosesc guard runtime de administrator fiindca top-level-ul `/report` trebuie sa ramana accesibil public pentru raportare.
+- Delegheaza construirea embed-urilor/textelor de raport (`buildReportConfirmEmbed`/`buildReportAlertBody`/`buildReportListEmbed`) modulului pur `reportViews.ts`; le re-exporta pentru compatibilitate.
+
+### `src/features/command-handlers/reportViews.ts`
+
+- Functii pure de prezentare pentru `/report`: `buildReportConfirmEmbed` (embed de confirmare), `buildReportAlertBody` (corpul alertei admin) si `buildReportListEmbed` (lista rapoartelor, cu truncare si `clampJoinedList`), plus tipul `ReportRecord`.
+- Fara acces la Mongo/Discord/DI; depinde doar de `feedback.reportTypeLabel` si `clampJoinedList`. Testabil izolat.
 
 ### `src/features/command-handlers/autocompleteInteractionHandler.ts`
 
