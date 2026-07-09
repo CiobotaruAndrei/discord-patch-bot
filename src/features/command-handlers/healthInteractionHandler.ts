@@ -1,6 +1,7 @@
 "use strict";
 
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { matchesCommand } from "../command-registry/commandMatch";
 import type { RedisStatus } from "../../infra/redis/redisClient";
 
 import { handledCommandError } from "../command-security/commandOutcome";
@@ -116,8 +117,7 @@ function createHealthInteractionHandler(deps: HealthHandlerDeps) {
 }
 
 function isHealthCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && interaction.commandName === "health";
+  return matchesCommand(interaction, { commandNames: ["health"], requireGuild: false });
 }
 
 function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {

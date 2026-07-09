@@ -104,6 +104,11 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Boundary-ul de instalare dinamic (`installers: unknown[]` + `install(context as never)` + `LegacyInstallerTarget` + `CommandInstallerTarget` + `isCommandModuleInstaller`) a fost **eliminat**: compunerea e statica si verificata integral de `tsc`, fara niciun `as` pe boundary. **Cum a fost deblocata** estimarea anterioara (registrul ar trebui sa satisfaca simultan toate contextele locale, colapsand in `never`/`any`): reconciliind dep cu dep fiecare contract de handler la factory-ul real — stramtarea deps-urilor loose la semnaturi contravariante reale, segregare de interfata (contracte minimale ca `SteamPriceData`/`EmbeddableUpdate`, modele Mongo reduse la `OutboxRuntimeDeps`/`HistoryRepositoryDeps`) si unificarea tipurilor duplicate (`PendingUpdate`/`PendingDiscount` la alias-uri `types.*`). Garda din `registryClosedContracts.test.ts` pinuieste zero `installers`/`CommandInstallerTarget`/`isCommandModuleInstaller` si prezenta `requireInstalled`.
 - Ramane o zona de tranzitie pana cand toate dependintele sunt injectate explicit (factory-uri, fara registru).
 
+### `src/features/command-registry/commandMatch.ts`
+
+- `CommandDescriptor` declarativ (`{ commandNames, requireGuild?, group?, subcommand? }`) + `matchesCommand(interaction, descriptor)` — matcher pur care inlocuieste predicatele `canHandle` duplicate din handler-e (verifica chat-input, guild optional, numele comenzii, si optional grupul/subcomanda; throw-safe la `getSubcommand`).
+- Adoptie **incrementala**: handler-ele cu forma comuna (`config`/`deal-score`/`dlc`/`health`/`bot-log`+`server-log`/`set role`/`sources status` etc.) isi definesc `is*Command` delegand la `matchesCommand`; handler-ele cu logica genuin custom (`backup`, `set` cu excluderi, `price-alert`, `game-info`) raman pe predicate proprii. Testat in `commandMatch.test.ts`.
+
 ### `src/features/command-runtime/commandRuntimeContext.ts`
 
 - Construieste contextul comun folosit de wiring.

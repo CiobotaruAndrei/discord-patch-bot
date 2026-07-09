@@ -257,7 +257,7 @@ Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `Co
 - `autocompleteChoiceBuilders.ts` - factory `createAutocompleteChoiceBuilders({ logger, getGuildSettings })` cu cele cinci constructoare de alegeri dependente de setarile guild-ului (set-games remove pool, price-alert remove pool, canale/rute/cuvinte-titlu YouTube), best-effort cu fallback la eroare;
 - `fallbackInteractionHandler.ts` - fallback de final.
 
-Fiecare handler primeste dependinte explicite si tipate (factory `createX(deps)`) si expune `buildCommandHandler(ctx): CommandHandler`; `commandRegistry` le aseaza intr-o **lista tipata `CommandHandler[]`** rutata de `dispatchCommand` — primul handler cu `canHandle` adevarat trateaza comanda, fallback-ul (mereu `canHandle: () => true`) e ultimul.
+Fiecare handler primeste dependinte explicite si tipate (factory `createX(deps)`) si expune `buildCommandHandler(ctx): CommandHandler`; `commandRegistry` le aseaza intr-o **lista tipata `CommandHandler[]`** rutata de `dispatchCommand` — primul handler cu `canHandle` adevarat trateaza comanda, fallback-ul (mereu `canHandle: () => true`) e ultimul. Predicatele `canHandle` cu forma comuna (chat-input + guild optional + nume comanda [+ grup/subcomanda]) sunt exprimate declarativ prin `command-registry/commandMatch.ts` (`CommandDescriptor` + `matchesCommand`), adoptat incremental; handler-ele cu logica genuin custom (`backup`, `set` cu excluderi, `price-alert`, `game-info`) raman pe predicate proprii.
 
 ## Notificari
 

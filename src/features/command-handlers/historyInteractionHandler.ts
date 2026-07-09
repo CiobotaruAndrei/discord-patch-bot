@@ -1,6 +1,7 @@
 "use strict";
 
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { matchesCommand } from "../command-registry/commandMatch";
 
 const { errorDetail } = require("../../shared/errors");
 
@@ -127,9 +128,7 @@ function createHistoryInteractionHandler(deps: HistoryHandlerDeps) {
 }
 
 function isHistoryCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && Boolean(interaction.guild)
-    && interaction.commandName === "history";
+  return matchesCommand(interaction, { commandNames: ["history"] });
 }
 
 function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {

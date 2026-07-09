@@ -2,6 +2,7 @@
 
 import type { CurrencyCode, DiscordReplyPayload, GameConfig } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { matchesCommand } from "../command-registry/commandMatch";
 import { buildResetConfiguration } from "../guild-config/guildConfigDefaults";
 import { resetGuildConfigurationWithAudit, setAdminAlertChannel } from "../guild-config/guildConfigRepository";
 
@@ -129,9 +130,7 @@ function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps)
 }
 
 function isGuildConfigurationAdminCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && Boolean(interaction.guild)
-    && (interaction.commandName === "reset-config" || interaction.commandName === "admin-alerts");
+  return matchesCommand(interaction, { commandNames: ["reset-config", "admin-alerts"] });
 }
 
 function buildGuildConfigurationAdminCommandHandler(target: GuildConfigurationAdminContext) {
