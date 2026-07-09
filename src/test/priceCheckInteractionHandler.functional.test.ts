@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import type { DealInfo } from "../types";
+import { buildPriceCheckEmbed, findComparableDeals, titlesComparable } from "../features/command-handlers/priceCheckComparison";
 
 const installPriceCheck = require("../features/command-handlers/priceCheckInteractionHandler") as typeof import("../features/command-handlers/priceCheckInteractionHandler");
 
@@ -63,7 +64,7 @@ test("/price-check compara Steam cu sursele externe si ignora Steam/entry-uri fa
 });
 
 test("/price-check embed explica lipsa surselor externe cand fetch-ul pica", () => {
-  const embed = installPriceCheck.buildPriceCheckEmbed(
+  const embed = buildPriceCheckEmbed(
     "elden",
     "1245620",
     { name: "Elden Ring", price_overview: { initial: 5999, final: 3999, discount_percent: 33 } },
@@ -84,19 +85,19 @@ test("findComparableDeals: nu mai face false-match pe substring pentru nume gene
     { title: "DOOM Eternal", store: "Humble", salePrice: 10, currency: "EUR" },
     { title: "Elden Ring", store: "Steam", salePrice: 30, currency: "EUR" }
   ];
-  const matches = installPriceCheck.findComparableDeals(deals, "doom", "DOOM Eternal", "");
+  const matches = findComparableDeals(deals, "doom", "DOOM Eternal", "");
   assert.deepEqual(matches.map(deal => deal.title), ["DOOM Eternal"], "doar potrivirea pe token reala; 'doom' nu mai prinde 'lego' prin substring, iar magazinul Steam e exclus");
 });
 
 test("findComparableDeals: appId Steam exact = potrivire sigura chiar daca titlul difera (R[P3])", () => {
   const deals: DealInfo[] = [{ title: "titlu localizat diferit", store: "GOG", appId: "1245620", salePrice: 20, currency: "EUR" }];
-  const matches = installPriceCheck.findComparableDeals(deals, "elden ring", "ELDEN RING", "1245620");
+  const matches = findComparableDeals(deals, "elden ring", "ELDEN RING", "1245620");
   assert.equal(matches.length, 1, "acelasi appId Steam confirma jocul indiferent de titlu");
 });
 
 test("titlesComparable: token generic nu se potriveste, dar jocul real (cu DLC/editie) da", () => {
-  assert.equal(installPriceCheck.titlesComparable("go", "Lego Worlds"), false);
-  assert.equal(installPriceCheck.titlesComparable("doom", "Doomsday Survivors"), false);
-  assert.equal(installPriceCheck.titlesComparable("elden ring", "Elden Ring Deluxe Edition"), true);
-  assert.equal(installPriceCheck.titlesComparable("Elden Ring", "elden ring"), true);
+  assert.equal(titlesComparable("go", "Lego Worlds"), false);
+  assert.equal(titlesComparable("doom", "Doomsday Survivors"), false);
+  assert.equal(titlesComparable("elden ring", "Elden Ring Deluxe Edition"), true);
+  assert.equal(titlesComparable("Elden Ring", "elden ring"), true);
 });
