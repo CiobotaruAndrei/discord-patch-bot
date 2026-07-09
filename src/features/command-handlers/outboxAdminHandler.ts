@@ -3,6 +3,7 @@
 import type { OutboxDiscordClient } from "../notifications/outboundChannel";
 import type { RuntimeEnv } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { matchesCommand } from "../command-registry/commandMatch";
 import type {
   ChannelPermissions,
   DrainResultLike,
@@ -133,9 +134,7 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
 }
 
 function isDirectOutboxCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && Boolean(interaction.guild)
-    && interaction.commandName === "outbox";
+  return matchesCommand(interaction, { commandNames: ["outbox"] });
 }
 
 function buildOutboxAdminCommandHandler(target: OutboxAdminContext) {

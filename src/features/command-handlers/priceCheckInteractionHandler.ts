@@ -2,6 +2,7 @@
 
 import type { DealInfo, GameConfig, GuildSettings, PriceValue } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { matchesCommand } from "../command-registry/commandMatch";
 import {
   buildPriceCheckEmbed,
   findComparableDeals,
@@ -111,9 +112,7 @@ function createPriceCheckInteractionHandler(deps: PriceCheckDeps) {
 }
 
 function isPriceCheckCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && Boolean(interaction.guild)
-    && interaction.commandName === "price-check";
+  return matchesCommand(interaction, { commandNames: ["price-check"] });
 }
 
 function buildPriceCheckCommandHandler(target: PriceCheckContext) {

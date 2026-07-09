@@ -1,6 +1,7 @@
 "use strict";
 
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { matchesCommand } from "../command-registry/commandMatch";
 import type { CurrencyCode, GameConfig, GuildSettings } from "../../types";
 import { buildConfigEmbed, type ConfigEmbed } from "./configView";
 
@@ -56,9 +57,7 @@ function createConfigInteractionHandler(deps: ConfigHandlerDeps) {
 }
 
 function isConfigCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && Boolean(interaction.guild)
-    && interaction.commandName === "config";
+  return matchesCommand(interaction, { commandNames: ["config"] });
 }
 
 function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }): InteractionPayload {

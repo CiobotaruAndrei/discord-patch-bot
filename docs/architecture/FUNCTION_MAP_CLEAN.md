@@ -107,7 +107,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-registry/commandMatch.ts`
 
 - `CommandDescriptor` declarativ (`{ commandNames, requireGuild?, group?, subcommand? }`) + `matchesCommand(interaction, descriptor)` — matcher pur care inlocuieste predicatele `canHandle` duplicate din handler-e (verifica chat-input, guild optional, numele comenzii, si optional grupul/subcomanda; throw-safe la `getSubcommand`).
-- Adoptie **incrementala**: handler-ele cu forma comuna (`config`/`deal-score`/`dlc`/`health`/`bot-log`+`server-log`/`set role`/`sources status` etc.) isi definesc `is*Command` delegand la `matchesCommand`; handler-ele cu logica genuin custom (`backup`, `set` cu excluderi, `price-alert`, `game-info`) raman pe predicate proprii. Testat in `commandMatch.test.ts`.
+- Adoptat de **toate cele 16 handler-e cu forma comuna** (`config`/`deal-score`/`dlc`/`price-check`/`report`/`help`/`latest`/`future-release`/`outbox`/`history`/`maintenance` nume simplu, `bot-log`+`server-log` & `reset-config`+`admin-alerts` multi-nume, `health` `requireGuild:false`, `set role` grup, `sources status` subcomanda): `is*Command` deleaga la `matchesCommand`. Handler-ele cu logica genuin custom (`backup`, `set` cu excluderi, `price-alert`, `game-info`, `simple-commands`, `watchlist`/`set games`) raman pe predicate proprii. Testat in `commandMatch.test.ts`.
 
 ### `src/features/command-runtime/commandRuntimeContext.ts`
 

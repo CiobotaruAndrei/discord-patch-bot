@@ -2,6 +2,7 @@
 
 import type { DiscordReplyPayload, FutureReleaseGameEntry, GameConfig, GuildSettings } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { matchesCommand } from "../command-registry/commandMatch";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 import { deleteFutureReleaseGame, listFutureReleaseGames, saveFutureReleaseGame, startFutureReleaseNotifications, stopFutureReleaseNotifications } from "../admin-records/futureReleaseGamesRepository";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
@@ -157,9 +158,7 @@ function createFutureReleaseInteractionHandler(deps: FutureReleaseDeps) {
 }
 
 function isFutureReleaseCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && Boolean(interaction.guild)
-    && interaction.commandName === "future-release";
+  return matchesCommand(interaction, { commandNames: ["future-release"] });
 }
 
 function buildFutureReleaseCommandHandler(target: FutureReleaseContext) {

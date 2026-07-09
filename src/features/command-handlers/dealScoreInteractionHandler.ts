@@ -2,6 +2,7 @@
 
 import type { DealInfo, GameConfig, GuildSettings, PriceValue } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { matchesCommand } from "../command-registry/commandMatch";
 
 const { errorDetail, errorMessage } = require("../../shared/errors") as typeof import("../../shared/errors");
 
@@ -166,9 +167,7 @@ function createDealScoreInteractionHandler(deps: DealScoreDeps) {
 }
 
 function isDealScoreCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && Boolean(interaction.guild)
-    && interaction.commandName === "deal-score";
+  return matchesCommand(interaction, { commandNames: ["deal-score"] });
 }
 
 function buildDealScoreCommandHandler(target: DealScoreContext) {

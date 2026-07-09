@@ -70,3 +70,21 @@ test("matchesCommand: filtreaza pe subcomanda si trateaza throw-ul ca fara subco
 test("matchesCommand: commandName lipsa -> false", () => {
   assert.equal(matchesCommand(makeInteraction({}), { commandNames: ["config"] }), false);
 });
+
+test("matchesCommand: interactiune fara options -> group/subcommand cerute nu se potrivesc", () => {
+  const bare = {
+    commandName: "sources",
+    guild: { id: "g1" },
+    isChatInputCommand: () => true
+  };
+  assert.equal(matchesCommand(bare, { commandNames: ["sources"], subcommand: "status" }), false);
+  assert.equal(matchesCommand(bare, { commandNames: ["sources"], group: "x" }), false);
+  assert.equal(matchesCommand(bare, { commandNames: ["sources"] }), true);
+});
+
+test("matchesCommand: grup si subcomanda combinate trebuie sa se potriveasca amandoua", () => {
+  const desc: CommandDescriptor = { commandNames: ["set"], group: "add", subcommand: "games" };
+  assert.equal(matchesCommand(makeInteraction({ commandName: "set", group: "add", subcommand: "games" }), desc), true);
+  assert.equal(matchesCommand(makeInteraction({ commandName: "set", group: "add", subcommand: "role" }), desc), false);
+  assert.equal(matchesCommand(makeInteraction({ commandName: "set", group: "remove", subcommand: "games" }), desc), false);
+});
