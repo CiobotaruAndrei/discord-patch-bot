@@ -43,11 +43,11 @@ test("recordNativeFallback: log-ul este throttled per functie (o data per fereas
 });
 
 test("NATIVE_FALLBACK_FUNCTIONS enumera doar functiile inca native-primary (cele care pot face fallback)", () => {
-  for (const fn of ["classifyPatchNote", "scoreListingCandidate", "rankListingCandidates", "isGoodSteamArticleUrl", "extractDateScore"]) {
+  for (const fn of ["classifyPatchNote", "scoreListingCandidate", "rankListingCandidates", "isGoodSteamArticleUrl", "extractDateScore", "findGameKeys", "buildAutocompleteChoices"]) {
     assert.ok(fuzzy.NATIVE_FALLBACK_FUNCTIONS.includes(fn), `lista canonica include ${fn}`);
   }
-  assert.equal(fuzzy.NATIVE_FALLBACK_FUNCTIONS.length, 5);
-  for (const tsPrimary of ["findGameKeys", "buildAutocompleteChoices", "dealPassesFilters"]) {
+  assert.equal(fuzzy.NATIVE_FALLBACK_FUNCTIONS.length, 7);
+  for (const tsPrimary of ["dealPassesFilters"]) {
     assert.ok(!fuzzy.NATIVE_FALLBACK_FUNCTIONS.includes(tsPrimary), `${tsPrimary} este TS-primary, nu mai face fallback nativ`);
   }
 });
