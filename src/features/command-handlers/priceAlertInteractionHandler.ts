@@ -1,6 +1,6 @@
 "use strict";
 
-import type { CurrencyCode, GameConfig, GuildSettings, PriceAlertRule } from "../../types";
+import type { CurrencyCode, GameConfig, GuildSettings, MongoWriteOutcome, PriceAlertRule } from "../../types";
 import {
   MAX_PRICE_ALERTS_PER_GUILD,
   buildPriceAlertRule,
@@ -15,7 +15,7 @@ import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
 type InteractionPayload = string | Record<string, unknown>;
-type MongoWriteResult = { matchedCount?: number; modifiedCount?: number };
+type MongoWriteResult = MongoWriteOutcome;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
 interface DiscordInteraction {

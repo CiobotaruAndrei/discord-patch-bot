@@ -1,10 +1,10 @@
 "use strict";
 
-import type { CurrencyCode, ServerAuditLogEntry } from "../../types";
+import type { CurrencyCode, MongoWriteOutcome, ServerAuditLogEntry } from "../../types";
 import { buildServerAuditPush } from "../admin-records/auditLogRepository";
 import { buildResetConfiguration } from "./guildConfigDefaults";
 
-export interface GuildConfigWriteResult { matchedCount?: number; modifiedCount?: number }
+export type GuildConfigWriteResult = MongoWriteOutcome;
 
 export interface GuildConfigWriteModelLike {
   updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<GuildConfigWriteResult>;
