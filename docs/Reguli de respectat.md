@@ -20,11 +20,12 @@
 18. Cand se da review la repo, AI-ul nu trebuie sa dea review pe baza copertii repo-ului, adica sa citeasca doar numele fisierelor si sa presupuna automat ca numele fisierului corespunde 100% cu codul din acel fisier; AI-ul trebuie sa citeasca codul din fisiere pentru un review realist.
 19. Daca la un review de cod sunt mai multe lucruri de implementat in repo si nu se pot face toate dintr-o data, AI-ul trebuie sa retina sau sa isi scrie undeva toate lucrurile care sunt de implementat.
 20. Cand AI-ul citeste un review de cod si vrea sa implementeze in cod ce se cere in review, trebuie sa verifice mai intai daca ce se spune in review este adevarat si folositor inainte sa implementeze schimbarea.
-21. Un AI care trebuie sa dea doar review la cod trebuie sa respecte doar regulile din acest fisier care tin de review-ul de cod, nu si regulile care nu au legatura cu review-ul de cod.
-22. Cand se da review la cod, AI-ul trebuie sa mentioneze mai multe fix-uri sau imbunatatiri pentru codul din repo, nu doar un singur fix sau o singura imbunatatire, decat daca a ramas un singur fix sau o singura imbunatatire pentru nota 10.
-23. Cand se da review la cod, AI-ul trebuie sa verifice pentru repo-ul curent daca o anumita bucata de cod scrisa intr-un anumit limbaj poate fi inlocuita cu o bucata de cod scrisa intr-un alt limbaj care ar face botul mai performant pentru acea bucata de cod, astfel incat botul sa fie mai bun in ce face si mai bine optimizat.
-24. Daca o regula noua care urmeaza sa fie adaugata in acest fisier are aceleasi cerinte ca o regula deja existenta mai sus, regula noua nu se mai adauga in fisier.
-25. Cand se adauga o regula noua in acest fisier, se da direct merge, pentru ca nu este nevoie sa se verifice ceva cand este adaugata o regula.
-26. Toate implementarile in cod trebuie sa respecte toate regulile din acest fisier.
-27. Regulile care au legatura cu toate celelalte reguli trebuie puse ultimele in lista de reguli si trebuie facuta renumerotarea.
-28. Doar regulile din acest fisier vor exista pentru acest repo; oricare alta regula din alte fisiere, daca exista, trebuie stearsa.
+21. Daca un AI da review la repo si recomanda o refactorizare care ar face arhitectura repo-ului mai buna, recomandarea trebuie implementata in repo dupa ce se verifica faptul ca este corecta si nu este overengineering. Nu este necesar un castig imediat separat, fiindca imbunatatirea arhitecturii este in sine castigul.
+22. Un AI care trebuie sa dea doar review la cod trebuie sa respecte doar regulile din acest fisier care tin de review-ul de cod, nu si regulile care nu au legatura cu review-ul de cod.
+23. Cand se da review la cod, AI-ul trebuie sa mentioneze mai multe fix-uri sau imbunatatiri pentru codul din repo, nu doar un singur fix sau o singura imbunatatire, decat daca a ramas un singur fix sau o singura imbunatatire pentru nota 10.
+24. Cand se da review la cod, AI-ul trebuie sa verifice pentru repo-ul curent daca o anumita bucata de cod scrisa intr-un anumit limbaj poate fi inlocuita cu o bucata de cod scrisa intr-un alt limbaj care ar face botul mai performant pentru acea bucata de cod, astfel incat botul sa fie mai bun in ce face si mai bine optimizat.
+25. Daca o regula noua care urmeaza sa fie adaugata in acest fisier are aceleasi cerinte ca o regula deja existenta mai sus, regula noua nu se mai adauga in fisier.
+26. Cand se adauga o regula noua in acest fisier, se da direct merge, pentru ca nu este nevoie sa se verifice ceva cand este adaugata o regula.
+27. Toate implementarile in cod trebuie sa respecte toate regulile din acest fisier.
+28. Regulile care au legatura cu toate celelalte reguli trebuie puse ultimele in lista de reguli si trebuie facuta renumerotarea.
+29. Doar regulile din acest fisier vor exista pentru acest repo; oricare alta regula din alte fisiere, daca exista, trebuie stearsa.
