@@ -97,6 +97,7 @@ src/
       outboxAdminOperations.ts
       outboxAdminViews.ts
       reportInteractionHandler.ts
+      reportViews.ts
       rolePingHandlers.ts
       setInteractionHandler.ts
       setUpdatePlan.ts
@@ -240,7 +241,8 @@ Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `Co
 - `statusInteractionHandler.ts` - `/status`;
 - `sourcesStatusHandler.ts` - `/sources status`, sumarul ultimelor snapshot-uri persistate pentru sursele externe;
 - `youtubeInteractionHandler.ts` - toate comenzile `/youtube`: abonare/dezabonare, canal principal, rute speciale, sablon, filtre, afisare manuala, status, permisiuni si erori;
-- `reportInteractionHandler.ts` - `/report submit`, `/report list` si `/report resolve`; `submit` este public, iar `list`/`resolve` au verificare runtime de administrator;
+- `reportInteractionHandler.ts` - `/report submit`, `/report list` si `/report resolve`; `submit` este public, iar `list`/`resolve` au verificare runtime de administrator; embed-urile/textele de raport sunt construite in modulul pur `reportViews.ts`;
+- `reportViews.ts` - functii pure de prezentare pentru `/report` (`buildReportConfirmEmbed`/`buildReportAlertBody`/`buildReportListEmbed`) + tipul `ReportRecord`, fara acces la Mongo/Discord;
 - `autocompleteInteractionHandler.ts` - autocomplete pentru optiuni (rutare + scoring de referinta + predicatul `acceptsGameOption`); construirea pool-urilor de alegeri care citesc setarile guild-ului e delegata factory-ului `autocompleteChoiceBuilders.ts`;
 - `autocompleteChoiceBuilders.ts` - factory `createAutocompleteChoiceBuilders({ logger, getGuildSettings })` cu cele cinci constructoare de alegeri dependente de setarile guild-ului (set-games remove pool, price-alert remove pool, canale/rute/cuvinte-titlu YouTube), best-effort cu fallback la eroare;
 - `fallbackInteractionHandler.ts` - fallback de final.
