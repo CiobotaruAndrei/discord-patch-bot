@@ -259,6 +259,12 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Gestioneaza `/price-check`.
 - Cauta jocul pe Steam, afiseaza pretul Steam in embed verde si compara cu ofertele similare din feed-ul de reduceri deja folosit de bot.
+- Delegheaza comparatia de titluri si construirea embed-ului (`titlesComparable`/`findComparableDeals`/`buildPriceCheckEmbed`) modulului pur `priceCheckComparison.ts`; le re-exporta pentru compatibilitate.
+
+### `src/features/command-handlers/priceCheckComparison.ts`
+
+- Functii pure de comparatie si prezentare pentru `/price-check`: `titlesComparable` (potrivire de titluri prin token overlap + Jaccard), `findComparableDeals` (filtreaza ofertele externe comparabile, exclude Steam, potrivire sigura pe appId), `buildPriceCheckEmbed` (embed-ul de comparatie) + helperele `normalizeTitle`/`numericPrice`/`steamPriceLine`/`titleTokens` si tipul `SteamPriceData`.
+- Fara acces la retea/DI; `formatPrice` primit ca parametru. Testabil izolat.
 
 ### `src/features/command-handlers/dealScoreInteractionHandler.ts`
 
