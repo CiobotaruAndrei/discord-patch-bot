@@ -3,6 +3,7 @@
 import { applyGuildConfigUpdate } from "../guild-config/guildConfigRepository";
 import type { DiscordReplyPayload, GameConfig, MongoWriteOutcome } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { matchesCommand } from "../command-registry/commandMatch";
 
 const { errorDetail } = require("../../shared/errors");
 
@@ -86,11 +87,8 @@ function createRolePingInteractionHandlers(deps: RolePingInteractionDeps) {
   return { handleSetRole, handleSetRoleInteraction };
 }
 
-function isSetRoleCommand(interaction: DiscordInteraction) {
-  return interaction?.isChatInputCommand?.() === true
-    && interaction.guild
-    && interaction.commandName === "set"
-    && interaction.options?.getSubcommandGroup?.(false) === "role";
+function isSetRoleCommand(interaction: DiscordInteraction): boolean {
+  return matchesCommand(interaction, { commandNames: ["set"], group: "role" });
 }
 
 function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {

@@ -2,6 +2,7 @@
 
 import type { ConfigBackupRecord, GameConfig, GuildSettings } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { matchesCommand } from "../command-registry/commandMatch";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
@@ -109,9 +110,7 @@ function createMaintenanceInteractionHandler(deps: MaintenanceDeps) {
 }
 
 function isMaintenanceCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && Boolean(interaction.guild)
-    && interaction.commandName === "maintenance";
+  return matchesCommand(interaction, { commandNames: ["maintenance"] });
 }
 
 function buildMaintenanceCommandHandler(target: MaintenanceContext) {

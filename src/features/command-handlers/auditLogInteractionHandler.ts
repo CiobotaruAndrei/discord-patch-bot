@@ -2,6 +2,7 @@
 
 import type { BotAuditLogEntry, DiscordReplyPayload, GameConfig, GuildSettings, ServerAuditLogEntry } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { matchesCommand } from "../command-registry/commandMatch";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 import { listBotAuditEntries, listBotAuditEntriesInRange, listServerAuditEntries, listServerAuditEntriesInRange } from "../admin-records/auditLogRepository";
 import { handledCommandError } from "../command-security/commandOutcome";
@@ -143,9 +144,7 @@ function createAuditLogInteractionHandler(deps: AuditLogDeps) {
 }
 
 function isAuditLogCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && Boolean(interaction.guild)
-    && (interaction.commandName === "bot-log" || interaction.commandName === "server-log");
+  return matchesCommand(interaction, { commandNames: ["bot-log", "server-log"] });
 }
 
 function buildAuditLogCommandHandler(target: AuditLogContext) {
