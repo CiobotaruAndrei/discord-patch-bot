@@ -316,9 +316,15 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/features/command-handlers/autocompleteInteractionHandler.ts`
 
-- Gestioneaza autocomplete pentru optiunile slash commands.
-- Delegheaza scoring-ul, sortarea si limitarea optiunilor catre `buildAutocompleteChoices` (TS-primary — masurat mai rapid decat nativul pe marshaling, vezi `BENCHMARKS.md`).
+- Gestioneaza autocomplete pentru optiunile slash commands: rutarea cererii (help/snooze/admin-scope/youtube/joc), scoring-ul de referinta (`scoreGameAgainstInput`) si predicatul `acceptsGameOption`.
+- Delegheaza scoring-ul, sortarea si limitarea optiunilor de joc catre `buildAutocompleteChoices` (TS-primary — masurat mai rapid decat nativul pe marshaling, vezi `BENCHMARKS.md`).
+- Delegheaza construirea pool-urilor de alegeri care citesc setarile guild-ului catre `autocompleteChoiceBuilders.ts`.
 - Trebuie tinut separat de logica de executie a comenzilor.
+
+### `src/features/command-handlers/autocompleteChoiceBuilders.ts`
+
+- Factory `createAutocompleteChoiceBuilders({ logger, getGuildSettings })` care intoarce cele cinci constructoare de alegeri ce depind de setarile guild-ului: `buildSetGamesRemovePool`, `buildPriceAlertRemovePool`, `buildYouTubeChannelChoices`, `buildYouTubeRouteChoices`, `buildYouTubeTitleWordChoices`.
+- Fiecare este best-effort: la eroare de citire logheaza WARN si cade pe un fallback sigur (jocurile primite sau lista goala), fara sa arunce. Detine si limitele Discord de autocomplete (`MAX_AUTOCOMPLETE_*`/`MAX_CHOICE_*`). Testabil izolat cu un `getGuildSettings` fals.
 
 ### `src/features/command-handlers/fallbackInteractionHandler.ts`
 

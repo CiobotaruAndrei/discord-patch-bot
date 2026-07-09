@@ -72,6 +72,7 @@ src/
       outboxCommandDefinitions.ts
     command-handlers/
       auditLogInteractionHandler.ts
+      autocompleteChoiceBuilders.ts
       autocompleteInteractionHandler.ts
       backupInteractionHandler.ts
       configInteractionHandler.ts
@@ -240,7 +241,8 @@ Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `Co
 - `sourcesStatusHandler.ts` - `/sources status`, sumarul ultimelor snapshot-uri persistate pentru sursele externe;
 - `youtubeInteractionHandler.ts` - toate comenzile `/youtube`: abonare/dezabonare, canal principal, rute speciale, sablon, filtre, afisare manuala, status, permisiuni si erori;
 - `reportInteractionHandler.ts` - `/report submit`, `/report list` si `/report resolve`; `submit` este public, iar `list`/`resolve` au verificare runtime de administrator;
-- `autocompleteInteractionHandler.ts` - autocomplete pentru optiuni;
+- `autocompleteInteractionHandler.ts` - autocomplete pentru optiuni (rutare + scoring de referinta + predicatul `acceptsGameOption`); construirea pool-urilor de alegeri care citesc setarile guild-ului e delegata factory-ului `autocompleteChoiceBuilders.ts`;
+- `autocompleteChoiceBuilders.ts` - factory `createAutocompleteChoiceBuilders({ logger, getGuildSettings })` cu cele cinci constructoare de alegeri dependente de setarile guild-ului (set-games remove pool, price-alert remove pool, canale/rute/cuvinte-titlu YouTube), best-effort cu fallback la eroare;
 - `fallbackInteractionHandler.ts` - fallback de final.
 
 Fiecare handler primeste dependinte explicite si tipate (factory `createX(deps)`) si expune `buildCommandHandler(ctx): CommandHandler`; `commandRegistry` le aseaza intr-o **lista tipata `CommandHandler[]`** rutata de `dispatchCommand` — primul handler cu `canHandle` adevarat trateaza comanda, fallback-ul (mereu `canHandle: () => true`) e ultimul.
