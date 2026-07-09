@@ -312,7 +312,12 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-handlers/sourcesStatusHandler.ts`
 
 - Gestioneaza `/sources status`.
-- Citeste snapshot-urile persistate pentru update-uri si reduceri, fara fetch live, si sumarizeaza starea surselor externe si varsta ultimei verificari cunoscute.
+- Citeste snapshot-urile persistate pentru update-uri si reduceri, fara fetch live, si delegheaza construirea embed-ului de status modulului pur `sourcesStatusView.ts`.
+
+### `src/features/command-handlers/sourcesStatusView.ts`
+
+- Functii pure care transforma snapshot-urile persistate + sumarul de sanatate al surselor intr-un embed de status: `buildSourcesStatusEmbed` (linii per store/feed, culoare pe severitate, varsta ultimului fetch, blocul de sanatate circuit-breaker) + helperele `findUpdateEntry`/`lineForUpdateGame`/`lineForDealStore`/`formatAge`/`newestFetchDate`/`renderLine`/`renderHealthLines` si tipurile `LoadedFetchSnapshot`/`LoadedDealsFetchSnapshot`/`SourcesStatusEmbed`.
+- Fara acces la Mongo/Discord/DI. Testabil izolat.
 
 ### `src/features/youtube/youtubeNotificationService.ts` + sub-serviciile lui
 
