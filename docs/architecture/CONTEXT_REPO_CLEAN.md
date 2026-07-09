@@ -77,6 +77,7 @@ src/
       backupInteractionHandler.ts
       backupViews.ts
       configInteractionHandler.ts
+      configView.ts
       dealScoreInteractionHandler.ts
       dlcInteractionHandler.ts
       dlcSteamPage.ts
@@ -225,7 +226,8 @@ Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `Co
 - `rolePingHandlers.ts` - roluri pentru ping-uri;
 - `setInteractionHandler.ts` - subcomenzile `/set`; la `/set outbox-recovery-verify on` verifica preventiv permisiunea Read Message History pe canalele de notificari (via `checkReadMessageHistory` din runtime) si avertizeaza daca lipseste; construirea planului de update per subcomanda e delegata modulului pur `setUpdatePlan.ts`;
 - `setUpdatePlan.ts` - functie pura `buildSetUpdatePlan` care valideaza si mapeaza fiecare subcomanda `/set` la un `SetUpdatePlan` (`updateDoc`/`confirmMsg`/`isFilterChange`/`earlyReply`), fara acces la Mongo/Discord;
-- `configInteractionHandler.ts` - `/config`, sumarul setarilor curente ale serverului intr-un embed ephemeral pentru admini;
+- `configInteractionHandler.ts` - `/config`, sumarul setarilor curente ale serverului intr-un embed ephemeral pentru admini; construirea embed-ului e delegata modulului pur `configView.ts`;
+- `configView.ts` - functie pura `buildConfigEmbed` care compune embed-ul `/config` (+ helpere + tipul `ConfigEmbed`), fara acces la Mongo/Discord;
 - `guildConfigurationAdminHandler.ts` - `/reset-config` si `/admin-alerts`, cu confirmare explicita la reset si verificarea permisiunilor canalului administrativ;
 - `adminCommandAccessHandler.ts` - `/set admin-command-access`, `/admin-command-access list` si `/delete admin-command-access`, owner-only, pentru rol exact sau rol egal/mai-mare care poate folosi comenzi admin global sau doar pe o comanda/pachet, pe langa `Administrator` si codul global de acces; perechile `start`/`stop` pentru acelasi modul se normalizeaza la acelasi scope; formatarea mesajelor si normalizarea modului sunt delegate modulului pur `adminCommandAccessViews.ts`;
 - `adminCommandAccessViews.ts` - functii pure de prezentare/normalizare pentru accesul admin (`formatCurrentAccess`/`formatAccessList`/`formatScopedAccess` — inclusiv avertismentul de reguli in conflict si fallback-ul global — plus `labelMode`/`normalizeMode` si tipurile `AdminAccessMode`/`GuildAdminAccessDoc`), fara acces la Mongo/Discord;

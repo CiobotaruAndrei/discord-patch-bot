@@ -221,7 +221,12 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-handlers/configInteractionHandler.ts`
 
 - Gestioneaza `/config`.
-- Citeste setarile guild-ului si lista de jocuri configurate, apoi afiseaza intr-un embed ephemeral starea curenta a serverului: filtre reduceri, valuta, magazine, jocuri active, roluri, canale, canal administrativ si numarul alertelor de pret.
+- Citeste setarile guild-ului si lista de jocuri configurate, apoi afiseaza intr-un embed ephemeral starea curenta a serverului; construirea embed-ului e delegata modulului pur `configView.ts` (`buildConfigEmbed`, re-exportat pentru compatibilitate).
+
+### `src/features/command-handlers/configView.ts`
+
+- Functie pura `buildConfigEmbed(settings, games, defaultCurrency)` care compune embed-ul `/config` (filtre reduceri, valuta, magazine, jocuri active, roluri, canale, alerte de pret, liste propuse, YouTube) + helperele `onOff`/`formatChannel`/`formatRole`/`formatAdminAlertChannel`/`formatGames`/`formatStores` si tipul `ConfigEmbed`.
+- Fara acces la Mongo/Discord/DI; depinde doar de `clampJoinedList`. Testabil izolat.
 
 ### `src/features/command-handlers/guildConfigurationAdminHandler.ts`
 

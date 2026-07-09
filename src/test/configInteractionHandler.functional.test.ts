@@ -2,9 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const mod = require("../features/command-handlers/configInteractionHandler") as typeof import("../features/command-handlers/configInteractionHandler");
+import { buildConfigEmbed } from "../features/command-handlers/configView";
 
 test("buildConfigEmbed afiseaza setarile importante ale serverului", () => {
-  const embed = mod.buildConfigEmbed({
+  const embed = buildConfigEmbed({
     _id: "g1",
     subscribed: true,
     notificationChannelId: "chan-updates",
@@ -52,7 +53,7 @@ test("buildConfigEmbed afiseaza setarile importante ale serverului", () => {
 });
 
 test("buildConfigEmbed arata canalul salvat chiar cand notificarile sunt oprite, ca adminul sa stie ce ramane configurat (R12 #4)", () => {
-  const embed = mod.buildConfigEmbed({
+  const embed = buildConfigEmbed({
     _id: "g2",
     subscribed: false,
     notificationChannelId: "chan-updates",
