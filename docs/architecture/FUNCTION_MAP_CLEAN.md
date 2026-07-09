@@ -204,8 +204,14 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/features/command-handlers/setInteractionHandler.ts`
 
-- Gestioneaza subcomenzile directe `/set`.
+- Gestioneaza subcomenzile directe `/set` (defer, aplicare update via `applyGuildConfigUpdate`, avertisment Read Message History, tratarea erorilor).
+- Deleaga construirea planului de update (validare + `updateDoc`/mesaj per subcomanda) catre `setUpdatePlan.ts`; `buildSetUpdatePlan` ramane re-exportat de aici pentru compatibilitate.
 - Trebuie sa aiba verificari runtime pentru administrator in operatiile sensibile.
+
+### `src/features/command-handlers/setUpdatePlan.ts`
+
+- Functie pura `buildSetUpdatePlan(sub, interaction, supportedCurrencies)` care mapeaza fiecare subcomanda `/set` (mode/mindiscount/maxprice/free/paid/outbox-recovery-verify/currency/stores/update-template/discount-template) la un `SetUpdatePlan` (`updateDoc`, `confirmMsg`, `isFilterChange`, `earlyReply`).
+- Fara acces la Mongo/Discord si fara DI — depinde doar de `normalizeNotificationTemplate`; testabil izolat.
 
 ### `src/features/command-handlers/configInteractionHandler.ts`
 
