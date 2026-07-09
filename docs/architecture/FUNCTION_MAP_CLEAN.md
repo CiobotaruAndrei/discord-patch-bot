@@ -198,6 +198,11 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - `requireGuildAdminAudited`: pentru subcomenzile admin-runtime din comenzi **publice** (`/report list|resolve`, `/suggest-command list|delete`, `/watchlist-game delete`) care nu trec prin guard-ul central; ruleaza `requireGuildAdmin` si, daca respinge, scrie `Access denied.` in `botAuditLog` (refuzul e auditat, nu doar succesul).
 
+### `src/features/command-handlers/adminCommandAccessViews.ts`
+
+- Functii pure de prezentare/normalizare folosite de `adminCommandAccessHandler.ts`: `formatCurrentAccess`/`formatAccessList`/`formatScopedAccess` (mesajele de listare, inclusiv avertismentul de reguli in conflict si fallback-ul global), plus `labelMode`/`normalizeMode` si tipurile `AdminAccessMode`/`GuildAdminAccessDoc`.
+- Fara acces la Mongo/Discord/DI; depinde doar de helper-ele de scope din `command-security/adminCommandAccessScope`. Testabil izolat.
+
 ### `src/features/command-handlers/rolePingHandlers.ts`
 
 - Gestioneaza `/set role`.
