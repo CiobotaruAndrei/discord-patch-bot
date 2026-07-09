@@ -80,6 +80,7 @@ src/
       configView.ts
       dealScoreInteractionHandler.ts
       dlcInteractionHandler.ts
+      dlcSteamPage.ts
       fallbackInteractionHandler.ts
       futureReleaseInteractionHandler.ts
       gameFilterHandlers.ts
@@ -241,7 +242,8 @@ Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `Co
 - `snoozeInteractionHandler.ts` - `/snooze` si `/unsnooze`, cu comanda tinta validata prin catalogul `/help command`;
 - `outboxAdminHandler.ts` - comenzile admin `/outbox` (`status`, `deadletters`, `clear-deadletters`, `replay-deadletters`, `retry`, `drain-now`, `pause`, `resume`, `permissions`, `recovery-verify status`) pentru operarea outbox-ului (coada per-guild si globala, dead-letter, reprogramare livrari, pauza/reluare drenare, audit de permisiuni pe canale, stare recovery-verify); protejat de admin guard (`outbox` e in lista de comenzi admin). `pause`/`resume` comuta flagul persistent `outboxPaused` (pe `system_state`, via `getOutboxPaused`/`setOutboxPaused`), pe care worker-ul de drenare il verifica la fiecare tick inainte de a lua lock-ul; `permissions` foloseste `checkChannelPermissions` din runtime (Send Messages / Embed Links / Read Message History) pentru un audit la cerere; `drain-now` verifica acelasi flag de pauza inainte de lock, revendica lock-ul `outbox_drain` (acelasi ca worker-ul) si dreneaza imediat doar daca drenarea nu e pe pauza si lock-ul e liber, altfel raporteaza starea fara drenari concurente;
 - `latestInteractionHandler.ts` - `/latest`;
-- `dlcInteractionHandler.ts` - `/dlc`;
+- `dlcInteractionHandler.ts` - `/dlc`; parsarea paginii de magazin Steam e delegata modulului pur `dlcSteamPage.ts`;
+- `dlcSteamPage.ts` - functii pure de parsare a paginii Steam (`dlcPageHasAgeGate`/`parseDlcRows`/`dlcPageLooksLikeStorePage`) pe baza unui `CheerioAPI`, fara retea/DI;
 - `statusInteractionHandler.ts` - `/status`;
 - `sourcesStatusHandler.ts` - `/sources status`, sumarul ultimelor snapshot-uri persistate pentru sursele externe;
 - `youtubeInteractionHandler.ts` - toate comenzile `/youtube`: abonare/dezabonare, canal principal, rute speciale, sablon, filtre, afisare manuala, status, permisiuni si erori;

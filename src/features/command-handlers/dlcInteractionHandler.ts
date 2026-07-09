@@ -3,6 +3,7 @@
 import type { CheerioAPI } from "cheerio";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import type { NotificationMode, InteractionMessage } from "../../types";
+import { dlcPageHasAgeGate, dlcPageLooksLikeStorePage, parseDlcRows } from "./dlcSteamPage";
 
 const { errorMessage, errorDetail } = require("../../shared/errors");
 
@@ -38,7 +39,6 @@ type SteamSearchItem = { id?: string | number; name?: string; type?: string };
 type CurrencyConfig = { cc: string; symbol?: string };
 type HttpRequestOptions = { headers?: Record<string, string>; timeout?: number };
 type HttpResponse = { data: unknown };
-type CheerioSelector = Parameters<CheerioAPI>[0];
 type ChainableEmbed = {
   setColor(value: unknown): ChainableEmbed;
   setTitle(value: unknown): ChainableEmbed;
@@ -138,26 +138,14 @@ function createDlcInteractionHandler(deps: DlcHandlerDeps) {
           timeout: 15000
         });
         const $ = safeCheerioLoad(htmlRes.data);
-        if ($("#agegate_box").length > 0 || $(".agegate_text_container").length > 0) {
+        if (dlcPageHasAgeGate($)) {
           endLog("age_gate", { appId: bestMatch.id });
           return safeEdit(interaction, `Eroare: Pagina de Steam pentru **${title}** necesita verificare de varsta, iar botul nu o poate accesa direct.`);
         }
 
-        const dlcList: Array<{ name: string; price: string }> = [];
-        const seenDlcIds = new Set<string>();
-        $(".game_area_dlc_row").each((_i: number, el: unknown) => {
-          const node = el as CheerioSelector;
-          const dlcName = $(node).find(".game_area_dlc_name").text().trim();
-          let dlcPrice = $(node).find(".game_area_dlc_price").text().trim().replace(/\s+/g, " ");
-          const dlcAppId = String($(node).attr("data-ds-appid") || dlcName);
-          if (!dlcPrice) dlcPrice = "Pret indisponibil";
-          if (dlcName && !seenDlcIds.has(dlcAppId)) {
-            seenDlcIds.add(dlcAppId);
-            dlcList.push({ name: dlcName, price: dlcPrice });
-          }
-        });
+        const dlcList = parseDlcRows($);
         if (!dlcList.length) {
-          if ($(".game_area_purchase_game").length === 0) {
+          if (!dlcPageLooksLikeStorePage($)) {
             logger("WARN", "DLC_SEARCH", "Schema drift suspectat la pagina DLC", { appId: bestMatch.id, query: gameName });
             endLog("parse_error", { appId: bestMatch.id });
             return safeEdit(interaction, `Eroare: Structura paginii pentru **${title}** nu a putut fi interpretata.`);
