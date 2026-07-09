@@ -1,6 +1,6 @@
 "use strict";
 
-import type { GuildSettings, DealInfo, PendingDiscount, NotificationMode, ValidatedDealInfo } from "../../types";
+import type { GuildSettings, DealInfo, MongoWriteOutcome, PendingDiscount, NotificationMode, ValidatedDealInfo } from "../../types";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
 import { HASH_VERSION } from "../../native/fuzzy";
@@ -14,7 +14,7 @@ const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
-interface MongoWriteResult { matchedCount?: number; modifiedCount?: number }
+type MongoWriteResult = MongoWriteOutcome;
 
 interface GuildModelLike {
   find(filter: Record<string, unknown>): { lean(): Promise<Array<GuildSettings>> };

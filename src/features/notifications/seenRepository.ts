@@ -1,11 +1,11 @@
 
-type MongoWriteResult = { matchedCount?: number; modifiedCount?: number };
+type MongoWriteResult = MongoWriteOutcome;
 interface GuildModelLike {
   updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, opts?: Record<string, unknown>): Promise<MongoWriteResult>;
   exists(filter: Record<string, unknown>): Promise<{ _id: unknown } | null>;
 }
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
-import type { PriceAlertRule } from "../../types";
+import type { MongoWriteOutcome, PriceAlertRule } from "../../types";
 
 interface GuildSeenDiscountModelLike {
   updateOne(filter: unknown, update: unknown, opts?: unknown): Promise<{ upsertedCount?: number; matchedCount?: number }>;

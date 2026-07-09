@@ -1,9 +1,9 @@
 "use strict";
 
-import type { GuildSettings, ServerAuditLogEntry, WatchlistGameSuggestionEntry } from "../../types";
+import type { GuildSettings, MongoWriteOutcome, ServerAuditLogEntry, WatchlistGameSuggestionEntry } from "../../types";
 import { buildServerAuditPush } from "./auditLogRepository";
 
-type MongoWriteResult = { modifiedCount?: number; matchedCount?: number };
+type MongoWriteResult = MongoWriteOutcome;
 
 type GuildModelLike = {
   updateOne(

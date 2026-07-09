@@ -1,11 +1,11 @@
 "use strict";
 
-import type { DealInfo, GuildSettings, PriceAlertRule, PriceValue } from "../../types";
+import type { DealInfo, GuildSettings, MongoWriteOutcome, PriceAlertRule, PriceValue } from "../../types";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
 import { rollbackOrReport, type ReportRollbackFailure } from "./rollbackReporter";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
-type MongoWriteResult = { matchedCount?: number; modifiedCount?: number };
+type MongoWriteResult = MongoWriteOutcome;
 
 interface GuildModelLike {
   updateOne(

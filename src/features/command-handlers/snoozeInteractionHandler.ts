@@ -2,6 +2,7 @@
 
 import { clearCommandSnooze, setCommandSnooze } from "../guild-config/guildConfigRepository";
 import type { CommandHandler } from "../command-registry/commandHandler";
+import type { MongoWriteOutcome } from "../../types";
 
 import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail } = require("../../shared/errors");
@@ -16,7 +17,7 @@ const { findCommandHelpEntry } = require("../command-help/commandHelpCatalog") a
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
 type InteractionPayload = string | { content: string; flags?: number };
-type MongoWriteResult = { matchedCount?: number; modifiedCount?: number };
+type MongoWriteResult = MongoWriteOutcome;
 type SnoozeSetUpdate = { $set: Record<string, Date> };
 type SnoozeUnsetUpdate = { $unset: Record<string, string> };
 type SnoozeUpdate = SnoozeSetUpdate | SnoozeUnsetUpdate;
