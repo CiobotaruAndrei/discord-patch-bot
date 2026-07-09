@@ -4,6 +4,7 @@ import type { CheerioAPI } from "cheerio";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import type { NotificationMode, InteractionMessage } from "../../types";
 import { dlcPageHasAgeGate, dlcPageLooksLikeStorePage, parseDlcRows } from "./dlcSteamPage";
+import { matchesCommand } from "../command-registry/commandMatch";
 
 const { errorMessage, errorDetail } = require("../../shared/errors");
 
@@ -189,9 +190,7 @@ function createDlcInteractionHandler(deps: DlcHandlerDeps) {
 }
 
 function isDlcCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && Boolean(interaction.guild)
-    && interaction.commandName === "dlc";
+  return matchesCommand(interaction, { commandNames: ["dlc"] });
 }
 
 function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {

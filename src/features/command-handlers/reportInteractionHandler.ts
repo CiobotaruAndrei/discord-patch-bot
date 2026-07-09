@@ -1,6 +1,7 @@
 "use strict";
 
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { matchesCommand } from "../command-registry/commandMatch";
 import { recordBotAuditEntry } from "../admin-records/auditLogRepository";
 import { requireGuildAdminAudited } from "../command-security/runtimeAdminAudit";
 import {
@@ -143,9 +144,7 @@ function createReportInteractionHandler(deps: ReportHandlerDeps) {
 }
 
 function isReportCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && Boolean(interaction.guild)
-    && interaction.commandName === "report";
+  return matchesCommand(interaction, { commandNames: ["report"] });
 }
 
 function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {

@@ -2,6 +2,7 @@
 
 import type { LoggerFunction } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { matchesCommand } from "../command-registry/commandMatch";
 
 const { errorDetail } = require("../../shared/errors");
 const {
@@ -153,9 +154,7 @@ function createHelpHandler(deps: HelpHandlerDeps) {
 }
 
 function isHelpCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && Boolean(interaction.guild)
-    && interaction.commandName === "help";
+  return matchesCommand(interaction, { commandNames: ["help"] });
 }
 
 function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {

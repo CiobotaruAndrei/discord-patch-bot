@@ -1,6 +1,7 @@
 "use strict";
 
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { matchesCommand } from "../command-registry/commandMatch";
 import type { GameConfig } from "../../types";
 import { summarizeSourceHealth, type SourceHealthDoc } from "../../sources/sourceHealth";
 import {
@@ -65,10 +66,7 @@ function createSourcesStatusHandler(deps: SourcesStatusDeps) {
 }
 
 function isSourcesStatusCommand(interaction: DiscordInteraction): boolean {
-  if (interaction?.isChatInputCommand?.() !== true) return false;
-  if (!interaction.guild) return false;
-  if (interaction.commandName !== "sources") return false;
-  return interaction.options.getSubcommand() === "status";
+  return matchesCommand(interaction, { commandNames: ["sources"], subcommand: "status" });
 }
 
 function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }): InteractionPayload {

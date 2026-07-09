@@ -1,6 +1,7 @@
 "use strict";
 
 import type { CommandHandler } from "../command-registry/commandHandler";
+import { matchesCommand } from "../command-registry/commandMatch";
 import type { LatestUpdatesHandlerDeps } from "./latest/latestUpdatesHandler";
 import type { LatestDealsHandlerDeps } from "./latest/latestDealsHandler";
 import type { LatestSingleHandlerDeps } from "./latest/latestSingleHandler";
@@ -62,9 +63,7 @@ function createLatestInteractionHandler(deps: LatestContextDeps) {
 }
 
 function isLatestCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && Boolean(interaction.guild)
-    && interaction.commandName === "latest";
+  return matchesCommand(interaction, { commandNames: ["latest"] });
 }
 
 function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
