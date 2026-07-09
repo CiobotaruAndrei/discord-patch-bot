@@ -7,7 +7,9 @@ export const NATIVE_FALLBACK_FUNCTIONS = [
   "scoreListingCandidate",
   "rankListingCandidates",
   "isGoodSteamArticleUrl",
-  "extractDateScore"
+  "extractDateScore",
+  "findGameKeys",
+  "buildAutocompleteChoices"
 ];
 
 export function recordNativeFallback(fnName: string, err: unknown): void {
