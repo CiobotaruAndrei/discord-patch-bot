@@ -43,6 +43,18 @@ Pentru dezvoltare locala, pune linia in `src/.env` (fisier ignorat de git). Veri
 - **Nu tine setari permanente doar in Redis.** Redis e un cache efemer; sursa de adevar este Mongo. Orice ai pune in Redis trebuie sa poata fi reconstruit din Mongo sau din surse externe.
 - **Nu presupune ca Redis e mereu disponibil.** Codul care il foloseste trebuie sa cada gratios pe comportamentul fara Redis (fallback), fara sa strice comenzile existente.
 
+## Ownership pe multi-process (web/worker)
+
+De cand botul poate rula impartit in `web` si `worker` (vezi `BOT_ROLE` in `README.md`), e nevoie de o politica clara despre ce traieste unde si cine invalideaza ce:
+
+- **Sursa de adevar = Mongo, mereu.** Configuratii guild, colectiile `seen`, outbox, istoric, circuit breaker-e, snapshot-urile de player-count. Ambele procese scriu/citesc din Mongo; nimic durabil nu traieste doar in Redis.
+- **Coordonarea (lock-uri) = Mongo, nu Redis.** Cron-ul si drain-ul outbox se coordoneaza intre procese prin lock-urile distribuite din Mongo (`acquireDbLock`/`renewDbLock`/`releaseDbLock`), **nu** prin Redis. Redis nu e folosit ca lock in acest moment; daca vreodata se adauga un lock prin Redis, va fi o decizie separata si documentata (Mongo ramane mecanismul de coordonare).
+- **Cache efemer = Redis (best-effort), partajat intre procese.** Cache-ul (ex. `player-count:steam:<appId>`, TTL 60s) e scris/citit de oricine il atinge; fiind pe aceeasi instanta Redis, `web` si `worker` vad aceleasi chei. Invalidarea se face prin **TTL** (staleness marginit) sau explicit prin `deleteKey`. Fara `REDIS_URL` sau la eroare, se cade pe recalculare din sursa — un cache „rece" nu afecteaza corectitudinea, doar performanta.
+- **Cache-ul in-memory ramane per-proces.** `invalidateGuildCache` curata doar cache-ul din procesul curent; consistenta intre procese vine din Mongo (TTL scurt pe cache-ul de guild), nu din Redis. Redis e pentru date reconstruibile partajate, nu pentru invalidarea cross-proces a cache-ului in-memory.
+- **Conventie de chei:** `<domeniu>:<subdomeniu>:<id>` (ex. `player-count:steam:<appId>`), ca sa fie clar cine detine cheia si sa nu se ciocneasca domeniile.
+
+Pe scurt: **Mongo detine adevarul si coordonarea; Redis detine doar cache efemer, reconstruibil, partajat.** Cand adaugi un consumator nou de Redis, incadreaza-l explicit intr-una dintre categoriile de mai sus.
+
 ## Ce nu face inca
 
-Acest pas adauga doar conexiunea si utilitarele de baza. Nu sunt (inca) incluse: **BullMQ**, un **worker separat** de joburi, dashboard, sharding, lock-uri globale prin Redis sau microservicii. Aceste extensii sunt pasi ulteriori si vor fi documentate cand apar.
+Conexiunea, utilitarele de cache si metricile de baza exista; separarea `web`/`worker` (prin `BOT_ROLE`) exista si ea. Nu sunt (inca) incluse: **BullMQ** (coada de joburi), dashboard dedicat, sharding, lock-uri prin Redis sau microservicii. Aceste extensii sunt pasi ulteriori si vor fi documentate cand apar (vezi si `docs/architecture/scaling-readiness.md`).
