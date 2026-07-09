@@ -107,6 +107,7 @@ src/
       sourcesStatusHandler.ts
       statusInteractionHandler.ts
       priceCheckInteractionHandler.ts
+      priceCheckComparison.ts
       suggestCommandInteractionHandler.ts
       subscriptionNotificationHandlers.ts
       watchlistGameSuggestionHandler.ts
@@ -230,7 +231,8 @@ Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `Co
 - `backupInteractionHandler.ts` - `/add backup` si `/backup list/preview/load/delete`, backup-uri ale configuratiei botului pentru server, confirmare la load/delete si audit server la schimbari; randarea textelor e delegata modulului pur `backupViews.ts`;
 - `backupViews.ts` - functii pure de randare pentru `/backup` (`renderBackupList`/`renderBackupPreview`), fara acces la Mongo/Discord;
 - `auditLogInteractionHandler.ts` - `/bot-log recent/older` si `/server-log recent/older`, citire audit admin si audit server din setarile guild-ului;
-- `priceCheckInteractionHandler.ts` - `/price-check`, compara pretul Steam cu sursele externe de reduceri deja folosite de bot;
+- `priceCheckInteractionHandler.ts` - `/price-check`, compara pretul Steam cu sursele externe de reduceri deja folosite de bot; comparatia de titluri si construirea embed-ului sunt delegate modulului pur `priceCheckComparison.ts`;
+- `priceCheckComparison.ts` - functii pure pentru `/price-check` (`titlesComparable`/`findComparableDeals`/`buildPriceCheckEmbed` + helpere + tipul `SteamPriceData`), fara acces la retea/DI;
 - `dealScoreInteractionHandler.ts` - `/deal-score`, scor 1-10 pentru oferte active pe baza reducerii, pretului, semnalelor de calitate/popularitate si magazinului;
 - `suggestCommandInteractionHandler.ts` - `/add suggestion` si `/suggest-command list/delete`, propuneri publice de comenzi si administrare runtime;
 - `watchlistGameSuggestionHandler.ts` - `/watchlist-game add/list/delete`, propuneri publice de jocuri pentru watchlist si stergere admin runtime;
