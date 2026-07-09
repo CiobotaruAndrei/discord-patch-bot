@@ -238,6 +238,12 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Gestioneaza `/add backup`, `/backup list`, `/backup preview`, `/backup load` si `/backup delete`.
 - `load` si `delete` cer `confirm:true`; `preview` afiseaza setarile si ID-urile de canale/roluri care vor fi restaurate.
 - Scrie audit server pentru backup-uri salvate, incarcate sau sterse.
+- Delegheaza randarea textelor (`renderBackupList`/`renderBackupPreview`) modulului pur `backupViews.ts`; `renderBackupPreview` ramane re-exportat pentru compatibilitate.
+
+### `src/features/command-handlers/backupViews.ts`
+
+- Functii pure de randare pentru `/backup`: `renderBackupList` (lista backup-urilor cu autor + data) si `renderBackupPreview` (diff-ul fata de configuratia curenta: setari care se restaureaza, setari care se sterg, canale/roluri referite).
+- Fara acces la Mongo/Discord/DI; depinde doar de `clampJoinedList` si `CONFIG_BACKUP_KEYS`. Testabil izolat.
 
 ### `src/features/command-handlers/auditLogInteractionHandler.ts`
 
