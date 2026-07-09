@@ -1,7 +1,7 @@
 "use strict";
 
 import type { GameConfig } from "../../types";
-import type { GuildSettings, EmbeddableUpdate, NotificationMode } from "../../types";
+import type { GuildSettings, EmbeddableUpdate, MongoWriteOutcome, NotificationMode } from "../../types";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue";
 import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
@@ -15,7 +15,7 @@ const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 
-interface MongoWriteResult { matchedCount?: number; modifiedCount?: number }
+type MongoWriteResult = MongoWriteOutcome;
 type GuildGameFilter = Pick<GuildSettings, "enabledGames">;
 type GuildSettingsDoc = GuildSettings;
 

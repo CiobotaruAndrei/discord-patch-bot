@@ -1,7 +1,7 @@
 "use strict";
 
 import { applyGuildConfigUpdate } from "../guild-config/guildConfigRepository";
-import type { GameConfig } from "../../types";
+import type { GameConfig, MongoWriteOutcome } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 
 const { errorDetail } = require("../../shared/errors");
@@ -9,7 +9,7 @@ const { errorDetail } = require("../../shared/errors");
 type MaybePromise<T> = T | Promise<T>;
 
 type InteractionPayload = string | Record<string, unknown>;
-type MongoWriteResult = { matchedCount?: number; modifiedCount?: number };
+type MongoWriteResult = MongoWriteOutcome;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type DiscordRole = { id: string };
 

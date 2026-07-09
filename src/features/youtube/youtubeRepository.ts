@@ -1,8 +1,6 @@
-import type { LoggerFunction, YouTubeChannelSubscription, YouTubeVideo } from "../../types";
+import type { LoggerFunction, MongoWriteOutcome, YouTubeChannelSubscription, YouTubeVideo } from "../../types";
 
-interface MongoWriteResult {
-  matchedCount?: number;
-  modifiedCount?: number;
+interface MongoWriteResult extends MongoWriteOutcome {
   upsertedCount?: number;
 }
 

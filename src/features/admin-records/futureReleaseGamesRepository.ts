@@ -1,8 +1,8 @@
 "use strict";
 
-import type { FutureReleaseGameEntry, GuildSettings } from "../../types";
+import type { FutureReleaseGameEntry, GuildSettings, MongoWriteOutcome } from "../../types";
 
-type MongoWriteResult = { modifiedCount?: number; matchedCount?: number };
+type MongoWriteResult = MongoWriteOutcome;
 
 type GuildModelLike = {
   updateOne(

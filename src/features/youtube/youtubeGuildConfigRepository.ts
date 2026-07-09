@@ -1,9 +1,9 @@
 "use strict";
 
-import type { YouTubeChannelSubscription } from "../../types";
+import type { MongoWriteOutcome, YouTubeChannelSubscription } from "../../types";
 import { MAX_YOUTUBE_ROUTE_DESTINATIONS, YOUTUBE_TITLE_WORD_LIMIT } from "./youtubeDeliveryPolicy";
 
-type MongoWriteResult = { matchedCount?: number; modifiedCount?: number };
+type MongoWriteResult = MongoWriteOutcome;
 
 export interface YouTubeConfigGuildModel {
   updateOne(filter: object, update: object, options?: object): Promise<MongoWriteResult>;

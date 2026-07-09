@@ -1,8 +1,8 @@
 "use strict";
 
-import type { BotAuditLogEntry, GuildSettings, ServerAuditLogEntry } from "../../types";
+import type { BotAuditLogEntry, GuildSettings, MongoWriteOutcome, ServerAuditLogEntry } from "../../types";
 
-type MongoWriteResult = { modifiedCount?: number; matchedCount?: number };
+type MongoWriteResult = MongoWriteOutcome;
 
 type GuildModelLike = {
   updateOne(

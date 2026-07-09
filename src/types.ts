@@ -95,6 +95,11 @@ export type ParseEnvNumber = (name: string, defaultValue: number, limits?: Parse
 export type LockToken = string;
 export type ActiveLocks = Map<string, LockToken>;
 
+export interface MongoWriteOutcome {
+  matchedCount?: number;
+  modifiedCount?: number;
+}
+
 export interface ParseEnvNumberLimits {
   min?: number;
   max?: number;

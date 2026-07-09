@@ -1,9 +1,9 @@
 "use strict";
 
-import type { DealInfo, FetchResult, GameConfig, GuildSettings } from "../../types";
+import type { DealInfo, FetchResult, GameConfig, GuildSettings, MongoWriteOutcome } from "../../types";
 
 export type SubscriptionLogger = (level: string, context: string, message: string, meta?: unknown) => void;
-export type MongoWriteResult = { matchedCount?: number; modifiedCount?: number };
+export type MongoWriteResult = MongoWriteOutcome;
 export type InteractionPayload = string | Record<string, unknown>;
 
 export interface DiscordChannel {
