@@ -105,6 +105,7 @@ src/
       simpleCommandsHandler.ts
       snoozeInteractionHandler.ts
       sourcesStatusHandler.ts
+      sourcesStatusView.ts
       statusInteractionHandler.ts
       priceCheckInteractionHandler.ts
       suggestCommandInteractionHandler.ts
@@ -241,7 +242,8 @@ Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `Co
 - `latestInteractionHandler.ts` - `/latest`;
 - `dlcInteractionHandler.ts` - `/dlc`;
 - `statusInteractionHandler.ts` - `/status`;
-- `sourcesStatusHandler.ts` - `/sources status`, sumarul ultimelor snapshot-uri persistate pentru sursele externe;
+- `sourcesStatusHandler.ts` - `/sources status`, sumarul ultimelor snapshot-uri persistate pentru sursele externe; construirea embed-ului e delegata modulului pur `sourcesStatusView.ts`;
+- `sourcesStatusView.ts` - functii pure care transforma snapshot-urile + sumarul de sanatate al surselor in embed-ul de status (`buildSourcesStatusEmbed` + helpere + tipuri), fara acces la Mongo/Discord;
 - `youtubeInteractionHandler.ts` - toate comenzile `/youtube`: abonare/dezabonare, canal principal, rute speciale, sablon, filtre, afisare manuala, status, permisiuni si erori;
 - `reportInteractionHandler.ts` - `/report submit`, `/report list` si `/report resolve`; `submit` este public, iar `list`/`resolve` au verificare runtime de administrator; embed-urile/textele de raport sunt construite in modulul pur `reportViews.ts`;
 - `reportViews.ts` - functii pure de prezentare pentru `/report` (`buildReportConfirmEmbed`/`buildReportAlertBody`/`buildReportListEmbed`) + tipul `ReportRecord`, fara acces la Mongo/Discord;

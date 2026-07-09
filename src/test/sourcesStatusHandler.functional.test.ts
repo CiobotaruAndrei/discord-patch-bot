@@ -2,11 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const mod = require("../features/command-handlers/sourcesStatusHandler") as typeof import("../features/command-handlers/sourcesStatusHandler");
+import { buildSourcesStatusEmbed } from "../features/command-handlers/sourcesStatusView";
 import { summarizeSourceHealth } from "../sources/sourceHealth";
 
 test("buildSourcesStatusEmbed afiseaza store-uri, feed-uri si vechimea ultimului fetch", () => {
   const now = new Date("2026-06-23T15:00:00.000Z");
-  const embed = mod.buildSourcesStatusEmbed(
+  const embed = buildSourcesStatusEmbed(
     [
       { key: "cs2", name: "CS2" },
       { key: "fortnite", name: "Fortnite" }
@@ -48,7 +49,7 @@ test("buildSourcesStatusEmbed randeaza sumarul de sanatate al surselor si listea
     { key: "fortnite", fails: 5, cooldownUntil: new Date("2026-06-23T15:10:00.000Z"), schemaDriftFails: 0 },
     { key: "minecraft", fails: 0, cooldownUntil: null, schemaDriftFails: 4 }
   ], now);
-  const embed = mod.buildSourcesStatusEmbed([{ key: "cs2", name: "CS2" }], null, [], health, now);
+  const embed = buildSourcesStatusEmbed([{ key: "cs2", name: "CS2" }], null, [], health, now);
   assert.match(embed.description, /Sanatate surse \(circuit breaker\): 1\/4 sanatoase, 1 degradate, 1 in cooldown, 1 schema-drift/);
   assert.match(embed.description, /dota \(degradata\)/);
   assert.match(embed.description, /fortnite \(in cooldown\)/);
