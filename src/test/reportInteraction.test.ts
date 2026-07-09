@@ -1,24 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const mod = require("../features/command-handlers/reportInteractionHandler") as typeof import("../features/command-handlers/reportInteractionHandler") & {
-  buildReportConfirmEmbed: (record: ReportRecord) => { title: string; description: string; color: number };
-  buildReportAlertBody: (record: ReportRecord) => string;
-  buildReportListEmbed: (records: ReportRecord[]) => { title: string; description: string; color: number; footer: { text: string } };
-};
-const { buildReportConfirmEmbed, buildReportAlertBody, buildReportListEmbed } = mod;
+import {
+  buildReportAlertBody,
+  buildReportConfirmEmbed,
+  buildReportListEmbed,
+  type ReportRecord
+} from "../features/command-handlers/reportViews";
 
-interface ReportRecord {
-  id?: string;
-  guildId: string;
-  userId: string;
-  type: string;
-  gameKey: string;
-  detail: string;
-  createdAt: Date;
-  resolvedAt?: Date | null;
-  resolvedBy?: string;
-}
+const mod = require("../features/command-handlers/reportInteractionHandler") as typeof import("../features/command-handlers/reportInteractionHandler");
 
 const base: ReportRecord = { guildId: "g1", userId: "u1", type: "sursa-stricata", gameKey: "minecraft", detail: "Nu mai vin update-uri de 2 saptamani", createdAt: new Date() };
 
