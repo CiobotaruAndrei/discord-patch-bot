@@ -5,12 +5,14 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   buildAutocompleteChoices,
+  buildAutocompleteChoicesFallback,
   classifyPatchNote,
   cleanText,
   dealPassesFilters,
   dealHash,
   extractDateScore,
   findGameKeys,
+  findGameKeysFallback,
   isGoodSteamArticleUrl,
   isRustFuzzyAvailable,
   levenshtein,
@@ -80,6 +82,33 @@ test("Rust fuzzy matching returns suggestion keys for wider typo", () => {
   const result = findGameKeys("minikraft", games, 80);
   assert.equal(result.gameKey, null);
   assert.equal(result.suggestionKey, "minecraft");
+});
+
+test("findGameKeys: wrapper-ul nativ == fallback pe input-uri variate (paritate, ca sa fie sigura rutarea Rust)", () => {
+  const inputs = ["counter", "counterstrike", "counter strike", "cs2", "cs", "rocket_league", "rocket league",
+    "minikraft", "minecraft", "mc", "xyz-nope", "", "  ", "c", "co", "roket"];
+  for (const text of inputs) {
+    for (const maxInput of [80, 100]) {
+      assert.deepEqual(findGameKeys(text, games, maxInput), findGameKeysFallback(text, games, maxInput),
+        `findGameKeys diverge intre native si fallback pentru "${text}" (maxInput=${maxInput})`);
+    }
+  }
+});
+
+test("buildAutocompleteChoices: wrapper-ul nativ == fallback, inclusiv ordinea la scoruri egale (paritate)", () => {
+  const inputs = ["", "c", "co", "cou", "counter", "counter strike", "cs", "rocket", "min", "mc", "r", "z", "  "];
+  for (const input of inputs) {
+    for (const useNameAsValue of [true, false]) {
+      for (const minRel of [0, 1, 30]) {
+        for (const maxChoices of [25, 2]) {
+          assert.deepEqual(
+            buildAutocompleteChoices(games, input, useNameAsValue, minRel, maxChoices, 100, 100),
+            buildAutocompleteChoicesFallback(games, input, useNameAsValue, minRel, maxChoices, 100, 100),
+            `buildAutocompleteChoices diverge intre native si fallback pentru "${input}" (nameVal=${useNameAsValue}, minRel=${minRel}, max=${maxChoices})`);
+        }
+      }
+    }
+  }
 });
 
 test("Rust title normalization matches deal dedupe behavior", () => {
