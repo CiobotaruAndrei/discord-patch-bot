@@ -84,3 +84,37 @@ export async function deleteFutureReleaseGame(GuildModel: GuildModelLike, guildI
   );
   return (result.modifiedCount ?? 0) > 0;
 }
+
+export async function startFutureReleaseNotifications(
+  GuildModel: GuildModelLike,
+  guildId: string,
+  channelId: string,
+  activationId: string
+): Promise<void> {
+  await GuildModel.updateOne(
+    { _id: guildId },
+    {
+      $set: {
+        futureReleaseSubscribed: true,
+        futureReleaseChannelId: channelId,
+        futureReleaseInitializing: false,
+        futureReleaseActivationId: activationId
+      }
+    },
+    { upsert: true }
+  );
+}
+
+export async function stopFutureReleaseNotifications(GuildModel: GuildModelLike, guildId: string): Promise<void> {
+  await GuildModel.updateOne(
+    { _id: guildId },
+    {
+      $set: {
+        futureReleaseSubscribed: false,
+        futureReleaseChannelId: null,
+        futureReleaseInitializing: false
+      },
+      $unset: { futureReleaseActivationId: "" }
+    }
+  );
+}
