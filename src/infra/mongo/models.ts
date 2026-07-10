@@ -9,6 +9,7 @@ import { buildOperationalSchemas } from "./operationalSchemas";
 import { buildSeenSchemas } from "./seenSchemas";
 import { buildOutboxSchemas } from "./outboxSchemas";
 import { buildAuditLogSchemas } from "./auditLogSchemas";
+import { buildConfigBackupSchemas } from "./configBackupSchemas";
 
 interface MongoModelsContext {
   mongoose: typeof Mongoose;
@@ -34,7 +35,6 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     youtubeChannelRouteSchema
   } = buildGuildYoutubeSchemas({ mongoose });
   const {
-    configBackupSchema,
     suggestedCommandSchema,
     watchlistGameSuggestionSchema,
     futureReleaseGameSchema,
@@ -99,7 +99,6 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     youtubeChannelRoutes: { type: [youtubeChannelRouteSchema], default: [] },
     youtubeTitleIncludeWords: { type: [String], default: [] },
     youtubeErrors: { type: [youtubeErrorSchema], default: [] },
-    configBackups: { type: [configBackupSchema], default: [] },
     suggestedCommands: { type: [suggestedCommandSchema], default: [] },
     watchlistGameSuggestions: { type: [watchlistGameSuggestionSchema], default: [] },
     futureReleaseGames: { type: [futureReleaseGameSchema], default: [] },
@@ -147,6 +146,9 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const { guildAuditLogSchema } = buildAuditLogSchemas({ mongoose, ONE_DAY_MS, env });
   const GuildAuditLogModel = mongoose.model("GuildAuditLog", guildAuditLogSchema, "guildAuditLogs");
 
+  const { guildConfigBackupSchema } = buildConfigBackupSchemas({ mongoose });
+  const GuildConfigBackupModel = mongoose.model("GuildConfigBackup", guildConfigBackupSchema, "guildConfigBackups");
+
   const {
     guildSeenDiscountSchema,
     guildSeenUpdateSchema,
@@ -170,6 +172,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   return {
     GuildModel,
     GuildAuditLogModel,
+    GuildConfigBackupModel,
     CircuitBreakerModel,
     SystemModel,
     JobLockModel,

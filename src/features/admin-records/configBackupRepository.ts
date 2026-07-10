@@ -13,7 +13,34 @@ type GuildModelLike = {
   ): Promise<MongoWriteResult>;
 };
 
-const MAX_CONFIG_BACKUPS = 20;
+export interface GuildConfigBackupRecord {
+  guildId: string;
+  name: string;
+  createdBy?: string;
+  createdAt?: Date | string;
+  snapshot?: Record<string, unknown>;
+}
+
+export interface ConfigBackupQueryLike {
+  sort(spec: Record<string, 1 | -1>): ConfigBackupQueryLike;
+  skip(count: number): ConfigBackupQueryLike;
+  limit(count: number): ConfigBackupQueryLike;
+  lean(): Promise<GuildConfigBackupRecord[]>;
+}
+
+export interface ConfigBackupFindOneLike {
+  lean(): Promise<GuildConfigBackupRecord | null>;
+}
+
+export interface ConfigBackupModelLike {
+  updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<MongoWriteResult>;
+  deleteOne(filter: Record<string, unknown>): Promise<{ deletedCount?: number }>;
+  deleteMany(filter: Record<string, unknown>): Promise<{ deletedCount?: number }>;
+  find(filter: Record<string, unknown>): ConfigBackupQueryLike;
+  findOne(filter: Record<string, unknown>): ConfigBackupFindOneLike;
+}
+
+export const MAX_CONFIG_BACKUPS = 20;
 
 export type GuildSettingsFieldRole = "config" | "security" | "operational";
 
@@ -58,7 +85,6 @@ export const GUILD_SETTINGS_FIELD_ROLES: Readonly<Record<string, GuildSettingsFi
   adminCommandAccess: "security",
   adminCommandAccessByCommand: "security",
   suggestedCommands: "operational",
-  configBackups: "operational",
   notificationDeadLetter: "operational",
   pendingUpdates: "operational",
   pendingDiscounts: "operational",
@@ -104,19 +130,38 @@ export function buildConfigSnapshot(settings: GuildSettings | null): Record<stri
   return cloneRecord(snapshot);
 }
 
-export function findBackup(settings: GuildSettings | null, name: string): ConfigBackupRecord | null {
-  const normalized = normalizeBackupName(name);
-  const backups = Array.isArray(settings?.configBackups) ? settings.configBackups : [];
-  return backups.find(backup => normalizeBackupName(backup.name) === normalized) ?? null;
+function toBackupDate(value: Date | string | undefined): Date {
+  const date = value instanceof Date ? value : new Date(value ?? Number.NaN);
+  return Number.isNaN(date.getTime()) ? new Date(0) : date;
 }
 
-export function listBackups(settings: GuildSettings | null): ConfigBackupRecord[] {
-  const backups = Array.isArray(settings?.configBackups) ? settings.configBackups : [];
-  return [...backups].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+function toBackupRecord(doc: GuildConfigBackupRecord): ConfigBackupRecord {
+  return {
+    name: doc.name,
+    createdBy: doc.createdBy || "",
+    createdAt: toBackupDate(doc.createdAt),
+    snapshot: doc.snapshot ?? {}
+  };
+}
+
+export async function findConfigBackup(model: Pick<ConfigBackupModelLike, "findOne">, guildId: string, name: string): Promise<ConfigBackupRecord | null> {
+  const normalized = normalizeBackupName(name);
+  const doc = await model.findOne({ guildId, name: normalized }).lean();
+  return doc ? toBackupRecord(doc) : null;
+}
+
+export async function listConfigBackups(model: Pick<ConfigBackupModelLike, "find">, guildId: string): Promise<ConfigBackupRecord[]> {
+  const docs = await model.find({ guildId }).sort({ createdAt: -1 }).skip(0).limit(MAX_CONFIG_BACKUPS).lean();
+  return docs.map(toBackupRecord);
+}
+
+export async function findNewestConfigBackup(model: Pick<ConfigBackupModelLike, "find">, guildId: string): Promise<ConfigBackupRecord | null> {
+  const docs = await model.find({ guildId }).sort({ createdAt: -1 }).skip(0).limit(1).lean();
+  return docs.length > 0 ? toBackupRecord(docs[0]) : null;
 }
 
 export async function saveConfigBackup(
-  GuildModel: GuildModelLike,
+  model: Pick<ConfigBackupModelLike, "updateOne" | "find" | "deleteMany">,
   guildId: string,
   name: string,
   createdBy: string,
@@ -129,28 +174,15 @@ export async function saveConfigBackup(
     createdAt: new Date(),
     snapshot: buildConfigSnapshot(settings)
   };
-  await GuildModel.updateOne(
-    { _id: guildId },
-    [{
-      $set: {
-        configBackups: {
-          $let: {
-            vars: {
-              kept: {
-                $filter: {
-                  input: { $ifNull: ["$configBackups", []] },
-                  as: "backup",
-                  cond: { $ne: ["$$backup.name", normalized] }
-                }
-              }
-            },
-            in: { $slice: [{ $concatArrays: ["$$kept", [record]] }, -MAX_CONFIG_BACKUPS] }
-          }
-        }
-      }
-    }],
+  await model.updateOne(
+    { guildId, name: normalized },
+    { $set: { createdBy: record.createdBy, createdAt: record.createdAt, snapshot: record.snapshot } },
     { upsert: true }
   );
+  const overflow = await model.find({ guildId }).sort({ createdAt: -1 }).skip(MAX_CONFIG_BACKUPS).limit(MAX_CONFIG_BACKUPS).lean();
+  if (overflow.length > 0) {
+    await model.deleteMany({ guildId, name: { $in: overflow.map(doc => doc.name) } });
+  }
   return record;
 }
 
@@ -194,28 +226,20 @@ export async function loadConfigBackupWithAudit(
   await recordServerAuditEntry(GuildAuditLogModel, guildId, audit);
 }
 
+export async function deleteConfigBackup(model: Pick<ConfigBackupModelLike, "deleteOne">, guildId: string, name: string): Promise<boolean> {
+  const normalized = normalizeBackupName(name);
+  const result = await model.deleteOne({ guildId, name: normalized });
+  return (result.deletedCount ?? 0) > 0;
+}
+
 export async function deleteConfigBackupWithAudit(
-  GuildModel: GuildModelLike,
+  model: Pick<ConfigBackupModelLike, "deleteOne">,
   GuildAuditLogModel: GuildAuditLogModelLike,
   guildId: string,
   name: string,
   audit: Omit<ServerAuditLogEntry, "serverId" | "at">
 ): Promise<boolean> {
-  const normalized = normalizeBackupName(name);
-  const result = await GuildModel.updateOne(
-    { _id: guildId, "configBackups.name": normalized },
-    { $pull: { configBackups: { name: normalized } } }
-  );
-  const deleted = (result.matchedCount ?? 0) > 0;
+  const deleted = await deleteConfigBackup(model, guildId, name);
   if (deleted) await recordServerAuditEntry(GuildAuditLogModel, guildId, audit);
   return deleted;
-}
-
-export async function deleteConfigBackup(GuildModel: GuildModelLike, guildId: string, name: string): Promise<boolean> {
-  const normalized = normalizeBackupName(name);
-  const result = await GuildModel.updateOne(
-    { _id: guildId },
-    { $pull: { configBackups: { name: normalized } } }
-  );
-  return (result.modifiedCount ?? 0) > 0;
 }

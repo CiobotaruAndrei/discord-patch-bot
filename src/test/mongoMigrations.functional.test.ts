@@ -11,6 +11,7 @@ interface GuildDoc {
   seen?: Record<string, string[]>;
   botAuditLog?: Array<Record<string, unknown>>;
   serverAuditLog?: Array<Record<string, unknown>>;
+  configBackups?: Array<Record<string, unknown>>;
 }
 
 type MigrationStateDoc = {
@@ -52,7 +53,11 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
     seenDiscounts: Array.from({ length: 520 }, (_, index) => `deal-${index}`),
     seen: { cs2: ["u-1", "u-2"], dota: ["u-3"] },
     botAuditLog: [{ userId: "u1", command: "/set mode", result: "Access granted.", serverId: "guild-1", at: new Date("2025-01-01T00:00:00.000Z") }],
-    serverAuditLog: [{ userId: "u1", action: "backup_add", details: "Saved backup prod", serverId: "guild-1", at: new Date("2025-02-01T00:00:00.000Z") }]
+    serverAuditLog: [{ userId: "u1", action: "backup_add", details: "Saved backup prod", serverId: "guild-1", at: new Date("2025-02-01T00:00:00.000Z") }],
+    configBackups: [
+      { name: "prod", createdBy: "u1", createdAt: new Date("2025-03-01T00:00:00.000Z"), snapshot: { subscribed: true } },
+      { createdBy: "ghost" }
+    ]
   }];
   let migrationState: MigrationStateDoc | null = overrides.initialMigrationState ?? null;
 
@@ -75,7 +80,16 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
       }
       return { modifiedCount: 1 };
     },
-    find(filter?: { seen?: unknown; seenDiscounts?: unknown; $or?: unknown }) {
+    find(filter?: { seen?: unknown; seenDiscounts?: unknown; configBackups?: unknown; $or?: unknown }) {
+      if (filter && "configBackups" in filter) {
+        const matching = guilds.filter(guild => Array.isArray(guild.configBackups));
+        return {
+          async toArray() { return matching.map(guild => ({ _id: guild._id, configBackups: guild.configBackups })); },
+          async *[Symbol.asyncIterator]() {
+            for (const guild of matching) yield { _id: guild._id, configBackups: guild.configBackups };
+          }
+        };
+      }
       if (filter && "$or" in filter) {
         const matching = guilds.filter(guild => Array.isArray(guild.botAuditLog) || Array.isArray(guild.serverAuditLog));
         return {
@@ -145,6 +159,13 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
       return { upsertedCount: ops.length };
     }
   };
+  const backupBulkOps: unknown[] = [];
+  const guildConfigBackupCollection = {
+    async bulkWrite(ops: unknown[]) {
+      backupBulkOps.push(...ops);
+      return { upsertedCount: ops.length };
+    }
+  };
 
   const connection = {
     db: {},
@@ -154,6 +175,7 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
       if (name === "guildSeenDiscounts") return fakeCollection(guildSeenDiscountCollection);
       if (name === "guildSeenUpdates") return fakeCollection(guildSeenUpdateCollection);
       if (name === "guildAuditLogs") return fakeCollection(guildAuditLogCollection);
+      if (name === "guildConfigBackups") return fakeCollection(guildConfigBackupCollection);
       throw new Error(`Unexpected collection ${name}`);
     }
   };
@@ -172,7 +194,7 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
     throw new Error("attachMigrations trebuie sa ataseze runMigrations + ALL_MIGRATIONS");
   }
   const runtime = Object.assign(context, { runMigrations, ALL_MIGRATIONS });
-  return { context: runtime, guilds, get migrationState() { return migrationState; }, updateManyCalls, releaseCalls, seenDiscountBulkOps, seenUpdateBulkOps, auditBulkOps };
+  return { context: runtime, guilds, get migrationState() { return migrationState; }, updateManyCalls, releaseCalls, seenDiscountBulkOps, seenUpdateBulkOps, auditBulkOps, backupBulkOps };
 }
 
 test("Mongo migrations apply pending migrations and release the lock", async () => {
@@ -183,7 +205,7 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
     logs.push({ level, context, message });
   });
 
-  assert.deepEqual(result.applied, [1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.deepEqual(result.applied, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
   assert.equal(result.skipped, 0);
   assert.equal(fixture.updateManyCalls.length, 5, "m1-m4 + m7 folosesc updateMany; m5 si m6 folosesc find + bulkWrite");
   const m4Call = fixture.updateManyCalls[3];
@@ -213,16 +235,23 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
   assert.equal(auditOps[0].updateOne.upsert, true, "backfill-ul e idempotent (upsert pe continutul intrarii)");
   assert.equal(fixture.guilds[0].botAuditLog, undefined, "m8 curata campul botAuditLog de pe documentul guild");
   assert.equal(fixture.guilds[0].serverAuditLog, undefined, "m8 curata campul serverAuditLog de pe documentul guild");
-  assert.equal(fixture.migrationState?.lastApplied, 8);
+  assert.equal(fixture.backupBulkOps.length, 1, "m9 muta backup-ul valid in colectia guildConfigBackups si sare peste intrarea fara nume");
+  const backupOp = fixture.backupBulkOps[0] as { updateOne: { filter: { guildId: string; name: string }; update: { $setOnInsert: { snapshot: Record<string, unknown> } }; upsert: boolean } };
+  assert.deepEqual(backupOp.updateOne.filter, { guildId: "guild-1", name: "prod" }, "backfill-ul foloseste cheia naturala (guildId, name), aceeasi cu indexul unic");
+  assert.equal(backupOp.updateOne.upsert, true, "backfill-ul e idempotent (upsert pe cheia naturala)");
+  assert.deepEqual(backupOp.updateOne.update.$setOnInsert.snapshot, { subscribed: true });
+  assert.equal(fixture.guilds[0].configBackups, undefined, "m9 curata campul configBackups de pe documentul guild");
+  assert.equal(fixture.migrationState?.lastApplied, 9);
   assert.equal(fixture.releaseCalls.length, 1);
   assert.deepEqual(fixture.releaseCalls[0], { name: "db_migrations", token: "migration-lock-token" });
   assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#8")));
+  assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#9")));
 });
 
 test("alta instanta tine lock-ul dar schema e deja sincronizata -> asteapta, continua boot-ul fara throw", async () => {
   const fixture = createFakeMigrationContext({
     acquireDbLock: async () => null,
-    initialMigrationState: { _id: "migrationState", lastApplied: 8 }
+    initialMigrationState: { _id: "migrationState", lastApplied: 9 }
   });
   let slept = 0;
 
@@ -235,7 +264,7 @@ test("alta instanta tine lock-ul dar schema e deja sincronizata -> asteapta, con
   assert.deepEqual(result.applied, []);
   assert.equal(result.skipped, fixture.context.ALL_MIGRATIONS.length);
   assert.equal(result.waited, true, "marcheaza ca a asteptat sincronizarea altei instante");
-  assert.equal(slept, 0, "schema deja la zi (lastApplied=8) -> intoarce la prima verificare, fara sa doarma");
+  assert.equal(slept, 0, "schema deja la zi (lastApplied=9) -> intoarce la prima verificare, fara sa doarma");
   assert.equal(fixture.releaseCalls.length, 0, "nu a tinut niciun lock");
 });
 
@@ -253,8 +282,8 @@ test("alta instanta tine lock-ul si nu termina in timeout -> fail-fast (throw)",
       waitTimeoutMs: 1_000,
       pollIntervalMs: 100
     }),
-    /Timeout.*migrarile.*lastApplied=3 < 8.*fail-fast/s,
-    "schema ramane sub target (3 < 8) pana la timeout -> arunca pentru ca boot-ul sa se opreasca"
+    /Timeout.*migrarile.*lastApplied=3 < 9.*fail-fast/s,
+    "schema ramane sub target (3 < 9) pana la timeout -> arunca pentru ca boot-ul sa se opreasca"
   );
   assert.equal(fixture.releaseCalls.length, 0);
 });

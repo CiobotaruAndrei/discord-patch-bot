@@ -5,13 +5,6 @@ export interface GuildAdminRecordSchemasDeps {
 }
 
 export function buildGuildAdminRecordSchemas({ mongoose }: GuildAdminRecordSchemasDeps) {
-  const configBackupSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    createdBy: { type: String, default: "" },
-    createdAt: { type: Date, default: Date.now },
-    snapshot: { type: mongoose.Schema.Types.Mixed, required: true }
-  }, { _id: false });
-
   const suggestedCommandSchema = new mongoose.Schema({
     commandName: { type: String, required: true },
     description: { type: String, required: true },
@@ -41,7 +34,6 @@ export function buildGuildAdminRecordSchemas({ mongoose }: GuildAdminRecordSchem
   }, { _id: false });
 
   return {
-    configBackupSchema,
     suggestedCommandSchema,
     watchlistGameSuggestionSchema,
     futureReleaseGameSchema,

@@ -210,6 +210,40 @@ const m8_moveAuditLogsIntoCollection: Migration = {
   }
 };
 
+const m9_moveConfigBackupsIntoCollection: Migration = {
+  id: 9,
+  name: "move-config-backups-into-collection",
+  async up(db) {
+    const guilds = db.collection("guilds");
+    const backupColl = db.collection("guildConfigBackups");
+    const cursor = guilds.find(
+      { configBackups: { $exists: true } },
+      { projection: { configBackups: 1 } }
+    );
+    for await (const guild of cursor) {
+      const guildId = String(guild._id);
+      const ops: Array<{ updateOne: { filter: Record<string, unknown>; update: Record<string, unknown>; upsert: boolean } }> = [];
+      const backups = Array.isArray(guild.configBackups) ? guild.configBackups : [];
+      for (const raw of backups) {
+        if (!raw || typeof raw !== "object") continue;
+        const entry = raw as Record<string, unknown>;
+        const name = String(entry.name || "");
+        if (!name) continue;
+        const doc = {
+          guildId,
+          name,
+          createdBy: String(entry.createdBy || ""),
+          createdAt: entry.createdAt instanceof Date ? entry.createdAt : new Date(String(entry.createdAt || 0)),
+          snapshot: entry.snapshot && typeof entry.snapshot === "object" ? entry.snapshot : {}
+        };
+        ops.push({ updateOne: { filter: { guildId, name }, update: { $setOnInsert: doc }, upsert: true } });
+      }
+      if (ops.length) await backupColl.bulkWrite(ops, { ordered: false });
+      await guilds.updateOne({ _id: guild._id }, { $unset: { configBackups: "" } });
+    }
+  }
+};
+
 const ALL_MIGRATIONS: Migration[] = [
   m1_addEnabledStores,
   m2_addMaxAbsolutePrice,
@@ -218,7 +252,8 @@ const ALL_MIGRATIONS: Migration[] = [
   m5_backfillSeenDiscounts,
   m6_backfillSeenUpdates,
   m7_dropLegacySeenFields,
-  m8_moveAuditLogsIntoCollection
+  m8_moveAuditLogsIntoCollection,
+  m9_moveConfigBackupsIntoCollection
 ];
 
 const MIGRATION_LOCK_NAME = "db_migrations";

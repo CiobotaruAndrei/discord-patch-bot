@@ -3,6 +3,7 @@
 import type { ConfigBackupRecord, GameConfig, GuildSettings } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { matchesCommand } from "../command-registry/commandMatch";
+import { findNewestConfigBackup, type ConfigBackupModelLike } from "../admin-records/configBackupRepository";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
@@ -32,6 +33,7 @@ interface MaintenanceDeps {
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
   getOutboxPaused(): Promise<boolean>;
   NotificationOutboxModel: CountModel;
+  GuildConfigBackupModel: Pick<ConfigBackupModelLike, "find">;
   MessageFlags: { Ephemeral: number };
 }
 
@@ -39,9 +41,9 @@ type MaintenanceContext = MaintenanceDeps & {
   handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => Promise<unknown> | unknown;
 };
 
-function isOldBackup(backups: ConfigBackupRecord[] | undefined, now: number): boolean {
-  if (!Array.isArray(backups) || backups.length === 0) return true;
-  const newest = Math.max(...backups.map(backup => new Date(backup.createdAt).getTime()).filter(Number.isFinite));
+function isOldBackup(newestBackup: ConfigBackupRecord | null, now: number): boolean {
+  if (!newestBackup) return true;
+  const newest = new Date(newestBackup.createdAt).getTime();
   if (!Number.isFinite(newest)) return true;
   return now - newest > 30 * 24 * 60 * 60 * 1000;
 }
@@ -55,15 +57,16 @@ function issueLine(ok: boolean, label: string, detail: string): string {
 }
 
 async function buildMaintenanceReport(deps: MaintenanceDeps, guildId: string): Promise<string> {
-  const [settings, queued, paused] = await Promise.all([
+  const [settings, queued, paused, newestBackup] = await Promise.all([
     deps.getGuildSettings(guildId),
     deps.NotificationOutboxModel.countDocuments({ guildId }).catch(() => -1),
-    deps.getOutboxPaused().catch(() => null)
+    deps.getOutboxPaused().catch(() => null),
+    findNewestConfigBackup(deps.GuildConfigBackupModel, guildId).catch(() => null)
   ]);
   const now = Date.now();
   const deadLetters = countArray(settings?.notificationDeadLetter);
   const youtubeErrors = countArray(settings?.youtubeErrors);
-  const backupsOld = isOldBackup(settings?.configBackups, now);
+  const backupsOld = isOldBackup(newestBackup, now);
   const updateChannelOk = settings?.subscribed ? Boolean(settings.notificationChannelId) : true;
   const discountChannelOk = settings?.discountsSubscribed ? Boolean(settings.discountChannelId) : true;
   const youtubeChannelOk = settings?.youtubeNotificationsEnabled ? Boolean(settings.youtubeNotificationChannelId) : true;
