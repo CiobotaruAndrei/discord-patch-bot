@@ -50,9 +50,7 @@ interface PriceCheckDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-type PriceCheckContext = PriceCheckDeps & {
-  handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => Promise<unknown> | unknown;
-};
+type PriceCheckContext = PriceCheckDeps;
 
 function createPriceCheckInteractionHandler(deps: PriceCheckDeps) {
   const {

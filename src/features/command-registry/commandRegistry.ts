@@ -108,21 +108,11 @@ import attachAdminCommandRouterGuard = require("../command-security/adminCommand
 
 const { createCommandRuntimeContext } = require("../command-runtime/commandRuntimeContext") as typeof import("../command-runtime/commandRuntimeContext");
 type CommandRuntimeBootContext = ReturnType<typeof createCommandRuntimeContext>;
-type RegistryInteractionHandler = NonNullable<CommandRegistryContext["handleInteraction"]>;
-type RegistryHelpEmbed = NonNullable<CommandRegistryContext["buildHelpEmbed"]>;
-type HandlerMutableContext = { handleInteraction?: RegistryInteractionHandler; buildHelpEmbed?: RegistryHelpEmbed };
 
 const PLAYER_COUNT_CACHE_TTL_SECONDS = 60;
 
-function requireInstalled<T>(value: T | undefined, key: string): T {
-  if (typeof value !== "function") {
-    throw new Error(`commandRegistry: functia necesara lipseste dupa compunere: ${key}`);
-  }
-  return value;
-}
-
 function createAppServices(
-  overrides: Partial<CommandRuntimeBootContext & HandlerMutableContext> = {}
+  overrides: Partial<CommandRuntimeBootContext> = {}
 ) {
   const runtime = { ...createCommandRuntimeContext(), ...overrides };
   const cache = { ...runtime, ...attachCommandCache.createCommandCache(runtime) };
@@ -191,7 +181,7 @@ function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): { c
 }
 
 function createCommandRegistry(
-  overrides: Partial<CommandRuntimeBootContext & HandlerMutableContext> = {}
+  overrides: Partial<CommandRuntimeBootContext> = {}
 ): RequiredCommandRegistry {
   const ctx = createAppServices(overrides);
   const { commandHandlers, helpCommand } = buildCommandHandlerList(ctx);
@@ -228,9 +218,6 @@ function createCommandRegistry(
     return dispatchWithSnoozeGuard(interaction, games);
   }
 
-  ctx.handleInteraction = handleInteraction;
-  ctx.buildHelpEmbed = helpCommand.buildHelpEmbed;
-
   return Object.freeze({
     cleanCache: ctx.cleanCache,
     getCacheSizes: ctx.getCacheSizes,
@@ -245,8 +232,8 @@ function createCommandRegistry(
     buildOptimizedGameList: ctx.buildOptimizedGameList,
     registerSlashCommands: ctx.registerSlashCommands,
     buildSlashCommandDefinitions: ctx.buildSlashCommandDefinitions,
-    handleInteraction: requireInstalled(ctx.handleInteraction, "handleInteraction"),
-    buildHelpEmbed: requireInstalled(ctx.buildHelpEmbed, "buildHelpEmbed"),
+    handleInteraction,
+    buildHelpEmbed: helpCommand.buildHelpEmbed,
     findGameAndSuggestion: ctx.findGameAndSuggestion,
     getFindGameCacheSize: ctx.getFindGameCacheSize,
     clearFindGameCache: ctx.clearFindGameCache,

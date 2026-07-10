@@ -47,7 +47,6 @@ type HelpContext = {
   COLORS?: { DARK: number } & Record<string, number>;
   MessageFlags: { Ephemeral: number };
   logger?: LoggerFunction;
-  handleInteraction?: NextInteractionHandler;
 };
 
 function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: number }) {

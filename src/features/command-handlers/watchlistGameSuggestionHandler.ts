@@ -46,7 +46,6 @@ interface WatchlistGameSuggestionDeps {
 
 type WatchlistGameSuggestionContext = Omit<WatchlistGameSuggestionDeps, "requireGuildAdmin"> & {
   requireGuildAdmin?: RequireGuildAdmin;
-  handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => Promise<unknown> | unknown;
 };
 
 function normalizeGameName(value: string): string {

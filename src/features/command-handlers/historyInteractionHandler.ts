@@ -50,9 +50,7 @@ interface HistoryHandlerDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-type HistoryContext = HistoryHandlerDeps & {
-  handleInteraction?: NextInteractionHandler;
-};
+type HistoryContext = HistoryHandlerDeps;
 
 function mapHistoryKind(tip: string | null): HistoryKind | "all" {
   if (tip === "updates") return "update";

@@ -41,9 +41,7 @@ type RolePingInteractionDeps = {
   MessageFlags: { Ephemeral: number };
 };
 
-type RolePingContext = RolePingInteractionDeps & {
-  handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
-};
+type RolePingContext = RolePingInteractionDeps;
 
 const KNOWN_ROLE_SUBS: Record<string, { field: string; label: string }> = {
   updates: { field: "notificationRoleId", label: "update-uri" },

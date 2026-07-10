@@ -60,7 +60,6 @@ export interface SubscriptionFamily {
 
 export type SubscriptionContext = SubscriptionInteractionDeps & {
   MessageFlags: { Ephemeral: number };
-  handleInteraction?: (interaction: SubscriptionInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 };
 
 type MaybePromise<T> = T | Promise<T>;

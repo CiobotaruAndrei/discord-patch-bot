@@ -39,7 +39,7 @@ interface SourcesRefreshDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-type SourcesRefreshContext = SourcesRefreshDeps & { handleInteraction?: NextInteractionHandler };
+type SourcesRefreshContext = SourcesRefreshDeps;
 
 function normalizeGameKey(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();

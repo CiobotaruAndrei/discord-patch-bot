@@ -46,14 +46,16 @@ export type AdminGuardModule = ((interaction: TestInteraction) => Promise<boolea
   hasConfiguredAdminRole: (interaction: TestInteraction, config: { mode?: "role" | "role-or-higher" | null; roleId?: string | null } | null) => boolean;
 };
 
-export type AdminCommandGuardModule = ((context: Record<string, unknown>) => void) & {
-  createAdminCommandGuard: (deps: { requireGuildAdmin: (interaction: TestInteraction) => Promise<boolean> }, target?: Record<string, unknown>) => {
+export type AdminCommandGuardModule = {
+  createAdminCommandGuard: (deps: { requireGuildAdmin: (interaction: TestInteraction) => Promise<boolean>; authorizeGuildAdmin?: (interaction: TestInteraction) => Promise<TestInteraction | null> }, target?: Record<string, unknown>) => {
     handleAdminProtectedCommand: (
       interaction: TestInteraction,
       games: TestGame[],
       next?: (interaction: TestInteraction, games: TestGame[]) => Promise<unknown>
     ) => Promise<unknown>;
   };
+  requireGuildAdminWithConfiguredAccess: (target: Record<string, unknown>, interaction: TestInteraction) => Promise<boolean>;
+  authorizeGuildAdminWithConfiguredAccess: (target: Record<string, unknown>, interaction: TestInteraction) => Promise<TestInteraction | null>;
   isAdminProtectedCommand: (interaction: TestInteraction) => boolean;
   isSensitiveAdminCommand: (interaction: TestInteraction) => boolean;
   hasSensitiveUserAccess: (interaction: TestInteraction) => boolean;
@@ -63,6 +65,22 @@ export type AdminCommandGuardModule = ((context: Record<string, unknown>) => voi
 
 export const requireGuildAdmin = require("../features/command-security/adminPermissionGuard") as AdminGuardModule;
 export const adminCommandGuard = require("../features/command-security/adminCommandRouterGuard") as AdminCommandGuardModule;
+
+type GuardedTarget = Record<string, unknown> & {
+  handleInteraction: (interaction: TestInteraction, games: TestGame[]) => Promise<unknown>;
+};
+
+export function buildGuardedHandleInteraction(target: GuardedTarget) {
+  const next = target.handleInteraction;
+  const guard = adminCommandGuard.createAdminCommandGuard({
+    requireGuildAdmin: interaction => adminCommandGuard.requireGuildAdminWithConfiguredAccess(target, interaction),
+    authorizeGuildAdmin: interaction => adminCommandGuard.authorizeGuildAdminWithConfiguredAccess(target, interaction)
+  }, target);
+  return async (interaction: TestInteraction, games: TestGame[]) =>
+    adminCommandGuard.isAdminProtectedCommand(interaction)
+      ? guard.handleAdminProtectedCommand(interaction, games, next)
+      : next(interaction, games);
+}
 export const globalAccessCode = require("../features/command-security/globalAccessCode") as typeof import("../features/command-security/globalAccessCode");
 
 export function makeInteraction(isAdmin: boolean, deferred = false): { interaction: TestInteraction; replies: unknown[]; followUps: unknown[] } {

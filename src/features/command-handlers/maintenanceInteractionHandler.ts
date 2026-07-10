@@ -41,9 +41,7 @@ interface MaintenanceDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-type MaintenanceContext = MaintenanceDeps & {
-  handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => Promise<unknown> | unknown;
-};
+type MaintenanceContext = MaintenanceDeps;
 
 function isOldBackup(newestBackup: ConfigBackupRecord | null, now: number): boolean {
   if (!newestBackup) return true;

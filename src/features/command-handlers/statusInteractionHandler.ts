@@ -34,9 +34,7 @@ type StatusHandlerDeps = {
   MessageFlags: { Ephemeral: number };
 };
 
-type StatusContext = StatusHandlerDeps & {
-  handleInteraction?: NextInteractionHandler;
-};
+type StatusContext = StatusHandlerDeps;
 
 function createStatusInteractionHandler(deps: StatusHandlerDeps) {
   const {

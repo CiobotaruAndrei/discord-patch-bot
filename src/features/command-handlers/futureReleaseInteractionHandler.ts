@@ -54,9 +54,7 @@ interface FutureReleaseDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-type FutureReleaseContext = FutureReleaseDeps & {
-  handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => Promise<unknown> | unknown;
-};
+type FutureReleaseContext = FutureReleaseDeps;
 
 function normalizeGameName(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLowerCase().slice(0, 120);

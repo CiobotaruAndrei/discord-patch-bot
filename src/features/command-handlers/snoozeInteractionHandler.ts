@@ -50,7 +50,6 @@ type SnoozeInteractionDeps = {
 
 type SnoozeContext = SnoozeInteractionDeps & {
   logger?: Logger;
-  handleInteraction?: NextInteractionHandler;
 };
 
 function commandError(message: string, MessageFlags: { Ephemeral: number }): InteractionPayload {

@@ -42,9 +42,7 @@ interface AuditLogDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-type AuditLogContext = AuditLogDeps & {
-  handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => Promise<unknown> | unknown;
-};
+type AuditLogContext = AuditLogDeps;
 
 function limitFromInteraction(interaction: DiscordInteraction): number {
   const raw = interaction.options.getInteger("numar") ?? 10;

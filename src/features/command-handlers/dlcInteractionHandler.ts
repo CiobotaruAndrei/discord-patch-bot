@@ -84,9 +84,7 @@ type DlcHandlerDeps = {
   MessageFlags: { Ephemeral: number };
 };
 
-type DlcContext = DlcHandlerDeps & {
-  handleInteraction?: NextInteractionHandler;
-};
+type DlcContext = DlcHandlerDeps;
 
 function createDlcInteractionHandler(deps: DlcHandlerDeps) {
   const {

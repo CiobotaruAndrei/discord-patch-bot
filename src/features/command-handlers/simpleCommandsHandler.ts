@@ -25,7 +25,6 @@ type SimpleCommandsDeps = {
 type SimpleCommandsContext = SimpleCommandsDeps & {
   MessageFlags: { Ephemeral: number };
   logger?: LoggerFunction;
-  handleInteraction?: NextInteractionHandler;
 };
 
 function createSimpleCommandsHandler(deps: SimpleCommandsDeps) {

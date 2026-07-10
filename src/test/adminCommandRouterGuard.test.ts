@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adminCommandGuard, attachAccessCodeModal, globalAccessCode, makeInteraction, requireGuildAdmin } from "./adminGuardTestKit";
+import { adminCommandGuard, attachAccessCodeModal, buildGuardedHandleInteraction, globalAccessCode, makeInteraction, requireGuildAdmin } from "./adminGuardTestKit";
 import type { AdminCommandGuardModule, TestGame, TestInteraction } from "./adminGuardTestKit";
 
 test("admin command guard blocks protected commands before delegating", async () => {
@@ -93,8 +93,8 @@ test("admin command guard delegates protected commands dupa codul global corect 
       }
     };
 
-    adminCommandGuard(target);
-    const result = await target.handleInteraction(interaction, []);
+    const handleGuarded = buildGuardedHandleInteraction(target);
+    const result = await handleGuarded(interaction, []);
 
     assert.equal(result, "delegated");
     assert.deepEqual(delegated, [true]);
@@ -133,8 +133,8 @@ test("admin command guard lasa ownerul serverului sa configureze accesul admin f
 
   assert.equal(adminCommandGuard.isOwnerOnlyAdminAccessCommand(interaction), true);
   assert.equal(await adminCommandGuard.isGuildOwner(interaction), true);
-  adminCommandGuard(target);
-  const result = await target.handleInteraction(interaction, []);
+  const handleGuarded = buildGuardedHandleInteraction(target);
+  const result = await handleGuarded(interaction, []);
 
   assert.equal(result, "delegated");
   assert.deepEqual(delegated, ["set"]);
@@ -159,14 +159,14 @@ test("admin command guard refuza codul global gresit si alerteaza dupa incercari
       adminAlert: async (kind: string) => { alerts.push(String(kind)); },
       handleInteraction: async handledInteraction => { delegated.push(handledInteraction.commandName); return "delegated"; }
     };
-    adminCommandGuard(target);
+    const handleGuarded = buildGuardedHandleInteraction(target);
 
     for (let i = 0; i < 5; i += 1) {
       const { interaction } = makeInteraction(false);
       interaction.commandName = "config";
       interaction.user = { id: "bad-code-user" };
       attachAccessCodeModal(interaction, "gresit", [], []);
-      await target.handleInteraction(interaction, []);
+      await handleGuarded(interaction, []);
     }
 
     assert.deepEqual(delegated, []);
@@ -202,8 +202,8 @@ test("admin command guard delegates protected commands for configured role acces
     }
   };
 
-  adminCommandGuard(target);
-  const result = await target.handleInteraction(interaction, []);
+  const handleGuarded = buildGuardedHandleInteraction(target);
+  const result = await handleGuarded(interaction, []);
 
   assert.equal(result, "delegated");
   assert.deepEqual(delegated, ["config"]);
@@ -238,9 +238,9 @@ test("admin command guard foloseste regula dedicata start/stop pe pachet inainte
       return "delegated";
     }
   };
-  adminCommandGuard(target);
+  const handleGuarded = buildGuardedHandleInteraction(target);
 
-  const startResult = await target.handleInteraction(startInteraction, []);
+  const startResult = await handleGuarded(startInteraction, []);
 
   assert.equal(startResult, "delegated");
   assert.deepEqual(delegated, ["start:updates"]);
@@ -253,7 +253,7 @@ test("admin command guard foloseste regula dedicata start/stop pe pachet inainte
   };
   stopInteraction.member = { roles: { has: (roleId: string) => roleId === "role-start" } };
 
-  const stopResult = await target.handleInteraction(stopInteraction, []);
+  const stopResult = await handleGuarded(stopInteraction, []);
 
   assert.equal(stopResult, "delegated");
   assert.deepEqual(delegated, ["start:updates", "stop:updates"]);

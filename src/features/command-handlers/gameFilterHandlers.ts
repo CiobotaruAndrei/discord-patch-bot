@@ -42,9 +42,7 @@ type GameFilterInteractionDeps = {
   MessageFlags: { Ephemeral: number };
 };
 
-type GameFilterContext = GameFilterInteractionDeps & {
-  handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
-};
+type GameFilterContext = GameFilterInteractionDeps;
 
 function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
   const { GuildModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit, formatUserError, logger } = deps;

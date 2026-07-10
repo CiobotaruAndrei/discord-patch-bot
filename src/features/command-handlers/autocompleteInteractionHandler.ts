@@ -40,9 +40,7 @@ type AutocompleteHandlerDeps = {
   getGuildSettings: (guildId: string) => Promise<GuildSettingsLite | null>;
 };
 
-type AutocompleteContext = AutocompleteHandlerDeps & {
-  handleInteraction?: NextInteractionHandler;
-};
+type AutocompleteContext = AutocompleteHandlerDeps;
 
 const MIN_RELEVANT_SCORE = 20;
 const SCORE_EXACT = 100;

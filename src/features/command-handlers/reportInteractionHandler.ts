@@ -59,7 +59,6 @@ interface ReportHandlerDeps {
 
 type ReportContext = Omit<ReportHandlerDeps, "requireGuildAdmin"> & {
   requireGuildAdmin?: RequireGuildAdmin;
-  handleInteraction?: NextInteractionHandler;
 };
 
 function getReportSubcommand(interaction: DiscordInteraction): string {
