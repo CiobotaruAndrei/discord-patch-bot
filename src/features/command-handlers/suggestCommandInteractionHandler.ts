@@ -1,9 +1,9 @@
 "use strict";
 
-import type { DiscordReplyPayload, GameConfig, GuildSettings, SuggestedCommandEntry } from "../../types";
+import type { DiscordReplyPayload, GameConfig, SuggestedCommandEntry } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
-import { deleteSuggestedCommand, listSuggestedCommands, saveSuggestedCommand } from "../admin-records/suggestedCommandsRepository";
+import { deleteSuggestedCommand, listSuggestedCommands, saveSuggestedCommand, type SuggestedCommandModelLike } from "../admin-records/suggestedCommandsRepository";
 import { recordBotAuditEntry } from "../admin-records/auditLogRepository";
 import { requireGuildAdminAudited } from "../command-security/runtimeAdminAudit";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
@@ -32,10 +32,8 @@ interface DiscordInteraction {
 }
 
 interface SuggestCommandDeps {
-  GuildModel: Parameters<typeof saveSuggestedCommand>[0];
+  GuildSuggestedCommandModel: SuggestedCommandModelLike;
   GuildAuditLogModel: Parameters<typeof recordBotAuditEntry>[0];
-  getGuildSettings(guildId: string): Promise<GuildSettings | null>;
-  invalidateGuildCache(guildId: string): void;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
   enforceCooldown(interaction: DiscordInteraction, command: string): Promise<boolean>;
@@ -64,7 +62,7 @@ function renderSuggestedCommands(entries: SuggestedCommandEntry[]): string {
 }
 
 function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
-  const { GuildModel, GuildAuditLogModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit, enforceCooldown, requireGuildAdmin } = deps;
+  const { GuildSuggestedCommandModel, GuildAuditLogModel, safeDefer, safeEdit, enforceCooldown, requireGuildAdmin } = deps;
 
   async function handleAdd(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     if (!(await enforceCooldown(interaction, "suggest-command:add"))) return undefined;
@@ -73,12 +71,11 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
     if (!commandName || !description) {
       return safeEdit(interaction, "Eroare: trebuie sa completezi numele comenzii si ce ar trebui sa faca.");
     }
-    const { record, added } = await saveSuggestedCommand(GuildModel, guildId, {
+    const { record, added } = await saveSuggestedCommand(GuildSuggestedCommandModel, guildId, {
       commandName,
       description,
       createdBy: interaction.user?.id || ""
     });
-    invalidateGuildCache(guildId);
     return added
       ? safeEdit(interaction, `OK: sugestia \`/${record.commandName}\` a fost salvata.`)
       : safeEdit(interaction, `Info: comanda \`/${record.commandName}\` e deja in lista de sugestii a serverului.`);
@@ -87,21 +84,20 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
   async function handleList(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildAuditLogModel, interaction, guildId, "/suggest-command list"))) return undefined;
     const limit = Math.max(1, Math.min(25, interaction.options.getInteger("numar") ?? 10));
-    const settings = await getGuildSettings(guildId);
+    const entries = await listSuggestedCommands(GuildSuggestedCommandModel, guildId, limit);
     await recordBotAuditEntry(GuildAuditLogModel, guildId, { userId: interaction.user?.id || "", command: "/suggest-command list", result: "Access granted." }).catch(() => undefined);
-    return safeEdit(interaction, { content: renderSuggestedCommands(listSuggestedCommands(settings, limit)), allowedMentions: NO_MENTIONS });
+    return safeEdit(interaction, { content: renderSuggestedCommands(entries), allowedMentions: NO_MENTIONS });
   }
 
   async function handleDelete(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildAuditLogModel, interaction, guildId, "/suggest-command delete"))) return undefined;
     const commandName = normalizeCommandName(String(interaction.options.getString("name", true) || ""));
     if (!commandName) return safeEdit(interaction, "Eroare: trebuie sa alegi numele comenzii sugerate.");
-    const deleted = await deleteSuggestedCommand(GuildModel, GuildAuditLogModel, guildId, commandName, {
+    const deleted = await deleteSuggestedCommand(GuildSuggestedCommandModel, GuildAuditLogModel, guildId, commandName, {
       userId: interaction.user?.id || "",
       action: "suggest_command_delete",
       details: commandName
     });
-    invalidateGuildCache(guildId);
     await recordBotAuditEntry(GuildAuditLogModel, guildId, {
       userId: interaction.user?.id || "",
       command: "/suggest-command delete",
@@ -140,10 +136,8 @@ function isSuggestCommand(interaction: DiscordInteraction): boolean {
 
 function buildSuggestCommandHandler(target: SuggestCommandContext) {
   const handlers = createSuggestCommandInteractionHandler({
-    GuildModel: target.GuildModel,
+    GuildSuggestedCommandModel: target.GuildSuggestedCommandModel,
     GuildAuditLogModel: target.GuildAuditLogModel,
-    getGuildSettings: target.getGuildSettings,
-    invalidateGuildCache: target.invalidateGuildCache,
     safeDefer: target.safeDefer,
     safeEdit: target.safeEdit,
     enforceCooldown: target.enforceCooldown,

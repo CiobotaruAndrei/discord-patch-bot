@@ -99,6 +99,7 @@ export type ActiveLocks = Map<string, LockToken>;
 export interface MongoWriteOutcome {
   matchedCount?: number;
   modifiedCount?: number;
+  upsertedCount?: number;
 }
 
 export interface ParseEnvNumberLimits {
@@ -276,7 +277,6 @@ export interface GuildSettings {
   youtubeTitleIncludeWords?: string[];
   youtubeErrors?: YouTubeErrorEntry[];
   notificationDeadLetter?: DeadLetterEntry[];
-  suggestedCommands?: SuggestedCommandEntry[];
   watchlistGameSuggestions?: WatchlistGameSuggestionEntry[];
   futureReleaseGames?: FutureReleaseGameEntry[];
   playerCountSubscribed?: boolean;

@@ -10,6 +10,7 @@ import { buildSeenSchemas } from "./seenSchemas";
 import { buildOutboxSchemas } from "./outboxSchemas";
 import { buildAuditLogSchemas } from "./auditLogSchemas";
 import { buildConfigBackupSchemas } from "./configBackupSchemas";
+import { buildSuggestedCommandSchemas } from "./suggestedCommandSchemas";
 
 interface MongoModelsContext {
   mongoose: typeof Mongoose;
@@ -35,7 +36,6 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     youtubeChannelRouteSchema
   } = buildGuildYoutubeSchemas({ mongoose });
   const {
-    suggestedCommandSchema,
     watchlistGameSuggestionSchema,
     futureReleaseGameSchema,
     adminCommandAccessSchema
@@ -99,7 +99,6 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     youtubeChannelRoutes: { type: [youtubeChannelRouteSchema], default: [] },
     youtubeTitleIncludeWords: { type: [String], default: [] },
     youtubeErrors: { type: [youtubeErrorSchema], default: [] },
-    suggestedCommands: { type: [suggestedCommandSchema], default: [] },
     watchlistGameSuggestions: { type: [watchlistGameSuggestionSchema], default: [] },
     futureReleaseGames: { type: [futureReleaseGameSchema], default: [] },
     adminCommandAccess: { type: adminCommandAccessSchema, default: null },
@@ -149,6 +148,9 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const { guildConfigBackupSchema } = buildConfigBackupSchemas({ mongoose });
   const GuildConfigBackupModel = mongoose.model("GuildConfigBackup", guildConfigBackupSchema, "guildConfigBackups");
 
+  const { guildSuggestedCommandSchema } = buildSuggestedCommandSchemas({ mongoose });
+  const GuildSuggestedCommandModel = mongoose.model("GuildSuggestedCommand", guildSuggestedCommandSchema, "guildSuggestedCommands");
+
   const {
     guildSeenDiscountSchema,
     guildSeenUpdateSchema,
@@ -173,6 +175,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     GuildModel,
     GuildAuditLogModel,
     GuildConfigBackupModel,
+    GuildSuggestedCommandModel,
     CircuitBreakerModel,
     SystemModel,
     JobLockModel,

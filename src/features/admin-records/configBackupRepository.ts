@@ -84,7 +84,6 @@ export const GUILD_SETTINGS_FIELD_ROLES: Readonly<Record<string, GuildSettingsFi
   dlcChannelId: "config",
   adminCommandAccess: "security",
   adminCommandAccessByCommand: "security",
-  suggestedCommands: "operational",
   notificationDeadLetter: "operational",
   pendingUpdates: "operational",
   pendingDiscounts: "operational",

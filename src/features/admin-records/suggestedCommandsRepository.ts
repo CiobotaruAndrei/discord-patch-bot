@@ -1,49 +1,48 @@
 "use strict";
 
-import type { GuildSettings, MongoWriteOutcome, ServerAuditLogEntry, SuggestedCommandEntry } from "../../types";
+import type { MongoWriteOutcome, ServerAuditLogEntry, SuggestedCommandEntry } from "../../types";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "./auditLogRepository";
 
-type MongoWriteResult = MongoWriteOutcome;
+export interface GuildSuggestedCommandRecord {
+  guildId: string;
+  commandName: string;
+  description?: string;
+  createdBy?: string;
+  createdAt?: Date | string;
+}
 
-type GuildModelLike = {
-  updateOne(
-    filter: Record<string, unknown>,
-    update: Record<string, unknown> | Array<Record<string, unknown>>,
-    options?: Record<string, unknown>
-  ): Promise<MongoWriteResult>;
-};
+export interface SuggestedCommandQueryLike {
+  sort(spec: Record<string, 1 | -1>): SuggestedCommandQueryLike;
+  skip(count: number): SuggestedCommandQueryLike;
+  limit(count: number): SuggestedCommandQueryLike;
+  lean(): Promise<GuildSuggestedCommandRecord[]>;
+}
 
-type SuggestedCommandGuildModel = GuildModelLike & {
-  findOneAndUpdate(
-    filter: Record<string, unknown>,
-    update: Record<string, unknown> | Array<Record<string, unknown>>,
-    options?: Record<string, unknown>
-  ): Promise<{ suggestedCommands?: SuggestedCommandEntry[] } | null>;
-};
+export interface SuggestedCommandModelLike {
+  updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<MongoWriteOutcome>;
+  deleteOne(filter: Record<string, unknown>): Promise<{ deletedCount?: number }>;
+  deleteMany(filter: Record<string, unknown>): Promise<{ deletedCount?: number }>;
+  find(filter: Record<string, unknown>): SuggestedCommandQueryLike;
+}
 
-const MAX_SUGGESTED_COMMANDS = 100;
+export const MAX_SUGGESTED_COMMANDS = 100;
 
-export function buildSuggestedCommandUpsertPipeline(record: SuggestedCommandEntry, maxItems: number): Array<Record<string, unknown>> {
-  return [{
-    $set: {
-      suggestedCommands: {
-        $let: {
-          vars: { existing: { $ifNull: ["$suggestedCommands", []] } },
-          in: {
-            $cond: [
-              { $in: [record.commandName, { $map: { input: "$$existing", as: "entry", in: "$$entry.commandName" } }] },
-              "$$existing",
-              { $slice: [{ $concatArrays: ["$$existing", [record]] }, -maxItems] }
-            ]
-          }
-        }
-      }
-    }
-  }];
+function toEntryDate(value: Date | string | undefined): Date {
+  const date = value instanceof Date ? value : new Date(value ?? Number.NaN);
+  return Number.isNaN(date.getTime()) ? new Date(0) : date;
+}
+
+function toEntry(doc: GuildSuggestedCommandRecord): SuggestedCommandEntry {
+  return {
+    commandName: doc.commandName,
+    description: doc.description || "",
+    createdBy: doc.createdBy || "",
+    createdAt: toEntryDate(doc.createdAt)
+  };
 }
 
 export async function saveSuggestedCommand(
-  GuildModel: SuggestedCommandGuildModel,
+  model: Pick<SuggestedCommandModelLike, "updateOne" | "find" | "deleteMany">,
   guildId: string,
   entry: Omit<SuggestedCommandEntry, "createdAt">
 ): Promise<{ record: SuggestedCommandEntry; added: boolean }> {
@@ -51,36 +50,40 @@ export async function saveSuggestedCommand(
     ...entry,
     createdAt: new Date()
   };
-  const before = await GuildModel.findOneAndUpdate(
-    { _id: guildId },
-    buildSuggestedCommandUpsertPipeline(record, MAX_SUGGESTED_COMMANDS),
+  const result = await model.updateOne(
+    { guildId, commandName: record.commandName },
+    { $setOnInsert: { description: record.description, createdBy: record.createdBy, createdAt: record.createdAt } },
     { upsert: true }
   );
-  const existed = (Array.isArray(before?.suggestedCommands) ? before.suggestedCommands : [])
-    .some(entryItem => entryItem.commandName === record.commandName);
-  return { record, added: !existed };
+  const added = (result.upsertedCount ?? 0) > 0;
+  if (added) {
+    const overflow = await model.find({ guildId }).sort({ createdAt: -1 }).skip(MAX_SUGGESTED_COMMANDS).limit(MAX_SUGGESTED_COMMANDS).lean();
+    if (overflow.length > 0) {
+      await model.deleteMany({ guildId, commandName: { $in: overflow.map(doc => doc.commandName) } });
+    }
+  }
+  return { record, added };
 }
 
-export function listSuggestedCommands(settings: GuildSettings | null, limit: number): SuggestedCommandEntry[] {
-  const entries = Array.isArray(settings?.suggestedCommands) ? settings.suggestedCommands : [];
-  return [...entries]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, limit);
+export async function listSuggestedCommands(
+  model: Pick<SuggestedCommandModelLike, "find">,
+  guildId: string,
+  limit: number
+): Promise<SuggestedCommandEntry[]> {
+  const docs = await model.find({ guildId }).sort({ createdAt: -1 }).skip(0).limit(Math.max(0, limit)).lean();
+  return docs.map(toEntry);
 }
 
 export async function deleteSuggestedCommand(
-  GuildModel: GuildModelLike,
+  model: Pick<SuggestedCommandModelLike, "deleteOne">,
   GuildAuditLogModel: GuildAuditLogModelLike,
   guildId: string,
   name: string,
   audit: Omit<ServerAuditLogEntry, "serverId" | "at">
 ): Promise<boolean> {
   const normalized = name.trim().replace(/^\/+/, "").replace(/\s+/g, " ").toLowerCase();
-  const result = await GuildModel.updateOne(
-    { _id: guildId, "suggestedCommands.commandName": normalized },
-    { $pull: { suggestedCommands: { commandName: normalized } } }
-  );
-  const deleted = (result.matchedCount ?? 0) > 0;
+  const result = await model.deleteOne({ guildId, commandName: normalized });
+  const deleted = (result.deletedCount ?? 0) > 0;
   if (deleted) await recordServerAuditEntry(GuildAuditLogModel, guildId, audit);
   return deleted;
 }
