@@ -1,7 +1,7 @@
 "use strict";
 
 import type { ConfigBackupRecord, GuildSettings, MongoWriteOutcome, ServerAuditLogEntry } from "../../types";
-import { buildServerAuditPush } from "./auditLogRepository";
+import { recordServerAuditEntry, type GuildAuditLogModelLike } from "./auditLogRepository";
 
 type MongoWriteResult = MongoWriteOutcome;
 
@@ -57,8 +57,6 @@ export const GUILD_SETTINGS_FIELD_ROLES: Readonly<Record<string, GuildSettingsFi
   dlcChannelId: "config",
   adminCommandAccess: "security",
   adminCommandAccessByCommand: "security",
-  botAuditLog: "operational",
-  serverAuditLog: "operational",
   suggestedCommands: "operational",
   configBackups: "operational",
   notificationDeadLetter: "operational",
@@ -187,17 +185,18 @@ export async function loadConfigBackup(
 
 export async function loadConfigBackupWithAudit(
   GuildModel: GuildModelLike,
+  GuildAuditLogModel: GuildAuditLogModelLike,
   guildId: string,
   backup: ConfigBackupRecord,
   audit: Omit<ServerAuditLogEntry, "serverId" | "at">
 ): Promise<void> {
-  const update = buildConfigRestoreUpdate(backup);
-  update.$push = buildServerAuditPush(guildId, audit);
-  await GuildModel.updateOne({ _id: guildId }, update, { upsert: true });
+  await GuildModel.updateOne({ _id: guildId }, buildConfigRestoreUpdate(backup), { upsert: true });
+  await recordServerAuditEntry(GuildAuditLogModel, guildId, audit);
 }
 
 export async function deleteConfigBackupWithAudit(
   GuildModel: GuildModelLike,
+  GuildAuditLogModel: GuildAuditLogModelLike,
   guildId: string,
   name: string,
   audit: Omit<ServerAuditLogEntry, "serverId" | "at">
@@ -205,12 +204,11 @@ export async function deleteConfigBackupWithAudit(
   const normalized = normalizeBackupName(name);
   const result = await GuildModel.updateOne(
     { _id: guildId, "configBackups.name": normalized },
-    {
-      $pull: { configBackups: { name: normalized } },
-      $push: buildServerAuditPush(guildId, audit)
-    }
+    { $pull: { configBackups: { name: normalized } } }
   );
-  return (result.matchedCount ?? 0) > 0;
+  const deleted = (result.matchedCount ?? 0) > 0;
+  if (deleted) await recordServerAuditEntry(GuildAuditLogModel, guildId, audit);
+  return deleted;
 }
 
 export async function deleteConfigBackup(GuildModel: GuildModelLike, guildId: string, name: string): Promise<boolean> {

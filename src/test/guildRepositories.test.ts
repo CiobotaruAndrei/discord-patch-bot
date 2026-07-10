@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
 import { loadAdminAccessDoc, saveAdminAccessRule, deleteAdminAccessRule } from "../features/command-security/adminAccessRepository";
 import { parseAdminScopeId } from "../features/command-security/adminScopeIds";
 import { upsertPriceAlert, removePriceAlertsForGame, buildPriceAlertRule, MAX_PRICE_ALERTS_PER_GUILD } from "../features/notifications/priceAlertRepository";
@@ -50,16 +51,24 @@ test("guildConfigRepository: scrierile /set (config/watchlist/snooze) pastreaza 
   assert.equal(calls[5].options, undefined, "unsnooze nu face upsert");
 });
 
-test("guildConfigRepository: reset-ul scrie valorile implicite si auditul intr-un singur updateOne cu upsert (R7 #3)", async () => {
+test("guildConfigRepository: reset-ul scrie valorile implicite cu upsert si auditul in colectia guildAuditLogs (R7 #3 + #6 audit split)", async () => {
   const calls: Array<{ filter: object; update: Record<string, unknown>; options?: Record<string, unknown> }> = [];
+  const auditDocs: GuildAuditLogRecord[] = [];
+  const auditModel = {
+    create: async (doc: GuildAuditLogRecord) => { auditDocs.push(doc); return doc; },
+    find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
+  };
   const model = { updateOne: async (filter: object, update: object, options?: object) => { calls.push({ filter, update: update as Record<string, unknown>, options: options as Record<string, unknown> }); return {}; } };
-  await resetGuildConfigurationWithAudit(model, "g1", "EUR", { userId: "u1", action: "reset_config", details: "test" });
-  assert.equal(calls.length, 1, "reset + audit = o singura scriere");
+  await resetGuildConfigurationWithAudit(model, auditModel, "g1", "EUR", { userId: "u1", action: "reset_config", details: "test" });
+  assert.equal(calls.length, 1, "reset = o singura scriere pe guild, fara $push de audit");
   const setDoc = calls[0].update.$set as Record<string, unknown>;
   assert.equal(setDoc.subscribed, false);
   assert.equal(setDoc.currency, "EUR");
   assert.deepEqual(setDoc, buildResetConfiguration("EUR"), "reset-ul foloseste exact sursa unica de valori implicite");
-  assert.match(JSON.stringify(calls[0].update.$push), /reset_config/);
+  assert.equal(calls[0].update.$push, undefined);
+  assert.equal(auditDocs.length, 1);
+  assert.equal(auditDocs[0].kind, "server");
+  assert.match(String(auditDocs[0].action), /reset_config/);
   assert.equal(calls[0].options?.upsert, true);
 
   await setAdminAlertChannel(model, "g1", "c9");
@@ -69,12 +78,17 @@ test("guildConfigRepository: reset-ul scrie valorile implicite si auditul intr-u
   assert.equal(calls[2].options?.upsert, true);
 });
 
-test("adminAccessRepository: save/delete scriu regula si auditul intr-un singur updateOne (R6 #6 + #7)", async () => {
+test("adminAccessRepository: save/delete scriu regula pe guild si auditul in colectia guildAuditLogs (R6 #6 + #7 + #6 audit split)", async () => {
   const calls: Array<{ filter: object; update: Record<string, unknown> }> = [];
+  const auditDocs: GuildAuditLogRecord[] = [];
+  const auditModel = {
+    create: async (doc: GuildAuditLogRecord) => { auditDocs.push(doc); return doc; },
+    find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
+  };
   const model = { updateOne: async (filter: object, update: object) => { calls.push({ filter, update: update as Record<string, unknown> }); return {}; } };
   const scope = parseAdminScopeId("/start updates");
   assert.ok(scope, "scope-ul canonic exista in catalogul settable");
-  await saveAdminAccessRule(model, "g1", {
+  await saveAdminAccessRule(model, auditModel, "g1", {
     scope,
     access: { mode: "role" as const, roleId: "r1", updatedBy: "u1", updatedAt: new Date() },
     legacyKeys: ["start:updates"],
@@ -83,16 +97,17 @@ test("adminAccessRepository: save/delete scriu regula si auditul intr-un singur 
   assert.equal(calls.length, 1);
   assert.ok(calls[0].update.$set, "regula in $set");
   assert.ok(calls[0].update.$unset, "cheile legacy curatate in aceeasi scriere");
-  assert.match(JSON.stringify(calls[0].update.$push), /admin_access_set/);
+  assert.equal(calls[0].update.$push, undefined, "auditul nu mai e $push pe documentul guild");
+  assert.match(String(auditDocs[0].action), /admin_access_set/);
 
-  await deleteAdminAccessRule(model, "g1", {
+  await deleteAdminAccessRule(model, auditModel, "g1", {
     scope: "global",
     lookupKeys: [],
     audit: { userId: "u1", action: "admin_access_delete", details: "global" }
   });
   assert.equal(calls.length, 2);
   assert.deepEqual((calls[1].update.$set as Record<string, unknown>).adminCommandAccess, null);
-  assert.match(JSON.stringify(calls[1].update.$push), /admin_access_delete/);
+  assert.match(String(auditDocs[1].action), /admin_access_delete/);
 });
 
 test("adminAccessRepository: loadAdminAccessDoc citeste lean cand exista si intoarce null pe doc lipsa", async () => {

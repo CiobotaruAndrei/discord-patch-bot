@@ -4,6 +4,7 @@ import type { CommandGame, CommandHandler } from "../command-registry/commandHan
 
 import { handledCommandError } from "../command-security/commandOutcome";
 import { deleteAdminAccessRule, loadAdminAccessDoc, saveAdminAccessRule } from "../command-security/adminAccessRepository";
+import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository";
 import {
   buildAdminCommandAccessScopeLookupKeys,
   displayAdminCommandAccessScope,
@@ -68,6 +69,7 @@ type Logger = (level: string, context: string, message: string, meta?: unknown) 
 
 type AdminCommandAccessDeps = {
   GuildModel: GuildModelLike;
+  GuildAuditLogModel: GuildAuditLogModelLike;
   invalidateGuildCache(guildId: string): void;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
@@ -82,7 +84,7 @@ type AdminCommandAccessContext = AdminCommandAccessDeps & {
 
 const adminCommandRouterGuard = require("../command-security/adminCommandRouterGuard") as {
   promptGlobalAccessCode(
-    target: Pick<AdminCommandAccessDeps, "GuildModel"> & Pick<AdminCommandAccessDeps, "adminAlert">,
+    target: Pick<AdminCommandAccessDeps, "GuildModel" | "GuildAuditLogModel" | "adminAlert">,
     interaction: DiscordInteraction
   ): Promise<DiscordInteraction | null>;
 };
@@ -112,13 +114,14 @@ function readTargetScope(interaction: DiscordInteraction): string {
 }
 
 function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
-  const { GuildModel, invalidateGuildCache, safeDefer, safeEdit, logger } = deps;
+  const { GuildModel, GuildAuditLogModel, invalidateGuildCache, safeDefer, safeEdit, logger } = deps;
 
   async function authorizeOwner(interaction: DiscordInteraction): Promise<DiscordInteraction | null> {
     if (await isGuildOwner(interaction)) return interaction;
     if (interaction.globalAccessCodeAuthorized === true) return interaction;
     return adminCommandRouterGuard.promptGlobalAccessCode({
       GuildModel,
+      GuildAuditLogModel,
       adminAlert: deps.adminAlert
     }, interaction);
   }
@@ -134,7 +137,7 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
     }
     const access = { mode, roleId: role.id, updatedBy: interaction.user?.id || "", updatedAt: new Date() };
     const legacyKeys = scope === "global" ? [] : buildAdminCommandAccessScopeLookupKeys(scope).filter(key => key !== scope);
-    await saveAdminAccessRule(GuildModel, guildId, {
+    await saveAdminAccessRule(GuildModel, GuildAuditLogModel, guildId, {
       scope,
       access,
       legacyKeys,
@@ -162,7 +165,7 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
     if (interaction.options.getBoolean("confirm", true) !== true) {
       return safeEdit(interaction, "Stergerea a fost anulata. Foloseste `confirm:true` numai daca vrei sa revii la accesul implicit.");
     }
-    await deleteAdminAccessRule(GuildModel, guildId, {
+    await deleteAdminAccessRule(GuildModel, GuildAuditLogModel, guildId, {
       scope,
       lookupKeys: buildAdminCommandAccessScopeLookupKeys(scope),
       audit: {

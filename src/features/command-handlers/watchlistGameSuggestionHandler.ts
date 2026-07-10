@@ -33,6 +33,7 @@ interface DiscordInteraction {
 
 interface WatchlistGameSuggestionDeps {
   GuildModel: Parameters<typeof saveWatchlistGameSuggestion>[0];
+  GuildAuditLogModel: Parameters<typeof recordBotAuditEntry>[0];
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
   invalidateGuildCache(guildId: string): void;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
@@ -63,7 +64,7 @@ function renderWatchlistGameSuggestions(entries: WatchlistGameSuggestionEntry[])
 }
 
 function createWatchlistGameSuggestionHandler(deps: WatchlistGameSuggestionDeps) {
-  const { GuildModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit, enforceCooldown, requireGuildAdmin } = deps;
+  const { GuildModel, GuildAuditLogModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit, enforceCooldown, requireGuildAdmin } = deps;
 
   async function handleAdd(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     if (!(await enforceCooldown(interaction, "watchlist-game:add"))) return undefined;
@@ -86,16 +87,16 @@ function createWatchlistGameSuggestionHandler(deps: WatchlistGameSuggestionDeps)
   }
 
   async function handleDelete(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
-    if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildModel, interaction, guildId, "/watchlist-game delete"))) return undefined;
+    if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildAuditLogModel, interaction, guildId, "/watchlist-game delete"))) return undefined;
     const gameName = normalizeGameName(String(interaction.options.getString("game", true) || ""));
     if (!gameName) return safeEdit(interaction, "Eroare: trebuie sa scrii numele jocului de sters.");
-    const deleted = await deleteWatchlistGameSuggestion(GuildModel, guildId, gameName, {
+    const deleted = await deleteWatchlistGameSuggestion(GuildModel, GuildAuditLogModel, guildId, gameName, {
       userId: interaction.user?.id || "",
       action: "watchlist_game_delete",
       details: gameName
     });
     invalidateGuildCache(guildId);
-    await recordBotAuditEntry(GuildModel, guildId, {
+    await recordBotAuditEntry(GuildAuditLogModel, guildId, {
       userId: interaction.user?.id || "",
       command: "/watchlist-game delete",
       result: "Access granted.",
@@ -129,6 +130,7 @@ function isWatchlistGameSuggestionCommand(interaction: DiscordInteraction): bool
 function buildWatchlistGameSuggestionCommandHandler(target: WatchlistGameSuggestionContext) {
   const handlers = createWatchlistGameSuggestionHandler({
     GuildModel: target.GuildModel,
+    GuildAuditLogModel: target.GuildAuditLogModel,
     getGuildSettings: target.getGuildSettings,
     invalidateGuildCache: target.invalidateGuildCache,
     safeDefer: target.safeDefer,

@@ -144,6 +144,7 @@ export interface RuntimeEnv {
   NOTIFICATION_HISTORY_TTL_DAYS: number;
   NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS: number;
   GUILD_SEEN_DISCOUNT_TTL_DAYS: number;
+  GUILD_AUDIT_LOG_TTL_DAYS: number;
   FEEDBACK_REPORT_TTL_DAYS: number;
   MIGRATIONS_CONTINUE_ON_ERROR: boolean;
   ALLOW_DEFAULT_PROXIES: boolean;
@@ -275,8 +276,6 @@ export interface GuildSettings {
   youtubeTitleIncludeWords?: string[];
   youtubeErrors?: YouTubeErrorEntry[];
   configBackups?: ConfigBackupRecord[];
-  botAuditLog?: BotAuditLogEntry[];
-  serverAuditLog?: ServerAuditLogEntry[];
   notificationDeadLetter?: DeadLetterEntry[];
   suggestedCommands?: SuggestedCommandEntry[];
   watchlistGameSuggestions?: WatchlistGameSuggestionEntry[];

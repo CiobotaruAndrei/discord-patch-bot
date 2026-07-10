@@ -1,7 +1,7 @@
 "use strict";
 
 import type { GuildSettings, MongoWriteOutcome, ServerAuditLogEntry, WatchlistGameSuggestionEntry } from "../../types";
-import { buildServerAuditPush } from "./auditLogRepository";
+import { recordServerAuditEntry, type GuildAuditLogModelLike } from "./auditLogRepository";
 
 type MongoWriteResult = MongoWriteOutcome;
 
@@ -70,6 +70,7 @@ export function listWatchlistGameSuggestions(settings: GuildSettings | null, lim
 
 export async function deleteWatchlistGameSuggestion(
   GuildModel: GuildModelLike,
+  GuildAuditLogModel: GuildAuditLogModelLike,
   guildId: string,
   gameName: string,
   audit: Omit<ServerAuditLogEntry, "serverId" | "at">
@@ -77,10 +78,9 @@ export async function deleteWatchlistGameSuggestion(
   const normalized = gameName.trim().toLowerCase();
   const result = await GuildModel.updateOne(
     { _id: guildId, "watchlistGameSuggestions.gameName": normalized },
-    {
-      $pull: { watchlistGameSuggestions: { gameName: normalized } },
-      $push: buildServerAuditPush(guildId, audit)
-    }
+    { $pull: { watchlistGameSuggestions: { gameName: normalized } } }
   );
-  return (result.matchedCount ?? 0) > 0;
+  const deleted = (result.matchedCount ?? 0) > 0;
+  if (deleted) await recordServerAuditEntry(GuildAuditLogModel, guildId, audit);
+  return deleted;
 }

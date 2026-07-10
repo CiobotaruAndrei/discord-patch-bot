@@ -1,6 +1,6 @@
 "use strict";
 
-import { buildServerAuditPush } from "../admin-records/auditLogRepository";
+import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository";
 import type { ServerAuditLogEntry } from "../../types";
 import type { AdminCommandAccessConfig } from "./adminCommandAccessScope";
 import type { AdminScopeId } from "./adminScopeIds";
@@ -27,6 +27,7 @@ export interface AdminAccessWriteModelLike {
 
 export async function saveAdminAccessRule(
   GuildModel: AdminAccessWriteModelLike,
+  GuildAuditLogModel: GuildAuditLogModelLike,
   guildId: string,
   input: {
     scope: AdminScopeId;
@@ -44,15 +45,13 @@ export async function saveAdminAccessRule(
           $unset: Object.fromEntries(legacyKeys.map(key => [`adminCommandAccessByCommand.${key}`, ""]))
         }
       : { $set: { [`adminCommandAccessByCommand.${scope}`]: access } };
-  await GuildModel.updateOne(
-    { _id: guildId },
-    { ...ruleUpdate, $push: buildServerAuditPush(guildId, audit) },
-    { upsert: true }
-  );
+  await GuildModel.updateOne({ _id: guildId }, ruleUpdate, { upsert: true });
+  await recordServerAuditEntry(GuildAuditLogModel, guildId, audit);
 }
 
 export async function deleteAdminAccessRule(
   GuildModel: AdminAccessWriteModelLike,
+  GuildAuditLogModel: GuildAuditLogModelLike,
   guildId: string,
   input: {
     scope: string;
@@ -64,9 +63,6 @@ export async function deleteAdminAccessRule(
   const ruleUpdate: Record<string, unknown> = scope === "global"
     ? { $set: { adminCommandAccess: null } }
     : { $unset: Object.fromEntries(lookupKeys.map(key => [`adminCommandAccessByCommand.${key}`, ""])) };
-  await GuildModel.updateOne(
-    { _id: guildId },
-    { ...ruleUpdate, $push: buildServerAuditPush(guildId, audit) },
-    { upsert: true }
-  );
+  await GuildModel.updateOne({ _id: guildId }, ruleUpdate, { upsert: true });
+  await recordServerAuditEntry(GuildAuditLogModel, guildId, audit);
 }

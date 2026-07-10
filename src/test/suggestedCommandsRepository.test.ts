@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
 
 import type { GuildSettings, SuggestedCommandEntry } from "../types";
 import {
@@ -54,18 +55,29 @@ test("listSuggestedCommands sorteaza descrescator si limiteaza; deleteSuggestedC
   assert.deepEqual(listSuggestedCommands(settings, 1).map(entry => entry.commandName), ["new"]);
 
   const model = suggestedCommandModel([]);
-  const removed = await deleteSuggestedCommand(model, "guild-1", "  /Calendar  ", { userId: "admin-1", action: "suggest_command_delete", details: "calendar" });
+  const auditDocs: GuildAuditLogRecord[] = [];
+  const auditModel = {
+    create: async (doc: GuildAuditLogRecord) => { auditDocs.push(doc); return doc; },
+    find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
+  };
+  const removed = await deleteSuggestedCommand(model, auditModel, "guild-1", "  /Calendar  ", { userId: "admin-1", action: "suggest_command_delete", details: "calendar" });
   assert.equal(removed, true);
   assert.deepEqual(model.filters[0], { _id: "guild-1", "suggestedCommands.commandName": "calendar" }, "filtrul cere existenta sugestiei, ca auditul sa nu se scrie pentru un delete inexistent");
   assert.deepEqual(model.pulls[0].$pull, { suggestedCommands: { commandName: "calendar" } }, "numele e normalizat (fara slash, lowercase) inainte de $pull");
-  const auditPush = model.pulls[0].$push as { serverAuditLog: { $each: Array<Record<string, unknown>> } };
-  assert.equal(auditPush.serverAuditLog.$each[0].action, "suggest_command_delete", "auditul server-log e in ACEEASI scriere cu $pull");
-  assert.equal(auditPush.serverAuditLog.$each[0].userId, "admin-1");
+  assert.equal(model.pulls[0].$push, undefined, "auditul nu mai e $push pe documentul guild");
+  assert.equal(auditDocs[0].action, "suggest_command_delete", "auditul server-log e un document in colectia guildAuditLogs");
+  assert.equal(auditDocs[0].userId, "admin-1");
 });
 
 test("deleteSuggestedCommand: sugestia inexistenta => false, iar auditul nu se scrie (matchedCount 0)", async () => {
   const model = suggestedCommandModel([], 0);
-  const removed = await deleteSuggestedCommand(model, "guild-1", "inexistenta", { userId: "admin-1", action: "suggest_command_delete", details: "inexistenta" });
+  const auditDocs: GuildAuditLogRecord[] = [];
+  const auditModel = {
+    create: async (doc: GuildAuditLogRecord) => { auditDocs.push(doc); return doc; },
+    find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
+  };
+  const removed = await deleteSuggestedCommand(model, auditModel, "guild-1", "inexistenta", { userId: "admin-1", action: "suggest_command_delete", details: "inexistenta" });
   assert.equal(removed, false);
   assert.equal(model.pulls.length, 1, "o singura incercare de scriere, refuzata de filtrul de existenta");
+  assert.equal(auditDocs.length, 0, "fara audit pentru un delete care nu a sters nimic");
 });

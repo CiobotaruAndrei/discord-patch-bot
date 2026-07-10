@@ -8,6 +8,7 @@ import { buildGuildAdminRecordSchemas } from "./guildAdminRecordSchemas";
 import { buildOperationalSchemas } from "./operationalSchemas";
 import { buildSeenSchemas } from "./seenSchemas";
 import { buildOutboxSchemas } from "./outboxSchemas";
+import { buildAuditLogSchemas } from "./auditLogSchemas";
 
 interface MongoModelsContext {
   mongoose: typeof Mongoose;
@@ -34,8 +35,6 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   } = buildGuildYoutubeSchemas({ mongoose });
   const {
     configBackupSchema,
-    botAuditLogSchema,
-    serverAuditLogSchema,
     suggestedCommandSchema,
     watchlistGameSuggestionSchema,
     futureReleaseGameSchema,
@@ -101,8 +100,6 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     youtubeTitleIncludeWords: { type: [String], default: [] },
     youtubeErrors: { type: [youtubeErrorSchema], default: [] },
     configBackups: { type: [configBackupSchema], default: [] },
-    botAuditLog: { type: [botAuditLogSchema], default: [] },
-    serverAuditLog: { type: [serverAuditLogSchema], default: [] },
     suggestedCommands: { type: [suggestedCommandSchema], default: [] },
     watchlistGameSuggestions: { type: [watchlistGameSuggestionSchema], default: [] },
     futureReleaseGames: { type: [futureReleaseGameSchema], default: [] },
@@ -147,6 +144,9 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const PlayerCountSnapshotModel = mongoose.model("PlayerCountSnapshot", playerCountSnapshotSchema, "playerCountSnapshots");
   const FeedbackReportModel = mongoose.model("FeedbackReport", feedbackReportSchema, "feedbackReports");
 
+  const { guildAuditLogSchema } = buildAuditLogSchemas({ mongoose, ONE_DAY_MS, env });
+  const GuildAuditLogModel = mongoose.model("GuildAuditLog", guildAuditLogSchema, "guildAuditLogs");
+
   const {
     guildSeenDiscountSchema,
     guildSeenUpdateSchema,
@@ -169,6 +169,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
 
   return {
     GuildModel,
+    GuildAuditLogModel,
     CircuitBreakerModel,
     SystemModel,
     JobLockModel,

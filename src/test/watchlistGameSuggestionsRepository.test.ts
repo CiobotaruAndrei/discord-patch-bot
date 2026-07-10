@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
 
 import type { GuildSettings, WatchlistGameSuggestionEntry } from "../types";
 import {
@@ -54,17 +55,28 @@ test("listWatchlistGameSuggestions sorteaza descrescator; deleteWatchlistGameSug
   assert.deepEqual(listWatchlistGameSuggestions(settings, 1).map(entry => entry.gameName), ["new"]);
 
   const model = watchlistModel([]);
-  const removed = await deleteWatchlistGameSuggestion(model, "guild-1", "  Silksong  ", { userId: "admin-1", action: "watchlist_game_delete", details: "silksong" });
+  const auditDocs: GuildAuditLogRecord[] = [];
+  const auditModel = {
+    create: async (doc: GuildAuditLogRecord) => { auditDocs.push(doc); return doc; },
+    find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
+  };
+  const removed = await deleteWatchlistGameSuggestion(model, auditModel, "guild-1", "  Silksong  ", { userId: "admin-1", action: "watchlist_game_delete", details: "silksong" });
   assert.equal(removed, true);
   assert.deepEqual(model.filters[0], { _id: "guild-1", "watchlistGameSuggestions.gameName": "silksong" }, "filtrul cere existenta propunerii, ca auditul sa nu se scrie pentru un delete inexistent");
   assert.deepEqual(model.pulls[0].$pull, { watchlistGameSuggestions: { gameName: "silksong" } }, "numele e normalizat (trim + lowercase) inainte de $pull");
-  const auditPush = model.pulls[0].$push as { serverAuditLog: { $each: Array<Record<string, unknown>> } };
-  assert.equal(auditPush.serverAuditLog.$each[0].action, "watchlist_game_delete", "auditul server-log e in ACEEASI scriere cu $pull");
+  assert.equal(model.pulls[0].$push, undefined, "auditul nu mai e $push pe documentul guild");
+  assert.equal(auditDocs[0].action, "watchlist_game_delete", "auditul server-log e un document in colectia guildAuditLogs");
 });
 
 test("deleteWatchlistGameSuggestion: propunerea inexistenta => false (matchedCount 0), fara audit scris", async () => {
   const model = watchlistModel([], 0);
-  const removed = await deleteWatchlistGameSuggestion(model, "guild-1", "inexistent", { userId: "admin-1", action: "watchlist_game_delete", details: "inexistent" });
+  const auditDocs: GuildAuditLogRecord[] = [];
+  const auditModel = {
+    create: async (doc: GuildAuditLogRecord) => { auditDocs.push(doc); return doc; },
+    find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
+  };
+  const removed = await deleteWatchlistGameSuggestion(model, auditModel, "guild-1", "inexistent", { userId: "admin-1", action: "watchlist_game_delete", details: "inexistent" });
   assert.equal(removed, false);
   assert.equal(model.pulls.length, 1, "o singura incercare de scriere, refuzata de filtrul de existenta");
+  assert.equal(auditDocs.length, 0, "fara audit pentru un delete care nu a sters nimic");
 });

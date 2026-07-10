@@ -168,6 +168,7 @@ function buildEnvFrom(context: EnvContext) {
     NOTIFICATION_HISTORY_TTL_DAYS: parseEnvNumber("NOTIFICATION_HISTORY_TTL_DAYS", 30, { min: 7, max: 180 }),
     NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS: parseEnvNumber("NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS", 7, { min: 1, max: 30 }),
     GUILD_SEEN_DISCOUNT_TTL_DAYS: parseEnvNumber("GUILD_SEEN_DISCOUNT_TTL_DAYS", 60, { min: 30, max: 365 }),
+    GUILD_AUDIT_LOG_TTL_DAYS: parseEnvNumber("GUILD_AUDIT_LOG_TTL_DAYS", 180, { min: 30, max: 730 }),
     FEEDBACK_REPORT_TTL_DAYS: parseEnvNumber("FEEDBACK_REPORT_TTL_DAYS", 90, { min: 7, max: 365 }),
     MIGRATIONS_CONTINUE_ON_ERROR: parseBooleanEnv(process.env.MIGRATIONS_CONTINUE_ON_ERROR),
     ALLOW_DEFAULT_PROXIES: parseBooleanEnv(process.env.ALLOW_DEFAULT_PROXIES),
