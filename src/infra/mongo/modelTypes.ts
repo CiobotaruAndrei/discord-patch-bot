@@ -94,7 +94,6 @@ export interface GuildDoc {
   discountsSubscribed?: boolean;
   discountChannelId?: string | null;
   pendingDiscounts?: PendingDiscountEntry[];
-  notificationDeadLetter?: DeadLetterEntry[];
   minDiscountPercent?: number;
   includeFreeGames?: boolean;
   includePaidDiscounts?: boolean;
@@ -248,6 +247,18 @@ export interface GuildYoutubeErrorDoc {
   channelName?: string;
   message?: string;
   at?: Date;
+}
+
+export interface GuildDeadLetterDoc {
+  guildId: string;
+  kind: "update" | "discount" | "youtube";
+  itemId?: string;
+  title?: string;
+  channelId?: string;
+  dedupeKey?: string;
+  reason?: string;
+  attempts?: number;
+  failedAt?: Date;
 }
 
 export interface GuildSeenDiscountDoc {

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildDeadLetterEntry, deadLetterPush, deadLetterTitleFromPayload, NOTIFICATION_DEAD_LETTER_LIMIT } from "../features/notifications/deadLetter";
+import { buildDeadLetterEntry, deadLetterTitleFromPayload, NOTIFICATION_DEAD_LETTER_LIMIT } from "../features/notifications/deadLetter";
+import { recordDeadLetters, type GuildDeadLetterRecord } from "../features/notifications/deadLetterRepository";
 
 test("buildDeadLetterEntry: pastreaza campurile de audit (kind, itemId, title, channelId, dedupeKey, reason, attempts)", () => {
   const entry = buildDeadLetterEntry({
@@ -42,10 +43,50 @@ test("deadLetterTitleFromPayload: ia titlul primului embed, apoi content, apoi g
   assert.equal(deadLetterTitleFromPayload({ embeds: [{ title: "Z".repeat(400) }] }).length, 200, "titlu lung plafonat la 200");
 });
 
-test("deadLetterPush: construieste $push cu $slice plafonat, sau null daca nu sunt intrari", () => {
-  assert.equal(deadLetterPush([]), null);
-  const push = deadLetterPush([buildDeadLetterEntry({ kind: "update", itemId: "x", reason: "r", attempts: 0 })]) as { notificationDeadLetter: { $each: unknown[]; $slice: number } };
-  assert.ok(push.notificationDeadLetter, "cheia de push e notificationDeadLetter");
-  assert.equal(push.notificationDeadLetter.$each.length, 1);
-  assert.equal(push.notificationDeadLetter.$slice, -NOTIFICATION_DEAD_LETTER_LIMIT, "pastreaza doar ultimele N intrari");
+test("recordDeadLetters scrie documente in colectia guildDeadLetters si pastreaza cel mult 50 per guild (evictie pe _id)", async () => {
+  let nextId = 1;
+  const docs: GuildDeadLetterRecord[] = Array.from({ length: NOTIFICATION_DEAD_LETTER_LIMIT }, (_, index) => ({
+    _id: nextId++,
+    guildId: "guild-1",
+    kind: "update" as const,
+    itemId: `vechi-${index}`,
+    reason: "max-attempts",
+    attempts: 1,
+    failedAt: new Date(Date.UTC(2026, 0, 1, 0, index))
+  }));
+  const model = {
+    insertMany: async (batch: GuildDeadLetterRecord[]) => { for (const doc of batch) docs.push({ ...doc, _id: nextId++ }); return batch; },
+    deleteMany: async (filter: Record<string, unknown>) => {
+      const ids = (filter._id as { $in: unknown[] }).$in;
+      const before = docs.length;
+      for (const id of ids) {
+        const index = docs.findIndex(doc => doc._id === id);
+        if (index >= 0) docs.splice(index, 1);
+      }
+      return { deletedCount: before - docs.length };
+    },
+    find: (filter: Record<string, unknown>) => {
+      let sorted = docs.filter(doc => doc.guildId === filter.guildId);
+      let skipped = 0;
+      let limited = Number.POSITIVE_INFINITY;
+      const chain = {
+        sort: () => {
+          sorted = [...sorted].sort((a, b) => new Date(b.failedAt ?? 0).getTime() - new Date(a.failedAt ?? 0).getTime());
+          return chain;
+        },
+        skip: (count: number) => { skipped = count; return chain; },
+        limit: (count: number) => { limited = count; return chain; },
+        lean: async () => sorted.slice(skipped, skipped + limited)
+      };
+      return chain;
+    }
+  };
+
+  await recordDeadLetters(model, "guild-1", []);
+  assert.equal(docs.length, NOTIFICATION_DEAD_LETTER_LIMIT, "fara intrari nu se scrie si nu se evacueaza nimic");
+
+  await recordDeadLetters(model, "guild-1", [buildDeadLetterEntry({ kind: "update", itemId: "nou", reason: "r", attempts: 0 })]);
+  assert.equal(docs.length, NOTIFICATION_DEAD_LETTER_LIMIT, "capul de 50 per guild e pastrat");
+  assert.equal(docs.some(doc => doc.itemId === "vechi-0"), false, "cea mai veche intrare e evacuata la depasirea capului");
+  assert.equal(docs.some(doc => doc.itemId === "nou"), true);
 });

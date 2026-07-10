@@ -1,4 +1,5 @@
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
+import type { GuildDeadLetterRecord } from "../features/notifications/deadLetterRepository";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
 import type { GameConfig, DealInfo, ValidatedDealInfo } from "../types";
 import { makeNotificationDiscordClient } from "./typedTestBuilders";
@@ -26,6 +27,7 @@ export function messageOf(value: unknown): string {
 
 export function makeUpdateDeps(overrides: Partial<UpdateDeps> = {}) {
   const updateOneCalls: Array<{ filter: unknown; update: unknown }> = [];
+  const deadLetterDocs: GuildDeadLetterRecord[] = [];
   const sentPayloads: SentPayload[] = [];
   const claims: Array<{ guildId: string; gameKey: string; updateId: string }> = [];
   const rollbacks: Array<{ guildId: string; gameKey: string; updateId: string }> = [];
@@ -41,6 +43,14 @@ export function makeUpdateDeps(overrides: Partial<UpdateDeps> = {}) {
         updateOneCalls.push({ filter, update });
         return { matchedCount: 1, modifiedCount: 1 };
       }
+    },
+    GuildDeadLetterModel: {
+      insertMany: async (batch: GuildDeadLetterRecord[]) => { for (const doc of batch) deadLetterDocs.push(doc); return batch; },
+      find: () => {
+        const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] };
+        return chain;
+      },
+      deleteMany: async () => ({ deletedCount: 0 })
     },
     logger: () => undefined,
     runConcurrent: async <T>(items: T[], _c: number, fn: (item: T) => Promise<unknown>) => {
@@ -87,11 +97,12 @@ export function makeUpdateDeps(overrides: Partial<UpdateDeps> = {}) {
     GUILD_PROCESS_CONCURRENCY: 1,
     ...overrides
   };
-  return { deps, updateOneCalls, sentPayloads, sentMetas, claims, rollbacks, channel };
+  return { deps, updateOneCalls, deadLetterDocs, sentPayloads, sentMetas, claims, rollbacks, channel };
 }
 
 export function makeDiscountDeps(overrides: Partial<DiscountDeps> = {}) {
   const updateOneCalls: Array<{ filter: unknown; update: unknown }> = [];
+  const deadLetterDocs: GuildDeadLetterRecord[] = [];
   const sentPayloads: SentPayload[] = [];
   const claims: string[] = [];
   const sentMetas: SentMeta[] = [];
@@ -106,6 +117,14 @@ export function makeDiscountDeps(overrides: Partial<DiscountDeps> = {}) {
         updateOneCalls.push({ filter, update });
         return { matchedCount: 1, modifiedCount: 1 };
       }
+    },
+    GuildDeadLetterModel: {
+      insertMany: async (batch: GuildDeadLetterRecord[]) => { for (const doc of batch) deadLetterDocs.push(doc); return batch; },
+      find: () => {
+        const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] };
+        return chain;
+      },
+      deleteMany: async () => ({ deletedCount: 0 })
     },
     logger: () => undefined,
     runConcurrent: async <T>(items: T[], _c: number, fn: (item: T) => Promise<unknown>) => {
@@ -150,5 +169,5 @@ export function makeDiscountDeps(overrides: Partial<DiscountDeps> = {}) {
     GUILD_PROCESS_CONCURRENCY: 1,
     ...overrides
   };
-  return { deps, updateOneCalls, sentPayloads, sentMetas, claims, channel };
+  return { deps, updateOneCalls, deadLetterDocs, sentPayloads, sentMetas, claims, channel };
 }

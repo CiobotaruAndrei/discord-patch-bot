@@ -1,6 +1,7 @@
 "use strict";
 
 import type { OutboxDiscordClient } from "../notifications/outboundChannel";
+import type { DeadLetterModelLike } from "../notifications/deadLetterRepository";
 import type { RuntimeEnv } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { matchesCommand } from "../command-registry/commandMatch";
@@ -27,8 +28,7 @@ type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfi
 
 type OutboxAdminDeps = {
   NotificationOutboxModel: OutboxModelLike;
-  GuildModel: { updateOne(filter: unknown, update: unknown): Promise<{ modifiedCount?: number; matchedCount?: number }> };
-  invalidateGuildCache: (guildId: string) => void;
+  GuildDeadLetterModel: Pick<DeadLetterModelLike, "countDocuments" | "deleteMany" | "find">;
   enqueueOutbox?: EnqueueOutbox;
   listReplayableDeadLetters: (guildId: string) => Promise<ReplayDeadLetterDoc[]>;
   deleteReplayedDeadLetters: (guildId: string, ids: unknown[]) => Promise<void>;
@@ -62,6 +62,7 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
 
   const views = createOutboxAdminViews({
     NotificationOutboxModel: deps.NotificationOutboxModel,
+    GuildDeadLetterModel: deps.GuildDeadLetterModel,
     getGuildSettings: deps.getGuildSettings,
     getOutboxPaused: deps.getOutboxPaused,
     checkChannelPermissions: deps.checkChannelPermissions,
@@ -73,8 +74,7 @@ function createOutboxAdminHandler(deps: OutboxAdminDeps) {
 
   const operations = createOutboxAdminOperations({
     NotificationOutboxModel: deps.NotificationOutboxModel,
-    GuildModel: deps.GuildModel,
-    invalidateGuildCache: deps.invalidateGuildCache,
+    GuildDeadLetterModel: deps.GuildDeadLetterModel,
     enqueueOutbox: deps.enqueueOutbox,
     listReplayableDeadLetters: deps.listReplayableDeadLetters,
     deleteReplayedDeadLetters: deps.deleteReplayedDeadLetters,
@@ -140,8 +140,7 @@ function isDirectOutboxCommand(interaction: DiscordInteraction): boolean {
 function buildOutboxAdminCommandHandler(target: OutboxAdminContext) {
   const handlers = createOutboxAdminHandler({
     NotificationOutboxModel: target.NotificationOutboxModel,
-    GuildModel: target.GuildModel,
-    invalidateGuildCache: target.invalidateGuildCache,
+    GuildDeadLetterModel: target.GuildDeadLetterModel,
     enqueueOutbox: target.enqueueOutbox as EnqueueOutbox | undefined,
     listReplayableDeadLetters: target.listReplayableDeadLetters as (guildId: string) => Promise<ReplayDeadLetterDoc[]>,
     deleteReplayedDeadLetters: target.deleteReplayedDeadLetters as (guildId: string, ids: unknown[]) => Promise<void>,

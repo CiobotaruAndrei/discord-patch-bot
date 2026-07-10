@@ -3,9 +3,40 @@ import assert from "node:assert/strict";
 
 import { createOutboxAdminViews, formatDeadLetterEntry, type OutboxAdminViewsDeps } from "../features/command-handlers/outboxAdminViews";
 
+const emptyDeadLetterModel: OutboxAdminViewsDeps["GuildDeadLetterModel"] = {
+  countDocuments: async () => 0,
+  find: () => {
+    const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] };
+    return chain;
+  }
+};
+
+function makeDeadLetterModel(entries: Array<{ kind: "update" | "discount" | "youtube"; title?: string; reason?: string; attempts?: number; failedAt?: Date }>): OutboxAdminViewsDeps["GuildDeadLetterModel"] {
+  const docs = entries.map((entry, index) => ({ guildId: "guild-1", failedAt: new Date(Date.UTC(2026, 0, 1, 0, index)), ...entry }));
+  return {
+    countDocuments: async () => docs.length,
+    find: () => {
+      let sorted = [...docs];
+      let skipped = 0;
+      let limited = Number.POSITIVE_INFINITY;
+      const chain = {
+        sort: () => {
+          sorted = [...sorted].sort((a, b) => new Date(b.failedAt ?? 0).getTime() - new Date(a.failedAt ?? 0).getTime());
+          return chain;
+        },
+        skip: (count: number) => { skipped = count; return chain; },
+        limit: (count: number) => { limited = count; return chain; },
+        lean: async () => sorted.slice(skipped, skipped + limited)
+      };
+      return chain;
+    }
+  };
+}
+
 function makeDeps(overrides: Partial<OutboxAdminViewsDeps> = {}): OutboxAdminViewsDeps {
   return {
     NotificationOutboxModel: { countDocuments: async () => 0 },
+    GuildDeadLetterModel: emptyDeadLetterModel,
     getGuildSettings: async () => null,
     getOutboxPaused: async () => false,
     checkChannelPermissions: async () => null,
@@ -33,13 +64,13 @@ test("renderStatus arata starea drenarii: activa, pe pauza sau necunoscuta cand 
 
 test("renderDeadLetters afiseaza ultimele intrari in ordine inversa, respectand limita de preview", async () => {
   const entries = Array.from({ length: 5 }, (_, index) => ({
-    kind: "update",
+    kind: "update" as const,
     title: `Intrare ${index + 1}`,
     reason: "max-attempts",
     attempts: index + 1
   }));
   const views = createOutboxAdminViews(makeDeps({
-    getGuildSettings: async () => ({ notificationDeadLetter: entries }),
+    GuildDeadLetterModel: makeDeadLetterModel(entries),
     deadLetterPreviewLimit: 3
   }));
 

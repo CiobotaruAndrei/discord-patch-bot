@@ -15,7 +15,7 @@ export function createDiscountNotificationRuntime(
   seenRepository: SeenServices
 ) {
   const {
-    GuildModel, logger, DEFAULT_CURRENCY, runConcurrent,
+    GuildModel, GuildDeadLetterModel, logger, DEFAULT_CURRENCY, runConcurrent,
     validatePendingDiscountSnapshot, fetchDeals, enrichDealData, dealHash,
     buildDealEmbed, getDealsCacheData, setDealsCache,
     saveFetchSnapshot, loadFetchSnapshot,
@@ -46,7 +46,7 @@ export function createDiscountNotificationRuntime(
   });
 
   const discountService = createDiscountNotificationService({
-    GuildModel, logger, runConcurrent, resolveOutboundChannel,
+    GuildModel, GuildDeadLetterModel, logger, runConcurrent, resolveOutboundChannel,
     claimSeenDiscount, rollbackSeenDiscount, loadSeenDiscountHashes, seedSeenDiscounts, setSeenHashVersion, disableDiscountsForChannelError,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingDiscountArray, validatePendingDiscountSnapshot,

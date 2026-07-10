@@ -12,6 +12,7 @@ import { buildAuditLogSchemas } from "./auditLogSchemas";
 import { buildConfigBackupSchemas } from "./configBackupSchemas";
 import { buildSuggestedCommandSchemas } from "./suggestedCommandSchemas";
 import { buildYoutubeErrorLogSchemas } from "./youtubeErrorLogSchemas";
+import { buildDeadLetterLogSchemas } from "./deadLetterLogSchemas";
 
 interface MongoModelsContext {
   mongoose: typeof Mongoose;
@@ -28,7 +29,6 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const {
     pendingUpdateSchema,
     pendingDiscountSchema,
-    deadLetterEntrySchema,
     priceAlertSchema
   } = buildGuildNotificationSchemas({ mongoose, SUPPORTED_CURRENCIES });
   const {
@@ -49,7 +49,6 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     discountsSubscribed: { type: Boolean, default: false },
     discountChannelId: { type: String, default: null },
     pendingDiscounts: { type: [pendingDiscountSchema], default: [] },
-    notificationDeadLetter: { type: [deadLetterEntrySchema], default: [] },
     minDiscountPercent: { type: Number, default: 70 },
     includeFreeGames: { type: Boolean, default: true },
     includePaidDiscounts: { type: Boolean, default: true },
@@ -153,6 +152,9 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const { guildYoutubeErrorSchema } = buildYoutubeErrorLogSchemas({ mongoose });
   const GuildYoutubeErrorModel = mongoose.model("GuildYoutubeError", guildYoutubeErrorSchema, "guildYoutubeErrors");
 
+  const { guildDeadLetterSchema } = buildDeadLetterLogSchemas({ mongoose });
+  const GuildDeadLetterModel = mongoose.model("GuildDeadLetter", guildDeadLetterSchema, "guildDeadLetters");
+
   const {
     guildSeenDiscountSchema,
     guildSeenUpdateSchema,
@@ -179,6 +181,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     GuildConfigBackupModel,
     GuildSuggestedCommandModel,
     GuildYoutubeErrorModel,
+    GuildDeadLetterModel,
     CircuitBreakerModel,
     SystemModel,
     JobLockModel,

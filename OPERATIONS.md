@@ -234,6 +234,7 @@ setat ESTE sincronizarea. Inventarul declarat curent:
 | `guildSuggestedCommands` | `{ guildId, commandName }` | unique | o sugestie de comanda per nume per guild; `/suggest-command add` cu un nume existent pastreaza intrarea originala (`$setOnInsert`), `/suggest-command delete` sterge pe cheia naturala |
 | `guildSuggestedCommands` | `{ guildId, createdAt }` | — | listarea `/suggest-command list` cele mai noi primele si evictia celor mai vechi sugestii peste capul de 100 per guild la salvare |
 | `guildYoutubeErrors` | `{ guildId, at }` | — | jurnalul de erori YouTube per guild: listarea `/youtube errors` cele mai noi primele, numaratoarea din `/youtube status` si `/maintenance`, evictia celor mai vechi erori peste capul de 20 per guild la inregistrare |
+| `guildDeadLetters` | `{ guildId, failedAt }` | — | auditul dead-letter per guild: listarea `/outbox dead-letters` cele mai noi primele, numaratorile din `/outbox status` si `/maintenance`, stergerea la `clear-deadletters`/replay/`/reset-config`, evictia celor mai vechi intrari peste capul de 50 per guild la inregistrare |
 | `notificationOutbox` | `{ availableAt, lockedUntil }` | — | claim-ul joburilor disponibile la drenare |
 | `notificationOutbox` | `{ dedupeKey }` | unique, sparse | impiedica doua joburi pending cu acelasi `dedupeKey` (sparse: joburile fara cheie coexista) |
 | `notificationOutbox` | `{ createdAt }` | TTL 7 zile | plasa de siguranta pentru joburi nedrenate |
@@ -361,7 +362,7 @@ single-shard + lock-uri DB e corect si suficient — nu shard-a preventiv.
 ## Dead-letter
 
 Cand o livrare epuizeaza reincercarile sau primeste o eroare permanenta, intra in
-dead-letter (pe documentul guild-ului, plafonat). Inspecteaza cu `/outbox deadletters`.
+dead-letter (colectia dedicata `guildDeadLetters`, plafonata la 50 per guild). Inspecteaza cu `/outbox deadletters`.
 Daca `bot_outbox_dead_lettered` creste, verifica permisiunile canalului si starea Discord;
 dupa remediere, livrarile noi vor reusi (intrarile dead-letter raman pentru audit).
 
@@ -377,7 +378,7 @@ reusite sunt deja scoase din dead-letter (nu se vor re-trimite la o noua rulare)
 in dead-letter; reincearca `/outbox replay-deadletters` dupa ce verifici cauza.
 
 Daca preferi sa NU re-trimiti, poti goli lista de audit cu `/outbox clear-deadletters` — sterge
-toate intrarile `notificationDeadLetter` ale serverului curent (scriere atomica + invalidare cache)
+toate documentele din colectia `guildDeadLetters` ale serverului curent
 si raporteaza cate au fost sterse. Foloseste-o doar dupa ce ai terminat investigatia: intrarile
 sunt singura urma a livrarilor esuate.
 

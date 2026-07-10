@@ -11,7 +11,8 @@ const {
 const { createHistoryRepository } = require("./historyRepository") as typeof import("./historyRepository");
 const { createOutboxRuntime, applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker } = require("./notificationOutbox") as typeof import("./notificationOutbox");
 const { createOutboxDelivery } = require("./outboxDelivery") as typeof import("./outboxDelivery");
-const { buildDeadLetterEntry, deadLetterPush, deadLetterTitleFromPayload } = require("./deadLetter") as typeof import("./deadLetter");
+const { buildDeadLetterEntry, deadLetterTitleFromPayload } = require("./deadLetter") as typeof import("./deadLetter");
+const { recordDeadLetters } = require("./deadLetterRepository") as typeof import("./deadLetterRepository");
 const { createDeadLetterReplayRepository } = require("./deadLetterReplayRepository") as typeof import("./deadLetterReplayRepository");
 const { createDefaultDiscordSendLimiter } = require("./discordRateLimiter") as typeof import("./discordRateLimiter");
 
@@ -49,7 +50,7 @@ export function createOutboxServices(deps: NotificationsRuntimeDeps) {
     NOTIFICATION_OUTBOX_RECOVERY_HISTORY_LIMIT: OUTBOX_RECOVERY_HISTORY_LIMIT
   } = deps.env;
   const {
-    GuildModel, logger, canSendEmbeds, withMongoRetry,
+    GuildModel, GuildDeadLetterModel, logger, canSendEmbeds, withMongoRetry,
     NotificationOutboxModel, NotificationOutboxSentModel, NotificationHistoryModel, NotificationDeadLetterReplayModel
   } = deps;
 
@@ -72,10 +73,9 @@ export function createOutboxServices(deps: NotificationsRuntimeDeps) {
   });
 
   async function recordOutboxDeadLetter(job: OutboxJobShape, reason: string): Promise<void> {
-    const push = deadLetterPush([buildDeadLetterEntry({
+    await recordDeadLetters(GuildDeadLetterModel, job.guildId, [buildDeadLetterEntry({
       kind: job.kind, itemId: String(job._id ?? ""), title: deadLetterTitleFromPayload(job.payload), channelId: job.channelId, dedupeKey: job.dedupeKey, reason, attempts: (job.attempts || 0) + 1
-    })]);
-    if (push) await GuildModel.updateOne({ _id: job.guildId }, { $push: push }).catch((err: unknown) => logger("WARN", "OUTBOX", `Nu am putut scrie intrarea de audit dead-letter pentru guild ${job.guildId} (poate diverge de payload-ul de replay)`, err));
+    })]).catch((err: unknown) => logger("WARN", "OUTBOX", `Nu am putut scrie intrarea de audit dead-letter pentru guild ${job.guildId} (poate diverge de payload-ul de replay)`, err));
     await deadLetterReplayRepository.recordPayload({
       guildId: job.guildId, kind: job.kind, channelId: job.channelId, payload: job.payload,
       dedupeKey: job.dedupeKey, recoveryVerify: job.recoveryVerify, reason, itemId: String(job._id ?? ""),

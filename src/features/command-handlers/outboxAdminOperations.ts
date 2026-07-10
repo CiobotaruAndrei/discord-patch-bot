@@ -1,6 +1,7 @@
 "use strict";
 
 import type { OutboxDiscordClient } from "../notifications/outboundChannel";
+import { clearDeadLetters as clearDeadLetterEntries, countDeadLetters, deleteDeadLettersByDedupeKeys, type DeadLetterModelLike } from "../notifications/deadLetterRepository";
 import { isDeliverableOutboxPayload } from "../notifications/outboxTypes";
 import type {
   DrainResultLike,
@@ -20,8 +21,7 @@ export const DRAIN_NOW_LOCK_TTL_MS = 120_000;
 
 export interface OutboxAdminOperationsDeps {
   NotificationOutboxModel: Pick<OutboxModelLike, "updateMany">;
-  GuildModel: { updateOne(filter: unknown, update: unknown): Promise<{ modifiedCount?: number; matchedCount?: number }> };
-  invalidateGuildCache: (guildId: string) => void;
+  GuildDeadLetterModel: Pick<DeadLetterModelLike, "countDocuments" | "deleteMany">;
   enqueueOutbox?: EnqueueOutbox;
   listReplayableDeadLetters: (guildId: string) => Promise<ReplayDeadLetterDoc[]>;
   deleteReplayedDeadLetters: (guildId: string, ids: unknown[]) => Promise<void>;
@@ -38,15 +38,14 @@ export interface OutboxAdminOperationsDeps {
 
 export function createOutboxAdminOperations(deps: OutboxAdminOperationsDeps) {
   const {
-    NotificationOutboxModel, GuildModel, invalidateGuildCache, enqueueOutbox,
+    NotificationOutboxModel, GuildDeadLetterModel, enqueueOutbox,
     listReplayableDeadLetters, deleteReplayedDeadLetters, deleteAllReplayPayloads,
     getGuildSettings, getOutboxPaused, acquireDbLock, releaseDbLock, drainOutbox,
     logger, outboxEnabled, outboxGlobalAdminIds
   } = deps;
 
   async function clearDeadLetters(guildId: string): Promise<string> {
-    const settings = await getGuildSettings(guildId).catch(() => null);
-    const count = Array.isArray(settings?.notificationDeadLetter) ? settings!.notificationDeadLetter!.length : 0;
+    const count = await countDeadLetters(GuildDeadLetterModel, guildId).catch(() => 0);
     let replayCleanupFailed = false;
     try {
       await deleteAllReplayPayloads(guildId);
@@ -55,13 +54,11 @@ export function createOutboxAdminOperations(deps: OutboxAdminOperationsDeps) {
       logger("WARN", "OUTBOX_COMMAND", `clear-deadletters: stergerea payload-urilor de replay a esuat pentru guild ${guildId}`, errorMessage(err));
     }
     if (count === 0) {
-      invalidateGuildCache(guildId);
       return replayCleanupFailed
         ? "Auditul era gol, dar stergerea payload-urilor de replay a esuat — pot ramane payload-uri replayabile. Reincearca."
         : "Nicio livrare in dead-letter de sters pentru acest server.";
     }
-    await GuildModel.updateOne({ _id: guildId }, { $set: { notificationDeadLetter: [] } });
-    invalidateGuildCache(guildId);
+    await clearDeadLetterEntries(GuildDeadLetterModel, guildId);
     return replayCleanupFailed
       ? `Atentie: ${count} intrare(i) audit sterse, dar stergerea payload-urilor de replay a esuat — pot ramane payload-uri replayabile. Reincearca clear-deadletters.`
       : `OK: ${count} intrare(i) dead-letter sterse pentru acest server (inclusiv payload-urile de replay).`;
@@ -99,14 +96,11 @@ export function createOutboxAdminOperations(deps: OutboxAdminOperationsDeps) {
     if (replayedIds.length) {
       try {
         await deleteReplayedDeadLetters(guildId, replayedIds);
-        if (dedupeKeys.length) {
-          await GuildModel.updateOne({ _id: guildId }, { $pull: { notificationDeadLetter: { dedupeKey: { $in: dedupeKeys } } } });
-        }
+        await deleteDeadLettersByDedupeKeys(GuildDeadLetterModel, guildId, dedupeKeys);
       } catch (err: unknown) {
         cleanupFailed = true;
         logger("WARN", "OUTBOX_COMMAND", `replay-deadletters: curatarea dupa re-enqueue a esuat pentru guild ${guildId} (re-rularea NU re-trimite — dedupe pe dedupeKey; raman intrari dead-letter de curatat)`, errorMessage(err));
       }
-      invalidateGuildCache(guildId);
     }
     if (failed) {
       const cleanupNote = cleanupFailed ? " (curatarea dead-letter a esuat, dar o re-rulare NU re-trimite — dedupe pe outbox; ruleaza clear-deadletters ca sa cureti intrarile ramase)" : " (curatate din dead-letter)";

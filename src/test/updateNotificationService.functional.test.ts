@@ -158,7 +158,7 @@ test("UpdateService: send fail (transient) rollback claim si retry next cycle", 
 test("UpdateService: buildUpdateEmbed care arunca da claim-ul inapoi si dead-letter-uieste dupa epuizarea incercarilor", async () => {
   let sendCalls = 0;
   const channel = { id: "channel-1", send: async () => { sendCalls++; return {}; } };
-  const { deps, rollbacks, updateOneCalls } = makeUpdateDeps({
+  const { deps, rollbacks, deadLetterDocs } = makeUpdateDeps({
     resolveOutboundChannel: async () => ({ channel, abort: false }),
     buildUpdateEmbed: () => { throw new Error("embed corupt"); },
     PENDING_UPDATE_MAX_ATTEMPTS: 2
@@ -172,16 +172,15 @@ test("UpdateService: buildUpdateEmbed care arunca da claim-ul inapoi si dead-let
   await svc.processGuildUpdates(noopDiscordClient, guild, latestResults);
   assert.equal(sendCalls, 0, "nimic trimis cand embed-ul crapa");
   assert.ok(rollbacks.length >= 1, "claim-ul e dat inapoi (regresie: update-ul ramanea marcat seen fara sa fie trimis vreodata)");
-  const update = updateOneCalls[0].update as { $push?: { notificationDeadLetter?: { $each?: unknown[] } } };
-  const entries = (update.$push?.notificationDeadLetter?.$each || []) as Array<{ itemId: string; reason: string }>;
-  assert.equal(entries.length, 1, "dupa epuizarea incercarilor itemul ajunge in dead-letter, nu se pierde tacut");
-  assert.equal(entries[0].itemId, "u-1");
-  assert.match(entries[0].reason, /embed corupt/);
+  assert.equal(deadLetterDocs.length, 1, "dupa epuizarea incercarilor itemul ajunge ca document in colectia guildDeadLetters, nu se pierde tacut");
+  assert.equal(deadLetterDocs[0].guildId, "guild-1");
+  assert.equal(deadLetterDocs[0].itemId, "u-1");
+  assert.match(String(deadLetterDocs[0].reason), /embed corupt/);
 });
 
-test("UpdateService: livrarea care epuizeaza retry-urile intra in dead-letter (capat $push)", async () => {
+test("UpdateService: livrarea care epuizeaza retry-urile intra in dead-letter (document in colectia dedicata)", async () => {
   const channel = { id: "channel-1", send: async () => { throw new Error("ECONNRESET"); } };
-  const { deps, updateOneCalls } = makeUpdateDeps({
+  const { deps, updateOneCalls, deadLetterDocs } = makeUpdateDeps({
     resolveOutboundChannel: async () => ({ channel, abort: false }),
     PENDING_UPDATE_MAX_ATTEMPTS: 1
   });
@@ -193,18 +192,18 @@ test("UpdateService: livrarea care epuizeaza retry-urile intra in dead-letter (c
   const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1", title: "patch" } }] as UpdateResults;
   await svc.processGuildUpdates(noopDiscordClient, guild, latestResults);
   assert.equal(updateOneCalls.length, 1);
-  const update = updateOneCalls[0].update as { $push?: { notificationDeadLetter?: { $each?: unknown[] } } };
-  const entries = (update.$push?.notificationDeadLetter?.$each || []) as Array<{ kind: string; itemId: string; attempts: number }>;
-  assert.equal(entries.length, 1, "un item epuizat -> o intrare dead-letter");
+  const update = updateOneCalls[0].update as { $push?: unknown };
+  assert.equal(update.$push, undefined, "scrierea pe guild ramane doar $set, fara $push de dead-letter");
+  assert.equal(deadLetterDocs.length, 1, "un item epuizat -> un document dead-letter in colectia dedicata");
   assert.deepEqual(
-    { kind: entries[0].kind, itemId: entries[0].itemId, attempts: entries[0].attempts },
+    { kind: deadLetterDocs[0].kind, itemId: deadLetterDocs[0].itemId, attempts: deadLetterDocs[0].attempts },
     { kind: "update", itemId: "u-1", attempts: 1 }
   );
 });
 
 test("UpdateService: un retry sub max NU scrie dead-letter (fara $push)", async () => {
   const channel = { id: "channel-1", send: async () => { throw new Error("ECONNRESET"); } };
-  const { deps, updateOneCalls } = makeUpdateDeps({
+  const { deps, updateOneCalls, deadLetterDocs } = makeUpdateDeps({
     resolveOutboundChannel: async () => ({ channel, abort: false }),
     PENDING_UPDATE_MAX_ATTEMPTS: 5
   });
@@ -217,6 +216,7 @@ test("UpdateService: un retry sub max NU scrie dead-letter (fara $push)", async 
   await svc.processGuildUpdates(noopDiscordClient, guild, latestResults);
   const update = updateOneCalls[0].update as { $push?: unknown };
   assert.equal(update.$push, undefined, "cat timp se mai poate reincerca, nu scriem dead-letter");
+  assert.equal(deadLetterDocs.length, 0, "nicio intrare in colectia dedicata sub pragul de incercari");
 });
 
 test("UpdateService: enabledGames filter sare jocurile ne-active", async () => {
