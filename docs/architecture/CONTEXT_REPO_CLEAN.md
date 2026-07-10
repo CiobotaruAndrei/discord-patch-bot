@@ -174,6 +174,7 @@ src/
       auditLogSchemas.ts
       configBackupSchemas.ts
       suggestedCommandSchemas.ts
+      youtubeErrorLogSchemas.ts
       operationalSchemas.ts
       seenSchemas.ts
       outboxSchemas.ts
@@ -271,7 +272,7 @@ Zona de notificari este impartita astfel:
 - `discountNotificationService.ts` construieste si trimite notificarile pentru reduceri;
 - `priceAlertService.ts` evalueaza regulile de pret peste aceleasi seturi de oferte grupate pe valuta, revendica atomic trecerea sub prag, trimite embed-ul pe canalul de reduceri si rearmeaza regula dupa revenirea pretului peste prag;
 - `features/youtube/youtubeSource.ts` rezolva link/handle/channel ID, citeste feed-ul Atom oficial si extrage metadatele necesare filtrelor Shorts/live/premiere/durata;
-- `features/youtube/youtubeRepository.ts` gestioneaza baseline-ul mai vechi de o luna, claim/rollback atomic in `guildSeenYoutube`, starea ultimei verificari, rutele invalide si lista plafonata de erori;
+- `features/youtube/youtubeRepository.ts` gestioneaza baseline-ul mai vechi de o luna, claim/rollback atomic in `guildSeenYoutube`, starea ultimei verificari si rutele invalide; jurnalul de erori YouTube traieste in colectia dedicata `guildYoutubeErrors` prin `youtubeErrorsRepository.ts` (cap 20 per guild cu evictia celor mai vechi, listare/numarare descrescatoare, golire la `clear-errors` si `/reset-config`);
 - `features/youtube/youtubeDeliveryPolicy.ts` centralizeaza fereastra recenta, sablonul, filtrul de titlu, rutele si loturile de livrare;
 - `features/youtube/youtubeNotificationService.ts` grupeaza abonamentele dupa channel ID, face un singur fetch per canal pe ciclu si livreaza automat sau manual prin aceleasi filtre si rute;
 - `outboundChannel.ts` rezolva canalul Discord de trimitere;

@@ -26,7 +26,7 @@ function makeBackupModel(docs: GuildConfigBackupRecord[]) {
   };
 }
 
-function makeDeps(settings: GuildSettings | null, outboxCount: number, paused: boolean, backups: GuildConfigBackupRecord[] = []) {
+function makeDeps(settings: GuildSettings | null, outboxCount: number, paused: boolean, backups: GuildConfigBackupRecord[] = [], youtubeErrorCount = 0) {
   return {
     logger: () => undefined,
     enforceCooldown: async () => true,
@@ -39,6 +39,7 @@ function makeDeps(settings: GuildSettings | null, outboxCount: number, paused: b
       countDocuments: async () => outboxCount
     },
     GuildConfigBackupModel: makeBackupModel(backups),
+    GuildYoutubeErrorModel: { countDocuments: async () => youtubeErrorCount },
     MessageFlags: { Ephemeral: 64 }
   };
 }
@@ -48,8 +49,7 @@ test("buildMaintenanceReport semnaleaza outbox, dead-letter, backup vechi si can
     _id: "guild-1",
     subscribed: true,
     notificationChannelId: null,
-    notificationDeadLetter: [{ kind: "update", itemId: "u1", reason: "missing channel" }],
-    youtubeErrors: [{ channelId: "yt1", channelName: "YT", message: "feed error", at: new Date() }]
+    notificationDeadLetter: [{ kind: "update", itemId: "u1", reason: "missing channel" }]
   };
   const backups: GuildConfigBackupRecord[] = [{
     guildId: "guild-1",
@@ -59,9 +59,9 @@ test("buildMaintenanceReport semnaleaza outbox, dead-letter, backup vechi si can
     snapshot: {}
   }];
 
-  const report = await installMaintenance.buildMaintenanceReport(makeDeps(settings, 3, true, backups), "guild-1");
+  const report = await installMaintenance.buildMaintenanceReport(makeDeps(settings, 3, true, backups, 1), "guild-1");
 
-  assert.match(report, /ATENTIE: surse YouTube/);
+  assert.match(report, /ATENTIE: surse YouTube - 1 erori recente/, "numaratoarea vine din colectia guildYoutubeErrors, nu din setari");
   assert.match(report, /ATENTIE: outbox - 3 joburi/);
   assert.match(report, /ATENTIE: dead-letter - 1/);
   assert.match(report, /ATENTIE: drenare outbox - pe pauza/);

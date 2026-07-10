@@ -5,6 +5,7 @@ import type { NotificationDiscordClient } from "../../notifications/outboundChan
 import type { ResolvedYouTubeChannel } from "../../youtube/youtubeSource";
 import type { PreparedVideo, ManualVideoBatch } from "../../youtube/youtubeNotificationService";
 import type { YouTubeConfigGuildModel } from "../../youtube/youtubeGuildConfigRepository";
+import type { YoutubeErrorModelLike } from "../../youtube/youtubeErrorsRepository";
 
 export type InteractionPayload = string | { content?: string; embeds?: object[]; flags?: number };
 
@@ -40,6 +41,7 @@ export interface ChannelPermissions {
 
 export interface YouTubeInteractionDeps {
   GuildModel: YouTubeConfigGuildModel;
+  GuildYoutubeErrorModel: Pick<YoutubeErrorModelLike, "find" | "countDocuments">;
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
   invalidateGuildCache(guildId: string): void;
   resolveYouTubeChannel(input: string): Promise<ResolvedYouTubeChannel>;

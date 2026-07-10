@@ -59,13 +59,16 @@ test("guildConfigRepository: reset-ul scrie valorile implicite cu upsert si audi
     find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
   };
   const model = { updateOne: async (filter: object, update: object, options?: object) => { calls.push({ filter, update: update as Record<string, unknown>, options: options as Record<string, unknown> }); return {}; } };
-  await resetGuildConfigurationWithAudit(model, auditModel, "g1", "EUR", { userId: "u1", action: "reset_config", details: "test" });
+  const errorLogDeletes: Array<Record<string, unknown>> = [];
+  const youtubeErrorModel = { deleteMany: async (filter: Record<string, unknown>) => { errorLogDeletes.push(filter); return { deletedCount: 1 }; } };
+  await resetGuildConfigurationWithAudit(model, auditModel, youtubeErrorModel, "g1", "EUR", { userId: "u1", action: "reset_config", details: "test" });
   assert.equal(calls.length, 1, "reset = o singura scriere pe guild, fara $push de audit");
   const setDoc = calls[0].update.$set as Record<string, unknown>;
   assert.equal(setDoc.subscribed, false);
   assert.equal(setDoc.currency, "EUR");
   assert.deepEqual(setDoc, buildResetConfiguration("EUR"), "reset-ul foloseste exact sursa unica de valori implicite");
   assert.equal(calls[0].update.$push, undefined);
+  assert.deepEqual(errorLogDeletes, [{ guildId: "g1" }], "reset-ul goleste si jurnalul de erori YouTube din colectia dedicata");
   assert.equal(auditDocs.length, 1);
   assert.equal(auditDocs[0].kind, "server");
   assert.match(String(auditDocs[0].action), /reset_config/);

@@ -16,6 +16,7 @@ function makeHarness(permissionState = { viewChannel: true, sendMessages: true, 
         return { matchedCount: 1, modifiedCount: 1 };
       }
     },
+    GuildYoutubeErrorModel: { deleteMany: async () => ({ deletedCount: 0 }) },
     GuildAuditLogModel: {
       create: async (doc: GuildAuditLogRecord) => { auditDocs.push(doc); return doc; },
       find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }

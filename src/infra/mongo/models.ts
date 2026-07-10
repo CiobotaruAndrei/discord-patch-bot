@@ -11,6 +11,7 @@ import { buildOutboxSchemas } from "./outboxSchemas";
 import { buildAuditLogSchemas } from "./auditLogSchemas";
 import { buildConfigBackupSchemas } from "./configBackupSchemas";
 import { buildSuggestedCommandSchemas } from "./suggestedCommandSchemas";
+import { buildYoutubeErrorLogSchemas } from "./youtubeErrorLogSchemas";
 
 interface MongoModelsContext {
   mongoose: typeof Mongoose;
@@ -32,7 +33,6 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   } = buildGuildNotificationSchemas({ mongoose, SUPPORTED_CURRENCIES });
   const {
     youtubeChannelSchema,
-    youtubeErrorSchema,
     youtubeChannelRouteSchema
   } = buildGuildYoutubeSchemas({ mongoose });
   const {
@@ -98,7 +98,6 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     youtubeMessageTemplate: { type: String, default: null, maxlength: 1000 },
     youtubeChannelRoutes: { type: [youtubeChannelRouteSchema], default: [] },
     youtubeTitleIncludeWords: { type: [String], default: [] },
-    youtubeErrors: { type: [youtubeErrorSchema], default: [] },
     watchlistGameSuggestions: { type: [watchlistGameSuggestionSchema], default: [] },
     futureReleaseGames: { type: [futureReleaseGameSchema], default: [] },
     adminCommandAccess: { type: adminCommandAccessSchema, default: null },
@@ -151,6 +150,9 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const { guildSuggestedCommandSchema } = buildSuggestedCommandSchemas({ mongoose });
   const GuildSuggestedCommandModel = mongoose.model("GuildSuggestedCommand", guildSuggestedCommandSchema, "guildSuggestedCommands");
 
+  const { guildYoutubeErrorSchema } = buildYoutubeErrorLogSchemas({ mongoose });
+  const GuildYoutubeErrorModel = mongoose.model("GuildYoutubeError", guildYoutubeErrorSchema, "guildYoutubeErrors");
+
   const {
     guildSeenDiscountSchema,
     guildSeenUpdateSchema,
@@ -176,6 +178,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     GuildAuditLogModel,
     GuildConfigBackupModel,
     GuildSuggestedCommandModel,
+    GuildYoutubeErrorModel,
     CircuitBreakerModel,
     SystemModel,
     JobLockModel,

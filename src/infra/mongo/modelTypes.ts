@@ -155,12 +155,6 @@ export interface GuildDoc {
     discordChannelIds: string[];
   }>;
   youtubeTitleIncludeWords?: string[];
-  youtubeErrors?: Array<{
-    channelId: string;
-    channelName: string;
-    message: string;
-    at: Date;
-  }>;
   watchlistGameSuggestions?: WatchlistGameSuggestionEntry[];
   futureReleaseGames?: FutureReleaseGameEntry[];
   adminCommandAccess?: AdminCommandAccessConfig | null;
@@ -246,6 +240,14 @@ export interface GuildSuggestedCommandDoc {
   description?: string;
   createdBy?: string;
   createdAt?: Date;
+}
+
+export interface GuildYoutubeErrorDoc {
+  guildId: string;
+  channelId?: string;
+  channelName?: string;
+  message?: string;
+  at?: Date;
 }
 
 export interface GuildSeenDiscountDoc {

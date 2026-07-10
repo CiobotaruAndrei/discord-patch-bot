@@ -49,8 +49,7 @@ test("/youtube filter actualizeaza filtrele si status afiseaza configuratia", as
 });
 
 test("/youtube errors, permissions si clear-errors expun mentenanta modulului", async () => {
-  const harness = createHarness({
-    youtubeNotificationChannelId: "discord-1",
+  const harness = createHarness({ youtubeNotificationChannelId: "discord-1" }, 3, false, 0, {
     youtubeErrors: [{
       channelId: "UC1234567890123456789012",
       channelName: "Canal Test",
@@ -83,7 +82,7 @@ test("/youtube permissions verifica si canalele din rutele speciale, nu doar can
 
 test("/youtube errors taie raspunsul sub limita Discord cand erorile sunt multe si lungi", async () => {
   const longMessage = "x".repeat(500);
-  const harness = createHarness({
+  const harness = createHarness({}, 3, false, 0, {
     youtubeErrors: Array.from({ length: 10 }, (_value, index) => ({
       channelId: `UC${index}`,
       channelName: `Canal ${index}`,

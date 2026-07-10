@@ -3,14 +3,15 @@
 import type { DiscordInteraction, InteractionPayload, YouTubeInteractionDeps } from "./youtubeCommandTypes";
 import { clampJoinedList } from "../../command-presentation/discordListLimit";
 import { formatTime, onOff } from "./youtubePresentation";
+import { listYoutubeErrors } from "../../youtube/youtubeErrorsRepository";
 
 export function createYouTubeDiagnosticsCommands(deps: YouTubeInteractionDeps) {
-  const { getGuildSettings, checkChannelPermissions, safeEdit } = deps;
+  const { GuildYoutubeErrorModel, getGuildSettings, checkChannelPermissions, safeEdit } = deps;
 
   async function errors(guildId: string): Promise<InteractionPayload> {
-    const entries = (await getGuildSettings(guildId))?.youtubeErrors || [];
+    const entries = await listYoutubeErrors(GuildYoutubeErrorModel, guildId, 10);
     if (!entries.length) return { content: "Nu exista erori YouTube inregistrate." };
-    const lines = entries.slice(-10).reverse().map(entry =>
+    const lines = entries.map(entry =>
       `- ${formatTime(entry.at)} - **${entry.channelName || entry.channelId || "YouTube"}**: ${entry.message}`
     );
     const header = "Ultimele erori YouTube:\n";
