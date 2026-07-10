@@ -172,6 +172,7 @@ src/
       guildYoutubeSchemas.ts
       guildAdminRecordSchemas.ts
       auditLogSchemas.ts
+      configBackupSchemas.ts
       operationalSchemas.ts
       seenSchemas.ts
       outboxSchemas.ts
@@ -233,7 +234,7 @@ Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `Co
 - `adminCommandAccessHandler.ts` - `/set admin-command-access`, `/admin-command-access list` si `/delete admin-command-access`, owner-only, pentru rol exact sau rol egal/mai-mare care poate folosi comenzi admin global sau doar pe o comanda/pachet, pe langa `Administrator` si codul global de acces; perechile `start`/`stop` pentru acelasi modul se normalizeaza la acelasi scope; formatarea mesajelor si normalizarea modului sunt delegate modulului pur `adminCommandAccessViews.ts`;
 - `adminCommandAccessViews.ts` - functii pure de prezentare/normalizare pentru accesul admin (`formatCurrentAccess`/`formatAccessList`/`formatScopedAccess` — inclusiv avertismentul de reguli in conflict si fallback-ul global — plus `labelMode`/`normalizeMode` si tipurile `AdminAccessMode`/`GuildAdminAccessDoc`), fara acces la Mongo/Discord;
 - `priceAlertInteractionHandler.ts` - `/add price-alert`, `/remove price-alert` si `/price-alert list`, persistenta regulilor joc+prag+valuta si autocomplete pentru joc;
-- `backupInteractionHandler.ts` - `/add backup` si `/backup list/preview/load/delete`, backup-uri ale configuratiei botului pentru server, confirmare la load/delete si audit server la schimbari; randarea textelor e delegata modulului pur `backupViews.ts`;
+- `backupInteractionHandler.ts` - `/add backup` si `/backup list/preview/load/delete`, backup-uri ale configuratiei botului pentru server, stocate in colectia dedicata `guildConfigBackups` (un backup per nume per guild, cap de 20 cu evictia celor mai vechi), confirmare la load/delete si audit server la schimbari; randarea textelor e delegata modulului pur `backupViews.ts`;
 - `backupViews.ts` - functii pure de randare pentru `/backup` (`renderBackupList`/`renderBackupPreview`), fara acces la Mongo/Discord;
 - `auditLogInteractionHandler.ts` - `/bot-log recent/older` si `/server-log recent/older`, citire audit admin (`kind: "bot"`) si audit server (`kind: "server"`) din colectia dedicata `guildAuditLogs`;
 - `priceCheckInteractionHandler.ts` - `/price-check`, compara pretul Steam cu sursele externe de reduceri deja folosite de bot; comparatia de titluri si construirea embed-ului sunt delegate modulului pur `priceCheckComparison.ts`;

@@ -229,6 +229,8 @@ setat ESTE sincronizarea. Inventarul declarat curent:
 | `guildSeenYoutube` | `{ guildId, channelId, videoId }` | unique | claim si dedup atomic per-guild pentru videoclipurile YouTube |
 | `guildAuditLogs` | `{ guildId, kind, at }` | — | listarea audit-ului `/bot-log` (`kind: "bot"`) si `/server-log` (`kind: "server"`), cele mai noi primele, cu interval si offset |
 | `guildAuditLogs` | `{ at }` | TTL `GUILD_AUDIT_LOG_TTL_DAYS` (implicit 180 zile) | retentia audit-ului admin; inlocuieste vechiul cap de 100 de intrari per array din documentul guild (intrarile expira dupa timp, nu dupa numar) |
+| `guildConfigBackups` | `{ guildId, name }` | unique | un backup de configuratie per nume per guild; `/backup add` cu acelasi nume suprascrie (upsert), `/backup preview|load|delete` cauta direct pe cheia naturala |
+| `guildConfigBackups` | `{ guildId, createdAt }` | — | listarea `/backup list` cele mai noi primele si evictia celor mai vechi backup-uri peste capul de 20 per guild la salvare |
 | `notificationOutbox` | `{ availableAt, lockedUntil }` | — | claim-ul joburilor disponibile la drenare |
 | `notificationOutbox` | `{ dedupeKey }` | unique, sparse | impiedica doua joburi pending cu acelasi `dedupeKey` (sparse: joburile fara cheie coexista) |
 | `notificationOutbox` | `{ createdAt }` | TTL 7 zile | plasa de siguranta pentru joburi nedrenate |

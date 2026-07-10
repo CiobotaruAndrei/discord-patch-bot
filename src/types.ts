@@ -275,7 +275,6 @@ export interface GuildSettings {
   youtubeChannelRoutes?: YouTubeChannelRoute[];
   youtubeTitleIncludeWords?: string[];
   youtubeErrors?: YouTubeErrorEntry[];
-  configBackups?: ConfigBackupRecord[];
   notificationDeadLetter?: DeadLetterEntry[];
   suggestedCommands?: SuggestedCommandEntry[];
   watchlistGameSuggestions?: WatchlistGameSuggestionEntry[];

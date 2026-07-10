@@ -161,7 +161,6 @@ export interface GuildDoc {
     message: string;
     at: Date;
   }>;
-  configBackups?: ConfigBackupRecord[];
   suggestedCommands?: SuggestedCommandEntry[];
   watchlistGameSuggestions?: WatchlistGameSuggestionEntry[];
   futureReleaseGames?: FutureReleaseGameEntry[];
@@ -232,6 +231,14 @@ export interface GuildAuditLogDoc {
   result?: string;
   details?: string;
   at?: Date;
+}
+
+export interface GuildConfigBackupDoc {
+  guildId: string;
+  name: string;
+  createdBy?: string;
+  createdAt?: Date;
+  snapshot: Record<string, unknown>;
 }
 
 export interface GuildSeenDiscountDoc {

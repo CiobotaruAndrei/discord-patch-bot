@@ -8,6 +8,7 @@ import type {
   FeedbackReportDoc,
   FetchSnapshotDoc,
   GuildAuditLogDoc,
+  GuildConfigBackupDoc,
   GuildDoc,
   GuildSeenDiscountDoc,
   GuildSeenUpdateDoc,
@@ -34,6 +35,7 @@ type MongoRuntimeContext = {
   withMongoRetry: <T>(fn: () => Promise<T>, ...rest: unknown[]) => Promise<T>;
   GuildModel: Model<GuildDoc>;
   GuildAuditLogModel: Model<GuildAuditLogDoc>;
+  GuildConfigBackupModel: Model<GuildConfigBackupDoc>;
   CircuitBreakerModel: Model<CircuitBreakerDoc>;
   SystemModel: Model<SystemDoc>;
   JobLockModel: Model<JobLockDoc>;
@@ -108,6 +110,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     withMongoRetry: context.withMongoRetry,
     GuildModel: context.GuildModel,
     GuildAuditLogModel: context.GuildAuditLogModel,
+    GuildConfigBackupModel: context.GuildConfigBackupModel,
     CircuitBreakerModel: context.CircuitBreakerModel,
     SystemModel: context.SystemModel,
     JobLockModel: context.JobLockModel,
