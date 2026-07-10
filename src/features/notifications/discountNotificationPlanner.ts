@@ -1,6 +1,7 @@
 "use strict";
 
 import type { DealInfo, PendingDiscount, ValidatedDealInfo } from "../../types";
+import { planNotificationFailure } from "./notificationFailurePolicy";
 
 export interface DealsHashIndex {
   dealsByHash: Map<string, DealInfo>;
@@ -67,7 +68,7 @@ export type DiscountFailurePlan =
   | { action: "dead-letter"; attempts: number };
 
 export function planDiscountFailure(item: PendingDiscount, maxAttempts: number): DiscountFailurePlan {
-  const attempts = (item.attempts || 0) + 1;
-  if (attempts < maxAttempts) return { action: "requeue", retry: { ...item, attempts } };
-  return { action: "dead-letter", attempts };
+  const verdict = planNotificationFailure(item.attempts, maxAttempts);
+  if (verdict.action === "requeue") return { action: "requeue", retry: { ...item, attempts: verdict.attempts } };
+  return { action: "dead-letter", attempts: verdict.attempts };
 }

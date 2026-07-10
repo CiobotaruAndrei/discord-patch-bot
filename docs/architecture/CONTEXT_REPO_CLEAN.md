@@ -154,6 +154,7 @@ src/
       outboxDeliveryFinalizer.ts
       outboxRepository.ts
       outboxStateMachine.ts
+      notificationFailurePolicy.ts
       outboxTypes.ts
       outboundChannel.ts
       seenRepository.ts
