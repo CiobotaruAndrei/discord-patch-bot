@@ -99,8 +99,7 @@ export const GUILD_SETTINGS_FIELD_ROLES: Readonly<Record<string, GuildSettingsFi
   dlcInitializing: "operational",
   dlcActivationId: "operational",
   futureReleaseInitializing: "operational",
-  futureReleaseActivationId: "operational",
-  youtubeErrors: "operational"
+  futureReleaseActivationId: "operational"
 });
 
 export const CONFIG_BACKUP_KEYS: readonly string[] = Object.freeze(

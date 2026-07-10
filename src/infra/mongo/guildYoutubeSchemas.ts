@@ -21,17 +21,10 @@ export function buildGuildYoutubeSchemas({ mongoose }: GuildYoutubeSchemasDeps) 
     lastError: { type: youtubeLastErrorSchema, default: () => ({}) }
   }, { _id: false });
 
-  const youtubeErrorSchema = new mongoose.Schema({
-    channelId: { type: String, required: true },
-    channelName: { type: String, default: "" },
-    message: { type: String, required: true },
-    at: { type: Date, default: Date.now }
-  }, { _id: false });
-
   const youtubeChannelRouteSchema = new mongoose.Schema({
     channelId: { type: String, required: true },
     discordChannelIds: { type: [String], default: [] }
   }, { _id: false });
 
-  return { youtubeLastErrorSchema, youtubeChannelSchema, youtubeErrorSchema, youtubeChannelRouteSchema };
+  return { youtubeLastErrorSchema, youtubeChannelSchema, youtubeChannelRouteSchema };
 }

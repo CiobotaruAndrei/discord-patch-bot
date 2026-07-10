@@ -1,4 +1,5 @@
 import type { LoggerFunction, MongoWriteOutcome, YouTubeChannelSubscription, YouTubeVideo } from "../../types";
+import { clearYoutubeErrors, recordYoutubeError, type YoutubeErrorModelLike } from "./youtubeErrorsRepository";
 
 interface MongoWriteResult extends MongoWriteOutcome {
   upsertedCount?: number;
@@ -23,6 +24,7 @@ type WithMongoRetry = <T>(
 interface YouTubeRepositoryDeps {
   GuildModel: GuildModelLike;
   GuildSeenYoutubeModel: SeenYoutubeModelLike;
+  GuildYoutubeErrorModel: Pick<YoutubeErrorModelLike, "create" | "find" | "deleteMany">;
   withMongoRetry: WithMongoRetry;
   invalidateGuildCache(guildId: string): void;
   adminAlert(kind: string, title: string, body: string, guildId?: string): Promise<void>;
@@ -33,12 +35,11 @@ interface DuplicateKeyError {
   code?: number;
 }
 
-const YOUTUBE_ERROR_LIMIT = 20;
-
 export function createYouTubeRepository(deps: YouTubeRepositoryDeps) {
   const {
     GuildModel,
     GuildSeenYoutubeModel,
+    GuildYoutubeErrorModel,
     withMongoRetry,
     invalidateGuildCache,
     adminAlert,
@@ -123,21 +124,15 @@ export function createYouTubeRepository(deps: YouTubeRepositoryDeps) {
             channelId: channel.channelId,
             at
           }
-        },
-        $push: {
-          youtubeErrors: {
-            $each: [{
-              channelId: channel.channelId,
-              channelName: channel.channelName,
-              message: message.slice(0, 500),
-              at
-            }],
-            $slice: -YOUTUBE_ERROR_LIMIT
-          }
         }
       },
       { arrayFilters: [{ "channel.channelId": channel.channelId }] }
     );
+    await recordYoutubeError(GuildYoutubeErrorModel, guildId, {
+      channelId: channel.channelId,
+      channelName: channel.channelName,
+      message: message.slice(0, 500)
+    });
     invalidateGuildCache(guildId);
     adminAlert(
       "youtube:source",
@@ -152,11 +147,11 @@ export function createYouTubeRepository(deps: YouTubeRepositoryDeps) {
       { _id: guildId },
       {
         $set: {
-          youtubeErrors: [],
           "youtubeChannels.$[].lastError": { message: "", channelId: null, at: null }
         }
       }
     );
+    await clearYoutubeErrors(GuildYoutubeErrorModel, guildId);
     invalidateGuildCache(guildId);
   }
 
@@ -174,20 +169,16 @@ export function createYouTubeRepository(deps: YouTubeRepositoryDeps) {
         $set: {
           youtubeNotificationsEnabled: false,
           youtubeNotificationChannelId: null
-        },
-        $push: {
-          youtubeErrors: {
-            $each: [{
-              channelId: "",
-              channelName: "Canal Discord notificari",
-              message: message.slice(0, 500),
-              at: new Date()
-            }],
-            $slice: -YOUTUBE_ERROR_LIMIT
-          }
         }
       }
     );
+    if ((result.matchedCount ?? 0) > 0) {
+      await recordYoutubeError(GuildYoutubeErrorModel, guildId, {
+        channelId: "",
+        channelName: "Canal Discord notificari",
+        message: message.slice(0, 500)
+      });
+    }
     invalidateGuildCache(guildId);
     adminAlert(
       "discord:youtube-channel",
@@ -208,20 +199,16 @@ export function createYouTubeRepository(deps: YouTubeRepositoryDeps) {
       {
         $pull: {
           "youtubeChannelRoutes.$[].discordChannelIds": discordChannelId
-        },
-        $push: {
-          youtubeErrors: {
-            $each: [{
-              channelId: "",
-              channelName: "Ruta Discord YouTube",
-              message: message.slice(0, 500),
-              at: new Date()
-            }],
-            $slice: -YOUTUBE_ERROR_LIMIT
-          }
         }
       }
     );
+    if ((result.matchedCount ?? 0) > 0) {
+      await recordYoutubeError(GuildYoutubeErrorModel, guildId, {
+        channelId: "",
+        channelName: "Ruta Discord YouTube",
+        message: message.slice(0, 500)
+      });
+    }
     await GuildModel.updateOne(
       { _id: guildId },
       { $pull: { youtubeChannelRoutes: { discordChannelIds: { $size: 0 } } } }

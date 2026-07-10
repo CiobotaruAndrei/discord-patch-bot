@@ -12,11 +12,12 @@ test("sub-schemele guild traiesc in module pe domenii, nu inline in models.ts", 
   assert.ok(!models.includes("{ _id: false }"), "models.ts nu mai defineste sub-scheme inline (toate au { _id: false } si traiesc in modulele de domeniu)");
   for (const [file, schemas] of [
     ["guildNotificationSchemas.ts", ["pendingUpdateSchema", "pendingDiscountSchema", "deadLetterEntrySchema", "priceAlertSchema"]],
-    ["guildYoutubeSchemas.ts", ["youtubeLastErrorSchema", "youtubeChannelSchema", "youtubeErrorSchema", "youtubeChannelRouteSchema"]],
+    ["guildYoutubeSchemas.ts", ["youtubeLastErrorSchema", "youtubeChannelSchema", "youtubeChannelRouteSchema"]],
     ["guildAdminRecordSchemas.ts", ["watchlistGameSuggestionSchema", "futureReleaseGameSchema", "adminCommandAccessSchema"]],
     ["auditLogSchemas.ts", ["guildAuditLogSchema"]],
     ["configBackupSchemas.ts", ["guildConfigBackupSchema"]],
     ["suggestedCommandSchemas.ts", ["guildSuggestedCommandSchema"]],
+    ["youtubeErrorLogSchemas.ts", ["guildYoutubeErrorSchema"]],
     ["operationalSchemas.ts", ["circuitBreakerSchema", "systemSchema", "jobLockSchema", "adminAlertCooldownSchema", "fetchSnapshotSchema", "playerCountSnapshotSchema", "feedbackReportSchema"]],
     ["seenSchemas.ts", ["guildSeenDiscountSchema", "guildSeenUpdateSchema", "guildSeenYoutubeSchema"]],
     ["outboxSchemas.ts", ["outboxHistoryEntrySchema", "notificationOutboxSchema", "notificationOutboxSentSchema", "notificationHistorySchema", "deadLetterReplaySchema"]]

@@ -49,7 +49,6 @@ export function buildResetConfiguration(defaultCurrency: CurrencyCode): Record<s
     youtubeMessageTemplate: null,
     youtubeChannelRoutes: [],
     youtubeTitleIncludeWords: [],
-    youtubeErrors: [],
     watchlistGameSuggestions: [],
     playerCountSubscribed: false,
     playerCountChannelId: null,

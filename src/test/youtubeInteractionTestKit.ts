@@ -29,8 +29,10 @@ export function makeInteraction(options: InteractionOptions): HandlerInteraction
 }
 
 type FindOneAndUpdateImpl = (filter: object, update: object, options?: object) => Promise<{ youtubeChannels?: Array<{ channelId: string }>; youtubeChannelRoutes?: Array<{ channelId: string; discordChannelIds: string[] }>; youtubeTitleIncludeWords?: string[] } | null>;
+type YoutubeErrorSeed = { channelId: string; channelName: string; message: string; at: Date };
 type HarnessOverrides = {
   findOneAndUpdate?: FindOneAndUpdateImpl;
+  youtubeErrors?: YoutubeErrorSeed[];
   checkChannelPermissions?: () => Promise<{ viewChannel: boolean; sendMessages: boolean; embedLinks: boolean; readMessageHistory: boolean } | null>;
   removeSeenChannel?: (guildId: string, channelId: string) => Promise<void>;
 };
@@ -58,9 +60,9 @@ export function createHarness(settingsOverrides: object = {}, preparedCount = 3,
       excludePremieres: true,
       minDurationSeconds: 0
     },
-    youtubeErrors: [],
     ...settingsOverrides
   };
+  const youtubeErrorDocs = (overrides.youtubeErrors ?? []).map(entry => ({ guildId: "guild-1", ...entry }));
   const deps = {
     GuildModel: {
       updateOne: async (filter, update, options) => {
@@ -98,6 +100,24 @@ export function createHarness(settingsOverrides: object = {}, preparedCount = 3,
           }
         }
         return { youtubeChannelRoutes: routes };
+      }
+    },
+    GuildYoutubeErrorModel: {
+      countDocuments: async () => youtubeErrorDocs.length,
+      find: () => {
+        let skipped = 0;
+        let limited = Number.POSITIVE_INFINITY;
+        let sorted = [...youtubeErrorDocs];
+        const chain = {
+          sort: () => {
+            sorted = [...sorted].sort((a, b) => new Date(b.at ?? 0).getTime() - new Date(a.at ?? 0).getTime());
+            return chain;
+          },
+          skip: (count: number) => { skipped = count; return chain; },
+          limit: (count: number) => { limited = count; return chain; },
+          lean: async () => sorted.slice(skipped, skipped + limited)
+        };
+        return chain;
       }
     },
     getGuildSettings: async () => settings,

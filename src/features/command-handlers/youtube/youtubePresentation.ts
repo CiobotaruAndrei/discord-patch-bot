@@ -40,7 +40,7 @@ export function formatFilters(filters: Required<YouTubeFilters>): string {
   ].join("\n");
 }
 
-export function formatYouTubeStatus(settings: GuildSettings | null): string {
+export function formatYouTubeStatus(settings: GuildSettings | null, recentErrorCount: number): string {
   const channels = settings?.youtubeChannels || [];
   const lastChecked = channels
     .map(channel => channel.lastCheckedAt ? new Date(channel.lastCheckedAt).getTime() : 0)
@@ -53,7 +53,7 @@ export function formatYouTubeStatus(settings: GuildSettings | null): string {
     `filtre titlu: ${settings?.youtubeTitleIncludeWords?.length || 0}`,
     `sablon mesaj: ${settings?.youtubeMessageTemplate ? "personalizat" : "implicit"}`,
     `ultima verificare: ${lastChecked > 0 ? `<t:${Math.floor(lastChecked / 1000)}:R>` : "niciodata"}`,
-    `erori recente: ${settings?.youtubeErrors?.length || 0}`,
+    `erori recente: ${recentErrorCount}`,
     formatFilters(defaultFilters(settings))
   ].join("\n");
 }

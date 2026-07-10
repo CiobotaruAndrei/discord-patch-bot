@@ -9,7 +9,7 @@ import type { OutboxRuntimeDeps } from "./notificationOutbox";
 import type { HistoryRepositoryDeps } from "./historyRepository";
 import type { DeadLetterReplayRepositoryDeps } from "./deadLetterReplayRepository";
 import type { SourceRegistryApi } from "../../sources/sourceRegistry";
-import type { GuildSeenYoutubeDoc } from "../../infra/mongo/modelTypes";
+import type { GuildSeenYoutubeDoc, GuildYoutubeErrorDoc } from "../../infra/mongo/modelTypes";
 import type { ReportRollbackFailure } from "./rollbackReporter";
 
 export type GeneratedUpdateDeps =
@@ -49,6 +49,7 @@ export type NotificationsRuntimeDeps = SeenRepositoryDeps
     NotificationHistoryModel: HistoryRepositoryDeps["NotificationHistoryModel"];
     NotificationDeadLetterReplayModel: DeadLetterReplayRepositoryDeps["NotificationDeadLetterReplayModel"];
     GuildSeenYoutubeModel: Model<GuildSeenYoutubeDoc>;
+    GuildYoutubeErrorModel: Model<GuildYoutubeErrorDoc>;
     httpReq: SourceRegistryApi["httpReq"];
     safeCheerioLoad: SourceRegistryApi["safeCheerioLoad"];
     FETCH_CONCURRENCY: number;

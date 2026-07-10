@@ -11,6 +11,7 @@ import type {
   GuildConfigBackupDoc,
   GuildDoc,
   GuildSuggestedCommandDoc,
+  GuildYoutubeErrorDoc,
   GuildSeenDiscountDoc,
   GuildSeenUpdateDoc,
   GuildSeenYoutubeDoc,
@@ -38,6 +39,7 @@ type MongoRuntimeContext = {
   GuildAuditLogModel: Model<GuildAuditLogDoc>;
   GuildConfigBackupModel: Model<GuildConfigBackupDoc>;
   GuildSuggestedCommandModel: Model<GuildSuggestedCommandDoc>;
+  GuildYoutubeErrorModel: Model<GuildYoutubeErrorDoc>;
   CircuitBreakerModel: Model<CircuitBreakerDoc>;
   SystemModel: Model<SystemDoc>;
   JobLockModel: Model<JobLockDoc>;
@@ -114,6 +116,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     GuildAuditLogModel: context.GuildAuditLogModel,
     GuildConfigBackupModel: context.GuildConfigBackupModel,
     GuildSuggestedCommandModel: context.GuildSuggestedCommandModel,
+    GuildYoutubeErrorModel: context.GuildYoutubeErrorModel,
     CircuitBreakerModel: context.CircuitBreakerModel,
     SystemModel: context.SystemModel,
     JobLockModel: context.JobLockModel,

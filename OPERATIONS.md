@@ -233,6 +233,7 @@ setat ESTE sincronizarea. Inventarul declarat curent:
 | `guildConfigBackups` | `{ guildId, createdAt }` | — | listarea `/backup list` cele mai noi primele si evictia celor mai vechi backup-uri peste capul de 20 per guild la salvare |
 | `guildSuggestedCommands` | `{ guildId, commandName }` | unique | o sugestie de comanda per nume per guild; `/suggest-command add` cu un nume existent pastreaza intrarea originala (`$setOnInsert`), `/suggest-command delete` sterge pe cheia naturala |
 | `guildSuggestedCommands` | `{ guildId, createdAt }` | — | listarea `/suggest-command list` cele mai noi primele si evictia celor mai vechi sugestii peste capul de 100 per guild la salvare |
+| `guildYoutubeErrors` | `{ guildId, at }` | — | jurnalul de erori YouTube per guild: listarea `/youtube errors` cele mai noi primele, numaratoarea din `/youtube status` si `/maintenance`, evictia celor mai vechi erori peste capul de 20 per guild la inregistrare |
 | `notificationOutbox` | `{ availableAt, lockedUntil }` | — | claim-ul joburilor disponibile la drenare |
 | `notificationOutbox` | `{ dedupeKey }` | unique, sparse | impiedica doua joburi pending cu acelasi `dedupeKey` (sparse: joburile fara cheie coexista) |
 | `notificationOutbox` | `{ createdAt }` | TTL 7 zile | plasa de siguranta pentru joburi nedrenate |

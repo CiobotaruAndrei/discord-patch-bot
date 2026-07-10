@@ -8,6 +8,7 @@ import { createYouTubeFilterCommands } from "./youtube/youtubeFilterCommands";
 import { createYouTubeManualVideoCommands } from "./youtube/youtubeManualVideoCommands";
 import { createYouTubeDiagnosticsCommands } from "./youtube/youtubeDiagnosticsCommands";
 import { formatYouTubeList, formatYouTubeStatus } from "./youtube/youtubePresentation";
+import { countYoutubeErrors } from "../youtube/youtubeErrorsRepository";
 
 import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
@@ -18,7 +19,7 @@ type YouTubeContext = YouTubeInteractionDeps & {
 };
 
 function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
-  const { getGuildSettings, clearYouTubeErrors, safeDefer, safeEdit } = deps;
+  const { GuildYoutubeErrorModel, getGuildSettings, clearYouTubeErrors, safeDefer, safeEdit } = deps;
   const subscriptionCommands = createYouTubeSubscriptionCommands(deps);
   const notifyCommands = createYouTubeNotifyCommands(deps);
   const filterCommands = createYouTubeFilterCommands(deps);
@@ -44,7 +45,7 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     if (subcommand === "subscribe") return subscriptionCommands.subscribe(interaction, guildId);
     if (subcommand === "unsubscribe") return subscriptionCommands.unsubscribe(interaction, guildId);
     if (subcommand === "list") return safeEdit(interaction, formatYouTubeList(await getGuildSettings(guildId)));
-    if (subcommand === "status") return safeEdit(interaction, formatYouTubeStatus(await getGuildSettings(guildId)));
+    if (subcommand === "status") return safeEdit(interaction, formatYouTubeStatus(await getGuildSettings(guildId), await countYoutubeErrors(GuildYoutubeErrorModel, guildId)));
     if (subcommand === "errors") {
       const payload = await diagnosticsCommands.errors(guildId);
       return safeEdit(interaction, payload);

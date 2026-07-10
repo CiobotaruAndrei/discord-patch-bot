@@ -23,6 +23,7 @@ export function createYouTubeNotificationRuntime(
   const youtubeRepository = createYouTubeRepository({
     GuildModel: deps.GuildModel,
     GuildSeenYoutubeModel: deps.GuildSeenYoutubeModel,
+    GuildYoutubeErrorModel: deps.GuildYoutubeErrorModel,
     withMongoRetry: deps.withMongoRetry,
     invalidateGuildCache: deps.invalidateGuildCache,
     adminAlert: async (kind, title, body, guildId) => {

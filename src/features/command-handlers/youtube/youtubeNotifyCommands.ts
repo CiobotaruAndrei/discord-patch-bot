@@ -16,11 +16,12 @@ import {
   setYouTubeNotificationsEnabled
 } from "../../youtube/youtubeGuildConfigRepository";
 import { formatYouTubeRoutes, formatYouTubeStatus } from "./youtubePresentation";
+import { countYoutubeErrors } from "../../youtube/youtubeErrorsRepository";
 
 const { errorDetail } = require("../../../shared/errors") as typeof import("../../../shared/errors");
 
 export function createYouTubeNotifyCommands(deps: YouTubeInteractionDeps) {
-  const { GuildModel, getGuildSettings, invalidateGuildCache, checkChannelPermissions, safeEdit } = deps;
+  const { GuildModel, GuildYoutubeErrorModel, getGuildSettings, invalidateGuildCache, checkChannelPermissions, safeEdit } = deps;
 
   async function notify(interaction: DiscordInteraction, guildId: string, subcommand: string): Promise<unknown> {
     const settings = await getGuildSettings(guildId);
@@ -57,7 +58,7 @@ export function createYouTubeNotifyCommands(deps: YouTubeInteractionDeps) {
       invalidateGuildCache(guildId);
       return safeEdit(interaction, "OK: notificarile YouTube sunt oprite. Canalele urmarite raman salvate.");
     }
-    return safeEdit(interaction, formatYouTubeStatus(settings));
+    return safeEdit(interaction, formatYouTubeStatus(settings, await countYoutubeErrors(GuildYoutubeErrorModel, guildId)));
   }
 
   async function messageTemplate(

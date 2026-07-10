@@ -4,6 +4,7 @@ import type { ConfigBackupRecord, GameConfig, GuildSettings } from "../../types"
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { matchesCommand } from "../command-registry/commandMatch";
 import { findNewestConfigBackup, type ConfigBackupModelLike } from "../admin-records/configBackupRepository";
+import { countYoutubeErrors, type YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
@@ -34,6 +35,7 @@ interface MaintenanceDeps {
   getOutboxPaused(): Promise<boolean>;
   NotificationOutboxModel: CountModel;
   GuildConfigBackupModel: Pick<ConfigBackupModelLike, "find">;
+  GuildYoutubeErrorModel: Pick<YoutubeErrorModelLike, "countDocuments">;
   MessageFlags: { Ephemeral: number };
 }
 
@@ -57,15 +59,15 @@ function issueLine(ok: boolean, label: string, detail: string): string {
 }
 
 async function buildMaintenanceReport(deps: MaintenanceDeps, guildId: string): Promise<string> {
-  const [settings, queued, paused, newestBackup] = await Promise.all([
+  const [settings, queued, paused, newestBackup, youtubeErrors] = await Promise.all([
     deps.getGuildSettings(guildId),
     deps.NotificationOutboxModel.countDocuments({ guildId }).catch(() => -1),
     deps.getOutboxPaused().catch(() => null),
-    findNewestConfigBackup(deps.GuildConfigBackupModel, guildId).catch(() => null)
+    findNewestConfigBackup(deps.GuildConfigBackupModel, guildId).catch(() => null),
+    countYoutubeErrors(deps.GuildYoutubeErrorModel, guildId)
   ]);
   const now = Date.now();
   const deadLetters = countArray(settings?.notificationDeadLetter);
-  const youtubeErrors = countArray(settings?.youtubeErrors);
   const backupsOld = isOldBackup(newestBackup, now);
   const updateChannelOk = settings?.subscribed ? Boolean(settings.notificationChannelId) : true;
   const discountChannelOk = settings?.discountsSubscribed ? Boolean(settings.discountChannelId) : true;
