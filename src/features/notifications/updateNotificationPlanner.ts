@@ -1,6 +1,7 @@
 "use strict";
 
 import type { PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue";
+import { planNotificationFailure } from "./notificationFailurePolicy";
 
 export type RotateAfter = <T>(arr: T[], lastSeen: T | null) => T[];
 
@@ -35,9 +36,9 @@ export function planPendingFailure(
   item: PendingUpdate,
   maxAttempts: number
 ): { action: "requeue" | "dead-letter"; attempts: number } {
-  const attempts = (item.attempts || 0) + 1;
-  item.attempts = attempts;
-  return { action: attempts < maxAttempts ? "requeue" : "dead-letter", attempts };
+  const verdict = planNotificationFailure(item.attempts, maxAttempts);
+  item.attempts = verdict.attempts;
+  return { action: verdict.action, attempts: verdict.attempts };
 }
 
 export function requeueFront(

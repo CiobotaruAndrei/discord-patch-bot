@@ -12,6 +12,7 @@ import { isDeliverableOutboxPayload } from "./outboxTypes";
 import { applyDedupeMarker, dedupeKeyFor, messageHasDedupeMarker, outboxDedupeMarker } from "./outboxDedupe";
 import { createOutboxRepository } from "./outboxRepository";
 import { backoffWithJitter, createOutboxStateMachine } from "./outboxStateMachine";
+import { planNotificationFailure } from "./notificationFailurePolicy";
 import { createOutboxDeliveryFinalizer } from "./outboxDeliveryFinalizer";
 
 export type {
@@ -100,14 +101,14 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     };
 
     const retryOrDeadLetter = async (job: OutboxJob, reason: string, permanent: boolean): Promise<void> => {
-      const attempts = (job.attempts || 0) + 1;
-      if (permanent || attempts >= options.maxAttempts) {
-        if (!(await recordDeadLetterOrKeep(job, permanent ? reason : "max-attempts"))) return;
+      const verdict = planNotificationFailure(job.attempts, options.maxAttempts, permanent);
+      if (verdict.action === "dead-letter") {
+        if (!(await recordDeadLetterOrKeep(job, verdict.cause === "permanent" ? reason : "max-attempts"))) return;
         await deleteJob(job._id);
         deadLettered++;
         return;
       }
-      await repository.scheduleRetry(job._id, attempts, new Date(nowFn().getTime() + backoffWithJitter(options.backoffMs, attempts)));
+      await repository.scheduleRetry(job._id, verdict.attempts, new Date(nowFn().getTime() + backoffWithJitter(options.backoffMs, verdict.attempts)));
       retried++;
     };
 
