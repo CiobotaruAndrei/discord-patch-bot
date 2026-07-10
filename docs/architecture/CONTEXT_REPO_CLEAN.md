@@ -173,6 +173,7 @@ src/
       guildAdminRecordSchemas.ts
       auditLogSchemas.ts
       configBackupSchemas.ts
+      suggestedCommandSchemas.ts
       operationalSchemas.ts
       seenSchemas.ts
       outboxSchemas.ts
@@ -240,7 +241,7 @@ Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `Co
 - `priceCheckInteractionHandler.ts` - `/price-check`, compara pretul Steam cu sursele externe de reduceri deja folosite de bot; comparatia de titluri si construirea embed-ului sunt delegate modulului pur `priceCheckComparison.ts`;
 - `priceCheckComparison.ts` - functii pure pentru `/price-check` (`titlesComparable`/`findComparableDeals`/`buildPriceCheckEmbed` + helpere + tipul `SteamPriceData`), fara acces la retea/DI;
 - `dealScoreInteractionHandler.ts` - `/deal-score`, scor 1-10 pentru oferte active pe baza reducerii, pretului, semnalelor de calitate/popularitate si magazinului;
-- `suggestCommandInteractionHandler.ts` - `/add suggestion` si `/suggest-command list/delete`, propuneri publice de comenzi si administrare runtime;
+- `suggestCommandInteractionHandler.ts` - `/add suggestion` si `/suggest-command list/delete`, propuneri publice de comenzi stocate in colectia dedicata `guildSuggestedCommands` (o sugestie per nume per guild, cap de 100 cu evictia celor mai vechi) si administrare runtime;
 - `watchlistGameSuggestionHandler.ts` - `/watchlist-game add/list/delete`, propuneri publice de jocuri pentru watchlist si stergere admin runtime;
 - `futureReleaseInteractionHandler.ts` - `/future-release add/list/delete/start/stop`, lista de maxim 20 jocuri viitoare si canalul pentru notificari future-release;
 - `maintenanceInteractionHandler.ts` - `/maintenance`, sumar operational pentru surse, outbox, dead-letter, backup-uri, canale si module active;

@@ -5,13 +5,6 @@ export interface GuildAdminRecordSchemasDeps {
 }
 
 export function buildGuildAdminRecordSchemas({ mongoose }: GuildAdminRecordSchemasDeps) {
-  const suggestedCommandSchema = new mongoose.Schema({
-    commandName: { type: String, required: true },
-    description: { type: String, required: true },
-    createdBy: { type: String, default: "" },
-    createdAt: { type: Date, default: Date.now }
-  }, { _id: false });
-
   const watchlistGameSuggestionSchema = new mongoose.Schema({
     gameName: { type: String, required: true },
     createdBy: { type: String, default: "" },
@@ -34,7 +27,6 @@ export function buildGuildAdminRecordSchemas({ mongoose }: GuildAdminRecordSchem
   }, { _id: false });
 
   return {
-    suggestedCommandSchema,
     watchlistGameSuggestionSchema,
     futureReleaseGameSchema,
     adminCommandAccessSchema

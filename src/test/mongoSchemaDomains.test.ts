@@ -13,9 +13,10 @@ test("sub-schemele guild traiesc in module pe domenii, nu inline in models.ts", 
   for (const [file, schemas] of [
     ["guildNotificationSchemas.ts", ["pendingUpdateSchema", "pendingDiscountSchema", "deadLetterEntrySchema", "priceAlertSchema"]],
     ["guildYoutubeSchemas.ts", ["youtubeLastErrorSchema", "youtubeChannelSchema", "youtubeErrorSchema", "youtubeChannelRouteSchema"]],
-    ["guildAdminRecordSchemas.ts", ["suggestedCommandSchema", "watchlistGameSuggestionSchema", "futureReleaseGameSchema", "adminCommandAccessSchema"]],
+    ["guildAdminRecordSchemas.ts", ["watchlistGameSuggestionSchema", "futureReleaseGameSchema", "adminCommandAccessSchema"]],
     ["auditLogSchemas.ts", ["guildAuditLogSchema"]],
     ["configBackupSchemas.ts", ["guildConfigBackupSchema"]],
+    ["suggestedCommandSchemas.ts", ["guildSuggestedCommandSchema"]],
     ["operationalSchemas.ts", ["circuitBreakerSchema", "systemSchema", "jobLockSchema", "adminAlertCooldownSchema", "fetchSnapshotSchema", "playerCountSnapshotSchema", "feedbackReportSchema"]],
     ["seenSchemas.ts", ["guildSeenDiscountSchema", "guildSeenUpdateSchema", "guildSeenYoutubeSchema"]],
     ["outboxSchemas.ts", ["outboxHistoryEntrySchema", "notificationOutboxSchema", "notificationOutboxSentSchema", "notificationHistorySchema", "deadLetterReplaySchema"]]

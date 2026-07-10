@@ -1,17 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
+import type { GuildSuggestedCommandRecord } from "../features/admin-records/suggestedCommandsRepository";
 
-import type { GuildSettings } from "../types";
 import { escapeInlineText } from "../shared/discordText";
 
 const installSuggestCommand = require("../features/command-handlers/suggestCommandInteractionHandler") as typeof import("../features/command-handlers/suggestCommandInteractionHandler");
-
-type MongoCall = {
-  filter: Record<string, unknown>;
-  update: Record<string, unknown> | Array<Record<string, unknown>>;
-  options?: Record<string, unknown>;
-};
 
 function makeInteraction(subcommand: string, values: { name?: string; description?: string; numar?: number } = {}) {
   return {
@@ -35,29 +29,55 @@ function makeInteraction(subcommand: string, values: { name?: string; descriptio
   };
 }
 
-function makeHarness(settings: GuildSettings | null, adminAllowed = true, cooldownAllowed = true) {
-  const calls: MongoCall[] = [];
+function makeSuggestedCommandModel(initial: GuildSuggestedCommandRecord[] = []) {
+  const docs: GuildSuggestedCommandRecord[] = [...initial];
+  const model = {
+    updateOne: async (filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>) => {
+      const existing = docs.find(doc => doc.guildId === filter.guildId && doc.commandName === filter.commandName);
+      if (existing) return { matchedCount: 1, modifiedCount: 0, upsertedCount: 0 };
+      if (options?.upsert === true) {
+        const setOnInsert = (update.$setOnInsert ?? {}) as Partial<GuildSuggestedCommandRecord>;
+        docs.push({ guildId: String(filter.guildId), commandName: String(filter.commandName), ...setOnInsert });
+        return { matchedCount: 0, modifiedCount: 0, upsertedCount: 1 };
+      }
+      return { matchedCount: 0, modifiedCount: 0, upsertedCount: 0 };
+    },
+    deleteOne: async (filter: Record<string, unknown>) => {
+      const index = docs.findIndex(doc => doc.guildId === filter.guildId && doc.commandName === filter.commandName);
+      if (index < 0) return { deletedCount: 0 };
+      docs.splice(index, 1);
+      return { deletedCount: 1 };
+    },
+    deleteMany: async () => ({ deletedCount: 0 }),
+    find: (filter: Record<string, unknown>) => {
+      let sorted = docs.filter(doc => doc.guildId === filter.guildId);
+      let skipped = 0;
+      let limited = Number.POSITIVE_INFINITY;
+      const chain = {
+        sort: () => {
+          sorted = [...sorted].sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+          return chain;
+        },
+        skip: (count: number) => { skipped = count; return chain; },
+        limit: (count: number) => { limited = count; return chain; },
+        lean: async () => sorted.slice(skipped, skipped + limited)
+      };
+      return chain;
+    }
+  };
+  return { model, docs };
+}
+
+function makeHarness(initialSuggestions: GuildSuggestedCommandRecord[] = [], adminAllowed = true, cooldownAllowed = true) {
   const replies: unknown[] = [];
-  const invalidated: string[] = [];
-  const existing = Array.isArray(settings?.suggestedCommands) ? settings.suggestedCommands : [];
   const auditDocs: GuildAuditLogRecord[] = [];
+  const { model, docs } = makeSuggestedCommandModel(initialSuggestions);
   const handler = installSuggestCommand.createSuggestCommandInteractionHandler({
     GuildAuditLogModel: {
       create: async (doc: GuildAuditLogRecord) => { auditDocs.push(doc); return doc; },
       find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
     },
-    GuildModel: {
-      updateOne: async (filter, update, options) => {
-        calls.push({ filter, update, options });
-        return { matchedCount: 1, modifiedCount: 1 };
-      },
-      findOneAndUpdate: async (filter, update, options) => {
-        calls.push({ filter, update, options });
-        return { suggestedCommands: existing };
-      }
-    },
-    getGuildSettings: async () => settings,
-    invalidateGuildCache: guildId => { invalidated.push(guildId); },
+    GuildSuggestedCommandModel: model,
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
     enforceCooldown: async () => cooldownAllowed,
@@ -65,34 +85,32 @@ function makeHarness(settings: GuildSettings | null, adminAllowed = true, cooldo
     logger: () => undefined,
     MessageFlags: { Ephemeral: 64 }
   });
-  return { handler, calls, replies, invalidated, auditDocs };
+  return { handler, replies, auditDocs, suggestionDocs: docs };
 }
 
-test("/suggest-command add salveaza numele normalizat si descrierea propusa", async () => {
-  const { handler, calls, replies, invalidated } = makeHarness({ _id: "guild-1" });
+test("/suggest-command add salveaza numele normalizat si descrierea in colectia guildSuggestedCommands", async () => {
+  const { handler, replies, suggestionDocs } = makeHarness();
 
   await handler.handleSuggestCommandInteraction(makeInteraction("add", {
     name: "/ calendar   updates ",
     description: "Sa afiseze update-uri programate"
   }));
 
-  assert.equal(calls.length, 1);
-  assert.match(JSON.stringify(calls[0].update), /suggestedCommands/);
-  assert.match(JSON.stringify(calls[0].update), /calendar updates/);
-  assert.deepEqual(invalidated, ["guild-1"]);
+  assert.equal(suggestionDocs.length, 1, "sugestia e un document in colectia dedicata, nu pe documentul guild");
+  assert.equal(suggestionDocs[0].guildId, "guild-1");
+  assert.equal(suggestionDocs[0].commandName, "calendar updates");
+  assert.equal(suggestionDocs[0].description, "Sa afiseze update-uri programate");
   assert.match(String(replies[0]), /calendar updates/);
 });
 
-test("/suggest-command list cere admin runtime si afiseaza propunerile", async () => {
-  const { handler, replies } = makeHarness({
-    _id: "guild-1",
-    suggestedCommands: [{
-      commandName: "calendar",
-      description: "arata calendarul",
-      createdBy: "user-2",
-      createdAt: new Date()
-    }]
-  });
+test("/suggest-command list cere admin runtime si afiseaza propunerile din colectie", async () => {
+  const { handler, replies } = makeHarness([{
+    guildId: "guild-1",
+    commandName: "calendar",
+    description: "arata calendarul",
+    createdBy: "user-2",
+    createdAt: new Date()
+  }]);
 
   await handler.handleSuggestCommandInteraction(makeInteraction("list", { numar: 10 }));
 
@@ -103,7 +121,7 @@ test("/suggest-command list cere admin runtime si afiseaza propunerile", async (
 });
 
 test("/suggest-command list nu afiseaza lista daca runtime admin guard refuza, dar auditeaza refuzul (R[Medium] #3)", async () => {
-  const { handler, replies, auditDocs } = makeHarness({ _id: "guild-1" }, false);
+  const { handler, replies, auditDocs } = makeHarness([], false);
 
   const result = await handler.handleSuggestCommandInteraction(makeInteraction("list"));
 
@@ -113,35 +131,34 @@ test("/suggest-command list nu afiseaza lista daca runtime admin guard refuza, d
   assert.equal(auditDocs[0]?.result, "Access denied.");
 });
 
-test("/suggest-command delete cere admin runtime si sterge sugestia normalizata", async () => {
-  const { handler, calls, replies, invalidated, auditDocs } = makeHarness({ _id: "guild-1" }, true);
+test("/suggest-command delete cere admin runtime si sterge sugestia normalizata din colectie", async () => {
+  const { handler, replies, auditDocs, suggestionDocs } = makeHarness([{
+    guildId: "guild-1",
+    commandName: "calendar updates",
+    description: "x",
+    createdBy: "user-2",
+    createdAt: new Date()
+  }]);
 
   await handler.handleSuggestCommandInteraction(makeInteraction("delete", { name: "/ Calendar   Updates " }));
 
-  assert.equal(calls.length, 1, "stergerea = un singur $pull pe guild; auditul merge in colectia guildAuditLogs");
-  const deleteUpdate = calls[0].update as { $pull?: Record<string, unknown>; $push?: Record<string, unknown> };
-  assert.deepEqual(deleteUpdate.$pull, { suggestedCommands: { commandName: "calendar updates" } });
-  assert.equal(deleteUpdate.$push, undefined, "auditul nu mai e $push pe documentul guild");
+  assert.equal(suggestionDocs.length, 0, "stergerea = deleteOne pe cheia naturala (guildId, nume normalizat)");
   const serverAudit = auditDocs.find(doc => doc.kind === "server");
   assert.equal(serverAudit?.action, "suggest_command_delete");
   const botAudit = auditDocs.find(doc => doc.kind === "bot" && String(doc.details || "").includes("stearsa"));
   assert.equal(botAudit?.command, "/suggest-command delete", "stergerea sugestiei (admin runtime pe comanda publica) intra in /bot-log");
   assert.match(String(botAudit?.details), /stearsa: calendar updates/);
-  assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /calendar updates/);
 });
 
 test("/suggest-command list escapeaza textul user-provided si dezactiveaza mentiunile (R[P3])", async () => {
-  const settings: GuildSettings = {
-    _id: "guild-1",
-    suggestedCommands: [{
-      commandName: "hack",
-      description: "`break out` **bold** @everyone <@123>",
-      createdBy: "user-1",
-      createdAt: new Date()
-    }]
-  };
-  const { handler, replies } = makeHarness(settings, true);
+  const { handler, replies } = makeHarness([{
+    guildId: "guild-1",
+    commandName: "hack",
+    description: "`break out` **bold** @everyone <@123>",
+    createdBy: "user-1",
+    createdAt: new Date()
+  }]);
   await handler.handleSuggestCommandInteraction(makeInteraction("list", { numar: 10 }));
 
   const payload = replies.at(-1) as { content: string; allowedMentions?: unknown };
@@ -153,59 +170,40 @@ test("/suggest-command list escapeaza textul user-provided si dezactiveaza menti
 });
 
 test("/suggest-command list scrie in /bot-log (subcomanda admin sub comanda publica) (R[P2] #3)", async () => {
-  const audits: Array<{ command?: string }> = [];
-  const settings: GuildSettings = { _id: "guild-1", suggestedCommands: [] };
-  const handler = installSuggestCommand.createSuggestCommandInteractionHandler({
-    GuildAuditLogModel: {
-      create: async (doc: GuildAuditLogRecord) => {
-        audits.push({ command: String(doc.command || "") });
-        return doc;
-      },
-      find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
-    },
-    GuildModel: {
-      updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }),
-      findOneAndUpdate: async () => ({ suggestedCommands: [] })
-    },
-    getGuildSettings: async () => settings,
-    invalidateGuildCache: () => undefined,
-    safeDefer: async () => undefined,
-    safeEdit: async (_interaction, payload) => payload,
-    enforceCooldown: async () => true,
-    requireGuildAdmin: async () => true,
-    logger: () => undefined,
-    MessageFlags: { Ephemeral: 64 }
-  });
+  const { handler, auditDocs } = makeHarness();
   await handler.handleSuggestCommandInteraction(makeInteraction("list", { numar: 5 }));
-  assert.deepEqual(audits.map(a => a.command), ["/suggest-command list"], "subcomanda admin /suggest-command list apare in /bot-log");
+  assert.deepEqual(auditDocs.map(doc => String(doc.command || "")), ["/suggest-command list"], "subcomanda admin /suggest-command list apare in /bot-log");
 });
 
-test("/add suggestion (verb in fata) ruteaza la handleAdd si salveaza propunerea", async () => {
-  const { handler, calls, replies, invalidated } = makeHarness({ _id: "guild-1" });
+test("/add suggestion (verb in fata) ruteaza la handleAdd si salveaza propunerea in colectie", async () => {
+  const { handler, suggestionDocs } = makeHarness();
   const verb = {
     ...makeInteraction("suggestion", { name: "/ calendar   updates ", description: "Sa afiseze update-uri programate" }),
     commandName: "add"
   };
   await handler.handleSuggestCommandInteraction(verb);
-  assert.equal(calls.length, 1);
-  assert.match(JSON.stringify(calls[0].update), /suggestedCommands/, "/add suggestion deriva actiunea add din commandName");
-  assert.match(JSON.stringify(calls[0].update), /calendar updates/);
-  assert.deepEqual(invalidated, ["guild-1"]);
+  assert.equal(suggestionDocs.length, 1, "/add suggestion deriva actiunea add din commandName");
+  assert.equal(suggestionDocs[0].commandName, "calendar updates");
 });
 
-test("/add suggestion deduplica: comanda deja propusa nu se adauga din nou (R[Medium] #2)", async () => {
-  const { handler, replies } = makeHarness({
-    _id: "guild-1",
-    suggestedCommands: [{ commandName: "calendar updates", description: "x", createdBy: "u2", createdAt: new Date() }]
-  });
+test("/add suggestion deduplica: comanda deja propusa nu se adauga din nou si nu e rescrisa (R[Medium] #2)", async () => {
+  const { handler, replies, suggestionDocs } = makeHarness([{
+    guildId: "guild-1",
+    commandName: "calendar updates",
+    description: "x",
+    createdBy: "u2",
+    createdAt: new Date()
+  }]);
   await handler.handleSuggestCommandInteraction(makeInteraction("add", { name: "/ Calendar   Updates ", description: "alta descriere" }));
   assert.match(String(replies[0]), /deja in lista/, "comanda existenta (normalizata identic) nu se dubleaza");
+  assert.equal(suggestionDocs.length, 1);
+  assert.equal(suggestionDocs[0].description, "x", "propunerea duplicata nu rescrie intrarea originala");
 });
 
 test("/add suggestion respecta cooldown-ul per user (R[Medium] #2)", async () => {
-  const { handler, calls, replies } = makeHarness({ _id: "guild-1" }, true, false);
+  const { handler, replies, suggestionDocs } = makeHarness([], true, false);
   const result = await handler.handleSuggestCommandInteraction(makeInteraction("add", { name: "calendar", description: "x" }));
   assert.equal(result, undefined);
-  assert.deepEqual(calls, [], "cooldown activ => nicio scriere in DB");
+  assert.deepEqual(suggestionDocs, [], "cooldown activ => nicio scriere in DB");
   assert.deepEqual(replies, []);
 });

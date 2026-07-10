@@ -161,7 +161,6 @@ export interface GuildDoc {
     message: string;
     at: Date;
   }>;
-  suggestedCommands?: SuggestedCommandEntry[];
   watchlistGameSuggestions?: WatchlistGameSuggestionEntry[];
   futureReleaseGames?: FutureReleaseGameEntry[];
   adminCommandAccess?: AdminCommandAccessConfig | null;
@@ -239,6 +238,14 @@ export interface GuildConfigBackupDoc {
   createdBy?: string;
   createdAt?: Date;
   snapshot: Record<string, unknown>;
+}
+
+export interface GuildSuggestedCommandDoc {
+  guildId: string;
+  commandName: string;
+  description?: string;
+  createdBy?: string;
+  createdAt?: Date;
 }
 
 export interface GuildSeenDiscountDoc {
