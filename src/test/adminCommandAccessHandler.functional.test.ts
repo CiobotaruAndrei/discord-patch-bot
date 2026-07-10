@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
 
 const attachAdminCommandAccess = require("../features/command-handlers/adminCommandAccessHandler") as typeof import("../features/command-handlers/adminCommandAccessHandler");
 const globalAccessCode = require("../features/command-security/globalAccessCode") as typeof import("../features/command-security/globalAccessCode");
@@ -36,7 +37,21 @@ function makeHarness(initial: StoredAccess = null, scopedInitial: Record<string,
   const alerts: string[] = [];
   const updateCalls: Array<{ filter: object; update: object; options?: object }> = [];
   const invalidated: string[] = [];
+  const auditDocs: GuildAuditLogRecord[] = [];
+  const makeChain = () => {
+    const chain = {
+      sort: () => chain,
+      skip: () => chain,
+      limit: () => chain,
+      lean: async () => []
+    };
+    return chain;
+  };
   const deps = {
+    GuildAuditLogModel: {
+      create: async (doc: GuildAuditLogRecord) => { auditDocs.push(doc); return doc; },
+      find: () => makeChain()
+    },
     GuildModel: {
       updateOne: async (filter: object, update: object, options?: object) => {
         updateCalls.push({ filter, update, options });
@@ -68,7 +83,7 @@ function makeHarness(initial: StoredAccess = null, scopedInitial: Record<string,
   };
   const handler = attachAdminCommandAccess.createAdminCommandAccessHandler(deps);
   const commandHandler = attachAdminCommandAccess.buildCommandHandler(deps);
-  return { handler, commandHandler, edits, alerts, updateCalls, invalidated, getStored: () => stored, getScoped: () => scoped };
+  return { handler, commandHandler, edits, alerts, updateCalls, invalidated, auditDocs, getStored: () => stored, getScoped: () => scoped };
 }
 
 function interaction(commandName: string, subcommand: string, owner = true, commandScope: string | null = null): TestInteraction {
@@ -317,17 +332,18 @@ test("handlerul admin-command-access nu prinde /delete suggestion", () => {
   assert.equal(harness.commandHandler.canHandle(interaction("delete", "suggestion")), false);
 });
 
-test("/set si /delete admin-command-access scriu regula si auditul admin_access intr-o singura scriere atomica (R6 #7)", async () => {
+test("/set si /delete admin-command-access scriu regula pe guild si auditul admin_access in colectia guildAuditLogs (R6 #7 + #6 audit split)", async () => {
   const setHarness = makeHarness();
   await setHarness.handler.handleAdminCommandAccess(interaction("set", "admin-command-access"));
-  assert.equal(setHarness.updateCalls.length, 1, "set + audit = un singur updateOne");
-  const setUpdate = setHarness.updateCalls[0].update as { $push?: Record<string, unknown> };
-  assert.match(JSON.stringify(setUpdate.$push), /serverAuditLog/);
-  assert.match(JSON.stringify(setUpdate.$push), /admin_access_set/);
+  assert.equal(setHarness.updateCalls.length, 1, "regula = un singur updateOne pe guild, fara $push de audit");
+  assert.equal(JSON.stringify(setHarness.updateCalls[0].update).includes("$push"), false);
+  assert.equal(setHarness.auditDocs.length, 1);
+  assert.equal(setHarness.auditDocs[0].kind, "server");
+  assert.match(String(setHarness.auditDocs[0].action), /admin_access_set/);
 
   const deleteHarness = makeHarness({ mode: "role", roleId: "role-global", updatedBy: "owner", updatedAt: new Date() });
   await deleteHarness.handler.handleAdminCommandAccess(interaction("delete", "admin-command-access", true));
-  assert.equal(deleteHarness.updateCalls.length, 1, "delete + audit = un singur updateOne");
-  const deleteUpdate = deleteHarness.updateCalls[0].update as { $push?: Record<string, unknown> };
-  assert.match(JSON.stringify(deleteUpdate.$push), /admin_access_delete/);
+  assert.equal(deleteHarness.updateCalls.length, 1, "stergerea regulii = un singur updateOne pe guild");
+  assert.equal(deleteHarness.auditDocs.length, 1);
+  assert.match(String(deleteHarness.auditDocs[0].action), /admin_access_delete/);
 });

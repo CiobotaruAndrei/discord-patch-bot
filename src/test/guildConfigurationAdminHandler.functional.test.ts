@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
 
 const mod = require("../features/command-handlers/guildConfigurationAdminHandler") as typeof import("../features/command-handlers/guildConfigurationAdminHandler");
 
@@ -7,12 +8,17 @@ function makeHarness(permissionState = { viewChannel: true, sendMessages: true, 
   const calls: Array<{ filter: Record<string, unknown>; update: Record<string, unknown>; options?: Record<string, unknown> }> = [];
   const replies: unknown[] = [];
   const replayPayloadDeletes: string[] = [];
+  const auditDocs: GuildAuditLogRecord[] = [];
   const handler = mod.createGuildConfigurationAdminHandler({
     GuildModel: {
       updateOne: async (filter, update, options) => {
         calls.push({ filter, update, options });
         return { matchedCount: 1, modifiedCount: 1 };
       }
+    },
+    GuildAuditLogModel: {
+      create: async (doc: GuildAuditLogRecord) => { auditDocs.push(doc); return doc; },
+      find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
     },
     invalidateGuildCache: () => undefined,
     deleteAllReplayPayloads: async (guildId: string) => {
@@ -26,7 +32,7 @@ function makeHarness(permissionState = { viewChannel: true, sendMessages: true, 
     logger: () => undefined,
     MessageFlags: { Ephemeral: 64 }
   });
-  return { handler, calls, replies, replayPayloadDeletes };
+  return { handler, calls, replies, replayPayloadDeletes, auditDocs };
 }
 
 function interaction(
@@ -132,12 +138,13 @@ test("/admin-alerts set refuza canalul fara View Channel (R[Medium] #2)", async 
   assert.match(String(replies[0]), /View Channel/, "mesajul listeaza permisiunea lipsa View Channel (livrarea reala o cere)");
 });
 
-test("/reset-config scrie resetul si intrarea de audit reset_config intr-o singura scriere atomica (R6 #7)", async () => {
-  const { handler, calls } = makeHarness();
+test("/reset-config scrie resetul pe guild si intrarea de audit reset_config in colectia guildAuditLogs (R6 #7 + #6 audit split)", async () => {
+  const { handler, calls, auditDocs } = makeHarness();
   await handler.handleGuildConfigurationAdmin(interaction("reset-config", "set", { confirm: true }));
-  assert.equal(calls.length, 1, "reset + audit = un singur updateOne pe documentul guild");
+  assert.equal(calls.length, 1, "reset = un singur updateOne pe documentul guild");
   const update = calls[0].update as { $set?: Record<string, unknown>; $push?: Record<string, unknown> };
   assert.ok(update.$set, "reset-ul ramane in $set");
-  assert.match(JSON.stringify(update.$push), /serverAuditLog/, "auditul face parte din aceeasi scriere");
-  assert.match(JSON.stringify(update.$push), /reset_config/);
+  assert.equal(update.$push, undefined, "auditul nu mai e $push pe documentul guild");
+  assert.equal(auditDocs.length, 1);
+  assert.match(String(auditDocs[0].action), /reset_config/);
 });

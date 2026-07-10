@@ -4,7 +4,13 @@ import type { BotAuditLogEntry, DiscordReplyPayload, GameConfig, GuildSettings, 
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { matchesCommand } from "../command-registry/commandMatch";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
-import { listBotAuditEntries, listBotAuditEntriesInRange, listServerAuditEntries, listServerAuditEntriesInRange } from "../admin-records/auditLogRepository";
+import {
+  listBotAuditEntries,
+  listBotAuditEntriesInRange,
+  listServerAuditEntries,
+  listServerAuditEntriesInRange,
+  type GuildAuditLogModelLike
+} from "../admin-records/auditLogRepository";
 import { handledCommandError } from "../command-security/commandOutcome";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
 
@@ -29,7 +35,7 @@ interface DiscordInteraction {
 }
 
 interface AuditLogDeps {
-  getGuildSettings(guildId: string): Promise<GuildSettings | null>;
+  GuildAuditLogModel: GuildAuditLogModelLike;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
   logger: Logger;
@@ -113,7 +119,7 @@ function withMoreHint(text: string, count: number, offset: number): string {
 }
 
 function createAuditLogInteractionHandler(deps: AuditLogDeps) {
-  const { getGuildSettings, safeDefer, safeEdit } = deps;
+  const { GuildAuditLogModel, safeDefer, safeEdit } = deps;
 
   async function handleAuditLogInteraction(interaction: DiscordInteraction): Promise<unknown> {
     const guildId = interaction.guild?.id;
@@ -121,7 +127,6 @@ function createAuditLogInteractionHandler(deps: AuditLogDeps) {
     await safeDefer(interaction, true);
     const respond = (content: string): Promise<unknown> => safeEdit(interaction, { content, allowedMentions: NO_MENTIONS });
     const subcommand = typeof interaction.options.getSubcommand === "function" ? interaction.options.getSubcommand(false) : "recent";
-    const settings = await getGuildSettings(guildId);
     if (subcommand === "older") {
       const range = parseDateRange(interaction.options.getString("period", true), interaction.options.getString("start", true));
       if (!range) {
@@ -129,15 +134,15 @@ function createAuditLogInteractionHandler(deps: AuditLogDeps) {
       }
       const offset = offsetFromInteraction(interaction);
       if (interaction.commandName === "bot-log") {
-        const entries = listBotAuditEntriesInRange(settings, range.start, range.end, 25, offset);
+        const entries = await listBotAuditEntriesInRange(GuildAuditLogModel, guildId, range.start, range.end, 25, offset);
         return respond(withMoreHint(`Interval ${range.label}\n${renderBotLog(entries)}`, entries.length, offset));
       }
-      const entries = listServerAuditEntriesInRange(settings, range.start, range.end, 25, offset);
+      const entries = await listServerAuditEntriesInRange(GuildAuditLogModel, guildId, range.start, range.end, 25, offset);
       return respond(withMoreHint(`Interval ${range.label}\n${renderServerLog(entries)}`, entries.length, offset));
     }
     const limit = limitFromInteraction(interaction);
-    if (interaction.commandName === "bot-log") return respond(renderBotLog(listBotAuditEntries(settings, limit)));
-    return respond(renderServerLog(listServerAuditEntries(settings, limit)));
+    if (interaction.commandName === "bot-log") return respond(renderBotLog(await listBotAuditEntries(GuildAuditLogModel, guildId, limit)));
+    return respond(renderServerLog(await listServerAuditEntries(GuildAuditLogModel, guildId, limit)));
   }
 
   return { handleAuditLogInteraction };

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
 
 import {
   buildReportAlertBody,
@@ -60,7 +61,10 @@ function makeDeps(overrides: Partial<Parameters<typeof mod.createReportInteracti
     resolveFeedbackReport: async () => true,
     requireGuildAdmin: async () => true,
     adminAlert: async () => undefined,
-    GuildModel: { updateOne: async () => ({ modifiedCount: 1 }) },
+    GuildAuditLogModel: {
+      create: async (doc: GuildAuditLogRecord) => doc,
+      find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
+    },
     MessageFlags: { Ephemeral: 64 },
     ...overrides
   };
@@ -131,12 +135,12 @@ test("/report list scrie in /bot-log (audit central pentru subcomanda admin sub 
   const audits: Array<{ command?: string; result?: string }> = [];
   const handler = mod.createReportInteractionHandler(makeDeps({
     requireGuildAdmin: async () => true,
-    GuildModel: {
-      updateOne: async (_filter: Record<string, unknown>, update: Record<string, unknown>) => {
-        const entry = (update.$push as { botAuditLog?: { $each?: Array<{ command?: string; result?: string }> } } | undefined)?.botAuditLog?.$each?.[0];
-        if (entry) audits.push(entry);
-        return { modifiedCount: 1 };
-      }
+    GuildAuditLogModel: {
+      create: async (doc: GuildAuditLogRecord) => {
+        audits.push({ command: String(doc.command || ""), result: String(doc.result || "") });
+        return doc;
+      },
+      find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
     }
   }));
   const { interaction } = makeInteraction("list", { numar: 5 });
@@ -151,12 +155,12 @@ test("/report list auditeaza si REFUZUL de acces, nu doar succesul (R[Medium] #3
   const handler = mod.createReportInteractionHandler(makeDeps({
     requireGuildAdmin: async () => false,
     safeEdit: async (_interaction, payload) => { edits.push(payload); return payload; },
-    GuildModel: {
-      updateOne: async (_filter: Record<string, unknown>, update: Record<string, unknown>) => {
-        const entry = (update.$push as { botAuditLog?: { $each?: Array<{ command?: string; result?: string }> } } | undefined)?.botAuditLog?.$each?.[0];
-        if (entry) audits.push(entry);
-        return { modifiedCount: 1 };
-      }
+    GuildAuditLogModel: {
+      create: async (doc: GuildAuditLogRecord) => {
+        audits.push({ command: String(doc.command || ""), result: String(doc.result || "") });
+        return doc;
+      },
+      find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
     }
   }));
   const { interaction } = makeInteraction("list", { numar: 5 });

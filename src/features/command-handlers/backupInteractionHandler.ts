@@ -9,7 +9,7 @@ import {
   loadConfigBackupWithAudit,
   saveConfigBackup
 } from "../admin-records/configBackupRepository";
-import { recordServerAuditEntry } from "../admin-records/auditLogRepository";
+import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository";
 import { handledCommandError } from "../command-security/commandOutcome";
 import { renderBackupList, renderBackupPreview } from "./backupViews";
 
@@ -36,6 +36,7 @@ interface DiscordInteraction {
 
 interface BackupInteractionDeps {
   GuildModel: Parameters<typeof saveConfigBackup>[0];
+  GuildAuditLogModel: GuildAuditLogModelLike;
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
   invalidateGuildCache(guildId: string): void;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
@@ -58,11 +59,11 @@ function requireConfirm(interaction: DiscordInteraction): boolean {
 }
 
 function createBackupInteractionHandler(deps: BackupInteractionDeps) {
-  const { GuildModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit, formatUserError } = deps;
+  const { GuildModel, GuildAuditLogModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit, formatUserError } = deps;
 
   async function auditBestEffort(guildId: string, userId: string, action: string, details: string): Promise<boolean> {
     try {
-      await recordServerAuditEntry(GuildModel, guildId, { userId, action, details });
+      await recordServerAuditEntry(GuildAuditLogModel, guildId, { userId, action, details });
       return true;
     } catch (err: unknown) {
       deps.logger("WARN", "BACKUP_COMMAND", `Jurnalul server-log a esuat pentru ${action}; operatia a reusit, dar /server-log poate fi incomplet`, errorDetail(err));
@@ -103,7 +104,7 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
     const settings = await getGuildSettings(guildId);
     const backup = findBackup(settings, name);
     if (!backup) return safeEdit(interaction, `Nu exista backup-ul \`${name}\`.`);
-    await loadConfigBackupWithAudit(GuildModel, guildId, backup, {
+    await loadConfigBackupWithAudit(GuildModel, GuildAuditLogModel, guildId, backup, {
       userId: interaction.user?.id || "",
       action: "backup_load",
       details: `Loaded backup ${backup.name}`
@@ -117,7 +118,7 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
       return safeEdit(interaction, "Stergerea a fost anulata. Ruleaza comanda cu `confirm:true` daca vrei sa stergi backup-ul.");
     }
     const name = backupName(interaction);
-    const deleted = await deleteConfigBackupWithAudit(GuildModel, guildId, name, {
+    const deleted = await deleteConfigBackupWithAudit(GuildModel, GuildAuditLogModel, guildId, name, {
       userId: interaction.user?.id || "",
       action: "backup_delete",
       details: `Deleted backup ${name}`

@@ -7,6 +7,7 @@ import type {
   CircuitBreakerDoc,
   FeedbackReportDoc,
   FetchSnapshotDoc,
+  GuildAuditLogDoc,
   GuildDoc,
   GuildSeenDiscountDoc,
   GuildSeenUpdateDoc,
@@ -32,6 +33,7 @@ type MongoRuntimeContext = {
   isTransientMongoError: (err: unknown) => boolean;
   withMongoRetry: <T>(fn: () => Promise<T>, ...rest: unknown[]) => Promise<T>;
   GuildModel: Model<GuildDoc>;
+  GuildAuditLogModel: Model<GuildAuditLogDoc>;
   CircuitBreakerModel: Model<CircuitBreakerDoc>;
   SystemModel: Model<SystemDoc>;
   JobLockModel: Model<JobLockDoc>;
@@ -105,6 +107,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     isTransientMongoError: context.isTransientMongoError,
     withMongoRetry: context.withMongoRetry,
     GuildModel: context.GuildModel,
+    GuildAuditLogModel: context.GuildAuditLogModel,
     CircuitBreakerModel: context.CircuitBreakerModel,
     SystemModel: context.SystemModel,
     JobLockModel: context.JobLockModel,

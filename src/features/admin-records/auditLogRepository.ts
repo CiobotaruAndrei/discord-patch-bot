@@ -1,93 +1,134 @@
 "use strict";
 
-import type { BotAuditLogEntry, GuildSettings, MongoWriteOutcome, ServerAuditLogEntry } from "../../types";
+import type { BotAuditLogEntry, ServerAuditLogEntry } from "../../types";
 
-type MongoWriteResult = MongoWriteOutcome;
+export interface GuildAuditLogRecord {
+  guildId: string;
+  kind: "bot" | "server";
+  userId?: string;
+  command?: string;
+  action?: string;
+  result?: string;
+  details?: string;
+  at?: Date | string;
+}
 
-type GuildModelLike = {
-  updateOne(
-    filter: Record<string, unknown>,
-    update: Record<string, unknown> | Array<Record<string, unknown>>,
-    options?: Record<string, unknown>
-  ): Promise<MongoWriteResult>;
-};
+export interface GuildAuditLogQueryLike {
+  sort(spec: Record<string, 1 | -1>): GuildAuditLogQueryLike;
+  skip(count: number): GuildAuditLogQueryLike;
+  limit(count: number): GuildAuditLogQueryLike;
+  lean(): Promise<GuildAuditLogRecord[]>;
+}
 
-const MAX_BOT_AUDIT_LOGS = 100;
-const MAX_SERVER_AUDIT_LOGS = 100;
+export interface GuildAuditLogModelLike {
+  create(doc: GuildAuditLogRecord): Promise<unknown>;
+  find(filter: Record<string, unknown>): GuildAuditLogQueryLike;
+}
+
+function toDate(value: Date | string | undefined): Date {
+  const date = value instanceof Date ? value : new Date(value ?? Number.NaN);
+  return Number.isNaN(date.getTime()) ? new Date(0) : date;
+}
+
+function toBotEntry(doc: GuildAuditLogRecord): BotAuditLogEntry {
+  return {
+    serverId: doc.guildId,
+    userId: doc.userId || "",
+    command: doc.command || "",
+    result: doc.result || "",
+    details: doc.details || "",
+    at: toDate(doc.at)
+  };
+}
+
+function toServerEntry(doc: GuildAuditLogRecord): ServerAuditLogEntry {
+  return {
+    serverId: doc.guildId,
+    userId: doc.userId || "",
+    action: doc.action || "",
+    details: doc.details || "",
+    at: toDate(doc.at)
+  };
+}
+
+async function listByKind(
+  model: GuildAuditLogModelLike,
+  guildId: string,
+  kind: "bot" | "server",
+  limit: number,
+  offset: number,
+  range?: { start: Date; end: Date }
+): Promise<GuildAuditLogRecord[]> {
+  const filter: Record<string, unknown> = { guildId, kind };
+  if (range) filter.at = { $gte: range.start, $lt: range.end };
+  return model.find(filter)
+    .sort({ at: -1 })
+    .skip(Math.max(0, offset))
+    .limit(Math.max(0, limit))
+    .lean();
+}
 
 export async function recordBotAuditEntry(
-  GuildModel: GuildModelLike,
+  model: GuildAuditLogModelLike,
   guildId: string,
   entry: Omit<BotAuditLogEntry, "serverId" | "at">
 ): Promise<void> {
-  const record: BotAuditLogEntry = {
-    ...entry,
-    serverId: guildId,
+  await model.create({
+    guildId,
+    kind: "bot",
+    userId: entry.userId || "",
+    command: entry.command,
+    result: entry.result,
+    details: entry.details || "",
     at: new Date()
-  };
-  await GuildModel.updateOne(
-    { _id: guildId },
-    { $push: { botAuditLog: { $each: [record], $slice: -MAX_BOT_AUDIT_LOGS } } },
-    { upsert: true }
-  );
-}
-
-export function listBotAuditEntries(settings: GuildSettings | null, limit: number): BotAuditLogEntry[] {
-  const entries = Array.isArray(settings?.botAuditLog) ? settings.botAuditLog : [];
-  return [...entries]
-    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-    .slice(0, limit);
-}
-
-export function listBotAuditEntriesInRange(settings: GuildSettings | null, start: Date, end: Date, limit: number, offset = 0): BotAuditLogEntry[] {
-  const entries = Array.isArray(settings?.botAuditLog) ? settings.botAuditLog : [];
-  return [...entries]
-    .filter(entry => {
-      const at = new Date(entry.at).getTime();
-      return Number.isFinite(at) && at >= start.getTime() && at < end.getTime();
-    })
-    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-    .slice(Math.max(0, offset), Math.max(0, offset) + limit);
-}
-
-export function buildServerAuditPush(
-  guildId: string,
-  entry: Omit<ServerAuditLogEntry, "serverId" | "at">
-): Record<string, unknown> {
-  const record: ServerAuditLogEntry = {
-    ...entry,
-    serverId: guildId,
-    at: new Date()
-  };
-  return { serverAuditLog: { $each: [record], $slice: -MAX_SERVER_AUDIT_LOGS } };
+  });
 }
 
 export async function recordServerAuditEntry(
-  GuildModel: GuildModelLike,
+  model: GuildAuditLogModelLike,
   guildId: string,
   entry: Omit<ServerAuditLogEntry, "serverId" | "at">
 ): Promise<void> {
-  await GuildModel.updateOne(
-    { _id: guildId },
-    { $push: buildServerAuditPush(guildId, entry) },
-    { upsert: true }
-  );
+  await model.create({
+    guildId,
+    kind: "server",
+    userId: entry.userId || "",
+    action: entry.action,
+    details: entry.details || "",
+    at: new Date()
+  });
 }
 
-export function listServerAuditEntries(settings: GuildSettings | null, limit: number): ServerAuditLogEntry[] {
-  const entries = Array.isArray(settings?.serverAuditLog) ? settings.serverAuditLog : [];
-  return [...entries]
-    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-    .slice(0, limit);
+export async function listBotAuditEntries(model: GuildAuditLogModelLike, guildId: string, limit: number): Promise<BotAuditLogEntry[]> {
+  const docs = await listByKind(model, guildId, "bot", limit, 0);
+  return docs.map(toBotEntry);
 }
 
-export function listServerAuditEntriesInRange(settings: GuildSettings | null, start: Date, end: Date, limit: number, offset = 0): ServerAuditLogEntry[] {
-  const entries = Array.isArray(settings?.serverAuditLog) ? settings.serverAuditLog : [];
-  return [...entries]
-    .filter(entry => {
-      const at = new Date(entry.at).getTime();
-      return Number.isFinite(at) && at >= start.getTime() && at < end.getTime();
-    })
-    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-    .slice(Math.max(0, offset), Math.max(0, offset) + limit);
+export async function listBotAuditEntriesInRange(
+  model: GuildAuditLogModelLike,
+  guildId: string,
+  start: Date,
+  end: Date,
+  limit: number,
+  offset = 0
+): Promise<BotAuditLogEntry[]> {
+  const docs = await listByKind(model, guildId, "bot", limit, offset, { start, end });
+  return docs.map(toBotEntry);
+}
+
+export async function listServerAuditEntries(model: GuildAuditLogModelLike, guildId: string, limit: number): Promise<ServerAuditLogEntry[]> {
+  const docs = await listByKind(model, guildId, "server", limit, 0);
+  return docs.map(toServerEntry);
+}
+
+export async function listServerAuditEntriesInRange(
+  model: GuildAuditLogModelLike,
+  guildId: string,
+  start: Date,
+  end: Date,
+  limit: number,
+  offset = 0
+): Promise<ServerAuditLogEntry[]> {
+  const docs = await listByKind(model, guildId, "server", limit, offset, { start, end });
+  return docs.map(toServerEntry);
 }

@@ -171,6 +171,7 @@ src/
       guildNotificationSchemas.ts
       guildYoutubeSchemas.ts
       guildAdminRecordSchemas.ts
+      auditLogSchemas.ts
       operationalSchemas.ts
       seenSchemas.ts
       outboxSchemas.ts
@@ -217,7 +218,7 @@ src/
 
 ## Comenzi si interactiuni
 
-Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `CommandHandler[]`**: fiecare handler expune `buildCommandHandler(ctx): CommandHandler` (`{ canHandle, handle }`), iar `dispatchCommand` itereaza lista si deleaga la primul `canHandle` adevarat (fallback-ul, mereu `canHandle: () => true`, e ultimul). Comenzile admin (`start`/`stop`/`set`/`watchlist`/`snooze`/`unsnooze`/`backup`/`bot-log`/`server-log`/`outbox`/`health`/`config`/`reset-config`/`admin-alerts`/`price-alert`/`future-release`/`maintenance`/`sources`/`youtube`/`admin-command-access`/`delete`) trec intai printr-un pre-check `requireGuildAdmin`, care accepta implicit `Administrator`, apoi regula dedicata comenzii din `adminCommandAccessByCommand`, apoi fallback-ul global `adminCommandAccess` configurat de owner, apoi codul global de acces introdus prin modal ephemeral si scrie rezultatul in `botAuditLog`; comenzile sensibile pot cere si user ID in `BOT_SENSITIVE_USER_IDS`. Scope-ul dedicat pentru perechile `start`/`stop` este comun pe modul, deci `/start player-count` si `/stop player-count` citesc aceeasi regula. Apoi `commandSnoozeGuard` blocheaza comenzile puse temporar pe pauza inainte de `dispatchCommand`. `handleInteraction`-ul exportat de registru (= pre-check admin + snooze guard + `dispatchCommand`) e punctul de intrare folosit de `app/lifecycle/events.ts`. Nu mai exista un lant de `attachX` care impacheteaza `handleInteraction` si nici un fisier `interactions.ts` separat. Logica concreta sta in handler-e dedicate:
+Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `CommandHandler[]`**: fiecare handler expune `buildCommandHandler(ctx): CommandHandler` (`{ canHandle, handle }`), iar `dispatchCommand` itereaza lista si deleaga la primul `canHandle` adevarat (fallback-ul, mereu `canHandle: () => true`, e ultimul). Comenzile admin (`start`/`stop`/`set`/`watchlist`/`snooze`/`unsnooze`/`backup`/`bot-log`/`server-log`/`outbox`/`health`/`config`/`reset-config`/`admin-alerts`/`price-alert`/`future-release`/`maintenance`/`sources`/`youtube`/`admin-command-access`/`delete`) trec intai printr-un pre-check `requireGuildAdmin`, care accepta implicit `Administrator`, apoi regula dedicata comenzii din `adminCommandAccessByCommand`, apoi fallback-ul global `adminCommandAccess` configurat de owner, apoi codul global de acces introdus prin modal ephemeral si scrie rezultatul in colectia `guildAuditLogs`; comenzile sensibile pot cere si user ID in `BOT_SENSITIVE_USER_IDS`. Scope-ul dedicat pentru perechile `start`/`stop` este comun pe modul, deci `/start player-count` si `/stop player-count` citesc aceeasi regula. Apoi `commandSnoozeGuard` blocheaza comenzile puse temporar pe pauza inainte de `dispatchCommand`. `handleInteraction`-ul exportat de registru (= pre-check admin + snooze guard + `dispatchCommand`) e punctul de intrare folosit de `app/lifecycle/events.ts`. Nu mai exista un lant de `attachX` care impacheteaza `handleInteraction` si nici un fisier `interactions.ts` separat. Logica concreta sta in handler-e dedicate:
 
 - `simpleCommandsHandler.ts` - comenzi simple precum ping/games;
 - `helpInteractionHandler.ts` - paginare si continut pentru help;
@@ -234,7 +235,7 @@ Routing-ul interactiunilor e compus de `commandRegistry` ca o **lista tipata `Co
 - `priceAlertInteractionHandler.ts` - `/add price-alert`, `/remove price-alert` si `/price-alert list`, persistenta regulilor joc+prag+valuta si autocomplete pentru joc;
 - `backupInteractionHandler.ts` - `/add backup` si `/backup list/preview/load/delete`, backup-uri ale configuratiei botului pentru server, confirmare la load/delete si audit server la schimbari; randarea textelor e delegata modulului pur `backupViews.ts`;
 - `backupViews.ts` - functii pure de randare pentru `/backup` (`renderBackupList`/`renderBackupPreview`), fara acces la Mongo/Discord;
-- `auditLogInteractionHandler.ts` - `/bot-log recent/older` si `/server-log recent/older`, citire audit admin si audit server din setarile guild-ului;
+- `auditLogInteractionHandler.ts` - `/bot-log recent/older` si `/server-log recent/older`, citire audit admin (`kind: "bot"`) si audit server (`kind: "server"`) din colectia dedicata `guildAuditLogs`;
 - `priceCheckInteractionHandler.ts` - `/price-check`, compara pretul Steam cu sursele externe de reduceri deja folosite de bot; comparatia de titluri si construirea embed-ului sunt delegate modulului pur `priceCheckComparison.ts`;
 - `priceCheckComparison.ts` - functii pure pentru `/price-check` (`titlesComparable`/`findComparableDeals`/`buildPriceCheckEmbed` + helpere + tipul `SteamPriceData`), fara acces la retea/DI;
 - `dealScoreInteractionHandler.ts` - `/deal-score`, scor 1-10 pentru oferte active pe baza reducerii, pretului, semnalelor de calitate/popularitate si magazinului;

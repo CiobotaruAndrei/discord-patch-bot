@@ -340,12 +340,12 @@ test("guard: handler care intoarce handledCommandError e auditat ca 'Command err
 
   const audits: string[] = [];
   const target = {
-    GuildModel: {
-      updateOne: async (_filter: unknown, update: Record<string, unknown>) => {
-        const entry = (update.$push as { botAuditLog?: { $each?: Array<{ result?: string }> } } | undefined)?.botAuditLog?.$each?.[0];
-        if (entry?.result) audits.push(entry.result);
-        return { modifiedCount: 1 };
-      }
+    GuildAuditLogModel: {
+      create: async (doc: { result?: string }) => {
+        if (doc.result) audits.push(doc.result);
+        return doc;
+      },
+      find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
     }
   };
   const guard = mod.createAdminCommandGuard({ requireGuildAdmin: async () => true }, target);

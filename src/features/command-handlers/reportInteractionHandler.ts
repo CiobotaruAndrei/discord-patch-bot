@@ -53,7 +53,7 @@ interface ReportHandlerDeps {
   resolveFeedbackReport: (guildId: string, reportId: string, resolvedBy: string) => Promise<boolean>;
   requireGuildAdmin: RequireGuildAdmin;
   adminAlert: (kind: string, title: string, body: string, guildId?: string) => Promise<unknown>;
-  GuildModel: Parameters<typeof recordBotAuditEntry>[0];
+  GuildAuditLogModel: Parameters<typeof recordBotAuditEntry>[0];
   MessageFlags: { Ephemeral: number };
 }
 
@@ -73,11 +73,11 @@ function getReportSubcommand(interaction: DiscordInteraction): string {
 function createReportInteractionHandler(deps: ReportHandlerDeps) {
   const {
     enforceCooldown, startCommandLog, safeDefer, safeEdit, recordFeedbackReport,
-    getRecentFeedbackReports, resolveFeedbackReport, requireGuildAdmin, adminAlert, GuildModel, MessageFlags
+    getRecentFeedbackReports, resolveFeedbackReport, requireGuildAdmin, adminAlert, GuildAuditLogModel, MessageFlags
   } = deps;
 
   async function auditAdminSubcommand(interaction: DiscordInteraction, guildId: string, command: string, result: string): Promise<void> {
-    await recordBotAuditEntry(GuildModel, guildId, { userId: interaction.user?.id || "", command, result }).catch(() => undefined);
+    await recordBotAuditEntry(GuildAuditLogModel, guildId, { userId: interaction.user?.id || "", command, result }).catch(() => undefined);
   }
 
   async function handleReportSubmit(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
@@ -101,7 +101,7 @@ function createReportInteractionHandler(deps: ReportHandlerDeps) {
   }
 
   async function handleReportList(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
-    if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildModel, interaction, guildId, "/report list"))) return undefined;
+    if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildAuditLogModel, interaction, guildId, "/report list"))) return undefined;
     if (!(await enforceCooldown(interaction, "report:list"))) return undefined;
     const limit = interaction.options.getInteger?.("numar") ?? 10;
     const endLog = startCommandLog(interaction, "report:list", { limit });
@@ -113,7 +113,7 @@ function createReportInteractionHandler(deps: ReportHandlerDeps) {
   }
 
   async function handleReportResolve(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
-    if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildModel, interaction, guildId, "/report resolve"))) return undefined;
+    if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildAuditLogModel, interaction, guildId, "/report resolve"))) return undefined;
     if (!(await enforceCooldown(interaction, "report:resolve"))) return undefined;
     const reportId = String(interaction.options.getString("id") || "").trim();
     if (!reportId) {
@@ -171,7 +171,7 @@ function buildReportCommandHandler(target: ReportContext) {
     resolveFeedbackReport: target.resolveFeedbackReport,
     requireGuildAdmin: target.requireGuildAdmin || defaultRequireGuildAdmin,
     adminAlert: target.adminAlert,
-    GuildModel: target.GuildModel,
+    GuildAuditLogModel: target.GuildAuditLogModel,
     MessageFlags: target.MessageFlags
   });
   const command: CommandHandler<DiscordInteraction> = {

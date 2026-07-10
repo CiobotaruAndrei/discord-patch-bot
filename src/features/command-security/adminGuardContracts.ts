@@ -1,6 +1,6 @@
 "use strict";
 
-import { recordBotAuditEntry } from "../admin-records/auditLogRepository";
+import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository";
 import type { AdminCommandAccessByCommand, AdminCommandAccessConfig } from "./adminCommandAccessScope";
 
 export type MaybePromise<T> = T | Promise<T>;
@@ -66,11 +66,13 @@ export type GuildAdminAccessDoc = {
   adminCommandAccessByCommand?: AdminCommandAccessByCommand | null;
 };
 export type GuildAdminAccessQuery = { lean: () => Promise<GuildAdminAccessDoc | null> };
-export type GuildAdminAccessModel = Parameters<typeof recordBotAuditEntry>[0] & {
+export type GuildAdminAccessModel = {
+  updateOne?: (filter: object, update: object, options?: object) => Promise<unknown>;
   findOne?: (filter: { _id: string }) => GuildAdminAccessQuery | Promise<GuildAdminAccessDoc | null>;
   db?: { readyState?: number };
 };
 export type GuildModelLike = GuildAdminAccessModel;
+export type AdminGuardAuditModel = GuildAuditLogModelLike & { db?: { readyState?: number } };
 
 export type AdminCommandGuardDeps = {
   requireGuildAdmin: RequireGuildAdmin;
@@ -86,6 +88,7 @@ export type SecurityEnvSlice = {
 export type AdminCommandGuardContext = {
   handleInteraction?: NextInteractionHandler;
   GuildModel?: GuildModelLike;
+  GuildAuditLogModel?: AdminGuardAuditModel;
   env?: SecurityEnvSlice;
   adminAlert?: (kind: string, title: string, body: string, guildId?: string) => Promise<unknown>;
 };

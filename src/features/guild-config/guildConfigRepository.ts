@@ -1,7 +1,7 @@
 "use strict";
 
 import type { CurrencyCode, MongoWriteOutcome, ServerAuditLogEntry } from "../../types";
-import { buildServerAuditPush } from "../admin-records/auditLogRepository";
+import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository";
 import { buildResetConfiguration } from "./guildConfigDefaults";
 
 export type GuildConfigWriteResult = MongoWriteOutcome;
@@ -37,18 +37,17 @@ export async function clearCommandSnooze(GuildModel: GuildConfigWriteModelLike, 
 
 export async function resetGuildConfigurationWithAudit(
   GuildModel: GuildConfigWriteModelLike,
+  GuildAuditLogModel: GuildAuditLogModelLike,
   guildId: string,
   defaultCurrency: CurrencyCode,
   audit: Omit<ServerAuditLogEntry, "serverId" | "at">
 ): Promise<void> {
   await GuildModel.updateOne(
     { _id: guildId },
-    {
-      $set: buildResetConfiguration(defaultCurrency),
-      $push: buildServerAuditPush(guildId, audit)
-    },
+    { $set: buildResetConfiguration(defaultCurrency) },
     { upsert: true }
   );
+  await recordServerAuditEntry(GuildAuditLogModel, guildId, audit);
 }
 
 export async function setAdminAlertChannel(

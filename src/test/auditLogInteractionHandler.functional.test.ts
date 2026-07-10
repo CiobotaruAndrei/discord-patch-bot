@@ -1,9 +1,39 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { GuildSettings } from "../types";
+import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
 
 const installAuditLog = require("../features/command-handlers/auditLogInteractionHandler") as typeof import("../features/command-handlers/auditLogInteractionHandler");
+
+function makeAuditModel(seed: GuildAuditLogRecord[]) {
+  const docs = [...seed];
+  return {
+    create: async (doc: GuildAuditLogRecord) => { docs.push(doc); return doc; },
+    find(filter: Record<string, unknown>) {
+      let results = docs.filter(doc => doc.guildId === filter.guildId && doc.kind === filter.kind);
+      const range = filter.at as { $gte: Date; $lt: Date } | undefined;
+      if (range) {
+        results = results.filter(doc => {
+          const at = new Date(doc.at ?? 0).getTime();
+          return at >= range.$gte.getTime() && at < range.$lt.getTime();
+        });
+      }
+      let skipCount = 0;
+      let limitCount = results.length;
+      const chain = {
+        sort(spec: Record<string, 1 | -1>) {
+          const direction = spec.at === -1 ? -1 : 1;
+          results = [...results].sort((a, b) => direction * (new Date(a.at ?? 0).getTime() - new Date(b.at ?? 0).getTime()));
+          return chain;
+        },
+        skip(count: number) { skipCount = count; return chain; },
+        limit(count: number) { limitCount = count; return chain; },
+        lean: async () => results.slice(skipCount, skipCount + limitCount)
+      };
+      return chain;
+    }
+  };
+}
 
 test("/bot-log render include rezultatul Access granted si nu creeaza mentiuni invalide pentru user lipsa", () => {
   const text = installAuditLog.renderBotLog([
@@ -67,13 +97,12 @@ test("/server-log render escapeaza mentiunile, backtick-urile si newline-urile d
 });
 
 test("/bot-log handler trimite payload cu allowedMentions golit (NO_MENTIONS), nu string brut (R[Low-Medium] #3)", async () => {
-  const settings: GuildSettings = {
-    _id: "guild-1",
-    botAuditLog: [{ userId: "user-1", command: "/set mode", result: "Access granted. <@everyone>", serverId: "guild-1", at: "2025-01-01T00:00:00.000Z" }]
-  };
+  const model = makeAuditModel([
+    { guildId: "guild-1", kind: "bot", userId: "user-1", command: "/set mode", result: "Access granted. <@everyone>", at: new Date("2025-01-01T00:00:00.000Z") }
+  ]);
   const payloads: Array<Record<string, unknown>> = [];
   const handler = installAuditLog.createAuditLogInteractionHandler({
-    getGuildSettings: async () => settings,
+    GuildAuditLogModel: model,
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { payloads.push(payload as Record<string, unknown>); return payload; },
     logger: () => undefined,
@@ -103,23 +132,21 @@ test("/bot-log handler trimite payload cu allowedMentions golit (NO_MENTIONS), n
 });
 
 test("/bot-log older filtreaza pe luna si afiseaza hint pentru lotul urmator", async () => {
-  const entries = Array.from({ length: 25 }, (_value, index) => ({
+  const entries: GuildAuditLogRecord[] = Array.from({ length: 25 }, (_value, index) => ({
+    guildId: "guild-1",
+    kind: "bot" as const,
     userId: `user-${index}`,
     command: "/set mode",
     result: "Access granted.",
-    serverId: "guild-1",
-    at: `2025-08-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`
+    at: new Date(`2025-08-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`)
   }));
-  const settings: GuildSettings = {
-    _id: "guild-1",
-    botAuditLog: [
-      ...entries,
-      { userId: "old", command: "/set mode", result: "Access granted.", serverId: "guild-1", at: "2025-07-01T00:00:00.000Z" }
-    ]
-  };
+  const model = makeAuditModel([
+    ...entries,
+    { guildId: "guild-1", kind: "bot", userId: "old", command: "/set mode", result: "Access granted.", at: new Date("2025-07-01T00:00:00.000Z") }
+  ]);
   const replies: unknown[] = [];
   const handler = installAuditLog.createAuditLogInteractionHandler({
-    getGuildSettings: async () => settings,
+    GuildAuditLogModel: model,
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
     logger: () => undefined,
