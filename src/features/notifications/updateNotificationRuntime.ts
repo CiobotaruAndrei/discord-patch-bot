@@ -13,7 +13,7 @@ export function createUpdateNotificationRuntime(
   seenRepository: SeenServices
 ) {
   const {
-    GuildModel, logger, runConcurrent,
+    GuildModel, GuildDeadLetterModel, logger, runConcurrent,
     validateUpdateFetchSnapshot, getLatestForAllGames, buildUpdateEmbed, setUpdatesCache,
     saveFetchSnapshot, loadFetchSnapshot,
     normalizePendingUpdateArray, toEntries, rotateAfter, mapToObject, sleepIfPositive,
@@ -25,7 +25,7 @@ export function createUpdateNotificationRuntime(
   const loadSnapshot = loadFetchSnapshot as ((id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>) | undefined;
 
   return createUpdateNotificationService({
-    GuildModel, logger, runConcurrent, resolveOutboundChannel,
+    GuildModel, GuildDeadLetterModel, logger, runConcurrent, resolveOutboundChannel,
     claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, setSeenHashVersion, disableUpdatesForChannelError,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingUpdateArray, toEntries, rotateAfter, mapToObject,

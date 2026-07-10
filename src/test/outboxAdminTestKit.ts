@@ -51,8 +51,12 @@ export function makeDeps(opts: {
 } = {}) {
   const replies: string[] = [];
   const updateManyCalls: Array<{ filter: unknown; update: unknown }> = [];
-  const guildUpdateCalls: Array<{ filter: unknown; update: unknown }> = [];
-  const invalidatedGuilds: string[] = [];
+  const deadLetterDocs = (opts.deadLetters ?? []).map((entry, index) => ({
+    guildId: "guild-1",
+    failedAt: new Date(Date.UTC(2026, 0, 1, 0, index)),
+    ...entry
+  }));
+  const deadLetterDeleteCalls: Array<Record<string, unknown>> = [];
   const enqueueCalls: Array<Record<string, unknown>> = [];
   const replayDeleteCalls: Array<{ guildId: string; ids: unknown[] }> = [];
   const replayDeleteAllCalls: string[] = [];
@@ -69,10 +73,36 @@ export function makeDeps(opts: {
         return opts.updateManyResult ?? { modifiedCount: opts.guildQueued ?? 0 };
       }
     },
-    GuildModel: {
-      updateOne: async (filter: unknown, update: unknown) => { guildUpdateCalls.push({ filter, update }); return { modifiedCount: 1 }; }
+    GuildDeadLetterModel: {
+      countDocuments: async (filter: Record<string, unknown>) => deadLetterDocs.filter(doc => doc.guildId === filter.guildId).length,
+      deleteMany: async (filter: Record<string, unknown>) => {
+        deadLetterDeleteCalls.push(filter);
+        const keys = (filter.dedupeKey as { $in?: string[] } | undefined)?.$in;
+        const before = deadLetterDocs.length;
+        for (let index = deadLetterDocs.length - 1; index >= 0; index--) {
+          const doc = deadLetterDocs[index] as { guildId: string; dedupeKey?: string };
+          if (doc.guildId !== filter.guildId) continue;
+          if (Array.isArray(keys) && !keys.includes(String(doc.dedupeKey ?? ""))) continue;
+          deadLetterDocs.splice(index, 1);
+        }
+        return { deletedCount: before - deadLetterDocs.length };
+      },
+      find: (filter: Record<string, unknown>) => {
+        let sorted = deadLetterDocs.filter(doc => doc.guildId === filter.guildId);
+        let skipped = 0;
+        let limited = Number.POSITIVE_INFINITY;
+        const chain = {
+          sort: () => {
+            sorted = [...sorted].sort((a, b) => new Date(b.failedAt ?? 0).getTime() - new Date(a.failedAt ?? 0).getTime());
+            return chain;
+          },
+          skip: (count: number) => { skipped = count; return chain; },
+          limit: (count: number) => { limited = count; return chain; },
+          lean: async () => sorted.slice(skipped, skipped + limited)
+        };
+        return chain;
+      }
     },
-    invalidateGuildCache: (guildId: string) => { invalidatedGuilds.push(guildId); },
     enqueueOutbox: async (job: Record<string, unknown>) => {
       if (opts.enqueueFailAt !== undefined && enqueueCalls.length === opts.enqueueFailAt) throw new Error("enqueue boom");
       enqueueCalls.push(job);
@@ -82,7 +112,6 @@ export function makeDeps(opts: {
     deleteAllReplayPayloads: async (guildId: string) => { if (opts.replayDeleteAllFails) throw new Error("deleteAll boom"); replayDeleteAllCalls.push(guildId); },
     getGuildSettings: async () => ({
       outboxRecoveryVerify: opts.perGuildVerify ?? false,
-      notificationDeadLetter: opts.deadLetters ?? [],
       notificationChannelId: opts.notificationChannelId ?? null,
       discountChannelId: opts.discountChannelId ?? null,
       youtubeNotificationChannelId: opts.youtubeNotificationChannelId ?? null,
@@ -117,6 +146,6 @@ export function makeDeps(opts: {
     recoveryStrict: opts.recoveryStrict ?? false,
     outboxGlobalAdminIds: opts.outboxGlobalAdminIds ?? []
   };
-  return { deps, replies, updateManyCalls, guildUpdateCalls, invalidatedGuilds, enqueueCalls, replayDeleteCalls, replayDeleteAllCalls, pauseCalls, permissionChecks, lockCalls, releaseCalls, getDrainCalls: () => drainCalls };
+  return { deps, replies, updateManyCalls, deadLetterDocs, deadLetterDeleteCalls, enqueueCalls, replayDeleteCalls, replayDeleteAllCalls, pauseCalls, permissionChecks, lockCalls, releaseCalls, getDrainCalls: () => drainCalls };
 }
 

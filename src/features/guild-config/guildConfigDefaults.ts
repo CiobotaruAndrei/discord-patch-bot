@@ -10,7 +10,6 @@ export function buildResetConfiguration(defaultCurrency: CurrencyCode): Record<s
     discountsSubscribed: false,
     discountChannelId: null,
     pendingDiscounts: [],
-    notificationDeadLetter: [],
     minDiscountPercent: 70,
     includeFreeGames: true,
     includePaidDiscounts: true,

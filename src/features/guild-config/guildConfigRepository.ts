@@ -4,6 +4,7 @@ import type { CurrencyCode, MongoWriteOutcome, ServerAuditLogEntry } from "../..
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository";
 import { buildResetConfiguration } from "./guildConfigDefaults";
 import { clearYoutubeErrors, type YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository";
+import { clearDeadLetters, type DeadLetterModelLike } from "../notifications/deadLetterRepository";
 
 export type GuildConfigWriteResult = MongoWriteOutcome;
 
@@ -40,6 +41,7 @@ export async function resetGuildConfigurationWithAudit(
   GuildModel: GuildConfigWriteModelLike,
   GuildAuditLogModel: GuildAuditLogModelLike,
   GuildYoutubeErrorModel: Pick<YoutubeErrorModelLike, "deleteMany">,
+  GuildDeadLetterModel: Pick<DeadLetterModelLike, "deleteMany">,
   guildId: string,
   defaultCurrency: CurrencyCode,
   audit: Omit<ServerAuditLogEntry, "serverId" | "at">
@@ -50,6 +52,7 @@ export async function resetGuildConfigurationWithAudit(
     { upsert: true }
   );
   await clearYoutubeErrors(GuildYoutubeErrorModel, guildId);
+  await clearDeadLetters(GuildDeadLetterModel, guildId);
   await recordServerAuditEntry(GuildAuditLogModel, guildId, audit);
 }
 

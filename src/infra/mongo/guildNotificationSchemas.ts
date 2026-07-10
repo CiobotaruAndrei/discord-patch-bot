@@ -26,17 +26,6 @@ export function buildGuildNotificationSchemas({ mongoose, SUPPORTED_CURRENCIES }
     attempts: { type: Number, default: 0 }
   }, { _id: false });
 
-  const deadLetterEntrySchema = new mongoose.Schema({
-    kind: { type: String, enum: ["update", "discount", "youtube"], required: true },
-    itemId: { type: String, default: "" },
-    title: { type: String, default: "" },
-    channelId: { type: String, default: "" },
-    dedupeKey: { type: String, default: "" },
-    reason: { type: String, default: "" },
-    attempts: { type: Number, default: 0 },
-    failedAt: { type: Date, default: Date.now }
-  }, { _id: false });
-
   const priceAlertSchema = new mongoose.Schema({
     gameKey: { type: String, required: true },
     gameName: { type: String, required: true },
@@ -50,5 +39,5 @@ export function buildGuildNotificationSchemas({ mongoose, SUPPORTED_CURRENCIES }
     absentCycles: { type: Number, default: 0 }
   }, { _id: false });
 
-  return { pendingUpdateSchema, pendingDiscountSchema, deadLetterEntrySchema, priceAlertSchema };
+  return { pendingUpdateSchema, pendingDiscountSchema,  priceAlertSchema };
 }

@@ -275,7 +275,6 @@ export interface GuildSettings {
   youtubeMessageTemplate?: string | null;
   youtubeChannelRoutes?: YouTubeChannelRoute[];
   youtubeTitleIncludeWords?: string[];
-  notificationDeadLetter?: DeadLetterEntry[];
   watchlistGameSuggestions?: WatchlistGameSuggestionEntry[];
   futureReleaseGames?: FutureReleaseGameEntry[];
   playerCountSubscribed?: boolean;

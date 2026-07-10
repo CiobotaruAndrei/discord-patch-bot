@@ -9,8 +9,10 @@ function makeDeps(docs: ReplayDeadLetterDoc[], overrides: Partial<OutboxAdminOpe
   const warnings: string[] = [];
   const deps: OutboxAdminOperationsDeps = {
     NotificationOutboxModel: { updateMany: async () => ({ modifiedCount: 0 }) },
-    GuildModel: { updateOne: async () => ({ modifiedCount: 1 }) },
-    invalidateGuildCache: () => {},
+    GuildDeadLetterModel: {
+      countDocuments: async () => 0,
+      deleteMany: async () => ({ deletedCount: 0 })
+    },
     enqueueOutbox: async job => { enqueued.push({ payload: job.payload }); },
     listReplayableDeadLetters: async () => docs,
     deleteReplayedDeadLetters: async () => {},

@@ -9,11 +9,13 @@ import type {
 } from "./outboxAdminContracts";
 import { onOff } from "./outboxAdminContracts";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
+import { countDeadLetters, listDeadLetters, type DeadLetterModelLike } from "../notifications/deadLetterRepository";
 
 export const DEFAULT_DEAD_LETTER_PREVIEW = 10;
 
 export interface OutboxAdminViewsDeps {
   NotificationOutboxModel: Pick<OutboxModelLike, "countDocuments">;
+  GuildDeadLetterModel: Pick<DeadLetterModelLike, "countDocuments" | "find">;
   getGuildSettings: (guildId: string) => Promise<GuildSettingsLike | null>;
   getOutboxPaused: () => Promise<boolean>;
   checkChannelPermissions: (interaction: OutboxAdminInteraction, channelId: string) => Promise<ChannelPermissions | null>;
@@ -34,19 +36,19 @@ export function formatDeadLetterEntry(entry: DeadLetterEntryLike): string {
 
 export function createOutboxAdminViews(deps: OutboxAdminViewsDeps) {
   const {
-    NotificationOutboxModel, getGuildSettings, getOutboxPaused, checkChannelPermissions,
+    NotificationOutboxModel, GuildDeadLetterModel, getGuildSettings, getOutboxPaused, checkChannelPermissions,
     outboxEnabled, recoveryVerifyGlobal, recoveryStrict
   } = deps;
   const previewLimit = deps.deadLetterPreviewLimit ?? DEFAULT_DEAD_LETTER_PREVIEW;
 
   async function renderStatus(guildId: string): Promise<string> {
-    const [guildQueued, totalQueued, settings, paused] = await Promise.all([
+    const [guildQueued, totalQueued, settings, paused, deadLetters] = await Promise.all([
       NotificationOutboxModel.countDocuments({ guildId }).catch(() => 0),
       NotificationOutboxModel.countDocuments({}).catch(() => 0),
       getGuildSettings(guildId).catch(() => null),
-      getOutboxPaused().then(value => value as boolean | null).catch(() => null)
+      getOutboxPaused().then(value => value as boolean | null).catch(() => null),
+      countDeadLetters(GuildDeadLetterModel, guildId).catch(() => 0)
     ]);
-    const deadLetters = settings?.notificationDeadLetter?.length ?? 0;
     const perGuildVerify = settings?.outboxRecoveryVerify === true;
     const drainState = paused === null ? "NECUNOSCUTA (citirea starii de pauza a esuat)" : paused ? "PE PAUZA" : "ACTIVA";
     return [
@@ -62,11 +64,12 @@ export function createOutboxAdminViews(deps: OutboxAdminViewsDeps) {
   }
 
   async function renderDeadLetters(guildId: string): Promise<string> {
-    const settings = await getGuildSettings(guildId).catch(() => null);
-    const list = Array.isArray(settings?.notificationDeadLetter) ? settings!.notificationDeadLetter! : [];
-    if (!list.length) return "Nicio livrare in dead-letter pentru acest server.";
-    const recent = list.slice(-previewLimit).reverse();
-    const header = `**Dead-letter (ultimele ${recent.length} din ${list.length})**\n`;
+    const [recent, total] = await Promise.all([
+      listDeadLetters(GuildDeadLetterModel, guildId, previewLimit).catch(() => []),
+      countDeadLetters(GuildDeadLetterModel, guildId).catch(() => 0)
+    ]);
+    if (!recent.length) return "Nicio livrare in dead-letter pentru acest server.";
+    const header = `**Dead-letter (ultimele ${recent.length} din ${Math.max(total, recent.length)})**\n`;
     return `${header}${clampJoinedList(recent.map(formatDeadLetterEntry), 2000 - header.length)}`;
   }
 

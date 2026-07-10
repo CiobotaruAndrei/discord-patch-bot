@@ -3,27 +3,26 @@ import assert from "node:assert/strict";
 import { installOutboxAdmin, makeDeps, makeInteraction } from "./outboxAdminTestKit";
 import type { DeadLetterEntry } from "./outboxAdminTestKit";
 
-test("/outbox clear-deadletters goleste lista cand exista intrari + invalideaza cache-ul", async () => {
-  const { deps, replies, guildUpdateCalls, invalidatedGuilds } = makeDeps({ deadLetters: [{ kind: "update" }, { kind: "discount" }] });
+test("/outbox clear-deadletters goleste colectia guildDeadLetters cand exista intrari", async () => {
+  const { deps, replies, deadLetterDocs, deadLetterDeleteCalls } = makeDeps({ deadLetters: [{ kind: "update" }, { kind: "discount" }] });
   const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
   await handler.handleOutboxInteraction(makeInteraction(null, "clear-deadletters"));
   assert.match(replies[0], /2 intrare/);
-  assert.equal(guildUpdateCalls.length, 1, "a scris un updateOne pe guild");
-  const update = guildUpdateCalls[0].update as { $set: { notificationDeadLetter: unknown[] } };
-  assert.deepEqual(update.$set.notificationDeadLetter, [], "lista de dead-letter e golita");
-  assert.equal(invalidatedGuilds.length, 1, "cache-ul guild-ului e invalidat");
+  assert.equal(deadLetterDeleteCalls.length, 1, "un singur deleteMany pe colectia dedicata");
+  assert.deepEqual(deadLetterDeleteCalls[0], { guildId: "guild-1" }, "stergerea e per guild, nu globala");
+  assert.equal(deadLetterDocs.length, 0, "auditul dead-letter e golit");
 });
 
 test("/outbox clear-deadletters cand lista e goala nu scrie nimic", async () => {
-  const { deps, replies, guildUpdateCalls } = makeDeps({ deadLetters: [] });
+  const { deps, replies, deadLetterDeleteCalls } = makeDeps({ deadLetters: [] });
   const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
   await handler.handleOutboxInteraction(makeInteraction(null, "clear-deadletters"));
   assert.match(replies[0], /Nicio livrare in dead-letter de sters/);
-  assert.equal(guildUpdateCalls.length, 0, "nu se scrie cand nu e nimic de sters");
+  assert.equal(deadLetterDeleteCalls.length, 0, "nu se sterge nimic cand nu e nimic de sters");
 });
 
 test("/outbox replay-deadletters reintroduce payload-urile in coada, sterge si curata auditul", async () => {
-  const { deps, replies, enqueueCalls, replayDeleteCalls, guildUpdateCalls, invalidatedGuilds } = makeDeps({
+  const { deps, replies, enqueueCalls, replayDeleteCalls, deadLetterDeleteCalls } = makeDeps({
     outboxEnabled: true,
     replayDocs: [
       { _id: "r1", kind: "update", channelId: "c1", payload: { embeds: [{ title: "A" }] }, dedupeKey: "dk1", recoveryVerify: true },
@@ -38,9 +37,7 @@ test("/outbox replay-deadletters reintroduce payload-urile in coada, sterge si c
   assert.equal(enqueueCalls[0].recoveryVerify, true);
   assert.equal(replayDeleteCalls.length, 1, "a sters payload-urile reluate");
   assert.deepEqual(replayDeleteCalls[0].ids, ["r1", "r2"]);
-  const pull = guildUpdateCalls[0].update as { $pull: { notificationDeadLetter: { dedupeKey: { $in: string[] } } } };
-  assert.deepEqual(pull.$pull.notificationDeadLetter.dedupeKey.$in, ["dk1", "dk2"], "curata auditul dupa dedupeKey");
-  assert.equal(invalidatedGuilds.length, 1, "invalideaza cache-ul guild-ului");
+  assert.deepEqual(deadLetterDeleteCalls[0], { guildId: "guild-1", dedupeKey: { $in: ["dk1", "dk2"] } }, "curata auditul din colectia dedicata dupa dedupeKey");
 });
 
 test("/outbox replay-deadletters refuza cand outbox-ul e dezactivat", async () => {
@@ -60,7 +57,7 @@ test("/outbox replay-deadletters cand nu exista payload-uri stocate", async () =
 });
 
 test("/outbox replay-deadletters: enqueue pica la al doilea -> primul e curatat, restul raman (fara duplicate)", async () => {
-  const { deps, replies, enqueueCalls, replayDeleteCalls, guildUpdateCalls, invalidatedGuilds } = makeDeps({
+  const { deps, replies, enqueueCalls, replayDeleteCalls, deadLetterDeleteCalls } = makeDeps({
     outboxEnabled: true,
     enqueueFailAt: 1,
     replayDocs: [
@@ -76,9 +73,7 @@ test("/outbox replay-deadletters: enqueue pica la al doilea -> primul e curatat,
   assert.equal(enqueueCalls.length, 1, "doar primul a fost enqueue-at cu succes");
   assert.equal(replayDeleteCalls.length, 1, "cleanup ruleaza pentru cele reusite");
   assert.deepEqual(replayDeleteCalls[0].ids, ["r1"], "sterge doar payload-ul reusit (r1), nu r2/r3");
-  const pull = guildUpdateCalls[0].update as { $pull: { notificationDeadLetter: { dedupeKey: { $in: string[] } } } };
-  assert.deepEqual(pull.$pull.notificationDeadLetter.dedupeKey.$in, ["dk1"], "curata din audit doar dk1");
-  assert.equal(invalidatedGuilds.length, 1);
+  assert.deepEqual(deadLetterDeleteCalls[0], { guildId: "guild-1", dedupeKey: { $in: ["dk1"] } }, "curata din audit doar dk1");
 });
 
 test("/outbox clear-deadletters sterge si payload-urile de replay (fara replay fantoma)", async () => {
@@ -91,16 +86,16 @@ test("/outbox clear-deadletters sterge si payload-urile de replay (fara replay f
   const empty = makeDeps({ deadLetters: [] });
   const h2 = installOutboxAdmin.createOutboxAdminHandler(empty.deps);
   await h2.handleOutboxInteraction(makeInteraction(null, "clear-deadletters"));
-  assert.equal(empty.guildUpdateCalls.length, 0, "nu scrie pe doc cand auditul e gol");
+  assert.equal(empty.deadLetterDeleteCalls.length, 0, "nu sterge nimic cand auditul e gol");
   assert.deepEqual(empty.replayDeleteAllCalls, ["guild-1"], "curata payload-urile de replay chiar si cand auditul e gol (orfane TTL/partial)");
 });
 
 test("/outbox clear-deadletters: daca stergerea payload-urilor de replay esueaza, raporteaza avertisment (nu succes fals)", async () => {
-  const { deps, replies, guildUpdateCalls } = makeDeps({ deadLetters: [{ kind: "update" }], replayDeleteAllFails: true });
+  const { deps, replies, deadLetterDocs } = makeDeps({ deadLetters: [{ kind: "update" }], replayDeleteAllFails: true });
   const handler = installOutboxAdmin.createOutboxAdminHandler(deps);
   await handler.handleOutboxInteraction(makeInteraction(null, "clear-deadletters"));
   assert.match(replies[0], /stergerea payload-urilor de replay a esuat/);
-  assert.equal(guildUpdateCalls.length, 1, "auditul tot e golit");
+  assert.equal(deadLetterDocs.length, 0, "auditul tot e golit");
 });
 
 test("/outbox replay-deadletters: daca curatarea dupa enqueue esueaza, mesajul spune corect ca o re-rulare NU re-trimite (R #5)", async () => {

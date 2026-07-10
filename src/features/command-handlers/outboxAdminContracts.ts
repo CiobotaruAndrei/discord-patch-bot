@@ -45,7 +45,6 @@ export interface DeadLetterEntryLike {
 
 export interface GuildSettingsLike {
   outboxRecoveryVerify?: boolean;
-  notificationDeadLetter?: DeadLetterEntryLike[];
   notificationChannelId?: string | null;
   discountChannelId?: string | null;
   youtubeNotificationChannelId?: string | null;

@@ -64,10 +64,22 @@ function entriesFrom<K, V>(map: Map<K, V> | Record<string, V> | undefined): Arra
   return [];
 }
 
+function benchmarkDeadLetterModel(counters: Counters): UpdateDeps["GuildDeadLetterModel"] {
+  return {
+    insertMany: async docs => { counters.mongoWrites++; return docs; },
+    find: () => {
+      const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] };
+      return chain;
+    },
+    deleteMany: async () => ({ deletedCount: 0 })
+  };
+}
+
 function makeUpdateDeps(counters: Counters, guilds: Array<GuildSettings & Record<string, unknown>> = []): UpdateDeps {
   const channel = { id: "chan", send: async () => { counters.discordSends++; return { id: "m" }; } };
   return {
     GuildModel: benchmarkGuildModel(counters, guilds),
+    GuildDeadLetterModel: benchmarkDeadLetterModel(counters),
     logger: () => undefined,
     runConcurrent,
     resolveOutboundChannel: async () => ({ channel, abort: false }),
@@ -108,6 +120,7 @@ function makeDiscountDeps(counters: Counters, guilds: Array<GuildSettings & Reco
   const channel = { id: "chan", send: async () => { counters.discordSends++; return { id: "m" }; } };
   return {
     GuildModel: benchmarkGuildModel(counters, guilds),
+    GuildDeadLetterModel: benchmarkDeadLetterModel(counters),
     logger: () => undefined,
     runConcurrent,
     resolveOutboundChannel: async () => ({ channel, abort: false }),

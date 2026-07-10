@@ -17,6 +17,7 @@ function makeHarness(permissionState = { viewChannel: true, sendMessages: true, 
       }
     },
     GuildYoutubeErrorModel: { deleteMany: async () => ({ deletedCount: 0 }) },
+    GuildDeadLetterModel: { deleteMany: async () => ({ deletedCount: 0 }) },
     GuildAuditLogModel: {
       create: async (doc: GuildAuditLogRecord) => { auditDocs.push(doc); return doc; },
       find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
@@ -73,7 +74,7 @@ test("/reset-config confirm:true reseteaza toate suprafetele de configurare", as
   assert.equal(setDoc.youtubeMessageTemplate, null);
   assert.deepEqual(setDoc.youtubeChannelRoutes, []);
   assert.deepEqual(setDoc.youtubeTitleIncludeWords, []);
-  assert.deepEqual(setDoc.notificationDeadLetter, [], "lista dead-letter vizibila e golita");
+
   assert.deepEqual(replayPayloadDeletes, ["guild-1"], "reset-ul sterge si payload-urile de replay din colectia separata, ca sa nu ramana orfane (R14 #2)");
   assert.match(String(replies[0]), /resetata la valorile implicite/);
   assert.match(String(replies[0]), /payload-urile de replay au fost sterse/);

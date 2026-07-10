@@ -1,7 +1,8 @@
 "use strict";
 
 import type { GuildSettings, DealInfo, MongoWriteOutcome, PendingDiscount, NotificationMode, ValidatedDealInfo } from "../../types";
-import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
+import { buildDeadLetterEntry, DeadLetterEntry } from "./deadLetter";
+import { recordDeadLetters, type DeadLetterModelLike } from "./deadLetterRepository";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
 import { HASH_VERSION } from "../../native/fuzzy";
 
@@ -41,6 +42,7 @@ type RunConcurrent = <T>(items: T[], concurrency: number, fn: (item: T) => Promi
 
 export interface DiscountNotificationServiceDeps {
   GuildModel: GuildModelLike;
+  GuildDeadLetterModel: Pick<DeadLetterModelLike, "insertMany" | "find" | "deleteMany">;
   logger: Logger;
   runConcurrent: RunConcurrent;
   resolveOutboundChannel: ResolveOutboundChannel;
@@ -89,7 +91,7 @@ export interface DiscountNotificationService {
 
 export function createDiscountNotificationService(deps: DiscountNotificationServiceDeps): DiscountNotificationService {
   const {
-    GuildModel, logger, runConcurrent, resolveOutboundChannel,
+    GuildModel, GuildDeadLetterModel, logger, runConcurrent, resolveOutboundChannel,
     claimSeenDiscount, rollbackSeenDiscount, loadSeenDiscountHashes, seedSeenDiscounts, setSeenHashVersion, disableDiscountsForChannelError,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingDiscountArray, validatePendingDiscountSnapshot,
@@ -226,13 +228,13 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       }
     }
 
-    const discountUpdate: Record<string, unknown> = { $set: { pendingDiscounts: remaining.slice(-PENDING_DISCOUNTS_LIMIT) } };
-    const push = deadLetterPush(deadLettered);
-    if (push) discountUpdate.$push = push;
-    await GuildModel.updateOne(
+    const writeResult = await GuildModel.updateOne(
       { _id: guild._id, discountsSubscribed: true, discountChannelId: channel.id },
-      discountUpdate
+      { $set: { pendingDiscounts: remaining.slice(-PENDING_DISCOUNTS_LIMIT) } }
     );
+    if (deadLettered.length && (writeResult.matchedCount ?? 0) > 0) {
+      await recordDeadLetters(GuildDeadLetterModel, String(guild._id), deadLettered);
+    }
   }
 
   async function checkForDiscounts(client: NotificationDiscordClient, shouldAbort: (() => boolean) | null = null): Promise<void> {

@@ -45,7 +45,3 @@ export function buildDeadLetterEntry(input: DeadLetterInput): DeadLetterEntry {
   };
 }
 
-export function deadLetterPush(entries: DeadLetterEntry[]): Record<string, unknown> | null {
-  if (!entries.length) return null;
-  return { notificationDeadLetter: { $each: entries, $slice: -NOTIFICATION_DEAD_LETTER_LIMIT } };
-}

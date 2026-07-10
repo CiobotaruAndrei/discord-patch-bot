@@ -107,9 +107,9 @@ test("DiscountService: dealPassesFilters=false sare deal-ul (filter-aware)", asy
   assert.equal(sentPayloads.length, 0);
 });
 
-test("DiscountService: livrarea care epuizeaza retry-urile intra in dead-letter (capat $push)", async () => {
+test("DiscountService: livrarea care epuizeaza retry-urile intra in dead-letter (document in colectia dedicata)", async () => {
   const channel = { id: "channel-d", send: async () => { throw new Error("ECONNRESET"); } };
-  const { deps, updateOneCalls } = makeDiscountDeps({
+  const { deps, updateOneCalls, deadLetterDocs } = makeDiscountDeps({
     resolveOutboundChannel: async () => ({ channel, abort: false }),
     PENDING_DISCOUNT_MAX_ATTEMPTS: 1
   });
@@ -120,11 +120,11 @@ test("DiscountService: livrarea care epuizeaza retry-urile intra in dead-letter 
   } as DiscountGuild;
   await svc.processGuildDiscounts(noopDiscordClient, guild, [{ id: "d1", title: "Game A" }] as DiscountDeals);
   assert.equal(updateOneCalls.length, 1);
-  const update = updateOneCalls[0].update as { $push?: { notificationDeadLetter?: { $each?: unknown[] } } };
-  const entries = (update.$push?.notificationDeadLetter?.$each || []) as Array<{ kind: string; itemId: string; attempts: number }>;
-  assert.equal(entries.length, 1, "un deal epuizat -> o intrare dead-letter");
+  const update = updateOneCalls[0].update as { $push?: unknown };
+  assert.equal(update.$push, undefined, "scrierea pe guild ramane doar $set, fara $push de dead-letter");
+  assert.equal(deadLetterDocs.length, 1, "un deal epuizat -> un document dead-letter in colectia dedicata");
   assert.deepEqual(
-    { kind: entries[0].kind, itemId: entries[0].itemId, attempts: entries[0].attempts },
+    { kind: deadLetterDocs[0].kind, itemId: deadLetterDocs[0].itemId, attempts: deadLetterDocs[0].attempts },
     { kind: "discount", itemId: "d1", attempts: 1 }
   );
 });

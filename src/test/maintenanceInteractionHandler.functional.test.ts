@@ -26,7 +26,7 @@ function makeBackupModel(docs: GuildConfigBackupRecord[]) {
   };
 }
 
-function makeDeps(settings: GuildSettings | null, outboxCount: number, paused: boolean, backups: GuildConfigBackupRecord[] = [], youtubeErrorCount = 0) {
+function makeDeps(settings: GuildSettings | null, outboxCount: number, paused: boolean, backups: GuildConfigBackupRecord[] = [], youtubeErrorCount = 0, deadLetterCount = 0) {
   return {
     logger: () => undefined,
     enforceCooldown: async () => true,
@@ -40,6 +40,7 @@ function makeDeps(settings: GuildSettings | null, outboxCount: number, paused: b
     },
     GuildConfigBackupModel: makeBackupModel(backups),
     GuildYoutubeErrorModel: { countDocuments: async () => youtubeErrorCount },
+    GuildDeadLetterModel: { countDocuments: async () => deadLetterCount },
     MessageFlags: { Ephemeral: 64 }
   };
 }
@@ -48,8 +49,7 @@ test("buildMaintenanceReport semnaleaza outbox, dead-letter, backup vechi si can
   const settings: GuildSettings = {
     _id: "guild-1",
     subscribed: true,
-    notificationChannelId: null,
-    notificationDeadLetter: [{ kind: "update", itemId: "u1", reason: "missing channel" }]
+    notificationChannelId: null
   };
   const backups: GuildConfigBackupRecord[] = [{
     guildId: "guild-1",
@@ -59,11 +59,11 @@ test("buildMaintenanceReport semnaleaza outbox, dead-letter, backup vechi si can
     snapshot: {}
   }];
 
-  const report = await installMaintenance.buildMaintenanceReport(makeDeps(settings, 3, true, backups, 1), "guild-1");
+  const report = await installMaintenance.buildMaintenanceReport(makeDeps(settings, 3, true, backups, 1, 1), "guild-1");
 
   assert.match(report, /ATENTIE: surse YouTube - 1 erori recente/, "numaratoarea vine din colectia guildYoutubeErrors, nu din setari");
   assert.match(report, /ATENTIE: outbox - 3 joburi/);
-  assert.match(report, /ATENTIE: dead-letter - 1/);
+  assert.match(report, /ATENTIE: dead-letter - 1/, "numaratoarea dead-letter vine din colectia guildDeadLetters, nu din setari");
   assert.match(report, /ATENTIE: drenare outbox - pe pauza/);
   assert.match(report, /ATENTIE: backup configuratie/, "cel mai nou backup din colectia guildConfigBackups e mai vechi de 30 zile");
   assert.match(report, /ATENTIE: canale notificari/);

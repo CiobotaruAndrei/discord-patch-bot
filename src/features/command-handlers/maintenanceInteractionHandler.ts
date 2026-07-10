@@ -5,6 +5,7 @@ import type { CommandHandler } from "../command-registry/commandHandler";
 import { matchesCommand } from "../command-registry/commandMatch";
 import { findNewestConfigBackup, type ConfigBackupModelLike } from "../admin-records/configBackupRepository";
 import { countYoutubeErrors, type YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository";
+import { countDeadLetters, type DeadLetterModelLike } from "../notifications/deadLetterRepository";
 
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
@@ -36,6 +37,7 @@ interface MaintenanceDeps {
   NotificationOutboxModel: CountModel;
   GuildConfigBackupModel: Pick<ConfigBackupModelLike, "find">;
   GuildYoutubeErrorModel: Pick<YoutubeErrorModelLike, "countDocuments">;
+  GuildDeadLetterModel: Pick<DeadLetterModelLike, "countDocuments">;
   MessageFlags: { Ephemeral: number };
 }
 
@@ -50,24 +52,20 @@ function isOldBackup(newestBackup: ConfigBackupRecord | null, now: number): bool
   return now - newest > 30 * 24 * 60 * 60 * 1000;
 }
 
-function countArray(value: unknown): number {
-  return Array.isArray(value) ? value.length : 0;
-}
-
 function issueLine(ok: boolean, label: string, detail: string): string {
   return `${ok ? "OK" : "ATENTIE"}: ${label} - ${detail}`;
 }
 
 async function buildMaintenanceReport(deps: MaintenanceDeps, guildId: string): Promise<string> {
-  const [settings, queued, paused, newestBackup, youtubeErrors] = await Promise.all([
+  const [settings, queued, paused, newestBackup, youtubeErrors, deadLetters] = await Promise.all([
     deps.getGuildSettings(guildId),
     deps.NotificationOutboxModel.countDocuments({ guildId }).catch(() => -1),
     deps.getOutboxPaused().catch(() => null),
     findNewestConfigBackup(deps.GuildConfigBackupModel, guildId).catch(() => null),
-    countYoutubeErrors(deps.GuildYoutubeErrorModel, guildId)
+    countYoutubeErrors(deps.GuildYoutubeErrorModel, guildId),
+    countDeadLetters(deps.GuildDeadLetterModel, guildId)
   ]);
   const now = Date.now();
-  const deadLetters = countArray(settings?.notificationDeadLetter);
   const backupsOld = isOldBackup(newestBackup, now);
   const updateChannelOk = settings?.subscribed ? Boolean(settings.notificationChannelId) : true;
   const discountChannelOk = settings?.discountsSubscribed ? Boolean(settings.discountChannelId) : true;

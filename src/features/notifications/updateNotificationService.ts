@@ -3,7 +3,8 @@
 import type { GameConfig } from "../../types";
 import type { GuildSettings, EmbeddableUpdate, MongoWriteOutcome, NotificationMode } from "../../types";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue";
-import { buildDeadLetterEntry, DeadLetterEntry, deadLetterPush } from "./deadLetter";
+import { buildDeadLetterEntry, DeadLetterEntry } from "./deadLetter";
+import { recordDeadLetters, type DeadLetterModelLike } from "./deadLetterRepository";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
 import { HASH_VERSION } from "../../native/fuzzy";
 import { packEmbedsByBudget, embedCharCost } from "../../shared/discordEmbedChunks";
@@ -44,6 +45,7 @@ type RunConcurrent = <T>(items: T[], concurrency: number, fn: (item: T) => Promi
 
 export interface UpdateNotificationServiceDeps {
   GuildModel: GuildModelLike;
+  GuildDeadLetterModel: Pick<DeadLetterModelLike, "insertMany" | "find" | "deleteMany">;
   logger: Logger;
   runConcurrent: RunConcurrent;
   resolveOutboundChannel: ResolveOutboundChannel;
@@ -87,7 +89,7 @@ export interface UpdateNotificationService {
 
 export function createUpdateNotificationService(deps: UpdateNotificationServiceDeps): UpdateNotificationService {
   const {
-    GuildModel, logger, runConcurrent, resolveOutboundChannel,
+    GuildModel, GuildDeadLetterModel, logger, runConcurrent, resolveOutboundChannel,
     claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, setSeenHashVersion, disableUpdatesForChannelError,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingUpdateArray, toEntries, rotateAfter, mapToObject,
@@ -206,13 +208,13 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     const pendingObject = mapToObject(pendingByGame);
     const setDoc: Record<string, unknown> = { pendingUpdates: pendingObject };
     if (lastProcessedGameKey) setDoc.lastProcessedGameKey = lastProcessedGameKey;
-    const update: Record<string, unknown> = { $set: setDoc };
-    const push = deadLetterPush(deadLettered);
-    if (push) update.$push = push;
-    await GuildModel.updateOne(
+    const writeResult = await GuildModel.updateOne(
       { _id: guild._id, subscribed: true, notificationChannelId: channel.id },
-      update
+      { $set: setDoc }
     );
+    if (deadLettered.length && (writeResult.matchedCount ?? 0) > 0) {
+      await recordDeadLetters(GuildDeadLetterModel, String(guild._id), deadLettered);
+    }
   }
 
   function buildOptimizedGameList<G extends { key: string }>(

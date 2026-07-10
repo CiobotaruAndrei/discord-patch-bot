@@ -7,6 +7,7 @@ import { buildResetConfiguration } from "../guild-config/guildConfigDefaults";
 import { resetGuildConfigurationWithAudit, setAdminAlertChannel } from "../guild-config/guildConfigRepository";
 import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository";
 import type { YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository";
+import type { DeadLetterModelLike } from "../notifications/deadLetterRepository";
 
 import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
@@ -51,6 +52,7 @@ interface GuildConfigurationAdminDeps {
   };
   GuildAuditLogModel: GuildAuditLogModelLike;
   GuildYoutubeErrorModel: Pick<YoutubeErrorModelLike, "deleteMany">;
+  GuildDeadLetterModel: Pick<DeadLetterModelLike, "deleteMany">;
   invalidateGuildCache(guildId: string): void;
   deleteAllReplayPayloads(guildId: string): Promise<void>;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
@@ -67,7 +69,7 @@ type GuildConfigurationAdminContext = GuildConfigurationAdminDeps & {
 
 function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps) {
   const {
-    GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, invalidateGuildCache, deleteAllReplayPayloads, safeDefer, safeEdit,
+    GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, GuildDeadLetterModel, invalidateGuildCache, deleteAllReplayPayloads, safeDefer, safeEdit,
     checkChannelPermissions, DEFAULT_CURRENCY, logger
   } = deps;
 
@@ -75,7 +77,7 @@ function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps)
     if (interaction.options.getBoolean("confirm", true) !== true) {
       return safeEdit(interaction, "Resetarea a fost anulata. Foloseste `confirm:true` numai daca vrei sa stergi toate setarile serverului.");
     }
-    await resetGuildConfigurationWithAudit(GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, guildId, DEFAULT_CURRENCY, {
+    await resetGuildConfigurationWithAudit(GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, GuildDeadLetterModel, guildId, DEFAULT_CURRENCY, {
       userId: interaction.user?.id || "",
       action: "reset_config",
       details: "Configuratia serverului a fost resetata la valorile implicite"
