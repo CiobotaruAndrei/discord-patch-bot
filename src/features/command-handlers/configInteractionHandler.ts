@@ -34,7 +34,7 @@ interface ConfigHandlerDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-type ConfigContext = ConfigHandlerDeps & { handleInteraction?: NextInteractionHandler };
+type ConfigContext = ConfigHandlerDeps;
 
 function createConfigInteractionHandler(deps: ConfigHandlerDeps) {
   const { enforceCooldown, startCommandLog, safeDefer, safeEdit, getGuildSettings, DEFAULT_CURRENCY, MessageFlags } = deps;

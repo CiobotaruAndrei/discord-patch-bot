@@ -37,9 +37,7 @@ interface DealScoreDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-type DealScoreContext = DealScoreDeps & {
-  handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => Promise<unknown> | unknown;
-};
+type DealScoreContext = DealScoreDeps;
 
 function normalizeTitle(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();

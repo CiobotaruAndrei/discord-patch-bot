@@ -44,7 +44,6 @@ interface SuggestCommandDeps {
 
 type SuggestCommandContext = Omit<SuggestCommandDeps, "requireGuildAdmin"> & {
   requireGuildAdmin?: RequireGuildAdmin;
-  handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => Promise<unknown> | unknown;
 };
 
 function normalizeCommandName(value: string): string {

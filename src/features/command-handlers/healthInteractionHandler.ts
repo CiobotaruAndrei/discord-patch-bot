@@ -49,7 +49,7 @@ interface HealthHandlerDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-type HealthContext = Omit<HealthHandlerDeps, "getMongoReadyState" | "getRedisStatus"> & { handleInteraction?: NextInteractionHandler };
+type HealthContext = Omit<HealthHandlerDeps, "getMongoReadyState" | "getRedisStatus">;
 
 const MONGO_STATE_LABELS: Record<number, string> = {
   0: "deconectat",

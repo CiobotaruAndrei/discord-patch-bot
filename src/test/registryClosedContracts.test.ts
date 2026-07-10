@@ -59,10 +59,14 @@ test("pregatire migrare commandRegistry: helper-ele partajate safeDefer/safeEdit
   }
 });
 
-test("pregatire migrare commandRegistry: handle-ul fallback tipeaza games ca GameConfig[], nu unknown[]", () => {
-  const text = fs.readFileSync(path.join(srcRoot, "features", "command-handlers", "fallbackInteractionHandler.ts"), "utf8");
-  assert.ok(!/games: unknown\[\]/.test(text), "fallback nu mai tipeaza games ca unknown[] (aliniat cu lantul handleInteraction)");
-  assert.match(text, /handleInteraction\?: \(interaction: DiscordInteraction, games: GameConfig\[\]\) => Promise<unknown>/, "fallback tipeaza handleInteraction din chain cu games: GameConfig[]");
+test("contextele handler-elor nu mai cara reziduul handleInteraction din lantul legacy de installers", () => {
+  const handlersDir = path.join(srcRoot, "features", "command-handlers");
+  for (const file of fs.readdirSync(handlersDir).filter(name => name.endsWith(".ts"))) {
+    const text = fs.readFileSync(path.join(handlersDir, file), "utf8");
+    assert.ok(!/handleInteraction\?:/.test(text), `${file}: contextul handler-ului nu mai declara handleInteraction?: (God-object-ul nu mai e pasat implicit prin contexte)`);
+  }
+  const fallback = fs.readFileSync(path.join(handlersDir, "fallbackInteractionHandler.ts"), "utf8");
+  assert.ok(!/games: unknown\[\]/.test(fallback), "fallback nu mai tipeaza games ca unknown[] (aliniat cu dispatcher-ul tipat)");
 });
 
 test("pregatire migrare commandRegistry: safeDefer e tipat canonic (interaction, ephemeral?) => Promise<void> peste handlere si accepta contractul minimal in helper-ul comun", () => {
@@ -164,7 +168,9 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   assert.ok(!cmd.includes("CommandInstallerTarget"), "commandRegistry nu mai are CommandInstallerTarget (boundary-ul dinamic installers: unknown[] a fost eliminat)");
   assert.ok(!cmd.includes("isCommandModuleInstaller"), "commandRegistry nu mai are garda runtime isCommandModuleInstaller (compunerea e statica, verificata de tsc)");
   assert.ok(!/context as /.test(cmd), "boundary-ul de compunere nu foloseste cast-uri (`context as T`), ci factory-uri tipate si Object.assign");
-  assert.match(cmd, /function requireInstalled/, "commandRegistry verifica fail-fast ca functiile adaugate de handlere (handleInteraction/buildHelpEmbed) exista dupa compunere");
+  assert.ok(!/requireInstalled/.test(cmd), "commandRegistry nu mai are nevoie de garda requireInstalled: handleInteraction/buildHelpEmbed sunt locale, nu scrise inapoi in context");
+  assert.ok(!/ctx\.handleInteraction =|ctx\.buildHelpEmbed =/.test(cmd), "commandRegistry nu mai muta contextul dupa compunere (ultimul rest de God-object dinamic a disparut)");
+  assert.ok(!/HandlerMutableContext/.test(cmd), "overrides-ul de teste ramane doar Partial<CommandRuntimeBootContext>, fara campuri mutabile de handler");
   assert.match(cmd, /const commandHandlers: CommandHandler\[\]/, "routing-ul e o lista tipata CommandHandler[] (din attach*.buildCommandHandler(ctx)), nu un lant de installX care impacheteaza handleInteraction");
   assert.match(cmd, /async function dispatchCommand/, "commandRegistry ruteaza prin dispatchCommand (loop canHandle/handle, fallback ultimul), nu prin lant ordonat-sensibil de installX");
   assert.ok(!/attachAdminCommandRouterGuard\(ctx\)|attachCommandSnoozeGuard\(ctx\)/.test(cmd), "guard-urile nu se mai instaleaza prin mutarea contextului (fara attachX(ctx))");
@@ -172,7 +178,7 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   assert.match(cmd, /createAdminCommandGuard\(\{/, "admin guard-ul e construit ca factory in registry");
   assert.match(cmd, /handleSnoozedCommand\(interaction as SnoozeInteraction, games, dispatchCommand\)/, "pipeline explicit: snooze guard -> dispatchCommand");
   assert.match(cmd, /handleAdminProtectedCommand\(interaction as AdminInteraction, games, dispatchWithSnoozeGuard as AdminNext\)/, "pipeline explicit: admin guard (exterior) -> snooze -> dispatcher, aceeasi ordine ca inainte");
-  assert.match(cmd, /ctx\.handleInteraction = handleInteraction/, "registry-ul seteaza handleInteraction o singura data, la finalul compunerii");
+  assert.match(cmd, /return Object\.freeze\(\{/, "registrul intoarce direct functiile locale (handleInteraction/buildHelpEmbed) intr-un obiect inghetat, fara scriere inapoi in context");
   assert.ok((cmd.match(/\.buildCommandHandler\(ctx\)/g) || []).length >= 15, "fiecare handler de comanda contribuie la lista tipata prin buildCommandHandler(ctx) (>= 15 ocurente)");
   assert.match(src, /type SourceRuntimeContext = Partial<SourceRegistryApi>/, "sourceRegistry modeleaza contextul progresiv ca Partial<SourceRegistryApi>");
   assert.match(src, /function requireSourceValue/, "sourceRegistry citeste exporturile prin garda fail-fast pe chei");

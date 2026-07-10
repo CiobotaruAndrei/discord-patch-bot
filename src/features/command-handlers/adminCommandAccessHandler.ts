@@ -78,9 +78,7 @@ type AdminCommandAccessDeps = {
   adminAlert?: (kind: string, title: string, body: string, guildId?: string) => Promise<unknown>;
 };
 
-type AdminCommandAccessContext = AdminCommandAccessDeps & {
-  handleInteraction?: (interaction: DiscordInteraction, games: CommandGame[]) => Promise<unknown> | unknown;
-};
+type AdminCommandAccessContext = AdminCommandAccessDeps;
 
 const adminCommandRouterGuard = require("../command-security/adminCommandRouterGuard") as {
   promptGlobalAccessCode(

@@ -56,9 +56,7 @@ interface PriceAlertInteractionDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-type PriceAlertContext = PriceAlertInteractionDeps & {
-  handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => Promise<unknown> | unknown;
-};
+type PriceAlertContext = PriceAlertInteractionDeps;
 
 function formatAlertLine(alert: PriceAlertRule, index: number): string {
   const state = alert.triggeredAt ? "declansata, asteapta rearmare" : "armata";

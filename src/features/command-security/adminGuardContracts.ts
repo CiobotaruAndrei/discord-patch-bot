@@ -86,7 +86,6 @@ export type SecurityEnvSlice = {
 };
 
 export type AdminCommandGuardContext = {
-  handleInteraction?: NextInteractionHandler;
   GuildModel?: GuildModelLike;
   GuildAuditLogModel?: AdminGuardAuditModel;
   env?: SecurityEnvSlice;

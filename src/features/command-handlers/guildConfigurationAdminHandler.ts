@@ -63,9 +63,7 @@ interface GuildConfigurationAdminDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-type GuildConfigurationAdminContext = GuildConfigurationAdminDeps & {
-  handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => Promise<unknown> | unknown;
-};
+type GuildConfigurationAdminContext = GuildConfigurationAdminDeps;
 
 function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps) {
   const {

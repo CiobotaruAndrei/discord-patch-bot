@@ -53,7 +53,6 @@ type OutboxAdminDeps = {
 
 type OutboxAdminContext = Omit<OutboxAdminDeps, "outboxEnabled" | "recoveryVerifyGlobal" | "recoveryStrict" | "outboxGlobalAdminIds"> & {
   MessageFlags: { Ephemeral: number };
-  handleInteraction?: NextInteractionHandler;
   env: RuntimeEnv;
 };
 

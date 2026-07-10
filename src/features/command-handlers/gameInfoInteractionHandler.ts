@@ -77,9 +77,7 @@ interface GameInfoDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-type GameInfoContext = GameInfoDeps & {
-  handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<object | void | null>;
-};
+type GameInfoContext = GameInfoDeps;
 
 const GAME_INFO_COMMANDS = new Set(["best", "ending", "review-trend", "crossplay", "platforms", "co-op", "system", "game-size", "player-count", "top"]);
 const TOP_ACTIVE_PLAYER_COUNT_CONCURRENCY = 5;

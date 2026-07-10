@@ -48,9 +48,7 @@ interface BackupInteractionDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-type BackupContext = BackupInteractionDeps & {
-  handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => Promise<unknown> | unknown;
-};
+type BackupContext = BackupInteractionDeps;
 
 function backupName(interaction: DiscordInteraction): string {
   return String(interaction.options.getString("name", true) || "").trim();

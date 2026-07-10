@@ -42,7 +42,7 @@ interface SourcesStatusDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-type SourcesStatusContext = SourcesStatusDeps & { handleInteraction?: NextInteractionHandler };
+type SourcesStatusContext = SourcesStatusDeps;
 
 function createSourcesStatusHandler(deps: SourcesStatusDeps) {
   const { enforceCooldown, startCommandLog, safeDefer, safeEdit, loadFetchSnapshot, loadDealsFetchSnapshots, loadSourceHealth } = deps;

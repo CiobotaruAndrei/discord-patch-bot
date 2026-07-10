@@ -32,7 +32,7 @@ type LatestContextDeps = LatestUpdatesHandlerDeps
   & LatestSingleHandlerDeps
   & PriceSearchHandlerDeps;
 
-type LatestContext = LatestContextDeps & { handleInteraction?: NextInteractionHandler };
+type LatestContext = LatestContextDeps;
 
 function createLatestInteractionHandler(deps: LatestContextDeps) {
   const latestUpdates = createLatestUpdatesHandler(deps);

@@ -14,7 +14,6 @@ import { handledCommandError } from "../command-security/commandOutcome";
 const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
 
 type YouTubeContext = YouTubeInteractionDeps & {
-  handleInteraction?: (interaction: DiscordInteraction, games: CommandGame[]) => Promise<unknown> | unknown;
   env?: { NOTIFICATION_OUTBOX_ENABLED?: boolean };
 };
 

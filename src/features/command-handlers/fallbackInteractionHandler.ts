@@ -22,7 +22,6 @@ type Logger = (level: string, context: string, msg: string, meta?: unknown) => v
 interface RouterContext {
   MessageFlags: { Ephemeral: number };
   logger: Logger;
-  handleInteraction?: (interaction: DiscordInteraction, games: GameConfig[]) => Promise<unknown>;
 }
 
 function createFallbackInteractionHandler(deps: RouterContext) {

@@ -48,7 +48,6 @@ type SetInteractionDeps = {
 
 type SetContext = SetInteractionDeps & {
   MessageFlags: { Ephemeral: number };
-  handleInteraction?: NextInteractionHandler;
 };
 
 function createSetInteractionHandler(deps: SetInteractionDeps) {

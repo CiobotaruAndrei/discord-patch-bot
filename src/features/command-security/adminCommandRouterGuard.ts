@@ -141,26 +141,7 @@ function createAdminCommandGuard(
   return { handleAdminProtectedCommand };
 }
 
-function installAdminCommandGuard(target: AdminCommandGuardContext) {
-  const previousHandleInteraction = target.handleInteraction;
-  const guard = createAdminCommandGuard({
-    requireGuildAdmin: interaction => requireGuildAdminWithConfiguredAccess(target, interaction),
-    authorizeGuildAdmin: interaction => authorizeGuildAdminWithConfiguredAccess(target, interaction)
-  }, target);
-
-  async function handleInteraction(interaction: AdminGuardInteraction, games: AdminGuardGameConfig[]) {
-    if (!isAdminProtectedCommand(interaction)) {
-      if (typeof previousHandleInteraction === "function") return previousHandleInteraction(interaction, games);
-      return undefined;
-    }
-
-    return guard.handleAdminProtectedCommand(interaction, games, previousHandleInteraction);
-  }
-
-  Object.assign(target, { handleInteraction });
-}
-
-const adminCommandRouterGuardModule = Object.assign(installAdminCommandGuard, {
+const adminCommandRouterGuardModule = Object.freeze({
   createAdminCommandGuard,
   isAdminProtectedCommand,
   isSensitiveAdminCommand,
