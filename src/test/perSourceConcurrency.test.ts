@@ -17,6 +17,8 @@ class TestSchemaDriftError extends Error {
   }
 }
 
+const httpMetrics = { fetchSuccess: 0, fetchFail: 0 };
+
 function makeUpdate(id: string): NormalizedUpdate {
   return { id, title: "", link: "", excerpt: "", fullText: "", image: null, thumbnail: null, timestamp: "" };
 }
@@ -57,7 +59,7 @@ function makeUpdatesContext() {
     normalizeUpdate: () => makeUpdate("u"),
     safeCheerioLoad: html => cheerioLoad(typeof html === "string" ? html : ""),
     crypto,
-    metricsRef: { fetchSuccess: 0, fetchFail: 0 },
+    getHttpMetrics: () => httpMetrics,
     executeFetchWithCircuitBreaker: async game => ({ game, latest: makeUpdate(game.key), error: null })
   };
   Object.assign(context, attachUpdates.buildFrom(context));
