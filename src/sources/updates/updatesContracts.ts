@@ -1,4 +1,3 @@
-import type { Model } from "mongoose";
 import type { CheerioAPI } from "cheerio";
 import type {
   BotMetrics,
@@ -14,16 +13,21 @@ import type { HttpReq, RssParserLike, RunConcurrent, SchemaDriftErrorClass, Trac
 
 export interface CircuitBreakerDoc {
   _id: string;
-  fails: number;
+  fails?: number;
   cooldownUntil?: Date | string | null;
   alertSent?: boolean;
-  schemaDriftFails: number;
+  schemaDriftFails?: number;
   schemaDriftAlertSent?: boolean;
+}
+
+export interface CircuitBreakerModelLike {
+  findOneAndUpdate(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<CircuitBreakerDoc | null>;
+  updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown>;
 }
 
 export interface UpdatesDeps {
   rssParser: RssParserLike;
-  CircuitBreakerModel: Model<CircuitBreakerDoc>;
+  CircuitBreakerModel: CircuitBreakerModelLike;
   logger: LoggerFunction;
   adminAlert: (kind: string, title: string, body: string) => Promise<void>;
   runConcurrent: RunConcurrent;
@@ -47,7 +51,7 @@ export interface UpdatesDeps {
   normalizeUpdate: (data: PatchUpdate) => NormalizedUpdate;
   safeCheerioLoad: (html: unknown) => CheerioAPI;
   crypto: typeof import("crypto");
-  metricsRef: Pick<BotMetrics, "fetchSuccess" | "fetchFail">;
+  getHttpMetrics(): Pick<BotMetrics, "fetchSuccess" | "fetchFail">;
   executeFetchWithCircuitBreaker?: (game: GameConfig) => Promise<FetchResult>;
 }
 

@@ -13,7 +13,7 @@ export function createUpdatesCircuitBreaker(deps: UpdatesDeps, fetchGameUpdate: 
       SCHEMA_DRIFT_THRESHOLD,
       SchemaDriftError,
       adminAlert,
-      metricsRef
+      getHttpMetrics
     } = deps;
     let cb: CircuitBreakerDoc | null = null;
     try {
@@ -27,7 +27,7 @@ export function createUpdatesCircuitBreaker(deps: UpdatesDeps, fetchGameUpdate: 
       deps.logger("WARN", "CIRCUIT_BREAKER",
         `Eroare la citirea state-ului CB pentru ${game.key}, sar fetch-ul ciclului curent`,
         errorMessage(cbGetErr));
-      metricsRef.fetchFail++;
+      getHttpMetrics().fetchFail++;
       return { game, latest: null, error: errorMessage(cbGetErr), outcome: "transient-error" };
     }
     if (cb.cooldownUntil && new Date() < new Date(cb.cooldownUntil)) {
@@ -35,13 +35,13 @@ export function createUpdatesCircuitBreaker(deps: UpdatesDeps, fetchGameUpdate: 
     }
     try {
       const latest = await fetchGameUpdate(game);
-      if (cb.fails > 0 || cb.cooldownUntil || cb.alertSent || cb.schemaDriftFails > 0 || cb.schemaDriftAlertSent) {
+      if ((cb.fails ?? 0) > 0 || cb.cooldownUntil || cb.alertSent || (cb.schemaDriftFails ?? 0) > 0 || cb.schemaDriftAlertSent) {
         await CircuitBreakerModel.updateOne(
           { _id: game.key },
           { $set: { fails: 0, cooldownUntil: null, alertSent: false, schemaDriftFails: 0, schemaDriftAlertSent: false } }
         );
       }
-      metricsRef.fetchSuccess++;
+      getHttpMetrics().fetchSuccess++;
       return { game, latest, error: null, outcome: "ok" };
     } catch (error) {
       try {
@@ -51,7 +51,7 @@ export function createUpdatesCircuitBreaker(deps: UpdatesDeps, fetchGameUpdate: 
             { $inc: { schemaDriftFails: 1 } },
             { new: true, upsert: true }
           );
-          if (updatedCb.schemaDriftFails >= SCHEMA_DRIFT_THRESHOLD
+          if (updatedCb && (updatedCb.schemaDriftFails ?? 0) >= SCHEMA_DRIFT_THRESHOLD
               && (!updatedCb.cooldownUntil || new Date() >= new Date(updatedCb.cooldownUntil))) {
             const jitter = Math.floor(Math.random() * CIRCUIT_BREAKER_JITTER_MS);
             await CircuitBreakerModel.updateOne(
@@ -67,7 +67,7 @@ export function createUpdatesCircuitBreaker(deps: UpdatesDeps, fetchGameUpdate: 
               );
             }
           }
-          metricsRef.fetchFail++;
+          getHttpMetrics().fetchFail++;
           return { game, latest: null, error: error.message, outcome: "schema-drift" };
         }
 
@@ -76,7 +76,7 @@ export function createUpdatesCircuitBreaker(deps: UpdatesDeps, fetchGameUpdate: 
           { $inc: { fails: 1 } },
           { new: true, upsert: true }
         );
-        if (updatedCb.fails >= CIRCUIT_BREAKER_FAIL_THRESHOLD
+        if (updatedCb && (updatedCb.fails ?? 0) >= CIRCUIT_BREAKER_FAIL_THRESHOLD
             && (!updatedCb.cooldownUntil || new Date() >= new Date(updatedCb.cooldownUntil))) {
           const jitter = Math.floor(Math.random() * CIRCUIT_BREAKER_JITTER_MS);
           await CircuitBreakerModel.updateOne(
@@ -97,7 +97,7 @@ export function createUpdatesCircuitBreaker(deps: UpdatesDeps, fetchGameUpdate: 
           `Eroare la actualizarea state-ului circuit breaker pentru ${game.key}`,
           errorMessage(bookkeepingErr));
       }
-      metricsRef.fetchFail++;
+      getHttpMetrics().fetchFail++;
       return { game, latest: null, error: errorMessage(error), outcome: classifySourceError(errorMessage(error)) };
     }
   }

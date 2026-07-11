@@ -4,7 +4,19 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const Parser = require("rss-parser");
 const crypto = require("crypto");
-const data = require("../infra/mongo/mongoContext");
+const mongoContext = require("../infra/mongo/mongoContext") as typeof import("../infra/mongo/mongoContext");
+
+const {
+  env,
+  logger,
+  getAbortSignal,
+  getCurrencyConfig,
+  formatPrice,
+  runConcurrent,
+  adminAlert,
+  SchemaDriftError,
+  CircuitBreakerModel
+} = mongoContext;
 
 export = {
   axios,
@@ -12,5 +24,13 @@ export = {
   Parser,
   crypto,
   rssParser: new Parser(),
-  ...data
+  env,
+  logger,
+  getAbortSignal,
+  getCurrencyConfig,
+  formatPrice,
+  runConcurrent,
+  adminAlert,
+  SchemaDriftError,
+  CircuitBreakerModel
 };

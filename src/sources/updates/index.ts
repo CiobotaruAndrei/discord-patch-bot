@@ -61,7 +61,7 @@ function buildUpdatesFrom(target: UpdatesContext) {
     normalizeUpdate: target.normalizeUpdate,
     safeCheerioLoad: target.safeCheerioLoad,
     crypto: target.crypto,
-    metricsRef: target.metricsRef,
+    getHttpMetrics: target.getHttpMetrics,
     executeFetchWithCircuitBreaker: target.executeFetchWithCircuitBreaker
   });
 }
