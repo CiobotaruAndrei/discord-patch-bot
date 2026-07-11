@@ -1,0 +1,130 @@
+export interface PendingUpdateEntry {
+  id: string;
+  title?: string;
+  link?: string;
+  excerpt?: string;
+  thumbnail?: string | null;
+  image?: string | null;
+  timestamp?: string;
+  createdAt?: Date;
+  attempts?: number;
+}
+
+export interface PendingDiscountEntry {
+  hash: string;
+  snapshot?: unknown;
+  lastSeenAt?: Date;
+  attempts?: number;
+}
+
+export interface NotificationLastError {
+  message?: string;
+  channelId?: string | null;
+  at?: Date | null;
+}
+
+export interface WatchlistGameSuggestionEntry {
+  gameName: string;
+  createdBy: string;
+  createdAt: Date;
+}
+
+export interface FutureReleaseGameEntry {
+  gameName: string;
+  addedBy: string;
+  addedAt: Date;
+  releaseDate?: string;
+  preorderPrice?: string;
+}
+
+export interface AdminCommandAccessConfig {
+  mode: "role" | "role-or-higher";
+  roleId: string;
+  updatedBy: string;
+  updatedAt: Date;
+}
+
+export interface GuildDoc {
+  _id: string;
+  subscribed?: boolean;
+  notificationChannelId?: string | null;
+  pendingUpdates?: Map<string, PendingUpdateEntry[]> | Record<string, PendingUpdateEntry[]>;
+  discountsSubscribed?: boolean;
+  discountChannelId?: string | null;
+  pendingDiscounts?: PendingDiscountEntry[];
+  minDiscountPercent?: number;
+  includeFreeGames?: boolean;
+  includePaidDiscounts?: boolean;
+  notificationMode?: "compact" | "detailed";
+  updateMessageTemplate?: string | null;
+  discountMessageTemplate?: string | null;
+  currency?: string;
+  outboxRecoveryVerify?: boolean;
+  lastProcessedGameKey?: string | null;
+  seenHashVersionUpdates?: number;
+  seenHashVersionDiscounts?: number;
+  updatesInitializing?: boolean;
+  updatesActivationId?: string | null;
+  updatesLastError?: NotificationLastError;
+  discountsInitializing?: boolean;
+  discountsActivationId?: string | null;
+  discountsLastError?: NotificationLastError;
+  enabledGames?: string[];
+  commandSnoozes?: Map<string, Date> | Record<string, Date>;
+  enabledStores?: string[];
+  maxAbsolutePrice?: number;
+  notificationRoleId?: string | null;
+  discountRoleId?: string | null;
+  adminAlertChannelId?: string | null;
+  priceAlerts?: Array<{
+    gameKey: string;
+    gameName: string;
+    appId?: string;
+    aliases?: string[];
+    threshold: number;
+    currency: string;
+    triggeredAt?: Date | null;
+    lastObservedPrice?: number | null;
+    lastObservedAt?: Date | null;
+    absentCycles?: number;
+  }>;
+  youtubeChannels?: Array<{
+    channelId: string;
+    channelName: string;
+    channelUrl: string;
+    subscribedAt: Date;
+    lastCheckedAt?: Date | null;
+    lastVideoId?: string;
+    lastError?: NotificationLastError;
+  }>;
+  youtubeNotificationChannelId?: string | null;
+  youtubeNotificationsEnabled?: boolean;
+  youtubeHasActivated?: boolean;
+  youtubeFilters?: {
+    excludeShorts?: boolean;
+    excludeLives?: boolean;
+    excludePremieres?: boolean;
+    minDurationSeconds?: number;
+  };
+  youtubeMessageTemplate?: string | null;
+  youtubeChannelRoutes?: Array<{
+    channelId: string;
+    discordChannelIds: string[];
+  }>;
+  youtubeTitleIncludeWords?: string[];
+  watchlistGameSuggestions?: WatchlistGameSuggestionEntry[];
+  futureReleaseGames?: FutureReleaseGameEntry[];
+  adminCommandAccess?: AdminCommandAccessConfig | null;
+  adminCommandAccessByCommand?: Record<string, AdminCommandAccessConfig | null | undefined>;
+  playerCountSubscribed?: boolean;
+  playerCountChannelId?: string | null;
+  playerCountGames?: string[];
+  futureReleaseSubscribed?: boolean;
+  futureReleaseChannelId?: string | null;
+  futureReleaseInitializing?: boolean;
+  futureReleaseActivationId?: string | null;
+  dlcSubscribed?: boolean;
+  dlcChannelId?: string | null;
+  dlcInitializing?: boolean;
+  dlcActivationId?: string | null;
+}
