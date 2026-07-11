@@ -13,6 +13,7 @@ import { buildConfigBackupSchemas } from "./configBackupSchemas";
 import { buildSuggestedCommandSchemas } from "./suggestedCommandSchemas";
 import { buildYoutubeErrorLogSchemas } from "./youtubeErrorLogSchemas";
 import { buildDeadLetterLogSchemas } from "./deadLetterLogSchemas";
+import { publishGuildSettingsChanged } from "./guildSettingsEvents";
 
 interface MongoModelsContext {
   mongoose: typeof Mongoose;
@@ -121,6 +122,14 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   guildSchema.index({ dlcSubscribed: 1, dlcChannelId: 1 }, { background: true });
   guildSchema.index({ playerCountSubscribed: 1, playerCountChannelId: 1 }, { background: true });
 
+  const publishChangedGuild = function(this: { getFilter(): { _id?: unknown } }): void {
+    const guildId = this.getFilter()._id;
+    if (typeof guildId === "string") publishGuildSettingsChanged(guildId);
+  };
+  guildSchema.post("updateOne", publishChangedGuild);
+  guildSchema.post("findOneAndUpdate", publishChangedGuild);
+  guildSchema.post("deleteOne", publishChangedGuild);
+
   const GuildModel = mongoose.model("Guild", guildSchema);
 
   const {
@@ -204,3 +213,4 @@ const mongoModelsModule = {
 };
 
 export = mongoModelsModule;
+
