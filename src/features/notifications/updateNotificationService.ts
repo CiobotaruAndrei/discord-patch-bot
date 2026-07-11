@@ -4,11 +4,11 @@ import type { GameConfig } from "../../types";
 import type { GuildSettings, EmbeddableUpdate, MongoWriteOutcome, NotificationMode } from "../../types";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue";
 import { buildDeadLetterEntry, DeadLetterEntry } from "./deadLetter";
-import { recordDeadLetters, type DeadLetterModelLike } from "./deadLetterRepository";
+import type { DeadLetterModelLike } from "./deadLetterRepository";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
 import { HASH_VERSION } from "../../native/fuzzy";
-import { packEmbedsByBudget, embedCharCost } from "../../shared/discordEmbedChunks";
-import { buildNotificationContent } from "./notificationTemplate";
+import { sendEmbedBatch } from "./notificationBatchExecutor";
+import { persistGuildCycleState } from "./notificationCycleRepository";
 import { planPendingFailure, planRebaselineEntries, requeueFront, takeNextPending } from "./updateNotificationPlanner";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
@@ -161,33 +161,30 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
 
     const notificationRoleId = (guild as { notificationRoleId?: string }).notificationRoleId;
     const messageTemplate = (guild as { updateMessageTemplate?: string | null }).updateMessageTemplate;
-    const messageChunks = packEmbedsByBudget(batch, entry => embedCharCost(entry.embed), { maxCount: DISCORD_EMBEDS_PER_MESSAGE });
-    for (let ci = 0; ci < messageChunks.length; ci++) {
-      const chunk = messageChunks[ci];
-      const sendPayload: Record<string, unknown> = { embeds: chunk.map(entry => entry.embed) };
-      if (ci === 0) {
-        Object.assign(sendPayload, buildNotificationContent(messageTemplate, { count: batch.length }, notificationRoleId || null));
-      }
-      try {
-        await channel.send(sendPayload, {
-          historyEntries: chunk.map(entry => ({
-            kind: "update" as const,
-            gameKey: entry.gameKey,
-            title: String((entry.item as { title?: unknown }).title || ""),
-            link: String((entry.item as { link?: unknown }).link || ""),
-            itemId: String((entry.item as { id?: unknown }).id || "")
-          }))
-        });
-        await sleepIfPositive(DISCORD_SEND_DELAY_MS);
-      } catch (err: unknown) {
-        const failed = messageChunks.slice(ci).reduce<typeof batch>((acc, c) => { for (const entry of c) acc.push(entry); return acc; }, []);
-        for (const entry of failed) await rollbackSeenUpdate(String(guild._id), entry.gameKey, entry.item.id).catch(() => null);
-        if (isPermanentDiscordError(err)) {
-          const reason = `Discord cod ${(err as { code?: unknown }).code}: ${transientErrorMessage(err)}`;
-          await disableUpdatesForChannelError(String(guild._id), channel.id, reason).catch(() => null);
-          logger("WARN", "CRON_UPDATES", `Disable updates pentru guild ${guild._id} - cod permanent`, reason);
-          break;
-        }
+    await sendEmbedBatch({
+      channel,
+      batch,
+      embedOf: entry => entry.embed,
+      historyEntryFor: entry => ({
+        kind: "update" as const,
+        gameKey: entry.gameKey,
+        title: String((entry.item as { title?: unknown }).title || ""),
+        link: String((entry.item as { link?: unknown }).link || ""),
+        itemId: String((entry.item as { id?: unknown }).id || "")
+      }),
+      messageTemplate,
+      roleId: notificationRoleId,
+      maxEmbedsPerMessage: DISCORD_EMBEDS_PER_MESSAGE,
+      sendDelayMs: DISCORD_SEND_DELAY_MS,
+      sleepIfPositive,
+      isPermanentDiscordError,
+      transientErrorMessage,
+      rollbackEntry: entry => rollbackSeenUpdate(String(guild._id), entry.gameKey, entry.item.id),
+      onPermanentError: async reason => {
+        await disableUpdatesForChannelError(String(guild._id), channel.id, reason).catch(() => null);
+        logger("WARN", "CRON_UPDATES", `Disable updates pentru guild ${guild._id} - cod permanent`, reason);
+      },
+      onTransientFailure: (failed, err) => {
         for (let j = failed.length - 1; j >= 0; j--) {
           const entry = failed[j];
           const sendFailure = planPendingFailure(entry.item, PENDING_UPDATE_MAX_ATTEMPTS);
@@ -201,20 +198,17 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
           }
         }
         logger("WARN", "CRON_UPDATES", `Nu am putut trimite update-uri pentru guild ${guild._id}`, transientErrorMessage(err));
-        break;
       }
-    }
+    });
 
     const pendingObject = mapToObject(pendingByGame);
     const setDoc: Record<string, unknown> = { pendingUpdates: pendingObject };
     if (lastProcessedGameKey) setDoc.lastProcessedGameKey = lastProcessedGameKey;
-    const writeResult = await GuildModel.updateOne(
+    await persistGuildCycleState(
+      GuildModel, GuildDeadLetterModel, String(guild._id),
       { _id: guild._id, subscribed: true, notificationChannelId: channel.id },
-      { $set: setDoc }
+      setDoc, deadLettered
     );
-    if (deadLettered.length && (writeResult.matchedCount ?? 0) > 0) {
-      await recordDeadLetters(GuildDeadLetterModel, String(guild._id), deadLettered);
-    }
   }
 
   function buildOptimizedGameList<G extends { key: string }>(
