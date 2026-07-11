@@ -64,7 +64,7 @@ function extractGuildDocFields(modelTypes: string): Set<string> {
 
 test("modelTypes.GuildDoc este aliniat 1:1 cu campurile top-level din guildSchema (anti-drift)", () => {
   const schemaFields = extractGuildSchemaFields(read("models.ts"));
-  const docFields = extractGuildDocFields(read("modelTypes.ts"));
+  const docFields = extractGuildDocFields(read("guildSettingsDocTypes.ts"));
   assert.ok(schemaFields.size > 40, `extractia de campuri din guildSchema functioneaza (${schemaFields.size} campuri)`);
   const missingInDoc = [...schemaFields].filter(field => !docFields.has(field));
   assert.deepEqual(missingInDoc, [], `campuri din guildSchema fara pereche in GuildDoc: ${missingInDoc.join(", ")}`);
@@ -73,7 +73,7 @@ test("modelTypes.GuildDoc este aliniat 1:1 cu campurile top-level din guildSchem
 });
 
 test("modelTypes.GuildDoc reflecta si campurile noi aliniate: commandSnoozes si priceAlerts.absentCycles", () => {
-  const modelTypes = read("modelTypes.ts");
+  const modelTypes = read("guildSettingsDocTypes.ts");
   assert.match(modelTypes, /commandSnoozes\?: Map<string, Date> \| Record<string, Date>/, "GuildDoc declara commandSnoozes (era in schema, lipsea din tip)");
   const priceAlertsStart = modelTypes.indexOf("priceAlerts?: Array<{");
   const priceAlertsBlock = modelTypes.slice(priceAlertsStart, modelTypes.indexOf("}>;", priceAlertsStart));

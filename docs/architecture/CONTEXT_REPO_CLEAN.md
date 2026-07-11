@@ -172,6 +172,12 @@ src/
     mongo/
       models.ts
       modelTypes.ts
+      guildSettingsDocTypes.ts
+      operationalDocTypes.ts
+      adminRecordDocTypes.ts
+      guildLogDocTypes.ts
+      seenDocTypes.ts
+      outboxDocTypes.ts
       guildNotificationSchemas.ts
       guildYoutubeSchemas.ts
       guildAdminRecordSchemas.ts
