@@ -25,9 +25,9 @@ import type { CreateShutdownControllerDeps, ShutdownController } from "./lifecyc
 import type { OutboxDiscordClient } from "../features/notifications/outboundChannel";
 import type { RedisRuntime } from "../infra/redis/redisClient";
 
-const { ensureNativeFuzzy } = require("../native/fuzzy") as { ensureNativeFuzzy: () => boolean };
-const { attachRedisMetrics } = require("../infra/redis/redisMetrics") as typeof import("../infra/redis/redisMetrics");
-import { runCacheHydrationPhase, runDatabaseStartupPhase, runDiscordStartupPhase, runHttpStartupPhase } from "./lifecycle/bootPhases";
+import { createRuntimeServices } from "./runtime/runtimeServices";
+import { createSchedulers } from "./runtime/runtimeSchedulers";
+import { createBootSequence, connectMongoWithRetry, hydrateStartupCaches } from "./runtime/bootSequence";
 
 interface CommandRuntime {
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
@@ -50,7 +50,7 @@ interface ScraperRuntime {
   getEnrichedCacheSize(): number;
 }
 
-interface HttpServerLike {
+export interface HttpServerLike {
   on(event: "error", listener: (err: Error) => void): unknown;
   listen(port: number | string, callback?: () => void): unknown;
   close(callback?: (err?: Error) => void): unknown;
@@ -101,7 +101,7 @@ interface PerformanceLike {
   now(): number;
 }
 
-interface DiscordClientLike extends LifecycleEventClient {
+export interface DiscordClientLike extends LifecycleEventClient {
   channels: { fetch(channelId: string): Promise<LifecycleDiscordChannel | null> | LifecycleDiscordChannel | null };
   login(token: string): Promise<unknown>;
   destroy(): void | Promise<void>;
@@ -133,7 +133,7 @@ export interface AppRuntimeDeps {
   scrapers: ScraperRuntime;
 }
 
-interface RuntimeServices {
+export interface RuntimeServices {
   client: DiscordClientLike;
   metrics: BotMetrics;
   lifecycle: LifecycleState;
@@ -143,7 +143,7 @@ interface RuntimeServices {
   games: GameConfig[];
 }
 
-interface Schedulers {
+export interface Schedulers {
   cronController: CronController;
   outboxWorker: OutboxWorker;
   outboxEnabled: boolean;
@@ -157,155 +157,6 @@ export interface AppRuntime {
   outboxWorker: OutboxWorker;
   httpServer: HttpServerLike;
   metrics: BotMetrics;
-}
-
-const MONGO_CONNECT_MAX_ATTEMPTS = 5;
-const MONGO_CONNECT_INITIAL_BACKOFF_MS = 1000;
-const MONGO_CONNECT_MAX_BACKOFF_MS = 16000;
-const SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
-const BOOT_ALERT_BUDGET_MS = 3000;
-
-function createRuntimeServices(deps: AppRuntimeDeps): RuntimeServices {
-  const { Client, GatewayIntentBits, loadConfig, createMetrics, createRateLimiter, createHousekeeping, scrapers, commands, errorMessage, mongo } = deps;
-  const { logger, env, cleanGuildCache, setAdminAlertDiscordClient } = mongo;
-
-  const { config, games } = loadConfig();
-  const metrics = createMetrics();
-  scrapers.attachMetrics(metrics);
-  attachRedisMetrics(metrics);
-
-  const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-  setAdminAlertDiscordClient(client);
-  const lifecycle = { isShuttingDown: false };
-  const rateLimiter = createRateLimiter(env, metrics);
-  const housekeeping = createHousekeeping({
-    commands, cleanGuildCache, scrapers, rateLimiter, logger, env, errorMessage
-  });
-
-  return { client, metrics, lifecycle, rateLimiter, housekeeping, config, games };
-}
-
-function createSchedulers(deps: AppRuntimeDeps, services: RuntimeServices): Schedulers {
-  const { mongoose, performance, crypto, createCronController, createOutboxWorker, errorMessage, errorDetail, commands, mongo } = deps;
-  const { logger, env, parseEnvNumber, acquireDbLock, renewDbLock, releaseDbLock, adminAlert, requestContext, getOutboxPaused } = mongo;
-  const { client, metrics, lifecycle, config, games } = services;
-
-  const cronController = createCronController({
-    mongoose, performance, crypto, logger, env, parseEnvNumber,
-    acquireDbLock, renewDbLock, releaseDbLock, commands, adminAlert,
-    client, games, config, metrics, lifecycle, errorMessage, errorDetail, requestContext
-  });
-
-  const outboxEnabled = env.NOTIFICATION_OUTBOX_ENABLED;
-  const outboxDrainLimit = parseEnvNumber("NOTIFICATION_OUTBOX_DRAIN_LIMIT", 50, { min: 1, max: 1000 });
-  const outboxPerJobBudgetMs = env.DISCORD_SEND_RATE_MAX_WAIT_MS + 2000;
-  const outboxWorker = createOutboxWorker({
-    mongoose, client, logger, parseEnvNumber, acquireDbLock, releaseDbLock,
-    drainOutbox: async (drainClient) => commands.drainOutbox(drainClient),
-    lifecycle, metrics, errorMessage, adminAlert, isPaused: () => getOutboxPaused(),
-    drainLimit: outboxDrainLimit, perJobBudgetMs: outboxPerJobBudgetMs
-  });
-
-  return { cronController, outboxWorker, outboxEnabled };
-}
-
-type ConnectMongoDeps = {
-  mongoose: Pick<AppRuntimeDeps["mongoose"], "connect">;
-  errorMessage: AppRuntimeDeps["errorMessage"];
-  mongo: {
-    logger: AppRuntimeDeps["mongo"]["logger"];
-    env: Pick<AppRuntimeDeps["mongo"]["env"], "MONGO_URI" | "MONGO_MAX_POOL_SIZE">;
-  };
-};
-
-type HydrateCachesDeps = {
-  commands: Pick<AppRuntimeDeps["commands"], "setUpdatesCache" | "setDealsCache">;
-  mongo: Pick<AppRuntimeDeps["mongo"], "logger" | "loadFetchSnapshot" | "loadDealsFetchSnapshots">;
-};
-
-async function connectMongoWithRetry(deps: ConnectMongoDeps): Promise<void> {
-  const { mongoose, errorMessage, mongo } = deps;
-  const { logger, env } = mongo;
-  let backoff = MONGO_CONNECT_INITIAL_BACKOFF_MS;
-  for (let attempt = 1; attempt <= MONGO_CONNECT_MAX_ATTEMPTS; attempt++) {
-    try {
-      await mongoose.connect(env.MONGO_URI, { maxPoolSize: env.MONGO_MAX_POOL_SIZE });
-      if (attempt > 1) {
-        logger("INFO", "BOOT", `Mongo conectat la incercarea ${attempt}/${MONGO_CONNECT_MAX_ATTEMPTS}`);
-      }
-      return;
-    } catch (err) {
-      if (attempt === MONGO_CONNECT_MAX_ATTEMPTS) throw err;
-      const jitter = Math.round(backoff * (0.5 + Math.random() * 0.5));
-      logger("WARN", "BOOT",
-        `Mongo connect a esuat (incercarea ${attempt}/${MONGO_CONNECT_MAX_ATTEMPTS}), reincerc in ${jitter}ms`,
-        errorMessage(err));
-      await new Promise(resolve => setTimeout(resolve, jitter));
-      backoff = Math.min(backoff * 2, MONGO_CONNECT_MAX_BACKOFF_MS);
-    }
-  }
-}
-
-async function hydrateStartupCaches(deps: HydrateCachesDeps): Promise<void> {
-  const { commands, mongo } = deps;
-  const { logger, loadFetchSnapshot, loadDealsFetchSnapshots } = mongo;
-  const now = Date.now();
-  let hydratedUpdates = false;
-  let hydratedDeals = 0;
-  const updatesSnapshot = await loadFetchSnapshot("updates");
-  if (updatesSnapshot && Array.isArray(updatesSnapshot.payload)
-      && now - updatesSnapshot.fetchedAt.getTime() < SNAPSHOT_MAX_AGE_MS) {
-    commands.setUpdatesCache(updatesSnapshot.payload as FetchResult[]);
-    hydratedUpdates = true;
-  }
-  for (const snapshot of await loadDealsFetchSnapshots()) {
-    if (Array.isArray(snapshot.payload)
-        && now - snapshot.fetchedAt.getTime() < SNAPSHOT_MAX_AGE_MS) {
-      commands.setDealsCache(snapshot.currency, snapshot.payload as DealInfo[]);
-      hydratedDeals++;
-    }
-  }
-  if (hydratedUpdates || hydratedDeals) {
-    logger("INFO", "BOOT", `Cache hidratat din snapshot DB: updates=${hydratedUpdates}, deals=${hydratedDeals}`);
-  }
-}
-
-function createBootSequence(deps: AppRuntimeDeps, ctx: { client: DiscordClientLike; httpServer: HttpServerLike }): () => Promise<void> {
-  const { errorMessage, errorDetail, redis, mongo } = deps;
-  const { logger, env, adminAlert, waitForMongoReady, runMigrations } = mongo;
-  const { client, httpServer } = ctx;
-
-  return async function start(): Promise<void> {
-    try {
-      if (!ensureNativeFuzzy()) {
-        logger("WARN", "BOOT", "Addon Rust indisponibil — rulez cu fallback TypeScript (permis explicit in afara productiei sau prin ALLOW_NATIVE_FALLBACK).");
-      }
-      await runDatabaseStartupPhase({
-        connectMongo: () => connectMongoWithRetry(deps),
-        waitForMongoReady,
-        runMigrations,
-        migrationsContinueOnError: env.MIGRATIONS_CONTINUE_ON_ERROR,
-        logger, adminAlert, errorMessage, errorDetail
-      });
-      await redis.connect();
-      await runCacheHydrationPhase({
-        hydrateCaches: () => hydrateStartupCaches(deps),
-        logger, errorMessage
-      });
-      runHttpStartupPhase({ httpServer, port: env.PORT, logger, adminAlert, errorMessage, errorDetail });
-      await runDiscordStartupPhase({ client, token: env.DISCORD_TOKEN });
-    } catch (err) {
-      logger("ERROR", "BOOT", "Eroare la pornire", errorDetail(err));
-      await Promise.race([
-        adminAlert("boot:fatal", "Botul nu a putut porni", errorMessage(err)).catch(() => null),
-        new Promise<void>(resolve => {
-          const t = setTimeout(resolve, BOOT_ALERT_BUDGET_MS);
-          if (typeof t.unref === "function") t.unref();
-        })
-      ]);
-      throw err;
-    }
-  };
 }
 
 function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
@@ -352,3 +203,4 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
 }
 
 export { createAppRuntime, createRuntimeServices, createSchedulers, connectMongoWithRetry, hydrateStartupCaches, createBootSequence };
+
