@@ -1,4 +1,5 @@
 import type { CacheEntry, GuildSettings, RuntimeEnv } from "../../types";
+import { subscribeGuildSettingsChanged } from "./guildSettingsEvents";
 
 interface GuildSettingsModelLike {
   findById(id: string): { lean(): Promise<(GuildSettings & Record<string, unknown>) | null> };
@@ -54,6 +55,8 @@ function invalidateGuildCache(guildId: string): void {
   guildSettingsCache.delete(guildId);
 }
 
+subscribeGuildSettingsChanged(invalidateGuildCache);
+
 function cleanGuildCache(): void {
   const now = Date.now();
   for (const [key, value] of guildSettingsCache.entries()) {
@@ -87,3 +90,4 @@ function attachGuildSettings(target: GuildSettingsContext): void {
 attachGuildSettings.buildFrom = buildGuildSettingsFrom;
 
 export = attachGuildSettings;
+
