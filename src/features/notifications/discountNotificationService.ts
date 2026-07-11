@@ -2,12 +2,12 @@
 
 import type { GuildSettings, DealInfo, MongoWriteOutcome, PendingDiscount, NotificationMode, ValidatedDealInfo } from "../../types";
 import { buildDeadLetterEntry, DeadLetterEntry } from "./deadLetter";
-import { recordDeadLetters, type DeadLetterModelLike } from "./deadLetterRepository";
+import type { DeadLetterModelLike } from "./deadLetterRepository";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
 import { HASH_VERSION } from "../../native/fuzzy";
 
-import { packEmbedsByBudget, embedCharCost } from "../../shared/discordEmbedChunks";
-import { buildNotificationContent } from "./notificationTemplate";
+import { sendEmbedBatch } from "./notificationBatchExecutor";
+import { persistGuildCycleState } from "./notificationCycleRepository";
 import { buildDealsHashIndex, planDiscountFailure, planPendingDiscounts } from "./discountNotificationPlanner";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
@@ -193,48 +193,42 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
 
     const discountRoleId = (guild as { discountRoleId?: string }).discountRoleId;
     const messageTemplate = (guild as { discountMessageTemplate?: string | null }).discountMessageTemplate;
-    const messageChunks = packEmbedsByBudget(batch, entry => embedCharCost(entry.embed), { maxCount: DISCORD_EMBEDS_PER_MESSAGE });
-    for (let ci = 0; ci < messageChunks.length; ci++) {
-      const chunk = messageChunks[ci];
-      const sendPayload: Record<string, unknown> = { embeds: chunk.map(entry => entry.embed) };
-      if (ci === 0) {
-        Object.assign(sendPayload, buildNotificationContent(messageTemplate, { count: batch.length }, discountRoleId || null));
-      }
-      try {
-        await channel.send(sendPayload, {
-          historyEntries: chunk.map(entry => {
-            const snapshot = (entry.item.snapshot || {}) as { title?: unknown; url?: unknown; link?: unknown };
-            return {
-              kind: "discount" as const,
-              title: String(snapshot.title || ""),
-              link: String(snapshot.url || snapshot.link || ""),
-              itemId: String((entry.item as { hash?: unknown }).hash || "")
-            };
-          })
-        });
-        await sleepIfPositive(DISCORD_SEND_DELAY_MS);
-      } catch (err: unknown) {
-        const failed = messageChunks.slice(ci).reduce<typeof batch>((acc, c) => { for (const entry of c) acc.push(entry); return acc; }, []);
-        for (const entry of failed) await rollbackSeenDiscount(String(guild._id), entry.item.hash).catch(() => null);
-        if (isPermanentDiscordError(err)) {
-          const reason = `Discord cod ${(err as { code?: unknown }).code}: ${transientErrorMessage(err)}`;
-          await disableDiscountsForChannelError(String(guild._id), channel.id, reason).catch(() => null);
-          logger("WARN", "CRON_DISCOUNTS", `Disable discounts pentru guild ${guild._id} - cod permanent`, reason);
-          break;
-        }
+    await sendEmbedBatch({
+      channel,
+      batch,
+      embedOf: entry => entry.embed,
+      historyEntryFor: entry => {
+        const snapshot = (entry.item.snapshot || {}) as { title?: unknown; url?: unknown; link?: unknown };
+        return {
+          kind: "discount" as const,
+          title: String(snapshot.title || ""),
+          link: String(snapshot.url || snapshot.link || ""),
+          itemId: String((entry.item as { hash?: unknown }).hash || "")
+        };
+      },
+      messageTemplate,
+      roleId: discountRoleId,
+      maxEmbedsPerMessage: DISCORD_EMBEDS_PER_MESSAGE,
+      sendDelayMs: DISCORD_SEND_DELAY_MS,
+      sleepIfPositive,
+      isPermanentDiscordError,
+      transientErrorMessage,
+      rollbackEntry: entry => rollbackSeenDiscount(String(guild._id), entry.item.hash),
+      onPermanentError: async reason => {
+        await disableDiscountsForChannelError(String(guild._id), channel.id, reason).catch(() => null);
+        logger("WARN", "CRON_DISCOUNTS", `Disable discounts pentru guild ${guild._id} - cod permanent`, reason);
+      },
+      onTransientFailure: (failed, err) => {
         for (const entry of failed) retryOrDeadLetter(entry.item, err);
         logger("WARN", "CRON_DISCOUNTS", "Nu am putut trimite reduceri", transientErrorMessage(err));
-        break;
       }
-    }
+    });
 
-    const writeResult = await GuildModel.updateOne(
+    await persistGuildCycleState(
+      GuildModel, GuildDeadLetterModel, String(guild._id),
       { _id: guild._id, discountsSubscribed: true, discountChannelId: channel.id },
-      { $set: { pendingDiscounts: remaining.slice(-PENDING_DISCOUNTS_LIMIT) } }
+      { pendingDiscounts: remaining.slice(-PENDING_DISCOUNTS_LIMIT) }, deadLettered
     );
-    if (deadLettered.length && (writeResult.matchedCount ?? 0) > 0) {
-      await recordDeadLetters(GuildDeadLetterModel, String(guild._id), deadLettered);
-    }
   }
 
   async function checkForDiscounts(client: NotificationDiscordClient, shouldAbort: (() => boolean) | null = null): Promise<void> {

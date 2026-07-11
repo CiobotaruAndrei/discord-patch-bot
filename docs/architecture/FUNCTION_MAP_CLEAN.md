@@ -404,19 +404,24 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/features/notifications/updateNotificationService.ts`
 
-- Proceseaza update-urile noi.
+- Proceseaza update-urile noi; serviciul e orchestrator peste separarea planner / executor / persistence: deciziile pure stau in `updateNotificationPlanner.ts`/`pendingUpdatesQueue.ts`, trimiterea in `notificationBatchExecutor.ts`, iar scrierea finala de ciclu in `notificationCycleRepository.ts`.
 - Verifica deduplicarea prin repository.
-- Construieste si trimite embed-uri de update.
+- Construieste embed-urile si le preda executorului comun (`sendEmbedBatch`), cu callback-urile per-tip pentru rollback (`rollbackSeenUpdate` pe `(gameKey, id)`), dezactivare la eroare permanenta si requeue-in-fata/dead-letter la esec tranzitoriu (ordinea inversa a requeue-ului e pastrata in callback).
 - Snapshot-ul de rezerva din event store trece prin `validateUpdateFetchSnapshot` (itemii fara `game.key`/`game.name`/`latest.id` valide sunt eliminati; daca nimic nu trece, fallback-ul e tratat ca inexistent, fara dispatch pe date neverificate); `checkForUpdates` e tipat `GameConfig[]` end-to-end (serviciu -> registry -> appRuntime -> cron).
 - Esecul total e propagat, nu inghitit: fetch picat fara snapshot proaspat, toate guild-urile esuate la dispatch sau **toate jocurile cu `latest: null` si erori reale (non-abort)** -> `checkForUpdates` arunca, deci cron-ul marcheaza ciclul esuat (metrics + admin alert + health window); esecul partial ramane doar logat. Un rezultat integral `latest: null` nu se persista niciodata ca snapshot (ar deveni fallback fals-proaspat care mascheaza caderea).
 
 ### `src/features/notifications/discountNotificationService.ts`
 
-- Proceseaza reducerile noi.
+- Proceseaza reducerile noi; acelasi tipar planner / executor / persistence ca la update-uri: deciziile pure in `discountNotificationPlanner.ts`, trimiterea prin `sendEmbedBatch` (rollback pe `hash`, dezactivare la permanent, `retryOrDeadLetter` in ordine la tranzitoriu), scrierea finala prin `persistGuildCycleState`.
 - Verifica deduplicarea prin repository.
 - Foloseste `dealPassesFilters` pentru a respecta setarile guild-ului.
 - Snapshot-ul de rezerva pentru reduceri trece prin `validatePendingDiscountSnapshot` (snapshot corupt = fallback inexistent, fara dispatch).
 - Esecul total e propagat, nu inghitit: `checkForDiscounts` inspecteaza rezultatul `runConcurrent` si arunca daca toate guild-urile abonate au esuat (ex. fetch picat pentru toate monedele, fara snapshot proaspat); esecul partial ramane doar logat.
+
+### `src/features/notifications/notificationBatchExecutor.ts` (+ `notificationCycleRepository.ts`)
+
+- `sendEmbedBatch` e executorul comun al pipeline-ului de notificari (update-uri + reduceri): imparte batch-ul in mesaje prin `packEmbedsByBudget` (max 10 embed-uri, buget de caractere), pune content-ul/mentiunea de rol doar pe primul mesaj, scrie `historyEntries` per chunk si respecta pauza dintre mesaje; la esec face rollback best-effort pe TOATE chunk-urile ramase, apoi clasifica: eroare permanenta Discord -> `onPermanentError("Discord cod X: ...")` (dezactivarea canalului ramane in serviciu), altfel `onTransientFailure(failed, err)` (requeue/dead-letter per-tip ramane in serviciu) si se opreste. Acoperit de `notificationBatchExecutor.test.ts`.
+- `persistGuildCycleState` e pasul de persistence al ciclului: un singur `updateOne` cu `$set` pe filtrul de abonare (guild inca abonat pe acelasi canal), iar dead-letter-ele se scriu in colectia dedicata doar daca scrierea principala a gasit documentul. Acoperit de `notificationCycleRepository.test.ts`.
 
 ### `src/features/notifications/outboundChannel.ts`
 
