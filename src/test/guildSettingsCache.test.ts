@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { GuildSettings } from "../types";
+import { publishGuildSettingsChanged } from "../infra/mongo/guildSettingsEvents";
 
 const attachGuildSettings = require("../infra/mongo/guildSettings") as typeof import("../infra/mongo/guildSettings");
 
@@ -79,3 +80,18 @@ test("touching an entry refreshes its LRU position", async () => {
   assert.equal(fetched.filter(id => id === ids[1]).length, 2,
     `${ids[1]} was evicted by the bump, then re-fetched`);
 });
+
+test("GuildSettingsChanged invalideaza intrarea si forteaza recitirea din Mongo", async () => {
+  const fetched: string[] = [];
+  const target = makeContext(3, fetched);
+  const context = asGuildSettingsRuntime(target);
+  attachGuildSettings(context);
+  const guildId = "changed-guild";
+  context.invalidateGuildCache(guildId);
+  await context.getGuildSettings(guildId);
+  await context.getGuildSettings(guildId);
+  publishGuildSettingsChanged(guildId);
+  await context.getGuildSettings(guildId);
+  assert.equal(fetched.filter(id => id === guildId).length, 2);
+});
+
