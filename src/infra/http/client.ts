@@ -115,12 +115,13 @@ function buildHttpClientFrom(target: HttpClientDeps) {
 
   const CONDITIONAL_CACHE_MAX = 500;
 
-  target.metricsRef = createInitialHttpMetrics();
+  const metricsHolder = { ref: target.metricsRef ?? createInitialHttpMetrics() };
   function metrics(): HttpMetricsRef {
-    return target.metricsRef as HttpMetricsRef;
+    return metricsHolder.ref;
   }
 
-  function attachMetrics(m: HttpMetricsRef): void { target.metricsRef = m; }
+  function attachMetrics(m: HttpMetricsRef): void { metricsHolder.ref = m; }
+  function getHttpMetrics(): HttpMetricsRef { return metricsHolder.ref; }
 
   const contentNormalization: ContentNormalization = createContentNormalization({ cheerio, maxHtmlBytes: MAX_HTML_BYTES });
 
@@ -239,6 +240,7 @@ function buildHttpClientFrom(target: HttpClientDeps) {
     assertSafeExternalDnsTarget: (rawUrl: unknown, label?: string) =>
       assertSafeExternalDnsTarget(rawUrl, label, dnsLookup),
     attachMetrics,
+    getHttpMetrics,
     ...contentNormalization,
     httpReq,
     conditionalGet,

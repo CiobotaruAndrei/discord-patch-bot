@@ -20,7 +20,7 @@ function makeUpdate(id: string): NormalizedUpdate {
 }
 
 function makeCbModel(initial: Partial<CircuitBreakerDoc> = {}) {
-  const doc: CircuitBreakerDoc = { _id: "g", fails: 0, cooldownUntil: null, alertSent: false, schemaDriftFails: 0, schemaDriftAlertSent: false, ...initial };
+  const doc: CircuitBreakerDoc & { fails: number; schemaDriftFails: number } = { _id: "g", fails: 0, cooldownUntil: null, alertSent: false, schemaDriftFails: 0, schemaDriftAlertSent: false, ...initial };
   const updates: Array<Record<string, unknown>> = [];
   const model = Object.assign({} as UpdatesDeps["CircuitBreakerModel"], {
     findOneAndUpdate: async (_filter: unknown, update: { $inc?: Record<string, number> }) => {
@@ -36,7 +36,11 @@ function makeCbModel(initial: Partial<CircuitBreakerDoc> = {}) {
   return { model, doc, updates };
 }
 
+const httpMetrics = { fetchSuccess: 0, fetchFail: 0 };
+
 function makeDeps(cbModel: UpdatesDeps["CircuitBreakerModel"], overrides: Partial<UpdatesDeps> = {}): UpdatesDeps & { alerts: Array<{ kind: string }> } {
+  httpMetrics.fetchSuccess = 0;
+  httpMetrics.fetchFail = 0;
   const alerts: Array<{ kind: string }> = [];
   return {
     alerts,
@@ -60,7 +64,7 @@ function makeDeps(cbModel: UpdatesDeps["CircuitBreakerModel"], overrides: Partia
     normalizeUpdate: () => makeUpdate("u"),
     safeCheerioLoad: html => cheerioLoad(typeof html === "string" ? html : ""),
     crypto,
-    metricsRef: { fetchSuccess: 0, fetchFail: 0 },
+    getHttpMetrics: () => httpMetrics,
     ...overrides
   } as UpdatesDeps & { alerts: Array<{ kind: string }> };
 }
@@ -74,7 +78,7 @@ test("executeFetchWithCircuitBreaker: succes incrementeaza fetchSuccess si intoa
   const result = await executeFetchWithCircuitBreaker(game);
   assert.equal(result.error, null);
   assert.equal(result.latest?.id, "ok");
-  assert.equal(deps.metricsRef.fetchSuccess, 1);
+  assert.equal(httpMetrics.fetchSuccess, 1);
 });
 
 test("executeFetchWithCircuitBreaker: cooldown activ raspunde imediat cu 'Circuit Breaker Activ' fara fetch", async () => {
@@ -93,7 +97,7 @@ test("executeFetchWithCircuitBreaker: la pragul de esecuri seteaza cooldown si t
   const { executeFetchWithCircuitBreaker } = createUpdatesCircuitBreaker(deps, async () => { throw new Error("sursa moarta"); });
   const result = await executeFetchWithCircuitBreaker(game);
   assert.match(String(result.error), /sursa moarta/);
-  assert.equal(deps.metricsRef.fetchFail, 1);
+  assert.equal(httpMetrics.fetchFail, 1);
   assert.ok(updates.some(u => "cooldownUntil" in u), "cooldown-ul a fost setat la prag");
   assert.ok(deps.alerts.some(a => a.kind === "cb:g"), "alerta de circuit breaker trimisa");
 });
