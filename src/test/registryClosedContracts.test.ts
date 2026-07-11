@@ -176,8 +176,10 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   assert.ok(!/attachAdminCommandRouterGuard\(ctx\)|attachCommandSnoozeGuard\(ctx\)/.test(cmd), "guard-urile nu se mai instaleaza prin mutarea contextului (fara attachX(ctx))");
   assert.match(cmd, /createCommandSnoozeGuard\(\{/, "snooze guard-ul e construit ca factory in registry");
   assert.match(cmd, /createAdminCommandGuard\(\{/, "admin guard-ul e construit ca factory in registry");
-  assert.match(cmd, /handleSnoozedCommand\(interaction as SnoozeInteraction, games, dispatchCommand\)/, "pipeline explicit: snooze guard -> dispatchCommand");
-  assert.match(cmd, /handleAdminProtectedCommand\(interaction as AdminInteraction, games, dispatchWithSnoozeGuard as AdminNext\)/, "pipeline explicit: admin guard (exterior) -> snooze -> dispatcher, aceeasi ordine ca inainte");
+  assert.match(cmd, /handleSnoozedCommand\(interaction, games, dispatchCommand\)/, "pipeline explicit: snooze guard -> dispatchCommand, fara cast pe interaction");
+  assert.match(cmd, /handleAdminProtectedCommand\(interaction, games, dispatchWithSnoozeGuard\)/, "pipeline explicit: admin guard (exterior) -> snooze -> dispatcher, aceeasi ordine, fara casturi");
+  assert.ok(!/interaction as /.test(cmd), "dispatch-ul nu mai primeste unknown: marginea e tipata cu RoutedDiscordInteraction, fara casturi pe interaction (review impact-mare #10)");
+  assert.match(cmd, /dispatchCommand\(interaction: RoutedDiscordInteraction/, "dispatcher-ul primeste contractul ingust de margine, nu unknown");
   assert.match(cmd, /return Object\.freeze\(\{/, "registrul intoarce direct functiile locale (handleInteraction/buildHelpEmbed) intr-un obiect inghetat, fara scriere inapoi in context");
   assert.ok((cmd.match(/\.buildCommandHandler\(ctx\)/g) || []).length >= 15, "fiecare handler de comanda contribuie la lista tipata prin buildCommandHandler(ctx) (>= 15 ocurente)");
   assert.match(src, /type SourceRuntimeContext = Partial<SourceRegistryApi>/, "sourceRegistry modeleaza contextul progresiv ca Partial<SourceRegistryApi>");

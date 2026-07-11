@@ -1,6 +1,6 @@
 import type { CommandCacheSizes, GameConfig, FetchResult, DealInfo, GuildSettings } from "../../types";
 import type { NotificationDiscordClient, OutboxDiscordClient } from "../notifications/outboundChannel";
-import type { CommandHandler, CommandGame } from "./commandHandler";
+import type { CommandHandler, CommandGame, RoutedDiscordInteraction } from "./commandHandler";
 import {
   dealPassesFilters,
   mapToObject,
@@ -27,7 +27,7 @@ interface CommandRegistryContext {
   buildOptimizedGameList?: <G extends { key: string }>(allGames: G[], subscribedGuilds: readonly GuildGameFilter[]) => G[];
   registerSlashCommands?: (token: string, clientId: string) => Promise<unknown>;
   buildSlashCommandDefinitions?: () => unknown[];
-  handleInteraction?: (interaction: unknown, games: CommandGame[]) => Promise<unknown>;
+  handleInteraction?: (interaction: RoutedDiscordInteraction, games: CommandGame[]) => Promise<unknown>;
   buildHelpEmbed?: () => unknown;
   findGameAndSuggestion?: (input: string, games: GameConfig[]) => unknown;
   getFindGameCacheSize?: () => number;
@@ -186,7 +186,7 @@ function createCommandRegistry(
   const ctx = createAppServices(overrides);
   const { commandHandlers, helpCommand } = buildCommandHandlerList(ctx);
 
-  async function dispatchCommand(interaction: unknown, games: CommandGame[]): Promise<unknown> {
+  async function dispatchCommand(interaction: RoutedDiscordInteraction, games: CommandGame[]): Promise<unknown> {
     for (const handler of commandHandlers) {
       if (handler.canHandle(interaction)) return handler.handle(interaction, games);
     }
@@ -203,17 +203,13 @@ function createCommandRegistry(
     authorizeGuildAdmin: interaction => attachAdminCommandRouterGuard.authorizeGuildAdminWithConfiguredAccess(ctx, interaction)
   }, ctx);
 
-  type SnoozeInteraction = Parameters<typeof snoozeGuard.handleSnoozedCommand>[0];
-  type AdminInteraction = Parameters<typeof adminGuard.handleAdminProtectedCommand>[0];
-  type AdminNext = Parameters<typeof adminGuard.handleAdminProtectedCommand>[2];
-
-  async function dispatchWithSnoozeGuard(interaction: unknown, games: CommandGame[]): Promise<unknown> {
-    return snoozeGuard.handleSnoozedCommand(interaction as SnoozeInteraction, games, dispatchCommand);
+  async function dispatchWithSnoozeGuard(interaction: RoutedDiscordInteraction, games: CommandGame[]): Promise<unknown> {
+    return snoozeGuard.handleSnoozedCommand(interaction, games, dispatchCommand);
   }
 
-  async function handleInteraction(interaction: unknown, games: CommandGame[]): Promise<unknown> {
-    if (attachAdminCommandRouterGuard.isAdminProtectedCommand(interaction as AdminInteraction)) {
-      return adminGuard.handleAdminProtectedCommand(interaction as AdminInteraction, games, dispatchWithSnoozeGuard as AdminNext);
+  async function handleInteraction(interaction: RoutedDiscordInteraction, games: CommandGame[]): Promise<unknown> {
+    if (attachAdminCommandRouterGuard.isAdminProtectedCommand(interaction)) {
+      return adminGuard.handleAdminProtectedCommand(interaction, games, dispatchWithSnoozeGuard);
     }
     return dispatchWithSnoozeGuard(interaction, games);
   }
