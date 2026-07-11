@@ -387,4 +387,3 @@ Teste relevante pentru structura actuala:
 - Mentinerea testelor fara tipuri wildcard nesigure sau abrevieri legacy de context cand se adauga mock-uri noi.
 - Mutarea oricarei logici ramase in adaptere catre servicii sau handler-e dedicate.
 - Mentinerea documentatiei sincronizate la fiecare schimbare de cod.
-
