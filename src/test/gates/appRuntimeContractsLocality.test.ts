@@ -13,7 +13,7 @@ const read = (rel: string): string => fs.readFileSync(path.join(appRoot, rel), "
 test("contractele AppRuntime traiesc in appRuntimeContracts.ts, nu in composition root (review 22 #10)", () => {
   const contracts = read("appRuntimeContracts.ts");
   for (const name of ["AppRuntimeDeps", "RuntimeServices", "Schedulers", "DiscordClientLike", "HttpServerLike", "AppRuntime", "CommandRuntime", "ScraperRuntime", "MongoContextLike"]) {
-    assert.match(contracts, new RegExp(`export (interface|type) ${name}\b`), `${name} e definit in appRuntimeContracts.ts`);
+    assert.match(contracts, new RegExp(`export (interface|type) ${name}[^A-Za-z0-9_]`), `${name} e definit in appRuntimeContracts.ts`);
   }
   const runtime = read("appRuntime.ts");
   assert.ok(!/\nexport interface AppRuntimeDeps\b/.test(runtime), "AppRuntimeDeps nu mai e definit in appRuntime.ts");
