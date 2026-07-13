@@ -1,4 +1,4 @@
-import type { AppRuntimeDeps, RuntimeServices } from "../appRuntime.js";
+import type { AppRuntimeDeps, RuntimeServices } from "../appRuntimeContracts.js";
 
 import ________infra_redis_redisMetrics from "../../infra/redis/redisMetrics.js";
 const { attachRedisMetrics } = ________infra_redis_redisMetrics;
