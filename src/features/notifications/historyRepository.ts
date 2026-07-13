@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import type { MongoFilter, MongoProjection, MongoQueryOptions } from "../../infra/mongo/mongoQueryShapes.js";
 
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
@@ -32,9 +33,9 @@ export interface NotificationHistoryRecord {
 }
 
 interface NotificationHistoryModelLike {
-  insertMany(docs: unknown[], opts?: unknown): Promise<unknown>;
-  bulkWrite(ops: unknown[], opts?: unknown): Promise<unknown>;
-  find(filter: unknown, projection?: unknown): {
+  insertMany(docs: unknown[], opts?: MongoQueryOptions): Promise<unknown>;
+  bulkWrite(ops: unknown[], opts?: MongoQueryOptions): Promise<unknown>;
+  find(filter: MongoFilter, projection?: MongoProjection): {
     sort(spec: unknown): { limit(count: number): { lean(): Promise<Array<Record<string, unknown>>> } };
   };
 }

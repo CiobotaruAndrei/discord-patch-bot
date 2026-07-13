@@ -1,6 +1,7 @@
 "use strict";
 
 import type { GuildSettings, DealInfo, MongoWriteOutcome, PendingDiscount, NotificationMode, ValidatedDealInfo } from "../../types.js";
+import type { MongoUpdate } from "../../infra/mongo/mongoQueryShapes.js";
 import { buildDeadLetterEntry, DeadLetterEntry } from "./deadLetter.js";
 import type { DeadLetterModelLike } from "./deadLetterRepository.js";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel.js";
@@ -19,7 +20,7 @@ type MongoWriteResult = MongoWriteOutcome;
 
 interface GuildModelLike {
   find(filter: Record<string, unknown>): { lean(): Promise<Array<GuildSettings>> };
-  updateOne(filter: Record<string, unknown>, update: unknown): Promise<MongoWriteResult>;
+  updateOne(filter: Record<string, unknown>, update: MongoUpdate): Promise<MongoWriteResult>;
 }
 
 

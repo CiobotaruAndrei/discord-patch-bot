@@ -1,6 +1,7 @@
 "use strict";
 
 import type { ConfigBackupRecord, GameConfig, GuildSettings } from "../../types.js";
+import type { MongoFilter } from "../../infra/mongo/mongoQueryShapes.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 import { findNewestConfigBackup, type ConfigBackupModelLike } from "../admin-records/configBackupRepository.js";
@@ -23,7 +24,7 @@ interface DiscordInteraction {
 }
 
 interface CountModel {
-  countDocuments(filter?: unknown): Promise<number>;
+  countDocuments(filter?: MongoFilter): Promise<number>;
 }
 
 interface MaintenanceDeps {

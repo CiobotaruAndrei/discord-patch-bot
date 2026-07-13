@@ -6,7 +6,7 @@ import { makeFakeModel, makeMetricsModel, makeRuntime, makeSweepRuntime, type Ou
 test("drainOutbox: o stergere esuata nu opreste drain-ul si se numara in deleteFailures", async () => {
   const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "dk1" };
   const fake = makeFakeModel([job]);
-  const failingModel: OutboxModelMock = { ...fake.model, updateOne: async (filter: unknown, update: unknown) => {
+  const failingModel: OutboxModelMock = { ...fake.model, updateOne: async (filter: Record<string, unknown>, update: Record<string, unknown>) => {
     const status = (update as { $set?: { status?: string } }).$set?.status;
     if (status && ["delivered", "dead-lettered", "dropped"].includes(status)) throw new Error("mongo down");
     return fake.model.updateOne(filter, update);
