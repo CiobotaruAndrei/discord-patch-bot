@@ -45,15 +45,16 @@
     "audit": "npm audit --omit=dev --audit-level=moderate",
     "audit:strict": "npm audit --omit=dev",
     "precommit": "npm run check:full && npm run audit",
-    "check": "npm run typecheck && npm run build && node dist/scripts/check-syntax.js && node dist/scripts/check-no-comments.js && node dist/scripts/check-no-weakening-types.js && node dist/scripts/check-config.js && node dist/scripts/check-dependencies.js && node dist/scripts/check-rules-sync.js && node dist/scripts/check-db-indexes.js && node dist/scripts/generate-command-reference.js --check && node --test --test-reporter=spec \"dist/test/**/*.test.js\"",
+    "check": "npm run build:ts && npm run build:rust && node dist/scripts/check-syntax.js && node dist/scripts/check-no-comments.js && node dist/scripts/check-no-weakening-types.js && node dist/scripts/check-config.js && node dist/scripts/check-dependencies.js && node dist/scripts/check-rules-sync.js && node dist/scripts/check-db-indexes.js && node dist/scripts/generate-command-reference.js --check && node --test --test-reporter=spec \"dist/test/**/*.test.js\"",
     "check:native": "cargo clippy --manifest-path native/Cargo.toml --workspace --all-targets -- -D warnings && cargo test --manifest-path native/Cargo.toml -p discord_patch_bot_logic --quiet",
     "check:full": "npm run check && npm run check:native && npm run test:e2e:prebuilt",
     "start:web": "node dist/app/web.js",
     "start:web:local": "node --env-file=.env dist/app/web.js",
     "check:env:local": "npm run build:ts && node --env-file=.env dist/scripts/check-env.js",
     "check:redis:local": "npm run build:ts && node --env-file=.env dist/scripts/check-redis.js",
-    "doctor:local": "npm run build:ts && node --env-file=.env dist/scripts/check-env.js && node --env-file=.env dist/scripts/check-config.js && node --env-file=.env dist/scripts/check-redis.js",
-    "db:export:guilds:raw": "npm run build:ts && node dist/scripts/export-guild-configs.js --raw"
+    "doctor:local": "npm run build:ts && node --env-file=.env dist/scripts/check-env.js && node --env-file=.env dist/scripts/check-config.js && node --env-file=.env dist/scripts/check-mongo.js && node --env-file=.env dist/scripts/check-redis.js",
+    "db:export:guilds:raw": "npm run build:ts && node dist/scripts/export-guild-configs.js --raw",
+    "check:mongo:local": "npm run build:ts && node --env-file=.env dist/scripts/check-mongo.js"
   },
   "engines": {
     "node": ">=22.12"
