@@ -21,7 +21,6 @@ function makeContext() {
   const calls: UpdateCall[] = [];
   const replies: unknown[] = [];
   const edits: unknown[] = [];
-  const invalidated: string[] = [];
   const runtime = snoozeInteractions.createSnoozeInteractionHandler({
     MessageFlags: { Ephemeral: 64 },
     GuildModel: {
@@ -30,14 +29,13 @@ function makeContext() {
         return { matchedCount: 1, modifiedCount: 1 };
       }
     },
-    invalidateGuildCache: (guildId: string) => { invalidated.push(guildId); },
     safeDefer: async (interaction: { deferred?: boolean }) => { interaction.deferred = true; },
     safeEdit: async (_interaction: unknown, payload: unknown) => {
       edits.push(payload);
       return payload;
     }
   });
-  return { runtime, calls, replies, edits, invalidated };
+  return { runtime, calls, replies, edits };
 }
 
 function makeInteraction(commandName: string, command: string, durata = "2h") {
@@ -66,7 +64,7 @@ function makeInteraction(commandName: string, command: string, durata = "2h") {
 }
 
 test("/snooze salveaza comanda si durata in commandSnoozes", async () => {
-  const { runtime, calls, edits, invalidated } = makeContext();
+  const { runtime, calls, edits } = makeContext();
   const { interaction, replies } = makeInteraction("snooze", "/latest updates", "2h");
 
   await runtime.handleSnoozeInteraction(interaction);
@@ -77,19 +75,17 @@ test("/snooze salveaza comanda si durata in commandSnoozes", async () => {
   assert.deepEqual(calls[0].options, { upsert: true });
   const update = calls[0].update as { $set: Record<string, Date> };
   assert.ok(update.$set["commandSnoozes.latest__updates"] instanceof Date);
-  assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(edits[0]), /\/latest updates.*pauza/);
 });
 
 test("/unsnooze sterge pauza pentru comanda aleasa", async () => {
-  const { runtime, calls, edits, invalidated } = makeContext();
+  const { runtime, calls, edits } = makeContext();
   const { interaction } = makeInteraction("unsnooze", "/latest updates");
 
   await runtime.handleSnoozeInteraction(interaction);
 
   assert.deepEqual(calls[0].filter, { _id: "guild-1" });
   assert.deepEqual(calls[0].update, { $unset: { "commandSnoozes.latest__updates": "" } });
-  assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(edits[0]), /nu mai este in pauza/);
 });
 

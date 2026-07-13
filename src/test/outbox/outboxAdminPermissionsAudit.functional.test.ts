@@ -134,7 +134,6 @@ test("install: citeste flag-urile outbox din env-ul injectat (RuntimeEnv), nu di
   const context: Record<string, unknown> = {
     NotificationOutboxModel: { countDocuments: async () => 0, updateMany: async () => ({}) },
     GuildModel: { updateOne: async () => ({ modifiedCount: 1 }) },
-    invalidateGuildCache: () => undefined,
     listReplayableDeadLetters: async () => [],
     deleteReplayedDeadLetters: async () => undefined,
     deleteAllReplayPayloads: async () => undefined,

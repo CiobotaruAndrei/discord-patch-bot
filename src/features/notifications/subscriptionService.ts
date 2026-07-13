@@ -12,7 +12,6 @@ export type SubscriptionGuildModel = {
 export type SubscriptionServiceDeps = {
   GuildModel: SubscriptionGuildModel;
   logger: (level: string, context: string, message: string, meta?: unknown) => void;
-  invalidateGuildCache: (guildId: string) => void;
   OP_UPDATE_OPTS: Record<string, unknown>;
   makeActivationId: () => string;
 };
@@ -65,7 +64,7 @@ const MODULE_SPECS: Record<SubscriptionModuleKind, SubscriptionModuleSpec> = {
 };
 
 export function createSubscriptionService(deps: SubscriptionServiceDeps) {
-  const { GuildModel, logger, invalidateGuildCache, OP_UPDATE_OPTS, makeActivationId } = deps;
+  const { GuildModel, logger, OP_UPDATE_OPTS, makeActivationId } = deps;
 
   async function beginActivation(kind: SubscriptionModuleKind, guildId: string, channelId: string): Promise<string> {
     const spec = MODULE_SPECS[kind];
@@ -84,7 +83,6 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
       },
       { upsert: true, ...OP_UPDATE_OPTS }
     );
-    invalidateGuildCache(guildId);
     return activationId;
   }
 
@@ -122,7 +120,6 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
       OP_UPDATE_OPTS
     ).catch(() => null);
     logger("WARN", spec.logContext, spec.baselineWarnMessage, errorMessage(error));
-    invalidateGuildCache(guildId);
   }
 
   async function startSubscription(
@@ -153,7 +150,6 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
       },
       $unset: { [spec.activationField]: "" }
     }, OP_UPDATE_OPTS);
-    invalidateGuildCache(guildId);
   }
 
   async function startDlc(guildId: string, channelId: string): Promise<void> {
@@ -163,7 +159,6 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
       { $set: { dlcSubscribed: true, dlcChannelId: channelId, dlcInitializing: false, dlcActivationId: activationId } },
       { upsert: true, ...OP_UPDATE_OPTS }
     );
-    invalidateGuildCache(guildId);
   }
 
   async function stopDlc(guildId: string): Promise<void> {
@@ -171,7 +166,6 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
       $set: { dlcSubscribed: false, dlcChannelId: null, dlcInitializing: false },
       $unset: { dlcActivationId: "" }
     }, OP_UPDATE_OPTS);
-    invalidateGuildCache(guildId);
   }
 
   async function addPlayerCountGame(guildId: string, channelId: string, gameKey: string): Promise<void> {
@@ -183,7 +177,6 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
       },
       { upsert: true, ...OP_UPDATE_OPTS }
     );
-    invalidateGuildCache(guildId);
   }
 
   async function setPlayerCountGames(guildId: string, remaining: string[], keepChannelId: string | null): Promise<void> {
@@ -194,7 +187,6 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
         playerCountChannelId: remaining.length > 0 ? keepChannelId : null
       }
     }, OP_UPDATE_OPTS);
-    invalidateGuildCache(guildId);
   }
 
   return {

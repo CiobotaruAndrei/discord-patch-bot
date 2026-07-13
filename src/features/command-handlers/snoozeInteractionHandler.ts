@@ -44,7 +44,6 @@ type SnoozeInteractionDeps = {
   GuildModel: {
     updateOne(filter: Record<string, string>, update: SnoozeUpdate, options?: { upsert: boolean }): Promise<MongoWriteResult>;
   };
-  invalidateGuildCache: (guildId: string) => void;
   safeDefer: (interaction: DiscordInteraction, ephemeral?: boolean) => Promise<void>;
   safeEdit: (interaction: DiscordInteraction, payload: InteractionPayload) => Promise<unknown>;
   MessageFlags: { Ephemeral: number };
@@ -68,7 +67,7 @@ function formatDiscordTimestamp(date: Date): string {
 }
 
 function createSnoozeInteractionHandler(deps: SnoozeInteractionDeps) {
-  const { GuildModel, invalidateGuildCache, safeDefer, safeEdit, MessageFlags } = deps;
+  const { GuildModel, safeDefer, safeEdit, MessageFlags } = deps;
 
   async function handleSnoozeInteraction(interaction: DiscordInteraction): Promise<unknown> {
     const guildId = interaction.guild?.id;
@@ -91,7 +90,6 @@ function createSnoozeInteractionHandler(deps: SnoozeInteractionDeps) {
     if (interaction.commandName === "unsnooze") {
       await safeDefer(interaction, true);
       await clearCommandSnooze(GuildModel, guildId, key);
-      invalidateGuildCache(guildId);
       return safeEdit(interaction, `OK: ${commandLabel} nu mai este in pauza.`);
     }
 
@@ -102,7 +100,6 @@ function createSnoozeInteractionHandler(deps: SnoozeInteractionDeps) {
 
     await safeDefer(interaction, true);
     await setCommandSnooze(GuildModel, guildId, key, duration.until);
-    invalidateGuildCache(guildId);
     return safeEdit(interaction, `OK: ${commandLabel} este in pauza pana ${formatDiscordTimestamp(duration.until)}.`);
   }
 
@@ -122,7 +119,6 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }): Int
 function buildSnoozeCommandHandler(target: SnoozeContext) {
   const handlers = createSnoozeInteractionHandler({
     GuildModel: target.GuildModel,
-    invalidateGuildCache: target.invalidateGuildCache,
     safeDefer: target.safeDefer,
     safeEdit: target.safeEdit,
     MessageFlags: target.MessageFlags

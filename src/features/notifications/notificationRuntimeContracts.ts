@@ -55,7 +55,6 @@ export type NotificationsRuntimeDeps = SeenRepositoryDeps
     safeCheerioLoad: SourceRegistryApi["safeCheerioLoad"];
     FETCH_CONCURRENCY: number;
     PRICE_ALERT_REARM_ABSENT_CYCLES: number;
-    invalidateGuildCache(guildId: string): void;
     adminAlert?: (kind: string, title: string, body: unknown, guildId?: string) => Promise<unknown>;
   };
 

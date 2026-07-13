@@ -34,7 +34,6 @@ export type SubscriptionInteractionDeps = {
   GuildModel: GuildModelLike;
   logger: SubscriptionLogger;
   getGuildSettings: (guildId: string) => Promise<GuildSettings | null>;
-  invalidateGuildCache: (guildId: string) => void;
   DEFAULT_CURRENCY: string;
   getLatestForAllGames: (games: GameConfig[]) => Promise<FetchResult[]>;
   fetchDeals: (options: { currency: string }) => Promise<DealInfo[]>;

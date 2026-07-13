@@ -22,7 +22,6 @@ function ruleFromPipeline(update: unknown): Record<string, unknown> {
 function makeHarness(settings: Record<string, unknown> = {}) {
   const calls: MongoCall[] = [];
   const replies: unknown[] = [];
-  const invalidated: string[] = [];
   const existing = Array.isArray((settings as { priceAlerts?: unknown[] }).priceAlerts) ? (settings as { priceAlerts: unknown[] }).priceAlerts : [];
   const handler = mod.createPriceAlertInteractionHandler({
     GuildModel: {
@@ -36,7 +35,6 @@ function makeHarness(settings: Record<string, unknown> = {}) {
       }
     },
     getGuildSettings: async () => ({ _id: "guild-1", ...settings }),
-    invalidateGuildCache: guildId => { invalidated.push(guildId); },
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
     formatUserError: (_err, fallback) => fallback,
@@ -44,7 +42,7 @@ function makeHarness(settings: Record<string, unknown> = {}) {
     logger: () => undefined,
     MessageFlags: { Ephemeral: 64 }
   });
-  return { handler, calls, replies, invalidated };
+  return { handler, calls, replies };
 }
 
 function interaction(subcommand: string, values: { joc?: string; price?: number; currency?: string } = {}) {
@@ -76,7 +74,7 @@ const games = [{
 }];
 
 test("/price-alert add salveaza regula tipata si pastreaza o singura regula per joc+valuta", async () => {
-  const { handler, calls, replies, invalidated } = makeHarness({
+  const { handler, calls, replies } = makeHarness({
     discountsSubscribed: true,
     discountChannelId: "deals-channel",
     priceAlerts: []
@@ -96,7 +94,6 @@ test("/price-alert add salveaza regula tipata si pastreaza o singura regula per 
   assert.match(serialized, /1245620/);
   assert.match(serialized, /EUR/);
   assert.deepEqual(calls[0].options, { upsert: true, new: true }, "findOneAndUpdate cu new:true ca handler-ul sa confirme din doc-ul actualizat");
-  assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /30 EUR/);
   assert.match(String(replies[0]), /deals-channel/);
 });
@@ -152,7 +149,6 @@ test("/price-alert add: refuza un joc NOU peste limita (pre-check), fara sa scri
       findOneAndUpdate: async (filter, update, options) => { calls.push({ filter, update, options }); return { priceAlerts: full as PriceAlertRule[] }; }
     },
     getGuildSettings: async () => ({ _id: "guild-1", priceAlerts: full }),
-    invalidateGuildCache: () => undefined,
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
     formatUserError: (_err, fallback) => fallback,
@@ -176,7 +172,6 @@ test("/price-alert add: cand findOneAndUpdate confirma ca regula NU s-a salvat (
       findOneAndUpdate: async () => ({ priceAlerts: full })
     },
     getGuildSettings: async () => ({ _id: "guild-1", priceAlerts: full.slice(0, 24) }),
-    invalidateGuildCache: () => undefined,
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
     formatUserError: (_err, fallback) => fallback,
@@ -194,7 +189,6 @@ test("/price-alert: o eroare interna intoarce handledCommandError (audit onest, 
   const command = mod.buildCommandHandler({
     GuildModel: { updateOne: async () => ({}), findOneAndUpdate: async () => { throw new Error("mongo down"); } },
     getGuildSettings: async () => ({ _id: "guild-1", priceAlerts: [] }),
-    invalidateGuildCache: () => undefined,
     safeDefer: async () => undefined,
     safeEdit: async () => undefined,
     formatUserError: (_e: unknown, f: string) => f,

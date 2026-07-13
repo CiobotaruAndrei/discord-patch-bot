@@ -40,7 +40,6 @@ interface BackupInteractionDeps {
   GuildAuditLogModel: GuildAuditLogModelLike;
   GuildConfigBackupModel: ConfigBackupModelLike;
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
-  invalidateGuildCache(guildId: string): void;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
   formatUserError(err: unknown, fallback: string): string;
@@ -59,7 +58,7 @@ function requireConfirm(interaction: DiscordInteraction): boolean {
 }
 
 function createBackupInteractionHandler(deps: BackupInteractionDeps) {
-  const { GuildModel, GuildAuditLogModel, GuildConfigBackupModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit, formatUserError } = deps;
+  const { GuildModel, GuildAuditLogModel, GuildConfigBackupModel, getGuildSettings, safeDefer, safeEdit, formatUserError } = deps;
 
   async function auditBestEffort(guildId: string, userId: string, action: string, details: string): Promise<boolean> {
     try {
@@ -76,7 +75,6 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
     if (!name) return safeEdit(interaction, "Eroare: trebuie sa dai un nume pentru backup.");
     const settings = await getGuildSettings(guildId);
     const record = await saveConfigBackup(GuildConfigBackupModel, guildId, name, interaction.user?.id || "", settings);
-    invalidateGuildCache(guildId);
     const audited = await auditBestEffort(guildId, interaction.user?.id || "", "backup_add", `Saved backup ${record.name}`);
     return safeEdit(interaction, audited
       ? `OK: backup-ul \`${record.name}\` a fost salvat.`
@@ -107,7 +105,6 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
       action: "backup_load",
       details: `Loaded backup ${backup.name}`
     });
-    invalidateGuildCache(guildId);
     return safeEdit(interaction, `OK: backup-ul \`${backup.name}\` a fost incarcat.`);
   }
 
@@ -121,7 +118,6 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
       action: "backup_delete",
       details: `Deleted backup ${name}`
     });
-    invalidateGuildCache(guildId);
     if (!deleted) return safeEdit(interaction, `Nu exista backup-ul \`${name}\`.`);
     return safeEdit(interaction, `OK: backup-ul \`${name}\` a fost sters.`);
   }

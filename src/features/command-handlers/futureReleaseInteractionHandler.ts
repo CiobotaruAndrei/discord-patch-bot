@@ -42,7 +42,6 @@ interface DiscordInteraction {
 interface FutureReleaseDeps {
   GuildModel: Parameters<typeof saveFutureReleaseGame>[0];
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
-  invalidateGuildCache(guildId: string): void;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
   canSendEmbeds(channel: DiscordChannel | null | undefined, botId: string): boolean;
@@ -81,7 +80,7 @@ function renderFutureReleaseGames(entries: FutureReleaseGameEntry[], settings?: 
 
 function createFutureReleaseInteractionHandler(deps: FutureReleaseDeps) {
   const {
-    GuildModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit,
+    GuildModel, getGuildSettings, safeDefer, safeEdit,
     canSendEmbeds, listMissingChannelPerms, missingChannelPermsMessage, makeActivationId
   } = deps;
 
@@ -99,7 +98,6 @@ function createFutureReleaseInteractionHandler(deps: FutureReleaseDeps) {
       preorderPrice: String(interaction.options.getString("preorder-price") || "").trim().slice(0, 80),
       addedBy: interaction.user?.id || ""
     });
-    invalidateGuildCache(guildId);
     if (!saved) {
       return safeEdit(interaction, "Eroare: lista future-release poate avea maxim 20 de jocuri (o comanda concurenta a ocupat ultimul loc).");
     }
@@ -115,7 +113,6 @@ function createFutureReleaseInteractionHandler(deps: FutureReleaseDeps) {
     const gameName = normalizeGameName(String(interaction.options.getString("game", true) || ""));
     if (!gameName) return safeEdit(interaction, "Eroare: trebuie sa scrii numele jocului de sters.");
     const deleted = await deleteFutureReleaseGame(GuildModel, guildId, gameName);
-    invalidateGuildCache(guildId);
     return deleted
       ? safeEdit(interaction, `OK: \`${gameName}\` a fost sters din lista future-release.`)
       : safeEdit(interaction, `Nu am gasit \`${gameName}\` in lista future-release.`);
@@ -129,13 +126,11 @@ function createFutureReleaseInteractionHandler(deps: FutureReleaseDeps) {
     if (!interaction.channel?.id) return safeEdit(interaction, missingChannelPermsMessage());
     const activationId = makeActivationId();
     await startFutureReleaseNotifications(GuildModel, guildId, interaction.channel.id, activationId);
-    invalidateGuildCache(guildId);
     return safeEdit(interaction, `OK: future-release este activ pe <#${interaction.channel.id}>. Botul foloseste lista din \`/future-release list\`.`);
   }
 
   async function handleStop(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     await stopFutureReleaseNotifications(GuildModel, guildId);
-    invalidateGuildCache(guildId);
     return safeEdit(interaction, "OK: notificarile future-release au fost oprite pentru acest server.");
   }
 

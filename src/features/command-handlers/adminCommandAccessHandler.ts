@@ -72,7 +72,6 @@ type Logger = (level: string, context: string, message: string, meta?: unknown) 
 type AdminCommandAccessDeps = {
   GuildModel: GuildModelLike;
   GuildAuditLogModel: GuildAuditLogModelLike;
-  invalidateGuildCache(guildId: string): void;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
   logger: Logger;
@@ -114,7 +113,7 @@ function readTargetScope(interaction: DiscordInteraction): string {
 }
 
 function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
-  const { GuildModel, GuildAuditLogModel, invalidateGuildCache, safeDefer, safeEdit, logger } = deps;
+  const { GuildModel, GuildAuditLogModel, safeDefer, safeEdit, logger } = deps;
 
   async function authorizeOwner(interaction: DiscordInteraction): Promise<DiscordInteraction | null> {
     if (await isGuildOwner(interaction)) return interaction;
@@ -147,7 +146,6 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
         details: `${displayAdminCommandAccessScope(scope)}: ${labelMode(mode)} <@&${role.id}>`
       }
     });
-    invalidateGuildCache(guildId);
     return safeEdit(interaction, `OK: ${displayAdminCommandAccessScope(scope)} poate fi folosita de Administrator si de ${labelMode(mode)}: <@&${role.id}>.`);
   }
 
@@ -174,7 +172,6 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
         details: displayAdminCommandAccessScope(scope)
       }
     });
-    invalidateGuildCache(guildId);
     return safeEdit(interaction, `OK: regula de rol pentru ${displayAdminCommandAccessScope(scope)} a fost stearsa. Ramane accesul implicit: Administrator sau cod global de acces.`);
   }
 

@@ -121,7 +121,6 @@ export function createHarness(settingsOverrides: object = {}, preparedCount = 3,
       }
     },
     getGuildSettings: async () => settings,
-    invalidateGuildCache: (guildId: string) => { invalidated.push(guildId); },
     resolveYouTubeChannel: async () => ({
       channelId: "UC1234567890123456789012",
       channelName: "Canal Test",

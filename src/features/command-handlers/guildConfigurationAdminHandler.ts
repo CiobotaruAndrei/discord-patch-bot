@@ -53,7 +53,6 @@ interface GuildConfigurationAdminDeps {
   GuildAuditLogModel: GuildAuditLogModelLike;
   GuildYoutubeErrorModel: Pick<YoutubeErrorModelLike, "deleteMany">;
   GuildDeadLetterModel: Pick<DeadLetterModelLike, "deleteMany">;
-  invalidateGuildCache(guildId: string): void;
   deleteAllReplayPayloads(guildId: string): Promise<void>;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
@@ -67,7 +66,7 @@ type GuildConfigurationAdminContext = GuildConfigurationAdminDeps;
 
 function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps) {
   const {
-    GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, GuildDeadLetterModel, invalidateGuildCache, deleteAllReplayPayloads, safeDefer, safeEdit,
+    GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, GuildDeadLetterModel, deleteAllReplayPayloads, safeDefer, safeEdit,
     checkChannelPermissions, DEFAULT_CURRENCY, logger
   } = deps;
 
@@ -87,7 +86,6 @@ function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps)
       replayCleanupOk = false;
       logger("WARN", "GUILD_CONFIG_ADMIN", `Reset config: stergerea payload-urilor de replay a esuat pentru guild ${guildId}`, errorDetail(err));
     }
-    invalidateGuildCache(guildId);
     return safeEdit(interaction, replayCleanupOk
       ? "OK: configuratia serverului a fost resetata la valorile implicite. Lista dead-letter si payload-urile de replay au fost sterse; istoricul rapoartelor si al notificarilor livrate nu a fost sters."
       : "Partial: configuratia serverului a fost resetata si lista dead-letter golita, dar stergerea payload-urilor de replay a ESUAT (probabil Mongo indisponibil). Reincearca `/outbox clear-deadletters` ca sa le cureti; istoricul notificarilor livrate nu a fost sters.");
@@ -97,7 +95,6 @@ function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps)
     const subcommand = interaction.options.getSubcommand();
     if (subcommand === "off") {
       await setAdminAlertChannel(GuildModel, guildId, null);
-      invalidateGuildCache(guildId);
       return safeEdit(interaction, "OK: alertele administrative Discord au fost oprite pentru acest server.");
     }
     if (subcommand !== "set") {
@@ -118,7 +115,6 @@ function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps)
       return safeEdit(interaction, `Eroare: botului ii lipsesc permisiunile ${missing.join(", ")} pe <#${channel.id}>.`);
     }
     await setAdminAlertChannel(GuildModel, guildId, channel.id);
-    invalidateGuildCache(guildId);
     return safeEdit(interaction, `OK: alertele administrative vor fi trimise in <#${channel.id}>.`);
   }
 

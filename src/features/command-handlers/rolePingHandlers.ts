@@ -34,7 +34,6 @@ type RolePingInteractionDeps = {
     updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<MongoWriteResult>;
   };
   logger?: Logger;
-  invalidateGuildCache: (guildId: string) => void;
   safeDefer: (interaction: DiscordInteraction, ephemeral?: boolean) => Promise<void>;
   safeEdit: (interaction: DiscordInteraction, payload: InteractionPayload) => Promise<unknown>;
   formatUserError: (err: unknown, fallback: string) => string;
@@ -49,7 +48,7 @@ const KNOWN_ROLE_SUBS: Record<string, { field: string; label: string }> = {
 };
 
 function createRolePingInteractionHandlers(deps: RolePingInteractionDeps) {
-  const { GuildModel, invalidateGuildCache, safeDefer, safeEdit, formatUserError, logger } = deps;
+  const { GuildModel, safeDefer, safeEdit, formatUserError, logger } = deps;
 
   async function handleSetRole(interaction: DiscordInteraction, sub: string, guildId: string) {
     const knownSub = KNOWN_ROLE_SUBS[sub];
@@ -62,12 +61,10 @@ function createRolePingInteractionHandlers(deps: RolePingInteractionDeps) {
     try {
       if (role) {
         await applyGuildConfigUpdate(GuildModel, guildId, { [field]: role.id });
-        invalidateGuildCache(guildId);
         return safeEdit(interaction, `OK: Rol pentru ${label}: <@&${role.id}> *(ping doar la prima notificare per ciclu)*`);
       }
 
       await applyGuildConfigUpdate(GuildModel, guildId, { [field]: null }, { upsert: false });
-      invalidateGuildCache(guildId);
       return safeEdit(interaction, `OK: Rol pentru ${label} eliminat (fara ping).`);
     } catch (err: unknown) {
       return safeEdit(interaction, formatUserError(err, "Eroare la setarea rolului."));
@@ -100,7 +97,6 @@ function buildRolePingCommandHandler(target: RolePingContext) {
   const handlers = createRolePingInteractionHandlers({
     GuildModel: target.GuildModel,
     logger: target.logger,
-    invalidateGuildCache: target.invalidateGuildCache,
     safeDefer: target.safeDefer,
     safeEdit: target.safeEdit,
     formatUserError: target.formatUserError,

@@ -26,7 +26,6 @@ interface YouTubeRepositoryDeps {
   GuildSeenYoutubeModel: SeenYoutubeModelLike;
   GuildYoutubeErrorModel: Pick<YoutubeErrorModelLike, "create" | "find" | "deleteMany">;
   withMongoRetry: WithMongoRetry;
-  invalidateGuildCache(guildId: string): void;
   adminAlert(kind: string, title: string, body: string, guildId?: string): Promise<void>;
   logger: LoggerFunction;
 }
@@ -41,7 +40,6 @@ export function createYouTubeRepository(deps: YouTubeRepositoryDeps) {
     GuildSeenYoutubeModel,
     GuildYoutubeErrorModel,
     withMongoRetry,
-    invalidateGuildCache,
     adminAlert,
     logger
   } = deps;
@@ -105,7 +103,6 @@ export function createYouTubeRepository(deps: YouTubeRepositoryDeps) {
       },
       { arrayFilters: [{ "channel.channelId": channel.channelId }] }
     );
-    invalidateGuildCache(guildId);
   }
 
   async function recordChannelError(
@@ -133,7 +130,6 @@ export function createYouTubeRepository(deps: YouTubeRepositoryDeps) {
       channelName: channel.channelName,
       message: message.slice(0, 500)
     });
-    invalidateGuildCache(guildId);
     adminAlert(
       "youtube:source",
       `Eroare YouTube: ${channel.channelName}`,
@@ -152,7 +148,6 @@ export function createYouTubeRepository(deps: YouTubeRepositoryDeps) {
       }
     );
     await clearYoutubeErrors(GuildYoutubeErrorModel, guildId);
-    invalidateGuildCache(guildId);
   }
 
   async function disableNotificationsForChannelError(
@@ -179,7 +174,6 @@ export function createYouTubeRepository(deps: YouTubeRepositoryDeps) {
         message: message.slice(0, 500)
       });
     }
-    invalidateGuildCache(guildId);
     adminAlert(
       "discord:youtube-channel",
       "Notificarile YouTube au fost oprite",
@@ -213,7 +207,6 @@ export function createYouTubeRepository(deps: YouTubeRepositoryDeps) {
       { _id: guildId },
       { $pull: { youtubeChannelRoutes: { discordChannelIds: { $size: 0 } } } }
     );
-    invalidateGuildCache(guildId);
     adminAlert(
       "discord:youtube-route",
       "O ruta YouTube invalida a fost eliminata",

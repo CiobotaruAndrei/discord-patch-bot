@@ -30,7 +30,6 @@ function makeInteraction(commandName: "start" | "stop", subcommand: string) {
 function makeDeps() {
   const calls: MongoCall[] = [];
   const replies: unknown[] = [];
-  const invalidated: string[] = [];
   const handlers = installSubscription.createSubscriptionInteractionHandlers({
     GuildModel: {
       updateOne: async (filter, update, options) => {
@@ -40,7 +39,6 @@ function makeDeps() {
     },
     logger: () => undefined,
     getGuildSettings: async () => ({ _id: "guild-1", playerCountGames: ["cs2", "portal"], playerCountChannelId: "channel-1" }),
-    invalidateGuildCache: guildId => { invalidated.push(guildId); },
     DEFAULT_CURRENCY: "USD",
     getLatestForAllGames: async () => [],
     fetchDeals: async () => [],
@@ -58,11 +56,11 @@ function makeDeps() {
     makeActivationId: () => "activation-dlc",
     formatUserError: (_err, fallback) => fallback
   });
-  return { handlers, calls, replies, invalidated };
+  return { handlers, calls, replies };
 }
 
 test("/start dlc salveaza canalul si activarea DLC", async () => {
-  const { handlers, calls, replies, invalidated } = makeDeps();
+  const { handlers, calls, replies } = makeDeps();
 
   await handlers.handleStartInteraction(makeInteraction("start", "dlc"), []);
 
@@ -74,12 +72,11 @@ test("/start dlc salveaza canalul si activarea DLC", async () => {
       dlcActivationId: "activation-dlc"
     }
   });
-  assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /DLC/);
 });
 
 test("/stop dlc opreste modulul si curata activarea", async () => {
-  const { handlers, calls, replies, invalidated } = makeDeps();
+  const { handlers, calls, replies } = makeDeps();
 
   await handlers.handleStopInteraction(makeInteraction("stop", "dlc"));
 
@@ -87,12 +84,11 @@ test("/stop dlc opreste modulul si curata activarea", async () => {
     $set: { dlcSubscribed: false, dlcChannelId: null, dlcInitializing: false },
     $unset: { dlcActivationId: "" }
   });
-  assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /DLC/);
 });
 
 test("/start player-count salveaza jocul si canalul curent", async () => {
-  const { handlers, calls, replies, invalidated } = makeDeps();
+  const { handlers, calls, replies } = makeDeps();
 
   await handlers.handleStartInteraction(makeInteraction("start", "player-count"), [{ key: "cs2", name: "Counter-Strike 2", appId: "730" }]);
 
@@ -100,12 +96,11 @@ test("/start player-count salveaza jocul si canalul curent", async () => {
     $set: { playerCountSubscribed: true, playerCountChannelId: "channel-1" },
     $addToSet: { playerCountGames: "cs2" }
   });
-  assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /player-count pornit/);
 });
 
 test("/stop player-count scoate jocul si pastreaza modulul activ cand mai exista jocuri", async () => {
-  const { handlers, calls, replies, invalidated } = makeDeps();
+  const { handlers, calls, replies } = makeDeps();
 
   await handlers.handleStopInteraction(makeInteraction("stop", "player-count"), [{ key: "cs2", name: "Counter-Strike 2", appId: "730" }]);
 
@@ -116,6 +111,5 @@ test("/stop player-count scoate jocul si pastreaza modulul activ cand mai exista
       playerCountChannelId: "channel-1"
     }
   });
-  assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /player-count oprit/);
 });

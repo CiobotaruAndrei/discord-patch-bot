@@ -86,7 +86,6 @@ function makeBackupModel(initial: GuildConfigBackupRecord[] = []) {
 function makeHarness(settings: GuildSettings | null, initialBackups: GuildConfigBackupRecord[] = []) {
   const calls: MongoCall[] = [];
   const replies: unknown[] = [];
-  const invalidated: string[] = [];
   const auditDocs: GuildAuditLogRecord[] = [];
   const { model: backupModel, docs: backupDocs } = makeBackupModel(initialBackups);
   const handler = installBackup.createBackupInteractionHandler({
@@ -99,14 +98,13 @@ function makeHarness(settings: GuildSettings | null, initialBackups: GuildConfig
     GuildAuditLogModel: makeAuditModel(auditDocs),
     GuildConfigBackupModel: backupModel,
     getGuildSettings: async () => settings,
-    invalidateGuildCache: guildId => { invalidated.push(guildId); },
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
     formatUserError: (_err, fallback) => fallback,
     logger: () => undefined,
     MessageFlags: { Ephemeral: 64 }
   });
-  return { handler, calls, replies, invalidated, auditDocs, backupDocs };
+  return { handler, calls, replies, auditDocs, backupDocs };
 }
 
 const PROD_BACKUP: GuildConfigBackupRecord = {
@@ -149,7 +147,7 @@ test("/backup load cere confirmare si nu scrie in Mongo fara confirm:true", asyn
 });
 
 test("/backup add salveaza backup-ul in colectia guildConfigBackups si auditul serverului", async () => {
-  const { handler, calls, replies, invalidated, auditDocs, backupDocs } = makeHarness({
+  const { handler, calls, replies, auditDocs, backupDocs } = makeHarness({
     _id: "guild-1",
     subscribed: true,
     notificationChannelId: "updates-channel"
@@ -165,12 +163,11 @@ test("/backup add salveaza backup-ul in colectia guildConfigBackups si auditul s
   assert.equal(auditDocs.length, 1, "auditul server-log e un document in colectia guildAuditLogs");
   assert.equal(auditDocs[0].kind, "server");
   assert.match(String(auditDocs[0].action), /backup_add/);
-  assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /prod-backup/);
 });
 
 test("/backup load cu confirmare restaureaza snapshot-ul pe guild si scrie server-log in colectia guildAuditLogs (R5 #7 + #6 audit split)", async () => {
-  const { handler, calls, replies, invalidated, auditDocs } = makeHarness({ _id: "guild-1", subscribed: false }, [PROD_BACKUP]);
+  const { handler, calls, replies, auditDocs } = makeHarness({ _id: "guild-1", subscribed: false }, [PROD_BACKUP]);
 
   await handler.handleBackupInteraction(makeInteraction("load", { name: "prod", confirm: true }));
 
@@ -180,12 +177,10 @@ test("/backup load cu confirmare restaureaza snapshot-ul pe guild si scrie serve
   assert.equal(restore.$unset?.youtubeChannelRoutes, "", "restore-ul curata si cheile absente din snapshot");
   assert.equal(restore.$push, undefined, "auditul nu mai e $push pe documentul guild");
   assert.match(String(auditDocs[0].action), /backup_load/);
-  assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /incarcat/);
 });
 
 test("/backup load: daca scrierea de restore esueaza, NIMIC nu e restaurat si comanda raporteaza eroare (R5 #7)", async () => {
-  const invalidated: string[] = [];
   const replies: unknown[] = [];
   let writes = 0;
   const auditDocs: GuildAuditLogRecord[] = [];
@@ -200,7 +195,6 @@ test("/backup load: daca scrierea de restore esueaza, NIMIC nu e restaurat si co
     GuildAuditLogModel: makeAuditModel(auditDocs),
     GuildConfigBackupModel: backupModel,
     getGuildSettings: async () => ({ _id: "guild-1" }),
-    invalidateGuildCache: guildId => { invalidated.push(guildId); },
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
     formatUserError: (_err, fallback) => fallback,
@@ -212,20 +206,18 @@ test("/backup load: daca scrierea de restore esueaza, NIMIC nu e restaurat si co
 
   assert.equal(writes, 1, "o singura scriere pe guild incercata");
   assert.equal(auditDocs.length, 0, "daca scrierea principala esueaza, nu se scrie audit pentru o restaurare care nu a avut loc");
-  assert.deepEqual(invalidated, [], "cache-ul nu e invalidat cand restore-ul a esuat (nimic nu s-a schimbat)");
   assert.match(String(replies.at(-1)), /Eroare/, "userul afla ca operatia a esuat integral, nu primeste un succes partial");
   assert.equal(isHandledCommandError(result), true, "esecul scrierii de restore e o eroare de comanda reala");
 });
 
 test("/backup delete sterge documentul din colectia guildConfigBackups si scrie server-log (R5 #7 + #6 audit split)", async () => {
-  const { handler, calls, replies, invalidated, auditDocs, backupDocs } = makeHarness({ _id: "guild-1" }, [PROD_BACKUP]);
+  const { handler, calls, replies, auditDocs, backupDocs } = makeHarness({ _id: "guild-1" }, [PROD_BACKUP]);
 
   await handler.handleBackupInteraction(makeInteraction("delete", { name: "prod", confirm: true }));
 
   assert.equal(calls.length, 0, "delete-ul nu atinge documentul guild");
   assert.equal(backupDocs.length, 0, "documentul de backup e sters din colectia dedicata");
   assert.match(String(auditDocs[0].action), /backup_delete/);
-  assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /sters/);
 });
 
@@ -249,7 +241,7 @@ test("/backup preview arata explicit ce setari se vor STERGE la load (exista acu
 });
 
 test("/add backup (verb in fata) ruteaza la handleAdd si scrie in colectia guildConfigBackups", async () => {
-  const { handler, invalidated, replies, auditDocs, backupDocs } = makeHarness({
+  const { handler, replies, auditDocs, backupDocs } = makeHarness({
     _id: "guild-1",
     subscribed: true,
     notificationChannelId: "updates-channel"
@@ -261,6 +253,5 @@ test("/add backup (verb in fata) ruteaza la handleAdd si scrie in colectia guild
   assert.equal(auditDocs.length, 1, "auditul server-log e un document in colectia guildAuditLogs");
   assert.equal(auditDocs[0].kind, "server");
   assert.match(String(auditDocs[0].action), /backup_add/);
-  assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /prod-backup/);
 });
