@@ -1,5 +1,5 @@
 import type { DealInfo, FetchResult } from "../../types.js";
-import type { AppRuntimeDeps, DiscordClientLike, HttpServerLike } from "../appRuntime.js";
+import type { AppRuntimeDeps, DiscordClientLike, HttpServerLike } from "../appRuntimeContracts.js";
 import { runCacheHydrationPhase, runDatabaseStartupPhase, runDiscordStartupPhase, runHttpStartupPhase } from "../lifecycle/bootPhases.js";
 
 import { ensureNativeFuzzy } from "../../native/fuzzy.js";
