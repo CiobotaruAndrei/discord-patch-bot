@@ -22,7 +22,7 @@ function makeInMemoryModels(): OutboxLoadModels & { jobs: JobDoc[] } {
     insertMany: async (docs: Record<string, unknown>[]) => { for (const d of docs) jobs.push({ _id: `j-${++idCounter}`, ...d } as JobDoc); return docs; },
     findOneAndUpdate: async (filter: { availableAt?: { $lte?: Date } }, update: { $set?: Record<string, unknown>; $inc?: { deliveries?: number } }) => {
       const now = filter?.availableAt?.$lte ?? new Date();
-      const job = jobs.find(j => (!j.availableAt || j.availableAt.getTime() <= now.getTime()) && (!j.lockedUntil || j.lockedUntil.getTime() <= now.getTime()));
+      const job = jobs.find(j => !["delivered", "dead-lettered", "dropped"].includes(String(j.status ?? "")) && (!j.availableAt || j.availableAt.getTime() <= now.getTime()) && (!j.lockedUntil || j.lockedUntil.getTime() <= now.getTime()));
       if (!job) return null;
       if (update.$set) Object.assign(job, update.$set);
       if (update.$inc?.deliveries) job.deliveries = ((job.deliveries as number) || 0) + update.$inc.deliveries;
@@ -31,8 +31,13 @@ function makeInMemoryModels(): OutboxLoadModels & { jobs: JobDoc[] } {
     find: () => ({ sort: () => ({ limit: () => ({ lean: async () => jobs.slice() }) }) }),
     deleteOne: async (filter: { _id: string }) => { const i = jobs.findIndex(j => j._id === filter._id); if (i >= 0) jobs.splice(i, 1); return { deletedCount: 1 }; },
     deleteMany: async () => ({ deletedCount: 0 }),
-    updateOne: async () => ({ matchedCount: 1 }),
-    countDocuments: async () => jobs.length
+    updateOne: async (filter: { _id?: string }, update: { $set?: Record<string, unknown>; $unset?: Record<string, string> }) => {
+      const job = jobs.find(j => j._id === filter?._id);
+      if (job && update.$set) Object.assign(job, update.$set);
+      if (job && update.$unset) for (const key of Object.keys(update.$unset)) delete (job as Record<string, unknown>)[key];
+      return { matchedCount: job ? 1 : 0 };
+    },
+    countDocuments: async () => jobs.filter(j => !["delivered", "dead-lettered", "dropped"].includes(String(j.status ?? ""))).length
   };
   const sentModel: OutboxSentLoadModel = {
     exists: async (filter: { dedupeKey: string }) => (sent.has(filter.dedupeKey) ? { _id: filter.dedupeKey } : null),
@@ -78,6 +83,6 @@ test("outboxLoadBenchmark: drenarea proceseaza tot lotul (livrare exact-o-data l
   const result = await runOutboxLoad(models, 2000, "bench-test");
   assert.equal(result.jobs, 2000);
   assert.equal(result.delivered, 2000, "toate cele 2000 de joburi sunt livrate o data");
-  assert.equal(models.jobs.length, 0, "coada e goala dupa drenare");
+  assert.equal(models.jobs.filter(j => !["delivered", "dead-lettered", "dropped"].includes(String(j.status ?? ""))).length, 0, "coada activa e goala dupa drenare (docurile finalizate raman pana la TTL)");
   assert.ok(result.msPerJob >= 0 && result.jobsPerSec > 0, "metrici de throughput valide");
 });

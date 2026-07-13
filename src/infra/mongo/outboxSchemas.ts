@@ -30,9 +30,19 @@ export function buildOutboxSchemas({ mongoose, ONE_DAY_MS, env }: OutboxSchemasD
     recoveryVerify: { type: Boolean, default: null },
     manual: { type: Boolean, default: false },
     history: { type: [outboxHistoryEntrySchema], default: [] },
+    status: { type: String, enum: ["queued", "leased", "delivered", "dead-lettered", "dropped"], default: "queued" },
+    statusChangedAt: { type: Date, default: Date.now },
     createdAt: { type: Date, default: Date.now, expires: 7 * ONE_DAY_MS / 1000 }
   }, { minimize: false });
   notificationOutboxSchema.index({ availableAt: 1, lockedUntil: 1 }, { background: true });
+  notificationOutboxSchema.index(
+    { statusChangedAt: 1 },
+    {
+      background: true,
+      expireAfterSeconds: env.NOTIFICATION_OUTBOX_SENT_TTL_HOURS * 3600,
+      partialFilterExpression: { status: { $in: ["delivered", "dead-lettered", "dropped"] } }
+    }
+  );
   notificationOutboxSchema.index({ dedupeKey: 1 }, { unique: true, sparse: true, background: true });
 
   const OUTBOX_SENT_TTL_HOURS = env.NOTIFICATION_OUTBOX_SENT_TTL_HOURS;

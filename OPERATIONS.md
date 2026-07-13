@@ -237,6 +237,7 @@ setat ESTE sincronizarea. Inventarul declarat curent:
 | `guildDeadLetters` | `{ guildId, failedAt }` | — | auditul dead-letter per guild: listarea `/outbox dead-letters` cele mai noi primele, numaratorile din `/outbox status` si `/maintenance`, stergerea la `clear-deadletters`/replay/`/reset-config`, evictia celor mai vechi intrari peste capul de 50 per guild la inregistrare |
 | `notificationOutbox` | `{ availableAt, lockedUntil }` | — | claim-ul joburilor disponibile la drenare |
 | `notificationOutbox` | `{ dedupeKey }` | unique, sparse | impiedica doua joburi pending cu acelasi `dedupeKey` (sparse: joburile fara cheie coexista) |
+| `notificationOutbox` | `{ statusChangedAt }` | TTL (NOTIFICATION_OUTBOX_SENT_TTL_HOURS), partial pe `status` in {delivered, dead-lettered, dropped} | curata automat joburile finalizate pastrate pentru observabilitate (masina de stari explicita) |
 | `notificationOutbox` | `{ createdAt }` | TTL 7 zile | plasa de siguranta pentru joburi nedrenate |
 | `notificationOutboxSent` | `{ dedupeKey }` | unique | istoricul de livrari pentru dedup la recovery |
 | `notificationOutboxSent` | `{ sentAt }` | TTL `NOTIFICATION_OUTBOX_SENT_TTL_HOURS` (implicit 24h) | expirarea istoricului de dedup |

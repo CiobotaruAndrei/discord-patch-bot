@@ -24,10 +24,14 @@ function makeStore() {
   const jobs: OutboxJobDoc[] = [];
   const sent = new Set<string>();
   let idCounter = 0;
+  const TERMINAL = ["delivered", "dead-lettered", "dropped"];
+  function activeJob(job: OutboxJobDoc): boolean {
+    return !TERMINAL.includes(String(job.status ?? ""));
+  }
   function available(job: OutboxJobDoc, now: Date): boolean {
     const availableOk = !job.availableAt || job.availableAt.getTime() <= now.getTime();
     const lockOk = !job.lockedUntil || job.lockedUntil.getTime() <= now.getTime();
-    return availableOk && lockOk;
+    return activeJob(job) && availableOk && lockOk;
   }
   const model: OutboxModelMock = {
     create: async (doc: Record<string, unknown>) => { const job = { _id: `job-${++idCounter}`, ...doc } as OutboxJobDoc; jobs.push(job); return job; },
@@ -49,7 +53,7 @@ function makeStore() {
       }
       return { matchedCount: job ? 1 : 0 };
     },
-    countDocuments: async () => jobs.length
+    countDocuments: async () => jobs.filter(activeJob).length
   };
   const sentModel: OutboxSentModelMock = {
     exists: async (filter: { dedupeKey: string }) => (sent.has(filter.dedupeKey) ? { _id: filter.dedupeKey } : null),
@@ -92,22 +96,26 @@ test("crash-sim cu recovery-verify: send reuseste, markSent esueaza/crash, worke
 
   await runtime.enqueueOutbox({ guildId: "g1", channelId: "c1", kind: "update", payload: { embeds: [{ title: "Patch 1.2" }] }, recoveryVerify: true });
 
-  const origDelete = store.model.deleteOne;
+  const origUpdate = store.model.updateOne;
   const origSentUpdate = store.sentModel.updateOne;
-  store.model.deleteOne = async () => { throw new Error("crash inainte de delete"); };
+  store.model.updateOne = async (filter, update) => {
+    const status = (update as { $set?: { status?: string } }).$set?.status;
+    if (status && ["delivered", "dead-lettered", "dropped"].includes(status)) throw new Error("crash inainte de finalizare");
+    return origUpdate(filter, update);
+  };
   store.sentModel.updateOne = async () => { throw new Error("crash inainte de markSent"); };
   const crashResult = await runtime.drainOutbox({
     deliver: (job) => delivery.deliver(client, job),
     recordDeadLetter: async () => undefined,
     maxAttempts: 5, backoffMs: 1000, limit: 1
   });
-  store.model.deleteOne = origDelete;
+  store.model.updateOne = origUpdate;
   store.sentModel.updateOne = origSentUpdate;
 
   assert.equal(crashResult.markSentFailures, 1, "markSent a esuat in fereastra de crash");
-  assert.equal(crashResult.deleteFailures, 1, "stergerea a esuat (crash), dar drain-ul a contorizat fara sa arunce");
+  assert.equal(crashResult.deleteFailures, 1, "finalizarea a esuat (crash), dar drain-ul a contorizat fara sa arunce");
   assert.equal(sentPayloads.length, 1, "mesajul a fost trimis o data inainte de crash");
-  assert.equal(await store.model.countDocuments(), 1, "jobul a ramas in coada (markSent si delete nu s-au facut)");
+  assert.equal(await store.model.countDocuments(), 1, "jobul a ramas in coada (markSent si finalizarea nu s-au facut)");
   assert.equal(store.sent.size, 0, "markSent nu a apucat sa scrie in istoric (fereastra de risc)");
 
   store.jobs[0].lockedUntil = undefined;
@@ -120,7 +128,7 @@ test("crash-sim cu recovery-verify: send reuseste, markSent esueaza/crash, worke
 
   assert.equal(sentPayloads.length, 1, "recovery-verify a gasit marker-ul in istoric -> NU re-trimite (zero duplicate)");
   assert.equal(result.recoveryDuplicates, 1, "drenarea numara un duplicat prevenit");
-  assert.equal(await store.model.countDocuments(), 0, "jobul recuperat e curatat fara re-trimitere");
+  assert.equal(await store.model.countDocuments(), 0, "jobul recuperat e finalizat (dropped) fara re-trimitere");
 });
 
 test("crash-sim FARA recovery-verify: aceeasi scapare produce un duplicat (demonstreaza valoarea recovery-verify)", async () => {
@@ -136,18 +144,22 @@ test("crash-sim FARA recovery-verify: aceeasi scapare produce un duplicat (demon
 
   await runtime.enqueueOutbox({ guildId: "g1", channelId: "c1", kind: "update", payload: { embeds: [{ title: "Patch 1.2" }] } });
 
-  const origDelete = store.model.deleteOne;
+  const origUpdate = store.model.updateOne;
   const origSentUpdate = store.sentModel.updateOne;
-  store.model.deleteOne = async () => { throw new Error("crash inainte de delete"); };
+  store.model.updateOne = async (filter, update) => {
+    const status = (update as { $set?: { status?: string } }).$set?.status;
+    if (status && ["delivered", "dead-lettered", "dropped"].includes(status)) throw new Error("crash inainte de finalizare");
+    return origUpdate(filter, update);
+  };
   store.sentModel.updateOne = async () => { throw new Error("crash inainte de markSent"); };
   const crashResult = await runtime.drainOutbox({
     deliver: (job) => delivery.deliver(client, job),
     recordDeadLetter: async () => undefined,
     maxAttempts: 5, backoffMs: 1000, limit: 1
   });
-  store.model.deleteOne = origDelete;
+  store.model.updateOne = origUpdate;
   store.sentModel.updateOne = origSentUpdate;
-  assert.equal(crashResult.deleteFailures, 1, "stergerea a esuat in crash, dar drain-ul a contorizat fara sa arunce");
+  assert.equal(crashResult.deleteFailures, 1, "finalizarea a esuat in crash, dar drain-ul a contorizat fara sa arunce");
   assert.equal(sentPayloads.length, 1);
 
   store.jobs[0].lockedUntil = undefined;

@@ -86,7 +86,7 @@ test("real Mongo: doi workeri care drenaza simultan NU livreaza acelasi job de d
     }
     assert.equal(deliveredCounts.size, jobCount, "toate joburile au fost livrate");
     assert.equal(a.sent + b.sent, jobCount, "suma livrarilor celor doi workeri = numarul de joburi");
-    assert.equal(await outbox.countDocuments({ guildId: marker }), 0, "coada e goala dupa drenare");
+    assert.equal(await outbox.countDocuments({ guildId: marker, status: { $nin: ["delivered", "dead-lettered", "dropped"] } }), 0, "coada activa e goala dupa drenare (docurile finalizate raman pana la TTL)");
   } finally {
     await outbox.deleteMany({ guildId: marker });
     const sentModel = sent as { deleteMany(filter: Record<string, unknown>): Promise<unknown> };

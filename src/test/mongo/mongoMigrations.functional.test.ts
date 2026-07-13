@@ -241,6 +241,7 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
       if (name === "guildSuggestedCommands") return fakeCollection(guildSuggestedCommandCollection);
       if (name === "guildYoutubeErrors") return fakeCollection(guildYoutubeErrorCollection);
       if (name === "guildDeadLetters") return fakeCollection(guildDeadLetterCollection);
+      if (name === "notificationOutbox") return fakeCollection([]);
       throw new Error(`Unexpected collection ${name}`);
     }
   };
@@ -270,7 +271,7 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
     logs.push({ level, context, message });
   });
 
-  assert.deepEqual(result.applied, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  assert.deepEqual(result.applied, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
   assert.equal(result.skipped, 0);
   assert.equal(fixture.updateManyCalls.length, 5, "m1-m4 + m7 folosesc updateMany; m5 si m6 folosesc find + bulkWrite");
   const m4Call = fixture.updateManyCalls[3];
@@ -325,7 +326,7 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
   assert.equal(deadLetterOp.updateOne.filter.dedupeKey, "dk1");
   assert.equal(deadLetterOp.updateOne.upsert, true, "backfill-ul e idempotent (upsert pe continutul intrarii)");
   assert.equal(fixture.guilds[0].notificationDeadLetter, undefined, "m12 curata campul notificationDeadLetter de pe documentul guild");
-  assert.equal(fixture.migrationState?.lastApplied, 12);
+  assert.equal(fixture.migrationState?.lastApplied, 13);
   assert.equal(fixture.releaseCalls.length, 1);
   assert.deepEqual(fixture.releaseCalls[0], { name: "db_migrations", token: "migration-lock-token" });
   assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#8")));
@@ -338,7 +339,7 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
 test("alta instanta tine lock-ul dar schema e deja sincronizata -> asteapta, continua boot-ul fara throw", async () => {
   const fixture = createFakeMigrationContext({
     acquireDbLock: async () => null,
-    initialMigrationState: { _id: "migrationState", lastApplied: 12 }
+    initialMigrationState: { _id: "migrationState", lastApplied: 13 }
   });
   let slept = 0;
 
@@ -369,7 +370,7 @@ test("alta instanta tine lock-ul si nu termina in timeout -> fail-fast (throw)",
       waitTimeoutMs: 1_000,
       pollIntervalMs: 100
     }),
-    /Timeout.*migrarile.*lastApplied=3 < 12.*fail-fast/s,
+    /Timeout.*migrarile.*lastApplied=3 < 13.*fail-fast/s,
     "schema ramane sub target (3 < 12) pana la timeout -> arunca pentru ca boot-ul sa se opreasca"
   );
   assert.equal(fixture.releaseCalls.length, 0);
