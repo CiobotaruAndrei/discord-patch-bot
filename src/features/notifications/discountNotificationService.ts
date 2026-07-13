@@ -176,7 +176,8 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
         const dealToSend = await enrichDealData(item.snapshot as DealInfo, currency);
         batch.push({ item, embed: buildDealEmbed(dealToSend, notificationMode, currency) });
       } catch (err: unknown) {
-        if (claimed) await rollbackSeenDiscount(String(guild._id), item.hash).catch(() => null);
+        if (claimed) await rollbackSeenDiscount(String(guild._id), item.hash).catch((rollbackErr: unknown) =>
+          logger("WARN", "CRON_DISCOUNTS", `Rollback seen-discount esuat pentru guild ${guild._id}; reducerea ramane marcata vazuta desi nu a fost livrata (risc de notificare pierduta)`, transientErrorMessage(rollbackErr)));
         if (isPermanentDiscordError(err)) {
           const reason = `Discord cod ${(err as { code?: unknown }).code}: ${transientErrorMessage(err)}`;
           await disableDiscountsForChannelError(String(guild._id), channel.id, reason).catch(() => null);

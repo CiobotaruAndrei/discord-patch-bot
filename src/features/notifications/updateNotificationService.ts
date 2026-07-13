@@ -144,7 +144,8 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       try {
         embed = buildUpdateEmbed(game.name, next, notificationMode);
       } catch (embedErr: unknown) {
-        await rollbackSeenUpdate(String(guild._id), gameKey, next.id).catch(() => null);
+        await rollbackSeenUpdate(String(guild._id), gameKey, next.id).catch((rollbackErr: unknown) =>
+          logger("WARN", "CRON_UPDATES", `Rollback seen-update esuat pentru guild ${guild._id} (${gameKey}/${next.id}); update-ul ramane marcat vazut desi nu a fost livrat (risc de notificare pierduta)`, transientErrorMessage(rollbackErr)));
         const embedFailure = planPendingFailure(next, PENDING_UPDATE_MAX_ATTEMPTS);
         if (embedFailure.action === "requeue") {
           requeueFront(pendingByGame, gameKey, next);
