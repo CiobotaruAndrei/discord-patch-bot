@@ -51,6 +51,7 @@ src/
   config/
     configLoader.ts
     configValidator.ts
+    sourceTypeValidators.ts
     configTypes.ts
   domain/
     deals/
