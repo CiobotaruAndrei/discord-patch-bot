@@ -22,7 +22,7 @@ const ignoredFiles = new Set<string>([
   path.normalize(path.join("native", "index.d.ts"))
 ]);
 const bugCatchingTestFiles = new Set<string>([
-  path.normalize(path.join("test", "checkNoWeakeningTypes.test.ts"))
+  path.normalize(path.join("test", "gates", "checkNoWeakeningTypes.test.ts"))
 ]);
 const checkedExtensions = new Set<string>([".ts", ".js"]);
 
