@@ -16,6 +16,7 @@ function scriptValue(name: string): string {
 test("scripturile operationale compileaza o singura data si ruleaza gate-urile direct", () => {
   assert.equal(scriptValue("check:quick"), "npm run build:ts && node dist/scripts/check-syntax.js && node dist/scripts/check-config.js");
   assert.equal(scriptValue("lint"), "npm run build:ts && node dist/scripts/check-syntax.js && node dist/scripts/check-no-comments.js && node dist/scripts/check-no-weakening-types.js");
+  assert.equal(scriptValue("check"), "npm run build:ts && npm run build:rust && node dist/scripts/check-syntax.js && node dist/scripts/check-no-comments.js && node dist/scripts/check-no-weakening-types.js && node dist/scripts/check-config.js && node dist/scripts/check-dependencies.js && node dist/scripts/check-rules-sync.js && node dist/scripts/check-db-indexes.js && node dist/scripts/generate-command-reference.js --check && node --test --test-reporter=spec \\"dist/test/**/*.test.js\\"");
   assert.equal(scriptValue("check:full"), "npm run check && npm run check:native && npm run test:e2e:prebuilt");
   assert.equal(packageText.includes('"test:functional"'), false);
 });
@@ -26,7 +27,8 @@ test("scripturile locale incarca .env si separa rolurile web si worker", () => {
   assert.equal(scriptValue("start:web:local"), "node --env-file=.env dist/app/web.js");
   assert.equal(scriptValue("check:env:local"), "npm run build:ts && node --env-file=.env dist/scripts/check-env.js");
   assert.equal(scriptValue("check:redis:local"), "npm run build:ts && node --env-file=.env dist/scripts/check-redis.js");
-  assert.equal(scriptValue("doctor:local"), "npm run build:ts && node --env-file=.env dist/scripts/check-env.js && node --env-file=.env dist/scripts/check-config.js && node --env-file=.env dist/scripts/check-redis.js");
+  assert.equal(scriptValue("check:mongo:local"), "npm run build:ts && node --env-file=.env dist/scripts/check-mongo.js");
+  assert.equal(scriptValue("doctor:local"), "npm run build:ts && node --env-file=.env dist/scripts/check-env.js && node --env-file=.env dist/scripts/check-config.js && node --env-file=.env dist/scripts/check-mongo.js && node --env-file=.env dist/scripts/check-redis.js");
 });
 
 test("exportul brut al guild-urilor este explicit", () => {
