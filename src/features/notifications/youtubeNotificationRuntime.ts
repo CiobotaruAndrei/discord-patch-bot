@@ -4,10 +4,10 @@ import type { NotificationsRuntimeDeps } from "./notificationRuntimeContracts";
 import type { OutboundChannelResolver } from "./outboxRuntimeFactory";
 import { createReportRollbackFailure } from "./notificationRuntimeContracts";
 
-const { transientErrorMessage } = require("./outboundChannel") as typeof import("./outboundChannel");
-const { createYouTubeSource } = require("../youtube/youtubeSource") as typeof import("../youtube/youtubeSource");
-const { createYouTubeRepository } = require("../youtube/youtubeRepository") as typeof import("../youtube/youtubeRepository");
-const { createYouTubeNotificationService } = require("../youtube/youtubeNotificationService") as typeof import("../youtube/youtubeNotificationService");
+import { transientErrorMessage } from "./outboundChannel";
+import { createYouTubeSource } from "../youtube/youtubeSource";
+import { createYouTubeRepository } from "../youtube/youtubeRepository";
+import { createYouTubeNotificationService } from "../youtube/youtubeNotificationService";
 
 export function createYouTubeNotificationRuntime(
   deps: NotificationsRuntimeDeps,

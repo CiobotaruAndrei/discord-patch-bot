@@ -2,7 +2,7 @@
 
 import type { EmbeddableUpdate, NormalizedUpdate } from "../../../types";
 
-const { errorMessage } = require("../../../shared/errors");
+import { errorMessage } from "../../../shared/errors";
 
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
 type NotificationMode = "compact" | "detailed";

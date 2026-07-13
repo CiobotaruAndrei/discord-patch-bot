@@ -5,9 +5,9 @@ import type { OutboundChannelResolver } from "./outboxRuntimeFactory";
 import type { SeenServices } from "./seenRuntimeFactory";
 import { createReportRollbackFailure } from "./notificationRuntimeContracts";
 
-const { isPermanentDiscordError, transientErrorMessage } = require("./outboundChannel") as typeof import("./outboundChannel");
-const { createDiscountNotificationService } = require("./discountNotificationService") as typeof import("./discountNotificationService");
-const { createPriceAlertService } = require("./priceAlertService") as typeof import("./priceAlertService");
+import { isPermanentDiscordError, transientErrorMessage } from "./outboundChannel";
+import { createDiscountNotificationService } from "./discountNotificationService";
+import { createPriceAlertService } from "./priceAlertService";
 
 export function createDiscountNotificationRuntime(
   deps: NotificationsRuntimeDeps,

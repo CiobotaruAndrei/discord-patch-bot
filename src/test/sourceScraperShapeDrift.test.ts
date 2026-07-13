@@ -2,9 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as cheerio from "cheerio";
 
-const attachUpdates = require("../sources/updates") as typeof import("../sources/updates");
-const attachDeals = require("../sources/deals") as typeof import("../sources/deals");
-const attachSteam = require("../sources/steam") as typeof import("../sources/steam");
+import attachUpdates from "../sources/updates";
+import attachDeals from "../sources/deals";
+import attachSteam from "../sources/steam";
 
 type UpdatesBuildContext = Parameters<typeof attachUpdates.buildFrom>[0];
 type DealsBuildContext = Parameters<typeof attachDeals.buildFrom>[0];

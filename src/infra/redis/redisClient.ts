@@ -1,8 +1,8 @@
 import type { LoggerFunction } from "../../types";
 
-const { createClient } = require("redis") as typeof import("redis");
-const { errorMessage } = require("../../shared/errors") as typeof import("../../shared/errors");
-const redisMetrics = require("./redisMetrics") as typeof import("./redisMetrics");
+import { createClient } from "redis";
+import { errorMessage } from "../../shared/errors";
+import redisMetrics from "./redisMetrics";
 
 interface RedisClientLike {
   on(event: "error", listener: (err: unknown) => void): unknown;

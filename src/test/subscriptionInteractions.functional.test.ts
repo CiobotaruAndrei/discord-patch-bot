@@ -9,7 +9,8 @@ type SubscriptionModule = ChainableCommandModule & {
   };
 };
 
-const subscriptionInteractions = require("../features/command-handlers/subscriptionNotificationHandlers") as SubscriptionModule;
+import subscriptionInteractionsModule from "../features/command-handlers/subscriptionNotificationHandlers";
+const subscriptionInteractions = subscriptionInteractionsModule as object as SubscriptionModule;
 
 type InteractionRuntime = {
   handleInteraction: (interaction: unknown, games?: Array<Record<string, unknown>>) => Promise<unknown>;
@@ -136,7 +137,7 @@ test("subscription installer intercepts start/stop and delegates other interacti
     return "delegated";
   };
 
-  installCommandChain(runtimeContext, [subscriptionInteractions]);
+  installCommandChain(runtimeContext, [subscriptionInteractions] as object as ChainableCommandModule[]);
   const runtime = runtimeContext as typeof context & InteractionRuntime;
   await runtime.handleInteraction(makeStartInteraction(), [{ key: "cs2" }]);
   const result = await runtime.handleInteraction({

@@ -32,7 +32,7 @@ function recordRedisError(): void {
   if (ref) ref.redisErrors += 1;
 }
 
-export = {
+export default {
   attachRedisMetrics,
   recordRedisConnectSuccess,
   recordRedisConnectFailure,

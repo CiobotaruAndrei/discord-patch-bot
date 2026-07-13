@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { dlcPageHasAgeGate, dlcPageLooksLikeStorePage, parseDlcRows } from "../features/command-handlers/dlcSteamPage";
 
-const cheerio = require("cheerio") as typeof import("cheerio");
+import * as cheerio from "cheerio";
 const load = (html: string) => cheerio.load(html);
 
 test("dlcPageHasAgeGate: detecteaza #agegate_box sau .agegate_text_container", () => {

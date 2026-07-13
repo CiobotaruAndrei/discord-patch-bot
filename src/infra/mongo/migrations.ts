@@ -472,4 +472,4 @@ function attachMigrations(target: MigrationsContext): void {
 
 attachMigrations.buildFrom = buildMigrationsFrom;
 
-export = attachMigrations;
+export default attachMigrations;

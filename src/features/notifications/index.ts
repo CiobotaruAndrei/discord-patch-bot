@@ -9,11 +9,11 @@ const {
   isPermanentDiscordError,
   transientErrorMessage
 } = require("./outboundChannel") as typeof import("./outboundChannel");
-const { createOutboxServices, createIsStillSubscribed, outboxSubscriptionFilter } = require("./outboxRuntimeFactory") as typeof import("./outboxRuntimeFactory");
-const { createSeenServices } = require("./seenRuntimeFactory") as typeof import("./seenRuntimeFactory");
-const { createUpdateNotificationRuntime } = require("./updateNotificationRuntime") as typeof import("./updateNotificationRuntime");
-const { createDiscountNotificationRuntime } = require("./discountNotificationRuntime") as typeof import("./discountNotificationRuntime");
-const { createYouTubeNotificationRuntime } = require("./youtubeNotificationRuntime") as typeof import("./youtubeNotificationRuntime");
+import { createOutboxServices, createIsStillSubscribed, outboxSubscriptionFilter } from "./outboxRuntimeFactory";
+import { createSeenServices } from "./seenRuntimeFactory";
+import { createUpdateNotificationRuntime } from "./updateNotificationRuntime";
+import { createDiscountNotificationRuntime } from "./discountNotificationRuntime";
+import { createYouTubeNotificationRuntime } from "./youtubeNotificationRuntime";
 
 function createNotificationDispatchServices(
   deps: NotificationsRuntimeDeps,
@@ -95,4 +95,4 @@ const notificationsModule = {
   outboxSubscriptionFilter
 };
 
-export = notificationsModule;
+export default notificationsModule;

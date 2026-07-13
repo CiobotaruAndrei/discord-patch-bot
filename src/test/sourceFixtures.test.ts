@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const fs = require("fs") as typeof import("fs");
-const path = require("path") as typeof import("path");
-const Parser = require("rss-parser");
+import fs from "fs";
+import path from "path";
+import Parser from "rss-parser";
 
 type FixtureUpdate = Record<string, unknown>;
-const attachUpdates = require("../sources/updates") as {
+const attachUpdates = require("../sources/updates").default as {
   createUpdates: (deps: Record<string, unknown>) => {
     fetchSteamUpdate: (game: Record<string, unknown>) => Promise<FixtureUpdate>;
     fetchMinecraftUpdate: () => Promise<FixtureUpdate>;
@@ -16,7 +16,7 @@ const attachUpdates = require("../sources/updates") as {
     fetchIntelUpdate: (game: Record<string, unknown>) => Promise<FixtureUpdate>;
   };
 };
-const attachDeals = require("../sources/deals") as {
+const attachDeals = require("../sources/deals").default as {
   createDeals: (deps: Record<string, unknown>) => { fetchDeals: (opts?: { currency?: string }) => Promise<Array<Record<string, unknown>>> };
 };
 

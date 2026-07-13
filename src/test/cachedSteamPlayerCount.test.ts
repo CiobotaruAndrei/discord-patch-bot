@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const mod = require("../features/player-count/cachedSteamPlayerCount") as typeof import("../features/player-count/cachedSteamPlayerCount");
-const cacheMod = require("../infra/redis/redisCache") as typeof import("../infra/redis/redisCache");
+import mod from "../features/player-count/cachedSteamPlayerCount";
+import * as cacheMod from "../infra/redis/redisCache";
 import type { RedisCacheClient } from "../infra/redis/redisCache";
 import type { LoggerFunction } from "../types";
 

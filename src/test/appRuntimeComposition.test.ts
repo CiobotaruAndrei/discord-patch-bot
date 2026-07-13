@@ -1,7 +1,7 @@
-import test = require("node:test");
-import assert = require("node:assert/strict");
-import fs = require("node:fs");
-import path = require("node:path");
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 
 const appRoot = path.join(__dirname, "..", "..", "app");
 

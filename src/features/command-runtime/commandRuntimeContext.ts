@@ -1,4 +1,4 @@
-import crypto = require("crypto");
+import crypto from "crypto";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -14,11 +14,11 @@ import {
 
 import type { SourceRegistryApi } from "../../sources/sourceRegistry";
 
-type MongoContextExports = typeof import("../../infra/mongo/mongoContext");
+type MongoContextExports = typeof import("../../infra/mongo/mongoContext")["default"];
 
-const data = require("../../infra/mongo/mongoContext") as MongoContextExports;
-const scrapers = require("../../sources/sourceRegistry") as SourceRegistryApi;
-const redis = require("../../infra/redis/redisContext") as typeof import("../../infra/redis/redisContext");
+import data from "../../infra/mongo/mongoContext";
+import scrapers from "../../sources/sourceRegistry";
+import redis from "../../infra/redis/redisContext";
 
 type DiscordRuntimeBindings = {
   crypto: typeof crypto;
@@ -120,7 +120,7 @@ function createCommandRuntimeContext(): CommandRuntimeContext {
   };
 }
 
-export = Object.assign(createCommandRuntimeContext, {
+export default Object.assign(createCommandRuntimeContext, {
   createCommandRuntimeContext,
   createDiscordRuntimeBindings,
   checkChannelPermissions,

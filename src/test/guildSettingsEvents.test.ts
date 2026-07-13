@@ -1,5 +1,5 @@
-import test = require("node:test");
-import assert = require("node:assert/strict");
+import test from "node:test";
+import assert from "node:assert/strict";
 import { publishGuildSettingsChanged, subscribeGuildSettingsChanged } from "../infra/mongo/guildSettingsEvents";
 
 test("guild settings changed notifica toti abonatii cu guild-ul scris", () => {

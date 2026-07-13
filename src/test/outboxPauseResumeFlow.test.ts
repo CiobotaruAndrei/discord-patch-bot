@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createOutboxWorker } from "../app/scheduler/outboxWorker";
 
-const attachSystemState = require("../infra/mongo/systemState") as (t: Record<string, unknown>) => void;
+import attachSystemState from "../infra/mongo/systemState";
 const { createSchedulers } = require("../app/appRuntime") as {
   createSchedulers: (deps: unknown, services: unknown) => { outboxEnabled: boolean };
 };
@@ -23,7 +23,7 @@ function makeSystemModel() {
 
 function realState() {
   const target: Record<string, unknown> = { SystemModel: makeSystemModel() };
-  attachSystemState(target);
+  attachSystemState(target as object as Parameters<typeof attachSystemState>[0]);
   return {
     getOutboxPaused: target.getOutboxPaused as () => Promise<boolean>,
     setOutboxPaused: target.setOutboxPaused as (p: boolean) => Promise<void>

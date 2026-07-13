@@ -63,8 +63,8 @@ export type AdminCommandGuardModule = {
   isGuildOwner: (interaction: TestInteraction) => Promise<boolean>;
 };
 
-export const requireGuildAdmin = require("../features/command-security/adminPermissionGuard") as AdminGuardModule;
-export const adminCommandGuard = require("../features/command-security/adminCommandRouterGuard") as AdminCommandGuardModule;
+export const requireGuildAdmin = require("../features/command-security/adminPermissionGuard").default as AdminGuardModule;
+export const adminCommandGuard = require("../features/command-security/adminCommandRouterGuard").default as AdminCommandGuardModule;
 
 type GuardedTarget = Record<string, unknown> & {
   handleInteraction: (interaction: TestInteraction, games: TestGame[]) => Promise<unknown>;
@@ -81,7 +81,7 @@ export function buildGuardedHandleInteraction(target: GuardedTarget) {
       ? guard.handleAdminProtectedCommand(interaction, games, next)
       : next(interaction, games);
 }
-export const globalAccessCode = require("../features/command-security/globalAccessCode") as typeof import("../features/command-security/globalAccessCode");
+export const globalAccessCode = require("../features/command-security/globalAccessCode").default as typeof import("../features/command-security/globalAccessCode")["default"];
 
 export function makeInteraction(isAdmin: boolean, deferred = false): { interaction: TestInteraction; replies: unknown[]; followUps: unknown[] } {
   const replies: unknown[] = [];

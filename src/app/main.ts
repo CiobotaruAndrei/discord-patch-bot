@@ -1,6 +1,6 @@
 "use strict";
 
-const { startFromEnv } = require("./bootstrap") as typeof import("./bootstrap");
+import { startFromEnv } from "./bootstrap";
 
 startFromEnv();
 

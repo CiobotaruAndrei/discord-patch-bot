@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { createYouTubeRepository } = require("../features/youtube/youtubeRepository") as typeof import("../features/youtube/youtubeRepository");
+import { createYouTubeRepository } from "../features/youtube/youtubeRepository";
 type RepositoryDeps = Parameters<typeof createYouTubeRepository>[0];
 
 const noopYoutubeErrorModel = {

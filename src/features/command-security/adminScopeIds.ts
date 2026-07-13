@@ -13,7 +13,7 @@ type ScopeProbeInteraction = {
   };
 };
 
-const adminCommandRouterGuard = require("./adminCommandRouterGuard") as {
+const adminCommandRouterGuard = require("./adminCommandRouterGuard").default as {
   isAdminProtectedCommand: (interaction: ScopeProbeInteraction) => boolean;
   isOwnerOnlyAdminAccessCommand: (interaction: ScopeProbeInteraction) => boolean;
 };

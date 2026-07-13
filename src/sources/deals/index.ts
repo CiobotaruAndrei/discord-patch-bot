@@ -132,4 +132,4 @@ const dealsSourceModule = {
   createDeals
 };
 
-export = dealsSourceModule;
+export default dealsSourceModule;

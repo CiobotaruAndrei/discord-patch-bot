@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const attachEnv = require("../shared/env") as ((target: unknown) => void) & {
+const attachEnv = require("../shared/env").default as ((target: unknown) => void) & {
   formatEnvValidationErrors: (err: unknown) => Array<{ variable: string; problem: string }>;
 };
 const { formatEnvValidationErrors } = attachEnv;
 
-const { z } = require("zod") as typeof import("zod");
+import { z } from "zod";
 
 test("formatEnvValidationErrors: eroare ZodError REALA (zod 4) -> {variable, problem} per camp invalid", () => {
   const schema = z.object({ DISCORD_TOKEN: z.string().min(1), PORT: z.coerce.number().int().positive() });

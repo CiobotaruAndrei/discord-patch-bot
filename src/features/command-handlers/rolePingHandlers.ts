@@ -5,7 +5,7 @@ import type { DiscordReplyPayload, GameConfig, MongoWriteOutcome } from "../../t
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { matchesCommand } from "../command-registry/commandMatch";
 
-const { errorDetail } = require("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -127,4 +127,4 @@ function buildRolePingCommandHandler(target: RolePingContext) {
   return { handlers, ...command };
 }
 
-export = { createRolePingInteractionHandlers, buildCommandHandler: buildRolePingCommandHandler };
+export default { createRolePingInteractionHandlers, buildCommandHandler: buildRolePingCommandHandler };

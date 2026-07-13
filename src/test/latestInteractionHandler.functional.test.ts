@@ -1,11 +1,12 @@
 import test from "node:test";
+import { validateUpdateFetchSnapshot as _vUpd, validatePendingDiscountSnapshot as _vDisc } from "../shared/utilities";
 import assert from "node:assert/strict";
 
 import { makeDealInfo } from "./typedTestBuilders";
 
-const realUtilities = require("../shared/utilities") as { validatePendingDiscountSnapshot: (snapshot: unknown) => boolean; validateUpdateFetchSnapshot: (item: unknown) => boolean };
+import realUtilities from "../shared/utilities";
 
-const latestHandlerModule = require("../features/command-handlers/latestInteractionHandler") as {
+const latestHandlerModule = require("../features/command-handlers/latestInteractionHandler").default as {
   createLatestInteractionHandler?: (deps: unknown) => unknown;
   buildCommandHandler: (target: Record<string, unknown>) => {
     canHandle: (interaction: unknown) => boolean;
@@ -68,8 +69,8 @@ function makeContext(overrides: Partial<Record<string, unknown>> = {}) {
     fetchDeals: async (opts: unknown) => { log("fetchDeals", opts); return [{ id: "d1" }]; },
     enrichDealData: async (deal: unknown) => deal,
     dealPassesFilters: () => true,
-    validatePendingDiscountSnapshot: realUtilities.validatePendingDiscountSnapshot,
-    validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
+    validatePendingDiscountSnapshot: _vDisc,
+    validateUpdateFetchSnapshot: _vUpd,
     findGameAndSuggestion: () => ({ game: { key: "cs2", name: "CS2" }, suggestion: null }),
     executeFetchWithCircuitBreaker: async (game: unknown) => {
       log("executeFetch", game);

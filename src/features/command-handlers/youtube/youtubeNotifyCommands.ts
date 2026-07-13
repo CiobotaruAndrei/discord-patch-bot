@@ -18,7 +18,7 @@ import {
 import { formatYouTubeRoutes, formatYouTubeStatus } from "./youtubePresentation";
 import { countYoutubeErrors } from "../../youtube/youtubeErrorsRepository";
 
-const { errorDetail } = require("../../../shared/errors") as typeof import("../../../shared/errors");
+import { errorDetail } from "../../../shared/errors";
 
 export function createYouTubeNotifyCommands(deps: YouTubeInteractionDeps) {
   const { GuildModel, GuildYoutubeErrorModel, getGuildSettings, invalidateGuildCache, checkChannelPermissions, safeEdit } = deps;

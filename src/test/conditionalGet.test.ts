@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import attachHttpClient = require("../infra/http/client");
+import attachHttpClient from "../infra/http/client";
 
 type FakeAxios = (config: { url: string; headers?: Record<string, string> }) => Promise<unknown>;
 type ConditionalGet = <T>(url: string, parse: (data: unknown) => T | Promise<T>, options?: unknown) => Promise<T>;

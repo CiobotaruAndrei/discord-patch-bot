@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { SystemTimes } from "../types";
 
-const attachSystemState = require("../infra/mongo/systemState") as typeof import("../infra/mongo/systemState");
+import attachSystemState from "../infra/mongo/systemState";
 type SystemStateContext = Parameters<typeof attachSystemState>[0];
 
 type SystemTimesKey = keyof SystemTimes;

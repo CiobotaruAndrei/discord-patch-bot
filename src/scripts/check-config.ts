@@ -1,8 +1,8 @@
 
 "use strict";
 
-const path = require("path");
-const { validateConfig } = require("../config/configValidator");
+import path from "path";
+import { validateConfig } from "../config/configValidator";
 
 function defaultConfigPath(): string {
   if (path.basename(path.dirname(__dirname)) === "dist") {

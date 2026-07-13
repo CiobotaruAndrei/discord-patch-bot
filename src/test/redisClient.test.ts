@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const mod = require("../infra/redis/redisClient") as typeof import("../infra/redis/redisClient");
+import * as mod from "../infra/redis/redisClient";
 import type { RedisClientLike, RedisClientFactory } from "../infra/redis/redisClient";
 import type { LoggerFunction } from "../types";
 

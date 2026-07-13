@@ -11,7 +11,7 @@ type SnoozeRuntime = {
   handleSnoozeInteraction: (interaction: unknown) => Promise<unknown>;
 };
 
-const snoozeInteractions = require("../features/command-handlers/snoozeInteractionHandler") as {
+const snoozeInteractions = require("../features/command-handlers/snoozeInteractionHandler").default as {
   createSnoozeInteractionHandler: (deps: Record<string, unknown>) => SnoozeRuntime;
 };
 

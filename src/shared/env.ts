@@ -285,4 +285,4 @@ attachEnv.buildFrom = buildEnvFrom;
 attachEnv.formatEnvValidationErrors = formatEnvValidationErrors;
 attachEnv.makeOptionalBooleanEnv = makeOptionalBooleanEnv;
 
-export = attachEnv;
+export default attachEnv;

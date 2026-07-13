@@ -5,8 +5,8 @@ import { COMMAND_CATALOG_HELP } from "../features/command-catalog/commandCatalog
 import { renderCommandReferenceDoc, COMMAND_REFERENCE_DOC_RELATIVE_PATH } from "../features/command-catalog/commandReferenceDoc";
 import { evaluateCommandReferenceDoc } from "../scripts/generate-command-reference";
 
-const fs = require("fs") as typeof import("fs");
-const path = require("path") as typeof import("path");
+import fs from "fs";
+import path from "path";
 
 function normalize(value: string): string {
   return value.replace(/\r\n/g, "\n");

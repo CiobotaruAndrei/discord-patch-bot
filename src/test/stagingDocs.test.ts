@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const fs = require("fs") as typeof import("fs");
-const path = require("path") as typeof import("path");
+import fs from "fs";
+import path from "path";
 
 const srcRoot = process.cwd();
 const repoRoot = path.resolve(srcRoot, "..");

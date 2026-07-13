@@ -89,4 +89,4 @@ const attachSlashCommands = ((target: SlashCommandContext): void => {
 
 attachSlashCommands.createSlashCommandDefinitions = createSlashCommandDefinitions;
 
-export = attachSlashCommands;
+export default attachSlashCommands;

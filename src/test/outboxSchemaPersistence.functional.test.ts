@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const mongoose = require("mongoose") as typeof import("mongoose");
-const attachMongoModels = require("../infra/mongo/models");
+import mongoose from "mongoose";
+import attachMongoModels from "../infra/mongo/models";
+import type { MongoModelsContext } from "../infra/mongo/models";
 
 interface OutboxModelLike {
   new (doc: Record<string, unknown>): { toObject(): Record<string, unknown> };
@@ -17,7 +18,7 @@ function getOutboxModel(): OutboxModelLike {
       ONE_DAY_MS: 86_400_000,
       env: { GUILD_SEEN_DISCOUNT_TTL_DAYS: 60, NOTIFICATION_OUTBOX_SENT_TTL_HOURS: 24, NOTIFICATION_HISTORY_TTL_DAYS: 30, FEEDBACK_REPORT_TTL_DAYS: 90, NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS: 7 }
     };
-    Object.assign(target, attachMongoModels.buildFrom(target));
+    Object.assign(target, attachMongoModels.buildFrom(target as MongoModelsContext));
     if (target.NotificationOutboxModel) return target.NotificationOutboxModel as OutboxModelLike;
   } catch {  }
   return mongoose.model("NotificationOutbox");

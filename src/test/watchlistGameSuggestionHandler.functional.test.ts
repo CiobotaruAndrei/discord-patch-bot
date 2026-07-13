@@ -4,7 +4,7 @@ import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepo
 
 import type { GuildSettings } from "../types";
 
-const installWatchlistGame = require("../features/command-handlers/watchlistGameSuggestionHandler") as typeof import("../features/command-handlers/watchlistGameSuggestionHandler");
+import installWatchlistGame from "../features/command-handlers/watchlistGameSuggestionHandler";
 
 type MongoCall = {
   filter: Record<string, unknown>;

@@ -1,8 +1,8 @@
 
 "use strict";
 
-const fs = require("fs");
-const path = require("path");
+import fs from "fs";
+import path from "path";
 
 const root = process.cwd();
 const ignoredDirs = new Set<string>([".git", "node_modules", "coverage", "dist", "target"]);

@@ -1,21 +1,21 @@
 "use strict";
 
-const mongoose = require("mongoose");
-const crypto = require("crypto");
-const { performance } = require("perf_hooks");
-const { Client, GatewayIntentBits } = require("discord.js");
-const { loadConfig } = require("../config/configLoader") as typeof import("../config/configLoader");
-const { createMetrics } = require("./health/metrics") as typeof import("./health/metrics");
-const { createRateLimiter } = require("./health/rateLimit") as typeof import("./health/rateLimit");
-const { createHousekeeping } = require("./scheduler/housekeeping") as typeof import("./scheduler/housekeeping");
-const { createCronController } = require("./scheduler/cron") as typeof import("./scheduler/cron");
-const { createOutboxWorker } = require("./scheduler/outboxWorker") as typeof import("./scheduler/outboxWorker");
-const { createHttpServer } = require("./health/httpServer") as typeof import("./health/httpServer");
-const { registerDiscordEvents, registerMongoEvents } = require("./lifecycle/events") as typeof import("./lifecycle/events");
-const { createShutdownController } = require("./lifecycle/shutdown") as typeof import("./lifecycle/shutdown");
-const { errorMessage, errorDetail } = require("../shared/errors") as typeof import("../shared/errors");
-const { createAppRuntime } = require("./appRuntime") as typeof import("./appRuntime");
-const redis = require("../infra/redis/redisContext") as typeof import("../infra/redis/redisContext");
+import mongoose from "mongoose";
+import crypto from "crypto";
+import { performance } from "perf_hooks";
+import { Client, GatewayIntentBits } from "discord.js";
+import { loadConfig } from "../config/configLoader";
+import { createMetrics } from "./health/metrics";
+import { createRateLimiter } from "./health/rateLimit";
+import { createHousekeeping } from "./scheduler/housekeeping";
+import { createCronController } from "./scheduler/cron";
+import { createOutboxWorker } from "./scheduler/outboxWorker";
+import { createHttpServer } from "./health/httpServer";
+import { registerDiscordEvents, registerMongoEvents } from "./lifecycle/events";
+import { createShutdownController } from "./lifecycle/shutdown";
+import { errorMessage, errorDetail } from "../shared/errors";
+import { createAppRuntime } from "./appRuntime";
+import redis from "../infra/redis/redisContext";
 import type { AppRuntime, AppRuntimeDeps } from "./appRuntime";
 import type { BotRole } from "../types";
 import type { SourceRegistryApi } from "../sources/sourceRegistry";
@@ -26,9 +26,9 @@ const {
   waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
   runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots,
   getOutboxPaused, setAdminAlertDiscordClient
-} = require("../infra/mongo/mongoContext") as typeof import("../infra/mongo/mongoContext");
-const commands = require("../features/command-registry/commandRegistry") as typeof import("../features/command-registry/commandRegistry");
-const scrapers = require("../sources/sourceRegistry") as SourceRegistryApi;
+} = require("../infra/mongo/mongoContext").default as typeof import("../infra/mongo/mongoContext")["default"];
+import commands from "../features/command-registry/commandRegistry";
+import * as scrapers from "../sources/sourceRegistry";
 
 function buildAppRuntime(role: BotRole): AppRuntime {
   return createAppRuntime({

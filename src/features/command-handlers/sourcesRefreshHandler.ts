@@ -4,7 +4,7 @@ import type { CommandHandler } from "../command-registry/commandHandler";
 import type { FetchResult, GameConfig } from "../../types";
 
 import { handledCommandError } from "../command-security/commandOutcome";
-const { errorDetail, errorMessage } = require("../../shared/errors") as typeof import("../../shared/errors");
+import { errorDetail, errorMessage } from "../../shared/errors";
 
 type MaybePromise<T> = T | Promise<T>;
 type DiscordInteraction = {
@@ -136,7 +136,7 @@ function buildSourcesRefreshCommandHandler(target: SourcesRefreshContext) {
   return { handlers, ...command };
 }
 
-export = {
+export default {
   buildCommandHandler: buildSourcesRefreshCommandHandler,
   createSourcesRefreshHandler,
   buildSourcesRefreshEmbed

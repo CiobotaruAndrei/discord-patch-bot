@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const redisMetrics = require("../infra/redis/redisMetrics") as typeof import("../infra/redis/redisMetrics");
-const cacheMod = require("../infra/redis/redisCache") as typeof import("../infra/redis/redisCache");
-const clientMod = require("../infra/redis/redisClient") as typeof import("../infra/redis/redisClient");
+import redisMetrics from "../infra/redis/redisMetrics";
+import * as cacheMod from "../infra/redis/redisCache";
+import * as clientMod from "../infra/redis/redisClient";
 import type { RedisCacheClient, RedisCacheRuntime } from "../infra/redis/redisCache";
 import type { RedisClientLike } from "../infra/redis/redisClient";
 import type { LoggerFunction } from "../types";

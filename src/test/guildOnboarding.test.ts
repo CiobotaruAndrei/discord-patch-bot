@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import type { LifecycleDiscordChannel } from "../app/lifecycle/lifecycleContracts";
 
-const mod = require("../app/lifecycle/guildOnboarding") as typeof import("../app/lifecycle/guildOnboarding");
+import * as mod from "../app/lifecycle/guildOnboarding";
 const { buildOnboardingEmbed, selectOnboardingChannel, createGuildOnboarding } = mod;
 
 interface FakeChannel { id: string; sendable: boolean; send?: (payload: unknown) => Promise<unknown>; }

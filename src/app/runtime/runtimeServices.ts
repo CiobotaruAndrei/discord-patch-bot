@@ -1,6 +1,7 @@
 import type { AppRuntimeDeps, RuntimeServices } from "../appRuntime";
 
-const { attachRedisMetrics } = require("../../infra/redis/redisMetrics") as typeof import("../../infra/redis/redisMetrics");
+import ________infra_redis_redisMetrics from "../../infra/redis/redisMetrics";
+const { attachRedisMetrics } = ________infra_redis_redisMetrics;
 
 function createRuntimeServices(deps: AppRuntimeDeps): RuntimeServices {
   const { Client, GatewayIntentBits, loadConfig, createMetrics, createRateLimiter, createHousekeeping, scrapers, commands, errorMessage, mongo } = deps;

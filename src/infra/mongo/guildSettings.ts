@@ -89,5 +89,5 @@ function attachGuildSettings(target: GuildSettingsContext): void {
 
 attachGuildSettings.buildFrom = buildGuildSettingsFrom;
 
-export = attachGuildSettings;
+export default attachGuildSettings;
 

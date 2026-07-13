@@ -18,8 +18,8 @@ import {
   type GuildConfigBackupRecord
 } from "../features/admin-records/configBackupRepository";
 
-import mongoose = require("mongoose");
-const attachModels = require("../infra/mongo/models") as typeof import("../infra/mongo/models");
+import mongoose from "mongoose";
+import attachModels from "../infra/mongo/models";
 
 let cachedGuildFields: Set<string> | null = null;
 

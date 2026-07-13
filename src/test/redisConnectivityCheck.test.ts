@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const mod = require("../infra/redis/redisConnectivityCheck") as typeof import("../infra/redis/redisConnectivityCheck");
+import * as mod from "../infra/redis/redisConnectivityCheck";
 import type { RedisConnectivityRuntime } from "../infra/redis/redisConnectivityCheck";
 
 function makeRuntime(opts: {

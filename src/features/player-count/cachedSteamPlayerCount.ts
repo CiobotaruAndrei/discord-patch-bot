@@ -31,4 +31,4 @@ function createCachedSteamPlayerCount(deps: CachedSteamPlayerCountDeps): FetchSt
   };
 }
 
-export = { createCachedSteamPlayerCount, playerCountCacheKey };
+export default { createCachedSteamPlayerCount, playerCountCacheKey };

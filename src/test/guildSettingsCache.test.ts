@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { GuildSettings } from "../types";
 import { publishGuildSettingsChanged } from "../infra/mongo/guildSettingsEvents";
 
-const attachGuildSettings = require("../infra/mongo/guildSettings") as typeof import("../infra/mongo/guildSettings");
+import attachGuildSettings from "../infra/mongo/guildSettings";
 
 type GuildSettingsRuntime = {
   getGuildSettings: (guildId: string) => Promise<GuildSettings | null>;

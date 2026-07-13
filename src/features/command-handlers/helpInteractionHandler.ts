@@ -4,7 +4,7 @@ import type { LoggerFunction } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { matchesCommand } from "../command-registry/commandMatch";
 
-const { errorDetail } = require("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 const {
   findCommandHelpEntry,
   renderCommandHelpEntry
@@ -199,4 +199,4 @@ function buildHelpCommandHandler(target: HelpContext): CommandHandler<DiscordInt
   };
 }
 
-export = { createHelpHandler, buildHelpEmbed: buildHelpEmbedFromDeps, buildCommandHandler: buildHelpCommandHandler };
+export default { createHelpHandler, buildHelpEmbed: buildHelpEmbedFromDeps, buildCommandHandler: buildHelpCommandHandler };

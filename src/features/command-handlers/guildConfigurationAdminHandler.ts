@@ -10,7 +10,7 @@ import type { YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository";
 import type { DeadLetterModelLike } from "../notifications/deadLetterRepository";
 
 import { handledCommandError } from "../command-security/commandOutcome";
-const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 
 type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
@@ -161,7 +161,7 @@ function buildGuildConfigurationAdminCommandHandler(target: GuildConfigurationAd
   return { handlers, ...command };
 }
 
-export = {
+export default {
   createGuildConfigurationAdminHandler,
   buildResetConfiguration,
   buildCommandHandler: buildGuildConfigurationAdminCommandHandler

@@ -5,8 +5,8 @@ process.env.MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/ites
 process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "test-token";
 process.env.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "test-client-id";
 
-const mongoContext = require("../infra/mongo/mongoContext") as Record<string, unknown>;
-const sourceRegistry = require("../sources/sourceRegistry") as Record<string, unknown>;
+import mongoContext from "../infra/mongo/mongoContext";
+import * as sourceRegistry from "../sources/sourceRegistry";
 
 const MONGO_CONTEXT_KEYS = [
   "logger", "env", "withMongoRetry", "GuildModel", "NotificationOutboxModel", "NotificationOutboxSentModel",
@@ -22,21 +22,21 @@ const SOURCE_REGISTRY_KEYS = [
 
 test("mongoContext expune toate cheile contractului tipat, niciuna undefined", () => {
   for (const key of MONGO_CONTEXT_KEYS) {
-    assert.notEqual(mongoContext[key], undefined, `mongoContext.${key} trebuie definit (bag tipat -> citiri typo-safe + assertNoUndefinedExports la boot)`);
+    assert.notEqual((mongoContext as Record<string, unknown>)[key], undefined, `mongoContext.${key} trebuie definit (bag tipat -> citiri typo-safe + assertNoUndefinedExports la boot)`);
   }
 });
 
 test("sourceRegistry expune toate cheile contractului tipat, niciuna undefined", () => {
   for (const key of SOURCE_REGISTRY_KEYS) {
-    assert.notEqual(sourceRegistry[key], undefined, `sourceRegistry.${key} trebuie definit`);
+    assert.notEqual((sourceRegistry as Record<string, unknown>)[key], undefined, `sourceRegistry.${key} trebuie definit`);
   }
 });
 
 test("contextele de wiring expun functii apelabile pentru cheile-functie cheie", () => {
   for (const key of ["withMongoRetry", "adminAlert", "getGuildSettings"]) {
-    assert.equal(typeof mongoContext[key], "function", `mongoContext.${key} e functie`);
+    assert.equal(typeof (mongoContext as Record<string, unknown>)[key], "function", `mongoContext.${key} e functie`);
   }
   for (const key of ["cleanText", "httpReq", "fetchDeals", "getLatestForAllGames", "dealHash"]) {
-    assert.equal(typeof sourceRegistry[key], "function", `sourceRegistry.${key} e functie`);
+    assert.equal(typeof (sourceRegistry as Record<string, unknown>)[key], "function", `sourceRegistry.${key} e functie`);
   }
 });

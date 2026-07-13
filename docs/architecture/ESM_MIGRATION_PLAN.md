@@ -32,6 +32,35 @@ final de emit ESM.
 - **3** `require(...)` dinamice (path calculat) — inclusiv loader-ul nativ NAPI
 - **0** `require("*.json")`
 
+## Stadiu: Faza A EXECUTATA (branch `refactor/esm-migration`)
+
+Faza A a fost aplicata pe tot `src/` si e VERDE: `npm run check` complet (typecheck
++ build + toate gate-urile + 1514 teste, 0 fail), `test:e2e:prebuilt` 7/7, `npm audit` 0.
+Decizii luate la executie (fata de planul initial):
+
+- **Strategia de export: totul `export default`** (conversia in named exports a fost
+  incercata si abandonata — crestea reziduul de tip de ~5x fara castig; `require()`-urile
+  lenese ramase acceseaza modulul prin `.default`).
+- Codemod-ul final converteste DOAR require-urile single-line de la coloana 0 (cele
+  multi-linie cu cast `as {...}` se strica la regex si au fost tratate manual), plus
+  `typeof import("modulDefault")` -> `typeof import(...)["default"]` (fix-ul care
+  colapseaza cascada de tip din composition-root).
+- `sources/sourceRegistry.ts` nu mai muta `module.exports` prin `Object.assign`
+  (ilegal in ESM): toate cheile `SourceRegistryApi` sunt re-exportate explicit ca
+  named exports + registrul compus ca `export default`.
+- Reziduul de tip (~136 de erori dupa codemod) a fost rezolvat manual: casturile
+  `as TipSpecific` pierdute la conversie au fost re-adaugate ca downcast-uri valide
+  (`as object as X` unde tipurile nu se suprapun — gate-ul interzice doar `as never`
+  si `as unknown as`), functiile validator din `shared/utilities` au primit named
+  exports, iar `MongoModelsContext` a devenit exportat pentru consumatorii lui
+  `buildFrom`.
+- Testele-garda care pinuiau sintaxa CJS (`export = `, `import X = require`,
+  `require(...) as typeof import(...)`) au fost repinuite pe formele ESM (regula 8:
+  acelasi scenariu, sintaxa migrata).
+
+Faza B (flip `NodeNext` + `type: module` + extensii `.js` + `createRequire` pentru
+loader-ul nativ) ramane pasul urmator, conform sectiunii de mai jos.
+
 ## Faza A — modernizare de sintaxa (CJS-verde, incrementala)
 
 Codemod-ul din Anexa converteste mecanic idiomurile in sintaxa ESM standard.

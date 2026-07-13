@@ -1,7 +1,8 @@
-const { createRedisCache } = require("./redisCache") as typeof import("./redisCache");
-const runtime = require("./redisContext") as typeof import("./redisContext");
-const { logger } = require("../mongo/mongoContext") as typeof import("../mongo/mongoContext");
+import { createRedisCache } from "./redisCache";
+import runtime from "./redisContext";
+import _____mongo_mongoContext from "../mongo/mongoContext";
+const { logger } = _____mongo_mongoContext;
 
 const redisCache = createRedisCache({ runtime, logger });
 
-export = redisCache;
+export default redisCache;

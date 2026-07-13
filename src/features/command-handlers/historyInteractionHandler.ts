@@ -3,7 +3,7 @@
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { matchesCommand } from "../command-registry/commandMatch";
 
-const { errorDetail } = require("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
@@ -176,7 +176,7 @@ function buildHistoryCommandHandler(target: HistoryContext) {
   return { handlers, ...command };
 }
 
-export = {
+export default {
   buildCommandHandler: buildHistoryCommandHandler,
   createHistoryInteractionHandler,
   buildHistoryEmbed,

@@ -12,7 +12,7 @@ import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 
 import { handledCommandError } from "../command-security/commandOutcome";
-const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 
 type InteractionPayload = DiscordReplyPayload;
 type MongoWriteResult = MongoWriteOutcome;
@@ -182,7 +182,7 @@ function buildPriceAlertCommandHandler(target: PriceAlertContext) {
   return { handlers, ...command };
 }
 
-export = {
+export default {
   createPriceAlertInteractionHandler,
   buildPriceAlertRule,
   buildPriceAlertUpsertPipeline,

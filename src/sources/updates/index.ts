@@ -72,4 +72,4 @@ const updatesSourceModule = {
   createUpdates
 };
 
-export = updatesSourceModule;
+export default updatesSourceModule;

@@ -4,7 +4,7 @@ import { load } from "cheerio";
 
 import type { DealInfo } from "../types";
 
-const installGameInfo = require("../features/command-handlers/gameInfoInteractionHandler") as typeof import("../features/command-handlers/gameInfoInteractionHandler");
+import installGameInfo from "../features/command-handlers/gameInfoInteractionHandler";
 
 function makeInteraction(commandName: string, values: Record<string, string | number | null>) {
   return {

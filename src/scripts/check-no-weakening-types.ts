@@ -1,8 +1,8 @@
 "use strict";
 
-const fs = require("fs");
-const path = require("path");
-const ts = require("typescript") as typeof import("typescript");
+import fs from "fs";
+import path from "path";
+import ts from "typescript";
 
 interface WeakeningViolation {
   line: number;

@@ -3,7 +3,7 @@
 import type { GameConfig } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 
-const { errorDetail } = require("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 
 type DiscordInteraction = {
   commandName?: string;
@@ -79,4 +79,4 @@ function buildFallbackCommandHandler(target: RouterContext): CommandHandler<Disc
   };
 }
 
-export = { createFallbackInteractionHandler, buildCommandHandler: buildFallbackCommandHandler };
+export default { createFallbackInteractionHandler, buildCommandHandler: buildFallbackCommandHandler };

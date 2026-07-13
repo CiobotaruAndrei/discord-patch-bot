@@ -9,7 +9,7 @@ import { createDiscountsSubscriptionFamily } from "./discountsSubscriptionFamily
 import { createDlcSubscriptionFamily } from "./dlcSubscriptionFamily";
 import { createPlayerCountSubscriptionFamily } from "./playerCountSubscriptionFamily";
 
-const { errorDetail } = require("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 
 function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps) {
   const families = {
@@ -79,4 +79,4 @@ function buildSubscriptionCommandHandler(target: SubscriptionContext) {
   return { handlers, ...command };
 }
 
-export = { createSubscriptionInteractionHandlers, buildCommandHandler: buildSubscriptionCommandHandler };
+export default { createSubscriptionInteractionHandlers, buildCommandHandler: buildSubscriptionCommandHandler };

@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const fs = require("fs") as typeof import("fs");
-const path = require("path") as typeof import("path");
-const mod = require("../scripts/check-rules-sync") as typeof import("../scripts/check-rules-sync");
+import fs from "fs";
+import path from "path";
+import * as mod from "../scripts/check-rules-sync";
 const { parseAlertRules, analyzeRulesSync, extractEmittedMetrics, extractMetricNames } = mod;
 
 const VALID_RULE = `groups:

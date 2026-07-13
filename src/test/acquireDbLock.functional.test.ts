@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const attachLocks = require("../infra/mongo/locks") as
+const attachLocks = require("../infra/mongo/locks").default as
   (target: LocksTarget) => void;
 
 type LockQuery = { _id: string };

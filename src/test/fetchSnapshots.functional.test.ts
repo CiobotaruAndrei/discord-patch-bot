@@ -2,11 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeDealInfo, makeNotificationDiscordClient } from "./typedTestBuilders";
-const realUtilities = require("../shared/utilities") as { validatePendingDiscountSnapshot: (snapshot: unknown) => snapshot is ValidatedDealInfo; validateUpdateFetchSnapshot: (item: unknown) => boolean };
+import realUtilities from "../shared/utilities";
+import { validateUpdateFetchSnapshot as _vUpd, validatePendingDiscountSnapshot as _vDisc } from "../shared/utilities";
 const noopDiscordClient = makeNotificationDiscordClient();
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
-import attachFetchSnapshots = require("../infra/mongo/fetchSnapshots");
+import attachFetchSnapshots from "../infra/mongo/fetchSnapshots";
 import type { GameConfig, ValidatedDealInfo } from "../types";
 
 type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];
@@ -191,7 +192,7 @@ test("UpdateService.checkForUpdates: fetch esuat foloseste snapshot-ul din event
     resolveOutboundChannel: async () => { resolveCalls++; return { channel: null, abort: true }; },
     transientErrorMessage: messageOf,
     getLatestForAllGames: async () => { throw new Error("fetch down"); },
-    validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
+    validateUpdateFetchSnapshot: _vUpd,
     loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2" } }], fetchedAt: new Date() })
   } satisfies Partial<UpdateDeps>;
   const svc = createUpdateNotificationService(updateDeps(deps));
@@ -209,7 +210,7 @@ test("UpdateService.checkForUpdates: fetch esuat fara snapshot arunca (fara disp
     resolveOutboundChannel: async () => { resolveCalls++; return { channel: null, abort: true }; },
     transientErrorMessage: messageOf,
     getLatestForAllGames: async () => { throw new Error("fetch down"); },
-    validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
+    validateUpdateFetchSnapshot: _vUpd,
     loadFetchSnapshot: async () => null
   } satisfies Partial<UpdateDeps>;
   const svc = createUpdateNotificationService(updateDeps(deps));
@@ -229,7 +230,7 @@ test("DiscountService.checkForDiscounts: fetch esuat foloseste snapshot-ul de re
     normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     getDealsCacheData: () => null,
     fetchDeals: async () => { throw new Error("deals down"); },
-    validatePendingDiscountSnapshot: realUtilities.validatePendingDiscountSnapshot,
+    validatePendingDiscountSnapshot: _vDisc,
     loadFetchSnapshot: async () => ({ payload: [makeDealInfo({ id: "d1" })], fetchedAt: new Date() }),
     DEFAULT_CURRENCY: "USD",
     GUILD_PROCESS_CONCURRENCY: 1
@@ -251,7 +252,7 @@ test("DiscountService.checkForDiscounts: fetch esuat fara snapshot sare guild-ul
     normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     getDealsCacheData: () => null,
     fetchDeals: async () => { throw new Error("deals down"); },
-    validatePendingDiscountSnapshot: realUtilities.validatePendingDiscountSnapshot,
+    validatePendingDiscountSnapshot: _vDisc,
     loadFetchSnapshot: async () => null,
     DEFAULT_CURRENCY: "USD",
     GUILD_PROCESS_CONCURRENCY: 1
@@ -271,7 +272,7 @@ test("UpdateService.checkForUpdates: snapshot proaspat dar CORUPT nu trece de va
     resolveOutboundChannel: async () => { resolveCalls++; return { channel: null, abort: true }; },
     transientErrorMessage: messageOf,
     getLatestForAllGames: async () => { throw new Error("fetch down"); },
-    validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
+    validateUpdateFetchSnapshot: _vUpd,
     loadFetchSnapshot: async () => ({ payload: [{ bogus: true }, 42, { game: { key: "cs2" } }], fetchedAt: new Date() })
   } satisfies Partial<UpdateDeps>;
   const svc = createUpdateNotificationService(updateDeps(deps));
@@ -291,7 +292,7 @@ test("DiscountService.checkForDiscounts: snapshot proaspat dar CORUPT (itemii nu
     normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     getDealsCacheData: () => null,
     fetchDeals: async () => { throw new Error("deals down"); },
-    validatePendingDiscountSnapshot: realUtilities.validatePendingDiscountSnapshot,
+    validatePendingDiscountSnapshot: _vDisc,
     loadFetchSnapshot: async () => ({ payload: [{ id: "doar-id-fara-restul" }, null, "text"], fetchedAt: new Date() }),
     DEFAULT_CURRENCY: "USD",
     GUILD_PROCESS_CONCURRENCY: 1
@@ -313,7 +314,7 @@ test("UpdateService.checkForUpdates: snapshot vechi (>60min) NU este folosit ca 
     resolveOutboundChannel: async () => { resolveCalls++; return { channel: null, abort: true }; },
     transientErrorMessage: messageOf,
     getLatestForAllGames: async () => { throw new Error("fetch down"); },
-    validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
+    validateUpdateFetchSnapshot: _vUpd,
     loadFetchSnapshot: async () => ({ payload: [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2" } }], fetchedAt: STALE_FETCHED_AT })
   } satisfies Partial<UpdateDeps>;
   const svc = createUpdateNotificationService(updateDeps(deps));
@@ -333,7 +334,7 @@ test("DiscountService.checkForDiscounts: snapshot vechi (>60min) NU este folosit
     normalizeCurrencyKey: (currency: unknown) => String(currency || "USD").toUpperCase(),
     getDealsCacheData: () => null,
     fetchDeals: async () => { throw new Error("deals down"); },
-    validatePendingDiscountSnapshot: realUtilities.validatePendingDiscountSnapshot,
+    validatePendingDiscountSnapshot: _vDisc,
     loadFetchSnapshot: async () => ({ payload: [makeDealInfo({ id: "d1" })], fetchedAt: STALE_FETCHED_AT }),
     DEFAULT_CURRENCY: "USD",
     GUILD_PROCESS_CONCURRENCY: 1

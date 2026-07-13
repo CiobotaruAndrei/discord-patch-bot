@@ -1,5 +1,5 @@
-import http = require("http");
-import https = require("https");
+import http from "http";
+import https from "https";
 import { buildSmokeResult, writeSmokeResult } from "./smokeResult";
 import type { SmokeCheck } from "./smokeResult";
 

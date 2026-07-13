@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const mod = require("../features/command-handlers/historyInteractionHandler") as typeof import("../features/command-handlers/historyInteractionHandler") & {
+const mod = require("../features/command-handlers/historyInteractionHandler").default as typeof import("../features/command-handlers/historyInteractionHandler")["default"] & {
   buildHistoryEmbed: (records: Array<{ kind: "update" | "discount"; gameKey: string; title: string; link: string; sentAt: Date }>, kind: "update" | "discount" | "all") => { title: string; description: string; color: number; footer: { text: string } };
   mapHistoryKind: (tip: string | null) => "update" | "discount" | "all";
 };

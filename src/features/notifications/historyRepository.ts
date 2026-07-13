@@ -1,4 +1,4 @@
-const crypto = require("crypto") as typeof import("crypto");
+import crypto from "crypto";
 
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;

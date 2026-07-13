@@ -5,14 +5,14 @@ import type { CommandHandler } from "../command-registry/commandHandler";
 import type { MongoWriteOutcome } from "../../types";
 
 import { handledCommandError } from "../command-security/commandOutcome";
-const { errorDetail } = require("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 const {
   commandCanBeSnoozed,
   commandPathToSnoozeKey,
   displayCommandPath,
   parseSnoozeDuration
 } = require("../command-snooze/commandSnoozeState") as typeof import("../command-snooze/commandSnoozeState");
-const { findCommandHelpEntry } = require("../command-help/commandHelpCatalog") as typeof import("../command-help/commandHelpCatalog");
+import { findCommandHelpEntry } from "../command-help/commandHelpCatalog";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
@@ -150,7 +150,7 @@ function buildSnoozeCommandHandler(target: SnoozeContext) {
   return { handlers, ...command };
 }
 
-export = {
+export default {
   createSnoozeInteractionHandler,
   buildCommandHandler: buildSnoozeCommandHandler
 };

@@ -7,7 +7,7 @@ import { createCommandCaches, evictLRU } from "../features/command-cache/command
 import { createChannelPermissionChecks, formatMissingChannelPerms } from "../features/command-cache/channelPermissionChecks";
 import { createUserErrorFormatting } from "../features/command-cache/userErrorFormatting";
 
-const attachCommandCache = require("../features/command-cache/commandCache") as typeof import("../features/command-cache/commandCache");
+import attachCommandCache from "../features/command-cache/commandCache";
 
 function makeEnv(overrides: Partial<RuntimeEnv> = {}): RuntimeEnv {
   const base = {

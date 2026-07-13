@@ -19,7 +19,7 @@ interface SteamSourceApiShape {
   extractSteamOfferEndDate: (appId: string | number, currencyCode?: string) => Promise<string | null>;
 }
 
-const attachSteam = require("../sources/steam") as {
+const attachSteam = require("../sources/steam").default as {
   createSteamSource: (deps: SteamSourceDepsShape) => SteamSourceApiShape;
 };
 

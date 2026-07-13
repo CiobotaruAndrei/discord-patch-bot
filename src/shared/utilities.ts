@@ -233,4 +233,5 @@ Object.assign(attachUtilities, {
 attachUtilities.runConcurrent = runConcurrent;
 attachUtilities.mapWithConcurrency = mapWithConcurrency;
 
-export = attachUtilities;
+export { validateUpdateFetchSnapshot, validatePendingDiscountSnapshot };
+export default attachUtilities;

@@ -12,7 +12,7 @@ interface CommandRegistryExports {
   createCommandRegistry: (overrides?: Record<string, unknown>) => Record<string, RegistryTestFunction>;
 }
 
-const commandRegistry = require("../features/command-registry/commandRegistry") as CommandRegistryExports;
+import commandRegistry from "../features/command-registry/commandRegistry";
 
 const requiredKeys = [
   "cleanCache",
@@ -38,7 +38,7 @@ const requiredKeys = [
 test("command registry compune explicit toate functiile cerute, fara installers dinamici", () => {
   const registry = commandRegistry.createCommandRegistry({ getGuildSettings: async () => null });
   for (const key of requiredKeys) {
-    assert.equal(typeof registry[key], "function", `registry expune ${key} ca functie dupa compunerea explicita prin factory-uri`);
+    assert.equal(typeof (registry as Record<string, unknown>)[key], "function", `registry expune ${key} ca functie dupa compunerea explicita prin factory-uri`);
   }
 });
 
@@ -172,7 +172,7 @@ test("dispatcher: /ping si /games sunt rutate prin registry catre handler-ul lor
 });
 
 test("createCommandRuntimeContext returns a fresh, isolated base on every call", () => {
-  const runtimeContextModule = require("../features/command-runtime/commandRuntimeContext") as {
+  const runtimeContextModule = require("../features/command-runtime/commandRuntimeContext").default as {
     createCommandRuntimeContext: () => Record<string, unknown>;
   };
 

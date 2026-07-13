@@ -24,4 +24,4 @@ function attachDealFilters(target: DealFiltersContext): void {
 
 const attachDealFiltersWithExports = Object.assign(attachDealFilters, dealFilterExports);
 
-export = attachDealFiltersWithExports;
+export default attachDealFiltersWithExports;

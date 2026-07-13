@@ -3,7 +3,7 @@
 import type { CommandHandler } from "../command-registry/commandHandler";
 
 import { handledCommandError } from "../command-security/commandOutcome";
-const { errorMessage, errorDetail } = require("../../shared/errors");
+import { errorMessage, errorDetail } from "../../shared/errors";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
@@ -119,4 +119,4 @@ function buildStatusCommandHandler(target: StatusContext) {
   return { handlers, ...command };
 }
 
-export = { createStatusInteractionHandler, buildCommandHandler: buildStatusCommandHandler };
+export default { createStatusInteractionHandler, buildCommandHandler: buildStatusCommandHandler };

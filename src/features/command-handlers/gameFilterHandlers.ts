@@ -5,7 +5,7 @@ import type { DiscordReplyPayload, GameConfig, GuildSettings, MongoWriteOutcome 
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 
-const { errorDetail } = require("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -190,4 +190,4 @@ function buildGameFilterCommandHandler(target: GameFilterContext) {
   return { handlers, ...command };
 }
 
-export = { createGameFilterInteractionHandlers, buildCommandHandler: buildGameFilterCommandHandler };
+export default { createGameFilterInteractionHandlers, buildCommandHandler: buildGameFilterCommandHandler };

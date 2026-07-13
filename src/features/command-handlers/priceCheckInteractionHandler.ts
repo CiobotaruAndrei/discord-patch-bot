@@ -10,7 +10,7 @@ import {
   type SteamPriceData
 } from "./priceCheckComparison";
 
-const { errorMessage, errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
+import { errorMessage, errorDetail } from "../../shared/errors";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, extra?: Record<string, unknown>) => void;
@@ -137,7 +137,7 @@ function buildPriceCheckCommandHandler(target: PriceCheckContext) {
   return { handlers, ...command };
 }
 
-export = {
+export default {
   createPriceCheckInteractionHandler,
   buildPriceCheckEmbed,
   buildCommandHandler: buildPriceCheckCommandHandler,

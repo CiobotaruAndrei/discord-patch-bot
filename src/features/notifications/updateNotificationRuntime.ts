@@ -4,8 +4,8 @@ import type { NotificationsRuntimeDeps } from "./notificationRuntimeContracts";
 import type { OutboundChannelResolver } from "./outboxRuntimeFactory";
 import type { SeenServices } from "./seenRuntimeFactory";
 
-const { isPermanentDiscordError, transientErrorMessage } = require("./outboundChannel") as typeof import("./outboundChannel");
-const { createUpdateNotificationService } = require("./updateNotificationService") as typeof import("./updateNotificationService");
+import { isPermanentDiscordError, transientErrorMessage } from "./outboundChannel";
+import { createUpdateNotificationService } from "./updateNotificationService";
 
 export function createUpdateNotificationRuntime(
   deps: NotificationsRuntimeDeps,

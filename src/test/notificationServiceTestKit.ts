@@ -1,4 +1,5 @@
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
+import { validateUpdateFetchSnapshot as _vUpd, validatePendingDiscountSnapshot as _vDisc } from "../shared/utilities";
 import type { GuildDeadLetterRecord } from "../features/notifications/deadLetterRepository";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
 import type { GameConfig, DealInfo, ValidatedDealInfo } from "../types";
@@ -15,7 +16,7 @@ export type DiscountDeals = Parameters<DiscountService["processGuildDiscounts"]>
 export type SentPayload = { embeds?: unknown; content?: string };
 export type SentMeta = { historyEntries?: Array<{ kind: string; gameKey?: string; title?: string; link?: string; itemId?: string }> } | undefined;
 
-const realUtilities = require("../shared/utilities") as { validateUpdateFetchSnapshot: (item: unknown) => boolean };
+import realUtilities from "../shared/utilities";
 
 export const noopDiscordClient = makeNotificationDiscordClient();
 
@@ -85,7 +86,7 @@ export function makeUpdateDeps(overrides: Partial<UpdateDeps> = {}) {
     },
     mapToObject: <V>(m: Map<string, V>): Record<string, V> => Object.fromEntries(m.entries()),
     getLatestForAllGames: async (games: GameConfig[]) => games.map(game => ({ game, latest: { id: `u-${game.key}`, title: "", link: "", excerpt: "", fullText: "", image: null, thumbnail: null, timestamp: "" }, error: null })),
-    validateUpdateFetchSnapshot: realUtilities.validateUpdateFetchSnapshot,
+    validateUpdateFetchSnapshot: _vUpd,
     setUpdatesCache: () => undefined,
     buildUpdateEmbed: (name: string) => ({ title: name }),
     sleepIfPositive: async () => undefined,

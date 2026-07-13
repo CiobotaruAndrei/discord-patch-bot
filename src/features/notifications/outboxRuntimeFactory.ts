@@ -8,13 +8,13 @@ const {
   createOutboundChannelResolver,
   isPermanentDiscordError
 } = require("./outboundChannel") as typeof import("./outboundChannel");
-const { createHistoryRepository } = require("./historyRepository") as typeof import("./historyRepository");
-const { createOutboxRuntime, applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker } = require("./notificationOutbox") as typeof import("./notificationOutbox");
-const { createOutboxDelivery } = require("./outboxDelivery") as typeof import("./outboxDelivery");
-const { buildDeadLetterEntry, deadLetterTitleFromPayload } = require("./deadLetter") as typeof import("./deadLetter");
-const { recordDeadLetters } = require("./deadLetterRepository") as typeof import("./deadLetterRepository");
-const { createDeadLetterReplayRepository } = require("./deadLetterReplayRepository") as typeof import("./deadLetterReplayRepository");
-const { createDefaultDiscordSendLimiter } = require("./discordRateLimiter") as typeof import("./discordRateLimiter");
+import { createHistoryRepository } from "./historyRepository";
+import { createOutboxRuntime, applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker } from "./notificationOutbox";
+import { createOutboxDelivery } from "./outboxDelivery";
+import { buildDeadLetterEntry, deadLetterTitleFromPayload } from "./deadLetter";
+import { recordDeadLetters } from "./deadLetterRepository";
+import { createDeadLetterReplayRepository } from "./deadLetterReplayRepository";
+import { createDefaultDiscordSendLimiter } from "./discordRateLimiter";
 
 export const OUTBOX_MAX_ATTEMPTS = 5;
 export const OUTBOX_BACKOFF_MS = 60_000;

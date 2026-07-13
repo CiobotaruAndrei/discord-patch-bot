@@ -32,8 +32,8 @@ type DiscountsRuntime = {
   checkForDiscounts: (client: unknown) => Promise<unknown>;
 };
 
-const attachInteractions = require("../features/command-handlers/subscriptionNotificationHandlers") as ChainableCommandModule;
-const attachNotifications = require("../features/notifications") as typeof import("../features/notifications");
+import attachInteractions from "../features/command-handlers/subscriptionNotificationHandlers";
+import attachNotifications from "../features/notifications";
 import type { NotificationsRuntimeDeps } from "../features/notifications/notificationRuntimeContracts";
 
 function notificationDeps(context: Record<string, unknown>): NotificationsRuntimeDeps {
@@ -297,7 +297,7 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
   };
 
   Object.assign(context, attachNotifications.createNotificationRuntime(notificationDeps(context)));
-  installCommandChain(context, [attachInteractions]);
+  installCommandChain(context, [attachInteractions] as object as ChainableCommandModule[]);
 
   const client = {
     user: { id: "bot-id" },

@@ -4,8 +4,9 @@ import { createOutboxRuntime } from "../features/notifications/notificationOutbo
 import type { OutboxJob } from "../features/notifications/notificationOutbox";
 import type { Model } from "mongoose";
 
-const mongoose = require("mongoose") as typeof import("mongoose");
-const attachMongoModels = require("../infra/mongo/models");
+import mongoose from "mongoose";
+import attachMongoModels from "../infra/mongo/models";
+import type { MongoModelsContext } from "../infra/mongo/models";
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/discord-patch-bot-itest";
 
@@ -20,7 +21,7 @@ function getModels(): { outbox: SweepTestModel; sent: SweepTestModel } {
       ONE_DAY_MS: 86_400_000,
       env: { GUILD_SEEN_DISCOUNT_TTL_DAYS: 60, NOTIFICATION_OUTBOX_SENT_TTL_HOURS: 24, NOTIFICATION_HISTORY_TTL_DAYS: 30, FEEDBACK_REPORT_TTL_DAYS: 90, NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS: 7 }
     };
-    Object.assign(target, attachMongoModels.buildFrom(target));
+    Object.assign(target, attachMongoModels.buildFrom(target as MongoModelsContext));
     if (target.NotificationOutboxModel) {
       return { outbox: target.NotificationOutboxModel as SweepTestModel, sent: target.NotificationOutboxSentModel as SweepTestModel };
     }

@@ -27,9 +27,10 @@ import type {
   NextInteractionHandler
 } from "./adminGuardContracts";
 
-const { MessageFlags } = require("discord.js") as typeof import("discord.js");
+import { MessageFlags } from "discord.js";
 
-const defaultRequireGuildAdmin = require("./adminPermissionGuard") as DefaultRequireGuildAdmin;
+import defaultRequireGuildAdminModule from "./adminPermissionGuard";
+const defaultRequireGuildAdmin = defaultRequireGuildAdminModule as DefaultRequireGuildAdmin;
 const ADMIN_OUTSIDE_GUILD_MESSAGE = "Eroare: Comenzile administrative sunt disponibile doar pe servere, nu in mesaje directe.";
 const ADMIN_SENSITIVE_USER_MESSAGE = "Access denied.";
 
@@ -155,4 +156,4 @@ const adminCommandRouterGuardModule = Object.freeze({
   authorizeGuildAdminWithConfiguredAccess
 });
 
-export = adminCommandRouterGuardModule;
+export default adminCommandRouterGuardModule;

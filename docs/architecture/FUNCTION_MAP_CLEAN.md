@@ -11,7 +11,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Conecteaza MongoDB.
 - Creeaza clientul Discord.
 - Instaleaza registrul de comenzi, sursele, job-urile si serverul health/metrics.
-- Toate require-urile de module locale sunt tipate (`as typeof import(...)`, respectiv `SourceRegistryApi`), deci `satisfies AppRuntimeDeps` chiar verifica wiring-ul de boot — un export lipsa sau o semnatura gresita pica la compilare, nu la runtime (gard in `registryClosedContracts.test.ts`).
+- Modulele locale sunt aduse prin importuri ESM statice tipate (Faza A a migrarii ESM; exceptia e require-ul multi-linie al lui `mongoContext`, tipat cu `.default as typeof import(...)["default"]`), deci `satisfies AppRuntimeDeps` chiar verifica wiring-ul de boot — un export lipsa sau o semnatura gresita pica la compilare, nu la runtime (gard in `registryClosedContracts.test.ts`).
 
 ### `src/app/health/httpServer.ts`
 
@@ -78,7 +78,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Construieste exporturile Mongo prin `createMongoContext`.
 - Compunere prin **factory-return imutabil**, exact ca `sourceRegistry` (nu mai e installer pe context mutabil): fiecare modul installer expune un `buildFrom(context)` care **intoarce** contributia (in loc de `Object.assign(target, ...)`), iar `attachX(target)` deleaga la el (`Object.assign(target, buildXFrom(target))`). `createMongoContext` porneste de la o **copie proaspata** a singletonului `runtime` si compune prin **spread in obiecte noi** (`{ ...prev, ...attachX.buildFrom(prev) }`) in ordinea dependentelor (`logging -> domain -> env -> utilities -> models -> locks -> migrations -> systemState -> guildSettings -> adminAlerts -> fetchSnapshots`), fara mutatie pe un context partajat in timpul compunerii. Ordinea garanteaza ca fiecare `buildFrom` citeste doar campuri ale straturilor anterioare (fara forward-reference). Exportul singleton e `Object.freeze`-uit (`Object.freeze({ ...createMongoContext(), createMongoContext })`). Adaptoarele `attachX(target)` raman (sunt folosite si direct de scripturi/teste de integrare: `check-db-indexes`, `acquireDbLock`, `guildSettingsCache` etc.). Gardat de `registryClosedContracts.test.ts` (fara `defaultInstallers`/bucla, compunere prin `build*From` ordonat, fara `attachX(context)`, export inghetat).
-- Contractul e **value-tipat**: `MongoRuntimeContext` e un alias de obiect in care fiecare dintre cele 46 de chei are semnatura concreta — cele 13 modele sunt `Model<XDoc>` cu interfete de document dedicate in `infra/mongo/modelTypes.ts` (`GuildDoc`, `NotificationOutboxDoc`, `JobLockDoc`, `FetchSnapshotDoc` etc., derivate fidel din schemele Mongoose), functiile au parametri reali; tipurile-domeniu ramase `unknown` tin de modulele installer `export =`. Vezi `CONTEXT_REPO_CLEAN.md` (Pasul 7). Acoperit de `mongoContextTypedApi.test.ts`.
+- Contractul e **value-tipat**: `MongoRuntimeContext` e un alias de obiect in care fiecare dintre cele 46 de chei are semnatura concreta — cele 13 modele sunt `Model<XDoc>` cu interfete de document dedicate in `infra/mongo/modelTypes.ts` (`GuildDoc`, `NotificationOutboxDoc`, `JobLockDoc`, `FetchSnapshotDoc` etc., derivate fidel din schemele Mongoose), functiile au parametri reali; tipurile-domeniu ramase `unknown` tin de modulele installer (acum `export default`). Vezi `CONTEXT_REPO_CLEAN.md` (Pasul 7). Acoperit de `mongoContextTypedApi.test.ts`.
 
 ### `src/infra/mongo/locks.ts`
 
@@ -113,7 +113,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-runtime/commandRuntimeContext.ts`
 
 - Construieste contextul comun folosit de wiring.
-- Return type-ul e contractul **inchis** `CommandRuntimeContext` (bindings Discord & exporturile Mongo value-tipate & `SourceRegistryApi` & helperii de permisiuni), nu `Record<string, unknown>`; spread-urile vin din require-uri tipate.
+- Return type-ul e contractul **inchis** `CommandRuntimeContext` (bindings Discord & exporturile Mongo value-tipate & `SourceRegistryApi` & helperii de permisiuni), nu `Record<string, unknown>`; spread-urile vin din importuri statice tipate (`mongoContext` default + registrul de surse compus).
 - Este una dintre zonele principale de redus treptat.
 - Scopul pe termen lung este sa livreze dependinte mici si tipate catre factory-uri, nu un obiect comun mare de context.
 

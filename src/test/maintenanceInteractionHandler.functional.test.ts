@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import type { GuildSettings } from "../types";
 import type { GuildConfigBackupRecord } from "../features/admin-records/configBackupRepository";
 
-const installMaintenance = require("../features/command-handlers/maintenanceInteractionHandler") as typeof import("../features/command-handlers/maintenanceInteractionHandler");
+import installMaintenance from "../features/command-handlers/maintenanceInteractionHandler";
 
 function makeBackupModel(docs: GuildConfigBackupRecord[]) {
   return {

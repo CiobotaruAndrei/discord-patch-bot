@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
 
-const mod = require("../features/command-handlers/guildConfigurationAdminHandler") as typeof import("../features/command-handlers/guildConfigurationAdminHandler");
+import mod from "../features/command-handlers/guildConfigurationAdminHandler";
 
 function makeHarness(permissionState = { viewChannel: true, sendMessages: true, embedLinks: true, readMessageHistory: true }, replayCleanupFails = false) {
   const calls: Array<{ filter: Record<string, unknown>; update: Record<string, unknown>; options?: Record<string, unknown> }> = [];

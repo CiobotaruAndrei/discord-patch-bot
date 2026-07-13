@@ -18,7 +18,7 @@ type GameFilterRuntime = {
   handleSetGamesInteraction: (interaction: unknown, games: Game[]) => Promise<unknown>;
 };
 
-const installGameFilterHandlers = require("../features/command-handlers/gameFilterHandlers") as ChainableCommandModule;
+import installGameFilterHandlers from "../features/command-handlers/gameFilterHandlers";
 
 const games = [
   { key: "cs2", name: "Counter-Strike 2" },
@@ -47,7 +47,7 @@ function buildContext() {
     getGuildSettings: async () => ({ enabledGames: [] }),
     safeDefer: async () => undefined
   };
-  installCommandChain(context, [installGameFilterHandlers]);
+  installCommandChain(context, [installGameFilterHandlers] as object as ChainableCommandModule[]);
   return { context: context as typeof context & GameFilterRuntime, calls, replies, invalidatedGuilds };
 }
 

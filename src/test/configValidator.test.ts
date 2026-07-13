@@ -1,8 +1,8 @@
 "use strict";
 
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { validateConfig } = require("../config/configValidator");
+import test from "node:test";
+import assert from "node:assert/strict";
+import { validateConfig } from "../config/configValidator";
 
 function baseConfig(overrides = {}) {
   return {

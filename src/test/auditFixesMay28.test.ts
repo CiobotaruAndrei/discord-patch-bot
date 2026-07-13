@@ -10,7 +10,7 @@ type CommandPresentation = {
 };
 type RecordingEmbed = Record<string, unknown> & { _state: Record<string, unknown> };
 
-const attachCommandUi = require("../features/command-presentation/commandPresentation") as {
+const attachCommandUi = require("../features/command-presentation/commandPresentation").default as {
   createCommandPresentation: (context: Record<string, unknown>) => CommandPresentation;
 };
 

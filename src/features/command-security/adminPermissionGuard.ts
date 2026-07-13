@@ -1,6 +1,6 @@
 "use strict";
 
-const { MessageFlags, PermissionsBitField } = require("discord.js");
+import { MessageFlags, PermissionsBitField } from "discord.js";
 
 const ADMIN_REQUIRED_MESSAGE = "Access denied.";
 
@@ -136,4 +136,4 @@ Object.assign(requireGuildAdmin, {
   rejectNonAdmin
 });
 
-export = requireGuildAdmin;
+export default requireGuildAdmin;

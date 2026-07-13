@@ -2,8 +2,8 @@
 
 import type { LoggerFunction } from "../types";
 
-const { createRedisRuntime } = require("../infra/redis/redisClient") as typeof import("../infra/redis/redisClient");
-const { runRedisConnectivityCheck } = require("../infra/redis/redisConnectivityCheck") as typeof import("../infra/redis/redisConnectivityCheck");
+import { createRedisRuntime } from "../infra/redis/redisClient";
+import { runRedisConnectivityCheck } from "../infra/redis/redisConnectivityCheck";
 
 const logger: LoggerFunction = (level, context, message) => console.log(`[${level}] ${context}: ${message}`);
 

@@ -1,6 +1,6 @@
 "use strict";
 
-const { startBot } = require("./bootstrap") as typeof import("./bootstrap");
+import { startBot } from "./bootstrap";
 
 startBot("worker");
 

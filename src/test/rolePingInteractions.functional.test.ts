@@ -9,7 +9,8 @@ type RolePingModule = ChainableCommandModule & {
   };
 };
 
-const rolePingInteractions = require("../features/command-handlers/rolePingHandlers") as RolePingModule;
+import rolePingInteractionsModule from "../features/command-handlers/rolePingHandlers";
+const rolePingInteractions = rolePingInteractionsModule as object as RolePingModule;
 
 type InteractionRuntime = {
   handleInteraction: (interaction: unknown, games?: unknown[]) => Promise<unknown>;
@@ -107,7 +108,7 @@ test("role ping installer intercepts only /set role commands", async () => {
     return "delegated";
   };
 
-  installCommandChain(runtimeContext, [rolePingInteractions]);
+  installCommandChain(runtimeContext, [rolePingInteractions] as object as ChainableCommandModule[]);
   const runtime = runtimeContext as typeof context & InteractionRuntime;
   await runtime.handleInteraction(makeSetRoleInteraction("updates"), []);
   const result = await runtime.handleInteraction({

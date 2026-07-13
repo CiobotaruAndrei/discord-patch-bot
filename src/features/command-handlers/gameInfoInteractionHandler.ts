@@ -23,8 +23,9 @@ import {
 } from "./gameInfoEmbeds";
 import { createGameInfoLookupService } from "./gameInfoLookupService";
 
-const { errorMessage } = require("../../shared/errors");
-const { mapWithConcurrency } = require("../../shared/utilities") as typeof import("../../shared/utilities");
+import { errorMessage } from "../../shared/errors";
+import ________shared_utilities from "../../shared/utilities";
+const { mapWithConcurrency } = ________shared_utilities;
 
 type MaybePromise<T> = T | Promise<T>;
 type Logger = (level: string, context: string, message: string, meta?: Record<string, string | number | boolean | null>) => void;
@@ -227,7 +228,7 @@ function buildGameInfoCommandHandler(target: GameInfoContext) {
   return { handlers, ...command };
 }
 
-export = {
+export default {
   createGameInfoInteractionHandler,
   buildBestDealsEmbed,
   buildEndingDealsEmbed,

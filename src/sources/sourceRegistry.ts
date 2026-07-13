@@ -40,14 +40,14 @@ type SourceRegistryApi = {
   formatPrice: (value: PriceValue, currencyCode?: CurrencyCode | string | null) => string;
 };
 
-type SourceRuntimeContext = Partial<SourceRegistryApi> & typeof import("./runtime");
+type SourceRuntimeContext = Partial<SourceRegistryApi> & typeof import("./runtime")["default"];
 
-import attachHttpClient = require("../infra/http/client");
-import attachSteam = require("./steam");
-import attachUpdates = require("./updates");
-import attachDeals = require("./deals");
+import attachHttpClient from "../infra/http/client";
+import attachSteam from "./steam";
+import attachUpdates from "./updates";
+import attachDeals from "./deals";
 
-const runtimeContext = require("./runtime") as SourceRuntimeContext;
+import runtimeContext from "./runtime";
 
 function requireSourceValue<K extends keyof SourceRegistryApi>(context: Partial<SourceRegistryApi>, key: K): SourceRegistryApi[K] {
   const value = context[key];
@@ -108,8 +108,6 @@ function createSourceRegistry(): SourceRegistryApi {
 
 const registry = createSourceRegistry();
 
-Object.assign(module.exports, registry, { createSourceRegistry });
-
 export { createSourceRegistry };
 export type { SourceRegistryApi };
 export const dealHash = registry.dealHash;
@@ -117,3 +115,31 @@ export const extractOfferEndFromHtml = registry.extractOfferEndFromHtml;
 export const fetchSteamCurrentPlayers = registry.fetchSteamCurrentPlayers;
 export const safeCheerioLoad = registry.safeCheerioLoad;
 export const MAX_HTML_BYTES = registry.MAX_HTML_BYTES;
+export const MAX_JSON_BYTES = registry.MAX_JSON_BYTES;
+export const MAX_DEALS = registry.MAX_DEALS;
+export const FETCH_CONCURRENCY = registry.FETCH_CONCURRENCY;
+export const USER_AGENTS = registry.USER_AGENTS;
+export const attachMetrics = registry.attachMetrics;
+export const cleanEnrichedCache = registry.cleanEnrichedCache;
+export const getEnrichedCacheSize = registry.getEnrichedCacheSize;
+
+export const cleanText = registry.cleanText;
+export const truncate = registry.truncate;
+export const normalizeTitleForDedupe = registry.normalizeTitleForDedupe;
+export const stableUpdateId = registry.stableUpdateId;
+export const normalizeUpdate = registry.normalizeUpdate;
+export const levenshtein = registry.levenshtein;
+export const httpReq = registry.httpReq;
+export const fetchWithProxy = registry.fetchWithProxy;
+export const fetchGameUpdate = registry.fetchGameUpdate;
+export const executeFetchWithCircuitBreaker = registry.executeFetchWithCircuitBreaker;
+export const getLatestForAllGames = registry.getLatestForAllGames;
+export const fetchSteamReviewData = registry.fetchSteamReviewData;
+export const enrichDealData = registry.enrichDealData;
+export const fetchDeals = registry.fetchDeals;
+export const searchSteamGameByName = registry.searchSteamGameByName;
+export const chooseBestSteamMatch = registry.chooseBestSteamMatch;
+export const fetchSteamPriceDetails = registry.fetchSteamPriceDetails;
+export const extractSteamOfferEndDate = registry.extractSteamOfferEndDate;
+export const formatPrice = registry.formatPrice;
+export default registry;

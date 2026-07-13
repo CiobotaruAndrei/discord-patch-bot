@@ -2,7 +2,7 @@
 
 import type { DiscordInteraction, YouTubeInteractionDeps } from "./youtubeCommandTypes";
 
-const { errorDetail } = require("../../../shared/errors") as typeof import("../../../shared/errors");
+import { errorDetail } from "../../../shared/errors";
 
 export const YOUTUBE_MANUAL_IMMEDIATE_BATCH = 5;
 

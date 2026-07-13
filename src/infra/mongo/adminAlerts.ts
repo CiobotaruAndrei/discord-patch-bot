@@ -189,4 +189,4 @@ function attachAdminAlerts(target: AdminAlertsContext): void {
 
 attachAdminAlerts.buildFrom = buildAdminAlertsFrom;
 
-export = attachAdminAlerts;
+export default attachAdminAlerts;

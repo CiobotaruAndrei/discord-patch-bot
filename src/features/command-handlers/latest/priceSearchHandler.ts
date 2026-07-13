@@ -1,6 +1,6 @@
 "use strict";
 
-const { errorMessage } = require("../../../shared/errors");
+import { errorMessage } from "../../../shared/errors";
 
 interface DiscordInteraction {
   guild?: { id: string } | null;

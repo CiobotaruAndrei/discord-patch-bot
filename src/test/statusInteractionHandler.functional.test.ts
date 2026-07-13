@@ -8,7 +8,7 @@ type StatusModule = ChainableCommandModule & {
   };
 };
 
-const statusHandler = require("../features/command-handlers/statusInteractionHandler") as StatusModule;
+import statusHandler from "../features/command-handlers/statusInteractionHandler";
 
 function makeStatusInteraction(gameText: string | null = "cs2") {
   const replies: unknown[] = [];
@@ -125,7 +125,7 @@ test("status installer intercepts only /status and delegates everything else", a
     }
   };
 
-  installCommandChain(context, [statusHandler]);
+  installCommandChain(context, [statusHandler] as object as ChainableCommandModule[]);
   const runtime = context as typeof context & InteractionRuntime;
   await runtime.handleInteraction(interaction, [{ key: "cs2", name: "Counter-Strike 2" }]);
   const result = await runtime.handleInteraction({

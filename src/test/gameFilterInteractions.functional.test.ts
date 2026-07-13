@@ -11,7 +11,8 @@ type GameFilterModule = ChainableCommandModule & {
   };
 };
 
-const gameFilterInteractions = require("../features/command-handlers/gameFilterHandlers") as GameFilterModule;
+import gameFilterInteractionsModule from "../features/command-handlers/gameFilterHandlers";
+const gameFilterInteractions = gameFilterInteractionsModule as object as GameFilterModule;
 
 type InteractionRuntime = {
   handleInteraction: (interaction: unknown, games?: Array<Record<string, unknown>>) => Promise<unknown>;
@@ -171,7 +172,7 @@ test("game filter installer intercepts /set games si /watchlist commands", async
     return "delegated";
   };
 
-  installCommandChain(runtimeContext, [gameFilterInteractions]);
+  installCommandChain(runtimeContext, [gameFilterInteractions] as object as ChainableCommandModule[]);
   const runtime = runtimeContext as typeof context & InteractionRuntime;
   await runtime.handleInteraction(makeSetGamesInteraction("remove", "fortnite"), games);
   await runtime.handleInteraction(makeWatchlistInteraction("add", "cs2"), games);

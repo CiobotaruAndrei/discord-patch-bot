@@ -5,7 +5,7 @@ import { matchesCommand } from "../command-registry/commandMatch";
 import type { RedisStatus } from "../../infra/redis/redisClient";
 
 import { handledCommandError } from "../command-security/commandOutcome";
-const { errorDetail } = require("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
@@ -185,7 +185,7 @@ function buildHealthCommandHandler(target: HealthContextWithDb) {
   return { handlers, ...command };
 }
 
-export = {
+export default {
   buildCommandHandler: buildHealthCommandHandler,
   createHealthInteractionHandler,
   buildHealthEmbed,

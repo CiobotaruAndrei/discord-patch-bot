@@ -1,10 +1,10 @@
 "use strict";
 
-const axios = require("axios");
-const cheerio = require("cheerio");
-const Parser = require("rss-parser");
-const crypto = require("crypto");
-const mongoContext = require("../infra/mongo/mongoContext") as typeof import("../infra/mongo/mongoContext");
+import axios from "axios";
+import * as cheerio from "cheerio";
+import Parser from "rss-parser";
+import crypto from "crypto";
+import mongoContext from "../infra/mongo/mongoContext";
 
 const {
   env,
@@ -18,7 +18,7 @@ const {
   CircuitBreakerModel
 } = mongoContext;
 
-export = {
+export default {
   axios,
   cheerio,
   Parser,

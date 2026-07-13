@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const commandCache = require("../features/command-cache/commandCache") as typeof import("../features/command-cache/commandCache");
+import commandCache from "../features/command-cache/commandCache";
 const { computeMissingChannelPerms, formatMissingChannelPerms } = commandCache;
 
 const PermissionsBitField = { Flags: { ViewChannel: "VIEW", SendMessages: "SEND", EmbedLinks: "EMBED" } };

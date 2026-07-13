@@ -18,7 +18,7 @@ import {
   type GuildAdminAccessDoc
 } from "./adminCommandAccessViews";
 import { parseAdminScopeId } from "../command-security/adminScopeIds";
-const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 
 type InteractionPayload = string | { content: string; flags?: number };
 
@@ -80,7 +80,7 @@ type AdminCommandAccessDeps = {
 
 type AdminCommandAccessContext = AdminCommandAccessDeps;
 
-const adminCommandRouterGuard = require("../command-security/adminCommandRouterGuard") as {
+const adminCommandRouterGuard = require("../command-security/adminCommandRouterGuard").default as {
   promptGlobalAccessCode(
     target: Pick<AdminCommandAccessDeps, "GuildModel" | "GuildAuditLogModel" | "adminAlert">,
     interaction: DiscordInteraction
@@ -224,7 +224,7 @@ function buildAdminCommandAccessCommandHandler(target: AdminCommandAccessContext
   return { handlers, ...command };
 }
 
-export = {
+export default {
   createAdminCommandAccessHandler,
   buildCommandHandler: buildAdminCommandAccessCommandHandler
 };
