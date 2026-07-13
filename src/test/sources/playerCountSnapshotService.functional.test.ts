@@ -114,3 +114,38 @@ test("readPlayerCountSnapshots: lista goala nu atinge baza de date", async () =>
   assert.equal(snapshots.size, 0);
   assert.equal(findFilters.length, 0, "fara appId-uri nu se face query");
 });
+
+test("refreshPlayerCountSnapshots salveaza istoricul si anunta automat un record nou", async () => {
+  const { model } = makeModel();
+  const history: Array<Record<string, unknown>> = [];
+  const recordWrites: Array<Record<string, unknown>> = [];
+  const sends: unknown[] = [];
+  const service = attachPlayerCountSnapshots.createPlayerCountSnapshotService({
+    PlayerCountSnapshotModel: model,
+    PlayerCountHistoryModel: {
+      create: async doc => { history.push(doc); return doc; },
+      find: () => ({ sort: () => ({ lean: async () => [] }) })
+    },
+    PlayerCountRecordModel: {
+      findById: () => ({ lean: async () => ({ _id: "10", gameKey: "cs2", playerCount: 100, reachedAt: new Date("2026-01-01") }) }),
+      find: () => ({ lean: async () => [] }),
+      updateOne: async (_filter, update) => { recordWrites.push(update); return {}; }
+    },
+    GuildModel: {
+      find: () => ({ lean: async () => [{ _id: "guild-1", playerCountChannelId: "channel-1" }] })
+    },
+    fetchSteamCurrentPlayers: async appId => ({ appId: String(appId), playerCount: 125, success: true }),
+    logger: () => undefined
+  });
+  const result = await service.refreshPlayerCountSnapshots(
+    [{ key: "cs2", name: "Counter-Strike 2", appId: "10" }],
+    null,
+    { channels: { fetch: async () => ({ send: async (payload: unknown) => { sends.push(payload); return payload; } }) } }
+  );
+  assert.deepEqual(result, { refreshed: 1, failed: 0, milestones: 1 });
+  assert.equal(history.length, 1);
+  assert.equal(history[0].playerCount, 125);
+  assert.equal(recordWrites.length, 1);
+  assert.equal(sends.length, 1);
+  assert.match(JSON.stringify(sends[0]), /Record nou de jucatori/);
+});

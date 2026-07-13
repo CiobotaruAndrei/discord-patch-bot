@@ -108,7 +108,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Defineste slash commands pentru Discord.
 - Logica e in factory-ul `createSlashCommandDefinitions(deps)`; installer-ul `attachSlashCommands(target)` doar deleaga (Object.assign). Scripturile (ex. staging smoke) pot construi definitiile direct prin factory, fara context de installer si fara cast — dep-ul `SlashCommandBuilder` e tipat cu builder-ul discord.js REAL (`typeof import("discord.js").SlashCommandBuilder`), nu cu un tip `Like` scris de mana.
-- Builder-ele comenzilor stau in module pe domenii, compuse de factory in `buildSlashCommandDefinitions()`: `coreCommandDefinitions` (ping/games/help/suggest-command/watchlist-game/history/report/health), `adminCommandDefinitions` (add/remove/delete/config/backup/bot-log/server-log/reset-config/admin-alerts/admin-command-access/maintenance/snooze/unsnooze/set/watchlist/sources), `notificationCommandDefinitions` (price-alert/future-release/start/stop), `dealsCommandDefinitions` (price-check/deal-score/best/ending), `gameInfoCommandDefinitions` (review-trend/crossplay/platforms/co-op/system/game-size/player-count/top/latest/dlc/status), `youtubeCommandDefinitions` (/youtube), `outboxCommandDefinitions` (/outbox). Fiecare modul primeste `SlashDefinitionTools` (builder + permisiuni + CURRENCY_CHOICES din `slashDefinitionTools.ts`) si intoarce builder-ele domeniului; gardat de `slashDefinitionsDomainSplit.test.ts` (fiecare domeniu contribuie, nume unice intre domenii, compozitia = reuniunea modulelor, dm_permission false pastrat la admin).
+- Builder-ele comenzilor stau in module pe domenii, compuse de factory in `buildSlashCommandDefinitions()`: `coreCommandDefinitions` pentru baza si rapoarte, `adminCommandDefinitions` pentru configurare, template, preview, aliasuri, watchlist si sources status, `notificationCommandDefinitions`, `dealsCommandDefinitions`, `gameInfoCommandDefinitions` pentru overview/status/analytics si `youtubeCommandDefinitions`. Modulele operationale eliminate nu mai sunt compuse in slash definitions.
 - Seteaza permisiunile declarative pentru comenzile administrative.
 - Trebuie sa ramana declarativ, fara logica de executie.
 
@@ -238,7 +238,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/features/command-handlers/setUpdatePlan.ts`
 
-- Functie pura `buildSetUpdatePlan(sub, interaction, supportedCurrencies)` care mapeaza fiecare subcomanda `/set` (mode/mindiscount/maxprice/free/paid/outbox-recovery-verify/currency/stores/update-template/discount-template) la un `SetUpdatePlan` (`updateDoc`, `confirmMsg`, `isFilterChange`, `earlyReply`).
+- Functie pura `buildSetUpdatePlan(sub, interaction, supportedCurrencies)` care mapeaza subcomenzile `/set` ramase (mode/mindiscount/maxprice/free/paid/currency/stores) la un `SetUpdatePlan` (`updateDoc`, `confirmMsg`, `isFilterChange`, `earlyReply`).
 - Fara acces la Mongo/Discord si fara DI — depinde doar de `normalizeNotificationTemplate`; testabil izolat.
 
 ### `src/features/command-handlers/configInteractionHandler.ts`
@@ -364,9 +364,8 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/features/command-handlers/reportInteractionHandler.ts`
 
-- Gestioneaza `/report submit`, `/report list` si `/report resolve`.
-- `submit` ramane public pentru raportarea problemelor, iar `list`/`resolve` folosesc guard runtime de administrator fiindca top-level-ul `/report` trebuie sa ramana accesibil public pentru raportare.
-- Delegheaza construirea embed-urilor/textelor de raport (`buildReportConfirmEmbed`/`buildReportAlertBody`/`buildReportListEmbed`) modulului pur `reportViews.ts`; le re-exporta pentru compatibilitate.
+- Gestioneaza formularele publice `/report bug` si `/report complaint`, plus rutele admin grupate pentru listare si stergere.
+- Pastreaza bug-urile si reclamatiile in colectii separate, cu verificari de duplicat, cooldown si validari pentru tinta reclamatiei.
 
 ### `src/features/command-handlers/reportViews.ts`
 
@@ -398,7 +397,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Conecteaza serviciile de update-uri, reduceri, YouTube si alerte de pret la runtime.
 - `priceAlertService` reutilizeaza fetch-urile per valuta ale ciclului de reduceri.
 - Compune `youtubeSource`, `youtubeRepository` si `youtubeNotificationService`, apoi expune functiile necesare comenzilor si cron-ului prin contractul inchis al registrului.
-- Verificarea abonarii din `drainOutbox` traieste in `createIsStillSubscribed(GuildModel)` + `outboxSubscriptionFilter(job)` (fara `.catch(() => true)`): o eroare Mongo se **propaga** la `notificationOutbox.drainOutbox`, care e **fail-closed** (amana livrarea / dead-letter, nu livreaza orbeste intr-un canal posibil dezabonat). Filtrul cere pentru job-urile YouTube **automate** `youtubeNotificationsEnabled: true`, dar pentru job-urile **manuale** (`job.manual`, setat de `/youtube videos show` prin `enqueueOutbox`) verifica doar existenta destinatiei (canal principal sau ruta), ca afisarea manuala explicita sa supravietuiasca unui `/youtube notify off`. Acoperit de `outboxSubscriptionFilter.test.ts`.
+- Verificarea abonarii din `drainOutbox` traieste in `createIsStillSubscribed(GuildModel)` + `outboxSubscriptionFilter(job)` (fara `.catch(() => true)`): o eroare Mongo se **propaga** la `notificationOutbox.drainOutbox`, care e **fail-closed** (amana livrarea / dead-letter, nu livreaza orbeste intr-un canal posibil dezabonat). Pentru job-urile YouTube automate filtrul cere `youtubeNotificationsEnabled: true` si existenta destinatiei. Acoperit de `outboxSubscriptionFilter.test.ts`.
 - Trebuie sa ramana wiring, nu locul principal pentru logica de notificari.
 
 ### `src/features/notifications/notificationOutbox.ts` (+ `outboxTypes.ts`, `outboxDedupe.ts`, `outboxRepository.ts`, `outboxStateMachine.ts`, `outboxDeliveryFinalizer.ts`)
@@ -447,9 +446,9 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Izoleaza erorile de canal lipsa sau inaccesibil; `channelId` null/undefined sau client fara `user` (ne-ready) inseamna abort logat fara disable.
 - Exporta `isSendableChannel` (type guard pe functia `send`), refolosit pe toate caile care trimit: calea directa (canal fara `send` = disable, nu cast care crapa la trimitere), `outboxDelivery` si onboarding-ul (`selectOnboardingChannel` sare canalele fara `send`).
 - Clientul Discord e interfata minima exportata `NotificationDiscordClient` (`channels.fetch` + `user?.id`), folosita end-to-end: servicii -> registry (`checkForUpdates`/`checkForDiscounts`) -> `appRuntime`/cron (`DiscordClientLike` include `channels`), fara `client: unknown` pe lant (gard in `registryClosedContracts.test.ts`).
-- Lantul de drain e tipat cu `OutboxDiscordClient` (= `NotificationDiscordClient & { isReady() }`), **importat** peste tot (`appRuntime`, `outboxWorker`, `/outbox drain-now`), nu repetat structural — tipul nu poate deriva in timp. `outboxDelivery`: client ne-ready = esec tranzitoriu, canal fara `send` (guard `isSendableChannel`) = esec permanent, fara cast-uri pe `channel.send`. `outboxWorker` sare ciclul si cand `client.user?.id` lipseste (nu doar pe `isReady()`), ca sa nu claim-uiasca joburi pe care livrarea le-ar esua tranzitoriu.
+- Lantul de drain e tipat cu `OutboxDiscordClient` (= `NotificationDiscordClient & { isReady() }`), importat in runtime si worker, nu repetat structural. `outboxDelivery`: client ne-ready = esec tranzitoriu, canal fara `send` (guard `isSendableChannel`) = esec permanent, fara cast-uri pe `channel.send`. `outboxWorker` sare ciclul si cand `client.user?.id` lipseste (nu doar pe `isReady()`), ca sa nu claim-uiasca joburi pe care livrarea le-ar esua tranzitoriu.
 - Rezultatul e o uniune discriminata `{ abort: true; channel: null } | { abort: false; channel: OutboundChannel }` — dupa `if (abort) return;` serviciile au canal tipat end-to-end, fara cast-uri locale.
-- `send(payload, meta)` accepta optional `meta.historyEntries` (intrarile pentru `/history`): pe calea directa (rate-limited) le scrie best-effort dupa send-ul real catre Discord; pe calea outbox le ataseaza pe job (`job.history`), iar scrierea se face in `notificationOutbox.drainOutbox` abia dupa livrarea reala din coada. Serviciile nu mai scriu istoric direct — altfel `/history` ar raporta ca "trimisa" o notificare doar enqueue-uita.
+- `send(payload, meta)` accepta optional `meta.historyEntries`: pe calea directa (rate-limited) le scrie best-effort dupa send-ul real catre Discord; pe calea outbox le ataseaza pe job (`job.history`), iar scrierea in `notificationHistory` se face abia dupa livrarea reala din coada. Serviciile nu mai scriu istoric direct.
 
 ### `src/features/notifications/seenRepository.ts`
 
@@ -480,7 +479,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Grupeaza abonamentele tuturor guild-urilor dupa channel ID, astfel incat fiecare feed sa fie citit o singura data per ciclu.
 - Aplica filtrele per-guild, sablonul si rutele speciale, revendica videoclipurile automate inainte de send si livreaza loturi de maximum 5 prin `outboundChannel`, outbox si history cu `kind: youtube`.
 - Cron-ul (`processGuild`) verifica destinatia **per canal, inainte** de claim si de `prepareVideo` (fetch metadata): pentru un canal recent fara destinatie (fara canal principal si fara rute) videoclipul nu mai e revendicat-apoi-rollback-uit si nu se mai descarca metadata inutil — la fel ca afisarea manuala. `deliverPrepared` are o invarianta intarita: un item e marcat `successful` doar daca `totalDestinations > 0 && pendingDestinations === 0`, deci un item cu **0 destinatii** nu mai poate trece drept livrat (helper-ul refuza intern items fara destinatie, nu doar apelantii).
-- Afisarea manuala (`/youtube videos show`) ruleaza prin `prepareManualVideos` (claim implicit la videoclipurile cu destinatie, fara `force`) + `deliverManualVideos` (`claimed=true` -> rollback la esec de livrare): primul lot direct/imediat, restul prin outbox-ul durabil cand e activat. Nu mai exista un wrapper `showYouTubeVideos` separat (era cale moarta, duplica logica handler-ului) — handler-ul cheama direct `prepareManualVideos`/`deliverManualVideos`.
+- Helper-ele legacy pentru afisarea manuala YouTube nu mai sunt expuse prin comenzi Discord; livrarea automata foloseste fluxul cron si outbox-ul durabil.
 - Cron-ul apeleaza `checkForYouTube` in paralel cu update-urile si reducerile; esecurile sunt izolate per feed/guild si devin vizibile in erorile YouTube si admin alerts.
 
 ## Domain, scrapers si sources

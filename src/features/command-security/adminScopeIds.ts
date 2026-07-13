@@ -27,13 +27,14 @@ export const GLOBAL_ADMIN_SCOPE_ID = "global" as AdminScopeId;
 
 function probeInteractionFromPath(commandPath: string): ScopeProbeInteraction {
   const tokens = commandPath.replace(/^\/+/, "").trim().split(/\s+/).filter(Boolean);
+  const grouped = tokens.length >= 3;
   return {
     isChatInputCommand: () => true,
     commandName: tokens[0] || "",
     guild: { id: "scope-catalog" },
     options: {
-      getSubcommand: () => tokens[1] || "",
-      getSubcommandGroup: () => null
+      getSubcommand: () => grouped ? tokens[2] || "" : tokens[1] || "",
+      getSubcommandGroup: () => grouped ? tokens[1] || null : null
     }
   };
 }

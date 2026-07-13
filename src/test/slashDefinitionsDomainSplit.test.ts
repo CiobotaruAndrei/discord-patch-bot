@@ -8,7 +8,6 @@ import { buildCoreCommandDefinitions } from "../features/command-definitions/cor
 import { buildDealsCommandDefinitions } from "../features/command-definitions/dealsCommandDefinitions.js";
 import { buildGameInfoCommandDefinitions } from "../features/command-definitions/gameInfoCommandDefinitions.js";
 import { buildNotificationCommandDefinitions } from "../features/command-definitions/notificationCommandDefinitions.js";
-import { buildOutboxCommandDefinitions } from "../features/command-definitions/outboxCommandDefinitions.js";
 import { buildYouTubeCommandDefinitions } from "../features/command-definitions/youtubeCommandDefinitions.js";
 import attachSlashCommands from "../features/command-definitions/slashCommandDefinitions.js";
 
@@ -24,8 +23,7 @@ const domainBuilders: Record<string, (input: SlashDefinitionTools) => SlashComma
   notifications: buildNotificationCommandDefinitions,
   deals: buildDealsCommandDefinitions,
   "game-info": buildGameInfoCommandDefinitions,
-  youtube: buildYouTubeCommandDefinitions,
-  outbox: buildOutboxCommandDefinitions
+  youtube: buildYouTubeCommandDefinitions
 };
 
 function composedDefinitions() {

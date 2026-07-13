@@ -9,8 +9,7 @@ export const NOTIFICATIONS_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   { command: "watchlist", access: "admin", discordAdminPermissions: true },
   { command: "price-alert", access: "admin", discordAdminPermissions: true },
   { command: "future-release", access: "admin", discordAdminPermissions: true },
-  { command: "sources", access: "admin", discordAdminPermissions: true },
-  { command: "outbox", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: ["clear-deadletters", "replay-deadletters", "pause", "resume", "drain-now"] }
+  { command: "sources", access: "admin", discordAdminPermissions: true }
 ];
 
 export const NOTIFICATIONS_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
@@ -39,30 +38,17 @@ export const NOTIFICATIONS_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   { command: "/set paid", description: "Porneste sau opreste afisarea ofertelor platite in alertele de reduceri.", example: "/set paid value:on" },
   { command: "/set currency", description: "Alege valuta folosita pentru preturi si alerte de reduceri.", example: "/set currency value:EUR" },
   { command: "/set stores", description: "Filtreaza reducerile dupa magazine, de exemplu Steam si Epic, sau reseteaza filtrul.", example: "/set stores value:steam,epic" },
-  { command: "/set update-template", description: "Personalizeaza mesajul (text deasupra embed-urilor) trimis la notificarile de update. Foloseste {count} pentru numarul de update-uri. Lasa gol pentru a reveni la implicit.", example: "/set update-template value:Au aparut {count} update-uri noi!" },
-  { command: "/set discount-template", description: "Personalizeaza mesajul trimis la notificarile de reduceri. Foloseste {count} pentru numarul de reduceri. Lasa gol pentru a reveni la implicit.", example: "/set discount-template value:{count} reduceri noi!" },
-  { command: "/set outbox-recovery-verify", description: "Activeaza sau dezactiveaza verificarea de recovery pentru outbox pe server. Cand este activa, botul verifica istoricul canalului ca sa previna retrimiterea aceluiasi mesaj dupa un crash.", example: "/set outbox-recovery-verify value:on" },
   { command: "/set add games", description: "Adauga un joc deja cunoscut de bot in lista explicita de jocuri active pentru server.", example: "/set add games joc:cs2", notes: ["Nu adauga un joc nou in codul botului; doar activeaza pentru server un joc existent in configuratie."] },
   { command: "/set remove games", description: "Scoate un joc din lista explicita de jocuri active pentru server.", example: "/set remove games joc:cs2" },
   { command: "/set games reset", description: "Reseteaza filtrul per-joc. Dupa reset, serverul foloseste toate jocurile cunoscute de bot.", example: "/set games reset" },
   { command: "/watchlist show", description: "Afiseaza jocurile urmarite explicit pe server. Daca lista este goala, serverul foloseste toate jocurile configurate.", example: "/watchlist show" },
   { command: "/watchlist reset", description: "Reseteaza watchlist-ul. Dupa reset, toate jocurile configurate sunt active.", example: "/watchlist reset" },
+  { command: "/watchlist coverage", description: "Afiseaza pentru fiecare joc urmarit disponibilitatea update-urilor, reducerilor, server status, player-count, DLC, Steam appId si sursele configurate.", example: "/watchlist coverage" },
   { command: "/set role updates", description: "Seteaza rolul pingat la notificarile de update-uri. Daca nu alegi rol, ping-ul se opreste.", example: "/set role updates value:@Updates" },
   { command: "/set role discounts", description: "Seteaza rolul pingat la alertele de reduceri. Daca nu alegi rol, ping-ul se opreste.", example: "/set role discounts value:@Deals" },
-  { command: "/outbox status", description: "Afiseaza starea cozii de notificari: cate mesaje asteapta livrare, cate sunt in dead-letter, daca drenarea e pe pauza si starea recovery-verify.", example: "/outbox status", notes: ["Outbox inseamna coada persistenta in MongoDB in care botul pune mesajele de trimis, ca sa nu le piarda la restart sau erori temporare."] },
-  { command: "/outbox deadletters", description: "Listeaza livrarile care au esuat definitiv si au fost mutate in dead-letter pentru investigare.", example: "/outbox deadletters", notes: ["Dead-letter inseamna lista de mesaje pe care botul nu le mai retrimite automat fiindca problema pare permanenta sau a depasit numarul de incercari."] },
-  { command: "/outbox clear-deadletters", description: "Sterge raportarea dead-letter pentru server dupa ce ai investigat cauza. Nu repara problema si nu retrimite mesajele.", example: "/outbox clear-deadletters" },
-  { command: "/outbox replay-deadletters", description: "Reintroduce in outbox livrarile dead-letter care mai au payload salvat, ca botul sa incerce sa le trimita din nou.", example: "/outbox replay-deadletters", notes: ["Foloseste comanda doar dupa ce ai reparat cauza, de exemplu canal lipsa sau permisiuni insuficiente."] },
-  { command: "/outbox retry", description: "Reprogrameaza joburile din coada serverului pentru livrare imediata.", example: "/outbox retry" },
-  { command: "/outbox drain-now", description: "Porneste manual o drenare a outbox-ului daca drenarea nu este pe pauza si lock-ul global este liber.", example: "/outbox drain-now", notes: ["Drain inseamna procesul prin care botul ia mesajele din coada persistenta si incearca sa le trimita pe Discord."] },
-  { command: "/outbox pause", description: "Pune pe pauza drenarea globala a outbox-ului. Mesajele pot ramane in coada, dar worker-ul nu le livreaza pana la resume.", example: "/outbox pause" },
-  { command: "/outbox resume", description: "Reia drenarea globala a outbox-ului dupa o pauza.", example: "/outbox resume" },
-  { command: "/outbox permissions", description: "Auditeaza permisiunile botului pe canalele configurate pentru notificari si reduceri.", example: "/outbox permissions", notes: ["Verifica View Channel, Send Messages, Embed Links si Read Message History cand recovery-verify are nevoie de istoric."] },
-  { command: "/outbox recovery-verify status", description: "Afiseaza starea recovery-verify pentru server si configuratia globala relevanta.", example: "/outbox recovery-verify status", notes: ["Recovery-verify este stratul care cauta markerul mesajului in istoricul canalului dupa crash, ca botul sa evite duplicatele."] },
   { command: "/latest updates", description: "Afiseaza cele mai recente update-uri pentru jocurile active ale serverului. Foloseste cache si poate folosi snapshot-ul persistat daca fetch-ul live esueaza.", example: "/latest updates" },
   { command: "/latest reduceri", description: "Afiseaza cele mai bune reduceri curente care trec filtrele serverului.", example: "/latest reduceri" },
   { command: "/latest update", description: "Cauta ultimul update pentru un joc anume.", example: "/latest update joc:cs2" },
   { command: "/latest pret", description: "Cauta pretul curent al unui joc pe Steam.", example: "/latest pret joc:Counter-Strike 2" },
-  { command: "/sources status", description: "Afiseaza starea ultimelor snapshot-uri pentru sursele de date: reduceri Steam/Epic, feed-uri de update si vechimea ultimului fetch.", example: "/sources status" },
-  { command: "/sources refresh", description: "Forteaza un fetch live pentru un joc si arata rezultatul brut (titlu, link, sau eroare/outcome). Inspectie: nu marcheaza update-ul ca vazut si nu trimite notificari.", example: "/sources refresh game:cs2" }
+  { command: "/sources status", description: "Afiseaza starea ultimelor snapshot-uri pentru sursele de date: reduceri Steam/Epic, feed-uri de update si vechimea ultimului fetch.", example: "/sources status" }
 ];

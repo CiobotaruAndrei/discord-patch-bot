@@ -1,6 +1,5 @@
 "use strict";
 
-import { normalizeNotificationTemplate } from "../notifications/notificationTemplate.js";
 
 export type SetPlanInteraction = {
   options: {
@@ -84,19 +83,6 @@ export function buildSetUpdatePlan(
     return plan;
   }
 
-  if (sub === "outbox-recovery-verify") {
-    const value = String(interaction.options.getString("value") || "");
-    if (value !== "on" && value !== "off") {
-      plan.earlyReply = "Eroare: `outbox-recovery-verify` accepta doar `on` sau `off`.";
-      return plan;
-    }
-    plan.updateDoc.outboxRecoveryVerify = value === "on";
-    plan.confirmMsg = value === "on"
-      ? "OK: Verificare recovery outbox: **ON** (extra fetch pe istoric la recovery, dar zero duplicate)."
-      : "OK: Verificare recovery outbox: **OFF** (foloseste flag-ul global daca e setat).";
-    return plan;
-  }
-
   if (sub === "currency") {
     const value = interaction.options.getString("value");
     if (typeof value !== "string" || !value || !(value in supportedCurrencies)) {
@@ -131,17 +117,6 @@ export function buildSetUpdatePlan(
     plan.updateDoc.enabledStores = Array.from(new Set(selected));
     plan.confirmMsg = `OK: Store-uri active: **${(plan.updateDoc.enabledStores as string[]).join(", ")}**`;
     plan.isFilterChange = true;
-    return plan;
-  }
-
-  if (sub === "update-template" || sub === "discount-template") {
-    const field = sub === "update-template" ? "updateMessageTemplate" : "discountMessageTemplate";
-    const label = sub === "update-template" ? "update-uri" : "reduceri";
-    const template = normalizeNotificationTemplate(interaction.options.getString("value"));
-    plan.updateDoc[field] = template;
-    plan.confirmMsg = template
-      ? `OK: Sablon mesaj pentru ${label} setat: ${template}`
-      : `OK: Sablon mesaj pentru ${label} resetat la implicit (doar mentiunea de rol, daca e configurata).`;
     return plan;
   }
 

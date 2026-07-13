@@ -73,7 +73,7 @@ function rateLimitedChannel(channel: { id?: unknown; send: (payload: unknown) =>
       const sent = await raw.send(payload);
       if (recordSentHistory && meta?.historyEntries?.length) {
         await recordSentHistory(guildId, meta.historyEntries).catch((err: unknown) => {
-          logger("WARN", "HISTORY", `Scrierea istoricului /history a esuat pentru guild ${guildId} (livrare directa); mesajul a fost trimis, dar /history poate fi incomplet`, errorMessage(err));
+          logger("WARN", "HISTORY", `Scrierea notificationHistory a esuat pentru guild ${guildId} (livrare directa); mesajul a fost trimis, dar istoricul intern poate fi incomplet`, errorMessage(err));
         });
       }
       return sent;

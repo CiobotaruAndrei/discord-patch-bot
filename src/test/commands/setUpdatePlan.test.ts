@@ -67,18 +67,6 @@ test("free / paid: on/off -> boolean, filter change; alt input respins", () => {
   assert.match(String(bad.earlyReply), /free/);
 });
 
-test("outbox-recovery-verify: on/off nu este filter change", () => {
-  const on = buildSetUpdatePlan("outbox-recovery-verify", makeInteraction({ string: { value: "on" } }), CURRENCIES);
-  assert.equal(on.updateDoc.outboxRecoveryVerify, true);
-  assert.equal(on.isFilterChange, false);
-
-  const off = buildSetUpdatePlan("outbox-recovery-verify", makeInteraction({ string: { value: "off" } }), CURRENCIES);
-  assert.equal(off.updateDoc.outboxRecoveryVerify, false);
-
-  const bad = buildSetUpdatePlan("outbox-recovery-verify", makeInteraction({ string: { value: "x" } }), CURRENCIES);
-  assert.match(String(bad.earlyReply), /outbox-recovery-verify/);
-});
-
 test("currency: doar valute suportate, marcat ca filter change", () => {
   const ok = buildSetUpdatePlan("currency", makeInteraction({ string: { value: "USD" } }), CURRENCIES);
   assert.equal(ok.updateDoc.currency, "USD");
@@ -104,16 +92,6 @@ test("stores: reset/gol -> lista goala; tokens mapati; token necunoscut respins"
 
   const bad = buildSetUpdatePlan("stores", makeInteraction({ string: { value: "gog" } }), CURRENCIES);
   assert.match(String(bad.earlyReply), /gog/);
-});
-
-test("update-template / discount-template: seteaza campul corect si mesaj de reset la gol", () => {
-  const upd = buildSetUpdatePlan("update-template", makeInteraction({ string: { value: "Salut {game}" } }), CURRENCIES);
-  assert.equal(upd.updateDoc.updateMessageTemplate, "Salut {game}");
-  assert.match(upd.confirmMsg, /update-uri/);
-
-  const disc = buildSetUpdatePlan("discount-template", makeInteraction({ string: { value: null } }), CURRENCIES);
-  assert.equal(disc.updateDoc.discountMessageTemplate, null);
-  assert.match(disc.confirmMsg, /resetat la implicit/);
 });
 
 test("subcomanda necunoscuta -> plan gol, fara confirmMsg", () => {

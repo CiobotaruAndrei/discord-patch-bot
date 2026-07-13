@@ -81,7 +81,7 @@ test("comenzile administrative (inclusiv /health) cer Administrator; cele public
     dmByName.set(String(json.name || ""), json.dm_permission);
   }
   for (const adminCmd of [
-    "start", "stop", "set", "outbox", "health", "config", "reset-config",
+    "start", "stop", "set", "template", "notification", "game-alias", "health", "config", "reset-config",
     "admin-alerts", "price-alert", "youtube", "sources", "watchlist", "snooze", "unsnooze",
     "backup", "bot-log", "server-log", "future-release", "maintenance", "admin-command-access", "delete"
   ]) {
@@ -93,11 +93,14 @@ test("comenzile administrative (inclusiv /health) cer Administrator; cele public
       assert.equal(dmByName.get(name), false, `/${name} (admin) trebuie sa fie indisponibil in DM (dm_permission=false) - invariant pentru orice comanda admin noua`);
     }
   }
-  for (const publicCmd of ["ping", "games", "help", "report", "price-check", "deal-score", "player-count", "top", "suggest-command", "watchlist-game"]) {
+  for (const publicCmd of ["ping", "games", "help", "report", "price-check", "deal-score", "player-count", "game", "status", "top", "suggest-command", "watchlist-game"]) {
     assert.ok(
       byName.get(publicCmd) === null || byName.get(publicCmd) === undefined,
       `/${publicCmd} trebuie sa ramana public (fara default_member_permissions)`
     );
+  }
+  for (const guildOnlyCmd of ["report", "player-count", "game", "status"]) {
+    assert.equal(dmByName.get(guildOnlyCmd), false, `/${guildOnlyCmd} trebuie sa fie indisponibil in DM`);
   }
 });
 

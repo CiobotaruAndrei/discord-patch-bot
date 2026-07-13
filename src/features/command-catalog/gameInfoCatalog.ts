@@ -13,6 +13,7 @@ export const GAME_INFO_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   { command: "system", access: "public", discordAdminPermissions: false },
   { command: "game-size", access: "public", discordAdminPermissions: false },
   { command: "player-count", access: "public", discordAdminPermissions: false },
+  { command: "game", access: "public", discordAdminPermissions: false },
   { command: "top", access: "public", discordAdminPermissions: false }
 ];
 
@@ -28,6 +29,11 @@ export const GAME_INFO_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   { command: "/system requirements game", description: "Afiseaza cerintele minime si recomandate returnate de Steam pentru joc.", example: "/system requirements game game:elden-ring" },
   { command: "/game-size game", description: "Extrage dimensiunea aproximativa de instalare din cerintele de sistem Steam, cand informatia este disponibila.", example: "/game-size game game:elden-ring" },
   { command: "/player-count game", description: "Afiseaza numarul curent de jucatori activi pe Steam pentru jocul ales, cand jocul are Steam appId configurat.", example: "/player-count game game:Counter-Strike 2" },
+  { command: "/player-count trend", description: "Afiseaza evolutia player-count, minimul, maximul, media, valoarea recenta si un grafic compact pentru 24h, 7d sau 30d.", example: "/player-count trend joc:cs2 period:7d" },
+  { command: "/player-count milestone", description: "Afiseaza recordul istoric, data recordului, valoarea curenta si diferenta fata de record.", example: "/player-count milestone joc:cs2" },
+  { command: "/player-count gainers", description: "Ordoneaza jocurile dupa cea mai mare crestere numerica de player-count in perioada selectata.", example: "/player-count gainers period:24h" },
+  { command: "/player-count peak-time", description: "Calculeaza zilele si intervalele orare cu cea mai mare medie de jucatori in fusul orar al serverului.", example: "/player-count peak-time joc:cs2 period:7d" },
+  { command: "/game overview", description: "Combina ultimul update, oferta, deal score, player-count, server status, DLC-uri recente si prezenta in watchlist, fara ca esecul unei surse sa ascunda restul.", example: "/game overview joc:cs2" },
   { command: "/top active games", description: "Afiseaza topul global al jocurilor cunoscute de bot care au Steam appId, sortat dupa player-count Steam. Nu este limitat de watchlist-ul sau filtrul de jocuri al serverului.", example: "/top active games numar:5" },
   { command: "/dlc", description: "Cauta DLC-uri pentru un joc.", example: "/dlc joc:Counter-Strike 2" }
 ];

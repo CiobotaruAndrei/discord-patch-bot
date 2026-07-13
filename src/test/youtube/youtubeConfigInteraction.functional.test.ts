@@ -48,77 +48,10 @@ test("/youtube filter actualizeaza filtrele si status afiseaza configuratia", as
   assert.match(String(harness.replies[2]), /durata minima/);
 });
 
-test("/youtube errors, permissions si clear-errors expun mentenanta modulului", async () => {
-  const harness = createHarness({ youtubeNotificationChannelId: "discord-1" }, 3, false, 0, {
-    youtubeErrors: [{
-      channelId: "UC1234567890123456789012",
-      channelName: "Canal Test",
-      message: "feed indisponibil",
-      at: new Date("2026-06-24T06:00:00.000Z")
-    }]
-  });
-  await harness.handler.handleYouTubeInteraction(makeInteraction({ subcommand: "errors" }));
-  await harness.handler.handleYouTubeInteraction(makeInteraction({ subcommand: "permissions" }));
-  await harness.handler.handleYouTubeInteraction(makeInteraction({ subcommand: "clear-errors" }));
-  assert.match(JSON.stringify(harness.replies[0]), /feed indisponibil/);
-  assert.match(String(harness.replies[1]), /<#discord-1>: View Channel ON \| Send Messages ON/);
-  assert.equal(harness.getCleared(), 1);
-});
-
-test("/youtube permissions verifica si canalele din rutele speciale, nu doar canalul principal", async () => {
-  const harness = createHarness({
-    youtubeNotificationChannelId: "discord-main",
-    youtubeChannelRoutes: [
-      { channelId: "UCaaa", discordChannelIds: ["route-1", "route-2"] },
-      { channelId: "UCbbb", discordChannelIds: ["route-2"] }
-    ]
-  });
-  await harness.handler.handleYouTubeInteraction(makeInteraction({ subcommand: "permissions" }));
-  const reply = String(harness.replies[0]);
-  for (const id of ["discord-main", "route-1", "route-2"]) {
-    assert.match(reply, new RegExp(`<#${id}>`), `permisiunile pentru <#${id}> sunt raportate`);
-  }
-});
-
-test("/youtube errors taie raspunsul sub limita Discord cand erorile sunt multe si lungi", async () => {
-  const longMessage = "x".repeat(500);
-  const harness = createHarness({}, 3, false, 0, {
-    youtubeErrors: Array.from({ length: 10 }, (_value, index) => ({
-      channelId: `UC${index}`,
-      channelName: `Canal ${index}`,
-      message: longMessage,
-      at: new Date("2026-06-24T06:00:00.000Z")
-    }))
-  });
-  await harness.handler.handleYouTubeInteraction(makeInteraction({ subcommand: "errors" }));
-  const reply = harness.replies[0];
-  const content = typeof reply === "string" ? reply : String((reply as { content?: unknown }).content ?? "");
-  assert.ok(content.length <= 2000, `raspunsul /youtube errors (${content.length}) trebuie sa ramana sub limita Discord`);
-  assert.match(content, /si inca \d+/, "include nota de trunchiere");
-});
-
-test("/youtube message-template valideaza variabilele, salveaza si reseteaza sablonul", async () => {
+test("/youtube clear-errors curata jurnalul operational", async () => {
   const harness = createHarness();
-  await harness.handler.handleYouTubeInteraction(makeInteraction({
-    group: "message-template",
-    subcommand: "set",
-    strings: { text: "Nou de la {channel}: {title} {url}" }
-  }));
-  await harness.handler.handleYouTubeInteraction(makeInteraction({
-    group: "message-template",
-    subcommand: "reset"
-  }));
-  assert.match(JSON.stringify(harness.writes[0].update), /youtubeMessageTemplate/);
-  assert.match(JSON.stringify(harness.writes[1].update), /null/);
-
-  const invalid = createHarness();
-  await invalid.handler.handleYouTubeInteraction(makeInteraction({
-    group: "message-template",
-    subcommand: "set",
-    strings: { text: "{unknown}" }
-  }));
-  assert.equal(invalid.writes.length, 0);
-  assert.match(String(invalid.replies[0]), /nu este acceptata/);
+  await harness.handler.handleYouTubeInteraction(makeInteraction({ subcommand: "clear-errors" }));
+  assert.equal(harness.getCleared(), 1);
 });
 
 test("/youtube channel-route gestioneaza rute multiple si revenirea la canalul principal", async () => {

@@ -119,6 +119,8 @@ export interface GuildDoc {
   playerCountSubscribed?: boolean;
   playerCountChannelId?: string | null;
   playerCountGames?: string[];
+  gameAliases?: Map<string, string[]> | Record<string, string[]>;
+  timezone?: string;
   futureReleaseSubscribed?: boolean;
   futureReleaseChannelId?: string | null;
   futureReleaseInitializing?: boolean;

@@ -36,7 +36,7 @@ test("buildOnboardingEmbed contine pasii de configurare cheie", () => {
   assert.match(embed.description, /\/set games add/);
   assert.match(embed.description, /\/set role/);
   assert.match(embed.description, /\/help/);
-  assert.match(embed.description, /\/history/);
+  assert.match(embed.description, /\/game overview/);
   assert.match(embed.footer.text, /Send Messages/);
   assert.equal(typeof embed.color, "number");
 });

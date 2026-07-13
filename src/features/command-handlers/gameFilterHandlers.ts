@@ -140,7 +140,7 @@ function isSetGamesCommand(interaction: DiscordInteraction) {
 
 function isWatchlistCommand(interaction: DiscordInteraction) {
   if (!(interaction?.isChatInputCommand?.() === true && interaction.guild)) return false;
-  if (interaction.commandName === "watchlist") return true;
+  if (interaction.commandName === "watchlist") return interaction.options?.getSubcommand?.() !== "coverage";
   const cmd = interaction.commandName;
   return (cmd === "add" || cmd === "remove") && interaction.options?.getSubcommand?.() === "watchlist";
 }

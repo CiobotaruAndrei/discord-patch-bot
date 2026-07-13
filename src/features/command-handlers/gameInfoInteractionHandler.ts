@@ -200,8 +200,13 @@ function isGameInfoCommand(interaction: Parameters<CommandHandler["canHandle"]>[
   const commandName = Reflect.get(interaction, "commandName");
   const isChatInputCommand = Reflect.get(interaction, "isChatInputCommand");
   const guild = Reflect.get(interaction, "guild");
+  const options = Reflect.get(interaction, "options");
+  const subcommand = commandName === "player-count" && options && typeof options === "object" && typeof Reflect.get(options, "getSubcommand") === "function"
+    ? String(Reflect.get(options, "getSubcommand").call(options, false) || "")
+    : "";
   return typeof commandName === "string"
     && GAME_INFO_COMMANDS.has(commandName)
+    && (commandName !== "player-count" || subcommand === "game")
     && typeof isChatInputCommand === "function"
     && isChatInputCommand.call(interaction) === true
     && Boolean(guild);

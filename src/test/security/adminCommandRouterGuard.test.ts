@@ -300,7 +300,7 @@ test("admin command guard refuza explicit comenzile admin in DM (fara guild) si 
 
 test("toate comenzile administrative sunt protejate runtime, iar comenzile publice nu", () => {
   for (const cmd of [
-    "start", "stop", "set", "outbox", "health", "config", "reset-config",
+    "start", "stop", "set", "template", "notification", "game-alias", "health", "config", "reset-config",
     "admin-alerts", "price-alert", "sources", "watchlist", "snooze", "unsnooze",
     "backup", "bot-log", "server-log", "future-release", "maintenance", "admin-command-access", "delete"
   ]) {
@@ -308,7 +308,7 @@ test("toate comenzile administrative sunt protejate runtime, iar comenzile publi
     interaction.commandName = cmd;
     assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), true, `/${cmd} trebuie sa treaca prin guard-ul de admin runtime`);
   }
-  for (const cmd of ["ping", "games", "help", "report", "history", "latest", "price-check", "deal-score", "player-count", "top", "suggest-command", "watchlist-game"]) {
+  for (const cmd of ["ping", "games", "help", "report", "game", "status", "latest", "price-check", "deal-score", "player-count", "top", "suggest-command", "watchlist-game"]) {
     const { interaction } = makeInteraction(false);
     interaction.commandName = cmd;
     assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), false, `/${cmd} ramane public (fara guard de admin)`);

@@ -43,7 +43,7 @@ export function commandAuditName(interaction: AdminGuardInteraction): string {
 
 export function isAdminProtectedCommand(interaction: AdminGuardInteraction): boolean {
   if (interaction?.isChatInputCommand?.() !== true || typeof interaction.commandName !== "string") return false;
-  return isRouterAdminCommandPath(interaction.commandName, getCommandSubcommand(interaction));
+  return isRouterAdminCommandPath(interaction.commandName, getCommandSubcommand(interaction), getCommandGroup(interaction));
 }
 
 export function isSensitiveAdminCommand(interaction: AdminGuardInteraction): boolean {

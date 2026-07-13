@@ -22,7 +22,7 @@ interface CommandRegistryContext {
   checkForUpdates?: (client: NotificationDiscordClient, games: GameConfig[], shouldAbort?: (() => boolean) | null) => Promise<void>;
   checkForDiscounts?: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
   checkForYouTube?: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
-  refreshPlayerCountSnapshots?: (games: GameConfig[], shouldAbort?: (() => boolean) | null) => Promise<{ refreshed: number; failed: number }>;
+  refreshPlayerCountSnapshots?: (games: GameConfig[], shouldAbort?: (() => boolean) | null, client?: NotificationDiscordClient | null) => Promise<{ refreshed: number; failed: number; milestones: number }>;
   drainOutbox?: (client: OutboxDiscordClient) => MaybePromise<unknown>;
   buildOptimizedGameList?: <G extends { key: string }>(allGames: G[], subscribedGuilds: readonly GuildGameFilter[]) => G[];
   registerSlashCommands?: (token: string, clientId: string) => Promise<unknown>;
@@ -70,6 +70,8 @@ import attachPlayerCountSnapshots from "../player-count/playerCountSnapshotServi
 import attachCachedSteamPlayerCount from "../player-count/cachedSteamPlayerCount.js";
 import playerCountCache from "../../infra/redis/redisCacheContext.js";
 import attachFeedbackRepository from "../feedback/feedbackRepository.js";
+import { createReportRepository } from "../feedback/reportRepository.js";
+import { mergeGuildGameAliases } from "../guild-config/gameAliasService.js";
 import attachSlashCommandDefinitions from "../command-definitions/slashCommandDefinitions.js";
 import attachFallbackInteractionHandler from "../command-handlers/fallbackInteractionHandler.js";
 import attachSimpleCommandsHandler from "../command-handlers/simpleCommandsHandler.js";
@@ -78,10 +80,8 @@ import attachSubscriptionNotificationHandlers from "../command-handlers/subscrip
 import attachGameFilterHandlers from "../command-handlers/gameFilterHandlers.js";
 import attachRolePingHandlers from "../command-handlers/rolePingHandlers.js";
 import attachSetInteractionHandler from "../command-handlers/setInteractionHandler.js";
-import attachOutboxAdminHandler from "../command-handlers/outboxAdminHandler.js";
 import attachLatestInteractionHandler from "../command-handlers/latestInteractionHandler.js";
 import attachStatusInteractionHandler from "../command-handlers/statusInteractionHandler.js";
-import attachHistoryInteractionHandler from "../command-handlers/historyInteractionHandler.js";
 import attachReportInteractionHandler from "../command-handlers/reportInteractionHandler.js";
 import attachHealthInteractionHandler from "../command-handlers/healthInteractionHandler.js";
 import attachConfigInteractionHandler from "../command-handlers/configInteractionHandler.js";
@@ -100,8 +100,11 @@ import attachFutureReleaseInteractionHandler from "../command-handlers/futureRel
 import attachYouTubeInteractionHandler from "../command-handlers/youtubeInteractionHandler.js";
 import attachSnoozeInteractionHandler from "../command-handlers/snoozeInteractionHandler.js";
 import attachSourcesStatusHandler from "../command-handlers/sourcesStatusHandler.js";
-import attachSourcesRefreshHandler from "../command-handlers/sourcesRefreshHandler.js";
 import attachDlcInteractionHandler from "../command-handlers/dlcInteractionHandler.js";
+import attachGameOverviewInteractionHandler from "../command-handlers/gameOverviewInteractionHandler.js";
+import attachPlayerCountAnalyticsHandler from "../command-handlers/playerCountAnalyticsHandler.js";
+import attachCoverageAliasHandler from "../command-handlers/watchlistCoverageAndAliasHandler.js";
+import attachTemplatePreviewHandler from "../command-handlers/templateAndNotificationPreviewHandler.js";
 import attachAutocompleteInteractionHandler from "../command-handlers/autocompleteInteractionHandler.js";
 import attachCommandSnoozeGuard from "../command-security/commandSnoozeGuard.js";
 import attachAdminCommandRouterGuard from "../command-security/adminCommandRouterGuard.js";
@@ -133,11 +136,13 @@ function createAppServices(
     ...attachPlayerCountSnapshots.createPlayerCountSnapshotService({ ...notifications, fetchSteamCurrentPlayers: cachedFetchSteamCurrentPlayers })
   };
   const feedbackRepository = attachFeedbackRepository.createFeedbackRepository(playerCounts);
+  const reportRepository = createReportRepository(playerCounts);
   const feedback = {
     ...playerCounts,
     recordFeedbackReport: feedbackRepository.recordReport,
     getRecentFeedbackReports: feedbackRepository.getRecent,
-    resolveFeedbackReport: feedbackRepository.resolveReport
+    resolveFeedbackReport: feedbackRepository.resolveReport,
+    ...reportRepository
   };
   return { ...feedback, ...attachSlashCommandDefinitions.createSlashCommandDefinitions(feedback) };
 }
@@ -146,9 +151,12 @@ function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): { c
   const helpCommand = attachHelpInteractionHandler.buildCommandHandler(ctx);
   const commandHandlers: CommandHandler[] = [
     attachAutocompleteInteractionHandler.buildCommandHandler(ctx),
+    attachPlayerCountAnalyticsHandler.buildCommandHandler(ctx),
+    attachGameOverviewInteractionHandler.buildCommandHandler(ctx),
+    attachCoverageAliasHandler.buildCommandHandler(ctx),
+    attachTemplatePreviewHandler.buildCommandHandler(ctx),
     attachDlcInteractionHandler.buildCommandHandler(ctx),
     attachSourcesStatusHandler.buildCommandHandler(ctx),
-    attachSourcesRefreshHandler.buildCommandHandler(ctx),
     attachConfigInteractionHandler.buildCommandHandler(ctx),
     attachGuildConfigurationAdminHandler.buildCommandHandler(ctx),
     attachAdminCommandAccessHandler.buildCommandHandler(ctx),
@@ -166,10 +174,8 @@ function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): { c
     attachSnoozeInteractionHandler.buildCommandHandler(ctx),
     attachHealthInteractionHandler.buildCommandHandler(ctx),
     attachReportInteractionHandler.buildCommandHandler(ctx),
-    attachHistoryInteractionHandler.buildCommandHandler(ctx),
     attachStatusInteractionHandler.buildCommandHandler(ctx),
     attachLatestInteractionHandler.buildCommandHandler(ctx),
-    attachOutboxAdminHandler.buildCommandHandler(ctx),
     attachSetInteractionHandler.buildCommandHandler(ctx),
     attachRolePingHandlers.buildCommandHandler(ctx),
     attachGameFilterHandlers.buildCommandHandler(ctx),
@@ -188,8 +194,14 @@ function createCommandRegistry(
   const { commandHandlers, helpCommand } = buildCommandHandlerList(ctx);
 
   async function dispatchCommand(interaction: RoutedDiscordInteraction, games: CommandGame[]): Promise<unknown> {
+    let resolvedGames = games;
+    const guildId = interaction.guild?.id;
+    if (typeof guildId === "string") {
+      const settings = await ctx.getGuildSettings(guildId).catch(() => null);
+      resolvedGames = mergeGuildGameAliases(games as GameConfig[], settings);
+    }
     for (const handler of commandHandlers) {
-      if (handler.canHandle(interaction)) return handler.handle(interaction, games);
+      if (handler.canHandle(interaction)) return handler.handle(interaction, resolvedGames);
     }
     return undefined;
   }

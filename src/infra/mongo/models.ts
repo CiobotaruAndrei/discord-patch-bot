@@ -105,6 +105,8 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     playerCountSubscribed: { type: Boolean, default: false },
     playerCountChannelId: { type: String, default: null },
     playerCountGames: { type: [String], default: [] },
+    gameAliases: { type: Map, of: [String], default: {} },
+    timezone: { type: String, default: "UTC", maxlength: 100 },
     futureReleaseSubscribed: { type: Boolean, default: false },
     futureReleaseChannelId: { type: String, default: null },
     futureReleaseInitializing: { type: Boolean, default: false },
@@ -139,6 +141,10 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     adminAlertCooldownSchema,
     fetchSnapshotSchema,
     playerCountSnapshotSchema,
+    playerCountHistorySchema,
+    playerCountRecordSchema,
+    bugReportSchema,
+    userComplaintSchema,
     feedbackReportSchema
   } = buildOperationalSchemas({ mongoose, ONE_DAY_MS, env });
   const CircuitBreakerModel = mongoose.model("CircuitBreaker", circuitBreakerSchema);
@@ -147,6 +153,10 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const AdminAlertCooldownModel = mongoose.model("AdminAlertCooldown", adminAlertCooldownSchema);
   const FetchSnapshotModel = mongoose.model("FetchSnapshot", fetchSnapshotSchema);
   const PlayerCountSnapshotModel = mongoose.model("PlayerCountSnapshot", playerCountSnapshotSchema, "playerCountSnapshots");
+  const PlayerCountHistoryModel = mongoose.model("PlayerCountHistory", playerCountHistorySchema, "playerCountHistory");
+  const PlayerCountRecordModel = mongoose.model("PlayerCountRecord", playerCountRecordSchema, "playerCountRecords");
+  const BugReportModel = mongoose.model("BugReport", bugReportSchema, "bugReports");
+  const UserComplaintModel = mongoose.model("UserComplaint", userComplaintSchema, "userComplaints");
   const FeedbackReportModel = mongoose.model("FeedbackReport", feedbackReportSchema, "feedbackReports");
 
   const { guildAuditLogSchema } = buildAuditLogSchemas({ mongoose, ONE_DAY_MS, env });
@@ -197,6 +207,10 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     AdminAlertCooldownModel,
     FetchSnapshotModel,
     PlayerCountSnapshotModel,
+    PlayerCountHistoryModel,
+    PlayerCountRecordModel,
+    BugReportModel,
+    UserComplaintModel,
     GuildSeenDiscountModel,
     GuildSeenUpdateModel,
     GuildSeenYoutubeModel,

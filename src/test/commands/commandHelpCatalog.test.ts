@@ -4,7 +4,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { COMMAND_HELP_ENTRIES, normalizeCommandHelpQuery, buildCommandHelpChoices, findCommandHelpEntry, renderCommandHelpEntry } from "../../features/command-help/commandHelpCatalog.js";
-import { REPORT_TYPE_VALUES } from "../../features/feedback/reportTypes.js";
 
 import { SlashCommandBuilder, PermissionsBitField } from "discord.js";
 import fs from "fs";
@@ -62,35 +61,6 @@ function adminTopLevelCommands(): Set<string> {
   return admin;
 }
 
-function reportTipChoiceValues(): string[] {
-  const target: Record<string, unknown> = {
-    SlashCommandBuilder,
-    PermissionsBitField,
-    SUPPORTED_CURRENCIES: { USD: {}, EUR: {}, GBP: {}, RON: {} },
-    logger: () => undefined,
-    env: {}
-  };
-  const attachSlashCommands = require("../../features/command-definitions/slashCommandDefinitions").default as (t: Record<string, unknown>) => void;
-  attachSlashCommands(target);
-  const defs = (target.buildSlashCommandDefinitions as () => Array<{ name: string; options?: Array<{ name: string; choices?: Array<{ value: string }>; options?: Array<{ name: string; choices?: Array<{ value: string }> }> }> }>)();
-  const report = defs.find(def => def.name === "report");
-  const submit = report?.options?.find(option => option.name === "submit");
-  const tip = submit?.options?.find(option => option.name === "tip");
-  return (tip?.choices || []).map(choice => choice.value);
-}
-
-test("command help catalog: exemplul /report submit foloseste o optiune tip reala (sursa unica REPORT_TYPES, fara slug inventat)", () => {
-  const reportEntry = COMMAND_HELP_ENTRIES.find(entry => entry.command === "/report submit");
-  assert.ok(reportEntry, "exista intrarea /report submit in catalog");
-  const match = /\btip:(\S+)/.exec(reportEntry.example);
-  assert.ok(match, "exemplul /report contine o optiune tip:<valoare>");
-  const tipValue = match[1];
-  const slashChoiceValues = reportTipChoiceValues();
-  assert.ok(slashChoiceValues.length > 0, "comanda slash /report expune choices pentru tip");
-  assert.deepEqual(slashChoiceValues, [...REPORT_TYPE_VALUES], "choice-urile slash /report provin din sursa unica REPORT_TYPES");
-  assert.ok(slashChoiceValues.includes(tipValue), `tip:${tipValue} din exemplu nu e o optiune reala (${slashChoiceValues.join(", ")})`);
-});
-
 test("command help catalog acopera toate slash command paths", () => {
   const helpPaths = new Set(COMMAND_HELP_ENTRIES.map(entry => normalizeCommandHelpQuery(entry.command)));
   for (const path of slashCommandPaths()) {
@@ -143,18 +113,12 @@ test("command help catalog raspunde la input cu sau fara slash", () => {
 });
 
 test("command help autocomplete filtreaza si pastreaza valori selectabile", () => {
-  const choices = buildCommandHelpChoices("recovery");
-  assert.ok(choices.some(choice => choice.value === "/outbox recovery-verify status"));
+  const choices = buildCommandHelpChoices("overview");
+  assert.ok(choices.some(choice => choice.value === "/game overview"));
   for (const choice of choices) {
     assert.ok(choice.name.length <= 100);
     assert.ok(choice.value.startsWith("/"));
   }
-});
-
-test("command help catalog: descrierea /history mentioneaza si YouTube (def + handler suporta tip:youtube) (R[Low] #3)", () => {
-  const entry = COMMAND_HELP_ENTRIES.find(e => e.command === "/history");
-  assert.ok(entry, "exista un entry pentru /history");
-  assert.match(entry!.description, /youtube/i, "tip:youtube exista in slash definitions si in handler, deci help-ul trebuie sa-l mentioneze");
 });
 
 test("command help catalog: descrierea /youtube notify channel mentioneaza si View Channel (codul + docs o cer) (R[Low] #4)", () => {
@@ -163,17 +127,12 @@ test("command help catalog: descrierea /youtube notify channel mentioneaza si Vi
   assert.match(entry!.description, /View Channel/, "handler-ul blocheaza configurarea fara View Channel, deci help-ul trebuie sa o listeze");
 });
 
-test("command help catalog: descrierea /youtube permissions mentioneaza si rutele speciale, nu doar canalul principal (R12 #5, aliniere cu implementarea)", () => {
-  const entry = COMMAND_HELP_ENTRIES.find(e => e.command === "/youtube permissions");
-  assert.ok(entry, "exista un entry pentru /youtube permissions");
-  assert.match(entry!.description, /rute/i, "implementarea verifica si canalele din rute (youtubeChannelRoutes), deci help-ul trebuie sa le mentioneze, nu doar canalul principal");
-  assert.match(entry!.description, /principal/i, "mentioneaza si canalul principal");
-});
-
-test("command help catalog: descrierea /youtube videos show reflecta ca afisarea manuala revendica (claim) videoclipurile, nu ca nu modifica deduplicarea (R21 #4)", () => {
-  const entry = COMMAND_HELP_ENTRIES.find(e => e.command === "/youtube videos show");
-  assert.ok(entry, "exista un entry pentru /youtube videos show");
-  assert.doesNotMatch(entry!.description, /nu modifica deduplicarea/i, "textul vechi contrazicea codul: afisarea manuala revendica videoclipurile");
-  assert.match(entry!.description, /revendica|claim/i, "mentioneaza ca revendica (claim) videoclipurile postate");
-  assert.match(entry!.description, /repeta:true/, "mentioneaza optiunea repeta:true pentru repostare");
+test("command help catalog documenteaza suita noua fara rute eliminate", () => {
+  const paths = new Set(COMMAND_HELP_ENTRIES.map(entry => entry.command));
+  for (const current of ["/game overview", "/status watchlist", "/template set", "/notification preview", "/report complaint"]) {
+    assert.ok(paths.has(current), `exista intrarea ${current}`);
+  }
+  for (const removed of ["/history", "/outbox deadletters", "/youtube videos show", "/youtube permissions"]) {
+    assert.equal(paths.has(removed), false, `${removed} a fost eliminata din help`);
+  }
 });

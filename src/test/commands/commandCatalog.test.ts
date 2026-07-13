@@ -18,11 +18,11 @@ const KNOWN_LABELS = new Set([
 
 test("permissionsLabelFor deriva eticheta din faptele de acces: public, public ephemeral, admin discord, admin runtime, owner-only", () => {
   assert.equal(permissionsLabelFor("/ping"), "Public");
-  assert.equal(permissionsLabelFor("/history", true), "Public, Ephemeral");
+  assert.equal(permissionsLabelFor("/report bug", true), "Public, Ephemeral");
   assert.equal(permissionsLabelFor("/backup load"), "Admin, Ephemeral");
   assert.equal(permissionsLabelFor("/add backup"), "Admin runtime, Ephemeral");
   assert.equal(permissionsLabelFor("/add suggestion", true), "Public, Ephemeral");
-  assert.equal(permissionsLabelFor("/report list"), "Admin runtime, Ephemeral");
+  assert.equal(permissionsLabelFor("/report list bugs"), "Admin runtime, Ephemeral");
   assert.equal(permissionsLabelFor("/set admin-command-access"), "Admin top-level, owner-only runtime, Ephemeral");
   assert.equal(permissionsLabelFor("/admin-command-access list"), "Admin top-level, owner-only runtime, Ephemeral");
 });

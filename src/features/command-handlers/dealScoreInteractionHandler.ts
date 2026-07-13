@@ -74,7 +74,7 @@ function titleMatches(query: string, title: string): boolean {
   return shared / queryTokens.length >= 0.75;
 }
 
-function scoreDeal(deal: DealInfo): { score: number; reasons: string[] } {
+export function scoreDeal(deal: DealInfo): { score: number; reasons: string[] } {
   const discount = discountPercent(deal);
   const sale = numericPrice(deal.salePrice);
   const normal = numericPrice(deal.normalPrice);
@@ -102,7 +102,7 @@ function scoreDeal(deal: DealInfo): { score: number; reasons: string[] } {
   return { score, reasons };
 }
 
-function findBestDeal(deals: DealInfo[], query: string): DealInfo | null {
+export function findBestDeal(deals: DealInfo[], query: string): DealInfo | null {
   const matches = deals.filter(deal => titleMatches(query, String(deal.title || "")));
   if (!matches.length) return null;
   return matches

@@ -1,4 +1,5 @@
 import type { GameConfig } from "../../config/configTypes.js";
+import type { NotificationDiscordClient } from "../../features/notifications/outboundChannel.js";
 
 type ShouldAbort = () => boolean;
 
@@ -6,7 +7,12 @@ export interface CronCommandsForJobs {
   checkForUpdates(client: unknown, games: GameConfig[], shouldAbort: ShouldAbort): Promise<void>;
   checkForDiscounts(client: unknown, shouldAbort: ShouldAbort): Promise<void>;
   checkForYouTube(client: unknown, shouldAbort: ShouldAbort): Promise<void>;
-  refreshPlayerCountSnapshots?(games: GameConfig[], shouldAbort: ShouldAbort): Promise<unknown>;
+  refreshPlayerCountSnapshots?(games: GameConfig[], shouldAbort: ShouldAbort, client?: NotificationDiscordClient): Promise<unknown>;
+}
+
+interface CronNotificationClient {
+  user?: { id?: string } | null;
+  channels?: NotificationDiscordClient["channels"];
 }
 
 export interface CronJob {
@@ -21,7 +27,7 @@ export interface CronJobFailure {
 
 export function buildCronCycleJobs(
   commands: CronCommandsForJobs,
-  client: unknown,
+  client: CronNotificationClient,
   games: GameConfig[],
   shedDiscounts: boolean,
   shouldAbort: ShouldAbort
@@ -31,7 +37,7 @@ export function buildCronCycleJobs(
     ...(shedDiscounts ? [] : [{ label: "checkForDiscounts", run: commands.checkForDiscounts(client, shouldAbort) }]),
     { label: "checkForYouTube", run: commands.checkForYouTube(client, shouldAbort) },
     ...(typeof commands.refreshPlayerCountSnapshots === "function"
-      ? [{ label: "refreshPlayerCountSnapshots", run: commands.refreshPlayerCountSnapshots(games, shouldAbort) }]
+      ? [{ label: "refreshPlayerCountSnapshots", run: commands.refreshPlayerCountSnapshots(games, shouldAbort, client.channels ? { user: client.user, channels: client.channels } : undefined) }]
       : [])
   ];
 }

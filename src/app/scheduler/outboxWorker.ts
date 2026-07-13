@@ -159,8 +159,8 @@ function createOutboxWorker({
     }
     if ((r.historyWriteFailures ?? 0) > 0) {
       adminAlert("outbox:history-write",
-        "Scrierea istoricului /history esueaza pentru livrari reusite",
-        "Mesaje au fost trimise dar nu s-au putut scrie in notificationHistory; livrarea e OK, dar /history poate fi incomplet. Verifica disponibilitatea Mongo / colectia de istoric.").catch(() => undefined);
+        "Scrierea notificationHistory esueaza pentru livrari reusite",
+        "Mesaje au fost trimise dar nu s-au putut scrie in notificationHistory; livrarea e OK, dar istoricul intern poate fi incomplet. Verifica disponibilitatea Mongo si colectia de istoric.").catch(() => undefined);
     }
   }
 

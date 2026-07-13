@@ -41,16 +41,36 @@ export function buildGameInfoCommandDefinitions({ SlashCommandBuilder, CURRENCY_
         .addStringOption(option => option.setName("currency").setDescription("Valuta pentru cautarea Steam").setRequired(false).addChoices(...CURRENCY_CHOICES))),
     new SlashCommandBuilder()
       .setName("player-count")
-      .setDescription("Afiseaza numarul curent de jucatori activi pe Steam")
+      .setDescription("Afiseaza si analizeaza numarul de jucatori activi pe Steam")
+      .setDMPermission(false)
       .addSubcommand(subcommand => subcommand.setName("game").setDescription("Player-count pentru un joc")
         .addStringOption(option => option.setName("game").setDescription("Numele jocului").setRequired(true).setAutocomplete(true))
-        .addStringOption(option => option.setName("currency").setDescription("Valuta pentru cautarea Steam").setRequired(false).addChoices(...CURRENCY_CHOICES))),
+        .addStringOption(option => option.setName("currency").setDescription("Valuta pentru cautarea Steam").setRequired(false).addChoices(...CURRENCY_CHOICES)))
+      .addSubcommand(subcommand => subcommand.setName("trend").setDescription("Evolutia player-count intr-o perioada")
+        .addStringOption(option => option.setName("joc").setDescription("Jocul urmarit").setRequired(true).setAutocomplete(true))
+        .addStringOption(option => option.setName("period").setDescription("Perioada analizata").setRequired(true)
+          .addChoices({ name: "24h", value: "24h" }, { name: "7d", value: "7d" }, { name: "30d", value: "30d" })))
+      .addSubcommand(subcommand => subcommand.setName("milestone").setDescription("Recordul istoric de player-count")
+        .addStringOption(option => option.setName("joc").setDescription("Jocul urmarit").setRequired(true).setAutocomplete(true)))
+      .addSubcommand(subcommand => subcommand.setName("gainers").setDescription("Jocurile cu cea mai mare crestere")
+        .addStringOption(option => option.setName("period").setDescription("Perioada analizata").setRequired(true)
+          .addChoices({ name: "24h", value: "24h" }, { name: "7d", value: "7d" }, { name: "30d", value: "30d" })))
+      .addSubcommand(subcommand => subcommand.setName("peak-time").setDescription("Intervalele cu cel mai mare player-count")
+        .addStringOption(option => option.setName("joc").setDescription("Jocul urmarit").setRequired(true).setAutocomplete(true))
+        .addStringOption(option => option.setName("period").setDescription("Perioada analizata").setRequired(true)
+          .addChoices({ name: "7d", value: "7d" }, { name: "30d", value: "30d" }))),
     new SlashCommandBuilder()
       .setName("top")
       .setDescription("Afiseaza topuri operationale din sursele botului")
       .addSubcommandGroup(group => group.setName("active").setDescription("Topuri dupa activitate")
         .addSubcommand(subcommand => subcommand.setName("games").setDescription("Top jocuri active dupa player-count Steam")
           .addIntegerOption(option => option.setName("numar").setDescription("Cate rezultate (1-10, implicit 5)").setRequired(false).setMinValue(1).setMaxValue(10)))),
+    new SlashCommandBuilder()
+      .setName("game")
+      .setDescription("Informatii agregate despre jocuri")
+      .setDMPermission(false)
+      .addSubcommand(subcommand => subcommand.setName("overview").setDescription("Rezumat complet pentru un joc")
+        .addStringOption(option => option.setName("joc").setDescription("Numele jocului").setRequired(true).setAutocomplete(true))),
     new SlashCommandBuilder()
       .setName("latest")
       .setDescription("Comenzi pentru ultimele update-uri/oferte")
@@ -66,7 +86,10 @@ export function buildGameInfoCommandDefinitions({ SlashCommandBuilder, CURRENCY_
       .addStringOption(option => option.setName("joc").setDescription("Numele jocului").setRequired(true).setAutocomplete(true)),
     new SlashCommandBuilder()
       .setName("status")
-      .setDescription("Verifica status server pentru un joc")
-      .addStringOption(option => option.setName("joc").setDescription("Numele/porecla jocului").setRequired(true).setAutocomplete(true))
+      .setDescription("Verifica starea serverelor")
+      .setDMPermission(false)
+      .addSubcommand(subcommand => subcommand.setName("game").setDescription("Starea serverelor pentru un joc")
+        .addStringOption(option => option.setName("joc").setDescription("Numele/porecla jocului").setRequired(true).setAutocomplete(true)))
+      .addSubcommand(subcommand => subcommand.setName("watchlist").setDescription("Starea serverelor pentru jocurile urmarite"))
   ];
 }

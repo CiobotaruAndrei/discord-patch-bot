@@ -74,7 +74,6 @@ test("pregatire migrare commandRegistry: safeDefer e tipat canonic (interaction,
   assert.match(realImpl, /async function safeDefer\(interaction: DeferEditInteraction, ephemeral = false\): Promise<void>/, "implementarea reala safeDefer accepta contractul minimal si pastreaza (interaction, ephemeral) => Promise<void>");
   const canonicalSafeDeferFiles: Array<{ file: string; interactionType: string }> = [
     { file: "gameFilterHandlers.ts", interactionType: "DiscordInteraction" },
-    { file: "outboxAdminHandler.ts", interactionType: "DiscordInteraction" },
     { file: "rolePingHandlers.ts", interactionType: "DiscordInteraction" },
     { file: "setInteractionHandler.ts", interactionType: "DiscordInteraction" },
     { file: "subscriptionCommandContracts.ts", interactionType: "SubscriptionInteraction" }

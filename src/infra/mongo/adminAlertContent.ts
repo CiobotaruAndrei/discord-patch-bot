@@ -66,7 +66,7 @@ const EXACT_GUIDANCE: Record<string, AdminAlertGuidance> = {
   },
   "outbox:history-write": {
     severity: "warning",
-    meaning: "Un mesaj a fost livrat cu succes, dar scrierea lui in istoricul /history (notificationHistory) a esuat, deci /history poate fi incomplet pentru acel server. Livrarea NU e afectata.",
+    meaning: "Un mesaj a fost livrat cu succes, dar scrierea lui in notificationHistory a esuat, deci istoricul intern poate fi incomplet pentru acel server. Livrarea NU e afectata.",
     action: "Verifica disponibilitatea Mongo si scrierile in colectia de istoric. Coreleaza cu metrica `bot_history_write_failures`. Vezi OPERATIONS.md."
   },
   "outbox:delete": {
@@ -110,12 +110,12 @@ const FAMILY_GUIDANCE: Record<string, AdminAlertGuidance> = {
   youtube: {
     severity: "warning",
     meaning: "Monitorizarea YouTube nu a putut rezolva un canal, citi feed-ul sau metadatele unui videoclip.",
-    action: "Ruleaza /youtube status si /youtube errors, verifica linkul canalului si conectivitatea catre youtube.com, apoi curata erorile cu /youtube clear-errors dupa remediere."
+    action: "Ruleaza /youtube status, verifica /maintenance, linkul canalului si conectivitatea catre youtube.com, apoi curata erorile cu /youtube clear-errors dupa remediere."
   },
   "rollback-failed": {
     severity: "warning",
     meaning: "Anularea (rollback) unei revendicari de deduplicare a esuat dupa o livrare nereusita (Mongo indisponibil sau eroare la scriere). Elementul ramane marcat ca vazut si NU va fi re-livrat automat.",
-    action: "Verifica disponibilitatea/latenta MongoDB. Pentru YouTube, re-posteaza videoclipul afectat cu /youtube videos show repeta:true. Pentru alertele de pret, regula se va re-arma si re-declansa la urmatorul ciclu cand pretul ramane sub prag."
+    action: "Verifica disponibilitatea/latenta MongoDB. Pentru YouTube, continutul nerevendicat va fi reincercat automat; pentru alertele de pret, regula se va re-arma si re-declansa la urmatorul ciclu cand pretul ramane sub prag."
   }
 };
 

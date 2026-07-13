@@ -14,6 +14,10 @@ export type {
   AdminAlertCooldownDoc,
   FetchSnapshotDoc,
   PlayerCountSnapshotDoc,
+  PlayerCountHistoryDoc,
+  PlayerCountRecordDoc,
+  BugReportDoc,
+  UserComplaintDoc,
   FeedbackReportDoc
 } from "./operationalDocTypes.js";
 export type {
