@@ -1,12 +1,12 @@
 import type { CheerioAPI } from "cheerio";
-import type { AbortPredicate, GameConfig, GameSourceFallback, HttpRequestOptions } from "../../types";
-import type { ListingCandidate } from "../sourceApis";
+import type { AbortPredicate, GameConfig, GameSourceFallback, HttpRequestOptions } from "../../types.js";
+import type { ListingCandidate } from "../sourceApis.js";
 import {
   classifyPatchNote,
   extractDateScore as rustExtractDateScore,
   isGoodSteamArticleUrl as rustIsGoodSteamArticleUrl,
   scoreListingCandidate
-} from "../../native/fuzzy";
+} from "../../native/fuzzy.js";
 
 type HttpResponse<T = unknown> = { data: T };
 type CheerioSelector = Parameters<CheerioAPI>[0];

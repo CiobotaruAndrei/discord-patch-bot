@@ -1,13 +1,13 @@
 "use strict";
 
-import type { DiscordReplyPayload, FutureReleaseGameEntry, GameConfig, GuildSettings } from "../../types";
-import type { CommandHandler } from "../command-registry/commandHandler";
-import { matchesCommand } from "../command-registry/commandMatch";
-import { clampJoinedList } from "../command-presentation/discordListLimit";
-import { deleteFutureReleaseGame, listFutureReleaseGames, saveFutureReleaseGame, startFutureReleaseNotifications, stopFutureReleaseNotifications } from "../admin-records/futureReleaseGamesRepository";
-import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
+import type { DiscordReplyPayload, FutureReleaseGameEntry, GameConfig, GuildSettings } from "../../types.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import { matchesCommand } from "../command-registry/commandMatch.js";
+import { clampJoinedList } from "../command-presentation/discordListLimit.js";
+import { deleteFutureReleaseGame, listFutureReleaseGames, saveFutureReleaseGame, startFutureReleaseNotifications, stopFutureReleaseNotifications } from "../admin-records/futureReleaseGamesRepository.js";
+import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText.js";
 
-import { errorDetail } from "../../shared/errors";
+import { errorDetail } from "../../shared/errors.js";
 
 type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;

@@ -1,8 +1,9 @@
+import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
-import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
-import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
-import type { DealInfo, GameConfig, GuildSettings, ValidatedDealInfo } from "../types";
+import { createUpdateNotificationService } from "../features/notifications/updateNotificationService.js";
+import { createDiscountNotificationService } from "../features/notifications/discountNotificationService.js";
+import type { DealInfo, GameConfig, GuildSettings, ValidatedDealInfo } from "../types.js";
 
 type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];
 type DiscountDeps = Parameters<typeof createDiscountNotificationService>[0];
@@ -217,7 +218,7 @@ function formatTable(rows: BenchmarkRow[]): string {
   return lines.join("\n");
 }
 
-if (require.main === module) {
+if (process.argv[1] !== undefined && __pathToFileURL(process.argv[1]).href === import.meta.url) {
   const counts = (process.env.BENCHMARK_GUILDS || "100,500,1000")
     .split(",").map(value => parseInt(value.trim(), 10)).filter(value => Number.isFinite(value) && value > 0);
   runNotificationBenchmark(counts).then(rows => {

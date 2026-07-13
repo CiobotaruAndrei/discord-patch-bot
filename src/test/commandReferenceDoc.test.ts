@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { COMMAND_CATALOG_HELP } from "../features/command-catalog/commandCatalog";
-import { renderCommandReferenceDoc, COMMAND_REFERENCE_DOC_RELATIVE_PATH } from "../features/command-catalog/commandReferenceDoc";
-import { evaluateCommandReferenceDoc } from "../scripts/generate-command-reference";
+import { COMMAND_CATALOG_HELP } from "../features/command-catalog/commandCatalog.js";
+import { renderCommandReferenceDoc, COMMAND_REFERENCE_DOC_RELATIVE_PATH } from "../features/command-catalog/commandReferenceDoc.js";
+import { evaluateCommandReferenceDoc } from "../scripts/generate-command-reference.js";
 
 import fs from "fs";
 import path from "path";

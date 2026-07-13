@@ -1,8 +1,8 @@
 "use strict";
 
-import type { DiscordInteraction, YouTubeInteractionDeps } from "./youtubeCommandTypes";
+import type { DiscordInteraction, YouTubeInteractionDeps } from "./youtubeCommandTypes.js";
 
-import { errorDetail } from "../../../shared/errors";
+import { errorDetail } from "../../../shared/errors.js";
 
 export const YOUTUBE_MANUAL_IMMEDIATE_BATCH = 5;
 

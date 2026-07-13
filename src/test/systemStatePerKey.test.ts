@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { SystemTimes } from "../types";
+import type { SystemTimes } from "../types.js";
 
-import attachSystemState from "../infra/mongo/systemState";
+import attachSystemState from "../infra/mongo/systemState.js";
 type SystemStateContext = Parameters<typeof attachSystemState>[0];
 
 type SystemTimesKey = keyof SystemTimes;

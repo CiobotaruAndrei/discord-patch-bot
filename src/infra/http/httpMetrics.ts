@@ -1,4 +1,4 @@
-import type { BotMetrics } from "../../types";
+import type { BotMetrics } from "../../types.js";
 
 type HttpMetricsRef = Pick<BotMetrics, "fetchSuccess" | "fetchFail" | "httpRetries" | "rateLimitHits">;
 

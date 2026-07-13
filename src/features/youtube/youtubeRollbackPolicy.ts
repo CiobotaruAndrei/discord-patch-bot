@@ -1,8 +1,8 @@
 "use strict";
 
-import type { LoggerFunction } from "../../types";
-import type { PreparedVideo } from "./youtubeDeliveryPlanner";
-import { rollbackOrReport, type ReportRollbackFailure } from "../notifications/rollbackReporter";
+import type { LoggerFunction } from "../../types.js";
+import type { PreparedVideo } from "./youtubeDeliveryPlanner.js";
+import { rollbackOrReport, type ReportRollbackFailure } from "../notifications/rollbackReporter.js";
 
 export interface YouTubeRollbackPolicyDeps {
   rollbackVideo(guildId: string, channelId: string, videoId: string): Promise<void>;

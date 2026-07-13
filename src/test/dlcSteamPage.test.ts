@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { dlcPageHasAgeGate, dlcPageLooksLikeStorePage, parseDlcRows } from "../features/command-handlers/dlcSteamPage";
+import { dlcPageHasAgeGate, dlcPageLooksLikeStorePage, parseDlcRows } from "../features/command-handlers/dlcSteamPage.js";
 
 import * as cheerio from "cheerio";
 const load = (html: string) => cheerio.load(html);

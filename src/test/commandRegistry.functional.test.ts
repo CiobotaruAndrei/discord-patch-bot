@@ -1,3 +1,5 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -12,7 +14,7 @@ interface CommandRegistryExports {
   createCommandRegistry: (overrides?: Record<string, unknown>) => Record<string, RegistryTestFunction>;
 }
 
-import commandRegistry from "../features/command-registry/commandRegistry";
+const commandRegistry = (await import("../features/command-registry/commandRegistry.js")).default;
 
 const requiredKeys = [
   "cleanCache",

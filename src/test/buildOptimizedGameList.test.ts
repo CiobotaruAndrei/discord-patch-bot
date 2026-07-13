@@ -8,7 +8,7 @@ process.env.METRICS_PUBLIC ||= "true";
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import _____features_command_registry_commandRegistry from "../features/command-registry/commandRegistry";
+const _____features_command_registry_commandRegistry = (await import("../features/command-registry/commandRegistry.js")).default;
 const { buildOptimizedGameList } = _____features_command_registry_commandRegistry;
 
 type TestGame = { key: string; name: string; type: string; appId?: string };

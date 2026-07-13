@@ -1,10 +1,12 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
-import { validateUpdateFetchSnapshot as _vUpd, validatePendingDiscountSnapshot as _vDisc } from "../shared/utilities";
+import { validateUpdateFetchSnapshot as _vUpd, validatePendingDiscountSnapshot as _vDisc } from "../shared/utilities.js";
 import assert from "node:assert/strict";
 
-import { makeDealInfo } from "./typedTestBuilders";
+import { makeDealInfo } from "./typedTestBuilders.js";
 
-import realUtilities from "../shared/utilities";
+import realUtilities from "../shared/utilities.js";
 
 const latestHandlerModule = require("../features/command-handlers/latestInteractionHandler").default as {
   createLatestInteractionHandler?: (deps: unknown) => unknown;

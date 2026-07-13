@@ -1,9 +1,9 @@
 "use strict";
 
-import type { GuildSettings, YouTubeChannelSubscription, YouTubeFilters, YouTubeVideo, YouTubeVideoMetadata } from "../../types";
-import type { PreparedVideo } from "./youtubeDeliveryPlanner";
-import type { MetadataResolver } from "./youtubeMetadataResolver";
-import { videoPassesYouTubeTitleFilter } from "./youtubeDeliveryPolicy";
+import type { GuildSettings, YouTubeChannelSubscription, YouTubeFilters, YouTubeVideo, YouTubeVideoMetadata } from "../../types.js";
+import type { PreparedVideo } from "./youtubeDeliveryPlanner.js";
+import type { MetadataResolver } from "./youtubeMetadataResolver.js";
+import { videoPassesYouTubeTitleFilter } from "./youtubeDeliveryPolicy.js";
 
 export interface YouTubeFilterEngineDeps {
   fetchYouTubeVideoMetadata: MetadataResolver;

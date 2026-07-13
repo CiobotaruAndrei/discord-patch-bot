@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { clampJoinedList } from "../features/command-presentation/discordListLimit";
+import { clampJoinedList } from "../features/command-presentation/discordListLimit.js";
 
 test("clampJoinedList: sub limita -> lista completa, neschimbata", () => {
   const items = ["alfa", "beta", "gama"];

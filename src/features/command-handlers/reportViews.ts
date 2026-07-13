@@ -1,6 +1,8 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 "use strict";
 
-import { clampJoinedList } from "../command-presentation/discordListLimit";
+import { clampJoinedList } from "../command-presentation/discordListLimit.js";
 
 const feedback = require("../feedback/feedbackRepository").default as {
   reportTypeLabel: (value: string) => string;

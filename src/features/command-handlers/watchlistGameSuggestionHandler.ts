@@ -1,15 +1,15 @@
 "use strict";
 
-import type { DiscordReplyPayload, GameConfig, GuildSettings, WatchlistGameSuggestionEntry } from "../../types";
-import type { CommandHandler } from "../command-registry/commandHandler";
-import { clampJoinedList } from "../command-presentation/discordListLimit";
-import { deleteWatchlistGameSuggestion, listWatchlistGameSuggestions, saveWatchlistGameSuggestion } from "../admin-records/watchlistGameSuggestionsRepository";
-import { recordBotAuditEntry } from "../admin-records/auditLogRepository";
-import { requireGuildAdminAudited } from "../command-security/runtimeAdminAudit";
-import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
+import type { DiscordReplyPayload, GameConfig, GuildSettings, WatchlistGameSuggestionEntry } from "../../types.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import { clampJoinedList } from "../command-presentation/discordListLimit.js";
+import { deleteWatchlistGameSuggestion, listWatchlistGameSuggestions, saveWatchlistGameSuggestion } from "../admin-records/watchlistGameSuggestionsRepository.js";
+import { recordBotAuditEntry } from "../admin-records/auditLogRepository.js";
+import { requireGuildAdminAudited } from "../command-security/runtimeAdminAudit.js";
+import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText.js";
 
-import { errorDetail } from "../../shared/errors";
-import defaultRequireGuildAdminModule from "../command-security/adminPermissionGuard";
+import { errorDetail } from "../../shared/errors.js";
+import defaultRequireGuildAdminModule from "../command-security/adminPermissionGuard.js";
 const defaultRequireGuildAdmin = defaultRequireGuildAdminModule as RequireGuildAdmin;
 
 type InteractionPayload = DiscordReplyPayload;

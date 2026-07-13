@@ -1,5 +1,5 @@
 import test from "node:test";
-import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit.js";
 import assert from "node:assert/strict";
 
 process.env.MONGO_URI ||= "mongodb://localhost:27017/discord-patch-bot-test";
@@ -18,7 +18,7 @@ type GameFilterRuntime = {
   handleSetGamesInteraction: (interaction: unknown, games: Game[]) => Promise<unknown>;
 };
 
-import installGameFilterHandlers from "../features/command-handlers/gameFilterHandlers";
+import installGameFilterHandlers from "../features/command-handlers/gameFilterHandlers.js";
 
 const games = [
   { key: "cs2", name: "Counter-Strike 2" },

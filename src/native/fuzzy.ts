@@ -1,5 +1,5 @@
-import type { DealInfo, GameConfig, GuildSettings } from "../types";
-import type { NativeAutocompleteChoice, NativeFuzzyModule, NativeGameCandidate } from "./fuzzyNativeBridge";
+import type { DealInfo, GameConfig, GuildSettings } from "../types.js";
+import type { NativeAutocompleteChoice, NativeFuzzyModule, NativeGameCandidate } from "./fuzzyNativeBridge.js";
 import {
   ensureNativeFuzzy,
   getNativeFuzzy,
@@ -8,14 +8,14 @@ import {
   missingCriticalNativeExports,
   nativeFallbackAllowed,
   nativeStringFn
-} from "./fuzzyNativeBridge";
+} from "./fuzzyNativeBridge.js";
 import {
   NATIVE_FALLBACK_FUNCTIONS,
   getNativeFallbackTotal,
   getNativeFallbackTotals,
   recordNativeFallback,
   resetNativeFallbackTotals
-} from "./fuzzyFallbackMetrics";
+} from "./fuzzyFallbackMetrics.js";
 import {
   HASH_VERSION,
   buildAutocompleteChoicesFallback,
@@ -35,7 +35,7 @@ import {
   stableUpdateIdFallback,
   type FuzzyMatchKeys,
   type RankableListingCandidate
-} from "./fuzzyFallbacks";
+} from "./fuzzyFallbacks.js";
 
 export {
   HASH_VERSION,

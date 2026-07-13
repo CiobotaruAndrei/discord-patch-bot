@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { listSettableAdminScopePaths, buildSettableAdminScopeChoices, isSettableAdminScope } from "../features/command-security/adminSettableScopeCatalog";
+import { listSettableAdminScopePaths, buildSettableAdminScopeChoices, isSettableAdminScope } from "../features/command-security/adminSettableScopeCatalog.js";
 
 const ROUTER_ENFORCED = ["/start updates", "/backup load", "/add price-alert", "/config"];
 const NON_ROUTER_RUNTIME = ["/suggest-command list", "/suggest-command delete", "/report list", "/report resolve", "/watchlist-game delete"];

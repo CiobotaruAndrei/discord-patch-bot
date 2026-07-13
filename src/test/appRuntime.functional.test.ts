@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { GatewayIntentBits } from "discord.js";
-import { createAppRuntime, connectMongoWithRetry, hydrateStartupCaches } from "../app/appRuntime";
-import type { AppRuntimeDeps } from "../app/appRuntime";
-import type { RuntimeEnv } from "../types";
-import type { CreateOutboxWorkerDeps } from "../app/scheduler/outboxWorker";
-import type { RegisterDiscordEventsDeps } from "../app/lifecycle/events";
-import { createMetrics } from "../app/health/metrics";
+import { createAppRuntime, connectMongoWithRetry, hydrateStartupCaches } from "../app/appRuntime.js";
+import type { AppRuntimeDeps } from "../app/appRuntime.js";
+import type { RuntimeEnv } from "../types.js";
+import type { CreateOutboxWorkerDeps } from "../app/scheduler/outboxWorker.js";
+import type { RegisterDiscordEventsDeps } from "../app/lifecycle/events.js";
+import { createMetrics } from "../app/health/metrics.js";
 
 process.env.MONGO_URI ||= "mongodb://localhost:27017/discord-patch-bot-test";
 process.env.DISCORD_TOKEN ||= "test_discord_token";

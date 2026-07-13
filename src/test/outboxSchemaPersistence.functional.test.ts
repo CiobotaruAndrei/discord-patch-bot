@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import mongoose from "mongoose";
-import attachMongoModels from "../infra/mongo/models";
-import type { MongoModelsContext } from "../infra/mongo/models";
+import attachMongoModels from "../infra/mongo/models.js";
+import type { MongoModelsContext } from "../infra/mongo/models.js";
 
 interface OutboxModelLike {
   new (doc: Record<string, unknown>): { toObject(): Record<string, unknown> };

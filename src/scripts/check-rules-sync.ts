@@ -1,3 +1,6 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
+import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
 export interface AlertRule {
@@ -121,7 +124,7 @@ function main(): void {
   console.log("check-rules-sync OK: fiecare alerta/panou refera o metrica reala si fiecare regula e completa.");
 }
 
-if (require.main === module) {
+if (process.argv[1] !== undefined && __pathToFileURL(process.argv[1]).href === import.meta.url) {
   main();
 }
 

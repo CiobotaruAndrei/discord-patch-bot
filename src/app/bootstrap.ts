@@ -1,24 +1,26 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 "use strict";
 
 import mongoose from "mongoose";
 import crypto from "crypto";
 import { performance } from "perf_hooks";
 import { Client, GatewayIntentBits } from "discord.js";
-import { loadConfig } from "../config/configLoader";
-import { createMetrics } from "./health/metrics";
-import { createRateLimiter } from "./health/rateLimit";
-import { createHousekeeping } from "./scheduler/housekeeping";
-import { createCronController } from "./scheduler/cron";
-import { createOutboxWorker } from "./scheduler/outboxWorker";
-import { createHttpServer } from "./health/httpServer";
-import { registerDiscordEvents, registerMongoEvents } from "./lifecycle/events";
-import { createShutdownController } from "./lifecycle/shutdown";
-import { errorMessage, errorDetail } from "../shared/errors";
-import { createAppRuntime } from "./appRuntime";
-import redis from "../infra/redis/redisContext";
-import type { AppRuntime, AppRuntimeDeps } from "./appRuntime";
-import type { BotRole } from "../types";
-import type { SourceRegistryApi } from "../sources/sourceRegistry";
+import { loadConfig } from "../config/configLoader.js";
+import { createMetrics } from "./health/metrics.js";
+import { createRateLimiter } from "./health/rateLimit.js";
+import { createHousekeeping } from "./scheduler/housekeeping.js";
+import { createCronController } from "./scheduler/cron.js";
+import { createOutboxWorker } from "./scheduler/outboxWorker.js";
+import { createHttpServer } from "./health/httpServer.js";
+import { registerDiscordEvents, registerMongoEvents } from "./lifecycle/events.js";
+import { createShutdownController } from "./lifecycle/shutdown.js";
+import { errorMessage, errorDetail } from "../shared/errors.js";
+import { createAppRuntime } from "./appRuntime.js";
+import redis from "../infra/redis/redisContext.js";
+import type { AppRuntime, AppRuntimeDeps } from "./appRuntime.js";
+import type { BotRole } from "../types.js";
+import type { SourceRegistryApi } from "../sources/sourceRegistry.js";
 
 const {
   logger, env, parseEnvNumber,
@@ -26,9 +28,9 @@ const {
   waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
   runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots,
   getOutboxPaused, setAdminAlertDiscordClient
-} = require("../infra/mongo/mongoContext").default as typeof import("../infra/mongo/mongoContext")["default"];
-import commands from "../features/command-registry/commandRegistry";
-import * as scrapers from "../sources/sourceRegistry";
+} = require("../infra/mongo/mongoContext").default as typeof import("../infra/mongo/mongoContext.js")["default"];
+import commands from "../features/command-registry/commandRegistry.js";
+import * as scrapers from "../sources/sourceRegistry.js";
 
 function buildAppRuntime(role: BotRole): AppRuntime {
   return createAppRuntime({

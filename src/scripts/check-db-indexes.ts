@@ -1,6 +1,9 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
+import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
-import type { MongoModelsContext } from "../infra/mongo/models";
+import type { MongoModelsContext } from "../infra/mongo/models.js";
 
 export interface DeclaredIndex {
   model: string;
@@ -160,7 +163,7 @@ async function main(): Promise<void> {
   console.log("check-db-indexes OK: index-uri valide, fara duplicate, toate documentate in OPERATIONS.md.");
 }
 
-if (require.main === module) {
+if (process.argv[1] !== undefined && __pathToFileURL(process.argv[1]).href === import.meta.url) {
   main().catch(err => { console.error(err); process.exit(1); });
 }
 

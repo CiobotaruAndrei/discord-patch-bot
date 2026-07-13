@@ -1,7 +1,7 @@
 "use strict";
 
-import type { DiscordChannel, SubscriptionFamily, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts";
-import { createSubscriptionService } from "../notifications/subscriptionService";
+import type { DiscordChannel, SubscriptionFamily, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts.js";
+import { createSubscriptionService } from "../notifications/subscriptionService.js";
 
 export function createDlcSubscriptionFamily(deps: SubscriptionInteractionDeps): SubscriptionFamily {
   const { safeEdit, formatUserError } = deps;

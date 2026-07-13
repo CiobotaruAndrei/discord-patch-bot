@@ -1,8 +1,8 @@
-import type { DealInfo, FetchResult } from "../../types";
-import type { AppRuntimeDeps, DiscordClientLike, HttpServerLike } from "../appRuntime";
-import { runCacheHydrationPhase, runDatabaseStartupPhase, runDiscordStartupPhase, runHttpStartupPhase } from "../lifecycle/bootPhases";
+import type { DealInfo, FetchResult } from "../../types.js";
+import type { AppRuntimeDeps, DiscordClientLike, HttpServerLike } from "../appRuntime.js";
+import { runCacheHydrationPhase, runDatabaseStartupPhase, runDiscordStartupPhase, runHttpStartupPhase } from "../lifecycle/bootPhases.js";
 
-import { ensureNativeFuzzy } from "../../native/fuzzy";
+import { ensureNativeFuzzy } from "../../native/fuzzy.js";
 
 const MONGO_CONNECT_MAX_ATTEMPTS = 5;
 const MONGO_CONNECT_INITIAL_BACKOFF_MS = 1000;

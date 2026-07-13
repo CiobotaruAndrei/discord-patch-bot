@@ -1,8 +1,8 @@
 "use strict";
 
-import type { EmbeddableUpdate, NormalizedUpdate } from "../../../types";
+import type { EmbeddableUpdate, NormalizedUpdate } from "../../../types.js";
 
-import { errorMessage } from "../../../shared/errors";
+import { errorMessage } from "../../../shared/errors.js";
 
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
 type NotificationMode = "compact" | "detailed";

@@ -1,4 +1,4 @@
-import type { CommandAccessRule, CommandCatalogHelpEntry } from "./commandCatalogTypes";
+import type { CommandAccessRule, CommandCatalogHelpEntry } from "./commandCatalogTypes.js";
 
 export const NOTIFICATIONS_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   { command: "latest", access: "public", discordAdminPermissions: false },

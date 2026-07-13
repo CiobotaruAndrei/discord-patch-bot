@@ -1,7 +1,9 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { BotMetrics, RuntimeEnv } from "../types";
-import { createRateLimiter, firstHeaderValue } from "../app/health/rateLimit";
+import type { BotMetrics, RuntimeEnv } from "../types.js";
+import { createRateLimiter, firstHeaderValue } from "../app/health/rateLimit.js";
 
 type CommandPresentation = {
   buildDealEmbed: (...args: unknown[]) => unknown;

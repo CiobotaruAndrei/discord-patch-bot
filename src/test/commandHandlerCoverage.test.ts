@@ -5,7 +5,7 @@ process.env.MONGO_URI ||= "mongodb://localhost:27017/discord-patch-bot-test";
 process.env.DISCORD_TOKEN ||= "test_discord_token";
 process.env.DISCORD_CLIENT_ID ||= "test_discord_client_id";
 
-import commandRegistry from "../features/command-registry/commandRegistry";
+const commandRegistry = (await import("../features/command-registry/commandRegistry.js")).default;
 
 type CanHandle = (interaction: unknown) => boolean;
 

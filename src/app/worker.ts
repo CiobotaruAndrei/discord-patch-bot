@@ -1,6 +1,6 @@
 "use strict";
 
-import { startBot } from "./bootstrap";
+import { startBot } from "./bootstrap.js";
 
 startBot("worker");
 

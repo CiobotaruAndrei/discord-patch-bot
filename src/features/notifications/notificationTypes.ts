@@ -1,5 +1,5 @@
-import type { CurrencyCode } from "../../types";
-import type { DealInfo, PatchUpdate } from "../../sources/sourceTypes";
+import type { CurrencyCode } from "../../types.js";
+import type { DealInfo, PatchUpdate } from "../../sources/sourceTypes.js";
 
 export type NotificationMode = "compact" | "detailed";
 

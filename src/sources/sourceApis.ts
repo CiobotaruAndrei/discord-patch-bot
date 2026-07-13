@@ -9,7 +9,7 @@ import type {
   NormalizedUpdate,
   SteamReviewData,
   SteamSearchItem
-} from "../types";
+} from "../types.js";
 
 export type SourceCurrencyCode = CurrencyCode | string | null | undefined;
 

@@ -1,4 +1,4 @@
-import type { CommandAccessRule, CommandCatalogHelpEntry } from "./commandCatalogTypes";
+import type { CommandAccessRule, CommandCatalogHelpEntry } from "./commandCatalogTypes.js";
 
 export const ADMIN_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   { command: "delete", access: "admin", discordAdminPermissions: true, ownerOnlySubcommands: ["admin-command-access"] },

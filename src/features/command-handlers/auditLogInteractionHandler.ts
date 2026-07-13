@@ -1,20 +1,20 @@
 "use strict";
 
-import type { BotAuditLogEntry, DiscordReplyPayload, GameConfig, GuildSettings, ServerAuditLogEntry } from "../../types";
-import type { CommandHandler } from "../command-registry/commandHandler";
-import { matchesCommand } from "../command-registry/commandMatch";
-import { clampJoinedList } from "../command-presentation/discordListLimit";
+import type { BotAuditLogEntry, DiscordReplyPayload, GameConfig, GuildSettings, ServerAuditLogEntry } from "../../types.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import { matchesCommand } from "../command-registry/commandMatch.js";
+import { clampJoinedList } from "../command-presentation/discordListLimit.js";
 import {
   listBotAuditEntries,
   listBotAuditEntriesInRange,
   listServerAuditEntries,
   listServerAuditEntriesInRange,
   type GuildAuditLogModelLike
-} from "../admin-records/auditLogRepository";
-import { handledCommandError } from "../command-security/commandOutcome";
-import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
+} from "../admin-records/auditLogRepository.js";
+import { handledCommandError } from "../command-security/commandOutcome.js";
+import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText.js";
 
-import { errorDetail } from "../../shared/errors";
+import { errorDetail } from "../../shared/errors.js";
 
 type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;

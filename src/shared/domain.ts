@@ -1,4 +1,4 @@
-import type { CurrencyCode, CurrencyConfig, CurrencyRegistry, PriceValue } from "../types";
+import type { CurrencyCode, CurrencyConfig, CurrencyRegistry, PriceValue } from "../types.js";
 
 class SchemaDriftError extends Error {
   code: "SCHEMA_DRIFT";

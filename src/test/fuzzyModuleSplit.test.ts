@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import * as fuzzy from "../native/fuzzy";
-import * as bridge from "../native/fuzzyNativeBridge";
-import * as fallbacks from "../native/fuzzyFallbacks";
-import * as metrics from "../native/fuzzyFallbackMetrics";
+import * as fuzzy from "../native/fuzzy.js";
+import * as bridge from "../native/fuzzyNativeBridge.js";
+import * as fallbacks from "../native/fuzzyFallbacks.js";
+import * as metrics from "../native/fuzzyFallbackMetrics.js";
 
 test("API-ul public din fuzzy re-exporta exact implementarile din modulele de domeniu (aceeasi referinta)", () => {
   assert.equal(fuzzy.HASH_VERSION, fallbacks.HASH_VERSION);

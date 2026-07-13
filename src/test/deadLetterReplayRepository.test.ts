@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createDeadLetterReplayRepository, isReplayableReason } from "../features/notifications/deadLetterReplayRepository";
+import { createDeadLetterReplayRepository, isReplayableReason } from "../features/notifications/deadLetterReplayRepository.js";
 
 const passthroughRetry = <T>(fn: () => Promise<T>): Promise<T> => fn();
 const noopLogger = () => undefined;

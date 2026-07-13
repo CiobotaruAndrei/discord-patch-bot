@@ -1,9 +1,9 @@
-import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
-import { validateUpdateFetchSnapshot as _vUpd, validatePendingDiscountSnapshot as _vDisc } from "../shared/utilities";
-import type { GuildDeadLetterRecord } from "../features/notifications/deadLetterRepository";
-import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
-import type { GameConfig, DealInfo, ValidatedDealInfo } from "../types";
-import { makeNotificationDiscordClient } from "./typedTestBuilders";
+import { createUpdateNotificationService } from "../features/notifications/updateNotificationService.js";
+import { validateUpdateFetchSnapshot as _vUpd, validatePendingDiscountSnapshot as _vDisc } from "../shared/utilities.js";
+import type { GuildDeadLetterRecord } from "../features/notifications/deadLetterRepository.js";
+import { createDiscountNotificationService } from "../features/notifications/discountNotificationService.js";
+import type { GameConfig, DealInfo, ValidatedDealInfo } from "../types.js";
+import { makeNotificationDiscordClient } from "./typedTestBuilders.js";
 
 export type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];
 export type DiscountDeps = Parameters<typeof createDiscountNotificationService>[0];
@@ -16,7 +16,7 @@ export type DiscountDeals = Parameters<DiscountService["processGuildDiscounts"]>
 export type SentPayload = { embeds?: unknown; content?: string };
 export type SentMeta = { historyEntries?: Array<{ kind: string; gameKey?: string; title?: string; link?: string; itemId?: string }> } | undefined;
 
-import realUtilities from "../shared/utilities";
+import realUtilities from "../shared/utilities.js";
 
 export const noopDiscordClient = makeNotificationDiscordClient();
 

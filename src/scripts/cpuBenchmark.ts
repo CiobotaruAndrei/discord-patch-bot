@@ -1,3 +1,4 @@
+import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
 import {
@@ -10,9 +11,9 @@ import {
   buildAutocompleteChoicesFallback,
   dealPassesFiltersFallback,
   rankListingCandidatesFallback
-} from "../native/fuzzy";
-import type { DealInfo, GameConfig, GuildSettings } from "../types";
-import { strictEnvInt } from "./benchmarkEnv";
+} from "../native/fuzzy.js";
+import type { DealInfo, GameConfig, GuildSettings } from "../types.js";
+import { strictEnvInt } from "./benchmarkEnv.js";
 
 const SAMPLE_PAIRS: Array<[string, string]> = [
   ["counter strike 2", "counter-strike 2"],
@@ -362,7 +363,7 @@ export function runAreaBenchmarks(iterations = strictEnvInt("CPU_BENCH_ITER", 10
   });
 }
 
-if (require.main === module) {
+if (process.argv[1] !== undefined && __pathToFileURL(process.argv[1]).href === import.meta.url) {
   const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
   const result = runCpuBenchmark();
   console.log(`CPU benchmark (levenshtein), ${fmt(result.iterations)} iteratii x ${result.callsPerIteration} apeluri`);

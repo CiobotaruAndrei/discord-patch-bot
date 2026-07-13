@@ -1,3 +1,4 @@
+import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
 import fs from "fs";
@@ -167,8 +168,8 @@ function run(): void {
   console.log(`No-comments OK: scanned ${files.length} files, ${ALLOWED_COMMENTS.length} documented exceptions allowed`);
 }
 
-module.exports = { findComments, findCommentsTsLike, findCommentsRust, isAllowed, ALLOWED_COMMENTS };
+export { findComments, findCommentsTsLike, findCommentsRust, isAllowed, ALLOWED_COMMENTS };
 
-if (require.main === module) run();
+if (process.argv[1] !== undefined && __pathToFileURL(process.argv[1]).href === import.meta.url) run();
 
 export {};

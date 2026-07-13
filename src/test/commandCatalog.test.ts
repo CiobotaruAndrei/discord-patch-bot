@@ -5,8 +5,8 @@ import {
   COMMAND_ACCESS_MANIFEST,
   COMMAND_CATALOG_HELP,
   permissionsLabelFor
-} from "../features/command-catalog/commandCatalog";
-import { COMMAND_HELP_ENTRIES } from "../features/command-help/commandHelpCatalog";
+} from "../features/command-catalog/commandCatalog.js";
+import { COMMAND_HELP_ENTRIES } from "../features/command-help/commandHelpCatalog.js";
 
 const KNOWN_LABELS = new Set([
   "Public",

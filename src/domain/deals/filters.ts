@@ -5,7 +5,7 @@ import {
   normalizePendingUpdateArray,
   rotateAfter,
   toEntries
-} from "./filtersCore";
+} from "./filtersCore.js";
 
 const dealFilterExports = {
   dealPassesFilters,

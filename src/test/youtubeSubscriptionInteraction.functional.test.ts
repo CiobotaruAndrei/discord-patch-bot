@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHarness, makeInteraction } from "./youtubeInteractionTestKit";
+import { createHarness, makeInteraction } from "./youtubeInteractionTestKit.js";
 
 test("/youtube subscribe pastreaza nevazute videoclipurile recente si salveaza abonarea", async () => {
   const harness = createHarness();

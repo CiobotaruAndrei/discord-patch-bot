@@ -1,5 +1,5 @@
 import test from "node:test";
-import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit.js";
 import assert from "node:assert/strict";
 import {
   dealPassesFilters,
@@ -8,7 +8,7 @@ import {
   normalizePendingUpdateArray,
   rotateAfter,
   toEntries
-} from "../domain/deals/filtersCore";
+} from "../domain/deals/filtersCore.js";
 
 process.env.MONGO_URI ||= "mongodb://localhost:27017/discord-patch-bot-test";
 process.env.DISCORD_TOKEN ||= "test_discord_token";
@@ -32,9 +32,9 @@ type DiscountsRuntime = {
   checkForDiscounts: (client: unknown) => Promise<unknown>;
 };
 
-import attachInteractions from "../features/command-handlers/subscriptionNotificationHandlers";
-import attachNotifications from "../features/notifications";
-import type { NotificationsRuntimeDeps } from "../features/notifications/notificationRuntimeContracts";
+import attachInteractions from "../features/command-handlers/subscriptionNotificationHandlers.js";
+import attachNotifications from "../features/notifications/index.js";
+import type { NotificationsRuntimeDeps } from "../features/notifications/notificationRuntimeContracts.js";
 
 function notificationDeps(context: Record<string, unknown>): NotificationsRuntimeDeps {
   return context as Record<string, unknown> & NotificationsRuntimeDeps;

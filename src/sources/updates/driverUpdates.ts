@@ -1,6 +1,6 @@
-import type { GameConfig, HttpRequestOptions, NormalizedUpdate, PatchUpdate } from "../../types";
-import { errorMessage } from "../../shared/errors";
-import type { HttpReq, RssParserLike } from "./updateHelpers";
+import type { GameConfig, HttpRequestOptions, NormalizedUpdate, PatchUpdate } from "../../types.js";
+import { errorMessage } from "../../shared/errors.js";
+import type { HttpReq, RssParserLike } from "./updateHelpers.js";
 
 interface DriverUpdatesDeps {
   fetchWithProxy: (targetUrl: string, options?: HttpRequestOptions) => Promise<string>;

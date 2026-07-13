@@ -1,15 +1,15 @@
 "use strict";
 
-import type { GameConfig } from "../../types";
-import type { CommandHandler } from "../command-registry/commandHandler";
-import type { SubscriptionContext, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts";
-import { createStartStopHandlers } from "./startStopCommandFactory";
-import { createUpdatesSubscriptionFamily } from "./updatesSubscriptionFamily";
-import { createDiscountsSubscriptionFamily } from "./discountsSubscriptionFamily";
-import { createDlcSubscriptionFamily } from "./dlcSubscriptionFamily";
-import { createPlayerCountSubscriptionFamily } from "./playerCountSubscriptionFamily";
+import type { GameConfig } from "../../types.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import type { SubscriptionContext, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts.js";
+import { createStartStopHandlers } from "./startStopCommandFactory.js";
+import { createUpdatesSubscriptionFamily } from "./updatesSubscriptionFamily.js";
+import { createDiscountsSubscriptionFamily } from "./discountsSubscriptionFamily.js";
+import { createDlcSubscriptionFamily } from "./dlcSubscriptionFamily.js";
+import { createPlayerCountSubscriptionFamily } from "./playerCountSubscriptionFamily.js";
 
-import { errorDetail } from "../../shared/errors";
+import { errorDetail } from "../../shared/errors.js";
 
 function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps) {
   const families = {

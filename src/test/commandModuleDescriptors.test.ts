@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { COMMAND_MODULE_DESCRIPTORS, descriptorFor } from "../features/command-catalog/commandModuleDescriptors";
-import { COMMAND_ACCESS_MANIFEST, COMMAND_CATALOG_HELP } from "../features/command-catalog/commandCatalog";
-import { CORE_COMMAND_ACCESS, CORE_CATALOG_HELP } from "../features/command-catalog/coreCatalog";
-import { GAME_INFO_COMMAND_ACCESS, GAME_INFO_CATALOG_HELP } from "../features/command-catalog/gameInfoCatalog";
-import { NOTIFICATIONS_COMMAND_ACCESS, NOTIFICATIONS_CATALOG_HELP } from "../features/command-catalog/notificationsCatalog";
-import { YOUTUBE_COMMAND_ACCESS, YOUTUBE_CATALOG_HELP } from "../features/command-catalog/youtubeCatalog";
-import { ADMIN_COMMAND_ACCESS, ADMIN_CATALOG_HELP } from "../features/command-catalog/adminCatalog";
+import { COMMAND_MODULE_DESCRIPTORS, descriptorFor } from "../features/command-catalog/commandModuleDescriptors.js";
+import { COMMAND_ACCESS_MANIFEST, COMMAND_CATALOG_HELP } from "../features/command-catalog/commandCatalog.js";
+import { CORE_COMMAND_ACCESS, CORE_CATALOG_HELP } from "../features/command-catalog/coreCatalog.js";
+import { GAME_INFO_COMMAND_ACCESS, GAME_INFO_CATALOG_HELP } from "../features/command-catalog/gameInfoCatalog.js";
+import { NOTIFICATIONS_COMMAND_ACCESS, NOTIFICATIONS_CATALOG_HELP } from "../features/command-catalog/notificationsCatalog.js";
+import { YOUTUBE_COMMAND_ACCESS, YOUTUBE_CATALOG_HELP } from "../features/command-catalog/youtubeCatalog.js";
+import { ADMIN_COMMAND_ACCESS, ADMIN_CATALOG_HELP } from "../features/command-catalog/adminCatalog.js";
 
 test("descriptorii leaga fiecare comanda de domeniu + acces + help, fara comenzi orfane (R6 #4)", () => {
   assert.equal(COMMAND_MODULE_DESCRIPTORS.length, COMMAND_ACCESS_MANIFEST.length, "un descriptor per regula de acces");

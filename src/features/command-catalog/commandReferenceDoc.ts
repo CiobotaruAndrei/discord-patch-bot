@@ -1,6 +1,6 @@
 "use strict";
 
-import { COMMAND_CATALOG_HELP, permissionsLabelFor } from "./commandCatalog";
+import { COMMAND_CATALOG_HELP, permissionsLabelFor } from "./commandCatalog.js";
 
 export const COMMAND_REFERENCE_DOC_RELATIVE_PATH = "docs/Referinta Comenzi.md";
 

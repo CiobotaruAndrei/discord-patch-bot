@@ -1,10 +1,10 @@
 "use strict";
 
-import type { CommandHandler } from "../command-registry/commandHandler";
-import type { FetchResult, GameConfig } from "../../types";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import type { FetchResult, GameConfig } from "../../types.js";
 
-import { handledCommandError } from "../command-security/commandOutcome";
-import { errorDetail, errorMessage } from "../../shared/errors";
+import { handledCommandError } from "../command-security/commandOutcome.js";
+import { errorDetail, errorMessage } from "../../shared/errors.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type DiscordInteraction = {

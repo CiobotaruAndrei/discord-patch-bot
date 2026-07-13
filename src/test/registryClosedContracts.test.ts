@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { SourceRegistryApi } from "../sources/sourceRegistry";
+import type { SourceRegistryApi } from "../sources/sourceRegistry.js";
 
 import fs from "fs";
 import path from "path";
 
-type Commands = typeof import("../features/command-registry/commandRegistry")["default"];
+type Commands = typeof import("../features/command-registry/commandRegistry.js")["default"];
 type CommandContext = ReturnType<Commands["createCommandRegistry"]>;
 type HasIndexSignature<T> = string extends keyof T ? true : false;
 
@@ -33,10 +33,10 @@ test("pregatire migrare commandRegistry: context-urile de handler tipeaza logger
 
 test("registrele compun modulele prin importuri statice, nu require-uri inline in array", () => {
   const cmd = fs.readFileSync(commandRegistryPath, "utf8");
-  assert.match(cmd, /import attachCommandCache from "\.\.\/command-cache\/commandCache"/, "module importate static in commandRegistry");
+  assert.match(cmd, /import attachCommandCache from "\.\.\/command-cache\/commandCache\.js"/, "module importate static in commandRegistry");
   assert.ok(!/^\s+require\("\.\.\/command/m.test(cmd), "fara require-uri anonime inline in lista de installers");
   const src = fs.readFileSync(sourceRegistryPath, "utf8");
-  assert.match(src, /import attachHttpClient from "\.\.\/infra\/http\/client"/, "module importate static in sourceRegistry");
+  assert.match(src, /import attachHttpClient from "\.\.\/infra\/http\/client\.js"/, "module importate static in sourceRegistry");
   assert.ok(!/^\s+require\("\.\.?\//m.test(src), "fara require-uri anonime inline in lista de installers");
 });
 
@@ -289,7 +289,7 @@ test("notifications nu mai are cast pe modelul Mongo, iar clientul Discord e int
   }
 });
 
-type RuntimeContextModule = typeof import("../features/command-runtime/commandRuntimeContext")["default"];
+type RuntimeContextModule = typeof import("../features/command-runtime/commandRuntimeContext.js")["default"];
 type RuntimeContextShape = ReturnType<RuntimeContextModule["createCommandRuntimeContext"]>;
 const runtimeContextClosed: HasIndexSignature<RuntimeContextShape> extends false ? true : never = true;
 const runtimeContextTyped: RuntimeContextShape extends Record<string, unknown>
@@ -308,15 +308,15 @@ test("createCommandRuntimeContext intoarce un contract inchis, nu Record<string,
 test("boot-ul (app/bootstrap.ts) foloseste require-uri tipate, ca satisfies AppRuntimeDeps sa nu fie pacalit de any (review #9.1 + #9.6)", () => {
   const bootstrapPath = path.join(srcRoot, "app", "bootstrap.ts");
   const text = fs.readFileSync(bootstrapPath, "utf8");
-  assert.match(text, /require\("\.\.\/infra\/mongo\/mongoContext"\)\.default as typeof import\("\.\.\/infra\/mongo\/mongoContext"\)\["default"\]/, "mongoContext tipat");
-  assert.match(text, /import commands from "\.\.\/features\/command-registry\/commandRegistry"/, "commandRegistry importat static tipat");
-  assert.match(text, /import \* as scrapers from "\.\.\/sources\/sourceRegistry"/, "sourceRegistry importat static cu API-ul value-tipat");
+  assert.match(text, /require\("\.\.\/infra\/mongo\/mongoContext"\)\.default as typeof import\("\.\.\/infra\/mongo\/mongoContext\.js"\)\["default"\]/, "mongoContext tipat");
+  assert.match(text, /import commands from "\.\.\/features\/command-registry\/commandRegistry\.js"/, "commandRegistry importat static tipat");
+  assert.match(text, /import \* as scrapers from "\.\.\/sources\/sourceRegistry\.js"/, "sourceRegistry importat static cu API-ul value-tipat");
   assert.match(text, /satisfies AppRuntimeDeps/, "wiring-ul de boot ramane verificat cu satisfies");
   const untypedRequires = (text.match(/= require\("\.[^"]+"\);\r?\n/g) || []).filter(line => !line.includes("as typeof import") && !line.includes("as SourceRegistryApi"));
   assert.deepEqual(untypedRequires, [], "niciun require de modul local netipat in boot");
 
   const mainText = fs.readFileSync(path.join(srcRoot, "app", "main.ts"), "utf8");
-  assert.match(mainText, /import \{ startFromEnv \} from "\.\/bootstrap"/, "main.ts e un entry subtire care deleaga catre bootstrap-ul tipat");
+  assert.match(mainText, /import \{ startFromEnv \} from "\.\/bootstrap\.js"/, "main.ts e un entry subtire care deleaga catre bootstrap-ul tipat");
 });
 
 test("contractul CommandHandler e generic cu type predicate (canHandle ingusteaza interaction, handle primeste tipul validat)", () => {

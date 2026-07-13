@@ -1,6 +1,6 @@
 FROM rust:1.96.0-slim-bookworm AS rust-toolchain
 
-FROM node:20-bookworm-slim AS build
+FROM node:24-bookworm-slim AS build
 
 WORKDIR /app/src
 
@@ -21,7 +21,7 @@ RUN npm ci
 COPY src/ ./
 RUN npm run build
 
-FROM node:20-bookworm-slim AS runtime
+FROM node:24-bookworm-slim AS runtime
 
 WORKDIR /app/src
 ENV NODE_ENV=production

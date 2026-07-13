@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import mod from "../features/command-handlers/sourcesStatusHandler";
-import { buildSourcesStatusEmbed } from "../features/command-handlers/sourcesStatusView";
-import { summarizeSourceHealth } from "../sources/sourceHealth";
+import mod from "../features/command-handlers/sourcesStatusHandler.js";
+import { buildSourcesStatusEmbed } from "../features/command-handlers/sourcesStatusView.js";
+import { summarizeSourceHealth } from "../sources/sourceHealth.js";
 
 test("buildSourcesStatusEmbed afiseaza store-uri, feed-uri si vechimea ultimului fetch", () => {
   const now = new Date("2026-06-23T15:00:00.000Z");

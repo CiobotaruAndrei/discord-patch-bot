@@ -6,7 +6,7 @@ import {
   type BuildPendingUpdatesQueueInput,
   type PendingUpdate,
   type UpdateFetchResult
-} from "../features/notifications/pendingUpdatesQueue";
+} from "../features/notifications/pendingUpdatesQueue.js";
 
 function normalizePendingItem(item: unknown): PendingUpdate {
   const record = item && typeof item === "object" ? item as Record<string, unknown> : {};

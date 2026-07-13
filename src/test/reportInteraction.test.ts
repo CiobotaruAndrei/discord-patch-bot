@@ -1,15 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
+import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository.js";
 
 import {
   buildReportAlertBody,
   buildReportConfirmEmbed,
   buildReportListEmbed,
   type ReportRecord
-} from "../features/command-handlers/reportViews";
+} from "../features/command-handlers/reportViews.js";
 
-import mod from "../features/command-handlers/reportInteractionHandler";
+import mod from "../features/command-handlers/reportInteractionHandler.js";
 
 const base: ReportRecord = { guildId: "g1", userId: "u1", type: "sursa-stricata", gameKey: "minecraft", detail: "Nu mai vin update-uri de 2 saptamani", createdAt: new Date() };
 

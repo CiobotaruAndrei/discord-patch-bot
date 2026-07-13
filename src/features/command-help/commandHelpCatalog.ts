@@ -1,6 +1,6 @@
 "use strict";
 
-import { COMMAND_CATALOG_HELP, permissionsLabelFor } from "../command-catalog/commandCatalog";
+import { COMMAND_CATALOG_HELP, permissionsLabelFor } from "../command-catalog/commandCatalog.js";
 
 type AutocompleteChoice = { name: string; value: string };
 type CommandHelpChoiceOptions = { excludeCommands?: readonly string[] };

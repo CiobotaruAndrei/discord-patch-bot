@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fakeTimer } from "./fakeTimer";
-import { createHousekeeping } from "../app/scheduler/housekeeping";
+import { fakeTimer } from "./fakeTimer.js";
+import { createHousekeeping } from "../app/scheduler/housekeeping.js";
 
 test("housekeeping start is idempotent", () => {
   const originalSetInterval = globalThis.setInterval;

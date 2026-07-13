@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { makeSourceRegistryApi, makeDealInfo, makeGuildDoc, makeNotificationDiscordClient, makeOutboxDiscordClient } from "./typedTestBuilders";
-import type { GameConfig } from "../types";
+import { makeSourceRegistryApi, makeDealInfo, makeGuildDoc, makeNotificationDiscordClient, makeOutboxDiscordClient } from "./typedTestBuilders.js";
+import type { GameConfig } from "../types.js";
 
 test("makeSourceRegistryApi: stub-urile intorc valori reale tipate, nu null mascat de cast", async () => {
   const api = makeSourceRegistryApi();

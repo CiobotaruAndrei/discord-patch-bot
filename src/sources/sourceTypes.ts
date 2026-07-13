@@ -1,4 +1,4 @@
-import type { CurrencyCode, GameConfig, PriceValue } from "../types";
+import type { CurrencyCode, GameConfig, PriceValue } from "../types.js";
 
 export interface PatchUpdate {
   id?: string;

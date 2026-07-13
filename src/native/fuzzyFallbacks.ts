@@ -1,6 +1,6 @@
 import crypto from "crypto";
-import type { DealInfo, GameConfig, GuildSettings } from "../types";
-import type { NativeAutocompleteChoice } from "./fuzzyNativeBridge";
+import type { DealInfo, GameConfig, GuildSettings } from "../types.js";
+import type { NativeAutocompleteChoice } from "./fuzzyNativeBridge.js";
 
 export const HASH_VERSION = 2;
 

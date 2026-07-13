@@ -1,10 +1,10 @@
-import type { RuntimeEnv } from "../../types";
-import type { BotConfig, GameConfig } from "../../config/configTypes";
-import type { BotMetrics } from "../health/metricsTypes";
-import type { CronController } from "./schedulerTypes";
-import { createCronHealthWindow } from "./cronHealthWindow";
-import { computeCronDelay, resolveCronScheduleConfig } from "./cronScheduleConfig";
-import { buildCronCycleJobs, runCronJobs } from "./cronJobRunner";
+import type { RuntimeEnv } from "../../types.js";
+import type { BotConfig, GameConfig } from "../../config/configTypes.js";
+import type { BotMetrics } from "../health/metricsTypes.js";
+import type { CronController } from "./schedulerTypes.js";
+import { createCronHealthWindow } from "./cronHealthWindow.js";
+import { computeCronDelay, resolveCronScheduleConfig } from "./cronScheduleConfig.js";
+import { buildCronCycleJobs, runCronJobs } from "./cronJobRunner.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type ParseEnvNumber = (name: string, defaultValue: number, limits: { min?: number; max?: number }) => number;

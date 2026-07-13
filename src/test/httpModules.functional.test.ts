@@ -1,3 +1,5 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -115,9 +117,9 @@ test("createConditionalGet: evictie LRU la depasirea maxSize (intrarea cea mai v
   assert.equal(validatorByUrl["https://a.test/"], undefined, "a a fost evinsa (cea mai veche) -> niciun validator");
 });
 
-import { createInflightTracker } from "../infra/http/inflightTracker";
-import { createProxyClient } from "../infra/http/proxyClient";
-import { createContentNormalization } from "../infra/http/contentNormalization";
+import { createInflightTracker } from "../infra/http/inflightTracker.js";
+import { createProxyClient } from "../infra/http/proxyClient.js";
+import { createContentNormalization } from "../infra/http/contentNormalization.js";
 import * as cheerioModule from "cheerio";
 
 test("inflightTracker: timeout-ul respinge promisiunile blocate si curata timerul la settle (R[Arh] #8)", async () => {

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import fs from "fs";
 import path from "path";
-import * as mod from "../scripts/check-rules-sync";
+import * as mod from "../scripts/check-rules-sync.js";
 const { parseAlertRules, analyzeRulesSync, extractEmittedMetrics, extractMetricNames } = mod;
 
 const VALID_RULE = `groups:

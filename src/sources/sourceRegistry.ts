@@ -1,10 +1,10 @@
 "use strict";
 
 import type { CheerioAPI } from "cheerio";
-import type { CurrencyCode, DealInfo, NormalizedUpdate, PatchUpdate, PriceValue, HttpRequestOptions } from "../types";
-import type { HttpMetricsRef } from "../infra/http/httpMetrics";
-import type { DealsApi, SteamSourceApi, UpdatesApi } from "./sourceApis";
-import { assertNoUndefinedExports } from "../shared/assertCompleteExports";
+import type { CurrencyCode, DealInfo, NormalizedUpdate, PatchUpdate, PriceValue, HttpRequestOptions } from "../types.js";
+import type { HttpMetricsRef } from "../infra/http/httpMetrics.js";
+import type { DealsApi, SteamSourceApi, UpdatesApi } from "./sourceApis.js";
+import { assertNoUndefinedExports } from "../shared/assertCompleteExports.js";
 
 type SourceRegistryApi = {
   USER_AGENTS: readonly string[];
@@ -40,14 +40,14 @@ type SourceRegistryApi = {
   formatPrice: (value: PriceValue, currencyCode?: CurrencyCode | string | null) => string;
 };
 
-type SourceRuntimeContext = Partial<SourceRegistryApi> & typeof import("./runtime")["default"];
+type SourceRuntimeContext = Partial<SourceRegistryApi> & typeof import("./runtime.js")["default"];
 
-import attachHttpClient from "../infra/http/client";
-import attachSteam from "./steam";
-import attachUpdates from "./updates";
-import attachDeals from "./deals";
+import attachHttpClient from "../infra/http/client.js";
+import attachSteam from "./steam/index.js";
+import attachUpdates from "./updates/index.js";
+import attachDeals from "./deals/index.js";
 
-import runtimeContext from "./runtime";
+import runtimeContext from "./runtime.js";
 
 function requireSourceValue<K extends keyof SourceRegistryApi>(context: Partial<SourceRegistryApi>, key: K): SourceRegistryApi[K] {
   const value = context[key];

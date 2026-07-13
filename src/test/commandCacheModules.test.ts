@@ -1,13 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { RuntimeEnv } from "../types";
-import { createRuntimeLimits, COLORS } from "../features/command-cache/runtimeLimits";
-import { createUserCooldowns } from "../features/command-cache/userCooldowns";
-import { createCommandCaches, evictLRU } from "../features/command-cache/commandCaches";
-import { createChannelPermissionChecks, formatMissingChannelPerms } from "../features/command-cache/channelPermissionChecks";
-import { createUserErrorFormatting } from "../features/command-cache/userErrorFormatting";
+import type { RuntimeEnv } from "../types.js";
+import { createRuntimeLimits, COLORS } from "../features/command-cache/runtimeLimits.js";
+import { createUserCooldowns } from "../features/command-cache/userCooldowns.js";
+import { createCommandCaches, evictLRU } from "../features/command-cache/commandCaches.js";
+import { createChannelPermissionChecks, formatMissingChannelPerms } from "../features/command-cache/channelPermissionChecks.js";
+import { createUserErrorFormatting } from "../features/command-cache/userErrorFormatting.js";
 
-import attachCommandCache from "../features/command-cache/commandCache";
+import attachCommandCache from "../features/command-cache/commandCache.js";
 
 function makeEnv(overrides: Partial<RuntimeEnv> = {}): RuntimeEnv {
   const base = {

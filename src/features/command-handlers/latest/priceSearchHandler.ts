@@ -1,6 +1,6 @@
 "use strict";
 
-import { errorMessage } from "../../../shared/errors";
+import { errorMessage } from "../../../shared/errors.js";
 
 interface DiscordInteraction {
   guild?: { id: string } | null;

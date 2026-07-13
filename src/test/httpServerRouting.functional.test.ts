@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { request as httpRequest } from "node:http";
 import { AddressInfo } from "node:net";
-import { createHttpServer } from "../app/health/httpServer";
-import type { CommandCacheSizes, RuntimeEnv } from "../types";
+import { createHttpServer } from "../app/health/httpServer.js";
+import type { CommandCacheSizes, RuntimeEnv } from "../types.js";
 
 interface ResponseSnapshot { status: number; body: string }
 

@@ -1,5 +1,5 @@
-import type { GameConfig, HttpRequestOptions, NormalizedUpdate, PatchUpdate } from "../../types";
-import { isGoodSteamArticleUrl, isLikelyPatchNote } from "./updateHelpers";
+import type { GameConfig, HttpRequestOptions, NormalizedUpdate, PatchUpdate } from "../../types.js";
+import { isGoodSteamArticleUrl, isLikelyPatchNote } from "./updateHelpers.js";
 
 interface SteamNewsItem {
   gid?: unknown;

@@ -6,21 +6,21 @@ import type {
   HttpRequestOptions,
   LoggerFunction,
   RuntimeEnv
-} from "../../types";
-import { errorMessage } from "../../shared/errors";
+} from "../../types.js";
+import { errorMessage } from "../../shared/errors.js";
 import {
   assertSafeExternalUrl,
   assertSafeExternalDnsTarget,
   createSafeDnsLookup,
   type DnsLookup
-} from "./ssrfGuard";
-import { parseRetryAfter, classifyHttpFailure, computeBackoffWaitMs } from "./retryPolicy";
-import { resolveDefaultProxies, normalizeProxyTemplates } from "./proxyTemplates";
-import { createInitialHttpMetrics, type HttpMetricsRef } from "./httpMetrics";
-import { createConditionalGet } from "./conditionalCache";
-import { createContentNormalization } from "./contentNormalization";
-import { createInflightTracker } from "./inflightTracker";
-import { createProxyClient } from "./proxyClient";
+} from "./ssrfGuard.js";
+import { parseRetryAfter, classifyHttpFailure, computeBackoffWaitMs } from "./retryPolicy.js";
+import { resolveDefaultProxies, normalizeProxyTemplates } from "./proxyTemplates.js";
+import { createInitialHttpMetrics, type HttpMetricsRef } from "./httpMetrics.js";
+import { createConditionalGet } from "./conditionalCache.js";
+import { createContentNormalization } from "./contentNormalization.js";
+import { createInflightTracker } from "./inflightTracker.js";
+import { createProxyClient } from "./proxyClient.js";
 
 type CheerioModule = typeof import("cheerio");
 type CryptoModule = typeof import("crypto");

@@ -1,6 +1,6 @@
 "use strict";
 
-import type { DealInfo } from "../../types";
+import type { DealInfo } from "../../types.js";
 import {
   DEAL_COLOR,
   WARNING_COLOR,
@@ -9,7 +9,7 @@ import {
   normalizeText,
   type DiscordEmbed,
   type FormatPrice
-} from "./gameInfoEmbedPrimitives";
+} from "./gameInfoEmbedPrimitives.js";
 
 export interface EndingDealsEmbedDeps {
   enrichDealData(deal: DealInfo, currency?: string): Promise<DealInfo>;

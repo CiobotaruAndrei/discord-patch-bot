@@ -8,8 +8,8 @@ export interface OutboxDeliveryJob {
   recoveryVerify?: boolean;
 }
 
-import type { OutboxDiscordClient } from "./outboundChannel";
-import { isSendableChannel } from "./outboundChannel";
+import type { OutboxDiscordClient } from "./outboundChannel.js";
+import { isSendableChannel } from "./outboundChannel.js";
 
 export type OutboxDeliveryClient = OutboxDiscordClient;
 

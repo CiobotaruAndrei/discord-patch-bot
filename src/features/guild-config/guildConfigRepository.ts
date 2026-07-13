@@ -1,10 +1,10 @@
 "use strict";
 
-import type { CurrencyCode, MongoWriteOutcome, ServerAuditLogEntry } from "../../types";
-import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository";
-import { buildResetConfiguration } from "./guildConfigDefaults";
-import { clearYoutubeErrors, type YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository";
-import { clearDeadLetters, type DeadLetterModelLike } from "../notifications/deadLetterRepository";
+import type { CurrencyCode, MongoWriteOutcome, ServerAuditLogEntry } from "../../types.js";
+import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
+import { buildResetConfiguration } from "./guildConfigDefaults.js";
+import { clearYoutubeErrors, type YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository.js";
+import { clearDeadLetters, type DeadLetterModelLike } from "../notifications/deadLetterRepository.js";
 
 export type GuildConfigWriteResult = MongoWriteOutcome;
 

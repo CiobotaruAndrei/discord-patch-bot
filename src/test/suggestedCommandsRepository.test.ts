@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
+import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository.js";
 
 import {
   MAX_SUGGESTED_COMMANDS,
@@ -8,7 +8,7 @@ import {
   listSuggestedCommands,
   saveSuggestedCommand,
   type GuildSuggestedCommandRecord
-} from "../features/admin-records/suggestedCommandsRepository";
+} from "../features/admin-records/suggestedCommandsRepository.js";
 
 function makeSuggestedCommandModel(initial: GuildSuggestedCommandRecord[] = []) {
   const docs: GuildSuggestedCommandRecord[] = [...initial];

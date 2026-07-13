@@ -1,5 +1,5 @@
-import type { LoggerFunction, MongoWriteOutcome, YouTubeChannelSubscription, YouTubeVideo } from "../../types";
-import { clearYoutubeErrors, recordYoutubeError, type YoutubeErrorModelLike } from "./youtubeErrorsRepository";
+import type { LoggerFunction, MongoWriteOutcome, YouTubeChannelSubscription, YouTubeVideo } from "../../types.js";
+import { clearYoutubeErrors, recordYoutubeError, type YoutubeErrorModelLike } from "./youtubeErrorsRepository.js";
 
 interface MongoWriteResult extends MongoWriteOutcome {
   upsertedCount?: number;

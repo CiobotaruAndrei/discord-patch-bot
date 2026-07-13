@@ -1,12 +1,12 @@
 "use strict";
 
 import type { CheerioAPI } from "cheerio";
-import type { CommandHandler } from "../command-registry/commandHandler";
-import type { NotificationMode, InteractionMessage } from "../../types";
-import { dlcPageHasAgeGate, dlcPageLooksLikeStorePage, parseDlcRows } from "./dlcSteamPage";
-import { matchesCommand } from "../command-registry/commandMatch";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import type { NotificationMode, InteractionMessage } from "../../types.js";
+import { dlcPageHasAgeGate, dlcPageLooksLikeStorePage, parseDlcRows } from "./dlcSteamPage.js";
+import { matchesCommand } from "../command-registry/commandMatch.js";
 
-import { errorMessage, errorDetail } from "../../shared/errors";
+import { errorMessage, errorDetail } from "../../shared/errors.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;

@@ -1,7 +1,7 @@
-import type { LoggerFunction } from "../../types";
+import type { LoggerFunction } from "../../types.js";
 
-import { errorMessage } from "../../shared/errors";
-import redisMetrics from "./redisMetrics";
+import { errorMessage } from "../../shared/errors.js";
+import redisMetrics from "./redisMetrics.js";
 
 interface RedisCacheClient {
   get(key: string): Promise<string | null>;

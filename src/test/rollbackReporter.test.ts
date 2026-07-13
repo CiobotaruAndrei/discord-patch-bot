@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { rollbackOrReport } from "../features/notifications/rollbackReporter";
+import { rollbackOrReport } from "../features/notifications/rollbackReporter.js";
 
 function makeLogger() {
   const logs: Array<{ level: string; context: string; message: string; meta?: unknown }> = [];

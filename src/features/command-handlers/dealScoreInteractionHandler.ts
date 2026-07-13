@@ -1,10 +1,10 @@
 "use strict";
 
-import type { DealInfo, GameConfig, GuildSettings, PriceValue } from "../../types";
-import type { CommandHandler } from "../command-registry/commandHandler";
-import { matchesCommand } from "../command-registry/commandMatch";
+import type { DealInfo, GameConfig, GuildSettings, PriceValue } from "../../types.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import { matchesCommand } from "../command-registry/commandMatch.js";
 
-import { errorDetail, errorMessage } from "../../shared/errors";
+import { errorDetail, errorMessage } from "../../shared/errors.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, extra?: Record<string, unknown>) => void;

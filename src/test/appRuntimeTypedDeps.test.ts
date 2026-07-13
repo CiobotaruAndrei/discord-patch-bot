@@ -1,13 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { AppRuntimeDeps } from "../app/appRuntime";
-import type { CreateCronControllerDeps } from "../app/scheduler/cron";
-import type { CreateHousekeepingDeps, HousekeepingController } from "../app/scheduler/housekeeping";
-import type { CreateOutboxWorkerDeps, OutboxWorker } from "../app/scheduler/outboxWorker";
-import type { CreateHttpServerDeps } from "../app/health/httpServer";
-import type { RegisterDiscordEventsDeps, RegisterMongoEventsDeps } from "../app/lifecycle/events";
-import type { CreateShutdownControllerDeps, ShutdownController } from "../app/lifecycle/shutdown";
-import type { BotMetrics, ConfigLoadResult, CronController, RateLimiter, RuntimeEnv } from "../types";
+import type { AppRuntimeDeps } from "../app/appRuntime.js";
+import type { CreateCronControllerDeps } from "../app/scheduler/cron.js";
+import type { CreateHousekeepingDeps, HousekeepingController } from "../app/scheduler/housekeeping.js";
+import type { CreateOutboxWorkerDeps, OutboxWorker } from "../app/scheduler/outboxWorker.js";
+import type { CreateHttpServerDeps } from "../app/health/httpServer.js";
+import type { RegisterDiscordEventsDeps, RegisterMongoEventsDeps } from "../app/lifecycle/events.js";
+import type { CreateShutdownControllerDeps, ShutdownController } from "../app/lifecycle/shutdown.js";
+import type { BotMetrics, ConfigLoadResult, CronController, RateLimiter, RuntimeEnv } from "../types.js";
 
 type Expect<T extends true> = T;
 type NotLooseRecord<T> = Record<string, unknown> extends T ? false : true;

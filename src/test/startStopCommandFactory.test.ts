@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createStartStopHandlers } from "../features/command-handlers/startStopCommandFactory";
-import type { SubscriptionFamily, SubscriptionInteraction } from "../features/command-handlers/subscriptionCommandContracts";
+import { createStartStopHandlers } from "../features/command-handlers/startStopCommandFactory.js";
+import type { SubscriptionFamily, SubscriptionInteraction } from "../features/command-handlers/subscriptionCommandContracts.js";
 
 type FactoryDeps = Parameters<typeof createStartStopHandlers>[0];
 

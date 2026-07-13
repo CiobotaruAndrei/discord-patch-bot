@@ -1,10 +1,10 @@
 "use strict";
 
 import type { CheerioAPI } from "cheerio";
-import type { DealInfo, GameConfig, GuildSettings, PriceValue, SteamReviewData } from "../../types";
-import type { SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../../sources/sourceApis";
-import type { CommandHandler } from "../command-registry/commandHandler";
-import type { DiscordEmbed } from "./gameInfoEmbeds";
+import type { DealInfo, GameConfig, GuildSettings, PriceValue, SteamReviewData } from "../../types.js";
+import type { SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../../sources/sourceApis.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import type { DiscordEmbed } from "./gameInfoEmbeds.js";
 import {
   buildBestDealsEmbed,
   buildCoopEmbed,
@@ -20,11 +20,11 @@ import {
   extractInstallSize,
   findExternalStores,
   selectTopActiveGames
-} from "./gameInfoEmbeds";
-import { createGameInfoLookupService } from "./gameInfoLookupService";
+} from "./gameInfoEmbeds.js";
+import { createGameInfoLookupService } from "./gameInfoLookupService.js";
 
-import { errorMessage } from "../../shared/errors";
-import ________shared_utilities from "../../shared/utilities";
+import { errorMessage } from "../../shared/errors.js";
+import ________shared_utilities from "../../shared/utilities.js";
 const { mapWithConcurrency } = ________shared_utilities;
 
 type MaybePromise<T> = T | Promise<T>;

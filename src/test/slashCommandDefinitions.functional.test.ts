@@ -1,9 +1,11 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import attachSlashCommands from "../features/command-definitions/slashCommandDefinitions";
+import attachSlashCommands from "../features/command-definitions/slashCommandDefinitions.js";
 import { SlashCommandBuilder } from "discord.js";
-import type { CurrencyRegistry } from "../types";
+import type { CurrencyRegistry } from "../types.js";
 
 type SlashRuntime = {
   registerSlashCommands: (token: string, clientId: string) => Promise<void>;

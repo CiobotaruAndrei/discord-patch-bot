@@ -1,19 +1,21 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 "use strict";
 
-import type { NotificationsRuntimeDeps } from "./notificationRuntimeContracts";
-import type { OutboundChannelResolver } from "./outboxRuntimeFactory";
-import type { SeenServices } from "./seenRuntimeFactory";
+import type { NotificationsRuntimeDeps } from "./notificationRuntimeContracts.js";
+import type { OutboundChannelResolver } from "./outboxRuntimeFactory.js";
+import type { SeenServices } from "./seenRuntimeFactory.js";
 
 const {
   DISCORD_PERMANENT_ERROR_CODES,
   isPermanentDiscordError,
   transientErrorMessage
-} = require("./outboundChannel") as typeof import("./outboundChannel");
-import { createOutboxServices, createIsStillSubscribed, outboxSubscriptionFilter } from "./outboxRuntimeFactory";
-import { createSeenServices } from "./seenRuntimeFactory";
-import { createUpdateNotificationRuntime } from "./updateNotificationRuntime";
-import { createDiscountNotificationRuntime } from "./discountNotificationRuntime";
-import { createYouTubeNotificationRuntime } from "./youtubeNotificationRuntime";
+} = require("./outboundChannel") as typeof import("./outboundChannel.js");
+import { createOutboxServices, createIsStillSubscribed, outboxSubscriptionFilter } from "./outboxRuntimeFactory.js";
+import { createSeenServices } from "./seenRuntimeFactory.js";
+import { createUpdateNotificationRuntime } from "./updateNotificationRuntime.js";
+import { createDiscountNotificationRuntime } from "./discountNotificationRuntime.js";
+import { createYouTubeNotificationRuntime } from "./youtubeNotificationRuntime.js";
 
 function createNotificationDispatchServices(
   deps: NotificationsRuntimeDeps,

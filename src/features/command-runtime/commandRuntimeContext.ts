@@ -12,13 +12,13 @@ import {
   SlashCommandBuilder
 } from "discord.js";
 
-import type { SourceRegistryApi } from "../../sources/sourceRegistry";
+import type { SourceRegistryApi } from "../../sources/sourceRegistry.js";
 
-type MongoContextExports = typeof import("../../infra/mongo/mongoContext")["default"];
+type MongoContextExports = typeof import("../../infra/mongo/mongoContext.js")["default"];
 
-import data from "../../infra/mongo/mongoContext";
-import scrapers from "../../sources/sourceRegistry";
-import redis from "../../infra/redis/redisContext";
+import data from "../../infra/mongo/mongoContext.js";
+import scrapers from "../../sources/sourceRegistry.js";
+import redis from "../../infra/redis/redisContext.js";
 
 type DiscordRuntimeBindings = {
   crypto: typeof crypto;

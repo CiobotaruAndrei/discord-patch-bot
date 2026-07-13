@@ -1,11 +1,12 @@
+import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
-import { createOutboxRuntime, DeliverResult } from "../features/notifications/notificationOutbox";
-import { strictEnvInt } from "./benchmarkEnv";
+import { createOutboxRuntime, DeliverResult } from "../features/notifications/notificationOutbox.js";
+import { strictEnvInt } from "./benchmarkEnv.js";
 
 import mongoose from "mongoose";
-import attachMongoModels from "../infra/mongo/models";
-import type { MongoModelsContext } from "../infra/mongo/models";
+import attachMongoModels from "../infra/mongo/models.js";
+import type { MongoModelsContext } from "../infra/mongo/models.js";
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/discord-patch-bot-bench";
 
@@ -155,7 +156,7 @@ async function main(): Promise<void> {
   await mongoose.disconnect();
 }
 
-if (require.main === module) {
+if (process.argv[1] !== undefined && __pathToFileURL(process.argv[1]).href === import.meta.url) {
   main().catch(err => { console.error(err); process.exit(1); });
 }
 

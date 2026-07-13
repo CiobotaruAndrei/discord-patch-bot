@@ -1,8 +1,10 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOutboxWorker } from "../app/scheduler/outboxWorker";
+import { createOutboxWorker } from "../app/scheduler/outboxWorker.js";
 
-import attachSystemState from "../infra/mongo/systemState";
+import attachSystemState from "../infra/mongo/systemState.js";
 const { createSchedulers } = require("../app/appRuntime") as {
   createSchedulers: (deps: unknown, services: unknown) => { outboxEnabled: boolean };
 };

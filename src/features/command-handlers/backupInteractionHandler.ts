@@ -1,7 +1,7 @@
 "use strict";
 
-import type { DiscordReplyPayload, GameConfig, GuildSettings } from "../../types";
-import type { CommandHandler } from "../command-registry/commandHandler";
+import type { DiscordReplyPayload, GameConfig, GuildSettings } from "../../types.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
 import {
   deleteConfigBackupWithAudit,
   findConfigBackup,
@@ -9,12 +9,12 @@ import {
   loadConfigBackupWithAudit,
   saveConfigBackup,
   type ConfigBackupModelLike
-} from "../admin-records/configBackupRepository";
-import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository";
-import { handledCommandError } from "../command-security/commandOutcome";
-import { renderBackupList, renderBackupPreview } from "./backupViews";
+} from "../admin-records/configBackupRepository.js";
+import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
+import { handledCommandError } from "../command-security/commandOutcome.js";
+import { renderBackupList, renderBackupPreview } from "./backupViews.js";
 
-import { errorDetail } from "../../shared/errors";
+import { errorDetail } from "../../shared/errors.js";
 
 type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;

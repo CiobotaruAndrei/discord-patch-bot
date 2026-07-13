@@ -1,5 +1,7 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 
-export const { createYouTubeNotificationService } = require("../features/youtube/youtubeNotificationService") as typeof import("../features/youtube/youtubeNotificationService");
+export const { createYouTubeNotificationService } = require("../features/youtube/youtubeNotificationService") as typeof import("../features/youtube/youtubeNotificationService.js");
 export type ServiceDeps = Parameters<typeof createYouTubeNotificationService>[0];
 export type YouTubeService = ReturnType<typeof createYouTubeNotificationService>;
 

@@ -1,4 +1,4 @@
-import type { SourceFetchOutcome } from "./sourceTypes";
+import type { SourceFetchOutcome } from "./sourceTypes.js";
 
 const RATE_LIMIT_PATTERN = /\b429\b|rate.?limit|too many requests/i;
 const PERMANENT_PATTERN = /tip necunoscut/i;

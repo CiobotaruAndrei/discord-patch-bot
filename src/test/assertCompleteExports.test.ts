@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertNoUndefinedExports } from "../shared/assertCompleteExports";
+import { assertNoUndefinedExports } from "../shared/assertCompleteExports.js";
 
 test("assertNoUndefinedExports: intoarce acelasi obiect cand toate valorile sunt definite", () => {
   const exportsObj = { a: 1, b: "x", c: () => 0, d: false, e: 0, f: "" };

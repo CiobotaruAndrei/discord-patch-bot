@@ -7,9 +7,9 @@ import type {
   LoggerFunction,
   NormalizedUpdate,
   PatchUpdate
-} from "../../types";
-import type { UpdatesApi } from "../sourceApis";
-import type { HttpReq, RssParserLike, RunConcurrent, SchemaDriftErrorClass, TrackInflight, WithInflightTimeout } from "./updateHelpers";
+} from "../../types.js";
+import type { UpdatesApi } from "../sourceApis.js";
+import type { HttpReq, RssParserLike, RunConcurrent, SchemaDriftErrorClass, TrackInflight, WithInflightTimeout } from "./updateHelpers.js";
 
 export interface CircuitBreakerDoc {
   _id: string;

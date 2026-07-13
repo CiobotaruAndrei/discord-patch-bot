@@ -4,7 +4,7 @@ import {
   createOutboundChannelResolver,
   isPermanentDiscordError,
   transientErrorMessage
-} from "../features/notifications/outboundChannel";
+} from "../features/notifications/outboundChannel.js";
 
 process.env.MONGO_URI ||= "mongodb://localhost:27017/discord-patch-bot-test";
 process.env.DISCORD_TOKEN ||= "test_discord_token";

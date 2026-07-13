@@ -1,7 +1,7 @@
 "use strict";
 
-import type { GameConfig } from "../../types";
-import type { SourceHealthSummary } from "../../sources/sourceHealth";
+import type { GameConfig } from "../../types.js";
+import type { SourceHealthSummary } from "../../sources/sourceHealth.js";
 
 export interface LoadedFetchSnapshot {
   payload: unknown;

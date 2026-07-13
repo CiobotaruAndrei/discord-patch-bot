@@ -6,8 +6,8 @@ import {
   GLOBAL_ADMIN_SCOPE_ID,
   isAdminScopeId,
   parseAdminScopeId
-} from "../features/command-security/adminScopeIds";
-import { canonicalAdminCommandAccessScope } from "../features/command-security/adminCommandAccessScope";
+} from "../features/command-security/adminScopeIds.js";
+import { canonicalAdminCommandAccessScope } from "../features/command-security/adminCommandAccessScope.js";
 
 test("ADMIN_SCOPE_IDS: generat din catalogul de comenzi, doar forme canonice, fara duplicate (R7 #2)", () => {
   assert.ok(ADMIN_SCOPE_IDS.includes(GLOBAL_ADMIN_SCOPE_ID), "scope-ul global exista");

@@ -8,7 +8,7 @@ process.env.METRICS_PUBLIC ||= "true";
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { extractOfferEndFromHtml } from "../sources/sourceRegistry";
+const { extractOfferEndFromHtml } = await import("../sources/sourceRegistry.js");
 
 test("extrage din .game_purchase_discount_countdown - Offer ends", () => {
   const html = `<html><body>
@@ -86,7 +86,7 @@ test("limiteaza lungimea rezultatului fallback", () => {
   assert.ok((result || "").length <= 200, "fallback trebuie limitat la 200 char");
 });
 
-import attachSteam from "../sources/steam";
+const attachSteam = (await import("../sources/steam/index.js")).default;
 
 type SteamRuntime = { extractOfferEndFromHtml: (html: string) => string | null };
 type SteamContext = Parameters<typeof attachSteam.buildFrom>[0];

@@ -1,7 +1,9 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 "use strict";
 
-import { COMMAND_HELP_ENTRIES } from "../command-help/commandHelpCatalog";
-import { canonicalAdminCommandAccessScope } from "./adminCommandAccessScope";
+import { COMMAND_HELP_ENTRIES } from "../command-help/commandHelpCatalog.js";
+import { canonicalAdminCommandAccessScope } from "./adminCommandAccessScope.js";
 
 type ScopeProbeInteraction = {
   isChatInputCommand: () => boolean;

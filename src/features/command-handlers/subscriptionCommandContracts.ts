@@ -1,6 +1,6 @@
 "use strict";
 
-import type { DealInfo, DiscordReplyPayload, FetchResult, GameConfig, GuildSettings, MongoWriteOutcome } from "../../types";
+import type { DealInfo, DiscordReplyPayload, FetchResult, GameConfig, GuildSettings, MongoWriteOutcome } from "../../types.js";
 
 export type SubscriptionLogger = (level: string, context: string, message: string, meta?: unknown) => void;
 export type MongoWriteResult = MongoWriteOutcome;

@@ -1,18 +1,20 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 "use strict";
 
-import { clearCommandSnooze, setCommandSnooze } from "../guild-config/guildConfigRepository";
-import type { CommandHandler } from "../command-registry/commandHandler";
-import type { MongoWriteOutcome } from "../../types";
+import { clearCommandSnooze, setCommandSnooze } from "../guild-config/guildConfigRepository.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import type { MongoWriteOutcome } from "../../types.js";
 
-import { handledCommandError } from "../command-security/commandOutcome";
-import { errorDetail } from "../../shared/errors";
+import { handledCommandError } from "../command-security/commandOutcome.js";
+import { errorDetail } from "../../shared/errors.js";
 const {
   commandCanBeSnoozed,
   commandPathToSnoozeKey,
   displayCommandPath,
   parseSnoozeDuration
-} = require("../command-snooze/commandSnoozeState") as typeof import("../command-snooze/commandSnoozeState");
-import { findCommandHelpEntry } from "../command-help/commandHelpCatalog";
+} = require("../command-snooze/commandSnoozeState") as typeof import("../command-snooze/commandSnoozeState.js");
+import { findCommandHelpEntry } from "../command-help/commandHelpCatalog.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;

@@ -1,17 +1,17 @@
 "use strict";
 
-import type { CommandGame, CommandHandler } from "../command-registry/commandHandler";
-import type { DiscordInteraction, YouTubeInteractionDeps } from "./youtube/youtubeCommandTypes";
-import { createYouTubeSubscriptionCommands } from "./youtube/youtubeSubscriptionCommands";
-import { createYouTubeNotifyCommands } from "./youtube/youtubeNotifyCommands";
-import { createYouTubeFilterCommands } from "./youtube/youtubeFilterCommands";
-import { createYouTubeManualVideoCommands } from "./youtube/youtubeManualVideoCommands";
-import { createYouTubeDiagnosticsCommands } from "./youtube/youtubeDiagnosticsCommands";
-import { formatYouTubeList, formatYouTubeStatus } from "./youtube/youtubePresentation";
-import { countYoutubeErrors } from "../youtube/youtubeErrorsRepository";
+import type { CommandGame, CommandHandler } from "../command-registry/commandHandler.js";
+import type { DiscordInteraction, YouTubeInteractionDeps } from "./youtube/youtubeCommandTypes.js";
+import { createYouTubeSubscriptionCommands } from "./youtube/youtubeSubscriptionCommands.js";
+import { createYouTubeNotifyCommands } from "./youtube/youtubeNotifyCommands.js";
+import { createYouTubeFilterCommands } from "./youtube/youtubeFilterCommands.js";
+import { createYouTubeManualVideoCommands } from "./youtube/youtubeManualVideoCommands.js";
+import { createYouTubeDiagnosticsCommands } from "./youtube/youtubeDiagnosticsCommands.js";
+import { formatYouTubeList, formatYouTubeStatus } from "./youtube/youtubePresentation.js";
+import { countYoutubeErrors } from "../youtube/youtubeErrorsRepository.js";
 
-import { handledCommandError } from "../command-security/commandOutcome";
-import { errorDetail } from "../../shared/errors";
+import { handledCommandError } from "../command-security/commandOutcome.js";
+import { errorDetail } from "../../shared/errors.js";
 
 type YouTubeContext = YouTubeInteractionDeps & {
   env?: { NOTIFICATION_OUTBOX_ENABLED?: boolean };

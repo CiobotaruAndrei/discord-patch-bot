@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import attachMigrations from "../infra/mongo/migrations";
+import attachMigrations from "../infra/mongo/migrations.js";
 
 interface GuildDoc {
   _id: string;

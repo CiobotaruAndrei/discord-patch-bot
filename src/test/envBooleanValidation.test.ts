@@ -1,3 +1,5 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { z as ZodNamespace, ZodTypeAny } from "zod";

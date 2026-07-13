@@ -1,5 +1,5 @@
 import test from "node:test";
-import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit.js";
 import assert from "node:assert/strict";
 
 type RolePingModule = ChainableCommandModule & {
@@ -9,7 +9,7 @@ type RolePingModule = ChainableCommandModule & {
   };
 };
 
-import rolePingInteractionsModule from "../features/command-handlers/rolePingHandlers";
+import rolePingInteractionsModule from "../features/command-handlers/rolePingHandlers.js";
 const rolePingInteractions = rolePingInteractionsModule as object as RolePingModule;
 
 type InteractionRuntime = {

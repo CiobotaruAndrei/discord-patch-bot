@@ -2,9 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import mongoose from "mongoose";
-import attachMongoModels from "../infra/mongo/models";
-import type { MongoModelsContext } from "../infra/mongo/models";
-import { createHistoryRepository } from "../features/notifications/historyRepository";
+import attachMongoModels from "../infra/mongo/models.js";
+import type { MongoModelsContext } from "../infra/mongo/models.js";
+import { createHistoryRepository } from "../features/notifications/historyRepository.js";
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/discord-patch-bot-itest";
 

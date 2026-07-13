@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { sendEmbedBatch } from "../features/notifications/notificationBatchExecutor";
-import type { OutboundHistoryEntry } from "../features/notifications/outboundChannel";
+import { sendEmbedBatch } from "../features/notifications/notificationBatchExecutor.js";
+import type { OutboundHistoryEntry } from "../features/notifications/outboundChannel.js";
 
 type Entry = { id: string; embed: { title: string } };
 

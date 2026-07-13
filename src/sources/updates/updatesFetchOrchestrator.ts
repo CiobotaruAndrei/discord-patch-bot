@@ -1,8 +1,8 @@
-import type { AbortPredicate, FetchResult, GameConfig } from "../../types";
-import { errorMessage } from "../../shared/errors";
-import { sourceConcurrencyGroup } from "./updateHelpers";
-import { buildCoalesceSignature } from "./coalesceSignature";
-import type { UpdatesDeps } from "./updatesContracts";
+import type { AbortPredicate, FetchResult, GameConfig } from "../../types.js";
+import { errorMessage } from "../../shared/errors.js";
+import { sourceConcurrencyGroup } from "./updateHelpers.js";
+import { buildCoalesceSignature } from "./coalesceSignature.js";
+import type { UpdatesDeps } from "./updatesContracts.js";
 
 export function createUpdatesFetchOrchestrator(deps: UpdatesDeps, executeFetchWithCircuitBreaker: (game: GameConfig) => Promise<FetchResult>) {
   const inflightAllGames = new Map<string, Promise<FetchResult[]>>();

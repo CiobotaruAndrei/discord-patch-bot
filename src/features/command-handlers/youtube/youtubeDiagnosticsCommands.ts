@@ -1,9 +1,9 @@
 "use strict";
 
-import type { DiscordInteraction, InteractionPayload, YouTubeInteractionDeps } from "./youtubeCommandTypes";
-import { clampJoinedList } from "../../command-presentation/discordListLimit";
-import { formatTime, onOff } from "./youtubePresentation";
-import { listYoutubeErrors } from "../../youtube/youtubeErrorsRepository";
+import type { DiscordInteraction, InteractionPayload, YouTubeInteractionDeps } from "./youtubeCommandTypes.js";
+import { clampJoinedList } from "../../command-presentation/discordListLimit.js";
+import { formatTime, onOff } from "./youtubePresentation.js";
+import { listYoutubeErrors } from "../../youtube/youtubeErrorsRepository.js";
 
 export function createYouTubeDiagnosticsCommands(deps: YouTubeInteractionDeps) {
   const { GuildYoutubeErrorModel, getGuildSettings, checkChannelPermissions, safeEdit } = deps;

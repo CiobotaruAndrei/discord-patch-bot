@@ -1,7 +1,7 @@
-import { requestOptionsFor, SOURCE_POLICIES } from "../sourcePolicies";
-import type { DealInfo, LoggerFunction, SteamReviewData } from "../../types";
-import { errorMessage } from "../../shared/errors";
-import type { DealCurrencyCode, HttpReq } from "./dealHelpers";
+import { requestOptionsFor, SOURCE_POLICIES } from "../sourcePolicies.js";
+import type { DealInfo, LoggerFunction, SteamReviewData } from "../../types.js";
+import { errorMessage } from "../../shared/errors.js";
+import type { DealCurrencyCode, HttpReq } from "./dealHelpers.js";
 
 interface SteamReviewResponse {
   query_summary?: {

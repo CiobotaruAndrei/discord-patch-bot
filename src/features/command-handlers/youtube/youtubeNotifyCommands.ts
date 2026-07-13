@@ -1,12 +1,12 @@
 "use strict";
 
-import type { DiscordInteraction, YouTubeInteractionDeps } from "./youtubeCommandTypes";
+import type { DiscordInteraction, YouTubeInteractionDeps } from "./youtubeCommandTypes.js";
 import {
   DEFAULT_YOUTUBE_MESSAGE_TEMPLATE,
   MAX_YOUTUBE_ROUTE_DESTINATIONS,
   parseDiscordChannelReference,
   validateYouTubeMessageTemplate
-} from "../../youtube/youtubeDeliveryPolicy";
+} from "../../youtube/youtubeDeliveryPolicy.js";
 import {
   addYouTubeRouteDestination,
   removeYouTubeChannelRoute,
@@ -14,11 +14,11 @@ import {
   setYouTubeMessageTemplate,
   setYouTubeNotificationChannel,
   setYouTubeNotificationsEnabled
-} from "../../youtube/youtubeGuildConfigRepository";
-import { formatYouTubeRoutes, formatYouTubeStatus } from "./youtubePresentation";
-import { countYoutubeErrors } from "../../youtube/youtubeErrorsRepository";
+} from "../../youtube/youtubeGuildConfigRepository.js";
+import { formatYouTubeRoutes, formatYouTubeStatus } from "./youtubePresentation.js";
+import { countYoutubeErrors } from "../../youtube/youtubeErrorsRepository.js";
 
-import { errorDetail } from "../../../shared/errors";
+import { errorDetail } from "../../../shared/errors.js";
 
 export function createYouTubeNotifyCommands(deps: YouTubeInteractionDeps) {
   const { GuildModel, GuildYoutubeErrorModel, getGuildSettings, invalidateGuildCache, checkChannelPermissions, safeEdit } = deps;

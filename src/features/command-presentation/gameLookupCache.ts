@@ -1,7 +1,7 @@
 "use strict";
 
-import type { GameConfig } from "../../types";
-import { findGameKeys } from "../../native/fuzzy";
+import type { GameConfig } from "../../types.js";
+import { findGameKeys } from "../../native/fuzzy.js";
 
 export type FindGameResult = {
   game: GameConfig | null;

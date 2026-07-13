@@ -1,4 +1,4 @@
-import type { CurrencyCode, DealInfo, HttpRequestOptions } from "../../types";
+import type { CurrencyCode, DealInfo, HttpRequestOptions } from "../../types.js";
 
 export type DealCurrencyCode = CurrencyCode | string | null | undefined;
 export type HttpResponse<T = unknown> = { data: T };

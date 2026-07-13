@@ -1,11 +1,11 @@
 "use strict";
 
-import { addWatchlistGame, applyGuildConfigUpdate, removeWatchlistGame } from "../guild-config/guildConfigRepository";
-import type { DiscordReplyPayload, GameConfig, GuildSettings, MongoWriteOutcome } from "../../types";
-import type { CommandHandler } from "../command-registry/commandHandler";
-import { clampJoinedList } from "../command-presentation/discordListLimit";
+import { addWatchlistGame, applyGuildConfigUpdate, removeWatchlistGame } from "../guild-config/guildConfigRepository.js";
+import type { DiscordReplyPayload, GameConfig, GuildSettings, MongoWriteOutcome } from "../../types.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import { clampJoinedList } from "../command-presentation/discordListLimit.js";
 
-import { errorDetail } from "../../shared/errors";
+import { errorDetail } from "../../shared/errors.js";
 
 type MaybePromise<T> = T | Promise<T>;
 

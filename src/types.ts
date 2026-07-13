@@ -5,7 +5,7 @@ import type {
   SuggestedCommandEntry,
   WatchlistGameSuggestionEntry,
   FutureReleaseGameEntry
-} from "./features/admin-records/adminRecordsTypes";
+} from "./features/admin-records/adminRecordsTypes.js";
 import type {
   NotificationMode,
   PendingUpdate,
@@ -13,19 +13,19 @@ import type {
   LastErrorInfo,
   PriceAlertRule,
   DeadLetterEntry
-} from "./features/notifications/notificationTypes";
+} from "./features/notifications/notificationTypes.js";
 import type {
   YouTubeChannelSubscription,
   YouTubeFilters,
   YouTubeChannelRoute,
   YouTubeErrorEntry
-} from "./features/youtube/youtubeTypes";
+} from "./features/youtube/youtubeTypes.js";
 import type {
   NormalizedUpdate,
   FetchResult,
   DealInfo,
   DlcCacheEntry
-} from "./sources/sourceTypes";
+} from "./sources/sourceTypes.js";
 
 export type {
   ConfigBackupRecord,
@@ -34,7 +34,7 @@ export type {
   SuggestedCommandEntry,
   WatchlistGameSuggestionEntry,
   FutureReleaseGameEntry
-} from "./features/admin-records/adminRecordsTypes";
+} from "./features/admin-records/adminRecordsTypes.js";
 export type {
   NotificationMode,
   PendingUpdate,
@@ -42,7 +42,7 @@ export type {
   LastErrorInfo,
   PriceAlertRule,
   DeadLetterEntry
-} from "./features/notifications/notificationTypes";
+} from "./features/notifications/notificationTypes.js";
 export type {
   YouTubeChannelSubscription,
   YouTubeFilters,
@@ -50,7 +50,7 @@ export type {
   YouTubeErrorEntry,
   YouTubeVideo,
   YouTubeVideoMetadata
-} from "./features/youtube/youtubeTypes";
+} from "./features/youtube/youtubeTypes.js";
 export type {
   PatchUpdate,
   NormalizedUpdate,
@@ -64,24 +64,24 @@ export type {
   SteamSearchItem,
   SteamReviewData,
   FetchDealsOptions
-} from "./sources/sourceTypes";
+} from "./sources/sourceTypes.js";
 export type {
   GameType,
   GameSourceFallback,
   GameConfig,
   BotConfig,
   ConfigLoadResult
-} from "./config/configTypes";
-export type { BotMetrics } from "./app/health/metricsTypes";
+} from "./config/configTypes.js";
+export type { BotMetrics } from "./app/health/metricsTypes.js";
 export type {
   RateLimitBucket,
   RateLimitRequest,
   RateLimiter
-} from "./app/health/rateLimitTypes";
+} from "./app/health/rateLimitTypes.js";
 export type {
   CronHealthSnapshot,
   CronController
-} from "./app/scheduler/schedulerTypes";
+} from "./app/scheduler/schedulerTypes.js";
 
 export type CurrencyCode = "USD" | "EUR" | "GBP" | "RON";
 export type BotRole = "all" | "web" | "worker";

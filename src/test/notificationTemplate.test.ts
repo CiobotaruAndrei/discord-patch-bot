@@ -6,7 +6,7 @@ import {
   normalizeNotificationTemplate,
   renderNotificationTemplate,
   buildNotificationContent
-} from "../features/notifications/notificationTemplate";
+} from "../features/notifications/notificationTemplate.js";
 
 test("normalizeNotificationTemplate: trim, gol -> null, plafonat la lungime", () => {
   assert.equal(normalizeNotificationTemplate("  salut  "), "salut");

@@ -1,9 +1,9 @@
-import type { ActionRowComponent, ButtonComponent, ChainableEmbed, PresentationLogger } from "./presentationContracts";
-import { createInteractionReplyHelpers } from "./interactionReplyHelpers";
-import { createNotificationEmbeds } from "./notificationEmbeds";
-import { createPaginationControls } from "./paginationControls";
-import { createGameLookupCache } from "./gameLookupCache";
-import { createGameStatusEmbeds } from "./gameStatusEmbeds";
+import type { ActionRowComponent, ButtonComponent, ChainableEmbed, PresentationLogger } from "./presentationContracts.js";
+import { createInteractionReplyHelpers } from "./interactionReplyHelpers.js";
+import { createNotificationEmbeds } from "./notificationEmbeds.js";
+import { createPaginationControls } from "./paginationControls.js";
+import { createGameLookupCache } from "./gameLookupCache.js";
+import { createGameStatusEmbeds } from "./gameStatusEmbeds.js";
 
 interface HttpResponse<T = unknown> {
   data: T;

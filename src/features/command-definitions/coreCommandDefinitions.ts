@@ -1,5 +1,5 @@
-import type { SlashCommandJsonSource, SlashDefinitionTools } from "./slashDefinitionTools";
-import { REPORT_TYPES } from "../feedback/reportTypes";
+import type { SlashCommandJsonSource, SlashDefinitionTools } from "./slashDefinitionTools.js";
+import { REPORT_TYPES } from "../feedback/reportTypes.js";
 
 export function buildCoreCommandDefinitions({ SlashCommandBuilder, PermissionsBitField }: SlashDefinitionTools): SlashCommandJsonSource[] {
   return [

@@ -1,12 +1,12 @@
 "use strict";
 
-import type { CommandHandler } from "../command-registry/commandHandler";
-import { matchesCommand } from "../command-registry/commandMatch";
-import type { CurrencyCode, GameConfig, GuildSettings } from "../../types";
-import { buildConfigEmbed, type ConfigEmbed } from "./configView";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import { matchesCommand } from "../command-registry/commandMatch.js";
+import type { CurrencyCode, GameConfig, GuildSettings } from "../../types.js";
+import { buildConfigEmbed, type ConfigEmbed } from "./configView.js";
 
-import { handledCommandError } from "../command-security/commandOutcome";
-import { errorDetail } from "../../shared/errors";
+import { handledCommandError } from "../command-security/commandOutcome.js";
+import { errorDetail } from "../../shared/errors.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type DiscordInteraction = {

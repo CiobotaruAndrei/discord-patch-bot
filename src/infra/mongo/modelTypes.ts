@@ -6,7 +6,7 @@ export type {
   FutureReleaseGameEntry,
   AdminCommandAccessConfig,
   GuildDoc
-} from "./guildSettingsDocTypes";
+} from "./guildSettingsDocTypes.js";
 export type {
   CircuitBreakerDoc,
   SystemDoc,
@@ -15,25 +15,25 @@ export type {
   FetchSnapshotDoc,
   PlayerCountSnapshotDoc,
   FeedbackReportDoc
-} from "./operationalDocTypes";
+} from "./operationalDocTypes.js";
 export type {
   GuildAuditLogDoc,
   GuildConfigBackupDoc,
   GuildSuggestedCommandDoc
-} from "./adminRecordDocTypes";
+} from "./adminRecordDocTypes.js";
 export type {
   GuildYoutubeErrorDoc,
   GuildDeadLetterDoc
-} from "./guildLogDocTypes";
+} from "./guildLogDocTypes.js";
 export type {
   GuildSeenDiscountDoc,
   GuildSeenUpdateDoc,
   GuildSeenYoutubeDoc
-} from "./seenDocTypes";
+} from "./seenDocTypes.js";
 export type {
   OutboxHistoryEntry,
   NotificationOutboxDoc,
   NotificationOutboxSentDoc,
   NotificationHistoryDoc,
   NotificationDeadLetterReplayDoc
-} from "./outboxDocTypes";
+} from "./outboxDocTypes.js";

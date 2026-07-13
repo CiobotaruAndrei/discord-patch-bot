@@ -1,7 +1,7 @@
-import { requestOptionsFor, SOURCE_POLICIES } from "../sourcePolicies";
-import type { GameConfig, HttpRequestOptions, NormalizedUpdate, PatchUpdate } from "../../types";
-import { errorMessage } from "../../shared/errors";
-import type { HttpReq, RssParserLike } from "./updateHelpers";
+import { requestOptionsFor, SOURCE_POLICIES } from "../sourcePolicies.js";
+import type { GameConfig, HttpRequestOptions, NormalizedUpdate, PatchUpdate } from "../../types.js";
+import { errorMessage } from "../../shared/errors.js";
+import type { HttpReq, RssParserLike } from "./updateHelpers.js";
 
 interface FortnitePost {
   slug?: string;

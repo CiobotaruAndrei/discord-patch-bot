@@ -1,3 +1,9 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
+import { fileURLToPath as __fileURLToPath } from "node:url";
+import { dirname as __pathDirname } from "node:path";
+const __filename = __fileURLToPath(import.meta.url);
+const __dirname = __pathDirname(__filename);
 import fs from "fs";
 import path from "path";
 

@@ -1,8 +1,8 @@
 "use strict";
 
 import type { CheerioAPI } from "cheerio";
-import type { PriceValue } from "../../types";
-import type { SteamAppDetailsSummary } from "../../sources/sourceApis";
+import type { PriceValue } from "../../types.js";
+import type { SteamAppDetailsSummary } from "../../sources/sourceApis.js";
 
 export type SafeCheerioLoad = (html: string) => CheerioAPI;
 export type FormatPrice = (value: PriceValue, currencyCode?: string | null) => string;

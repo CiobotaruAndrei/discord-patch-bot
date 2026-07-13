@@ -1,3 +1,5 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -7,8 +9,8 @@ import {
   isRouterAdminCommandPath,
   isRuntimeAdminCommandPath,
   isSensitiveCommandPath
-} from "../features/command-security/commandAccessManifest";
-import { COMMAND_HELP_ENTRIES } from "../features/command-help/commandHelpCatalog";
+} from "../features/command-security/commandAccessManifest.js";
+import { COMMAND_HELP_ENTRIES } from "../features/command-help/commandHelpCatalog.js";
 
 import { SlashCommandBuilder, PermissionsBitField } from "discord.js";
 

@@ -1,4 +1,4 @@
-import type { SlashCommandJsonSource, SlashDefinitionTools } from "./slashDefinitionTools";
+import type { SlashCommandJsonSource, SlashDefinitionTools } from "./slashDefinitionTools.js";
 
 export function buildDealsCommandDefinitions({ SlashCommandBuilder, CURRENCY_CHOICES }: SlashDefinitionTools): SlashCommandJsonSource[] {
   return [

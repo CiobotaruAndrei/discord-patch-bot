@@ -1,16 +1,16 @@
 "use strict";
 
 import type { Model } from "mongoose";
-import type { PriceValue, RuntimeEnv } from "../../types";
-import type { SeenRepositoryDeps } from "./seenRepository";
-import type { UpdateNotificationServiceDeps } from "./updateNotificationService";
-import type { DiscountNotificationServiceDeps } from "./discountNotificationService";
-import type { OutboxRuntimeDeps } from "./notificationOutbox";
-import type { HistoryRepositoryDeps } from "./historyRepository";
-import type { DeadLetterReplayRepositoryDeps } from "./deadLetterReplayRepository";
-import type { SourceRegistryApi } from "../../sources/sourceRegistry";
-import type { GuildDeadLetterDoc, GuildSeenYoutubeDoc, GuildYoutubeErrorDoc } from "../../infra/mongo/modelTypes";
-import type { ReportRollbackFailure } from "./rollbackReporter";
+import type { PriceValue, RuntimeEnv } from "../../types.js";
+import type { SeenRepositoryDeps } from "./seenRepository.js";
+import type { UpdateNotificationServiceDeps } from "./updateNotificationService.js";
+import type { DiscountNotificationServiceDeps } from "./discountNotificationService.js";
+import type { OutboxRuntimeDeps } from "./notificationOutbox.js";
+import type { HistoryRepositoryDeps } from "./historyRepository.js";
+import type { DeadLetterReplayRepositoryDeps } from "./deadLetterReplayRepository.js";
+import type { SourceRegistryApi } from "../../sources/sourceRegistry.js";
+import type { GuildDeadLetterDoc, GuildSeenYoutubeDoc, GuildYoutubeErrorDoc } from "../../infra/mongo/modelTypes.js";
+import type { ReportRollbackFailure } from "./rollbackReporter.js";
 
 export type GeneratedUpdateDeps =
   | "resolveOutboundChannel"

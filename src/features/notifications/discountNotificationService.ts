@@ -1,14 +1,14 @@
 "use strict";
 
-import type { GuildSettings, DealInfo, MongoWriteOutcome, PendingDiscount, NotificationMode, ValidatedDealInfo } from "../../types";
-import { buildDeadLetterEntry, DeadLetterEntry } from "./deadLetter";
-import type { DeadLetterModelLike } from "./deadLetterRepository";
-import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
-import { HASH_VERSION } from "../../native/fuzzy";
+import type { GuildSettings, DealInfo, MongoWriteOutcome, PendingDiscount, NotificationMode, ValidatedDealInfo } from "../../types.js";
+import { buildDeadLetterEntry, DeadLetterEntry } from "./deadLetter.js";
+import type { DeadLetterModelLike } from "./deadLetterRepository.js";
+import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel.js";
+import { HASH_VERSION } from "../../native/fuzzy.js";
 
-import { sendEmbedBatch } from "./notificationBatchExecutor";
-import { persistGuildCycleState } from "./notificationCycleRepository";
-import { buildDealsHashIndex, planDiscountFailure, planPendingDiscounts } from "./discountNotificationPlanner";
+import { sendEmbedBatch } from "./notificationBatchExecutor.js";
+import { persistGuildCycleState } from "./notificationCycleRepository.js";
+import { buildDealsHashIndex, planDiscountFailure, planPendingDiscounts } from "./discountNotificationPlanner.js";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
@@ -72,7 +72,7 @@ export interface DiscountNotificationServiceDeps {
   buildDealEmbed: (deal: DealInfo, mode: NotificationMode, currency: string) => unknown;
 
   sleepIfPositive: (ms: number) => Promise<void>;
-  processGuildPriceAlerts: ReturnType<typeof import("./priceAlertService").createPriceAlertService>["processGuildPriceAlerts"];
+  processGuildPriceAlerts: ReturnType<typeof import("./priceAlertService.js").createPriceAlertService>["processGuildPriceAlerts"];
 
   DEFAULT_CURRENCY: string;
   DEALS_HISTORY_LIMIT: number;

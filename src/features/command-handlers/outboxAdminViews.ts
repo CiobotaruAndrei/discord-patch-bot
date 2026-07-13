@@ -6,10 +6,10 @@ import type {
   GuildSettingsLike,
   OutboxAdminInteraction,
   OutboxModelLike
-} from "./outboxAdminContracts";
-import { onOff } from "./outboxAdminContracts";
-import { clampJoinedList } from "../command-presentation/discordListLimit";
-import { countDeadLetters, listDeadLetters, type DeadLetterModelLike } from "../notifications/deadLetterRepository";
+} from "./outboxAdminContracts.js";
+import { onOff } from "./outboxAdminContracts.js";
+import { clampJoinedList } from "../command-presentation/discordListLimit.js";
+import { countDeadLetters, listDeadLetters, type DeadLetterModelLike } from "../notifications/deadLetterRepository.js";
 
 export const DEFAULT_DEAD_LETTER_PREVIEW = 10;
 

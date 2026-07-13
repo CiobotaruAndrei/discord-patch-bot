@@ -1,6 +1,6 @@
 "use strict";
 
-import { evaluateEnvPreflight, REQUIRED_ENV_VARS } from "../shared/envPreflight";
+import { evaluateEnvPreflight, REQUIRED_ENV_VARS } from "../shared/envPreflight.js";
 
 const report = evaluateEnvPreflight(process.env);
 

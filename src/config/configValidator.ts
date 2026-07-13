@@ -1,5 +1,5 @@
 import { z, type ZodIssue } from "zod";
-import type { BotConfig } from "./configTypes";
+import type { BotConfig } from "./configTypes.js";
 
 type IssuePath = Array<string | number>;
 type SeenSearchTerm = {

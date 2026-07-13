@@ -11,7 +11,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Conecteaza MongoDB.
 - Creeaza clientul Discord.
 - Instaleaza registrul de comenzi, sursele, job-urile si serverul health/metrics.
-- Modulele locale sunt aduse prin importuri ESM statice tipate (Faza A a migrarii ESM; exceptia e require-ul multi-linie al lui `mongoContext`, tipat cu `.default as typeof import(...)["default"]`), deci `satisfies AppRuntimeDeps` chiar verifica wiring-ul de boot — un export lipsa sau o semnatura gresita pica la compilare, nu la runtime (gard in `registryClosedContracts.test.ts`).
+- Modulele locale sunt aduse prin importuri ESM statice tipate (migrarea ESM completa — emit `NodeNext` + `type: module`; exceptia e require-ul multi-linie al lui `mongoContext`, tipat cu `.default as typeof import(...)["default"]`, prin `createRequire`), deci `satisfies AppRuntimeDeps` chiar verifica wiring-ul de boot — un export lipsa sau o semnatura gresita pica la compilare, nu la runtime (gard in `registryClosedContracts.test.ts`).
 
 ### `src/app/health/httpServer.ts`
 

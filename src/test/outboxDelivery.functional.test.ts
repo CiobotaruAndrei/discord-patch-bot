@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOutboxDelivery } from "../features/notifications/outboxDelivery";
-import type { OutboxDeliveryClient } from "../features/notifications/outboxDelivery";
-import { applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker } from "../features/notifications/notificationOutbox";
+import { createOutboxDelivery } from "../features/notifications/outboxDelivery.js";
+import type { OutboxDeliveryClient } from "../features/notifications/outboxDelivery.js";
+import { applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker } from "../features/notifications/notificationOutbox.js";
 
 interface SentPayload { embeds?: Array<{ footer?: { text?: string } }> }
 

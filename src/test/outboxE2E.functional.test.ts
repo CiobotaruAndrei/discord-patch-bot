@@ -1,3 +1,5 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -5,13 +7,13 @@ import {
   applyDedupeMarker,
   messageHasDedupeMarker,
   outboxDedupeMarker
-} from "../features/notifications/notificationOutbox";
-import type { OutboxJob } from "../features/notifications/notificationOutbox";
-import { createOutboxDelivery } from "../features/notifications/outboxDelivery";
+} from "../features/notifications/notificationOutbox.js";
+import type { OutboxJob } from "../features/notifications/notificationOutbox.js";
+import { createOutboxDelivery } from "../features/notifications/outboxDelivery.js";
 type OutboxRuntimeDeps = Parameters<typeof createOutboxRuntime>[0];
 type OutboxModelMock = OutboxRuntimeDeps["NotificationOutboxModel"];
 type OutboxSentModelMock = OutboxRuntimeDeps["NotificationOutboxSentModel"];
-import type { OutboxDeliveryClient } from "../features/notifications/outboxDelivery";
+import type { OutboxDeliveryClient } from "../features/notifications/outboxDelivery.js";
 
 const { createOutboundChannelResolver } = require("../features/notifications/outboundChannel") as {
   createOutboundChannelResolver: (deps: Record<string, unknown>) => (args: Record<string, unknown>) => Promise<{ channel: { send: (payload: unknown, meta?: { historyEntries?: unknown[] }) => Promise<unknown> } | null; abort: boolean }>;

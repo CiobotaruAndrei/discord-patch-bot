@@ -14,20 +14,20 @@ import type {
   LifecycleState,
   RateLimiter,
   RuntimeEnv
-} from "../types";
-import type { CreateCronControllerDeps } from "./scheduler/cron";
-import type { CreateHousekeepingDeps, HousekeepingController } from "./scheduler/housekeeping";
-import type { CreateOutboxWorkerDeps, OutboxWorker } from "./scheduler/outboxWorker";
-import type { CreateHttpServerDeps } from "./health/httpServer";
-import type { RegisterDiscordEventsDeps, RegisterMongoEventsDeps } from "./lifecycle/events";
-import type { LifecycleDiscordChannel, LifecycleDiscordInteraction, LifecycleEventClient } from "./lifecycle/lifecycleContracts";
-import type { CreateShutdownControllerDeps, ShutdownController } from "./lifecycle/shutdown";
-import type { OutboxDiscordClient } from "../features/notifications/outboundChannel";
-import type { RedisRuntime } from "../infra/redis/redisClient";
+} from "../types.js";
+import type { CreateCronControllerDeps } from "./scheduler/cron.js";
+import type { CreateHousekeepingDeps, HousekeepingController } from "./scheduler/housekeeping.js";
+import type { CreateOutboxWorkerDeps, OutboxWorker } from "./scheduler/outboxWorker.js";
+import type { CreateHttpServerDeps } from "./health/httpServer.js";
+import type { RegisterDiscordEventsDeps, RegisterMongoEventsDeps } from "./lifecycle/events.js";
+import type { LifecycleDiscordChannel, LifecycleDiscordInteraction, LifecycleEventClient } from "./lifecycle/lifecycleContracts.js";
+import type { CreateShutdownControllerDeps, ShutdownController } from "./lifecycle/shutdown.js";
+import type { OutboxDiscordClient } from "../features/notifications/outboundChannel.js";
+import type { RedisRuntime } from "../infra/redis/redisClient.js";
 
-import { createRuntimeServices } from "./runtime/runtimeServices";
-import { createSchedulers } from "./runtime/runtimeSchedulers";
-import { createBootSequence, connectMongoWithRetry, hydrateStartupCaches } from "./runtime/bootSequence";
+import { createRuntimeServices } from "./runtime/runtimeServices.js";
+import { createSchedulers } from "./runtime/runtimeSchedulers.js";
+import { createBootSequence, connectMongoWithRetry, hydrateStartupCaches } from "./runtime/bootSequence.js";
 
 interface CommandRuntime {
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;

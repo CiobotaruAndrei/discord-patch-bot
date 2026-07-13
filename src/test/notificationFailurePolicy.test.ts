@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { planNotificationFailure } from "../features/notifications/notificationFailurePolicy";
+import { planNotificationFailure } from "../features/notifications/notificationFailurePolicy.js";
 
 test("planNotificationFailure incrementeaza incercarile si cere requeue sub prag", () => {
   assert.deepEqual(planNotificationFailure(undefined, 3), { action: "requeue", attempts: 1 });

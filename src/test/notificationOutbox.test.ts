@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOutboxRuntime, OutboxJob, DeliverResult, applyDedupeMarker, isDeliverableOutboxPayload, messageHasDedupeMarker, outboxDedupeMarker } from "../features/notifications/notificationOutbox";
-import { makeFakeModel, makeRuntime, makeSweepRuntime, type OutboxModelMock, type OutboxSentModelMock } from "./outboxTestKit";
+import { createOutboxRuntime, OutboxJob, DeliverResult, applyDedupeMarker, isDeliverableOutboxPayload, messageHasDedupeMarker, outboxDedupeMarker } from "../features/notifications/notificationOutbox.js";
+import { makeFakeModel, makeRuntime, makeSweepRuntime, type OutboxModelMock, type OutboxSentModelMock } from "./outboxTestKit.js";
 
 test("enqueueOutbox creeaza un job cu attempts 0, createdAt si availableAt", async () => {
   const { runtime, created } = makeRuntime([]);
@@ -161,7 +161,7 @@ test("enqueueOutbox refuza payload-urile nelivrabile (corupte la serializare) in
   const corruptPayloads: unknown[] = ["text-corupt", 42, null, [{ content: "x" }]];
   for (const payload of corruptPayloads) {
     await assert.rejects(
-      () => runtime.enqueueOutbox({ guildId: "g1", channelId: "c1", kind: "youtube", payload: payload as import("../features/notifications/outboxTypes").OutboxMessagePayload }),
+      () => runtime.enqueueOutbox({ guildId: "g1", channelId: "c1", kind: "youtube", payload: payload as import("../features/notifications/outboxTypes.js").OutboxMessagePayload }),
       /nelivrabil/,
       `payload-ul ${JSON.stringify(payload)} trebuie refuzat la enqueue`
     );

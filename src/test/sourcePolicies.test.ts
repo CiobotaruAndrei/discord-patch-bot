@@ -8,7 +8,7 @@ import {
   SOURCE_POLICIES,
   requestOptionsFor,
   type SourcePolicyId
-} from "../sources/sourcePolicies";
+} from "../sources/sourcePolicies.js";
 
 import fs from "fs";
 import path from "path";

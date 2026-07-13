@@ -1,7 +1,7 @@
 "use strict";
 
-import type { OutboxDiscordClient } from "../notifications/outboundChannel";
-import type { OutboxMessagePayload } from "../notifications/outboxTypes";
+import type { OutboxDiscordClient } from "../notifications/outboundChannel.js";
+import type { OutboxMessagePayload } from "../notifications/outboxTypes.js";
 
 export type OutboxAdminInteraction = {
   commandName?: string;

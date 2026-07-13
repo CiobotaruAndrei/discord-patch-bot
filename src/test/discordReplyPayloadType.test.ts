@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { DiscordReplyPayload } from "../types";
-import type { InteractionPayload } from "../features/command-handlers/subscriptionCommandContracts";
+import type { DiscordReplyPayload } from "../types.js";
+import type { InteractionPayload } from "../features/command-handlers/subscriptionCommandContracts.js";
 
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 type Expect<T extends true> = T;

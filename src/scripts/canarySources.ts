@@ -1,7 +1,10 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
+import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
-import type { SourceRegistryApi } from "../sources/sourceRegistry";
-import type { ConfigLoadResult, FetchResult, GameConfig } from "../types";
+import type { SourceRegistryApi } from "../sources/sourceRegistry.js";
+import type { ConfigLoadResult, FetchResult, GameConfig } from "../types.js";
 
 export interface CanaryGameResult {
   key: string;
@@ -214,7 +217,7 @@ async function main(): Promise<void> {
   console.log("Canary surse OK: fiecare tip de sursa a intors date valide.");
 }
 
-if (require.main === module) {
+if (process.argv[1] !== undefined && __pathToFileURL(process.argv[1]).href === import.meta.url) {
   main().catch(err => { console.error(err); process.exit(1); });
 }
 

@@ -4,9 +4,9 @@ import assert from "node:assert/strict";
 import fs from "fs";
 import path from "path";
 
-import { evaluateBenchmarkGuard, defaultGuardConfig, HOT_PATH_AREAS, collectGuardSamples } from "../scripts/benchmarkGuard";
-import type { GuardSample, GuardConfig, GuardBenchmarkDeps } from "../scripts/benchmarkGuard";
-import type { AreaBenchmarkResult, CpuBenchmarkResult, BenchmarkAreaKey } from "../scripts/cpuBenchmark";
+import { evaluateBenchmarkGuard, defaultGuardConfig, HOT_PATH_AREAS, collectGuardSamples } from "../scripts/benchmarkGuard.js";
+import type { GuardSample, GuardConfig, GuardBenchmarkDeps } from "../scripts/benchmarkGuard.js";
+import type { AreaBenchmarkResult, CpuBenchmarkResult, BenchmarkAreaKey } from "../scripts/cpuBenchmark.js";
 
 const TIMED = { totalMs: 1, callsPerSecond: 1000 };
 

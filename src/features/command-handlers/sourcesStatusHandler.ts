@@ -1,18 +1,18 @@
 "use strict";
 
-import type { CommandHandler } from "../command-registry/commandHandler";
-import { matchesCommand } from "../command-registry/commandMatch";
-import type { GameConfig } from "../../types";
-import { summarizeSourceHealth, type SourceHealthDoc } from "../../sources/sourceHealth";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import { matchesCommand } from "../command-registry/commandMatch.js";
+import type { GameConfig } from "../../types.js";
+import { summarizeSourceHealth, type SourceHealthDoc } from "../../sources/sourceHealth.js";
 import {
   buildSourcesStatusEmbed,
   type LoadedDealsFetchSnapshot,
   type LoadedFetchSnapshot,
   type SourcesStatusEmbed
-} from "./sourcesStatusView";
+} from "./sourcesStatusView.js";
 
-import { handledCommandError } from "../command-security/commandOutcome";
-import { errorDetail } from "../../shared/errors";
+import { handledCommandError } from "../command-security/commandOutcome.js";
+import { errorDetail } from "../../shared/errors.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type DiscordInteraction = {

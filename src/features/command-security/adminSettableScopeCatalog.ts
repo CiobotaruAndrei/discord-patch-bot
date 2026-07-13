@@ -1,12 +1,12 @@
 "use strict";
 
-import { COMMAND_HELP_ENTRIES } from "../command-help/commandHelpCatalog";
+import { COMMAND_HELP_ENTRIES } from "../command-help/commandHelpCatalog.js";
 import {
   GLOBAL_ADMIN_SCOPE_ID,
   isSettableAdminCommandPath,
   listSettableAdminScopePaths,
   parseAdminScopeId
-} from "./adminScopeIds";
+} from "./adminScopeIds.js";
 
 export { listSettableAdminScopePaths };
 

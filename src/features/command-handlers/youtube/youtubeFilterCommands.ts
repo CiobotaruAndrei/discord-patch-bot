@@ -1,19 +1,19 @@
 "use strict";
 
-import type { YouTubeFilters } from "../../../types";
-import type { DiscordInteraction, YouTubeInteractionDeps } from "./youtubeCommandTypes";
-import { YOUTUBE_TITLE_WORD_LIMIT, normalizeYouTubeTitleWord } from "../../youtube/youtubeDeliveryPolicy";
+import type { YouTubeFilters } from "../../../types.js";
+import type { DiscordInteraction, YouTubeInteractionDeps } from "./youtubeCommandTypes.js";
+import { YOUTUBE_TITLE_WORD_LIMIT, normalizeYouTubeTitleWord } from "../../youtube/youtubeDeliveryPolicy.js";
 import {
   addYouTubeTitleWord,
   clearYouTubeTitleWords,
   removeYouTubeTitleWord,
   setYouTubeFilterFlag,
   setYouTubeMinDurationSeconds
-} from "../../youtube/youtubeGuildConfigRepository";
-import { clampJoinedList } from "../../command-presentation/discordListLimit";
-import { defaultFilters, formatFilters, onOff } from "./youtubePresentation";
+} from "../../youtube/youtubeGuildConfigRepository.js";
+import { clampJoinedList } from "../../command-presentation/discordListLimit.js";
+import { defaultFilters, formatFilters, onOff } from "./youtubePresentation.js";
 
-import { errorDetail } from "../../../shared/errors";
+import { errorDetail } from "../../../shared/errors.js";
 
 export function createYouTubeFilterCommands(deps: YouTubeInteractionDeps) {
   const { GuildModel, getGuildSettings, invalidateGuildCache, safeEdit } = deps;

@@ -1,6 +1,6 @@
 "use strict";
 
-import { NOTIFICATION_DEAD_LETTER_LIMIT, type DeadLetterEntry, type DeadLetterKind } from "./deadLetter";
+import { NOTIFICATION_DEAD_LETTER_LIMIT, type DeadLetterEntry, type DeadLetterKind } from "./deadLetter.js";
 
 export interface GuildDeadLetterRecord {
   _id?: unknown;

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOutboxRuntime, OutboxJob, DeliverResult, applyDedupeMarker, isDeliverableOutboxPayload, messageHasDedupeMarker, outboxDedupeMarker } from "../features/notifications/notificationOutbox";
-import { makeFakeModel, makeRuntime, makeSweepRuntime, type OutboxModelMock, type OutboxSentModelMock } from "./outboxTestKit";
+import { createOutboxRuntime, OutboxJob, DeliverResult, applyDedupeMarker, isDeliverableOutboxPayload, messageHasDedupeMarker, outboxDedupeMarker } from "../features/notifications/notificationOutbox.js";
+import { makeFakeModel, makeRuntime, makeSweepRuntime, type OutboxModelMock, type OutboxSentModelMock } from "./outboxTestKit.js";
 
 test("drainOutbox: claim atomic prin lease (lockedUntil/lockedBy) inainte de livrare", async () => {
   const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0 };

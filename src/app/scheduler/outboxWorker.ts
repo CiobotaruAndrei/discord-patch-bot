@@ -5,7 +5,7 @@ type ReleaseDbLock = (jobName: string, token: string) => Promise<unknown>;
 type ErrorFormatter = (err: unknown) => string;
 type TimerHandle = ReturnType<typeof setTimeout>;
 
-import type { OutboxDiscordClient } from "../../features/notifications/outboundChannel";
+import type { OutboxDiscordClient } from "../../features/notifications/outboundChannel.js";
 
 interface MongooseLike {
   connection: {

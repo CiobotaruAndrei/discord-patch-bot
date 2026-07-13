@@ -1,10 +1,10 @@
 "use strict";
 
-import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository";
-import type { ServerAuditLogEntry } from "../../types";
-import type { AdminCommandAccessConfig } from "./adminCommandAccessScope";
-import type { AdminScopeId } from "./adminScopeIds";
-import type { GuildAdminAccessDoc, GuildAdminAccessQuery } from "./adminGuardContracts";
+import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
+import type { ServerAuditLogEntry } from "../../types.js";
+import type { AdminCommandAccessConfig } from "./adminCommandAccessScope.js";
+import type { AdminScopeId } from "./adminScopeIds.js";
+import type { GuildAdminAccessDoc, GuildAdminAccessQuery } from "./adminGuardContracts.js";
 
 export interface AdminAccessReadModelLike {
   findOne?(filter: object): GuildAdminAccessQuery | Promise<GuildAdminAccessDoc | null>;

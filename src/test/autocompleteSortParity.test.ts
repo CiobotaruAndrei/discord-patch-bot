@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildAutocompleteChoices } from "../native/fuzzy";
+import { buildAutocompleteChoices } from "../native/fuzzy.js";
 
 test("autocomplete tie-break e ordinal (uppercase inaintea lowercase), nu locale", () => {
 

@@ -1,8 +1,9 @@
+import { pathToFileURL as __pathToFileURL } from "node:url";
 import { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, SlashCommandBuilder, PermissionsBitField } from "discord.js";
-import { buildSmokeResult, writeSmokeResult } from "./smokeResult";
-import type { SmokeCheck } from "./smokeResult";
-import type { CurrencyRegistry } from "../types";
-import attachSlashCommands from "../features/command-definitions/slashCommandDefinitions";
+import { buildSmokeResult, writeSmokeResult } from "./smokeResult.js";
+import type { SmokeCheck } from "./smokeResult.js";
+import type { CurrencyRegistry } from "../types.js";
+import attachSlashCommands from "../features/command-definitions/slashCommandDefinitions.js";
 
 interface NamedCommand { name?: string }
 interface CommandsEval { ok: boolean; count: number; missing: string[] }
@@ -178,7 +179,7 @@ async function runDiscordSmoke(): Promise<number> {
 
 export { evaluateCommands, evaluatePermissions, isSendableSmokeChannel, sendabilityFailureDetail, expectedCommandNames, REQUIRED_COMMANDS, REQUIRED_PERMISSIONS };
 
-if (require.main === module) {
+if (process.argv[1] !== undefined && __pathToFileURL(process.argv[1]).href === import.meta.url) {
   runDiscordSmoke()
     .then(code => process.exit(code))
     .catch(err => {

@@ -1,7 +1,7 @@
 "use strict";
 
-import { errorMessage } from "../../shared/errors";
-import { HASH_VERSION } from "../../native/fuzzy";
+import { errorMessage } from "../../shared/errors.js";
+import { HASH_VERSION } from "../../native/fuzzy.js";
 
 export type SubscriptionWriteResult = { matchedCount?: number };
 

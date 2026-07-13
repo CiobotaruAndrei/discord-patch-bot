@@ -1,14 +1,14 @@
 "use strict";
 
-import type { SteamReviewData } from "../../types";
-import type { SteamAppDetailsSummary } from "../../sources/sourceApis";
+import type { SteamReviewData } from "../../types.js";
+import type { SteamAppDetailsSummary } from "../../sources/sourceApis.js";
 import {
   INFO_COLOR,
   WARNING_COLOR,
   hasCategory,
   platformList,
   type DiscordEmbed
-} from "./gameInfoEmbedPrimitives";
+} from "./gameInfoEmbedPrimitives.js";
 
 export function buildReviewTrendEmbed(query: string, appId: string | number, details: SteamAppDetailsSummary, review: SteamReviewData): DiscordEmbed {
   if (!review.success) {

@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOutboxRuntime } from "../features/notifications/notificationOutbox";
-import type { OutboxJob } from "../features/notifications/notificationOutbox";
+import { createOutboxRuntime } from "../features/notifications/notificationOutbox.js";
+import type { OutboxJob } from "../features/notifications/notificationOutbox.js";
 import type { Model } from "mongoose";
 
 import mongoose from "mongoose";
-import attachMongoModels from "../infra/mongo/models";
-import type { MongoModelsContext } from "../infra/mongo/models";
+import attachMongoModels from "../infra/mongo/models.js";
+import type { MongoModelsContext } from "../infra/mongo/models.js";
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/discord-patch-bot-itest";
 

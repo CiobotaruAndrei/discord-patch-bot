@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import * as mod from "../infra/redis/redisConnectivityCheck";
-import type { RedisConnectivityRuntime } from "../infra/redis/redisConnectivityCheck";
+import * as mod from "../infra/redis/redisConnectivityCheck.js";
+import type { RedisConnectivityRuntime } from "../infra/redis/redisConnectivityCheck.js";
 
 function makeRuntime(opts: {
   enabled: boolean;

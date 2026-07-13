@@ -7,8 +7,8 @@ import {
   normalizePendingUpdateArray,
   rotateAfter,
   toEntries
-} from "../domain/deals/filtersCore";
-import type { DealInfo, GuildSettings } from "../types";
+} from "../domain/deals/filtersCore.js";
+import type { DealInfo, GuildSettings } from "../types.js";
 
 const baseDeal: DealInfo = {
   id: "deal-1",

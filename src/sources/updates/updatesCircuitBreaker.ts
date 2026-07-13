@@ -1,7 +1,7 @@
-import type { FetchResult, GameConfig, NormalizedUpdate } from "../../types";
-import { errorMessage } from "../../shared/errors";
-import { classifySourceError } from "../sourceOutcome";
-import type { CircuitBreakerDoc, UpdatesDeps } from "./updatesContracts";
+import type { FetchResult, GameConfig, NormalizedUpdate } from "../../types.js";
+import { errorMessage } from "../../shared/errors.js";
+import { classifySourceError } from "../sourceOutcome.js";
+import type { CircuitBreakerDoc, UpdatesDeps } from "./updatesContracts.js";
 
 export function createUpdatesCircuitBreaker(deps: UpdatesDeps, fetchGameUpdate: (game: GameConfig) => Promise<NormalizedUpdate>) {
   async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchResult> {

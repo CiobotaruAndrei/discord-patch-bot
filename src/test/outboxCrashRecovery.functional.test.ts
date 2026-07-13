@@ -5,10 +5,10 @@ import {
   applyDedupeMarker,
   messageHasDedupeMarker,
   outboxDedupeMarker
-} from "../features/notifications/notificationOutbox";
-import { createOutboxDelivery } from "../features/notifications/outboxDelivery";
-import type { OutboxDeliveryClient } from "../features/notifications/outboxDelivery";
-import type { OutboxJob } from "../features/notifications/notificationOutbox";
+} from "../features/notifications/notificationOutbox.js";
+import { createOutboxDelivery } from "../features/notifications/outboxDelivery.js";
+import type { OutboxDeliveryClient } from "../features/notifications/outboxDelivery.js";
+import type { OutboxJob } from "../features/notifications/notificationOutbox.js";
 type OutboxRuntimeDeps = Parameters<typeof createOutboxRuntime>[0];
 type OutboxModelMock = OutboxRuntimeDeps["NotificationOutboxModel"];
 type OutboxSentModelMock = OutboxRuntimeDeps["NotificationOutboxSentModel"];

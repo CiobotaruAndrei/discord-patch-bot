@@ -1,5 +1,5 @@
-import type { RuntimeEnv } from "../../types";
-import type { BotConfig } from "../../config/configTypes";
+import type { RuntimeEnv } from "../../types.js";
+import type { BotConfig } from "../../config/configTypes.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type ParseEnvNumber = (name: string, defaultValue: number, limits: { min?: number; max?: number }) => number;

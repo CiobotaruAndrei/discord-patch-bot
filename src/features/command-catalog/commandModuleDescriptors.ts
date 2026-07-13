@@ -1,11 +1,11 @@
 "use strict";
 
-import type { CommandAccessRule, CommandCatalogDomain, CommandCatalogHelpEntry } from "./commandCatalogTypes";
-import { CORE_COMMAND_ACCESS, CORE_CATALOG_HELP } from "./coreCatalog";
-import { GAME_INFO_COMMAND_ACCESS, GAME_INFO_CATALOG_HELP } from "./gameInfoCatalog";
-import { NOTIFICATIONS_COMMAND_ACCESS, NOTIFICATIONS_CATALOG_HELP } from "./notificationsCatalog";
-import { YOUTUBE_COMMAND_ACCESS, YOUTUBE_CATALOG_HELP } from "./youtubeCatalog";
-import { ADMIN_COMMAND_ACCESS, ADMIN_CATALOG_HELP } from "./adminCatalog";
+import type { CommandAccessRule, CommandCatalogDomain, CommandCatalogHelpEntry } from "./commandCatalogTypes.js";
+import { CORE_COMMAND_ACCESS, CORE_CATALOG_HELP } from "./coreCatalog.js";
+import { GAME_INFO_COMMAND_ACCESS, GAME_INFO_CATALOG_HELP } from "./gameInfoCatalog.js";
+import { NOTIFICATIONS_COMMAND_ACCESS, NOTIFICATIONS_CATALOG_HELP } from "./notificationsCatalog.js";
+import { YOUTUBE_COMMAND_ACCESS, YOUTUBE_CATALOG_HELP } from "./youtubeCatalog.js";
+import { ADMIN_COMMAND_ACCESS, ADMIN_CATALOG_HELP } from "./adminCatalog.js";
 
 export interface CommandModuleDescriptor {
   command: string;

@@ -1,6 +1,6 @@
 "use strict";
 
-import type { BotAuditLogEntry, ServerAuditLogEntry } from "../../types";
+import type { BotAuditLogEntry, ServerAuditLogEntry } from "../../types.js";
 
 export interface GuildAuditLogRecord {
   guildId: string;

@@ -1,4 +1,4 @@
-import type { BotMetrics } from "./metricsTypes";
+import type { BotMetrics } from "./metricsTypes.js";
 
 function createMetrics(): BotMetrics {
   return {

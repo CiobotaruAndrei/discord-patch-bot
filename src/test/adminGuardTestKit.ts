@@ -1,3 +1,5 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import assert from "node:assert/strict";
 
 export type TestInteraction = {
@@ -81,7 +83,7 @@ export function buildGuardedHandleInteraction(target: GuardedTarget) {
       ? guard.handleAdminProtectedCommand(interaction, games, next)
       : next(interaction, games);
 }
-export const globalAccessCode = require("../features/command-security/globalAccessCode").default as typeof import("../features/command-security/globalAccessCode")["default"];
+export const globalAccessCode = require("../features/command-security/globalAccessCode").default as typeof import("../features/command-security/globalAccessCode.js")["default"];
 
 export function makeInteraction(isAdmin: boolean, deferred = false): { interaction: TestInteraction; replies: unknown[]; followUps: unknown[] } {
   const replies: unknown[] = [];

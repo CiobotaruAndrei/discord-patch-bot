@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { CurrencyRegistry, GuildSettings, RuntimeEnv } from "../types";
+import type { CurrencyRegistry, GuildSettings, RuntimeEnv } from "../types.js";
 import {
   CONFIG_BACKUP_KEYS,
   GUILD_SETTINGS_FIELD_ROLES,
@@ -16,10 +16,10 @@ import {
   normalizeBackupName,
   saveConfigBackup,
   type GuildConfigBackupRecord
-} from "../features/admin-records/configBackupRepository";
+} from "../features/admin-records/configBackupRepository.js";
 
 import mongoose from "mongoose";
-import attachModels from "../infra/mongo/models";
+import attachModels from "../infra/mongo/models.js";
 
 let cachedGuildFields: Set<string> | null = null;
 

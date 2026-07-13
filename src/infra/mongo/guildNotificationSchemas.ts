@@ -1,5 +1,5 @@
 import type * as Mongoose from "mongoose";
-import type { CurrencyRegistry } from "../../types";
+import type { CurrencyRegistry } from "../../types.js";
 
 export interface GuildNotificationSchemasDeps {
   mongoose: typeof Mongoose;

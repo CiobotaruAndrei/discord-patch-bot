@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createNotificationEmbeds } from "../features/command-presentation/notificationEmbeds";
+import { createNotificationEmbeds } from "../features/command-presentation/notificationEmbeds.js";
 
 class FakeEmbed {
   color: unknown;

@@ -1,10 +1,12 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hasSensitiveUserAccess } from "../features/command-security/adminAccessResolver";
+import { hasSensitiveUserAccess } from "../features/command-security/adminAccessResolver.js";
 
-import attachEnv from "../shared/env";
-import globalAccessCode from "../features/command-security/globalAccessCode";
-import { adminCommandGuard as adminCommandRouterGuard } from "./adminGuardTestKit";
+import attachEnv from "../shared/env.js";
+import globalAccessCode from "../features/command-security/globalAccessCode.js";
+import { adminCommandGuard as adminCommandRouterGuard } from "./adminGuardTestKit.js";
 
 function makeEnvContext(): Record<string, unknown> {
   return {

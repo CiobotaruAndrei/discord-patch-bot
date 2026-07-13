@@ -1,5 +1,5 @@
 import test from "node:test";
-import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit.js";
 import assert from "node:assert/strict";
 
 type DlcModule = ChainableCommandModule & {
@@ -18,7 +18,7 @@ type FakeCheerioSelection = {
   attr?: (name: string) => string | null;
 };
 
-import dlcHandlerModule from "../features/command-handlers/dlcInteractionHandler";
+import dlcHandlerModule from "../features/command-handlers/dlcInteractionHandler.js";
 const dlcHandler = dlcHandlerModule as object as DlcModule;
 
 function makeDlcInteraction(gameText: string | null = "cs2") {

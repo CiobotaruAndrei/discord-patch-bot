@@ -4,16 +4,16 @@ import {
   buildAdminCommandAccessScope,
   resolveAdminCommandAccessForScope,
   type AdminCommandAccessConfig
-} from "./adminCommandAccessScope";
-import { isOwnerOnlyCommandPath, isRouterAdminCommandPath, isSensitiveCommandPath } from "./commandAccessManifest";
-import { isSensitiveUserAllowed } from "./adminAccessPolicy";
-import { loadAdminAccessDoc as loadAdminAccessDocFromModel } from "./adminAccessRepository";
+} from "./adminCommandAccessScope.js";
+import { isOwnerOnlyCommandPath, isRouterAdminCommandPath, isSensitiveCommandPath } from "./commandAccessManifest.js";
+import { isSensitiveUserAllowed } from "./adminAccessPolicy.js";
+import { loadAdminAccessDoc as loadAdminAccessDocFromModel } from "./adminAccessRepository.js";
 import type {
   AdminCommandGuardContext,
   AdminGuardInteraction,
   GuildAdminAccessDoc,
   GuildModelLike
-} from "./adminGuardContracts";
+} from "./adminGuardContracts.js";
 
 export function parseIdList(value: string | undefined): string[] {
   return String(value || "").split(",").map(id => id.trim()).filter(Boolean);

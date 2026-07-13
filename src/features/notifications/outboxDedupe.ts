@@ -1,6 +1,6 @@
 "use strict";
 
-import type { OutboxKind } from "./outboxTypes";
+import type { OutboxKind } from "./outboxTypes.js";
 
 import { createHash } from "crypto";
 

@@ -1,7 +1,8 @@
+import { pathToFileURL as __pathToFileURL } from "node:url";
 import http from "http";
 import https from "https";
-import { buildSmokeResult, writeSmokeResult } from "./smokeResult";
-import type { SmokeCheck } from "./smokeResult";
+import { buildSmokeResult, writeSmokeResult } from "./smokeResult.js";
+import type { SmokeCheck } from "./smokeResult.js";
 
 interface HealthEval { ok: boolean; problems: string[] }
 interface MetricsEval { ok: boolean; missing: string[] }
@@ -113,7 +114,7 @@ async function runStagingSmoke(): Promise<number> {
 
 export { evaluateHealthBody, evaluateMetricsText, runStagingSmoke, REQUIRED_METRICS };
 
-if (require.main === module) {
+if (process.argv[1] !== undefined && __pathToFileURL(process.argv[1]).href === import.meta.url) {
   runStagingSmoke()
     .then(code => process.exit(code))
     .catch(err => {

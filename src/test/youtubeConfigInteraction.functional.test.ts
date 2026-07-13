@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHarness, makeInteraction } from "./youtubeInteractionTestKit";
+import { createHarness, makeInteraction } from "./youtubeInteractionTestKit.js";
 
 test("/youtube notify channel valideaza permisiunile si /youtube notify on cere configuratie completa", async () => {
   const channelId = "UC1234567890123456789012";

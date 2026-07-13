@@ -1,5 +1,7 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
-import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit.js";
 import assert from "node:assert/strict";
 
 const installAutocomplete = require("../features/command-handlers/autocompleteInteractionHandler").default as

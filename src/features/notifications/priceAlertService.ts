@@ -1,8 +1,8 @@
 "use strict";
 
-import type { DealInfo, GuildSettings, MongoWriteOutcome, PriceAlertRule, PriceValue } from "../../types";
-import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
-import { rollbackOrReport, type ReportRollbackFailure } from "./rollbackReporter";
+import type { DealInfo, GuildSettings, MongoWriteOutcome, PriceAlertRule, PriceValue } from "../../types.js";
+import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel.js";
+import { rollbackOrReport, type ReportRollbackFailure } from "./rollbackReporter.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type MongoWriteResult = MongoWriteOutcome;

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { evaluateEnvPreflight, REQUIRED_ENV_VARS } from "../shared/envPreflight";
+import { evaluateEnvPreflight, REQUIRED_ENV_VARS } from "../shared/envPreflight.js";
 
 const FULL_ENV = {
   MONGO_URI: "mongodb://localhost:27017/bot",

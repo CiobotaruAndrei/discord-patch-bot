@@ -5,8 +5,8 @@ process.env.MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/ites
 process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "test-token";
 process.env.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "test-client-id";
 
-import mongoContext from "../infra/mongo/mongoContext";
-import * as sourceRegistry from "../sources/sourceRegistry";
+const mongoContext = (await import("../infra/mongo/mongoContext.js")).default;
+const sourceRegistry = await import("../sources/sourceRegistry.js");
 
 const MONGO_CONTEXT_KEYS = [
   "logger", "env", "withMongoRetry", "GuildModel", "NotificationOutboxModel", "NotificationOutboxSentModel",

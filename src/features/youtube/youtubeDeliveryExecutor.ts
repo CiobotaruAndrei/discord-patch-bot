@@ -1,9 +1,9 @@
 "use strict";
 
-import type { GuildSettings, LoggerFunction } from "../../types";
-import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "../notifications/outboundChannel";
-import { renderYouTubeMessageTemplate, youtubeDestinationIds } from "./youtubeDeliveryPolicy";
-import { buildYouTubeEmbed, packYouTubeDeliveries, type PreparedVideo } from "./youtubeDeliveryPlanner";
+import type { GuildSettings, LoggerFunction } from "../../types.js";
+import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "../notifications/outboundChannel.js";
+import { renderYouTubeMessageTemplate, youtubeDestinationIds } from "./youtubeDeliveryPolicy.js";
+import { buildYouTubeEmbed, packYouTubeDeliveries, type PreparedVideo } from "./youtubeDeliveryPlanner.js";
 
 export interface DeliveryState {
   item: PreparedVideo;

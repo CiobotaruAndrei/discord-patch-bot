@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import * as mod from "../infra/mongo/adminAlertContent";
+import * as mod from "../infra/mongo/adminAlertContent.js";
 const { getAlertGuidance, alertKindFamily, buildAdminAlertEmbed, toAdminAlertChannelPayload, toAdminAlertWebhookPayload } = mod;
 
 test("alertKindFamily extrage prefixul inainte de ':'", () => {

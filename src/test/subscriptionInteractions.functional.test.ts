@@ -1,5 +1,5 @@
 import test from "node:test";
-import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit.js";
 import assert from "node:assert/strict";
 
 type SubscriptionModule = ChainableCommandModule & {
@@ -9,7 +9,7 @@ type SubscriptionModule = ChainableCommandModule & {
   };
 };
 
-import subscriptionInteractionsModule from "../features/command-handlers/subscriptionNotificationHandlers";
+import subscriptionInteractionsModule from "../features/command-handlers/subscriptionNotificationHandlers.js";
 const subscriptionInteractions = subscriptionInteractionsModule as object as SubscriptionModule;
 
 type InteractionRuntime = {

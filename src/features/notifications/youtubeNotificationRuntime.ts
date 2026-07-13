@@ -1,13 +1,13 @@
 "use strict";
 
-import type { NotificationsRuntimeDeps } from "./notificationRuntimeContracts";
-import type { OutboundChannelResolver } from "./outboxRuntimeFactory";
-import { createReportRollbackFailure } from "./notificationRuntimeContracts";
+import type { NotificationsRuntimeDeps } from "./notificationRuntimeContracts.js";
+import type { OutboundChannelResolver } from "./outboxRuntimeFactory.js";
+import { createReportRollbackFailure } from "./notificationRuntimeContracts.js";
 
-import { transientErrorMessage } from "./outboundChannel";
-import { createYouTubeSource } from "../youtube/youtubeSource";
-import { createYouTubeRepository } from "../youtube/youtubeRepository";
-import { createYouTubeNotificationService } from "../youtube/youtubeNotificationService";
+import { transientErrorMessage } from "./outboundChannel.js";
+import { createYouTubeSource } from "../youtube/youtubeSource.js";
+import { createYouTubeRepository } from "../youtube/youtubeRepository.js";
+import { createYouTubeNotificationService } from "../youtube/youtubeNotificationService.js";
 
 export function createYouTubeNotificationRuntime(
   deps: NotificationsRuntimeDeps,

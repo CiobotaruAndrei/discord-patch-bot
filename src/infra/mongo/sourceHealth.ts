@@ -1,6 +1,6 @@
 "use strict";
 
-import type { SourceHealthDoc } from "../../sources/sourceHealth";
+import type { SourceHealthDoc } from "../../sources/sourceHealth.js";
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 

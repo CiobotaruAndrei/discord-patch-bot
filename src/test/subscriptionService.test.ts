@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createSubscriptionService } from "../features/notifications/subscriptionService";
+import { createSubscriptionService } from "../features/notifications/subscriptionService.js";
 
 type RecordedWrite = { filter: Record<string, unknown>; update: Record<string, unknown>; options?: Record<string, unknown> };
 

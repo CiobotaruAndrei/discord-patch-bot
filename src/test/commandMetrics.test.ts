@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createMetrics } from "../app/health/metrics";
-import { registerDiscordEvents } from "../app/lifecycle/events";
-import type { BotMetrics } from "../app/health/metricsTypes";
+import { createMetrics } from "../app/health/metrics.js";
+import { registerDiscordEvents } from "../app/lifecycle/events.js";
+import type { BotMetrics } from "../app/health/metricsTypes.js";
 
 process.env.MONGO_URI ||= "mongodb://localhost:27017/discord-patch-bot-test";
 process.env.DISCORD_TOKEN ||= "test_discord_token";

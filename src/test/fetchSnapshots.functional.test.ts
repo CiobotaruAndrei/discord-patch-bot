@@ -1,14 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { makeDealInfo, makeNotificationDiscordClient } from "./typedTestBuilders";
-import realUtilities from "../shared/utilities";
-import { validateUpdateFetchSnapshot as _vUpd, validatePendingDiscountSnapshot as _vDisc } from "../shared/utilities";
+import { makeDealInfo, makeNotificationDiscordClient } from "./typedTestBuilders.js";
+import realUtilities from "../shared/utilities.js";
+import { validateUpdateFetchSnapshot as _vUpd, validatePendingDiscountSnapshot as _vDisc } from "../shared/utilities.js";
 const noopDiscordClient = makeNotificationDiscordClient();
-import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
-import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
-import attachFetchSnapshots from "../infra/mongo/fetchSnapshots";
-import type { GameConfig, ValidatedDealInfo } from "../types";
+import { createUpdateNotificationService } from "../features/notifications/updateNotificationService.js";
+import { createDiscountNotificationService } from "../features/notifications/discountNotificationService.js";
+import attachFetchSnapshots from "../infra/mongo/fetchSnapshots.js";
+import type { GameConfig, ValidatedDealInfo } from "../types.js";
 
 type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];
 type DiscountDeps = Parameters<typeof createDiscountNotificationService>[0];

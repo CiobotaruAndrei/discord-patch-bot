@@ -1,6 +1,6 @@
-import type { RuntimeEnv } from "../../types";
-import type { BotMetrics } from "./metricsTypes";
-import type { RateLimitBucket, RateLimiter, RateLimitRequest } from "./rateLimitTypes";
+import type { RuntimeEnv } from "../../types.js";
+import type { BotMetrics } from "./metricsTypes.js";
+import type { RateLimitBucket, RateLimiter, RateLimitRequest } from "./rateLimitTypes.js";
 
 function firstHeaderValue(value: string | string[] | undefined): string | null {
   if (Array.isArray(value)) return value[0] || null;

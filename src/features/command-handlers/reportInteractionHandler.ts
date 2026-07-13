@@ -1,18 +1,20 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 "use strict";
 
-import type { CommandHandler } from "../command-registry/commandHandler";
-import { matchesCommand } from "../command-registry/commandMatch";
-import { recordBotAuditEntry } from "../admin-records/auditLogRepository";
-import { requireGuildAdminAudited } from "../command-security/runtimeAdminAudit";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import { matchesCommand } from "../command-registry/commandMatch.js";
+import { recordBotAuditEntry } from "../admin-records/auditLogRepository.js";
+import { requireGuildAdminAudited } from "../command-security/runtimeAdminAudit.js";
 import {
   buildReportAlertBody,
   buildReportConfirmEmbed,
   buildReportListEmbed,
   type ReportRecord
-} from "./reportViews";
+} from "./reportViews.js";
 
-import { errorDetail } from "../../shared/errors";
-import defaultRequireGuildAdminModule from "../command-security/adminPermissionGuard";
+import { errorDetail } from "../../shared/errors.js";
+import defaultRequireGuildAdminModule from "../command-security/adminPermissionGuard.js";
 const defaultRequireGuildAdmin = defaultRequireGuildAdminModule as RequireGuildAdmin;
 const feedback = require("../feedback/feedbackRepository").default as {
   normalizeReportType: (value: string | null | undefined) => string;

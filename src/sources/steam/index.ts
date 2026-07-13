@@ -1,4 +1,4 @@
-import { requestOptionsFor } from "../sourcePolicies";
+import { requestOptionsFor } from "../sourcePolicies.js";
 import type { CheerioAPI } from "cheerio";
 import type {
   CurrencyCode,
@@ -6,10 +6,10 @@ import type {
   HttpRequestOptions,
   LoggerFunction,
   SteamSearchItem
-} from "../../types";
-import { levenshtein } from "../../native/fuzzy";
-import type { SteamSourceApi, ChooseBestSteamMatchOptions, SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../sourceApis";
-import { errorMessage } from "../../shared/errors";
+} from "../../types.js";
+import { levenshtein } from "../../native/fuzzy.js";
+import type { SteamSourceApi, ChooseBestSteamMatchOptions, SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../sourceApis.js";
+import { errorMessage } from "../../shared/errors.js";
 
 type SteamCurrencyCode = CurrencyCode | string | null | undefined;
 type HttpResponse<T = unknown> = { data: T };

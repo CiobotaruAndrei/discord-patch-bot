@@ -6,8 +6,8 @@ import {
   planRebaselineEntries,
   requeueFront,
   takeNextPending
-} from "../features/notifications/updateNotificationPlanner";
-import type { PendingUpdate, UpdateFetchResult } from "../features/notifications/pendingUpdatesQueue";
+} from "../features/notifications/updateNotificationPlanner.js";
+import type { PendingUpdate, UpdateFetchResult } from "../features/notifications/pendingUpdatesQueue.js";
 
 function rotateAfter<T>(arr: T[], lastSeen: T | null): T[] {
   if (lastSeen == null) return arr;

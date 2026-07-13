@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import redisMetrics from "../infra/redis/redisMetrics";
-import * as cacheMod from "../infra/redis/redisCache";
-import * as clientMod from "../infra/redis/redisClient";
-import type { RedisCacheClient, RedisCacheRuntime } from "../infra/redis/redisCache";
-import type { RedisClientLike } from "../infra/redis/redisClient";
-import type { LoggerFunction } from "../types";
+import redisMetrics from "../infra/redis/redisMetrics.js";
+import * as cacheMod from "../infra/redis/redisCache.js";
+import * as clientMod from "../infra/redis/redisClient.js";
+import type { RedisCacheClient, RedisCacheRuntime } from "../infra/redis/redisCache.js";
+import type { RedisClientLike } from "../infra/redis/redisClient.js";
+import type { LoggerFunction } from "../types.js";
 
 const noop: LoggerFunction = () => undefined;
 

@@ -2,9 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { load } from "cheerio";
 
-import type { DealInfo } from "../types";
+import type { DealInfo } from "../types.js";
 
-import installGameInfo from "../features/command-handlers/gameInfoInteractionHandler";
+import installGameInfo from "../features/command-handlers/gameInfoInteractionHandler.js";
 
 function makeInteraction(commandName: string, values: Record<string, string | number | null>) {
   return {

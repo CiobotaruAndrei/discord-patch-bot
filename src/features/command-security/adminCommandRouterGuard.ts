@@ -1,9 +1,9 @@
 "use strict";
 
-import { isHandledCommandError } from "./commandOutcome";
-import { buildAdminCommandAccessScope, resolveAdminCommandAccessForScope } from "./adminCommandAccessScope";
-import { decideAdminAccess, decideSensitiveAccess } from "./adminAccessPolicy";
-import type { AdminAccessPolicyFacts } from "./adminAccessPolicy";
+import { isHandledCommandError } from "./commandOutcome.js";
+import { buildAdminCommandAccessScope, resolveAdminCommandAccessForScope } from "./adminCommandAccessScope.js";
+import { decideAdminAccess, decideSensitiveAccess } from "./adminAccessPolicy.js";
+import type { AdminAccessPolicyFacts } from "./adminAccessPolicy.js";
 import {
   guildIdOf,
   hasSensitiveUserAccess,
@@ -14,9 +14,9 @@ import {
   loadAdminAccessDoc,
   loadAdminCommandAccessConfig,
   parseIdList
-} from "./adminAccessResolver";
-import { promptGlobalAccessCode } from "./globalAccessCodeModal";
-import { recordAdminAudit } from "./adminAuditRecorder";
+} from "./adminAccessResolver.js";
+import { promptGlobalAccessCode } from "./globalAccessCodeModal.js";
+import { recordAdminAudit } from "./adminAuditRecorder.js";
 import type {
   AdminCommandGuardContext,
   AdminCommandGuardDeps,
@@ -25,11 +25,11 @@ import type {
   AdminGuardPayload,
   DefaultRequireGuildAdmin,
   NextInteractionHandler
-} from "./adminGuardContracts";
+} from "./adminGuardContracts.js";
 
 import { MessageFlags } from "discord.js";
 
-import defaultRequireGuildAdminModule from "./adminPermissionGuard";
+import defaultRequireGuildAdminModule from "./adminPermissionGuard.js";
 const defaultRequireGuildAdmin = defaultRequireGuildAdminModule as DefaultRequireGuildAdmin;
 const ADMIN_OUTSIDE_GUILD_MESSAGE = "Eroare: Comenzile administrative sunt disponibile doar pe servere, nu in mesaje directe.";
 const ADMIN_SENSITIVE_USER_MESSAGE = "Access denied.";

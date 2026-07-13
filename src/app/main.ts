@@ -1,6 +1,6 @@
 "use strict";
 
-import { startFromEnv } from "./bootstrap";
+import { startFromEnv } from "./bootstrap.js";
 
 startFromEnv();
 

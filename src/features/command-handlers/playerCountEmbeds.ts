@@ -1,13 +1,13 @@
 "use strict";
 
-import type { GameConfig } from "../../types";
-import type { SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../../sources/sourceApis";
+import type { GameConfig } from "../../types.js";
+import type { SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../../sources/sourceApis.js";
 import {
   INFO_COLOR,
   RESULT_LIMIT_DEFAULT,
   WARNING_COLOR,
   type DiscordEmbed
-} from "./gameInfoEmbedPrimitives";
+} from "./gameInfoEmbedPrimitives.js";
 
 export function formatPlayerCount(count: number): string {
   return new Intl.NumberFormat("en-US").format(count);

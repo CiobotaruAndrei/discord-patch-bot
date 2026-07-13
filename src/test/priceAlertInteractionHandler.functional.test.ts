@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { PriceAlertRule } from "../types";
-import { isHandledCommandError } from "../features/command-security/commandOutcome";
+import type { PriceAlertRule } from "../types.js";
+import { isHandledCommandError } from "../features/command-security/commandOutcome.js";
 
-import mod from "../features/command-handlers/priceAlertInteractionHandler";
+import mod from "../features/command-handlers/priceAlertInteractionHandler.js";
 
 type MongoCall = {
   filter: Record<string, unknown>;

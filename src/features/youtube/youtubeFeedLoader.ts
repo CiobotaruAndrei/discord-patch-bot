@@ -1,6 +1,6 @@
 "use strict";
 
-import type { GuildSettings, YouTubeVideo } from "../../types";
+import type { GuildSettings, YouTubeVideo } from "../../types.js";
 
 export interface FeedResult {
   videos: YouTubeVideo[];

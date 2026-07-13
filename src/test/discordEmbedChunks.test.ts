@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { embedCharCost, packEmbedsByBudget, DISCORD_MAX_EMBEDS_PER_MESSAGE, DISCORD_MAX_MESSAGE_EMBED_CHARS, DEFAULT_EMBED_CHAR_BUDGET } from "../shared/discordEmbedChunks";
+import { embedCharCost, packEmbedsByBudget, DISCORD_MAX_EMBEDS_PER_MESSAGE, DISCORD_MAX_MESSAGE_EMBED_CHARS, DEFAULT_EMBED_CHAR_BUDGET } from "../shared/discordEmbedChunks.js";
 
 test("embedCharCost: insumeaza title + description + footer + author + fields (din toJSON)", () => {
   const builder = {

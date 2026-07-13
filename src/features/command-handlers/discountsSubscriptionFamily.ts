@@ -1,8 +1,8 @@
 "use strict";
 
-import type { DealInfo } from "../../types";
-import type { DiscordChannel, SubscriptionFamily, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts";
-import { createSubscriptionService } from "../notifications/subscriptionService";
+import type { DealInfo } from "../../types.js";
+import type { DiscordChannel, SubscriptionFamily, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts.js";
+import { createSubscriptionService } from "../notifications/subscriptionService.js";
 
 export function createDiscountsSubscriptionFamily(deps: SubscriptionInteractionDeps): SubscriptionFamily {
   const {

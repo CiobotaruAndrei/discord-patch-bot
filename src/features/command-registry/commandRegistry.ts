@@ -1,6 +1,6 @@
-import type { CommandCacheSizes, GameConfig, FetchResult, DealInfo, GuildSettings } from "../../types";
-import type { NotificationDiscordClient, OutboxDiscordClient } from "../notifications/outboundChannel";
-import type { CommandHandler, CommandGame, RoutedDiscordInteraction } from "./commandHandler";
+import type { CommandCacheSizes, GameConfig, FetchResult, DealInfo, GuildSettings } from "../../types.js";
+import type { NotificationDiscordClient, OutboxDiscordClient } from "../notifications/outboundChannel.js";
+import type { CommandHandler, CommandGame, RoutedDiscordInteraction } from "./commandHandler.js";
 import {
   dealPassesFilters,
   mapToObject,
@@ -8,7 +8,7 @@ import {
   normalizePendingUpdateArray,
   rotateAfter,
   toEntries
-} from "../../domain/deals/filtersCore";
+} from "../../domain/deals/filtersCore.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GuildGameFilter = Pick<GuildSettings, "enabledGames">;
@@ -62,51 +62,51 @@ type RequiredCommandRegistry = {
   [K in RequiredCommandRegistryKey]: NonNullable<CommandRegistryContext[K]>;
 };
 
-import attachCommandCache from "../command-cache/commandCache";
-import attachDealFilters from "../../domain/deals/filters";
-import attachCommandPresentation from "../command-presentation/commandPresentation";
-import attachNotifications from "../notifications";
-import attachPlayerCountSnapshots from "../player-count/playerCountSnapshotService";
-import attachCachedSteamPlayerCount from "../player-count/cachedSteamPlayerCount";
-import playerCountCache from "../../infra/redis/redisCacheContext";
-import attachFeedbackRepository from "../feedback/feedbackRepository";
-import attachSlashCommandDefinitions from "../command-definitions/slashCommandDefinitions";
-import attachFallbackInteractionHandler from "../command-handlers/fallbackInteractionHandler";
-import attachSimpleCommandsHandler from "../command-handlers/simpleCommandsHandler";
-import attachHelpInteractionHandler from "../command-handlers/helpInteractionHandler";
-import attachSubscriptionNotificationHandlers from "../command-handlers/subscriptionNotificationHandlers";
-import attachGameFilterHandlers from "../command-handlers/gameFilterHandlers";
-import attachRolePingHandlers from "../command-handlers/rolePingHandlers";
-import attachSetInteractionHandler from "../command-handlers/setInteractionHandler";
-import attachOutboxAdminHandler from "../command-handlers/outboxAdminHandler";
-import attachLatestInteractionHandler from "../command-handlers/latestInteractionHandler";
-import attachStatusInteractionHandler from "../command-handlers/statusInteractionHandler";
-import attachHistoryInteractionHandler from "../command-handlers/historyInteractionHandler";
-import attachReportInteractionHandler from "../command-handlers/reportInteractionHandler";
-import attachHealthInteractionHandler from "../command-handlers/healthInteractionHandler";
-import attachConfigInteractionHandler from "../command-handlers/configInteractionHandler";
-import attachGuildConfigurationAdminHandler from "../command-handlers/guildConfigurationAdminHandler";
-import attachAdminCommandAccessHandler from "../command-handlers/adminCommandAccessHandler";
-import attachPriceAlertInteractionHandler from "../command-handlers/priceAlertInteractionHandler";
-import attachBackupInteractionHandler from "../command-handlers/backupInteractionHandler";
-import attachAuditLogInteractionHandler from "../command-handlers/auditLogInteractionHandler";
-import attachSuggestCommandInteractionHandler from "../command-handlers/suggestCommandInteractionHandler";
-import attachWatchlistGameSuggestionHandler from "../command-handlers/watchlistGameSuggestionHandler";
-import attachPriceCheckInteractionHandler from "../command-handlers/priceCheckInteractionHandler";
-import attachDealScoreInteractionHandler from "../command-handlers/dealScoreInteractionHandler";
-import attachGameInfoInteractionHandler from "../command-handlers/gameInfoInteractionHandler";
-import attachMaintenanceInteractionHandler from "../command-handlers/maintenanceInteractionHandler";
-import attachFutureReleaseInteractionHandler from "../command-handlers/futureReleaseInteractionHandler";
-import attachYouTubeInteractionHandler from "../command-handlers/youtubeInteractionHandler";
-import attachSnoozeInteractionHandler from "../command-handlers/snoozeInteractionHandler";
-import attachSourcesStatusHandler from "../command-handlers/sourcesStatusHandler";
-import attachSourcesRefreshHandler from "../command-handlers/sourcesRefreshHandler";
-import attachDlcInteractionHandler from "../command-handlers/dlcInteractionHandler";
-import attachAutocompleteInteractionHandler from "../command-handlers/autocompleteInteractionHandler";
-import attachCommandSnoozeGuard from "../command-security/commandSnoozeGuard";
-import attachAdminCommandRouterGuard from "../command-security/adminCommandRouterGuard";
+import attachCommandCache from "../command-cache/commandCache.js";
+import attachDealFilters from "../../domain/deals/filters.js";
+import attachCommandPresentation from "../command-presentation/commandPresentation.js";
+import attachNotifications from "../notifications/index.js";
+import attachPlayerCountSnapshots from "../player-count/playerCountSnapshotService.js";
+import attachCachedSteamPlayerCount from "../player-count/cachedSteamPlayerCount.js";
+import playerCountCache from "../../infra/redis/redisCacheContext.js";
+import attachFeedbackRepository from "../feedback/feedbackRepository.js";
+import attachSlashCommandDefinitions from "../command-definitions/slashCommandDefinitions.js";
+import attachFallbackInteractionHandler from "../command-handlers/fallbackInteractionHandler.js";
+import attachSimpleCommandsHandler from "../command-handlers/simpleCommandsHandler.js";
+import attachHelpInteractionHandler from "../command-handlers/helpInteractionHandler.js";
+import attachSubscriptionNotificationHandlers from "../command-handlers/subscriptionNotificationHandlers.js";
+import attachGameFilterHandlers from "../command-handlers/gameFilterHandlers.js";
+import attachRolePingHandlers from "../command-handlers/rolePingHandlers.js";
+import attachSetInteractionHandler from "../command-handlers/setInteractionHandler.js";
+import attachOutboxAdminHandler from "../command-handlers/outboxAdminHandler.js";
+import attachLatestInteractionHandler from "../command-handlers/latestInteractionHandler.js";
+import attachStatusInteractionHandler from "../command-handlers/statusInteractionHandler.js";
+import attachHistoryInteractionHandler from "../command-handlers/historyInteractionHandler.js";
+import attachReportInteractionHandler from "../command-handlers/reportInteractionHandler.js";
+import attachHealthInteractionHandler from "../command-handlers/healthInteractionHandler.js";
+import attachConfigInteractionHandler from "../command-handlers/configInteractionHandler.js";
+import attachGuildConfigurationAdminHandler from "../command-handlers/guildConfigurationAdminHandler.js";
+import attachAdminCommandAccessHandler from "../command-handlers/adminCommandAccessHandler.js";
+import attachPriceAlertInteractionHandler from "../command-handlers/priceAlertInteractionHandler.js";
+import attachBackupInteractionHandler from "../command-handlers/backupInteractionHandler.js";
+import attachAuditLogInteractionHandler from "../command-handlers/auditLogInteractionHandler.js";
+import attachSuggestCommandInteractionHandler from "../command-handlers/suggestCommandInteractionHandler.js";
+import attachWatchlistGameSuggestionHandler from "../command-handlers/watchlistGameSuggestionHandler.js";
+import attachPriceCheckInteractionHandler from "../command-handlers/priceCheckInteractionHandler.js";
+import attachDealScoreInteractionHandler from "../command-handlers/dealScoreInteractionHandler.js";
+import attachGameInfoInteractionHandler from "../command-handlers/gameInfoInteractionHandler.js";
+import attachMaintenanceInteractionHandler from "../command-handlers/maintenanceInteractionHandler.js";
+import attachFutureReleaseInteractionHandler from "../command-handlers/futureReleaseInteractionHandler.js";
+import attachYouTubeInteractionHandler from "../command-handlers/youtubeInteractionHandler.js";
+import attachSnoozeInteractionHandler from "../command-handlers/snoozeInteractionHandler.js";
+import attachSourcesStatusHandler from "../command-handlers/sourcesStatusHandler.js";
+import attachSourcesRefreshHandler from "../command-handlers/sourcesRefreshHandler.js";
+import attachDlcInteractionHandler from "../command-handlers/dlcInteractionHandler.js";
+import attachAutocompleteInteractionHandler from "../command-handlers/autocompleteInteractionHandler.js";
+import attachCommandSnoozeGuard from "../command-security/commandSnoozeGuard.js";
+import attachAdminCommandRouterGuard from "../command-security/adminCommandRouterGuard.js";
 
-import _____command_runtime_commandRuntimeContext from "../command-runtime/commandRuntimeContext";
+import _____command_runtime_commandRuntimeContext from "../command-runtime/commandRuntimeContext.js";
 const { createCommandRuntimeContext } = _____command_runtime_commandRuntimeContext;
 type CommandRuntimeBootContext = ReturnType<typeof createCommandRuntimeContext>;
 

@@ -1,6 +1,6 @@
 "use strict";
 
-import type { GuildSettings, FetchResult, PendingUpdate } from "../../types";
+import type { GuildSettings, FetchResult, PendingUpdate } from "../../types.js";
 
 export type { PendingUpdate };
 

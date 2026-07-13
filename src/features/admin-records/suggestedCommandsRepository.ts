@@ -1,7 +1,7 @@
 "use strict";
 
-import type { MongoWriteOutcome, ServerAuditLogEntry, SuggestedCommandEntry } from "../../types";
-import { recordServerAuditEntry, type GuildAuditLogModelLike } from "./auditLogRepository";
+import type { MongoWriteOutcome, ServerAuditLogEntry, SuggestedCommandEntry } from "../../types.js";
+import { recordServerAuditEntry, type GuildAuditLogModelLike } from "./auditLogRepository.js";
 
 export interface GuildSuggestedCommandRecord {
   guildId: string;

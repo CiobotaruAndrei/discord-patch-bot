@@ -1,11 +1,11 @@
 "use strict";
 
-import type { CommandHandler } from "../command-registry/commandHandler";
-import { matchesCommand } from "../command-registry/commandMatch";
-import type { RedisStatus } from "../../infra/redis/redisClient";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import { matchesCommand } from "../command-registry/commandMatch.js";
+import type { RedisStatus } from "../../infra/redis/redisClient.js";
 
-import { handledCommandError } from "../command-security/commandOutcome";
-import { errorDetail } from "../../shared/errors";
+import { handledCommandError } from "../command-security/commandOutcome.js";
+import { errorDetail } from "../../shared/errors.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;

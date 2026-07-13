@@ -1,7 +1,7 @@
 "use strict";
 
-import type { OutboxJob, OutboxLogger } from "./outboxTypes";
-import { isDeliverableOutboxPayload } from "./outboxTypes";
+import type { OutboxJob, OutboxLogger } from "./outboxTypes.js";
+import { isDeliverableOutboxPayload } from "./outboxTypes.js";
 
 const MAX_BACKOFF_MS = 30 * 60 * 1000;
 

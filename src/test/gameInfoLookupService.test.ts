@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { DealInfo } from "../types";
+import type { DealInfo } from "../types.js";
 import {
   PLAYER_COUNT_SNAPSHOT_FRESH_MS,
   createGameInfoLookupService,
   type GameInfoLookupDeps
-} from "../features/command-handlers/gameInfoLookupService";
+} from "../features/command-handlers/gameInfoLookupService.js";
 
 function makeDeps(overrides: Partial<GameInfoLookupDeps> = {}): GameInfoLookupDeps & { warnings: string[] } {
   const warnings: string[] = [];

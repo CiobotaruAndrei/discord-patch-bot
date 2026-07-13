@@ -6,9 +6,9 @@ import {
   createPriceAlertService,
   dealMatchesPriceAlert,
   numericPrice
-} from "../features/notifications/priceAlertService";
-import type { GuildSettings, PriceAlertRule } from "../types";
-import { makeNotificationDiscordClient } from "./typedTestBuilders";
+} from "../features/notifications/priceAlertService.js";
+import type { GuildSettings, PriceAlertRule } from "../types.js";
+import { makeNotificationDiscordClient } from "./typedTestBuilders.js";
 
 const alert: PriceAlertRule = {
   gameKey: "elden-ring",

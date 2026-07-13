@@ -1,6 +1,6 @@
 "use strict";
 
-import type { FutureReleaseGameEntry, GuildSettings, MongoWriteOutcome } from "../../types";
+import type { FutureReleaseGameEntry, GuildSettings, MongoWriteOutcome } from "../../types.js";
 
 type MongoWriteResult = MongoWriteOutcome;
 

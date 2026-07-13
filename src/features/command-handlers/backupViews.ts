@@ -1,8 +1,8 @@
 "use strict";
 
-import type { ConfigBackupRecord, GuildSettings } from "../../types";
-import { clampJoinedList } from "../command-presentation/discordListLimit";
-import { CONFIG_BACKUP_KEYS } from "../admin-records/configBackupRepository";
+import type { ConfigBackupRecord, GuildSettings } from "../../types.js";
+import { clampJoinedList } from "../command-presentation/discordListLimit.js";
+import { CONFIG_BACKUP_KEYS } from "../admin-records/configBackupRepository.js";
 
 const RESOURCE_FIELDS: Array<{ key: string; label: string; kind: "canal" | "rol" }> = [
   { key: "notificationChannelId", label: "canal update-uri", kind: "canal" },

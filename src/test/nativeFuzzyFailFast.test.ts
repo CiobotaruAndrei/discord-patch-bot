@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { nativeFallbackAllowed, ensureNativeFuzzy, missingCriticalNativeExports } from "../native/fuzzy";
+import { nativeFallbackAllowed, ensureNativeFuzzy, missingCriticalNativeExports } from "../native/fuzzy.js";
 
 type NativeLike = Parameters<typeof missingCriticalNativeExports>[0];
 const hashFn = () => "";

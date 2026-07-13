@@ -1,6 +1,6 @@
 "use strict";
 
-import type { YouTubeVideo, YouTubeVideoMetadata } from "../../types";
+import type { YouTubeVideo, YouTubeVideoMetadata } from "../../types.js";
 
 export type MetadataResolver = (video: YouTubeVideo) => Promise<YouTubeVideoMetadata>;
 

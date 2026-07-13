@@ -1,8 +1,8 @@
-import type { LoggerFunction } from "../../types";
+import type { LoggerFunction } from "../../types.js";
 
 import { createClient } from "redis";
-import { errorMessage } from "../../shared/errors";
-import redisMetrics from "./redisMetrics";
+import { errorMessage } from "../../shared/errors.js";
+import redisMetrics from "./redisMetrics.js";
 
 interface RedisClientLike {
   on(event: "error", listener: (err: unknown) => void): unknown;

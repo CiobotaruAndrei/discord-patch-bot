@@ -1,11 +1,11 @@
 "use strict";
 
-import { applyGuildConfigUpdate } from "../guild-config/guildConfigRepository";
-import { buildSetUpdatePlan } from "./setUpdatePlan";
-import type { CommandHandler } from "../command-registry/commandHandler";
+import { applyGuildConfigUpdate } from "../guild-config/guildConfigRepository.js";
+import { buildSetUpdatePlan } from "./setUpdatePlan.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
 
-import { handledCommandError } from "../command-security/commandOutcome";
-import { errorDetail, errorMessage } from "../../shared/errors";
+import { handledCommandError } from "../command-security/commandOutcome.js";
+import { errorDetail, errorMessage } from "../../shared/errors.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;

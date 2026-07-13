@@ -1,12 +1,12 @@
-import type { CurrencyRegistry } from "../../types";
-import type { PermissionsBitFieldLike, SlashChoice, SlashCommandJson, SlashDefinitionTools } from "./slashDefinitionTools";
-import { buildAdminCommandDefinitions } from "./adminCommandDefinitions";
-import { buildCoreCommandDefinitions } from "./coreCommandDefinitions";
-import { buildDealsCommandDefinitions } from "./dealsCommandDefinitions";
-import { buildGameInfoCommandDefinitions } from "./gameInfoCommandDefinitions";
-import { buildNotificationCommandDefinitions } from "./notificationCommandDefinitions";
-import { buildOutboxCommandDefinitions } from "./outboxCommandDefinitions";
-import { buildYouTubeCommandDefinitions } from "./youtubeCommandDefinitions";
+import type { CurrencyRegistry } from "../../types.js";
+import type { PermissionsBitFieldLike, SlashChoice, SlashCommandJson, SlashDefinitionTools } from "./slashDefinitionTools.js";
+import { buildAdminCommandDefinitions } from "./adminCommandDefinitions.js";
+import { buildCoreCommandDefinitions } from "./coreCommandDefinitions.js";
+import { buildDealsCommandDefinitions } from "./dealsCommandDefinitions.js";
+import { buildGameInfoCommandDefinitions } from "./gameInfoCommandDefinitions.js";
+import { buildNotificationCommandDefinitions } from "./notificationCommandDefinitions.js";
+import { buildOutboxCommandDefinitions } from "./outboxCommandDefinitions.js";
+import { buildYouTubeCommandDefinitions } from "./youtubeCommandDefinitions.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 

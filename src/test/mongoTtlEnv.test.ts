@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { RuntimeEnv, ParseEnvNumberLimits } from "../types";
+import type { RuntimeEnv, ParseEnvNumberLimits } from "../types.js";
 
 import { z } from "zod";
-import attachEnv from "../shared/env";
+import attachEnv from "../shared/env.js";
 
 function clampingParseEnvNumber(name: string, defaultValue: number, limits: ParseEnvNumberLimits = {}): number {
   const raw = Number(process.env[name]);

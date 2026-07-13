@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import mod from "../features/command-handlers/sourcesRefreshHandler";
+import mod from "../features/command-handlers/sourcesRefreshHandler.js";
 
 const GAME = { key: "cs2", name: "Counter-Strike 2" };
 

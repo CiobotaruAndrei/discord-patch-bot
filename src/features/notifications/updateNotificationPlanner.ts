@@ -1,7 +1,7 @@
 "use strict";
 
-import type { PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue";
-import { planNotificationFailure } from "./notificationFailurePolicy";
+import type { PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue.js";
+import { planNotificationFailure } from "./notificationFailurePolicy.js";
 
 export type RotateAfter = <T>(arr: T[], lastSeen: T | null) => T[];
 

@@ -6,7 +6,7 @@ import {
   listScopedAdminCommandAccess,
   readAdminCommandAccessForScope,
   type AdminCommandAccessByCommand
-} from "../command-security/adminCommandAccessScope";
+} from "../command-security/adminCommandAccessScope.js";
 
 export type AdminAccessMode = "role" | "role-or-higher";
 

@@ -5,7 +5,7 @@ interface GuildModelLike {
   exists(filter: Record<string, unknown>): Promise<{ _id: unknown } | null>;
 }
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
-import type { MongoWriteOutcome, PriceAlertRule } from "../../types";
+import type { MongoWriteOutcome, PriceAlertRule } from "../../types.js";
 
 interface GuildSeenDiscountModelLike {
   updateOne(filter: unknown, update: unknown, opts?: unknown): Promise<{ upsertedCount?: number; matchedCount?: number }>;
