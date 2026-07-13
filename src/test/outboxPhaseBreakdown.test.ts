@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runOutboxPhaseBreakdown } from "../scripts/outboxLoadBenchmark";
-import type { OutboxLoadModels } from "../scripts/outboxLoadBenchmark";
+import { runOutboxPhaseBreakdown } from "../scripts/outboxLoadBenchmark.js";
+import type { OutboxLoadModels } from "../scripts/outboxLoadBenchmark.js";
 
 function makeMockModels(): { models: OutboxLoadModels; calls: Record<string, number> } {
   const calls = { insertMany: 0, findOneAndUpdate: 0, exists: 0, updateOne: 0, deleteOne: 0 };

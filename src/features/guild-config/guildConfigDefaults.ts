@@ -1,6 +1,6 @@
 "use strict";
 
-import type { CurrencyCode } from "../../types";
+import type { CurrencyCode } from "../../types.js";
 
 export function buildResetConfiguration(defaultCurrency: CurrencyCode): Record<string, unknown> {
   return {

@@ -4,11 +4,11 @@ import assert from "node:assert/strict";
 import fs from "fs";
 import path from "path";
 import mongoose from "mongoose";
-import attachMongoModels from "../infra/mongo/models";
-import * as mod from "../scripts/check-db-indexes";
+import attachMongoModels from "../infra/mongo/models.js";
+import * as mod from "../scripts/check-db-indexes.js";
 const { analyzeIndexes, collectDeclaredIndexes } = mod;
 
-type DeclaredIndex = import("../scripts/check-db-indexes").DeclaredIndex;
+type DeclaredIndex = import("../scripts/check-db-indexes.js").DeclaredIndex;
 
 function idx(partial: Partial<DeclaredIndex> & { collection: string; key: Record<string, number | string> }): DeclaredIndex {
   return {

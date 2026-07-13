@@ -1,9 +1,9 @@
 "use strict";
 
-import type { DealInfo, GuildSettings } from "../../types";
-import type { SteamAppDetailsSummary } from "../../sources/sourceApis";
+import type { DealInfo, GuildSettings } from "../../types.js";
+import type { SteamAppDetailsSummary } from "../../sources/sourceApis.js";
 
-import { errorMessage } from "../../shared/errors";
+import { errorMessage } from "../../shared/errors.js";
 
 export const PLAYER_COUNT_SNAPSHOT_FRESH_MS = 15 * 60_000;
 

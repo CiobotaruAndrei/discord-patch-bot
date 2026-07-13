@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { persistGuildCycleState } from "../features/notifications/notificationCycleRepository";
-import { buildDeadLetterEntry } from "../features/notifications/deadLetter";
-import type { GuildDeadLetterRecord } from "../features/notifications/deadLetterRepository";
+import { persistGuildCycleState } from "../features/notifications/notificationCycleRepository.js";
+import { buildDeadLetterEntry } from "../features/notifications/deadLetter.js";
+import type { GuildDeadLetterRecord } from "../features/notifications/deadLetterRepository.js";
 
 function makeModels(matchedCount: number) {
   const writes: Array<{ filter: Record<string, unknown>; update: unknown }> = [];

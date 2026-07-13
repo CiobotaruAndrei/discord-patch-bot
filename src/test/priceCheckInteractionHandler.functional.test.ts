@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { DealInfo } from "../types";
-import { buildPriceCheckEmbed, findComparableDeals, titlesComparable } from "../features/command-handlers/priceCheckComparison";
+import type { DealInfo } from "../types.js";
+import { buildPriceCheckEmbed, findComparableDeals, titlesComparable } from "../features/command-handlers/priceCheckComparison.js";
 
-import installPriceCheck from "../features/command-handlers/priceCheckInteractionHandler";
+import installPriceCheck from "../features/command-handlers/priceCheckInteractionHandler.js";
 
 function makeInteraction(query: string) {
   return {

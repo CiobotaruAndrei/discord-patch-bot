@@ -4,5 +4,6 @@
   "private": true,
   "napi": {
     "binaryName": "discord_patch_bot_core"
-  }
+  },
+  "type": "module"
 }

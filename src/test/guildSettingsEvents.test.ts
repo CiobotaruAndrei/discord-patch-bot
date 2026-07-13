@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { publishGuildSettingsChanged, subscribeGuildSettingsChanged } from "../infra/mongo/guildSettingsEvents";
+import { publishGuildSettingsChanged, subscribeGuildSettingsChanged } from "../infra/mongo/guildSettingsEvents.js";
 
 test("guild settings changed notifica toti abonatii cu guild-ul scris", () => {
   const calls: string[] = [];

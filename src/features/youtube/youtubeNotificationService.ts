@@ -5,23 +5,23 @@ import type {
   YouTubeFilters,
   YouTubeVideo,
   YouTubeVideoMetadata
-} from "../../types";
+} from "../../types.js";
 import type {
   NotificationDiscordClient,
   ResolveOutboundChannelResult
-} from "../notifications/outboundChannel";
-import type { ReportRollbackFailure } from "../notifications/rollbackReporter";
+} from "../notifications/outboundChannel.js";
+import type { ReportRollbackFailure } from "../notifications/rollbackReporter.js";
 import {
   YOUTUBE_BATCH_DELAY_MS,
   isRecentYouTubeVideo,
   youtubeDestinationIds
-} from "./youtubeDeliveryPolicy";
-import { createYouTubeFeedLoader, type FeedResult } from "./youtubeFeedLoader";
-import { createYouTubeMetadataResolver, type MetadataResolver } from "./youtubeMetadataResolver";
-import { createYouTubeFilterEngine } from "./youtubeFilterEngine";
-import { createYouTubeDeliveryExecutor, type DeliveryResult } from "./youtubeDeliveryExecutor";
-import { createYouTubeRollbackPolicy } from "./youtubeRollbackPolicy";
-import { buildYouTubeEmbed, packYouTubeDeliveries, sortedVideos, type PreparedVideo } from "./youtubeDeliveryPlanner";
+} from "./youtubeDeliveryPolicy.js";
+import { createYouTubeFeedLoader, type FeedResult } from "./youtubeFeedLoader.js";
+import { createYouTubeMetadataResolver, type MetadataResolver } from "./youtubeMetadataResolver.js";
+import { createYouTubeFilterEngine } from "./youtubeFilterEngine.js";
+import { createYouTubeDeliveryExecutor, type DeliveryResult } from "./youtubeDeliveryExecutor.js";
+import { createYouTubeRollbackPolicy } from "./youtubeRollbackPolicy.js";
+import { buildYouTubeEmbed, packYouTubeDeliveries, sortedVideos, type PreparedVideo } from "./youtubeDeliveryPlanner.js";
 
 interface GuildFindResult {
   lean(): Promise<GuildSettings[]>;
@@ -66,7 +66,7 @@ interface YouTubeNotificationServiceDeps {
   reportRollbackFailure?: ReportRollbackFailure;
 }
 
-export type { PreparedVideo } from "./youtubeDeliveryPlanner";
+export type { PreparedVideo } from "./youtubeDeliveryPlanner.js";
 
 export interface ManualVideoBatch {
   items: PreparedVideo[];

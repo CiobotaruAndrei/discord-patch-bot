@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { matchesCommand, type CommandDescriptor } from "../features/command-registry/commandMatch";
+import { matchesCommand, type CommandDescriptor } from "../features/command-registry/commandMatch.js";
 
 function makeInteraction(opts: {
   commandName?: string;

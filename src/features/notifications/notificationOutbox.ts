@@ -7,13 +7,13 @@ import type {
   OutboxJob,
   OutboxRuntime,
   OutboxRuntimeDeps
-} from "./outboxTypes";
-import { isDeliverableOutboxPayload } from "./outboxTypes";
-import { applyDedupeMarker, dedupeKeyFor, messageHasDedupeMarker, outboxDedupeMarker } from "./outboxDedupe";
-import { createOutboxRepository } from "./outboxRepository";
-import { backoffWithJitter, createOutboxStateMachine } from "./outboxStateMachine";
-import { planNotificationFailure } from "./notificationFailurePolicy";
-import { createOutboxDeliveryFinalizer } from "./outboxDeliveryFinalizer";
+} from "./outboxTypes.js";
+import { isDeliverableOutboxPayload } from "./outboxTypes.js";
+import { applyDedupeMarker, dedupeKeyFor, messageHasDedupeMarker, outboxDedupeMarker } from "./outboxDedupe.js";
+import { createOutboxRepository } from "./outboxRepository.js";
+import { backoffWithJitter, createOutboxStateMachine } from "./outboxStateMachine.js";
+import { planNotificationFailure } from "./notificationFailurePolicy.js";
+import { createOutboxDeliveryFinalizer } from "./outboxDeliveryFinalizer.js";
 
 export type {
   DeliverResult,
@@ -28,7 +28,7 @@ export type {
   OutboxRuntimeDeps,
   UpdateOutboxJob,
   YouTubeOutboxJob
-} from "./outboxTypes";
+} from "./outboxTypes.js";
 
 const DEFAULT_LEASE_MS = 60_000;
 

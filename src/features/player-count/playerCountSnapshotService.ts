@@ -1,9 +1,9 @@
 "use strict";
 
-import type { GameConfig } from "../../types";
+import type { GameConfig } from "../../types.js";
 
-import { errorMessage } from "../../shared/errors";
-import ________shared_utilities from "../../shared/utilities";
+import { errorMessage } from "../../shared/errors.js";
+import ________shared_utilities from "../../shared/utilities.js";
 const { mapWithConcurrency } = ________shared_utilities;
 
 interface PlayerCountSnapshot {

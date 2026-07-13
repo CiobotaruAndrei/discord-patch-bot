@@ -2,7 +2,7 @@ import type {
   GuildSettings,
   YouTubeChannelSubscription,
   YouTubeVideo
-} from "../../types";
+} from "../../types.js";
 
 export const DEFAULT_YOUTUBE_MESSAGE_TEMPLATE = "Videoclip nou de la {channel}: {title}\n{url}";
 export const YOUTUBE_BATCH_SIZE = 5;

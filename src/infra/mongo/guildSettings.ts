@@ -1,5 +1,5 @@
-import type { CacheEntry, GuildSettings, RuntimeEnv } from "../../types";
-import { subscribeGuildSettingsChanged } from "./guildSettingsEvents";
+import type { CacheEntry, GuildSettings, RuntimeEnv } from "../../types.js";
+import { subscribeGuildSettingsChanged } from "./guildSettingsEvents.js";
 
 interface GuildSettingsModelLike {
   findById(id: string): { lean(): Promise<(GuildSettings & Record<string, unknown>) | null> };

@@ -1,16 +1,18 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as cheerio from "cheerio";
-import type { ValidatedDealInfo } from "../types";
+import type { ValidatedDealInfo } from "../types.js";
 
-type UtilitiesModule = typeof import("../shared/utilities")["default"] & {
+type UtilitiesModule = typeof import("../shared/utilities.js")["default"] & {
   validatePendingDiscountSnapshot: (snapshot: unknown) => snapshot is ValidatedDealInfo;
 };
 type UpdatesRuntime = {
   fetchListingBasedUpdate: (game: Record<string, unknown>) => Promise<unknown>;
 };
 
-import attachUpdates from "../sources/updates";
+import attachUpdates from "../sources/updates/index.js";
 type UpdatesBuildContext = Parameters<typeof attachUpdates.buildFrom>[0];
 function asUpdatesContext(context: Record<string, unknown>): UpdatesBuildContext {
   return context as Record<string, unknown> & UpdatesBuildContext;
@@ -77,7 +79,7 @@ test("sources/updates: fetchListingBasedUpdate arunca plain Error (nu SchemaDrif
 });
 
 test("native/fuzzy: findGameKeys cu input mixed-emoji nu crash", () => {
-  const { findGameKeys } = require("../native/fuzzy") as typeof import("../native/fuzzy");
+  const { findGameKeys } = require("../native/fuzzy") as typeof import("../native/fuzzy.js");
   const games = [
     { key: "cs2", name: "Counter-Strike 2", aliases: ["cs"] },
     { key: "fortnite", name: "Fortnite", aliases: [] }
@@ -87,7 +89,7 @@ test("native/fuzzy: findGameKeys cu input mixed-emoji nu crash", () => {
 });
 
 test("native/fuzzy: findGameKeys trunchiaza input multi-codepoint (emoji) determinist", () => {
-  const { findGameKeys } = require("../native/fuzzy") as typeof import("../native/fuzzy");
+  const { findGameKeys } = require("../native/fuzzy") as typeof import("../native/fuzzy.js");
   const games = [{ key: "cs2", name: "Counter-Strike 2", aliases: ["cs"] }];
   const longEmoji = "\u{1F600}".repeat(40) + "cs2";
   const first = findGameKeys(longEmoji, games, 10);

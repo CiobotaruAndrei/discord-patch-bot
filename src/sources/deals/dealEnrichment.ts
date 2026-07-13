@@ -1,7 +1,7 @@
-import { requestOptionsFor } from "../sourcePolicies";
-import type { CurrencyConfig, DealInfo, LoggerFunction } from "../../types";
-import { errorMessage } from "../../shared/errors";
-import type { DealCurrencyCode, HttpReq, WithInflightTimeout } from "./dealHelpers";
+import { requestOptionsFor } from "../sourcePolicies.js";
+import type { CurrencyConfig, DealInfo, LoggerFunction } from "../../types.js";
+import { errorMessage } from "../../shared/errors.js";
+import type { DealCurrencyCode, HttpReq, WithInflightTimeout } from "./dealHelpers.js";
 
 interface EnrichedCacheEntry {
   enriched: DealInfo;

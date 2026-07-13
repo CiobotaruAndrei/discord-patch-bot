@@ -1,19 +1,19 @@
 "use strict";
 
 import type * as Mongoose from "mongoose";
-import type { CurrencyCode, CurrencyRegistry, RuntimeEnv } from "../../types";
-import { buildGuildNotificationSchemas } from "./guildNotificationSchemas";
-import { buildGuildYoutubeSchemas } from "./guildYoutubeSchemas";
-import { buildGuildAdminRecordSchemas } from "./guildAdminRecordSchemas";
-import { buildOperationalSchemas } from "./operationalSchemas";
-import { buildSeenSchemas } from "./seenSchemas";
-import { buildOutboxSchemas } from "./outboxSchemas";
-import { buildAuditLogSchemas } from "./auditLogSchemas";
-import { buildConfigBackupSchemas } from "./configBackupSchemas";
-import { buildSuggestedCommandSchemas } from "./suggestedCommandSchemas";
-import { buildYoutubeErrorLogSchemas } from "./youtubeErrorLogSchemas";
-import { buildDeadLetterLogSchemas } from "./deadLetterLogSchemas";
-import { publishGuildSettingsChanged } from "./guildSettingsEvents";
+import type { CurrencyCode, CurrencyRegistry, RuntimeEnv } from "../../types.js";
+import { buildGuildNotificationSchemas } from "./guildNotificationSchemas.js";
+import { buildGuildYoutubeSchemas } from "./guildYoutubeSchemas.js";
+import { buildGuildAdminRecordSchemas } from "./guildAdminRecordSchemas.js";
+import { buildOperationalSchemas } from "./operationalSchemas.js";
+import { buildSeenSchemas } from "./seenSchemas.js";
+import { buildOutboxSchemas } from "./outboxSchemas.js";
+import { buildAuditLogSchemas } from "./auditLogSchemas.js";
+import { buildConfigBackupSchemas } from "./configBackupSchemas.js";
+import { buildSuggestedCommandSchemas } from "./suggestedCommandSchemas.js";
+import { buildYoutubeErrorLogSchemas } from "./youtubeErrorLogSchemas.js";
+import { buildDeadLetterLogSchemas } from "./deadLetterLogSchemas.js";
+import { publishGuildSettingsChanged } from "./guildSettingsEvents.js";
 
 export interface MongoModelsContext {
   mongoose: typeof Mongoose;

@@ -1,9 +1,9 @@
 "use strict";
 
-import type { CommandHandler } from "../command-registry/commandHandler";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
 
-import { handledCommandError } from "../command-security/commandOutcome";
-import { errorMessage, errorDetail } from "../../shared/errors";
+import { handledCommandError } from "../command-security/commandOutcome.js";
+import { errorMessage, errorDetail } from "../../shared/errors.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;

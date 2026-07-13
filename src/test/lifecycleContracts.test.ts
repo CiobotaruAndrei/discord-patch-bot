@@ -6,8 +6,8 @@ import type {
   LifecycleDiscordGuild,
   LifecycleDiscordInteraction,
   LifecycleEventClient
-} from "../app/lifecycle/lifecycleContracts";
-import type { RegisterDiscordEventsDeps } from "../app/lifecycle/events";
+} from "../app/lifecycle/lifecycleContracts.js";
+import type { RegisterDiscordEventsDeps } from "../app/lifecycle/events.js";
 
 type NotUnknown<T> = unknown extends T ? false : true;
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;

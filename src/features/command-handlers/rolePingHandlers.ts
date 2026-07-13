@@ -1,11 +1,11 @@
 "use strict";
 
-import { applyGuildConfigUpdate } from "../guild-config/guildConfigRepository";
-import type { DiscordReplyPayload, GameConfig, MongoWriteOutcome } from "../../types";
-import type { CommandHandler } from "../command-registry/commandHandler";
-import { matchesCommand } from "../command-registry/commandMatch";
+import { applyGuildConfigUpdate } from "../guild-config/guildConfigRepository.js";
+import type { DiscordReplyPayload, GameConfig, MongoWriteOutcome } from "../../types.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import { matchesCommand } from "../command-registry/commandMatch.js";
 
-import { errorDetail } from "../../shared/errors";
+import { errorDetail } from "../../shared/errors.js";
 
 type MaybePromise<T> = T | Promise<T>;
 

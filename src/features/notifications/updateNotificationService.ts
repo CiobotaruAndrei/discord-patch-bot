@@ -1,15 +1,15 @@
 "use strict";
 
-import type { GameConfig } from "../../types";
-import type { GuildSettings, EmbeddableUpdate, MongoWriteOutcome, NotificationMode } from "../../types";
-import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue";
-import { buildDeadLetterEntry, DeadLetterEntry } from "./deadLetter";
-import type { DeadLetterModelLike } from "./deadLetterRepository";
-import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel";
-import { HASH_VERSION } from "../../native/fuzzy";
-import { sendEmbedBatch } from "./notificationBatchExecutor";
-import { persistGuildCycleState } from "./notificationCycleRepository";
-import { planPendingFailure, planRebaselineEntries, requeueFront, takeNextPending } from "./updateNotificationPlanner";
+import type { GameConfig } from "../../types.js";
+import type { GuildSettings, EmbeddableUpdate, MongoWriteOutcome, NotificationMode } from "../../types.js";
+import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue.js";
+import { buildDeadLetterEntry, DeadLetterEntry } from "./deadLetter.js";
+import type { DeadLetterModelLike } from "./deadLetterRepository.js";
+import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel.js";
+import { HASH_VERSION } from "../../native/fuzzy.js";
+import { sendEmbedBatch } from "./notificationBatchExecutor.js";
+import { persistGuildCycleState } from "./notificationCycleRepository.js";
+import { planPendingFailure, planRebaselineEntries, requeueFront, takeNextPending } from "./updateNotificationPlanner.js";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;

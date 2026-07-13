@@ -5,7 +5,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 
-import { buildSmokeResult, writeSmokeResult } from "../scripts/smokeResult";
+import { buildSmokeResult, writeSmokeResult } from "../scripts/smokeResult.js";
 
 test("buildSmokeResult: ok=true doar daca toate verificarile trec", () => {
   const now = new Date("2026-01-02T03:04:05.000Z");

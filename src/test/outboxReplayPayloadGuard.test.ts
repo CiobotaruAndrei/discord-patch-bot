@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createOutboxAdminOperations, type OutboxAdminOperationsDeps } from "../features/command-handlers/outboxAdminOperations";
-import type { ReplayDeadLetterDoc } from "../features/command-handlers/outboxAdminContracts";
+import { createOutboxAdminOperations, type OutboxAdminOperationsDeps } from "../features/command-handlers/outboxAdminOperations.js";
+import type { ReplayDeadLetterDoc } from "../features/command-handlers/outboxAdminContracts.js";
 
 function makeDeps(docs: ReplayDeadLetterDoc[], overrides: Partial<OutboxAdminOperationsDeps> = {}) {
   const enqueued: Array<{ payload: unknown }> = [];

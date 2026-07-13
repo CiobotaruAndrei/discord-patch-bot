@@ -1,10 +1,10 @@
 "use strict";
 
-import type { OutboxDiscordClient } from "../notifications/outboundChannel";
-import type { DeadLetterModelLike } from "../notifications/deadLetterRepository";
-import type { RuntimeEnv } from "../../types";
-import type { CommandHandler } from "../command-registry/commandHandler";
-import { matchesCommand } from "../command-registry/commandMatch";
+import type { OutboxDiscordClient } from "../notifications/outboundChannel.js";
+import type { DeadLetterModelLike } from "../notifications/deadLetterRepository.js";
+import type { RuntimeEnv } from "../../types.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import { matchesCommand } from "../command-registry/commandMatch.js";
 import type {
   ChannelPermissions,
   DrainResultLike,
@@ -14,12 +14,12 @@ import type {
   OutboxAdminLogger,
   OutboxModelLike,
   ReplayDeadLetterDoc
-} from "./outboxAdminContracts";
-import { createOutboxAdminViews } from "./outboxAdminViews";
-import { createOutboxAdminOperations } from "./outboxAdminOperations";
+} from "./outboxAdminContracts.js";
+import { createOutboxAdminViews } from "./outboxAdminViews.js";
+import { createOutboxAdminOperations } from "./outboxAdminOperations.js";
 
-import { handledCommandError } from "../command-security/commandOutcome";
-import { errorDetail, errorMessage } from "../../shared/errors";
+import { handledCommandError } from "../command-security/commandOutcome.js";
+import { errorDetail, errorMessage } from "../../shared/errors.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;

@@ -1,6 +1,9 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
+import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
-import { renderCommandReferenceDoc, COMMAND_REFERENCE_DOC_RELATIVE_PATH } from "../features/command-catalog/commandReferenceDoc";
+import { renderCommandReferenceDoc, COMMAND_REFERENCE_DOC_RELATIVE_PATH } from "../features/command-catalog/commandReferenceDoc.js";
 
 export interface CommandReferenceEvaluation {
   inSync: boolean;
@@ -58,7 +61,7 @@ function main(): void {
   console.log(`${COMMAND_REFERENCE_DOC_RELATIVE_PATH} regenerat din COMMAND_CATALOG_HELP.`);
 }
 
-if (require.main === module) {
+if (process.argv[1] !== undefined && __pathToFileURL(process.argv[1]).href === import.meta.url) {
   main();
 }
 

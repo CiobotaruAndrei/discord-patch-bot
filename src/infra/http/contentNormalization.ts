@@ -1,13 +1,13 @@
 "use strict";
 
-import type { DealInfo, NormalizedUpdate, PatchUpdate } from "../../types";
+import type { DealInfo, NormalizedUpdate, PatchUpdate } from "../../types.js";
 import {
   cleanText as rustCleanText,
   dealHash as rustDealHash,
   normalizeDealState as rustNormalizeDealState,
   normalizeTitleForDedupe as rustNormalizeTitleForDedupe,
   stableUpdateId as rustStableUpdateId
-} from "../../native/fuzzy";
+} from "../../native/fuzzy.js";
 
 type CheerioModule = typeof import("cheerio");
 

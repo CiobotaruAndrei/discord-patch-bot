@@ -1,8 +1,8 @@
 "use strict";
 
-import { recordBotAuditEntry } from "../admin-records/auditLogRepository";
-import { commandAuditName, guildIdOf } from "./adminAccessResolver";
-import type { AdminCommandGuardContext, AdminGuardAuditModel, AdminGuardInteraction } from "./adminGuardContracts";
+import { recordBotAuditEntry } from "../admin-records/auditLogRepository.js";
+import { commandAuditName, guildIdOf } from "./adminAccessResolver.js";
+import type { AdminCommandGuardContext, AdminGuardAuditModel, AdminGuardInteraction } from "./adminGuardContracts.js";
 
 function canUseAuditModel(model: AdminGuardAuditModel | null | undefined): model is AdminGuardAuditModel {
   if (!model || typeof model.create !== "function") return false;

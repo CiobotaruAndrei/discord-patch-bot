@@ -1,8 +1,8 @@
 "use strict";
 
-import type { GameConfig } from "../../types";
-import type { ChainableEmbed, PresentationLogger } from "./presentationContracts";
-import { errorMessage } from "../../shared/errors";
+import type { GameConfig } from "../../types.js";
+import type { ChainableEmbed, PresentationLogger } from "./presentationContracts.js";
+import { errorMessage } from "../../shared/errors.js";
 
 interface HttpResponse<T = unknown> {
   data: T;

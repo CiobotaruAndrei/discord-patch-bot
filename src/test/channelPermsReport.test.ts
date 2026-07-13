@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import commandCache from "../features/command-cache/commandCache";
+import commandCache from "../features/command-cache/commandCache.js";
 const { computeMissingChannelPerms, formatMissingChannelPerms } = commandCache;
 
 const PermissionsBitField = { Flags: { ViewChannel: "VIEW", SendMessages: "SEND", EmbedLinks: "EMBED" } };

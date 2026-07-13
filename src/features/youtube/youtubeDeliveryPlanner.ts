@@ -1,8 +1,8 @@
 "use strict";
 
-import type { YouTubeChannelSubscription, YouTubeVideo, YouTubeVideoMetadata } from "../../types";
-import { embedCharCost } from "../../shared/discordEmbedChunks";
-import { YOUTUBE_BATCH_SIZE, renderYouTubeMessageTemplate } from "./youtubeDeliveryPolicy";
+import type { YouTubeChannelSubscription, YouTubeVideo, YouTubeVideoMetadata } from "../../types.js";
+import { embedCharCost } from "../../shared/discordEmbedChunks.js";
+import { YOUTUBE_BATCH_SIZE, renderYouTubeMessageTemplate } from "./youtubeDeliveryPolicy.js";
 
 export interface PreparedVideo {
   channel: YouTubeChannelSubscription;

@@ -1,6 +1,6 @@
 "use strict";
 
-import type { GameConfig } from "../../types";
+import type { GameConfig } from "../../types.js";
 
 type MaybePromise<T> = T | Promise<T>;
 

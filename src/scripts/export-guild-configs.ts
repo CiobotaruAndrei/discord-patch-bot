@@ -1,3 +1,6 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
+import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
 export interface GuildConfigExport {
@@ -55,6 +58,6 @@ async function main(): Promise<void> {
   }
 }
 
-if (require.main === module) {
+if (process.argv[1] !== undefined && __pathToFileURL(process.argv[1]).href === import.meta.url) {
   main().catch(err => { console.error(err); process.exit(1); });
 }

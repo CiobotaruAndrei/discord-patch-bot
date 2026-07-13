@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
+import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository.js";
 
-import attachAdminCommandAccess from "../features/command-handlers/adminCommandAccessHandler";
-import globalAccessCode from "../features/command-security/globalAccessCode";
+import attachAdminCommandAccess from "../features/command-handlers/adminCommandAccessHandler.js";
+import globalAccessCode from "../features/command-security/globalAccessCode.js";
 
 type StoredAccess = {
   mode: "role" | "role-or-higher";

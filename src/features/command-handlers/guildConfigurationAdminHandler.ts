@@ -1,16 +1,16 @@
 "use strict";
 
-import type { CurrencyCode, DiscordReplyPayload, GameConfig } from "../../types";
-import type { CommandHandler } from "../command-registry/commandHandler";
-import { matchesCommand } from "../command-registry/commandMatch";
-import { buildResetConfiguration } from "../guild-config/guildConfigDefaults";
-import { resetGuildConfigurationWithAudit, setAdminAlertChannel } from "../guild-config/guildConfigRepository";
-import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository";
-import type { YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository";
-import type { DeadLetterModelLike } from "../notifications/deadLetterRepository";
+import type { CurrencyCode, DiscordReplyPayload, GameConfig } from "../../types.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import { matchesCommand } from "../command-registry/commandMatch.js";
+import { buildResetConfiguration } from "../guild-config/guildConfigDefaults.js";
+import { resetGuildConfigurationWithAudit, setAdminAlertChannel } from "../guild-config/guildConfigRepository.js";
+import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
+import type { YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository.js";
+import type { DeadLetterModelLike } from "../notifications/deadLetterRepository.js";
 
-import { handledCommandError } from "../command-security/commandOutcome";
-import { errorDetail } from "../../shared/errors";
+import { handledCommandError } from "../command-security/commandOutcome.js";
+import { errorDetail } from "../../shared/errors.js";
 
 type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;

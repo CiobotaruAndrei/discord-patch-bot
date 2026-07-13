@@ -1,15 +1,15 @@
 "use strict";
 
-import type { YouTubeChannelSubscription } from "../../../types";
-import type { DiscordInteraction, YouTubeInteractionDeps } from "./youtubeCommandTypes";
-import { isRecentYouTubeVideo } from "../../youtube/youtubeDeliveryPolicy";
+import type { YouTubeChannelSubscription } from "../../../types.js";
+import type { DiscordInteraction, YouTubeInteractionDeps } from "./youtubeCommandTypes.js";
+import { isRecentYouTubeVideo } from "../../youtube/youtubeDeliveryPolicy.js";
 import {
   MAX_YOUTUBE_CHANNELS,
   addYouTubeChannelSubscription,
   removeYouTubeChannelSubscription
-} from "../../youtube/youtubeGuildConfigRepository";
+} from "../../youtube/youtubeGuildConfigRepository.js";
 
-import { errorDetail } from "../../../shared/errors";
+import { errorDetail } from "../../../shared/errors.js";
 
 export function createYouTubeSubscriptionCommands(deps: YouTubeInteractionDeps) {
   const { GuildModel, getGuildSettings, invalidateGuildCache, resolveYouTubeChannel, fetchYouTubeFeed, seedSeenVideos, removeSeenChannel, safeEdit } = deps;

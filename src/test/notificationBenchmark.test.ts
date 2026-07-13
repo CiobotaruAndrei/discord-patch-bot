@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runNotificationBenchmark } from "../scripts/notificationBenchmark";
+import { runNotificationBenchmark } from "../scripts/notificationBenchmark.js";
 
 test("benchmark: masoara fluxurile pentru mai multe dimensiuni de guild-uri", async () => {
   const rows = await runNotificationBenchmark([3, 6], { gamesPerCycle: 4 });

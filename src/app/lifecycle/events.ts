@@ -1,8 +1,8 @@
-import type { BotRole, GameConfig, RuntimeEnv } from "../../types";
-import type { BotMetrics } from "../health/metricsTypes";
-import type { LifecycleDiscordChannel, LifecycleDiscordGuild, LifecycleDiscordInteraction, LifecycleEventClient } from "./lifecycleContracts";
-import { createGuildOnboarding } from "./guildOnboarding";
-import { roleRunsSchedulers, roleRunsInteractions } from "../../shared/botRole";
+import type { BotRole, GameConfig, RuntimeEnv } from "../../types.js";
+import type { BotMetrics } from "../health/metricsTypes.js";
+import type { LifecycleDiscordChannel, LifecycleDiscordGuild, LifecycleDiscordInteraction, LifecycleEventClient } from "./lifecycleContracts.js";
+import { createGuildOnboarding } from "./guildOnboarding.js";
+import { roleRunsSchedulers, roleRunsInteractions } from "../../shared/botRole.js";
 
 type LifecycleLogger = (level: "INFO" | "WARN" | "ERROR", context: string, message: string, meta?: unknown) => void;
 type ErrorFormatter = (err: unknown) => string;

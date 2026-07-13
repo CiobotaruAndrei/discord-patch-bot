@@ -8,7 +8,7 @@ import {
   listYoutubeErrors,
   recordYoutubeError,
   type GuildYoutubeErrorRecord
-} from "../features/youtube/youtubeErrorsRepository";
+} from "../features/youtube/youtubeErrorsRepository.js";
 
 function makeErrorModel(initial: GuildYoutubeErrorRecord[] = []) {
   let nextId = 1;

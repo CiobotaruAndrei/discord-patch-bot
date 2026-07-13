@@ -1,3 +1,4 @@
+import { pathToFileURL as __pathToFileURL } from "node:url";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -47,7 +48,7 @@ function main(): void {
   fs.writeFileSync(path.resolve(process.cwd(), outputPath), `${notes}\n`, "utf8");
 }
 
-if (require.main === module) {
+if (process.argv[1] !== undefined && __pathToFileURL(process.argv[1]).href === import.meta.url) {
   main();
 }
 

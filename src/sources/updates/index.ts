@@ -1,9 +1,9 @@
-import type { UpdatesApi } from "../sourceApis";
-import { applyFallbackSource, isGoodSteamArticleUrl, isLikelyPatchNote, extractDateScore, scoreCandidate, absoluteUrl, sourceConcurrencyGroup } from "./updateHelpers";
-import type { UpdatesContext, UpdatesDeps } from "./updatesContracts";
-import { createUpdatesSourceDispatch } from "./updatesSourceDispatch";
-import { createUpdatesCircuitBreaker } from "./updatesCircuitBreaker";
-import { createUpdatesFetchOrchestrator } from "./updatesFetchOrchestrator";
+import type { UpdatesApi } from "../sourceApis.js";
+import { applyFallbackSource, isGoodSteamArticleUrl, isLikelyPatchNote, extractDateScore, scoreCandidate, absoluteUrl, sourceConcurrencyGroup } from "./updateHelpers.js";
+import type { UpdatesContext, UpdatesDeps } from "./updatesContracts.js";
+import { createUpdatesSourceDispatch } from "./updatesSourceDispatch.js";
+import { createUpdatesCircuitBreaker } from "./updatesCircuitBreaker.js";
+import { createUpdatesFetchOrchestrator } from "./updatesFetchOrchestrator.js";
 
 function createUpdates(d: UpdatesDeps): UpdatesApi {
   const deps = d;

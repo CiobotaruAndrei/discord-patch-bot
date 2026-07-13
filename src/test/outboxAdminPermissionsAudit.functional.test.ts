@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { installOutboxAdmin, makeDeps, makeInteraction } from "./outboxAdminTestKit";
-import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
-import type { DeadLetterEntry } from "./outboxAdminTestKit";
+import { installOutboxAdmin, makeDeps, makeInteraction } from "./outboxAdminTestKit.js";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit.js";
+import type { DeadLetterEntry } from "./outboxAdminTestKit.js";
 
 test("/outbox permissions raporteaza permisiunile pe canalele configurate si semnaleaza ce lipseste", async () => {
   const { deps, replies, permissionChecks } = makeDeps({

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseBooleanEnv, BOOLEAN_ENV_PATTERN } from "../shared/booleanEnv";
+import { parseBooleanEnv, BOOLEAN_ENV_PATTERN } from "../shared/booleanEnv.js";
 
 test("parseBooleanEnv: true/1 (case-insensitive, cu spatii) -> true", () => {
   for (const v of ["true", "TRUE", "True", "1", " true ", "  1"]) {

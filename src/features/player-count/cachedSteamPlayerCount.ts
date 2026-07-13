@@ -1,4 +1,4 @@
-import type { RedisCache } from "../../infra/redis/redisCache";
+import type { RedisCache } from "../../infra/redis/redisCache.js";
 
 interface SteamCurrentPlayers {
   appId: string;

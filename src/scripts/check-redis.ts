@@ -1,9 +1,9 @@
 "use strict";
 
-import type { LoggerFunction } from "../types";
+import type { LoggerFunction } from "../types.js";
 
-import { createRedisRuntime } from "../infra/redis/redisClient";
-import { runRedisConnectivityCheck } from "../infra/redis/redisConnectivityCheck";
+import { createRedisRuntime } from "../infra/redis/redisClient.js";
+import { runRedisConnectivityCheck } from "../infra/redis/redisConnectivityCheck.js";
 
 const logger: LoggerFunction = (level, context, message) => console.log(`[${level}] ${context}: ${message}`);
 

@@ -6,7 +6,7 @@ import type {
   DlcCacheEntry,
   FetchResult,
   NormalizedUpdate
-} from "../../types";
+} from "../../types.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 

@@ -1,8 +1,8 @@
 "use strict";
 
-import type { FetchResult, EmbeddableUpdate, InteractionMessage } from "../../../types";
+import type { FetchResult, EmbeddableUpdate, InteractionMessage } from "../../../types.js";
 
-import { errorMessage } from "../../../shared/errors";
+import { errorMessage } from "../../../shared/errors.js";
 
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
 

@@ -1,5 +1,5 @@
-import type { LifecycleDiscordChannel, LifecycleDiscordGuild } from "./lifecycleContracts";
-import { isSendableChannel } from "../../features/notifications/outboundChannel";
+import type { LifecycleDiscordChannel, LifecycleDiscordGuild } from "./lifecycleContracts.js";
+import { isSendableChannel } from "../../features/notifications/outboundChannel.js";
 "use strict";
 
 type Logger = (level: "INFO" | "WARN" | "ERROR", context: string, message: string, meta?: unknown) => void;

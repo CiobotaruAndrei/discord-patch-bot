@@ -1,6 +1,8 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createDiscordRateLimiter, createDefaultDiscordSendLimiter, DiscordRateLimiterOptions } from "../features/notifications/discordRateLimiter";
+import { createDiscordRateLimiter, createDefaultDiscordSendLimiter, DiscordRateLimiterOptions } from "../features/notifications/discordRateLimiter.js";
 
 function harness(opts: Omit<DiscordRateLimiterOptions, "now" | "sleep">) {
   const state = { clock: 0 };

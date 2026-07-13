@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { FutureReleaseGameEntry, GuildSettings } from "../types";
+import type { FutureReleaseGameEntry, GuildSettings } from "../types.js";
 
-import installFutureRelease from "../features/command-handlers/futureReleaseInteractionHandler";
+import installFutureRelease from "../features/command-handlers/futureReleaseInteractionHandler.js";
 
 type MongoCall = {
   filter: Record<string, unknown>;

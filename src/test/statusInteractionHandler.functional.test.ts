@@ -1,5 +1,5 @@
 import test from "node:test";
-import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit.js";
 import assert from "node:assert/strict";
 
 type StatusModule = ChainableCommandModule & {
@@ -8,7 +8,7 @@ type StatusModule = ChainableCommandModule & {
   };
 };
 
-import statusHandler from "../features/command-handlers/statusInteractionHandler";
+import statusHandler from "../features/command-handlers/statusInteractionHandler.js";
 
 function makeStatusInteraction(gameText: string | null = "cs2") {
   const replies: unknown[] = [];

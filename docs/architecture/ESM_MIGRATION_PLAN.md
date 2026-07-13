@@ -32,7 +32,35 @@ final de emit ESM.
 - **3** `require(...)` dinamice (path calculat) — inclusiv loader-ul nativ NAPI
 - **0** `require("*.json")`
 
-## Stadiu: Faza A EXECUTATA (branch `refactor/esm-migration`)
+## Stadiu: MIGRARE COMPLETA — Faza A (PR #642, mers) + Faza B EXECUTATE
+
+Faza B (cutover-ul de emit ESM) a fost executata pe branch-ul
+`refactor/esm-migration-phase-b` si e VERDE: `tsc` 0 erori sub `NodeNext`,
+`npm run check` complet (1514 teste, 0 fail), `test:e2e:prebuilt` 7/7,
+`npm audit` 0, boot-graph smoke (main.js incarca tot graful ESM si face
+fail-fast curat pe env) si addon-ul NAPI se incarca prin
+`createRequire(import.meta.url)` (require(esm) pe Node 24). Detalii de executie:
+
+- `tsconfig`: `module`/`moduleResolution` = `NodeNext`; `package.json`: `"type": "module"`;
+  `native/package.json` primeste si el `"type": "module"` (altfel TS clasifica
+  fisierele din `native/` drept CJS dupa cel mai apropiat package.json, dar la
+  runtime `dist/native/*.js` cade sub `type: module` -> nepotrivire).
+- 1397 extensii `.js` adaugate pe importurile relative (inclusiv pozitiile
+  `import(...)`/`typeof import(...)`); 6 fisiere cu shim `__dirname` via
+  `import.meta.url`; 71 fisiere cu `const require = createRequire(import.meta.url)`.
+- Idiomurile CJS de runtime convertite: `require.main === module` ->
+  `pathToFileURL(process.argv[1]).href === import.meta.url` (14 scripturi);
+  `module.exports = {...}` -> `export { ... }` (2 scripturi-gate).
+- **Node 20 -> 24 (LTS)** in CI (5 workflow-uri), `Dockerfile` (ambele stage-uri),
+  README si `engines` (`>=22.12`) — require(esm), de care depind require-urile
+  lenese, exista doar de la Node 22.12+ (Node 20 era oricum EOL din aprilie 2026).
+- Hoisting-ul importurilor ESM a rupt 13 teste care setau `process.env` inaintea
+  require-urilor (sub CJS ordinea textuala se pastra): importurile respective au
+  devenit `await import()` top-level DUPA setup-ul de env (ordine garantata).
+- Garzile care pinuiau forme fara extensie sau require-uri tipate au fost
+  repinuite pe formele finale (regula 8).
+
+## Stadiu istoric: Faza A EXECUTATA (branch `refactor/esm-migration`)
 
 Faza A a fost aplicata pe tot `src/` si e VERDE: `npm run check` complet (typecheck
 + build + toate gate-urile + 1514 teste, 0 fail), `test:e2e:prebuilt` 7/7, `npm audit` 0.

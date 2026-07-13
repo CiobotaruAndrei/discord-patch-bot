@@ -1,4 +1,4 @@
-import { assertSafeExternalUrl } from "./ssrfGuard";
+import { assertSafeExternalUrl } from "./ssrfGuard.js";
 
 const BUILTIN_DEFAULT_PROXIES = [
   "https://api.allorigins.win/get?url={url}",

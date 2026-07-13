@@ -1,14 +1,14 @@
-import type { RuntimeEnv } from "../../types";
-import { createRuntimeLimits } from "./runtimeLimits";
-import { createUserCooldowns } from "./userCooldowns";
-import { createCommandCaches } from "./commandCaches";
-import { createUserErrorFormatting } from "./userErrorFormatting";
+import type { RuntimeEnv } from "../../types.js";
+import { createRuntimeLimits } from "./runtimeLimits.js";
+import { createUserCooldowns } from "./userCooldowns.js";
+import { createCommandCaches } from "./commandCaches.js";
+import { createUserErrorFormatting } from "./userErrorFormatting.js";
 import {
   computeMissingChannelPerms,
   createChannelPermissionChecks,
   formatMissingChannelPerms
-} from "./channelPermissionChecks";
-import type { PermissionsBitFieldLike } from "./channelPermissionChecks";
+} from "./channelPermissionChecks.js";
+import type { PermissionsBitFieldLike } from "./channelPermissionChecks.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 

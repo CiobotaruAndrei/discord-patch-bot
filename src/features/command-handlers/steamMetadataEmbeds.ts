@@ -1,13 +1,13 @@
 "use strict";
 
-import type { SteamAppDetailsSummary } from "../../sources/sourceApis";
+import type { SteamAppDetailsSummary } from "../../sources/sourceApis.js";
 import {
   INFO_COLOR,
   extractInstallSize,
   requirementValue,
   type DiscordEmbed,
   type SafeCheerioLoad
-} from "./gameInfoEmbedPrimitives";
+} from "./gameInfoEmbedPrimitives.js";
 
 export function buildSystemRequirementsEmbed(query: string, appId: string | number, details: SteamAppDetailsSummary, load: SafeCheerioLoad): DiscordEmbed {
   const minimum = requirementValue(details, "minimum", load);

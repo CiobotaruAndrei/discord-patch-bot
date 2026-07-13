@@ -1,7 +1,7 @@
-import { requestOptionsFor } from "../sourcePolicies";
-import type { DealInfo, LoggerFunction } from "../../types";
-import { errorMessage } from "../../shared/errors";
-import type { DealCurrencyCode, HttpReq } from "./dealHelpers";
+import { requestOptionsFor } from "../sourcePolicies.js";
+import type { DealInfo, LoggerFunction } from "../../types.js";
+import { errorMessage } from "../../shared/errors.js";
+import type { DealCurrencyCode, HttpReq } from "./dealHelpers.js";
 
 interface EpicGraphqlResponse {
   data?: {

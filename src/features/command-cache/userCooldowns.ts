@@ -1,4 +1,4 @@
-import type { CooldownResult } from "../../types";
+import type { CooldownResult } from "../../types.js";
 
 const USER_COOLDOWNS_THRESHOLD = 500;
 const COOLDOWN_CLEAN_EVERY_N_INSERTS = 100;

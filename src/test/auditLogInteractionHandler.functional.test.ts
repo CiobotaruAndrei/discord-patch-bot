@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
+import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository.js";
 
-import installAuditLog from "../features/command-handlers/auditLogInteractionHandler";
+import installAuditLog from "../features/command-handlers/auditLogInteractionHandler.js";
 
 function makeAuditModel(seed: GuildAuditLogRecord[]) {
   const docs = [...seed];

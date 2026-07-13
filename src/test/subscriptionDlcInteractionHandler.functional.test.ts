@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import installSubscription from "../features/command-handlers/subscriptionNotificationHandlers";
+import installSubscription from "../features/command-handlers/subscriptionNotificationHandlers.js";
 
 type MongoCall = {
   filter: Record<string, unknown>;

@@ -1,7 +1,7 @@
 "use strict";
 
-import type { GuildSettings, YouTubeFilters } from "../../../types";
-import { clampJoinedList } from "../../command-presentation/discordListLimit";
+import type { GuildSettings, YouTubeFilters } from "../../../types.js";
+import { clampJoinedList } from "../../command-presentation/discordListLimit.js";
 
 export function defaultFilters(settings: GuildSettings | null): Required<YouTubeFilters> {
   return {

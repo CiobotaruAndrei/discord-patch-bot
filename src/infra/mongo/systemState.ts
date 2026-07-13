@@ -1,4 +1,4 @@
-import type { SystemTimes } from "../../types";
+import type { SystemTimes } from "../../types.js";
 
 interface SystemStateDoc {
   _id: string;

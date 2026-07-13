@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildGuildConfigExport, exportFileName } from "../scripts/export-guild-configs";
+import { buildGuildConfigExport, exportFileName } from "../scripts/export-guild-configs.js";
 
 test("buildGuildConfigExport: pastreaza documentele si numara guild-urile, cu timestamp ISO determinist", () => {
   const now = new Date("2026-07-05T12:34:56.789Z");

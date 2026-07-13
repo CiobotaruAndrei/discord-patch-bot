@@ -1,5 +1,5 @@
-import type { RuntimeEnv } from "../../types";
-import type { CronHealthSnapshot } from "./schedulerTypes";
+import type { RuntimeEnv } from "../../types.js";
+import type { CronHealthSnapshot } from "./schedulerTypes.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 

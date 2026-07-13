@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import mod from "../features/player-count/cachedSteamPlayerCount";
-import * as cacheMod from "../infra/redis/redisCache";
-import type { RedisCacheClient } from "../infra/redis/redisCache";
-import type { LoggerFunction } from "../types";
+import mod from "../features/player-count/cachedSteamPlayerCount.js";
+import * as cacheMod from "../infra/redis/redisCache.js";
+import type { RedisCacheClient } from "../infra/redis/redisCache.js";
+import type { LoggerFunction } from "../types.js";
 
 type SteamPlayers = { appId: string; playerCount: number; success: boolean };
 

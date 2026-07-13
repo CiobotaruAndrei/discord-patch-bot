@@ -1,14 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { CheerioAPI } from "cheerio";
-import type { DealInfo, FetchDealsOptions, HttpRequestOptions } from "../types";
-import type { SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../sources/sourceApis";
+import type { DealInfo, FetchDealsOptions, HttpRequestOptions } from "../types.js";
+import type { SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../sources/sourceApis.js";
 
 process.env.MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/itest-source-api";
 process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "test-token";
 process.env.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "test-client-id";
 
-type Mod = typeof import("../sources/sourceRegistry");
+type Mod = typeof import("../sources/sourceRegistry.js");
 type Expect<T extends true> = T;
 
 type _MaxHtmlBytesIsNumber = Expect<
@@ -18,7 +18,7 @@ type _DealHashIsTyped = Expect<
   Mod["dealHash"] extends (deal: DealInfo) => string ? true : false
 >;
 type _FetchDealsReturnsDeals = Expect<
-  ReturnType<typeof import("../sources/sourceRegistry").createSourceRegistry>["fetchDeals"] extends (opts?: FetchDealsOptions) => Promise<DealInfo[]> ? true : false
+  ReturnType<typeof import("../sources/sourceRegistry.js").createSourceRegistry>["fetchDeals"] extends (opts?: FetchDealsOptions) => Promise<DealInfo[]> ? true : false
 >;
 type _ExtractOfferEndIsTyped = Expect<
   Mod["extractOfferEndFromHtml"] extends (html: unknown) => string | null ? true : false
@@ -26,7 +26,7 @@ type _ExtractOfferEndIsTyped = Expect<
 type _SafeCheerioLoadIsTyped = Expect<
   Mod["safeCheerioLoad"] extends (html: unknown) => CheerioAPI ? true : false
 >;
-type _Registry = ReturnType<typeof import("../sources/sourceRegistry").createSourceRegistry>;
+type _Registry = ReturnType<typeof import("../sources/sourceRegistry.js").createSourceRegistry>;
 type _HttpReqOptionsTyped = Expect<
   Parameters<_Registry["httpReq"]>[2] extends HttpRequestOptions | undefined ? true : false
 >;
@@ -34,16 +34,16 @@ type _FetchWithProxyOptionsTyped = Expect<
   Parameters<_Registry["fetchWithProxy"]>[1] extends HttpRequestOptions | undefined ? true : false
 >;
 
-type _SteamPriceDetailsResult = Awaited<ReturnType<ReturnType<typeof import("../sources/sourceRegistry").createSourceRegistry>["fetchSteamPriceDetails"]>>;
+type _SteamPriceDetailsResult = Awaited<ReturnType<ReturnType<typeof import("../sources/sourceRegistry.js").createSourceRegistry>["fetchSteamPriceDetails"]>>;
 type _SteamPriceDetailsTyped = Expect<
   _SteamPriceDetailsResult extends SteamAppDetailsSummary | null ? (unknown extends _SteamPriceDetailsResult ? false : true) : false
 >;
-type _SteamCurrentPlayersResult = Awaited<ReturnType<ReturnType<typeof import("../sources/sourceRegistry").createSourceRegistry>["fetchSteamCurrentPlayers"]>>;
+type _SteamCurrentPlayersResult = Awaited<ReturnType<ReturnType<typeof import("../sources/sourceRegistry.js").createSourceRegistry>["fetchSteamCurrentPlayers"]>>;
 type _SteamCurrentPlayersTyped = Expect<
   _SteamCurrentPlayersResult extends SteamCurrentPlayersSummary ? (unknown extends _SteamCurrentPlayersResult ? false : true) : false
 >;
 
-import * as registry from "../sources/sourceRegistry";
+const registry = await import("../sources/sourceRegistry.js");
 
 test("sourceRegistry expune constantele tipate (numere + lista de user-agents)", () => {
   assert.equal(typeof registry.MAX_HTML_BYTES, "number", "MAX_HTML_BYTES e numar");
@@ -75,7 +75,7 @@ test("sourceRegistry expune utilele cross-cutting si functiile de sursa ca funct
   }
 });
 
-type RegistryApi = import("../sources/sourceRegistry").SourceRegistryApi;
+type RegistryApi = import("../sources/sourceRegistry.js").SourceRegistryApi;
 type NotUnknown<T> = unknown extends T ? false : true;
 
 test("semnaturile interne stranse nu se pot relaxa inapoi la unknown (R[Arh] #11)", () => {

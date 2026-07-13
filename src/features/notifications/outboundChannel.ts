@@ -1,5 +1,5 @@
-import { errorMessage } from "../../shared/errors";
-import type { OutboxMessagePayload } from "./outboxTypes";
+import { errorMessage } from "../../shared/errors.js";
+import type { OutboxMessagePayload } from "./outboxTypes.js";
 
 export const DISCORD_PERMANENT_ERROR_CODES = new Set([10003, 10004, 50001, 50013]);
 

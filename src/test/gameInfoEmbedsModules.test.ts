@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as cheerio from "cheerio";
 
-import * as barrel from "../features/command-handlers/gameInfoEmbeds";
-import * as deals from "../features/command-handlers/dealsEmbeds";
-import * as comparison from "../features/command-handlers/comparisonEmbeds";
-import * as steamMetadata from "../features/command-handlers/steamMetadataEmbeds";
-import * as playerCount from "../features/command-handlers/playerCountEmbeds";
-import type { SteamAppDetailsSummary } from "../sources/sourceApis";
+import * as barrel from "../features/command-handlers/gameInfoEmbeds.js";
+import * as deals from "../features/command-handlers/dealsEmbeds.js";
+import * as comparison from "../features/command-handlers/comparisonEmbeds.js";
+import * as steamMetadata from "../features/command-handlers/steamMetadataEmbeds.js";
+import * as playerCount from "../features/command-handlers/playerCountEmbeds.js";
+import type { SteamAppDetailsSummary } from "../sources/sourceApis.js";
 
 test("barrel-ul gameInfoEmbeds re-exporta exact aceleasi referinte ca modulele pe domenii", () => {
   assert.equal(barrel.buildBestDealsEmbed, deals.buildBestDealsEmbed);

@@ -1,9 +1,9 @@
 "use strict";
 
-import type { GameConfig } from "../../types";
-import type { CommandHandler } from "../command-registry/commandHandler";
+import type { GameConfig } from "../../types.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
 
-import { errorDetail } from "../../shared/errors";
+import { errorDetail } from "../../shared/errors.js";
 
 type DiscordInteraction = {
   commandName?: string;

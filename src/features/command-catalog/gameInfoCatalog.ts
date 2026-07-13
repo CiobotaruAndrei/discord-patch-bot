@@ -1,4 +1,4 @@
-import type { CommandAccessRule, CommandCatalogHelpEntry } from "./commandCatalogTypes";
+import type { CommandAccessRule, CommandCatalogHelpEntry } from "./commandCatalogTypes.js";
 
 export const GAME_INFO_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   { command: "dlc", access: "public", discordAdminPermissions: false },

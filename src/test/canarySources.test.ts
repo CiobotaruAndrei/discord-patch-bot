@@ -7,8 +7,8 @@ import {
   buildFragileWarnings,
   summarizeDealsByStore,
   RELIABLE_CANARY_TYPES
-} from "../scripts/canarySources";
-import type { CanaryGameResult } from "../scripts/canarySources";
+} from "../scripts/canarySources.js";
+import type { CanaryGameResult } from "../scripts/canarySources.js";
 
 const r = (key: string, type: string, ok: boolean): CanaryGameResult => ({ key, type, ok });
 

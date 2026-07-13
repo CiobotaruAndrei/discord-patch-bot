@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import * as mod from "../infra/redis/redisClient";
-import type { RedisClientLike, RedisClientFactory } from "../infra/redis/redisClient";
-import type { LoggerFunction } from "../types";
+import * as mod from "../infra/redis/redisClient.js";
+import type { RedisClientLike, RedisClientFactory } from "../infra/redis/redisClient.js";
+import type { LoggerFunction } from "../types.js";
 
 function makeFakeClient(opts: { isOpen?: boolean } = {}) {
   const calls = { connect: 0, quit: 0, errorListeners: [] as Array<(err: unknown) => void> };

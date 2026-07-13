@@ -1,7 +1,9 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adminCommandGuard, attachAccessCodeModal, buildGuardedHandleInteraction, globalAccessCode, makeInteraction, requireGuildAdmin } from "./adminGuardTestKit";
-import type { AdminCommandGuardModule, TestGame, TestInteraction } from "./adminGuardTestKit";
+import { adminCommandGuard, attachAccessCodeModal, buildGuardedHandleInteraction, globalAccessCode, makeInteraction, requireGuildAdmin } from "./adminGuardTestKit.js";
+import type { AdminCommandGuardModule, TestGame, TestInteraction } from "./adminGuardTestKit.js";
 
 test("admin command guard blocks protected commands before delegating", async () => {
   const { interaction } = makeInteraction(false);
@@ -336,7 +338,7 @@ test("guard: handler care intoarce handledCommandError e auditat ca 'Command err
       handleAdminProtectedCommand: (interaction: TestInteraction, games: TestGame[], next?: (interaction: TestInteraction, games: TestGame[]) => Promise<unknown>) => Promise<unknown>;
     };
   };
-  const { handledCommandError } = require("../features/command-security/commandOutcome") as typeof import("../features/command-security/commandOutcome");
+  const { handledCommandError } = require("../features/command-security/commandOutcome") as typeof import("../features/command-security/commandOutcome.js");
 
   const audits: string[] = [];
   const target = {

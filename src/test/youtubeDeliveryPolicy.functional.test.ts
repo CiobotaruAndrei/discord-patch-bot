@@ -11,7 +11,7 @@ import {
   validateYouTubeMessageTemplate,
   videoPassesYouTubeTitleFilter,
   youtubeDestinationIds
-} from "../features/youtube/youtubeDeliveryPolicy";
+} from "../features/youtube/youtubeDeliveryPolicy.js";
 
 const channel = {
   channelId: "UC123",

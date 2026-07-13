@@ -1,7 +1,7 @@
 "use strict";
 
-import { REPORT_TYPES } from "./reportTypes";
-import type { ReportType } from "./reportTypes";
+import { REPORT_TYPES } from "./reportTypes.js";
+import type { ReportType } from "./reportTypes.js";
 
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;

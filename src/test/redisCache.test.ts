@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import * as mod from "../infra/redis/redisCache";
-import type { RedisCacheClient, RedisCacheRuntime } from "../infra/redis/redisCache";
-import type { LoggerFunction } from "../types";
+import * as mod from "../infra/redis/redisCache.js";
+import type { RedisCacheClient, RedisCacheRuntime } from "../infra/redis/redisCache.js";
+import type { LoggerFunction } from "../types.js";
 
 function makeStoreClient() {
   const store = new Map<string, string>();

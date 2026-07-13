@@ -1,4 +1,4 @@
-import type { AppRuntimeDeps, RuntimeServices, Schedulers } from "../appRuntime";
+import type { AppRuntimeDeps, RuntimeServices, Schedulers } from "../appRuntime.js";
 
 function createSchedulers(deps: AppRuntimeDeps, services: RuntimeServices): Schedulers {
   const { mongoose, performance, crypto, createCronController, createOutboxWorker, errorMessage, errorDetail, commands, mongo } = deps;

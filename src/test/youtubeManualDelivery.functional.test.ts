@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { channel, createYouTubeNotificationService, manualShow, parallelRunConcurrent, sequentialRunConcurrent, video, type ServiceDeps, type YouTubeService } from "./youtubeServiceTestKit";
+import { channel, createYouTubeNotificationService, manualShow, parallelRunConcurrent, sequentialRunConcurrent, video, type ServiceDeps, type YouTubeService } from "./youtubeServiceTestKit.js";
 
 test("YouTube manual: a doua rulare implicita NU repostează videoclipul deja afisat; repeta=true repostează (R14 #1)", async () => {
   const claims = new Set<string>();

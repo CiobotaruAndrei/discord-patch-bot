@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createDiscountNotificationService } from "../features/notifications/discountNotificationService";
-import { makeDiscountDeps, noopDiscordClient } from "./notificationServiceTestKit";
-import type { DiscountGuild, DiscountDeals } from "./notificationServiceTestKit";
-import type { DealInfo } from "../types";
+import { createDiscountNotificationService } from "../features/notifications/discountNotificationService.js";
+import { makeDiscountDeps, noopDiscordClient } from "./notificationServiceTestKit.js";
+import type { DiscountGuild, DiscountDeals } from "./notificationServiceTestKit.js";
+import type { DealInfo } from "../types.js";
 
 test("DiscountService: trimite reduceri noi care nu sunt in seenDiscounts", async () => {
   const { deps, sentPayloads, claims } = makeDiscountDeps();

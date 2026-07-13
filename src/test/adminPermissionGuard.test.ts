@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { makeInteraction, requireGuildAdmin } from "./adminGuardTestKit";
+import { makeInteraction, requireGuildAdmin } from "./adminGuardTestKit.js";
 
 test("admin guard accepts guild administrators without replying", async () => {
   const { interaction, replies } = makeInteraction(true);

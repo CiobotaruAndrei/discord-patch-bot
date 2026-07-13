@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { YouTubeChannelSubscription } from "../types";
+import type { YouTubeChannelSubscription } from "../types.js";
 import {
   MAX_YOUTUBE_CHANNELS,
   addYouTubeChannelSubscription,
@@ -13,7 +13,7 @@ import {
   removeYouTubeChannelSubscription,
   removeYouTubeRouteDestination,
   setYouTubeNotificationsEnabled
-} from "../features/youtube/youtubeGuildConfigRepository";
+} from "../features/youtube/youtubeGuildConfigRepository.js";
 
 type FoundDoc = {
   youtubeChannels?: Array<{ channelId: string }>;

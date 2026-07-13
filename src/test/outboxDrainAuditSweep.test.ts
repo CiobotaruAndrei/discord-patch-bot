@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOutboxRuntime, OutboxJob, DeliverResult, applyDedupeMarker, isDeliverableOutboxPayload, messageHasDedupeMarker, outboxDedupeMarker } from "../features/notifications/notificationOutbox";
-import { makeFakeModel, makeMetricsModel, makeRuntime, makeSweepRuntime, type OutboxModelMock, type OutboxSentModelMock } from "./outboxTestKit";
+import { createOutboxRuntime, OutboxJob, DeliverResult, applyDedupeMarker, isDeliverableOutboxPayload, messageHasDedupeMarker, outboxDedupeMarker } from "../features/notifications/notificationOutbox.js";
+import { makeFakeModel, makeMetricsModel, makeRuntime, makeSweepRuntime, type OutboxModelMock, type OutboxSentModelMock } from "./outboxTestKit.js";
 
 test("drainOutbox: o stergere esuata nu opreste drain-ul si se numara in deleteFailures", async () => {
   const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "dk1" };

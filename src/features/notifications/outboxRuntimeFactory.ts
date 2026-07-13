@@ -1,20 +1,22 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 "use strict";
 
-import type { OutboxHistoryEntry } from "./notificationOutbox";
-import type { OutboxDiscordClient } from "./outboundChannel";
-import type { NotificationsRuntimeDeps } from "./notificationRuntimeContracts";
+import type { OutboxHistoryEntry } from "./notificationOutbox.js";
+import type { OutboxDiscordClient } from "./outboundChannel.js";
+import type { NotificationsRuntimeDeps } from "./notificationRuntimeContracts.js";
 
 const {
   createOutboundChannelResolver,
   isPermanentDiscordError
-} = require("./outboundChannel") as typeof import("./outboundChannel");
-import { createHistoryRepository } from "./historyRepository";
-import { createOutboxRuntime, applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker } from "./notificationOutbox";
-import { createOutboxDelivery } from "./outboxDelivery";
-import { buildDeadLetterEntry, deadLetterTitleFromPayload } from "./deadLetter";
-import { recordDeadLetters } from "./deadLetterRepository";
-import { createDeadLetterReplayRepository } from "./deadLetterReplayRepository";
-import { createDefaultDiscordSendLimiter } from "./discordRateLimiter";
+} = require("./outboundChannel") as typeof import("./outboundChannel.js");
+import { createHistoryRepository } from "./historyRepository.js";
+import { createOutboxRuntime, applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker } from "./notificationOutbox.js";
+import { createOutboxDelivery } from "./outboxDelivery.js";
+import { buildDeadLetterEntry, deadLetterTitleFromPayload } from "./deadLetter.js";
+import { recordDeadLetters } from "./deadLetterRepository.js";
+import { createDeadLetterReplayRepository } from "./deadLetterReplayRepository.js";
+import { createDefaultDiscordSendLimiter } from "./discordRateLimiter.js";
 
 export const OUTBOX_MAX_ATTEMPTS = 5;
 export const OUTBOX_BACKOFF_MS = 60_000;

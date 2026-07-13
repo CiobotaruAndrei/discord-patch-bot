@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { renderBackupList, renderBackupPreview } from "../features/command-handlers/backupViews";
-import type { ConfigBackupRecord, GuildSettings } from "../features/../types";
+import { renderBackupList, renderBackupPreview } from "../features/command-handlers/backupViews.js";
+import type { ConfigBackupRecord, GuildSettings } from "../features/../types.js";
 
 function makeBackup(overrides: Partial<ConfigBackupRecord> = {}): ConfigBackupRecord {
   return {

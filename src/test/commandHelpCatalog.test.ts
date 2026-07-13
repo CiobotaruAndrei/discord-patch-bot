@@ -1,8 +1,10 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { COMMAND_HELP_ENTRIES, normalizeCommandHelpQuery, buildCommandHelpChoices, findCommandHelpEntry, renderCommandHelpEntry } from "../features/command-help/commandHelpCatalog";
-import { REPORT_TYPE_VALUES } from "../features/feedback/reportTypes";
+import { COMMAND_HELP_ENTRIES, normalizeCommandHelpQuery, buildCommandHelpChoices, findCommandHelpEntry, renderCommandHelpEntry } from "../features/command-help/commandHelpCatalog.js";
+import { REPORT_TYPE_VALUES } from "../features/feedback/reportTypes.js";
 
 import { SlashCommandBuilder, PermissionsBitField } from "discord.js";
 import fs from "fs";

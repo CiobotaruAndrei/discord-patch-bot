@@ -1,7 +1,9 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const mod = require("../features/command-handlers/healthInteractionHandler").default as typeof import("../features/command-handlers/healthInteractionHandler")["default"] & {
+const mod = require("../features/command-handlers/healthInteractionHandler").default as typeof import("../features/command-handlers/healthInteractionHandler.js")["default"] & {
   buildHealthEmbed: (snapshot: HealthSnapshot) => { title: string; description: string; color: number; fields: Array<{ name: string; value: string }>; footer: { text: string } };
   formatUptime: (seconds: number) => string;
 };

@@ -1,7 +1,7 @@
 "use strict";
 
-import type { MongoWriteOutcome, YouTubeChannelSubscription } from "../../types";
-import { MAX_YOUTUBE_ROUTE_DESTINATIONS, YOUTUBE_TITLE_WORD_LIMIT } from "./youtubeDeliveryPolicy";
+import type { MongoWriteOutcome, YouTubeChannelSubscription } from "../../types.js";
+import { MAX_YOUTUBE_ROUTE_DESTINATIONS, YOUTUBE_TITLE_WORD_LIMIT } from "./youtubeDeliveryPolicy.js";
 
 type MongoWriteResult = MongoWriteOutcome;
 

@@ -1,8 +1,8 @@
 "use strict";
 
-import type { ComponentCollector, InteractionMessage, NotificationMode } from "../../types";
-import type { ActionRowComponent, ButtonComponent, PresentationLogger } from "./presentationContracts";
-import { errorMessage } from "../../shared/errors";
+import type { ComponentCollector, InteractionMessage, NotificationMode } from "../../types.js";
+import type { ActionRowComponent, ButtonComponent, PresentationLogger } from "./presentationContracts.js";
+import { errorMessage } from "../../shared/errors.js";
 
 export interface PaginationControlsDeps {
   crypto: {

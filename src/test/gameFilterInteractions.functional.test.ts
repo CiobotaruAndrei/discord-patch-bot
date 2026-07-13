@@ -1,5 +1,5 @@
 import test from "node:test";
-import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit.js";
 import assert from "node:assert/strict";
 
 type GameFilterModule = ChainableCommandModule & {
@@ -11,7 +11,7 @@ type GameFilterModule = ChainableCommandModule & {
   };
 };
 
-import gameFilterInteractionsModule from "../features/command-handlers/gameFilterHandlers";
+import gameFilterInteractionsModule from "../features/command-handlers/gameFilterHandlers.js";
 const gameFilterInteractions = gameFilterInteractionsModule as object as GameFilterModule;
 
 type InteractionRuntime = {

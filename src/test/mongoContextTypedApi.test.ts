@@ -9,13 +9,13 @@ import type {
   JobLockDoc,
   NotificationHistoryDoc,
   NotificationOutboxDoc
-} from "../infra/mongo/modelTypes";
+} from "../infra/mongo/modelTypes.js";
 
 process.env.MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/itest-mongo-ctx-api";
 process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "test-token";
 process.env.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "test-client-id";
 
-type Mod = typeof import("../infra/mongo/mongoContext")["default"];
+type Mod = typeof import("../infra/mongo/mongoContext.js")["default"];
 type Expect<T extends true> = T;
 
 type _GuildModelIsMongooseModel = Expect<
@@ -45,7 +45,7 @@ type _ActiveLocksIsMap = Expect<
   Mod["activeLocks"] extends Map<string, unknown> ? true : false
 >;
 
-import mongoContext from "../infra/mongo/mongoContext";
+const mongoContext = (await import("../infra/mongo/mongoContext.js")).default;
 
 const MODEL_KEYS = [
   "GuildModel", "CircuitBreakerModel", "SystemModel", "JobLockModel", "AdminAlertCooldownModel",

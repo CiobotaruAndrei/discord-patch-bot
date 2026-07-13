@@ -1,18 +1,18 @@
 "use strict";
 
-import type { CurrencyCode, DiscordReplyPayload, GameConfig, GuildSettings, MongoWriteOutcome, PriceAlertRule } from "../../types";
+import type { CurrencyCode, DiscordReplyPayload, GameConfig, GuildSettings, MongoWriteOutcome, PriceAlertRule } from "../../types.js";
 import {
   MAX_PRICE_ALERTS_PER_GUILD,
   buildPriceAlertRule,
   buildPriceAlertUpsertPipeline,
   removePriceAlertsForGame,
   upsertPriceAlert
-} from "../notifications/priceAlertRepository";
-import type { CommandHandler } from "../command-registry/commandHandler";
-import { clampJoinedList } from "../command-presentation/discordListLimit";
+} from "../notifications/priceAlertRepository.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import { clampJoinedList } from "../command-presentation/discordListLimit.js";
 
-import { handledCommandError } from "../command-security/commandOutcome";
-import { errorDetail } from "../../shared/errors";
+import { handledCommandError } from "../command-security/commandOutcome.js";
+import { errorDetail } from "../../shared/errors.js";
 
 type InteractionPayload = DiscordReplyPayload;
 type MongoWriteResult = MongoWriteOutcome;

@@ -1,13 +1,13 @@
 "use strict";
 
-import type { NotificationsRuntimeDeps } from "./notificationRuntimeContracts";
-import type { OutboundChannelResolver } from "./outboxRuntimeFactory";
-import type { SeenServices } from "./seenRuntimeFactory";
-import { createReportRollbackFailure } from "./notificationRuntimeContracts";
+import type { NotificationsRuntimeDeps } from "./notificationRuntimeContracts.js";
+import type { OutboundChannelResolver } from "./outboxRuntimeFactory.js";
+import type { SeenServices } from "./seenRuntimeFactory.js";
+import { createReportRollbackFailure } from "./notificationRuntimeContracts.js";
 
-import { isPermanentDiscordError, transientErrorMessage } from "./outboundChannel";
-import { createDiscountNotificationService } from "./discountNotificationService";
-import { createPriceAlertService } from "./priceAlertService";
+import { isPermanentDiscordError, transientErrorMessage } from "./outboundChannel.js";
+import { createDiscountNotificationService } from "./discountNotificationService.js";
+import { createPriceAlertService } from "./priceAlertService.js";
 
 export function createDiscountNotificationRuntime(
   deps: NotificationsRuntimeDeps,

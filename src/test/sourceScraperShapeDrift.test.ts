@@ -2,9 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as cheerio from "cheerio";
 
-import attachUpdates from "../sources/updates";
-import attachDeals from "../sources/deals";
-import attachSteam from "../sources/steam";
+import attachUpdates from "../sources/updates/index.js";
+import attachDeals from "../sources/deals/index.js";
+import attachSteam from "../sources/steam/index.js";
 
 type UpdatesBuildContext = Parameters<typeof attachUpdates.buildFrom>[0];
 type DealsBuildContext = Parameters<typeof attachDeals.buildFrom>[0];

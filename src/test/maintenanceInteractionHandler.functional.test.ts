@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { GuildSettings } from "../types";
-import type { GuildConfigBackupRecord } from "../features/admin-records/configBackupRepository";
+import type { GuildSettings } from "../types.js";
+import type { GuildConfigBackupRecord } from "../features/admin-records/configBackupRepository.js";
 
-import installMaintenance from "../features/command-handlers/maintenanceInteractionHandler";
+import installMaintenance from "../features/command-handlers/maintenanceInteractionHandler.js";
 
 function makeBackupModel(docs: GuildConfigBackupRecord[]) {
   return {

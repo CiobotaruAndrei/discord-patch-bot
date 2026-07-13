@@ -1,10 +1,10 @@
 import test from "node:test";
-import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit.js";
 import assert from "node:assert/strict";
 
-import installGameFilterHandlers from "../features/command-handlers/gameFilterHandlers";
-import installStatusHandler from "../features/command-handlers/statusInteractionHandler";
-import installSetHandler from "../features/command-handlers/setInteractionHandler";
+import installGameFilterHandlers from "../features/command-handlers/gameFilterHandlers.js";
+import installStatusHandler from "../features/command-handlers/statusInteractionHandler.js";
+import installSetHandler from "../features/command-handlers/setInteractionHandler.js";
 
 function attachInteractions(context: Record<string, unknown>): void {
 

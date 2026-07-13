@@ -1,5 +1,7 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
-import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit.js";
 import assert from "node:assert/strict";
 
 type HelpModule = ChainableCommandModule & {
@@ -11,7 +13,7 @@ type InteractionRuntime = {
   handleInteraction: (interaction: unknown, games?: unknown[]) => Promise<unknown>;
 };
 
-import helpHandler from "../features/command-handlers/helpInteractionHandler";
+import helpHandler from "../features/command-handlers/helpInteractionHandler.js";
 import { SlashCommandBuilder, PermissionsBitField } from "discord.js";
 
 interface SlashJsonOption { type: number; name: string; options?: SlashJsonOption[] }

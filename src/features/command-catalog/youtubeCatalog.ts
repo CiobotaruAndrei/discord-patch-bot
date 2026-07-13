@@ -1,4 +1,4 @@
-import type { CommandAccessRule, CommandCatalogHelpEntry } from "./commandCatalogTypes";
+import type { CommandAccessRule, CommandCatalogHelpEntry } from "./commandCatalogTypes.js";
 
 export const YOUTUBE_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   { command: "youtube", access: "admin", discordAdminPermissions: true }

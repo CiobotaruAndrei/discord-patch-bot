@@ -2,7 +2,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateConfig } from "../config/configValidator";
+import { validateConfig } from "../config/configValidator.js";
 
 function baseConfig(overrides = {}) {
   return {

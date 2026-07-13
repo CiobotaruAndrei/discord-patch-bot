@@ -1,5 +1,5 @@
 import type * as Mongoose from "mongoose";
-import type { RuntimeEnv } from "../../types";
+import type { RuntimeEnv } from "../../types.js";
 
 export interface OutboxSchemasDeps {
   mongoose: typeof Mongoose;

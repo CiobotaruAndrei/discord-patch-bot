@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import mod from "../features/command-handlers/configInteractionHandler";
-import { buildConfigEmbed } from "../features/command-handlers/configView";
+import mod from "../features/command-handlers/configInteractionHandler.js";
+import { buildConfigEmbed } from "../features/command-handlers/configView.js";
 
 test("buildConfigEmbed afiseaza setarile importante ale serverului", () => {
   const embed = buildConfigEmbed({

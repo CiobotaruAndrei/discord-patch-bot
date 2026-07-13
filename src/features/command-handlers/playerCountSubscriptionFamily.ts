@@ -1,8 +1,8 @@
 "use strict";
 
-import type { GameConfig } from "../../types";
-import type { DiscordChannel, SubscriptionFamily, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts";
-import { createSubscriptionService } from "../notifications/subscriptionService";
+import type { GameConfig } from "../../types.js";
+import type { DiscordChannel, SubscriptionFamily, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts.js";
+import { createSubscriptionService } from "../notifications/subscriptionService.js";
 
 export function normalizeGameKey(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();

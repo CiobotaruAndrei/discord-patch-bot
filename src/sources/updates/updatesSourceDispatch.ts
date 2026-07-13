@@ -1,11 +1,11 @@
-import type { GameConfig, NormalizedUpdate } from "../../types";
-import { errorMessage } from "../../shared/errors";
-import { applyFallbackSource } from "./updateHelpers";
-import { createSteamUpdates } from "./steamUpdates";
-import { createListingUpdates } from "./listingUpdates";
-import { createDriverUpdates } from "./driverUpdates";
-import { createPlatformUpdates } from "./platformUpdates";
-import type { UpdatesDeps } from "./updatesContracts";
+import type { GameConfig, NormalizedUpdate } from "../../types.js";
+import { errorMessage } from "../../shared/errors.js";
+import { applyFallbackSource } from "./updateHelpers.js";
+import { createSteamUpdates } from "./steamUpdates.js";
+import { createListingUpdates } from "./listingUpdates.js";
+import { createDriverUpdates } from "./driverUpdates.js";
+import { createPlatformUpdates } from "./platformUpdates.js";
+import type { UpdatesDeps } from "./updatesContracts.js";
 
 export function createUpdatesSourceDispatch(deps: UpdatesDeps) {
   const { fetchSteamUpdate } = createSteamUpdates(deps);

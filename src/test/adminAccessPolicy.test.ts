@@ -1,7 +1,9 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
-import { decideAdminAccess, decideSensitiveAccess, isSensitiveUserAllowed } from "../features/command-security/adminAccessPolicy";
-import type { AdminAccessPolicyFacts } from "../features/command-security/adminAccessPolicy";
+import { decideAdminAccess, decideSensitiveAccess, isSensitiveUserAllowed } from "../features/command-security/adminAccessPolicy.js";
+import type { AdminAccessPolicyFacts } from "../features/command-security/adminAccessPolicy.js";
 
 function facts(overrides: Partial<AdminAccessPolicyFacts> = {}): AdminAccessPolicyFacts {
   return {

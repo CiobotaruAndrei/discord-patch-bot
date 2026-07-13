@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildSetUpdatePlan, type SetPlanInteraction } from "../features/command-handlers/setUpdatePlan";
+import { buildSetUpdatePlan, type SetPlanInteraction } from "../features/command-handlers/setUpdatePlan.js";
 
 const CURRENCIES = { EUR: {}, USD: {}, RON: {} };
 

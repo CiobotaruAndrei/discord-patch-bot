@@ -1,3 +1,5 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -6,7 +8,7 @@ process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "test-token";
 process.env.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "test-client-id";
 process.env.METRICS_PUBLIC = process.env.METRICS_PUBLIC || "true";
 
-import commandRegistry from "../features/command-registry/commandRegistry";
+const commandRegistry = (await import("../features/command-registry/commandRegistry.js")).default;
 const commandRuntimeContext = require("../features/command-runtime/commandRuntimeContext").default as {
   createCommandRuntimeContext: () => Record<string, unknown>;
 };

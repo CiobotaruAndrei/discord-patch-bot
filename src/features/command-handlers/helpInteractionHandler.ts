@@ -1,14 +1,16 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 "use strict";
 
-import type { LoggerFunction } from "../../types";
-import type { CommandHandler } from "../command-registry/commandHandler";
-import { matchesCommand } from "../command-registry/commandMatch";
+import type { LoggerFunction } from "../../types.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import { matchesCommand } from "../command-registry/commandMatch.js";
 
-import { errorDetail } from "../../shared/errors";
+import { errorDetail } from "../../shared/errors.js";
 const {
   findCommandHelpEntry,
   renderCommandHelpEntry
-} = require("../command-help/commandHelpCatalog") as typeof import("../command-help/commandHelpCatalog");
+} = require("../command-help/commandHelpCatalog") as typeof import("../command-help/commandHelpCatalog.js");
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;

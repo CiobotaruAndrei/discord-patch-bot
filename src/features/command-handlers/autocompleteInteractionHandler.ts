@@ -1,6 +1,6 @@
 "use strict";
 
-import type { CommandHandler } from "../command-registry/commandHandler";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
 import {
   createAutocompleteChoiceBuilders,
   MAX_AUTOCOMPLETE_INPUT_LEN,
@@ -11,12 +11,12 @@ import {
   type GameConfig,
   type GuildSettingsLite,
   type Logger
-} from "./autocompleteChoiceBuilders";
+} from "./autocompleteChoiceBuilders.js";
 
-import { errorMessage, errorDetail } from "../../shared/errors";
-import { buildAutocompleteChoices } from "../../native/fuzzy";
-import { buildCommandHelpChoices } from "../command-help/commandHelpCatalog";
-import { buildSettableAdminScopeChoices } from "../command-security/adminSettableScopeCatalog";
+import { errorMessage, errorDetail } from "../../shared/errors.js";
+import { buildAutocompleteChoices } from "../../native/fuzzy.js";
+import { buildCommandHelpChoices } from "../command-help/commandHelpCatalog.js";
+import { buildSettableAdminScopeChoices } from "../command-security/adminSettableScopeCatalog.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type FocusedOption = { name?: string; value?: unknown };

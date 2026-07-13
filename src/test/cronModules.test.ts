@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { BotConfig, RuntimeEnv } from "../types";
-import { createCronHealthWindow } from "../app/scheduler/cronHealthWindow";
-import { resolveCronScheduleConfig } from "../app/scheduler/cronScheduleConfig";
-import { buildCronCycleJobs, runCronJobs, type CronCommandsForJobs } from "../app/scheduler/cronJobRunner";
+import type { BotConfig, RuntimeEnv } from "../types.js";
+import { createCronHealthWindow } from "../app/scheduler/cronHealthWindow.js";
+import { resolveCronScheduleConfig } from "../app/scheduler/cronScheduleConfig.js";
+import { buildCronCycleJobs, runCronJobs, type CronCommandsForJobs } from "../app/scheduler/cronJobRunner.js";
 
 function makeEnv(overrides: Partial<RuntimeEnv> = {}): RuntimeEnv {
   return { GLOBAL_HEALTH_WINDOW: 5, GLOBAL_HEALTH_MIN_RATIO: 40, ...overrides } as RuntimeEnv;

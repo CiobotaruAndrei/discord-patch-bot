@@ -3,13 +3,13 @@ import type {
   DealInfo,
   FetchDealsOptions,
   LoggerFunction
-} from "../../types";
-import type { DealsApi } from "../sourceApis";
-import type { DealCurrencyCode, HttpReq, TrackInflight, WithInflightTimeout } from "./dealHelpers";
-import { dedupeAndRankDeals } from "./dealHelpers";
-import { createSteamDeals } from "./steamDeals";
-import { createEpicDeals } from "./epicDeals";
-import { createDealEnrichment } from "./dealEnrichment";
+} from "../../types.js";
+import type { DealsApi } from "../sourceApis.js";
+import type { DealCurrencyCode, HttpReq, TrackInflight, WithInflightTimeout } from "./dealHelpers.js";
+import { dedupeAndRankDeals } from "./dealHelpers.js";
+import { createSteamDeals } from "./steamDeals.js";
+import { createEpicDeals } from "./epicDeals.js";
+import { createDealEnrichment } from "./dealEnrichment.js";
 
 interface DealsDeps {
   logger: LoggerFunction;

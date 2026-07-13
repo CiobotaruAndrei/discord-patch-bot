@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { strictEnvFloat, strictEnvInt } from "../scripts/benchmarkEnv";
+import { strictEnvFloat, strictEnvInt } from "../scripts/benchmarkEnv.js";
 
 const VAR = "BENCH_ENV_TEST_VAR";
 

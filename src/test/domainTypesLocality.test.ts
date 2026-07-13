@@ -1,3 +1,5 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -27,11 +29,11 @@ import type {
   YouTubeChannelSubscription as AggregatedYouTubeChannelSubscription,
   YouTubeVideo as AggregatedYouTubeVideo,
   YouTubeVideoMetadata as AggregatedYouTubeVideoMetadata
-} from "../types";
+} from "../types.js";
 import type {
   ConfigBackupRecord,
   FutureReleaseGameEntry
-} from "../features/admin-records/adminRecordsTypes";
+} from "../features/admin-records/adminRecordsTypes.js";
 import type {
   DeadLetterEntry,
   LastErrorInfo,
@@ -39,23 +41,23 @@ import type {
   PendingDiscount,
   PendingUpdate,
   PriceAlertRule
-} from "../features/notifications/notificationTypes";
+} from "../features/notifications/notificationTypes.js";
 import type {
   YouTubeChannelSubscription,
   YouTubeVideo,
   YouTubeVideoMetadata
-} from "../features/youtube/youtubeTypes";
-import type { DealInfo, FetchResult, NormalizedUpdate } from "../sources/sourceTypes";
+} from "../features/youtube/youtubeTypes.js";
+import type { DealInfo, FetchResult, NormalizedUpdate } from "../sources/sourceTypes.js";
 import type {
   BotConfig,
   ConfigLoadResult,
   GameConfig,
   GameSourceFallback,
   GameType
-} from "../config/configTypes";
-import type { BotMetrics } from "../app/health/metricsTypes";
-import type { RateLimitBucket, RateLimiter, RateLimitRequest } from "../app/health/rateLimitTypes";
-import type { CronController, CronHealthSnapshot } from "../app/scheduler/schedulerTypes";
+} from "../config/configTypes.js";
+import type { BotMetrics } from "../app/health/metricsTypes.js";
+import type { RateLimitBucket, RateLimiter, RateLimitRequest } from "../app/health/rateLimitTypes.js";
+import type { CronController, CronHealthSnapshot } from "../app/scheduler/schedulerTypes.js";
 
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 
@@ -142,9 +144,9 @@ test("modulele de domeniu detin definitiile (nu agregatorul types.ts): config/he
   assert.ok(!/\nexport interface BotMetrics\b/.test(aggregator), "BotMetrics nu mai e definit inline in types.ts");
   assert.ok(!/\nexport interface RateLimiter\b/.test(aggregator), "RateLimiter nu mai e definit inline in types.ts");
   assert.ok(!/\nexport interface CronController\b/.test(aggregator), "CronController nu mai e definit inline in types.ts");
-  assert.match(aggregator, /export type \{[\s\S]*?GameConfig[\s\S]*?\} from "\.\/config\/configTypes"/);
-  assert.match(aggregator, /export type \{ BotMetrics \} from "\.\/app\/health\/metricsTypes"/);
-  assert.match(aggregator, /from "\.\/app\/scheduler\/schedulerTypes"/);
+  assert.match(aggregator, /export type \{[\s\S]*?GameConfig[\s\S]*?\} from "\.\/config\/configTypes\.js"/);
+  assert.match(aggregator, /export type \{ BotMetrics \} from "\.\/app\/health\/metricsTypes\.js"/);
+  assert.match(aggregator, /from "\.\/app\/scheduler\/schedulerTypes\.js"/);
 });
 
 test("DealInfo este un tip INCHIS (fara index signature) — normalizarea sursa->consum e completa (R12 #3, runda 10)", () => {

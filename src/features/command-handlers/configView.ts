@@ -1,7 +1,7 @@
 "use strict";
 
-import type { CurrencyCode, GameConfig, GuildSettings, NotificationMode } from "../../types";
-import { clampJoinedList } from "../command-presentation/discordListLimit";
+import type { CurrencyCode, GameConfig, GuildSettings, NotificationMode } from "../../types.js";
+import { clampJoinedList } from "../command-presentation/discordListLimit.js";
 
 export interface ConfigEmbed {
   title: string;

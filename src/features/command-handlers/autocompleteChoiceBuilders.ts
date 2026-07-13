@@ -1,6 +1,6 @@
 "use strict";
 
-import { errorMessage } from "../../shared/errors";
+import { errorMessage } from "../../shared/errors.js";
 
 export type GameConfig = { key: string; name: string; aliases?: string[] } & Record<string, unknown>;
 export type AutocompleteChoice = { name: string; value: string };

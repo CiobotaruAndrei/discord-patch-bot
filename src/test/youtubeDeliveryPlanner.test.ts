@@ -1,14 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { YouTubeChannelSubscription, YouTubeVideo, YouTubeVideoMetadata } from "../types";
+import type { YouTubeChannelSubscription, YouTubeVideo, YouTubeVideoMetadata } from "../types.js";
 import {
   buildYouTubeEmbed,
   packYouTubeDeliveries,
   sortedVideos,
   type PreparedVideo
-} from "../features/youtube/youtubeDeliveryPlanner";
-import { YOUTUBE_BATCH_SIZE } from "../features/youtube/youtubeDeliveryPolicy";
+} from "../features/youtube/youtubeDeliveryPlanner.js";
+import { YOUTUBE_BATCH_SIZE } from "../features/youtube/youtubeDeliveryPolicy.js";
 
 function makeChannel(overrides: Partial<YouTubeChannelSubscription> = {}): YouTubeChannelSubscription {
   return {

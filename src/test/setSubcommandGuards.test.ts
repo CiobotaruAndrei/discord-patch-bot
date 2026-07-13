@@ -1,10 +1,10 @@
 import test from "node:test";
-import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit.js";
 import assert from "node:assert/strict";
 
-import installSetHandler from "../features/command-handlers/setInteractionHandler";
-import installGameFilterHandlers from "../features/command-handlers/gameFilterHandlers";
-import installRolePingHandlers from "../features/command-handlers/rolePingHandlers";
+import installSetHandler from "../features/command-handlers/setInteractionHandler.js";
+import installGameFilterHandlers from "../features/command-handlers/gameFilterHandlers.js";
+import installRolePingHandlers from "../features/command-handlers/rolePingHandlers.js";
 
 type InteractionRuntime = {
   handleInteraction: (interaction: unknown, games?: Array<Record<string, unknown>>) => Promise<unknown>;

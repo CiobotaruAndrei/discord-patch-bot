@@ -1,17 +1,17 @@
 "use strict";
 
-import type { CommandHandler } from "../command-registry/commandHandler";
-import { matchesCommand } from "../command-registry/commandMatch";
-import type { LatestUpdatesHandlerDeps } from "./latest/latestUpdatesHandler";
-import type { LatestDealsHandlerDeps } from "./latest/latestDealsHandler";
-import type { LatestSingleHandlerDeps } from "./latest/latestSingleHandler";
-import type { PriceSearchHandlerDeps } from "./latest/priceSearchHandler";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import { matchesCommand } from "../command-registry/commandMatch.js";
+import type { LatestUpdatesHandlerDeps } from "./latest/latestUpdatesHandler.js";
+import type { LatestDealsHandlerDeps } from "./latest/latestDealsHandler.js";
+import type { LatestSingleHandlerDeps } from "./latest/latestSingleHandler.js";
+import type { PriceSearchHandlerDeps } from "./latest/priceSearchHandler.js";
 
-import { errorDetail } from "../../shared/errors";
-import { createLatestUpdatesHandler } from "./latest/latestUpdatesHandler";
-import { createLatestDealsHandler } from "./latest/latestDealsHandler";
-import { createLatestSingleHandler } from "./latest/latestSingleHandler";
-import { createPriceSearchHandler } from "./latest/priceSearchHandler";
+import { errorDetail } from "../../shared/errors.js";
+import { createLatestUpdatesHandler } from "./latest/latestUpdatesHandler.js";
+import { createLatestDealsHandler } from "./latest/latestDealsHandler.js";
+import { createLatestSingleHandler } from "./latest/latestSingleHandler.js";
+import { createPriceSearchHandler } from "./latest/priceSearchHandler.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;

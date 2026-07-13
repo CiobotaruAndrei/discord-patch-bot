@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createOutboxAdminViews, formatDeadLetterEntry, type OutboxAdminViewsDeps } from "../features/command-handlers/outboxAdminViews";
+import { createOutboxAdminViews, formatDeadLetterEntry, type OutboxAdminViewsDeps } from "../features/command-handlers/outboxAdminViews.js";
 
 const emptyDeadLetterModel: OutboxAdminViewsDeps["GuildDeadLetterModel"] = {
   countDocuments: async () => 0,

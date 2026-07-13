@@ -9,7 +9,7 @@ import {
   recordBotAuditEntry,
   recordServerAuditEntry,
   type GuildAuditLogRecord
-} from "../features/admin-records/auditLogRepository";
+} from "../features/admin-records/auditLogRepository.js";
 
 function makeAuditModel(seed: GuildAuditLogRecord[] = []) {
   const docs: GuildAuditLogRecord[] = [...seed];

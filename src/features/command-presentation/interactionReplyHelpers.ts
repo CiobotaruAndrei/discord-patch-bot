@@ -1,8 +1,8 @@
 "use strict";
 
-import type { InteractionMessage } from "../../types";
-import type { CommandLogEnd, DeferEditInteraction, LoggableInteraction, PresentationLogger } from "./presentationContracts";
-import { errorMessage } from "../../shared/errors";
+import type { InteractionMessage } from "../../types.js";
+import type { CommandLogEnd, DeferEditInteraction, LoggableInteraction, PresentationLogger } from "./presentationContracts.js";
+import { errorMessage } from "../../shared/errors.js";
 
 export interface InteractionReplyHelpersDeps {
   logger: PresentationLogger;

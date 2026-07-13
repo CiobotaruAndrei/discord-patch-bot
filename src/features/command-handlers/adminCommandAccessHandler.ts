@@ -1,24 +1,26 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 "use strict";
 
-import type { CommandGame, CommandHandler } from "../command-registry/commandHandler";
+import type { CommandGame, CommandHandler } from "../command-registry/commandHandler.js";
 
-import { handledCommandError } from "../command-security/commandOutcome";
-import { deleteAdminAccessRule, loadAdminAccessDoc, saveAdminAccessRule } from "../command-security/adminAccessRepository";
-import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository";
+import { handledCommandError } from "../command-security/commandOutcome.js";
+import { deleteAdminAccessRule, loadAdminAccessDoc, saveAdminAccessRule } from "../command-security/adminAccessRepository.js";
+import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
 import {
   buildAdminCommandAccessScopeLookupKeys,
   displayAdminCommandAccessScope,
   normalizeAdminCommandAccessScope
-} from "../command-security/adminCommandAccessScope";
+} from "../command-security/adminCommandAccessScope.js";
 import {
   formatAccessList,
   formatScopedAccess,
   labelMode,
   normalizeMode,
   type GuildAdminAccessDoc
-} from "./adminCommandAccessViews";
-import { parseAdminScopeId } from "../command-security/adminScopeIds";
-import { errorDetail } from "../../shared/errors";
+} from "./adminCommandAccessViews.js";
+import { parseAdminScopeId } from "../command-security/adminScopeIds.js";
+import { errorDetail } from "../../shared/errors.js";
 
 type InteractionPayload = string | { content: string; flags?: number };
 

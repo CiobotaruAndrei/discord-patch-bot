@@ -1,13 +1,15 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 "use strict";
 
-import type { GameConfig, GuildSettings, LoggerFunction } from "../../types";
+import type { GameConfig, GuildSettings, LoggerFunction } from "../../types.js";
 
 const {
   buildInteractionCommandPath,
   commandCanBeSnoozed,
   displayCommandPath,
   readCommandSnoozeUntil
-} = require("../command-snooze/commandSnoozeState") as typeof import("../command-snooze/commandSnoozeState");
+} = require("../command-snooze/commandSnoozeState") as typeof import("../command-snooze/commandSnoozeState.js");
 
 type MaybePromise<T> = T | Promise<T>;
 type InteractionPayload = { content: string; flags: number };

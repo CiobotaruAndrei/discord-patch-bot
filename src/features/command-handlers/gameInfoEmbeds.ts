@@ -5,7 +5,7 @@ export type {
   DiscordEmbedField,
   FormatPrice,
   SafeCheerioLoad
-} from "./gameInfoEmbedPrimitives";
+} from "./gameInfoEmbedPrimitives.js";
 export {
   DEAL_COLOR,
   INFO_COLOR,
@@ -21,9 +21,9 @@ export {
   parseDateMs,
   platformList,
   requirementValue
-} from "./gameInfoEmbedPrimitives";
+} from "./gameInfoEmbedPrimitives.js";
 
-export type { EndingDealsEmbedDeps } from "./dealsEmbeds";
+export type { EndingDealsEmbedDeps } from "./dealsEmbeds.js";
 export {
   buildBestDealsEmbed,
   buildEndingDealsEmbed,
@@ -32,23 +32,23 @@ export {
   endText,
   findExternalStores,
   formatDealLine
-} from "./dealsEmbeds";
+} from "./dealsEmbeds.js";
 
 export {
   buildCoopEmbed,
   buildCrossplayEmbed,
   buildPlatformsEmbed,
   buildReviewTrendEmbed
-} from "./comparisonEmbeds";
+} from "./comparisonEmbeds.js";
 
 export {
   buildGameSizeEmbed,
   buildSystemRequirementsEmbed
-} from "./steamMetadataEmbeds";
+} from "./steamMetadataEmbeds.js";
 
 export {
   buildPlayerCountEmbed,
   buildTopActiveGamesEmbed,
   formatPlayerCount,
   selectTopActiveGames
-} from "./playerCountEmbeds";
+} from "./playerCountEmbeds.js";

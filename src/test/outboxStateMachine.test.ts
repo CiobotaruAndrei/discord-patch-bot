@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { OutboxJob } from "../features/notifications/outboxTypes";
-import { backoffWithJitter, createOutboxStateMachine, type OutboxStateMachineDeps } from "../features/notifications/outboxStateMachine";
+import type { OutboxJob } from "../features/notifications/outboxTypes.js";
+import { backoffWithJitter, createOutboxStateMachine, type OutboxStateMachineDeps } from "../features/notifications/outboxStateMachine.js";
 
 function makeJob(overrides: Partial<OutboxJob> = {}): OutboxJob {
   return {

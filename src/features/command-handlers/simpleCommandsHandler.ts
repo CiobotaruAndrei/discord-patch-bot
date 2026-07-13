@@ -1,9 +1,9 @@
 "use strict";
 
-import type { LoggerFunction } from "../../types";
-import type { CommandHandler } from "../command-registry/commandHandler";
+import type { LoggerFunction } from "../../types.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
 
-import { errorDetail } from "../../shared/errors";
+import { errorDetail } from "../../shared/errors.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string; aliases?: string[] } & Record<string, unknown>;

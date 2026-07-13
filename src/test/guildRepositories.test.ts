@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
-import { loadAdminAccessDoc, saveAdminAccessRule, deleteAdminAccessRule } from "../features/command-security/adminAccessRepository";
-import { parseAdminScopeId } from "../features/command-security/adminScopeIds";
-import { upsertPriceAlert, removePriceAlertsForGame, buildPriceAlertRule, MAX_PRICE_ALERTS_PER_GUILD } from "../features/notifications/priceAlertRepository";
+import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository.js";
+import { loadAdminAccessDoc, saveAdminAccessRule, deleteAdminAccessRule } from "../features/command-security/adminAccessRepository.js";
+import { parseAdminScopeId } from "../features/command-security/adminScopeIds.js";
+import { upsertPriceAlert, removePriceAlertsForGame, buildPriceAlertRule, MAX_PRICE_ALERTS_PER_GUILD } from "../features/notifications/priceAlertRepository.js";
 import {
   resetGuildConfigurationWithAudit,
   setAdminAlertChannel,
@@ -12,9 +12,9 @@ import {
   removeWatchlistGame,
   setCommandSnooze,
   clearCommandSnooze
-} from "../features/guild-config/guildConfigRepository";
-import { buildResetConfiguration } from "../features/guild-config/guildConfigDefaults";
-import type { PriceAlertRule } from "../types";
+} from "../features/guild-config/guildConfigRepository.js";
+import { buildResetConfiguration } from "../features/guild-config/guildConfigDefaults.js";
+import type { PriceAlertRule } from "../types.js";
 
 test("guildConfigRepository: scrierile /set (config/watchlist/snooze) pastreaza forma exacta a fiecarui operator (runda 10)", async () => {
   const calls: Array<{ filter: object; update: Record<string, unknown>; options?: Record<string, unknown> }> = [];

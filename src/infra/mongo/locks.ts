@@ -1,5 +1,5 @@
-import type { ActiveLocks, LockToken } from "../../types";
-import { errorMessage } from "../../shared/errors";
+import type { ActiveLocks, LockToken } from "../../types.js";
+import { errorMessage } from "../../shared/errors.js";
 
 type LockLogger = (level: "WARN", context: string, message: string, meta?: unknown) => void;
 

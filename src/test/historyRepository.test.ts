@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import * as mod from "../features/notifications/historyRepository";
+import * as mod from "../features/notifications/historyRepository.js";
 const { sanitizeHistoryDocs, clampHistoryLimit, createHistoryRepository, buildHistoryDedupeKey } = mod;
 
 const passThroughRetry = <T>(fn: () => Promise<T>): Promise<T> => fn();

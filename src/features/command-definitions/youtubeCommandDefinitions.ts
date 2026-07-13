@@ -1,4 +1,4 @@
-import type { SlashCommandJsonSource, SlashDefinitionTools } from "./slashDefinitionTools";
+import type { SlashCommandJsonSource, SlashDefinitionTools } from "./slashDefinitionTools.js";
 
 export function buildYouTubeCommandDefinitions({ SlashCommandBuilder, PermissionsBitField }: SlashDefinitionTools): SlashCommandJsonSource[] {
   return [

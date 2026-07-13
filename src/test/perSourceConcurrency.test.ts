@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as crypto from "crypto";
 import { load as cheerioLoad } from "cheerio";
-import type { GameConfig, FetchResult, NormalizedUpdate } from "../types";
-import attachUpdates from "../sources/updates";
+import type { GameConfig, FetchResult, NormalizedUpdate } from "../types.js";
+import attachUpdates from "../sources/updates/index.js";
 
 type UpdatesContext = Parameters<typeof attachUpdates.buildFrom>[0];
 type GetLatest = (games: GameConfig[]) => Promise<FetchResult[]>;

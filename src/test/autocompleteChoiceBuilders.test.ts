@@ -5,7 +5,7 @@ import {
   createAutocompleteChoiceBuilders,
   type GameConfig,
   type GuildSettingsLite
-} from "../features/command-handlers/autocompleteChoiceBuilders";
+} from "../features/command-handlers/autocompleteChoiceBuilders.js";
 
 const GUILD = { id: "guild-1" };
 

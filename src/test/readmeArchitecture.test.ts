@@ -26,7 +26,7 @@ test("README descrie migrarea ca finalizata la nivel de factory-uri, cu granitel
 test("README documenteaza politica de imagini Docker si de rebuild (tag-uri mutabile + compensatii)", () => {
   const text = read();
   assert.match(text, /Politica de imagini si rebuild/i, "exista sectiunea de politica Docker");
-  assert.match(text, /node:20-bookworm-slim/, "numeste imaginea de baza a botului");
+  assert.match(text, /node:24-bookworm-slim/, "numeste imaginea de baza a botului");
   assert.match(text, /mongo:7/, "numeste imaginea de Mongo");
   assert.match(text, /Trivy/i, "documenteaza scanarea blocanta drept compensatie");
   assert.match(text, /apt-get upgrade/, "documenteaza patch-urile distro la build");

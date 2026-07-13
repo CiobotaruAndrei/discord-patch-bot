@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { LifecycleDiscordChannel } from "../app/lifecycle/lifecycleContracts";
+import type { LifecycleDiscordChannel } from "../app/lifecycle/lifecycleContracts.js";
 
-import * as mod from "../app/lifecycle/guildOnboarding";
+import * as mod from "../app/lifecycle/guildOnboarding.js";
 const { buildOnboardingEmbed, selectOnboardingChannel, createGuildOnboarding } = mod;
 
 interface FakeChannel { id: string; sendable: boolean; send?: (payload: unknown) => Promise<unknown>; }

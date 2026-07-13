@@ -4,7 +4,7 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import Parser from "rss-parser";
 import crypto from "crypto";
-import mongoContext from "../infra/mongo/mongoContext";
+import mongoContext from "../infra/mongo/mongoContext.js";
 
 const {
   env,

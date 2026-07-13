@@ -1,4 +1,4 @@
-import type { CommandAccessRule, CommandCatalogHelpEntry } from "./commandCatalogTypes";
+import type { CommandAccessRule, CommandCatalogHelpEntry } from "./commandCatalogTypes.js";
 
 export const CORE_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   { command: "ping", access: "public", discordAdminPermissions: false },

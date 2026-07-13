@@ -8,9 +8,9 @@ import type {
   LoggerFunction,
   RateLimiter,
   RuntimeEnv
-} from "../../types";
-import { getNativeFallbackTotals, NATIVE_FALLBACK_FUNCTIONS } from "../../native/fuzzy";
-import { errorMessage } from "../../shared/errors";
+} from "../../types.js";
+import { getNativeFallbackTotals, NATIVE_FALLBACK_FUNCTIONS } from "../../native/fuzzy.js";
+import { errorMessage } from "../../shared/errors.js";
 
 interface MongooseLike {
   connection: { readyState: number };

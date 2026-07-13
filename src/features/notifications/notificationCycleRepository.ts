@@ -1,8 +1,8 @@
 "use strict";
 
-import type { MongoWriteOutcome } from "../../types";
-import type { DeadLetterEntry } from "./deadLetter";
-import { recordDeadLetters, type DeadLetterModelLike } from "./deadLetterRepository";
+import type { MongoWriteOutcome } from "../../types.js";
+import type { DeadLetterEntry } from "./deadLetter.js";
+import { recordDeadLetters, type DeadLetterModelLike } from "./deadLetterRepository.js";
 
 export interface CycleGuildModelLike {
   updateOne(filter: Record<string, unknown>, update: unknown): Promise<MongoWriteOutcome>;

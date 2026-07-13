@@ -1,4 +1,4 @@
-import type { LockToken, LoggerFunction } from "../../types";
+import type { LockToken, LoggerFunction } from "../../types.js";
 
 interface MigrationCollectionLike {
   updateMany(filter: object, update: object): Promise<unknown>;

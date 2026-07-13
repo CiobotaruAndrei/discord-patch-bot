@@ -5,7 +5,7 @@ process.env.MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/ites
 process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "test-token";
 process.env.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "test-client-id";
 
-import mongoContext from "../infra/mongo/mongoContext";
+const mongoContext = (await import("../infra/mongo/mongoContext.js")).default;
 
 const EXPECTED_MODELS = [
   "GuildModel",

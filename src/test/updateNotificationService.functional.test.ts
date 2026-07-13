@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createUpdateNotificationService } from "../features/notifications/updateNotificationService";
-import { makeUpdateDeps, noopDiscordClient } from "./notificationServiceTestKit";
-import type { UpdateGuild, UpdateResults } from "./notificationServiceTestKit";
+import { createUpdateNotificationService } from "../features/notifications/updateNotificationService.js";
+import { makeUpdateDeps, noopDiscordClient } from "./notificationServiceTestKit.js";
+import type { UpdateGuild, UpdateResults } from "./notificationServiceTestKit.js";
 
 test("UpdateService: buildOptimizedGameList filtreaza la jocurile active pe macar un guild", () => {
   const { deps } = makeUpdateDeps();

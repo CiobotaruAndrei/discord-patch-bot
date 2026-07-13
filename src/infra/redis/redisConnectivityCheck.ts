@@ -1,4 +1,4 @@
-import { errorMessage } from "../../shared/errors";
+import { errorMessage } from "../../shared/errors.js";
 
 interface RedisConnectivityRuntime {
   readonly enabled: boolean;

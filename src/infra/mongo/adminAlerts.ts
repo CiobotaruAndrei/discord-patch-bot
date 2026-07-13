@@ -1,9 +1,9 @@
 import type { AxiosStatic } from "axios";
 import type { Model } from "mongoose";
-import type { LoggerFunction, RuntimeEnv } from "../../types";
-import { errorMessage } from "../../shared/errors";
-import { buildAdminAlertEmbed, toAdminAlertChannelPayload, toAdminAlertWebhookPayload } from "./adminAlertContent";
-import type { AdminAlertEmbedPayload } from "./adminAlertContent";
+import type { LoggerFunction, RuntimeEnv } from "../../types.js";
+import { errorMessage } from "../../shared/errors.js";
+import { buildAdminAlertEmbed, toAdminAlertChannelPayload, toAdminAlertWebhookPayload } from "./adminAlertContent.js";
+import type { AdminAlertEmbedPayload } from "./adminAlertContent.js";
 
 interface AdminAlertCooldownDoc {
   _id: string;

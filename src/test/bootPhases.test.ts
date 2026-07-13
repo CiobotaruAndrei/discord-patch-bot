@@ -6,7 +6,7 @@ import {
   runDatabaseStartupPhase,
   runDiscordStartupPhase,
   runHttpStartupPhase
-} from "../app/lifecycle/bootPhases";
+} from "../app/lifecycle/bootPhases.js";
 
 function makeLog() {
   const lines: Array<{ level: string; context: string; message: string }> = [];

@@ -2,15 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SlashCommandBuilder, PermissionsBitField } from "discord.js";
 
-import type { SlashCommandJsonSource, SlashDefinitionTools } from "../features/command-definitions/slashDefinitionTools";
-import { buildAdminCommandDefinitions } from "../features/command-definitions/adminCommandDefinitions";
-import { buildCoreCommandDefinitions } from "../features/command-definitions/coreCommandDefinitions";
-import { buildDealsCommandDefinitions } from "../features/command-definitions/dealsCommandDefinitions";
-import { buildGameInfoCommandDefinitions } from "../features/command-definitions/gameInfoCommandDefinitions";
-import { buildNotificationCommandDefinitions } from "../features/command-definitions/notificationCommandDefinitions";
-import { buildOutboxCommandDefinitions } from "../features/command-definitions/outboxCommandDefinitions";
-import { buildYouTubeCommandDefinitions } from "../features/command-definitions/youtubeCommandDefinitions";
-import attachSlashCommands from "../features/command-definitions/slashCommandDefinitions";
+import type { SlashCommandJsonSource, SlashDefinitionTools } from "../features/command-definitions/slashDefinitionTools.js";
+import { buildAdminCommandDefinitions } from "../features/command-definitions/adminCommandDefinitions.js";
+import { buildCoreCommandDefinitions } from "../features/command-definitions/coreCommandDefinitions.js";
+import { buildDealsCommandDefinitions } from "../features/command-definitions/dealsCommandDefinitions.js";
+import { buildGameInfoCommandDefinitions } from "../features/command-definitions/gameInfoCommandDefinitions.js";
+import { buildNotificationCommandDefinitions } from "../features/command-definitions/notificationCommandDefinitions.js";
+import { buildOutboxCommandDefinitions } from "../features/command-definitions/outboxCommandDefinitions.js";
+import { buildYouTubeCommandDefinitions } from "../features/command-definitions/youtubeCommandDefinitions.js";
+import attachSlashCommands from "../features/command-definitions/slashCommandDefinitions.js";
 
 const tools: SlashDefinitionTools = {
   SlashCommandBuilder,

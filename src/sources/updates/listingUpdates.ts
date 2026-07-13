@@ -1,11 +1,11 @@
-import { requestOptionsFor } from "../sourcePolicies";
+import { requestOptionsFor } from "../sourcePolicies.js";
 import type { CheerioAPI } from "cheerio";
-import type { GameConfig, NormalizedUpdate, PatchUpdate } from "../../types";
-import { rankListingCandidates } from "../../native/fuzzy";
-import { errorMessage } from "../../shared/errors";
-import type { ListingCandidate } from "../sourceApis";
-import { absoluteUrl, getArticleHrefRegex, scoreCandidate } from "./updateHelpers";
-import type { CheerioSelector, HttpReq, RunConcurrent, SchemaDriftErrorClass } from "./updateHelpers";
+import type { GameConfig, NormalizedUpdate, PatchUpdate } from "../../types.js";
+import { rankListingCandidates } from "../../native/fuzzy.js";
+import { errorMessage } from "../../shared/errors.js";
+import type { ListingCandidate } from "../sourceApis.js";
+import { absoluteUrl, getArticleHrefRegex, scoreCandidate } from "./updateHelpers.js";
+import type { CheerioSelector, HttpReq, RunConcurrent, SchemaDriftErrorClass } from "./updateHelpers.js";
 
 interface ListingUpdatesDeps {
   httpReq: HttpReq;

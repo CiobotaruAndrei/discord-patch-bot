@@ -1,8 +1,8 @@
 "use strict";
 
-import type { DealInfo, GuildSettings, InteractionMessage, ValidatedDealInfo } from "../../../types";
+import type { DealInfo, GuildSettings, InteractionMessage, ValidatedDealInfo } from "../../../types.js";
 
-import { errorMessage } from "../../../shared/errors";
+import { errorMessage } from "../../../shared/errors.js";
 
 type NotificationMode = "compact" | "detailed";
 

@@ -1,7 +1,7 @@
 "use strict";
 
-import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository";
-import type { AdminCommandAccessByCommand, AdminCommandAccessConfig } from "./adminCommandAccessScope";
+import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
+import type { AdminCommandAccessByCommand, AdminCommandAccessConfig } from "./adminCommandAccessScope.js";
 
 export type MaybePromise<T> = T | Promise<T>;
 export type AdminGuardGameConfig = { key: string; name: string } & Record<string, unknown>;

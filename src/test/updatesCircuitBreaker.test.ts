@@ -2,10 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as crypto from "crypto";
 import { load as cheerioLoad } from "cheerio";
-import type { GameConfig, NormalizedUpdate } from "../types";
-import { createUpdatesCircuitBreaker } from "../sources/updates/updatesCircuitBreaker";
-import { createUpdatesSourceDispatch } from "../sources/updates/updatesSourceDispatch";
-import type { CircuitBreakerDoc, UpdatesDeps } from "../sources/updates/updatesContracts";
+import type { GameConfig, NormalizedUpdate } from "../types.js";
+import { createUpdatesCircuitBreaker } from "../sources/updates/updatesCircuitBreaker.js";
+import { createUpdatesSourceDispatch } from "../sources/updates/updatesSourceDispatch.js";
+import type { CircuitBreakerDoc, UpdatesDeps } from "../sources/updates/updatesContracts.js";
 
 class TestSchemaDriftError extends Error {
   source?: string;
@@ -127,7 +127,7 @@ test("createUpdatesSourceDispatch: fetchGameUpdate incearca fallback-urile si ad
   );
 });
 
-import { classifySourceError } from "../sources/sourceOutcome";
+import { classifySourceError } from "../sources/sourceOutcome.js";
 
 test("classifySourceError: 429/rate limit -> rate-limited, tip necunoscut -> permanent, restul -> transient (R6 #9)", () => {
   assert.equal(classifySourceError("HTTP 429 Too Many Requests"), "rate-limited");

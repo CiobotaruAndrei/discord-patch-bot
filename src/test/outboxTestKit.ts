@@ -1,4 +1,4 @@
-import { createOutboxRuntime, OutboxJob } from "../features/notifications/notificationOutbox";
+import { createOutboxRuntime, OutboxJob } from "../features/notifications/notificationOutbox.js";
 
 export type OutboxRuntimeDeps = Parameters<typeof createOutboxRuntime>[0];
 export type OutboxModelMock = OutboxRuntimeDeps["NotificationOutboxModel"];

@@ -1,8 +1,8 @@
 "use strict";
 
-import type { GameConfig } from "../../types";
-import type { DiscordChannel, SubscriptionFamily, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts";
-import { createSubscriptionService } from "../notifications/subscriptionService";
+import type { GameConfig } from "../../types.js";
+import type { DiscordChannel, SubscriptionFamily, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts.js";
+import { createSubscriptionService } from "../notifications/subscriptionService.js";
 
 export function createUpdatesSubscriptionFamily(deps: SubscriptionInteractionDeps): SubscriptionFamily {
   const { getLatestForAllGames, seedSeenUpdates, safeEdit, formatUserError } = deps;

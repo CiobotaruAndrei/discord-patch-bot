@@ -8,7 +8,7 @@ import {
   labelMode,
   normalizeMode,
   type GuildAdminAccessDoc
-} from "../features/command-handlers/adminCommandAccessViews";
+} from "../features/command-handlers/adminCommandAccessViews.js";
 
 test("labelMode: role-or-higher vs restul", () => {
   assert.equal(labelMode("role-or-higher"), "rol sau rol mai mare");

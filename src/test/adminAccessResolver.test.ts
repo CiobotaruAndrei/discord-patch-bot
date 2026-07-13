@@ -8,8 +8,8 @@ import {
   hasSensitiveUserAccess,
   isGuildOwner,
   parseIdList
-} from "../features/command-security/adminAccessResolver";
-import type { GuildModelLike } from "../features/command-security/adminGuardContracts";
+} from "../features/command-security/adminAccessResolver.js";
+import type { GuildModelLike } from "../features/command-security/adminGuardContracts.js";
 
 test("parseIdList imparte pe virgula, taie spatiile si arunca intrarile goale", () => {
   assert.deepEqual(parseIdList(" 1 , 2 ,, 3 "), ["1", "2", "3"]);

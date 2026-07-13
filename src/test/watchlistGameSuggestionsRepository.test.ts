@@ -1,13 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
+import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository.js";
 
-import type { GuildSettings, WatchlistGameSuggestionEntry } from "../types";
+import type { GuildSettings, WatchlistGameSuggestionEntry } from "../types.js";
 import {
   deleteWatchlistGameSuggestion,
   listWatchlistGameSuggestions,
   saveWatchlistGameSuggestion
-} from "../features/admin-records/watchlistGameSuggestionsRepository";
+} from "../features/admin-records/watchlistGameSuggestionsRepository.js";
 
 function watchlistModel(existing: WatchlistGameSuggestionEntry[], deleteMatchedCount = 1) {
   const calls: Array<{ update: unknown; options?: unknown }> = [];

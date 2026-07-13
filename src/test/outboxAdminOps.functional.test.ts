@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { installOutboxAdmin, makeDeps, makeInteraction } from "./outboxAdminTestKit";
-import type { DeadLetterEntry } from "./outboxAdminTestKit";
+import { installOutboxAdmin, makeDeps, makeInteraction } from "./outboxAdminTestKit.js";
+import type { DeadLetterEntry } from "./outboxAdminTestKit.js";
 
 test("/outbox status afiseaza coada, dead-letter si starea recovery-verify", async () => {
   const { deps, replies } = makeDeps({ guildQueued: 3, totalQueued: 12, perGuildVerify: true, deadLetters: [{ kind: "update" }], outboxEnabled: true, recoveryVerifyGlobal: false, recoveryStrict: true });

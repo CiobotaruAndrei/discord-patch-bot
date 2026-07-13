@@ -1,4 +1,4 @@
-import type { LastErrorInfo } from "../notifications/notificationTypes";
+import type { LastErrorInfo } from "../notifications/notificationTypes.js";
 
 export interface YouTubeChannelSubscription {
   channelId: string;

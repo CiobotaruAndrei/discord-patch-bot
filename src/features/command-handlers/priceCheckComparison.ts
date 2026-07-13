@@ -1,6 +1,6 @@
 "use strict";
 
-import type { DealInfo, PriceValue } from "../../types";
+import type { DealInfo, PriceValue } from "../../types.js";
 
 export interface SteamPriceData {
   name?: string;

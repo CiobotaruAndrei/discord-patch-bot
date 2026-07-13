@@ -1,6 +1,6 @@
 "use strict";
 
-import type { EnqueueOutboxJobInput, OutboxJob, OutboxRuntimeDeps } from "./outboxTypes";
+import type { EnqueueOutboxJobInput, OutboxJob, OutboxRuntimeDeps } from "./outboxTypes.js";
 
 export function createOutboxRepository({ NotificationOutboxModel, NotificationOutboxSentModel, withMongoRetry }: Omit<OutboxRuntimeDeps, "logger">) {
   async function alreadySent(dedupeKey: string): Promise<boolean> {

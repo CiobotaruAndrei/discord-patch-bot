@@ -1,8 +1,8 @@
 import { load as cheerioLoad } from "cheerio";
-import type { NotificationDiscordClient, OutboxDiscordClient } from "../features/notifications/outboundChannel";
-import type { DealInfo, NormalizedUpdate } from "../types";
-import type { GuildDoc } from "../infra/mongo/modelTypes";
-import type { SourceRegistryApi } from "../sources/sourceRegistry";
+import type { NotificationDiscordClient, OutboxDiscordClient } from "../features/notifications/outboundChannel.js";
+import type { DealInfo, NormalizedUpdate } from "../types.js";
+import type { GuildDoc } from "../infra/mongo/modelTypes.js";
+import type { SourceRegistryApi } from "../sources/sourceRegistry.js";
 
 export function makeNotificationDiscordClient(overrides: Partial<NotificationDiscordClient> = {}): NotificationDiscordClient {
   return {

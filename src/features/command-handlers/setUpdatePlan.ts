@@ -1,6 +1,6 @@
 "use strict";
 
-import { normalizeNotificationTemplate } from "../notifications/notificationTemplate";
+import { normalizeNotificationTemplate } from "../notifications/notificationTemplate.js";
 
 export type SetPlanInteraction = {
   options: {

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { channel, createYouTubeNotificationService, manualShow, parallelRunConcurrent, sequentialRunConcurrent, video, type ServiceDeps, type YouTubeService } from "./youtubeServiceTestKit";
+import { channel, createYouTubeNotificationService, manualShow, parallelRunConcurrent, sequentialRunConcurrent, video, type ServiceDeps, type YouTubeService } from "./youtubeServiceTestKit.js";
 
 test("YouTube cron descarca un feed comun o singura data si livreaza per guild cu dedupe", async () => {
   const sent: Array<{ payload: unknown; meta: unknown }> = [];

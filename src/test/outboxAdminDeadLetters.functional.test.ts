@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { installOutboxAdmin, makeDeps, makeInteraction } from "./outboxAdminTestKit";
-import type { DeadLetterEntry } from "./outboxAdminTestKit";
+import { installOutboxAdmin, makeDeps, makeInteraction } from "./outboxAdminTestKit.js";
+import type { DeadLetterEntry } from "./outboxAdminTestKit.js";
 
 test("/outbox clear-deadletters goleste colectia guildDeadLetters cand exista intrari", async () => {
   const { deps, replies, deadLetterDocs, deadLetterDeleteCalls } = makeDeps({ deadLetters: [{ kind: "update" }, { kind: "discount" }] });

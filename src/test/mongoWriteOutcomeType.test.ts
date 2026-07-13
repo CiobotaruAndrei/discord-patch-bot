@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { MongoWriteOutcome } from "../types";
-import type { GuildConfigWriteResult } from "../features/guild-config/guildConfigRepository";
-import type { MongoWriteResult } from "../features/command-handlers/subscriptionCommandContracts";
+import type { MongoWriteOutcome } from "../types.js";
+import type { GuildConfigWriteResult } from "../features/guild-config/guildConfigRepository.js";
+import type { MongoWriteResult } from "../features/command-handlers/subscriptionCommandContracts.js";
 
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 type Expect<T extends true> = T;

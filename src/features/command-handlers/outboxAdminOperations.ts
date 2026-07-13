@@ -1,8 +1,8 @@
 "use strict";
 
-import type { OutboxDiscordClient } from "../notifications/outboundChannel";
-import { clearDeadLetters as clearDeadLetterEntries, countDeadLetters, deleteDeadLettersByDedupeKeys, type DeadLetterModelLike } from "../notifications/deadLetterRepository";
-import { isDeliverableOutboxPayload } from "../notifications/outboxTypes";
+import type { OutboxDiscordClient } from "../notifications/outboundChannel.js";
+import { clearDeadLetters as clearDeadLetterEntries, countDeadLetters, deleteDeadLettersByDedupeKeys, type DeadLetterModelLike } from "../notifications/deadLetterRepository.js";
+import { isDeliverableOutboxPayload } from "../notifications/outboxTypes.js";
 import type {
   DrainResultLike,
   EnqueueOutbox,
@@ -11,9 +11,9 @@ import type {
   OutboxAdminLogger,
   OutboxModelLike,
   ReplayDeadLetterDoc
-} from "./outboxAdminContracts";
+} from "./outboxAdminContracts.js";
 
-import { errorMessage } from "../../shared/errors";
+import { errorMessage } from "../../shared/errors.js";
 
 export const REPLAY_PER_RUN_LIMIT = 50;
 export const OUTBOX_DRAIN_LOCK_NAME = "outbox_drain";

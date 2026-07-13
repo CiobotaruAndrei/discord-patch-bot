@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fakeTimer, makeFakeTimer } from "./fakeTimer";
-import { createShutdownController } from "../app/lifecycle/shutdown";
-import type { LoggerFunction, RuntimeEnv } from "../types";
+import { fakeTimer, makeFakeTimer } from "./fakeTimer.js";
+import { createShutdownController } from "../app/lifecycle/shutdown.js";
+import type { LoggerFunction, RuntimeEnv } from "../types.js";
 
 function makeBaseDeps() {
   const order: string[] = [];

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createSeenRepository } from "../features/notifications/seenRepository";
+import { createSeenRepository } from "../features/notifications/seenRepository.js";
 
 type MongoCall = { filter: unknown; update: unknown; opts?: unknown };
 type SeenFilter = Record<string, unknown>;

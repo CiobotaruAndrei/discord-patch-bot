@@ -1,7 +1,7 @@
 "use strict";
 
 import type { Model } from "mongoose";
-import type { ActiveLocks, CurrencyCode, CurrencyConfig, CurrencyRegistry, DealInfo, GuildSettings, LoggerFunction, PriceValue, RuntimeEnv, SystemTimes, ValidatedDealInfo } from "../../types";
+import type { ActiveLocks, CurrencyCode, CurrencyConfig, CurrencyRegistry, DealInfo, GuildSettings, LoggerFunction, PriceValue, RuntimeEnv, SystemTimes, ValidatedDealInfo } from "../../types.js";
 import type {
   AdminAlertCooldownDoc,
   CircuitBreakerDoc,
@@ -23,8 +23,8 @@ import type {
   NotificationOutboxSentDoc,
   PlayerCountSnapshotDoc,
   SystemDoc
-} from "./modelTypes";
-import { assertNoUndefinedExports } from "../../shared/assertCompleteExports";
+} from "./modelTypes.js";
+import { assertNoUndefinedExports } from "../../shared/assertCompleteExports.js";
 
 type MongoRuntimeContext = {
   logger: LoggerFunction;
@@ -59,7 +59,7 @@ type MongoRuntimeContext = {
   saveFetchSnapshot: (id: string, payload: unknown) => Promise<void>;
   loadFetchSnapshot: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
   loadDealsFetchSnapshots: () => Promise<Array<{ currency: string; payload: unknown; fetchedAt: Date }>>;
-  loadSourceHealth: () => Promise<import("../../sources/sourceHealth").SourceHealthDoc[]>;
+  loadSourceHealth: () => Promise<import("../../sources/sourceHealth.js").SourceHealthDoc[]>;
   acquireDbLock: (jobName: string, ttlMs?: number) => Promise<string | null>;
   renewDbLock: (jobName: string, token: string, ttlMs?: number) => Promise<boolean>;
   releaseDbLock: (jobName: string, token: string) => Promise<void>;
@@ -89,33 +89,33 @@ type MongoRuntimeContext = {
 type MongoContribution = (context: MongoRuntimeContext) => Partial<MongoRuntimeContext>;
 type MongoModule = { buildFrom: MongoContribution };
 
-import runtimeContextModule from "./runtime";
+import runtimeContextModule from "./runtime.js";
 const asRuntimeCtx = (m: object): MongoRuntimeContext => m as MongoRuntimeContext;
 const asMongoModule = (m: object): MongoModule => m as MongoModule;
 const runtimeContext = asRuntimeCtx(runtimeContextModule);
-import attachLoggingModule from "../../shared/logging";
+import attachLoggingModule from "../../shared/logging.js";
 const attachLogging = asMongoModule(attachLoggingModule);
-import attachDomainModule from "../../shared/domain";
+import attachDomainModule from "../../shared/domain.js";
 const attachDomain = asMongoModule(attachDomainModule);
-import attachEnvModule from "../../shared/env";
+import attachEnvModule from "../../shared/env.js";
 const attachEnv = asMongoModule(attachEnvModule);
-import attachUtilitiesModule from "../../shared/utilities";
+import attachUtilitiesModule from "../../shared/utilities.js";
 const attachUtilities = asMongoModule(attachUtilitiesModule);
-import attachModelsModule from "./models";
+import attachModelsModule from "./models.js";
 const attachModels = asMongoModule(attachModelsModule);
-import attachLocksModule from "./locks";
+import attachLocksModule from "./locks.js";
 const attachLocks = asMongoModule(attachLocksModule);
-import attachMigrationsModule from "./migrations";
+import attachMigrationsModule from "./migrations.js";
 const attachMigrations = asMongoModule(attachMigrationsModule);
-import attachSystemStateModule from "./systemState";
+import attachSystemStateModule from "./systemState.js";
 const attachSystemState = asMongoModule(attachSystemStateModule);
-import attachGuildSettingsModule from "./guildSettings";
+import attachGuildSettingsModule from "./guildSettings.js";
 const attachGuildSettings = asMongoModule(attachGuildSettingsModule);
-import attachAdminAlertsModule from "./adminAlerts";
+import attachAdminAlertsModule from "./adminAlerts.js";
 const attachAdminAlerts = asMongoModule(attachAdminAlertsModule);
-import attachFetchSnapshotsModule from "./fetchSnapshots";
+import attachFetchSnapshotsModule from "./fetchSnapshots.js";
 const attachFetchSnapshots = asMongoModule(attachFetchSnapshotsModule);
-import attachSourceHealthModule from "./sourceHealth";
+import attachSourceHealthModule from "./sourceHealth.js";
 const attachSourceHealth = asMongoModule(attachSourceHealthModule);
 
 function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeContext {

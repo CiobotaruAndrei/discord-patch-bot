@@ -1,7 +1,9 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import * as path from "path";
-import { validateConfig } from "./configValidator";
-import { errorMessage } from "../shared/errors";
-import type { BotConfig, ConfigLoadResult, GameConfig } from "./configTypes";
+import { validateConfig } from "./configValidator.js";
+import { errorMessage } from "../shared/errors.js";
+import type { BotConfig, ConfigLoadResult, GameConfig } from "./configTypes.js";
 
 function resolveConfigPath(configPath: string): string {
   return path.isAbsolute(configPath) ? configPath : path.resolve(process.cwd(), configPath);

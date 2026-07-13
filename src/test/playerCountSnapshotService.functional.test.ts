@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import attachPlayerCountSnapshots from "../features/player-count/playerCountSnapshotService";
+import attachPlayerCountSnapshots from "../features/player-count/playerCountSnapshotService.js";
 
 type UpsertCall = { filter: Record<string, unknown>; update: Record<string, unknown>; options?: Record<string, unknown> };
 type LeanDoc = { _id: string; gameKey?: string; playerCount?: number; fetchedAt?: Date | string };

@@ -6,8 +6,8 @@ import type {
   MaybePromise,
   RuntimeEnv,
   ValidatedDealInfo
-} from "../types";
-import { errorMessage } from "./errors";
+} from "../types.js";
+import { errorMessage } from "./errors.js";
 
 interface ConcurrentRunOptions<T> {
   shouldAbort?: (() => boolean) | null;

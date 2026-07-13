@@ -1,4 +1,4 @@
-import type { BotRole } from "../types";
+import type { BotRole } from "../types.js";
 
 const BOT_ROLES: readonly BotRole[] = ["all", "web", "worker"];
 

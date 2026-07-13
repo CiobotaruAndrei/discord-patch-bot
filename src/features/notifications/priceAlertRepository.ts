@@ -1,4 +1,4 @@
-import type { GameConfig, PriceAlertRule } from "../../types";
+import type { GameConfig, PriceAlertRule } from "../../types.js";
 
 export interface PriceAlertGuildModelLike {
   updateOne(

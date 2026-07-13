@@ -1,14 +1,16 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 "use strict";
 
-import globalAccessCode from "./globalAccessCode";
-import { commandAuditName, guildIdOf } from "./adminAccessResolver";
+import globalAccessCode from "./globalAccessCode.js";
+import { commandAuditName, guildIdOf } from "./adminAccessResolver.js";
 import type {
   AdminCommandGuardContext,
   AdminGuardInteraction,
   AdminGuardPayload,
   DefaultRequireGuildAdmin,
   ModalSubmitLike
-} from "./adminGuardContracts";
+} from "./adminGuardContracts.js";
 
 const {
   MessageFlags,
@@ -18,7 +20,7 @@ const {
   ActionRowBuilder
 } = require("discord.js") as typeof import("discord.js");
 
-import defaultRequireGuildAdminModule from "./adminPermissionGuard";
+import defaultRequireGuildAdminModule from "./adminPermissionGuard.js";
 const defaultRequireGuildAdmin = defaultRequireGuildAdminModule as DefaultRequireGuildAdmin;
 
 const ACCESS_CODE_MODAL_INPUT_ID = "access-code";

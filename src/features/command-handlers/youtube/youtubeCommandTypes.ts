@@ -1,11 +1,11 @@
 "use strict";
 
-import type { GuildSettings, LoggerFunction, YouTubeVideo } from "../../../types";
-import type { NotificationDiscordClient } from "../../notifications/outboundChannel";
-import type { ResolvedYouTubeChannel } from "../../youtube/youtubeSource";
-import type { PreparedVideo, ManualVideoBatch } from "../../youtube/youtubeNotificationService";
-import type { YouTubeConfigGuildModel } from "../../youtube/youtubeGuildConfigRepository";
-import type { YoutubeErrorModelLike } from "../../youtube/youtubeErrorsRepository";
+import type { GuildSettings, LoggerFunction, YouTubeVideo } from "../../../types.js";
+import type { NotificationDiscordClient } from "../../notifications/outboundChannel.js";
+import type { ResolvedYouTubeChannel } from "../../youtube/youtubeSource.js";
+import type { PreparedVideo, ManualVideoBatch } from "../../youtube/youtubeNotificationService.js";
+import type { YouTubeConfigGuildModel } from "../../youtube/youtubeGuildConfigRepository.js";
+import type { YoutubeErrorModelLike } from "../../youtube/youtubeErrorsRepository.js";
 
 export type InteractionPayload = string | { content?: string; embeds?: object[]; flags?: number };
 

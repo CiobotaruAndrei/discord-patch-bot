@@ -1,5 +1,5 @@
-import type { RuntimeEnv } from "../../types";
-import type { RateLimiter } from "../health/rateLimit";
+import type { RuntimeEnv } from "../../types.js";
+import type { RateLimiter } from "../health/rateLimit.js";
 
 type HousekeepingLogger = (level: "INFO" | "WARN", context: string, message: string, meta?: unknown) => void;
 type ErrorFormatter = (err: unknown) => string;

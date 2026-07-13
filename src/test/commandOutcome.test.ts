@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { handledCommandError, isHandledCommandError } from "../features/command-security/commandOutcome";
+import { handledCommandError, isHandledCommandError } from "../features/command-security/commandOutcome.js";
 
 test("handledCommandError produce un marker recunoscut de isHandledCommandError (R[P2] audit)", () => {
   const marker = handledCommandError("mongo down");

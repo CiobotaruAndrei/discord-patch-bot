@@ -1,8 +1,8 @@
 "use strict";
 
-import type { OutboundChannel, OutboundHistoryEntry } from "./outboundChannel";
-import { packEmbedsByBudget, embedCharCost } from "../../shared/discordEmbedChunks";
-import { buildNotificationContent } from "./notificationTemplate";
+import type { OutboundChannel, OutboundHistoryEntry } from "./outboundChannel.js";
+import { packEmbedsByBudget, embedCharCost } from "../../shared/discordEmbedChunks.js";
+import { buildNotificationContent } from "./notificationTemplate.js";
 
 export interface EmbedBatchSendInput<E> {
   channel: OutboundChannel;

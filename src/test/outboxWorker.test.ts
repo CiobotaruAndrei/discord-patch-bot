@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOutboxWorker, OUTBOX_DRAIN_LOCK_NAME } from "../app/scheduler/outboxWorker";
+import { createOutboxWorker, OUTBOX_DRAIN_LOCK_NAME } from "../app/scheduler/outboxWorker.js";
 
 interface DrainResult { sent?: number; retried?: number; deadLettered?: number; queued?: number; deliveryMsTotal?: number; oldestJobAgeMs?: number; recoveryDuplicates?: number; recoveryFetches?: number; recoveryFailures?: number; recoveryMarkerMissing?: number; markSentFailures?: number; deleteFailures?: number; deadLetterFailures?: number; recoveryVerifyEnabledGuilds?: number }
 interface Harness {

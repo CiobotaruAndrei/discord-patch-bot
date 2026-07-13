@@ -1,3 +1,5 @@
+import { createRequire as __createRequire } from "node:module";
+const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -11,7 +13,7 @@ type SourceRegistryExports = {
   createSourceRegistry: () => SourceRegistryRuntime;
 };
 
-import * as sourceRegistry from "../sources/sourceRegistry";
+const sourceRegistry = await import("../sources/sourceRegistry.js");
 
 const requiredKeys = [
   "USER_AGENTS",

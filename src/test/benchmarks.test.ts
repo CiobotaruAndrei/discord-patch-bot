@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runCpuBenchmark, levenshteinParityMismatches, runAreaBenchmarks } from "../scripts/cpuBenchmark";
-import { runOutboxLoad, OutboxLoadModels } from "../scripts/outboxLoadBenchmark";
-import type { OutboxJob } from "../features/notifications/notificationOutbox";
+import { runCpuBenchmark, levenshteinParityMismatches, runAreaBenchmarks } from "../scripts/cpuBenchmark.js";
+import { runOutboxLoad, OutboxLoadModels } from "../scripts/outboxLoadBenchmark.js";
+import type { OutboxJob } from "../features/notifications/notificationOutbox.js";
 
 type JobDoc = OutboxJob & {
   _id: string;

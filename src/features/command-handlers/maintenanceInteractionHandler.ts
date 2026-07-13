@@ -1,13 +1,13 @@
 "use strict";
 
-import type { ConfigBackupRecord, GameConfig, GuildSettings } from "../../types";
-import type { CommandHandler } from "../command-registry/commandHandler";
-import { matchesCommand } from "../command-registry/commandMatch";
-import { findNewestConfigBackup, type ConfigBackupModelLike } from "../admin-records/configBackupRepository";
-import { countYoutubeErrors, type YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository";
-import { countDeadLetters, type DeadLetterModelLike } from "../notifications/deadLetterRepository";
+import type { ConfigBackupRecord, GameConfig, GuildSettings } from "../../types.js";
+import type { CommandHandler } from "../command-registry/commandHandler.js";
+import { matchesCommand } from "../command-registry/commandMatch.js";
+import { findNewestConfigBackup, type ConfigBackupModelLike } from "../admin-records/configBackupRepository.js";
+import { countYoutubeErrors, type YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository.js";
+import { countDeadLetters, type DeadLetterModelLike } from "../notifications/deadLetterRepository.js";
 
-import { errorDetail } from "../../shared/errors";
+import { errorDetail } from "../../shared/errors.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, extra?: Record<string, unknown>) => void;

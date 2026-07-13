@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { DealInfo, GuildSettings, PriceValue } from "../types";
+import type { DealInfo, GuildSettings, PriceValue } from "../types.js";
 
-import installDealScore from "../features/command-handlers/dealScoreInteractionHandler";
+import installDealScore from "../features/command-handlers/dealScoreInteractionHandler.js";
 
 function makeInteraction(game: string) {
   return {

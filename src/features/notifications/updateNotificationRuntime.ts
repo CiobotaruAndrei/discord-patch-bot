@@ -1,11 +1,11 @@
 "use strict";
 
-import type { NotificationsRuntimeDeps } from "./notificationRuntimeContracts";
-import type { OutboundChannelResolver } from "./outboxRuntimeFactory";
-import type { SeenServices } from "./seenRuntimeFactory";
+import type { NotificationsRuntimeDeps } from "./notificationRuntimeContracts.js";
+import type { OutboundChannelResolver } from "./outboxRuntimeFactory.js";
+import type { SeenServices } from "./seenRuntimeFactory.js";
 
-import { isPermanentDiscordError, transientErrorMessage } from "./outboundChannel";
-import { createUpdateNotificationService } from "./updateNotificationService";
+import { isPermanentDiscordError, transientErrorMessage } from "./outboundChannel.js";
+import { createUpdateNotificationService } from "./updateNotificationService.js";
 
 export function createUpdateNotificationRuntime(
   deps: NotificationsRuntimeDeps,

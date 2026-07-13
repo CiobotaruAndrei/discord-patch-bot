@@ -1,6 +1,6 @@
 "use strict";
 
-import { recordBotAuditEntry } from "../admin-records/auditLogRepository";
+import { recordBotAuditEntry } from "../admin-records/auditLogRepository.js";
 
 type AuditInteraction = { user?: { id?: string } | null };
 type GuildModelLike = Parameters<typeof recordBotAuditEntry>[0];

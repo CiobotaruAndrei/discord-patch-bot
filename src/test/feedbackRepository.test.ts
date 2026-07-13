@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import mod from "../features/feedback/feedbackRepository";
+import mod from "../features/feedback/feedbackRepository.js";
 const { sanitizeReport, normalizeReportType, reportTypeLabel, REPORT_TYPES, createFeedbackRepository } = mod;
 
 const passThroughRetry = <T>(fn: () => Promise<T>): Promise<T> => fn();

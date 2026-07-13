@@ -1,14 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { FutureReleaseGameEntry, GuildSettings } from "../types";
+import type { FutureReleaseGameEntry, GuildSettings } from "../types.js";
 import {
   deleteFutureReleaseGame,
   listFutureReleaseGames,
   saveFutureReleaseGame,
   startFutureReleaseNotifications,
   stopFutureReleaseNotifications
-} from "../features/admin-records/futureReleaseGamesRepository";
+} from "../features/admin-records/futureReleaseGamesRepository.js";
 
 function captureModel() {
   const calls: Array<{ filter: Record<string, unknown>; update: Record<string, unknown>; options?: Record<string, unknown> }> = [];

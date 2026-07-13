@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildDeadLetterEntry, deadLetterTitleFromPayload, NOTIFICATION_DEAD_LETTER_LIMIT } from "../features/notifications/deadLetter";
-import { recordDeadLetters, type GuildDeadLetterRecord } from "../features/notifications/deadLetterRepository";
+import { buildDeadLetterEntry, deadLetterTitleFromPayload, NOTIFICATION_DEAD_LETTER_LIMIT } from "../features/notifications/deadLetter.js";
+import { recordDeadLetters, type GuildDeadLetterRecord } from "../features/notifications/deadLetterRepository.js";
 
 test("buildDeadLetterEntry: pastreaza campurile de audit (kind, itemId, title, channelId, dedupeKey, reason, attempts)", () => {
   const entry = buildDeadLetterEntry({

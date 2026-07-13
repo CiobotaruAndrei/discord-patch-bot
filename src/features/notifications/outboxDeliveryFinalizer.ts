@@ -1,8 +1,8 @@
 "use strict";
 
-import type { DeliverResult, OutboxHistoryEntry, OutboxJob, OutboxLogger } from "./outboxTypes";
+import type { DeliverResult, OutboxHistoryEntry, OutboxJob, OutboxLogger } from "./outboxTypes.js";
 
-import { errorMessage } from "../../shared/errors";
+import { errorMessage } from "../../shared/errors.js";
 
 export interface OutboxDeliveryFinalizerDeps {
   deliver(job: OutboxJob): Promise<DeliverResult>;

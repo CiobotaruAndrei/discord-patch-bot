@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { escapeInlineText, NO_MENTIONS } from "../shared/discordText";
+import { escapeInlineText, NO_MENTIONS } from "../shared/discordText.js";
 
 test("escapeInlineText neutralizeaza backtick-uri, mentiuni si newline-uri (R[P3] suggest-command)", () => {
   const escaped = escapeInlineText("`code` **bold**\n@everyone <@123> <#456>");

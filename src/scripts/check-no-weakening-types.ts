@@ -1,3 +1,8 @@
+import { fileURLToPath as __fileURLToPath } from "node:url";
+import { dirname as __pathDirname } from "node:path";
+const __filename = __fileURLToPath(import.meta.url);
+const __dirname = __pathDirname(__filename);
+import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
 import fs from "fs";
@@ -105,8 +110,8 @@ function run(): void {
   console.log(`No-weakening-types OK: scanned ${files.length} source files, 0 any / as never / as unknown as outside explicit bug-catching tests`);
 }
 
-module.exports = { findWeakeningTypes, collectWeakeningViolations, canUseWeakeningTypes, isBugCatchingRel };
+export { findWeakeningTypes, collectWeakeningViolations, canUseWeakeningTypes, isBugCatchingRel };
 
-if (require.main === module) run();
+if (process.argv[1] !== undefined && __pathToFileURL(process.argv[1]).href === import.meta.url) run();
 
 export {};

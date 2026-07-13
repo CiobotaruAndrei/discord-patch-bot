@@ -1,8 +1,8 @@
 import test from "node:test";
-import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit.js";
 import assert from "node:assert/strict";
 
-import installSimpleHandlers from "../features/command-handlers/simpleCommandsHandler";
+import installSimpleHandlers from "../features/command-handlers/simpleCommandsHandler.js";
 
 type InteractionRuntime = {
   handleInteraction: (interaction: unknown, games?: unknown[]) => Promise<unknown>;

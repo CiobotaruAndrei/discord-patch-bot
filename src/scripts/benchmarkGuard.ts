@@ -1,8 +1,9 @@
+import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
-import { runCpuBenchmark, runAreaBenchmarks, levenshteinParityMismatches } from "./cpuBenchmark";
-import type { AreaBenchmarkResult } from "./cpuBenchmark";
-import { strictEnvFloat, strictEnvInt } from "./benchmarkEnv";
+import { runCpuBenchmark, runAreaBenchmarks, levenshteinParityMismatches } from "./cpuBenchmark.js";
+import type { AreaBenchmarkResult } from "./cpuBenchmark.js";
+import { strictEnvFloat, strictEnvInt } from "./benchmarkEnv.js";
 
 export interface GuardSample {
   area: string;
@@ -148,7 +149,7 @@ export function collectGuardSamples(
   ];
 }
 
-if (require.main === module) {
+if (process.argv[1] !== undefined && __pathToFileURL(process.argv[1]).href === import.meta.url) {
   const config = defaultGuardConfig();
   const samples = collectGuardSamples();
   const outcome = evaluateBenchmarkGuard(samples, config);

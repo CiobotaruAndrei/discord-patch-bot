@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { GuildSettings } from "../types";
-import { publishGuildSettingsChanged } from "../infra/mongo/guildSettingsEvents";
+import type { GuildSettings } from "../types.js";
+import { publishGuildSettingsChanged } from "../infra/mongo/guildSettingsEvents.js";
 
-import attachGuildSettings from "../infra/mongo/guildSettings";
+import attachGuildSettings from "../infra/mongo/guildSettings.js";
 
 type GuildSettingsRuntime = {
   getGuildSettings: (guildId: string) => Promise<GuildSettings | null>;

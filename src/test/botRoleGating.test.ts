@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { registerDiscordEvents } from "../app/lifecycle/events";
-import { resolveBotRole, roleRunsSchedulers, roleRunsInteractions } from "../shared/botRole";
-import { createMetrics } from "../app/health/metrics";
-import type { BotRole } from "../types";
+import { registerDiscordEvents } from "../app/lifecycle/events.js";
+import { resolveBotRole, roleRunsSchedulers, roleRunsInteractions } from "../shared/botRole.js";
+import { createMetrics } from "../app/health/metrics.js";
+import type { BotRole } from "../types.js";
 
 process.env.MONGO_URI ||= "mongodb://localhost:27017/discord-patch-bot-test";
 process.env.DISCORD_TOKEN ||= "test_discord_token";

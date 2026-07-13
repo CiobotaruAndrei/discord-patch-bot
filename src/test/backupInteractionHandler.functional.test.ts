@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
-import type { GuildConfigBackupRecord } from "../features/admin-records/configBackupRepository";
+import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository.js";
+import type { GuildConfigBackupRecord } from "../features/admin-records/configBackupRepository.js";
 
-import type { GuildSettings } from "../types";
-import { isHandledCommandError } from "../features/command-security/commandOutcome";
+import type { GuildSettings } from "../types.js";
+import { isHandledCommandError } from "../features/command-security/commandOutcome.js";
 
-import installBackup from "../features/command-handlers/backupInteractionHandler";
+import installBackup from "../features/command-handlers/backupInteractionHandler.js";
 
 type MongoCall = {
   filter: Record<string, unknown>;
