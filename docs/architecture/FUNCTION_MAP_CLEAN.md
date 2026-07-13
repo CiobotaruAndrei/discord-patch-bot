@@ -59,6 +59,10 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Validatoarele per tip de sursa (`validateSteamSource`, `validateListingBasedSource`, `validateIntelSource`, `validateRssSource`, `validateEpicGamesSource`) + `validateSourceFallbacks` (mostenire url/listing de la jocul-parinte) si helperul `requireListing`. `ALLOWED_GAME_TYPES` si `SOURCE_TYPE_VALIDATORS` sunt sursa unica a tipurilor permise. Localitatea (validatoarele traiesc aici, `configValidator` doar dispatcheaza) e gardata de `sourceTypeValidatorsLocality.test.ts`.
 
+### `src/config/gameCatalog.ts`
+
+- Helpere pure de lookup de joc, sursa unica pentru rezolvarea unui joc din config: `normalizeGameKey` (lowercase + colaps non-alfanumerice), `findGameByKey` (match exact pe `key`) si `findGameByKeyOrAlias` (match pe key/nume/alias normalizat). Inlocuiesc `games.find(g => g.key === X)` ad-hoc din handler-ele de comenzi (game-filter, price-alert) si logica duplicata `normalizeGameKey`+cauta-dupa-alias din `playerCountSubscriptionFamily`/`sourcesRefreshHandler`. NU e un catalog cu stare (cache-ul fuzzy cu sugestii ramane in `command-presentation/gameLookupCache.ts` — alta preocupare). Acoperit de `gameCatalog.test.ts`.
+
 ### `src/shared/errors.ts`, `src/shared/logging.ts`, `src/shared/utilities.ts`
 
 - Utilitare comune folosite de app, surse, comenzi si job-uri.

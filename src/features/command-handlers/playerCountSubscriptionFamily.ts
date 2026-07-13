@@ -3,19 +3,9 @@
 import type { GameConfig } from "../../types.js";
 import type { DiscordChannel, SubscriptionFamily, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts.js";
 import { createSubscriptionService } from "../notifications/subscriptionService.js";
+import { normalizeGameKey, findGameByKeyOrAlias as findConfiguredGame } from "../../config/gameCatalog.js";
 
-export function normalizeGameKey(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-export function findConfiguredGame(games: GameConfig[], value: string | null): GameConfig | null {
-  const input = normalizeGameKey(String(value || ""));
-  if (!input) return null;
-  return games.find(game => {
-    if (normalizeGameKey(game.key) === input || normalizeGameKey(game.name) === input) return true;
-    return Array.isArray(game.aliases) && game.aliases.some(alias => normalizeGameKey(String(alias)) === input);
-  }) || null;
-}
+export { normalizeGameKey, findConfiguredGame };
 
 export function createPlayerCountSubscriptionFamily(deps: SubscriptionInteractionDeps): SubscriptionFamily {
   const { getGuildSettings, safeEdit, formatUserError } = deps;

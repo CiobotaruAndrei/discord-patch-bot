@@ -5,6 +5,7 @@ import type { FetchResult, GameConfig } from "../../types.js";
 
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail, errorMessage } from "../../shared/errors.js";
+import { findGameByKeyOrAlias as findGame } from "../../config/gameCatalog.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type DiscordInteraction = {
@@ -40,20 +41,6 @@ interface SourcesRefreshDeps {
 }
 
 type SourcesRefreshContext = SourcesRefreshDeps;
-
-function normalizeGameKey(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function findGame(games: GameConfig[], value: string | null): GameConfig | null {
-  const input = normalizeGameKey(String(value || ""));
-  if (!input) return null;
-  return games.find(game =>
-    normalizeGameKey(game.key) === input
-    || normalizeGameKey(game.name) === input
-    || (Array.isArray(game.aliases) && game.aliases.some(alias => normalizeGameKey(String(alias)) === input))
-  ) || null;
-}
 
 function buildSourcesRefreshEmbed(game: GameConfig, result: FetchResult | null): SourcesRefreshEmbed {
   const outcome = result?.outcome || (result?.error ? "transient-error" : result?.latest ? "ok" : "fara-rezultat");
