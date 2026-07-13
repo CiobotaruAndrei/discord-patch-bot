@@ -28,8 +28,13 @@ function fail(message: string): never {
   throw new Error(`Dependency policy failed: ${message}`);
 }
 
-function isExactSemver(version: string) {
-  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version);
+function exactVersionFromSpec(spec: string) {
+  const exactSemver = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+  if (exactSemver.test(spec)) return spec;
+  if (!spec.startsWith("npm:")) return undefined;
+  const separator = spec.lastIndexOf("@");
+  const version = separator > 4 ? spec.slice(separator + 1) : "";
+  return exactSemver.test(version) ? version : undefined;
 }
 
 function assertTrustedResolvedUrl(packageName: string, resolved: string | undefined) {
@@ -56,9 +61,10 @@ function assertDirectDependencies(
   packageLock: PackageLock
 ) {
   const lockRootDeps = lockRoot[field] || {};
-  for (const [name, version] of Object.entries(packageDeps)) {
-    if (!isExactSemver(version)) {
-      fail(`${label} dependency ${name} must be pinned to an exact version, got ${version}`);
+  for (const [name, spec] of Object.entries(packageDeps)) {
+    const version = exactVersionFromSpec(spec);
+    if (!version) {
+      fail(`${label} dependency ${name} must be pinned to an exact version, got ${spec}`);
     }
     if (!lockRootDeps[name]) {
       fail(`${label} dependency ${name} is missing from package-lock.json root ${field}`);
