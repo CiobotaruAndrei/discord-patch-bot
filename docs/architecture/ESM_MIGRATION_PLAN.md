@@ -1,14 +1,15 @@
 # Plan de migrare CommonJS -> ESM (review impact-mare #4)
 
-Acest document este runbook-ul autoritar pentru migrarea codebase-ului de la
-CommonJS (`export =` / `require()`) la module ECMAScript. NU este o schimbare
-care se poate face „per-feature" sub configul curent; procedura de mai jos e
-verificata empiric printr-un dry-run pe o copie a intregului `src/`.
+Acest document pastreaza runbook-ul autoritar folosit pentru migrarea
+codebase-ului de la CommonJS (`export =` / `require()`) la module ECMAScript.
+Migrarea este completa; sectiunile de plan si dry-run de mai jos raman context
+istoric pentru deciziile luate.
 
 ## De ce NU e per-feature
 
-Proiectul compileaza cu un singur `tsconfig` (`module: "CommonJS"`,
-`moduleResolution: "Node"`). Sub acest config `tsc` emite CJS pentru **toate**
+La momentul planificarii, proiectul compila cu un singur `tsconfig`
+(`module: "CommonJS"`, `moduleResolution: "Node"`). Sub acel config `tsc`
+emitea CJS pentru **toate**
 fisierele — nu se poate emite ESM doar pentru `features/youtube/` in timp ce
 restul ramane CJS. Singurul mecanism per-fisier (`.mts` sub `nodenext`) forteaza
 un flip global de `moduleResolution` care la randul lui cere extensii `.js` pe
@@ -60,6 +61,14 @@ fail-fast curat pe env) si addon-ul NAPI se incarca prin
 - Garzile care pinuiau forme fara extensie sau require-uri tipate au fost
   repinuite pe formele finale (regula 8).
 
+### Toolchain TypeScript 7
+
+Build-ul si typecheck-ul ruleaza compilatorul nativ TypeScript 7 din
+`@typescript/native`. Pachetul `typescript@6.0.3` ramane separat pentru
+Compiler API-ul folosit de verificatoarele AST si de testele de contract; TypeScript
+7 nu exporta inca acel API. Ambele versiuni sunt pinuite exact si verificate prin
+`check:dependencies`, inclusiv aliasul npm al compilatorului nativ.
+
 ## Stadiu istoric: Faza A EXECUTATA (branch `refactor/esm-migration`)
 
 Faza A a fost aplicata pe tot `src/` si e VERDE: `npm run check` complet (typecheck
@@ -86,8 +95,9 @@ Decizii luate la executie (fata de planul initial):
   `require(...) as typeof import(...)`) au fost repinuite pe formele ESM (regula 8:
   acelasi scenariu, sintaxa migrata).
 
-Faza B (flip `NodeNext` + `type: module` + extensii `.js` + `createRequire` pentru
-loader-ul nativ) ramane pasul urmator, conform sectiunii de mai jos.
+Faza B (flip `NodeNext` + `type: module` + extensii `.js` + `createRequire`
+pentru loader-ul nativ) a fost executata ulterior; sectiunea de mai jos pastreaza
+procedura istorica.
 
 ## Faza A — modernizare de sintaxa (CJS-verde, incrementala)
 
