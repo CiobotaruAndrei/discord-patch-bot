@@ -1,6 +1,7 @@
 "use strict";
 
 import type { OutboxDiscordClient } from "../notifications/outboundChannel.js";
+import type { MongoFilter, MongoUpdate } from "../../infra/mongo/mongoQueryShapes.js";
 import type { OutboxMessagePayload } from "../notifications/outboxTypes.js";
 
 export type OutboxAdminInteraction = {
@@ -28,8 +29,8 @@ export interface DrainResultLike {
 }
 
 export interface OutboxModelLike {
-  countDocuments(filter?: unknown): Promise<number>;
-  updateMany(filter: unknown, update: unknown): Promise<{ modifiedCount?: number; matchedCount?: number }>;
+  countDocuments(filter?: MongoFilter): Promise<number>;
+  updateMany(filter: MongoFilter, update: MongoUpdate): Promise<{ modifiedCount?: number; matchedCount?: number }>;
 }
 
 export interface DeadLetterEntryLike {

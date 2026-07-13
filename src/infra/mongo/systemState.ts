@@ -1,4 +1,5 @@
 import type { SystemTimes } from "../../types.js";
+import type { MongoFilter, MongoUpdate, MongoQueryOptions } from "./mongoQueryShapes.js";
 
 interface SystemStateDoc {
   _id: string;
@@ -7,8 +8,8 @@ interface SystemStateDoc {
 }
 
 interface SystemStateModelLike {
-  findOneAndUpdate(filter: unknown, update: unknown, options?: unknown): { lean(): Promise<SystemStateDoc | null> };
-  findByIdAndUpdate(id: string, update: unknown, options?: unknown): Promise<unknown>;
+  findOneAndUpdate(filter: MongoFilter, update: MongoUpdate, options?: MongoQueryOptions): { lean(): Promise<SystemStateDoc | null> };
+  findByIdAndUpdate(id: string, update: MongoUpdate, options?: MongoQueryOptions): Promise<unknown>;
   findById(id: string): { lean(): Promise<SystemStateDoc | null> };
 }
 

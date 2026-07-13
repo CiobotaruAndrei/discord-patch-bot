@@ -1,6 +1,7 @@
 "use strict";
 
 import { applyGuildConfigUpdate } from "../guild-config/guildConfigRepository.js";
+import type { MongoFilter, MongoUpdate, MongoQueryOptions } from "../../infra/mongo/mongoQueryShapes.js";
 import { buildSetUpdatePlan } from "./setUpdatePlan.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 
@@ -27,7 +28,7 @@ type DiscordInteraction = {
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 
 type GuildModelLike = {
-  updateOne(filter: unknown, update: unknown, opts?: unknown): Promise<{ matchedCount?: number; modifiedCount?: number }>;
+  updateOne(filter: MongoFilter, update: MongoUpdate, opts?: MongoQueryOptions): Promise<{ matchedCount?: number; modifiedCount?: number }>;
 };
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;

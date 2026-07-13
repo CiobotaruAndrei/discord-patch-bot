@@ -1,3 +1,4 @@
+import type { MongoFilter, MongoUpdate, MongoProjection, MongoQueryOptions } from "../../infra/mongo/mongoQueryShapes.js";
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
@@ -35,11 +36,11 @@ export interface ReplayPayloadDoc {
 
 interface ReplayModelLike {
   create(doc: Record<string, unknown>): Promise<unknown>;
-  updateOne(filter: unknown, update: unknown, opts?: unknown): Promise<unknown>;
-  find(filter: unknown, projection?: unknown): {
+  updateOne(filter: MongoFilter, update: MongoUpdate, opts?: MongoQueryOptions): Promise<unknown>;
+  find(filter: MongoFilter, projection?: MongoProjection): {
     sort(spec: unknown): { limit(count: number): { lean(): Promise<Array<Record<string, unknown>>> } };
   };
-  deleteMany(filter: unknown): Promise<unknown>;
+  deleteMany(filter: MongoFilter): Promise<unknown>;
 }
 
 export interface DeadLetterReplayRepositoryDeps {

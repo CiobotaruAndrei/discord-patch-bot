@@ -1,6 +1,7 @@
 "use strict";
 
 import { REPORT_TYPES } from "./reportTypes.js";
+import type { MongoFilter, MongoUpdate, MongoProjection, MongoQueryOptions } from "../../infra/mongo/mongoQueryShapes.js";
 import type { ReportType } from "./reportTypes.js";
 
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
@@ -8,10 +9,10 @@ type Logger = (level: string, context: string, message: string, meta?: unknown) 
 
 interface FeedbackReportModelLike {
   create(doc: ReportDoc): Promise<unknown>;
-  find(filter: unknown, projection?: unknown): {
+  find(filter: MongoFilter, projection?: MongoProjection): {
     sort(spec: unknown): { limit(count: number): { lean(): Promise<Array<Record<string, unknown>>> } };
   };
-  findOneAndUpdate(filter: unknown, update: unknown, options: unknown): {
+  findOneAndUpdate(filter: MongoFilter, update: MongoUpdate, options: MongoQueryOptions): {
     lean(): Promise<Record<string, unknown> | null>;
   };
 }

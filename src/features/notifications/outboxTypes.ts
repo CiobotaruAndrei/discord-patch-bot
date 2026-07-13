@@ -1,3 +1,4 @@
+import type { MongoFilter, MongoUpdate, MongoQueryOptions } from "../../infra/mongo/mongoQueryShapes.js";
 "use strict";
 
 export type OutboxKind = "update" | "discount" | "youtube";
@@ -44,16 +45,16 @@ export function isDeliverableOutboxPayload(payload: unknown): payload is OutboxM
 
 export interface OutboxModelLike {
   create(doc: Record<string, unknown>): Promise<unknown>;
-  find(filter: unknown): { sort(spec: unknown): { limit(count: number): { lean(): Promise<OutboxJob[]> } } };
-  findOneAndUpdate(filter: unknown, update: unknown, opts?: unknown): Promise<OutboxJob | null>;
-  deleteOne(filter: unknown): Promise<unknown>;
-  updateOne(filter: unknown, update: unknown): Promise<unknown>;
-  countDocuments(filter?: unknown): Promise<number>;
+  find(filter: MongoFilter): { sort(spec: unknown): { limit(count: number): { lean(): Promise<OutboxJob[]> } } };
+  findOneAndUpdate(filter: MongoFilter, update: MongoUpdate, opts?: MongoQueryOptions): Promise<OutboxJob | null>;
+  deleteOne(filter: MongoFilter): Promise<unknown>;
+  updateOne(filter: MongoFilter, update: MongoUpdate): Promise<unknown>;
+  countDocuments(filter?: MongoFilter): Promise<number>;
 }
 
 export interface OutboxSentModelLike {
-  exists(filter: unknown): Promise<unknown>;
-  updateOne(filter: unknown, update: unknown, opts?: unknown): Promise<unknown>;
+  exists(filter: MongoFilter): Promise<unknown>;
+  updateOne(filter: MongoFilter, update: MongoUpdate, opts?: MongoQueryOptions): Promise<unknown>;
 }
 
 export type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;

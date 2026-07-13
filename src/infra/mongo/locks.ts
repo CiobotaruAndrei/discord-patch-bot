@@ -1,4 +1,5 @@
 import type { ActiveLocks, LockToken } from "../../types.js";
+import type { MongoFilter, MongoUpdate, MongoQueryOptions } from "./mongoQueryShapes.js";
 import { errorMessage } from "../../shared/errors.js";
 
 type LockLogger = (level: "WARN", context: string, message: string, meta?: unknown) => void;
@@ -16,9 +17,9 @@ interface MongoWriteResultLike {
 }
 
 interface JobLockModelLike {
-  findOneAndUpdate(query: unknown, update: unknown, options: unknown): Promise<JobLockDocumentLike | null>;
-  updateOne(query: unknown, update: unknown): Promise<MongoWriteResultLike>;
-  deleteOne(query: unknown): Promise<unknown>;
+  findOneAndUpdate(query: MongoFilter, update: MongoUpdate, options: MongoQueryOptions): Promise<JobLockDocumentLike | null>;
+  updateOne(query: MongoFilter, update: MongoUpdate): Promise<MongoWriteResultLike>;
+  deleteOne(query: MongoFilter): Promise<unknown>;
 }
 
 interface MongoErrorLike {

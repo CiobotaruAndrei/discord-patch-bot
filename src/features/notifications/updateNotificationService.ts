@@ -1,6 +1,7 @@
 "use strict";
 
 import type { GameConfig } from "../../types.js";
+import type { MongoUpdate } from "../../infra/mongo/mongoQueryShapes.js";
 import type { GuildSettings, EmbeddableUpdate, MongoWriteOutcome, NotificationMode } from "../../types.js";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue.js";
 import { buildDeadLetterEntry, DeadLetterEntry } from "./deadLetter.js";
@@ -22,7 +23,7 @@ type GuildSettingsDoc = GuildSettings;
 
 interface GuildModelLike {
   find(filter: Record<string, unknown>): { lean(): Promise<GuildSettingsDoc[]> };
-  updateOne(filter: Record<string, unknown>, update: unknown): Promise<MongoWriteResult>;
+  updateOne(filter: Record<string, unknown>, update: MongoUpdate): Promise<MongoWriteResult>;
 }
 
 

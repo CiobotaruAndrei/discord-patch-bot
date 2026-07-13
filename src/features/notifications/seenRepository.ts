@@ -6,18 +6,19 @@ interface GuildModelLike {
 }
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 import type { MongoWriteOutcome, PriceAlertRule } from "../../types.js";
+import type { MongoFilter, MongoUpdate, MongoProjection, MongoQueryOptions } from "../../infra/mongo/mongoQueryShapes.js";
 
 interface GuildSeenDiscountModelLike {
-  updateOne(filter: unknown, update: unknown, opts?: unknown): Promise<{ upsertedCount?: number; matchedCount?: number }>;
-  deleteOne(filter: unknown): Promise<{ deletedCount?: number }>;
-  find(filter: unknown, projection?: unknown): { lean(): Promise<Array<{ dealHash?: unknown }>> };
-  bulkWrite(ops: unknown[], opts?: unknown): Promise<unknown>;
+  updateOne(filter: MongoFilter, update: MongoUpdate, opts?: MongoQueryOptions): Promise<{ upsertedCount?: number; matchedCount?: number }>;
+  deleteOne(filter: MongoFilter): Promise<{ deletedCount?: number }>;
+  find(filter: MongoFilter, projection?: MongoProjection): { lean(): Promise<Array<{ dealHash?: unknown }>> };
+  bulkWrite(ops: unknown[], opts?: MongoQueryOptions): Promise<unknown>;
 }
 
 interface GuildSeenUpdateModelLike {
-  updateOne(filter: unknown, update: unknown, opts?: unknown): Promise<{ upsertedCount?: number; matchedCount?: number }>;
-  deleteOne(filter: unknown): Promise<{ deletedCount?: number }>;
-  bulkWrite(ops: unknown[], opts?: unknown): Promise<unknown>;
+  updateOne(filter: MongoFilter, update: MongoUpdate, opts?: MongoQueryOptions): Promise<{ upsertedCount?: number; matchedCount?: number }>;
+  deleteOne(filter: MongoFilter): Promise<{ deletedCount?: number }>;
+  bulkWrite(ops: unknown[], opts?: MongoQueryOptions): Promise<unknown>;
 }
 
 export interface SeenRepositoryDeps {
