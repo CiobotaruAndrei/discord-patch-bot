@@ -3,9 +3,9 @@ type ParseEnvNumber = (name: string, defaultValue: number, limits: { min?: numbe
 type AcquireDbLock = (jobName: string, ttlMs: number) => Promise<string | null>;
 type ReleaseDbLock = (jobName: string, token: string) => Promise<unknown>;
 type ErrorFormatter = (err: unknown) => string;
-type TimerHandle = ReturnType<typeof setTimeout>;
 
 import type { OutboxDiscordClient } from "../../features/notifications/outboundChannel.js";
+import { createRearmingTimer } from "./rearmingTimer.js";
 
 interface MongooseLike {
   connection: {
@@ -108,15 +108,12 @@ function createOutboxWorker({
     max: OUTBOX_LOCK_MAX_TTL_MS
   });
 
-  let timerId: TimerHandle | null = null;
   let draining = false;
-
-  function scheduleNext(): void {
-    if (lifecycle.isShuttingDown) return;
-    if (timerId) clearTimeout(timerId);
-    timerId = setTimeout(drainTick, intervalMs);
-    if (typeof timerId.unref === "function") timerId.unref();
-  }
+  const timer = createRearmingTimer({
+    isShuttingDown: () => lifecycle.isShuttingDown,
+    delayMs: () => intervalMs,
+    onTick: drainTick
+  });
 
   function recordDrain(result: OutboxDrainResult | unknown): void {
     const r = (result && typeof result === "object" ? result : {}) as OutboxDrainResult;
@@ -170,7 +167,7 @@ function createOutboxWorker({
   async function drainTick(): Promise<void> {
     if (lifecycle.isShuttingDown || draining) return;
     if (mongoose.connection.readyState !== 1 || !client.isReady() || !client.user?.id) {
-      scheduleNext();
+      timer.schedule();
       return;
     }
     if (isPaused) {
@@ -180,11 +177,11 @@ function createOutboxWorker({
       } catch (err) {
         metrics.outboxPauseCheckFailures++;
         logger("WARN", "OUTBOX", "Citirea flagului de pauza a esuat; skip cycle (fail-closed, nu drenez)", errorMessage(err));
-        scheduleNext();
+        timer.schedule();
         return;
       }
       if (paused) {
-        scheduleNext();
+        timer.schedule();
         return;
       }
     }
@@ -202,21 +199,18 @@ function createOutboxWorker({
     } finally {
       if (token) await releaseDbLock(OUTBOX_DRAIN_LOCK_NAME, token).catch(() => null);
       draining = false;
-      scheduleNext();
+      timer.schedule();
     }
   }
 
   function start(): void {
-    if (timerId || lifecycle.isShuttingDown) return;
+    if (timer.isActive() || lifecycle.isShuttingDown) return;
     logger("INFO", "OUTBOX", `Worker outbox pornit (interval ${intervalMs}ms, lock TTL ${lockTtlMs}ms)`);
-    scheduleNext();
+    timer.schedule();
   }
 
   function stop(): void {
-    if (timerId) {
-      clearTimeout(timerId);
-      timerId = null;
-    }
+    timer.stop();
   }
 
   return { start, stop, drainTick };

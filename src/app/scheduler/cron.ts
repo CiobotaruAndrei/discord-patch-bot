@@ -5,6 +5,7 @@ import type { CronController } from "./schedulerTypes.js";
 import { createCronHealthWindow } from "./cronHealthWindow.js";
 import { computeCronDelay, resolveCronScheduleConfig } from "./cronScheduleConfig.js";
 import { buildCronCycleJobs, runCronJobs } from "./cronJobRunner.js";
+import { createRearmingTimer } from "./rearmingTimer.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type ParseEnvNumber = (name: string, defaultValue: number, limits: { min?: number; max?: number }) => number;
@@ -93,10 +94,14 @@ function createCronController({
 
   const health = createCronHealthWindow(env, logger);
 
-  let cronTimerId: TimerHandle | null = null;
   let heartbeatTimerId: TimerHandle | null = null;
   let currentCronAbortController: AbortController | null = null;
   let currentCronToken: string | null = null;
+  const cronTimer = createRearmingTimer({
+    isShuttingDown: () => lifecycle.isShuttingDown,
+    delayMs: () => computeCronDelay(cronIntervalMs, cronJitterMs),
+    onTick: runCronCycle
+  });
 
   function shouldAbortCron(): boolean {
     return lifecycle.isShuttingDown || (currentCronAbortController?.signal.aborted ?? false);
@@ -146,10 +151,7 @@ function createCronController({
   }
 
   function scheduleNextCron(): void {
-    if (lifecycle.isShuttingDown) return;
-    if (cronTimerId) clearTimeout(cronTimerId);
-    cronTimerId = setTimeout(runCronCycle, computeCronDelay(cronIntervalMs, cronJitterMs));
-    if (typeof cronTimerId.unref === "function") cronTimerId.unref();
+    cronTimer.schedule();
   }
 
   async function runCronCycle(): Promise<void> {
@@ -246,10 +248,7 @@ function createCronController({
 
   function stop(): void {
     if (currentCronAbortController) currentCronAbortController.abort();
-    if (cronTimerId) {
-      clearTimeout(cronTimerId);
-      cronTimerId = null;
-    }
+    cronTimer.stop();
     stopHeartbeat();
   }
 
