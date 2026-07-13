@@ -90,6 +90,10 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Gestioneaza lock-ul distribuit pentru cron.
 - Trebuie sa distinga intre lock pierdut si erori Mongo tranzitorii.
 
+### `src/infra/mongo/migrations.ts` (+ `migrations/` — un fisier per migrare)
+
+- `migrations.ts` e RUNNER-ul (fara definitii de migrare inline): `runMigrations` (lock distribuit `db_migrations`, `waitForOtherInstanceMigrations` fail-fast pe timeout, gating pe `lastApplied` din colectia `system`, `buildMigrationsFrom`/`attachMigrations`). Fiecare migrare traieste in propriul fisier `migrations/mN_<functionalitate>.ts` (`export const mN_...: Migration`), iar `migrations/registry.ts` e **sursa unica ordonata** `ALL_MIGRATIONS` care le importa in ordine crescatoare. Tipurile (`Migration`, `MigrationConnectionLike`, `MigrationCollectionLike`, `MigrationMongooseLike`) sunt in `migrations/migrationTypes.js`. Adaugarea unei migrari = un fisier nou `mN_...` + o linie in registry (id-ul urmator). Invariantele registry-ului (id-uri unice, contigue 1..N, strict ascendente) sunt gardate de `migrationRegistry.test.ts`; comportamentul runner-ului de `mongoMigrations.functional.test.ts`.
+
 ## Commands
 
 ### `src/features/command-definitions/slashCommandDefinitions.ts`

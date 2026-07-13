@@ -194,6 +194,11 @@ src/
       operationalSchemas.ts
       seenSchemas.ts
       outboxSchemas.ts
+      migrations.ts
+      migrations/
+        migrationTypes.ts
+        registry.ts
+        m1_addEnabledStores.ts … m13_backfillOutboxStatus.ts
   native/
     fuzzy.ts
     fuzzyNativeBridge.ts
