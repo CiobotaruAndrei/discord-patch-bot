@@ -44,6 +44,7 @@ interface CreateShutdownControllerDeps {
   outboxWorker?: { stop(): void };
   housekeeping: HousekeepingLike;
   redis?: { close(): Promise<void> };
+  guildInvalidationChannel?: { stop(): Promise<void> };
   adminAlert: AdminAlert;
   errorMessage: ErrorFormatter;
   errorDetail: ErrorFormatter;
@@ -51,7 +52,7 @@ interface CreateShutdownControllerDeps {
 
 function createShutdownController({
   lifecycle, logger, env, client, mongoose, httpServer, activeLocks,
-  releaseDbLock, cronController, outboxWorker, housekeeping, redis, adminAlert,
+  releaseDbLock, cronController, outboxWorker, housekeeping, redis, guildInvalidationChannel, adminAlert,
   errorMessage, errorDetail
 }: CreateShutdownControllerDeps): ShutdownController {
   async function shutdown(signal: ShutdownSignal, exitCode = 0): Promise<void> {
@@ -62,6 +63,11 @@ function createShutdownController({
     cronController.stop();
     outboxWorker?.stop();
     housekeeping.stop();
+
+    if (guildInvalidationChannel) {
+      try { await guildInvalidationChannel.stop(); }
+      catch (err) { logger("WARN", "SHUTDOWN", "Eroare la inchiderea canalului de invalidare", errorMessage(err)); }
+    }
 
     if (redis) {
       try { await redis.close(); }

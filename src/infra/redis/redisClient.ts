@@ -12,6 +12,16 @@ interface RedisClientLike {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, options?: { EX?: number }): Promise<unknown>;
   del(key: string): Promise<unknown>;
+  publish?(channel: string, message: string): Promise<unknown>;
+  duplicate?(): RedisSubscriberLike;
+  readonly isOpen: boolean;
+}
+
+interface RedisSubscriberLike {
+  on(event: "error", listener: (err: unknown) => void): unknown;
+  connect(): Promise<unknown>;
+  quit(): Promise<unknown>;
+  subscribe(channel: string, listener: (message: string) => void): Promise<unknown>;
   readonly isOpen: boolean;
 }
 
@@ -79,4 +89,4 @@ function createRedisRuntime(
 }
 
 export { createRedisRuntime };
-export type { RedisRuntime, RedisStatus, RedisClientLike, RedisClientFactory, RedisRuntimeEnv };
+export type { RedisRuntime, RedisStatus, RedisClientLike, RedisSubscriberLike, RedisClientFactory, RedisRuntimeEnv };

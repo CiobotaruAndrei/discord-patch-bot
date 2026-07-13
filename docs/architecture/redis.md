@@ -58,3 +58,7 @@ Pe scurt: **Mongo detine adevarul si coordonarea; Redis detine doar cache efemer
 ## Ce nu face inca
 
 Conexiunea, utilitarele de cache si metricile de baza exista; separarea `web`/`worker` (prin `BOT_ROLE`) exista si ea. Nu sunt (inca) incluse: **BullMQ** (coada de joburi), dashboard dedicat, sharding, lock-uri prin Redis sau microservicii. Aceste extensii sunt pasi ulteriori si vor fi documentate cand apar (vezi si `docs/architecture/scaling-readiness.md`).
+
+## Invalidarea cache-ului guild intre procese (pub/sub)
+
+Cand Redis e activ, invalidarea cache-ului de setari guild se propaga intre procese prin canalul `guild-settings-changed` (`infra/redis/guildSettingsInvalidationChannel.ts`): fiecare invalidare locala publica guildId-ul, iar fiecare proces abonat (conexiune duplicata, pornita la boot dupa `redis.connect()`) invalideaza local la mesajele primite, fara republish (fara bucla; ecoul propriului mesaj e idempotent). Fara `REDIS_URL`, invalidarea intre procese ramane pe TTL (`GUILD_CACHE_TTL_MS`) — fallback-ul e logat explicit la boot.

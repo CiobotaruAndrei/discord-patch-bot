@@ -29,7 +29,7 @@ function buildBoot(runMigrations: () => Promise<{ applied: number[] }>, continue
     client: { login: async () => { calls.login++; } },
     httpServer: { on() { }, listen: (_p: number, cb?: () => void) => { calls.listen++; if (cb) cb(); }, close() { } }
   };
-  return { start: createBootSequence(deps, ctx), calls };
+  return { start: createBootSequence(deps, { ...ctx, guildInvalidationChannel: { start: async () => undefined } }), calls };
 }
 
 test("P1.1: migrare esuata la boot -> fail-fast (start respinge, nu se ajunge la login)", async () => {

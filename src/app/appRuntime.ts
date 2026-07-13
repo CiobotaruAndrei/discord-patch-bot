@@ -50,6 +50,7 @@ export type {
 import { createRuntimeServices } from "./runtime/runtimeServices.js";
 import { createSchedulers } from "./runtime/runtimeSchedulers.js";
 import { createBootSequence, connectMongoWithRetry, hydrateStartupCaches } from "./runtime/bootSequence.js";
+import { createGuildSettingsInvalidationChannel } from "../infra/redis/guildSettingsInvalidationChannel.js";
 
 function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   const { createHttpServer, registerDiscordEvents, registerMongoEvents, createShutdownController, errorMessage, errorDetail, mongoose, crypto, mongo } = deps;
@@ -75,13 +76,15 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   });
   registerMongoEvents({ mongoose, logger, errorMessage });
 
+  const guildInvalidationChannel = createGuildSettingsInvalidationChannel({ redis: deps.redis, logger });
+
   const shutdownController = createShutdownController({
     lifecycle, logger, env, client, mongoose, httpServer, activeLocks,
     releaseDbLock, cronController, outboxWorker, housekeeping, adminAlert,
-    redis: deps.redis, errorMessage, errorDetail
+    redis: deps.redis, guildInvalidationChannel, errorMessage, errorDetail
   });
 
-  const start = createBootSequence(deps, { client, httpServer });
+  const start = createBootSequence(deps, { client, httpServer, guildInvalidationChannel });
 
   return {
     start,

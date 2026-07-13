@@ -63,10 +63,10 @@ async function hydrateStartupCaches(deps: HydrateCachesDeps): Promise<void> {
   if (hydratedUpdates || hydratedDeals) logger("INFO", "BOOT", `Cache hidratat din snapshot DB: updates=${hydratedUpdates}, deals=${hydratedDeals}`);
 }
 
-function createBootSequence(deps: AppRuntimeDeps, context: { client: DiscordClientLike; httpServer: HttpServerLike }): () => Promise<void> {
+function createBootSequence(deps: AppRuntimeDeps, context: { client: DiscordClientLike; httpServer: HttpServerLike; guildInvalidationChannel: { start(): Promise<void> } }): () => Promise<void> {
   const { errorMessage, errorDetail, redis, mongo } = deps;
   const { logger, env, adminAlert, waitForMongoReady, runMigrations } = mongo;
-  const { client, httpServer } = context;
+  const { client, httpServer, guildInvalidationChannel } = context;
   return async function start(): Promise<void> {
     try {
       if (!ensureNativeFuzzy()) logger("WARN", "BOOT", "Addon Rust indisponibil; rulez cu fallback TypeScript permis de configuratia mediului.");
@@ -76,6 +76,7 @@ function createBootSequence(deps: AppRuntimeDeps, context: { client: DiscordClie
         logger, adminAlert, errorMessage, errorDetail
       });
       await redis.connect();
+      await guildInvalidationChannel.start();
       await runCacheHydrationPhase({ hydrateCaches: () => hydrateStartupCaches(deps), logger, errorMessage });
       runHttpStartupPhase({ httpServer, port: env.PORT, logger, adminAlert, errorMessage, errorDetail });
       await runDiscordStartupPhase({ client, token: env.DISCORD_TOKEN });
