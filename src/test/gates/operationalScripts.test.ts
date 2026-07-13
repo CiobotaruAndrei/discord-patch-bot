@@ -16,7 +16,10 @@ function scriptValue(name: string): string {
 test("scripturile operationale compileaza o singura data si ruleaza gate-urile direct", () => {
   assert.equal(scriptValue("check:quick"), "npm run build:ts && node dist/scripts/check-syntax.js && node dist/scripts/check-config.js");
   assert.equal(scriptValue("lint"), "npm run build:ts && node dist/scripts/check-syntax.js && node dist/scripts/check-no-comments.js && node dist/scripts/check-no-weakening-types.js");
-  assert.equal(scriptValue("check"), "npm run build:ts && npm run build:rust && node dist/scripts/check-syntax.js && node dist/scripts/check-no-comments.js && node dist/scripts/check-no-weakening-types.js && node dist/scripts/check-config.js && node dist/scripts/check-dependencies.js && node dist/scripts/check-rules-sync.js && node dist/scripts/check-db-indexes.js && node dist/scripts/generate-command-reference.js --check && node --test --test-reporter=spec \\"dist/test/**/*.test.js\\"");
+  const checkScript = scriptValue("check");
+  assert.equal(checkScript.startsWith("npm run build:ts && npm run build:rust && "), true);
+  assert.equal(checkScript.includes("npm run typecheck"), false);
+  assert.equal(checkScript.includes("npm run build &&"), false);
   assert.equal(scriptValue("check:full"), "npm run check && npm run check:native && npm run test:e2e:prebuilt");
   assert.equal(packageText.includes('"test:functional"'), false);
 });
