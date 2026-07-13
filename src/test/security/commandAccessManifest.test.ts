@@ -28,9 +28,13 @@ function slashTopLevelCommands(): Array<{ name: string; hasDiscordPerms: boolean
   return defs.map(def => ({ name: def.name, hasDiscordPerms: def.default_member_permissions != null }));
 }
 
-function pathParts(command: string): { name: string; sub: string } {
+function pathParts(command: string): { name: string; group: string; sub: string } {
   const tokens = command.replace(/^\//, "").split(/\s+/).filter(Boolean);
-  return { name: tokens[0] || "", sub: tokens.length > 1 ? tokens[tokens.length - 1] : "" };
+  return {
+    name: tokens[0] || "",
+    group: tokens.length >= 3 ? tokens[1] || "" : "",
+    sub: tokens.length >= 3 ? tokens[2] || "" : tokens[1] || ""
+  };
 }
 
 test("manifest: acopera BIDIRECTIONAL toate comenzile top-level din slash definitions, fara duplicate (single source of truth)", () => {
@@ -58,12 +62,12 @@ test("manifest: discordAdminPermissions coincide cu setDefaultMemberPermissions 
 
 test("manifest: clasificarea Public/Admin/owner-only din help catalog coincide cu derivarea din manifest (anti-drift)", () => {
   for (const entry of COMMAND_HELP_ENTRIES) {
-    const { name, sub } = pathParts(entry.command);
+    const { name, group, sub } = pathParts(entry.command);
     const ownerExpected = entry.permissions.includes("owner-only");
     const adminExpected = entry.permissions.startsWith("Admin");
     const owner = isOwnerOnlyCommandPath(name, sub);
-    const router = isRouterAdminCommandPath(name, sub);
-    const runtime = isRuntimeAdminCommandPath(name, sub);
+    const router = isRouterAdminCommandPath(name, sub, group);
+    const runtime = isRuntimeAdminCommandPath(name, sub, group);
     assert.equal(owner, ownerExpected, `${entry.command}: catalogul declara owner-only=${ownerExpected}, manifestul deriva ${owner}`);
     assert.equal(
       router || runtime || owner,
@@ -78,10 +82,6 @@ test("manifest: derivarile sensitive si owner-only pastreaza exact comportamentu
   assert.equal(isSensitiveCommandPath("backup", "load"), true);
   assert.equal(isSensitiveCommandPath("backup", "delete"), true);
   assert.equal(isSensitiveCommandPath("backup", "list"), false);
-  for (const sub of ["clear-deadletters", "replay-deadletters", "pause", "resume", "drain-now"]) {
-    assert.equal(isSensitiveCommandPath("outbox", sub), true, `outbox ${sub} ramane sensibil`);
-  }
-  assert.equal(isSensitiveCommandPath("outbox", "status"), false);
   assert.equal(isOwnerOnlyCommandPath("admin-command-access", "list"), true);
   assert.equal(isOwnerOnlyCommandPath("set", "admin-command-access"), true);
   assert.equal(isOwnerOnlyCommandPath("delete", "admin-command-access"), true);
@@ -89,8 +89,9 @@ test("manifest: derivarile sensitive si owner-only pastreaza exact comportamentu
   assert.equal(isRouterAdminCommandPath("add", "suggestion"), false, "/add suggestion ramane public");
   assert.equal(isRouterAdminCommandPath("add", "backup"), true);
   assert.equal(isRouterAdminCommandPath("remove", "price-alert"), true);
-  assert.equal(isRouterAdminCommandPath("report", "list"), false, "/report list nu trece prin router (admin-runtime in handler)");
-  assert.equal(isRuntimeAdminCommandPath("report", "list"), true);
+  assert.equal(isRouterAdminCommandPath("report", "bugs", "list"), true, "/report list bugs trece prin guard-ul central");
+  assert.equal(isRuntimeAdminCommandPath("report", "bugs", "list"), true);
+  assert.equal(isRouterAdminCommandPath("report", "bug"), false, "/report bug ramane public");
   assert.equal(isRuntimeAdminCommandPath("watchlist-game", "delete"), true);
   assert.equal(isRuntimeAdminCommandPath("watchlist-game", "add"), false);
 });
@@ -110,7 +111,7 @@ function docsCommandRows(): Array<{ command: string; permissions: string | null 
   return rows;
 }
 
-function normalizeDocCommandPath(command: string): { name: string; sub: string } {
+function normalizeDocCommandPath(command: string): { name: string; group: string; sub: string } {
   const cleaned = command.replace(/\s+[a-z-]+:.*$/, "").replace(/\s+<.*$/, "").trim();
   return pathParts(cleaned);
 }
@@ -119,10 +120,10 @@ test("coloana Permisiuni din docs/Comenzi Functionalitate.md coincide cu manifes
   const rows = docsCommandRows();
   assert.ok(rows.length > 40, "tabelele de comenzi au fost parsate");
   for (const row of rows) {
-    const { name, sub } = normalizeDocCommandPath(row.command);
+    const { name, group, sub } = normalizeDocCommandPath(row.command);
     const owner = isOwnerOnlyCommandPath(name, sub);
-    const router = isRouterAdminCommandPath(name, sub);
-    const runtime = isRuntimeAdminCommandPath(name, sub);
+    const router = isRouterAdminCommandPath(name, sub, group);
+    const runtime = isRuntimeAdminCommandPath(name, sub, group);
     const derivedAdmin = owner || router || runtime;
     if (row.permissions === null) {
       assert.equal(derivedAdmin, false, `${row.command}: apare intr-un tabel fara coloana de permisiuni (public), dar manifestul o deriva ca admin`);

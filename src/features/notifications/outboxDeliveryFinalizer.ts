@@ -51,7 +51,7 @@ export function createOutboxDeliveryFinalizer({ deliver, recordSentHistory, mark
     if (recordSentHistory && Array.isArray(job.history) && job.history.length) {
       await recordSentHistory(job.guildId, job.history).catch((err: unknown) => {
         historyWriteFailed = true;
-        logger("WARN", "OUTBOX", `Scrierea istoricului /history a esuat pentru un job livrat (guild ${job.guildId}); livrarea a reusit, dar /history poate fi incomplet`, errorMessage(err));
+        logger("WARN", "OUTBOX", `Scrierea notificationHistory a esuat pentru un job livrat (guild ${job.guildId}); livrarea a reusit, dar istoricul intern poate fi incomplet`, errorMessage(err));
       });
     }
     const markSentFailed = job.dedupeKey ? !(await markSent(job.dedupeKey)) : false;

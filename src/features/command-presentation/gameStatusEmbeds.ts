@@ -15,6 +15,16 @@ interface EpicStatusPayload {
   };
 }
 
+export type GameServerState = "online" | "maintenance" | "degraded" | "unknown";
+
+export interface GameServerStatus {
+  state: GameServerState;
+  label: string;
+  detail: string;
+  checkedAt: Date;
+  statusUrl: string;
+}
+
 interface SteamPriceOverview {
   initial: number;
   final: number;
@@ -39,48 +49,64 @@ export interface GameStatusEmbedsDeps {
 }
 
 export function createGameStatusEmbeds({ EmbedBuilder, COLORS, logger, httpReq, DEFAULT_CURRENCY, formatPrice }: GameStatusEmbedsDeps) {
-  async function fetchGameStatus(game: GameConfig): Promise<ChainableEmbed> {
-    let statusText = "Nu am un API oficial live integrat pentru acest joc. Iti dau pagina oficiala/fallback ca sa verifici manual.";
-    let statusLink = "";
-    let homepageLink = "";
-    let color = COLORS.INFO;
+  function classifyIndicator(indicator: string): GameServerState {
+    const normalized = indicator.toLowerCase();
+    if (normalized === "none") return "online";
+    if (normalized.includes("maintenance")) return "maintenance";
+    if (normalized) return "degraded";
+    return "unknown";
+  }
 
-    if (game.type === "epic_games") {
-      try {
-        const res = await httpReq("GET", "https://status.epicgames.com/api/v2/status.json");
-        const data = res.data as EpicStatusPayload;
-        statusText = `**Status Server:** ${data.status?.description || "necunoscut"}`;
-        statusLink = "https://status.epicgames.com/";
-        color = data.status?.indicator === "none" ? COLORS.POSITIVE : COLORS.ERROR;
-      } catch (err) {
-        logger("WARN", "STATUS", "Esec status.epicgames.com, folosesc fallback", errorMessage(err));
-        statusText = "Nu am putut prelua statusul automat. Verifica pagina oficiala.";
-        statusLink = "https://status.epicgames.com/";
-      }
-    } else if (game.key === "roblox") {
-      statusLink = "https://status.roblox.com/";
-      statusText = "Pentru Roblox folosesc pagina oficiala de status.";
-    } else if (game.key === "valorant" || game.key === "lol") {
-      statusLink = "https://status.riotgames.com/";
-      statusText = "Pentru Riot Games folosesc pagina oficiala de status.";
-    } else if (game.key === "minecraft") {
-      statusLink = "https://help.minecraft.net/hc/en-us/articles/360052646271-Minecraft-Server-Status";
-    } else {
-      homepageLink = game.url || game.baseUrl || "";
+  function labelFor(state: GameServerState): string {
+    if (state === "online") return "Online";
+    if (state === "maintenance") return "In mentenanta";
+    if (state === "degraded") return "Degradat";
+    return "Necunoscut";
+  }
+
+  async function loadStatusPage(apiUrl: string, statusUrl: string): Promise<GameServerStatus> {
+    const checkedAt = new Date();
+    try {
+      const response = await httpReq("GET", apiUrl);
+      const data = response.data as EpicStatusPayload;
+      const state = classifyIndicator(String(data.status?.indicator || ""));
+      return { state, label: labelFor(state), detail: String(data.status?.description || labelFor(state)), checkedAt, statusUrl };
+    } catch (err: unknown) {
+      logger("WARN", "STATUS", `Esec la verificarea ${apiUrl}`, errorMessage(err));
+      return { state: "unknown", label: labelFor("unknown"), detail: "Sursa de status nu a putut fi verificata.", checkedAt, statusUrl };
     }
+  }
 
+  async function fetchGameStatusSummary(game: GameConfig): Promise<GameServerStatus> {
+    if (game.type === "epic_games") {
+      return loadStatusPage("https://status.epicgames.com/api/v2/status.json", "https://status.epicgames.com/");
+    }
+    if (game.key === "roblox") {
+      return loadStatusPage("https://status.roblox.com/api/v2/status.json", "https://status.roblox.com/");
+    }
+    const statusUrl = game.key === "valorant" || game.key === "lol"
+      ? "https://status.riotgames.com/"
+      : game.key === "minecraft"
+        ? "https://help.minecraft.net/hc/en-us/articles/360052646271-Minecraft-Server-Status"
+        : String(game.url || game.baseUrl || "");
+    return {
+      state: "unknown",
+      label: labelFor("unknown"),
+      detail: "Jocul nu are o sursa live de status integrata.",
+      checkedAt: new Date(),
+      statusUrl
+    };
+  }
+
+  async function fetchGameStatus(game: GameConfig): Promise<ChainableEmbed> {
+    const status = await fetchGameStatusSummary(game);
+    const color = status.state === "online" ? COLORS.POSITIVE : status.state === "unknown" ? COLORS.INFO : COLORS.ERROR;
     const embed = new EmbedBuilder()
       .setColor(color)
       .setTitle(`Status servere: ${game.name}`)
-      .setDescription(statusText);
-    if (statusLink) {
-      embed.addFields({ name: "Pagina oficiala de status", value: `[Verifica statusul aici](${statusLink})` });
-    } else if (homepageLink && homepageLink.startsWith("http")) {
-      embed.addFields({
-        name: "Pagina principala / fallback",
-        value: `[Acceseaza homepage](${homepageLink})\n*(Acesta nu este un API live de status.)*`
-      });
-    }
+      .setDescription(`**Stare:** ${status.label}\n${status.detail}`)
+      .setFooter({ text: `Ultima verificare: ${status.checkedAt.toISOString()}` });
+    if (status.statusUrl.startsWith("http")) embed.addFields({ name: "Sursa", value: `[Verifica pagina oficiala](${status.statusUrl})` });
     if (game.thumbnail) embed.setThumbnail(game.thumbnail);
     return embed;
   }
@@ -129,5 +155,5 @@ export function createGameStatusEmbeds({ EmbedBuilder, COLORS, logger, httpReq, 
     return embed;
   }
 
-  return { fetchGameStatus, buildSteamPriceEmbed };
+  return { fetchGameStatus, fetchGameStatusSummary, buildSteamPriceEmbed };
 }

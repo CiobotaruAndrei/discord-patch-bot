@@ -25,7 +25,7 @@ export function buildOnboardingEmbed(): OnboardingEmbed {
     "**2.** `/start reduceri` — pe canalul unde vrei alerte de reduceri.",
     "**3.** `/set games add` — alege ce jocuri urmaresti.",
     "**4.** `/set role updates` / `/set role discounts` — rol pingat la notificari (optional).",
-    "**5.** `/help` — toate comenzile. `/history` — ce notificari am trimis deja."
+    "**5.** `/help` — toate comenzile. `/game overview` — sumarul complet al unui joc."
   ];
   return {
     title: "Salut! Sunt botul de update-uri si reduceri 🎮",

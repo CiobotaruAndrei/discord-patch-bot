@@ -88,7 +88,7 @@ function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps)
     }
     return safeEdit(interaction, replayCleanupOk
       ? "OK: configuratia serverului a fost resetata la valorile implicite. Lista dead-letter si payload-urile de replay au fost sterse; istoricul rapoartelor si al notificarilor livrate nu a fost sters."
-      : "Partial: configuratia serverului a fost resetata si lista dead-letter golita, dar stergerea payload-urilor de replay a ESUAT (probabil Mongo indisponibil). Reincearca `/outbox clear-deadletters` ca sa le cureti; istoricul notificarilor livrate nu a fost sters.");
+      : "Partial: configuratia serverului a fost resetata si lista dead-letter golita, dar stergerea payload-urilor de replay a esuat. Verifica MongoDB si jurnalele operationale; istoricul notificarilor livrate nu a fost sters.");
   }
 
   async function handleAdminAlerts(interaction: DiscordInteraction, guildId: string): Promise<unknown> {

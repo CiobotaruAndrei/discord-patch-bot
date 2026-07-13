@@ -88,7 +88,7 @@ test("/reset-config confirm:true: daca stergerea payload-urilor de replay esueaz
   const reply = String(replies[0]);
   assert.match(reply, /Partial/i, "raspunsul nu mai pretinde succes total");
   assert.match(reply, /ESUAT|esuat/, "raspunsul spune clar ca stergerea payload-urilor de replay a esuat");
-  assert.match(reply, /clear-deadletters/, "indica remediere: reia /outbox clear-deadletters");
+  assert.match(reply, /MongoDB/, "indica investigarea dependintei operationale care a esuat");
   assert.doesNotMatch(reply, /payload-urile de replay au fost sterse/, "nu mai afirma fals ca payload-urile au fost sterse");
 });
 

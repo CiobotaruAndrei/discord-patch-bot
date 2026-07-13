@@ -2,7 +2,7 @@
 
 > Fisier generat automat din `COMMAND_CATALOG_HELP` (`src/features/command-catalog/commandCatalog.ts`), aceeasi sursa unica pe care o foloseste comanda `/help` in Discord. Nu edita manual acest fisier: ruleaza `npm run docs:commands` din `src/`. Sincronizarea catalog <-> fisier este verificata de `commandReferenceDoc.test.ts` si de `npm run check:docs-commands`.
 
-Total comenzi documentate: 125.
+Total comenzi documentate: 121.
 
 | Comanda | Permisiuni | Ce face | Exemplu |
 | --- | --- | --- | --- |
@@ -20,11 +20,14 @@ Total comenzi documentate: 125.
 | `/unsnooze` | Admin, Ephemeral | Scoate pauza temporara de pe o comanda pusa anterior in snooze. | `/unsnooze command:/latest updates` |
 | `/add watchlist` | Admin runtime, Ephemeral | Adauga un joc deja cunoscut de bot in watchlist-ul serverului. | `/add watchlist joc:cs2` |
 | `/remove watchlist` | Admin runtime, Ephemeral | Scoate un joc din watchlist-ul serverului. | `/remove watchlist joc:cs2` |
-| `/status` | Public | Afiseaza statusul unei surse sau al unui joc urmarit. | `/status joc:minecraft` |
-| `/history` | Public, Ephemeral | Afiseaza istoricul recent al notificarilor trimise pe server, filtrat optional dupa update-uri, reduceri sau YouTube. | `/history tip:youtube numar:10` |
-| `/report submit` | Public, Ephemeral | Trimite un raport despre o problema observata la bot, de exemplu sursa stricata, pret gresit sau update lipsa. | `/report submit tip:sursa-stricata detalii:Steam nu raspunde` |
-| `/report list` | Admin runtime, Ephemeral | Listeaza rapoartele recente ale serverului, cu ID-ul necesar pentru rezolvare. | `/report list numar:10` |
-| `/report resolve` | Admin runtime, Ephemeral | Marcheaza un raport ca rezolvat dupa ce problema a fost verificata sau reparata. | `/report resolve id:64a1f2b3c4d5e6f789012345` |
+| `/status game` | Public | Afiseaza daca jocul este online, in mentenanta, degradat sau cu stare necunoscuta. | `/status game joc:minecraft` |
+| `/status watchlist` | Public | Verifica independent starea serverelor pentru jocurile compatibile din watchlist si pagineaza rezultatele. | `/status watchlist` |
+| `/report bug` | Public, Ephemeral | Deschide un formular pentru descrierea obligatorie a unui bug si evita duplicatele pentru acelasi tip, joc si text. | `/report bug tip:sursa-stricata joc:cs2` |
+| `/report complaint` | Public, Ephemeral | Deschide un formular pentru reclamarea unui membru; nu permite auto-raportarea sau raportarea botilor. | `/report complaint target:@membru` |
+| `/report list bugs` | Admin runtime, Ephemeral | Listeaza exclusiv rapoartele de bug, cu paginare si ID-uri de stergere. | `/report list bugs` |
+| `/report list users` | Admin runtime, Ephemeral | Listeaza exclusiv reclamatiile impotriva membrilor, cu paginare. | `/report list users` |
+| `/report remove bug` | Admin runtime, Ephemeral | Sterge un ID numai din lista rapoartelor de bug. | `/report remove bug id:64a1f2b3c4d5e6f789012345` |
+| `/report remove user` | Admin runtime, Ephemeral | Sterge un ID numai din lista reclamatiilor impotriva membrilor. | `/report remove user id:64a1f2b3c4d5e6f789012345` |
 | `/health` | Admin, Ephemeral | Afiseaza starea tehnica a botului: conexiune Discord, MongoDB, uptime si cache. | `/health` |
 | `/price-check` | Public | Cauta pretul jocului pe Steam si il compara cu ofertele comparabile din sursele externe de reduceri folosite de bot. Pretul Steam este afisat in embed verde. | `/price-check joc:elden-ring` |
 | `/deal-score` | Public | Calculeaza un scor 1-10 pentru oferta activa a unui joc pe baza reducerii, pretului curent, semnalelor de calitate/popularitate si magazinului. | `/deal-score game:elden-ring` |
@@ -37,6 +40,11 @@ Total comenzi documentate: 125.
 | `/system requirements game` | Public | Afiseaza cerintele minime si recomandate returnate de Steam pentru joc. | `/system requirements game game:elden-ring` |
 | `/game-size game` | Public | Extrage dimensiunea aproximativa de instalare din cerintele de sistem Steam, cand informatia este disponibila. | `/game-size game game:elden-ring` |
 | `/player-count game` | Public | Afiseaza numarul curent de jucatori activi pe Steam pentru jocul ales, cand jocul are Steam appId configurat. | `/player-count game game:Counter-Strike 2` |
+| `/player-count trend` | Public | Afiseaza evolutia player-count, minimul, maximul, media, valoarea recenta si un grafic compact pentru 24h, 7d sau 30d. | `/player-count trend joc:cs2 period:7d` |
+| `/player-count milestone` | Public | Afiseaza recordul istoric, data recordului, valoarea curenta si diferenta fata de record. | `/player-count milestone joc:cs2` |
+| `/player-count gainers` | Public | Ordoneaza jocurile dupa cea mai mare crestere numerica de player-count in perioada selectata. | `/player-count gainers period:24h` |
+| `/player-count peak-time` | Public | Calculeaza zilele si intervalele orare cu cea mai mare medie de jucatori in fusul orar al serverului. | `/player-count peak-time joc:cs2 period:7d` |
+| `/game overview` | Public | Combina ultimul update, oferta, deal score, player-count, server status, DLC-uri recente si prezenta in watchlist, fara ca esecul unei surse sa ascunda restul. | `/game overview joc:cs2` |
 | `/top active games` | Public | Afiseaza topul global al jocurilor cunoscute de bot care au Steam appId, sortat dupa player-count Steam. Nu este limitat de watchlist-ul sau filtrul de jocuri al serverului. | `/top active games numar:5` |
 | `/dlc` | Public | Cauta DLC-uri pentru un joc. | `/dlc joc:Counter-Strike 2` |
 | `/set admin-command-access` | Admin top-level, owner-only runtime, Ephemeral | Seteaza rolul care poate folosi comenzile admin pe langa Administrator si codul global de acces. Fara command seteaza fallback-ul global; cu command seteaza regula doar pentru acea comanda sau acel pachet, de exemplu /start updates. Perechile start/stop pentru acelasi modul folosesc aceeasi regula. Nota: Mode `role` accepta doar rolul ales, iar `role-or-higher` accepta rolul ales sau unul mai mare. Nota: O regula pentru `/start player-count` se aplica automat si la `/stop player-count`. Nota: Pana ownerul seteaza o regula de rol, rolurile nu dau acces admin; raman Administrator si codul global corect introdus prin modal ephemeral. | `/set admin-command-access role:@Moderator mode:role-or-higher command:/start player-count` |
@@ -64,32 +72,19 @@ Total comenzi documentate: 125.
 | `/set paid` | Admin, Ephemeral | Porneste sau opreste afisarea ofertelor platite in alertele de reduceri. | `/set paid value:on` |
 | `/set currency` | Admin, Ephemeral | Alege valuta folosita pentru preturi si alerte de reduceri. | `/set currency value:EUR` |
 | `/set stores` | Admin, Ephemeral | Filtreaza reducerile dupa magazine, de exemplu Steam si Epic, sau reseteaza filtrul. | `/set stores value:steam,epic` |
-| `/set update-template` | Admin, Ephemeral | Personalizeaza mesajul (text deasupra embed-urilor) trimis la notificarile de update. Foloseste {count} pentru numarul de update-uri. Lasa gol pentru a reveni la implicit. | `/set update-template value:Au aparut {count} update-uri noi!` |
-| `/set discount-template` | Admin, Ephemeral | Personalizeaza mesajul trimis la notificarile de reduceri. Foloseste {count} pentru numarul de reduceri. Lasa gol pentru a reveni la implicit. | `/set discount-template value:{count} reduceri noi!` |
-| `/set outbox-recovery-verify` | Admin, Ephemeral | Activeaza sau dezactiveaza verificarea de recovery pentru outbox pe server. Cand este activa, botul verifica istoricul canalului ca sa previna retrimiterea aceluiasi mesaj dupa un crash. | `/set outbox-recovery-verify value:on` |
 | `/set add games` | Admin, Ephemeral | Adauga un joc deja cunoscut de bot in lista explicita de jocuri active pentru server. Nota: Nu adauga un joc nou in codul botului; doar activeaza pentru server un joc existent in configuratie. | `/set add games joc:cs2` |
 | `/set remove games` | Admin, Ephemeral | Scoate un joc din lista explicita de jocuri active pentru server. | `/set remove games joc:cs2` |
 | `/set games reset` | Admin, Ephemeral | Reseteaza filtrul per-joc. Dupa reset, serverul foloseste toate jocurile cunoscute de bot. | `/set games reset` |
 | `/watchlist show` | Admin, Ephemeral | Afiseaza jocurile urmarite explicit pe server. Daca lista este goala, serverul foloseste toate jocurile configurate. | `/watchlist show` |
 | `/watchlist reset` | Admin, Ephemeral | Reseteaza watchlist-ul. Dupa reset, toate jocurile configurate sunt active. | `/watchlist reset` |
+| `/watchlist coverage` | Admin, Ephemeral | Afiseaza pentru fiecare joc urmarit disponibilitatea update-urilor, reducerilor, server status, player-count, DLC, Steam appId si sursele configurate. | `/watchlist coverage` |
 | `/set role updates` | Admin, Ephemeral | Seteaza rolul pingat la notificarile de update-uri. Daca nu alegi rol, ping-ul se opreste. | `/set role updates value:@Updates` |
 | `/set role discounts` | Admin, Ephemeral | Seteaza rolul pingat la alertele de reduceri. Daca nu alegi rol, ping-ul se opreste. | `/set role discounts value:@Deals` |
-| `/outbox status` | Admin, Ephemeral | Afiseaza starea cozii de notificari: cate mesaje asteapta livrare, cate sunt in dead-letter, daca drenarea e pe pauza si starea recovery-verify. Nota: Outbox inseamna coada persistenta in MongoDB in care botul pune mesajele de trimis, ca sa nu le piarda la restart sau erori temporare. | `/outbox status` |
-| `/outbox deadletters` | Admin, Ephemeral | Listeaza livrarile care au esuat definitiv si au fost mutate in dead-letter pentru investigare. Nota: Dead-letter inseamna lista de mesaje pe care botul nu le mai retrimite automat fiindca problema pare permanenta sau a depasit numarul de incercari. | `/outbox deadletters` |
-| `/outbox clear-deadletters` | Admin, Ephemeral | Sterge raportarea dead-letter pentru server dupa ce ai investigat cauza. Nu repara problema si nu retrimite mesajele. | `/outbox clear-deadletters` |
-| `/outbox replay-deadletters` | Admin, Ephemeral | Reintroduce in outbox livrarile dead-letter care mai au payload salvat, ca botul sa incerce sa le trimita din nou. Nota: Foloseste comanda doar dupa ce ai reparat cauza, de exemplu canal lipsa sau permisiuni insuficiente. | `/outbox replay-deadletters` |
-| `/outbox retry` | Admin, Ephemeral | Reprogrameaza joburile din coada serverului pentru livrare imediata. | `/outbox retry` |
-| `/outbox drain-now` | Admin, Ephemeral | Porneste manual o drenare a outbox-ului daca drenarea nu este pe pauza si lock-ul global este liber. Nota: Drain inseamna procesul prin care botul ia mesajele din coada persistenta si incearca sa le trimita pe Discord. | `/outbox drain-now` |
-| `/outbox pause` | Admin, Ephemeral | Pune pe pauza drenarea globala a outbox-ului. Mesajele pot ramane in coada, dar worker-ul nu le livreaza pana la resume. | `/outbox pause` |
-| `/outbox resume` | Admin, Ephemeral | Reia drenarea globala a outbox-ului dupa o pauza. | `/outbox resume` |
-| `/outbox permissions` | Admin, Ephemeral | Auditeaza permisiunile botului pe canalele configurate pentru notificari si reduceri. Nota: Verifica View Channel, Send Messages, Embed Links si Read Message History cand recovery-verify are nevoie de istoric. | `/outbox permissions` |
-| `/outbox recovery-verify status` | Admin, Ephemeral | Afiseaza starea recovery-verify pentru server si configuratia globala relevanta. Nota: Recovery-verify este stratul care cauta markerul mesajului in istoricul canalului dupa crash, ca botul sa evite duplicatele. | `/outbox recovery-verify status` |
 | `/latest updates` | Public | Afiseaza cele mai recente update-uri pentru jocurile active ale serverului. Foloseste cache si poate folosi snapshot-ul persistat daca fetch-ul live esueaza. | `/latest updates` |
 | `/latest reduceri` | Public | Afiseaza cele mai bune reduceri curente care trec filtrele serverului. | `/latest reduceri` |
 | `/latest update` | Public | Cauta ultimul update pentru un joc anume. | `/latest update joc:cs2` |
 | `/latest pret` | Public | Cauta pretul curent al unui joc pe Steam. | `/latest pret joc:Counter-Strike 2` |
 | `/sources status` | Admin, Ephemeral | Afiseaza starea ultimelor snapshot-uri pentru sursele de date: reduceri Steam/Epic, feed-uri de update si vechimea ultimului fetch. | `/sources status` |
-| `/sources refresh` | Admin, Ephemeral | Forteaza un fetch live pentru un joc si arata rezultatul brut (titlu, link, sau eroare/outcome). Inspectie: nu marcheaza update-ul ca vazut si nu trimite notificari. | `/sources refresh game:cs2` |
 | `/youtube subscribe` | Admin, Ephemeral | Adauga un canal YouTube in lista urmarita folosind un link, un handle @nume sau un channel ID. Videoclipurile mai vechi de o luna sunt ignorate, iar cele recente pot fi livrate la prima activare. | `/youtube subscribe canal:@numeCanal` |
 | `/youtube unsubscribe` | Admin, Ephemeral | Scoate un canal YouTube din lista urmarita. Autocomplete afiseaza numai canalele salvate pe server. | `/youtube unsubscribe canal:UCxxxxxxxxxxxxxxxxxxxxxx` |
 | `/youtube list` | Admin, Ephemeral | Listeaza canalele YouTube urmarite, ultima verificare si ultima eroare cunoscuta pentru fiecare. | `/youtube list` |
@@ -102,9 +97,6 @@ Total comenzi documentate: 125.
 | `/youtube filter premieres` | Admin, Ephemeral | Activeaza sau dezactiveaza filtrul care evita premierele programate. | `/youtube filter premieres state:on` |
 | `/youtube filter min-duration` | Admin, Ephemeral | Seteaza durata minima acceptata pentru un videoclip. Valoarea 0 dezactiveaza limita. | `/youtube filter min-duration seconds:61` |
 | `/youtube filter status` | Admin, Ephemeral | Afiseaza filtrele YouTube active si durata minima configurata. | `/youtube filter status` |
-| `/youtube message-template set` | Admin, Ephemeral | Seteaza textul atasat notificarilor YouTube. Sunt acceptate variabilele {channel}, {title} si {url}; mentiunile Discord sunt dezactivate. | `/youtube message-template set text:Video nou de la {channel}: {title} {url}` |
-| `/youtube message-template reset` | Admin, Ephemeral | Sterge sablonul personalizat si revine la mesajul YouTube implicit. | `/youtube message-template reset` |
-| `/youtube message-template status` | Admin, Ephemeral | Afiseaza sablonul de mesaj YouTube folosit in prezent. | `/youtube message-template status` |
 | `/youtube add channel-route` | Admin, Ephemeral | Adauga un canal Discord special pentru un canal YouTube urmarit. Cand exista rute speciale, canalul principal nu mai primeste videoclipurile acelui canal YouTube. | `/youtube add channel-route canal:UCxxxxxxxxxxxxxxxxxxxxxx discord:#creator` |
 | `/youtube remove channel-route` | Admin, Ephemeral | Sterge o ruta Discord sau toate rutele speciale ale canalului YouTube ales. Dupa eliminarea tuturor se foloseste din nou canalul principal. | `/youtube remove channel-route canal:UCxxxxxxxxxxxxxxxxxxxxxx discord:toate` |
 | `/youtube channel-route list` | Admin, Ephemeral | Listeaza toate rutele speciale dintre canalele YouTube si canalele Discord. | `/youtube channel-route list` |
@@ -112,10 +104,7 @@ Total comenzi documentate: 125.
 | `/youtube remove title-filter` | Admin, Ephemeral | Elimina o valoare din filtrul inclusiv de titlu. | `/youtube remove title-filter word:patch notes` |
 | `/youtube title-filter list` | Admin, Ephemeral | Listeaza cuvintele si expresiile acceptate de filtrul inclusiv de titlu. | `/youtube title-filter list` |
 | `/youtube title-filter clear` | Admin, Ephemeral | Goleste filtrul inclusiv, astfel incat titlul sa nu mai fie restrictionat. | `/youtube title-filter clear` |
-| `/youtube videos show` | Admin, Ephemeral | Posteaza manual videoclipurile din ultima luna pentru un canal urmarit sau pentru toate. Revendica (claim) videoclipurile pe care le posteaza, deci o a doua rulare nu le mai reposteaza (foloseste `repeta:true` ca sa le repostezi); peste 5 rezultate sunt trimise in loturi de 5 la 10 minute, iar loturile suplimentare merg prin outbox-ul durabil cand e activat, chiar daca notificarile automate sunt oprite. | `/youtube videos show canal:toate` |
 | `/youtube status` | Admin, Ephemeral | Afiseaza starea completa a modulului YouTube: notificari, canal Discord, canale urmarite, ultima verificare, erori si filtre. | `/youtube status` |
-| `/youtube errors` | Admin, Ephemeral | Afiseaza ultimele erori de rezolvare canal, citire feed, metadate video sau livrare Discord. | `/youtube errors` |
-| `/youtube permissions` | Admin, Ephemeral | Verifica permisiunile botului pe canalul principal YouTube si pe canalele din rutele speciale (`/youtube add channel-route`). | `/youtube permissions` |
 | `/youtube clear-errors` | Admin, Ephemeral | Curata istoricul local al erorilor YouTube dupa ce problema a fost investigata sau rezolvata. | `/youtube clear-errors` |
 | `/backup list` | Admin, Ephemeral | Afiseaza backup-urile salvate pentru server si cine le-a creat. | `/backup list` |
 | `/backup preview` | Admin, Ephemeral | Arata ce setari, canale si roluri vor fi restaurate daca incarci backup-ul ales. | `/backup preview name:inainte-youtube` |
@@ -131,3 +120,10 @@ Total comenzi documentate: 125.
 | `/admin-command-access list` | Admin top-level, owner-only runtime, Ephemeral | Afiseaza regula globala si regulile dedicate pe comenzi admin. Cu command afiseaza regula exacta pentru comanda aleasa sau fallback-ul global folosit. | `/admin-command-access list command:/start updates` |
 | `/delete admin-command-access` | Admin top-level, owner-only runtime, Ephemeral | Sterge regula de rol globala sau regula dedicata unei comenzi admin si revine la fallback-ul ramas: regula globala, Administrator sau cod global de acces. | `/delete admin-command-access confirm:true command:/start updates` |
 | `/maintenance` | Admin, Ephemeral | Afiseaza zonele operationale care trebuie verificate: surse cu erori, outbox, dead-letter, backup vechi, canale lipsa si notificari oprite. | `/maintenance` |
+| `/template set` | Admin, Ephemeral | Seteaza template-ul unei comenzi si valideaza placeholder-ele acceptate. | `/template set command:/start updates text:{count} update-uri noi` |
+| `/template reset` | Admin, Ephemeral | Sterge template-ul personalizat si revine la valoarea implicita. | `/template reset command:/start updates` |
+| `/template status` | Admin, Ephemeral | Afiseaza template-ul activ, valoarea implicita si placeholder-ele disponibile. | `/template status command:/youtube notify on` |
+| `/game-alias add` | Admin, Ephemeral | Adauga un nume alternativ unic pentru un joc pe server. | `/game-alias add joc:counter-strike-2 alias:cs2` |
+| `/game-alias remove` | Admin, Ephemeral | Sterge un alias personalizat al jocului. | `/game-alias remove joc:counter-strike-2 alias:cs2` |
+| `/game-alias list` | Admin, Ephemeral | Listeaza aliasurile personalizate salvate pentru joc. | `/game-alias list joc:counter-strike-2` |
+| `/notification preview` | Admin, Ephemeral | Previzualizeaza continutul si embed-ul unei notificari cu template-ul activ, fara livrare sau modificarea starii. | `/notification preview command:/start updates` |

@@ -72,7 +72,7 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
           "`/set stores <steam,epic | reset>`\n" +
           "`/config`\n" +
           "`/reset-config confirm:true`\n" +
-          "`/set outbox-recovery-verify <on|off>`"
+          "`/template set|reset|status`"
       },
       {
         name: "Alerte dedicate (admin)",
@@ -89,14 +89,15 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
           "`/youtube notify on|off|status`\n" +
           "`/youtube filter shorts|lives|premieres <on|off>`\n" +
           "`/youtube filter min-duration <secunde>` - `/youtube filter status`\n" +
-          "`/youtube status` - `/youtube errors` - `/youtube permissions` - `/youtube clear-errors`"
+          "`/youtube status` - `/youtube clear-errors`"
       },
       {
         name: "Filtru per-joc (admin)",
         value:
-          "`/watchlist show` - `/watchlist reset`\n" +
+          "`/watchlist show` - `/watchlist reset` - `/watchlist coverage`\n" +
           "`/add watchlist <joc>` - `/remove watchlist <joc>`\n" +
-          "`/set add games <joc>` - `/set remove games <joc>`"
+          "`/set add games <joc>` - `/set remove games <joc>`\n" +
+          "`/game-alias add|remove|list`"
       },
       {
         name: "Ping-uri rol (admin)",
@@ -105,21 +106,12 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
           "`/set role discounts <rol>` *(gol = oprit)*"
       },
       {
-        name: "Operare outbox (admin)",
-        value:
-          "`/outbox status` - `/outbox deadletters`\n" +
-          "`/outbox clear-deadletters` - `/outbox replay-deadletters`\n" +
-          "`/outbox retry` - `/outbox drain-now`\n" +
-          "`/outbox pause` - `/outbox resume`\n" +
-          "`/outbox permissions` - `/outbox recovery-verify status`"
-      },
-      {
         name: "Comenzi Manuale",
-        value: "`/latest updates` - `/latest reduceri`\n`/latest update <joc>` - `/latest pret <joc>`\n`/dlc <joc>` - `/status <joc>`\n`/sources status`"
+        value: "`/latest updates` - `/latest reduceri`\n`/latest update <joc>` - `/latest pret <joc>`\n`/game overview <joc>` - `/status game <joc>` - `/status watchlist`\n`/player-count trend|milestone|gainers|peak-time`\n`/dlc <joc>` - `/sources status`"
       },
       {
         name: "Raportare",
-        value: "`/report submit` - trimite o problema\n`/report list` - `/report resolve` *(admin)*"
+        value: "`/report bug` - `/report complaint`\n`/report list bugs|users` - `/report remove bug|user` *(admin)*"
       }
     );
 }

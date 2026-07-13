@@ -1,8 +1,7 @@
 # Operare (runbook)
 
-Ghid practic pentru operarea botului in productie, axat pe sistemul de notificari outbox.
-Metricile sunt expuse la `/metrics` (Prometheus), iar comenzile admin `/outbox` ofera
-vizibilitate si control direct din Discord.
+Ghid practic pentru operarea botului in productie, axat pe sistemul intern de notificari outbox.
+Metricile sunt expuse la `/metrics` (Prometheus), iar colectiile Mongo pastreaza starea si auditul.
 
 Pe scurt, instrumentele de operare:
 
@@ -12,7 +11,7 @@ Pe scurt, instrumentele de operare:
   scapate pana la handler-ul top-level de interactiuni) si `bot_command_duration_ms_total{command}`
   (timp total de procesare; media = duration_ms_total / commands_total). Seriile apar dupa prima
   interactiune a comenzii respective.
-- Comenzi admin: `/outbox status | deadletters | clear-deadletters | replay-deadletters | retry | drain-now | pause | resume | permissions | recovery-verify status`.
+- Stare operationala: metricile `bot_outbox_*`, alertele admin si colectiile `notificationOutbox`, `guildDeadLetters` si `notificationDeadLetterReplay`.
 - Alerte admin (webhook si/sau canale Discord configurate cu `/admin-alerts set channel:<canal>`): trimise automat la `recoveryFailures > 0` (`outbox:recovery-read`),
   `markSentFailures > 0` (`outbox:mark-sent`), `deleteFailures > 0` (`outbox:delete` — job-uri
   procesate care nu s-au putut sterge din coada; raman deduse/reluate) si `deadLetterFailures > 0`
@@ -31,8 +30,7 @@ Canalele configurate prin `/admin-alerts set` primesc aceeasi structura de embed
 
 Coada de joburi outbox creste mai repede decat reuseste worker-ul sa o dreneze.
 
-1. Confirma cu `/outbox status` (joburi in coada per-server si global) si verifica daca
-   drenarea nu e cumva pe pauza (`Drenare: PE PAUZA`). Daca e, `/outbox resume`.
+1. Confirma adancimea prin `bot_outbox_queue_depth` si verifica starea worker-ului in logurile de runtime.
 2. Verifica `bot_outbox_oldest_job_age_seconds` — daca creste continuu, joburile nu se
    livreaza (canal/permisiuni/Discord down), nu doar volum mare.
 3. Verifica `bot_outbox_lock_acquire_failures` — daca creste, alta instanta tine lock-ul
@@ -67,7 +65,7 @@ Mesaje au fost trimise pe Discord, dar marcarea lor in istoricul de dedupe
 3. Daca persista si duplicatele sunt costisitoare, activeaza recovery-verify (vezi mai jos)
    sau modul strict, ca o reluare sa nu re-trimita inainte de a verifica istoricul canalului.
 4. Fiecare astfel de esec lasa si o intrare de **audit** in dead-letter cu motivul
-   `delivered-marksent-failed` (vizibila la `/outbox deadletters`): mesajul a fost livrat, dar
+   `delivered-marksent-failed` in colectia `guildDeadLetters`: mesajul a fost livrat, dar
    marker-ul de dedupe nu a putut fi persistat. Jobul nu se re-trimite (e sters, ca sa nu apara
    duplicat), insa intrarea de audit iti spune exact ce mesaj poarta riscul mic de duplicare la
    o eventuala recovery — nu e un esec de livrare propriu-zis.
@@ -81,10 +79,7 @@ Recovery-verify e activ, dar botul nu poate citi istoricul canalului (de obicei 
 permisiunea **Read Message History**). In modul implicit (fail-open) mesajul se trimite oricum.
 
 1. Vei primi si admin alert-ul `outbox:recovery-read`.
-2. Acorda botului permisiunea **Read Message History** pe canalele de notificari/reduceri.
-   `/set outbox-recovery-verify on` avertizeaza deja la activare daca permisiunea lipseste,
-   iar `/outbox permissions` auditeaza oricand permisiunile curente (Send Messages / Embed
-   Links / Read Message History) pe canalele configurate.
+2. Acorda botului permisiunile **Send Messages**, **Embed Links** si **Read Message History** pe canalele de notificari/reduceri si verifica-le direct in configurarea canalului Discord.
 3. Daca duplicatele sunt foarte grave si preferi sa NU se trimita pana cand verificarea
    reuseste, porneste modul strict: `NOTIFICATION_OUTBOX_RECOVERY_STRICT=true` (fail-closed:
    reprogrameaza jobul cu backoff in loc sa trimita).
@@ -193,15 +188,15 @@ defensiv neschimbat). Daca botul nu porneste cu acest mesaj, corecteaza valoarea
 
 Monitorizarea YouTube foloseste feed-ul Atom public al fiecarui canal, fara API key si fara acces la contul personal YouTube al administratorului. La `/youtube subscribe`, botul rezolva channel ID-ul, marcheaza drept baseline numai videoclipurile mai vechi de o luna si lasa continutul recent eligibil pentru prima `/youtube notify on`. Dupa prima activare, continutul aparut cat timp notificarile sunt oprite este revendicat fara livrare, ca reactivarea sa nu creeze backlog. Cron-ul grupeaza abonamentele dupa channel ID, citeste fiecare feed o singura data per ciclu si distribuie rezultatele catre guild-urile interesate.
 
-Deduplicarea este atomica in colectia `guildSeenYoutube`, pe combinatia server + canal YouTube + ID video. Schimbarea titlului sau a thumbnail-ului nu retrimite acelasi ID; un reupload cu ID nou este continut nou. Un videoclip este revendicat inainte de trimitere si revendicarea este anulata daca metadatele sau toate destinatiile de livrare esueaza, astfel incat ciclul urmator sa poata reincerca. Afisarea manuala `/youtube videos show` nu modifica deduplicarea. Cand outbox-ul este activ, joburile folosesc `kind: youtube`, sunt revalidate pe `youtubeNotificationsEnabled` si pe canalul principal sau una dintre rutele speciale, iar istoricul `/history` este scris numai dupa livrarea reala.
+Deduplicarea este atomica in colectia `guildSeenYoutube`, pe combinatia server + canal YouTube + ID video. Schimbarea titlului sau a thumbnail-ului nu retrimite acelasi ID; un reupload cu ID nou este continut nou. Un videoclip este revendicat inainte de trimitere si revendicarea este anulata daca metadatele sau toate destinatiile de livrare esueaza, astfel incat ciclul urmator sa poata reincerca. Cand outbox-ul este activ, joburile folosesc `kind: youtube`, sunt revalidate pe `youtubeNotificationsEnabled` si pe canalul principal sau una dintre rutele speciale, iar `notificationHistory` este scris numai dupa livrarea reala.
 
 Filtrele Shorts/live/premiere necesita o citire a paginii videoclipului. Filtrul de durata minima este fail-closed: daca este configurat peste `0` si durata nu poate fi determinata, videoclipul nu este trimis. Filtrul inclusiv de titlu accepta un videoclip daca titlul contine cel putin una dintre valorile configurate. Sablonul mesajului permite numai `{channel}`, `{title}` si `{url}`, iar payload-ul dezactiveaza mentiunile Discord. Livrarea automata si manuala trimite maximum 5 videoclipuri per mesaj si asteapta 10 minute intre loturile suplimentare.
 
 Diagnostic recomandat:
 
 1. `/youtube status` pentru configurarea completa si ultima verificare.
-2. `/youtube permissions` pentru accesul la canalul Discord.
-3. `/youtube errors` pentru ultimele erori de feed, metadate sau livrare.
+2. Verifica permisiunile botului direct pe canalul Discord configurat.
+3. Verifica ultimele erori de feed, metadate sau livrare in `/maintenance`, alertele admin si colectia `guildYoutubeErrors`.
 4. Verifica accesul outbound HTTPS catre `www.youtube.com`, `youtube.com/feeds/videos.xml` si `i.ytimg.com`.
 5. Dupa remediere, `/youtube clear-errors` curata istoricul operational.
 
@@ -233,29 +228,36 @@ setat ESTE sincronizarea. Inventarul declarat curent:
 | `guildConfigBackups` | `{ guildId, createdAt }` | — | listarea `/backup list` cele mai noi primele si evictia celor mai vechi backup-uri peste capul de 20 per guild la salvare |
 | `guildSuggestedCommands` | `{ guildId, commandName }` | unique | o sugestie de comanda per nume per guild; `/suggest-command add` cu un nume existent pastreaza intrarea originala (`$setOnInsert`), `/suggest-command delete` sterge pe cheia naturala |
 | `guildSuggestedCommands` | `{ guildId, createdAt }` | — | listarea `/suggest-command list` cele mai noi primele si evictia celor mai vechi sugestii peste capul de 100 per guild la salvare |
-| `guildYoutubeErrors` | `{ guildId, at }` | — | jurnalul de erori YouTube per guild: listarea `/youtube errors` cele mai noi primele, numaratoarea din `/youtube status` si `/maintenance`, evictia celor mai vechi erori peste capul de 20 per guild la inregistrare |
-| `guildDeadLetters` | `{ guildId, failedAt }` | — | auditul dead-letter per guild: listarea `/outbox dead-letters` cele mai noi primele, numaratorile din `/outbox status` si `/maintenance`, stergerea la `clear-deadletters`/replay/`/reset-config`, evictia celor mai vechi intrari peste capul de 50 per guild la inregistrare |
+| `guildYoutubeErrors` | `{ guildId, at }` | — | jurnalul de erori YouTube per guild: cele mai noi primele, numaratoarea din `/youtube status` si `/maintenance`, evictia celor mai vechi erori peste capul de 20 per guild la inregistrare |
+| `guildDeadLetters` | `{ guildId, failedAt }` | — | auditul dead-letter per guild: cele mai noi primele, numaratoarea din `/maintenance`, stergerea la replay intern sau `/reset-config`, evictia celor mai vechi intrari peste capul de 50 per guild la inregistrare |
 | `notificationOutbox` | `{ availableAt, lockedUntil }` | — | claim-ul joburilor disponibile la drenare |
 | `notificationOutbox` | `{ dedupeKey }` | unique, sparse | impiedica doua joburi pending cu acelasi `dedupeKey` (sparse: joburile fara cheie coexista) |
 | `notificationOutbox` | `{ statusChangedAt }` | TTL (NOTIFICATION_OUTBOX_SENT_TTL_HOURS), partial pe `status` in {delivered, dead-lettered, dropped} | curata automat joburile finalizate pastrate pentru observabilitate (masina de stari explicita) |
 | `notificationOutbox` | `{ createdAt }` | TTL 7 zile | plasa de siguranta pentru joburi nedrenate |
 | `notificationOutboxSent` | `{ dedupeKey }` | unique | istoricul de livrari pentru dedup la recovery |
 | `notificationOutboxSent` | `{ sentAt }` | TTL `NOTIFICATION_OUTBOX_SENT_TTL_HOURS` (implicit 24h) | expirarea istoricului de dedup |
-| `notificationHistory` | `{ guildId, sentAt }` | TTL `NOTIFICATION_HISTORY_TTL_DAYS` (implicit 30 zile) | istoricul notificarilor livrate efectiv per server, pentru comanda `/history`; scris dupa send-ul real (cu outbox: la livrarea din coada, nu la enqueue) |
-| `notificationHistory` | `{ guildId, dedupeKey }` | unique, partial (`dedupeKey > ""`) | idempotenta `/history`: o re-livrare/recovery a aceleiasi notificari nu adauga un al doilea rand (upsert pe `dedupeKey`) |
+| `notificationHistory` | `{ guildId, sentAt }` | TTL `NOTIFICATION_HISTORY_TTL_DAYS` (implicit 30 zile) | istoricul intern al notificarilor livrate efectiv per server; scris dupa send-ul real (cu outbox: la livrarea din coada, nu la enqueue) |
+| `notificationHistory` | `{ guildId, dedupeKey }` | unique, partial (`dedupeKey > ""`) | idempotenta istoricului: o re-livrare/recovery a aceleiasi notificari nu adauga un al doilea rand (upsert pe `dedupeKey`) |
 | `feedbackReports` | `{ guildId, createdAt }` | TTL `FEEDBACK_REPORT_TTL_DAYS` (implicit 90 zile) | rapoartele trimise de utilizatori prin comanda `/report` |
 | `notificationDeadLetterReplay` | `{ updatedAt }` | TTL `NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS` (implicit 7 zile) | expira payload-ul de replay; `updatedAt` se reimprospateaza la fiecare re-record, deci TTL se masoara de la ultimul dead-letter |
-| `notificationDeadLetterReplay` | `{ guildId, createdAt }` | — | listare FIFO a payload-urilor de replay per server (`/outbox replay-deadletters`) |
+| `notificationDeadLetterReplay` | `{ guildId, createdAt }` | — | listare FIFO interna a payload-urilor de replay per server |
 | `notificationDeadLetterReplay` | `{ guildId, dedupeKey }` | unique, partial (`dedupeKey != ""`) | dedup la re-record (replay esuat -> re-dead-letter nu acumuleaza duplicate) |
 | `joblocks` | `{ lockedUntil }` | — | gasirea/expirarea lock-urilor distribuite (cron/outbox) |
 | `adminalertcooldowns` | `{ lastSentAt }` | TTL 7 zile | cooldown per-alerta pentru admin alerts |
 | `fetchsnapshots` | `{ fetchedAt }` | TTL 1 zi | event store pe fetch (hidratare cache la boot) |
 | `playerCountSnapshots` | `{ fetchedAt }` | TTL 1 zi | snapshot periodic de player-count per appId (scris de cron, citit de `/top active games` si `/player-count`); jocurile scoase din configuratie expira automat |
+| `playerCountHistory` | `{ fetchedAt }` | TTL 31 zile | retentia punctelor periodice folosite de trend, gainers si peak-time |
+| `playerCountHistory` | `{ appId, fetchedAt }` | — | citirea cronologica a istoricului pentru un Steam appId |
+| `playerCountHistory` | `{ gameKey, fetchedAt }` | — | interogari operationale pe cheia jocului si interval |
+| `bugReports` | `{ guildId, dedupeKey }` | unique | deduplicarea atomica a rapoartelor de bug in interiorul serverului |
+| `bugReports` | `{ guildId, createdAt }` | — | listarea paginata a bug-urilor, cele mai noi primele |
+| `userComplaints` | `{ guildId, dedupeKey }` | unique | deduplicarea atomica a reclamatiilor in interiorul serverului |
+| `userComplaints` | `{ guildId, createdAt }` | — | listarea paginata a reclamatiilor, cele mai noi primele |
 
 Cand adaugi/modifici un index in `models.ts`, actualizeaza tabelul de mai sus — altfel
 `check:db-indexes` esueaza (Regula: codul reflectat in documentatie).
 
-### Formatul cheii de dedup `/history` si tranzitia de versiune
+### Formatul cheii de dedup pentru istoricul notificarilor
 
 `dedupeKey` din `notificationHistory` este versionat: `history:v1:<sha256>`, unde `<sha256>` e
 hash-ul peste identitatea structurata a notificarii (`kind`, `gameKey`, `link`, `title`, `itemId` =
@@ -265,7 +267,7 @@ algoritm/inputuri sa fie `history:v2:...` si sa nu coliziona cu cheile vechi.
 O schimbare de format **nu produce duplicate de NOTIFICARI** — dedup-ul de trimitere e separat si
 neafectat (colectiile `guildSeenUpdates`/`guildSeenDiscounts` + `notificationOutboxSent`). Singurul
 efect posibil este, **doar in fereastra unui deploy** in care exista re-livrari/recovery ale aceleiasi
-notificari fix peste momentul schimbarii de format, **una-doua intrari duplicate in `/history`** pentru
+notificari fix peste momentul schimbarii de format, **una-doua intrari duplicate in istoricul intern** pentru
 aceeasi livrare (cheile vechi si cele noi nu se mai recunosc reciproc). Acestea **expira automat** prin
 TTL-ul `notificationHistory` (implicit 30 zile), deci nu e necesara o migrare a istoricului. Daca vrei un
 istoric perfect curat imediat dupa o schimbare de format, fa o migrare unica (recalculeaza `dedupeKey`
@@ -290,27 +292,20 @@ Daca livrarile sunt incetinite de rate-limit:
 1. Cresterea `bot_outbox_oldest_job_age_seconds` + `bot_outbox_queue_depth` fara erori
    indica throttling, nu esecuri.
 2. Bot-ul respecta deja un token-bucket global la trimitere; nu forta drenarea agresiv.
-3. Daca e backlog temporar, lasa worker-ul sa-l goleasca; pentru urgente punctuale,
-   `/outbox retry` reprogrameaza joburile acestui server pentru livrare imediata, iar
-   `/outbox drain-now` porneste o drenare pe loc doar daca drenarea nu e pe pauza si lock-ul `outbox_drain` e liber.
+3. Daca e backlog temporar, lasa worker-ul sa-l goleasca; reincercarile sunt reprogramate automat cu backoff.
 
-## Mentenanta: pauza drenarii
+## Mentenanta: oprirea temporara a drenarii
 
-Pentru interventii (canal in remediere, migrare, debugging) fara a opri tot botul:
+Pentru interventii (canal in remediere, migrare, debugging), opreste controlat instanta botului din orchestratorul de deploy. Joburile raman persistate in Mongo si worker-ul reia drenarea dupa restart.
 
-- `/outbox pause` — opreste drenarea (global); joburile raman in coada, lock-ul nu e atins. **Operatie globala**: permisa doar utilizatorilor din `NOTIFICATION_OUTBOX_GLOBAL_ADMIN_IDS` (operatorii botului), nu oricarui admin de guild, fiindca afecteaza toate serverele. Daca lista e goala, comanda e indisponibila (seteaza env-ul ca s-o activezi).
-- `/outbox resume` — reia drenarea de unde a ramas. Aceeasi restrictie de operator global ca `pause`.
-- `/outbox status` arata starea (`Drenare: ACTIVA | PE PAUZA`).
-- `/outbox drain-now` respecta aceeasi pauza globala; daca drenarea e pe pauza, refuza pornirea manuala si cere `/outbox resume`.
-
-## Cand activezi / dezactivezi `/set outbox-recovery-verify`
+## Cand activezi / dezactivezi recovery-verify
 
 - **Activeaza** (`on`) pe servere unde duplicatele sunt inacceptabile si canalul de
   notificari e aglomerat (risc real de reluari dupa restart). Costa un footer vizibil pe
   fiecare embed + un fetch de mesaje la fiecare recovery. Asigura **Read Message History**.
 - **Dezactiveaza** (`off`, implicit) cand vrei zero overhead vizual/IO si te bazezi pe
   lease + istoricul de dedupe (suficient pentru majoritatea cazurilor).
-- Poate fi setat global (`NOTIFICATION_OUTBOX_RECOVERY_VERIFY`) sau per-server prin comanda.
+- Se configureaza global cu `NOTIFICATION_OUTBOX_RECOVERY_VERIFY`; configuratiile per-server existente raman compatibile la citire.
 - `bot_outbox_recovery_verify_enabled_guilds` arata cate servere au protectia activa.
 
 ## Setari recomandate pe dimensiune de server
@@ -363,25 +358,21 @@ single-shard + lock-uri DB e corect si suficient — nu shard-a preventiv.
 ## Dead-letter
 
 Cand o livrare epuizeaza reincercarile sau primeste o eroare permanenta, intra in
-dead-letter (colectia dedicata `guildDeadLetters`, plafonata la 50 per guild). Inspecteaza cu `/outbox deadletters`.
+dead-letter (colectia dedicata `guildDeadLetters`, plafonata la 50 per guild). Inspecteaza colectia si alertele admin.
 Daca `bot_outbox_dead_lettered` creste, verifica permisiunile canalului si starea Discord;
 dupa remediere, livrarile noi vor reusi (intrarile dead-letter raman pentru audit).
 
-Dupa ce ai investigat si ai remediat cauza (ex. permisiuni de canal), poti **re-trimite**
-livrarile esuate cu `/outbox replay-deadletters`: reintroduce in coada outbox fiecare livrare
+Dupa ce ai investigat si ai remediat cauza (ex. permisiuni de canal), un operator poate **re-trimite**
+livrarile esuate prin fluxul intern de replay, care reintroduce in coada fiecare livrare
 dead-letter pentru care exista un **payload stocat** (colectia `notificationDeadLetterReplay`,
 populata doar pe calea outbox la dead-letter, cu TTL `NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS`,
 implicit 7 zile) si curata intrarile re-introduse din lista de audit. Necesita
 `NOTIFICATION_OUTBOX_ENABLED=true`. Nu se reiau livrarile cu motiv `delivered-marksent-failed`
 (au fost deja trimise — re-trimiterea ar duplica) si nici cele al caror payload a expirat prin TTL.
-Daca o reintroducere pica la mijloc, comanda raspunde `Replay partial: N reintroduse` — cele
-reusite sunt deja scoase din dead-letter (nu se vor re-trimite la o noua rulare), iar restul raman
-in dead-letter; reincearca `/outbox replay-deadletters` dupa ce verifici cauza.
+Daca o reintroducere pica la mijloc, cele reusite sunt deja scoase din dead-letter, iar restul raman
+in dead-letter pentru o reluare dupa verificarea cauzei.
 
-Daca preferi sa NU re-trimiti, poti goli lista de audit cu `/outbox clear-deadletters` — sterge
-toate documentele din colectia `guildDeadLetters` ale serverului curent
-si raporteaza cate au fost sterse. Foloseste-o doar dupa ce ai terminat investigatia: intrarile
-sunt singura urma a livrarilor esuate.
+Daca preferi sa nu re-trimiti, pastreaza intrarile pentru audit pana la expirarea politicii de retentie; sunt singura urma a livrarilor esuate.
 
 Drenarea proceseaza fiecare job in pasi expliciti: **claim** (lease atomic) -> **validate**
 (dedupe pe `notificationOutboxSent`, expirare aproape de TTL, abonarea guild-ului, apoi forma

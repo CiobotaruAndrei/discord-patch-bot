@@ -31,6 +31,10 @@ const handlers: Record<string, BuiltHandler> = {
   watchlistGame: build("watchlistGameSuggestionHandler"),
   futureRelease: build("futureReleaseInteractionHandler"),
   dealScore: build("dealScoreInteractionHandler"),
+  gameOverview: build("gameOverviewInteractionHandler"),
+  playerAnalytics: build("playerCountAnalyticsHandler"),
+  coverageAlias: build("watchlistCoverageAndAliasHandler"),
+  templatePreview: build("templateAndNotificationPreviewHandler"),
   gameInfo: build("gameInfoInteractionHandler"),
   maintenance: build("maintenanceInteractionHandler"),
   priceCheck: build("priceCheckInteractionHandler"),
@@ -38,10 +42,8 @@ const handlers: Record<string, BuiltHandler> = {
   snooze: build("snoozeInteractionHandler"),
   health: build("healthInteractionHandler"),
   report: build("reportInteractionHandler"),
-  history: build("historyInteractionHandler"),
   status: build("statusInteractionHandler"),
   latest: build("latestInteractionHandler"),
-  outbox: build("outboxAdminHandler"),
   set: build("setInteractionHandler"),
   setRole: build("rolePingHandlers"),
   setGames: build("gameFilterHandlers"),
@@ -119,7 +121,8 @@ const expectedOwnerByCommand: Record<string, string> = {
   "co-op": "gameInfo",
   system: "gameInfo",
   "game-size": "gameInfo",
-  "player-count": "gameInfo",
+  "player-count": "playerAnalytics",
+  game: "gameOverview",
   top: "gameInfo",
   maintenance: "maintenance",
   youtube: "youtube",
@@ -133,10 +136,11 @@ const expectedOwnerByCommand: Record<string, string> = {
   dlc: "dlc",
   status: "status",
   sources: "sources",
-  history: "history",
   report: "report",
   health: "health",
-  outbox: "outbox"
+  template: "templatePreview",
+  notification: "templatePreview",
+  "game-alias": "coverageAlias"
 };
 
 const MULTIPLEXED_VERB_COMMANDS = new Set(["add", "remove"]);
@@ -150,7 +154,14 @@ test("routing: fiecare slash command top-level e revendicat de exact un handler 
     const expectedOwner = expectedOwnerByCommand[command];
     assert.ok(expectedOwner, `comanda /${command} are un handler asteptat in tabel (familie noua = adauga maparea + buildCommandHandler)`);
 
-    const subcommand = command === "sources" ? "status" : command === "delete" ? "admin-command-access" : "x";
+    const subcommand = command === "sources" ? "status"
+      : command === "delete" ? "admin-command-access"
+      : command === "player-count" ? "trend"
+      : command === "game" ? "overview"
+      : command === "template" ? "set"
+      : command === "notification" ? "preview"
+      : command === "game-alias" ? "list"
+      : "x";
     const claimants = soleClaimant(chatInput(command, null, subcommand));
     assert.deepEqual(claimants, [expectedOwner], `/${command} e rutat exact catre handler-ul ${expectedOwner}, nimic altceva nu il revendica`);
   }
@@ -190,7 +201,14 @@ test("routing: un handler de comanda nu revendica comanda altui handler", () => 
 test("routing: toate familiile de comenzi din tabel au un handler care le revendica", () => {
   for (const [command, owner] of Object.entries(expectedOwnerByCommand)) {
     const group = command === "set" ? null : null;
-    const subcommand = command === "sources" ? "status" : command === "delete" ? "admin-command-access" : "x";
+    const subcommand = command === "sources" ? "status"
+      : command === "delete" ? "admin-command-access"
+      : command === "player-count" ? "trend"
+      : command === "game" ? "overview"
+      : command === "template" ? "set"
+      : command === "notification" ? "preview"
+      : command === "game-alias" ? "list"
+      : "x";
     assert.equal(handlers[owner].canHandle(chatInput(command, group, subcommand)), true, `${owner} revendica /${command}`);
   }
 });

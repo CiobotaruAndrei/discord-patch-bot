@@ -6,6 +6,7 @@ export interface CommandAccessRule {
   discordAdminPermissions: boolean;
   publicSubcommands?: readonly string[];
   adminRuntimeSubcommands?: readonly string[];
+  adminRuntimePaths?: readonly string[];
   ownerOnly?: boolean;
   ownerOnlySubcommands?: readonly string[];
   sensitiveSubcommands?: readonly string[] | "all";

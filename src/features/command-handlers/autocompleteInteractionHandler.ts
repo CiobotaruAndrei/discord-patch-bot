@@ -17,6 +17,7 @@ import { errorMessage, errorDetail } from "../../shared/errors.js";
 import { buildAutocompleteChoices } from "../../native/fuzzy.js";
 import { buildCommandHelpChoices } from "../command-help/commandHelpCatalog.js";
 import { buildSettableAdminScopeChoices } from "../command-security/adminSettableScopeCatalog.js";
+import { NOTIFICATION_TEMPLATE_SPECS } from "../notifications/templateCatalog.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type FocusedOption = { name?: string; value?: unknown };
@@ -97,8 +98,19 @@ function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
         return interaction.respond(await builders.buildYouTubeChannelChoices(
           interaction,
           focused.value,
-          group === "videos" && sub === "show"
+          false
         )).catch(() => null);
+      }
+      if (cmd === "template" && focused.name === "command") {
+        return interaction.respond(buildCommandHelpChoices(focused.value)).catch(() => null);
+      }
+      if (cmd === "notification" && sub === "preview" && focused.name === "command") {
+        const input = String(focused.value || "").toLocaleLowerCase("ro-RO");
+        const choices = NOTIFICATION_TEMPLATE_SPECS
+          .filter(spec => !input || spec.command.toLocaleLowerCase("ro-RO").includes(input))
+          .map(spec => ({ name: spec.command, value: spec.command }))
+          .slice(0, MAX_AUTOCOMPLETE_CHOICES);
+        return interaction.respond(choices).catch(() => null);
       }
       if (cmd === "youtube" && group === "remove" && sub === "channel-route" && focused.name === "discord") {
         return interaction.respond(await builders.buildYouTubeRouteChoices(interaction, focused.value)).catch(() => null);

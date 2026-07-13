@@ -56,7 +56,7 @@ interface CronCommands {
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
   checkForDiscounts(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
   checkForYouTube(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
-  refreshPlayerCountSnapshots?(games: GameConfig[], shouldAbort: () => boolean): Promise<unknown>;
+  refreshPlayerCountSnapshots?(games: GameConfig[], shouldAbort: () => boolean, client?: DiscordClientLike): Promise<unknown>;
 }
 
 interface CreateCronControllerDeps {

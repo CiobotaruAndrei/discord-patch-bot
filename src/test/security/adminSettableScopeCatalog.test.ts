@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 
 import { listSettableAdminScopePaths, buildSettableAdminScopeChoices, isSettableAdminScope } from "../../features/command-security/adminSettableScopeCatalog.js";
 
-const ROUTER_ENFORCED = ["/start updates", "/backup load", "/add price-alert", "/config"];
-const NON_ROUTER_RUNTIME = ["/suggest-command list", "/suggest-command delete", "/report list", "/report resolve", "/watchlist-game delete"];
+const ROUTER_ENFORCED = ["/start updates", "/backup load", "/add price-alert", "/config", "/report list bugs"];
+const NON_ROUTER_RUNTIME = ["/suggest-command list", "/suggest-command delete", "/watchlist-game delete"];
 const OWNER_ONLY = ["/set admin-command-access", "/admin-command-access list", "/delete admin-command-access"];
 const PUBLIC_COMMANDS = ["/ping", "/games", "/help", "/player-count game", "/top active games", "/add suggestion"];
 

@@ -51,6 +51,45 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     fetchedAt: { type: Date, default: Date.now, expires: ONE_DAY_MS / 1000 }
   }, { minimize: false });
 
+  const playerCountHistorySchema = new mongoose.Schema({
+    appId: { type: String, required: true },
+    gameKey: { type: String, default: "" },
+    playerCount: { type: Number, required: true, min: 0 },
+    fetchedAt: { type: Date, default: Date.now, expires: 31 * ONE_DAY_MS / 1000 }
+  }, { minimize: false });
+  playerCountHistorySchema.index({ appId: 1, fetchedAt: 1 }, { background: true });
+  playerCountHistorySchema.index({ gameKey: 1, fetchedAt: 1 }, { background: true });
+
+  const playerCountRecordSchema = new mongoose.Schema({
+    _id: String,
+    gameKey: { type: String, default: "" },
+    playerCount: { type: Number, required: true, min: 0 },
+    reachedAt: { type: Date, required: true }
+  }, { minimize: false });
+
+  const bugReportSchema = new mongoose.Schema({
+    guildId: { type: String, required: true },
+    reportType: { type: String, required: true },
+    gameKey: { type: String, required: true },
+    description: { type: String, required: true, maxlength: 1000 },
+    authorId: { type: String, required: true },
+    dedupeKey: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now }
+  }, { minimize: false });
+  bugReportSchema.index({ guildId: 1, dedupeKey: 1 }, { unique: true, background: true });
+  bugReportSchema.index({ guildId: 1, createdAt: -1 }, { background: true });
+
+  const userComplaintSchema = new mongoose.Schema({
+    guildId: { type: String, required: true },
+    reporterId: { type: String, required: true },
+    targetId: { type: String, required: true },
+    reason: { type: String, required: true, maxlength: 1000 },
+    dedupeKey: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now }
+  }, { minimize: false });
+  userComplaintSchema.index({ guildId: 1, dedupeKey: 1 }, { unique: true, background: true });
+  userComplaintSchema.index({ guildId: 1, createdAt: -1 }, { background: true });
+
   const FEEDBACK_REPORT_TTL_DAYS = env.FEEDBACK_REPORT_TTL_DAYS;
   const feedbackReportSchema = new mongoose.Schema({
     guildId: { type: String, required: true },
@@ -71,6 +110,10 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     adminAlertCooldownSchema,
     fetchSnapshotSchema,
     playerCountSnapshotSchema,
+    playerCountHistorySchema,
+    playerCountRecordSchema,
+    bugReportSchema,
+    userComplaintSchema,
     feedbackReportSchema
   };
 }

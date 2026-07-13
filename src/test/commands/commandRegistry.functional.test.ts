@@ -151,7 +151,7 @@ function makeChatInput(commandName: string, options: { admin?: boolean } = {}) {
 test("dispatcher: toate comenzile admin de la non-admin sunt blocate de pre-check (registry real, table-driven)", async () => {
   const registry = commandRegistry.createCommandRegistry({ getGuildSettings: async () => null });
   for (const command of [
-    "start", "stop", "set", "outbox", "health", "config", "reset-config",
+    "start", "stop", "set", "template", "notification", "game-alias", "health", "config", "reset-config",
     "admin-alerts", "price-alert", "sources", "watchlist", "snooze", "unsnooze",
     "backup", "bot-log", "server-log", "future-release", "maintenance", "admin-command-access", "delete"
   ]) {

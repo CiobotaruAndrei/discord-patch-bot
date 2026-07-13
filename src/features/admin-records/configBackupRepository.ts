@@ -58,6 +58,8 @@ export const GUILD_SETTINGS_FIELD_ROLES: Readonly<Record<string, GuildSettingsFi
   currency: "config",
   outboxRecoveryVerify: "config",
   enabledGames: "config",
+  gameAliases: "config",
+  timezone: "config",
   commandSnoozes: "config",
   enabledStores: "config",
   maxAbsolutePrice: "config",

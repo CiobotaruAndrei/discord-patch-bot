@@ -140,3 +140,37 @@ test("status installer intercepts only /status and delegates everything else", a
   assert.deepEqual(delegated, ["latest"]);
   assert.equal(result, "delegated");
 });
+
+test("status watchlist izoleaza esecul unui joc si pastreaza lista publica", async () => {
+  const replies: unknown[] = [];
+  const handlers = statusHandler.createStatusInteractionHandler({
+    MessageFlags: { Ephemeral: 64 },
+    logger: () => undefined,
+    enforceCooldown: async () => true,
+    startCommandLog: () => () => undefined,
+    safeDefer: async () => undefined,
+    safeEdit: async (_interaction: unknown, payload: unknown) => { replies.push(payload); return payload; },
+    findGameAndSuggestion: () => ({ game: null, suggestion: null }),
+    fetchGameStatus: async () => ({}),
+    fetchGameStatusSummary: async game => {
+      if (game.key === "roblox") throw new Error("offline");
+      return { state: "online", label: "Online", detail: "OK", checkedAt: new Date(), statusUrl: "" };
+    },
+    getGuildSettings: async () => ({ _id: "guild-1", enabledGames: ["minecraft", "roblox"] })
+  });
+  await handlers.handleStatusInteraction({
+    commandName: "status",
+    guild: { id: "guild-1" },
+    user: { id: "user-1" },
+    options: { getSubcommand: () => "watchlist", getString: () => null },
+    reply: async () => undefined
+  }, [
+    { key: "minecraft", name: "Minecraft", type: "minecraft" },
+    { key: "roblox", name: "Roblox", type: "roblox" }
+  ]);
+  const payload = replies[0] as { embeds: Array<{ description: string }> };
+  assert.match(payload.embeds[0].description, /Minecraft/);
+  assert.match(payload.embeds[0].description, /Online/);
+  assert.match(payload.embeds[0].description, /Roblox/);
+  assert.match(payload.embeds[0].description, /Necunoscut/);
+});

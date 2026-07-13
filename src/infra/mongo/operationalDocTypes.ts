@@ -41,6 +41,39 @@ export interface PlayerCountSnapshotDoc {
   fetchedAt?: Date;
 }
 
+export interface PlayerCountHistoryDoc {
+  appId: string;
+  gameKey?: string;
+  playerCount?: number;
+  fetchedAt?: Date;
+}
+
+export interface PlayerCountRecordDoc {
+  _id: string;
+  gameKey?: string;
+  playerCount?: number;
+  reachedAt?: Date;
+}
+
+export interface BugReportDoc {
+  guildId: string;
+  reportType: string;
+  gameKey: string;
+  description: string;
+  authorId: string;
+  dedupeKey: string;
+  createdAt?: Date;
+}
+
+export interface UserComplaintDoc {
+  guildId: string;
+  reporterId: string;
+  targetId: string;
+  reason: string;
+  dedupeKey: string;
+  createdAt?: Date;
+}
+
 export interface FeedbackReportDoc {
   guildId: string;
   userId?: string;

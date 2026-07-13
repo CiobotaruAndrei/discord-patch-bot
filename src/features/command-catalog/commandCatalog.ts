@@ -31,14 +31,22 @@ function ruleFor(commandName: string | null | undefined): CommandAccessRule | nu
   return RULE_BY_COMMAND.get(String(commandName || "")) ?? null;
 }
 
-export function isRouterAdminCommandPath(commandName: string, subcommand: string): boolean {
+function nestedPath(group: string, subcommand: string): string {
+  return [group, subcommand].filter(Boolean).join(" ");
+}
+
+export function isRouterAdminCommandPath(commandName: string, subcommand: string, group = ""): boolean {
   const rule = ruleFor(commandName);
-  if (!rule || rule.access !== "admin") return false;
+  if (!rule) return false;
+  if (rule.adminRuntimePaths?.includes(nestedPath(group, subcommand))) return true;
+  if (rule.access !== "admin") return false;
   return !(rule.publicSubcommands?.includes(subcommand) ?? false);
 }
 
-export function isRuntimeAdminCommandPath(commandName: string, subcommand: string): boolean {
-  return Boolean(ruleFor(commandName)?.adminRuntimeSubcommands?.includes(subcommand));
+export function isRuntimeAdminCommandPath(commandName: string, subcommand: string, group = ""): boolean {
+  const rule = ruleFor(commandName);
+  return Boolean(rule?.adminRuntimeSubcommands?.includes(subcommand)
+    || rule?.adminRuntimePaths?.includes(nestedPath(group, subcommand)));
 }
 
 export function isOwnerOnlyCommandPath(commandName: string, subcommand: string): boolean {
@@ -58,7 +66,8 @@ export function isSensitiveCommandPath(commandName: string, subcommand: string):
 export function permissionsLabelFor(path: string, ephemeral?: boolean): string {
   const tokens = path.replace(/^\/+/, "").split(" ");
   const commandName = tokens[0] ?? "";
-  const subcommand = tokens[1] ?? "";
+  const group = tokens.length >= 3 ? tokens[1] ?? "" : "";
+  const subcommand = tokens.length >= 3 ? tokens[2] ?? "" : tokens[1] ?? "";
   const rule = ruleFor(commandName);
   if (!rule) return ephemeral ? "Public, Ephemeral" : "Public";
   if (isOwnerOnlyCommandPath(commandName, subcommand)) {
@@ -67,7 +76,7 @@ export function permissionsLabelFor(path: string, ephemeral?: boolean): string {
   if (rule.access === "admin" && !(rule.publicSubcommands?.includes(subcommand) ?? false)) {
     return rule.discordAdminPermissions ? "Admin, Ephemeral" : "Admin runtime, Ephemeral";
   }
-  if (isRuntimeAdminCommandPath(commandName, subcommand)) {
+  if (isRuntimeAdminCommandPath(commandName, subcommand, group)) {
     return "Admin runtime, Ephemeral";
   }
   return ephemeral ? "Public, Ephemeral" : "Public";

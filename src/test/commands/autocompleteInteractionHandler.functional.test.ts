@@ -78,11 +78,11 @@ test("autocomplete suggests bot commands for /help command", async () => {
   const { context } = makeContext();
   const { interaction, responses } = makeInteraction({
     command: "help",
-    focused: { name: "command", value: "dead" }
+    focused: { name: "command", value: "overview" }
   });
   await context.handleInteraction(interaction, GAMES);
   assert.equal(responses.length, 1);
-  assert.ok(responses[0].some(choice => choice.value === "/outbox deadletters"));
+  assert.ok(responses[0].some(choice => choice.value === "/game overview"));
 });
 
 test("autocomplete suggests bot commands for /snooze command fara comenzile de control", async () => {
@@ -261,24 +261,16 @@ test("/remove price-alert (verb in fata) sugereaza doar jocurile cu alerte", asy
   assert.ok(!keys.includes("fortnite"));
 });
 
-test("/youtube videos show include optiunea toate si canalele urmarite", async () => {
-  const { context } = makeContext({
-    getGuildSettings: async () => ({
-      youtubeChannels: [
-        { channelId: "UC123", channelName: "Creator A" },
-        { channelId: "UC456", channelName: "Creator B" }
-      ]
-    })
-  });
+test("/notification preview sugereaza numai comenzile cu template activ", async () => {
+  const { context } = makeContext();
   const { interaction, responses } = makeInteraction({
-    command: "youtube",
-    group: "videos",
-    sub: "show",
-    focused: { name: "canal", value: "" },
+    command: "notification",
+    sub: "preview",
+    focused: { name: "command", value: "" },
     guildId: "guild-1"
   });
   await context.handleInteraction(interaction, GAMES);
-  assert.deepEqual(responses[0].map(choice => choice.value), ["toate", "UC123", "UC456"]);
+  assert.deepEqual(responses[0].map(choice => choice.value), ["/start updates", "/start reduceri", "/youtube notify on"]);
 });
 
 test("/youtube channel-route remove sugereaza toate si rutele canalului ales", async () => {

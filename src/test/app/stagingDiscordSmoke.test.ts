@@ -15,8 +15,8 @@ const smoke = require("../../scripts/stagingDiscordSmoke") as {
 
 test("REQUIRED_COMMANDS = exact suprafata din buildSlashCommandDefinitions, nu o lista scrisa de mana (review #2)", () => {
   assert.deepEqual(smoke.REQUIRED_COMMANDS, smoke.expectedCommandNames(),
-    "regresie: smoke-ul cerea doar ping si help -> /start, /stop, /set, /latest, /status, /outbox puteau lipsi din staging fara ca smoke-ul sa pice");
-  for (const critical of ["ping", "help", "start", "stop", "set", "latest", "status", "outbox"]) {
+    "regresie: smoke-ul trebuie sa verifice intreaga suprafata slash din staging");
+  for (const critical of ["ping", "help", "start", "stop", "set", "latest", "status", "game", "template"]) {
     assert.ok(smoke.REQUIRED_COMMANDS.includes(critical), `comanda critica verificata de smoke: /${critical}`);
   }
   assert.ok(smoke.REQUIRED_COMMANDS.length >= 8, "suprafata completa de comenzi, nu un subset");
@@ -31,10 +31,10 @@ test("evaluateCommands: toate comenzile definite inregistrate -> ok", () => {
 });
 
 test("evaluateCommands: o comanda definita lipsa din registru sau set gol -> fail", () => {
-  const withoutOutbox = smoke.expectedCommandNames().filter(name => name !== "outbox").map(name => ({ name }));
-  const missingOutbox = smoke.evaluateCommands(withoutOutbox);
-  assert.equal(missingOutbox.ok, false);
-  assert.deepEqual(missingOutbox.missing, ["outbox"]);
+  const withoutOverview = smoke.expectedCommandNames().filter(name => name !== "game").map(name => ({ name }));
+  const missingOverview = smoke.evaluateCommands(withoutOverview);
+  assert.equal(missingOverview.ok, false);
+  assert.deepEqual(missingOverview.missing, ["game"]);
 
   const empty = smoke.evaluateCommands([]);
   assert.equal(empty.ok, false, "niciun slash command inregistrat -> fail");

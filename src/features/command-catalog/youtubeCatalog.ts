@@ -17,9 +17,6 @@ export const YOUTUBE_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   { command: "/youtube filter premieres", description: "Activeaza sau dezactiveaza filtrul care evita premierele programate.", example: "/youtube filter premieres state:on" },
   { command: "/youtube filter min-duration", description: "Seteaza durata minima acceptata pentru un videoclip. Valoarea 0 dezactiveaza limita.", example: "/youtube filter min-duration seconds:61" },
   { command: "/youtube filter status", description: "Afiseaza filtrele YouTube active si durata minima configurata.", example: "/youtube filter status" },
-  { command: "/youtube message-template set", description: "Seteaza textul atasat notificarilor YouTube. Sunt acceptate variabilele {channel}, {title} si {url}; mentiunile Discord sunt dezactivate.", example: "/youtube message-template set text:Video nou de la {channel}: {title} {url}" },
-  { command: "/youtube message-template reset", description: "Sterge sablonul personalizat si revine la mesajul YouTube implicit.", example: "/youtube message-template reset" },
-  { command: "/youtube message-template status", description: "Afiseaza sablonul de mesaj YouTube folosit in prezent.", example: "/youtube message-template status" },
   { command: "/youtube add channel-route", description: "Adauga un canal Discord special pentru un canal YouTube urmarit. Cand exista rute speciale, canalul principal nu mai primeste videoclipurile acelui canal YouTube.", example: "/youtube add channel-route canal:UCxxxxxxxxxxxxxxxxxxxxxx discord:#creator" },
   { command: "/youtube remove channel-route", description: "Sterge o ruta Discord sau toate rutele speciale ale canalului YouTube ales. Dupa eliminarea tuturor se foloseste din nou canalul principal.", example: "/youtube remove channel-route canal:UCxxxxxxxxxxxxxxxxxxxxxx discord:toate" },
   { command: "/youtube channel-route list", description: "Listeaza toate rutele speciale dintre canalele YouTube si canalele Discord.", example: "/youtube channel-route list" },
@@ -27,9 +24,6 @@ export const YOUTUBE_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   { command: "/youtube remove title-filter", description: "Elimina o valoare din filtrul inclusiv de titlu.", example: "/youtube remove title-filter word:patch notes" },
   { command: "/youtube title-filter list", description: "Listeaza cuvintele si expresiile acceptate de filtrul inclusiv de titlu.", example: "/youtube title-filter list" },
   { command: "/youtube title-filter clear", description: "Goleste filtrul inclusiv, astfel incat titlul sa nu mai fie restrictionat.", example: "/youtube title-filter clear" },
-  { command: "/youtube videos show", description: "Posteaza manual videoclipurile din ultima luna pentru un canal urmarit sau pentru toate. Revendica (claim) videoclipurile pe care le posteaza, deci o a doua rulare nu le mai reposteaza (foloseste `repeta:true` ca sa le repostezi); peste 5 rezultate sunt trimise in loturi de 5 la 10 minute, iar loturile suplimentare merg prin outbox-ul durabil cand e activat, chiar daca notificarile automate sunt oprite.", example: "/youtube videos show canal:toate" },
   { command: "/youtube status", description: "Afiseaza starea completa a modulului YouTube: notificari, canal Discord, canale urmarite, ultima verificare, erori si filtre.", example: "/youtube status" },
-  { command: "/youtube errors", description: "Afiseaza ultimele erori de rezolvare canal, citire feed, metadate video sau livrare Discord.", example: "/youtube errors" },
-  { command: "/youtube permissions", description: "Verifica permisiunile botului pe canalul principal YouTube si pe canalele din rutele speciale (`/youtube add channel-route`).", example: "/youtube permissions" },
   { command: "/youtube clear-errors", description: "Curata istoricul local al erorilor YouTube dupa ce problema a fost investigata sau rezolvata.", example: "/youtube clear-errors" }
 ];

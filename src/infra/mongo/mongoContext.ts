@@ -22,6 +22,10 @@ import type {
   NotificationOutboxDoc,
   NotificationOutboxSentDoc,
   PlayerCountSnapshotDoc,
+  PlayerCountHistoryDoc,
+  PlayerCountRecordDoc,
+  BugReportDoc,
+  UserComplaintDoc,
   SystemDoc
 } from "./modelTypes.js";
 import { assertNoUndefinedExports } from "../../shared/assertCompleteExports.js";
@@ -48,6 +52,10 @@ type MongoRuntimeContext = {
   AdminAlertCooldownModel: Model<AdminAlertCooldownDoc>;
   FetchSnapshotModel: Model<FetchSnapshotDoc>;
   PlayerCountSnapshotModel: Model<PlayerCountSnapshotDoc>;
+  PlayerCountHistoryModel: Model<PlayerCountHistoryDoc>;
+  PlayerCountRecordModel: Model<PlayerCountRecordDoc>;
+  BugReportModel: Model<BugReportDoc>;
+  UserComplaintModel: Model<UserComplaintDoc>;
   GuildSeenDiscountModel: Model<GuildSeenDiscountDoc>;
   GuildSeenUpdateModel: Model<GuildSeenUpdateDoc>;
   GuildSeenYoutubeModel: Model<GuildSeenYoutubeDoc>;
@@ -142,6 +150,10 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     AdminAlertCooldownModel: context.AdminAlertCooldownModel,
     FetchSnapshotModel: context.FetchSnapshotModel,
     PlayerCountSnapshotModel: context.PlayerCountSnapshotModel,
+    PlayerCountHistoryModel: context.PlayerCountHistoryModel,
+    PlayerCountRecordModel: context.PlayerCountRecordModel,
+    BugReportModel: context.BugReportModel,
+    UserComplaintModel: context.UserComplaintModel,
     GuildSeenDiscountModel: context.GuildSeenDiscountModel,
     GuildSeenUpdateModel: context.GuildSeenUpdateModel,
     GuildSeenYoutubeModel: context.GuildSeenYoutubeModel,

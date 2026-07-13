@@ -5,7 +5,6 @@ import { buildCoreCommandDefinitions } from "./coreCommandDefinitions.js";
 import { buildDealsCommandDefinitions } from "./dealsCommandDefinitions.js";
 import { buildGameInfoCommandDefinitions } from "./gameInfoCommandDefinitions.js";
 import { buildNotificationCommandDefinitions } from "./notificationCommandDefinitions.js";
-import { buildOutboxCommandDefinitions } from "./outboxCommandDefinitions.js";
 import { buildYouTubeCommandDefinitions } from "./youtubeCommandDefinitions.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
@@ -55,8 +54,7 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
       ...buildNotificationCommandDefinitions(tools),
       ...buildDealsCommandDefinitions(tools),
       ...buildGameInfoCommandDefinitions(tools),
-      ...buildYouTubeCommandDefinitions(tools),
-      ...buildOutboxCommandDefinitions(tools)
+      ...buildYouTubeCommandDefinitions(tools)
     ].map(command => command.toJSON())
       .map(definition => definition.default_member_permissions === PermissionsBitField.Flags.Administrator.toString()
         ? { ...definition, dm_permission: false }

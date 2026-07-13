@@ -92,7 +92,7 @@ test("docs sync: docs/Comenzi Functionalitate.md mentioneaza toate comenzile top
 
 test("P2.1: definitiile contin comenzile cheie (ancore de sanitate pentru parser)", () => {
   const defined = definedCommandPaths();
-  for (const expected of ["ping", "help", "start updates", "set add games", "set outbox-recovery-verify", "outbox status", "outbox recovery-verify status"]) {
+  for (const expected of ["ping", "help", "start updates", "set add games", "game overview", "status watchlist", "template set", "notification preview"]) {
     assert.ok(defined.has(expected), `definitiile contin '${expected}'`);
   }
   assert.ok(!defined.has("set game-state"), "nu exista subcomanda 'set game-state' (de aceea a fost scoasa din README)");
@@ -144,7 +144,7 @@ test("README descrie corect runtime-ul Docker (consistent cu Dockerfile)", () =>
 });
 
 test("docs sync: /status e descris ca status server pentru un joc (nu starea botului), iar interactions.ts nu mai e revendicat ca router activ", () => {
-  const statusLine = readme.split("\n").find(line => /^- `\/status\b/.test(line)) || "";
+  const statusLine = readme.split("\n").find(line => /`\/status game`/.test(line)) || "";
   assert.ok(statusLine, "README listeaza comanda /status");
   assert.match(statusLine, /joc/, "README descrie /status ca status server pentru un joc, nu 'starea botului' (aceea e /health)");
 

@@ -8,7 +8,10 @@ export const ADMIN_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   { command: "server-log", access: "admin", discordAdminPermissions: true },
   { command: "admin-alerts", access: "admin", discordAdminPermissions: true },
   { command: "admin-command-access", access: "admin", discordAdminPermissions: true, ownerOnly: true },
-  { command: "maintenance", access: "admin", discordAdminPermissions: true }
+  { command: "maintenance", access: "admin", discordAdminPermissions: true },
+  { command: "template", access: "admin", discordAdminPermissions: true },
+  { command: "game-alias", access: "admin", discordAdminPermissions: true },
+  { command: "notification", access: "admin", discordAdminPermissions: true }
 ];
 
 export const ADMIN_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
@@ -25,5 +28,12 @@ export const ADMIN_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   { command: "/admin-alerts off", description: "Opreste livrarea alertelor administrative in Discord pentru server.", example: "/admin-alerts off" },
   { command: "/admin-command-access list", description: "Afiseaza regula globala si regulile dedicate pe comenzi admin. Cu command afiseaza regula exacta pentru comanda aleasa sau fallback-ul global folosit.", example: "/admin-command-access list command:/start updates" },
   { command: "/delete admin-command-access", description: "Sterge regula de rol globala sau regula dedicata unei comenzi admin si revine la fallback-ul ramas: regula globala, Administrator sau cod global de acces.", example: "/delete admin-command-access confirm:true command:/start updates" },
-  { command: "/maintenance", description: "Afiseaza zonele operationale care trebuie verificate: surse cu erori, outbox, dead-letter, backup vechi, canale lipsa si notificari oprite.", example: "/maintenance" }
+  { command: "/maintenance", description: "Afiseaza zonele operationale care trebuie verificate: surse cu erori, outbox, dead-letter, backup vechi, canale lipsa si notificari oprite.", example: "/maintenance" },
+  { command: "/template set", description: "Seteaza template-ul unei comenzi si valideaza placeholder-ele acceptate.", example: "/template set command:/start updates text:{count} update-uri noi" },
+  { command: "/template reset", description: "Sterge template-ul personalizat si revine la valoarea implicita.", example: "/template reset command:/start updates" },
+  { command: "/template status", description: "Afiseaza template-ul activ, valoarea implicita si placeholder-ele disponibile.", example: "/template status command:/youtube notify on" },
+  { command: "/game-alias add", description: "Adauga un nume alternativ unic pentru un joc pe server.", example: "/game-alias add joc:counter-strike-2 alias:cs2" },
+  { command: "/game-alias remove", description: "Sterge un alias personalizat al jocului.", example: "/game-alias remove joc:counter-strike-2 alias:cs2" },
+  { command: "/game-alias list", description: "Listeaza aliasurile personalizate salvate pentru joc.", example: "/game-alias list joc:counter-strike-2" },
+  { command: "/notification preview", description: "Previzualizeaza continutul si embed-ul unei notificari cu template-ul activ, fara livrare sau modificarea starii.", example: "/notification preview command:/start updates" }
 ];

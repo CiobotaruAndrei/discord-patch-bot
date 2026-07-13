@@ -24,27 +24,23 @@ export function buildCoreCommandDefinitions({ SlashCommandBuilder, PermissionsBi
       .addSubcommand(subcommand => subcommand.setName("delete").setDescription("Sterge un joc propus (admin)")
         .addStringOption(option => option.setName("game").setDescription("Numele jocului propus").setRequired(true).setMaxLength(100))),
     new SlashCommandBuilder()
-      .setName("history")
-      .setDescription("Istoricul notificarilor trimise pe acest server")
-      .addStringOption(option => option.setName("tip").setDescription("Ce notificari (implicit toate)").setRequired(false)
-        .addChoices(
-          { name: "updates", value: "updates" },
-          { name: "reduceri", value: "reduceri" },
-          { name: "youtube", value: "youtube" }
-        ))
-      .addIntegerOption(option => option.setName("numar").setDescription("Cate intrari (1-25, implicit 10)").setRequired(false).setMinValue(1).setMaxValue(25)),
-    new SlashCommandBuilder()
       .setName("report")
-      .setDescription("Raporteaza si gestioneaza probleme observate")
-      .addSubcommand(subcommand => subcommand.setName("submit").setDescription("Trimite un raport despre o problema")
+      .setDescription("Raporteaza buguri sau reclamatii si gestioneaza listele")
+      .setDMPermission(false)
+      .addSubcommand(subcommand => subcommand.setName("bug").setDescription("Raporteaza o problema de functionare")
         .addStringOption(option => option.setName("tip").setDescription("Tipul problemei").setRequired(true)
           .addChoices(...REPORT_TYPES.map(type => ({ name: type.label, value: type.value }))))
-        .addStringOption(option => option.setName("detalii").setDescription("Detalii suplimentare (optional)").setRequired(false))
-        .addStringOption(option => option.setName("joc").setDescription("Jocul vizat (optional)").setRequired(false)))
-      .addSubcommand(subcommand => subcommand.setName("list").setDescription("Listeaza rapoartele recente (admin)")
-        .addIntegerOption(option => option.setName("numar").setDescription("Cate rapoarte (1-25, implicit 10)").setRequired(false).setMinValue(1).setMaxValue(25)))
-      .addSubcommand(subcommand => subcommand.setName("resolve").setDescription("Marcheaza un raport ca rezolvat (admin)")
-        .addStringOption(option => option.setName("id").setDescription("ID-ul raportului din /report list").setRequired(true))),
+        .addStringOption(option => option.setName("joc").setDescription("Jocul asociat").setRequired(true).setAutocomplete(true)))
+      .addSubcommand(subcommand => subcommand.setName("complaint").setDescription("Reclama un membru al serverului")
+        .addUserOption(option => option.setName("target").setDescription("Membrul reclamat").setRequired(true)))
+      .addSubcommandGroup(group => group.setName("list").setDescription("Liste administrative")
+        .addSubcommand(subcommand => subcommand.setName("bugs").setDescription("Listeaza rapoartele de bug"))
+        .addSubcommand(subcommand => subcommand.setName("users").setDescription("Listeaza reclamatiile impotriva membrilor")))
+      .addSubcommandGroup(group => group.setName("remove").setDescription("Stergere administrativa")
+        .addSubcommand(subcommand => subcommand.setName("bug").setDescription("Sterge un raport de bug")
+          .addStringOption(option => option.setName("id").setDescription("ID-ul raportului de bug").setRequired(true)))
+        .addSubcommand(subcommand => subcommand.setName("user").setDescription("Sterge o reclamatie impotriva unui membru")
+          .addStringOption(option => option.setName("id").setDescription("ID-ul reclamatiei").setRequired(true)))),
     new SlashCommandBuilder()
       .setName("health")
       .setDescription("Starea botului: Discord, MongoDB, cache, uptime")

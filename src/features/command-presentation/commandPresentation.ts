@@ -58,6 +58,7 @@ function createCommandPresentation(deps: CommandUiDeps) {
     getFindGameCacheSize: gameLookup.getFindGameCacheSize,
     clearFindGameCache: gameLookup.clearFindGameCache,
     fetchGameStatus: statusEmbeds.fetchGameStatus,
+    fetchGameStatusSummary: statusEmbeds.fetchGameStatusSummary,
     buildSteamPriceEmbed: statusEmbeds.buildSteamPriceEmbed
   };
 }
