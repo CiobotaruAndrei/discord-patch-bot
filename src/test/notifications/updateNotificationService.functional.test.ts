@@ -178,6 +178,29 @@ test("UpdateService: buildUpdateEmbed care arunca da claim-ul inapoi si dead-let
   assert.match(String(deadLetterDocs[0].reason), /embed corupt/);
 });
 
+test("UpdateService: daca rollback-ul claim-ului esueaza dupa embed corupt se logheaza WARN (nu inghitit tacut)", async () => {
+  const logs: Array<{ level: string; msg: string }> = [];
+  const channel = { id: "channel-1", send: async () => ({}) };
+  const { deps } = makeUpdateDeps({
+    resolveOutboundChannel: async () => ({ channel, abort: false }),
+    buildUpdateEmbed: () => { throw new Error("embed corupt"); },
+    rollbackSeenUpdate: async () => { throw new Error("mongo down la rollback"); },
+    logger: (level: string, _ctx: string, msg: string) => { logs.push({ level, msg }); },
+    PENDING_UPDATE_MAX_ATTEMPTS: 2
+  });
+  const svc = createUpdateNotificationService(deps);
+  const guild = {
+    _id: "guild-1", subscribed: true, notificationChannelId: "channel-1", seenHashVersionUpdates: 2,
+    seen: {}, pendingUpdates: {}, enabledGames: []
+  } as UpdateGuild;
+  const latestResults = [{ game: { key: "cs2", name: "CS2" }, latest: { id: "u-1", title: "patch" } }] as UpdateResults;
+  await svc.processGuildUpdates(noopDiscordClient, guild, latestResults);
+  assert.ok(
+    logs.some(l => l.level === "WARN" && /Rollback seen-update esuat/.test(l.msg)),
+    "esecul rollback-ului lasa update-ul marcat vazut fara livrare; trebuie logat WARN, nu inghitit"
+  );
+});
+
 test("UpdateService: livrarea care epuizeaza retry-urile intra in dead-letter (document in colectia dedicata)", async () => {
   const channel = { id: "channel-1", send: async () => { throw new Error("ECONNRESET"); } };
   const { deps, updateOneCalls, deadLetterDocs } = makeUpdateDeps({

@@ -18,6 +18,25 @@ test("DiscountService: trimite reduceri noi care nu sunt in seenDiscounts", asyn
   assert.equal(sentPayloads.length, 1);
 });
 
+test("DiscountService: daca rollback-ul claim-ului esueaza dupa enrich crapa se logheaza WARN (nu inghitit tacut)", async () => {
+  const logs: Array<{ level: string; msg: string }> = [];
+  const { deps } = makeDiscountDeps({
+    enrichDealData: async () => { throw new Error("Steam enrich cazut"); },
+    rollbackSeenDiscount: async () => { throw new Error("mongo down la rollback"); },
+    logger: (level: string, _ctx: string, msg: string) => { logs.push({ level, msg }); }
+  });
+  const svc = createDiscountNotificationService(deps);
+  const guild = {
+    _id: "guild-1", discountsSubscribed: true, discountChannelId: "channel-d", seenHashVersionDiscounts: 2,
+    seenDiscounts: [], pendingDiscounts: [], currency: "USD"
+  } as DiscountGuild;
+  await svc.processGuildDiscounts(noopDiscordClient, guild, [{ id: "d1", title: "Game A" }] as DiscountDeals);
+  assert.ok(
+    logs.some(l => l.level === "WARN" && /Rollback seen-discount esuat/.test(l.msg)),
+    "esecul rollback-ului lasa reducerea marcata vazuta fara livrare; trebuie logat WARN, nu inghitit"
+  );
+});
+
 test("DiscountService: send-ul transmite meta.historyEntries cu titlul si link-ul reducerii", async () => {
   const { deps, sentMetas } = makeDiscountDeps();
   const svc = createDiscountNotificationService(deps);
