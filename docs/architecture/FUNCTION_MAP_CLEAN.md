@@ -52,7 +52,11 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/config/configValidator.ts`
 
-- Valideaza schema si cerintele de runtime pentru jocuri si surse.
+- Valideaza schema si cerintele de runtime pentru jocuri si surse. Regulile specifice fiecarui tip de sursa sunt delegate lui `sourceTypeValidators.ts`; `superRefine` pastreaza doar dispatch-ul ordonat (steam -> listing_based -> intel -> rss -> fallbacks -> epic_games) plus verificarile generice (tipuri permise, `articleHrefRegex`, `updateCheckReleaseDate`).
+
+### `src/config/sourceTypeValidators.ts`
+
+- Validatoarele per tip de sursa (`validateSteamSource`, `validateListingBasedSource`, `validateIntelSource`, `validateRssSource`, `validateEpicGamesSource`) + `validateSourceFallbacks` (mostenire url/listing de la jocul-parinte) si helperul `requireListing`. `ALLOWED_GAME_TYPES` si `SOURCE_TYPE_VALIDATORS` sunt sursa unica a tipurilor permise. Localitatea (validatoarele traiesc aici, `configValidator` doar dispatcheaza) e gardata de `sourceTypeValidatorsLocality.test.ts`.
 
 ### `src/shared/errors.ts`, `src/shared/logging.ts`, `src/shared/utilities.ts`
 

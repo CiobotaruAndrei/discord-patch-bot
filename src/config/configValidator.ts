@@ -1,5 +1,14 @@
 import { z, type ZodIssue } from "zod";
 import type { BotConfig } from "./configTypes.js";
+import {
+  ALLOWED_GAME_TYPES,
+  validateSteamSource,
+  validateListingBasedSource,
+  validateIntelSource,
+  validateRssSource,
+  validateEpicGamesSource,
+  validateSourceFallbacks
+} from "./sourceTypeValidators.js";
 
 type IssuePath = Array<string | number>;
 type SeenSearchTerm = {
@@ -9,17 +18,6 @@ type SeenSearchTerm = {
 };
 type ConfigParseError = { error: { issues: ZodIssue[] } };
 
-const ALLOWED_GAME_TYPES = new Set<string>([
-  "steam",
-  "minecraft",
-  "epic_games",
-  "roblox",
-  "listing_based",
-  "nvidia",
-  "amd",
-  "intel",
-  "rss"
-]);
 
 const ALLOWED_CHECK_INTERVAL_MINUTES = new Set<number>([10, 15, 30, 60]);
 
@@ -121,121 +119,12 @@ const ConfigSchema = z.object({
       });
     }
 
-    if (type === "steam") {
-      if (!game.appId) {
-        refinement.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [...path, "appId"],
-          message: "Jocurile Steam trebuie sa aiba appId"
-        });
-      } else if (!/^\d+$/.test(String(game.appId))) {
-        refinement.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [...path, "appId"],
-          message: "appId pentru Steam trebuie sa contina doar cifre"
-        });
-      }
-    }
-
-    if (type === "listing_based") {
-      const hasListing = Boolean(game.listingUrl)
-        || (Array.isArray(game.listingUrls) && game.listingUrls.length > 0);
-      if (!hasListing) {
-        refinement.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [...path, "listingUrls"],
-          message: "Sursele listing_based trebuie sa aiba listingUrl sau listingUrls"
-        });
-      }
-      if (Array.isArray(game.listingUrls)) {
-        const uniqueUrls = new Set(game.listingUrls);
-        if (uniqueUrls.size !== game.listingUrls.length) {
-          refinement.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [...path, "listingUrls"],
-            message: "listingUrls nu trebuie sa contina URL-uri duplicate"
-          });
-        }
-      }
-      if (!game.baseUrl) {
-        refinement.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [...path, "baseUrl"],
-          message: "Sursele listing_based trebuie sa aiba baseUrl"
-        });
-      }
-    }
-
-    if (type === "intel" && !game.url) {
-      refinement.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [...path, "url"],
-        message: "Sursele Intel trebuie sa aiba url"
-      });
-    }
-
-    if (type === "rss" && !game.url) {
-      refinement.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [...path, "url"],
-        message: "Sursele rss trebuie sa aiba url (URL-ul feed-ului RSS/Atom)"
-      });
-    }
-
-    const fallbacks = Array.isArray(game.fallbacks) ? game.fallbacks : [];
-    fallbacks.forEach((fallback, fbIndex) => {
-      const fbPath = [...path, "fallbacks", fbIndex];
-      if (!ALLOWED_GAME_TYPES.has(fallback.type)) {
-        refinement.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [...fbPath, "type"],
-          message: `Tip fallback necunoscut: ${fallback.type}`
-        });
-      }
-      if ((fallback.type === "rss" || fallback.type === "intel") && !fallback.url && !game.url) {
-        refinement.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [...fbPath, "url"],
-          message: `Fallback-ul de tip ${fallback.type} trebuie sa aiba url`
-        });
-      }
-      if ((fallback.type === "listing_based" || fallback.type === "epic_games") && !fallback.listingUrl && !fallback.listingUrls && !game.listingUrl && !game.listingUrls) {
-        refinement.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [...fbPath, "listingUrl"],
-          message: `Fallback-ul de tip ${fallback.type} trebuie sa aiba listingUrl sau listingUrls`
-        });
-      }
-    });
-
-    if (type === "epic_games" && game.key !== "fortnite") {
-      const hasListing = Boolean(game.listingUrl)
-        || (Array.isArray(game.listingUrls) && game.listingUrls.length > 0);
-      if (!hasListing) {
-        refinement.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [...path, "listingUrls"],
-          message: "Sursele epic_games (non-fortnite) trebuie sa aiba listingUrl sau listingUrls"
-        });
-      }
-      if (Array.isArray(game.listingUrls)) {
-        const uniqueUrls = new Set(game.listingUrls);
-        if (uniqueUrls.size !== game.listingUrls.length) {
-          refinement.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [...path, "listingUrls"],
-            message: "listingUrls nu trebuie sa contina URL-uri duplicate"
-          });
-        }
-      }
-      if (!game.baseUrl) {
-        refinement.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [...path, "baseUrl"],
-          message: "Sursele epic_games (non-fortnite) trebuie sa aiba baseUrl"
-        });
-      }
-    }
+    if (type === "steam") validateSteamSource(game, path, refinement);
+    if (type === "listing_based") validateListingBasedSource(game, path, refinement);
+    if (type === "intel") validateIntelSource(game, path, refinement);
+    if (type === "rss") validateRssSource(game, path, refinement);
+    validateSourceFallbacks(game, path, refinement);
+    if (type === "epic_games") validateEpicGamesSource(game, path, refinement);
 
     if (game.upCRD !== undefined && type !== "nvidia") {
       refinement.addIssue({
