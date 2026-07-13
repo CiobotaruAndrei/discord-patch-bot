@@ -116,6 +116,7 @@ const attachAdminAlerts = asMongoModule(attachAdminAlertsModule);
 import attachFetchSnapshotsModule from "./fetchSnapshots.js";
 const attachFetchSnapshots = asMongoModule(attachFetchSnapshotsModule);
 import attachSourceHealthModule from "./sourceHealth.js";
+import { setGuildSettingsEventErrorReporter } from "./guildSettingsEvents.js";
 const attachSourceHealth = asMongoModule(attachSourceHealthModule);
 
 function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeContext {
@@ -194,6 +195,9 @@ function createMongoContext(baseContext: MongoRuntimeContext = runtimeContext): 
   const withAdminAlerts = { ...withGuildSettings, ...attachAdminAlerts.buildFrom(withGuildSettings) };
   const withFetchSnapshots = { ...withAdminAlerts, ...attachFetchSnapshots.buildFrom(withAdminAlerts) };
   const withSourceHealth = { ...withFetchSnapshots, ...attachSourceHealth.buildFrom(withFetchSnapshots) };
+  setGuildSettingsEventErrorReporter((guildId, error) => {
+    withSourceHealth.logger("WARN", "GUILD_EVENTS", `Listener GuildSettingsChanged a esuat pentru guild ${guildId}`, error);
+  });
   return assertNoUndefinedExports(buildMongoContextExports(withSourceHealth), "mongoContext");
 }
 
