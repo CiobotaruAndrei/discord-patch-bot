@@ -14,7 +14,7 @@
     "start:build": "npm run build && node dist/app/main.js",
     "start:worker": "node dist/app/worker.js",
     "start:worker:local": "node --env-file=.env dist/app/worker.js",
-    "dev": "npm run start:build",
+    "dev": "npm run build && npm run start:local",
     "check:config": "npm run build:ts && node dist/scripts/check-config.js",
     "check:env": "npm run build:ts && node dist/scripts/check-env.js",
     "check:redis": "npm run build:ts && node dist/scripts/check-redis.js",
@@ -25,7 +25,7 @@
     "check:rules-sync": "npm run build:ts && node dist/scripts/check-rules-sync.js",
     "check:db-indexes": "npm run build:ts && node dist/scripts/check-db-indexes.js",
     "check:docs-commands": "npm run build:ts && node dist/scripts/generate-command-reference.js --check",
-    "check:quick": "npm run typecheck && npm run check:syntax && npm run check:config",
+    "check:quick": "npm run build:ts && node dist/scripts/check-syntax.js && node dist/scripts/check-config.js",
     "docs:commands": "npm run build:ts && node dist/scripts/generate-command-reference.js",
     "db:export:guilds": "npm run build:ts && node dist/scripts/export-guild-configs.js",
     "benchmark": "npm run build:ts && node dist/scripts/notificationBenchmark.js",
@@ -36,9 +36,8 @@
     "smoke:staging:discord": "npm run build:ts && node dist/scripts/stagingDiscordSmoke.js",
     "canary:sources": "npm run build:ts && node dist/scripts/canarySources.js",
     "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit",
-    "lint": "npm run typecheck",
+    "lint": "npm run build:ts && node dist/scripts/check-syntax.js && node dist/scripts/check-no-comments.js && node dist/scripts/check-no-weakening-types.js",
     "test": "npm run build && node --test \"dist/test/**/*.test.js\"",
-    "test:functional": "npm run test",
     "test:e2e": "npm run build && npm run test:e2e:prebuilt",
     "test:e2e:prebuilt": "node --test \"dist/test/**/*.e2e.test.js\" dist/test/outbox/outboxE2E.functional.test.js",
     "test:regression": "npm run build && node --test dist/test/commands/commands-regression.test.js dist/test/commands/configValidator.test.js",
@@ -48,7 +47,13 @@
     "precommit": "npm run check:full && npm run audit",
     "check": "npm run typecheck && npm run build && node dist/scripts/check-syntax.js && node dist/scripts/check-no-comments.js && node dist/scripts/check-no-weakening-types.js && node dist/scripts/check-config.js && node dist/scripts/check-dependencies.js && node dist/scripts/check-rules-sync.js && node dist/scripts/check-db-indexes.js && node dist/scripts/generate-command-reference.js --check && node --test --test-reporter=spec \"dist/test/**/*.test.js\"",
     "check:native": "cargo clippy --manifest-path native/Cargo.toml --workspace --all-targets -- -D warnings && cargo test --manifest-path native/Cargo.toml -p discord_patch_bot_logic --quiet",
-    "check:full": "npm run check && npm run check:native && npm run test:e2e"
+    "check:full": "npm run check && npm run check:native && npm run test:e2e:prebuilt",
+    "start:web": "node dist/app/web.js",
+    "start:web:local": "node --env-file=.env dist/app/web.js",
+    "check:env:local": "npm run build:ts && node --env-file=.env dist/scripts/check-env.js",
+    "check:redis:local": "npm run build:ts && node --env-file=.env dist/scripts/check-redis.js",
+    "doctor:local": "npm run build:ts && node --env-file=.env dist/scripts/check-env.js && node --env-file=.env dist/scripts/check-config.js && node --env-file=.env dist/scripts/check-redis.js",
+    "db:export:guilds:raw": "npm run build:ts && node dist/scripts/export-guild-configs.js --raw"
   },
   "engines": {
     "node": ">=22.12"

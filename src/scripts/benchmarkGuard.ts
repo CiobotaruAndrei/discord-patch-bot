@@ -35,7 +35,7 @@ export function defaultGuardConfig(): GuardConfig {
       stableUpdateId: strictEnvFloat("BENCH_STABLEUPDATE_WARN_RATIO", 1.2),
       rankListingCandidates: strictEnvFloat("BENCH_RANKLISTING_WARN_RATIO", 1.1)
     },
-    requireNative: process.env.BENCH_GUARD_REQUIRE_NATIVE === "true"
+    requireNative: process.env.BENCH_GUARD_REQUIRE_NATIVE !== "false"
   };
 }
 
@@ -46,7 +46,7 @@ export function evaluateBenchmarkGuard(samples: GuardSample[], config: GuardConf
   for (const sample of samples) {
     if (!sample.rustAvailable || sample.speedup === null) {
       if (config.requireNative) {
-        failures.push(`${sample.area}: addon nativ indisponibil dar BENCH_GUARD_REQUIRE_NATIVE=true — in CI build-ul Rust ruleaza inainte de guard, deci absenta inseamna o problema de build, nu un skip acceptabil`);
+        failures.push(`${sample.area}: addon nativ indisponibil; benchmark guard cere implicit addon-ul, iar BENCH_GUARD_REQUIRE_NATIVE=false este singurul opt-out acceptat`);
       } else {
         skipped.push(`${sample.area}: Rust indisponibil, guard de viteza sarit`);
       }

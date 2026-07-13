@@ -90,23 +90,28 @@ test("evaluateBenchmarkGuard: exact la pragul de esec nu esueaza (strict mai mic
   assert.equal(out.failures.length, 0);
 });
 
-test("defaultGuardConfig: praguri implicite + suprascriere prin env + requireNative", () => {
-  const base = defaultGuardConfig();
-  assert.equal(base.failBelow, 0.85);
-  assert.equal(base.warnBelow.levenshtein, 1.4);
-  assert.equal(base.warnBelow.dealHash, 1.2);
-  assert.equal(base.warnBelow.stableUpdateId, 1.2);
-  assert.equal(base.warnBelow.rankListingCandidates, 1.1);
-  assert.equal(base.requireNative, false, "implicit nu cere nativul (CI-safe local)");
-
+test("defaultGuardConfig: addon-ul nativ este obligatoriu implicit si permite doar opt-out explicit", () => {
   const prevFail = process.env.BENCH_HOTPATH_FAIL_RATIO;
   const prevReq = process.env.BENCH_GUARD_REQUIRE_NATIVE;
-  process.env.BENCH_HOTPATH_FAIL_RATIO = "1";
-  process.env.BENCH_GUARD_REQUIRE_NATIVE = "true";
+  delete process.env.BENCH_HOTPATH_FAIL_RATIO;
+  delete process.env.BENCH_GUARD_REQUIRE_NATIVE;
   try {
-    const cfg = defaultGuardConfig();
-    assert.equal(cfg.failBelow, 1);
-    assert.equal(cfg.requireNative, true, "BENCH_GUARD_REQUIRE_NATIVE=true activeaza gate-ul strict");
+    const base = defaultGuardConfig();
+    assert.equal(base.failBelow, 0.85);
+    assert.equal(base.warnBelow.levenshtein, 1.4);
+    assert.equal(base.warnBelow.dealHash, 1.2);
+    assert.equal(base.warnBelow.stableUpdateId, 1.2);
+    assert.equal(base.warnBelow.rankListingCandidates, 1.1);
+    assert.equal(base.requireNative, true);
+
+    process.env.BENCH_HOTPATH_FAIL_RATIO = "1";
+    process.env.BENCH_GUARD_REQUIRE_NATIVE = "false";
+    const optedOut = defaultGuardConfig();
+    assert.equal(optedOut.failBelow, 1);
+    assert.equal(optedOut.requireNative, false);
+
+    process.env.BENCH_GUARD_REQUIRE_NATIVE = "true";
+    assert.equal(defaultGuardConfig().requireNative, true);
   } finally {
     if (prevFail === undefined) delete process.env.BENCH_HOTPATH_FAIL_RATIO; else process.env.BENCH_HOTPATH_FAIL_RATIO = prevFail;
     if (prevReq === undefined) delete process.env.BENCH_GUARD_REQUIRE_NATIVE; else process.env.BENCH_GUARD_REQUIRE_NATIVE = prevReq;

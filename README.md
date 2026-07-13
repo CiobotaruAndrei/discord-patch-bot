@@ -83,11 +83,11 @@ Comenzile administrative sunt validate atat prin permisiunile slash command decl
 cd src
 npm ci
 cp .env.example .env
-npm run build
-npm run start:local
+npm run doctor:local
+npm run dev
 ```
 
-`npm run check:env` valideaza mediul FARA sa porneasca botul (preflight): esueaza daca lipseste vreo variabila obligatorie (`MONGO_URI`, `DISCORD_TOKEN`, `DISCORD_CLIENT_ID` — exact cele pe care boot-ul le cere fail-fast) si avertizeaza non-blocant pe recomandari (cod global in clar fara `BOT_GLOBAL_ACCESS_CODE_HASH`, fallback-ul de cod dezactivat complet, `NODE_ENV` nesetat). Pentru a verifica fisierul `.env` local: `node --env-file=.env dist/scripts/check-env.js`.
+`npm run check:env` valideaza mediul primit de proces, iar `npm run check:env:local` incarca automat `.env`. `npm run check:redis:local` verifica Redis cu acelasi fisier, iar `npm run doctor:local` compileaza TypeScript o singura data si ruleaza succesiv verificarile pentru `.env`, configuratie si Redis. `npm run dev` face build-ul complet si porneste botul prin `start:local`, deci foloseste automat `.env`.
 
 `npm run start:local` incarca `.env` prin `node --env-file` (botul citeste doar `process.env` — nu exista dotenv). `npm start` (`node dist/app/main.js`) NU incarca `.env`. Imaginea Docker nu ruleaza `npm start`: CMD-ul din `Dockerfile` porneste direct `node dist/app/main.js` (iar `npm`/`npx` sunt sterse din imaginea finala), deci nici acolo nu se incarca `.env` — containerul primeste variabilele prin `env_file` din `docker-compose.yml`, iar in productie vin din mediul orchestratorului.
 
@@ -176,8 +176,12 @@ Rulare:
 npm start                       # BOT_ROLE=all (sau nesetat)
 
 # impartit in doua procese
-BOT_ROLE=web  npm start          # procesul care raspunde la comenzi
-npm run start:worker             # procesul de fundal (forteaza BOT_ROLE=worker)
+npm run start:web                # procesul care raspunde la comenzi
+npm run start:worker             # procesul de fundal
+
+# aceleasi roluri cu .env incarcat local
+npm run start:web:local
+npm run start:worker:local
 ```
 
 Cele doua procese se **coordoneaza prin lock-urile distribuite din MongoDB** (`acquireDbLock`), la fel ca doua instante `all`: cron-ul si drain-ul outbox nu se pot dubla, iar interactiunile sunt tratate doar de `web`. Cand rulezi doua procese pe aceeasi masina, da-le **`PORT` diferit** (fiecare rol expune propriul `/healthz` + `/metrics`).
@@ -224,16 +228,18 @@ Nu mai exista un `command-router` activ ca structura curenta. Handler-ele cunosc
 ```bash
 cd src
 npm test
-npm run test:functional
 npm run test:e2e
 npm run typecheck
+npm run lint
 npm run check
-npm run check:comments
+npm run check:full
 npm run build
 npm audit
 ```
 
-Scripturi de conveniența: `npm run check:quick` (typecheck + `check:syntax` + `check:config`, pentru schimbari mici, fara suita completa), `npm run test:notifications` (doar testele de notificari/outbox: `*notification*`/`*Notification*`), `npm run clean` / `npm run rebuild` (sterge `dist/` cross-platform, respectiv curata + rebuild complet — util cand apar probleme ciudate din `dist`) si `npm run audit:strict` (`npm audit --omit=dev` fara prag de severitate — esueaza la ORICE vulnerabilitate, mai strict decat `npm run audit`, care esueaza de la moderate in sus).
+Scripturi de conveniența: `npm run check:quick` compileaza TypeScript o singura data, apoi ruleaza direct verificarile de sintaxa si configuratie; `npm run lint` compileaza o singura data si verifica sintaxa, absenta comentariilor si constructiile care slabesc tiparea. `npm run check:full` reutilizeaza build-ul produs de `check` pentru E2E prin `test:e2e:prebuilt`, in timp ce `npm run test:e2e` ramane comanda independenta care isi face propriul build. `npm run test:notifications` ruleaza doar testele de notificari/outbox, `npm run clean` / `npm run rebuild` curata sau reconstruiesc proiectul, iar `npm run audit:strict` esueaza la orice vulnerabilitate.
+
+Pentru operare locala, `npm run doctor:local` verifica intr-un singur flux `.env`, `config.json` si Redis. `npm run db:export:guilds` exporta implicit numai configuratia restaurabila a fiecarui guild si exclude cozile, starile tranzitorii si regulile sensibile de acces. Exportul complet al documentelor Mongo este disponibil numai explicit prin `npm run db:export:guilds:raw`; fisierul brut trebuie tratat ca material sensibil.
 
 `npm run check` ruleaza si `check:comments` (`scripts/check-no-comments.ts`), care esueaza daca exista comentarii (`//` sau `/* */`) in fisierele sursa `.ts`/`.js`/`.rs`, conform regulii „fara comentarii in cod". Allowlist-ul de exceptii este gol (zero exceptii); rationale-ul subtil de concurenta din `cron.ts` a fost mutat in `docs/architecture/CONTEXT_REPO_CLEAN.md`.
 
