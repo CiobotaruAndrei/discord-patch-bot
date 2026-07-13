@@ -87,7 +87,7 @@ npm run doctor:local
 npm run dev
 ```
 
-`npm run check:env` valideaza mediul primit de proces, iar `npm run check:env:local` incarca automat `.env`. `npm run check:redis:local` verifica Redis cu acelasi fisier, iar `npm run doctor:local` compileaza TypeScript o singura data si ruleaza succesiv verificarile pentru `.env`, configuratie si Redis. `npm run dev` face build-ul complet si porneste botul prin `start:local`, deci foloseste automat `.env`.
+`npm run check:env` valideaza mediul primit de proces, iar `npm run check:env:local` incarca automat `.env`. `npm run check:mongo:local` conecteaza baza indicata de `MONGO_URI`, executa un `ping`, afiseaza numele bazei si inchide conexiunea; `npm run check:redis:local` verifica Redis cu acelasi fisier. `npm run doctor:local` compileaza TypeScript o singura data si ruleaza succesiv verificarile pentru `.env`, configuratie, MongoDB si Redis. `npm run dev` face build-ul complet si porneste botul prin `start:local`, deci foloseste automat `.env`.
 
 `npm run start:local` incarca `.env` prin `node --env-file` (botul citeste doar `process.env` — nu exista dotenv). `npm start` (`node dist/app/main.js`) NU incarca `.env`. Imaginea Docker nu ruleaza `npm start`: CMD-ul din `Dockerfile` porneste direct `node dist/app/main.js` (iar `npm`/`npx` sunt sterse din imaginea finala), deci nici acolo nu se incarca `.env` — containerul primeste variabilele prin `env_file` din `docker-compose.yml`, iar in productie vin din mediul orchestratorului.
 
@@ -239,7 +239,9 @@ npm audit
 
 Scripturi de conveniența: `npm run check:quick` compileaza TypeScript o singura data, apoi ruleaza direct verificarile de sintaxa si configuratie; `npm run lint` compileaza o singura data si verifica sintaxa, absenta comentariilor si constructiile care slabesc tiparea. `npm run check:full` reutilizeaza build-ul produs de `check` pentru E2E prin `test:e2e:prebuilt`, in timp ce `npm run test:e2e` ramane comanda independenta care isi face propriul build. `npm run test:notifications` ruleaza doar testele de notificari/outbox, `npm run clean` / `npm run rebuild` curata sau reconstruiesc proiectul, iar `npm run audit:strict` esueaza la orice vulnerabilitate.
 
-Pentru operare locala, `npm run doctor:local` verifica intr-un singur flux `.env`, `config.json` si Redis. `npm run db:export:guilds` exporta implicit numai configuratia restaurabila a fiecarui guild si exclude cozile, starile tranzitorii si regulile sensibile de acces. Exportul complet al documentelor Mongo este disponibil numai explicit prin `npm run db:export:guilds:raw`; fisierul brut trebuie tratat ca material sensibil.
+Pentru operare locala, `npm run doctor:local` verifica intr-un singur flux `.env`, `config.json`, conectivitatea MongoDB si Redis. `npm run db:export:guilds` exporta implicit numai configuratia restaurabila a fiecarui guild si exclude cozile, starile tranzitorii si regulile sensibile de acces. Exportul complet al documentelor Mongo este disponibil numai explicit prin `npm run db:export:guilds:raw`; fisierul brut trebuie tratat ca material sensibil.
+
+`npm run check` compileaza mai intai TypeScript o singura data, apoi construieste addon-ul Rust si reutilizeaza `dist/` pentru gate-uri si teste. Scriptul `typecheck` ramane disponibil separat pentru verificarea fara emit.
 
 `npm run check` ruleaza si `check:comments` (`scripts/check-no-comments.ts`), care esueaza daca exista comentarii (`//` sau `/* */`) in fisierele sursa `.ts`/`.js`/`.rs`, conform regulii „fara comentarii in cod". Allowlist-ul de exceptii este gol (zero exceptii); rationale-ul subtil de concurenta din `cron.ts` a fost mutat in `docs/architecture/CONTEXT_REPO_CLEAN.md`.
 
