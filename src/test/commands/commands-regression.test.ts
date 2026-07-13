@@ -68,6 +68,8 @@ const readBuiltFilesUnder = (...segments: string[]) => {
   return chunks.join("\n");
 };
 
+const defines = (name: string): RegExp => new RegExp(`(?:function\\s+${name}\\b|\\b${name}\\s*[=:])`);
+
 const expectAll = (source: string, patterns: RegExp[]) => {
   for (const pattern of patterns) {
     assert.match(source, pattern);
@@ -81,13 +83,21 @@ const commandsSource = [
 const runtimeSource = runtimeFiles.map(readBuiltFile).join("\n");
 const allSource = `${commandsSource}\n${runtimeSource}`;
 
+test("defines() detecteaza un simbol indiferent de forma declaratiei (function decl / const arrow / metoda), fara fals pozitiv pe prefix", () => {
+  for (const form of ["function foo(", "async function foo()", "const foo = async () =>", "let foo = () =>", "foo: async () =>", "export function foo("]) {
+    assert.match(form, defines("foo"), `defines detecteaza forma: ${form}`);
+  }
+  assert.doesNotMatch("barfoo = 1", defines("foo"), "fara fals pozitiv cand numele e sufixul altui identificator");
+  assert.doesNotMatch("foo()", defines("foo"), "o simpla apelare (fara =/:/function) nu conteaza ca definitie");
+});
+
 test("notification queues keep the duplicate-prevention guardrails", () => {
   expectAll(commandsSource, [
-    /async function claimSeenUpdate/,
+    defines("claimSeenUpdate"),
     /GuildSeenUpdateModel/,
     /upsertedCount/,
     /updateId/,
-    /async function rollbackSeenUpdate/,
+    defines("rollbackSeenUpdate"),
     /rollbackSeenUpdate/,
     /updatesInitializing/,
     /discountsInitializing/
@@ -137,7 +147,7 @@ test("Discord permanent errors disable broken notification channels", () => {
     /10004/,
     /50001/,
     /50013/,
-    /function isPermanentDiscordError/,
+    defines("isPermanentDiscordError"),
     /disableUpdatesForChannelError/,
     /disableDiscountsForChannelError/
   ]);
@@ -145,8 +155,8 @@ test("Discord permanent errors disable broken notification channels", () => {
 
 test("Mongo retry wraps atomic notification claims", () => {
   expectAll(allSource, [
-    /function isTransientMongoError/,
-    /async function withMongoRetry/
+    defines("isTransientMongoError"),
+    defines("withMongoRetry")
   ]);
   expectAll(commandsSource, [
     /withMongoRetry/,
@@ -172,7 +182,7 @@ test("cron health backoff is exposed", () => {
     /cronSkippedDueToHealth/
   ]);
   expectAll(runtimeSource, [
-    /function getHealthSnapshot/,
+    defines("getHealthSnapshot"),
     /bot_cron_skipped_due_to_health/,
     /cronHealth/,
     /getHealthSnapshot/
@@ -181,36 +191,36 @@ test("cron health backoff is exposed", () => {
 
 test("health modules keep TypeScript contracts after build", () => {
   expectAll(runtimeSource, [
-    /function createMetrics/,
-    /function createRateLimiter/,
-    /function createHttpServer/,
-    /function firstHeaderValue/,
+    defines("createMetrics"),
+    defines("createRateLimiter"),
+    defines("createHttpServer"),
+    defines("firstHeaderValue"),
     /Array\.isArray\(value\)/
   ]);
 });
 
 test("boot lifecycle and Mongo lock modules keep TypeScript contracts after build", () => {
   expectAll(runtimeSource, [
-    /function resolveConfigPath/,
-    /function loadConfig/,
-    /function registerDiscordEvents/,
+    defines("resolveConfigPath"),
+    defines("loadConfig"),
+    defines("registerDiscordEvents"),
     /startOutboxWorker/,
-    /function registerMongoEvents/,
-    /function createShutdownController/,
-    /function attachLocks/,
-    /async function acquireDbLock/,
-    /async function renewDbLock/,
-    /async function releaseDbLock/
+    defines("registerMongoEvents"),
+    defines("createShutdownController"),
+    defines("attachLocks"),
+    defines("acquireDbLock"),
+    defines("renewDbLock"),
+    defines("releaseDbLock")
   ]);
 });
 
 test("shared logging and env modules keep TypeScript contracts after build", () => {
   expectAll(runtimeSource, [
-    /function attachLogging/,
-    /function logger/,
-    /function parseEnvNumber/,
-    /function getAbortSignal/,
-    /function attachEnv/,
+    defines("attachLogging"),
+    defines("logger"),
+    defines("parseEnvNumber"),
+    defines("getAbortSignal"),
+    defines("attachEnv"),
     /PLACEHOLDER_METRICS_TOKEN/,
     /LOG_SAMPLE_RATE/
   ]);
@@ -220,80 +230,80 @@ test("shared domain and utilities modules keep TypeScript contracts after build"
   expectAll(runtimeSource, [
     /class SchemaDriftError/,
     /SCHEMA_DRIFT/,
-    /function getCurrencyConfig/,
-    /function formatPrice/,
-    /function attachUtilities/,
-    /function validatePendingDiscountSnapshot/,
-    /function isTransientMongoError/,
-    /async function withMongoRetry/
+    defines("getCurrencyConfig"),
+    defines("formatPrice"),
+    defines("attachUtilities"),
+    defines("validatePendingDiscountSnapshot"),
+    defines("isTransientMongoError"),
+    defines("withMongoRetry")
   ]);
 });
 
 test("Mongo helper modules keep TypeScript contracts after build", () => {
   expectAll(runtimeSource, [
-    /function attachGuildSettings/,
-    /async function getGuildSettings/,
-    /function invalidateGuildCache/,
-    /function cleanGuildCache/,
-    /function getGuildCacheSize/,
-    /function attachAdminAlerts/,
-    /async function adminAlert/,
+    defines("attachGuildSettings"),
+    defines("getGuildSettings"),
+    defines("invalidateGuildCache"),
+    defines("cleanGuildCache"),
+    defines("getGuildCacheSize"),
+    defines("attachAdminAlerts"),
+    defines("adminAlert"),
     /ADMIN_ALERT/
   ]);
 });
 
 test("Mongo state and migration modules keep TypeScript contracts after build", () => {
   expectAll(runtimeSource, [
-    /function attachSystemState/,
-    /function buildSystemStateFrom/,
+    defines("attachSystemState"),
+    defines("buildSystemStateFrom"),
     /getSystemTimes = async/,
     /saveSystemTimes = async/,
-    /function attachMigrations/,
-    /async function runMigrations/,
+    defines("attachMigrations"),
+    defines("runMigrations"),
     /ALL_MIGRATIONS/
   ]);
 });
 
 test("HTTP client module keeps TypeScript contracts after build", () => {
   expectAll(runtimeSource, [
-    /function buildHttpClientFrom/,
-    /function attachMetrics/,
-    /function cleanText/,
-    /function normalizeUpdate/,
-    /function safeCheerioLoad/,
-    /function dealHash/,
-    /async function httpReq/,
-    /async function fetchWithProxy/,
-    /function withInflightTimeout/,
-    /function trackInflight/
+    defines("buildHttpClientFrom"),
+    defines("attachMetrics"),
+    defines("cleanText"),
+    defines("normalizeUpdate"),
+    defines("safeCheerioLoad"),
+    defines("dealHash"),
+    defines("httpReq"),
+    defines("fetchWithProxy"),
+    defines("withInflightTimeout"),
+    defines("trackInflight")
   ]);
 });
 
 test("Steam source module keeps TypeScript contracts after build", () => {
   expectAll(runtimeSource, [
-    /function buildSteamFrom/,
-    /async function searchSteamGameByName/,
-    /function chooseBestSteamMatch/,
-    /async function fetchSteamPriceDetails/,
-    /function extractOfferEndFromHtml/,
-    /async function extractSteamOfferEndDate/
+    defines("buildSteamFrom"),
+    defines("searchSteamGameByName"),
+    defines("chooseBestSteamMatch"),
+    defines("fetchSteamPriceDetails"),
+    defines("extractOfferEndFromHtml"),
+    defines("extractSteamOfferEndDate")
   ]);
 });
 
 test("deal and update source modules keep TypeScript contracts after build", () => {
   expectAll(runtimeSource, [
-    /function buildDealsFrom/,
-    /async function fetchSteamReviewData/,
-    /function enrichCacheGet/,
-    /async function enrichDealData/,
-    /async function fetchDeals/,
-    /function buildUpdatesFrom/,
-    /function absoluteUrl/,
-    /function isLikelyPatchNote/,
-    /async function fetchSteamUpdate/,
-    /async function fetchListingBasedUpdate/,
-    /async function executeFetchWithCircuitBreaker/,
-    /async function getLatestForAllGames/
+    defines("buildDealsFrom"),
+    defines("fetchSteamReviewData"),
+    defines("enrichCacheGet"),
+    defines("enrichDealData"),
+    defines("fetchDeals"),
+    defines("buildUpdatesFrom"),
+    defines("absoluteUrl"),
+    defines("isLikelyPatchNote"),
+    defines("fetchSteamUpdate"),
+    defines("fetchListingBasedUpdate"),
+    defines("executeFetchWithCircuitBreaker"),
+    defines("getLatestForAllGames")
   ]);
 });
 
@@ -321,7 +331,7 @@ test("cron abort signal reaches HTTP requests", () => {
   expectAll(runtimeSource, [
     /abortSignal/,
     /currentCronAbortController/,
-    /function getAbortSignal/,
+    defines("getAbortSignal"),
     /reqConfig\.signal/,
     /ERR_CANCELED|CanceledError|AbortError/
   ]);
