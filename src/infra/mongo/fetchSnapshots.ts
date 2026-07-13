@@ -28,18 +28,20 @@ interface FetchSnapshotModelLike {
   find(filter: { _id: { $regex: string } }): { lean(): Promise<unknown> };
 }
 
+type SaveFetchSnapshot = (id: string, payload: unknown) => Promise<void>;
+type LoadFetchSnapshot = (id: string) => Promise<LoadedFetchSnapshot | null>;
+type LoadDealsFetchSnapshots = () => Promise<LoadedDealsFetchSnapshot[]>;
+
 interface FetchSnapshotsContext {
   FetchSnapshotModel: FetchSnapshotModelLike;
   withMongoRetry: WithMongoRetry;
   logger: Logger;
-  saveFetchSnapshot?: typeof saveFetchSnapshot;
-  loadFetchSnapshot?: typeof loadFetchSnapshot;
-  loadDealsFetchSnapshots?: typeof loadDealsFetchSnapshots;
+  saveFetchSnapshot?: SaveFetchSnapshot;
+  loadFetchSnapshot?: LoadFetchSnapshot;
+  loadDealsFetchSnapshots?: LoadDealsFetchSnapshots;
 }
 
 const DEALS_SNAPSHOT_PREFIX = "deals:";
-
-let runtimeContext: Pick<FetchSnapshotsContext, "FetchSnapshotModel" | "withMongoRetry" | "logger">;
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -58,61 +60,57 @@ function toValidDate(value: Date | string | number | undefined): Date | null {
   return Number.isFinite(date.getTime()) ? date : null;
 }
 
-async function saveFetchSnapshot(id: string, payload: unknown): Promise<void> {
-  try {
-    await runtimeContext.withMongoRetry(
-      () => runtimeContext.FetchSnapshotModel.updateOne(
-        { _id: id },
-        { $set: { payload, fetchedAt: new Date() } },
-        { upsert: true }
-      ),
-      { label: `saveFetchSnapshot:${id}` }
-    );
-  } catch (err) {
-    runtimeContext.logger("WARN", "FETCH_SNAPSHOT", `Nu am putut salva snapshot-ul ${id}`, errorText(err));
-  }
-}
-
-async function loadFetchSnapshot(id: string): Promise<LoadedFetchSnapshot | null> {
-  try {
-    const doc = asFetchSnapshotDoc(await runtimeContext.FetchSnapshotModel.findById(id).lean());
-    const fetchedAt = toValidDate(doc?.fetchedAt);
-    if (!doc || doc.payload == null || !fetchedAt) return null;
-    return { payload: doc.payload, fetchedAt };
-  } catch (err) {
-    runtimeContext.logger("WARN", "FETCH_SNAPSHOT", `Nu am putut citi snapshot-ul ${id}`, errorText(err));
-    return null;
-  }
-}
-
-async function loadDealsFetchSnapshots(): Promise<LoadedDealsFetchSnapshot[]> {
-  try {
-    const rawDocs = await runtimeContext.FetchSnapshotModel
-      .find({ _id: { $regex: `^${DEALS_SNAPSHOT_PREFIX}` } })
-      .lean();
-    const docs = Array.isArray(rawDocs) ? rawDocs.map(asFetchSnapshotDoc) : [];
-    const out: LoadedDealsFetchSnapshot[] = [];
-    for (const doc of docs) {
-      const fetchedAt = toValidDate(doc?.fetchedAt);
-      if (!doc || doc.payload == null || !fetchedAt) continue;
-      out.push({
-        currency: doc._id.slice(DEALS_SNAPSHOT_PREFIX.length),
-        payload: doc.payload,
-        fetchedAt
-      });
-    }
-    return out;
-  } catch (err) {
-    runtimeContext.logger("WARN", "FETCH_SNAPSHOT", "Nu am putut citi snapshot-urile de reduceri", errorText(err));
-    return [];
-  }
-}
-
 function buildFetchSnapshotsFrom(context: FetchSnapshotsContext) {
-  runtimeContext = {
-    FetchSnapshotModel: context.FetchSnapshotModel,
-    withMongoRetry: context.withMongoRetry,
-    logger: context.logger
+  const { FetchSnapshotModel, withMongoRetry, logger } = context;
+
+  const saveFetchSnapshot: SaveFetchSnapshot = async (id, payload) => {
+    try {
+      await withMongoRetry(
+        () => FetchSnapshotModel.updateOne(
+          { _id: id },
+          { $set: { payload, fetchedAt: new Date() } },
+          { upsert: true }
+        ),
+        { label: `saveFetchSnapshot:${id}` }
+      );
+    } catch (err) {
+      logger("WARN", "FETCH_SNAPSHOT", `Nu am putut salva snapshot-ul ${id}`, errorText(err));
+    }
+  };
+
+  const loadFetchSnapshot: LoadFetchSnapshot = async (id) => {
+    try {
+      const doc = asFetchSnapshotDoc(await FetchSnapshotModel.findById(id).lean());
+      const fetchedAt = toValidDate(doc?.fetchedAt);
+      if (!doc || doc.payload == null || !fetchedAt) return null;
+      return { payload: doc.payload, fetchedAt };
+    } catch (err) {
+      logger("WARN", "FETCH_SNAPSHOT", `Nu am putut citi snapshot-ul ${id}`, errorText(err));
+      return null;
+    }
+  };
+
+  const loadDealsFetchSnapshots: LoadDealsFetchSnapshots = async () => {
+    try {
+      const rawDocs = await FetchSnapshotModel
+        .find({ _id: { $regex: `^${DEALS_SNAPSHOT_PREFIX}` } })
+        .lean();
+      const docs = Array.isArray(rawDocs) ? rawDocs.map(asFetchSnapshotDoc) : [];
+      const out: LoadedDealsFetchSnapshot[] = [];
+      for (const doc of docs) {
+        const fetchedAt = toValidDate(doc?.fetchedAt);
+        if (!doc || doc.payload == null || !fetchedAt) continue;
+        out.push({
+          currency: doc._id.slice(DEALS_SNAPSHOT_PREFIX.length),
+          payload: doc.payload,
+          fetchedAt
+        });
+      }
+      return out;
+    } catch (err) {
+      logger("WARN", "FETCH_SNAPSHOT", "Nu am putut citi snapshot-urile de reduceri", errorText(err));
+      return [];
+    }
   };
 
   return {

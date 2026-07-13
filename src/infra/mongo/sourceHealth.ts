@@ -8,13 +8,13 @@ interface CircuitBreakerModelLike {
   find(filter: Record<string, unknown>): { lean(): Promise<unknown> };
 }
 
+type LoadSourceHealth = () => Promise<SourceHealthDoc[]>;
+
 interface SourceHealthContext {
   CircuitBreakerModel: CircuitBreakerModelLike;
   logger: Logger;
-  loadSourceHealth?: typeof loadSourceHealth;
+  loadSourceHealth?: LoadSourceHealth;
 }
-
-let runtimeContext: Pick<SourceHealthContext, "CircuitBreakerModel" | "logger">;
 
 function toSourceHealthDoc(value: unknown): SourceHealthDoc | null {
   if (!value || typeof value !== "object") return null;
@@ -28,21 +28,22 @@ function toSourceHealthDoc(value: unknown): SourceHealthDoc | null {
   };
 }
 
-async function loadSourceHealth(): Promise<SourceHealthDoc[]> {
-  try {
-    const raw = await runtimeContext.CircuitBreakerModel.find({}).lean();
-    return Array.isArray(raw)
-      ? raw.map(toSourceHealthDoc).filter((doc): doc is SourceHealthDoc => doc !== null)
-      : [];
-  } catch (err) {
-    runtimeContext.logger("WARN", "SOURCE_HEALTH", "Nu am putut citi starea circuit breaker-elor de surse",
-      err instanceof Error ? err.message : String(err));
-    return [];
-  }
-}
-
 function buildSourceHealthFrom(context: SourceHealthContext) {
-  runtimeContext = { CircuitBreakerModel: context.CircuitBreakerModel, logger: context.logger };
+  const { CircuitBreakerModel, logger } = context;
+
+  const loadSourceHealth: LoadSourceHealth = async () => {
+    try {
+      const raw = await CircuitBreakerModel.find({}).lean();
+      return Array.isArray(raw)
+        ? raw.map(toSourceHealthDoc).filter((doc): doc is SourceHealthDoc => doc !== null)
+        : [];
+    } catch (err) {
+      logger("WARN", "SOURCE_HEALTH", "Nu am putut citi starea circuit breaker-elor de surse",
+        err instanceof Error ? err.message : String(err));
+      return [];
+    }
+  };
+
   return { loadSourceHealth };
 }
 

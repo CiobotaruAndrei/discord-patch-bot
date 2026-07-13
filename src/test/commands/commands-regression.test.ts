@@ -245,8 +245,9 @@ test("Mongo helper modules keep TypeScript contracts after build", () => {
 test("Mongo state and migration modules keep TypeScript contracts after build", () => {
   expectAll(runtimeSource, [
     /function attachSystemState/,
-    /async function getSystemTimes/,
-    /async function saveSystemTimes/,
+    /function buildSystemStateFrom/,
+    /getSystemTimes = async/,
+    /saveSystemTimes = async/,
     /function attachMigrations/,
     /async function runMigrations/,
     /ALL_MIGRATIONS/
