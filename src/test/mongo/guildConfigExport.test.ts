@@ -37,7 +37,9 @@ test("exportul raw pastreaza documentele complete numai la cerere explicita", ()
 
   assert.equal(result.mode, "raw");
   assert.deepEqual(result.guilds, [guild]);
-  assert.match(exportFileName(new Date("2026-07-13T08:00:00.000Z"), "raw"), /^guild-documents-export-/);
+  const now = new Date("2026-07-13T08:00:00.000Z");
+  assert.equal(exportFileName(now), "guild-configs-export-2026-07-13T08-00-00-000Z.json");
+  assert.equal(exportFileName(now, "raw"), "guild-documents-export-2026-07-13T08-00-00-000Z.json");
 });
 
 test("modul de export accepta exclusiv optiunea raw cunoscuta", () => {
