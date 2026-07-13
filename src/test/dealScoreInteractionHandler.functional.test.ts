@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import type { DealInfo, GuildSettings, PriceValue } from "../types";
 
-const installDealScore = require("../features/command-handlers/dealScoreInteractionHandler") as typeof import("../features/command-handlers/dealScoreInteractionHandler");
+import installDealScore from "../features/command-handlers/dealScoreInteractionHandler";
 
 function makeInteraction(game: string) {
   return {

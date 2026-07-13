@@ -215,4 +215,4 @@ const steamSourceModule = {
   chooseBestSteamMatch
 };
 
-export = steamSourceModule;
+export default steamSourceModule;

@@ -331,7 +331,7 @@ test("comenzile verb /add si /remove sunt protejate runtime, exceptie /add sugge
 });
 
 test("guard: handler care intoarce handledCommandError e auditat ca 'Command error.', nu 'Access granted.' (R[P2] audit onest)", async () => {
-  const mod = require("../features/command-security/adminCommandRouterGuard") as AdminCommandGuardModule & {
+  const mod = require("../features/command-security/adminCommandRouterGuard").default as AdminCommandGuardModule & {
     createAdminCommandGuard: (deps: { requireGuildAdmin: (interaction: TestInteraction) => Promise<boolean> }, target?: { GuildModel?: unknown }) => {
       handleAdminProtectedCommand: (interaction: TestInteraction, games: TestGame[], next?: (interaction: TestInteraction, games: TestGame[]) => Promise<unknown>) => Promise<unknown>;
     };

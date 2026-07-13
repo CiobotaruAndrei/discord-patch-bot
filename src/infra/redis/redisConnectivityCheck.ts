@@ -1,4 +1,4 @@
-const { errorMessage } = require("../../shared/errors") as typeof import("../../shared/errors");
+import { errorMessage } from "../../shared/errors";
 
 interface RedisConnectivityRuntime {
   readonly enabled: boolean;

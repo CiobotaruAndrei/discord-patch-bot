@@ -1,6 +1,6 @@
 "use strict";
 
-const { errorMessage } = require("../../shared/errors");
+import { errorMessage } from "../../shared/errors";
 
 export type GameConfig = { key: string; name: string; aliases?: string[] } & Record<string, unknown>;
 export type AutocompleteChoice = { name: string; value: string };

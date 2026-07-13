@@ -13,7 +13,7 @@ import {
 import { clampJoinedList } from "../../command-presentation/discordListLimit";
 import { defaultFilters, formatFilters, onOff } from "./youtubePresentation";
 
-const { errorDetail } = require("../../../shared/errors") as typeof import("../../../shared/errors");
+import { errorDetail } from "../../../shared/errors";
 
 export function createYouTubeFilterCommands(deps: YouTubeInteractionDeps) {
   const { GuildModel, getGuildSettings, invalidateGuildCache, safeEdit } = deps;

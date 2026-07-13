@@ -2,7 +2,7 @@
 
 import type { FetchResult, EmbeddableUpdate, InteractionMessage } from "../../../types";
 
-const { errorMessage } = require("../../../shared/errors");
+import { errorMessage } from "../../../shared/errors";
 
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
 

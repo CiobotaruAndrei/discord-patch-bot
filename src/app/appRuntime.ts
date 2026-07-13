@@ -113,7 +113,7 @@ export interface AppRuntimeDeps {
   crypto: CryptoLike;
   performance: PerformanceLike;
   Client: new (opts: { intents: number[] }) => DiscordClientLike;
-  GatewayIntentBits: Record<string, number>;
+  GatewayIntentBits: typeof import("discord.js").GatewayIntentBits;
   loadConfig: () => ConfigLoadResult;
   createMetrics: () => BotMetrics;
   createRateLimiter: (env: RuntimeEnv, metrics: BotMetrics) => RateLimiter;

@@ -101,4 +101,4 @@ function attachLocks(target: LocksContext): void {
 
 attachLocks.buildFrom = buildLocksFrom;
 
-export = attachLocks;
+export default attachLocks;

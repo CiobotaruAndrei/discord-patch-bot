@@ -14,7 +14,7 @@ import {
 import { handledCommandError } from "../command-security/commandOutcome";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
 
-const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 
 type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
@@ -174,7 +174,7 @@ function buildAuditLogCommandHandler(target: AuditLogContext) {
   return { handlers, ...command };
 }
 
-export = {
+export default {
   createAuditLogInteractionHandler,
   renderBotLog,
   renderServerLog,

@@ -52,4 +52,4 @@ function attachSourceHealth(target: SourceHealthContext): void {
 
 attachSourceHealth.buildFrom = buildSourceHealthFrom;
 
-export = attachSourceHealth;
+export default attachSourceHealth;

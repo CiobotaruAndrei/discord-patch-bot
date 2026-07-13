@@ -6,8 +6,8 @@ process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "test-token";
 process.env.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "test-client-id";
 process.env.METRICS_PUBLIC = process.env.METRICS_PUBLIC || "true";
 
-const commandRegistry = require("../features/command-registry/commandRegistry") as Record<string, unknown>;
-const commandRuntimeContext = require("../features/command-runtime/commandRuntimeContext") as {
+import commandRegistry from "../features/command-registry/commandRegistry";
+const commandRuntimeContext = require("../features/command-runtime/commandRuntimeContext").default as {
   createCommandRuntimeContext: () => Record<string, unknown>;
 };
 
@@ -30,7 +30,7 @@ const CRITICAL_CONTEXT_DEPS = [
 
 test("wiring DI: lantul complet (mongoContext -> sourceRegistry -> commandRegistry) se incarca si expune cele 18 functii de registru", () => {
   for (const fn of REQUIRED_REGISTRY_FUNCTIONS) {
-    assert.equal(typeof commandRegistry[fn], "function", `commandRegistry trebuie sa expuna functia ${fn} (wiring rupt daca lipseste)`);
+    assert.equal(typeof (commandRegistry as Record<string, unknown>)[fn], "function", `commandRegistry trebuie sa expuna functia ${fn} (wiring rupt daca lipseste)`);
   }
 });
 

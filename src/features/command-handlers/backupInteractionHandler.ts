@@ -14,7 +14,7 @@ import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-re
 import { handledCommandError } from "../command-security/commandOutcome";
 import { renderBackupList, renderBackupPreview } from "./backupViews";
 
-const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 
 type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
@@ -183,7 +183,7 @@ function buildBackupCommandHandler(target: BackupContext) {
   return { handlers, ...command };
 }
 
-export = {
+export default {
   createBackupInteractionHandler,
   renderBackupPreview,
   buildCommandHandler: buildBackupCommandHandler

@@ -7,7 +7,7 @@ import { findNewestConfigBackup, type ConfigBackupModelLike } from "../admin-rec
 import { countYoutubeErrors, type YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository";
 import { countDeadLetters, type DeadLetterModelLike } from "../notifications/deadLetterRepository";
 
-const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, extra?: Record<string, unknown>) => void;
@@ -135,7 +135,7 @@ function buildMaintenanceCommandHandler(target: MaintenanceContext) {
   return { handlers, ...command };
 }
 
-export = {
+export default {
   createMaintenanceInteractionHandler,
   buildMaintenanceReport,
   buildCommandHandler: buildMaintenanceCommandHandler

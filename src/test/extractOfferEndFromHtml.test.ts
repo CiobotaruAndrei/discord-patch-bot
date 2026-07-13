@@ -6,9 +6,9 @@ process.env.DISCORD_TOKEN ||= "test_discord_token";
 process.env.DISCORD_CLIENT_ID ||= "test_discord_client_id";
 process.env.METRICS_PUBLIC ||= "true";
 
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { extractOfferEndFromHtml } = require("../sources/sourceRegistry");
+import test from "node:test";
+import assert from "node:assert/strict";
+import { extractOfferEndFromHtml } from "../sources/sourceRegistry";
 
 test("extrage din .game_purchase_discount_countdown - Offer ends", () => {
   const html = `<html><body>
@@ -86,7 +86,7 @@ test("limiteaza lungimea rezultatului fallback", () => {
   assert.ok((result || "").length <= 200, "fallback trebuie limitat la 200 char");
 });
 
-const attachSteam = require("../sources/steam") as typeof import("../sources/steam");
+import attachSteam from "../sources/steam";
 
 type SteamRuntime = { extractOfferEndFromHtml: (html: string) => string | null };
 type SteamContext = Parameters<typeof attachSteam.buildFrom>[0];

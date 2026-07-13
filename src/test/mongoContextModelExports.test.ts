@@ -5,7 +5,7 @@ process.env.MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/ites
 process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "test-token";
 process.env.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "test-client-id";
 
-const mongoContext = require("../infra/mongo/mongoContext") as Record<string, unknown>;
+import mongoContext from "../infra/mongo/mongoContext";
 
 const EXPECTED_MODELS = [
   "GuildModel",
@@ -22,7 +22,7 @@ const EXPECTED_MODELS = [
 
 test("mongoContext expune toate modelele Mongo create de attachMongoModels", () => {
   for (const name of EXPECTED_MODELS) {
-    assert.ok(mongoContext[name], `mongoContext trebuie sa expuna ${name}`);
+    assert.ok((mongoContext as Record<string, unknown>)[name], `mongoContext trebuie sa expuna ${name}`);
   }
 });
 

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import type { DealInfo } from "../types";
 import { buildPriceCheckEmbed, findComparableDeals, titlesComparable } from "../features/command-handlers/priceCheckComparison";
 
-const installPriceCheck = require("../features/command-handlers/priceCheckInteractionHandler") as typeof import("../features/command-handlers/priceCheckInteractionHandler");
+import installPriceCheck from "../features/command-handlers/priceCheckInteractionHandler";
 
 function makeInteraction(query: string) {
   return {

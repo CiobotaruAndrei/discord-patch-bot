@@ -43,7 +43,7 @@ interface UpdatesApiShape {
   [key: string]: unknown;
 }
 
-const attachUpdates = require("../sources/updates") as {
+const attachUpdates = require("../sources/updates").default as {
   createUpdates: (deps: UpdatesDepsShape) => UpdatesApiShape;
 };
 

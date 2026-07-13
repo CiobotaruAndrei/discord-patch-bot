@@ -1,4 +1,4 @@
-import crypto = require("crypto");
+import crypto from "crypto";
 
 type AccessCodeEnv = {
   BOT_GLOBAL_ACCESS_CODE_HASH?: string;
@@ -42,7 +42,7 @@ function verifyGlobalAccessCode(candidate: string, env: AccessCodeEnv = process.
   return "not-configured";
 }
 
-export = {
+export default {
   verifyGlobalAccessCode,
   sha256Hex
 };

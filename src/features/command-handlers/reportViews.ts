@@ -2,7 +2,7 @@
 
 import { clampJoinedList } from "../command-presentation/discordListLimit";
 
-const feedback = require("../feedback/feedbackRepository") as {
+const feedback = require("../feedback/feedbackRepository").default as {
   reportTypeLabel: (value: string) => string;
 };
 

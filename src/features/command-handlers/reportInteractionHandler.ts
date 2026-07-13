@@ -11,9 +11,10 @@ import {
   type ReportRecord
 } from "./reportViews";
 
-const { errorDetail } = require("../../shared/errors");
-const defaultRequireGuildAdmin = require("../command-security/adminPermissionGuard") as RequireGuildAdmin;
-const feedback = require("../feedback/feedbackRepository") as {
+import { errorDetail } from "../../shared/errors";
+import defaultRequireGuildAdminModule from "../command-security/adminPermissionGuard";
+const defaultRequireGuildAdmin = defaultRequireGuildAdminModule as RequireGuildAdmin;
+const feedback = require("../feedback/feedbackRepository").default as {
   normalizeReportType: (value: string | null | undefined) => string;
   reportTypeLabel: (value: string) => string;
 };
@@ -196,7 +197,7 @@ function buildReportCommandHandler(target: ReportContext) {
   return { handlers, ...command };
 }
 
-export = {
+export default {
   buildCommandHandler: buildReportCommandHandler,
   createReportInteractionHandler,
   buildReportConfirmEmbed,

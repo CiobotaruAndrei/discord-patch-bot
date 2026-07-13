@@ -6,7 +6,7 @@ import type { CurrencyCode, GameConfig, GuildSettings } from "../../types";
 import { buildConfigEmbed, type ConfigEmbed } from "./configView";
 
 import { handledCommandError } from "../command-security/commandOutcome";
-const { errorDetail } = require("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 
 type MaybePromise<T> = T | Promise<T>;
 type DiscordInteraction = {
@@ -104,7 +104,7 @@ function buildConfigCommandHandler(target: ConfigContext) {
   return { handlers, ...command };
 }
 
-export = {
+export default {
   buildCommandHandler: buildConfigCommandHandler,
   createConfigInteractionHandler,
   buildConfigEmbed

@@ -6,9 +6,9 @@ process.env.DISCORD_TOKEN ||= "test_discord_token";
 process.env.DISCORD_CLIENT_ID ||= "test_discord_client_id";
 process.env.METRICS_PUBLIC ||= "true";
 
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { dealHash } = require("../sources/sourceRegistry");
+import test from "node:test";
+import assert from "node:assert/strict";
+import { dealHash } from "../sources/sourceRegistry";
 
 function steamDeal() {
   return {

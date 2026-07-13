@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const path = require("path") as typeof import("path");
+import path from "path";
 
 interface Classifiers {
   isCode: (f: string) => boolean;

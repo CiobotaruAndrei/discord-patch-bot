@@ -1,4 +1,4 @@
-import crypto = require("crypto");
+import crypto from "crypto";
 import type { DealInfo, GameConfig, GuildSettings } from "../types";
 import type { NativeAutocompleteChoice } from "./fuzzyNativeBridge";
 

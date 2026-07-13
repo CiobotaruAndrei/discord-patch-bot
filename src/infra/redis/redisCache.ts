@@ -1,7 +1,7 @@
 import type { LoggerFunction } from "../../types";
 
-const { errorMessage } = require("../../shared/errors") as typeof import("../../shared/errors");
-const redisMetrics = require("./redisMetrics") as typeof import("./redisMetrics");
+import { errorMessage } from "../../shared/errors";
+import redisMetrics from "./redisMetrics";
 
 interface RedisCacheClient {
   get(key: string): Promise<string | null>;

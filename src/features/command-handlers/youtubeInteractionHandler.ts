@@ -11,7 +11,7 @@ import { formatYouTubeList, formatYouTubeStatus } from "./youtube/youtubePresent
 import { countYoutubeErrors } from "../youtube/youtubeErrorsRepository";
 
 import { handledCommandError } from "../command-security/commandOutcome";
-const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 
 type YouTubeContext = YouTubeInteractionDeps & {
   env?: { NOTIFICATION_OUTBOX_ENABLED?: boolean };
@@ -95,7 +95,7 @@ function buildYouTubeCommandHandler(target: YouTubeContext) {
   return { handlers, ...command };
 }
 
-export = {
+export default {
   createYouTubeInteractionHandler,
   buildCommandHandler: buildYouTubeCommandHandler,
   formatYouTubeList,

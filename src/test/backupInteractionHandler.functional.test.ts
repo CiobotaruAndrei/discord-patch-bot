@@ -6,7 +6,7 @@ import type { GuildConfigBackupRecord } from "../features/admin-records/configBa
 import type { GuildSettings } from "../types";
 import { isHandledCommandError } from "../features/command-security/commandOutcome";
 
-const installBackup = require("../features/command-handlers/backupInteractionHandler") as typeof import("../features/command-handlers/backupInteractionHandler");
+import installBackup from "../features/command-handlers/backupInteractionHandler";
 
 type MongoCall = {
   filter: Record<string, unknown>;

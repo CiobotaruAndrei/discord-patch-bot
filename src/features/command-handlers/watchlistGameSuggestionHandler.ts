@@ -8,8 +8,9 @@ import { recordBotAuditEntry } from "../admin-records/auditLogRepository";
 import { requireGuildAdminAudited } from "../command-security/runtimeAdminAudit";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
 
-const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
-const defaultRequireGuildAdmin = require("../command-security/adminPermissionGuard") as RequireGuildAdmin;
+import { errorDetail } from "../../shared/errors";
+import defaultRequireGuildAdminModule from "../command-security/adminPermissionGuard";
+const defaultRequireGuildAdmin = defaultRequireGuildAdminModule as RequireGuildAdmin;
 
 type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
@@ -158,7 +159,7 @@ function buildWatchlistGameSuggestionCommandHandler(target: WatchlistGameSuggest
   return { handlers, ...command };
 }
 
-export = {
+export default {
   createWatchlistGameSuggestionHandler,
   renderWatchlistGameSuggestions,
   buildCommandHandler: buildWatchlistGameSuggestionCommandHandler

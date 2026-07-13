@@ -43,7 +43,7 @@ type _SteamCurrentPlayersTyped = Expect<
   _SteamCurrentPlayersResult extends SteamCurrentPlayersSummary ? (unknown extends _SteamCurrentPlayersResult ? false : true) : false
 >;
 
-const registry = require("../sources/sourceRegistry") as Record<string, unknown>;
+import * as registry from "../sources/sourceRegistry";
 
 test("sourceRegistry expune constantele tipate (numere + lista de user-agents)", () => {
   assert.equal(typeof registry.MAX_HTML_BYTES, "number", "MAX_HTML_BYTES e numar");
@@ -71,7 +71,7 @@ test("sourceRegistry expune utilele cross-cutting si functiile de sursa ca funct
     "chooseBestSteamMatch", "fetchSteamPriceDetails", "fetchSteamCurrentPlayers", "extractSteamOfferEndDate",
     "cleanEnrichedCache", "getEnrichedCacheSize"
   ]) {
-    assert.equal(typeof registry[key], "function", `sourceRegistry.${key} e functie`);
+    assert.equal(typeof (registry as Record<string, unknown>)[key], "function", `sourceRegistry.${key} e functie`);
   }
 });
 

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const snoozeGuard = require("../features/command-security/commandSnoozeGuard") as {
+const snoozeGuard = require("../features/command-security/commandSnoozeGuard").default as {
   createCommandSnoozeGuard: (deps: Record<string, unknown>) => {
     handleSnoozedCommand: (interaction: unknown, games: unknown[], next?: (interaction: unknown, games: unknown[]) => Promise<unknown>) => Promise<unknown>;
   };

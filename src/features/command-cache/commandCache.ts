@@ -72,4 +72,4 @@ const commandCacheModule = {
   formatMissingChannelPerms
 };
 
-export = commandCacheModule;
+export default commandCacheModule;

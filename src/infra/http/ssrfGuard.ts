@@ -1,5 +1,5 @@
-import dns = require("dns");
-import net = require("net");
+import dns from "dns";
+import net from "net";
 
 type DnsLookup = typeof dns.lookup;
 

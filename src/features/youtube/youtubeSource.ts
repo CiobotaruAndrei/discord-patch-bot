@@ -1,5 +1,5 @@
 import { requestOptionsFor } from "../../sources/sourcePolicies";
-import Parser = require("rss-parser");
+import Parser from "rss-parser";
 import type { CheerioAPI } from "cheerio";
 import type { HttpRequestOptions, YouTubeFilters, YouTubeVideo, YouTubeVideoMetadata } from "../../types";
 

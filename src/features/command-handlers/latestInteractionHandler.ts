@@ -7,11 +7,11 @@ import type { LatestDealsHandlerDeps } from "./latest/latestDealsHandler";
 import type { LatestSingleHandlerDeps } from "./latest/latestSingleHandler";
 import type { PriceSearchHandlerDeps } from "./latest/priceSearchHandler";
 
-const { errorDetail } = require("../../shared/errors");
-const { createLatestUpdatesHandler } = require("./latest/latestUpdatesHandler");
-const { createLatestDealsHandler } = require("./latest/latestDealsHandler");
-const { createLatestSingleHandler } = require("./latest/latestSingleHandler");
-const { createPriceSearchHandler } = require("./latest/priceSearchHandler");
+import { errorDetail } from "../../shared/errors";
+import { createLatestUpdatesHandler } from "./latest/latestUpdatesHandler";
+import { createLatestDealsHandler } from "./latest/latestDealsHandler";
+import { createLatestSingleHandler } from "./latest/latestSingleHandler";
+import { createPriceSearchHandler } from "./latest/priceSearchHandler";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
@@ -23,7 +23,7 @@ type DiscordInteraction = {
   isChatInputCommand?: () => boolean;
   reply: (payload: unknown) => Promise<unknown>;
   followUp?: (payload: unknown) => Promise<unknown>;
-  options: { getSubcommand(): string };
+  options: { getSubcommand(): string; getString(name: string): string | null };
 };
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 
@@ -140,4 +140,4 @@ function buildLatestCommandHandler(target: LatestContext) {
   return { handlers, ...command };
 }
 
-export = { createLatestInteractionHandler, buildCommandHandler: buildLatestCommandHandler };
+export default { createLatestInteractionHandler, buildCommandHandler: buildLatestCommandHandler };

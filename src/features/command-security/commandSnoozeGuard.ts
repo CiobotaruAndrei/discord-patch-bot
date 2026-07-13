@@ -77,4 +77,4 @@ const commandSnoozeGuardModule = {
   isSnoozeEligibleInteraction
 };
 
-export = commandSnoozeGuardModule;
+export default commandSnoozeGuardModule;

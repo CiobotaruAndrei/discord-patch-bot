@@ -12,7 +12,7 @@ import {
 } from "./sourcesStatusView";
 
 import { handledCommandError } from "../command-security/commandOutcome";
-const { errorDetail } = require("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 
 type MaybePromise<T> = T | Promise<T>;
 type DiscordInteraction = {
@@ -108,7 +108,7 @@ function buildSourcesStatusCommandHandler(target: SourcesStatusContext) {
   return { handlers, ...command };
 }
 
-export = {
+export default {
   buildCommandHandler: buildSourcesStatusCommandHandler,
   createSourcesStatusHandler,
   buildSourcesStatusEmbed

@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { hasSensitiveUserAccess } from "../features/command-security/adminAccessResolver";
 
-const attachEnv = require("../shared/env") as { buildFrom: (context: Record<string, unknown>) => { env: { BOT_SENSITIVE_USER_IDS: string[]; BOT_GLOBAL_ACCESS_CODE: string; BOT_GLOBAL_ACCESS_CODE_HASH: string } } };
-const globalAccessCode = require("../features/command-security/globalAccessCode") as typeof import("../features/command-security/globalAccessCode");
+import attachEnv from "../shared/env";
+import globalAccessCode from "../features/command-security/globalAccessCode";
 import { adminCommandGuard as adminCommandRouterGuard } from "./adminGuardTestKit";
 
 function makeEnvContext(): Record<string, unknown> {
@@ -23,7 +23,7 @@ test("shared/env parseaza BOT_SENSITIVE_USER_IDS ca lista si expune secretele de
   process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "token-test";
   process.env.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "client-test";
   try {
-    const { env } = attachEnv.buildFrom(makeEnvContext());
+    const { env } = attachEnv.buildFrom(makeEnvContext() as object as Parameters<typeof attachEnv.buildFrom>[0]);
     assert.deepEqual(env.BOT_SENSITIVE_USER_IDS, ["op-1", "op-2"]);
     assert.equal(typeof env.BOT_GLOBAL_ACCESS_CODE, "string");
     assert.equal(typeof env.BOT_GLOBAL_ACCESS_CODE_HASH, "string");

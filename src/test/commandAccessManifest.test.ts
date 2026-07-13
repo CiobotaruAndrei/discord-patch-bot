@@ -10,7 +10,7 @@ import {
 } from "../features/command-security/commandAccessManifest";
 import { COMMAND_HELP_ENTRIES } from "../features/command-help/commandHelpCatalog";
 
-const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
+import { SlashCommandBuilder, PermissionsBitField } from "discord.js";
 
 function slashTopLevelCommands(): Array<{ name: string; hasDiscordPerms: boolean }> {
   const target: Record<string, unknown> = {
@@ -20,7 +20,7 @@ function slashTopLevelCommands(): Array<{ name: string; hasDiscordPerms: boolean
     logger: () => undefined,
     env: {}
   };
-  const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions") as (t: Record<string, unknown>) => void;
+  const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions").default as (t: Record<string, unknown>) => void;
   attachSlashCommands(target);
   const defs = (target.buildSlashCommandDefinitions as () => Array<{ name: string; default_member_permissions?: string | number | null }>)();
   return defs.map(def => ({ name: def.name, hasDiscordPerms: def.default_member_permissions != null }));
@@ -93,8 +93,8 @@ test("manifest: derivarile sensitive si owner-only pastreaza exact comportamentu
   assert.equal(isRuntimeAdminCommandPath("watchlist-game", "add"), false);
 });
 
-const fs = require("fs") as typeof import("fs");
-const path = require("path") as typeof import("path");
+import fs from "fs";
+import path from "path";
 
 function docsCommandRows(): Array<{ command: string; permissions: string | null }> {
   const doc = fs.readFileSync(path.join(process.cwd(), "..", "docs", "Comenzi Functionalitate.md"), "utf8");

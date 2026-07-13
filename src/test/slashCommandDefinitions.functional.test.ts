@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions") as typeof import("../features/command-definitions/slashCommandDefinitions");
-const { SlashCommandBuilder } = require("discord.js") as typeof import("discord.js");
+import attachSlashCommands from "../features/command-definitions/slashCommandDefinitions";
+import { SlashCommandBuilder } from "discord.js";
 import type { CurrencyRegistry } from "../types";
 
 type SlashRuntime = {

@@ -2,7 +2,7 @@
 
 import type { DealInfo, GuildSettings, InteractionMessage, ValidatedDealInfo } from "../../../types";
 
-const { errorMessage } = require("../../../shared/errors");
+import { errorMessage } from "../../../shared/errors";
 
 type NotificationMode = "compact" | "detailed";
 

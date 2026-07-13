@@ -9,7 +9,7 @@ import {
   type ReportRecord
 } from "../features/command-handlers/reportViews";
 
-const mod = require("../features/command-handlers/reportInteractionHandler") as typeof import("../features/command-handlers/reportInteractionHandler");
+import mod from "../features/command-handlers/reportInteractionHandler";
 
 const base: ReportRecord = { guildId: "g1", userId: "u1", type: "sursa-stricata", gameKey: "minecraft", detail: "Nu mai vin update-uri de 2 saptamani", createdAt: new Date() };
 

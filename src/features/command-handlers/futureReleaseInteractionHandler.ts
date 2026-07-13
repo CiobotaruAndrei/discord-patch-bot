@@ -7,7 +7,7 @@ import { clampJoinedList } from "../command-presentation/discordListLimit";
 import { deleteFutureReleaseGame, listFutureReleaseGames, saveFutureReleaseGame, startFutureReleaseNotifications, stopFutureReleaseNotifications } from "../admin-records/futureReleaseGamesRepository";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText";
 
-const { errorDetail } = require("../../shared/errors") as typeof import("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 
 type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
@@ -180,7 +180,7 @@ function buildFutureReleaseCommandHandler(target: FutureReleaseContext) {
   return { handlers, ...command };
 }
 
-export = {
+export default {
   createFutureReleaseInteractionHandler,
   renderFutureReleaseGames,
   buildCommandHandler: buildFutureReleaseCommandHandler

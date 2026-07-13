@@ -89,19 +89,34 @@ type MongoRuntimeContext = {
 type MongoContribution = (context: MongoRuntimeContext) => Partial<MongoRuntimeContext>;
 type MongoModule = { buildFrom: MongoContribution };
 
-const runtimeContext = require("./runtime") as MongoRuntimeContext;
-const attachLogging = require("../../shared/logging") as MongoModule;
-const attachDomain = require("../../shared/domain") as MongoModule;
-const attachEnv = require("../../shared/env") as MongoModule;
-const attachUtilities = require("../../shared/utilities") as MongoModule;
-const attachModels = require("./models") as MongoModule;
-const attachLocks = require("./locks") as MongoModule;
-const attachMigrations = require("./migrations") as MongoModule;
-const attachSystemState = require("./systemState") as MongoModule;
-const attachGuildSettings = require("./guildSettings") as MongoModule;
-const attachAdminAlerts = require("./adminAlerts") as MongoModule;
-const attachFetchSnapshots = require("./fetchSnapshots") as MongoModule;
-const attachSourceHealth = require("./sourceHealth") as MongoModule;
+import runtimeContextModule from "./runtime";
+const asRuntimeCtx = (m: object): MongoRuntimeContext => m as MongoRuntimeContext;
+const asMongoModule = (m: object): MongoModule => m as MongoModule;
+const runtimeContext = asRuntimeCtx(runtimeContextModule);
+import attachLoggingModule from "../../shared/logging";
+const attachLogging = asMongoModule(attachLoggingModule);
+import attachDomainModule from "../../shared/domain";
+const attachDomain = asMongoModule(attachDomainModule);
+import attachEnvModule from "../../shared/env";
+const attachEnv = asMongoModule(attachEnvModule);
+import attachUtilitiesModule from "../../shared/utilities";
+const attachUtilities = asMongoModule(attachUtilitiesModule);
+import attachModelsModule from "./models";
+const attachModels = asMongoModule(attachModelsModule);
+import attachLocksModule from "./locks";
+const attachLocks = asMongoModule(attachLocksModule);
+import attachMigrationsModule from "./migrations";
+const attachMigrations = asMongoModule(attachMigrationsModule);
+import attachSystemStateModule from "./systemState";
+const attachSystemState = asMongoModule(attachSystemStateModule);
+import attachGuildSettingsModule from "./guildSettings";
+const attachGuildSettings = asMongoModule(attachGuildSettingsModule);
+import attachAdminAlertsModule from "./adminAlerts";
+const attachAdminAlerts = asMongoModule(attachAdminAlertsModule);
+import attachFetchSnapshotsModule from "./fetchSnapshots";
+const attachFetchSnapshots = asMongoModule(attachFetchSnapshotsModule);
+import attachSourceHealthModule from "./sourceHealth";
+const attachSourceHealth = asMongoModule(attachSourceHealthModule);
 
 function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeContext {
   return {
@@ -184,4 +199,4 @@ function createMongoContext(baseContext: MongoRuntimeContext = runtimeContext): 
 
 const mongoContext = Object.freeze({ ...createMongoContext(), createMongoContext });
 
-export = mongoContext;
+export default mongoContext;

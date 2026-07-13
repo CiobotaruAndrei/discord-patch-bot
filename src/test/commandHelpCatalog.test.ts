@@ -4,9 +4,9 @@ import assert from "node:assert/strict";
 import { COMMAND_HELP_ENTRIES, normalizeCommandHelpQuery, buildCommandHelpChoices, findCommandHelpEntry, renderCommandHelpEntry } from "../features/command-help/commandHelpCatalog";
 import { REPORT_TYPE_VALUES } from "../features/feedback/reportTypes";
 
-const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
-const fs = require("fs") as typeof import("fs");
-const path = require("path") as typeof import("path");
+import { SlashCommandBuilder, PermissionsBitField } from "discord.js";
+import fs from "fs";
+import path from "path";
 
 interface SlashJsonOption { type: number; name: string; options?: SlashJsonOption[] }
 interface SlashJsonCommand { name: string; options?: SlashJsonOption[] }
@@ -19,7 +19,7 @@ function slashCommandPaths(): string[] {
     logger: () => undefined,
     env: {}
   };
-  const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions") as (t: Record<string, unknown>) => void;
+  const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions").default as (t: Record<string, unknown>) => void;
   attachSlashCommands(target);
   const defs = (target.buildSlashCommandDefinitions as () => SlashJsonCommand[])();
   const paths: string[] = [];
@@ -50,7 +50,7 @@ function adminTopLevelCommands(): Set<string> {
     logger: () => undefined,
     env: {}
   };
-  const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions") as (t: Record<string, unknown>) => void;
+  const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions").default as (t: Record<string, unknown>) => void;
   attachSlashCommands(target);
   const defs = (target.buildSlashCommandDefinitions as () => Array<{ name: string; default_member_permissions?: string | number | null }>)();
   const admin = new Set<string>();
@@ -68,7 +68,7 @@ function reportTipChoiceValues(): string[] {
     logger: () => undefined,
     env: {}
   };
-  const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions") as (t: Record<string, unknown>) => void;
+  const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions").default as (t: Record<string, unknown>) => void;
   attachSlashCommands(target);
   const defs = (target.buildSlashCommandDefinitions as () => Array<{ name: string; options?: Array<{ name: string; choices?: Array<{ value: string }>; options?: Array<{ name: string; choices?: Array<{ value: string }> }> }> }>)();
   const report = defs.find(def => def.name === "report");

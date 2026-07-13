@@ -5,7 +5,7 @@ import { buildSetUpdatePlan } from "./setUpdatePlan";
 import type { CommandHandler } from "../command-registry/commandHandler";
 
 import { handledCommandError } from "../command-security/commandOutcome";
-const { errorDetail, errorMessage } = require("../../shared/errors");
+import { errorDetail, errorMessage } from "../../shared/errors";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
@@ -153,4 +153,4 @@ function buildSetCommandHandler(target: SetContext) {
   return { handlers, ...command };
 }
 
-export = { createSetInteractionHandler, buildSetUpdatePlan, buildCommandHandler: buildSetCommandHandler };
+export default { createSetInteractionHandler, buildSetUpdatePlan, buildCommandHandler: buildSetCommandHandler };

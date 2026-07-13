@@ -58,4 +58,4 @@ function attachDomain(target: DomainContext): void {
 
 attachDomain.buildFrom = buildDomainFrom;
 
-export = attachDomain;
+export default attachDomain;

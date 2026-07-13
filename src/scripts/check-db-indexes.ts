@@ -1,5 +1,7 @@
 "use strict";
 
+import type { MongoModelsContext } from "../infra/mongo/models";
+
 export interface DeclaredIndex {
   model: string;
   collection: string;
@@ -35,9 +37,9 @@ interface MongooseLike {
   model(name: string): IndexModel;
 }
 
-export function collectDeclaredIndexes(mongoose: MongooseLike, attachMongoModels: { buildFrom: (target: Record<string, unknown>) => Record<string, unknown> }): DeclaredIndex[] {
+export function collectDeclaredIndexes(mongoose: MongooseLike, attachMongoModels: { buildFrom: (context: MongoModelsContext) => Record<string, unknown> }): DeclaredIndex[] {
   try {
-    attachMongoModels.buildFrom({ mongoose, SUPPORTED_CURRENCIES: { USD: {} }, DEFAULT_CURRENCY: "USD", ONE_DAY_MS: 86_400_000, env: { GUILD_SEEN_DISCOUNT_TTL_DAYS: 60, GUILD_AUDIT_LOG_TTL_DAYS: 180, NOTIFICATION_OUTBOX_SENT_TTL_HOURS: 24, NOTIFICATION_HISTORY_TTL_DAYS: 30, FEEDBACK_REPORT_TTL_DAYS: 90, NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS: 7 } });
+    attachMongoModels.buildFrom({ mongoose, SUPPORTED_CURRENCIES: { USD: {} }, DEFAULT_CURRENCY: "USD", ONE_DAY_MS: 86_400_000, env: { GUILD_SEEN_DISCOUNT_TTL_DAYS: 60, GUILD_AUDIT_LOG_TTL_DAYS: 180, NOTIFICATION_OUTBOX_SENT_TTL_HOURS: 24, NOTIFICATION_HISTORY_TTL_DAYS: 30, FEEDBACK_REPORT_TTL_DAYS: 90, NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS: 7 } } as MongoModelsContext);
   } catch {
     void 0;
   }
@@ -100,7 +102,7 @@ async function main(): Promise<void> {
     connect(uri: string, opts: Record<string, unknown>): Promise<unknown>;
     disconnect(): Promise<unknown>;
   };
-  const attachMongoModels = require("../infra/mongo/models") as { buildFrom: (target: Record<string, unknown>) => Record<string, unknown> };
+  const attachMongoModels = require("../infra/mongo/models").default as { buildFrom: (target: Record<string, unknown>) => Record<string, unknown> };
 
   const srcRoot = process.cwd();
   const repoRoot = path.resolve(srcRoot, "..");

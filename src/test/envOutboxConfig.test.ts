@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { RuntimeEnv, ParseEnvNumberLimits } from "../types";
 
-const { z } = require("zod") as typeof import("zod");
-const attachEnv = require("../shared/env") as (target: Record<string, unknown>) => void;
+import { z } from "zod";
+import attachEnv from "../shared/env";
 
 function parseEnvNumber(name: string, defaultValue: number, limits: ParseEnvNumberLimits = {}): number {
   const raw = Number(process.env[name]);
@@ -26,7 +26,7 @@ function buildEnv(overrides: Record<string, string | undefined>): RuntimeEnv {
   }
   try {
     const target: Record<string, unknown> = { z, logger: () => undefined, parseEnvNumber, RAW_LOG_LEVEL: "INFO" };
-    attachEnv(target);
+    attachEnv(target as object as Parameters<typeof attachEnv>[0]);
     return target.env as RuntimeEnv;
   } finally {
     for (const [key, value] of Object.entries(saved)) {

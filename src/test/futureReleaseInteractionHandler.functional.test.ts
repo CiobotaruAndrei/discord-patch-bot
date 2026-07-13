@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import type { FutureReleaseGameEntry, GuildSettings } from "../types";
 
-const installFutureRelease = require("../features/command-handlers/futureReleaseInteractionHandler") as typeof import("../features/command-handlers/futureReleaseInteractionHandler");
+import installFutureRelease from "../features/command-handlers/futureReleaseInteractionHandler";
 
 type MongoCall = {
   filter: Record<string, unknown>;

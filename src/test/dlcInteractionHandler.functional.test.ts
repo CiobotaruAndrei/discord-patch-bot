@@ -18,7 +18,8 @@ type FakeCheerioSelection = {
   attr?: (name: string) => string | null;
 };
 
-const dlcHandler = require("../features/command-handlers/dlcInteractionHandler") as DlcModule;
+import dlcHandlerModule from "../features/command-handlers/dlcInteractionHandler";
+const dlcHandler = dlcHandlerModule as object as DlcModule;
 
 function makeDlcInteraction(gameText: string | null = "cs2") {
   const replies: unknown[] = [];
@@ -190,7 +191,7 @@ test("dlc installer intercepts only /dlc and delegates everything else", async (
     }
   };
 
-  installCommandChain(context, [dlcHandler]);
+  installCommandChain(context, [dlcHandler] as object as ChainableCommandModule[]);
   const runtime = context as typeof context & InteractionRuntime;
   await runtime.handleInteraction(interaction, []);
   const result = await runtime.handleInteraction({

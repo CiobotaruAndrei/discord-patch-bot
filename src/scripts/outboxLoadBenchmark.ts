@@ -3,8 +3,9 @@
 import { createOutboxRuntime, DeliverResult } from "../features/notifications/notificationOutbox";
 import { strictEnvInt } from "./benchmarkEnv";
 
-const mongoose = require("mongoose");
-const attachMongoModels = require("../infra/mongo/models");
+import mongoose from "mongoose";
+import attachMongoModels from "../infra/mongo/models";
+import type { MongoModelsContext } from "../infra/mongo/models";
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/discord-patch-bot-bench";
 
@@ -116,7 +117,7 @@ async function main(): Promise<void> {
     return;
   }
   const target: Record<string, unknown> = { mongoose, SUPPORTED_CURRENCIES: { USD: {} }, DEFAULT_CURRENCY: "USD", ONE_DAY_MS: 86_400_000 };
-  try { Object.assign(target, attachMongoModels.buildFrom(target)); } catch {  }
+  try { Object.assign(target, attachMongoModels.buildFrom(target as MongoModelsContext)); } catch {  }
   const models: OutboxLoadModels = {
     outboxModel: (target.NotificationOutboxModel ?? mongoose.model("NotificationOutbox")) as OutboxLoadModels["outboxModel"],
     sentModel: (target.NotificationOutboxSentModel ?? mongoose.model("NotificationOutboxSent")) as OutboxLoadModels["sentModel"]

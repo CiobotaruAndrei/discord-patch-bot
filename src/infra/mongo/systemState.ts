@@ -91,4 +91,4 @@ function attachSystemState(target: SystemStateContext): void {
 
 attachSystemState.buildFrom = buildSystemStateFrom;
 
-export = attachSystemState;
+export default attachSystemState;

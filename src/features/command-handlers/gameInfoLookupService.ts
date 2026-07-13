@@ -3,7 +3,7 @@
 import type { DealInfo, GuildSettings } from "../../types";
 import type { SteamAppDetailsSummary } from "../../sources/sourceApis";
 
-const { errorMessage } = require("../../shared/errors");
+import { errorMessage } from "../../shared/errors";
 
 export const PLAYER_COUNT_SNAPSHOT_FRESH_MS = 15 * 60_000;
 

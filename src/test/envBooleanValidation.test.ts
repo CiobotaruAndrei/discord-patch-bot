@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { z as ZodNamespace, ZodTypeAny } from "zod";
 
-const attachEnv = require("../shared/env") as ((target: unknown) => void) & {
+const attachEnv = require("../shared/env").default as ((target: unknown) => void) & {
   makeOptionalBooleanEnv: (z: typeof ZodNamespace, name: string) => ZodTypeAny;
 };
 const { makeOptionalBooleanEnv } = attachEnv;
 
-const { z } = require("zod") as typeof import("zod");
+import { z } from "zod";
 
 function schema(name: string): ZodTypeAny {
   return makeOptionalBooleanEnv(z, name);

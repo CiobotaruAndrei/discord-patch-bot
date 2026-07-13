@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import attachHttpClient = require("../infra/http/client");
+import attachHttpClient from "../infra/http/client";
 
 type HttpClientRuntime = {
   env: { PROXY_URLS: string };

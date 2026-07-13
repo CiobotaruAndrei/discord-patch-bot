@@ -16,7 +16,7 @@ test("command cache e factory-only, iar presentation isi deriveaza target-ul ins
   assert.ok(!commandCache.includes("CommandCacheDeps & Record<string, unknown>"));
   assert.ok(!commandCache.includes("Object.assign(target"), "commandCache nu mai are installer care muta target-ul (factory-only, R5 #3)");
   assert.match(commandCache, /const commandCacheModule = \{\s*createCommandCache,\s*computeMissingChannelPerms,\s*formatMissingChannelPerms\s*\};/, "exportul e un obiect plat de factory-uri, fara callable de atasare");
-  assert.match(commandCache, /export = commandCacheModule;/);
+  assert.match(commandCache, /export default commandCacheModule;/);
 
   assert.ok(!commandPresentation.includes("CommandUiDeps & Record<string, unknown>"));
   assert.match(commandPresentation, /type CommandUiRuntime = ReturnType<typeof createCommandPresentation>/);

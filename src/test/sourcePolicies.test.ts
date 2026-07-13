@@ -10,8 +10,8 @@ import {
   type SourcePolicyId
 } from "../sources/sourcePolicies";
 
-const fs = require("fs") as typeof import("fs");
-const path = require("path") as typeof import("path");
+import fs from "fs";
+import path from "path";
 
 const POLICY_WIRED_FETCHERS = [
   "sources/steam/index.ts",

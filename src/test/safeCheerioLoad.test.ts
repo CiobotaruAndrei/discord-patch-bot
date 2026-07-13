@@ -6,9 +6,9 @@ process.env.DISCORD_TOKEN ||= "test_discord_token";
 process.env.DISCORD_CLIENT_ID ||= "test_discord_client_id";
 process.env.METRICS_PUBLIC ||= "true";
 
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { safeCheerioLoad, MAX_HTML_BYTES } = require("../sources/sourceRegistry");
+import test from "node:test";
+import assert from "node:assert/strict";
+import { safeCheerioLoad, MAX_HTML_BYTES } from "../sources/sourceRegistry";
 
 test("nu sparge codepoint-uri UTF-8 la limita maxima", () => {
   const filler = "<p>x</p>".repeat(Math.floor(MAX_HTML_BYTES / 8) - 10);

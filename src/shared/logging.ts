@@ -145,4 +145,4 @@ function attachLogging(target: LoggingContext): void {
 attachLogging.buildFrom = buildLoggingFrom;
 attachLogging.classifyEnvNumber = classifyEnvNumber;
 
-export = attachLogging;
+export default attachLogging;

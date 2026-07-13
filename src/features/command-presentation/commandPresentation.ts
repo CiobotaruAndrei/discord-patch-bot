@@ -93,4 +93,4 @@ const attachCommandUi = ((target: CommandUiContext): void => {
 
 attachCommandUi.createCommandPresentation = createCommandPresentation;
 
-export = attachCommandUi;
+export default attachCommandUi;

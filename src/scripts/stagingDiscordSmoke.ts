@@ -2,7 +2,7 @@ import { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, SlashCommandBuil
 import { buildSmokeResult, writeSmokeResult } from "./smokeResult";
 import type { SmokeCheck } from "./smokeResult";
 import type { CurrencyRegistry } from "../types";
-import attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions");
+import attachSlashCommands from "../features/command-definitions/slashCommandDefinitions";
 
 interface NamedCommand { name?: string }
 interface CommandsEval { ok: boolean; count: number; missing: string[] }

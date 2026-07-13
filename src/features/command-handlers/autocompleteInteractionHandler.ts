@@ -13,10 +13,10 @@ import {
   type Logger
 } from "./autocompleteChoiceBuilders";
 
-const { errorMessage, errorDetail } = require("../../shared/errors");
-const { buildAutocompleteChoices } = require("../../native/fuzzy") as typeof import("../../native/fuzzy");
-const { buildCommandHelpChoices } = require("../command-help/commandHelpCatalog") as typeof import("../command-help/commandHelpCatalog");
-const { buildSettableAdminScopeChoices } = require("../command-security/adminSettableScopeCatalog") as typeof import("../command-security/adminSettableScopeCatalog");
+import { errorMessage, errorDetail } from "../../shared/errors";
+import { buildAutocompleteChoices } from "../../native/fuzzy";
+import { buildCommandHelpChoices } from "../command-help/commandHelpCatalog";
+import { buildSettableAdminScopeChoices } from "../command-security/adminSettableScopeCatalog";
 
 type MaybePromise<T> = T | Promise<T>;
 type FocusedOption = { name?: string; value?: unknown };
@@ -165,4 +165,4 @@ function buildAutocompleteCommandHandler(target: AutocompleteContext) {
   return { handlers, ...command };
 }
 
-export = { createAutocompleteHandler, scoreGameAgainstInput, buildCommandHandler: buildAutocompleteCommandHandler };
+export default { createAutocompleteHandler, scoreGameAgainstInput, buildCommandHandler: buildAutocompleteCommandHandler };

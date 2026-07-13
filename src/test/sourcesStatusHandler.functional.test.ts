@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const mod = require("../features/command-handlers/sourcesStatusHandler") as typeof import("../features/command-handlers/sourcesStatusHandler");
+import mod from "../features/command-handlers/sourcesStatusHandler";
 import { buildSourcesStatusEmbed } from "../features/command-handlers/sourcesStatusView";
 import { summarizeSourceHealth } from "../sources/sourceHealth";
 

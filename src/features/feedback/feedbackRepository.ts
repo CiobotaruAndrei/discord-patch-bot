@@ -155,4 +155,4 @@ attachFeedbackRepository.normalizeReportType = normalizeReportType;
 attachFeedbackRepository.reportTypeLabel = reportTypeLabel;
 attachFeedbackRepository.REPORT_TYPES = REPORT_TYPES;
 
-export = attachFeedbackRepository;
+export default attachFeedbackRepository;

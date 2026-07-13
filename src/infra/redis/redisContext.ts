@@ -1,6 +1,7 @@
-const { createRedisRuntime } = require("./redisClient") as typeof import("./redisClient");
-const { env, logger } = require("../mongo/mongoContext") as typeof import("../mongo/mongoContext");
+import { createRedisRuntime } from "./redisClient";
+import _____mongo_mongoContext from "../mongo/mongoContext";
+const { env, logger } = _____mongo_mongoContext;
 
 const redisRuntime = createRedisRuntime(env, logger);
 
-export = redisRuntime;
+export default redisRuntime;

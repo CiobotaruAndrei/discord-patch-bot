@@ -19,7 +19,7 @@ import { createOutboxAdminViews } from "./outboxAdminViews";
 import { createOutboxAdminOperations } from "./outboxAdminOperations";
 
 import { handledCommandError } from "../command-security/commandOutcome";
-const { errorDetail, errorMessage } = require("../../shared/errors");
+import { errorDetail, errorMessage } from "../../shared/errors";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
@@ -184,4 +184,4 @@ function buildOutboxAdminCommandHandler(target: OutboxAdminContext) {
   return { handlers, ...command };
 }
 
-export = { createOutboxAdminHandler, isDirectOutboxCommand, buildCommandHandler: buildOutboxAdminCommandHandler };
+export default { createOutboxAdminHandler, isDirectOutboxCommand, buildCommandHandler: buildOutboxAdminCommandHandler };

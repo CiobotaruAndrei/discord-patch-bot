@@ -1,6 +1,6 @@
 "use strict";
 
-import globalAccessCode = require("./globalAccessCode");
+import globalAccessCode from "./globalAccessCode";
 import { commandAuditName, guildIdOf } from "./adminAccessResolver";
 import type {
   AdminCommandGuardContext,
@@ -18,7 +18,8 @@ const {
   ActionRowBuilder
 } = require("discord.js") as typeof import("discord.js");
 
-const defaultRequireGuildAdmin = require("./adminPermissionGuard") as DefaultRequireGuildAdmin;
+import defaultRequireGuildAdminModule from "./adminPermissionGuard";
+const defaultRequireGuildAdmin = defaultRequireGuildAdminModule as DefaultRequireGuildAdmin;
 
 const ACCESS_CODE_MODAL_INPUT_ID = "access-code";
 const ACCESS_CODE_MODAL_TIMEOUT_MS = 60_000;

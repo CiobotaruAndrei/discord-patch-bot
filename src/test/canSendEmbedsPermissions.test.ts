@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const attachCommandCache = require("../features/command-cache/commandCache") as {
+const attachCommandCache = require("../features/command-cache/commandCache").default as {
   createCommandCache: (target: Record<string, unknown>) => { canSendEmbeds: (channel: unknown, botId: string) => boolean };
 };
 

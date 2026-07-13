@@ -11,8 +11,8 @@ type InteractionRuntime = {
   handleInteraction: (interaction: unknown, games?: unknown[]) => Promise<unknown>;
 };
 
-const helpHandler = require("../features/command-handlers/helpInteractionHandler") as HelpModule;
-const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
+import helpHandler from "../features/command-handlers/helpInteractionHandler";
+import { SlashCommandBuilder, PermissionsBitField } from "discord.js";
 
 interface SlashJsonOption { type: number; name: string; options?: SlashJsonOption[] }
 interface SlashJsonCommand { name: string; options?: SlashJsonOption[] }
@@ -23,7 +23,7 @@ function outboxSubcommandsFromSlashDefinitions(): string[] {
     SUPPORTED_CURRENCIES: { USD: {}, EUR: {}, GBP: {}, RON: {} },
     logger: () => undefined, env: {}
   };
-  const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions") as (t: Record<string, unknown>) => void;
+  const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions").default as (t: Record<string, unknown>) => void;
   attachSlashCommands(target);
   const defs = (target.buildSlashCommandDefinitions as () => SlashJsonCommand[])();
   const outbox = defs.find(cmd => cmd.name === "outbox");
@@ -111,7 +111,7 @@ test("help handler installer intercepts only /help", async () => {
     }
   };
 
-  installCommandChain(context, [helpHandler]);
+  installCommandChain(context, [helpHandler] as object as ChainableCommandModule[]);
   const runtime = context as typeof context & InteractionRuntime;
   await runtime.handleInteraction(interaction, []);
   const result = await runtime.handleInteraction({
@@ -146,7 +146,7 @@ test("help handler real (din EmbedBuilder + COLORS) listeaza toate subcomenzile 
     COLORS: { DARK: 0 }
   };
 
-  installCommandChain(context, [helpHandler]);
+  installCommandChain(context, [helpHandler] as object as ChainableCommandModule[]);
   const runtime = context as typeof context & InteractionRuntime;
   await runtime.handleInteraction(interaction, []);
 

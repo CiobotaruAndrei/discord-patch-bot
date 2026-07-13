@@ -115,10 +115,10 @@ test("createConditionalGet: evictie LRU la depasirea maxSize (intrarea cea mai v
   assert.equal(validatorByUrl["https://a.test/"], undefined, "a a fost evinsa (cea mai veche) -> niciun validator");
 });
 
-const { createInflightTracker } = require("../infra/http/inflightTracker") as typeof import("../infra/http/inflightTracker");
-const { createProxyClient } = require("../infra/http/proxyClient") as typeof import("../infra/http/proxyClient");
-const { createContentNormalization } = require("../infra/http/contentNormalization") as typeof import("../infra/http/contentNormalization");
-const cheerioModule = require("cheerio") as typeof import("cheerio");
+import { createInflightTracker } from "../infra/http/inflightTracker";
+import { createProxyClient } from "../infra/http/proxyClient";
+import { createContentNormalization } from "../infra/http/contentNormalization";
+import * as cheerioModule from "cheerio";
 
 test("inflightTracker: timeout-ul respinge promisiunile blocate si curata timerul la settle (R[Arh] #8)", async () => {
   const tracker = createInflightTracker(15);

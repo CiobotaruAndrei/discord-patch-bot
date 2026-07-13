@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
 
-const attachAdminCommandAccess = require("../features/command-handlers/adminCommandAccessHandler") as typeof import("../features/command-handlers/adminCommandAccessHandler");
-const globalAccessCode = require("../features/command-security/globalAccessCode") as typeof import("../features/command-security/globalAccessCode");
+import attachAdminCommandAccess from "../features/command-handlers/adminCommandAccessHandler";
+import globalAccessCode from "../features/command-security/globalAccessCode";
 
 type StoredAccess = {
   mode: "role" | "role-or-higher";

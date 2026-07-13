@@ -5,7 +5,7 @@ import type { GuildSuggestedCommandRecord } from "../features/admin-records/sugg
 
 import { escapeInlineText } from "../shared/discordText";
 
-const installSuggestCommand = require("../features/command-handlers/suggestCommandInteractionHandler") as typeof import("../features/command-handlers/suggestCommandInteractionHandler");
+import installSuggestCommand from "../features/command-handlers/suggestCommandInteractionHandler";
 
 function makeInteraction(subcommand: string, values: { name?: string; description?: string; numar?: number } = {}) {
   return {

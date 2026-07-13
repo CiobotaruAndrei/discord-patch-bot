@@ -25,7 +25,7 @@ async function main(): Promise<void> {
     connect(uri: string, opts: Record<string, unknown>): Promise<unknown>;
     disconnect(): Promise<unknown>;
   };
-  const attachMongoModels = require("../infra/mongo/models") as { buildFrom: (target: Record<string, unknown>) => Record<string, unknown> };
+  const attachMongoModels = require("../infra/mongo/models").default as { buildFrom: (target: Record<string, unknown>) => Record<string, unknown> };
 
   const uri = process.env.MONGO_URI;
   if (!uri) {

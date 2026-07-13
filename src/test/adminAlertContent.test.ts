@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const mod = require("../infra/mongo/adminAlertContent") as typeof import("../infra/mongo/adminAlertContent");
+import * as mod from "../infra/mongo/adminAlertContent";
 const { getAlertGuidance, alertKindFamily, buildAdminAlertEmbed, toAdminAlertChannelPayload, toAdminAlertWebhookPayload } = mod;
 
 test("alertKindFamily extrage prefixul inainte de ':'", () => {

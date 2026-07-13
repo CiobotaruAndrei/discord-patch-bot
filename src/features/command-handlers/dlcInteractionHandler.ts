@@ -6,7 +6,7 @@ import type { NotificationMode, InteractionMessage } from "../../types";
 import { dlcPageHasAgeGate, dlcPageLooksLikeStorePage, parseDlcRows } from "./dlcSteamPage";
 import { matchesCommand } from "../command-registry/commandMatch";
 
-const { errorMessage, errorDetail } = require("../../shared/errors");
+import { errorMessage, errorDetail } from "../../shared/errors";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
@@ -249,4 +249,4 @@ function buildDlcCommandHandler(target: DlcContext) {
   return { handlers, ...command };
 }
 
-export = { createDlcInteractionHandler, buildCommandHandler: buildDlcCommandHandler };
+export default { createDlcInteractionHandler, buildCommandHandler: buildDlcCommandHandler };

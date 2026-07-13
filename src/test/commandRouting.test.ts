@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
+import { SlashCommandBuilder, PermissionsBitField } from "discord.js";
 
 type CanHandle = (interaction: unknown) => boolean;
 type BuiltHandler = { canHandle: CanHandle };
@@ -11,7 +11,7 @@ const deepStub: unknown = new Proxy({}, { get: () => deepStub });
 const stubContext = deepStub;
 
 function build(moduleName: string): BuiltHandler {
-  const mod = require(`../features/command-handlers/${moduleName}`) as HandlerModule;
+  const mod = (require(`../features/command-handlers/${moduleName}`) as { default: HandlerModule }).default;
   return mod.buildCommandHandler(stubContext);
 }
 
@@ -85,7 +85,7 @@ function definedTopLevelCommands(): string[] {
     logger: () => undefined,
     env: {}
   };
-  const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions") as (t: Record<string, unknown>) => void;
+  const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions").default as (t: Record<string, unknown>) => void;
   attachSlashCommands(target);
   const defs = (target.buildSlashCommandDefinitions as () => Array<{ name: string }>)();
   return defs.map(def => def.name);

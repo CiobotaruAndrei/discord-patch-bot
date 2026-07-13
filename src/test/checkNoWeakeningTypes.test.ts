@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const fs = require("fs") as typeof import("fs");
-const os = require("os") as typeof import("os");
-const path = require("path") as typeof import("path");
+import fs from "fs";
+import os from "os";
+import path from "path";
 const mod = require("../scripts/check-no-weakening-types") as {
   findWeakeningTypes: (text: string, fileName?: string) => Array<{ line: number; kind: string; text: string }>;
   collectWeakeningViolations: (files: string[]) => Array<{ file: string; line: number; kind: string; text: string }>;

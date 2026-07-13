@@ -6,8 +6,8 @@ process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "test-token";
 process.env.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "test-client-id";
 process.env.METRICS_PUBLIC = process.env.METRICS_PUBLIC || "true";
 
-const { PermissionsBitField } = require("discord.js");
-const { checkChannelPermissions, checkReadMessageHistory } = require("../features/command-runtime/commandRuntimeContext") as {
+import { PermissionsBitField } from "discord.js";
+const { checkChannelPermissions, checkReadMessageHistory } = require("../features/command-runtime/commandRuntimeContext").default as {
   checkChannelPermissions: (interaction: unknown, channelId: string) => Promise<{ viewChannel: boolean; sendMessages: boolean; embedLinks: boolean; readMessageHistory: boolean } | null>;
   checkReadMessageHistory: (interaction: unknown, channelId: string) => Promise<boolean | null>;
 };

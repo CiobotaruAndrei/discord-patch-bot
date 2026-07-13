@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const mod = require("../features/feedback/feedbackRepository") as typeof import("../features/feedback/feedbackRepository");
+import mod from "../features/feedback/feedbackRepository";
 const { sanitizeReport, normalizeReportType, reportTypeLabel, REPORT_TYPES, createFeedbackRepository } = mod;
 
 const passThroughRetry = <T>(fn: () => Promise<T>): Promise<T> => fn();

@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const fs = require("fs") as typeof import("fs");
-const path = require("path") as typeof import("path");
-const mongoose = require("mongoose");
-const attachMongoModels = require("../infra/mongo/models");
-const mod = require("../scripts/check-db-indexes") as typeof import("../scripts/check-db-indexes");
+import fs from "fs";
+import path from "path";
+import mongoose from "mongoose";
+import attachMongoModels from "../infra/mongo/models";
+import * as mod from "../scripts/check-db-indexes";
 const { analyzeIndexes, collectDeclaredIndexes } = mod;
 
 type DeclaredIndex = import("../scripts/check-db-indexes").DeclaredIndex;

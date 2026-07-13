@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const fs = require("fs") as typeof import("fs");
-const path = require("path") as typeof import("path");
-const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
+import fs from "fs";
+import path from "path";
+import { SlashCommandBuilder, PermissionsBitField } from "discord.js";
 
 const srcRoot = process.cwd();
 const repoRoot = path.resolve(srcRoot, "..");
@@ -20,7 +20,7 @@ function definedCommandPaths(): Set<string> {
     SUPPORTED_CURRENCIES: { USD: {}, EUR: {}, GBP: {}, RON: {} },
     logger: () => undefined, env: {}
   };
-  const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions") as (t: Record<string, unknown>) => void;
+  const attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions").default as (t: Record<string, unknown>) => void;
   attachSlashCommands(target);
   const defs = (target.buildSlashCommandDefinitions as () => JsonCommand[])();
   const paths = new Set<string>();

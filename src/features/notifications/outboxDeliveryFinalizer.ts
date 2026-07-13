@@ -2,7 +2,7 @@
 
 import type { DeliverResult, OutboxHistoryEntry, OutboxJob, OutboxLogger } from "./outboxTypes";
 
-const { errorMessage } = require("../../shared/errors") as typeof import("../../shared/errors");
+import { errorMessage } from "../../shared/errors";
 
 export interface OutboxDeliveryFinalizerDeps {
   deliver(job: OutboxJob): Promise<DeliverResult>;

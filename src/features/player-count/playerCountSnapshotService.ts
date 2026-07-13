@@ -2,8 +2,9 @@
 
 import type { GameConfig } from "../../types";
 
-const { errorMessage } = require("../../shared/errors") as typeof import("../../shared/errors");
-const { mapWithConcurrency } = require("../../shared/utilities") as typeof import("../../shared/utilities");
+import { errorMessage } from "../../shared/errors";
+import ________shared_utilities from "../../shared/utilities";
+const { mapWithConcurrency } = ________shared_utilities;
 
 interface PlayerCountSnapshot {
   appId: string;
@@ -108,4 +109,4 @@ const attachPlayerCountSnapshots = ((target: PlayerCountSnapshotContext): void =
 
 attachPlayerCountSnapshots.createPlayerCountSnapshotService = createPlayerCountSnapshotService;
 
-export = attachPlayerCountSnapshots;
+export default attachPlayerCountSnapshots;

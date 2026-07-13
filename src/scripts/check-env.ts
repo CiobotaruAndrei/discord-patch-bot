@@ -1,6 +1,6 @@
 "use strict";
 
-const { evaluateEnvPreflight, REQUIRED_ENV_VARS } = require("../shared/envPreflight") as typeof import("../shared/envPreflight");
+import { evaluateEnvPreflight, REQUIRED_ENV_VARS } from "../shared/envPreflight";
 
 const report = evaluateEnvPreflight(process.env);
 

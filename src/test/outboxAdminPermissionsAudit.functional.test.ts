@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { installOutboxAdmin, makeDeps, makeInteraction } from "./outboxAdminTestKit";
-import { installCommandChain } from "./commandChainTestKit";
+import { installCommandChain, type ChainableCommandModule } from "./commandChainTestKit";
 import type { DeadLetterEntry } from "./outboxAdminTestKit";
 
 test("/outbox permissions raporteaza permisiunile pe canalele configurate si semnaleaza ce lipseste", async () => {
@@ -124,7 +124,7 @@ test("install: deleaga interactiunile non-/outbox catre handler-ul urmator", asy
     env: { NOTIFICATION_OUTBOX_ENABLED: false, NOTIFICATION_OUTBOX_RECOVERY_VERIFY: false, NOTIFICATION_OUTBOX_RECOVERY_STRICT: false },
     handleInteraction: async (interaction: { commandName?: string }) => { delegated.push(interaction.commandName || ""); }
   };
-  installCommandChain(context, [installOutboxAdmin]);
+  installCommandChain(context, [installOutboxAdmin] as object as ChainableCommandModule[]);
   await (context.handleInteraction as (i: unknown, g: unknown[]) => Promise<unknown>)({ commandName: "ping", isChatInputCommand: () => true, guild: { id: "g" } }, []);
   assert.deepEqual(delegated, ["ping"], "comenzile non-outbox sunt delegate mai jos");
 });
@@ -152,7 +152,7 @@ test("install: citeste flag-urile outbox din env-ul injectat (RuntimeEnv), nu di
     MessageFlags: { Ephemeral: 64 },
     env: { NOTIFICATION_OUTBOX_ENABLED: true, NOTIFICATION_OUTBOX_RECOVERY_VERIFY: true, NOTIFICATION_OUTBOX_RECOVERY_STRICT: true }
   };
-  installCommandChain(context, [installOutboxAdmin]);
+  installCommandChain(context, [installOutboxAdmin] as object as ChainableCommandModule[]);
   await (context.handleInteraction as (i: unknown, g: unknown[]) => Promise<unknown>)(makeInteraction(null, "status"), []);
   assert.match(replies[0], /Outbox activat \(global\): \*\*ON\*\*/);
   assert.match(replies[0], /Recovery-verify global: \*\*ON\*\* \| strict: \*\*ON\*\*/);

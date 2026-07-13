@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const attachAdminAlerts = require("../infra/mongo/adminAlerts") as
+const attachAdminAlerts = require("../infra/mongo/adminAlerts").default as
   (target: AdminAlertsTarget) => void;
 
 type CooldownDoc = { _id: string; lastSentAt: Date };

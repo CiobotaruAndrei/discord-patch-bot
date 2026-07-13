@@ -13,7 +13,7 @@ import type {
   ReplayDeadLetterDoc
 } from "./outboxAdminContracts";
 
-const { errorMessage } = require("../../shared/errors");
+import { errorMessage } from "../../shared/errors";
 
 export const REPLAY_PER_RUN_LIMIT = 50;
 export const OUTBOX_DRAIN_LOCK_NAME = "outbox_drain";

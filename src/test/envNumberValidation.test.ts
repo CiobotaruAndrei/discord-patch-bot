@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { execFileSync } = require("child_process") as typeof import("child_process");
+import { execFileSync } from "child_process";
 
-const attachLogging = require("../shared/logging") as ((target: unknown) => void) & {
+const attachLogging = require("../shared/logging").default as ((target: unknown) => void) & {
   classifyEnvNumber: (
     name: string,
     raw: string | undefined,

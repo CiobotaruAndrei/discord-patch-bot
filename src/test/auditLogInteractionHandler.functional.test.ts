@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository";
 
-const installAuditLog = require("../features/command-handlers/auditLogInteractionHandler") as typeof import("../features/command-handlers/auditLogInteractionHandler");
+import installAuditLog from "../features/command-handlers/auditLogInteractionHandler";
 
 function makeAuditModel(seed: GuildAuditLogRecord[]) {
   const docs = [...seed];

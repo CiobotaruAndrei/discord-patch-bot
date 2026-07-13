@@ -1,6 +1,6 @@
-import http = require("http");
-import https = require("https");
-import dns = require("dns");
+import http from "http";
+import https from "https";
+import dns from "dns";
 import type { AxiosRequestConfig, AxiosResponse, AxiosStatic } from "axios";
 import type {
   HttpRequestOptions,
@@ -261,4 +261,4 @@ const httpClientModule = {
   resolveDefaultProxies
 };
 
-export = httpClientModule;
+export default httpClientModule;

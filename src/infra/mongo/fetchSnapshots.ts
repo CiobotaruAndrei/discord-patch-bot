@@ -128,4 +128,4 @@ function attachFetchSnapshots(target: FetchSnapshotsContext): void {
 
 attachFetchSnapshots.buildFrom = buildFetchSnapshotsFrom;
 
-export = attachFetchSnapshots;
+export default attachFetchSnapshots;

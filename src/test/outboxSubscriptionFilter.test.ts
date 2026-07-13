@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const notifications = require("../features/notifications/index") as typeof import("../features/notifications/index");
+import notifications from "../features/notifications/index";
 const { createIsStillSubscribed, outboxSubscriptionFilter } = notifications;
 
 const youtubeJob = { guildId: "g1", channelId: "c1", kind: "youtube" as const, payload: {} };

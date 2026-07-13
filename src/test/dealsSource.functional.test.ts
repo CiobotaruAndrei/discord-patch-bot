@@ -41,7 +41,7 @@ interface DealsApiShape {
   fetchDeals: (opts?: { currency?: string; fromCron?: boolean }) => Promise<DealInfoShape[]>;
 }
 
-const attachDeals = require("../sources/deals") as {
+const attachDeals = require("../sources/deals").default as {
   createDeals: (deps: DealsDepsShape) => DealsApiShape;
 };
 

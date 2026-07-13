@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import type { PriceAlertRule } from "../types";
 import { isHandledCommandError } from "../features/command-security/commandOutcome";
 
-const mod = require("../features/command-handlers/priceAlertInteractionHandler") as typeof import("../features/command-handlers/priceAlertInteractionHandler");
+import mod from "../features/command-handlers/priceAlertInteractionHandler";
 
 type MongoCall = {
   filter: Record<string, unknown>;

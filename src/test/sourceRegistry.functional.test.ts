@@ -11,7 +11,7 @@ type SourceRegistryExports = {
   createSourceRegistry: () => SourceRegistryRuntime;
 };
 
-const sourceRegistry = require("../sources/sourceRegistry") as SourceRegistryExports;
+import * as sourceRegistry from "../sources/sourceRegistry";
 
 const requiredKeys = [
   "USER_AGENTS",
@@ -50,15 +50,15 @@ const requiredKeys = [
 test("source registry compune explicit toate exporturile prin factory-urile reale (fara installers dinamici)", () => {
   const registry = sourceRegistry.createSourceRegistry();
   for (const key of requiredKeys) {
-    assert.ok(registry[key] !== undefined, `registry expune ${key} dupa compunerea explicita (http -> steam -> updates -> deals)`);
+    assert.ok((registry as Record<string, unknown>)[key] !== undefined, `registry expune ${key} dupa compunerea explicita (http -> steam -> updates -> deals)`);
   }
   for (const fn of ["cleanText", "httpReq", "searchSteamGameByName", "fetchSteamCurrentPlayers", "getLatestForAllGames", "fetchDeals", "dealHash"]) {
-    assert.equal(typeof registry[fn], "function", `${fn} e o functie pe registry-ul compus`);
+    assert.equal(typeof (registry as Record<string, unknown>)[fn], "function", `${fn} e o functie pe registry-ul compus`);
   }
 });
 
 test("createSourceRegistry nu muteaza modulul runtime partajat (context proaspat per registry)", () => {
-  const runtimeModule = require("../sources/runtime") as Record<string, unknown>;
+  const runtimeModule = require("../sources/runtime").default as Record<string, unknown>;
   const installerKeys = ["httpReq", "fetchDeals", "getLatestForAllGames", "searchSteamGameByName"];
   const before = Object.keys(runtimeModule).sort();
 

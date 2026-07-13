@@ -15,7 +15,7 @@ process.env.MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/ites
 process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "test-token";
 process.env.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "test-client-id";
 
-type Mod = typeof import("../infra/mongo/mongoContext");
+type Mod = typeof import("../infra/mongo/mongoContext")["default"];
 type Expect<T extends true> = T;
 
 type _GuildModelIsMongooseModel = Expect<
@@ -45,7 +45,7 @@ type _ActiveLocksIsMap = Expect<
   Mod["activeLocks"] extends Map<string, unknown> ? true : false
 >;
 
-const mongoContext = require("../infra/mongo/mongoContext") as Record<string, unknown>;
+import mongoContext from "../infra/mongo/mongoContext";
 
 const MODEL_KEYS = [
   "GuildModel", "CircuitBreakerModel", "SystemModel", "JobLockModel", "AdminAlertCooldownModel",
@@ -65,14 +65,14 @@ const FUNCTION_KEYS = [
 
 test("mongoContext expune cele 13 modele Mongoose ca obiecte/constructoare definite", () => {
   for (const key of MODEL_KEYS) {
-    assert.notEqual(mongoContext[key], undefined, `${key} definit`);
-    assert.equal(typeof mongoContext[key], "function", `${key} e un model Mongoose (constructor)`);
+    assert.notEqual((mongoContext as Record<string, unknown>)[key], undefined, `${key} definit`);
+    assert.equal(typeof (mongoContext as Record<string, unknown>)[key], "function", `${key} e un model Mongoose (constructor)`);
   }
 });
 
 test("mongoContext expune toate cheile-functie tipate ca functii", () => {
   for (const key of FUNCTION_KEYS) {
-    assert.equal(typeof mongoContext[key], "function", `mongoContext.${key} e functie`);
+    assert.equal(typeof (mongoContext as Record<string, unknown>)[key], "function", `mongoContext.${key} e functie`);
   }
 });
 

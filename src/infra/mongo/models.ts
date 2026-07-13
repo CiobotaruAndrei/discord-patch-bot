@@ -15,7 +15,7 @@ import { buildYoutubeErrorLogSchemas } from "./youtubeErrorLogSchemas";
 import { buildDeadLetterLogSchemas } from "./deadLetterLogSchemas";
 import { publishGuildSettingsChanged } from "./guildSettingsEvents";
 
-interface MongoModelsContext {
+export interface MongoModelsContext {
   mongoose: typeof Mongoose;
   SUPPORTED_CURRENCIES: CurrencyRegistry;
   DEFAULT_CURRENCY: CurrencyCode;
@@ -212,5 +212,5 @@ const mongoModelsModule = {
   buildFrom: buildMongoModelsFrom
 };
 
-export = mongoModelsModule;
+export default mongoModelsModule;
 

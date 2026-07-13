@@ -1,7 +1,7 @@
 "use strict";
 
-const { errorMessage } = require("../../shared/errors") as typeof import("../../shared/errors");
-const { HASH_VERSION } = require("../../native/fuzzy") as { HASH_VERSION: number };
+import { errorMessage } from "../../shared/errors";
+import { HASH_VERSION } from "../../native/fuzzy";
 
 export type SubscriptionWriteResult = { matchedCount?: number };
 

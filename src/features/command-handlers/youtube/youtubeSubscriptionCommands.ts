@@ -9,7 +9,7 @@ import {
   removeYouTubeChannelSubscription
 } from "../../youtube/youtubeGuildConfigRepository";
 
-const { errorDetail } = require("../../../shared/errors") as typeof import("../../../shared/errors");
+import { errorDetail } from "../../../shared/errors";
 
 export function createYouTubeSubscriptionCommands(deps: YouTubeInteractionDeps) {
   const { GuildModel, getGuildSettings, invalidateGuildCache, resolveYouTubeChannel, fetchYouTubeFeed, seedSeenVideos, removeSeenChannel, safeEdit } = deps;

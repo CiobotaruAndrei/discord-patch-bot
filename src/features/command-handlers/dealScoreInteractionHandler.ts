@@ -4,7 +4,7 @@ import type { DealInfo, GameConfig, GuildSettings, PriceValue } from "../../type
 import type { CommandHandler } from "../command-registry/commandHandler";
 import { matchesCommand } from "../command-registry/commandMatch";
 
-const { errorDetail, errorMessage } = require("../../shared/errors") as typeof import("../../shared/errors");
+import { errorDetail, errorMessage } from "../../shared/errors";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, extra?: Record<string, unknown>) => void;
@@ -189,7 +189,7 @@ function buildDealScoreCommandHandler(target: DealScoreContext) {
   return { handlers, ...command };
 }
 
-export = {
+export default {
   createDealScoreInteractionHandler,
   scoreDeal,
   findBestDeal,

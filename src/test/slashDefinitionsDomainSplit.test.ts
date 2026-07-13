@@ -10,7 +10,7 @@ import { buildGameInfoCommandDefinitions } from "../features/command-definitions
 import { buildNotificationCommandDefinitions } from "../features/command-definitions/notificationCommandDefinitions";
 import { buildOutboxCommandDefinitions } from "../features/command-definitions/outboxCommandDefinitions";
 import { buildYouTubeCommandDefinitions } from "../features/command-definitions/youtubeCommandDefinitions";
-import attachSlashCommands = require("../features/command-definitions/slashCommandDefinitions");
+import attachSlashCommands from "../features/command-definitions/slashCommandDefinitions";
 
 const tools: SlashDefinitionTools = {
   SlashCommandBuilder,

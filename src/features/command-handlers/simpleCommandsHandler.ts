@@ -3,7 +3,7 @@
 import type { LoggerFunction } from "../../types";
 import type { CommandHandler } from "../command-registry/commandHandler";
 
-const { errorDetail } = require("../../shared/errors");
+import { errorDetail } from "../../shared/errors";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string; aliases?: string[] } & Record<string, unknown>;
@@ -100,4 +100,4 @@ function buildSimpleCommandsCommandHandler(target: SimpleCommandsContext) {
   return { handlers, ...command };
 }
 
-export = { createSimpleCommandsHandler, buildCommandHandler: buildSimpleCommandsCommandHandler };
+export default { createSimpleCommandsHandler, buildCommandHandler: buildSimpleCommandsCommandHandler };

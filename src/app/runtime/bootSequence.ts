@@ -2,7 +2,7 @@ import type { DealInfo, FetchResult } from "../../types";
 import type { AppRuntimeDeps, DiscordClientLike, HttpServerLike } from "../appRuntime";
 import { runCacheHydrationPhase, runDatabaseStartupPhase, runDiscordStartupPhase, runHttpStartupPhase } from "../lifecycle/bootPhases";
 
-const { ensureNativeFuzzy } = require("../../native/fuzzy") as { ensureNativeFuzzy: () => boolean };
+import { ensureNativeFuzzy } from "../../native/fuzzy";
 
 const MONGO_CONNECT_MAX_ATTEMPTS = 5;
 const MONGO_CONNECT_INITIAL_BACKOFF_MS = 1000;

@@ -6,9 +6,10 @@ process.env.DISCORD_TOKEN ||= "test_discord_token";
 process.env.DISCORD_CLIENT_ID ||= "test_discord_client_id";
 process.env.METRICS_PUBLIC ||= "true";
 
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { buildOptimizedGameList } = require("../features/command-registry/commandRegistry");
+import test from "node:test";
+import assert from "node:assert/strict";
+import _____features_command_registry_commandRegistry from "../features/command-registry/commandRegistry";
+const { buildOptimizedGameList } = _____features_command_registry_commandRegistry;
 
 type TestGame = { key: string; name: string; type: string; appId?: string };
 type TestGuild = { _id: string; subscribed: boolean; notificationChannelId: string; enabledGames: string[] };

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { GatewayIntentBits } from "discord.js";
 import { createAppRuntime, connectMongoWithRetry, hydrateStartupCaches } from "../app/appRuntime";
 import type { AppRuntimeDeps } from "../app/appRuntime";
 import type { RuntimeEnv } from "../types";
@@ -40,7 +41,7 @@ function makeDeps(overrides: { updatesFetchedAt?: Date } = {}) {
     crypto: { randomBytes: (size: number) => Buffer.alloc(size), timingSafeEqual: () => true },
     performance: { now: () => 0 },
     Client: FakeClient,
-    GatewayIntentBits: { Guilds: 1 },
+    GatewayIntentBits,
     loadConfig: () => ({ config: { games: [] }, games: [], configPath: "test-config.json" }),
     createMetrics,
     createRateLimiter: () => ({ check: () => true, prune: () => undefined, size: 0, retryAfterSeconds: 1 }),

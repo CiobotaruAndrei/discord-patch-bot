@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const mod = require("../features/command-handlers/configInteractionHandler") as typeof import("../features/command-handlers/configInteractionHandler");
+import mod from "../features/command-handlers/configInteractionHandler";
 import { buildConfigEmbed } from "../features/command-handlers/configView";
 
 test("buildConfigEmbed afiseaza setarile importante ale serverului", () => {

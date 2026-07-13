@@ -1,4 +1,4 @@
-const installYouTube = require("../features/command-handlers/youtubeInteractionHandler") as typeof import("../features/command-handlers/youtubeInteractionHandler");
+import installYouTube from "../features/command-handlers/youtubeInteractionHandler";
 type HandlerDeps = Parameters<typeof installYouTube.createYouTubeInteractionHandler>[0];
 type HandlerInteraction = Parameters<ReturnType<typeof installYouTube.createYouTubeInteractionHandler>["handleYouTubeInteraction"]>[0];
 
