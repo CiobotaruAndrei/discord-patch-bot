@@ -6,6 +6,7 @@ import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { clampJoinedList } from "../command-presentation/discordListLimit.js";
 
 import { errorDetail } from "../../shared/errors.js";
+import { findGameByKey } from "../../config/gameCatalog.js";
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -60,7 +61,7 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
         return safeEdit(interaction, "OK: Watchlist: **toate jocurile configurate sunt active**.");
       }
       const lines = enabled.map((key) => {
-        const game = games.find((candidate) => candidate.key === key);
+        const game = findGameByKey(games, key);
         return game ? `- **${game.name}** (\`${game.key}\`)` : `- \`${key}\` *(cheie necunoscuta in config)*`;
       });
       const header = `OK: Jocuri in watchlist (${enabled.length}):\n`;
@@ -77,7 +78,7 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
     }
 
     const gameKey = interaction.options.getString("joc");
-    const game = games.find(candidate => candidate.key === gameKey);
+    const game = findGameByKey(games, gameKey);
 
     try {
       if (sub === "add") {

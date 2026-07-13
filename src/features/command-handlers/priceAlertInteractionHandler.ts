@@ -13,6 +13,7 @@ import { clampJoinedList } from "../command-presentation/discordListLimit.js";
 
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
+import { findGameByKey } from "../../config/gameCatalog.js";
 
 type InteractionPayload = DiscordReplyPayload;
 type MongoWriteResult = MongoWriteOutcome;
@@ -75,7 +76,7 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
     const gameKey = interaction.options.getString("joc", true);
     const threshold = interaction.options.getNumber("price", true);
     const currency = interaction.options.getString("currency", true);
-    const game = games.find(candidate => candidate.key === gameKey);
+    const game = findGameByKey(games, gameKey);
     if (!game) {
       return safeEdit(interaction, `Eroare: jocul \`${gameKey}\` nu exista. Foloseste autocomplete sau \`/games\`.`);
     }
@@ -104,7 +105,7 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
 
   async function handleRemove(interaction: DiscordInteraction, games: GameConfig[], guildId: string): Promise<unknown> {
     const gameKey = interaction.options.getString("joc", true) || "";
-    const game = games.find(candidate => candidate.key === gameKey);
+    const game = findGameByKey(games, gameKey);
     const removedCount = await removePriceAlertsForGame(GuildModel, guildId, gameKey);
     if (removedCount === 0) {
       return safeEdit(interaction, `Info: nu exista nicio alerta de pret pentru \`${gameKey}\`.`);
