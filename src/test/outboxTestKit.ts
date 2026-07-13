@@ -32,13 +32,25 @@ export function makeFakeModel(jobs: OutboxJob[], initialSent: string[] = [], enf
     }),
     deleteOne: async (filter: unknown) => { deleted.push(filter); return { deletedCount: 1 }; },
     updateOne: async (filter: unknown, update: unknown) => { updated.push({ filter, update }); return { matchedCount: 1 }; },
-    countDocuments: async () => jobs.length - deleted.length
+    countDocuments: async () => {
+      const terminal = new Set(updated
+        .filter(u => {
+          const status = (u.update as { $set?: { status?: string } }).$set?.status;
+          return typeof status === "string" && ["delivered", "dead-lettered", "dropped"].includes(status);
+        })
+        .map(u => (u.filter as { _id?: unknown })._id));
+      return jobs.length - deleted.length - terminal.size;
+    }
   };
   const sentModel: OutboxSentModelMock = {
     exists: async (filter: { dedupeKey: string }) => (sentKeys.has(filter.dedupeKey) ? { _id: filter.dedupeKey } : null),
     updateOne: async (filter: { dedupeKey: string }) => { sentKeys.add(filter.dedupeKey); return { upsertedCount: 1 }; }
   };
-  return { model, sentModel, created, deleted, updated, claims, sentKeys };
+  const finalized = (): Array<{ id: unknown; status: string }> => updated
+    .map(u => ({ u, set: (u.update as { $set?: { status?: string } }).$set }))
+    .filter(x => typeof x.set?.status === "string" && ["delivered", "dead-lettered", "dropped"].includes(String(x.set.status)))
+    .map(x => ({ id: (x.u.filter as { _id?: unknown })._id, status: String(x.set?.status) }));
+  return { model, sentModel, created, deleted, updated, claims, sentKeys, finalized };
 }
 
 export function makeRuntime(jobs: OutboxJob[], initialSent: string[] = [], enforceUniqueDedupe = false) {
@@ -52,7 +64,11 @@ export function makeRuntime(jobs: OutboxJob[], initialSent: string[] = [], enfor
   return { runtime, ...fake };
 }
 
-export function leaseFreeMatches(filter: { $or?: Array<{ lockedUntil: unknown }> }, job: { lockedUntil?: Date | null }): boolean {
+export function leaseFreeMatches(filter: { $or?: Array<{ lockedUntil: unknown }>; $and?: Array<{ $or?: Array<{ lockedUntil: unknown }> }> }, job: { lockedUntil?: Date | null }): boolean {
+  if (filter && Array.isArray(filter.$and)) {
+    const leaseClause = filter.$and.find(part => Array.isArray(part.$or) && part.$or.some(c => "lockedUntil" in c));
+    if (leaseClause) return leaseFreeMatches(leaseClause as { $or: Array<{ lockedUntil: unknown }> }, job);
+  }
   if (!filter || !Array.isArray(filter.$or)) return true;
   return filter.$or.some(clause => {
     if (clause.lockedUntil === null) return job.lockedUntil == null;

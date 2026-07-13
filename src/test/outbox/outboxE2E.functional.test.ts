@@ -31,6 +31,8 @@ function makeInMemoryOutbox() {
   const sent = new Set<string>();
   let idCounter = 0;
 
+const TERMINAL_E2E = ["delivered", "dead-lettered", "dropped"];
+  function isActiveE2E(job: OutboxJobDoc): boolean { return !TERMINAL_E2E.includes(String(job.status ?? "")); }
   function isAvailable(job: OutboxJobDoc, now: Date): boolean {
     const availableOk = !job.availableAt || job.availableAt.getTime() <= now.getTime();
     const lockOk = !job.lockedUntil || job.lockedUntil.getTime() <= now.getTime();
@@ -45,7 +47,7 @@ function makeInMemoryOutbox() {
     },
     findOneAndUpdate: async (filter: { availableAt?: { $lte?: Date } }, update: { $set?: Record<string, unknown>; $inc?: { deliveries?: number } }) => {
       const now = filter?.availableAt?.$lte ?? new Date();
-      const job = jobs.find(j => isAvailable(j, now));
+      const job = jobs.find(j => isActiveE2E(j) && isAvailable(j, now));
       if (!job) return null;
       if (update.$set) Object.assign(job, update.$set);
       if (update.$inc?.deliveries) job.deliveries = (job.deliveries || 0) + update.$inc.deliveries;
@@ -65,7 +67,7 @@ function makeInMemoryOutbox() {
       }
       return { matchedCount: job ? 1 : 0 };
     },
-    countDocuments: async () => jobs.length
+    countDocuments: async () => jobs.filter(isActiveE2E).length
   };
 
   const NotificationOutboxSentModel: OutboxSentModelMock = {

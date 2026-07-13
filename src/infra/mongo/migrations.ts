@@ -348,6 +348,18 @@ const m12_moveDeadLettersIntoCollection: Migration = {
   }
 };
 
+const m13_backfillOutboxStatus: Migration = {
+  id: 13,
+  name: "backfillOutboxStatus",
+  up: async (db) => {
+    const outbox = db.collection("notificationOutbox");
+    await outbox.updateMany(
+      { status: { $exists: false } },
+      { $set: { status: "queued", statusChangedAt: new Date() } }
+    );
+  }
+};
+
 const ALL_MIGRATIONS: Migration[] = [
   m1_addEnabledStores,
   m2_addMaxAbsolutePrice,
@@ -360,7 +372,8 @@ const ALL_MIGRATIONS: Migration[] = [
   m9_moveConfigBackupsIntoCollection,
   m10_moveSuggestedCommandsIntoCollection,
   m11_moveYoutubeErrorsIntoCollection,
-  m12_moveDeadLettersIntoCollection
+  m12_moveDeadLettersIntoCollection,
+  m13_backfillOutboxStatus
 ];
 
 const MIGRATION_LOCK_NAME = "db_migrations";

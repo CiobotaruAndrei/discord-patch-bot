@@ -68,14 +68,14 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     let droppedUnsubscribed = 0;
     const maxAgeMs = options.maxAgeMs ?? 0;
 
-    const deleteJob = async (id: unknown): Promise<boolean> => {
+    const finalizeJob = async (id: unknown, status: "delivered" | "dead-lettered" | "dropped"): Promise<boolean> => {
       try {
-        await repository.deleteJob(id);
+        await repository.finalizeJob(id, status, nowFn());
         return true;
       } catch (err) {
         deleteFailures++;
         logger("WARN", "OUTBOX",
-          `Stergerea jobului ${String(id)} a esuat dupa procesare (ramane in coada, va fi dedus/reluat la urmatorul ciclu)`,
+          `Finalizarea jobului ${String(id)} (status ${status}) a esuat dupa procesare (ramane in coada, va fi dedus/reluat la urmatorul ciclu)`,
           err instanceof Error ? err.message : String(err));
         return false;
       }
@@ -104,7 +104,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       const verdict = planNotificationFailure(job.attempts, options.maxAttempts, permanent);
       if (verdict.action === "dead-letter") {
         if (!(await recordDeadLetterOrKeep(job, verdict.cause === "permanent" ? reason : "max-attempts"))) return;
-        await deleteJob(job._id);
+        await finalizeJob(job._id, "dead-lettered");
         deadLettered++;
         return;
       }
@@ -125,7 +125,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       recordSentHistory: options.recordSentHistory,
       markSent: repository.markSent,
       recordDeadLetterBeforeDelete,
-      deleteJob,
+      finalizeDelivered: (id: unknown) => finalizeJob(id, "delivered"),
       logger
     });
 
@@ -136,17 +136,17 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
 
       const verdict = await stateMachine.validateClaimedJob(job);
       if (verdict.step === "drop-duplicate") {
-        await deleteJob(job._id);
+        await finalizeJob(job._id, "dropped");
         continue;
       }
       if (verdict.step === "expire") {
         if (!(await recordDeadLetterOrKeep(job, "expired-near-ttl"))) continue;
-        await deleteJob(job._id);
+        await finalizeJob(job._id, "dead-lettered");
         expired++;
         continue;
       }
       if (verdict.step === "drop-unsubscribed") {
-        await deleteJob(job._id);
+        await finalizeJob(job._id, "dropped");
         droppedUnsubscribed++;
         continue;
       }

@@ -6,7 +6,11 @@ import { makeFakeModel, makeMetricsModel, makeRuntime, makeSweepRuntime, type Ou
 test("drainOutbox: o stergere esuata nu opreste drain-ul si se numara in deleteFailures", async () => {
   const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "dk1" };
   const fake = makeFakeModel([job]);
-  const failingModel: OutboxModelMock = { ...fake.model, deleteOne: async () => { throw new Error("mongo down"); } };
+  const failingModel: OutboxModelMock = { ...fake.model, updateOne: async (filter: unknown, update: unknown) => {
+    const status = (update as { $set?: { status?: string } }).$set?.status;
+    if (status && ["delivered", "dead-lettered", "dropped"].includes(status)) throw new Error("mongo down");
+    return fake.model.updateOne(filter, update);
+  } };
   const runtime = createOutboxRuntime({
     NotificationOutboxModel: failingModel,
     NotificationOutboxSentModel: fake.sentModel,
@@ -19,7 +23,7 @@ test("drainOutbox: o stergere esuata nu opreste drain-ul si se numara in deleteF
     maxAttempts: 5, backoffMs: 1000, limit: 50
   });
   assert.equal(result.sent, 1, "jobul livrat e numarat ca trimis chiar daca stergerea pica");
-  assert.equal(result.deleteFailures, 1, "stergerea esuata e contorizata separat, fara sa abandoneze ciclul");
+  assert.equal(result.deleteFailures, 1, "finalizarea esuata e contorizata separat, fara sa abandoneze ciclul");
 });
 
 test("drainOutbox: sweep-ul TTL care nu poate sterge job-ul numara deleteFailures (nu il pierde silentios)", async () => {
@@ -43,8 +47,8 @@ test("drainOutbox: sweep-ul TTL care nu poate sterge job-ul numara deleteFailure
     maxAttempts: 5, backoffMs: 1000, limit: 5, maxAgeMs: 1000
   });
   assert.equal(result.deleteFailures, 1, "stergerea esuata din sweep-ul TTL e contorizata in deleteFailures");
-  assert.equal(result.expired, 0, "fara o stergere reusita jobul nu e numarat ca expirat");
-  assert.equal(deadLetters.length, 1, "audit-ul dead-letter e scris INAINTE de delete, deci o stergere esuata nu pierde audit-ul/replay payload-ul (review manual #3)");
+  assert.equal(result.expired, 0, "fara o finalizare reusita jobul nu e numarat ca expirat");
+  assert.equal(deadLetters.length, 1, "audit-ul dead-letter e scris INAINTE de finalizare, deci o finalizare esuata nu pierde audit-ul/replay payload-ul (review manual #3)");
   assert.equal(deadLetters[0], "expired-near-ttl", "motivul de audit e expired-near-ttl");
 });
 
@@ -64,7 +68,7 @@ test("drainOutbox: sweep-ul TTL scrie audit dead-letter inainte de a sterge jobu
     recordDeadLetter: async (_job, reason) => { deadLetters.push(reason); },
     maxAttempts: 5, backoffMs: 1000, limit: 5, maxAgeMs: 1000
   });
-  assert.equal(result.expired, 1, "jobul vechi e numarat ca expirat dupa stergere");
+  assert.equal(result.expired, 1, "jobul vechi e numarat ca expirat dupa finalizare");
   assert.equal(deadLetters.length, 1, "exact un audit dead-letter scris");
 });
 
@@ -83,10 +87,10 @@ test("drainOutbox: sweep-ul TTL NU sterge jobul daca auditul dead-letter esueaza
     recordDeadLetter: async () => { throw new Error("colectia dead-letter cazuta"); },
     maxAttempts: 5, backoffMs: 1000, limit: 5, maxAgeMs: 1000
   });
-  assert.equal(fake.deleted.length, 0, "auditul esuat -> NU se incearca stergerea (jobul ramane in coada)");
+  assert.equal(fake.finalized().length, 0, "auditul esuat -> NU se incearca finalizarea (jobul ramane in coada)");
   assert.equal(result.deadLetterFailures, 1, "esecul auditului dead-letter e contorizat");
   assert.equal(result.expired, 0, "jobul nu e numarat ca expirat fiindca nu a fost sters");
-  assert.equal(result.deleteFailures, 0, "nicio stergere incercata -> zero deleteFailures");
+  assert.equal(result.deleteFailures, 0, "nicio finalizare incercata -> zero deleteFailures");
 });
 
 test("drainOutbox: expirarea in bucla principala NU sterge jobul daca auditul dead-letter esueaza (review R5 #2)", async () => {
@@ -149,7 +153,7 @@ test("drainOutbox: livrare permanent-esuata cu audit reusit sterge jobul si il n
     maxAttempts: 5, backoffMs: 1000, limit: 5, maxAgeMs: 0
   });
   assert.equal(result.deadLettered, 1, "audit reusit -> jobul terminal e finalizat in dead-letter");
-  assert.equal(fake.deleted.length, 1, "jobul e sters dupa auditul reusit");
+  assert.deepEqual(fake.finalized().map(f => f.status), ["dead-lettered"], "jobul e finalizat dead-lettered dupa auditul reusit");
   assert.equal(result.deadLetterFailures, 0, "fara esec de audit");
   assert.deepEqual(deadLetters, ["permanent"]);
 });
@@ -189,7 +193,7 @@ test("drainOutbox: livrare la max-attempts cu audit reusit sterge jobul cu motiv
     maxAttempts: 5, backoffMs: 1000, limit: 5, maxAgeMs: 0
   });
   assert.equal(result.deadLettered, 1, "attempts>=maxAttempts cu audit reusit -> dead-letter finalizat");
-  assert.equal(fake.deleted.length, 1, "jobul e sters dupa auditul reusit");
+  assert.deepEqual(fake.finalized().map(f => f.status), ["dead-lettered"], "jobul e finalizat dead-lettered dupa auditul reusit");
   assert.deepEqual(deadLetters, ["max-attempts"], "motivul de audit e max-attempts, nu permanent");
 });
 
@@ -214,7 +218,7 @@ test("drainOutbox: markSent esuat + audit dead-letter esuat -> esecul auditului 
   assert.equal(result.markSentFailures, 1, "markSent esuat e contorizat");
   assert.equal(result.deadLetterFailures, 1, "esecul auditului dead-letter NU mai e silentios pe calea delivered-marksent-failed");
   assert.equal(result.sent, 1, "mesajul a fost livrat");
-  assert.equal(fake.deleted.length, 1, "jobul deja livrat e sters chiar daca auditul esueaza, ca sa nu se duplice mesajul");
+  assert.deepEqual(fake.finalized().map(f => f.status), ["delivered"], "jobul deja livrat e finalizat chiar daca auditul esueaza, ca sa nu se duplice mesajul");
 });
 
 test("drainOutbox: sweep — joburi mai vechi decat maxAgeMs -> dead-letter (expired-near-ttl) + sters inainte de TTL", async () => {
@@ -259,12 +263,19 @@ test("drainOutbox: job revendicat mai vechi decat maxAgeMs e expirat INAINTE de 
   const pending = [oldJob];
   const deleted: unknown[] = [];
   let delivered = 0;
+  const finalizedTerminal: Array<{ id: unknown; status: string }> = [];
   const model: OutboxModelMock = {
     create: async (d: Record<string, unknown>) => d,
     findOneAndUpdate: async () => pending.shift() ?? null,
     find: () => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) }),
     deleteOne: async (f: unknown) => { deleted.push(f); return { deletedCount: 1 }; },
-    updateOne: async () => ({ matchedCount: 1 }),
+    updateOne: async (filter: unknown, update: unknown) => {
+      const status = (update as { $set?: { status?: string } }).$set?.status;
+      if (status && ["delivered", "dead-lettered", "dropped"].includes(status)) {
+        finalizedTerminal.push({ id: (filter as { _id?: unknown })._id, status });
+      }
+      return { matchedCount: 1 };
+    },
     countDocuments: async () => 0
   };
   const sentModel: OutboxSentModelMock = { exists: async () => null, updateOne: async () => ({ upsertedCount: 1 }) };
@@ -283,7 +294,7 @@ test("drainOutbox: job revendicat mai vechi decat maxAgeMs e expirat INAINTE de 
   assert.equal(delivered, 0, "jobul prea vechi NU e livrat (stale), expirarea se face inainte de deliver");
   assert.equal(result.expired, 1, "jobul vechi e numarat ca expirat");
   assert.equal(result.sent, 0);
-  assert.deepEqual(deleted, [{ _id: "old" }]);
+  assert.deepEqual(finalizedTerminal, [{ id: "old", status: "dead-lettered" }]);
   assert.equal(deadLetters.length, 1);
   assert.equal(deadLetters[0].reason, "expired-near-ttl");
 });

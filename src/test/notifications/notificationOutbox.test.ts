@@ -72,20 +72,20 @@ test("messageHasDedupeMarker: detecteaza marker-ul intr-un mesaj postat", () => 
 
 test("drainOutbox: livrarea reusita inregistreaza dedupeKey in istoricul de trimiteri", async () => {
   const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "k1" };
-  const { runtime, deleted, sentKeys } = makeRuntime([job]);
+  const { runtime, finalized, sentKeys } = makeRuntime([job]);
   const result = await runtime.drainOutbox({
     deliver: async (): Promise<DeliverResult> => ({ ok: true }),
     recordDeadLetter: async () => undefined,
     maxAttempts: 5, backoffMs: 1000, limit: 50
   });
   assert.equal(result.sent, 1);
-  assert.ok(sentKeys.has("k1"), "dedupeKey marcat ca trimis inainte de stergerea jobului");
-  assert.deepEqual(deleted, [{ _id: "j1" }]);
+  assert.ok(sentKeys.has("k1"), "dedupeKey marcat ca trimis inainte de finalizarea jobului");
+  assert.deepEqual(finalized(), [{ id: "j1", status: "delivered" }]);
 });
 
 test("drainOutbox: job cu dedupeKey deja in istoric -> nu re-trimite (recovery dupa crash)", async () => {
   const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0, dedupeKey: "k1" };
-  const { runtime, deleted } = makeRuntime([job], ["k1"]);
+  const { runtime, finalized } = makeRuntime([job], ["k1"]);
   let delivered = 0;
   const result = await runtime.drainOutbox({
     deliver: async (): Promise<DeliverResult> => { delivered++; return { ok: true }; },
@@ -94,7 +94,7 @@ test("drainOutbox: job cu dedupeKey deja in istoric -> nu re-trimite (recovery d
   });
   assert.equal(delivered, 0, "nu se re-trimite ce e deja in istoricul de livrari");
   assert.equal(result.sent, 0);
-  assert.deepEqual(deleted, [{ _id: "j1" }], "jobul ramas dupa crash e curatat fara re-trimitere");
+  assert.deepEqual(finalized(), [{ id: "j1", status: "dropped" }], "jobul ramas dupa crash e finalizat (dropped) fara re-trimitere");
 });
 
 test("enqueueOutbox: eroarea de cheie duplicata (E11000) e ignorata (job pending identic exista deja)", async () => {

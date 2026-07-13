@@ -9,7 +9,7 @@ export interface OutboxDeliveryFinalizerDeps {
   recordSentHistory?: (guildId: string, entries: OutboxHistoryEntry[]) => Promise<void>;
   markSent(dedupeKey: string | undefined): Promise<boolean>;
   recordDeadLetterBeforeDelete(job: OutboxJob, reason: string): Promise<void>;
-  deleteJob(id: unknown): Promise<boolean>;
+  finalizeDelivered(id: unknown): Promise<boolean>;
   logger: OutboxLogger;
 }
 
@@ -29,7 +29,7 @@ export interface FinalizeOutcome {
   recoveryMarkerMissing: boolean;
 }
 
-export function createOutboxDeliveryFinalizer({ deliver, recordSentHistory, markSent, recordDeadLetterBeforeDelete, deleteJob, logger }: OutboxDeliveryFinalizerDeps) {
+export function createOutboxDeliveryFinalizer({ deliver, recordSentHistory, markSent, recordDeadLetterBeforeDelete, finalizeDelivered, logger }: OutboxDeliveryFinalizerDeps) {
   async function deliverClaimedJob(job: OutboxJob): Promise<DeliveryAttemptOutcome> {
     const startedAt = Date.now();
     let result: DeliverResult;
@@ -58,7 +58,7 @@ export function createOutboxDeliveryFinalizer({ deliver, recordSentHistory, mark
     if (markSentFailed) {
       await recordDeadLetterBeforeDelete(job, "delivered-marksent-failed");
     }
-    await deleteJob(job._id);
+    await finalizeDelivered(job._id);
     return {
       stopDrain: markSentFailed,
       markSentFailed,
