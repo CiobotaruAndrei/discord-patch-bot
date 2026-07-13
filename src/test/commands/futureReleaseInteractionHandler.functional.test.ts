@@ -45,7 +45,6 @@ function makeInteraction(subcommand: string, values: { game?: string; releaseDat
 function makeHarness(settings: GuildSettings | null) {
   const calls: MongoCall[] = [];
   const replies: unknown[] = [];
-  const invalidated: string[] = [];
   const existingGames: FutureReleaseGameEntry[] = Array.isArray(settings?.futureReleaseGames) ? settings.futureReleaseGames : [];
   const handler = installFutureRelease.createFutureReleaseInteractionHandler({
     GuildModel: {
@@ -62,7 +61,6 @@ function makeHarness(settings: GuildSettings | null) {
       }
     },
     getGuildSettings: async () => settings,
-    invalidateGuildCache: guildId => { invalidated.push(guildId); },
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
     canSendEmbeds: () => true,
@@ -73,11 +71,11 @@ function makeHarness(settings: GuildSettings | null) {
     logger: () => undefined,
     MessageFlags: { Ephemeral: 64 }
   });
-  return { handler, calls, replies, invalidated };
+  return { handler, calls, replies };
 }
 
 test("/future-release add salveaza jocul cu data si pretul de preorder", async () => {
-  const { handler, calls, replies, invalidated } = makeHarness({ _id: "guild-1", futureReleaseGames: [] });
+  const { handler, calls, replies } = makeHarness({ _id: "guild-1", futureReleaseGames: [] });
 
   await handler.handleFutureRelease(makeInteraction("add", {
     game: " Silksong ",
@@ -89,7 +87,6 @@ test("/future-release add salveaza jocul cu data si pretul de preorder", async (
   assert.ok(Array.isArray(calls[0].update), "update-ul e un aggregation pipeline atomic");
   assert.match(JSON.stringify(calls[0].update), /futureReleaseGames/);
   assert.match(JSON.stringify(calls[0].update), /silksong/);
-  assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /silksong/);
 });
 
@@ -134,7 +131,7 @@ test("/future-release add refuza al 21-lea joc nou", async () => {
 });
 
 test("/future-release start salveaza canalul curent si activarea", async () => {
-  const { handler, calls, replies, invalidated } = makeHarness({ _id: "guild-1" });
+  const { handler, calls, replies } = makeHarness({ _id: "guild-1" });
 
   await handler.handleFutureRelease(makeInteraction("start"));
 
@@ -146,12 +143,11 @@ test("/future-release start salveaza canalul curent si activarea", async () => {
       futureReleaseActivationId: "activation-1"
     }
   });
-  assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /future-release este activ/);
 });
 
 test("/future-release stop opreste modulul si curata activarea", async () => {
-  const { handler, calls, replies, invalidated } = makeHarness({ _id: "guild-1" });
+  const { handler, calls, replies } = makeHarness({ _id: "guild-1" });
 
   await handler.handleFutureRelease(makeInteraction("stop"));
 
@@ -163,6 +159,5 @@ test("/future-release stop opreste modulul si curata activarea", async () => {
     },
     $unset: { futureReleaseActivationId: "" }
   });
-  assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /oprite/);
 });

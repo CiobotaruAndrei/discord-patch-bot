@@ -54,7 +54,6 @@ function makeContext(opts: {
   const updateCalls: Array<{ filter: unknown; update: unknown; opts?: unknown }> = [];
   const replies: string[] = [];
   const delegateCalls: Array<{ commandName: string }> = [];
-  const cacheInvalidations: string[] = [];
   const logs: Array<{ level: string; context: string; msg: string }> = [];
 
   const context = {
@@ -65,7 +64,6 @@ function makeContext(opts: {
         return opts.updateOneResult ?? { matchedCount: 1, modifiedCount: 1 };
       }
     },
-    invalidateGuildCache: (gid: string) => { cacheInvalidations.push(gid); },
     formatUserError: (_err: unknown, fallback: string) => fallback,
     safeDefer: async () => undefined,
     safeEdit: async (_interaction: unknown, content: string) => { replies.push(content); return content; },
@@ -80,11 +78,11 @@ function makeContext(opts: {
   };
 
   installCommandChain(context, [installSetHandler] as object as ChainableCommandModule[]);
-  return { context: context as typeof context & SetInteractionRuntime, updateCalls, replies, delegateCalls, cacheInvalidations, logs };
+  return { context: context as typeof context & SetInteractionRuntime, updateCalls, replies, delegateCalls, logs };
 }
 
 test("handles /set mode and writes notificationMode + confirms", async () => {
-  const { context, updateCalls, replies, cacheInvalidations, delegateCalls } = makeContext({});
+  const { context, updateCalls, replies, delegateCalls } = makeContext({});
   await context.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "mode", string: { value: "detailed" } }),
     []
@@ -93,7 +91,6 @@ test("handles /set mode and writes notificationMode + confirms", async () => {
   const update = (updateCalls[0].update as { $set: Record<string, unknown> }).$set;
   assert.equal(update.notificationMode, "detailed");
   assert.deepEqual(updateCalls[0].filter, { _id: "guild-1" });
-  assert.equal(cacheInvalidations[0], "guild-1");
   assert.match(replies[0], /Mod setat: \*\*detailed\*\*/);
   assert.equal(delegateCalls.length, 0, "nu trebuie sa delegheze mai jos");
 });
@@ -154,7 +151,7 @@ test("handles /set stores with steam,epic + rejects unknown store", async () => 
 });
 
 test("handles /set outbox-recovery-verify on -> writes boolean true, no pending reset", async () => {
-  const { context, updateCalls, replies, cacheInvalidations } = makeContext({});
+  const { context, updateCalls, replies } = makeContext({});
   await context.handleInteraction(
     makeInteraction({ command: "set", group: null, sub: "outbox-recovery-verify", string: { value: "on" } }),
     []
@@ -163,7 +160,6 @@ test("handles /set outbox-recovery-verify on -> writes boolean true, no pending 
   const update = (updateCalls[0].update as { $set: Record<string, unknown> }).$set;
   assert.equal(update.outboxRecoveryVerify, true);
   assert.equal("pendingDiscounts" in update, false, "nu e filter change -> nu reseteaza pendingDiscounts");
-  assert.equal(cacheInvalidations[0], "guild-1");
   assert.match(replies[0], /ON/);
 });
 

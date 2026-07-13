@@ -21,7 +21,7 @@ import { countYoutubeErrors } from "../../youtube/youtubeErrorsRepository.js";
 import { errorDetail } from "../../../shared/errors.js";
 
 export function createYouTubeNotifyCommands(deps: YouTubeInteractionDeps) {
-  const { GuildModel, GuildYoutubeErrorModel, getGuildSettings, invalidateGuildCache, checkChannelPermissions, safeEdit } = deps;
+  const { GuildModel, GuildYoutubeErrorModel, getGuildSettings, checkChannelPermissions, safeEdit } = deps;
 
   async function notify(interaction: DiscordInteraction, guildId: string, subcommand: string): Promise<unknown> {
     const settings = await getGuildSettings(guildId);
@@ -39,7 +39,6 @@ export function createYouTubeNotifyCommands(deps: YouTubeInteractionDeps) {
         return safeEdit(interaction, `Eroare: botului ii lipsesc permisiunile ${missing.join(", ")} pe <#${channel.id}>.`);
       }
       await setYouTubeNotificationChannel(GuildModel, guildId, channel.id);
-      invalidateGuildCache(guildId);
       return safeEdit(interaction, `OK: notificarile YouTube vor fi postate in <#${channel.id}>.`);
     }
     if (subcommand === "on") {
@@ -50,12 +49,10 @@ export function createYouTubeNotifyCommands(deps: YouTubeInteractionDeps) {
         return safeEdit(interaction, "Eroare: adauga mai intai cel putin un canal cu `/youtube subscribe`.");
       }
       await setYouTubeNotificationsEnabled(GuildModel, guildId, true);
-      invalidateGuildCache(guildId);
       return safeEdit(interaction, `OK: notificarile YouTube sunt active in <#${settings.youtubeNotificationChannelId}>.`);
     }
     if (subcommand === "off") {
       await setYouTubeNotificationsEnabled(GuildModel, guildId, false);
-      invalidateGuildCache(guildId);
       return safeEdit(interaction, "OK: notificarile YouTube sunt oprite. Canalele urmarite raman salvate.");
     }
     return safeEdit(interaction, formatYouTubeStatus(settings, await countYoutubeErrors(GuildYoutubeErrorModel, guildId)));
@@ -72,7 +69,6 @@ export function createYouTubeNotifyCommands(deps: YouTubeInteractionDeps) {
     }
     if (subcommand === "reset") {
       await setYouTubeMessageTemplate(GuildModel, guildId, null);
-      invalidateGuildCache(guildId);
       return safeEdit(interaction, `OK: sablonul YouTube a revenit la valoarea implicita:\n\`${DEFAULT_YOUTUBE_MESSAGE_TEMPLATE}\``);
     }
     const rawTemplate = interaction.options.getString("text", true);
@@ -80,7 +76,6 @@ export function createYouTubeNotifyCommands(deps: YouTubeInteractionDeps) {
     try {
       const template = validateYouTubeMessageTemplate(rawTemplate);
       await setYouTubeMessageTemplate(GuildModel, guildId, template);
-      invalidateGuildCache(guildId);
       return safeEdit(interaction, "OK: sablonul mesajului YouTube a fost actualizat.");
     } catch (error) {
       return safeEdit(interaction, `Eroare: ${errorDetail(error)}`);
@@ -112,7 +107,6 @@ export function createYouTubeNotifyCommands(deps: YouTubeInteractionDeps) {
         return safeEdit(interaction, `Eroare: ai atins limita de ${MAX_YOUTUBE_ROUTE_DESTINATIONS} canale Discord pentru ruta lui **${subscription.channelName}**. Scoate o destinatie cu \`/youtube remove channel-route\` inainte sa adaugi alta.`);
       }
       const outcome = await addYouTubeRouteDestination(GuildModel, guildId, youtubeChannelId, discordChannel.id);
-      invalidateGuildCache(guildId);
       if (!outcome.saved) {
         return safeEdit(interaction, `Eroare: ai atins limita de ${MAX_YOUTUBE_ROUTE_DESTINATIONS} canale Discord pentru ruta lui **${subscription.channelName}** (o comanda concurenta a ocupat ultimul loc). Scoate o destinatie cu \`/youtube remove channel-route\` inainte sa adaugi alta.`);
       }
@@ -123,7 +117,6 @@ export function createYouTubeNotifyCommands(deps: YouTubeInteractionDeps) {
     if (!existingRoute) return safeEdit(interaction, "Info: canalul YouTube nu are rute speciale configurate.");
     if (requested === "toate") {
       await removeYouTubeChannelRoute(GuildModel, guildId, youtubeChannelId);
-      invalidateGuildCache(guildId);
       return safeEdit(interaction, `OK: toate rutele speciale pentru **${subscription.channelName}** au fost sterse. Se foloseste din nou canalul principal.`);
     }
     const discordChannelId = parseDiscordChannelReference(requested);
@@ -135,7 +128,6 @@ export function createYouTubeNotifyCommands(deps: YouTubeInteractionDeps) {
     } else {
       await removeYouTubeRouteDestination(GuildModel, guildId, youtubeChannelId, discordChannelId);
     }
-    invalidateGuildCache(guildId);
     return safeEdit(interaction, `OK: ruta <#${discordChannelId}> a fost stearsa pentru **${subscription.channelName}**.`);
   }
 

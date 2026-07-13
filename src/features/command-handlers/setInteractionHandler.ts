@@ -36,7 +36,6 @@ type GuildChannelSettings = { notificationChannelId?: string | null; discountCha
 
 type SetInteractionDeps = {
   GuildModel: GuildModelLike;
-  invalidateGuildCache: (guildId: string) => void;
   formatUserError: (err: unknown, fallback: string, code?: string) => string;
   safeDefer: (interaction: DiscordInteraction, ephemeral?: boolean) => Promise<void>;
   safeEdit: (interaction: DiscordInteraction, content: string) => Promise<unknown>;
@@ -52,7 +51,7 @@ type SetContext = SetInteractionDeps & {
 
 function createSetInteractionHandler(deps: SetInteractionDeps) {
   const {
-    GuildModel, invalidateGuildCache, formatUserError, safeDefer, safeEdit, logger,
+    GuildModel, formatUserError, safeDefer, safeEdit, logger,
     SUPPORTED_CURRENCIES, getGuildSettings, checkReadMessageHistory
   } = deps;
 
@@ -94,7 +93,6 @@ function createSetInteractionHandler(deps: SetInteractionDeps) {
 
     try {
       await applyGuildConfigUpdate(GuildModel, guildId, updateDoc);
-      invalidateGuildCache(guildId);
       const tail = plan.isFilterChange ? " *(coada de pending a fost resetata)*" : "";
       const warning = updateDoc.outboxRecoveryVerify === true ? await readHistoryWarning(interaction, guildId) : "";
       return safeEdit(interaction, plan.confirmMsg + tail + warning);
@@ -120,7 +118,6 @@ function isDirectSetCommand(interaction: DiscordInteraction): boolean {
 function buildSetCommandHandler(target: SetContext) {
   const handlers = createSetInteractionHandler({
     GuildModel: target.GuildModel,
-    invalidateGuildCache: target.invalidateGuildCache,
     formatUserError: target.formatUserError,
     safeDefer: target.safeDefer,
     safeEdit: target.safeEdit,

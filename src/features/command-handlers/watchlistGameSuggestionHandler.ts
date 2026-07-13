@@ -36,7 +36,6 @@ interface WatchlistGameSuggestionDeps {
   GuildModel: Parameters<typeof saveWatchlistGameSuggestion>[0];
   GuildAuditLogModel: Parameters<typeof recordBotAuditEntry>[0];
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
-  invalidateGuildCache(guildId: string): void;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
   enforceCooldown(interaction: DiscordInteraction, command: string): Promise<boolean>;
@@ -64,7 +63,7 @@ function renderWatchlistGameSuggestions(entries: WatchlistGameSuggestionEntry[])
 }
 
 function createWatchlistGameSuggestionHandler(deps: WatchlistGameSuggestionDeps) {
-  const { GuildModel, GuildAuditLogModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit, enforceCooldown, requireGuildAdmin } = deps;
+  const { GuildModel, GuildAuditLogModel, getGuildSettings, safeDefer, safeEdit, enforceCooldown, requireGuildAdmin } = deps;
 
   async function handleAdd(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     if (!(await enforceCooldown(interaction, "watchlist-game:add"))) return undefined;
@@ -74,7 +73,6 @@ function createWatchlistGameSuggestionHandler(deps: WatchlistGameSuggestionDeps)
       gameName,
       createdBy: interaction.user?.id || ""
     });
-    invalidateGuildCache(guildId);
     return added
       ? safeEdit(interaction, `OK: jocul \`${record.gameName}\` a fost adaugat in lista de propuneri.`)
       : safeEdit(interaction, `Info: jocul \`${record.gameName}\` e deja in lista de propuneri a serverului.`);
@@ -95,7 +93,6 @@ function createWatchlistGameSuggestionHandler(deps: WatchlistGameSuggestionDeps)
       action: "watchlist_game_delete",
       details: gameName
     });
-    invalidateGuildCache(guildId);
     await recordBotAuditEntry(GuildAuditLogModel, guildId, {
       userId: interaction.user?.id || "",
       command: "/watchlist-game delete",
@@ -132,7 +129,6 @@ function buildWatchlistGameSuggestionCommandHandler(target: WatchlistGameSuggest
     GuildModel: target.GuildModel,
     GuildAuditLogModel: target.GuildAuditLogModel,
     getGuildSettings: target.getGuildSettings,
-    invalidateGuildCache: target.invalidateGuildCache,
     safeDefer: target.safeDefer,
     safeEdit: target.safeEdit,
     enforceCooldown: target.enforceCooldown,

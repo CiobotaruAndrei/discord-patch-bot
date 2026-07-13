@@ -33,7 +33,6 @@ function makeInteraction(subcommand: string, values: { game?: string; numar?: nu
 function makeHarness(settings: GuildSettings | null, adminAllowed = true, cooldownAllowed = true) {
   const calls: MongoCall[] = [];
   const replies: unknown[] = [];
-  const invalidated: string[] = [];
   const existing = Array.isArray(settings?.watchlistGameSuggestions) ? settings.watchlistGameSuggestions : [];
   const auditDocs: GuildAuditLogRecord[] = [];
   const handler = installWatchlistGame.createWatchlistGameSuggestionHandler({
@@ -52,7 +51,6 @@ function makeHarness(settings: GuildSettings | null, adminAllowed = true, cooldo
       }
     },
     getGuildSettings: async () => settings,
-    invalidateGuildCache: guildId => { invalidated.push(guildId); },
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
     enforceCooldown: async () => cooldownAllowed,
@@ -60,18 +58,17 @@ function makeHarness(settings: GuildSettings | null, adminAllowed = true, cooldo
     logger: () => undefined,
     MessageFlags: { Ephemeral: 64 }
   });
-  return { handler, calls, replies, invalidated, auditDocs };
+  return { handler, calls, replies, auditDocs };
 }
 
 test("/watchlist-game add salveaza jocul propus normalizat", async () => {
-  const { handler, calls, replies, invalidated } = makeHarness({ _id: "guild-1" });
+  const { handler, calls, replies } = makeHarness({ _id: "guild-1" });
 
   await handler.handleWatchlistGameSuggestion(makeInteraction("add", { game: "  Hollow   Knight Silksong " }));
 
   assert.equal(calls.length, 1);
   assert.match(JSON.stringify(calls[0].update), /watchlistGameSuggestions/);
   assert.match(JSON.stringify(calls[0].update), /hollow knight silksong/);
-  assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /hollow knight silksong/);
 });
 
@@ -93,7 +90,7 @@ test("/watchlist-game list afiseaza propunerile fara mentiuni active", async () 
 });
 
 test("/watchlist-game delete cere admin runtime si sterge propunerea", async () => {
-  const { handler, calls, replies, invalidated, auditDocs } = makeHarness({ _id: "guild-1" }, true);
+  const { handler, calls, replies, auditDocs } = makeHarness({ _id: "guild-1" }, true);
 
   await handler.handleWatchlistGameSuggestion(makeInteraction("delete", { game: " Silksong " }));
 
@@ -105,7 +102,6 @@ test("/watchlist-game delete cere admin runtime si sterge propunerea", async () 
   const botAudit = auditDocs.find(doc => doc.kind === "bot" && String(doc.details || "").includes("stearsa"));
   assert.equal(botAudit?.command, "/watchlist-game delete", "stergerea propunerii (admin runtime pe comanda publica) intra in /bot-log");
   assert.match(String(botAudit?.details), /stearsa: silksong/);
-  assert.deepEqual(invalidated, ["guild-1"]);
   assert.match(String(replies[0]), /silksong/);
 });
 

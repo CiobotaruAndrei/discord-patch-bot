@@ -29,7 +29,6 @@ test("YouTube repository face baseline prin bulk upsert si claim atomic", async 
       deleteMany: async () => ({})
     },
     withMongoRetry: async fn => fn(),
-    invalidateGuildCache: () => undefined,
     adminAlert: async () => undefined,
     logger: () => undefined
   } satisfies RepositoryDeps);
@@ -72,7 +71,6 @@ test("YouTube repository scrie erorile in colectia dedicata si dezactiveaza cana
       deleteMany: async () => ({})
     },
     withMongoRetry: async fn => fn(),
-    invalidateGuildCache: () => undefined,
     adminAlert: async kind => { alerts.push(kind); },
     logger: () => undefined
   } satisfies RepositoryDeps);
@@ -116,7 +114,6 @@ test("YouTube repository elimina o ruta Discord invalida fara sa opreasca modulu
       deleteMany: async () => ({})
     },
     withMongoRetry: async fn => fn(),
-    invalidateGuildCache: () => undefined,
     adminAlert: async () => undefined,
     logger: () => undefined
   } satisfies RepositoryDeps);

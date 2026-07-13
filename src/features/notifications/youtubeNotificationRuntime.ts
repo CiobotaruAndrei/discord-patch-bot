@@ -25,7 +25,6 @@ export function createYouTubeNotificationRuntime(
     GuildSeenYoutubeModel: deps.GuildSeenYoutubeModel,
     GuildYoutubeErrorModel: deps.GuildYoutubeErrorModel,
     withMongoRetry: deps.withMongoRetry,
-    invalidateGuildCache: deps.invalidateGuildCache,
     adminAlert: async (kind, title, body, guildId) => {
       await deps.adminAlert?.(kind, title, body, guildId);
     },

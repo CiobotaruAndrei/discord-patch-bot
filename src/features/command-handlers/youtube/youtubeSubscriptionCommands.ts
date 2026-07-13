@@ -12,7 +12,7 @@ import {
 import { errorDetail } from "../../../shared/errors.js";
 
 export function createYouTubeSubscriptionCommands(deps: YouTubeInteractionDeps) {
-  const { GuildModel, getGuildSettings, invalidateGuildCache, resolveYouTubeChannel, fetchYouTubeFeed, seedSeenVideos, removeSeenChannel, safeEdit } = deps;
+  const { GuildModel, getGuildSettings, resolveYouTubeChannel, fetchYouTubeFeed, seedSeenVideos, removeSeenChannel, safeEdit } = deps;
 
   async function rollbackSeenBaseline(guildId: string, channelId: string, why: string): Promise<void> {
     try {
@@ -52,7 +52,6 @@ export function createYouTubeSubscriptionCommands(deps: YouTubeInteractionDeps) 
       await rollbackSeenBaseline(guildId, resolved.channelId, "salvarea abonarii a esuat");
       throw error;
     }
-    invalidateGuildCache(guildId);
     if (outcome.alreadySubscribed) {
       return safeEdit(interaction, `Info: **${resolved.channelName}** este deja urmarit.`);
     }
@@ -75,7 +74,6 @@ export function createYouTubeSubscriptionCommands(deps: YouTubeInteractionDeps) 
     if (!removed) {
       return safeEdit(interaction, `Info: canalul \`${channelId}\` nu era urmarit.`);
     }
-    invalidateGuildCache(guildId);
     try {
       await removeSeenChannel(guildId, channelId);
     } catch (error) {

@@ -16,7 +16,7 @@ import { defaultFilters, formatFilters, onOff } from "./youtubePresentation.js";
 import { errorDetail } from "../../../shared/errors.js";
 
 export function createYouTubeFilterCommands(deps: YouTubeInteractionDeps) {
-  const { GuildModel, getGuildSettings, invalidateGuildCache, safeEdit } = deps;
+  const { GuildModel, getGuildSettings, safeEdit } = deps;
 
   async function filter(interaction: DiscordInteraction, guildId: string, subcommand: string): Promise<unknown> {
     const fieldBySubcommand: Record<string, keyof YouTubeFilters> = {
@@ -33,7 +33,6 @@ export function createYouTubeFilterCommands(deps: YouTubeInteractionDeps) {
         return safeEdit(interaction, "Eroare: durata minima trebuie sa fie intre 0 si 86400 secunde.");
       }
       await setYouTubeMinDurationSeconds(GuildModel, guildId, seconds);
-      invalidateGuildCache(guildId);
       return safeEdit(interaction, `OK: durata minima YouTube este ${seconds}s.`);
     }
     const field = fieldBySubcommand[subcommand];
@@ -43,7 +42,6 @@ export function createYouTubeFilterCommands(deps: YouTubeInteractionDeps) {
     }
     const enabled = state === "on";
     await setYouTubeFilterFlag(GuildModel, guildId, field, enabled);
-    invalidateGuildCache(guildId);
     return safeEdit(interaction, `OK: filtrul YouTube ${subcommand} este ${onOff(enabled)}.`);
   }
 
@@ -62,7 +60,6 @@ export function createYouTubeFilterCommands(deps: YouTubeInteractionDeps) {
     }
     if (subcommand === "clear") {
       await clearYouTubeTitleWords(GuildModel, guildId);
-      invalidateGuildCache(guildId);
       return safeEdit(interaction, "OK: filtrul inclusiv de titlu a fost golit.");
     }
     const rawWord = interaction.options.getString("word", true);
@@ -74,14 +71,12 @@ export function createYouTubeFilterCommands(deps: YouTubeInteractionDeps) {
           return safeEdit(interaction, `Eroare: filtrul poate avea cel mult ${YOUTUBE_TITLE_WORD_LIMIT} valori.`);
         }
         const outcome = await addYouTubeTitleWord(GuildModel, guildId, word);
-        invalidateGuildCache(guildId);
         if (!outcome.saved) {
           return safeEdit(interaction, `Eroare: filtrul poate avea cel mult ${YOUTUBE_TITLE_WORD_LIMIT} valori (o comanda concurenta a ocupat ultimul loc).`);
         }
         return safeEdit(interaction, `OK: \`${word}\` a fost adaugat in filtrul inclusiv de titlu.`);
       }
       await removeYouTubeTitleWord(GuildModel, guildId, word);
-      invalidateGuildCache(guildId);
       return safeEdit(interaction, `OK: \`${word}\` a fost eliminat din filtrul inclusiv de titlu.`);
     } catch (error) {
       return safeEdit(interaction, `Eroare: ${errorDetail(error)}`);

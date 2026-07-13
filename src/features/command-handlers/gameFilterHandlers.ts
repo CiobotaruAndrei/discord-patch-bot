@@ -35,7 +35,6 @@ type GameFilterInteractionDeps = {
   };
   logger?: Logger;
   getGuildSettings: (guildId: string) => Promise<GuildSettings | null>;
-  invalidateGuildCache: (guildId: string) => void;
   safeDefer: (interaction: DiscordInteraction, ephemeral?: boolean) => Promise<void>;
   safeEdit: (interaction: DiscordInteraction, payload: InteractionPayload) => Promise<unknown>;
   formatUserError: (err: unknown, fallback: string) => string;
@@ -45,7 +44,7 @@ type GameFilterInteractionDeps = {
 type GameFilterContext = GameFilterInteractionDeps;
 
 function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
-  const { GuildModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit, formatUserError, logger } = deps;
+  const { GuildModel, getGuildSettings, safeDefer, safeEdit, formatUserError, logger } = deps;
 
   async function handleGameFilterOperation(
     interaction: DiscordInteraction,
@@ -71,7 +70,6 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
     if (sub === "reset") {
       try {
         await applyGuildConfigUpdate(GuildModel, guildId, { enabledGames: [] });
-        invalidateGuildCache(guildId);
         return safeEdit(interaction, "OK: Watchlist resetat. Toate jocurile sunt active.");
       } catch (err: unknown) {
         return safeEdit(interaction, formatUserError(err, "Eroare la resetare."));
@@ -87,12 +85,10 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
           return safeEdit(interaction, `Eroare: Cheia \`${gameKey}\` nu exista in config. Foloseste \`/games\` pentru a vedea cheile valide.`);
         }
         await addWatchlistGame(GuildModel, guildId, game.key);
-        invalidateGuildCache(guildId);
         return safeEdit(interaction, `OK: **${game.name}** adaugat in watchlist.`);
       }
       if (sub === "remove") {
         const result = await removeWatchlistGame(GuildModel, guildId, gameKey);
-        invalidateGuildCache(guildId);
         const displayName = game ? game.name : String(gameKey);
         const note = game ? "" : " *(cheie nu mai exista in config — am curatat-o)*";
         if (result.modifiedCount === 0) {
@@ -160,7 +156,6 @@ function buildGameFilterCommandHandler(target: GameFilterContext) {
     GuildModel: target.GuildModel,
     logger: target.logger,
     getGuildSettings: target.getGuildSettings,
-    invalidateGuildCache: target.invalidateGuildCache,
     safeDefer: target.safeDefer,
     safeEdit: target.safeEdit,
     formatUserError: target.formatUserError,

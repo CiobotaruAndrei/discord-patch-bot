@@ -44,7 +44,6 @@ function makeBaseContext(calls: MongoCall[], replies: unknown[]) {
       }
     },
     logger: (_level: string, _context: string, ..._args: unknown[]) => undefined,
-    invalidateGuildCache: (guildId: string) => calls.push(["invalidate", guildId]),
     safeDefer: async (interaction: Record<string, unknown>) => { interaction.deferred = true; },
     safeEdit: async (_interaction: unknown, payload: unknown) => { replies.push(payload); return payload; },
     formatUserError: (_err: unknown, fallback: string) => fallback
@@ -61,7 +60,6 @@ test("role ping factory writes /set role updates through explicit deps", async (
   assert.deepEqual(calls[0][0], { _id: "guild-1" });
   assert.deepEqual(calls[0][1], { $set: { notificationRoleId: "role-1" } });
   assert.deepEqual(calls[0][2], { upsert: true });
-  assert.deepEqual(calls[1], ["invalidate", "guild-1"]);
   assert.equal(replies[0], "OK: Rol pentru update-uri: <@&role-1> *(ping doar la prima notificare per ciclu)*");
 });
 
@@ -74,7 +72,6 @@ test("role ping factory clears /set role discounts when role is omitted", async 
 
   assert.deepEqual(calls[0][0], { _id: "guild-1" });
   assert.deepEqual(calls[0][1], { $set: { discountRoleId: null } });
-  assert.deepEqual(calls[1], ["invalidate", "guild-1"]);
   assert.equal(replies[0], "OK: Rol pentru reduceri eliminat (fara ping).");
 });
 

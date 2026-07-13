@@ -39,7 +39,6 @@ function buildSubscriptionCommandHandler(target: SubscriptionContext) {
     GuildModel: target.GuildModel,
     logger: target.logger,
     getGuildSettings: target.getGuildSettings,
-    invalidateGuildCache: target.invalidateGuildCache,
     DEFAULT_CURRENCY: target.DEFAULT_CURRENCY,
     getLatestForAllGames: target.getLatestForAllGames,
     fetchDeals: target.fetchDeals,

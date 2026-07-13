@@ -43,7 +43,6 @@ export interface YouTubeInteractionDeps {
   GuildModel: YouTubeConfigGuildModel;
   GuildYoutubeErrorModel: Pick<YoutubeErrorModelLike, "find" | "countDocuments">;
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
-  invalidateGuildCache(guildId: string): void;
   resolveYouTubeChannel(input: string): Promise<ResolvedYouTubeChannel>;
   fetchYouTubeFeed(channel: ResolvedYouTubeChannel): Promise<YouTubeVideo[]>;
   seedSeenVideos(guildId: string, channelId: string, videos: YouTubeVideo[]): Promise<void>;

@@ -7,7 +7,6 @@ type RecordedWrite = { filter: Record<string, unknown>; update: Record<string, u
 function makeHarness(input?: { finalizeMatchedCount?: number; rejectWrites?: boolean }) {
   const writes: RecordedWrite[] = [];
   const logs: Array<{ level: string; context: string; message: string }> = [];
-  const invalidated: string[] = [];
   const service = createSubscriptionService({
     GuildModel: {
       updateOne: async (filter, update, options) => {
@@ -17,11 +16,10 @@ function makeHarness(input?: { finalizeMatchedCount?: number; rejectWrites?: boo
       }
     },
     logger: (level, context, message) => { logs.push({ level, context, message }); },
-    invalidateGuildCache: guildId => { invalidated.push(guildId); },
     OP_UPDATE_OPTS: { writeConcern: { w: 1 } },
     makeActivationId: () => "act-1"
   });
-  return { service, writes, logs, invalidated };
+  return { service, writes, logs };
 }
 
 function setOf(write: RecordedWrite): Record<string, unknown> {
@@ -29,7 +27,7 @@ function setOf(write: RecordedWrite): Record<string, unknown> {
 }
 
 test("startUpdates: activare + baseline + finalize cu gardul de activation-id, in aceasta ordine", async () => {
-  const { service, writes, invalidated } = makeHarness();
+  const { service, writes } = makeHarness();
   const seedOrder: string[] = [];
   const outcome = await service.startUpdates("g1", "c1", async () => {
     seedOrder.push(`seed-dupa-${writes.length}-scrieri`);
@@ -47,7 +45,6 @@ test("startUpdates: activare + baseline + finalize cu gardul de activation-id, i
   assert.equal(writes[1].filter.subscribed, true);
   assert.equal(setOf(writes[1]).updatesInitializing, false);
   assert.ok(typeof setOf(writes[1]).seenHashVersionUpdates === "number");
-  assert.deepEqual(invalidated, ["g1"]);
 });
 
 test("startUpdates: finalize cu matchedCount 0 => superseded, fara rollback", async () => {
@@ -59,7 +56,7 @@ test("startUpdates: finalize cu matchedCount 0 => superseded, fara rollback", as
 });
 
 test("startUpdates: baseline esuat => rollback conditionat de activation-id + WARN + invalidare", async () => {
-  const { service, writes, logs, invalidated } = makeHarness();
+  const { service, writes, logs } = makeHarness();
   const boom = new Error("baseline boom");
   const outcome = await service.startUpdates("g1", "c1", async () => { throw boom; });
   assert.deepEqual(outcome, { status: "baseline-failed", error: boom });
@@ -71,7 +68,6 @@ test("startUpdates: baseline esuat => rollback conditionat de activation-id + WA
   assert.equal(lastError.message, "baseline boom");
   assert.equal(lastError.channelId, "c1");
   assert.deepEqual(logs, [{ level: "WARN", context: "START_UPDATES", message: "Activat, dar baseline-ul initial a esuat" }]);
-  assert.deepEqual(invalidated, ["g1", "g1"], "cache invalidat la activare si la rollback");
 });
 
 test("startDiscounts: foloseste campurile de reduceri si pendingDiscounts ca lista goala", async () => {
@@ -86,7 +82,7 @@ test("startDiscounts: foloseste campurile de reduceri si pendingDiscounts ca lis
 });
 
 test("stopUpdates/stopDiscounts: o singura scriere care goleste pending si scoate activation-id", async () => {
-  const { service, writes, invalidated } = makeHarness();
+  const { service, writes } = makeHarness();
   await service.stopUpdates("g1");
   await service.stopDiscounts("g1");
   assert.equal(writes.length, 2);
@@ -96,11 +92,10 @@ test("stopUpdates/stopDiscounts: o singura scriere care goleste pending si scoat
   assert.equal(setOf(writes[1]).discountsSubscribed, false);
   assert.deepEqual(setOf(writes[1]).pendingDiscounts, []);
   assert.deepEqual(writes[1].update.$unset, { discountsActivationId: "" });
-  assert.deepEqual(invalidated, ["g1", "g1"]);
 });
 
 test("startDlc/stopDlc: configurarea canalului DLC cu activation-id la start si $unset la stop (runda 10)", async () => {
-  const { service, writes, invalidated } = makeHarness();
+  const { service, writes } = makeHarness();
   await service.startDlc("g1", "c1");
   assert.equal(setOf(writes[0]).dlcSubscribed, true);
   assert.equal(setOf(writes[0]).dlcChannelId, "c1");
@@ -110,7 +105,6 @@ test("startDlc/stopDlc: configurarea canalului DLC cu activation-id la start si 
   assert.equal(setOf(writes[1]).dlcSubscribed, false);
   assert.equal(setOf(writes[1]).dlcChannelId, null);
   assert.deepEqual(writes[1].update.$unset, { dlcActivationId: "" });
-  assert.deepEqual(invalidated, ["g1", "g1"]);
 });
 
 test("addPlayerCountGame/setPlayerCountGames: $addToSet la pornire; lista goala opreste modulul si goleste canalul (runda 10)", async () => {
@@ -125,8 +119,7 @@ test("addPlayerCountGame/setPlayerCountGames: $addToSet la pornire; lista goala 
 });
 
 test("rollbackActivation: esecul scrierii de rollback nu arunca, dar tot logheaza si invalideaza", async () => {
-  const { service, logs, invalidated } = makeHarness({ rejectWrites: true });
+  const { service, logs } = makeHarness({ rejectWrites: true });
   await service.rollbackActivation("discounts", "g3", "c3", "act-x", new Error("seed a picat"));
   assert.deepEqual(logs, [{ level: "WARN", context: "START_DISCOUNTS", message: "Activat, dar baseline-ul de reduceri a esuat" }]);
-  assert.deepEqual(invalidated, ["g3"]);
 });

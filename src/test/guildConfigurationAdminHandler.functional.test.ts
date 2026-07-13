@@ -22,7 +22,6 @@ function makeHarness(permissionState = { viewChannel: true, sendMessages: true, 
       create: async (doc: GuildAuditLogRecord) => { auditDocs.push(doc); return doc; },
       find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
     },
-    invalidateGuildCache: () => undefined,
     deleteAllReplayPayloads: async (guildId: string) => {
       replayPayloadDeletes.push(guildId);
       if (replayCleanupFails) throw new Error("Mongo indisponibil la stergerea payload-urilor de replay");

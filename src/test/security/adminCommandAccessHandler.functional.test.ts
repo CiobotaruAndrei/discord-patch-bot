@@ -36,7 +36,6 @@ function makeHarness(initial: StoredAccess = null, scopedInitial: Record<string,
   const edits: unknown[] = [];
   const alerts: string[] = [];
   const updateCalls: Array<{ filter: object; update: object; options?: object }> = [];
-  const invalidated: string[] = [];
   const auditDocs: GuildAuditLogRecord[] = [];
   const makeChain = () => {
     const chain = {
@@ -74,7 +73,6 @@ function makeHarness(initial: StoredAccess = null, scopedInitial: Record<string,
         lean: async () => ({ adminCommandAccess: stored, adminCommandAccessByCommand: scoped })
       })
     },
-    invalidateGuildCache: (guildId: string) => { invalidated.push(guildId); },
     safeDefer: async () => undefined,
     safeEdit: async (_interaction: object, payload: unknown) => { edits.push(payload); return payload; },
     logger: () => undefined,
@@ -83,7 +81,7 @@ function makeHarness(initial: StoredAccess = null, scopedInitial: Record<string,
   };
   const handler = attachAdminCommandAccess.createAdminCommandAccessHandler(deps);
   const commandHandler = attachAdminCommandAccess.buildCommandHandler(deps);
-  return { handler, commandHandler, edits, alerts, updateCalls, invalidated, auditDocs, getStored: () => stored, getScoped: () => scoped };
+  return { handler, commandHandler, edits, alerts, updateCalls, auditDocs, getStored: () => stored, getScoped: () => scoped };
 }
 
 function interaction(commandName: string, subcommand: string, owner = true, commandScope: string | null = null): TestInteraction {
@@ -154,7 +152,6 @@ test("/set admin-command-access salveaza rolul si modul configurat de owner", as
 
   assert.equal(harness.getStored()?.roleId, "role-admin");
   assert.equal(harness.getStored()?.mode, "role-or-higher");
-  assert.deepEqual(harness.invalidated, ["guild-1"]);
   assert.match(String(harness.edits[0]), /role-admin/);
 });
 
@@ -166,7 +163,6 @@ test("/set admin-command-access cu command salveaza regula doar pentru acea coma
   assert.equal(harness.getStored()?.roleId, "role-global");
   assert.equal(harness.getScoped()["start-stop:updates"]?.roleId, "role-admin");
   assert.equal(harness.getScoped()["start-stop:updates"]?.mode, "role-or-higher");
-  assert.deepEqual(harness.invalidated, ["guild-1"]);
   assert.match(String(harness.edits[0]), /start sau \/stop updates/);
 });
 
@@ -203,7 +199,6 @@ test("/set admin-command-access respinge o comanda publica (nu se aplica nicioda
 
   assert.equal(harness.updateCalls.length, 0, "nu se scrie nicio regula pentru o comanda care nu e admin");
   assert.equal("ping" in harness.getScoped(), false);
-  assert.deepEqual(harness.invalidated, []);
   assert.match(String(harness.edits[0]), /nu este o comanda admin/);
 });
 
@@ -223,7 +218,6 @@ test("/set admin-command-access accepta o comanda admin reala cu subcomanda (bac
   await harness.handler.handleAdminCommandAccess(interaction("set", "admin-command-access", true, "/backup load"));
 
   assert.equal(harness.getScoped()["backup:load"]?.roleId, "role-admin", "un scope admin real e salvat");
-  assert.deepEqual(harness.invalidated, ["guild-1"]);
 });
 
 test("/admin-command-access list explica accesul implicit cand nu exista regula", async () => {
@@ -255,7 +249,6 @@ test("/delete admin-command-access sterge regula configurata", async () => {
   await harness.handler.handleAdminCommandAccess(interaction("delete", "admin-command-access"));
 
   assert.equal(harness.getStored(), null);
-  assert.deepEqual(harness.invalidated, ["guild-1"]);
 });
 
 test("/delete admin-command-access cu command sterge doar regula dedicata", async () => {
@@ -273,7 +266,6 @@ test("/delete admin-command-access cu command sterge doar regula dedicata", asyn
   assert.equal("start-stop:updates" in harness.getScoped(), false);
   assert.equal("start:updates" in harness.getScoped(), false);
   assert.equal("stop:updates" in harness.getScoped(), false);
-  assert.deepEqual(harness.invalidated, ["guild-1"]);
 });
 
 test("admin-command-access refuza non-owner fara modal pentru codul global", async () => {
@@ -285,7 +277,6 @@ test("admin-command-access refuza non-owner fara modal pentru codul global", asy
   await harness.handler.handleAdminCommandAccess(nonOwner);
 
   assert.equal(harness.updateCalls.length, 0);
-  assert.deepEqual(harness.invalidated, []);
   assert.deepEqual(harness.edits, []);
   assert.deepEqual(replies, [{ content: "Access denied.", flags: 64 }]);
 });

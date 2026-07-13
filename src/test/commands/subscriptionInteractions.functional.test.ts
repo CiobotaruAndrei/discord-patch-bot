@@ -43,7 +43,6 @@ function makeBaseContext(operations: MongoCall[], replies: unknown[]) {
     },
     logger: (_level: string, _context: string, ..._args: unknown[]) => undefined,
     getGuildSettings: async () => ({ currency: "USD" }),
-    invalidateGuildCache: (guildId: string) => operations.push(["invalidate", guildId]),
     DEFAULT_CURRENCY: "USD",
     getLatestForAllGames: async () => [{ game: { key: "cs2" }, latest: { id: "update-1" } }],
     fetchDeals: async () => [],

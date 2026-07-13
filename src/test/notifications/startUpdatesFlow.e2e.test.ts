@@ -283,7 +283,6 @@ function buildContext(guild: GuildDoc, channel: { id: string; send(payload: Sent
       DISCORD_SEND_RATE_MAX_WAIT_MS: 5000
     },
     getGuildSettings: async () => ({ enabledGames: [] }),
-    invalidateGuildCache: () => undefined,
     makeActivationId: () => "activation-1",
     formatUserError: (_err: unknown, fallback: string) => fallback,
     safeDefer: async (interaction: { deferred: boolean }) => { interaction.deferred = true; },

@@ -47,7 +47,6 @@ interface PriceAlertInteractionDeps {
     ): Promise<{ priceAlerts?: PriceAlertRule[] } | null>;
   };
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
-  invalidateGuildCache(guildId: string): void;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
   formatUserError(err: unknown, fallback: string): string;
@@ -68,7 +67,7 @@ function formatAlertLine(alert: PriceAlertRule, index: number): string {
 
 function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
   const {
-    GuildModel, getGuildSettings, invalidateGuildCache, safeDefer, safeEdit,
+    GuildModel, getGuildSettings, safeDefer, safeEdit,
     formatUserError, SUPPORTED_CURRENCIES
   } = deps;
 
@@ -94,7 +93,6 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
     }
     const rule = buildPriceAlertRule(game, threshold, currency);
     const { saved } = await upsertPriceAlert(GuildModel, guildId, rule, MAX_PRICE_ALERTS_PER_GUILD);
-    invalidateGuildCache(guildId);
     if (!saved) {
       return safeEdit(interaction, `Eroare: serverul are deja limita de ${MAX_PRICE_ALERTS_PER_GUILD} alerte de pret (o comanda concurenta a ocupat ultimul loc). Sterge o alerta cu \`/remove price-alert\` si reincearca.`);
     }
@@ -108,7 +106,6 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
     const gameKey = interaction.options.getString("joc", true) || "";
     const game = games.find(candidate => candidate.key === gameKey);
     const removedCount = await removePriceAlertsForGame(GuildModel, guildId, gameKey);
-    invalidateGuildCache(guildId);
     if (removedCount === 0) {
       return safeEdit(interaction, `Info: nu exista nicio alerta de pret pentru \`${gameKey}\`.`);
     }

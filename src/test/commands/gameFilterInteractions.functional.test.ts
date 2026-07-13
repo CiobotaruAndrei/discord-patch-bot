@@ -69,7 +69,6 @@ function makeBaseContext(calls: MongoCall[], replies: unknown[]) {
     },
     logger: (_level: string, _context: string, ..._args: unknown[]) => undefined,
     getGuildSettings: async () => ({ enabledGames: ["cs2"] }),
-    invalidateGuildCache: (guildId: string) => calls.push(["invalidate", guildId]),
     safeDefer: async (interaction: Record<string, unknown>) => { interaction.deferred = true; },
     safeEdit: async (_interaction: unknown, payload: unknown) => { replies.push(payload); return payload; },
     formatUserError: (_err: unknown, fallback: string) => fallback
@@ -86,7 +85,6 @@ test("game filter factory writes /set games add through explicit deps", async ()
   assert.deepEqual(calls[0][0], { _id: "guild-1" });
   assert.deepEqual(calls[0][1], { $addToSet: { enabledGames: "cs2" } });
   assert.deepEqual(calls[0][2], { upsert: true });
-  assert.deepEqual(calls[1], ["invalidate", "guild-1"]);
   assert.equal(replies[0], "OK: **Counter-Strike 2** adaugat in watchlist.");
 });
 
@@ -99,7 +97,6 @@ test("game filter allows /set games remove for stale keys not in current config"
 
   assert.deepEqual(calls[0][0], { _id: "guild-1" });
   assert.deepEqual(calls[0][1], { $pull: { enabledGames: "starcraft2" } });
-  assert.deepEqual(calls[1], ["invalidate", "guild-1"]);
   assert.match(String(replies[0]), /starcraft2.*scos din watchlist/);
   assert.match(String(replies[0]), /cheie nu mai exista in config/,
     "must explicitly note the key was stale so operators understand the curatare");
@@ -185,7 +182,7 @@ test("game filter installer intercepts /set games si /watchlist commands", async
 
   assert.deepEqual(calls[0][1], { $pull: { enabledGames: "fortnite" } });
   assert.equal(replies[0], "OK: **Fortnite** scos din watchlist.");
-  assert.deepEqual(calls[2][1], { $addToSet: { enabledGames: "cs2" } });
+  assert.deepEqual(calls[1][1], { $addToSet: { enabledGames: "cs2" } });
   assert.equal(replies[1], "OK: **Counter-Strike 2** adaugat in watchlist.");
   assert.deepEqual(delegated, ["latest"]);
   assert.equal(result, "delegated");

@@ -23,7 +23,6 @@ function makeContext(replies: unknown[], mongoCalls: unknown[][]) {
         return { matchedCount: 1, modifiedCount: 1 };
       }
     },
-    invalidateGuildCache: () => undefined,
     getGuildSettings: async () => null,
     safeDefer: async () => undefined,
     safeEdit: async (_interaction: unknown, payload: unknown) => { replies.push(payload); return payload; },

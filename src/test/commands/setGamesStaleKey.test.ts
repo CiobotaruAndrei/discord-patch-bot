@@ -43,7 +43,6 @@ function makeContext(replies: unknown[], mongoCalls: unknown[][], modifiedCount 
       },
       findById: () => ({ lean: async () => null })
     },
-    invalidateGuildCache: () => undefined,
     getGuildSettings: async () => null,
     safeDefer: async () => undefined,
     safeEdit: async (_interaction: unknown, payload: unknown) => { replies.push(payload); return payload; },
