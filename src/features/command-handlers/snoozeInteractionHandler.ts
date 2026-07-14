@@ -1,5 +1,3 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 "use strict";
 
 import { clearCommandSnooze, setCommandSnooze } from "../guild-config/guildConfigRepository.js";
@@ -8,12 +6,12 @@ import type { MongoWriteOutcome } from "../../types.js";
 
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
-const {
+import {
   commandCanBeSnoozed,
   commandPathToSnoozeKey,
   displayCommandPath,
   parseSnoozeDuration
-} = require("../command-snooze/commandSnoozeState") as typeof import("../command-snooze/commandSnoozeState.js");
+} from "../command-snooze/commandSnoozeState.js";
 import { findCommandHelpEntry } from "../command-help/commandHelpCatalog.js";
 
 type MaybePromise<T> = T | Promise<T>;

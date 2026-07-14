@@ -1,16 +1,14 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 "use strict";
 
 import type { NotificationsRuntimeDeps } from "./notificationRuntimeContracts.js";
 import type { OutboundChannelResolver } from "./outboxRuntimeFactory.js";
 import type { SeenServices } from "./seenRuntimeFactory.js";
 
-const {
+import {
   DISCORD_PERMANENT_ERROR_CODES,
   isPermanentDiscordError,
   transientErrorMessage
-} = require("./outboundChannel") as typeof import("./outboundChannel.js");
+} from "./outboundChannel.js";
 import { createOutboxServices, createIsStillSubscribed, outboxSubscriptionFilter } from "./outboxRuntimeFactory.js";
 import { createSeenServices } from "./seenRuntimeFactory.js";
 import { createUpdateNotificationRuntime } from "./updateNotificationRuntime.js";

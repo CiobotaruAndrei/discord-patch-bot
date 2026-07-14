@@ -1,5 +1,3 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 "use strict";
 
 import type { LoggerFunction } from "../../types.js";
@@ -7,10 +5,10 @@ import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 
 import { errorDetail } from "../../shared/errors.js";
-const {
+import {
   findCommandHelpEntry,
   renderCommandHelpEntry
-} = require("../command-help/commandHelpCatalog") as typeof import("../command-help/commandHelpCatalog.js");
+} from "../command-help/commandHelpCatalog.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;

@@ -1,9 +1,8 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 "use strict";
 
 import { COMMAND_HELP_ENTRIES } from "../command-help/commandHelpCatalog.js";
 import { canonicalAdminCommandAccessScope } from "./adminCommandAccessScope.js";
+import adminCommandRouterGuard from "./adminCommandRouterGuard.js";
 
 type ScopeProbeInteraction = {
   isChatInputCommand: () => boolean;
@@ -13,11 +12,6 @@ type ScopeProbeInteraction = {
     getSubcommand: (required?: boolean) => string;
     getSubcommandGroup: (required?: boolean) => string | null;
   };
-};
-
-const adminCommandRouterGuard = require("./adminCommandRouterGuard").default as {
-  isAdminProtectedCommand: (interaction: ScopeProbeInteraction) => boolean;
-  isOwnerOnlyAdminAccessCommand: (interaction: ScopeProbeInteraction) => boolean;
 };
 
 declare const adminScopeIdBrand: unique symbol;

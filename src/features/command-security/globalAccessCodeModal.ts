@@ -1,5 +1,3 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 "use strict";
 
 import globalAccessCode from "./globalAccessCode.js";
@@ -12,13 +10,13 @@ import type {
   ModalSubmitLike
 } from "./adminGuardContracts.js";
 
-const {
+import {
   MessageFlags,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder
-} = require("discord.js") as typeof import("discord.js");
+} from "discord.js";
 
 import defaultRequireGuildAdminModule from "./adminPermissionGuard.js";
 const defaultRequireGuildAdmin = defaultRequireGuildAdminModule as DefaultRequireGuildAdmin;
@@ -82,7 +80,7 @@ export function isAccessCodeLocked(interaction: AdminGuardInteraction): boolean 
   return Boolean(activeFailureState(accessFailureKey(interaction), Date.now())?.lockedUntil);
 }
 
-export async function promptGlobalAccessCode(target: AdminCommandGuardContext, interaction: AdminGuardInteraction): Promise<AdminGuardInteraction | null> {
+export async function promptGlobalAccessCode<T extends AdminGuardInteraction>(target: AdminCommandGuardContext, interaction: T): Promise<T | null> {
   if (isAccessCodeLocked(interaction)) {
     await replyEphemeral(interaction, "Access denied.");
     return null;
