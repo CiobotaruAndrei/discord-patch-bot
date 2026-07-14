@@ -1,6 +1,6 @@
 "use strict";
 
-import type { EnqueueOutboxJobInput, OutboxJob, OutboxRuntimeDeps } from "./outboxTypes.js";
+import type { EnqueueOutboxJobInput, OutboxJob, OutboxLeaseToken, OutboxRuntimeDeps } from "./outboxTypes.js";
 
 export function createOutboxRepository({ NotificationOutboxModel, NotificationOutboxSentModel, withMongoRetry }: Omit<OutboxRuntimeDeps, "logger">) {
   async function alreadySent(dedupeKey: string): Promise<boolean> {
@@ -58,34 +58,44 @@ export function createOutboxRepository({ NotificationOutboxModel, NotificationOu
       },
       {
         $set: { lockedUntil: new Date(now.getTime() + leaseMs), lockedBy: workerId, status: "leased", statusChangedAt: now },
-        $inc: { deliveries: 1 }
+        $inc: { deliveries: 1, leaseVersion: 1 }
       },
       { sort: { availableAt: 1 }, new: true }
     );
   }
 
-  async function deleteJob(id: unknown): Promise<void> {
-    await NotificationOutboxModel.deleteOne({ _id: id });
+  function leaseGuard(lease: OutboxLeaseToken): Record<string, unknown> {
+    const filter: Record<string, unknown> = { _id: lease._id };
+    if (lease.lockedBy !== undefined && lease.lockedBy !== null) filter.lockedBy = lease.lockedBy;
+    if (lease.leaseVersion !== undefined) filter.leaseVersion = lease.leaseVersion;
+    return filter;
   }
 
-  async function finalizeJob(id: unknown, status: "delivered" | "dead-lettered" | "dropped", now: Date): Promise<void> {
-    await NotificationOutboxModel.updateOne(
-      { _id: id },
+  async function deleteJob(lease: OutboxLeaseToken): Promise<number> {
+    const res = await NotificationOutboxModel.deleteOne(leaseGuard(lease));
+    return res?.deletedCount ?? 0;
+  }
+
+  async function finalizeJob(lease: OutboxLeaseToken, status: "delivered" | "dead-lettered" | "dropped", now: Date): Promise<number> {
+    const res = await NotificationOutboxModel.updateOne(
+      leaseGuard(lease),
       {
         $set: { status, statusChangedAt: now },
         $unset: { lockedUntil: "", lockedBy: "" }
       }
     );
+    return res?.modifiedCount ?? 0;
   }
 
-  async function scheduleRetry(id: unknown, attempts: number, availableAt: Date): Promise<void> {
-    await NotificationOutboxModel.updateOne(
-      { _id: id },
+  async function scheduleRetry(lease: OutboxLeaseToken, attempts: number, availableAt: Date): Promise<number> {
+    const res = await NotificationOutboxModel.updateOne(
+      leaseGuard(lease),
       {
         $set: { attempts, availableAt, status: "queued", statusChangedAt: new Date() },
         $unset: { lockedUntil: "", lockedBy: "" }
       }
     );
+    return res?.modifiedCount ?? 0;
   }
 
   async function oldestJobAgeMs(now: Date): Promise<number> {

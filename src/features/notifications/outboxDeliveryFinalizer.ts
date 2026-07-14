@@ -1,6 +1,6 @@
 "use strict";
 
-import type { DeliverResult, OutboxHistoryEntry, OutboxJob, OutboxLogger } from "./outboxTypes.js";
+import type { DeliverResult, OutboxHistoryEntry, OutboxJob, OutboxLeaseToken, OutboxLogger } from "./outboxTypes.js";
 
 import { errorMessage } from "../../shared/errors.js";
 
@@ -9,7 +9,7 @@ export interface OutboxDeliveryFinalizerDeps {
   recordSentHistory?: (guildId: string, entries: OutboxHistoryEntry[]) => Promise<void>;
   markSent(dedupeKey: string | undefined): Promise<boolean>;
   recordDeadLetterBeforeDelete(job: OutboxJob, reason: string): Promise<void>;
-  finalizeDelivered(id: unknown): Promise<boolean>;
+  finalizeDelivered(lease: OutboxLeaseToken): Promise<boolean>;
   logger: OutboxLogger;
 }
 
@@ -58,7 +58,7 @@ export function createOutboxDeliveryFinalizer({ deliver, recordSentHistory, mark
     if (markSentFailed) {
       await recordDeadLetterBeforeDelete(job, "delivered-marksent-failed");
     }
-    await finalizeDelivered(job._id);
+    await finalizeDelivered(job);
     return {
       stopDrain: markSentFailed,
       markSentFailed,

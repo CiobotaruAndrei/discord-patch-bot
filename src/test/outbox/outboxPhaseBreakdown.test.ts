@@ -16,14 +16,14 @@ function makeMockModels(): { models: OutboxLoadModels; calls: Record<string, num
         return { guildId: "g", channelId: "c", kind: "update", payload: {}, attempts: 0, _id: id, dedupeKey: `k-${id}` };
       },
       find: () => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) }),
-      deleteOne: async () => { calls.deleteOne++; return undefined; },
+      deleteOne: async () => { calls.deleteOne++; return { deletedCount: 1 }; },
       deleteMany: async () => undefined,
-      updateOne: async () => undefined,
+      updateOne: async () => ({ modifiedCount: 1 }),
       countDocuments: async () => 0
     },
     sentModel: {
       exists: async () => { calls.exists++; return null; },
-      updateOne: async () => { calls.updateOne++; return undefined; },
+      updateOne: async () => { calls.updateOne++; return { modifiedCount: 1 }; },
       deleteMany: async () => undefined
     }
   };

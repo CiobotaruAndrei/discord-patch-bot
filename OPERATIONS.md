@@ -377,6 +377,17 @@ Daca preferi sa nu re-trimiti, pastreaza intrarile pentru audit pana la expirare
 Drenarea proceseaza fiecare job in pasi expliciti: **claim** (lease atomic) -> **validate**
 (dedupe pe `notificationOutboxSent`, expirare aproape de TTL, abonarea guild-ului, apoi forma
 payload-ului) -> **deliver** -> **markSent** -> **delete** (sau **retry** cu backoff / **dead-letter**).
+
+**Proprietarul lease-ului (compare-and-set).** La claim, `findOneAndUpdate` seteaza `lockedBy`
+(id-ul workerului) si incrementeaza `leaseVersion` (`$inc`), iar jobul revendicat poarta aceste
+valori ca token de lease. TOATE tranzitiile ulterioare (`finalizeJob`, `scheduleRetry`, `deleteJob`)
+filtreaza compare-and-set pe `{ _id, lockedBy, leaseVersion }` si verifica `modifiedCount`: daca
+lease-ul a expirat si alt worker a reclamat jobul intre timp (alt `leaseVersion`), tranzitia
+matcheaza 0 documente si NU suprascrie starea noului proprietar. Cazul e semnalat prin
+`leaseLost` in rezultatul de drain + un log WARN. Astfel un drain lent nu mai poate finaliza sau
+reprograma jobul unui alt worker (marker-ul de dedupe din `notificationOutboxSent` previne oricum
+livrarea dubla). `leaseVersion` nu necesita migrare: `$inc` pe un camp lipsa il aduce la 1 la primul
+claim, iar docurile noi au default 0.
 Pasul de validare muta in dead-letter, cu motivul `invalid-payload` (terminal, fara retry), joburile
 al caror payload nu mai e un obiect trimisibil (ex. corupt la replay/serializare: `null`, string,
 array) — un astfel de job nu ar putea fi livrat niciodata si altfel ar consuma incercari degeaba;

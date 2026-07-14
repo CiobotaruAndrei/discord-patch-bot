@@ -21,7 +21,10 @@ export function makeFakeModel(jobs: OutboxJob[], initialSent: string[] = [], enf
     },
     findOneAndUpdate: async (filter: unknown, update: unknown) => {
       claims.push({ filter, update });
-      return pending.shift() ?? null;
+      const job = pending.shift();
+      if (!job) return null;
+      const set = (update as { $set?: { lockedBy?: string; status?: string; lockedUntil?: Date } }).$set || {};
+      return { ...job, lockedBy: set.lockedBy, status: set.status, lockedUntil: set.lockedUntil, leaseVersion: (job.leaseVersion ?? 0) + 1 };
     },
     find: (_filter: unknown) => ({
       sort: (_spec: unknown) => ({
@@ -31,7 +34,7 @@ export function makeFakeModel(jobs: OutboxJob[], initialSent: string[] = [], enf
       })
     }),
     deleteOne: async (filter: unknown) => { deleted.push(filter); return { deletedCount: 1 }; },
-    updateOne: async (filter: unknown, update: unknown) => { updated.push({ filter, update }); return { matchedCount: 1 }; },
+    updateOne: async (filter: unknown, update: unknown) => { updated.push({ filter, update }); return { matchedCount: 1, modifiedCount: 1 }; },
     countDocuments: async () => {
       const terminal = new Set(updated
         .filter(u => {

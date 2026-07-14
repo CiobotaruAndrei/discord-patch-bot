@@ -35,7 +35,7 @@ function makeInMemoryModels(): OutboxLoadModels & { jobs: JobDoc[] } {
       const job = jobs.find(j => j._id === filter?._id);
       if (job && update.$set) Object.assign(job, update.$set);
       if (job && update.$unset) for (const key of Object.keys(update.$unset)) delete (job as Record<string, unknown>)[key];
-      return { matchedCount: job ? 1 : 0 };
+      return { matchedCount: job ? 1 : 0, modifiedCount: job ? 1 : 0 };
     },
     countDocuments: async () => jobs.filter(j => !["delivered", "dead-lettered", "dropped"].includes(String(j.status ?? ""))).length
   };

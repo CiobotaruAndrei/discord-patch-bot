@@ -233,7 +233,7 @@ test("drainOutbox: esecul de marcare in istoric opreste drain-ul curent dupa job
       if (status && ["delivered", "dead-lettered", "dropped"].includes(status)) {
         finalizedTerminal.push({ id: (filter as { _id?: unknown })._id, status });
       }
-      return { matchedCount: 1 };
+      return { matchedCount: 1, modifiedCount: 1 };
     },
     countDocuments: async () => 0
   };

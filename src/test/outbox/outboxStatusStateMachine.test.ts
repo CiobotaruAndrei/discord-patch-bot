@@ -38,19 +38,21 @@ test("finalizeJob scrie statusul terminal + statusChangedAt si elibereaza lease-
   const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0 };
   const { repository, fake } = makeRepo([job]);
   const now = new Date("2026-07-13T11:00:00Z");
-  await repository.finalizeJob("j1", "delivered", now);
+  await repository.finalizeJob({ _id: "j1", lockedBy: "w1", leaseVersion: 3 }, "delivered", now);
   assert.equal(fake.updated.length, 1, "finalizarea e UN singur updateOne (atomic pe document)");
   const update = fake.updated[0].update as { $set: { status: string; statusChangedAt: Date }; $unset: Record<string, string> };
   assert.equal(update.$set.status, "delivered");
   assert.equal(update.$set.statusChangedAt.getTime(), now.getTime());
   assert.deepEqual(Object.keys(update.$unset).sort(), ["lockedBy", "lockedUntil"], "lease-ul e eliberat in acelasi update");
+  assert.deepEqual(fake.updated[0].filter, { _id: "j1", lockedBy: "w1", leaseVersion: 3 }, "finalizarea e compare-and-set pe proprietarul lease-ului (nu doar _id)");
 });
 
 test("scheduleRetry readuce jobul in queued (tranzitie explicita, nu doar unset de lock)", async () => {
   const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0 };
   const { repository, fake } = makeRepo([job]);
-  await repository.scheduleRetry("j1", 2, new Date());
+  await repository.scheduleRetry({ _id: "j1", lockedBy: "w1", leaseVersion: 3 }, 2, new Date());
   const update = fake.updated[0].update as { $set: { status: string; attempts: number } };
   assert.equal(update.$set.status, "queued");
   assert.equal(update.$set.attempts, 2);
+  assert.deepEqual(fake.updated[0].filter, { _id: "j1", lockedBy: "w1", leaseVersion: 3 }, "reprogramarea e compare-and-set pe proprietarul lease-ului");
 });
