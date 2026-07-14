@@ -10,6 +10,7 @@ import type {
 } from "../../types.js";
 import type { UpdatesApi } from "../sourceApis.js";
 import type { HttpReq, RssParserLike, RunConcurrent, SchemaDriftErrorClass, TrackInflight, WithInflightTimeout } from "./updateHelpers.js";
+import type { CircuitBreakerStore } from "./circuitBreakerStore.js";
 
 export interface CircuitBreakerDoc {
   _id: string;
@@ -27,7 +28,7 @@ export interface CircuitBreakerModelLike {
 
 export interface UpdatesDeps {
   rssParser: RssParserLike;
-  CircuitBreakerModel: CircuitBreakerModelLike;
+  circuitBreakerStore: CircuitBreakerStore;
   logger: LoggerFunction;
   adminAlert: (kind: string, title: string, body: string) => Promise<void>;
   runConcurrent: RunConcurrent;
