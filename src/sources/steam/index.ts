@@ -35,7 +35,7 @@ interface SteamSourceDeps {
   safeCheerioLoad: CheerioLoader;
 }
 
-type SteamSourceContext = SteamSourceDeps & Record<string, unknown>;
+type SteamSourceContext = SteamSourceDeps & Partial<SteamSourceApi>;
 
 function chooseBestSteamMatch(
   items: SteamSearchItem[] | null | undefined,

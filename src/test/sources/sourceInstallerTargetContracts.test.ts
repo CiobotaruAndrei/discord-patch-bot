@@ -9,9 +9,13 @@ function readSource(relativePath: string): string {
   return fs.readFileSync(path.join(srcRoot, relativePath), "utf8");
 }
 
-test("deals si updates isi limiteaza target-ul installer-ului la deps plus api partial", () => {
+test("steam, deals si updates isi limiteaza target-ul installer-ului la deps plus api partial (fara Record dinamic)", () => {
+  const steam = readSource("sources/steam/index.ts");
   const deals = readSource("sources/deals/index.ts");
   const updates = readSource("sources/updates/updatesContracts.ts");
+
+  assert.ok(!steam.includes("SteamSourceDeps & Record<string, unknown>"));
+  assert.match(steam, /type SteamSourceContext = SteamSourceDeps & Partial<SteamSourceApi>/);
 
   assert.ok(!deals.includes("DealsDeps & Record<string, unknown>"));
   assert.match(deals, /type DealsContext = DealsDeps & Partial<DealsApi>/);
