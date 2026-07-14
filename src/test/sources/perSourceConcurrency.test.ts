@@ -27,7 +27,7 @@ function makeUpdatesContext() {
   const runCalls: RunCall[] = [];
   const context: UpdatesContext = {
     rssParser: { parseString: async () => ({ items: [] }) },
-    CircuitBreakerModel: {} as UpdatesContext["CircuitBreakerModel"],
+    circuitBreakerStore: {} as UpdatesContext["circuitBreakerStore"],
     logger: () => undefined,
     adminAlert: async () => undefined,
     runConcurrent: async (items, concurrency, fn) => {

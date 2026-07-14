@@ -5,6 +5,7 @@ import * as cheerio from "cheerio";
 import Parser from "rss-parser";
 import crypto from "crypto";
 import mongoContext from "../infra/mongo/mongoContext.js";
+import { createCircuitBreakerStore } from "./updates/circuitBreakerStore.js";
 
 const {
   env,
@@ -32,5 +33,5 @@ export default {
   runConcurrent,
   adminAlert,
   SchemaDriftError,
-  CircuitBreakerModel
+  circuitBreakerStore: createCircuitBreakerStore(CircuitBreakerModel)
 };

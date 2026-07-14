@@ -5,7 +5,8 @@ import { load as cheerioLoad } from "cheerio";
 import type { GameConfig, NormalizedUpdate } from "../../types.js";
 import { createUpdatesCircuitBreaker } from "../../sources/updates/updatesCircuitBreaker.js";
 import { createUpdatesSourceDispatch } from "../../sources/updates/updatesSourceDispatch.js";
-import type { CircuitBreakerDoc, UpdatesDeps } from "../../sources/updates/updatesContracts.js";
+import type { CircuitBreakerDoc, CircuitBreakerModelLike, UpdatesDeps } from "../../sources/updates/updatesContracts.js";
+import { createCircuitBreakerStore } from "../../sources/updates/circuitBreakerStore.js";
 
 class TestSchemaDriftError extends Error {
   source?: string;
@@ -22,7 +23,7 @@ function makeUpdate(id: string): NormalizedUpdate {
 function makeCbModel(initial: Partial<CircuitBreakerDoc> = {}) {
   const doc: CircuitBreakerDoc & { fails: number; schemaDriftFails: number } = { _id: "g", fails: 0, cooldownUntil: null, alertSent: false, schemaDriftFails: 0, schemaDriftAlertSent: false, ...initial };
   const updates: Array<Record<string, unknown>> = [];
-  const model = Object.assign({} as UpdatesDeps["CircuitBreakerModel"], {
+  const model = Object.assign({} as CircuitBreakerModelLike, {
     findOneAndUpdate: async (_filter: unknown, update: { $inc?: Record<string, number> }) => {
       if (update.$inc?.fails) doc.fails += update.$inc.fails;
       if (update.$inc?.schemaDriftFails) doc.schemaDriftFails += update.$inc.schemaDriftFails;
@@ -38,14 +39,14 @@ function makeCbModel(initial: Partial<CircuitBreakerDoc> = {}) {
 
 const httpMetrics = { fetchSuccess: 0, fetchFail: 0 };
 
-function makeDeps(cbModel: UpdatesDeps["CircuitBreakerModel"], overrides: Partial<UpdatesDeps> = {}): UpdatesDeps & { alerts: Array<{ kind: string }> } {
+function makeDeps(cbModel: CircuitBreakerModelLike, overrides: Partial<UpdatesDeps> = {}): UpdatesDeps & { alerts: Array<{ kind: string }> } {
   httpMetrics.fetchSuccess = 0;
   httpMetrics.fetchFail = 0;
   const alerts: Array<{ kind: string }> = [];
   return {
     alerts,
     rssParser: { parseString: async () => ({ items: [] }) },
-    CircuitBreakerModel: cbModel,
+    circuitBreakerStore: createCircuitBreakerStore(cbModel),
     logger: () => undefined,
     adminAlert: async (kind: string) => { alerts.push({ kind }); },
     runConcurrent: async () => ({ processed: 0, errors: [] }),

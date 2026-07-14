@@ -37,7 +37,7 @@ function createUpdates(d: UpdatesDeps): UpdatesApi {
 function buildUpdatesFrom(target: UpdatesContext) {
   return createUpdates({
     rssParser: target.rssParser,
-    CircuitBreakerModel: target.CircuitBreakerModel,
+    circuitBreakerStore: target.circuitBreakerStore,
     logger: target.logger,
     adminAlert: target.adminAlert,
     runConcurrent: target.runConcurrent,
