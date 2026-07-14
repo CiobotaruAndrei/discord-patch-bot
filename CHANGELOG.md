@@ -6,6 +6,13 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+- Jurnalul operational foloseste versiuni monotone per resursa, schema versionata, heartbeat, retry limitat si recovery periodic.
+- Outbox-ul protejeaza si prioritizeaza finalizarea `delivered-pending`, inclusiv prin index TTL partial.
+- Configuratia jocurilor este normalizata prin scheme Zod discriminate per tip de sursa.
+- Fuzzy matching si autocomplete raman TypeScript-primary conform benchmark-urilor.
+- Feed-urile de fallback resping timestamp-uri viitoare si snapshot-uri partial corupte, dar accepta feed-uri goale valide.
+- Shutdown-ul asteapta task-urile periodice active cu timeout.
+
 ### Changed
 
 - **Dependintele runtime ale comenzilor sunt impartite pe granite explicite.** `CommandRuntimeDependencies` separa legaturile Discord, Mongo, surse si platforma. Selectoarele expun numai capabilitatile folosite de stratul de comenzi, iar adaptorul plat a ramas doar la marginea de compatibilitate. Registrul de handler-e este declarativ: descriptorii contin identitatea, domeniul si factory-ul fiecarui handler, verifica ID-urile duplicate si reprezinta sursa unica pentru ordinea de dispatch.

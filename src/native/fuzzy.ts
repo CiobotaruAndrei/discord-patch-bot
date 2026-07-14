@@ -1,5 +1,5 @@
 import type { DealInfo, GameConfig, GuildSettings } from "../types.js";
-import type { NativeAutocompleteChoice, NativeFuzzyModule, NativeGameCandidate } from "./fuzzyNativeBridge.js";
+import type { NativeAutocompleteChoice, NativeFuzzyModule } from "./fuzzyNativeBridge.js";
 import {
   ensureNativeFuzzy,
   getNativeFuzzy,
@@ -102,14 +102,6 @@ export function scoreListingCandidate(href: unknown, text: unknown, keywords: un
   return scoreListingCandidateFallback(href, text, keywords);
 }
 
-function toNativeGameCandidates(games: GameConfig[]): NativeGameCandidate[] {
-  return games.map(game => ({
-    key: String(game.key),
-    name: String(game.name),
-    aliases: Array.isArray(game.aliases) ? game.aliases.map(alias => String(alias)) : []
-  }));
-}
-
 export function buildAutocompleteChoices(
   games: GameConfig[],
   input: string,
@@ -119,17 +111,6 @@ export function buildAutocompleteChoices(
   maxNameLen: number,
   maxValueLen: number
 ): NativeAutocompleteChoice[] {
-  const native = loadNativeFuzzy();
-  if (native) {
-    const fn = typeof native.buildAutocompleteChoices === "function" ? native.buildAutocompleteChoices : native.build_autocomplete_choices;
-    if (typeof fn === "function") {
-      try {
-        const result = fn.call(native, toNativeGameCandidates(games), input, useNameAsValue, minRelevantScore, maxChoices, maxNameLen, maxValueLen);
-        if (Array.isArray(result)) return result;
-        recordNativeFallback("buildAutocompleteChoices", new Error("rezultat nativ invalid pentru buildAutocompleteChoices"));
-      } catch (err) { recordNativeFallback("buildAutocompleteChoices", err); }
-    }
-  }
   return buildAutocompleteChoicesFallback(games, input, useNameAsValue, minRelevantScore, maxChoices, maxNameLen, maxValueLen);
 }
 
@@ -212,21 +193,5 @@ export function dealHash(deal: DealInfo): string {
 
 export function findGameKeys(text: unknown, games: GameConfig[], maxInput: number): FuzzyMatchKeys {
   const rawText = String(text ?? "");
-  const native = loadNativeFuzzy();
-  if (native) {
-    const fn = typeof native.findGameKeys === "function" ? native.findGameKeys : native.find_game_keys;
-    if (typeof fn === "function") {
-      try {
-        const result = fn.call(native, rawText, toNativeGameCandidates(games), maxInput) as { gameKey?: unknown; suggestionKey?: unknown } | null;
-        if (result && typeof result === "object") {
-          return {
-            gameKey: typeof result.gameKey === "string" ? result.gameKey : null,
-            suggestionKey: typeof result.suggestionKey === "string" ? result.suggestionKey : null
-          };
-        }
-        recordNativeFallback("findGameKeys", new Error("rezultat nativ invalid pentru findGameKeys"));
-      } catch (err) { recordNativeFallback("findGameKeys", err); }
-    }
-  }
   return findGameKeysFallback(rawText, games, maxInput);
 }

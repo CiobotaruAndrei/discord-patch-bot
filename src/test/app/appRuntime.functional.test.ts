@@ -45,7 +45,7 @@ function makeDeps(overrides: { updatesFetchedAt?: Date } = {}) {
     loadConfig: () => ({ config: { games: [] }, games: [], configPath: "test-config.json" }),
     createMetrics,
     createRateLimiter: () => ({ check: () => true, prune: () => undefined, size: 0, retryAfterSeconds: 1 }),
-    createHousekeeping: () => ({ start: () => order.push("housekeeping"), stop: () => undefined }),
+    createHousekeeping: () => ({ start: () => order.push("housekeeping"), stop: async () => undefined }),
     createCronController: () => ({
       scheduleNextCron: () => order.push("cron"),
       runCronCycle: async () => undefined,

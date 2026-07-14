@@ -6,6 +6,7 @@ process.env.DISCORD_TOKEN ||= "test_discord_token";
 process.env.DISCORD_CLIENT_ID ||= "test_discord_client_id";
 
 const commandRegistry = (await import("../../features/command-registry/commandRegistry.js")).default;
+const { createCommandHandlerDescriptors } = await import("../../features/command-registry/commandHandlerDescriptors.js");
 
 type CanHandle = (interaction: unknown) => boolean;
 
@@ -79,4 +80,17 @@ test("fiecare comanda slash e revendicata de un handler dedicat, nu de fallback 
     const claimed = dedicated.some(handler => (handler.canHandle as CanHandle)(probe));
     assert.equal(claimed, true, `${path.label} nu e revendicata de niciun handler dedicat — ar cadea pe fallback (comanda inregistrata la Discord fara implementare rutata)`);
   }
+});
+
+test("descriptorii sunt sursa declarativa completa pentru routing si prezentare", () => {
+  const descriptors = createCommandHandlerDescriptors();
+  assert.ok(descriptors.length > 30);
+  assert.deepEqual(descriptors.map(descriptor => descriptor.priority), descriptors.map((_, index) => index));
+  for (const descriptor of descriptors) {
+    assert.ok(descriptor.scope === "global" || descriptor.scope === "guild-only", `${descriptor.id}: scope`);
+    assert.ok(["public", "admin", "owner", "mixed"].includes(descriptor.access), `${descriptor.id}: access`);
+    assert.ok(Array.isArray(descriptor.help), `${descriptor.id}: help`);
+    assert.ok(Array.isArray(descriptor.autocomplete), `${descriptor.id}: autocomplete`);
+  }
+  assert.equal(descriptors.at(-1)?.id, "fallback");
 });

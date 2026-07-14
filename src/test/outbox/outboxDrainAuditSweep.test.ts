@@ -253,9 +253,9 @@ test("drainOutbox: sweep — joburi mai vechi decat maxAgeMs -> dead-letter (exp
   assert.equal(deadLetters.length, 2);
   assert.ok(deadLetters.every(d => d.reason === "expired-near-ttl"), "motivul de dead-letter este expired-near-ttl (audit, nu stergere tacuta)");
   assert.deepEqual(deleted.map(d => (d as { _id: string })._id), ["s1", "s2"], "joburile vechi sunt sterse dupa ce au fost dead-lettered");
-  assert.ok(deleted.every(d => Array.isArray((d as { $or?: unknown[] }).$or)), "stergerea include garda de lease (nu sterge un job revendicat intre timp)");
+  assert.ok(deleted.every(d => JSON.stringify(d).includes("lockedUntil")), "stergerea include garda de lease (nu sterge un job revendicat intre timp)");
   assert.ok(findFilters.some(f => f.createdAt && f.createdAt.$lte instanceof Date), "sweep-ul cauta joburi cu createdAt sub un cutoff");
-  assert.ok(findFilters.some(f => Array.isArray((f as { $or?: unknown[] }).$or)), "sweep-ul exclude joburile cu lease activ");
+  assert.ok(findFilters.some(f => JSON.stringify(f).includes("lockedUntil")), "sweep-ul exclude joburile cu lease activ");
 });
 
 test("drainOutbox: job revendicat mai vechi decat maxAgeMs e expirat INAINTE de deliver (nu se livreaza stale)", async () => {

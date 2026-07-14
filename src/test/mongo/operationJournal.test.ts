@@ -16,6 +16,9 @@ function valueMatches(value: unknown, condition: unknown): boolean {
   if ("$lte" in operators) {
     if (!(value instanceof Date) || !(operators.$lte instanceof Date) || value > operators.$lte) return false;
   }
+  if ("$lt" in operators && !(typeof value === "number" && typeof operators.$lt === "number" && value < operators.$lt)) return false;
+  if ("$gt" in operators && !(typeof value === "string" && typeof operators.$gt === "string" && value > operators.$gt)) return false;
+  if ("$in" in operators && !(Array.isArray(operators.$in) && operators.$in.includes(value))) return false;
   return true;
 }
 
@@ -49,6 +52,9 @@ function baseDoc(id: string): OperationJournalDoc {
     _id: id,
     kind: "",
     payload: null,
+    schemaVersion: 1,
+    resourceKey: id,
+    resourceVersion: "00000000000000000001",
     status: "pending",
     attempts: 0,
     leaseVersion: 0,
@@ -218,7 +224,7 @@ test("recoverPending poate prelua un lease expirat, dar nu unul activ", async ()
   assert.equal(model.docs.get("active")?.status, "leased");
 });
 
-test("kind necunoscut este refuzat la run si eliberat la recovery", async () => {
+test("kind necunoscut este refuzat la run si marcat failed la recovery", async () => {
   const model = fakeJournalModel();
   const journal = createOperationJournal({ JournalModel: model, logger: () => undefined, executors: {} });
   await assert.rejects(() => journal.runJournaled("k1", "necunoscut", {}), /nicio functie de executie/);
@@ -228,5 +234,55 @@ test("kind necunoscut este refuzat la run si eliberat la recovery", async () => 
   const journal2 = createOperationJournal({ JournalModel: model2, logger: () => undefined, executors: {} });
   const result = await journal2.recoverPending({ olderThanMs: 5 * 60 * 1000, limit: 10 });
   assert.equal(result.failed, 1);
-  assert.equal(model2.docs.get("k2")?.status, "pending");
+  assert.equal(model2.docs.get("k2")?.status, "failed");
+});
+
+test("recovery nu reaplica o operatie depasita peste aceeasi resursa", async () => {
+  const old = new Date(Date.now() - 10 * 60 * 1000);
+  const model = fakeJournalModel([
+    journalDoc({ _id: "old", kind: "reset", resourceKey: "guild:g1", resourceVersion: "0001", status: "pending", updatedAt: old }),
+    journalDoc({ _id: "new", kind: "reset", resourceKey: "guild:g1", resourceVersion: "0002", status: "done", updatedAt: new Date() })
+  ]);
+  let runs = 0;
+  const journal = createOperationJournal({ JournalModel: model, logger: () => undefined, executors: { reset: async () => { runs++; } } });
+  const result = await journal.recoverPending({ olderThanMs: 1000, limit: 10 });
+  assert.equal(runs, 0);
+  assert.equal(result.superseded, 1);
+  assert.equal(model.docs.get("old")?.status, "superseded");
+});
+
+test("recovery nu executa intrari legacy fara versiune de resursa", async () => {
+  const old = new Date(Date.now() - 10 * 60 * 1000);
+  const legacy = journalDoc({ _id: "legacy-resource", kind: "reset", status: "pending", updatedAt: old });
+  Reflect.deleteProperty(legacy, "resourceKey");
+  Reflect.deleteProperty(legacy, "resourceVersion");
+  const model = fakeJournalModel([legacy]);
+  let runs = 0;
+  const journal = createOperationJournal({
+    JournalModel: model,
+    logger: () => undefined,
+    executors: { reset: async () => { runs++; } }
+  });
+  const result = await journal.recoverPending({ olderThanMs: 1000, limit: 10 });
+  assert.equal(runs, 0);
+  assert.equal(result.failed, 1);
+  assert.equal(model.docs.get("legacy-resource")?.status, "failed");
+});
+
+test("recovery opreste retry-ul la numarul maxim de incercari", async () => {
+  const old = new Date(Date.now() - 10 * 60 * 1000);
+  const model = fakeJournalModel([journalDoc({ _id: "max", kind: "reset", attempts: 5, updatedAt: old })]);
+  const journal = createOperationJournal({ JournalModel: model, logger: () => undefined, maxAttempts: 5, executors: { reset: async () => undefined } });
+  const result = await journal.recoverPending({ olderThanMs: 1000, limit: 10 });
+  assert.equal(result.failed, 1);
+  assert.equal(model.docs.get("max")?.status, "failed");
+});
+
+test("recovery marcheaza payload-ul cu schema incompatibila ca failed", async () => {
+  const old = new Date(Date.now() - 10 * 60 * 1000);
+  const model = fakeJournalModel([journalDoc({ _id: "legacy", kind: "reset", schemaVersion: 1, updatedAt: old })]);
+  const journal = createOperationJournal({ JournalModel: model, logger: () => undefined, schemaVersions: { reset: 2 }, executors: { reset: async () => undefined } });
+  const result = await journal.recoverPending({ olderThanMs: 1000, limit: 10 });
+  assert.equal(result.failed, 1);
+  assert.equal(model.docs.get("legacy")?.status, "failed");
 });

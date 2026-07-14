@@ -8,7 +8,8 @@ export function makeFakeModel(jobs: OutboxJob[], initialSent: string[] = [], enf
   const created: Record<string, unknown>[] = [];
   const deleted: unknown[] = [];
   const updated: Array<{ filter: unknown; update: unknown }> = [];
-  const claims: Array<{ filter: unknown; update: unknown }> = [];
+  const claims: Array<{ filter: unknown; update: unknown; options: unknown }> = [];
+  const finds: unknown[] = [];
   const sentKeys = new Set<string>(initialSent);
   const pending = [...jobs];
   const model: OutboxModelMock = {
@@ -19,20 +20,22 @@ export function makeFakeModel(jobs: OutboxJob[], initialSent: string[] = [], enf
       created.push(doc);
       return doc;
     },
-    findOneAndUpdate: async (filter: unknown, update: unknown) => {
-      claims.push({ filter, update });
+    findOneAndUpdate: async (filter: unknown, update: unknown, options?: unknown) => {
+      claims.push({ filter, update, options });
       const job = pending.shift();
       if (!job) return null;
       const set = (update as { $set?: { lockedBy?: string; status?: string; lockedUntil?: Date } }).$set || {};
       return { ...job, lockedBy: set.lockedBy, status: set.status, lockedUntil: set.lockedUntil, leaseVersion: (job.leaseVersion ?? 0) + 1 };
     },
-    find: (_filter: unknown) => ({
+    find: (filter: unknown) => {
+      finds.push(filter);
+      return {
       sort: (_spec: unknown) => ({
         limit: (_count: number) => ({
           lean: async () => jobs.slice(0, 1)
         })
       })
-    }),
+    }; },
     deleteOne: async (filter: unknown) => { deleted.push(filter); return { deletedCount: 1 }; },
     updateOne: async (filter: unknown, update: unknown) => { updated.push({ filter, update }); return { matchedCount: 1, modifiedCount: 1 }; },
     countDocuments: async () => {
@@ -53,7 +56,7 @@ export function makeFakeModel(jobs: OutboxJob[], initialSent: string[] = [], enf
     .map(u => ({ u, set: (u.update as { $set?: { status?: string } }).$set }))
     .filter(x => typeof x.set?.status === "string" && ["delivered", "dead-lettered", "dropped"].includes(String(x.set.status)))
     .map(x => ({ id: (x.u.filter as { _id?: unknown })._id, status: String(x.set?.status) }));
-  return { model, sentModel, created, deleted, updated, claims, sentKeys, finalized };
+  return { model, sentModel, created, deleted, updated, claims, finds, sentKeys, finalized };
 }
 
 export function makeRuntime(jobs: OutboxJob[], initialSent: string[] = [], enforceUniqueDedupe = false) {

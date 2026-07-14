@@ -1,13 +1,6 @@
-export type GameType =
-  | "steam"
-  | "minecraft"
-  | "epic_games"
-  | "roblox"
-  | "listing_based"
-  | "nvidia"
-  | "amd"
-  | "intel"
-  | "rss";
+import type { NormalizedGameConfig, NormalizedGameSourceFallback } from "./gameConfigSchemas.js";
+
+export type GameType = NormalizedGameConfig["type"];
 
 export interface GameSourceFallback {
   type: GameType;
@@ -32,16 +25,17 @@ export interface GameConfig {
   aliases?: string[];
   upCRD?: 0 | 1;
   fallbacks?: GameSourceFallback[];
-  [key: string]: unknown;
 }
 
 export interface BotConfig {
   checkIntervalMinutes?: number;
-  games: GameConfig[];
+  games: NormalizedGameConfig[];
 }
 
 export interface ConfigLoadResult {
   config: BotConfig;
-  games: GameConfig[];
+  games: NormalizedGameConfig[];
   configPath: string;
 }
+
+export type { NormalizedGameConfig, NormalizedGameSourceFallback } from "./gameConfigSchemas.js";

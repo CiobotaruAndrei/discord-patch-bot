@@ -28,8 +28,13 @@ const UNCURATED_SOURCE_ABSENT = [
   "stableUpdateId", "normalizeUpdate", "absoluteUrl", "isGoodSteamArticleUrl", "sourceConcurrencyGroup"
 ];
 
+function flattenedKeysForAssertions(): Record<string, unknown> {
+  const dependencies = createCommandRuntimeContext();
+  return { ...dependencies.discord, ...dependencies.mongo, ...dependencies.sources, ...dependencies.platform };
+}
+
 test("commandRuntimeContext expune contractul curat de comenzi (review 16-iteme #4)", () => {
-  const ctx = createCommandRuntimeContext() as Record<string, unknown>;
+  const ctx = flattenedKeysForAssertions();
   for (const key of CURATED_PRESENT) {
     assert.ok(key in ctx, `contextul de comenzi trebuie sa expuna campul curat ${key}`);
     assert.notEqual(ctx[key], undefined, `campul curat ${key} nu trebuie sa fie undefined`);
@@ -37,14 +42,14 @@ test("commandRuntimeContext expune contractul curat de comenzi (review 16-iteme 
 });
 
 test("commandRuntimeContext NU mai scurge suprafata mongo neutilizata (fara ...data wholesale)", () => {
-  const ctx = createCommandRuntimeContext() as Record<string, unknown>;
+  const ctx = flattenedKeysForAssertions();
   for (const key of UNCURATED_MONGO_ABSENT) {
     assert.ok(!(key in ctx), `god-object regasit: campul mongo necuratat ${key} s-a scurs in contextul de comenzi`);
   }
 });
 
 test("commandRuntimeContext NU mai scurge suprafata surselor neutilizata (fara ...scrapers wholesale)", () => {
-  const ctx = createCommandRuntimeContext() as Record<string, unknown>;
+  const ctx = flattenedKeysForAssertions();
   for (const key of UNCURATED_SOURCE_ABSENT) {
     assert.ok(!(key in ctx), `god-object regasit: campul de surse necuratat ${key} s-a scurs in contextul de comenzi`);
   }

@@ -71,6 +71,8 @@ export type {
   GameType,
   GameSourceFallback,
   GameConfig,
+  NormalizedGameConfig,
+  NormalizedGameSourceFallback,
   BotConfig,
   ConfigLoadResult
 } from "./config/configTypes.js";

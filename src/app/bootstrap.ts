@@ -33,6 +33,7 @@ const {
 import commands from "../features/command-registry/commandRegistry.js";
 import * as scrapers from "../sources/sourceRegistry.js";
 import { createOperationJournalRuntime } from "../features/admin-records/operationJournalRuntime.js";
+import { createScheduledTaskRunner } from "./scheduler/scheduledTaskRunner.js";
 
 const operationJournal = createOperationJournalRuntime({
   OperationJournalModel, GuildModel, GuildAuditLogModel, GuildConfigBackupModel, GuildYoutubeErrorModel,
@@ -40,6 +41,11 @@ const operationJournal = createOperationJournalRuntime({
 });
 const OPERATION_JOURNAL_RECOVERY_MIN_AGE_MS = 5 * 60 * 1000;
 const OPERATION_JOURNAL_RECOVERY_LIMIT = 100;
+const OPERATION_JOURNAL_RECOVERY_INTERVAL_MS = 60 * 1000;
+const operationJournalRecovery = createScheduledTaskRunner({
+  intervalMs: OPERATION_JOURNAL_RECOVERY_INTERVAL_MS,
+  task: async () => { await operationJournal.recoverPending({ olderThanMs: OPERATION_JOURNAL_RECOVERY_MIN_AGE_MS, limit: OPERATION_JOURNAL_RECOVERY_LIMIT }); }
+});
 
 function buildAppRuntime(role: BotRole): AppRuntime {
   return createAppRuntime({
@@ -55,7 +61,9 @@ function buildAppRuntime(role: BotRole): AppRuntime {
       getOutboxPaused, setAdminAlertDiscordClient
     },
     commands, scrapers,
-    recoverOperationJournal: () => operationJournal.recoverPending({ olderThanMs: OPERATION_JOURNAL_RECOVERY_MIN_AGE_MS, limit: OPERATION_JOURNAL_RECOVERY_LIMIT })
+    recoverOperationJournal: () => operationJournal.recoverPending({ olderThanMs: OPERATION_JOURNAL_RECOVERY_MIN_AGE_MS, limit: OPERATION_JOURNAL_RECOVERY_LIMIT }),
+    startOperationJournalRecovery: operationJournalRecovery.start,
+    stopOperationJournalRecovery: operationJournalRecovery.stop
   } satisfies AppRuntimeDeps);
 }
 

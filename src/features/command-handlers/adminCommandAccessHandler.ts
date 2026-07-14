@@ -9,7 +9,9 @@ import type { OperationJournalModelLike } from "../../infra/mongo/operationJourn
 import {
   ADMIN_ACCESS_DELETE_KIND,
   ADMIN_ACCESS_SAVE_KIND,
-  createOperationJournalRuntime
+  createOperationJournalRuntime,
+  journalResourceVersion,
+  OPERATION_PAYLOAD_SCHEMA_VERSION
 } from "../admin-records/operationJournalRuntime.js";
 import {
   buildAdminCommandAccessScopeLookupKeys,
@@ -157,6 +159,10 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
         action: "admin_access_set",
         details: `${displayAdminCommandAccessScope(scope)}: ${labelMode(mode)} <@&${role.id}>`
       }
+    }, {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      resourceKey: `admin-access:${guildId}:${scope}`,
+      resourceVersion: journalResourceVersion(interaction.id)
     });
     return safeEdit(interaction, `OK: ${displayAdminCommandAccessScope(scope)} poate fi folosita de Administrator si de ${labelMode(mode)}: <@&${role.id}>.`);
   }
@@ -184,6 +190,10 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
         action: "admin_access_delete",
         details: displayAdminCommandAccessScope(scope)
       }
+    }, {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      resourceKey: `admin-access:${guildId}:${scope}`,
+      resourceVersion: journalResourceVersion(interaction.id)
     });
     return safeEdit(interaction, `OK: regula de rol pentru ${displayAdminCommandAccessScope(scope)} a fost stearsa. Ramane accesul implicit: Administrator sau cod global de acces.`);
   }

@@ -9,7 +9,7 @@ import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository
 import type { YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository.js";
 import type { DeadLetterModelLike } from "../notifications/deadLetterRepository.js";
 import type { OperationJournalModelLike } from "../../infra/mongo/operationJournal.js";
-import { createOperationJournalRuntime, RESET_CONFIG_KIND } from "../admin-records/operationJournalRuntime.js";
+import { createOperationJournalRuntime, journalResourceVersion, OPERATION_PAYLOAD_SCHEMA_VERSION, RESET_CONFIG_KIND } from "../admin-records/operationJournalRuntime.js";
 
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
@@ -92,6 +92,10 @@ function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps)
         action: "reset_config",
         details: "Configuratia serverului a fost resetata la valorile implicite"
       }
+    }, {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      resourceKey: `guild-config:${guildId}`,
+      resourceVersion: journalResourceVersion(interaction.id)
     });
     return safeEdit(interaction, "OK: configuratia serverului a fost resetata la valorile implicite. Lista dead-letter si payload-urile de replay au fost sterse; istoricul rapoartelor si al notificarilor livrate nu a fost sters.");
   }

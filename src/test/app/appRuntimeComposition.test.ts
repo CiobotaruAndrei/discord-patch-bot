@@ -1,30 +1,38 @@
-import { fileURLToPath as __fileURLToPath } from "node:url";
-import { dirname as __pathDirname } from "node:path";
-const __filename = __fileURLToPath(import.meta.url);
-const __dirname = __pathDirname(__filename);
 import test from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
+import { connectMongoWithRetry, hydrateStartupCaches } from "../../app/appRuntime.js";
+import type { DealInfo, FetchResult } from "../../types.js";
 
-const appRoot = path.join(__dirname, "..", "..", "..", "app");
-
-test("appRuntime ramane composition root fara implementarea fazelor de boot", () => {
-  const source = fs.readFileSync(path.join(appRoot, "appRuntime.ts"), "utf8");
-  assert.match(source, /runtime\/bootSequence/);
-  assert.match(source, /runtime\/runtimeServices/);
-  assert.match(source, /runtime\/runtimeSchedulers/);
-  assert.doesNotMatch(source, /async function connectMongoWithRetry/);
-  assert.doesNotMatch(source, /function createRuntimeServices/);
-  assert.doesNotMatch(source, /function createSchedulers/);
+test("composition root transmite configuratia Mongo catre faza de conectare", async () => {
+  const calls: Array<{ uri: string; maxPoolSize?: number }> = [];
+  await connectMongoWithRetry({
+    mongoose: { connect: async (uri, options) => { calls.push({ uri, maxPoolSize: options?.maxPoolSize }); return undefined; } },
+    errorMessage: error => String(error),
+    mongo: { logger: () => undefined, env: { MONGO_URI: "mongodb://runtime", MONGO_MAX_POOL_SIZE: 17 } }
+  });
+  assert.deepEqual(calls, [{ uri: "mongodb://runtime", maxPoolSize: 17 }]);
 });
 
-test("modulele runtime contin responsabilitatile mutate din composition root", () => {
-  const boot = fs.readFileSync(path.join(appRoot, "runtime", "bootSequence.ts"), "utf8");
-  const services = fs.readFileSync(path.join(appRoot, "runtime", "runtimeServices.ts"), "utf8");
-  const schedulers = fs.readFileSync(path.join(appRoot, "runtime", "runtimeSchedulers.ts"), "utf8");
-  assert.match(boot, /async function connectMongoWithRetry/);
-  assert.match(services, /function createRuntimeServices/);
-  assert.match(schedulers, /function createSchedulers/);
+test("composition root hidrateaza numai snapshot-urile proaspete prin contractele injectate", async () => {
+  const now = Date.now();
+  const updates: FetchResult[] = [];
+  const deals: DealInfo[] = [];
+  const hydratedUpdates: Array<FetchResult[] | null> = [];
+  const hydratedDeals: Array<{ currency: string; payload: DealInfo[] }> = [];
+  await hydrateStartupCaches({
+    commands: {
+      setUpdatesCache: payload => { hydratedUpdates.push(payload); },
+      setDealsCache: (currency, payload) => { hydratedDeals.push({ currency, payload }); }
+    },
+    mongo: {
+      logger: () => undefined,
+      loadFetchSnapshot: async () => ({ payload: updates, fetchedAt: new Date(now - 1000) }),
+      loadDealsFetchSnapshots: async () => [
+        { currency: "EUR", payload: deals, fetchedAt: new Date(now - 1000) },
+        { currency: "USD", payload: deals, fetchedAt: new Date(now - 60 * 60 * 1000) }
+      ]
+    }
+  });
+  assert.deepEqual(hydratedUpdates, [updates]);
+  assert.deepEqual(hydratedDeals, [{ currency: "EUR", payload: deals }]);
 });
-

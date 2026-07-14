@@ -91,8 +91,6 @@ export interface CommandRuntimeDependencies {
   platform: CommandPlatformDependencies;
 }
 
-export type CommandRuntimeContext = DiscordRuntimeBindings & CommandMongoDependencies & CommandSourceDependencies & CommandPlatformDependencies;
-
 export function createDiscordRuntimeBindings(): DiscordRuntimeBindings {
   return {
     crypto,
@@ -232,14 +230,5 @@ export function createCommandRuntimeDependencies(): CommandRuntimeDependencies {
       checkChannelPermissions,
       redis
     }
-  };
-}
-
-export function flattenCommandRuntimeDependencies(dependencies: CommandRuntimeDependencies): CommandRuntimeContext {
-  return {
-    ...dependencies.discord,
-    ...dependencies.mongo,
-    ...dependencies.sources,
-    ...dependencies.platform
   };
 }

@@ -11,14 +11,13 @@ function read(): string {
   return fs.readFileSync(readmePath, "utf8");
 }
 
-test("README descrie migrarea ca finalizata la nivel de factory-uri, cu granitele tiparii explicite", () => {
+test("README descrie compozitia runtime curenta, fara mecanisme eliminate", () => {
   const text = read();
   assert.doesNotMatch(text, /intr-o migrare controlata/i,
     "README nu mai trebuie sa prezinte arhitectura ca o migrare in curs (formulare stale)");
-  assert.match(text, /migrarea[^.]*este \*\*finalizata la nivel de factory-uri\*\*/i,
-    "README afirma exact ce e finalizat (contractele de input ale factory-urilor), nu o curatenie totala");
-  assert.match(text, /granitele tiparii/i,
-    "README enumera explicit zonele ramase intentionat mai laxe (adaptoare, bag de wiring, payload-uri unknown)");
+  assert.match(text, /app\/runtimeComposition\.ts/, "README numeste composition root-ul neutru");
+  assert.match(text, /SourceRuntimeDeps/, "README documenteaza contractul injectat al surselor");
+  assert.doesNotMatch(text, /requireInstalled/, "README nu mai descrie garda eliminata");
   assert.doesNotMatch(text, /nu mai foloseste tipuri wildcard nesigure/i,
     "claim-ul absolut despre wildcard-uri (supra-declarare, review #4) nu mai trebuie sa apara");
 });
@@ -32,12 +31,11 @@ test("README documenteaza politica de imagini Docker si de rebuild (tag-uri muta
   assert.match(text, /apt-get upgrade/, "documenteaza patch-urile distro la build");
 });
 
-test("README descrie tiparul de factory cu deps explicit tipate si adaptorul subtire", () => {
+test("README descrie contractele grupate si registrul declarativ complet", () => {
   const text = read();
-  assert.match(text, /createX\(deps: XDeps\): XApi/, "documenteaza forma factory-ului tipat");
-  assert.match(text, /attachX\(target\)/, "documenteaza adaptorul subtire de compatibilitate");
-  assert.match(text, /CommandRuntime/, "mentioneaza contractele tipate de injectie la boot");
-  assert.match(text, /ScraperRuntime/, "mentioneaza ScraperRuntime");
+  assert.match(text, /CommandRuntimeDependencies/, "mentioneaza contractul grupat al comenzilor");
+  assert.match(text, /scope.*access.*help.*autocomplete.*priority/, "enumera metadatele descriptorului declarativ");
+  assert.match(text, /sourceRegistryFactory/, "documenteaza factory-ul pur al surselor");
 });
 
 test("README nu mai listeaza reducerea target-ului comun ca zona ramasa, ci ca exceptii intentionate", () => {

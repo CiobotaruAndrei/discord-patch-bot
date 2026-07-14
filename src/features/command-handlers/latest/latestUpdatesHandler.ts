@@ -1,12 +1,11 @@
 "use strict";
 
-import type { FetchResult, EmbeddableUpdate, InteractionMessage } from "../../../types.js";
+import type { FetchResult, EmbeddableUpdate, GameConfig, InteractionMessage } from "../../../types.js";
 
 import { errorMessage } from "../../../shared/errors.js";
 
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
 
-type GameConfig = { key: string; name: string } & Record<string, unknown>;
 type NotificationMode = "compact" | "detailed";
 
 interface DiscordInteraction {

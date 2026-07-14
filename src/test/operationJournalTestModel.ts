@@ -8,7 +8,12 @@ export function createOperationJournalTestModel(): OperationJournalModelLike {
   const rows = new Map<string, OperationJournalDoc>();
   return {
     findOne(filter) {
-      return { lean: async () => clone(rows.get(String(filter._id)) ?? null) };
+      return { lean: async () => {
+        if (filter._id !== undefined) return clone(rows.get(String(filter._id)) ?? null);
+        const resourceKey = filter.resourceKey;
+        const version = filter.resourceVersion as { $gt?: string } | undefined;
+        return clone(Array.from(rows.values()).find(row => row.resourceKey === resourceKey && typeof version?.$gt === "string" && row.resourceVersion > version.$gt) ?? null);
+      } };
     },
     findOneAndUpdate(filter, update) {
       return {

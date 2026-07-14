@@ -276,6 +276,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       },
       loadSnapshot: loadFetchSnapshot,
       maxSnapshotAgeMs: SNAPSHOT_FALLBACK_MAX_AGE_MS,
+      invalidSnapshotItemPolicy: "reject-snapshot",
       onFallback: error => logger("WARN", "CRON_UPDATES", "Fetch esuat; folosesc snapshot-ul recent din event store pentru dispatch", transientErrorMessage(error)),
       createUnavailableError: error => new Error(`Nu am putut prelua update-urile si nu exista snapshot de rezerva proaspat: ${transientErrorMessage(error)}`)
     });

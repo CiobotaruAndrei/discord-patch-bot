@@ -15,7 +15,7 @@ interface HousekeepingScrapers {
 
 interface HousekeepingController {
   start(): void;
-  stop(): void;
+  stop(): Promise<void>;
 }
 
 interface CreateHousekeepingDeps {
@@ -52,8 +52,8 @@ function createHousekeeping({
     logger("INFO", "HOUSEKEEPING", `Pornit interval=${env.HOUSEKEEPING_INTERVAL_MS}ms`);
   }
 
-  function stop(): void {
-    runner.stop();
+  async function stop(): Promise<void> {
+    await runner.stop();
   }
 
   return { start, stop };

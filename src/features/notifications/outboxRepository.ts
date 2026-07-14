@@ -46,6 +46,7 @@ export function createOutboxRepository({ NotificationOutboxModel, NotificationOu
   }
 
   const ACTIVE_STATUS_FILTER = { $or: [{ status: { $in: ["queued", "leased", "delivered-pending"] } }, { status: { $exists: false } }] };
+  const EXPIRABLE_STATUS_FILTER = { $or: [{ status: { $in: ["queued", "leased"] } }, { status: { $exists: false } }] };
 
   function claimNextJob(now: Date, leaseMs: number, workerId: string): Promise<OutboxJob | null> {
     return NotificationOutboxModel.findOneAndUpdate(
@@ -60,7 +61,7 @@ export function createOutboxRepository({ NotificationOutboxModel, NotificationOu
         $set: { lockedUntil: new Date(now.getTime() + leaseMs), lockedBy: workerId, status: "leased", statusChangedAt: now },
         $inc: { deliveries: 1, leaseVersion: 1 }
       },
-      { sort: { availableAt: 1 }, new: true }
+      { sort: { status: 1, availableAt: 1 }, new: true }
     );
   }
 
@@ -127,13 +128,13 @@ export function createOutboxRepository({ NotificationOutboxModel, NotificationOu
   }
 
   async function findStaleJobs(cutoff: Date, sweepNow: Date, limit: number): Promise<OutboxJob[]> {
-    const staleJobs = await NotificationOutboxModel.find({ createdAt: { $lte: cutoff }, $and: [ACTIVE_STATUS_FILTER, leaseFreeFilter(sweepNow)] })
+    const staleJobs = await NotificationOutboxModel.find({ createdAt: { $lte: cutoff }, $and: [EXPIRABLE_STATUS_FILTER, leaseFreeFilter(sweepNow)] })
       .sort({ createdAt: 1 }).limit(limit).lean().catch(() => [] as OutboxJob[]);
     return Array.isArray(staleJobs) ? staleJobs : [];
   }
 
   async function deleteStaleJobIfLeaseFree(id: unknown, sweepNow: Date): Promise<number> {
-    const del = await NotificationOutboxModel.deleteOne({ _id: id, ...leaseFreeFilter(sweepNow) });
+    const del = await NotificationOutboxModel.deleteOne({ _id: id, $and: [EXPIRABLE_STATUS_FILTER, leaseFreeFilter(sweepNow)] });
     return (del as { deletedCount?: number })?.deletedCount ?? 0;
   }
 

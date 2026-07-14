@@ -34,9 +34,17 @@ export function buildOutboxSchemas({ mongoose, ONE_DAY_MS, env }: OutboxSchemasD
     deliveryAcceptedAt: { type: Date, default: null },
     status: { type: String, enum: ["queued", "leased", "delivered-pending", "delivered", "dead-lettered", "dropped"], default: "queued" },
     statusChangedAt: { type: Date, default: Date.now },
-    createdAt: { type: Date, default: Date.now, expires: 7 * ONE_DAY_MS / 1000 }
+    createdAt: { type: Date, default: Date.now }
   }, { minimize: false });
   notificationOutboxSchema.index({ availableAt: 1, lockedUntil: 1 }, { background: true });
+  notificationOutboxSchema.index(
+    { createdAt: 1 },
+    {
+      background: true,
+      expireAfterSeconds: 7 * ONE_DAY_MS / 1000,
+      partialFilterExpression: { status: { $in: ["queued", "leased"] } }
+    }
+  );
   notificationOutboxSchema.index(
     { statusChangedAt: 1 },
     {
