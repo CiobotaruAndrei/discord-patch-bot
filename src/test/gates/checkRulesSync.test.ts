@@ -112,8 +112,8 @@ test("gate real: regulile reale din repo sunt sincronizate cu metricile emise", 
   const repoRoot = path.resolve(srcRoot, "..");
   const alertsText = fs.readFileSync(path.join(repoRoot, "monitoring", "prometheus-alerts.yml"), "utf8");
   const dashboardText = fs.readFileSync(path.join(repoRoot, "monitoring", "grafana-dashboard.json"), "utf8");
-  const httpServerSource = fs.readFileSync(path.join(srcRoot, "app", "health", "httpServer.ts"), "utf8");
-  const emitted = extractEmittedMetrics(httpServerSource);
+  const metricsRegistrySource = fs.readFileSync(path.join(srcRoot, "app", "health", "metricsRegistry.ts"), "utf8");
+  const emitted = extractEmittedMetrics(metricsRegistrySource);
   const report = analyzeRulesSync({ alertsText, dashboardText, emitted });
   assert.equal(report.missing.length, 0, `metrici referite dar neemise: ${report.missing.join(", ")}`);
   assert.equal(report.malformed.length, 0, `reguli incomplete: ${report.malformed.join("; ")}`);

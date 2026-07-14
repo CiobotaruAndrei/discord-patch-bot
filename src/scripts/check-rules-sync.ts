@@ -26,11 +26,11 @@ export function extractMetricNames(text: string): string[] {
   return Array.from(new Set(text.match(METRIC_RE) || []));
 }
 
-export function extractEmittedMetrics(httpServerSource: string): Set<string> {
+export function extractEmittedMetrics(metricsSource: string): Set<string> {
   const names = new Set<string>();
   const re = /pushMetric\(lines, seenMetricNames, "([a-z_0-9]+)"/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(httpServerSource)) !== null) names.add(m[1]);
+  while ((m = re.exec(metricsSource)) !== null) names.add(m[1]);
   return names;
 }
 
@@ -98,9 +98,9 @@ function main(): void {
   const repoRoot = path.resolve(srcRoot, "..");
   const alertsText = fs.readFileSync(path.join(repoRoot, "monitoring", "prometheus-alerts.yml"), "utf8");
   const dashboardText = fs.readFileSync(path.join(repoRoot, "monitoring", "grafana-dashboard.json"), "utf8");
-  const httpServerSource = fs.readFileSync(path.join(srcRoot, "app", "health", "httpServer.ts"), "utf8");
+  const metricsRegistrySource = fs.readFileSync(path.join(srcRoot, "app", "health", "metricsRegistry.ts"), "utf8");
 
-  const emitted = extractEmittedMetrics(httpServerSource);
+  const emitted = extractEmittedMetrics(metricsRegistrySource);
   const report = analyzeRulesSync({ alertsText, dashboardText, emitted });
 
   console.log(`Sincronizare reguli monitorizare: ${report.rules.length} alerte, ${emitted.size} metrici emise la /metrics.`);

@@ -18,6 +18,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Expune `/healthz` si `/metrics`.
 - Protejeaza metrics cu token optional si comparatie sigura.
 - Nu trebuie sa contina logica de business pentru Discord sau scraping.
+- Randarea textului Prometheus e extrasa in `src/app/health/metricsRegistry.ts` (review impact-mediu #13): `renderPrometheusMetrics(input: MetricsSnapshotInput): string` primeste snapshot-ul (`metrics`, `cacheSizes`, `guildCacheSize`, `enrichedDealsCacheSize`, `rateLimitMapSize`, `activeLocksSize`) si intoarce corpul complet (helperele `pushMetric`/`formatLabels` + toata lista de serii, inclusiv seriile per-comanda si `bot_native_fallback_total`). `httpServer.ts` doar apeleaza functia si scrie raspunsul — routing/auth/health raman singura lui responsabilitate, iar generarea registrului e testabila izolat (`metricsRegistry.test.ts`). Gardele de drift `check-rules-sync` (`extractEmittedMetrics`) si `monitoringRules.test.ts` scaneaza acum `metricsRegistry.ts` pentru numele de metrici emise, iar `commands-regression` include `metricsRegistry.js` in `runtimeSource`.
 
 ### `src/app/scheduler/cron.ts` (+ `cronScheduleConfig.ts`, `cronHealthWindow.ts`, `cronJobRunner.ts`)
 

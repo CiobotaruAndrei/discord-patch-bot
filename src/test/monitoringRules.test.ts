@@ -8,10 +8,10 @@ const srcRoot = process.cwd();
 const repoRoot = path.resolve(srcRoot, "..");
 const alertsPath = path.join(repoRoot, "monitoring", "prometheus-alerts.yml");
 const dashboardPath = path.join(repoRoot, "monitoring", "grafana-dashboard.json");
-const httpServerPath = path.join(srcRoot, "app", "health", "httpServer.ts");
+const metricsRegistryPath = path.join(srcRoot, "app", "health", "metricsRegistry.ts");
 
 function emittedMetricNames(): Set<string> {
-  const text = fs.readFileSync(httpServerPath, "utf8");
+  const text = fs.readFileSync(metricsRegistryPath, "utf8");
   const names = new Set<string>();
   const re = /pushMetric\(lines, seenMetricNames, "([a-z_0-9]+)"/g;
   let m: RegExpExecArray | null;
