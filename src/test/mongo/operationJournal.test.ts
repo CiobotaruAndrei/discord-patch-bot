@@ -1,87 +1,232 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOperationJournal, type OperationJournalDoc } from "../../infra/mongo/operationJournal.js";
+import {
+  createOperationJournal,
+  OperationAlreadyRunningError,
+  type OperationJournalDoc
+} from "../../infra/mongo/operationJournal.js";
 
-function fakeJournalModel(seed: OperationJournalDoc[] = []) {
-  const docs = new Map<string, OperationJournalDoc>(seed.map(d => [d._id, { ...d }]));
-  const writes: Array<{ filter: Record<string, unknown>; update: Record<string, unknown> }> = [];
-  const model = {
-    writes,
-    docs,
-    findOne: (filter: { _id: string }) => ({ lean: async () => docs.get(filter._id) ?? null }),
-    updateOne: async (filter: { _id: string }, update: Record<string, unknown>) => {
-      writes.push({ filter, update });
-      const existing = docs.get(filter._id) ?? { _id: filter._id, kind: "", payload: null, status: "pending", attempts: 0, createdAt: new Date(), updatedAt: new Date() } as OperationJournalDoc;
-      const set = (update.$set ?? {}) as Partial<OperationJournalDoc>;
-      const setOnInsert = docs.has(filter._id) ? {} : ((update.$setOnInsert ?? {}) as Partial<OperationJournalDoc>);
-      const inc = (update.$inc ?? {}) as { attempts?: number };
-      const merged = { ...existing, ...setOnInsert, ...set, attempts: (existing.attempts ?? 0) + (inc.attempts ?? 0) } as OperationJournalDoc;
-      docs.set(filter._id, merged);
-      return { modifiedCount: 1 };
-    },
-    find: (filter: { status?: string; updatedAt?: { $lte?: Date } }) => ({
-      sort: () => ({ limit: () => ({ lean: async () => Array.from(docs.values()).filter(d =>
-        (!filter.status || d.status === filter.status)
-        && (!filter.updatedAt?.$lte || d.updatedAt <= filter.updatedAt.$lte)) }) })
-    })
-  };
-  return model;
+type Filter = Record<string, unknown>;
+type Update = Record<string, unknown>;
+
+function valueMatches(value: unknown, condition: unknown): boolean {
+  if (!condition || typeof condition !== "object" || Array.isArray(condition)) return value === condition;
+  const operators = condition as Record<string, unknown>;
+  if ("$ne" in operators && value === operators.$ne) return false;
+  if ("$lte" in operators) {
+    if (!(value instanceof Date) || !(operators.$lte instanceof Date) || value > operators.$lte) return false;
+  }
+  return true;
 }
 
-test("runJournaled inregistreaza intentia (pending), executa executorul si marcheaza done", async () => {
+function matches(doc: OperationJournalDoc, filter: Filter): boolean {
+  for (const [key, condition] of Object.entries(filter)) {
+    if (key === "$or") {
+      const alternatives = Array.isArray(condition) ? condition as Filter[] : [];
+      if (!alternatives.some(alternative => matches(doc, alternative))) return false;
+      continue;
+    }
+    if (!valueMatches(doc[key as keyof OperationJournalDoc], condition)) return false;
+  }
+  return true;
+}
+
+function applyUpdate(doc: OperationJournalDoc, update: Update, inserted: boolean): OperationJournalDoc {
+  const set = (update.$set ?? {}) as Partial<OperationJournalDoc>;
+  const setOnInsert = inserted ? (update.$setOnInsert ?? {}) as Partial<OperationJournalDoc> : {};
+  const inc = (update.$inc ?? {}) as { attempts?: number; leaseVersion?: number };
+  return {
+    ...doc,
+    ...setOnInsert,
+    ...set,
+    attempts: (doc.attempts ?? 0) + (inc.attempts ?? 0),
+    leaseVersion: (doc.leaseVersion ?? 0) + (inc.leaseVersion ?? 0)
+  };
+}
+
+function baseDoc(id: string): OperationJournalDoc {
+  return {
+    _id: id,
+    kind: "",
+    payload: null,
+    status: "pending",
+    attempts: 0,
+    leaseVersion: 0,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+}
+
+function fakeJournalModel(seed: OperationJournalDoc[] = []) {
+  const docs = new Map<string, OperationJournalDoc>(seed.map(doc => [doc._id, { ...doc }]));
+  const writes: Array<{ filter: Filter; update: Update }> = [];
+  return {
+    writes,
+    docs,
+    findOne: (filter: Filter) => ({
+      lean: async () => Array.from(docs.values()).find(doc => matches(doc, filter)) ?? null
+    }),
+    findOneAndUpdate: (filter: Filter, update: Update) => ({
+      lean: async () => {
+        const existing = Array.from(docs.values()).find(doc => matches(doc, filter));
+        if (!existing) return null;
+        const updated = applyUpdate(existing, update, false);
+        docs.set(updated._id, updated);
+        writes.push({ filter, update });
+        return { ...updated };
+      }
+    }),
+    updateOne: async (filter: Filter, update: Update, options?: Filter) => {
+      writes.push({ filter, update });
+      const existing = Array.from(docs.values()).find(doc => matches(doc, filter));
+      if (!existing && options?.upsert === true && typeof filter._id === "string") {
+        const inserted = applyUpdate(baseDoc(filter._id), update, true);
+        docs.set(inserted._id, inserted);
+        return { matchedCount: 0, modifiedCount: 0, upsertedCount: 1 };
+      }
+      if (!existing) return { matchedCount: 0, modifiedCount: 0 };
+      const updated = applyUpdate(existing, update, false);
+      docs.set(updated._id, updated);
+      return { matchedCount: 1, modifiedCount: 1 };
+    },
+    find: (filter: Filter) => ({
+      sort: () => ({
+        limit: (count: number) => ({
+          lean: async () => Array.from(docs.values()).filter(doc => matches(doc, filter)).slice(0, count)
+        })
+      })
+    })
+  };
+}
+
+function journalDoc(input: Partial<OperationJournalDoc> & Pick<OperationJournalDoc, "_id" | "kind">): OperationJournalDoc {
+  return {
+    ...baseDoc(input._id),
+    ...input
+  };
+}
+
+test("runJournaled revendica atomic operatia, executa si finalizeaza cu acelasi lease", async () => {
   const model = fakeJournalModel();
   const ran: unknown[] = [];
-  const journal = createOperationJournal({ JournalModel: model, logger: () => undefined, executors: { "test-op": async p => { ran.push(p); } } });
+  const journal = createOperationJournal({
+    JournalModel: model,
+    logger: () => undefined,
+    ownerId: "worker-1",
+    executors: { "test-op": async payload => { ran.push(payload); } }
+  });
   await journal.runJournaled("k1", "test-op", { x: 1 });
-  assert.deepEqual(ran, [{ x: 1 }], "executorul a rulat cu payload-ul");
-  assert.equal(model.docs.get("k1")?.status, "done", "intrarea e marcata done dupa succes");
+  assert.deepEqual(ran, [{ x: 1 }]);
+  assert.equal(model.docs.get("k1")?.status, "done");
+  assert.equal(model.docs.get("k1")?.leaseVersion, 1);
+  assert.equal(model.docs.get("k1")?.lockedBy, null);
 });
 
-test("runJournaled sare peste o operatie deja 'done' (idempotent, nu re-executa)", async () => {
-  const model = fakeJournalModel([{ _id: "k1", kind: "test-op", payload: {}, status: "done", attempts: 1, createdAt: new Date(), updatedAt: new Date() }]);
+test("runJournaled nu executa din nou o operatie finalizata", async () => {
+  const model = fakeJournalModel([journalDoc({ _id: "k1", kind: "test-op", status: "done", attempts: 1 })]);
   let runs = 0;
-  const journal = createOperationJournal({ JournalModel: model, logger: () => undefined, executors: { "test-op": async () => { runs++; } } });
+  const journal = createOperationJournal({
+    JournalModel: model,
+    logger: () => undefined,
+    executors: { "test-op": async () => { runs++; } }
+  });
   await journal.runJournaled("k1", "test-op", {});
-  assert.equal(runs, 0, "o operatie deja finalizata nu se re-executa");
+  assert.equal(runs, 0);
 });
 
-test("runJournaled lasa intrarea 'pending' si arunca daca executorul esueaza (recuperabila)", async () => {
+test("doua instante nu pot executa simultan aceeasi operatie", async () => {
   const model = fakeJournalModel();
-  const journal = createOperationJournal({ JournalModel: model, logger: () => undefined, executors: { "test-op": async () => { throw new Error("boom"); } } });
-  await assert.rejects(() => journal.runJournaled("k1", "test-op", {}), /boom/);
-  assert.equal(model.docs.get("k1")?.status, "pending", "ramane pending pentru recovery");
+  let releaseFirst: () => void = () => undefined;
+  const firstStarted = new Promise<void>(resolve => { releaseFirst = resolve; });
+  let entered = 0;
+  const first = createOperationJournal({
+    JournalModel: model,
+    logger: () => undefined,
+    ownerId: "worker-1",
+    executors: { "test-op": async () => { entered++; await firstStarted; } }
+  });
+  const second = createOperationJournal({
+    JournalModel: model,
+    logger: () => undefined,
+    ownerId: "worker-2",
+    executors: { "test-op": async () => { entered++; } }
+  });
+  const firstRun = first.runJournaled("k1", "test-op", {});
+  await new Promise<void>(resolve => setImmediate(resolve));
+  await assert.rejects(() => second.runJournaled("k1", "test-op", {}), OperationAlreadyRunningError);
+  assert.equal(entered, 1);
+  releaseFirst();
+  await firstRun;
 });
 
-test("recoverPending reia executorul pe intrarile 'pending' vechi si le marcheaza done", async () => {
+test("esecul executorului elibereaza lease-ul pentru retry", async () => {
+  const model = fakeJournalModel();
+  const journal = createOperationJournal({
+    JournalModel: model,
+    logger: () => undefined,
+    ownerId: "worker-1",
+    executors: { "test-op": async () => { throw new Error("boom"); } }
+  });
+  await assert.rejects(() => journal.runJournaled("k1", "test-op", {}), /boom/);
+  assert.equal(model.docs.get("k1")?.status, "pending");
+  assert.equal(model.docs.get("k1")?.lockedBy, null);
+});
+
+test("recoverPending revendica operatiile vechi si le finalizeaza", async () => {
   const old = new Date(Date.now() - 10 * 60 * 1000);
-  const model = fakeJournalModel([{ _id: "k1", kind: "reset", payload: { g: "1" }, status: "pending", attempts: 1, createdAt: old, updatedAt: old }]);
+  const model = fakeJournalModel([journalDoc({
+    _id: "k1",
+    kind: "reset",
+    payload: { g: "1" },
+    status: "pending",
+    attempts: 1,
+    updatedAt: old,
+    createdAt: old
+  })]);
   const replayed: unknown[] = [];
-  const journal = createOperationJournal({ JournalModel: model, logger: () => undefined, executors: { reset: async p => { replayed.push(p); } } });
+  const journal = createOperationJournal({
+    JournalModel: model,
+    logger: () => undefined,
+    ownerId: "recovery-1",
+    executors: { reset: async payload => { replayed.push(payload); } }
+  });
   const result = await journal.recoverPending({ olderThanMs: 5 * 60 * 1000, limit: 10 });
-  assert.deepEqual(replayed, [{ g: "1" }], "operatia crashuita e reluata");
+  assert.deepEqual(replayed, [{ g: "1" }]);
   assert.equal(result.recovered, 1);
   assert.equal(model.docs.get("k1")?.status, "done");
 });
 
-test("recoverPending nu atinge intrari 'pending' recente (posibil in-flight pe alta instanta)", async () => {
-  const recent = new Date(Date.now() - 30 * 1000);
-  const model = fakeJournalModel([{ _id: "k1", kind: "reset", payload: {}, status: "pending", attempts: 1, createdAt: recent, updatedAt: recent }]);
-  let replays = 0;
-  const journal = createOperationJournal({ JournalModel: model, logger: () => undefined, executors: { reset: async () => { replays++; } } });
-  const result = await journal.recoverPending({ olderThanMs: 5 * 60 * 1000, limit: 10 });
-  assert.equal(replays, 0, "intrarile recente nu se reiau (evita furtul unei operatii in-flight)");
-  assert.equal(result.scanned, 0);
+test("recoverPending poate prelua un lease expirat, dar nu unul activ", async () => {
+  const at = new Date();
+  const expired = new Date(at.getTime() - 1000);
+  const active = new Date(at.getTime() + 60_000);
+  const old = new Date(at.getTime() - 10 * 60 * 1000);
+  const model = fakeJournalModel([
+    journalDoc({ _id: "expired", kind: "reset", status: "leased", lockedBy: "dead", lockedUntil: expired, updatedAt: old }),
+    journalDoc({ _id: "active", kind: "reset", status: "leased", lockedBy: "live", lockedUntil: active, updatedAt: old })
+  ]);
+  const replayed: unknown[] = [];
+  const journal = createOperationJournal({
+    JournalModel: model,
+    logger: () => undefined,
+    ownerId: "recovery-1",
+    executors: { reset: async payload => { replayed.push(payload); } }
+  });
+  const result = await journal.recoverPending({ olderThanMs: 5 * 60 * 1000, limit: 10, now: at });
+  assert.equal(result.recovered, 1);
+  assert.equal(model.docs.get("expired")?.status, "done");
+  assert.equal(model.docs.get("active")?.status, "leased");
 });
 
-test("un 'kind' fara executor inregistrat arunca la run si e raportat la recovery", async () => {
+test("kind necunoscut este refuzat la run si eliberat la recovery", async () => {
   const model = fakeJournalModel();
   const journal = createOperationJournal({ JournalModel: model, logger: () => undefined, executors: {} });
   await assert.rejects(() => journal.runJournaled("k1", "necunoscut", {}), /nicio functie de executie/);
 
   const old = new Date(Date.now() - 10 * 60 * 1000);
-  const model2 = fakeJournalModel([{ _id: "k2", kind: "necunoscut", payload: {}, status: "pending", attempts: 1, createdAt: old, updatedAt: old }]);
+  const model2 = fakeJournalModel([journalDoc({ _id: "k2", kind: "necunoscut", updatedAt: old, createdAt: old })]);
   const journal2 = createOperationJournal({ JournalModel: model2, logger: () => undefined, executors: {} });
   const result = await journal2.recoverPending({ olderThanMs: 5 * 60 * 1000, limit: 10 });
-  assert.equal(result.failed, 1, "un kind necunoscut la recovery e raportat ca failed, nu recuperat");
-  assert.equal(model2.docs.get("k2")?.status, "pending", "ramane pending pentru inspectie manuala");
+  assert.equal(result.failed, 1);
+  assert.equal(model2.docs.get("k2")?.status, "pending");
 });

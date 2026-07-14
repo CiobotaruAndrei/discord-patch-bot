@@ -1,10 +1,10 @@
 import type * as Mongoose from "mongoose";
-import type { RuntimeEnv } from "../../types.js";
+import type { MongoModelEnv } from "./mongoModelEnv.js";
 
 export interface OperationalSchemasDeps {
   mongoose: typeof Mongoose;
   ONE_DAY_MS: number;
-  env: RuntimeEnv;
+  env: MongoModelEnv;
 }
 
 export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: OperationalSchemasDeps) {
@@ -107,8 +107,11 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     _id: String,
     kind: { type: String, required: true },
     payload: { type: mongoose.Schema.Types.Mixed, default: null },
-    status: { type: String, enum: ["pending", "done"], default: "pending" },
+    status: { type: String, enum: ["pending", "leased", "done"], default: "pending" },
     attempts: { type: Number, default: 0 },
+    leaseVersion: { type: Number, default: 0 },
+    lockedBy: { type: String, default: null },
+    lockedUntil: { type: Date, default: null },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
   }, { minimize: false });

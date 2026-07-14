@@ -1,5 +1,3 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 "use strict";
 
 import mongoose from "mongoose";
@@ -22,21 +20,23 @@ import type { AppRuntime, AppRuntimeDeps } from "./appRuntime.js";
 import type { BotRole } from "../types.js";
 import type { SourceRegistryApi } from "../sources/sourceRegistry.js";
 
-const mongoContext = require("../infra/mongo/mongoContext").default as typeof import("../infra/mongo/mongoContext.js")["default"];
+import mongoContext from "../infra/mongo/mongoContext.js";
 const {
   logger, env, parseEnvNumber,
   acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
   waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
   runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots,
   getOutboxPaused, setAdminAlertDiscordClient,
-  OperationJournalModel, GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, GuildDeadLetterModel
+  OperationJournalModel, GuildModel, GuildAuditLogModel, GuildConfigBackupModel, GuildYoutubeErrorModel,
+  GuildDeadLetterModel, NotificationDeadLetterReplayModel
 } = mongoContext;
 import commands from "../features/command-registry/commandRegistry.js";
 import * as scrapers from "../sources/sourceRegistry.js";
 import { createOperationJournalRuntime } from "../features/admin-records/operationJournalRuntime.js";
 
 const operationJournal = createOperationJournalRuntime({
-  OperationJournalModel, GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, GuildDeadLetterModel, logger
+  OperationJournalModel, GuildModel, GuildAuditLogModel, GuildConfigBackupModel, GuildYoutubeErrorModel,
+  GuildDeadLetterModel, NotificationDeadLetterReplayModel, logger
 });
 const OPERATION_JOURNAL_RECOVERY_MIN_AGE_MS = 5 * 60 * 1000;
 const OPERATION_JOURNAL_RECOVERY_LIMIT = 100;

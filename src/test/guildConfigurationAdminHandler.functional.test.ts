@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { GuildAuditLogRecord } from "../features/admin-records/auditLogRepository.js";
 
 import mod from "../features/command-handlers/guildConfigurationAdminHandler.js";
+import { createOperationJournalTestModel } from "./operationJournalTestModel.js";
 
 function makeHarness(permissionState = { viewChannel: true, sendMessages: true, embedLinks: true, readMessageHistory: true }, replayCleanupFails = false) {
   const calls: Array<{ filter: Record<string, unknown>; update: Record<string, unknown>; options?: Record<string, unknown> }> = [];
@@ -18,19 +19,16 @@ function makeHarness(permissionState = { viewChannel: true, sendMessages: true, 
     },
     GuildYoutubeErrorModel: { deleteMany: async () => ({ deletedCount: 0 }) },
     GuildDeadLetterModel: { deleteMany: async () => ({ deletedCount: 0 }) },
-    OperationJournalModel: {
-      findOne: () => ({ lean: async () => null }),
-      updateOne: async () => ({ modifiedCount: 1 }),
-      find: () => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) })
-    },
+    OperationJournalModel: createOperationJournalTestModel(),
     GuildAuditLogModel: {
       create: async (doc: GuildAuditLogRecord) => { auditDocs.push(doc); return doc; },
       find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
     },
-    deleteAllReplayPayloads: async (guildId: string) => {
-      replayPayloadDeletes.push(guildId);
+    NotificationDeadLetterReplayModel: { deleteMany: async (filter: Record<string, unknown>) => {
+      replayPayloadDeletes.push(String(filter.guildId));
       if (replayCleanupFails) throw new Error("Mongo indisponibil la stergerea payload-urilor de replay");
-    },
+      return { deletedCount: 1 };
+    } },
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
     checkChannelPermissions: async () => permissionState,
@@ -84,17 +82,16 @@ test("/reset-config confirm:true reseteaza toate suprafetele de configurare", as
   assert.match(String(replies[0]), /payload-urile de replay au fost sterse/);
 });
 
-test("/reset-config confirm:true: daca stergerea payload-urilor de replay esueaza, raspunsul spune onest ca cleanup-ul a esuat, nu succes total (R15 #2)", async () => {
+test("/reset-config confirm:true: daca stergerea payload-urilor de replay esueaza, operatia ramane recuperabila si nu raporteaza succes", async () => {
   const { handler, calls, replies } = makeHarness(undefined, true);
 
-  await handler.handleGuildConfigurationAdmin(interaction("reset-config", "set", { confirm: true }));
+  await assert.rejects(
+    handler.handleGuildConfigurationAdmin(interaction("reset-config", "set", { confirm: true })),
+    /Mongo indisponibil/
+  );
 
-  assert.ok(calls.length >= 1, "configuratia tot a fost resetata (updateOne a rulat)");
-  const reply = String(replies[0]);
-  assert.match(reply, /Partial/i, "raspunsul nu mai pretinde succes total");
-  assert.match(reply, /ESUAT|esuat/, "raspunsul spune clar ca stergerea payload-urilor de replay a esuat");
-  assert.match(reply, /MongoDB/, "indica investigarea dependintei operationale care a esuat");
-  assert.doesNotMatch(reply, /payload-urile de replay au fost sterse/, "nu mai afirma fals ca payload-urile au fost sterse");
+  assert.ok(calls.length >= 1, "pasii idempotenti efectuati pot fi reluati de journal recovery");
+  assert.equal(replies.length, 0, "nu se raporteaza succes sau succes partial inainte de finalizarea operatiei jurnalizate");
 });
 
 test("/reset-config refuza operatia fara confirm:true (nu sterge payload-urile de replay)", async () => {

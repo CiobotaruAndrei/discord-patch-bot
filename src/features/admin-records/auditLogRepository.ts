@@ -3,6 +3,7 @@
 import type { BotAuditLogEntry, ServerAuditLogEntry } from "../../types.js";
 
 export interface GuildAuditLogRecord {
+  operationId?: string;
   guildId: string;
   kind: "bot" | "server";
   userId?: string;
@@ -22,6 +23,11 @@ export interface GuildAuditLogQueryLike {
 
 export interface GuildAuditLogModelLike {
   create(doc: GuildAuditLogRecord): Promise<unknown>;
+  updateOne?(
+    filter: Record<string, unknown>,
+    update: Record<string, unknown>,
+    options?: Record<string, unknown>
+  ): Promise<unknown>;
   find(filter: Record<string, unknown>): GuildAuditLogQueryLike;
 }
 
@@ -87,16 +93,27 @@ export async function recordBotAuditEntry(
 export async function recordServerAuditEntry(
   model: GuildAuditLogModelLike,
   guildId: string,
-  entry: Omit<ServerAuditLogEntry, "serverId" | "at">
+  entry: Omit<ServerAuditLogEntry, "serverId" | "at">,
+  operationId?: string
 ): Promise<void> {
-  await model.create({
+  const document: GuildAuditLogRecord = {
+    operationId,
     guildId,
     kind: "server",
     userId: entry.userId || "",
     action: entry.action,
     details: entry.details || "",
     at: new Date()
-  });
+  };
+  if (operationId && model.updateOne) {
+    await model.updateOne(
+      { operationId },
+      { $setOnInsert: document },
+      { upsert: true }
+    );
+    return;
+  }
+  await model.create(document);
 }
 
 export async function listBotAuditEntries(model: GuildAuditLogModelLike, guildId: string, limit: number): Promise<BotAuditLogEntry[]> {

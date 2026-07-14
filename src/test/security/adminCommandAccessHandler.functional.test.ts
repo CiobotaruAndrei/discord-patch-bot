@@ -4,6 +4,7 @@ import type { GuildAuditLogRecord } from "../../features/admin-records/auditLogR
 
 import attachAdminCommandAccess from "../../features/command-handlers/adminCommandAccessHandler.js";
 import globalAccessCode from "../../features/command-security/globalAccessCode.js";
+import { createOperationJournalTestModel } from "../operationJournalTestModel.js";
 
 type StoredAccess = {
   mode: "role" | "role-or-higher";
@@ -47,6 +48,7 @@ function makeHarness(initial: StoredAccess = null, scopedInitial: Record<string,
     return chain;
   };
   const deps = {
+    OperationJournalModel: createOperationJournalTestModel(),
     GuildAuditLogModel: {
       create: async (doc: GuildAuditLogRecord) => { auditDocs.push(doc); return doc; },
       find: () => makeChain()

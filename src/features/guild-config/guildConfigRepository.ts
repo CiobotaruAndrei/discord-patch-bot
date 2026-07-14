@@ -5,7 +5,6 @@ import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-re
 import { buildResetConfiguration } from "./guildConfigDefaults.js";
 import { clearYoutubeErrors, type YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository.js";
 import { clearDeadLetters, type DeadLetterModelLike } from "../notifications/deadLetterRepository.js";
-import { runMongoWrite, type UnitOfWorkLogger } from "../../infra/mongo/mongoUnitOfWork.js";
 
 export type GuildConfigWriteResult = MongoWriteOutcome;
 
@@ -46,20 +45,12 @@ export async function resetGuildConfigurationWithAudit(
   guildId: string,
   defaultCurrency: CurrencyCode,
   audit: Omit<ServerAuditLogEntry, "serverId" | "at">,
-  logger: UnitOfWorkLogger
+  operationId: string
 ): Promise<void> {
-  await runMongoWrite({
-    label: `reset-config guild ${guildId}`,
-    logger,
-    critical: [
-      () => GuildModel.updateOne({ _id: guildId }, { $set: buildResetConfiguration(defaultCurrency) }, { upsert: true }),
-      () => recordServerAuditEntry(GuildAuditLogModel, guildId, audit)
-    ],
-    cleanup: [
-      { describe: "curata erorile YouTube", run: () => clearYoutubeErrors(GuildYoutubeErrorModel, guildId) },
-      { describe: "curata dead-letter-urile din colectia dedicata", run: () => clearDeadLetters(GuildDeadLetterModel, guildId) }
-    ]
-  });
+  await GuildModel.updateOne({ _id: guildId }, { $set: buildResetConfiguration(defaultCurrency) }, { upsert: true });
+  await recordServerAuditEntry(GuildAuditLogModel, guildId, audit, operationId);
+  await clearYoutubeErrors(GuildYoutubeErrorModel, guildId);
+  await clearDeadLetters(GuildDeadLetterModel, guildId);
 }
 
 export async function setAdminAlertChannel(

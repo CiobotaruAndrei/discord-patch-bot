@@ -1,10 +1,10 @@
 import type * as Mongoose from "mongoose";
-import type { RuntimeEnv } from "../../types.js";
+import type { MongoModelEnv } from "./mongoModelEnv.js";
 
 export interface SeenSchemasDeps {
   mongoose: typeof Mongoose;
   ONE_DAY_MS: number;
-  env: RuntimeEnv;
+  env: MongoModelEnv;
 }
 
 export function buildSeenSchemas({ mongoose, ONE_DAY_MS, env }: SeenSchemasDeps) {

@@ -8,7 +8,7 @@ export interface RollbackFailureContext {
   itemId: string;
 }
 
-export type ReportRollbackFailure = (context: RollbackFailureContext, error: unknown) => void;
+export type ReportRollbackFailure = (context: RollbackFailureContext, error: unknown) => void | Promise<void>;
 
 export async function rollbackOrReport(
   rollback: () => Promise<unknown>,
@@ -25,6 +25,6 @@ export async function rollbackOrReport(
       `Anularea (rollback) revendicarii a esuat pentru ${context.kind} ${context.itemId} (guild ${context.guildId}); elementul poate ramane marcat ca vazut si sa nu mai fie re-livrat - investigheaza si curata manual`,
       error instanceof Error ? error.message : String(error)
     );
-    if (report) report(context, error);
+    if (report) await report(context, error);
   }
 }

@@ -1,5 +1,8 @@
-import type { MongoFilter, MongoUpdate, MongoQueryOptions } from "../../infra/mongo/mongoQueryShapes.js";
 "use strict";
+
+type MongoFilter = Record<string, unknown>;
+type MongoUpdate = Record<string, unknown>;
+type MongoQueryOptions = Record<string, unknown>;
 
 export type OutboxKind = "update" | "discount" | "youtube";
 
@@ -27,6 +30,7 @@ interface OutboxJobBase {
   lockedBy?: string | null;
   lockedUntil?: Date | null;
   status?: string;
+  deliveryAcceptedAt?: Date | null;
   leaseVersion?: number;
 }
 
@@ -116,6 +120,7 @@ export interface DrainOutboxResult {
   historyWriteFailures: number;
   droppedUnsubscribed: number;
   leaseLost: number;
+  resumedFinalizations: number;
 }
 
 export interface EnqueueOutboxJobInput {

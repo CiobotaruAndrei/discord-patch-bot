@@ -1,6 +1,6 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import { pathToFileURL as __pathToFileURL } from "node:url";
+import * as fs from "node:fs";
+import * as path from "node:path";
 "use strict";
 
 import { renderCommandReferenceDoc, COMMAND_REFERENCE_DOC_RELATIVE_PATH } from "../features/command-catalog/commandReferenceDoc.js";
@@ -32,8 +32,6 @@ function writeCommandReferenceDocAtomic(fs: typeof import("fs"), path: typeof im
 }
 
 function main(): void {
-  const fs = require("fs") as typeof import("fs");
-  const path = require("path") as typeof import("path");
   const repoRoot = path.resolve(process.cwd(), "..");
   const target = path.join(repoRoot, COMMAND_REFERENCE_DOC_RELATIVE_PATH);
   const rendered = renderCommandReferenceDoc();

@@ -41,6 +41,8 @@ function makeHarness(sendImpl?: (call: number) => Promise<unknown>) {
       rollbacks.push(entry.id);
       return overrides.rollbackRejects ? Promise.reject(new Error("rollback boom")) : Promise.resolve({});
     },
+    rollbackFailureContext: entry => ({ guildId: "guild-1", kind: "update", itemId: entry.id }),
+    logger: () => undefined,
     onPermanentError: async reason => { permanentReasons.push(reason); },
     onTransientFailure: (failed, err) => { transientCalls.push({ failedIds: failed.map(entry => entry.id), err }); }
   });

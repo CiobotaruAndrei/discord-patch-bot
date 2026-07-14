@@ -30,7 +30,7 @@ test("claimNextJob exclude statusurile terminale dar accepta docuri legacy fara 
   await repository.claimNextJob(new Date(), 1000, "w1");
   const filter = fake.claims[0].filter as { $and: Array<{ $or: Array<Record<string, unknown>> }> };
   const statusClause = filter.$and[0].$or;
-  assert.deepEqual(statusClause[0], { status: { $in: ["queued", "leased"] } }, "doar joburile active sunt revendicabile");
+  assert.deepEqual(statusClause[0], { status: { $in: ["queued", "leased", "delivered-pending"] } }, "joburile active si finalizarea livrarilor confirmate sunt revendicabile");
   assert.deepEqual(statusClause[1], { status: { $exists: false } }, "docurile de dinainte de migrarea m13 raman revendicabile");
 });
 

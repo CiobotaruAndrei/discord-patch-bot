@@ -16,23 +16,20 @@ type SeenSearchTerm = {
   path: IssuePath;
   ownerIndex: number;
 };
-type ConfigParseError = { error: { issues: ZodIssue[] } };
-
-
 const ALLOWED_CHECK_INTERVAL_MINUTES = new Set<number>([10, 15, 30, 60]);
+const GameTypeSchema = z.enum(["steam", "minecraft", "epic_games", "roblox", "listing_based", "nvidia", "amd", "intel", "rss"]);
 
 const FallbackSchema = z.object({
-  type: z.string(),
+  type: GameTypeSchema,
   url: z.string().url().optional(),
   listingUrl: z.string().url().optional(),
   listingUrls: z.array(z.string().url()).optional(),
   baseUrl: z.string().url().optional()
 }).strict();
 
-const GameSchema = z.object({
+const GameFields = z.object({
   key: z.string().min(1),
   name: z.string().min(1),
-  type: z.string().optional(),
   appId: z.string().optional(),
   listingUrl: z.string().url().optional(),
   listingUrls: z.array(z.string().url()).optional(),
@@ -42,9 +39,26 @@ const GameSchema = z.object({
   thumbnail: z.string().url().optional(),
   url: z.string().url().optional(),
   aliases: z.array(z.string().min(1)).optional(),
-  upCRD: z.number().int().min(0).max(1).optional(),
+  upCRD: z.union([z.literal(0), z.literal(1)]).optional(),
   fallbacks: z.array(FallbackSchema).optional()
 }).strict();
+
+const GameSchema = z.preprocess(
+  value => value && typeof value === "object" && !("type" in value)
+    ? { ...value, type: "steam" }
+    : value,
+  z.discriminatedUnion("type", [
+    GameFields.extend({ type: z.literal("steam") }),
+    GameFields.extend({ type: z.literal("minecraft") }),
+    GameFields.extend({ type: z.literal("epic_games") }),
+    GameFields.extend({ type: z.literal("roblox") }),
+    GameFields.extend({ type: z.literal("listing_based") }),
+    GameFields.extend({ type: z.literal("nvidia") }),
+    GameFields.extend({ type: z.literal("amd") }),
+    GameFields.extend({ type: z.literal("intel") }),
+    GameFields.extend({ type: z.literal("rss") })
+  ])
+);
 
 const ConfigSchema = z.object({
   checkIntervalMinutes: z.number().positive().optional(),
@@ -155,14 +169,20 @@ function formatZodIssues(issues: ZodIssue[]): string {
   }).join("\n");
 }
 
+export class ConfigValidationError extends Error {
+  readonly issues: ZodIssue[];
+
+  constructor(source: string, issues: ZodIssue[]) {
+    super(`Config invalid (${source}):\n${formatZodIssues(issues)}`);
+    this.name = "ConfigValidationError";
+    this.issues = issues;
+  }
+}
+
 function validateConfig(config: unknown, source = "config.json"): BotConfig {
   const result = ConfigSchema.safeParse(config);
-  if (result.success) return result.data as BotConfig;
-
-  const issues = (result as ConfigParseError).error.issues;
-  const err = new Error(`Config invalid (${source}):\n${formatZodIssues(issues)}`) as Error & { issues?: ZodIssue[] };
-  err.issues = issues;
-  throw err;
+  if (result.success) return result.data;
+  throw new ConfigValidationError(source, result.error.issues);
 }
 
 export {

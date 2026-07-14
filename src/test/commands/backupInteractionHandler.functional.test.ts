@@ -7,6 +7,7 @@ import type { GuildSettings } from "../../types.js";
 import { isHandledCommandError } from "../../features/command-security/commandOutcome.js";
 
 import installBackup from "../../features/command-handlers/backupInteractionHandler.js";
+import { createOperationJournalTestModel } from "../operationJournalTestModel.js";
 
 type MongoCall = {
   filter: Record<string, unknown>;
@@ -97,6 +98,7 @@ function makeHarness(settings: GuildSettings | null, initialBackups: GuildConfig
     },
     GuildAuditLogModel: makeAuditModel(auditDocs),
     GuildConfigBackupModel: backupModel,
+    OperationJournalModel: createOperationJournalTestModel(),
     getGuildSettings: async () => settings,
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
@@ -194,6 +196,7 @@ test("/backup load: daca scrierea de restore esueaza, NIMIC nu e restaurat si co
     },
     GuildAuditLogModel: makeAuditModel(auditDocs),
     GuildConfigBackupModel: backupModel,
+    OperationJournalModel: createOperationJournalTestModel(),
     getGuildSettings: async () => ({ _id: "guild-1" }),
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },

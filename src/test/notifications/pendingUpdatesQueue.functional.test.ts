@@ -37,7 +37,7 @@ function runQueue(input: BuildPendingUpdatesQueueInput, deps: BuildPendingUpdate
 
 test("buildPendingUpdatesQueue indexeaza latestResults dupa game.key", () => {
   const result = runQueue({
-    guild: { _id: "g", seen: {}, pendingUpdates: {} },
+    guild: { _id: "g", pendingUpdates: {} },
     latestResults: [
       { game: { key: "cs2", name: "CS2" }, latest: { id: "u1" } },
       { game: { key: "fortnite", name: "Fortnite" }, latest: { id: "u2" } }
@@ -53,7 +53,7 @@ test("buildPendingUpdatesQueue scoate pendingUpdates expirate dupa MAX_AGE_MS", 
   const result = runQueue(
     {
       guild: {
-        _id: "g", seen: {}, pendingUpdates: {
+        _id: "g", pendingUpdates: {
           cs2: [{ id: "u-old", createdAt: oldDate, attempts: 0 }]
         }
       },
@@ -69,7 +69,7 @@ test("buildPendingUpdatesQueue scoate pendingUpdates cu attempts >= MAX_ATTEMPTS
   const result = runQueue(
     {
       guild: {
-        _id: "g", seen: {},
+        _id: "g",
         pendingUpdates: {
           cs2: [
             { id: "u1", createdAt: new Date(), attempts: 3 },
@@ -90,7 +90,7 @@ test("buildPendingUpdatesQueue limiteaza queue per game la PENDING_UPDATES_PER_G
   const items = Array.from({ length: 15 }, (_, i) => ({ id: `u${i}`, createdAt: new Date(), attempts: 0 }));
   const result = runQueue(
     {
-      guild: { _id: "g", seen: {}, pendingUpdates: { cs2: items } },
+      guild: { _id: "g", pendingUpdates: { cs2: items } },
       latestResults: []
     },
     makeDeps({ PENDING_UPDATES_PER_GAME_LIMIT: 5 })
@@ -103,7 +103,7 @@ test("buildPendingUpdatesQueue limiteaza queue per game la PENDING_UPDATES_PER_G
 
 test("buildPendingUpdatesQueue adauga update-uri noi din latestResults", () => {
   const result = runQueue({
-    guild: { _id: "g", seen: {}, pendingUpdates: {} },
+    guild: { _id: "g", pendingUpdates: {} },
     latestResults: [
       { game: { key: "cs2", name: "CS2" }, latest: { id: "u-fresh" } }
     ] as UpdateFetchResult[]
@@ -116,7 +116,7 @@ test("buildPendingUpdatesQueue adauga update-uri noi din latestResults", () => {
 test("buildPendingUpdatesQueue NU adauga update-uri deja in queue (dedupe)", () => {
   const result = runQueue({
     guild: {
-      _id: "g", seen: {},
+      _id: "g",
       pendingUpdates: { cs2: [{ id: "u1", createdAt: new Date(), attempts: 0 }] }
     },
     latestResults: [
@@ -130,7 +130,7 @@ test("buildPendingUpdatesQueue NU adauga update-uri deja in queue (dedupe)", () 
 test("buildPendingUpdatesQueue respecta enabledGames filter — drops out-of-filter pending si latest", () => {
   const result = runQueue({
     guild: {
-      _id: "g", seen: {},
+      _id: "g",
       pendingUpdates: {
         cs2: [{ id: "u1", createdAt: new Date(), attempts: 0 }],
         fortnite: [{ id: "u2", createdAt: new Date(), attempts: 0 }]
@@ -150,7 +150,7 @@ test("buildPendingUpdatesQueue respecta enabledGames filter — drops out-of-fil
 
 test("buildPendingUpdatesQueue cu enabledGames gol = no filter (enabledSet === null)", () => {
   const result = runQueue({
-    guild: { _id: "g", seen: {}, pendingUpdates: {}, enabledGames: [] },
+    guild: { _id: "g", pendingUpdates: {}, enabledGames: [] },
     latestResults: [
       { game: { key: "cs2", name: "CS2" }, latest: { id: "u-cs2" } },
       { game: { key: "fortnite", name: "Fortnite" }, latest: { id: "u-fn" } }

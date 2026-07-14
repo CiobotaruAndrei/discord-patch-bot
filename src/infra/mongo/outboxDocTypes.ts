@@ -19,6 +19,8 @@ export interface NotificationOutboxDoc {
   recoveryVerify?: boolean | null;
   manual?: boolean;
   history?: OutboxHistoryEntry[];
+  deliveryAcceptedAt?: Date | null;
+  status?: "queued" | "leased" | "delivered-pending" | "delivered" | "dead-lettered" | "dropped";
   createdAt?: Date;
 }
 

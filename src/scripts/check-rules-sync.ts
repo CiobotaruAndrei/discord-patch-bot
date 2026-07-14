@@ -1,6 +1,6 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import { pathToFileURL as __pathToFileURL } from "node:url";
+import * as fs from "node:fs";
+import * as path from "node:path";
 "use strict";
 
 export interface AlertRule {
@@ -92,8 +92,6 @@ export function analyzeRulesSync(args: { alertsText: string; dashboardText: stri
 }
 
 function main(): void {
-  const fs = require("fs") as typeof import("fs");
-  const path = require("path") as typeof import("path");
   const srcRoot = process.cwd();
   const repoRoot = path.resolve(srcRoot, "..");
   const alertsText = fs.readFileSync(path.join(repoRoot, "monitoring", "prometheus-alerts.yml"), "utf8");

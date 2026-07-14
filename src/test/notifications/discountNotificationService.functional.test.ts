@@ -18,7 +18,7 @@ test("DiscountService: trimite reduceri noi care nu sunt in seenDiscounts", asyn
   assert.equal(sentPayloads.length, 1);
 });
 
-test("DiscountService: daca rollback-ul claim-ului esueaza dupa enrich crapa se logheaza WARN (nu inghitit tacut)", async () => {
+test("DiscountService: daca rollback-ul claim-ului esueaza dupa enrich incidentul este raportat", async () => {
   const logs: Array<{ level: string; msg: string }> = [];
   const { deps } = makeDiscountDeps({
     enrichDealData: async () => { throw new Error("Steam enrich cazut"); },
@@ -32,8 +32,8 @@ test("DiscountService: daca rollback-ul claim-ului esueaza dupa enrich crapa se 
   } as DiscountGuild;
   await svc.processGuildDiscounts(noopDiscordClient, guild, [{ id: "d1", title: "Game A" }] as DiscountDeals);
   assert.ok(
-    logs.some(l => l.level === "WARN" && /Rollback seen-discount esuat/.test(l.msg)),
-    "esecul rollback-ului lasa reducerea marcata vazuta fara livrare; trebuie logat WARN, nu inghitit"
+    logs.some(l => l.level === "WARN" && /rollback.*discount.*d1/i.test(l.msg)),
+    "esecul rollback-ului identifica tipul si elementul afectat"
   );
 });
 

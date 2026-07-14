@@ -1,5 +1,7 @@
 import crypto from "crypto";
-import type { MongoFilter, MongoProjection, MongoQueryOptions } from "../../infra/mongo/mongoQueryShapes.js";
+type MongoFilter = Record<string, unknown>;
+type MongoProjection = Record<string, unknown>;
+type MongoQueryOptions = Record<string, unknown>;
 
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;

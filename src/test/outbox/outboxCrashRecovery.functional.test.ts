@@ -127,11 +127,12 @@ test("crash-sim cu recovery-verify: send reuseste, markSent esueaza/crash, worke
   });
 
   assert.equal(sentPayloads.length, 1, "recovery-verify a gasit marker-ul in istoric -> NU re-trimite (zero duplicate)");
-  assert.equal(result.recoveryDuplicates, 1, "drenarea numara un duplicat prevenit");
-  assert.equal(await store.model.countDocuments(), 0, "jobul recuperat e finalizat (dropped) fara re-trimitere");
+  assert.equal(result.recoveryDuplicates, 0, "starea deliveryAccepted elimina nevoia de a cauta marker-ul Discord");
+  assert.equal(result.resumedFinalizations, 1, "workerul reia doar finalizarea persistata");
+  assert.equal(await store.model.countDocuments(), 0, "jobul recuperat e finalizat fara re-trimitere");
 });
 
-test("crash-sim FARA recovery-verify: aceeasi scapare produce un duplicat (demonstreaza valoarea recovery-verify)", async () => {
+test("crash-sim fara recovery-verify: starea deliveryAccepted previne duplicatul si reia finalizarea", async () => {
   const store = makeStore();
   const runtime = createOutboxRuntime({
     NotificationOutboxModel: store.model,
@@ -164,11 +165,12 @@ test("crash-sim FARA recovery-verify: aceeasi scapare produce un duplicat (demon
 
   store.jobs[0].lockedUntil = undefined;
 
-  await runtime.drainOutbox({
+  const resumed = await runtime.drainOutbox({
     deliver: (job) => delivery.deliver(client, job),
     recordDeadLetter: async () => undefined,
     maxAttempts: 5, backoffMs: 1000, limit: 5
   });
 
-  assert.equal(sentPayloads.length, 2, "fara recovery-verify, jobul recuperat dupa crash se re-trimite -> duplicat");
+  assert.equal(sentPayloads.length, 1, "jobul confirmat de Discord nu este retrimis");
+  assert.equal(resumed.resumedFinalizations, 1, "finalizarea Mongo este reluata separat de livrare");
 });

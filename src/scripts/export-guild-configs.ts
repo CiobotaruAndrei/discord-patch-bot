@@ -1,5 +1,3 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
@@ -43,13 +41,10 @@ export function exportFileName(now: Date, mode: GuildExportMode = "config"): str
 }
 
 async function main(): Promise<void> {
-  const fs = require("fs") as typeof import("fs");
-  const path = require("path") as typeof import("path");
-  const mongoose = require("mongoose") as {
-    connect(uri: string, opts: Record<string, unknown>): Promise<unknown>;
-    disconnect(): Promise<unknown>;
-  };
-  const attachMongoModels = require("../infra/mongo/models").default as { buildFrom: (target: Record<string, unknown>) => Record<string, unknown> };
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const mongoose = await import("mongoose");
+  const attachMongoModels = (await import("../infra/mongo/models.js")).default;
 
   const mode = resolveGuildExportMode(process.argv.slice(2));
   const uri = process.env.MONGO_URI;
@@ -61,10 +56,15 @@ async function main(): Promise<void> {
   try {
     const models = attachMongoModels.buildFrom({
       mongoose,
-      SUPPORTED_CURRENCIES: { USD: {} },
+      SUPPORTED_CURRENCIES: {
+        USD: { cc: "US", symbol: "$", placement: "prefix" },
+        EUR: { cc: "DE", symbol: "EUR", placement: "prefix" },
+        GBP: { cc: "GB", symbol: "GBP", placement: "prefix" },
+        RON: { cc: "RO", symbol: " lei", placement: "suffix" }
+      },
       DEFAULT_CURRENCY: "USD",
       ONE_DAY_MS: 86_400_000,
-      env: { GUILD_SEEN_DISCOUNT_TTL_DAYS: 60, NOTIFICATION_OUTBOX_SENT_TTL_HOURS: 24, NOTIFICATION_HISTORY_TTL_DAYS: 30, FEEDBACK_REPORT_TTL_DAYS: 90, NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS: 7 }
+      env: { GUILD_SEEN_DISCOUNT_TTL_DAYS: 60, GUILD_AUDIT_LOG_TTL_DAYS: 180, NOTIFICATION_OUTBOX_SENT_TTL_HOURS: 24, NOTIFICATION_HISTORY_TTL_DAYS: 30, FEEDBACK_REPORT_TTL_DAYS: 90, NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS: 7 }
     });
     const GuildModel = models.GuildModel as { find(filter: Record<string, unknown>): { lean(): Promise<GuildSettings[]> } };
     const now = new Date();

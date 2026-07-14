@@ -15,7 +15,7 @@ const guild: GuildSettings = {
   enabledGames: ["cs2"],
   pendingUpdates: { cs2: [] },
   updatesInitializing: true,
-  adminCommandAccess: { mode: "administrator" }
+  adminCommandAccess: { mode: "role", roleId: "admin-role" }
 };
 
 test("exportul implicit pastreaza doar configuratia restaurabila", () => {

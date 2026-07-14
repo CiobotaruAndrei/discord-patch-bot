@@ -14,7 +14,7 @@ function makeLogger() {
 test("rollbackOrReport: cand rollback-ul reuseste, nu logheaza si nu raporteaza", async () => {
   const { logger, logs } = makeLogger();
   const reports: unknown[] = [];
-  await rollbackOrReport(async () => undefined, logger, { guildId: "g1", kind: "youtube", itemId: "vid1" }, (ctx, err) => reports.push({ ctx, err }));
+  await rollbackOrReport(async () => undefined, logger, { guildId: "g1", kind: "youtube", itemId: "vid1" }, (ctx, err) => { reports.push({ ctx, err }); });
   assert.equal(logs.length, 0, "succesul nu produce zgomot");
   assert.equal(reports.length, 0, "succesul nu declanseaza alerta");
 });
@@ -23,7 +23,7 @@ test("rollbackOrReport: cand rollback-ul arunca, logheaza WARN si raporteaza con
   const { logger, logs } = makeLogger();
   const reports: Array<{ ctx: { guildId: string; kind: string; itemId: string }; err: unknown }> = [];
   const boom = new Error("mongo write failed");
-  await rollbackOrReport(async () => { throw boom; }, logger, { guildId: "g1", kind: "youtube", itemId: "vid1" }, (ctx, err) => reports.push({ ctx, err }));
+  await rollbackOrReport(async () => { throw boom; }, logger, { guildId: "g1", kind: "youtube", itemId: "vid1" }, (ctx, err) => { reports.push({ ctx, err }); });
 
   assert.equal(logs.length, 1, "esecul de rollback nu mai e inghitit silentios");
   assert.equal(logs[0].level, "WARN");

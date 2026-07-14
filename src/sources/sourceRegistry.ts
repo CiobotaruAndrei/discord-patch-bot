@@ -40,14 +40,16 @@ type SourceRegistryApi = {
   formatPrice: (value: PriceValue, currencyCode?: CurrencyCode | string | null) => string;
 };
 
-type SourceRuntimeContext = Partial<SourceRegistryApi> & typeof import("./runtime.js")["default"];
+type SourceRuntimeContext = Partial<SourceRegistryApi> & ReturnType<typeof createSourceRuntime>;
 
 import attachHttpClient from "../infra/http/client.js";
 import attachSteam from "./steam/index.js";
 import attachUpdates from "./updates/index.js";
 import attachDeals from "./deals/index.js";
 
-import runtimeContext from "./runtime.js";
+import mongoContext from "../infra/mongo/mongoContext.js";
+import { createSourceRuntime } from "./runtime.js";
+import { createCircuitBreakerStore } from "./updates/circuitBreakerStore.js";
 
 function requireSourceValue<K extends keyof SourceRegistryApi>(context: Partial<SourceRegistryApi>, key: K): SourceRegistryApi[K] {
   const value = context[key];
@@ -94,7 +96,17 @@ function buildSourceRegistry(context: Partial<SourceRegistryApi>): SourceRegistr
 }
 
 function freshSourceContext(): SourceRuntimeContext {
-  return { ...runtimeContext };
+  return createSourceRuntime({
+    env: mongoContext.env,
+    logger: mongoContext.logger,
+    getAbortSignal: mongoContext.getAbortSignal,
+    getCurrencyConfig: mongoContext.getCurrencyConfig,
+    formatPrice: mongoContext.formatPrice,
+    runConcurrent: mongoContext.runConcurrent,
+    adminAlert: mongoContext.adminAlert,
+    SchemaDriftError: mongoContext.SchemaDriftError,
+    circuitBreakerStore: createCircuitBreakerStore(mongoContext.CircuitBreakerModel)
+  });
 }
 
 function createSourceRegistry(): SourceRegistryApi {

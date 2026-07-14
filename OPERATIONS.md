@@ -406,7 +406,12 @@ Daca preferi sa nu re-trimiti, pastreaza intrarile pentru audit pana la expirare
 
 Drenarea proceseaza fiecare job in pasi expliciti: **claim** (lease atomic) -> **validate**
 (dedupe pe `notificationOutboxSent`, expirare aproape de TTL, abonarea guild-ului, apoi forma
-payload-ului) -> **deliver** -> **markSent** -> **delete** (sau **retry** cu backoff / **dead-letter**).
+payload-ului) -> **deliver** -> **persist delivery accepted** -> **history + markSent** ->
+**finalize** (sau **retry** cu backoff / **dead-letter**). Persistarea acceptarii seteaza
+`deliveryAcceptedAt` pe job prin acelasi token compare-and-set. Daca procesul cade dupa livrarea
+Discord, jobul ramane `delivered-pending`; la reluare nu mai este trimis catre Discord, ci sunt
+reluati numai pasii de persistenta ramasi. Astfel fereastra send -> markSent nu mai produce
+re-livrare dupa crash.
 
 **Proprietarul lease-ului (compare-and-set).** La claim, `findOneAndUpdate` seteaza `lockedBy`
 (id-ul workerului) si incrementeaza `leaseVersion` (`$inc`), iar jobul revendicat poarta aceste
@@ -435,21 +440,24 @@ dead-letter, nu dispar fara urma.
 
 Regula generala: fiecare operatie critica este fie **o singura scriere Mongo atomica**
 (pipeline/`$set`+`$unset` intr-un singur `updateOne`/`findOneAndUpdate`), fie o **unitate
-logica cu fail-safe documentat** (ordinea scrierilor aleasa astfel incat orice intrerupere
-lasa sistemul recuperabil, plus rollback/raportare unde e cazul). Tranzactiile Mongo NU sunt
+logica jurnalizata si reluabila**. Jurnalul foloseste starile `pending -> leased -> done`, owner
+unic, `lockedUntil` si `leaseVersion`; numai proprietarul lease-ului poate finaliza operatia, iar
+o alta instanta poate recupera un lease expirat. Executorii sunt idempotenti, iar ID-ul jurnalului
+deduplica auditul. Tranzactiile Mongo NU sunt
 folosite: ar cere replica set (indisponibil pe deployment-uri standalone) si — pentru
 singurul flux unde ar parea utile (outbox) — nu ar acoperi riscul real, pentru ca send-ul
 Discord nu e tranzactional (vezi paragraful dedicat drenarii de mai jos).
 
 | Operatie | Mecanism | Fail-safe |
 | --- | --- | --- |
-| Livrare outbox | state machine claim->validate->deliver->markSent->delete | dedupe pe `dedupeKey` la claim face fereastra `markSent`->`delete` inofensiva; `delivered-marksent-failed` auditat + circuit-break; joburile terminale nu se sterg fara audit |
-| Backup restore (`/backup load`) | UN singur `updateOne` cu `$set` (cheile din snapshot) + `$unset` (cheile lipsa) | nu exista stare partiala: ori se aplica tot update-ul, ori nimic |
-| Salvare backup (`/add backup`) | UN singur pipeline (`$filter` + `$concatArrays` + `$slice`) | inlocuire + limitare intr-o singura scriere, fara `$pull`+`$push` separate |
+| Livrare outbox | state machine claim->validate->deliver->deliveryAcceptedAt->history/markSent->finalize | un job `delivered-pending` reia numai persistenta, fara re-livrare Discord; toate tranzitiile verifica lease-ul compare-and-set |
+| Backup restore (`/backup load`) | operatie jurnalizata + update atomic al snapshot-ului + audit idempotent | crash-ul lasa intrarea reluabila; reluarea nu dubleaza auditul |
+| Salvare/stergere backup | operatie jurnalizata + repository pe cheia naturala + audit idempotent | executorul poate fi reluat dupa crash fara backup sau audit duplicat |
+| Reset configuratie | operatie jurnalizata: reset + audit + curatarea colectiilor operationale | orice esec critic lasa operatia `pending`; recovery-ul reia pasii idempotenti |
 | `/youtube subscribe` | unitate logica: seed baseline seen -> salvare abonare prin pipeline atomic (`$cond` cu dedupe+limita) | esec la salvare sau limita ocupata concurent => rollback best-effort al baseline-ului (`removeSeenChannel`), logat daca pica |
 | `/youtube unsubscribe` | UN `updateOne` cu `$pull` combinat (abonare + rute) | cache invalidat imediat; curatarea colectiei seen e best-effort dupa |
 | Alerte de pret (declansare) | `claimTrigger` atomic (`$elemMatch` pe `triggeredAt: null`) | doua instante nu dubleaza alerta; esec de send => `rollbackOrReport` (re-armare + raportare daca rollback-ul pica) |
-| Reguli admin-command-access | UN `updateOne` per operatie; set-ul canonic face `$set` + `$unset` pe cheile vechi in aceeasi scriere | conflictele ramase intre chei vechi sunt raportate la listare, nu ascunse |
+| Reguli admin-command-access | operatie jurnalizata; set/delete folosesc cheia canonica si audit idempotent | crash-ul dintre regula si audit este reparat de recovery; cheile vechi sunt curatate idempotent |
 | Sugestii / watchlist-game / future-release | pipeline-uri atomice cu `$cond` (dedupe + limita in aceeasi scriere) | refuzul concurent e detectat din documentul intors si raportat userului |
 
 De ce calea de succes a drenarii NU foloseste tranzactii Mongo (decizie, nu lipsa): scrierile

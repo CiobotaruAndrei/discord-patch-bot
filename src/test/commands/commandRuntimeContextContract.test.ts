@@ -7,7 +7,7 @@ process.env.DISCORD_CLIENT_ID ||= "test_discord_client_id";
 process.env.METRICS_PUBLIC ||= "true";
 
 const commandRuntimeContextModule = (await import("../../features/command-runtime/commandRuntimeContext.js")).default;
-const { createCommandRuntimeContext } = commandRuntimeContextModule;
+const { createCommandRuntimeContext, createCommandRuntimeDependencies } = commandRuntimeContextModule;
 
 const CURATED_PRESENT = [
   "logger", "env", "getGuildSettings", "GuildModel", "GuildAuditLogModel", "adminAlert",
@@ -48,4 +48,17 @@ test("commandRuntimeContext NU mai scurge suprafata surselor neutilizata (fara .
   for (const key of UNCURATED_SOURCE_ABSENT) {
     assert.ok(!(key in ctx), `god-object regasit: campul de surse necuratat ${key} s-a scurs in contextul de comenzi`);
   }
+});
+
+test("commandRuntimeDependencies separa Discord, Mongo, sursele si platforma", () => {
+  const dependencies = createCommandRuntimeDependencies();
+  assert.deepEqual(Object.keys(dependencies).sort(), ["discord", "mongo", "platform", "sources"]);
+  assert.ok("EmbedBuilder" in dependencies.discord);
+  assert.ok(!("GuildModel" in dependencies.discord));
+  assert.ok("GuildModel" in dependencies.mongo);
+  assert.ok(!("fetchDeals" in dependencies.mongo));
+  assert.ok("fetchDeals" in dependencies.sources);
+  assert.ok(!("redis" in dependencies.sources));
+  assert.ok("redis" in dependencies.platform);
+  assert.ok(!("logger" in dependencies.platform));
 });

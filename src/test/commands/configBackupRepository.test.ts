@@ -139,19 +139,20 @@ test("CONFIG_BACKUP_KEYS e derivat din clasificare: doar campurile config, fara 
     .filter(([, role]) => role === "config")
     .map(([field]) => field);
   assert.deepEqual([...CONFIG_BACKUP_KEYS], expected, "lista de backup e exact multimea campurilor clasificate config");
+  const backupKeySet = new Set<string>(CONFIG_BACKUP_KEYS);
   assert.ok(CONFIG_BACKUP_KEYS.includes("dlcChannelId"), "configuratia stabila DLC e in backup");
   assert.ok(CONFIG_BACKUP_KEYS.includes("youtubeFilters"), "filtrele YouTube (config) sunt in backup");
   for (const excluded of ["dlcInitializing", "dlcActivationId", "botAuditLog", "configBackups", "pendingDiscounts"]) {
-    assert.equal(CONFIG_BACKUP_KEYS.includes(excluded), false, `${excluded} nu e configuratie stabila, nu intra in backup`);
+    assert.equal(backupKeySet.has(excluded), false, `${excluded} nu e configuratie stabila, nu intra in backup`);
   }
   for (const securityField of ["adminCommandAccess", "adminCommandAccessByCommand"]) {
-    assert.equal(CONFIG_BACKUP_KEYS.includes(securityField), false, `${securityField} e regula de securitate owner-only; /backup load (admin-level) nu are voie sa o rescrie`);
+    assert.equal(backupKeySet.has(securityField), false, `${securityField} e regula de securitate owner-only; /backup load (admin-level) nu are voie sa o rescrie`);
   }
 });
 
 test("backup-ul normalizeaza numele, copiaza doar configuratia si face upsert pe cheia naturala (guildId, name) in colectia dedicata", async () => {
   const { model, docs } = makeBackupModel();
-  const settings: GuildSettings = {
+  const settings = {
     _id: "guild-1",
     subscribed: true,
     notificationChannelId: "updates",

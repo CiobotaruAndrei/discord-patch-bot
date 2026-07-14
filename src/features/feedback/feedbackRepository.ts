@@ -1,8 +1,12 @@
 "use strict";
 
 import { REPORT_TYPES } from "./reportTypes.js";
-import type { MongoFilter, MongoUpdate, MongoProjection, MongoQueryOptions } from "../../infra/mongo/mongoQueryShapes.js";
 import type { ReportType } from "./reportTypes.js";
+
+type MongoFilter = Record<string, unknown>;
+type MongoUpdate = Record<string, unknown>;
+type MongoProjection = Record<string, unknown>;
+type MongoQueryOptions = Record<string, unknown>;
 
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;

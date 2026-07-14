@@ -9,6 +9,7 @@ export interface OutboxDeliveryFinalizerDeps {
   recordSentHistory?: (guildId: string, entries: OutboxHistoryEntry[]) => Promise<void>;
   markSent(dedupeKey: string | undefined): Promise<boolean>;
   recordDeadLetterBeforeDelete(job: OutboxJob, reason: string): Promise<void>;
+  markDeliveryAccepted(lease: OutboxLeaseToken): Promise<boolean>;
   finalizeDelivered(lease: OutboxLeaseToken): Promise<boolean>;
   logger: OutboxLogger;
 }
@@ -27,9 +28,10 @@ export interface FinalizeOutcome {
   recoveryDuplicate: boolean;
   recoveryFailed: boolean;
   recoveryMarkerMissing: boolean;
+  leaseLost: boolean;
 }
 
-export function createOutboxDeliveryFinalizer({ deliver, recordSentHistory, markSent, recordDeadLetterBeforeDelete, finalizeDelivered, logger }: OutboxDeliveryFinalizerDeps) {
+export function createOutboxDeliveryFinalizer({ deliver, recordSentHistory, markSent, recordDeadLetterBeforeDelete, markDeliveryAccepted, finalizeDelivered, logger }: OutboxDeliveryFinalizerDeps) {
   async function deliverClaimedJob(job: OutboxJob): Promise<DeliveryAttemptOutcome> {
     const startedAt = Date.now();
     let result: DeliverResult;
@@ -47,6 +49,18 @@ export function createOutboxDeliveryFinalizer({ deliver, recordSentHistory, mark
   }
 
   async function finalizeDeliveredJob(job: OutboxJob, result: Extract<DeliverResult, { ok: true }>): Promise<FinalizeOutcome> {
+    if (!job.deliveryAcceptedAt && !(await markDeliveryAccepted(job))) {
+      return {
+        stopDrain: true,
+        markSentFailed: false,
+        historyWriteFailed: false,
+        recoveryFetched: result.recoveryFetched === true,
+        recoveryDuplicate: result.recoveryDuplicate === true,
+        recoveryFailed: result.recoveryFailed === true,
+        recoveryMarkerMissing: result.recoveryMarkerMissing === true,
+        leaseLost: true
+      };
+    }
     let historyWriteFailed = false;
     if (recordSentHistory && Array.isArray(job.history) && job.history.length) {
       await recordSentHistory(job.guildId, job.history).catch((err: unknown) => {
@@ -66,7 +80,8 @@ export function createOutboxDeliveryFinalizer({ deliver, recordSentHistory, mark
       recoveryFetched: result.recoveryFetched === true,
       recoveryDuplicate: result.recoveryDuplicate === true,
       recoveryFailed: result.recoveryFailed === true,
-      recoveryMarkerMissing: result.recoveryMarkerMissing === true
+      recoveryMarkerMissing: result.recoveryMarkerMissing === true,
+      leaseLost: false
     };
   }
 

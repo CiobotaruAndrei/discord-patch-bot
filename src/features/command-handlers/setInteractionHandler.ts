@@ -1,7 +1,9 @@
 "use strict";
 
 import { applyGuildConfigUpdate } from "../guild-config/guildConfigRepository.js";
-import type { MongoFilter, MongoUpdate, MongoQueryOptions } from "../../infra/mongo/mongoQueryShapes.js";
+type MongoFilter = Record<string, unknown>;
+type MongoUpdate = Record<string, unknown>;
+type MongoQueryOptions = Record<string, unknown>;
 import { buildSetUpdatePlan } from "./setUpdatePlan.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 
