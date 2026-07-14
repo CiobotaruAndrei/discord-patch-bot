@@ -1,5 +1,3 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 "use strict";
 
 import type { CommandGame, CommandHandler } from "../command-registry/commandHandler.js";
@@ -20,6 +18,7 @@ import {
   type GuildAdminAccessDoc
 } from "./adminCommandAccessViews.js";
 import { parseAdminScopeId } from "../command-security/adminScopeIds.js";
+import adminCommandRouterGuard from "../command-security/adminCommandRouterGuard.js";
 import { errorDetail } from "../../shared/errors.js";
 
 type InteractionPayload = string | { content: string; flags?: number };
@@ -80,13 +79,6 @@ type AdminCommandAccessDeps = {
 };
 
 type AdminCommandAccessContext = AdminCommandAccessDeps;
-
-const adminCommandRouterGuard = require("../command-security/adminCommandRouterGuard").default as {
-  promptGlobalAccessCode(
-    target: Pick<AdminCommandAccessDeps, "GuildModel" | "GuildAuditLogModel" | "adminAlert">,
-    interaction: DiscordInteraction
-  ): Promise<DiscordInteraction | null>;
-};
 
 function hasLean(result: GuildFindQuery | Promise<GuildAdminAccessDoc | null>): result is GuildFindQuery {
   return "lean" in result && typeof result.lean === "function";

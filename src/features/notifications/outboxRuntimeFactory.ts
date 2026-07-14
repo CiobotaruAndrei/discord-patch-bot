@@ -1,15 +1,13 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 "use strict";
 
 import type { OutboxHistoryEntry } from "./notificationOutbox.js";
 import type { OutboxDiscordClient } from "./outboundChannel.js";
 import type { NotificationsRuntimeDeps } from "./notificationRuntimeContracts.js";
 
-const {
+import {
   createOutboundChannelResolver,
   isPermanentDiscordError
-} = require("./outboundChannel") as typeof import("./outboundChannel.js");
+} from "./outboundChannel.js";
 import { createHistoryRepository } from "./historyRepository.js";
 import { createOutboxRuntime, applyDedupeMarker, messageHasDedupeMarker, outboxDedupeMarker } from "./notificationOutbox.js";
 import { createOutboxDelivery } from "./outboxDelivery.js";

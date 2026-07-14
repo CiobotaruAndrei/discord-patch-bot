@@ -1,5 +1,3 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 "use strict";
 
 import type { GameConfig, InteractionMessage } from "../../types.js";
@@ -9,7 +7,7 @@ import { matchesCommand } from "../command-registry/commandMatch.js";
 import { REPORT_TYPES } from "../feedback/reportTypes.js";
 import { errorDetail } from "../../shared/errors.js";
 
-const { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require("discord.js") as typeof import("discord.js");
+import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 
 interface DiscordUser {
   id: string;
