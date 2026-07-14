@@ -35,7 +35,11 @@ Coada de joburi outbox creste mai repede decat reuseste worker-ul sa o dreneze.
    livreaza (canal/permisiuni/Discord down), nu doar volum mare.
 3. Verifica `bot_outbox_lock_acquire_failures` — daca creste, alta instanta tine lock-ul
    (multi-instanta) sau lock-ul nu se elibereaza; asigura-te ca ruleaza o singura instanta
-   sau ca lock-ul `outbox_drain` are TTL corect.
+   sau ca lock-ul `outbox_drain` are TTL corect. Lock-ul de drain e mentinut de un **heartbeat**
+   (reinnoire periodica la ~1/3 din TTL, aceeasi primitiva `createLockHeartbeat` ca la cron): un drain
+   lung nu mai poate lasa TTL-ul sa expire in timp ce inca lucreaza. Daca heartbeat-ul nu poate reinnoi
+   (renew intoarce false sau esueaza de 2 ori consecutiv), drain-ul **se opreste intre joburi** (nu mai
+   revendica joburi noi) ca sa nu ruleze in paralel cu instanta care a preluat lock-ul.
 4. Daca e doar volum mare (backlog temporar legitim): scade `NOTIFICATION_OUTBOX_DRAIN_INTERVAL_MS`
    (drenare mai deasa) si/sau creste `NOTIFICATION_OUTBOX_DRAIN_LIMIT` (mai multe joburi per ciclu).
    TTL-ul lock-ului se auto-dimensioneaza din aceste valori, deci nu trebuie ajustat manual.

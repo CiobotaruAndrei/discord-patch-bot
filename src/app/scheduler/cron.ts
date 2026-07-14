@@ -6,6 +6,7 @@ import { createCronHealthWindow } from "./cronHealthWindow.js";
 import { computeCronDelay, resolveCronScheduleConfig } from "./cronScheduleConfig.js";
 import { buildCronCycleJobs, runCronJobs } from "./cronJobRunner.js";
 import { createRearmingTimer } from "./rearmingTimer.js";
+import { createLockHeartbeat } from "./lockHeartbeat.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type ParseEnvNumber = (name: string, defaultValue: number, limits: { min?: number; max?: number }) => number;
@@ -14,7 +15,6 @@ type AdminAlert = (kind: string, title: string, body: string) => Promise<unknown
 type AcquireDbLock = (jobName: string, ttlMs: number) => Promise<string | null>;
 type RenewDbLock = (jobName: string, token: string, ttlMs: number) => Promise<boolean>;
 type ReleaseDbLock = (jobName: string, token: string) => Promise<unknown>;
-type TimerHandle = ReturnType<typeof setTimeout>;
 
 interface MongooseLike {
   connection: {
@@ -94,60 +94,26 @@ function createCronController({
 
   const health = createCronHealthWindow(env, logger);
 
-  let heartbeatTimerId: TimerHandle | null = null;
   let currentCronAbortController: AbortController | null = null;
-  let currentCronToken: string | null = null;
   const cronTimer = createRearmingTimer({
     isShuttingDown: () => lifecycle.isShuttingDown,
     delayMs: () => computeCronDelay(cronIntervalMs, cronJitterMs),
     onTick: runCronCycle
   });
+  const heartbeat = createLockHeartbeat({
+    lockName: "cron_main",
+    renewDbLock,
+    lockTtlMs,
+    heartbeatIntervalMs,
+    isShuttingDown: () => lifecycle.isShuttingDown,
+    logger,
+    logContext: "CRON_HEARTBEAT",
+    errorMessage,
+    onLost: () => currentCronAbortController?.abort()
+  });
 
   function shouldAbortCron(): boolean {
     return lifecycle.isShuttingDown || (currentCronAbortController?.signal.aborted ?? false);
-  }
-
-  function stopHeartbeat(): void {
-    if (heartbeatTimerId) {
-      clearTimeout(heartbeatTimerId);
-      heartbeatTimerId = null;
-    }
-  }
-
-  const HEARTBEAT_ABORT_AT_CONSECUTIVE_ERRORS = 2;
-  function startHeartbeat(lockToken: string): void {
-    stopHeartbeat();
-    let consecutiveErrors = 0;
-    const tick = async (): Promise<void> => {
-      if (lifecycle.isShuttingDown || currentCronToken !== lockToken) return;
-      try {
-        const renewed = await renewDbLock("cron_main", lockToken, lockTtlMs);
-        if (!renewed) {
-          logger("WARN", "CRON_HEARTBEAT", "Lock-ul cron nu a putut fi reinnoit, anulez ciclul");
-          if (currentCronAbortController) currentCronAbortController.abort();
-          return;
-        }
-        consecutiveErrors = 0;
-      } catch (err) {
-        consecutiveErrors++;
-        if (consecutiveErrors >= HEARTBEAT_ABORT_AT_CONSECUTIVE_ERRORS) {
-          logger("WARN", "CRON_HEARTBEAT",
-            `Reinnoire lock esuata ${consecutiveErrors} ticks consecutiv, anulez ciclul`,
-            errorMessage(err));
-          if (currentCronAbortController) currentCronAbortController.abort();
-          return;
-        }
-        logger("WARN", "CRON_HEARTBEAT",
-          `Eroare la reinnoirea lock-ului (${consecutiveErrors}/${HEARTBEAT_ABORT_AT_CONSECUTIVE_ERRORS}), retry`,
-          errorMessage(err));
-      }
-      if (!lifecycle.isShuttingDown && currentCronToken === lockToken) {
-        heartbeatTimerId = setTimeout(tick, heartbeatIntervalMs);
-        if (typeof heartbeatTimerId.unref === "function") heartbeatTimerId.unref();
-      }
-    };
-    heartbeatTimerId = setTimeout(tick, heartbeatIntervalMs);
-    if (typeof heartbeatTimerId.unref === "function") heartbeatTimerId.unref();
   }
 
   function scheduleNextCron(): void {
@@ -191,9 +157,8 @@ function createCronController({
       scheduleNextCron();
       return;
     }
-    currentCronToken = lockToken;
     currentCronAbortController = new AbortController();
-    startHeartbeat(lockToken);
+    heartbeat.start(lockToken);
 
     metrics.cronRuns++;
     const cycleStart = performance.now();
@@ -237,8 +202,7 @@ function createCronController({
         health.recordHealth(success, durationMs);
         if (cronCycleBudgetMs > 0 && durationMs > cronCycleBudgetMs) shedDiscountsNextCycle = true;
 
-        currentCronToken = null;
-        stopHeartbeat();
+        heartbeat.stop();
         await releaseDbLock("cron_main", lockToken).catch(() => null);
         currentCronAbortController = null;
         if (!lifecycle.isShuttingDown) scheduleNextCron();
@@ -249,7 +213,7 @@ function createCronController({
   function stop(): void {
     if (currentCronAbortController) currentCronAbortController.abort();
     cronTimer.stop();
-    stopHeartbeat();
+    heartbeat.stop();
   }
 
   return { scheduleNextCron, runCronCycle, stop, shouldAbortCron, getHealthSnapshot: health.getHealthSnapshot };

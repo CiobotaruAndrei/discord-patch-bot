@@ -85,7 +85,7 @@ export function createOutboxServices(deps: NotificationsRuntimeDeps) {
     });
   }
 
-  async function drainOutbox(client: OutboxDiscordClient) {
+  async function drainOutbox(client: OutboxDiscordClient, shouldAbort?: () => boolean) {
     const result = await outbox.drainOutbox({
       deliver: (job: OutboxJobShape) => outboxDelivery.deliver(client, job),
       isStillSubscribed: createIsStillSubscribed(GuildModel),
@@ -94,7 +94,8 @@ export function createOutboxServices(deps: NotificationsRuntimeDeps) {
       maxAttempts: OUTBOX_MAX_ATTEMPTS,
       backoffMs: OUTBOX_BACKOFF_MS,
       limit: OUTBOX_DRAIN_LIMIT,
-      maxAgeMs: OUTBOX_MAX_AGE_MS
+      maxAgeMs: OUTBOX_MAX_AGE_MS,
+      shouldAbort
     });
     const recoveryVerifyEnabledGuilds = await GuildModel.countDocuments({ outboxRecoveryVerify: true }).catch(() => undefined);
     return typeof recoveryVerifyEnabledGuilds === "number" ? { ...result, recoveryVerifyEnabledGuilds } : result;
