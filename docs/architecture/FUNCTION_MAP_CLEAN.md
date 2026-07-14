@@ -137,9 +137,8 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-runtime/commandRuntimeContext.ts`
 
 - Construieste contextul comun folosit de wiring.
-- Return type-ul e contractul **inchis** `CommandRuntimeContext` (bindings Discord & exporturile Mongo value-tipate & `SourceRegistryApi` & helperii de permisiuni), nu `Record<string, unknown>`; spread-urile vin din importuri statice tipate (`mongoContext` default + registrul de surse compus).
-- Este una dintre zonele principale de redus treptat.
-- Scopul pe termen lung este sa livreze dependinte mici si tipate catre factory-uri, nu un obiect comun mare de context.
+- Return type-ul e un **contract curat, explicit** `CommandRuntimeContext` (review impact-mare #4): NU mai e `DiscordRuntimeBindings & MongoContextExports & SourceRegistryApi & ...` (intersectia WHOLESALE a intregii suprafete mongo+surse, ~150 campuri), ci `DiscordRuntimeBindings & Pick<MongoContextExports, CommandMongoKey> & Pick<SourceRegistryApi, CommandSourceKey> & { checkReadMessageHistory, checkChannelPermissions, redis }` — exact ~42 exporturi mongo + ~23 API-uri de surse pe care stratul de comenzi le consuma efectiv (setul e derivat prin compilator, nu ghicit).
+- `createCommandRuntimeContext` **nu mai face `...data`/`...scrapers` wholesale**; selecteaza explicit prin `selectCommandMongoExports(data)` si `selectCommandSourceApi(scrapers)` (fiecare cu return type `Pick<..., CommandXKey>`, deci compilatorul cere fix campurile curate — o cheie lipsa sau in plus pica la build), la fel ca adaptorul `sources/runtime.ts`. Modelele raw de migrare, lock-urile, `SchemaDriftError`, `parseEnvNumber`, `USER_AGENTS`, `levenshtein` etc. nu mai sunt vizibile in stratul de comenzi. Factory-urile de servicii (`createCommandCache`, `createCommandPresentation`, `createNotificationRuntime`, ...) si cele 32 de handler-e isi declarau deja `Deps` ingust (review #15/#17); acum si baza pe care se compun e curata, deci god-object-ul e eliminat cap-coada. Gardat de `commandRuntimeContextContract.test.ts` (campurile curate prezente; suprafata necuratata mongo/surse absenta la runtime — daca cineva re-adauga `...data`, testul prinde scurgerea).
 
 ### `src/features/command-cache/commandCache.ts` (+ module pe responsabilitati)
 

@@ -103,17 +103,113 @@ async function checkChannelPermissions(interaction: PermissionAwareInteraction, 
   };
 }
 
-type CommandRuntimeContext = DiscordRuntimeBindings & MongoContextExports & SourceRegistryApi & {
+type CommandMongoKey =
+  | "logger" | "env" | "DEFAULT_CURRENCY" | "SUPPORTED_CURRENCIES" | "getCurrencyConfig" | "formatPrice"
+  | "getGuildSettings" | "invalidateGuildCache" | "getGuildCacheSize" | "adminAlert" | "withMongoRetry"
+  | "saveFetchSnapshot" | "loadFetchSnapshot" | "loadDealsFetchSnapshots" | "loadSourceHealth"
+  | "getOutboxPaused" | "setOutboxPaused" | "getSystemTimes" | "saveSystemTime"
+  | "validateUpdateFetchSnapshot" | "validatePendingDiscountSnapshot"
+  | "GuildModel" | "GuildAuditLogModel" | "GuildConfigBackupModel" | "GuildSuggestedCommandModel"
+  | "GuildYoutubeErrorModel" | "GuildDeadLetterModel" | "PlayerCountSnapshotModel" | "PlayerCountHistoryModel"
+  | "PlayerCountRecordModel" | "FeedbackReportModel" | "BugReportModel" | "UserComplaintModel"
+  | "GuildSeenDiscountModel" | "GuildSeenUpdateModel" | "GuildSeenYoutubeModel"
+  | "NotificationOutboxModel" | "NotificationOutboxSentModel" | "NotificationHistoryModel"
+  | "NotificationDeadLetterReplayModel" | "OperationJournalModel" | "runConcurrent";
+
+type CommandSourceKey =
+  | "MAX_DEALS" | "FETCH_CONCURRENCY"
+  | "cleanText" | "truncate" | "normalizeTitleForDedupe" | "safeCheerioLoad" | "httpReq" | "fetchWithProxy"
+  | "fetchDeals" | "fetchGameUpdate" | "getLatestForAllGames" | "executeFetchWithCircuitBreaker"
+  | "fetchSteamCurrentPlayers" | "searchSteamGameByName" | "chooseBestSteamMatch" | "fetchSteamPriceDetails"
+  | "enrichDealData" | "fetchSteamReviewData" | "extractOfferEndFromHtml" | "extractSteamOfferEndDate"
+  | "cleanEnrichedCache" | "getEnrichedCacheSize" | "dealHash";
+
+type CommandRuntimeContext = DiscordRuntimeBindings & Pick<MongoContextExports, CommandMongoKey> & Pick<SourceRegistryApi, CommandSourceKey> & {
   checkReadMessageHistory: typeof checkReadMessageHistory;
   checkChannelPermissions: typeof checkChannelPermissions;
   redis: typeof redis;
 };
 
+function selectCommandMongoExports(source: MongoContextExports): Pick<MongoContextExports, CommandMongoKey> {
+  return {
+    logger: source.logger,
+    env: source.env,
+    DEFAULT_CURRENCY: source.DEFAULT_CURRENCY,
+    SUPPORTED_CURRENCIES: source.SUPPORTED_CURRENCIES,
+    getCurrencyConfig: source.getCurrencyConfig,
+    formatPrice: source.formatPrice,
+    getGuildSettings: source.getGuildSettings,
+    invalidateGuildCache: source.invalidateGuildCache,
+    getGuildCacheSize: source.getGuildCacheSize,
+    adminAlert: source.adminAlert,
+    withMongoRetry: source.withMongoRetry,
+    saveFetchSnapshot: source.saveFetchSnapshot,
+    loadFetchSnapshot: source.loadFetchSnapshot,
+    loadDealsFetchSnapshots: source.loadDealsFetchSnapshots,
+    loadSourceHealth: source.loadSourceHealth,
+    getOutboxPaused: source.getOutboxPaused,
+    setOutboxPaused: source.setOutboxPaused,
+    getSystemTimes: source.getSystemTimes,
+    saveSystemTime: source.saveSystemTime,
+    validateUpdateFetchSnapshot: source.validateUpdateFetchSnapshot,
+    validatePendingDiscountSnapshot: source.validatePendingDiscountSnapshot,
+    runConcurrent: source.runConcurrent,
+    GuildModel: source.GuildModel,
+    GuildAuditLogModel: source.GuildAuditLogModel,
+    GuildConfigBackupModel: source.GuildConfigBackupModel,
+    GuildSuggestedCommandModel: source.GuildSuggestedCommandModel,
+    GuildYoutubeErrorModel: source.GuildYoutubeErrorModel,
+    GuildDeadLetterModel: source.GuildDeadLetterModel,
+    PlayerCountSnapshotModel: source.PlayerCountSnapshotModel,
+    PlayerCountHistoryModel: source.PlayerCountHistoryModel,
+    PlayerCountRecordModel: source.PlayerCountRecordModel,
+    FeedbackReportModel: source.FeedbackReportModel,
+    BugReportModel: source.BugReportModel,
+    UserComplaintModel: source.UserComplaintModel,
+    GuildSeenDiscountModel: source.GuildSeenDiscountModel,
+    GuildSeenUpdateModel: source.GuildSeenUpdateModel,
+    GuildSeenYoutubeModel: source.GuildSeenYoutubeModel,
+    NotificationOutboxModel: source.NotificationOutboxModel,
+    NotificationOutboxSentModel: source.NotificationOutboxSentModel,
+    NotificationHistoryModel: source.NotificationHistoryModel,
+    NotificationDeadLetterReplayModel: source.NotificationDeadLetterReplayModel,
+    OperationJournalModel: source.OperationJournalModel
+  };
+}
+
+function selectCommandSourceApi(source: SourceRegistryApi): Pick<SourceRegistryApi, CommandSourceKey> {
+  return {
+    MAX_DEALS: source.MAX_DEALS,
+    FETCH_CONCURRENCY: source.FETCH_CONCURRENCY,
+    cleanText: source.cleanText,
+    truncate: source.truncate,
+    normalizeTitleForDedupe: source.normalizeTitleForDedupe,
+    safeCheerioLoad: source.safeCheerioLoad,
+    httpReq: source.httpReq,
+    fetchWithProxy: source.fetchWithProxy,
+    fetchDeals: source.fetchDeals,
+    fetchGameUpdate: source.fetchGameUpdate,
+    getLatestForAllGames: source.getLatestForAllGames,
+    executeFetchWithCircuitBreaker: source.executeFetchWithCircuitBreaker,
+    fetchSteamCurrentPlayers: source.fetchSteamCurrentPlayers,
+    searchSteamGameByName: source.searchSteamGameByName,
+    chooseBestSteamMatch: source.chooseBestSteamMatch,
+    fetchSteamPriceDetails: source.fetchSteamPriceDetails,
+    enrichDealData: source.enrichDealData,
+    fetchSteamReviewData: source.fetchSteamReviewData,
+    extractOfferEndFromHtml: source.extractOfferEndFromHtml,
+    extractSteamOfferEndDate: source.extractSteamOfferEndDate,
+    cleanEnrichedCache: source.cleanEnrichedCache,
+    getEnrichedCacheSize: source.getEnrichedCacheSize,
+    dealHash: source.dealHash
+  };
+}
+
 function createCommandRuntimeContext(): CommandRuntimeContext {
   return {
     ...createDiscordRuntimeBindings(),
-    ...data,
-    ...scrapers,
+    ...selectCommandMongoExports(data),
+    ...selectCommandSourceApi(scrapers),
     checkReadMessageHistory,
     checkChannelPermissions,
     redis
