@@ -93,6 +93,7 @@ export interface DrainOutboxOptions {
   workerId?: string;
   now?: Date;
   maxAgeMs?: number;
+  shouldAbort?: () => boolean;
 }
 
 export interface DrainOutboxResult {

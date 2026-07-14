@@ -143,6 +143,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     });
 
     for (let i = 0; i < options.limit; i++) {
+      if (options.shouldAbort?.()) break;
       const job = await repository.claimNextJob(nowFn(), leaseMs, workerId);
       if (!job) break;
       processed++;

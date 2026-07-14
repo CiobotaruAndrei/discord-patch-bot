@@ -50,6 +50,7 @@ test("P2.3: flux pause/resume end-to-end — starea persistata controleaza drena
     logger: () => undefined,
     parseEnvNumber: (_n: string, d: number) => d,
     acquireDbLock: async () => "lock-token",
+    renewDbLock: async () => true,
     releaseDbLock: async () => undefined,
     drainOutbox: async () => { drainCalls++; return { sent: 0, retried: 0, deadLettered: 0, queued: 0 }; },
     lifecycle: { isShuttingDown: false },

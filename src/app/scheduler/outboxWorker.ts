@@ -1,11 +1,13 @@
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type ParseEnvNumber = (name: string, defaultValue: number, limits: { min?: number; max?: number }) => number;
 type AcquireDbLock = (jobName: string, ttlMs: number) => Promise<string | null>;
+type RenewDbLock = (jobName: string, token: string, ttlMs: number) => Promise<boolean>;
 type ReleaseDbLock = (jobName: string, token: string) => Promise<unknown>;
 type ErrorFormatter = (err: unknown) => string;
 
 import type { OutboxDiscordClient } from "../../features/notifications/outboundChannel.js";
 import { createRearmingTimer } from "./rearmingTimer.js";
+import { createLockHeartbeat } from "./lockHeartbeat.js";
 
 interface MongooseLike {
   connection: {
@@ -71,8 +73,9 @@ interface CreateOutboxWorkerDeps {
   logger: Logger;
   parseEnvNumber: ParseEnvNumber;
   acquireDbLock: AcquireDbLock;
+  renewDbLock: RenewDbLock;
   releaseDbLock: ReleaseDbLock;
-  drainOutbox: (client: DiscordClientLike) => Promise<OutboxDrainResult | unknown>;
+  drainOutbox: (client: DiscordClientLike, shouldAbort?: () => boolean) => Promise<OutboxDrainResult | unknown>;
   lifecycle: LifecycleState;
   metrics: OutboxMetricsLike;
   errorMessage: ErrorFormatter;
@@ -94,7 +97,7 @@ const OUTBOX_LOCK_MAX_TTL_MS = 3_600_000;
 
 function createOutboxWorker({
   mongoose, client, logger, parseEnvNumber,
-  acquireDbLock, releaseDbLock, drainOutbox, lifecycle, metrics, errorMessage, adminAlert, isPaused,
+  acquireDbLock, renewDbLock, releaseDbLock, drainOutbox, lifecycle, metrics, errorMessage, adminAlert, isPaused,
   drainLimit, perJobBudgetMs
 }: CreateOutboxWorkerDeps): OutboxWorker {
   const intervalMs = parseEnvNumber("NOTIFICATION_OUTBOX_DRAIN_INTERVAL_MS", 15_000, { min: 2_000, max: 600_000 });
@@ -107,12 +110,25 @@ function createOutboxWorker({
     min: OUTBOX_LOCK_MIN_TTL_MS,
     max: OUTBOX_LOCK_MAX_TTL_MS
   });
+  const heartbeatIntervalMs = Math.max(15_000, Math.floor(lockTtlMs / 3));
 
   let draining = false;
+  let lostLock = false;
   const timer = createRearmingTimer({
     isShuttingDown: () => lifecycle.isShuttingDown,
     delayMs: () => intervalMs,
     onTick: drainTick
+  });
+  const heartbeat = createLockHeartbeat({
+    lockName: OUTBOX_DRAIN_LOCK_NAME,
+    renewDbLock,
+    lockTtlMs,
+    heartbeatIntervalMs,
+    isShuttingDown: () => lifecycle.isShuttingDown,
+    logger,
+    logContext: "OUTBOX_HEARTBEAT",
+    errorMessage,
+    onLost: () => { lostLock = true; }
   });
 
   function recordDrain(result: OutboxDrainResult | unknown): void {
@@ -193,10 +209,13 @@ function createOutboxWorker({
         metrics.outboxLockAcquireFailures++;
         return;
       }
-      recordDrain(await drainOutbox(client));
+      lostLock = false;
+      heartbeat.start(token);
+      recordDrain(await drainOutbox(client, () => lostLock || lifecycle.isShuttingDown));
     } catch (err) {
       logger("WARN", "OUTBOX", "Drain outbox (worker) esuat", errorMessage(err));
     } finally {
+      heartbeat.stop();
       if (token) await releaseDbLock(OUTBOX_DRAIN_LOCK_NAME, token).catch(() => null);
       draining = false;
       timer.schedule();

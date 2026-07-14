@@ -9,6 +9,7 @@ interface Harness {
   acquireCalls: number;
   lockTtls: number[];
   alertKinds: string[];
+  lastShouldAbort?: (() => boolean);
   metrics: {
     outboxSent: number;
     outboxRetried: number;
@@ -46,6 +47,7 @@ function makeWorker(overrides: {
   perJobBudgetMs?: number;
   paused?: boolean;
   pauseThrows?: boolean;
+  renewDbLock?: (jobName: string, token: string, ttlMs: number) => Promise<boolean>;
 } = {}) {
   const harness: Harness = {
     drainCalls: 0,
@@ -72,11 +74,13 @@ function makeWorker(overrides: {
       assert.equal(jobName, OUTBOX_DRAIN_LOCK_NAME, "worker-ul foloseste lock-ul dedicat outbox_drain");
       return overrides.lockToken === undefined ? "lock-token" : overrides.lockToken;
     },
+    renewDbLock: overrides.renewDbLock ?? (async () => true),
     releaseDbLock: async (jobName: string, token: string) => {
       harness.releaseCalls.push({ jobName, token });
     },
-    drainOutbox: async () => {
+    drainOutbox: async (_client: unknown, shouldAbort?: () => boolean) => {
       harness.drainCalls++;
+      harness.lastShouldAbort = shouldAbort;
       if (overrides.drainThrows) throw new Error("drain boom");
       return overrides.drainResult ?? { sent: 0, retried: 0, deadLettered: 0, queued: 0 };
     },
@@ -167,6 +171,16 @@ test("outboxWorker: in shutdown drainTick iese imediat", async () => {
   await worker.drainTick();
   assert.equal(harness.acquireCalls, 0);
   assert.equal(harness.drainCalls, 0);
+  worker.stop();
+});
+
+test("outboxWorker: paseaza un shouldAbort catre drain care reflecta shutdown-ul (opreste intre joburi la pierderea proprietatii)", async () => {
+  const { worker, harness, lifecycle } = makeWorker();
+  await worker.drainTick();
+  assert.equal(typeof harness.lastShouldAbort, "function", "worker-ul paseaza un predicat de abort catre drain");
+  assert.equal(harness.lastShouldAbort?.(), false, "fara shutdown/lock pierdut, drain-ul nu se abandoneaza");
+  lifecycle.isShuttingDown = true;
+  assert.equal(harness.lastShouldAbort?.(), true, "shouldAbort devine true la shutdown");
   worker.stop();
 });
 

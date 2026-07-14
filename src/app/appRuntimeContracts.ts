@@ -30,7 +30,7 @@ export interface CommandRuntime {
   checkForDiscounts(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
   checkForYouTube(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
   cleanCache(): void;
-  drainOutbox(client: OutboxDiscordClient): Promise<unknown> | unknown;
+  drainOutbox(client: OutboxDiscordClient, shouldAbort?: () => boolean): Promise<unknown> | unknown;
   getCacheSizes(): CommandCacheSizes;
   handleInteraction(interaction: LifecycleDiscordInteraction, games: GameConfig[]): Promise<unknown> | unknown;
   registerSlashCommands(token: string, clientId: string): Promise<unknown>;
