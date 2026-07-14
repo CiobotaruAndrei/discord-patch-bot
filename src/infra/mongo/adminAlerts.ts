@@ -1,5 +1,4 @@
 import type { AxiosStatic } from "axios";
-import type { Model } from "mongoose";
 import type { LoggerFunction, RuntimeEnv } from "../../types.js";
 import { errorMessage } from "../../shared/errors.js";
 import { buildAdminAlertEmbed, toAdminAlertChannelPayload, toAdminAlertWebhookPayload } from "./adminAlertContent.js";
@@ -33,7 +32,11 @@ interface AdminAlertChannel {
 
 interface AdminAlertsContext {
   env: RuntimeEnv;
-  AdminAlertCooldownModel: Model<AdminAlertCooldownDoc>;
+  AdminAlertCooldownModel: {
+    updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown>;
+    findOneAndUpdate(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<AdminAlertCooldownDoc | null>;
+    create(doc: AdminAlertCooldownDoc): Promise<unknown>;
+  };
   GuildModel: {
     find(filter: Record<string, unknown>, projection?: Record<string, number>): {
       lean(): Promise<AdminAlertGuildDoc[]>;

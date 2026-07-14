@@ -1,7 +1,8 @@
 "use strict";
 
 import type * as Mongoose from "mongoose";
-import type { CurrencyCode, CurrencyRegistry, RuntimeEnv } from "../../types.js";
+import type { CurrencyCode, CurrencyRegistry } from "../../types.js";
+import type { MongoModelEnv } from "./mongoModelEnv.js";
 import { buildGuildNotificationSchemas } from "./guildNotificationSchemas.js";
 import { buildGuildYoutubeSchemas } from "./guildYoutubeSchemas.js";
 import { buildGuildAdminRecordSchemas } from "./guildAdminRecordSchemas.js";
@@ -20,7 +21,7 @@ export interface MongoModelsContext {
   SUPPORTED_CURRENCIES: CurrencyRegistry;
   DEFAULT_CURRENCY: CurrencyCode;
   ONE_DAY_MS: number;
-  env: RuntimeEnv;
+  env: MongoModelEnv;
   [key: string]: unknown;
 }
 

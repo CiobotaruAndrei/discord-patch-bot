@@ -144,9 +144,9 @@ test("pregatire migrare commandRegistry: tipurile de update fetch (notifications
   assert.ok(!/latest: \(\{ id: string \} & Record<string, unknown>\) \| null/.test(queue + latest), "fara latest loose ({id}&Record)|null in tipurile de update fetch (datoria raw-vs-normalized rezolvata pe calea update)");
 });
 
-test("notifications: serviciile nu mai au intersectia redundanta GuildSettings & Record<string, unknown> (GuildSettings poarta deja index-sig), nici caste as { seenHashVersion } evitabile", () => {
+test("notifications: serviciile folosesc GuildSettings tipat fara intersectii sau index signature", () => {
   const types = fs.readFileSync(path.join(srcRoot, "types.ts"), "utf8");
-  assert.match(types, /interface GuildSettings\b[\s\S]*?\[key: string\]: unknown/, "GuildSettings poarta deja index-sig, deci & Record<string, unknown> e redundant");
+  assert.ok(!/interface GuildSettings\b[\s\S]*?\[key: string\]: unknown/.test(types), "GuildSettings ramane contract inchis");
   for (const file of ["updateNotificationService.ts", "discountNotificationService.ts"]) {
     const text = fs.readFileSync(path.join(srcRoot, "features", "notifications", file), "utf8");
     assert.ok(!/GuildSettings & Record<string, unknown>/.test(text), `${file}: fara intersectia redundanta GuildSettings & Record<string, unknown>`);
@@ -170,7 +170,7 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   assert.ok(!/requireInstalled/.test(cmd), "commandRegistry nu mai are nevoie de garda requireInstalled: handleInteraction/buildHelpEmbed sunt locale, nu scrise inapoi in context");
   assert.ok(!/ctx\.handleInteraction =|ctx\.buildHelpEmbed =/.test(cmd), "commandRegistry nu mai muta contextul dupa compunere (ultimul rest de God-object dinamic a disparut)");
   assert.ok(!/HandlerMutableContext/.test(cmd), "overrides-ul de teste ramane doar Partial<CommandRuntimeBootContext>, fara campuri mutabile de handler");
-  assert.match(cmd, /const commandHandlers: CommandHandler\[\]/, "routing-ul e o lista tipata CommandHandler[] (din attach*.buildCommandHandler(ctx)), nu un lant de installX care impacheteaza handleInteraction");
+  assert.match(cmd, /createCommandHandlerDescriptors\(\)/, "routing-ul este construit din registrul declarativ de descriptori");
   assert.match(cmd, /async function dispatchCommand/, "commandRegistry ruteaza prin dispatchCommand (loop canHandle/handle, fallback ultimul), nu prin lant ordonat-sensibil de installX");
   assert.ok(!/attachAdminCommandRouterGuard\(ctx\)|attachCommandSnoozeGuard\(ctx\)/.test(cmd), "guard-urile nu se mai instaleaza prin mutarea contextului (fara attachX(ctx))");
   assert.match(cmd, /createCommandSnoozeGuard\(\{/, "snooze guard-ul e construit ca factory in registry");
@@ -180,7 +180,9 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   assert.ok(!/interaction as /.test(cmd), "dispatch-ul nu mai primeste unknown: marginea e tipata cu RoutedDiscordInteraction, fara casturi pe interaction (review impact-mare #10)");
   assert.match(cmd, /dispatchCommand\(interaction: RoutedDiscordInteraction/, "dispatcher-ul primeste contractul ingust de margine, nu unknown");
   assert.match(cmd, /return Object\.freeze\(\{/, "registrul intoarce direct functiile locale (handleInteraction/buildHelpEmbed) intr-un obiect inghetat, fara scriere inapoi in context");
-  assert.ok((cmd.match(/\.buildCommandHandler\(ctx\)/g) || []).length >= 15, "fiecare handler de comanda contribuie la lista tipata prin buildCommandHandler(ctx) (>= 15 ocurente)");
+  const descriptors = fs.readFileSync(path.join(srcRoot, "features", "command-registry", "commandHandlerDescriptors.ts"), "utf8");
+  assert.match(descriptors, /interface CommandHandlerDescriptor/, "descriptorii au contract explicit");
+  assert.ok((descriptors.match(/build: context =>/g) || []).length >= 15, "handler-ele sunt declarate prin factory-uri tipate in registrul de descriptori");
   assert.match(src, /type SourceRuntimeContext = Partial<SourceRegistryApi>/, "sourceRegistry modeleaza contextul progresiv ca Partial<SourceRegistryApi>");
   assert.match(src, /function requireSourceValue/, "sourceRegistry citeste exporturile prin garda fail-fast pe chei");
   assert.ok(!/SourceRuntimeContext = [^\n]*Record<string, unknown>/.test(src), "SourceRuntimeContext nu mai e largit cu Record<string, unknown> (R11 #5): contextul progresiv e exact Partial<SourceRegistryApi> & runtime");
@@ -198,9 +200,9 @@ test("mongoContext compune prin factory-return (build*From) imutabil, ca sourceR
   assert.ok(!/defaultInstallers/.test(mongo), "mongoContext nu mai are lista dinamica defaultInstallers");
   assert.ok(!/for \(const install of/.test(mongo), "mongoContext nu mai are bucla dinamica peste installers");
   assert.ok(!/installers: MongoInstaller\[\]/.test(mongo), "createMongoContext nu mai primeste un array de installers ca parametru");
-  assert.match(mongo, /const base: MongoRuntimeContext = \{ \.\.\.baseContext \}/, "porneste de la o copie proaspata, nu muteaza singletonul runtime");
-  assert.match(mongo, /\{ \.\.\.base, \.\.\.attachLogging\.buildFrom\(base\) \}/, "compune prin valorile returnate de build*From (factory-return), nu prin mutatie attachX(context)");
-  assert.match(mongo, /attachModels\.buildFrom\(withUtilities\)[\s\S]*attachFetchSnapshots\.buildFrom\(withAdminAlerts\)/, "spread imutabil ordonat in obiecte noi (fiecare strat citeste doar campurile straturilor anterioare)");
+  assert.match(mongo, /const base = \{ \.\.\.runtimeContextModule \}/, "porneste de la o copie proaspata, nu muteaza singletonul runtime");
+  assert.match(mongo, /\{ \.\.\.base, \.\.\.attachLoggingModule\.buildFrom\(base\) \}/, "compune prin valorile returnate de build*From (factory-return), nu prin mutatie attachX(context)");
+  assert.match(mongo, /attachModelsModule\.buildFrom\(withUtilities\)[\s\S]*attachFetchSnapshotsModule\.buildFrom\(withAdminAlerts\)/, "spread imutabil ordonat in obiecte noi (fiecare strat citeste doar campurile straturilor anterioare)");
   assert.ok(!/attachLogging\(context\)/.test(mongo), "nu mai exista apeluri de mutatie attachX(context) in compunere");
   assert.match(mongo, /Object\.freeze\(\{ \.\.\.createMongoContext\(\), createMongoContext \}\)/, "exportul mongoContext e inghetat (Object.freeze)");
 });
@@ -254,6 +256,7 @@ test("fisierele cu contracte inchise nu au double assertions as unknown as, veri
     path.join(srcRoot, "app", "main.ts"),
     path.join(srcRoot, "app", "bootstrap.ts"),
     path.join(srcRoot, "features", "command-runtime", "commandRuntimeContext.ts"),
+    path.join(srcRoot, "features", "command-runtime", "commandRuntimeDependencies.ts"),
     path.join(srcRoot, "features", "notifications", "index.ts"),
     path.join(srcRoot, "features", "notifications", "outboundChannel.ts"),
     path.join(srcRoot, "features", "notifications", "outboxDelivery.ts"),
@@ -307,7 +310,7 @@ test("createCommandRuntimeContext intoarce un contract inchis, nu Record<string,
 test("boot-ul (app/bootstrap.ts) foloseste require-uri tipate, ca satisfies AppRuntimeDeps sa nu fie pacalit de any (review #9.1 + #9.6)", () => {
   const bootstrapPath = path.join(srcRoot, "app", "bootstrap.ts");
   const text = fs.readFileSync(bootstrapPath, "utf8");
-  assert.match(text, /require\("\.\.\/infra\/mongo\/mongoContext"\)\.default as typeof import\("\.\.\/infra\/mongo\/mongoContext\.js"\)\["default"\]/, "mongoContext tipat");
+  assert.match(text, /import mongoContext from "\.\.\/infra\/mongo\/mongoContext\.js"/, "mongoContext importat static si tipat");
   assert.match(text, /import commands from "\.\.\/features\/command-registry\/commandRegistry\.js"/, "commandRegistry importat static tipat");
   assert.match(text, /import \* as scrapers from "\.\.\/sources\/sourceRegistry\.js"/, "sourceRegistry importat static cu API-ul value-tipat");
   assert.match(text, /satisfies AppRuntimeDeps/, "wiring-ul de boot ramane verificat cu satisfies");

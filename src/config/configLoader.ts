@@ -1,6 +1,5 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import * as path from "path";
+import { readFileSync } from "node:fs";
 import { validateConfig } from "./configValidator.js";
 import { errorMessage } from "../shared/errors.js";
 import type { BotConfig, ConfigLoadResult, GameConfig } from "./configTypes.js";
@@ -13,7 +12,7 @@ function loadConfig(configPath = process.env.CONFIG_PATH || "./config.json"): Co
   const resolvedPath = resolveConfigPath(configPath);
   let rawConfig: unknown;
   try {
-    rawConfig = require(resolvedPath);
+    rawConfig = JSON.parse(readFileSync(resolvedPath, "utf8"));
   } catch (err) {
     console.error(`[BOOT] Nu pot incarca config-ul de la calea "${configPath}": ${errorMessage(err)}`);
     console.error("[BOOT] Asigura-te ca fisierul exista si este JSON valid. Override cu env CONFIG_PATH.");

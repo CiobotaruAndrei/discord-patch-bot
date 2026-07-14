@@ -432,7 +432,7 @@ test("YouTube deliverManualVideos: cand rollback-ul claim-ului arunca, esecul e 
     FETCH_CONCURRENCY: 1,
     youtubeBatchDelayMs: 0,
     now: () => new Date("2026-06-25T06:00:00.000Z"),
-    reportRollbackFailure: context => reported.push({ kind: context.kind, itemId: context.itemId, guildId: context.guildId })
+    reportRollbackFailure: context => { reported.push({ kind: context.kind, itemId: context.itemId, guildId: context.guildId }); }
   } satisfies ServiceDeps);
 
   const guild = { _id: "g1", youtubeChannels: [channel], youtubeNotificationChannelId: null, youtubeChannelRoutes: [] };

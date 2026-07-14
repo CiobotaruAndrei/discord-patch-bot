@@ -1,10 +1,10 @@
 import type * as Mongoose from "mongoose";
-import type { RuntimeEnv } from "../../types.js";
+import type { MongoModelEnv } from "./mongoModelEnv.js";
 
 export interface OutboxSchemasDeps {
   mongoose: typeof Mongoose;
   ONE_DAY_MS: number;
-  env: RuntimeEnv;
+  env: MongoModelEnv;
 }
 
 export function buildOutboxSchemas({ mongoose, ONE_DAY_MS, env }: OutboxSchemasDeps) {
@@ -31,7 +31,8 @@ export function buildOutboxSchemas({ mongoose, ONE_DAY_MS, env }: OutboxSchemasD
     recoveryVerify: { type: Boolean, default: null },
     manual: { type: Boolean, default: false },
     history: { type: [outboxHistoryEntrySchema], default: [] },
-    status: { type: String, enum: ["queued", "leased", "delivered", "dead-lettered", "dropped"], default: "queued" },
+    deliveryAcceptedAt: { type: Date, default: null },
+    status: { type: String, enum: ["queued", "leased", "delivered-pending", "delivered", "dead-lettered", "dropped"], default: "queued" },
     statusChangedAt: { type: Date, default: Date.now },
     createdAt: { type: Date, default: Date.now, expires: 7 * ONE_DAY_MS / 1000 }
   }, { minimize: false });

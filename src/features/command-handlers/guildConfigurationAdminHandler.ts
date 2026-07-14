@@ -22,6 +22,7 @@ interface DiscordChannel {
 }
 
 interface DiscordInteraction {
+  id?: string;
   commandName?: string;
   guild?: { id: string } | null;
   user?: { id?: string } | null;
@@ -56,7 +57,7 @@ interface GuildConfigurationAdminDeps {
   GuildYoutubeErrorModel: Pick<YoutubeErrorModelLike, "deleteMany">;
   GuildDeadLetterModel: Pick<DeadLetterModelLike, "deleteMany">;
   OperationJournalModel: OperationJournalModelLike;
-  deleteAllReplayPayloads(guildId: string): Promise<void>;
+  NotificationDeadLetterReplayModel: { deleteMany(filter: Record<string, unknown>): Promise<unknown> };
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
   checkChannelPermissions(interaction: DiscordInteraction, channelId: string): Promise<ChannelPermissions | null>;
@@ -70,19 +71,20 @@ type GuildConfigurationAdminContext = GuildConfigurationAdminDeps;
 function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps) {
   const {
     GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, GuildDeadLetterModel, OperationJournalModel,
-    deleteAllReplayPayloads, safeDefer, safeEdit,
+    safeDefer, safeEdit,
     checkChannelPermissions, DEFAULT_CURRENCY, logger
   } = deps;
 
   const operationJournal = createOperationJournalRuntime({
-    OperationJournalModel, GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, GuildDeadLetterModel, logger
+    OperationJournalModel, GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, GuildDeadLetterModel,
+    NotificationDeadLetterReplayModel: deps.NotificationDeadLetterReplayModel, logger
   });
 
   async function handleResetConfiguration(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     if (interaction.options.getBoolean("confirm", true) !== true) {
       return safeEdit(interaction, "Resetarea a fost anulata. Foloseste `confirm:true` numai daca vrei sa stergi toate setarile serverului.");
     }
-    await operationJournal.runJournaled(`${RESET_CONFIG_KIND}:${guildId}:${Date.now()}`, RESET_CONFIG_KIND, {
+    await operationJournal.runJournaled(`${RESET_CONFIG_KIND}:${guildId}:${interaction.id || `${interaction.user?.id || "unknown"}:${Date.now()}`}`, RESET_CONFIG_KIND, {
       guildId,
       defaultCurrency: DEFAULT_CURRENCY,
       audit: {
@@ -91,16 +93,7 @@ function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps)
         details: "Configuratia serverului a fost resetata la valorile implicite"
       }
     });
-    let replayCleanupOk = true;
-    try {
-      await deleteAllReplayPayloads(guildId);
-    } catch (err: unknown) {
-      replayCleanupOk = false;
-      logger("WARN", "GUILD_CONFIG_ADMIN", `Reset config: stergerea payload-urilor de replay a esuat pentru guild ${guildId}`, errorDetail(err));
-    }
-    return safeEdit(interaction, replayCleanupOk
-      ? "OK: configuratia serverului a fost resetata la valorile implicite. Lista dead-letter si payload-urile de replay au fost sterse; istoricul rapoartelor si al notificarilor livrate nu a fost sters."
-      : "Partial: configuratia serverului a fost resetata si lista dead-letter golita, dar stergerea payload-urilor de replay a esuat. Verifica MongoDB si jurnalele operationale; istoricul notificarilor livrate nu a fost sters.");
+    return safeEdit(interaction, "OK: configuratia serverului a fost resetata la valorile implicite. Lista dead-letter si payload-urile de replay au fost sterse; istoricul rapoartelor si al notificarilor livrate nu a fost sters.");
   }
 
   async function handleAdminAlerts(interaction: DiscordInteraction, guildId: string): Promise<unknown> {

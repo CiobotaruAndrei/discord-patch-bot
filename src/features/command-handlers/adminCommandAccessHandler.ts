@@ -3,8 +3,14 @@
 import type { CommandGame, CommandHandler } from "../command-registry/commandHandler.js";
 
 import { handledCommandError } from "../command-security/commandOutcome.js";
-import { deleteAdminAccessRule, loadAdminAccessDoc, saveAdminAccessRule } from "../command-security/adminAccessRepository.js";
+import { loadAdminAccessDoc } from "../command-security/adminAccessRepository.js";
 import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
+import type { OperationJournalModelLike } from "../../infra/mongo/operationJournal.js";
+import {
+  ADMIN_ACCESS_DELETE_KIND,
+  ADMIN_ACCESS_SAVE_KIND,
+  createOperationJournalRuntime
+} from "../admin-records/operationJournalRuntime.js";
 import {
   buildAdminCommandAccessScopeLookupKeys,
   displayAdminCommandAccessScope,
@@ -20,6 +26,7 @@ import {
 import { parseAdminScopeId } from "../command-security/adminScopeIds.js";
 import adminCommandRouterGuard from "../command-security/adminCommandRouterGuard.js";
 import { errorDetail } from "../../shared/errors.js";
+import type { MongoWriteOutcome } from "../../types.js";
 
 type InteractionPayload = string | { content: string; flags?: number };
 
@@ -40,6 +47,7 @@ type DiscordGuild = {
 };
 
 type DiscordInteraction = {
+  id?: string;
   commandName?: string;
   guild?: DiscordGuild | null;
   user?: { id?: string } | null;
@@ -62,7 +70,7 @@ type GuildFindQuery = {
 };
 
 type GuildModelLike = {
-  updateOne(filter: object, update: object, options?: object): Promise<unknown>;
+  updateOne(filter: object, update: object, options?: object): Promise<MongoWriteOutcome>;
   findOne(filter: object): GuildFindQuery | Promise<GuildAdminAccessDoc | null>;
 };
 
@@ -71,6 +79,7 @@ type Logger = (level: string, context: string, message: string, meta?: unknown) 
 type AdminCommandAccessDeps = {
   GuildModel: GuildModelLike;
   GuildAuditLogModel: GuildAuditLogModelLike;
+  OperationJournalModel: OperationJournalModelLike;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
   logger: Logger;
@@ -106,6 +115,16 @@ function readTargetScope(interaction: DiscordInteraction): string {
 
 function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
   const { GuildModel, GuildAuditLogModel, safeDefer, safeEdit, logger } = deps;
+  const operationJournal = createOperationJournalRuntime({
+    OperationJournalModel: deps.OperationJournalModel,
+    GuildModel,
+    GuildAuditLogModel,
+    logger
+  });
+
+  function operationKey(interaction: DiscordInteraction, kind: string, scope: string): string {
+    return `${kind}:${interaction.guild?.id || "unknown"}:${interaction.id || `${interaction.user?.id || "unknown"}:${Date.now()}`}:${scope}`;
+  }
 
   async function authorizeOwner(interaction: DiscordInteraction): Promise<DiscordInteraction | null> {
     if (await isGuildOwner(interaction)) return interaction;
@@ -128,7 +147,8 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
     }
     const access = { mode, roleId: role.id, updatedBy: interaction.user?.id || "", updatedAt: new Date() };
     const legacyKeys = scope === "global" ? [] : buildAdminCommandAccessScopeLookupKeys(scope).filter(key => key !== scope);
-    await saveAdminAccessRule(GuildModel, GuildAuditLogModel, guildId, {
+    await operationJournal.runJournaled(operationKey(interaction, ADMIN_ACCESS_SAVE_KIND, scope), ADMIN_ACCESS_SAVE_KIND, {
+      guildId,
       scope,
       access,
       legacyKeys,
@@ -155,7 +175,8 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
     if (interaction.options.getBoolean("confirm", true) !== true) {
       return safeEdit(interaction, "Stergerea a fost anulata. Foloseste `confirm:true` numai daca vrei sa revii la accesul implicit.");
     }
-    await deleteAdminAccessRule(GuildModel, GuildAuditLogModel, guildId, {
+    await operationJournal.runJournaled(operationKey(interaction, ADMIN_ACCESS_DELETE_KIND, scope), ADMIN_ACCESS_DELETE_KIND, {
+      guildId,
       scope,
       lookupKeys: buildAdminCommandAccessScopeLookupKeys(scope),
       audit: {

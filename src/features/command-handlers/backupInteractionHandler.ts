@@ -3,14 +3,21 @@
 import type { DiscordReplyPayload, GameConfig, GuildSettings } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import {
-  deleteConfigBackupWithAudit,
+  buildConfigSnapshot,
   findConfigBackup,
   listConfigBackups,
-  loadConfigBackupWithAudit,
-  saveConfigBackup,
+  normalizeBackupName,
   type ConfigBackupModelLike
 } from "../admin-records/configBackupRepository.js";
-import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
+import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
+import type { OperationJournalModelLike } from "../../infra/mongo/operationJournal.js";
+import type { GuildConfigWriteModelLike } from "../guild-config/guildConfigRepository.js";
+import {
+  BACKUP_DELETE_KIND,
+  BACKUP_LOAD_KIND,
+  BACKUP_SAVE_KIND,
+  createOperationJournalRuntime
+} from "../admin-records/operationJournalRuntime.js";
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { renderBackupList, renderBackupPreview } from "./backupViews.js";
 
@@ -20,6 +27,7 @@ type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
 interface DiscordInteraction {
+  id?: string;
   commandName?: string;
   guild?: { id: string } | null;
   user?: { id?: string } | null;
@@ -36,9 +44,10 @@ interface DiscordInteraction {
 }
 
 interface BackupInteractionDeps {
-  GuildModel: Parameters<typeof loadConfigBackupWithAudit>[0];
+  GuildModel: GuildConfigWriteModelLike;
   GuildAuditLogModel: GuildAuditLogModelLike;
   GuildConfigBackupModel: ConfigBackupModelLike;
+  OperationJournalModel: OperationJournalModelLike;
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
@@ -59,26 +68,34 @@ function requireConfirm(interaction: DiscordInteraction): boolean {
 
 function createBackupInteractionHandler(deps: BackupInteractionDeps) {
   const { GuildModel, GuildAuditLogModel, GuildConfigBackupModel, getGuildSettings, safeDefer, safeEdit, formatUserError } = deps;
+  const operationJournal = createOperationJournalRuntime({
+    OperationJournalModel: deps.OperationJournalModel,
+    GuildModel,
+    GuildAuditLogModel,
+    GuildConfigBackupModel,
+    logger: deps.logger
+  });
 
-  async function auditBestEffort(guildId: string, userId: string, action: string, details: string): Promise<boolean> {
-    try {
-      await recordServerAuditEntry(GuildAuditLogModel, guildId, { userId, action, details });
-      return true;
-    } catch (err: unknown) {
-      deps.logger("WARN", "BACKUP_COMMAND", `Jurnalul server-log a esuat pentru ${action}; operatia a reusit, dar /server-log poate fi incomplet`, errorDetail(err));
-      return false;
-    }
+  function operationKey(interaction: DiscordInteraction, kind: string, subject: string): string {
+    return `${kind}:${interaction.guild?.id || "unknown"}:${interaction.id || `${interaction.user?.id || "unknown"}:${Date.now()}`}:${subject}`;
   }
 
   async function handleAdd(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     const name = backupName(interaction);
     if (!name) return safeEdit(interaction, "Eroare: trebuie sa dai un nume pentru backup.");
     const settings = await getGuildSettings(guildId);
-    const record = await saveConfigBackup(GuildConfigBackupModel, guildId, name, interaction.user?.id || "", settings);
-    const audited = await auditBestEffort(guildId, interaction.user?.id || "", "backup_add", `Saved backup ${record.name}`);
-    return safeEdit(interaction, audited
-      ? `OK: backup-ul \`${record.name}\` a fost salvat.`
-      : `OK: backup-ul \`${record.name}\` a fost salvat (dar nu am putut scrie in /server-log - vezi log-urile botului).`);
+    const backup = {
+      name: normalizeBackupName(name),
+      createdBy: interaction.user?.id || "",
+      createdAt: new Date(),
+      snapshot: buildConfigSnapshot(settings)
+    };
+    await operationJournal.runJournaled(operationKey(interaction, BACKUP_SAVE_KIND, backup.name), BACKUP_SAVE_KIND, {
+      guildId,
+      backup,
+      audit: { userId: interaction.user?.id || "", action: "backup_add", details: `Saved backup ${backup.name}` }
+    });
+    return safeEdit(interaction, `OK: backup-ul \`${backup.name}\` a fost salvat.`);
   }
 
   async function handleList(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
@@ -100,10 +117,10 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
     const name = backupName(interaction);
     const backup = await findConfigBackup(GuildConfigBackupModel, guildId, name);
     if (!backup) return safeEdit(interaction, `Nu exista backup-ul \`${name}\`.`);
-    await loadConfigBackupWithAudit(GuildModel, GuildAuditLogModel, guildId, backup, {
-      userId: interaction.user?.id || "",
-      action: "backup_load",
-      details: `Loaded backup ${backup.name}`
+    await operationJournal.runJournaled(operationKey(interaction, BACKUP_LOAD_KIND, backup.name), BACKUP_LOAD_KIND, {
+      guildId,
+      backup,
+      audit: { userId: interaction.user?.id || "", action: "backup_load", details: `Loaded backup ${backup.name}` }
     });
     return safeEdit(interaction, `OK: backup-ul \`${backup.name}\` a fost incarcat.`);
   }
@@ -113,13 +130,14 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
       return safeEdit(interaction, "Stergerea a fost anulata. Ruleaza comanda cu `confirm:true` daca vrei sa stergi backup-ul.");
     }
     const name = backupName(interaction);
-    const deleted = await deleteConfigBackupWithAudit(GuildConfigBackupModel, GuildAuditLogModel, guildId, name, {
-      userId: interaction.user?.id || "",
-      action: "backup_delete",
-      details: `Deleted backup ${name}`
+    const backup = await findConfigBackup(GuildConfigBackupModel, guildId, name);
+    if (!backup) return safeEdit(interaction, `Nu exista backup-ul \`${name}\`.`);
+    await operationJournal.runJournaled(operationKey(interaction, BACKUP_DELETE_KIND, backup.name), BACKUP_DELETE_KIND, {
+      guildId,
+      name: backup.name,
+      audit: { userId: interaction.user?.id || "", action: "backup_delete", details: `Deleted backup ${backup.name}` }
     });
-    if (!deleted) return safeEdit(interaction, `Nu exista backup-ul \`${name}\`.`);
-    return safeEdit(interaction, `OK: backup-ul \`${name}\` a fost sters.`);
+    return safeEdit(interaction, `OK: backup-ul \`${backup.name}\` a fost sters.`);
   }
 
   async function handleBackupInteraction(interaction: DiscordInteraction): Promise<unknown> {

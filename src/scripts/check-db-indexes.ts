@@ -1,9 +1,8 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
 import type { MongoModelsContext } from "../infra/mongo/models.js";
+import type * as Mongoose from "mongoose";
 
 export interface DeclaredIndex {
   model: string;
@@ -35,14 +34,27 @@ interface IndexModel {
   syncIndexes(): Promise<unknown>;
 }
 
-interface MongooseLike {
-  modelNames(): string[];
-  model(name: string): IndexModel;
-}
-
-export function collectDeclaredIndexes(mongoose: MongooseLike, attachMongoModels: { buildFrom: (context: MongoModelsContext) => Record<string, unknown> }): DeclaredIndex[] {
+export function collectDeclaredIndexes(mongoose: typeof Mongoose, attachMongoModels: { buildFrom: (context: MongoModelsContext) => Record<string, unknown> }): DeclaredIndex[] {
   try {
-    attachMongoModels.buildFrom({ mongoose, SUPPORTED_CURRENCIES: { USD: {} }, DEFAULT_CURRENCY: "USD", ONE_DAY_MS: 86_400_000, env: { GUILD_SEEN_DISCOUNT_TTL_DAYS: 60, GUILD_AUDIT_LOG_TTL_DAYS: 180, NOTIFICATION_OUTBOX_SENT_TTL_HOURS: 24, NOTIFICATION_HISTORY_TTL_DAYS: 30, FEEDBACK_REPORT_TTL_DAYS: 90, NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS: 7 } } as MongoModelsContext);
+    attachMongoModels.buildFrom({
+      mongoose,
+      SUPPORTED_CURRENCIES: {
+        USD: { cc: "US", symbol: "$", placement: "prefix" },
+        EUR: { cc: "DE", symbol: "EUR", placement: "prefix" },
+        GBP: { cc: "GB", symbol: "GBP", placement: "prefix" },
+        RON: { cc: "RO", symbol: " lei", placement: "suffix" }
+      },
+      DEFAULT_CURRENCY: "USD",
+      ONE_DAY_MS: 86_400_000,
+      env: {
+        GUILD_SEEN_DISCOUNT_TTL_DAYS: 60,
+        GUILD_AUDIT_LOG_TTL_DAYS: 180,
+        NOTIFICATION_OUTBOX_SENT_TTL_HOURS: 24,
+        NOTIFICATION_HISTORY_TTL_DAYS: 30,
+        FEEDBACK_REPORT_TTL_DAYS: 90,
+        NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS: 7
+      }
+    });
   } catch {
     void 0;
   }
@@ -99,13 +111,10 @@ export function analyzeIndexes(indexes: DeclaredIndex[], operationsText: string)
 }
 
 async function main(): Promise<void> {
-  const fs = require("fs") as typeof import("fs");
-  const path = require("path") as typeof import("path");
-  const mongoose = require("mongoose") as MongooseLike & {
-    connect(uri: string, opts: Record<string, unknown>): Promise<unknown>;
-    disconnect(): Promise<unknown>;
-  };
-  const attachMongoModels = require("../infra/mongo/models").default as { buildFrom: (target: Record<string, unknown>) => Record<string, unknown> };
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const mongoose = await import("mongoose");
+  const attachMongoModels = (await import("../infra/mongo/models.js")).default;
 
   const srcRoot = process.cwd();
   const repoRoot = path.resolve(srcRoot, "..");
@@ -140,7 +149,7 @@ async function main(): Promise<void> {
       }
       console.log(`[INDEXCHECK] live OK: syncIndexes a reusit pe ${mongoose.modelNames().length} colectii (toate index-urile sunt construibile).`);
     } catch (err) {
-      liveError = (err as Error).message;
+      liveError = err instanceof Error ? err.message : String(err);
       console.error(`::error::[check-db-indexes] syncIndexes a esuat (index conflictual/invalid): ${liveError}`);
     }
     await mongoose.disconnect().catch(() => undefined);

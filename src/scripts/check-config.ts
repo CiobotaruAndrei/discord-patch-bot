@@ -1,7 +1,6 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import { fileURLToPath as __fileURLToPath } from "node:url";
 import { dirname as __pathDirname } from "node:path";
+import { readFileSync } from "node:fs";
 const __filename = __fileURLToPath(import.meta.url);
 const __dirname = __pathDirname(__filename);
 
@@ -20,7 +19,7 @@ function defaultConfigPath(): string {
 const configPath = process.env.CONFIG_PATH
   ? path.resolve(process.cwd(), process.env.CONFIG_PATH)
   : defaultConfigPath();
-const config = require(configPath);
+const config: unknown = JSON.parse(readFileSync(configPath, "utf8"));
 const validated = validateConfig(config, configPath);
 
 console.log(`Config OK: ${validated.games.length} entries from ${configPath}`);

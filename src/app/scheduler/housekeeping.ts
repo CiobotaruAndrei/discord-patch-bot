@@ -1,5 +1,6 @@
 import type { RuntimeEnv } from "../../types.js";
 import type { RateLimiter } from "../health/rateLimit.js";
+import { createScheduledTaskRunner } from "./scheduledTaskRunner.js";
 
 type HousekeepingLogger = (level: "INFO" | "WARN", context: string, message: string, meta?: unknown) => void;
 type ErrorFormatter = (err: unknown) => string;
@@ -36,26 +37,23 @@ function createHousekeeping({
   env,
   errorMessage
 }: CreateHousekeepingDeps): HousekeepingController {
-  let timerId: ReturnType<typeof setInterval> | null = null;
-
-  function start(): void {
-    if (timerId) return;
-    const tick = () => {
+  const runner = createScheduledTaskRunner({
+    intervalMs: env.HOUSEKEEPING_INTERVAL_MS,
+    task: () => {
       try { commands.cleanCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanCache eroare", errorMessage(e)); }
       try { cleanGuildCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanGuildCache eroare", errorMessage(e)); }
       try { scrapers.cleanEnrichedCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanEnrichedCache eroare", errorMessage(e)); }
       try { rateLimiter.prune(); } catch (e) { logger("WARN", "HOUSEKEEPING", "pruneRateLimitMap eroare", errorMessage(e)); }
-    };
-    timerId = setInterval(tick, env.HOUSEKEEPING_INTERVAL_MS);
-    if (typeof timerId.unref === "function") timerId.unref();
+    }
+  });
+
+  function start(): void {
+    runner.start();
     logger("INFO", "HOUSEKEEPING", `Pornit interval=${env.HOUSEKEEPING_INTERVAL_MS}ms`);
   }
 
   function stop(): void {
-    if (timerId) {
-      clearInterval(timerId);
-      timerId = null;
-    }
+    runner.stop();
   }
 
   return { start, stop };

@@ -103,7 +103,7 @@ test("drainOutbox: livrare reusita -> jobul e sters (sent)", async () => {
   assert.ok(typeof result.deliveryMsTotal === "number" && result.deliveryMsTotal >= 0);
   assert.ok(typeof result.oldestJobAgeMs === "number" && result.oldestJobAgeMs >= 0);
   assert.deepEqual(finalized(), [{ id: "j1", status: "delivered" }]);
-  assert.equal(updated.length, 1, "singura scriere e finalizarea terminala (fara retry)");
+  assert.equal(updated.length, 2, "confirmarea livrarii si finalizarea terminala sunt doua tranzitii single-document explicite");
   assert.equal(deadLetters.length, 0);
 });
 
@@ -166,7 +166,7 @@ test("drainOutbox: un deliver care ARUNCA e tratat ca esec tranzitoriu si nu opr
   assert.equal(result.sent, 1, "al doilea job a fost livrat");
   assert.equal(result.retried, 1, "jobul care a aruncat e reprogramat (esec tranzitoriu)");
   assert.equal(result.deadLettered, 0);
-  assert.equal(updated.length, 2, "retry-ul jobului care a aruncat + finalizarea jobului livrat");
+  assert.equal(updated.length, 3, "retry-ul jobului care a aruncat + confirmarea si finalizarea jobului livrat");
   assert.deepEqual(finalized(), [{ id: "j2", status: "delivered" }], "doar jobul livrat e finalizat");
 });
 

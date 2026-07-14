@@ -63,7 +63,7 @@ test("guildConfigRepository: reset-ul scrie valorile implicite cu upsert si audi
   const youtubeErrorModel = { deleteMany: async (filter: Record<string, unknown>) => { errorLogDeletes.push(filter); return { deletedCount: 1 }; } };
   const deadLetterDeletes: Array<Record<string, unknown>> = [];
   const deadLetterModel = { deleteMany: async (filter: Record<string, unknown>) => { deadLetterDeletes.push(filter); return { deletedCount: 1 }; } };
-  await resetGuildConfigurationWithAudit(model, auditModel, youtubeErrorModel, deadLetterModel, "g1", "EUR", { userId: "u1", action: "reset_config", details: "test" }, () => undefined);
+  await resetGuildConfigurationWithAudit(model, auditModel, youtubeErrorModel, deadLetterModel, "g1", "EUR", { userId: "u1", action: "reset_config", details: "test" }, "reset:g1:test");
   assert.equal(calls.length, 1, "reset = o singura scriere pe guild, fara $push de audit");
   const setDoc = calls[0].update.$set as Record<string, unknown>;
   assert.equal(setDoc.subscribed, false);

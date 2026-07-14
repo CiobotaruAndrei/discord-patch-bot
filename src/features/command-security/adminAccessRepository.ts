@@ -34,9 +34,10 @@ export async function saveAdminAccessRule(
     access: AdminCommandAccessConfig & { updatedBy: string; updatedAt: Date };
     legacyKeys: readonly string[];
     audit: Omit<ServerAuditLogEntry, "serverId" | "at">;
+    operationId?: string;
   }
 ): Promise<void> {
-  const { scope, access, legacyKeys, audit } = input;
+  const { scope, access, legacyKeys, audit, operationId } = input;
   const ruleUpdate: Record<string, unknown> = scope === "global"
     ? { $set: { adminCommandAccess: access } }
     : legacyKeys.length
@@ -46,7 +47,7 @@ export async function saveAdminAccessRule(
         }
       : { $set: { [`adminCommandAccessByCommand.${scope}`]: access } };
   await GuildModel.updateOne({ _id: guildId }, ruleUpdate, { upsert: true });
-  await recordServerAuditEntry(GuildAuditLogModel, guildId, audit);
+  await recordServerAuditEntry(GuildAuditLogModel, guildId, audit, operationId);
 }
 
 export async function deleteAdminAccessRule(
@@ -57,12 +58,13 @@ export async function deleteAdminAccessRule(
     scope: string;
     lookupKeys: readonly string[];
     audit: Omit<ServerAuditLogEntry, "serverId" | "at">;
+    operationId?: string;
   }
 ): Promise<void> {
-  const { scope, lookupKeys, audit } = input;
+  const { scope, lookupKeys, audit, operationId } = input;
   const ruleUpdate: Record<string, unknown> = scope === "global"
     ? { $set: { adminCommandAccess: null } }
     : { $unset: Object.fromEntries(lookupKeys.map(key => [`adminCommandAccessByCommand.${key}`, ""])) };
   await GuildModel.updateOne({ _id: guildId }, ruleUpdate, { upsert: true });
-  await recordServerAuditEntry(GuildAuditLogModel, guildId, audit);
+  await recordServerAuditEntry(GuildAuditLogModel, guildId, audit, operationId);
 }

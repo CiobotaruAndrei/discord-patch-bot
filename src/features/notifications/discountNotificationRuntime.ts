@@ -28,8 +28,6 @@ export function createDiscountNotificationRuntime(
     claimSeenDiscount, rollbackSeenDiscount, seedSeenDiscounts, loadSeenDiscountHashes,
     disableDiscountsForChannelError, setSeenHashVersion
   } = seenRepository;
-  const persistFetchSnapshot = saveFetchSnapshot as ((id: string, payload: unknown) => Promise<void>) | undefined;
-  const loadSnapshot = loadFetchSnapshot as ((id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>) | undefined;
   const reportRollbackFailure = createReportRollbackFailure(deps);
 
   const priceAlertService = createPriceAlertService({
@@ -47,11 +45,11 @@ export function createDiscountNotificationRuntime(
 
   const discountService = createDiscountNotificationService({
     GuildModel, GuildDeadLetterModel, logger, runConcurrent, resolveOutboundChannel,
-    claimSeenDiscount, rollbackSeenDiscount, loadSeenDiscountHashes, seedSeenDiscounts, setSeenHashVersion, disableDiscountsForChannelError,
+    claimSeenDiscount, rollbackSeenDiscount, loadSeenDiscountHashes, seedSeenDiscounts, setSeenHashVersion, disableDiscountsForChannelError, reportRollbackFailure,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingDiscountArray, validatePendingDiscountSnapshot,
     normalizeCurrencyKey, dealPassesFilters, dealHash,
-    fetchDeals, getDealsCacheData, setDealsCache, persistFetchSnapshot, loadFetchSnapshot: loadSnapshot, enrichDealData, buildDealEmbed,
+    fetchDeals, getDealsCacheData, setDealsCache, persistFetchSnapshot: saveFetchSnapshot, loadFetchSnapshot, enrichDealData, buildDealEmbed,
     sleepIfPositive, processGuildPriceAlerts: priceAlertService.processGuildPriceAlerts,
     DEFAULT_CURRENCY, DEALS_HISTORY_LIMIT,
     PENDING_DISCOUNT_MAX_ATTEMPTS, PENDING_DISCOUNT_GRACE_CYCLES,

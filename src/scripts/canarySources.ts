@@ -1,5 +1,3 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
@@ -117,9 +115,9 @@ async function main(): Promise<void> {
   process.env.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "canary-client-id";
   const allowNetworkSkip = process.env.ALLOW_CANARY_NETWORK_SKIP === "true";
 
-  const mongoose = require("mongoose");
-  const sources = require("../sources/sourceRegistry").default as CanarySources;
-  const { loadConfig } = require("../config/configLoader") as { loadConfig: () => ConfigLoadResult };
+  const mongoose = await import("mongoose");
+  const sources: CanarySources = (await import("../sources/sourceRegistry.js")).default;
+  const { loadConfig } = await import("../config/configLoader.js");
 
   let connected = false;
   try {

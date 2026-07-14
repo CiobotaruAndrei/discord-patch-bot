@@ -45,7 +45,7 @@ export function createOutboxRepository({ NotificationOutboxModel, NotificationOu
     }
   }
 
-  const ACTIVE_STATUS_FILTER = { $or: [{ status: { $in: ["queued", "leased"] } }, { status: { $exists: false } }] };
+  const ACTIVE_STATUS_FILTER = { $or: [{ status: { $in: ["queued", "leased", "delivered-pending"] } }, { status: { $exists: false } }] };
 
   function claimNextJob(now: Date, leaseMs: number, workerId: string): Promise<OutboxJob | null> {
     return NotificationOutboxModel.findOneAndUpdate(
@@ -83,6 +83,14 @@ export function createOutboxRepository({ NotificationOutboxModel, NotificationOu
         $set: { status, statusChangedAt: now },
         $unset: { lockedUntil: "", lockedBy: "" }
       }
+    );
+    return res?.modifiedCount ?? 0;
+  }
+
+  async function markDeliveryAccepted(lease: OutboxLeaseToken, now: Date): Promise<number> {
+    const res = await NotificationOutboxModel.updateOne(
+      leaseGuard(lease),
+      { $set: { status: "delivered-pending", deliveryAcceptedAt: now, statusChangedAt: now } }
     );
     return res?.modifiedCount ?? 0;
   }
@@ -136,6 +144,7 @@ export function createOutboxRepository({ NotificationOutboxModel, NotificationOu
     claimNextJob,
     deleteJob,
     finalizeJob,
+    markDeliveryAccepted,
     scheduleRetry,
     oldestJobAgeMs,
     futureScheduledCount,

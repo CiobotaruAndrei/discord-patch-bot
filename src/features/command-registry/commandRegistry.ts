@@ -73,44 +73,13 @@ import attachFeedbackRepository from "../feedback/feedbackRepository.js";
 import { createReportRepository } from "../feedback/reportRepository.js";
 import { mergeGuildGameAliases } from "../guild-config/gameAliasService.js";
 import attachSlashCommandDefinitions from "../command-definitions/slashCommandDefinitions.js";
-import attachFallbackInteractionHandler from "../command-handlers/fallbackInteractionHandler.js";
-import attachSimpleCommandsHandler from "../command-handlers/simpleCommandsHandler.js";
 import attachHelpInteractionHandler from "../command-handlers/helpInteractionHandler.js";
-import attachSubscriptionNotificationHandlers from "../command-handlers/subscriptionNotificationHandlers.js";
-import attachGameFilterHandlers from "../command-handlers/gameFilterHandlers.js";
-import attachRolePingHandlers from "../command-handlers/rolePingHandlers.js";
-import attachSetInteractionHandler from "../command-handlers/setInteractionHandler.js";
-import attachLatestInteractionHandler from "../command-handlers/latestInteractionHandler.js";
-import attachStatusInteractionHandler from "../command-handlers/statusInteractionHandler.js";
-import attachReportInteractionHandler from "../command-handlers/reportInteractionHandler.js";
-import attachHealthInteractionHandler from "../command-handlers/healthInteractionHandler.js";
-import attachConfigInteractionHandler from "../command-handlers/configInteractionHandler.js";
-import attachGuildConfigurationAdminHandler from "../command-handlers/guildConfigurationAdminHandler.js";
-import attachAdminCommandAccessHandler from "../command-handlers/adminCommandAccessHandler.js";
-import attachPriceAlertInteractionHandler from "../command-handlers/priceAlertInteractionHandler.js";
-import attachBackupInteractionHandler from "../command-handlers/backupInteractionHandler.js";
-import attachAuditLogInteractionHandler from "../command-handlers/auditLogInteractionHandler.js";
-import attachSuggestCommandInteractionHandler from "../command-handlers/suggestCommandInteractionHandler.js";
-import attachWatchlistGameSuggestionHandler from "../command-handlers/watchlistGameSuggestionHandler.js";
-import attachPriceCheckInteractionHandler from "../command-handlers/priceCheckInteractionHandler.js";
-import attachDealScoreInteractionHandler from "../command-handlers/dealScoreInteractionHandler.js";
-import attachGameInfoInteractionHandler from "../command-handlers/gameInfoInteractionHandler.js";
-import attachMaintenanceInteractionHandler from "../command-handlers/maintenanceInteractionHandler.js";
-import attachFutureReleaseInteractionHandler from "../command-handlers/futureReleaseInteractionHandler.js";
-import attachYouTubeInteractionHandler from "../command-handlers/youtubeInteractionHandler.js";
-import attachSnoozeInteractionHandler from "../command-handlers/snoozeInteractionHandler.js";
-import attachSourcesStatusHandler from "../command-handlers/sourcesStatusHandler.js";
-import attachDlcInteractionHandler from "../command-handlers/dlcInteractionHandler.js";
-import attachGameOverviewInteractionHandler from "../command-handlers/gameOverviewInteractionHandler.js";
-import attachPlayerCountAnalyticsHandler from "../command-handlers/playerCountAnalyticsHandler.js";
-import attachCoverageAliasHandler from "../command-handlers/watchlistCoverageAndAliasHandler.js";
-import attachTemplatePreviewHandler from "../command-handlers/templateAndNotificationPreviewHandler.js";
-import attachAutocompleteInteractionHandler from "../command-handlers/autocompleteInteractionHandler.js";
 import attachCommandSnoozeGuard from "../command-security/commandSnoozeGuard.js";
 import attachAdminCommandRouterGuard from "../command-security/adminCommandRouterGuard.js";
+import { createCommandHandlerDescriptors } from "./commandHandlerDescriptors.js";
 
-import _____command_runtime_commandRuntimeContext from "../command-runtime/commandRuntimeContext.js";
-const { createCommandRuntimeContext } = _____command_runtime_commandRuntimeContext;
+import commandRuntimeContext from "../command-runtime/commandRuntimeContext.js";
+const { createCommandRuntimeContext } = commandRuntimeContext;
 type CommandRuntimeBootContext = ReturnType<typeof createCommandRuntimeContext>;
 
 const PLAYER_COUNT_CACHE_TTL_SECONDS = 60;
@@ -147,43 +116,13 @@ function createAppServices(
   return { ...feedback, ...attachSlashCommandDefinitions.createSlashCommandDefinitions(feedback) };
 }
 
+export type CommandAppServices = ReturnType<typeof createAppServices>;
+
 function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): { commandHandlers: CommandHandler[]; helpCommand: ReturnType<typeof attachHelpInteractionHandler.buildCommandHandler> } {
   const helpCommand = attachHelpInteractionHandler.buildCommandHandler(ctx);
-  const commandHandlers: CommandHandler[] = [
-    attachAutocompleteInteractionHandler.buildCommandHandler(ctx),
-    attachPlayerCountAnalyticsHandler.buildCommandHandler(ctx),
-    attachGameOverviewInteractionHandler.buildCommandHandler(ctx),
-    attachCoverageAliasHandler.buildCommandHandler(ctx),
-    attachTemplatePreviewHandler.buildCommandHandler(ctx),
-    attachDlcInteractionHandler.buildCommandHandler(ctx),
-    attachSourcesStatusHandler.buildCommandHandler(ctx),
-    attachConfigInteractionHandler.buildCommandHandler(ctx),
-    attachGuildConfigurationAdminHandler.buildCommandHandler(ctx),
-    attachAdminCommandAccessHandler.buildCommandHandler(ctx),
-    attachPriceAlertInteractionHandler.buildCommandHandler(ctx),
-    attachBackupInteractionHandler.buildCommandHandler(ctx),
-    attachAuditLogInteractionHandler.buildCommandHandler(ctx),
-    attachSuggestCommandInteractionHandler.buildCommandHandler(ctx),
-    attachWatchlistGameSuggestionHandler.buildCommandHandler(ctx),
-    attachPriceCheckInteractionHandler.buildCommandHandler(ctx),
-    attachDealScoreInteractionHandler.buildCommandHandler(ctx),
-    attachGameInfoInteractionHandler.buildCommandHandler(ctx),
-    attachMaintenanceInteractionHandler.buildCommandHandler(ctx),
-    attachFutureReleaseInteractionHandler.buildCommandHandler(ctx),
-    attachYouTubeInteractionHandler.buildCommandHandler(ctx),
-    attachSnoozeInteractionHandler.buildCommandHandler(ctx),
-    attachHealthInteractionHandler.buildCommandHandler(ctx),
-    attachReportInteractionHandler.buildCommandHandler(ctx),
-    attachStatusInteractionHandler.buildCommandHandler(ctx),
-    attachLatestInteractionHandler.buildCommandHandler(ctx),
-    attachSetInteractionHandler.buildCommandHandler(ctx),
-    attachRolePingHandlers.buildCommandHandler(ctx),
-    attachGameFilterHandlers.buildCommandHandler(ctx),
-    attachSubscriptionNotificationHandlers.buildCommandHandler(ctx),
-    helpCommand,
-    attachSimpleCommandsHandler.buildCommandHandler(ctx),
-    attachFallbackInteractionHandler.buildCommandHandler(ctx)
-  ];
+  const descriptors = createCommandHandlerDescriptors();
+  const commandHandlers: CommandHandler[] = descriptors.map(descriptor => descriptor.build(ctx));
+  commandHandlers.splice(commandHandlers.length - 2, 0, helpCommand);
   return { commandHandlers, helpCommand };
 }
 

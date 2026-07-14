@@ -1,5 +1,7 @@
 import type { ActiveLocks, LockToken } from "../../types.js";
-import type { MongoFilter, MongoUpdate, MongoQueryOptions } from "./mongoQueryShapes.js";
+type MongoFilter = Record<string, unknown>;
+type MongoUpdate = Record<string, unknown>;
+type MongoQueryOptions = Record<string, unknown>;
 import { errorMessage } from "../../shared/errors.js";
 
 type LockLogger = (level: "WARN", context: string, message: string, meta?: unknown) => void;

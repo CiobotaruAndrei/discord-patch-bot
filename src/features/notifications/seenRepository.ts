@@ -6,7 +6,10 @@ interface GuildModelLike {
 }
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 import type { MongoWriteOutcome, PriceAlertRule } from "../../types.js";
-import type { MongoFilter, MongoUpdate, MongoProjection, MongoQueryOptions } from "../../infra/mongo/mongoQueryShapes.js";
+type MongoFilter = Record<string, unknown>;
+type MongoUpdate = Record<string, unknown>;
+type MongoProjection = Record<string, unknown>;
+type MongoQueryOptions = Record<string, unknown>;
 
 interface GuildSeenDiscountModelLike {
   updateOne(filter: MongoFilter, update: MongoUpdate, opts?: MongoQueryOptions): Promise<{ upsertedCount?: number; matchedCount?: number }>;

@@ -1,71 +1,54 @@
 "use strict";
 
-import type { Model } from "mongoose";
 import type { ActiveLocks, CurrencyCode, CurrencyConfig, CurrencyRegistry, DealInfo, GuildSettings, LoggerFunction, PriceValue, RuntimeEnv, SystemTimes, ValidatedDealInfo } from "../../types.js";
-import type {
-  AdminAlertCooldownDoc,
-  CircuitBreakerDoc,
-  FeedbackReportDoc,
-  FetchSnapshotDoc,
-  GuildAuditLogDoc,
-  GuildConfigBackupDoc,
-  GuildDoc,
-  GuildSuggestedCommandDoc,
-  GuildDeadLetterDoc,
-  GuildYoutubeErrorDoc,
-  GuildSeenDiscountDoc,
-  GuildSeenUpdateDoc,
-  GuildSeenYoutubeDoc,
-  JobLockDoc,
-  NotificationDeadLetterReplayDoc,
-  NotificationHistoryDoc,
-  NotificationOutboxDoc,
-  NotificationOutboxSentDoc,
-  PlayerCountSnapshotDoc,
-  PlayerCountHistoryDoc,
-  PlayerCountRecordDoc,
-  BugReportDoc,
-  UserComplaintDoc,
-  SystemDoc
-} from "./modelTypes.js";
 import type { OperationJournalDoc } from "./operationJournal.js";
 import { assertNoUndefinedExports } from "../../shared/assertCompleteExports.js";
 
 type MongoRuntimeContext = {
+  mongoose: typeof import("mongoose");
+  crypto: typeof import("node:crypto");
+  axios: typeof import("axios").default;
+  z: typeof import("zod").z;
+  AsyncLocalStorage: typeof import("node:async_hooks").AsyncLocalStorage;
   logger: LoggerFunction;
   env: RuntimeEnv & { MONGO_URI: string; DISCORD_TOKEN: string };
   parseEnvNumber: (name: string, defaultValue: number, limits?: { min?: number; max?: number }) => number;
-  runConcurrent: <T>(items: T[], concurrency: number, fn: (item: T, index: number) => void | Promise<unknown>, options?: unknown) => Promise<{ processed: number; errors: Array<{ error: unknown }> }>;
+  runConcurrent: <T>(
+    items: T[],
+    concurrency: number,
+    fn: (item: T, index: number) => unknown,
+    options?: { shouldAbort?: (() => boolean) | null; errorLogger?: ((item: T, err: unknown) => void) | null }
+  ) => Promise<import("../../types.js").ConcurrentRunResult<T>>;
   waitForMongoReady: (timeoutMs?: number) => Promise<boolean>;
   validatePendingDiscountSnapshot: (snapshot: unknown) => snapshot is ValidatedDealInfo;
   validateUpdateFetchSnapshot: (item: unknown) => boolean;
   isTransientMongoError: (err: unknown) => boolean;
-  withMongoRetry: <T>(fn: () => Promise<T>, ...rest: unknown[]) => Promise<T>;
-  GuildModel: Model<GuildDoc>;
-  GuildAuditLogModel: Model<GuildAuditLogDoc>;
-  GuildConfigBackupModel: Model<GuildConfigBackupDoc>;
-  GuildSuggestedCommandModel: Model<GuildSuggestedCommandDoc>;
-  GuildYoutubeErrorModel: Model<GuildYoutubeErrorDoc>;
-  GuildDeadLetterModel: Model<GuildDeadLetterDoc>;
-  CircuitBreakerModel: Model<CircuitBreakerDoc>;
-  SystemModel: Model<SystemDoc>;
-  JobLockModel: Model<JobLockDoc>;
-  AdminAlertCooldownModel: Model<AdminAlertCooldownDoc>;
-  FetchSnapshotModel: Model<FetchSnapshotDoc>;
-  PlayerCountSnapshotModel: Model<PlayerCountSnapshotDoc>;
-  PlayerCountHistoryModel: Model<PlayerCountHistoryDoc>;
-  PlayerCountRecordModel: Model<PlayerCountRecordDoc>;
-  BugReportModel: Model<BugReportDoc>;
-  UserComplaintModel: Model<UserComplaintDoc>;
-  GuildSeenDiscountModel: Model<GuildSeenDiscountDoc>;
-  GuildSeenUpdateModel: Model<GuildSeenUpdateDoc>;
-  GuildSeenYoutubeModel: Model<GuildSeenYoutubeDoc>;
-  NotificationOutboxModel: Model<NotificationOutboxDoc>;
-  NotificationOutboxSentModel: Model<NotificationOutboxSentDoc>;
-  NotificationHistoryModel: Model<NotificationHistoryDoc>;
-  FeedbackReportModel: Model<FeedbackReportDoc>;
-  NotificationDeadLetterReplayModel: Model<NotificationDeadLetterReplayDoc>;
-  OperationJournalModel: Model<OperationJournalDoc>;
+  withMongoRetry: <T>(fn: () => Promise<T>, options?: { retries?: number; label?: string }) => Promise<T>;
+  GuildModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildModel"];
+  GuildAuditLogModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildAuditLogModel"];
+  GuildConfigBackupModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildConfigBackupModel"];
+  GuildSuggestedCommandModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildSuggestedCommandModel"];
+  GuildYoutubeErrorModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildYoutubeErrorModel"];
+  GuildDeadLetterModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildDeadLetterModel"];
+  CircuitBreakerModel: ReturnType<typeof attachModelsModule.buildFrom>["CircuitBreakerModel"];
+  SystemModel: ReturnType<typeof attachModelsModule.buildFrom>["SystemModel"];
+  JobLockModel: ReturnType<typeof attachModelsModule.buildFrom>["JobLockModel"];
+  AdminAlertCooldownModel: ReturnType<typeof attachModelsModule.buildFrom>["AdminAlertCooldownModel"];
+  FetchSnapshotModel: ReturnType<typeof attachModelsModule.buildFrom>["FetchSnapshotModel"];
+  PlayerCountSnapshotModel: ReturnType<typeof attachModelsModule.buildFrom>["PlayerCountSnapshotModel"];
+  PlayerCountHistoryModel: ReturnType<typeof attachModelsModule.buildFrom>["PlayerCountHistoryModel"];
+  PlayerCountRecordModel: ReturnType<typeof attachModelsModule.buildFrom>["PlayerCountRecordModel"];
+  BugReportModel: ReturnType<typeof attachModelsModule.buildFrom>["BugReportModel"];
+  UserComplaintModel: ReturnType<typeof attachModelsModule.buildFrom>["UserComplaintModel"];
+  GuildSeenDiscountModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildSeenDiscountModel"];
+  GuildSeenUpdateModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildSeenUpdateModel"];
+  GuildSeenYoutubeModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildSeenYoutubeModel"];
+  NotificationOutboxModel: ReturnType<typeof attachModelsModule.buildFrom>["NotificationOutboxModel"];
+  NotificationOutboxSentModel: ReturnType<typeof attachModelsModule.buildFrom>["NotificationOutboxSentModel"];
+  NotificationHistoryModel: ReturnType<typeof attachModelsModule.buildFrom>["NotificationHistoryModel"];
+  FeedbackReportModel: ReturnType<typeof attachModelsModule.buildFrom>["FeedbackReportModel"];
+  NotificationDeadLetterReplayModel: ReturnType<typeof attachModelsModule.buildFrom>["NotificationDeadLetterReplayModel"];
+  OperationJournalModel: ReturnType<typeof attachModelsModule.buildFrom>["OperationJournalModel"];
   saveFetchSnapshot: (id: string, payload: unknown) => Promise<void>;
   loadFetchSnapshot: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
   loadDealsFetchSnapshots: () => Promise<Array<{ currency: string; payload: unknown; fetchedAt: Date }>>;
@@ -74,8 +57,8 @@ type MongoRuntimeContext = {
   renewDbLock: (jobName: string, token: string, ttlMs?: number) => Promise<boolean>;
   releaseDbLock: (jobName: string, token: string) => Promise<void>;
   activeLocks: ActiveLocks;
-  runMigrations: (logger: unknown) => Promise<{ applied: number[] }>;
-  ALL_MIGRATIONS: readonly unknown[];
+  runMigrations: ReturnType<typeof attachMigrationsModule.buildFrom>["runMigrations"];
+  ALL_MIGRATIONS: ReturnType<typeof attachMigrationsModule.buildFrom>["ALL_MIGRATIONS"];
   getSystemTimes: () => Promise<SystemTimes>;
   saveSystemTimes: (times: SystemTimes) => Promise<void>;
   saveSystemTime: (key: keyof SystemTimes, value: number) => Promise<void>;
@@ -87,7 +70,7 @@ type MongoRuntimeContext = {
   getGuildCacheSize: () => number;
   adminAlert: (kind: string, title: string, body: unknown, guildId?: string) => Promise<void>;
   setAdminAlertDiscordClient: (client: { user?: { id?: string } | null; channels: { fetch(channelId: string): Promise<unknown> | unknown } } | null) => void;
-  SchemaDriftError: new (...args: unknown[]) => Error;
+  SchemaDriftError: ReturnType<typeof attachDomainModule.buildFrom>["SchemaDriftError"];
   SUPPORTED_CURRENCIES: CurrencyRegistry;
   DEFAULT_CURRENCY: CurrencyCode;
   getCurrencyConfig: (code?: CurrencyCode | string | null) => CurrencyConfig;
@@ -96,41 +79,28 @@ type MongoRuntimeContext = {
   getAbortSignal: () => AbortSignal | null;
 };
 
-type MongoContribution = (context: MongoRuntimeContext) => Partial<MongoRuntimeContext>;
-type MongoModule = { buildFrom: MongoContribution };
-
 import runtimeContextModule from "./runtime.js";
-const asRuntimeCtx = (m: object): MongoRuntimeContext => m as MongoRuntimeContext;
-const asMongoModule = (m: object): MongoModule => m as MongoModule;
-const runtimeContext = asRuntimeCtx(runtimeContextModule);
 import attachLoggingModule from "../../shared/logging.js";
-const attachLogging = asMongoModule(attachLoggingModule);
 import attachDomainModule from "../../shared/domain.js";
-const attachDomain = asMongoModule(attachDomainModule);
 import attachEnvModule from "../../shared/env.js";
-const attachEnv = asMongoModule(attachEnvModule);
 import attachUtilitiesModule from "../../shared/utilities.js";
-const attachUtilities = asMongoModule(attachUtilitiesModule);
 import attachModelsModule from "./models.js";
-const attachModels = asMongoModule(attachModelsModule);
 import attachLocksModule from "./locks.js";
-const attachLocks = asMongoModule(attachLocksModule);
 import attachMigrationsModule from "./migrations.js";
-const attachMigrations = asMongoModule(attachMigrationsModule);
 import attachSystemStateModule from "./systemState.js";
-const attachSystemState = asMongoModule(attachSystemStateModule);
 import attachGuildSettingsModule from "./guildSettings.js";
-const attachGuildSettings = asMongoModule(attachGuildSettingsModule);
 import attachAdminAlertsModule from "./adminAlerts.js";
-const attachAdminAlerts = asMongoModule(attachAdminAlertsModule);
 import attachFetchSnapshotsModule from "./fetchSnapshots.js";
-const attachFetchSnapshots = asMongoModule(attachFetchSnapshotsModule);
 import attachSourceHealthModule from "./sourceHealth.js";
 import { setGuildSettingsEventErrorReporter } from "./guildSettingsEvents.js";
-const attachSourceHealth = asMongoModule(attachSourceHealthModule);
 
 function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeContext {
   return {
+    mongoose: context.mongoose,
+    crypto: context.crypto,
+    axios: context.axios,
+    z: context.z,
+    AsyncLocalStorage: context.AsyncLocalStorage,
     logger: context.logger,
     env: context.env,
     parseEnvNumber: context.parseEnvNumber,
@@ -196,24 +166,31 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
   };
 }
 
-function createMongoContext(baseContext: MongoRuntimeContext = runtimeContext): MongoRuntimeContext {
-  const base: MongoRuntimeContext = { ...baseContext };
-  const withLogging = { ...base, ...attachLogging.buildFrom(base) };
-  const withDomain = { ...withLogging, ...attachDomain.buildFrom(withLogging) };
-  const withEnv = { ...withDomain, ...attachEnv.buildFrom(withDomain) };
-  const withUtilities = { ...withEnv, ...attachUtilities.buildFrom(withEnv) };
-  const withModels = { ...withUtilities, ...attachModels.buildFrom(withUtilities) };
-  const withLocks = { ...withModels, ...attachLocks.buildFrom(withModels) };
-  const withMigrations = { ...withLocks, ...attachMigrations.buildFrom(withLocks) };
-  const withSystemState = { ...withMigrations, ...attachSystemState.buildFrom(withMigrations) };
-  const withGuildSettings = { ...withSystemState, ...attachGuildSettings.buildFrom(withSystemState) };
-  const withAdminAlerts = { ...withGuildSettings, ...attachAdminAlerts.buildFrom(withGuildSettings) };
-  const withFetchSnapshots = { ...withAdminAlerts, ...attachFetchSnapshots.buildFrom(withAdminAlerts) };
-  const withSourceHealth = { ...withFetchSnapshots, ...attachSourceHealth.buildFrom(withFetchSnapshots) };
+function requireBootEnv(env: RuntimeEnv): RuntimeEnv & { MONGO_URI: string; DISCORD_TOKEN: string } {
+  if (!env.MONGO_URI || !env.DISCORD_TOKEN) {
+    throw new Error("mongoContext: MONGO_URI si DISCORD_TOKEN trebuie validate inainte de compunerea runtime-ului");
+  }
+  return { ...env, MONGO_URI: env.MONGO_URI, DISCORD_TOKEN: env.DISCORD_TOKEN };
+}
+
+function createMongoContext(): MongoRuntimeContext {
+  const base = { ...runtimeContextModule };
+  const withLogging = { ...base, ...attachLoggingModule.buildFrom(base) };
+  const withDomain = { ...withLogging, ...attachDomainModule.buildFrom({}) };
+  const withEnv = { ...withDomain, ...attachEnvModule.buildFrom(withDomain) };
+  const withUtilities = { ...withEnv, ...attachUtilitiesModule.buildFrom(withEnv) };
+  const withModels = { ...withUtilities, ...attachModelsModule.buildFrom(withUtilities) };
+  const withLocks = { ...withModels, ...attachLocksModule.buildFrom(withModels) };
+  const withMigrations = { ...withLocks, ...attachMigrationsModule.buildFrom(withLocks) };
+  const withSystemState = { ...withMigrations, ...attachSystemStateModule.buildFrom(withMigrations) };
+  const withGuildSettings = { ...withSystemState, ...attachGuildSettingsModule.buildFrom(withSystemState) };
+  const withAdminAlerts = { ...withGuildSettings, ...attachAdminAlertsModule.buildFrom(withGuildSettings) };
+  const withFetchSnapshots = { ...withAdminAlerts, ...attachFetchSnapshotsModule.buildFrom(withAdminAlerts) };
+  const withSourceHealth = { ...withFetchSnapshots, ...attachSourceHealthModule.buildFrom(withFetchSnapshots) };
   setGuildSettingsEventErrorReporter((guildId, error) => {
     withSourceHealth.logger("WARN", "GUILD_EVENTS", `Listener GuildSettingsChanged a esuat pentru guild ${guildId}`, error);
   });
-  return assertNoUndefinedExports(buildMongoContextExports(withSourceHealth), "mongoContext");
+  return assertNoUndefinedExports(buildMongoContextExports({ ...withSourceHealth, env: requireBootEnv(withSourceHealth.env) }), "mongoContext");
 }
 
 const mongoContext = Object.freeze({ ...createMongoContext(), createMongoContext });

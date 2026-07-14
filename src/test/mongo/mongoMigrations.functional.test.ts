@@ -37,7 +37,7 @@ interface FakeMigrationOverrides {
 type MigrationContext = Parameters<typeof attachMigrations>[0];
 type MigrationCollection = ReturnType<MigrationContext["mongoose"]["connection"]["collection"]>;
 
-function fakeCollection(impl: Partial<MigrationCollection>): MigrationCollection {
+function fakeCollection(impl: object): MigrationCollection {
   return {
     async updateMany() { return {}; },
     async updateOne() { return {}; },

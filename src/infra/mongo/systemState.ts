@@ -1,5 +1,7 @@
 import type { SystemTimes } from "../../types.js";
-import type { MongoFilter, MongoUpdate, MongoQueryOptions } from "./mongoQueryShapes.js";
+type MongoFilter = Record<string, unknown>;
+type MongoUpdate = Record<string, unknown>;
+type MongoQueryOptions = Record<string, unknown>;
 
 interface SystemStateDoc {
   _id: string;

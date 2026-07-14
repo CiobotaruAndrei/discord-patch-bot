@@ -1,7 +1,7 @@
 "use strict";
 
 import type { GameConfig } from "../../types.js";
-import type { MongoUpdate } from "../../infra/mongo/mongoQueryShapes.js";
+type MongoUpdate = Record<string, unknown>;
 import type { GuildSettings, EmbeddableUpdate, MongoWriteOutcome, NotificationMode } from "../../types.js";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue.js";
 import { buildDeadLetterEntry, DeadLetterEntry } from "./deadLetter.js";
@@ -11,6 +11,8 @@ import { HASH_VERSION } from "../../native/fuzzy.js";
 import { sendEmbedBatch } from "./notificationBatchExecutor.js";
 import { persistGuildCycleState } from "./notificationCycleRepository.js";
 import { planPendingFailure, planRebaselineEntries, requeueFront, takeNextPending } from "./updateNotificationPlanner.js";
+import { rollbackOrReport, type ReportRollbackFailure } from "./rollbackReporter.js";
+import { loadNotificationFeed } from "./notificationFeedLoader.js";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
@@ -56,6 +58,7 @@ export interface UpdateNotificationServiceDeps {
   seedSeenUpdates: (guildId: string, entries: Array<{ gameKey: string; updateId: string }>) => Promise<void>;
   setSeenHashVersion: (guildId: string, field: "seenHashVersionUpdates" | "seenHashVersionDiscounts", version: number) => Promise<MongoWriteResult>;
   disableUpdatesForChannelError: (guildId: string, channelId: string, message: string) => Promise<MongoWriteResult>;
+  reportRollbackFailure?: ReportRollbackFailure;
 
   isPermanentDiscordError: (err: unknown) => boolean;
   transientErrorMessage: (err: unknown) => string;
@@ -91,7 +94,7 @@ export interface UpdateNotificationService {
 export function createUpdateNotificationService(deps: UpdateNotificationServiceDeps): UpdateNotificationService {
   const {
     GuildModel, GuildDeadLetterModel, logger, runConcurrent, resolveOutboundChannel,
-    claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, setSeenHashVersion, disableUpdatesForChannelError,
+    claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, setSeenHashVersion, disableUpdatesForChannelError, reportRollbackFailure,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingUpdateArray, toEntries, rotateAfter, mapToObject,
     getLatestForAllGames, validateUpdateFetchSnapshot, setUpdatesCache, persistFetchSnapshot, loadFetchSnapshot, buildUpdateEmbed, sleepIfPositive,
@@ -144,8 +147,12 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       try {
         embed = buildUpdateEmbed(game.name, next, notificationMode);
       } catch (embedErr: unknown) {
-        await rollbackSeenUpdate(String(guild._id), gameKey, next.id).catch((rollbackErr: unknown) =>
-          logger("WARN", "CRON_UPDATES", `Rollback seen-update esuat pentru guild ${guild._id} (${gameKey}/${next.id}); update-ul ramane marcat vazut desi nu a fost livrat (risc de notificare pierduta)`, transientErrorMessage(rollbackErr)));
+        await rollbackOrReport(
+          () => rollbackSeenUpdate(String(guild._id), gameKey, next.id),
+          logger,
+          { guildId: String(guild._id), kind: "update", itemId: `${gameKey}:${next.id}` },
+          reportRollbackFailure
+        );
         const embedFailure = planPendingFailure(next, PENDING_UPDATE_MAX_ATTEMPTS);
         if (embedFailure.action === "requeue") {
           requeueFront(pendingByGame, gameKey, next);
@@ -182,6 +189,9 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       isPermanentDiscordError,
       transientErrorMessage,
       rollbackEntry: entry => rollbackSeenUpdate(String(guild._id), entry.gameKey, entry.item.id),
+      rollbackFailureContext: entry => ({ guildId: String(guild._id), kind: "update", itemId: `${entry.gameKey}:${entry.item.id}` }),
+      reportRollbackFailure,
+      logger,
       onPermanentError: async reason => {
         await disableUpdatesForChannelError(String(guild._id), channel.id, reason).catch(() => null);
         logger("WARN", "CRON_UPDATES", `Disable updates pentru guild ${guild._id} - cod permanent`, reason);
@@ -245,34 +255,30 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       logger("INFO", "CRON_UPDATES", `Lista optimizata: ${optimizedGames.length}/${games.length} jocuri folosite de guild-uri`);
     }
 
-    let latestResults: UpdateFetchResult[];
-    try {
-      latestResults = await getLatestForAllGames(optimizedGames, shouldAbort);
-
-      const allNull = latestResults.length > 0 && latestResults.every(result => result.latest == null);
-      const realErrors = latestResults.filter(result => result.latest == null && result.error && result.error !== "abort");
-      if (allNull && realErrors.length > 0) {
-        throw new Error(`Toate cele ${latestResults.length} jocuri au intors latest: null (${realErrors.length} cu erori reale) — fetch esuat complet, snapshot-ul nu se persista (prima eroare: ${realErrors[0].error})`);
-      }
-
-      if (optimizedGames.length === games.length && !allNull) {
-        setUpdatesCache(latestResults);
-        if (persistFetchSnapshot) await persistFetchSnapshot("updates", latestResults).catch(() => undefined);
-      }
-    } catch (err: unknown) {
-      const fallback = loadFetchSnapshot ? await loadFetchSnapshot("updates").catch(() => null) : null;
-      const fresh = !!fallback && fallback.fetchedAt != null
-        && (Date.now() - new Date(fallback.fetchedAt).getTime()) < SNAPSHOT_FALLBACK_MAX_AGE_MS;
-      const isValidFetchResult = (item: unknown): item is UpdateFetchResult => validateUpdateFetchSnapshot(item);
-      const fallbackResults = fresh && fallback && Array.isArray(fallback.payload)
-        ? fallback.payload.filter(isValidFetchResult)
-        : null;
-      if (!fallbackResults || !fallbackResults.length) {
-        throw new Error(`Nu am putut prelua update-urile si nu exista snapshot de rezerva proaspat: ${transientErrorMessage(err)}`);
-      }
-      logger("WARN", "CRON_UPDATES", "Fetch esuat — folosesc snapshot-ul recent din event store pentru dispatch", transientErrorMessage(err));
-      latestResults = fallbackResults;
-    }
+    const isValidFetchResult = (item: unknown): item is UpdateFetchResult => validateUpdateFetchSnapshot(item);
+    const latestResults = await loadNotificationFeed({
+      snapshotId: "updates",
+      fetchFresh: async () => {
+        const results = await getLatestForAllGames(optimizedGames, shouldAbort);
+        const allNull = results.length > 0 && results.every(result => result.latest == null);
+        const realErrors = results.filter(result => result.latest == null && result.error && result.error !== "abort");
+        if (allNull && realErrors.length > 0) {
+          throw new Error(`Toate cele ${results.length} jocuri au intors latest: null (${realErrors.length} cu erori reale); fetch esuat complet, snapshot-ul nu se persista (prima eroare: ${realErrors[0].error})`);
+        }
+        return results;
+      },
+      validateItem: isValidFetchResult,
+      persistFresh: async results => {
+        const allNull = results.length > 0 && results.every(result => result.latest == null);
+        if (optimizedGames.length !== games.length || allNull) return;
+        setUpdatesCache(results);
+        if (persistFetchSnapshot) await persistFetchSnapshot("updates", results).catch(() => undefined);
+      },
+      loadSnapshot: loadFetchSnapshot,
+      maxSnapshotAgeMs: SNAPSHOT_FALLBACK_MAX_AGE_MS,
+      onFallback: error => logger("WARN", "CRON_UPDATES", "Fetch esuat; folosesc snapshot-ul recent din event store pentru dispatch", transientErrorMessage(error)),
+      createUnavailableError: error => new Error(`Nu am putut prelua update-urile si nu exista snapshot de rezerva proaspat: ${transientErrorMessage(error)}`)
+    });
     if (shouldAbort?.()) return;
 
     const dispatch = await runConcurrent(guilds, GUILD_PROCESS_CONCURRENCY, async (guild) => {

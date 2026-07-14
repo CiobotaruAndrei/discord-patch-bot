@@ -1,13 +1,22 @@
+import type { mongo } from "mongoose";
+
+interface MigrationDocument extends mongo.Document {
+  _id: string;
+  [key: string]: unknown;
+}
+
+interface MigrationCursorLike extends AsyncIterable<MigrationDocument> {}
+
 interface MigrationCollectionLike {
-  updateMany(filter: object, update: object): Promise<unknown>;
-  updateOne(filter: object, update: object, options?: object): Promise<unknown>;
-  findOne(filter: object): Promise<Record<string, unknown> | null>;
-  bulkWrite(ops: object[], options?: object): Promise<unknown>;
-  find(filter?: object, options?: object): AsyncIterable<Record<string, unknown>>;
+  findOne(filter: mongo.Filter<MigrationDocument>): Promise<MigrationDocument | null>;
+  find(filter: mongo.Filter<MigrationDocument>, options?: mongo.FindOptions): MigrationCursorLike;
+  updateOne(filter: mongo.Filter<MigrationDocument>, update: mongo.UpdateFilter<MigrationDocument> | mongo.Document[], options?: mongo.UpdateOptions): Promise<unknown>;
+  updateMany(filter: mongo.Filter<MigrationDocument>, update: mongo.UpdateFilter<MigrationDocument> | mongo.Document[], options?: mongo.UpdateOptions): Promise<unknown>;
+  bulkWrite(operations: readonly mongo.AnyBulkWriteOperation<MigrationDocument>[], options?: mongo.BulkWriteOptions): Promise<unknown>;
 }
 
 interface MigrationConnectionLike {
-  db?: unknown;
+  db?: object | null;
   collection(name: string): MigrationCollectionLike;
 }
 
@@ -21,4 +30,4 @@ interface Migration {
   up: (db: MigrationConnectionLike) => Promise<void>;
 }
 
-export type { MigrationCollectionLike, MigrationConnectionLike, MigrationMongooseLike, Migration };
+export type { MigrationDocument, MigrationCursorLike, MigrationCollectionLike, MigrationConnectionLike, MigrationMongooseLike, Migration };

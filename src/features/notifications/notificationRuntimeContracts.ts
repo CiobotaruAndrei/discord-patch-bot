@@ -59,11 +59,23 @@ export type NotificationsRuntimeDeps = SeenRepositoryDeps
   };
 
 export function createReportRollbackFailure(deps: NotificationsRuntimeDeps): ReportRollbackFailure {
-  return (context, error) => {
-    void deps.adminAlert?.(
+  return async (context, error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    await deps.GuildDeadLetterModel.insertMany([{
+      guildId: context.guildId,
+      kind: context.kind,
+      itemId: context.itemId,
+      title: "Rollback reconciliation required",
+      reason: message,
+      attempts: 1,
+      failedAt: new Date()
+    }], { ordered: false }).catch(persistError => {
+      deps.logger("WARN", "ROLLBACK", `Persistarea reconcilierii rollback a esuat pentru ${context.kind}/${context.itemId}`, persistError);
+    });
+    await deps.adminAlert?.(
       `rollback-failed:${context.kind}`,
       "Rollback deduplicare esuat",
-      `${context.kind} ${context.itemId} (guild ${context.guildId}): ${error instanceof Error ? error.message : String(error)}`,
+      `${context.kind} ${context.itemId} (guild ${context.guildId}): ${message}`,
       context.guildId
     )?.catch(() => undefined);
   };

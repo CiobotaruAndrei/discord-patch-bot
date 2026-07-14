@@ -1,7 +1,7 @@
 "use strict";
 
 import type { GuildSettings, DealInfo, MongoWriteOutcome, PendingDiscount, NotificationMode, ValidatedDealInfo } from "../../types.js";
-import type { MongoUpdate } from "../../infra/mongo/mongoQueryShapes.js";
+type MongoUpdate = Record<string, unknown>;
 import { buildDeadLetterEntry, DeadLetterEntry } from "./deadLetter.js";
 import type { DeadLetterModelLike } from "./deadLetterRepository.js";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel.js";
@@ -10,6 +10,8 @@ import { HASH_VERSION } from "../../native/fuzzy.js";
 import { sendEmbedBatch } from "./notificationBatchExecutor.js";
 import { persistGuildCycleState } from "./notificationCycleRepository.js";
 import { buildDealsHashIndex, planDiscountFailure, planPendingDiscounts } from "./discountNotificationPlanner.js";
+import { rollbackOrReport, type ReportRollbackFailure } from "./rollbackReporter.js";
+import { loadNotificationFeed } from "./notificationFeedLoader.js";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
@@ -54,6 +56,7 @@ export interface DiscountNotificationServiceDeps {
   seedSeenDiscounts: (guildId: string, hashes: string[]) => Promise<void>;
   setSeenHashVersion: (guildId: string, field: "seenHashVersionUpdates" | "seenHashVersionDiscounts", version: number) => Promise<MongoWriteResult>;
   disableDiscountsForChannelError: (guildId: string, channelId: string, message: string) => Promise<MongoWriteResult>;
+  reportRollbackFailure?: ReportRollbackFailure;
 
   isPermanentDiscordError: (err: unknown) => boolean;
   transientErrorMessage: (err: unknown) => string;
@@ -93,7 +96,7 @@ export interface DiscountNotificationService {
 export function createDiscountNotificationService(deps: DiscountNotificationServiceDeps): DiscountNotificationService {
   const {
     GuildModel, GuildDeadLetterModel, logger, runConcurrent, resolveOutboundChannel,
-    claimSeenDiscount, rollbackSeenDiscount, loadSeenDiscountHashes, seedSeenDiscounts, setSeenHashVersion, disableDiscountsForChannelError,
+    claimSeenDiscount, rollbackSeenDiscount, loadSeenDiscountHashes, seedSeenDiscounts, setSeenHashVersion, disableDiscountsForChannelError, reportRollbackFailure,
     isPermanentDiscordError, transientErrorMessage,
     normalizePendingDiscountArray, validatePendingDiscountSnapshot,
     normalizeCurrencyKey, dealPassesFilters, dealHash,
@@ -176,8 +179,14 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
         const dealToSend = await enrichDealData(item.snapshot as DealInfo, currency);
         batch.push({ item, embed: buildDealEmbed(dealToSend, notificationMode, currency) });
       } catch (err: unknown) {
-        if (claimed) await rollbackSeenDiscount(String(guild._id), item.hash).catch((rollbackErr: unknown) =>
-          logger("WARN", "CRON_DISCOUNTS", `Rollback seen-discount esuat pentru guild ${guild._id}; reducerea ramane marcata vazuta desi nu a fost livrata (risc de notificare pierduta)`, transientErrorMessage(rollbackErr)));
+        if (claimed) {
+          await rollbackOrReport(
+            () => rollbackSeenDiscount(String(guild._id), item.hash),
+            logger,
+            { guildId: String(guild._id), kind: "discount", itemId: item.hash },
+            reportRollbackFailure
+          );
+        }
         if (isPermanentDiscordError(err)) {
           const reason = `Discord cod ${(err as { code?: unknown }).code}: ${transientErrorMessage(err)}`;
           await disableDiscountsForChannelError(String(guild._id), channel.id, reason).catch(() => null);
@@ -216,6 +225,9 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       isPermanentDiscordError,
       transientErrorMessage,
       rollbackEntry: entry => rollbackSeenDiscount(String(guild._id), entry.item.hash),
+      rollbackFailureContext: entry => ({ guildId: String(guild._id), kind: "discount", itemId: entry.item.hash }),
+      reportRollbackFailure,
+      logger,
       onPermanentError: async reason => {
         await disableDiscountsForChannelError(String(guild._id), channel.id, reason).catch(() => null);
         logger("WARN", "CRON_DISCOUNTS", `Disable discounts pentru guild ${guild._id} - cod permanent`, reason);
@@ -248,21 +260,17 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       const cached = getDealsCacheData(cur);
       if (cached) return cached;
       if (!dealsPromises.has(cur)) {
-        dealsPromises.set(cur, fetchDeals({ currency: cur, fromCron: true }).then(async deals => {
-          setDealsCache(cur, deals);
-          if (persistFetchSnapshot) await persistFetchSnapshot(`deals:${cur}`, deals).catch(() => undefined);
-          return deals;
-        }).catch(async err => {
-          const fallback = loadFetchSnapshot ? await loadFetchSnapshot(`deals:${cur}`).catch(() => null) : null;
-          const fresh = !!fallback && fallback.fetchedAt != null
-            && (Date.now() - new Date(fallback.fetchedAt).getTime()) < SNAPSHOT_FALLBACK_MAX_AGE_MS;
-          const isValidDeal = (item: unknown): item is DealInfo => validatePendingDiscountSnapshot(item);
-          const validDeals = fresh && fallback && Array.isArray(fallback.payload) ? fallback.payload.filter(isValidDeal) : [];
-          if (validDeals.length) {
-            logger("WARN", "CRON_DISCOUNTS", `Fetch reduceri esuat pentru ${cur} — folosesc snapshot-ul recent din event store`, transientErrorMessage(err));
-            return validDeals;
-          }
-          throw err;
+        dealsPromises.set(cur, loadNotificationFeed({
+          snapshotId: `deals:${cur}`,
+          fetchFresh: () => fetchDeals({ currency: cur, fromCron: true }),
+          validateItem: validatePendingDiscountSnapshot,
+          persistFresh: async deals => {
+            setDealsCache(cur, deals);
+            if (persistFetchSnapshot) await persistFetchSnapshot(`deals:${cur}`, deals).catch(() => undefined);
+          },
+          loadSnapshot: loadFetchSnapshot,
+          maxSnapshotAgeMs: SNAPSHOT_FALLBACK_MAX_AGE_MS,
+          onFallback: error => logger("WARN", "CRON_DISCOUNTS", `Fetch reduceri esuat pentru ${cur}; folosesc snapshot-ul recent din event store`, transientErrorMessage(error))
         }));
       }
       return dealsPromises.get(cur) as Promise<DealInfo[]>;

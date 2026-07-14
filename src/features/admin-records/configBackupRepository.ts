@@ -1,6 +1,6 @@
 "use strict";
 
-import type { ConfigBackupRecord, GuildSettings, MongoWriteOutcome, ServerAuditLogEntry } from "../../types.js";
+import type { ConfigBackupRecord, GuildConfigurationSettings, GuildSettings, MongoWriteOutcome, ServerAuditLogEntry } from "../../types.js";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "./auditLogRepository.js";
 
 type MongoWriteResult = MongoWriteOutcome;
@@ -103,11 +103,18 @@ export const GUILD_SETTINGS_FIELD_ROLES: Readonly<Record<string, GuildSettingsFi
   futureReleaseActivationId: "operational"
 });
 
-export const CONFIG_BACKUP_KEYS: readonly string[] = Object.freeze(
-  Object.entries(GUILD_SETTINGS_FIELD_ROLES)
-    .filter(([, role]) => role === "config")
-    .map(([field]) => field)
-);
+export const CONFIG_BACKUP_KEYS: readonly (keyof GuildConfigurationSettings)[] = Object.freeze([
+  "subscribed", "notificationChannelId", "discountsSubscribed", "discountChannelId",
+  "minDiscountPercent", "includeFreeGames", "includePaidDiscounts", "notificationMode",
+  "updateMessageTemplate", "discountMessageTemplate", "currency", "outboxRecoveryVerify",
+  "enabledGames", "gameAliases", "timezone", "commandSnoozes", "enabledStores",
+  "maxAbsolutePrice", "notificationRoleId", "discountRoleId", "adminAlertChannelId",
+  "priceAlerts", "youtubeChannels", "youtubeNotificationChannelId", "youtubeNotificationsEnabled",
+  "youtubeHasActivated", "youtubeFilters", "youtubeMessageTemplate", "youtubeChannelRoutes",
+  "youtubeTitleIncludeWords", "watchlistGameSuggestions", "playerCountSubscribed",
+  "playerCountChannelId", "playerCountGames", "futureReleaseGames", "futureReleaseSubscribed",
+  "futureReleaseChannelId", "dlcSubscribed", "dlcChannelId"
+]);
 
 function cloneRecord(value: Record<string, unknown>): Record<string, unknown> {
   const serialized = JSON.stringify(value);
@@ -173,8 +180,17 @@ export async function saveConfigBackup(
     createdAt: new Date(),
     snapshot: buildConfigSnapshot(settings)
   };
+  await saveConfigBackupRecord(model, guildId, record);
+  return record;
+}
+
+export async function saveConfigBackupRecord(
+  model: Pick<ConfigBackupModelLike, "updateOne" | "find" | "deleteMany">,
+  guildId: string,
+  record: ConfigBackupRecord
+): Promise<void> {
   await model.updateOne(
-    { guildId, name: normalized },
+    { guildId, name: record.name },
     { $set: { createdBy: record.createdBy, createdAt: record.createdAt, snapshot: record.snapshot } },
     { upsert: true }
   );
@@ -182,7 +198,6 @@ export async function saveConfigBackup(
   if (overflow.length > 0) {
     await model.deleteMany({ guildId, name: { $in: overflow.map(doc => doc.name) } });
   }
-  return record;
 }
 
 export function buildConfigRestoreUpdate(backup: ConfigBackupRecord): Record<string, unknown> {
@@ -219,10 +234,11 @@ export async function loadConfigBackupWithAudit(
   GuildAuditLogModel: GuildAuditLogModelLike,
   guildId: string,
   backup: ConfigBackupRecord,
-  audit: Omit<ServerAuditLogEntry, "serverId" | "at">
+  audit: Omit<ServerAuditLogEntry, "serverId" | "at">,
+  operationId?: string
 ): Promise<void> {
   await GuildModel.updateOne({ _id: guildId }, buildConfigRestoreUpdate(backup), { upsert: true });
-  await recordServerAuditEntry(GuildAuditLogModel, guildId, audit);
+  await recordServerAuditEntry(GuildAuditLogModel, guildId, audit, operationId);
 }
 
 export async function deleteConfigBackup(model: Pick<ConfigBackupModelLike, "deleteOne">, guildId: string, name: string): Promise<boolean> {
@@ -236,9 +252,10 @@ export async function deleteConfigBackupWithAudit(
   GuildAuditLogModel: GuildAuditLogModelLike,
   guildId: string,
   name: string,
-  audit: Omit<ServerAuditLogEntry, "serverId" | "at">
+  audit: Omit<ServerAuditLogEntry, "serverId" | "at">,
+  operationId?: string
 ): Promise<boolean> {
   const deleted = await deleteConfigBackup(model, guildId, name);
-  if (deleted) await recordServerAuditEntry(GuildAuditLogModel, guildId, audit);
+  if (deleted || operationId) await recordServerAuditEntry(GuildAuditLogModel, guildId, audit, operationId);
   return deleted;
 }

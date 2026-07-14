@@ -1,10 +1,10 @@
 "use strict";
 
-import type { ConfigBackupRecord, GuildSettings } from "../../types.js";
+import type { ConfigBackupRecord, GuildConfigurationSettings, GuildSettings } from "../../types.js";
 import { clampJoinedList } from "../command-presentation/discordListLimit.js";
 import { CONFIG_BACKUP_KEYS } from "../admin-records/configBackupRepository.js";
 
-const RESOURCE_FIELDS: Array<{ key: string; label: string; kind: "canal" | "rol" }> = [
+const RESOURCE_FIELDS: Array<{ key: keyof GuildConfigurationSettings; label: string; kind: "canal" | "rol" }> = [
   { key: "notificationChannelId", label: "canal update-uri", kind: "canal" },
   { key: "discountChannelId", label: "canal reduceri", kind: "canal" },
   { key: "youtubeNotificationChannelId", label: "canal YouTube", kind: "canal" },
@@ -40,8 +40,10 @@ function hasMeaningfulValue(value: unknown): boolean {
 export function renderBackupPreview(backup: ConfigBackupRecord, current: GuildSettings | null): string {
   const snapshot = backup.snapshot;
   const changed: string[] = [];
-  for (const [key, value] of Object.entries(snapshot)) {
+  for (const key of CONFIG_BACKUP_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(snapshot, key)) continue;
     const currentValue = current?.[key];
+    const value = snapshot[key];
     if (JSON.stringify(currentValue ?? null) !== JSON.stringify(value ?? null)) changed.push(key);
   }
   const cleared: string[] = [];

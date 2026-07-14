@@ -1,7 +1,7 @@
 "use strict";
 
 import type { MongoWriteOutcome } from "../../types.js";
-import type { MongoUpdate } from "../../infra/mongo/mongoQueryShapes.js";
+type MongoUpdate = Record<string, unknown>;
 import type { DeadLetterEntry } from "./deadLetter.js";
 import { recordDeadLetters, type DeadLetterModelLike } from "./deadLetterRepository.js";
 

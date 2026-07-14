@@ -68,6 +68,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     let historyWriteFailures = 0;
     let droppedUnsubscribed = 0;
     let leaseLost = 0;
+    let resumedFinalizations = 0;
     const maxAgeMs = options.maxAgeMs ?? 0;
 
     const finalizeJob = async (lease: OutboxLeaseToken, status: "delivered" | "dead-lettered" | "dropped"): Promise<boolean> => {
@@ -138,6 +139,14 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       recordSentHistory: options.recordSentHistory,
       markSent: repository.markSent,
       recordDeadLetterBeforeDelete,
+      markDeliveryAccepted: async (lease: OutboxLeaseToken) => {
+        try {
+          return (await repository.markDeliveryAccepted(lease, nowFn())) > 0;
+        } catch (err) {
+          logger("WARN", "OUTBOX", `Nu am putut persista confirmarea livrarii Discord pentru jobul ${String(lease._id)}; opresc drain-ul ca sa reduc riscul de duplicare`, err instanceof Error ? err.message : String(err));
+          return false;
+        }
+      },
       finalizeDelivered: (lease: OutboxLeaseToken) => finalizeJob(lease, "delivered"),
       logger
     });
@@ -147,6 +156,16 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       const job = await repository.claimNextJob(nowFn(), leaseMs, workerId);
       if (!job) break;
       processed++;
+
+      if (job.deliveryAcceptedAt) {
+        const outcome = await finalizer.finalizeDeliveredJob(job, { ok: true });
+        resumedFinalizations++;
+        if (outcome.historyWriteFailed) historyWriteFailures++;
+        if (outcome.markSentFailed) markSentFailures++;
+        if (outcome.leaseLost) leaseLost++;
+        if (outcome.stopDrain) break;
+        continue;
+      }
 
       const verdict = await stateMachine.validateClaimedJob(job);
       if (verdict.step === "drop-duplicate") {
@@ -183,6 +202,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         if (outcome.recoveryMarkerMissing) recoveryMarkerMissing++;
         if (outcome.historyWriteFailed) historyWriteFailures++;
         if (outcome.markSentFailed) markSentFailures++;
+        if (outcome.leaseLost) leaseLost++;
         sent++;
         if (outcome.stopDrain) break;
         continue;
@@ -231,7 +251,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     if (leaseLost > 0) {
       logger("WARN", "OUTBOX", `Drain outbox: ${leaseLost} tranzitie(i) sarite fiindca lease-ul jobului expirase si fusese preluat de alt worker (compare-and-set a esuat, starea celuilalt worker e protejata)`);
     }
-    return { sent, deadLettered, retried, expired, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, futureScheduledCount: futureScheduled, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures, deleteFailures, deadLetterFailures, historyWriteFailures, droppedUnsubscribed, leaseLost };
+    return { sent, deadLettered, retried, expired, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, futureScheduledCount: futureScheduled, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures, deleteFailures, deadLetterFailures, historyWriteFailures, droppedUnsubscribed, leaseLost, resumedFinalizations };
   }
 
   return { enqueueOutbox, drainOutbox };

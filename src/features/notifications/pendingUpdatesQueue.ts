@@ -15,7 +15,7 @@ export interface BuildPendingUpdatesQueueDeps {
 }
 
 export interface BuildPendingUpdatesQueueInput {
-  guild: GuildSettings & Record<string, unknown>;
+  guild: GuildSettings;
   latestResults: UpdateFetchResult[];
   now?: number;
 }
@@ -25,8 +25,6 @@ export interface BuildPendingUpdatesQueueResult {
   resultByGameKey: Map<string, UpdateFetchResult>;
   enabledSet: Set<string> | null;
 }
-
-type UnknownEntrySource = Map<string, unknown> | Record<string, unknown> | undefined;
 
 export function buildPendingUpdatesQueue(
   deps: BuildPendingUpdatesQueueDeps,
@@ -47,10 +45,10 @@ export function buildPendingUpdatesQueue(
 
   const enabledGames = Array.isArray(guild.enabledGames) ? guild.enabledGames : [];
   const hasGameFilter = enabledGames.length > 0;
-  const enabledSet = hasGameFilter ? new Set(enabledGames as string[]) : null;
+  const enabledSet = hasGameFilter ? new Set(enabledGames) : null;
 
   const pendingByGame = new Map<string, PendingUpdate[]>();
-  for (const [gameKey, arr] of toEntries(guild.pendingUpdates as UnknownEntrySource)) {
+  for (const [gameKey, arr] of toEntries(guild.pendingUpdates)) {
     if (enabledSet && !enabledSet.has(gameKey)) continue;
     const cleaned = normalizePendingUpdateArray(arr).filter(item => {
       const age = now - new Date(item.createdAt ?? now).getTime();
@@ -66,7 +64,7 @@ export function buildPendingUpdatesQueue(
     if (enabledSet && !enabledSet.has(gameKey)) continue;
     const queue = pendingByGame.get(gameKey) || [];
     if (!queue.some(item => item.id === result.latest!.id)) {
-      queue.push({ ...result.latest, createdAt: new Date(now), attempts: 0 } as PendingUpdate);
+      queue.push({ ...result.latest, createdAt: new Date(now), attempts: 0 });
       pendingByGame.set(gameKey, queue.slice(-PENDING_UPDATES_PER_GAME_LIMIT));
     }
   }
