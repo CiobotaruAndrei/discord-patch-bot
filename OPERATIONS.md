@@ -206,6 +206,30 @@ Diagnostic recomandat:
 
 Un canal Discord principal sters sau devenit permanent inaccesibil dezactiveaza notificarile YouTube pentru guild. O ruta speciala invalida este eliminata fara sa dezactiveze celelalte destinatii. Daca un canal YouTube nu mai are rute speciale, livrarea revine la canalul principal.
 
+## Jurnal de operatii (crash-recovery, `operationJournal`)
+
+Operatiile care ating mai multe documente/colectii (ex. `/reset-config`: reset configuratie + audit +
+curatare erori YouTube + curatare dead-letter) NU pot fi atomice pe Mongo standalone (fara replica set,
+deci fara tranzactii). Ca sa nu ramana stare partiala (configuratie resetata dar audit lipsa) la o eroare
+mid-operatie, aceste operatii sunt **jurnalizate**: inainte de executie se scrie o intrare `pending` in
+colectia `operationJournal` (cu `kind` + `payload` serializabil), se ruleaza executorul **idempotent**,
+apoi intrarea se marcheaza `done`.
+
+- **Recovery la boot.** Dupa migrari, botul ruleaza `recoverPending`: reia orice intrare ramasa `pending`
+  mai veche de **5 minute** (pragul evita furtul unei operatii in-flight a altei instante) si o re-executa
+  idempotent, apoi o marcheaza `done`. Un `INFO` `BOOT` raporteaza cate operatii au fost recuperate.
+- **Idempotenta executorului.** Corpul foloseste `runMongoWrite`: pasii **critici** (mutatia + auditul)
+  propaga eroarea (intrarea ramane `pending` -> se reia la recovery), iar **curatarile** incidentale sunt
+  best-effort (logate, ne-blocante) — un esec de curatare nu mai lasa auditul nescris.
+- **Kind necunoscut la recovery** (ex. dupa un rollback de cod care scoate un executor): intrarea ramane
+  `pending`, e logata `WARN` `OP_JOURNAL` si numarata ca `failed`, pentru inspectie manuala (nu se pierde).
+- **Curatare.** Un TTL partial pe `status="done"` sterge automat intrarile finalizate (retinute scurt
+  pentru observabilitate). O intrare care ramane `pending` mult timp inseamna o operatie care esueaza
+  repetat la recovery — verifica log-urile `OP_JOURNAL` si disponibilitatea Mongo.
+
+Adaugarea unei noi operatii multi-document jurnalizate = un nou `kind` + un executor idempotent inregistrat
+in `operationJournalRuntime.ts`.
+
 ## Indexuri MongoDB (inventar)
 
 Index-urile sunt declarate in `src/infra/mongo/models.ts` si construite automat de Mongoose la
@@ -246,6 +270,8 @@ setat ESTE sincronizarea. Inventarul declarat curent:
 | `notificationDeadLetterReplay` | `{ updatedAt }` | TTL `NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS` (implicit 7 zile) | expira payload-ul de replay; `updatedAt` se reimprospateaza la fiecare re-record, deci TTL se masoara de la ultimul dead-letter |
 | `notificationDeadLetterReplay` | `{ guildId, createdAt }` | — | listare FIFO interna a payload-urilor de replay per server |
 | `notificationDeadLetterReplay` | `{ guildId, dedupeKey }` | unique, partial (`dedupeKey != ""`) | dedup la re-record (replay esuat -> re-dead-letter nu acumuleaza duplicate) |
+| `operationJournal` | `{ status, updatedAt }` | — | recuperarea la boot a operatiilor jurnalizate ramase `pending` (mai vechi de un prag) dupa un crash mid-operatie |
+| `operationJournal` | `{ updatedAt }` | TTL 1 zi, partial pe `status = "done"` | curata automat intrarile de jurnal finalizate (pastrate scurt pentru observabilitate) |
 | `joblocks` | `{ lockedUntil }` | — | gasirea/expirarea lock-urilor distribuite (cron/outbox) |
 | `adminalertcooldowns` | `{ lastSentAt }` | TTL 7 zile | cooldown per-alerta pentru admin alerts |
 | `fetchsnapshots` | `{ fetchedAt }` | TTL 1 zi | event store pe fetch (hidratare cache la boot) |

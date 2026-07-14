@@ -145,7 +145,8 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     playerCountRecordSchema,
     bugReportSchema,
     userComplaintSchema,
-    feedbackReportSchema
+    feedbackReportSchema,
+    operationJournalSchema
   } = buildOperationalSchemas({ mongoose, ONE_DAY_MS, env });
   const CircuitBreakerModel = mongoose.model("CircuitBreaker", circuitBreakerSchema);
   const SystemModel = mongoose.model("System", systemSchema);
@@ -158,6 +159,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const BugReportModel = mongoose.model("BugReport", bugReportSchema, "bugReports");
   const UserComplaintModel = mongoose.model("UserComplaint", userComplaintSchema, "userComplaints");
   const FeedbackReportModel = mongoose.model("FeedbackReport", feedbackReportSchema, "feedbackReports");
+  const OperationJournalModel = mongoose.model("OperationJournal", operationJournalSchema, "operationJournal");
 
   const { guildAuditLogSchema } = buildAuditLogSchemas({ mongoose, ONE_DAY_MS, env });
   const GuildAuditLogModel = mongoose.model("GuildAuditLog", guildAuditLogSchema, "guildAuditLogs");
@@ -210,6 +212,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     PlayerCountHistoryModel,
     PlayerCountRecordModel,
     BugReportModel,
+    OperationJournalModel,
     UserComplaintModel,
     GuildSeenDiscountModel,
     GuildSeenUpdateModel,

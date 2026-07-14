@@ -9,6 +9,7 @@ export interface DatabaseStartupDeps {
   waitForMongoReady(timeoutMs?: number): Promise<boolean>;
   runMigrations(logger: unknown): Promise<{ applied: number[] }>;
   migrationsContinueOnError: boolean;
+  recoverOperationJournal?: () => Promise<{ recovered: number; failed: number }>;
   logger: Logger;
   adminAlert: AdminAlert;
   errorMessage: ErrorFormatter;
@@ -16,7 +17,7 @@ export interface DatabaseStartupDeps {
 }
 
 export async function runDatabaseStartupPhase(deps: DatabaseStartupDeps): Promise<void> {
-  const { connectMongo, waitForMongoReady, runMigrations, migrationsContinueOnError, logger, adminAlert, errorMessage, errorDetail } = deps;
+  const { connectMongo, waitForMongoReady, runMigrations, migrationsContinueOnError, recoverOperationJournal, logger, adminAlert, errorMessage, errorDetail } = deps;
   await connectMongo();
   const mongoReady = await waitForMongoReady(10000);
   if (!mongoReady) {
@@ -34,6 +35,16 @@ export async function runDatabaseStartupPhase(deps: DatabaseStartupDeps): Promis
     }
     logger("ERROR", "MIGRATE", "Migrari esuate la boot — continui fara ele (MIGRATIONS_CONTINUE_ON_ERROR=true; risc de schema inconsistenta, retry la urmatorul restart)", errorDetail(migErr));
     adminAlert("boot:migrations", "Migrari DB esuate la pornire (pornit oricum)", errorMessage(migErr)).catch(() => null);
+  }
+  if (recoverOperationJournal) {
+    try {
+      const result = await recoverOperationJournal();
+      if (result.recovered > 0 || result.failed > 0) {
+        logger("INFO", "BOOT", `Jurnal operatii: ${result.recovered} operatii recuperate dupa crash, ${result.failed} inca in asteptare`);
+      }
+    } catch (journalErr) {
+      logger("WARN", "BOOT", "Recuperarea jurnalului de operatii la boot a esuat (best-effort; se reia la urmatorul restart)", errorMessage(journalErr));
+    }
   }
 }
 

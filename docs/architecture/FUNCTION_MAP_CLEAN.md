@@ -94,6 +94,10 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Formele tipizate comune pentru contractele de colectie (DI seams): `MongoFilter`, `MongoUpdate`, `MongoProjection`, `MongoQueryOptions` (toate `Record<string, unknown>` — obiect, nu `unknown`). Interfetele `*ModelLike`/repository din `infra/mongo` si `features/notifications` folosesc aceste alias-uri in loc de `filter: unknown`/`update: unknown`, deci parametrii de query nu mai accepta primitive si au un vocabular unic. Pinuit compile-time de `mongoQueryShapes.test.ts`.
 
+### `src/infra/mongo/operationJournal.ts` (+ `mongoUnitOfWork.ts`, `features/admin-records/operationJournalRuntime.ts`)
+
+- Jurnal de operatii reluabil (crash-recovery) pentru operatiile multi-document care nu pot fi atomice pe Mongo standalone. `createOperationJournal({ JournalModel, logger, executors })` -> `{ runJournaled(key, kind, payload), recoverPending({ olderThanMs, limit }) }`: `runJournaled` scrie o intrare `pending` (kind + payload serializabil) INAINTE de executie, ruleaza executorul idempotent inregistrat pentru `kind`, apoi marcheaza `done`; `recoverPending` (rulat la boot dupa migrari, prin `bootPhases.runDatabaseStartupPhase`) reia intrarile `pending` mai vechi de un prag si le re-executa. `mongoUnitOfWork.ts` (`runMongoWrite({ critical, cleanup })`) e corpul idempotent: pasi critici (mutatie+audit) propaga eroarea, curatari incidentale best-effort. `operationJournalRuntime.ts` leaga executorii de modele (prima operatie: `reset-config`, folosita de `guildConfigurationAdminHandler`). Wiring boot: `bootstrap.ts` creeaza runtime-ul (are modelele reale) si paseaza `recoverOperationJournal` prin `AppRuntimeDeps` -> `createBootSequence`. Gardat de `operationJournal.test.ts`.
+
 ### `src/infra/mongo/locks.ts`
 
 - Gestioneaza lock-ul distribuit pentru cron.

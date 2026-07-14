@@ -127,6 +127,7 @@ export interface AppRuntimeDeps {
   mongo: MongoContextLike;
   commands: CommandRuntime;
   scrapers: ScraperRuntime;
+  recoverOperationJournal?: () => Promise<{ recovered: number; failed: number }>;
 }
 
 export interface RuntimeServices {

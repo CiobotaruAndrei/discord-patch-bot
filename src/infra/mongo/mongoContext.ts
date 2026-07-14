@@ -28,6 +28,7 @@ import type {
   UserComplaintDoc,
   SystemDoc
 } from "./modelTypes.js";
+import type { OperationJournalDoc } from "./operationJournal.js";
 import { assertNoUndefinedExports } from "../../shared/assertCompleteExports.js";
 
 type MongoRuntimeContext = {
@@ -64,6 +65,7 @@ type MongoRuntimeContext = {
   NotificationHistoryModel: Model<NotificationHistoryDoc>;
   FeedbackReportModel: Model<FeedbackReportDoc>;
   NotificationDeadLetterReplayModel: Model<NotificationDeadLetterReplayDoc>;
+  OperationJournalModel: Model<OperationJournalDoc>;
   saveFetchSnapshot: (id: string, payload: unknown) => Promise<void>;
   loadFetchSnapshot: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
   loadDealsFetchSnapshots: () => Promise<Array<{ currency: string; payload: unknown; fetchedAt: Date }>>;
@@ -162,6 +164,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     NotificationHistoryModel: context.NotificationHistoryModel,
     FeedbackReportModel: context.FeedbackReportModel,
     NotificationDeadLetterReplayModel: context.NotificationDeadLetterReplayModel,
+    OperationJournalModel: context.OperationJournalModel,
     saveFetchSnapshot: context.saveFetchSnapshot,
     loadFetchSnapshot: context.loadFetchSnapshot,
     loadSourceHealth: context.loadSourceHealth,

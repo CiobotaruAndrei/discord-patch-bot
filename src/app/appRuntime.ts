@@ -84,7 +84,7 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
     redis: deps.redis, guildInvalidationChannel, errorMessage, errorDetail
   });
 
-  const start = createBootSequence(deps, { client, httpServer, guildInvalidationChannel });
+  const start = createBootSequence(deps, { client, httpServer, guildInvalidationChannel, recoverOperationJournal: deps.recoverOperationJournal });
 
   return {
     start,

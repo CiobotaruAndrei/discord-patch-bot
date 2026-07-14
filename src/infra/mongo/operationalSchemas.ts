@@ -103,6 +103,25 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
   }, { minimize: false });
   feedbackReportSchema.index({ guildId: 1, createdAt: -1 }, { background: true });
 
+  const operationJournalSchema = new mongoose.Schema({
+    _id: String,
+    kind: { type: String, required: true },
+    payload: { type: mongoose.Schema.Types.Mixed, default: null },
+    status: { type: String, enum: ["pending", "done"], default: "pending" },
+    attempts: { type: Number, default: 0 },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
+  }, { minimize: false });
+  operationJournalSchema.index({ status: 1, updatedAt: 1 }, { background: true });
+  operationJournalSchema.index(
+    { updatedAt: 1 },
+    {
+      background: true,
+      expireAfterSeconds: ONE_DAY_MS / 1000,
+      partialFilterExpression: { status: "done" }
+    }
+  );
+
   return {
     circuitBreakerSchema,
     systemSchema,
@@ -114,6 +133,7 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     playerCountRecordSchema,
     bugReportSchema,
     userComplaintSchema,
-    feedbackReportSchema
+    feedbackReportSchema,
+    operationJournalSchema
   };
 }

@@ -4,10 +4,12 @@ import type { CurrencyCode, DiscordReplyPayload, GameConfig } from "../../types.
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 import { buildResetConfiguration } from "../guild-config/guildConfigDefaults.js";
-import { resetGuildConfigurationWithAudit, setAdminAlertChannel } from "../guild-config/guildConfigRepository.js";
+import { setAdminAlertChannel } from "../guild-config/guildConfigRepository.js";
 import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
 import type { YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository.js";
 import type { DeadLetterModelLike } from "../notifications/deadLetterRepository.js";
+import type { OperationJournalModelLike } from "../../infra/mongo/operationJournal.js";
+import { createOperationJournalRuntime, RESET_CONFIG_KIND } from "../admin-records/operationJournalRuntime.js";
 
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
@@ -53,6 +55,7 @@ interface GuildConfigurationAdminDeps {
   GuildAuditLogModel: GuildAuditLogModelLike;
   GuildYoutubeErrorModel: Pick<YoutubeErrorModelLike, "deleteMany">;
   GuildDeadLetterModel: Pick<DeadLetterModelLike, "deleteMany">;
+  OperationJournalModel: OperationJournalModelLike;
   deleteAllReplayPayloads(guildId: string): Promise<void>;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
@@ -66,18 +69,27 @@ type GuildConfigurationAdminContext = GuildConfigurationAdminDeps;
 
 function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps) {
   const {
-    GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, GuildDeadLetterModel, deleteAllReplayPayloads, safeDefer, safeEdit,
+    GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, GuildDeadLetterModel, OperationJournalModel,
+    deleteAllReplayPayloads, safeDefer, safeEdit,
     checkChannelPermissions, DEFAULT_CURRENCY, logger
   } = deps;
+
+  const operationJournal = createOperationJournalRuntime({
+    OperationJournalModel, GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, GuildDeadLetterModel, logger
+  });
 
   async function handleResetConfiguration(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     if (interaction.options.getBoolean("confirm", true) !== true) {
       return safeEdit(interaction, "Resetarea a fost anulata. Foloseste `confirm:true` numai daca vrei sa stergi toate setarile serverului.");
     }
-    await resetGuildConfigurationWithAudit(GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, GuildDeadLetterModel, guildId, DEFAULT_CURRENCY, {
-      userId: interaction.user?.id || "",
-      action: "reset_config",
-      details: "Configuratia serverului a fost resetata la valorile implicite"
+    await operationJournal.runJournaled(`${RESET_CONFIG_KIND}:${guildId}:${Date.now()}`, RESET_CONFIG_KIND, {
+      guildId,
+      defaultCurrency: DEFAULT_CURRENCY,
+      audit: {
+        userId: interaction.user?.id || "",
+        action: "reset_config",
+        details: "Configuratia serverului a fost resetata la valorile implicite"
+      }
     });
     let replayCleanupOk = true;
     try {
