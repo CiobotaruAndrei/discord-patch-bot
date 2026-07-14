@@ -47,6 +47,7 @@ const runtimeFiles = [
   "app/lifecycle/events.js",
   "app/lifecycle/shutdown.js",
   "app/health/httpServer.js",
+  "app/health/metricsRegistry.js",
   "app/health/metrics.js",
   "app/health/rateLimit.js"
 ];
