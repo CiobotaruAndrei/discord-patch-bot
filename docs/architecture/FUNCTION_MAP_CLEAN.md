@@ -46,8 +46,8 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 ### `src/shared/env.ts`
 
-- Citeste si valideaza variabilele de mediu.
-- Centralizeaza default-uri si limite numerice.
+- Citeste si valideaza variabilele de mediu (schema Zod pentru cele critice: `MONGO_URI`, `DISCORD_TOKEN`, tokenul de metrici etc.) si compune obiectul `RuntimeEnv`.
+- Construirea campurilor de tuning numerice e impartita pe subsisteme in `src/shared/envTuning.ts` (review impact-mediu #12): `buildSourcesTuningEnv(parseEnvNumber)` (fetch/deal/steam/epic/discord-send), `buildCycleTuningEnv(parseEnvNumber, { ONE_HOUR_MS, ONE_DAY_MS, THIRTY_DAYS_MS })` (per-cycle/pending/circuit-breaker/health) si `buildCacheTuningEnv(parseEnvNumber, { ONE_HOUR_MS })` (cache/mongo/http-rate-limit). `env.ts` pastreaza validarea + campurile de conexiune/securitate/notificari + compunerea finala (`{ ...core, ...buildSourcesTuningEnv(...), ...buildCycleTuningEnv(...), ...buildCacheTuningEnv(...), isProd }`). Fara schimbare de comportament — default-urile si limitele sunt mutate verbatim (verificat prin diff pe setul de apeluri `parseEnvNumber`, 66 linii identice), iar completitudinea `RuntimeEnv` e garantata de typecheck la compunere. Builderii sunt acoperiti de `envTuning.test.ts`.
 
 ### `src/config/configLoader.ts`
 
