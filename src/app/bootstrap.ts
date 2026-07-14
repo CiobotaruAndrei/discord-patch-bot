@@ -22,15 +22,24 @@ import type { AppRuntime, AppRuntimeDeps } from "./appRuntime.js";
 import type { BotRole } from "../types.js";
 import type { SourceRegistryApi } from "../sources/sourceRegistry.js";
 
+const mongoContext = require("../infra/mongo/mongoContext").default as typeof import("../infra/mongo/mongoContext.js")["default"];
 const {
   logger, env, parseEnvNumber,
   acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
   waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
   runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots,
-  getOutboxPaused, setAdminAlertDiscordClient
-} = require("../infra/mongo/mongoContext").default as typeof import("../infra/mongo/mongoContext.js")["default"];
+  getOutboxPaused, setAdminAlertDiscordClient,
+  OperationJournalModel, GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, GuildDeadLetterModel
+} = mongoContext;
 import commands from "../features/command-registry/commandRegistry.js";
 import * as scrapers from "../sources/sourceRegistry.js";
+import { createOperationJournalRuntime } from "../features/admin-records/operationJournalRuntime.js";
+
+const operationJournal = createOperationJournalRuntime({
+  OperationJournalModel, GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, GuildDeadLetterModel, logger
+});
+const OPERATION_JOURNAL_RECOVERY_MIN_AGE_MS = 5 * 60 * 1000;
+const OPERATION_JOURNAL_RECOVERY_LIMIT = 100;
 
 function buildAppRuntime(role: BotRole): AppRuntime {
   return createAppRuntime({
@@ -45,7 +54,8 @@ function buildAppRuntime(role: BotRole): AppRuntime {
       runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots,
       getOutboxPaused, setAdminAlertDiscordClient
     },
-    commands, scrapers
+    commands, scrapers,
+    recoverOperationJournal: () => operationJournal.recoverPending({ olderThanMs: OPERATION_JOURNAL_RECOVERY_MIN_AGE_MS, limit: OPERATION_JOURNAL_RECOVERY_LIMIT })
   } satisfies AppRuntimeDeps);
 }
 

@@ -18,6 +18,11 @@ function makeHarness(permissionState = { viewChannel: true, sendMessages: true, 
     },
     GuildYoutubeErrorModel: { deleteMany: async () => ({ deletedCount: 0 }) },
     GuildDeadLetterModel: { deleteMany: async () => ({ deletedCount: 0 }) },
+    OperationJournalModel: {
+      findOne: () => ({ lean: async () => null }),
+      updateOne: async () => ({ modifiedCount: 1 }),
+      find: () => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) })
+    },
     GuildAuditLogModel: {
       create: async (doc: GuildAuditLogRecord) => { auditDocs.push(doc); return doc; },
       find: () => { const chain = { sort: () => chain, skip: () => chain, limit: () => chain, lean: async () => [] }; return chain; }
