@@ -5,6 +5,7 @@ import type {
   DrainOutboxResult,
   EnqueueOutboxJobInput,
   OutboxJob,
+  OutboxLeaseToken,
   OutboxRuntime,
   OutboxRuntimeDeps
 } from "./outboxTypes.js";
@@ -66,16 +67,23 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     let deadLetterFailures = 0;
     let historyWriteFailures = 0;
     let droppedUnsubscribed = 0;
+    let leaseLost = 0;
     const maxAgeMs = options.maxAgeMs ?? 0;
 
-    const finalizeJob = async (id: unknown, status: "delivered" | "dead-lettered" | "dropped"): Promise<boolean> => {
+    const finalizeJob = async (lease: OutboxLeaseToken, status: "delivered" | "dead-lettered" | "dropped"): Promise<boolean> => {
       try {
-        await repository.finalizeJob(id, status, nowFn());
+        const modified = await repository.finalizeJob(lease, status, nowFn());
+        if (modified === 0) {
+          leaseLost++;
+          logger("WARN", "OUTBOX",
+            `Lease pierdut pentru jobul ${String(lease._id)} inainte de finalizare (status ${status}); alt worker detine acum jobul, nu suprascriu starea lui`);
+          return false;
+        }
         return true;
       } catch (err) {
         deleteFailures++;
         logger("WARN", "OUTBOX",
-          `Finalizarea jobului ${String(id)} (status ${status}) a esuat dupa procesare (ramane in coada, va fi dedus/reluat la urmatorul ciclu)`,
+          `Finalizarea jobului ${String(lease._id)} (status ${status}) a esuat dupa procesare (ramane in coada, va fi dedus/reluat la urmatorul ciclu)`,
           err instanceof Error ? err.message : String(err));
         return false;
       }
@@ -104,11 +112,16 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       const verdict = planNotificationFailure(job.attempts, options.maxAttempts, permanent);
       if (verdict.action === "dead-letter") {
         if (!(await recordDeadLetterOrKeep(job, verdict.cause === "permanent" ? reason : "max-attempts"))) return;
-        await finalizeJob(job._id, "dead-lettered");
-        deadLettered++;
+        if (await finalizeJob(job, "dead-lettered")) deadLettered++;
         return;
       }
-      await repository.scheduleRetry(job._id, verdict.attempts, new Date(nowFn().getTime() + backoffWithJitter(options.backoffMs, verdict.attempts)));
+      const rescheduled = await repository.scheduleRetry(job, verdict.attempts, new Date(nowFn().getTime() + backoffWithJitter(options.backoffMs, verdict.attempts)));
+      if (rescheduled === 0) {
+        leaseLost++;
+        logger("WARN", "OUTBOX",
+          `Lease pierdut pentru jobul ${String(job._id)} inainte de reprogramare; alt worker detine acum jobul, nu suprascriu starea lui`);
+        return;
+      }
       retried++;
     };
 
@@ -125,7 +138,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       recordSentHistory: options.recordSentHistory,
       markSent: repository.markSent,
       recordDeadLetterBeforeDelete,
-      finalizeDelivered: (id: unknown) => finalizeJob(id, "delivered"),
+      finalizeDelivered: (lease: OutboxLeaseToken) => finalizeJob(lease, "delivered"),
       logger
     });
 
@@ -136,18 +149,16 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
 
       const verdict = await stateMachine.validateClaimedJob(job);
       if (verdict.step === "drop-duplicate") {
-        await finalizeJob(job._id, "dropped");
+        await finalizeJob(job, "dropped");
         continue;
       }
       if (verdict.step === "expire") {
         if (!(await recordDeadLetterOrKeep(job, "expired-near-ttl"))) continue;
-        await finalizeJob(job._id, "dead-lettered");
-        expired++;
+        if (await finalizeJob(job, "dead-lettered")) expired++;
         continue;
       }
       if (verdict.step === "drop-unsubscribed") {
-        await finalizeJob(job._id, "dropped");
-        droppedUnsubscribed++;
+        if (await finalizeJob(job, "dropped")) droppedUnsubscribed++;
         continue;
       }
       if (verdict.step === "retry") {
@@ -216,7 +227,10 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
     if (deadLetterFailures > 0) {
       logger("WARN", "OUTBOX", `Drain outbox: ${deadLetterFailures} audit(uri) dead-letter esuate (job-urile terminale raman in coada pentru reluare; un job deja livrat e sters chiar fara audit - vezi log-urile WARN per job; verifica disponibilitatea Mongo)`);
     }
-    return { sent, deadLettered, retried, expired, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, futureScheduledCount: futureScheduled, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures, deleteFailures, deadLetterFailures, historyWriteFailures, droppedUnsubscribed };
+    if (leaseLost > 0) {
+      logger("WARN", "OUTBOX", `Drain outbox: ${leaseLost} tranzitie(i) sarite fiindca lease-ul jobului expirase si fusese preluat de alt worker (compare-and-set a esuat, starea celuilalt worker e protejata)`);
+    }
+    return { sent, deadLettered, retried, expired, total: processed, queued, deliveryMsTotal, oldestJobAgeMs: oldestAgeMs, futureScheduledCount: futureScheduled, recoveryDuplicates, recoveryFetches, recoveryFailures, recoveryMarkerMissing, markSentFailures, deleteFailures, deadLetterFailures, historyWriteFailures, droppedUnsubscribed, leaseLost };
   }
 
   return { enqueueOutbox, drainOutbox };

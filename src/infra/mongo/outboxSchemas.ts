@@ -26,6 +26,7 @@ export function buildOutboxSchemas({ mongoose, ONE_DAY_MS, env }: OutboxSchemasD
     availableAt: { type: Date, default: Date.now },
     lockedUntil: { type: Date, default: null },
     lockedBy: { type: String, default: null },
+    leaseVersion: { type: Number, default: 0 },
     dedupeKey: { type: String },
     recoveryVerify: { type: Boolean, default: null },
     manual: { type: Boolean, default: false },

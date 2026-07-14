@@ -233,7 +233,7 @@ test("drainOutbox: sweep — joburi mai vechi decat maxAgeMs -> dead-letter (exp
     findOneAndUpdate: async () => null,
     find: (filter: { createdAt?: { $lte?: unknown } }) => { findFilters.push(filter); return { sort: () => ({ limit: () => ({ lean: async () => stale }) }) }; },
     deleteOne: async (f: unknown) => { deleted.push(f); return { deletedCount: 1 }; },
-    updateOne: async () => ({ matchedCount: 1 }),
+    updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 }),
     countDocuments: async () => 0
   };
   const sentModel: OutboxSentModelMock = { exists: async () => null, updateOne: async () => ({ upsertedCount: 1 }) };
@@ -274,7 +274,7 @@ test("drainOutbox: job revendicat mai vechi decat maxAgeMs e expirat INAINTE de 
       if (status && ["delivered", "dead-lettered", "dropped"].includes(status)) {
         finalizedTerminal.push({ id: (filter as { _id?: unknown })._id, status });
       }
-      return { matchedCount: 1 };
+      return { matchedCount: 1, modifiedCount: 1 };
     },
     countDocuments: async () => 0
   };

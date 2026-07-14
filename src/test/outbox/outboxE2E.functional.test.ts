@@ -65,7 +65,7 @@ const TERMINAL_E2E = ["delivered", "dead-lettered", "dropped"];
         if (update.$set) Object.assign(job, update.$set);
         if (update.$unset) for (const key of Object.keys(update.$unset)) delete job[key];
       }
-      return { matchedCount: job ? 1 : 0 };
+      return { matchedCount: job ? 1 : 0, modifiedCount: job ? 1 : 0 };
     },
     countDocuments: async () => jobs.filter(isActiveE2E).length
   };
