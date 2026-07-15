@@ -103,6 +103,10 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     futureReleaseGames: { type: [futureReleaseGameSchema], default: [] },
     adminCommandAccess: { type: adminCommandAccessSchema, default: null },
     adminCommandAccessByCommand: { type: Map, of: adminCommandAccessSchema, default: {} },
+    moderationTimeouts: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    moderationMutes: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    moderationWarnings: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    moderationWarnBanLimit: { type: Number, default: 0, min: 0 },
     playerCountSubscribed: { type: Boolean, default: false },
     playerCountChannelId: { type: String, default: null },
     playerCountGames: { type: [String], default: [] },
@@ -115,7 +119,16 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     dlcSubscribed: { type: Boolean, default: false },
     dlcChannelId: { type: String, default: null },
     dlcInitializing: { type: Boolean, default: false },
-    dlcActivationId: { type: String, default: null }
+    dlcActivationId: { type: String, default: null },
+    newAccountAlertChannelId: { type: String, default: null },
+    newAccountAlertsEnabled: { type: Boolean, default: false },
+    threatAlertChannelId: { type: String, default: null },
+    threatProtectionEnabled: { type: Boolean, default: false },
+    botAddAlertChannelId: { type: String, default: null },
+    botAddProtectionEnabled: { type: Boolean, default: false },
+    botAddPermissions: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    purgeAmount: { type: Number, default: 50, min: 1, max: 100 },
+    lockedChannelIds: { type: [String], default: [] }
   }, { minimize: false });
 
   guildSchema.index({ subscribed: 1, notificationChannelId: 1 }, { background: true });

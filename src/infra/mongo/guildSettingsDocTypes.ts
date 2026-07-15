@@ -116,6 +116,10 @@ export interface GuildDoc {
   futureReleaseGames?: FutureReleaseGameEntry[];
   adminCommandAccess?: AdminCommandAccessConfig | null;
   adminCommandAccessByCommand?: Record<string, AdminCommandAccessConfig | null | undefined>;
+  moderationTimeouts?: Array<Record<string, unknown>>;
+  moderationMutes?: Array<Record<string, unknown>>;
+  moderationWarnings?: Array<Record<string, unknown>>;
+  moderationWarnBanLimit?: number;
   playerCountSubscribed?: boolean;
   playerCountChannelId?: string | null;
   playerCountGames?: string[];
@@ -129,4 +133,23 @@ export interface GuildDoc {
   dlcChannelId?: string | null;
   dlcInitializing?: boolean;
   dlcActivationId?: string | null;
+  newAccountAlertChannelId?: string | null;
+  newAccountAlertsEnabled?: boolean;
+  threatAlertChannelId?: string | null;
+  threatProtectionEnabled?: boolean;
+  botAddAlertChannelId?: string | null;
+  botAddProtectionEnabled?: boolean;
+  botAddPermissions?: Array<{
+    requestId: string;
+    botId: string;
+    requesterId: string;
+    requestedAt: Date;
+    ownerId?: string | null;
+    respondedAt?: Date | null;
+    expiresAt?: Date | null;
+    usedAt?: Date | null;
+    status: "pending" | "approved" | "used" | "rejected" | "expired" | "cancelled";
+  }>;
+  purgeAmount?: number;
+  lockedChannelIds?: string[];
 }

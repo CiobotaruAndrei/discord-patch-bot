@@ -10,7 +10,13 @@ function createRuntimeServices(deps: AppRuntimeDeps): RuntimeServices {
   const metrics = createMetrics();
   scrapers.attachMetrics(metrics);
   attachRedisMetrics(metrics);
-  const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+  const client = new Client({ intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildModeration
+  ] });
   setAdminAlertDiscordClient(client);
   const lifecycle = { isShuttingDown: false };
   const rateLimiter = createRateLimiter(env, metrics);

@@ -1,6 +1,6 @@
 import type { BotRole, GameConfig, RuntimeEnv } from "../../types.js";
 import type { BotMetrics } from "../health/metricsTypes.js";
-import type { LifecycleDiscordChannel, LifecycleDiscordGuild, LifecycleDiscordInteraction, LifecycleEventClient } from "./lifecycleContracts.js";
+import type { LifecycleDiscordChannel, LifecycleDiscordGuild, LifecycleDiscordGuildMember, LifecycleDiscordInteraction, LifecycleDiscordMessage, LifecycleEventClient } from "./lifecycleContracts.js";
 import { createGuildOnboarding } from "./guildOnboarding.js";
 import { roleRunsSchedulers, roleRunsInteractions } from "../../shared/botRole.js";
 
@@ -38,6 +38,10 @@ interface RegisterDiscordEventsDeps {
   scheduleNextCron: () => void;
   startOutboxWorker?: () => void;
   role?: BotRole;
+  securityRuntime?: {
+    handleGuildMemberAdd(member: LifecycleDiscordGuildMember): Promise<void>;
+    handleMessageCreate(message: LifecycleDiscordMessage): Promise<void>;
+  };
 }
 
 interface MongoConnectionLike {
@@ -68,7 +72,7 @@ async function replyInteractionError(inter: LifecycleDiscordInteraction): Promis
 
 function registerDiscordEvents({
   client, logger, commands, metrics, env, adminAlert, requestContext,
-  games, crypto, errorMessage, errorDetail, startHousekeeping, scheduleNextCron, startOutboxWorker, role
+  games, crypto, errorMessage, errorDetail, startHousekeeping, scheduleNextCron, startOutboxWorker, role, securityRuntime
 }: RegisterDiscordEventsDeps): void {
   const effectiveRole = role ?? "all";
   const runsSchedulers = roleRunsSchedulers(effectiveRole);
@@ -134,6 +138,10 @@ function registerDiscordEvents({
 
     const onboarding = createGuildOnboarding({ logger, canSendEmbeds: commands.canSendEmbeds, errorMessage });
     client.on("guildCreate", (guild: LifecycleDiscordGuild) => { onboarding.handleGuildCreate(guild).catch(() => null); });
+    if (securityRuntime) {
+      client.on("guildMemberAdd", (member: LifecycleDiscordGuildMember) => { securityRuntime.handleGuildMemberAdd(member).catch(() => null); });
+      client.on("messageCreate", (message: LifecycleDiscordMessage) => { securityRuntime.handleMessageCreate(message).catch(() => null); });
+    }
   }
 
   client.on("error", (err) => logger("ERROR", "DISCORD", "Eroare client Discord", errorMessage(err)));
