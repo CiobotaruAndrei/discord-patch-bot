@@ -46,7 +46,7 @@ function buildSystemStateFrom(context: SystemStateContext) {
     const sys = await SystemModel.findOneAndUpdate(
       { _id: "system_state" },
       { $setOnInsert: { executionTimes: defaultSystemTimes() } },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     ).lean();
     return sys?.executionTimes || defaultSystemTimes();
   };

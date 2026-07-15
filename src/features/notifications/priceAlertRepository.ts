@@ -72,7 +72,7 @@ export async function upsertPriceAlert(
   const updated = await GuildModel.findOneAndUpdate(
     { _id: guildId },
     buildPriceAlertUpsertPipeline(rule, maxAlerts),
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   );
   const saved = (Array.isArray(updated?.priceAlerts) ? updated.priceAlerts : [])
     .some(alert => alert.gameKey === rule.gameKey && alert.currency === rule.currency);

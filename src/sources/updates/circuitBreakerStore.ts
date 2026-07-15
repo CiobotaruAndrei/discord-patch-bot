@@ -18,7 +18,7 @@ export function createCircuitBreakerStore(model: CircuitBreakerModelLike): Circu
       const doc = await model.findOneAndUpdate(
         { _id: key },
         { $setOnInsert: DEFAULT_STATE },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
       );
       if (!doc) throw new Error(`Circuit breaker document lipsa pentru ${key}`);
       return doc;
@@ -27,10 +27,10 @@ export function createCircuitBreakerStore(model: CircuitBreakerModelLike): Circu
       await model.updateOne({ _id: key }, { $set: DEFAULT_STATE });
     },
     registerFailure(key: string): Promise<CircuitBreakerDoc | null> {
-      return model.findOneAndUpdate({ _id: key }, { $inc: { fails: 1 } }, { new: true, upsert: true });
+      return model.findOneAndUpdate({ _id: key }, { $inc: { fails: 1 } }, { returnDocument: "after", upsert: true });
     },
     registerSchemaDrift(key: string): Promise<CircuitBreakerDoc | null> {
-      return model.findOneAndUpdate({ _id: key }, { $inc: { schemaDriftFails: 1 } }, { new: true, upsert: true });
+      return model.findOneAndUpdate({ _id: key }, { $inc: { schemaDriftFails: 1 } }, { returnDocument: "after", upsert: true });
     },
     async openCircuit(key: string, until: Date): Promise<void> {
       await model.updateOne({ _id: key }, { $set: { cooldownUntil: until } });

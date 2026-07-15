@@ -64,7 +64,7 @@ export async function saveFutureReleaseGame(
   const updated = await GuildModel.findOneAndUpdate(
     { _id: guildId },
     buildFutureReleaseUpsertPipeline(record, MAX_FUTURE_RELEASE_GAMES),
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   );
   const games = Array.isArray(updated?.futureReleaseGames) ? updated.futureReleaseGames : [];
   const saved = games.some(game => game.gameName === record.gameName);
