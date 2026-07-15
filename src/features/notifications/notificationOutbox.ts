@@ -147,7 +147,24 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
           return false;
         }
       },
-      finalizeDelivered: (lease: OutboxLeaseToken) => finalizeJob(lease, "delivered"),
+      finalizeDelivered: async (lease: OutboxLeaseToken) => {
+        try {
+          const modified = await repository.finalizeJob(lease, "delivered", nowFn());
+          if (modified === 0) {
+            leaseLost++;
+            logger("WARN", "OUTBOX",
+              `Lease pierdut pentru jobul livrat ${String(lease._id)} inainte de finalizare; alt worker detine acum jobul, nu-l numar drept trimis si opresc drain-ul`);
+            return "lease-lost";
+          }
+          return "finalized";
+        } catch (err) {
+          deleteFailures++;
+          logger("WARN", "OUTBOX",
+            `Finalizarea jobului livrat ${String(lease._id)} a esuat (ramane in coada, va fi re-finalizat la urmatorul ciclu); NU opresc drain-ul`,
+            err instanceof Error ? err.message : String(err));
+          return "delete-failed";
+        }
+      },
       logger
     });
 

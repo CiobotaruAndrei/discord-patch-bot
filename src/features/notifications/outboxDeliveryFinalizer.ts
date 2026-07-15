@@ -10,9 +10,11 @@ export interface OutboxDeliveryFinalizerDeps {
   markSent(dedupeKey: string | undefined): Promise<boolean>;
   recordDeadLetterBeforeDelete(job: OutboxJob, reason: string): Promise<void>;
   markDeliveryAccepted(lease: OutboxLeaseToken): Promise<boolean>;
-  finalizeDelivered(lease: OutboxLeaseToken): Promise<boolean>;
+  finalizeDelivered(lease: OutboxLeaseToken): Promise<FinalizeDeliveredResult>;
   logger: OutboxLogger;
 }
+
+export type FinalizeDeliveredResult = "finalized" | "lease-lost" | "delete-failed";
 
 export interface DeliveryAttemptOutcome {
   result: DeliverResult;
@@ -72,9 +74,10 @@ export function createOutboxDeliveryFinalizer({ deliver, recordSentHistory, mark
     if (markSentFailed) {
       await recordDeadLetterBeforeDelete(job, "delivered-marksent-failed");
     }
-    await finalizeDelivered(job);
+    const finalizeResult = await finalizeDelivered(job);
+    const leaseLostAtFinalize = finalizeResult === "lease-lost";
     return {
-      stopDrain: markSentFailed,
+      stopDrain: markSentFailed || leaseLostAtFinalize,
       markSentFailed,
       historyWriteFailed,
       recoveryFetched: result.recoveryFetched === true,
