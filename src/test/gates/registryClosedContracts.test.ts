@@ -23,6 +23,13 @@ test("CommandRegistryContext si SourceRegistryApi sunt contracte inchise, fara i
   assert.ok(!text.includes("[key: string]: unknown"), "fara index signature in commandRegistry.ts (regresie: contextul redevine bag netipizat)");
 });
 
+test("DI-ul handler-elor e verificat de TypeScript, nu simulat printr-un Proxy peste god-object (review nou, Major #2)", () => {
+  const descriptors = fs.readFileSync(path.join(srcRoot, "features", "command-registry", "commandHandlerDescriptors.ts"), "utf8");
+  assert.ok(!descriptors.includes("new Proxy"), "buildNarrowCommandHandler nu mai fabrica dependintele printr-un Proxy peste servicii (castul fantoma `{} as Dependencies` ascundea o dependinta lipsa de TypeScript)");
+  assert.ok(!/\{\} as Dependencies/.test(descriptors), "fara cast fantoma `{} as Dependencies`");
+  assert.match(descriptors, /services: Dependencies/, "buildNarrowCommandHandler cere ca serviciile sa satisfaca deps-urile ingustate ale factory-ului (TS verifica o dependinta lipsa)");
+});
+
 test("pregatire migrare commandRegistry: context-urile de handler tipeaza logger canonic (LoggerFunction), nu loose", () => {
   for (const file of ["simpleCommandsHandler.ts", "helpInteractionHandler.ts"]) {
     const text = fs.readFileSync(path.join(srcRoot, "features", "command-handlers", file), "utf8");
