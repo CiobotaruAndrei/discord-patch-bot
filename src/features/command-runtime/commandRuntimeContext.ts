@@ -2,13 +2,12 @@ import {
   checkChannelPermissions,
   checkReadMessageHistory,
   createCommandRuntimeDependencies,
-  createDiscordRuntimeBindings,
-  flattenCommandRuntimeDependencies
+  createDiscordRuntimeBindings
 } from "./commandRuntimeDependencies.js";
-import type { CommandRuntimeContext } from "./commandRuntimeDependencies.js";
+import type { CommandRuntimeDependencies } from "./commandRuntimeDependencies.js";
 
-function createCommandRuntimeContext(): CommandRuntimeContext {
-  return flattenCommandRuntimeDependencies(createCommandRuntimeDependencies());
+function createCommandRuntimeContext(): CommandRuntimeDependencies {
+  return createCommandRuntimeDependencies();
 }
 
 export default Object.assign(createCommandRuntimeContext, {

@@ -175,16 +175,16 @@ test("dispatcher: /ping si /games sunt rutate prin registry catre handler-ul lor
 
 test("createCommandRuntimeContext returns a fresh, isolated base on every call", () => {
   const runtimeContextModule = require("../../features/command-runtime/commandRuntimeContext").default as {
-    createCommandRuntimeContext: () => Record<string, unknown>;
+    createCommandRuntimeContext: () => { discord: Record<string, unknown>; mongo: Record<string, unknown>; sources: Record<string, unknown>; platform: Record<string, unknown> };
   };
 
   const first = runtimeContextModule.createCommandRuntimeContext();
   const second = runtimeContextModule.createCommandRuntimeContext();
 
   assert.notEqual(first, second);
-  assert.equal(typeof first.EmbedBuilder, "function");
-  assert.equal(typeof first.crypto, "object");
+  assert.equal(typeof first.discord.EmbedBuilder, "function");
+  assert.equal(typeof first.discord.crypto, "object");
 
-  (first as Record<string, unknown>).handleInteraction = () => "installed";
-  assert.equal(second.handleInteraction, undefined);
+  first.platform.handleInteraction = () => "installed";
+  assert.equal(second.platform.handleInteraction, undefined);
 });

@@ -34,6 +34,26 @@ test("claimNextJob exclude statusurile terminale dar accepta docuri legacy fara 
   assert.deepEqual(statusClause[1], { status: { $exists: false } }, "docurile de dinainte de migrarea m13 raman revendicabile");
 });
 
+test("claimNextJob prioritizeaza finalizarea livrarilor confirmate", async () => {
+  const { repository, fake } = makeRepo([]);
+  await repository.claimNextJob(new Date(), 1000, "w1");
+  const options = fake.claims[0].options as { sort: Record<string, number> };
+  assert.deepEqual(options.sort, { status: 1, availableAt: 1 });
+});
+
+test("sweep-ul exclude delivered-pending inclusiv la stergerea compare-and-delete", async () => {
+  const { repository, fake } = makeRepo([]);
+  const at = new Date("2026-07-14T12:00:00Z");
+  await repository.findStaleJobs(new Date(0), at, 10);
+  await repository.deleteStaleJobIfLeaseFree("j1", at);
+  const findFilter = fake.finds[0] as { $and?: Array<{ $or?: Array<Record<string, unknown>> }> };
+  const findStatuses = findFilter.$and?.[0].$or?.[0].status as { $in?: string[] };
+  assert.deepEqual(findStatuses.$in, ["queued", "leased"]);
+  const deleteFilter = fake.deleted[0] as { $and?: Array<{ $or?: Array<Record<string, unknown>> }> };
+  const statuses = deleteFilter.$and?.[0].$or?.[0].status as { $in?: string[] };
+  assert.deepEqual(statuses.$in, ["queued", "leased"]);
+});
+
 test("finalizeJob scrie statusul terminal + statusChangedAt si elibereaza lease-ul intr-un singur update (finalizare atomica single-doc)", async () => {
   const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: {}, attempts: 0 };
   const { repository, fake } = makeRepo([job]);

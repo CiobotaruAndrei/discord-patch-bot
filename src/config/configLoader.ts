@@ -2,7 +2,7 @@ import * as path from "path";
 import { readFileSync } from "node:fs";
 import { validateConfig } from "./configValidator.js";
 import { errorMessage } from "../shared/errors.js";
-import type { BotConfig, ConfigLoadResult, GameConfig } from "./configTypes.js";
+import type { BotConfig, ConfigLoadResult, NormalizedGameConfig } from "./configTypes.js";
 
 function resolveConfigPath(configPath: string): string {
   return path.isAbsolute(configPath) ? configPath : path.resolve(process.cwd(), configPath);
@@ -27,7 +27,7 @@ function loadConfig(configPath = process.env.CONFIG_PATH || "./config.json"): Co
     process.exit(1);
   }
 
-  const games: GameConfig[] = Array.isArray(config.games) ? config.games : [];
+  const games: NormalizedGameConfig[] = Array.isArray(config.games) ? config.games : [];
   if (games.length === 0) {
     console.error(`[BOOT] Config-ul de la "${configPath}" nu contine un array "games" cu jocuri.`);
     process.exit(1);

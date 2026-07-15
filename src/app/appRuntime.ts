@@ -81,10 +81,16 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   const shutdownController = createShutdownController({
     lifecycle, logger, env, client, mongoose, httpServer, activeLocks,
     releaseDbLock, cronController, outboxWorker, housekeeping, adminAlert,
-    redis: deps.redis, guildInvalidationChannel, errorMessage, errorDetail
+    redis: deps.redis, guildInvalidationChannel, stopOperationJournalRecovery: deps.stopOperationJournalRecovery, errorMessage, errorDetail
   });
 
-  const start = createBootSequence(deps, { client, httpServer, guildInvalidationChannel, recoverOperationJournal: deps.recoverOperationJournal });
+  const start = createBootSequence(deps, {
+    client,
+    httpServer,
+    guildInvalidationChannel,
+    recoverOperationJournal: deps.recoverOperationJournal,
+    startOperationJournalRecovery: deps.startOperationJournalRecovery
+  });
 
   return {
     start,

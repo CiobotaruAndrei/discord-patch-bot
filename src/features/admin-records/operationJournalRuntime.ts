@@ -17,6 +17,11 @@ export const BACKUP_SAVE_KIND = "backup-save";
 export const BACKUP_DELETE_KIND = "backup-delete";
 export const ADMIN_ACCESS_SAVE_KIND = "admin-access-save";
 export const ADMIN_ACCESS_DELETE_KIND = "admin-access-delete";
+export const OPERATION_PAYLOAD_SCHEMA_VERSION = 1;
+
+export function journalResourceVersion(interactionId?: string): string {
+  return String(interactionId || Date.now()).padStart(20, "0");
+}
 
 interface AuditPayload {
   userId: string;
@@ -203,5 +208,10 @@ export function createOperationJournalRuntime(deps: OperationJournalRuntimeDeps)
       await deleteAdminAccessRule(deps.GuildModel, deps.GuildAuditLogModel, payload.guildId, { ...payload, operationId });
     }
   };
-  return createOperationJournal({ JournalModel: deps.OperationJournalModel, logger: deps.logger, executors });
+  return createOperationJournal({
+    JournalModel: deps.OperationJournalModel,
+    logger: deps.logger,
+    executors,
+    schemaVersions: Object.fromEntries(Object.keys(executors).map(kind => [kind, OPERATION_PAYLOAD_SCHEMA_VERSION]))
+  });
 }

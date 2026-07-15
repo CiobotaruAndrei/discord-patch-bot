@@ -6,7 +6,7 @@ export interface ScheduledTaskResult {
 
 export interface ScheduledTaskRunner {
   start(): void;
-  stop(): void;
+  stop(): Promise<void>;
   runNow(): Promise<ScheduledTaskResult>;
   isRunning(): boolean;
 }
@@ -18,6 +18,7 @@ export interface CreateScheduledTaskRunnerDeps {
   now?: () => number;
   setIntervalFn?: typeof setInterval;
   clearIntervalFn?: typeof clearInterval;
+  shutdownTimeoutMs?: number;
 }
 
 export function createScheduledTaskRunner(deps: CreateScheduledTaskRunnerDeps): ScheduledTaskRunner {
@@ -61,10 +62,22 @@ export function createScheduledTaskRunner(deps: CreateScheduledTaskRunnerDeps): 
     if (typeof timer.unref === "function") timer.unref();
   }
 
-  function stop(): void {
+  async function stop(): Promise<void> {
     if (timer) clearIntervalFn(timer);
     timer = null;
     abortController?.abort();
+    const running = active;
+    if (!running) return;
+    const shutdownTimeoutMs = deps.shutdownTimeoutMs ?? 5000;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        running.then(() => undefined),
+        new Promise<void>(resolve => { timeout = setTimeout(resolve, shutdownTimeoutMs); })
+      ]);
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
   }
 
   return { start, stop, runNow, isRunning: () => active !== null };

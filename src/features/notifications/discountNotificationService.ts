@@ -270,6 +270,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
           },
           loadSnapshot: loadFetchSnapshot,
           maxSnapshotAgeMs: SNAPSHOT_FALLBACK_MAX_AGE_MS,
+          invalidSnapshotItemPolicy: "reject-snapshot",
           onFallback: error => logger("WARN", "CRON_DISCOUNTS", `Fetch reduceri esuat pentru ${cur}; folosesc snapshot-ul recent din event store`, transientErrorMessage(error))
         }));
       }

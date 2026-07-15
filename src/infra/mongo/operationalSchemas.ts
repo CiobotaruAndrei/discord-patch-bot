@@ -107,21 +107,26 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     _id: String,
     kind: { type: String, required: true },
     payload: { type: mongoose.Schema.Types.Mixed, default: null },
-    status: { type: String, enum: ["pending", "leased", "done"], default: "pending" },
+    schemaVersion: { type: Number, required: true, min: 1 },
+    resourceKey: { type: String, required: true },
+    resourceVersion: { type: String, required: true },
+    status: { type: String, enum: ["pending", "leased", "done", "superseded", "failed"], default: "pending" },
     attempts: { type: Number, default: 0 },
     leaseVersion: { type: Number, default: 0 },
     lockedBy: { type: String, default: null },
     lockedUntil: { type: Date, default: null },
+    lastError: { type: String, default: null },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
   }, { minimize: false });
   operationJournalSchema.index({ status: 1, updatedAt: 1 }, { background: true });
+  operationJournalSchema.index({ resourceKey: 1, resourceVersion: -1 }, { background: true });
   operationJournalSchema.index(
     { updatedAt: 1 },
     {
       background: true,
       expireAfterSeconds: ONE_DAY_MS / 1000,
-      partialFilterExpression: { status: "done" }
+      partialFilterExpression: { status: { $in: ["done", "superseded", "failed"] } }
     }
   );
 

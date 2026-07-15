@@ -76,18 +76,25 @@ import attachSlashCommandDefinitions from "../command-definitions/slashCommandDe
 import attachHelpInteractionHandler from "../command-handlers/helpInteractionHandler.js";
 import attachCommandSnoozeGuard from "../command-security/commandSnoozeGuard.js";
 import attachAdminCommandRouterGuard from "../command-security/adminCommandRouterGuard.js";
-import { createCommandHandlerDescriptors } from "./commandHandlerDescriptors.js";
+import { buildNarrowCommandHandler, createCommandHandlerDescriptors } from "./commandHandlerDescriptors.js";
 
-import commandRuntimeContext from "../command-runtime/commandRuntimeContext.js";
-const { createCommandRuntimeContext } = commandRuntimeContext;
-type CommandRuntimeBootContext = ReturnType<typeof createCommandRuntimeContext>;
+import { createCommandRuntimeDependencies } from "../command-runtime/commandRuntimeDependencies.js";
+import type { CommandRuntimeDependencies } from "../command-runtime/commandRuntimeDependencies.js";
+type CommandRuntimeBootContext = CommandRuntimeDependencies["discord"] & CommandRuntimeDependencies["mongo"] & CommandRuntimeDependencies["sources"] & CommandRuntimeDependencies["platform"];
 
 const PLAYER_COUNT_CACHE_TTL_SECONDS = 60;
 
 function createAppServices(
   overrides: Partial<CommandRuntimeBootContext> = {}
 ) {
-  const runtime = { ...createCommandRuntimeContext(), ...overrides };
+  const dependencies = createCommandRuntimeDependencies();
+  const runtime = {
+    ...dependencies.discord,
+    ...dependencies.mongo,
+    ...dependencies.sources,
+    ...dependencies.platform,
+    ...overrides
+  };
   const cache = { ...runtime, ...attachCommandCache.createCommandCache(runtime) };
   const filters = {
     ...cache,
@@ -119,10 +126,9 @@ function createAppServices(
 export type CommandAppServices = ReturnType<typeof createAppServices>;
 
 function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): { commandHandlers: CommandHandler[]; helpCommand: ReturnType<typeof attachHelpInteractionHandler.buildCommandHandler> } {
-  const helpCommand = attachHelpInteractionHandler.buildCommandHandler(ctx);
-  const descriptors = createCommandHandlerDescriptors();
-  const commandHandlers: CommandHandler[] = descriptors.map(descriptor => descriptor.build(ctx));
-  commandHandlers.splice(commandHandlers.length - 2, 0, helpCommand);
+  const helpCommand = buildNarrowCommandHandler(attachHelpInteractionHandler.buildCommandHandler, ctx);
+  const descriptors = [...createCommandHandlerDescriptors()].sort((left, right) => left.priority - right.priority);
+  const commandHandlers: CommandHandler[] = descriptors.map(descriptor => descriptor.id === "help" ? helpCommand : buildNarrowCommandHandler(descriptor.build, ctx));
   return { commandHandlers, helpCommand };
 }
 

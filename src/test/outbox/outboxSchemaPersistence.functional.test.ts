@@ -7,6 +7,7 @@ import type { MongoModelsContext } from "../../infra/mongo/models.js";
 
 interface OutboxModelLike {
   new (doc: Record<string, unknown>): { toObject(): Record<string, unknown> };
+  schema: { indexes(): Array<[Record<string, string | number>, Record<string, unknown>]> };
 }
 
 function getOutboxModel(): OutboxModelLike {
@@ -42,6 +43,13 @@ test("notificationOutbox: schema persista recoveryVerify / dedupeKey / deliverie
   assert.equal(obj.deliveries, 2, "deliveries persistat");
   assert.deepEqual(obj.history, [{ kind: "update", gameKey: "cs2", title: "Patch", link: "https://example.com", itemId: "u-77" }],
     "history (inclusiv itemId, pentru dedup-ul /history) trebuie declarat in schema, altfel jobul pierde istoricul la enqueue");
+});
+
+test("notificationOutbox: TTL-ul createdAt exclude delivered-pending", () => {
+  const OutboxModel = getOutboxModel();
+  const ttl = OutboxModel.schema.indexes().find(([keys, options]) => keys.createdAt === 1 && typeof options.expireAfterSeconds === "number");
+  assert.ok(ttl, "exista TTL pentru joburile active expirabile");
+  assert.deepEqual(ttl?.[1].partialFilterExpression, { status: { $in: ["queued", "leased"] } });
 });
 
 test("notificationOutbox: campurile necunoscute sunt eliminate de strict mode (confirma ca testul de mai sus e relevant)", () => {

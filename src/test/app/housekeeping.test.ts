@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { fakeTimer } from "../fakeTimer.js";
 import { createHousekeeping } from "../../app/scheduler/housekeeping.js";
 
-test("housekeeping start is idempotent", () => {
+test("housekeeping start is idempotent", async () => {
   const originalSetInterval = globalThis.setInterval;
   const originalClearInterval = globalThis.clearInterval;
   const handles: unknown[] = [];
@@ -33,7 +33,7 @@ test("housekeeping start is idempotent", () => {
     housekeeping.start();
     assert.equal(handles.length, 1);
 
-    housekeeping.stop();
+    await housekeeping.stop();
     assert.equal(cleared, 1);
   } finally {
     globalThis.setInterval = originalSetInterval;

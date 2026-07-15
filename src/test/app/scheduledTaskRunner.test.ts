@@ -30,7 +30,40 @@ test("scheduled task runner transmite abort la stop", async () => {
     })
   });
   const active = runner.runNow();
-  runner.stop();
+  await runner.stop();
   await active;
   assert.equal(observed, true);
+});
+
+test("scheduled task runner asteapta task-ul activ dupa abort", async () => {
+  let release = (): void => undefined;
+  let aborted = false;
+  const runner = createScheduledTaskRunner({
+    intervalMs: 1000,
+    task: signal => new Promise<void>(resolve => {
+      release = resolve;
+      signal.addEventListener("abort", () => { aborted = true; }, { once: true });
+    })
+  });
+  const active = runner.runNow();
+  let stopped = false;
+  const stopping = runner.stop().then(() => { stopped = true; });
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(aborted, true);
+  assert.equal(stopped, false);
+  release();
+  await stopping;
+  assert.equal((await active).status, "completed");
+});
+
+test("scheduled task runner limiteaza asteptarea la shutdown", async () => {
+  const runner = createScheduledTaskRunner({
+    intervalMs: 1000,
+    shutdownTimeoutMs: 10,
+    task: () => new Promise<void>(() => undefined)
+  });
+  void runner.runNow();
+  const startedAt = Date.now();
+  await runner.stop();
+  assert.ok(Date.now() - startedAt < 500);
 });

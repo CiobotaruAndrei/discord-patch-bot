@@ -1,10 +1,9 @@
 "use strict";
 
-import type { EmbeddableUpdate, NormalizedUpdate } from "../../../types.js";
+import type { EmbeddableUpdate, GameConfig, NormalizedUpdate } from "../../../types.js";
 
 import { errorMessage } from "../../../shared/errors.js";
 
-type GameConfig = { key: string; name: string } & Record<string, unknown>;
 type NotificationMode = "compact" | "detailed";
 
 interface DiscordInteraction {

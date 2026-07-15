@@ -16,14 +16,15 @@ const __filename = __fileURLToPath(import.meta.url);
 const __dirname = __pathDirname(__filename);
 const configRoot = path.join(__dirname, "..", "..", "..", "config");
 
-test("validatoarele per source type traiesc in sourceTypeValidators.ts, iar configValidator doar dispatcheaza (review 22 #18)", () => {
-  const validators = fs.readFileSync(path.join(configRoot, "sourceTypeValidators.ts"), "utf8");
-  for (const name of ["validateSteamSource", "validateListingBasedSource", "validateIntelSource", "validateRssSource", "validateEpicGamesSource", "validateSourceFallbacks"]) {
-    assert.ok(validators.includes("export function " + name + "("), name + " e definit in modulul dedicat");
+test("schemele Zod per source type traiesc separat, iar configValidator consuma configuratia normalizata", () => {
+  const schemas = fs.readFileSync(path.join(configRoot, "gameConfigSchemas.ts"), "utf8");
+  for (const type of ["steam", "minecraft", "epic_games", "roblox", "listing_based", "nvidia", "amd", "intel", "rss"]) {
+    assert.ok(schemas.includes(`z.literal("${type}")`), `${type} are schema discriminata`);
   }
+  assert.match(schemas, /type NormalizedGameConfig = z\.output<typeof GameSchema>/);
   const validator = fs.readFileSync(path.join(configRoot, "configValidator.ts"), "utf8");
-  assert.ok(!validator.includes('message: "Jocurile Steam trebuie sa aiba appId"'), "regula Steam nu mai e inline in superRefine");
-  assert.match(validator, /if \(type === "steam"\) validateSteamSource\(game, path, refinement\);/, "dispatch-ul pe tip apeleaza validatorul dedicat");
+  assert.match(validator, /import \{ GameSchema, GameTypeSchema \} from "\.\/gameConfigSchemas\.js"/);
+  assert.ok(!validator.includes("validateSteamSource"));
 });
 
 test("dispatch-ul acopera exact tipurile cu reguli dedicate, iar lista de tipuri permise e sursa unica", () => {

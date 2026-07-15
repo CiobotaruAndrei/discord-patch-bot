@@ -212,18 +212,19 @@ Operatiile care ating mai multe documente/colectii (ex. `/reset-config`: reset c
 curatare erori YouTube + curatare dead-letter) NU pot fi atomice pe Mongo standalone (fara replica set,
 deci fara tranzactii). Ca sa nu ramana stare partiala (configuratie resetata dar audit lipsa) la o eroare
 mid-operatie, aceste operatii sunt **jurnalizate**: inainte de executie se scrie o intrare `pending` in
-colectia `operationJournal` (cu `kind` + `payload` serializabil), se ruleaza executorul **idempotent**,
-apoi intrarea se marcheaza `done`.
+colectia `operationJournal` (cu `kind`, `payload`, `schemaVersion`, `resourceKey` si o versiune monotona
+a resursei), se ruleaza executorul **idempotent**, apoi intrarea se marcheaza `done`.
 
-- **Recovery la boot.** Dupa migrari, botul ruleaza `recoverPending`: reia orice intrare ramasa `pending`
+- **Recovery la boot si periodic.** Dupa migrari si apoi la fiecare minut, botul ruleaza `recoverPending`: reia orice intrare ramasa `pending`
   mai veche de **5 minute** (pragul evita furtul unei operatii in-flight a altei instante) si o re-executa
-  idempotent, apoi o marcheaza `done`. Un `INFO` `BOOT` raporteaza cate operatii au fost recuperate.
+  idempotent, apoi o marcheaza `done`. O operatie cu versiune mai veche decat alta intentie pentru aceeasi
+  resursa devine `superseded` si nu este reaplicata.
 - **Idempotenta executorului.** Corpul foloseste `runMongoWrite`: pasii **critici** (mutatia + auditul)
   propaga eroarea (intrarea ramane `pending` -> se reia la recovery), iar **curatarile** incidentale sunt
   best-effort (logate, ne-blocante) — un esec de curatare nu mai lasa auditul nescris.
-- **Kind necunoscut la recovery** (ex. dupa un rollback de cod care scoate un executor): intrarea ramane
-  `pending`, e logata `WARN` `OP_JOURNAL` si numarata ca `failed`, pentru inspectie manuala (nu se pierde).
-- **Curatare.** Un TTL partial pe `status="done"` sterge automat intrarile finalizate (retinute scurt
+- **Lease si retry.** Executorul reinnoieste `lockedUntil` prin heartbeat. Dupa 5 incercari operatia devine
+  `failed`; un `kind` necunoscut sau un `schemaVersion` incompatibil devine direct `failed`.
+- **Curatare.** Un TTL partial pe starile `done`, `superseded` si `failed` sterge intrarile terminale (retinute scurt
   pentru observabilitate). O intrare care ramane `pending` mult timp inseamna o operatie care esueaza
   repetat la recovery — verifica log-urile `OP_JOURNAL` si disponibilitatea Mongo.
 
@@ -261,7 +262,7 @@ setat ESTE sincronizarea. Inventarul declarat curent:
 | `notificationOutbox` | `{ availableAt, lockedUntil }` | — | claim-ul joburilor disponibile la drenare |
 | `notificationOutbox` | `{ dedupeKey }` | unique, sparse | impiedica doua joburi pending cu acelasi `dedupeKey` (sparse: joburile fara cheie coexista) |
 | `notificationOutbox` | `{ statusChangedAt }` | TTL (NOTIFICATION_OUTBOX_SENT_TTL_HOURS), partial pe `status` in {delivered, dead-lettered, dropped} | curata automat joburile finalizate pastrate pentru observabilitate (masina de stari explicita) |
-| `notificationOutbox` | `{ createdAt }` | TTL 7 zile | plasa de siguranta pentru joburi nedrenate |
+| `notificationOutbox` | `{ createdAt }` | TTL 7 zile, partial pe `status` in {queued, leased} | plasa de siguranta pentru joburile care nu au ajuns la livrare; `delivered-pending` este pastrat pana la finalizarea persistentei |
 | `notificationOutboxSent` | `{ dedupeKey }` | unique | istoricul de livrari pentru dedup la recovery |
 | `notificationOutboxSent` | `{ sentAt }` | TTL `NOTIFICATION_OUTBOX_SENT_TTL_HOURS` (implicit 24h) | expirarea istoricului de dedup |
 | `notificationHistory` | `{ guildId, sentAt }` | TTL `NOTIFICATION_HISTORY_TTL_DAYS` (implicit 30 zile) | istoricul intern al notificarilor livrate efectiv per server; scris dupa send-ul real (cu outbox: la livrarea din coada, nu la enqueue) |
@@ -270,8 +271,9 @@ setat ESTE sincronizarea. Inventarul declarat curent:
 | `notificationDeadLetterReplay` | `{ updatedAt }` | TTL `NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS` (implicit 7 zile) | expira payload-ul de replay; `updatedAt` se reimprospateaza la fiecare re-record, deci TTL se masoara de la ultimul dead-letter |
 | `notificationDeadLetterReplay` | `{ guildId, createdAt }` | — | listare FIFO interna a payload-urilor de replay per server |
 | `notificationDeadLetterReplay` | `{ guildId, dedupeKey }` | unique, partial (`dedupeKey != ""`) | dedup la re-record (replay esuat -> re-dead-letter nu acumuleaza duplicate) |
-| `operationJournal` | `{ status, updatedAt }` | — | recuperarea la boot a operatiilor jurnalizate ramase `pending` (mai vechi de un prag) dupa un crash mid-operatie |
-| `operationJournal` | `{ updatedAt }` | TTL 1 zi, partial pe `status = "done"` | curata automat intrarile de jurnal finalizate (pastrate scurt pentru observabilitate) |
+| `operationJournal` | `{ status, updatedAt }` | — | recuperarea la boot si periodica a operatiilor jurnalizate `pending` sau cu lease expirat |
+| `operationJournal` | `{ resourceKey, resourceVersion }` | — | identifica intentia cea mai noua pentru o resursa si previne reaplicarea unei operatii vechi peste ea |
+| `operationJournal` | `{ updatedAt }` | TTL 1 zi, partial pe `status` in {done, superseded, failed} | curata automat intrarile terminale pastrate scurt pentru observabilitate |
 | `joblocks` | `{ lockedUntil }` | — | gasirea/expirarea lock-urilor distribuite (cron/outbox) |
 | `adminalertcooldowns` | `{ lastSentAt }` | TTL 7 zile | cooldown per-alerta pentru admin alerts |
 | `fetchsnapshots` | `{ fetchedAt }` | TTL 1 zi | event store pe fetch (hidratare cache la boot) |
@@ -428,10 +430,13 @@ al caror payload nu mai e un obiect trimisibil (ex. corupt la replay/serializare
 array) — un astfel de job nu ar putea fi livrat niciodata si altfel ar consuma incercari degeaba;
 validarea e strict structurala, regulile Discord (embeds goale etc.) raman ale pasului `deliver`.
 
-Joburile au TTL de 7 zile pe `createdAt`. Ca sa nu fie sterse **tacut** de TTL daca raman
-blocate (ex. outbox dezactivat/pe pauza mult timp, worker oprit), un sweep la fiecare drenare
-muta in dead-letter joburile mai vechi decat `NOTIFICATION_OUTBOX_MAX_AGE_MS` (implicit 6 zile,
-inainte de TTL), cu motivul `expired-near-ttl`, si incrementeaza `bot_outbox_expired`. Alerta
+Joburile `queued` si `leased` au TTL de 7 zile pe `createdAt`. Ca sa nu fie sterse **tacut** de TTL
+daca raman blocate (ex. outbox dezactivat/pe pauza mult timp, worker oprit), un sweep la fiecare
+drenare muta in dead-letter numai aceste stari mai vechi decat `NOTIFICATION_OUTBOX_MAX_AGE_MS`
+(implicit 6 zile, inainte de TTL), cu motivul `expired-near-ttl`, si incrementeaza
+`bot_outbox_expired`. Starea `delivered-pending` este exclusa atat din sweep, cat si din TTL:
+livrarea Discord a fost deja acceptata, iar jobul ramane disponibil pentru finalizarea prioritara
+a istoricului si markerului de deduplicare. Alerta
 `OutboxJobsExpired` (`increase(bot_outbox_expired[1h]) > 0`) semnaleaza conditia: investigheaza
 de ce nu s-au drenat (outbox oprit, canal stricat, worker cazut) — joburile au un audit clar in
 dead-letter, nu dispar fara urma.
@@ -440,10 +445,12 @@ dead-letter, nu dispar fara urma.
 
 Regula generala: fiecare operatie critica este fie **o singura scriere Mongo atomica**
 (pipeline/`$set`+`$unset` intr-un singur `updateOne`/`findOneAndUpdate`), fie o **unitate
-logica jurnalizata si reluabila**. Jurnalul foloseste starile `pending -> leased -> done`, owner
-unic, `lockedUntil` si `leaseVersion`; numai proprietarul lease-ului poate finaliza operatia, iar
-o alta instanta poate recupera un lease expirat. Executorii sunt idempotenti, iar ID-ul jurnalului
-deduplica auditul. Tranzactiile Mongo NU sunt
+logica jurnalizata si reluabila**. Jurnalul foloseste starile active `pending -> leased` si starile
+terminale `done`, `superseded` sau `failed`, owner unic, `lockedUntil` si `leaseVersion`; numai
+proprietarul lease-ului poate finaliza operatia, iar o alta instanta poate recupera un lease expirat.
+Heartbeat-ul reinnoieste lease-ul cat timp executorul lucreaza. `schemaVersion`, limita de incercari si
+versiunea monotona per `resourceKey` impiedica reluarea infinita sau aplicarea unei intentii vechi peste
+una noua. Executorii sunt idempotenti, iar ID-ul jurnalului deduplica auditul. Tranzactiile Mongo NU sunt
 folosite: ar cere replica set (indisponibil pe deployment-uri standalone) si — pentru
 singurul flux unde ar parea utile (outbox) — nu ar acoperi riscul real, pentru ca send-ul
 Discord nu e tranzactional (vezi paragraful dedicat drenarii de mai jos).

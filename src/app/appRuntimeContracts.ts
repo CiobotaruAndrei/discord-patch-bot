@@ -128,6 +128,8 @@ export interface AppRuntimeDeps {
   commands: CommandRuntime;
   scrapers: ScraperRuntime;
   recoverOperationJournal?: () => Promise<{ recovered: number; failed: number }>;
+  startOperationJournalRecovery?: () => void;
+  stopOperationJournalRecovery?: () => Promise<void>;
 }
 
 export interface RuntimeServices {

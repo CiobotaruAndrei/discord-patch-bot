@@ -16,7 +16,9 @@ import {
   BACKUP_DELETE_KIND,
   BACKUP_LOAD_KIND,
   BACKUP_SAVE_KIND,
-  createOperationJournalRuntime
+  createOperationJournalRuntime,
+  journalResourceVersion,
+  OPERATION_PAYLOAD_SCHEMA_VERSION
 } from "../admin-records/operationJournalRuntime.js";
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { renderBackupList, renderBackupPreview } from "./backupViews.js";
@@ -94,6 +96,10 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
       guildId,
       backup,
       audit: { userId: interaction.user?.id || "", action: "backup_add", details: `Saved backup ${backup.name}` }
+    }, {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      resourceKey: `guild-backup:${guildId}:${backup.name}`,
+      resourceVersion: journalResourceVersion(interaction.id)
     });
     return safeEdit(interaction, `OK: backup-ul \`${backup.name}\` a fost salvat.`);
   }
@@ -121,6 +127,10 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
       guildId,
       backup,
       audit: { userId: interaction.user?.id || "", action: "backup_load", details: `Loaded backup ${backup.name}` }
+    }, {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      resourceKey: `guild-config:${guildId}`,
+      resourceVersion: journalResourceVersion(interaction.id)
     });
     return safeEdit(interaction, `OK: backup-ul \`${backup.name}\` a fost incarcat.`);
   }
@@ -136,6 +146,10 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
       guildId,
       name: backup.name,
       audit: { userId: interaction.user?.id || "", action: "backup_delete", details: `Deleted backup ${backup.name}` }
+    }, {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      resourceKey: `guild-backup:${guildId}:${backup.name}`,
+      resourceVersion: journalResourceVersion(interaction.id)
     });
     return safeEdit(interaction, `OK: backup-ul \`${backup.name}\` a fost sters.`);
   }

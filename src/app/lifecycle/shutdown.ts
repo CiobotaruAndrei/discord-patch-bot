@@ -22,7 +22,7 @@ interface HttpServerLike {
 }
 
 interface HousekeepingLike {
-  stop(): void;
+  stop(): void | Promise<void>;
 }
 
 interface ShutdownController {
@@ -43,6 +43,7 @@ interface CreateShutdownControllerDeps {
   cronController: Pick<CronController, "stop">;
   outboxWorker?: { stop(): void };
   housekeeping: HousekeepingLike;
+  stopOperationJournalRecovery?: () => Promise<void>;
   redis?: { close(): Promise<void> };
   guildInvalidationChannel?: { stop(): Promise<void> };
   adminAlert: AdminAlert;
@@ -52,7 +53,7 @@ interface CreateShutdownControllerDeps {
 
 function createShutdownController({
   lifecycle, logger, env, client, mongoose, httpServer, activeLocks,
-  releaseDbLock, cronController, outboxWorker, housekeeping, redis, guildInvalidationChannel, adminAlert,
+  releaseDbLock, cronController, outboxWorker, housekeeping, stopOperationJournalRecovery, redis, guildInvalidationChannel, adminAlert,
   errorMessage, errorDetail
 }: CreateShutdownControllerDeps): ShutdownController {
   async function shutdown(signal: ShutdownSignal, exitCode = 0): Promise<void> {
@@ -62,7 +63,8 @@ function createShutdownController({
 
     cronController.stop();
     outboxWorker?.stop();
-    housekeeping.stop();
+    await housekeeping.stop();
+    if (stopOperationJournalRecovery) await stopOperationJournalRecovery();
 
     if (guildInvalidationChannel) {
       try { await guildInvalidationChannel.stop(); }

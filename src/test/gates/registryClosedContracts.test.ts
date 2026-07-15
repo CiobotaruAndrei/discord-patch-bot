@@ -14,7 +14,7 @@ const sourceApiClosed: HasIndexSignature<SourceRegistryApi> extends false ? true
 
 const srcRoot = process.cwd();
 const commandRegistryPath = path.join(srcRoot, "features", "command-registry", "commandRegistry.ts");
-const sourceRegistryPath = path.join(srcRoot, "sources", "sourceRegistry.ts");
+const sourceRegistryPath = path.join(srcRoot, "sources", "sourceRegistryFactory.ts");
 
 test("CommandRegistryContext si SourceRegistryApi sunt contracte inchise, fara index signature", () => {
   assert.equal(commandContextClosed, true, "contextul registrului de comenzi expune doar cheile declarate");
@@ -186,7 +186,7 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   assert.match(src, /type SourceRuntimeContext = Partial<SourceRegistryApi>/, "sourceRegistry modeleaza contextul progresiv ca Partial<SourceRegistryApi>");
   assert.match(src, /function requireSourceValue/, "sourceRegistry citeste exporturile prin garda fail-fast pe chei");
   assert.ok(!/SourceRuntimeContext = [^\n]*Record<string, unknown>/.test(src), "SourceRuntimeContext nu mai e largit cu Record<string, unknown> (R11 #5): contextul progresiv e exact Partial<SourceRegistryApi> & runtime");
-  assert.match(src, /function createSourceRegistry\(\): SourceRegistryApi/, "sourceRegistry compune explicit, cu tip de retur inchis SourceRegistryApi (nu mai accepta installers ca parametru)");
+  assert.match(src, /function createSourceRegistry\(deps: SourceRuntimeDeps\): SourceRegistryApi/, "sourceRegistry compune explicit din dependente injectate, cu tip de retur inchis SourceRegistryApi");
   assert.ok(!src.includes("SourceInstaller"), "sourceRegistry nu mai are tipul SourceInstaller (boundary-ul dinamic installers a fost eliminat)");
   assert.ok(!src.includes("defaultInstallers"), "sourceRegistry nu mai are lista dinamica defaultInstallers; compune prin valori returnate de factory-uri (build*From) ordonate (http -> steam -> updates -> deals)");
   assert.match(src, /attachHttpClient\.buildFrom\(base\)[\s\S]*attachSteam\.buildFrom\(withHttp\)[\s\S]*attachUpdates\.buildFrom\(withSteam\)[\s\S]*attachDeals\.buildFrom\(withUpdates\)/, "sourceRegistry compune prin valorile returnate de build*From, ordonate http->steam->updates->deals, prin spread in obiecte noi (la fel ca commandRegistry)");
@@ -304,7 +304,7 @@ test("createCommandRuntimeContext intoarce un contract inchis, nu Record<string,
   const runtimePath = path.join(srcRoot, "features", "command-runtime", "commandRuntimeContext.ts");
   const text = fs.readFileSync(runtimePath, "utf8");
   assert.ok(!/createCommandRuntimeContext\(\): Record<string, unknown>/.test(text), "return type explicit, nu Record<string, unknown>");
-  assert.match(text, /createCommandRuntimeContext\(\): CommandRuntimeContext/, "return type numit si inchis");
+  assert.match(text, /createCommandRuntimeContext\(\): CommandRuntimeDependencies/, "return type grupat, numit si inchis");
 });
 
 test("boot-ul (app/bootstrap.ts) foloseste require-uri tipate, ca satisfies AppRuntimeDeps sa nu fie pacalit de any (review #9.1 + #9.6)", () => {
