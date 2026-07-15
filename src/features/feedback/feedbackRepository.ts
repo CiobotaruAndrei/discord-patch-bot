@@ -123,7 +123,7 @@ function createFeedbackRepository(deps: { FeedbackReportModel: FeedbackReportMod
       () => FeedbackReportModel.findOneAndUpdate(
         { _id: reportId, guildId },
         { $set: { resolvedAt: new Date(), resolvedBy: String(resolvedBy || "").slice(0, 40) } },
-        { new: true }
+        { returnDocument: "after" }
       ).lean(),
       { label: "feedback:resolve" }
     );

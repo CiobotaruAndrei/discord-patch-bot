@@ -41,7 +41,7 @@ test("scheduleRetry si deleteJob folosesc si ele compare-and-set pe lease", asyn
   assert.equal(await repo.scheduleRetry({ _id: "j1", lockedBy: "B", leaseVersion: 5 }, 1, new Date()), 1, "proprietarul reprogrameaza");
 });
 
-test("drainOutbox semnaleaza leaseLost cand finalizarea unei livrari pierde compare-and-set-ul", async () => {
+test("drainOutbox: confirmarea livrarii (markDeliveryAccepted) care pierde compare-and-set-ul semnaleaza leaseLost si opreste drain-ul", async () => {
   const job: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: { content: "x" }, attempts: 0, dedupeKey: "d1" };
   let served = 0;
   const model: OutboxModelMock = {
@@ -54,6 +54,33 @@ test("drainOutbox semnaleaza leaseLost cand finalizarea unei livrari pierde comp
   };
   const runtime = createOutboxRuntime({ NotificationOutboxModel: model, NotificationOutboxSentModel: sentModel, withMongoRetry: async <T>(fn: () => Promise<T>) => fn(), logger: () => undefined });
   const result = await runtime.drainOutbox({ deliver: async () => ({ ok: true }), recordDeadLetter: async () => undefined, maxAttempts: 5, backoffMs: 1000, limit: 10 });
+  assert.equal(result.leaseLost, 1, "confirmarea livrarii a pierdut compare-and-set-ul (alt worker detine jobul) si e semnalata explicit");
   assert.equal(result.sent, 1, "mesajul a fost livrat extern (se numara ca trimis)");
-  assert.equal(result.leaseLost, 1, "finalizarea a pierdut compare-and-set-ul (alt worker detine jobul) si e semnalata explicit");
+});
+
+test("drainOutbox: finalizeDelivered care pierde compare-and-set-ul (dupa markDeliveryAccepted reusit) propaga leaseLost si OPRESTE drain-ul - rezultatul CAS nu mai e ignorat (review nou, Major #1)", async () => {
+  const job1: OutboxJob = { _id: "j1", guildId: "g1", channelId: "c1", kind: "update", payload: { content: "x" }, attempts: 0, dedupeKey: "d1" };
+  const job2: OutboxJob = { _id: "j2", guildId: "g1", channelId: "c1", kind: "update", payload: { content: "y" }, attempts: 0, dedupeKey: "d2" };
+  const claims = [job1, job2];
+  let served = 0;
+  let delivered = 0;
+  const model: OutboxModelMock = {
+    create: async d => d,
+    findOneAndUpdate: async () => {
+      const next = claims[served++];
+      return next ? { ...next, lockedBy: "A", leaseVersion: 1, status: "leased" } : null;
+    },
+    find: () => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) }),
+    deleteOne: async () => ({ deletedCount: 0 }),
+    updateOne: async (_filter: Record<string, unknown>, update: { $set?: { status?: string } }) => {
+      const ok = update.$set?.status === "delivered-pending";
+      return { modifiedCount: ok ? 1 : 0, matchedCount: ok ? 1 : 0 };
+    },
+    countDocuments: async () => 0
+  };
+  const runtime = createOutboxRuntime({ NotificationOutboxModel: model, NotificationOutboxSentModel: sentModel, withMongoRetry: async <T>(fn: () => Promise<T>) => fn(), logger: () => undefined });
+  const result = await runtime.drainOutbox({ deliver: async () => { delivered++; return { ok: true }; }, recordDeadLetter: async () => undefined, maxAttempts: 5, backoffMs: 1000, limit: 10 });
+  assert.equal(result.leaseLost, 1, "finalizeDelivered a intors 'lease-lost' (CAS pierdut) si rezultatul e propagat, nu ignorat");
+  assert.equal(result.sent, 1, "primul mesaj a fost livrat extern, se numara ca trimis");
+  assert.equal(delivered, 1, "drain-ul s-a OPRIT dupa pierderea lease-ului: al doilea job nu mai e livrat (inainte de fix continua)");
 });

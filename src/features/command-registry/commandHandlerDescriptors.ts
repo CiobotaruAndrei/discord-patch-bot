@@ -52,13 +52,9 @@ export interface CommandHandlerDescriptor {
 
 export function buildNarrowCommandHandler<Dependencies extends object, Result extends CommandHandler>(
   factory: (dependencies: Dependencies) => Result,
-  services: CommandAppServices
+  services: Dependencies
 ): Result {
-  const dependencies = new Proxy({} as Dependencies, {
-    get: (_target, property) => Reflect.get(services, property),
-    has: (_target, property) => Reflect.has(services, property)
-  });
-  return factory(dependencies);
+  return factory(services);
 }
 
 export function createCommandHandlerDescriptors(): readonly CommandHandlerDescriptor[] {

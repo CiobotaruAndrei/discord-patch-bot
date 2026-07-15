@@ -176,7 +176,7 @@ export async function addYouTubeRouteDestination(
   const updated = await GuildModel.findOneAndUpdate(
     { _id: guildId },
     buildYouTubeRouteAddPipeline(youtubeChannelId, discordChannelId, MAX_YOUTUBE_ROUTE_DESTINATIONS),
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   );
   const savedRoute = (updated?.youtubeChannelRoutes || []).find(route => route.channelId === youtubeChannelId);
   return { saved: (savedRoute?.discordChannelIds || []).includes(discordChannelId) };
@@ -206,7 +206,7 @@ export async function addYouTubeTitleWord(GuildModel: YouTubeConfigGuildModel, g
   const updated = await GuildModel.findOneAndUpdate(
     { _id: guildId },
     buildYouTubeTitleWordAddPipeline(word, YOUTUBE_TITLE_WORD_LIMIT),
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   );
   return { saved: (updated?.youtubeTitleIncludeWords || []).includes(word) };
 }

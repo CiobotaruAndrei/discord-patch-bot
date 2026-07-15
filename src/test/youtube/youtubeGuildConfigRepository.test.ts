@@ -75,10 +75,10 @@ test("addYouTubeChannelSubscription interpreteaza starea de DINAINTE: deja abona
   assert.equal((await addYouTubeChannelSubscription(full, "guild-1", subscription)).limitReached, true);
 });
 
-test("addYouTubeRouteDestination si addYouTubeTitleWord confirma din documentul actualizat (new:true)", async () => {
+test("addYouTubeRouteDestination si addYouTubeTitleWord confirma din documentul actualizat (returnDocument:after)", async () => {
   const savedRoute = makeModel({ youtubeChannelRoutes: [{ channelId: "yt-1", discordChannelIds: ["disc-1"] }] });
   assert.deepEqual(await addYouTubeRouteDestination(savedRoute, "guild-1", "yt-1", "disc-1"), { saved: true });
-  assert.deepEqual(savedRoute.finds[0].options, { upsert: true, new: true });
+  assert.deepEqual(savedRoute.finds[0].options, { upsert: true, returnDocument: "after" });
 
   const refusedRoute = makeModel({ youtubeChannelRoutes: [{ channelId: "yt-1", discordChannelIds: ["alta"] }] });
   assert.deepEqual(await addYouTubeRouteDestination(refusedRoute, "guild-1", "yt-1", "disc-1"), { saved: false });

@@ -56,7 +56,7 @@ function buildLocksFrom(context: LocksContext) {
       const lock = await JobLockModel.findOneAndUpdate(
         { _id: `lock_${jobName}`, $or: [{ lockedUntil: { $lt: now } }, { lockedUntil: null }] },
         { $set: { lockedUntil: expires, ownerToken: lockToken } },
-        { new: true, upsert: true, setDefaultsOnInsert: true }
+        { returnDocument: "after", upsert: true, setDefaultsOnInsert: true }
       );
       if (lock && lock.ownerToken === lockToken) {
         activeLocks.set(jobName, lockToken);

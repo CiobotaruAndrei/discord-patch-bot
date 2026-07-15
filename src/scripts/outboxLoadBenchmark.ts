@@ -55,7 +55,7 @@ export async function runOutboxPhaseBreakdown(models: OutboxLoadModels, jobs: nu
     const job = await models.outboxModel.findOneAndUpdate(
       { guildId: marker, availableAt: { $lte: now }, $or: [{ lockedUntil: { $exists: false } }, { lockedUntil: null }, { lockedUntil: { $lte: now } }] },
       { $set: { lockedUntil: new Date(Date.now() + 60_000), lockedBy: marker }, $inc: { deliveries: 1 } },
-      { sort: { availableAt: 1 }, new: true }
+      { sort: { availableAt: 1 }, returnDocument: "after" }
     ) as { _id: unknown; dedupeKey: string } | null;
     if (job) claimed.push({ _id: job._id, dedupeKey: job.dedupeKey });
   }

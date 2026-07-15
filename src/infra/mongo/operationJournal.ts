@@ -156,7 +156,7 @@ function createOperationJournal({
         $set: { status: "leased", lockedBy: ownerId, lockedUntil, updatedAt: at },
         $inc: { attempts: 1, leaseVersion: 1 }
       },
-      { new: true }
+      { returnDocument: "after" }
     ).lean();
   }
 

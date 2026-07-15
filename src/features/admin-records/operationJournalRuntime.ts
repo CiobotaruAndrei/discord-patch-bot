@@ -19,8 +19,14 @@ export const ADMIN_ACCESS_SAVE_KIND = "admin-access-save";
 export const ADMIN_ACCESS_DELETE_KIND = "admin-access-delete";
 export const OPERATION_PAYLOAD_SCHEMA_VERSION = 1;
 
+const DISCORD_EPOCH_MS = 1420070400000;
+
 export function journalResourceVersion(interactionId?: string): string {
-  return String(interactionId || Date.now()).padStart(20, "0");
+  if (interactionId && /^\d+$/.test(interactionId)) {
+    return interactionId.padStart(20, "0");
+  }
+  const syntheticSnowflake = BigInt(Math.max(0, Date.now() - DISCORD_EPOCH_MS)) << 22n;
+  return syntheticSnowflake.toString().padStart(20, "0");
 }
 
 interface AuditPayload {

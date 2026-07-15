@@ -93,7 +93,7 @@ test("/price-alert add salveaza regula tipata si pastreaza o singura regula per 
   assert.match(serialized, /elden-ring/);
   assert.match(serialized, /1245620/);
   assert.match(serialized, /EUR/);
-  assert.deepEqual(calls[0].options, { upsert: true, new: true }, "findOneAndUpdate cu new:true ca handler-ul sa confirme din doc-ul actualizat");
+  assert.deepEqual(calls[0].options, { upsert: true, returnDocument: "after" }, "findOneAndUpdate cu returnDocument:after ca handler-ul sa confirme din doc-ul actualizat");
   assert.match(String(replies[0]), /30 EUR/);
   assert.match(String(replies[0]), /deals-channel/);
 });
