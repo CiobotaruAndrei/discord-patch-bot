@@ -3,6 +3,14 @@ import assert from "node:assert/strict";
 import { request as httpRequest } from "node:http";
 import { AddressInfo } from "node:net";
 import { createHttpServer } from "../../app/health/httpServer.js";
+import type { CreateHttpServerDeps } from "../../app/health/httpServer.js";
+
+type HttpServerEnvKeys = keyof CreateHttpServerDeps["env"];
+const httpServerEnvStaysNarrow: [HttpServerEnvKeys] extends ["METRICS_PUBLIC" | "METRICS_TOKEN" | "isProd"] ? true : never = true;
+
+test("contract compile-time: httpServer primeste doar campurile env de metrics-auth (Pick), nu tot RuntimeEnv (review nou, Medium #10)", () => {
+  assert.equal(httpServerEnvStaysNarrow, true, "env-ul serverului HTTP e ingustat la METRICS_PUBLIC/METRICS_TOKEN/isProd; daca cineva il re-largeste la RuntimeEnv, asertarea de tip de mai sus pica la compilare");
+});
 import type { CommandCacheSizes, RuntimeEnv } from "../../types.js";
 
 interface ResponseSnapshot { status: number; body: string }
