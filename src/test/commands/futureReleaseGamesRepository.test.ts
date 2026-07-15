@@ -49,7 +49,7 @@ test("saveFutureReleaseGame salveaza atomic printr-un singur findOneAndUpdate cu
   assert.equal(result.saved, true);
   assert.equal(model.calls.length, 1, "o singura operatie atomica, nu pull+push separat");
   assert.ok(Array.isArray(model.calls[0].update), "update-ul e un aggregation pipeline");
-  assert.deepEqual(model.calls[0].options, { upsert: true, new: true });
+  assert.deepEqual(model.calls[0].options, { upsert: true, returnDocument: "after" });
 });
 
 test("saveFutureReleaseGame refuza al 21-lea joc nou fara sa evacueze tacut alt entry", async () => {

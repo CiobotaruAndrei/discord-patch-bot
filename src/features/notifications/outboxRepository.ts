@@ -61,7 +61,7 @@ export function createOutboxRepository({ NotificationOutboxModel, NotificationOu
         $set: { lockedUntil: new Date(now.getTime() + leaseMs), lockedBy: workerId, status: "leased", statusChangedAt: now },
         $inc: { deliveries: 1, leaseVersion: 1 }
       },
-      { sort: { status: 1, availableAt: 1 }, new: true }
+      { sort: { status: 1, availableAt: 1 }, returnDocument: "after" }
     );
   }
 
