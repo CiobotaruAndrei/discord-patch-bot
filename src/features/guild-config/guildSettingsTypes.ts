@@ -48,6 +48,25 @@ export interface GuildConfigurationSettings {
   futureReleaseChannelId?: string | null;
   dlcSubscribed?: boolean;
   dlcChannelId?: string | null;
+  newAccountAlertChannelId?: string | null;
+  newAccountAlertsEnabled?: boolean;
+  threatAlertChannelId?: string | null;
+  threatProtectionEnabled?: boolean;
+  botAddAlertChannelId?: string | null;
+  botAddProtectionEnabled?: boolean;
+  botAddPermissions?: Array<{
+    requestId: string;
+    botId: string;
+    requesterId: string;
+    requestedAt: Date;
+    ownerId?: string | null;
+    respondedAt?: Date | null;
+    expiresAt?: Date | null;
+    usedAt?: Date | null;
+    status: "pending" | "approved" | "used" | "rejected" | "expired" | "cancelled";
+  }>;
+  purgeAmount?: number;
+  lockedChannelIds?: string[];
 }
 
 export interface GuildSecuritySettings {

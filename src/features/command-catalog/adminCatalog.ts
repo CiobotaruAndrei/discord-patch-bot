@@ -12,6 +12,25 @@ export const ADMIN_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   { command: "template", access: "admin", discordAdminPermissions: true },
   { command: "game-alias", access: "admin", discordAdminPermissions: true },
   { command: "notification", access: "admin", discordAdminPermissions: true }
+  ,{ command: "lock-channel", access: "admin", discordAdminPermissions: true }
+  ,{ command: "unlock-channel", access: "admin", discordAdminPermissions: true }
+  ,{ command: "purge", access: "admin", discordAdminPermissions: true }
+  ,{ command: "purge-amount", access: "admin", discordAdminPermissions: true }
+  ,{ command: "timeout", access: "admin", discordAdminPermissions: true }
+  ,{ command: "remove-timeout", access: "admin", discordAdminPermissions: true }
+  ,{ command: "timeout-list", access: "public", discordAdminPermissions: false }
+  ,{ command: "mute", access: "admin", discordAdminPermissions: true }
+  ,{ command: "unmute", access: "admin", discordAdminPermissions: true }
+  ,{ command: "mute-list", access: "public", discordAdminPermissions: false }
+  ,{ command: "kick", access: "admin", discordAdminPermissions: true }
+  ,{ command: "ban", access: "admin", discordAdminPermissions: true }
+  ,{ command: "unban", access: "admin", discordAdminPermissions: true }
+  ,{ command: "warn", access: "admin", discordAdminPermissions: true }
+  ,{ command: "remove-warn", access: "admin", discordAdminPermissions: true }
+  ,{ command: "warn-list", access: "public", discordAdminPermissions: false }
+  ,{ command: "warn-ban-limit", access: "admin", discordAdminPermissions: true }
+  ,{ command: "bot-add-request", access: "admin", discordAdminPermissions: true }
+  ,{ command: "bot-add-permissions", access: "admin", discordAdminPermissions: true }
 ];
 
 export const ADMIN_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
@@ -36,4 +55,23 @@ export const ADMIN_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   { command: "/game-alias remove", description: "Sterge un alias personalizat al jocului.", example: "/game-alias remove joc:counter-strike-2 alias:cs2" },
   { command: "/game-alias list", description: "Listeaza aliasurile personalizate salvate pentru joc.", example: "/game-alias list joc:counter-strike-2" },
   { command: "/notification preview", description: "Previzualizeaza continutul si embed-ul unei notificari cu template-ul activ, fara livrare sau modificarea starii.", example: "/notification preview command:/start updates" }
+  ,{ command: "/lock-channel", description: "Blocheaza mesajele membrilor in canalul selectat, cu un motiv.", example: "/lock-channel canal:#general motiv:mentenanta" }
+  ,{ command: "/unlock-channel", description: "Deblocheaza mesajele membrilor in canalul selectat.", example: "/unlock-channel canal:#general" }
+  ,{ command: "/purge", description: "Sterge ultimele 50 de mesaje din canalul curent.", example: "/purge" }
+  ,{ command: "/purge-amount", description: "Sterge numarul indicat de mesaje din canalul curent.", example: "/purge-amount numar:50" }
+  ,{ command: "/timeout", description: "Aplica timeout unui membru.", example: "/timeout utilizator:@user durata:30m" }
+  ,{ command: "/remove-timeout", description: "Elimina timeout-ul unui membru.", example: "/remove-timeout utilizator:@user" }
+  ,{ command: "/timeout-list", description: "Afiseaza timeout-urile active.", example: "/timeout-list" }
+  ,{ command: "/mute", description: "Aplica mute unui membru.", example: "/mute utilizator:@user durata:1h" }
+  ,{ command: "/unmute", description: "Elimina mute-ul unui membru.", example: "/unmute utilizator:@user" }
+  ,{ command: "/mute-list", description: "Afiseaza mute-urile active.", example: "/mute-list" }
+  ,{ command: "/kick", description: "Elimina un membru de pe server.", example: "/kick utilizator:@user" }
+  ,{ command: "/ban", description: "Baneaza un membru.", example: "/ban utilizator:@user" }
+  ,{ command: "/unban", description: "Debaneaza un utilizator.", example: "/unban utilizator:@user" }
+  ,{ command: "/warn", description: "Avertizeaza un membru cu un motiv.", example: "/warn utilizator:@user motiv:spam" }
+  ,{ command: "/remove-warn", description: "Elimina cel mai recent avertisment.", example: "/remove-warn utilizator:@user" }
+  ,{ command: "/warn-list", description: "Afiseaza utilizatorii cu avertismente active.", example: "/warn-list" }
+  ,{ command: "/warn-ban-limit", description: "Seteaza limita de avertismente pentru ban automat.", example: "/warn-ban-limit numar:3" }
+  ,{ command: "/bot-add-request", description: "Solicita aprobarea proprietarului pentru un bot nou.", example: "/bot-add-request bot-id:123456789012345678" }
+  ,{ command: "/bot-add-permissions", description: "Listeaza solicitarile de adaugare boti.", example: "/bot-add-permissions" }
 ];

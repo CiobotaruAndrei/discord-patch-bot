@@ -51,6 +51,7 @@ import { createRuntimeServices } from "./runtime/runtimeServices.js";
 import { createSchedulers } from "./runtime/runtimeSchedulers.js";
 import { createBootSequence, connectMongoWithRetry, hydrateStartupCaches } from "./runtime/bootSequence.js";
 import { createGuildSettingsInvalidationChannel } from "../infra/redis/guildSettingsInvalidationChannel.js";
+import { createSecurityRuntime } from "../features/command-security/securityRuntime.js";
 
 function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   const { createHttpServer, registerDiscordEvents, registerMongoEvents, createShutdownController, errorMessage, errorDetail, mongoose, crypto, mongo } = deps;
@@ -60,6 +61,7 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   const { client, metrics, lifecycle, rateLimiter, housekeeping } = services;
   const schedulers = createSchedulers(deps, services);
   const { cronController, outboxWorker, outboxEnabled } = schedulers;
+  const securityRuntime = createSecurityRuntime({ getGuildSettings: mongo.getGuildSettings ?? (async () => null), client });
 
   const httpServer = createHttpServer({
     mongoose, crypto, env, client, metrics, logger, commands: deps.commands,
@@ -72,7 +74,8 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
     startHousekeeping: housekeeping.start,
     scheduleNextCron: cronController.scheduleNextCron,
     startOutboxWorker: outboxEnabled ? outboxWorker.start : undefined,
-    role: deps.role
+    role: deps.role,
+    securityRuntime
   });
   registerMongoEvents({ mongoose, logger, errorMessage });
 

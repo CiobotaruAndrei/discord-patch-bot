@@ -28,7 +28,10 @@ export function buildNotificationCommandDefinitions({ SlashCommandBuilder, Permi
       .addSubcommand(subcommand => subcommand.setName("reduceri").setDescription("Porneste alertele de reduceri pe acest canal"))
       .addSubcommand(subcommand => subcommand.setName("dlc").setDescription("Configureaza canalul pentru notificarile DLC"))
       .addSubcommand(subcommand => subcommand.setName("player-count").setDescription("Porneste urmarirea player-count pentru un joc")
-        .addStringOption(option => option.setName("game").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true))),
+        .addStringOption(option => option.setName("game").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true)))
+      .addSubcommand(subcommand => subcommand.setName("new-account-alerts").setDescription("Porneste alertele pentru conturi noi"))
+      .addSubcommand(subcommand => subcommand.setName("threat-protection").setDescription("Porneste protectia la amenintari"))
+      .addSubcommand(subcommand => subcommand.setName("bot-add-protection").setDescription("Porneste protectia la adaugarea botilor")),
     new SlashCommandBuilder()
       .setName("stop")
       .setDescription("Opreste notificarile automate (admin)")
@@ -38,5 +41,8 @@ export function buildNotificationCommandDefinitions({ SlashCommandBuilder, Permi
       .addSubcommand(subcommand => subcommand.setName("dlc").setDescription("Opreste notificarile DLC"))
       .addSubcommand(subcommand => subcommand.setName("player-count").setDescription("Opreste urmarirea player-count pentru un joc")
         .addStringOption(option => option.setName("game").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true)))
+      .addSubcommand(subcommand => subcommand.setName("new-account-alerts").setDescription("Opreste alertele pentru conturi noi"))
+      .addSubcommand(subcommand => subcommand.setName("threat-protection").setDescription("Opreste protectia la amenintari"))
+      .addSubcommand(subcommand => subcommand.setName("bot-add-protection").setDescription("Opreste protectia la adaugarea botilor"))
   ];
 }

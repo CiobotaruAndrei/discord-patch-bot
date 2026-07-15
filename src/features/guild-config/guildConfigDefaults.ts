@@ -62,6 +62,15 @@ export function buildResetConfiguration(defaultCurrency: CurrencyCode): Record<s
     dlcSubscribed: false,
     dlcChannelId: null,
     dlcInitializing: false,
-    dlcActivationId: null
+    dlcActivationId: null,
+    newAccountAlertChannelId: null,
+    newAccountAlertsEnabled: false,
+    threatAlertChannelId: null,
+    threatProtectionEnabled: false,
+    botAddAlertChannelId: null,
+    botAddProtectionEnabled: false,
+    botAddPermissions: [],
+    purgeAmount: 50,
+    lockedChannelIds: []
   };
 }

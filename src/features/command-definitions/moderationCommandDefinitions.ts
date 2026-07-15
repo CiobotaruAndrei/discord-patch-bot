@@ -1,0 +1,23 @@
+import type { SlashCommandJsonSource, SlashDefinitionTools } from "./slashDefinitionTools.js";
+
+export function buildModerationCommandDefinitions({ SlashCommandBuilder, PermissionsBitField }: SlashDefinitionTools): SlashCommandJsonSource[] {
+  const admin = <T extends { setDefaultMemberPermissions(value: string): T }>(builder: T): T => builder.setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString());
+  return [
+    admin(new SlashCommandBuilder().setName("timeout").setDescription("Aplica timeout unui utilizator").addUserOption(option => option.setName("utilizator").setDescription("Utilizatorul").setRequired(true)).addStringOption(option => option.setName("durata").setDescription("Durata: 30m, 2h, 1d").setRequired(true).setMaxLength(10)).addStringOption(option => option.setName("motiv").setDescription("Motiv optional").setRequired(false).setMaxLength(500))),
+    admin(new SlashCommandBuilder().setName("remove-timeout").setDescription("Elimina timeout-ul unui utilizator").addUserOption(option => option.setName("utilizator").setDescription("Utilizatorul").setRequired(true))),
+    new SlashCommandBuilder().setName("timeout-list").setDescription("Afiseaza timeout-urile active").setDMPermission(false),
+    admin(new SlashCommandBuilder().setName("mute").setDescription("Aplica mute unui utilizator").addUserOption(option => option.setName("utilizator").setDescription("Utilizatorul").setRequired(true)).addStringOption(option => option.setName("durata").setDescription("Durata: 30m, 2h, 1d").setRequired(true).setMaxLength(10)).addStringOption(option => option.setName("motiv").setDescription("Motiv optional").setRequired(false).setMaxLength(500))),
+    admin(new SlashCommandBuilder().setName("unmute").setDescription("Elimina mute-ul unui utilizator").addUserOption(option => option.setName("utilizator").setDescription("Utilizatorul").setRequired(true))),
+    new SlashCommandBuilder().setName("mute-list").setDescription("Afiseaza mute-urile active").setDMPermission(false),
+    admin(new SlashCommandBuilder().setName("kick").setDescription("Elimina un utilizator de pe server").addUserOption(option => option.setName("utilizator").setDescription("Utilizatorul").setRequired(true)).addStringOption(option => option.setName("motiv").setDescription("Motiv optional").setRequired(false).setMaxLength(500))),
+    admin(new SlashCommandBuilder().setName("ban").setDescription("Baneaza un utilizator").addUserOption(option => option.setName("utilizator").setDescription("Utilizatorul").setRequired(true)).addStringOption(option => option.setName("motiv").setDescription("Motiv optional").setRequired(false).setMaxLength(500))),
+    admin(new SlashCommandBuilder().setName("unban").setDescription("Debaneaza un utilizator").addUserOption(option => option.setName("utilizator").setDescription("Utilizatorul").setRequired(true)).addStringOption(option => option.setName("motiv").setDescription("Motiv optional").setRequired(false).setMaxLength(500))),
+    admin(new SlashCommandBuilder().setName("warn").setDescription("Avertizeaza un utilizator").addUserOption(option => option.setName("utilizator").setDescription("Utilizatorul").setRequired(true)).addStringOption(option => option.setName("motiv").setDescription("Motivul avertismentului").setRequired(true).setMaxLength(500))),
+    admin(new SlashCommandBuilder().setName("remove-warn").setDescription("Elimina cel mai recent warn").addUserOption(option => option.setName("utilizator").setDescription("Utilizatorul").setRequired(true))),
+    new SlashCommandBuilder().setName("warn-list").setDescription("Afiseaza avertismentele active").setDMPermission(false),
+    admin(new SlashCommandBuilder().setName("warn-ban-limit").setDescription("Seteaza limita de warn-uri pentru ban automat").addIntegerOption(option => option.setName("numar").setDescription("Limita pozitiva").setRequired(true).setMinValue(1).setMaxValue(100)))
+    ,admin(new SlashCommandBuilder().setName("bot-add-request").setDescription("Solicita aprobarea proprietarului pentru adaugarea unui bot")
+      .addStringOption(option => option.setName("bot-id").setDescription("ID-ul botului solicitat").setRequired(true).setMinLength(17).setMaxLength(20)))
+    ,admin(new SlashCommandBuilder().setName("bot-add-permissions").setDescription("Afiseaza solicitarile si permisiunile de adaugare boti"))
+  ];
+}

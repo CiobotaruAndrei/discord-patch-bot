@@ -22,9 +22,9 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
 }
 
 function isSubscriptionCommand(interaction: SubscriptionInteraction) {
-  return interaction?.isChatInputCommand?.() === true
-    && interaction.guild
-    && (interaction.commandName === "start" || interaction.commandName === "stop");
+  if (interaction?.isChatInputCommand?.() !== true || !interaction.guild) return false;
+  if (interaction.commandName !== "start" && interaction.commandName !== "stop") return false;
+  return !["new-account-alerts", "threat-protection", "bot-add-protection"].includes(interaction.options.getSubcommand());
 }
 
 function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {

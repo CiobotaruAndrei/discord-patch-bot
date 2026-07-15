@@ -48,6 +48,9 @@ const handlers: Record<string, BuiltHandler> = {
   setRole: build("rolePingHandlers"),
   setGames: build("gameFilterHandlers"),
   subscription: build("subscriptionNotificationHandlers"),
+  security: build("securityInteractionHandler"),
+  moderation: build("moderationInteractionHandler"),
+  "bot-add": build("botAddInteractionHandler"),
   help: build("helpInteractionHandler"),
   simple: build("simpleCommandsHandler")
 };
@@ -141,6 +144,25 @@ const expectedOwnerByCommand: Record<string, string> = {
   template: "templatePreview",
   notification: "templatePreview",
   "game-alias": "coverageAlias"
+  ,"lock-channel": "security"
+  ,"unlock-channel": "security"
+  ,"purge": "security"
+  ,"purge-amount": "security"
+  ,"timeout": "moderation"
+  ,"remove-timeout": "moderation"
+  ,"timeout-list": "moderation"
+  ,"mute": "moderation"
+  ,"unmute": "moderation"
+  ,"mute-list": "moderation"
+  ,"kick": "moderation"
+  ,"ban": "moderation"
+  ,"unban": "moderation"
+  ,"warn": "moderation"
+  ,"remove-warn": "moderation"
+  ,"warn-list": "moderation"
+  ,"warn-ban-limit": "moderation"
+  ,"bot-add-request": "bot-add"
+  ,"bot-add-permissions": "bot-add"
 };
 
 const MULTIPLEXED_VERB_COMMANDS = new Set(["add", "remove"]);

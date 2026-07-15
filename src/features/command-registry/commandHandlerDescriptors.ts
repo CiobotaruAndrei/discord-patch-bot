@@ -33,6 +33,9 @@ import attachCoverageAliasHandler from "../command-handlers/watchlistCoverageAnd
 import attachTemplatePreviewHandler from "../command-handlers/templateAndNotificationPreviewHandler.js";
 import attachAutocompleteInteractionHandler from "../command-handlers/autocompleteInteractionHandler.js";
 import attachHelpInteractionHandler from "../command-handlers/helpInteractionHandler.js";
+import attachModerationInteractionHandler from "../command-handlers/moderationInteractionHandler.js";
+import attachSecurityInteractionHandler from "../command-handlers/securityInteractionHandler.js";
+import attachBotAddInteractionHandler from "../command-handlers/botAddInteractionHandler.js";
 
 export type CommandHandlerDomain = "routing" | "core" | "configuration" | "notifications" | "game-info" | "youtube" | "admin";
 
@@ -76,7 +79,10 @@ export function createCommandHandlerDescriptors(): readonly CommandHandlerDescri
     define({ id: "source-status", domain: "admin", help: ["sources status"], build: context => attachSourcesStatusHandler.buildCommandHandler(context) }),
     define({ id: "configuration", domain: "configuration", help: ["config"], build: context => attachConfigInteractionHandler.buildCommandHandler(context) }),
     define({ id: "configuration-admin", domain: "admin", help: ["reset-config", "admin-alerts"], build: context => attachGuildConfigurationAdminHandler.buildCommandHandler(context) }),
+    define({ id: "security", domain: "admin", help: ["lock-channel", "unlock-channel", "purge", "purge-amount", "new-account-alerts", "threat-protection", "bot-add-protection"], build: context => attachSecurityInteractionHandler.buildCommandHandler(context) }),
+    define({ id: "bot-add", domain: "admin", access: "admin", help: ["bot-add-request", "bot-add-permissions"], build: context => attachBotAddInteractionHandler.buildCommandHandler(context) }),
     define({ id: "admin-access", domain: "admin", access: "owner", help: ["admin-command-access"], build: context => attachAdminCommandAccessHandler.buildCommandHandler(context) }),
+    define({ id: "moderation", domain: "admin", access: "mixed", help: ["timeout", "remove-timeout", "timeout-list", "mute", "unmute", "mute-list", "kick", "ban", "unban", "warn", "remove-warn", "warn-list", "warn-ban-limit"], build: context => attachModerationInteractionHandler.buildCommandHandler(context) }),
     define({ id: "price-alert", domain: "notifications", help: ["price-alert"], build: context => attachPriceAlertInteractionHandler.buildCommandHandler(context) }),
     define({ id: "backup", domain: "admin", help: ["backup"], build: context => attachBackupInteractionHandler.buildCommandHandler(context) }),
     define({ id: "audit-log", domain: "admin", help: ["bot-log", "server-log"], build: context => attachAuditLogInteractionHandler.buildCommandHandler(context) }),
