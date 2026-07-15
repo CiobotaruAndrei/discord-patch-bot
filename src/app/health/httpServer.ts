@@ -44,10 +44,12 @@ interface HealthBody {
   cronHealth?: CronHealthSnapshot;
 }
 
+type HttpServerEnv = Pick<RuntimeEnv, "METRICS_PUBLIC" | "METRICS_TOKEN" | "isProd">;
+
 interface CreateHttpServerDeps {
   mongoose: MongooseLike;
   crypto: CryptoLike;
-  env: RuntimeEnv;
+  env: HttpServerEnv;
   client: DiscordClientLike;
   metrics: BotMetrics;
   logger: LoggerFunction;
