@@ -12,6 +12,20 @@ interface MongoWriteUnit {
   cleanup?: CleanupStep[];
 }
 
+interface MongoTransactionSession {
+  withTransaction(work: () => Promise<void>): Promise<void>;
+  endSession(): Promise<void>;
+}
+
+interface MongoTransactionClient {
+  startSession(): Promise<MongoTransactionSession>;
+}
+
+interface MongoAtomicWriteUnit extends MongoWriteUnit {
+  mongoose?: MongoTransactionClient;
+  replicaSetAvailable?: () => boolean;
+}
+
 async function runMongoWrite({ label, logger, critical, cleanup }: MongoWriteUnit): Promise<void> {
   for (const step of critical) {
     await step();
@@ -27,5 +41,30 @@ async function runMongoWrite({ label, logger, critical, cleanup }: MongoWriteUni
   }
 }
 
-export { runMongoWrite };
-export type { MongoWriteUnit, CleanupStep, UnitOfWorkLogger };
+async function runMongoAtomicWrite(unit: MongoAtomicWriteUnit): Promise<void> {
+  const client = unit.mongoose;
+  const canTransact = Boolean(client && (unit.replicaSetAvailable?.() ?? true));
+  if (!canTransact || !client) {
+    await runMongoWrite(unit);
+    return;
+  }
+  const session = await client.startSession();
+  try {
+    await session.withTransaction(async () => {
+      for (const step of unit.critical) await step();
+    });
+    for (const step of unit.cleanup ?? []) {
+      try { await step.run(); } catch (err) {
+        unit.logger("WARN", "MONGO_UOW", `Curatarea '${step.describe}' a esuat dupa tranzactia '${unit.label}'`, err instanceof Error ? err.message : String(err));
+      }
+    }
+  } catch (err) {
+    unit.logger("WARN", "MONGO_UOW", `Tranzactia '${unit.label}' nu este disponibila; se aplica fallback compensatoriu`, err instanceof Error ? err.message : String(err));
+    await runMongoWrite(unit);
+  } finally {
+    await session.endSession();
+  }
+}
+
+export { runMongoWrite, runMongoAtomicWrite };
+export type { MongoWriteUnit, MongoAtomicWriteUnit, CleanupStep, UnitOfWorkLogger };

@@ -15,10 +15,13 @@ import { registerDiscordEvents, registerMongoEvents } from "./lifecycle/events.j
 import { createShutdownController } from "./lifecycle/shutdown.js";
 import { errorMessage, errorDetail } from "../shared/errors.js";
 import { createAppRuntime } from "./appRuntime.js";
-import redis from "../infra/redis/redisContext.js";
+import { createRedisRuntime } from "../infra/redis/redisClient.js";
+import { createRedisCache } from "../infra/redis/redisCache.js";
+import { createCircuitBreakerStore } from "../sources/updates/circuitBreakerStore.js";
 import type { AppRuntime, AppRuntimeDeps } from "./appRuntime.js";
 import type { BotRole } from "../types.js";
 import type { SourceRegistryApi } from "../sources/sourceRegistry.js";
+import * as scrapers from "../sources/sourceRegistry.js";
 
 import mongoContext from "../infra/mongo/mongoContext.js";
 const {
@@ -31,7 +34,12 @@ const {
   GuildDeadLetterModel, NotificationDeadLetterReplayModel
 } = mongoContext;
 import commands from "../features/command-registry/commandRegistry.js";
-import * as scrapers from "../sources/sourceRegistry.js";
+import { createSourceRegistry } from "../sources/sourceRegistryFactory.js";
+import {
+  createCommandRuntimeDependencies,
+  selectCommandMongoDependencies,
+  selectCommandSourceDependencies
+} from "../features/command-runtime/commandRuntimeDependencies.js";
 import { createOperationJournalRuntime } from "../features/admin-records/operationJournalRuntime.js";
 import { createScheduledTaskRunner } from "./scheduler/scheduledTaskRunner.js";
 
@@ -48,28 +56,56 @@ const operationJournalRecovery = createScheduledTaskRunner({
 });
 
 function buildAppRuntime(role: BotRole): AppRuntime {
+  const redisRuntime = createRedisRuntime(env, logger);
+  const redisCache = createRedisCache({ runtime: redisRuntime, logger });
+  const sourceRegistry = createSourceRegistry({
+    env,
+    logger,
+    getAbortSignal: mongoContext.getAbortSignal,
+    getCurrencyConfig: mongoContext.getCurrencyConfig,
+    formatPrice: mongoContext.formatPrice,
+    runConcurrent: mongoContext.runConcurrent,
+    adminAlert,
+    SchemaDriftError: mongoContext.SchemaDriftError,
+    circuitBreakerStore: createCircuitBreakerStore(mongoContext.CircuitBreakerModel)
+  });
+  const commandDependencies = createCommandRuntimeDependencies({
+    mongo: selectCommandMongoDependencies(mongoContext),
+    sources: selectCommandSourceDependencies(sourceRegistry),
+    platform: { redis: redisCache }
+  });
+  const commandRuntime = commands.createCommandRegistry({ runtimeDependencies: commandDependencies });
   return createAppRuntime({
     mongoose, crypto, performance, Client, GatewayIntentBits,
     loadConfig, createMetrics, createRateLimiter, createHousekeeping,
     createCronController, createOutboxWorker, createHttpServer,
     registerDiscordEvents, registerMongoEvents, createShutdownController,
-    errorMessage, errorDetail, redis, role,
+    errorMessage, errorDetail, redis: redisRuntime, role,
     mongo: {
       logger, env, parseEnvNumber, acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
       waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
+      getGuildSettings: mongoContext.getGuildSettings,
       runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots,
       getOutboxPaused, setAdminAlertDiscordClient
     },
-    commands, scrapers,
+    commands: commandRuntime, scrapers: sourceRegistry,
     recoverOperationJournal: () => operationJournal.recoverPending({ olderThanMs: OPERATION_JOURNAL_RECOVERY_MIN_AGE_MS, limit: OPERATION_JOURNAL_RECOVERY_LIMIT }),
     startOperationJournalRecovery: operationJournalRecovery.start,
     stopOperationJournalRecovery: operationJournalRecovery.stop
   } satisfies AppRuntimeDeps);
 }
 
+function buildWebRuntime(): AppRuntime {
+  return buildAppRuntime("web");
+}
+
+function buildWorkerRuntime(): AppRuntime {
+  return buildAppRuntime("worker");
+}
+
 function startBot(role: BotRole): AppRuntime {
   logger("INFO", "BOOT", `Pornire bot in rol '${role}'`);
-  const app = buildAppRuntime(role);
+  const app = role === "web" ? buildWebRuntime() : buildWorkerRuntime();
   app.registerProcessHandlers();
   app.start().catch(() => process.exit(1));
   return app;
@@ -79,4 +115,4 @@ function startFromEnv(): AppRuntime {
   return startBot(env.BOT_ROLE);
 }
 
-export { startBot, startFromEnv, buildAppRuntime };
+export { startBot, startFromEnv, buildAppRuntime, buildWebRuntime, buildWorkerRuntime };

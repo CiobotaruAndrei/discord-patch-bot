@@ -36,6 +36,13 @@ export interface BotMetrics {
   redisCacheHit: number;
   redisCacheMiss: number;
   redisErrors: number;
+  sourceRequestDurationMsTotal?: Record<string, number>;
+  sourceRequestErrors?: Record<string, number>;
+  cacheInvalidations?: number;
+  cacheInvalidationStale?: number;
+  discordRestRequests?: number;
+  discordRestRateLimits?: number;
+  discordRestErrors?: number;
   commandRuns: Record<string, number>;
   commandErrors: Record<string, number>;
   commandDurationMsTotal: Record<string, number>;

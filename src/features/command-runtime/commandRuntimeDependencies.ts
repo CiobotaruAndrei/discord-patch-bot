@@ -14,8 +14,12 @@ import {
 
 import data from "../../infra/mongo/mongoContext.js";
 import redis from "../../infra/redis/redisContext.js";
+import { createRedisCache } from "../../infra/redis/redisCache.js";
+import type { RedisCache } from "../../infra/redis/redisCache.js";
 import scrapers from "../../sources/sourceRegistry.js";
 import type { SourceRegistryApi } from "../../sources/sourceRegistry.js";
+import { createDiscordGateway } from "../discord/discordGateway.js";
+import type { DiscordGateway } from "../discord/discordGateway.js";
 
 type MongoContextExports = typeof import("../../infra/mongo/mongoContext.js")["default"];
 
@@ -81,7 +85,8 @@ export type CommandSourceDependencies = Pick<SourceRegistryApi, CommandSourceKey
 export type CommandPlatformDependencies = {
   checkReadMessageHistory: typeof checkReadMessageHistory;
   checkChannelPermissions: typeof checkChannelPermissions;
-  redis: typeof redis;
+  redis: RedisCache;
+  discordGateway: DiscordGateway;
 };
 
 export interface CommandRuntimeDependencies {
@@ -220,15 +225,25 @@ export function selectCommandSourceDependencies(source: SourceRegistryApi): Comm
   };
 }
 
-export function createCommandRuntimeDependencies(): CommandRuntimeDependencies {
-  return {
+export type CommandRuntimeDependencyOverrides = Partial<{
+  discord: Partial<DiscordRuntimeBindings>;
+  mongo: Partial<CommandMongoDependencies>;
+  sources: Partial<CommandSourceDependencies>;
+  platform: Partial<CommandPlatformDependencies>;
+}>;
+
+export function createCommandRuntimeDependencies(overrides: CommandRuntimeDependencyOverrides = {}): CommandRuntimeDependencies {
+  const cache = createRedisCache({ runtime: redis, logger: data.logger });
+  const defaults: CommandRuntimeDependencies = {
     discord: createDiscordRuntimeBindings(),
     mongo: selectCommandMongoDependencies(data),
     sources: selectCommandSourceDependencies(scrapers),
-    platform: {
-      checkReadMessageHistory,
-      checkChannelPermissions,
-      redis
-    }
+    platform: { checkReadMessageHistory, checkChannelPermissions, redis: cache, discordGateway: createDiscordGateway(data.logger) }
+  };
+  return {
+    discord: { ...defaults.discord, ...overrides.discord },
+    mongo: { ...defaults.mongo, ...overrides.mongo } as CommandMongoDependencies,
+    sources: { ...defaults.sources, ...overrides.sources } as CommandSourceDependencies,
+    platform: { ...defaults.platform, ...overrides.platform } as CommandPlatformDependencies
   };
 }

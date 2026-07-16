@@ -47,6 +47,10 @@ Masuratoare reprezentativa (100.000 iteratii; cifrele difera intre masini, conte
 
 Interpretare onesta: Rust castiga clar doar acolo unde calculul e dominant si argumentele sunt
 ieftine de trecut peste granita JS<->Rust — `levenshtein` (string-uri) si `dealHash` (SHA-256 pe string-uri;
+
+## Politica de extindere Rust
+
+Nu se muta alte zone mari si imutabile in Rust doar pentru uniformitate. Candidatii noi sunt limitati la ranking sau parsing pe colectii mari si intra in productie numai dupa un benchmark comparativ, cu paritate verificata si costul traversarii N-API inclus.
 ~1.5x si dupa trecerea de la SHA-1 la SHA-256, cu paritate native==TS).
 Pentru `findGameKeys` si `buildAutocompleteChoices`, fiecare apel trece un **array de candidati**
 peste granita NAPI (marshaling), iar pentru `dealPassesFilters` calculul e trivial; in aceste

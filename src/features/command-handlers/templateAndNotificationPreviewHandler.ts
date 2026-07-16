@@ -7,6 +7,7 @@ import { buildNotificationContent } from "../notifications/notificationTemplate.
 import { renderYouTubeMessageTemplate } from "../youtube/youtubeDeliveryPolicy.js";
 import { invalidTemplatePlaceholders, templateSpecFor } from "../notifications/templateCatalog.js";
 import { errorDetail } from "../../shared/errors.js";
+import { createGuildSettingsRepository, type GuildSettingsRepository } from "../guild-config/guildSettingsRepository.js";
 
 interface DiscordInteraction {
   commandName?: string;
@@ -28,6 +29,7 @@ interface TemplatePreviewDeps {
   safeEdit(interaction: DiscordInteraction, payload: unknown): Promise<unknown>;
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
   GuildModel: { updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown> };
+  guildSettingsRepository?: GuildSettingsRepository;
   MessageFlags: { Ephemeral: number };
 }
 
@@ -37,6 +39,7 @@ function activeTemplate(settings: GuildSettings | null, field: "updateMessageTem
 }
 
 function createTemplatePreviewHandler(deps: TemplatePreviewDeps) {
+  const settingsRepository = deps.guildSettingsRepository ?? createGuildSettingsRepository(deps.GuildModel);
   async function template(interaction: DiscordInteraction, guildId: string, settings: GuildSettings | null): Promise<unknown> {
     const subcommand = interaction.options.getSubcommand(false);
     const command = String(interaction.options.getString("command", true) || "").trim();
@@ -57,14 +60,14 @@ function createTemplatePreviewHandler(deps: TemplatePreviewDeps) {
       });
     }
     if (subcommand === "reset") {
-      await deps.GuildModel.updateOne({ _id: guildId }, { $set: { [spec.field]: null } }, { upsert: true });
+      await settingsRepository.setField(guildId, spec.field, null);
       return deps.safeEdit(interaction, `OK: template-ul pentru **${spec.command}** a revenit la valoarea implicita.`);
     }
     const text = String(interaction.options.getString("text", true) || "").trim();
     const invalid = invalidTemplatePlaceholders(text, spec.placeholders);
     if (invalid.length) return deps.safeEdit(interaction, `Eroare: placeholdere nepermise: ${invalid.map(value => `\`{${value}}\``).join(", ")}.`);
     if (!text) return deps.safeEdit(interaction, "Eroare: template-ul nu poate fi gol. Foloseste /template reset.");
-    await deps.GuildModel.updateOne({ _id: guildId }, { $set: { [spec.field]: text.slice(0, spec.maxLength) } }, { upsert: true });
+    await settingsRepository.setField(guildId, spec.field, text.slice(0, spec.maxLength));
     return deps.safeEdit(interaction, `OK: template-ul pentru **${spec.command}** a fost actualizat.`);
   }
 

@@ -21,6 +21,7 @@ interface GuildSettingsInvalidationChannel {
 function createGuildSettingsInvalidationChannel(deps: GuildSettingsInvalidationChannelDeps): GuildSettingsInvalidationChannel {
   const { redis, logger } = deps;
   let subscriber: RedisSubscriberLike | null = null;
+  const generations = new Map<string, number>();
 
   async function start(): Promise<void> {
     if (!redis.enabled) {
@@ -36,10 +37,24 @@ function createGuildSettingsInvalidationChannel(deps: GuildSettingsInvalidationC
     subscriber = client.duplicate();
     subscriber.on("error", err => logger("ERROR", "GUILD_EVENTS", "Eroare pe conexiunea de subscribe Redis", errorMessage(err)));
     await subscriber.connect();
-    await subscriber.subscribe(CHANNEL, guildId => {
+    await subscriber.subscribe(CHANNEL, message => {
+      let guildId = message;
+      let generation = 0;
+      try {
+        const parsed = JSON.parse(message) as { guildId?: unknown; generation?: unknown };
+        if (typeof parsed.guildId === "string") guildId = parsed.guildId;
+        if (typeof parsed.generation === "number") generation = parsed.generation;
+      } catch { }
+      if (generation > 0) {
+        const previous = generations.get(guildId) ?? 0;
+        if (generation <= previous) return;
+        generations.set(guildId, generation);
+      }
       dispatchGuildSettingsChangedLocally(guildId);
     });
     setGuildSettingsRemotePublisher(guildId => {
+      const generation = (generations.get(guildId) ?? 0) + 1;
+      generations.set(guildId, generation);
       void publish(CHANNEL, guildId).catch(err =>
         logger("WARN", "GUILD_EVENTS", `Publish invalidare guild ${guildId} a esuat (raman pe TTL)`, errorMessage(err)));
     });

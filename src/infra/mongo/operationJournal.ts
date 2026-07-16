@@ -49,6 +49,14 @@ interface OperationJournalModelLike {
 
 type OperationExecutor = (payload: unknown, operationId: string) => Promise<void>;
 
+export type OperationDefinition<Payload = unknown> = {
+  schemaVersion: number;
+  decode: (value: unknown) => Payload;
+  execute: (payload: Payload, operationId: string) => Promise<void>;
+};
+
+export type OperationMap = Record<string, OperationDefinition<unknown>>;
+
 interface JournaledOperationOptions {
   schemaVersion: number;
   resourceKey: string;
@@ -58,7 +66,8 @@ interface JournaledOperationOptions {
 interface CreateOperationJournalDeps {
   JournalModel: OperationJournalModelLike;
   logger: JournalLogger;
-  executors: Record<string, OperationExecutor>;
+  executors?: Record<string, OperationExecutor>;
+  operationMap?: OperationMap;
   schemaVersions?: Record<string, number>;
   now?: () => Date;
   ownerId?: string;
@@ -97,6 +106,7 @@ function createOperationJournal({
   JournalModel,
   logger,
   executors,
+  operationMap,
   schemaVersions = {},
   now = () => new Date(),
   ownerId = crypto.randomUUID(),
@@ -104,7 +114,9 @@ function createOperationJournal({
   maxAttempts = 5
 }: CreateOperationJournalDeps): OperationJournal {
   function executorFor(kind: string): OperationExecutor {
-    const executor = executors[kind];
+    const definition = operationMap?.[kind];
+    if (definition) return (payload, operationId) => definition.execute(definition.decode(payload), operationId);
+    const executor = executors?.[kind];
     if (!executor) {
       throw new Error(`operationJournal: nicio functie de executie inregistrata pentru operatia jurnalizata '${kind}'`);
     }
@@ -191,7 +203,7 @@ function createOperationJournal({
   }
 
   async function executeClaimed(entry: OperationJournalDoc, executor: OperationExecutor): Promise<"done" | "superseded"> {
-    const expectedSchemaVersion = schemaVersions[entry.kind] ?? 1;
+    const expectedSchemaVersion = operationMap?.[entry.kind]?.schemaVersion ?? schemaVersions[entry.kind] ?? 1;
     if (entry.schemaVersion !== expectedSchemaVersion) {
       await markTerminal(entry, "failed", `schemaVersion incompatibila: ${entry.schemaVersion}, asteptat ${expectedSchemaVersion}`);
       throw new Error(`operationJournal: schemaVersion incompatibila pentru '${entry.kind}' (${entry._id})`);
@@ -209,16 +221,28 @@ function createOperationJournal({
 
     let leaseLost = false;
     const heartbeatEveryMs = Math.max(100, Math.floor(leaseMs / 3));
-    const heartbeat = setInterval(() => {
+    let heartbeatTimer: ReturnType<typeof setTimeout> | null = null;
+    let heartbeatStopped = false;
+    const scheduleHeartbeat = (): void => {
+      if (heartbeatStopped || leaseLost) return;
+      heartbeatTimer = setTimeout(() => { void heartbeatTick(); }, heartbeatEveryMs);
+      if (heartbeatTimer && typeof heartbeatTimer.unref === "function") heartbeatTimer.unref();
+    };
+    const heartbeatTick = async (): Promise<void> => {
+      if (heartbeatStopped || leaseLost) return;
       const at = now();
-      void JournalModel.updateOne(
-        leaseGuard(entry),
-        { $set: { lockedUntil: new Date(at.getTime() + leaseMs), updatedAt: at } }
-      ).then(result => {
+      try {
+        const result = await JournalModel.updateOne(
+          leaseGuard(entry),
+          { $set: { lockedUntil: new Date(at.getTime() + leaseMs), updatedAt: at } }
+        );
         if ((result.modifiedCount ?? result.matchedCount ?? 0) === 0) leaseLost = true;
-      }).catch(() => { leaseLost = true; });
-    }, heartbeatEveryMs);
-    if (typeof heartbeat.unref === "function") heartbeat.unref();
+      } catch {
+        leaseLost = true;
+      }
+      scheduleHeartbeat();
+    };
+    scheduleHeartbeat();
     try {
       await executor(entry.payload, entry._id);
       if (leaseLost) throw new Error(`operationJournal: lease pierdut in timpul operatiei '${entry._id}'`);
@@ -228,7 +252,8 @@ function createOperationJournal({
       if (!leaseLost) await releaseAfterFailure(entry, err);
       throw err;
     } finally {
-      clearInterval(heartbeat);
+      heartbeatStopped = true;
+      if (heartbeatTimer) clearTimeout(heartbeatTimer);
     }
   }
 
@@ -288,7 +313,9 @@ function createOperationJournal({
       }
       const entry = await claim(candidate._id, at);
       if (!entry) continue;
-      const executor = executors[entry.kind];
+      const executor = operationMap?.[entry.kind]
+        ? executorFor(entry.kind)
+        : executors?.[entry.kind];
       if (!executor) {
         failed++;
         await markTerminal(entry, "failed", `Executor necunoscut pentru '${entry.kind}'`);

@@ -1,6 +1,20 @@
-import { sourceRegistry, sourceRuntimeDeps } from "../app/runtimeComposition.js";
 import { createSourceRegistry as createRegistry } from "./sourceRegistryFactory.js";
 import type { SourceRuntimeDeps } from "./runtime.js";
+import mongoContext from "../infra/mongo/mongoContext.js";
+import { createCircuitBreakerStore } from "./updates/circuitBreakerStore.js";
+
+const sourceRuntimeDeps: SourceRuntimeDeps = {
+  env: mongoContext.env,
+  logger: mongoContext.logger,
+  getAbortSignal: mongoContext.getAbortSignal,
+  getCurrencyConfig: mongoContext.getCurrencyConfig,
+  formatPrice: mongoContext.formatPrice,
+  runConcurrent: mongoContext.runConcurrent,
+  adminAlert: mongoContext.adminAlert,
+  SchemaDriftError: mongoContext.SchemaDriftError,
+  circuitBreakerStore: createCircuitBreakerStore(mongoContext.CircuitBreakerModel)
+};
+const sourceRegistry = createRegistry(sourceRuntimeDeps);
 
 export type { SourceRegistryApi } from "./sourceRegistryFactory.js";
 

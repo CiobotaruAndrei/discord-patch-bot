@@ -10,6 +10,7 @@ import type {
 import { levenshtein } from "../../native/fuzzy.js";
 import type { SteamSourceApi, ChooseBestSteamMatchOptions, SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../sourceApis.js";
 import { errorMessage } from "../../shared/errors.js";
+import { decodeSteamDetailsResponse, decodeSteamSearchResponse } from "../responseDecoders.js";
 
 type SteamCurrencyCode = CurrencyCode | string | null | undefined;
 type HttpResponse<T = unknown> = { data: T };
@@ -95,7 +96,7 @@ function createSteamSource(deps: SteamSourceDeps): SteamSourceApi {
     const searchRes = await httpReq("GET",
       `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(query)}&cc=${cc}&l=english`,
       requestOptionsFor("steam-search"));
-    const data = searchRes.data as SteamSearchResponse | undefined;
+    const data = decodeSteamSearchResponse(searchRes.data);
     return data?.items || [];
   }
 
@@ -106,7 +107,7 @@ function createSteamSource(deps: SteamSourceDeps): SteamSourceApi {
     detailsUrl.searchParams.set("cc", cc);
     detailsUrl.searchParams.set("l", "english");
     const detailsRes = await httpReq("GET", detailsUrl.toString(), requestOptionsFor("steam-appdetails"));
-    const data = (detailsRes.data || {}) as SteamDetailsResponse;
+    const data = decodeSteamDetailsResponse(detailsRes.data || {});
     return data[String(appId)]?.data || null;
   }
 

@@ -28,6 +28,8 @@ import type {
 } from "./sources/sourceTypes.js";
 import type { GuildSettings } from "./features/guild-config/guildSettingsTypes.js";
 import type { RuntimeEnv } from "./config/runtimeEnvTypes.js";
+import type { CurrencyCode, CurrencyPlacement } from "./shared/primitives.js";
+export type { CurrencyCode, MaybePromise, PriceValue, CurrencyPlacement, LogLevel, LoggerFunction } from "./shared/primitives.js";
 
 export type {
   ConfigBackupRecord,
@@ -103,15 +105,9 @@ export type {
   CronController
 } from "./app/scheduler/schedulerTypes.js";
 
-export type CurrencyCode = "USD" | "EUR" | "GBP" | "RON";
 export type BotRole = "all" | "web" | "worker";
 export type DiscordReplyPayload = string | Record<string, unknown>;
 export type AbortPredicate = (() => boolean) | null;
-export type MaybePromise<T> = T | Promise<T>;
-export type PriceValue = string | number;
-export type CurrencyPlacement = "prefix" | "suffix";
-export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
-export type LoggerFunction = (level: LogLevel | string, context: string, message: string, meta?: unknown) => void;
 export type ParseEnvNumber = (name: string, defaultValue: number, limits?: ParseEnvNumberLimits) => number;
 export type LockToken = string;
 export type ActiveLocks = Map<string, LockToken>;

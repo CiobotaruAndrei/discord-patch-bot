@@ -5,12 +5,18 @@ export interface ConfigBackupSchemasDeps {
 }
 
 export function buildConfigBackupSchemas({ mongoose }: ConfigBackupSchemasDeps) {
+  const persistedEnvelopeSchema = new mongoose.Schema({
+    kind: { type: String, required: true },
+    schemaVersion: { type: Number, required: true },
+    payload: { type: mongoose.Schema.Types.Mixed, required: true }
+  }, { _id: false, minimize: false });
   const guildConfigBackupSchema = new mongoose.Schema({
     guildId: { type: String, required: true },
     name: { type: String, required: true },
     createdBy: { type: String, default: "" },
     createdAt: { type: Date, default: Date.now },
-    snapshot: { type: mongoose.Schema.Types.Mixed, required: true }
+    snapshot: { type: mongoose.Schema.Types.Mixed, required: true },
+    snapshotEnvelope: { type: persistedEnvelopeSchema, default: null }
   }, { minimize: false });
   guildConfigBackupSchema.index({ guildId: 1, name: 1 }, { unique: true, background: true });
   guildConfigBackupSchema.index({ guildId: 1, createdAt: -1 }, { background: true });

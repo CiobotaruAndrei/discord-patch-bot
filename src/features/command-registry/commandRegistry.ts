@@ -68,7 +68,6 @@ import attachCommandPresentation from "../command-presentation/commandPresentati
 import attachNotifications from "../notifications/index.js";
 import attachPlayerCountSnapshots from "../player-count/playerCountSnapshotService.js";
 import attachCachedSteamPlayerCount from "../player-count/cachedSteamPlayerCount.js";
-import playerCountCache from "../../infra/redis/redisCacheContext.js";
 import attachFeedbackRepository from "../feedback/feedbackRepository.js";
 import { createReportRepository } from "../feedback/reportRepository.js";
 import { mergeGuildGameAliases } from "../guild-config/gameAliasService.js";
@@ -82,20 +81,31 @@ import { createCommandRuntimeDependencies } from "../command-runtime/commandRunt
 import type { CommandRuntimeDependencies } from "../command-runtime/commandRuntimeDependencies.js";
 type CommandRuntimeBootContext = CommandRuntimeDependencies["discord"] & CommandRuntimeDependencies["mongo"] & CommandRuntimeDependencies["sources"] & CommandRuntimeDependencies["platform"];
 
+export interface GameInfoCommandDeps extends CommandRuntimeBootContext {}
+export interface AdminCommandDeps extends CommandRuntimeBootContext {}
+export interface NotificationCommandDeps extends CommandRuntimeBootContext {}
+
 const PLAYER_COUNT_CACHE_TTL_SECONDS = 60;
 
-function createAppServices(
-  overrides: Partial<CommandRuntimeBootContext> = {}
-) {
-  const dependencies = createCommandRuntimeDependencies();
+type CommandRegistryOverrides = Partial<CommandRuntimeBootContext> & { runtimeDependencies?: CommandRuntimeDependencies };
+type CommandRuntimeBootContextWithDependencies = CommandRuntimeBootContext & { runtimeDependencies?: CommandRuntimeDependencies };
+
+function createAppServices(overrides: CommandRegistryOverrides = {}) {
+  const dependencies = overrides.runtimeDependencies ?? createCommandRuntimeDependencies();
   const runtime = {
     ...dependencies.discord,
     ...dependencies.mongo,
     ...dependencies.sources,
     ...dependencies.platform,
-    ...overrides
+    ...overrides,
+    runtimeDependencies: undefined
   };
-  const cache = { ...runtime, ...attachCommandCache.createCommandCache(runtime) };
+  const featureDeps = {
+    gameInfo: runtime as GameInfoCommandDeps,
+    admin: runtime as AdminCommandDeps,
+    notifications: runtime as NotificationCommandDeps
+  };
+  const cache = { ...runtime, featureDeps, ...attachCommandCache.createCommandCache(runtime) };
   const filters = {
     ...cache,
     dealPassesFilters, normalizePendingUpdateArray, normalizePendingDiscountArray, toEntries, mapToObject, rotateAfter
@@ -104,7 +114,7 @@ function createAppServices(
   const notifications = { ...presentation, ...attachNotifications.createNotificationRuntime(presentation) };
   const cachedFetchSteamCurrentPlayers = attachCachedSteamPlayerCount.createCachedSteamPlayerCount({
     fetchSteamCurrentPlayers: notifications.fetchSteamCurrentPlayers,
-    cache: playerCountCache,
+    cache: runtime.redis,
     ttlSeconds: PLAYER_COUNT_CACHE_TTL_SECONDS
   });
   const playerCounts = {
@@ -125,18 +135,27 @@ function createAppServices(
 
 export type CommandAppServices = ReturnType<typeof createAppServices>;
 
-function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): { commandHandlers: CommandHandler[]; helpCommand: ReturnType<typeof attachHelpInteractionHandler.buildCommandHandler> } {
+function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): { commandHandlers: CommandHandler[]; commandHandlerMap: Map<string, CommandHandler[]>; helpCommand: ReturnType<typeof attachHelpInteractionHandler.buildCommandHandler> } {
   const helpCommand = buildNarrowCommandHandler(attachHelpInteractionHandler.buildCommandHandler, ctx);
   const descriptors = [...createCommandHandlerDescriptors()].sort((left, right) => left.priority - right.priority);
   const commandHandlers: CommandHandler[] = descriptors.map(descriptor => descriptor.id === "help" ? helpCommand : buildNarrowCommandHandler(descriptor.build, ctx));
-  return { commandHandlers, helpCommand };
+  const commandHandlerMap = new Map<string, CommandHandler[]>();
+  descriptors.forEach((descriptor, index) => {
+    for (const route of descriptor.help) {
+      const command = route.split(" ", 1)[0];
+      const candidates = commandHandlerMap.get(command) ?? [];
+      candidates.push(commandHandlers[index]);
+      commandHandlerMap.set(command, candidates);
+    }
+  });
+  return { commandHandlers, commandHandlerMap, helpCommand };
 }
 
 function createCommandRegistry(
-  overrides: Partial<CommandRuntimeBootContext> = {}
+  overrides: Partial<CommandRuntimeBootContextWithDependencies> = {}
 ): RequiredCommandRegistry {
   const ctx = createAppServices(overrides);
-  const { commandHandlers, helpCommand } = buildCommandHandlerList(ctx);
+  const { commandHandlers, commandHandlerMap, helpCommand } = buildCommandHandlerList(ctx);
 
   async function dispatchCommand(interaction: RoutedDiscordInteraction, games: CommandGame[]): Promise<unknown> {
     let resolvedGames = games;
@@ -145,7 +164,10 @@ function createCommandRegistry(
       const settings = await ctx.getGuildSettings(guildId).catch(() => null);
       resolvedGames = mergeGuildGameAliases(games as GameConfig[], settings);
     }
-    for (const handler of commandHandlers) {
+    const routedHandlers = typeof interaction.commandName === "string"
+      ? [...(commandHandlerMap.get(interaction.commandName) ?? []), ...commandHandlers.filter(handler => ![...commandHandlerMap.values()].some(candidates => candidates.includes(handler)))]
+      : commandHandlers;
+    for (const handler of routedHandlers) {
       if (handler.canHandle(interaction)) return handler.handle(interaction, resolvedGames);
     }
     return undefined;

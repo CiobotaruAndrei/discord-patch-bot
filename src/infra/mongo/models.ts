@@ -15,6 +15,7 @@ import { buildSuggestedCommandSchemas } from "./suggestedCommandSchemas.js";
 import { buildYoutubeErrorLogSchemas } from "./youtubeErrorLogSchemas.js";
 import { buildDeadLetterLogSchemas } from "./deadLetterLogSchemas.js";
 import { publishGuildSettingsChanged } from "./guildSettingsEvents.js";
+import { buildGuildOperationalFields, buildGuildSecurityFields } from "./guildSchemaSections.js";
 
 export interface MongoModelsContext {
   mongoose: typeof Mongoose;

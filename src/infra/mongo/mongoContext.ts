@@ -93,6 +93,7 @@ import attachAdminAlertsModule from "./adminAlerts.js";
 import attachFetchSnapshotsModule from "./fetchSnapshots.js";
 import attachSourceHealthModule from "./sourceHealth.js";
 import { setGuildSettingsEventErrorReporter } from "./guildSettingsEvents.js";
+import { createMongoBundles } from "./mongoBundles.js";
 
 function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeContext {
   return {

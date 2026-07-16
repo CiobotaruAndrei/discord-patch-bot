@@ -8,6 +8,11 @@ export interface OutboxSchemasDeps {
 }
 
 export function buildOutboxSchemas({ mongoose, ONE_DAY_MS, env }: OutboxSchemasDeps) {
+  const persistedEnvelopeSchema = new mongoose.Schema({
+    kind: { type: String, required: true },
+    schemaVersion: { type: Number, required: true },
+    payload: { type: mongoose.Schema.Types.Mixed, required: true }
+  }, { _id: false, minimize: false });
   const outboxHistoryEntrySchema = new mongoose.Schema({
     kind: { type: String, enum: ["update", "discount", "youtube"], required: true },
     gameKey: { type: String, default: "" },
@@ -21,6 +26,7 @@ export function buildOutboxSchemas({ mongoose, ONE_DAY_MS, env }: OutboxSchemasD
     channelId: { type: String, required: true },
     kind: { type: String, enum: ["update", "discount", "youtube"], required: true },
     payload: { type: mongoose.Schema.Types.Mixed, required: true },
+    payloadEnvelope: { type: persistedEnvelopeSchema, default: null },
     attempts: { type: Number, default: 0 },
     deliveries: { type: Number, default: 0 },
     availableAt: { type: Date, default: Date.now },
@@ -80,6 +86,7 @@ export function buildOutboxSchemas({ mongoose, ONE_DAY_MS, env }: OutboxSchemasD
     kind: { type: String, enum: ["update", "discount", "youtube"], required: true },
     channelId: { type: String, required: true },
     payload: { type: mongoose.Schema.Types.Mixed, required: true },
+    payloadEnvelope: { type: persistedEnvelopeSchema, default: null },
     dedupeKey: { type: String, default: "" },
     recoveryVerify: { type: Boolean, default: false },
     reason: { type: String, default: "" },

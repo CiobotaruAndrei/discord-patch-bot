@@ -12,12 +12,18 @@ interface RedisCacheClient {
 interface RedisCacheRuntime {
   readonly enabled: boolean;
   getClient(): RedisCacheClient | null;
+  status?(): "disabled" | "connected" | "disconnected";
 }
 
 interface RedisCache {
   getJson<T>(key: string): Promise<T | null>;
   setJson(key: string, value: unknown, ttlSeconds: number): Promise<void>;
   deleteKey(key: string): Promise<void>;
+  status(): "disabled" | "connected" | "disconnected";
+  getGeneration(key: string): Promise<number>;
+  bumpGeneration(key: string): Promise<number>;
+  setVersionedJson(key: string, value: unknown, ttlSeconds: number): Promise<number>;
+  getVersionedJson<T>(key: string, generationKey: string, ttlSeconds?: number): Promise<T | null>;
 }
 
 interface RedisCacheDeps {
@@ -71,7 +77,35 @@ function createRedisCache({ runtime, logger }: RedisCacheDeps): RedisCache {
     }
   }
 
-  return { getJson, setJson, deleteKey };
+  async function getGeneration(key: string): Promise<number> {
+    const value = await getJson<number>(key);
+    return typeof value === "number" && Number.isFinite(value) ? value : 0;
+  }
+
+  async function bumpGeneration(key: string): Promise<number> {
+    const next = (await getGeneration(key)) + 1;
+    await setJson(key, next, 24 * 60 * 60);
+    return next;
+  }
+
+  async function setVersionedJson(key: string, value: unknown, ttlSeconds: number): Promise<number> {
+    const generation = await bumpGeneration(`${key}:generation`);
+    await setJson(key, { generation, payload: value }, ttlSeconds);
+    return generation;
+  }
+
+  async function getVersionedJson<T>(key: string, generationKey: string, ttlSeconds?: number): Promise<T | null> {
+    const envelope = await getJson<{ generation?: number; payload?: T }>(key);
+    if (!envelope || typeof envelope.generation !== "number") return null;
+    const current = await getGeneration(generationKey);
+    if (envelope.generation !== current) {
+      await deleteKey(key);
+      return null;
+    }
+    return envelope.payload ?? null;
+  }
+
+  return { getJson, setJson, deleteKey, status: () => runtime.status?.() ?? (runtime.enabled ? "disconnected" : "disabled"), getGeneration, bumpGeneration, setVersionedJson, getVersionedJson };
 }
 
 export { createRedisCache };

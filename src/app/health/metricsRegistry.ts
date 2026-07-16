@@ -94,6 +94,15 @@ function renderPrometheusMetrics(input: MetricsSnapshotInput): string {
   pushMetric(lines, seenMetricNames, "bot_redis_cache_hit", "counter", "Redis cache reads that returned a value (JSON cache)", metrics.redisCacheHit);
   pushMetric(lines, seenMetricNames, "bot_redis_cache_miss", "counter", "Redis cache reads that missed (key absent)", metrics.redisCacheMiss);
   pushMetric(lines, seenMetricNames, "bot_redis_errors", "counter", "Redis client/cache errors (client error events + cache operation failures)", metrics.redisErrors);
+  pushMetric(lines, seenMetricNames, "bot_cache_invalidations_total", "counter", "Cache invalidation events", metrics.cacheInvalidations ?? 0);
+  pushMetric(lines, seenMetricNames, "bot_cache_invalidation_stale_total", "counter", "Stale cache invalidation events ignored", metrics.cacheInvalidationStale ?? 0);
+  pushMetric(lines, seenMetricNames, "bot_discord_rest_requests_total", "counter", "Discord REST requests", metrics.discordRestRequests ?? 0);
+  pushMetric(lines, seenMetricNames, "bot_discord_rest_rate_limits_total", "counter", "Discord REST rate limits", metrics.discordRestRateLimits ?? 0);
+  pushMetric(lines, seenMetricNames, "bot_discord_rest_errors_total", "counter", "Discord REST errors", metrics.discordRestErrors ?? 0);
+  for (const source of Object.keys(metrics.sourceRequestDurationMsTotal ?? {}).sort()) {
+    pushMetric(lines, seenMetricNames, "bot_source_request_duration_ms_total", "counter", "Source request duration in milliseconds", metrics.sourceRequestDurationMsTotal?.[source] || 0, { source });
+    pushMetric(lines, seenMetricNames, "bot_source_request_errors_total", "counter", "Source request errors", metrics.sourceRequestErrors?.[source] || 0, { source });
+  }
   const commandNames = Array.from(new Set([...Object.keys(metrics.commandRuns), ...Object.keys(metrics.commandErrors)])).sort();
   for (const commandName of commandNames) {
     pushMetric(lines, seenMetricNames, "bot_commands_total", "counter", "Slash command interactions handled, per top-level command", metrics.commandRuns[commandName] || 0, { command: commandName });

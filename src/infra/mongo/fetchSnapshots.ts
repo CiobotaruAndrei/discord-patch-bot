@@ -1,5 +1,7 @@
 "use strict";
 
+import { decodePersistedEnvelope, encodePersistedEnvelope } from "../persistence/persistedEnvelope.js";
+
 interface FetchSnapshotDoc {
   _id: string;
   payload?: unknown;
@@ -68,7 +70,7 @@ function buildFetchSnapshotsFrom(context: FetchSnapshotsContext) {
       await withMongoRetry(
         () => FetchSnapshotModel.updateOne(
           { _id: id },
-          { $set: { payload, fetchedAt: new Date() } },
+          { $set: { payload: encodePersistedEnvelope("fetch-snapshot", payload), fetchedAt: new Date() } },
           { upsert: true }
         ),
         { label: `saveFetchSnapshot:${id}` }
@@ -83,7 +85,8 @@ function buildFetchSnapshotsFrom(context: FetchSnapshotsContext) {
       const doc = asFetchSnapshotDoc(await FetchSnapshotModel.findById(id).lean());
       const fetchedAt = toValidDate(doc?.fetchedAt);
       if (!doc || doc.payload == null || !fetchedAt) return null;
-      return { payload: doc.payload, fetchedAt };
+      const envelope = decodePersistedEnvelope(doc.payload, "fetch-snapshot", value => value);
+      return { payload: envelope?.payload ?? doc.payload, fetchedAt };
     } catch (err) {
       logger("WARN", "FETCH_SNAPSHOT", `Nu am putut citi snapshot-ul ${id}`, errorText(err));
       return null;
@@ -102,7 +105,7 @@ function buildFetchSnapshotsFrom(context: FetchSnapshotsContext) {
         if (!doc || doc.payload == null || !fetchedAt) continue;
         out.push({
           currency: doc._id.slice(DEALS_SNAPSHOT_PREFIX.length),
-          payload: doc.payload,
+          payload: decodePersistedEnvelope(doc.payload, "fetch-snapshot", value => value)?.payload ?? doc.payload,
           fetchedAt
         });
       }

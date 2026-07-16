@@ -2,6 +2,7 @@
 
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { errorDetail } from "../../shared/errors.js";
+import { createGuildSettingsRepository, type GuildSettingsRepository } from "../guild-config/guildSettingsRepository.js";
 
 type SecurityOptions = {
   getSubcommand(): string;
@@ -45,6 +46,7 @@ type GuildSettingsLike = {
 
 type SecurityDeps = {
   GuildModel: GuildModelLike;
+  guildSettingsRepository?: GuildSettingsRepository;
   getGuildSettings: (guildId: string) => Promise<GuildSettingsLike>;
   invalidateGuildCache?: (guildId: string) => void;
   safeDefer: (interaction: SecurityInteraction, ephemeral?: boolean) => Promise<void>;
@@ -77,6 +79,7 @@ function resultSize(result: unknown): number {
 }
 
 function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<SecurityInteraction> {
+  const settingsRepository = target.guildSettingsRepository ?? createGuildSettingsRepository(target.GuildModel, target.invalidateGuildCache);
   async function respond(interaction: SecurityInteraction, content: string): Promise<unknown> {
     return target.safeEdit(interaction, { content });
   }
@@ -86,8 +89,7 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
     if (!guildId) return undefined;
     const guild = interaction.guild;
     try {
-      await target.GuildModel.updateOne({ _id: guildId }, { $set: { [field]: value } }, { upsert: true });
-      target.invalidateGuildCache?.(guildId);
+      await settingsRepository.setField(guildId, field, value);
       return respond(interaction, `OK: setarea **${field}** a fost actualizata.`);
     } catch (err: unknown) {
       target.logger?.("WARN", "SECURITY_COMMAND", "Salvarea setarii de securitate a esuat", errorDetail(err));
@@ -127,12 +129,7 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
       if (reason && /(?:https?:\/\/|www\.)/i.test(reason)) return respond(interaction, "Eroare: motivul nu poate contine linkuri.");
       try {
         await channel.permissionOverwrites.edit(everyone, { SendMessages: command === "unlock-channel" });
-        await target.GuildModel.updateOne(
-          { _id: guildId },
-          command === "lock-channel" ? { $addToSet: { lockedChannelIds: channel.id } } : { $pull: { lockedChannelIds: channel.id } },
-          { upsert: true }
-        );
-        target.invalidateGuildCache?.(guildId);
+        await settingsRepository.updateChannelLock(guildId, channel.id, command === "lock-channel");
         const result = command === "lock-channel" ? `OK: canalul a fost blocat${reason ? ` (motiv: ${reason})` : ""}.` : "OK: canalul a fost deblocat.";
         if (command === "lock-channel") await channel.send?.({ content: `:lock: Canal blocat de <@${interaction.user?.id ?? "administrator"}>. Motiv: ${reason ?? "nespecificat"}.`, allowedMentions: { parse: [] } }).catch(() => null);
         return respond(interaction, result);
