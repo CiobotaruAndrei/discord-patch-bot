@@ -46,7 +46,6 @@ export interface CommandHandlerDescriptor {
   access: "public" | "admin" | "owner" | "mixed";
   help: readonly string[];
   autocomplete: readonly string[];
-  priority: number;
   build(context: CommandAppServices): CommandHandler;
 }
 
@@ -58,15 +57,13 @@ export function buildNarrowCommandHandler<Dependencies extends object, Result ex
 }
 
 export function createCommandHandlerDescriptors(): readonly CommandHandlerDescriptor[] {
-  let priority = 0;
   function define(input: Pick<CommandHandlerDescriptor, "id" | "domain" | "build"> & Partial<Pick<CommandHandlerDescriptor, "scope" | "access" | "help" | "autocomplete">>): CommandHandlerDescriptor {
     return {
       scope: "guild-only",
       access: input.domain === "admin" ? "admin" : "public",
       help: [input.id],
       autocomplete: [],
-      ...input,
-      priority: priority++
+      ...input
     };
   }
   const descriptors: readonly CommandHandlerDescriptor[] = [

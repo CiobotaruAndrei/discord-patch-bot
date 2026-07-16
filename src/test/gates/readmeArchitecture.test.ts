@@ -34,7 +34,8 @@ test("README documenteaza politica de imagini Docker si de rebuild (tag-uri muta
 test("README descrie contractele grupate si registrul declarativ complet", () => {
   const text = read();
   assert.match(text, /CommandRuntimeDependencies/, "mentioneaza contractul grupat al comenzilor");
-  assert.match(text, /scope.*access.*help.*autocomplete.*priority/, "enumera metadatele descriptorului declarativ");
+  assert.match(text, /scope.*access.*help.*autocomplete/, "enumera metadatele descriptorului declarativ");
+  assert.match(text, /ordinea DECLARARII/, "documenteaza ca dispatch-ul urmeaza ordinea declararii, fara camp priority");
   assert.match(text, /sourceRegistryFactory/, "documenteaza factory-ul pur al surselor");
 });
 

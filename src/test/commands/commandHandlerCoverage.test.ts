@@ -85,7 +85,7 @@ test("fiecare comanda slash e revendicata de un handler dedicat, nu de fallback 
 test("descriptorii sunt sursa declarativa completa pentru routing si prezentare", () => {
   const descriptors = createCommandHandlerDescriptors();
   assert.ok(descriptors.length > 30);
-  assert.deepEqual(descriptors.map(descriptor => descriptor.priority), descriptors.map((_, index) => index));
+  assert.equal(descriptors[0]?.id, "autocomplete", "routing-ul de autocomplete e declarat primul, deci ruleaza inaintea comenzilor chat-input");
   for (const descriptor of descriptors) {
     assert.ok(descriptor.scope === "global" || descriptor.scope === "guild-only", `${descriptor.id}: scope`);
     assert.ok(["public", "admin", "owner", "mixed"].includes(descriptor.access), `${descriptor.id}: access`);

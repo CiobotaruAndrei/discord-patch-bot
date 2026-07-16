@@ -133,7 +133,7 @@ export type CommandAppServices = ReturnType<typeof createAppServices>;
 
 function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): { commandHandlers: CommandHandler[]; helpCommand: ReturnType<typeof attachHelpInteractionHandler.buildCommandHandler>; commandOwners: CommandOwnerCandidate[] } {
   const helpCommand = buildNarrowCommandHandler(attachHelpInteractionHandler.buildCommandHandler, ctx);
-  const descriptors = [...createCommandHandlerDescriptors()].sort((left, right) => left.priority - right.priority);
+  const descriptors = createCommandHandlerDescriptors();
   const built = descriptors.map(descriptor => ({
     descriptor,
     handler: descriptor.id === "help" ? helpCommand : buildNarrowCommandHandler(descriptor.build, ctx)
