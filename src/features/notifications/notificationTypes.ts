@@ -3,6 +3,8 @@ import type { DealInfo, PatchUpdate } from "../../sources/sourceTypes.js";
 
 export type NotificationMode = "compact" | "detailed";
 
+export type NotificationEmbed = object;
+
 export interface PendingUpdate extends PatchUpdate {
   id: string;
   attempts?: number;
