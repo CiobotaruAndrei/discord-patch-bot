@@ -19,6 +19,15 @@ export const ADMIN_ACCESS_SAVE_KIND = "admin-access-save";
 export const ADMIN_ACCESS_DELETE_KIND = "admin-access-delete";
 export const OPERATION_PAYLOAD_SCHEMA_VERSION = 1;
 
+export type OperationKindMap = {
+  [RESET_CONFIG_KIND]: ResetConfigPayload;
+  [BACKUP_LOAD_KIND]: BackupLoadPayload;
+  [BACKUP_SAVE_KIND]: BackupSavePayload;
+  [BACKUP_DELETE_KIND]: BackupDeletePayload;
+  [ADMIN_ACCESS_SAVE_KIND]: AdminAccessSavePayload;
+  [ADMIN_ACCESS_DELETE_KIND]: AdminAccessDeletePayload;
+};
+
 const DISCORD_EPOCH_MS = 1420070400000;
 
 export function journalResourceVersion(interactionId?: string): string {
@@ -174,7 +183,7 @@ function requiredDeadLetterModel(model: Pick<DeadLetterModelLike, "deleteMany"> 
   return model;
 }
 
-export function createOperationJournalRuntime(deps: OperationJournalRuntimeDeps): OperationJournal {
+export function createOperationJournalRuntime(deps: OperationJournalRuntimeDeps): OperationJournal<OperationKindMap> {
   const executors = {
     [RESET_CONFIG_KIND]: async (value: unknown, operationId: string): Promise<void> => {
       const payload = resetPayload(value);
@@ -214,10 +223,17 @@ export function createOperationJournalRuntime(deps: OperationJournalRuntimeDeps)
       await deleteAdminAccessRule(deps.GuildModel, deps.GuildAuditLogModel, payload.guildId, { ...payload, operationId });
     }
   };
-  return createOperationJournal({
+  return createOperationJournal<OperationKindMap>({
     JournalModel: deps.OperationJournalModel,
     logger: deps.logger,
     executors,
-    schemaVersions: Object.fromEntries(Object.keys(executors).map(kind => [kind, OPERATION_PAYLOAD_SCHEMA_VERSION]))
+    schemaVersions: {
+      [RESET_CONFIG_KIND]: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      [BACKUP_LOAD_KIND]: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      [BACKUP_SAVE_KIND]: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      [BACKUP_DELETE_KIND]: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      [ADMIN_ACCESS_SAVE_KIND]: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      [ADMIN_ACCESS_DELETE_KIND]: OPERATION_PAYLOAD_SCHEMA_VERSION
+    }
   });
 }

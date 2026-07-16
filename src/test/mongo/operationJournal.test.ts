@@ -5,6 +5,22 @@ import {
   OperationAlreadyRunningError,
   type OperationJournalDoc
 } from "../../infra/mongo/operationJournal.js";
+import type { OperationKindMap, ResetConfigPayload, BackupDeletePayload } from "../../features/admin-records/operationJournalRuntime.js";
+
+const resetKindIsTyped: [OperationKindMap["reset-config"]] extends [ResetConfigPayload]
+  ? ([ResetConfigPayload] extends [OperationKindMap["reset-config"]] ? true : never)
+  : never = true;
+const backupDeleteKindIsTyped: [OperationKindMap["backup-delete"]] extends [BackupDeletePayload] ? true : never = true;
+type RegisteredKinds = keyof OperationKindMap;
+const kindsAreClosed: [RegisteredKinds] extends ["reset-config" | "backup-load" | "backup-save" | "backup-delete" | "admin-access-save" | "admin-access-delete"]
+  ? (["reset-config" | "backup-load" | "backup-save" | "backup-delete" | "admin-access-save" | "admin-access-delete"] extends [RegisteredKinds] ? true : never)
+  : never = true;
+
+test("contract compile-time: registrul de operatii e tipat pe kind - fiecare kind isi cunoaste payload-ul la compilare (review nou, Major #6)", () => {
+  assert.equal(resetKindIsTyped, true, "runJournaled(_, \"reset-config\", payload) accepta DOAR ResetConfigPayload");
+  assert.equal(backupDeleteKindIsTyped, true, "kind-ul backup-delete e legat de BackupDeletePayload");
+  assert.equal(kindsAreClosed, true, "multimea kind-urilor e inchisa: un kind nou fara payload declarat nu compileaza");
+});
 
 type Filter = Record<string, unknown>;
 type Update = Record<string, unknown>;
@@ -176,6 +192,35 @@ test("esecul executorului elibereaza lease-ul pentru retry", async () => {
   await assert.rejects(() => journal.runJournaled("k1", "test-op", {}), /boom/);
   assert.equal(model.docs.get("k1")?.status, "pending");
   assert.equal(model.docs.get("k1")?.lockedBy, null);
+});
+
+test("heartbeat-ul de lease e serializat: nu porneste o reinnoire noua cat timp precedenta e in zbor (review nou, Major #6)", async () => {
+  const model = fakeJournalModel();
+  let renewalsInFlight = 0;
+  let maxRenewalsInFlight = 0;
+  let renewals = 0;
+  const baseUpdateOne = model.updateOne;
+  model.updateOne = async (filter: Filter, update: Update, options?: Filter) => {
+    const set = (update.$set ?? {}) as Record<string, unknown>;
+    const isRenewal = "lockedUntil" in set && !("status" in set);
+    if (!isRenewal) return baseUpdateOne(filter, update, options);
+    renewals++;
+    renewalsInFlight++;
+    maxRenewalsInFlight = Math.max(maxRenewalsInFlight, renewalsInFlight);
+    await new Promise(resolve => setTimeout(resolve, 250));
+    renewalsInFlight--;
+    return baseUpdateOne(filter, update, options);
+  };
+  const journal = createOperationJournal({
+    JournalModel: model,
+    logger: () => undefined,
+    ownerId: "worker-1",
+    leaseMs: 300,
+    executors: { "test-op": async () => { await new Promise(resolve => setTimeout(resolve, 550)); } }
+  });
+  await journal.runJournaled("k1", "test-op", {});
+  assert.ok(renewals >= 2, `heartbeat-ul a rulat de mai multe ori in timpul executiei (${renewals})`);
+  assert.equal(maxRenewalsInFlight, 1, "reinnoirile de lease nu se suprapun: cel mult una in zbor la orice moment");
 });
 
 test("releaseAfterFailure respecta lease guard-ul: esecul unei instante care a pierdut lease-ul nu atinge lease-ul noului proprietar (review nou #6)", async () => {
