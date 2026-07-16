@@ -5,6 +5,7 @@ import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 import { aliasOwner, gameAliasRecord, normalizeGameAlias } from "../guild-config/gameAliasService.js";
 import { errorDetail } from "../../shared/errors.js";
+import { applyGuildConfigUpdate, type GuildConfigWriteModelLike } from "../guild-config/guildConfigRepository.js";
 
 interface DiscordInteraction {
   commandName?: string;
@@ -27,9 +28,7 @@ interface CoverageAliasDeps {
   safeEdit(interaction: DiscordInteraction, payload: unknown): Promise<InteractionMessage | null>;
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
   findGameAndSuggestion(query: string, games: GameConfig[]): { game: GameConfig | null; suggestion: GameConfig | null };
-  GuildModel: {
-    updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown>;
-  };
+  GuildModel: GuildConfigWriteModelLike;
   handlePagination<TItem, TEmbed>(message: InteractionMessage, userId: string, prefix: string, items: TItem[], pageSize: number, render: (page: number, totalPages: number) => TEmbed[]): Promise<void>;
   MessageFlags: { Ephemeral: number };
 }
@@ -83,7 +82,7 @@ function createCoverageAliasHandler(deps: CoverageAliasDeps) {
       if (owner && owner !== game.key) return deps.safeEdit(interaction, `Eroare: aliasul este deja folosit de jocul \`${owner}\`.`);
       if (owner === game.key) return deps.safeEdit(interaction, `Aliasul \`${alias}\` exista deja pentru **${game.name}**.`);
       dynamic[game.key] = [...(dynamic[game.key] || []), alias];
-      await deps.GuildModel.updateOne({ _id: interaction.guild?.id }, { $set: { gameAliases: dynamic } }, { upsert: true });
+      await applyGuildConfigUpdate(deps.GuildModel, String(interaction.guild?.id), { gameAliases: dynamic });
       return deps.safeEdit(interaction, `OK: aliasul \`${alias}\` a fost adaugat pentru **${game.name}**.`);
     }
     const current = dynamic[game.key] || [];
@@ -91,7 +90,7 @@ function createCoverageAliasHandler(deps: CoverageAliasDeps) {
     if (next.length === current.length) return deps.safeEdit(interaction, `Aliasul \`${alias}\` nu exista pentru **${game.name}**.`);
     if (next.length) dynamic[game.key] = next;
     else delete dynamic[game.key];
-    await deps.GuildModel.updateOne({ _id: interaction.guild?.id }, { $set: { gameAliases: dynamic } }, { upsert: true });
+    await applyGuildConfigUpdate(deps.GuildModel, String(interaction.guild?.id), { gameAliases: dynamic });
     return deps.safeEdit(interaction, `OK: aliasul \`${alias}\` a fost sters pentru **${game.name}**.`);
   }
 

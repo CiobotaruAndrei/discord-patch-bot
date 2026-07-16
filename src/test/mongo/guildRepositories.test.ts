@@ -11,6 +11,7 @@ import {
   addWatchlistGame,
   removeWatchlistGame,
   setCommandSnooze,
+  setLockedChannel,
   clearCommandSnooze
 } from "../../features/guild-config/guildConfigRepository.js";
 import { buildResetConfiguration } from "../../features/guild-config/guildConfigDefaults.js";
@@ -49,6 +50,14 @@ test("guildConfigRepository: scrierile /set (config/watchlist/snooze) pastreaza 
   await clearCommandSnooze(model, "g1", "start:updates");
   assert.deepEqual(calls[5].update.$unset, { "commandSnoozes.start:updates": "" });
   assert.equal(calls[5].options, undefined, "unsnooze nu face upsert");
+
+  await setLockedChannel(model, "g1", "chan-1", true);
+  assert.deepEqual(calls[6].update.$addToSet, { lockedChannelIds: "chan-1" }, "lock-channel adauga in set prin repository, nu prin updateOne brut din handler (review nou, Mare #5)");
+  assert.equal(calls[6].options?.upsert, true);
+
+  await setLockedChannel(model, "g1", "chan-1", false);
+  assert.deepEqual(calls[7].update.$pull, { lockedChannelIds: "chan-1" }, "unlock-channel scoate din set prin repository");
+  assert.equal(calls[7].options?.upsert, true);
 });
 
 test("guildConfigRepository: reset-ul scrie valorile implicite cu upsert si auditul in colectia guildAuditLogs (R7 #3 + #6 audit split)", async () => {
