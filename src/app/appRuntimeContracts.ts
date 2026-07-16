@@ -33,8 +33,8 @@ export interface CommandRuntime {
   cleanCache(): void;
   drainOutbox(client: OutboxDiscordClient, shouldAbort?: () => boolean): Promise<OutboxDrainResult> | OutboxDrainResult;
   getCacheSizes(): CommandCacheSizes;
-  handleInteraction(interaction: LifecycleDiscordInteraction, games: GameConfig[]): Promise<unknown> | unknown;
-  registerSlashCommands(token: string, clientId: string): Promise<unknown>;
+  handleInteraction(interaction: LifecycleDiscordInteraction, games: GameConfig[]): Promise<unknown>;
+  registerSlashCommands(token: string, clientId: string): Promise<void>;
   canSendEmbeds(channel: LifecycleDiscordChannel, botId: string): boolean;
   setDealsCache(currency: string, data: DealInfo[]): void;
   setGlobalCacheTtl(ms: number): void;
@@ -43,7 +43,7 @@ export interface CommandRuntime {
 
 export interface ScraperRuntime {
   attachMetrics(metrics: BotMetrics): void;
-  cleanEnrichedCache(): unknown;
+  cleanEnrichedCache(): void;
   getEnrichedCacheSize(): number;
 }
 
@@ -65,12 +65,12 @@ export interface MongoContextLike {
   parseEnvNumber: (name: string, def: number, limits: { min?: number; max?: number }) => number;
   acquireDbLock: (jobName: string, ttlMs: number) => Promise<string | null>;
   renewDbLock: (jobName: string, token: string, ttlMs: number) => Promise<boolean>;
-  releaseDbLock: (jobName: string, token: string) => Promise<unknown>;
+  releaseDbLock: (jobName: string, token: string) => Promise<void>;
   activeLocks: ActiveLocks;
   waitForMongoReady: (timeoutMs: number) => Promise<boolean>;
-  cleanGuildCache: () => unknown;
+  cleanGuildCache: () => void;
   getGuildCacheSize: () => number;
-  adminAlert: (kind: string, title: string, body: string, guildId?: string) => Promise<unknown>;
+  adminAlert: (kind: string, title: string, body: string, guildId?: string) => Promise<void>;
   getGuildSettings?: (guildId: string) => Promise<GuildSettings | null>;
   setAdminAlertDiscordClient(client: DiscordClientLike | null): void;
   getOutboxPaused: () => Promise<boolean>;

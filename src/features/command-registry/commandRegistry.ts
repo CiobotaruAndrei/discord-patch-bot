@@ -1,6 +1,9 @@
 import type { CommandCacheSizes, GameConfig, FetchResult, DealInfo, GuildSettings } from "../../types.js";
 import type { NotificationDiscordClient, OutboxDiscordClient } from "../notifications/outboundChannel.js";
 import type { DrainOutboxWorkerResult } from "../notifications/outboxTypes.js";
+import type { SlashCommandJson } from "../command-definitions/slashDefinitionTools.js";
+import type { FindGameResult } from "../command-presentation/gameLookupCache.js";
+import type { HelpEmbed } from "../command-handlers/helpInteractionHandler.js";
 import type { CommandHandler, CommandGame, RoutedDiscordInteraction } from "./commandHandler.js";
 import {
   dealPassesFilters,
@@ -26,11 +29,11 @@ interface CommandRegistryContext {
   refreshPlayerCountSnapshots?: (games: GameConfig[], shouldAbort?: (() => boolean) | null, client?: NotificationDiscordClient | null) => Promise<{ refreshed: number; failed: number; milestones: number }>;
   drainOutbox?: (client: OutboxDiscordClient, shouldAbort?: () => boolean) => MaybePromise<DrainOutboxWorkerResult>;
   buildOptimizedGameList?: <G extends { key: string }>(allGames: G[], subscribedGuilds: readonly GuildGameFilter[]) => G[];
-  registerSlashCommands?: (token: string, clientId: string) => Promise<unknown>;
-  buildSlashCommandDefinitions?: () => unknown[];
+  registerSlashCommands?: (token: string, clientId: string) => Promise<void>;
+  buildSlashCommandDefinitions?: () => SlashCommandJson[];
   handleInteraction?: (interaction: RoutedDiscordInteraction, games: CommandGame[]) => Promise<unknown>;
-  buildHelpEmbed?: () => unknown;
-  findGameAndSuggestion?: (input: string, games: GameConfig[]) => unknown;
+  buildHelpEmbed?: () => HelpEmbed;
+  findGameAndSuggestion?: (input: string, games: GameConfig[]) => FindGameResult;
   getFindGameCacheSize?: () => number;
   clearFindGameCache?: () => void;
   formatUserError?: (err: unknown, fallback: string, code?: string) => string;
