@@ -1,5 +1,6 @@
 import type { CommandCacheSizes, GameConfig, FetchResult, DealInfo, GuildSettings } from "../../types.js";
 import type { NotificationDiscordClient, OutboxDiscordClient } from "../notifications/outboundChannel.js";
+import type { DrainOutboxWorkerResult } from "../notifications/outboxTypes.js";
 import type { CommandHandler, CommandGame, RoutedDiscordInteraction } from "./commandHandler.js";
 import {
   dealPassesFilters,
@@ -23,7 +24,7 @@ interface CommandRegistryContext {
   checkForDiscounts?: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
   checkForYouTube?: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
   refreshPlayerCountSnapshots?: (games: GameConfig[], shouldAbort?: (() => boolean) | null, client?: NotificationDiscordClient | null) => Promise<{ refreshed: number; failed: number; milestones: number }>;
-  drainOutbox?: (client: OutboxDiscordClient) => MaybePromise<unknown>;
+  drainOutbox?: (client: OutboxDiscordClient, shouldAbort?: () => boolean) => MaybePromise<DrainOutboxWorkerResult>;
   buildOptimizedGameList?: <G extends { key: string }>(allGames: G[], subscribedGuilds: readonly GuildGameFilter[]) => G[];
   registerSlashCommands?: (token: string, clientId: string) => Promise<unknown>;
   buildSlashCommandDefinitions?: () => unknown[];

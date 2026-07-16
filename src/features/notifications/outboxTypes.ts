@@ -123,6 +123,10 @@ export interface DrainOutboxResult {
   resumedFinalizations: number;
 }
 
+export interface DrainOutboxWorkerResult extends DrainOutboxResult {
+  recoveryVerifyEnabledGuilds?: number;
+}
+
 export interface EnqueueOutboxJobInput {
   guildId: string;
   channelId: string;
