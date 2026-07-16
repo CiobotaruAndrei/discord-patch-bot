@@ -72,7 +72,7 @@ import attachCommandPresentation from "../command-presentation/commandPresentati
 import attachNotifications from "../notifications/index.js";
 import attachPlayerCountSnapshots from "../player-count/playerCountSnapshotService.js";
 import attachCachedSteamPlayerCount from "../player-count/cachedSteamPlayerCount.js";
-import playerCountCache from "../../infra/redis/redisCacheContext.js";
+import { redisCache as playerCountCache } from "../../app/runtimeComposition.js";
 import attachFeedbackRepository from "../feedback/feedbackRepository.js";
 import { createReportRepository } from "../feedback/reportRepository.js";
 import { mergeGuildGameAliases } from "../guild-config/gameAliasService.js";
