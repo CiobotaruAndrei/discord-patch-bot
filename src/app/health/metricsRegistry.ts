@@ -94,6 +94,7 @@ function renderPrometheusMetrics(input: MetricsSnapshotInput): string {
   pushMetric(lines, seenMetricNames, "bot_redis_cache_hit", "counter", "Redis cache reads that returned a value (JSON cache)", metrics.redisCacheHit);
   pushMetric(lines, seenMetricNames, "bot_redis_cache_miss", "counter", "Redis cache reads that missed (key absent)", metrics.redisCacheMiss);
   pushMetric(lines, seenMetricNames, "bot_redis_errors", "counter", "Redis client/cache errors (client error events + cache operation failures)", metrics.redisErrors);
+  pushMetric(lines, seenMetricNames, "bot_guild_settings_listener_failures", "counter", "GuildSettingsChanged listener/publisher failures (counted even when the error reporter itself throws)", metrics.guildSettingsListenerFailures);
   const commandNames = Array.from(new Set([...Object.keys(metrics.commandRuns), ...Object.keys(metrics.commandErrors)])).sort();
   for (const commandName of commandNames) {
     pushMetric(lines, seenMetricNames, "bot_commands_total", "counter", "Slash command interactions handled, per top-level command", metrics.commandRuns[commandName] || 0, { command: commandName });
