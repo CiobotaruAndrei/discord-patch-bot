@@ -2,36 +2,7 @@ import { requestOptionsFor } from "../sourcePolicies.js";
 import type { DealInfo, LoggerFunction } from "../../types.js";
 import { errorMessage } from "../../shared/errors.js";
 import type { DealCurrencyCode, HttpReq } from "./dealHelpers.js";
-
-interface EpicGraphqlResponse {
-  data?: {
-    Catalog?: {
-      searchStore?: {
-        elements?: EpicStoreElement[];
-      };
-    };
-  };
-}
-
-interface EpicStoreElement {
-  id?: string;
-  title?: string;
-  urlSlug?: string;
-  keyImages?: Array<{ type?: string; url?: string }>;
-  price?: {
-    totalPrice?: {
-      discountPrice?: number;
-      originalPrice?: number;
-    };
-  };
-  promotions?: {
-    promotionalOffers?: Array<{
-      promotionalOffers?: Array<{
-        endDate?: string;
-      }>;
-    }>;
-  };
-}
+import { decodeEpicGraphqlResponse } from "../responseDecoders.js";
 
 export interface EpicDealsDeps {
   httpReq: HttpReq;
@@ -62,7 +33,7 @@ export function createEpicDeals(deps: EpicDealsDeps) {
         }
       });
 
-      const epicElements = (epicRes.data as EpicGraphqlResponse).data?.Catalog?.searchStore?.elements || [];
+      const epicElements = decodeEpicGraphqlResponse(epicRes.data).data?.Catalog?.searchStore?.elements || [];
       for (const item of epicElements) {
         const priceInfo = item.price?.totalPrice;
         if (!priceInfo) continue;

@@ -2,17 +2,8 @@ import { requestOptionsFor, SOURCE_POLICIES } from "../sourcePolicies.js";
 import type { GameConfig, HttpRequestOptions, NormalizedUpdate, PatchUpdate } from "../../types.js";
 import { errorMessage } from "../../shared/errors.js";
 import type { HttpReq, RssParserLike } from "./updateHelpers.js";
+import { decodeFortniteBlogResponse, type FortnitePost } from "../responseDecoders.js";
 
-interface FortnitePost {
-  slug?: string;
-  title?: string;
-  shareDescription?: string;
-  date?: string;
-}
-
-interface FortniteBlogResponse {
-  blogList?: FortnitePost[];
-}
 
 
 interface MinecraftVersionManifest {
@@ -42,10 +33,10 @@ function createPlatformUpdates(deps: PlatformUpdatesDeps) {
   async function fetchFortniteUpdate(): Promise<NormalizedUpdate> {
     const { fetchWithProxy, rssParser, httpReq, logger, normalizeUpdate, cleanText, stableUpdateId } = deps;
     try {
-      const fortniteResponse = JSON.parse(await fetchWithProxy(
+      const fortniteResponse = decodeFortniteBlogResponse(JSON.parse(await fetchWithProxy(
         "https://www.fortnite.com/api/blog/getPosts?postsPerPage=10&offset=0&locale=en-US",
         { timeout: SOURCE_POLICIES["platform-fortnite-blog"].timeoutMs }
-      ) || "{}") as FortniteBlogResponse;
+      ) || "{}"));
       const posts = fortniteResponse.blogList || [];
       const valid = posts.filter((p): p is FortnitePost & { slug: string } =>
         typeof p.slug === "string" && p.slug.toLowerCase() !== "news"

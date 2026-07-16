@@ -507,6 +507,10 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Expune filtre pentru deal-uri, normalizatoare pentru pending queues si helper-e Map/Object.
 - Foloseste `dealPassesFilters` din `src/native/fuzzy.ts` (TS-primary — calcul trivial, nativul pierde pe overhead-ul apelului, vezi `BENCHMARKS.md`).
 
+### `src/sources/responseDecoders.ts`
+
+- Decodeaza raspunsurile JSON externe (Steam search/appdetails, Epic GraphQL, Fortnite blog) cu scheme Zod tipate in loc de cast-uri `as *Response` oarbe: `decodeSteamSearchResponse`/`decodeSteamDetailsResponse`/`decodeEpicGraphqlResponse`/`decodeFortniteBlogResponse`. Foloseste `safeParse` — non-throwing (comportamentul vechi: pe input malformat degradeaza la forma goala, nu arunca), cu `.passthrough()` si campuri optionale ca sa tolereze extensii de API. Consumat de `deals/epicDeals.ts`, `steam/index.ts`, `updates/platformUpdates.ts` (care nu mai contin interfete de raspuns inline). Acoperit de `responseDecoders.test.ts`.
+
 ### `src/sources/sourceRegistry.ts`
 
 - Fatada PUBLICA a stratului de surse pastreaza DOAR fabrica si tipurile (review nou, Major #8): `export { createSourceRegistry }` + `export type { SourceRegistryApi }`, re-exportate din `sourceRegistryFactory.ts`. Modulul NU mai importa instanta din `app/runtimeComposition.ts` si nu mai re-exporta cele ~40 de functii legate de instanta — instanta unica traieste exclusiv in composition root (`app/runtimeComposition.ts`), iar consumatorii ei (bootstrap, `commandRuntimeDependencies`, `canary:sources`) o iau explicit de acolo. Allowlist-ul `sources -> app` din `check:layers` e GOL: orice import nou sources -> app pica la CI.
