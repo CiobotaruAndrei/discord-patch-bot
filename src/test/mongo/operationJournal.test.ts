@@ -178,6 +178,27 @@ test("esecul executorului elibereaza lease-ul pentru retry", async () => {
   assert.equal(model.docs.get("k1")?.lockedBy, null);
 });
 
+test("releaseAfterFailure respecta lease guard-ul: esecul unei instante care a pierdut lease-ul nu atinge lease-ul noului proprietar (review nou #6)", async () => {
+  const model = fakeJournalModel();
+  const journal = createOperationJournal({
+    JournalModel: model,
+    logger: () => undefined,
+    ownerId: "worker-1",
+    executors: {
+      "test-op": async () => {
+        const current = model.docs.get("k1");
+        assert.ok(current, "operatia exista si e leased de worker-1");
+        model.docs.set("k1", { ...current, lockedBy: "worker-2", leaseVersion: current.leaseVersion + 1, status: "leased" });
+        throw new Error("worker-1 a esuat dupa ce worker-2 a preluat lease-ul");
+      }
+    }
+  });
+  await assert.rejects(() => journal.runJournaled("k1", "test-op", {}), /worker-1 a esuat/);
+  const doc = model.docs.get("k1");
+  assert.equal(doc?.lockedBy, "worker-2", "lease-ul noului proprietar ramane intact (guard-ul {_id, lockedBy, leaseVersion} a blocat scrierea instantei vechi)");
+  assert.equal(doc?.status, "leased", "statusul nu e resetat la pending de instanta care a pierdut lease-ul");
+});
+
 test("recoverPending revendica operatiile vechi si le finalizeaza", async () => {
   const old = new Date(Date.now() - 10 * 60 * 1000);
   const model = fakeJournalModel([journalDoc({
