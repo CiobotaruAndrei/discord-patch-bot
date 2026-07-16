@@ -1,5 +1,6 @@
 import type { CommandHandler } from "./commandHandler.js";
 import type { CommandAppServices } from "./commandRegistry.js";
+import type { CommandDomainDeps } from "./commandDomainDeps.js";
 import attachFallbackInteractionHandler from "../command-handlers/fallbackInteractionHandler.js";
 import attachSimpleCommandsHandler from "../command-handlers/simpleCommandsHandler.js";
 import attachSubscriptionNotificationHandlers from "../command-handlers/subscriptionNotificationHandlers.js";
@@ -57,13 +58,17 @@ export function buildNarrowCommandHandler<Dependencies extends object, Result ex
 }
 
 export function createCommandHandlerDescriptors(): readonly CommandHandlerDescriptor[] {
-  function define(input: Pick<CommandHandlerDescriptor, "id" | "domain" | "build"> & Partial<Pick<CommandHandlerDescriptor, "scope" | "access" | "help" | "autocomplete">>): CommandHandlerDescriptor {
+  function define<D extends CommandHandlerDomain>(
+    input: { id: string; domain: D; build: (context: CommandDomainDeps[D]) => CommandHandler }
+      & Partial<Pick<CommandHandlerDescriptor, "scope" | "access" | "help" | "autocomplete">>
+  ): CommandHandlerDescriptor {
     return {
       scope: "guild-only",
       access: input.domain === "admin" ? "admin" : "public",
       help: [input.id],
       autocomplete: [],
-      ...input
+      ...input,
+      build: input.build as CommandHandlerDescriptor["build"]
     };
   }
   const descriptors: readonly CommandHandlerDescriptor[] = [
