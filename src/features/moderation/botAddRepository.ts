@@ -1,6 +1,7 @@
 export type BotAddPermissionStatus = "pending" | "approved" | "used" | "rejected" | "expired" | "cancelled";
 
 export interface BotAddPermissionRecord {
+  schemaVersion?: number;
   requestId: string;
   botId: string;
   requesterId: string;

@@ -55,6 +55,7 @@ export interface GuildConfigurationSettings {
   botAddAlertChannelId?: string | null;
   botAddProtectionEnabled?: boolean;
   botAddPermissions?: Array<{
+    schemaVersion?: number;
     requestId: string;
     botId: string;
     requesterId: string;
