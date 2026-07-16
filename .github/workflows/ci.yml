@@ -49,10 +49,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Validate Rust (clippy + tests)
-        run: |
-          cargo clippy --manifest-path native/Cargo.toml --workspace --all-targets -- -D warnings
-          cargo test --manifest-path native/Cargo.toml -p discord_patch_bot_logic --quiet
+      - name: Validate Rust (clippy + tests, profil release - partajeaza target cache cu napi build din check)
+        run: npm run check:native
 
       - name: Run project checks
         env:
