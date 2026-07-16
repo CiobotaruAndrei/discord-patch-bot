@@ -89,7 +89,7 @@ test("limiteaza lungimea rezultatului fallback", () => {
 const attachSteam = (await import("../../sources/steam/index.js")).default;
 
 type SteamRuntime = { extractOfferEndFromHtml: (html: string) => string | null };
-type SteamContext = Parameters<typeof attachSteam.buildFrom>[0];
+type SteamContext = Parameters<typeof attachSteam.createSteamSource>[0];
 
 function makeSteamContextWithThrowingCheerio(): SteamContext & SteamRuntime {
   const context: SteamContext & Partial<SteamRuntime> = {
@@ -98,7 +98,7 @@ function makeSteamContextWithThrowingCheerio(): SteamContext & SteamRuntime {
     getCurrencyConfig: () => ({ cc: "us", symbol: "$", placement: "suffix" as const }),
     safeCheerioLoad: () => { throw new Error("cheerio refuses malformed HTML"); }
   };
-  Object.assign(context, attachSteam.buildFrom(context));
+  Object.assign(context, attachSteam.createSteamSource(context));
   const extractOfferEndFromHtml = context.extractOfferEndFromHtml;
   if (!extractOfferEndFromHtml) {
     throw new Error("attachSteam trebuie sa ataseze extractOfferEndFromHtml");

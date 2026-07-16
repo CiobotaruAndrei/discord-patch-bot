@@ -4,8 +4,9 @@ import * as crypto from "crypto";
 import { load as cheerioLoad } from "cheerio";
 import type { GameConfig, FetchResult, NormalizedUpdate } from "../../types.js";
 import attachUpdates from "../../sources/updates/index.js";
+import type { UpdatesDeps } from "../../sources/updates/updatesContracts.js";
 
-type UpdatesContext = Parameters<typeof attachUpdates.buildFrom>[0];
+type UpdatesContext = UpdatesDeps;
 type GetLatest = (games: GameConfig[]) => Promise<FetchResult[]>;
 type RunCall = { group: string; count: number; concurrency: number };
 
@@ -62,8 +63,8 @@ function makeUpdatesContext() {
     getHttpMetrics: () => httpMetrics,
     executeFetchWithCircuitBreaker: async game => ({ game, latest: makeUpdate(game.key), error: null })
   };
-  Object.assign(context, attachUpdates.buildFrom(context));
-  return { context, runCalls };
+  const api = attachUpdates.createUpdates(context);
+  return { context, api, runCalls };
 }
 
 test("per-sursa: sourceConcurrencyGroup mapeaza tipurile la grupuri", () => {
@@ -80,8 +81,8 @@ test("per-sursa: sourceConcurrencyGroup mapeaza tipurile la grupuri", () => {
 });
 
 test("per-sursa: fiecare grup ruleaza cu concurrency-ul propriu, rezultatele pastreaza ordinea", async () => {
-  const { context, runCalls } = makeUpdatesContext();
-  const getLatest = context.getLatestForAllGames as GetLatest;
+  const { api, runCalls } = makeUpdatesContext();
+  const getLatest: GetLatest = games => api.getLatestForAllGames(games);
   const games: GameConfig[] = [
     { key: "cs2", name: "CS2", type: "steam" },
     { key: "fortnite", name: "Fortnite", type: "epic_games" },
@@ -107,8 +108,8 @@ test("per-sursa: fiecare grup ruleaza cu concurrency-ul propriu, rezultatele pas
 });
 
 test("attachUpdates decupleaza fabrica de context: o mutatie tarzie a contextului nu se mai scurge in deps", async () => {
-  const { context } = makeUpdatesContext();
-  const getLatest = context.getLatestForAllGames as GetLatest;
+  const { context, api } = makeUpdatesContext();
+  const getLatest: GetLatest = games => api.getLatestForAllGames(games);
 
   context.executeFetchWithCircuitBreaker = async (game: GameConfig) => ({ game, latest: makeUpdate(`mutat-${game.key}`), error: null });
 

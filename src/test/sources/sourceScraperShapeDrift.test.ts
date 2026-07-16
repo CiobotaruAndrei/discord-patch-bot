@@ -6,9 +6,9 @@ import attachUpdates from "../../sources/updates/index.js";
 import attachDeals from "../../sources/deals/index.js";
 import attachSteam from "../../sources/steam/index.js";
 
-type UpdatesBuildContext = Parameters<typeof attachUpdates.buildFrom>[0];
-type DealsBuildContext = Parameters<typeof attachDeals.buildFrom>[0];
-type SteamBuildContext = Parameters<typeof attachSteam.buildFrom>[0];
+type UpdatesBuildContext = Parameters<typeof attachUpdates.createUpdates>[0];
+type DealsBuildContext = Parameters<typeof attachDeals.createDeals>[0];
+type SteamBuildContext = Parameters<typeof attachSteam.createSteamSource>[0];
 function asUpdatesContext(context: Record<string, unknown>): UpdatesBuildContext {
   return context as Record<string, unknown> & UpdatesBuildContext;
 }
@@ -76,7 +76,7 @@ test("updates source rejects Steam newsitems without gid", async () => {
       return { processed: items.length, errors: [] };
     },
   });
-  Object.assign(context, attachUpdates.buildFrom(asUpdatesContext(context)));
+  Object.assign(context, attachUpdates.createUpdates(asUpdatesContext(context)));
   const runtime = context as typeof context & UpdatesRuntime;
 
   await assert.rejects(
@@ -103,7 +103,7 @@ test("updates source reports schema drift when listing HTML has no valid anchors
       return { processed: items.length, errors: [] };
     },
   });
-  Object.assign(context, attachUpdates.buildFrom(asUpdatesContext(context)));
+  Object.assign(context, attachUpdates.createUpdates(asUpdatesContext(context)));
   const runtime = context as typeof context & UpdatesRuntime;
 
   await assert.rejects(
@@ -142,7 +142,7 @@ function makeDealsContext(httpReq: (method: string, url: string, options?: unkno
     EPIC_SPECIALS_LIMIT: 10,
     MAX_DEALS: 10
   };
-  Object.assign(context, attachDeals.buildFrom(asDealsContext(context)));
+  Object.assign(context, attachDeals.createDeals(asDealsContext(context)));
   return context as typeof context & DealsRuntime;
 }
 
@@ -204,7 +204,7 @@ test("steam source tolerates storesearch JSON without items array", async () => 
     safeCheerioLoad: (html: unknown) => cheerio.load(String(html || "")),
     httpReq: async () => ({ data: { unexpected: true } })
   };
-  Object.assign(context, attachSteam.buildFrom(asSteamContext(context)));
+  Object.assign(context, attachSteam.createSteamSource(asSteamContext(context)));
   const runtime = context as typeof context & SteamRuntime;
 
   const items = await runtime.searchSteamGameByName("Counter-Strike 2", "USD");

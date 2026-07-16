@@ -282,7 +282,6 @@ test("HTTP client module keeps TypeScript contracts after build", () => {
 
 test("Steam source module keeps TypeScript contracts after build", () => {
   expectAll(runtimeSource, [
-    defines("buildSteamFrom"),
     defines("searchSteamGameByName"),
     defines("chooseBestSteamMatch"),
     defines("fetchSteamPriceDetails"),
@@ -293,12 +292,10 @@ test("Steam source module keeps TypeScript contracts after build", () => {
 
 test("deal and update source modules keep TypeScript contracts after build", () => {
   expectAll(runtimeSource, [
-    defines("buildDealsFrom"),
     defines("fetchSteamReviewData"),
     defines("enrichCacheGet"),
     defines("enrichDealData"),
     defines("fetchDeals"),
-    defines("buildUpdatesFrom"),
     defines("absoluteUrl"),
     defines("isLikelyPatchNote"),
     defines("fetchSteamUpdate"),

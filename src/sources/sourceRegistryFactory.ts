@@ -5,7 +5,6 @@ import type { CurrencyCode, DealInfo, NormalizedUpdate, PatchUpdate, PriceValue,
 import type { HttpMetricsRef } from "../infra/http/httpMetrics.js";
 import type { DealsApi, SteamSourceApi, UpdatesApi } from "./sourceApis.js";
 import type { SourceRuntimeDeps } from "./runtime.js";
-import { assertNoUndefinedExports } from "../shared/assertCompleteExports.js";
 import attachHttpClient from "../infra/http/client.js";
 import attachSteam from "./steam/index.js";
 import attachUpdates from "./updates/index.js";
@@ -46,40 +45,90 @@ export type SourceRegistryApi = {
   formatPrice: (value: PriceValue, currencyCode?: CurrencyCode | string | null) => string;
 };
 
-type SourceRuntimeContext = Partial<SourceRegistryApi> & ReturnType<typeof createSourceRuntime>;
-
-function requireSourceValue<K extends keyof SourceRegistryApi>(context: Partial<SourceRegistryApi>, key: K): SourceRegistryApi[K] {
-  const value = context[key];
-  if (value === undefined) throw new Error(`sourceRegistry nu a primit exportul necesar din context: ${String(key)}`);
-  return value;
-}
-
-function buildSourceRegistry(context: Partial<SourceRegistryApi>): SourceRegistryApi {
-  return {
-    USER_AGENTS: requireSourceValue(context, "USER_AGENTS"), MAX_HTML_BYTES: requireSourceValue(context, "MAX_HTML_BYTES"),
-    MAX_JSON_BYTES: requireSourceValue(context, "MAX_JSON_BYTES"), MAX_DEALS: requireSourceValue(context, "MAX_DEALS"),
-    FETCH_CONCURRENCY: requireSourceValue(context, "FETCH_CONCURRENCY"), cleanText: requireSourceValue(context, "cleanText"),
-    truncate: requireSourceValue(context, "truncate"), normalizeTitleForDedupe: requireSourceValue(context, "normalizeTitleForDedupe"),
-    stableUpdateId: requireSourceValue(context, "stableUpdateId"), normalizeUpdate: requireSourceValue(context, "normalizeUpdate"),
-    safeCheerioLoad: requireSourceValue(context, "safeCheerioLoad"), levenshtein: requireSourceValue(context, "levenshtein"),
-    httpReq: requireSourceValue(context, "httpReq"), fetchWithProxy: requireSourceValue(context, "fetchWithProxy"),
-    dealHash: requireSourceValue(context, "dealHash"), attachMetrics: requireSourceValue(context, "attachMetrics"),
-    fetchGameUpdate: requireSourceValue(context, "fetchGameUpdate"), executeFetchWithCircuitBreaker: requireSourceValue(context, "executeFetchWithCircuitBreaker"),
-    getLatestForAllGames: requireSourceValue(context, "getLatestForAllGames"), fetchSteamReviewData: requireSourceValue(context, "fetchSteamReviewData"),
-    enrichDealData: requireSourceValue(context, "enrichDealData"), fetchDeals: requireSourceValue(context, "fetchDeals"),
-    searchSteamGameByName: requireSourceValue(context, "searchSteamGameByName"), chooseBestSteamMatch: requireSourceValue(context, "chooseBestSteamMatch"),
-    fetchSteamPriceDetails: requireSourceValue(context, "fetchSteamPriceDetails"), fetchSteamCurrentPlayers: requireSourceValue(context, "fetchSteamCurrentPlayers"),
-    extractOfferEndFromHtml: requireSourceValue(context, "extractOfferEndFromHtml"), extractSteamOfferEndDate: requireSourceValue(context, "extractSteamOfferEndDate"),
-    cleanEnrichedCache: requireSourceValue(context, "cleanEnrichedCache"), getEnrichedCacheSize: requireSourceValue(context, "getEnrichedCacheSize"),
-    formatPrice: requireSourceValue(context, "formatPrice")
-  };
-}
-
 export function createSourceRegistry(deps: SourceRuntimeDeps): SourceRegistryApi {
-  const base: SourceRuntimeContext = createSourceRuntime(deps);
-  const withHttp = { ...base, ...attachHttpClient.buildFrom(base) };
-  const withSteam = { ...withHttp, ...attachSteam.buildFrom(withHttp) };
-  const withUpdates = { ...withSteam, ...attachUpdates.buildFrom(withSteam) };
-  const withDeals = { ...withUpdates, ...attachDeals.buildFrom(withUpdates) };
-  return Object.freeze(assertNoUndefinedExports(buildSourceRegistry(withDeals), "sourceRegistry"));
+  const runtime = createSourceRuntime(deps);
+  const http = attachHttpClient.buildFrom(runtime);
+  const steam = attachSteam.createSteamSource({
+    logger: runtime.logger,
+    getCurrencyConfig: runtime.getCurrencyConfig,
+    httpReq: http.httpReq,
+    safeCheerioLoad: http.safeCheerioLoad
+  });
+  const updates = attachUpdates.createUpdates({
+    rssParser: runtime.rssParser,
+    circuitBreakerStore: runtime.circuitBreakerStore,
+    logger: runtime.logger,
+    adminAlert: runtime.adminAlert,
+    runConcurrent: runtime.runConcurrent,
+    SchemaDriftError: runtime.SchemaDriftError,
+    FETCH_CONCURRENCY: http.FETCH_CONCURRENCY,
+    FETCH_CONCURRENCY_STEAM: http.FETCH_CONCURRENCY_STEAM,
+    FETCH_CONCURRENCY_EPIC: http.FETCH_CONCURRENCY_EPIC,
+    FETCH_CONCURRENCY_LISTING: http.FETCH_CONCURRENCY_LISTING,
+    FETCH_CONCURRENCY_DRIVER: http.FETCH_CONCURRENCY_DRIVER,
+    CIRCUIT_BREAKER_FAIL_THRESHOLD: http.CIRCUIT_BREAKER_FAIL_THRESHOLD,
+    CIRCUIT_BREAKER_COOLDOWN_MS: http.CIRCUIT_BREAKER_COOLDOWN_MS,
+    CIRCUIT_BREAKER_JITTER_MS: http.CIRCUIT_BREAKER_JITTER_MS,
+    SCHEMA_DRIFT_THRESHOLD: http.SCHEMA_DRIFT_THRESHOLD,
+    httpReq: http.httpReq,
+    conditionalGet: http.conditionalGet,
+    fetchWithProxy: http.fetchWithProxy,
+    withInflightTimeout: http.withInflightTimeout,
+    trackInflight: http.trackInflight,
+    cleanText: http.cleanText,
+    stableUpdateId: http.stableUpdateId,
+    normalizeUpdate: http.normalizeUpdate,
+    safeCheerioLoad: http.safeCheerioLoad,
+    crypto: runtime.crypto,
+    getHttpMetrics: http.getHttpMetrics
+  });
+  const deals = attachDeals.createDeals({
+    logger: runtime.logger,
+    getCurrencyConfig: runtime.getCurrencyConfig,
+    STEAM_REVIEW_BATCH_SIZE: http.STEAM_REVIEW_BATCH_SIZE,
+    STEAM_REVIEW_BATCH_DELAY_MS: http.STEAM_REVIEW_BATCH_DELAY_MS,
+    ENRICHED_DEAL_CACHE_TTL_MS: http.ENRICHED_DEAL_CACHE_TTL_MS,
+    ENRICHED_DEAL_CACHE_MAX_SIZE: http.ENRICHED_DEAL_CACHE_MAX_SIZE,
+    STEAM_SPECIALS_LIMIT: http.STEAM_SPECIALS_LIMIT,
+    EPIC_SPECIALS_LIMIT: http.EPIC_SPECIALS_LIMIT,
+    MAX_DEALS: http.MAX_DEALS,
+    httpReq: http.httpReq,
+    normalizeTitleForDedupe: http.normalizeTitleForDedupe,
+    trackInflight: http.trackInflight,
+    withInflightTimeout: http.withInflightTimeout,
+    extractOfferEndFromHtml: steam.extractOfferEndFromHtml
+  });
+  return Object.freeze({
+    USER_AGENTS: http.USER_AGENTS,
+    MAX_HTML_BYTES: http.MAX_HTML_BYTES,
+    MAX_JSON_BYTES: http.MAX_JSON_BYTES,
+    MAX_DEALS: http.MAX_DEALS,
+    FETCH_CONCURRENCY: http.FETCH_CONCURRENCY,
+    cleanText: http.cleanText,
+    truncate: http.truncate,
+    normalizeTitleForDedupe: http.normalizeTitleForDedupe,
+    stableUpdateId: http.stableUpdateId,
+    normalizeUpdate: http.normalizeUpdate,
+    safeCheerioLoad: http.safeCheerioLoad,
+    levenshtein: steam.levenshtein,
+    httpReq: http.httpReq,
+    fetchWithProxy: http.fetchWithProxy,
+    dealHash: http.dealHash,
+    attachMetrics: http.attachMetrics,
+    fetchGameUpdate: updates.fetchGameUpdate,
+    executeFetchWithCircuitBreaker: updates.executeFetchWithCircuitBreaker,
+    getLatestForAllGames: updates.getLatestForAllGames,
+    fetchSteamReviewData: deals.fetchSteamReviewData,
+    enrichDealData: deals.enrichDealData,
+    fetchDeals: deals.fetchDeals,
+    searchSteamGameByName: steam.searchSteamGameByName,
+    chooseBestSteamMatch: steam.chooseBestSteamMatch,
+    fetchSteamPriceDetails: steam.fetchSteamPriceDetails,
+    fetchSteamCurrentPlayers: steam.fetchSteamCurrentPlayers,
+    extractOfferEndFromHtml: steam.extractOfferEndFromHtml,
+    extractSteamOfferEndDate: steam.extractSteamOfferEndDate,
+    cleanEnrichedCache: deals.cleanEnrichedCache,
+    getEnrichedCacheSize: deals.getEnrichedCacheSize,
+    formatPrice: runtime.formatPrice
+  });
 }
