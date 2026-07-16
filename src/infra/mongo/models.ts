@@ -16,6 +16,11 @@ import { buildYoutubeErrorLogSchemas } from "./youtubeErrorLogSchemas.js";
 import { buildDeadLetterLogSchemas } from "./deadLetterLogSchemas.js";
 import { publishGuildSettingsChanged } from "./guildSettingsEvents.js";
 
+export function publishChangedGuild(this: { getFilter(): { _id?: unknown } }): void {
+  const guildId = this.getFilter()._id;
+  if (typeof guildId === "string") publishGuildSettingsChanged(guildId);
+}
+
 export interface MongoModelsContext {
   mongoose: typeof Mongoose;
   SUPPORTED_CURRENCIES: CurrencyRegistry;
@@ -138,10 +143,6 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   guildSchema.index({ dlcSubscribed: 1, dlcChannelId: 1 }, { background: true });
   guildSchema.index({ playerCountSubscribed: 1, playerCountChannelId: 1 }, { background: true });
 
-  const publishChangedGuild = function(this: { getFilter(): { _id?: unknown } }): void {
-    const guildId = this.getFilter()._id;
-    if (typeof guildId === "string") publishGuildSettingsChanged(guildId);
-  };
   guildSchema.post("updateOne", publishChangedGuild);
   guildSchema.post("findOneAndUpdate", publishChangedGuild);
   guildSchema.post("deleteOne", publishChangedGuild);

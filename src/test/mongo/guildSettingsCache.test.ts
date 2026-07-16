@@ -1,9 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { GuildSettings } from "../../types.js";
-import { publishGuildSettingsChanged } from "../../infra/mongo/guildSettingsEvents.js";
+import { publishGuildSettingsChanged, subscribeGuildSettingsChanged } from "../../infra/mongo/guildSettingsEvents.js";
+import { publishChangedGuild } from "../../infra/mongo/models.js";
 
 import attachGuildSettings from "../../infra/mongo/guildSettings.js";
+
+test("hook-ul post-query al schemei guild publica GuildSettingsChanged dupa commit, doar pentru _id-uri de guild reale (review nou, Mediu #16)", () => {
+  const published: string[] = [];
+  const unsubscribe = subscribeGuildSettingsChanged(guildId => { published.push(guildId); });
+  try {
+    publishChangedGuild.call({ getFilter: () => ({ _id: "guild-hook-1" }) });
+    publishChangedGuild.call({ getFilter: () => ({ _id: { $in: ["a", "b"] } }) });
+    publishChangedGuild.call({ getFilter: () => ({}) });
+    assert.deepEqual(published, ["guild-hook-1"], "publica exact o data pentru filtrul cu _id string; filtrele fara _id de guild nu emit nimic");
+  } finally {
+    unsubscribe();
+  }
+});
 
 type GuildSettingsRuntime = {
   getGuildSettings: (guildId: string) => Promise<GuildSettings | null>;

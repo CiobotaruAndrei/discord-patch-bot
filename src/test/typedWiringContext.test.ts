@@ -10,7 +10,7 @@ const sourceRegistry = await import("../sources/sourceRegistry.js");
 
 const MONGO_CONTEXT_KEYS = [
   "logger", "env", "withMongoRetry", "GuildModel", "NotificationOutboxModel", "NotificationOutboxSentModel",
-  "NotificationHistoryModel", "FeedbackReportModel", "adminAlert", "getGuildSettings", "invalidateGuildCache",
+  "NotificationHistoryModel", "FeedbackReportModel", "adminAlert", "getGuildSettings",
   "SUPPORTED_CURRENCIES", "DEFAULT_CURRENCY", "formatPrice", "requestContext"
 ];
 

@@ -46,7 +46,6 @@ type GuildSettingsLike = {
 type SecurityDeps = {
   GuildModel: GuildModelLike;
   getGuildSettings: (guildId: string) => Promise<GuildSettingsLike>;
-  invalidateGuildCache?: (guildId: string) => void;
   safeDefer: (interaction: SecurityInteraction, ephemeral?: boolean) => Promise<void>;
   safeEdit: (interaction: SecurityInteraction, payload: unknown) => Promise<unknown>;
   formatUserError: (err: unknown, fallback: string) => string;
@@ -87,7 +86,6 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
     const guild = interaction.guild;
     try {
       await target.GuildModel.updateOne({ _id: guildId }, { $set: { [field]: value } }, { upsert: true });
-      target.invalidateGuildCache?.(guildId);
       return respond(interaction, `OK: setarea **${field}** a fost actualizata.`);
     } catch (err: unknown) {
       target.logger?.("WARN", "SECURITY_COMMAND", "Salvarea setarii de securitate a esuat", errorDetail(err));
@@ -132,7 +130,6 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
           command === "lock-channel" ? { $addToSet: { lockedChannelIds: channel.id } } : { $pull: { lockedChannelIds: channel.id } },
           { upsert: true }
         );
-        target.invalidateGuildCache?.(guildId);
         const result = command === "lock-channel" ? `OK: canalul a fost blocat${reason ? ` (motiv: ${reason})` : ""}.` : "OK: canalul a fost deblocat.";
         if (command === "lock-channel") await channel.send?.({ content: `:lock: Canal blocat de <@${interaction.user?.id ?? "administrator"}>. Motiv: ${reason ?? "nespecificat"}.`, allowedMentions: { parse: [] } }).catch(() => null);
         return respond(interaction, result);

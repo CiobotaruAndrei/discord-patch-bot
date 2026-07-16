@@ -23,7 +23,7 @@ const REQUIRED_REGISTRY_FUNCTIONS = [
 
 const CRITICAL_CONTEXT_DEPS = [
   "GuildModel", "NotificationOutboxModel", "NotificationOutboxSentModel",
-  "getGuildSettings", "invalidateGuildCache", "withMongoRetry", "adminAlert",
+  "getGuildSettings", "withMongoRetry", "adminAlert",
   "getCurrencyConfig", "formatPrice",
   "fetchDeals", "getLatestForAllGames", "enrichDealData", "fetchSteamPriceDetails",
   "fetchSteamCurrentPlayers", "searchSteamGameByName", "dealHash", "httpReq", "safeCheerioLoad", "fetchGameUpdate",
