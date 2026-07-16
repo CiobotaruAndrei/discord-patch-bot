@@ -7,6 +7,7 @@ process.env.DISCORD_CLIENT_ID ||= "test_discord_client_id";
 
 const commandRegistry = (await import("../../features/command-registry/commandRegistry.js")).default;
 const { createCommandHandlerDescriptors } = await import("../../features/command-registry/commandHandlerDescriptors.js");
+const { commandRuntimeInput } = await import("./commandTestInput.js");
 
 type CanHandle = (interaction: unknown) => boolean;
 
@@ -62,7 +63,7 @@ function makeProbe(commandName: string, group: string | null, sub: string): Reco
 }
 
 test("fiecare comanda slash e revendicata de un handler dedicat, nu de fallback (guard de acoperire, review r2 item 12)", () => {
-  const ctx = commandRegistry.createAppServices({ getGuildSettings: async () => null });
+  const ctx = commandRegistry.createAppServices(commandRuntimeInput, { getGuildSettings: async () => null });
   const { commandHandlers } = commandRegistry.buildCommandHandlerList(ctx);
   assert.ok(commandHandlers.length > 10, "lista de handler-e a fost construita");
 

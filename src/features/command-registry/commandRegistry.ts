@@ -72,7 +72,6 @@ import attachCommandPresentation from "../command-presentation/commandPresentati
 import attachNotifications from "../notifications/index.js";
 import attachPlayerCountSnapshots from "../player-count/playerCountSnapshotService.js";
 import attachCachedSteamPlayerCount from "../player-count/cachedSteamPlayerCount.js";
-import { redisCache as playerCountCache } from "../../app/runtimeComposition.js";
 import attachFeedbackRepository from "../feedback/feedbackRepository.js";
 import { createReportRepository } from "../feedback/reportRepository.js";
 import { mergeGuildGameAliases } from "../guild-config/gameAliasService.js";
@@ -85,15 +84,16 @@ import { assertExclusiveCommandOwnership } from "./commandOwnership.js";
 import type { CommandOwnerCandidate } from "./commandOwnership.js";
 
 import { createCommandRuntimeDependencies } from "../command-runtime/commandRuntimeDependencies.js";
-import type { CommandRuntimeDependencies } from "../command-runtime/commandRuntimeDependencies.js";
+import type { CommandRuntimeDependencies, CommandRuntimeInput } from "../command-runtime/commandRuntimeDependencies.js";
 type CommandRuntimeBootContext = CommandRuntimeDependencies["discord"] & CommandRuntimeDependencies["mongo"] & CommandRuntimeDependencies["sources"] & CommandRuntimeDependencies["platform"];
 
 const PLAYER_COUNT_CACHE_TTL_SECONDS = 60;
 
 function createAppServices(
+  input: CommandRuntimeInput,
   overrides: Partial<CommandRuntimeBootContext> = {}
 ) {
-  const dependencies = createCommandRuntimeDependencies();
+  const dependencies = createCommandRuntimeDependencies(input);
   const runtime = {
     ...dependencies.discord,
     ...dependencies.mongo,
@@ -110,7 +110,7 @@ function createAppServices(
   const notifications = { ...presentation, ...attachNotifications.createNotificationRuntime(presentation) };
   const cachedFetchSteamCurrentPlayers = attachCachedSteamPlayerCount.createCachedSteamPlayerCount({
     fetchSteamCurrentPlayers: notifications.fetchSteamCurrentPlayers,
-    cache: playerCountCache,
+    cache: runtime.redisCache,
     ttlSeconds: PLAYER_COUNT_CACHE_TTL_SECONDS
   });
   const playerCounts = {
@@ -148,9 +148,10 @@ function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): { c
 }
 
 function createCommandRegistry(
+  input: CommandRuntimeInput,
   overrides: Partial<CommandRuntimeBootContext> = {}
 ): RequiredCommandRegistry {
-  const ctx = createAppServices(overrides);
+  const ctx = createAppServices(input, overrides);
   const { commandHandlers, helpCommand, commandOwners } = buildCommandHandlerList(ctx);
   assertExclusiveCommandOwnership(ctx.buildSlashCommandDefinitions(), commandOwners);
 
@@ -212,6 +213,6 @@ function createCommandRegistry(
   });
 }
 
-const commands = Object.freeze({ ...createCommandRegistry(), createCommandRegistry, createAppServices, buildCommandHandlerList });
+const commandRegistryFactories = Object.freeze({ createCommandRegistry, createAppServices, buildCommandHandlerList });
 
-export default commands;
+export default commandRegistryFactories;

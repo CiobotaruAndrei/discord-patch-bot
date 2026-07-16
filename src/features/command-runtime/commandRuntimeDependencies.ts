@@ -12,11 +12,18 @@ import {
   SlashCommandBuilder
 } from "discord.js";
 
-import data from "../../infra/mongo/mongoContext.js";
-import { redisRuntime as redis, sourceRegistry as scrapers } from "../../app/runtimeComposition.js";
 import type { SourceRegistryApi } from "../../sources/sourceRegistry.js";
+import type { RedisRuntime } from "../../infra/redis/redisClient.js";
+import type { RedisCache } from "../../infra/redis/redisCache.js";
 
 type MongoContextExports = typeof import("../../infra/mongo/mongoContext.js")["default"];
+
+export interface CommandRuntimeInput {
+  mongo: MongoContextExports;
+  sources: SourceRegistryApi;
+  redis: RedisRuntime;
+  redisCache: Pick<RedisCache, "getJson" | "setJson">;
+}
 
 export type DiscordRuntimeBindings = {
   crypto: typeof crypto;
@@ -80,7 +87,8 @@ export type CommandSourceDependencies = Pick<SourceRegistryApi, CommandSourceKey
 export type CommandPlatformDependencies = {
   checkReadMessageHistory: typeof checkReadMessageHistory;
   checkChannelPermissions: typeof checkChannelPermissions;
-  redis: typeof redis;
+  redis: RedisRuntime;
+  redisCache: Pick<RedisCache, "getJson" | "setJson">;
 };
 
 export interface CommandRuntimeDependencies {
@@ -218,15 +226,16 @@ export function selectCommandSourceDependencies(source: SourceRegistryApi): Comm
   };
 }
 
-export function createCommandRuntimeDependencies(): CommandRuntimeDependencies {
+export function createCommandRuntimeDependencies(input: CommandRuntimeInput): CommandRuntimeDependencies {
   return {
     discord: createDiscordRuntimeBindings(),
-    mongo: selectCommandMongoDependencies(data),
-    sources: selectCommandSourceDependencies(scrapers),
+    mongo: selectCommandMongoDependencies(input.mongo),
+    sources: selectCommandSourceDependencies(input.sources),
     platform: {
       checkReadMessageHistory,
       checkChannelPermissions,
-      redis
+      redis: input.redis,
+      redisCache: input.redisCache
     }
   };
 }

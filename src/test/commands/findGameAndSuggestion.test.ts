@@ -8,10 +8,11 @@ process.env.METRICS_PUBLIC ||= "true";
 
 import test from "node:test";
 import assert from "node:assert/strict";
-const _____features_command_registry_commandRegistry = (await import("../../features/command-registry/commandRegistry.js")).default;
+const commandRegistryFactories = (await import("../../features/command-registry/commandRegistry.js")).default;
+const { commandRuntimeInput } = await import("./commandTestInput.js");
 import type { FindGameResult } from "../../features/command-presentation/gameLookupCache.js";
 import type { GameConfig } from "../../config/configTypes.js";
-const { findGameAndSuggestion, clearFindGameCache } = _____features_command_registry_commandRegistry;
+const { findGameAndSuggestion, clearFindGameCache } = commandRegistryFactories.createCommandRegistry(commandRuntimeInput);
 const findGame = (input: string, gs: GameConfig[]): FindGameResult => findGameAndSuggestion(input, gs) as FindGameResult;
 
 const games: GameConfig[] = [

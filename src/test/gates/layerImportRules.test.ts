@@ -38,10 +38,11 @@ test("infra -> app si sources -> app sunt interzise, cu exceptia allowlist-ului 
     { from: "infra/redis/altNou.ts", to: "app/runtimeComposition.ts", typeOnly: false },
     { from: "infra/redis/redisCacheContext.ts", to: "app/runtimeComposition.ts", typeOnly: false },
     { from: "sources/sourceRegistry.ts", to: "app/runtimeComposition.ts", typeOnly: false },
-    { from: "sources/steam/steamNou.ts", to: "app/bootstrap.ts", typeOnly: false }
+    { from: "sources/steam/steamNou.ts", to: "app/bootstrap.ts", typeOnly: false },
+    { from: "features/command-runtime/commandRuntimeDependencies.ts", to: "app/runtimeComposition.ts", typeOnly: false }
   ]);
-  assert.deepEqual(violations.map(violation => violation.from), ["infra/redis/altNou.ts", "infra/redis/redisCacheContext.ts", "sources/sourceRegistry.ts", "sources/steam/steamNou.ts"],
-    "allowlist-urile infra->app si sources->app sunt GOALE dupa rezolvarea Major #1 (felia Redis) si Major #8: ORICE import infra->app sau sources->app pica, inclusiv fostii locatori");
+  assert.deepEqual(violations.map(violation => violation.from), ["infra/redis/altNou.ts", "infra/redis/redisCacheContext.ts", "sources/sourceRegistry.ts", "sources/steam/steamNou.ts", "features/command-runtime/commandRuntimeDependencies.ts"],
+    "allowlist-urile infra->app, sources->app si features->app sunt GOALE dupa rezolvarea Major #1/#8: ORICE import features/infra/sources -> app pica (instantele se injecteaza din bootstrap)");
 });
 
 test("domain si shared raman pure: orice dependinta spre straturile impure pica", () => {
