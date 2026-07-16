@@ -17,7 +17,7 @@ import type {
 } from "../types.js";
 import type { CreateCronControllerDeps } from "./scheduler/cron.js";
 import type { CreateHousekeepingDeps, HousekeepingController } from "./scheduler/housekeeping.js";
-import type { CreateOutboxWorkerDeps, OutboxWorker } from "./scheduler/outboxWorker.js";
+import type { CreateOutboxWorkerDeps, OutboxDrainResult, OutboxWorker } from "./scheduler/outboxWorker.js";
 import type { CreateHttpServerDeps } from "./health/httpServer.js";
 import type { RegisterDiscordEventsDeps, RegisterMongoEventsDeps } from "./lifecycle/events.js";
 import type { LifecycleDiscordChannel, LifecycleDiscordInteraction, LifecycleEventClient } from "./lifecycle/lifecycleContracts.js";
@@ -31,7 +31,7 @@ export interface CommandRuntime {
   checkForDiscounts(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
   checkForYouTube(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
   cleanCache(): void;
-  drainOutbox(client: OutboxDiscordClient, shouldAbort?: () => boolean): Promise<unknown> | unknown;
+  drainOutbox(client: OutboxDiscordClient, shouldAbort?: () => boolean): Promise<OutboxDrainResult> | OutboxDrainResult;
   getCacheSizes(): CommandCacheSizes;
   handleInteraction(interaction: LifecycleDiscordInteraction, games: GameConfig[]): Promise<unknown> | unknown;
   registerSlashCommands(token: string, clientId: string): Promise<unknown>;

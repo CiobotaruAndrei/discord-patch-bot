@@ -75,7 +75,7 @@ interface CreateOutboxWorkerDeps {
   acquireDbLock: AcquireDbLock;
   renewDbLock: RenewDbLock;
   releaseDbLock: ReleaseDbLock;
-  drainOutbox: (client: DiscordClientLike, shouldAbort?: () => boolean) => Promise<OutboxDrainResult | unknown>;
+  drainOutbox: (client: DiscordClientLike, shouldAbort?: () => boolean) => Promise<OutboxDrainResult>;
   lifecycle: LifecycleState;
   metrics: OutboxMetricsLike;
   errorMessage: ErrorFormatter;
@@ -131,8 +131,7 @@ function createOutboxWorker({
     onLost: () => { lostLock = true; }
   });
 
-  function recordDrain(result: OutboxDrainResult | unknown): void {
-    const r = (result && typeof result === "object" ? result : {}) as OutboxDrainResult;
+  function recordDrain(r: OutboxDrainResult): void {
     metrics.outboxDrains++;
     metrics.outboxLastDrainAt = Date.now();
     metrics.outboxSent += r.sent ?? 0;
@@ -236,4 +235,4 @@ function createOutboxWorker({
 }
 
 export { createOutboxWorker, OUTBOX_DRAIN_LOCK_NAME };
-export type { CreateOutboxWorkerDeps, OutboxWorker };
+export type { CreateOutboxWorkerDeps, OutboxDrainResult, OutboxWorker };

@@ -1,6 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createOutboxWorker, OUTBOX_DRAIN_LOCK_NAME } from "../../app/scheduler/outboxWorker.js";
+import type { CreateOutboxWorkerDeps, OutboxDrainResult } from "../../app/scheduler/outboxWorker.js";
+import type { createOutboxServices } from "../../features/notifications/outboxRuntimeFactory.js";
+import type { DrainOutboxWorkerResult } from "../../features/notifications/outboxTypes.js";
+
+type WorkerDrainReturn = Awaited<ReturnType<CreateOutboxWorkerDeps["drainOutbox"]>>;
+const workerDrainResultStaysTyped: [WorkerDrainReturn] extends [OutboxDrainResult]
+  ? ([OutboxDrainResult] extends [WorkerDrainReturn] ? true : never)
+  : never = true;
+
+type FactoryDrainReturn = Awaited<ReturnType<ReturnType<typeof createOutboxServices>["drainOutbox"]>>;
+const factoryGuaranteesDrainResult: [FactoryDrainReturn] extends [DrainOutboxWorkerResult] ? true : never = true;
+
+test("contract compile-time: drainOutbox garanteaza OutboxDrainResult pe tot lantul, fara unknown si fara cast in recordDrain (review nou, Mediu #14)", () => {
+  assert.equal(workerDrainResultStaysTyped, true, "CreateOutboxWorkerDeps.drainOutbox returneaza exact OutboxDrainResult; daca cineva reintroduce `| unknown`, asertarea de tip pica la compilare");
+  assert.equal(factoryGuaranteesDrainResult, true, "createOutboxServices().drainOutbox garanteaza DrainOutboxWorkerResult (rezultatul complet + recoveryVerifyEnabledGuilds)");
+});
 
 interface DrainResult { sent?: number; retried?: number; deadLettered?: number; queued?: number; deliveryMsTotal?: number; oldestJobAgeMs?: number; recoveryDuplicates?: number; recoveryFetches?: number; recoveryFailures?: number; recoveryMarkerMissing?: number; markSentFailures?: number; deleteFailures?: number; deadLetterFailures?: number; recoveryVerifyEnabledGuilds?: number }
 interface Harness {

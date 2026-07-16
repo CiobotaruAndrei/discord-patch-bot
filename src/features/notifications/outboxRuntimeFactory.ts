@@ -1,6 +1,7 @@
 "use strict";
 
 import type { OutboxHistoryEntry } from "./notificationOutbox.js";
+import type { DrainOutboxWorkerResult } from "./outboxTypes.js";
 import type { OutboxDiscordClient } from "./outboundChannel.js";
 import type { NotificationsRuntimeDeps } from "./notificationRuntimeContracts.js";
 
@@ -83,7 +84,7 @@ export function createOutboxServices(deps: NotificationsRuntimeDeps) {
     });
   }
 
-  async function drainOutbox(client: OutboxDiscordClient, shouldAbort?: () => boolean) {
+  async function drainOutbox(client: OutboxDiscordClient, shouldAbort?: () => boolean): Promise<DrainOutboxWorkerResult> {
     const result = await outbox.drainOutbox({
       deliver: (job: OutboxJobShape) => outboxDelivery.deliver(client, job),
       isStillSubscribed: createIsStillSubscribed(GuildModel),
