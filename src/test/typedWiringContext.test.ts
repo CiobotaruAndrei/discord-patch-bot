@@ -6,7 +6,7 @@ process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "test-token";
 process.env.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "test-client-id";
 
 const mongoContext = (await import("../infra/mongo/mongoContext.js")).default;
-const sourceRegistry = await import("../sources/sourceRegistry.js");
+const sourceRegistry = (await import("../app/runtimeComposition.js")).sourceRegistry;
 
 const MONGO_CONTEXT_KEYS = [
   "logger", "env", "withMongoRetry", "GuildModel", "NotificationOutboxModel", "NotificationOutboxSentModel",

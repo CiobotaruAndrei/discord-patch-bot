@@ -31,7 +31,7 @@ const {
   GuildDeadLetterModel, NotificationDeadLetterReplayModel
 } = mongoContext;
 import commands from "../features/command-registry/commandRegistry.js";
-import * as scrapers from "../sources/sourceRegistry.js";
+import { sourceRegistry as scrapers } from "./runtimeComposition.js";
 import { createOperationJournalRuntime } from "../features/admin-records/operationJournalRuntime.js";
 import { createScheduledTaskRunner } from "./scheduler/scheduledTaskRunner.js";
 

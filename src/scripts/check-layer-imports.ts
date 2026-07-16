@@ -35,7 +35,7 @@ const FORBIDDEN_LAYER_EDGES: ReadonlyArray<{ from: Layer; to: Layer; rule: strin
   {
     from: "sources", to: "app",
     rule: "sources nu depinde de composition root (review nou, Major #8)",
-    allowlist: ["sources/sourceRegistry.ts"]
+    allowlist: []
   },
   { from: "domain", to: "app", rule: "domain e pur: fara dependinte spre app", allowlist: [] },
   { from: "domain", to: "features", rule: "domain e pur: fara dependinte spre features", allowlist: [] },

@@ -116,7 +116,7 @@ async function main(): Promise<void> {
   const allowNetworkSkip = process.env.ALLOW_CANARY_NETWORK_SKIP === "true";
 
   const mongoose = await import("mongoose");
-  const sources: CanarySources = (await import("../sources/sourceRegistry.js")).default;
+  const sources: CanarySources = (await import("../app/runtimeComposition.js")).sourceRegistry;
   const { loadConfig } = await import("../config/configLoader.js");
 
   let connected = false;

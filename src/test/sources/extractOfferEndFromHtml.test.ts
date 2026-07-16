@@ -8,7 +8,7 @@ process.env.METRICS_PUBLIC ||= "true";
 
 import test from "node:test";
 import assert from "node:assert/strict";
-const { extractOfferEndFromHtml } = await import("../../sources/sourceRegistry.js");
+const { extractOfferEndFromHtml } = (await import("../../app/runtimeComposition.js")).sourceRegistry;
 
 test("extrage din .game_purchase_discount_countdown - Offer ends", () => {
   const html = `<html><body>
