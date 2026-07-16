@@ -24,6 +24,15 @@ test("scripturile operationale compileaza o singura data si ruleaza gate-urile d
   assert.equal(packageText.includes('"test:functional"'), false);
 });
 
+test("check e un orchestrator: construieste O DATA si deleaga la variantele prebuilt (review nou #21/#22)", () => {
+  assert.equal(scriptValue("check"), "npm run build:ts && npm run build:rust && npm run check:prebuilt", "check = build complet + verificari prebuilt, fara gate-uri duplicate inline");
+  const prebuilt = scriptValue("check:prebuilt");
+  assert.equal(prebuilt.includes("build:"), false, "check:prebuilt nu construieste nimic - ruleaza pe artefactele existente");
+  assert.equal(prebuilt.startsWith("node dist/scripts/check-syntax.js && "), true, "gate-urile ruleaza direct pe dist");
+  assert.ok(prebuilt.includes("node --test"), "check:prebuilt include si testele");
+  assert.equal(scriptValue("check:ts-prebuilt"), "npm run build:ts && npm run check:prebuilt", "check:ts-prebuilt reconstruieste doar TypeScript si refoloseste addon-ul nativ deja construit");
+});
+
 test("scripturile locale incarca .env si separa rolurile web si worker", () => {
   assert.equal(scriptValue("dev"), "npm run build && npm run start:local");
   assert.equal(scriptValue("start:web"), "node dist/app/web.js");

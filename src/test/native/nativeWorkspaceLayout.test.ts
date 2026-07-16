@@ -49,13 +49,12 @@ test("wrapper-ul N-API e subtire: deleaga la core si nu mai are teste proprii", 
   assert.ok(!/fn\s+\w+_impl\b/.test(lib), "logica _impl a fost mutata in core, nu duplicata in wrapper");
 });
 
-test("check:native si CI testeaza core-ul pur si dau clippy pe tot workspace-ul", () => {
+test("check:native si CI testeaza core-ul pur si dau clippy pe tot workspace-ul, in profil release (partajeaza target cache cu napi build, review nou #21)", () => {
   const pkg = read(packageJsonPath);
-  assert.match(pkg, /cargo clippy --manifest-path native\/Cargo\.toml --workspace --all-targets -- -D warnings/, "clippy acopera ambele crate-uri");
-  assert.match(pkg, /cargo test --manifest-path native\/Cargo\.toml -p discord_patch_bot_logic --quiet/, "cargo test ruleaza pe crate-ul pur, fara build-ul N-API");
+  assert.match(pkg, /cargo clippy --release --manifest-path native\/Cargo\.toml --workspace --all-targets -- -D warnings/, "clippy acopera ambele crate-uri, in release ca sa refoloseasca dependentele compilate de napi build --release");
+  assert.match(pkg, /cargo test --release --manifest-path native\/Cargo\.toml -p discord_patch_bot_logic --quiet/, "cargo test ruleaza pe crate-ul pur, fara build-ul N-API, in acelasi profil release");
   const ci = read(ciWorkflowPath);
-  assert.match(ci, /--workspace --all-targets/, "clippy pe workspace in ci.yml");
-  assert.match(ci, /-p discord_patch_bot_logic/, "testele pure in ci.yml");
+  assert.match(ci, /run: npm run check:native/, "ci.yml ruleaza validarea Rust prin scriptul unic check:native, nu prin comenzi cargo duplicate in workflow");
   const release = read(releaseWorkflowPath);
   assert.match(release, /npm run check:full/, "release.yml ruleaza check:full, care include check:native (clippy --workspace + cargo test pur), fara a duplica pasul de clippy");
 });
