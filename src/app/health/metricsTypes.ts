@@ -37,6 +37,10 @@ export interface BotMetrics {
   redisCacheMiss: number;
   redisErrors: number;
   guildSettingsListenerFailures: number;
+  securityRuntimeErrors?: number;
+  securityThreatsDeleted?: number;
+  securityBotAddsBlocked?: number;
+  permissionDelegationsReverted?: number;
   commandRuns: Record<string, number>;
   commandErrors: Record<string, number>;
   commandDurationMsTotal: Record<string, number>;

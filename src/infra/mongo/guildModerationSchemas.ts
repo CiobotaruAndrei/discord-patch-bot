@@ -20,11 +20,11 @@ export function buildGuildModerationSchemas({ mongoose }: GuildModerationSchemas
 
   const warningRecordSchema = new mongoose.Schema({
     schemaVersion: { type: Number, default: MODERATION_RECORD_SCHEMA_VERSION },
+    warningId: { type: String },
     userId: { type: String, required: true },
     username: { type: String, default: "" },
     moderatorId: { type: String, default: "" },
-    warnedAt: { type: Date, required: true },
-    reason: { type: String }
+    warnedAt: { type: Date, required: true }
   }, { _id: false });
 
   const botAddPermissionSchema = new mongoose.Schema({
@@ -40,5 +40,10 @@ export function buildGuildModerationSchemas({ mongoose }: GuildModerationSchemas
     status: { type: String, enum: BOT_ADD_PERMISSION_STATUSES, required: true }
   }, { _id: false });
 
-  return { moderationRecordSchema, warningRecordSchema, botAddPermissionSchema };
+  const lockedChannelPermissionSchema = new mongoose.Schema({
+    channelId: { type: String, required: true },
+    sendMessages: { type: String, enum: ["allow", "deny", "inherit"], required: true }
+  }, { _id: false });
+
+  return { moderationRecordSchema, warningRecordSchema, botAddPermissionSchema, lockedChannelPermissionSchema };
 }

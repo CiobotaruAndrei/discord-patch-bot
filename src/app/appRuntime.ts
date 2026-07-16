@@ -52,6 +52,8 @@ import { createSchedulers } from "./runtime/runtimeSchedulers.js";
 import { createBootSequence, connectMongoWithRetry, hydrateStartupCaches } from "./runtime/bootSequence.js";
 import { createGuildSettingsInvalidationChannel } from "../infra/redis/guildSettingsInvalidationChannel.js";
 import { createSecurityRuntime } from "../features/command-security/securityRuntime.js";
+import { createPermissionDelegationRuntime } from "../features/command-security/permissionDelegationRuntime.js";
+import { createModerationLifecycleRuntime } from "../features/moderation/moderationLifecycleRuntime.js";
 
 function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   const { createHttpServer, registerDiscordEvents, registerMongoEvents, createShutdownController, errorMessage, errorDetail, mongoose, crypto, mongo } = deps;
@@ -61,7 +63,26 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   const { client, metrics, lifecycle, rateLimiter, housekeeping } = services;
   const schedulers = createSchedulers(deps, services);
   const { cronController, outboxWorker, outboxEnabled } = schedulers;
-  const securityRuntime = createSecurityRuntime({ getGuildSettings: mongo.getGuildSettings ?? (async () => null), client });
+  const securityRuntime = mongo.GuildModel && mongo.GuildAuditLogModel
+    ? createSecurityRuntime({
+      getGuildSettings: mongo.getGuildSettings ?? (async () => null),
+      client,
+      GuildModel: mongo.GuildModel,
+      GuildAuditLogModel: mongo.GuildAuditLogModel,
+      httpReq: deps.scrapers.httpReq,
+      metrics
+    })
+    : undefined;
+  const permissionDelegationRuntime = mongo.GuildAuditLogModel
+    ? createPermissionDelegationRuntime({
+      GuildAuditLogModel: mongo.GuildAuditLogModel,
+      adminAlert,
+      metrics
+    })
+    : undefined;
+  const moderationLifecycleRuntime = mongo.GuildModel
+    ? createModerationLifecycleRuntime(mongo.GuildModel)
+    : undefined;
 
   const httpServer = createHttpServer({
     mongoose, crypto, env, client, metrics, logger, commands: deps.commands,
@@ -75,7 +96,9 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
     scheduleNextCron: cronController.scheduleNextCron,
     startOutboxWorker: outboxEnabled ? outboxWorker.start : undefined,
     role: deps.role,
-    securityRuntime
+    securityRuntime,
+    permissionDelegationRuntime,
+    moderationLifecycleRuntime
   });
   registerMongoEvents({ mongoose, logger, errorMessage });
 

@@ -2,7 +2,7 @@
 
 > Fisier generat automat din `COMMAND_CATALOG_HELP` (`src/features/command-catalog/commandCatalog.ts`), aceeasi sursa unica pe care o foloseste comanda `/help` in Discord. Nu edita manual acest fisier: ruleaza `npm run docs:commands` din `src/`. Sincronizarea catalog <-> fisier este verificata de `commandReferenceDoc.test.ts` si de `npm run check:docs-commands`.
 
-Total comenzi documentate: 149.
+Total comenzi documentate: 150.
 
 | Comanda | Permisiuni | Ce face | Exemplu |
 | --- | --- | --- | --- |
@@ -48,13 +48,14 @@ Total comenzi documentate: 149.
 | `/top active games` | Public | Afiseaza topul global al jocurilor cunoscute de bot care au Steam appId, sortat dupa player-count Steam. Nu este limitat de watchlist-ul sau filtrul de jocuri al serverului. | `/top active games numar:5` |
 | `/dlc` | Public | Cauta DLC-uri pentru un joc. | `/dlc joc:Counter-Strike 2` |
 | `/set new-account-alert-channel` | Admin, Ephemeral | Alege canalul pentru alertele de conturi noi. | `/set new-account-alert-channel canal:#security` |
-| `/start new-account-alerts` | Admin, Ephemeral | Porneste alertele cand intra conturi noi pe server. | `/start new-account-alerts` |
+| `/start new-account-alerts` | Admin, Ephemeral | Porneste alertele pentru conturi create in ultimele trei luni si verifica imediat membrii existenti. | `/start new-account-alerts` |
 | `/stop new-account-alerts` | Admin, Ephemeral | Opreste alertele pentru conturi noi. | `/stop new-account-alerts` |
 | `/set threat-alert-channel` | Admin, Ephemeral | Alege canalul pentru alertele de amenintari. | `/set threat-alert-channel canal:#security` |
-| `/start threat-protection` | Admin, Ephemeral | Porneste protectia la amenintari. | `/start threat-protection` |
+| `/start threat-protection` | Admin, Ephemeral | Inspecteaza linkurile si atasamentele; sterge numai amenintarile confirmate si alerteaza separat cazurile neconfirmate. | `/start threat-protection` |
 | `/stop threat-protection` | Admin, Ephemeral | Opreste protectia la amenintari. | `/stop threat-protection` |
 | `/set bot-add-alert-channel` | Admin, Ephemeral | Alege canalul pentru solicitarile si alertele de adaugare boti. | `/set bot-add-alert-channel canal:#security` |
-| `/start bot-add-protection` | Admin, Ephemeral | Porneste protectia la adaugarea botilor. | `/start bot-add-protection` |
+| `/set warn-channel` | Admin, Ephemeral | Alege canalul dedicat in care sunt publicate warn-urile si dovezile directe. | `/set warn-channel canal:#moderation` |
+| `/start bot-add-protection` | Admin, Ephemeral | Permite doar botul si solicitantul aprobati exact printr-o aprobare owner one-time neexpirata; botii neaprobati sunt eliminati. | `/start bot-add-protection` |
 | `/stop bot-add-protection` | Admin, Ephemeral | Opreste protectia la adaugarea botilor. | `/stop bot-add-protection` |
 | `/set admin-command-access` | Admin top-level, owner-only runtime, Ephemeral | Seteaza rolul care poate folosi comenzile admin pe langa Administrator si codul global de acces. Fara command seteaza fallback-ul global; cu command seteaza regula doar pentru acea comanda sau acel pachet, de exemplu /start updates. Perechile start/stop pentru acelasi modul folosesc aceeasi regula. Nota: Mode `role` accepta doar rolul ales, iar `role-or-higher` accepta rolul ales sau unul mai mare. Nota: O regula pentru `/start player-count` se aplica automat si la `/stop player-count`. Nota: Pana ownerul seteaza o regula de rol, rolurile nu dau acces admin; raman Administrator si codul global corect introdus prin modal ephemeral. | `/set admin-command-access role:@Moderator mode:role-or-higher command:/start player-count` |
 | `/price-alert list` | Admin, Ephemeral | Listeaza alertele de pret, pragurile, valutele si starea armata sau declansata. | `/price-alert list` |
@@ -136,22 +137,22 @@ Total comenzi documentate: 149.
 | `/game-alias remove` | Admin, Ephemeral | Sterge un alias personalizat al jocului. | `/game-alias remove joc:counter-strike-2 alias:cs2` |
 | `/game-alias list` | Admin, Ephemeral | Listeaza aliasurile personalizate salvate pentru joc. | `/game-alias list joc:counter-strike-2` |
 | `/notification preview` | Admin, Ephemeral | Previzualizeaza continutul si embed-ul unei notificari cu template-ul activ, fara livrare sau modificarea starii. | `/notification preview command:/start updates` |
-| `/lock-channel` | Admin, Ephemeral | Blocheaza mesajele membrilor in canalul selectat, cu un motiv. | `/lock-channel canal:#general motiv:mentenanta` |
-| `/unlock-channel` | Admin, Ephemeral | Deblocheaza mesajele membrilor in canalul selectat. | `/unlock-channel canal:#general` |
-| `/purge` | Admin, Ephemeral | Sterge ultimele 50 de mesaje din canalul curent. | `/purge` |
-| `/purge-amount` | Admin, Ephemeral | Sterge numarul indicat de mesaje din canalul curent. | `/purge-amount numar:50` |
-| `/timeout` | Admin, Ephemeral | Aplica timeout unui membru. | `/timeout utilizator:@user durata:30m` |
+| `/lock-channel` | Admin, Ephemeral | Blocheaza mesajele membrilor, salveaza starea exacta allow/deny/inherit si accepta motiv text fara linkuri sau atasament direct. | `/lock-channel canal:#general motiv:mentenanta` |
+| `/unlock-channel` | Admin, Ephemeral | Restaureaza exact permisiunea Send Messages existenta inainte de blocare. | `/unlock-channel canal:#general` |
+| `/purge` | Admin, Ephemeral | Sterge pana la 50 de mesaje recente si explica limita Discord de 14 zile si mesajele omise. | `/purge` |
+| `/purge-amount` | Admin, Ephemeral | Sterge pana la numarul indicat de mesaje recente si raporteaza mesajele omise. | `/purge-amount numar:50` |
+| `/timeout` | Admin, Ephemeral | Aplica timeout atomic fata de persistenta; motivul poate fi text fara linkuri sau atasament direct. | `/timeout utilizator:@user durata:30m` |
 | `/remove-timeout` | Admin, Ephemeral | Elimina timeout-ul unui membru. | `/remove-timeout utilizator:@user` |
 | `/timeout-list` | Public | Afiseaza timeout-urile active. | `/timeout-list` |
-| `/mute` | Admin, Ephemeral | Aplica mute unui membru. | `/mute utilizator:@user durata:1h` |
+| `/mute` | Admin, Ephemeral | Aplica mute atomic fata de persistenta; motivul poate fi text fara linkuri sau atasament direct. | `/mute utilizator:@user durata:1h` |
 | `/unmute` | Admin, Ephemeral | Elimina mute-ul unui membru. | `/unmute utilizator:@user` |
 | `/mute-list` | Public | Afiseaza mute-urile active. | `/mute-list` |
 | `/kick` | Admin, Ephemeral | Elimina un membru de pe server. | `/kick utilizator:@user` |
 | `/ban` | Admin, Ephemeral | Baneaza un membru. | `/ban utilizator:@user` |
-| `/unban` | Admin, Ephemeral | Debaneaza un utilizator. | `/unban utilizator:@user` |
-| `/warn` | Admin, Ephemeral | Avertizeaza un membru cu un motiv. | `/warn utilizator:@user motiv:spam` |
+| `/unban` | Admin, Ephemeral | Debaneaza utilizatorul prin API-ul guild.bans.remove. | `/unban utilizator:@user` |
+| `/warn` | Admin, Ephemeral | Publica dovada intr-un canal dedicat, persista doar metadatele si poate declansa auto-ban. | `/warn utilizator:@user motiv:spam` |
 | `/remove-warn` | Admin, Ephemeral | Elimina cel mai recent avertisment. | `/remove-warn utilizator:@user` |
-| `/warn-list` | Public | Afiseaza utilizatorii cu avertismente active. | `/warn-list` |
+| `/warn-list` | Public | Afiseaza paginat toate avertismentele, cu utilizator, moderator si data. | `/warn-list` |
 | `/warn-ban-limit` | Admin, Ephemeral | Seteaza limita de avertismente pentru ban automat. | `/warn-ban-limit numar:3` |
 | `/bot-add-request` | Admin, Ephemeral | Solicita aprobarea proprietarului pentru un bot nou. | `/bot-add-request bot-id:123456789012345678` |
-| `/bot-add-permissions` | Admin, Ephemeral | Listeaza solicitarile de adaugare boti. | `/bot-add-permissions` |
+| `/bot-add-permissions` | Admin, Ephemeral | Listeaza paginat toate solicitarile cu status, bot, solicitant, owner si momentele ciclului de viata. | `/bot-add-permissions` |

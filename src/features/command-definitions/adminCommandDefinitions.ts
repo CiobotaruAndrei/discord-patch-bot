@@ -135,6 +135,8 @@ export function buildAdminCommandDefinitions({ SlashCommandBuilder, PermissionsB
         .addChannelOption(option => option.setName("canal").setDescription("Canalul pentru alerte").setRequired(true)))
       .addSubcommand(subcommand => subcommand.setName("bot-add-alert-channel").setDescription("Seteaza canalul pentru aprobari de boti")
         .addChannelOption(option => option.setName("canal").setDescription("Canalul pentru alerte").setRequired(true)))
+      .addSubcommand(subcommand => subcommand.setName("warn-channel").setDescription("Seteaza canalul dedicat avertismentelor")
+        .addChannelOption(option => option.setName("canal").setDescription("Canalul pentru warn-uri").setRequired(true)))
       .addSubcommandGroup(group => group.setName("add").setDescription("Adauga in watchlist")
         .addSubcommand(subcommand => subcommand.setName("games").setDescription("Adauga un joc in watchlist")
           .addStringOption(option => option.setName("joc").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true))))
@@ -153,7 +155,8 @@ export function buildAdminCommandDefinitions({ SlashCommandBuilder, PermissionsB
       .setDescription("Blocheaza mesajele membrilor in canalul curent (admin)")
       .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
       .addChannelOption(option => option.setName("canal").setDescription("Canalul de blocat").setRequired(true))
-      .addStringOption(option => option.setName("motiv").setDescription("Motivul blocarii").setRequired(true).setMaxLength(500)),
+      .addStringOption(option => option.setName("motiv").setDescription("Motivul blocarii").setRequired(false).setMaxLength(500))
+      .addAttachmentOption(option => option.setName("atasament").setDescription("Atasament direct optional").setRequired(false)),
     new SlashCommandBuilder()
       .setName("unlock-channel")
       .setDescription("Deblocheaza mesajele membrilor in canalul curent (admin)")

@@ -13,8 +13,10 @@ test("sub-schemele de moderare sunt tipate si versionate, nu Mixed (review nou, 
     assert.equal(schema.path("userId")?.isRequired, true, `${name}.userId e camp obligatoriu tipat`);
     assert.equal(schema.path(requiredDate)?.instance, "Date", `${name}.${requiredDate} e Date, nu Mixed`);
     assert.equal(schema.path("schemaVersion")?.options.default, MODERATION_RECORD_SCHEMA_VERSION, `${name} poarta versiunea de schema`);
-    assert.equal(schema.path("reason")?.instance, "String", `${name}.reason e String`);
   }
+  assert.equal(moderationRecordSchema.path("reason")?.instance, "String", "sanctiunile temporare pastreaza motivul necesar restaurarii");
+  assert.equal(warningRecordSchema.path("warningId")?.instance, "String", "warn-urile noi pot fi compensate exact prin identificator");
+  assert.equal(warningRecordSchema.path("reason"), undefined, "warn-urile nu persista motivul sau continutul sensibil");
 });
 
 test("sub-schema botAddPermissions valideaza statusul printr-un enum inchis (review nou, Mediu #12)", () => {

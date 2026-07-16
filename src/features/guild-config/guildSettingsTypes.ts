@@ -54,6 +54,7 @@ export interface GuildConfigurationSettings {
   threatProtectionEnabled?: boolean;
   botAddAlertChannelId?: string | null;
   botAddProtectionEnabled?: boolean;
+  warningChannelId?: string | null;
   botAddPermissions?: Array<{
     schemaVersion?: number;
     requestId: string;
@@ -68,6 +69,10 @@ export interface GuildConfigurationSettings {
   }>;
   purgeAmount?: number;
   lockedChannelIds?: string[];
+  lockedChannelPermissions?: Array<{
+    channelId: string;
+    sendMessages: "allow" | "deny" | "inherit";
+  }>;
 }
 
 export interface GuildSecuritySettings {

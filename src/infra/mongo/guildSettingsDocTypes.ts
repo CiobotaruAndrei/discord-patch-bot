@@ -116,9 +116,32 @@ export interface GuildDoc {
   futureReleaseGames?: FutureReleaseGameEntry[];
   adminCommandAccess?: AdminCommandAccessConfig | null;
   adminCommandAccessByCommand?: Record<string, AdminCommandAccessConfig | null | undefined>;
-  moderationTimeouts?: Array<Record<string, unknown>>;
-  moderationMutes?: Array<Record<string, unknown>>;
-  moderationWarnings?: Array<Record<string, unknown>>;
+  moderationTimeouts?: Array<{
+    schemaVersion?: number;
+    userId: string;
+    username: string;
+    moderatorId: string;
+    appliedAt: Date;
+    expiresAt?: Date | null;
+    reason?: string;
+  }>;
+  moderationMutes?: Array<{
+    schemaVersion?: number;
+    userId: string;
+    username: string;
+    moderatorId: string;
+    appliedAt: Date;
+    expiresAt?: Date | null;
+    reason?: string;
+  }>;
+  moderationWarnings?: Array<{
+    schemaVersion?: number;
+    warningId?: string;
+    userId: string;
+    username: string;
+    moderatorId: string;
+    warnedAt: Date;
+  }>;
   moderationWarnBanLimit?: number;
   playerCountSubscribed?: boolean;
   playerCountChannelId?: string | null;
@@ -139,6 +162,7 @@ export interface GuildDoc {
   threatProtectionEnabled?: boolean;
   botAddAlertChannelId?: string | null;
   botAddProtectionEnabled?: boolean;
+  warningChannelId?: string | null;
   botAddPermissions?: Array<{
     requestId: string;
     botId: string;
@@ -152,4 +176,8 @@ export interface GuildDoc {
   }>;
   purgeAmount?: number;
   lockedChannelIds?: string[];
+  lockedChannelPermissions?: Array<{
+    channelId: string;
+    sendMessages: "allow" | "deny" | "inherit";
+  }>;
 }

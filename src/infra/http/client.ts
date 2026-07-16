@@ -164,6 +164,7 @@ function buildHttpClientFrom(target: HttpClientDeps) {
     };
     if (signal) reqConfig.signal = signal;
     if ("data" in options) reqConfig.data = options.data;
+    if (options.responseType) reqConfig.responseType = options.responseType;
     if (options.acceptNotModified) {
       reqConfig.validateStatus = (status: number) => (status >= 200 && status < 300) || status === 304;
     }

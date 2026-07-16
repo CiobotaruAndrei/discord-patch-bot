@@ -227,6 +227,25 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Accepta implicit permisiunea Discord `Administrator`; rolurile sunt acceptate doar daca ownerul serverului seteaza explicit o regula dedicata in `adminCommandAccessByCommand` sau fallback-ul global `adminCommandAccess` prin `/set admin-command-access`; codul global de acces este fallback-ul runtime cerut prin modal ephemeral cand utilizatorul nu trece verificarile configurate. Scope-urile `start`/`stop` sunt normalizate pe acelasi modul, astfel incat o regula pentru `/start player-count` se aplica si la `/stop player-count`.
 - Refuzul vizibil este `Access denied.`.
 
+### `src/features/command-security/securityRuntime.ts` (+ `threatInspectionService.ts`, `recentAccountPolicy.ts`)
+
+- Leaga bot-add de intrarea Discord `BotAdd` din audit log, consuma atomic aprobarea exacta bot + solicitant si elimina botul daca aprobarea lipseste, a expirat sau a fost deja folosita.
+- Clasifica separat riscul contului bot si trimite alerte owner fara a schimba validitatea aprobarii.
+- Inspecteaza continutul mesajelor, redirecturile si atasamentele dupa MIME si semnaturi de fisier. Numai verdictul `confirmed` permite stergerea; `uncertain` produce alerta fara continutul periculos si fara sanctiune automata.
+- Politica de cont nou foloseste trei luni calendaristice, nu un numar aproximativ de zile.
+
+### `src/features/command-security/permissionDelegationRuntime.ts`
+
+- Urmareste actualizarile rolurilor si atribuirea rolurilor membrilor prin audit log pentru permisiunile Administrator, Ban Members, Kick Members, Moderate Members si Manage Webhooks.
+- Accepta delegarea numai cand executorul este ownerul serverului. Pentru restul executorilor restaureaza exact starea anterioara si scrie audit, metrica si alerta administrativa.
+
+### `src/features/moderation/moderationRepository.ts` (+ `moderationLifecycleRuntime.ts`, `moderationInputPolicy.ts`)
+
+- Repository-ul foloseste update-uri Mongo atomice pentru timeout, mute si avertismente; timeout si mute se exclud reciproc fara read-modify-write.
+- Lifecycle-ul curata inregistrarile expirate la boot si la citire, elimina starea membrilor plecati si repara Discord cand persistenta sau aplicarea moderarii esueaza.
+- Motivele accepta text fara linkuri sau atasament incarcat direct. Avertismentele publica dovada in canalul dedicat si persista numai metadatele necesare listarii, nu continutul sensibil; fiecare avertisment nou are un identificator intern, astfel incat un esec de livrare retrage exact scrierea curenta, nu un avertisment concurent.
+- Lock/unlock pastreaza starea tri-state `allow`/`deny`/`inherit`, are rollback intre Discord si Mongo si elimina canalele sterse din configuratie.
+
 ### `src/features/command-catalog/commandCatalog.ts`
 
 - Sursa unica pentru faptele per comanda: manifestul de acces (`COMMAND_ACCESS_MANIFEST`: tier public/admin, `discordAdminPermissions`, exceptii de subcomenzi publice/admin-runtime, owner-only, cai sensibile) + intrarile de help per cale (`COMMAND_CATALOG_HELP`: descriere, exemplu, note, aliases, flag `ephemeral` doar pentru caile publice ephemeral).

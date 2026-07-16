@@ -25,6 +25,9 @@ import type { CreateShutdownControllerDeps, ShutdownController } from "./lifecyc
 import type { OutboxDiscordClient } from "../features/notifications/outboundChannel.js";
 import type { RedisRuntime } from "../infra/redis/redisClient.js";
 import type { GuildSettings } from "../features/guild-config/guildSettingsTypes.js";
+import type { HttpRequestOptions } from "../types.js";
+import type { GuildAuditLogModelLike } from "../features/admin-records/auditLogRepository.js";
+import type { ModerationGuildModel } from "../features/moderation/moderationRepository.js";
 
 export interface CommandRuntime {
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
@@ -45,6 +48,7 @@ export interface ScraperRuntime {
   attachMetrics(metrics: BotMetrics): void;
   cleanEnrichedCache(): void;
   getEnrichedCacheSize(): number;
+  httpReq?(method: string, url: string, options?: HttpRequestOptions): Promise<{ data: unknown; headers?: Record<string, unknown> }>;
 }
 
 export interface HttpServerLike {
@@ -72,6 +76,8 @@ export interface MongoContextLike {
   getGuildCacheSize: () => number;
   adminAlert: (kind: string, title: string, body: string, guildId?: string) => Promise<void>;
   getGuildSettings?: (guildId: string) => Promise<GuildSettings | null>;
+  GuildModel?: ModerationGuildModel;
+  GuildAuditLogModel?: GuildAuditLogModelLike;
   setAdminAlertDiscordClient(client: DiscordClientLike | null): void;
   getOutboxPaused: () => Promise<boolean>;
   runMigrations: (logger: MongoContextLike["logger"]) => Promise<{ applied: number[] }>;

@@ -24,6 +24,15 @@ Pe scurt, instrumentele de operare:
   **Ce trebuie facut** (remediere per tip de alerta) — maparea kind -> ghidaj e in
   `src/infra/mongo/adminAlertContent.ts`.
 
+## Metrici pentru securitate si moderare
+
+- `bot_security_runtime_errors` creste cand un listener de securitate sau moderare nu poate finaliza operatia. Verifica logul asociat, disponibilitatea Mongo/Discord si alerta administrativa; incidentul nu trebuie tratat ca simplu mesaj ratat.
+- `bot_security_threats_deleted` numara numai mesajele sterse dupa confirmarea continutului periculos. O alerta `uncertain` nu incrementeaza seria si cere verificare manuala.
+- `bot_security_bot_adds_blocked` numara botii eliminati fiindca audit log-ul nu a identificat solicitantul sau nu exista o aprobare pending valida pentru perechea exacta bot + solicitant.
+- `bot_permission_delegations_reverted` numara restaurarile automate ale permisiunilor sensibile acordate de altcineva decat owner. Coreleaza seria cu audit log-ul serverului pentru executor, tinta si permisiunea restaurata.
+
+La cresterea oricarei serii, verifica si canalul configurat prin `/admin-alerts set`: alertele contin tipul incidentului, severitatea, utilizatorul sau resursa implicata, actiunea automata si rezultatul, fara a reproduce continut executabil ori payload-uri periculoase.
+
 Canalele configurate prin `/admin-alerts set` primesc aceeasi structura de embed ca webhook-ul global. Rapoartele noi sunt limitate la serverul care le-a generat; alertele operationale globale sunt distribuite tuturor canalelor administrative configurate. Daca fetch-ul canalului esueaza cu o eroare Discord permanenta, `adminAlertChannelId` este resetat automat ca botul sa nu repete la nesfarsit livrari imposibile. `/admin-alerts off` dezactiveaza doar destinatia Discord a serverului, nu si `ADMIN_WEBHOOK_URL`.
 
 ## Cand creste `bot_outbox_queue_depth`

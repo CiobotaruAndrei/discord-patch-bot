@@ -27,9 +27,20 @@ export interface LifecycleDiscordGuild {
 }
 
 export interface LifecycleDiscordGuildMember {
+  id?: string;
   guild?: { id?: string } | null;
   joinedTimestamp?: number;
   user?: { id?: string; tag?: string; bot?: boolean; createdTimestamp?: number } | null;
+}
+
+export interface LifecycleDiscordRole {
+  id: string;
+  guild: { id: string };
+}
+
+export interface LifecycleDiscordDeletedChannel {
+  id?: string;
+  guild?: { id?: string } | null;
 }
 
 export interface LifecycleDiscordMessage {
@@ -46,6 +57,10 @@ export interface LifecycleEventClient {
   on(event: "guildCreate", listener: (guild: LifecycleDiscordGuild) => unknown): unknown;
   on(event: "guildMemberAdd", listener: (member: LifecycleDiscordGuildMember) => unknown): unknown;
   on(event: "messageCreate", listener: (message: LifecycleDiscordMessage) => unknown): unknown;
+  on(event: "roleUpdate", listener: (previous: LifecycleDiscordRole, next?: LifecycleDiscordRole) => unknown): unknown;
+  on(event: "guildMemberUpdate", listener: (previous: LifecycleDiscordGuildMember, next?: LifecycleDiscordGuildMember) => unknown): unknown;
+  on(event: "guildMemberRemove", listener: (member: LifecycleDiscordGuildMember) => unknown): unknown;
+  on(event: "channelDelete", listener: (channel: LifecycleDiscordDeletedChannel) => unknown): unknown;
   on(event: "error" | "shardError", listener: (err: unknown) => unknown): unknown;
   on(event: "warn", listener: (message: string) => unknown): unknown;
 }
