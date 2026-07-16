@@ -8,8 +8,9 @@ process.env.METRICS_PUBLIC ||= "true";
 
 import test from "node:test";
 import assert from "node:assert/strict";
-const _____features_command_registry_commandRegistry = (await import("../../features/command-registry/commandRegistry.js")).default;
-const { buildOptimizedGameList } = _____features_command_registry_commandRegistry;
+const commandRegistryFactories = (await import("../../features/command-registry/commandRegistry.js")).default;
+const { commandRuntimeInput } = await import("./commandTestInput.js");
+const { buildOptimizedGameList } = commandRegistryFactories.createCommandRegistry(commandRuntimeInput);
 
 type TestGame = { key: string; name: string; type: string; appId?: string };
 type TestGuild = { _id: string; subscribed: boolean; notificationChannelId: string; enabledGames: string[] };

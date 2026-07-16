@@ -4,6 +4,7 @@ import { createRedisCache } from "../infra/redis/redisCache.js";
 import { createSourceRegistry } from "../sources/sourceRegistryFactory.js";
 import { createCircuitBreakerStore } from "../sources/updates/circuitBreakerStore.js";
 import type { SourceRuntimeDeps } from "../sources/runtime.js";
+import type { CommandRuntimeInput } from "../features/command-runtime/commandRuntimeDependencies.js";
 
 const redisRuntime = createRedisRuntime(mongoContext.env, mongoContext.logger);
 const redisCache = createRedisCache({ runtime: redisRuntime, logger: mongoContext.logger });
@@ -20,4 +21,11 @@ const sourceRuntimeDeps: SourceRuntimeDeps = {
 };
 const sourceRegistry = createSourceRegistry(sourceRuntimeDeps);
 
-export { redisRuntime, redisCache, sourceRuntimeDeps, sourceRegistry };
+const commandRuntimeInput: CommandRuntimeInput = {
+  mongo: mongoContext,
+  sources: sourceRegistry,
+  redis: redisRuntime,
+  redisCache
+};
+
+export { redisRuntime, redisCache, sourceRuntimeDeps, sourceRegistry, commandRuntimeInput };

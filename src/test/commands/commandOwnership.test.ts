@@ -9,6 +9,7 @@ process.env.METRICS_PUBLIC ||= "true";
 const { enumerateCommandProbes, buildOwnershipProbeInteraction, assertExclusiveCommandOwnership } = await import("../../features/command-registry/commandOwnership.js");
 const { createCommandHandlerDescriptors } = await import("../../features/command-registry/commandHandlerDescriptors.js");
 const commandRegistry = (await import("../../features/command-registry/commandRegistry.js")).default;
+const { commandRuntimeInput } = await import("./commandTestInput.js");
 
 test("enumerateCommandProbes acopera comenzi simple, subcomenzi si grupuri de subcomenzi", () => {
   const probes = enumerateCommandProbes([
@@ -57,11 +58,11 @@ test("assertExclusiveCommandOwnership ignora handler-ele de routing (fallback-ul
 });
 
 test("registrul REAL: fiecare comanda din slash definitions e revendicata de exact un handler ne-routing (review nou, Mediu #10)", () => {
-  assert.doesNotThrow(() => commandRegistry.createCommandRegistry({ getGuildSettings: async () => null }));
+  assert.doesNotThrow(() => commandRegistry.createCommandRegistry(commandRuntimeInput, { getGuildSettings: async () => null }));
 });
 
 test("regresie umbrire: /set add games si /set remove games apartin lui game-filter, nu handler-ului generic /set", () => {
-  const ctx = commandRegistry.createAppServices({ getGuildSettings: async () => null });
+  const ctx = commandRegistry.createAppServices(commandRuntimeInput, { getGuildSettings: async () => null });
   const descriptors = createCommandHandlerDescriptors();
   const setDescriptor = descriptors.find(descriptor => descriptor.id === "set");
   const gameFilterDescriptor = descriptors.find(descriptor => descriptor.id === "game-filter");

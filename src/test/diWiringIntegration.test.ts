@@ -8,9 +8,13 @@ process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "test-token";
 process.env.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "test-client-id";
 process.env.METRICS_PUBLIC = process.env.METRICS_PUBLIC || "true";
 
-const commandRegistry = (await import("../features/command-registry/commandRegistry.js")).default;
+const { commandRuntimeInput } = await import("./commands/commandTestInput.js");
+const commandRegistryFactories = (await import("../features/command-registry/commandRegistry.js")).default as {
+  createCommandRegistry: (input: unknown) => Record<string, unknown>;
+};
+const commandRegistry = commandRegistryFactories.createCommandRegistry(commandRuntimeInput);
 const commandRuntimeContext = require("../features/command-runtime/commandRuntimeContext").default as {
-  createCommandRuntimeContext: () => { discord: Record<string, unknown>; mongo: Record<string, unknown>; sources: Record<string, unknown>; platform: Record<string, unknown> };
+  createCommandRuntimeContext: (input: unknown) => { discord: Record<string, unknown>; mongo: Record<string, unknown>; sources: Record<string, unknown>; platform: Record<string, unknown> };
 };
 
 const REQUIRED_REGISTRY_FUNCTIONS = [
@@ -37,7 +41,7 @@ test("wiring DI: lantul complet (mongoContext -> sourceRegistry -> commandRegist
 });
 
 test("wiring DI: contextul de comenzi asamblat expune toate deps critice pentru handler-e (mongo + surse + prezentare), niciuna undefined", () => {
-  const ctx = commandRuntimeContext.createCommandRuntimeContext();
+  const ctx = commandRuntimeContext.createCommandRuntimeContext(commandRuntimeInput);
   const grouped: Record<string, unknown> = { ...ctx.discord, ...ctx.mongo, ...ctx.sources, ...ctx.platform };
   const missing = CRITICAL_CONTEXT_DEPS.filter(dep => grouped[dep] === undefined);
   assert.deepEqual(missing, [], `deps critice negasite in contextul de comenzi (gap de wiring mongo/surse): ${missing.join(", ")}`);

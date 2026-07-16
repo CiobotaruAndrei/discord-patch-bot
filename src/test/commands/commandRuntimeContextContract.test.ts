@@ -8,6 +8,7 @@ process.env.METRICS_PUBLIC ||= "true";
 
 const commandRuntimeContextModule = (await import("../../features/command-runtime/commandRuntimeContext.js")).default;
 const { createCommandRuntimeContext, createCommandRuntimeDependencies } = commandRuntimeContextModule;
+const { commandRuntimeInput } = await import("./commandTestInput.js");
 
 const CURATED_PRESENT = [
   "logger", "env", "getGuildSettings", "GuildModel", "GuildAuditLogModel", "adminAlert",
@@ -29,7 +30,7 @@ const UNCURATED_SOURCE_ABSENT = [
 ];
 
 function flattenedKeysForAssertions(): Record<string, unknown> {
-  const dependencies = createCommandRuntimeContext();
+  const dependencies = createCommandRuntimeContext(commandRuntimeInput);
   return { ...dependencies.discord, ...dependencies.mongo, ...dependencies.sources, ...dependencies.platform };
 }
 
@@ -56,7 +57,7 @@ test("commandRuntimeContext NU mai scurge suprafata surselor neutilizata (fara .
 });
 
 test("commandRuntimeDependencies separa Discord, Mongo, sursele si platforma", () => {
-  const dependencies = createCommandRuntimeDependencies();
+  const dependencies = createCommandRuntimeDependencies(commandRuntimeInput);
   assert.deepEqual(Object.keys(dependencies).sort(), ["discord", "mongo", "platform", "sources"]);
   assert.ok("EmbedBuilder" in dependencies.discord);
   assert.ok(!("GuildModel" in dependencies.discord));

@@ -15,6 +15,7 @@ interface CommandRegistryExports {
 }
 
 const commandRegistry = (await import("../../features/command-registry/commandRegistry.js")).default;
+const { commandRuntimeInput } = await import("./commandTestInput.js");
 
 const requiredKeys = [
   "cleanCache",
@@ -38,15 +39,15 @@ const requiredKeys = [
 ];
 
 test("command registry compune explicit toate functiile cerute, fara installers dinamici", () => {
-  const registry = commandRegistry.createCommandRegistry({ getGuildSettings: async () => null });
+  const registry = commandRegistry.createCommandRegistry(commandRuntimeInput, { getGuildSettings: async () => null });
   for (const key of requiredKeys) {
     assert.equal(typeof (registry as Record<string, unknown>)[key], "function", `registry expune ${key} ca functie dupa compunerea explicita prin factory-uri`);
   }
 });
 
 test("createCommandRegistry intoarce un registru proaspat si izolat la fiecare apel", () => {
-  const first = commandRegistry.createCommandRegistry({ getGuildSettings: async () => null });
-  const second = commandRegistry.createCommandRegistry({ getGuildSettings: async () => null });
+  const first = commandRegistry.createCommandRegistry(commandRuntimeInput, { getGuildSettings: async () => null });
+  const second = commandRegistry.createCommandRegistry(commandRuntimeInput, { getGuildSettings: async () => null });
 
   assert.notEqual(first, second);
   assert.equal(typeof first.handleInteraction, "function");
@@ -55,7 +56,7 @@ test("createCommandRegistry intoarce un registru proaspat si izolat la fiecare a
 });
 
 test("createCommandRegistry intoarce un registru INGHETAT (imutabil), compus prin createAppServices fara mutatie in-place (R14 #4)", () => {
-  const registry = commandRegistry.createCommandRegistry({ getGuildSettings: async () => null });
+  const registry = commandRegistry.createCommandRegistry(commandRuntimeInput, { getGuildSettings: async () => null });
   assert.ok(Object.isFrozen(registry), "registrul public e inghetat: consumatorii nu mai pot muta wiring-ul dupa compunere");
   const before = registry.handleInteraction;
   try {
@@ -68,7 +69,7 @@ test("createCommandRegistry intoarce un registru INGHETAT (imutabil), compus pri
 });
 
 test("dispatcher: /help este rutat catre handler-ul de help prin canHandle loop", async () => {
-  const registry = commandRegistry.createCommandRegistry({ getGuildSettings: async () => null });
+  const registry = commandRegistry.createCommandRegistry(commandRuntimeInput, { getGuildSettings: async () => null });
   let captured: Record<string, unknown> | null = null;
   const interaction = {
     isChatInputCommand: () => true,
@@ -88,7 +89,7 @@ test("dispatcher: /help este rutat catre handler-ul de help prin canHandle loop"
 });
 
 test("dispatcher: o comanda necunoscuta cade pe fallback (canHandle mereu true, ultimul)", async () => {
-  const registry = commandRegistry.createCommandRegistry({ getGuildSettings: async () => null });
+  const registry = commandRegistry.createCommandRegistry(commandRuntimeInput, { getGuildSettings: async () => null });
   let captured: { content?: string } | null = null;
   const interaction = {
     isChatInputCommand: () => true,
@@ -108,7 +109,7 @@ test("dispatcher: o comanda necunoscuta cade pe fallback (canHandle mereu true, 
 });
 
 test("dispatcher: comanda admin de la non-admin e blocata de pre-check inainte de orice handler", async () => {
-  const registry = commandRegistry.createCommandRegistry({ getGuildSettings: async () => null });
+  const registry = commandRegistry.createCommandRegistry(commandRuntimeInput, { getGuildSettings: async () => null });
   let captured: { content?: string } | null = null;
   const interaction = {
     isChatInputCommand: () => true,
@@ -149,7 +150,7 @@ function makeChatInput(commandName: string, options: { admin?: boolean } = {}) {
 }
 
 test("dispatcher: toate comenzile admin de la non-admin sunt blocate de pre-check (registry real, table-driven)", async () => {
-  const registry = commandRegistry.createCommandRegistry({ getGuildSettings: async () => null });
+  const registry = commandRegistry.createCommandRegistry(commandRuntimeInput, { getGuildSettings: async () => null });
   for (const command of [
     "start", "stop", "set", "template", "notification", "game-alias", "health", "config", "reset-config",
     "admin-alerts", "price-alert", "sources", "watchlist", "snooze", "unsnooze",
@@ -164,7 +165,7 @@ test("dispatcher: toate comenzile admin de la non-admin sunt blocate de pre-chec
 });
 
 test("dispatcher: /ping si /games sunt rutate prin registry catre handler-ul lor si raspund (registry real)", async () => {
-  const registry = commandRegistry.createCommandRegistry({ getGuildSettings: async () => null });
+  const registry = commandRegistry.createCommandRegistry(commandRuntimeInput, { getGuildSettings: async () => null });
   const games = [{ key: "cs2", name: "CS2" }];
   for (const command of ["ping", "games"]) {
     const { interaction, captured } = makeChatInput(command);
@@ -175,11 +176,11 @@ test("dispatcher: /ping si /games sunt rutate prin registry catre handler-ul lor
 
 test("createCommandRuntimeContext returns a fresh, isolated base on every call", () => {
   const runtimeContextModule = require("../../features/command-runtime/commandRuntimeContext").default as {
-    createCommandRuntimeContext: () => { discord: Record<string, unknown>; mongo: Record<string, unknown>; sources: Record<string, unknown>; platform: Record<string, unknown> };
+    createCommandRuntimeContext: (input: unknown) => { discord: Record<string, unknown>; mongo: Record<string, unknown>; sources: Record<string, unknown>; platform: Record<string, unknown> };
   };
 
-  const first = runtimeContextModule.createCommandRuntimeContext();
-  const second = runtimeContextModule.createCommandRuntimeContext();
+  const first = runtimeContextModule.createCommandRuntimeContext(commandRuntimeInput);
+  const second = runtimeContextModule.createCommandRuntimeContext(commandRuntimeInput);
 
   assert.notEqual(first, second);
   assert.equal(typeof first.discord.EmbedBuilder, "function");

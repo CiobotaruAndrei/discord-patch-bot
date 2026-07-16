@@ -37,6 +37,11 @@ const FORBIDDEN_LAYER_EDGES: ReadonlyArray<{ from: Layer; to: Layer; rule: strin
     rule: "sources nu depinde de composition root (review nou, Major #8)",
     allowlist: []
   },
+  {
+    from: "features", to: "app",
+    rule: "features nu depind de composition root: instantele Redis/sources/mongo se injecteaza din bootstrap (review nou, Mare #1)",
+    allowlist: []
+  },
   { from: "domain", to: "app", rule: "domain e pur: fara dependinte spre app", allowlist: [] },
   { from: "domain", to: "features", rule: "domain e pur: fara dependinte spre features", allowlist: [] },
   { from: "domain", to: "infra", rule: "domain e pur: fara dependinte spre infra", allowlist: [] },

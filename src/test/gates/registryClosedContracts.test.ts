@@ -169,7 +169,8 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   assert.equal((cmd.match(/as never/g) || []).length, 0, "commandRegistry nu mai are granita as never");
   assert.equal((src.match(/as never/g) || []).length, 0, "sourceRegistry nu mai are granita as never");
   assert.ok(!cmd.includes("LegacyInstallerTarget"), "commandRegistry nu mai are tinta legacy bazata pe Record<string, unknown>");
-  assert.match(cmd, /function createCommandRegistry\(\s*overrides: Partial<[^)]+> = \{\}\s*\): RequiredCommandRegistry/, "commandRegistry compune explicit, cu tip de retur inchis RequiredCommandRegistry; singurul parametru e un override TIPAT Partial<context> pentru injectare in teste (nu un boundary de installers dinamici)");
+  assert.match(cmd, /function createCommandRegistry\(\s*input: CommandRuntimeInput,\s*overrides: Partial<[^)]+> = \{\}\s*\): RequiredCommandRegistry/, "commandRegistry compune explicit din input-ul INJECTAT (CommandRuntimeInput: mongo/sources/redis/redisCache din bootstrap) + override TIPAT pentru teste, cu tip de retur inchis RequiredCommandRegistry (review nou, Mare #1)");
+  assert.ok(!cmd.includes("runtimeComposition"), "commandRegistry nu mai importa instante din composition root (app): sunt injectate prin input");
   assert.ok(!/installers/.test(cmd), "commandRegistry nu mai are mecanismul de installers dinamici: compunere prin factory-uri reale + Object.assign + lista tipata CommandHandler[]");
   assert.ok(!cmd.includes("CommandInstallerTarget"), "commandRegistry nu mai are CommandInstallerTarget (boundary-ul dinamic installers: unknown[] a fost eliminat)");
   assert.ok(!cmd.includes("isCommandModuleInstaller"), "commandRegistry nu mai are garda runtime isCommandModuleInstaller (compunerea e statica, verificata de tsc)");
@@ -310,16 +311,17 @@ test("createCommandRuntimeContext intoarce un contract inchis, nu Record<string,
   assert.equal(runtimeContextTyped, true, "tipul de retur e concret, nu bag generic Record<string, unknown>");
   const runtimePath = path.join(srcRoot, "features", "command-runtime", "commandRuntimeContext.ts");
   const text = fs.readFileSync(runtimePath, "utf8");
-  assert.ok(!/createCommandRuntimeContext\(\): Record<string, unknown>/.test(text), "return type explicit, nu Record<string, unknown>");
-  assert.match(text, /createCommandRuntimeContext\(\): CommandRuntimeDependencies/, "return type grupat, numit si inchis");
+  assert.ok(!/createCommandRuntimeContext\([^)]*\): Record<string, unknown>/.test(text), "return type explicit, nu Record<string, unknown>");
+  assert.match(text, /createCommandRuntimeContext\(input: CommandRuntimeInput\): CommandRuntimeDependencies/, "primeste input-ul injectat (CommandRuntimeInput) si intoarce contractul grupat, numit si inchis (review nou, Mare #1)");
 });
 
 test("boot-ul (app/bootstrap.ts) foloseste require-uri tipate, ca satisfies AppRuntimeDeps sa nu fie pacalit de any (review #9.1 + #9.6)", () => {
   const bootstrapPath = path.join(srcRoot, "app", "bootstrap.ts");
   const text = fs.readFileSync(bootstrapPath, "utf8");
   assert.match(text, /import mongoContext from "\.\.\/infra\/mongo\/mongoContext\.js"/, "mongoContext importat static si tipat");
-  assert.match(text, /import commands from "\.\.\/features\/command-registry\/commandRegistry\.js"/, "commandRegistry importat static tipat");
-  assert.match(text, /import \{ sourceRegistry as scrapers \} from "\.\/runtimeComposition\.js"/, "instanta sourceRegistry vine din composition root, nu din stratul de surse (review nou, Major #8)");
+  assert.match(text, /import commandRegistryFactories from "\.\.\/features\/command-registry\/commandRegistry\.js"/, "fabricile de registru importate static; instanta e construita in bootstrap cu input injectat");
+  assert.match(text, /import \{ sourceRegistry as scrapers, commandRuntimeInput \} from "\.\/runtimeComposition\.js"/, "instantele (sourceRegistry + commandRuntimeInput) vin din composition root; bootstrap le injecteaza in registru (review nou, Mare #1 + Major #8)");
+  assert.match(text, /createCommandRegistry\(commandRuntimeInput\)/, "registrul de comenzi e construit in bootstrap cu input-ul injectat, nu eager la import in features");
   assert.match(text, /satisfies AppRuntimeDeps/, "wiring-ul de boot ramane verificat cu satisfies");
   const untypedRequires = (text.match(/= require\("\.[^"]+"\);\r?\n/g) || []).filter(line => !line.includes("as typeof import") && !line.includes("as SourceRegistryApi"));
   assert.deepEqual(untypedRequires, [], "niciun require de modul local netipat in boot");

@@ -30,8 +30,8 @@ const {
   OperationJournalModel, GuildModel, GuildAuditLogModel, GuildConfigBackupModel, GuildYoutubeErrorModel,
   GuildDeadLetterModel, NotificationDeadLetterReplayModel
 } = mongoContext;
-import commands from "../features/command-registry/commandRegistry.js";
-import { sourceRegistry as scrapers } from "./runtimeComposition.js";
+import commandRegistryFactories from "../features/command-registry/commandRegistry.js";
+import { sourceRegistry as scrapers, commandRuntimeInput } from "./runtimeComposition.js";
 import { createOperationJournalRuntime } from "../features/admin-records/operationJournalRuntime.js";
 import { createScheduledTaskRunner } from "./scheduler/scheduledTaskRunner.js";
 
@@ -46,6 +46,8 @@ const operationJournalRecovery = createScheduledTaskRunner({
   intervalMs: OPERATION_JOURNAL_RECOVERY_INTERVAL_MS,
   task: async () => { await operationJournal.recoverPending({ olderThanMs: OPERATION_JOURNAL_RECOVERY_MIN_AGE_MS, limit: OPERATION_JOURNAL_RECOVERY_LIMIT }); }
 });
+
+const commands = commandRegistryFactories.createCommandRegistry(commandRuntimeInput);
 
 function buildAppRuntime(role: BotRole): AppRuntime {
   return createAppRuntime({

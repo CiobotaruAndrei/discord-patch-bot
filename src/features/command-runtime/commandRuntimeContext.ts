@@ -4,10 +4,10 @@ import {
   createCommandRuntimeDependencies,
   createDiscordRuntimeBindings
 } from "./commandRuntimeDependencies.js";
-import type { CommandRuntimeDependencies } from "./commandRuntimeDependencies.js";
+import type { CommandRuntimeDependencies, CommandRuntimeInput } from "./commandRuntimeDependencies.js";
 
-function createCommandRuntimeContext(): CommandRuntimeDependencies {
-  return createCommandRuntimeDependencies();
+function createCommandRuntimeContext(input: CommandRuntimeInput): CommandRuntimeDependencies {
+  return createCommandRuntimeDependencies(input);
 }
 
 export default Object.assign(createCommandRuntimeContext, {

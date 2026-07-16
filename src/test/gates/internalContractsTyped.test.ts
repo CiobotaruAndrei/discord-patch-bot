@@ -11,7 +11,7 @@ const updateEmbedIsNotUnknown: [unknown] extends [UpdateEmbedReturn] ? never : t
 type DealEmbedReturn = ReturnType<DiscountNotificationServiceDeps["buildDealEmbed"]>;
 const dealEmbedIsNotUnknown: [unknown] extends [DealEmbedReturn] ? never : true = true;
 
-type RegistryApi = typeof import("../../features/command-registry/commandRegistry.js")["default"];
+type RegistryApi = ReturnType<typeof import("../../features/command-registry/commandRegistry.js")["default"]["createCommandRegistry"]>;
 
 const registerSlashCommandsReturnsVoid: [Awaited<ReturnType<RegistryApi["registerSlashCommands"]>>] extends [void] ? true : never = true;
 const runtimeRegisterSlashCommandsReturnsVoid: [Awaited<ReturnType<CommandRuntime["registerSlashCommands"]>>] extends [void] ? true : never = true;
