@@ -115,7 +115,9 @@ function isDirectSetCommand(interaction: DiscordInteraction): boolean {
   if (interaction.commandName !== "set") return false;
   const group = interaction.options?.getSubcommandGroup?.(false);
   const subcommand = interaction.options?.getSubcommand?.();
-  return group !== "games" && group !== "role" && subcommand !== "admin-command-access"
+  return group !== "games" && group !== "role"
+    && !((group === "add" || group === "remove") && subcommand === "games")
+    && subcommand !== "admin-command-access"
     && !["new-account-alert-channel", "threat-alert-channel", "bot-add-alert-channel"].includes(subcommand);
 }
 

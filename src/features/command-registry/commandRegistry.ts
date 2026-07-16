@@ -78,6 +78,8 @@ import attachHelpInteractionHandler from "../command-handlers/helpInteractionHan
 import attachCommandSnoozeGuard from "../command-security/commandSnoozeGuard.js";
 import attachAdminCommandRouterGuard from "../command-security/adminCommandRouterGuard.js";
 import { buildNarrowCommandHandler, createCommandHandlerDescriptors } from "./commandHandlerDescriptors.js";
+import { assertExclusiveCommandOwnership } from "./commandOwnership.js";
+import type { CommandOwnerCandidate } from "./commandOwnership.js";
 
 import { createCommandRuntimeDependencies } from "../command-runtime/commandRuntimeDependencies.js";
 import type { CommandRuntimeDependencies } from "../command-runtime/commandRuntimeDependencies.js";
@@ -126,18 +128,28 @@ function createAppServices(
 
 export type CommandAppServices = ReturnType<typeof createAppServices>;
 
-function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): { commandHandlers: CommandHandler[]; helpCommand: ReturnType<typeof attachHelpInteractionHandler.buildCommandHandler> } {
+function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): { commandHandlers: CommandHandler[]; helpCommand: ReturnType<typeof attachHelpInteractionHandler.buildCommandHandler>; commandOwners: CommandOwnerCandidate[] } {
   const helpCommand = buildNarrowCommandHandler(attachHelpInteractionHandler.buildCommandHandler, ctx);
   const descriptors = [...createCommandHandlerDescriptors()].sort((left, right) => left.priority - right.priority);
-  const commandHandlers: CommandHandler[] = descriptors.map(descriptor => descriptor.id === "help" ? helpCommand : buildNarrowCommandHandler(descriptor.build, ctx));
-  return { commandHandlers, helpCommand };
+  const built = descriptors.map(descriptor => ({
+    descriptor,
+    handler: descriptor.id === "help" ? helpCommand : buildNarrowCommandHandler(descriptor.build, ctx)
+  }));
+  const commandHandlers: CommandHandler[] = built.map(entry => entry.handler);
+  const commandOwners: CommandOwnerCandidate[] = built.map(entry => ({
+    id: entry.descriptor.id,
+    domain: entry.descriptor.domain,
+    canHandle: interaction => entry.handler.canHandle(interaction)
+  }));
+  return { commandHandlers, helpCommand, commandOwners };
 }
 
 function createCommandRegistry(
   overrides: Partial<CommandRuntimeBootContext> = {}
 ): RequiredCommandRegistry {
   const ctx = createAppServices(overrides);
-  const { commandHandlers, helpCommand } = buildCommandHandlerList(ctx);
+  const { commandHandlers, helpCommand, commandOwners } = buildCommandHandlerList(ctx);
+  assertExclusiveCommandOwnership(ctx.buildSlashCommandDefinitions(), commandOwners);
 
   async function dispatchCommand(interaction: RoutedDiscordInteraction, games: CommandGame[]): Promise<unknown> {
     let resolvedGames = games;
