@@ -69,8 +69,10 @@ export function buildResetConfiguration(defaultCurrency: CurrencyCode): Record<s
     threatProtectionEnabled: false,
     botAddAlertChannelId: null,
     botAddProtectionEnabled: false,
+    warningChannelId: null,
     botAddPermissions: [],
     purgeAmount: 50,
-    lockedChannelIds: []
+    lockedChannelIds: [],
+    lockedChannelPermissions: []
   };
 }

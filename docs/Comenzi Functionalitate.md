@@ -231,31 +231,32 @@ Concepte utile pentru admini:
 
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
-| `/timeout utilizator:<membru> durata:<durata> motiv:<text>` | Admin, Guild-only | Aplica un timeout de la 1 secunda pana la 28 de zile, cu verificare de ierarhie si persistenta. |
+| `/timeout utilizator:<membru> durata:<durata> motiv:<text> atasament:<fisier>` | Admin, Ephemeral, Guild-only | Aplica un timeout de la 1 secunda pana la 28 de zile, cu verificare de ierarhie. Motivul poate fi text fara linkuri sau un atasament incarcat direct. Daca persistenta esueaza, timeout-ul Discord este retras. |
 | `/remove-timeout utilizator:<membru>` | Admin, Guild-only | Elimina timeout-ul activ al unui membru. |
-| `/timeout-list` | Public, Guild-only | Afiseaza timeout-urile active si momentul expirarii. |
-| `/mute utilizator:<membru> durata:<durata> motiv:<text>` | Admin, Guild-only | Aplica un mute persistent cu durata si motiv optional. |
+| `/timeout-list` | Public, Guild-only | Afiseaza paginat toate timeout-urile active, moderatorul, data aplicarii si momentul expirarii. Inregistrarile expirate sunt curatate la boot si la citire. |
+| `/mute utilizator:<membru> durata:<durata> motiv:<text> atasament:<fisier>` | Admin, Ephemeral, Guild-only | Aplica un mute persistent cu aceleasi verificari, validari si rollback ca timeout-ul. |
 | `/unmute utilizator:<membru>` | Admin, Guild-only | Elimina mute-ul activ al unui membru. |
-| `/mute-list` | Public, Guild-only | Afiseaza mute-urile active. |
-| `/kick utilizator:<membru> motiv:<text>` | Admin, Guild-only | Elimina un membru, respectand ierarhia Discord si permisiunile botului. |
-| `/ban utilizator:<membru> motiv:<text>` | Admin, Guild-only | Baneaza un membru, respectand ierarhia Discord si permisiunile botului. |
-| `/unban utilizator:<membru> motiv:<text>` | Admin, Guild-only | Debaneaza un utilizator dupa ID. |
-| `/warn utilizator:<membru> motiv:<text>` | Admin, Guild-only | Adauga un avertisment cu motiv obligatoriu si poate bana automat la limita configurata. |
+| `/mute-list` | Public, Guild-only | Afiseaza paginat toate mute-urile active si detaliile lor. |
+| `/kick utilizator:<membru> motiv:<text> atasament:<fisier>` | Admin, Ephemeral, Guild-only | Elimina un membru, respectand ierarhia Discord si permisiunile botului. Linkurile in motiv sunt refuzate; dovezile trebuie incarcate direct. |
+| `/ban utilizator:<membru> motiv:<text> atasament:<fisier>` | Admin, Ephemeral, Guild-only | Baneaza un membru, cu aceeasi politica de motiv si atasament. |
+| `/unban utilizator:<membru> motiv:<text> atasament:<fisier>` | Admin, Ephemeral, Guild-only | Debaneaza utilizatorul prin API-ul `guild.bans.remove`. |
+| `/set warn-channel canal:<canal>` | Admin, Ephemeral, Guild-only | Configureaza canalul dedicat in care sunt publicate avertismentele si dovezile directe. Botul valideaza View Channel, Send Messages si Embed Links. |
+| `/warn utilizator:<membru> motiv:<text> atasament:<fisier>` | Admin, Ephemeral, Guild-only | Publica avertismentul in canalul dedicat si persista numai metadatele necesare listei, nu motivul sau continutul sensibil. Daca publicarea esueaza, este retrasa exact inregistrarea creata de comanda curenta. |
 | `/remove-warn utilizator:<membru>` | Admin, Guild-only | Elimina cel mai recent avertisment al unui membru. |
-| `/warn-list` | Public, Guild-only | Afiseaza numarul de avertismente active per utilizator. |
+| `/warn-list` | Public, Guild-only | Afiseaza paginat fiecare avertisment cu utilizator, moderator si data. |
 | `/warn-ban-limit numar:<1-100>` | Admin, Guild-only | Configureaza limita de avertismente care declanseaza ban automat. |
-| `/lock-channel canal:<canal> motiv:<text>` | Admin, Guild-only | Blocheaza mesajele membrilor in canalul selectat, salveaza canalul blocat si publica motivul fara linkuri. |
-| `/unlock-channel canal:<canal>` | Admin, Guild-only | Restaureaza scrierea pentru un canal blocat anterior de bot. |
-| `/purge` | Admin, Guild-only | Sterge ultimele 50 de mesaje din canalul curent. |
-| `/purge-amount numar:<1-100>` | Admin, Guild-only | Sterge numarul indicat de mesaje din canalul curent si confirma numarul real sters. |
-| `/set new-account-alert-channel canal:<canal>` | Admin, Guild-only | Configureaza canalul pentru alertele conturilor Discord recente. |
-| `/start new-account-alerts` | Admin, Guild-only | Activeaza alertele pentru conturi create in ultimele 90 de zile. |
+| `/lock-channel canal:<canal> motiv:<text> atasament:<fisier>` | Admin, Ephemeral, Guild-only | Blocheaza mesajele membrilor si salveaza starea anterioara exacta `allow`, `deny` sau `inherit`. Update-ul Discord si persistenta au rollback reciproc. |
+| `/unlock-channel canal:<canal>` | Admin, Ephemeral, Guild-only | Restaureaza exact starea Send Messages existenta inainte de blocare. Canalele sterse sunt eliminate automat din evidenta. |
+| `/purge` | Admin, Ephemeral, Guild-only | Sterge pana la 50 de mesaje recente si explica limita Discord care exclude mesajele mai vechi de 14 zile. |
+| `/purge-amount numar:<1-100>` | Admin, Ephemeral, Guild-only | Sterge numarul indicat de mesaje recente si raporteaza separat cate au fost sterse si cate au fost omise. |
+| `/set new-account-alert-channel canal:<canal>` | Admin, Ephemeral, Guild-only | Configureaza canalul pentru alertele conturilor Discord recente si valideaza permisiunile botului. |
+| `/start new-account-alerts` | Admin, Ephemeral, Guild-only | Activeaza alertele pentru conturi create in ultimele trei luni calendaristice, scaneaza si membrii existenti si revine automat la oprit daca scanarea initiala esueaza. |
 | `/stop new-account-alerts` | Admin, Guild-only | Dezactiveaza alertele conturilor noi si pastreaza canalul. |
-| `/set threat-alert-channel canal:<canal>` | Admin, Guild-only | Configureaza canalul pentru alerte de continut suspect. |
-| `/start threat-protection` | Admin, Guild-only | Activeaza detectarea continutului suspect din mesajele noi. |
+| `/set threat-alert-channel canal:<canal>` | Admin, Ephemeral, Guild-only | Configureaza canalul pentru alerte de continut suspect si valideaza permisiunile botului. |
+| `/start threat-protection` | Admin, Ephemeral, Guild-only | Inspecteaza continutul, redirecturile HTTP sigure, linkurile si atasamentele prin MIME si semnaturi de fisier. Sterge numai amenintarile confirmate; documentele, arhivele sau resursele neverificabile raman pe canal si produc alerta pentru verificare manuala. |
 | `/stop threat-protection` | Admin, Guild-only | Dezactiveaza detectarea si pastraza canalul configurat. |
-| `/set bot-add-alert-channel canal:<canal>` | Admin, Guild-only | Configureaza canalul pentru solicitarile si alertele privind adaugarea botilor. |
-| `/start bot-add-protection` | Admin, Guild-only | Activeaza protectia impotriva botilor adaugati fara aprobare. |
+| `/set bot-add-alert-channel canal:<canal>` | Admin, Ephemeral, Guild-only | Configureaza canalul pentru solicitarile si alertele privind adaugarea botilor si valideaza permisiunile botului. |
+| `/start bot-add-protection` | Admin, Ephemeral, Guild-only | Leaga aprobarea de botul exact si solicitantul identificat din audit log. Aprobarea owner este one-time, expira si se consuma atomic; botii fara aprobare valida sunt eliminati. Conturile bot suspecte si foarte noi produc alerte owner separate. |
 | `/stop bot-add-protection` | Admin, Guild-only | Dezactiveaza protectia bot-add si pastreaza istoricul. |
-| `/bot-add-request` | Admin, Guild-only | Solicita aprobarea proprietarului pentru adaugarea unui bot; primeste optiunea `bot-id:<id>`. |
-| `/bot-add-permissions` | Admin, Guild-only | Listeaza solicitarile si permisiunile de adaugare a botilor. |
+| `/bot-add-request` | Admin, Ephemeral, Guild-only | Creeaza o solicitare pending pentru perechea bot plus solicitant, cu expirare automata si aprobarea sau respingerea ownerului prin butoane. |
+| `/bot-add-permissions` | Admin, Ephemeral, Guild-only | Listeaza paginat toate solicitarile cu status, bot, solicitant, owner, creare, raspuns, expirare si consumare. |

@@ -69,7 +69,9 @@ function buildAppRuntime(role: BotRole): AppRuntime {
       requestContext,
       loadFetchSnapshot: snapshots.loadFetchSnapshot,
       loadDealsFetchSnapshots: snapshots.loadDealsFetchSnapshots,
-      getOutboxPaused
+      getOutboxPaused,
+      GuildModel: repositories.GuildModel,
+      GuildAuditLogModel: repositories.GuildAuditLogModel
     },
     commands, scrapers,
     recoverOperationJournal: () => operationJournal.recoverPending({ olderThanMs: OPERATION_JOURNAL_RECOVERY_MIN_AGE_MS, limit: OPERATION_JOURNAL_RECOVERY_LIMIT }),

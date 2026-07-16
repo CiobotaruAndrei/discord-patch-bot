@@ -1,3 +1,5 @@
+"use strict";
+
 export type BotAddPermissionStatus = "pending" | "approved" | "used" | "rejected" | "expired" | "cancelled";
 
 export interface BotAddPermissionRecord {
@@ -17,45 +19,73 @@ export interface BotAddState {
   botAddPermissions: BotAddPermissionRecord[];
 }
 
-interface GuildModelLike {
-  findOne(filter: { _id: string }): { lean(): Promise<Record<string, unknown> | null> } | Promise<Record<string, unknown> | null>;
-  updateOne(filter: { _id: string }, update: Record<string, unknown>, options?: { upsert?: boolean }): Promise<unknown>;
+interface LeanQuery {
+  lean(): Promise<Record<string, unknown> | null>;
 }
 
-function hasLean(value: unknown): value is { lean(): Promise<Record<string, unknown> | null> } {
-  return Boolean(value && typeof (value as { lean?: unknown }).lean === "function");
+interface GuildModelLike {
+  findOne(filter: Record<string, unknown>): LeanQuery | Promise<Record<string, unknown> | null>;
+  findOneAndUpdate(
+    filter: Record<string, unknown>,
+    update: Record<string, unknown> | readonly Record<string, unknown>[],
+    options?: Record<string, unknown>
+  ): LeanQuery | Promise<Record<string, unknown> | null>;
+  updateOne(
+    filter: Record<string, unknown>,
+    update: Record<string, unknown> | readonly Record<string, unknown>[],
+    options?: Record<string, unknown>
+  ): Promise<unknown>;
+}
+
+const PENDING_TTL_MS = 10 * 60 * 1000;
+const APPROVED_TTL_MS = 30 * 60 * 1000;
+
+function hasLean(value: unknown): value is LeanQuery {
+  return Boolean(value && typeof value === "object" && "lean" in value && typeof value.lean === "function");
+}
+
+async function resolveDocument(value: LeanQuery | Promise<Record<string, unknown> | null>): Promise<Record<string, unknown> | null> {
+  return hasLean(value) ? value.lean() : value;
 }
 
 async function readGuild(model: GuildModelLike, guildId: string): Promise<Record<string, unknown>> {
-  const result = model.findOne({ _id: guildId });
-  return (hasLean(result) ? await result.lean() : await result) ?? {};
+  return (await resolveDocument(model.findOne({ _id: guildId }))) ?? {};
 }
 
 function asRecords(value: unknown): BotAddPermissionRecord[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(item => item && typeof item === "object" && typeof (item as { botId?: unknown }).botId === "string") as BotAddPermissionRecord[];
+  return value.filter(item => item && typeof item === "object"
+    && typeof (item as { requestId?: unknown }).requestId === "string"
+    && typeof (item as { botId?: unknown }).botId === "string"
+    && typeof (item as { requesterId?: unknown }).requesterId === "string") as BotAddPermissionRecord[];
 }
 
-function normalize(records: BotAddPermissionRecord[], now: Date): BotAddPermissionRecord[] {
-  const nowMs = now.getTime();
-  return records.map(record => {
-    if (record.status === "pending" && record.expiresAt && new Date(record.expiresAt).getTime() <= nowMs) {
-      return { ...record, status: "expired" as const };
+function findRecord(document: Record<string, unknown> | null, predicate: (record: BotAddPermissionRecord) => boolean): BotAddPermissionRecord | null {
+  return asRecords(document?.botAddPermissions).find(predicate) ?? null;
+}
+
+async function expirePermissions(model: GuildModelLike, guildId: string, now: Date): Promise<void> {
+  await model.updateOne(
+    { _id: guildId },
+    {
+      $set: {
+        "botAddPermissions.$[entry].status": "expired",
+        "botAddPermissions.$[entry].respondedAt": now
+      }
+    },
+    {
+      arrayFilters: [{
+        "entry.status": { $in: ["pending", "approved"] },
+        "entry.expiresAt": { $ne: null, $lte: now }
+      }]
     }
-    if (record.status === "approved" && record.expiresAt && new Date(record.expiresAt).getTime() <= nowMs) {
-      return { ...record, status: "expired" as const };
-    }
-    return record;
-  });
+  );
 }
 
 export async function getBotAddState(model: GuildModelLike, guildId: string, now = new Date()): Promise<BotAddState> {
+  await expirePermissions(model, guildId, now);
   const document = await readGuild(model, guildId);
-  const records = normalize(asRecords(document.botAddPermissions), now);
-  if (records.some((record, index) => record.status !== asRecords(document.botAddPermissions)[index]?.status)) {
-    await model.updateOne({ _id: guildId }, { $set: { botAddPermissions: records } }, { upsert: true });
-  }
-  return { botAddPermissions: records };
+  return { botAddPermissions: asRecords(document.botAddPermissions) };
 }
 
 export async function createBotAddRequest(
@@ -64,12 +94,45 @@ export async function createBotAddRequest(
   request: Omit<BotAddPermissionRecord, "status" | "respondedAt" | "ownerId" | "expiresAt" | "usedAt">,
   now = new Date()
 ): Promise<BotAddPermissionRecord> {
-  const state = await getBotAddState(model, guildId, now);
-  const existing = state.botAddPermissions.find(record => record.botId === request.botId && record.requesterId === request.requesterId && record.status === "pending");
-  if (existing) return existing;
-  const record: BotAddPermissionRecord = { ...request, requestedAt: new Date(request.requestedAt), status: "pending" };
-  await model.updateOne({ _id: guildId }, { $set: { botAddPermissions: [...state.botAddPermissions, record] } }, { upsert: true });
-  return record;
+  await expirePermissions(model, guildId, now);
+  const record: BotAddPermissionRecord = {
+    ...request,
+    requestedAt: new Date(request.requestedAt),
+    expiresAt: new Date(now.getTime() + PENDING_TTL_MS),
+    status: "pending"
+  };
+  try {
+    const document = await resolveDocument(model.findOneAndUpdate(
+      {
+        _id: guildId,
+        botAddPermissions: {
+          $not: {
+            $elemMatch: {
+              botId: request.botId,
+              requesterId: request.requesterId,
+              status: "pending",
+              expiresAt: { $gt: now }
+            }
+          }
+        }
+      },
+      {
+        $setOnInsert: { _id: guildId },
+        $push: { botAddPermissions: record }
+      },
+      { upsert: true, returnDocument: "after" }
+    ));
+    return findRecord(document, entry => entry.requestId === record.requestId) ?? record;
+  } catch {
+    const existing = findRecord(await readGuild(model, guildId), entry =>
+      entry.botId === request.botId
+      && entry.requesterId === request.requesterId
+      && entry.status === "pending"
+      && Boolean(entry.expiresAt && new Date(entry.expiresAt).getTime() > now.getTime())
+    );
+    if (existing) return existing;
+    throw new Error("Solicitarea bot-add nu a putut fi salvata atomic.");
+  }
 }
 
 export async function resolveBotAddRequest(
@@ -80,21 +143,37 @@ export async function resolveBotAddRequest(
   ownerId: string,
   now = new Date()
 ): Promise<BotAddPermissionRecord | null> {
-  const state = await getBotAddState(model, guildId, now);
-  const index = state.botAddPermissions.findIndex(record => record.requestId === requestId && record.status === "pending");
-  if (index < 0) return null;
-  const previous = state.botAddPermissions[index];
-  const updated: BotAddPermissionRecord = {
-    ...previous,
-    ownerId,
-    respondedAt: now,
-    status: decision,
-    expiresAt: decision === "approved" ? new Date(now.getTime() + 30 * 60 * 1000) : null
-  };
-  const records = [...state.botAddPermissions];
-  records[index] = updated;
-  await model.updateOne({ _id: guildId }, { $set: { botAddPermissions: records } }, { upsert: true });
-  return updated;
+  await expirePermissions(model, guildId, now);
+  const expiresAt = decision === "approved" ? new Date(now.getTime() + APPROVED_TTL_MS) : null;
+  const document = await resolveDocument(model.findOneAndUpdate(
+    {
+      _id: guildId,
+      botAddPermissions: {
+        $elemMatch: {
+          requestId,
+          status: "pending",
+          expiresAt: { $gt: now }
+        }
+      }
+    },
+    {
+      $set: {
+        "botAddPermissions.$[entry].ownerId": ownerId,
+        "botAddPermissions.$[entry].respondedAt": now,
+        "botAddPermissions.$[entry].status": decision,
+        "botAddPermissions.$[entry].expiresAt": expiresAt
+      }
+    },
+    {
+      arrayFilters: [{
+        "entry.requestId": requestId,
+        "entry.status": "pending",
+        "entry.expiresAt": { $gt: now }
+      }],
+      returnDocument: "after"
+    }
+  ));
+  return findRecord(document, entry => entry.requestId === requestId && entry.status === decision);
 }
 
 export async function consumeBotAddPermission(
@@ -104,14 +183,41 @@ export async function consumeBotAddPermission(
   requesterId: string,
   now = new Date()
 ): Promise<BotAddPermissionRecord | null> {
-  const state = await getBotAddState(model, guildId, now);
-  const index = state.botAddPermissions.findIndex(record => record.botId === botId && record.requesterId === requesterId && record.status === "approved");
-  if (index < 0) return null;
-  const updated = { ...state.botAddPermissions[index], status: "used" as const, usedAt: now };
-  const records = [...state.botAddPermissions];
-  records[index] = updated;
-  await model.updateOne({ _id: guildId }, { $set: { botAddPermissions: records } }, { upsert: true });
-  return updated;
+  await expirePermissions(model, guildId, now);
+  const document = await resolveDocument(model.findOneAndUpdate(
+    {
+      _id: guildId,
+      botAddPermissions: {
+        $elemMatch: {
+          botId,
+          requesterId,
+          status: "approved",
+          expiresAt: { $gt: now }
+        }
+      }
+    },
+    {
+      $set: {
+        "botAddPermissions.$[entry].status": "used",
+        "botAddPermissions.$[entry].usedAt": now
+      }
+    },
+    {
+      arrayFilters: [{
+        "entry.botId": botId,
+        "entry.requesterId": requesterId,
+        "entry.status": "approved",
+        "entry.expiresAt": { $gt: now }
+      }],
+      returnDocument: "after"
+    }
+  ));
+  return findRecord(document, entry =>
+    entry.botId === botId
+    && entry.requesterId === requesterId
+    && entry.status === "used"
+    && Boolean(entry.usedAt && new Date(entry.usedAt).getTime() === now.getTime())
+  );
 }
 
 export default { getBotAddState, createBotAddRequest, resolveBotAddRequest, consumeBotAddPermission };

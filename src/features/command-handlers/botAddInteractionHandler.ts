@@ -1,6 +1,7 @@
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import botAddRepository from "../moderation/botAddRepository.js";
 import type { BotAddPermissionRecord } from "../moderation/botAddRepository.js";
+import { sendTextPages } from "../command-presentation/textPagination.js";
 
 type Channel = { send?: (payload: unknown) => Promise<unknown> };
 type Guild = {
@@ -17,6 +18,7 @@ type Interaction = {
   isChatInputCommand?: () => boolean;
   isButton?: () => boolean;
   reply(payload: unknown): Promise<unknown>;
+  followUp?: (payload: unknown) => Promise<unknown>;
   update?: (payload: unknown) => Promise<unknown>;
 };
 type Model = Parameters<typeof botAddRepository.getBotAddState>[0];
@@ -38,7 +40,9 @@ function buttons(id: string): unknown[] {
 }
 function display(record: BotAddPermissionRecord): string {
   const expiry = record.expiresAt ? `<t:${Math.floor(new Date(record.expiresAt).getTime() / 1000)}:R>` : "-";
-  return `bot ${record.botId} · solicitant <@${record.requesterId}> · ${record.status} · expira ${expiry}`;
+  const responded = record.respondedAt ? `<t:${Math.floor(new Date(record.respondedAt).getTime() / 1000)}:R>` : "-";
+  const used = record.usedAt ? `<t:${Math.floor(new Date(record.usedAt).getTime() / 1000)}:R>` : "-";
+  return `bot ${record.botId} | solicitant <@${record.requesterId}> | status ${record.status} | raspuns ${responded} | expira ${expiry} | folosit ${used}`;
 }
 
 function isBotAddInteraction(interaction: Interaction): boolean {
@@ -50,7 +54,7 @@ function isBotAddInteraction(interaction: Interaction): boolean {
 function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
   async function handle(interaction: Interaction): Promise<unknown> {
     const guild = interaction.guild;
-    if (!guild || !interaction.user?.id) return interaction.reply({ content: "Comanda este disponibila doar pe server." });
+    if (!guild || !interaction.user?.id) return interaction.reply({ content: "Comanda este disponibila doar pe server.", ephemeral: true });
     if (interaction.isButton?.() === true) {
       const match = /^(?:bot-add):(approve|reject):([^:]+)$/.exec(interaction.customId ?? "");
       if (!match) return undefined;
@@ -62,8 +66,8 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
     const command = interaction.commandName;
     if (command === "bot-add-permissions") {
       const records = (await botAddRepository.getBotAddState(deps.GuildModel, guild.id)).botAddPermissions;
-      const active = records.filter(record => record.status === "pending" || record.status === "approved");
-      return interaction.reply({ content: active.length ? active.map(display).join("\n") : "Nu exista solicitari sau permisiuni active." });
+      const ordered = [...records].sort((left, right) => new Date(right.requestedAt).getTime() - new Date(left.requestedAt).getTime());
+      return sendTextPages(interaction, ordered.map(display), "Nu exista solicitari sau permisiuni bot-add.", true);
     }
     const settings = await deps.getGuildSettings(guild.id).catch(() => null);
     if (!settings?.botAddProtectionEnabled) return interaction.reply({ content: "Protectia bot-add nu este activa.", ephemeral: true });
@@ -73,7 +77,13 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
       requestId: requestId(), botId, requesterId: interaction.user.id, requestedAt: new Date()
     });
     const alertChannel = settings.botAddAlertChannelId && guild.channels?.fetch ? await guild.channels.fetch(settings.botAddAlertChannelId).catch(() => null) : null;
-    if (alertChannel?.send) await alertChannel.send({ content: `Solicitare aprobare bot nou: ${display(record)}.`, components: buttons(record.requestId) });
+    if (!alertChannel?.send) return interaction.reply({ content: "Canalul de aprobare bot-add nu este disponibil.", ephemeral: true });
+    const ownerId = guild.ownerId;
+    await alertChannel.send({
+      content: `${ownerId ? `<@${ownerId}> ` : ""}Solicitare aprobare bot nou: ${display(record)}.`,
+      components: buttons(record.requestId),
+      allowedMentions: ownerId ? { parse: [], users: [ownerId] } : { parse: [] }
+    });
     return interaction.reply({ content: "Solicitarea a fost trimisa proprietarului serverului.", ephemeral: true });
   }
   return { canHandle: (interaction: unknown): interaction is Interaction => isBotAddInteraction(interaction as Interaction), handle };

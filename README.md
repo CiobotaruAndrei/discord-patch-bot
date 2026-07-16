@@ -349,6 +349,10 @@ Registrele de wiring compun explicit factory-urile si valideaza fail-fast export
 - Foloseste `src/.env.example` ca sablon, nu `src/.env` real.
 - Verifica PR-urile Dependabot si lockfile-ul inainte de merge.
 - Ruleaza `npm audit` si testele inainte de release.
+- Protectia bot-add identifica solicitantul din audit log, consuma atomic o aprobare one-time pentru perechea exacta bot + solicitant si elimina botii fara aprobare valida.
+- Protectia continutului inspecteaza linkurile, redirecturile si atasamentele dupa MIME si semnaturi. Sterge numai amenintarile confirmate; continutul incert ramane disponibil pentru verificare manuala, iar alerta nu reproduce payload-ul periculos.
+- Delegarile neautorizate ale permisiunilor sensibile sunt detectate din audit log si restaurate la starea anterioara; ownerul serverului ramane singura exceptie.
+- Moderarea valideaza motivele si atasamentele, foloseste rollback intre Discord si persistenta, compenseaza warn-urile dupa identificatorul exact si curata inregistrarile expirate sau ramase dupa plecarea membrului.
 - Imaginea Docker e scanata cu **Trivy** (vulnerabilitati CRITICAL/HIGH, `ignore-unfixed`) si genereaza un **SBOM CycloneDX** prin workflow-ul `container-scan.yml` (push pe `main` cand se schimba Dockerfile/dependintele, **pe fiecare `pull_request` catre `main`**, saptamanal si manual). Pe PR ruleaza un pas-poarta Trivy cu `exit-code: 1` care **blocheaza merge-ul** daca imaginea are o vulnerabilitate fixabila CRITICAL/HIGH (la fel ca `check`); rezultatele Trivy apar in tab-ul Security (cod scanning, pe push/schedule), iar SBOM-ul e artifact. Completeaza CodeQL + Dependency Review (analiza de cod + dependinte) cu scanarea imaginii (supply chain). La release, imaginea publicata pe GHCR trece prin acelasi gate Trivy blocant **pe imaginea exacta**: build local (fara push), scanare, apoi `docker tag` + `docker push` pe bytes-ii scanati — nu exista cale de publicare nescanata. Tot la release ruleaza si `npm run canary:sources` (canary live pe surse, fail-closed pe API-urile fiabile) pe codul exact al tag-ului.
 
 ## Licenta

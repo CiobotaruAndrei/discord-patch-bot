@@ -7,9 +7,14 @@ import { clearYoutubeErrors, type YoutubeErrorModelLike } from "../youtube/youtu
 import { clearDeadLetters, type DeadLetterModelLike } from "../notifications/deadLetterRepository.js";
 
 export type GuildConfigWriteResult = MongoWriteOutcome;
+export type LockedChannelPermissionState = "allow" | "deny" | "inherit";
 
 export interface GuildConfigWriteModelLike {
-  updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<GuildConfigWriteResult>;
+  updateOne(
+    filter: Record<string, unknown>,
+    update: Record<string, unknown> | Record<string, unknown>[],
+    options?: Record<string, unknown>
+  ): Promise<GuildConfigWriteResult>;
 }
 
 export async function applyGuildConfigUpdate(
@@ -39,6 +44,52 @@ export async function clearCommandSnooze(GuildModel: GuildConfigWriteModelLike, 
 
 export async function setLockedChannel(GuildModel: GuildConfigWriteModelLike, guildId: string, channelId: string, locked: boolean): Promise<GuildConfigWriteResult> {
   const update = locked ? { $addToSet: { lockedChannelIds: channelId } } : { $pull: { lockedChannelIds: channelId } };
+  return GuildModel.updateOne({ _id: guildId }, update, { upsert: true });
+}
+
+export async function setLockedChannelPermissionState(
+  GuildModel: GuildConfigWriteModelLike,
+  guildId: string,
+  channelId: string,
+  previous: LockedChannelPermissionState,
+  locked: boolean
+): Promise<GuildConfigWriteResult> {
+  const update = locked
+    ? [{
+      $set: {
+        lockedChannelIds: { $setUnion: [{ $ifNull: ["$lockedChannelIds", []] }, [channelId]] },
+        lockedChannelPermissions: {
+          $concatArrays: [
+            {
+              $filter: {
+                input: { $ifNull: ["$lockedChannelPermissions", []] },
+                as: "entry",
+                cond: { $ne: ["$$entry.channelId", channelId] }
+              }
+            },
+            [{ channelId, sendMessages: previous }]
+          ]
+        }
+      }
+    }]
+    : [{
+      $set: {
+        lockedChannelIds: {
+          $filter: {
+            input: { $ifNull: ["$lockedChannelIds", []] },
+            as: "lockedChannelId",
+            cond: { $ne: ["$$lockedChannelId", channelId] }
+          }
+        },
+        lockedChannelPermissions: {
+          $filter: {
+            input: { $ifNull: ["$lockedChannelPermissions", []] },
+            as: "entry",
+            cond: { $ne: ["$$entry.channelId", channelId] }
+          }
+        }
+      }
+    }];
   return GuildModel.updateOne({ _id: guildId }, update, { upsert: true });
 }
 

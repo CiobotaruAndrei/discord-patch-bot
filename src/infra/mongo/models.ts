@@ -39,7 +39,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     pendingDiscountSchema,
     priceAlertSchema
   } = buildGuildNotificationSchemas({ mongoose, SUPPORTED_CURRENCIES });
-  const { moderationRecordSchema, warningRecordSchema, botAddPermissionSchema } = buildGuildModerationSchemas({ mongoose });
+  const { moderationRecordSchema, warningRecordSchema, botAddPermissionSchema, lockedChannelPermissionSchema } = buildGuildModerationSchemas({ mongoose });
   const {
     youtubeChannelSchema,
     youtubeChannelRouteSchema
@@ -133,9 +133,11 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     threatProtectionEnabled: { type: Boolean, default: false },
     botAddAlertChannelId: { type: String, default: null },
     botAddProtectionEnabled: { type: Boolean, default: false },
+    warningChannelId: { type: String, default: null },
     botAddPermissions: { type: [botAddPermissionSchema], default: [] },
     purgeAmount: { type: Number, default: 50, min: 1, max: 100 },
-    lockedChannelIds: { type: [String], default: [] }
+    lockedChannelIds: { type: [String], default: [] },
+    lockedChannelPermissions: { type: [lockedChannelPermissionSchema], default: [] }
   }, { minimize: false });
 
   guildSchema.index({ subscribed: 1, notificationChannelId: 1 }, { background: true });
