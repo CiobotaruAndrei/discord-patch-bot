@@ -15,7 +15,7 @@ import { registerDiscordEvents, registerMongoEvents } from "./lifecycle/events.j
 import { createShutdownController } from "./lifecycle/shutdown.js";
 import { errorMessage, errorDetail } from "../shared/errors.js";
 import { createAppRuntime } from "./appRuntime.js";
-import redis from "../infra/redis/redisContext.js";
+import { redisRuntime as redis } from "./runtimeComposition.js";
 import type { AppRuntime, AppRuntimeDeps } from "./appRuntime.js";
 import type { BotRole } from "../types.js";
 import type { SourceRegistryApi } from "../sources/sourceRegistry.js";

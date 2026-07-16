@@ -40,8 +40,8 @@ test("infra -> app si sources -> app sunt interzise, cu exceptia allowlist-ului 
     { from: "sources/sourceRegistry.ts", to: "app/runtimeComposition.ts", typeOnly: false },
     { from: "sources/steam/steamNou.ts", to: "app/bootstrap.ts", typeOnly: false }
   ]);
-  assert.deepEqual(violations.map(violation => violation.from), ["infra/redis/altNou.ts", "sources/sourceRegistry.ts", "sources/steam/steamNou.ts"],
-    "allowlist-ul sources->app e GOL dupa rezolvarea Major #8: orice import sources->app pica, inclusiv fostul sourceRegistry; datoria redis (Major #1) ramane allowlist-uita");
+  assert.deepEqual(violations.map(violation => violation.from), ["infra/redis/altNou.ts", "infra/redis/redisCacheContext.ts", "sources/sourceRegistry.ts", "sources/steam/steamNou.ts"],
+    "allowlist-urile infra->app si sources->app sunt GOALE dupa rezolvarea Major #1 (felia Redis) si Major #8: ORICE import infra->app sau sources->app pica, inclusiv fostii locatori");
 });
 
 test("domain si shared raman pure: orice dependinta spre straturile impure pica", () => {

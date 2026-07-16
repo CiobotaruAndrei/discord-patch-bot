@@ -13,8 +13,7 @@ import {
 } from "discord.js";
 
 import data from "../../infra/mongo/mongoContext.js";
-import redis from "../../infra/redis/redisContext.js";
-import { sourceRegistry as scrapers } from "../../app/runtimeComposition.js";
+import { redisRuntime as redis, sourceRegistry as scrapers } from "../../app/runtimeComposition.js";
 import type { SourceRegistryApi } from "../../sources/sourceRegistry.js";
 
 type MongoContextExports = typeof import("../../infra/mongo/mongoContext.js")["default"];

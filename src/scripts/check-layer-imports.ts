@@ -30,7 +30,7 @@ const FORBIDDEN_LAYER_EDGES: ReadonlyArray<{ from: Layer; to: Layer; rule: strin
   {
     from: "infra", to: "app",
     rule: "infra nu depinde de app (compositia se face in bootstrap, nu invers)",
-    allowlist: ["infra/redis/redisCacheContext.ts", "infra/redis/redisContext.ts"]
+    allowlist: []
   },
   {
     from: "sources", to: "app",
