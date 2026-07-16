@@ -190,15 +190,15 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   const descriptors = fs.readFileSync(path.join(srcRoot, "features", "command-registry", "commandHandlerDescriptors.ts"), "utf8");
   assert.match(descriptors, /interface CommandHandlerDescriptor/, "descriptorii au contract explicit");
   assert.ok((descriptors.match(/build: context =>/g) || []).length >= 15, "handler-ele sunt declarate prin factory-uri tipate in registrul de descriptori");
-  assert.match(src, /type SourceRuntimeContext = Partial<SourceRegistryApi>/, "sourceRegistry modeleaza contextul progresiv ca Partial<SourceRegistryApi>");
-  assert.match(src, /function requireSourceValue/, "sourceRegistry citeste exporturile prin garda fail-fast pe chei");
-  assert.ok(!/SourceRuntimeContext = [^\n]*Record<string, unknown>/.test(src), "SourceRuntimeContext nu mai e largit cu Record<string, unknown> (R11 #5): contextul progresiv e exact Partial<SourceRegistryApi> & runtime");
+  assert.ok(!src.includes("Partial<SourceRegistryApi>"), "arhitectura Partial<SourceRegistryApi> a fost eliminata: compunerea e explicita, verificata integral de tsc (review nou, Major #7)");
+  assert.ok(!src.includes("requireSourceValue"), "fara garda runtime pe chei: compilatorul dovedeste ca fiecare camp exista (nu mai exista context progresiv partial)");
   assert.match(src, /function createSourceRegistry\(deps: SourceRuntimeDeps\): SourceRegistryApi/, "sourceRegistry compune explicit din dependente injectate, cu tip de retur inchis SourceRegistryApi");
   assert.ok(!src.includes("SourceInstaller"), "sourceRegistry nu mai are tipul SourceInstaller (boundary-ul dinamic installers a fost eliminat)");
   assert.ok(!src.includes("defaultInstallers"), "sourceRegistry nu mai are lista dinamica defaultInstallers; compune prin valori returnate de factory-uri (build*From) ordonate (http -> steam -> updates -> deals)");
-  assert.match(src, /attachHttpClient\.buildFrom\(base\)[\s\S]*attachSteam\.buildFrom\(withHttp\)[\s\S]*attachUpdates\.buildFrom\(withSteam\)[\s\S]*attachDeals\.buildFrom\(withUpdates\)/, "sourceRegistry compune prin valorile returnate de build*From, ordonate http->steam->updates->deals, prin spread in obiecte noi (la fel ca commandRegistry)");
+  assert.match(src, /attachHttpClient\.buildFrom\(runtime\)[\s\S]*attachSteam\.createSteamSource\(\{[\s\S]*attachUpdates\.createUpdates\(\{[\s\S]*attachDeals\.createDeals\(\{/, "fiecare familie e construita EXPLICIT prin fabrica ei cu deps enumerate (http -> steam -> updates -> deals), fara context progresiv (review nou, Major #7)");
   assert.ok(!/Object\.assign\(\s*context\b/.test(src), "sourceRegistry nu mai muteaza in-place un context partajat (fara Object.assign(context, ...)): compunere imutabila prin spread (R18 #4)");
-  assert.match(src, /return Object\.freeze\(assertNoUndefinedExports/, "registrul de surse returnat e inghetat (Object.freeze), ca registrul public sa nu poata fi mutat dupa compunere");
+  assert.match(src, /return Object\.freeze\(\{/, "registrul de surse returnat e inghetat (Object.freeze); completitudinea campurilor e dovedita de tsc pe literalul de retur");
+  assert.ok(!src.includes("assertNoUndefinedExports"), "garda runtime de completitudine a devenit inutila: tip de retur inchis + literal explicit = verificare la compilare");
   assert.ok(!cmd.includes("(...args: unknown[]) => MaybePromise<unknown>"), "commandRegistry nu mai are tipul generic RegistryFunction = (...args: unknown[]) (R11 #4): campurile contractului au semnaturi precise");
 });
 

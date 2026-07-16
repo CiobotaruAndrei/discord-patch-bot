@@ -1,12 +1,12 @@
 import type { UpdatesApi } from "../sourceApis.js";
 import { applyFallbackSource, isGoodSteamArticleUrl, isLikelyPatchNote, extractDateScore, scoreCandidate, absoluteUrl, sourceConcurrencyGroup } from "./updateHelpers.js";
-import type { UpdatesContext, UpdatesDeps } from "./updatesContracts.js";
+import type { UpdatesDeps } from "./updatesContracts.js";
 import { createUpdatesSourceDispatch } from "./updatesSourceDispatch.js";
 import { createUpdatesCircuitBreaker } from "./updatesCircuitBreaker.js";
 import { createUpdatesFetchOrchestrator } from "./updatesFetchOrchestrator.js";
 
 function createUpdates(d: UpdatesDeps): UpdatesApi {
-  const deps = d;
+  const deps = { ...d };
 
   const dispatch = createUpdatesSourceDispatch(deps);
   const { executeFetchWithCircuitBreaker } = createUpdatesCircuitBreaker(deps, dispatch.fetchGameUpdate);
@@ -34,40 +34,7 @@ function createUpdates(d: UpdatesDeps): UpdatesApi {
   };
 }
 
-function buildUpdatesFrom(target: UpdatesContext) {
-  return createUpdates({
-    rssParser: target.rssParser,
-    circuitBreakerStore: target.circuitBreakerStore,
-    logger: target.logger,
-    adminAlert: target.adminAlert,
-    runConcurrent: target.runConcurrent,
-    SchemaDriftError: target.SchemaDriftError,
-    FETCH_CONCURRENCY: target.FETCH_CONCURRENCY,
-    FETCH_CONCURRENCY_STEAM: target.FETCH_CONCURRENCY_STEAM,
-    FETCH_CONCURRENCY_EPIC: target.FETCH_CONCURRENCY_EPIC,
-    FETCH_CONCURRENCY_LISTING: target.FETCH_CONCURRENCY_LISTING,
-    FETCH_CONCURRENCY_DRIVER: target.FETCH_CONCURRENCY_DRIVER,
-    CIRCUIT_BREAKER_FAIL_THRESHOLD: target.CIRCUIT_BREAKER_FAIL_THRESHOLD,
-    CIRCUIT_BREAKER_COOLDOWN_MS: target.CIRCUIT_BREAKER_COOLDOWN_MS,
-    CIRCUIT_BREAKER_JITTER_MS: target.CIRCUIT_BREAKER_JITTER_MS,
-    SCHEMA_DRIFT_THRESHOLD: target.SCHEMA_DRIFT_THRESHOLD,
-    httpReq: target.httpReq,
-    conditionalGet: target.conditionalGet,
-    fetchWithProxy: target.fetchWithProxy,
-    withInflightTimeout: target.withInflightTimeout,
-    trackInflight: target.trackInflight,
-    cleanText: target.cleanText,
-    stableUpdateId: target.stableUpdateId,
-    normalizeUpdate: target.normalizeUpdate,
-    safeCheerioLoad: target.safeCheerioLoad,
-    crypto: target.crypto,
-    getHttpMetrics: target.getHttpMetrics,
-    executeFetchWithCircuitBreaker: target.executeFetchWithCircuitBreaker
-  });
-}
-
 const updatesSourceModule = {
-  buildFrom: buildUpdatesFrom,
   sourceConcurrencyGroup,
   createUpdates
 };

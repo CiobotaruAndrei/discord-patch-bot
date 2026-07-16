@@ -13,7 +13,7 @@ type UpdatesRuntime = {
 };
 
 import attachUpdates from "../sources/updates/index.js";
-type UpdatesBuildContext = Parameters<typeof attachUpdates.buildFrom>[0];
+import type { UpdatesDeps as UpdatesBuildContext } from "../sources/updates/updatesContracts.js";
 function asUpdatesContext(context: Record<string, unknown>): UpdatesBuildContext {
   return context as Record<string, unknown> & UpdatesBuildContext;
 }
@@ -61,7 +61,7 @@ test("sources/updates: fetchListingBasedUpdate arunca plain Error (nu SchemaDrif
       return { processed: items.length, errors: [] };
     },
   };
-  Object.assign(context, attachUpdates.buildFrom(asUpdatesContext(context)));
+  Object.assign(context, attachUpdates.createUpdates(asUpdatesContext(context)));
   const runtime = context as typeof context & UpdatesRuntime;
 
   await assert.rejects(

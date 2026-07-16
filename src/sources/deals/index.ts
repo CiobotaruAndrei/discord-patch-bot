@@ -28,10 +28,8 @@ interface DealsDeps {
   extractOfferEndFromHtml: (html: unknown) => string | null;
 }
 
-type DealsContext = DealsDeps & Partial<DealsApi>;
-
 function createDeals(d: DealsDeps): DealsApi {
-  const deps = d;
+  const deps = { ...d };
   const inflightDeals = new Map<string, Promise<DealInfo[]>>();
 
   const { fetchSteamReviewData, fetchSteamSpecials } = createSteamDeals({
@@ -108,27 +106,7 @@ function createDeals(d: DealsDeps): DealsApi {
     };
 }
 
-function buildDealsFrom(target: DealsContext) {
-  return createDeals({
-    logger: target.logger,
-    getCurrencyConfig: target.getCurrencyConfig,
-    httpReq: target.httpReq,
-    normalizeTitleForDedupe: target.normalizeTitleForDedupe,
-    trackInflight: target.trackInflight,
-    withInflightTimeout: target.withInflightTimeout,
-    extractOfferEndFromHtml: target.extractOfferEndFromHtml,
-    STEAM_REVIEW_BATCH_SIZE: target.STEAM_REVIEW_BATCH_SIZE,
-    STEAM_REVIEW_BATCH_DELAY_MS: target.STEAM_REVIEW_BATCH_DELAY_MS,
-    ENRICHED_DEAL_CACHE_TTL_MS: target.ENRICHED_DEAL_CACHE_TTL_MS,
-    ENRICHED_DEAL_CACHE_MAX_SIZE: target.ENRICHED_DEAL_CACHE_MAX_SIZE,
-    STEAM_SPECIALS_LIMIT: target.STEAM_SPECIALS_LIMIT,
-    EPIC_SPECIALS_LIMIT: target.EPIC_SPECIALS_LIMIT,
-    MAX_DEALS: target.MAX_DEALS
-  });
-}
-
 const dealsSourceModule = {
-  buildFrom: buildDealsFrom,
   createDeals
 };
 

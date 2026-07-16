@@ -35,7 +35,7 @@ interface SteamSourceDeps {
   safeCheerioLoad: CheerioLoader;
 }
 
-type SteamSourceContext = SteamSourceDeps & Partial<SteamSourceApi>;
+
 
 function chooseBestSteamMatch(
   items: SteamSearchItem[] | null | undefined,
@@ -200,17 +200,7 @@ function createSteamSource(deps: SteamSourceDeps): SteamSourceApi {
   };
 }
 
-function buildSteamFrom(target: SteamSourceContext) {
-  return createSteamSource({
-    logger: target.logger,
-    getCurrencyConfig: target.getCurrencyConfig,
-    httpReq: target.httpReq,
-    safeCheerioLoad: target.safeCheerioLoad
-  });
-}
-
 const steamSourceModule = {
-  buildFrom: buildSteamFrom,
   createSteamSource,
   chooseBestSteamMatch
 };
