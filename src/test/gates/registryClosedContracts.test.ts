@@ -319,7 +319,7 @@ test("boot-ul (app/bootstrap.ts) foloseste require-uri tipate, ca satisfies AppR
   const text = fs.readFileSync(bootstrapPath, "utf8");
   assert.match(text, /import mongoContext from "\.\.\/infra\/mongo\/mongoContext\.js"/, "mongoContext importat static si tipat");
   assert.match(text, /import commands from "\.\.\/features\/command-registry\/commandRegistry\.js"/, "commandRegistry importat static tipat");
-  assert.match(text, /import \* as scrapers from "\.\.\/sources\/sourceRegistry\.js"/, "sourceRegistry importat static cu API-ul value-tipat");
+  assert.match(text, /import \{ sourceRegistry as scrapers \} from "\.\/runtimeComposition\.js"/, "instanta sourceRegistry vine din composition root, nu din stratul de surse (review nou, Major #8)");
   assert.match(text, /satisfies AppRuntimeDeps/, "wiring-ul de boot ramane verificat cu satisfies");
   const untypedRequires = (text.match(/= require\("\.[^"]+"\);\r?\n/g) || []).filter(line => !line.includes("as typeof import") && !line.includes("as SourceRegistryApi"));
   assert.deepEqual(untypedRequires, [], "niciun require de modul local netipat in boot");

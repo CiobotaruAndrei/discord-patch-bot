@@ -8,7 +8,7 @@ process.env.MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/ites
 process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || "test-token";
 process.env.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "test-client-id";
 
-type Mod = typeof import("../../sources/sourceRegistry.js");
+type Mod = import("../../sources/sourceRegistry.js").SourceRegistryApi;
 type Expect<T extends true> = T;
 
 type _MaxHtmlBytesIsNumber = Expect<
@@ -43,7 +43,7 @@ type _SteamCurrentPlayersTyped = Expect<
   _SteamCurrentPlayersResult extends SteamCurrentPlayersSummary ? (unknown extends _SteamCurrentPlayersResult ? false : true) : false
 >;
 
-const registry = await import("../../sources/sourceRegistry.js");
+const registry = (await import("../../app/runtimeComposition.js")).sourceRegistry;
 
 test("sourceRegistry expune constantele tipate (numere + lista de user-agents)", () => {
   assert.equal(typeof registry.MAX_HTML_BYTES, "number", "MAX_HTML_BYTES e numar");

@@ -8,7 +8,7 @@ process.env.METRICS_PUBLIC ||= "true";
 
 import test from "node:test";
 import assert from "node:assert/strict";
-const { safeCheerioLoad, MAX_HTML_BYTES } = await import("../../sources/sourceRegistry.js");
+const { safeCheerioLoad, MAX_HTML_BYTES } = (await import("../../app/runtimeComposition.js")).sourceRegistry;
 
 test("nu sparge codepoint-uri UTF-8 la limita maxima", () => {
   const filler = "<p>x</p>".repeat(Math.floor(MAX_HTML_BYTES / 8) - 10);

@@ -8,6 +8,7 @@ process.env.DISCORD_CLIENT_ID ||= "test_discord_client_id";
 process.env.METRICS_PUBLIC ||= "true";
 
 const sourceRegistry = await import("../../sources/sourceRegistry.js");
+const { sourceRuntimeDeps } = await import("../../app/runtimeComposition.js");
 
 const requiredKeys = [
   "USER_AGENTS",
@@ -44,7 +45,7 @@ const requiredKeys = [
 ] as const satisfies readonly (keyof SourceRegistryApi)[];
 
 test("source registry compune explicit toate exporturile prin factory-urile reale (fara installers dinamici)", () => {
-  const registry = sourceRegistry.createSourceRegistry();
+  const registry = sourceRegistry.createSourceRegistry(sourceRuntimeDeps);
   for (const key of requiredKeys) {
     assert.ok(registry[key] !== undefined, `registry expune ${key} dupa compunerea explicita (http -> steam -> updates -> deals)`);
   }
@@ -55,8 +56,8 @@ test("source registry compune explicit toate exporturile prin factory-urile real
 });
 
 test("createSourceRegistry construieste un context proaspat per registry", () => {
-  const first = sourceRegistry.createSourceRegistry();
-  const second = sourceRegistry.createSourceRegistry();
+  const first = sourceRegistry.createSourceRegistry(sourceRuntimeDeps);
+  const second = sourceRegistry.createSourceRegistry(sourceRuntimeDeps);
 
   assert.notStrictEqual(first, second);
   assert.equal(Object.isFrozen(first), true);

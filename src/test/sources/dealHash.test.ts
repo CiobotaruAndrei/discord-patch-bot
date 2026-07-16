@@ -8,7 +8,7 @@ process.env.METRICS_PUBLIC ||= "true";
 
 import test from "node:test";
 import assert from "node:assert/strict";
-const { dealHash } = await import("../../sources/sourceRegistry.js");
+const { dealHash } = (await import("../../app/runtimeComposition.js")).sourceRegistry;
 
 function steamDeal() {
   return {
