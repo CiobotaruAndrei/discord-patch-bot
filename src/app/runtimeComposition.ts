@@ -1,4 +1,5 @@
 import mongoContext from "../infra/mongo/mongoContext.js";
+import { composeMongoContextBundles } from "../infra/mongo/mongoContextBundles.js";
 import { createRedisRuntime } from "../infra/redis/redisClient.js";
 import { createRedisCache } from "../infra/redis/redisCache.js";
 import { createSourceRegistry } from "../sources/sourceRegistryFactory.js";
@@ -28,4 +29,6 @@ const commandRuntimeInput: CommandRuntimeInput = {
   redisCache
 };
 
-export { redisRuntime, redisCache, sourceRuntimeDeps, sourceRegistry, commandRuntimeInput };
+const mongoContextBundles = composeMongoContextBundles(mongoContext);
+
+export { redisRuntime, redisCache, sourceRuntimeDeps, sourceRegistry, commandRuntimeInput, mongoContextBundles };
