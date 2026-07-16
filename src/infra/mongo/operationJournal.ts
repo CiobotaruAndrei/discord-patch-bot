@@ -55,11 +55,11 @@ interface JournaledOperationOptions {
   resourceVersion: string;
 }
 
-interface CreateOperationJournalDeps {
+interface CreateOperationJournalDeps<KindMap> {
   JournalModel: OperationJournalModelLike;
   logger: JournalLogger;
-  executors: Record<string, OperationExecutor>;
-  schemaVersions?: Record<string, number>;
+  executors: { readonly [K in keyof KindMap]: OperationExecutor };
+  schemaVersions?: { readonly [K in keyof KindMap]?: number };
   now?: () => Date;
   ownerId?: string;
   leaseMs?: number;
@@ -73,8 +73,8 @@ interface RecoverPendingResult {
   superseded: number;
 }
 
-interface OperationJournal {
-  runJournaled(key: string, kind: string, payload: unknown, options?: JournaledOperationOptions): Promise<void>;
+interface OperationJournal<KindMap = Record<string, unknown>> {
+  runJournaled<K extends keyof KindMap & string>(key: string, kind: K, payload: KindMap[K], options?: JournaledOperationOptions): Promise<void>;
   recoverPending(options: { olderThanMs: number; limit: number; now?: Date }): Promise<RecoverPendingResult>;
 }
 
@@ -93,18 +93,20 @@ function fallbackVersion(at: Date, key: string): string {
   return `${String(at.getTime()).padStart(20, "0")}:${key}`;
 }
 
-function createOperationJournal({
+function createOperationJournal<KindMap extends Record<string, unknown> = Record<string, unknown>>({
   JournalModel,
   logger,
   executors,
-  schemaVersions = {},
+  schemaVersions,
   now = () => new Date(),
   ownerId = crypto.randomUUID(),
   leaseMs = 5 * 60 * 1000,
   maxAttempts = 5
-}: CreateOperationJournalDeps): OperationJournal {
+}: CreateOperationJournalDeps<KindMap>): OperationJournal<KindMap> {
+  const executorTable = new Map<string, OperationExecutor>(Object.entries(executors));
+  const schemaVersionTable = new Map<string, number | undefined>(Object.entries(schemaVersions ?? {}));
   function executorFor(kind: string): OperationExecutor {
-    const executor = executors[kind];
+    const executor = executorTable.get(kind);
     if (!executor) {
       throw new Error(`operationJournal: nicio functie de executie inregistrata pentru operatia jurnalizata '${kind}'`);
     }
@@ -127,7 +129,7 @@ function createOperationJournal({
         $setOnInsert: {
           kind,
           payload,
-          schemaVersion: options?.schemaVersion ?? schemaVersions[kind] ?? 1,
+          schemaVersion: options?.schemaVersion ?? schemaVersionTable.get(kind) ?? 1,
           resourceKey: options?.resourceKey ?? key,
           resourceVersion: options?.resourceVersion ?? fallbackVersion(at, key),
           status: "pending",
@@ -191,7 +193,7 @@ function createOperationJournal({
   }
 
   async function executeClaimed(entry: OperationJournalDoc, executor: OperationExecutor): Promise<"done" | "superseded"> {
-    const expectedSchemaVersion = schemaVersions[entry.kind] ?? 1;
+    const expectedSchemaVersion = schemaVersionTable.get(entry.kind) ?? 1;
     if (entry.schemaVersion !== expectedSchemaVersion) {
       await markTerminal(entry, "failed", `schemaVersion incompatibila: ${entry.schemaVersion}, asteptat ${expectedSchemaVersion}`);
       throw new Error(`operationJournal: schemaVersion incompatibila pentru '${entry.kind}' (${entry._id})`);
@@ -208,15 +210,22 @@ function createOperationJournal({
     }
 
     let leaseLost = false;
+    let heartbeatInFlight = false;
     const heartbeatEveryMs = Math.max(100, Math.floor(leaseMs / 3));
     const heartbeat = setInterval(() => {
+      if (heartbeatInFlight) return;
+      heartbeatInFlight = true;
       const at = now();
       void JournalModel.updateOne(
         leaseGuard(entry),
         { $set: { lockedUntil: new Date(at.getTime() + leaseMs), updatedAt: at } }
       ).then(result => {
         if ((result.modifiedCount ?? result.matchedCount ?? 0) === 0) leaseLost = true;
-      }).catch(() => { leaseLost = true; });
+        heartbeatInFlight = false;
+      }).catch(() => {
+        leaseLost = true;
+        heartbeatInFlight = false;
+      });
     }, heartbeatEveryMs);
     if (typeof heartbeat.unref === "function") heartbeat.unref();
     try {
@@ -232,7 +241,7 @@ function createOperationJournal({
     }
   }
 
-  async function runJournaled(key: string, kind: string, payload: unknown, options?: JournaledOperationOptions): Promise<void> {
+  async function runJournaled<K extends keyof KindMap & string>(key: string, kind: K, payload: KindMap[K], options?: JournaledOperationOptions): Promise<void> {
     const executor = executorFor(kind);
     const at = now();
     await ensurePending(key, kind, payload, at, options);
