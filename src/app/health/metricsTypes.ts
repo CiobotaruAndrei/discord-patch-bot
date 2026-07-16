@@ -36,6 +36,7 @@ export interface BotMetrics {
   redisCacheHit: number;
   redisCacheMiss: number;
   redisErrors: number;
+  guildSettingsListenerFailures: number;
   commandRuns: Record<string, number>;
   commandErrors: Record<string, number>;
   commandDurationMsTotal: Record<string, number>;

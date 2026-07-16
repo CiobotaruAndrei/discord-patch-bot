@@ -39,6 +39,7 @@ function createMetrics(): BotMetrics {
     redisCacheHit: 0,
     redisCacheMiss: 0,
     redisErrors: 0,
+    guildSettingsListenerFailures: 0,
     commandRuns: {},
     commandErrors: {},
     commandDurationMsTotal: {},

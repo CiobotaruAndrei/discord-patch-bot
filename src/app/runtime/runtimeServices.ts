@@ -2,6 +2,7 @@ import type { AppRuntimeDeps, RuntimeServices } from "../appRuntimeContracts.js"
 
 import ________infra_redis_redisMetrics from "../../infra/redis/redisMetrics.js";
 const { attachRedisMetrics } = ________infra_redis_redisMetrics;
+import { attachGuildSettingsEventMetrics } from "../../infra/mongo/guildSettingsEvents.js";
 
 function createRuntimeServices(deps: AppRuntimeDeps): RuntimeServices {
   const { Client, GatewayIntentBits, loadConfig, createMetrics, createRateLimiter, createHousekeeping, scrapers, commands, errorMessage, mongo } = deps;
@@ -10,6 +11,7 @@ function createRuntimeServices(deps: AppRuntimeDeps): RuntimeServices {
   const metrics = createMetrics();
   scrapers.attachMetrics(metrics);
   attachRedisMetrics(metrics);
+  attachGuildSettingsEventMetrics(metrics);
   const client = new Client({ intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,

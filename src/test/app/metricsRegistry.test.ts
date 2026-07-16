@@ -11,7 +11,7 @@ function makeMetrics(overrides: Partial<BotMetrics> = {}): BotMetrics {
     outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxExpired: 0, outboxDrains: 0, outboxQueueDepth: 0,
     outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxFutureScheduledJobs: 0, outboxLockAcquireFailures: 0, outboxPauseCheckFailures: 0,
     outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0, outboxRecoveryMarkerMissing: 0, outboxMarkSentFailures: 0, outboxDeleteFailures: 0, outboxDeadLetterWriteFailures: 0, outboxHistoryWriteFailures: 0, outboxRecoveryVerifyEnabledGuilds: 0, outboxLastDrainAt: 0,
-    redisConnectSuccess: 0, redisConnectFailure: 0, redisCacheHit: 0, redisCacheMiss: 0, redisErrors: 0,
+    redisConnectSuccess: 0, redisConnectFailure: 0, redisCacheHit: 0, redisCacheMiss: 0, redisErrors: 0, guildSettingsListenerFailures: 0,
     commandRuns: {}, commandErrors: {}, commandDurationMsTotal: {},
     ...overrides
   };
@@ -35,6 +35,12 @@ test("renderPrometheusMetrics: emite HELP/TYPE o singura data per metrica si val
   assert.match(body, /bot_active_locks 8/);
   assert.equal(body.match(/# TYPE bot_fetch_success /g)?.length, 1, "HELP/TYPE nu se dubleaza");
   assert.ok(body.endsWith("\n"), "corpul se termina cu newline");
+});
+
+test("renderPrometheusMetrics: expune bot_guild_settings_listener_failures (esecuri de listeneri GuildSettingsChanged, review nou #17)", () => {
+  const body = renderPrometheusMetrics({ metrics: makeMetrics({ guildSettingsListenerFailures: 3 }), ...baseInput });
+  assert.match(body, /# TYPE bot_guild_settings_listener_failures counter/);
+  assert.match(body, /bot_guild_settings_listener_failures 3/);
 });
 
 test("renderPrometheusMetrics: seriile per comanda apar cu label, sortate, chiar si comenzi cu 0 runs dar erori", () => {

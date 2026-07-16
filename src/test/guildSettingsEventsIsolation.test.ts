@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   publishGuildSettingsChanged,
   subscribeGuildSettingsChanged,
-  setGuildSettingsEventErrorReporter
+  setGuildSettingsEventErrorReporter,
+  setGuildSettingsRemotePublisher,
+  attachGuildSettingsEventMetrics
 } from "../infra/mongo/guildSettingsEvents.js";
 
 test("un listener care arunca nu blocheaza publish-ul si nu opreste ceilalti listeneri", () => {
@@ -27,6 +29,58 @@ test("un reporter care arunca este inghitit (publish-ul nu poate esua din cauza 
   assert.doesNotThrow(() => publishGuildSettingsChanged("g2"));
   un();
   setGuildSettingsEventErrorReporter(() => undefined);
+});
+
+test("esecul unui listener e numarat in metrica chiar daca si reporterul arunca (fallback garantat no-throw, review nou #17)", () => {
+  const counters = { guildSettingsListenerFailures: 0 };
+  attachGuildSettingsEventMetrics(counters);
+  setGuildSettingsEventErrorReporter(() => { throw new Error("reporter stricat"); });
+  const originalConsoleError = console.error;
+  const fallbackLogs: unknown[][] = [];
+  console.error = (...args: unknown[]) => { fallbackLogs.push(args); };
+  const un = subscribeGuildSettingsChanged(() => { throw new Error("listener stricat"); });
+  try {
+    assert.doesNotThrow(() => publishGuildSettingsChanged("g4"));
+    assert.equal(counters.guildSettingsListenerFailures, 1, "metrica e incrementata INAINTE de reporter, deci esecul e numarat chiar cu reporterul cazut");
+    assert.equal(fallbackLogs.length, 1, "eroarea nu mai dispare: fallback-ul console.error o logheaza cand reporterul arunca");
+    assert.match(String(fallbackLogs[0][0]), /g4/, "fallback-ul identifica guild-ul afectat");
+  } finally {
+    console.error = originalConsoleError;
+    un();
+    setGuildSettingsEventErrorReporter(() => undefined);
+    attachGuildSettingsEventMetrics(null);
+  }
+});
+
+test("esecul publisher-ului remote e numarat in aceeasi metrica (Redis cazut nu mai e invizibil)", () => {
+  const counters = { guildSettingsListenerFailures: 0 };
+  attachGuildSettingsEventMetrics(counters);
+  const reported: string[] = [];
+  setGuildSettingsEventErrorReporter(guildId => { reported.push(guildId); });
+  setGuildSettingsRemotePublisher(() => { throw new Error("redis cazut"); });
+  try {
+    assert.doesNotThrow(() => publishGuildSettingsChanged("g5"));
+    assert.equal(counters.guildSettingsListenerFailures, 1);
+    assert.deepEqual(reported, ["g5"], "reporterul sanatos primeste eroarea publisher-ului remote");
+  } finally {
+    setGuildSettingsRemotePublisher(null);
+    setGuildSettingsEventErrorReporter(() => undefined);
+    attachGuildSettingsEventMetrics(null);
+  }
+});
+
+test("fara metrics atasate (worker inainte de boot complet), esecul listenerului tot nu se propaga", () => {
+  attachGuildSettingsEventMetrics(null);
+  const reported: string[] = [];
+  setGuildSettingsEventErrorReporter(guildId => { reported.push(guildId); });
+  const un = subscribeGuildSettingsChanged(() => { throw new Error("boom"); });
+  try {
+    assert.doesNotThrow(() => publishGuildSettingsChanged("g6"));
+    assert.deepEqual(reported, ["g6"]);
+  } finally {
+    un();
+    setGuildSettingsEventErrorReporter(() => undefined);
+  }
 });
 
 test("scrierea Mongo nu e raportata ca esuata de un listener stricat (semantica post-write)", () => {
