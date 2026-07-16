@@ -4,6 +4,7 @@ import type * as Mongoose from "mongoose";
 import type { CurrencyCode, CurrencyRegistry } from "../../types.js";
 import type { MongoModelEnv } from "./mongoModelEnv.js";
 import { buildGuildNotificationSchemas } from "./guildNotificationSchemas.js";
+import { buildGuildModerationSchemas } from "./guildModerationSchemas.js";
 import { buildGuildYoutubeSchemas } from "./guildYoutubeSchemas.js";
 import { buildGuildAdminRecordSchemas } from "./guildAdminRecordSchemas.js";
 import { buildOperationalSchemas } from "./operationalSchemas.js";
@@ -38,6 +39,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     pendingDiscountSchema,
     priceAlertSchema
   } = buildGuildNotificationSchemas({ mongoose, SUPPORTED_CURRENCIES });
+  const { moderationRecordSchema, warningRecordSchema, botAddPermissionSchema } = buildGuildModerationSchemas({ mongoose });
   const {
     youtubeChannelSchema,
     youtubeChannelRouteSchema
@@ -108,9 +110,9 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     futureReleaseGames: { type: [futureReleaseGameSchema], default: [] },
     adminCommandAccess: { type: adminCommandAccessSchema, default: null },
     adminCommandAccessByCommand: { type: Map, of: adminCommandAccessSchema, default: {} },
-    moderationTimeouts: { type: [mongoose.Schema.Types.Mixed], default: [] },
-    moderationMutes: { type: [mongoose.Schema.Types.Mixed], default: [] },
-    moderationWarnings: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    moderationTimeouts: { type: [moderationRecordSchema], default: [] },
+    moderationMutes: { type: [moderationRecordSchema], default: [] },
+    moderationWarnings: { type: [warningRecordSchema], default: [] },
     moderationWarnBanLimit: { type: Number, default: 0, min: 0 },
     playerCountSubscribed: { type: Boolean, default: false },
     playerCountChannelId: { type: String, default: null },
@@ -131,7 +133,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     threatProtectionEnabled: { type: Boolean, default: false },
     botAddAlertChannelId: { type: String, default: null },
     botAddProtectionEnabled: { type: Boolean, default: false },
-    botAddPermissions: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    botAddPermissions: { type: [botAddPermissionSchema], default: [] },
     purgeAmount: { type: Number, default: 50, min: 1, max: 100 },
     lockedChannelIds: { type: [String], default: [] }
   }, { minimize: false });

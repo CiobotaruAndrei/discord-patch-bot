@@ -1,6 +1,7 @@
 "use strict";
 
 export type ModerationRecord = {
+  schemaVersion?: number;
   userId: string;
   username: string;
   moderatorId: string;
@@ -10,6 +11,7 @@ export type ModerationRecord = {
 };
 
 export type WarningRecord = {
+  schemaVersion?: number;
   userId: string;
   username: string;
   moderatorId: string;
