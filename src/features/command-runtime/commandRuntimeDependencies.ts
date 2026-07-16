@@ -57,7 +57,7 @@ interface ChannelPermissions {
 
 type CommandMongoKey =
   | "logger" | "env" | "DEFAULT_CURRENCY" | "SUPPORTED_CURRENCIES" | "getCurrencyConfig" | "formatPrice"
-  | "getGuildSettings" | "invalidateGuildCache" | "getGuildCacheSize" | "adminAlert" | "withMongoRetry"
+  | "getGuildSettings" | "getGuildCacheSize" | "adminAlert" | "withMongoRetry"
   | "saveFetchSnapshot" | "loadFetchSnapshot" | "loadDealsFetchSnapshots" | "loadSourceHealth"
   | "getOutboxPaused" | "setOutboxPaused" | "getSystemTimes" | "saveSystemTime"
   | "validateUpdateFetchSnapshot" | "validatePendingDiscountSnapshot"
@@ -154,7 +154,6 @@ export function selectCommandMongoDependencies(source: MongoContextExports): Com
     getCurrencyConfig: source.getCurrencyConfig,
     formatPrice: source.formatPrice,
     getGuildSettings: source.getGuildSettings,
-    invalidateGuildCache: source.invalidateGuildCache,
     getGuildCacheSize: source.getGuildCacheSize,
     adminAlert: source.adminAlert,
     withMongoRetry: source.withMongoRetry,
