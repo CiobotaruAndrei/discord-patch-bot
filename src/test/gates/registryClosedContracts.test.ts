@@ -320,8 +320,9 @@ test("boot-ul (app/bootstrap.ts) foloseste require-uri tipate, ca satisfies AppR
   const text = fs.readFileSync(bootstrapPath, "utf8");
   assert.match(text, /import mongoContext from "\.\.\/infra\/mongo\/mongoContext\.js"/, "mongoContext importat static si tipat");
   assert.match(text, /import commandRegistryFactories from "\.\.\/features\/command-registry\/commandRegistry\.js"/, "fabricile de registru importate static; instanta e construita in bootstrap cu input injectat");
-  assert.match(text, /import \{ sourceRegistry as scrapers, commandRuntimeInput \} from "\.\/runtimeComposition\.js"/, "instantele (sourceRegistry + commandRuntimeInput) vin din composition root; bootstrap le injecteaza in registru (review nou, Mare #1 + Major #8)");
+  assert.match(text, /import \{ sourceRegistry as scrapers, commandRuntimeInput, mongoContextBundles \} from "\.\/runtimeComposition\.js"/, "instantele (sourceRegistry + commandRuntimeInput) si bundle-urile mongo vin din composition root; bootstrap le injecteaza (review nou, Mare #1 + Major #8 + Mare #3)");
   assert.match(text, /createCommandRegistry\(commandRuntimeInput\)/, "registrul de comenzi e construit in bootstrap cu input-ul injectat, nu eager la import in features");
+  assert.match(text, /const \{ repositories, locks, migrations, snapshots, administration \} = mongoContextBundles/, "bootstrap injecteaza bundle-urile mongo descompuse (repositories/locks/migrations/snapshots/administration), nu culege membri plat din mongoContext (review nou, Mare #3)");
   assert.match(text, /satisfies AppRuntimeDeps/, "wiring-ul de boot ramane verificat cu satisfies");
   const untypedRequires = (text.match(/= require\("\.[^"]+"\);\r?\n/g) || []).filter(line => !line.includes("as typeof import") && !line.includes("as SourceRegistryApi"));
   assert.deepEqual(untypedRequires, [], "niciun require de modul local netipat in boot");

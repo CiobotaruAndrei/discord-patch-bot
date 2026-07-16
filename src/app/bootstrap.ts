@@ -23,21 +23,25 @@ import type { SourceRegistryApi } from "../sources/sourceRegistry.js";
 import mongoContext from "../infra/mongo/mongoContext.js";
 const {
   logger, env, parseEnvNumber,
-  acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
-  waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
-  runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots,
-  getOutboxPaused, setAdminAlertDiscordClient,
-  OperationJournalModel, GuildModel, GuildAuditLogModel, GuildConfigBackupModel, GuildYoutubeErrorModel,
-  GuildDeadLetterModel, NotificationDeadLetterReplayModel
+  waitForMongoReady, cleanGuildCache, getGuildCacheSize,
+  requestContext, getOutboxPaused
 } = mongoContext;
 import commandRegistryFactories from "../features/command-registry/commandRegistry.js";
-import { sourceRegistry as scrapers, commandRuntimeInput } from "./runtimeComposition.js";
+import { sourceRegistry as scrapers, commandRuntimeInput, mongoContextBundles } from "./runtimeComposition.js";
 import { createOperationJournalRuntime } from "../features/admin-records/operationJournalRuntime.js";
 import { createScheduledTaskRunner } from "./scheduler/scheduledTaskRunner.js";
 
+const { repositories, locks, migrations, snapshots, administration } = mongoContextBundles;
+
 const operationJournal = createOperationJournalRuntime({
-  OperationJournalModel, GuildModel, GuildAuditLogModel, GuildConfigBackupModel, GuildYoutubeErrorModel,
-  GuildDeadLetterModel, NotificationDeadLetterReplayModel, logger
+  OperationJournalModel: repositories.OperationJournalModel,
+  GuildModel: repositories.GuildModel,
+  GuildAuditLogModel: repositories.GuildAuditLogModel,
+  GuildConfigBackupModel: repositories.GuildConfigBackupModel,
+  GuildYoutubeErrorModel: repositories.GuildYoutubeErrorModel,
+  GuildDeadLetterModel: repositories.GuildDeadLetterModel,
+  NotificationDeadLetterReplayModel: repositories.NotificationDeadLetterReplayModel,
+  logger
 });
 const OPERATION_JOURNAL_RECOVERY_MIN_AGE_MS = 5 * 60 * 1000;
 const OPERATION_JOURNAL_RECOVERY_LIMIT = 100;
@@ -57,10 +61,15 @@ function buildAppRuntime(role: BotRole): AppRuntime {
     registerDiscordEvents, registerMongoEvents, createShutdownController,
     errorMessage, errorDetail, redis, role,
     mongo: {
-      logger, env, parseEnvNumber, acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
-      waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
-      runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots,
-      getOutboxPaused, setAdminAlertDiscordClient
+      logger, env, parseEnvNumber,
+      ...locks,
+      waitForMongoReady, cleanGuildCache, getGuildCacheSize,
+      ...administration,
+      runMigrations: migrations.runMigrations,
+      requestContext,
+      loadFetchSnapshot: snapshots.loadFetchSnapshot,
+      loadDealsFetchSnapshots: snapshots.loadDealsFetchSnapshots,
+      getOutboxPaused
     },
     commands, scrapers,
     recoverOperationJournal: () => operationJournal.recoverPending({ olderThanMs: OPERATION_JOURNAL_RECOVERY_MIN_AGE_MS, limit: OPERATION_JOURNAL_RECOVERY_LIMIT }),
