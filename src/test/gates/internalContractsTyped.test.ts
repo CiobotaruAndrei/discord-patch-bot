@@ -3,6 +3,13 @@ import assert from "node:assert/strict";
 import type { CommandRuntime, MongoContextLike, ScraperRuntime } from "../../app/appRuntimeContracts.js";
 import type { SlashCommandJson } from "../../features/command-definitions/slashDefinitionTools.js";
 import type { FindGameResult } from "../../features/command-presentation/gameLookupCache.js";
+import type { UpdateNotificationServiceDeps } from "../../features/notifications/updateNotificationService.js";
+import type { DiscountNotificationServiceDeps } from "../../features/notifications/discountNotificationService.js";
+
+type UpdateEmbedReturn = ReturnType<UpdateNotificationServiceDeps["buildUpdateEmbed"]>;
+const updateEmbedIsNotUnknown: [unknown] extends [UpdateEmbedReturn] ? never : true = true;
+type DealEmbedReturn = ReturnType<DiscountNotificationServiceDeps["buildDealEmbed"]>;
+const dealEmbedIsNotUnknown: [unknown] extends [DealEmbedReturn] ? never : true = true;
 
 type RegistryApi = typeof import("../../features/command-registry/commandRegistry.js")["default"];
 
@@ -41,4 +48,6 @@ test("contract compile-time: suprafata interna a registrului si a runtime-ului n
   assert.equal(cleanGuildCacheReturnsVoid, true, "cleanGuildCache promite void");
   assert.equal(releaseDbLockReturnsVoid, true, "releaseDbLock promite void");
   assert.equal(adminAlertReturnsVoid, true, "adminAlert promite void");
+  assert.equal(updateEmbedIsNotUnknown, true, "buildUpdateEmbed promite NotificationEmbed (obiect opac), nu unknown (review nou, Mediu #13)");
+  assert.equal(dealEmbedIsNotUnknown, true, "buildDealEmbed promite NotificationEmbed (obiect opac), nu unknown (review nou, Mediu #13)");
 });

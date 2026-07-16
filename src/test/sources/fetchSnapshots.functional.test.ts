@@ -173,7 +173,7 @@ test("DiscountService.checkForDiscounts persista snapshot-ul 'deals:<MONEDA>' du
   assert.deepEqual(persistCalls[0].payload, [{ id: "d1" }]);
 });
 
-const runConcurrentSafe = async <T>(items: T[], _c: number, fn: (item: T) => Promise<unknown>, opts?: { errorLogger?: (item: unknown, err: unknown) => void }) => {
+const runConcurrentSafe = async <T>(items: T[], _c: number, fn: (item: T) => Promise<unknown>, opts?: { errorLogger?: (item: T, err: unknown) => void }) => {
   let processed = 0;
   const errors: Array<{ error: unknown }> = [];
   for (const it of items) {

@@ -4,6 +4,7 @@ import type { GameConfig } from "../../types.js";
 type MongoUpdate = Record<string, unknown>;
 import type { GuildSettings, EmbeddableUpdate, MongoWriteOutcome, NotificationMode } from "../../types.js";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue.js";
+import type { NotificationEmbed } from "./notificationTypes.js";
 import { buildDeadLetterEntry, DeadLetterEntry } from "./deadLetter.js";
 import type { DeadLetterModelLike } from "./deadLetterRepository.js";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel.js";
@@ -37,14 +38,14 @@ type ResolveOutboundChannel = (opts: {
   disableFn: (guildId: string, channelId: string, message: string) => Promise<MongoWriteResult>;
 }) => Promise<ResolveOutboundChannelResult>;
 
-interface RunConcurrentOptions {
-  errorLogger?: (item: unknown, err: unknown) => void;
+interface RunConcurrentOptions<T> {
+  errorLogger?: (item: T, err: unknown) => void;
 }
 interface RunConcurrentResult {
   processed: number;
   errors: Array<{ error: unknown }>;
 }
-type RunConcurrent = <T>(items: T[], concurrency: number, fn: (item: T) => Promise<unknown>, opts?: RunConcurrentOptions) => Promise<RunConcurrentResult>;
+type RunConcurrent = <T>(items: T[], concurrency: number, fn: (item: T) => Promise<unknown>, opts?: RunConcurrentOptions<T>) => Promise<RunConcurrentResult>;
 
 export interface UpdateNotificationServiceDeps {
   GuildModel: GuildModelLike;
@@ -73,7 +74,7 @@ export interface UpdateNotificationServiceDeps {
   setUpdatesCache: (data: UpdateFetchResult[]) => void;
   persistFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
   loadFetchSnapshot?: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
-  buildUpdateEmbed: (gameName: string, latest: EmbeddableUpdate, mode: NotificationMode) => unknown;
+  buildUpdateEmbed: (gameName: string, latest: EmbeddableUpdate, mode: NotificationMode) => NotificationEmbed;
 
   sleepIfPositive: (ms: number) => Promise<void>;
 
@@ -132,9 +133,9 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       return;
     }
 
-    const notificationMode: NotificationMode = (guild as { notificationMode?: string }).notificationMode === "compact" ? "compact" : "detailed";
-    const batch: Array<{ gameKey: string; item: PendingUpdate; embed: unknown }> = [];
-    let lastProcessedGameKey: string | null = (guild as { lastProcessedGameKey?: string | null }).lastProcessedGameKey || null;
+    const notificationMode: NotificationMode = guild.notificationMode === "compact" ? "compact" : "detailed";
+    const batch: Array<{ gameKey: string; item: PendingUpdate; embed: NotificationEmbed }> = [];
+    let lastProcessedGameKey: string | null = guild.lastProcessedGameKey || null;
     while (batch.length < MAX_UPDATES_PER_CYCLE) {
       const selection = takeNextPending(pendingByGame, lastProcessedGameKey, rotateAfter);
       if (!selection) break;
@@ -143,7 +144,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       const claim = await claimSeenUpdate(String(guild._id), channel.id, gameKey, next.id);
       if ((claim.matchedCount ?? 0) === 0) continue;
       const game = resultByGameKey.get(gameKey)?.game || { name: gameKey, key: gameKey };
-      let embed: unknown;
+      let embed: NotificationEmbed;
       try {
         embed = buildUpdateEmbed(game.name, next, notificationMode);
       } catch (embedErr: unknown) {
@@ -168,8 +169,8 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       batch.push({ gameKey, item: next, embed });
     }
 
-    const notificationRoleId = (guild as { notificationRoleId?: string }).notificationRoleId;
-    const messageTemplate = (guild as { updateMessageTemplate?: string | null }).updateMessageTemplate;
+    const notificationRoleId = guild.notificationRoleId;
+    const messageTemplate = guild.updateMessageTemplate;
     await sendEmbedBatch({
       channel,
       batch,
@@ -177,9 +178,9 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       historyEntryFor: entry => ({
         kind: "update" as const,
         gameKey: entry.gameKey,
-        title: String((entry.item as { title?: unknown }).title || ""),
-        link: String((entry.item as { link?: unknown }).link || ""),
-        itemId: String((entry.item as { id?: unknown }).id || "")
+        title: entry.item.title || "",
+        link: entry.item.link || "",
+        itemId: entry.item.id
       }),
       messageTemplate,
       roleId: notificationRoleId,
@@ -204,7 +205,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
             requeueFront(pendingByGame, entry.gameKey, entry.item);
           } else {
             deadLettered.push(buildDeadLetterEntry({
-              kind: "update", itemId: entry.item.id, title: (entry.item as { title?: unknown }).title,
+              kind: "update", itemId: entry.item.id, title: entry.item.title,
               reason: transientErrorMessage(err), attempts: sendFailure.attempts
             }));
           }
@@ -285,8 +286,8 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     const dispatch = await runConcurrent(guilds, GUILD_PROCESS_CONCURRENCY, async (guild) => {
       if (!shouldAbort?.()) await processGuildUpdates(client, guild, latestResults);
     }, {
-      errorLogger: (guild: unknown, err: unknown) =>
-        logger("WARN", "CRON_UPDATES", `Eroare procesare guild ${(guild as { _id?: unknown })._id}`, transientErrorMessage(err))
+      errorLogger: (guild, err) =>
+        logger("WARN", "CRON_UPDATES", `Eroare procesare guild ${guild._id}`, transientErrorMessage(err))
     });
     if (dispatch.processed === 0 && dispatch.errors.length > 0) {
       throw new Error(`Procesarea update-urilor a esuat pentru toate cele ${dispatch.errors.length} guild-uri abonate: ${transientErrorMessage(dispatch.errors[0]?.error)}`);
