@@ -26,6 +26,8 @@ type DiscordInteraction = {
 };
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 
+export type HelpEmbed = object;
+
 type EmbedBuilderInstance = {
   setColor(color: number): EmbedBuilderInstance;
   setTitle(title: string): EmbedBuilderInstance;
@@ -35,14 +37,14 @@ type EmbedBuilderInstance = {
 type EmbedBuilderCtor = new () => EmbedBuilderInstance;
 
 type HelpHandlerDeps = {
-  buildHelpEmbed: () => unknown;
+  buildHelpEmbed: () => HelpEmbed;
   MessageFlags?: { Ephemeral: number };
   findCommandHelpEntry?: typeof findCommandHelpEntry;
   renderCommandHelpEntry?: typeof renderCommandHelpEntry;
 };
 
 type HelpContext = {
-  buildHelpEmbed?: () => unknown;
+  buildHelpEmbed?: () => HelpEmbed;
   EmbedBuilder?: EmbedBuilderCtor;
   COLORS?: { DARK: number } & Record<string, number>;
   MessageFlags: { Ephemeral: number };
@@ -155,7 +157,7 @@ function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
   };
 }
 
-function resolveHelpEmbedBuilder(target: HelpContext): () => unknown {
+function resolveHelpEmbedBuilder(target: HelpContext): () => HelpEmbed {
   if (typeof target.buildHelpEmbed === "function") return target.buildHelpEmbed;
   if (!target.EmbedBuilder || !target.COLORS) {
     throw new Error("helpInteractionHandler: needs either buildHelpEmbed or EmbedBuilder plus COLORS");
@@ -165,7 +167,7 @@ function resolveHelpEmbedBuilder(target: HelpContext): () => unknown {
   return () => buildHelpEmbedFromDeps(EmbedBuilder, COLORS);
 }
 
-function buildHelpCommandHandler(target: HelpContext): CommandHandler<DiscordInteraction> & { buildHelpEmbed: () => unknown } {
+function buildHelpCommandHandler(target: HelpContext): CommandHandler<DiscordInteraction> & { buildHelpEmbed: () => HelpEmbed } {
   const resolvedBuildHelpEmbed = resolveHelpEmbedBuilder(target);
   const handlers = createHelpHandler({ buildHelpEmbed: resolvedBuildHelpEmbed, MessageFlags: target.MessageFlags });
   return {

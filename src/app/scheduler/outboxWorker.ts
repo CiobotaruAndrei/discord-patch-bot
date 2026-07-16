@@ -2,7 +2,7 @@ type Logger = (level: string, context: string, message: string, meta?: unknown) 
 type ParseEnvNumber = (name: string, defaultValue: number, limits: { min?: number; max?: number }) => number;
 type AcquireDbLock = (jobName: string, ttlMs: number) => Promise<string | null>;
 type RenewDbLock = (jobName: string, token: string, ttlMs: number) => Promise<boolean>;
-type ReleaseDbLock = (jobName: string, token: string) => Promise<unknown>;
+type ReleaseDbLock = (jobName: string, token: string) => Promise<void>;
 type ErrorFormatter = (err: unknown) => string;
 
 import type { OutboxDiscordClient } from "../../features/notifications/outboundChannel.js";
@@ -65,7 +65,7 @@ interface OutboxDrainResult {
   recoveryVerifyEnabledGuilds?: number;
 }
 
-type AdminAlert = (kind: string, title: string, body: string) => Promise<unknown>;
+type AdminAlert = (kind: string, title: string, body: string) => Promise<void>;
 
 interface CreateOutboxWorkerDeps {
   mongoose: MongooseLike;
