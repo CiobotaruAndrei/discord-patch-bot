@@ -37,6 +37,11 @@ export async function clearCommandSnooze(GuildModel: GuildConfigWriteModelLike, 
   await GuildModel.updateOne({ _id: guildId }, { $unset: { [`commandSnoozes.${key}`]: "" } });
 }
 
+export async function setLockedChannel(GuildModel: GuildConfigWriteModelLike, guildId: string, channelId: string, locked: boolean): Promise<GuildConfigWriteResult> {
+  const update = locked ? { $addToSet: { lockedChannelIds: channelId } } : { $pull: { lockedChannelIds: channelId } };
+  return GuildModel.updateOne({ _id: guildId }, update, { upsert: true });
+}
+
 export async function resetGuildConfigurationWithAudit(
   GuildModel: GuildConfigWriteModelLike,
   GuildAuditLogModel: GuildAuditLogModelLike,

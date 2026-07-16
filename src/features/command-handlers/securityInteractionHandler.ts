@@ -2,6 +2,7 @@
 
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { errorDetail } from "../../shared/errors.js";
+import { applyGuildConfigUpdate, setLockedChannel, type GuildConfigWriteModelLike } from "../guild-config/guildConfigRepository.js";
 
 type SecurityOptions = {
   getSubcommand(): string;
@@ -28,9 +29,7 @@ type SecurityInteraction = {
   replied?: boolean;
 };
 
-type GuildModelLike = {
-  updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown>;
-};
+type GuildModelLike = GuildConfigWriteModelLike;
 
 type GuildSettingsLike = {
   newAccountAlertChannelId?: string | null;
@@ -85,7 +84,7 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
     if (!guildId) return undefined;
     const guild = interaction.guild;
     try {
-      await target.GuildModel.updateOne({ _id: guildId }, { $set: { [field]: value } }, { upsert: true });
+      await applyGuildConfigUpdate(target.GuildModel, guildId, { [field]: value });
       return respond(interaction, `OK: setarea **${field}** a fost actualizata.`);
     } catch (err: unknown) {
       target.logger?.("WARN", "SECURITY_COMMAND", "Salvarea setarii de securitate a esuat", errorDetail(err));
@@ -125,11 +124,7 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
       if (reason && /(?:https?:\/\/|www\.)/i.test(reason)) return respond(interaction, "Eroare: motivul nu poate contine linkuri.");
       try {
         await channel.permissionOverwrites.edit(everyone, { SendMessages: command === "unlock-channel" });
-        await target.GuildModel.updateOne(
-          { _id: guildId },
-          command === "lock-channel" ? { $addToSet: { lockedChannelIds: channel.id } } : { $pull: { lockedChannelIds: channel.id } },
-          { upsert: true }
-        );
+        await setLockedChannel(target.GuildModel, guildId, channel.id, command === "lock-channel");
         const result = command === "lock-channel" ? `OK: canalul a fost blocat${reason ? ` (motiv: ${reason})` : ""}.` : "OK: canalul a fost deblocat.";
         if (command === "lock-channel") await channel.send?.({ content: `:lock: Canal blocat de <@${interaction.user?.id ?? "administrator"}>. Motiv: ${reason ?? "nespecificat"}.`, allowedMentions: { parse: [] } }).catch(() => null);
         return respond(interaction, result);
