@@ -3,6 +3,7 @@
 import type { GuildSettings, DealInfo, MongoWriteOutcome, PendingDiscount, NotificationMode, ValidatedDealInfo } from "../../types.js";
 type MongoUpdate = Record<string, unknown>;
 import { buildDeadLetterEntry, DeadLetterEntry } from "./deadLetter.js";
+import type { NotificationEmbed } from "./notificationTypes.js";
 import type { DeadLetterModelLike } from "./deadLetterRepository.js";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel.js";
 import { HASH_VERSION } from "../../native/fuzzy.js";
@@ -34,14 +35,14 @@ type ResolveOutboundChannel = (opts: {
   disableFn: (guildId: string, channelId: string, message: string) => Promise<MongoWriteResult>;
 }) => Promise<ResolveOutboundChannelResult>;
 
-interface RunConcurrentOptions {
-  errorLogger?: (item: unknown, err: unknown) => void;
+interface RunConcurrentOptions<T> {
+  errorLogger?: (item: T, err: unknown) => void;
 }
 interface RunConcurrentResult {
   processed: number;
   errors: Array<{ error: unknown }>;
 }
-type RunConcurrent = <T>(items: T[], concurrency: number, fn: (item: T) => Promise<unknown>, opts?: RunConcurrentOptions) => Promise<RunConcurrentResult>;
+type RunConcurrent = <T>(items: T[], concurrency: number, fn: (item: T) => Promise<unknown>, opts?: RunConcurrentOptions<T>) => Promise<RunConcurrentResult>;
 
 export interface DiscountNotificationServiceDeps {
   GuildModel: GuildModelLike;
@@ -73,7 +74,7 @@ export interface DiscountNotificationServiceDeps {
   persistFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
   loadFetchSnapshot?: (id: string) => Promise<{ payload: unknown; fetchedAt: Date } | null>;
   enrichDealData: (deal: DealInfo, currency: string) => Promise<DealInfo>;
-  buildDealEmbed: (deal: DealInfo, mode: NotificationMode, currency: string) => unknown;
+  buildDealEmbed: (deal: DealInfo, mode: NotificationMode, currency: string) => NotificationEmbed;
 
   sleepIfPositive: (ms: number) => Promise<void>;
   processGuildPriceAlerts: ReturnType<typeof import("./priceAlertService.js").createPriceAlertService>["processGuildPriceAlerts"];
@@ -121,7 +122,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     const { channel, abort } = await resolveOutboundChannel({
       client,
       guild,
-      channelId: (guild as { discountChannelId?: string | null }).discountChannelId,
+      channelId: guild.discountChannelId,
       context: "CRON_DISCOUNTS",
       disableFn: disableDiscountsForChannelError
     });
@@ -136,7 +137,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       return;
     }
 
-    const oldPending = normalizePendingDiscountArray((guild as { pendingDiscounts?: unknown }).pendingDiscounts);
+    const oldPending = normalizePendingDiscountArray(guild.pendingDiscounts);
     const candidateHashes = Array.from(new Set([...oldPending.map(item => item.hash), ...orderedHashes]));
     const seenSet = new Set(await loadSeenDiscountHashes(String(guild._id), candidateHashes));
     const pending = planPendingDiscounts({
@@ -154,19 +155,19 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
 
     const remaining: PendingDiscount[] = [];
     const deadLettered: DeadLetterEntry[] = [];
-    const currency = (guild as { currency?: string }).currency || DEFAULT_CURRENCY;
-    const notificationMode: NotificationMode = (guild as { notificationMode?: string }).notificationMode === "compact" ? "compact" : "detailed";
+    const currency = guild.currency || DEFAULT_CURRENCY;
+    const notificationMode: NotificationMode = guild.notificationMode === "compact" ? "compact" : "detailed";
 
     function retryOrDeadLetter(item: PendingDiscount, err: unknown): void {
       const failure = planDiscountFailure(item, PENDING_DISCOUNT_MAX_ATTEMPTS);
       if (failure.action === "requeue") remaining.push(failure.retry);
       else deadLettered.push(buildDeadLetterEntry({
-        kind: "discount", itemId: item.hash, title: (item.snapshot as { title?: unknown } | null)?.title,
+        kind: "discount", itemId: item.hash, title: item.snapshot?.title,
         reason: transientErrorMessage(err), attempts: failure.attempts
       }));
     }
 
-    const batch: Array<{ item: PendingDiscount; embed: unknown }> = [];
+    const batch: Array<{ item: PendingDiscount; embed: NotificationEmbed }> = [];
     let idx = 0;
     for (; idx < pending.length && batch.length < MAX_DEALS_PER_CYCLE; idx++) {
       const item = pending[idx];
@@ -176,7 +177,9 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
         const claim = await claimSeenDiscount(String(guild._id), channel.id, item.hash);
         if ((claim.matchedCount ?? 0) === 0) continue;
         claimed = true;
-        const dealToSend = await enrichDealData(item.snapshot as DealInfo, currency);
+        const snapshot = item.snapshot;
+        if (!snapshot) throw new Error(`PendingDiscount ${item.hash} fara snapshot valid`);
+        const dealToSend = await enrichDealData(snapshot, currency);
         batch.push({ item, embed: buildDealEmbed(dealToSend, notificationMode, currency) });
       } catch (err: unknown) {
         if (claimed) {
@@ -202,19 +205,19 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     }
     remaining.push(...pending.slice(idx));
 
-    const discountRoleId = (guild as { discountRoleId?: string }).discountRoleId;
-    const messageTemplate = (guild as { discountMessageTemplate?: string | null }).discountMessageTemplate;
+    const discountRoleId = guild.discountRoleId;
+    const messageTemplate = guild.discountMessageTemplate;
     await sendEmbedBatch({
       channel,
       batch,
       embedOf: entry => entry.embed,
       historyEntryFor: entry => {
-        const snapshot = (entry.item.snapshot || {}) as { title?: unknown; url?: unknown; link?: unknown };
+        const snapshot = entry.item.snapshot;
         return {
           kind: "discount" as const,
-          title: String(snapshot.title || ""),
-          link: String(snapshot.url || snapshot.link || ""),
-          itemId: String((entry.item as { hash?: unknown }).hash || "")
+          title: snapshot?.title || "",
+          link: snapshot?.url || snapshot?.link || "",
+          itemId: entry.item.hash
         };
       },
       messageTemplate,
@@ -297,8 +300,8 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       }
       await processGuildPriceAlerts(client, guild, dealsByCurrency);
     }, {
-      errorLogger: (guild: unknown, err: unknown) =>
-        logger("WARN", "CRON_DISCOUNTS", `Eroare procesare guild ${(guild as { _id?: unknown })._id}`, transientErrorMessage(err))
+      errorLogger: (guild, err) =>
+        logger("WARN", "CRON_DISCOUNTS", `Eroare procesare guild ${guild._id}`, transientErrorMessage(err))
     });
     if (dispatch.processed === 0 && dispatch.errors.length > 0) {
       throw new Error(`Reducerile au esuat pentru toate cele ${dispatch.errors.length} guild-uri abonate (fetch sau procesare): ${transientErrorMessage(dispatch.errors[0]?.error)}`);
