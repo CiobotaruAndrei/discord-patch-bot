@@ -96,6 +96,48 @@ test("remove-timeout restaureaza sanctiunea Discord daca persistenta nu confirma
   assert.ok((timeoutCalls[1] ?? 0) > 0);
 });
 
+test("/warn-list grupeaza dupa utilizator: total activ per user, sortat descrescator, o singura intrare (raport post-#699, #5)", async () => {
+  const replies: Array<{ content?: string }> = [];
+  const base = Date.parse("2026-07-16T12:00:00.000Z");
+  const handler = moderationInteractionHandler.createModerationInteractionHandler({
+    GuildModel: {
+      findOne: async () => ({
+        moderationTimeouts: [],
+        moderationMutes: [],
+        moderationWarnings: [
+          { warningId: "w1", userId: "user-1", username: "repeat-offender", moderatorId: "mod-1", warnedAt: new Date(base - 3_000) },
+          { warningId: "w2", userId: "user-2", username: "one-timer", moderatorId: "mod-1", warnedAt: new Date(base - 2_000) },
+          { warningId: "w3", userId: "user-1", username: "repeat-offender", moderatorId: "mod-2", warnedAt: new Date(base - 1_000) },
+          { warningId: "w4", userId: "user-1", username: "repeat-offender-renamed", moderatorId: "mod-1", warnedAt: new Date(base) }
+        ]
+      }),
+      findOneAndUpdate: async () => null,
+      updateOne: async () => ({ modifiedCount: 1 })
+    },
+    MessageFlags: { Ephemeral: 64 },
+    getGuildSettings: async () => ({}),
+    safeDefer: async () => undefined,
+    safeEdit: async (_value, payload) => payload
+  });
+  const guild = guildWithTarget({ id: "user-1" });
+  const listInteraction = {
+    ...interaction("warn-list", guild),
+    reply: async (payload: { content?: string }) => { replies.push(payload); return payload; }
+  };
+
+  await handler.handle(listInteraction);
+
+  assert.equal(replies.length, 1);
+  const lines = (replies[0].content ?? "").split("\n");
+  assert.equal(lines.length, 2, "un utilizator cu mai multe warn-uri apare O SINGURA data");
+  assert.match(lines[0], /user-1/);
+  assert.match(lines[0], /3 warn-uri active/, "totalul activ e calculat per utilizator");
+  assert.match(lines[0], /repeat-offender-renamed/, "se afiseaza numele de la ultimul warn");
+  assert.match(lines[1], /user-2/);
+  assert.match(lines[1], /1 warn activ/);
+  assert.ok(lines[0].indexOf("user-1") >= 0 && lines[1].indexOf("user-2") >= 0, "sortare descrescatoare dupa numarul de warn-uri");
+});
+
 test("warn-ul compenseaza exact inregistrarea curenta daca livrarea pe canal esueaza", async () => {
   let rollbackFilter: Record<string, unknown> | null = null;
   let rollbackUpdate: Record<string, unknown> | readonly Record<string, unknown>[] | null = null;

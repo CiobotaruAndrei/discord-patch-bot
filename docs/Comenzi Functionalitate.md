@@ -243,7 +243,7 @@ Concepte utile pentru admini:
 | `/set warn-channel canal:<canal>` | Admin, Ephemeral, Guild-only | Configureaza canalul dedicat in care sunt publicate avertismentele si dovezile directe. Botul valideaza View Channel, Send Messages si Embed Links. |
 | `/warn utilizator:<membru> motiv:<text> atasament:<fisier>` | Admin, Ephemeral, Guild-only | Publica avertismentul in canalul dedicat si persista numai metadatele necesare listei, nu motivul sau continutul sensibil. Daca publicarea esueaza, este retrasa exact inregistrarea creata de comanda curenta. |
 | `/remove-warn utilizator:<membru>` | Admin, Guild-only | Elimina cel mai recent avertisment al unui membru. |
-| `/warn-list` | Public, Guild-only | Afiseaza paginat fiecare avertisment cu utilizator, moderator si data. |
+| `/warn-list` | Public, Guild-only | Afiseaza sumarul avertismentelor grupat pe utilizator: o singura intrare per utilizator, cu totalul de warn-uri active, sortat descrescator dupa numar, si data ultimului warn. |
 | `/warn-ban-limit numar:<1-100>` | Admin, Guild-only | Configureaza limita de avertismente care declanseaza ban automat. |
 | `/lock-channel canal:<canal> motiv:<text> atasament:<fisier>` | Admin, Ephemeral, Guild-only | Blocheaza mesajele membrilor si salveaza starea anterioara exacta `allow`, `deny` sau `inherit`. Update-ul Discord si persistenta au rollback reciproc. |
 | `/unlock-channel canal:<canal>` | Admin, Ephemeral, Guild-only | Restaureaza exact starea Send Messages existenta inainte de blocare. Canalele sterse sunt eliminate automat din evidenta. |

@@ -70,7 +70,7 @@ export const ADMIN_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   ,{ command: "/unban", description: "Debaneaza utilizatorul prin API-ul guild.bans.remove.", example: "/unban utilizator:@user" }
   ,{ command: "/warn", description: "Publica dovada intr-un canal dedicat, persista doar metadatele si poate declansa auto-ban.", example: "/warn utilizator:@user motiv:spam" }
   ,{ command: "/remove-warn", description: "Elimina cel mai recent avertisment.", example: "/remove-warn utilizator:@user" }
-  ,{ command: "/warn-list", description: "Afiseaza paginat toate avertismentele, cu utilizator, moderator si data.", example: "/warn-list" }
+  ,{ command: "/warn-list", description: "Afiseaza sumarul avertismentelor grupat pe utilizator: totalul de warn-uri active, sortat descrescator, cu data ultimului warn.", example: "/warn-list" }
   ,{ command: "/warn-ban-limit", description: "Seteaza limita de avertismente pentru ban automat.", example: "/warn-ban-limit numar:3" }
   ,{ command: "/bot-add-request", description: "Solicita aprobarea proprietarului pentru un bot nou.", example: "/bot-add-request bot-id:123456789012345678" }
   ,{ command: "/bot-add-permissions", description: "Listeaza paginat toate solicitarile cu status, bot, solicitant, owner si momentele ciclului de viata.", example: "/bot-add-permissions" }

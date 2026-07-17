@@ -115,10 +115,24 @@ function createModerationInteractionHandler(deps: Deps) {
     const state = await moderationRepository.getModerationState(GuildModel, guildId);
     const records = command === "timeout-list" ? state.moderationTimeouts : command === "mute-list" ? state.moderationMutes : undefined;
     if (records) return sendTextPages(interaction, records.map(formatRecord), "Lista este goala.", true);
-    const rows = [...(state.moderationWarnings ?? [])]
-      .sort((left, right) => new Date(right.warnedAt).getTime() - new Date(left.warnedAt).getTime())
-      .map(warning =>
-        `${mention(warning.userId, warning.username)} | moderator <@${warning.moderatorId}> | <t:${Math.floor(new Date(warning.warnedAt).getTime() / 1000)}:F>`
+    const totalsByUser = new Map<string, { userId: string; username?: string; count: number; lastWarnedAt: number }>();
+    for (const warning of state.moderationWarnings ?? []) {
+      const warnedAt = new Date(warning.warnedAt).getTime();
+      const entry = totalsByUser.get(warning.userId);
+      if (!entry) {
+        totalsByUser.set(warning.userId, { userId: warning.userId, username: warning.username, count: 1, lastWarnedAt: warnedAt });
+      } else {
+        entry.count += 1;
+        if (warnedAt > entry.lastWarnedAt) {
+          entry.lastWarnedAt = warnedAt;
+          entry.username = warning.username;
+        }
+      }
+    }
+    const rows = [...totalsByUser.values()]
+      .sort((left, right) => right.count - left.count || right.lastWarnedAt - left.lastWarnedAt)
+      .map(entry =>
+        `${mention(entry.userId, entry.username)} | ${entry.count === 1 ? "1 warn activ" : `${entry.count} warn-uri active`} | ultimul <t:${Math.floor(entry.lastWarnedAt / 1000)}:R>`
       );
     return sendTextPages(interaction, rows, "Lista este goala.", true);
   }
