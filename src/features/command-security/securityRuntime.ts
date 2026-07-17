@@ -172,16 +172,14 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
     }, currentTime);
     const approvalLabel = addedByOwner ? "owner direct" : permission ? "valida si consumata" : "absenta";
     if (risk.level === "suspicious" || risk.level === "dangerous") {
-      await channel.send({
-        content: `${owner.prefix}:warning: Bot suspect detectat. Bot: ${tag} (${botId}). Scor risc: ${risk.score}. Semnale: ${risk.signals.join("; ")}. Varsta cont: ${accountAgeLabel(member.user?.createdTimestamp, currentTime)}. Aprobare: ${approvalLabel}.`,
-        allowedMentions: owner.allowedMentions
-      });
-    }
-    if (risk.level === "dangerous") {
-      await channel.send({
-        content: `${owner.prefix}:rotating_light: Bot cu risc ridicat detectat (scor ${risk.score}). Bot: ${tag} (${botId}). Semnale: ${risk.signals.join("; ")}. Actiune: ${approved ? "monitorizare owner necesara" : "eliminat automat"}.`,
-        allowedMentions: owner.allowedMentions
-      });
+      const classification = risk.level === "dangerous"
+        ? `${owner.prefix}:rotating_light: Bot cu risc ridicat detectat (scor ${risk.score}). Bot: ${tag} (${botId}). Semnale: ${risk.signals.join("; ")}.`
+        : `${owner.prefix}:warning: Bot suspect detectat (scor ${risk.score}). Bot: ${tag} (${botId}). Semnale: ${risk.signals.join("; ")}. Varsta cont: ${accountAgeLabel(member.user?.createdTimestamp, currentTime)}.`;
+      await channel.send({ content: classification, allowedMentions: owner.allowedMentions });
+      const action = risk.level === "dangerous"
+        ? `${owner.prefix}:shield: Actiune recomandata pentru bot cu risc ridicat: ${approved ? "monitorizare owner necesara — verifica permisiunile si activitatea botului." : "botul a fost eliminat automat; verifica cine a incercat sa il adauge."} Aprobare: ${approvalLabel}.`
+        : `${owner.prefix}:shield: Actiune recomandata pentru bot suspect: verifica manual permisiunile, rolurile si comportamentul botului si retrage accesul daca nu il recunosti. Aprobare: ${approvalLabel}.`;
+      await channel.send({ content: action, allowedMentions: owner.allowedMentions });
     }
   }
 
