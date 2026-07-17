@@ -44,6 +44,8 @@ function createMetrics(): BotMetrics {
     securityThreatsDeleted: 0,
     securityBotAddsBlocked: 0,
     permissionDelegationsReverted: 0,
+    moderationCleanupRuns: 0,
+    moderationCleanupFailures: 0,
     commandRuns: {},
     commandErrors: {},
     commandDurationMsTotal: {},
