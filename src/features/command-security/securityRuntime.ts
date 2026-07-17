@@ -1,10 +1,11 @@
 "use strict";
 
-import { AuditLogEvent } from "discord.js";
+import { AuditLogEvent, UserFlags } from "discord.js";
 import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import botAddRepository from "../moderation/botAddRepository.js";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
 import { accountAgeLabel, isRecentAccount } from "./recentAccountPolicy.js";
+import { assessBotRisk, type BotRiskRoleLike } from "./botRiskPolicy.js";
 import { createThreatInspectionService } from "./threatInspectionService.js";
 import type { DirectAttachment } from "../moderation/moderationInputPolicy.js";
 
@@ -20,12 +21,15 @@ type AuditCollection = { values(): IterableIterator<AuditEntry> };
 type SecurityGuild = {
   id?: string;
   ownerId?: string;
+  roles?: { cache?: { size?: number } };
   fetchAuditLogs?(options: { type: AuditLogEvent; limit: number }): Promise<{ entries?: AuditCollection }>;
 };
+type MemberRoleCollection = { values(): IterableIterator<BotRiskRoleLike> };
 type GuildMemberEvent = {
   guild?: SecurityGuild | null;
   joinedTimestamp?: number;
-  user?: { id?: string; tag?: string; bot?: boolean; createdTimestamp?: number } | null;
+  user?: { id?: string; tag?: string; bot?: boolean; createdTimestamp?: number; flags?: { has(flag: number): boolean } | null } | null;
+  roles?: { cache?: MemberRoleCollection };
   kick?(reason?: string): Promise<unknown>;
 };
 type AttachmentCollection = { values(): IterableIterator<DirectAttachment> };
@@ -99,12 +103,8 @@ async function botRequesterWithRetry(
   return requesterId;
 }
 
-function botRisk(createdTimestamp: number | undefined, now: number): "normal" | "suspicious" | "dangerous" {
-  if (typeof createdTimestamp !== "number" || !Number.isFinite(createdTimestamp)) return "suspicious";
-  const age = now - createdTimestamp;
-  if (age < 86_400_000) return "dangerous";
-  if (age < 30 * 86_400_000) return "suspicious";
-  return "normal";
+function memberRoles(member: GuildMemberEvent): BotRiskRoleLike[] {
+  return member.roles?.cache ? [...member.roles.cache.values()] : [];
 }
 
 function attachments(message: MessageEvent): DirectAttachment[] {
@@ -163,17 +163,23 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
         details: `botId=${botId}; requesterId=${requesterId}; requestId=${permission.requestId}`
       });
     }
-    const risk = botRisk(member.user?.createdTimestamp, currentTime);
+    const risk = assessBotRisk({
+      createdTimestamp: member.user?.createdTimestamp,
+      verifiedBot: member.user?.flags?.has(UserFlags.VerifiedBot) === true,
+      approved,
+      roles: memberRoles(member),
+      guildRoleCount: member.guild?.roles?.cache?.size ?? 0
+    }, currentTime);
     const approvalLabel = addedByOwner ? "owner direct" : permission ? "valida si consumata" : "absenta";
-    if (risk === "suspicious" || risk === "dangerous") {
+    if (risk.level === "suspicious" || risk.level === "dangerous") {
       await channel.send({
-        content: `${owner.prefix}:warning: Bot suspect detectat. Bot: ${tag} (${botId}). Varsta cont: ${accountAgeLabel(member.user?.createdTimestamp, currentTime)}. Aprobare: ${approvalLabel}.`,
+        content: `${owner.prefix}:warning: Bot suspect detectat. Bot: ${tag} (${botId}). Scor risc: ${risk.score}. Semnale: ${risk.signals.join("; ")}. Varsta cont: ${accountAgeLabel(member.user?.createdTimestamp, currentTime)}. Aprobare: ${approvalLabel}.`,
         allowedMentions: owner.allowedMentions
       });
     }
-    if (risk === "dangerous") {
+    if (risk.level === "dangerous") {
       await channel.send({
-        content: `${owner.prefix}:rotating_light: Bot cu risc ridicat detectat: cont creat in ultimele 24 de ore. Bot: ${tag} (${botId}). Actiune: ${approved ? "monitorizare owner necesara" : "eliminat automat"}.`,
+        content: `${owner.prefix}:rotating_light: Bot cu risc ridicat detectat (scor ${risk.score}). Bot: ${tag} (${botId}). Semnale: ${risk.signals.join("; ")}. Actiune: ${approved ? "monitorizare owner necesara" : "eliminat automat"}.`,
         allowedMentions: owner.allowedMentions
       });
     }

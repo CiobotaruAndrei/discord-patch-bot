@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AuditLogEvent } from "discord.js";
+import { AuditLogEvent, PermissionFlagsBits } from "discord.js";
 
 import { createSecurityRuntime } from "../../features/command-security/securityRuntime.js";
 import type { GuildAuditLogRecord } from "../../features/admin-records/auditLogRepository.js";
@@ -74,6 +74,13 @@ test("un bot fara aprobare exacta este eliminat si auditat", async () => {
       bot: true,
       createdTimestamp: now - 3_600_000
     },
+    roles: {
+      cache: new Map([["role-bot", {
+        id: "role-bot",
+        position: 1,
+        permissions: { has: (flag: bigint) => flag === PermissionFlagsBits.Administrator }
+      }]])
+    },
     kick: async reason => { kicks.push(reason ?? ""); }
   });
 
@@ -83,7 +90,10 @@ test("un bot fara aprobare exacta este eliminat si auditat", async () => {
   assert.equal(sent.length, 3);
   assert.match(sent[0].content ?? "", /Bot neaprobat eliminat/);
   assert.match(sent[1].content ?? "", /Bot suspect/);
+  assert.match(sent[1].content ?? "", /cont creat in ultimele 24 de ore \(\+3\)/);
+  assert.match(sent[1].content ?? "", /permisiune Administrator \(\+3\)/);
   assert.match(sent[2].content ?? "", /risc ridicat/);
+  assert.match(sent[2].content ?? "", /scor 6/);
 });
 
 test("ownerul serverului poate adauga un bot direct, fara aprobare one-time (fara kick)", async () => {
@@ -134,6 +144,13 @@ test("ownerul serverului poate adauga un bot direct, fara aprobare one-time (far
       bot: true,
       createdTimestamp: now - 3_600_000
     },
+    roles: {
+      cache: new Map([["role-bot", {
+        id: "role-bot",
+        position: 1,
+        permissions: { has: (flag: bigint) => flag === PermissionFlagsBits.Administrator }
+      }]])
+    },
     kick: async reason => { kicks.push(reason ?? ""); }
   });
 
@@ -143,6 +160,7 @@ test("ownerul serverului poate adauga un bot direct, fara aprobare one-time (far
   assert.equal(audits[0].action, "bot-add-owner-direct");
   assert.match(sent[0].content ?? "", /adaugat direct de ownerul serverului/);
   assert.match(sent[1].content ?? "", /Aprobare: owner direct/);
+  assert.match(sent[1].content ?? "", /aprobare valida pentru intrare \(-1\)/, "aprobarea ownerului scade scorul de risc");
   assert.match(sent[2].content ?? "", /monitorizare owner necesara/, "botul periculos adaugat de owner ramane, cu monitorizare");
 });
 
