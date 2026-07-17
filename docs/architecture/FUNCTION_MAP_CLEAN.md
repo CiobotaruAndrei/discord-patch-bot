@@ -244,6 +244,7 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Urmareste actualizarile rolurilor si atribuirea rolurilor membrilor prin audit log pentru permisiunile Administrator, Ban Members, Kick Members, Moderate Members si Manage Webhooks.
 - Accepta delegarea numai cand executorul este ownerul serverului. Pentru restul executorilor restaureaza exact starea anterioara si scrie audit, metrica si alerta administrativa.
+- **Acopera si caile ocolitoare** (raport post-#699, problema #4): `handleRoleCreate` (evenimentul `roleCreate`) — un rol NOU creat direct cu permisiuni protejate de un non-owner ramane fara permisiuni (`setPermissions(0n)`, audit `protected-role-create-reverted`); **rolurile gestionate de integrari/boti (`role.managed`) sunt tratate separat**: nu se golesc automat, doar audit `protected-managed-role-created-alerted` + alerta cu "verificare owner necesara" (asta acopera si rolul propriu al botului, care e managed). `handleChannelUpdate` (evenimentul `channelUpdate`) — un overwrite de canal care acorda NOU `ManageWebhooks`/`ManageRoles` unui target e restaurat la starea anterioara exact (`deny` daca era deny, `inherit` daca nu exista), cu actorul cautat in `ChannelOverwriteUpdate`/`ChannelOverwriteCreate`; ownerul e exceptat, iar fara permisiuni sensibile noi Audit Log-ul nici nu e interogat. Audit `protected-channel-overwrite-reverted` cu `channelId` + lista `target:permisiuni`.
 
 ### `src/features/moderation/moderationRepository.ts` (+ `moderationLifecycleRuntime.ts`, `moderationInputPolicy.ts`)
 
