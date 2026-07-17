@@ -1,5 +1,6 @@
 "use strict";
 
+import { PermissionFlagsBits } from "discord.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { errorDetail } from "../../shared/errors.js";
 import {
@@ -34,12 +35,16 @@ type SecurityMember = {
   joinedTimestamp?: number;
 };
 type SecurityMemberCollection = { values(): IterableIterator<SecurityMember> };
+type BotGuildMember = {
+  permissions?: { has(flag: bigint): boolean } | null;
+  roles?: { highest?: { position?: number } | null } | null;
+};
 type SecurityInteraction = {
   commandName?: string;
   guild?: {
     id?: string;
     roles?: { everyone?: { id: string } };
-    members?: { me?: object; fetch(): Promise<SecurityMemberCollection> };
+    members?: { me?: (object & BotGuildMember) | null; fetch(): Promise<SecurityMemberCollection> };
     channels?: {
       cache?: { get(channelId: string): SecurityChannel | undefined };
       fetch(channelId: string): Promise<SecurityChannel | null>;
@@ -100,6 +105,15 @@ const START_STOP_TOGGLE_FIELDS: Record<string, { channel: ProtectionChannelField
   "threat-delete-risky-files": { channel: "threatAlertChannelId", enabled: "threatAutoDeleteRiskyFiles" },
   "threat-delete-policy-violations": { channel: "threatAlertChannelId", enabled: "threatAutoDeletePolicyViolations" }
 };
+
+function botAddProtectionReadiness(interaction: SecurityInteraction): string[] {
+  const me = interaction.guild?.members?.me;
+  const missing: string[] = [];
+  if (me?.permissions?.has(PermissionFlagsBits.ViewAuditLog) !== true) missing.push("View Audit Log");
+  if (me?.permissions?.has(PermissionFlagsBits.KickMembers) !== true) missing.push("Kick Members");
+  if ((me?.roles?.highest?.position ?? 0) <= 0) missing.push("rol pozitionat deasupra rolului @everyone (necesar pentru a elimina boti)");
+  return missing;
+}
 
 function isSecurityInteraction(interaction: SecurityInteraction): boolean {
   if (interaction?.isChatInputCommand?.() !== true || !interaction.guild) return false;
@@ -193,6 +207,12 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
         const permissions = await target.checkChannelPermissions(interaction, channelId);
         if (!permissions?.viewChannel || !permissions.sendMessages || !permissions.embedLinks) {
           return respond(interaction, "Eroare: canalul configurat nu mai are permisiunile View Channel, Send Messages si Embed Links.");
+        }
+        if (sub === "bot-add-protection") {
+          const missing = botAddProtectionReadiness(interaction);
+          if (missing.length > 0) {
+            return respond(interaction, `Eroare: protectia la adaugarea botilor nu poate porni - lipsesc: ${missing.join(", ")}. Acorda-le botului si reincearca.`);
+          }
         }
       }
       await applyGuildConfigUpdate(target.GuildModel, guildId, { [enabledField]: command === "start" });
