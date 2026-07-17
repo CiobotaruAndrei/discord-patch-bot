@@ -194,3 +194,55 @@ test("arhiva criptata ramane unknown/uncertain, NU dangerous automat (audit, #20
   assert.equal(result.verdict, "uncertain", "arhiva criptata nu e declarata periculoasa");
   assert.match(result.reason, /arhiva criptata/);
 });
+
+test("un atasament e trimis O SINGURA DATA la motorul extern de reputatie, chiar daca URL-ul apare si in continut (audit, #22)", async () => {
+  const scanCalls: string[] = [];
+  const httpCalls: string[] = [];
+  const sharedUrl = "https://cdn.example.test/installer";
+  const inspector = createThreatInspectionService({
+    httpReq: async (_method, url) => { httpCalls.push(url); return { data: Buffer.from([0x4d, 0x5a, 0x90, 0x00]), headers: { "content-type": "application/octet-stream" }, status: 200 }; },
+    reputationScan: async input => { scanCalls.push(input.url ?? ""); return "clean"; }
+  });
+
+  await inspector.inspectMessage(sharedUrl, [{ id: "a", name: "installer", url: sharedUrl }]);
+
+  assert.equal(scanCalls.length, 1, "acelasi URL, prezent si ca link si ca atasament, e scanat o singura data la motorul extern");
+  assert.equal(httpCalls.filter(url => url === sharedUrl).length, 1, "resursa partajata e descarcata o singura data");
+});
+
+test("un atasament cu continut sigur dar MIME riscant nu dubleaza apelul la motorul de reputatie (audit, #22)", async () => {
+  const scanCalls: number[] = [];
+  const inspector = createThreatInspectionService({
+    httpReq: async () => ({ data: Buffer.from("text inofensiv"), headers: { "content-type": "text/plain" }, status: 200 }),
+    reputationScan: async () => { scanCalls.push(1); return "clean"; }
+  });
+
+  await inspector.inspectMessage("", [{ id: "a", name: "setup.exe", url: "https://cdn.example.test/setup", contentType: "application/x-msdownload" }]);
+
+  assert.equal(scanCalls.length, 1, "un singur apel de reputatie per atasament, nu unul pentru continut si altul pentru MIME");
+});
+
+test("plafon TOTAL de resurse pe mesaj: linkuri + atasamente sunt limitate impreuna, iar surplusul devine uncertain (audit, #23)", async () => {
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const httpCalls: string[] = [];
+  const inspector = createThreatInspectionService({
+    maxResources: 3,
+    httpReq: async (_method, url) => {
+      httpCalls.push(url);
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await Promise.resolve();
+      inFlight--;
+      return { data: Buffer.from("ok"), headers: { "content-type": "text/plain" }, status: 200 };
+    }
+  });
+
+  const content = "https://example.test/a https://example.test/b https://example.test/c https://example.test/d https://example.test/e";
+  const result = await inspector.inspectMessage(content, []);
+
+  assert.equal(httpCalls.length, 3, "doar primele 3 resurse (plafonul total) sunt inspectate, nu toate 5");
+  assert.ok(maxInFlight <= 2, "concurenta ramane strict sub plafon");
+  assert.equal(result.verdict, "uncertain", "surplusul neinspectat produce un verdict uncertain, nu e ignorat tacit");
+  assert.match(result.reason, /2 resurse suplimentare nu au fost inspectate/);
+});
