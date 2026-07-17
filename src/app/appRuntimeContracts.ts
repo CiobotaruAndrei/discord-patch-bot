@@ -145,7 +145,6 @@ export interface RuntimeServices {
   metrics: BotMetrics;
   lifecycle: LifecycleState;
   rateLimiter: RateLimiter;
-  housekeeping: HousekeepingController;
   config: BotConfig;
   games: GameConfig[];
 }
@@ -154,14 +153,15 @@ export interface Schedulers {
   cronController: CronController;
   outboxWorker: OutboxWorker;
   outboxEnabled: boolean;
+  housekeeping: HousekeepingController;
 }
 
 export interface AppRuntime {
   start(): Promise<void>;
   stop(signal: string, exitCode?: number): Promise<void>;
   registerProcessHandlers(): void;
-  cronController: CronController;
-  outboxWorker: OutboxWorker;
+  cronController: CronController | null;
+  outboxWorker: OutboxWorker | null;
   httpServer: HttpServerLike;
   metrics: BotMetrics;
 }

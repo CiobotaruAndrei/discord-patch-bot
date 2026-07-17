@@ -163,7 +163,7 @@ Parola si URL-ul Redis se tin **doar in env / secret manager**, niciodata in cod
 Botul poate rula ca **un singur proces** (implicit) sau impartit in **doua roluri** care ruleaza ca procese separate din aceeasi imagine/cod, controlate de variabila `BOT_ROLE`:
 
 - `all` (implicit) — un proces face tot: interactiuni Discord + slash commands + toate job-urile de fundal (cron update-uri/reduceri/YouTube, drain outbox, housekeeping) + HTTP. **Comportamentul actual, neschimbat.**
-- `web` — doar interactiunile Discord (slash commands, onboarding la guild nou) + HTTP. **Nu** porneste niciun job de fundal.
+- `web` — doar interactiunile Discord (slash commands, onboarding la guild nou) + HTTP. **Nu** porneste niciun job de fundal — graful runtime `web` nici macar nu le construieste (cron controller, outbox worker si housekeeping nu exista in procesul `web`, iar `/healthz` nu are sectiunea `cronHealth`).
 - `worker` — doar job-urile de fundal (cron, drain outbox, housekeeping) + HTTP health/metrics. **Nu** inregistreaza slash commands si **nu** trateaza interactiuni.
 
 Rulare:

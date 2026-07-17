@@ -80,9 +80,17 @@ function buildAppRuntime(role: BotRole): AppRuntime {
   } satisfies AppRuntimeDeps);
 }
 
+function buildWebRuntime(): AppRuntime {
+  return buildAppRuntime("web");
+}
+
+function buildWorkerRuntime(): AppRuntime {
+  return buildAppRuntime("worker");
+}
+
 function startBot(role: BotRole): AppRuntime {
   logger("INFO", "BOOT", `Pornire bot in rol '${role}'`);
-  const app = buildAppRuntime(role);
+  const app = role === "web" ? buildWebRuntime() : role === "worker" ? buildWorkerRuntime() : buildAppRuntime(role);
   app.registerProcessHandlers();
   app.start().catch(() => process.exit(1));
   return app;
@@ -92,4 +100,4 @@ function startFromEnv(): AppRuntime {
   return startBot(env.BOT_ROLE);
 }
 
-export { startBot, startFromEnv, buildAppRuntime };
+export { startBot, startFromEnv, buildAppRuntime, buildWebRuntime, buildWorkerRuntime };

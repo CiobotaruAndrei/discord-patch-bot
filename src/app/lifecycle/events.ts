@@ -34,8 +34,8 @@ interface RegisterDiscordEventsDeps {
   crypto: CryptoLike;
   errorMessage: ErrorFormatter;
   errorDetail: ErrorFormatter;
-  startHousekeeping: () => void;
-  scheduleNextCron: () => void;
+  startHousekeeping?: () => void;
+  scheduleNextCron?: () => void;
   startOutboxWorker?: () => void;
   role?: BotRole;
   securityRuntime?: {
@@ -110,13 +110,13 @@ function registerDiscordEvents({
     }
     if (runsSchedulers) {
       try {
-        startHousekeeping();
+        startHousekeeping?.();
       } catch (err) {
         logger("ERROR", "BOOT", "startHousekeeping a esuat in handler-ul ready", errorDetail(err));
         adminAlert("boot:housekeeping", "Housekeeping nu a pornit", errorMessage(err)).catch(() => null);
       }
       try {
-        scheduleNextCron();
+        scheduleNextCron?.();
       } catch (err) {
         logger("ERROR", "BOOT", "scheduleNextCron a esuat in handler-ul ready", errorDetail(err));
         adminAlert("boot:cron", "Cron-ul nu a putut fi programat", errorMessage(err)).catch(() => null);
