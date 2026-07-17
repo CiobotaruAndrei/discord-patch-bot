@@ -4,6 +4,7 @@ import { AuditLogEvent, PermissionFlagsBits } from "discord.js";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
 
 type PermissionSet = { has(flag: bigint): boolean; bitfield?: bigint };
+type AuditEntryId = string | number;
 type RoleLike = {
   id: string;
   name?: string;
@@ -33,10 +34,16 @@ type MemberLike = {
   };
 };
 type AuditEntry = {
+  id?: AuditEntryId;
   target?: { id?: string } | null;
   executor?: { id?: string } | null;
   createdTimestamp?: number;
 };
+
+interface AuditMatch {
+  executorId: string | null;
+  entryId: AuditEntryId | null;
+}
 type GuildLike = {
   id: string;
   ownerId?: string;
@@ -69,12 +76,16 @@ const CHANNEL_PROTECTED_PERMISSIONS = [
   { flag: PermissionFlagsBits.ManageWebhooks, option: "ManageWebhooks" }
 ] as const;
 
-function hasProtectedPermission(permissions: PermissionSet): boolean {
-  return PROTECTED_PERMISSIONS.some(({ flag }) => permissions.has(flag));
+function explicitlyHas(bits: bigint, flag: bigint): boolean {
+  return (bits & flag) === flag;
 }
 
-function grantedProtectedPermissions(previous: PermissionSet, next: PermissionSet): ProtectedPermission[] {
-  return PROTECTED_PERMISSIONS.filter(({ flag }) => !previous.has(flag) && next.has(flag));
+function explicitProtectedPermissions(bits: bigint): ProtectedPermission[] {
+  return PROTECTED_PERMISSIONS.filter(({ flag }) => explicitlyHas(bits, flag));
+}
+
+function grantedProtectedPermissions(previousBits: bigint, nextBits: bigint): ProtectedPermission[] {
+  return PROTECTED_PERMISSIONS.filter(({ flag }) => explicitlyHas(nextBits, flag) && !explicitlyHas(previousBits, flag));
 }
 
 function protectedMask(granted: readonly ProtectedPermission[]): bigint {
@@ -88,28 +99,32 @@ function requireBitfield(permissions: PermissionSet, subject: string): bigint {
   return permissions.bitfield;
 }
 
-async function auditActor(guild: GuildLike, type: AuditLogEvent, targetId: string, eventTime: number): Promise<string | null> {
+async function auditMatch(guild: GuildLike, type: AuditLogEvent, targetId: string, eventTime: number, processed: Set<AuditEntryId>): Promise<AuditMatch> {
   const logs = await guild.fetchAuditLogs?.({ type, limit: 6 });
   const entries = logs?.entries ? [...logs.entries.values()] : [];
-  const match = entries.find(entry =>
-    entry.target?.id === targetId
-    && typeof entry.createdTimestamp === "number"
-    && Math.abs(eventTime - entry.createdTimestamp) <= AUDIT_LOG_MATCH_WINDOW_MS
-  );
-  return match?.executor?.id ?? null;
+  const candidate = entries
+    .filter(entry =>
+      entry.target?.id === targetId
+      && typeof entry.createdTimestamp === "number"
+      && Math.abs(eventTime - entry.createdTimestamp) <= AUDIT_LOG_MATCH_WINDOW_MS
+      && !(entry.id !== undefined && processed.has(entry.id))
+    )
+    .sort((left, right) => Math.abs(eventTime - (left.createdTimestamp ?? 0)) - Math.abs(eventTime - (right.createdTimestamp ?? 0)))[0];
+  if (!candidate) return { executorId: null, entryId: null };
+  return { executorId: candidate.executor?.id ?? null, entryId: candidate.id ?? null };
 }
 
-async function actorWithRetry(
-  lookup: () => Promise<string | null>,
+async function matchWithRetry(
+  lookup: () => Promise<AuditMatch>,
   wait: (ms: number) => Promise<void>
-): Promise<string | null> {
-  let actorId = await lookup();
+): Promise<AuditMatch> {
+  let match = await lookup();
   for (const delayMs of AUDIT_LOG_RETRY_DELAYS_MS) {
-    if (actorId) return actorId;
+    if (match.executorId) return match;
     await wait(delayMs);
-    actorId = await lookup();
+    match = await lookup();
   }
-  return actorId;
+  return match;
 }
 
 function roles(member: MemberLike): RoleLike[] {
@@ -120,49 +135,66 @@ function overwrites(channel: ChannelLike): OverwriteLike[] {
   return channel.permissionOverwrites?.cache ? [...channel.permissionOverwrites.cache.values()] : [];
 }
 
-async function channelOverwriteActor(guild: GuildLike, channelId: string, eventTime: number): Promise<string | null> {
+async function channelOverwriteMatch(guild: GuildLike, channelId: string, eventTime: number, processed: Set<AuditEntryId>): Promise<AuditMatch> {
   for (const type of [AuditLogEvent.ChannelOverwriteUpdate, AuditLogEvent.ChannelOverwriteCreate]) {
-    const actorId = await auditActor(guild, type, channelId, eventTime);
-    if (actorId) return actorId;
+    const match = await auditMatch(guild, type, channelId, eventTime, processed);
+    if (match.executorId) return match;
   }
-  return null;
+  return { executorId: null, entryId: null };
 }
 
 export function createPermissionDelegationRuntime(deps: PermissionDelegationRuntimeDeps) {
   const now = deps.now ?? Date.now;
   const wait = deps.wait ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
+  const processedAuditEntries = new Set<AuditEntryId>();
+
+  function markProcessed(match: AuditMatch): void {
+    if (match.entryId !== null) processedAuditEntries.add(match.entryId);
+  }
 
   async function handleRoleUpdate(previous: RoleLike, next: RoleLike): Promise<void> {
-    const granted = grantedProtectedPermissions(previous.permissions, next.permissions);
+    const granted = grantedProtectedPermissions(
+      requireBitfield(previous.permissions, `rolul ${next.id} (stare anterioara)`),
+      requireBitfield(next.permissions, `rolul ${next.id}`)
+    );
     if (!granted.length) return;
     const eventTime = now();
-    const actorId = await actorWithRetry(() => auditActor(next.guild, AuditLogEvent.RoleUpdate, next.id, eventTime), wait);
+    const match = await matchWithRetry(() => auditMatch(next.guild, AuditLogEvent.RoleUpdate, next.id, eventTime, processedAuditEntries), wait);
+    const actorId = match.executorId;
     if (actorId && actorId === next.guild.ownerId) return;
     if (!next.setPermissions) throw new Error(`Permisiunile rolului ${next.id} nu pot fi restaurate.`);
-    const nextBits = requireBitfield(next.permissions, `rolul ${next.id}`);
-    await next.setPermissions(nextBits & ~protectedMask(granted), "Protectie anti-delegare: numai ownerul poate acorda permisiuni sensibile");
+    const currentBits = requireBitfield(next.permissions, `rolul ${next.id} (stare curenta)`);
+    const stillGranted = granted.filter(({ flag }) => explicitlyHas(currentBits, flag));
+    if (!stillGranted.length) return;
+    markProcessed(match);
+    await next.setPermissions(currentBits & ~protectedMask(stillGranted), "Protectie anti-delegare: numai ownerul poate acorda permisiuni sensibile");
     deps.metrics && (deps.metrics.permissionDelegationsReverted = (deps.metrics.permissionDelegationsReverted ?? 0) + 1);
     await recordServerAuditEntry(deps.GuildAuditLogModel, next.guild.id, {
       userId: actorId ?? "",
       action: "protected-role-permissions-reverted",
-      details: `roleId=${next.id}; roleName=${next.name ?? ""}; removed=${granted.map(({ label }) => label).join("+")}`
+      details: `roleId=${next.id}; roleName=${next.name ?? ""}; removed=${stillGranted.map(({ label }) => label).join("+")}`
     });
     await deps.adminAlert(
       "security:permission-delegation",
       "Delegare neautorizata de permisiuni restaurata",
-      `Rol ${next.name ?? next.id}; permisiuni eliminate: ${granted.map(({ label }) => label).join(", ")}; restul modificarilor raman; actor ${actorId ?? "nedetectat"}`,
+      `Rol ${next.name ?? next.id}; permisiuni eliminate: ${stillGranted.map(({ label }) => label).join(", ")}; restul modificarilor raman; actor ${actorId ?? "nedetectat"}`,
       next.guild.id
     );
   }
 
   async function handleGuildMemberUpdate(previous: MemberLike, next: MemberLike): Promise<void> {
     const previousRoleIds = new Set(roles(previous).map(role => role.id));
-    const addedProtected = roles(next).filter(role => !previousRoleIds.has(role.id) && hasProtectedPermission(role.permissions));
+    const addedProtected = roles(next).filter(role =>
+      !previousRoleIds.has(role.id)
+      && explicitProtectedPermissions(requireBitfield(role.permissions, `rolul ${role.id}`)).length > 0
+    );
     if (!addedProtected.length) return;
     const eventTime = now();
-    const actorId = await actorWithRetry(() => auditActor(next.guild, AuditLogEvent.MemberRoleUpdate, next.id, eventTime), wait);
+    const match = await matchWithRetry(() => auditMatch(next.guild, AuditLogEvent.MemberRoleUpdate, next.id, eventTime, processedAuditEntries), wait);
+    const actorId = match.executorId;
     if (actorId && actorId === next.guild.ownerId) return;
     if (!next.roles?.remove) throw new Error(`Rolurile sensibile ale membrului ${next.id} nu pot fi restaurate.`);
+    markProcessed(match);
     for (const role of addedProtected) {
       await next.roles.remove(role.id, "Protectie anti-delegare: numai ownerul poate acorda roluri sensibile");
     }
@@ -181,12 +213,14 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
   }
 
   async function handleRoleCreate(role: RoleLike): Promise<void> {
-    const grantedAtCreate = PROTECTED_PERMISSIONS.filter(({ flag }) => role.permissions.has(flag));
+    const grantedAtCreate = explicitProtectedPermissions(requireBitfield(role.permissions, `rolul nou ${role.id}`));
     if (!grantedAtCreate.length) return;
     const eventTime = now();
-    const actorId = await actorWithRetry(() => auditActor(role.guild, AuditLogEvent.RoleCreate, role.id, eventTime), wait);
+    const match = await matchWithRetry(() => auditMatch(role.guild, AuditLogEvent.RoleCreate, role.id, eventTime, processedAuditEntries), wait);
+    const actorId = match.executorId;
     if (actorId && actorId === role.guild.ownerId) return;
     if (role.managed === true) {
+      markProcessed(match);
       await recordServerAuditEntry(deps.GuildAuditLogModel, role.guild.id, {
         userId: actorId ?? "",
         action: "protected-managed-role-created-alerted",
@@ -201,18 +235,21 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
       return;
     }
     if (!role.setPermissions) throw new Error(`Permisiunile sensibile ale rolului nou ${role.id} nu pot fi eliminate.`);
-    const roleBits = requireBitfield(role.permissions, `rolul nou ${role.id}`);
-    await role.setPermissions(roleBits & ~protectedMask(grantedAtCreate), "Protectie anti-delegare: numai ownerul poate crea roluri cu permisiuni sensibile");
+    const currentBits = requireBitfield(role.permissions, `rolul nou ${role.id} (stare curenta)`);
+    const stillGranted = grantedAtCreate.filter(({ flag }) => explicitlyHas(currentBits, flag));
+    if (!stillGranted.length) return;
+    markProcessed(match);
+    await role.setPermissions(currentBits & ~protectedMask(stillGranted), "Protectie anti-delegare: numai ownerul poate crea roluri cu permisiuni sensibile");
     deps.metrics && (deps.metrics.permissionDelegationsReverted = (deps.metrics.permissionDelegationsReverted ?? 0) + 1);
     await recordServerAuditEntry(deps.GuildAuditLogModel, role.guild.id, {
       userId: actorId ?? "",
       action: "protected-role-create-reverted",
-      details: `roleId=${role.id}; roleName=${role.name ?? ""}; removed=${grantedAtCreate.map(({ label }) => label).join("+")}`
+      details: `roleId=${role.id}; roleName=${role.name ?? ""}; removed=${stillGranted.map(({ label }) => label).join("+")}`
     });
     await deps.adminAlert(
       "security:permission-delegation",
       "Rol nou creat cu permisiuni sensibile; permisiunile sensibile au fost eliminate",
-      `Rol ${role.name ?? role.id}; permisiuni eliminate: ${grantedAtCreate.map(({ label }) => label).join(", ")}; permisiunile neprotejate raman; actor ${actorId ?? "nedetectat"}`,
+      `Rol ${role.name ?? role.id}; permisiuni eliminate: ${stillGranted.map(({ label }) => label).join(", ")}; permisiunile neprotejate raman; actor ${actorId ?? "nedetectat"}`,
       role.guild.id
     );
   }
@@ -222,25 +259,30 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
     if (!guild?.id) return;
     const previousByTarget = new Map(overwrites(previous).map(overwrite => [overwrite.id, overwrite]));
     const violations = overwrites(next)
-      .map(overwrite => ({
-        overwrite,
-        granted: CHANNEL_PROTECTED_PERMISSIONS.filter(({ flag }) => {
-          const before = previousByTarget.get(overwrite.id);
-          return overwrite.allow.has(flag) && !(before?.allow.has(flag) ?? false);
-        })
-      }))
+      .map(overwrite => {
+        const before = previousByTarget.get(overwrite.id);
+        const allowBits = requireBitfield(overwrite.allow, `overwrite ${overwrite.id} (allow)`);
+        const beforeAllowBits = before ? requireBitfield(before.allow, `overwrite ${overwrite.id} (allow anterior)`) : 0n;
+        return {
+          overwrite,
+          granted: CHANNEL_PROTECTED_PERMISSIONS.filter(({ flag }) => explicitlyHas(allowBits, flag) && !explicitlyHas(beforeAllowBits, flag))
+        };
+      })
       .filter(entry => entry.granted.length > 0);
     if (!violations.length) return;
     const eventTime = now();
-    const actorId = await actorWithRetry(() => channelOverwriteActor(guild, next.id, eventTime), wait);
+    const match = await matchWithRetry(() => channelOverwriteMatch(guild, next.id, eventTime, processedAuditEntries), wait);
+    const actorId = match.executorId;
     if (actorId && actorId === guild.ownerId) return;
     const edit = next.permissionOverwrites?.edit;
     if (!edit) throw new Error(`Overwrite-urile canalului ${next.id} nu pot fi restaurate.`);
+    markProcessed(match);
     for (const { overwrite, granted } of violations) {
       const before = previousByTarget.get(overwrite.id);
+      const beforeDenyBits = before ? requireBitfield(before.deny, `overwrite ${overwrite.id} (deny anterior)`) : 0n;
       const restore: Record<string, boolean | null> = {};
       for (const { flag, option } of granted) {
-        restore[option] = before?.deny.has(flag) === true ? false : null;
+        restore[option] = explicitlyHas(beforeDenyBits, flag) ? false : null;
       }
       await edit(overwrite.id, restore, { reason: "Protectie anti-delegare: numai ownerul poate acorda permisiuni sensibile prin overwrite de canal" });
     }
