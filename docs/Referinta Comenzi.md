@@ -156,7 +156,7 @@ Total comenzi documentate: 154.
 | `/unban` | Admin, Ephemeral | Debaneaza utilizatorul prin API-ul guild.bans.remove. | `/unban utilizator:@user` |
 | `/warn` | Admin, Ephemeral | Publica dovada intr-un canal dedicat, persista doar metadatele si poate declansa auto-ban. | `/warn utilizator:@user motiv:spam` |
 | `/remove-warn` | Admin, Ephemeral | Elimina cel mai recent avertisment. | `/remove-warn utilizator:@user` |
-| `/warn-list` | Public | Afiseaza paginat toate avertismentele, cu utilizator, moderator si data. | `/warn-list` |
+| `/warn-list` | Public | Afiseaza sumarul avertismentelor grupat pe utilizator: totalul de warn-uri active, sortat descrescator, cu data ultimului warn. | `/warn-list` |
 | `/warn-ban-limit` | Admin, Ephemeral | Seteaza limita de avertismente pentru ban automat. | `/warn-ban-limit numar:3` |
 | `/bot-add-request` | Admin, Ephemeral | Solicita aprobarea proprietarului pentru un bot nou. | `/bot-add-request bot-id:123456789012345678` |
 | `/bot-add-permissions` | Admin, Ephemeral | Listeaza paginat toate solicitarile cu status, bot, solicitant, owner si momentele ciclului de viata. | `/bot-add-permissions` |
