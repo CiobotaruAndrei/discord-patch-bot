@@ -41,6 +41,8 @@ export interface BotMetrics {
   securityThreatsDeleted?: number;
   securityBotAddsBlocked?: number;
   permissionDelegationsReverted?: number;
+  moderationCleanupRuns?: number;
+  moderationCleanupFailures?: number;
   commandRuns: Record<string, number>;
   commandErrors: Record<string, number>;
   commandDurationMsTotal: Record<string, number>;
