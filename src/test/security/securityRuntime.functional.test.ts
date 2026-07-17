@@ -553,3 +553,57 @@ test("bot neaprobat care NU poate fi eliminat (ierarhie) => incident critic cu t
   assert.match(sent[0].content ?? "", /INCIDENT CRITIC/);
   assert.match(sent[0].content ?? "", /<@owner-1>/);
 });
+
+test("un bot monitorizat care posteaza continut CONFIRMAT periculos => incident critic urgent cu tag owner + stergere + audit (audit, #27)", async () => {
+  const sent: Array<{ content?: string }> = [];
+  const audits: GuildAuditLogRecord[] = [];
+  let deleted = 0;
+  const runtime = createSecurityRuntime({
+    getGuildSettings: async () => ({ _id: "guild-1", botAddProtectionEnabled: true, botAddAlertChannelId: "security" }),
+    client: { channels: { fetch: async () => ({ send: async (payload: { content?: string }) => { sent.push(payload); } }) } },
+    GuildModel: emptyGuildModel(),
+    GuildAuditLogModel: auditModel(audits),
+    httpReq: async () => ({ data: Buffer.from([0x4d, 0x5a]), headers: { "content-type": "application/octet-stream" }, status: 200 }),
+    reputationScan: async () => "malware"
+  });
+
+  await runtime.handleMessageCreate({
+    guild: { id: "guild-1", ownerId: "owner-1" },
+    author: { id: "bot-9", tag: "malicious-bot", bot: true },
+    channel: { id: "general" },
+    content: "",
+    attachments: new Map([["a", { id: "a", name: "payload", url: "https://cdn.example.test/x" }]]),
+    delete: async () => { deleted++; }
+  });
+
+  assert.equal(deleted, 1, "continutul confirmat periculos al botului e sters");
+  assert.equal(audits[0].action, "bot-confirmed-dangerous-activity");
+  assert.match(sent[0].content ?? "", /INCIDENT CRITIC/);
+  assert.match(sent[0].content ?? "", /<@owner-1>/);
+  assert.match(sent[0].content ?? "", /Interventie urgenta/);
+});
+
+test("un bot monitorizat care posteaza continut NECONFIRMAT (risky-file) => alerta owner FARA stergere si FARA eliminare (audit, #27)", async () => {
+  const sent: Array<{ content?: string }> = [];
+  let deleted = 0;
+  const runtime = createSecurityRuntime({
+    getGuildSettings: async () => ({ _id: "guild-1", botAddProtectionEnabled: true, botAddAlertChannelId: "security" }),
+    client: { channels: { fetch: async () => ({ send: async (payload: { content?: string }) => { sent.push(payload); } }) } },
+    GuildModel: emptyGuildModel(),
+    GuildAuditLogModel: auditModel([]),
+    httpReq: async () => ({ data: Buffer.from([0x4d, 0x5a]), headers: { "content-type": "application/octet-stream" }, status: 200 })
+  });
+
+  await runtime.handleMessageCreate({
+    guild: { id: "guild-1", ownerId: "owner-1" },
+    author: { id: "bot-9", tag: "suspect-bot", bot: true },
+    channel: { id: "general" },
+    content: "",
+    attachments: new Map([["a", { id: "a", name: "tool", url: "https://cdn.example.test/x" }]]),
+    delete: async () => { deleted++; }
+  });
+
+  assert.equal(deleted, 0, "continutul neconfirmat NU e sters");
+  assert.match(sent[0].content ?? "", /Bot monitorizat/);
+  assert.match(sent[0].content ?? "", /NU e eliminat automat pentru suspiciune/);
+});
