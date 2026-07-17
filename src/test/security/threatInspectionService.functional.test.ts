@@ -11,7 +11,7 @@ test("politica de cont nou foloseste exact trei luni calendaristice", () => {
   assert.equal(isRecentAccount(new Date("2026-04-30T11:59:59.999Z").getTime(), now), false);
 });
 
-test("inspectia confirma executabilele prin continut chiar daca extensia lipseste", async () => {
+test("inspectia detecteaza executabilele prin continut ca tip riscant, NU ca malware confirmat", async () => {
   const inspector = createThreatInspectionService({
     httpReq: async () => ({
       data: Buffer.from([0x4d, 0x5a, 0x90, 0x00]),
@@ -26,8 +26,20 @@ test("inspectia confirma executabilele prin continut chiar daca extensia lipsest
     url: "https://cdn.example.test/resource"
   }]);
 
-  assert.equal(result.verdict, "confirmed");
-  assert.match(result.reason, /executabila|script/);
+  assert.equal(result.verdict, "risky-file", "tipul de fisier e confirmat prin semnatura, dar intentia malware nu — nu e verdict confirmed");
+  assert.match(result.reason, /executabil|script/);
+});
+
+test("@everyone si invitatiile Discord sunt incalcari de politica, nu amenintari informatice confirmate", async () => {
+  const inspector = createThreatInspectionService({});
+
+  const mention = await inspector.inspectMessage("@everyone salut", []);
+  const invite = await inspector.inspectMessage("intra pe https://discord.gg/abcdef", []);
+
+  assert.equal(mention.verdict, "policy-violation");
+  assert.match(mention.reason, /politica de protectie/);
+  assert.equal(invite.verdict, "policy-violation");
+  assert.match(invite.reason, /invitatie Discord/);
 });
 
 test("inspectia recunoaste semnatura 7z si pastreaza documentele neconfirmate", async () => {

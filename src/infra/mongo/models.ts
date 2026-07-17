@@ -131,6 +131,8 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     newAccountAlertsEnabled: { type: Boolean, default: false },
     threatAlertChannelId: { type: String, default: null },
     threatProtectionEnabled: { type: Boolean, default: false },
+    threatAutoDeleteRiskyFiles: { type: Boolean, default: false },
+    threatAutoDeletePolicyViolations: { type: Boolean, default: false },
     botAddAlertChannelId: { type: String, default: null },
     botAddProtectionEnabled: { type: Boolean, default: false },
     warningChannelId: { type: String, default: null },

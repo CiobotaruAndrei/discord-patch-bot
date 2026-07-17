@@ -24,7 +24,7 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
 function isSubscriptionCommand(interaction: SubscriptionInteraction) {
   if (interaction?.isChatInputCommand?.() !== true || !interaction.guild) return false;
   if (interaction.commandName !== "start" && interaction.commandName !== "stop") return false;
-  return !["new-account-alerts", "threat-protection", "bot-add-protection"].includes(interaction.options.getSubcommand());
+  return !["new-account-alerts", "threat-protection", "threat-delete-risky-files", "threat-delete-policy-violations", "bot-add-protection"].includes(interaction.options.getSubcommand());
 }
 
 function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {

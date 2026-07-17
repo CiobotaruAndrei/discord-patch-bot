@@ -2,7 +2,7 @@
 
 import type { DirectAttachment } from "../moderation/moderationInputPolicy.js";
 
-type ThreatVerdict = "safe" | "uncertain" | "confirmed";
+type ThreatVerdict = "safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed";
 
 export interface ThreatInspectionResult {
   verdict: ThreatVerdict;
@@ -91,7 +91,7 @@ function magicKind(buffer: Buffer): "executable" | "archive" | "document" | "scr
 function classifyResource(mime: string, buffer: Buffer | null): ThreatInspectionResult {
   const magic = buffer ? magicKind(buffer) : "other";
   if (magic === "executable" || magic === "script") {
-    return { verdict: "confirmed", reason: "resursa executabila sau script confirmat prin continut", source: "attachment" };
+    return { verdict: "risky-file", reason: "tip de fisier executabil sau script confirmat prin continut (tipul e confirmat, nu si intentia malware)", source: "attachment" };
   }
   if (EXECUTABLE_MIME.has(mime)) {
     return { verdict: "uncertain", reason: "MIME executabil declarat fara confirmare suficienta prin continut", source: "attachment" };
@@ -109,10 +109,10 @@ function extractUrls(content: string): string[] {
 
 function policyThreat(content: string): ThreatInspectionResult | null {
   if (/@everyone|@here/i.test(content)) {
-    return { verdict: "confirmed", reason: "mentionare in masa interzisa de politica de protectie", source: "content" };
+    return { verdict: "policy-violation", reason: "mentionare in masa interzisa de politica de protectie", source: "content" };
   }
   if (/(?:discord(?:app)?\.com\/invite\/|discord\.gg\/)/i.test(content)) {
-    return { verdict: "confirmed", reason: "invitatie Discord externa interzisa de politica de protectie", source: "content" };
+    return { verdict: "policy-violation", reason: "invitatie Discord externa interzisa de politica de protectie", source: "content" };
   }
   return null;
 }
@@ -165,6 +165,7 @@ export function createThreatInspectionService(deps: ThreatInspectionDeps) {
     if (!resources.length) return { verdict: "safe", reason: "mesaj fara resurse inspectabile", source: "content" };
     const results = await Promise.all(resources);
     return results.find(result => result.verdict === "confirmed")
+      ?? results.find(result => result.verdict === "risky-file")
       ?? results.find(result => result.verdict === "uncertain")
       ?? { verdict: "safe", reason: "toate resursele inspectate au trecut verificarile", source: "content" };
   }

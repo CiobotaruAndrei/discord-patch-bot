@@ -195,6 +195,20 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
     });
   }
 
+  function threatSeverityLabel(verdict: "uncertain" | "policy-violation" | "risky-file" | "confirmed"): string {
+    if (verdict === "confirmed") return "ridicata (amenintare confirmata)";
+    if (verdict === "risky-file") return "ridicata ca tip de fisier, neconfirmata ca malware";
+    if (verdict === "policy-violation") return "incalcare de politica a serverului, nu amenintare informatica";
+    return "neconfirmata";
+  }
+
+  function shouldAutoDelete(verdict: "uncertain" | "policy-violation" | "risky-file" | "confirmed", settings: GuildSettings): boolean {
+    if (verdict === "confirmed") return true;
+    if (verdict === "risky-file") return settings.threatAutoDeleteRiskyFiles === true;
+    if (verdict === "policy-violation") return settings.threatAutoDeletePolicyViolations === true;
+    return false;
+  }
+
   async function handleMessageCreate(message: MessageEvent): Promise<void> {
     const guildId = message.guild?.id;
     const author = message.author;
@@ -204,17 +218,19 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
     const result = await threatInspector.inspectMessage(message.content ?? "", attachments(message));
     if (result.verdict === "safe") return;
     let action = "mesaj pastrat; verificare manuala necesara";
-    if (result.verdict === "confirmed") {
-      if (typeof message.delete !== "function") throw new Error("Mesajul periculos confirmat nu poate fi sters.");
+    if (shouldAutoDelete(result.verdict, settings)) {
+      if (typeof message.delete !== "function") throw new Error("Mesajul marcat pentru stergere automata nu poate fi sters.");
       await message.delete();
       deps.metrics && (deps.metrics.securityThreatsDeleted = (deps.metrics.securityThreatsDeleted ?? 0) + 1);
-      action = "mesaj sters; autorul nu a fost sanctionat automat";
+      action = result.verdict === "confirmed"
+        ? "mesaj sters (amenintare confirmata); autorul nu a fost sanctionat automat"
+        : "mesaj sters conform politicii explicite a serverului; autorul nu a fost sanctionat automat";
     }
     const channel = await alertChannel(deps, settings.threatAlertChannelId);
     await channel.send({
       content: [
         `:warning: Alerta securitate ${result.verdict}.`,
-        `Severitate: ${result.verdict === "confirmed" ? "ridicata" : "neconfirmata"}.`,
+        `Severitate: ${threatSeverityLabel(result.verdict)}.`,
         `Motiv: ${result.reason}.`,
         `Utilizator: <@${author.id}>.`,
         `Canal: <#${message.channel?.id ?? ""}>.`,
