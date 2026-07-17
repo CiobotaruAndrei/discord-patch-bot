@@ -164,3 +164,33 @@ test("un motor de reputatie care raporteaza clean/unknown NU escaladeaza; eroril
   const resilient = await throwingInspector.inspectMessage("", [{ id: "a", name: "installer", url: "https://cdn.example.test/file" }]);
   assert.equal(resilient.verdict, "risky-file", "un motor de reputatie cazut nu degradeaza verdictul euristic");
 });
+
+test("analiza pasiva de documente: un OLE/Office cu indicator de macro VBA ramane uncertain, nu risky/dangerous, si semnaleaza macro (audit, #20)", async () => {
+  const ole = Buffer.concat([Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]), Buffer.from("...vbaProject.bin...")]);
+  const inspector = createThreatInspectionService({
+    httpReq: async () => ({ data: ole, headers: { "content-type": "application/vnd.ms-excel" }, status: 200 })
+  });
+  const result = await inspector.inspectMessage("https://example.test/report.xls", []);
+  assert.equal(result.verdict, "uncertain", "documentul cu macro ramane uncertain (nu se sterge fara confirmare)");
+  assert.match(result.reason, /macro VBA/);
+});
+
+test("analiza pasiva PDF: un PDF cu /JavaScript e semnalat ca script/actiune automata, dar ramane uncertain (audit, #20)", async () => {
+  const pdf = Buffer.from("%PDF-1.7\n<< /OpenAction << /JavaScript (app.alert) >> >>");
+  const inspector = createThreatInspectionService({
+    httpReq: async () => ({ data: pdf, headers: { "content-type": "application/pdf" }, status: 200 })
+  });
+  const result = await inspector.inspectMessage("https://example.test/doc.pdf", []);
+  assert.equal(result.verdict, "uncertain");
+  assert.match(result.reason, /script\/actiune automata/);
+});
+
+test("arhiva criptata ramane unknown/uncertain, NU dangerous automat (audit, #20)", async () => {
+  const encryptedZip = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x01, 0x00, 0x08, 0x00]);
+  const inspector = createThreatInspectionService({
+    httpReq: async () => ({ data: encryptedZip, headers: { "content-type": "application/zip" }, status: 200 })
+  });
+  const result = await inspector.inspectMessage("https://example.test/secret.zip", []);
+  assert.equal(result.verdict, "uncertain", "arhiva criptata nu e declarata periculoasa");
+  assert.match(result.reason, /arhiva criptata/);
+});
