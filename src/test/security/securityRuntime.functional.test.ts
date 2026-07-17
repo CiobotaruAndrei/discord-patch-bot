@@ -527,3 +527,29 @@ test("wiring end-to-end: un motor de reputatie care raporteaza malware duce la v
   assert.equal(deleted, 1, "verdictul confirmed de motorul de reputatie declanseaza stergerea neconditionata");
   assert.match(sent[0].content ?? "", /confirmed/);
 });
+
+test("bot neaprobat care NU poate fi eliminat (ierarhie) => incident critic cu tag owner + audit removal-failed, fara throw (audit, #25)", async () => {
+  const sent: Array<{ content?: string }> = [];
+  const audits: GuildAuditLogRecord[] = [];
+  const now = Date.parse("2026-07-16T12:00:00.000Z");
+  const metrics = { securityBotAddsBlocked: 0 };
+  const runtime = createSecurityRuntime({
+    getGuildSettings: async () => ({ _id: "guild-1", botAddProtectionEnabled: true, botAddAlertChannelId: "security" }),
+    client: { channels: { fetch: async () => ({ send: async (payload: { content?: string }) => { sent.push(payload); } }) } },
+    GuildModel: emptyGuildModel(),
+    GuildAuditLogModel: auditModel(audits),
+    metrics,
+    now: () => now
+  });
+
+  await assert.doesNotReject(async () => runtime.handleGuildMemberAdd({
+    guild: { id: "guild-1", ownerId: "owner-1", fetchAuditLogs: async () => ({ entries: new Map([["e", { target: { id: "bot-1" }, executor: { id: "requester-1" }, createdTimestamp: now }]]) }) },
+    user: { id: "bot-1", tag: "unremovable-bot", bot: true, createdTimestamp: now - 3_600_000 },
+    kick: async () => { throw new Error("Missing Permissions / hierarchy"); }
+  }));
+
+  assert.equal(metrics.securityBotAddsBlocked, 0, "eliminarea a esuat, deci nu se contorizeaza ca blocare reusita");
+  assert.equal(audits[0].action, "bot-add-removal-failed");
+  assert.match(sent[0].content ?? "", /INCIDENT CRITIC/);
+  assert.match(sent[0].content ?? "", /<@owner-1>/);
+});
