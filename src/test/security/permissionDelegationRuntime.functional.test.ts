@@ -308,16 +308,17 @@ test("channelUpdate: un overwrite care acorda Manage Webhooks e restaurat la sta
     }
   );
 
-  assert.equal(edits.length, 2, "ambele overwrite-uri cu permisiuni sensibile noi sunt restaurate");
+  assert.equal(edits.length, 1, "doar overwrite-ul cu o permisiune din cele 5 protejate (Manage Webhooks) e restaurat; Manage Roles NU e protejat (raport post-#705, #7)");
   assert.deepEqual(edits[0], {
     targetId: "role-x",
     permissions: { ManageWebhooks: false },
     reason: "Protectie anti-delegare: numai ownerul poate acorda permisiuni sensibile prin overwrite de canal"
   }, "starea anterioara era deny => se restaureaza deny");
-  assert.deepEqual(edits[1].permissions, { ManageRoles: null }, "fara stare anterioara => overwrite-ul revine la inherit");
-  assert.equal(metrics.permissionDelegationsReverted, 2);
+  assert.ok(!edits.some(edit => edit.targetId === "role-y"), "overwrite-ul de Manage Roles ramane neatins - nu face parte din cele 5 permisiuni protejate");
+  assert.equal(metrics.permissionDelegationsReverted, 1);
   assert.equal(audits[0].action, "protected-channel-overwrite-reverted");
   assert.match(audits[0].details ?? "", /role-x:ManageWebhooks/);
+  assert.doesNotMatch(audits[0].details ?? "", /ManageRoles/);
   assert.match(alerts[0], /admin-2/);
 });
 

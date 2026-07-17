@@ -66,8 +66,7 @@ const PROTECTED_PERMISSIONS = [
 type ProtectedPermission = (typeof PROTECTED_PERMISSIONS)[number];
 
 const CHANNEL_PROTECTED_PERMISSIONS = [
-  { flag: PermissionFlagsBits.ManageWebhooks, option: "ManageWebhooks" },
-  { flag: PermissionFlagsBits.ManageRoles, option: "ManageRoles" }
+  { flag: PermissionFlagsBits.ManageWebhooks, option: "ManageWebhooks" }
 ] as const;
 
 function hasProtectedPermission(permissions: PermissionSet): boolean {
