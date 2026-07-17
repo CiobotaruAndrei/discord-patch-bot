@@ -52,6 +52,7 @@ import { createSchedulers } from "./runtime/runtimeSchedulers.js";
 import { createBootSequence, connectMongoWithRetry, hydrateStartupCaches } from "./runtime/bootSequence.js";
 import { createGuildSettingsInvalidationChannel } from "../infra/redis/guildSettingsInvalidationChannel.js";
 import { createSecurityRuntime } from "../features/command-security/securityRuntime.js";
+import { createReputationEngine } from "../features/command-security/reputationEngine.js";
 import { createPermissionDelegationRuntime } from "../features/command-security/permissionDelegationRuntime.js";
 import { createModerationLifecycleRuntime } from "../features/moderation/moderationLifecycleRuntime.js";
 import { createModerationCleanupTask } from "./scheduler/moderationCleanupTask.js";
@@ -62,6 +63,8 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
   const { logger, env, getGuildCacheSize, activeLocks, releaseDbLock, requestContext, adminAlert } = mongo;
 
   const { client, metrics, lifecycle, rateLimiter } = services;
+  const reputationScan = createReputationEngine({ env, httpReq: deps.scrapers.httpReq, logger }) ?? undefined;
+  metrics.threatReputationEngineConfigured = reputationScan ? 1 : 0;
   const securityRuntime = mongo.GuildModel && mongo.GuildAuditLogModel
     ? createSecurityRuntime({
       getGuildSettings: mongo.getGuildSettings ?? (async () => null),
@@ -69,6 +72,7 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
       GuildModel: mongo.GuildModel,
       GuildAuditLogModel: mongo.GuildAuditLogModel,
       httpReq: deps.scrapers.httpReq,
+      reputationScan,
       metrics
     })
     : undefined;

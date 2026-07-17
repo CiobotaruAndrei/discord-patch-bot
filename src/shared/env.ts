@@ -85,6 +85,13 @@ function buildEnvFrom(context: EnvContext) {
       }, "ADMIN_WEBHOOK_URL trebuie sa fie http:// sau https://")
       .optional(),
     LOG_LEVEL: z.string().optional(),
+    THREAT_REPUTATION_URL: z.string().url("THREAT_REPUTATION_URL nu este URL valid")
+      .refine(u => {
+        try { return new URL(u).protocol === "https:"; }
+        catch { return false; }
+      }, "THREAT_REPUTATION_URL trebuie sa fie https://")
+      .optional(),
+    THREAT_REPUTATION_TOKEN: z.string().min(8, "THREAT_REPUTATION_TOKEN trebuie sa aiba cel putin 8 caractere").optional(),
     BOT_ROLE: z.string().refine(v => (BOT_ROLES as readonly string[]).includes(v), "BOT_ROLE trebuie sa fie all, web sau worker").optional(),
     PROXY_URLS: z.string().optional(),
     REDIS_URL: z.string()
@@ -124,6 +131,8 @@ function buildEnvFrom(context: EnvContext) {
       METRICS_PUBLIC: process.env.METRICS_PUBLIC,
       ADMIN_WEBHOOK_URL: process.env.ADMIN_WEBHOOK_URL,
       LOG_LEVEL: process.env.LOG_LEVEL,
+      THREAT_REPUTATION_URL: process.env.THREAT_REPUTATION_URL,
+      THREAT_REPUTATION_TOKEN: process.env.THREAT_REPUTATION_TOKEN,
       BOT_ROLE: process.env.BOT_ROLE,
       PROXY_URLS: process.env.PROXY_URLS,
       REDIS_URL: process.env.REDIS_URL,
@@ -177,6 +186,8 @@ function buildEnvFrom(context: EnvContext) {
     TRUSTED_PROXY_COUNT: parseEnvNumber("TRUSTED_PROXY_COUNT", 1, { min: 0, max: 20 }),
     ADMIN_WEBHOOK_URL: process.env.ADMIN_WEBHOOK_URL || "",
     LOG_LEVEL: RAW_LOG_LEVEL,
+    THREAT_REPUTATION_URL: process.env.THREAT_REPUTATION_URL || undefined,
+    THREAT_REPUTATION_TOKEN: process.env.THREAT_REPUTATION_TOKEN || undefined,
     BOT_ROLE: resolveBotRole(process.env.BOT_ROLE),
     PROXY_URLS: process.env.PROXY_URLS || "",
     REDIS_URL: process.env.REDIS_URL,

@@ -8,6 +8,8 @@ export interface RuntimeIdentityEnv {
   PORT: string;
   NODE_ENV: string;
   LOG_LEVEL: string;
+  THREAT_REPUTATION_URL?: string;
+  THREAT_REPUTATION_TOKEN?: string;
   isProd: boolean;
 }
 
