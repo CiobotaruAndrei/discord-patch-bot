@@ -87,13 +87,13 @@ test("un bot fara aprobare exacta este eliminat si auditat", async () => {
   assert.equal(kicks.length, 1);
   assert.equal(metrics.securityBotAddsBlocked, 1);
   assert.equal(audits[0].action, "bot-add-blocked");
-  assert.equal(sent.length, 3);
+  assert.equal(sent.length, 3, "botul periculos produce 3 mesaje cu tag owner: eliminare + clasificare + actiune");
   assert.match(sent[0].content ?? "", /Bot neaprobat eliminat/);
-  assert.match(sent[1].content ?? "", /Bot suspect/);
-  assert.match(sent[1].content ?? "", /cont creat in ultimele 24 de ore \(\+3\)/);
+  assert.match(sent[1].content ?? "", /risc ridicat/);
   assert.match(sent[1].content ?? "", /permisiune Administrator \(\+3\)/);
-  assert.match(sent[2].content ?? "", /risc ridicat/);
-  assert.match(sent[2].content ?? "", /scor 6/);
+  assert.match(sent[1].content ?? "", /scor 6/);
+  assert.match(sent[2].content ?? "", /Actiune recomandata pentru bot cu risc ridicat/);
+  assert.ok(sent.every(message => (message.content ?? "").includes("<@owner-1>")), "toate cele 3 mesaje il mentioneaza pe owner");
 });
 
 test("ownerul serverului poate adauga un bot direct, fara aprobare one-time (fara kick)", async () => {
@@ -158,10 +158,81 @@ test("ownerul serverului poate adauga un bot direct, fara aprobare one-time (far
   assert.equal(metrics.securityBotAddsBlocked, 0, "metricul de blocari nu creste pentru owner");
   assert.equal(consumeAttempts, 0, "ownerul nu consuma nicio aprobare one-time");
   assert.equal(audits[0].action, "bot-add-owner-direct");
+  assert.equal(sent.length, 3, "botul periculos adaugat de owner produce 3 mesaje cu tag owner");
   assert.match(sent[0].content ?? "", /adaugat direct de ownerul serverului/);
-  assert.match(sent[1].content ?? "", /Aprobare: owner direct/);
   assert.match(sent[1].content ?? "", /aprobare valida pentru intrare \(-1\)/, "aprobarea ownerului scade scorul de risc");
+  assert.match(sent[2].content ?? "", /Aprobare: owner direct/);
   assert.match(sent[2].content ?? "", /monitorizare owner necesara/, "botul periculos adaugat de owner ramane, cu monitorizare");
+});
+
+test("un bot SUSPECT (nu periculos) produce tot 3 mesaje cu tag owner: admitere + clasificare + actiune (raport post-#705, #1)", async () => {
+  const sent: Array<{ content?: string }> = [];
+  const audits: GuildAuditLogRecord[] = [];
+  const now = Date.parse("2026-07-16T12:00:00.000Z");
+  const approvedPermission = {
+    requestId: "req-1",
+    botId: "bot-1",
+    requesterId: "requester-1",
+    requestedAt: new Date(now - 60_000),
+    status: "used",
+    usedAt: new Date(now)
+  };
+  const runtime = createSecurityRuntime({
+    getGuildSettings: async () => ({
+      _id: "guild-1",
+      botAddProtectionEnabled: true,
+      botAddAlertChannelId: "security"
+    }),
+    client: {
+      channels: {
+        fetch: async () => ({
+          send: async (payload: { content?: string }) => { sent.push(payload); }
+        })
+      }
+    },
+    GuildModel: {
+      findOne: async () => ({ botAddPermissions: [approvedPermission] }),
+      findOneAndUpdate: async () => ({ botAddPermissions: [approvedPermission] }),
+      updateOne: async () => ({ modifiedCount: 1 })
+    },
+    GuildAuditLogModel: auditModel(audits),
+    now: () => now
+  });
+
+  await runtime.handleGuildMemberAdd({
+    guild: {
+      id: "guild-1",
+      ownerId: "owner-1",
+      fetchAuditLogs: async () => ({
+        entries: new Map([["entry", {
+          target: { id: "bot-1" },
+          executor: { id: "requester-1" },
+          createdTimestamp: now
+        }]])
+      })
+    },
+    user: {
+      id: "bot-1",
+      tag: "suspicious-bot",
+      bot: true,
+      createdTimestamp: now - 20 * 86_400_000
+    },
+    roles: {
+      cache: new Map([["role-bot", {
+        id: "role-bot",
+        position: 1,
+        permissions: { has: (flag: bigint) => flag === PermissionFlagsBits.ManageChannels }
+      }]])
+    },
+    kick: async () => undefined
+  });
+
+  assert.equal(sent.length, 3, "un bot suspect produce tot 3 mesaje cu tag owner, nu doar 2");
+  assert.match(sent[0].content ?? "", /Bot aprobat adaugat/);
+  assert.match(sent[1].content ?? "", /Bot suspect detectat/);
+  assert.match(sent[2].content ?? "", /Actiune recomandata pentru bot suspect/);
+  assert.doesNotMatch(sent[1].content ?? "", /risc ridicat/, "un bot suspect nu e etichetat drept risc ridicat");
+  assert.ok(sent.every(message => (message.content ?? "").includes("<@owner-1>")), "toate cele 3 mesaje il mentioneaza pe owner");
 });
 
 test("Audit Log intarziat: solicitantul e gasit la reincercare, botul aprobat nu e eliminat", async () => {
