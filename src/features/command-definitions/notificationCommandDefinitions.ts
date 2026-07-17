@@ -31,8 +31,6 @@ export function buildNotificationCommandDefinitions({ SlashCommandBuilder, Permi
         .addStringOption(option => option.setName("game").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true)))
       .addSubcommand(subcommand => subcommand.setName("new-account-alerts").setDescription("Porneste alertele pentru conturi noi"))
       .addSubcommand(subcommand => subcommand.setName("threat-protection").setDescription("Porneste protectia la amenintari"))
-      .addSubcommand(subcommand => subcommand.setName("threat-delete-risky-files").setDescription("Politica explicita: sterge automat fisierele executabile/script detectate"))
-      .addSubcommand(subcommand => subcommand.setName("threat-delete-policy-violations").setDescription("Politica explicita: sterge automat @everyone/@here si invitatiile Discord"))
       .addSubcommand(subcommand => subcommand.setName("bot-add-protection").setDescription("Porneste protectia la adaugarea botilor")),
     new SlashCommandBuilder()
       .setName("stop")
@@ -45,8 +43,6 @@ export function buildNotificationCommandDefinitions({ SlashCommandBuilder, Permi
         .addStringOption(option => option.setName("game").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true)))
       .addSubcommand(subcommand => subcommand.setName("new-account-alerts").setDescription("Opreste alertele pentru conturi noi"))
       .addSubcommand(subcommand => subcommand.setName("threat-protection").setDescription("Opreste protectia la amenintari"))
-      .addSubcommand(subcommand => subcommand.setName("threat-delete-risky-files").setDescription("Opreste stergerea automata a fisierelor executabile/script"))
-      .addSubcommand(subcommand => subcommand.setName("threat-delete-policy-violations").setDescription("Opreste stergerea automata pentru @everyone/@here si invitatii"))
       .addSubcommand(subcommand => subcommand.setName("bot-add-protection").setDescription("Opreste protectia la adaugarea botilor"))
   ];
 }

@@ -160,8 +160,6 @@ export interface GuildDoc {
   newAccountAlertsEnabled?: boolean;
   threatAlertChannelId?: string | null;
   threatProtectionEnabled?: boolean;
-  threatAutoDeleteRiskyFiles?: boolean;
-  threatAutoDeletePolicyViolations?: boolean;
   botAddAlertChannelId?: string | null;
   botAddProtectionEnabled?: boolean;
   warningChannelId?: string | null;

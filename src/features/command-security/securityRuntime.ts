@@ -226,19 +226,11 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
     return "neconfirmata";
   }
 
-  function verdictAllowsAutoDelete(verdict: "safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed", settings: GuildSettings): boolean {
-    if (verdict === "confirmed") return true;
-    if (verdict === "risky-file") return settings.threatAutoDeleteRiskyFiles === true;
-    if (verdict === "policy-violation") return settings.threatAutoDeletePolicyViolations === true;
-    return false;
-  }
-
   function shouldAutoDelete(
-    result: { verdict: "safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed"; detectedVerdicts?: Array<"safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed"> },
-    settings: GuildSettings
+    result: { verdict: "safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed"; detectedVerdicts?: Array<"safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed"> }
   ): boolean {
     const verdicts = result.detectedVerdicts ?? [result.verdict];
-    return verdicts.some(verdict => verdictAllowsAutoDelete(verdict, settings));
+    return verdicts.includes("confirmed");
   }
 
   async function handleBotMessageCreate(message: MessageEvent, guildId: string, authorId: string, settings: GuildSettings): Promise<void> {
@@ -281,14 +273,12 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
     if (!settings.threatProtectionEnabled || !settings.threatAlertChannelId) return;
     const result = await threatInspector.inspectMessage(message.content ?? "", attachments(message));
     if (result.verdict === "safe") return;
-    let action = "mesaj pastrat; verificare manuala necesara";
-    if (shouldAutoDelete(result, settings)) {
+    let action = "mesaj pastrat; verificare manuala necesara (doar amenintarile confirmate se sterg automat)";
+    if (shouldAutoDelete(result)) {
       if (typeof message.delete !== "function") throw new Error("Mesajul marcat pentru stergere automata nu poate fi sters.");
       await message.delete();
       deps.metrics && (deps.metrics.securityThreatsDeleted = (deps.metrics.securityThreatsDeleted ?? 0) + 1);
-      action = result.verdict === "confirmed"
-        ? "mesaj sters (amenintare confirmata); autorul nu a fost sanctionat automat"
-        : "mesaj sters conform politicii explicite a serverului; autorul nu a fost sanctionat automat";
+      action = "mesaj sters (amenintare confirmata); autorul nu a fost sanctionat automat";
     }
     const channel = await alertChannel(deps, settings.threatAlertChannelId);
     await channel.send({

@@ -94,8 +94,6 @@ export const GUILD_SETTINGS_FIELD_ROLES: Readonly<Record<string, GuildSettingsFi
   newAccountAlertsEnabled: "security",
   threatAlertChannelId: "security",
   threatProtectionEnabled: "security",
-  threatAutoDeleteRiskyFiles: "security",
-  threatAutoDeletePolicyViolations: "security",
   botAddAlertChannelId: "security",
   botAddProtectionEnabled: "security",
   warningChannelId: "security",
