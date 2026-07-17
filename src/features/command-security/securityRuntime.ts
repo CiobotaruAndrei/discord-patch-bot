@@ -141,8 +141,27 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
         details: `botId=${botId}; ownerId=${requesterId ?? "unknown"}; result=allowed`
       });
     } else if (!permission) {
-      if (typeof member.kick !== "function") throw new Error(`Botul neaprobat ${botId} nu poate fi eliminat.`);
-      await member.kick("Bot adaugat fara aprobare owner valida si neconsumata");
+      const kick = member.kick;
+      let removed = typeof kick === "function";
+      if (typeof kick === "function") {
+        try {
+          await kick.call(member, "Bot adaugat fara aprobare owner valida si neconsumata");
+        } catch {
+          removed = false;
+        }
+      }
+      if (!removed) {
+        await channel.send({
+          content: `${owner.prefix}:rotating_light: INCIDENT CRITIC: botul neaprobat ${tag} (${botId}) NU a putut fi eliminat (rolul botului de securitate e sub rolul botului adaugat sau lipseste Kick Members). Muta botul de securitate mai sus in ierarhie sau elimina manual botul. Solicitant audit: ${requesterId ? `<@${requesterId}>` : "nedetectat dupa reincercari"}.`,
+          allowedMentions: owner.allowedMentions
+        });
+        await recordServerAuditEntry(deps.GuildAuditLogModel, String(member.guild?.id), {
+          userId: requesterId ?? "",
+          action: "bot-add-removal-failed",
+          details: `botId=${botId}; requesterId=${requesterId ?? "unknown"}; result=removal-failed-hierarchy`
+        });
+        return;
+      }
       deps.metrics && (deps.metrics.securityBotAddsBlocked = (deps.metrics.securityBotAddsBlocked ?? 0) + 1);
       await channel.send({
         content: `${owner.prefix}:shield: Bot neaprobat eliminat. Bot: ${tag} (${botId}). Solicitant audit: ${requesterId ? `<@${requesterId}>` : "nedetectat dupa reincercari"}.`,
