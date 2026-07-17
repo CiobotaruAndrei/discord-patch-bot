@@ -54,15 +54,13 @@ import { createGuildSettingsInvalidationChannel } from "../infra/redis/guildSett
 import { createSecurityRuntime } from "../features/command-security/securityRuntime.js";
 import { createPermissionDelegationRuntime } from "../features/command-security/permissionDelegationRuntime.js";
 import { createModerationLifecycleRuntime } from "../features/moderation/moderationLifecycleRuntime.js";
+import { roleRunsSchedulers } from "../shared/botRole.js";
 
-function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
+function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, schedulers: Schedulers | null): AppRuntime {
   const { createHttpServer, registerDiscordEvents, registerMongoEvents, createShutdownController, errorMessage, errorDetail, mongoose, crypto, mongo } = deps;
   const { logger, env, getGuildCacheSize, activeLocks, releaseDbLock, requestContext, adminAlert } = mongo;
 
-  const services = createRuntimeServices(deps);
-  const { client, metrics, lifecycle, rateLimiter, housekeeping } = services;
-  const schedulers = createSchedulers(deps, services);
-  const { cronController, outboxWorker, outboxEnabled } = schedulers;
+  const { client, metrics, lifecycle, rateLimiter } = services;
   const securityRuntime = mongo.GuildModel && mongo.GuildAuditLogModel
     ? createSecurityRuntime({
       getGuildSettings: mongo.getGuildSettings ?? (async () => null),
@@ -86,15 +84,16 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
 
   const httpServer = createHttpServer({
     mongoose, crypto, env, client, metrics, logger, commands: deps.commands,
-    getGuildCacheSize, scrapers: deps.scrapers, activeLocks, rateLimiter, cronController
+    getGuildCacheSize, scrapers: deps.scrapers, activeLocks, rateLimiter,
+    cronController: schedulers?.cronController ?? null
   });
 
   registerDiscordEvents({
     client, logger, commands: deps.commands, metrics, env, adminAlert, requestContext, games: services.games, crypto,
     errorMessage, errorDetail,
-    startHousekeeping: housekeeping.start,
-    scheduleNextCron: cronController.scheduleNextCron,
-    startOutboxWorker: outboxEnabled ? outboxWorker.start : undefined,
+    startHousekeeping: schedulers?.housekeeping.start,
+    scheduleNextCron: schedulers?.cronController.scheduleNextCron,
+    startOutboxWorker: schedulers?.outboxEnabled === true ? schedulers.outboxWorker.start : undefined,
     role: deps.role,
     securityRuntime,
     permissionDelegationRuntime,
@@ -106,7 +105,7 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
 
   const shutdownController = createShutdownController({
     lifecycle, logger, env, client, mongoose, httpServer, activeLocks,
-    releaseDbLock, cronController, outboxWorker, housekeeping, adminAlert,
+    releaseDbLock, cronController: schedulers?.cronController, outboxWorker: schedulers?.outboxWorker, housekeeping: schedulers?.housekeeping, adminAlert,
     redis: deps.redis, guildInvalidationChannel, stopOperationJournalRecovery: deps.stopOperationJournalRecovery, errorMessage, errorDetail
   });
 
@@ -122,12 +121,33 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
     start,
     stop: (signal: string, exitCode?: number) => shutdownController.shutdown(signal, exitCode),
     registerProcessHandlers: () => shutdownController.registerProcessHandlers(),
-    cronController,
-    outboxWorker,
+    cronController: schedulers?.cronController ?? null,
+    outboxWorker: schedulers?.outboxWorker ?? null,
     httpServer,
     metrics
   };
 }
 
-export { createAppRuntime, createRuntimeServices, createSchedulers, connectMongoWithRetry, hydrateStartupCaches, createBootSequence };
+function createWebRuntime(deps: Omit<AppRuntimeDeps, "role">): AppRuntime {
+  const webDeps: AppRuntimeDeps = { ...deps, role: "web" };
+  const services = createRuntimeServices(webDeps);
+  return assembleAppRuntime(webDeps, services, null);
+}
+
+function createWorkerRuntime(deps: Omit<AppRuntimeDeps, "role">): AppRuntime {
+  const workerDeps: AppRuntimeDeps = { ...deps, role: "worker" };
+  const services = createRuntimeServices(workerDeps);
+  return assembleAppRuntime(workerDeps, services, createSchedulers(workerDeps, services));
+}
+
+function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
+  const role = deps.role ?? "all";
+  if (role === "web") return createWebRuntime(deps);
+  if (role === "worker") return createWorkerRuntime(deps);
+  const services = createRuntimeServices(deps);
+  const schedulers = roleRunsSchedulers(role) ? createSchedulers(deps, services) : null;
+  return assembleAppRuntime(deps, services, schedulers);
+}
+
+export { createAppRuntime, createWebRuntime, createWorkerRuntime, createRuntimeServices, createSchedulers, connectMongoWithRetry, hydrateStartupCaches, createBootSequence };
 

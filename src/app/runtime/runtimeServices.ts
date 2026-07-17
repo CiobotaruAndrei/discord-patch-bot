@@ -5,8 +5,8 @@ const { attachRedisMetrics } = ________infra_redis_redisMetrics;
 import { attachGuildSettingsEventMetrics } from "../../infra/mongo/guildSettingsEvents.js";
 
 function createRuntimeServices(deps: AppRuntimeDeps): RuntimeServices {
-  const { Client, GatewayIntentBits, loadConfig, createMetrics, createRateLimiter, createHousekeeping, scrapers, commands, errorMessage, mongo } = deps;
-  const { logger, env, cleanGuildCache, setAdminAlertDiscordClient } = mongo;
+  const { Client, GatewayIntentBits, loadConfig, createMetrics, createRateLimiter, scrapers, mongo } = deps;
+  const { env, setAdminAlertDiscordClient } = mongo;
   const { config, games } = loadConfig();
   const metrics = createMetrics();
   scrapers.attachMetrics(metrics);
@@ -22,10 +22,7 @@ function createRuntimeServices(deps: AppRuntimeDeps): RuntimeServices {
   setAdminAlertDiscordClient(client);
   const lifecycle = { isShuttingDown: false };
   const rateLimiter = createRateLimiter(env, metrics);
-  const housekeeping = createHousekeeping({
-    commands, cleanGuildCache, scrapers, rateLimiter, logger, env, errorMessage
-  });
-  return { client, metrics, lifecycle, rateLimiter, housekeeping, config, games };
+  return { client, metrics, lifecycle, rateLimiter, config, games };
 }
 
 export { createRuntimeServices };

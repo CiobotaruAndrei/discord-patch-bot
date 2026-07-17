@@ -1,9 +1,9 @@
 import type { AppRuntimeDeps, RuntimeServices, Schedulers } from "../appRuntimeContracts.js";
 
 function createSchedulers(deps: AppRuntimeDeps, services: RuntimeServices): Schedulers {
-  const { mongoose, performance, crypto, createCronController, createOutboxWorker, errorMessage, errorDetail, commands, mongo } = deps;
-  const { logger, env, parseEnvNumber, acquireDbLock, renewDbLock, releaseDbLock, adminAlert, requestContext, getOutboxPaused } = mongo;
-  const { client, metrics, lifecycle, config, games } = services;
+  const { mongoose, performance, crypto, createCronController, createOutboxWorker, createHousekeeping, scrapers, errorMessage, errorDetail, commands, mongo } = deps;
+  const { logger, env, parseEnvNumber, acquireDbLock, renewDbLock, releaseDbLock, adminAlert, requestContext, getOutboxPaused, cleanGuildCache } = mongo;
+  const { client, metrics, lifecycle, config, games, rateLimiter } = services;
   const cronController = createCronController({
     mongoose, performance, crypto, logger, env, parseEnvNumber,
     acquireDbLock, renewDbLock, releaseDbLock, commands, adminAlert,
@@ -18,7 +18,10 @@ function createSchedulers(deps: AppRuntimeDeps, services: RuntimeServices): Sche
     lifecycle, metrics, errorMessage, adminAlert, isPaused: () => getOutboxPaused(),
     drainLimit: outboxDrainLimit, perJobBudgetMs: outboxPerJobBudgetMs
   });
-  return { cronController, outboxWorker, outboxEnabled };
+  const housekeeping = createHousekeeping({
+    commands, cleanGuildCache, scrapers, rateLimiter, logger, env, errorMessage
+  });
+  return { cronController, outboxWorker, outboxEnabled, housekeeping };
 }
 
 export { createSchedulers };

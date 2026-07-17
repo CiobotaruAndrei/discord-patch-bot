@@ -40,9 +40,9 @@ interface CreateShutdownControllerDeps {
   httpServer: HttpServerLike;
   activeLocks: ActiveLocks;
   releaseDbLock(jobName: string, token: string): Promise<unknown>;
-  cronController: Pick<CronController, "stop">;
+  cronController?: Pick<CronController, "stop">;
   outboxWorker?: { stop(): void };
-  housekeeping: HousekeepingLike;
+  housekeeping?: HousekeepingLike;
   stopOperationJournalRecovery?: () => Promise<void>;
   redis?: { close(): Promise<void> };
   guildInvalidationChannel?: { stop(): Promise<void> };
@@ -61,9 +61,9 @@ function createShutdownController({
     lifecycle.isShuttingDown = true;
     logger("INFO", "SHUTDOWN", `Semnal primit: ${signal}, inchidere...`);
 
-    cronController.stop();
+    cronController?.stop();
     outboxWorker?.stop();
-    await housekeeping.stop();
+    await housekeeping?.stop();
     if (stopOperationJournalRecovery) await stopOperationJournalRecovery();
 
     if (guildInvalidationChannel) {

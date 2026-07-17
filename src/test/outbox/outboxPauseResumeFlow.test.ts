@@ -87,15 +87,17 @@ test("P2.3: NOTIFICATION_OUTBOX_ENABLED=true -> scheduler activeaza worker-ul si
     mongoose: {}, performance: { now: () => 0 }, crypto: {},
     createCronController: () => ({ scheduleNextCron() { }, runCronCycle: async () => { }, stop() { }, getHealthSnapshot() { return {}; } }),
     createOutboxWorker: (opts: { isPaused: () => Promise<boolean> }) => { capturedIsPaused = opts.isPaused; return { start() { }, stop() { } }; },
+    createHousekeeping: () => ({ start() { }, stop: async () => { } }),
+    scrapers: { cleanEnrichedCache() { }, getEnrichedCacheSize: () => 0 },
     errorMessage: (e: unknown) => String(e), errorDetail: (e: unknown) => String(e),
     commands: { drainOutbox: async () => ({}) },
     mongo: {
       logger: () => { }, env: { PORT: 3000, NOTIFICATION_OUTBOX_ENABLED: true }, parseEnvNumber: (_n: string, d: number) => d,
       acquireDbLock: async () => "token", renewDbLock: async () => true, releaseDbLock: async () => { },
-      adminAlert: async () => { }, requestContext: {}, getOutboxPaused
+      adminAlert: async () => { }, requestContext: {}, getOutboxPaused, cleanGuildCache() { }
     }
   };
-  const services = { client: {}, metrics: {}, lifecycle: { isShuttingDown: false }, config: {}, games: [] };
+  const services = { client: {}, metrics: {}, lifecycle: { isShuttingDown: false }, config: {}, games: [], rateLimiter: { check: () => true, prune() { }, size: 0, retryAfterSeconds: 1 } };
 
   const schedulers = createSchedulers(deps, services);
   assert.equal(schedulers.outboxEnabled, true, "flag-ul (injectat in env) activeaza outbox-ul");
