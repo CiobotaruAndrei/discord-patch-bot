@@ -46,6 +46,8 @@ interface RegisterDiscordEventsDeps {
   permissionDelegationRuntime?: {
     handleRoleUpdate(previous: LifecycleDiscordRole, next: LifecycleDiscordRole): Promise<void>;
     handleGuildMemberUpdate(previous: LifecycleDiscordGuildMember, next: LifecycleDiscordGuildMember): Promise<void>;
+    handleRoleCreate(role: LifecycleDiscordRole): Promise<void>;
+    handleChannelUpdate(previous: LifecycleDiscordDeletedChannel, next: LifecycleDiscordDeletedChannel): Promise<void>;
   };
   moderationLifecycleRuntime?: {
     cleanupExpired(): Promise<void>;
@@ -188,6 +190,21 @@ function registerDiscordEvents({
           metrics.securityRuntimeErrors = (metrics.securityRuntimeErrors ?? 0) + 1;
           logger("ERROR", "PERMISSION_DELEGATION", "guildMemberUpdate a esuat", errorDetail(err));
           adminAlert("security:member-role-update", "Protectia rolurilor membrilor a esuat", errorMessage(err), next.guild?.id).catch(() => null);
+        });
+      });
+      client.on("roleCreate", (role: LifecycleDiscordRole) => {
+        permissionDelegationRuntime.handleRoleCreate(role).catch(err => {
+          metrics.securityRuntimeErrors = (metrics.securityRuntimeErrors ?? 0) + 1;
+          logger("ERROR", "PERMISSION_DELEGATION", "roleCreate a esuat", errorDetail(err));
+          adminAlert("security:role-create", "Protectia rolurilor noi a esuat", errorMessage(err), role.guild?.id).catch(() => null);
+        });
+      });
+      client.on("channelUpdate", (previous: LifecycleDiscordDeletedChannel, next?: LifecycleDiscordDeletedChannel) => {
+        if (!next) return;
+        permissionDelegationRuntime.handleChannelUpdate(previous, next).catch(err => {
+          metrics.securityRuntimeErrors = (metrics.securityRuntimeErrors ?? 0) + 1;
+          logger("ERROR", "PERMISSION_DELEGATION", "channelUpdate a esuat", errorDetail(err));
+          adminAlert("security:channel-update", "Protectia overwrite-urilor de canal a esuat", errorMessage(err), next.guild?.id ?? undefined).catch(() => null);
         });
       });
     }
