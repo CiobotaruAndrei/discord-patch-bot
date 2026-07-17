@@ -356,6 +356,7 @@ function threatRuntime(input: {
   sent: Array<{ content?: string }>;
   settings?: Record<string, unknown>;
   httpReq?: () => Promise<{ data: Buffer; headers: Record<string, string>; status: number }>;
+  reputationScan?: () => Promise<"malware" | "clean" | "unknown">;
 }) {
   return createSecurityRuntime({
     getGuildSettings: async () => ({
@@ -373,7 +374,8 @@ function threatRuntime(input: {
     },
     GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel([]),
-    httpReq: input.httpReq ?? (async () => { throw new Error("inspection unavailable"); })
+    httpReq: input.httpReq ?? (async () => { throw new Error("inspection unavailable"); }),
+    reputationScan: input.reputationScan
   });
 }
 
@@ -434,12 +436,11 @@ test("implicit: un executabil detectat prin continut e tip riscant — alerta fa
   assert.match(sent[0].content ?? "", /mesaj pastrat/);
 });
 
-test("un mesaj cu incalcare de politica SI fisier riscant e sters cand oricare categorie detectata are opt-in, nu doar verdictul cel mai sever (raport post-#705, #3)", async () => {
+test("un mesaj cu incalcare de politica SI fisier riscant NU se sterge fara confirmare de malware — doar alerta cu verdictul cel mai sever (audit, #24)", async () => {
   const sent: Array<{ content?: string }> = [];
   let deleted = 0;
   const runtime = threatRuntime({
     sent,
-    settings: { threatAutoDeletePolicyViolations: true },
     httpReq: async () => ({
       data: Buffer.from([0x4d, 0x5a, 0x90, 0x00]),
       headers: { "content-type": "application/octet-stream" },
@@ -454,43 +455,37 @@ test("un mesaj cu incalcare de politica SI fisier riscant e sters cand oricare c
     delete: async () => { deleted++; }
   });
 
-  assert.equal(deleted, 1, "incalcarea de politica detectata are opt-in => mesajul se sterge, desi verdictul cel mai sever e risky-file fara opt-in");
+  assert.equal(deleted, 0, "risky-file + policy-violation nu mai produc stergere; nu exista optiune de opt-in");
   assert.match(sent[0].content ?? "", /risky-file/, "alerta raporteaza verdictul cel mai sever");
   assert.match(sent[0].content ?? "", /mentionare in masa/, "motivul incalcarii de politica e pastrat in alerta");
+  assert.match(sent[0].content ?? "", /mesaj pastrat/, "mesajul e pastrat pentru verificare manuala");
 });
 
-test("politica explicita a serverului activeaza stergerea pentru fisiere riscante si incalcari de politica", async () => {
+test("stergerea prin threat protection se produce EXCLUSIV la verdict confirmed, nu la risky-file/policy-violation/uncertain (audit, #24)", async () => {
   const sent: Array<{ content?: string }> = [];
   let deleted = 0;
-  const policyRuntime = threatRuntime({
-    sent,
-    settings: { threatAutoDeletePolicyViolations: true }
-  });
-  await policyRuntime.handleMessageCreate({
+  const runtime = threatRuntime({ sent });
+  await runtime.handleMessageCreate({
     ...threatMessageBase,
     content: "@everyone danger",
     delete: async () => { deleted++; }
   });
-  assert.equal(deleted, 1, "cu opt-in explicit, incalcarea de politica se sterge");
-  assert.match(sent[0].content ?? "", /sters conform politicii explicite a serverului/);
+  assert.equal(deleted, 0, "incalcarea de politica nu se mai sterge automat sub nicio setare");
+  assert.match(sent[0].content ?? "", /mesaj pastrat/);
 
-  const riskyRuntime = threatRuntime({
+  const confirmedRuntime = threatRuntime({
     sent,
-    settings: { threatAutoDeleteRiskyFiles: true },
-    httpReq: async () => ({
-      data: Buffer.from([0x4d, 0x5a, 0x90, 0x00]),
-      headers: { "content-type": "application/octet-stream" },
-      status: 200
-    })
+    httpReq: async () => ({ data: Buffer.from([0x4d, 0x5a, 0x90, 0x00]), headers: { "content-type": "application/octet-stream" }, status: 200 }),
+    reputationScan: async () => "malware"
   });
-  await riskyRuntime.handleMessageCreate({
+  await confirmedRuntime.handleMessageCreate({
     ...threatMessageBase,
     content: "",
     attachments: new Map([["a", { id: "a", name: "installer", url: "https://cdn.example.test/file" }]]),
     delete: async () => { deleted++; }
   });
-  assert.equal(deleted, 2, "cu opt-in explicit, fisierul riscant se sterge");
-  assert.match(sent[1].content ?? "", /sters conform politicii explicite a serverului/);
+  assert.equal(deleted, 1, "doar verdictul confirmed de motorul extern produce stergere");
+  assert.match(sent[1].content ?? "", /amenintare confirmata/);
 });
 
 test("wiring end-to-end: un motor de reputatie care raporteaza malware duce la verdict confirmed si stergerea mesajului (audit, #21)", async () => {

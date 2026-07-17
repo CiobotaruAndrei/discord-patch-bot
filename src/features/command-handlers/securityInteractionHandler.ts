@@ -65,8 +65,6 @@ type GuildSettingsLike = {
   newAccountAlertsEnabled?: boolean;
   threatAlertChannelId?: string | null;
   threatProtectionEnabled?: boolean;
-  threatAutoDeleteRiskyFiles?: boolean;
-  threatAutoDeletePolicyViolations?: boolean;
   botAddAlertChannelId?: string | null;
   botAddProtectionEnabled?: boolean;
   purgeAmount?: number;
@@ -96,14 +94,12 @@ const SET_CHANNEL_FIELDS: Record<string, string> = {
 };
 
 type ProtectionChannelField = "newAccountAlertChannelId" | "threatAlertChannelId" | "botAddAlertChannelId";
-type ProtectionEnabledField = "newAccountAlertsEnabled" | "threatProtectionEnabled" | "botAddProtectionEnabled" | "threatAutoDeleteRiskyFiles" | "threatAutoDeletePolicyViolations";
+type ProtectionEnabledField = "newAccountAlertsEnabled" | "threatProtectionEnabled" | "botAddProtectionEnabled";
 
 const START_STOP_TOGGLE_FIELDS: Record<string, { channel: ProtectionChannelField; enabled: ProtectionEnabledField }> = {
   "new-account-alerts": { channel: "newAccountAlertChannelId", enabled: "newAccountAlertsEnabled" },
   "threat-protection": { channel: "threatAlertChannelId", enabled: "threatProtectionEnabled" },
-  "bot-add-protection": { channel: "botAddAlertChannelId", enabled: "botAddProtectionEnabled" },
-  "threat-delete-risky-files": { channel: "threatAlertChannelId", enabled: "threatAutoDeleteRiskyFiles" },
-  "threat-delete-policy-violations": { channel: "threatAlertChannelId", enabled: "threatAutoDeletePolicyViolations" }
+  "bot-add-protection": { channel: "botAddAlertChannelId", enabled: "botAddProtectionEnabled" }
 };
 
 function botAddProtectionReadiness(interaction: SecurityInteraction): string[] {
