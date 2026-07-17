@@ -234,6 +234,8 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-security/securityRuntime.ts` (+ `threatInspectionService.ts`, `recentAccountPolicy.ts`)
 
 - Leaga bot-add de intrarea Discord `BotAdd` din audit log, consuma atomic aprobarea exacta bot + solicitant si elimina botul daca aprobarea lipseste, a expirat sau a fost deja folosita.
+- **Ownerul real al serverului e exceptat** (raport post-#699, problema #1): daca executorul din audit log e chiar `guild.ownerId`, botul e acceptat direct — fara aprobare one-time, fara kick — cu alerta dedicata si intrare de audit `bot-add-owner-direct`; evaluarea de risc ruleaza in continuare (un bot periculos adaugat de owner primeste "monitorizare owner necesara", nu eliminare).
+- **Audit log-ul e citit cu reincercare scurta si controlata** inainte de decizia de eliminare: fereastra de potrivire e 60s fata de momentul evenimentului, iar cand executorul nu e gasit se reincearca de inca 2 ori (dupa 2s si 5s, `wait` injectabil in teste) — o intarziere de propagare a intrarii `BotAdd` nu mai produce un "nedetectat" fals si un kick gresit; mesajul de eliminare spune explicit "nedetectat dupa reincercari".
 - Clasifica separat riscul contului bot si trimite alerte owner fara a schimba validitatea aprobarii.
 - Inspecteaza continutul mesajelor, redirecturile si atasamentele dupa MIME si semnaturi de fisier. Numai verdictul `confirmed` permite stergerea; `uncertain` produce alerta fara continutul periculos si fara sanctiune automata.
 - Politica de cont nou foloseste trei luni calendaristice, nu un numar aproximativ de zile.
