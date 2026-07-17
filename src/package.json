@@ -60,7 +60,7 @@
     "check:mongo:local": "npm run build:ts && node --env-file=.env dist/scripts/check-mongo.js"
   },
   "engines": {
-    "node": ">=22.12"
+    "node": ">=24"
   },
   "dependencies": {
     "axios": "1.18.1",
