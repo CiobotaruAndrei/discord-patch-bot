@@ -110,10 +110,29 @@ function magicKind(buffer: Buffer): "executable" | "archive" | "document" | "scr
     && buffer[5] === 0x1c
   ) return "archive";
   if (buffer.length >= 4 && buffer.subarray(0, 4).toString("ascii") === "%PDF") return "document";
+  if (buffer.length >= 8 && buffer.readUInt32BE(0) === 0xd0cf11e0 && buffer.readUInt32BE(4) === 0xa1b11ae1) return "document";
   return "other";
 }
 
 type ResourceKind = "executable" | "archive" | "document" | "script" | "other";
+
+function isEncryptedZip(buffer: Buffer): boolean {
+  if (buffer.length < 8 || buffer.subarray(0, 4).toString("binary") !== "PK") return false;
+  return (buffer.readUInt16LE(6) & 0x0001) === 0x0001;
+}
+
+function passiveDocumentIndicators(buffer: Buffer): string[] {
+  const window = buffer.subarray(0, Math.min(buffer.length, 1_048_576));
+  const ascii = window.toString("latin1");
+  const indicators: string[] = [];
+  if (ascii.includes("vbaProject.bin") || ascii.includes("word/vbaProject") || ascii.includes("macros/vba")) {
+    indicators.push("indicator de macro VBA");
+  }
+  if (/\/JavaScript\b/.test(ascii) || /\/JS\b/.test(ascii) || ascii.includes("/OpenAction") || ascii.includes("/Launch")) {
+    indicators.push("indicator de script/actiune automata in document");
+  }
+  return indicators;
+}
 
 function classifyResource(mime: string, buffer: Buffer | null): ThreatInspectionResult & { kind: ResourceKind } {
   const magic = buffer ? magicKind(buffer) : "other";
@@ -124,7 +143,15 @@ function classifyResource(mime: string, buffer: Buffer | null): ThreatInspection
     return { verdict: "uncertain", reason: "MIME executabil declarat fara confirmare suficienta prin continut", source: "attachment", kind: "executable" };
   }
   if (ARCHIVE_MIME.has(mime) || DOCUMENT_MIME.has(mime) || magic === "document" || magic === "archive") {
-    return { verdict: "uncertain", reason: "document sau arhiva care necesita analiza antivirus externa", source: "attachment", kind: magic === "other" ? (ARCHIVE_MIME.has(mime) ? "archive" : "document") : magic };
+    const kind: ResourceKind = magic === "other" ? (ARCHIVE_MIME.has(mime) ? "archive" : "document") : magic;
+    if (buffer && kind === "archive" && isEncryptedZip(buffer)) {
+      return { verdict: "uncertain", reason: "arhiva criptata - continutul nu poate fi inspectat pasiv, ramane unknown (nu se declara periculoasa automat)", source: "attachment", kind };
+    }
+    const indicators = buffer ? passiveDocumentIndicators(buffer) : [];
+    if (indicators.length > 0) {
+      return { verdict: "uncertain", reason: `document/arhiva cu ${indicators.join(" si ")} - necesita confirmare de motor antivirus extern inainte de orice actiune`, source: "attachment", kind };
+    }
+    return { verdict: "uncertain", reason: "document sau arhiva care necesita analiza antivirus externa", source: "attachment", kind };
   }
   return { verdict: "safe", reason: "nu au fost identificate semnaturi periculoase", source: "attachment", kind: magic };
 }
