@@ -32,9 +32,25 @@ type HttpRequest = (
   retries?: number
 ) => Promise<HttpResponse>;
 
+export type ReputationVerdict = "malware" | "clean" | "unknown";
+
+export interface ReputationScanInput {
+  url?: string;
+  mime: string;
+  buffer: Buffer | null;
+  kind: "executable" | "archive" | "document" | "script" | "other";
+}
+
+export type ReputationScan = (input: ReputationScanInput) => Promise<ReputationVerdict>;
+
 export interface ThreatInspectionDeps {
   httpReq?: HttpRequest;
   maxResources?: number;
+  reputationScan?: ReputationScan;
+}
+
+export function reputationEngineConfigured(deps: ThreatInspectionDeps): boolean {
+  return typeof deps.reputationScan === "function";
 }
 
 const EXECUTABLE_MIME = new Set([
@@ -97,18 +113,20 @@ function magicKind(buffer: Buffer): "executable" | "archive" | "document" | "scr
   return "other";
 }
 
-function classifyResource(mime: string, buffer: Buffer | null): ThreatInspectionResult {
+type ResourceKind = "executable" | "archive" | "document" | "script" | "other";
+
+function classifyResource(mime: string, buffer: Buffer | null): ThreatInspectionResult & { kind: ResourceKind } {
   const magic = buffer ? magicKind(buffer) : "other";
   if (magic === "executable" || magic === "script") {
-    return { verdict: "risky-file", reason: "tip de fisier executabil sau script confirmat prin continut (tipul e confirmat, nu si intentia malware)", source: "attachment" };
+    return { verdict: "risky-file", reason: "tip de fisier executabil sau script confirmat prin continut (tipul e confirmat, nu si intentia malware)", source: "attachment", kind: magic };
   }
   if (EXECUTABLE_MIME.has(mime)) {
-    return { verdict: "uncertain", reason: "MIME executabil declarat fara confirmare suficienta prin continut", source: "attachment" };
+    return { verdict: "uncertain", reason: "MIME executabil declarat fara confirmare suficienta prin continut", source: "attachment", kind: "executable" };
   }
   if (ARCHIVE_MIME.has(mime) || DOCUMENT_MIME.has(mime) || magic === "document" || magic === "archive") {
-    return { verdict: "uncertain", reason: "document sau arhiva care necesita analiza antivirus externa", source: "attachment" };
+    return { verdict: "uncertain", reason: "document sau arhiva care necesita analiza antivirus externa", source: "attachment", kind: magic === "other" ? (ARCHIVE_MIME.has(mime) ? "archive" : "document") : magic };
   }
-  return { verdict: "safe", reason: "nu au fost identificate semnaturi periculoase", source: "attachment" };
+  return { verdict: "safe", reason: "nu au fost identificate semnaturi periculoase", source: "attachment", kind: magic };
 }
 
 function extractUrls(content: string): string[] {
@@ -135,6 +153,22 @@ function contentType(headers: Record<string, unknown> | undefined): string {
 export function createThreatInspectionService(deps: ThreatInspectionDeps) {
   const maxResources = Math.max(1, deps.maxResources ?? 8);
 
+  async function confirmWithReputation(
+    base: ThreatInspectionResult,
+    input: { url?: string; mime: string; buffer: Buffer | null; kind: ResourceKind }
+  ): Promise<ThreatInspectionResult> {
+    if (!deps.reputationScan) return base;
+    try {
+      const verdict = await deps.reputationScan(input);
+      if (verdict === "malware") {
+        return { verdict: "confirmed", reason: "malware confirmat de motorul extern de reputatie/antivirus", source: base.source };
+      }
+    } catch {
+      return base;
+    }
+    return base;
+  }
+
   async function inspectUrl(url: string): Promise<ThreatInspectionResult> {
     if (!deps.httpReq) return { verdict: "uncertain", reason: "serviciul de inspectie HTTP nu este disponibil", source: "link" };
     try {
@@ -145,8 +179,10 @@ export function createThreatInspectionService(deps: ThreatInspectionDeps) {
         maxBodyLength: 1_048_576,
         headers: { Range: "bytes=0-1048575" }
       }, 0);
-      const result = classifyResource(contentType(response.headers), toBuffer(response.data));
-      return { ...result, source: "link" };
+      const mime = contentType(response.headers);
+      const buffer = toBuffer(response.data);
+      const { kind, ...result } = classifyResource(mime, buffer);
+      return confirmWithReputation({ ...result, source: "link" }, { url, mime, buffer, kind });
     } catch {
       return { verdict: "uncertain", reason: "resursa externa nu a putut fi inspectata in siguranta", source: "link" };
     }
@@ -155,14 +191,16 @@ export function createThreatInspectionService(deps: ThreatInspectionDeps) {
   async function inspectAttachment(attachment: DirectAttachment): Promise<ThreatInspectionResult> {
     const declaredMime = normalizeMime(attachment.contentType);
     if (!attachment.url || !deps.httpReq) {
-      const declared = classifyResource(declaredMime, null);
-      return declared.verdict === "safe"
+      const { kind, ...declared } = classifyResource(declaredMime, null);
+      const base: ThreatInspectionResult = declared.verdict === "safe"
         ? { verdict: "uncertain", reason: "atasamentul nu a putut fi descarcat pentru verificarea continutului", source: "attachment" }
-        : declared;
+        : { ...declared, source: "attachment" };
+      return confirmWithReputation(base, { url: attachment.url, mime: declaredMime, buffer: null, kind });
     }
     const remote = await inspectUrl(attachment.url);
     if (remote.verdict !== "safe") return { ...remote, source: "attachment" };
-    return { ...classifyResource(declaredMime, null), source: "attachment" };
+    const { kind, ...declared } = classifyResource(declaredMime, null);
+    return confirmWithReputation({ ...declared, source: "attachment" }, { url: attachment.url, mime: declaredMime, buffer: null, kind });
   }
 
   async function inspectMessage(content: string, attachments: readonly DirectAttachment[]): Promise<ThreatInspectionResult> {
