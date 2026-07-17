@@ -54,6 +54,7 @@ import { createGuildSettingsInvalidationChannel } from "../infra/redis/guildSett
 import { createSecurityRuntime } from "../features/command-security/securityRuntime.js";
 import { createPermissionDelegationRuntime } from "../features/command-security/permissionDelegationRuntime.js";
 import { createModerationLifecycleRuntime } from "../features/moderation/moderationLifecycleRuntime.js";
+import { createModerationCleanupTask } from "./scheduler/moderationCleanupTask.js";
 import { roleRunsSchedulers } from "../shared/botRole.js";
 
 function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, schedulers: Schedulers | null): AppRuntime {
@@ -81,6 +82,12 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
   const moderationLifecycleRuntime = mongo.GuildModel
     ? createModerationLifecycleRuntime(mongo.GuildModel)
     : undefined;
+  const moderationCleanup = schedulers && moderationLifecycleRuntime
+    ? createModerationCleanupTask({
+      cleanupExpired: moderationLifecycleRuntime.cleanupExpired,
+      metrics, logger, adminAlert, errorMessage, errorDetail
+    })
+    : null;
 
   const httpServer = createHttpServer({
     mongoose, crypto, env, client, metrics, logger, commands: deps.commands,
@@ -106,16 +113,22 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
   const shutdownController = createShutdownController({
     lifecycle, logger, env, client, mongoose, httpServer, activeLocks,
     releaseDbLock, cronController: schedulers?.cronController, outboxWorker: schedulers?.outboxWorker, housekeeping: schedulers?.housekeeping, adminAlert,
-    redis: deps.redis, guildInvalidationChannel, stopOperationJournalRecovery: deps.stopOperationJournalRecovery, errorMessage, errorDetail
+    redis: deps.redis, guildInvalidationChannel, stopOperationJournalRecovery: deps.stopOperationJournalRecovery,
+    stopModerationCleanup: moderationCleanup ? moderationCleanup.stop : undefined,
+    errorMessage, errorDetail
   });
 
-  const start = createBootSequence(deps, {
+  const bootStart = createBootSequence(deps, {
     client,
     httpServer,
     guildInvalidationChannel,
     recoverOperationJournal: deps.recoverOperationJournal,
     startOperationJournalRecovery: deps.startOperationJournalRecovery
   });
+  async function start(): Promise<void> {
+    await bootStart();
+    moderationCleanup?.start();
+  }
 
   return {
     start,

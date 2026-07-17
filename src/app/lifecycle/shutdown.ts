@@ -44,6 +44,7 @@ interface CreateShutdownControllerDeps {
   outboxWorker?: { stop(): void };
   housekeeping?: HousekeepingLike;
   stopOperationJournalRecovery?: () => Promise<void>;
+  stopModerationCleanup?: () => Promise<void>;
   redis?: { close(): Promise<void> };
   guildInvalidationChannel?: { stop(): Promise<void> };
   adminAlert: AdminAlert;
@@ -53,7 +54,7 @@ interface CreateShutdownControllerDeps {
 
 function createShutdownController({
   lifecycle, logger, env, client, mongoose, httpServer, activeLocks,
-  releaseDbLock, cronController, outboxWorker, housekeeping, stopOperationJournalRecovery, redis, guildInvalidationChannel, adminAlert,
+  releaseDbLock, cronController, outboxWorker, housekeeping, stopOperationJournalRecovery, stopModerationCleanup, redis, guildInvalidationChannel, adminAlert,
   errorMessage, errorDetail
 }: CreateShutdownControllerDeps): ShutdownController {
   async function shutdown(signal: ShutdownSignal, exitCode = 0): Promise<void> {
@@ -65,6 +66,7 @@ function createShutdownController({
     outboxWorker?.stop();
     await housekeeping?.stop();
     if (stopOperationJournalRecovery) await stopOperationJournalRecovery();
+    if (stopModerationCleanup) await stopModerationCleanup();
 
     if (guildInvalidationChannel) {
       try { await guildInvalidationChannel.stop(); }
