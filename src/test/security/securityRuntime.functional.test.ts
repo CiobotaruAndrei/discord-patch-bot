@@ -492,3 +492,38 @@ test("politica explicita a serverului activeaza stergerea pentru fisiere riscant
   assert.equal(deleted, 2, "cu opt-in explicit, fisierul riscant se sterge");
   assert.match(sent[1].content ?? "", /sters conform politicii explicite a serverului/);
 });
+
+test("wiring end-to-end: un motor de reputatie care raporteaza malware duce la verdict confirmed si stergerea mesajului (audit, #21)", async () => {
+  const sent: Array<{ content?: string }> = [];
+  let deleted = 0;
+  const runtime = createSecurityRuntime({
+    getGuildSettings: async () => ({
+      _id: "guild-1",
+      threatProtectionEnabled: true,
+      threatAlertChannelId: "security"
+    }),
+    client: {
+      channels: {
+        fetch: async () => ({
+          send: async (payload: { content?: string }) => { sent.push(payload); }
+        })
+      }
+    },
+    GuildModel: emptyGuildModel(),
+    GuildAuditLogModel: auditModel([]),
+    httpReq: async () => ({ data: Buffer.from([0x4d, 0x5a, 0x90, 0x00]), headers: { "content-type": "application/octet-stream" }, status: 200 }),
+    reputationScan: async () => "malware"
+  });
+
+  await runtime.handleMessageCreate({
+    guild: { id: "guild-1" },
+    author: { id: "user-1", tag: "user", bot: false },
+    channel: { id: "general" },
+    content: "",
+    attachments: new Map([["a", { id: "a", name: "installer", url: "https://cdn.example.test/file" }]]),
+    delete: async () => { deleted++; }
+  });
+
+  assert.equal(deleted, 1, "verdictul confirmed de motorul de reputatie declanseaza stergerea neconditionata");
+  assert.match(sent[0].content ?? "", /confirmed/);
+});

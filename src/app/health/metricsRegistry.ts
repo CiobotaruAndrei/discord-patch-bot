@@ -96,6 +96,7 @@ function renderPrometheusMetrics(input: MetricsSnapshotInput): string {
   pushMetric(lines, seenMetricNames, "bot_redis_errors", "counter", "Redis client/cache errors (client error events + cache operation failures)", metrics.redisErrors);
   pushMetric(lines, seenMetricNames, "bot_guild_settings_listener_failures", "counter", "GuildSettingsChanged listener/publisher failures (counted even when the error reporter itself throws)", metrics.guildSettingsListenerFailures);
   pushMetric(lines, seenMetricNames, "bot_security_runtime_errors", "counter", "Security runtime event failures", metrics.securityRuntimeErrors ?? 0);
+  pushMetric(lines, seenMetricNames, "bot_threat_reputation_engine_configured", "gauge", "Threat reputation/AV engine configured (1) or not (0)", metrics.threatReputationEngineConfigured ?? 0);
   pushMetric(lines, seenMetricNames, "bot_moderation_cleanup_runs", "counter", "Periodic moderation cleanup completed runs", metrics.moderationCleanupRuns ?? 0);
   pushMetric(lines, seenMetricNames, "bot_moderation_cleanup_failures", "counter", "Periodic moderation cleanup failed runs", metrics.moderationCleanupFailures ?? 0);
   pushMetric(lines, seenMetricNames, "bot_security_threats_deleted", "counter", "Confirmed dangerous messages deleted", metrics.securityThreatsDeleted ?? 0);

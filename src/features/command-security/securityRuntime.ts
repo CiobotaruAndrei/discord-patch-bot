@@ -56,6 +56,7 @@ export type SecurityRuntimeDeps = {
   GuildModel: GuildModel;
   GuildAuditLogModel: GuildAuditLogModelLike;
   httpReq?: Parameters<typeof createThreatInspectionService>[0]["httpReq"];
+  reputationScan?: Parameters<typeof createThreatInspectionService>[0]["reputationScan"];
   metrics?: RuntimeMetrics;
   now?: () => number;
   wait?: (ms: number) => Promise<void>;
@@ -114,7 +115,7 @@ function attachments(message: MessageEvent): DirectAttachment[] {
 export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
   const now = deps.now ?? Date.now;
   const wait = deps.wait ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
-  const threatInspector = createThreatInspectionService({ httpReq: deps.httpReq });
+  const threatInspector = createThreatInspectionService({ httpReq: deps.httpReq, reputationScan: deps.reputationScan });
 
   async function handleBotAdd(member: GuildMemberEvent, settings: GuildSettings, botId: string): Promise<void> {
     if (!settings.botAddProtectionEnabled || !settings.botAddAlertChannelId) return;

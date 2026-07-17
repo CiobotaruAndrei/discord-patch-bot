@@ -241,6 +241,10 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Atat clasificarea `suspicious`, cat si `dangerous` produce trei mesaje separate cu tag pentru owner: rezultatul admiterii sau eliminarii, clasificarea cu scor si semnale, apoi actiunea recomandata. Pentru un bot suspect, recomandarea cere verificarea manuala a permisiunilor si rolurilor; pentru un bot periculos, cere monitorizare si verificarea solicitantului. Acoperit de `securityRuntime.functional.test.ts`.
 - Politica de cont nou foloseste trei luni calendaristice, nu un numar aproximativ de zile.
 
+### `src/features/command-security/reputationEngine.ts`
+
+- **Cableaza motorul extern de reputatie/antivirus in runtime-ul de productie** (audit de conformitate, #21): `createReputationEngine({ env, httpReq, logger })` construieste un `ReputationScan` din env (`THREAT_REPUTATION_URL` https + `THREAT_REPUTATION_TOKEN` optional secret, `THREAT_REPUTATION_TIMEOUT_MS`), validat la boot (`resolveReputationEngineStatus`: URL trebuie https, token >= 8 caractere) — daca lipseste sau e invalid, intoarce `null` si protectia ramane doar euristica (fara `confirmed`). Cand e configurat, POSTeaza `{ url, mime, kind, hasBytes }` la endpoint cu `Authorization: Bearer <token>`, timeout, si normalizeaza raspunsul la `malware`/`clean`/`unknown` (un 4xx, un verdict necunoscut sau o exceptie => `unknown`, niciodata `malware` fals). `appRuntime.assembleAppRuntime` il injecteaza in `createSecurityRuntime` (`reputationScan`), iar starea configurata e expusa observabil prin metrica `bot_threat_reputation_engine_configured` (0/1). Tokenul nu apare in loguri, README sau `.env.example` (doar placeholder). Gardat de `reputationEngine.test.ts` + test e2e in `securityRuntime.functional.test.ts` (malware => confirmed => stergere).
+
 ### `src/features/command-security/permissionDelegationRuntime.ts`
 
 - Urmareste actualizarile rolurilor si atribuirea rolurilor membrilor prin audit log pentru permisiunile Administrator, Ban Members, Kick Members, Moderate Members si Manage Webhooks.
