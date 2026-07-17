@@ -49,7 +49,11 @@ export interface PermissionDelegationRuntimeDeps {
   adminAlert(kind: string, title: string, body: string, guildId?: string): Promise<unknown>;
   metrics?: DelegationMetrics;
   now?: () => number;
+  wait?: (ms: number) => Promise<void>;
 }
+
+const AUDIT_LOG_MATCH_WINDOW_MS = 60_000;
+const AUDIT_LOG_RETRY_DELAYS_MS: readonly number[] = [2_000, 5_000];
 
 const PROTECTED_PERMISSIONS = [
   { flag: PermissionFlagsBits.Administrator, label: "Administrator" },
@@ -85,15 +89,28 @@ function requireBitfield(permissions: PermissionSet, subject: string): bigint {
   return permissions.bitfield;
 }
 
-async function auditActor(guild: GuildLike, type: AuditLogEvent, targetId: string, now: number): Promise<string | null> {
+async function auditActor(guild: GuildLike, type: AuditLogEvent, targetId: string, eventTime: number): Promise<string | null> {
   const logs = await guild.fetchAuditLogs?.({ type, limit: 6 });
   const entries = logs?.entries ? [...logs.entries.values()] : [];
   const match = entries.find(entry =>
     entry.target?.id === targetId
     && typeof entry.createdTimestamp === "number"
-    && Math.abs(now - entry.createdTimestamp) <= 20_000
+    && Math.abs(eventTime - entry.createdTimestamp) <= AUDIT_LOG_MATCH_WINDOW_MS
   );
   return match?.executor?.id ?? null;
+}
+
+async function actorWithRetry(
+  lookup: () => Promise<string | null>,
+  wait: (ms: number) => Promise<void>
+): Promise<string | null> {
+  let actorId = await lookup();
+  for (const delayMs of AUDIT_LOG_RETRY_DELAYS_MS) {
+    if (actorId) return actorId;
+    await wait(delayMs);
+    actorId = await lookup();
+  }
+  return actorId;
 }
 
 function roles(member: MemberLike): RoleLike[] {
@@ -104,9 +121,9 @@ function overwrites(channel: ChannelLike): OverwriteLike[] {
   return channel.permissionOverwrites?.cache ? [...channel.permissionOverwrites.cache.values()] : [];
 }
 
-async function channelOverwriteActor(guild: GuildLike, channelId: string, now: number): Promise<string | null> {
+async function channelOverwriteActor(guild: GuildLike, channelId: string, eventTime: number): Promise<string | null> {
   for (const type of [AuditLogEvent.ChannelOverwriteUpdate, AuditLogEvent.ChannelOverwriteCreate]) {
-    const actorId = await auditActor(guild, type, channelId, now);
+    const actorId = await auditActor(guild, type, channelId, eventTime);
     if (actorId) return actorId;
   }
   return null;
@@ -114,11 +131,13 @@ async function channelOverwriteActor(guild: GuildLike, channelId: string, now: n
 
 export function createPermissionDelegationRuntime(deps: PermissionDelegationRuntimeDeps) {
   const now = deps.now ?? Date.now;
+  const wait = deps.wait ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
 
   async function handleRoleUpdate(previous: RoleLike, next: RoleLike): Promise<void> {
     const granted = grantedProtectedPermissions(previous.permissions, next.permissions);
     if (!granted.length) return;
-    const actorId = await auditActor(next.guild, AuditLogEvent.RoleUpdate, next.id, now());
+    const eventTime = now();
+    const actorId = await actorWithRetry(() => auditActor(next.guild, AuditLogEvent.RoleUpdate, next.id, eventTime), wait);
     if (actorId && actorId === next.guild.ownerId) return;
     if (!next.setPermissions) throw new Error(`Permisiunile rolului ${next.id} nu pot fi restaurate.`);
     const nextBits = requireBitfield(next.permissions, `rolul ${next.id}`);
@@ -141,7 +160,8 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
     const previousRoleIds = new Set(roles(previous).map(role => role.id));
     const addedProtected = roles(next).filter(role => !previousRoleIds.has(role.id) && hasProtectedPermission(role.permissions));
     if (!addedProtected.length) return;
-    const actorId = await auditActor(next.guild, AuditLogEvent.MemberRoleUpdate, next.id, now());
+    const eventTime = now();
+    const actorId = await actorWithRetry(() => auditActor(next.guild, AuditLogEvent.MemberRoleUpdate, next.id, eventTime), wait);
     if (actorId && actorId === next.guild.ownerId) return;
     if (!next.roles?.remove) throw new Error(`Rolurile sensibile ale membrului ${next.id} nu pot fi restaurate.`);
     for (const role of addedProtected) {
@@ -164,7 +184,8 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
   async function handleRoleCreate(role: RoleLike): Promise<void> {
     const grantedAtCreate = PROTECTED_PERMISSIONS.filter(({ flag }) => role.permissions.has(flag));
     if (!grantedAtCreate.length) return;
-    const actorId = await auditActor(role.guild, AuditLogEvent.RoleCreate, role.id, now());
+    const eventTime = now();
+    const actorId = await actorWithRetry(() => auditActor(role.guild, AuditLogEvent.RoleCreate, role.id, eventTime), wait);
     if (actorId && actorId === role.guild.ownerId) return;
     if (role.managed === true) {
       await recordServerAuditEntry(deps.GuildAuditLogModel, role.guild.id, {
@@ -211,7 +232,8 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
       }))
       .filter(entry => entry.granted.length > 0);
     if (!violations.length) return;
-    const actorId = await channelOverwriteActor(guild, next.id, now());
+    const eventTime = now();
+    const actorId = await actorWithRetry(() => channelOverwriteActor(guild, next.id, eventTime), wait);
     if (actorId && actorId === guild.ownerId) return;
     const edit = next.permissionOverwrites?.edit;
     if (!edit) throw new Error(`Overwrite-urile canalului ${next.id} nu pot fi restaurate.`);

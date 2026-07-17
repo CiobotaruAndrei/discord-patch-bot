@@ -377,3 +377,79 @@ test("channelUpdate: overwrite-urile schimbate de owner raman; fara permisiuni s
   assert.equal(edited, 0, "un update fara permisiuni sensibile NOI nu restaureaza nimic");
   assert.equal(auditLookups, 0, "fara violare, Audit Log-ul nu e interogat");
 });
+
+test("Audit Log intarziat la roleUpdate: intrarea ownerului gasita la reincercare => schimbarea legitima NU e restaurata (raport post-#705, #6)", async () => {
+  let restored = 0;
+  let fetchCalls = 0;
+  const waits: number[] = [];
+  const now = Date.parse("2026-07-16T12:00:00.000Z");
+  const guild = {
+    id: "guild-1",
+    ownerId: "owner-1",
+    fetchAuditLogs: async () => {
+      fetchCalls++;
+      if (fetchCalls < 2) return { entries: new Map() };
+      return {
+        entries: new Map([["entry", {
+          target: { id: "role-1" },
+          executor: { id: "owner-1" },
+          createdTimestamp: now
+        }]])
+      };
+    }
+  };
+  const runtime = createPermissionDelegationRuntime({
+    GuildAuditLogModel: auditModel([]),
+    adminAlert: async () => undefined,
+    now: () => now,
+    wait: async ms => { waits.push(ms); }
+  });
+
+  await runtime.handleRoleUpdate(
+    { id: "role-1", permissions: permissions(), guild },
+    {
+      id: "role-1",
+      permissions: permissions(PermissionFlagsBits.BanMembers),
+      guild,
+      setPermissions: async () => { restored++; }
+    }
+  );
+
+  assert.equal(fetchCalls, 2, "Audit Log-ul e recitit dupa prima incercare esuata");
+  assert.deepEqual(waits, [2_000], "reincercarea e scurta si controlata, ca la bot-add");
+  assert.equal(restored, 0, "schimbarea legitima a ownerului NU mai e tratata ca neautorizata");
+});
+
+test("actor nedetectat dupa toate reincercarile => restaurarea se aplica abia dupa epuizarea retry-urilor (channelUpdate)", async () => {
+  let edited = 0;
+  let fetchCalls = 0;
+  const waits: number[] = [];
+  const now = Date.parse("2026-07-16T12:00:00.000Z");
+  const guild = {
+    id: "guild-1",
+    ownerId: "owner-1",
+    fetchAuditLogs: async () => { fetchCalls++; return { entries: new Map() }; }
+  };
+  const runtime = createPermissionDelegationRuntime({
+    GuildAuditLogModel: auditModel([]),
+    adminAlert: async () => undefined,
+    now: () => now,
+    wait: async ms => { waits.push(ms); }
+  });
+
+  await runtime.handleChannelUpdate(
+    { id: "channel-1", guild, permissionOverwrites: { cache: new Map() } },
+    {
+      id: "channel-1",
+      guild,
+      permissionOverwrites: {
+        cache: new Map([["role-x", { id: "role-x", allow: permissions(PermissionFlagsBits.ManageWebhooks), deny: permissions() }]]),
+        edit: async () => { edited++; }
+      }
+    }
+  );
+
+  assert.deepEqual(waits, [2_000, 5_000], "toate reincercarile sunt epuizate inainte de restaurare");
+  assert.equal(fetchCalls, 6, "fiecare incercare verifica ambele tipuri de evenimente de overwrite (3 incercari x 2 tipuri)");
+  assert.equal(edited, 1, "fara actor detectat dupa retry-uri, overwrite-ul neautorizat e restaurat");
+});
