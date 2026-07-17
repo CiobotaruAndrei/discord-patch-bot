@@ -17,6 +17,7 @@ export interface BotRiskInput {
   approved?: boolean;
   roles?: readonly BotRiskRoleLike[];
   guildRoleCount?: number;
+  confirmedActivity?: boolean;
 }
 
 export interface BotRiskAssessment {
@@ -80,7 +81,11 @@ export function assessBotRisk(input: BotRiskInput, now: number): BotRiskAssessme
     score -= 1;
     signals.push("aprobare valida pentru intrare (-1)");
   }
-  const level = score >= DANGEROUS_SCORE ? "dangerous" : score >= SUSPICIOUS_SCORE ? "suspicious" : "normal";
+  const rawLevel = score >= DANGEROUS_SCORE ? "dangerous" : score >= SUSPICIOUS_SCORE ? "suspicious" : "normal";
+  const level = rawLevel === "dangerous" && input.confirmedActivity !== true ? "suspicious" : rawLevel;
+  if (rawLevel === "dangerous" && level !== "dangerous") {
+    signals.push("clasificare limitata la suspect: semnalele statice nu sunt inca activitate periculoasa confirmata dupa join (cap)");
+  }
   return { level, score, signals };
 }
 
