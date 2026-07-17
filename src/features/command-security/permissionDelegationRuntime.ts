@@ -3,14 +3,14 @@
 import { AuditLogEvent, PermissionFlagsBits } from "discord.js";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
 
-type PermissionSet = { has(flag: bigint): boolean };
+type PermissionSet = { has(flag: bigint): boolean; bitfield?: bigint };
 type RoleLike = {
   id: string;
   name?: string;
   managed?: boolean;
   permissions: PermissionSet;
   guild: GuildLike;
-  setPermissions?(permissions: PermissionSet | bigint, reason?: string): Promise<unknown>;
+  setPermissions?(permissions: bigint, reason?: string): Promise<unknown>;
 };
 type OverwriteLike = { id: string; allow: PermissionSet; deny: PermissionSet };
 type OverwriteCollection = { values(): IterableIterator<OverwriteLike> };
@@ -52,12 +52,14 @@ export interface PermissionDelegationRuntimeDeps {
 }
 
 const PROTECTED_PERMISSIONS = [
-  PermissionFlagsBits.Administrator,
-  PermissionFlagsBits.BanMembers,
-  PermissionFlagsBits.KickMembers,
-  PermissionFlagsBits.ModerateMembers,
-  PermissionFlagsBits.ManageWebhooks
+  { flag: PermissionFlagsBits.Administrator, label: "Administrator" },
+  { flag: PermissionFlagsBits.BanMembers, label: "Ban Members" },
+  { flag: PermissionFlagsBits.KickMembers, label: "Kick Members" },
+  { flag: PermissionFlagsBits.ModerateMembers, label: "Moderate Members" },
+  { flag: PermissionFlagsBits.ManageWebhooks, label: "Manage Webhooks" }
 ] as const;
+
+type ProtectedPermission = (typeof PROTECTED_PERMISSIONS)[number];
 
 const CHANNEL_PROTECTED_PERMISSIONS = [
   { flag: PermissionFlagsBits.ManageWebhooks, option: "ManageWebhooks" },
@@ -65,11 +67,22 @@ const CHANNEL_PROTECTED_PERMISSIONS = [
 ] as const;
 
 function hasProtectedPermission(permissions: PermissionSet): boolean {
-  return PROTECTED_PERMISSIONS.some(permission => permissions.has(permission));
+  return PROTECTED_PERMISSIONS.some(({ flag }) => permissions.has(flag));
 }
 
-function newlyGrantedProtectedPermission(previous: PermissionSet, next: PermissionSet): boolean {
-  return PROTECTED_PERMISSIONS.some(permission => !previous.has(permission) && next.has(permission));
+function grantedProtectedPermissions(previous: PermissionSet, next: PermissionSet): ProtectedPermission[] {
+  return PROTECTED_PERMISSIONS.filter(({ flag }) => !previous.has(flag) && next.has(flag));
+}
+
+function protectedMask(granted: readonly ProtectedPermission[]): bigint {
+  return granted.reduce((mask, { flag }) => mask | flag, 0n);
+}
+
+function requireBitfield(permissions: PermissionSet, subject: string): bigint {
+  if (typeof permissions.bitfield !== "bigint") {
+    throw new Error(`Bitfield-ul permisiunilor pentru ${subject} nu este disponibil pentru restaurarea stricta.`);
+  }
+  return permissions.bitfield;
 }
 
 async function auditActor(guild: GuildLike, type: AuditLogEvent, targetId: string, now: number): Promise<string | null> {
@@ -103,21 +116,23 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
   const now = deps.now ?? Date.now;
 
   async function handleRoleUpdate(previous: RoleLike, next: RoleLike): Promise<void> {
-    if (!newlyGrantedProtectedPermission(previous.permissions, next.permissions)) return;
+    const granted = grantedProtectedPermissions(previous.permissions, next.permissions);
+    if (!granted.length) return;
     const actorId = await auditActor(next.guild, AuditLogEvent.RoleUpdate, next.id, now());
     if (actorId && actorId === next.guild.ownerId) return;
     if (!next.setPermissions) throw new Error(`Permisiunile rolului ${next.id} nu pot fi restaurate.`);
-    await next.setPermissions(previous.permissions, "Protectie anti-delegare: numai ownerul poate acorda permisiuni sensibile");
+    const nextBits = requireBitfield(next.permissions, `rolul ${next.id}`);
+    await next.setPermissions(nextBits & ~protectedMask(granted), "Protectie anti-delegare: numai ownerul poate acorda permisiuni sensibile");
     deps.metrics && (deps.metrics.permissionDelegationsReverted = (deps.metrics.permissionDelegationsReverted ?? 0) + 1);
     await recordServerAuditEntry(deps.GuildAuditLogModel, next.guild.id, {
       userId: actorId ?? "",
       action: "protected-role-permissions-reverted",
-      details: `roleId=${next.id}; roleName=${next.name ?? ""}`
+      details: `roleId=${next.id}; roleName=${next.name ?? ""}; removed=${granted.map(({ label }) => label).join("+")}`
     });
     await deps.adminAlert(
       "security:permission-delegation",
       "Delegare neautorizata de permisiuni restaurata",
-      `Rol ${next.name ?? next.id}; actor ${actorId ?? "nedetectat"}`,
+      `Rol ${next.name ?? next.id}; permisiuni eliminate: ${granted.map(({ label }) => label).join(", ")}; restul modificarilor raman; actor ${actorId ?? "nedetectat"}`,
       next.guild.id
     );
   }
@@ -147,7 +162,8 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
   }
 
   async function handleRoleCreate(role: RoleLike): Promise<void> {
-    if (!hasProtectedPermission(role.permissions)) return;
+    const grantedAtCreate = PROTECTED_PERMISSIONS.filter(({ flag }) => role.permissions.has(flag));
+    if (!grantedAtCreate.length) return;
     const actorId = await auditActor(role.guild, AuditLogEvent.RoleCreate, role.id, now());
     if (actorId && actorId === role.guild.ownerId) return;
     if (role.managed === true) {
@@ -164,18 +180,19 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
       );
       return;
     }
-    if (!role.setPermissions) throw new Error(`Permisiunile rolului nou ${role.id} nu pot fi golite.`);
-    await role.setPermissions(0n, "Protectie anti-delegare: numai ownerul poate crea roluri cu permisiuni sensibile");
+    if (!role.setPermissions) throw new Error(`Permisiunile sensibile ale rolului nou ${role.id} nu pot fi eliminate.`);
+    const roleBits = requireBitfield(role.permissions, `rolul nou ${role.id}`);
+    await role.setPermissions(roleBits & ~protectedMask(grantedAtCreate), "Protectie anti-delegare: numai ownerul poate crea roluri cu permisiuni sensibile");
     deps.metrics && (deps.metrics.permissionDelegationsReverted = (deps.metrics.permissionDelegationsReverted ?? 0) + 1);
     await recordServerAuditEntry(deps.GuildAuditLogModel, role.guild.id, {
       userId: actorId ?? "",
       action: "protected-role-create-reverted",
-      details: `roleId=${role.id}; roleName=${role.name ?? ""}`
+      details: `roleId=${role.id}; roleName=${role.name ?? ""}; removed=${grantedAtCreate.map(({ label }) => label).join("+")}`
     });
     await deps.adminAlert(
       "security:permission-delegation",
-      "Rol nou creat cu permisiuni sensibile; permisiunile au fost golite",
-      `Rol ${role.name ?? role.id}; actor ${actorId ?? "nedetectat"}`,
+      "Rol nou creat cu permisiuni sensibile; permisiunile sensibile au fost eliminate",
+      `Rol ${role.name ?? role.id}; permisiuni eliminate: ${grantedAtCreate.map(({ label }) => label).join(", ")}; permisiunile neprotejate raman; actor ${actorId ?? "nedetectat"}`,
       role.guild.id
     );
   }

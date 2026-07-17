@@ -7,7 +7,10 @@ import type { GuildAuditLogRecord } from "../../features/admin-records/auditLogR
 
 function permissions(...values: bigint[]) {
   const set = new Set(values);
-  return { has: (value: bigint) => set.has(value) };
+  return {
+    has: (value: bigint) => set.has(value),
+    bitfield: values.reduce((mask, value) => mask | value, 0n)
+  };
 }
 
 function auditModel(records: GuildAuditLogRecord[]) {
@@ -25,8 +28,8 @@ function auditModel(records: GuildAuditLogRecord[]) {
   };
 }
 
-test("permisiunile sensibile acordate de altcineva decat owner sunt restaurate", async () => {
-  const restored: Array<{ reason?: string }> = [];
+test("restaurarea la roleUpdate elimina DOAR permisiunile protejate adaugate; schimbarile legitime din acelasi update raman (raport post-#705, #4)", async () => {
+  const restored: Array<{ value: bigint; reason?: string }> = [];
   const alerts: string[] = [];
   const audits: GuildAuditLogRecord[] = [];
   const now = Date.parse("2026-07-16T12:00:00.000Z");
@@ -48,10 +51,10 @@ test("permisiunile sensibile acordate de altcineva decat owner sunt restaurate",
   const next = {
     id: "role-1",
     name: "Helper",
-    permissions: permissions(PermissionFlagsBits.Administrator),
+    permissions: permissions(PermissionFlagsBits.Administrator, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles),
     guild,
-    setPermissions: async (_value: ReturnType<typeof permissions>, reason?: string) => {
-      restored.push({ reason });
+    setPermissions: async (value: bigint, reason?: string) => {
+      restored.push({ value, reason });
     }
   };
   const metrics = { permissionDelegationsReverted: 0 };
@@ -65,10 +68,17 @@ test("permisiunile sensibile acordate de altcineva decat owner sunt restaurate",
   await runtime.handleRoleUpdate(previous, next);
 
   assert.equal(restored.length, 1);
+  assert.equal(
+    restored[0].value,
+    PermissionFlagsBits.SendMessages | PermissionFlagsBits.AttachFiles,
+    "setul final porneste de la permisiunile NOI si elimina doar Administrator; Send Messages si Attach Files raman"
+  );
   assert.match(restored[0].reason ?? "", /numai ownerul/);
   assert.equal(metrics.permissionDelegationsReverted, 1);
   assert.equal(audits[0].action, "protected-role-permissions-reverted");
+  assert.match(audits[0].details ?? "", /removed=Administrator/);
   assert.match(alerts[0], /admin-2/);
+  assert.match(alerts[0], /restul modificarilor raman/);
 });
 
 test("ownerul poate acorda permisiuni sensibile fara rollback", async () => {
@@ -151,8 +161,8 @@ test("rolul sensibil atribuit de un non-owner este eliminat de pe membru", async
   assert.deepEqual(removed, ["role-1"]);
 });
 
-test("un rol NOU creat cu permisiuni sensibile de un non-owner ramane fara permisiuni (roleCreate)", async () => {
-  const cleared: Array<{ value: unknown; reason?: string }> = [];
+test("un rol NOU creat cu permisiuni sensibile de un non-owner pierde DOAR cele 5 permisiuni protejate; restul raman (raport post-#705, #5)", async () => {
+  const cleared: Array<{ value: bigint; reason?: string }> = [];
   const alerts: string[] = [];
   const audits: GuildAuditLogRecord[] = [];
   const now = Date.parse("2026-07-16T12:00:00.000Z");
@@ -181,17 +191,23 @@ test("un rol NOU creat cu permisiuni sensibile de un non-owner ramane fara permi
   await runtime.handleRoleCreate({
     id: "role-new",
     name: "Sneaky Admin",
-    permissions: permissions(PermissionFlagsBits.Administrator),
+    permissions: permissions(PermissionFlagsBits.Administrator, PermissionFlagsBits.BanMembers, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks),
     guild,
-    setPermissions: async (value: unknown, reason?: string) => { cleared.push({ value, reason }); }
+    setPermissions: async (value: bigint, reason?: string) => { cleared.push({ value, reason }); }
   });
 
-  assert.equal(cleared.length, 1, "permisiunile rolului nou sunt golite");
-  assert.equal(cleared[0].value, 0n);
+  assert.equal(cleared.length, 1);
+  assert.equal(
+    cleared[0].value,
+    PermissionFlagsBits.SendMessages | PermissionFlagsBits.EmbedLinks,
+    "doar Administrator si Ban Members sunt eliminate; permisiunile normale raman pe rolul nou"
+  );
   assert.match(cleared[0].reason ?? "", /numai ownerul/);
   assert.equal(metrics.permissionDelegationsReverted, 1);
   assert.equal(audits[0].action, "protected-role-create-reverted");
+  assert.match(audits[0].details ?? "", /removed=Administrator\+Ban Members/);
   assert.match(alerts[0], /admin-2/);
+  assert.match(alerts[0], /permisiunile neprotejate raman/);
 });
 
 test("roleCreate: ownerul poate crea roluri sensibile; rolurile gestionate de integrari doar alerteaza", async () => {
