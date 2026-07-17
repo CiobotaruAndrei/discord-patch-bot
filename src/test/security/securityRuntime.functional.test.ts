@@ -363,6 +363,31 @@ test("implicit: un executabil detectat prin continut e tip riscant — alerta fa
   assert.match(sent[0].content ?? "", /mesaj pastrat/);
 });
 
+test("un mesaj cu incalcare de politica SI fisier riscant e sters cand oricare categorie detectata are opt-in, nu doar verdictul cel mai sever (raport post-#705, #3)", async () => {
+  const sent: Array<{ content?: string }> = [];
+  let deleted = 0;
+  const runtime = threatRuntime({
+    sent,
+    settings: { threatAutoDeletePolicyViolations: true },
+    httpReq: async () => ({
+      data: Buffer.from([0x4d, 0x5a, 0x90, 0x00]),
+      headers: { "content-type": "application/octet-stream" },
+      status: 200
+    })
+  });
+
+  await runtime.handleMessageCreate({
+    ...threatMessageBase,
+    content: "@everyone uite fisierul",
+    attachments: new Map([["a", { id: "a", name: "installer", url: "https://cdn.example.test/file" }]]),
+    delete: async () => { deleted++; }
+  });
+
+  assert.equal(deleted, 1, "incalcarea de politica detectata are opt-in => mesajul se sterge, desi verdictul cel mai sever e risky-file fara opt-in");
+  assert.match(sent[0].content ?? "", /risky-file/, "alerta raporteaza verdictul cel mai sever");
+  assert.match(sent[0].content ?? "", /mentionare in masa/, "motivul incalcarii de politica e pastrat in alerta");
+});
+
 test("politica explicita a serverului activeaza stergerea pentru fisiere riscante si incalcari de politica", async () => {
   const sent: Array<{ content?: string }> = [];
   let deleted = 0;
