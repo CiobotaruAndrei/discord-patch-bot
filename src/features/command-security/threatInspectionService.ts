@@ -177,13 +177,28 @@ function contentType(headers: Record<string, unknown> | undefined): string {
   return normalizeMime(headers["content-type"] ?? headers["Content-Type"]);
 }
 
+async function mapWithConcurrency<T, R>(items: readonly T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const runnerCount = Math.max(1, Math.min(limit, items.length));
+  const runners = Array.from({ length: runnerCount }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await worker(items[index]);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
+
+type ScanCandidate = { url?: string; mime: string; buffer: Buffer | null; kind: ResourceKind };
+type ClassifiedResource = { base: ThreatInspectionResult; scan: ScanCandidate | null };
+type ResourceRef = { type: "url"; url: string } | { type: "attachment"; attachment: DirectAttachment };
+
 export function createThreatInspectionService(deps: ThreatInspectionDeps) {
   const maxResources = Math.max(1, deps.maxResources ?? 8);
 
-  async function confirmWithReputation(
-    base: ThreatInspectionResult,
-    input: { url?: string; mime: string; buffer: Buffer | null; kind: ResourceKind }
-  ): Promise<ThreatInspectionResult> {
+  async function confirmWithReputation(base: ThreatInspectionResult, input: ScanCandidate): Promise<ThreatInspectionResult> {
     if (!deps.reputationScan) return base;
     try {
       const verdict = await deps.reputationScan(input);
@@ -196,8 +211,8 @@ export function createThreatInspectionService(deps: ThreatInspectionDeps) {
     return base;
   }
 
-  async function inspectUrl(url: string): Promise<ThreatInspectionResult> {
-    if (!deps.httpReq) return { verdict: "uncertain", reason: "serviciul de inspectie HTTP nu este disponibil", source: "link" };
+  async function classifyUrl(url: string): Promise<ClassifiedResource> {
+    if (!deps.httpReq) return { base: { verdict: "uncertain", reason: "serviciul de inspectie HTTP nu este disponibil", source: "link" }, scan: null };
     try {
       const response = await deps.httpReq("GET", url, {
         timeout: 8000,
@@ -209,38 +224,64 @@ export function createThreatInspectionService(deps: ThreatInspectionDeps) {
       const mime = contentType(response.headers);
       const buffer = toBuffer(response.data);
       const { kind, ...result } = classifyResource(mime, buffer);
-      return confirmWithReputation({ ...result, source: "link" }, { url, mime, buffer, kind });
+      return { base: { ...result, source: "link" }, scan: { url, mime, buffer, kind } };
     } catch {
-      return { verdict: "uncertain", reason: "resursa externa nu a putut fi inspectata in siguranta", source: "link" };
+      return { base: { verdict: "uncertain", reason: "resursa externa nu a putut fi inspectata in siguranta", source: "link" }, scan: null };
     }
   }
 
-  async function inspectAttachment(attachment: DirectAttachment): Promise<ThreatInspectionResult> {
+  async function classifyAttachment(attachment: DirectAttachment): Promise<ClassifiedResource> {
     const declaredMime = normalizeMime(attachment.contentType);
+    const { kind: declaredKind, ...declaredResult } = classifyResource(declaredMime, null);
+    const declaredScan: ScanCandidate = { url: attachment.url, mime: declaredMime, buffer: null, kind: declaredKind };
     if (!attachment.url || !deps.httpReq) {
-      const { kind, ...declared } = classifyResource(declaredMime, null);
-      const base: ThreatInspectionResult = declared.verdict === "safe"
+      const base: ThreatInspectionResult = declaredResult.verdict === "safe"
         ? { verdict: "uncertain", reason: "atasamentul nu a putut fi descarcat pentru verificarea continutului", source: "attachment" }
-        : { ...declared, source: "attachment" };
-      return confirmWithReputation(base, { url: attachment.url, mime: declaredMime, buffer: null, kind });
+        : { ...declaredResult, source: "attachment" };
+      return { base, scan: declaredScan };
     }
-    const remote = await inspectUrl(attachment.url);
-    if (remote.verdict !== "safe") return { ...remote, source: "attachment" };
-    const { kind, ...declared } = classifyResource(declaredMime, null);
-    return confirmWithReputation({ ...declared, source: "attachment" }, { url: attachment.url, mime: declaredMime, buffer: null, kind });
+    const remote = await classifyUrl(attachment.url);
+    if (remote.base.verdict !== "safe") {
+      return { base: { ...remote.base, source: "attachment" }, scan: remote.scan ?? declaredScan };
+    }
+    return { base: { ...declaredResult, source: "attachment" }, scan: remote.scan ?? declaredScan };
+  }
+
+  async function confirmClassified(classified: ClassifiedResource): Promise<ThreatInspectionResult> {
+    return classified.scan ? confirmWithReputation(classified.base, classified.scan) : classified.base;
   }
 
   async function inspectMessage(content: string, attachments: readonly DirectAttachment[]): Promise<ThreatInspectionResult> {
-    const resources: Array<Promise<ThreatInspectionResult>> = [
-      ...extractUrls(content).slice(0, maxResources).map(inspectUrl),
-      ...attachments.slice(0, maxResources).map(inspectAttachment)
-    ];
-    const results = [...policyThreats(content), ...await Promise.all(resources)];
+    const seenUrls = new Set<string>();
+    const refs: ResourceRef[] = [];
+    for (const url of extractUrls(content)) {
+      if (seenUrls.has(url)) continue;
+      seenUrls.add(url);
+      refs.push({ type: "url", url });
+    }
+    for (const attachment of attachments) {
+      if (attachment.url && seenUrls.has(attachment.url)) continue;
+      if (attachment.url) seenUrls.add(attachment.url);
+      refs.push({ type: "attachment", attachment });
+    }
+
+    const capped = refs.slice(0, maxResources);
+    const omittedCount = refs.length - capped.length;
+    const concurrency = Math.max(1, Math.min(capped.length, maxResources - 1));
+    const inspected = await mapWithConcurrency(capped, concurrency, async ref =>
+      confirmClassified(ref.type === "url" ? await classifyUrl(ref.url) : await classifyAttachment(ref.attachment))
+    );
+
+    const omitted: ThreatInspectionResult[] = omittedCount > 0
+      ? [{ verdict: "uncertain", reason: `${omittedCount} resurse suplimentare nu au fost inspectate (plafon de ${maxResources} resurse pe mesaj)`, source: "content" }]
+      : [];
+
+    const results = [...policyThreats(content), ...inspected, ...omitted];
     const findings = results
       .filter(result => result.verdict !== "safe")
       .sort((left, right) => VERDICT_SEVERITY[right.verdict] - VERDICT_SEVERITY[left.verdict]);
     if (!findings.length) {
-      return resources.length
+      return capped.length
         ? { verdict: "safe", reason: "toate resursele inspectate au trecut verificarile", source: "content" }
         : { verdict: "safe", reason: "mesaj fara resurse inspectabile", source: "content" };
     }
