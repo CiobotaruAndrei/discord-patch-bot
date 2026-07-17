@@ -454,3 +454,96 @@ test("actor nedetectat dupa toate reincercarile => restaurarea se aplica abia du
   assert.equal(fetchCalls, 6, "fiecare incercare verifica ambele tipuri de evenimente de overwrite (3 incercari x 2 tipuri)");
   assert.equal(edited, 1, "fara actor detectat dupa retry-uri, overwrite-ul neautorizat e restaurat");
 });
+
+test("detectia foloseste bitii expliciti, nu has(): un rol cu Administrator NU e tratat ca si cum ar avea toate cele 5 permisiuni explicit (raport audit, #30)", async () => {
+  const restored: Array<{ value: bigint }> = [];
+  const audits: GuildAuditLogRecord[] = [];
+  const now = Date.parse("2026-07-16T12:00:00.000Z");
+  const guild = {
+    id: "guild-1",
+    ownerId: "owner-1",
+    fetchAuditLogs: async () => ({
+      entries: new Map([["e1", { id: "e1", target: { id: "role-1" }, executor: { id: "admin-2" }, createdTimestamp: now }]])
+    })
+  };
+  const runtime = createPermissionDelegationRuntime({
+    GuildAuditLogModel: auditModel(audits),
+    adminAlert: async () => undefined,
+    now: () => now
+  });
+
+  await runtime.handleRoleUpdate(
+    { id: "role-1", permissions: permissions(), guild },
+    {
+      id: "role-1",
+      permissions: permissions(PermissionFlagsBits.Administrator),
+      guild,
+      setPermissions: async (value: bigint) => { restored.push({ value }); }
+    }
+  );
+
+  assert.equal(restored.length, 1);
+  assert.equal(restored[0].value, 0n, "se elimina EXCLUSIV bitul Administrator adaugat explicit, nu si Ban/Kick/Moderate/Webhooks (care nu sunt biti expliciti)");
+  assert.match(audits[0].details ?? "", /removed=Administrator$/, "auditul raporteaza o singura permisiune explicita, nu toate cele 5 implicate de Administrator");
+});
+
+test("reincarca starea curenta inainte de restaurare: o modificare legitima concurenta in timpul retry-ului nu e suprascrisa (raport audit, #30)", async () => {
+  const restored: Array<{ value: bigint }> = [];
+  const now = Date.parse("2026-07-16T12:00:00.000Z");
+  const guild = {
+    id: "guild-1",
+    ownerId: "owner-1",
+    fetchAuditLogs: async () => ({ entries: new Map() })
+  };
+  const runtime = createPermissionDelegationRuntime({
+    GuildAuditLogModel: auditModel([]),
+    adminAlert: async () => undefined,
+    now: () => now,
+    wait: async () => {
+      nextRole.permissions = permissions(PermissionFlagsBits.SendMessages);
+    }
+  });
+  const nextRole: { id: string; permissions: ReturnType<typeof permissions>; guild: typeof guild; setPermissions: (value: bigint) => Promise<void> } = {
+    id: "role-1",
+    permissions: permissions(PermissionFlagsBits.Administrator, PermissionFlagsBits.SendMessages),
+    guild,
+    setPermissions: async (value: bigint) => { restored.push({ value }); }
+  };
+
+  await runtime.handleRoleUpdate(
+    { id: "role-1", permissions: permissions(), guild },
+    nextRole
+  );
+
+  assert.equal(restored.length, 0, "Administrator a fost deja retras de o schimbare legitima in timpul retry-ului => nu se mai restaureaza nimic, iar Send Messages ramane neatins");
+});
+
+test("dedup Audit Log: aceeasi intrare nu e atribuita de doua ori la doua evenimente diferite (raport audit, #30)", async () => {
+  const restored: string[] = [];
+  const audits: GuildAuditLogRecord[] = [];
+  const now = Date.parse("2026-07-16T12:00:00.000Z");
+  const sharedEntry = { id: "shared-1", target: { id: "role-1" }, executor: { id: "admin-2" }, createdTimestamp: now };
+  const guild = {
+    id: "guild-1",
+    ownerId: "owner-1",
+    fetchAuditLogs: async () => ({ entries: new Map([["shared-1", sharedEntry]]) })
+  };
+  const runtime = createPermissionDelegationRuntime({
+    GuildAuditLogModel: auditModel(audits),
+    adminAlert: async () => undefined,
+    now: () => now
+  });
+
+  await runtime.handleRoleUpdate(
+    { id: "role-1", permissions: permissions(), guild },
+    { id: "role-1", permissions: permissions(PermissionFlagsBits.Administrator), guild, setPermissions: async () => { restored.push("first"); } }
+  );
+  await runtime.handleRoleUpdate(
+    { id: "role-1", permissions: permissions(), guild },
+    { id: "role-1", permissions: permissions(PermissionFlagsBits.BanMembers), guild, setPermissions: async () => { restored.push("second"); } }
+  );
+
+  assert.deepEqual(restored, ["first", "second"], "ambele restaurari se aplica (permisiuni diferite)");
+  assert.equal(audits[0].userId, "admin-2", "prima atribuie actorul din intrarea audit");
+  assert.equal(audits[1].userId, "", "a doua NU reatribuie aceeasi intrare audit deja procesata => actor necunoscut conservator");
+});
