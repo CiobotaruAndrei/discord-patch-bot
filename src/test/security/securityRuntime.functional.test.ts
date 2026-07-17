@@ -263,49 +263,118 @@ test("solicitant nedetectat dupa toate reincercarile Audit Log => botul e elimin
   assert.match(sent[0].content ?? "", /nedetectat dupa reincercari/);
 });
 
-test("amenintarile confirmate sunt sterse, iar cele neconfirmate sunt doar alertate", async () => {
-  const sent: Array<{ content?: string }> = [];
-  let deleted = 0;
-  const runtime = createSecurityRuntime({
+function threatRuntime(input: {
+  sent: Array<{ content?: string }>;
+  settings?: Record<string, unknown>;
+  httpReq?: () => Promise<{ data: Buffer; headers: Record<string, string>; status: number }>;
+}) {
+  return createSecurityRuntime({
     getGuildSettings: async () => ({
       _id: "guild-1",
       threatProtectionEnabled: true,
-      threatAlertChannelId: "security"
+      threatAlertChannelId: "security",
+      ...input.settings
     }),
     client: {
       channels: {
         fetch: async () => ({
-          send: async (payload: { content?: string }) => { sent.push(payload); }
+          send: async (payload: { content?: string }) => { input.sent.push(payload); }
         })
       }
     },
     GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel([]),
-    httpReq: async () => {
-      throw new Error("inspection unavailable");
-    }
+    httpReq: input.httpReq ?? (async () => { throw new Error("inspection unavailable"); })
   });
-  const base = {
-    guild: { id: "guild-1" },
-    author: { id: "user-1", tag: "user", bot: false },
-    channel: { id: "general" },
-    attachments: new Map()
-  };
+}
+
+const threatMessageBase = {
+  guild: { id: "guild-1" },
+  author: { id: "user-1", tag: "user", bot: false },
+  channel: { id: "general" },
+  attachments: new Map()
+};
+
+test("implicit: incalcarile de politica si resursele neconfirmate NU se sterg — doar alerta cu categoria corecta", async () => {
+  const sent: Array<{ content?: string }> = [];
+  let deleted = 0;
+  const runtime = threatRuntime({ sent });
 
   await runtime.handleMessageCreate({
-    ...base,
+    ...threatMessageBase,
     content: "@everyone danger",
     delete: async () => { deleted++; }
   });
   await runtime.handleMessageCreate({
-    ...base,
+    ...threatMessageBase,
     content: "https://example.test/unavailable",
     delete: async () => { deleted++; }
   });
 
-  assert.equal(deleted, 1);
+  assert.equal(deleted, 0, "fara politica explicita, nimic nu se sterge automat");
   assert.equal(sent.length, 2);
-  assert.match(sent[0].content ?? "", /mesaj sters/);
+  assert.match(sent[0].content ?? "", /policy-violation/);
+  assert.match(sent[0].content ?? "", /incalcare de politica a serverului, nu amenintare informatica/);
+  assert.match(sent[0].content ?? "", /mesaj pastrat/);
   assert.match(sent[1].content ?? "", /mesaj pastrat/);
   assert.doesNotMatch(sent[1].content ?? "", /example\.test/);
+});
+
+test("implicit: un executabil detectat prin continut e tip riscant — alerta fara stergere, nu malware confirmat", async () => {
+  const sent: Array<{ content?: string }> = [];
+  let deleted = 0;
+  const runtime = threatRuntime({
+    sent,
+    httpReq: async () => ({
+      data: Buffer.from([0x4d, 0x5a, 0x90, 0x00]),
+      headers: { "content-type": "application/octet-stream" },
+      status: 200
+    })
+  });
+
+  await runtime.handleMessageCreate({
+    ...threatMessageBase,
+    content: "",
+    attachments: new Map([["a", { id: "a", name: "installer", url: "https://cdn.example.test/file" }]]),
+    delete: async () => { deleted++; }
+  });
+
+  assert.equal(deleted, 0, "un instalator legitim nu mai e sters ca malware confirmat");
+  assert.match(sent[0].content ?? "", /risky-file/);
+  assert.match(sent[0].content ?? "", /neconfirmata ca malware/);
+  assert.match(sent[0].content ?? "", /mesaj pastrat/);
+});
+
+test("politica explicita a serverului activeaza stergerea pentru fisiere riscante si incalcari de politica", async () => {
+  const sent: Array<{ content?: string }> = [];
+  let deleted = 0;
+  const policyRuntime = threatRuntime({
+    sent,
+    settings: { threatAutoDeletePolicyViolations: true }
+  });
+  await policyRuntime.handleMessageCreate({
+    ...threatMessageBase,
+    content: "@everyone danger",
+    delete: async () => { deleted++; }
+  });
+  assert.equal(deleted, 1, "cu opt-in explicit, incalcarea de politica se sterge");
+  assert.match(sent[0].content ?? "", /sters conform politicii explicite a serverului/);
+
+  const riskyRuntime = threatRuntime({
+    sent,
+    settings: { threatAutoDeleteRiskyFiles: true },
+    httpReq: async () => ({
+      data: Buffer.from([0x4d, 0x5a, 0x90, 0x00]),
+      headers: { "content-type": "application/octet-stream" },
+      status: 200
+    })
+  });
+  await riskyRuntime.handleMessageCreate({
+    ...threatMessageBase,
+    content: "",
+    attachments: new Map([["a", { id: "a", name: "installer", url: "https://cdn.example.test/file" }]]),
+    delete: async () => { deleted++; }
+  });
+  assert.equal(deleted, 2, "cu opt-in explicit, fisierul riscant se sterge");
+  assert.match(sent[1].content ?? "", /sters conform politicii explicite a serverului/);
 });

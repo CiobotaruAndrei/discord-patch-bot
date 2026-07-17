@@ -2,7 +2,7 @@
 
 > Fisier generat automat din `COMMAND_CATALOG_HELP` (`src/features/command-catalog/commandCatalog.ts`), aceeasi sursa unica pe care o foloseste comanda `/help` in Discord. Nu edita manual acest fisier: ruleaza `npm run docs:commands` din `src/`. Sincronizarea catalog <-> fisier este verificata de `commandReferenceDoc.test.ts` si de `npm run check:docs-commands`.
 
-Total comenzi documentate: 150.
+Total comenzi documentate: 154.
 
 | Comanda | Permisiuni | Ce face | Exemplu |
 | --- | --- | --- | --- |
@@ -51,8 +51,12 @@ Total comenzi documentate: 150.
 | `/start new-account-alerts` | Admin, Ephemeral | Porneste alertele pentru conturi create in ultimele trei luni si verifica imediat membrii existenti. | `/start new-account-alerts` |
 | `/stop new-account-alerts` | Admin, Ephemeral | Opreste alertele pentru conturi noi. | `/stop new-account-alerts` |
 | `/set threat-alert-channel` | Admin, Ephemeral | Alege canalul pentru alertele de amenintari. | `/set threat-alert-channel canal:#security` |
-| `/start threat-protection` | Admin, Ephemeral | Inspecteaza linkurile si atasamentele; sterge numai amenintarile confirmate si alerteaza separat cazurile neconfirmate. | `/start threat-protection` |
+| `/start threat-protection` | Admin, Ephemeral | Inspecteaza linkurile si atasamentele. Implicit sterge doar amenintarile confirmate; fisierele executabile/script si incalcarile de politica (@everyone, invitatii) doar alerteaza, fara stergere. | `/start threat-protection` |
 | `/stop threat-protection` | Admin, Ephemeral | Opreste protectia la amenintari. | `/stop threat-protection` |
+| `/start threat-delete-risky-files` | Admin, Ephemeral | Politica explicita a serverului: sterge automat mesajele cu fisiere executabile sau script detectate prin continut. Tipul fisierului e confirmat, nu si intentia malware — activeaza doar daca serverul nu asteapta astfel de fisiere. | `/start threat-delete-risky-files` |
+| `/stop threat-delete-risky-files` | Admin, Ephemeral | Revine la comportamentul implicit: fisierele riscante doar alerteaza, fara stergere automata. | `/stop threat-delete-risky-files` |
+| `/start threat-delete-policy-violations` | Admin, Ephemeral | Politica explicita a serverului: sterge automat mesajele cu @everyone/@here sau invitatii Discord externe. Sunt incalcari de politica, nu amenintari informatice. | `/start threat-delete-policy-violations` |
+| `/stop threat-delete-policy-violations` | Admin, Ephemeral | Revine la comportamentul implicit: incalcarile de politica doar alerteaza, fara stergere automata. | `/stop threat-delete-policy-violations` |
 | `/set bot-add-alert-channel` | Admin, Ephemeral | Alege canalul pentru solicitarile si alertele de adaugare boti. | `/set bot-add-alert-channel canal:#security` |
 | `/set warn-channel` | Admin, Ephemeral | Alege canalul dedicat in care sunt publicate warn-urile si dovezile directe. | `/set warn-channel canal:#moderation` |
 | `/start bot-add-protection` | Admin, Ephemeral | Permite doar botul si solicitantul aprobati exact printr-o aprobare owner one-time neexpirata; botii neaprobati sunt eliminati. | `/start bot-add-protection` |

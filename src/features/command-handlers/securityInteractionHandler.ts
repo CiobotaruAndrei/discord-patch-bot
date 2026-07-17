@@ -60,6 +60,8 @@ type GuildSettingsLike = {
   newAccountAlertsEnabled?: boolean;
   threatAlertChannelId?: string | null;
   threatProtectionEnabled?: boolean;
+  threatAutoDeleteRiskyFiles?: boolean;
+  threatAutoDeletePolicyViolations?: boolean;
   botAddAlertChannelId?: string | null;
   botAddProtectionEnabled?: boolean;
   purgeAmount?: number;
@@ -88,13 +90,23 @@ const SET_CHANNEL_FIELDS: Record<string, string> = {
   "warn-channel": "warningChannelId"
 };
 
+type ProtectionChannelField = "newAccountAlertChannelId" | "threatAlertChannelId" | "botAddAlertChannelId";
+type ProtectionEnabledField = "newAccountAlertsEnabled" | "threatProtectionEnabled" | "botAddProtectionEnabled" | "threatAutoDeleteRiskyFiles" | "threatAutoDeletePolicyViolations";
+
+const START_STOP_TOGGLE_FIELDS: Record<string, { channel: ProtectionChannelField; enabled: ProtectionEnabledField }> = {
+  "new-account-alerts": { channel: "newAccountAlertChannelId", enabled: "newAccountAlertsEnabled" },
+  "threat-protection": { channel: "threatAlertChannelId", enabled: "threatProtectionEnabled" },
+  "bot-add-protection": { channel: "botAddAlertChannelId", enabled: "botAddProtectionEnabled" },
+  "threat-delete-risky-files": { channel: "threatAlertChannelId", enabled: "threatAutoDeleteRiskyFiles" },
+  "threat-delete-policy-violations": { channel: "threatAlertChannelId", enabled: "threatAutoDeletePolicyViolations" }
+};
+
 function isSecurityInteraction(interaction: SecurityInteraction): boolean {
   if (interaction?.isChatInputCommand?.() !== true || !interaction.guild) return false;
   if (interaction.commandName === "lock-channel" || interaction.commandName === "unlock-channel" || interaction.commandName === "purge" || interaction.commandName === "purge-amount") return true;
   if (interaction.commandName === "set") return SET_CHANNEL_FIELDS[interaction.options.getSubcommand()] !== undefined;
   if (interaction.commandName === "start" || interaction.commandName === "stop") {
-    const sub = interaction.options.getSubcommand();
-    return sub === "new-account-alerts" || sub === "threat-protection" || sub === "bot-add-protection";
+    return START_STOP_TOGGLE_FIELDS[interaction.options.getSubcommand()] !== undefined;
   }
   return false;
 }
@@ -169,9 +181,11 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
     }
     if (command === "start" || command === "stop") {
       const sub = interaction.options.getSubcommand();
+      const toggle = START_STOP_TOGGLE_FIELDS[sub];
+      if (!toggle) return undefined;
       const settings = await target.getGuildSettings(guildId).catch(() => null);
-      const channelField = sub === "new-account-alerts" ? "newAccountAlertChannelId" : sub === "threat-protection" ? "threatAlertChannelId" : "botAddAlertChannelId";
-      const enabledField = sub === "new-account-alerts" ? "newAccountAlertsEnabled" : sub === "threat-protection" ? "threatProtectionEnabled" : "botAddProtectionEnabled";
+      const channelField = toggle.channel;
+      const enabledField = toggle.enabled;
       if (command === "start" && !settings?.[channelField]) return respond(interaction, "Eroare: seteaza mai intai canalul de alerta cu `/set`.");
       if (command === "start") {
         const channelId = settings?.[channelField];
