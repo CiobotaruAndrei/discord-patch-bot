@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createThreatInspectionService } from "../../features/command-security/threatInspectionService.js";
+import { createThreatInspectionService, reputationEngineConfigured } from "../../features/command-security/threatInspectionService.js";
 import { isRecentAccount, recentAccountCutoff } from "../../features/command-security/recentAccountPolicy.js";
 
 test("politica de cont nou foloseste exact trei luni calendaristice", () => {
@@ -109,4 +109,58 @@ test("o resursa care nu poate fi verificata ramane uncertain, nu este declarata 
 
   assert.equal(result.verdict, "uncertain");
   assert.match(result.reason, /nu a putut fi inspectata/);
+});
+
+test("verdictul confirmed NU e produs de euristici fara un motor de reputatie configurat (raport post-#705, #2)", async () => {
+  const inspector = createThreatInspectionService({
+    httpReq: async () => ({
+      data: Buffer.from([0x4d, 0x5a, 0x90, 0x00]),
+      headers: { "content-type": "application/octet-stream" },
+      status: 200
+    })
+  });
+  assert.equal(reputationEngineConfigured({}), false, "fara reputationScan, motorul de reputatie NU e configurat");
+
+  const result = await inspector.inspectMessage("", [{ id: "a", name: "installer", url: "https://cdn.example.test/file" }]);
+
+  assert.equal(result.verdict, "risky-file", "cel mai sever verdict al euristicilor ramane risky-file, NU confirmed");
+  assert.notEqual(result.verdict, "confirmed", "malware confirmat necesita un serviciu extern; nu se produce din semnaturi");
+});
+
+test("cu un motor de reputatie configurat care raporteaza malware, verdictul escaladeaza la confirmed (raport post-#705, #2)", async () => {
+  const scanInputs: Array<{ kind: string; mime: string }> = [];
+  const inspector = createThreatInspectionService({
+    httpReq: async () => ({
+      data: Buffer.from([0x4d, 0x5a, 0x90, 0x00]),
+      headers: { "content-type": "application/octet-stream" },
+      status: 200
+    }),
+    reputationScan: async input => {
+      scanInputs.push({ kind: input.kind, mime: input.mime });
+      return "malware";
+    }
+  });
+  assert.equal(reputationEngineConfigured({ reputationScan: async () => "clean" }), true);
+
+  const result = await inspector.inspectMessage("", [{ id: "a", name: "installer", url: "https://cdn.example.test/file" }]);
+
+  assert.equal(result.verdict, "confirmed", "motorul de reputatie ridica verdictul la malware confirmat");
+  assert.match(result.reason, /motorul extern de reputatie/);
+  assert.equal(scanInputs[0].kind, "executable", "motorul primeste tipul de fisier detectat");
+});
+
+test("un motor de reputatie care raporteaza clean/unknown NU escaladeaza; erorile lui nu strica verdictul de baza", async () => {
+  const cleanInspector = createThreatInspectionService({
+    httpReq: async () => ({ data: Buffer.from([0x4d, 0x5a]), headers: { "content-type": "application/octet-stream" }, status: 200 }),
+    reputationScan: async () => "clean"
+  });
+  const clean = await cleanInspector.inspectMessage("", [{ id: "a", name: "installer", url: "https://cdn.example.test/file" }]);
+  assert.equal(clean.verdict, "risky-file", "clean pastreaza verdictul de tip de fisier, nu il coboara sub risky-file");
+
+  const throwingInspector = createThreatInspectionService({
+    httpReq: async () => ({ data: Buffer.from([0x4d, 0x5a]), headers: { "content-type": "application/octet-stream" }, status: 200 }),
+    reputationScan: async () => { throw new Error("reputation service down"); }
+  });
+  const resilient = await throwingInspector.inspectMessage("", [{ id: "a", name: "installer", url: "https://cdn.example.test/file" }]);
+  assert.equal(resilient.verdict, "risky-file", "un motor de reputatie cazut nu degradeaza verdictul euristic");
 });
