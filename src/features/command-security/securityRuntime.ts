@@ -208,11 +208,19 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
     return "neconfirmata";
   }
 
-  function shouldAutoDelete(verdict: "uncertain" | "policy-violation" | "risky-file" | "confirmed", settings: GuildSettings): boolean {
+  function verdictAllowsAutoDelete(verdict: "safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed", settings: GuildSettings): boolean {
     if (verdict === "confirmed") return true;
     if (verdict === "risky-file") return settings.threatAutoDeleteRiskyFiles === true;
     if (verdict === "policy-violation") return settings.threatAutoDeletePolicyViolations === true;
     return false;
+  }
+
+  function shouldAutoDelete(
+    result: { verdict: "safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed"; detectedVerdicts?: Array<"safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed"> },
+    settings: GuildSettings
+  ): boolean {
+    const verdicts = result.detectedVerdicts ?? [result.verdict];
+    return verdicts.some(verdict => verdictAllowsAutoDelete(verdict, settings));
   }
 
   async function handleMessageCreate(message: MessageEvent): Promise<void> {
@@ -224,7 +232,7 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
     const result = await threatInspector.inspectMessage(message.content ?? "", attachments(message));
     if (result.verdict === "safe") return;
     let action = "mesaj pastrat; verificare manuala necesara";
-    if (shouldAutoDelete(result.verdict, settings)) {
+    if (shouldAutoDelete(result, settings)) {
       if (typeof message.delete !== "function") throw new Error("Mesajul marcat pentru stergere automata nu poate fi sters.");
       await message.delete();
       deps.metrics && (deps.metrics.securityThreatsDeleted = (deps.metrics.securityThreatsDeleted ?? 0) + 1);

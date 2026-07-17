@@ -2,13 +2,22 @@
 
 import type { DirectAttachment } from "../moderation/moderationInputPolicy.js";
 
-type ThreatVerdict = "safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed";
+export type ThreatVerdict = "safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed";
 
 export interface ThreatInspectionResult {
   verdict: ThreatVerdict;
   reason: string;
   source: "content" | "link" | "attachment";
+  detectedVerdicts?: ThreatVerdict[];
 }
+
+const VERDICT_SEVERITY: Record<ThreatVerdict, number> = {
+  safe: 0,
+  uncertain: 1,
+  "policy-violation": 2,
+  "risky-file": 3,
+  confirmed: 4
+};
 
 type HttpResponse = {
   data?: unknown;
@@ -107,14 +116,15 @@ function extractUrls(content: string): string[] {
   return [...new Set(raw.map(value => value.startsWith("www.") ? `https://${value}` : value))];
 }
 
-function policyThreat(content: string): ThreatInspectionResult | null {
+function policyThreats(content: string): ThreatInspectionResult[] {
+  const findings: ThreatInspectionResult[] = [];
   if (/@everyone|@here/i.test(content)) {
-    return { verdict: "policy-violation", reason: "mentionare in masa interzisa de politica de protectie", source: "content" };
+    findings.push({ verdict: "policy-violation", reason: "mentionare in masa interzisa de politica de protectie", source: "content" });
   }
   if (/(?:discord(?:app)?\.com\/invite\/|discord\.gg\/)/i.test(content)) {
-    return { verdict: "policy-violation", reason: "invitatie Discord externa interzisa de politica de protectie", source: "content" };
+    findings.push({ verdict: "policy-violation", reason: "invitatie Discord externa interzisa de politica de protectie", source: "content" });
   }
-  return null;
+  return findings;
 }
 
 function contentType(headers: Record<string, unknown> | undefined): string {
@@ -156,18 +166,26 @@ export function createThreatInspectionService(deps: ThreatInspectionDeps) {
   }
 
   async function inspectMessage(content: string, attachments: readonly DirectAttachment[]): Promise<ThreatInspectionResult> {
-    const policy = policyThreat(content);
-    if (policy) return policy;
     const resources: Array<Promise<ThreatInspectionResult>> = [
       ...extractUrls(content).slice(0, maxResources).map(inspectUrl),
       ...attachments.slice(0, maxResources).map(inspectAttachment)
     ];
-    if (!resources.length) return { verdict: "safe", reason: "mesaj fara resurse inspectabile", source: "content" };
-    const results = await Promise.all(resources);
-    return results.find(result => result.verdict === "confirmed")
-      ?? results.find(result => result.verdict === "risky-file")
-      ?? results.find(result => result.verdict === "uncertain")
-      ?? { verdict: "safe", reason: "toate resursele inspectate au trecut verificarile", source: "content" };
+    const results = [...policyThreats(content), ...await Promise.all(resources)];
+    const findings = results
+      .filter(result => result.verdict !== "safe")
+      .sort((left, right) => VERDICT_SEVERITY[right.verdict] - VERDICT_SEVERITY[left.verdict]);
+    if (!findings.length) {
+      return resources.length
+        ? { verdict: "safe", reason: "toate resursele inspectate au trecut verificarile", source: "content" }
+        : { verdict: "safe", reason: "mesaj fara resurse inspectabile", source: "content" };
+    }
+    const top = findings[0];
+    return {
+      verdict: top.verdict,
+      reason: [...new Set(findings.map(finding => finding.reason))].join("; "),
+      source: top.source,
+      detectedVerdicts: [...new Set(findings.map(finding => finding.verdict))]
+    };
   }
 
   return Object.freeze({ inspectMessage });

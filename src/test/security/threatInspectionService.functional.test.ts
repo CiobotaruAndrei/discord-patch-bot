@@ -66,6 +66,38 @@ test("inspectia recunoaste semnatura 7z si pastreaza documentele neconfirmate", 
   assert.equal(document.verdict, "uncertain");
 });
 
+test("analiza mesajului NU se opreste la prima incalcare de politica: toate resursele sunt inspectate, verdictul final e cel mai sever (raport post-#705, #3)", async () => {
+  let fetches = 0;
+  const inspector = createThreatInspectionService({
+    httpReq: async () => {
+      fetches++;
+      return {
+        data: Buffer.from([0x4d, 0x5a, 0x90, 0x00]),
+        headers: { "content-type": "application/octet-stream" },
+        status: 200
+      };
+    }
+  });
+
+  const result = await inspector.inspectMessage("@everyone uite fisierul https://cdn.example.test/tool", []);
+
+  assert.equal(fetches, 1, "linkul din mesaj e inspectat desi exista o incalcare de politica");
+  assert.equal(result.verdict, "risky-file", "verdictul final e cel mai sever (fisier riscant > incalcare de politica)");
+  assert.match(result.reason, /mentionare in masa/, "motivul incalcarii de politica e pastrat");
+  assert.match(result.reason, /executabil|script/, "motivul fisierului riscant e pastrat");
+  assert.deepEqual(result.detectedVerdicts, ["risky-file", "policy-violation"], "toate categoriile detectate sunt expuse, ordonate dupa severitate");
+});
+
+test("doua incalcari de politica in acelasi mesaj pastreaza ambele motive", async () => {
+  const inspector = createThreatInspectionService({});
+
+  const result = await inspector.inspectMessage("@everyone intrati pe https://discord.gg/abcdef", []);
+
+  assert.equal(result.verdict, "policy-violation");
+  assert.match(result.reason, /mentionare in masa/);
+  assert.match(result.reason, /invitatie Discord/);
+});
+
 test("o resursa care nu poate fi verificata ramane uncertain, nu este declarata periculoasa", async () => {
   const inspector = createThreatInspectionService({
     httpReq: async () => {
