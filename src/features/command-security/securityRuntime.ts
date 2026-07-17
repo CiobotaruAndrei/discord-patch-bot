@@ -34,7 +34,7 @@ type GuildMemberEvent = {
 };
 type AttachmentCollection = { values(): IterableIterator<DirectAttachment> };
 type MessageEvent = {
-  guild?: { id?: string } | null;
+  guild?: { id?: string; ownerId?: string } | null;
   author?: { id?: string; tag?: string; bot?: boolean } | null;
   channel?: SecurityChannel | null;
   content?: string;
@@ -241,12 +241,44 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
     return verdicts.some(verdict => verdictAllowsAutoDelete(verdict, settings));
   }
 
+  async function handleBotMessageCreate(message: MessageEvent, guildId: string, authorId: string, settings: GuildSettings): Promise<void> {
+    if (!settings.botAddProtectionEnabled || !settings.botAddAlertChannelId) return;
+    const result = await threatInspector.inspectMessage(message.content ?? "", attachments(message));
+    if (result.verdict === "safe") return;
+    const channel = await alertChannel(deps, settings.botAddAlertChannelId);
+    const owner = ownerMention(message.guild?.ownerId);
+    if (result.verdict === "confirmed") {
+      let deletedNote = "mesaj nesters (fara permisiune de stergere)";
+      if (typeof message.delete === "function") {
+        await message.delete();
+        deps.metrics && (deps.metrics.securityThreatsDeleted = (deps.metrics.securityThreatsDeleted ?? 0) + 1);
+        deletedNote = "mesaj sters";
+      }
+      await channel.send({
+        content: `${owner.prefix}:rotating_light: INCIDENT CRITIC: botul <@${authorId}> a postat continut confirmat periculos. Motiv: ${result.reason}. Rezultat: ${deletedNote}. Interventie urgenta: verifica si elimina manual botul daca e necesar.`,
+        allowedMentions: owner.allowedMentions
+      });
+      await recordServerAuditEntry(deps.GuildAuditLogModel, guildId, {
+        userId: authorId,
+        action: "bot-confirmed-dangerous-activity",
+        details: `botId=${authorId}; verdict=confirmed; channelId=${message.channel?.id ?? ""}`
+      });
+      return;
+    }
+    await channel.send({
+      content: `${owner.prefix}:warning: Bot monitorizat: <@${authorId}> a postat continut clasificat ${result.verdict} (neconfirmat ca amenintare). Motiv: ${result.reason}. Botul aprobat NU e eliminat automat pentru suspiciune; verificare manuala recomandata.`,
+      allowedMentions: owner.allowedMentions
+    });
+  }
+
   async function handleMessageCreate(message: MessageEvent): Promise<void> {
     const guildId = message.guild?.id;
     const author = message.author;
-    if (!guildId || !author?.id || author.bot) return;
+    if (!guildId || !author?.id) return;
     const settings = await deps.getGuildSettings(guildId);
-    if (!settings?.threatProtectionEnabled || !settings.threatAlertChannelId) return;
+    if (!settings) return;
+    if (author.bot) return handleBotMessageCreate(message, guildId, author.id, settings);
+    if (!settings.threatProtectionEnabled || !settings.threatAlertChannelId) return;
     const result = await threatInspector.inspectMessage(message.content ?? "", attachments(message));
     if (result.verdict === "safe") return;
     let action = "mesaj pastrat; verificare manuala necesara";
