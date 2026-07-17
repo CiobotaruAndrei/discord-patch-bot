@@ -15,6 +15,9 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
+- **Versiunea Node e documentata uniform: politica oficiala Node 24.x, sincronizata peste tot (raport post-#699, problema #7, MICA; re-semnalata post-#705 ca #9)**. Badge-ul README afisa Node 20.x, sectiunea de cerinte indica Node.js 24.x, iar `engines` permitea `>=22.12` — dezvoltatorii si pipeline-urile puteau folosi versiuni diferite, iar erorile de compatibilitate deveneau greu de diagnosticat. Politica oficiala aleasa: **Node 24.x** (deja folosita de Dockerfile — ambele stage-uri `node:24-bookworm-slim` — si de toate cele 5 workflow-uri CI cu `node-version: 24`). Sincronizat: badge-ul README -> `node-24.x`, `engines.node` -> `>=24`. Gard nou anti-drift `nodeVersionPolicy.test.ts`: badge-ul, cerintele README, `engines`, stage-urile `FROM node:` din Dockerfile si toate liniile `node-version:` din workflow-uri trebuie sa fie pe aceeasi versiune majora oficiala — orice drift viitor pica la CI.
+
+
 - **`/warn-list` afiseaza sumarul grupat pe utilizator, nu fiecare warn individual (raport post-#699, problema #5, MEDIE)**. Lista afisa fiecare warn separat (utilizator, moderator, data), deci un utilizator cu mai multe warn-uri aparea de mai multe ori si lista devenea greu de citit. Acum comanda grupeaza dupa `userId`, calculeaza totalul de warn-uri ACTIVE per utilizator, sorteaza descrescator dupa numar (la egalitate, dupa cel mai recent warn) si afiseaza O SINGURA intrare per utilizator: mentiune + numele de la ultimul warn, `N warn-uri active` (acord gramatical corect la singular) si data relativa a ultimului warn. Paginarea si mesajul de lista goala raman neschimbate. Test nou in `moderationInteractionHandler.functional.test.ts` (3 warn-uri user-1 + 1 warn user-2 => 2 randuri, user-1 primul cu "3 warn-uri active" si numele de la ultimul warn). Docs actualizate (catalog + Comenzi Functionalitate + Referinta regenerata).
 
 
