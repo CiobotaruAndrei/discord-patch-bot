@@ -54,7 +54,11 @@ export type SecurityRuntimeDeps = {
   httpReq?: Parameters<typeof createThreatInspectionService>[0]["httpReq"];
   metrics?: RuntimeMetrics;
   now?: () => number;
+  wait?: (ms: number) => Promise<void>;
 };
+
+const AUDIT_LOG_MATCH_WINDOW_MS = 60_000;
+const AUDIT_LOG_RETRY_DELAYS_MS: readonly number[] = [2_000, 5_000];
 
 function ownerMention(ownerId: string | undefined): { prefix: string; allowedMentions: unknown } {
   return ownerId
@@ -69,15 +73,30 @@ async function alertChannel(deps: SecurityRuntimeDeps, channelId: string): Promi
   return { ...channel, send: payload => send.call(channel, payload) };
 }
 
-async function botRequester(member: GuildMemberEvent, botId: string, now: number): Promise<string | null> {
+async function botRequester(member: GuildMemberEvent, botId: string, eventTime: number): Promise<string | null> {
   const logs = await member.guild?.fetchAuditLogs?.({ type: AuditLogEvent.BotAdd, limit: 6 });
   const entries = logs?.entries ? [...logs.entries.values()] : [];
   const entry = entries.find(item =>
     item.target?.id === botId
     && typeof item.createdTimestamp === "number"
-    && Math.abs(now - item.createdTimestamp) <= 20_000
+    && Math.abs(eventTime - item.createdTimestamp) <= AUDIT_LOG_MATCH_WINDOW_MS
   );
   return entry?.executor?.id ?? null;
+}
+
+async function botRequesterWithRetry(
+  member: GuildMemberEvent,
+  botId: string,
+  eventTime: number,
+  wait: (ms: number) => Promise<void>
+): Promise<string | null> {
+  let requesterId = await botRequester(member, botId, eventTime);
+  for (const delayMs of AUDIT_LOG_RETRY_DELAYS_MS) {
+    if (requesterId) return requesterId;
+    await wait(delayMs);
+    requesterId = await botRequester(member, botId, eventTime);
+  }
+  return requesterId;
 }
 
 function botRisk(createdTimestamp: number | undefined, now: number): "normal" | "suspicious" | "dangerous" {
@@ -94,24 +113,38 @@ function attachments(message: MessageEvent): DirectAttachment[] {
 
 export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
   const now = deps.now ?? Date.now;
+  const wait = deps.wait ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
   const threatInspector = createThreatInspectionService({ httpReq: deps.httpReq });
 
   async function handleBotAdd(member: GuildMemberEvent, settings: GuildSettings, botId: string): Promise<void> {
     if (!settings.botAddProtectionEnabled || !settings.botAddAlertChannelId) return;
     const currentTime = now();
-    const requesterId = await botRequester(member, botId, currentTime);
-    const permission = requesterId
+    const requesterId = await botRequesterWithRetry(member, botId, currentTime, wait);
+    const ownerId = member.guild?.ownerId;
+    const addedByOwner = Boolean(requesterId) && Boolean(ownerId) && requesterId === ownerId;
+    const permission = !addedByOwner && requesterId
       ? await botAddRepository.consumeBotAddPermission(deps.GuildModel, String(member.guild?.id), botId, requesterId, new Date(currentTime))
       : null;
+    const approved = addedByOwner || Boolean(permission);
     const channel = await alertChannel(deps, settings.botAddAlertChannelId);
-    const owner = ownerMention(member.guild?.ownerId);
+    const owner = ownerMention(ownerId);
     const tag = member.user?.tag ?? botId;
-    if (!permission) {
+    if (addedByOwner) {
+      await channel.send({
+        content: `${owner.prefix}:white_check_mark: Bot adaugat direct de ownerul serverului. Bot: ${tag} (${botId}). Ownerul nu are nevoie de aprobare one-time.`,
+        allowedMentions: owner.allowedMentions
+      });
+      await recordServerAuditEntry(deps.GuildAuditLogModel, String(member.guild?.id), {
+        userId: requesterId ?? "",
+        action: "bot-add-owner-direct",
+        details: `botId=${botId}; ownerId=${requesterId ?? "unknown"}; result=allowed`
+      });
+    } else if (!permission) {
       if (typeof member.kick !== "function") throw new Error(`Botul neaprobat ${botId} nu poate fi eliminat.`);
       await member.kick("Bot adaugat fara aprobare owner valida si neconsumata");
       deps.metrics && (deps.metrics.securityBotAddsBlocked = (deps.metrics.securityBotAddsBlocked ?? 0) + 1);
       await channel.send({
-        content: `${owner.prefix}:shield: Bot neaprobat eliminat. Bot: ${tag} (${botId}). Solicitant audit: ${requesterId ? `<@${requesterId}>` : "nedetectat"}.`,
+        content: `${owner.prefix}:shield: Bot neaprobat eliminat. Bot: ${tag} (${botId}). Solicitant audit: ${requesterId ? `<@${requesterId}>` : "nedetectat dupa reincercari"}.`,
         allowedMentions: owner.allowedMentions
       });
       await recordServerAuditEntry(deps.GuildAuditLogModel, String(member.guild?.id), {
@@ -131,15 +164,16 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
       });
     }
     const risk = botRisk(member.user?.createdTimestamp, currentTime);
+    const approvalLabel = addedByOwner ? "owner direct" : permission ? "valida si consumata" : "absenta";
     if (risk === "suspicious" || risk === "dangerous") {
       await channel.send({
-        content: `${owner.prefix}:warning: Bot suspect detectat. Bot: ${tag} (${botId}). Varsta cont: ${accountAgeLabel(member.user?.createdTimestamp, currentTime)}. Aprobare: ${permission ? "valida si consumata" : "absenta"}.`,
+        content: `${owner.prefix}:warning: Bot suspect detectat. Bot: ${tag} (${botId}). Varsta cont: ${accountAgeLabel(member.user?.createdTimestamp, currentTime)}. Aprobare: ${approvalLabel}.`,
         allowedMentions: owner.allowedMentions
       });
     }
     if (risk === "dangerous") {
       await channel.send({
-        content: `${owner.prefix}:rotating_light: Bot cu risc ridicat detectat: cont creat in ultimele 24 de ore. Bot: ${tag} (${botId}). Actiune: ${permission ? "monitorizare owner necesara" : "eliminat automat"}.`,
+        content: `${owner.prefix}:rotating_light: Bot cu risc ridicat detectat: cont creat in ultimele 24 de ore. Bot: ${tag} (${botId}). Actiune: ${approved ? "monitorizare owner necesara" : "eliminat automat"}.`,
         allowedMentions: owner.allowedMentions
       });
     }
