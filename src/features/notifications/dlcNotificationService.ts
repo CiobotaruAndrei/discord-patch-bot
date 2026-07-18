@@ -3,6 +3,7 @@
 import type { GameConfig, MongoWriteOutcome } from "../../types.js";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel.js";
 import type { GameDlc, DlcSourceDeps, FetchGameDlcsOutcome } from "../command-handlers/dlcSourceService.js";
+import { currencyToSteamCountry } from "../command-handlers/dlcSourceService.js";
 import type { NotificationEmbed } from "./notificationTypes.js";
 import { planDlcCandidates, buildDlcEmbed, collectBaselineDlcEntries, type DlcCandidate } from "./dlcNotificationPlanner.js";
 import { sendEmbedBatch } from "./notificationBatchExecutor.js";
@@ -76,21 +77,30 @@ export function createDlcNotificationService(deps: DlcNotificationServiceDeps): 
     DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY
   } = deps;
 
-  async function fetchAllGameDlcs(games: GameConfig[], shouldAbort?: (() => boolean) | null): Promise<Map<string, GameDlc[]>> {
+  async function fetchAllGameDlcs(games: GameConfig[], options?: { shouldAbort?: (() => boolean) | null; requireAll?: boolean }): Promise<Map<string, GameDlc[]>> {
     const dlcsByGame = new Map<string, GameDlc[]>();
     const fetchable = games.filter(game => Boolean(game && game.key && game.appId != null && String(game.appId).trim()));
     if (!fetchable.length) return dlcsByGame;
+    const country = currencyToSteamCountry(DEFAULT_CURRENCY);
+    const failures: string[] = [];
     await runConcurrent(fetchable, Math.max(1, DLC_FETCH_CONCURRENCY), async (game) => {
-      if (shouldAbort?.()) return;
-      const outcome = await fetchGameDlcs(dlcSource, String(game.appId), DEFAULT_CURRENCY);
+      if (options?.shouldAbort?.()) return;
+      const outcome = await fetchGameDlcs(dlcSource, String(game.appId), country);
       if (outcome.status === "ok") {
         if (outcome.dlcs.length) dlcsByGame.set(String(game.key), outcome.dlcs);
       } else {
+        failures.push(`${game.key}:${outcome.status}`);
         logger("WARN", "CRON_DLC", `Sursa DLC pentru ${game.key} a raspuns cu status ${outcome.status}`);
       }
     }, {
-      errorLogger: (game, err) => logger("WARN", "CRON_DLC", `Eroare la preluarea DLC pentru ${game.key}`, transientErrorMessage(err))
+      errorLogger: (game, err) => {
+        failures.push(`${game.key}:error`);
+        logger("WARN", "CRON_DLC", `Eroare la preluarea DLC pentru ${game.key}`, transientErrorMessage(err));
+      }
     });
+    if (options?.requireAll && failures.length > 0) {
+      throw new Error(`baseline DLC incomplet: ${failures.length} surse obligatorii neconfirmate (${failures.slice(0, 5).join(", ")})`);
+    }
     return dlcsByGame;
   }
 
@@ -185,7 +195,7 @@ export function createDlcNotificationService(deps: DlcNotificationServiceDeps): 
     }).lean();
     if (!guilds.length) return;
 
-    const dlcsByGame = await fetchAllGameDlcs(games, shouldAbort);
+    const dlcsByGame = await fetchAllGameDlcs(games, { shouldAbort });
     if (!dlcsByGame.size) return;
 
     await runConcurrent(guilds, GUILD_PROCESS_CONCURRENCY, async (guild) => {
@@ -197,7 +207,7 @@ export function createDlcNotificationService(deps: DlcNotificationServiceDeps): 
   }
 
   async function seedBaselineDlc(guildId: string, games: GameConfig[]): Promise<void> {
-    const dlcsByGame = await fetchAllGameDlcs(games);
+    const dlcsByGame = await fetchAllGameDlcs(games, { requireAll: true });
     const entries = collectBaselineDlcEntries(games, dlcsByGame);
     if (entries.length) await seedSeenDlcs(guildId, entries);
   }
