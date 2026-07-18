@@ -5,6 +5,7 @@ import type { NotificationDiscordClient } from "../notifications/outboundChannel
 import { errorMessage } from "../../shared/errors.js";
 import ________shared_utilities from "../../shared/utilities.js";
 import { evaluatePlayerCountChange, type PlayerCountChange } from "./playerCountChangeSignal.js";
+import { watchlistGameFilter } from "./playerCountWatchlist.js";
 const { mapWithConcurrency } = ________shared_utilities;
 
 export interface PlayerCountSnapshot {
@@ -155,8 +156,8 @@ function createPlayerCountSnapshotService(deps: PlayerCountSnapshotDeps) {
         {
           _id: guild._id,
           playerCountSubscribed: true,
-          enabledGames: game.key,
-          "playerCountWatchState.gameKey": { $ne: game.key }
+          "playerCountWatchState.gameKey": { $ne: game.key },
+          ...watchlistGameFilter(game.key)
         },
         {
           $push: {
@@ -192,14 +193,14 @@ function createPlayerCountSnapshotService(deps: PlayerCountSnapshotDeps) {
       {
         _id: guild._id,
         playerCountSubscribed: true,
-        enabledGames: game.key,
         playerCountWatchState: {
           $elemMatch: {
             gameKey: game.key,
             playerCount: previousCount,
             fetchedAt: previousAt
           }
-        }
+        },
+        ...watchlistGameFilter(game.key)
       },
       { $set: set },
       { arrayFilters: [{ "entry.gameKey": game.key, "entry.playerCount": previousCount, "entry.fetchedAt": previousAt }] }
@@ -215,8 +216,8 @@ function createPlayerCountSnapshotService(deps: PlayerCountSnapshotDeps) {
   ): Promise<void> {
     const guilds = await GuildModel.find({
       playerCountSubscribed: true,
-      enabledGames: game.key,
-      playerCountChannelId: { $ne: null }
+      playerCountChannelId: { $ne: null },
+      ...watchlistGameFilter(game.key)
     }).lean();
     await mapWithConcurrency(guilds, REFRESH_CONCURRENCY, async guild => {
       const change = await claimPlayerCountChange(guild, game, playerCount, fetchedAt);
@@ -244,8 +245,8 @@ function createPlayerCountSnapshotService(deps: PlayerCountSnapshotDeps) {
     if (!client) return;
     const guilds = await GuildModel.find({
       playerCountSubscribed: true,
-      enabledGames: game.key,
-      playerCountChannelId: { $ne: null }
+      playerCountChannelId: { $ne: null },
+      ...watchlistGameFilter(game.key)
     }).lean();
     await mapWithConcurrency(guilds, REFRESH_CONCURRENCY, async guild => {
       const channelId = String(guild.playerCountChannelId || "");
