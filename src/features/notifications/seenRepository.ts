@@ -24,10 +24,18 @@ interface GuildSeenUpdateModelLike {
   bulkWrite(ops: unknown[], opts?: MongoQueryOptions): Promise<unknown>;
 }
 
+interface GuildSeenDlcModelLike {
+  updateOne(filter: MongoFilter, update: MongoUpdate, opts?: MongoQueryOptions): Promise<{ upsertedCount?: number; matchedCount?: number }>;
+  deleteOne(filter: MongoFilter): Promise<{ deletedCount?: number }>;
+  find(filter: MongoFilter, projection?: MongoProjection): { lean(): Promise<Array<{ dlcKey?: unknown }>> };
+  bulkWrite(ops: unknown[], opts?: MongoQueryOptions): Promise<unknown>;
+}
+
 export interface SeenRepositoryDeps {
   GuildModel: GuildModelLike;
   GuildSeenDiscountModel: GuildSeenDiscountModelLike;
   GuildSeenUpdateModel: GuildSeenUpdateModelLike;
+  GuildSeenDlcModel?: GuildSeenDlcModelLike;
   withMongoRetry: WithMongoRetry;
   SEEN_PER_GAME_LIMIT: number;
   DEALS_HISTORY_LIMIT: number;
@@ -45,6 +53,9 @@ export interface SeenRepository {
   seedSeenDiscounts(guildId: string, hashes: string[]): Promise<void>;
   loadSeenDiscountHashes(guildId: string, candidateHashes?: string[]): Promise<string[]>;
   disableDiscountsForChannelError(guildId: string, channelId: string, message: string): Promise<MongoWriteResult>;
+  claimSeenDlc(guildId: string, channelId: string, gameKey: string, dlcKey: string): Promise<MongoWriteResult>;
+  seedSeenDlcs(guildId: string, entries: Array<{ gameKey: string; dlcKey: string }>): Promise<void>;
+  loadSeenDlcKeys(guildId: string, gameKey?: string): Promise<string[]>;
   setSeenHashVersion(guildId: string, field: "seenHashVersionUpdates" | "seenHashVersionDiscounts", version: number): Promise<MongoWriteResult>;
   rollbackTriggeredAlert(guildId: string, alert: PriceAlertRule): Promise<MongoWriteResult>;
 }
@@ -187,6 +198,51 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
     return result;
   }
 
+  async function claimSeenDlc(guildId: string, channelId: string, gameKey: string, dlcKey: string): Promise<MongoWriteResult> {
+    if (!deps.GuildSeenDlcModel) return { matchedCount: 0 };
+    const subscribed = await withMongoRetry(() => GuildModel.exists({
+      _id: guildId,
+      dlcSubscribed: true,
+      dlcChannelId: channelId,
+      dlcInitializing: { $ne: true }
+    }), { label: "claimSeenDlc:guard" });
+    if (!subscribed) return { matchedCount: 0 };
+
+    const res = await withMongoRetry(() => deps.GuildSeenDlcModel!.updateOne(
+      { guildId, gameKey, dlcKey },
+      { $setOnInsert: { guildId, gameKey, dlcKey, seenAt: new Date() } },
+      { upsert: true }
+    ), { label: "claimSeenDlc:seen" });
+    return { matchedCount: (res.upsertedCount ?? 0) > 0 ? 1 : 0 };
+  }
+
+  async function seedSeenDlcs(guildId: string, entries: Array<{ gameKey: string; dlcKey: string }>): Promise<void> {
+    if (!deps.GuildSeenDlcModel) return;
+    const seen = new Set<string>();
+    const ops = entries
+      .filter(entry => entry && entry.gameKey && entry.dlcKey && !seen.has(`${entry.gameKey} ${entry.dlcKey}`) && seen.add(`${entry.gameKey} ${entry.dlcKey}`))
+      .map(entry => ({
+        updateOne: {
+          filter: { guildId, gameKey: entry.gameKey, dlcKey: entry.dlcKey },
+          update: { $setOnInsert: { guildId, gameKey: entry.gameKey, dlcKey: entry.dlcKey, seenAt: new Date() } },
+          upsert: true
+        }
+      }));
+    if (!ops.length) return;
+    await withMongoRetry(() => deps.GuildSeenDlcModel!.bulkWrite(ops, { ordered: false }), { label: "seedSeenDlcs" });
+  }
+
+  async function loadSeenDlcKeys(guildId: string, gameKey?: string): Promise<string[]> {
+    if (!deps.GuildSeenDlcModel) return [];
+    const filter: Record<string, unknown> = { guildId };
+    if (typeof gameKey === "string" && gameKey.length > 0) filter.gameKey = gameKey;
+    const docs = await withMongoRetry(
+      () => deps.GuildSeenDlcModel!.find(filter, { dlcKey: 1 }).lean(),
+      { label: "loadSeenDlcKeys" }
+    );
+    return docs.map(doc => String(doc.dlcKey || "")).filter(Boolean);
+  }
+
   async function setSeenHashVersion(guildId: string, field: "seenHashVersionUpdates" | "seenHashVersionDiscounts", version: number): Promise<MongoWriteResult> {
     return withMongoRetry(
       () => GuildModel.updateOne({ _id: guildId }, { $set: { [field]: version } }, OP_UPDATE_OPTS),
@@ -215,6 +271,9 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
     seedSeenDiscounts,
     loadSeenDiscountHashes,
     disableDiscountsForChannelError,
+    claimSeenDlc,
+    seedSeenDlcs,
+    loadSeenDlcKeys,
     setSeenHashVersion,
     rollbackTriggeredAlert
   };

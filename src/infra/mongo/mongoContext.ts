@@ -42,6 +42,7 @@ type MongoRuntimeContext = {
   UserComplaintModel: ReturnType<typeof attachModelsModule.buildFrom>["UserComplaintModel"];
   GuildSeenDiscountModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildSeenDiscountModel"];
   GuildSeenUpdateModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildSeenUpdateModel"];
+  GuildSeenDlcModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildSeenDlcModel"];
   GuildSeenYoutubeModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildSeenYoutubeModel"];
   NotificationOutboxModel: ReturnType<typeof attachModelsModule.buildFrom>["NotificationOutboxModel"];
   NotificationOutboxSentModel: ReturnType<typeof attachModelsModule.buildFrom>["NotificationOutboxSentModel"];
@@ -128,6 +129,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     UserComplaintModel: context.UserComplaintModel,
     GuildSeenDiscountModel: context.GuildSeenDiscountModel,
     GuildSeenUpdateModel: context.GuildSeenUpdateModel,
+    GuildSeenDlcModel: context.GuildSeenDlcModel,
     GuildSeenYoutubeModel: context.GuildSeenYoutubeModel,
     NotificationOutboxModel: context.NotificationOutboxModel,
     NotificationOutboxSentModel: context.NotificationOutboxSentModel,

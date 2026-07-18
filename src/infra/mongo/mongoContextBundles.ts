@@ -25,6 +25,7 @@ export type MongoRepositoriesBundle = Pick<
   | "GuildSeenDiscountModel"
   | "GuildSeenUpdateModel"
   | "GuildSeenYoutubeModel"
+  | "GuildSeenDlcModel"
   | "NotificationOutboxModel"
   | "NotificationOutboxSentModel"
   | "NotificationHistoryModel"
@@ -76,6 +77,7 @@ export function selectMongoRepositories(context: MongoRepositoriesBundle): Mongo
     GuildSeenDiscountModel: context.GuildSeenDiscountModel,
     GuildSeenUpdateModel: context.GuildSeenUpdateModel,
     GuildSeenYoutubeModel: context.GuildSeenYoutubeModel,
+    GuildSeenDlcModel: context.GuildSeenDlcModel,
     NotificationOutboxModel: context.NotificationOutboxModel,
     NotificationOutboxSentModel: context.NotificationOutboxSentModel,
     NotificationHistoryModel: context.NotificationHistoryModel,

@@ -22,7 +22,7 @@ type DisableUpdateSet = {
   discountsLastError?: DisableErrorState;
 };
 
-function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: string[]; seenUpdateInserted?: boolean; guildSubscribed?: boolean }) {
+function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: string[]; seenUpdateInserted?: boolean; guildSubscribed?: boolean; seenDlcInserted?: boolean; seenDlcKeys?: string[] }) {
   const calls: MongoCall[] = [];
   const existsCalls: unknown[] = [];
   let updateOneCallCount = 0;
@@ -34,6 +34,9 @@ function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: stri
   const seenUpdateUpserts: MongoCall[] = [];
   const seenUpdateDeletes: unknown[] = [];
   const seenUpdateBulk: Array<{ ops: unknown[]; opts?: unknown }> = [];
+  const seenDlcUpserts: MongoCall[] = [];
+  const seenDlcBulk: Array<{ ops: unknown[]; opts?: unknown }> = [];
+  const seenDlcFinds: unknown[] = [];
   const adminAlerts: Array<{ kind: string; title: string; body: unknown; guildId?: string }> = [];
 
   const GuildModel = {
@@ -92,6 +95,22 @@ function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: stri
     }
   };
 
+  const GuildSeenDlcModel = {
+    updateOne: async (filter: unknown, update: unknown, mongoOpts?: unknown) => {
+      seenDlcUpserts.push({ filter, update, opts: mongoOpts });
+      return { upsertedCount: opts?.seenDlcInserted === false ? 0 : 1 };
+    },
+    deleteOne: async () => ({ deletedCount: 1 }),
+    find: (filter: unknown, _projection?: unknown) => {
+      seenDlcFinds.push(filter);
+      return { lean: async () => (opts?.seenDlcKeys ?? []).map(dlcKey => ({ dlcKey })) };
+    },
+    bulkWrite: async (ops: unknown[], mongoOpts?: unknown) => {
+      seenDlcBulk.push({ ops, opts: mongoOpts });
+      return { upsertedCount: ops.length };
+    }
+  };
+
   const withMongoRetry = async <T>(fn: () => Promise<T>, options?: { label?: string; retries?: number }): Promise<T> => {
     retryAttempts.push(options?.retries);
     return fn();
@@ -101,6 +120,7 @@ function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: stri
     GuildModel: GuildModel as Parameters<typeof createSeenRepository>[0]["GuildModel"],
     GuildSeenDiscountModel: GuildSeenDiscountModel as Parameters<typeof createSeenRepository>[0]["GuildSeenDiscountModel"],
     GuildSeenUpdateModel: GuildSeenUpdateModel as Parameters<typeof createSeenRepository>[0]["GuildSeenUpdateModel"],
+    GuildSeenDlcModel: GuildSeenDlcModel as Parameters<typeof createSeenRepository>[0]["GuildSeenDlcModel"],
     withMongoRetry,
     SEEN_PER_GAME_LIMIT: 20,
     DEALS_HISTORY_LIMIT: 300,
@@ -110,8 +130,49 @@ function makeFakeDeps(opts?: { seenDiscountInserted?: boolean; seenHashes?: stri
     }
   });
 
-  return { repo, calls, existsCalls, retryAttempts, seenDiscountUpserts, seenDiscountDeletes, seenDiscountFinds, seenDiscountBulk, seenUpdateUpserts, seenUpdateDeletes, seenUpdateBulk, adminAlerts, count: () => updateOneCallCount };
+  return { repo, calls, existsCalls, retryAttempts, seenDiscountUpserts, seenDiscountDeletes, seenDiscountFinds, seenDiscountBulk, seenUpdateUpserts, seenUpdateDeletes, seenUpdateBulk, seenDlcUpserts, seenDlcBulk, seenDlcFinds, adminAlerts, count: () => updateOneCallCount };
 }
+
+test("claimSeenDlc: guard read (exists dlcSubscribed) + upsert atomic ca singura scriere in colectia dedicata (audit, #12)", async () => {
+  const { repo, existsCalls, seenDlcUpserts } = makeFakeDeps();
+  const result = await repo.claimSeenDlc("g1", "ch-dlc", "cs2", "dlc-key-1");
+  assert.equal(result.matchedCount, 1, "DLC nou => matchedCount 1");
+  assert.deepEqual(existsCalls[0], { _id: "g1", dlcSubscribed: true, dlcChannelId: "ch-dlc", dlcInitializing: { $ne: true } });
+  assert.equal(seenDlcUpserts.length, 1);
+  assert.deepEqual(seenDlcUpserts[0].filter, { guildId: "g1", gameKey: "cs2", dlcKey: "dlc-key-1" });
+});
+
+test("claimSeenDlc: DLC deja vazut (upsertedCount=0) => matchedCount 0; guild nesubscris nu face upsert (audit, #12)", async () => {
+  const seen = makeFakeDeps({ seenDlcInserted: false });
+  assert.equal((await seen.repo.claimSeenDlc("g1", "ch-dlc", "cs2", "dlc-key-1")).matchedCount, 0);
+
+  const unsub = makeFakeDeps({ guildSubscribed: false });
+  assert.equal((await unsub.repo.claimSeenDlc("g1", "ch-dlc", "cs2", "dlc-key-1")).matchedCount, 0);
+  assert.equal(unsub.seenDlcUpserts.length, 0, "guild nesubscris nu atinge colectia de DLC");
+});
+
+test("seedSeenDlcs face bulk upsert pentru baseline si deduplica intrarile; fara intrari valide nu atinge colectia (audit, #12)", async () => {
+  const { repo, seenDlcBulk } = makeFakeDeps();
+  await repo.seedSeenDlcs("g1", [
+    { gameKey: "cs2", dlcKey: "a" },
+    { gameKey: "cs2", dlcKey: "a" },
+    { gameKey: "dota", dlcKey: "b" },
+    { gameKey: "", dlcKey: "c" }
+  ]);
+  assert.equal(seenDlcBulk.length, 1);
+  assert.equal(seenDlcBulk[0].ops.length, 2, "intrarile duplicate si cele invalide sunt excluse");
+
+  const empty = makeFakeDeps();
+  await empty.repo.seedSeenDlcs("g1", [{ gameKey: "", dlcKey: "" }]);
+  assert.equal(empty.seenDlcBulk.length, 0, "fara intrari valide nu atinge colectia");
+});
+
+test("loadSeenDlcKeys intoarce cheile vazute din colectie, filtrand pe gameKey cand e dat (audit, #12)", async () => {
+  const { repo, seenDlcFinds } = makeFakeDeps({ seenDlcKeys: ["a", "b"] });
+  const keys = await repo.loadSeenDlcKeys("g1", "cs2");
+  assert.deepEqual(keys, ["a", "b"]);
+  assert.deepEqual(seenDlcFinds[0], { guildId: "g1", gameKey: "cs2" });
+});
 
 test("claimSeenUpdate: guard read (exists) pe documentul guild + upsert ca singura scriere in colectie", async () => {
   const { repo, calls, existsCalls, seenUpdateUpserts } = makeFakeDeps();
