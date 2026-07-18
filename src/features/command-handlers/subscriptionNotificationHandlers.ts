@@ -45,6 +45,7 @@ function buildSubscriptionCommandHandler(target: SubscriptionContext) {
     dealHash: target.dealHash,
     seedSeenUpdates: target.seedSeenUpdates,
     seedSeenDiscounts: target.seedSeenDiscounts,
+    seedBaselineDlc: target.seedBaselineDlc,
     DEALS_HISTORY_LIMIT: target.DEALS_HISTORY_LIMIT,
     OP_UPDATE_OPTS: target.OP_UPDATE_OPTS,
     setDealsCache: target.setDealsCache,

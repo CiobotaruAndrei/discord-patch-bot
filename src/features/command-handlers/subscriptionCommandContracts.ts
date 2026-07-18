@@ -40,7 +40,7 @@ export type SubscriptionInteractionDeps = {
   dealHash: (deal: DealInfo) => string;
   seedSeenUpdates: (guildId: string, entries: Array<{ gameKey: string; updateId: string }>) => Promise<void>;
   seedSeenDiscounts: (guildId: string, hashes: string[]) => Promise<void>;
-  seedBaselineDlc?: (guildId: string) => Promise<void>;
+  seedBaselineDlc?: (guildId: string, games: GameConfig[]) => Promise<void>;
   DEALS_HISTORY_LIMIT: number;
   OP_UPDATE_OPTS: Record<string, unknown>;
   setDealsCache: (currency: string, deals: DealInfo[]) => void;

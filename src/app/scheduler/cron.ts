@@ -55,6 +55,7 @@ interface CronCommands {
   setGlobalCacheTtl(ms: number): void;
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
   checkForDiscounts(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
+  checkForDlcs?(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
   checkForYouTube(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
   refreshPlayerCountSnapshots?(games: GameConfig[], shouldAbort: () => boolean, client?: DiscordClientLike): Promise<unknown>;
 }

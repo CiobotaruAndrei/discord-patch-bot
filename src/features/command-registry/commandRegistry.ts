@@ -25,6 +25,7 @@ interface CommandRegistryContext {
   setDealsCache?: (currency: unknown, data: DealInfo[]) => void;
   checkForUpdates?: (client: NotificationDiscordClient, games: GameConfig[], shouldAbort?: (() => boolean) | null) => Promise<void>;
   checkForDiscounts?: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
+  checkForDlcs?: (client: NotificationDiscordClient, games: GameConfig[], shouldAbort?: (() => boolean) | null) => Promise<void>;
   checkForYouTube?: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
   refreshPlayerCountSnapshots?: (games: GameConfig[], shouldAbort?: (() => boolean) | null, client?: NotificationDiscordClient | null) => Promise<{ refreshed: number; failed: number; milestones: number }>;
   drainOutbox?: (client: OutboxDiscordClient, shouldAbort?: () => boolean) => MaybePromise<DrainOutboxWorkerResult>;
@@ -197,6 +198,7 @@ function createCommandRegistry(
     setDealsCache: ctx.setDealsCache,
     checkForUpdates: ctx.checkForUpdates,
     checkForDiscounts: ctx.checkForDiscounts,
+    checkForDlcs: ctx.checkForDlcs,
     checkForYouTube: ctx.checkForYouTube,
     refreshPlayerCountSnapshots: ctx.refreshPlayerCountSnapshots,
     drainOutbox: ctx.drainOutbox,
