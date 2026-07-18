@@ -38,11 +38,23 @@ function buttons(id: string): unknown[] {
     { type: 2, style: 4, label: "Nu, refuz", custom_id: `bot-add:reject:${id}` }
   ] }];
 }
-function display(record: BotAddPermissionRecord): string {
-  const expiry = record.expiresAt ? `<t:${Math.floor(new Date(record.expiresAt).getTime() / 1000)}:R>` : "-";
-  const responded = record.respondedAt ? `<t:${Math.floor(new Date(record.respondedAt).getTime() / 1000)}:R>` : "-";
-  const used = record.usedAt ? `<t:${Math.floor(new Date(record.usedAt).getTime() / 1000)}:R>` : "-";
-  return `bot ${record.botId} | solicitant <@${record.requesterId}> | status ${record.status} | raspuns ${responded} | expira ${expiry} | folosit ${used}`;
+function relTime(value: Date | string | null | undefined): string {
+  return value ? `<t:${Math.floor(new Date(value).getTime() / 1000)}:R>` : "-";
+}
+export function display(record: BotAddPermissionRecord): string {
+  const respondedBy = record.ownerId ? ` de <@${record.ownerId}>` : "";
+  return `#${record.requestId} | bot ${record.botId} | solicitant <@${record.requesterId}> | status ${record.status} | cerut ${relTime(record.requestedAt)} | raspuns ${relTime(record.respondedAt)}${respondedBy} | expira ${relTime(record.expiresAt)} | folosit ${relTime(record.usedAt)}`;
+}
+function isActiveRecord(record: BotAddPermissionRecord, now: number): boolean {
+  return (record.status === "pending" || record.status === "approved")
+    && Boolean(record.expiresAt && new Date(record.expiresAt).getTime() > now);
+}
+export function orderBotAddRecords(records: readonly BotAddPermissionRecord[], now: number): BotAddPermissionRecord[] {
+  return [...records].sort((left, right) => {
+    const activeDelta = (isActiveRecord(right, now) ? 1 : 0) - (isActiveRecord(left, now) ? 1 : 0);
+    if (activeDelta !== 0) return activeDelta;
+    return new Date(right.requestedAt).getTime() - new Date(left.requestedAt).getTime();
+  });
 }
 
 function isBotAddInteraction(interaction: Interaction): boolean {
@@ -51,7 +63,7 @@ function isBotAddInteraction(interaction: Interaction): boolean {
   return interaction.commandName === "bot-add-request" || interaction.commandName === "bot-add-permissions";
 }
 
-function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
+export function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
   async function handle(interaction: Interaction): Promise<unknown> {
     const guild = interaction.guild;
     if (!guild || !interaction.user?.id) return interaction.reply({ content: "Comanda este disponibila doar pe server.", ephemeral: true });
@@ -60,13 +72,19 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
       if (!match) return undefined;
       if (!owner(interaction)) return interaction.reply({ content: "Doar proprietarul serverului poate aproba solicitarile.", ephemeral: true });
       const record = await botAddRepository.resolveBotAddRequest(deps.GuildModel, guild.id, match[2], match[1] === "approve" ? "approved" : "rejected", interaction.user.id);
-      const content = record ? `${match[1] === "approve" ? "Aprobata" : "Respinsa"}: ${display(record)}` : "Solicitarea nu mai este activa sau a expirat.";
-      return interaction.update ? interaction.update({ content, components: [] }) : interaction.reply({ content, ephemeral: true });
+      if (!record) return interaction.update ? interaction.update({ content: "Solicitarea nu mai este activa sau a expirat.", components: [] }) : interaction.reply({ content: "Solicitarea nu mai este activa sau a expirat.", ephemeral: true });
+      const decisionWord = match[1] === "approve" ? "Aprobata" : "Respinsa";
+      const requesterNotice = match[1] === "approve"
+        ? `solicitarea ta de adaugare bot a fost aprobata; ai o fereastra one-time pentru a adauga botul.`
+        : `solicitarea ta de adaugare bot a fost respinsa de owner.`;
+      const content = `${decisionWord}: ${display(record)}\n<@${record.requesterId}> ${requesterNotice}`;
+      const allowedMentions = { parse: [], users: [record.requesterId] };
+      return interaction.update ? interaction.update({ content, components: [], allowedMentions }) : interaction.reply({ content, ephemeral: true, allowedMentions });
     }
     const command = interaction.commandName;
     if (command === "bot-add-permissions") {
       const records = (await botAddRepository.getBotAddState(deps.GuildModel, guild.id)).botAddPermissions;
-      const ordered = [...records].sort((left, right) => new Date(right.requestedAt).getTime() - new Date(left.requestedAt).getTime());
+      const ordered = orderBotAddRecords(records, Date.now());
       return sendTextPages(interaction, ordered.map(display), "Nu exista solicitari sau permisiuni bot-add.", true);
     }
     const settings = await deps.getGuildSettings(guild.id).catch(() => null);
