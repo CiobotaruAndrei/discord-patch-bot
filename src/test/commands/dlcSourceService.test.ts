@@ -2,7 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as cheerio from "cheerio";
 
-import { fetchGameDlcs, normalizeDlcKey } from "../../features/command-handlers/dlcSourceService.js";
+import { fetchGameDlcs, normalizeDlcKey, currencyToSteamCountry } from "../../features/command-handlers/dlcSourceService.js";
+
+test("currencyToSteamCountry: valuta -> cod de tara Steam; cod de tara pastrat; necunoscut -> us (audit, #2)", () => {
+  assert.equal(currencyToSteamCountry("EUR"), "de");
+  assert.equal(currencyToSteamCountry("RON"), "ro");
+  assert.equal(currencyToSteamCountry("usd"), "us");
+  assert.equal(currencyToSteamCountry("gb"), "gb");
+  assert.equal(currencyToSteamCountry("XYZ"), "us");
+  assert.equal(currencyToSteamCountry(""), "us");
+  assert.equal(currencyToSteamCountry(null), "us");
+});
 
 function deps(html: string, opts?: { throwOnFetch?: boolean }) {
   const calls: string[] = [];
