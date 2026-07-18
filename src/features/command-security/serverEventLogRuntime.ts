@@ -23,6 +23,14 @@ interface AuditGuild {
 }
 
 type GuildRef = { guild?: AuditGuild | null } | null | undefined;
+type TimeoutMemberRef = { user?: EventUser; id?: string | null; communicationDisabledUntil?: Date | string | number | null } & { guild?: AuditGuild | null } | null | undefined;
+
+function timeoutUntilMs(member: TimeoutMemberRef): number {
+  const value = member?.communicationDisabledUntil;
+  if (value === null || value === undefined) return 0;
+  const time = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
 
 interface ModeratedTarget {
   action: "server-ban-added" | "server-member-kicked";
@@ -38,6 +46,7 @@ export interface ServerEventLogDeps {
   sleep?: (milliseconds: number) => Promise<void>;
   auditRetryDelaysMs?: readonly number[];
   memberRemoveDelayMs?: number;
+  observeBotAction?: (guildId: string, actorId: string, auditEntryId: string, kind: string, at: Date) => Promise<unknown>;
 }
 
 function labelResource(resource: NamedResource): string {
@@ -131,6 +140,13 @@ export function createServerEventLogRuntime(deps: ServerEventLogDeps) {
     } catch (error) {
       deps.logger?.("ERROR", "SERVER_EVENT_LOG", `Nu am putut inregistra evenimentul ${action}`, error);
     }
+    if (deps.observeBotAction && actorId && auditId) {
+      try {
+        await deps.observeBotAction(id, actorId, String(auditId), action, new Date(now()));
+      } catch (error) {
+        deps.logger?.("WARN", "SERVER_EVENT_LOG", `Nu am putut corela evenimentul ${action} cu profilul botului monitorizat`, error);
+      }
+    }
   }
 
   async function recordResourceEvent(source: NamedResource & GuildRef, type: AuditLogEvent, action: string, resourceKind: string): Promise<void> {
@@ -181,7 +197,21 @@ export function createServerEventLogRuntime(deps: ServerEventLogDeps) {
     await record(id, "server-member-left", "", affectedId, `actor=necunoscut; tinta=${labelUser(member.user)}`);
   }
 
+  async function handleGuildMemberTimeout(previous: TimeoutMemberRef, next: TimeoutMemberRef): Promise<void> {
+    const id = guildId(next);
+    const affectedId = String(next?.user?.id ?? next?.id ?? "");
+    if (!id || !affectedId) return;
+    const before = timeoutUntilMs(previous);
+    const after = timeoutUntilMs(next);
+    if (!(after > now()) || after <= before) return;
+    const audit = await findAuditEntry(next, AuditLogEvent.MemberUpdate, affectedId);
+    if (!audit) return;
+    const actorId = String(audit.executor?.id ?? "");
+    await record(id, "server-member-timeout", actorId, affectedId, `actor=${labelUser(audit.executor)}; tinta=${labelUser(next?.user)}; pana la ${new Date(after).toISOString()}`, audit.id);
+  }
+
   return Object.freeze({
+    handleGuildMemberTimeout,
     handleChannelCreate: (channel: NamedResource & GuildRef) =>
       recordResourceEvent(channel, AuditLogEvent.ChannelCreate, "server-channel-created", "channel"),
     handleChannelDelete: (channel: NamedResource & GuildRef) =>
