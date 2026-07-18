@@ -247,3 +247,42 @@ test("/start bot-add-protection porneste cand botul are toate permisiunile si po
 
   assert.deepEqual(writes[0], { $set: { botAddProtectionEnabled: true } });
 });
+
+test("/stop bot-add-protection anuleaza solicitarile/aprobarile active neexpirate -> cancelled si raporteaza numarul (audit, #28)", async () => {
+  const now = Date.now();
+  const updates: Array<{ update: Record<string, unknown>; options?: Record<string, unknown> }> = [];
+  const responses: string[] = [];
+  const handler = securityInteractionHandler.buildCommandHandler({
+    GuildModel: { updateOne: async (_filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>) => { updates.push({ update, options }); return { modifiedCount: 1 }; } },
+    getGuildSettings: async () => ({
+      botAddProtectionEnabled: true,
+      botAddAlertChannelId: "security",
+      botAddPermissions: [
+        { requestId: "r1", botId: "b1", requesterId: "u1", status: "pending", expiresAt: new Date(now + 60_000) },
+        { requestId: "r2", botId: "b2", requesterId: "u2", status: "approved", expiresAt: new Date(now + 60_000) },
+        { requestId: "r3", botId: "b3", requesterId: "u3", status: "used", usedAt: new Date(now) },
+        { requestId: "r4", botId: "b4", requesterId: "u4", status: "approved", expiresAt: new Date(now - 60_000) }
+      ]
+    }),
+    safeDefer: async () => undefined,
+    safeEdit: async (_interaction, payload: unknown) => { responses.push((payload as { content?: string }).content ?? ""); return payload; },
+    checkChannelPermissions: async () => ({ viewChannel: true, sendMessages: true, embedLinks: true }),
+    formatUserError: (_err, fallback) => fallback
+  });
+  const interaction = {
+    commandName: "stop",
+    guild: { id: "guild-1" },
+    options: { getSubcommand: () => "bot-add-protection", getInteger: () => null, getString: () => null, getChannel: () => null },
+    isChatInputCommand: () => true
+  };
+
+  await handler.handle(interaction, []);
+
+  assert.deepEqual(updates[0].update, { $set: { botAddProtectionEnabled: false } }, "intai dezactiveaza protectia");
+  const cancelSet = (updates[1].update as { $set: Record<string, unknown> }).$set;
+  assert.equal(cancelSet["botAddPermissions.$[entry].status"], "cancelled", "aprobarile/solicitarile active devin cancelled");
+  const arrayFilters = (updates[1].options as { arrayFilters: Array<Record<string, unknown>> }).arrayFilters;
+  assert.deepEqual(arrayFilters[0]["entry.status"], { $in: ["pending", "approved"] });
+  assert.ok((arrayFilters[0]["entry.expiresAt"] as { $gt?: unknown }).$gt instanceof Date, "filtreaza doar aprobarile neexpirate prin $gt: now");
+  assert.match(responses[0], /active anulate: 2/, "doar cele 2 neexpirate (pending + approved) sunt raportate, nu cele used/expirate");
+});
