@@ -28,6 +28,7 @@ type SecurityChannel = {
     cache?: { get(targetId: string): { allow?: { has(permission: string): boolean }; deny?: { has(permission: string): boolean } } | undefined };
     edit(target: object, permissions: Record<string, boolean | null>): Promise<unknown>;
   };
+  permissionsFor?: (member: object) => { has(flag: bigint): boolean } | null | undefined;
   bulkDelete?: (amount: number, filterOld?: boolean) => Promise<unknown>;
 };
 
@@ -103,6 +104,16 @@ const START_STOP_TOGGLE_FIELDS: Record<string, { channel: ProtectionChannelField
   "threat-protection": { channel: "threatAlertChannelId", enabled: "threatProtectionEnabled" },
   "bot-add-protection": { channel: "botAddAlertChannelId", enabled: "botAddProtectionEnabled" }
 };
+
+function botChannelPermissions(channel: SecurityChannel, guild: SecurityInteraction["guild"]): { has(flag: bigint): boolean } | null {
+  const me = guild?.members?.me;
+  if (!me || typeof channel.permissionsFor !== "function") return null;
+  return channel.permissionsFor(me) ?? null;
+}
+
+function missingChannelPermissions(perms: { has(flag: bigint): boolean }, required: Array<{ flag: bigint; label: string }>): string[] {
+  return required.filter(entry => perms.has(entry.flag) !== true).map(entry => entry.label);
+}
 
 function botAddProtectionReadiness(interaction: SecurityInteraction): string[] {
   const me = interaction.guild?.members?.me;
@@ -243,6 +254,14 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
       const channel = interaction.options.getChannel("canal", false) ?? interaction.options.getChannel("channel", true);
       const everyone = guild?.roles?.everyone;
       if (!channel?.id || !channel.permissionOverwrites?.edit || !everyone) return respond(interaction, "Eroare: canalul selectat nu permite modificarea permisiunilor.");
+      const lockPerms = botChannelPermissions(channel, guild);
+      if (lockPerms) {
+        const missing = missingChannelPermissions(lockPerms, [
+          { flag: PermissionFlagsBits.ViewChannel, label: "View Channel" },
+          { flag: PermissionFlagsBits.ManageRoles, label: "Manage Roles (Manage Permissions)" }
+        ]);
+        if (missing.length > 0) return respond(interaction, `Eroare: botul nu are permisiunile efective necesare in acel canal pentru blocare/deblocare: ${missing.join(", ")}. Acorda-le si reincearca.`);
+      }
       const currentSettings = await target.getGuildSettings(guildId).catch(() => null);
       const isLocked = currentSettings?.lockedChannelIds?.includes(channel.id) === true;
       if (command === "unlock-channel" && !isLocked) return respond(interaction, "Eroare: canalul nu este blocat de bot.");
@@ -296,6 +315,15 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
       if (amount < 1 || amount > 100) return respond(interaction, "Eroare: numarul de mesaje trebuie sa fie intre 1 si 100.");
       const purgeChannel = interaction.channel;
       if (!channelBulkDelete(purgeChannel)) return respond(interaction, "Eroare: canalul curent nu permite stergerea mesajelor.");
+      const purgePerms = botChannelPermissions(purgeChannel, guild);
+      if (purgePerms) {
+        const missing = missingChannelPermissions(purgePerms, [
+          { flag: PermissionFlagsBits.ViewChannel, label: "View Channel" },
+          { flag: PermissionFlagsBits.ManageMessages, label: "Manage Messages" },
+          { flag: PermissionFlagsBits.ReadMessageHistory, label: "Read Message History" }
+        ]);
+        if (missing.length > 0) return respond(interaction, `Eroare: botul nu are permisiunile efective necesare in acest canal pentru stergerea in masa: ${missing.join(", ")}. Acorda-le si reincearca.`);
+      }
       try {
         const result = await purgeChannel.bulkDelete(amount, true);
         const deleted = resultSize(result);

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { PermissionFlagsBits } from "discord.js";
 
 import securityInteractionHandler from "../../features/command-handlers/securityInteractionHandler.js";
 
@@ -285,4 +286,67 @@ test("/stop bot-add-protection anuleaza solicitarile/aprobarile active neexpirat
   assert.deepEqual(arrayFilters[0]["entry.status"], { $in: ["pending", "approved"] });
   assert.ok((arrayFilters[0]["entry.expiresAt"] as { $gt?: unknown }).$gt instanceof Date, "filtreaza doar aprobarile neexpirate prin $gt: now");
   assert.match(responses[0], /active anulate: 2/, "doar cele 2 neexpirate (pending + approved) sunt raportate, nu cele used/expirate");
+});
+
+test("/lock-channel refuza cand botului ii lipsesc permisiunile efective in canal (View Channel / Manage Roles) inainte de a modifica ceva (audit, #18)", async () => {
+  const edits: Array<boolean | null> = [];
+  const responses: Array<{ content?: string }> = [];
+  const channel = {
+    id: "channel-1",
+    permissionOverwrites: {
+      cache: { get: () => ({ allow: { has: () => false }, deny: { has: () => false } }) },
+      edit: async (_target: object, permissions: Record<string, boolean | null>) => { edits.push(permissions.SendMessages); }
+    },
+    permissionsFor: () => ({ has: (flag: bigint) => flag === PermissionFlagsBits.ViewChannel })
+  };
+  const handler = securityInteractionHandler.buildCommandHandler({
+    GuildModel: { updateOne: async () => ({ modifiedCount: 1 }) },
+    getGuildSettings: async () => ({ lockedChannelIds: [], lockedChannelPermissions: [] }),
+    safeDefer: async () => undefined,
+    safeEdit: async (_interaction, payload: unknown) => { responses.push(payload as { content?: string }); return payload; },
+    checkChannelPermissions: async () => null,
+    formatUserError: (_err, fallback) => fallback
+  });
+  const interaction = {
+    commandName: "lock-channel",
+    guild: { id: "guild-1", roles: { everyone: { id: "everyone" } }, members: { me: {}, fetch: async () => ({ values: () => [][Symbol.iterator]() }) } },
+    user: { id: "admin-1" },
+    options: { getSubcommand: () => "", getInteger: () => null, getString: () => "mentenanta", getChannel: () => channel, getAttachment: () => null },
+    isChatInputCommand: () => true
+  };
+
+  await handler.handle(interaction, []);
+
+  assert.equal(edits.length, 0, "nu se modifica nicio permisiune cand botul nu are dreptul efectiv");
+  assert.match(responses[0].content ?? "", /Manage Roles/);
+  assert.doesNotMatch(responses[0].content ?? "", /View Channel/, "botul ARE View Channel, deci nu apare in lipsa");
+});
+
+test("/purge refuza cand botului ii lipsesc permisiunile efective in canal (Manage Messages / Read Message History) inainte de bulkDelete (audit, #18)", async () => {
+  let bulkCalls = 0;
+  const responses: Array<{ content?: string }> = [];
+  const handler = securityInteractionHandler.buildCommandHandler({
+    GuildModel: { updateOne: async () => ({ modifiedCount: 1 }) },
+    getGuildSettings: async () => null,
+    safeDefer: async () => undefined,
+    safeEdit: async (_interaction, payload: unknown) => { responses.push(payload as { content?: string }); return payload; },
+    checkChannelPermissions: async () => null,
+    formatUserError: (_err, fallback) => fallback
+  });
+  const interaction = {
+    commandName: "purge-amount",
+    guild: { id: "guild-1", members: { me: {}, fetch: async () => ({ values: () => [][Symbol.iterator]() }) } },
+    channel: {
+      bulkDelete: async () => { bulkCalls++; return new Map(); },
+      permissionsFor: () => ({ has: (flag: bigint) => flag === PermissionFlagsBits.ViewChannel })
+    },
+    options: { getSubcommand: () => "", getInteger: () => 5, getString: () => null, getChannel: () => null },
+    isChatInputCommand: () => true
+  };
+
+  await handler.handle(interaction, []);
+
+  assert.equal(bulkCalls, 0, "bulkDelete nu e apelat cand lipsesc permisiunile efective");
+  assert.match(responses[0].content ?? "", /Manage Messages/);
+  assert.match(responses[0].content ?? "", /Read Message History/);
 });
