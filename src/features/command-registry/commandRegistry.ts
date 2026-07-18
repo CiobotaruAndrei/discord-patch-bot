@@ -26,8 +26,10 @@ interface CommandRegistryContext {
   checkForUpdates?: (client: NotificationDiscordClient, games: GameConfig[], shouldAbort?: (() => boolean) | null) => Promise<void>;
   checkForDiscounts?: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
   checkForDlcs?: (client: NotificationDiscordClient, games: GameConfig[], shouldAbort?: (() => boolean) | null) => Promise<void>;
+  checkForFutureReleases?: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
   checkForYouTube?: (client: NotificationDiscordClient, shouldAbort?: (() => boolean) | null) => Promise<void>;
   refreshPlayerCountSnapshots?: (games: GameConfig[], shouldAbort?: (() => boolean) | null, client?: NotificationDiscordClient | null) => Promise<{ refreshed: number; failed: number; milestones: number }>;
+  refreshReviewTrendSnapshots?: (games: GameConfig[], shouldAbort?: (() => boolean) | null) => Promise<{ refreshed: number; failed: number }>;
   drainOutbox?: (client: OutboxDiscordClient, shouldAbort?: () => boolean) => MaybePromise<DrainOutboxWorkerResult>;
   buildOptimizedGameList?: <G extends { key: string }>(allGames: G[], subscribedGuilds: readonly GuildGameFilter[]) => G[];
   registerSlashCommands?: (token: string, clientId: string) => Promise<void>;
@@ -49,8 +51,10 @@ type RequiredCommandRegistryKey =
   | "setDealsCache"
   | "checkForUpdates"
   | "checkForDiscounts"
+  | "checkForFutureReleases"
   | "checkForYouTube"
   | "refreshPlayerCountSnapshots"
+  | "refreshReviewTrendSnapshots"
   | "drainOutbox"
   | "buildOptimizedGameList"
   | "registerSlashCommands"
@@ -73,6 +77,8 @@ import attachCommandPresentation from "../command-presentation/commandPresentati
 import attachNotifications from "../notifications/index.js";
 import attachPlayerCountSnapshots from "../player-count/playerCountSnapshotService.js";
 import attachCachedSteamPlayerCount from "../player-count/cachedSteamPlayerCount.js";
+import { createReviewTrendSnapshotService } from "../game-info/reviewTrendSnapshotService.js";
+import { createDealPriceHistoryService } from "../game-info/dealPriceHistoryService.js";
 import attachFeedbackRepository from "../feedback/feedbackRepository.js";
 import { createReportRepository } from "../feedback/reportRepository.js";
 import { mergeGuildGameAliases } from "../guild-config/gameAliasService.js";
@@ -95,12 +101,25 @@ function createAppServices(
   overrides: Partial<CommandRuntimeBootContext> = {}
 ) {
   const dependencies = createCommandRuntimeDependencies(input);
-  const runtime = {
+  const baseRuntime = {
     ...dependencies.discord,
     ...dependencies.mongo,
     ...dependencies.sources,
     ...dependencies.platform,
     ...overrides
+  };
+  const dealPrices = createDealPriceHistoryService(baseRuntime);
+  const runtime = {
+    ...baseRuntime,
+    ...dealPrices,
+    fetchDeals: async (options: { currency?: string; fromCron?: boolean }) => {
+      const deals = await baseRuntime.fetchDeals(options);
+      const currency = String(options.currency || baseRuntime.DEFAULT_CURRENCY);
+      await dealPrices.recordDealPriceSnapshots(deals, currency).catch(error => {
+        baseRuntime.logger("WARN", "DEAL_PRICE_HISTORY", "Snapshot-urile de pret nu au putut fi salvate", error);
+      });
+      return deals;
+    }
   };
   const cache = { ...runtime, ...attachCommandCache.createCommandCache(runtime) };
   const filters = {
@@ -118,10 +137,14 @@ function createAppServices(
     ...notifications,
     ...attachPlayerCountSnapshots.createPlayerCountSnapshotService({ ...notifications, fetchSteamCurrentPlayers: cachedFetchSteamCurrentPlayers })
   };
-  const feedbackRepository = attachFeedbackRepository.createFeedbackRepository(playerCounts);
-  const reportRepository = createReportRepository(playerCounts);
-  const feedback = {
+  const reviewTrends = {
     ...playerCounts,
+    ...createReviewTrendSnapshotService(playerCounts)
+  };
+  const feedbackRepository = attachFeedbackRepository.createFeedbackRepository(reviewTrends);
+  const reportRepository = createReportRepository(reviewTrends);
+  const feedback = {
+    ...reviewTrends,
     recordFeedbackReport: feedbackRepository.recordReport,
     getRecentFeedbackReports: feedbackRepository.getRecent,
     resolveFeedbackReport: feedbackRepository.resolveReport,
@@ -199,8 +222,10 @@ function createCommandRegistry(
     checkForUpdates: ctx.checkForUpdates,
     checkForDiscounts: ctx.checkForDiscounts,
     checkForDlcs: ctx.checkForDlcs,
+    checkForFutureReleases: ctx.checkForFutureReleases,
     checkForYouTube: ctx.checkForYouTube,
     refreshPlayerCountSnapshots: ctx.refreshPlayerCountSnapshots,
+    refreshReviewTrendSnapshots: ctx.refreshReviewTrendSnapshots,
     drainOutbox: ctx.drainOutbox,
     buildOptimizedGameList: ctx.buildOptimizedGameList,
     registerSlashCommands: ctx.registerSlashCommands,

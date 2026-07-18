@@ -58,6 +58,7 @@ import { createModerationLifecycleRuntime } from "../features/moderation/moderat
 import { createServerEventLogRuntime } from "../features/command-security/serverEventLogRuntime.js";
 import { createModerationCleanupTask } from "./scheduler/moderationCleanupTask.js";
 import { roleRunsSchedulers } from "../shared/botRole.js";
+import { createNewAccountAlertDelivery } from "../features/command-security/newAccountAlertDedup.js";
 
 function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, schedulers: Schedulers | null): AppRuntime {
   const { createHttpServer, registerDiscordEvents, registerMongoEvents, createShutdownController, errorMessage, errorDetail, mongoose, crypto, mongo } = deps;
@@ -65,6 +66,9 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
 
   const { client, metrics, lifecycle, rateLimiter } = services;
   const reputationScan = createReputationEngine({ env, httpReq: deps.scrapers.httpReq, logger }) ?? undefined;
+  const newAccountDelivery = mongo.NewAccountAlertDeliveryModel
+    ? createNewAccountAlertDelivery(mongo.NewAccountAlertDeliveryModel, () => crypto.randomBytes(16).toString("hex"))
+    : null;
   metrics.threatReputationEngineConfigured = reputationScan ? 1 : 0;
   const securityRuntime = mongo.GuildModel && mongo.GuildAuditLogModel
     ? createSecurityRuntime({
@@ -74,25 +78,30 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
       GuildAuditLogModel: mongo.GuildAuditLogModel,
       httpReq: deps.scrapers.httpReq,
       reputationScan,
+      claimNewAccountAlert: newAccountDelivery?.claim,
       metrics
     })
     : undefined;
-  const permissionDelegationRuntime = mongo.GuildAuditLogModel
+  const permissionDelegationRuntime = mongo.GuildAuditLogModel && mongo.GuildModel
     ? createPermissionDelegationRuntime({
+      GuildModel: mongo.GuildModel,
       GuildAuditLogModel: mongo.GuildAuditLogModel,
       adminAlert,
       metrics
     })
     : undefined;
   const moderationLifecycleRuntime = mongo.GuildModel
-    ? createModerationLifecycleRuntime(mongo.GuildModel)
+    ? createModerationLifecycleRuntime(mongo.GuildModel, logger)
     : undefined;
   const serverEventLogRuntime = mongo.GuildAuditLogModel
     ? createServerEventLogRuntime({ GuildAuditLogModel: mongo.GuildAuditLogModel, logger })
     : undefined;
   const moderationCleanup = schedulers && moderationLifecycleRuntime
     ? createModerationCleanupTask({
-      cleanupExpired: moderationLifecycleRuntime.cleanupExpired,
+      cleanupExpired: async () => {
+        await moderationLifecycleRuntime.cleanupExpired();
+        await moderationLifecycleRuntime.reconcileClient(client);
+      },
       metrics, logger, adminAlert, errorMessage, errorDetail
     })
     : null;
@@ -136,6 +145,7 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
   });
   async function start(): Promise<void> {
     await bootStart();
+    await moderationLifecycleRuntime?.reconcileClient(client);
     moderationCleanup?.start();
   }
 

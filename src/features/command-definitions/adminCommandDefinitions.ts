@@ -15,7 +15,9 @@ export function buildAdminCommandDefinitions({ SlashCommandBuilder, PermissionsB
         .addStringOption(option => option.setName("name").setDescription("Numele backup-ului").setRequired(true).setMaxLength(64)))
       .addSubcommand(subcommand => subcommand.setName("suggestion").setDescription("Propune o comanda noua")
         .addStringOption(option => option.setName("name").setDescription("Numele comenzii propuse").setRequired(true).setMaxLength(80))
-        .addStringOption(option => option.setName("description").setDescription("Ce ar trebui sa faca aceasta comanda").setRequired(true).setMaxLength(500))),
+        .addStringOption(option => option.setName("description").setDescription("Ce ar trebui sa faca aceasta comanda").setRequired(true).setMaxLength(500)))
+      .addSubcommand(subcommand => subcommand.setName("watchlist-game").setDescription("Propune un joc nou pentru bot")
+        .addStringOption(option => option.setName("game").setDescription("Numele jocului propus").setRequired(true).setMaxLength(100))),
     new SlashCommandBuilder()
       .setName("remove")
       .setDescription("Scoate ceva (alerta de pret, joc din watchlist)")
@@ -29,7 +31,11 @@ export function buildAdminCommandDefinitions({ SlashCommandBuilder, PermissionsB
       .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
       .addSubcommand(subcommand => subcommand.setName("admin-command-access").setDescription("Sterge regula de rol pentru comenzile admin")
         .addBooleanOption(option => option.setName("confirm").setDescription("Confirma revenirea la accesul implicit").setRequired(true))
-        .addStringOption(option => option.setName("command").setDescription("Comanda/pachetul pentru care stergi regula (gol = global)").setRequired(false).setAutocomplete(true))),
+        .addStringOption(option => option.setName("command").setDescription("Comanda/pachetul pentru care stergi regula (gol = global)").setRequired(false).setAutocomplete(true)))
+      .addSubcommand(subcommand => subcommand.setName("suggest-command").setDescription("Sterge o comanda sugerata")
+        .addStringOption(option => option.setName("name").setDescription("Numele comenzii sugerate").setRequired(true).setMaxLength(80)))
+      .addSubcommand(subcommand => subcommand.setName("watchlist-game").setDescription("Sterge un joc propus")
+        .addStringOption(option => option.setName("game").setDescription("Numele jocului propus").setRequired(true).setMaxLength(100))),
     new SlashCommandBuilder()
       .setName("config")
       .setDescription("Afiseaza configuratia curenta a serverului (admin)")
@@ -38,6 +44,8 @@ export function buildAdminCommandDefinitions({ SlashCommandBuilder, PermissionsB
       .setName("backup")
       .setDescription("Gestioneaza backup-uri ale configuratiei botului pentru server (admin)")
       .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
+      .addSubcommand(subcommand => subcommand.setName("add").setDescription("Salveaza configuratia curenta intr-un backup")
+        .addStringOption(option => option.setName("name").setDescription("Numele backup-ului").setRequired(true).setMaxLength(64)))
       .addSubcommand(subcommand => subcommand.setName("list").setDescription("Listeaza backup-urile salvate"))
       .addSubcommand(subcommand => subcommand.setName("preview").setDescription("Arata ce setari, canale si roluri restaureaza backup-ul")
         .addStringOption(option => option.setName("name").setDescription("Numele backup-ului").setRequired(true).setMaxLength(64)))

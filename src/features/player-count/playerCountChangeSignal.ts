@@ -22,10 +22,11 @@ export function evaluatePlayerCountChange(
   }
   const absoluteChange = current - previous;
   const direction = absoluteChange > 0 ? "up" : absoluteChange < 0 ? "down" : "flat";
-  const percentChange = previous === 0
+  const rawPercentChange = previous === 0
     ? (current > 0 ? 100 : 0)
-    : Math.round((absoluteChange / previous) * 1000) / 10;
-  const significant = Math.abs(absoluteChange) >= minAbsolute && Math.abs(percentChange) >= minPercent;
+    : (absoluteChange / previous) * 100;
+  const percentChange = Math.round(rawPercentChange * 10) / 10;
+  const significant = Math.abs(absoluteChange) >= minAbsolute && Math.abs(rawPercentChange) >= minPercent;
   return { absoluteChange, percentChange, direction, significant };
 }
 

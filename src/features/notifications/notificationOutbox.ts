@@ -19,6 +19,7 @@ import { createOutboxDeliveryFinalizer } from "./outboxDeliveryFinalizer.js";
 export type {
   DeliverResult,
   DiscountOutboxJob,
+  FutureReleaseOutboxJob,
   DrainOutboxOptions,
   DrainOutboxResult,
   OutboxHistoryEntry,

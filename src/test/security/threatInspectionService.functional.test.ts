@@ -4,6 +4,21 @@ import assert from "node:assert/strict";
 import { createThreatInspectionService, reputationEngineConfigured } from "../../features/command-security/threatInspectionService.js";
 import { isRecentAccount, recentAccountCutoff } from "../../features/command-security/recentAccountPolicy.js";
 
+function storedZip(entries: Array<{ name: string; data: Buffer; declaredSize?: number }>): Buffer {
+  return Buffer.concat(entries.map(({ name, data, declaredSize }) => {
+    const encodedName = Buffer.from(name);
+    const header = Buffer.alloc(30);
+    header.writeUInt32LE(0x04034b50, 0);
+    header.writeUInt16LE(20, 4);
+    header.writeUInt16LE(0, 6);
+    header.writeUInt16LE(0, 8);
+    header.writeUInt32LE(data.length, 18);
+    header.writeUInt32LE(declaredSize ?? data.length, 22);
+    header.writeUInt16LE(encodedName.length, 26);
+    return Buffer.concat([header, encodedName, data]);
+  }));
+}
+
 test("politica de cont nou foloseste exact trei luni calendaristice", () => {
   const now = new Date("2026-07-31T12:00:00.000Z");
   assert.equal(recentAccountCutoff(now).toISOString(), "2026-04-30T12:00:00.000Z");
@@ -195,6 +210,54 @@ test("arhiva criptata ramane unknown/uncertain, NU dangerous automat (audit, #20
   assert.match(result.reason, /arhiva criptata/);
 });
 
+test("ZIP curat este inspectat pasiv si ramane neconfirmat pana la verdictul extern", async () => {
+  const zip = storedZip([{ name: "document.txt", data: Buffer.from("continut curat") }]);
+  const inspector = createThreatInspectionService({
+    httpReq: async () => ({ data: zip, headers: { "content-type": "application/zip" }, status: 200 })
+  });
+  const result = await inspector.inspectMessage("https://example.test/clean.zip", []);
+  assert.equal(result.verdict, "uncertain");
+  assert.match(result.reason, /inspectata pasiv fara indicatori/);
+});
+
+test("ZIP Office cu macro si ZIP imbricat cu executabil expun indicatorii fara verdict malware euristic", async () => {
+  const nested = storedZip([{ name: "payload.exe", data: Buffer.from([0x4d, 0x5a, 0x90, 0x00]) }]);
+  const zip = storedZip([
+    { name: "word/vbaProject.bin", data: Buffer.from("macro") },
+    { name: "nested.zip", data: nested }
+  ]);
+  const inspector = createThreatInspectionService({
+    httpReq: async () => ({ data: zip, headers: { "content-type": "application/zip" }, status: 200 })
+  });
+  const result = await inspector.inspectMessage("https://example.test/nested.zip", []);
+  assert.equal(result.verdict, "risky-file");
+  assert.match(result.reason, /macro sau script Office intern/);
+  assert.match(result.reason, /executabil/);
+  assert.notEqual(result.verdict, "confirmed");
+});
+
+test("ZIP cu raport de compresie declarat peste limita se opreste sigur si ramane uncertain", async () => {
+  const zip = storedZip([{ name: "huge.txt", data: Buffer.from("x"), declaredSize: 10_000_000 }]);
+  const inspector = createThreatInspectionService({
+    httpReq: async () => ({ data: zip, headers: { "content-type": "application/zip" }, status: 200 })
+  });
+  const result = await inspector.inspectMessage("https://example.test/bomb.zip", []);
+  assert.equal(result.verdict, "uncertain");
+  assert.match(result.reason, /limita|raportul maxim/);
+});
+
+test("verdicturile externe phishing, frauda si exploit confirma amenintarea fara a expune resursa", async () => {
+  for (const verdict of ["phishing", "fraud", "exploit"] as const) {
+    const inspector = createThreatInspectionService({
+      httpReq: async () => ({ data: Buffer.from("pagina"), headers: { "content-type": "text/html" }, status: 200 }),
+      reputationScan: async () => verdict
+    });
+    const result = await inspector.inspectMessage("https://example.test/resource", []);
+    assert.equal(result.verdict, "confirmed");
+    assert.doesNotMatch(result.reason, /example\.test/);
+  }
+});
+
 test("un atasament e trimis O SINGURA DATA la motorul extern de reputatie, chiar daca URL-ul apare si in continut (audit, #22)", async () => {
   const scanCalls: string[] = [];
   const httpCalls: string[] = [];
@@ -245,4 +308,23 @@ test("plafon TOTAL de resurse pe mesaj: linkuri + atasamente sunt limitate impre
   assert.ok(maxInFlight <= 2, "concurenta ramane strict sub plafon");
   assert.equal(result.verdict, "uncertain", "surplusul neinspectat produce un verdict uncertain, nu e ignorat tacit");
   assert.match(result.reason, /2 resurse suplimentare nu au fost inspectate/);
+});
+
+test("atasamentele cu risc declarat au prioritate fata de linkuri cand plafonul e atins (audit conformitate, #25)", async () => {
+  const httpCalls: string[] = [];
+  const inspector = createThreatInspectionService({
+    maxResources: 2,
+    httpReq: async (_method, url) => {
+      httpCalls.push(url);
+      return { data: Buffer.from("ok"), headers: { "content-type": "text/plain" }, status: 200 };
+    }
+  });
+
+  await inspector.inspectMessage(
+    "https://example.test/first https://example.test/second",
+    [{ id: "a", name: "installer", url: "https://cdn.example.test/installer", contentType: "application/x-msdownload" }]
+  );
+
+  assert.equal(httpCalls[0], "https://cdn.example.test/installer");
+  assert.equal(httpCalls.length, 2);
 });

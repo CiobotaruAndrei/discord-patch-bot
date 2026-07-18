@@ -6,7 +6,7 @@ type MongoQueryOptions = Record<string, unknown>;
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
-export type NotificationKind = "update" | "discount" | "youtube";
+export type NotificationKind = "update" | "discount" | "youtube" | "future-release";
 
 export interface NotificationHistoryEntry {
   kind: NotificationKind;
@@ -66,7 +66,7 @@ export function buildHistoryDedupeKey(kind: NotificationKind, gameKey: string, l
 export function sanitizeHistoryDocs(guildId: string, entries: ReadonlyArray<HistoryEntryLike | null | undefined>, now: Date): NotificationHistoryDoc[] {
   const docs: NotificationHistoryDoc[] = [];
   for (const entry of entries || []) {
-    if (!entry || (entry.kind !== "update" && entry.kind !== "discount" && entry.kind !== "youtube")) continue;
+    if (!entry || (entry.kind !== "update" && entry.kind !== "discount" && entry.kind !== "youtube" && entry.kind !== "future-release")) continue;
     const gameKey = String(entry.gameKey || "").slice(0, 100);
     const title = String(entry.title || "").slice(0, 300);
     const link = String(entry.link || "").slice(0, 500);
@@ -123,7 +123,7 @@ export function createHistoryRepository(deps: HistoryRepositoryDeps): HistoryRep
       { label: "history:getRecent" }
     );
     return docs.map(doc => ({
-      kind: doc.kind === "discount" ? "discount" : doc.kind === "youtube" ? "youtube" : "update",
+      kind: doc.kind === "discount" ? "discount" : doc.kind === "youtube" ? "youtube" : doc.kind === "future-release" ? "future-release" : "update",
       gameKey: String(doc.gameKey || ""),
       title: String(doc.title || ""),
       link: String(doc.link || ""),

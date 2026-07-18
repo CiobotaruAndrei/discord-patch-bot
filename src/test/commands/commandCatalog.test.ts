@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   COMMAND_ACCESS_MANIFEST,
   COMMAND_CATALOG_HELP,
+  isRouterAdminCommandPath,
   permissionsLabelFor
 } from "../../features/command-catalog/commandCatalog.js";
 import { COMMAND_HELP_ENTRIES } from "../../features/command-help/commandHelpCatalog.js";
@@ -25,6 +26,14 @@ test("permissionsLabelFor deriva eticheta din faptele de acces: public, public e
   assert.equal(permissionsLabelFor("/report list bugs"), "Admin runtime, Ephemeral");
   assert.equal(permissionsLabelFor("/set admin-command-access"), "Admin top-level, owner-only runtime, Ephemeral");
   assert.equal(permissionsLabelFor("/admin-command-access list"), "Admin top-level, owner-only runtime, Ephemeral");
+});
+
+test("future-release list este public, iar mutatiile raman admin", () => {
+  assert.equal(isRouterAdminCommandPath("future-release", "list"), false);
+  for (const subcommand of ["add", "delete", "start", "stop"]) {
+    assert.equal(isRouterAdminCommandPath("future-release", subcommand), true, `/future-release ${subcommand} ramane admin`);
+  }
+  assert.equal(permissionsLabelFor("/future-release list"), "Public");
 });
 
 test("toate etichetele generate pentru intrarile din catalog au una dintre formele cunoscute", () => {

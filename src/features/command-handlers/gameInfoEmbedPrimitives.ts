@@ -20,6 +20,7 @@ export interface DiscordEmbed {
   url?: string;
   fields?: DiscordEmbedField[];
   thumbnail?: { url: string };
+  footer?: { text: string };
 }
 
 export const RESULT_LIMIT_DEFAULT = 5;

@@ -36,13 +36,14 @@ test("display: contine toate campurile - requestId, bot, solicitant, status, cer
   assert.match(line, /#req-7/);
   assert.match(line, /bot 111111111111111111/);
   assert.match(line, /solicitant <@user-1>/);
-  assert.match(line, /status rejected/);
+  assert.match(line, /status respinsa/);
   assert.match(line, /cerut </);
   assert.match(line, /de <@owner-1>/);
 });
 
-test("respingerea unei solicitari bot-add notifica solicitantul (mentiune + allowedMentions) (audit, #29)", async () => {
+test("respingerea unei solicitari bot-add notifica solicitantul in canal si direct", async () => {
   const updates: Array<{ content?: string; allowedMentions?: { users?: string[] } }> = [];
+  const direct: Array<{ content?: string }> = [];
   const handler = buildCommandHandler({
     GuildModel: {
       updateOne: async () => ({}),
@@ -57,7 +58,11 @@ test("respingerea unei solicitari bot-add notifica solicitantul (mentiune + allo
     isButton: () => true,
     isChatInputCommand: () => false,
     customId: "bot-add:reject:req-1",
-    guild: { id: "guild-1", ownerId: "owner-1" },
+    guild: {
+      id: "guild-1",
+      ownerId: "owner-1",
+      members: { fetch: async () => ({ send: async (payload: unknown) => { direct.push(payload as { content?: string }); return payload; } }) }
+    },
     user: { id: "owner-1" },
     reply: async () => undefined,
     update: async (payload: unknown) => { updates.push(payload as { content?: string; allowedMentions?: { users?: string[] } }); return payload; }
@@ -68,5 +73,34 @@ test("respingerea unei solicitari bot-add notifica solicitantul (mentiune + allo
   assert.match(updates[0].content ?? "", /Respinsa/);
   assert.match(updates[0].content ?? "", /<@user-9>/);
   assert.match(updates[0].content ?? "", /respinsa de owner/);
+  assert.match(updates[0].content ?? "", /Notificare directa trimisa/);
   assert.deepEqual(updates[0].allowedMentions?.users, ["user-9"], "solicitantul e mentionat efectiv");
+  assert.equal(direct.length, 1);
+  assert.match(direct[0].content ?? "", /respinsa de owner/);
+});
+
+test("o solicitare anulata la oprirea protectiei nu mai poate fi aprobata", async () => {
+  const updates: Array<{ content?: string; components?: unknown[] }> = [];
+  const handler = buildCommandHandler({
+    GuildModel: {
+      updateOne: async () => ({}),
+      findOne: async () => ({ botAddPermissions: [record({ status: "cancelled", cancellationReason: "protection-stopped", cancelledAt: new Date(NOW) })] }),
+      findOneAndUpdate: async () => null
+    },
+    getGuildSettings: async () => ({ botAddProtectionEnabled: false, botAddAlertChannelId: "chan" })
+  });
+  const interaction = {
+    isButton: () => true,
+    isChatInputCommand: () => false,
+    customId: "bot-add:approve:req",
+    guild: { id: "guild-1", ownerId: "owner-1" },
+    user: { id: "owner-1" },
+    reply: async () => undefined,
+    update: async (payload: unknown) => { updates.push(payload as { content?: string; components?: unknown[] }); return payload; }
+  };
+
+  await handler.handle(interaction, []);
+
+  assert.match(updates[0].content ?? "", /anulata la oprirea protectiei/);
+  assert.deepEqual(updates[0].components, []);
 });

@@ -8,6 +8,12 @@ import { accountAgeLabel, isRecentAccount } from "./recentAccountPolicy.js";
 import { assessBotRisk, type BotRiskRoleLike } from "./botRiskPolicy.js";
 import { createThreatInspectionService } from "./threatInspectionService.js";
 import type { DirectAttachment } from "../moderation/moderationInputPolicy.js";
+import {
+  recordBotObservationEvent,
+  startBotObservation,
+  type BotObservationModelLike
+} from "./botObservationRepository.js";
+import type { NewAccountAlertClaim } from "./newAccountAlertDedup.js";
 
 type SecurityChannel = { id?: string; send?(payload: unknown): Promise<unknown> };
 type SendableSecurityChannel = SecurityChannel & { send(payload: unknown): Promise<unknown> };
@@ -34,6 +40,7 @@ type GuildMemberEvent = {
 };
 type AttachmentCollection = { values(): IterableIterator<DirectAttachment> };
 type MessageEvent = {
+  id?: string;
   guild?: { id?: string; ownerId?: string } | null;
   author?: { id?: string; tag?: string; bot?: boolean } | null;
   channel?: SecurityChannel | null;
@@ -42,11 +49,10 @@ type MessageEvent = {
   createdTimestamp?: number;
   delete?(): Promise<unknown>;
 };
-type GuildModel = Parameters<typeof botAddRepository.getBotAddState>[0] & {
-  updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown>;
-};
+type GuildModel = Parameters<typeof botAddRepository.getBotAddState>[0] & BotObservationModelLike;
 type RuntimeMetrics = {
   securityThreatsDeleted?: number;
+  securityThreatDeleteFailures?: number;
   securityBotAddsBlocked?: number;
 };
 
@@ -57,7 +63,7 @@ export type SecurityRuntimeDeps = {
   GuildAuditLogModel: GuildAuditLogModelLike;
   httpReq?: Parameters<typeof createThreatInspectionService>[0]["httpReq"];
   reputationScan?: Parameters<typeof createThreatInspectionService>[0]["reputationScan"];
-  newAccountSeen?: (guildId: string, userId: string) => Promise<boolean>;
+  claimNewAccountAlert?: (guildId: string, userId: string) => Promise<NewAccountAlertClaim | null>;
   metrics?: RuntimeMetrics;
   now?: () => number;
   wait?: (ms: number) => Promise<void>;
@@ -113,10 +119,61 @@ function attachments(message: MessageEvent): DirectAttachment[] {
   return message.attachments ? [...message.attachments.values()] : [];
 }
 
+async function deleteThreatMessage(message: MessageEvent, metrics: RuntimeMetrics | undefined): Promise<string> {
+  if (typeof message.delete !== "function") {
+    if (metrics) metrics.securityThreatDeleteFailures = (metrics.securityThreatDeleteFailures ?? 0) + 1;
+    return "mesaj nesters: lipseste permisiunea sau operatia de stergere";
+  }
+  try {
+    await message.delete();
+    if (metrics) metrics.securityThreatsDeleted = (metrics.securityThreatsDeleted ?? 0) + 1;
+    return "mesaj sters";
+  } catch (error: unknown) {
+    if (metrics) metrics.securityThreatDeleteFailures = (metrics.securityThreatDeleteFailures ?? 0) + 1;
+    const reason = error instanceof Error ? error.message : "eroare Discord necunoscuta";
+    return `mesaj nesters: ${reason}`;
+  }
+}
+
 export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
   const now = deps.now ?? Date.now;
   const wait = deps.wait ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
   const threatInspector = createThreatInspectionService({ httpReq: deps.httpReq, reputationScan: deps.reputationScan });
+
+  async function beginBotObservation(
+    member: GuildMemberEvent,
+    botId: string,
+    requesterId: string | null,
+    approval: "owner" | "one-time" | "unapproved-removal-failed",
+    initialRisk: "normal" | "suspicious" | "dangerous",
+    currentTime: number
+  ): Promise<void> {
+    const guildId = member.guild?.id;
+    if (!guildId) return;
+    await startBotObservation(deps.GuildModel, guildId, {
+      botId,
+      requesterId: requesterId ?? "",
+      approval,
+      initialRisk,
+      joinedAt: new Date(member.joinedTimestamp ?? currentTime)
+    });
+  }
+
+  async function observeBotMessage(
+    guildId: string,
+    botId: string,
+    message: MessageEvent,
+    verdict: "safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed"
+  ) {
+    const at = new Date(message.createdTimestamp ?? now());
+    const key = `message:${message.id ?? `${message.channel?.id ?? ""}:${at.getTime()}`}:${verdict}`;
+    return recordBotObservationEvent(deps.GuildModel, guildId, botId, {
+      key,
+      kind: `message-${verdict}`,
+      at,
+      confirmed: verdict === "confirmed"
+    });
+  }
 
   async function handleBotAdd(member: GuildMemberEvent, settings: GuildSettings, botId: string): Promise<void> {
     if (!settings.botAddProtectionEnabled || !settings.botAddAlertChannelId) return;
@@ -131,6 +188,13 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
     const channel = await alertChannel(deps, settings.botAddAlertChannelId);
     const owner = ownerMention(ownerId);
     const tag = member.user?.tag ?? botId;
+    const risk = assessBotRisk({
+      createdTimestamp: member.user?.createdTimestamp,
+      verifiedBot: member.user?.flags?.has(UserFlags.VerifiedBot) === true,
+      approved,
+      roles: memberRoles(member),
+      guildRoleCount: member.guild?.roles?.cache?.size ?? 0
+    }, currentTime);
     if (addedByOwner) {
       await channel.send({
         content: `${owner.prefix}:white_check_mark: Bot adaugat direct de ownerul serverului. Bot: ${tag} (${botId}). Ownerul nu are nevoie de aprobare one-time.`,
@@ -152,6 +216,7 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
         }
       }
       if (!removed) {
+        await beginBotObservation(member, botId, requesterId, "unapproved-removal-failed", risk.level, currentTime);
         await channel.send({
           content: `${owner.prefix}:rotating_light: INCIDENT CRITIC: botul neaprobat ${tag} (${botId}) NU a putut fi eliminat (rolul botului de securitate e sub rolul botului adaugat sau lipseste Kick Members). Muta botul de securitate mai sus in ierarhie sau elimina manual botul. Solicitant audit: ${requesterId ? `<@${requesterId}>` : "nedetectat dupa reincercari"}.`,
           allowedMentions: owner.allowedMentions
@@ -184,13 +249,9 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
         details: `botId=${botId}; requesterId=${requesterId}; requestId=${permission.requestId}`
       });
     }
-    const risk = assessBotRisk({
-      createdTimestamp: member.user?.createdTimestamp,
-      verifiedBot: member.user?.flags?.has(UserFlags.VerifiedBot) === true,
-      approved,
-      roles: memberRoles(member),
-      guildRoleCount: member.guild?.roles?.cache?.size ?? 0
-    }, currentTime);
+    if (approved) {
+      await beginBotObservation(member, botId, requesterId, addedByOwner ? "owner" : "one-time", risk.level, currentTime);
+    }
     const approvalLabel = addedByOwner ? "owner direct" : permission ? "valida si consumata" : "absenta";
     if (risk.level === "suspicious" || risk.level === "dangerous") {
       const classification = risk.level === "dangerous"
@@ -212,19 +273,26 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
     if (!settings) return;
     if (user.bot) return handleBotAdd(member, settings, user.id);
     if (!settings.newAccountAlertsEnabled || !settings.newAccountAlertChannelId || !isRecentAccount(user.createdTimestamp, new Date(now()))) return;
-    if (deps.newAccountSeen && !(await deps.newAccountSeen(guildId, user.id))) return;
-    const channel = await alertChannel(deps, settings.newAccountAlertChannelId);
-    const createdText = typeof user.createdTimestamp === "number" ? new Date(user.createdTimestamp).toISOString() : "necunoscuta";
-    const joinedText = typeof member.joinedTimestamp === "number" ? new Date(member.joinedTimestamp).toISOString() : "necunoscuta";
-    await channel.send({
-      content: [
-        `:shield: Cont nou detectat: <@${user.id}> (${user.tag ?? user.id}).`,
-        `ID utilizator: ${user.id}.`,
-        `Cont creat: ${createdText} (acum ${accountAgeLabel(user.createdTimestamp, now())}).`,
-        `Intrat pe server: ${joinedText}.`
-      ].join("\n"),
-      allowedMentions: { parse: [] }
-    });
+    const claim = deps.claimNewAccountAlert ? await deps.claimNewAccountAlert(guildId, user.id) : null;
+    if (deps.claimNewAccountAlert && !claim) return;
+    try {
+      const channel = await alertChannel(deps, settings.newAccountAlertChannelId);
+      const createdText = typeof user.createdTimestamp === "number" ? new Date(user.createdTimestamp).toISOString() : "necunoscuta";
+      const joinedText = typeof member.joinedTimestamp === "number" ? new Date(member.joinedTimestamp).toISOString() : "necunoscuta";
+      await channel.send({
+        content: [
+          `:shield: Cont nou detectat: <@${user.id}> (${user.tag ?? user.id}).`,
+          `ID utilizator: ${user.id}.`,
+          `Cont creat: ${createdText} (acum ${accountAgeLabel(user.createdTimestamp, now())}).`,
+          `Intrat pe server: ${joinedText}.`
+        ].join("\n"),
+        allowedMentions: { parse: [] }
+      });
+      if (claim && !(await claim.markDelivered())) throw new Error("Claim-ul alertei nu a putut fi finalizat");
+    } catch (error) {
+      await claim?.release().catch(() => undefined);
+      throw error;
+    }
   }
 
   function threatSeverityLabel(verdict: "uncertain" | "policy-violation" | "risky-file" | "confirmed"): string {
@@ -242,18 +310,20 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
   }
 
   async function handleBotMessageCreate(message: MessageEvent, guildId: string, authorId: string, settings: GuildSettings): Promise<void> {
-    if (!settings.botAddProtectionEnabled || !settings.botAddAlertChannelId) return;
+    const channelId = settings.threatProtectionEnabled && settings.threatAlertChannelId
+      ? settings.threatAlertChannelId
+      : settings.botAddProtectionEnabled && settings.botAddAlertChannelId
+        ? settings.botAddAlertChannelId
+        : null;
+    if (!channelId) return;
     const result = await threatInspector.inspectMessage(message.content ?? "", attachments(message));
+    const observation = await observeBotMessage(guildId, authorId, message, result.verdict);
     if (result.verdict === "safe") return;
-    const channel = await alertChannel(deps, settings.botAddAlertChannelId);
+    if (observation.duplicate) return;
+    const channel = await alertChannel(deps, channelId);
     const owner = ownerMention(message.guild?.ownerId);
     if (result.verdict === "confirmed") {
-      let deletedNote = "mesaj nesters (fara permisiune de stergere)";
-      if (typeof message.delete === "function") {
-        await message.delete();
-        deps.metrics && (deps.metrics.securityThreatsDeleted = (deps.metrics.securityThreatsDeleted ?? 0) + 1);
-        deletedNote = "mesaj sters";
-      }
+      const deletedNote = await deleteThreatMessage(message, deps.metrics);
       await channel.send({
         content: `${owner.prefix}:rotating_light: INCIDENT CRITIC: botul <@${authorId}> a postat continut confirmat periculos. Motiv: ${result.reason}. Rezultat: ${deletedNote}. Interventie urgenta: verifica si elimina manual botul daca e necesar.`,
         allowedMentions: owner.allowedMentions
@@ -269,6 +339,12 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
       content: `${owner.prefix}:warning: Bot monitorizat: <@${authorId}> a postat continut clasificat ${result.verdict} (neconfirmat ca amenintare). Motiv: ${result.reason}. Botul aprobat NU e eliminat automat pentru suspiciune; verificare manuala recomandata.`,
       allowedMentions: owner.allowedMentions
     });
+    if (observation.burstStarted) {
+      await channel.send({
+        content: `${owner.prefix}:warning: Activitate agregata: botul <@${authorId}> a produs ${observation.recentCount} evenimente monitorizate intr-un minut. Incidentul este grupat pentru verificare, fara eliminare automata.`,
+        allowedMentions: owner.allowedMentions
+      });
+    }
   }
 
   async function handleMessageCreate(message: MessageEvent): Promise<void> {
@@ -281,14 +357,12 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
     if (!settings.threatProtectionEnabled || !settings.threatAlertChannelId) return;
     const result = await threatInspector.inspectMessage(message.content ?? "", attachments(message));
     if (result.verdict === "safe") return;
+    const channel = await alertChannel(deps, settings.threatAlertChannelId);
     let action = "mesaj pastrat; verificare manuala necesara (doar amenintarile confirmate se sterg automat)";
     if (shouldAutoDelete(result)) {
-      if (typeof message.delete !== "function") throw new Error("Mesajul marcat pentru stergere automata nu poate fi sters.");
-      await message.delete();
-      deps.metrics && (deps.metrics.securityThreatsDeleted = (deps.metrics.securityThreatsDeleted ?? 0) + 1);
-      action = "mesaj sters (amenintare confirmata); autorul nu a fost sanctionat automat";
+      const deletion = await deleteThreatMessage(message, deps.metrics);
+      action = `${deletion} (amenintare confirmata); autorul nu a fost sanctionat automat`;
     }
-    const channel = await alertChannel(deps, settings.threatAlertChannelId);
     await channel.send({
       content: [
         `:warning: Alerta securitate ${result.verdict}.`,
@@ -300,6 +374,11 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
         `Moment: ${new Date(message.createdTimestamp ?? now()).toISOString()}.`
       ].join("\n"),
       allowedMentions: { parse: [] }
+    });
+    await recordServerAuditEntry(deps.GuildAuditLogModel, guildId, {
+      userId: author.id,
+      action: result.verdict === "confirmed" ? "confirmed-threat-message" : "security-message-reviewed",
+      details: `verdict=${result.verdict}; channelId=${message.channel?.id ?? ""}; result=${action}`
     });
   }
 

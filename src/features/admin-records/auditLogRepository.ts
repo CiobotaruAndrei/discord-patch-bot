@@ -7,6 +7,8 @@ export interface GuildAuditLogRecord {
   guildId: string;
   kind: "bot" | "server";
   userId?: string;
+  actorId?: string;
+  targetId?: string;
   command?: string;
   action?: string;
   result?: string;
@@ -48,9 +50,12 @@ function toBotEntry(doc: GuildAuditLogRecord): BotAuditLogEntry {
 }
 
 function toServerEntry(doc: GuildAuditLogRecord): ServerAuditLogEntry {
+  const actorId = doc.actorId || doc.userId || "";
   return {
     serverId: doc.guildId,
-    userId: doc.userId || "",
+    userId: actorId,
+    actorId,
+    targetId: doc.targetId || "",
     action: doc.action || "",
     details: doc.details || "",
     at: toDate(doc.at)
@@ -96,11 +101,14 @@ export async function recordServerAuditEntry(
   entry: Omit<ServerAuditLogEntry, "serverId" | "at">,
   operationId?: string
 ): Promise<void> {
+  const actorId = entry.actorId || entry.userId || "";
   const document: GuildAuditLogRecord = {
     operationId,
     guildId,
     kind: "server",
-    userId: entry.userId || "",
+    userId: actorId,
+    actorId,
+    targetId: entry.targetId || "",
     action: entry.action,
     details: entry.details || "",
     at: new Date()

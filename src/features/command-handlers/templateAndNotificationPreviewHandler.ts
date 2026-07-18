@@ -8,6 +8,7 @@ import { renderYouTubeMessageTemplate } from "../youtube/youtubeDeliveryPolicy.j
 import { invalidTemplatePlaceholders, templateSpecFor } from "../notifications/templateCatalog.js";
 import { errorDetail } from "../../shared/errors.js";
 import { applyGuildConfigUpdate, type GuildConfigWriteModelLike } from "../guild-config/guildConfigRepository.js";
+import { validateUserText } from "../command-security/userTextPolicy.js";
 
 interface DiscordInteraction {
   commandName?: string;
@@ -61,7 +62,12 @@ function createTemplatePreviewHandler(deps: TemplatePreviewDeps) {
       await applyGuildConfigUpdate(deps.GuildModel, guildId, { [spec.field]: null });
       return deps.safeEdit(interaction, `OK: template-ul pentru **${spec.command}** a revenit la valoarea implicita.`);
     }
-    const text = String(interaction.options.getString("text", true) || "").trim();
+    let text = "";
+    try {
+      text = validateUserText("template.text", String(interaction.options.getString("text", true) || ""));
+    } catch {
+      return deps.safeEdit(interaction, "Eroare: template-ul nu poate contine linkuri introduse manual.");
+    }
     const invalid = invalidTemplatePlaceholders(text, spec.placeholders);
     if (invalid.length) return deps.safeEdit(interaction, `Eroare: placeholdere nepermise: ${invalid.map(value => `\`{${value}}\``).join(", ")}.`);
     if (!text) return deps.safeEdit(interaction, "Eroare: template-ul nu poate fi gol. Foloseste /template reset.");

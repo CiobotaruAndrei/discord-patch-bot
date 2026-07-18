@@ -83,7 +83,7 @@ test("comenzile administrative (inclusiv /health) cer Administrator; cele public
   for (const adminCmd of [
     "start", "stop", "set", "template", "notification", "game-alias", "health", "config", "reset-config",
     "admin-alerts", "price-alert", "youtube", "sources", "watchlist", "snooze", "unsnooze",
-    "backup", "bot-log", "server-log", "future-release", "maintenance", "admin-command-access", "delete"
+    "backup", "bot-log", "server-log", "maintenance", "admin-command-access", "delete"
   ]) {
     assert.equal(byName.get(adminCmd), adminFlag, `/${adminCmd} trebuie sa fie restrictionat la Administrator`);
     assert.equal(dmByName.get(adminCmd), false, `/${adminCmd} trebuie sa fie indisponibil in DM (dm_permission=false), ca sa nu ocoleasca guard-ul de admin`);
@@ -93,7 +93,7 @@ test("comenzile administrative (inclusiv /health) cer Administrator; cele public
       assert.equal(dmByName.get(name), false, `/${name} (admin) trebuie sa fie indisponibil in DM (dm_permission=false) - invariant pentru orice comanda admin noua`);
     }
   }
-  for (const publicCmd of ["ping", "games", "help", "report", "price-check", "deal-score", "player-count", "game", "status", "top", "suggest-command", "watchlist-game"]) {
+  for (const publicCmd of ["ping", "games", "help", "report", "price-check", "deal-score", "player-count", "game", "status", "top", "suggest-command", "watchlist-game", "future-release"]) {
     assert.ok(
       byName.get(publicCmd) === null || byName.get(publicCmd) === undefined,
       `/${publicCmd} trebuie sa ramana public (fara default_member_permissions)`

@@ -67,6 +67,7 @@ export interface LifecycleEventClient {
   on(event: "channelCreate", listener: (channel: LifecycleDiscordDeletedChannel) => unknown): unknown;
   on(event: "channelDelete", listener: (channel: LifecycleDiscordDeletedChannel) => unknown): unknown;
   on(event: "channelUpdate", listener: (previous: LifecycleDiscordDeletedChannel, next?: LifecycleDiscordDeletedChannel) => unknown): unknown;
+  on(event: "webhookUpdate", listener: (channel: LifecycleDiscordDeletedChannel) => unknown): unknown;
   on(event: "error" | "shardError", listener: (err: unknown) => unknown): unknown;
   on(event: "warn", listener: (message: string) => unknown): unknown;
 }

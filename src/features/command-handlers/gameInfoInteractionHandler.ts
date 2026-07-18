@@ -2,7 +2,7 @@
 
 import type { CheerioAPI } from "cheerio";
 import type { DealInfo, GameConfig, GuildSettings, PriceValue, SteamReviewData } from "../../types.js";
-import type { SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../../sources/sourceApis.js";
+import type { SteamAppDetailsSummary, SteamCurrentPlayersSummary, SteamLatestUpdateSizeSummary } from "../../sources/sourceApis.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import type { DiscordEmbed } from "./gameInfoEmbeds.js";
 import {
@@ -22,6 +22,10 @@ import {
   selectTopActiveGames
 } from "./gameInfoEmbeds.js";
 import { createGameInfoLookupService } from "./gameInfoLookupService.js";
+import { calculatePlayerCountStats } from "../player-count/playerCountTimeAnalysis.js";
+import type { PlayerCountHistoryPoint } from "../player-count/playerCountSnapshotService.js";
+import { analyzeReviewTrend } from "../game-info/reviewTrendAnalysis.js";
+import { selectHistoricalReviewSnapshot, type StoredReviewSnapshot } from "../game-info/reviewTrendSnapshotService.js";
 
 import { errorMessage } from "../../shared/errors.js";
 import ________shared_utilities from "../../shared/utilities.js";
@@ -65,8 +69,12 @@ interface GameInfoDeps {
   chooseBestSteamMatch(items: SteamSearchCandidate[], query: string, options?: { forceGameOnly?: boolean }): SteamSearchCandidate | null;
   fetchSteamPriceDetails(appId: string | number, currency: string): Promise<SteamAppDetailsSummary | null>;
   fetchSteamCurrentPlayers(appId: string | number): Promise<SteamCurrentPlayersSummary>;
+  fetchSteamLatestUpdateSize(appId: string | number): Promise<SteamLatestUpdateSizeSummary>;
   readPlayerCountSnapshots?(appIds: readonly (string | number)[]): Promise<Map<string, { appId: string; gameKey: string; playerCount: number; fetchedAt: Date }>>;
+  readPlayerCountHistory?(appIds: readonly (string | number)[], since: Date): Promise<PlayerCountHistoryPoint[]>;
   fetchSteamReviewData(appId: string | number): Promise<SteamReviewData>;
+  recordReviewTrendSnapshot?(appId: string | number, gameKey: string, review: SteamReviewData, at?: Date): Promise<boolean>;
+  readReviewTrendHistory?(appId: string | number, since: Date): Promise<StoredReviewSnapshot[]>;
   getDealsCacheData(currency: string): DealInfo[] | null;
   setDealsCache(currency: string, deals: DealInfo[]): void;
   fetchDeals(opts: { currency: string }): Promise<DealInfo[]>;
@@ -120,19 +128,38 @@ function createGameInfoInteractionHandler(deps: GameInfoDeps) {
     const { appId, details } = resolved;
     if (interaction.commandName === "review-trend") {
       const review = await fetchSteamReviewData(appId);
-      return safeEdit(interaction, { embeds: [buildReviewTrendEmbed(query, appId, details, review)] });
+      const now = new Date();
+      const history = deps.readReviewTrendHistory
+        ? await deps.readReviewTrendHistory(appId, new Date(now.getTime() - 15 * 86_400_000)).catch(() => [])
+        : [];
+      const older = selectHistoricalReviewSnapshot(history, now);
+      const recent = review.success ? { totalReviews: review.totalReviews, qualityPercent: review.qualityPercent, at: now } : null;
+      const analysis = analyzeReviewTrend(older, recent);
+      if (deps.recordReviewTrendSnapshot) {
+        await deps.recordReviewTrendSnapshot(appId, query, review, now).catch(() => false);
+      }
+      return safeEdit(interaction, { embeds: [buildReviewTrendEmbed(query, appId, details, review, analysis)] });
     }
     if (interaction.commandName === "crossplay") return safeEdit(interaction, { embeds: [buildCrossplayEmbed(query, appId, details)] });
     if (interaction.commandName === "co-op") return safeEdit(interaction, { embeds: [buildCoopEmbed(query, appId, details)] });
     if (interaction.commandName === "system") return safeEdit(interaction, { embeds: [buildSystemRequirementsEmbed(query, appId, details, deps.safeCheerioLoad)] });
-    if (interaction.commandName === "game-size") return safeEdit(interaction, { embeds: [buildGameSizeEmbed(query, appId, details, deps.safeCheerioLoad)] });
+    if (interaction.commandName === "game-size") {
+      const latestUpdate = await deps.fetchSteamLatestUpdateSize(appId).catch(() => ({ size: null, title: null, publishedAt: null, sourceUrl: null }));
+      return safeEdit(interaction, { embeds: [buildGameSizeEmbed(query, appId, details, deps.safeCheerioLoad, latestUpdate)] });
+    }
     if (interaction.commandName === "player-count") {
+      const to = new Date();
+      const from = new Date(to.getTime() - 24 * 60 * 60_000);
       const fresh = await lookup.readFreshSnapshots([String(appId)]);
       const snapshot = fresh.get(String(appId));
       const players = snapshot
         ? { appId: String(appId), playerCount: snapshot.playerCount, success: true }
         : await fetchSteamCurrentPlayers(appId);
-      return safeEdit(interaction, { embeds: [buildPlayerCountEmbed(query, appId, details, players)] });
+      const history = deps.readPlayerCountHistory
+        ? await deps.readPlayerCountHistory([String(appId)], from).catch(() => [])
+        : [];
+      const stats = calculatePlayerCountStats(history, { from, to });
+      return safeEdit(interaction, { embeds: [buildPlayerCountEmbed(query, appId, details, players, stats)] });
     }
     const deals = await lookup.loadDeals(currency).catch(() => []);
     return safeEdit(interaction, { embeds: [buildPlatformsEmbed(query, appId, details, findExternalStores(deals, query, details.name || query, appId))] });

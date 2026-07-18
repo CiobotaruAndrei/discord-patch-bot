@@ -33,11 +33,11 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 | `/start updates` | Admin, Ephemeral | Porneste notificarile automate de update-uri in canalul curent. Verifica permisiunile canalului, salveaza canalul in setarile serverului si face baseline initial ca sa nu trimita update-uri vechi. |
 | `/start reduceri` | Admin, Ephemeral | Porneste alertele automate de reduceri in canalul curent. Verifica permisiunile canalului, salveaza canalul si face baseline initial pentru ofertele deja vazute. |
 | `/start dlc` | Admin, Ephemeral | Configureaza canalul curent pentru notificarile DLC ale jocurilor active. Verifica permisiunile canalului si salveaza starea necesara pentru motorul DLC cand acesta ruleaza in runtime. |
-| `/start player-count game:<key>` | Admin, Autocomplete, Ephemeral | Adauga jocul ales in lista de jocuri urmarite pentru player-count pe server si salveaza canalul curent pentru acest modul. Jocul trebuie sa aiba Steam appId configurat. |
+| `/start player-count game:<key>` | Admin, Autocomplete, Ephemeral | Adauga atomic jocul in lista urmarita, salveaza canalul si creeaza un baseline real Steam fara notificare retroactiva. Detectiile ulterioare folosesc esantioane ordonate temporal, dedupe persistent, cooldown si confirmarea inversarii de trend ca sa evite alertele oscilante. Jocul trebuie sa aiba Steam appId configurat. |
 | `/stop updates` | Admin, Ephemeral | Opreste notificarile automate de update-uri pentru server si curata coada/starea aferenta. |
 | `/stop reduceri` | Admin, Ephemeral | Opreste alertele automate de reduceri pentru server si curata coada/starea aferenta. |
 | `/stop dlc` | Admin, Ephemeral | Opreste notificarile DLC si sterge canalul salvat pentru acest modul. |
-| `/stop player-count game:<key>` | Admin, Autocomplete, Ephemeral | Scoate jocul ales din lista de player-count a serverului. Daca nu mai ramane niciun joc in lista, modulul player-count este oprit pentru server. |
+| `/stop player-count game:<key>` | Admin, Autocomplete, Ephemeral | Scoate atomic jocul din lista player-count si curata starea de semnal aferenta. Daca nu mai ramane niciun joc, modulul este oprit pentru server. |
 
 ## Setari server
 
@@ -64,10 +64,11 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
-| `/add backup name:<nume>` | Admin, Ephemeral | Salveaza configuratia curenta a botului pentru server intr-un backup numit. Include abonari, canale, roluri, filtre, watchlist, snooze-uri, alerte de pret si configurarea YouTube. Daca exista deja un backup cu acel nume, este inlocuit. |
+| `/backup add name:<nume>` | Admin, Ephemeral | Salveaza configuratia curenta a botului pentru server intr-un backup numit. Include abonari, canale, roluri, filtre, watchlist, snooze-uri, alerte de pret si configurarea YouTube, inclusiv structurile imbricate. `/add backup` ramane alias compatibil. Daca exista deja un backup cu acel nume, este inlocuit. |
+| `/add backup name:<nume>` | Admin runtime, Ephemeral | Alias compatibil pentru `/backup add`; foloseste acelasi plan de salvare si aceeasi colectie. |
 | `/backup list` | Admin, Ephemeral | Afiseaza backup-urile salvate, cine le-a creat si data crearii. Lista este limitata ca documentul serverului sa ramana controlat. |
-| `/backup preview name:<nume>` | Admin, Ephemeral | Arata ce setari vor fi restaurate si ce canale/roluri sunt referite de backup. Preview-ul trebuie verificat inainte de load, mai ales daca intre timp au fost sterse canale sau roluri din Discord. |
-| `/backup load name:<nume> confirm:true` | Admin, Ephemeral | Incarca backup-ul si restaureaza configuratia botului pentru server. Cere confirmare explicita si salveaza schimbarea in `server-log`. Daca un canal sau rol salvat nu mai exista in Discord, botul restaureaza ID-ul salvat, iar adminul trebuie sa refaca setarea dupa load. |
+| `/backup preview name:<nume>` | Admin, Ephemeral | Construieste planul de restaurare fara mutatii: arata setarile, canalele si rolurile care vor fi pastrate, remapate, create sau respinse si semnaleaza referintele disparute ori incompatibile. |
+| `/backup load name:<nume> confirm:true` | Admin, Ephemeral | Valideaza planul, creeaza sau remapeaza resursele Discord necesare, aplica configuratia si invalideaza cache-ul numai dupa commit. La esec compenseaza resursele create si pastreaza configuratia anterioara; rezultatul complet este salvat in `server-log`. |
 | `/backup delete name:<nume> confirm:true` | Admin, Ephemeral | Sterge backup-ul ales din lista de backup-uri salvate. Cere confirmare explicita ca sa evite stergerile accidentale. |
 
 ## Alerte de pret
@@ -78,7 +79,7 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 | `/remove price-alert joc:<key>` | Admin, Autocomplete, Ephemeral | Sterge toate alertele acelui joc, indiferent de valuta. Autocomplete-ul sugereaza numai jocurile care au alerte configurate. |
 | `/price-alert list` | Admin, Ephemeral | Afiseaza fiecare alerta, pragul, valuta, ultimul pret observat si daca alerta este armata sau deja declansata. |
 | `/price-check joc:<name>` | Public, Autocomplete | Cauta pretul jocului pe Steam si il compara cu ofertele similare din sursele externe de reduceri deja folosite de bot. Embed-ul are culoarea verde pentru pretul Steam; celelalte randuri arata magazinele externe gasite sau explica lipsa unei potriviri. |
-| `/deal-score game:<name>` | Public, Autocomplete | Calculeaza un scor 1-10 pentru oferta activa a jocului, folosind reducerea, pretul curent, semnalele de calitate/popularitate si magazinul. In lipsa unui istoric complet de pret, scorul este un indicator operational, nu o garantie ca oferta este minim istoric. |
+| `/deal-score game:<name>` | Public, Autocomplete | Calculeaza un scor 1-10 pentru oferta activa folosind reducerea, pretul, calitatea/popularitatea si istoricul persistent de pret. Minimul si distributia istorica sunt calculate din snapshot-uri deduplicate; cand istoricul este insuficient, embed-ul declara explicit limitarea. |
 | `/best deals under buget:<numar> currency:<valuta> numar:<1-10>` | Public | Cauta cele mai bune reduceri sub bugetul ales in toate sursele de deals active, nu doar in watchlist-ul serverului. Sorteaza rezultatele dupa reducere, pret, calitate si popularitate. |
 | `/ending deals currency:<valuta> numar:<1-10>` | Public | Afiseaza ofertele cu termen de expirare detectat si le sorteaza dupa cat de aproape este expirarea. Daca sursele nu expun termen clar, comanda spune explicit asta. |
 
@@ -99,24 +100,27 @@ Canalul administrativ primeste alerte operationale cu severitate, cauza, explica
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
 | `/bot-log recent` | Admin, Ephemeral | Afiseaza cele mai recente comenzi admin executate pe server, cu user, comanda, data, server si rezultat. Auditul este scris de guard-ul runtime pentru comenzile admin protejate. |
-| `/bot-log older` | Admin, Ephemeral | Afiseaza comenzi admin dintr-un interval istoric controlat: o zi, o saptamana sau o luna. Pentru `luna`, `start` foloseste formatul `YYYY-MM`; pentru `zi` si `saptamana`, formatul `YYYY-MM-DD`. Rezultatele sunt paginate cu `offset`, cate 25 pe lot. |
-| `/server-log recent` | Admin, Ephemeral | Afiseaza cele mai recente schimbari importante salvate pentru server. In implementarea curenta include actiuni persistate de bot, cum ar fi incarcarea unui backup; integrarea cu toate evenimentele Discord necesita intent-uri si permisiuni de audit pe server. |
-| `/server-log older` | Admin, Ephemeral | Afiseaza schimbari server dintr-o zi, o saptamana sau o luna anume, cu aceeasi paginare sigura ca `/bot-log older`. |
-| `/add suggestion name:<nume> description:<ce-face>` | Public, Ephemeral | Permite unui user sa propuna o comanda noua. Userul completeaza numele comenzii propuse si descrierea; botul salveaza sugestia in lista serverului. |
-| `/suggest-command list numar:<1-25>` | Admin runtime, Ephemeral | Afiseaza comenzile sugerate de useri, cu numele propus si ce ar trebui sa faca fiecare. Este runtime admin deoarece top-level-ul ramane public pentru `/add suggestion`. |
-| `/suggest-command delete name:<nume>` | Admin runtime, Ephemeral | Sterge o comanda sugerata din lista serverului impreuna cu descrierea ei. |
+| `/bot-log older` | Admin, Ephemeral | Afiseaza comenzi admin dintr-o zi, saptamana sau luna. Primul lot de cel mult 25 apare imediat, apoi botul trimite automat cate un lot ephemeral la doua minute, pana la final sau cel mult 175 de intrari. La volum mai mare cere un interval mai mic. `offset` poate porni livrarea dintr-o pozitie anume. |
+| `/server-log recent` | Admin, Ephemeral | Afiseaza schimbarile importante cu actorul rezolvat din Audit Log, tinta, actiunea, detaliile si ID-ul de corelare. Evenimentele duplicate sunt eliminate, iar citirea actorului are reincercari scurte pentru propagarea Discord. |
+| `/server-log older` | Admin, Ephemeral | Livreaza automat istoricul serverului cu aceleasi intervale, loturi, limite si oprire sigura ca `/bot-log older`. |
+| `/suggest-command name:<nume> description:<ce-face>` | Public, Ephemeral | Permite unui user sa propuna direct o comanda noua. `/add suggestion` ramane alias compatibil. |
+| `/add suggestion name:<nume> description:<ce-face>` | Public, Ephemeral | Alias compatibil pentru `/suggest-command`; foloseste aceeasi validare si aceeasi colectie. |
+| `/list suggest-command numar:<1-25>` | Admin runtime, Ephemeral | Afiseaza comenzile sugerate, numele si descrierea lor. |
+| `/delete suggest-command name:<nume>` | Admin runtime, Ephemeral | Sterge o comanda sugerata impreuna cu descrierea ei. |
 
 ## Propuneri watchlist si future-release
 
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
-| `/watchlist-game add game:<nume>` | Public, Ephemeral | Permite unui user sa propuna un joc nou pentru lista botului. Propunerea este salvata separat si nu activeaza automat jocul pentru update-uri sau reduceri. |
+| `/watchlist-game add game:<nume>` | Public, Ephemeral | Permite unui user sa propuna un joc nou pentru lista botului. `/add watchlist-game` este ruta echivalenta. Propunerea este salvata separat si nu activeaza automat jocul. |
+| `/add watchlist-game game:<nume>` | Public, Ephemeral | Alias compatibil pentru `/watchlist-game add`; foloseste aceeasi validare si aceeasi lista de propuneri. |
 | `/watchlist-game list` | Public, Ephemeral | Afiseaza jocurile propuse de useri pentru a fi analizate de admini. |
-| `/watchlist-game delete game:<nume>` | Admin runtime, Ephemeral | Sterge un joc din lista de propuneri watchlist-game. Top-level-ul ramane public pentru `/watchlist-game add`, deci stergerea este protejata prin guard runtime. |
+| `/watchlist-game delete game:<nume>` | Admin runtime, Ephemeral | Sterge un joc din lista de propuneri. `/delete watchlist-game` este ruta echivalenta si are aceeasi protectie runtime. |
+| `/delete watchlist-game game:<nume>` | Admin runtime, Ephemeral | Alias compatibil pentru `/watchlist-game delete`, cu aceeasi verificare de acces. |
 | `/future-release add game:<nume>` | Admin, Ephemeral | Adauga un joc care urmeaza sa apara in lista future-release a serverului. Lista are maxim 20 de jocuri si poate pastra data lansarii si pretul de preorder daca sunt cunoscute. |
-| `/future-release list` | Admin, Ephemeral | Afiseaza jocurile future-release urmarite, data lansarii si pretul de preorder salvat. |
+| `/future-release list` | Public | Afiseaza jocurile future-release urmarite, data lansarii si pretul de preorder salvat. Este singura subcomanda publica din grup; mutatiile raman admin si ephemeral. |
 | `/future-release delete game:<nume>` | Admin, Ephemeral | Sterge un joc din lista future-release. |
-| `/future-release start` | Admin, Ephemeral | Configureaza canalul curent pentru notificarile future-release si marcheaza modulul activ pentru server. Verifica permisiunile de postare embed inainte sa salveze canalul. |
+| `/future-release start` | Admin, Ephemeral | Configureaza canalul, creeaza o generatie noua de activare si initializeaza baseline-ul fara val retroactiv. Jobul periodic emite o singura data pragurile 30/7/1 zile, aparitia/schimbarea/disparitia preorder-ului si trecerea post-release. |
 | `/future-release stop` | Admin, Ephemeral | Opreste notificarile future-release si sterge canalul salvat pentru modul. |
 
 Comenzile admin accepta implicit permisiunea Discord `Administrator`, apoi regula de rol dedicata comenzii daca ownerul a setat una prin `/set admin-command-access` cu optiunea `command:<comanda>`, apoi fallback-ul global configurat prin `/set admin-command-access` fara `command`, apoi codul global de acces introdus prin modal ephemeral. Pentru perechile `start`/`stop`, regula este comuna pe modul: `/start updates` acopera si `/stop updates`, iar `/start player-count` acopera si `/stop player-count`. Daca ownerul nu a configurat inca o regula de rol, rolurile simple nu dau acces admin; raman doar `Administrator` si codul global corect. Comenzile owner-only accepta ownerul serverului sau codul global corect. Codul global se tine in env/deployment secrets prin `BOT_GLOBAL_ACCESS_CODE_HASH`, cu `BOT_GLOBAL_ACCESS_CODE` doar ca fallback local. Pentru comenzile sensibile, daca `BOT_SENSITIVE_USER_IDS` este setat, userul trebuie sa fie si in acea lista privata de user ID-uri. ID-urile sunt folosite direct, nu numele rolurilor sau userilor. Clasificarea de securitate a fiecarei comenzi (publica, admin prin router, admin verificata in handler, owner-only, sensibila) este declarata intr-un singur manifest tipat (`commandAccessManifest`), din care guard-ul runtime isi deriva verificarile — nu mai exista liste manuale duplicate; teste de sincronizare verifica manifestul bidirectional contra slash definitions (inclusiv `setDefaultMemberPermissions`) si contra clasificarii afisate in catalogul `/help`.
@@ -201,13 +205,13 @@ Concepte utile pentru admini:
 | `/game overview joc:<name/key>` | Public, Autocomplete | Agrega ultimul update, cea mai buna oferta, scorul ofertei, player-count, statusul serverelor, DLC-urile si prezenta in watchlist. Sursele sunt izolate, astfel incat un esec partial nu anuleaza restul rezultatului. |
 | `/status game joc:<name/key>` | Public, Autocomplete | Afiseaza starea online, mentenanta, degradata sau necunoscuta si momentul ultimei verificari. |
 | `/status watchlist` | Public | Verifica independent jocurile compatibile din watchlist si pagineaza rezultatele, pastrand stare necunoscuta pentru sursele care esueaza. |
-| `/review-trend game game:<name>` | Public, Autocomplete | Afiseaza semnalul curent al review-urilor Steam pentru joc: procent pozitiv, numar de review-uri si interpretare operationala. Trend istoric real cere stocare pe timp si este semnalat ca limitare cand lipseste. |
+| `/review-trend game game:<name>` | Public, Autocomplete | Afiseaza trendul real din snapshot-uri Steam persistente: procent pozitiv, volum, delta fata de esantionul anterior si interpretare. Esantioanele sunt ordonate temporal si perioadele cu volum mic sunt marcate drept semnal slab, ca sa nu supraevalueze review-bombing-ul. |
 | `/crossplay game game:<name>` | Public, Autocomplete | Verifica metadatele Steam pentru semnale de crossplay si cross-save. Cand Steam nu confirma informatia, raspunsul spune explicit ca nu este detectata in sursa curenta. |
 | `/platforms game game:<name>` | Public, Autocomplete | Afiseaza platformele Steam detectate si magazinele externe gasite in sursele de reduceri pentru jocul cautat. |
 | `/co-op game game:<name>` | Public, Autocomplete | Afiseaza modurile detectate in Steam pentru joc: single-player, online co-op, local/split-screen co-op, PvP sau MMO. |
 | `/system requirements game game:<name>` | Public, Autocomplete | Afiseaza cerintele minime si recomandate returnate de Steam pentru joc. |
-| `/game-size game game:<name>` | Public, Autocomplete | Extrage dimensiunea aproximativa de instalare din cerintele de sistem Steam, cand informatia este disponibila. |
-| `/player-count game game:<name>` | Public, Autocomplete | Afiseaza numarul curent de jucatori activi pe Steam pentru jocul ales, cand jocul are Steam appId configurat si API-ul Steam raspunde. Foloseste snapshot-ul periodic salvat de cron cand e proaspat (sub 15 minute) si face fetch live doar in lipsa lui. |
+| `/game-size game game:<name>` | Public, Autocomplete | Afiseaza separat dimensiunea aproximativa de instalare si dimensiunea ultimului update. Instalarea vine din cerintele Steam, iar update-ul numai dintr-o valoare explicita KB/MB/GB/TB din feed-ul oficial Steam News; daca nu exista o cifra explicita, campul ramane indisponibil. |
+| `/player-count game game:<name>` | Public, Autocomplete | Afiseaza valoarea curenta reala Steam, recordul observat si directia fata de esantionul anterior, folosind timpul efectiv al esantionului. Preferinta este pentru snapshot-ul periodic proaspat, cu fetch live la nevoie. |
 | `/player-count trend joc:<name> period:<24h\|7d\|30d>` | Public, Autocomplete | Afiseaza minimul, maximul, media, schimbarea procentuala si un sparkline din istoricul periodic. |
 | `/player-count milestone joc:<name>` | Public, Autocomplete | Afiseaza recordul istoric, data sa, valoarea curenta si diferenta pana la record. Un record nou detectat periodic poate trimite automat notificare pe canalele abonate. |
 | `/player-count gainers period:<24h\|7d\|30d>` | Public | Compara prima si ultima valoare disponibila si afiseaza topul cresterilor procentuale, izolat per joc. |
@@ -232,11 +236,11 @@ Concepte utile pentru admini:
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
 | `/timeout utilizator:<membru> durata:<durata> motiv:<text> atasament:<fisier>` | Admin, Ephemeral, Guild-only | Aplica un timeout de la 1 secunda pana la 28 de zile, cu verificare de ierarhie. Motivul poate fi text fara linkuri sau un atasament incarcat direct. Daca persistenta esueaza, timeout-ul Discord este retras. |
-| `/remove-timeout utilizator:<membru>` | Admin, Guild-only | Elimina timeout-ul activ al unui membru. |
-| `/timeout-list` | Public, Guild-only | Afiseaza paginat toate timeout-urile active, moderatorul, data aplicarii si momentul expirarii. Inregistrarile expirate sunt curatate la boot si la citire. |
+| `/remove-timeout utilizator:<membru>` | Admin, Ephemeral, Guild-only | Elimina timeout-ul Discord si inregistrarea persistata; daca una dintre operatii esueaza, raspunsul declara exact starea ramasa pentru reconciliere. |
+| `/timeout-list` | Public, Guild-only | Reconciliaza starea persistata cu timeout-ul Discord, elimina inregistrarile expirate si afiseaza paginat numai restrictiile active, cu moderator si expirare. |
 | `/mute utilizator:<membru> durata:<durata> motiv:<text> atasament:<fisier>` | Admin, Ephemeral, Guild-only | Aplica un mute persistent cu aceleasi verificari, validari si rollback ca timeout-ul. |
-| `/unmute utilizator:<membru>` | Admin, Guild-only | Elimina mute-ul activ al unui membru. |
-| `/mute-list` | Public, Guild-only | Afiseaza paginat toate mute-urile active si detaliile lor. |
+| `/unmute utilizator:<membru>` | Admin, Ephemeral, Guild-only | Elimina mute-ul activ si raporteaza explicit orice stare partiala care necesita interventie. |
+| `/mute-list` | Public, Guild-only | Reconciliaza rolul Discord cu persistenta si afiseaza numai mute-urile active. |
 | `/kick utilizator:<membru> motiv:<text> atasament:<fisier>` | Admin, Ephemeral, Guild-only | Elimina un membru, respectand ierarhia Discord si permisiunile botului. Linkurile in motiv sunt refuzate; dovezile trebuie incarcate direct. |
 | `/ban utilizator:<membru> motiv:<text> atasament:<fisier>` | Admin, Ephemeral, Guild-only | Baneaza un membru, cu aceeasi politica de motiv si atasament. |
 | `/unban utilizator:<membru> motiv:<text> atasament:<fisier>` | Admin, Ephemeral, Guild-only | Debaneaza utilizatorul prin API-ul `guild.bans.remove`. |
@@ -244,19 +248,19 @@ Concepte utile pentru admini:
 | `/warn utilizator:<membru> motiv:<text> atasament:<fisier>` | Admin, Ephemeral, Guild-only | Publica avertismentul in canalul dedicat si persista numai metadatele necesare listei, nu motivul sau continutul sensibil. Daca publicarea esueaza, este retrasa exact inregistrarea creata de comanda curenta. |
 | `/remove-warn utilizator:<membru>` | Admin, Guild-only | Elimina cel mai recent avertisment al unui membru. |
 | `/warn-list` | Public, Guild-only | Afiseaza sumarul avertismentelor grupat pe utilizator: o singura intrare per utilizator, cu totalul de warn-uri active, sortat descrescator dupa numar, si data ultimului warn. |
-| `/warn-ban-limit numar:<1-100>` | Admin, Guild-only | Configureaza limita de avertismente care declanseaza ban automat. |
-| `/lock-channel canal:<canal> motiv:<text> atasament:<fisier>` | Admin, Ephemeral, Guild-only | Blocheaza mesajele membrilor si salveaza starea anterioara exacta `allow`, `deny` sau `inherit`. Update-ul Discord si persistenta au rollback reciproc. |
-| `/unlock-channel canal:<canal>` | Admin, Ephemeral, Guild-only | Restaureaza exact starea Send Messages existenta inainte de blocare. Canalele sterse sunt eliminate automat din evidenta. |
+| `/warn-ban-limit numar:<1-100>` | Admin, Ephemeral, Guild-only | Configureaza limita care declanseaza ban automat si afiseaza limita anterioara impreuna cu cea noua. |
+| `/lock-channel canal:<canal> motiv:<text> atasament:<fisier>` | Admin, Ephemeral, Guild-only | Verifica permisiunile botului, blocheaza mesajele si salveaza starea anterioara exacta `allow`, `deny` sau `inherit`. Update-ul Discord si persistenta au rollback reciproc. |
+| `/unlock-channel canal:<canal>` | Admin, Ephemeral, Guild-only | Verifica permisiunile botului si restaureaza exact starea Send Messages de dinainte. Canalele sterse sunt eliminate automat din evidenta. |
 | `/purge` | Admin, Ephemeral, Guild-only | Sterge pana la 50 de mesaje recente si explica limita Discord care exclude mesajele mai vechi de 14 zile. |
 | `/purge-amount numar:<1-100>` | Admin, Ephemeral, Guild-only | Sterge numarul indicat de mesaje recente si raporteaza separat cate au fost sterse si cate au fost omise. |
 | `/set new-account-alert-channel canal:<canal>` | Admin, Ephemeral, Guild-only | Configureaza canalul pentru alertele conturilor Discord recente si valideaza permisiunile botului. |
-| `/start new-account-alerts` | Admin, Ephemeral, Guild-only | Activeaza alertele pentru conturi create in ultimele trei luni calendaristice, scaneaza si membrii existenti si revine automat la oprit daca scanarea initiala esueaza. |
+| `/start new-account-alerts` | Admin, Ephemeral, Guild-only | Activeaza alertele pentru conturi create in ultimele trei luni calendaristice. Claim-ul persistent este comun scanarii initiale si evenimentului live, astfel incat acelasi membru nu produce doua alerte; la esecul livrarii claim-ul este eliberat pentru retry. |
 | `/stop new-account-alerts` | Admin, Guild-only | Dezactiveaza alertele conturilor noi si pastreaza canalul. |
 | `/set threat-alert-channel canal:<canal>` | Admin, Ephemeral, Guild-only | Configureaza canalul pentru alerte de continut suspect si valideaza permisiunile botului. |
-| `/start threat-protection` | Admin, Ephemeral, Guild-only | Inspecteaza continutul, redirecturile HTTP sigure, linkurile si atasamentele prin MIME si semnaturi de fisier. Sterge automat EXCLUSIV verdictul `confirmed` (malware confirmat de motorul extern de reputatie); `risky-file` (executabil/script confirmat DOAR ca tip de fisier), `policy-violation` (@everyone/@here, invitatii Discord) si resursele `uncertain` (documente, arhive, resurse neverificabile) raman pe canal si produc doar alerta cu categoria explicita pentru verificare manuala. |
+| `/start threat-protection` | Admin, Ephemeral, Guild-only | Inspecteaza textul, redirecturile, linkurile, atasamentele si arhivele ZIP/TAR/GZIP recursiv, cu limite de adancime, numar si bytes. Documentele Office/PDF sunt analizate pasiv pentru macro-uri si actiuni automate. `confirmed` este acceptat numai daca motorul extern confirma SHA-256 al octetilor descarcati si este singurul verdict sters automat; esecul stergerii nu blocheaza alerta sau auditul. Mesajele boturilor sunt inspectate si dupa join. |
 | `/stop threat-protection` | Admin, Guild-only | Dezactiveaza detectarea si pastraza canalul configurat. |
 | `/set bot-add-alert-channel canal:<canal>` | Admin, Ephemeral, Guild-only | Configureaza canalul pentru solicitarile si alertele privind adaugarea botilor si valideaza permisiunile botului. |
-| `/start bot-add-protection` | Admin, Ephemeral, Guild-only | Leaga aprobarea de botul exact si solicitantul identificat din audit log. Aprobarea owner este one-time, expira si se consuma atomic; botii fara aprobare valida sunt eliminati. Conturile bot suspecte si foarte noi produc alerte owner separate. |
-| `/stop bot-add-protection` | Admin, Guild-only | Dezactiveaza protectia bot-add, pastreaza istoricul si anuleaza toate solicitarile/aprobarile active neexpirate (devin `cancelled`), ca sa nu ramana aprobari valabile dupa dezactivare. |
+| `/start bot-add-protection` | Admin, Ephemeral, Guild-only | Leaga aprobarea de botul exact si solicitantul rezolvat prin Audit Log cu retry. Aprobarea owner este one-time, expira si se consuma atomic; botii fara aprobare sunt eliminati, iar solicitantul primeste rezultatul localizat. Botii admisi intra intr-o fereastra persistenta de observatie de sapte zile pentru schimbari periculoase. |
+| `/stop bot-add-protection` | Admin, Ephemeral, Guild-only | Dezactiveaza protectia si anuleaza atomic toate solicitarile/aprobarile neexpirate, astfel incat nicio aprobare veche sa nu ramana valida. |
 | `/bot-add-request` | Admin, Ephemeral, Guild-only | Creeaza o solicitare pending pentru perechea bot plus solicitant, cu expirare automata si aprobarea sau respingerea ownerului prin butoane. |
 | `/bot-add-permissions` | Admin, Ephemeral, Guild-only | Listeaza paginat toate solicitarile cu status, bot, solicitant, owner, creare, raspuns, expirare si consumare. |

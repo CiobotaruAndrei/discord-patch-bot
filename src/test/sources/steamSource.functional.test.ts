@@ -17,6 +17,7 @@ interface SteamSourceApiShape {
   chooseBestSteamMatch: (items: SteamSearchItemShape[] | null, query: string, options?: { forceGameOnly?: boolean }) => SteamSearchItemShape | null;
   fetchSteamPriceDetails: (appId: string | number, currencyCode?: string) => Promise<unknown>;
   fetchSteamCurrentPlayers: (appId: string | number) => Promise<{ appId: string; playerCount: number; success: boolean }>;
+  fetchSteamLatestUpdateSize: (appId: string | number) => Promise<{ size: string | null; title: string | null; publishedAt: Date | null; sourceUrl: string | null }>;
   extractOfferEndFromHtml: (html: unknown) => string | null;
   extractSteamOfferEndDate: (appId: string | number, currencyCode?: string) => Promise<string | null>;
 }
@@ -40,9 +41,31 @@ function makeDeps(overrides: Partial<SteamSourceDepsShape> = {}): { deps: SteamS
 test("createSteamSource: factory decuplat cu deps explicit tipate (fara target/Object.assign)", () => {
   const { deps } = makeDeps();
   const api = attachSteam.createSteamSource(deps);
-  for (const fn of ["searchSteamGameByName", "chooseBestSteamMatch", "fetchSteamPriceDetails", "fetchSteamCurrentPlayers", "extractOfferEndFromHtml", "extractSteamOfferEndDate"] as const) {
+  for (const fn of ["searchSteamGameByName", "chooseBestSteamMatch", "fetchSteamPriceDetails", "fetchSteamCurrentPlayers", "fetchSteamLatestUpdateSize", "extractOfferEndFromHtml", "extractSteamOfferEndDate"] as const) {
     assert.equal(typeof api[fn], "function", `api expune ${fn}`);
   }
+});
+
+test("createSteamSource.fetchSteamLatestUpdateSize foloseste doar dimensiuni publicate explicit", async () => {
+  const { deps } = makeDeps({
+    httpReq: async () => ({
+      data: {
+        appnews: {
+          newsitems: [
+            { title: "Patch notes", contents: "The update download size is 2.4 GB.", date: 1782900000, url: "https://store.steampowered.com/news/app/10/view/1" }
+          ]
+        }
+      }
+    })
+  });
+  const result = await attachSteam.createSteamSource(deps).fetchSteamLatestUpdateSize(10);
+  assert.equal(result.size, "2.4 GB");
+  assert.equal(result.title, "Patch notes");
+
+  const absent = makeDeps({
+    httpReq: async () => ({ data: { appnews: { newsitems: [{ title: "Patch notes", contents: "Many fixes and improvements." }] } } })
+  });
+  assert.equal((await attachSteam.createSteamSource(absent.deps).fetchSteamLatestUpdateSize(10)).size, null);
 });
 
 test("createSteamSource.searchSteamGameByName foloseste deps si tolereaza lipsa items", async () => {

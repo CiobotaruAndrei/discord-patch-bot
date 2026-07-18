@@ -15,7 +15,8 @@ const SteamDetailsSummarySchema = z.object({
   categories: z.array(z.object({ id: z.number().optional(), description: z.string().optional() })).optional(),
   genres: z.array(z.object({ id: z.string().optional(), description: z.string().optional() })).optional(),
   pc_requirements: z.union([z.string(), z.array(z.string()), z.object({ minimum: z.string().optional(), recommended: z.string().optional() }), z.null()]).optional(),
-  price_overview: z.object({ initial: z.number(), final: z.number(), discount_percent: z.number() }).nullable().optional()
+  price_overview: z.object({ initial: z.number(), final: z.number(), discount_percent: z.number(), final_formatted: z.string().optional() }).nullable().optional(),
+  release_date: z.object({ coming_soon: z.boolean().optional(), date: z.string().optional() }).optional()
 }).passthrough();
 const SteamDetailsResponseSchema = z.record(z.string(), z.object({ data: SteamDetailsSummarySchema.optional() }).optional());
 

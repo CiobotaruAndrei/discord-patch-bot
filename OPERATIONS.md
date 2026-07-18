@@ -299,6 +299,13 @@ setat ESTE sincronizarea. Inventarul declarat curent:
 | `playerCountHistory` | `{ fetchedAt }` | TTL 31 zile | retentia punctelor periodice folosite de trend, gainers si peak-time |
 | `playerCountHistory` | `{ appId, fetchedAt }` | — | citirea cronologica a istoricului pentru un Steam appId |
 | `playerCountHistory` | `{ gameKey, fetchedAt }` | — | interogari operationale pe cheia jocului si interval |
+| `reviewTrendSnapshots` | `{ fetchedAt }` | TTL 45 zile | retentia esantioanelor Steam folosite pentru trend si detectia review-bombing cu volum minim |
+| `reviewTrendSnapshots` | `{ appId, fetchedAt }` | - | citirea cronologica a review-urilor pentru un Steam appId |
+| `reviewTrendSnapshots` | `{ gameKey, fetchedAt }` | - | interogari operationale pe cheia jocului si interval |
+| `dealPriceSnapshots` | `{ fetchedAt }` | TTL 400 zile | retentia istoricului de pret folosit de `/deal-score` |
+| `dealPriceSnapshots` | `{ gameKey, store, currency, fetchedAt }` | - | comparatia cronologica si minimul istoric pentru aceeasi oferta si valuta |
+| `newAccountAlertDeliveries` | `{ expiresAt }` | TTL la momentul din document | elibereaza automat claim-urile de deduplicare dupa fereastra de alerta |
+| `newAccountAlertDeliveries` | `{ guildId, userId }` | unique | claim comun scanarii initiale si evenimentului live; impiedica alerta dubla pentru acelasi membru |
 | `bugReports` | `{ guildId, dedupeKey }` | unique | deduplicarea atomica a rapoartelor de bug in interiorul serverului |
 | `bugReports` | `{ guildId, createdAt }` | — | listarea paginata a bug-urilor, cele mai noi primele |
 | `userComplaints` | `{ guildId, dedupeKey }` | unique | deduplicarea atomica a reclamatiilor in interiorul serverului |

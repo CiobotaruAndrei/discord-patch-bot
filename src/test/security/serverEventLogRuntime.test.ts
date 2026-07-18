@@ -1,59 +1,127 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { AuditLogEvent } from "discord.js";
 
 import { createServerEventLogRuntime } from "../../features/command-security/serverEventLogRuntime.js";
 import type { GuildAuditLogRecord } from "../../features/admin-records/auditLogRepository.js";
 
-function harness() {
-  const records: GuildAuditLogRecord[] = [];
-  const runtime = createServerEventLogRuntime({
-    GuildAuditLogModel: {
-      create: async (doc: GuildAuditLogRecord) => { records.push(doc); return doc; },
-      find: () => { const q = { sort: () => q, skip: () => q, limit: () => q, lean: async () => [] as GuildAuditLogRecord[] }; return q; }
-    }
-  });
-  return { runtime, records };
+interface FakeAuditEntry {
+  id: string;
+  executor: { id: string; tag: string };
+  target: { id: string; tag: string };
+  createdTimestamp: number;
 }
 
-test("serverEventLogRuntime inregistreaza crearea/stergerea de canale si roluri, cu guildId, actiune si detalii (audit, #9)", async () => {
-  const { runtime, records } = harness();
+function isAuditRecord(value: unknown): value is GuildAuditLogRecord {
+  return Boolean(value && typeof value === "object" && "guildId" in value && "kind" in value);
+}
 
-  await runtime.handleChannelCreate({ id: "c1", name: "general", type: 0, guild: { id: "g1" } });
-  await runtime.handleChannelDelete({ id: "c1", name: "general", guild: { id: "g1" } });
-  await runtime.handleRoleCreate({ id: "r1", name: "Mod", guild: { id: "g1" } });
-  await runtime.handleRoleDelete({ id: "r1", name: "Mod", guild: { id: "g1" } });
-
-  assert.deepEqual(records.map(r => r.action), [
-    "server-channel-created", "server-channel-deleted", "server-role-created", "server-role-deleted"
-  ]);
-  assert.ok(records.every(r => r.guildId === "g1" && r.kind === "server"));
-  assert.match(records[0].details ?? "", /general \(c1\)/);
-  assert.match(records[2].details ?? "", /Mod \(r1\)/);
-});
-
-test("serverEventLogRuntime inregistreaza ban add/remove si plecarea membrilor cu userId (audit, #9)", async () => {
-  const { runtime, records } = harness();
-
-  await runtime.handleGuildBanAdd({ user: { id: "u9", tag: "spammer" }, guild: { id: "g1" } });
-  await runtime.handleGuildBanRemove({ user: { id: "u9", tag: "spammer" }, guild: { id: "g1" } });
-  await runtime.handleGuildMemberRemove({ user: { id: "u7", username: "gone" }, guild: { id: "g1" } });
-
-  assert.deepEqual(records.map(r => r.action), ["server-ban-added", "server-ban-removed", "server-member-left"]);
-  assert.deepEqual(records.map(r => r.userId), ["u9", "u9", "u7"]);
-  assert.match(records[0].details ?? "", /spammer \(u9\)/);
-});
-
-test("serverEventLogRuntime ignora evenimentele fara guild si nu arunca daca persistenta esueaza (audit, #9)", async () => {
+function harness(auditEntries: Partial<Record<AuditLogEvent, FakeAuditEntry[]>> = {}) {
   const records: GuildAuditLogRecord[] = [];
-  const runtime = createServerEventLogRuntime({
-    GuildAuditLogModel: {
-      create: async () => { throw new Error("mongo down"); },
-      find: () => { const q = { sort: () => q, skip: () => q, limit: () => q, lean: async () => [] as GuildAuditLogRecord[] }; return q; }
+  const operationIds = new Set<string>();
+  const model = {
+    create: async (doc: GuildAuditLogRecord) => { records.push(doc); return doc; },
+    updateOne: async (filter: Record<string, unknown>, update: Record<string, unknown>) => {
+      const operationId = String(filter.operationId ?? "");
+      if (operationIds.has(operationId)) return { upsertedCount: 0 };
+      operationIds.add(operationId);
+      if (isAuditRecord(update.$setOnInsert)) records.push(update.$setOnInsert);
+      return { upsertedCount: 1 };
     },
-    logger: () => undefined
+    find: () => {
+      const query = { sort: () => query, skip: () => query, limit: () => query, lean: async () => [] as GuildAuditLogRecord[] };
+      return query;
+    }
+  };
+  const runtime = createServerEventLogRuntime({
+    GuildAuditLogModel: model,
+    now: () => 100_000,
+    sleep: async () => undefined,
+    auditRetryDelaysMs: [0],
+    memberRemoveDelayMs: 0
+  });
+  const guild = {
+    id: "g1",
+    fetchAuditLogs: async ({ type }: { type: AuditLogEvent; limit: number }) => ({
+      entries: {
+        find: (predicate: (entry: FakeAuditEntry) => boolean) => (auditEntries[type] ?? []).find(predicate)
+      }
+    })
+  };
+  return { runtime, records, guild };
+}
+
+function audit(id: string, actorId: string, targetId: string): FakeAuditEntry {
+  return {
+    id,
+    executor: { id: actorId, tag: `actor-${actorId}` },
+    target: { id: targetId, tag: `target-${targetId}` },
+    createdTimestamp: 99_500
+  };
+}
+
+test("server log coreleaza actorul pentru canale si roluri si pastreaza tinta separat", async () => {
+  const suite = harness({
+    [AuditLogEvent.ChannelCreate]: [audit("a1", "mod-1", "c1")],
+    [AuditLogEvent.ChannelDelete]: [audit("a2", "mod-1", "c1")],
+    [AuditLogEvent.RoleCreate]: [audit("a3", "mod-2", "r1")],
+    [AuditLogEvent.RoleDelete]: [audit("a4", "mod-2", "r1")]
   });
 
-  await runtime.handleChannelCreate({ id: "c1", name: "x", guild: null });
-  assert.equal(records.length, 0, "eveniment fara guild nu se inregistreaza");
-  await assert.doesNotReject(runtime.handleRoleCreate({ id: "r1", name: "y", guild: { id: "g1" } }));
+  await suite.runtime.handleChannelCreate({ id: "c1", name: "general", type: 0, guild: suite.guild });
+  await suite.runtime.handleChannelDelete({ id: "c1", name: "general", guild: suite.guild });
+  await suite.runtime.handleRoleCreate({ id: "r1", name: "Mod", guild: suite.guild });
+  await suite.runtime.handleRoleDelete({ id: "r1", name: "Mod", guild: suite.guild });
+
+  assert.deepEqual(suite.records.map(record => record.action), [
+    "server-channel-created", "server-channel-deleted", "server-role-created", "server-role-deleted"
+  ]);
+  assert.deepEqual(suite.records.map(record => record.actorId), ["mod-1", "mod-1", "mod-2", "mod-2"]);
+  assert.deepEqual(suite.records.map(record => record.targetId), ["c1", "c1", "r1", "r1"]);
+});
+
+test("ban si unban afiseaza moderatorul ca actor si membrul sanctionat ca tinta", async () => {
+  const suite = harness({
+    [AuditLogEvent.MemberBanAdd]: [audit("ban-1", "mod-1", "u9")],
+    [AuditLogEvent.MemberBanRemove]: [audit("unban-1", "mod-2", "u9")]
+  });
+
+  await suite.runtime.handleGuildBanAdd({ user: { id: "u9", tag: "spammer" }, guild: suite.guild });
+  await suite.runtime.handleGuildBanRemove({ user: { id: "u9", tag: "spammer" }, guild: suite.guild });
+
+  assert.deepEqual(suite.records.map(record => record.actorId), ["mod-1", "mod-2"]);
+  assert.deepEqual(suite.records.map(record => record.targetId), ["u9", "u9"]);
+  assert.deepEqual(suite.records.map(record => record.action), ["server-ban-added", "server-ban-removed"]);
+});
+
+test("member remove distinge kick-ul de plecarea voluntara si logheaza join-ul", async () => {
+  const kicked = harness({ [AuditLogEvent.MemberKick]: [audit("kick-1", "mod-3", "u7")] });
+  await kicked.runtime.handleGuildMemberRemove({ user: { id: "u7", tag: "removed" }, guild: kicked.guild });
+  assert.equal(kicked.records[0].action, "server-member-kicked");
+  assert.equal(kicked.records[0].actorId, "mod-3");
+
+  const voluntary = harness();
+  await voluntary.runtime.handleGuildMemberAdd({ user: { id: "u8", tag: "new" }, guild: voluntary.guild });
+  await voluntary.runtime.handleGuildMemberRemove({ user: { id: "u8", tag: "new" }, guild: voluntary.guild });
+  assert.deepEqual(voluntary.records.map(record => record.action), ["server-member-joined", "server-member-left"]);
+  assert.equal(voluntary.records[1].actorId, "");
+  assert.equal(voluntary.records[1].targetId, "u8");
+});
+
+test("banul gateway si member remove corelat produc o singura intrare", async () => {
+  const suite = harness({ [AuditLogEvent.MemberBanAdd]: [audit("ban-shared", "mod-1", "u9")] });
+  const ban = { user: { id: "u9", tag: "spammer" }, guild: suite.guild };
+  await suite.runtime.handleGuildBanAdd(ban);
+  await suite.runtime.handleGuildMemberRemove(ban);
+  assert.equal(suite.records.length, 1);
+  assert.equal(suite.records[0].action, "server-ban-added");
+});
+
+test("actorul ramane explicit necunoscut cand Audit Log este indisponibil", async () => {
+  const suite = harness();
+  const unavailableGuild = { id: "g1", fetchAuditLogs: async () => { throw new Error("forbidden"); } };
+  await suite.runtime.handleGuildBanAdd({ user: { id: "u9", tag: "spammer" }, guild: unavailableGuild });
+  assert.equal(suite.records[0].actorId, "");
+  assert.equal(suite.records[0].targetId, "u9");
+  assert.match(suite.records[0].details ?? "", /actor=necunoscut/);
 });

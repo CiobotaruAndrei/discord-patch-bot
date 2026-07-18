@@ -20,6 +20,7 @@ type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
 interface DiscordInteraction {
+  id?: string;
   commandName?: string;
   guild?: { id: string } | null;
   deferred?: boolean;
@@ -40,7 +41,15 @@ interface AuditLogDeps {
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
   logger: Logger;
   MessageFlags: { Ephemeral: number };
+  scheduleAuditBatch?: AuditBatchScheduler;
+  auditBatchIntervalMs?: number;
 }
+
+interface ScheduledAuditBatch {
+  cancel(): void;
+}
+
+type AuditBatchScheduler = (task: () => Promise<void>, delayMs: number) => ScheduledAuditBatch;
 
 type AuditLogContext = AuditLogDeps;
 
@@ -104,20 +113,121 @@ function renderBotLog(entries: BotAuditLogEntry[]): string {
 function renderServerLog(entries: ServerAuditLogEntry[]): string {
   if (!entries.length) return "Nu exista schimbari importante salvate pentru acest server.";
   const lines = entries.map(entry => [
-    `- ${formatDate(entry.at)} ${formatUserReference(entry.userId || "")}`,
+    `- ${formatDate(entry.at)} actor: ${formatUserReference(entry.actorId || entry.userId || "")}`,
+    entry.targetId ? `tinta: ${formatUserReference(entry.targetId)}` : "",
     `actiune: \`${entry.action}\``,
     entry.details ? `detalii: ${escapeInlineText(entry.details, 400)}` : ""
   ].filter(Boolean).join(" | "));
   return `Server log (${entries.length}):\n${clampJoinedList(lines, 1900)}`;
 }
 
-function withMoreHint(text: string, count: number, offset: number): string {
-  if (count < 25) return text;
-  return `${text}\n\nMai pot exista intrari mai vechi. Ruleaza aceeasi comanda cu \`offset:${offset + 25}\` ca sa vezi urmatorul lot de 25.`;
+function defaultAuditBatchScheduler(task: () => Promise<void>, delayMs: number): ScheduledAuditBatch {
+  const timer = setTimeout(() => { void task(); }, delayMs);
+  timer.unref?.();
+  return { cancel: () => clearTimeout(timer) };
 }
 
 function createAuditLogInteractionHandler(deps: AuditLogDeps) {
   const { GuildAuditLogModel, safeDefer, safeEdit } = deps;
+  const scheduleAuditBatch = deps.scheduleAuditBatch ?? defaultAuditBatchScheduler;
+  const configuredBatchInterval = typeof deps.auditBatchIntervalMs === "number"
+    ? deps.auditBatchIntervalMs
+    : 120000;
+  const batchIntervalMs = Math.max(1, configuredBatchInterval);
+  const activeDeliveries = new Map<string | DiscordInteraction, ScheduledAuditBatch>();
+  const batchSize = 25;
+  const maxBatches = 7;
+
+  function deliveryKey(interaction: DiscordInteraction): string | DiscordInteraction {
+    return interaction.id || interaction;
+  }
+
+  function cancelAuditDelivery(interaction: DiscordInteraction): boolean {
+    const key = deliveryKey(interaction);
+    const scheduled = activeDeliveries.get(key);
+    if (!scheduled) return false;
+    scheduled.cancel();
+    activeDeliveries.delete(key);
+    return true;
+  }
+
+  function fitDeliveryMessage(header: string, rendered: string, status: string): string {
+    const fixed = `${header}\n${status}\n`;
+    const room = Math.max(0, 1990 - fixed.length);
+    return `${fixed}${rendered.slice(0, room)}`;
+  }
+
+  async function deliverOlderBatches(
+    interaction: DiscordInteraction,
+    guildId: string,
+    range: { start: Date; end: Date; label: string },
+    initialOffset: number
+  ): Promise<void> {
+    const key = deliveryKey(interaction);
+    cancelAuditDelivery(interaction);
+    const isBotLog = interaction.commandName === "bot-log";
+
+    async function deliver(batchNumber: number, offset: number, initial: boolean): Promise<void> {
+      let rendered = "";
+      let visibleCount = 0;
+      let hasMore = false;
+      if (isBotLog) {
+        const fetched = await listBotAuditEntriesInRange(GuildAuditLogModel, guildId, range.start, range.end, batchSize + 1, offset);
+        const visible = fetched.slice(0, batchSize);
+        rendered = renderBotLog(visible);
+        visibleCount = visible.length;
+        hasMore = fetched.length > batchSize;
+      } else {
+        const fetched = await listServerAuditEntriesInRange(GuildAuditLogModel, guildId, range.start, range.end, batchSize + 1, offset);
+        const visible = fetched.slice(0, batchSize);
+        rendered = renderServerLog(visible);
+        visibleCount = visible.length;
+        hasMore = fetched.length > batchSize;
+      }
+      const reachedTokenBudget = hasMore && batchNumber >= maxBatches;
+      const status = reachedTokenBudget
+        ? `Livrare oprita dupa ${batchNumber * batchSize} intrari: intervalul depaseste fereastra sigura a tokenului Discord. Alege un interval mai mic.`
+        : hasMore
+          ? `Lot ${batchNumber}: ${visibleCount} intrari. Urmatorul lot va fi trimis automat.`
+          : `Livrare finalizata: lot ${batchNumber}, ${visibleCount} intrari.`;
+      const payload = {
+        content: fitDeliveryMessage(`Interval ${range.label}`, rendered, status),
+        flags: deps.MessageFlags.Ephemeral,
+        allowedMentions: NO_MENTIONS
+      };
+      if (initial) {
+        await safeEdit(interaction, payload);
+      } else {
+        if (typeof interaction.followUp !== "function") {
+          deps.logger("WARN", "AUDIT_LOG_BATCH", "Livrarea audit-log s-a oprit: follow-up indisponibil", { guildId, batchNumber });
+          activeDeliveries.delete(key);
+          return;
+        }
+        try {
+          await interaction.followUp(payload);
+        } catch (error) {
+          deps.logger("WARN", "AUDIT_LOG_BATCH", "Livrarea audit-log s-a oprit: interactiunea a expirat", { guildId, batchNumber, error: errorDetail(error) });
+          activeDeliveries.delete(key);
+          return;
+        }
+      }
+      if (!hasMore || reachedTokenBudget) {
+        activeDeliveries.delete(key);
+        return;
+      }
+      const scheduled = scheduleAuditBatch(async () => {
+        activeDeliveries.delete(key);
+        try {
+          await deliver(batchNumber + 1, offset + batchSize, false);
+        } catch (error) {
+          deps.logger("WARN", "AUDIT_LOG_BATCH", "Livrarea audit-log s-a oprit dupa o eroare", { guildId, batchNumber: batchNumber + 1, error: errorDetail(error) });
+        }
+      }, batchIntervalMs);
+      activeDeliveries.set(key, scheduled);
+    }
+
+    await deliver(1, initialOffset, true);
+  }
 
   async function handleAuditLogInteraction(interaction: DiscordInteraction): Promise<unknown> {
     const guildId = interaction.guild?.id;
@@ -131,19 +241,14 @@ function createAuditLogInteractionHandler(deps: AuditLogDeps) {
         return respond("Eroare: foloseste `period:zi` sau `period:saptamana` cu `start:YYYY-MM-DD`, ori `period:luna` cu `start:YYYY-MM`.");
       }
       const offset = offsetFromInteraction(interaction);
-      if (interaction.commandName === "bot-log") {
-        const entries = await listBotAuditEntriesInRange(GuildAuditLogModel, guildId, range.start, range.end, 25, offset);
-        return respond(withMoreHint(`Interval ${range.label}\n${renderBotLog(entries)}`, entries.length, offset));
-      }
-      const entries = await listServerAuditEntriesInRange(GuildAuditLogModel, guildId, range.start, range.end, 25, offset);
-      return respond(withMoreHint(`Interval ${range.label}\n${renderServerLog(entries)}`, entries.length, offset));
+      return deliverOlderBatches(interaction, guildId, range, offset);
     }
     const limit = limitFromInteraction(interaction);
     if (interaction.commandName === "bot-log") return respond(renderBotLog(await listBotAuditEntries(GuildAuditLogModel, guildId, limit)));
     return respond(renderServerLog(await listServerAuditEntries(GuildAuditLogModel, guildId, limit)));
   }
 
-  return { handleAuditLogInteraction };
+  return { handleAuditLogInteraction, cancelAuditDelivery };
 }
 
 function isAuditLogCommand(interaction: DiscordInteraction): boolean {

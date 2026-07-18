@@ -42,6 +42,16 @@ export interface GuildConfigurationSettings {
   playerCountSubscribed?: boolean;
   playerCountChannelId?: string | null;
   playerCountGames?: string[];
+  playerCountInitializing?: boolean;
+  playerCountActivationId?: string | null;
+  playerCountWatchState?: Array<{
+    gameKey: string;
+    appId: string;
+    playerCount: number;
+    fetchedAt: Date;
+    lastNotifiedAt?: Date | null;
+    lastDirection?: "up" | "down" | null;
+  }>;
   gameAliases?: Map<string, string[]> | Record<string, string[]>;
   timezone?: string;
   futureReleaseSubscribed?: boolean;

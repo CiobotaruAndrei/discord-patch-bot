@@ -49,7 +49,12 @@ export interface SteamAppDetailsSummary {
     initial: number;
     final: number;
     discount_percent: number;
+    final_formatted?: string;
   } | null;
+  release_date?: {
+    coming_soon?: boolean;
+    date?: string;
+  };
 }
 
 export interface SteamCurrentPlayersSummary {
@@ -58,12 +63,20 @@ export interface SteamCurrentPlayersSummary {
   success: boolean;
 }
 
+export interface SteamLatestUpdateSizeSummary {
+  size: string | null;
+  title: string | null;
+  publishedAt: Date | null;
+  sourceUrl: string | null;
+}
+
 export interface SteamSourceApi {
   searchSteamGameByName: (query: string, currencyCode?: SourceCurrencyCode) => Promise<SteamSearchItem[]>;
   levenshtein: (a: string, b: string) => number;
   chooseBestSteamMatch: (items: SteamSearchItem[] | null | undefined, query: string, options?: ChooseBestSteamMatchOptions) => SteamSearchItem | null;
   fetchSteamPriceDetails: (appId: string | number, currencyCode?: SourceCurrencyCode) => Promise<SteamAppDetailsSummary | null>;
   fetchSteamCurrentPlayers: (appId: string | number) => Promise<SteamCurrentPlayersSummary>;
+  fetchSteamLatestUpdateSize: (appId: string | number) => Promise<SteamLatestUpdateSizeSummary>;
   extractOfferEndFromHtml: (html: unknown) => string | null;
   extractSteamOfferEndDate: (appId: string | number, currencyCode?: SourceCurrencyCode) => Promise<string | null>;
 }

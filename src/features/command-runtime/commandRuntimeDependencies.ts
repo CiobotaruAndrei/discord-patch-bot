@@ -69,6 +69,8 @@ type CommandMongoKey =
   | "validateUpdateFetchSnapshot" | "validatePendingDiscountSnapshot"
   | "GuildModel" | "GuildAuditLogModel" | "GuildConfigBackupModel" | "GuildSuggestedCommandModel"
   | "GuildYoutubeErrorModel" | "GuildDeadLetterModel" | "PlayerCountSnapshotModel" | "PlayerCountHistoryModel"
+  | "ReviewTrendSnapshotModel"
+  | "DealPriceSnapshotModel"
   | "PlayerCountRecordModel" | "FeedbackReportModel" | "BugReportModel" | "UserComplaintModel"
   | "GuildSeenDiscountModel" | "GuildSeenUpdateModel" | "GuildSeenYoutubeModel"
   | "NotificationOutboxModel" | "NotificationOutboxSentModel" | "NotificationHistoryModel"
@@ -78,7 +80,7 @@ type CommandSourceKey =
   | "MAX_DEALS" | "FETCH_CONCURRENCY"
   | "cleanText" | "truncate" | "normalizeTitleForDedupe" | "safeCheerioLoad" | "httpReq" | "fetchWithProxy"
   | "fetchDeals" | "fetchGameUpdate" | "getLatestForAllGames" | "executeFetchWithCircuitBreaker"
-  | "fetchSteamCurrentPlayers" | "searchSteamGameByName" | "chooseBestSteamMatch" | "fetchSteamPriceDetails"
+  | "fetchSteamCurrentPlayers" | "fetchSteamLatestUpdateSize" | "searchSteamGameByName" | "chooseBestSteamMatch" | "fetchSteamPriceDetails"
   | "enrichDealData" | "fetchSteamReviewData" | "extractOfferEndFromHtml" | "extractSteamOfferEndDate"
   | "cleanEnrichedCache" | "getEnrichedCacheSize" | "dealHash";
 
@@ -183,6 +185,8 @@ export function selectCommandMongoDependencies(source: MongoContextExports): Com
     GuildDeadLetterModel: source.GuildDeadLetterModel,
     PlayerCountSnapshotModel: source.PlayerCountSnapshotModel,
     PlayerCountHistoryModel: source.PlayerCountHistoryModel,
+    ReviewTrendSnapshotModel: source.ReviewTrendSnapshotModel,
+    DealPriceSnapshotModel: source.DealPriceSnapshotModel,
     PlayerCountRecordModel: source.PlayerCountRecordModel,
     FeedbackReportModel: source.FeedbackReportModel,
     BugReportModel: source.BugReportModel,
@@ -213,6 +217,7 @@ export function selectCommandSourceDependencies(source: SourceRegistryApi): Comm
     getLatestForAllGames: source.getLatestForAllGames,
     executeFetchWithCircuitBreaker: source.executeFetchWithCircuitBreaker,
     fetchSteamCurrentPlayers: source.fetchSteamCurrentPlayers,
+    fetchSteamLatestUpdateSize: source.fetchSteamLatestUpdateSize,
     searchSteamGameByName: source.searchSteamGameByName,
     chooseBestSteamMatch: source.chooseBestSteamMatch,
     fetchSteamPriceDetails: source.fetchSteamPriceDetails,

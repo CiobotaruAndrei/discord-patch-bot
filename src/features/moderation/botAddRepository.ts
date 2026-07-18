@@ -12,6 +12,8 @@ export interface BotAddPermissionRecord {
   respondedAt?: Date | null;
   expiresAt?: Date | null;
   usedAt?: Date | null;
+  cancelledAt?: Date | null;
+  cancellationReason?: "protection-stopped" | null;
   status: BotAddPermissionStatus;
 }
 
@@ -34,7 +36,7 @@ interface GuildModelLike {
     filter: Record<string, unknown>,
     update: Record<string, unknown> | readonly Record<string, unknown>[],
     options?: Record<string, unknown>
-  ): Promise<unknown>;
+  ): Promise<object | null | undefined>;
 }
 
 const PENDING_TTL_MS = 10 * 60 * 1000;
@@ -235,22 +237,43 @@ export function countActiveBotAddPermissions(records: unknown, now = new Date())
   ).length;
 }
 
-export async function cancelActiveBotAddPermissions(model: BotAddCancelModelLike, guildId: string, now = new Date()): Promise<void> {
+export async function stopBotAddProtectionAtomically(model: BotAddCancelModelLike, guildId: string, now = new Date()): Promise<void> {
   await model.updateOne(
     { _id: guildId },
-    {
+    [{
       $set: {
-        "botAddPermissions.$[entry].status": "cancelled",
-        "botAddPermissions.$[entry].respondedAt": now
+        botAddProtectionEnabled: false,
+        botAddPermissions: {
+          $map: {
+            input: { $ifNull: ["$botAddPermissions", []] },
+            as: "entry",
+            in: {
+              $cond: [
+                {
+                  $and: [
+                    { $in: ["$$entry.status", ["pending", "approved"]] },
+                    { $gt: ["$$entry.expiresAt", now] }
+                  ]
+                },
+                {
+                  $mergeObjects: [
+                    "$$entry",
+                    {
+                      status: "cancelled",
+                      respondedAt: now,
+                      cancelledAt: now,
+                      cancellationReason: "protection-stopped"
+                    }
+                  ]
+                },
+                "$$entry"
+              ]
+            }
+          }
+        }
       }
-    },
-    {
-      arrayFilters: [{
-        "entry.status": { $in: ["pending", "approved"] },
-        "entry.expiresAt": { $gt: now }
-      }]
-    }
+    }]
   );
 }
 
-export default { getBotAddState, createBotAddRequest, resolveBotAddRequest, consumeBotAddPermission, countActiveBotAddPermissions, cancelActiveBotAddPermissions };
+export default { getBotAddState, createBotAddRequest, resolveBotAddRequest, consumeBotAddPermission, countActiveBotAddPermissions, stopBotAddProtectionAtomically };

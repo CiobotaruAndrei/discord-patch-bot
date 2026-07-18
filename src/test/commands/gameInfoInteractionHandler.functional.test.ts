@@ -55,6 +55,7 @@ function makeDeps(deals: DealInfo[] = []) {
     }),
     fetchSteamReviewData: async () => ({ totalReviews: 12000, qualityPercent: 96, success: true }),
     fetchSteamCurrentPlayers: async (appId: string | number) => ({ appId: String(appId), playerCount: String(appId) === "730" ? 1200000 : 550, success: true }),
+    fetchSteamLatestUpdateSize: async () => ({ size: null, title: null, publishedAt: null, sourceUrl: null }),
     getDealsCacheData: () => deals,
     setDealsCache: () => undefined,
     fetchDeals: async () => deals,
@@ -101,10 +102,16 @@ test("comenzile Steam metadata folosesc appdetails pentru crossplay si dimensiun
   };
 
   const crossplay = installGameInfo.buildCrossplayEmbed("portal", 10, details);
-  const gameSize = installGameInfo.buildGameSizeEmbed("portal", 10, details, load);
+  const gameSize = installGameInfo.buildGameSizeEmbed("portal", 10, details, load, {
+    size: "2.4 GB",
+    title: "Portal update",
+    publishedAt: new Date("2026-07-01T10:00:00Z"),
+    sourceUrl: "https://store.steampowered.com/news/app/10/view/1"
+  });
 
   assert.match(String(crossplay.fields?.[0]?.value), /Cross-Platform Multiplayer/);
-  assert.match(String(gameSize.description), /8 GB/);
+  assert.match(String(gameSize.fields?.[0]?.value), /8 GB/);
+  assert.match(String(gameSize.fields?.[1]?.value), /2\.4 GB/);
 });
 
 test("/player-count game afiseaza numarul curent de jucatori Steam", async () => {
@@ -117,12 +124,35 @@ test("/player-count game afiseaza numarul curent de jucatori Steam", async () =>
     pc_requirements: { minimum: "", recommended: "" },
     price_overview: { initial: 0, final: 0, discount_percent: 0 }
   });
-  const handler = installGameInfo.createGameInfoInteractionHandler(deps);
+  const now = Date.now();
+  const handler = installGameInfo.createGameInfoInteractionHandler({
+    ...deps,
+    readPlayerCountHistory: async () => [
+      { appId: "730", gameKey: "cs2", playerCount: 900000, fetchedAt: new Date(now - 18 * 60 * 60_000) },
+      { appId: "730", gameKey: "cs2", playerCount: 1300000, fetchedAt: new Date(now - 6 * 60 * 60_000) }
+    ]
+  });
 
   await handler.handleGameInfo(makeInteraction("player-count", { game: "Counter-Strike 2" }));
 
-  const payload = replies[0] as { embeds?: Array<{ description?: string }> };
+  const payload = replies[0] as { embeds?: Array<{ description?: string; fields?: Array<{ value?: string }> }> };
   assert.match(String(payload.embeds?.[0]?.description), /1,200,000/);
+  assert.match(String(payload.embeds?.[0]?.fields?.[0]?.value), /1,300,000/);
+  assert.equal(payload.embeds?.[0]?.fields?.[1]?.value, "in crestere");
+});
+
+test("/player-count game nu inventeaza peak sau directie cand istoricul este insuficient", async () => {
+  const { deps, replies } = makeDeps();
+  const handler = installGameInfo.createGameInfoInteractionHandler({
+    ...deps,
+    readPlayerCountHistory: async () => [{ appId: "10", gameKey: "portal", playerCount: 550, fetchedAt: new Date() }]
+  });
+
+  await handler.handleGameInfo(makeInteraction("player-count", { game: "Portal" }));
+
+  const payload = replies[0] as { embeds?: Array<{ fields?: Array<{ value?: string }> }> };
+  assert.equal(payload.embeds?.[0]?.fields?.[0]?.value, "indisponibil");
+  assert.equal(payload.embeds?.[0]?.fields?.[1]?.value, "indisponibila");
 });
 
 test("/top active games calculeaza global din jocurile botului, nu din watchlist-ul serverului", async () => {

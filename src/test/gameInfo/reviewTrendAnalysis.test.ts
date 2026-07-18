@@ -35,3 +35,33 @@ test("analyzeReviewTrend: scadere lenta sau aflux mic NU e semnalat drept review
   const smallInflux = analyzeReviewTrend(older, { totalReviews: 1010, qualityPercent: 55, at: T0 + 2 * DAY });
   assert.equal(smallInflux?.possibleReviewBombing, false, "aflux mic (sub prag) => nu e bombing");
 });
+
+test("analyzeReviewTrend: volumele mici nu produc false positive indiferent de raport", () => {
+  const result = analyzeReviewTrend(
+    { totalReviews: 5, qualityPercent: 100, at: T0 },
+    { totalReviews: 6, qualityPercent: 50, at: T0 + DAY }
+  );
+  assert.equal(result?.possibleReviewBombing, false);
+  assert.equal(result?.confidence, "low");
+});
+
+test("analyzeReviewTrend: pragurile de volum sunt configurabile", () => {
+  const result = analyzeReviewTrend(
+    { totalReviews: 100, qualityPercent: 90, at: T0 },
+    { totalReviews: 130, qualityPercent: 70, at: T0 + DAY },
+    { bombingMinNewReviews: 20, bombingMinBaselineReviews: 50 }
+  );
+  assert.equal(result?.possibleReviewBombing, true);
+  assert.equal(result?.confidence, "medium");
+});
+
+test("analyzeReviewTrend: snapshot-urile corupte sau regresive sunt refuzate", () => {
+  assert.equal(analyzeReviewTrend(
+    { totalReviews: 100, qualityPercent: 101, at: T0 },
+    { totalReviews: 120, qualityPercent: 70, at: T0 + DAY }
+  ), null);
+  assert.equal(analyzeReviewTrend(
+    { totalReviews: 100, qualityPercent: 80, at: T0 },
+    { totalReviews: 90, qualityPercent: 70, at: T0 + DAY }
+  ), null);
+});

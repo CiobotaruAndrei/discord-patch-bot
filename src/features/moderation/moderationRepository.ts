@@ -32,14 +32,14 @@ export type ModerationGuildModel = {
     filter: Record<string, unknown>,
     update: Record<string, unknown> | readonly Record<string, unknown>[],
     options?: Record<string, unknown>
-  ): Promise<unknown>;
+  ): Promise<object | null | undefined>;
   updateMany?(
     filter: Record<string, unknown>,
     update: Record<string, unknown> | readonly Record<string, unknown>[]
-  ): Promise<unknown>;
+  ): Promise<object | null | undefined>;
 };
 
-type GuildModerationState = {
+export type GuildModerationState = {
   moderationTimeouts?: ModerationRecord[];
   moderationMutes?: ModerationRecord[];
   moderationWarnings?: WarningRecord[];
@@ -165,6 +165,18 @@ export async function findModerationRecord(
   return moderationRecords(state[field]).find(record => record.userId === userId) ?? null;
 }
 
+export async function findModerationRecordsForUser(
+  model: ModerationGuildModel,
+  guildId: string,
+  userId: string
+): Promise<{ timeout: ModerationRecord | null; mute: ModerationRecord | null }> {
+  const state = await getModerationState(model, guildId);
+  return {
+    timeout: moderationRecords(state.moderationTimeouts).find(record => record.userId === userId) ?? null,
+    mute: moderationRecords(state.moderationMutes).find(record => record.userId === userId) ?? null
+  };
+}
+
 export async function removeModeration(
   model: ModerationGuildModel,
   guildId: string,
@@ -221,6 +233,22 @@ export async function pullStaleTimeouts(model: ModerationGuildModel, guildId: st
     { $pull: { moderationTimeouts: { userId: { $in: unique } } } }
   );
   return unique.length;
+}
+
+export async function pullModerationRecords(
+  model: ModerationGuildModel,
+  guildId: string,
+  timeoutUserIds: readonly string[],
+  muteUserIds: readonly string[]
+): Promise<number> {
+  const timeoutIds = [...new Set(timeoutUserIds.filter(id => id.length > 0))];
+  const muteIds = [...new Set(muteUserIds.filter(id => id.length > 0))];
+  if (timeoutIds.length === 0 && muteIds.length === 0) return 0;
+  const pull: Record<string, object> = {};
+  if (timeoutIds.length > 0) pull.moderationTimeouts = { userId: { $in: timeoutIds } };
+  if (muteIds.length > 0) pull.moderationMutes = { userId: { $in: muteIds } };
+  await model.updateOne({ _id: guildId }, { $pull: pull });
+  return timeoutIds.length + muteIds.length;
 }
 
 export async function addWarning(model: ModerationGuildModel, guildId: string, record: WarningRecord): Promise<{ count: number; limit: number }> {
@@ -305,8 +333,21 @@ export async function removeWarningById(
   return document !== null;
 }
 
-export async function setWarnBanLimit(model: ModerationGuildModel, guildId: string, limit: number): Promise<void> {
-  await model.updateOne({ _id: guildId }, { $set: { moderationWarnBanLimit: limit } }, { upsert: true });
+export async function setWarnBanLimit(model: ModerationGuildModel, guildId: string, limit: number): Promise<number> {
+  const previous = await resolveDocument(model.findOneAndUpdate(
+    { _id: guildId },
+    { $set: { moderationWarnBanLimit: limit } },
+    { upsert: true, returnDocument: "before" }
+  ));
+  return typeof previous?.moderationWarnBanLimit === "number" ? previous.moderationWarnBanLimit : 0;
+}
+
+export async function setWarningChannel(model: ModerationGuildModel, guildId: string, channelId: string): Promise<void> {
+  await model.updateOne(
+    { _id: guildId },
+    { $set: { warningChannelId: channelId } },
+    { upsert: true }
+  );
 }
 
 export default {
@@ -315,12 +356,15 @@ export default {
   saveTimeout,
   saveMute,
   findModerationRecord,
+  findModerationRecordsForUser,
   removeModeration,
   removeAllModerationForUser,
   reconcileTimeoutRecords,
   pullStaleTimeouts,
+  pullModerationRecords,
   addWarning,
   removeWarning,
   removeWarningById,
-  setWarnBanLimit
+  setWarnBanLimit,
+  setWarningChannel
 };

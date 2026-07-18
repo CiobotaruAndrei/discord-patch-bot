@@ -7,8 +7,10 @@ export interface CronCommandsForJobs {
   checkForUpdates(client: unknown, games: GameConfig[], shouldAbort: ShouldAbort): Promise<void>;
   checkForDiscounts(client: unknown, shouldAbort: ShouldAbort): Promise<void>;
   checkForDlcs?(client: unknown, games: GameConfig[], shouldAbort: ShouldAbort): Promise<void>;
+  checkForFutureReleases?(client: unknown, shouldAbort: ShouldAbort): Promise<void>;
   checkForYouTube(client: unknown, shouldAbort: ShouldAbort): Promise<void>;
   refreshPlayerCountSnapshots?(games: GameConfig[], shouldAbort: ShouldAbort, client?: NotificationDiscordClient): Promise<unknown>;
+  refreshReviewTrendSnapshots?(games: GameConfig[], shouldAbort: ShouldAbort): Promise<unknown>;
 }
 
 interface CronNotificationClient {
@@ -39,9 +41,15 @@ export function buildCronCycleJobs(
     ...(typeof commands.checkForDlcs === "function"
       ? [{ label: "checkForDlcs", run: commands.checkForDlcs(client, games, shouldAbort) }]
       : []),
+    ...(typeof commands.checkForFutureReleases === "function"
+      ? [{ label: "checkForFutureReleases", run: commands.checkForFutureReleases(client, shouldAbort) }]
+      : []),
     { label: "checkForYouTube", run: commands.checkForYouTube(client, shouldAbort) },
     ...(typeof commands.refreshPlayerCountSnapshots === "function"
       ? [{ label: "refreshPlayerCountSnapshots", run: commands.refreshPlayerCountSnapshots(games, shouldAbort, client.channels ? { user: client.user, channels: client.channels } : undefined) }]
+      : []),
+    ...(typeof commands.refreshReviewTrendSnapshots === "function"
+      ? [{ label: "refreshReviewTrendSnapshots", run: commands.refreshReviewTrendSnapshots(games, shouldAbort) }]
       : [])
   ];
 }

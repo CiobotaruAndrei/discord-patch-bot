@@ -70,6 +70,11 @@ test("steamMetadataEmbeds: game-size extrage dimensiunea din cerinte, altfel mes
   const withSize = steamMetadata.buildGameSizeEmbed("q", 1, {
     name: "Joc",
     pc_requirements: { minimum: "<p>Storage: 50 GB available space</p>" }
-  }, load);
-  assert.ok(String(withSize.description).includes("50 GB"));
+  }, load, { size: "1.2 GB", title: "Update 4", publishedAt: null, sourceUrl: null });
+  assert.ok(String(withSize.fields?.[0]?.value).includes("50 GB"));
+  assert.ok(String(withSize.fields?.[1]?.value).includes("1.2 GB"));
+
+  const unavailable = steamMetadata.buildGameSizeEmbed("q", 1, { name: "Joc" }, load);
+  assert.equal(unavailable.fields?.[0]?.value, "indisponibil");
+  assert.equal(unavailable.fields?.[1]?.value, "indisponibil");
 });

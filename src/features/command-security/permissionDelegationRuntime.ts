@@ -2,6 +2,11 @@
 
 import { AuditLogEvent, PermissionFlagsBits } from "discord.js";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
+import {
+  recordBotObservationEvent,
+  type BotObservationModelLike,
+  type RecordedObservationEvent
+} from "./botObservationRepository.js";
 
 type PermissionSet = { has(flag: bigint): boolean; bitfield?: bigint };
 type AuditEntryId = string | number;
@@ -38,6 +43,7 @@ type AuditEntry = {
   target?: { id?: string } | null;
   executor?: { id?: string } | null;
   createdTimestamp?: number;
+  extra?: { channel?: { id?: string } | null } | null;
 };
 
 interface AuditMatch {
@@ -52,6 +58,7 @@ type GuildLike = {
 type DelegationMetrics = { permissionDelegationsReverted?: number };
 
 export interface PermissionDelegationRuntimeDeps {
+  GuildModel?: BotObservationModelLike;
   GuildAuditLogModel: GuildAuditLogModelLike;
   adminAlert(kind: string, title: string, body: string, guildId?: string): Promise<unknown>;
   metrics?: DelegationMetrics;
@@ -148,6 +155,35 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
   const wait = deps.wait ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
   const processedAuditEntries = new Set<AuditEntryId>();
 
+  async function observeSensitiveAction(
+    guildId: string,
+    actorId: string | null,
+    match: AuditMatch,
+    kind: string,
+    at: number
+  ): Promise<RecordedObservationEvent | null> {
+    if (!deps.GuildModel || !actorId || match.entryId === null) return null;
+    const observation = await recordBotObservationEvent(deps.GuildModel, guildId, actorId, {
+      key: `audit:${String(match.entryId)}`,
+      kind,
+      at: new Date(at),
+      confirmed: true
+    });
+    if (observation.burstStarted) {
+      await deps.adminAlert(
+        "security:bot-observation-burst",
+        "Rafala de activitate sensibila a unui bot monitorizat",
+        `Bot ${actorId}; ${observation.recentCount} actiuni corelate precis prin Audit Log intr-un minut; verificare owner urgenta`,
+        guildId
+      );
+    }
+    return observation;
+  }
+
+  function shouldSendIndividualAlert(observation: RecordedObservationEvent | null): boolean {
+    return !observation?.observed || observation.recentCount === 1;
+  }
+
   function markProcessed(match: AuditMatch): void {
     if (match.entryId !== null) processedAuditEntries.add(match.entryId);
   }
@@ -174,7 +210,8 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
       action: "protected-role-permissions-reverted",
       details: `roleId=${next.id}; roleName=${next.name ?? ""}; removed=${stillGranted.map(({ label }) => label).join("+")}`
     });
-    await deps.adminAlert(
+    const observation = await observeSensitiveAction(next.guild.id, actorId, match, "role-permissions", eventTime);
+    if (shouldSendIndividualAlert(observation)) await deps.adminAlert(
       "security:permission-delegation",
       "Delegare neautorizata de permisiuni restaurata",
       `Rol ${next.name ?? next.id}; permisiuni eliminate: ${stillGranted.map(({ label }) => label).join(", ")}; restul modificarilor raman; actor ${actorId ?? "nedetectat"}`,
@@ -204,7 +241,8 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
       action: "protected-member-roles-reverted",
       details: `memberId=${next.id}; roleIds=${addedProtected.map(role => role.id).join(",")}`
     });
-    await deps.adminAlert(
+    const observation = await observeSensitiveAction(next.guild.id, actorId, match, "member-sensitive-role", eventTime);
+    if (shouldSendIndividualAlert(observation)) await deps.adminAlert(
       "security:permission-delegation",
       "Roluri sensibile acordate neautorizat si eliminate",
       `Membru ${next.id}; roluri ${addedProtected.map(role => role.name ?? role.id).join(", ")}; actor ${actorId ?? "nedetectat"}`,
@@ -226,7 +264,8 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
         action: "protected-managed-role-created-alerted",
         details: `roleId=${role.id}; roleName=${role.name ?? ""}; managed=true`
       });
-      await deps.adminAlert(
+      const observation = await observeSensitiveAction(role.guild.id, actorId, match, "managed-role-create", eventTime);
+      if (shouldSendIndividualAlert(observation)) await deps.adminAlert(
         "security:permission-delegation",
         "Rol gestionat de integrare creat cu permisiuni sensibile",
         `Rol ${role.name ?? role.id} (gestionat de integrare/bot, permisiunile lui nu se restaureaza automat); actor ${actorId ?? "nedetectat"}; verificare owner necesara`,
@@ -246,7 +285,8 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
       action: "protected-role-create-reverted",
       details: `roleId=${role.id}; roleName=${role.name ?? ""}; removed=${stillGranted.map(({ label }) => label).join("+")}`
     });
-    await deps.adminAlert(
+    const observation = await observeSensitiveAction(role.guild.id, actorId, match, "role-create", eventTime);
+    if (shouldSendIndividualAlert(observation)) await deps.adminAlert(
       "security:permission-delegation",
       "Rol nou creat cu permisiuni sensibile; permisiunile sensibile au fost eliminate",
       `Rol ${role.name ?? role.id}; permisiuni eliminate: ${stillGranted.map(({ label }) => label).join(", ")}; permisiunile neprotejate raman; actor ${actorId ?? "nedetectat"}`,
@@ -292,7 +332,8 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
       action: "protected-channel-overwrite-reverted",
       details: `channelId=${next.id}; targets=${violations.map(entry => `${entry.overwrite.id}:${entry.granted.map(item => item.option).join("+")}`).join(",")}`
     });
-    await deps.adminAlert(
+    const observation = await observeSensitiveAction(guild.id, actorId, match, "channel-overwrite", eventTime);
+    if (shouldSendIndividualAlert(observation)) await deps.adminAlert(
       "security:permission-delegation",
       "Overwrite de canal cu permisiuni sensibile restaurat",
       `Canal ${next.name ?? next.id}; tinte ${violations.map(entry => entry.overwrite.id).join(", ")}; actor ${actorId ?? "nedetectat"}`,
@@ -300,7 +341,49 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
     );
   }
 
-  return Object.freeze({ handleRoleUpdate, handleGuildMemberUpdate, handleRoleCreate, handleChannelUpdate });
+  async function webhookAuditMatch(guild: GuildLike, channelId: string, eventTime: number): Promise<AuditMatch> {
+    for (const type of [AuditLogEvent.WebhookCreate, AuditLogEvent.WebhookUpdate, AuditLogEvent.WebhookDelete]) {
+      const logs = await guild.fetchAuditLogs?.({ type, limit: 6 });
+      const entries = logs?.entries ? [...logs.entries.values()] : [];
+      const candidate = entries
+        .filter(entry =>
+          entry.extra?.channel?.id === channelId
+          && typeof entry.createdTimestamp === "number"
+          && Math.abs(eventTime - entry.createdTimestamp) <= AUDIT_LOG_MATCH_WINDOW_MS
+          && entry.id !== undefined
+          && !processedAuditEntries.has(entry.id)
+        )
+        .sort((left, right) => Math.abs(eventTime - (left.createdTimestamp ?? 0)) - Math.abs(eventTime - (right.createdTimestamp ?? 0)))[0];
+      if (candidate) return { executorId: candidate.executor?.id ?? null, entryId: candidate.id ?? null };
+    }
+    return { executorId: null, entryId: null };
+  }
+
+  async function handleWebhookUpdate(channel: ChannelLike): Promise<void> {
+    const guild = channel.guild;
+    if (!guild?.id) return;
+    const eventTime = now();
+    const match = await matchWithRetry(() => webhookAuditMatch(guild, channel.id, eventTime), wait);
+    if (!match.executorId || match.entryId === null) return;
+    markProcessed(match);
+    const observation = await observeSensitiveAction(guild.id, match.executorId, match, "webhook-change", eventTime);
+    if (!observation?.observed) return;
+    await recordServerAuditEntry(deps.GuildAuditLogModel, guild.id, {
+      userId: match.executorId,
+      action: "observed-bot-webhook-change",
+      details: `channelId=${channel.id}; auditEntryId=${String(match.entryId)}`
+    });
+    if (shouldSendIndividualAlert(observation)) {
+      await deps.adminAlert(
+        "security:bot-webhook-observation",
+        "Bot monitorizat a modificat un webhook",
+        `Bot ${match.executorId}; canal ${channel.id}; actiune atribuita precis prin Audit Log; verificare owner necesara`,
+        guild.id
+      );
+    }
+  }
+
+  return Object.freeze({ handleRoleUpdate, handleGuildMemberUpdate, handleRoleCreate, handleChannelUpdate, handleWebhookUpdate });
 }
 
 export default { createPermissionDelegationRuntime };

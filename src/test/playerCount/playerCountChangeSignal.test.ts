@@ -31,3 +31,16 @@ test("evaluatePlayerCountChange: praguri configurabile si baza zero (audit, #2)"
   assert.equal(evaluatePlayerCountChange(1000, 1100, { minPercent: 5, minAbsolute: 50 }).significant, true);
   assert.equal(evaluatePlayerCountChange(0, 300).percentChange, 100, "baza zero cu jucatori => +100%");
 });
+
+test("evaluatePlayerCountChange decide dupa procentul brut, nu dupa valoarea rotunjita", () => {
+  assert.deepEqual(evaluatePlayerCountChange(10000, 12495), {
+    absoluteChange: 2495,
+    percentChange: 25,
+    direction: "up",
+    significant: false
+  });
+  assert.equal(evaluatePlayerCountChange(10000, 12500).significant, true);
+  assert.equal(evaluatePlayerCountChange(10000, 7505).significant, false);
+  assert.equal(evaluatePlayerCountChange(10000, 7500).significant, true);
+  assert.equal(evaluatePlayerCountChange(10000, 12499, { minPercent: 24.995, minAbsolute: 2000 }).significant, false);
+});

@@ -8,7 +8,7 @@ import type {
   SteamSearchItem
 } from "../../types.js";
 import { levenshtein } from "../../native/fuzzy.js";
-import type { SteamSourceApi, ChooseBestSteamMatchOptions, SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../sourceApis.js";
+import type { SteamSourceApi, ChooseBestSteamMatchOptions, SteamAppDetailsSummary, SteamCurrentPlayersSummary, SteamLatestUpdateSizeSummary } from "../sourceApis.js";
 import { errorMessage } from "../../shared/errors.js";
 import { decodeSteamDetailsResponse, decodeSteamSearchResponse } from "../responseDecoders.js";
 
@@ -125,6 +125,45 @@ function createSteamSource(deps: SteamSourceDeps): SteamSourceApi {
     return parseCurrentPlayers(playersRes.data, String(appId));
   }
 
+  function explicitUpdateSize(text: string): string | null {
+    const normalized = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    const afterKeyword = /(?:update|patch|download)(?:\s+size)?[^.!?]{0,80}?(\d+(?:[.,]\d+)?\s*(?:KB|MB|GB|TB))/i.exec(normalized);
+    if (afterKeyword?.[1]) return afterKeyword[1].replace(",", ".").replace(/\s+/g, " ").toUpperCase();
+    const beforeKeyword = /(\d+(?:[.,]\d+)?\s*(?:KB|MB|GB|TB))[^.!?]{0,40}?(?:update|patch|download)/i.exec(normalized);
+    return beforeKeyword?.[1] ? beforeKeyword[1].replace(",", ".").replace(/\s+/g, " ").toUpperCase() : null;
+  }
+
+  async function fetchSteamLatestUpdateSize(appId: string | number): Promise<SteamLatestUpdateSizeSummary> {
+    const url = new URL("https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/");
+    url.searchParams.set("appid", String(appId));
+    url.searchParams.set("count", "10");
+    url.searchParams.set("maxlength", "12000");
+    url.searchParams.set("format", "json");
+    const response = await httpReq("GET", url.toString(), requestOptionsFor("steam-news"));
+    const appNews = recordValue(response.data, "appnews");
+    const newsItems = recordValue(appNews, "newsitems");
+    if (!Array.isArray(newsItems)) return { size: null, title: null, publishedAt: null, sourceUrl: null };
+    for (const item of newsItems) {
+      const titleValue = recordValue(item, "title");
+      const contentValue = recordValue(item, "contents");
+      const title = typeof titleValue === "string" ? titleValue : "";
+      const content = typeof contentValue === "string" ? contentValue : "";
+      if (!/(update|patch|hotfix)/i.test(`${title} ${content}`)) continue;
+      const size = explicitUpdateSize(`${title} ${content}`);
+      if (!size) continue;
+      const dateValue = recordValue(item, "date");
+      const timestamp = typeof dateValue === "number" ? dateValue : Number(dateValue);
+      const urlValue = recordValue(item, "url");
+      return {
+        size,
+        title: title || null,
+        publishedAt: Number.isFinite(timestamp) && timestamp > 0 ? new Date(timestamp * 1000) : null,
+        sourceUrl: typeof urlValue === "string" && urlValue.startsWith("https://") ? urlValue : null
+      };
+    }
+    return { size: null, title: null, publishedAt: null, sourceUrl: null };
+  }
+
   function extractOfferEndFromHtml(html: unknown): string | null {
     let cheerioThrew = false;
     try {
@@ -190,6 +229,7 @@ function createSteamSource(deps: SteamSourceDeps): SteamSourceApi {
     chooseBestSteamMatch,
     fetchSteamPriceDetails,
     fetchSteamCurrentPlayers,
+    fetchSteamLatestUpdateSize,
     extractOfferEndFromHtml,
     extractSteamOfferEndDate
   };

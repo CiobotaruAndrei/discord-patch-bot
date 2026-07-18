@@ -11,10 +11,10 @@ import {
 } from "../../features/admin-records/futureReleaseGamesRepository.js";
 
 function captureModel() {
-  const calls: Array<{ filter: Record<string, unknown>; update: Record<string, unknown>; options?: Record<string, unknown> }> = [];
+  const calls: Array<{ filter: Record<string, unknown>; update: Record<string, unknown> | Array<Record<string, unknown>>; options?: Record<string, unknown> }> = [];
   return {
     calls,
-    updateOne: async (filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>) => {
+    updateOne: async (filter: Record<string, unknown>, update: Record<string, unknown> | Array<Record<string, unknown>>, options?: Record<string, unknown>) => {
       calls.push({ filter, update, options });
       return { matchedCount: 1, modifiedCount: 1 };
     }
@@ -80,14 +80,13 @@ test("startFutureReleaseNotifications: $set subscribe/canal/activare cu upsert (
   await startFutureReleaseNotifications(model, "guild-1", "chan-9", "act-abc");
   assert.equal(model.calls.length, 1);
   assert.deepEqual(model.calls[0].filter, { _id: "guild-1" });
-  assert.deepEqual(model.calls[0].update, {
-    $set: {
-      futureReleaseSubscribed: true,
-      futureReleaseChannelId: "chan-9",
-      futureReleaseInitializing: false,
-      futureReleaseActivationId: "act-abc"
-    }
-  });
+  assert.ok(Array.isArray(model.calls[0].update));
+  const stage = model.calls[0].update[0] as { $set?: Record<string, unknown> };
+  assert.equal(stage.$set?.futureReleaseSubscribed, true);
+  assert.equal(stage.$set?.futureReleaseChannelId, "chan-9");
+  assert.equal(stage.$set?.futureReleaseInitializing, true);
+  assert.equal(stage.$set?.futureReleaseActivationId, "act-abc");
+  assert.ok(stage.$set?.futureReleaseGames, "pornirea reseteaza baseline-ul jocurilor in aceeasi scriere atomica");
   assert.deepEqual(model.calls[0].options, { upsert: true });
 });
 

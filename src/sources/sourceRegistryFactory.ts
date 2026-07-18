@@ -38,6 +38,7 @@ export type SourceRegistryApi = {
   chooseBestSteamMatch: SteamSourceApi["chooseBestSteamMatch"];
   fetchSteamPriceDetails: SteamSourceApi["fetchSteamPriceDetails"];
   fetchSteamCurrentPlayers: SteamSourceApi["fetchSteamCurrentPlayers"];
+  fetchSteamLatestUpdateSize: SteamSourceApi["fetchSteamLatestUpdateSize"];
   extractOfferEndFromHtml: SteamSourceApi["extractOfferEndFromHtml"];
   extractSteamOfferEndDate: SteamSourceApi["extractSteamOfferEndDate"];
   cleanEnrichedCache: DealsApi["cleanEnrichedCache"];
@@ -125,6 +126,7 @@ export function createSourceRegistry(deps: SourceRuntimeDeps): SourceRegistryApi
     chooseBestSteamMatch: steam.chooseBestSteamMatch,
     fetchSteamPriceDetails: steam.fetchSteamPriceDetails,
     fetchSteamCurrentPlayers: steam.fetchSteamCurrentPlayers,
+    fetchSteamLatestUpdateSize: steam.fetchSteamLatestUpdateSize,
     extractOfferEndFromHtml: steam.extractOfferEndFromHtml,
     extractSteamOfferEndDate: steam.extractSteamOfferEndDate,
     cleanEnrichedCache: deals.cleanEnrichedCache,

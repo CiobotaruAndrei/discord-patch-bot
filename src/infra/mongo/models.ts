@@ -39,7 +39,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     pendingDiscountSchema,
     priceAlertSchema
   } = buildGuildNotificationSchemas({ mongoose, SUPPORTED_CURRENCIES });
-  const { moderationRecordSchema, warningRecordSchema, botAddPermissionSchema, lockedChannelPermissionSchema } = buildGuildModerationSchemas({ mongoose });
+  const { moderationRecordSchema, warningRecordSchema, botAddPermissionSchema, lockedChannelPermissionSchema, botObservationSchema } = buildGuildModerationSchemas({ mongoose });
   const {
     youtubeChannelSchema,
     youtubeChannelRouteSchema
@@ -117,6 +117,19 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     playerCountSubscribed: { type: Boolean, default: false },
     playerCountChannelId: { type: String, default: null },
     playerCountGames: { type: [String], default: [] },
+    playerCountInitializing: { type: Boolean, default: false },
+    playerCountActivationId: { type: String, default: null },
+    playerCountWatchState: {
+      type: [{
+        gameKey: { type: String, required: true },
+        appId: { type: String, required: true },
+        playerCount: { type: Number, required: true, min: 0 },
+        fetchedAt: { type: Date, required: true },
+        lastNotifiedAt: { type: Date, default: null },
+        lastDirection: { type: String, enum: ["up", "down"], default: null }
+      }],
+      default: []
+    },
     gameAliases: { type: Map, of: [String], default: {} },
     timezone: { type: String, default: "UTC", maxlength: 100 },
     futureReleaseSubscribed: { type: Boolean, default: false },
@@ -140,6 +153,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     botAddProtectionEnabled: { type: Boolean, default: false },
     warningChannelId: { type: String, default: null },
     botAddPermissions: { type: [botAddPermissionSchema], default: [] },
+    botObservations: { type: [botObservationSchema], default: [] },
     purgeAmount: { type: Number, default: 50, min: 1, max: 100 },
     lockedChannelIds: { type: [String], default: [] },
     lockedChannelPermissions: { type: [lockedChannelPermissionSchema], default: [] }
@@ -166,6 +180,9 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     fetchSnapshotSchema,
     playerCountSnapshotSchema,
     playerCountHistorySchema,
+    reviewTrendSnapshotSchema,
+    dealPriceSnapshotSchema,
+    newAccountAlertDeliverySchema,
     playerCountRecordSchema,
     bugReportSchema,
     userComplaintSchema,
@@ -179,6 +196,9 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const FetchSnapshotModel = mongoose.model("FetchSnapshot", fetchSnapshotSchema);
   const PlayerCountSnapshotModel = mongoose.model("PlayerCountSnapshot", playerCountSnapshotSchema, "playerCountSnapshots");
   const PlayerCountHistoryModel = mongoose.model("PlayerCountHistory", playerCountHistorySchema, "playerCountHistory");
+  const ReviewTrendSnapshotModel = mongoose.model("ReviewTrendSnapshot", reviewTrendSnapshotSchema, "reviewTrendSnapshots");
+  const DealPriceSnapshotModel = mongoose.model("DealPriceSnapshot", dealPriceSnapshotSchema, "dealPriceSnapshots");
+  const NewAccountAlertDeliveryModel = mongoose.model("NewAccountAlertDelivery", newAccountAlertDeliverySchema, "newAccountAlertDeliveries");
   const PlayerCountRecordModel = mongoose.model("PlayerCountRecord", playerCountRecordSchema, "playerCountRecords");
   const BugReportModel = mongoose.model("BugReport", bugReportSchema, "bugReports");
   const UserComplaintModel = mongoose.model("UserComplaint", userComplaintSchema, "userComplaints");
@@ -236,6 +256,9 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     FetchSnapshotModel,
     PlayerCountSnapshotModel,
     PlayerCountHistoryModel,
+    ReviewTrendSnapshotModel,
+    DealPriceSnapshotModel,
+    NewAccountAlertDeliveryModel,
     PlayerCountRecordModel,
     BugReportModel,
     OperationJournalModel,

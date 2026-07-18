@@ -7,7 +7,7 @@ import { deleteSuggestedCommand, listSuggestedCommands, saveSuggestedCommand, ty
 import { recordBotAuditEntry } from "../admin-records/auditLogRepository.js";
 import { requireGuildAdminAudited } from "../command-security/runtimeAdminAudit.js";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText.js";
-import { containsExternalLink } from "../moderation/moderationInputPolicy.js";
+import { validateUserText } from "../command-security/userTextPolicy.js";
 
 import { errorDetail } from "../../shared/errors.js";
 import defaultRequireGuildAdminModule from "../command-security/adminPermissionGuard.js";
@@ -67,13 +67,16 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
 
   async function handleAdd(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     if (!(await enforceCooldown(interaction, "suggest-command:add"))) return undefined;
-    const commandName = normalizeCommandName(String(interaction.options.getString("name", true) || ""));
-    const description = String(interaction.options.getString("description", true) || "").trim().slice(0, 500);
+    let commandName = "";
+    let description = "";
+    try {
+      commandName = normalizeCommandName(validateUserText("suggest-command.name", String(interaction.options.getString("name", true) || "")));
+      description = validateUserText("suggest-command.description", String(interaction.options.getString("description", true) || "")).slice(0, 500);
+    } catch {
+      return safeEdit(interaction, "Eroare: numele si descrierea sugestiei nu pot contine linkuri.");
+    }
     if (!commandName || !description) {
       return safeEdit(interaction, "Eroare: trebuie sa completezi numele comenzii si ce ar trebui sa faca.");
-    }
-    if (containsExternalLink(description)) {
-      return safeEdit(interaction, "Eroare: descrierea sugestiei nu poate contine linkuri.");
     }
     const { record, added } = await saveSuggestedCommand(GuildSuggestedCommandModel, guildId, {
       commandName,
@@ -86,15 +89,15 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
   }
 
   async function handleList(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
-    if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildAuditLogModel, interaction, guildId, "/suggest-command list"))) return undefined;
+    if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildAuditLogModel, interaction, guildId, "/list suggest-command"))) return undefined;
     const limit = Math.max(1, Math.min(25, interaction.options.getInteger("numar") ?? 10));
     const entries = await listSuggestedCommands(GuildSuggestedCommandModel, guildId, limit);
-    await recordBotAuditEntry(GuildAuditLogModel, guildId, { userId: interaction.user?.id || "", command: "/suggest-command list", result: "Access granted." }).catch(() => undefined);
+    await recordBotAuditEntry(GuildAuditLogModel, guildId, { userId: interaction.user?.id || "", command: "/list suggest-command", result: "Access granted." }).catch(() => undefined);
     return safeEdit(interaction, { content: renderSuggestedCommands(entries), allowedMentions: NO_MENTIONS });
   }
 
   async function handleDelete(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
-    if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildAuditLogModel, interaction, guildId, "/suggest-command delete"))) return undefined;
+    if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildAuditLogModel, interaction, guildId, "/delete suggest-command"))) return undefined;
     const commandName = normalizeCommandName(String(interaction.options.getString("name", true) || ""));
     if (!commandName) return safeEdit(interaction, "Eroare: trebuie sa alegi numele comenzii sugerate.");
     const deleted = await deleteSuggestedCommand(GuildSuggestedCommandModel, GuildAuditLogModel, guildId, commandName, {
@@ -104,7 +107,7 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
     });
     await recordBotAuditEntry(GuildAuditLogModel, guildId, {
       userId: interaction.user?.id || "",
-      command: "/suggest-command delete",
+      command: "/delete suggest-command",
       result: "Access granted.",
       details: deleted ? `stearsa: ${commandName}` : `negasita: ${commandName}`
     }).catch(() => undefined);
@@ -117,11 +120,12 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
     const guildId = interaction.guild?.id;
     if (!guildId) return undefined;
     await safeDefer(interaction, true);
-    const subcommand = interaction.commandName === "add" ? "add" : interaction.options.getSubcommand();
-    if (subcommand === "add") return handleAdd(interaction, guildId);
-    if (subcommand === "list") return handleList(interaction, guildId);
-    if (subcommand === "delete") return handleDelete(interaction, guildId);
-    return safeEdit(interaction, `Eroare: subcomanda \`/suggest-command ${subcommand}\` nu este recunoscuta.`);
+    if (interaction.commandName === "suggest-command") return handleAdd(interaction, guildId);
+    const resource = interaction.options.getSubcommand();
+    if (interaction.commandName === "add" && resource === "suggestion") return handleAdd(interaction, guildId);
+    if (interaction.commandName === "list" && resource === "suggest-command") return handleList(interaction, guildId);
+    if (interaction.commandName === "delete" && resource === "suggest-command") return handleDelete(interaction, guildId);
+    return safeEdit(interaction, "Eroare: ruta pentru sugestii nu este recunoscuta.");
   }
 
   return { handleSuggestCommandInteraction };
@@ -130,9 +134,12 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
 function isSuggestCommand(interaction: DiscordInteraction): boolean {
   if (!(interaction?.isChatInputCommand?.() === true && Boolean(interaction.guild))) return false;
   if (interaction.commandName === "suggest-command") return true;
-  if (interaction.commandName !== "add") return false;
+  if (!["add", "list", "delete"].includes(String(interaction.commandName || ""))) return false;
   try {
-    return interaction.options.getSubcommand() === "suggestion";
+    const resource = interaction.options.getSubcommand();
+    return (interaction.commandName === "add" && resource === "suggestion")
+      || (interaction.commandName === "list" && resource === "suggest-command")
+      || (interaction.commandName === "delete" && resource === "suggest-command");
   } catch {
     return false;
   }

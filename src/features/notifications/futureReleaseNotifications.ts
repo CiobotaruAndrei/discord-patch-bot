@@ -42,6 +42,7 @@ function daysUntil(releaseTs: number, now: number): number {
 function crossedThresholds(releaseTs: number | null, now: number): FutureReleaseThresholdDay[] {
   if (releaseTs === null) return [];
   const remaining = daysUntil(releaseTs, now);
+  if (remaining < 0) return [];
   return FUTURE_RELEASE_THRESHOLD_DAYS.filter(threshold => remaining <= threshold);
 }
 

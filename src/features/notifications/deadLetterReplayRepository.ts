@@ -5,7 +5,7 @@ type MongoQueryOptions = Record<string, unknown>;
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
-export type ReplayKind = "update" | "discount" | "youtube";
+export type ReplayKind = "update" | "discount" | "youtube" | "future-release";
 
 export interface ReplayHistoryEntry {
   kind: ReplayKind;
@@ -73,7 +73,7 @@ function normalizeHistory(raw: unknown): ReplayHistoryEntry[] {
   for (const entry of raw) {
     if (!entry || typeof entry !== "object") continue;
     const fields = entry as Record<string, unknown>;
-    const kind: ReplayKind = fields.kind === "discount" ? "discount" : fields.kind === "youtube" ? "youtube" : "update";
+    const kind: ReplayKind = fields.kind === "discount" ? "discount" : fields.kind === "youtube" ? "youtube" : fields.kind === "future-release" ? "future-release" : "update";
     out.push({
       kind,
       gameKey: typeof fields.gameKey === "string" ? fields.gameKey : undefined,
@@ -128,7 +128,7 @@ export function createDeadLetterReplayRepository(deps: DeadLetterReplayRepositor
     );
     return docs.map(doc => ({
       _id: doc._id,
-      kind: doc.kind === "discount" ? "discount" : doc.kind === "youtube" ? "youtube" : "update",
+      kind: doc.kind === "discount" ? "discount" : doc.kind === "youtube" ? "youtube" : doc.kind === "future-release" ? "future-release" : "update",
       channelId: String(doc.channelId || ""),
       payload: doc.payload,
       dedupeKey: String(doc.dedupeKey || ""),

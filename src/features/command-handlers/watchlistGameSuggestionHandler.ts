@@ -108,7 +108,13 @@ function createWatchlistGameSuggestionHandler(deps: WatchlistGameSuggestionDeps)
     const guildId = interaction.guild?.id;
     if (!guildId) return undefined;
     await safeDefer(interaction, true);
-    const subcommand = interaction.options.getSubcommand();
+    const resource = interaction.options.getSubcommand();
+    const subcommand = interaction.commandName === "add" ? "add"
+      : interaction.commandName === "delete" ? "delete"
+        : resource;
+    if (interaction.commandName !== "watchlist-game" && resource !== "watchlist-game") {
+      return safeEdit(interaction, "Eroare: ruta pentru propuneri watchlist nu este recunoscuta.");
+    }
     if (subcommand === "add") return handleAdd(interaction, guildId);
     if (subcommand === "list") return handleList(interaction, guildId);
     if (subcommand === "delete") return handleDelete(interaction, guildId);
@@ -119,9 +125,14 @@ function createWatchlistGameSuggestionHandler(deps: WatchlistGameSuggestionDeps)
 }
 
 function isWatchlistGameSuggestionCommand(interaction: DiscordInteraction): boolean {
-  return interaction?.isChatInputCommand?.() === true
-    && Boolean(interaction.guild)
-    && interaction.commandName === "watchlist-game";
+  if (!(interaction?.isChatInputCommand?.() === true && Boolean(interaction.guild))) return false;
+  if (interaction.commandName === "watchlist-game") return true;
+  if (interaction.commandName !== "add" && interaction.commandName !== "delete") return false;
+  try {
+    return interaction.options.getSubcommand() === "watchlist-game";
+  } catch {
+    return false;
+  }
 }
 
 function buildWatchlistGameSuggestionCommandHandler(target: WatchlistGameSuggestionContext) {

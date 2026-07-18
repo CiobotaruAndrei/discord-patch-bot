@@ -41,6 +41,7 @@ export type SubscriptionInteractionDeps = {
   seedSeenUpdates: (guildId: string, entries: Array<{ gameKey: string; updateId: string }>) => Promise<void>;
   seedSeenDiscounts: (guildId: string, hashes: string[]) => Promise<void>;
   seedBaselineDlc?: (guildId: string, games: GameConfig[]) => Promise<void>;
+  fetchSteamCurrentPlayers(appId: string | number): Promise<{ playerCount: number; success: boolean }>;
   DEALS_HISTORY_LIMIT: number;
   OP_UPDATE_OPTS: Record<string, unknown>;
   setDealsCache: (currency: string, deals: DealInfo[]) => void;

@@ -9,11 +9,15 @@ export function buildCoreCommandDefinitions({ SlashCommandBuilder, PermissionsBi
       .addStringOption(option => option.setName("command").setDescription("Comanda pentru explicatie detaliata").setRequired(false).setAutocomplete(true)),
     new SlashCommandBuilder()
       .setName("suggest-command")
-      .setDescription("Listeaza comenzi sugerate de useri (propunerea se face cu /add suggestion)")
-      .addSubcommand(subcommand => subcommand.setName("list").setDescription("Listeaza comenzile sugerate (admin)")
-        .addIntegerOption(option => option.setName("numar").setDescription("Cate sugestii (1-25, implicit 10)").setRequired(false).setMinValue(1).setMaxValue(25)))
-      .addSubcommand(subcommand => subcommand.setName("delete").setDescription("Sterge o comanda sugerata (admin)")
-        .addStringOption(option => option.setName("name").setDescription("Numele comenzii sugerate").setRequired(true).setMaxLength(80))),
+      .setDescription("Propune o comanda noua pentru bot")
+      .addStringOption(option => option.setName("name").setDescription("Numele comenzii propuse").setRequired(true).setMaxLength(80))
+      .addStringOption(option => option.setName("description").setDescription("Ce ar trebui sa faca aceasta comanda").setRequired(true).setMaxLength(500)),
+    new SlashCommandBuilder()
+      .setName("list")
+      .setDescription("Listeaza resurse administrative")
+      .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
+      .addSubcommand(subcommand => subcommand.setName("suggest-command").setDescription("Listeaza comenzile sugerate")
+        .addIntegerOption(option => option.setName("numar").setDescription("Cate sugestii (1-25, implicit 10)").setRequired(false).setMinValue(1).setMaxValue(25))),
     new SlashCommandBuilder()
       .setName("watchlist-game")
       .setDescription("Propune jocuri noi pentru lista botului")

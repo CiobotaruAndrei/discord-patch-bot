@@ -48,12 +48,14 @@ interface RegisterDiscordEventsDeps {
     handleGuildMemberUpdate(previous: LifecycleDiscordGuildMember, next: LifecycleDiscordGuildMember): Promise<void>;
     handleRoleCreate(role: LifecycleDiscordRole): Promise<void>;
     handleChannelUpdate(previous: LifecycleDiscordDeletedChannel, next: LifecycleDiscordDeletedChannel): Promise<void>;
+    handleWebhookUpdate(channel: LifecycleDiscordDeletedChannel): Promise<void>;
   };
   moderationLifecycleRuntime?: {
     cleanupExpired(): Promise<void>;
     handleGuildMemberRemove(member: LifecycleDiscordGuildMember): Promise<void>;
   };
   serverEventLogRuntime?: {
+    handleGuildMemberAdd(member: LifecycleDiscordGuildMember): Promise<void>;
     handleChannelCreate(channel: LifecycleDiscordDeletedChannel): Promise<void>;
     handleChannelDelete(channel: LifecycleDiscordDeletedChannel): Promise<void>;
     handleRoleCreate(role: LifecycleDiscordRole): Promise<void>;
@@ -216,6 +218,13 @@ function registerDiscordEvents({
           adminAlert("security:channel-update", "Protectia overwrite-urilor de canal a esuat", errorMessage(err), next.guild?.id ?? undefined).catch(() => null);
         });
       });
+      client.on("webhookUpdate", (channel: LifecycleDiscordDeletedChannel) => {
+        permissionDelegationRuntime.handleWebhookUpdate(channel).catch(err => {
+          metrics.securityRuntimeErrors = (metrics.securityRuntimeErrors ?? 0) + 1;
+          logger("ERROR", "PERMISSION_DELEGATION", "webhookUpdate a esuat", errorDetail(err));
+          adminAlert("security:webhook-update", "Monitorizarea webhook-urilor a esuat", errorMessage(err), channel.guild?.id ?? undefined).catch(() => null);
+        });
+      });
     }
     if (moderationLifecycleRuntime) {
       client.on("guildMemberRemove", (member: LifecycleDiscordGuildMember) => {
@@ -230,6 +239,7 @@ function registerDiscordEvents({
       const logServerEvent = (event: string, promise: Promise<void>): void => {
         promise.catch(err => logger("ERROR", "SERVER_EVENT_LOG", `Inregistrarea evenimentului ${event} a esuat`, errorDetail(err)));
       };
+      client.on("guildMemberAdd", (member: LifecycleDiscordGuildMember) => logServerEvent("member-add", serverEventLogRuntime.handleGuildMemberAdd(member)));
       client.on("channelCreate", (channel: LifecycleDiscordDeletedChannel) => logServerEvent("channel-create", serverEventLogRuntime.handleChannelCreate(channel)));
       client.on("channelDelete", (channel: LifecycleDiscordDeletedChannel) => logServerEvent("channel-delete", serverEventLogRuntime.handleChannelDelete(channel)));
       client.on("roleCreate", (role: LifecycleDiscordRole) => logServerEvent("role-create", serverEventLogRuntime.handleRoleCreate(role)));

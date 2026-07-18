@@ -16,6 +16,8 @@ export interface BotAuditLogEntry {
 
 export interface ServerAuditLogEntry {
   userId: string;
+  actorId?: string;
+  targetId?: string;
   action: string;
   serverId: string;
   details?: string;
@@ -41,4 +43,11 @@ export interface FutureReleaseGameEntry {
   addedAt: Date | string;
   releaseDate?: string;
   preorderPrice?: string;
+  sourceAppId?: string;
+  baselineDone?: boolean;
+  notifiedThresholdDays?: number[];
+  preorderSeen?: boolean;
+  observedPreorderPrice?: string | null;
+  stateRevision?: number;
+  lastCheckedAt?: Date | string | null;
 }

@@ -48,8 +48,10 @@ function makeCommands(calls: string[]): CronCommandsForJobs {
   return {
     checkForUpdates: async () => { calls.push("updates"); },
     checkForDiscounts: async () => { calls.push("discounts"); },
+    checkForFutureReleases: async () => { calls.push("future-release"); },
     checkForYouTube: async () => { calls.push("youtube"); },
-    refreshPlayerCountSnapshots: async () => { calls.push("playercount"); }
+    refreshPlayerCountSnapshots: async () => { calls.push("playercount"); },
+    refreshReviewTrendSnapshots: async () => { calls.push("reviews"); }
   };
 }
 
@@ -57,7 +59,7 @@ test("buildCronCycleJobs: shedDiscounts omite jobul de reduceri, restul raman", 
   const calls: string[] = [];
   const jobs = buildCronCycleJobs(makeCommands(calls), {}, [], true, () => false);
   await Promise.all(jobs.map(j => j.run));
-  assert.deepEqual(calls.sort(), ["playercount", "updates", "youtube"]);
+  assert.deepEqual(calls.sort(), ["future-release", "playercount", "reviews", "updates", "youtube"]);
   assert.ok(!jobs.some(j => j.label === "checkForDiscounts"));
 });
 
@@ -67,7 +69,7 @@ test("buildCronCycleJobs: fara shed include reducerile; omite player-count daca 
   delete commands.refreshPlayerCountSnapshots;
   const jobs = buildCronCycleJobs(commands, {}, [], false, () => false);
   await Promise.all(jobs.map(j => j.run));
-  assert.deepEqual(calls.sort(), ["discounts", "updates", "youtube"]);
+  assert.deepEqual(calls.sort(), ["discounts", "future-release", "reviews", "updates", "youtube"]);
 });
 
 test("runCronJobs: intoarce doar joburile care au aruncat, cu labelul lor", async () => {

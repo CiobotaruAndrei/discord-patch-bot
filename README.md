@@ -53,7 +53,7 @@ La adaugarea botului pe un server nou, acesta trimite automat un mesaj de bun ve
 - `/start dlc` / `/stop dlc` - (admin) configureaza sau opreste canalul salvat pentru notificarile DLC automate cand motorul DLC ruleaza in runtime.
 - `/game overview`, `/status game` si `/status watchlist` - agrega informatiile principale despre joc si verifica starea serverelor individual sau pentru watchlist, cu esecuri izolate pe surse.
 - `/report bug`, `/report complaint`, `/report list bugs`, `/report list users`, `/report remove bug` si `/report remove user` - foloseste formulare pentru bug-uri si reclamatii, colectii separate, deduplicare si administrare separata.
-- `/add suggestion`, `/suggest-command list` si `/suggest-command delete` - utilizatorii pot propune comenzi noi, iar adminii pot lista sau sterge propunerile salvate pe server.
+- `/suggest-command`, `/list suggest-command` si `/delete suggest-command` - utilizatorii pot propune comenzi noi, iar adminii pot lista sau sterge propunerile salvate pe server; `/add suggestion` ramane alias compatibil.
 - `/watchlist-game add`, `/watchlist-game list` si `/watchlist-game delete` - utilizatorii pot propune jocuri noi pentru bot, iar adminii pot curata lista de propuneri.
 - `/future-release add`, `/future-release list`, `/future-release delete`, `/future-release start` si `/future-release stop` - (admin) gestioneaza lista de maxim 20 jocuri care urmeaza sa apara si canalul folosit pentru notificarile future-release.
 - `/deal-score` - calculeaza un scor 1-10 pentru o oferta activa folosind reducerea, pretul, semnalele de calitate/popularitate si magazinul.

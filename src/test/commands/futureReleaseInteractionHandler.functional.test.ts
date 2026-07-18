@@ -45,6 +45,7 @@ function makeInteraction(subcommand: string, values: { game?: string; releaseDat
 function makeHarness(settings: GuildSettings | null) {
   const calls: MongoCall[] = [];
   const replies: unknown[] = [];
+  const deferModes: boolean[] = [];
   const existingGames: FutureReleaseGameEntry[] = Array.isArray(settings?.futureReleaseGames) ? settings.futureReleaseGames : [];
   const handler = installFutureRelease.createFutureReleaseInteractionHandler({
     GuildModel: {
@@ -61,7 +62,7 @@ function makeHarness(settings: GuildSettings | null) {
       }
     },
     getGuildSettings: async () => settings,
-    safeDefer: async () => undefined,
+    safeDefer: async (_interaction, ephemeral) => { deferModes.push(ephemeral === true); },
     safeEdit: async (_interaction, payload) => { replies.push(payload); return payload; },
     canSendEmbeds: () => true,
     listMissingChannelPerms: () => [],
@@ -71,7 +72,7 @@ function makeHarness(settings: GuildSettings | null) {
     logger: () => undefined,
     MessageFlags: { Ephemeral: 64 }
   });
-  return { handler, calls, replies };
+  return { handler, calls, replies, deferModes };
 }
 
 test("/future-release add salveaza jocul cu data si pretul de preorder", async () => {
@@ -92,10 +93,11 @@ test("/future-release add salveaza jocul cu data si pretul de preorder", async (
 
 test("/future-release list afiseaza canalul cand modulul e activ", async () => {
   const games = [{ gameName: "silksong", addedBy: "admin", addedAt: new Date() }];
-  const { handler, replies } = makeHarness({ _id: "guild-1", futureReleaseGames: games, futureReleaseSubscribed: true, futureReleaseChannelId: "chan-9" });
+  const { handler, replies, deferModes } = makeHarness({ _id: "guild-1", futureReleaseGames: games, futureReleaseSubscribed: true, futureReleaseChannelId: "chan-9" });
   await handler.handleFutureRelease(makeInteraction("list"));
   const content = String((replies[0] as { content?: string }).content ?? replies[0]);
   assert.match(content, /ON in <#chan-9>/);
+  assert.deepEqual(deferModes, [false], "listarea publica nu este ephemeral");
 });
 
 test("/future-release list semnaleaza canal lipsa cand modulul e activ fara canal", async () => {
@@ -131,19 +133,18 @@ test("/future-release add refuza al 21-lea joc nou", async () => {
 });
 
 test("/future-release start salveaza canalul curent si activarea", async () => {
-  const { handler, calls, replies } = makeHarness({ _id: "guild-1" });
+  const { handler, calls, replies, deferModes } = makeHarness({ _id: "guild-1" });
 
   await handler.handleFutureRelease(makeInteraction("start"));
 
-  assert.deepEqual(calls[0].update, {
-    $set: {
-      futureReleaseSubscribed: true,
-      futureReleaseChannelId: "channel-1",
-      futureReleaseInitializing: false,
-      futureReleaseActivationId: "activation-1"
-    }
-  });
+  assert.ok(Array.isArray(calls[0].update), "activarea si resetarea baseline-ului folosesc un singur pipeline atomic");
+  const update = JSON.stringify(calls[0].update);
+  assert.match(update, /futureReleaseSubscribed/);
+  assert.match(update, /futureReleaseChannelId/);
+  assert.match(update, /futureReleaseActivationId/);
+  assert.match(update, /futureReleaseGames/);
   assert.match(String(replies[0]), /future-release este activ/);
+  assert.deepEqual(deferModes, [true], "operatia admin ramane ephemeral");
 });
 
 test("/future-release stop opreste modulul si curata activarea", async () => {

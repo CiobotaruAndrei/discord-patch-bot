@@ -8,15 +8,16 @@ import { escapeInlineText } from "../../shared/discordText.js";
 import installSuggestCommand from "../../features/command-handlers/suggestCommandInteractionHandler.js";
 
 function makeInteraction(subcommand: string, values: { name?: string; description?: string; numar?: number } = {}) {
+  const commandName = subcommand === "list" ? "list" : subcommand === "delete" ? "delete" : "suggest-command";
   return {
-    commandName: "suggest-command",
+    commandName,
     guild: { id: "guild-1" },
     user: { id: "user-1" },
     deferred: false,
     replied: false,
     isChatInputCommand: () => true,
     options: {
-      getSubcommand: () => subcommand,
+      getSubcommand: () => commandName === "suggest-command" ? "direct" : "suggest-command",
       getString: (name: string) => {
         if (name === "name") return values.name ?? null;
         if (name === "description") return values.description ?? null;
@@ -88,7 +89,7 @@ function makeHarness(initialSuggestions: GuildSuggestedCommandRecord[] = [], adm
   return { handler, replies, auditDocs, suggestionDocs: docs };
 }
 
-test("/suggest-command add salveaza numele normalizat si descrierea in colectia guildSuggestedCommands", async () => {
+test("/suggest-command salveaza numele normalizat si descrierea in colectia guildSuggestedCommands", async () => {
   const { handler, replies, suggestionDocs } = makeHarness();
 
   await handler.handleSuggestCommandInteraction(makeInteraction("add", {
@@ -103,7 +104,7 @@ test("/suggest-command add salveaza numele normalizat si descrierea in colectia 
   assert.match(String(replies[0]), /calendar updates/);
 });
 
-test("/suggest-command add refuza descrierea cu linkuri (politica linkuri unitara, audit #31)", async () => {
+test("/suggest-command refuza descrierea cu linkuri (politica linkuri unitara, audit #31)", async () => {
   const { handler, replies, suggestionDocs } = makeHarness();
 
   await handler.handleSuggestCommandInteraction(makeInteraction("add", {
@@ -112,10 +113,20 @@ test("/suggest-command add refuza descrierea cu linkuri (politica linkuri unitar
   }));
 
   assert.equal(suggestionDocs.length, 0, "sugestia cu link nu e salvata");
-  assert.match(String(replies[0]), /nu poate contine linkuri/);
+  assert.match(String(replies[0]), /nu pot contine linkuri/);
 });
 
-test("/suggest-command list cere admin runtime si afiseaza propunerile din colectie", async () => {
+test("/suggest-command refuza linkul din nume chiar daca descrierea este curata", async () => {
+  const suite = makeHarness();
+  await suite.handler.handleSuggestCommandInteraction(makeInteraction("add", {
+    name: "https://evil.example/command",
+    description: "O descriere normala"
+  }));
+  assert.match(String(suite.replies[0]), /numele si descrierea.*nu pot contine linkuri/i);
+  assert.equal(suite.suggestionDocs.length, 0);
+});
+
+test("/list suggest-command cere admin runtime si afiseaza propunerile din colectie", async () => {
   const { handler, replies } = makeHarness([{
     guildId: "guild-1",
     commandName: "calendar",
@@ -132,18 +143,18 @@ test("/suggest-command list cere admin runtime si afiseaza propunerile din colec
   assert.match(content, /<@user-2>/);
 });
 
-test("/suggest-command list nu afiseaza lista daca runtime admin guard refuza, dar auditeaza refuzul (R[Medium] #3)", async () => {
+test("/list suggest-command nu afiseaza lista daca runtime admin guard refuza, dar auditeaza refuzul (R[Medium] #3)", async () => {
   const { handler, replies, auditDocs } = makeHarness([], false);
 
   const result = await handler.handleSuggestCommandInteraction(makeInteraction("list"));
 
   assert.equal(result, undefined);
   assert.deepEqual(replies, []);
-  assert.equal(auditDocs[0]?.command, "/suggest-command list", "refuzul de acces e scris in /bot-log");
+  assert.equal(auditDocs[0]?.command, "/list suggest-command", "refuzul de acces e scris in /bot-log");
   assert.equal(auditDocs[0]?.result, "Access denied.");
 });
 
-test("/suggest-command delete cere admin runtime si sterge sugestia normalizata din colectie", async () => {
+test("/delete suggest-command cere admin runtime si sterge sugestia normalizata din colectie", async () => {
   const { handler, replies, auditDocs, suggestionDocs } = makeHarness([{
     guildId: "guild-1",
     commandName: "calendar updates",
@@ -158,12 +169,12 @@ test("/suggest-command delete cere admin runtime si sterge sugestia normalizata 
   const serverAudit = auditDocs.find(doc => doc.kind === "server");
   assert.equal(serverAudit?.action, "suggest_command_delete");
   const botAudit = auditDocs.find(doc => doc.kind === "bot" && String(doc.details || "").includes("stearsa"));
-  assert.equal(botAudit?.command, "/suggest-command delete", "stergerea sugestiei (admin runtime pe comanda publica) intra in /bot-log");
+  assert.equal(botAudit?.command, "/delete suggest-command", "stergerea sugestiei intra in /bot-log");
   assert.match(String(botAudit?.details), /stearsa: calendar updates/);
   assert.match(String(replies[0]), /calendar updates/);
 });
 
-test("/suggest-command list escapeaza textul user-provided si dezactiveaza mentiunile (R[P3])", async () => {
+test("/list suggest-command escapeaza textul user-provided si dezactiveaza mentiunile (R[P3])", async () => {
   const { handler, replies } = makeHarness([{
     guildId: "guild-1",
     commandName: "hack",
@@ -181,17 +192,22 @@ test("/suggest-command list escapeaza textul user-provided si dezactiveaza menti
   assert.ok(!payload.content.includes(" `break out` "), "backtick-urile NU mai apar ne-escapate (nu pot inchide blocul de cod al liniei)");
 });
 
-test("/suggest-command list scrie in /bot-log (subcomanda admin sub comanda publica) (R[P2] #3)", async () => {
+test("/list suggest-command scrie in /bot-log (R[P2] #3)", async () => {
   const { handler, auditDocs } = makeHarness();
   await handler.handleSuggestCommandInteraction(makeInteraction("list", { numar: 5 }));
-  assert.deepEqual(auditDocs.map(doc => String(doc.command || "")), ["/suggest-command list"], "subcomanda admin /suggest-command list apare in /bot-log");
+  assert.deepEqual(auditDocs.map(doc => String(doc.command || "")), ["/list suggest-command"], "ruta admin apare in /bot-log");
 });
 
 test("/add suggestion (verb in fata) ruteaza la handleAdd si salveaza propunerea in colectie", async () => {
   const { handler, suggestionDocs } = makeHarness();
   const verb = {
     ...makeInteraction("suggestion", { name: "/ calendar   updates ", description: "Sa afiseze update-uri programate" }),
-    commandName: "add"
+    commandName: "add",
+    options: {
+      ...makeInteraction("suggestion").options,
+      getSubcommand: () => "suggestion",
+      getString: (name: string) => name === "name" ? "/ calendar   updates " : name === "description" ? "Sa afiseze update-uri programate" : null
+    }
   };
   await handler.handleSuggestCommandInteraction(verb);
   assert.equal(suggestionDocs.length, 1, "/add suggestion deriva actiunea add din commandName");
@@ -206,7 +222,7 @@ test("/add suggestion deduplica: comanda deja propusa nu se adauga din nou si nu
     createdBy: "u2",
     createdAt: new Date()
   }]);
-  await handler.handleSuggestCommandInteraction(makeInteraction("add", { name: "/ Calendar   Updates ", description: "alta descriere" }));
+  await handler.handleSuggestCommandInteraction(makeInteraction("direct", { name: "/ Calendar   Updates ", description: "alta descriere" }));
   assert.match(String(replies[0]), /deja in lista/, "comanda existenta (normalizata identic) nu se dubleaza");
   assert.equal(suggestionDocs.length, 1);
   assert.equal(suggestionDocs[0].description, "x", "propunerea duplicata nu rescrie intrarea originala");
