@@ -45,10 +45,11 @@ export function buildPendingUpdatesQueue(
   }
 
   const enabledSet = watchlistFilter(guild.enabledGames);
+  const hasGameFilter = enabledSet !== null;
 
   const pendingByGame = new Map<string, PendingUpdate[]>();
   for (const [gameKey, arr] of toEntries(guild.pendingUpdates)) {
-    if (enabledSet && !enabledSet.has(gameKey)) continue;
+    if (hasGameFilter && enabledSet && !enabledSet.has(gameKey)) continue;
     const cleaned = normalizePendingUpdateArray(arr).filter(item => {
       const age = now - new Date(item.createdAt ?? now).getTime();
       return age <= PENDING_UPDATE_MAX_AGE_MS
@@ -60,7 +61,7 @@ export function buildPendingUpdatesQueue(
   for (const result of latestResults) {
     if (!result?.game?.key || !result.latest) continue;
     const gameKey = result.game.key;
-    if (enabledSet && !enabledSet.has(gameKey)) continue;
+    if (hasGameFilter && enabledSet && !enabledSet.has(gameKey)) continue;
     const queue = pendingByGame.get(gameKey) || [];
     if (!queue.some(item => item.id === result.latest!.id)) {
       queue.push({ ...result.latest, createdAt: new Date(now), attempts: 0 });
