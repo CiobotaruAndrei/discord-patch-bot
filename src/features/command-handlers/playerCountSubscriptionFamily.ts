@@ -4,6 +4,7 @@ import type { GameConfig } from "../../types.js";
 import type { DiscordChannel, SubscriptionFamily, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts.js";
 import { createSubscriptionService } from "../notifications/subscriptionService.js";
 import { normalizeGameKey } from "../../config/gameCatalog.js";
+import { resolveWatchedGames } from "../player-count/playerCountWatchlist.js";
 
 export { normalizeGameKey };
 
@@ -13,8 +14,7 @@ export function createPlayerCountSubscriptionFamily(deps: SubscriptionInteractio
 
   async function start(interaction: SubscriptionInteraction, guildId: string, channel: DiscordChannel, games: GameConfig[]) {
     const settings = await getGuildSettings(guildId);
-    const enabled = new Set((settings?.enabledGames ?? []).map(normalizeGameKey));
-    const watched = games.filter(game => enabled.has(normalizeGameKey(game.key)));
+    const watched = resolveWatchedGames(settings?.enabledGames, games);
     const eligible = watched.filter(game => Boolean(game.appId));
     if (!eligible.length) return safeEdit(interaction, "Eroare: watchlist-ul nu contine niciun joc eligibil cu Steam appId.");
     try {

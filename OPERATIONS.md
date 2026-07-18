@@ -226,6 +226,10 @@ Deduplicarea este atomica in colectia `guildSeenDlc`, pe combinatia server + `ga
 
 La `/start dlc`, `seedBaselineDlc` preia catalogul curent de DLC-uri pentru toate jocurile si il marcheaza ca vazut fara sa trimita notificari, ca activarea sa nu genereze backlog. Baseline-ul este fail-safe: daca **oricare** sursa obligatorie esueaza (`unavailable`/`parse-error`/`age-gate`), `seedBaselineDlc` arunca, iar activarea se opreste cu `baseline-failed` (rollback prin `activationId`) in loc sa finalizeze cu o harta partiala care ar anunta ulterior DLC-uri vechi ca noi. Motorul trimite cel mult `MAX_DLCS_PER_CYCLE` DLC-uri noi per guild per ciclu.
 
+## Watchlist player-count (semantica implicita)
+
+Convenția watchlist-ului este uniformă: `enabledGames` **absent sau gol** înseamnă watchlist-ul implicit — toate jocurile configurate cu Steam appId; un `enabledGames` ne-gol urmărește numai subsetul explicit. `resolveWatchedGames` aplică regula la `/start player-count` (un server cu `enabledGames: []` pornește și urmărește toate jocurile eligibile), iar `watchlistGameFilter` o aplică în interogările cron de snapshot/notificare și în update-urile de stare/milestone (`$or` pe joc explicit / array gol / câmp absent), astfel încât aceleași servere să fie selectate de cron și să primească o singură alertă la o schimbare semnificativă. `/stop` oprește notificările fără să golească watchlist-ul utilizatorului.
+
 ## Jurnal de operatii (crash-recovery, `operationJournal`)
 
 Operatiile care ating mai multe documente/colectii (ex. `/reset-config`: reset configuratie + audit +

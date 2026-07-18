@@ -230,3 +230,24 @@ test("notificarile player-count folosesc watchlist-ul, baseline persistent, cool
   await service.refreshPlayerCountSnapshots([game], null, client);
   assert.equal(sends.length, 2, "schimbarea directiei poate produce alerta in cooldown");
 });
+
+test("interogarile player-count selecteaza si guild-urile cu watchlist implicit (enabledGames gol/absent) prin $or (audit, #1)", async () => {
+  const filters: Array<Record<string, unknown>> = [];
+  const guildModel = {
+    find: (filter: Record<string, unknown>) => { filters.push(filter); return { lean: async () => [] }; },
+    updateOne: async () => ({ modifiedCount: 0 })
+  };
+  const service = attachPlayerCountSnapshots.createPlayerCountSnapshotService({
+    PlayerCountSnapshotModel: makeModel().model,
+    PlayerCountHistoryModel: { create: async doc => doc, find: () => ({ sort: () => ({ lean: async () => [] }) }) },
+    PlayerCountRecordModel: { findById: () => ({ lean: async () => null }), find: () => ({ lean: async () => [] }), updateOne: async () => ({}) },
+    GuildModel: guildModel,
+    fetchSteamCurrentPlayers: async appId => ({ appId: String(appId), playerCount: 500, success: true }),
+    logger: () => undefined
+  });
+  const client = { channels: { fetch: async () => ({ send: async () => undefined }) } };
+  await service.refreshPlayerCountSnapshots([{ key: "cs2", name: "CS2", appId: "10" }], null, client);
+  const notifyFilter = filters.find(entry => "playerCountChannelId" in entry);
+  assert.ok(notifyFilter, "interogarea de notificare este emisa");
+  assert.deepEqual(notifyFilter.$or, [{ enabledGames: "cs2" }, { enabledGames: { $size: 0 } }, { enabledGames: null }], "guild-ul cu enabledGames gol/absent este inclus prin $or");
+});
