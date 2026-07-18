@@ -235,6 +235,10 @@ Convenția watchlist-ului este uniformă: `enabledGames` **absent sau gol** îns
 
 Pragurile calendaristice (30, 7, 1 zile inainte de lansare) se trimit cel mult o data. Politica pentru tick-uri ratate: cand un ciclu intarziat trece simultan peste mai multe praguri nenotificate (ex. de la 31 la 6 zile), se trimite **un singur** mesaj — pragul cel mai apropiat inca util (7) — iar pragurile mai vechi sarite (30) sunt marcate `notifiedThresholdDays` fara mesaj. Marcarea e atomica, deci un restart nu retrimite pragurile sarite. Dupa lansare (`remaining < 0`) nu se mai trimite niciun prag calendaristic. Tranzitiile preorder (disponibil / pret schimbat / retras) sunt independente de praguri.
 
+## Paginare recuperabila la liste
+
+`/list suggest-command` nu mai taie continutul la bugetul de caractere: intrarile sunt randate cate una pe linie si paginate (`paginateTextLines`), prima pagina prin editarea raspunsului si restul prin `followUp` ephemeral, astfel incat fiecare sugestie salvata sa fie vizibila printr-o succesiune finita de pagini (`numar` controleaza cate intrari sunt aduse, pana la `MAX_SUGGESTED_COMMANDS`). Nicio intrare nu mai este ascunsa doar fiindca descrierile sunt lungi.
+
 ## Jurnal de operatii (crash-recovery, `operationJournal`)
 
 Operatiile care ating mai multe documente/colectii (ex. `/reset-config`: reset configuratie + audit +

@@ -2,8 +2,8 @@
 
 import type { DiscordReplyPayload, GameConfig, SuggestedCommandEntry } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
-import { clampJoinedList } from "../command-presentation/discordListLimit.js";
-import { deleteSuggestedCommand, listSuggestedCommands, saveSuggestedCommand, type SuggestedCommandModelLike } from "../admin-records/suggestedCommandsRepository.js";
+import { paginateTextLines } from "../command-presentation/textPagination.js";
+import { deleteSuggestedCommand, listSuggestedCommands, saveSuggestedCommand, MAX_SUGGESTED_COMMANDS, type SuggestedCommandModelLike } from "../admin-records/suggestedCommandsRepository.js";
 import { recordBotAuditEntry } from "../admin-records/auditLogRepository.js";
 import { requireGuildAdminAudited } from "../command-security/runtimeAdminAudit.js";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText.js";
@@ -56,10 +56,12 @@ function formatUserReference(userId: string): string {
   return userId ? `<@${userId}>` : "user necunoscut";
 }
 
-function renderSuggestedCommands(entries: SuggestedCommandEntry[]): string {
-  if (!entries.length) return "Nu exista comenzi sugerate pentru acest server.";
-  const lines = entries.map(entry => `- \`/${escapeInlineText(entry.commandName, 80)}\` propusa de ${formatUserReference(entry.createdBy || "")}: ${escapeInlineText(entry.description, 500)}`);
-  return `Comenzi sugerate (${entries.length}):\n${clampJoinedList(lines, 1900)}`;
+export function renderSuggestedCommandLines(entries: SuggestedCommandEntry[]): string[] {
+  if (!entries.length) return ["Nu exista comenzi sugerate pentru acest server."];
+  return [
+    `Comenzi sugerate (${entries.length}):`,
+    ...entries.map(entry => `- \`/${escapeInlineText(entry.commandName, 80)}\` propusa de ${formatUserReference(entry.createdBy || "")}: ${escapeInlineText(entry.description, 500)}`)
+  ];
 }
 
 function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
@@ -90,10 +92,15 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
 
   async function handleList(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     if (!(await requireGuildAdminAudited(requireGuildAdmin, GuildAuditLogModel, interaction, guildId, "/list suggest-command"))) return undefined;
-    const limit = Math.max(1, Math.min(25, interaction.options.getInteger("numar") ?? 10));
+    const limit = Math.max(1, Math.min(MAX_SUGGESTED_COMMANDS, interaction.options.getInteger("numar") ?? 10));
     const entries = await listSuggestedCommands(GuildSuggestedCommandModel, guildId, limit);
     await recordBotAuditEntry(GuildAuditLogModel, guildId, { userId: interaction.user?.id || "", command: "/list suggest-command", result: "Access granted." }).catch(() => undefined);
-    return safeEdit(interaction, { content: renderSuggestedCommands(entries), allowedMentions: NO_MENTIONS });
+    const pages = paginateTextLines(renderSuggestedCommandLines(entries));
+    const first = await safeEdit(interaction, { content: pages[0], allowedMentions: NO_MENTIONS });
+    for (const page of pages.slice(1)) {
+      if (interaction.followUp) await interaction.followUp({ content: page, ephemeral: true, allowedMentions: NO_MENTIONS });
+    }
+    return first;
   }
 
   async function handleDelete(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
@@ -180,6 +187,6 @@ function buildSuggestCommandHandler(target: SuggestCommandContext) {
 
 export default {
   createSuggestCommandInteractionHandler,
-  renderSuggestedCommands,
+  renderSuggestedCommandLines,
   buildCommandHandler: buildSuggestCommandHandler
 };
