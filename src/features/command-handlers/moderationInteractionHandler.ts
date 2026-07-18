@@ -94,7 +94,8 @@ function optionInteger(interaction: Interaction, primary: string, fallback: stri
 function optionAttachment(interaction: Interaction): DirectAttachment | null { return interaction.options.getAttachment?.("atasament", false) ?? interaction.options.getAttachment?.("attachment", false) ?? null; }
 function formatRecord(record: ModerationRecord): string {
   const expiry = record.expiresAt ? `<t:${Math.floor(new Date(record.expiresAt).getTime() / 1000)}:R>` : "permanent";
-  return `${mention(record.userId, record.username)} | aplicat de <@${record.moderatorId}> | expira ${expiry} | din <t:${Math.floor(new Date(record.appliedAt).getTime() / 1000)}:R>`;
+  const reason = record.reason && record.reason.trim() ? record.reason.trim() : "-";
+  return `${mention(record.userId, record.username)} | ID ${record.userId} | aplicat de <@${record.moderatorId}> | din <t:${Math.floor(new Date(record.appliedAt).getTime() / 1000)}:R> | expira ${expiry} | motiv: ${reason}`;
 }
 
 function reasonForDiscord(reason: string | null, attachment: DirectAttachment | null): string | undefined {
