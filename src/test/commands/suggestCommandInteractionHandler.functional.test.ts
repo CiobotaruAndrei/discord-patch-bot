@@ -103,6 +103,18 @@ test("/suggest-command add salveaza numele normalizat si descrierea in colectia 
   assert.match(String(replies[0]), /calendar updates/);
 });
 
+test("/suggest-command add refuza descrierea cu linkuri (politica linkuri unitara, audit #31)", async () => {
+  const { handler, replies, suggestionDocs } = makeHarness();
+
+  await handler.handleSuggestCommandInteraction(makeInteraction("add", {
+    name: "/ spam",
+    description: "vezi aici https://malware.example/free"
+  }));
+
+  assert.equal(suggestionDocs.length, 0, "sugestia cu link nu e salvata");
+  assert.match(String(replies[0]), /nu poate contine linkuri/);
+});
+
 test("/suggest-command list cere admin runtime si afiseaza propunerile din colectie", async () => {
   const { handler, replies } = makeHarness([{
     guildId: "guild-1",

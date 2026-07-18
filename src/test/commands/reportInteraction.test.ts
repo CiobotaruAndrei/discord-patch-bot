@@ -84,6 +84,38 @@ test("/report bug foloseste formularul si returneaza ID-ul raportului duplicat f
   assert.match(String(response), /bug-1/);
 });
 
+test("/report bug refuza descrierea cu linkuri fara sa salveze (politica linkuri unitara, audit #31)", async () => {
+  let modalCustomId = "";
+  let response: unknown;
+  let saveCalls = 0;
+  const handler = reportModule.createReportInteractionHandler(deps({
+    saveBug: async () => { saveCalls += 1; return { created: true, record: bugRecord }; }
+  }));
+  const interaction = {
+    commandName: "report",
+    guild: { id: "guild-1" },
+    user: { id: "user-1", bot: false },
+    options: {
+      getSubcommand: () => "bug",
+      getSubcommandGroup: () => null,
+      getString: (name: string) => name === "joc" ? "cs2" : name === "tip" ? "sursa-stricata" : null,
+      getUser: () => null
+    },
+    showModal: async (modal: unknown) => { modalCustomId = (modal as { toJSON(): { custom_id: string } }).toJSON().custom_id; },
+    awaitModalSubmit: async () => ({
+      customId: modalCustomId,
+      user: { id: "user-1" },
+      fields: { getTextInputValue: () => "descarca de aici https://malware.example/free.exe" },
+      deferReply: async () => undefined,
+      editReply: async (payload: unknown) => { response = payload; return null; }
+    }),
+    reply: async () => undefined
+  };
+  await handler.handle(interaction, [{ key: "cs2", name: "Counter-Strike 2", appId: "730" }]);
+  assert.equal(saveCalls, 0, "raportul cu link nu e salvat");
+  assert.match(String(response), /nu poate contine linkuri/);
+});
+
 test("/report complaint respinge auto-raportarea si nu deschide formular", async () => {
   let payload: unknown;
   let modalOpened = false;

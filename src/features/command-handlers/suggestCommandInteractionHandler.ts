@@ -7,6 +7,7 @@ import { deleteSuggestedCommand, listSuggestedCommands, saveSuggestedCommand, ty
 import { recordBotAuditEntry } from "../admin-records/auditLogRepository.js";
 import { requireGuildAdminAudited } from "../command-security/runtimeAdminAudit.js";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText.js";
+import { containsExternalLink } from "../moderation/moderationInputPolicy.js";
 
 import { errorDetail } from "../../shared/errors.js";
 import defaultRequireGuildAdminModule from "../command-security/adminPermissionGuard.js";
@@ -70,6 +71,9 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
     const description = String(interaction.options.getString("description", true) || "").trim().slice(0, 500);
     if (!commandName || !description) {
       return safeEdit(interaction, "Eroare: trebuie sa completezi numele comenzii si ce ar trebui sa faca.");
+    }
+    if (containsExternalLink(description)) {
+      return safeEdit(interaction, "Eroare: descrierea sugestiei nu poate contine linkuri.");
     }
     const { record, added } = await saveSuggestedCommand(GuildSuggestedCommandModel, guildId, {
       commandName,
