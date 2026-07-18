@@ -7,6 +7,7 @@ import {
   readAdminCommandAccessForScope,
   type AdminCommandAccessByCommand
 } from "../command-security/adminCommandAccessScope.js";
+import { listSettableAdminScopePaths } from "../command-security/adminScopeIds.js";
 
 export type AdminAccessMode = "role" | "role-or-higher";
 
@@ -41,11 +42,34 @@ export function formatCurrentAccess(scope: string, access: GuildAdminAccessDoc["
   return `Acces admin pentru ${scopeText}: ${labelMode(access.mode)} pentru <@&${access.roleId}>.${updatedBy}${updatedAt}`;
 }
 
-export function formatAccessList(doc: GuildAdminAccessDoc | null): string {
+export function formatAccessList(doc: GuildAdminAccessDoc | null, scopePaths: readonly string[] = listSettableAdminScopePaths()): string {
   const lines = [formatCurrentAccess("global", doc?.adminCommandAccess || null)];
-  for (const [scope, access] of listScopedAdminCommandAccess(doc?.adminCommandAccessByCommand)) {
-    lines.push(formatCurrentAccess(scope, access));
+  const dedicatedLines: string[] = [];
+  const fallbackScopes: string[] = [];
+  const seen = new Set<string>();
+  for (const path of scopePaths) {
+    const label = displayAdminCommandAccessScope(path);
+    if (seen.has(label)) continue;
+    seen.add(label);
+    const dedicated = readAdminCommandAccessForScope(doc?.adminCommandAccessByCommand, path);
+    if (dedicated?.roleId && dedicated.mode) {
+      dedicatedLines.push(`- ${label}: ${labelMode(dedicated.mode)} pentru <@&${dedicated.roleId}>`);
+    } else {
+      fallbackScopes.push(label);
+    }
   }
+  const extraLines: string[] = [];
+  for (const [scope, access] of listScopedAdminCommandAccess(doc?.adminCommandAccessByCommand)) {
+    const label = displayAdminCommandAccessScope(scope);
+    if (seen.has(label) || !access?.roleId || !access.mode) continue;
+    seen.add(label);
+    extraLines.push(`- ${label}: ${labelMode(access.mode)} pentru <@&${access.roleId}> (in afara catalogului admin curent - nu se aplica, poti sterge regula)`);
+  }
+  const catalogParts = ["**Catalog complet de comenzi admin** (fiecare foloseste o regula dedicata sau fallback-ul global):"];
+  if (dedicatedLines.length) catalogParts.push(["Reguli dedicate:", ...dedicatedLines].join("\n"));
+  if (fallbackScopes.length) catalogParts.push(`Folosesc fallback-ul global (${fallbackScopes.length}): ${fallbackScopes.join(", ")}`);
+  if (extraLines.length) catalogParts.push(["Reguli in afara catalogului:", ...extraLines].join("\n"));
+  lines.push(catalogParts.join("\n"));
   const conflicts = findAdminCommandAccessScopeConflicts(doc?.adminCommandAccessByCommand);
   if (conflicts.length) {
     const conflictLines = conflicts.map(conflict =>
