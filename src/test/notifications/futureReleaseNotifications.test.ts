@@ -87,3 +87,23 @@ test("o data de lansare trecuta nu emite praguri retroactive (audit, #26)", () =
   assert.deepEqual(result.notifications, []);
   assert.deepEqual(result.nextState.notifiedThresholdDays, []);
 });
+
+test("tick ratat 31 -> 6 zile: trimite DOAR pragul util (7), nu si 'in 30 de zile'; ambele marcate (audit, #8)", () => {
+  const state = { baselineDone: true, notifiedThresholdDays: [], preorderSeen: false, observedPreorderPrice: null } as FutureReleaseGameState;
+  const result = computeFutureReleaseUpdate({ gameName: "G", releaseDate: iso(6) }, state, NOW);
+  assert.deepEqual(result.notifications.map(n => n.kind === "threshold" ? n.days : n.kind), [7], "un singur mesaj, pragul cel mai apropiat inca util");
+  assert.deepEqual(result.nextState.notifiedThresholdDays, [30, 7], "pragul sarit (30) si cel trimis (7) sunt ambele marcate atomic");
+});
+
+test("tick ratat 8 -> ziua lansarii: trimite DOAR pragul 1, nu 7 si 1 contradictoriu (audit, #8)", () => {
+  const state = { baselineDone: true, notifiedThresholdDays: [30], preorderSeen: false, observedPreorderPrice: null } as FutureReleaseGameState;
+  const result = computeFutureReleaseUpdate({ gameName: "G", releaseDate: iso(0) }, state, NOW);
+  assert.deepEqual(result.notifications.map(n => n.kind === "threshold" ? n.days : n.kind), [1]);
+  assert.deepEqual(result.nextState.notifiedThresholdDays, [30, 7, 1], "pragul sarit (7) si cel trimis (1) sunt marcate, restartul nu le re-emite");
+});
+
+test("dupa lansare (remaining < 0) nu se trimite niciun prag calendaristic (audit, #8)", () => {
+  const state = { baselineDone: true, notifiedThresholdDays: [30], preorderSeen: false, observedPreorderPrice: null } as FutureReleaseGameState;
+  const result = computeFutureReleaseUpdate({ gameName: "G", releaseDate: iso(-2) }, state, NOW);
+  assert.deepEqual(result.notifications.filter(n => n.kind === "threshold"), []);
+});
