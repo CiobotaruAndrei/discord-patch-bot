@@ -55,6 +55,7 @@ import { createSecurityRuntime } from "../features/command-security/securityRunt
 import { createReputationEngine } from "../features/command-security/reputationEngine.js";
 import { createPermissionDelegationRuntime } from "../features/command-security/permissionDelegationRuntime.js";
 import { createModerationLifecycleRuntime } from "../features/moderation/moderationLifecycleRuntime.js";
+import { createServerEventLogRuntime } from "../features/command-security/serverEventLogRuntime.js";
 import { createModerationCleanupTask } from "./scheduler/moderationCleanupTask.js";
 import { roleRunsSchedulers } from "../shared/botRole.js";
 
@@ -86,6 +87,9 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
   const moderationLifecycleRuntime = mongo.GuildModel
     ? createModerationLifecycleRuntime(mongo.GuildModel)
     : undefined;
+  const serverEventLogRuntime = mongo.GuildAuditLogModel
+    ? createServerEventLogRuntime({ GuildAuditLogModel: mongo.GuildAuditLogModel, logger })
+    : undefined;
   const moderationCleanup = schedulers && moderationLifecycleRuntime
     ? createModerationCleanupTask({
       cleanupExpired: moderationLifecycleRuntime.cleanupExpired,
@@ -108,7 +112,8 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
     role: deps.role,
     securityRuntime,
     permissionDelegationRuntime,
-    moderationLifecycleRuntime
+    moderationLifecycleRuntime,
+    serverEventLogRuntime
   });
   registerMongoEvents({ mongoose, logger, errorMessage });
 
