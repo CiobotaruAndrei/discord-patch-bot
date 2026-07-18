@@ -6,6 +6,7 @@ import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 import { REPORT_TYPES } from "../feedback/reportTypes.js";
 import { errorDetail } from "../../shared/errors.js";
+import { containsExternalLink } from "../moderation/moderationInputPolicy.js";
 
 import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 
@@ -119,6 +120,7 @@ function createReportInteractionHandler(deps: ReportHandlerDeps) {
     if (!game) return interaction.reply?.({ content: suggestion ? `Nu am gasit jocul. Te refereai la **${suggestion.name}**?` : "Nu am gasit jocul.", flags: deps.MessageFlags.Ephemeral });
     const modal = await awaitDescription(interaction, "Raport de bug", "Descrie problema");
     if (!modal) return undefined;
+    if (containsExternalLink(modal.description)) return replyModal(modal.submit, "Descrierea nu poate contine linkuri. Incarca dovezile ca atasament direct.", deps.MessageFlags.Ephemeral);
     const result = await deps.saveBug({
       guildId,
       reportType: String(interaction.options.getString("tip", true) || "altceva"),
@@ -139,6 +141,7 @@ function createReportInteractionHandler(deps: ReportHandlerDeps) {
     if (target.bot) return interaction.reply?.({ content: "Eroare: botii nu pot fi reclamati prin aceasta comanda.", flags: deps.MessageFlags.Ephemeral });
     const modal = await awaitDescription(interaction, "Reclamatie membru", "Motivul reclamatiei");
     if (!modal) return undefined;
+    if (containsExternalLink(modal.description)) return replyModal(modal.submit, "Motivul reclamatiei nu poate contine linkuri. Incarca dovezile ca atasament direct.", deps.MessageFlags.Ephemeral);
     const result = await deps.saveComplaint({ guildId, reporterId: interaction.user?.id || "", targetId: target.id, reason: modal.description });
     if (!result.created) return replyModal(modal.submit, `Reclamatia exista deja. ID: \`${result.record.id}\`.`, deps.MessageFlags.Ephemeral);
     deps.adminAlert("report:complaint", `Reclamatie noua impotriva ${target.username || target.id}`, `${result.record.reason}\nID: ${result.record.id}`, guildId).catch(() => undefined);
