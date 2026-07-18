@@ -26,8 +26,8 @@ test("un bot legitim si nou (verificat, fara permisiuni) NU mai e etichetat agre
   assert.ok(risk.signals.some(signal => signal.includes("bot verificat de Discord")));
 });
 
-test("un bot VECHI dar cu permisiuni excesive nu mai trece drept normal", () => {
-  const risk = assessBotRisk({
+test("un bot VECHI dar cu permisiuni excesive: la join (fara activitate confirmata) e limitat la suspect, nu dangerous (audit, #26)", () => {
+  const input = {
     createdTimestamp: NOW - 400 * DAY_MS,
     verifiedBot: false,
     approved: false,
@@ -37,16 +37,19 @@ test("un bot VECHI dar cu permisiuni excesive nu mai trece drept normal", () => 
       permissions: permissions(PermissionFlagsBits.Administrator, PermissionFlagsBits.ManageWebhooks)
     }],
     guildRoleCount: 20
-  }, NOW);
+  };
+  const atJoin = assessBotRisk(input, NOW);
 
-  assert.equal(risk.level, "dangerous", "Administrator (+3) + Manage Webhooks (+2) = 5 => dangerous chiar la cont vechi");
-  assert.equal(risk.score, 5);
-  assert.ok(risk.signals.some(signal => signal.includes("permisiune Administrator")));
-  assert.ok(risk.signals.some(signal => signal.includes("permisiune Manage Webhooks")));
-  assert.ok(!risk.signals.some(signal => signal.includes("cont")), "varsta nu contribuie la un cont vechi");
+  assert.equal(atJoin.score, 5, "Administrator (+3) + Manage Webhooks (+2) = 5");
+  assert.equal(atJoin.level, "suspicious", "la join semnalele statice nu pot depasi suspect; dangerous cere activitate confirmata");
+  assert.ok(atJoin.signals.some(signal => signal.includes("clasificare limitata la suspect")), "semnalul explica de ce a fost limitat");
+  assert.ok(atJoin.signals.some(signal => signal.includes("permisiune Administrator")));
+
+  const withConfirmed = assessBotRisk({ ...input, confirmedActivity: true }, NOW);
+  assert.equal(withConfirmed.level, "dangerous", "cu activitate periculoasa confirmata dupa join, acelasi scor devine dangerous");
 });
 
-test("scorul cumuleaza varsta, permisiunile, pozitia rolului si penalizeaza lipsa datelor", () => {
+test("scorul cumuleaza varsta, permisiunile, pozitia rolului si penalizeaza lipsa datelor; dangerous cere confirmare (audit, #26)", () => {
   const unknownAge = assessBotRisk({ roles: [], guildRoleCount: 10 }, NOW);
   assert.equal(unknownAge.score, 2, "varsta necunoscuta (+2)");
   assert.equal(unknownAge.level, "suspicious");
@@ -57,8 +60,14 @@ test("scorul cumuleaza varsta, permisiunile, pozitia rolului si penalizeaza lips
     guildRoleCount: 10
   }, NOW);
   assert.equal(highPosition.score, 5, "cont <30 zile (+2) + Moderate Members (+2) + pozitie inalta (+1)");
-  assert.equal(highPosition.level, "dangerous");
+  assert.equal(highPosition.level, "suspicious", "scor 5 la join ramane suspect fara activitate confirmata");
   assert.ok(highPosition.signals.some(signal => signal.includes("jumatatea superioara a ierarhiei")));
+  assert.equal(assessBotRisk({
+    createdTimestamp: NOW - 10 * DAY_MS,
+    roles: [{ id: "role-1", position: 8, permissions: permissions(PermissionFlagsBits.ModerateMembers) }],
+    guildRoleCount: 10,
+    confirmedActivity: true
+  }, NOW).level, "dangerous", "cu activitate confirmata, scorul 5 devine dangerous");
 
   const lowPosition = assessBotRisk({
     createdTimestamp: NOW - 10 * DAY_MS,
@@ -69,11 +78,13 @@ test("scorul cumuleaza varsta, permisiunile, pozitia rolului si penalizeaza lips
   assert.equal(lowPosition.level, "suspicious");
 });
 
-test("pragurile: >=5 dangerous, >=2 suspicious, sub 2 normal", () => {
+test("pragurile: >=5 dangerous DOAR cu activitate confirmata (altfel suspect la join), >=2 suspicious, sub 2 normal (audit, #26)", () => {
   assert.equal(assessBotRisk({ createdTimestamp: NOW - 60 * DAY_MS, roles: [] }, NOW).level, "normal", "cont 60 zile (+1) => normal");
   assert.equal(assessBotRisk({ createdTimestamp: NOW - 10 * DAY_MS, roles: [] }, NOW).level, "suspicious", "cont 10 zile (+2) => suspicious");
-  assert.equal(assessBotRisk({
+  const dangerousInput = {
     createdTimestamp: NOW - 3_600_000,
     roles: [{ id: "r", permissions: permissions(PermissionFlagsBits.BanMembers) }]
-  }, NOW).level, "dangerous", "cont <24h (+3) + Ban Members (+2) => dangerous");
+  };
+  assert.equal(assessBotRisk(dangerousInput, NOW).level, "suspicious", "cont <24h (+3) + Ban Members (+2) = 5 la join => limitat la suspect");
+  assert.equal(assessBotRisk({ ...dangerousInput, confirmedActivity: true }, NOW).level, "dangerous", "acelasi scor cu activitate confirmata => dangerous");
 });
