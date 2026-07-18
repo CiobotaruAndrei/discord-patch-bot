@@ -5,7 +5,7 @@ import type { GuildSuggestedCommandRecord } from "../../features/admin-records/s
 
 import { escapeInlineText } from "../../shared/discordText.js";
 
-import installSuggestCommand from "../../features/command-handlers/suggestCommandInteractionHandler.js";
+import installSuggestCommand, { renderSuggestedCommandLines } from "../../features/command-handlers/suggestCommandInteractionHandler.js";
 
 function makeInteraction(subcommand: string, values: { name?: string; description?: string; numar?: number } = {}) {
   const commandName = subcommand === "list" ? "list" : subcommand === "delete" ? "delete" : "suggest-command";
@@ -234,4 +234,30 @@ test("/add suggestion respecta cooldown-ul per user (R[Medium] #2)", async () =>
   assert.equal(result, undefined);
   assert.deepEqual(suggestionDocs, [], "cooldown activ => nicio scriere in DB");
   assert.deepEqual(replies, []);
+});
+
+test("renderSuggestedCommandLines: o linie per intrare, fara sa ascunda intrari la descrieri lungi (audit, #11)", () => {
+  const entries = Array.from({ length: 3 }, (_, i) => ({
+    guildId: "g", commandName: `cmd${i}`, description: "x".repeat(500), createdBy: "u1", createdAt: new Date()
+  }));
+  const lines = renderSuggestedCommandLines(entries);
+  assert.equal(lines.length, 4, "un header + cate o linie per intrare");
+  assert.match(lines[0], /Comenzi sugerate \(3\)/);
+  assert.ok(lines.slice(1).every(line => /^- `\//.test(line)), "fiecare intrare are propria linie");
+  assert.deepEqual(renderSuggestedCommandLines([]), ["Nu exista comenzi sugerate pentru acest server."]);
+});
+
+test("/list suggest-command pagineaza toate intrarile pe mai multe mesaje; niciuna ascunsa de bugetul de caractere (audit, #11)", async () => {
+  const suggestions = Array.from({ length: 40 }, (_, i) => ({
+    guildId: "guild-1", commandName: `comanda-${i}`, description: "detaliu ".repeat(60), createdBy: "user-2", createdAt: new Date(Date.now() - i * 1000)
+  }));
+  const { handler, replies } = makeHarness(suggestions);
+  const followUps: unknown[] = [];
+  const interaction = makeInteraction("list", { numar: 100 });
+  interaction.followUp = async (payload: unknown) => { followUps.push(payload); return payload; };
+  await handler.handleSuggestCommandInteraction(interaction);
+  assert.equal(replies.length, 1, "primul mesaj e editat (safeEdit)");
+  assert.ok(followUps.length >= 1, "restul paginilor sunt trimise ca followUp, nu ascunse");
+  const allContent = [replies[0], ...followUps].map(p => String((p as { content?: string }).content ?? p)).join("\n");
+  for (let i = 0; i < 40; i++) assert.match(allContent, new RegExp(`comanda-${i}\``), `intrarea comanda-${i} este vizibila pe una din pagini`);
 });
