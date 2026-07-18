@@ -33,12 +33,14 @@ function harness(auditEntries: Partial<Record<AuditLogEvent, FakeAuditEntry[]>> 
       return query;
     }
   };
+  const observeCalls: Array<{ guildId: string; actorId: string; auditEntryId: string; kind: string }> = [];
   const runtime = createServerEventLogRuntime({
     GuildAuditLogModel: model,
     now: () => 100_000,
     sleep: async () => undefined,
     auditRetryDelaysMs: [0],
-    memberRemoveDelayMs: 0
+    memberRemoveDelayMs: 0,
+    observeBotAction: async (guildId, actorId, auditEntryId, kind) => { observeCalls.push({ guildId, actorId, auditEntryId, kind }); }
   });
   const guild = {
     id: "g1",
@@ -48,7 +50,7 @@ function harness(auditEntries: Partial<Record<AuditLogEvent, FakeAuditEntry[]>> 
       }
     })
   };
-  return { runtime, records, guild };
+  return { runtime, records, guild, observeCalls };
 }
 
 function audit(id: string, actorId: string, targetId: string): FakeAuditEntry {
@@ -124,4 +126,42 @@ test("actorul ramane explicit necunoscut cand Audit Log este indisponibil", asyn
   assert.equal(suite.records[0].actorId, "");
   assert.equal(suite.records[0].targetId, "u9");
   assert.match(suite.records[0].details ?? "", /actor=necunoscut/);
+});
+
+test("evenimentele de canal/ban/kick alimenteaza contextul de observatie a botului, cheiate pe audit entry ID (audit, #6)", async () => {
+  const suite = harness({
+    [AuditLogEvent.ChannelCreate]: [audit("a1", "bot-1", "c1")],
+    [AuditLogEvent.MemberBanAdd]: [audit("a2", "bot-1", "u1")]
+  });
+  await suite.runtime.handleChannelCreate({ id: "c1", name: "spam", type: 0, guild: suite.guild });
+  await suite.runtime.handleGuildBanAdd({ user: { id: "u1", tag: "victima" }, guild: suite.guild });
+  assert.deepEqual(suite.observeCalls, [
+    { guildId: "g1", actorId: "bot-1", auditEntryId: "a1", kind: "server-channel-created" },
+    { guildId: "g1", actorId: "bot-1", auditEntryId: "a2", kind: "server-ban-added" }
+  ]);
+});
+
+test("un eveniment fara actor din Audit Log NU alimenteaza contextul de observatie (audit, #6)", async () => {
+  const suite = harness();
+  await suite.runtime.handleGuildMemberAdd({ user: { id: "u9", tag: "nou" }, guild: suite.guild });
+  assert.equal(suite.observeCalls.length, 0, "member-joined nu are actor/audit, deci nu se coreleaza cu vreun bot");
+});
+
+test("un timeout nou aplicat de un actor este inregistrat si alimenteaza observatia (audit, #6)", async () => {
+  const suite = harness({
+    [AuditLogEvent.MemberUpdate]: [audit("a7", "bot-1", "u1")]
+  });
+  const previous = { user: { id: "u1", tag: "victima" }, communicationDisabledUntil: null, guild: suite.guild };
+  const next = { user: { id: "u1", tag: "victima" }, communicationDisabledUntil: new Date(100_000 + 600_000), guild: suite.guild };
+  await suite.runtime.handleGuildMemberTimeout(previous, next);
+  assert.deepEqual(suite.observeCalls, [
+    { guildId: "g1", actorId: "bot-1", auditEntryId: "a7", kind: "server-member-timeout" }
+  ]);
+});
+
+test("o actualizare de membru fara timeout nou NU produce eveniment (audit, #6)", async () => {
+  const suite = harness({ [AuditLogEvent.MemberUpdate]: [audit("a8", "bot-1", "u1")] });
+  const expired = { user: { id: "u1" }, communicationDisabledUntil: new Date(100_000 - 1000), guild: suite.guild };
+  await suite.runtime.handleGuildMemberTimeout(expired, expired);
+  assert.equal(suite.observeCalls.length, 0, "un timeout expirat/neschimbat nu e o actiune noua");
 });

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   recordBotObservationEvent,
   startBotObservation,
+  observeConfirmedBotAction,
   type BotObservationRecord
 } from "../../features/command-security/botObservationRepository.js";
 
@@ -94,4 +95,46 @@ test("cinci actiuni intr-un minut revendica o singura alerta agregata", async ()
   assert.equal(result.recentCount, 5);
   assert.equal(result.burstStarted, true);
   assert.equal(call, 2);
+});
+
+test("observeConfirmedBotAction: cheie 'audit:<id>' confirmata + alerta de rafala pe prag (audit, #6)", async () => {
+  const at = new Date("2026-07-18T10:00:00.000Z");
+  const record = observation(at, 6);
+  record.recentEvents = record.recentEvents.map((event, index) => ({ ...event, key: `audit:e${index}`, kind: "server-channel-created", at: new Date(at.getTime() - index * 1000) }));
+  const pushedEvents: Array<{ key?: string; kind?: string; confirmed?: boolean }> = [];
+  const model = {
+    findOne: () => ({ lean: async () => ({ botObservations: [record] }) }),
+    findOneAndUpdate: async () => null,
+    updateOne: async (_filter: object, update: Record<string, unknown>) => {
+      const push = Reflect.get(update, "$push");
+      const events = push && typeof push === "object" ? Reflect.get(push, "botObservations.$[entry].recentEvents") : null;
+      const each = events && typeof events === "object" ? Reflect.get(events, "$each") : null;
+      if (Array.isArray(each) && each.length > 0) pushedEvents.push(each[0] as { key?: string; kind?: string; confirmed?: boolean });
+      return { modifiedCount: 1 };
+    }
+  };
+  const alerts: Array<{ kind: string; guildId?: string }> = [];
+  const result = await observeConfirmedBotAction(
+    model,
+    async (kind, _title, _body, guildId) => { alerts.push({ kind, guildId }); },
+    "guild-1", "bot-1", "e9", "server-channel-created", new Date(at.getTime() + 500)
+  );
+  assert.equal(result?.burstStarted, true, "6 actiuni corelate intr-un minut declanseaza incidentul agregat");
+  assert.equal(pushedEvents[0]?.key, "audit:e9", "evenimentul de observatie e cheiat pe audit entry ID (dedup intre runtime-uri)");
+  assert.equal(pushedEvents[0]?.confirmed, true);
+  assert.deepEqual(alerts, [{ kind: "security:bot-observation-burst", guildId: "guild-1" }]);
+});
+
+test("observeConfirmedBotAction: fara actor sau fara audit entry ID nu inregistreaza nimic (audit, #6)", async () => {
+  let called = false;
+  const model = {
+    findOne: () => ({ lean: async () => null }),
+    findOneAndUpdate: async () => null,
+    updateOne: async () => { called = true; return { modifiedCount: 0 }; }
+  };
+  const noActor = await observeConfirmedBotAction(model, async () => undefined, "guild-1", "", "e1", "k", new Date());
+  const noAudit = await observeConfirmedBotAction(model, async () => undefined, "guild-1", "bot-1", "", "k", new Date());
+  assert.equal(noActor, null);
+  assert.equal(noAudit, null);
+  assert.equal(called, false, "fara actor/audit nu se atinge Mongo");
 });
