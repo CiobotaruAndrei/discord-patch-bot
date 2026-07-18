@@ -21,6 +21,20 @@ export type FetchGameDlcsOutcome =
   | { status: "parse-error" }
   | { status: "unavailable" };
 
+const CURRENCY_TO_STEAM_COUNTRY: Record<string, string> = {
+  usd: "us", eur: "de", gbp: "gb", ron: "ro", pln: "pl", rub: "ru",
+  brl: "br", jpy: "jp", cny: "cn", cad: "ca", aud: "au", try: "tr",
+  uah: "ua", inr: "in", krw: "kr", mxn: "mx", chf: "ch", sek: "se",
+  nok: "no", dkk: "dk", czk: "cz", huf: "hu", bgn: "bg", zar: "za"
+};
+
+export function currencyToSteamCountry(value: string | null | undefined): string {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (CURRENCY_TO_STEAM_COUNTRY[normalized]) return CURRENCY_TO_STEAM_COUNTRY[normalized];
+  if (/^[a-z]{2}$/.test(normalized)) return normalized;
+  return "us";
+}
+
 export function normalizeDlcKey(id: string | null | undefined, name: string): string {
   const trimmed = String(id ?? "").trim();
   if (/^\d+$/.test(trimmed)) return trimmed;
@@ -50,4 +64,4 @@ export async function fetchGameDlcs(deps: DlcSourceDeps, appId: string | number,
   };
 }
 
-export default { fetchGameDlcs, normalizeDlcKey };
+export default { fetchGameDlcs, normalizeDlcKey, currencyToSteamCountry };

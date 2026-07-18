@@ -148,3 +148,23 @@ test("checkForDlcs: sursa DLC indisponibila pentru un joc => acel joc e sarit, r
   assert.deepEqual(h.claims, ["dota:222"]);
   assert.equal(h.sends.length, 1);
 });
+
+test("seedBaselineDlc: o singura sursa esuata impiedica baseline-ul partial (arunca, nu face seed) (audit, #2)", async () => {
+  const h = makeHarness({
+    dlcsByGame: {
+      "730": { status: "unavailable" },
+      "570": { status: "ok", dlcs: [{ dlcKey: "222", name: "Pass", price: "$2" }] }
+    }
+  });
+  const service = createDlcNotificationService(h.deps);
+  await assert.rejects(() => service.seedBaselineDlc("g1", GAMES), /baseline DLC incomplet/);
+  assert.equal(h.seeded.length, 0, "nu se face un baseline partial care ar anunta ulterior DLC-uri vechi ca noi");
+});
+
+test("checkForDlcs converteste moneda implicita in cod de tara Steam pentru fetch (audit, #2)", async () => {
+  const h = makeHarness();
+  h.deps.DEFAULT_CURRENCY = "EUR";
+  const service = createDlcNotificationService(h.deps);
+  await service.checkForDlcs(CLIENT, GAMES);
+  assert.deepEqual(h.fetched.map(f => f.currency), ["de", "de"], "EUR -> de (cod de tara), nu 'EUR' in cc=");
+});
