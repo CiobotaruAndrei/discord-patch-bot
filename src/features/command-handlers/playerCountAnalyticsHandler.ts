@@ -41,17 +41,39 @@ export interface PlayerCountStats {
   maximum: number;
   average: number;
   latest: number;
+  peakAt: Date;
+  direction: "rising" | "falling" | "stable";
+}
+
+function average(values: readonly number[]): number {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 }
 
 export function calculatePlayerCountStats(points: readonly PlayerCountHistoryPoint[]): PlayerCountStats | null {
   if (points.length < 2) return null;
   const counts = points.map(point => point.playerCount);
+  const maximum = Math.max(...counts);
+  const peakPoint = points.find(point => point.playerCount === maximum) ?? points[0];
+  const mid = Math.floor(points.length / 2);
+  const firstAvg = average(counts.slice(0, mid));
+  const secondAvg = average(counts.slice(mid));
+  const delta = secondAvg - firstAvg;
+  const threshold = Math.max(1, firstAvg * 0.02);
+  const direction = delta > threshold ? "rising" : delta < -threshold ? "falling" : "stable";
   return {
     minimum: Math.min(...counts),
-    maximum: Math.max(...counts),
-    average: Math.round(counts.reduce((sum, value) => sum + value, 0) / counts.length),
-    latest: counts.at(-1) ?? 0
+    maximum,
+    average: Math.round(average(counts)),
+    latest: counts.at(-1) ?? 0,
+    peakAt: new Date(peakPoint.fetchedAt),
+    direction
   };
+}
+
+function directionLabel(direction: PlayerCountStats["direction"]): string {
+  if (direction === "rising") return "in crestere ↗";
+  if (direction === "falling") return "in scadere ↘";
+  return "stabil →";
 }
 
 export function buildSparkline(values: readonly number[], width = 30): string {
@@ -110,9 +132,10 @@ function createPlayerCountAnalyticsHandler(deps: PlayerCountAnalyticsDeps) {
         description: `Perioada: **${period}**\n\`${buildSparkline(points.map(point => point.playerCount))}\``,
         fields: [
           { name: "Minim", value: formatCount(stats.minimum), inline: true },
-          { name: "Maxim", value: formatCount(stats.maximum), inline: true },
+          { name: `Varf (peak ${period})`, value: `${formatCount(stats.maximum)} — atins <t:${Math.floor(stats.peakAt.getTime() / 1000)}:R>`, inline: true },
           { name: "Medie", value: formatCount(stats.average), inline: true },
-          { name: "Cea mai recenta", value: formatCount(stats.latest), inline: true }
+          { name: "Cea mai recenta", value: formatCount(stats.latest), inline: true },
+          { name: "Tendinta", value: directionLabel(stats.direction), inline: true }
         ]
       }]
     });
