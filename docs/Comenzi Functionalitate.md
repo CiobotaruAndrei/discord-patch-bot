@@ -257,6 +257,6 @@ Concepte utile pentru admini:
 | `/stop threat-protection` | Admin, Guild-only | Dezactiveaza detectarea si pastraza canalul configurat. |
 | `/set bot-add-alert-channel canal:<canal>` | Admin, Ephemeral, Guild-only | Configureaza canalul pentru solicitarile si alertele privind adaugarea botilor si valideaza permisiunile botului. |
 | `/start bot-add-protection` | Admin, Ephemeral, Guild-only | Leaga aprobarea de botul exact si solicitantul identificat din audit log. Aprobarea owner este one-time, expira si se consuma atomic; botii fara aprobare valida sunt eliminati. Conturile bot suspecte si foarte noi produc alerte owner separate. |
-| `/stop bot-add-protection` | Admin, Guild-only | Dezactiveaza protectia bot-add si pastreaza istoricul. |
+| `/stop bot-add-protection` | Admin, Guild-only | Dezactiveaza protectia bot-add, pastreaza istoricul si anuleaza toate solicitarile/aprobarile active neexpirate (devin `cancelled`), ca sa nu ramana aprobari valabile dupa dezactivare. |
 | `/bot-add-request` | Admin, Ephemeral, Guild-only | Creeaza o solicitare pending pentru perechea bot plus solicitant, cu expirare automata si aprobarea sau respingerea ownerului prin butoane. |
 | `/bot-add-permissions` | Admin, Ephemeral, Guild-only | Listeaza paginat toate solicitarile cu status, bot, solicitant, owner, creare, raspuns, expirare si consumare. |

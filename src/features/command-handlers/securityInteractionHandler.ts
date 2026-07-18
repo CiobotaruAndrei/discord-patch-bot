@@ -11,6 +11,7 @@ import {
 } from "../guild-config/guildConfigRepository.js";
 import { accountAgeLabel, isRecentAccount } from "../command-security/recentAccountPolicy.js";
 import { validateModerationText, type DirectAttachment } from "../moderation/moderationInputPolicy.js";
+import { cancelActiveBotAddPermissions, countActiveBotAddPermissions } from "../moderation/botAddRepository.js";
 
 type SecurityOptions = {
   getSubcommand(): string;
@@ -67,6 +68,7 @@ type GuildSettingsLike = {
   threatProtectionEnabled?: boolean;
   botAddAlertChannelId?: string | null;
   botAddProtectionEnabled?: boolean;
+  botAddPermissions?: unknown;
   purgeAmount?: number;
   lockedChannelIds?: string[];
   lockedChannelPermissions?: Array<{ channelId: string; sendMessages: LockedChannelPermissionState }>;
@@ -212,6 +214,16 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
         }
       }
       await applyGuildConfigUpdate(target.GuildModel, guildId, { [enabledField]: command === "start" });
+      if (command === "stop" && sub === "bot-add-protection") {
+        const active = countActiveBotAddPermissions(settings?.botAddPermissions, new Date());
+        try {
+          await cancelActiveBotAddPermissions(target.GuildModel, guildId);
+        } catch (err) {
+          target.logger?.("WARN", "SECURITY_COMMAND", "Anularea aprobarilor bot-add active a esuat", errorDetail(err));
+          return respond(interaction, "OK: protectia **bot-add-protection** a fost oprita, dar anularea aprobarilor active a esuat - reincearca sau verifica manual.");
+        }
+        return respond(interaction, `OK: protectia **bot-add-protection** a fost oprita. Solicitari/aprobari active anulate: ${active}.`);
+      }
       if (command === "start" && sub === "new-account-alerts" && settings?.newAccountAlertsEnabled !== true) {
         try {
           const channelId = settings?.newAccountAlertChannelId;

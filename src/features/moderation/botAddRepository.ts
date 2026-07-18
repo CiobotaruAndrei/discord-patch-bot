@@ -220,4 +220,37 @@ export async function consumeBotAddPermission(
   );
 }
 
-export default { getBotAddState, createBotAddRequest, resolveBotAddRequest, consumeBotAddPermission };
+export interface BotAddCancelModelLike {
+  updateOne(
+    filter: Record<string, unknown>,
+    update: Record<string, unknown> | readonly Record<string, unknown>[],
+    options?: Record<string, unknown>
+  ): Promise<unknown>;
+}
+
+export function countActiveBotAddPermissions(records: unknown, now = new Date()): number {
+  return asRecords(records).filter(entry =>
+    (entry.status === "pending" || entry.status === "approved")
+    && Boolean(entry.expiresAt && new Date(entry.expiresAt).getTime() > now.getTime())
+  ).length;
+}
+
+export async function cancelActiveBotAddPermissions(model: BotAddCancelModelLike, guildId: string, now = new Date()): Promise<void> {
+  await model.updateOne(
+    { _id: guildId },
+    {
+      $set: {
+        "botAddPermissions.$[entry].status": "cancelled",
+        "botAddPermissions.$[entry].respondedAt": now
+      }
+    },
+    {
+      arrayFilters: [{
+        "entry.status": { $in: ["pending", "approved"] },
+        "entry.expiresAt": { $gt: now }
+      }]
+    }
+  );
+}
+
+export default { getBotAddState, createBotAddRequest, resolveBotAddRequest, consumeBotAddPermission, countActiveBotAddPermissions, cancelActiveBotAddPermissions };
