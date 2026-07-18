@@ -75,11 +75,11 @@ export function computeFutureReleaseUpdate(
   const notified = new Set<FutureReleaseThresholdDay>(state.notifiedThresholdDays);
 
   if (releaseTs !== null && observation.releaseDate) {
-    for (const threshold of crossedThresholds(releaseTs, now)) {
-      if (!notified.has(threshold)) {
-        notified.add(threshold);
-        notifications.push({ kind: "threshold", gameName: observation.gameName, days: threshold, releaseDate: observation.releaseDate });
-      }
+    const pending = crossedThresholds(releaseTs, now).filter(threshold => !notified.has(threshold));
+    if (pending.length > 0) {
+      const nearest = Math.min(...pending) as FutureReleaseThresholdDay;
+      for (const threshold of pending) notified.add(threshold);
+      notifications.push({ kind: "threshold", gameName: observation.gameName, days: nearest, releaseDate: observation.releaseDate });
     }
   }
 
