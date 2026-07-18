@@ -103,6 +103,7 @@ export const GUILD_SETTINGS_FIELD_ROLES: Readonly<Record<string, GuildSettingsFi
   botAddPermissions: "operational",
   purgeAmount: "security",
   lockedChannelIds: "security",
+  lockedChannelPreviousSendMessages: "security",
   pendingUpdates: "operational",
   pendingDiscounts: "operational",
   lastProcessedGameKey: "operational",

@@ -10,7 +10,7 @@ import {
   setYouTubeFilterFlag,
   setYouTubeMinDurationSeconds
 } from "../../youtube/youtubeGuildConfigRepository.js";
-import { clampJoinedList } from "../../command-presentation/discordListLimit.js";
+import { paginateTextLines, sendPaginatedText } from "../../command-presentation/discordListLimit.js";
 import { defaultFilters, formatFilters, onOff } from "./youtubePresentation.js";
 
 import { errorDetail } from "../../../shared/errors.js";
@@ -54,9 +54,14 @@ export function createYouTubeFilterCommands(deps: YouTubeInteractionDeps) {
     const words = settings?.youtubeTitleIncludeWords || [];
     if (subcommand === "list") {
       const header = "Filtrul inclusiv accepta titluri care contin cel putin una dintre valorile:\n";
-      return safeEdit(interaction, words.length
-        ? `${header}${clampJoinedList(words.map(word => `- \`${word}\``), 2000 - header.length)}`
-        : "Filtrul inclusiv de titlu este gol. Toate titlurile trec acest filtru.");
+      if (!words.length) return safeEdit(interaction, "Filtrul inclusiv de titlu este gol. Toate titlurile trec acest filtru.");
+      return sendPaginatedText({
+        interaction,
+        pages: paginateTextLines(words.map(word => `- \`${word}\``), { maxChars: 1900, firstPagePrefix: header }),
+        safeEdit,
+        ephemeral: true,
+        ephemeralFlag: deps.MessageFlags.Ephemeral
+      });
     }
     if (subcommand === "clear") {
       await clearYouTubeTitleWords(GuildModel, guildId);

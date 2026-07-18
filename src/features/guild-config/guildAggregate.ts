@@ -14,7 +14,7 @@ export const GUILD_SETTINGS_FIELDS: ReadonlySet<GuildSettingsField> = new Set([
   "watchlistGameSuggestions", "futureReleaseGames", "playerCountSubscribed", "playerCountChannelId", "playerCountGames", "gameAliases",
   "timezone", "futureReleaseSubscribed", "futureReleaseChannelId", "dlcSubscribed", "dlcChannelId", "newAccountAlertChannelId",
   "newAccountAlertsEnabled", "threatAlertChannelId", "threatProtectionEnabled", "botAddAlertChannelId", "botAddProtectionEnabled",
-  "botAddPermissions", "purgeAmount", "lockedChannelIds", "pendingUpdates", "pendingDiscounts", "lastProcessedGameKey",
+  "botAddPermissions", "purgeAmount", "lockedChannelIds", "lockedChannelPreviousSendMessages", "pendingUpdates", "pendingDiscounts", "lastProcessedGameKey",
   "updatesInitializing", "updatesActivationId", "updatesLastError", "discountsInitializing", "discountsActivationId", "discountsLastError",
   "futureReleaseInitializing", "futureReleaseActivationId", "dlcInitializing", "dlcActivationId", "seenHashVersionUpdates", "seenHashVersionDiscounts"
 ]);

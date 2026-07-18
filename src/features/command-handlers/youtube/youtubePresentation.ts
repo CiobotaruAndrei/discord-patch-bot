@@ -1,7 +1,7 @@
 "use strict";
 
 import type { GuildSettings, YouTubeFilters } from "../../../types.js";
-import { clampJoinedList } from "../../command-presentation/discordListLimit.js";
+import { paginateTextLines } from "../../command-presentation/discordListLimit.js";
 
 export function defaultFilters(settings: GuildSettings | null): Required<YouTubeFilters> {
   return {
@@ -22,13 +22,17 @@ export function formatTime(value: Date | string | null | undefined): string {
 }
 
 export function formatYouTubeList(settings: GuildSettings | null): string {
+  return formatYouTubeListPages(settings)[0];
+}
+
+export function formatYouTubeListPages(settings: GuildSettings | null): string[] {
   const channels = settings?.youtubeChannels || [];
-  if (!channels.length) return "Nu exista canale YouTube urmarite.";
+  if (!channels.length) return ["Nu exista canale YouTube urmarite."];
   const lines = channels.map((channel, index) => {
     const error = channel.lastError?.message ? `, ultima eroare: ${channel.lastError.message}` : "";
     return `${index + 1}. **${channel.channelName}** (\`${channel.channelId}\`) - ultima verificare ${formatTime(channel.lastCheckedAt)}${error}`;
   });
-  return clampJoinedList(lines, 2000);
+  return paginateTextLines(lines, { maxChars: 1900, firstPagePrefix: `Canale YouTube urmarite (${channels.length}):\n` });
 }
 
 export function formatFilters(filters: Required<YouTubeFilters>): string {
@@ -59,12 +63,16 @@ export function formatYouTubeStatus(settings: GuildSettings | null, recentErrorC
 }
 
 export function formatYouTubeRoutes(settings: GuildSettings | null): string {
+  return formatYouTubeRoutesPages(settings)[0];
+}
+
+export function formatYouTubeRoutesPages(settings: GuildSettings | null): string[] {
   const routes = settings?.youtubeChannelRoutes || [];
-  if (!routes.length) return "Nu exista rute speciale YouTube. Toate videoclipurile folosesc canalul principal.";
+  if (!routes.length) return ["Nu exista rute speciale YouTube. Toate videoclipurile folosesc canalul principal."];
   const channelNames = new Map((settings?.youtubeChannels || []).map(channel => [channel.channelId, channel.channelName]));
   const lines = routes.map(route => {
     const destinations = route.discordChannelIds.map(channelId => `<#${channelId}>`).join(", ");
     return `- **${channelNames.get(route.channelId) || route.channelId}**: ${destinations || "fara destinatii"}`;
   });
-  return clampJoinedList(lines, 2000);
+  return paginateTextLines(lines, { maxChars: 1900, firstPagePrefix: `Rute speciale YouTube (${routes.length}):\n` });
 }

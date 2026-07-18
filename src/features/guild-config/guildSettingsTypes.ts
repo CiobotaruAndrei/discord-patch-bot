@@ -69,6 +69,7 @@ export interface GuildConfigurationSettings {
   }>;
   purgeAmount?: number;
   lockedChannelIds?: string[];
+  lockedChannelPreviousSendMessages?: Record<string, boolean>;
 }
 
 export interface GuildSecuritySettings {

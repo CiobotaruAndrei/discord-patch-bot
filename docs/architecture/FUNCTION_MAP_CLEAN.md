@@ -268,7 +268,19 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 ### `src/features/command-handlers/priceAlertInteractionHandler.ts`
 
 - Gestioneaza `/add price-alert`, `/remove price-alert` si `/price-alert list`.
-- Persistenta este per joc+valuta, cu maximum 25 de reguli per server si stare de declansare/rearmare vizibila adminului.
+- Persistenta este per joc+valuta, cu maximum 25 de reguli per server; alertele pot fi pregatite inaintea canalului reduceri si lista afiseaza starea inactiva pana la activare.
+
+### `src/features/command-presentation/discordListLimit.ts`
+
+- `paginateTextLines` si `sendPaginatedText` pastreaza toate intrarile pe pagini Discord, cu header pe prima pagina, follow-up-uri si raspunsuri ephemeral configurabile.
+
+### `src/features/command-security/threatArchiveInspector.ts`
+
+- Inspecteaza pasiv structuri PDF/Office si arhive recursive ZIP/TAR/GZIP; aplica limite de adancime, intrari, bytes, ratio si timp, iar RAR/7Z, criptarea si trunchierea raman incerte pana la verdictul scannerului extern.
+
+### `src/features/notifications/priceAlertPolicy.ts`
+
+- Pastreaza politica unica de activare a livrarii alertelor de pret, inclusiv starea afisata de `/price-alert list`.
 
 ### `src/features/command-handlers/backupInteractionHandler.ts`
 

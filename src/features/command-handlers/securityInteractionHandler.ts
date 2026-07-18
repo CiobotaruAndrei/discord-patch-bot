@@ -16,7 +16,12 @@ type SecurityOptions = {
 type SecurityChannel = {
   id?: string;
   send?: (payload: unknown) => Promise<unknown>;
-  permissionOverwrites?: { edit(target: unknown, permissions: Record<string, boolean>): Promise<unknown> };
+  sendMessagesState?: boolean | null;
+  permissionOverwrites?: {
+    edit(target: unknown, permissions: Record<string, boolean | null>): Promise<unknown>;
+    cache?: { get(id: string): PermissionOverwrite | null | undefined };
+    resolve?: (id: string) => PermissionOverwrite | null | undefined;
+  };
   bulkDelete?: (amount: number, filterOld?: boolean) => Promise<unknown>;
 };
 
@@ -44,7 +49,18 @@ type GuildSettingsLike = {
   botAddProtectionEnabled?: boolean;
   purgeAmount?: number;
   lockedChannelIds?: string[];
+  lockedChannelPreviousSendMessages?: Record<string, boolean>;
 } | null;
+
+type PermissionOverwrite = {
+  deny?: PermissionBitset;
+  allow?: PermissionBitset;
+  serialize?: () => Record<string, boolean>;
+};
+
+type PermissionBitset = {
+  has?: (permission: unknown) => boolean;
+};
 
 type SecurityDeps = {
   GuildModel: GuildModelLike;
@@ -79,6 +95,29 @@ function resultSize(result: unknown): number {
   if (Array.isArray(result)) return result.length;
   if (result && typeof result === "object" && "size" in result && typeof result.size === "number") return result.size;
   return 0;
+}
+
+function permissionBitsetHas(bitset: PermissionBitset | undefined, value: unknown): boolean {
+  try { return bitset?.has?.(value) === true; } catch { return false; }
+}
+
+function readSendMessagesState(channel: SecurityChannel, everyone: unknown): boolean | null {
+  if (channel.sendMessagesState === true || channel.sendMessagesState === false) return channel.sendMessagesState;
+  const everyoneId = everyone && typeof everyone === "object" && "id" in everyone && typeof everyone.id === "string" ? everyone.id : null;
+  if (!everyoneId) return null;
+  const overwrite = channel.permissionOverwrites?.cache?.get(everyoneId) ?? channel.permissionOverwrites?.resolve?.(everyoneId);
+  const serialized = overwrite?.serialize?.();
+  if (serialized && typeof serialized.SendMessages === "boolean") return serialized.SendMessages;
+  if (permissionBitsetHas(overwrite?.deny, "SendMessages") || permissionBitsetHas(overwrite?.deny, 2048)) return false;
+  if (permissionBitsetHas(overwrite?.allow, "SendMessages") || permissionBitsetHas(overwrite?.allow, 2048)) return true;
+  return null;
+}
+
+function lockPermissionError(permissions: Awaited<ReturnType<NonNullable<SecurityDeps["checkChannelPermissions"]>>> | undefined): string | null {
+  return missingPermissionsMessage(permissions ? {
+    "Manage Channels": permissions.manageChannels,
+    "Send Messages": permissions.sendMessages
+  } satisfies ChannelPermissionSnapshot : null, ["Manage Channels", "Send Messages"]);
 }
 
 function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<SecurityInteraction> {
@@ -124,24 +163,64 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
       const channel = interaction.options.getChannel("canal", false) ?? interaction.options.getChannel("channel", true);
       const everyone = guild?.roles?.everyone;
       if (!channel?.id || !channel.permissionOverwrites?.edit || !everyone) return respond(interaction, "Eroare: canalul selectat nu permite modificarea permisiunilor.");
-      const permissions = await target.checkChannelPermissions?.(interaction, channel.id);
-      const lockPermissionError = missingPermissionsMessage(permissions ? {
-        "Manage Channels": permissions.manageChannels,
-        "Send Messages": permissions.sendMessages
-      } satisfies ChannelPermissionSnapshot : null, ["Manage Channels", "Send Messages"]);
-      if (lockPermissionError) return respond(interaction, lockPermissionError);
+      const channelId = channel.id;
+      const permissionOverwrites = channel.permissionOverwrites;
+      const permissions = await target.checkChannelPermissions?.(interaction, channelId);
+      const initialPermissionError = lockPermissionError(permissions);
+      if (initialPermissionError) return respond(interaction, initialPermissionError);
       const currentSettings = await target.getGuildSettings(guildId).catch(() => null);
-      const isLocked = currentSettings?.lockedChannelIds?.includes(channel.id) === true;
+      const isLocked = currentSettings?.lockedChannelIds?.includes(channelId) === true;
       if (command === "unlock-channel" && !isLocked) return respond(interaction, "Eroare: canalul nu este blocat de bot.");
       if (command === "lock-channel" && isLocked) return respond(interaction, "Eroare: canalul este deja blocat de bot.");
       const reason = command === "lock-channel" ? (interaction.options.getString("motiv", false) ?? interaction.options.getString("reason", true)) : null;
       if (reason && /(?:https?:\/\/|www\.)/i.test(reason)) return respond(interaction, "Eroare: motivul nu poate contine linkuri.");
+      const previousSendMessages = command === "lock-channel"
+        ? readSendMessagesState(channel, everyone)
+        : currentSettings?.lockedChannelPreviousSendMessages?.[channelId] ?? null;
+      const rollback = async (locked: boolean, restoreSendMessages: boolean | null): Promise<boolean> => {
+        let ok = true;
+        try { await settingsRepository.updateChannelLock(guildId, channelId, locked, previousSendMessages); }
+        catch (rollbackError: unknown) {
+          ok = false;
+          target.logger?.("ERROR", "SECURITY_COMMAND", "Rollback-ul persistentei lock-channel a esuat", errorDetail(rollbackError));
+        }
+        try { await permissionOverwrites.edit(everyone, { SendMessages: restoreSendMessages }); }
+        catch (rollbackError: unknown) {
+          ok = false;
+          target.logger?.("ERROR", "SECURITY_COMMAND", "Rollback-ul overwrite-ului lock-channel a esuat", errorDetail(rollbackError));
+        }
+        return ok;
+      };
       try {
-        await channel.permissionOverwrites.edit(everyone, { SendMessages: command === "unlock-channel" });
-        await settingsRepository.updateChannelLock(guildId, channel.id, command === "lock-channel");
-        const result = command === "lock-channel" ? `OK: canalul a fost blocat${reason ? ` (motiv: ${reason})` : ""}.` : "OK: canalul a fost deblocat.";
-        if (command === "lock-channel") await channel.send?.({ content: `:lock: Canal blocat de <@${interaction.user?.id ?? "administrator"}>. Motiv: ${reason ?? "nespecificat"}.`, allowedMentions: { parse: [] } }).catch(() => null);
-        return respond(interaction, result);
+        if (command === "unlock-channel") {
+          await permissionOverwrites.edit(everyone, { SendMessages: previousSendMessages });
+          try { await settingsRepository.updateChannelLock(guildId, channelId, false); }
+          catch (persistError: unknown) {
+            const rolledBack = await rollback(true, false);
+            return respond(interaction, `Eroare: persistenta unlock a esuat${rolledBack ? " si starea a fost restaurata" : "; rollback-ul a esuat"}.`);
+          }
+          return respond(interaction, "OK: canalul a fost deblocat si starea anterioara a fost restaurata.");
+        }
+        await permissionOverwrites.edit(everyone, { SendMessages: false });
+        try { await settingsRepository.updateChannelLock(guildId, channelId, true, previousSendMessages); }
+        catch (persistError: unknown) {
+          const rolledBack = await rollback(false, previousSendMessages);
+          return respond(interaction, `Eroare: persistenta lock a esuat${rolledBack ? " si overwrite-ul a fost restaurat" : "; rollback-ul a esuat"}.`);
+        }
+        const revalidated = await target.checkChannelPermissions?.(interaction, channelId);
+        const revalidationError = lockPermissionError(revalidated);
+        if (revalidationError || !channel.send) {
+          const rolledBack = await rollback(false, previousSendMessages);
+          return respond(interaction, `Eroare: canalul nu mai poate primi mesajul obligatoriu${rolledBack ? " si starea a fost restaurata" : "; rollback-ul a esuat"}.`);
+        }
+        try {
+          await channel.send({ content: `:lock: Canal blocat de <@${interaction.user?.id ?? "administrator"}>. Motiv: ${reason ?? "nespecificat"}.`, allowedMentions: { parse: [] } });
+        } catch (sendError: unknown) {
+          const rolledBack = await rollback(false, previousSendMessages);
+          target.logger?.("WARN", "SECURITY_COMMAND", "Mesajul lock-channel a esuat", errorDetail(sendError));
+          return respond(interaction, `Eroare: mesajul obligatoriu nu a fost trimis${rolledBack ? " si lock-ul a fost anulat" : "; rollback-ul a esuat"}.`);
+        }
+        return respond(interaction, `OK: canalul a fost blocat${reason ? ` (motiv: ${reason})` : ""}.`);
       } catch (err: unknown) {
         return respond(interaction, target.formatUserError(err, "Eroare la modificarea permisiunilor canalului."));
       }

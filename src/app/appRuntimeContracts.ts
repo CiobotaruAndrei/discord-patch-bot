@@ -26,6 +26,7 @@ import type { OutboxDiscordClient } from "../features/notifications/outboundChan
 import type { RedisRuntime } from "../infra/redis/redisClient.js";
 import type { GuildSettings } from "../features/guild-config/guildSettingsTypes.js";
 import type { GuildAuditLogModelLike } from "../features/admin-records/auditLogRepository.js";
+import type { ExternalThreatScanner } from "../features/command-security/threatPipeline.js";
 
 export interface CommandRuntime {
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
@@ -132,6 +133,7 @@ export interface AppRuntimeDeps {
   mongo: MongoContextLike;
   commands: CommandRuntime;
   scrapers: ScraperRuntime;
+  externalThreatScanner?: ExternalThreatScanner;
   recoverOperationJournal?: () => Promise<{ recovered: number; failed: number }>;
   startOperationJournalRecovery?: () => void;
   stopOperationJournalRecovery?: () => Promise<void>;

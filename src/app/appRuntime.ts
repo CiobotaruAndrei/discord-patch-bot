@@ -54,6 +54,21 @@ import { createGuildSettingsInvalidationChannel } from "../infra/redis/guildSett
 import { createSecurityRuntime } from "../features/command-security/securityRuntime.js";
 import { createBotObservationAggregator } from "../features/command-security/botObservationAggregator.js";
 import { createBotObservationRepository } from "../features/command-security/botObservationRepository.js";
+import type { ThreatResource } from "../features/command-security/threatInspection.js";
+
+const MAX_THREAT_DOWNLOAD_BYTES = 8 * 1024 * 1024;
+
+async function fetchThreatResource(resource: ThreatResource): Promise<Uint8Array> {
+  const url = new URL(resource.url);
+  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("schema de URL nesuportata pentru scanarea atasamentului");
+  const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) throw new Error(`descarcarea atasamentului a esuat cu HTTP ${response.status}`);
+  const length = Number(response.headers.get("content-length") ?? 0);
+  if (length > MAX_THREAT_DOWNLOAD_BYTES) throw new Error("atasamentul depaseste limita de bytes pentru scanare");
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length > MAX_THREAT_DOWNLOAD_BYTES) throw new Error("atasamentul depaseste limita de bytes pentru scanare");
+  return bytes;
+}
 
 function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   const { createHttpServer, registerDiscordEvents, registerMongoEvents, createShutdownController, errorMessage, errorDetail, mongoose, crypto, mongo } = deps;
@@ -68,6 +83,8 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   const securityRuntime = createSecurityRuntime({
     getGuildSettings: mongo.getGuildSettings ?? (async () => null),
     client,
+    fetchThreatResource,
+    externalThreatScanner: deps.externalThreatScanner,
     observationAggregator,
     observationRepository
   });

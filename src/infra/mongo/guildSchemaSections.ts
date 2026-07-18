@@ -24,6 +24,7 @@ export function buildGuildSecurityFields(mongoose: typeof Mongoose): Record<stri
     botAddProtectionEnabled: { type: Boolean, default: false },
     botAddPermissions: { type: [mongoose.Schema.Types.Mixed], default: [] },
     purgeAmount: { type: Number, default: 50, min: 1, max: 100 },
-    lockedChannelIds: { type: [String], default: [] }
+    lockedChannelIds: { type: [String], default: [] },
+    lockedChannelPreviousSendMessages: { type: Map, of: Boolean, default: {} }
   };
 }

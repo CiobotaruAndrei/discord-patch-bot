@@ -251,12 +251,17 @@ src/
   test/
 ```
 
+## Integritate si deduplicare
+
+`seenRepository.ts` pastreaza identitatile de deduplicare in campuri separate, fara delimitatori NUL sau chei compuse incompatibile. Gate-ul `check:no-nul` scaneaza sursele text, iar testul dedicat verifica explicit repository-ul.
+
 ## Comenzi si interactiuni
 
 Routing-ul interactiunilor e compus de `commandRegistry` ca o lista tipata `CommandHandler[]`: fiecare handler expune `buildCommandHandler(ctx): CommandHandler` (`{ canHandle, handle }`), iar `dispatchCommand` itereaza lista si deleaga la primul `canHandle` adevarat (fallback-ul, mereu `canHandle: () => true`, e ultimul). Comenzile admin trec prin pre-check-ul `requireGuildAdmin` conform manifestului; subcomenzile publice declarate explicit, precum `/future-release list`, raman in afara guard-ului, iar `add/delete/start/stop` sunt protejate. Apoi `commandSnoozeGuard` blocheaza comenzile puse temporar pe pauza inainte de `dispatchCommand`. `handleInteraction`-ul exportat de registru (= pre-check admin + snooze guard + `dispatchCommand`) e punctul de intrare folosit de `app/lifecycle/events.ts`. Nu mai exista un lant de `attachX` care impacheteaza `handleInteraction` si nici un fisier `interactions.ts` separat. Logica concreta sta in handler-e dedicate:
 
 - `simpleCommandsHandler.ts` - comenzi simple precum ping/games;
 - `helpInteractionHandler.ts` - paginare si continut pentru help;
+- `discordListLimit.ts` - paginare pe pagini Discord pentru listele administrative si publice, cu follow-up-uri si mentiuni controlate;
 - `subscriptionNotificationHandlers.ts` - start/stop pentru update-uri, reduceri, player-count si configurarea canalului DLC;
 - `gameFilterHandlers.ts` - filtre si validari pentru jocuri, inclusiv `/set games` si `/watchlist`;
 - `rolePingHandlers.ts` - roluri pentru ping-uri;
@@ -267,7 +272,8 @@ Routing-ul interactiunilor e compus de `commandRegistry` ca o lista tipata `Comm
 - `guildConfigurationAdminHandler.ts` - `/reset-config` si `/admin-alerts`, cu confirmare explicita la reset si verificarea permisiunilor canalului administrativ;
 - `adminCommandAccessHandler.ts` - `/set admin-command-access`, `/admin-command-access list` si `/delete admin-command-access`, owner-only, pentru rol exact sau rol egal/mai-mare care poate folosi comenzi admin global sau doar pe o comanda/pachet, pe langa `Administrator` si codul global de acces; perechile `start`/`stop` pentru acelasi modul se normalizeaza la acelasi scope; formatarea mesajelor si normalizarea modului sunt delegate modulului pur `adminCommandAccessViews.ts`;
 - `adminCommandAccessViews.ts` - functii pure de prezentare/normalizare pentru accesul admin (`formatCurrentAccess`/`formatAccessList`/`formatScopedAccess` — inclusiv avertismentul de reguli in conflict si fallback-ul global — plus `labelMode`/`normalizeMode` si tipurile `AdminAccessMode`/`GuildAdminAccessDoc`), fara acces la Mongo/Discord;
-- `priceAlertInteractionHandler.ts` - `/add price-alert`, `/remove price-alert` si `/price-alert list`, persistenta regulilor joc+prag+valuta si autocomplete pentru joc;
+- `priceAlertInteractionHandler.ts` - `/add price-alert`, `/remove price-alert` si `/price-alert list`, persistenta regulilor joc+prag+valuta si autocomplete pentru joc; politica este de pregatire in avans, iar lista afiseaza alertele inactive pana la activarea canalului reduceri;
+- `priceAlertPolicy.ts` - politica unica pentru activarea livrarii alertelor de pret, folosita de handler si testul de sincronizare a documentatiei;
 - `backupInteractionHandler.ts` - `/add backup` si `/backup list/preview/load/delete`, backup-uri ale configuratiei botului pentru server, stocate in colectia dedicata `guildConfigBackups` (un backup per nume per guild, cap de 20 cu evictia celor mai vechi), confirmare la load/delete si audit server la schimbari; randarea textelor e delegata modulului pur `backupViews.ts`;
 - `backupViews.ts` - functii pure de randare pentru `/backup` (`renderBackupList`/`renderBackupPreview`), fara acces la Mongo/Discord;
 - `auditLogInteractionHandler.ts` - `/bot-log recent/older` si `/server-log recent/older`, citire audit admin (`kind: "bot"`) si audit server (`kind: "server"`) din colectia dedicata `guildAuditLogs`;
@@ -287,6 +293,7 @@ Routing-ul interactiunilor e compus de `commandRegistry` ca o lista tipata `Comm
 - `sourcesStatusHandler.ts` - `/sources status`, sumarul ultimelor snapshot-uri persistate pentru sursele externe; construirea embed-ului e delegata modulului pur `sourcesStatusView.ts`;
 - `sourcesStatusView.ts` - functii pure care transforma snapshot-urile + sumarul de sanatate al surselor in embed-ul de status (`buildSourcesStatusEmbed` + helpere + tipuri), fara acces la Mongo/Discord;
 - `youtubeInteractionHandler.ts` - comenzile `/youtube` ramase: abonare, canal principal, rute, filtre, status si curatarea erorilor;
+- `command-security/threatArchiveInspector.ts` - analiza pasiva locala pentru PDF/Office si arhive recursive ZIP/TAR/GZIP, cu limite anti-abuz si stare incerta pentru formate criptate sau nesuportate;
 - `reportInteractionHandler.ts` - formularele separate pentru bug-uri si reclamatii, plus listare/stergere admin pe colectii distincte;
 - `gameOverviewInteractionHandler.ts` - agregarea best-effort pentru `/game overview`;
 - `playerCountAnalyticsHandler.ts` - trend, milestone, gainers si peak-time din istoricul player-count;

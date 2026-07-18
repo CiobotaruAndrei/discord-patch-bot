@@ -3,7 +3,7 @@
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
-import moderationRepository, { type ModerationRecord } from "../moderation/moderationRepository.js";
+import moderationRepository, { type ModerationRecord, type WarningRecord } from "../moderation/moderationRepository.js";
 import { readIntegerOption, readStringOption } from "./commandInteractionAdapter.js";
 
 type User = { id: string; username?: string; bot?: boolean };
@@ -144,13 +144,29 @@ function createModerationInteractionHandler(deps: Deps) {
         return safeEdit(interaction, count ? `OK: ${mention(user.id, user.username)} are ${count} warn(uri) ramase.` : "Utilizatorul nu are warn-uri active.");
       }
       if (!reason?.trim()) return safeEdit(interaction, "Eroare: motivul warn-ului este obligatoriu.");
-      const result = await moderationRepository.addWarning(GuildModel, guild.id, { userId: user.id, username: user.username || user.id, moderatorId, warnedAt: new Date(), reason: safeReason(reason) });
+      const warningRecord: WarningRecord = { userId: user.id, username: user.username || user.id, moderatorId, warnedAt: new Date(), reason: safeReason(reason) };
+      const warningChannel = interaction.channel;
+      if (!warningChannel?.send) return safeEdit(interaction, "Eroare: canalul curent nu permite publicarea warn-ului.");
+      const result = await moderationRepository.addWarning(GuildModel, guild.id, warningRecord);
+      try {
+        await warningChannel.send({ content: `Warn pentru ${mention(user.id, user.username)} (${result.count} total) — motiv: ${safeReason(reason)}` });
+      } catch (sendError: unknown) {
+        let rollbackSucceeded = false;
+        try {
+          rollbackSucceeded = await moderationRepository.removeWarningRecord(GuildModel, guild.id, warningRecord);
+        } catch (rollbackError: unknown) {
+          deps.logger?.("ERROR", "MODERATION", "Rollback-ul warn-ului a esuat dupa send esuat", errorDetail(rollbackError));
+        }
+        deps.logger?.("WARN", "MODERATION", "Publicarea warn-ului a esuat; intrarea curenta a fost compensata", errorDetail(sendError));
+        return safeEdit(interaction, rollbackSucceeded
+          ? "Eroare: warn-ul nu a putut fi publicat si nu a fost pastrat."
+          : "Eroare: warn-ul nu a putut fi publicat, iar rollback-ul a esuat; verifica lista de warn-uri.");
+      }
       let suffix = "";
       if (result.limit > 0 && result.count >= result.limit && typeof target.ban === "function" && hasPermission(guild.members.me, "BanMembers")) {
         await target.ban({ reason: `Limita de warn-uri atinsa (${result.limit})` });
         suffix = " Utilizatorul a fost banat automat dupa atingerea limitei.";
       }
-      if (interaction.channel?.send) await interaction.channel.send({ content: `Warn pentru ${mention(user.id, user.username)} (${result.count} total) — motiv: ${safeReason(reason)}` }).catch(() => undefined);
       return safeEdit(interaction, `OK: ${mention(user.id, user.username)} a primit warn-ul #${result.count}.${suffix}`);
     }
     return safeEdit(interaction, "Eroare: comanda de moderare nu este recunoscuta.");

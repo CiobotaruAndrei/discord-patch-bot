@@ -154,4 +154,5 @@ export interface GuildDoc {
   }>;
   purgeAmount?: number;
   lockedChannelIds?: string[];
+  lockedChannelPreviousSendMessages?: Map<string, boolean> | Record<string, boolean>;
 }

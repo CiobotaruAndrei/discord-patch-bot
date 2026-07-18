@@ -14,6 +14,7 @@ import { clampJoinedList } from "../command-presentation/discordListLimit.js";
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
 import { findGameByKey } from "../../config/gameCatalog.js";
+import { formatPriceAlertActivationState, isPriceAlertDeliveryActive } from "../notifications/priceAlertPolicy.js";
 
 type InteractionPayload = DiscordReplyPayload;
 type MongoWriteResult = MongoWriteOutcome;
@@ -58,8 +59,8 @@ interface PriceAlertInteractionDeps {
 
 type PriceAlertContext = PriceAlertInteractionDeps;
 
-function formatAlertLine(alert: PriceAlertRule, index: number): string {
-  const state = alert.triggeredAt ? "declansata, asteapta rearmare" : "armata";
+function formatAlertLine(alert: PriceAlertRule, index: number, settings: GuildSettings | null): string {
+  const state = formatPriceAlertActivationState(settings, alert);
   const observed = typeof alert.lastObservedPrice === "number"
     ? `, ultimul pret ${alert.lastObservedPrice} ${alert.currency}`
     : "";
@@ -97,8 +98,8 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
     if (!saved) {
       return safeEdit(interaction, `Eroare: serverul are deja limita de ${MAX_PRICE_ALERTS_PER_GUILD} alerte de pret (o comanda concurenta a ocupat ultimul loc). Sterge o alerta cu \`/remove price-alert\` si reincearca.`);
     }
-    const activation = settings?.discountsSubscribed && settings.discountChannelId
-      ? `Alerta va fi trimisa in <#${settings.discountChannelId}>.`
+    const activation = isPriceAlertDeliveryActive(settings)
+      ? `Alerta va fi trimisa in <#${settings?.discountChannelId}>.`
       : "Alerta este salvata, dar devine activa dupa `/start reduceri`, care stabileste canalul de livrare.";
     return safeEdit(interaction, `OK: alerta pentru **${game.name}** setata la **${threshold} ${currency}**. ${activation}`);
   }
@@ -120,7 +121,7 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
       return safeEdit(interaction, "Nu exista alerte de pret configurate. Adauga una cu `/add price-alert`.");
     }
     const header = `Alerte de pret (${alerts.length}/${MAX_PRICE_ALERTS_PER_GUILD}):\n`;
-    return safeEdit(interaction, `${header}${clampJoinedList(alerts.map(formatAlertLine), 2000 - header.length)}`);
+    return safeEdit(interaction, `${header}${clampJoinedList(alerts.map((alert, index) => formatAlertLine(alert, index, settings)), 2000 - header.length)}`);
   }
 
   async function handlePriceAlertInteraction(interaction: DiscordInteraction, games: GameConfig[]): Promise<unknown> {

@@ -3,7 +3,7 @@
 import type { DiscordReplyPayload, FutureReleaseGameEntry, GameConfig, GuildSettings } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
-import { clampJoinedList } from "../command-presentation/discordListLimit.js";
+import { paginateTextLines, sendPaginatedText } from "../command-presentation/discordListLimit.js";
 import { deleteFutureReleaseGame, listFutureReleaseGames, saveFutureReleaseGame, startFutureReleaseNotifications, stopFutureReleaseNotifications } from "../admin-records/futureReleaseGamesRepository.js";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText.js";
 
@@ -75,7 +75,18 @@ function renderFutureReleaseGames(entries: FutureReleaseGameEntry[], settings?: 
     const preorder = entry.preorderPrice ? `preorder: ${escapeInlineText(entry.preorderPrice, 80)}` : "preorder: indisponibil";
     return `- \`${escapeInlineText(entry.gameName, 120)}\` | ${release} | ${preorder}`;
   });
-  return `${state}\nJocuri future-release (${entries.length}/20):\n${clampJoinedList(lines, 1900)}`;
+  return paginateTextLines(lines, { maxChars: 1900, firstPagePrefix: `${state}\nJocuri future-release (${entries.length}/20):\n` })[0];
+}
+
+export function renderFutureReleasePages(entries: FutureReleaseGameEntry[], settings?: GuildSettings | null): string[] {
+  if (!entries.length) return ["Nu exista jocuri future-release urmarite pentru acest server."];
+  const state = futureReleaseStateLine(settings);
+  const lines = entries.map(entry => {
+    const release = entry.releaseDate ? `lansare: ${escapeInlineText(entry.releaseDate, 40)}` : "lansare: indisponibila";
+    const preorder = entry.preorderPrice ? `preorder: ${escapeInlineText(entry.preorderPrice, 80)}` : "preorder: indisponibil";
+    return `- \`${escapeInlineText(entry.gameName, 120)}\` | ${release} | ${preorder}`;
+  });
+  return paginateTextLines(lines, { maxChars: 1900, firstPagePrefix: `${state}\nJocuri future-release (${entries.length}/20):\n` });
 }
 
 function createFutureReleaseInteractionHandler(deps: FutureReleaseDeps) {
@@ -106,7 +117,14 @@ function createFutureReleaseInteractionHandler(deps: FutureReleaseDeps) {
 
   async function handleList(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     const settings = await getGuildSettings(guildId);
-    return safeEdit(interaction, { content: renderFutureReleaseGames(listFutureReleaseGames(settings), settings), allowedMentions: NO_MENTIONS });
+    const pages = renderFutureReleasePages(listFutureReleaseGames(settings), settings);
+    return sendPaginatedText({
+      interaction,
+      pages,
+      safeEdit,
+      firstPayload: { content: pages[0], allowedMentions: NO_MENTIONS },
+      followUpPayload: content => ({ content, allowedMentions: NO_MENTIONS })
+    });
   }
 
   async function handleDelete(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
@@ -178,5 +196,6 @@ function buildFutureReleaseCommandHandler(target: FutureReleaseContext) {
 export default {
   createFutureReleaseInteractionHandler,
   renderFutureReleaseGames,
+  renderFutureReleasePages,
   buildCommandHandler: buildFutureReleaseCommandHandler
 };

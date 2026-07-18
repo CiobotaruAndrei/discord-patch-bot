@@ -112,6 +112,8 @@ test("/price-alert remove sterge toate valutele jocului", async () => {
 
 test("/price-alert list afiseaza pragul si starea fiecarei alerte", async () => {
   const { handler, replies } = makeHarness({
+    discountsSubscribed: true,
+    discountChannelId: "deals",
     priceAlerts: [{
       gameKey: "elden-ring",
       gameName: "Elden Ring",

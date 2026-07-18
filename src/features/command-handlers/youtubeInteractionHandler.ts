@@ -5,7 +5,8 @@ import type { DiscordInteraction, YouTubeInteractionDeps } from "./youtube/youtu
 import { createYouTubeSubscriptionCommands } from "./youtube/youtubeSubscriptionCommands.js";
 import { createYouTubeNotifyCommands } from "./youtube/youtubeNotifyCommands.js";
 import { createYouTubeFilterCommands } from "./youtube/youtubeFilterCommands.js";
-import { formatYouTubeList, formatYouTubeStatus } from "./youtube/youtubePresentation.js";
+import { formatYouTubeList, formatYouTubeListPages, formatYouTubeStatus } from "./youtube/youtubePresentation.js";
+import { sendPaginatedText } from "../command-presentation/discordListLimit.js";
 import { countYoutubeErrors } from "../youtube/youtubeErrorsRepository.js";
 
 import { handledCommandError } from "../command-security/commandOutcome.js";
@@ -37,7 +38,10 @@ function createYouTubeInteractionHandler(deps: YouTubeInteractionDeps) {
     if (group === "title-filter") return filterCommands.titleFilter(interaction, guildId, subcommand);
     if (subcommand === "subscribe") return subscriptionCommands.subscribe(interaction, guildId);
     if (subcommand === "unsubscribe") return subscriptionCommands.unsubscribe(interaction, guildId);
-    if (subcommand === "list") return safeEdit(interaction, formatYouTubeList(await getGuildSettings(guildId)));
+    if (subcommand === "list") {
+      const settings = await getGuildSettings(guildId);
+      return sendPaginatedText({ interaction, pages: formatYouTubeListPages(settings), safeEdit, ephemeral: true, ephemeralFlag: deps.MessageFlags.Ephemeral });
+    }
     if (subcommand === "status") return safeEdit(interaction, formatYouTubeStatus(await getGuildSettings(guildId), await countYoutubeErrors(GuildYoutubeErrorModel, guildId)));
     if (subcommand === "clear-errors") {
       await clearYouTubeErrors(guildId);
@@ -88,5 +92,6 @@ export default {
   createYouTubeInteractionHandler,
   buildCommandHandler: buildYouTubeCommandHandler,
   formatYouTubeList,
+  formatYouTubeListPages,
   formatYouTubeStatus
 };

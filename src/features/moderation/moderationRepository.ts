@@ -105,6 +105,19 @@ export async function removeWarning(model: ModerationGuildModel, guildId: string
   return warnings.filter(item => item.userId === userId).length;
 }
 
+export async function removeWarningRecord(model: ModerationGuildModel, guildId: string, record: WarningRecord): Promise<boolean> {
+  const state = await getModerationState(model, guildId);
+  const warnings = [...(state.moderationWarnings ?? [])];
+  const index = warnings.map((item, position) => ({ item, position })).reverse().find(({ item }) => item.userId === record.userId
+    && item.moderatorId === record.moderatorId
+    && item.warnedAt.getTime() === record.warnedAt.getTime()
+    && item.reason === record.reason)?.position;
+  if (index === undefined) return false;
+  warnings.splice(index, 1);
+  await model.updateOne({ _id: guildId }, { $set: { moderationWarnings: warnings } }, { upsert: true });
+  return true;
+}
+
 export async function setWarnBanLimit(model: ModerationGuildModel, guildId: string, limit: number): Promise<void> {
   await model.updateOne({ _id: guildId }, { $set: { moderationWarnBanLimit: limit } }, { upsert: true });
 }
@@ -125,4 +138,4 @@ export async function removeModerationWithOpposite(model: ModerationGuildModel, 
   return { removed: found, opposite };
 }
 
-export default { getModerationState, saveTimeout, saveMute, removeModeration, removeModerationWithOpposite, addWarning, removeWarning, setWarnBanLimit, setWarnBanLimitWithPrevious, reconcileModerationState };
+export default { getModerationState, saveTimeout, saveMute, removeModeration, removeModerationWithOpposite, addWarning, removeWarning, removeWarningRecord, setWarnBanLimit, setWarnBanLimitWithPrevious, reconcileModerationState };

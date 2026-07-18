@@ -15,7 +15,8 @@ import {
   setYouTubeNotificationChannel,
   setYouTubeNotificationsEnabled
 } from "../../youtube/youtubeGuildConfigRepository.js";
-import { formatYouTubeRoutes, formatYouTubeStatus } from "./youtubePresentation.js";
+import { formatYouTubeRoutesPages, formatYouTubeStatus } from "./youtubePresentation.js";
+import { sendPaginatedText } from "../../command-presentation/discordListLimit.js";
 import { countYoutubeErrors } from "../../youtube/youtubeErrorsRepository.js";
 
 import { errorDetail } from "../../../shared/errors.js";
@@ -88,7 +89,9 @@ export function createYouTubeNotifyCommands(deps: YouTubeInteractionDeps) {
     subcommand: string
   ): Promise<unknown> {
     const settings = await getGuildSettings(guildId);
-    if (subcommand === "list") return safeEdit(interaction, formatYouTubeRoutes(settings));
+    if (subcommand === "list") {
+      return sendPaginatedText({ interaction, pages: formatYouTubeRoutesPages(settings), safeEdit, ephemeral: true, ephemeralFlag: deps.MessageFlags.Ephemeral });
+    }
     const youtubeChannelId = interaction.options.getString("canal", true);
     const subscription = settings?.youtubeChannels?.find(channel => channel.channelId === youtubeChannelId);
     if (!youtubeChannelId || !subscription) {

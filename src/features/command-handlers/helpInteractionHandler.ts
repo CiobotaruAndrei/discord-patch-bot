@@ -76,7 +76,7 @@ function buildHelpEmbedFromDeps(EmbedBuilder: EmbedBuilderCtor, COLORS: { DARK: 
         name: "Alerte dedicate (admin)",
         value:
           "`/add price-alert <joc> <price> <currency>`\n" +
-          "`/remove price-alert <joc>` - `/price-alert list`\n" +
+          "`/remove price-alert <joc>` - `/price-alert list` (alertele pot fi pregatite inainte de `/start reduceri` si raman inactive pana exista canal activ)\n" +
           "`/admin-alerts set <channel>` - `/admin-alerts off`"
       },
       {

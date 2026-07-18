@@ -9,7 +9,7 @@ export interface GuildSettingsWriteModel {
 export interface GuildSettingsRepository {
   setField(guildId: string, field: GuildSettingsField, value: unknown): Promise<void>;
   setFieldIfVersion(guildId: string, field: GuildSettingsField, value: unknown, expectedVersion: number): Promise<void>;
-  updateChannelLock(guildId: string, channelId: string, locked: boolean): Promise<void>;
+  updateChannelLock(guildId: string, channelId: string, locked: boolean, previousSendMessages?: boolean | null): Promise<void>;
   setGameAliases(guildId: string, aliases: Record<string, string[]>): Promise<void>;
 }
 
@@ -29,7 +29,12 @@ export function createGuildSettingsRepository(model: GuildSettingsWriteModel, in
   return {
     setField: async (guildId, field, value) => { assertField(field); await write(guildId, { $set: { [field]: value } }); },
     setFieldIfVersion: async (guildId, field, value, expectedVersion) => { assertField(field); await write(guildId, { $set: { [field]: value } }, expectedVersion); },
-    updateChannelLock: (guildId, channelId, locked) => write(guildId, locked ? { $addToSet: { lockedChannelIds: channelId } } : { $pull: { lockedChannelIds: channelId } }),
+    updateChannelLock: (guildId, channelId, locked, previousSendMessages = null) => locked
+      ? write(guildId, {
+        $addToSet: { lockedChannelIds: channelId },
+        ...(previousSendMessages === null ? {} : { $set: { [`lockedChannelPreviousSendMessages.${channelId}`]: previousSendMessages } })
+      })
+      : write(guildId, { $pull: { lockedChannelIds: channelId }, $unset: { [`lockedChannelPreviousSendMessages.${channelId}`]: 1 } }),
     setGameAliases: (guildId, aliases) => write(guildId, { $set: { gameAliases: aliases } })
   };
 }

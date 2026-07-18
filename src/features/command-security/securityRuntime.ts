@@ -2,7 +2,8 @@
 
 import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import { classifyJoinRisk, classifyConfirmedActivity } from "./threatInspection.js";
-import { analyzeThreatInput, type ThreatAnalysis } from "./threatPipeline.js";
+import { analyzeThreatBytes, analyzeThreatInput, type ExternalThreatScanner, type ThreatAnalysis } from "./threatPipeline.js";
+import type { ThreatResource } from "./threatInspection.js";
 import type { BotObservationAggregator } from "./botObservationAggregator.js";
 import type { BotObservationEvent } from "./botObservationAggregator.js";
 import type { BotObservationRepository } from "./botObservationRepository.js";
@@ -20,6 +21,8 @@ export type SecurityRuntimeDeps = {
   newAccountAlertStore?: { hasSent(key: string): Promise<boolean>; markSent(key: string, expiresAt: number): Promise<void> };
   recordAudit?: (entry: { guildId: string; action: string; actorId?: string; details?: string; operationId?: string; requestId?: string }) => Promise<void>;
   analyzeThreat?: (input: { content?: string; attachments?: Array<{ kind: "attachment" | "url"; url: string; name?: string }>; urls?: Array<{ kind: "attachment" | "url"; url: string; name?: string }> }) => ThreatAnalysis;
+  fetchThreatResource?: (resource: ThreatResource) => Promise<Uint8Array>;
+  externalThreatScanner?: ExternalThreatScanner;
   observationAggregator?: BotObservationAggregator;
   observationRepository?: BotObservationRepository;
 };
@@ -80,16 +83,30 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
   async function handleMessageCreate(message: MessageEvent): Promise<void> {
     const guildId = message.guild?.id;
     const author = message.author;
-    if (!guildId || !author || typeof message.content !== "string" || !suspiciousContent(message.content)) return;
+    const attachments = [...(message.attachments ?? [])].flatMap(attachment => attachment.url ? [{ kind: "attachment" as const, url: attachment.url, name: attachment.name }] : []);
+    if (!guildId || !author || author.bot || (typeof message.content !== "string" && attachments.length === 0)) return;
     const settings = await deps.getGuildSettings(guildId).catch(() => null);
     if (!settings?.threatProtectionEnabled || !settings.threatAlertChannelId) return;
     const analysis = (deps.analyzeThreat ?? analyzeThreatInput)({
       content: message.content,
-      attachments: [...(message.attachments ?? [])].flatMap(attachment => attachment.url ? [{ kind: "attachment" as const, url: attachment.url, name: attachment.name }] : []),
+      attachments,
       urls: []
     });
-    await observe({ id: `threat:${guildId}:${author.id ?? "unknown"}:${message.channel?.id ?? "unknown"}:${message.content}`, guildId, subjectId: author.id, kind: "threat", at: now(), details: analysis.state });
-    const confirmed = classifyConfirmedActivity({ suspiciousContent: analysis.state !== "clean", confirmedThreat: analysis.state === "confirmed" });
+    const analyses: ThreatAnalysis[] = [analysis];
+    if (deps.fetchThreatResource) {
+      for (const resource of attachments) {
+        try {
+          const bytes = await deps.fetchThreatResource(resource);
+          analyses.push(await analyzeThreatBytes({ bytes, resource, externalScanner: deps.externalThreatScanner }));
+        } catch {
+          analyses.push({ state: "uncertain", complete: false, reason: "resursa nu a putut fi descarcata in siguranta", resources: [resource] });
+        }
+      }
+    }
+    const merged = mergeThreatAnalyses(analyses);
+    if (merged.state === "clean") return;
+    await observe({ id: `threat:${guildId}:${author.id ?? "unknown"}:${message.channel?.id ?? "unknown"}:${message.content ?? "attachment"}`, guildId, subjectId: author.id, kind: "threat", at: now(), details: `${merged.state}:${merged.reason}` });
+    const confirmed = classifyConfirmedActivity({ suspiciousContent: suspiciousContent(message.content ?? "") || merged.state === "suspicious" || merged.state === "uncertain" || merged.state === "partial" || merged.state === "risky-file", confirmedThreat: merged.state === "confirmed" });
     const channel = await Promise.resolve(deps.client.channels?.fetch(settings.threatAlertChannelId)).catch(() => null);
     let deletion = "neefectuata";
     if (confirmed === "dangerous" && typeof message.delete === "function") {
@@ -98,11 +115,24 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
     await channel?.send?.({ content: `:warning: Continut ${confirmed} detectat de la <@${author.id ?? ""}> in <#${(message.channel as { id?: string } | null)?.id ?? ""}>. Stergere: ${deletion}.`, allowedMentions: { parse: [] } }).catch(() => null);
     if (deps.recordAudit) {
       const correlation = createAuditCorrelation(guildId, `threat:${author.id ?? "unknown"}:${message.channel?.id ?? "unknown"}`);
-      await deps.recordAudit({ guildId, action: "threat_alert", actorId: author.id, details: `classification=${confirmed}; analysis=${analysis.state}; deletion=${deletion}`, operationId: correlation.operationId, requestId: correlation.requestId }).catch(() => undefined);
+      await deps.recordAudit({ guildId, action: "threat_alert", actorId: author.id, details: `classification=${confirmed}; analysis=${merged.state}; deletion=${deletion}; reason=${merged.reason}`, operationId: correlation.operationId, requestId: correlation.requestId }).catch(() => undefined);
     }
   }
 
   return Object.freeze({ handleGuildMemberAdd, handleMessageCreate });
+}
+
+function mergeThreatAnalyses(analyses: readonly ThreatAnalysis[]): ThreatAnalysis {
+  const resources = analyses.flatMap(analysis => analysis.resources);
+  const confirmed = analyses.find(analysis => analysis.state === "confirmed");
+  if (confirmed) return { ...confirmed, resources };
+  const uncertain = analyses.find(analysis => analysis.state === "uncertain" || analysis.state === "unsupported" || analysis.state === "risky-file");
+  if (uncertain) return { ...uncertain, resources };
+  const suspicious = analyses.find(analysis => analysis.state === "suspicious");
+  if (suspicious) return { ...suspicious, resources };
+  const partial = analyses.find(analysis => analysis.state === "partial");
+  if (partial) return { ...partial, resources };
+  return { state: "clean", complete: true, reason: "nu au fost detectati indicatori pasivi", resources };
 }
 
 export default { createSecurityRuntime };
