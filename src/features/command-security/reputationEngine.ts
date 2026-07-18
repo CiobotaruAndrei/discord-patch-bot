@@ -97,7 +97,9 @@ export function createReputationEngine(deps: ReputationEngineDeps): ReputationSc
           kind: input.kind,
           contentBase64: input.buffer.toString("base64"),
           contentLength: input.buffer.length,
-          contentSha256
+          contentSha256,
+          complete: input.complete,
+          totalLength: input.totalLength ?? null
         },
         headers
       }, 0);

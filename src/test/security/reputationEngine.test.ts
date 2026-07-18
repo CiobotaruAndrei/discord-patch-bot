@@ -6,7 +6,7 @@ import { createReputationEngine, resolveReputationEngineStatus } from "../../fea
 
 const SCAN_BYTES = Buffer.from([0x4d, 0x5a, 0x90, 0x00]);
 const SCAN_SHA256 = createHash("sha256").update(SCAN_BYTES).digest("hex");
-const SCAN_INPUT = { url: "https://cdn.example.test/file", mime: "application/octet-stream", buffer: SCAN_BYTES, kind: "executable" as const };
+const SCAN_INPUT = { url: "https://cdn.example.test/file", mime: "application/octet-stream", buffer: SCAN_BYTES, kind: "executable" as const, complete: true, totalLength: SCAN_BYTES.length };
 
 test("motor neconfigurat (fara URL) => null si status not-configured (audit, #21)", () => {
   assert.equal(createReputationEngine({ env: {}, httpReq: async () => ({ data: "malware" }) }), null);
@@ -47,7 +47,9 @@ test("motor configurat cheama endpoint-ul cu token si intoarce verdictul normali
     kind: SCAN_INPUT.kind,
     contentBase64: SCAN_BYTES.toString("base64"),
     contentLength: SCAN_BYTES.length,
-    contentSha256: SCAN_SHA256
+    contentSha256: SCAN_SHA256,
+    complete: true,
+    totalLength: SCAN_BYTES.length
   });
 });
 
@@ -87,5 +89,5 @@ test("motorul extern accepta categoriile confirmate numai cu hash-ul exact", asy
     httpReq: async () => ({ status: 200, data: { verdict: "phishing", contentSha256: expectedHash } })
   });
   assert.ok(scan);
-  assert.equal(await scan({ mime: "text/html", buffer: payload, kind: "other" }), "phishing");
+  assert.equal(await scan({ mime: "text/html", buffer: payload, kind: "other", complete: true, totalLength: payload.length }), "phishing");
 });
