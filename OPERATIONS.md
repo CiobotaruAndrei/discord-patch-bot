@@ -260,6 +260,7 @@ setat ESTE sincronizarea. Inventarul declarat curent:
 | `guildSeenDiscounts` | `{ seenAt }` | TTL `GUILD_SEEN_DISCOUNT_TTL_DAYS` (implicit 60 zile) | curatare automata a istoricului de reduceri vazute |
 | `guildSeenUpdates` | `{ guildId, gameKey, updateId }` | unique | dedup per-guild al update-urilor deja trimise |
 | `guildSeenYoutube` | `{ guildId, channelId, videoId }` | unique | claim si dedup atomic per-guild pentru videoclipurile YouTube |
+| `guildSeenDlc` | `{ guildId, gameKey, dlcKey }` | unique | claim si dedup atomic per-guild al DLC-urilor deja notificate (baseline seed la `/start dlc`) |
 | `guildAuditLogs` | `{ guildId, kind, at }` | — | listarea audit-ului `/bot-log` (`kind: "bot"`) si `/server-log` (`kind: "server"`), cele mai noi primele, cu interval si offset |
 | `guildAuditLogs` | `{ at }` | TTL `GUILD_AUDIT_LOG_TTL_DAYS` (implicit 180 zile) | retentia audit-ului admin; inlocuieste vechiul cap de 100 de intrari per array din documentul guild (intrarile expira dupa timp, nu dupa numar) |
 | `guildConfigBackups` | `{ guildId, name }` | unique | un backup de configuratie per nume per guild; `/backup add` cu acelasi nume suprascrie (upsert), `/backup preview|load|delete` cauta direct pe cheia naturala |

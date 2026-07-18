@@ -32,5 +32,13 @@ export function buildSeenSchemas({ mongoose, ONE_DAY_MS, env }: SeenSchemasDeps)
   }, { minimize: false });
   guildSeenYoutubeSchema.index({ guildId: 1, channelId: 1, videoId: 1 }, { unique: true, background: true });
 
-  return { guildSeenDiscountSchema, guildSeenUpdateSchema, guildSeenYoutubeSchema };
+  const guildSeenDlcSchema = new mongoose.Schema({
+    guildId: { type: String, required: true },
+    gameKey: { type: String, required: true },
+    dlcKey: { type: String, required: true },
+    seenAt: { type: Date, default: Date.now }
+  }, { minimize: false });
+  guildSeenDlcSchema.index({ guildId: 1, gameKey: 1, dlcKey: 1 }, { unique: true, background: true });
+
+  return { guildSeenDiscountSchema, guildSeenUpdateSchema, guildSeenYoutubeSchema, guildSeenDlcSchema };
 }

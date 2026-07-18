@@ -203,11 +203,13 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const {
     guildSeenDiscountSchema,
     guildSeenUpdateSchema,
-    guildSeenYoutubeSchema
+    guildSeenYoutubeSchema,
+    guildSeenDlcSchema
   } = buildSeenSchemas({ mongoose, ONE_DAY_MS, env });
   const GuildSeenDiscountModel = mongoose.model("GuildSeenDiscount", guildSeenDiscountSchema, "guildSeenDiscounts");
   const GuildSeenUpdateModel = mongoose.model("GuildSeenUpdate", guildSeenUpdateSchema, "guildSeenUpdates");
   const GuildSeenYoutubeModel = mongoose.model("GuildSeenYoutube", guildSeenYoutubeSchema, "guildSeenYoutube");
+  const GuildSeenDlcModel = mongoose.model("GuildSeenDlc", guildSeenDlcSchema, "guildSeenDlc");
 
   const {
     notificationOutboxSchema,
@@ -241,6 +243,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     GuildSeenDiscountModel,
     GuildSeenUpdateModel,
     GuildSeenYoutubeModel,
+    GuildSeenDlcModel,
     NotificationOutboxModel,
     NotificationOutboxSentModel,
     NotificationHistoryModel,
