@@ -127,6 +127,11 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     dlcChannelId: { type: String, default: null },
     dlcInitializing: { type: Boolean, default: false },
     dlcActivationId: { type: String, default: null },
+    dlcLastError: {
+      message: { type: String, default: "" },
+      channelId: { type: String, default: null },
+      at: { type: Date, default: null }
+    },
     newAccountAlertChannelId: { type: String, default: null },
     newAccountAlertsEnabled: { type: Boolean, default: false },
     threatAlertChannelId: { type: String, default: null },

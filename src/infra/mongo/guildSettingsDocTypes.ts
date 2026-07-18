@@ -156,6 +156,7 @@ export interface GuildDoc {
   dlcChannelId?: string | null;
   dlcInitializing?: boolean;
   dlcActivationId?: string | null;
+  dlcLastError?: NotificationLastError;
   newAccountAlertChannelId?: string | null;
   newAccountAlertsEnabled?: boolean;
   threatAlertChannelId?: string | null;

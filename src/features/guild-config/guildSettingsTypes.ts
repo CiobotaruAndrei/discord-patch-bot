@@ -94,6 +94,7 @@ export interface GuildOperationalSettings {
   futureReleaseActivationId?: string | null;
   dlcInitializing?: boolean;
   dlcActivationId?: string | null;
+  dlcLastError?: LastErrorInfo;
   seenHashVersionUpdates?: number;
   seenHashVersionDiscounts?: number;
 }

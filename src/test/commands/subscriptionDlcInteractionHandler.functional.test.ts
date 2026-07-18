@@ -59,19 +59,20 @@ function makeDeps() {
   return { handlers, calls, replies };
 }
 
-test("/start dlc salveaza canalul si activarea DLC", async () => {
+test("/start dlc activeaza modulul DLC prin ciclul de activare (activare + finalize cu activation-id) (audit, #12)", async () => {
   const { handlers, calls, replies } = makeDeps();
 
   await handlers.handleStartInteraction(makeInteraction("start", "dlc"), []);
 
-  assert.deepEqual(calls[0].update, {
-    $set: {
-      dlcSubscribed: true,
-      dlcChannelId: "channel-1",
-      dlcInitializing: false,
-      dlcActivationId: "activation-dlc"
-    }
+  assert.equal(calls.length, 2, "activare + finalize, ca la updates/discounts");
+  assert.deepEqual(calls[0].update.$set, {
+    dlcSubscribed: true,
+    dlcChannelId: "channel-1",
+    dlcInitializing: true,
+    dlcActivationId: "activation-dlc"
   });
+  assert.deepEqual(calls[1].update.$set, { dlcInitializing: false });
+  assert.equal((calls[1].filter as Record<string, unknown>).dlcActivationId, "activation-dlc", "finalize conditionat de activation-id");
   assert.match(String(replies[0]), /DLC/);
 });
 

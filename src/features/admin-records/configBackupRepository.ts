@@ -114,6 +114,7 @@ export const GUILD_SETTINGS_FIELD_ROLES: Readonly<Record<string, GuildSettingsFi
   discountsLastError: "operational",
   dlcInitializing: "operational",
   dlcActivationId: "operational",
+  dlcLastError: "operational",
   futureReleaseInitializing: "operational",
   futureReleaseActivationId: "operational"
 });

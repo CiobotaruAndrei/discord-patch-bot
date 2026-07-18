@@ -94,17 +94,42 @@ test("stopUpdates/stopDiscounts: o singura scriere care goleste pending si scoat
   assert.deepEqual(writes[1].update.$unset, { discountsActivationId: "" });
 });
 
-test("startDlc/stopDlc: configurarea canalului DLC cu activation-id la start si $unset la stop (runda 10)", async () => {
+test("startDlc/stopDlc: activare atomica cu activation-id + baseline + finalize (fara pending/seen-hash), $unset la stop (audit, #12)", async () => {
   const { service, writes } = makeHarness();
-  await service.startDlc("g1", "c1");
+  const seedOrder: string[] = [];
+  const outcome = await service.startDlc("g1", "c1", async () => { seedOrder.push(`seed-dupa-${writes.length}`); });
+  assert.deepEqual(outcome, { status: "activated" });
+  assert.deepEqual(seedOrder, ["seed-dupa-1"], "baseline-ul DLC ruleaza dupa scrierea de activare");
+  assert.equal(writes.length, 2);
   assert.equal(setOf(writes[0]).dlcSubscribed, true);
   assert.equal(setOf(writes[0]).dlcChannelId, "c1");
+  assert.equal(setOf(writes[0]).dlcInitializing, true);
   assert.equal(setOf(writes[0]).dlcActivationId, "act-1");
   assert.equal(writes[0].options?.upsert, true);
+  assert.equal("pendingDlc" in setOf(writes[0]), false, "DLC nu are camp de pending");
+  assert.equal(writes[1].filter.dlcActivationId, "act-1", "finalize conditionat de activation-id");
+  assert.equal(setOf(writes[1]).dlcInitializing, false);
+  assert.equal("seenHashVersionDlc" in setOf(writes[1]), false, "DLC nu are seen-hash-version");
+
   await service.stopDlc("g1");
+  assert.equal(setOf(writes[2]).dlcSubscribed, false);
+  assert.equal(setOf(writes[2]).dlcChannelId, null);
+  assert.deepEqual(writes[2].update.$unset, { dlcActivationId: "" });
+});
+
+test("startDlc: baseline esuat => rollback conditionat de activation-id + dlcLastError + WARN (audit, #12)", async () => {
+  const { service, writes, logs } = makeHarness();
+  const boom = new Error("dlc baseline boom");
+  const outcome = await service.startDlc("g1", "c1", async () => { throw boom; });
+  assert.deepEqual(outcome, { status: "baseline-failed", error: boom });
+  assert.equal(writes.length, 2);
+  assert.deepEqual(writes[1].filter, { _id: "g1", dlcActivationId: "act-1" });
   assert.equal(setOf(writes[1]).dlcSubscribed, false);
   assert.equal(setOf(writes[1]).dlcChannelId, null);
-  assert.deepEqual(writes[1].update.$unset, { dlcActivationId: "" });
+  const lastError = setOf(writes[1]).dlcLastError as { message: string; channelId: string };
+  assert.equal(lastError.message, "dlc baseline boom");
+  assert.equal(lastError.channelId, "c1");
+  assert.deepEqual(logs, [{ level: "WARN", context: "START_DLC", message: "Activat, dar baseline-ul DLC a esuat" }]);
 });
 
 test("addPlayerCountGame/setPlayerCountGames: $addToSet la pornire; lista goala opreste modulul si goleste canalul (runda 10)", async () => {
