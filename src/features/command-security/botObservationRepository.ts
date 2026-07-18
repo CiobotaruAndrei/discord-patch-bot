@@ -167,4 +167,33 @@ export async function recordBotObservationEvent(
   };
 }
 
-export default { startBotObservation, recordBotObservationEvent };
+export type ObservationAdminAlert = (kind: string, title: string, body: string, guildId?: string) => Promise<unknown>;
+
+export async function observeConfirmedBotAction(
+  model: BotObservationModelLike,
+  adminAlert: ObservationAdminAlert,
+  guildId: string,
+  actorId: string,
+  auditEntryId: string,
+  kind: string,
+  at: Date
+): Promise<RecordedObservationEvent | null> {
+  if (!guildId || !actorId || !auditEntryId) return null;
+  const observation = await recordBotObservationEvent(model, guildId, actorId, {
+    key: `audit:${auditEntryId}`,
+    kind,
+    at,
+    confirmed: true
+  });
+  if (observation.burstStarted) {
+    await adminAlert(
+      "security:bot-observation-burst",
+      "Rafala de activitate sensibila a unui bot monitorizat",
+      `Bot ${actorId}; ${observation.recentCount} actiuni corelate precis prin Audit Log intr-un minut; verificare owner urgenta`,
+      guildId
+    );
+  }
+  return observation;
+}
+
+export default { startBotObservation, recordBotObservationEvent, observeConfirmedBotAction };

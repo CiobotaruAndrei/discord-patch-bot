@@ -63,6 +63,7 @@ interface RegisterDiscordEventsDeps {
     handleGuildBanAdd(ban: LifecycleDiscordGuildMember): Promise<void>;
     handleGuildBanRemove(ban: LifecycleDiscordGuildMember): Promise<void>;
     handleGuildMemberRemove(member: LifecycleDiscordGuildMember): Promise<void>;
+    handleGuildMemberTimeout(previous: LifecycleDiscordGuildMember, next: LifecycleDiscordGuildMember): Promise<void>;
   };
 }
 
@@ -247,6 +248,10 @@ function registerDiscordEvents({
       client.on("guildBanAdd", (ban: LifecycleDiscordGuildMember) => logServerEvent("ban-add", serverEventLogRuntime.handleGuildBanAdd(ban)));
       client.on("guildBanRemove", (ban: LifecycleDiscordGuildMember) => logServerEvent("ban-remove", serverEventLogRuntime.handleGuildBanRemove(ban)));
       client.on("guildMemberRemove", (member: LifecycleDiscordGuildMember) => logServerEvent("member-remove", serverEventLogRuntime.handleGuildMemberRemove(member)));
+      client.on("guildMemberUpdate", (previous: LifecycleDiscordGuildMember, next?: LifecycleDiscordGuildMember) => {
+        if (!next) return;
+        logServerEvent("member-timeout", serverEventLogRuntime.handleGuildMemberTimeout(previous, next));
+      });
     }
   }
 
