@@ -38,6 +38,7 @@ function nestedPath(group: string, subcommand: string): string {
 export function isRouterAdminCommandPath(commandName: string, subcommand: string, group = ""): boolean {
   const rule = ruleFor(commandName);
   if (!rule) return false;
+  if (rule.adminRuntimeSubcommands?.includes(subcommand)) return true;
   if (rule.adminRuntimePaths?.includes(nestedPath(group, subcommand))) return true;
   if (rule.access !== "admin") return false;
   return !(rule.publicSubcommands?.includes(subcommand) ?? false);
@@ -47,6 +48,12 @@ export function isRuntimeAdminCommandPath(commandName: string, subcommand: strin
   const rule = ruleFor(commandName);
   return Boolean(rule?.adminRuntimeSubcommands?.includes(subcommand)
     || rule?.adminRuntimePaths?.includes(nestedPath(group, subcommand)));
+}
+
+export function isConfigurableAdminCommandPath(commandName: string, subcommand: string, group = ""): boolean {
+  const rule = ruleFor(commandName);
+  if (!rule || rule.adminRuntimeSubcommands?.includes(subcommand) || rule.publicSubcommands?.includes(subcommand)) return false;
+  return rule.access === "admin" || Boolean(rule.adminRuntimePaths?.includes(nestedPath(group, subcommand)));
 }
 
 export function isOwnerOnlyCommandPath(commandName: string, subcommand: string): boolean {

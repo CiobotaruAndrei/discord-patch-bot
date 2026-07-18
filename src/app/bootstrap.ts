@@ -86,6 +86,7 @@ function buildAppRuntime(role: BotRole): AppRuntime {
       logger, env, parseEnvNumber, acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
       waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
       getGuildSettings: mongoContext.getGuildSettings,
+      GuildAuditLogModel,
       recordServerAudit: async entry => recordServerAuditEntry(GuildAuditLogModel, entry.guildId, { action: entry.action, userId: entry.userId || "", details: entry.details || "" }),
       runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots,
       getOutboxPaused, setAdminAlertDiscordClient

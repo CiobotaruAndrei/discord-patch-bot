@@ -18,7 +18,6 @@ export type SubscriptionTransitionResult = {
   next: SubscriptionStateSnapshot;
 };
 
-/** Pure lifecycle reducer used by the persistence adapter and deterministic tests. */
 export function transitionSubscription(
   current: SubscriptionStateSnapshot,
   transition: SubscriptionTransition

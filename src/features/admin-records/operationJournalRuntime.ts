@@ -160,6 +160,12 @@ function adminAccessDeletePayload(value: unknown): AdminAccessDeletePayload | nu
   return { guildId: candidate.guildId, scope: candidate.scope, lookupKeys, audit };
 }
 
+function decodeOperationPayload<T>(value: unknown, decode: (candidate: unknown) => T | null, kind: string): T {
+  const payload = decode(value);
+  if (!payload) throw new Error(`operationJournal: payload invalid pentru operatia '${kind}'`);
+  return payload;
+}
+
 function requiredBackupModel(model: ConfigBackupModelLike | undefined): ConfigBackupModelLike {
   if (!model) throw new Error("operationJournal: GuildConfigBackupModel lipseste pentru operatia de backup");
   return model;
@@ -215,11 +221,38 @@ export function createOperationJournalRuntime(deps: OperationJournalRuntimeDeps)
       await deleteAdminAccessRule(deps.GuildModel, deps.GuildAuditLogModel, payload.guildId, { ...payload, operationId });
     }
   };
-  const operationMap = createOperationMap(Object.fromEntries(Object.entries(executors).map(([kind, execute]) => [kind, {
-    schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
-    decode: (value: unknown) => value,
-    execute
-  }]))) as import("../../infra/mongo/operationJournal.js").OperationMap;
+  const operationMap = createOperationMap({
+    [RESET_CONFIG_KIND]: {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      decode: value => decodeOperationPayload(value, resetPayload, RESET_CONFIG_KIND),
+      execute: executors[RESET_CONFIG_KIND]
+    },
+    [BACKUP_LOAD_KIND]: {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      decode: value => decodeOperationPayload(value, backupLoadPayload, BACKUP_LOAD_KIND),
+      execute: executors[BACKUP_LOAD_KIND]
+    },
+    [BACKUP_SAVE_KIND]: {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      decode: value => decodeOperationPayload(value, backupLoadPayload, BACKUP_SAVE_KIND),
+      execute: executors[BACKUP_SAVE_KIND]
+    },
+    [BACKUP_DELETE_KIND]: {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      decode: value => decodeOperationPayload(value, backupDeletePayload, BACKUP_DELETE_KIND),
+      execute: executors[BACKUP_DELETE_KIND]
+    },
+    [ADMIN_ACCESS_SAVE_KIND]: {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      decode: value => decodeOperationPayload(value, adminAccessSavePayload, ADMIN_ACCESS_SAVE_KIND),
+      execute: executors[ADMIN_ACCESS_SAVE_KIND]
+    },
+    [ADMIN_ACCESS_DELETE_KIND]: {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      decode: value => decodeOperationPayload(value, adminAccessDeletePayload, ADMIN_ACCESS_DELETE_KIND),
+      execute: executors[ADMIN_ACCESS_DELETE_KIND]
+    }
+  });
   return createOperationJournal({
     JournalModel: deps.OperationJournalModel,
     logger: deps.logger,

@@ -2,7 +2,7 @@
 
 import { COMMAND_HELP_ENTRIES } from "../command-help/commandHelpCatalog.js";
 import { canonicalAdminCommandAccessScope } from "./adminCommandAccessScope.js";
-import adminCommandRouterGuard from "./adminCommandRouterGuard.js";
+import { isConfigurableAdminCommandPath, isOwnerOnlyCommandPath } from "./commandAccessManifest.js";
 
 type ScopeProbeInteraction = {
   isChatInputCommand: () => boolean;
@@ -35,8 +35,13 @@ function probeInteractionFromPath(commandPath: string): ScopeProbeInteraction {
 
 export function isSettableAdminCommandPath(commandPath: string): boolean {
   const probe = probeInteractionFromPath(commandPath);
-  return adminCommandRouterGuard.isAdminProtectedCommand(probe)
-    && !adminCommandRouterGuard.isOwnerOnlyAdminAccessCommand(probe);
+  const tokens = commandPath.replace(/^\/+/, "").trim().split(/\s+/).filter(Boolean);
+  const commandName = tokens[0] || "";
+  const group = tokens.length >= 3 ? tokens[1] || "" : "";
+  const subcommand = tokens.length >= 3 ? tokens[2] || "" : tokens[1] || "";
+  return isConfigurableAdminCommandPath(commandName, subcommand, group)
+    && probe.isChatInputCommand()
+    && !isOwnerOnlyCommandPath(commandName, subcommand);
 }
 
 export function listSettableAdminScopePaths(): string[] {

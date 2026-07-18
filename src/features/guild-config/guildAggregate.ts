@@ -3,6 +3,21 @@
 import type { GuildSettings } from "./guildSettingsTypes.js";
 
 export type GuildSettingsPatch = Partial<Omit<GuildSettings, "_id">>;
+export type GuildSettingsField = keyof GuildSettingsPatch;
+
+export const GUILD_SETTINGS_FIELDS: ReadonlySet<GuildSettingsField> = new Set([
+  "subscribed", "notificationChannelId", "discountsSubscribed", "discountChannelId",
+  "outboxRecoveryVerify", "minDiscountPercent", "includeFreeGames", "includePaidDiscounts", "notificationMode", "updateMessageTemplate",
+  "discountMessageTemplate", "currency", "enabledGames", "commandSnoozes", "enabledStores", "maxAbsolutePrice", "notificationRoleId",
+  "discountRoleId", "adminAlertChannelId", "priceAlerts", "youtubeChannels", "youtubeNotificationChannelId", "youtubeNotificationsEnabled",
+  "youtubeHasActivated", "youtubeFilters", "youtubeMessageTemplate", "youtubeChannelRoutes", "youtubeTitleIncludeWords",
+  "watchlistGameSuggestions", "futureReleaseGames", "playerCountSubscribed", "playerCountChannelId", "playerCountGames", "gameAliases",
+  "timezone", "futureReleaseSubscribed", "futureReleaseChannelId", "dlcSubscribed", "dlcChannelId", "newAccountAlertChannelId",
+  "newAccountAlertsEnabled", "threatAlertChannelId", "threatProtectionEnabled", "botAddAlertChannelId", "botAddProtectionEnabled",
+  "botAddPermissions", "purgeAmount", "lockedChannelIds", "pendingUpdates", "pendingDiscounts", "lastProcessedGameKey",
+  "updatesInitializing", "updatesActivationId", "updatesLastError", "discountsInitializing", "discountsActivationId", "discountsLastError",
+  "futureReleaseInitializing", "futureReleaseActivationId", "dlcInitializing", "dlcActivationId", "seenHashVersionUpdates", "seenHashVersionDiscounts"
+]);
 
 export function normalizeGuildSettings(value: GuildSettings): GuildSettings {
   return {

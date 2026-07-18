@@ -6,5 +6,6 @@ export {
   isOwnerOnlyCommandPath,
   isRouterAdminCommandPath,
   isRuntimeAdminCommandPath,
+  isConfigurableAdminCommandPath,
   isSensitiveCommandPath
 } from "../command-catalog/commandCatalog.js";

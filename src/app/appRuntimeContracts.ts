@@ -25,6 +25,7 @@ import type { CreateShutdownControllerDeps, ShutdownController } from "./lifecyc
 import type { OutboxDiscordClient } from "../features/notifications/outboundChannel.js";
 import type { RedisRuntime } from "../infra/redis/redisClient.js";
 import type { GuildSettings } from "../features/guild-config/guildSettingsTypes.js";
+import type { GuildAuditLogModelLike } from "../features/admin-records/auditLogRepository.js";
 
 export interface CommandRuntime {
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
@@ -72,6 +73,7 @@ export interface MongoContextLike {
   getGuildCacheSize: () => number;
   adminAlert: (kind: string, title: string, body: string, guildId?: string) => Promise<unknown>;
   getGuildSettings?: (guildId: string) => Promise<GuildSettings | null>;
+  GuildAuditLogModel?: GuildAuditLogModelLike;
   recordServerAudit?: (entry: { guildId: string; action: string; userId?: string; details?: string }) => Promise<void>;
   setAdminAlertDiscordClient(client: DiscordClientLike | null): void;
   getOutboxPaused: () => Promise<boolean>;

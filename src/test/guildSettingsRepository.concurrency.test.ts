@@ -10,3 +10,11 @@ test("guild settings repository rejects a stale optimistic version", async () =>
   await assert.rejects(() => repository.setFieldIfVersion("g1", "currency", "EUR", 4), GuildSettingsConflictError);
   assert.deepEqual(calls[0], { filter: { _id: "g1", settingsVersion: 4 }, update: { $set: { currency: "EUR" }, $inc: { settingsVersion: 1 } } });
 });
+
+test("guild settings repository refuza campurile care nu fac parte din aggregate", async () => {
+  const repository = createGuildSettingsRepository({ updateOne: async () => ({ matchedCount: 1 }) });
+  await assert.rejects(
+    () => repository.setField("g1", "unknown-field" as Parameters<typeof repository.setField>[1], true),
+    /Camp GuildSettings necunoscut/
+  );
+});

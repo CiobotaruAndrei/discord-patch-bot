@@ -14,6 +14,7 @@ import { createSeenServices } from "./seenRuntimeFactory.js";
 import { createUpdateNotificationRuntime } from "./updateNotificationRuntime.js";
 import { createDiscountNotificationRuntime } from "./discountNotificationRuntime.js";
 import { createYouTubeNotificationRuntime } from "./youtubeNotificationRuntime.js";
+import type { NotificationStatePorts } from "./notificationStatePorts.js";
 
 function createNotificationDispatchServices(
   deps: NotificationsRuntimeDeps,
@@ -49,6 +50,7 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, disableUpdatesForChannelError,
     claimSeenDiscount, rollbackSeenDiscount, seedSeenDiscounts, disableDiscountsForChannelError
   } = seenRepository;
+  const statePorts: NotificationStatePorts = { history: historyRepository, seen: seenRepository };
 
   return {
     DISCORD_PERMANENT_ERROR_CODES,
@@ -85,7 +87,8 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     deleteReplayedDeadLetters: deadLetterReplayRepository.deleteReplayed,
     deleteAllReplayPayloads: deadLetterReplayRepository.deleteAllForGuild,
     recordSentHistory: historyRepository.recordSent,
-    getNotificationHistory: historyRepository.getRecent
+    getNotificationHistory: historyRepository.getRecent,
+    statePorts
   };
 }
 

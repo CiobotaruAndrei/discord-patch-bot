@@ -1,4 +1,5 @@
 export interface GuildAuditLogDoc {
+  operationId?: string;
   guildId: string;
   kind: "bot" | "server";
   userId?: string;

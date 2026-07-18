@@ -4,6 +4,7 @@ import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { errorDetail } from "../../shared/errors.js";
 import { createGuildSettingsRepository, type GuildSettingsRepository } from "../guild-config/guildSettingsRepository.js";
 import { missingPermissionsMessage, type ChannelPermissionSnapshot } from "../command-security/permissionPolicy.js";
+import type { GuildSettingsField } from "../guild-config/guildAggregate.js";
 
 type SecurityOptions = {
   getSubcommand(): string;
@@ -57,7 +58,7 @@ type SecurityDeps = {
   checkChannelPermissions?: (interaction: SecurityInteraction, channelId: string) => Promise<{ viewChannel: boolean; sendMessages: boolean; embedLinks: boolean; readMessageHistory: boolean; manageMessages?: boolean; manageChannels?: boolean } | null>;
 };
 
-const SET_CHANNEL_FIELDS: Record<string, string> = {
+const SET_CHANNEL_FIELDS: Record<string, GuildSettingsField> = {
   "new-account-alert-channel": "newAccountAlertChannelId",
   "threat-alert-channel": "threatAlertChannelId",
   "bot-add-alert-channel": "botAddAlertChannelId"
@@ -86,7 +87,7 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
     return target.safeEdit(interaction, { content });
   }
 
-  async function update(interaction: SecurityInteraction, field: string, value: unknown): Promise<unknown> {
+  async function update(interaction: SecurityInteraction, field: GuildSettingsField, value: unknown): Promise<unknown> {
     const guildId = interaction.guild?.id;
     if (!guildId) return undefined;
     const guild = interaction.guild;
@@ -114,8 +115,8 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
     if (command === "start" || command === "stop") {
       const sub = interaction.options.getSubcommand();
       const settings = await target.getGuildSettings(guildId).catch(() => null);
-      const channelField = sub === "new-account-alerts" ? "newAccountAlertChannelId" : sub === "threat-protection" ? "threatAlertChannelId" : "botAddAlertChannelId";
-      const enabledField = sub === "new-account-alerts" ? "newAccountAlertsEnabled" : sub === "threat-protection" ? "threatProtectionEnabled" : "botAddProtectionEnabled";
+      const channelField: GuildSettingsField = sub === "new-account-alerts" ? "newAccountAlertChannelId" : sub === "threat-protection" ? "threatAlertChannelId" : "botAddAlertChannelId";
+      const enabledField: GuildSettingsField = sub === "new-account-alerts" ? "newAccountAlertsEnabled" : sub === "threat-protection" ? "threatProtectionEnabled" : "botAddProtectionEnabled";
       if (command === "start" && !settings?.[channelField]) return respond(interaction, "Eroare: seteaza mai intai canalul de alerta cu `/set`.");
       return update(interaction, enabledField, command === "start");
     }

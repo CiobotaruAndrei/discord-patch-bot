@@ -4,6 +4,8 @@ import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import { classifyJoinRisk, classifyConfirmedActivity } from "./threatInspection.js";
 import { analyzeThreatInput, type ThreatAnalysis } from "./threatPipeline.js";
 import type { BotObservationAggregator } from "./botObservationAggregator.js";
+import type { BotObservationEvent } from "./botObservationAggregator.js";
+import type { BotObservationRepository } from "./botObservationRepository.js";
 import { createAuditCorrelation } from "../admin-records/auditCorrelation.js";
 
 type SecurityChannel = { id?: string; send?(payload: unknown): Promise<unknown> };
@@ -19,6 +21,7 @@ export type SecurityRuntimeDeps = {
   recordAudit?: (entry: { guildId: string; action: string; actorId?: string; details?: string; operationId?: string; requestId?: string }) => Promise<void>;
   analyzeThreat?: (input: { content?: string; attachments?: Array<{ kind: "attachment" | "url"; url: string; name?: string }>; urls?: Array<{ kind: "attachment" | "url"; url: string; name?: string }> }) => ThreatAnalysis;
   observationAggregator?: BotObservationAggregator;
+  observationRepository?: BotObservationRepository;
 };
 
 function accountAgeDays(createdTimestamp: number | undefined, now: number): number | null {
@@ -32,6 +35,17 @@ function suspiciousContent(content: string): boolean {
 
 export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
   const now = deps.now ?? Date.now;
+  const hydratedGuilds = new Set<string>();
+
+  async function observe(event: BotObservationEvent): Promise<void> {
+    if (deps.observationAggregator && !hydratedGuilds.has(event.guildId)) {
+      const restored = await deps.observationRepository?.loadRecent(event.guildId, event.at - 15 * 60_000).catch(() => []);
+      if (restored?.length) deps.observationAggregator.restore(restored);
+      hydratedGuilds.add(event.guildId);
+    }
+    deps.observationAggregator?.record(event);
+    await deps.observationRepository?.record(event).catch(() => undefined);
+  }
 
   async function handleGuildMemberAdd(member: GuildMemberEvent): Promise<void> {
     const guildId = member.guild?.id;
@@ -41,7 +55,7 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
     if (user.bot) {
       if (!settings?.botAddProtectionEnabled || !settings.botAddAlertChannelId) return;
       const channel = await Promise.resolve(deps.client.channels?.fetch(settings.botAddAlertChannelId)).catch(() => null);
-      deps.observationAggregator?.record({ id: `bot-add:${guildId}:${user.id ?? "unknown"}:${member.joinedTimestamp ?? now()}`, guildId, subjectId: user.id, kind: "bot-add", at: now() });
+      await observe({ id: `bot-add:${guildId}:${user.id ?? "unknown"}:${member.joinedTimestamp ?? now()}`, guildId, subjectId: user.id, kind: "bot-add", at: now() });
       await channel?.send?.({ content: `:shield: Bot adaugat pe server: ${user.tag ?? user.id ?? "necunoscut"}. Verifica aprobarea prin fluxul bot-add.`, allowedMentions: { parse: [] } }).catch(() => null);
       return;
     }
@@ -49,7 +63,7 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
     const age = accountAgeDays(user.createdTimestamp, now());
     if (classifyJoinRisk({ accountAgeDays: age, isBot: user.bot }) === "normal") return;
     const key = `${guildId}:${user.id ?? "unknown"}:${member.joinedTimestamp ?? "unknown"}`;
-    deps.observationAggregator?.record({ id: `new-account:${key}`, guildId, subjectId: user.id, kind: "new-account", at: now() });
+    await observe({ id: `new-account:${key}`, guildId, subjectId: user.id, kind: "new-account", at: now() });
     if (deps.newAccountAlertStore?.hasSent && await deps.newAccountAlertStore.hasSent(key).catch(() => false)) return;
     const ageText = age === null ? "varsta necunoscuta" : `${age.toFixed(1)} zile`;
     const channel = await Promise.resolve(deps.client.channels?.fetch(settings.newAccountAlertChannelId)).catch(() => null);
@@ -74,7 +88,7 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
       attachments: [...(message.attachments ?? [])].flatMap(attachment => attachment.url ? [{ kind: "attachment" as const, url: attachment.url, name: attachment.name }] : []),
       urls: []
     });
-    deps.observationAggregator?.record({ id: `threat:${guildId}:${author.id ?? "unknown"}:${message.channel?.id ?? "unknown"}:${message.content}`, guildId, subjectId: author.id, kind: "threat", at: now(), details: analysis.state });
+    await observe({ id: `threat:${guildId}:${author.id ?? "unknown"}:${message.channel?.id ?? "unknown"}:${message.content}`, guildId, subjectId: author.id, kind: "threat", at: now(), details: analysis.state });
     const confirmed = classifyConfirmedActivity({ suspiciousContent: analysis.state !== "clean", confirmedThreat: analysis.state === "confirmed" });
     const channel = await Promise.resolve(deps.client.channels?.fetch(settings.threatAlertChannelId)).catch(() => null);
     let deletion = "neefectuata";

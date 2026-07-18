@@ -153,7 +153,7 @@ test("dispatcher: toate comenzile admin de la non-admin sunt blocate de pre-chec
   for (const command of [
     "start", "stop", "set", "template", "notification", "game-alias", "health", "config", "reset-config",
     "admin-alerts", "price-alert", "sources", "watchlist", "snooze", "unsnooze",
-    "backup", "bot-log", "server-log", "future-release", "maintenance", "admin-command-access", "delete"
+    "backup", "bot-log", "server-log", "maintenance", "admin-command-access", "delete"
   ]) {
     const { interaction, captured } = makeChatInput(command, { admin: false });
     await registry.handleInteraction(interaction, []);
@@ -187,4 +187,14 @@ test("createCommandRuntimeContext returns a fresh, isolated base on every call",
 
   first.platform.handleInteraction = () => "installed";
   assert.equal(second.platform.handleInteraction, undefined);
+});
+
+test("dispatcher: future-release protejeaza runtime doar subcomenzile administrative", async () => {
+  const registry = commandRegistry.createCommandRegistry({ getGuildSettings: async () => null });
+  for (const subcommand of ["add", "delete", "start", "stop"]) {
+    const { interaction, captured } = makeChatInput("future-release", { admin: false });
+    interaction.options.getSubcommand = () => subcommand;
+    await registry.handleInteraction(interaction, []);
+    assert.equal(String((captured.payload as { content?: string } | null)?.content ?? ""), "Access denied.");
+  }
 });

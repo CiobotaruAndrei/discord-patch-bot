@@ -302,12 +302,22 @@ test("toate comenzile administrative sunt protejate runtime, iar comenzile publi
   for (const cmd of [
     "start", "stop", "set", "template", "notification", "game-alias", "health", "config", "reset-config",
     "admin-alerts", "price-alert", "sources", "watchlist", "snooze", "unsnooze",
-    "backup", "bot-log", "server-log", "future-release", "maintenance", "admin-command-access", "delete"
+    "backup", "bot-log", "server-log", "maintenance", "admin-command-access", "delete"
   ]) {
     const { interaction } = makeInteraction(false);
     interaction.commandName = cmd;
     assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), true, `/${cmd} trebuie sa treaca prin guard-ul de admin runtime`);
   }
+  for (const subcommand of ["add", "delete", "start", "stop"]) {
+    const { interaction } = makeInteraction(false);
+    interaction.commandName = "future-release";
+    interaction.options!.getSubcommand = () => subcommand;
+    assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), true, `/future-release ${subcommand} trece prin guard-ul de admin runtime`);
+  }
+  const { interaction: publicFutureRelease } = makeInteraction(false);
+  publicFutureRelease.commandName = "future-release";
+  publicFutureRelease.options!.getSubcommand = () => "list";
+  assert.equal(adminCommandGuard.isAdminProtectedCommand(publicFutureRelease), false, "/future-release list ramane public");
   for (const cmd of ["ping", "games", "help", "report", "game", "status", "latest", "price-check", "deal-score", "player-count", "top", "suggest-command", "watchlist-game"]) {
     const { interaction } = makeInteraction(false);
     interaction.commandName = cmd;

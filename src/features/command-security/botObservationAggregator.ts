@@ -32,6 +32,15 @@ export function createBotObservationAggregator(options: { windowMs?: number; bur
     return snapshot(event.guildId, event.at);
   }
 
+  function restore(restored: readonly BotObservationEvent[]): void {
+    for (const event of restored) {
+      if (!event || typeof event.id !== "string" || typeof event.guildId !== "string") continue;
+      if (typeof event.at !== "number" || !Number.isFinite(event.at)) continue;
+      if (!events.has(event.id)) events.set(event.id, { ...event });
+    }
+    prune(Date.now());
+  }
+
   function snapshot(guildId: string, now = Date.now()): BotObservationSnapshot {
     prune(now);
     const byKind: BotObservationSnapshot["byKind"] = { "new-account": 0, threat: 0, "bot-add": 0, moderation: 0 };
@@ -47,7 +56,7 @@ export function createBotObservationAggregator(options: { windowMs?: number; bur
   }
 
   function clear(): void { events.clear(); }
-  return Object.freeze({ record, snapshot, clear });
+  return Object.freeze({ record, restore, snapshot, clear });
 }
 
 export type BotObservationAggregator = ReturnType<typeof createBotObservationAggregator>;

@@ -32,9 +32,5 @@ export function assertCommandManifestConsistency(): void {
     keys.add(entry.command);
     if (!entry.help.length) throw new Error(`Comanda ${entry.command} nu are descriere help canonica`);
   }
-  // Handler descriptors may expose subcommand labels (e.g. `new-account-alerts`)
-  // while the canonical manifest stores their parent slash command (`/start`).
-  // The descriptor registry validates ownership; this manifest validates the
-  // user-facing access/help source without guessing parent paths.
   createCommandHandlerDescriptors();
 }

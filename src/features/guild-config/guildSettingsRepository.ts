@@ -1,17 +1,23 @@
 "use strict";
 
+import { GUILD_SETTINGS_FIELDS, type GuildSettingsField } from "./guildAggregate.js";
+
 export interface GuildSettingsWriteModel {
   updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown>;
 }
 
 export interface GuildSettingsRepository {
-  setField(guildId: string, field: string, value: unknown): Promise<void>;
-  setFieldIfVersion(guildId: string, field: string, value: unknown, expectedVersion: number): Promise<void>;
+  setField(guildId: string, field: GuildSettingsField, value: unknown): Promise<void>;
+  setFieldIfVersion(guildId: string, field: GuildSettingsField, value: unknown, expectedVersion: number): Promise<void>;
   updateChannelLock(guildId: string, channelId: string, locked: boolean): Promise<void>;
   setGameAliases(guildId: string, aliases: Record<string, string[]>): Promise<void>;
 }
 
 export function createGuildSettingsRepository(model: GuildSettingsWriteModel, invalidate?: (guildId: string) => void): GuildSettingsRepository {
+  function assertField(field: GuildSettingsField): void {
+    if (!GUILD_SETTINGS_FIELDS.has(field)) throw new Error(`Camp GuildSettings necunoscut: ${String(field)}`);
+  }
+
   async function write(guildId: string, update: Record<string, unknown>, expectedVersion?: number): Promise<void> {
     const filter = expectedVersion === undefined ? { _id: guildId } : { _id: guildId, settingsVersion: expectedVersion };
     const result = await model.updateOne(filter, { ...update, $inc: { settingsVersion: 1 } }, { upsert: expectedVersion === undefined });
@@ -21,8 +27,8 @@ export function createGuildSettingsRepository(model: GuildSettingsWriteModel, in
     invalidate?.(guildId);
   }
   return {
-    setField: (guildId, field, value) => write(guildId, { $set: { [field]: value } }),
-    setFieldIfVersion: (guildId, field, value, expectedVersion) => write(guildId, { $set: { [field]: value } }, expectedVersion),
+    setField: async (guildId, field, value) => { assertField(field); await write(guildId, { $set: { [field]: value } }); },
+    setFieldIfVersion: async (guildId, field, value, expectedVersion) => { assertField(field); await write(guildId, { $set: { [field]: value } }, expectedVersion); },
     updateChannelLock: (guildId, channelId, locked) => write(guildId, locked ? { $addToSet: { lockedChannelIds: channelId } } : { $pull: { lockedChannelIds: channelId } }),
     setGameAliases: (guildId, aliases) => write(guildId, { $set: { gameAliases: aliases } })
   };

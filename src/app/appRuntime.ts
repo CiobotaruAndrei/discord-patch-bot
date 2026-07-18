@@ -52,6 +52,8 @@ import { createSchedulers } from "./runtime/runtimeSchedulers.js";
 import { createBootSequence, connectMongoWithRetry, hydrateStartupCaches } from "./runtime/bootSequence.js";
 import { createGuildSettingsInvalidationChannel } from "../infra/redis/guildSettingsInvalidationChannel.js";
 import { createSecurityRuntime } from "../features/command-security/securityRuntime.js";
+import { createBotObservationAggregator } from "../features/command-security/botObservationAggregator.js";
+import { createBotObservationRepository } from "../features/command-security/botObservationRepository.js";
 
 function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   const { createHttpServer, registerDiscordEvents, registerMongoEvents, createShutdownController, errorMessage, errorDetail, mongoose, crypto, mongo } = deps;
@@ -61,7 +63,14 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   const { client, metrics, lifecycle, rateLimiter, housekeeping } = services;
   const schedulers = createSchedulers(deps, services);
   const { cronController, outboxWorker, outboxEnabled } = schedulers;
-  const securityRuntime = createSecurityRuntime({ getGuildSettings: mongo.getGuildSettings ?? (async () => null), client });
+  const observationAggregator = createBotObservationAggregator();
+  const observationRepository = mongo.GuildAuditLogModel ? createBotObservationRepository(mongo.GuildAuditLogModel) : undefined;
+  const securityRuntime = createSecurityRuntime({
+    getGuildSettings: mongo.getGuildSettings ?? (async () => null),
+    client,
+    observationAggregator,
+    observationRepository
+  });
 
   const httpServer = createHttpServer({
     mongoose, crypto, env, client, metrics, logger, commands: deps.commands,

@@ -25,7 +25,7 @@ function makeUpdate(id: string): NormalizedUpdate {
 
 function makeUpdatesContext() {
   const runCalls: RunCall[] = [];
-  const context: UpdatesContext = {
+  const deps: UpdatesContext = {
     rssParser: { parseString: async () => ({ items: [] }) },
     circuitBreakerStore: {} as UpdatesContext["circuitBreakerStore"],
     logger: () => undefined,
@@ -62,7 +62,7 @@ function makeUpdatesContext() {
     getHttpMetrics: () => httpMetrics,
     executeFetchWithCircuitBreaker: async game => ({ game, latest: makeUpdate(game.key), error: null })
   };
-  Object.assign(context, attachUpdates.buildFrom(context));
+  const context = { ...deps, ...attachUpdates.buildFrom(deps) };
   return { context, runCalls };
 }
 

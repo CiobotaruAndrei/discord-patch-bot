@@ -56,4 +56,4 @@ export interface UpdatesDeps {
   executeFetchWithCircuitBreaker?: (game: GameConfig) => Promise<FetchResult>;
 }
 
-export type UpdatesContext = UpdatesDeps & Partial<UpdatesApi>;
+export type UpdatesContext = UpdatesDeps;
