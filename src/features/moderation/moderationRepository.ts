@@ -191,6 +191,38 @@ export async function removeAllModerationForUser(model: ModerationGuildModel, gu
   );
 }
 
+export type MemberTimeoutState = { userId: string; communicationDisabledUntil?: Date | string | number | null };
+
+export function reconcileTimeoutRecords(
+  records: readonly ModerationRecord[],
+  members: readonly MemberTimeoutState[],
+  now: number
+): { staleUserIds: string[] } {
+  const activeInDiscord = new Set<string>();
+  for (const member of members) {
+    if (!member?.userId) continue;
+    const until = member.communicationDisabledUntil != null ? new Date(member.communicationDisabledUntil).getTime() : 0;
+    if (Number.isFinite(until) && until > now) activeInDiscord.add(member.userId);
+  }
+  const stale = new Set<string>();
+  for (const record of moderationRecords(records)) {
+    const expiresAt = record.expiresAt != null ? new Date(record.expiresAt).getTime() : Number.POSITIVE_INFINITY;
+    const botConsidersActive = !Number.isFinite(expiresAt) || expiresAt > now;
+    if (botConsidersActive && !activeInDiscord.has(record.userId)) stale.add(record.userId);
+  }
+  return { staleUserIds: [...stale] };
+}
+
+export async function pullStaleTimeouts(model: ModerationGuildModel, guildId: string, userIds: readonly string[]): Promise<number> {
+  const unique = [...new Set(userIds.filter(id => typeof id === "string" && id.length > 0))];
+  if (!unique.length) return 0;
+  await model.updateOne(
+    { _id: guildId },
+    { $pull: { moderationTimeouts: { userId: { $in: unique } } } }
+  );
+  return unique.length;
+}
+
 export async function addWarning(model: ModerationGuildModel, guildId: string, record: WarningRecord): Promise<{ count: number; limit: number }> {
   const document = await resolveDocument(model.findOneAndUpdate(
     { _id: guildId },
@@ -285,6 +317,8 @@ export default {
   findModerationRecord,
   removeModeration,
   removeAllModerationForUser,
+  reconcileTimeoutRecords,
+  pullStaleTimeouts,
   addWarning,
   removeWarning,
   removeWarningById,

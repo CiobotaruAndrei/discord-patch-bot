@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   cleanupExpiredModeration,
+  pullStaleTimeouts,
+  reconcileTimeoutRecords,
   removeWarningById,
   removeWarning,
   saveMute,
@@ -47,6 +49,51 @@ test("timeout si mute se scriu atomic si se exclud reciproc", async () => {
   assert.match(JSON.stringify(calls[0].update), /moderationMutes/);
   assert.match(JSON.stringify(calls[1].update), /moderationMutes/);
   assert.match(JSON.stringify(calls[1].update), /moderationTimeouts/);
+});
+
+test("reconcileTimeoutRecords: marcheaza drept stale timeout-urile pe care Discord nu le mai are active (audit, #15)", () => {
+  const now = Date.parse("2026-07-18T12:00:00.000Z");
+  const base = { username: "u", moderatorId: "m", appliedAt: new Date(now - 10_000) };
+  const records = [
+    { ...base, userId: "still-timed-out", expiresAt: new Date(now + 60_000) },
+    { ...base, userId: "cleared-in-discord", expiresAt: new Date(now + 60_000) },
+    { ...base, userId: "left-guild", expiresAt: new Date(now + 60_000) },
+    { ...base, userId: "already-expired-in-bot", expiresAt: new Date(now - 60_000) }
+  ];
+  const members = [
+    { userId: "still-timed-out", communicationDisabledUntil: new Date(now + 60_000) },
+    { userId: "cleared-in-discord", communicationDisabledUntil: null }
+  ];
+
+  const { staleUserIds } = reconcileTimeoutRecords(records, members, now);
+
+  assert.ok(staleUserIds.includes("cleared-in-discord"), "timeout eliminat manual in Discord => stale");
+  assert.ok(staleUserIds.includes("left-guild"), "membru plecat (fara stare) => stale");
+  assert.ok(!staleUserIds.includes("still-timed-out"), "timeout inca activ in Discord NU e stale");
+  assert.ok(!staleUserIds.includes("already-expired-in-bot"), "recordul deja expirat in bot nu e considerat activ, deci nu-l reconciliem aici");
+});
+
+test("pullStaleTimeouts: sterge doar userId-urile date, deduplicate, si nu scrie pentru lista goala (audit, #15)", async () => {
+  const calls: UpdateCall[] = [];
+  const model = {
+    findOne: async () => null,
+    findOneAndUpdate: async () => null,
+    updateOne: async (filter: Record<string, unknown>, update: Record<string, unknown> | readonly Record<string, unknown>[], options?: Record<string, unknown>) => {
+      calls.push({ filter, update, options });
+      return { modifiedCount: 1 };
+    }
+  };
+
+  const removed = await pullStaleTimeouts(model, "guild-1", ["a", "a", "b", ""]);
+
+  assert.equal(removed, 2, "userId-urile sunt deduplicate si golurile ignorate");
+  assert.equal(calls.length, 1);
+  assert.match(JSON.stringify(calls[0].update), /moderationTimeouts/);
+  assert.match(JSON.stringify(calls[0].update), /"\$in":\["a","b"\]/);
+
+  const noop = await pullStaleTimeouts(model, "guild-1", []);
+  assert.equal(noop, 0, "lista goala nu produce scriere");
+  assert.equal(calls.length, 1, "niciun updateOne suplimentar");
 });
 
 test("remove-warn elimina un singur avertisment si raporteaza numarul ramas", async () => {
