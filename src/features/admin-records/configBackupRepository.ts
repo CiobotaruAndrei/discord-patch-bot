@@ -47,6 +47,8 @@ export const CONFIG_BACKUP_SCHEMA_VERSION = 1;
 export type GuildSettingsFieldRole = "config" | "security" | "operational";
 
 export const GUILD_SETTINGS_FIELD_ROLES: Readonly<Record<string, GuildSettingsFieldRole>> = Object.freeze({
+  settingsSchemaVersion: "operational",
+  settingsVersion: "operational",
   subscribed: "config",
   notificationChannelId: "config",
   discountsSubscribed: "config",

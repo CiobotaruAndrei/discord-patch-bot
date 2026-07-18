@@ -4,6 +4,8 @@ import type { CurrencyCode } from "../../types.js";
 
 export function buildResetConfiguration(defaultCurrency: CurrencyCode): Record<string, unknown> {
   return {
+    settingsSchemaVersion: 1,
+    settingsVersion: 0,
     subscribed: false,
     notificationChannelId: null,
     pendingUpdates: {},
