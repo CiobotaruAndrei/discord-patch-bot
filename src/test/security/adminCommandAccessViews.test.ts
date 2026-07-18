@@ -56,6 +56,19 @@ test("formatAccessList: linia globala implicita + o regula scoped", () => {
   assert.match(text, /<@&9>/);
 });
 
+test("formatAccessList: afiseaza catalogul CANONIC complet de comenzi admin - dedicat vs fallback global (audit, #7)", () => {
+  const doc: GuildAdminAccessDoc = {
+    adminCommandAccess: null,
+    adminCommandAccessByCommand: { timeout: { mode: "role-or-higher", roleId: "42" } }
+  };
+  const text = formatAccessList(doc);
+  assert.match(text, /Catalog complet de comenzi admin/);
+  assert.match(text, /\/timeout/);
+  assert.match(text, /<@&42>/);
+  const fallbackCount = Number(text.match(/fallback-ul global \((\d+)\)/)?.[1] ?? "0");
+  assert.ok(fallbackCount >= 5, `catalogul canonic enumereaza multe comenzi admin fara regula dedicata (a gasit ${fallbackCount})`);
+});
+
 test("formatAccessList: avertisment pentru reguli in conflict (start/stop cu roluri diferite)", () => {
   const doc: GuildAdminAccessDoc = {
     adminCommandAccessByCommand: {
