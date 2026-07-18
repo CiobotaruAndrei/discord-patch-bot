@@ -33,12 +33,16 @@ export type {
 
 const DEFAULT_LEASE_MS = 60_000;
 
+function operationMeta(job: Pick<OutboxJob, "_id" | "guildId" | "kind" | "attempts" | "dedupeKey">): Record<string, unknown> {
+  return { operationId: String(job._id ?? job.dedupeKey ?? "outbox"), guildId: job.guildId, kind: job.kind, retry: job.attempts ?? 0, dedupeKey: job.dedupeKey };
+}
+
 export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutboxSentModel, withMongoRetry, logger }: OutboxRuntimeDeps): OutboxRuntime {
   const repository = createOutboxRepository({ NotificationOutboxModel, NotificationOutboxSentModel, withMongoRetry });
 
   async function enqueueOutbox(job: EnqueueOutboxJobInput): Promise<void> {
     if (!isDeliverableOutboxPayload(job.payload)) {
-      logger("WARN", "OUTBOX", `Refuz enqueue pentru guild ${job.guildId} (${job.kind}): payload-ul nu e un obiect de mesaj livrabil`);
+      logger("WARN", "OUTBOX", `Refuz enqueue pentru guild ${job.guildId} (${job.kind}): payload-ul nu e un obiect de mesaj livrabil`, operationMeta(job));
       throw new Error(`Payload outbox nelivrabil pentru ${job.kind} (guild ${job.guildId}); jobul a fost refuzat la enqueue`);
     }
     const dedupeKey = dedupeKeyFor(job);
@@ -77,7 +81,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
         if (modified === 0) {
           leaseLost++;
           logger("WARN", "OUTBOX",
-            `Lease pierdut pentru jobul ${String(lease._id)} inainte de finalizare (status ${status}); alt worker detine acum jobul, nu suprascriu starea lui`);
+            `Lease pierdut pentru jobul ${String(lease._id)} inainte de finalizare (status ${status}); alt worker detine acum jobul, nu suprascriu starea lui`, { operationId: String(lease._id), retry: 0 });
           return false;
         }
         return true;
@@ -120,7 +124,7 @@ export function createOutboxRuntime({ NotificationOutboxModel, NotificationOutbo
       if (rescheduled === 0) {
         leaseLost++;
         logger("WARN", "OUTBOX",
-          `Lease pierdut pentru jobul ${String(job._id)} inainte de reprogramare; alt worker detine acum jobul, nu suprascriu starea lui`);
+          `Lease pierdut pentru jobul ${String(job._id)} inainte de reprogramare; alt worker detine acum jobul, nu suprascriu starea lui`, operationMeta(job));
         return;
       }
       retried++;

@@ -2,6 +2,7 @@ import type { FetchResult, GameConfig, NormalizedUpdate } from "../../types.js";
 import { errorMessage } from "../../shared/errors.js";
 import { classifySourceError } from "../sourceOutcome.js";
 import type { CircuitBreakerDoc, UpdatesDeps } from "./updatesContracts.js";
+import { nextCooldown, shouldOpenSourceCircuit } from "../sourceHealthPolicy.js";
 
 export function createUpdatesCircuitBreaker(deps: UpdatesDeps, fetchGameUpdate: (game: GameConfig) => Promise<NormalizedUpdate>) {
   async function executeFetchWithCircuitBreaker(game: GameConfig): Promise<FetchResult> {
@@ -39,10 +40,8 @@ export function createUpdatesCircuitBreaker(deps: UpdatesDeps, fetchGameUpdate: 
       try {
         if (error instanceof SchemaDriftError) {
           const updatedCb = await circuitBreakerStore.registerSchemaDrift(game.key);
-          if (updatedCb && (updatedCb.schemaDriftFails ?? 0) >= SCHEMA_DRIFT_THRESHOLD
-              && (!updatedCb.cooldownUntil || new Date() >= new Date(updatedCb.cooldownUntil))) {
-            const jitter = Math.floor(Math.random() * CIRCUIT_BREAKER_JITTER_MS);
-            await circuitBreakerStore.openCircuit(game.key, new Date(Date.now() + CIRCUIT_BREAKER_COOLDOWN_MS + jitter));
+          if (updatedCb && shouldOpenSourceCircuit(updatedCb, "schema-drift", { failures: CIRCUIT_BREAKER_FAIL_THRESHOLD, schemaDrift: SCHEMA_DRIFT_THRESHOLD })) {
+            await circuitBreakerStore.openCircuit(game.key, nextCooldown(new Date(), CIRCUIT_BREAKER_COOLDOWN_MS, CIRCUIT_BREAKER_JITTER_MS));
             if (!updatedCb.schemaDriftAlertSent) {
               await circuitBreakerStore.markSchemaDriftAlertSent(game.key);
               await adminAlert(
@@ -57,10 +56,8 @@ export function createUpdatesCircuitBreaker(deps: UpdatesDeps, fetchGameUpdate: 
         }
 
         const updatedCb = await circuitBreakerStore.registerFailure(game.key);
-        if (updatedCb && (updatedCb.fails ?? 0) >= CIRCUIT_BREAKER_FAIL_THRESHOLD
-            && (!updatedCb.cooldownUntil || new Date() >= new Date(updatedCb.cooldownUntil))) {
-          const jitter = Math.floor(Math.random() * CIRCUIT_BREAKER_JITTER_MS);
-          await circuitBreakerStore.openCircuit(game.key, new Date(Date.now() + CIRCUIT_BREAKER_COOLDOWN_MS + jitter));
+        if (updatedCb && shouldOpenSourceCircuit(updatedCb, "transient", { failures: CIRCUIT_BREAKER_FAIL_THRESHOLD, schemaDrift: SCHEMA_DRIFT_THRESHOLD })) {
+          await circuitBreakerStore.openCircuit(game.key, nextCooldown(new Date(), CIRCUIT_BREAKER_COOLDOWN_MS, CIRCUIT_BREAKER_JITTER_MS));
           if (!updatedCb.alertSent) {
             await circuitBreakerStore.markAlertSent(game.key);
             await adminAlert(

@@ -2,6 +2,7 @@
 
 import { errorMessage } from "../../shared/errors.js";
 import { HASH_VERSION } from "../../native/fuzzy.js";
+import { transitionSubscription, type SubscriptionStateSnapshot } from "./subscriptionStateMachine.js";
 
 export type SubscriptionWriteResult = { matchedCount?: number };
 
@@ -65,6 +66,8 @@ const MODULE_SPECS: Record<SubscriptionModuleKind, SubscriptionModuleSpec> = {
 
 export function createSubscriptionService(deps: SubscriptionServiceDeps) {
   const { GuildModel, logger, OP_UPDATE_OPTS, makeActivationId } = deps;
+  const lifecycle = new Map<string, SubscriptionStateSnapshot>();
+  const keyFor = (kind: SubscriptionModuleKind, guildId: string) => `${kind}:${guildId}`;
 
   async function beginActivation(kind: SubscriptionModuleKind, guildId: string, channelId: string): Promise<string> {
     const spec = MODULE_SPECS[kind];
@@ -83,6 +86,7 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
       },
       { upsert: true, ...OP_UPDATE_OPTS }
     );
+    lifecycle.set(keyFor(kind, guildId), transitionSubscription(lifecycle.get(keyFor(kind, guildId)) ?? { state: "inactive" }, { type: "begin", activationId }).next);
     return activationId;
   }
 
@@ -119,6 +123,7 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
       },
       OP_UPDATE_OPTS
     ).catch(() => null);
+    lifecycle.set(keyFor(kind, guildId), transitionSubscription(lifecycle.get(keyFor(kind, guildId)) ?? { state: "initializing", activationId }, { type: "fail", activationId }).next);
     logger("WARN", spec.logContext, spec.baselineWarnMessage, errorMessage(error));
   }
 
@@ -132,7 +137,14 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
     try {
       await seedBaseline();
       const finalized = await finalizeActivation(kind, guildId, channelId, activationId);
-      return finalized ? { status: "activated" } : { status: "superseded" };
+      if (finalized) {
+        const key = keyFor(kind, guildId);
+        lifecycle.set(key, transitionSubscription(lifecycle.get(key) ?? { state: "initializing", activationId }, { type: "finalize", activationId }).next);
+        return { status: "activated" };
+      }
+      const key = keyFor(kind, guildId);
+      lifecycle.set(key, transitionSubscription(lifecycle.get(key) ?? { state: "initializing", activationId }, { type: "supersede", activationId }).next);
+      return { status: "superseded" };
     } catch (error: unknown) {
       await rollbackActivation(kind, guildId, channelId, activationId, error);
       return { status: "baseline-failed", error };
@@ -150,6 +162,7 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
       },
       $unset: { [spec.activationField]: "" }
     }, OP_UPDATE_OPTS);
+    lifecycle.set(keyFor(kind, guildId), { state: "inactive" });
   }
 
   async function startDlc(guildId: string, channelId: string): Promise<void> {

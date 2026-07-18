@@ -46,6 +46,8 @@ export interface AdminCommandAccessConfig {
 
 export interface GuildDoc {
   _id: string;
+  settingsSchemaVersion?: number;
+  settingsVersion?: number;
   subscribed?: boolean;
   notificationChannelId?: string | null;
   pendingUpdates?: Map<string, PendingUpdateEntry[]> | Record<string, PendingUpdateEntry[]>;

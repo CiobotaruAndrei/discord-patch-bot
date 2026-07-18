@@ -6,6 +6,8 @@ import type { CurrencyCode } from "../../types.js";
 
 export interface GuildSettingsIdentity {
   _id: string;
+  settingsSchemaVersion?: number;
+  settingsVersion?: number;
 }
 
 export interface GuildConfigurationSettings {

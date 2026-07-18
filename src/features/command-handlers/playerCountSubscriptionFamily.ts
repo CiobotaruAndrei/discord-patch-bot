@@ -4,6 +4,7 @@ import type { GameConfig } from "../../types.js";
 import type { DiscordChannel, SubscriptionFamily, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts.js";
 import { createSubscriptionService } from "../notifications/subscriptionService.js";
 import { normalizeGameKey, findGameByKeyOrAlias as findConfiguredGame } from "../../config/gameCatalog.js";
+import { resolveWatchlistGames } from "../guild-config/watchlistResolver.js";
 
 export { normalizeGameKey, findConfiguredGame };
 
@@ -14,9 +15,7 @@ export function createPlayerCountSubscriptionFamily(deps: SubscriptionInteractio
   async function start(interaction: SubscriptionInteraction, guildId: string, channel: DiscordChannel, games: GameConfig[]) {
     const requested = interaction.options.getString?.("game", false) || null;
     const settings = await getGuildSettings(guildId);
-    const eligible = (Array.isArray(settings?.enabledGames) && settings.enabledGames.length ? settings.enabledGames : games.map(game => game.key))
-      .map(key => findConfiguredGame(games, key))
-      .filter((game): game is GameConfig => Boolean(game));
+    const eligible = resolveWatchlistGames(games, settings?.enabledGames);
     const selected = requested ? [findConfiguredGame(games, requested)].filter((game): game is GameConfig => Boolean(game)) : eligible;
     const valid = selected.filter(game => Boolean(game.appId));
     if (!valid.length) return safeEdit(interaction, requested ? "Eroare: jocul nu exista sau nu are Steam appId." : "Eroare: watchlist-ul nu contine jocuri cu Steam appId.");

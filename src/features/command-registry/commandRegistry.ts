@@ -90,6 +90,18 @@ const PLAYER_COUNT_CACHE_TTL_SECONDS = 60;
 type CommandRegistryOverrides = Partial<CommandRuntimeBootContext> & { runtimeDependencies?: CommandRuntimeDependencies };
 type CommandRuntimeBootContextWithDependencies = CommandRuntimeBootContext & { runtimeDependencies?: CommandRuntimeDependencies };
 
+export function createFeatureDependencyBundles(runtime: CommandRuntimeBootContext): {
+  gameInfo: GameInfoCommandDeps;
+  admin: AdminCommandDeps;
+  notifications: NotificationCommandDeps;
+} {
+  return {
+    gameInfo: { ...runtime },
+    admin: { ...runtime },
+    notifications: { ...runtime }
+  };
+}
+
 function createAppServices(overrides: CommandRegistryOverrides = {}) {
   const dependencies = overrides.runtimeDependencies ?? createCommandRuntimeDependencies();
   const runtime = {
@@ -100,11 +112,7 @@ function createAppServices(overrides: CommandRegistryOverrides = {}) {
     ...overrides,
     runtimeDependencies: undefined
   };
-  const featureDeps = {
-    gameInfo: runtime as GameInfoCommandDeps,
-    admin: runtime as AdminCommandDeps,
-    notifications: runtime as NotificationCommandDeps
-  };
+  const featureDeps = createFeatureDependencyBundles(runtime);
   const cache = { ...runtime, featureDeps, ...attachCommandCache.createCommandCache(runtime) };
   const filters = {
     ...cache,
@@ -135,7 +143,12 @@ function createAppServices(overrides: CommandRegistryOverrides = {}) {
 
 export type CommandAppServices = ReturnType<typeof createAppServices>;
 
-function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): { commandHandlers: CommandHandler[]; commandHandlerMap: Map<string, CommandHandler[]>; helpCommand: ReturnType<typeof attachHelpInteractionHandler.buildCommandHandler> } {
+function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): {
+  commandHandlers: CommandHandler[];
+  commandHandlerMap: Map<string, CommandHandler[]>;
+  unindexedHandlers: CommandHandler[];
+  helpCommand: ReturnType<typeof attachHelpInteractionHandler.buildCommandHandler>;
+} {
   const helpCommand = buildNarrowCommandHandler(attachHelpInteractionHandler.buildCommandHandler, ctx);
   const descriptors = [...createCommandHandlerDescriptors()].sort((left, right) => left.priority - right.priority);
   const commandHandlers: CommandHandler[] = descriptors.map(descriptor => descriptor.id === "help" ? helpCommand : buildNarrowCommandHandler(descriptor.build, ctx));
@@ -148,14 +161,21 @@ function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): { c
       commandHandlerMap.set(command, candidates);
     }
   });
-  return { commandHandlers, commandHandlerMap, helpCommand };
+  const indexed = new Set([...commandHandlerMap.values()].flat());
+  const unindexedHandlers = commandHandlers.filter(handler => !indexed.has(handler));
+  return { commandHandlers, commandHandlerMap, unindexedHandlers, helpCommand };
+}
+
+export function commandRouteKey(interaction: Pick<RoutedDiscordInteraction, "commandName">): string | null {
+  const command = interaction.commandName?.trim();
+  return command ? command : null;
 }
 
 function createCommandRegistry(
   overrides: Partial<CommandRuntimeBootContextWithDependencies> = {}
 ): RequiredCommandRegistry {
   const ctx = createAppServices(overrides);
-  const { commandHandlers, commandHandlerMap, helpCommand } = buildCommandHandlerList(ctx);
+  const { commandHandlers, commandHandlerMap, unindexedHandlers, helpCommand } = buildCommandHandlerList(ctx);
 
   async function dispatchCommand(interaction: RoutedDiscordInteraction, games: CommandGame[]): Promise<unknown> {
     let resolvedGames = games;
@@ -164,8 +184,9 @@ function createCommandRegistry(
       const settings = await ctx.getGuildSettings(guildId).catch(() => null);
       resolvedGames = mergeGuildGameAliases(games as GameConfig[], settings);
     }
-    const routedHandlers = typeof interaction.commandName === "string"
-      ? [...(commandHandlerMap.get(interaction.commandName) ?? []), ...commandHandlers.filter(handler => ![...commandHandlerMap.values()].some(candidates => candidates.includes(handler)))]
+    const routeKey = commandRouteKey(interaction);
+    const routedHandlers = routeKey
+      ? [...(commandHandlerMap.get(routeKey) ?? []), ...unindexedHandlers]
       : commandHandlers;
     for (const handler of routedHandlers) {
       if (handler.canHandle(interaction)) return handler.handle(interaction, resolvedGames);

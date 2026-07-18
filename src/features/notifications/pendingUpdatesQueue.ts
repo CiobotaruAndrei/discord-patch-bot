@@ -1,6 +1,7 @@
 "use strict";
 
 import type { GuildSettings, FetchResult, PendingUpdate } from "../../types.js";
+import { watchlistFilter } from "../guild-config/watchlistResolver.js";
 
 export type { PendingUpdate };
 
@@ -43,9 +44,7 @@ export function buildPendingUpdatesQueue(
     if (result?.game?.key) resultByGameKey.set(result.game.key, result);
   }
 
-  const enabledGames = Array.isArray(guild.enabledGames) ? guild.enabledGames : [];
-  const hasGameFilter = enabledGames.length > 0;
-  const enabledSet = hasGameFilter ? new Set(enabledGames) : null;
+  const enabledSet = watchlistFilter(guild.enabledGames);
 
   const pendingByGame = new Map<string, PendingUpdate[]>();
   for (const [gameKey, arr] of toEntries(guild.pendingUpdates)) {

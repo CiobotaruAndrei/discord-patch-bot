@@ -1,5 +1,6 @@
 import type { CacheEntry, GuildSettings, RuntimeEnv } from "../../types.js";
 import { subscribeGuildSettingsChanged } from "./guildSettingsEvents.js";
+import { normalizeGuildSettings } from "../../features/guild-config/guildAggregate.js";
 
 interface GuildSettingsModelLike {
   findById(id: string): { lean(): Promise<(GuildSettings & Record<string, unknown>) | null> };
@@ -44,11 +45,12 @@ async function getGuildSettings(guildId: string): Promise<GuildSettings | null> 
     return cached.data;
   }
   const fresh = await runtimeContext.GuildModel.findById(guildId).lean();
-  const entry = { data: fresh, expiresAt: now + runtimeContext.env.GUILD_CACHE_TTL_MS };
+  const normalized = fresh ? normalizeGuildSettings(fresh) : null;
+  const entry = { data: normalized, expiresAt: now + runtimeContext.env.GUILD_CACHE_TTL_MS };
   guildSettingsCache.delete(guildId);
   guildSettingsCache.set(guildId, entry);
   evictOldestUntilUnderCap();
-  return fresh;
+  return normalized;
 }
 
 function invalidateGuildCache(guildId: string): void {

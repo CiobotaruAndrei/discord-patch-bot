@@ -3,20 +3,22 @@
 import type { InteractionMessage } from "../../types.js";
 import type { CommandLogEnd, DeferEditInteraction, LoggableInteraction, PresentationLogger } from "./presentationContracts.js";
 import { errorMessage } from "../../shared/errors.js";
+import type { DiscordGateway } from "../discord/discordGateway.js";
 
 export interface InteractionReplyHelpersDeps {
   logger: PresentationLogger;
   checkUserCooldown(userId: unknown, command: string): { allowed: boolean; remainingMs?: number };
   MessageFlags: { Ephemeral: number };
+  discordGateway?: DiscordGateway;
 }
 
-export function createInteractionReplyHelpers({ logger, checkUserCooldown, MessageFlags }: InteractionReplyHelpersDeps) {
+export function createInteractionReplyHelpers({ logger, checkUserCooldown, MessageFlags, discordGateway }: InteractionReplyHelpersDeps) {
   async function enforceCooldown(interaction: DeferEditInteraction, command: string): Promise<boolean> {
     const { allowed, remainingMs = 0 } = checkUserCooldown(interaction.user?.id, command);
     if (allowed) return true;
     const msg = `Cooldown: Comanda \`${command}\` are cooldown. Reincearca in **${Math.ceil(remainingMs / 1000)}s**.`;
-    if (interaction.deferred || interaction.replied) await interaction.editReply?.(msg)?.catch(() => null);
-    else await interaction.reply?.({ content: msg, flags: MessageFlags.Ephemeral })?.catch(() => null);
+    if (interaction.deferred || interaction.replied) await (discordGateway ? discordGateway.edit(interaction, msg) : interaction.editReply?.(msg))?.catch(() => null);
+    else await (discordGateway ? discordGateway.reply(interaction, msg, { ephemeral: true }) : interaction.reply?.({ content: msg, flags: MessageFlags.Ephemeral }))?.catch(() => null);
     return false;
   }
 
@@ -44,7 +46,8 @@ export function createInteractionReplyHelpers({ logger, checkUserCooldown, Messa
   async function safeDefer(interaction: DeferEditInteraction, ephemeral = false): Promise<void> {
     try {
       if (!interaction.deferred && !interaction.replied) {
-        await interaction.deferReply?.(ephemeral ? { flags: MessageFlags.Ephemeral } : {});
+        if (discordGateway) await discordGateway.defer(interaction, { ephemeral });
+        else await interaction.deferReply?.(ephemeral ? { flags: MessageFlags.Ephemeral } : {});
       }
     } catch (err) {
       logger("WARN", "INTERACTION", "Eroare la deferReply", errorMessage(err));
@@ -52,14 +55,13 @@ export function createInteractionReplyHelpers({ logger, checkUserCooldown, Messa
   }
 
   async function safeEdit(interaction: DeferEditInteraction, payload: unknown): Promise<InteractionMessage | null> {
-    try { return (await interaction.editReply?.(payload)) ?? null; }
+    try { return ((await (discordGateway ? discordGateway.edit(interaction, payload) : interaction.editReply?.(payload))) as InteractionMessage | null) ?? null; }
     catch (err) {
       logger("WARN", "INTERACTION", "Eroare la editReply", errorMessage(err));
       try {
-        await interaction.followUp?.({
-          content: "Eroare: nu am putut afisa raspunsul (prea lung sau eroare temporara). Reincearca sau restrange filtrele.",
-          flags: MessageFlags.Ephemeral
-        });
+        const fallback = { content: "Eroare: nu am putut afisa raspunsul (prea lung sau eroare temporara). Reincearca sau restrange filtrele.", flags: MessageFlags.Ephemeral };
+        if (discordGateway) await discordGateway.followUp(interaction, fallback, { ephemeral: true });
+        else await interaction.followUp?.(fallback);
       } catch (followErr) {
         logger("WARN", "INTERACTION", "Eroare la followUp-ul de fallback dupa editReply esuat", errorMessage(followErr));
       }

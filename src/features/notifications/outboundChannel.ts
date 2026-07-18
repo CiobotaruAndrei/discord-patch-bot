@@ -1,5 +1,6 @@
 import { errorMessage } from "../../shared/errors.js";
 import type { OutboxMessagePayload } from "./outboxTypes.js";
+import type { DiscordGateway } from "../discord/discordGateway.js";
 
 export const DISCORD_PERMANENT_ERROR_CODES = new Set([10003, 10004, 50001, 50013]);
 
@@ -62,15 +63,16 @@ export interface OutboundChannelResolverDeps {
   acquireSendSlot: () => Promise<void>;
   enqueueOutbox?: EnqueueOutbox;
   recordSentHistory?: RecordSentHistory;
+  discordGateway?: DiscordGateway;
 }
 
-function rateLimitedChannel(channel: { id?: unknown; send: (payload: unknown) => Promise<unknown> }, guildId: string, acquireSendSlot: () => Promise<void>, logger: NotificationLogger, recordSentHistory?: RecordSentHistory): OutboundChannel {
+function rateLimitedChannel(channel: { id?: unknown; send: (payload: unknown) => Promise<unknown> }, guildId: string, acquireSendSlot: () => Promise<void>, logger: NotificationLogger, recordSentHistory?: RecordSentHistory, discordGateway?: DiscordGateway): OutboundChannel {
   const raw = channel;
   return {
     id: String(raw.id ?? ""),
     send: async (payload: OutboxMessagePayload, meta?: OutboundSendMeta) => {
       await acquireSendSlot();
-      const sent = await raw.send(payload);
+      const sent = await (discordGateway ? discordGateway.send(raw, payload, { allowedMentions: { parse: [] } }) : raw.send(payload));
       if (recordSentHistory && meta?.historyEntries?.length) {
         await recordSentHistory(guildId, meta.historyEntries).catch((err: unknown) => {
           logger("WARN", "HISTORY", `Scrierea notificationHistory a esuat pentru guild ${guildId} (livrare directa); mesajul a fost trimis, dar istoricul intern poate fi incomplet`, errorMessage(err));
@@ -103,7 +105,7 @@ async function disableSafely(disableFn: DisableChannelFn, guildId: string, chann
   await Promise.resolve(disableFn(guildId, channelId, message)).catch(() => null);
 }
 
-export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSendSlot, enqueueOutbox, recordSentHistory }: OutboundChannelResolverDeps) {
+export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSendSlot, enqueueOutbox, recordSentHistory, discordGateway }: OutboundChannelResolverDeps) {
   const acquire = acquireSendSlot;
   return async function resolveOutboundChannel({
     client,
@@ -155,6 +157,6 @@ export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSe
       const kind = context === "CRON_DISCOUNTS" ? "discount" : context === "CRON_YOUTUBE" ? "youtube" : "update";
       return { channel: outboxChannel(channelId, String(guild._id), kind, enqueueOutbox, guild.outboxRecoveryVerify, manual), abort: false };
     }
-    return { channel: rateLimitedChannel(channel, String(guild._id), acquire, logger, recordSentHistory), abort: false };
+    return { channel: rateLimitedChannel(channel, String(guild._id), acquire, logger, recordSentHistory, discordGateway), abort: false };
   };
 }

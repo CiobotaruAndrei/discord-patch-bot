@@ -239,6 +239,10 @@ export type CommandRuntimeDependencyOverrides = Partial<{
   platform: Partial<CommandPlatformDependencies>;
 }>;
 
+export function mergeRequired<T extends object>(base: T, overrides: Partial<T> = {}): T {
+  return { ...base, ...overrides };
+}
+
 export function createCommandRuntimeDependencies(overrides: CommandRuntimeDependencyOverrides = {}): CommandRuntimeDependencies {
   const cache = createRedisCache({ runtime: redis, logger: data.logger });
   const defaults: CommandRuntimeDependencies = {
@@ -249,8 +253,8 @@ export function createCommandRuntimeDependencies(overrides: CommandRuntimeDepend
   };
   return {
     discord: { ...defaults.discord, ...overrides.discord },
-    mongo: { ...defaults.mongo, ...overrides.mongo } as CommandMongoDependencies,
-    sources: { ...defaults.sources, ...overrides.sources } as CommandSourceDependencies,
-    platform: { ...defaults.platform, ...overrides.platform } as CommandPlatformDependencies
+    mongo: mergeRequired(defaults.mongo, overrides.mongo),
+    sources: mergeRequired(defaults.sources, overrides.sources),
+    platform: mergeRequired(defaults.platform, overrides.platform)
   };
 }

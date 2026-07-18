@@ -4,6 +4,7 @@ import { createNotificationEmbeds } from "./notificationEmbeds.js";
 import { createPaginationControls } from "./paginationControls.js";
 import { createGameLookupCache } from "./gameLookupCache.js";
 import { createGameStatusEmbeds } from "./gameStatusEmbeds.js";
+import type { DiscordGateway } from "../discord/discordGateway.js";
 
 interface HttpResponse<T = unknown> {
   data: T;
@@ -28,6 +29,7 @@ type CommandUiDeps = {
   COLLECTOR_TIMEOUT_MS: number;
   MAX_FUZZY_SEARCH_INPUT: number;
   httpReq(method: string, url: string, options?: Record<string, unknown>): Promise<HttpResponse>;
+  discordGateway?: DiscordGateway;
 };
 
 function createCommandPresentation(deps: CommandUiDeps) {
@@ -35,10 +37,10 @@ function createCommandPresentation(deps: CommandUiDeps) {
     crypto, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
     ComponentType, MessageFlags, logger, checkUserCooldown, COLORS,
     truncate, DEFAULT_CURRENCY, formatPrice, COLLECTOR_TIMEOUT_MS,
-    MAX_FUZZY_SEARCH_INPUT, httpReq
+    MAX_FUZZY_SEARCH_INPUT, httpReq, discordGateway
   } = deps;
 
-  const replyHelpers = createInteractionReplyHelpers({ logger, checkUserCooldown, MessageFlags });
+  const replyHelpers = createInteractionReplyHelpers({ logger, checkUserCooldown, MessageFlags, discordGateway });
   const notificationEmbeds = createNotificationEmbeds({ EmbedBuilder, COLORS, truncate, DEFAULT_CURRENCY, formatPrice });
   const pagination = createPaginationControls({ crypto, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, MessageFlags, COLLECTOR_TIMEOUT_MS, logger });
   const gameLookup = createGameLookupCache({ MAX_FUZZY_SEARCH_INPUT });
@@ -87,7 +89,8 @@ const attachCommandUi = ((target: CommandUiContext): void => {
     formatPrice: target.formatPrice,
     COLLECTOR_TIMEOUT_MS: target.COLLECTOR_TIMEOUT_MS,
     MAX_FUZZY_SEARCH_INPUT: target.MAX_FUZZY_SEARCH_INPUT,
-    httpReq: target.httpReq
+    httpReq: target.httpReq,
+    discordGateway: target.discordGateway
   };
   Object.assign(target, createCommandPresentation(deps));
 }) as CommandUiInstaller;

@@ -6,6 +6,14 @@ type MongoQueryOptions = Record<string, unknown>;
 
 export type OutboxKind = "update" | "discount" | "youtube";
 
+export interface OutboxPayloadByKind {
+  update: OutboxMessagePayload;
+  discount: OutboxMessagePayload;
+  youtube: OutboxMessagePayload;
+}
+
+export type OutboxPayload<K extends OutboxKind> = OutboxPayloadByKind[K];
+
 export interface OutboxHistoryEntry {
   kind: OutboxKind;
   gameKey?: string;
@@ -19,7 +27,7 @@ interface OutboxJobBase {
   guildId: string;
   channelId: string;
   payload: unknown;
-  attempts: number;
+  attempts?: number;
   deliveries?: number;
   dedupeKey?: string;
   recoveryVerify?: boolean;

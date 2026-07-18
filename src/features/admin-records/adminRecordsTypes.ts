@@ -3,6 +3,7 @@ export interface ConfigBackupRecord {
   createdBy: string;
   createdAt: Date | string;
   snapshot: Record<string, unknown>;
+  schemaVersion?: number;
 }
 
 export interface BotAuditLogEntry {

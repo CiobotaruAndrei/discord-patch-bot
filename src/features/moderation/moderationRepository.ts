@@ -1,4 +1,5 @@
 "use strict";
+import { transitionModeration } from "./moderationStateMachine.js";
 
 export type ModerationRecord = {
   userId: string;
@@ -68,40 +69,38 @@ export async function getModerationState(model: ModerationGuildModel, guildId: s
 
 export async function saveTimeout(model: ModerationGuildModel, guildId: string, record: ModerationRecord): Promise<void> {
   const state = await getModerationState(model, guildId);
-  await model.updateOne({ _id: guildId }, { $set: {
-    moderationTimeouts: [...(state.moderationTimeouts ?? []).filter(item => item.userId !== record.userId), record],
-    moderationMutes: (state.moderationMutes ?? []).filter(item => item.userId !== record.userId)
-  } }, { upsert: true });
+  const next = transitionModeration({ moderationTimeouts: state.moderationTimeouts ?? [], moderationMutes: state.moderationMutes ?? [], moderationWarnings: state.moderationWarnings ?? [] }, { type: "timeout", record });
+  await model.updateOne({ _id: guildId }, { $set: { moderationTimeouts: next.moderationTimeouts, moderationMutes: next.moderationMutes } }, { upsert: true });
 }
 
 export async function saveMute(model: ModerationGuildModel, guildId: string, record: ModerationRecord): Promise<void> {
   const state = await getModerationState(model, guildId);
-  await model.updateOne({ _id: guildId }, { $set: {
-    moderationMutes: [...(state.moderationMutes ?? []).filter(item => item.userId !== record.userId), record],
-    moderationTimeouts: (state.moderationTimeouts ?? []).filter(item => item.userId !== record.userId)
-  } }, { upsert: true });
+  const next = transitionModeration({ moderationTimeouts: state.moderationTimeouts ?? [], moderationMutes: state.moderationMutes ?? [], moderationWarnings: state.moderationWarnings ?? [] }, { type: "mute", record });
+  await model.updateOne({ _id: guildId }, { $set: { moderationMutes: next.moderationMutes, moderationTimeouts: next.moderationTimeouts } }, { upsert: true });
 }
 
 export async function removeModeration(model: ModerationGuildModel, guildId: string, field: "moderationTimeouts" | "moderationMutes", userId: string): Promise<boolean> {
   const state = await getModerationState(model, guildId);
   const records = state[field] ?? [];
   const found = records.some(item => item.userId === userId);
-  if (found) await model.updateOne({ _id: guildId }, { $set: { [field]: records.filter(item => item.userId !== userId) } }, { upsert: true });
+  if (found) {
+    const state = await getModerationState(model, guildId);
+    const next = transitionModeration({ moderationTimeouts: state.moderationTimeouts ?? [], moderationMutes: state.moderationMutes ?? [], moderationWarnings: state.moderationWarnings ?? [] }, { type: field === "moderationTimeouts" ? "remove-timeout" : "remove-mute", userId });
+    await model.updateOne({ _id: guildId }, { $set: { [field]: field === "moderationTimeouts" ? next.moderationTimeouts : next.moderationMutes } }, { upsert: true });
+  }
   return found;
 }
 
 export async function addWarning(model: ModerationGuildModel, guildId: string, record: WarningRecord): Promise<{ count: number; limit: number }> {
   const state = await getModerationState(model, guildId);
-  const warnings = [...(state.moderationWarnings ?? []), record];
+  const warnings = transitionModeration({ moderationTimeouts: state.moderationTimeouts ?? [], moderationMutes: state.moderationMutes ?? [], moderationWarnings: state.moderationWarnings ?? [] }, { type: "warn", record }).moderationWarnings;
   await model.updateOne({ _id: guildId }, { $set: { moderationWarnings: warnings } }, { upsert: true });
   return { count: warnings.filter(item => item.userId === record.userId).length, limit: state.moderationWarnBanLimit ?? 0 };
 }
 
 export async function removeWarning(model: ModerationGuildModel, guildId: string, userId: string): Promise<number> {
   const state = await getModerationState(model, guildId);
-  const warnings = [...(state.moderationWarnings ?? [])];
-  const index = warnings.map(item => item.userId).lastIndexOf(userId);
-  if (index >= 0) warnings.splice(index, 1);
+  const warnings = transitionModeration({ moderationTimeouts: state.moderationTimeouts ?? [], moderationMutes: state.moderationMutes ?? [], moderationWarnings: state.moderationWarnings ?? [] }, { type: "remove-warn", userId }).moderationWarnings;
   await model.updateOne({ _id: guildId }, { $set: { moderationWarnings: warnings } }, { upsert: true });
   return warnings.filter(item => item.userId === userId).length;
 }

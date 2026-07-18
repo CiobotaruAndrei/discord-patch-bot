@@ -11,6 +11,7 @@ import type { DeadLetterReplayRepositoryDeps } from "./deadLetterReplayRepositor
 import type { SourceRegistryApi } from "../../sources/sourceRegistry.js";
 import type { GuildDeadLetterDoc, GuildSeenYoutubeDoc, GuildYoutubeErrorDoc } from "../../infra/mongo/modelTypes.js";
 import type { ReportRollbackFailure } from "./rollbackReporter.js";
+import type { DiscordGateway } from "../discord/discordGateway.js";
 
 export type GeneratedUpdateDeps =
   | "resolveOutboundChannel"
@@ -56,6 +57,7 @@ export type NotificationsRuntimeDeps = SeenRepositoryDeps
     FETCH_CONCURRENCY: number;
     PRICE_ALERT_REARM_ABSENT_CYCLES: number;
     adminAlert?: (kind: string, title: string, body: unknown, guildId?: string) => Promise<unknown>;
+    discordGateway?: DiscordGateway;
   };
 
 export function createReportRollbackFailure(deps: NotificationsRuntimeDeps): ReportRollbackFailure {

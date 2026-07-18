@@ -19,6 +19,7 @@ export interface GuildConfigBackupRecord {
   createdBy?: string;
   createdAt?: Date | string;
   snapshot?: Record<string, unknown>;
+  schemaVersion?: number;
 }
 
 export interface ConfigBackupQueryLike {
@@ -41,6 +42,7 @@ export interface ConfigBackupModelLike {
 }
 
 export const MAX_CONFIG_BACKUPS = 20;
+export const CONFIG_BACKUP_SCHEMA_VERSION = 1;
 
 export type GuildSettingsFieldRole = "config" | "security" | "operational";
 
@@ -159,7 +161,8 @@ function toBackupRecord(doc: GuildConfigBackupRecord): ConfigBackupRecord {
     name: doc.name,
     createdBy: doc.createdBy || "",
     createdAt: toBackupDate(doc.createdAt),
-    snapshot: doc.snapshot ?? {}
+    snapshot: doc.snapshot ?? {},
+    schemaVersion: doc.schemaVersion ?? CONFIG_BACKUP_SCHEMA_VERSION
   };
 }
 
@@ -191,7 +194,8 @@ export async function saveConfigBackup(
     name: normalized,
     createdBy,
     createdAt: new Date(),
-    snapshot: buildConfigSnapshot(settings)
+    snapshot: buildConfigSnapshot(settings),
+    schemaVersion: CONFIG_BACKUP_SCHEMA_VERSION
   };
   await saveConfigBackupRecord(model, guildId, record);
   return record;
@@ -204,7 +208,7 @@ export async function saveConfigBackupRecord(
 ): Promise<void> {
   await model.updateOne(
     { guildId, name: record.name },
-    { $set: { createdBy: record.createdBy, createdAt: record.createdAt, snapshot: record.snapshot } },
+    { $set: { createdBy: record.createdBy, createdAt: record.createdAt, snapshot: record.snapshot, schemaVersion: record.schemaVersion ?? CONFIG_BACKUP_SCHEMA_VERSION } },
     { upsert: true }
   );
   const overflow = await model.find({ guildId }).sort({ createdAt: -1 }).skip(MAX_CONFIG_BACKUPS).limit(MAX_CONFIG_BACKUPS).lean();

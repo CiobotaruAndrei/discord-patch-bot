@@ -7,6 +7,7 @@ import { buildGameInfoCommandDefinitions } from "./gameInfoCommandDefinitions.js
 import { buildNotificationCommandDefinitions } from "./notificationCommandDefinitions.js";
 import { buildYouTubeCommandDefinitions } from "./youtubeCommandDefinitions.js";
 import { buildModerationCommandDefinitions } from "./moderationCommandDefinitions.js";
+import { assertCommandManifestConsistency } from "../command-catalog/commandManifest.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
@@ -49,6 +50,7 @@ function createSlashCommandDefinitions(deps: SlashCommandDefinitionsDeps): Slash
   const tools: SlashDefinitionTools = { SlashCommandBuilder, PermissionsBitField, CURRENCY_CHOICES };
 
   function buildSlashCommandDefinitions(): SlashCommandJson[] {
+    assertCommandManifestConsistency();
     return [
       ...buildCoreCommandDefinitions(tools),
       ...buildAdminCommandDefinitions(tools),

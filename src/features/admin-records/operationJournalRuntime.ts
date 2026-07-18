@@ -1,5 +1,5 @@
 import type { ConfigBackupRecord, CurrencyCode, ServerAuditLogEntry } from "../../types.js";
-import { createOperationJournal, type OperationJournal, type OperationJournalModelLike } from "../../infra/mongo/operationJournal.js";
+import { createOperationJournal, createOperationMap, type OperationJournal, type OperationJournalModelLike } from "../../infra/mongo/operationJournal.js";
 import { resetGuildConfigurationWithAudit, type GuildConfigWriteModelLike } from "../guild-config/guildConfigRepository.js";
 import { deleteConfigBackupWithAudit, loadConfigBackupWithAudit, saveConfigBackupRecord, type ConfigBackupModelLike } from "./configBackupRepository.js";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "./auditLogRepository.js";
@@ -116,7 +116,8 @@ function backupRecord(value: unknown): ConfigBackupRecord | null {
   if (!candidate || typeof candidate.name !== "string" || typeof candidate.createdBy !== "string" || !snapshot) return null;
   const createdAt = candidate.createdAt instanceof Date ? candidate.createdAt : new Date(String(candidate.createdAt));
   if (Number.isNaN(createdAt.getTime())) return null;
-  return { name: candidate.name, createdBy: candidate.createdBy, createdAt, snapshot };
+  const schemaVersion = typeof candidate.schemaVersion === "number" ? candidate.schemaVersion : 1;
+  return { name: candidate.name, createdBy: candidate.createdBy, createdAt, snapshot, schemaVersion };
 }
 
 function backupLoadPayload(value: unknown): BackupLoadPayload | null {
@@ -214,10 +215,14 @@ export function createOperationJournalRuntime(deps: OperationJournalRuntimeDeps)
       await deleteAdminAccessRule(deps.GuildModel, deps.GuildAuditLogModel, payload.guildId, { ...payload, operationId });
     }
   };
+  const operationMap = createOperationMap(Object.fromEntries(Object.entries(executors).map(([kind, execute]) => [kind, {
+    schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+    decode: (value: unknown) => value,
+    execute
+  }]))) as import("../../infra/mongo/operationJournal.js").OperationMap;
   return createOperationJournal({
     JournalModel: deps.OperationJournalModel,
     logger: deps.logger,
-    executors,
-    schemaVersions: Object.fromEntries(Object.keys(executors).map(kind => [kind, OPERATION_PAYLOAD_SCHEMA_VERSION]))
+    operationMap
   });
 }

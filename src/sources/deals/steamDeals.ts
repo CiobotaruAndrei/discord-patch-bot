@@ -2,28 +2,7 @@ import { requestOptionsFor, SOURCE_POLICIES } from "../sourcePolicies.js";
 import type { DealInfo, LoggerFunction, SteamReviewData } from "../../types.js";
 import { errorMessage } from "../../shared/errors.js";
 import type { DealCurrencyCode, HttpReq } from "./dealHelpers.js";
-
-interface SteamReviewResponse {
-  query_summary?: {
-    total_reviews?: number;
-    total_positive?: number;
-  };
-}
-
-interface SteamFeaturedCategoriesResponse {
-  specials?: {
-    items?: SteamSpecialItem[];
-  };
-}
-
-interface SteamSpecialItem {
-  id: string | number;
-  name?: string;
-  original_price?: number;
-  final_price?: number;
-  discount_percent?: number;
-  header_image?: string | null;
-}
+import { decodeSteamFeaturedCategoriesResponse, decodeSteamReviewResponse, type SteamFeaturedCategoryItem } from "../responseDecoders.js";
 
 export interface SteamDealsDeps {
   httpReq: HttpReq;
@@ -40,7 +19,7 @@ export function createSteamDeals(deps: SteamDealsDeps) {
       const res = await httpReq("GET",
         `https://store.steampowered.com/appreviews/${appId}?json=1&language=all&num_per_page=0`,
         requestOptionsFor("steam-reviews"), SOURCE_POLICIES["steam-reviews"].retries, SOURCE_POLICIES["steam-reviews"].retryDelayMs);
-      const summary = (res.data as SteamReviewResponse).query_summary;
+      const summary = decodeSteamReviewResponse(res.data).query_summary;
       if (summary) {
         const totalReviews = summary.total_reviews || 0;
         const positiveReviews = summary.total_positive || 0;
@@ -67,7 +46,7 @@ export function createSteamDeals(deps: SteamDealsDeps) {
       const steamRes = await httpReq("GET",
         `https://store.steampowered.com/api/featuredcategories/?cc=${cc}&l=english`,
         requestOptionsFor("steam-featured-deals"));
-      const steamSpecials = ((steamRes.data as SteamFeaturedCategoriesResponse).specials?.items || []).slice(0, STEAM_SPECIALS_LIMIT);
+      const steamSpecials: SteamFeaturedCategoryItem[] = (decodeSteamFeaturedCategoriesResponse(steamRes.data).specials?.items || []).slice(0, STEAM_SPECIALS_LIMIT);
 
       const reviewsData: SteamReviewData[] = [];
       for (let i = 0; i < steamSpecials.length; i += STEAM_REVIEW_BATCH_SIZE) {

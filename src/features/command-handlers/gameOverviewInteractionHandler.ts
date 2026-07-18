@@ -8,6 +8,7 @@ import { matchesCommand } from "../command-registry/commandMatch.js";
 import { findBestDeal, scoreDeal } from "./dealScoreInteractionHandler.js";
 import { dlcPageHasAgeGate, parseDlcRows } from "./dlcSteamPage.js";
 import { errorDetail } from "../../shared/errors.js";
+import { watchlistFilter } from "../guild-config/watchlistResolver.js";
 
 interface DiscordInteraction {
   commandName?: string;
@@ -94,7 +95,7 @@ function createGameOverviewHandler(deps: GameOverviewDeps) {
     const dlc = results[4].status === "fulfilled" ? results[4].value : [];
     const deal = findBestDeal(deals, game.name);
     const scored = deal ? scoreDeal(deal) : null;
-    const watched = !Array.isArray(settings?.enabledGames) || settings.enabledGames.length === 0 || settings.enabledGames.includes(game.key);
+    const watched = watchlistFilter(settings?.enabledGames)?.has(game.key) ?? true;
     const updateText = update?.latest
       ? `[${String(update.latest.title || "Ultimul update")}](${String(update.latest.link || game.url || "")})`
       : unavailable(update?.error ? "Sursa de update a esuat" : "Fara update disponibil");

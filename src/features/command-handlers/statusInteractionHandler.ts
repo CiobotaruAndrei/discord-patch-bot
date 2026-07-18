@@ -5,6 +5,7 @@ import type { GameServerStatus } from "../command-presentation/gameStatusEmbeds.
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorMessage, errorDetail } from "../../shared/errors.js";
+import { watchlistFilter } from "../guild-config/watchlistResolver.js";
 
 type DiscordInteraction = {
   commandName?: string;
@@ -91,8 +92,8 @@ function createStatusInteractionHandler(deps: StatusHandlerDeps) {
     const endLog = startCommandLog(interaction, "status watchlist");
     await safeDefer(interaction);
     const settings = deps.getGuildSettings ? await deps.getGuildSettings(guildId) : null;
-    const enabled = Array.isArray(settings?.enabledGames) ? new Set(settings.enabledGames) : null;
-    const watched = games.filter(game => (!enabled || enabled.size === 0 || enabled.has(game.key)) && supportsServerStatus(game));
+    const enabled = watchlistFilter(settings?.enabledGames);
+    const watched = games.filter(game => (!enabled || enabled.has(game.key)) && supportsServerStatus(game));
     if (!watched.length) {
       endLog("no_supported_games");
       return safeEdit(interaction, "Info: niciun joc din watchlist nu are o sursa de server status integrata.");

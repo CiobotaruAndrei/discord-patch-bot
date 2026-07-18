@@ -8,6 +8,7 @@ export type DiscordGatewayMetrics = {
 };
 
 export interface DiscordReplyTarget {
+  deferReply?(payload?: unknown): Promise<unknown>;
   reply?(payload: unknown): Promise<unknown>;
   followUp?(payload: unknown): Promise<unknown>;
   editReply?(payload: unknown): Promise<unknown>;
@@ -18,8 +19,10 @@ export interface DiscordSendTarget {
 }
 
 export interface DiscordGateway {
+  defer(target: DiscordReplyTarget, options?: { ephemeral?: boolean }): Promise<unknown>;
   reply(target: DiscordReplyTarget, payload: unknown, options?: { ephemeral?: boolean; allowedMentions?: { parse?: string[] } }): Promise<unknown>;
   followUp(target: DiscordReplyTarget, payload: unknown, options?: { ephemeral?: boolean; allowedMentions?: { parse?: string[] } }): Promise<unknown>;
+  edit(target: DiscordReplyTarget, payload: unknown): Promise<unknown>;
   send(target: DiscordSendTarget, payload: unknown, options?: { allowedMentions?: { parse?: string[] } }): Promise<unknown>;
 }
 
@@ -39,8 +42,10 @@ function createDiscordGateway(logger: DiscordGatewayLogger, metrics: DiscordGate
     return { ...base, ...(options?.ephemeral === undefined ? {} : { ephemeral: options.ephemeral }), allowedMentions: options?.allowedMentions ?? { parse: [] } };
   };
   return {
+    defer: (target, options) => call("deferReply", () => target.deferReply?.(options?.ephemeral ? { flags: 64 } : {}) ?? Promise.reject(new Error("deferReply indisponibil"))),
     reply: (target, payload, options) => call("reply", () => target.reply?.(normalize(payload, options)) ?? Promise.reject(new Error("reply indisponibil"))),
     followUp: (target, payload, options) => call("followUp", () => target.followUp?.(normalize(payload, options)) ?? Promise.reject(new Error("followUp indisponibil"))),
+    edit: (target, payload) => call("editReply", () => target.editReply?.(payload) ?? Promise.reject(new Error("editReply indisponibil"))),
     send: (target, payload, options) => call("send", () => target.send(normalize(payload, options)))
   };
 }

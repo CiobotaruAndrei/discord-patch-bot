@@ -60,3 +60,54 @@ export function decodeEpicGraphqlResponse(value: unknown): EpicGraphqlResponse {
 export function decodeFortniteBlogResponse(value: unknown): FortniteBlogResponse {
   return z.object({ blogList: z.array(z.object({ slug: z.string().optional(), title: z.string().optional(), shareDescription: z.string().optional(), date: z.string().optional() }).passthrough()).optional() }).passthrough().parse(value);
 }
+
+export interface SteamNewsItem {
+  gid?: string | number;
+  title?: string;
+  url?: string;
+  contents?: string;
+  tags?: unknown;
+  feed_type?: number;
+  feedname?: string;
+  date?: string | number;
+}
+
+const SteamNewsItemSchema = z.object({
+  gid: z.union([z.string(), z.number()]).optional(),
+  title: z.string().optional(), url: z.string().optional(), contents: z.string().optional(),
+  tags: z.unknown().optional(), feed_type: z.number().optional(), feedname: z.string().optional(),
+  date: z.union([z.string(), z.number()]).optional()
+}).passthrough();
+
+export function decodeSteamNewsResponse(value: unknown): { appnews?: { newsitems?: SteamNewsItem[] } } {
+  return z.object({ appnews: z.object({ newsitems: z.array(SteamNewsItemSchema).optional() }).optional() }).passthrough().parse(value);
+}
+
+export interface SteamReviewResponse {
+  query_summary?: { total_reviews?: number; total_positive?: number };
+}
+
+export function decodeSteamReviewResponse(value: unknown): SteamReviewResponse {
+  return z.object({ query_summary: z.object({ total_reviews: z.number().optional(), total_positive: z.number().optional() }).optional() }).passthrough().parse(value);
+}
+
+export interface SteamFeaturedCategoryItem {
+  id: string | number;
+  name?: string;
+  original_price?: number;
+  final_price?: number;
+  discount_percent?: number;
+  header_image?: string | null;
+}
+
+export function decodeSteamFeaturedCategoriesResponse(value: unknown): { specials?: { items?: SteamFeaturedCategoryItem[] } } {
+  return z.object({
+    specials: z.object({
+      items: z.array(z.object({
+        id: z.union([z.string(), z.number()]), name: z.string().optional(),
+        original_price: z.number().optional(), final_price: z.number().optional(),
+        discount_percent: z.number().optional(), header_image: z.string().nullable().optional()
+      }).passthrough()).optional()
+    }).optional()
+  }).passthrough().parse(value);
+}

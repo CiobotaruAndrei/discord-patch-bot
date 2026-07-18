@@ -2,12 +2,19 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createOperationJournal,
+  createOperationMap,
   OperationAlreadyRunningError,
   type OperationJournalDoc
 } from "../../infra/mongo/operationJournal.js";
 
 type Filter = Record<string, unknown>;
 type Update = Record<string, unknown>;
+
+test("operation map validates schema versions before registration", () => {
+  const map = createOperationMap({ ping: { schemaVersion: 1, decode: value => String(value), execute: async () => undefined } });
+  assert.equal(Object.isFrozen(map), true);
+  assert.throws(() => createOperationMap({ bad: { schemaVersion: 0, decode: value => value, execute: async () => undefined } }), /schemaVersion invalida/);
+});
 
 function valueMatches(value: unknown, condition: unknown): boolean {
   if (!condition || typeof condition !== "object" || Array.isArray(condition)) return value === condition;

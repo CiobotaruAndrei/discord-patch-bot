@@ -1,22 +1,6 @@
 import type { GameConfig, HttpRequestOptions, NormalizedUpdate, PatchUpdate } from "../../types.js";
 import { isGoodSteamArticleUrl, isLikelyPatchNote } from "./updateHelpers.js";
-
-interface SteamNewsItem {
-  gid?: unknown;
-  title?: string;
-  url?: string;
-  contents?: string;
-  tags?: unknown;
-  feed_type?: number;
-  feedname?: string;
-  date?: unknown;
-}
-
-interface SteamNewsResponse {
-  appnews?: {
-    newsitems?: SteamNewsItem[];
-  };
-}
+import { decodeSteamNewsResponse } from "../responseDecoders.js";
 
 
 interface SteamUpdatesDeps {
@@ -30,7 +14,7 @@ function createSteamUpdates(deps: SteamUpdatesDeps) {
     const { conditionalGet, normalizeUpdate, cleanText } = deps;
     const url = `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${game.appId}&count=50&format=json`;
     return conditionalGet(url, (raw) => {
-      const data = raw as SteamNewsResponse;
+      const data = decodeSteamNewsResponse(raw);
       const patchNotes = (data.appnews?.newsitems || [])
         .filter((item) => (item.feed_type === 1 || item.feedname === "steam_community_announcements")
           && isGoodSteamArticleUrl(item.url) && isLikelyPatchNote(item))

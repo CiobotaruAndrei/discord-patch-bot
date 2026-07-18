@@ -3,6 +3,7 @@
 import type { FetchResult, EmbeddableUpdate, GameConfig, InteractionMessage } from "../../../types.js";
 
 import { errorMessage } from "../../../shared/errors.js";
+import { watchlistFilter } from "../../guild-config/watchlistResolver.js";
 
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
 
@@ -106,8 +107,7 @@ export function createLatestUpdatesHandler(deps: LatestUpdatesHandlerDeps) {
     }
     const guildId = interaction.guild?.id;
     const guild = guildId ? await getGuildSettings(guildId) : null;
-    const enabledGames = Array.isArray(guild?.enabledGames) ? guild!.enabledGames! : [];
-    const enabledSet = enabledGames.length > 0 ? new Set(enabledGames) : null;
+    const enabledSet = watchlistFilter(guild?.enabledGames);
     const valid = data.filter((r): r is FetchResult & { latest: NonNullable<FetchResult["latest"]> } => r.latest !== null && (!enabledSet || enabledSet.has(r.game.key)));
     if (!valid.length) {
       endLog("no_data");

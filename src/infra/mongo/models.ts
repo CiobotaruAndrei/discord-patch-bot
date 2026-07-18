@@ -46,6 +46,8 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
 
   const guildSchema = new mongoose.Schema({
     _id: String,
+    settingsSchemaVersion: { type: Number, default: 1 },
+    settingsVersion: { type: Number, default: 0 },
     subscribed: { type: Boolean, default: false },
     notificationChannelId: { type: String, default: null },
     pendingUpdates: { type: Map, of: [pendingUpdateSchema], default: {} },

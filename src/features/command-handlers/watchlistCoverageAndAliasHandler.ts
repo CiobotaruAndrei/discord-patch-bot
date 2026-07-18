@@ -6,6 +6,7 @@ import { matchesCommand } from "../command-registry/commandMatch.js";
 import { aliasOwner, gameAliasRecord, normalizeGameAlias } from "../guild-config/gameAliasService.js";
 import { errorDetail } from "../../shared/errors.js";
 import { createGuildSettingsRepository, type GuildSettingsRepository } from "../guild-config/guildSettingsRepository.js";
+import { resolveWatchlistGames } from "../guild-config/watchlistResolver.js";
 
 interface DiscordInteraction {
   commandName?: string;
@@ -55,9 +56,7 @@ function capabilityLine(game: GameConfig): string {
 function createCoverageAliasHandler(deps: CoverageAliasDeps) {
   const settingsRepository = deps.guildSettingsRepository ?? createGuildSettingsRepository(deps.GuildModel);
   async function coverage(interaction: DiscordInteraction, games: GameConfig[], settings: GuildSettings | null): Promise<unknown> {
-    const enabled = Array.isArray(settings?.enabledGames) && settings.enabledGames.length ? settings.enabledGames : games.map(game => game.key);
-    const byKey = new Map(games.map(game => [game.key, game]));
-    const rows = enabled.map(key => byKey.get(key) || ({ key, name: `${key} (joc necunoscut)` } as GameConfig));
+    const rows = resolveWatchlistGames(games, settings?.enabledGames);
     const render = (page: number, totalPages: number) => [{
       title: "Watchlist coverage",
       color: 0x5865f2,

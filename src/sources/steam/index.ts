@@ -11,6 +11,7 @@ import { levenshtein } from "../../native/fuzzy.js";
 import type { SteamSourceApi, ChooseBestSteamMatchOptions, SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../sourceApis.js";
 import { errorMessage } from "../../shared/errors.js";
 import { decodeSteamDetailsResponse, decodeSteamSearchResponse } from "../responseDecoders.js";
+import { fetchDecodeNormalize } from "../sourceFetchPipeline.js";
 
 type SteamCurrencyCode = CurrencyCode | string | null | undefined;
 type HttpResponse<T = unknown> = { data: T };
@@ -93,11 +94,11 @@ function createSteamSource(deps: SteamSourceDeps): SteamSourceApi {
 
   async function searchSteamGameByName(query: string, currencyCode?: SteamCurrencyCode): Promise<SteamSearchItem[]> {
     const cc = getCurrencyConfig(currencyCode).cc;
-    const searchRes = await httpReq("GET",
-      `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(query)}&cc=${cc}&l=english`,
-      requestOptionsFor("steam-search"));
-    const data = decodeSteamSearchResponse(searchRes.data);
-    return data?.items || [];
+    return fetchDecodeNormalize(
+      () => httpReq("GET", `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(query)}&cc=${cc}&l=english`, requestOptionsFor("steam-search")),
+      response => decodeSteamSearchResponse(response.data),
+      data => data.items ?? []
+    );
   }
 
   async function fetchSteamPriceDetails(appId: string | number, currencyCode?: SteamCurrencyCode): Promise<SteamAppDetailsSummary | null> {

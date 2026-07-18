@@ -16,6 +16,7 @@ export function buildConfigBackupSchemas({ mongoose }: ConfigBackupSchemasDeps) 
     createdBy: { type: String, default: "" },
     createdAt: { type: Date, default: Date.now },
     snapshot: { type: mongoose.Schema.Types.Mixed, required: true },
+    schemaVersion: { type: Number, default: 1 },
     snapshotEnvelope: { type: persistedEnvelopeSchema, default: null }
   }, { minimize: false });
   guildConfigBackupSchema.index({ guildId: 1, name: 1 }, { unique: true, background: true });

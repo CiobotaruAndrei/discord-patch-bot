@@ -4,6 +4,7 @@ import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
 import moderationRepository, { type ModerationRecord } from "../moderation/moderationRepository.js";
+import { readIntegerOption, readStringOption } from "./commandInteractionAdapter.js";
 
 type User = { id: string; username?: string; bot?: boolean };
 type Role = { position?: number };
@@ -67,8 +68,8 @@ function hasPermission(member: Member | undefined, permission: string): boolean 
 function mention(userId: string, name?: string): string { return name ? `${name} (<@${userId}>)` : `<@${userId}>`; }
 function safeReason(reason: string): string { return reason.replace(/https?:\/\/\S+/gi, "[link eliminat]"); }
 function optionUser(interaction: Interaction): User | null { return interaction.options.getUser("utilizator", false) ?? interaction.options.getUser("user", false); }
-function optionString(interaction: Interaction, primary: string, fallback: string): string | null { return interaction.options.getString(primary, false) ?? interaction.options.getString(fallback, false); }
-function optionInteger(interaction: Interaction, primary: string, fallback: string): number | null { return interaction.options.getInteger(primary, false) ?? interaction.options.getInteger(fallback, false); }
+function optionString(interaction: Interaction, primary: string, fallback: string): string | null { return readStringOption(interaction.options, primary, fallback); }
+function optionInteger(interaction: Interaction, primary: string, fallback: string): number | null { return readIntegerOption(interaction.options, primary, fallback); }
 function formatRecord(record: ModerationRecord): string {
   const applied = new Date(record.appliedAt).getTime();
   const expiry = record.expiresAt ? new Date(record.expiresAt).getTime() : null;

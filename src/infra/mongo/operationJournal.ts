@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { createOperationContext, operationContextMeta } from "../../shared/operationContext.js";
 
 type JournalLogger = (level: string, context: string, message: string, meta?: unknown) => void;
 
@@ -56,6 +57,15 @@ export type OperationDefinition<Payload = unknown> = {
 };
 
 export type OperationMap = Record<string, OperationDefinition<unknown>>;
+
+export function createOperationMap(definitions: OperationMap): OperationMap {
+  const keys = Object.keys(definitions);
+  if (new Set(keys).size !== keys.length) throw new Error("operationJournal: registrul contine operatii duplicate");
+  for (const [kind, definition] of Object.entries(definitions)) {
+    if (!Number.isInteger(definition.schemaVersion) || definition.schemaVersion < 1) throw new Error(`operationJournal: schemaVersion invalida pentru '${kind}'`);
+  }
+  return Object.freeze({ ...definitions });
+}
 
 interface JournaledOperationOptions {
   schemaVersion: number;
@@ -279,7 +289,7 @@ function createOperationJournal({
         "WARN",
         "OP_JOURNAL",
         `Operatia jurnalizata '${kind}' (${key}) a esuat`,
-        errorText(err)
+        { ...operationContextMeta(createOperationContext({ operationId: entry._id, retry: entry.attempts })), error: errorText(err), kind, resourceKey: entry.resourceKey }
       );
       throw err;
     }
