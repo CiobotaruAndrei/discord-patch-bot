@@ -46,6 +46,7 @@ export interface LifecycleEventClient {
   on(event: "guildCreate", listener: (guild: LifecycleDiscordGuild) => unknown): unknown;
   on(event: "guildMemberAdd", listener: (member: LifecycleDiscordGuildMember) => unknown): unknown;
   on(event: "messageCreate", listener: (message: LifecycleDiscordMessage) => unknown): unknown;
+  on(event: "channelCreate" | "channelDelete" | "channelUpdate" | "roleCreate" | "roleDelete" | "roleUpdate" | "guildMemberRemove" | "guildBanAdd" | "guildBanRemove", listener: (value: { guild?: { id?: string } | null; id?: string; name?: string; user?: { id?: string } | null; executorId?: string | null }) => unknown): unknown;
   on(event: "error" | "shardError", listener: (err: unknown) => unknown): unknown;
   on(event: "warn", listener: (message: string) => unknown): unknown;
 }

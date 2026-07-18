@@ -7,6 +7,7 @@ import {
   readAdminCommandAccessForScope,
   type AdminCommandAccessByCommand
 } from "../command-security/adminCommandAccessScope.js";
+import { listSettableAdminScopePaths } from "../command-security/adminSettableScopeCatalog.js";
 
 export type AdminAccessMode = "role" | "role-or-higher";
 
@@ -43,8 +44,12 @@ export function formatCurrentAccess(scope: string, access: GuildAdminAccessDoc["
 
 export function formatAccessList(doc: GuildAdminAccessDoc | null): string {
   const lines = [formatCurrentAccess("global", doc?.adminCommandAccess || null)];
-  for (const [scope, access] of listScopedAdminCommandAccess(doc?.adminCommandAccessByCommand)) {
-    lines.push(formatCurrentAccess(scope, access));
+  const configured = new Map(listScopedAdminCommandAccess(doc?.adminCommandAccessByCommand));
+  const canonical = new Set(listSettableAdminScopePaths());
+  for (const scope of [...canonical, ...configured.keys()].filter((value, index, all) => all.indexOf(value) === index)) {
+    const access = configured.get(scope);
+    if (access) lines.push(formatCurrentAccess(scope, access));
+    else lines.push(`${displayAdminCommandAccessScope(scope)}: ${doc?.adminCommandAccess ? "fallback global" : "implicit default (Administrator/cod global)"}.`);
   }
   const conflicts = findAdminCommandAccessScopeConflicts(doc?.adminCommandAccessByCommand);
   if (conflicts.length) {

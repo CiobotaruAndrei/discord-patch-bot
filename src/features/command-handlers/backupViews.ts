@@ -13,6 +13,24 @@ const RESOURCE_FIELDS: Array<{ key: keyof GuildConfigurationSettings; label: str
   { key: "discountRoleId", label: "rol reduceri", kind: "rol" }
 ];
 
+export type BackupDiscordResource = { id: string; name?: string; kind: "canal" | "rol" };
+export type BackupRestorePlan = { missing: string[]; present: string[]; remap: Record<string, string>; actions: string[] };
+
+export function buildBackupRestorePlan(backup: ConfigBackupRecord, resources: BackupDiscordResource[]): BackupRestorePlan {
+  const available = new Map(resources.map(resource => [`${resource.kind}:${resource.id}`, resource]));
+  const missing: string[] = [];
+  const present: string[] = [];
+  const remap: Record<string, string> = {};
+  for (const field of RESOURCE_FIELDS) {
+    const value = backup.snapshot[field.key];
+    if (typeof value !== "string" || !value) continue;
+    const key = `${field.kind}:${value}`;
+    if (available.has(key)) present.push(`${field.label}:${value}`);
+    else missing.push(`${field.label}:${value}`);
+  }
+  return { missing, present, remap, actions: [...missing.map(item => `recreeaza ${item}`), ...present.map(item => `pastreaza ${item}`)] };
+}
+
 function formatDate(value: Date | string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "data necunoscuta";

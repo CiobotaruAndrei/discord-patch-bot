@@ -42,6 +42,7 @@ interface RegisterDiscordEventsDeps {
     handleGuildMemberAdd(member: LifecycleDiscordGuildMember): Promise<void>;
     handleMessageCreate(message: LifecycleDiscordMessage): Promise<void>;
   };
+  serverAudit?: (entry: { guildId: string; action: string; userId?: string; details?: string }) => Promise<void>;
 }
 
 interface MongoConnectionLike {
@@ -72,7 +73,7 @@ async function replyInteractionError(inter: LifecycleDiscordInteraction): Promis
 
 function registerDiscordEvents({
   client, logger, commands, metrics, env, adminAlert, requestContext,
-  games, crypto, errorMessage, errorDetail, startHousekeeping, scheduleNextCron, startOutboxWorker, role, securityRuntime
+  games, crypto, errorMessage, errorDetail, startHousekeeping, scheduleNextCron, startOutboxWorker, role, securityRuntime, serverAudit
 }: RegisterDiscordEventsDeps): void {
   const effectiveRole = role ?? "all";
   const runsSchedulers = roleRunsSchedulers(effectiveRole);
@@ -141,6 +142,22 @@ function registerDiscordEvents({
     if (securityRuntime) {
       client.on("guildMemberAdd", (member: LifecycleDiscordGuildMember) => { securityRuntime.handleGuildMemberAdd(member).catch(() => null); });
       client.on("messageCreate", (message: LifecycleDiscordMessage) => { securityRuntime.handleMessageCreate(message).catch(() => null); });
+    }
+    if (serverAudit) {
+      const audit = (action: string) => (value: { guild?: { id?: string } | null; id?: string; name?: string; user?: { id?: string } | null; executorId?: string | null }) => {
+        const guildId = value.guild?.id;
+        if (!guildId) return;
+        serverAudit({ guildId, action, userId: value.executorId || value.user?.id || "", details: `${value.name || value.id || "unknown"}` }).catch(() => null);
+      };
+      client.on("channelCreate", audit("channel_create"));
+      client.on("channelDelete", audit("channel_delete"));
+      client.on("channelUpdate", audit("channel_update"));
+      client.on("roleCreate", audit("role_create"));
+      client.on("roleDelete", audit("role_delete"));
+      client.on("roleUpdate", audit("role_update"));
+      client.on("guildMemberRemove", audit("member_remove"));
+      client.on("guildBanAdd", audit("ban_add"));
+      client.on("guildBanRemove", audit("ban_remove"));
     }
   }
 

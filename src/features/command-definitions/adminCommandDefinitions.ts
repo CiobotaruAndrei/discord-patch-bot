@@ -11,6 +11,8 @@ export function buildAdminCommandDefinitions({ SlashCommandBuilder, PermissionsB
         .addStringOption(option => option.setName("currency").setDescription("Valuta pragului").setRequired(true).addChoices(...CURRENCY_CHOICES)))
       .addSubcommand(subcommand => subcommand.setName("watchlist").setDescription("Adauga un joc in watchlist (admin)")
         .addStringOption(option => option.setName("joc").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true)))
+      .addSubcommand(subcommand => subcommand.setName("watchlist-game").setDescription("Alias: adauga un joc in watchlist")
+        .addStringOption(option => option.setName("joc").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true)))
       .addSubcommand(subcommand => subcommand.setName("backup").setDescription("Salveaza configuratia curenta intr-un backup (admin)")
         .addStringOption(option => option.setName("name").setDescription("Numele backup-ului").setRequired(true).setMaxLength(64)))
       .addSubcommand(subcommand => subcommand.setName("suggestion").setDescription("Propune o comanda noua")
@@ -22,6 +24,8 @@ export function buildAdminCommandDefinitions({ SlashCommandBuilder, PermissionsB
       .addSubcommand(subcommand => subcommand.setName("price-alert").setDescription("Sterge alertele de pret ale unui joc (admin)")
         .addStringOption(option => option.setName("joc").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true)))
       .addSubcommand(subcommand => subcommand.setName("watchlist").setDescription("Scoate un joc din watchlist (admin)")
+        .addStringOption(option => option.setName("joc").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true)))
+      .addSubcommand(subcommand => subcommand.setName("watchlist-game").setDescription("Alias: scoate un joc din watchlist")
         .addStringOption(option => option.setName("joc").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true))),
     new SlashCommandBuilder()
       .setName("delete")
@@ -29,7 +33,9 @@ export function buildAdminCommandDefinitions({ SlashCommandBuilder, PermissionsB
       .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
       .addSubcommand(subcommand => subcommand.setName("admin-command-access").setDescription("Sterge regula de rol pentru comenzile admin")
         .addBooleanOption(option => option.setName("confirm").setDescription("Confirma revenirea la accesul implicit").setRequired(true))
-        .addStringOption(option => option.setName("command").setDescription("Comanda/pachetul pentru care stergi regula (gol = global)").setRequired(false).setAutocomplete(true))),
+        .addStringOption(option => option.setName("command").setDescription("Comanda/pachetul pentru care stergi regula (gol = global)").setRequired(false).setAutocomplete(true)))
+      .addSubcommand(subcommand => subcommand.setName("suggest-command").setDescription("Sterge o sugestie de comanda")
+        .addStringOption(option => option.setName("name").setDescription("Numele comenzii sugerate").setRequired(true).setMaxLength(80))),
     new SlashCommandBuilder()
       .setName("config")
       .setDescription("Afiseaza configuratia curenta a serverului (admin)")
@@ -39,6 +45,8 @@ export function buildAdminCommandDefinitions({ SlashCommandBuilder, PermissionsB
       .setDescription("Gestioneaza backup-uri ale configuratiei botului pentru server (admin)")
       .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator.toString())
       .addSubcommand(subcommand => subcommand.setName("list").setDescription("Listeaza backup-urile salvate"))
+      .addSubcommand(subcommand => subcommand.setName("add").setDescription("Salveaza configuratia curenta intr-un backup")
+        .addStringOption(option => option.setName("name").setDescription("Numele backup-ului").setRequired(true).setMaxLength(64)))
       .addSubcommand(subcommand => subcommand.setName("preview").setDescription("Arata ce setari, canale si roluri restaureaza backup-ul")
         .addStringOption(option => option.setName("name").setDescription("Numele backup-ului").setRequired(true).setMaxLength(64)))
       .addSubcommand(subcommand => subcommand.setName("load").setDescription("Incarca un backup salvat")

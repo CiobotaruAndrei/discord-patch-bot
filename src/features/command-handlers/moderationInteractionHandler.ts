@@ -70,8 +70,10 @@ function optionUser(interaction: Interaction): User | null { return interaction.
 function optionString(interaction: Interaction, primary: string, fallback: string): string | null { return interaction.options.getString(primary, false) ?? interaction.options.getString(fallback, false); }
 function optionInteger(interaction: Interaction, primary: string, fallback: string): number | null { return interaction.options.getInteger(primary, false) ?? interaction.options.getInteger(fallback, false); }
 function formatRecord(record: ModerationRecord): string {
-  const expiry = record.expiresAt ? `<t:${Math.floor(new Date(record.expiresAt).getTime() / 1000)}:R>` : "permanent";
-  return `${mention(record.userId, record.username)} — aplicat de <@${record.moderatorId}>, expira ${expiry}`;
+  const applied = new Date(record.appliedAt).getTime();
+  const expiry = record.expiresAt ? new Date(record.expiresAt).getTime() : null;
+  const expiryText = expiry ? `<t:${Math.floor(expiry / 1000)}:F> (<t:${Math.floor(expiry / 1000)}:R>)` : "permanent";
+  return `${mention(record.userId, record.username)} [${record.userId}] — aplicat de <@${record.moderatorId}> la <t:${Math.floor(applied / 1000)}:F>, expira ${expiryText}`;
 }
 
 function createModerationInteractionHandler(deps: Deps) {
@@ -95,8 +97,8 @@ function createModerationInteractionHandler(deps: Deps) {
     if (command === "warn-ban-limit") {
       const limit = optionInteger(interaction, "numar", "number");
       if (!limit || limit < 1) return safeEdit(interaction, "Eroare: limita trebuie sa fie un numar intreg pozitiv.");
-      await moderationRepository.setWarnBanLimit(GuildModel, guild.id, limit);
-      return safeEdit(interaction, `OK: limita de warn-uri este acum ${limit}.`);
+      const change = await moderationRepository.setWarnBanLimitWithPrevious(GuildModel, guild.id, limit);
+      return safeEdit(interaction, `OK: limita de warn-uri a fost schimbata: ${change.previous} -> ${change.next}.`);
     }
     const selectedUser = optionUser(interaction);
     if (!selectedUser) return safeEdit(interaction, "Eroare: trebuie sa selectezi un utilizator.");
@@ -122,8 +124,10 @@ function createModerationInteractionHandler(deps: Deps) {
     if (command === "remove-timeout" || command === "unmute") {
       if (!hasPermission(guild.members.me, "ModerateMembers")) return safeEdit(interaction, "Eroare: botul nu are permisiunea Moderate Members.");
       const field = command === "remove-timeout" ? "moderationTimeouts" : "moderationMutes";
-      const removed = await moderationRepository.removeModeration(GuildModel, guild.id, field, user.id);
-      if (!removed) return safeEdit(interaction, `Nu exista un ${command === "unmute" ? "mute" : "timeout"} activ pentru ${mention(user.id, user.username)}.`);
+      const result = await moderationRepository.removeModerationWithOpposite(GuildModel, guild.id, field, user.id);
+      if (!result.removed) return safeEdit(interaction, result.opposite
+        ? `Utilizatorul are sanctiunea opusa. Foloseste /${command === "unmute" ? "remove-timeout" : "unmute"}.`
+        : `Nu exista un ${command === "unmute" ? "mute" : "timeout"} activ pentru ${mention(user.id, user.username)}.`);
       if (typeof target.timeout === "function") await target.timeout(null);
       return safeEdit(interaction, `OK: sanctiunea a fost eliminata pentru ${mention(user.id, user.username)}.`);
     }

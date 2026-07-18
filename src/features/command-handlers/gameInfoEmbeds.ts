@@ -48,6 +48,7 @@ export {
 
 export {
   buildPlayerCountEmbed,
+  buildPlayerCountEmbedWithTrend,
   buildTopActiveGamesEmbed,
   formatPlayerCount,
   selectTopActiveGames

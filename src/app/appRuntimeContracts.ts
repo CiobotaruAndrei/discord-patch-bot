@@ -72,6 +72,7 @@ export interface MongoContextLike {
   getGuildCacheSize: () => number;
   adminAlert: (kind: string, title: string, body: string, guildId?: string) => Promise<unknown>;
   getGuildSettings?: (guildId: string) => Promise<GuildSettings | null>;
+  recordServerAudit?: (entry: { guildId: string; action: string; userId?: string; details?: string }) => Promise<void>;
   setAdminAlertDiscordClient(client: DiscordClientLike | null): void;
   getOutboxPaused: () => Promise<boolean>;
   runMigrations: (logger: MongoContextLike["logger"]) => Promise<{ applied: number[] }>;

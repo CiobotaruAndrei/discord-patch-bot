@@ -102,6 +102,20 @@ export function scoreDeal(deal: DealInfo): { score: number; reasons: string[] } 
   return { score, reasons };
 }
 
+export type DealPriceSnapshot = { store: string; currency: string; price: number; at: Date | string | number };
+
+export function scoreDealWithHistory(deal: DealInfo, history: DealPriceSnapshot[]): { score: number; reasons: string[]; historyAvailable: boolean; lowPrice: number | null } {
+  const current = scoreDeal(deal);
+  const store = String(deal.store || "").toLowerCase();
+  const currency = String(deal.currency || "").toUpperCase();
+  const matching = history.filter(item => item.store.toLowerCase() === store && item.currency.toUpperCase() === currency && Number.isFinite(item.price));
+  if (!matching.length) return { ...current, historyAvailable: false, lowPrice: null, reasons: [...current.reasons, "istoric de pret indisponibil pentru magazin/valuta"] };
+  const lowPrice = Math.min(...matching.map(item => item.price));
+  const currentPrice = numericPrice(deal.salePrice);
+  const bonus = currentPrice !== null && currentPrice <= lowPrice ? 1 : currentPrice !== null && currentPrice <= lowPrice * 1.1 ? 0.4 : 0;
+  return { score: Math.min(10, Math.round((current.score + bonus) * 10) / 10), reasons: [...current.reasons, `minim istoric ${lowPrice}`], historyAvailable: true, lowPrice };
+}
+
 export function findBestDeal(deals: DealInfo[], query: string): DealInfo | null {
   const matches = deals.filter(deal => titleMatches(query, String(deal.title || "")));
   if (!matches.length) return null;

@@ -42,6 +42,7 @@ import {
 } from "../features/command-runtime/commandRuntimeDependencies.js";
 import { createOperationJournalRuntime } from "../features/admin-records/operationJournalRuntime.js";
 import { createScheduledTaskRunner } from "./scheduler/scheduledTaskRunner.js";
+import { recordServerAuditEntry } from "../features/admin-records/auditLogRepository.js";
 
 const operationJournal = createOperationJournalRuntime({
   OperationJournalModel, GuildModel, GuildAuditLogModel, GuildConfigBackupModel, GuildYoutubeErrorModel,
@@ -85,6 +86,7 @@ function buildAppRuntime(role: BotRole): AppRuntime {
       logger, env, parseEnvNumber, acquireDbLock, renewDbLock, releaseDbLock, activeLocks,
       waitForMongoReady, cleanGuildCache, getGuildCacheSize, adminAlert,
       getGuildSettings: mongoContext.getGuildSettings,
+      recordServerAudit: async entry => recordServerAuditEntry(GuildAuditLogModel, entry.guildId, { action: entry.action, userId: entry.userId || "", details: entry.details || "" }),
       runMigrations, requestContext, loadFetchSnapshot, loadDealsFetchSnapshots,
       getOutboxPaused, setAdminAlertDiscordClient
     },

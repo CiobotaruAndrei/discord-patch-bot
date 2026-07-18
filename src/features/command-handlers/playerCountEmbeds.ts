@@ -24,6 +24,25 @@ export function buildPlayerCountEmbed(query: string, appId: string | number, det
   };
 }
 
+export interface PlayerCountTrendSummary {
+  peak24h: number | null;
+  direction: "creștere" | "scădere" | "stabil" | null;
+  samples: number;
+}
+
+export function buildPlayerCountEmbedWithTrend(query: string, appId: string | number, details: SteamAppDetailsSummary, players: SteamCurrentPlayersSummary, trend: PlayerCountTrendSummary | null): DiscordEmbed {
+  const base = buildPlayerCountEmbed(query, appId, details, players);
+  if (!trend) return { ...base, fields: [{ name: "Istoric 24h", value: "Indisponibil: nu există suficiente snapshot-uri.", inline: false }] };
+  return {
+    ...base,
+    fields: [
+      { name: "Peak ultimele 24h", value: trend.peak24h === null ? "Indisponibil" : formatPlayerCount(trend.peak24h), inline: true },
+      { name: "Direcție", value: trend.direction ?? "Indisponibil", inline: true },
+      { name: "Snapshot-uri", value: String(trend.samples), inline: true }
+    ]
+  };
+}
+
 export function buildTopActiveGamesEmbed(items: Array<{ game: GameConfig; players: SteamCurrentPlayersSummary }>, limit = RESULT_LIMIT_DEFAULT, notChecked = 0): DiscordEmbed {
   const successful = items
     .filter(item => item.players.success)

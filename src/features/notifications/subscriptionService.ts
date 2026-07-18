@@ -179,6 +179,18 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
     );
   }
 
+  async function addPlayerCountGames(guildId: string, channelId: string, gameKeys: string[]): Promise<void> {
+    await GuildModel.updateOne(
+      { _id: guildId },
+      { $set: { playerCountSubscribed: true, playerCountChannelId: channelId, playerCountGames: [...new Set(gameKeys)] } },
+      { upsert: true, ...OP_UPDATE_OPTS }
+    );
+  }
+
+  async function stopPlayerCount(guildId: string): Promise<void> {
+    await GuildModel.updateOne({ _id: guildId }, { $set: { playerCountSubscribed: false, playerCountChannelId: null, playerCountGames: [] } }, OP_UPDATE_OPTS);
+  }
+
   async function setPlayerCountGames(guildId: string, remaining: string[], keepChannelId: string | null): Promise<void> {
     await GuildModel.updateOne({ _id: guildId }, {
       $set: {
@@ -199,6 +211,8 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
     startDlc,
     stopDlc,
     addPlayerCountGame,
+    addPlayerCountGames,
+    stopPlayerCount,
     setPlayerCountGames,
     rollbackActivation
   };

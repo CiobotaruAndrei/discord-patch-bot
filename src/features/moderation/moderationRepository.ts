@@ -29,6 +29,19 @@ type GuildModerationState = {
   moderationWarnBanLimit?: number;
 };
 
+export function reconcileModerationState(state: GuildModerationState, activeUserIds: Iterable<string>, now = Date.now()): GuildModerationState {
+  const present = new Set(activeUserIds);
+  const filter = (records: ModerationRecord[] | undefined) => (records ?? []).filter(record => present.has(record.userId) && (!record.expiresAt || new Date(record.expiresAt).getTime() > now));
+  const timeouts = filter(state.moderationTimeouts);
+  const timeoutIds = new Set(timeouts.map(record => record.userId));
+  return {
+    moderationTimeouts: timeouts,
+    moderationMutes: filter(state.moderationMutes).filter(record => !timeoutIds.has(record.userId)),
+    moderationWarnings: state.moderationWarnings ?? [],
+    moderationWarnBanLimit: state.moderationWarnBanLimit ?? 0
+  };
+}
+
 function hasLean(value: unknown): value is { lean(): Promise<Record<string, unknown> | null> } {
   return Boolean(value && typeof (value as { lean?: unknown }).lean === "function");
 }
@@ -97,4 +110,20 @@ export async function setWarnBanLimit(model: ModerationGuildModel, guildId: stri
   await model.updateOne({ _id: guildId }, { $set: { moderationWarnBanLimit: limit } }, { upsert: true });
 }
 
-export default { getModerationState, saveTimeout, saveMute, removeModeration, addWarning, removeWarning, setWarnBanLimit };
+export async function setWarnBanLimitWithPrevious(model: ModerationGuildModel, guildId: string, limit: number): Promise<{ previous: number; next: number }> {
+  const state = await getModerationState(model, guildId);
+  await setWarnBanLimit(model, guildId, limit);
+  return { previous: state.moderationWarnBanLimit ?? 0, next: limit };
+}
+
+export async function removeModerationWithOpposite(model: ModerationGuildModel, guildId: string, field: "moderationTimeouts" | "moderationMutes", userId: string): Promise<{ removed: boolean; opposite: boolean }> {
+  const state = await getModerationState(model, guildId);
+  const records = state[field] ?? [];
+  const oppositeField = field === "moderationTimeouts" ? "moderationMutes" : "moderationTimeouts";
+  const opposite = (state[oppositeField] ?? []).some(item => item.userId === userId);
+  const found = records.some(item => item.userId === userId);
+  if (found) await model.updateOne({ _id: guildId }, { $set: { [field]: records.filter(item => item.userId !== userId) } }, { upsert: true });
+  return { removed: found, opposite };
+}
+
+export default { getModerationState, saveTimeout, saveMute, removeModeration, removeModerationWithOpposite, addWarning, removeWarning, setWarnBanLimit, setWarnBanLimitWithPrevious, reconcileModerationState };

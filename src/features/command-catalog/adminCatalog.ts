@@ -1,7 +1,7 @@
 import type { CommandAccessRule, CommandCatalogHelpEntry } from "./commandCatalogTypes.js";
 
 export const ADMIN_COMMAND_ACCESS: readonly CommandAccessRule[] = [
-  { command: "delete", access: "admin", discordAdminPermissions: true, ownerOnlySubcommands: ["admin-command-access"] },
+  { command: "delete", access: "admin", discordAdminPermissions: true, ownerOnlySubcommands: ["admin-command-access"], adminRuntimeSubcommands: ["suggest-command"] },
   { command: "reset-config", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: "all" },
   { command: "backup", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: ["load", "delete"] },
   { command: "bot-log", access: "admin", discordAdminPermissions: true },
@@ -35,9 +35,11 @@ export const ADMIN_COMMAND_ACCESS: readonly CommandAccessRule[] = [
 
 export const ADMIN_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   { command: "/backup list", description: "Afiseaza backup-urile salvate pentru server si cine le-a creat.", example: "/backup list" },
+  { command: "/backup add", description: "Salveaza configuratia curenta intr-un backup.", example: "/backup add name:inainte" },
   { command: "/backup preview", description: "Arata ce setari, canale si roluri vor fi restaurate daca incarci backup-ul ales.", example: "/backup preview name:inainte-youtube" },
   { command: "/backup load", description: "Incarca un backup salvat si restaureaza configuratia botului pentru server. Cere confirmare explicita.", example: "/backup load name:inainte-youtube confirm:true" },
   { command: "/backup delete", description: "Sterge un backup salvat. Cere confirmare explicita ca sa nu fie sters accidental.", example: "/backup delete name:inainte-youtube confirm:true" },
+  { command: "/delete suggest-command", description: "Alias admin pentru stergerea unei comenzi sugerate.", example: "/delete suggest-command name:calendar" },
   { command: "/bot-log recent", description: "Afiseaza cele mai recente comenzi admin executate pe server, cu user, comanda, data si rezultat.", example: "/bot-log recent numar:10" },
   { command: "/bot-log older", description: "Afiseaza comenzi admin dintr-o zi, o saptamana sau o luna anume. Pentru luna foloseste start in format YYYY-MM; pentru zi si saptamana foloseste YYYY-MM-DD.", example: "/bot-log older period:luna start:2025-08" },
   { command: "/server-log recent", description: "Afiseaza cele mai recente schimbari importante salvate pentru server.", example: "/server-log recent numar:10" },

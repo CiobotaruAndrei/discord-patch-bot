@@ -2,7 +2,7 @@
 
 > Fisier generat automat din `COMMAND_CATALOG_HELP` (`src/features/command-catalog/commandCatalog.ts`), aceeasi sursa unica pe care o foloseste comanda `/help` in Discord. Nu edita manual acest fisier: ruleaza `npm run docs:commands` din `src/`. Sincronizarea catalog <-> fisier este verificata de `commandReferenceDoc.test.ts` si de `npm run check:docs-commands`.
 
-Total comenzi documentate: 149.
+Total comenzi documentate: 153.
 
 | Comanda | Permisiuni | Ce face | Exemplu |
 | --- | --- | --- | --- |
@@ -19,7 +19,9 @@ Total comenzi documentate: 149.
 | `/snooze` | Admin, Ephemeral | Pune temporar pe pauza o comanda existenta a botului pentru server. Comanda aleasa vine din autocomplete, iar durata accepta valori precum 30m, 2h sau 1d. Nota: Nu poate opri /snooze sau /unsnooze, ca adminii sa poata gestiona mereu pauzele. | `/snooze command:/latest updates durata:2h` |
 | `/unsnooze` | Admin, Ephemeral | Scoate pauza temporara de pe o comanda pusa anterior in snooze. | `/unsnooze command:/latest updates` |
 | `/add watchlist` | Admin runtime, Ephemeral | Adauga un joc deja cunoscut de bot in watchlist-ul serverului. | `/add watchlist joc:cs2` |
+| `/add watchlist-game` | Admin runtime, Ephemeral | Alias pentru adaugarea unui joc in watchlist-ul serverului. | `/add watchlist-game joc:cs2` |
 | `/remove watchlist` | Admin runtime, Ephemeral | Scoate un joc din watchlist-ul serverului. | `/remove watchlist joc:cs2` |
+| `/remove watchlist-game` | Admin runtime, Ephemeral | Alias pentru scoaterea unui joc din watchlist-ul serverului. | `/remove watchlist-game joc:cs2` |
 | `/status game` | Public | Afiseaza daca jocul este online, in mentenanta, degradat sau cu stare necunoscuta. | `/status game joc:minecraft` |
 | `/status watchlist` | Public | Verifica independent starea serverelor pentru jocurile compatibile din watchlist si pagineaza rezultatele. | `/status watchlist` |
 | `/report bug` | Public, Ephemeral | Deschide un formular pentru descrierea obligatorie a unui bug si evita duplicatele pentru acelasi tip, joc si text. | `/report bug tip:sursa-stricata joc:cs2` |
@@ -61,11 +63,11 @@ Total comenzi documentate: 149.
 | `/watchlist-game add` | Public, Ephemeral | Permite unui user sa propuna un joc nou pentru lista botului. Propunerea nu activeaza jocul automat. | `/watchlist-game add game:silksong` |
 | `/watchlist-game list` | Public, Ephemeral | Afiseaza jocurile propuse de useri pentru a fi adaugate in lista botului. | `/watchlist-game list numar:10` |
 | `/watchlist-game delete` | Admin runtime, Ephemeral | Sterge un joc din lista de propuneri watchlist-game. | `/watchlist-game delete game:silksong` |
-| `/future-release add` | Admin, Ephemeral | Adauga un joc care urmeaza sa apara in lista future-release a serverului. Lista are maxim 20 de jocuri. | `/future-release add game:silksong release-date:2026 preorder-price:indisponibil` |
-| `/future-release list` | Admin, Ephemeral | Afiseaza jocurile future-release urmarite, data lansarii si pretul de preorder daca sunt salvate. | `/future-release list` |
-| `/future-release delete` | Admin, Ephemeral | Sterge un joc din lista future-release. | `/future-release delete game:silksong` |
-| `/future-release start` | Admin, Ephemeral | Configureaza canalul curent pentru notificarile future-release si marcheaza modulul activ pentru server. | `/future-release start` |
-| `/future-release stop` | Admin, Ephemeral | Opreste notificarile future-release si sterge canalul salvat pentru acest modul. | `/future-release stop` |
+| `/future-release add` | Admin runtime, Ephemeral | Adauga un joc care urmeaza sa apara in lista future-release a serverului. Lista are maxim 20 de jocuri. | `/future-release add game:silksong release-date:2026 preorder-price:indisponibil` |
+| `/future-release list` | Public | Afiseaza jocurile future-release urmarite, data lansarii si pretul de preorder daca sunt salvate. | `/future-release list` |
+| `/future-release delete` | Admin runtime, Ephemeral | Sterge un joc din lista future-release. | `/future-release delete game:silksong` |
+| `/future-release start` | Admin runtime, Ephemeral | Configureaza canalul curent pentru notificarile future-release si marcheaza modulul activ pentru server. | `/future-release start` |
+| `/future-release stop` | Admin runtime, Ephemeral | Opreste notificarile future-release si sterge canalul salvat pentru acest modul. | `/future-release stop` |
 | `/start updates` | Admin, Ephemeral | Porneste notificarile automate de update-uri pe canalul curent si face baseline, ca botul sa nu trimita retroactiv toate update-urile vechi. | `/start updates` |
 | `/start reduceri` | Admin, Ephemeral | Porneste alertele automate de reduceri pe canalul curent si face baseline, ca botul sa trimita doar reducerile noi gasite dupa activare. | `/start reduceri` |
 | `/start dlc` | Admin, Ephemeral | Configureaza canalul curent pentru notificarile DLC ale jocurilor active. Motorul automat DLC foloseste aceasta configuratie cand este activ in runtime. | `/start dlc` |
@@ -116,9 +118,11 @@ Total comenzi documentate: 149.
 | `/youtube status` | Admin, Ephemeral | Afiseaza starea completa a modulului YouTube: notificari, canal Discord, canale urmarite, ultima verificare, erori si filtre. | `/youtube status` |
 | `/youtube clear-errors` | Admin, Ephemeral | Curata istoricul local al erorilor YouTube dupa ce problema a fost investigata sau rezolvata. | `/youtube clear-errors` |
 | `/backup list` | Admin, Ephemeral | Afiseaza backup-urile salvate pentru server si cine le-a creat. | `/backup list` |
+| `/backup add` | Admin, Ephemeral | Salveaza configuratia curenta intr-un backup. | `/backup add name:inainte` |
 | `/backup preview` | Admin, Ephemeral | Arata ce setari, canale si roluri vor fi restaurate daca incarci backup-ul ales. | `/backup preview name:inainte-youtube` |
 | `/backup load` | Admin, Ephemeral | Incarca un backup salvat si restaureaza configuratia botului pentru server. Cere confirmare explicita. | `/backup load name:inainte-youtube confirm:true` |
 | `/backup delete` | Admin, Ephemeral | Sterge un backup salvat. Cere confirmare explicita ca sa nu fie sters accidental. | `/backup delete name:inainte-youtube confirm:true` |
+| `/delete suggest-command` | Admin, Ephemeral | Alias admin pentru stergerea unei comenzi sugerate. | `/delete suggest-command name:calendar` |
 | `/bot-log recent` | Admin, Ephemeral | Afiseaza cele mai recente comenzi admin executate pe server, cu user, comanda, data si rezultat. | `/bot-log recent numar:10` |
 | `/bot-log older` | Admin, Ephemeral | Afiseaza comenzi admin dintr-o zi, o saptamana sau o luna anume. Pentru luna foloseste start in format YYYY-MM; pentru zi si saptamana foloseste YYYY-MM-DD. | `/bot-log older period:luna start:2025-08` |
 | `/server-log recent` | Admin, Ephemeral | Afiseaza cele mai recente schimbari importante salvate pentru server. | `/server-log recent numar:10` |

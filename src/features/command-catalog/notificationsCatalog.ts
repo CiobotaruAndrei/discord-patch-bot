@@ -8,7 +8,7 @@ export const NOTIFICATIONS_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   { command: "set", access: "admin", discordAdminPermissions: true, ownerOnlySubcommands: ["admin-command-access"], sensitiveSubcommands: ["new-account-alert-channel", "threat-alert-channel", "bot-add-alert-channel"] },
   { command: "watchlist", access: "admin", discordAdminPermissions: true },
   { command: "price-alert", access: "admin", discordAdminPermissions: true },
-  { command: "future-release", access: "admin", discordAdminPermissions: true },
+  { command: "future-release", access: "public", discordAdminPermissions: false, publicSubcommands: ["list"], adminRuntimeSubcommands: ["add", "delete", "start", "stop"] },
   { command: "sources", access: "admin", discordAdminPermissions: true }
 ];
 

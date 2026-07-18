@@ -23,7 +23,7 @@ interface DiscordInteraction {
   deferred?: boolean;
   replied?: boolean;
   options: {
-    getSubcommand(): string;
+    getSubcommand(required?: boolean): string;
     getString(name: string, required?: boolean): string | null;
     getInteger(name: string, required?: boolean): number | null;
   };
@@ -113,7 +113,9 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
     const guildId = interaction.guild?.id;
     if (!guildId) return undefined;
     await safeDefer(interaction, true);
-    const subcommand = interaction.commandName === "add" ? "add" : interaction.options.getSubcommand();
+    const subcommand = interaction.commandName === "add" ? "add"
+      : interaction.commandName === "delete" && interaction.options.getSubcommand(false) === "suggest-command" ? "delete"
+      : interaction.options.getSubcommand();
     if (subcommand === "add") return handleAdd(interaction, guildId);
     if (subcommand === "list") return handleList(interaction, guildId);
     if (subcommand === "delete") return handleDelete(interaction, guildId);
@@ -126,6 +128,9 @@ function createSuggestCommandInteractionHandler(deps: SuggestCommandDeps) {
 function isSuggestCommand(interaction: DiscordInteraction): boolean {
   if (!(interaction?.isChatInputCommand?.() === true && Boolean(interaction.guild))) return false;
   if (interaction.commandName === "suggest-command") return true;
+  if (interaction.commandName === "delete") {
+    try { return interaction.options.getSubcommand(false) === "suggest-command"; } catch { return false; }
+  }
   if (interaction.commandName !== "add") return false;
   try {
     return interaction.options.getSubcommand() === "suggestion";

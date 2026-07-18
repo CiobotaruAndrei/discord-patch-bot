@@ -53,6 +53,7 @@ type SecurityDeps = {
   safeEdit: (interaction: SecurityInteraction, payload: unknown) => Promise<unknown>;
   formatUserError: (err: unknown, fallback: string) => string;
   logger?: (level: string, context: string, message: string, meta?: unknown) => void;
+  checkChannelPermissions?: (interaction: SecurityInteraction, channelId: string) => Promise<{ viewChannel: boolean; sendMessages: boolean; embedLinks: boolean; readMessageHistory: boolean; manageMessages?: boolean; manageChannels?: boolean } | null>;
 };
 
 const SET_CHANNEL_FIELDS: Record<string, string> = {
@@ -121,6 +122,8 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
       const channel = interaction.options.getChannel("canal", false) ?? interaction.options.getChannel("channel", true);
       const everyone = guild?.roles?.everyone;
       if (!channel?.id || !channel.permissionOverwrites?.edit || !everyone) return respond(interaction, "Eroare: canalul selectat nu permite modificarea permisiunilor.");
+      const permissions = await target.checkChannelPermissions?.(interaction, channel.id);
+      if (permissions && (!permissions.manageChannels || !permissions.sendMessages)) return respond(interaction, `Eroare: lipsesc permisiuni Discord: ${!permissions.manageChannels ? "Manage Channels" : ""}${!permissions.manageChannels && !permissions.sendMessages ? ", " : ""}${!permissions.sendMessages ? "Send Messages" : ""}.`);
       const currentSettings = await target.getGuildSettings(guildId).catch(() => null);
       const isLocked = currentSettings?.lockedChannelIds?.includes(channel.id) === true;
       if (command === "unlock-channel" && !isLocked) return respond(interaction, "Eroare: canalul nu este blocat de bot.");
@@ -143,6 +146,11 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
       if (amount < 1 || amount > 100) return respond(interaction, "Eroare: numarul de mesaje trebuie sa fie intre 1 si 100.");
       const purgeChannel = interaction.channel;
       if (!channelBulkDelete(purgeChannel)) return respond(interaction, "Eroare: canalul curent nu permite stergerea mesajelor.");
+      const permissions = await target.checkChannelPermissions?.(interaction, (purgeChannel as SecurityChannel & { id?: string })?.id ?? "");
+      if (permissions) {
+        const missing = [!permissions.viewChannel ? "View Channel" : "", !permissions.readMessageHistory ? "Read Message History" : "", !permissions.manageMessages ? "Manage Messages" : ""].filter(Boolean);
+        if (missing.length) return respond(interaction, `Eroare: lipsesc permisiuni Discord: ${missing.join(", ")}.`);
+      }
       try {
         const result = await purgeChannel.bulkDelete(amount, true);
         return respond(interaction, `OK: au fost sterse ${resultSize(result)} mesaje.`);

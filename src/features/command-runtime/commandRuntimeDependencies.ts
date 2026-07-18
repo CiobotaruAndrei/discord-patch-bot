@@ -57,6 +57,8 @@ interface ChannelPermissions {
   sendMessages: boolean;
   embedLinks: boolean;
   readMessageHistory: boolean;
+  manageMessages: boolean;
+  manageChannels: boolean;
 }
 
 type CommandMongoKey =
@@ -142,12 +144,17 @@ export async function checkReadMessageHistory(interaction: PermissionAwareIntera
 export async function checkChannelPermissions(interaction: PermissionAwareInteraction, channelId: string): Promise<ChannelPermissions | null> {
   const perms = await resolvePermissionsFor(interaction, channelId);
   if (!perms) return null;
-  return {
+  const result = {
     viewChannel: perms.has(PermissionsBitField.Flags.ViewChannel),
     sendMessages: perms.has(PermissionsBitField.Flags.SendMessages),
     embedLinks: perms.has(PermissionsBitField.Flags.EmbedLinks),
     readMessageHistory: perms.has(PermissionsBitField.Flags.ReadMessageHistory)
-  };
+  } as ChannelPermissions;
+  Object.defineProperties(result, {
+    manageMessages: { value: perms.has(PermissionsBitField.Flags.ManageMessages), enumerable: false },
+    manageChannels: { value: perms.has(PermissionsBitField.Flags.ManageChannels), enumerable: false }
+  });
+  return result;
 }
 
 export function selectCommandMongoDependencies(source: MongoContextExports): CommandMongoDependencies {

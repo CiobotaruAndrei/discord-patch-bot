@@ -13,6 +13,7 @@ import {
   buildGameSizeEmbed,
   buildPlatformsEmbed,
   buildPlayerCountEmbed,
+  buildPlayerCountEmbedWithTrend,
   buildReviewTrendEmbed,
   buildSystemRequirementsEmbed,
   buildTopActiveGamesEmbed,
@@ -66,6 +67,7 @@ interface GameInfoDeps {
   fetchSteamPriceDetails(appId: string | number, currency: string): Promise<SteamAppDetailsSummary | null>;
   fetchSteamCurrentPlayers(appId: string | number): Promise<SteamCurrentPlayersSummary>;
   readPlayerCountSnapshots?(appIds: readonly (string | number)[]): Promise<Map<string, { appId: string; gameKey: string; playerCount: number; fetchedAt: Date }>>;
+  readPlayerCountHistory?(appIds: readonly (string | number)[], since: Date): Promise<Array<{ appId: string; playerCount: number; fetchedAt: Date }>>;
   fetchSteamReviewData(appId: string | number): Promise<SteamReviewData>;
   getDealsCacheData(currency: string): DealInfo[] | null;
   setDealsCache(currency: string, deals: DealInfo[]): void;
@@ -132,7 +134,20 @@ function createGameInfoInteractionHandler(deps: GameInfoDeps) {
       const players = snapshot
         ? { appId: String(appId), playerCount: snapshot.playerCount, success: true }
         : await fetchSteamCurrentPlayers(appId);
-      return safeEdit(interaction, { embeds: [buildPlayerCountEmbed(query, appId, details, players)] });
+      const history = deps.readPlayerCountHistory
+        ? await deps.readPlayerCountHistory([String(appId)], new Date(Date.now() - 24 * 60 * 60 * 1000)).catch(() => [])
+        : [];
+      const ordered = history.filter(point => point.appId === String(appId)).sort((left, right) => left.fetchedAt.getTime() - right.fetchedAt.getTime());
+      const first = ordered[0]?.playerCount;
+      const latest = ordered.at(-1)?.playerCount;
+      const delta = first === undefined || latest === undefined ? null : latest - first;
+      const neutralBand = first === undefined ? 0 : Math.max(25, Math.round(first * 0.05));
+      const direction = delta === null ? null : Math.abs(delta) <= neutralBand ? "stabil" : delta > 0 ? "creștere" : "scădere";
+      return safeEdit(interaction, { embeds: [buildPlayerCountEmbedWithTrend(query, appId, details, players, {
+        peak24h: ordered.length ? Math.max(...ordered.map(point => point.playerCount), players.playerCount) : null,
+        direction,
+        samples: ordered.length
+      })] });
     }
     const deals = await lookup.loadDeals(currency).catch(() => []);
     return safeEdit(interaction, { embeds: [buildPlatformsEmbed(query, appId, details, findExternalStores(deals, query, details.name || query, appId))] });

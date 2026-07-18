@@ -65,6 +65,7 @@ Acest fisier documenteaza comenzile slash expuse de bot si rolul fiecareia in co
 | Comanda | Permisiuni | Ce face |
 | --- | --- | --- |
 | `/add backup name:<nume>` | Admin, Ephemeral | Salveaza configuratia curenta a botului pentru server intr-un backup numit. Include abonari, canale, roluri, filtre, watchlist, snooze-uri, alerte de pret si configurarea YouTube. Daca exista deja un backup cu acel nume, este inlocuit. |
+| `/backup add name:<nume>` | Admin, Ephemeral | Alias pentru salvarea configuratiei curente intr-un backup. |
 | `/backup list` | Admin, Ephemeral | Afiseaza backup-urile salvate, cine le-a creat si data crearii. Lista este limitata ca documentul serverului sa ramana controlat. |
 | `/backup preview name:<nume>` | Admin, Ephemeral | Arata ce setari vor fi restaurate si ce canale/roluri sunt referite de backup. Preview-ul trebuie verificat inainte de load, mai ales daca intre timp au fost sterse canale sau roluri din Discord. |
 | `/backup load name:<nume> confirm:true` | Admin, Ephemeral | Incarca backup-ul si restaureaza configuratia botului pentru server. Cere confirmare explicita si salveaza schimbarea in `server-log`. Daca un canal sau rol salvat nu mai exista in Discord, botul restaureaza ID-ul salvat, iar adminul trebuie sa refaca setarea dupa load. |
@@ -105,6 +106,7 @@ Canalul administrativ primeste alerte operationale cu severitate, cauza, explica
 | `/add suggestion name:<nume> description:<ce-face>` | Public, Ephemeral | Permite unui user sa propuna o comanda noua. Userul completeaza numele comenzii propuse si descrierea; botul salveaza sugestia in lista serverului. |
 | `/suggest-command list numar:<1-25>` | Admin runtime, Ephemeral | Afiseaza comenzile sugerate de useri, cu numele propus si ce ar trebui sa faca fiecare. Este runtime admin deoarece top-level-ul ramane public pentru `/add suggestion`. |
 | `/suggest-command delete name:<nume>` | Admin runtime, Ephemeral | Sterge o comanda sugerata din lista serverului impreuna cu descrierea ei. |
+| `/delete suggest-command name:<nume>` | Admin runtime, Ephemeral | Alias pentru stergerea unei comenzi sugerate. |
 
 ## Propuneri watchlist si future-release
 
@@ -114,7 +116,7 @@ Canalul administrativ primeste alerte operationale cu severitate, cauza, explica
 | `/watchlist-game list` | Public, Ephemeral | Afiseaza jocurile propuse de useri pentru a fi analizate de admini. |
 | `/watchlist-game delete game:<nume>` | Admin runtime, Ephemeral | Sterge un joc din lista de propuneri watchlist-game. Top-level-ul ramane public pentru `/watchlist-game add`, deci stergerea este protejata prin guard runtime. |
 | `/future-release add game:<nume>` | Admin, Ephemeral | Adauga un joc care urmeaza sa apara in lista future-release a serverului. Lista are maxim 20 de jocuri si poate pastra data lansarii si pretul de preorder daca sunt cunoscute. |
-| `/future-release list` | Admin, Ephemeral | Afiseaza jocurile future-release urmarite, data lansarii si pretul de preorder salvat. |
+| `/future-release list` | Public | Afiseaza jocurile future-release urmarite, data lansarii si pretul de preorder salvat. |
 | `/future-release delete game:<nume>` | Admin, Ephemeral | Sterge un joc din lista future-release. |
 | `/future-release start` | Admin, Ephemeral | Configureaza canalul curent pentru notificarile future-release si marcheaza modulul activ pentru server. Verifica permisiunile de postare embed inainte sa salveze canalul. |
 | `/future-release stop` | Admin, Ephemeral | Opreste notificarile future-release si sterge canalul salvat pentru modul. |
@@ -160,7 +162,9 @@ Pentru configurarea initiala: ruleaza `/youtube notify channel`, adauga unul sau
 | `/set games reset` | Admin, Ephemeral | Reseteaza filtrul de jocuri. Dupa reset, toate jocurile configurate sunt active. |
 | `/watchlist show` | Admin, Ephemeral | Afiseaza jocurile urmarite explicit. Daca lista este goala, serverul foloseste toate jocurile configurate. |
 | `/add watchlist joc:<key>` | Admin, Autocomplete, Ephemeral | Adauga un joc in watchlist-ul serverului. |
+| `/add watchlist-game joc:<key>` | Admin, Autocomplete, Ephemeral | Alias pentru adaugarea unui joc in watchlist. |
 | `/remove watchlist joc:<key>` | Admin, Autocomplete, Ephemeral | Scoate un joc din watchlist-ul serverului. |
+| `/remove watchlist-game joc:<key>` | Admin, Autocomplete, Ephemeral | Alias pentru scoaterea unui joc din watchlist. |
 | `/watchlist reset` | Admin, Ephemeral | Reseteaza watchlist-ul. Dupa reset, toate jocurile configurate sunt active. |
 | `/watchlist coverage` | Admin, Ephemeral | Arata pentru fiecare joc din watchlist ce capabilitati sunt disponibile: update, pret, player-count, status, DLC si review-uri. Rezultatele sunt paginate. |
 | `/game-alias add joc:<key> alias:<text>` | Admin, Autocomplete, Ephemeral | Adauga un alias local serverului pentru jocul ales si respinge aliasurile deja detinute de alt joc. |

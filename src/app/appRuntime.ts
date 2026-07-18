@@ -75,7 +75,8 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
     scheduleNextCron: cronController.scheduleNextCron,
     startOutboxWorker: outboxEnabled ? outboxWorker.start : undefined,
     role: deps.role,
-    securityRuntime
+    securityRuntime,
+    serverAudit: mongo.recordServerAudit
   });
   registerMongoEvents({ mongoose, logger, errorMessage });
 
