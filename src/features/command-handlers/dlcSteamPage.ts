@@ -4,7 +4,7 @@ import type { CheerioAPI } from "cheerio";
 
 type CheerioSelector = Parameters<CheerioAPI>[0];
 
-export type DlcRow = { name: string; price: string };
+export type DlcRow = { id: string; name: string; price: string };
 
 export function dlcPageHasAgeGate($: CheerioAPI): boolean {
   return $("#agegate_box").length > 0 || $(".agegate_text_container").length > 0;
@@ -21,7 +21,7 @@ export function parseDlcRows($: CheerioAPI): DlcRow[] {
     if (!dlcPrice) dlcPrice = "Pret indisponibil";
     if (dlcName && !seenDlcIds.has(dlcAppId)) {
       seenDlcIds.add(dlcAppId);
-      dlcList.push({ name: dlcName, price: dlcPrice });
+      dlcList.push({ id: dlcAppId, name: dlcName, price: dlcPrice });
     }
   });
   return dlcList;
