@@ -16,7 +16,7 @@ export type SubscriptionServiceDeps = {
   makeActivationId: () => string;
 };
 
-export type SubscriptionModuleKind = "updates" | "discounts";
+export type SubscriptionModuleKind = "updates" | "discounts" | "dlc";
 
 export type StartSubscriptionOutcome =
   | { status: "activated" }
@@ -31,9 +31,9 @@ type SubscriptionModuleSpec = {
   initializingField: string;
   activationField: string;
   lastErrorField: string;
-  pendingField: string;
-  pendingEmpty: Record<string, never> | ReadonlyArray<never>;
-  seenHashVersionField: string;
+  pendingField?: string;
+  pendingEmpty?: Record<string, never> | ReadonlyArray<never>;
+  seenHashVersionField?: string;
 };
 
 const MODULE_SPECS: Record<SubscriptionModuleKind, SubscriptionModuleSpec> = {
@@ -60,6 +60,15 @@ const MODULE_SPECS: Record<SubscriptionModuleKind, SubscriptionModuleSpec> = {
     pendingField: "pendingDiscounts",
     pendingEmpty: [],
     seenHashVersionField: "seenHashVersionDiscounts"
+  },
+  dlc: {
+    logContext: "START_DLC",
+    baselineWarnMessage: "Activat, dar baseline-ul DLC a esuat",
+    subscribedField: "dlcSubscribed",
+    channelField: "dlcChannelId",
+    initializingField: "dlcInitializing",
+    activationField: "dlcActivationId",
+    lastErrorField: "dlcLastError"
   }
 };
 
@@ -69,18 +78,16 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
   async function beginActivation(kind: SubscriptionModuleKind, guildId: string, channelId: string): Promise<string> {
     const spec = MODULE_SPECS[kind];
     const activationId = makeActivationId();
+    const set: Record<string, unknown> = {
+      [spec.subscribedField]: true,
+      [spec.channelField]: channelId,
+      [spec.initializingField]: true,
+      [spec.activationField]: activationId
+    };
+    if (spec.pendingField) set[spec.pendingField] = spec.pendingEmpty;
     await GuildModel.updateOne(
       { _id: guildId },
-      {
-        $set: {
-          [spec.subscribedField]: true,
-          [spec.channelField]: channelId,
-          [spec.initializingField]: true,
-          [spec.activationField]: activationId,
-          [spec.pendingField]: spec.pendingEmpty
-        },
-        $unset: { [spec.lastErrorField]: "" }
-      },
+      { $set: set, $unset: { [spec.lastErrorField]: "" } },
       { upsert: true, ...OP_UPDATE_OPTS }
     );
     return activationId;
@@ -88,6 +95,8 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
 
   async function finalizeActivation(kind: SubscriptionModuleKind, guildId: string, channelId: string, activationId: string): Promise<boolean> {
     const spec = MODULE_SPECS[kind];
+    const set: Record<string, unknown> = { [spec.initializingField]: false };
+    if (spec.seenHashVersionField) set[spec.seenHashVersionField] = HASH_VERSION;
     const result = await GuildModel.updateOne(
       {
         _id: guildId,
@@ -96,7 +105,7 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
         [spec.activationField]: activationId
       },
       {
-        $set: { [spec.initializingField]: false, [spec.seenHashVersionField]: HASH_VERSION },
+        $set: set,
         $unset: { [spec.activationField]: "", [spec.lastErrorField]: "" }
       },
       OP_UPDATE_OPTS
@@ -141,30 +150,15 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
 
   async function stopSubscription(kind: SubscriptionModuleKind, guildId: string): Promise<void> {
     const spec = MODULE_SPECS[kind];
+    const set: Record<string, unknown> = {
+      [spec.subscribedField]: false,
+      [spec.channelField]: null,
+      [spec.initializingField]: false
+    };
+    if (spec.pendingField) set[spec.pendingField] = spec.pendingEmpty;
     await GuildModel.updateOne({ _id: guildId }, {
-      $set: {
-        [spec.subscribedField]: false,
-        [spec.channelField]: null,
-        [spec.initializingField]: false,
-        [spec.pendingField]: spec.pendingEmpty
-      },
+      $set: set,
       $unset: { [spec.activationField]: "" }
-    }, OP_UPDATE_OPTS);
-  }
-
-  async function startDlc(guildId: string, channelId: string): Promise<void> {
-    const activationId = makeActivationId();
-    await GuildModel.updateOne(
-      { _id: guildId },
-      { $set: { dlcSubscribed: true, dlcChannelId: channelId, dlcInitializing: false, dlcActivationId: activationId } },
-      { upsert: true, ...OP_UPDATE_OPTS }
-    );
-  }
-
-  async function stopDlc(guildId: string): Promise<void> {
-    await GuildModel.updateOne({ _id: guildId }, {
-      $set: { dlcSubscribed: false, dlcChannelId: null, dlcInitializing: false },
-      $unset: { dlcActivationId: "" }
     }, OP_UPDATE_OPTS);
   }
 
@@ -196,8 +190,9 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
     startDiscounts: (guildId: string, channelId: string, seedBaseline: () => Promise<void>) =>
       startSubscription("discounts", guildId, channelId, seedBaseline),
     stopDiscounts: (guildId: string) => stopSubscription("discounts", guildId),
-    startDlc,
-    stopDlc,
+    startDlc: (guildId: string, channelId: string, seedBaseline: () => Promise<void>) =>
+      startSubscription("dlc", guildId, channelId, seedBaseline),
+    stopDlc: (guildId: string) => stopSubscription("dlc", guildId),
     addPlayerCountGame,
     setPlayerCountGames,
     rollbackActivation

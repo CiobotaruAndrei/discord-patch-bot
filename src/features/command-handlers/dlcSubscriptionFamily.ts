@@ -9,8 +9,16 @@ export function createDlcSubscriptionFamily(deps: SubscriptionInteractionDeps): 
 
   async function start(interaction: SubscriptionInteraction, guildId: string, channel: DiscordChannel) {
     try {
-      await service.startDlc(guildId, channel.id);
-      return safeEdit(interaction, "OK: canalul pentru notificarile DLC a fost configurat. Motorul automat DLC foloseste lista jocurilor active cand este activ in runtime.");
+      const outcome = await service.startDlc(guildId, channel.id, async () => {
+        if (deps.seedBaselineDlc) await deps.seedBaselineDlc(guildId);
+      });
+      if (outcome.status === "superseded") {
+        return safeEdit(interaction, "Activarea DLC a fost intrerupta de o comanda stop/start mai noua. Ruleaza din nou /start dlc daca mai vrei activarea.");
+      }
+      if (outcome.status === "baseline-failed") {
+        return safeEdit(interaction, formatUserError(outcome.error, "Nu am activat notificarile DLC fiindca baseline-ul initial nu a putut fi incarcat."));
+      }
+      return safeEdit(interaction, "OK: notificarile DLC au fost activate. Motorul automat DLC foloseste lista jocurilor active cand este activ in runtime.");
     } catch (err: unknown) {
       return safeEdit(interaction, formatUserError(err, "Eroare la configurarea notificarilor DLC."));
     }
