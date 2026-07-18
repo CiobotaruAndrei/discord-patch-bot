@@ -57,6 +57,7 @@ export type SecurityRuntimeDeps = {
   GuildAuditLogModel: GuildAuditLogModelLike;
   httpReq?: Parameters<typeof createThreatInspectionService>[0]["httpReq"];
   reputationScan?: Parameters<typeof createThreatInspectionService>[0]["reputationScan"];
+  newAccountSeen?: (guildId: string, userId: string) => Promise<boolean>;
   metrics?: RuntimeMetrics;
   now?: () => number;
   wait?: (ms: number) => Promise<void>;
@@ -211,10 +212,17 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
     if (!settings) return;
     if (user.bot) return handleBotAdd(member, settings, user.id);
     if (!settings.newAccountAlertsEnabled || !settings.newAccountAlertChannelId || !isRecentAccount(user.createdTimestamp, new Date(now()))) return;
+    if (deps.newAccountSeen && !(await deps.newAccountSeen(guildId, user.id))) return;
     const channel = await alertChannel(deps, settings.newAccountAlertChannelId);
+    const createdText = typeof user.createdTimestamp === "number" ? new Date(user.createdTimestamp).toISOString() : "necunoscuta";
     const joinedText = typeof member.joinedTimestamp === "number" ? new Date(member.joinedTimestamp).toISOString() : "necunoscuta";
     await channel.send({
-      content: `:shield: Cont nou detectat: <@${user.id}> (${user.tag ?? user.id}), creat acum ${accountAgeLabel(user.createdTimestamp, now())}; intrat la ${joinedText}.`,
+      content: [
+        `:shield: Cont nou detectat: <@${user.id}> (${user.tag ?? user.id}).`,
+        `ID utilizator: ${user.id}.`,
+        `Cont creat: ${createdText} (acum ${accountAgeLabel(user.createdTimestamp, now())}).`,
+        `Intrat pe server: ${joinedText}.`
+      ].join("\n"),
       allowedMentions: { parse: [] }
     });
   }

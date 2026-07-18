@@ -355,6 +355,34 @@ test("solicitant nedetectat dupa toate reincercarile Audit Log => botul e elimin
   assert.match(sent[0].content ?? "", /nedetectat dupa reincercari/);
 });
 
+test("alerta de cont nou include toate campurile si e deduplicata persistent per utilizator (audit, #19)", async () => {
+  const sent: Array<{ content?: string }> = [];
+  const alerted = new Set<string>();
+  const now = Date.parse("2026-07-18T12:00:00.000Z");
+  const runtime = createSecurityRuntime({
+    getGuildSettings: async () => ({ _id: "guild-1", newAccountAlertsEnabled: true, newAccountAlertChannelId: "sec" }),
+    client: { channels: { fetch: async () => ({ send: async (payload: { content?: string }) => { sent.push(payload); } }) } },
+    GuildModel: emptyGuildModel(),
+    GuildAuditLogModel: auditModel([]),
+    newAccountSeen: async (_guildId: string, userId: string) => { if (alerted.has(userId)) return false; alerted.add(userId); return true; },
+    now: () => now
+  });
+  const member = {
+    guild: { id: "guild-1" },
+    joinedTimestamp: now,
+    user: { id: "user-7", tag: "newbie", bot: false, createdTimestamp: now - 86_400_000 }
+  };
+
+  await runtime.handleGuildMemberAdd(member);
+  await runtime.handleGuildMemberAdd(member);
+
+  assert.equal(sent.length, 1, "a doua intrare a aceluiasi cont nou e deduplicata persistent, nu re-alerteaza");
+  assert.match(sent[0].content ?? "", /Cont nou detectat/);
+  assert.match(sent[0].content ?? "", /ID utilizator: user-7/);
+  assert.match(sent[0].content ?? "", /Cont creat: 2026-07-17T12:00:00.000Z/);
+  assert.match(sent[0].content ?? "", /Intrat pe server: 2026-07-18T12:00:00.000Z/);
+});
+
 function threatRuntime(input: {
   sent: Array<{ content?: string }>;
   settings?: Record<string, unknown>;
