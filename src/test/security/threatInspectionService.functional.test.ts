@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createThreatInspectionService, reputationEngineConfigured } from "../../features/command-security/threatInspectionService.js";
+import { createThreatInspectionService, reputationEngineConfigured, describeResponseCompleteness } from "../../features/command-security/threatInspectionService.js";
 import { isRecentAccount, recentAccountCutoff } from "../../features/command-security/recentAccountPolicy.js";
 
 function storedZip(entries: Array<{ name: string; data: Buffer; declaredSize?: number }>): Buffer {
@@ -327,4 +327,61 @@ test("atasamentele cu risc declarat au prioritate fata de linkuri cand plafonul 
 
   assert.equal(httpCalls[0], "https://cdn.example.test/installer");
   assert.equal(httpCalls.length, 2);
+});
+
+test("describeResponseCompleteness: Content-Range cu total > primit => incomplet; total == primit => complet (audit, #7)", () => {
+  assert.deepEqual(describeResponseCompleteness(206, { "content-range": "bytes 0-1048575/5242880" }, 1048576, 1048576), { complete: false, totalLength: 5242880 });
+  assert.deepEqual(describeResponseCompleteness(206, { "content-range": "bytes 0-999/1000" }, 1000, 1048576), { complete: true, totalLength: 1000 });
+});
+
+test("describeResponseCompleteness: 200 cu Content-Length foloseste totalul; 206 fara total ramane incomplet (audit, #7)", () => {
+  assert.deepEqual(describeResponseCompleteness(200, { "content-length": "500" }, 500, 1048576), { complete: true, totalLength: 500 });
+  assert.deepEqual(describeResponseCompleteness(200, { "content-length": "9000000" }, 1048576, 1048576), { complete: false, totalLength: 9000000 });
+  assert.deepEqual(describeResponseCompleteness(206, {}, 1048576, 1048576), { complete: false, totalLength: null });
+});
+
+test("describeResponseCompleteness: 200 fara antete e complet doar daca nu s-a atins plafonul (audit, #7)", () => {
+  assert.deepEqual(describeResponseCompleteness(200, {}, 4, 1048576), { complete: true, totalLength: null });
+  assert.deepEqual(describeResponseCompleteness(200, {}, 1048576, 1048576), { complete: false, totalLength: null });
+});
+
+test("verdict extern periculos pe un fragment partial NU escaladeaza la confirmed (audit, #7)", async () => {
+  const inspector = createThreatInspectionService({
+    httpReq: async () => ({
+      data: Buffer.from([0x4d, 0x5a, 0x90, 0x00]),
+      headers: { "content-type": "application/octet-stream", "content-range": "bytes 0-3/5242880" },
+      status: 206
+    }),
+    reputationScan: async () => "malware"
+  });
+  const result = await inspector.inspectMessage("", [{ id: "a", name: "installer", url: "https://cdn.example.test/big" }]);
+  assert.notEqual(result.verdict, "confirmed", "un fragment nu poate fi confirmat pe baza motorului extern");
+  assert.equal(result.verdict, "risky-file", "ramane la verdictul de tip de fisier, nu escaladeaza si nu coboara");
+});
+
+test("un fisier altfel sigur descarcat doar partial devine uncertain, nu safe (audit, #7)", async () => {
+  const big = Buffer.alloc(1048576, 0x20);
+  const inspector = createThreatInspectionService({
+    httpReq: async () => ({
+      data: big,
+      headers: { "content-type": "text/plain", "content-range": "bytes 0-1048575/4000000" },
+      status: 206
+    })
+  });
+  const result = await inspector.inspectMessage("https://example.test/large.txt", []);
+  assert.equal(result.verdict, "uncertain", "o resursa peste limita de inspectie nu poate fi declarata sigura");
+  assert.match(result.reason, /doar primul fragment/);
+});
+
+test("verdict extern periculos pe obiectul complet ramane confirmed (audit, #7)", async () => {
+  const inspector = createThreatInspectionService({
+    httpReq: async () => ({
+      data: Buffer.from([0x4d, 0x5a, 0x90, 0x00]),
+      headers: { "content-type": "application/octet-stream", "content-length": "4" },
+      status: 200
+    }),
+    reputationScan: async () => "malware"
+  });
+  const result = await inspector.inspectMessage("", [{ id: "a", name: "installer", url: "https://cdn.example.test/small" }]);
+  assert.equal(result.verdict, "confirmed", "un obiect complet confirmat de motorul extern ramane confirmed");
 });

@@ -40,9 +40,46 @@ export interface ReputationScanInput {
   mime: string;
   buffer: Buffer | null;
   kind: "executable" | "archive" | "document" | "script" | "other";
+  complete: boolean;
+  totalLength?: number | null;
 }
 
 export type ReputationScan = (input: ReputationScanInput) => Promise<ReputationVerdict>;
+
+const LOCAL_INSPECTION_MAX_BYTES = 1_048_576;
+
+function completenessHeader(headers: Record<string, unknown> | undefined, name: string): string | null {
+  if (!headers) return null;
+  const target = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() !== target) continue;
+    if (Array.isArray(value)) return typeof value[0] === "string" ? value[0] : null;
+    return typeof value === "string" ? value : typeof value === "number" ? String(value) : null;
+  }
+  return null;
+}
+
+export function describeResponseCompleteness(
+  status: number | undefined,
+  headers: Record<string, unknown> | undefined,
+  receivedBytes: number,
+  requestedMaxBytes: number
+): { complete: boolean; totalLength: number | null } {
+  let total: number | null = null;
+  const contentRange = completenessHeader(headers, "content-range");
+  if (contentRange) {
+    const match = /\/\s*(\d+)\s*$/.exec(contentRange.trim());
+    if (match) total = Number(match[1]);
+  }
+  if (total === null && status !== 206) {
+    const contentLength = completenessHeader(headers, "content-length");
+    if (contentLength && /^\d+$/.test(contentLength.trim())) total = Number(contentLength.trim());
+  }
+  if (total !== null) return { complete: receivedBytes >= total, totalLength: total };
+  if (status === 206) return { complete: false, totalLength: null };
+  if (receivedBytes >= requestedMaxBytes) return { complete: false, totalLength: null };
+  return { complete: true, totalLength: null };
+}
 
 export interface ThreatInspectionDeps {
   httpReq?: HttpRequest;
@@ -194,7 +231,7 @@ async function mapWithConcurrency<T, R>(items: readonly T[], limit: number, work
   return results;
 }
 
-type ScanCandidate = { url?: string; mime: string; buffer: Buffer | null; kind: ResourceKind };
+type ScanCandidate = { url?: string; mime: string; buffer: Buffer | null; kind: ResourceKind; complete: boolean; totalLength: number | null };
 type ClassifiedResource = { base: ThreatInspectionResult; scan: ScanCandidate | null };
 type ResourceRef = { type: "url"; url: string } | { type: "attachment"; attachment: DirectAttachment };
 
@@ -214,6 +251,11 @@ export function createThreatInspectionService(deps: ThreatInspectionDeps) {
     try {
       const verdict = await deps.reputationScan(input);
       if (["malware", "phishing", "fraud", "data-theft", "exploit"].includes(verdict)) {
+        if (!input.complete) {
+          return base.verdict === "safe"
+            ? { verdict: "uncertain", reason: "motorul extern a semnalat continut periculos, dar numai fragmentul descarcat a fost analizat; obiectul complet nu poate fi confirmat local", source: base.source }
+            : base;
+        }
         const label: Record<Exclude<ReputationVerdict, "clean" | "unknown">, string> = {
           malware: "malware",
           phishing: "phishing",
@@ -235,14 +277,18 @@ export function createThreatInspectionService(deps: ThreatInspectionDeps) {
       const response = await deps.httpReq("GET", url, {
         timeout: 8000,
         responseType: "arraybuffer",
-        maxContentLength: 1_048_576,
-        maxBodyLength: 1_048_576,
-        headers: { Range: "bytes=0-1048575" }
+        maxContentLength: LOCAL_INSPECTION_MAX_BYTES,
+        maxBodyLength: LOCAL_INSPECTION_MAX_BYTES,
+        headers: { Range: `bytes=0-${LOCAL_INSPECTION_MAX_BYTES - 1}` }
       }, 0);
       const mime = contentType(response.headers);
       const buffer = toBuffer(response.data);
+      const { complete, totalLength } = describeResponseCompleteness(response.status, response.headers, buffer?.length ?? 0, LOCAL_INSPECTION_MAX_BYTES);
       const { kind, ...result } = classifyResource(mime, buffer);
-      return { base: { ...result, source: "link" }, scan: { url, mime, buffer, kind } };
+      const base: ThreatInspectionResult = !complete && result.verdict === "safe"
+        ? { verdict: "uncertain", reason: "resursa depaseste limita locala de inspectie; a fost verificat doar primul fragment", source: "link" }
+        : { ...result, source: "link" };
+      return { base, scan: { url, mime, buffer, kind, complete, totalLength } };
     } catch {
       return { base: { verdict: "uncertain", reason: "resursa externa nu a putut fi inspectata in siguranta", source: "link" }, scan: null };
     }
@@ -251,7 +297,7 @@ export function createThreatInspectionService(deps: ThreatInspectionDeps) {
   async function classifyAttachment(attachment: DirectAttachment): Promise<ClassifiedResource> {
     const declaredMime = normalizeMime(attachment.contentType);
     const { kind: declaredKind, ...declaredResult } = classifyResource(declaredMime, null);
-    const declaredScan: ScanCandidate = { url: attachment.url, mime: declaredMime, buffer: null, kind: declaredKind };
+    const declaredScan: ScanCandidate = { url: attachment.url, mime: declaredMime, buffer: null, kind: declaredKind, complete: false, totalLength: null };
     if (!attachment.url || !deps.httpReq) {
       const base: ThreatInspectionResult = declaredResult.verdict === "safe"
         ? { verdict: "uncertain", reason: "atasamentul nu a putut fi descarcat pentru verificarea continutului", source: "attachment" }
