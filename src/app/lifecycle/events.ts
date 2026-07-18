@@ -53,6 +53,15 @@ interface RegisterDiscordEventsDeps {
     cleanupExpired(): Promise<void>;
     handleGuildMemberRemove(member: LifecycleDiscordGuildMember): Promise<void>;
   };
+  serverEventLogRuntime?: {
+    handleChannelCreate(channel: LifecycleDiscordDeletedChannel): Promise<void>;
+    handleChannelDelete(channel: LifecycleDiscordDeletedChannel): Promise<void>;
+    handleRoleCreate(role: LifecycleDiscordRole): Promise<void>;
+    handleRoleDelete(role: LifecycleDiscordRole): Promise<void>;
+    handleGuildBanAdd(ban: LifecycleDiscordGuildMember): Promise<void>;
+    handleGuildBanRemove(ban: LifecycleDiscordGuildMember): Promise<void>;
+    handleGuildMemberRemove(member: LifecycleDiscordGuildMember): Promise<void>;
+  };
 }
 
 interface MongoConnectionLike {
@@ -84,7 +93,7 @@ async function replyInteractionError(inter: LifecycleDiscordInteraction): Promis
 function registerDiscordEvents({
   client, logger, commands, metrics, env, adminAlert, requestContext,
   games, crypto, errorMessage, errorDetail, startHousekeeping, scheduleNextCron, startOutboxWorker, role, securityRuntime,
-  permissionDelegationRuntime, moderationLifecycleRuntime
+  permissionDelegationRuntime, moderationLifecycleRuntime, serverEventLogRuntime
 }: RegisterDiscordEventsDeps): void {
   const effectiveRole = role ?? "all";
   const runsSchedulers = roleRunsSchedulers(effectiveRole);
@@ -216,6 +225,18 @@ function registerDiscordEvents({
           adminAlert("moderation:member-cleanup", "Curatarea sanctiunilor membrului a esuat", errorMessage(err), member.guild?.id).catch(() => null);
         });
       });
+    }
+    if (serverEventLogRuntime) {
+      const logServerEvent = (event: string, promise: Promise<void>): void => {
+        promise.catch(err => logger("ERROR", "SERVER_EVENT_LOG", `Inregistrarea evenimentului ${event} a esuat`, errorDetail(err)));
+      };
+      client.on("channelCreate", (channel: LifecycleDiscordDeletedChannel) => logServerEvent("channel-create", serverEventLogRuntime.handleChannelCreate(channel)));
+      client.on("channelDelete", (channel: LifecycleDiscordDeletedChannel) => logServerEvent("channel-delete", serverEventLogRuntime.handleChannelDelete(channel)));
+      client.on("roleCreate", (role: LifecycleDiscordRole) => logServerEvent("role-create", serverEventLogRuntime.handleRoleCreate(role)));
+      client.on("roleDelete", (role: LifecycleDiscordRole) => logServerEvent("role-delete", serverEventLogRuntime.handleRoleDelete(role)));
+      client.on("guildBanAdd", (ban: LifecycleDiscordGuildMember) => logServerEvent("ban-add", serverEventLogRuntime.handleGuildBanAdd(ban)));
+      client.on("guildBanRemove", (ban: LifecycleDiscordGuildMember) => logServerEvent("ban-remove", serverEventLogRuntime.handleGuildBanRemove(ban)));
+      client.on("guildMemberRemove", (member: LifecycleDiscordGuildMember) => logServerEvent("member-remove", serverEventLogRuntime.handleGuildMemberRemove(member)));
     }
   }
 
