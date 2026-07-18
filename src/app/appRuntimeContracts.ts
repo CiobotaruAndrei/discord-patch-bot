@@ -32,6 +32,7 @@ import type { ModerationGuildModel } from "../features/moderation/moderationRepo
 export interface CommandRuntime {
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
   checkForDiscounts(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
+  checkForDlcs?(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
   checkForYouTube(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
   cleanCache(): void;
   drainOutbox(client: OutboxDiscordClient, shouldAbort?: () => boolean): Promise<OutboxDrainResult> | OutboxDrainResult;

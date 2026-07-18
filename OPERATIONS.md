@@ -215,6 +215,14 @@ Diagnostic recomandat:
 
 Un canal Discord principal sters sau devenit permanent inaccesibil dezactiveaza notificarile YouTube pentru guild. O ruta speciala invalida este eliminata fara sa dezactiveze celelalte destinatii. Daca un canal YouTube nu mai are rute speciale, livrarea revine la canalul principal.
 
+## Operare notificari DLC (`checkForDlcs`)
+
+Motorul DLC (`checkForDlcs`) ruleaza in ciclul cron pe aceeasi lista globala de jocuri ca `checkForUpdates`. Per ciclu, pentru fiecare joc cu `appId`, botul citeste o singura data pagina de magazin Steam (moneda implicita a instantei) prin `fetchGameDlcs`, cu o concurenta mica de preluare; un joc cu status `age-gate`, `parse-error` sau `unavailable` este sarit, restul continua. Fiecare guild abonat (`dlcSubscribed`, cu `dlcChannelId` valid si care nu este in curs de initializare) primeste apoi notificari doar pentru DLC-urile care ii sunt inca nevazute.
+
+Deduplicarea este atomica in colectia `guildSeenDlc`, pe combinatia server + `gameKey` + `dlcKey`. `dlcKey` este `appId`-ul numeric al DLC-ului cand exista, altfel o cheie stabila derivata din nume, astfel incat un DLC fara appId sa nu fie renotificat la fiecare ciclu. Un DLC este revendicat inainte de trimitere; daca trimiterea esueaza tranzitoriu, revendicarea este anulata (rollback) ca ciclul urmator sa reincerce, iar un cod permanent Discord opreste notificarile DLC pentru guild si seteaza `dlcLastError`.
+
+La `/start dlc`, `seedBaselineDlc` preia catalogul curent de DLC-uri pentru toate jocurile si il marcheaza ca vazut fara sa trimita notificari, ca activarea sa nu genereze backlog. Motorul trimite cel mult `MAX_DLCS_PER_CYCLE` DLC-uri noi per guild per ciclu.
+
 ## Jurnal de operatii (crash-recovery, `operationJournal`)
 
 Operatiile care ating mai multe documente/colectii (ex. `/reset-config`: reset configuratie + audit +

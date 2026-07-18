@@ -54,8 +54,10 @@ export interface SeenRepository {
   loadSeenDiscountHashes(guildId: string, candidateHashes?: string[]): Promise<string[]>;
   disableDiscountsForChannelError(guildId: string, channelId: string, message: string): Promise<MongoWriteResult>;
   claimSeenDlc(guildId: string, channelId: string, gameKey: string, dlcKey: string): Promise<MongoWriteResult>;
+  rollbackSeenDlc(guildId: string, gameKey: string, dlcKey: string): Promise<MongoWriteResult>;
   seedSeenDlcs(guildId: string, entries: Array<{ gameKey: string; dlcKey: string }>): Promise<void>;
   loadSeenDlcKeys(guildId: string, gameKey?: string): Promise<string[]>;
+  disableDlcForChannelError(guildId: string, channelId: string, message: string): Promise<MongoWriteResult>;
   setSeenHashVersion(guildId: string, field: "seenHashVersionUpdates" | "seenHashVersionDiscounts", version: number): Promise<MongoWriteResult>;
   rollbackTriggeredAlert(guildId: string, alert: PriceAlertRule): Promise<MongoWriteResult>;
 }
@@ -243,6 +245,37 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
     return docs.map(doc => String(doc.dlcKey || "")).filter(Boolean);
   }
 
+  async function rollbackSeenDlc(guildId: string, gameKey: string, dlcKey: string): Promise<MongoWriteResult> {
+    if (!deps.GuildSeenDlcModel) return { matchedCount: 0 };
+    const res = await withMongoRetry(
+      () => deps.GuildSeenDlcModel!.deleteOne({ guildId, gameKey, dlcKey }),
+      { label: "rollbackSeenDlc" }
+    );
+    return { matchedCount: res.deletedCount ?? 0 };
+  }
+
+  async function disableDlcForChannelError(guildId: string, channelId: string, message: string): Promise<MongoWriteResult> {
+    const result = await GuildModel.updateOne(
+      { _id: guildId },
+      {
+        $set: {
+          dlcSubscribed: false,
+          dlcChannelId: null,
+          dlcInitializing: false,
+          dlcLastError: { message, channelId, at: new Date() }
+        }
+      },
+      OP_UPDATE_OPTS
+    );
+    deps.adminAlert?.(
+      "discord:dlc-channel-disabled",
+      "Notificarile DLC au fost oprite automat",
+      `Canal: ${channelId}\nMotiv: ${message}`,
+      guildId
+    ).catch(() => undefined);
+    return result;
+  }
+
   async function setSeenHashVersion(guildId: string, field: "seenHashVersionUpdates" | "seenHashVersionDiscounts", version: number): Promise<MongoWriteResult> {
     return withMongoRetry(
       () => GuildModel.updateOne({ _id: guildId }, { $set: { [field]: version } }, OP_UPDATE_OPTS),
@@ -272,8 +305,10 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
     loadSeenDiscountHashes,
     disableDiscountsForChannelError,
     claimSeenDlc,
+    rollbackSeenDlc,
     seedSeenDlcs,
     loadSeenDlcKeys,
+    disableDlcForChannelError,
     setSeenHashVersion,
     rollbackTriggeredAlert
   };

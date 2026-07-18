@@ -1,5 +1,6 @@
 "use strict";
 
+import type { GameConfig } from "../../types.js";
 import type { DiscordChannel, SubscriptionFamily, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts.js";
 import { createSubscriptionService } from "../notifications/subscriptionService.js";
 
@@ -7,10 +8,10 @@ export function createDlcSubscriptionFamily(deps: SubscriptionInteractionDeps): 
   const { safeEdit, formatUserError } = deps;
   const service = createSubscriptionService(deps);
 
-  async function start(interaction: SubscriptionInteraction, guildId: string, channel: DiscordChannel) {
+  async function start(interaction: SubscriptionInteraction, guildId: string, channel: DiscordChannel, games: GameConfig[]) {
     try {
       const outcome = await service.startDlc(guildId, channel.id, async () => {
-        if (deps.seedBaselineDlc) await deps.seedBaselineDlc(guildId);
+        if (deps.seedBaselineDlc) await deps.seedBaselineDlc(guildId, games);
       });
       if (outcome.status === "superseded") {
         return safeEdit(interaction, "Activarea DLC a fost intrerupta de o comanda stop/start mai noua. Ruleaza din nou /start dlc daca mai vrei activarea.");

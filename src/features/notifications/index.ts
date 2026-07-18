@@ -13,6 +13,7 @@ import { createOutboxServices, createIsStillSubscribed, outboxSubscriptionFilter
 import { createSeenServices } from "./seenRuntimeFactory.js";
 import { createUpdateNotificationRuntime } from "./updateNotificationRuntime.js";
 import { createDiscountNotificationRuntime } from "./discountNotificationRuntime.js";
+import { createDlcNotificationRuntime } from "./dlcNotificationRuntime.js";
 import { createYouTubeNotificationRuntime } from "./youtubeNotificationRuntime.js";
 
 function createNotificationDispatchServices(
@@ -22,12 +23,14 @@ function createNotificationDispatchServices(
 ) {
   const updateService = createUpdateNotificationRuntime(deps, resolveOutboundChannel, seenRepository);
   const { discountService, priceAlertService } = createDiscountNotificationRuntime(deps, resolveOutboundChannel, seenRepository);
+  const { dlcService } = createDlcNotificationRuntime(deps, resolveOutboundChannel, seenRepository);
   const { youtubeSource, youtubeRepository, youtubeService } = createYouTubeNotificationRuntime(deps, resolveOutboundChannel);
 
   return {
     updateService,
     discountService,
     priceAlertService,
+    dlcService,
     youtubeSource,
     youtubeRepository,
     youtubeService
@@ -41,13 +44,15 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     updateService,
     discountService,
     priceAlertService,
+    dlcService,
     youtubeSource,
     youtubeRepository,
     youtubeService
   } = createNotificationDispatchServices(deps, resolveOutboundChannel, seenRepository);
   const {
     claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, disableUpdatesForChannelError,
-    claimSeenDiscount, rollbackSeenDiscount, seedSeenDiscounts, disableDiscountsForChannelError
+    claimSeenDiscount, rollbackSeenDiscount, seedSeenDiscounts, disableDiscountsForChannelError,
+    claimSeenDlc, rollbackSeenDlc, seedSeenDlcs, loadSeenDlcKeys, disableDlcForChannelError
   } = seenRepository;
 
   return {
@@ -69,6 +74,14 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     processGuildDiscounts: discountService.processGuildDiscounts,
     processGuildPriceAlerts: priceAlertService.processGuildPriceAlerts,
     checkForDiscounts: discountService.checkForDiscounts,
+    claimSeenDlc,
+    rollbackSeenDlc,
+    seedSeenDlcs,
+    loadSeenDlcKeys,
+    disableDlcForChannelError,
+    processGuildDlcs: dlcService.processGuildDlcs,
+    checkForDlcs: dlcService.checkForDlcs,
+    seedBaselineDlc: dlcService.seedBaselineDlc,
     resolveYouTubeChannel: youtubeSource.resolveYouTubeChannel,
     fetchYouTubeFeed: youtubeSource.fetchYouTubeFeed,
     fetchYouTubeVideoMetadata: youtubeSource.fetchYouTubeVideoMetadata,
