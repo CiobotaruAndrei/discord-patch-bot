@@ -137,6 +137,17 @@ export async function createBotAddRequest(
   }
 }
 
+export async function cancelUndeliveredBotAddRequest(
+  model: GuildModelLike,
+  guildId: string,
+  requestId: string
+): Promise<void> {
+  await model.updateOne(
+    { _id: guildId },
+    { $pull: { botAddPermissions: { requestId, status: "pending" } } }
+  );
+}
+
 export async function resolveBotAddRequest(
   model: GuildModelLike,
   guildId: string,
@@ -276,4 +287,4 @@ export async function stopBotAddProtectionAtomically(model: BotAddCancelModelLik
   );
 }
 
-export default { getBotAddState, createBotAddRequest, resolveBotAddRequest, consumeBotAddPermission, countActiveBotAddPermissions, stopBotAddProtectionAtomically };
+export default { getBotAddState, createBotAddRequest, cancelUndeliveredBotAddRequest, resolveBotAddRequest, consumeBotAddPermission, countActiveBotAddPermissions, stopBotAddProtectionAtomically };

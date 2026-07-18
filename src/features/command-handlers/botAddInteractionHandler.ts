@@ -113,17 +113,25 @@ export function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
     if (!settings?.botAddProtectionEnabled) return interaction.reply({ content: "Protectia bot-add nu este activa.", ephemeral: true });
     const botId = interaction.options?.getString("bot-id", true)?.trim() ?? "";
     if (!validBotId(botId)) return interaction.reply({ content: "ID-ul botului trebuie sa contina 17-20 cifre.", ephemeral: true });
-    const record = await botAddRepository.createBotAddRequest(deps.GuildModel, guild.id, {
-      requestId: requestId(), botId, requesterId: interaction.user.id, requestedAt: new Date()
-    });
     const alertChannel = settings.botAddAlertChannelId && guild.channels?.fetch ? await guild.channels.fetch(settings.botAddAlertChannelId).catch(() => null) : null;
     if (!alertChannel?.send) return interaction.reply({ content: "Canalul de aprobare bot-add nu este disponibil.", ephemeral: true });
-    const ownerId = guild.ownerId;
-    await alertChannel.send({
-      content: `${ownerId ? `<@${ownerId}> ` : ""}Solicitare aprobare bot nou: ${display(record)}.`,
-      components: buttons(record.requestId),
-      allowedMentions: ownerId ? { parse: [], users: [ownerId] } : { parse: [] }
+    const newRequestId = requestId();
+    const record = await botAddRepository.createBotAddRequest(deps.GuildModel, guild.id, {
+      requestId: newRequestId, botId, requesterId: interaction.user.id, requestedAt: new Date()
     });
+    const ownerId = guild.ownerId;
+    try {
+      await alertChannel.send({
+        content: `${ownerId ? `<@${ownerId}> ` : ""}Solicitare aprobare bot nou: ${display(record)}.`,
+        components: buttons(record.requestId),
+        allowedMentions: ownerId ? { parse: [], users: [ownerId] } : { parse: [] }
+      });
+    } catch {
+      if (record.requestId === newRequestId) {
+        await botAddRepository.cancelUndeliveredBotAddRequest(deps.GuildModel, guild.id, newRequestId).catch(() => undefined);
+      }
+      return interaction.reply({ content: "Nu am putut livra mesajul de aprobare; solicitarea a fost anulata. Reincearca.", ephemeral: true });
+    }
     return interaction.reply({ content: "Solicitarea a fost trimisa proprietarului serverului.", ephemeral: true });
   }
   return { canHandle: (interaction: unknown): interaction is Interaction => isBotAddInteraction(interaction as Interaction), handle };

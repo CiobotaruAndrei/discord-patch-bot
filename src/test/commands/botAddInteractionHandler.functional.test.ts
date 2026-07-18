@@ -104,3 +104,58 @@ test("o solicitare anulata la oprirea protectiei nu mai poate fi aprobata", asyn
   assert.match(updates[0].content ?? "", /anulata la oprirea protectiei/);
   assert.deepEqual(updates[0].components, []);
 });
+
+test("bot-add request: canal de aprobare indisponibil => NU se persista solicitarea (fara orfan) (audit, #9)", async () => {
+  let createCalls = 0;
+  const replies: Array<{ content?: string }> = [];
+  const handler = buildCommandHandler({
+    GuildModel: {
+      updateOne: async () => ({}),
+      findOne: async () => ({ botAddPermissions: [] }),
+      findOneAndUpdate: async () => { createCalls++; return { botAddPermissions: [] }; }
+    },
+    getGuildSettings: async () => ({ botAddProtectionEnabled: true, botAddAlertChannelId: "chan" })
+  });
+  const interaction = {
+    isButton: () => false,
+    isChatInputCommand: () => true,
+    commandName: "bot-add-request",
+    options: { getString: () => "222222222222222222" },
+    guild: { id: "guild-1", ownerId: "owner-1", channels: { fetch: async () => null }, members: { fetch: async () => null } },
+    user: { id: "user-1" },
+    reply: async (payload: unknown) => { replies.push(payload as { content?: string }); return payload; }
+  };
+  await handler.handle(interaction, []);
+  assert.equal(createCalls, 0, "validarea canalului e inainte de persistenta; nu se creeaza record");
+  assert.match(replies[0]?.content ?? "", /nu este disponibil/);
+});
+
+test("bot-add request: send-ul mesajului de aprobare esueaza => solicitarea nou-creata e anulata (pull), nu ramane activa (audit, #9)", async () => {
+  const updateCalls: Array<Record<string, unknown>> = [];
+  const replies: Array<{ content?: string }> = [];
+  const handler = buildCommandHandler({
+    GuildModel: {
+      updateOne: async (_filter: Record<string, unknown>, update: Record<string, unknown>) => { updateCalls.push(update); return {}; },
+      findOne: async () => ({ botAddPermissions: [] }),
+      findOneAndUpdate: async () => ({ botAddPermissions: [] })
+    },
+    getGuildSettings: async () => ({ botAddProtectionEnabled: true, botAddAlertChannelId: "chan" })
+  });
+  const interaction = {
+    isButton: () => false,
+    isChatInputCommand: () => true,
+    commandName: "bot-add-request",
+    options: { getString: () => "222222222222222222" },
+    guild: {
+      id: "guild-1",
+      ownerId: "owner-1",
+      channels: { fetch: async () => ({ send: async () => { throw new Error("missing permissions"); } }) },
+      members: { fetch: async () => null }
+    },
+    user: { id: "user-1" },
+    reply: async (payload: unknown) => { replies.push(payload as { content?: string }); return payload; }
+  };
+  await handler.handle(interaction, []);
+  assert.ok(updateCalls.some(update => Object.prototype.hasOwnProperty.call(update, "$pull")), "solicitarea nelivrata e eliminata (pull) ca sa nu ramana orfana");
+  assert.match(replies[0]?.content ?? "", /anulata/);
+});
