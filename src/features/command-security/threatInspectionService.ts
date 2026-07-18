@@ -1,6 +1,7 @@
 "use strict";
 
 import type { DirectAttachment } from "../moderation/moderationInputPolicy.js";
+import { inspectArchivePassively } from "./passiveArchiveInspection.js";
 
 export type ThreatVerdict = "safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed";
 
@@ -32,7 +33,7 @@ type HttpRequest = (
   retries?: number
 ) => Promise<HttpResponse>;
 
-export type ReputationVerdict = "malware" | "clean" | "unknown";
+export type ReputationVerdict = "malware" | "phishing" | "fraud" | "data-theft" | "exploit" | "clean" | "unknown";
 
 export interface ReputationScanInput {
   url?: string;
@@ -116,11 +117,6 @@ function magicKind(buffer: Buffer): "executable" | "archive" | "document" | "scr
 
 type ResourceKind = "executable" | "archive" | "document" | "script" | "other";
 
-function isEncryptedZip(buffer: Buffer): boolean {
-  if (buffer.length < 8 || buffer.subarray(0, 4).toString("binary") !== "PK") return false;
-  return (buffer.readUInt16LE(6) & 0x0001) === 0x0001;
-}
-
 function passiveDocumentIndicators(buffer: Buffer): string[] {
   const window = buffer.subarray(0, Math.min(buffer.length, 1_048_576));
   const ascii = window.toString("latin1");
@@ -144,8 +140,15 @@ function classifyResource(mime: string, buffer: Buffer | null): ThreatInspection
   }
   if (ARCHIVE_MIME.has(mime) || DOCUMENT_MIME.has(mime) || magic === "document" || magic === "archive") {
     const kind: ResourceKind = magic === "other" ? (ARCHIVE_MIME.has(mime) ? "archive" : "document") : magic;
-    if (buffer && kind === "archive" && isEncryptedZip(buffer)) {
-      return { verdict: "uncertain", reason: "arhiva criptata - continutul nu poate fi inspectat pasiv, ramane unknown (nu se declara periculoasa automat)", source: "attachment", kind };
+    if (buffer && kind === "archive") {
+      const archive = inspectArchivePassively(buffer);
+      const details = archive.indicators.length > 0 ? `; ${archive.indicators.join(" si ")}` : "";
+      return {
+        verdict: archive.indicators.some(indicator => /executabil|script/i.test(indicator)) ? "risky-file" : "uncertain",
+        reason: `${archive.reason}${details}; confirmarea externa ramane obligatorie inainte de orice actiune`,
+        source: "attachment",
+        kind
+      };
     }
     const indicators = buffer ? passiveDocumentIndicators(buffer) : [];
     if (indicators.length > 0) {
@@ -195,6 +198,14 @@ type ScanCandidate = { url?: string; mime: string; buffer: Buffer | null; kind: 
 type ClassifiedResource = { base: ThreatInspectionResult; scan: ScanCandidate | null };
 type ResourceRef = { type: "url"; url: string } | { type: "attachment"; attachment: DirectAttachment };
 
+function attachmentPriority(attachment: DirectAttachment): number {
+  const mime = normalizeMime(attachment.contentType);
+  if (EXECUTABLE_MIME.has(mime)) return 0;
+  if (ARCHIVE_MIME.has(mime)) return 1;
+  if (DOCUMENT_MIME.has(mime)) return 2;
+  return 3;
+}
+
 export function createThreatInspectionService(deps: ThreatInspectionDeps) {
   const maxResources = Math.max(1, deps.maxResources ?? 8);
 
@@ -202,8 +213,15 @@ export function createThreatInspectionService(deps: ThreatInspectionDeps) {
     if (!deps.reputationScan) return base;
     try {
       const verdict = await deps.reputationScan(input);
-      if (verdict === "malware") {
-        return { verdict: "confirmed", reason: "malware confirmat de motorul extern de reputatie/antivirus", source: base.source };
+      if (["malware", "phishing", "fraud", "data-theft", "exploit"].includes(verdict)) {
+        const label: Record<Exclude<ReputationVerdict, "clean" | "unknown">, string> = {
+          malware: "malware",
+          phishing: "phishing",
+          fraud: "frauda",
+          "data-theft": "furt de date",
+          exploit: "exploit"
+        };
+        return { verdict: "confirmed", reason: `${label[verdict as keyof typeof label]} confirmat de motorul extern de reputatie`, source: base.source };
       }
     } catch {
       return base;
@@ -254,15 +272,18 @@ export function createThreatInspectionService(deps: ThreatInspectionDeps) {
   async function inspectMessage(content: string, attachments: readonly DirectAttachment[]): Promise<ThreatInspectionResult> {
     const seenUrls = new Set<string>();
     const refs: ResourceRef[] = [];
+    const prioritizedAttachments = attachments
+      .map((attachment, index) => ({ attachment, index }))
+      .sort((left, right) => attachmentPriority(left.attachment) - attachmentPriority(right.attachment) || left.index - right.index);
+    for (const { attachment } of prioritizedAttachments) {
+      if (attachment.url && seenUrls.has(attachment.url)) continue;
+      if (attachment.url) seenUrls.add(attachment.url);
+      refs.push({ type: "attachment", attachment });
+    }
     for (const url of extractUrls(content)) {
       if (seenUrls.has(url)) continue;
       seenUrls.add(url);
       refs.push({ type: "url", url });
-    }
-    for (const attachment of attachments) {
-      if (attachment.url && seenUrls.has(attachment.url)) continue;
-      if (attachment.url) seenUrls.add(attachment.url);
-      refs.push({ type: "attachment", attachment });
     }
 
     const capped = refs.slice(0, maxResources);

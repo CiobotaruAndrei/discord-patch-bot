@@ -2,6 +2,7 @@
 
 import type { SteamReviewData } from "../../types.js";
 import type { SteamAppDetailsSummary } from "../../sources/sourceApis.js";
+import type { ReviewTrendAnalysis } from "../game-info/reviewTrendAnalysis.js";
 import {
   INFO_COLOR,
   WARNING_COLOR,
@@ -10,7 +11,13 @@ import {
   type DiscordEmbed
 } from "./gameInfoEmbedPrimitives.js";
 
-export function buildReviewTrendEmbed(query: string, appId: string | number, details: SteamAppDetailsSummary, review: SteamReviewData): DiscordEmbed {
+export function buildReviewTrendEmbed(
+  query: string,
+  appId: string | number,
+  details: SteamAppDetailsSummary,
+  review: SteamReviewData,
+  analysis: ReviewTrendAnalysis | null = null
+): DiscordEmbed {
   if (!review.success) {
     return {
       title: `Review trend: ${details.name || query}`,
@@ -21,15 +28,22 @@ export function buildReviewTrendEmbed(query: string, appId: string | number, det
   }
   const quality = review.qualityPercent;
   const label = quality >= 85 ? "foarte pozitiv" : quality >= 70 ? "pozitiv" : quality >= 50 ? "mixt" : "negativ";
-  const trend = quality >= 70 ? "stabil pozitiv in snapshot-ul Steam curent" : quality >= 50 ? "zona mixta, merita verificat manual" : "semnal negativ puternic in snapshot-ul Steam curent";
+  const historical = analysis
+    ? `${analysis.direction === "improving" ? "crestere" : analysis.direction === "declining" ? "scadere" : "stabil"}; ${analysis.qualityDelta >= 0 ? "+" : ""}${analysis.qualityDelta}% si ${analysis.newReviews} review-uri noi in ${analysis.windowDays ?? "?"} zile`
+    : "Istoric insuficient: sunt necesare snapshot-uri valide din doua ferestre temporale.";
+  const bombing = analysis?.possibleReviewBombing
+    ? `${analysis.note} Incredere ${analysis.confidence}.`
+    : analysis
+      ? `Nu exista un semnal suficient de puternic pentru review-bombing. Incredere ${analysis.confidence}.`
+      : "Semnalul de review-bombing nu poate fi evaluat inca.";
   return {
     title: `Review trend: ${details.name || query}`,
     url: `https://store.steampowered.com/app/${appId}`,
     color: INFO_COLOR,
     fields: [
-      { name: "Rezumat", value: `${quality}% pozitiv din ${review.totalReviews} review-uri`, inline: false },
-      { name: "Interpretare", value: `${label}; ${trend}.`, inline: false },
-      { name: "Nota", value: "Botul foloseste datele Steam curente. Trend istoric real cere stocare pe timp si va trebui adaugat separat.", inline: false }
+      { name: "Stare curenta", value: `${quality}% pozitiv din ${review.totalReviews} review-uri (${label}).`, inline: false },
+      { name: "Schimbare istorica", value: historical, inline: false },
+      { name: "Semnal prudent", value: bombing, inline: false }
     ]
   };
 }

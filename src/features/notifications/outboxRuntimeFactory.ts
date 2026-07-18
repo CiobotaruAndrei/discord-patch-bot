@@ -20,7 +20,7 @@ import { createDefaultDiscordSendLimiter } from "./discordRateLimiter.js";
 export const OUTBOX_MAX_ATTEMPTS = 5;
 export const OUTBOX_BACKOFF_MS = 60_000;
 
-export interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount" | "youtube"; payload: unknown; attempts?: number; deliveries?: number; dedupeKey?: string; recoveryVerify?: boolean; manual?: boolean; history?: OutboxHistoryEntry[]; }
+export interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount" | "youtube" | "future-release"; payload: unknown; attempts?: number; deliveries?: number; dedupeKey?: string; recoveryVerify?: boolean; manual?: boolean; history?: OutboxHistoryEntry[]; }
 
 export function outboxSubscriptionFilter(job: OutboxJobShape): Record<string, unknown> {
   if (job.kind === "discount") return { _id: job.guildId, discountsSubscribed: true, discountChannelId: job.channelId };
@@ -33,6 +33,9 @@ export function outboxSubscriptionFilter(job: OutboxJobShape): Record<string, un
         { "youtubeChannelRoutes.discordChannelIds": job.channelId }
       ]
     };
+  }
+  if (job.kind === "future-release") {
+    return { _id: job.guildId, futureReleaseSubscribed: true, futureReleaseChannelId: job.channelId };
   }
   return { _id: job.guildId, subscribed: true, notificationChannelId: job.channelId };
 }

@@ -30,6 +30,7 @@ export const SOURCE_POLICIES = {
   "steam-search": policy({ contentBudget: "json-large", failMode: "fail-closed" }),
   "steam-appdetails": policy({ contentBudget: "json-large", failMode: "fail-closed" }),
   "steam-players": policy({ contentBudget: "json-large", failMode: "fail-closed" }),
+  "steam-news": policy({ contentBudget: "json-large", failMode: "fail-open", timeoutMs: 8000 }),
   "steam-offer-end-html": policy({ contentBudget: "html", failMode: "fail-open" }),
   "steam-reviews": policy({ contentBudget: "json-large", failMode: "fail-open", retries: 3, retryDelayMs: 800 }),
   "steam-featured-deals": policy({ contentBudget: "json-large", failMode: "fail-open" }),

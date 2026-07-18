@@ -2,6 +2,11 @@
 
 import type { GameConfig, GuildSettings } from "../../types.js";
 import type { PlayerCountHistoryPoint, PlayerCountRecord, PlayerCountSnapshot } from "../player-count/playerCountSnapshotService.js";
+import {
+  calculatePlayerCountStats,
+  playerCountDirectionLabel,
+  type PlayerCountStats
+} from "../player-count/playerCountTimeAnalysis.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 import { errorDetail } from "../../shared/errors.js";
@@ -36,44 +41,10 @@ interface PlayerCountAnalyticsDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-export interface PlayerCountStats {
-  minimum: number;
-  maximum: number;
-  average: number;
-  latest: number;
-  peakAt: Date;
-  direction: "rising" | "falling" | "stable";
-}
-
-function average(values: readonly number[]): number {
-  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
-}
-
-export function calculatePlayerCountStats(points: readonly PlayerCountHistoryPoint[]): PlayerCountStats | null {
-  if (points.length < 2) return null;
-  const counts = points.map(point => point.playerCount);
-  const maximum = Math.max(...counts);
-  const peakPoint = points.find(point => point.playerCount === maximum) ?? points[0];
-  const mid = Math.floor(points.length / 2);
-  const firstAvg = average(counts.slice(0, mid));
-  const secondAvg = average(counts.slice(mid));
-  const delta = secondAvg - firstAvg;
-  const threshold = Math.max(1, firstAvg * 0.02);
-  const direction = delta > threshold ? "rising" : delta < -threshold ? "falling" : "stable";
-  return {
-    minimum: Math.min(...counts),
-    maximum,
-    average: Math.round(average(counts)),
-    latest: counts.at(-1) ?? 0,
-    peakAt: new Date(peakPoint.fetchedAt),
-    direction
-  };
-}
+export { calculatePlayerCountStats } from "../player-count/playerCountTimeAnalysis.js";
 
 function directionLabel(direction: PlayerCountStats["direction"]): string {
-  if (direction === "rising") return "in crestere ↗";
-  if (direction === "falling") return "in scadere ↘";
-  return "stabil →";
+  return playerCountDirectionLabel(direction);
 }
 
 export function buildSparkline(values: readonly number[], width = 30): string {
@@ -122,8 +93,10 @@ function createPlayerCountAnalyticsHandler(deps: PlayerCountAnalyticsDeps) {
     const resolved = resolveGame(interaction, games, deps);
     if (!resolved.game) return deps.safeEdit(interaction, resolved.error);
     const period = String(interaction.options.getString("period", true) || "24h") as Period;
-    const points = await deps.readPlayerCountHistory([String(resolved.game.appId)], new Date(Date.now() - periodMs(period)));
-    const stats = calculatePlayerCountStats(points);
+    const to = new Date();
+    const from = new Date(to.getTime() - periodMs(period));
+    const points = await deps.readPlayerCountHistory([String(resolved.game.appId)], from);
+    const stats = calculatePlayerCountStats(points, { from, to });
     if (!stats) return deps.safeEdit(interaction, `Nu exista suficiente date pentru **${resolved.game.name}** in perioada ${period}.`);
     return deps.safeEdit(interaction, {
       embeds: [{

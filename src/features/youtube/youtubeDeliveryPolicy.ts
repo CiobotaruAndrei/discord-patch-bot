@@ -3,6 +3,7 @@ import type {
   YouTubeChannelSubscription,
   YouTubeVideo
 } from "../../types.js";
+import { validateUserText } from "../command-security/userTextPolicy.js";
 
 export const DEFAULT_YOUTUBE_MESSAGE_TEMPLATE = "Videoclip nou de la {channel}: {title}\n{url}";
 export const YOUTUBE_BATCH_SIZE = 5;
@@ -15,18 +16,19 @@ const TEMPLATE_VARIABLES = new Set(["channel", "title", "url"]);
 const CHANNEL_REFERENCE_PATTERN = /^<#!?(\d{5,30})>$|^(\d{5,30})$/;
 
 export function validateYouTubeMessageTemplate(template: string): string {
-  const normalized = template.trim();
-  if (!normalized) throw new Error("Sablonul YouTube nu poate fi gol.");
-  if (normalized.length > YOUTUBE_TEMPLATE_MAX_LENGTH) {
+  const trimmed = template.trim();
+  const validated = validateUserText("youtube.message-template", trimmed);
+  if (!validated) throw new Error("Sablonul YouTube nu poate fi gol.");
+  if (trimmed.length > YOUTUBE_TEMPLATE_MAX_LENGTH) {
     throw new Error(`Sablonul YouTube poate avea cel mult ${YOUTUBE_TEMPLATE_MAX_LENGTH} caractere.`);
   }
-  const placeholders = normalized.matchAll(/\{([^{}]+)\}/g);
+  const placeholders = trimmed.matchAll(/\{([^{}]+)\}/g);
   for (const match of placeholders) {
     if (!TEMPLATE_VARIABLES.has(match[1])) {
       throw new Error(`Variabila {${match[1]}} nu este acceptata. Foloseste {channel}, {title} sau {url}.`);
     }
   }
-  return normalized;
+  return trimmed;
 }
 
 export function renderYouTubeMessageTemplate(

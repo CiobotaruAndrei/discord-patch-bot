@@ -8,11 +8,8 @@ export interface DirectAttachment {
   size?: number;
 }
 
-const LINK_PATTERN = /(?:\b[a-z][a-z0-9+.-]*:\/\/|\bwww\.|\bdiscord(?:app)?\.com\/invite\/|\bdiscord\.gg\/|\b[a-z0-9-]+(?:\.[a-z0-9-]+)+\/?)/i;
-
-export function containsExternalLink(value: string): boolean {
-  return LINK_PATTERN.test(value);
-}
+import { containsExternalLink, validateUserText } from "../command-security/userTextPolicy.js";
+export { containsExternalLink };
 
 export function attachmentLabel(attachment: DirectAttachment | null | undefined): string {
   const name = attachment?.name?.trim();
@@ -21,9 +18,8 @@ export function attachmentLabel(attachment: DirectAttachment | null | undefined)
 
 export function validateModerationText(value: string | undefined): string | null {
   if (!value) return null;
-  const trimmed = value.trim();
+  const trimmed = validateUserText("moderation.reason", value);
   if (!trimmed) return null;
-  if (containsExternalLink(trimmed)) throw new Error("Motivul nu poate contine linkuri. Incarca fisierul direct ca atasament.");
   return trimmed;
 }
 

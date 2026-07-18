@@ -112,7 +112,8 @@ test("lock-channel restaureaza permisiunea Discord daca persistenta esueaza", as
         edits.push(permissions.SendMessages);
       }
     },
-    send: async () => undefined
+    send: async () => undefined,
+    permissionsFor: () => ({ has: () => true })
   };
   const handler = securityInteractionHandler.buildCommandHandler({
     GuildModel: {
@@ -133,7 +134,8 @@ test("lock-channel restaureaza permisiunea Discord daca persistenta esueaza", as
     commandName: "lock-channel",
     guild: {
       id: "guild-1",
-      roles: { everyone: { id: "everyone" } }
+      roles: { everyone: { id: "everyone" } },
+      members: { me: {}, fetch: async () => ({ values: () => [][Symbol.iterator]() }) }
     },
     user: { id: "admin-1" },
     options: {
@@ -249,7 +251,7 @@ test("/start bot-add-protection porneste cand botul are toate permisiunile si po
   assert.deepEqual(writes[0], { $set: { botAddProtectionEnabled: true } });
 });
 
-test("/stop bot-add-protection anuleaza solicitarile/aprobarile active neexpirate -> cancelled si raporteaza numarul (audit, #28)", async () => {
+test("/stop bot-add-protection dezactiveaza si anuleaza aprobarile active printr-un singur update atomic", async () => {
   const now = Date.now();
   const updates: Array<{ update: Record<string, unknown>; options?: Record<string, unknown> }> = [];
   const responses: string[] = [];
@@ -279,13 +281,36 @@ test("/stop bot-add-protection anuleaza solicitarile/aprobarile active neexpirat
 
   await handler.handle(interaction, []);
 
-  assert.deepEqual(updates[0].update, { $set: { botAddProtectionEnabled: false } }, "intai dezactiveaza protectia");
-  const cancelSet = (updates[1].update as { $set: Record<string, unknown> }).$set;
-  assert.equal(cancelSet["botAddPermissions.$[entry].status"], "cancelled", "aprobarile/solicitarile active devin cancelled");
-  const arrayFilters = (updates[1].options as { arrayFilters: Array<Record<string, unknown>> }).arrayFilters;
-  assert.deepEqual(arrayFilters[0]["entry.status"], { $in: ["pending", "approved"] });
-  assert.ok((arrayFilters[0]["entry.expiresAt"] as { $gt?: unknown }).$gt instanceof Date, "filtreaza doar aprobarile neexpirate prin $gt: now");
+  assert.equal(updates.length, 1);
+  assert.ok(Array.isArray(updates[0].update));
+  const pipeline = updates[0].update as readonly Record<string, unknown>[];
+  const set = pipeline[0].$set as Record<string, unknown>;
+  assert.equal(set.botAddProtectionEnabled, false);
+  assert.ok("botAddPermissions" in set);
   assert.match(responses[0], /active anulate: 2/, "doar cele 2 neexpirate (pending + approved) sunt raportate, nu cele used/expirate");
+});
+
+test("/stop bot-add-protection pastreaza protectia activa daca update-ul atomic esueaza", async () => {
+  const responses: string[] = [];
+  const handler = securityInteractionHandler.buildCommandHandler({
+    GuildModel: { updateOne: async () => { throw new Error("mongo unavailable"); } },
+    getGuildSettings: async () => ({ botAddProtectionEnabled: true, botAddAlertChannelId: "security", botAddPermissions: [] }),
+    safeDefer: async () => undefined,
+    safeEdit: async (_interaction, payload: unknown) => { responses.push((payload as { content?: string }).content ?? ""); return payload; },
+    checkChannelPermissions: async () => ({ viewChannel: true, sendMessages: true, embedLinks: true }),
+    formatUserError: (_err, fallback) => fallback
+  });
+  const interaction = {
+    commandName: "stop",
+    guild: { id: "guild-1" },
+    options: { getSubcommand: () => "bot-add-protection", getInteger: () => null, getString: () => null, getChannel: () => null },
+    isChatInputCommand: () => true
+  };
+
+  await handler.handle(interaction, []);
+
+  assert.match(responses[0], /NU a fost oprita/);
+  assert.match(responses[0], /Starea anterioara a ramas activa/);
 });
 
 test("/lock-channel refuza cand botului ii lipsesc permisiunile efective in canal (View Channel / Manage Roles) inainte de a modifica ceva (audit, #18)", async () => {
@@ -320,6 +345,44 @@ test("/lock-channel refuza cand botului ii lipsesc permisiunile efective in cana
   assert.equal(edits.length, 0, "nu se modifica nicio permisiune cand botul nu are dreptul efectiv");
   assert.match(responses[0].content ?? "", /Manage Roles/);
   assert.doesNotMatch(responses[0].content ?? "", /View Channel/, "botul ARE View Channel, deci nu apare in lipsa");
+});
+
+test("/lock-channel compenseaza Mongo si permisiunea Discord daca mesajul obligatoriu esueaza", async () => {
+  const edits: Array<boolean | null> = [];
+  const writes: Array<Record<string, unknown> | readonly Record<string, unknown>[]> = [];
+  const responses: Array<{ content?: string }> = [];
+  const channel = {
+    id: "channel-1",
+    permissionOverwrites: {
+      cache: { get: () => ({ allow: { has: () => true }, deny: { has: () => false } }) },
+      edit: async (_target: object, permissions: Record<string, boolean | null>) => { edits.push(permissions.SendMessages); }
+    },
+    permissionsFor: () => ({ has: () => true }),
+    send: async () => { throw new Error("delivery failed"); }
+  };
+  const handler = securityInteractionHandler.buildCommandHandler({
+    GuildModel: { updateOne: async (_filter, update) => { writes.push(update); return { modifiedCount: 1 }; } },
+    getGuildSettings: async () => ({ lockedChannelIds: [], lockedChannelPermissions: [] }),
+    safeDefer: async () => undefined,
+    safeEdit: async (_interaction, payload: unknown) => { responses.push(payload as { content?: string }); return payload; },
+    checkChannelPermissions: async () => null,
+    formatUserError: (_error, fallback) => fallback
+  });
+  const command = {
+    commandName: "lock-channel",
+    guild: { id: "guild-1", roles: { everyone: { id: "everyone" } }, members: { me: {}, fetch: async () => ({ values: () => [][Symbol.iterator]() }) } },
+    user: { id: "admin-1" },
+    options: { getSubcommand: () => "", getInteger: () => null, getString: () => "mentenanta", getChannel: () => channel, getAttachment: () => null },
+    isChatInputCommand: () => true
+  };
+
+  await handler.handle(command, []);
+
+  assert.deepEqual(edits, [false, true]);
+  assert.equal(writes.length, 2);
+  assert.match(JSON.stringify(writes[0]), /lockedChannelIds/);
+  assert.match(JSON.stringify(writes[1]), /\$filter/);
+  assert.match(responses[0].content ?? "", /Eroare/);
 });
 
 test("/purge refuza cand botului ii lipsesc permisiunile efective in canal (Manage Messages / Read Message History) inainte de bulkDelete (audit, #18)", async () => {

@@ -16,7 +16,14 @@ export function buildGuildAdminRecordSchemas({ mongoose }: GuildAdminRecordSchem
     addedBy: { type: String, default: "" },
     addedAt: { type: Date, default: Date.now },
     releaseDate: { type: String, default: "" },
-    preorderPrice: { type: String, default: "" }
+    preorderPrice: { type: String, default: "" },
+    sourceAppId: { type: String, default: "" },
+    baselineDone: { type: Boolean, default: false },
+    notifiedThresholdDays: { type: [Number], default: [] },
+    preorderSeen: { type: Boolean, default: false },
+    observedPreorderPrice: { type: String, default: null },
+    stateRevision: { type: Number, default: 0 },
+    lastCheckedAt: { type: Date, default: null }
   }, { _id: false });
 
   const adminCommandAccessSchema = new mongoose.Schema({

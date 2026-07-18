@@ -364,7 +364,11 @@ test("alerta de cont nou include toate campurile si e deduplicata persistent per
     client: { channels: { fetch: async () => ({ send: async (payload: { content?: string }) => { sent.push(payload); } }) } },
     GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel([]),
-    newAccountSeen: async (_guildId: string, userId: string) => { if (alerted.has(userId)) return false; alerted.add(userId); return true; },
+    claimNewAccountAlert: async (_guildId: string, userId: string) => {
+      if (alerted.has(userId)) return null;
+      alerted.add(userId);
+      return { token: userId, markDelivered: async () => true, release: async () => { alerted.delete(userId); } };
+    },
     now: () => now
   });
   const member = {
@@ -632,4 +636,58 @@ test("un bot monitorizat care posteaza continut NECONFIRMAT (risky-file) => aler
   assert.equal(deleted, 0, "continutul neconfirmat NU e sters");
   assert.match(sent[0].content ?? "", /Bot monitorizat/);
   assert.match(sent[0].content ?? "", /NU e eliminat automat pentru suspiciune/);
+});
+
+test("threat protection inspecteaza mesajele boturilor si fara bot-add protection, o singura data (audit conformitate, #27)", async () => {
+  const sent: Array<{ content?: string }> = [];
+  let scans = 0;
+  const runtime = createSecurityRuntime({
+    getGuildSettings: async () => ({ _id: "guild-1", threatProtectionEnabled: true, threatAlertChannelId: "threat" }),
+    client: { channels: { fetch: async channelId => ({ id: channelId, send: async (payload: { content?: string }) => { sent.push(payload); } }) } },
+    GuildModel: emptyGuildModel(),
+    GuildAuditLogModel: auditModel([]),
+    httpReq: async () => {
+      scans++;
+      return { data: Buffer.from([0x4d, 0x5a]), headers: { "content-type": "application/octet-stream" }, status: 200 };
+    }
+  });
+
+  await runtime.handleMessageCreate({
+    guild: { id: "guild-1", ownerId: "owner-1" },
+    author: { id: "bot-9", tag: "suspect-bot", bot: true },
+    channel: { id: "general" },
+    attachments: new Map([["a", { id: "a", name: "tool", url: "https://cdn.example.test/x" }]])
+  });
+
+  assert.equal(scans, 1);
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].content ?? "", /Bot monitorizat/);
+});
+
+test("esecul stergerii nu blocheaza alerta si auditul amenintarii confirmate (audit conformitate, #28)", async () => {
+  const sent: Array<{ content?: string }> = [];
+  const audits: GuildAuditLogRecord[] = [];
+  const metrics = { securityThreatsDeleted: 0, securityThreatDeleteFailures: 0 };
+  const runtime = createSecurityRuntime({
+    getGuildSettings: async () => ({ _id: "guild-1", threatProtectionEnabled: true, threatAlertChannelId: "security" }),
+    client: { channels: { fetch: async () => ({ send: async (payload: { content?: string }) => { sent.push(payload); } }) } },
+    GuildModel: emptyGuildModel(),
+    GuildAuditLogModel: auditModel(audits),
+    metrics,
+    httpReq: async () => ({ data: Buffer.from([0x4d, 0x5a]), headers: { "content-type": "application/octet-stream" }, status: 200 }),
+    reputationScan: async () => "malware"
+  });
+
+  await assert.doesNotReject(() => runtime.handleMessageCreate({
+    ...threatMessageBase,
+    content: "",
+    attachments: new Map([["a", { id: "a", name: "payload", url: "https://cdn.example.test/x" }]]),
+    delete: async () => { throw new Error("Missing Permissions"); }
+  }));
+
+  assert.equal(metrics.securityThreatsDeleted, 0);
+  assert.equal(metrics.securityThreatDeleteFailures, 1);
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].content ?? "", /mesaj nesters: Missing Permissions/);
+  assert.equal(audits[0].action, "confirmed-threat-message");
 });

@@ -3,6 +3,7 @@
 import type { ConfigBackupRecord, GuildConfigurationSettings, GuildSettings } from "../../types.js";
 import { clampJoinedList } from "../command-presentation/discordListLimit.js";
 import { CONFIG_BACKUP_KEYS } from "../admin-records/configBackupRepository.js";
+import type { BackupResourceRestorePlan } from "../admin-records/backupResourceRestorePlan.js";
 
 const RESOURCE_FIELDS: Array<{ key: keyof GuildConfigurationSettings; label: string; kind: "canal" | "rol" }> = [
   { key: "notificationChannelId", label: "canal update-uri", kind: "canal" },
@@ -37,7 +38,26 @@ function hasMeaningfulValue(value: unknown): boolean {
   return true;
 }
 
-export function renderBackupPreview(backup: ConfigBackupRecord, current: GuildSettings | null): string {
+function renderPlannedResources(plan: BackupResourceRestorePlan): string {
+  const lines: string[] = [];
+  for (const entry of plan.present) {
+    const mention = entry.kind === "channel" ? `<#${entry.oldId}>` : `<@&${entry.oldId}>`;
+    lines.push(`REFOLOSITA: ${mention} pentru ${entry.references.map(reference => `\`${reference.path}\``).join(", ")}`);
+  }
+  for (const entry of plan.missing) {
+    lines.push(`DE CREAT: ${entry.kind === "channel" ? "canal" : "rol"} \`${entry.createName}\` pentru ${entry.references.map(reference => `\`${reference.path}\``).join(", ")}`);
+  }
+  for (const entry of plan.invalid) {
+    lines.push(`IMPOSIBIL: \`${entry.path}\` - ${entry.reason}`);
+  }
+  return lines.length > 0 ? lines.join("\n") : "backup-ul nu contine canale sau roluri configurate";
+}
+
+export function renderBackupPreview(
+  backup: ConfigBackupRecord,
+  current: GuildSettings | null,
+  resourcePlan?: BackupResourceRestorePlan
+): string {
   const snapshot = backup.snapshot;
   const changed: string[] = [];
   for (const key of CONFIG_BACKUP_KEYS) {
@@ -58,7 +78,9 @@ export function renderBackupPreview(backup: ConfigBackupRecord, current: GuildSe
   });
   const changedText = changed.length ? clampJoinedList(changed.map(key => `\`${key}\``), 1000, { separator: ", " }) : "nicio diferenta detectata fata de configuratia curenta";
   const clearedText = cleared.length ? clampJoinedList(cleared.map(key => `\`${key}\``), 1000, { separator: ", " }) : "niciuna";
-  const resources = resourceLines.length ? resourceLines.join("\n") : "backup-ul nu contine canale sau roluri configurate";
+  const resources = resourcePlan
+    ? renderPlannedResources(resourcePlan)
+    : resourceLines.length ? resourceLines.join("\n") : "backup-ul nu contine canale sau roluri configurate";
   return [
     `Preview backup \`${backup.name}\`:`,
     `Setari care se vor restaura: ${changedText}`,
@@ -67,6 +89,6 @@ export function renderBackupPreview(backup: ConfigBackupRecord, current: GuildSe
     "Canale si roluri referite de backup:",
     resources,
     "",
-    "Load-ul inlocuieste configuratia botului cu cea din backup: cheile prezente se seteaza, iar cele lipsa din backup se curata (revin la implicit). Daca un canal sau rol a fost sters din Discord, adminul trebuie sa-l recreeze sau sa refaca setarea dupa load."
+    "Load-ul inlocuieste configuratia botului cu cea din backup: cheile prezente se seteaza, cele lipsa se curata, iar resursele Discord lipsa sunt create si remapate automat. Preview-ul nu modifica serverul."
   ].join("\n");
 }

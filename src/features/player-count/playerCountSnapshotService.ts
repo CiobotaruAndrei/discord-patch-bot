@@ -4,6 +4,7 @@ import type { GameConfig } from "../../types.js";
 import type { NotificationDiscordClient } from "../notifications/outboundChannel.js";
 import { errorMessage } from "../../shared/errors.js";
 import ________shared_utilities from "../../shared/utilities.js";
+import { evaluatePlayerCountChange, type PlayerCountChange } from "./playerCountChangeSignal.js";
 const { mapWithConcurrency } = ________shared_utilities;
 
 export interface PlayerCountSnapshot {
@@ -62,10 +63,25 @@ interface PlayerCountRecordModelLike {
 interface MilestoneGuildDoc {
   _id: string;
   playerCountChannelId?: string | null;
+  enabledGames?: string[];
+  playerCountSubscribed?: boolean;
+  playerCountWatchState?: Array<{
+    gameKey: string;
+    appId: string;
+    playerCount: number;
+    fetchedAt: Date | string;
+    lastNotifiedAt?: Date | string | null;
+    lastDirection?: "up" | "down" | null;
+  }>;
 }
 
 interface GuildModelLike {
   find(filter: Record<string, unknown>): { lean(): Promise<MilestoneGuildDoc[]> };
+  updateOne?(
+    filter: Record<string, unknown>,
+    update: Record<string, unknown>,
+    options?: Record<string, unknown>
+  ): Promise<{ modifiedCount?: number }>;
 }
 
 interface SteamCurrentPlayersLike {
@@ -90,6 +106,7 @@ interface PlayerCountRefreshResult {
 }
 
 const REFRESH_CONCURRENCY = 5;
+const CHANGE_COOLDOWN_MS = 6 * 60 * 60_000;
 
 function validDate(value: Date | string | undefined): Date | null {
   if (value === undefined) return null;
@@ -125,11 +142,109 @@ function createPlayerCountSnapshotService(deps: PlayerCountSnapshotDeps) {
     find: () => ({ lean: async () => [] })
   };
 
+  async function claimPlayerCountChange(
+    guild: MilestoneGuildDoc,
+    game: GameConfig,
+    playerCount: number,
+    fetchedAt: Date
+  ): Promise<PlayerCountChange | null> {
+    if (!GuildModel.updateOne) return null;
+    const state = guild.playerCountWatchState?.find(entry => entry.gameKey === game.key);
+    if (!state) {
+      await GuildModel.updateOne(
+        {
+          _id: guild._id,
+          playerCountSubscribed: true,
+          enabledGames: game.key,
+          "playerCountWatchState.gameKey": { $ne: game.key }
+        },
+        {
+          $push: {
+            playerCountWatchState: {
+              gameKey: game.key,
+              appId: String(game.appId),
+              playerCount,
+              fetchedAt
+            }
+          }
+        }
+      );
+      return null;
+    }
+    const previousAt = validDate(state.fetchedAt);
+    const previousCount = validCount(state.playerCount);
+    if (!previousAt || previousCount === null) return null;
+    const change = evaluatePlayerCountChange(previousCount, playerCount);
+    const lastNotifiedAt = validDate(state.lastNotifiedAt ?? undefined);
+    const cooldownActive = change.direction === state.lastDirection
+      && Boolean(lastNotifiedAt && fetchedAt.getTime() - lastNotifiedAt.getTime() < CHANGE_COOLDOWN_MS);
+    const notify = change.significant && change.direction !== "flat" && !cooldownActive;
+    const set: Record<string, unknown> = {
+      "playerCountWatchState.$[entry].appId": String(game.appId),
+      "playerCountWatchState.$[entry].playerCount": playerCount,
+      "playerCountWatchState.$[entry].fetchedAt": fetchedAt
+    };
+    if (notify) {
+      set["playerCountWatchState.$[entry].lastNotifiedAt"] = fetchedAt;
+      set["playerCountWatchState.$[entry].lastDirection"] = change.direction;
+    }
+    const result = await GuildModel.updateOne(
+      {
+        _id: guild._id,
+        playerCountSubscribed: true,
+        enabledGames: game.key,
+        playerCountWatchState: {
+          $elemMatch: {
+            gameKey: game.key,
+            playerCount: previousCount,
+            fetchedAt: previousAt
+          }
+        }
+      },
+      { $set: set },
+      { arrayFilters: [{ "entry.gameKey": game.key, "entry.playerCount": previousCount, "entry.fetchedAt": previousAt }] }
+    );
+    return notify && result.modifiedCount !== 0 ? change : null;
+  }
+
+  async function notifyPlayerCountChanges(
+    client: NotificationDiscordClient | null | undefined,
+    game: GameConfig,
+    playerCount: number,
+    fetchedAt: Date
+  ): Promise<void> {
+    const guilds = await GuildModel.find({
+      playerCountSubscribed: true,
+      enabledGames: game.key,
+      playerCountChannelId: { $ne: null }
+    }).lean();
+    await mapWithConcurrency(guilds, REFRESH_CONCURRENCY, async guild => {
+      const change = await claimPlayerCountChange(guild, game, playerCount, fetchedAt);
+      if (!change || !client) return null;
+      let channel = null;
+      try {
+        channel = await client.channels.fetch(String(guild.playerCountChannelId || ""));
+      } catch {
+        return null;
+      }
+      if (!sendableChannel(channel)) return null;
+      const sign = change.absoluteChange > 0 ? "+" : "";
+      await channel.send({
+        embeds: [{
+          title: `Schimbare mare de player-count: ${game.name}`,
+          color: change.direction === "up" ? 0x2ecc71 : 0xe74c3c,
+          description: `Anterior: **${(playerCount - change.absoluteChange).toLocaleString("en-US")}**\nAcum: **${playerCount.toLocaleString("en-US")}**\nSchimbare: **${sign}${change.absoluteChange.toLocaleString("en-US")} (${sign}${change.percentChange.toFixed(1)}%)**`
+        }]
+      });
+      return null;
+    });
+  }
+
   async function notifyMilestone(client: NotificationDiscordClient | null | undefined, game: GameConfig, previous: number, current: number, reachedAt: Date): Promise<void> {
     if (!client) return;
     const guilds = await GuildModel.find({
       playerCountSubscribed: true,
-      playerCountGames: game.key,
+      enabledGames: game.key,
       playerCountChannelId: { $ne: null }
     }).lean();
     await mapWithConcurrency(guilds, REFRESH_CONCURRENCY, async guild => {
@@ -163,6 +278,7 @@ function createPlayerCountSnapshotService(deps: PlayerCountSnapshotDeps) {
       ),
       PlayerCountHistoryModel.create({ appId, gameKey: game.key, playerCount: players.playerCount, fetchedAt })
     ]);
+    await notifyPlayerCountChanges(client, game, players.playerCount, fetchedAt);
     const previous = await PlayerCountRecordModel.findById(appId).lean();
     const previousCount = validCount(previous?.playerCount);
     if (previousCount !== null && players.playerCount <= previousCount) return false;

@@ -11,7 +11,7 @@ import {
 } from "../guild-config/guildConfigRepository.js";
 import { accountAgeLabel, isRecentAccount } from "../command-security/recentAccountPolicy.js";
 import { validateModerationText, type DirectAttachment } from "../moderation/moderationInputPolicy.js";
-import { cancelActiveBotAddPermissions, countActiveBotAddPermissions } from "../moderation/botAddRepository.js";
+import { countActiveBotAddPermissions, stopBotAddProtectionAtomically } from "../moderation/botAddRepository.js";
 
 type SecurityOptions = {
   getSubcommand(): string;
@@ -224,17 +224,17 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
           }
         }
       }
-      await applyGuildConfigUpdate(target.GuildModel, guildId, { [enabledField]: command === "start" });
       if (command === "stop" && sub === "bot-add-protection") {
         const active = countActiveBotAddPermissions(settings?.botAddPermissions, new Date());
         try {
-          await cancelActiveBotAddPermissions(target.GuildModel, guildId);
+          await stopBotAddProtectionAtomically(target.GuildModel, guildId);
         } catch (err) {
           target.logger?.("WARN", "SECURITY_COMMAND", "Anularea aprobarilor bot-add active a esuat", errorDetail(err));
-          return respond(interaction, "OK: protectia **bot-add-protection** a fost oprita, dar anularea aprobarilor active a esuat - reincearca sau verifica manual.");
+          return respond(interaction, "Eroare: protectia **bot-add-protection** NU a fost oprita, deoarece anularea atomica a aprobarilor active a esuat. Starea anterioara a ramas activa.");
         }
         return respond(interaction, `OK: protectia **bot-add-protection** a fost oprita. Solicitari/aprobari active anulate: ${active}.`);
       }
+      await applyGuildConfigUpdate(target.GuildModel, guildId, { [enabledField]: command === "start" });
       if (command === "start" && sub === "new-account-alerts" && settings?.newAccountAlertsEnabled !== true) {
         try {
           const channelId = settings?.newAccountAlertChannelId;
@@ -255,13 +255,17 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
       const everyone = guild?.roles?.everyone;
       if (!channel?.id || !channel.permissionOverwrites?.edit || !everyone) return respond(interaction, "Eroare: canalul selectat nu permite modificarea permisiunilor.");
       const lockPerms = botChannelPermissions(channel, guild);
-      if (lockPerms) {
-        const missing = missingChannelPermissions(lockPerms, [
-          { flag: PermissionFlagsBits.ViewChannel, label: "View Channel" },
-          { flag: PermissionFlagsBits.ManageRoles, label: "Manage Roles (Manage Permissions)" }
-        ]);
-        if (missing.length > 0) return respond(interaction, `Eroare: botul nu are permisiunile efective necesare in acel canal pentru blocare/deblocare: ${missing.join(", ")}. Acorda-le si reincearca.`);
-      }
+      if (!lockPerms) return respond(interaction, "Eroare: permisiunile efective ale botului nu pot fi verificate pentru canalul selectat.");
+      const requiredPermissions = [
+        { flag: PermissionFlagsBits.ViewChannel, label: "View Channel" },
+        { flag: PermissionFlagsBits.ManageChannels, label: "Manage Channels" },
+        { flag: PermissionFlagsBits.ManageRoles, label: "Manage Roles (Manage Permissions)" }
+      ];
+      if (command === "lock-channel") requiredPermissions.push({ flag: PermissionFlagsBits.SendMessages, label: "Send Messages" });
+      const missing = missingChannelPermissions(lockPerms, requiredPermissions);
+      if (missing.length > 0) return respond(interaction, `Eroare: botul nu are permisiunile efective necesare in acel canal pentru blocare/deblocare: ${missing.join(", ")}. Acorda-le si reincearca.`);
+      if (command === "lock-channel" && typeof channel.send !== "function") return respond(interaction, "Eroare: canalul selectat nu poate primi mesajul obligatoriu de blocare.");
+      const sendLockMessage = channel.send;
       const currentSettings = await target.getGuildSettings(guildId).catch(() => null);
       const isLocked = currentSettings?.lockedChannelIds?.includes(channel.id) === true;
       if (command === "unlock-channel" && !isLocked) return respond(interaction, "Eroare: canalul nu este blocat de bot.");
@@ -298,11 +302,18 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
         }
         const result = command === "lock-channel" ? `OK: canalul a fost blocat${reason ? ` (motiv: ${reason})` : ""}.` : "OK: canalul a fost deblocat.";
         if (command === "lock-channel") {
-          await channel.send?.({
-            content: `:lock: Canal blocat de <@${interaction.user?.id ?? "administrator"}>. Motiv: ${reason ?? "atasament direct"}.`,
-            files: attachment?.url ? [attachment.url] : [],
-            allowedMentions: { parse: [] }
-          }).catch(() => null);
+          try {
+            if (!sendLockMessage) throw new Error("Canalul nu mai poate primi mesajul de blocare.");
+            await sendLockMessage({
+              content: `:lock: Canal blocat de <@${interaction.user?.id ?? "administrator"}>. Motiv: ${reason ?? "atasament direct"}.`,
+              files: attachment?.url ? [attachment.url] : [],
+              allowedMentions: { parse: [] }
+            });
+          } catch (error) {
+            await setLockedChannelPermissionState(target.GuildModel, guildId, channel.id, previous, false);
+            await channel.permissionOverwrites.edit(everyone, { SendMessages: permissionValue(previous) });
+            throw error;
+          }
         }
         return respond(interaction, result);
       } catch (err: unknown) {

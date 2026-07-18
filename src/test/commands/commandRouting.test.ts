@@ -165,7 +165,7 @@ const expectedOwnerByCommand: Record<string, string> = {
   ,"bot-add-permissions": "bot-add"
 };
 
-const MULTIPLEXED_VERB_COMMANDS = new Set(["add", "remove"]);
+const MULTIPLEXED_VERB_COMMANDS = new Set(["add", "remove", "list", "delete"]);
 
 test("routing: fiecare slash command top-level e revendicat de exact un handler (din slash definitions)", () => {
   const commands = definedTopLevelCommands();
@@ -197,6 +197,11 @@ test("routing: /add si /remove sunt multiplexate pe subcomanda catre handler-ul 
   assert.deepEqual(soleClaimant(chatInput("add", null, "watchlist")), ["setGames"], "/add watchlist -> gameFilterHandlers");
   assert.deepEqual(soleClaimant(chatInput("add", null, "backup")), ["backup"], "/add backup -> backup");
   assert.deepEqual(soleClaimant(chatInput("add", null, "suggestion")), ["suggestCommand"], "/add suggestion -> suggestCommand");
+  assert.deepEqual(soleClaimant(chatInput("add", null, "watchlist-game")), ["watchlistGame"], "/add watchlist-game -> watchlistGame");
+  assert.deepEqual(soleClaimant(chatInput("list", null, "suggest-command")), ["suggestCommand"], "/list suggest-command -> suggestCommand");
+  assert.deepEqual(soleClaimant(chatInput("delete", null, "suggest-command")), ["suggestCommand"], "/delete suggest-command -> suggestCommand");
+  assert.deepEqual(soleClaimant(chatInput("delete", null, "watchlist-game")), ["watchlistGame"], "/delete watchlist-game -> watchlistGame");
+  assert.deepEqual(soleClaimant(chatInput("delete", null, "admin-command-access")), ["adminCommandAccess"], "/delete admin-command-access -> adminCommandAccess");
   assert.deepEqual(soleClaimant(chatInput("remove", null, "price-alert")), ["priceAlert"], "/remove price-alert -> priceAlert");
   assert.deepEqual(soleClaimant(chatInput("remove", null, "watchlist")), ["setGames"], "/remove watchlist -> gameFilterHandlers");
 });

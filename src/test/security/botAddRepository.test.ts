@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import {
   consumeBotAddPermission,
   createBotAddRequest,
-  resolveBotAddRequest
+  resolveBotAddRequest,
+  stopBotAddProtectionAtomically
 } from "../../features/moderation/botAddRepository.js";
 
 type Call = {
@@ -139,4 +140,46 @@ test("aprobarea este consumata atomic doar pentru botul si requesterul exact", a
     "entry.status": "approved",
     "entry.expiresAt": { $gt: now }
   }]);
+});
+
+test("oprirea protectiei si anularea aprobarilor active folosesc un singur update atomic", async () => {
+  const now = new Date("2026-07-18T12:00:00.000Z");
+  const { model, calls } = modelReturning(null);
+
+  await stopBotAddProtectionAtomically(model, "guild-1", now);
+
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].filter, { _id: "guild-1" });
+  assert.ok(Array.isArray(calls[0].update));
+  const pipeline = calls[0].update as readonly Record<string, unknown>[];
+  const set = pipeline[0].$set as Record<string, unknown>;
+  assert.equal(set.botAddProtectionEnabled, false);
+  assert.deepEqual(set.botAddPermissions, {
+    $map: {
+      input: { $ifNull: ["$botAddPermissions", []] },
+      as: "entry",
+      in: {
+        $cond: [
+          {
+            $and: [
+              { $in: ["$$entry.status", ["pending", "approved"]] },
+              { $gt: ["$$entry.expiresAt", now] }
+            ]
+          },
+          {
+            $mergeObjects: [
+              "$$entry",
+              {
+                status: "cancelled",
+                respondedAt: now,
+                cancelledAt: now,
+                cancellationReason: "protection-stopped"
+              }
+            ]
+          },
+          "$$entry"
+        ]
+      }
+    }
+  });
 });

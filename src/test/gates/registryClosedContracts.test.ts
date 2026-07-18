@@ -287,7 +287,7 @@ test("notifications nu mai are cast pe modelul Mongo, iar clientul Discord e int
   const indexText = fs.readFileSync(notificationsIndexPath, "utf8");
   assert.ok(!indexText.includes("as unknown as"), "notifications/index.ts fara cast-uri as unknown as (countDocuments e in contractul deps)");
   const contractsText = fs.readFileSync(path.join(srcRoot, "features", "notifications", "notificationRuntimeContracts.ts"), "utf8");
-  assert.match(contractsText, /GuildModel: \{ countDocuments\(/, "capabilitatea countDocuments e declarata explicit in NotificationsRuntimeDeps");
+  assert.match(contractsText, /GuildModel:\s*\{\s*countDocuments\(/, "capabilitatea countDocuments e declarata explicit in NotificationsRuntimeDeps");
   const outbound = fs.readFileSync(outboundChannelPath, "utf8");
   assert.match(outbound, /export interface NotificationDiscordClient/, "interfata minima de client Discord exista si e exportata");
   assert.match(outbound, /client: NotificationDiscordClient/, "resolver-ul cere interfata minima, nu unknown");

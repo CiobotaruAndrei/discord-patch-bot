@@ -1,6 +1,7 @@
 "use strict";
 
 import { randomUUID } from "node:crypto";
+import { PermissionFlagsBits } from "discord.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
@@ -17,8 +18,14 @@ type Member = {
   timeout?: (duration: number | null, reason?: string) => Promise<unknown>;
   kick?: (reason?: string) => Promise<unknown>;
   ban?: (options?: { reason?: string }) => Promise<unknown>;
+  permissions?: { has(permission: string | bigint): boolean };
 };
-type Channel = { send?: (payload: unknown) => Promise<unknown> };
+type Channel = {
+  id?: string;
+  send?: (payload: unknown) => Promise<unknown>;
+  isTextBased?: () => boolean;
+  permissionsFor?: (member: Member) => { has(permission: bigint): boolean } | null;
+};
 type Guild = {
   id: string;
   ownerId?: string;
@@ -39,6 +46,7 @@ type Interaction = {
     getString(name: string, required?: boolean): string | null;
     getInteger(name: string, required?: boolean): number | null;
     getAttachment?(name: string, required?: boolean): DirectAttachment | null;
+    getChannel?(name: string, required?: boolean): Channel | null;
   };
   isChatInputCommand?: () => boolean;
   reply(payload: unknown): Promise<unknown>;
@@ -83,8 +91,7 @@ function canAct(interaction: Interaction, target: Member | null): boolean {
 }
 
 function hasPermission(member: Member | undefined, permission: string): boolean {
-  const candidate = member as Member & { permissions?: { has(value: string): boolean } } | undefined;
-  return candidate?.permissions?.has?.(permission) ?? false;
+  return member?.permissions?.has(permission) ?? false;
 }
 
 function mention(userId: string, name?: string): string { return name ? `${name} (<@${userId}>)` : `<@${userId}>`; }
@@ -93,9 +100,25 @@ function optionString(interaction: Interaction, primary: string, fallback: strin
 function optionInteger(interaction: Interaction, primary: string, fallback: string): number | null { return interaction.options.getInteger(primary, false) ?? interaction.options.getInteger(fallback, false); }
 function optionAttachment(interaction: Interaction): DirectAttachment | null { return interaction.options.getAttachment?.("atasament", false) ?? interaction.options.getAttachment?.("attachment", false) ?? null; }
 function formatRecord(record: ModerationRecord): string {
-  const expiry = record.expiresAt ? `<t:${Math.floor(new Date(record.expiresAt).getTime() / 1000)}:R>` : "permanent";
+  const applied = Math.floor(new Date(record.appliedAt).getTime() / 1000);
+  const expiryDate = record.expiresAt ? new Date(record.expiresAt) : null;
+  const expiry = expiryDate ? `<t:${Math.floor(expiryDate.getTime() / 1000)}:F> (<t:${Math.floor(expiryDate.getTime() / 1000)}:R>)` : "permanent";
+  const remaining = expiryDate ? Math.max(0, expiryDate.getTime() - Date.now()) : null;
+  const remainingLabel = remaining === null ? "permanent" : remaining >= 3_600_000 ? `${Math.ceil(remaining / 3_600_000)}h` : `${Math.ceil(remaining / 60_000)}m`;
   const reason = record.reason && record.reason.trim() ? record.reason.trim() : "-";
-  return `${mention(record.userId, record.username)} | ID ${record.userId} | aplicat de <@${record.moderatorId}> | din <t:${Math.floor(new Date(record.appliedAt).getTime() / 1000)}:R> | expira ${expiry} | motiv: ${reason}`;
+  return `${mention(record.userId, record.username)} | ID ${record.userId} | aplicat de <@${record.moderatorId}> la <t:${applied}:F> (<t:${applied}:R>) | expira ${expiry} | ramas ${remainingLabel} | motiv: ${reason}`;
+}
+
+function warningChannelMissingPermissions(channel: Channel, bot: Member | undefined): string[] {
+  if (!channel.id || !bot || channel.isTextBased?.() === false || typeof channel.send !== "function") return ["canal text valid"];
+  const permissions = channel.permissionsFor?.(bot);
+  if (!permissions) return ["permisiuni verificabile"];
+  const required: Array<[bigint, string]> = [
+    [PermissionFlagsBits.ViewChannel, "View Channel"],
+    [PermissionFlagsBits.SendMessages, "Send Messages"],
+    [PermissionFlagsBits.EmbedLinks, "Embed Links"]
+  ];
+  return required.filter(([permission]) => permissions.has(permission) !== true).map(([, label]) => label);
 }
 
 function reasonForDiscord(reason: string | null, attachment: DirectAttachment | null): string | undefined {
@@ -157,8 +180,8 @@ function createModerationInteractionHandler(deps: Deps) {
     if (command === "warn-ban-limit") {
       const limit = optionInteger(interaction, "numar", "number");
       if (!limit || limit < 1) return safeEdit(interaction, "Eroare: limita trebuie sa fie un numar intreg pozitiv.");
-      await moderationRepository.setWarnBanLimit(GuildModel, guild.id, limit);
-      return safeEdit(interaction, `OK: limita de warn-uri este acum ${limit}.`);
+      const previous = await moderationRepository.setWarnBanLimit(GuildModel, guild.id, limit);
+      return safeEdit(interaction, `OK: limita de warn-uri a fost schimbata: ${previous} -> ${limit}.`);
     }
     const selectedUser = optionUser(interaction);
     if (!selectedUser) return safeEdit(interaction, "Eroare: trebuie sa selectezi un utilizator.");
@@ -198,7 +221,11 @@ function createModerationInteractionHandler(deps: Deps) {
     if (command === "remove-timeout" || command === "unmute") {
       if (!hasPermission(guild.members.me, "ModerateMembers")) return safeEdit(interaction, "Eroare: botul nu are permisiunea Moderate Members.");
       const field = command === "remove-timeout" ? "moderationTimeouts" : "moderationMutes";
-      const activeRecord = await moderationRepository.findModerationRecord(GuildModel, guild.id, field, user.id);
+      const records = await moderationRepository.findModerationRecordsForUser(GuildModel, guild.id, user.id);
+      if (records.timeout && records.mute) return safeEdit(interaction, "Eroare: persistenta contine simultan timeout si mute pentru acest utilizator. Ruleaza reconcilierea inainte de eliminare.");
+      const activeRecord = command === "remove-timeout" ? records.timeout : records.mute;
+      const oppositeRecord = command === "remove-timeout" ? records.mute : records.timeout;
+      if (!activeRecord && oppositeRecord) return safeEdit(interaction, `Eroare: utilizatorul are ${command === "remove-timeout" ? "mute" : "timeout"}, nu ${command === "remove-timeout" ? "timeout" : "mute"}. Foloseste \`/${command === "remove-timeout" ? "unmute" : "remove-timeout"}\`.`);
       if (!activeRecord) return safeEdit(interaction, `Nu exista un ${command === "unmute" ? "mute" : "timeout"} activ pentru ${mention(user.id, user.username)}.`);
       if (typeof target.timeout !== "function") return safeEdit(interaction, "Eroare: Discord nu permite eliminarea sanctiunii.");
       await target.timeout(null);
@@ -230,10 +257,20 @@ function createModerationInteractionHandler(deps: Deps) {
       }
       if (!reason && !attachment) return safeEdit(interaction, "Eroare: warn-ul necesita motiv text sau un atasament direct.");
       const settings = await deps.getGuildSettings(guild.id);
-      const warningChannel = settings?.warningChannelId && guild.channels?.fetch
+      let warningChannel = settings?.warningChannelId && guild.channels?.fetch
         ? await guild.channels.fetch(settings.warningChannelId).catch(() => null)
         : null;
-      if (!warningChannel?.send) return safeEdit(interaction, "Eroare: configureaza mai intai canalul dedicat de warn cu `/set warn-channel`.");
+      if (!warningChannel?.send) {
+        const selectedChannel = interaction.options.getChannel?.("canal", false) ?? null;
+        if (!selectedChannel) return safeEdit(interaction, "Eroare: selecteaza optiunea `canal` pentru a configura canalul dedicat de warn.");
+        const missing = warningChannelMissingPermissions(selectedChannel, guild.members.me);
+        if (missing.length > 0) return safeEdit(interaction, `Eroare: canalul selectat nu poate primi warn-uri. Lipsesc: ${missing.join(", ")}.`);
+        if (!selectedChannel.id) return safeEdit(interaction, "Eroare: canalul selectat nu are un ID valid.");
+        await moderationRepository.setWarningChannel(GuildModel, guild.id, selectedChannel.id);
+        warningChannel = selectedChannel;
+      }
+      const sendWarning = warningChannel.send;
+      if (!sendWarning) return safeEdit(interaction, "Eroare: canalul de warn nu mai este disponibil.");
       const warningId = randomUUID();
       const result = await moderationRepository.addWarning(GuildModel, guild.id, {
         warningId,
@@ -243,7 +280,7 @@ function createModerationInteractionHandler(deps: Deps) {
         warnedAt: new Date()
       });
       try {
-        await warningChannel.send({
+        await sendWarning({
           content: `Warn pentru ${mention(user.id, user.username)} (${result.count} total) | moderator <@${moderatorId}> | motiv: ${reason ?? "atasament direct"}`,
           files: attachment?.url ? [attachment.url] : [],
           allowedMentions: { parse: [] }

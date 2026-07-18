@@ -8,7 +8,7 @@ export const NOTIFICATIONS_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   { command: "set", access: "admin", discordAdminPermissions: true, ownerOnlySubcommands: ["admin-command-access"], sensitiveSubcommands: ["new-account-alert-channel", "threat-alert-channel", "bot-add-alert-channel", "warn-channel"] },
   { command: "watchlist", access: "admin", discordAdminPermissions: true },
   { command: "price-alert", access: "admin", discordAdminPermissions: true },
-  { command: "future-release", access: "admin", discordAdminPermissions: true },
+  { command: "future-release", access: "admin", discordAdminPermissions: false, publicSubcommands: ["list"] },
   { command: "sources", access: "admin", discordAdminPermissions: true }
 ];
 
@@ -29,7 +29,7 @@ export const NOTIFICATIONS_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   { command: "/watchlist-game list", ephemeral: true, description: "Afiseaza jocurile propuse de useri pentru a fi adaugate in lista botului.", example: "/watchlist-game list numar:10" },
   { command: "/watchlist-game delete", description: "Sterge un joc din lista de propuneri watchlist-game.", example: "/watchlist-game delete game:silksong" },
   { command: "/future-release add", description: "Adauga un joc care urmeaza sa apara in lista future-release a serverului. Lista are maxim 20 de jocuri.", example: "/future-release add game:silksong release-date:2026 preorder-price:indisponibil" },
-  { command: "/future-release list", description: "Afiseaza jocurile future-release urmarite, data lansarii si pretul de preorder daca sunt salvate.", example: "/future-release list" },
+  { command: "/future-release list", ephemeral: false, description: "Afiseaza public jocurile future-release urmarite, data lansarii si pretul de preorder daca sunt salvate.", example: "/future-release list" },
   { command: "/future-release delete", description: "Sterge un joc din lista future-release.", example: "/future-release delete game:silksong" },
   { command: "/future-release start", description: "Configureaza canalul curent pentru notificarile future-release si marcheaza modulul activ pentru server.", example: "/future-release start" },
   { command: "/future-release stop", description: "Opreste notificarile future-release si sterge canalul salvat pentru acest modul.", example: "/future-release stop" },

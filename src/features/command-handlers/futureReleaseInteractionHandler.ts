@@ -137,8 +137,8 @@ function createFutureReleaseInteractionHandler(deps: FutureReleaseDeps) {
   async function handleFutureRelease(interaction: DiscordInteraction): Promise<unknown> {
     const guildId = interaction.guild?.id;
     if (!guildId) return undefined;
-    await safeDefer(interaction, true);
     const subcommand = interaction.options.getSubcommand();
+    await safeDefer(interaction, subcommand !== "list");
     if (subcommand === "add") return handleAdd(interaction, guildId);
     if (subcommand === "list") return handleList(interaction, guildId);
     if (subcommand === "delete") return handleDelete(interaction, guildId);

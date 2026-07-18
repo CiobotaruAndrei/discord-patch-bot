@@ -35,6 +35,13 @@ export interface FutureReleaseGameEntry {
   addedAt: Date;
   releaseDate?: string;
   preorderPrice?: string;
+  sourceAppId?: string;
+  baselineDone?: boolean;
+  notifiedThresholdDays?: number[];
+  preorderSeen?: boolean;
+  observedPreorderPrice?: string | null;
+  stateRevision?: number;
+  lastCheckedAt?: Date | null;
 }
 
 export interface AdminCommandAccessConfig {
@@ -146,6 +153,16 @@ export interface GuildDoc {
   playerCountSubscribed?: boolean;
   playerCountChannelId?: string | null;
   playerCountGames?: string[];
+  playerCountInitializing?: boolean;
+  playerCountActivationId?: string | null;
+  playerCountWatchState?: Array<{
+    gameKey: string;
+    appId: string;
+    playerCount: number;
+    fetchedAt: Date;
+    lastNotifiedAt?: Date | null;
+    lastDirection?: "up" | "down" | null;
+  }>;
   gameAliases?: Map<string, string[]> | Record<string, string[]>;
   timezone?: string;
   futureReleaseSubscribed?: boolean;
@@ -163,6 +180,18 @@ export interface GuildDoc {
   threatProtectionEnabled?: boolean;
   botAddAlertChannelId?: string | null;
   botAddProtectionEnabled?: boolean;
+  botObservations?: Array<{
+    botId: string;
+    requesterId: string;
+    approval: "owner" | "one-time" | "unapproved-removal-failed";
+    initialRisk: "normal" | "suspicious" | "dangerous";
+    joinedAt: Date;
+    observeUntil: Date;
+    lastActivityAt: Date;
+    eventKeys: string[];
+    recentEvents: Array<{ key: string; kind: string; at: Date; confirmed: boolean }>;
+    lastBurstAlertAt?: Date | null;
+  }>;
   warningChannelId?: string | null;
   botAddPermissions?: Array<{
     requestId: string;
@@ -173,6 +202,8 @@ export interface GuildDoc {
     respondedAt?: Date | null;
     expiresAt?: Date | null;
     usedAt?: Date | null;
+    cancelledAt?: Date | null;
+    cancellationReason?: "protection-stopped" | null;
     status: "pending" | "approved" | "used" | "rejected" | "expired" | "cancelled";
   }>;
   purgeAmount?: number;

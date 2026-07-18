@@ -7,6 +7,11 @@ import type { GuildSettings } from "../../types.js";
 import { isHandledCommandError } from "../../features/command-security/commandOutcome.js";
 
 import installBackup from "../../features/command-handlers/backupInteractionHandler.js";
+import type {
+  BackupDiscordGuild,
+  BackupDiscordResource,
+  BackupDiscordResourceManager
+} from "../../features/admin-records/backupResourceRestoreRuntime.js";
 import { createOperationJournalTestModel } from "../operationJournalTestModel.js";
 
 type MongoCall = {
@@ -15,10 +20,44 @@ type MongoCall = {
   options?: Record<string, unknown>;
 };
 
-function makeInteraction(subcommand: string, values: { name?: string; confirm?: boolean } = {}) {
+function isRecord(value: object | null): value is Record<string, unknown> {
+  return value !== null && !Array.isArray(value);
+}
+
+function makeResourceManager(kind: "channel" | "role", ids: string[]): BackupDiscordResourceManager {
+  const cache = new Map<string, BackupDiscordResource>();
+  for (const id of ids) {
+    cache.set(id, { id, name: `existing-${id}`, delete: async () => { cache.delete(id); } });
+  }
+  let sequence = 0;
   return {
+    cache,
+    create: async options => {
+      const id = `created-${kind}-${++sequence}`;
+      const resource = { id, name: options.name, delete: async () => { cache.delete(id); } };
+      cache.set(id, resource);
+      return resource;
+    }
+  };
+}
+
+function makeDiscordGuild(channelIds: string[] = ["deals-channel"], roleIds: string[] = []): BackupDiscordGuild {
+  return {
+    id: "guild-1",
+    channels: makeResourceManager("channel", channelIds),
+    roles: makeResourceManager("role", roleIds)
+  };
+}
+
+function makeInteraction(
+  subcommand: string,
+  values: { name?: string; confirm?: boolean } = {},
+  guild: BackupDiscordGuild = makeDiscordGuild()
+) {
+  return {
+    id: `interaction-${subcommand}`,
     commandName: "backup",
-    guild: { id: "guild-1" },
+    guild,
     user: { id: "user-1" },
     deferred: false,
     replied: false,
@@ -211,6 +250,55 @@ test("/backup load: daca scrierea de restore esueaza, NIMIC nu e restaurat si co
   assert.equal(auditDocs.length, 0, "daca scrierea principala esueaza, nu se scrie audit pentru o restaurare care nu a avut loc");
   assert.match(String(replies.at(-1)), /Eroare/, "userul afla ca operatia a esuat integral, nu primeste un succes partial");
   assert.equal(isHandledCommandError(result), true, "esecul scrierii de restore e o eroare de comanda reala");
+});
+
+test("/backup preview foloseste planul real fara sa creeze resurse Discord", async () => {
+  const guild = makeDiscordGuild([], []);
+  const { handler, replies } = makeHarness({ _id: "guild-1" }, [{
+    ...PROD_BACKUP,
+    snapshot: {
+      discountChannelId: "deleted-channel",
+      discountRoleId: "deleted-role",
+      youtubeChannelRoutes: [{ channelId: "youtube-source", discordChannelIds: ["deleted-channel"] }]
+    }
+  }]);
+
+  await handler.handleBackupInteraction(makeInteraction("preview", { name: "prod" }, guild));
+
+  assert.equal([...guild.channels.cache.values()].length, 0);
+  assert.equal([...guild.roles.cache.values()].length, 0);
+  assert.match(String(replies.at(-1)), /DE CREAT/);
+  assert.match(String(replies.at(-1)), /youtubeChannelRoutes\[0\]\.discordChannelIds\[0\]/);
+});
+
+test("/backup load creeaza o singura resursa pentru ID-ul partajat si remapeaza top-level plus rutele YouTube", async () => {
+  const guild = makeDiscordGuild([], []);
+  const backup: GuildConfigBackupRecord = {
+    ...PROD_BACKUP,
+    snapshot: {
+      discountChannelId: "deleted-channel",
+      discountRoleId: "deleted-role",
+      youtubeChannelRoutes: [{ channelId: "youtube-source", discordChannelIds: ["deleted-channel", "deleted-channel"] }]
+    }
+  };
+  const { handler, calls, replies } = makeHarness({ _id: "guild-1" }, [backup]);
+
+  await handler.handleBackupInteraction(makeInteraction("load", { name: "prod", confirm: true }, guild));
+
+  const channels = [...guild.channels.cache.values()];
+  const roles = [...guild.roles.cache.values()];
+  assert.equal(channels.length, 1, "ID-ul comun este creat o singura data");
+  assert.equal(roles.length, 1);
+  const update = calls[0].update;
+  const set = "$set" in update ? update.$set : undefined;
+  assert.ok(set && typeof set === "object" && isRecord(set));
+  assert.equal(set.discountChannelId, channels[0].id);
+  const routes = set.youtubeChannelRoutes;
+  assert.ok(Array.isArray(routes));
+  const route = routes[0];
+  assert.ok(route && typeof route === "object" && "discordChannelIds" in route);
+  assert.deepEqual(route.discordChannelIds, [channels[0].id, channels[0].id]);
+  assert.match(String(replies.at(-1)), /Resurse Discord create: 2/);
 });
 
 test("/backup delete sterge documentul din colectia guildConfigBackups si scrie server-log (R5 #7 + #6 audit split)", async () => {

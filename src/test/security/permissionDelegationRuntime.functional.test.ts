@@ -28,6 +28,54 @@ function auditModel(records: GuildAuditLogRecord[]) {
   };
 }
 
+test("webhookUpdate atribuit precis unui bot observat este persistat si alertat o singura data", async () => {
+  const audits: GuildAuditLogRecord[] = [];
+  const alerts: string[] = [];
+  const now = Date.parse("2026-07-18T12:00:00.000Z");
+  const observation = {
+    botId: "bot-1",
+    requesterId: "user-1",
+    approval: "one-time",
+    initialRisk: "normal",
+    joinedAt: new Date(now - 1000),
+    observeUntil: new Date(now + 86_400_000),
+    lastActivityAt: new Date(now),
+    eventKeys: ["audit:webhook-1"],
+    recentEvents: [{ key: "audit:webhook-1", kind: "webhook-change", at: new Date(now), confirmed: true }],
+    lastBurstAlertAt: null
+  };
+  const GuildModel = {
+    findOne: async () => ({ botObservations: [observation] }),
+    findOneAndUpdate: async () => null,
+    updateOne: async () => ({ modifiedCount: 1 })
+  };
+  const guild = {
+    id: "guild-1",
+    fetchAuditLogs: async () => ({
+      entries: new Map([["entry", {
+        id: "webhook-1",
+        executor: { id: "bot-1" },
+        target: { id: "webhook-target" },
+        extra: { channel: { id: "channel-1" } },
+        createdTimestamp: now
+      }]])
+    })
+  };
+  const runtime = createPermissionDelegationRuntime({
+    GuildModel,
+    GuildAuditLogModel: auditModel(audits),
+    adminAlert: async (_kind, _title, body) => { alerts.push(body); },
+    now: () => now,
+    wait: async () => undefined
+  });
+
+  await runtime.handleWebhookUpdate({ id: "channel-1", guild });
+
+  assert.equal(audits.at(-1)?.action, "observed-bot-webhook-change");
+  assert.equal(alerts.length, 1);
+  assert.match(alerts[0], /atribuita precis/);
+});
+
 test("restaurarea la roleUpdate elimina DOAR permisiunile protejate adaugate; schimbarile legitime din acelasi update raman (raport post-#705, #4)", async () => {
   const restored: Array<{ value: bigint; reason?: string }> = [];
   const alerts: string[] = [];

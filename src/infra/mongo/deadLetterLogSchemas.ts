@@ -7,7 +7,7 @@ export interface DeadLetterLogSchemasDeps {
 export function buildDeadLetterLogSchemas({ mongoose }: DeadLetterLogSchemasDeps) {
   const guildDeadLetterSchema = new mongoose.Schema({
     guildId: { type: String, required: true },
-    kind: { type: String, enum: ["update", "discount", "youtube"], required: true },
+    kind: { type: String, enum: ["update", "discount", "youtube", "future-release"], required: true },
     itemId: { type: String, default: "" },
     title: { type: String, default: "" },
     channelId: { type: String, default: "" },

@@ -42,3 +42,20 @@ test("sparkline este marginit si pastreaza directia valorilor", () => {
   assert.equal(Array.from(line).length, 4);
   assert.notEqual(Array.from(line)[0], Array.from(line).at(-1));
 });
+
+test("directia foloseste ferestre temporale si ignora densitatea inegala a mostrelor", () => {
+  const from = new Date("2026-01-01T00:00:00Z");
+  const to = new Date("2026-01-02T00:00:00Z");
+  const points = [
+    { appId: "10", gameKey: "demo", playerCount: 100, fetchedAt: new Date("2026-01-01T06:00:00Z") },
+    { appId: "10", gameKey: "demo", playerCount: 180, fetchedAt: new Date("2026-01-01T17:50:00Z") },
+    { appId: "10", gameKey: "demo", playerCount: 200, fetchedAt: new Date("2026-01-01T18:00:00Z") },
+    { appId: "10", gameKey: "demo", playerCount: 220, fetchedAt: new Date("2026-01-01T18:10:00Z") }
+  ];
+  assert.equal(calculatePlayerCountStats(points, { from, to })?.direction, "rising");
+  assert.equal(calculatePlayerCountStats(points.slice(1), { from, to })?.direction, null, "fara acoperire timpurie nu inventeaza directia");
+  assert.equal(calculatePlayerCountStats([
+    { appId: "10", gameKey: "demo", playerCount: 9999, fetchedAt: new Date("2025-12-31T23:59:59Z") },
+    ...points
+  ], { from, to })?.minimum, 100, "mostrele din afara ferestrei sunt ignorate");
+});

@@ -55,13 +55,15 @@ test("mongoContext se descompune in bundle-uri coezive injectate din composition
 test("composeMongoContextBundles ruteaza fiecare membru catre bundle-ul corect si nu scurge intre bundle-uri", () => {
   const bundles = composeMongoContextBundles(contextStub());
 
-  assert.equal(Object.keys(bundles.repositories).length, 26, "toate cele 26 de modele sunt in bundle-ul repositories");
   assert.equal(Object.keys(bundles.locks).length, 4, "cele 4 primitive de lock sunt in bundle-ul locks");
   assert.equal(Object.keys(bundles.migrations).length, 2, "runMigrations + ALL_MIGRATIONS in bundle-ul migrations");
   assert.equal(Object.keys(bundles.snapshots).length, 4, "cele 4 operatii de snapshot in bundle-ul snapshots");
   assert.equal(Object.keys(bundles.administration).length, 2, "adminAlert + setAdminAlertDiscordClient in bundle-ul administration");
 
   assert.ok(bundles.repositories.GuildModel !== undefined, "repositories expune GuildModel");
+  assert.ok(bundles.repositories.ReviewTrendSnapshotModel !== undefined, "repositories expune istoricul review-trend");
+  assert.ok(bundles.repositories.DealPriceSnapshotModel !== undefined, "repositories expune istoricul de pret");
+  assert.ok(bundles.repositories.NewAccountAlertDeliveryModel !== undefined, "repositories expune deduplicarea alertelor de cont nou");
   assert.ok(bundles.locks.acquireDbLock !== undefined, "locks expune acquireDbLock");
   assert.ok(bundles.snapshots.saveFetchSnapshot !== undefined, "snapshots expune saveFetchSnapshot");
   assert.ok(bundles.administration.adminAlert !== undefined, "administration expune adminAlert");

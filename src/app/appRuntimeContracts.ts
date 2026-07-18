@@ -28,12 +28,16 @@ import type { GuildSettings } from "../features/guild-config/guildSettingsTypes.
 import type { HttpRequestOptions } from "../types.js";
 import type { GuildAuditLogModelLike } from "../features/admin-records/auditLogRepository.js";
 import type { ModerationGuildModel } from "../features/moderation/moderationRepository.js";
+import type { NewAccountAlertDeliveryModelLike } from "../features/command-security/newAccountAlertDedup.js";
 
 export interface CommandRuntime {
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
   checkForDiscounts(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
   checkForDlcs?(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
+  checkForFutureReleases?(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
   checkForYouTube(client: DiscordClientLike, shouldAbort: () => boolean): Promise<void>;
+  refreshPlayerCountSnapshots?(games: GameConfig[], shouldAbort: () => boolean, client?: DiscordClientLike): Promise<unknown>;
+  refreshReviewTrendSnapshots?(games: GameConfig[], shouldAbort: () => boolean): Promise<unknown>;
   cleanCache(): void;
   drainOutbox(client: OutboxDiscordClient, shouldAbort?: () => boolean): Promise<OutboxDrainResult> | OutboxDrainResult;
   getCacheSizes(): CommandCacheSizes;
@@ -79,6 +83,7 @@ export interface MongoContextLike {
   getGuildSettings?: (guildId: string) => Promise<GuildSettings | null>;
   GuildModel?: ModerationGuildModel;
   GuildAuditLogModel?: GuildAuditLogModelLike;
+  NewAccountAlertDeliveryModel?: NewAccountAlertDeliveryModelLike;
   setAdminAlertDiscordClient(client: DiscordClientLike | null): void;
   getOutboxPaused: () => Promise<boolean>;
   runMigrations: (logger: MongoContextLike["logger"]) => Promise<{ applied: number[] }>;
@@ -108,6 +113,7 @@ export interface PerformanceLike {
 
 export interface DiscordClientLike extends LifecycleEventClient {
   channels: { fetch(channelId: string): Promise<LifecycleDiscordChannel | null> | LifecycleDiscordChannel | null };
+  guilds?: { cache: { values(): IterableIterator<{ id: string; members: { fetch(): Promise<{ values(): IterableIterator<{ id: string; communicationDisabledUntil?: Date | null }> }> } }> } };
   login(token: string): Promise<unknown>;
   destroy(): void | Promise<void>;
   isReady(): boolean;

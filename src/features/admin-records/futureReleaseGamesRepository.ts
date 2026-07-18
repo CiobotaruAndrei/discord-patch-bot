@@ -12,7 +12,7 @@ type GuildModelLike = {
   ): Promise<MongoWriteResult>;
 };
 
-type FutureReleaseGuildModel = GuildModelLike & {
+export type FutureReleaseGuildModel = GuildModelLike & {
   findOneAndUpdate(
     filter: Record<string, unknown>,
     update: Record<string, unknown> | Array<Record<string, unknown>>,
@@ -59,7 +59,14 @@ export async function saveFutureReleaseGame(
 ): Promise<{ record: FutureReleaseGameEntry; saved: boolean }> {
   const record: FutureReleaseGameEntry = {
     ...entry,
-    addedAt: new Date()
+    addedAt: new Date(),
+    sourceAppId: "",
+    baselineDone: false,
+    notifiedThresholdDays: [],
+    preorderSeen: false,
+    observedPreorderPrice: null,
+    stateRevision: 0,
+    lastCheckedAt: null
   };
   const updated = await GuildModel.findOneAndUpdate(
     { _id: guildId },
@@ -91,23 +98,128 @@ export async function startFutureReleaseNotifications(
   channelId: string,
   activationId: string
 ): Promise<void> {
-  await GuildModel.updateOne(
-    { _id: guildId },
-    {
-      $set: {
-        futureReleaseSubscribed: true,
-        futureReleaseChannelId: channelId,
-        futureReleaseInitializing: false,
-        futureReleaseActivationId: activationId
+  await GuildModel.updateOne({ _id: guildId }, [{
+    $set: {
+      futureReleaseSubscribed: true,
+      futureReleaseChannelId: channelId,
+      futureReleaseInitializing: true,
+      futureReleaseActivationId: activationId,
+      futureReleaseGames: {
+        $map: {
+          input: { $ifNull: ["$futureReleaseGames", []] },
+          as: "game",
+          in: {
+            $mergeObjects: ["$$game", {
+              baselineDone: false,
+              notifiedThresholdDays: [],
+              preorderSeen: false,
+              observedPreorderPrice: null,
+              stateRevision: 0,
+              lastCheckedAt: null
+            }]
+          }
+        }
       }
-    },
-    { upsert: true }
-  );
+    }
+  }], { upsert: true });
 }
 
 export async function stopFutureReleaseNotifications(GuildModel: GuildModelLike, guildId: string): Promise<void> {
   await GuildModel.updateOne(
     { _id: guildId },
+    {
+      $set: {
+        futureReleaseSubscribed: false,
+        futureReleaseChannelId: null,
+        futureReleaseInitializing: false
+      },
+      $unset: { futureReleaseActivationId: "" }
+    }
+  );
+}
+
+export interface FutureReleaseStateUpdate {
+  baselineDone: boolean;
+  notifiedThresholdDays: number[];
+  preorderSeen: boolean;
+  observedPreorderPrice: string | null;
+  sourceAppId?: string;
+  releaseDate?: string | null;
+  preorderPrice?: string | null;
+}
+
+export async function persistFutureReleaseState(
+  GuildModel: GuildModelLike,
+  guildId: string,
+  activationId: string,
+  gameName: string,
+  state: FutureReleaseStateUpdate,
+  checkedAt: Date
+): Promise<boolean> {
+  const result = await GuildModel.updateOne(
+    {
+      _id: guildId,
+      futureReleaseSubscribed: true,
+      futureReleaseActivationId: activationId,
+      "futureReleaseGames.gameName": gameName
+    },
+    [{
+      $set: {
+        futureReleaseGames: {
+          $map: {
+            input: { $ifNull: ["$futureReleaseGames", []] },
+            as: "game",
+            in: {
+              $cond: [
+                { $eq: ["$$game.gameName", gameName] },
+                {
+                  $mergeObjects: ["$$game", {
+                    baselineDone: state.baselineDone,
+                    notifiedThresholdDays: state.notifiedThresholdDays,
+                    preorderSeen: state.preorderSeen,
+                    observedPreorderPrice: state.observedPreorderPrice,
+                    sourceAppId: state.sourceAppId ?? "$$game.sourceAppId",
+                    releaseDate: state.releaseDate ?? "$$game.releaseDate",
+                    preorderPrice: state.preorderPrice ?? "",
+                    stateRevision: { $add: [{ $ifNull: ["$$game.stateRevision", 0] }, 1] },
+                    lastCheckedAt: checkedAt
+                  }]
+                },
+                "$$game"
+              ]
+            }
+          }
+        }
+      }
+    }]
+  );
+  return (result.modifiedCount ?? 0) > 0;
+}
+
+export async function finishFutureReleaseInitialization(
+  GuildModel: GuildModelLike,
+  guildId: string,
+  activationId: string
+): Promise<boolean> {
+  const result = await GuildModel.updateOne(
+    {
+      _id: guildId,
+      futureReleaseSubscribed: true,
+      futureReleaseInitializing: true,
+      futureReleaseActivationId: activationId
+    },
+    { $set: { futureReleaseInitializing: false } }
+  );
+  return (result.modifiedCount ?? 0) > 0;
+}
+
+export async function disableFutureReleaseForChannelError(
+  GuildModel: GuildModelLike,
+  guildId: string,
+  channelId: string
+): Promise<MongoWriteResult> {
+  return GuildModel.updateOne(
+    { _id: guildId, futureReleaseChannelId: channelId },
     {
       $set: {
         futureReleaseSubscribed: false,

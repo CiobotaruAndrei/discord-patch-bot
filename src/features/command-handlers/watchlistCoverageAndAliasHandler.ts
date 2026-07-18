@@ -4,6 +4,7 @@ import type { GameConfig, GuildSettings, InteractionMessage } from "../../types.
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 import { aliasOwner, gameAliasRecord, normalizeGameAlias } from "../guild-config/gameAliasService.js";
+import { validateUserText } from "../command-security/userTextPolicy.js";
 import { errorDetail } from "../../shared/errors.js";
 import { applyGuildConfigUpdate, type GuildConfigWriteModelLike } from "../guild-config/guildConfigRepository.js";
 
@@ -75,7 +76,12 @@ function createCoverageAliasHandler(deps: CoverageAliasDeps) {
       const aliases = dynamic[game.key] || [];
       return deps.safeEdit(interaction, aliases.length ? `Aliasuri pentru **${game.name}**: ${aliases.map(alias => `\`${alias}\``).join(", ")}` : `**${game.name}** nu are aliasuri personalizate.`);
     }
-    const alias = normalizeGameAlias(interaction.options.getString("alias", true));
+    let alias = "";
+    try {
+      alias = normalizeGameAlias(validateUserText("game-alias.alias", interaction.options.getString("alias", true) || ""));
+    } catch {
+      return deps.safeEdit(interaction, "Eroare: aliasul nu poate contine linkuri.");
+    }
     if (alias.length < 2) return deps.safeEdit(interaction, "Eroare: aliasul trebuie sa aiba cel putin 2 caractere.");
     if (subcommand === "add") {
       const owner = aliasOwner(alias, games, dynamic);

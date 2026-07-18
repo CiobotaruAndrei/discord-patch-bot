@@ -7,6 +7,7 @@ const { createIsStillSubscribed, outboxSubscriptionFilter } = notifications;
 const youtubeJob = { guildId: "g1", channelId: "c1", kind: "youtube" as const, payload: {} };
 const discountJob = { guildId: "g1", channelId: "c1", kind: "discount" as const, payload: {} };
 const updateJob = { guildId: "g1", channelId: "c1", kind: "update" as const, payload: {} };
+const futureReleaseJob = { guildId: "g1", channelId: "c1", kind: "future-release" as const, payload: {} };
 
 test("createIsStillSubscribed: o eroare Mongo la countDocuments se PROPAGA (fail-closed), nu mai e inghitita ca true (R21 #1)", async () => {
   const predicate = createIsStillSubscribed({ countDocuments: () => Promise.reject(new Error("mongo down")) });
@@ -40,4 +41,12 @@ test("outboxSubscriptionFilter: discount si update raman neschimbate (manual nu 
   assert.deepEqual(outboxSubscriptionFilter(discountJob), { _id: "g1", discountsSubscribed: true, discountChannelId: "c1" });
   assert.deepEqual(outboxSubscriptionFilter(updateJob), { _id: "g1", subscribed: true, notificationChannelId: "c1" });
   assert.deepEqual(outboxSubscriptionFilter({ ...discountJob, manual: true }), { _id: "g1", discountsSubscribed: true, discountChannelId: "c1" });
+});
+
+test("outboxSubscriptionFilter: future-release cere abonamentul si canalul modulului sau", () => {
+  assert.deepEqual(outboxSubscriptionFilter(futureReleaseJob), {
+    _id: "g1",
+    futureReleaseSubscribed: true,
+    futureReleaseChannelId: "c1"
+  });
 });

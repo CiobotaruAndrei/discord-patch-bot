@@ -80,3 +80,10 @@ test("data doar-an sau invalida => fara praguri calendaristice, dar preorder-ul 
   assert.deepEqual(result.notifications, [{ kind: "preorder-available", gameName: "G", price: "50 EUR" }], "fara praguri, dar preorder detectat");
   assert.deepEqual(result.nextState.notifiedThresholdDays, [], "niciun prag calendaristic pentru data doar-an");
 });
+
+test("o data de lansare trecuta nu emite praguri retroactive (audit, #26)", () => {
+  const state: FutureReleaseGameState = { baselineDone: true, notifiedThresholdDays: [], preorderSeen: false, observedPreorderPrice: null };
+  const result = computeFutureReleaseUpdate({ gameName: "G", releaseDate: iso(-1) }, state, NOW);
+  assert.deepEqual(result.notifications, []);
+  assert.deepEqual(result.nextState.notifiedThresholdDays, []);
+});

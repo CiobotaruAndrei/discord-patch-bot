@@ -22,6 +22,16 @@ import {
 } from "../admin-records/operationJournalRuntime.js";
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { renderBackupList, renderBackupPreview } from "./backupViews.js";
+import {
+  applyResourceIdRemap,
+  planBackupResourceRestore,
+  validateBackupResourceReferences
+} from "../admin-records/backupResourceRestorePlan.js";
+import {
+  materializeBackupResources,
+  type BackupDiscordGuild,
+  type BackupDiscordResourceManager
+} from "../admin-records/backupResourceRestoreRuntime.js";
 
 import { errorDetail } from "../../shared/errors.js";
 
@@ -31,7 +41,7 @@ type Logger = (level: string, context: string, message: string, meta?: unknown) 
 interface DiscordInteraction {
   id?: string;
   commandName?: string;
-  guild?: { id: string } | null;
+  guild?: BackupDiscordGuild | null;
   user?: { id?: string } | null;
   deferred?: boolean;
   replied?: boolean;
@@ -66,6 +76,16 @@ function backupName(interaction: DiscordInteraction): string {
 
 function requireConfirm(interaction: DiscordInteraction): boolean {
   return interaction.options.getBoolean("confirm", true) === true;
+}
+
+function resourceIds(manager: BackupDiscordResourceManager): string[] {
+  return [...manager.cache.values()].map(resource => resource.id);
+}
+
+function resourcePlan(interaction: DiscordInteraction, snapshot: Record<string, unknown>) {
+  const guild = interaction.guild;
+  if (!guild) throw new Error("Serverul Discord nu este disponibil pentru restaurarea resurselor.");
+  return planBackupResourceRestore(snapshot, resourceIds(guild.channels), resourceIds(guild.roles));
 }
 
 function createBackupInteractionHandler(deps: BackupInteractionDeps) {
@@ -113,7 +133,7 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
     const backup = await findConfigBackup(GuildConfigBackupModel, guildId, name);
     if (!backup) return safeEdit(interaction, `Nu exista backup-ul \`${name}\`.`);
     const settings = await getGuildSettings(guildId);
-    return safeEdit(interaction, renderBackupPreview(backup, settings));
+    return safeEdit(interaction, renderBackupPreview(backup, settings, resourcePlan(interaction, backup.snapshot)));
   }
 
   async function handleLoad(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
@@ -123,16 +143,24 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
     const name = backupName(interaction);
     const backup = await findConfigBackup(GuildConfigBackupModel, guildId, name);
     if (!backup) return safeEdit(interaction, `Nu exista backup-ul \`${name}\`.`);
+    const guild = interaction.guild;
+    if (!guild) throw new Error("Serverul Discord nu este disponibil pentru restaurarea resurselor.");
+    const materialized = await materializeBackupResources(guild, resourcePlan(interaction, backup.snapshot));
+    const remappedBackup = { ...backup, snapshot: applyResourceIdRemap(backup.snapshot, materialized.remap) };
+    const validation = validateBackupResourceReferences(remappedBackup.snapshot, materialized.channelIds, materialized.roleIds);
+    if (validation.invalid.length > 0 || validation.missing.length > 0) {
+      throw new Error("Backup-ul nu poate fi incarcat deoarece au ramas referinte Discord invalide sau inexistente.");
+    }
     await operationJournal.runJournaled(operationKey(interaction, BACKUP_LOAD_KIND, backup.name), BACKUP_LOAD_KIND, {
       guildId,
-      backup,
+      backup: remappedBackup,
       audit: { userId: interaction.user?.id || "", action: "backup_load", details: `Loaded backup ${backup.name}` }
     }, {
       schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
       resourceKey: `guild-config:${guildId}`,
       resourceVersion: journalResourceVersion(interaction.id)
     });
-    return safeEdit(interaction, `OK: backup-ul \`${backup.name}\` a fost incarcat.`);
+    return safeEdit(interaction, `OK: backup-ul \`${backup.name}\` a fost incarcat. Resurse Discord create: ${materialized.created.length}.`);
   }
 
   async function handleDelete(interaction: DiscordInteraction, guildId: string): Promise<unknown> {

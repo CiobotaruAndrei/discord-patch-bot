@@ -23,6 +23,13 @@ export type StartSubscriptionOutcome =
   | { status: "superseded" }
   | { status: "baseline-failed"; error: unknown };
 
+export type PlayerCountBaseline = {
+  gameKey: string;
+  appId: string;
+  playerCount: number;
+  fetchedAt: Date;
+};
+
 type SubscriptionModuleSpec = {
   logContext: string;
   baselineWarnMessage: string;
@@ -162,25 +169,75 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
     }, OP_UPDATE_OPTS);
   }
 
-  async function addPlayerCountGame(guildId: string, channelId: string, gameKey: string): Promise<void> {
+  async function startPlayerCount(
+    guildId: string,
+    channelId: string,
+    seedBaseline: () => Promise<PlayerCountBaseline[]>
+  ): Promise<StartSubscriptionOutcome> {
+    const activationId = makeActivationId();
     await GuildModel.updateOne(
       { _id: guildId },
       {
-        $set: { playerCountSubscribed: true, playerCountChannelId: channelId },
-        $addToSet: { playerCountGames: gameKey }
+        $set: {
+          playerCountSubscribed: false,
+          playerCountChannelId: channelId,
+          playerCountInitializing: true,
+          playerCountActivationId: activationId,
+          playerCountWatchState: [],
+          playerCountGames: []
+        }
       },
       { upsert: true, ...OP_UPDATE_OPTS }
     );
+    try {
+      const baseline = await seedBaseline();
+      const result = await GuildModel.updateOne(
+        { _id: guildId, playerCountActivationId: activationId, playerCountInitializing: true },
+        {
+          $set: {
+            playerCountSubscribed: true,
+            playerCountInitializing: false,
+            playerCountWatchState: baseline
+          },
+          $unset: { playerCountActivationId: "" }
+        },
+        OP_UPDATE_OPTS
+      );
+      return result.matchedCount !== 0 ? { status: "activated" } : { status: "superseded" };
+    } catch (error: unknown) {
+      await GuildModel.updateOne(
+        { _id: guildId, playerCountActivationId: activationId },
+        {
+          $set: {
+            playerCountSubscribed: false,
+            playerCountChannelId: null,
+            playerCountInitializing: false,
+            playerCountWatchState: []
+          },
+          $unset: { playerCountActivationId: "" }
+        },
+        OP_UPDATE_OPTS
+      ).catch(() => null);
+      logger("WARN", "START_PLAYER_COUNT", "Baseline-ul player-count a esuat", errorMessage(error));
+      return { status: "baseline-failed", error };
+    }
   }
 
-  async function setPlayerCountGames(guildId: string, remaining: string[], keepChannelId: string | null): Promise<void> {
-    await GuildModel.updateOne({ _id: guildId }, {
-      $set: {
-        playerCountGames: remaining,
-        playerCountSubscribed: remaining.length > 0,
-        playerCountChannelId: remaining.length > 0 ? keepChannelId : null
-      }
-    }, OP_UPDATE_OPTS);
+  async function stopPlayerCount(guildId: string): Promise<void> {
+    await GuildModel.updateOne(
+      { _id: guildId },
+      {
+        $set: {
+          playerCountSubscribed: false,
+          playerCountChannelId: null,
+          playerCountInitializing: false,
+          playerCountWatchState: [],
+          playerCountGames: []
+        },
+        $unset: { playerCountActivationId: "" }
+      },
+      OP_UPDATE_OPTS
+    );
   }
 
   return {
@@ -193,8 +250,8 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
     startDlc: (guildId: string, channelId: string, seedBaseline: () => Promise<void>) =>
       startSubscription("dlc", guildId, channelId, seedBaseline),
     stopDlc: (guildId: string) => stopSubscription("dlc", guildId),
-    addPlayerCountGame,
-    setPlayerCountGames,
+    startPlayerCount,
+    stopPlayerCount,
     rollbackActivation
   };
 }

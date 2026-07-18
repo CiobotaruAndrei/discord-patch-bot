@@ -149,3 +149,84 @@ test("refreshPlayerCountSnapshots salveaza istoricul si anunta automat un record
   assert.equal(sends.length, 1);
   assert.match(JSON.stringify(sends[0]), /Record nou de jucatori/);
 });
+
+test("notificarile player-count folosesc watchlist-ul, baseline persistent, cooldown si revendicare atomica", async () => {
+  type WatchState = {
+    gameKey: string;
+    appId: string;
+    playerCount: number;
+    fetchedAt: Date;
+    lastNotifiedAt?: Date;
+    lastDirection?: "up" | "down";
+  };
+  const state: WatchState[] = [];
+  const sends: unknown[] = [];
+  let current = 1000;
+  const guildModel = {
+    find: () => ({
+      lean: async () => [{
+        _id: "guild-1",
+        playerCountSubscribed: true,
+        playerCountChannelId: "channel-1",
+        enabledGames: ["cs2"],
+        playerCountWatchState: state.map(entry => ({ ...entry }))
+      }]
+    }),
+    updateOne: async (_filter: Record<string, unknown>, update: Record<string, unknown>) => {
+      const pushed = (update.$push as { playerCountWatchState?: WatchState } | undefined)?.playerCountWatchState;
+      if (pushed) {
+        if (state.some(entry => entry.gameKey === pushed.gameKey)) return { modifiedCount: 0 };
+        state.push({ ...pushed });
+        return { modifiedCount: 1 };
+      }
+      const set = update.$set as Record<string, Date | number | string>;
+      const expected = ((_filter.playerCountWatchState as { $elemMatch?: { gameKey?: string; playerCount?: number; fetchedAt?: Date } })?.$elemMatch);
+      const entry = state.find(item => item.gameKey === expected?.gameKey);
+      if (!entry || entry.playerCount !== expected?.playerCount || entry.fetchedAt.getTime() !== expected.fetchedAt?.getTime()) return { modifiedCount: 0 };
+      entry.appId = String(set["playerCountWatchState.$[entry].appId"]);
+      entry.playerCount = Number(set["playerCountWatchState.$[entry].playerCount"]);
+      entry.fetchedAt = set["playerCountWatchState.$[entry].fetchedAt"] as Date;
+      if (set["playerCountWatchState.$[entry].lastNotifiedAt"] instanceof Date) entry.lastNotifiedAt = set["playerCountWatchState.$[entry].lastNotifiedAt"] as Date;
+      if (set["playerCountWatchState.$[entry].lastDirection"] === "up" || set["playerCountWatchState.$[entry].lastDirection"] === "down") entry.lastDirection = set["playerCountWatchState.$[entry].lastDirection"] as "up" | "down";
+      return { modifiedCount: 1 };
+    }
+  };
+  const buildService = () => attachPlayerCountSnapshots.createPlayerCountSnapshotService({
+    PlayerCountSnapshotModel: makeModel().model,
+    PlayerCountHistoryModel: { create: async doc => doc, find: () => ({ sort: () => ({ lean: async () => [] }) }) },
+    PlayerCountRecordModel: {
+      findById: () => ({ lean: async () => ({ _id: "10", gameKey: "cs2", playerCount: 999999, reachedAt: new Date() }) }),
+      find: () => ({ lean: async () => [] }),
+      updateOne: async () => ({})
+    },
+    GuildModel: guildModel,
+    fetchSteamCurrentPlayers: async appId => ({ appId: String(appId), playerCount: current, success: true }),
+    logger: () => undefined
+  });
+  const client = { channels: { fetch: async () => ({ send: async (payload: unknown) => { sends.push(payload); return payload; } }) } };
+  const game = { key: "cs2", name: "Counter-Strike 2", appId: "10" };
+  const service = buildService();
+
+  await service.refreshPlayerCountSnapshots([game], null, client);
+  assert.equal(state[0].playerCount, 1000);
+  assert.equal(sends.length, 0, "prima masuratoare este baseline");
+
+  current = 1100;
+  await service.refreshPlayerCountSnapshots([game], null, client);
+  assert.equal(sends.length, 0, "fluctuatia sub prag nu trimite alerta");
+
+  current = 1500;
+  await Promise.all([
+    buildService().refreshPlayerCountSnapshots([game], null, client),
+    buildService().refreshPlayerCountSnapshots([game], null, client)
+  ]);
+  assert.equal(sends.length, 1, "doua instante revendica o singura alerta pentru aceeasi tranzitie");
+
+  current = 2000;
+  await service.refreshPlayerCountSnapshots([game], null, client);
+  assert.equal(sends.length, 1, "aceeasi directie este suprimata in cooldown");
+
+  current = 1000;
+  await service.refreshPlayerCountSnapshots([game], null, client);
+  assert.equal(sends.length, 2, "schimbarea directiei poate produce alerta in cooldown");
+});

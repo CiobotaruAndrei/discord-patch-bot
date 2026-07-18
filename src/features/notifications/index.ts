@@ -15,6 +15,7 @@ import { createUpdateNotificationRuntime } from "./updateNotificationRuntime.js"
 import { createDiscountNotificationRuntime } from "./discountNotificationRuntime.js";
 import { createDlcNotificationRuntime } from "./dlcNotificationRuntime.js";
 import { createYouTubeNotificationRuntime } from "./youtubeNotificationRuntime.js";
+import { createFutureReleaseNotificationRuntime } from "./futureReleaseNotificationRuntime.js";
 
 function createNotificationDispatchServices(
   deps: NotificationsRuntimeDeps,
@@ -25,6 +26,7 @@ function createNotificationDispatchServices(
   const { discountService, priceAlertService } = createDiscountNotificationRuntime(deps, resolveOutboundChannel, seenRepository);
   const { dlcService } = createDlcNotificationRuntime(deps, resolveOutboundChannel, seenRepository);
   const { youtubeSource, youtubeRepository, youtubeService } = createYouTubeNotificationRuntime(deps, resolveOutboundChannel);
+  const futureReleaseService = createFutureReleaseNotificationRuntime(deps, resolveOutboundChannel);
 
   return {
     updateService,
@@ -33,7 +35,8 @@ function createNotificationDispatchServices(
     dlcService,
     youtubeSource,
     youtubeRepository,
-    youtubeService
+    youtubeService,
+    futureReleaseService
   };
 }
 
@@ -47,7 +50,8 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     dlcService,
     youtubeSource,
     youtubeRepository,
-    youtubeService
+    youtubeService,
+    futureReleaseService
   } = createNotificationDispatchServices(deps, resolveOutboundChannel, seenRepository);
   const {
     claimSeenUpdate, rollbackSeenUpdate, seedSeenUpdates, disableUpdatesForChannelError,
@@ -82,6 +86,7 @@ function createNotificationRuntime(deps: NotificationsRuntimeDeps) {
     processGuildDlcs: dlcService.processGuildDlcs,
     checkForDlcs: dlcService.checkForDlcs,
     seedBaselineDlc: dlcService.seedBaselineDlc,
+    checkForFutureReleases: futureReleaseService.checkForFutureReleases,
     resolveYouTubeChannel: youtubeSource.resolveYouTubeChannel,
     fetchYouTubeFeed: youtubeSource.fetchYouTubeFeed,
     fetchYouTubeVideoMetadata: youtubeSource.fetchYouTubeVideoMetadata,

@@ -1,6 +1,6 @@
 "use strict";
 
-import type { SteamAppDetailsSummary } from "../../sources/sourceApis.js";
+import type { SteamAppDetailsSummary, SteamLatestUpdateSizeSummary } from "../../sources/sourceApis.js";
 import {
   INFO_COLOR,
   extractInstallSize,
@@ -23,12 +23,16 @@ export function buildSystemRequirementsEmbed(query: string, appId: string | numb
   };
 }
 
-export function buildGameSizeEmbed(query: string, appId: string | number, details: SteamAppDetailsSummary, load: SafeCheerioLoad): DiscordEmbed {
-  const size = extractInstallSize(details, load);
+export function buildGameSizeEmbed(query: string, appId: string | number, details: SteamAppDetailsSummary, load: SafeCheerioLoad, latestUpdate?: SteamLatestUpdateSizeSummary): DiscordEmbed {
+  const installSize = extractInstallSize(details, load);
   return {
     title: `Game size: ${details.name || query}`,
     url: `https://store.steampowered.com/app/${appId}`,
     color: INFO_COLOR,
-    description: size ? `Dimensiune instalare detectata: **${size}**.` : "Steam nu expune o dimensiune clara in cerintele de sistem curente."
+    fields: [
+      { name: "Instalare", value: installSize ? `Aproximativ **${installSize}**` : "indisponibil", inline: true },
+      { name: "Ultimul update", value: latestUpdate?.size ? `Aproximativ **${latestUpdate.size}**${latestUpdate.title ? `\n${latestUpdate.title}` : ""}` : "indisponibil", inline: true }
+    ],
+    footer: { text: "Dimensiunea update-ului este afisata numai cand sursa Steam o publica explicit." }
   };
 }

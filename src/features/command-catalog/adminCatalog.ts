@@ -35,6 +35,7 @@ export const ADMIN_COMMAND_ACCESS: readonly CommandAccessRule[] = [
 
 export const ADMIN_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   { command: "/backup list", description: "Afiseaza backup-urile salvate pentru server si cine le-a creat.", example: "/backup list" },
+  { command: "/backup add", description: "Salveaza configuratia curenta a botului intr-un backup numit; foloseste aceeasi logica precum aliasul /add backup.", example: "/backup add name:inainte-youtube" },
   { command: "/backup preview", description: "Arata ce setari, canale si roluri vor fi restaurate daca incarci backup-ul ales.", example: "/backup preview name:inainte-youtube" },
   { command: "/backup load", description: "Incarca un backup salvat si restaureaza configuratia botului pentru server. Cere confirmare explicita.", example: "/backup load name:inainte-youtube confirm:true" },
   { command: "/backup delete", description: "Sterge un backup salvat. Cere confirmare explicita ca sa nu fie sters accidental.", example: "/backup delete name:inainte-youtube confirm:true" },
@@ -47,6 +48,8 @@ export const ADMIN_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   { command: "/admin-alerts off", description: "Opreste livrarea alertelor administrative in Discord pentru server.", example: "/admin-alerts off" },
   { command: "/admin-command-access list", description: "Afiseaza regula globala si regulile dedicate pe comenzi admin. Cu command afiseaza regula exacta pentru comanda aleasa sau fallback-ul global folosit.", example: "/admin-command-access list command:/start updates" },
   { command: "/delete admin-command-access", description: "Sterge regula de rol globala sau regula dedicata unei comenzi admin si revine la fallback-ul ramas: regula globala, Administrator sau cod global de acces.", example: "/delete admin-command-access confirm:true command:/start updates" },
+  { command: "/delete suggest-command", description: "Sterge o comanda sugerata din lista serverului impreuna cu descrierea ei.", example: "/delete suggest-command name:calendar" },
+  { command: "/delete watchlist-game", description: "Sterge un joc din lista propunerilor pentru watchlist; foloseste aceeasi logica precum /watchlist-game delete.", example: "/delete watchlist-game game:silksong" },
   { command: "/maintenance", description: "Afiseaza zonele operationale care trebuie verificate: surse cu erori, outbox, dead-letter, backup vechi, canale lipsa si notificari oprite.", example: "/maintenance" },
   { command: "/template set", description: "Seteaza template-ul unei comenzi si valideaza placeholder-ele acceptate.", example: "/template set command:/start updates text:{count} update-uri noi" },
   { command: "/template reset", description: "Sterge template-ul personalizat si revine la valoarea implicita.", example: "/template reset command:/start updates" },

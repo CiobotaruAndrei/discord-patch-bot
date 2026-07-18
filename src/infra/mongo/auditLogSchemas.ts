@@ -14,6 +14,8 @@ export function buildAuditLogSchemas({ mongoose, ONE_DAY_MS, env }: AuditLogSche
     guildId: { type: String, required: true },
     kind: { type: String, enum: ["bot", "server"], required: true },
     userId: { type: String, default: "" },
+    actorId: { type: String, default: "" },
+    targetId: { type: String, default: "" },
     command: { type: String, default: "" },
     action: { type: String, default: "" },
     result: { type: String, default: "" },

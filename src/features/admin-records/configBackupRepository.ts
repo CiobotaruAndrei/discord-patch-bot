@@ -116,7 +116,11 @@ export const GUILD_SETTINGS_FIELD_ROLES: Readonly<Record<string, GuildSettingsFi
   dlcActivationId: "operational",
   dlcLastError: "operational",
   futureReleaseInitializing: "operational",
-  futureReleaseActivationId: "operational"
+  futureReleaseActivationId: "operational",
+  playerCountInitializing: "operational",
+  playerCountActivationId: "operational",
+  playerCountWatchState: "operational",
+  botObservations: "operational"
 });
 
 export const CONFIG_BACKUP_KEYS: readonly (keyof GuildConfigurationSettings)[] = Object.freeze([

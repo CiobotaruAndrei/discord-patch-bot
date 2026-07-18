@@ -38,13 +38,14 @@ function makeDeps() {
       }
     },
     logger: () => undefined,
-    getGuildSettings: async () => ({ _id: "guild-1", playerCountGames: ["cs2", "portal"], playerCountChannelId: "channel-1" }),
+    getGuildSettings: async () => ({ _id: "guild-1", enabledGames: ["cs2", "portal"], playerCountGames: ["cs2", "portal"], playerCountChannelId: "channel-1" }),
     DEFAULT_CURRENCY: "USD",
     getLatestForAllGames: async () => [],
     fetchDeals: async () => [],
     dealHash: () => "deal-hash",
     seedSeenUpdates: async () => undefined,
     seedSeenDiscounts: async () => undefined,
+    fetchSteamCurrentPlayers: async appId => ({ appId: String(appId), playerCount: 1000, success: true }),
     DEALS_HISTORY_LIMIT: 10,
     OP_UPDATE_OPTS: {},
     setDealsCache: () => undefined,
@@ -88,29 +89,39 @@ test("/stop dlc opreste modulul si curata activarea", async () => {
   assert.match(String(replies[0]), /DLC/);
 });
 
-test("/start player-count salveaza jocul si canalul curent", async () => {
+test("/start player-count activeaza intregul watchlist si salveaza baseline-ul eligibil", async () => {
   const { handlers, calls, replies } = makeDeps();
 
-  await handlers.handleStartInteraction(makeInteraction("start", "player-count"), [{ key: "cs2", name: "Counter-Strike 2", appId: "730" }]);
+  await handlers.handleStartInteraction(makeInteraction("start", "player-count"), [
+    { key: "cs2", name: "Counter-Strike 2", appId: "730" },
+    { key: "portal", name: "Portal" }
+  ]);
 
-  assert.deepEqual(calls[0].update, {
-    $set: { playerCountSubscribed: true, playerCountChannelId: "channel-1" },
-    $addToSet: { playerCountGames: "cs2" }
-  });
-  assert.match(String(replies[0]), /player-count pornit/);
+  assert.equal((calls[0].update.$set as Record<string, unknown>).playerCountSubscribed, false);
+  assert.equal((calls[0].update.$set as Record<string, unknown>).playerCountInitializing, true);
+  assert.equal(calls[1].filter.playerCountActivationId, "activation-dlc");
+  assert.equal((calls[1].update.$set as Record<string, unknown>).playerCountSubscribed, true);
+  const state = (calls[1].update.$set as Record<string, unknown>).playerCountWatchState as Array<Record<string, unknown>>;
+  assert.equal(state.length, 1);
+  assert.equal(state[0].gameKey, "cs2");
+  assert.match(String(replies[0]), /watchlist/);
+  assert.match(String(replies[0]), /fara Steam appId: 1/);
 });
 
-test("/stop player-count scoate jocul si pastreaza modulul activ cand mai exista jocuri", async () => {
+test("/stop player-count opreste intregul watchlist si invalideaza activarea veche", async () => {
   const { handlers, calls, replies } = makeDeps();
 
-  await handlers.handleStopInteraction(makeInteraction("stop", "player-count"), [{ key: "cs2", name: "Counter-Strike 2", appId: "730" }]);
+  await handlers.handleStopInteraction(makeInteraction("stop", "player-count"));
 
   assert.deepEqual(calls[0].update, {
     $set: {
-      playerCountGames: ["portal"],
-      playerCountSubscribed: true,
-      playerCountChannelId: "channel-1"
-    }
+      playerCountSubscribed: false,
+      playerCountChannelId: null,
+      playerCountInitializing: false,
+      playerCountWatchState: [],
+      playerCountGames: []
+    },
+    $unset: { playerCountActivationId: "" }
   });
-  assert.match(String(replies[0]), /player-count oprit/);
+  assert.match(String(replies[0]), /intregul watchlist/);
 });

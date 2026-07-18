@@ -1,5 +1,5 @@
 export interface OutboxHistoryEntry {
-  kind: "update" | "discount" | "youtube";
+  kind: "update" | "discount" | "youtube" | "future-release";
   gameKey?: string;
   title?: string;
   link?: string;
@@ -8,7 +8,7 @@ export interface OutboxHistoryEntry {
 export interface NotificationOutboxDoc {
   guildId: string;
   channelId: string;
-  kind: "update" | "discount" | "youtube";
+  kind: "update" | "discount" | "youtube" | "future-release";
   payload: unknown;
   attempts?: number;
   deliveries?: number;
@@ -31,7 +31,7 @@ export interface NotificationOutboxSentDoc {
 
 export interface NotificationHistoryDoc {
   guildId: string;
-  kind: "update" | "discount" | "youtube";
+  kind: "update" | "discount" | "youtube" | "future-release";
   gameKey?: string;
   title?: string;
   link?: string;
@@ -40,7 +40,7 @@ export interface NotificationHistoryDoc {
 
 export interface NotificationDeadLetterReplayDoc {
   guildId: string;
-  kind: "update" | "discount" | "youtube";
+  kind: "update" | "discount" | "youtube" | "future-release";
   channelId: string;
   payload: unknown;
   dedupeKey?: string;

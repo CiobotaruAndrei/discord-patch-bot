@@ -3,6 +3,11 @@
 import type { DealInfo, GameConfig, GuildSettings, PriceValue } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
+import {
+  summarizeDealPriceHistory,
+  type DealPriceHistorySummary,
+  type DealPricePoint
+} from "../game-info/dealPriceHistoryService.js";
 
 import { errorDetail, errorMessage } from "../../shared/errors.js";
 
@@ -31,6 +36,8 @@ interface DealScoreDeps {
   getDealsCacheData(currency: string): DealInfo[] | null;
   setDealsCache(currency: string, deals: DealInfo[]): void;
   fetchDeals(opts: { currency: string }): Promise<DealInfo[]>;
+  recordDealPriceSnapshots?(deals: readonly DealInfo[], fallbackCurrency: string, at?: Date): Promise<number>;
+  readDealPriceHistory?(deal: DealInfo, fallbackCurrency: string, since: Date): Promise<DealPricePoint[]>;
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
   formatPrice(value: PriceValue, currencyCode?: string | null): string;
   DEFAULT_CURRENCY: string;
@@ -74,7 +81,7 @@ function titleMatches(query: string, title: string): boolean {
   return shared / queryTokens.length >= 0.75;
 }
 
-export function scoreDeal(deal: DealInfo): { score: number; reasons: string[] } {
+export function scoreDeal(deal: DealInfo, history: DealPriceHistorySummary = summarizeDealPriceHistory([])): { score: number; reasons: string[]; confidence: "low" | "medium" | "high" } {
   const discount = discountPercent(deal);
   const sale = numericPrice(deal.salePrice);
   const normal = numericPrice(deal.normalPrice);
@@ -92,14 +99,24 @@ export function scoreDeal(deal: DealInfo): { score: number; reasons: string[] } 
   points += quality / 100;
   points += popularity / 200;
   points += String(deal.store || "").toLowerCase().includes("steam") ? 0.4 : 0.2;
+  if (history.confidence !== "low" && sale !== null && history.historicalMin !== null && history.recentMedian !== null) {
+    const minimumRatio = history.historicalMin > 0 ? sale / history.historicalMin : 1;
+    if (minimumRatio <= 1.02) points += 1.5;
+    else if (minimumRatio <= 1.1) points += 1;
+    else if (sale <= history.recentMedian) points += 0.6;
+    else points -= Math.min(0.8, (sale - history.recentMedian) / Math.max(history.recentMedian, 1));
+  }
   const score = Math.max(1, Math.min(10, Math.round(points * 10) / 10));
   const reasons = [
     `reducere ${discount}%`,
     sale !== null ? `pret curent ${sale}` : "pret curent necunoscut",
     quality > 0 ? `calitate ${Math.round(quality)}%` : "calitate indisponibila",
-    popularity > 0 ? `popularitate ${Math.round(popularity)}%` : "popularitate indisponibila"
+    popularity > 0 ? `popularitate ${Math.round(popularity)}%` : "popularitate indisponibila",
+    history.confidence === "low"
+      ? `istoric insuficient (${history.sampleCount}/3 snapshot-uri); incredere redusa`
+      : `minim istoric ${history.historicalMin}; mediana recenta ${history.recentMedian}; incredere ${history.confidence}`
   ];
-  return { score, reasons };
+  return { score, reasons, confidence: history.confidence };
 }
 
 export function findBestDeal(deals: DealInfo[], query: string): DealInfo | null {
@@ -141,15 +158,33 @@ function createDealScoreInteractionHandler(deps: DealScoreDeps) {
       endLog("source_error", { errorMsg: loaded.error });
       return safeEdit(interaction, `Eroare: nu am putut incarca ofertele pentru scor acum: ${loaded.error}`);
     }
-    const deal = findBestDeal(loaded.deals, query);
-    if (!deal) {
+    if (deps.recordDealPriceSnapshots) {
+      await deps.recordDealPriceSnapshots(loaded.deals, currency).catch(error => {
+        deps.logger("WARN", "DEAL_PRICE_HISTORY", "Snapshot-urile curente nu au putut fi salvate", error);
+      });
+    }
+    const matches = loaded.deals.filter(deal => titleMatches(query, String(deal.title || "")));
+    if (!matches.length) {
       endLog("not_found");
       return safeEdit(interaction, `Nu am gasit o oferta activa comparabila pentru \`${query}\`.`);
     }
-    const scored = scoreDeal(deal);
+    const candidates = await Promise.all(matches.map(async deal => {
+      let history = summarizeDealPriceHistory([]);
+      if (deps.readDealPriceHistory) {
+        try {
+          const points = await deps.readDealPriceHistory(deal, currency, new Date(Date.now() - 365 * 86_400_000));
+          history = summarizeDealPriceHistory(points);
+        } catch (error) {
+          deps.logger("WARN", "DEAL_PRICE_HISTORY", "Istoricul pretului nu a putut fi citit", error);
+        }
+      }
+      return { deal, scored: scoreDeal(deal, history) };
+    }));
+    candidates.sort((left, right) => right.scored.score - left.scored.score);
+    const { deal, scored } = candidates[0];
     const sale = numericPrice(deal.salePrice);
     const price = sale === null ? String(deal.salePrice || "pret indisponibil") : formatPrice(sale, String(deal.currency || currency));
-    endLog("ok", { score: scored.score });
+    endLog("ok", { score: scored.score, historyConfidence: scored.confidence });
     return safeEdit(interaction, {
       embeds: [{
         title: `Deal score: ${deal.title || query}`,

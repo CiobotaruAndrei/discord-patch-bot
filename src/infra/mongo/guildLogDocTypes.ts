@@ -8,7 +8,7 @@ export interface GuildYoutubeErrorDoc {
 
 export interface GuildDeadLetterDoc {
   guildId: string;
-  kind: "update" | "discount" | "youtube";
+  kind: "update" | "discount" | "youtube" | "future-release";
   itemId?: string;
   title?: string;
   channelId?: string;

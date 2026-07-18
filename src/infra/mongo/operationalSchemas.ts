@@ -60,6 +60,40 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
   playerCountHistorySchema.index({ appId: 1, fetchedAt: 1 }, { background: true });
   playerCountHistorySchema.index({ gameKey: 1, fetchedAt: 1 }, { background: true });
 
+  const reviewTrendSnapshotSchema = new mongoose.Schema({
+    _id: { type: String, required: true },
+    appId: { type: String, required: true },
+    gameKey: { type: String, default: "" },
+    totalReviews: { type: Number, required: true, min: 0 },
+    qualityPercent: { type: Number, required: true, min: 0, max: 100 },
+    fetchedAt: { type: Date, required: true, expires: 45 * ONE_DAY_MS / 1000 }
+  }, { minimize: false });
+  reviewTrendSnapshotSchema.index({ appId: 1, fetchedAt: 1 }, { background: true });
+  reviewTrendSnapshotSchema.index({ gameKey: 1, fetchedAt: 1 }, { background: true });
+
+  const dealPriceSnapshotSchema = new mongoose.Schema({
+    _id: { type: String, required: true },
+    gameKey: { type: String, required: true },
+    title: { type: String, default: "" },
+    store: { type: String, required: true },
+    currency: { type: String, required: true },
+    price: { type: Number, required: true, min: 0 },
+    fetchedAt: { type: Date, required: true, expires: 400 * ONE_DAY_MS / 1000 }
+  }, { minimize: false });
+  dealPriceSnapshotSchema.index({ gameKey: 1, store: 1, currency: 1, fetchedAt: 1 }, { background: true });
+
+  const newAccountAlertDeliverySchema = new mongoose.Schema({
+    _id: { type: String, required: true },
+    guildId: { type: String, required: true },
+    userId: { type: String, required: true },
+    status: { type: String, enum: ["claimed", "delivered"], required: true },
+    claimToken: { type: String, default: null },
+    leaseUntil: { type: Date, default: null },
+    deliveredAt: { type: Date, default: null },
+    expiresAt: { type: Date, required: true, expires: 0 }
+  }, { minimize: false });
+  newAccountAlertDeliverySchema.index({ guildId: 1, userId: 1 }, { unique: true, background: true });
+
   const playerCountRecordSchema = new mongoose.Schema({
     _id: String,
     gameKey: { type: String, default: "" },
@@ -138,6 +172,9 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     fetchSnapshotSchema,
     playerCountSnapshotSchema,
     playerCountHistorySchema,
+    reviewTrendSnapshotSchema,
+    dealPriceSnapshotSchema,
+    newAccountAlertDeliverySchema,
     playerCountRecordSchema,
     bugReportSchema,
     userComplaintSchema,

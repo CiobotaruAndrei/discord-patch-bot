@@ -11,6 +11,7 @@ import type { DeadLetterReplayRepositoryDeps } from "./deadLetterReplayRepositor
 import type { SourceRegistryApi } from "../../sources/sourceRegistry.js";
 import type { GuildDeadLetterDoc, GuildSeenYoutubeDoc, GuildYoutubeErrorDoc } from "../../infra/mongo/modelTypes.js";
 import type { ReportRollbackFailure } from "./rollbackReporter.js";
+import type { FutureReleaseGuildDoc } from "./futureReleaseNotificationService.js";
 
 export type GeneratedUpdateDeps =
   | "resolveOutboundChannel"
@@ -40,7 +41,15 @@ export type NotificationsRuntimeDeps = SeenRepositoryDeps
   & Omit<DiscountNotificationServiceDeps, GeneratedDiscountDeps>
   & {
     env: RuntimeEnv;
-    GuildModel: { countDocuments(filter: Record<string, unknown>): Promise<number> };
+    GuildModel: {
+      countDocuments(filter: Record<string, unknown>): Promise<number>;
+      find(filter: Record<string, unknown>): { lean(): Promise<FutureReleaseGuildDoc[]> };
+      updateOne(
+        filter: Record<string, unknown>,
+        update: Record<string, unknown> | Array<Record<string, unknown>>,
+        options?: Record<string, unknown>
+      ): Promise<{ matchedCount?: number; modifiedCount?: number }>;
+    };
     canSendEmbeds(channel: unknown, botId: string): boolean;
     formatPrice(value: PriceValue, currencyCode?: string | null): string;
     saveFetchSnapshot?: (id: string, payload: unknown) => Promise<void>;
@@ -53,6 +62,9 @@ export type NotificationsRuntimeDeps = SeenRepositoryDeps
     GuildDeadLetterModel: Model<GuildDeadLetterDoc>;
     httpReq: SourceRegistryApi["httpReq"];
     safeCheerioLoad: SourceRegistryApi["safeCheerioLoad"];
+    searchSteamGameByName: SourceRegistryApi["searchSteamGameByName"];
+    chooseBestSteamMatch: SourceRegistryApi["chooseBestSteamMatch"];
+    fetchSteamPriceDetails: SourceRegistryApi["fetchSteamPriceDetails"];
     FETCH_CONCURRENCY: number;
     PRICE_ALERT_REARM_ABSENT_CYCLES: number;
     adminAlert?: (kind: string, title: string, body: unknown, guildId?: string) => Promise<unknown>;

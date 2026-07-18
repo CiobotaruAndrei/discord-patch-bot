@@ -3,37 +3,41 @@
 import type { GameConfig } from "../../types.js";
 import type { DiscordChannel, SubscriptionFamily, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts.js";
 import { createSubscriptionService } from "../notifications/subscriptionService.js";
-import { normalizeGameKey, findGameByKeyOrAlias as findConfiguredGame } from "../../config/gameCatalog.js";
+import { normalizeGameKey } from "../../config/gameCatalog.js";
 
-export { normalizeGameKey, findConfiguredGame };
+export { normalizeGameKey };
 
 export function createPlayerCountSubscriptionFamily(deps: SubscriptionInteractionDeps): SubscriptionFamily {
-  const { getGuildSettings, safeEdit, formatUserError } = deps;
+  const { getGuildSettings, safeEdit, formatUserError, fetchSteamCurrentPlayers } = deps;
   const service = createSubscriptionService(deps);
 
   async function start(interaction: SubscriptionInteraction, guildId: string, channel: DiscordChannel, games: GameConfig[]) {
-    const game = findConfiguredGame(games, interaction.options.getString?.("game", true) || null);
-    if (!game) return safeEdit(interaction, "Eroare: jocul nu exista in lista configurata a botului.");
-    if (!game.appId) return safeEdit(interaction, `Eroare: \`${game.name}\` nu are Steam appId configurat, deci nu poate avea player-count Steam.`);
+    const settings = await getGuildSettings(guildId);
+    const enabled = new Set((settings?.enabledGames ?? []).map(normalizeGameKey));
+    const watched = games.filter(game => enabled.has(normalizeGameKey(game.key)));
+    const eligible = watched.filter(game => Boolean(game.appId));
+    if (!eligible.length) return safeEdit(interaction, "Eroare: watchlist-ul nu contine niciun joc eligibil cu Steam appId.");
     try {
-      await service.addPlayerCountGame(guildId, channel.id, game.key);
-      return safeEdit(interaction, `OK: player-count pornit pentru **${game.name}** pe acest server.`);
+      const outcome = await service.startPlayerCount(guildId, channel.id, async () => {
+        const fetchedAt = new Date();
+        const values = await Promise.all(eligible.map(async game => {
+          const result = await fetchSteamCurrentPlayers(String(game.appId));
+          return result.success ? { gameKey: game.key, appId: String(game.appId), playerCount: result.playerCount, fetchedAt } : null;
+        }));
+        return values.filter((value): value is NonNullable<typeof value> => value !== null);
+      });
+      if (outcome.status === "superseded") return safeEdit(interaction, "Player-count nu a fost pornit deoarece activarea a fost oprita sau inlocuita intre timp.");
+      if (outcome.status === "baseline-failed") return safeEdit(interaction, formatUserError(outcome.error, "Eroare la baseline-ul player-count."));
+      const omitted = watched.length - eligible.length;
+      return safeEdit(interaction, `OK: player-count pornit pentru watchlist. Jocuri eligibile: ${eligible.length}; fara Steam appId: ${omitted}.`);
     } catch (err: unknown) {
       return safeEdit(interaction, formatUserError(err, "Eroare la pornirea player-count."));
     }
   }
 
-  async function stop(interaction: SubscriptionInteraction, guildId: string, games: GameConfig[]) {
-    const requested = interaction.options.getString?.("game", true) || null;
-    const game = findConfiguredGame(games, requested);
-    const requestedKey = game?.key || String(requested || "").trim();
-    if (!requestedKey) return safeEdit(interaction, "Eroare: trebuie sa specifici jocul pentru care opresti player-count.");
-    const existingGuild = await getGuildSettings(guildId);
-    const current = Array.isArray(existingGuild?.playerCountGames) ? existingGuild.playerCountGames.map(String) : [];
-    const normalizedRequested = normalizeGameKey(requestedKey);
-    const remaining = current.filter(key => normalizeGameKey(key) !== normalizedRequested);
-    await service.setPlayerCountGames(guildId, remaining, existingGuild?.playerCountChannelId || null);
-    return safeEdit(interaction, `OK: player-count oprit pentru \`${game?.name || requestedKey}\`.`);
+  async function stop(interaction: SubscriptionInteraction, guildId: string) {
+    await service.stopPlayerCount(guildId);
+    return safeEdit(interaction, "OK: player-count oprit pentru intregul watchlist; starea pending a fost curatata.");
   }
 
   return { start, stop };

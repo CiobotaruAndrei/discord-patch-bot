@@ -14,15 +14,16 @@ type TestTarget = {
 
 type TestGuildExtra = {
   bans?: { remove(userId: string, reason?: string): Promise<unknown> };
-  channels?: { fetch(channelId: string): Promise<{ send?: (payload: unknown) => Promise<unknown> } | null> };
+  channels?: { fetch(channelId: string): Promise<{ id?: string; send?: (payload: unknown) => Promise<unknown>; permissionsFor?: (member: TestTarget) => { has(permission: bigint): boolean } | null } | null> };
 };
 
-function options(userId: string, reason: string | null = null) {
+function options(userId: string, reason: string | null = null, selectedChannel: { id: string; send(payload: unknown): Promise<unknown>; permissionsFor(member: TestTarget): { has(permission: bigint): boolean } } | null = null) {
   return {
     getUser: () => ({ id: userId, username: "target" }),
     getString: () => reason,
     getInteger: () => null,
-    getAttachment: () => null
+    getAttachment: () => null,
+    getChannel: () => selectedChannel
   };
 }
 
@@ -220,4 +221,128 @@ test("unban foloseste API-ul de bans al guild-ului fara a cere membrul prezent",
 
   assert.deepEqual(removals, [{ userId: "user-1", reason: "apel acceptat" }]);
   assert.match(String(replies[0]), /debanat/);
+});
+
+test("remove-timeout refuza un mute si indica exact comanda opusa fara sa modifice Discord", async () => {
+  let timeoutCalls = 0;
+  const replies: string[] = [];
+  const mute = { userId: "user-1", username: "target", moderatorId: "admin-1", appliedAt: new Date(), expiresAt: new Date(Date.now() + 60_000) };
+  const handler = moderationInteractionHandler.createModerationInteractionHandler({
+    GuildModel: {
+      findOne: async () => ({ moderationMutes: [mute], moderationTimeouts: [] }),
+      findOneAndUpdate: async () => null,
+      updateOne: async () => ({ modifiedCount: 1 })
+    },
+    MessageFlags: { Ephemeral: 64 },
+    getGuildSettings: async () => null,
+    safeDefer: async () => undefined,
+    safeEdit: async (_value, payload) => { replies.push(String(payload)); return payload; }
+  });
+  const target = { id: "user-1", user: { id: "user-1" }, roles: { highest: { position: 10 } }, timeout: async () => { timeoutCalls++; } };
+
+  await handler.handle(interaction("remove-timeout", guildWithTarget(target)));
+
+  assert.equal(timeoutCalls, 0);
+  assert.match(replies[0], /mute/);
+  assert.match(replies[0], /unmute/);
+});
+
+test("eliminarea sanctiunii refuza starea corupta cu timeout si mute simultan", async () => {
+  let timeoutCalls = 0;
+  const replies: string[] = [];
+  const base = { userId: "user-1", username: "target", moderatorId: "admin-1", appliedAt: new Date(), expiresAt: new Date(Date.now() + 60_000) };
+  const handler = moderationInteractionHandler.createModerationInteractionHandler({
+    GuildModel: {
+      findOne: async () => ({ moderationMutes: [base], moderationTimeouts: [base] }),
+      findOneAndUpdate: async () => null,
+      updateOne: async () => ({ modifiedCount: 1 })
+    },
+    MessageFlags: { Ephemeral: 64 },
+    getGuildSettings: async () => null,
+    safeDefer: async () => undefined,
+    safeEdit: async (_value, payload) => { replies.push(String(payload)); return payload; }
+  });
+  const target = { id: "user-1", user: { id: "user-1" }, roles: { highest: { position: 10 } }, timeout: async () => { timeoutCalls++; } };
+
+  await handler.handle(interaction("unmute", guildWithTarget(target)));
+
+  assert.equal(timeoutCalls, 0);
+  assert.match(replies[0], /simultan timeout si mute/);
+});
+
+test("warn configureaza atomic canalul selectat numai dupa verificarea permisiunilor", async () => {
+  const updates: Array<Record<string, unknown> | readonly Record<string, unknown>[]> = [];
+  const sent: unknown[] = [];
+  const target = { id: "user-1", user: { id: "user-1", username: "target" }, roles: { highest: { position: 10 } } };
+  const selectedChannel = {
+    id: "warn-channel",
+    permissionsFor: () => ({ has: () => true }),
+    send: async (payload: unknown) => { sent.push(payload); return payload; }
+  };
+  const handler = moderationInteractionHandler.createModerationInteractionHandler({
+    GuildModel: {
+      findOne: async () => null,
+      findOneAndUpdate: async () => ({ moderationWarnings: [{ userId: "user-1" }], moderationWarnBanLimit: 0 }),
+      updateOne: async (_filter, update) => { updates.push(update); return { modifiedCount: 1 }; }
+    },
+    MessageFlags: { Ephemeral: 64 },
+    getGuildSettings: async () => null,
+    safeDefer: async () => undefined,
+    safeEdit: async (_value, payload) => payload
+  });
+  const warnInteraction = interaction("warn", guildWithTarget(target), "motiv");
+  warnInteraction.options = options("user-1", "motiv", selectedChannel);
+
+  await handler.handle(warnInteraction);
+
+  assert.match(JSON.stringify(updates[0]), /warningChannelId/);
+  assert.equal(sent.length, 1);
+});
+
+test("warn nu salveaza canalul si avertismentul cand permisiunile nu pot fi verificate", async () => {
+  let writes = 0;
+  const replies: string[] = [];
+  const target = { id: "user-1", user: { id: "user-1", username: "target" }, roles: { highest: { position: 10 } } };
+  const selectedChannel = { id: "warn-channel", permissionsFor: () => ({ has: () => false }), send: async (payload: unknown) => payload };
+  const handler = moderationInteractionHandler.createModerationInteractionHandler({
+    GuildModel: {
+      findOne: async () => null,
+      findOneAndUpdate: async () => null,
+      updateOne: async () => { writes++; return { modifiedCount: 1 }; }
+    },
+    MessageFlags: { Ephemeral: 64 },
+    getGuildSettings: async () => null,
+    safeDefer: async () => undefined,
+    safeEdit: async (_value, payload) => { replies.push(String(payload)); return payload; }
+  });
+  const warnInteraction = interaction("warn", guildWithTarget(target), "motiv");
+  warnInteraction.options = options("user-1", "motiv", selectedChannel);
+
+  await handler.handle(warnInteraction);
+
+  assert.equal(writes, 0);
+  assert.match(replies[0], /Lipsesc/);
+});
+
+test("warn-ban-limit afiseaza valoarea anterioara si valoarea noua", async () => {
+  const replies: string[] = [];
+  const handler = moderationInteractionHandler.createModerationInteractionHandler({
+    GuildModel: {
+      findOne: async () => null,
+      findOneAndUpdate: async () => ({ moderationWarnBanLimit: 3 }),
+      updateOne: async () => ({ modifiedCount: 1 })
+    },
+    MessageFlags: { Ephemeral: 64 },
+    getGuildSettings: async () => null,
+    safeDefer: async () => undefined,
+    safeEdit: async (_value, payload) => { replies.push(String(payload)); return payload; }
+  });
+  const command = {
+    ...interaction("warn-ban-limit", guildWithTarget({ id: "unused" })),
+    options: { ...options("user-1"), getInteger: () => 5 }
+  };
+
+  await handler.handle(command);
+
+  assert.match(replies[0], /3 -> 5/);
 });

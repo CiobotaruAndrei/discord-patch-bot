@@ -132,15 +132,23 @@ test("startDlc: baseline esuat => rollback conditionat de activation-id + dlcLas
   assert.deepEqual(logs, [{ level: "WARN", context: "START_DLC", message: "Activat, dar baseline-ul DLC a esuat" }]);
 });
 
-test("addPlayerCountGame/setPlayerCountGames: $addToSet la pornire; lista goala opreste modulul si goleste canalul (runda 10)", async () => {
+test("player-count: activarea este protejata de token, iar stop curata toata starea", async () => {
   const { service, writes } = makeHarness();
-  await service.addPlayerCountGame("g1", "c1", "cs2");
-  assert.deepEqual(writes[0].update.$addToSet, { playerCountGames: "cs2" });
-  assert.equal(setOf(writes[0]).playerCountSubscribed, true);
-  await service.setPlayerCountGames("g1", ["dota"], "c1");
-  assert.deepEqual(setOf(writes[1]), { playerCountGames: ["dota"], playerCountSubscribed: true, playerCountChannelId: "c1" });
-  await service.setPlayerCountGames("g1", [], "c1");
-  assert.deepEqual(setOf(writes[2]), { playerCountGames: [], playerCountSubscribed: false, playerCountChannelId: null }, "lista goala dezaboneaza si goleste canalul");
+  const baseline = [{ gameKey: "cs2", appId: "730", playerCount: 1000, fetchedAt: new Date() }];
+  assert.deepEqual(await service.startPlayerCount("g1", "c1", async () => baseline), { status: "activated" });
+  assert.equal(setOf(writes[0]).playerCountSubscribed, false);
+  assert.equal(setOf(writes[0]).playerCountInitializing, true);
+  assert.deepEqual(setOf(writes[1]).playerCountWatchState, baseline);
+  assert.equal(setOf(writes[1]).playerCountSubscribed, true);
+  await service.stopPlayerCount("g1");
+  assert.deepEqual(setOf(writes[2]), {
+    playerCountSubscribed: false,
+    playerCountChannelId: null,
+    playerCountInitializing: false,
+    playerCountWatchState: [],
+    playerCountGames: []
+  });
+  assert.deepEqual(writes[2].update.$unset, { playerCountActivationId: "" });
 });
 
 test("rollbackActivation: esecul scrierii de rollback nu arunca, dar tot logheaza si invalideaza", async () => {

@@ -2,6 +2,8 @@
 
 import type { GameConfig } from "../../types.js";
 import type { SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../../sources/sourceApis.js";
+import type { PlayerCountStats } from "../player-count/playerCountTimeAnalysis.js";
+import { playerCountDirectionLabel } from "../player-count/playerCountTimeAnalysis.js";
 import {
   INFO_COLOR,
   RESULT_LIMIT_DEFAULT,
@@ -13,14 +15,24 @@ export function formatPlayerCount(count: number): string {
   return new Intl.NumberFormat("en-US").format(count);
 }
 
-export function buildPlayerCountEmbed(query: string, appId: string | number, details: SteamAppDetailsSummary, players: SteamCurrentPlayersSummary): DiscordEmbed {
+export function buildPlayerCountEmbed(
+  query: string,
+  appId: string | number,
+  details: SteamAppDetailsSummary,
+  players: SteamCurrentPlayersSummary,
+  stats: PlayerCountStats | null = null
+): DiscordEmbed {
+  const current = players.success ? formatPlayerCount(players.playerCount) : "indisponibil";
+  const peak = stats ? `${formatPlayerCount(stats.maximum)} la <t:${Math.floor(stats.peakAt.getTime() / 1000)}:F>` : "indisponibil";
   return {
     title: `Player count: ${details.name || query}`,
     url: `https://store.steampowered.com/app/${appId}`,
     color: players.success ? INFO_COLOR : WARNING_COLOR,
-    description: players.success
-      ? `Jucatori activi pe Steam acum: **${formatPlayerCount(players.playerCount)}**.`
-      : "Steam nu a returnat un numar valid de jucatori activi pentru acest joc."
+    description: `Jucatori activi pe Steam acum: **${current}**.`,
+    fields: [
+      { name: "Peak in ultimele 24h", value: peak, inline: true },
+      { name: "Directie", value: playerCountDirectionLabel(stats?.direction ?? null), inline: true }
+    ]
   };
 }
 

@@ -4,10 +4,12 @@ import type { BotAddPermissionRecord } from "../moderation/botAddRepository.js";
 import { sendTextPages } from "../command-presentation/textPagination.js";
 
 type Channel = { send?: (payload: unknown) => Promise<unknown> };
+type RequesterMember = { send?: (payload: unknown) => Promise<unknown> };
 type Guild = {
   id: string;
   ownerId?: string;
   channels?: { fetch?: (id: string) => Promise<Channel | null> };
+  members?: { fetch?: (id: string) => Promise<RequesterMember | null> };
 };
 type Interaction = {
   commandName?: string;
@@ -43,7 +45,15 @@ function relTime(value: Date | string | null | undefined): string {
 }
 export function display(record: BotAddPermissionRecord): string {
   const respondedBy = record.ownerId ? ` de <@${record.ownerId}>` : "";
-  return `#${record.requestId} | bot ${record.botId} | solicitant <@${record.requesterId}> | status ${record.status} | cerut ${relTime(record.requestedAt)} | raspuns ${relTime(record.respondedAt)}${respondedBy} | expira ${relTime(record.expiresAt)} | folosit ${relTime(record.usedAt)}`;
+  const labels: Record<BotAddPermissionRecord["status"], string> = {
+    pending: "in asteptare",
+    approved: "aprobata",
+    used: "folosita",
+    rejected: "respinsa",
+    expired: "expirata",
+    cancelled: record.cancellationReason === "protection-stopped" ? "anulata la oprirea protectiei" : "anulata"
+  };
+  return `#${record.requestId} | bot ${record.botId} | solicitant <@${record.requesterId}> | status ${labels[record.status]} | cerut ${relTime(record.requestedAt)} | raspuns ${relTime(record.respondedAt)}${respondedBy} | expira ${relTime(record.expiresAt)} | folosit ${relTime(record.usedAt)} | anulat ${relTime(record.cancelledAt)}`;
 }
 function isActiveRecord(record: BotAddPermissionRecord, now: number): boolean {
   return (record.status === "pending" || record.status === "approved")
@@ -72,14 +82,26 @@ export function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
       if (!match) return undefined;
       if (!owner(interaction)) return interaction.reply({ content: "Doar proprietarul serverului poate aproba solicitarile.", ephemeral: true });
       const record = await botAddRepository.resolveBotAddRequest(deps.GuildModel, guild.id, match[2], match[1] === "approve" ? "approved" : "rejected", interaction.user.id);
-      if (!record) return interaction.update ? interaction.update({ content: "Solicitarea nu mai este activa sau a expirat.", components: [] }) : interaction.reply({ content: "Solicitarea nu mai este activa sau a expirat.", ephemeral: true });
+      if (!record) {
+        const existing = (await botAddRepository.getBotAddState(deps.GuildModel, guild.id)).botAddPermissions.find(entry => entry.requestId === match[2]);
+        const unavailable = existing?.status === "cancelled" && existing.cancellationReason === "protection-stopped"
+          ? "Solicitarea a fost anulata la oprirea protectiei bot-add si nu mai poate fi aprobata."
+          : "Solicitarea nu mai este activa sau a expirat.";
+        return interaction.update ? interaction.update({ content: unavailable, components: [] }) : interaction.reply({ content: unavailable, ephemeral: true });
+      }
       const decisionWord = match[1] === "approve" ? "Aprobata" : "Respinsa";
       const requesterNotice = match[1] === "approve"
         ? `solicitarea ta de adaugare bot a fost aprobata; ai o fereastra one-time pentru a adauga botul.`
         : `solicitarea ta de adaugare bot a fost respinsa de owner.`;
       const content = `${decisionWord}: ${display(record)}\n<@${record.requesterId}> ${requesterNotice}`;
       const allowedMentions = { parse: [], users: [record.requesterId] };
-      return interaction.update ? interaction.update({ content, components: [], allowedMentions }) : interaction.reply({ content, ephemeral: true, allowedMentions });
+      const requester = guild.members?.fetch ? await guild.members.fetch(record.requesterId).catch(() => null) : null;
+      const directDelivered = requester?.send
+        ? await requester.send({ content: requesterNotice, allowedMentions: { parse: [] } }).then(() => true).catch(() => false)
+        : false;
+      const delivery = directDelivered ? "Notificare directa trimisa solicitantului." : "Notificarea directa nu a putut fi livrata; decizia ramane in acest canal.";
+      const finalContent = `${content}\n${delivery}`;
+      return interaction.update ? interaction.update({ content: finalContent, components: [], allowedMentions }) : interaction.reply({ content: finalContent, ephemeral: true, allowedMentions });
     }
     const command = interaction.commandName;
     if (command === "bot-add-permissions") {
