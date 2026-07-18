@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createThreatInspectionService, reputationEngineConfigured, describeResponseCompleteness } from "../../features/command-security/threatInspectionService.js";
+import { createThreatInspectionService, reputationEngineConfigured, describeResponseCompleteness, passiveDocumentIndicators } from "../../features/command-security/threatInspectionService.js";
 import { isRecentAccount, recentAccountCutoff } from "../../features/command-security/recentAccountPolicy.js";
 
 function storedZip(entries: Array<{ name: string; data: Buffer; declaredSize?: number }>): Buffer {
@@ -384,4 +384,31 @@ test("verdict extern periculos pe obiectul complet ramane confirmed (audit, #7)"
   });
   const result = await inspector.inspectMessage("", [{ id: "a", name: "installer", url: "https://cdn.example.test/small" }]);
   assert.equal(result.verdict, "confirmed", "un obiect complet confirmat de motorul extern ramane confirmed");
+});
+
+test("passiveDocumentIndicators detecteaza structuri PDF/Office periculoase suplimentare (audit, #5)", () => {
+  assert.deepEqual(passiveDocumentIndicators(Buffer.from("%PDF-1.7 << /OpenAction << /Launch (calc.exe) >> >>")), [
+    "indicator de script/actiune automata in document",
+    "indicator de lansare de proces sau continut incorporat"
+  ]);
+  assert.ok(passiveDocumentIndicators(Buffer.from("%PDF-1.7 /EmbeddedFile foo")).includes("indicator de lansare de proces sau continut incorporat"));
+  assert.ok(passiveDocumentIndicators(Buffer.from("%PDF-1.7 /RichMedia annot")).includes("indicator de lansare de proces sau continut incorporat"));
+  assert.ok(passiveDocumentIndicators(Buffer.from("catalog /AA << >>")).includes("indicator de script/actiune automata in document"));
+  assert.ok(passiveDocumentIndicators(Buffer.from("field DDEAUTO c:\\windows\\system32")).includes("indicator de camp DDE (executie externa)"));
+  assert.ok(passiveDocumentIndicators(Buffer.from("form /XFA data")).includes("formular XFA cu potential de script"));
+  assert.ok(passiveDocumentIndicators(Buffer.from("stream _VBA_PROJECT here")).includes("indicator de macro VBA"));
+});
+
+test("passiveDocumentIndicators nu semnaleaza un document curat (audit, #5)", () => {
+  assert.deepEqual(passiveDocumentIndicators(Buffer.from("%PDF-1.7 continut simplu de text fara actiuni")), []);
+});
+
+test("un PDF cu /Launch e semnalat structural dar ramane uncertain, nu se sterge (audit, #5)", async () => {
+  const pdf = Buffer.from("%PDF-1.7\n<< /OpenAction << /Launch (cmd.exe) >> >>");
+  const inspector = createThreatInspectionService({
+    httpReq: async () => ({ data: pdf, headers: { "content-type": "application/pdf" }, status: 200 })
+  });
+  const result = await inspector.inspectMessage("https://example.test/doc.pdf", []);
+  assert.equal(result.verdict, "uncertain", "documentul cu lansare de proces ramane uncertain, nu se sterge fara confirmare");
+  assert.match(result.reason, /lansare de proces/);
 });

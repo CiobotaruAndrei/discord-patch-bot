@@ -54,8 +54,11 @@ function contentIndicators(name: string, buffer: Buffer): string[] {
   if (buffer.length >= 2 && buffer[0] === 0x4d && buffer[1] === 0x5a) indicators.push("executabil PE intern");
   if (buffer.length >= 4 && buffer[0] === 0x7f && buffer.subarray(1, 4).toString("ascii") === "ELF") indicators.push("executabil ELF intern");
   const text = buffer.subarray(0, Math.min(buffer.length, 1_048_576)).toString("latin1");
-  if (/\/JavaScript\b/.test(text) || /\/JS\b/.test(text) || text.includes("/OpenAction") || text.includes("/Launch")) {
+  if (/\/JavaScript\b/.test(text) || /\/JS\b/.test(text) || text.includes("/OpenAction") || text.includes("/Launch") || /\/AA\b/.test(text) || text.includes("/EmbeddedFile") || text.includes("/RichMedia")) {
     indicators.push("actiune automata sau script PDF intern");
+  }
+  if (text.includes("DDEAUTO") || /\bDDE\s/.test(text)) {
+    indicators.push("camp DDE intern (executie externa)");
   }
   if (/(?:TargetMode\s*=\s*["']External["']|https?:\/\/)/i.test(text) && normalized.endsWith(".rels")) {
     indicators.push("referinta externa in document Office");

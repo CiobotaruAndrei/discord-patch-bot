@@ -154,15 +154,24 @@ function magicKind(buffer: Buffer): "executable" | "archive" | "document" | "scr
 
 type ResourceKind = "executable" | "archive" | "document" | "script" | "other";
 
-function passiveDocumentIndicators(buffer: Buffer): string[] {
+export function passiveDocumentIndicators(buffer: Buffer): string[] {
   const window = buffer.subarray(0, Math.min(buffer.length, 1_048_576));
   const ascii = window.toString("latin1");
   const indicators: string[] = [];
-  if (ascii.includes("vbaProject.bin") || ascii.includes("word/vbaProject") || ascii.includes("macros/vba")) {
+  if (ascii.includes("vbaProject.bin") || ascii.includes("word/vbaProject") || ascii.includes("macros/vba") || ascii.includes("_VBA_PROJECT") || /\bMacros\b/.test(ascii)) {
     indicators.push("indicator de macro VBA");
   }
-  if (/\/JavaScript\b/.test(ascii) || /\/JS\b/.test(ascii) || ascii.includes("/OpenAction") || ascii.includes("/Launch")) {
+  if (/\/JavaScript\b/.test(ascii) || /\/JS\b/.test(ascii) || ascii.includes("/OpenAction") || /\/AA\b/.test(ascii)) {
     indicators.push("indicator de script/actiune automata in document");
+  }
+  if (ascii.includes("/Launch") || ascii.includes("/EmbeddedFile") || ascii.includes("/RichMedia") || ascii.includes("/GoToR")) {
+    indicators.push("indicator de lansare de proces sau continut incorporat");
+  }
+  if (ascii.includes("DDEAUTO") || /\bDDE\s/.test(ascii)) {
+    indicators.push("indicator de camp DDE (executie externa)");
+  }
+  if (ascii.includes("/XFA")) {
+    indicators.push("formular XFA cu potential de script");
   }
   return indicators;
 }
