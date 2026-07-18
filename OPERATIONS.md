@@ -30,6 +30,7 @@ Pe scurt, instrumentele de operare:
 - `bot_security_threats_deleted` numara numai mesajele sterse dupa confirmarea continutului periculos. O alerta `uncertain` nu incrementeaza seria si cere verificare manuala.
 - `bot_security_bot_adds_blocked` numara botii eliminati fiindca audit log-ul nu a identificat solicitantul sau nu exista o aprobare pending valida pentru perechea exacta bot + solicitant.
 - `bot_permission_delegations_reverted` numara restaurarile automate ale permisiunilor sensibile acordate de altcineva decat owner. Coreleaza seria cu audit log-ul serverului pentru executor, tinta si permisiunea restaurata.
+- Un bot monitorizat dupa join are un context de observatie de 7 zile (`botObservations`). Pe langa modificarile de rol/overwrite/webhook (alimentate de runtime-ul de delegare) si mesajele botului, actiunile de server-log confirmate prin Audit Log — creare/stergere canal, creare/stergere rol, ban, kick, timeout — sunt corelate cu profilul botului printr-un adaptor comun, deduplicat dupa audit entry ID (`audit:<id>`), astfel incat acelasi eveniment sa nu fie contorizat de doua listener-e. O rafala (5 actiuni corelate intr-un minut) produce alerta `security:bot-observation-burst` o singura data.
 
 La cresterea oricarei serii, verifica si canalul configurat prin `/admin-alerts set`: alertele contin tipul incidentului, severitatea, utilizatorul sau resursa implicata, actiunea automata si rezultatul, fara a reproduce continut executabil ori payload-uri periculoase.
 

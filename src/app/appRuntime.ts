@@ -56,6 +56,7 @@ import { createReputationEngine } from "../features/command-security/reputationE
 import { createPermissionDelegationRuntime } from "../features/command-security/permissionDelegationRuntime.js";
 import { createModerationLifecycleRuntime } from "../features/moderation/moderationLifecycleRuntime.js";
 import { createServerEventLogRuntime } from "../features/command-security/serverEventLogRuntime.js";
+import { observeConfirmedBotAction } from "../features/command-security/botObservationRepository.js";
 import { createModerationCleanupTask } from "./scheduler/moderationCleanupTask.js";
 import { roleRunsSchedulers } from "../shared/botRole.js";
 import { createNewAccountAlertDelivery } from "../features/command-security/newAccountAlertDedup.js";
@@ -93,8 +94,15 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
   const moderationLifecycleRuntime = mongo.GuildModel
     ? createModerationLifecycleRuntime(mongo.GuildModel, logger)
     : undefined;
+  const observationModel = mongo.GuildModel;
   const serverEventLogRuntime = mongo.GuildAuditLogModel
-    ? createServerEventLogRuntime({ GuildAuditLogModel: mongo.GuildAuditLogModel, logger })
+    ? createServerEventLogRuntime({
+      GuildAuditLogModel: mongo.GuildAuditLogModel,
+      logger,
+      observeBotAction: observationModel
+        ? (guildId, actorId, auditEntryId, kind, at) => observeConfirmedBotAction(observationModel, adminAlert, guildId, actorId, auditEntryId, kind, at)
+        : undefined
+    })
     : undefined;
   const moderationCleanup = schedulers && moderationLifecycleRuntime
     ? createModerationCleanupTask({
