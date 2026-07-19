@@ -251,13 +251,18 @@ export async function pullModerationRecords(
   return timeoutIds.length + muteIds.length;
 }
 
+export const MAX_WARN_HISTORY = 500;
+
 export async function addWarning(model: ModerationGuildModel, guildId: string, record: WarningRecord): Promise<{ count: number; limit: number }> {
   const document = await resolveDocument(model.findOneAndUpdate(
     { _id: guildId },
     [{
       $set: {
         moderationWarnings: {
-          $concatArrays: [{ $ifNull: ["$moderationWarnings", []] }, [record]]
+          $slice: [
+            { $concatArrays: [{ $ifNull: ["$moderationWarnings", []] }, [record]] },
+            -MAX_WARN_HISTORY
+          ]
         },
         moderationWarnBanLimit: { $ifNull: ["$moderationWarnBanLimit", 0] }
       }

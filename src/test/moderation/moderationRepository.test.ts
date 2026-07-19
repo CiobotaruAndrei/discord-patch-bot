@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  MAX_WARN_HISTORY,
+  addWarning,
   cleanupExpiredModeration,
   pullStaleTimeouts,
   reconcileTimeoutRecords,
@@ -10,6 +12,23 @@ import {
   saveMute,
   saveTimeout
 } from "../../features/moderation/moderationRepository.js";
+
+test("addWarning plafoneaza atomic istoricul de warn-uri prin $slice, ca documentul guild-ului sa nu creasca nelimitat (audit 154 #6)", async () => {
+  let captured: unknown = null;
+  const model = {
+    findOne: async () => null,
+    updateOne: async () => ({ modifiedCount: 0 }),
+    findOneAndUpdate: async (_filter: Record<string, unknown>, update: unknown) => {
+      captured = update;
+      return { moderationWarnings: [{ warningId: "w", userId: "user-1", username: "u", moderatorId: "m", warnedAt: new Date() }], moderationWarnBanLimit: 0 };
+    }
+  };
+  await addWarning(model, "guild-1", { warningId: "w", userId: "user-1", username: "u", moderatorId: "m", warnedAt: new Date() });
+  const json = JSON.stringify(captured);
+  assert.match(json, /"\$slice"/, "adaugarea foloseste $slice pentru a plafona array-ul");
+  assert.match(json, new RegExp(`-${MAX_WARN_HISTORY}`), "pastreaza ultimele MAX_WARN_HISTORY warn-uri (self-healing si pentru array-urile deja mari)");
+  assert.match(json, /"\$concatArrays"/, "noul warn e adaugat inainte de plafonare");
+});
 
 type UpdateCall = {
   filter: Record<string, unknown>;
