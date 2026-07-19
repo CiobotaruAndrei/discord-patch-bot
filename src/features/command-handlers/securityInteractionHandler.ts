@@ -265,7 +265,7 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
       const missing = missingChannelPermissions(lockPerms, requiredPermissions);
       if (missing.length > 0) return respond(interaction, `Eroare: botul nu are permisiunile efective necesare in acel canal pentru blocare/deblocare: ${missing.join(", ")}. Acorda-le si reincearca.`);
       if (command === "lock-channel" && typeof channel.send !== "function") return respond(interaction, "Eroare: canalul selectat nu poate primi mesajul obligatoriu de blocare.");
-      const sendLockMessage = channel.send;
+      const sendLockMessage = typeof channel.send === "function" ? channel.send.bind(channel) : null;
       const currentSettings = await target.getGuildSettings(guildId).catch(() => null);
       const isLocked = currentSettings?.lockedChannelIds?.includes(channel.id) === true;
       if (command === "unlock-channel" && !isLocked) return respond(interaction, "Eroare: canalul nu este blocat de bot.");
