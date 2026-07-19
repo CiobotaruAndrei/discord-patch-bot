@@ -12,6 +12,10 @@ import {
 import { accountAgeLabel, isRecentAccount } from "../command-security/recentAccountPolicy.js";
 import { validateModerationText, type DirectAttachment } from "../moderation/moderationInputPolicy.js";
 import { countActiveBotAddPermissions, stopBotAddProtectionAtomically } from "../moderation/botAddRepository.js";
+import { createNewAccountAlertDelivery, type NewAccountAlertClaim, type NewAccountAlertDeliveryModelLike } from "../command-security/newAccountAlertDedup.js";
+import { randomUUID } from "node:crypto";
+
+type AccountAlertClaimFn = (guildId: string, userId: string) => Promise<NewAccountAlertClaim | null>;
 
 type SecurityOptions = {
   getSubcommand(): string;
@@ -87,6 +91,7 @@ type SecurityDeps = {
   } | null>;
   formatUserError: (err: unknown, fallback: string) => string;
   logger?: (level: string, context: string, message: string, meta?: unknown) => void;
+  NewAccountAlertDeliveryModel?: NewAccountAlertDeliveryModelLike;
 };
 
 const SET_CHANNEL_FIELDS: Record<string, string> = {
@@ -151,7 +156,12 @@ function permissionValue(state: LockedChannelPermissionState): boolean | null {
   return state === "allow" ? true : state === "deny" ? false : null;
 }
 
-async function sendExistingAccountAlerts(interaction: SecurityInteraction, channel: SecurityChannel): Promise<number> {
+async function sendExistingAccountAlerts(
+  interaction: SecurityInteraction,
+  channel: SecurityChannel,
+  guildId: string,
+  claim?: AccountAlertClaimFn
+): Promise<number> {
   const members = await interaction.guild?.members?.fetch();
   if (!members || !channel.send) return 0;
   const now = new Date();
@@ -159,16 +169,27 @@ async function sendExistingAccountAlerts(interaction: SecurityInteraction, chann
   for (const member of members.values()) {
     const user = member.user;
     if (!user?.id || user.bot || !isRecentAccount(user.createdTimestamp, now)) continue;
-    await channel.send({
-      content: `:shield: Cont existent mai nou de 3 luni: <@${user.id}> (${user.tag ?? user.id}), creat acum ${accountAgeLabel(user.createdTimestamp, now.getTime())}.`,
-      allowedMentions: { parse: [] }
-    });
+    const ticket = claim ? await claim(guildId, user.id) : null;
+    if (claim && !ticket) continue;
+    try {
+      await channel.send({
+        content: `:shield: Cont existent mai nou de 3 luni: <@${user.id}> (${user.tag ?? user.id}), creat acum ${accountAgeLabel(user.createdTimestamp, now.getTime())}.`,
+        allowedMentions: { parse: [] }
+      });
+    } catch (error) {
+      if (ticket) await ticket.release().catch(() => undefined);
+      throw error;
+    }
+    if (ticket) await ticket.markDelivered().catch(() => undefined);
     sent++;
   }
   return sent;
 }
 
 function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<SecurityInteraction> {
+  const accountAlertClaim: AccountAlertClaimFn | undefined = target.NewAccountAlertDeliveryModel
+    ? createNewAccountAlertDelivery(target.NewAccountAlertDeliveryModel, () => randomUUID()).claim
+    : undefined;
   async function respond(interaction: SecurityInteraction, content: string): Promise<unknown> {
     return target.safeEdit(interaction, { content });
   }
@@ -241,7 +262,7 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
           const fetched = channelId && interaction.guild?.channels?.fetch
             ? await interaction.guild.channels.fetch(channelId)
             : null;
-          const count = fetched ? await sendExistingAccountAlerts(interaction, fetched) : 0;
+          const count = fetched ? await sendExistingAccountAlerts(interaction, fetched, guildId, accountAlertClaim) : 0;
           return respond(interaction, `OK: protectia **${sub}** a fost pornita. Au fost verificate conturile existente si trimise ${count} alerte.`);
         } catch (err) {
           await applyGuildConfigUpdate(target.GuildModel, guildId, { [enabledField]: false });
