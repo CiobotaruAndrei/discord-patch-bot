@@ -71,6 +71,7 @@ type CommandMongoKey =
   | "GuildYoutubeErrorModel" | "GuildDeadLetterModel" | "PlayerCountSnapshotModel" | "PlayerCountHistoryModel"
   | "ReviewTrendSnapshotModel"
   | "DealPriceSnapshotModel"
+  | "NewAccountAlertDeliveryModel"
   | "PlayerCountRecordModel" | "FeedbackReportModel" | "BugReportModel" | "UserComplaintModel"
   | "GuildSeenDiscountModel" | "GuildSeenUpdateModel" | "GuildSeenYoutubeModel"
   | "NotificationOutboxModel" | "NotificationOutboxSentModel" | "NotificationHistoryModel"
@@ -187,6 +188,7 @@ export function selectCommandMongoDependencies(source: MongoContextExports): Com
     PlayerCountHistoryModel: source.PlayerCountHistoryModel,
     ReviewTrendSnapshotModel: source.ReviewTrendSnapshotModel,
     DealPriceSnapshotModel: source.DealPriceSnapshotModel,
+    NewAccountAlertDeliveryModel: source.NewAccountAlertDeliveryModel,
     PlayerCountRecordModel: source.PlayerCountRecordModel,
     FeedbackReportModel: source.FeedbackReportModel,
     BugReportModel: source.BugReportModel,

@@ -62,6 +62,56 @@ test("activarea alertelor de conturi noi revine la false daca scanarea initiala 
   assert.equal(responses.length, 0);
 });
 
+test("/start new-account-alerts: un membru deja alertat (claim esueaza) NU e re-alertat la scanare (audit 154 #4)", async () => {
+  const delivered = new Set(["user-a"]);
+  const sentTo: string[] = [];
+  const now = Date.now();
+  const members = new Map([
+    ["a", { user: { id: "user-a", tag: "a#1", bot: false, createdTimestamp: now } }],
+    ["b", { user: { id: "user-b", tag: "b#1", bot: false, createdTimestamp: now } }]
+  ]);
+  const channel = {
+    send: async (payload: unknown) => {
+      const content = String((payload as { content?: string })?.content ?? "");
+      const match = /<@(user-[ab])>/.exec(content);
+      if (match) sentTo.push(match[1]);
+    }
+  };
+  const handler = securityInteractionHandler.buildCommandHandler({
+    GuildModel: { updateOne: async () => ({ modifiedCount: 1 }) },
+    getGuildSettings: async () => ({ newAccountAlertChannelId: "security", newAccountAlertsEnabled: false }),
+    safeDefer: async () => undefined,
+    safeEdit: async (_interaction, payload) => payload,
+    checkChannelPermissions: async () => ({ viewChannel: true, sendMessages: true, embedLinks: true }),
+    formatUserError: (_err, fallback) => fallback,
+    NewAccountAlertDeliveryModel: {
+      findOneAndUpdate: async (_filter: Record<string, object | string | object[]>, update: Record<string, object>) => {
+        const set = (update.$set ?? {}) as { userId?: string; claimToken?: string };
+        return delivered.has(String(set.userId)) ? { claimToken: "already-delivered-token" } : { claimToken: set.claimToken ?? null };
+      },
+      updateOne: async (filter: Record<string, string>) => {
+        const userId = String(filter._id ?? "").split(":")[1];
+        if (userId) delivered.add(userId);
+        return { modifiedCount: 1 };
+      }
+    }
+  });
+  const interaction = {
+    commandName: "start",
+    guild: {
+      id: "guild-1",
+      members: { fetch: async () => members },
+      channels: { fetch: async () => channel }
+    },
+    options: { getSubcommand: () => "new-account-alerts", getInteger: () => null, getString: () => null, getChannel: () => null },
+    isChatInputCommand: () => true
+  };
+
+  await handler.handle(interaction, []);
+
+  assert.deepEqual(sentTo, ["user-b"], "doar membrul ne-alertat primeste mesaj; cel deja livrat e sarit prin claim, deci un re-scan nu-l inunda");
+});
+
 test("purge explica limita Discord de 14 zile si cate mesaje au fost omise", async () => {
   const responses: Array<{ content?: string }> = [];
   const handler = securityInteractionHandler.buildCommandHandler({
