@@ -234,6 +234,39 @@ test("warn livreaza mesajul cu this legat de canal, nu printr-un send detasat (a
   assert.match(String(reply), /a primit warn-ul/);
 });
 
+test("warn: daca livrarea SI compensarea esueaza, userul afla ca warn-ul ramane si necesita interventie, fara reject (audit 154 #7)", async () => {
+  const target = {
+    id: "user-1",
+    user: { id: "user-1", username: "target" },
+    roles: { highest: { position: 10 } }
+  };
+  const handler = moderationInteractionHandler.createModerationInteractionHandler({
+    GuildModel: {
+      findOne: async () => null,
+      findOneAndUpdate: async (filter: Record<string, unknown>) => {
+        if ("moderationWarnings.warningId" in filter) throw new Error("rollback mongo down");
+        return {
+          moderationWarnings: [{ warningId: "generated", userId: "user-1", username: "target", moderatorId: "admin-1", warnedAt: new Date() }],
+          moderationWarnBanLimit: 0
+        };
+      },
+      updateOne: async () => ({ modifiedCount: 1 })
+    },
+    MessageFlags: { Ephemeral: 64 },
+    getGuildSettings: async () => ({ warningChannelId: "warn-channel" }),
+    safeDefer: async () => undefined,
+    safeEdit: async (_value, payload) => payload,
+    logger: () => undefined
+  });
+  const guild = guildWithTarget(target, {
+    channels: { fetch: async () => ({ send: async () => { throw new Error("delivery failed"); } }) }
+  });
+
+  const reply = await handler.handle(interaction("warn", guild, "motiv valid"));
+
+  assert.match(String(reply), /interventie manuala/, "cand compensarea esueaza, userul e informat clar, nu primeste doar o eroare generica");
+});
+
 test("unban foloseste API-ul de bans al guild-ului fara a cere membrul prezent", async () => {
   const removals: Array<{ userId: string; reason?: string }> = [];
   const replies: unknown[] = [];

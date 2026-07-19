@@ -286,7 +286,11 @@ function createModerationInteractionHandler(deps: Deps) {
           allowedMentions: { parse: [] }
         });
       } catch (err) {
-        await moderationRepository.removeWarningById(GuildModel, guild.id, warningId).catch(() => undefined);
+        const rolledBack = await moderationRepository.removeWarningById(GuildModel, guild.id, warningId).then(() => true).catch(() => false);
+        if (!rolledBack) {
+          deps.logger?.("ERROR", "MODERATION", "Livrarea warn-ului a esuat, iar compensarea nu a putut sterge inregistrarea salvata", errorDetail(err));
+          return safeEdit(interaction, `Atentie: warn-ul pentru ${mention(user.id, user.username)} a fost salvat, dar mesajul pe canal nu a putut fi livrat si compensarea a esuat. Inregistrarea ramane si necesita interventie manuala (\`/remove-warn\`).`);
+        }
         throw err;
       }
       let suffix = "";

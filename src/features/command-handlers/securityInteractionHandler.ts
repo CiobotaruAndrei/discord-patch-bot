@@ -310,9 +310,10 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
               allowedMentions: { parse: [] }
             });
           } catch (error) {
-            await setLockedChannelPermissionState(target.GuildModel, guildId, channel.id, previous, false);
-            await channel.permissionOverwrites.edit(everyone, { SendMessages: permissionValue(previous) });
-            throw error;
+            const mongoReverted = await setLockedChannelPermissionState(target.GuildModel, guildId, channel.id, previous, false).then(() => true).catch(() => false);
+            const discordReverted = await channel.permissionOverwrites.edit(everyone, { SendMessages: permissionValue(previous) }).then(() => true).catch(() => false);
+            if (mongoReverted && discordReverted) throw error;
+            return respond(interaction, `Atentie: blocarea a esuat la trimiterea mesajului si compensarea a fost partiala (persistenta: ${mongoReverted ? "revenita" : "ESUATA"}, permisiune Discord: ${discordReverted ? "revenita" : "ESUATA"}). Canalul necesita verificare manuala.`);
           }
         }
         return respond(interaction, result);

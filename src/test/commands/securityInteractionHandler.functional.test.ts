@@ -440,6 +440,41 @@ test("/lock-channel compenseaza Mongo si permisiunea Discord daca mesajul obliga
   assert.match(responses[0].content ?? "", /Eroare/);
 });
 
+test("/lock-channel: daca revenirea persistentei esueaza in compensare, permisiunea Discord e TOTUSI restaurata si userul afla ca e partial (audit 154 #7)", async () => {
+  const edits: Array<boolean | null> = [];
+  const responses: Array<{ content?: string }> = [];
+  let updateCount = 0;
+  const channel = {
+    id: "channel-1",
+    permissionOverwrites: {
+      cache: { get: () => ({ allow: { has: () => true }, deny: { has: () => false } }) },
+      edit: async (_target: object, permissions: Record<string, boolean | null>) => { edits.push(permissions.SendMessages); }
+    },
+    permissionsFor: () => ({ has: () => true }),
+    send: async () => { throw new Error("delivery failed"); }
+  };
+  const handler = securityInteractionHandler.buildCommandHandler({
+    GuildModel: { updateOne: async () => { updateCount++; if (updateCount >= 2) throw new Error("mongo revert down"); return { modifiedCount: 1 }; } },
+    getGuildSettings: async () => ({ lockedChannelIds: [], lockedChannelPermissions: [] }),
+    safeDefer: async () => undefined,
+    safeEdit: async (_interaction, payload: unknown) => { responses.push(payload as { content?: string }); return payload; },
+    checkChannelPermissions: async () => null,
+    formatUserError: (_error, fallback) => fallback
+  });
+  const command = {
+    commandName: "lock-channel",
+    guild: { id: "guild-1", roles: { everyone: { id: "everyone" } }, members: { me: {}, fetch: async () => ({ values: () => [][Symbol.iterator]() }) } },
+    user: { id: "admin-1" },
+    options: { getSubcommand: () => "", getInteger: () => null, getString: () => "mentenanta", getChannel: () => channel, getAttachment: () => null },
+    isChatInputCommand: () => true
+  };
+
+  await handler.handle(command, []);
+
+  assert.deepEqual(edits, [false, true], "permisiunea Discord e restaurata (true) chiar daca revenirea persistentei a esuat");
+  assert.match(responses.at(-1)?.content ?? "", /partiala|verificare manuala/, "userul afla ca a fost o compensare partiala");
+});
+
 test("/purge refuza cand botului ii lipsesc permisiunile efective in canal (Manage Messages / Read Message History) inainte de bulkDelete (audit, #18)", async () => {
   let bulkCalls = 0;
   const responses: Array<{ content?: string }> = [];

@@ -159,3 +159,35 @@ test("bot-add request: send-ul mesajului de aprobare esueaza => solicitarea nou-
   assert.ok(updateCalls.some(update => Object.prototype.hasOwnProperty.call(update, "$pull")), "solicitarea nelivrata e eliminata (pull) ca sa nu ramana orfana");
   assert.match(replies[0]?.content ?? "", /anulata/);
 });
+
+test("bot-add request: daca livrarea SI anularea pending-ului esueaza, userul NU e informat ca solicitarea a fost anulata (audit 154 #7)", async () => {
+  const replies: Array<{ content?: string }> = [];
+  const handler = buildCommandHandler({
+    GuildModel: {
+      updateOne: async (_filter: Record<string, unknown>, update: Record<string, unknown>) => {
+        if (Object.prototype.hasOwnProperty.call(update, "$pull")) throw new Error("cancel failed");
+        return {};
+      },
+      findOne: async () => ({ botAddPermissions: [] }),
+      findOneAndUpdate: async () => ({ botAddPermissions: [] })
+    },
+    getGuildSettings: async () => ({ botAddProtectionEnabled: true, botAddAlertChannelId: "chan" })
+  });
+  const interaction = {
+    isButton: () => false,
+    isChatInputCommand: () => true,
+    commandName: "bot-add-request",
+    options: { getString: () => "222222222222222222" },
+    guild: {
+      id: "guild-1",
+      ownerId: "owner-1",
+      channels: { fetch: async () => ({ send: async () => { throw new Error("missing permissions"); } }) },
+      members: { fetch: async () => null }
+    },
+    user: { id: "user-1" },
+    reply: async (payload: unknown) => { replies.push(payload as { content?: string }); return payload; }
+  };
+  await handler.handle(interaction, []);
+  assert.match(replies[0]?.content ?? "", /asteapta expirarea|nu am putut anula/, "cand anularea esueaza userul e indrumat, nu mintit");
+  assert.doesNotMatch(replies[0]?.content ?? "", /solicitarea a fost anulata\. Reincearca/);
+});
