@@ -269,7 +269,7 @@ function createModerationInteractionHandler(deps: Deps) {
         await moderationRepository.setWarningChannel(GuildModel, guild.id, selectedChannel.id);
         warningChannel = selectedChannel;
       }
-      const sendWarning = warningChannel.send;
+      const sendWarning = typeof warningChannel.send === "function" ? warningChannel.send.bind(warningChannel) : null;
       if (!sendWarning) return safeEdit(interaction, "Eroare: canalul de warn nu mai este disponibil.");
       const warningId = randomUUID();
       const result = await moderationRepository.addWarning(GuildModel, guild.id, {
