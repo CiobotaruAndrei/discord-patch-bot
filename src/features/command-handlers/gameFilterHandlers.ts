@@ -3,7 +3,7 @@
 import { addWatchlistGame, applyGuildConfigUpdate, removeWatchlistGame } from "../guild-config/guildConfigRepository.js";
 import type { DiscordReplyPayload, GameConfig, GuildSettings, MongoWriteOutcome } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
-import { clampJoinedList } from "../command-presentation/discordListLimit.js";
+import { sendPaginatedEdit } from "../command-presentation/textPagination.js";
 
 import { errorDetail } from "../../shared/errors.js";
 import { findGameByKey } from "../../config/gameCatalog.js";
@@ -64,8 +64,8 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
         const game = findGameByKey(games, key);
         return game ? `- **${game.name}** (\`${game.key}\`)` : `- \`${key}\` *(cheie necunoscuta in config)*`;
       });
-      const header = `OK: Jocuri in watchlist (${enabled.length}):\n`;
-      return safeEdit(interaction, `${header}${clampJoinedList(lines, 2000 - header.length)}`);
+      const header = `OK: Jocuri in watchlist (${enabled.length}):`;
+      return sendPaginatedEdit(interaction, payload => safeEdit(interaction, payload), [header, ...lines], { ephemeral: true });
     }
 
     if (sub === "reset") {

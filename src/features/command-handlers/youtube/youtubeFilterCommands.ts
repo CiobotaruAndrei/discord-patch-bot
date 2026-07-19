@@ -10,13 +10,12 @@ import {
   setYouTubeFilterFlag,
   setYouTubeMinDurationSeconds
 } from "../../youtube/youtubeGuildConfigRepository.js";
-import { clampJoinedList } from "../../command-presentation/discordListLimit.js";
-import { defaultFilters, formatFilters, onOff } from "./youtubePresentation.js";
+import { defaultFilters, formatFilters, onOff, sendYouTubePages } from "./youtubePresentation.js";
 
 import { errorDetail } from "../../../shared/errors.js";
 
 export function createYouTubeFilterCommands(deps: YouTubeInteractionDeps) {
-  const { GuildModel, getGuildSettings, safeEdit } = deps;
+  const { GuildModel, getGuildSettings, safeEdit, MessageFlags } = deps;
 
   async function filter(interaction: DiscordInteraction, guildId: string, subcommand: string): Promise<unknown> {
     const fieldBySubcommand: Record<string, keyof YouTubeFilters> = {
@@ -53,10 +52,9 @@ export function createYouTubeFilterCommands(deps: YouTubeInteractionDeps) {
     const settings = await getGuildSettings(guildId);
     const words = settings?.youtubeTitleIncludeWords || [];
     if (subcommand === "list") {
-      const header = "Filtrul inclusiv accepta titluri care contin cel putin una dintre valorile:\n";
-      return safeEdit(interaction, words.length
-        ? `${header}${clampJoinedList(words.map(word => `- \`${word}\``), 2000 - header.length)}`
-        : "Filtrul inclusiv de titlu este gol. Toate titlurile trec acest filtru.");
+      const header = "Filtrul inclusiv accepta titluri care contin cel putin una dintre valorile:";
+      const lines = words.length ? [header, ...words.map(word => `- \`${word}\``)] : [];
+      return sendYouTubePages(interaction, payload => safeEdit(interaction, payload), MessageFlags.Ephemeral, lines, "Filtrul inclusiv de titlu este gol. Toate titlurile trec acest filtru.");
     }
     if (subcommand === "clear") {
       await clearYouTubeTitleWords(GuildModel, guildId);

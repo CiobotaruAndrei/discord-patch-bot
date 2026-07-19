@@ -138,8 +138,8 @@ test("watchlist show afiseaza jocurile active explicit", async () => {
 
   await handlers.handleWatchlistInteraction(makeWatchlistInteraction("show"), games);
 
-  assert.match(String(replies[0]), /Jocuri in watchlist/);
-  assert.match(String(replies[0]), /Counter-Strike 2/);
+  assert.match(JSON.stringify(replies[0]), /Jocuri in watchlist/);
+  assert.match(JSON.stringify(replies[0]), /Counter-Strike 2/);
 });
 
 test("game filter rejects unknown sub-commands explicitly instead of leaving deferReply hanging", async () => {
