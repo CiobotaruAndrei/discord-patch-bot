@@ -3,7 +3,7 @@
 import type { DiscordReplyPayload, FutureReleaseGameEntry, GameConfig, GuildSettings } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
-import { clampJoinedList } from "../command-presentation/discordListLimit.js";
+import { sendPaginatedEdit } from "../command-presentation/textPagination.js";
 import { deleteFutureReleaseGame, listFutureReleaseGames, saveFutureReleaseGame, startFutureReleaseNotifications, stopFutureReleaseNotifications } from "../admin-records/futureReleaseGamesRepository.js";
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText.js";
 
@@ -67,15 +67,16 @@ function futureReleaseStateLine(settings?: GuildSettings | null): string {
   return `Notificari: ON in <#${settings.futureReleaseChannelId}>`;
 }
 
-function renderFutureReleaseGames(entries: FutureReleaseGameEntry[], settings?: GuildSettings | null): string {
-  if (!entries.length) return "Nu exista jocuri future-release urmarite pentru acest server.";
-  const state = futureReleaseStateLine(settings);
+const FUTURE_RELEASE_LIST_EMPTY = "Nu exista jocuri future-release urmarite pentru acest server.";
+
+function futureReleaseListLines(entries: FutureReleaseGameEntry[], settings?: GuildSettings | null): string[] {
+  if (!entries.length) return [FUTURE_RELEASE_LIST_EMPTY];
   const lines = entries.map(entry => {
     const release = entry.releaseDate ? `lansare: ${escapeInlineText(entry.releaseDate, 40)}` : "lansare: indisponibila";
     const preorder = entry.preorderPrice ? `preorder: ${escapeInlineText(entry.preorderPrice, 80)}` : "preorder: indisponibil";
     return `- \`${escapeInlineText(entry.gameName, 120)}\` | ${release} | ${preorder}`;
   });
-  return `${state}\nJocuri future-release (${entries.length}/20):\n${clampJoinedList(lines, 1900)}`;
+  return [futureReleaseStateLine(settings), `Jocuri future-release (${entries.length}/20):`, ...lines];
 }
 
 function createFutureReleaseInteractionHandler(deps: FutureReleaseDeps) {
@@ -106,7 +107,12 @@ function createFutureReleaseInteractionHandler(deps: FutureReleaseDeps) {
 
   async function handleList(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
     const settings = await getGuildSettings(guildId);
-    return safeEdit(interaction, { content: renderFutureReleaseGames(listFutureReleaseGames(settings), settings), allowedMentions: NO_MENTIONS });
+    return sendPaginatedEdit(
+      interaction,
+      payload => safeEdit(interaction, payload),
+      futureReleaseListLines(listFutureReleaseGames(settings), settings),
+      { ephemeral: false, allowedMentions: NO_MENTIONS }
+    );
   }
 
   async function handleDelete(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
@@ -177,6 +183,6 @@ function buildFutureReleaseCommandHandler(target: FutureReleaseContext) {
 
 export default {
   createFutureReleaseInteractionHandler,
-  renderFutureReleaseGames,
+  futureReleaseListLines,
   buildCommandHandler: buildFutureReleaseCommandHandler
 };

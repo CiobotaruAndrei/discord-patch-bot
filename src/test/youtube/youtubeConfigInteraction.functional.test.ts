@@ -152,8 +152,8 @@ test("/youtube title-filter gestioneaza lista inclusiva fara duplicate", async (
     group: "title-filter",
     subcommand: "list"
   }));
-  assert.match(String(listed.replies[0]), /patch notes/);
-  assert.match(String(listed.replies[0]), /update/);
+  assert.match(JSON.stringify(listed.replies[0]), /patch notes/);
+  assert.match(JSON.stringify(listed.replies[0]), /update/);
 });
 
 test("/youtube add title-filter refuza la limita atinsa concurent (atomic) (R[Medium-Low] #3)", async () => {

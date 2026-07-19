@@ -15,13 +15,13 @@ import {
   setYouTubeNotificationChannel,
   setYouTubeNotificationsEnabled
 } from "../../youtube/youtubeGuildConfigRepository.js";
-import { formatYouTubeRoutes, formatYouTubeStatus } from "./youtubePresentation.js";
+import { YOUTUBE_ROUTES_EMPTY, formatYouTubeStatus, sendYouTubePages, youTubeRouteLines } from "./youtubePresentation.js";
 import { countYoutubeErrors } from "../../youtube/youtubeErrorsRepository.js";
 
 import { errorDetail } from "../../../shared/errors.js";
 
 export function createYouTubeNotifyCommands(deps: YouTubeInteractionDeps) {
-  const { GuildModel, GuildYoutubeErrorModel, getGuildSettings, checkChannelPermissions, safeEdit } = deps;
+  const { GuildModel, GuildYoutubeErrorModel, getGuildSettings, checkChannelPermissions, safeEdit, MessageFlags } = deps;
 
   async function notify(interaction: DiscordInteraction, guildId: string, subcommand: string): Promise<unknown> {
     const settings = await getGuildSettings(guildId);
@@ -88,7 +88,7 @@ export function createYouTubeNotifyCommands(deps: YouTubeInteractionDeps) {
     subcommand: string
   ): Promise<unknown> {
     const settings = await getGuildSettings(guildId);
-    if (subcommand === "list") return safeEdit(interaction, formatYouTubeRoutes(settings));
+    if (subcommand === "list") return sendYouTubePages(interaction, payload => safeEdit(interaction, payload), MessageFlags.Ephemeral, youTubeRouteLines(settings), YOUTUBE_ROUTES_EMPTY);
     const youtubeChannelId = interaction.options.getString("canal", true);
     const subscription = settings?.youtubeChannels?.find(channel => channel.channelId === youtubeChannelId);
     if (!youtubeChannelId || !subscription) {
