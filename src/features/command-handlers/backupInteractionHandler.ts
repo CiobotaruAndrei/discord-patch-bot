@@ -22,6 +22,7 @@ import {
 } from "../admin-records/operationJournalRuntime.js";
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { renderBackupList, renderBackupPreview } from "./backupViews.js";
+import { sendPaginatedEdit } from "../command-presentation/textPagination.js";
 import {
   applyResourceIdRemap,
   planBackupResourceRestore,
@@ -125,7 +126,8 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
   }
 
   async function handleList(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
-    return safeEdit(interaction, renderBackupList(await listConfigBackups(GuildConfigBackupModel, guildId)));
+    const text = renderBackupList(await listConfigBackups(GuildConfigBackupModel, guildId));
+    return sendPaginatedEdit(interaction, payload => safeEdit(interaction, payload), text.split("\n"), { ephemeral: true });
   }
 
   async function handlePreview(interaction: DiscordInteraction, guildId: string): Promise<unknown> {
@@ -133,7 +135,8 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
     const backup = await findConfigBackup(GuildConfigBackupModel, guildId, name);
     if (!backup) return safeEdit(interaction, `Nu exista backup-ul \`${name}\`.`);
     const settings = await getGuildSettings(guildId);
-    return safeEdit(interaction, renderBackupPreview(backup, settings, resourcePlan(interaction, backup.snapshot)));
+    const text = renderBackupPreview(backup, settings, resourcePlan(interaction, backup.snapshot));
+    return sendPaginatedEdit(interaction, payload => safeEdit(interaction, payload), text.split("\n"), { ephemeral: true });
   }
 
   async function handleLoad(interaction: DiscordInteraction, guildId: string): Promise<unknown> {

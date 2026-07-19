@@ -248,7 +248,7 @@ test("/backup load: daca scrierea de restore esueaza, NIMIC nu e restaurat si co
 
   assert.equal(writes, 1, "o singura scriere pe guild incercata");
   assert.equal(auditDocs.length, 0, "daca scrierea principala esueaza, nu se scrie audit pentru o restaurare care nu a avut loc");
-  assert.match(String(replies.at(-1)), /Eroare/, "userul afla ca operatia a esuat integral, nu primeste un succes partial");
+  assert.match(JSON.stringify(replies.at(-1)), /Eroare/, "userul afla ca operatia a esuat integral, nu primeste un succes partial");
   assert.equal(isHandledCommandError(result), true, "esecul scrierii de restore e o eroare de comanda reala");
 });
 
@@ -267,8 +267,8 @@ test("/backup preview foloseste planul real fara sa creeze resurse Discord", asy
 
   assert.equal([...guild.channels.cache.values()].length, 0);
   assert.equal([...guild.roles.cache.values()].length, 0);
-  assert.match(String(replies.at(-1)), /DE CREAT/);
-  assert.match(String(replies.at(-1)), /youtubeChannelRoutes\[0\]\.discordChannelIds\[0\]/);
+  assert.match(JSON.stringify(replies.at(-1)), /DE CREAT/);
+  assert.match(JSON.stringify(replies.at(-1)), /youtubeChannelRoutes\[0\]\.discordChannelIds\[0\]/);
 });
 
 test("/backup load creeaza o singura resursa pentru ID-ul partajat si remapeaza top-level plus rutele YouTube", async () => {
@@ -298,7 +298,7 @@ test("/backup load creeaza o singura resursa pentru ID-ul partajat si remapeaza 
   const route = routes[0];
   assert.ok(route && typeof route === "object" && "discordChannelIds" in route);
   assert.deepEqual(route.discordChannelIds, [channels[0].id, channels[0].id]);
-  assert.match(String(replies.at(-1)), /Resurse Discord create: 2/);
+  assert.match(JSON.stringify(replies.at(-1)), /Resurse Discord create: 2/);
 });
 
 test("/backup delete sterge documentul din colectia guildConfigBackups si scrie server-log (R5 #7 + #6 audit split)", async () => {
@@ -317,7 +317,7 @@ test("/backup delete pentru un backup inexistent raspunde 'Nu exista' pe baza de
 
   await handler.handleBackupInteraction(makeInteraction("delete", { name: "lipsa", confirm: true }));
 
-  assert.match(String(replies.at(-1)), /Nu exista/);
+  assert.match(JSON.stringify(replies.at(-1)), /Nu exista/);
   assert.equal(auditDocs.length, 0, "fara audit fantoma pentru un delete care nu a sters nimic");
 });
 

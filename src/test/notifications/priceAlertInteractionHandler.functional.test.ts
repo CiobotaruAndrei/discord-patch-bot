@@ -95,8 +95,8 @@ test("/price-alert add salveaza regula tipata si pastreaza o singura regula per 
   assert.match(serialized, /1245620/);
   assert.match(serialized, /EUR/);
   assert.deepEqual(calls[0].options, { upsert: true, returnDocument: "after" }, "findOneAndUpdate cu returnDocument:after ca handler-ul sa confirme din doc-ul actualizat");
-  assert.match(String(replies[0]), /30 EUR/);
-  assert.match(String(replies[0]), /deals-channel/);
+  assert.match(JSON.stringify(replies[0]), /30 EUR/);
+  assert.match(JSON.stringify(replies[0]), /deals-channel/);
 });
 
 test("/price-alert add: refuza un prag peste PRICE_ALERT_MAX_THRESHOLD fara sa scrie in Mongo (politica handler, audit #12)", async () => {
@@ -108,7 +108,7 @@ test("/price-alert add: refuza un prag peste PRICE_ALERT_MAX_THRESHOLD fara sa s
   );
 
   assert.equal(calls.length, 0, "un prag peste politica nu ajunge in Mongo");
-  assert.match(String(replies.at(-1)), new RegExp(`${PRICE_ALERT_MAX_THRESHOLD}`), "eroarea citeaza pragul maxim din politica");
+  assert.match(JSON.stringify(replies.at(-1)), new RegExp(`${PRICE_ALERT_MAX_THRESHOLD}`), "eroarea citeaza pragul maxim din politica");
 });
 
 test("/price-alert add: accepta pragul minim exact PRICE_ALERT_MIN_THRESHOLD (politica handler, audit #12)", async () => {
@@ -131,7 +131,7 @@ test("/price-alert remove sterge toate valutele jocului", async () => {
   );
 
   assert.deepEqual(calls[0].update, { $pull: { priceAlerts: { gameKey: "elden-ring" } } });
-  assert.match(String(replies[0]), /toate alertele de pret/);
+  assert.match(JSON.stringify(replies[0]), /toate alertele de pret/);
 });
 
 test("/price-alert list afiseaza pragul si starea fiecarei alerte", async () => {
@@ -148,10 +148,10 @@ test("/price-alert list afiseaza pragul si starea fiecarei alerte", async () => 
 
   await handler.handlePriceAlertInteraction(interaction("list"), games);
 
-  assert.match(String(replies[0]), /Elden Ring/);
-  assert.match(String(replies[0]), /30 EUR/);
-  assert.match(String(replies[0]), /armata/);
-  assert.match(String(replies[0]), /49.99 EUR/);
+  assert.match(JSON.stringify(replies[0]), /Elden Ring/);
+  assert.match(JSON.stringify(replies[0]), /30 EUR/);
+  assert.match(JSON.stringify(replies[0]), /armata/);
+  assert.match(JSON.stringify(replies[0]), /49.99 EUR/);
 });
 
 test("/price-alert list marcheaza explicit starea INACTIVA cand reducerile nu sunt pornite (audit #6)", async () => {
@@ -161,8 +161,8 @@ test("/price-alert list marcheaza explicit starea INACTIVA cand reducerile nu su
 
   await handler.handlePriceAlertInteraction(interaction("list"), games);
 
-  assert.match(String(replies[0]), /INACTIVE/, "listarea arata explicit ca alertele salvate nu sunt inca livrate");
-  assert.match(String(replies[0]), /\/start reduceri/, "listarea indruma catre /start reduceri pentru activare");
+  assert.match(JSON.stringify(replies[0]), /INACTIVE/, "listarea arata explicit ca alertele salvate nu sunt inca livrate");
+  assert.match(JSON.stringify(replies[0]), /\/start reduceri/, "listarea indruma catre /start reduceri pentru activare");
 });
 
 test("/price-alert list marcheaza livrarea activa cand reducerile au canal (audit #6)", async () => {
@@ -174,7 +174,7 @@ test("/price-alert list marcheaza livrarea activa cand reducerile au canal (audi
 
   await handler.handlePriceAlertInteraction(interaction("list"), games);
 
-  assert.match(String(replies[0]), /Livrare activa in <#deals-chan>/, "cand reducerile au canal, listarea confirma livrarea activa");
+  assert.match(JSON.stringify(replies[0]), /Livrare activa in <#deals-chan>/, "cand reducerile au canal, listarea confirma livrarea activa");
 });
 
 test("buildPriceAlertUpsertPipeline are conditie atomica de dimensiune ($size < max), nu doar concat (R[P2/P3] race)", () => {
@@ -207,7 +207,7 @@ test("/price-alert add: refuza un joc NOU peste limita (pre-check), fara sa scri
   await handler.handlePriceAlertInteraction(interaction("add", { joc: "elden-ring", price: 30, currency: "EUR" }), games);
 
   assert.equal(calls.length, 0, "pre-check-ul respinge un joc nou peste limita, fara scriere");
-  assert.match(String(replies.at(-1)), /limita de 25/, "raspunde cu eroarea de limita; pipeline-ul atomic ramane plasa de siguranta pentru race-uri concurente");
+  assert.match(JSON.stringify(replies.at(-1)), /limita de 25/, "raspunde cu eroarea de limita; pipeline-ul atomic ramane plasa de siguranta pentru race-uri concurente");
 });
 
 test("/price-alert add: cand findOneAndUpdate confirma ca regula NU s-a salvat (race la limita), raspunde cu eroare, nu fals OK (R[P3] #4)", async () => {
@@ -229,7 +229,7 @@ test("/price-alert add: cand findOneAndUpdate confirma ca regula NU s-a salvat (
 
   await handler.handlePriceAlertInteraction(interaction("add", { joc: "elden-ring", price: 30, currency: "EUR" }), games);
 
-  assert.match(String(replies.at(-1)), /limita de 25/, "doc-ul returnat de findOneAndUpdate nu contine regula -> handler-ul nu mai confirma fals succesul");
+  assert.match(JSON.stringify(replies.at(-1)), /limita de 25/, "doc-ul returnat de findOneAndUpdate nu contine regula -> handler-ul nu mai confirma fals succesul");
 });
 
 test("/price-alert: o eroare interna intoarce handledCommandError (audit onest, R[P2] #2)", async () => {
@@ -257,7 +257,7 @@ test("/add price-alert (verb in fata) ruteaza la add si salveaza regula", async 
   await handler.handlePriceAlertInteraction(verbInteraction("add", { joc: "elden-ring", price: 30, currency: "EUR" }), games);
   assert.equal(calls.length, 1);
   assert.ok(Array.isArray(calls[0].update), "/add price-alert foloseste pipeline-ul de upsert (actiunea vine din commandName, nu din subcomanda)");
-  assert.match(String(replies[0]), /alerta pentru \*\*Elden Ring\*\*/);
+  assert.match(JSON.stringify(replies[0]), /alerta pentru \*\*Elden Ring\*\*/);
 });
 
 test("/remove price-alert (verb in fata) ruteaza la remove ($pull)", async () => {

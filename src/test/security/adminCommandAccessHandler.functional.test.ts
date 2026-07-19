@@ -154,7 +154,7 @@ test("/set admin-command-access salveaza rolul si modul configurat de owner", as
 
   assert.equal(harness.getStored()?.roleId, "role-admin");
   assert.equal(harness.getStored()?.mode, "role-or-higher");
-  assert.match(String(harness.edits[0]), /role-admin/);
+  assert.match(JSON.stringify(harness.edits[0]), /role-admin/);
 });
 
 test("/set admin-command-access cu command salveaza regula doar pentru acea comanda admin", async () => {
@@ -165,18 +165,21 @@ test("/set admin-command-access cu command salveaza regula doar pentru acea coma
   assert.equal(harness.getStored()?.roleId, "role-global");
   assert.equal(harness.getScoped()["start-stop:updates"]?.roleId, "role-admin");
   assert.equal(harness.getScoped()["start-stop:updates"]?.mode, "role-or-higher");
-  assert.match(String(harness.edits[0]), /start sau \/stop updates/);
+  assert.match(JSON.stringify(harness.edits[0]), /start sau \/stop updates/);
 });
 
 test("/admin-command-access list semnaleaza conflictul dintre chei vechi start:/stop: cu roluri diferite, nu il ascunde (R[P3] #3)", async () => {
   const roleA = { mode: "role" as const, roleId: "role-a", updatedBy: "o", updatedAt: new Date() };
   const roleB = { mode: "role-or-higher" as const, roleId: "role-b", updatedBy: "o", updatedAt: new Date() };
   const harness = makeHarness(null, { "start:updates": roleA, "stop:updates": roleB });
+  const followUps: unknown[] = [];
+  const listInteraction = interaction("admin-command-access", "list");
+  listInteraction.followUp = async payload => { followUps.push(payload); };
 
-  await harness.handler.handleAdminCommandAccess(interaction("admin-command-access", "list"));
+  await harness.handler.handleAdminCommandAccess(listInteraction);
 
-  const out = String(harness.edits[0]);
-  assert.match(out, /Reguli in conflict/, "listarea nu mai ascunde conflictul, il raporteaza");
+  const out = JSON.stringify([...harness.edits, ...followUps]);
+  assert.match(out, /Reguli in conflict/, "listarea nu mai ascunde conflictul, il raporteaza (chiar daca ajunge pe o pagina ulterioara)");
   assert.match(out, /start:updates/);
   assert.match(out, /stop:updates/);
 });
@@ -201,7 +204,7 @@ test("/set admin-command-access respinge o comanda publica (nu se aplica nicioda
 
   assert.equal(harness.updateCalls.length, 0, "nu se scrie nicio regula pentru o comanda care nu e admin");
   assert.equal("ping" in harness.getScoped(), false);
-  assert.match(String(harness.edits[0]), /nu este o comanda admin/);
+  assert.match(JSON.stringify(harness.edits[0]), /nu este o comanda admin/);
 });
 
 test("/set admin-command-access respinge un typo de comanda admin (bakup load) (R[P2] #2)", async () => {
@@ -211,7 +214,7 @@ test("/set admin-command-access respinge un typo de comanda admin (bakup load) (
 
   assert.equal(harness.updateCalls.length, 0, "un scope inexistent (typo) e respins, nu salvat ca regula silentioasa");
   assert.equal("bakup:load" in harness.getScoped(), false);
-  assert.match(String(harness.edits[0]), /nu este o comanda admin/);
+  assert.match(JSON.stringify(harness.edits[0]), /nu este o comanda admin/);
 });
 
 test("/set admin-command-access accepta o comanda admin reala cu subcomanda (backup load) (R[P2] #2)", async () => {
@@ -227,8 +230,8 @@ test("/admin-command-access list explica accesul implicit cand nu exista regula"
 
   await harness.handler.handleAdminCommandAccess(interaction("admin-command-access", "list"));
 
-  assert.match(String(harness.edits[0]), /implicit/);
-  assert.match(String(harness.edits[0]), /Administrator/);
+  assert.match(JSON.stringify(harness.edits[0]), /implicit/);
+  assert.match(JSON.stringify(harness.edits[0]), /Administrator/);
 });
 
 test("/admin-command-access list pentru command arata regula dedicata sau fallback global", async () => {
@@ -239,10 +242,10 @@ test("/admin-command-access list pentru command arata regula dedicata sau fallba
   await harness.handler.handleAdminCommandAccess(interaction("admin-command-access", "list", true, "/start updates"));
   await harness.handler.handleAdminCommandAccess(interaction("admin-command-access", "list", true, "/stop updates"));
 
-  assert.match(String(harness.edits[0]), /start sau \/stop updates/);
-  assert.match(String(harness.edits[0]), /role-start/);
-  assert.match(String(harness.edits[1]), /start sau \/stop updates/);
-  assert.match(String(harness.edits[1]), /role-start/);
+  assert.match(JSON.stringify(harness.edits[0]), /start sau \/stop updates/);
+  assert.match(JSON.stringify(harness.edits[0]), /role-start/);
+  assert.match(JSON.stringify(harness.edits[1]), /start sau \/stop updates/);
+  assert.match(JSON.stringify(harness.edits[1]), /role-start/);
 });
 
 test("/delete admin-command-access sterge regula configurata", async () => {
@@ -290,8 +293,8 @@ test("admin-command-access permite non-owner dupa codul global autorizat de guar
 
   await harness.handler.handleAdminCommandAccess(nonOwner);
 
-  assert.match(String(harness.edits[0]), /Acces admin pentru toate comenzile admin: implicit/);
-  assert.match(String(harness.edits[0]), /codul global de acces/);
+  assert.match(JSON.stringify(harness.edits[0]), /Acces admin pentru toate comenzile admin: implicit/);
+  assert.match(JSON.stringify(harness.edits[0]), /codul global de acces/);
 });
 
 test("admin-command-access cere cod global pentru non-owner si salveaza cand codul e corect", async () => {
