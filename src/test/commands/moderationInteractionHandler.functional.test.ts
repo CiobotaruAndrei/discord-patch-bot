@@ -192,6 +192,48 @@ test("warn-ul compenseaza exact inregistrarea curenta daca livrarea pe canal esu
   assert.match(JSON.stringify(rollbackUpdate), new RegExp(String(warningId)));
 });
 
+test("warn livreaza mesajul cu this legat de canal, nu printr-un send detasat (audit #3)", async () => {
+  const warnChannel = {
+    id: "warn-channel",
+    delivered: [] as unknown[],
+    send(payload: unknown): Promise<unknown> {
+      this.delivered.push(payload);
+      return Promise.resolve("ok");
+    }
+  };
+  const target = {
+    id: "user-1",
+    user: { id: "user-1", username: "target" },
+    roles: { highest: { position: 10 } }
+  };
+  const handler = moderationInteractionHandler.createModerationInteractionHandler({
+    GuildModel: {
+      findOne: async () => null,
+      findOneAndUpdate: async () => ({
+        moderationWarnings: [{
+          warningId: "generated",
+          userId: "user-1",
+          username: "target",
+          moderatorId: "admin-1",
+          warnedAt: new Date()
+        }],
+        moderationWarnBanLimit: 0
+      }),
+      updateOne: async () => ({ modifiedCount: 1 })
+    },
+    MessageFlags: { Ephemeral: 64 },
+    getGuildSettings: async () => ({ warningChannelId: "warn-channel" }),
+    safeDefer: async () => undefined,
+    safeEdit: async (_value, payload) => payload
+  });
+  const guild = guildWithTarget(target, { channels: { fetch: async () => warnChannel } });
+
+  const reply = await handler.handle(interaction("warn", guild, "motiv valid"));
+
+  assert.equal(warnChannel.delivered.length, 1, "mesajul de warn a fost livrat cu this legat de canal");
+  assert.match(String(reply), /a primit warn-ul/);
+});
+
 test("unban foloseste API-ul de bans al guild-ului fara a cere membrul prezent", async () => {
   const removals: Array<{ userId: string; reason?: string }> = [];
   const replies: unknown[] = [];
