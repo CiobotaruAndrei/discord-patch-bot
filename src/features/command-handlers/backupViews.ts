@@ -27,7 +27,7 @@ function formatUserReference(userId: string): string {
 export function renderBackupList(backups: ConfigBackupRecord[]): string {
   if (!backups.length) return "Nu exista backup-uri salvate pentru acest server.";
   const lines = backups.map(backup => `- \`${backup.name}\` creat de ${formatUserReference(backup.createdBy || "")} la ${formatDate(backup.createdAt)}`);
-  return clampJoinedList(lines, 1900);
+  return lines.join("\n");
 }
 
 function hasMeaningfulValue(value: unknown): boolean {

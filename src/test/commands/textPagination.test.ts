@@ -1,7 +1,36 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { paginateTextLines, sendPaginatedEdit, sendTextPages } from "../../features/command-presentation/textPagination.js";
+import { paginateTextLines, sendPaginatedEdit, sendPaginatedEditFlags, sendTextPages } from "../../features/command-presentation/textPagination.js";
+
+test("paginateTextLines: o intrare individuala mai lunga decat bugetul e SPARTA in segmente, nu trunchiata (audit #3, 154)", () => {
+  const giant = "x".repeat(2500);
+  const pages = paginateTextLines([giant], 1000);
+  assert.ok(pages.length >= 3, "intrarea supradimensionata e impartita in mai multe segmente");
+  assert.equal(pages.join(""), giant, "niciun caracter nu e pierdut - segmentele reconstituie exact intrarea");
+  assert.ok(pages.every(page => page.length <= 1000), "fiecare segment respecta bugetul");
+});
+
+test("sendPaginatedEditFlags: paginare cu ephemeral prin flags, fara trunchiere (audit #3, 154)", async () => {
+  const edits: Array<{ content: string }> = [];
+  const followUps: Array<{ content: string; flags?: number }> = [];
+  const lines = Array.from({ length: 40 }, (_unused, index) => `regula-${index}-` + "y".repeat(80));
+
+  await sendPaginatedEditFlags(
+    { followUp: async payload => { followUps.push(payload); return payload; } },
+    async payload => { edits.push(payload); return payload; },
+    64,
+    lines
+  );
+
+  assert.equal(edits.length, 1, "prima pagina prin safeEdit");
+  assert.ok(followUps.length >= 1, "restul paginilor prin followUp - lista nu e taiata");
+  assert.ok(followUps.every(payload => payload.flags === 64), "followUp-urile raman ephemeral prin flags");
+  const combined = edits[0].content + "\n" + followUps.map(payload => payload.content).join("\n");
+  for (let index = 0; index < 40; index++) {
+    assert.ok(combined.includes(`regula-${index}-`), `regula ${index} trebuie sa fie vizibila pe o pagina`);
+  }
+});
 
 test("paginarea respecta limita Discord si livreaza toate paginile ephemeral", async () => {
   const pages = paginateTextLines(["12345", "67890", "abcde"], 11);

@@ -247,6 +247,8 @@ Pragul de pret acceptat de `/add price-alert` are o singura sursa de adevar: con
 
 Aceeasi paginare recuperabila se aplica acum si listelor `/watchlist show`, `/future-release list`, `/youtube list`, `/youtube channel-route list` si `/youtube title-filter list`: fiecare intrare este randata pe o linie si impartita in pagini (`sendPaginatedEdit` pentru comenzile care folosesc `allowedMentions`, respectiv `sendYouTubePages` pentru comenzile YouTube care marcheaza ephemeral prin `flags`), prima pagina prin editarea raspunsului si restul prin `followUp`. Paginile administrative raman **ephemeral**, iar `/future-release list` ramane **publica** (ephemeral doar la eroare). Headerul si starea modulului stau pe prima pagina, iar limitele de stocare (`MAX_PRICE_ALERTS_PER_GUILD`, 20 future-release, limitele YouTube) si mesajele pentru lista goala raman neschimbate. Nicio intrare salvata nu mai este ascunsa doar fiindca lista depaseste bugetul unui mesaj Discord.
 
+Aceeasi paginare acopera acum si restul inventarelor: `/price-alert list`, `/backup list`, `/backup preview`, `/game-alias list` (prin `sendPaginatedEdit`) si `/admin-command-access list` (prin `sendPaginatedEditFlags`, varianta cu ephemeral prin `flags`). In plus, `paginateTextLines` **sparge in segmente** o intrare individuala mai lunga decat bugetul unui mesaj, in loc sa o trunchieze — deci nici macar o singura linie supradimensionata nu mai pierde continut.
+
 ## Jurnal de operatii (crash-recovery, `operationJournal`)
 
 Operatiile care ating mai multe documente/colectii (ex. `/reset-config`: reset configuratie + audit +

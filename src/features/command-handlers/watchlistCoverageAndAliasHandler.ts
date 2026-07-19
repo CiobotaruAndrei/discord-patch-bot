@@ -7,6 +7,7 @@ import { aliasOwner, gameAliasRecord, normalizeGameAlias } from "../guild-config
 import { validateUserText } from "../command-security/userTextPolicy.js";
 import { errorDetail } from "../../shared/errors.js";
 import { applyGuildConfigUpdate, type GuildConfigWriteModelLike } from "../guild-config/guildConfigRepository.js";
+import { sendPaginatedEdit } from "../command-presentation/textPagination.js";
 
 interface DiscordInteraction {
   commandName?: string;
@@ -74,7 +75,9 @@ function createCoverageAliasHandler(deps: CoverageAliasDeps) {
     const dynamic = gameAliasRecord(settings?.gameAliases);
     if (subcommand === "list") {
       const aliases = dynamic[game.key] || [];
-      return deps.safeEdit(interaction, aliases.length ? `Aliasuri pentru **${game.name}**: ${aliases.map(alias => `\`${alias}\``).join(", ")}` : `**${game.name}** nu are aliasuri personalizate.`);
+      if (!aliases.length) return deps.safeEdit(interaction, `**${game.name}** nu are aliasuri personalizate.`);
+      const lines = [`Aliasuri pentru **${game.name}** (${aliases.length}):`, ...aliases.map(alias => `- \`${alias}\``)];
+      return sendPaginatedEdit(interaction, payload => deps.safeEdit(interaction, payload), lines, { ephemeral: true });
     }
     let alias = "";
     try {

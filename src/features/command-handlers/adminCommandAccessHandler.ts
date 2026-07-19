@@ -4,6 +4,7 @@ import type { CommandGame, CommandHandler } from "../command-registry/commandHan
 
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { loadAdminAccessDoc } from "../command-security/adminAccessRepository.js";
+import { sendPaginatedEditFlags } from "../command-presentation/textPagination.js";
 import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
 import type { OperationJournalModelLike } from "../../infra/mongo/operationJournal.js";
 import {
@@ -116,7 +117,7 @@ function readTargetScope(interaction: DiscordInteraction): string {
 }
 
 function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
-  const { GuildModel, GuildAuditLogModel, safeDefer, safeEdit, logger } = deps;
+  const { GuildModel, GuildAuditLogModel, safeDefer, safeEdit, logger, MessageFlags } = deps;
   const operationJournal = createOperationJournalRuntime({
     OperationJournalModel: deps.OperationJournalModel,
     GuildModel,
@@ -173,7 +174,7 @@ function createAdminCommandAccessHandler(deps: AdminCommandAccessDeps) {
     if (scope !== "global") {
       return safeEdit(interaction, formatScopedAccess(doc, scope));
     }
-    return safeEdit(interaction, formatAccessList(doc));
+    return sendPaginatedEditFlags(interaction, payload => safeEdit(interaction, payload), MessageFlags.Ephemeral, formatAccessList(doc).split("\n"));
   }
 
   async function handleDelete(interaction: DiscordInteraction, guildId: string): Promise<unknown> {

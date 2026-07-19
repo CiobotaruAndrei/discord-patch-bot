@@ -12,7 +12,7 @@ import {
   upsertPriceAlert
 } from "../notifications/priceAlertRepository.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
-import { clampJoinedList } from "../command-presentation/discordListLimit.js";
+import { sendPaginatedEdit } from "../command-presentation/textPagination.js";
 
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
@@ -126,8 +126,8 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
     const stateLine = deliverable
       ? `Livrare activa in <#${settings?.discountChannelId}>.`
       : "Alertele sunt salvate dar INACTIVE pana pornesti livrarea cu `/start reduceri`.";
-    const header = `Alerte de pret (${alerts.length}/${MAX_PRICE_ALERTS_PER_GUILD}):\n${stateLine}\n`;
-    return safeEdit(interaction, `${header}${clampJoinedList(alerts.map(formatAlertLine), 2000 - header.length)}`);
+    const lines = [`Alerte de pret (${alerts.length}/${MAX_PRICE_ALERTS_PER_GUILD}):`, stateLine, ...alerts.map(formatAlertLine)];
+    return sendPaginatedEdit(interaction, payload => safeEdit(interaction, payload), lines, { ephemeral: true });
   }
 
   async function handlePriceAlertInteraction(interaction: DiscordInteraction, games: GameConfig[]): Promise<unknown> {

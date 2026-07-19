@@ -1,17 +1,27 @@
 "use strict";
 
+function segmentOversizedLine(line: string, maxLength: number): string[] {
+  if (line.length <= maxLength) return [line];
+  const segments: string[] = [];
+  for (let offset = 0; offset < line.length; offset += maxLength) {
+    segments.push(line.slice(offset, offset + maxLength));
+  }
+  return segments;
+}
+
 export function paginateTextLines(lines: readonly string[], maxLength = 1900): string[] {
   const pages: string[] = [];
   let current = "";
   for (const rawLine of lines) {
-    const line = rawLine.length > maxLength ? rawLine.slice(0, maxLength) : rawLine;
-    const candidate = current ? `${current}\n${line}` : line;
-    if (candidate.length <= maxLength) {
-      current = candidate;
-      continue;
+    for (const line of segmentOversizedLine(rawLine, maxLength)) {
+      const candidate = current ? `${current}\n${line}` : line;
+      if (candidate.length <= maxLength) {
+        current = candidate;
+        continue;
+      }
+      if (current) pages.push(current);
+      current = line;
     }
-    if (current) pages.push(current);
-    current = line;
   }
   if (current) pages.push(current);
   return pages;
@@ -52,4 +62,19 @@ export async function sendPaginatedEdit(
   return first;
 }
 
-export default { paginateTextLines, sendTextPages, sendPaginatedEdit };
+export async function sendPaginatedEditFlags(
+  interaction: { followUp?: (payload: { content: string; flags?: number }) => Promise<unknown> },
+  safeEdit: (payload: { content: string }) => Promise<unknown>,
+  ephemeralFlag: number,
+  lines: readonly string[],
+  emptyMessage = "Lista este goala."
+): Promise<unknown> {
+  const pages = paginateTextLines(lines.length ? lines : [emptyMessage]);
+  const first = await safeEdit({ content: pages[0] });
+  for (const page of pages.slice(1)) {
+    if (interaction.followUp) await interaction.followUp({ content: page, flags: ephemeralFlag });
+  }
+  return first;
+}
+
+export default { paginateTextLines, sendTextPages, sendPaginatedEdit, sendPaginatedEditFlags };
