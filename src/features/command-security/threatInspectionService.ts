@@ -1,7 +1,7 @@
 "use strict";
 
 import type { DirectAttachment } from "../moderation/moderationInputPolicy.js";
-import { inspectArchivePassively } from "./passiveArchiveInspection.js";
+import { hasObfuscatedPdfActionName, inspectArchivePassively } from "./passiveArchiveInspection.js";
 
 export type ThreatVerdict = "safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed";
 
@@ -161,7 +161,7 @@ export function passiveDocumentIndicators(buffer: Buffer): string[] {
   if (ascii.includes("vbaProject.bin") || ascii.includes("word/vbaProject") || ascii.includes("macros/vba") || ascii.includes("_VBA_PROJECT") || /\bMacros\b/.test(ascii)) {
     indicators.push("indicator de macro VBA");
   }
-  if (/\/JavaScript\b/.test(ascii) || /\/JS\b/.test(ascii) || ascii.includes("/OpenAction") || /\/AA\b/.test(ascii)) {
+  if (/\/JavaScript\b/.test(ascii) || /\/JS\b/.test(ascii) || ascii.includes("/OpenAction") || /\/AA\b/.test(ascii) || hasObfuscatedPdfActionName(ascii)) {
     indicators.push("indicator de script/actiune automata in document");
   }
   if (ascii.includes("/Launch") || ascii.includes("/EmbeddedFile") || ascii.includes("/RichMedia") || ascii.includes("/GoToR")) {

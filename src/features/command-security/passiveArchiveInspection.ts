@@ -20,6 +20,19 @@ const MAX_EXPANDED_BYTES = 8 * 1024 * 1024;
 const MAX_COMPRESSION_RATIO = 100;
 const MAX_INSPECTION_MS = 100;
 
+const PDF_DANGEROUS_NAMES = new Set(["JavaScript", "JS", "OpenAction", "AA", "Launch", "EmbeddedFile", "RichMedia", "GoToR"]);
+
+export function hasObfuscatedPdfActionName(text: string): boolean {
+  const nameToken = /\/((?:[A-Za-z0-9._-]|#[0-9A-Fa-f]{2}){1,64})/g;
+  let match: RegExpExecArray | null;
+  while ((match = nameToken.exec(text)) !== null) {
+    if (!match[1].includes("#")) continue;
+    const decoded = match[1].replace(/#([0-9A-Fa-f]{2})/g, (_full, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));
+    if (PDF_DANGEROUS_NAMES.has(decoded)) return true;
+  }
+  return false;
+}
+
 function uncertain(reason: string, indicators: string[] = []): PassiveArchiveFinding {
   return { status: "uncertain", indicators, reason };
 }
@@ -54,7 +67,7 @@ function contentIndicators(name: string, buffer: Buffer): string[] {
   if (buffer.length >= 2 && buffer[0] === 0x4d && buffer[1] === 0x5a) indicators.push("executabil PE intern");
   if (buffer.length >= 4 && buffer[0] === 0x7f && buffer.subarray(1, 4).toString("ascii") === "ELF") indicators.push("executabil ELF intern");
   const text = buffer.subarray(0, Math.min(buffer.length, 1_048_576)).toString("latin1");
-  if (/\/JavaScript\b/.test(text) || /\/JS\b/.test(text) || text.includes("/OpenAction") || text.includes("/Launch") || /\/AA\b/.test(text) || text.includes("/EmbeddedFile") || text.includes("/RichMedia")) {
+  if (/\/JavaScript\b/.test(text) || /\/JS\b/.test(text) || text.includes("/OpenAction") || text.includes("/Launch") || /\/AA\b/.test(text) || text.includes("/EmbeddedFile") || text.includes("/RichMedia") || hasObfuscatedPdfActionName(text)) {
     indicators.push("actiune automata sau script PDF intern");
   }
   if (text.includes("DDEAUTO") || /\bDDE\s/.test(text)) {
