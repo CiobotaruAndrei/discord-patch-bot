@@ -127,10 +127,13 @@ export function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
         allowedMentions: ownerId ? { parse: [], users: [ownerId] } : { parse: [] }
       });
     } catch {
-      if (record.requestId === newRequestId) {
-        await botAddRepository.cancelUndeliveredBotAddRequest(deps.GuildModel, guild.id, newRequestId).catch(() => undefined);
-      }
-      return interaction.reply({ content: "Nu am putut livra mesajul de aprobare; solicitarea a fost anulata. Reincearca.", ephemeral: true });
+      const cancelled = record.requestId === newRequestId
+        ? await botAddRepository.cancelUndeliveredBotAddRequest(deps.GuildModel, guild.id, newRequestId).then(() => true).catch(() => false)
+        : true;
+      const notice = cancelled
+        ? "Nu am putut livra mesajul de aprobare; solicitarea a fost anulata. Reincearca."
+        : "Nu am putut livra mesajul de aprobare SI nu am putut anula solicitarea in asteptare; asteapta expirarea (10 minute) sau cere unui administrator sa o rezolve inainte de a reincerca.";
+      return interaction.reply({ content: notice, ephemeral: true });
     }
     return interaction.reply({ content: "Solicitarea a fost trimisa proprietarului serverului.", ephemeral: true });
   }
