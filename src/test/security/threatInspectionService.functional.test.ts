@@ -237,6 +237,20 @@ test("ZIP Office cu macro si ZIP imbricat cu executabil expun indicatorii fara v
   assert.notEqual(result.verdict, "confirmed");
 });
 
+test("ZIP Office cu obiect OLE incorporat (embeddings/oleObject) expune indicatorul, dar ramane uncertain (audit #1, 154)", async () => {
+  const zip = storedZip([
+    { name: "[Content_Types].xml", data: Buffer.from("<Types/>") },
+    { name: "word/embeddings/oleObject1.bin", data: Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]) }
+  ]);
+  const inspector = createThreatInspectionService({
+    httpReq: async () => ({ data: zip, headers: { "content-type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }, status: 200 })
+  });
+  const result = await inspector.inspectMessage("https://example.test/doc.docx", []);
+  assert.match(result.reason, /obiect OLE incorporat/, "obiectul OLE incorporat este semnalat structural dupa cale");
+  assert.equal(result.verdict, "uncertain", "obiectul OLE e semnalat, dar nu escaladeaza fara confirmare externa");
+  assert.notEqual(result.verdict, "confirmed");
+});
+
 test("ZIP cu raport de compresie declarat peste limita se opreste sigur si ramane uncertain", async () => {
   const zip = storedZip([{ name: "huge.txt", data: Buffer.from("x"), declaredSize: 10_000_000 }]);
   const inspector = createThreatInspectionService({

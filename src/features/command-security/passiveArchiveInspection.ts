@@ -61,6 +61,9 @@ function contentIndicators(name: string, buffer: Buffer): string[] {
   if (normalized.endsWith("vbaproject.bin") || normalized.includes("/macros/") || normalized.endsWith(".vbs")) {
     indicators.push("macro sau script Office intern");
   }
+  if (normalized.includes("/embeddings/") || /(?:^|\/)oleobject\d*\.bin$/.test(normalized) || normalized.endsWith(".ole")) {
+    indicators.push("obiect OLE incorporat in document Office");
+  }
   if (/\.(?:exe|dll|scr|com|bat|cmd|ps1|sh|js|jar)$/i.test(normalized)) {
     indicators.push("fisier executabil sau script intern");
   }
