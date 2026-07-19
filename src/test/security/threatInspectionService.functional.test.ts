@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createThreatInspectionService, reputationEngineConfigured, describeResponseCompleteness, passiveDocumentIndicators } from "../../features/command-security/threatInspectionService.js";
+import { hasObfuscatedPdfActionName } from "../../features/command-security/passiveArchiveInspection.js";
 import { isRecentAccount, recentAccountCutoff } from "../../features/command-security/recentAccountPolicy.js";
 
 function storedZip(entries: Array<{ name: string; data: Buffer; declaredSize?: number }>): Buffer {
@@ -401,6 +402,28 @@ test("passiveDocumentIndicators detecteaza structuri PDF/Office periculoase supl
 
 test("passiveDocumentIndicators nu semnaleaza un document curat (audit, #5)", () => {
   assert.deepEqual(passiveDocumentIndicators(Buffer.from("%PDF-1.7 continut simplu de text fara actiuni")), []);
+});
+
+test("passiveDocumentIndicators detecteaza actiuni PDF ofuscate prin escape-uri hex de nume (audit #1)", () => {
+  assert.ok(
+    passiveDocumentIndicators(Buffer.from("%PDF-1.7 << /J#61vaScript (x) >>")).includes("indicator de script/actiune automata in document"),
+    "numele PDF ofuscat /J#61vaScript se decodeaza in /JavaScript si e semnalat, desi scanarea directa de bytes nu l-ar prinde"
+  );
+  assert.ok(
+    passiveDocumentIndicators(Buffer.from("%PDF-1.7 << /OpenAct#69on << >> >>")).includes("indicator de script/actiune automata in document")
+  );
+  assert.deepEqual(
+    passiveDocumentIndicators(Buffer.from("%PDF-1.7 << /Titl#65 (doc) >>")),
+    [],
+    "un nume hex care se decodeaza intr-un token benign (/Title) nu produce fals-pozitiv"
+  );
+});
+
+test("hasObfuscatedPdfActionName decodeaza numai numele cu escape-uri hex periculoase (audit #1)", () => {
+  assert.equal(hasObfuscatedPdfActionName("/J#61vaScript"), true, "/J#61vaScript -> /JavaScript");
+  assert.equal(hasObfuscatedPdfActionName("/Launc#68"), true, "/Launc#68 -> /Launch");
+  assert.equal(hasObfuscatedPdfActionName("/JavaScript"), false, "numele neofuscat e deja prins de regex-urile existente, nu de acest helper");
+  assert.equal(hasObfuscatedPdfActionName("/Titl#65 /Auth#6Fr"), false, "numele hex benigne nu declanseaza");
 });
 
 test("un PDF cu /Launch e semnalat structural dar ramane uncertain, nu se sterge (audit, #5)", async () => {
