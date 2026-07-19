@@ -154,6 +154,29 @@ test("/price-alert list afiseaza pragul si starea fiecarei alerte", async () => 
   assert.match(String(replies[0]), /49.99 EUR/);
 });
 
+test("/price-alert list marcheaza explicit starea INACTIVA cand reducerile nu sunt pornite (audit #6)", async () => {
+  const { handler, replies } = makeHarness({
+    priceAlerts: [{ gameKey: "elden-ring", gameName: "Elden Ring", threshold: 30, currency: "EUR", triggeredAt: null, lastObservedPrice: null }]
+  });
+
+  await handler.handlePriceAlertInteraction(interaction("list"), games);
+
+  assert.match(String(replies[0]), /INACTIVE/, "listarea arata explicit ca alertele salvate nu sunt inca livrate");
+  assert.match(String(replies[0]), /\/start reduceri/, "listarea indruma catre /start reduceri pentru activare");
+});
+
+test("/price-alert list marcheaza livrarea activa cand reducerile au canal (audit #6)", async () => {
+  const { handler, replies } = makeHarness({
+    discountsSubscribed: true,
+    discountChannelId: "deals-chan",
+    priceAlerts: [{ gameKey: "elden-ring", gameName: "Elden Ring", threshold: 30, currency: "EUR", triggeredAt: null, lastObservedPrice: null }]
+  });
+
+  await handler.handlePriceAlertInteraction(interaction("list"), games);
+
+  assert.match(String(replies[0]), /Livrare activa in <#deals-chan>/, "cand reducerile au canal, listarea confirma livrarea activa");
+});
+
 test("buildPriceAlertUpsertPipeline are conditie atomica de dimensiune ($size < max), nu doar concat (R[P2/P3] race)", () => {
   const rule = mod.buildPriceAlertRule(games[0], 30, "EUR");
   const pipeline = mod.buildPriceAlertUpsertPipeline(rule, 25);

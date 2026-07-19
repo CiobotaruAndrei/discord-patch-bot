@@ -122,7 +122,11 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
     if (!alerts.length) {
       return safeEdit(interaction, "Nu exista alerte de pret configurate. Adauga una cu `/add price-alert`.");
     }
-    const header = `Alerte de pret (${alerts.length}/${MAX_PRICE_ALERTS_PER_GUILD}):\n`;
+    const deliverable = Boolean(settings?.discountsSubscribed && settings.discountChannelId);
+    const stateLine = deliverable
+      ? `Livrare activa in <#${settings?.discountChannelId}>.`
+      : "Alertele sunt salvate dar INACTIVE pana pornesti livrarea cu `/start reduceri`.";
+    const header = `Alerte de pret (${alerts.length}/${MAX_PRICE_ALERTS_PER_GUILD}):\n${stateLine}\n`;
     return safeEdit(interaction, `${header}${clampJoinedList(alerts.map(formatAlertLine), 2000 - header.length)}`);
   }
 
