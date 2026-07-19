@@ -62,6 +62,10 @@ export interface SeenRepository {
   rollbackTriggeredAlert(guildId: string, alert: PriceAlertRule): Promise<MongoWriteResult>;
 }
 
+export function dlcSeenDedupKey(gameKey: string, dlcKey: string): string {
+  return JSON.stringify([gameKey, dlcKey]);
+}
+
 export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
   const { GuildModel, GuildSeenDiscountModel, GuildSeenUpdateModel, withMongoRetry, OP_UPDATE_OPTS } = deps;
 
@@ -222,7 +226,7 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
     if (!deps.GuildSeenDlcModel) return;
     const seen = new Set<string>();
     const ops = entries
-      .filter(entry => entry && entry.gameKey && entry.dlcKey && !seen.has(`${entry.gameKey} ${entry.dlcKey}`) && seen.add(`${entry.gameKey} ${entry.dlcKey}`))
+      .filter(entry => entry && entry.gameKey && entry.dlcKey && !seen.has(dlcSeenDedupKey(entry.gameKey, entry.dlcKey)) && seen.add(dlcSeenDedupKey(entry.gameKey, entry.dlcKey)))
       .map(entry => ({
         updateOne: {
           filter: { guildId, gameKey: entry.gameKey, dlcKey: entry.dlcKey },

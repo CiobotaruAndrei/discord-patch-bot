@@ -1,6 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createSeenRepository } from "../../features/notifications/seenRepository.js";
+import { createSeenRepository, dlcSeenDedupKey } from "../../features/notifications/seenRepository.js";
+
+test("dlcSeenDedupKey: codificare structurala fara coliziuni pentru valori cu delimitatori obisnuiti; sursa ramane text (audit, #10)", () => {
+  assert.notEqual(dlcSeenDedupKey("a b", "c"), dlcSeenDedupKey("a", "b c"), "un delimitator de spatiu ar fi produs coliziune; JSON.stringify nu");
+  assert.notEqual(dlcSeenDedupKey("x", "name:dlc unu"), dlcSeenDedupKey("x name:dlc", "unu"));
+  assert.equal(dlcSeenDedupKey("730", "111"), dlcSeenDedupKey("730", "111"), "aceeasi pereche => aceeasi cheie");
+  assert.equal(dlcSeenDedupKey("g", "d").includes(String.fromCharCode(0)), false, "cheia nu contine byte NUL");
+});
 
 type MongoCall = { filter: unknown; update: unknown; opts?: unknown };
 type SeenFilter = Record<string, unknown>;

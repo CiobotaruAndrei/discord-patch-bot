@@ -15,7 +15,7 @@ function scriptValue(name: string): string {
 
 test("scripturile operationale compileaza o singura data si ruleaza gate-urile direct", () => {
   assert.equal(scriptValue("check:quick"), "npm run build:ts && node dist/scripts/check-syntax.js && node dist/scripts/check-config.js");
-  assert.equal(scriptValue("lint"), "npm run build:ts && node dist/scripts/check-syntax.js && node dist/scripts/check-no-comments.js && node dist/scripts/check-no-weakening-types.js");
+  assert.equal(scriptValue("lint"), "npm run build:ts && node dist/scripts/check-syntax.js && node dist/scripts/check-no-comments.js && node dist/scripts/check-no-nul-bytes.js && node dist/scripts/check-no-weakening-types.js");
   const checkScript = scriptValue("check");
   assert.equal(checkScript.startsWith("npm run build:ts && npm run build:rust && "), true);
   assert.equal(checkScript.includes("npm run typecheck"), false);
