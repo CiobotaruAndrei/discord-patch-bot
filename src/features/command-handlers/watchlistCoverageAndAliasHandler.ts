@@ -3,7 +3,7 @@
 import type { GameConfig, GuildSettings, InteractionMessage } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
-import { aliasOwner, gameAliasRecord, normalizeGameAlias } from "../guild-config/gameAliasService.js";
+import { MAX_ALIASES_PER_GAME, MAX_TOTAL_GAME_ALIASES, aliasOwner, countTotalGameAliases, gameAliasRecord, normalizeGameAlias } from "../guild-config/gameAliasService.js";
 import { validateUserText } from "../command-security/userTextPolicy.js";
 import { errorDetail } from "../../shared/errors.js";
 import { applyGuildConfigUpdate, type GuildConfigWriteModelLike } from "../guild-config/guildConfigRepository.js";
@@ -90,9 +90,16 @@ function createCoverageAliasHandler(deps: CoverageAliasDeps) {
       const owner = aliasOwner(alias, games, dynamic);
       if (owner && owner !== game.key) return deps.safeEdit(interaction, `Eroare: aliasul este deja folosit de jocul \`${owner}\`.`);
       if (owner === game.key) return deps.safeEdit(interaction, `Aliasul \`${alias}\` exista deja pentru **${game.name}**.`);
-      dynamic[game.key] = [...(dynamic[game.key] || []), alias];
-      await applyGuildConfigUpdate(deps.GuildModel, String(interaction.guild?.id), { gameAliases: dynamic });
-      return deps.safeEdit(interaction, `OK: aliasul \`${alias}\` a fost adaugat pentru **${game.name}**.`);
+      const currentForGame = dynamic[game.key] || [];
+      if (currentForGame.length >= MAX_ALIASES_PER_GAME) {
+        return deps.safeEdit(interaction, `Eroare: **${game.name}** are deja limita de ${MAX_ALIASES_PER_GAME} aliasuri. Sterge unul cu \`/game-alias remove\`.`);
+      }
+      if (countTotalGameAliases(dynamic) >= MAX_TOTAL_GAME_ALIASES) {
+        return deps.safeEdit(interaction, `Eroare: serverul a atins limita totala de ${MAX_TOTAL_GAME_ALIASES} aliasuri de joc. Sterge cateva inainte de a adauga altele.`);
+      }
+      const next = [...currentForGame, alias];
+      await applyGuildConfigUpdate(deps.GuildModel, String(interaction.guild?.id), { [`gameAliases.${game.key}`]: next });
+      return deps.safeEdit(interaction, `OK: aliasul \`${alias}\` a fost adaugat pentru **${game.name}** (${next.length}/${MAX_ALIASES_PER_GAME}).`);
     }
     const current = dynamic[game.key] || [];
     const next = current.filter(value => value !== alias);

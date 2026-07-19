@@ -78,6 +78,18 @@ test("/games paginates via followUp when content exceeds COMMAND_OUTPUT_MAX_CHAR
   assert.ok(followUps.length >= 1, "restul prin followUp()");
 });
 
+test("/games segmenteaza o linie de joc supradimensionata, fara sa depaseasca bugetul (audit #5, 154)", async () => {
+  const { context } = makeContext({ maxChars: 200 });
+  const { interaction, replies, followUps } = makeInteraction({ command: "games" });
+  const aliases = Array.from({ length: 25 }, (_unused, index) => `aliasfoartelung${index}` + "x".repeat(20));
+  await context.handleInteraction(interaction, [{ key: "cs2", name: "Counter-Strike 2", aliases }]);
+  const all = [...replies, ...followUps].map(String);
+  assert.ok(all.length >= 2, "linia unui joc supradimensionata e impartita in mai multe mesaje");
+  for (const message of all) {
+    assert.ok(message.length <= 200, `fiecare mesaj respecta bugetul Discord (a fost ${message.length})`);
+  }
+});
+
 test("/games with empty config replies politely", async () => {
   const { context } = makeContext();
   const { interaction, replies } = makeInteraction({ command: "games" });

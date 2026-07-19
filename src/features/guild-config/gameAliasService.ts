@@ -2,8 +2,15 @@
 
 import type { GameConfig, GuildSettings } from "../../types.js";
 
+export const MAX_ALIASES_PER_GAME = 25;
+export const MAX_TOTAL_GAME_ALIASES = 200;
+
 export function normalizeGameAlias(value: unknown): string {
   return String(value ?? "").replace(/\s+/g, " ").trim().toLocaleLowerCase("ro-RO").slice(0, 100);
+}
+
+export function countTotalGameAliases(record: Record<string, string[]>): number {
+  return Object.values(record).reduce((total, aliases) => total + aliases.length, 0);
 }
 
 export function gameAliasRecord(value: GuildSettings["gameAliases"]): Record<string, string[]> {
