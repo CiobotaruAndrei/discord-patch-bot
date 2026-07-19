@@ -154,6 +154,61 @@ test("lock-channel restaureaza permisiunea Discord daca persistenta esueaza", as
   assert.match(JSON.stringify(responses[0]), /Eroare la modificarea permisiunilor/);
 });
 
+test("/lock-channel trimite anuntul de blocare cu send legat de canal, nu detasat (audit #4)", async () => {
+  const responses: unknown[] = [];
+  const channel = {
+    id: "channel-1",
+    delivered: [] as unknown[],
+    permissionOverwrites: {
+      cache: {
+        get: () => ({
+          allow: { has: (permission: string) => permission === "SendMessages" },
+          deny: { has: () => false }
+        })
+      },
+      edit: async () => undefined
+    },
+    send(payload: unknown): Promise<unknown> {
+      this.delivered.push(payload);
+      return Promise.resolve(undefined);
+    },
+    permissionsFor: () => ({ has: () => true })
+  };
+  const handler = securityInteractionHandler.buildCommandHandler({
+    GuildModel: { updateOne: async () => ({ modifiedCount: 1 }) },
+    getGuildSettings: async () => ({ lockedChannelIds: [], lockedChannelPermissions: [] }),
+    safeDefer: async () => undefined,
+    safeEdit: async (_interaction, payload) => {
+      responses.push(payload);
+      return payload;
+    },
+    checkChannelPermissions: async () => null,
+    formatUserError: (_err, fallback) => fallback
+  });
+  const interaction = {
+    commandName: "lock-channel",
+    guild: {
+      id: "guild-1",
+      roles: { everyone: { id: "everyone" } },
+      members: { me: {}, fetch: async () => ({ values: () => [][Symbol.iterator]() }) }
+    },
+    user: { id: "admin-1" },
+    options: {
+      getSubcommand: () => "",
+      getInteger: () => null,
+      getString: () => "mentenanta",
+      getChannel: () => channel,
+      getAttachment: () => null
+    },
+    isChatInputCommand: () => true
+  };
+
+  await handler.handle(interaction, []);
+
+  assert.equal(channel.delivered.length, 1, "anuntul de blocare a fost livrat cu this legat de canal");
+  assert.match(JSON.stringify(responses[responses.length - 1]), /blocat/);
+});
+
 test("setarea unui canal de alerta este refuzata daca lipseste o permisiune obligatorie", async () => {
   let writes = 0;
   const responses: unknown[] = [];
