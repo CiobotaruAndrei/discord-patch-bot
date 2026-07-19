@@ -36,10 +36,17 @@ function createSimpleCommandsHandler(deps: SimpleCommandsDeps) {
 
   async function handleGamesInteraction(interaction: DiscordInteraction, games: GameConfig[]) {
     if (!games.length) return interaction.reply("Nu sunt jocuri configurate.");
-    const lines = games.map(g => {
+    const maxLineLength = Math.max(1, COMMAND_OUTPUT_MAX_CHARS - 40);
+    const segmentLine = (line: string): string[] => {
+      if (line.length <= maxLineLength) return [line];
+      const segments: string[] = [];
+      for (let offset = 0; offset < line.length; offset += maxLineLength) segments.push(line.slice(offset, offset + maxLineLength));
+      return segments;
+    };
+    const lines = games.flatMap(g => {
       let item = `- **${g.name}** (\`${g.key}\`)`;
       if (g.aliases && g.aliases.length > 0) item += ` *[Alias: ${g.aliases.join(", ")}]*`;
-      return item;
+      return segmentLine(item);
     });
     let currentMsg = "**Jocuri urmarite:**\n";
     const messages: string[] = [];

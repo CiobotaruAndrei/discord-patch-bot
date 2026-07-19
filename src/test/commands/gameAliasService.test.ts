@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { aliasOwner, gameAliasRecord, mergeGuildGameAliases, normalizeGameAlias } from "../../features/guild-config/gameAliasService.js";
+import { MAX_ALIASES_PER_GAME, MAX_TOTAL_GAME_ALIASES, aliasOwner, countTotalGameAliases, gameAliasRecord, mergeGuildGameAliases, normalizeGameAlias } from "../../features/guild-config/gameAliasService.js";
 import type { GameConfig } from "../../types.js";
 
 const games: GameConfig[] = [
@@ -21,4 +21,10 @@ test("aliasOwner detecteaza conflictele cu chei, nume, aliasuri globale si local
   assert.equal(aliasOwner("DOTA", games, {}), "dota2");
   assert.equal(aliasOwner("cs go", games, { cs2: ["cs go"] }), "cs2");
   assert.equal(aliasOwner("nou", games, {}), null);
+});
+
+test("countTotalGameAliases numara aliasurile din toate jocurile (audit #5, 154)", () => {
+  assert.equal(countTotalGameAliases({}), 0);
+  assert.equal(countTotalGameAliases({ cs2: ["a", "b"], dota2: ["c"] }), 3);
+  assert.ok(MAX_ALIASES_PER_GAME > 0 && MAX_TOTAL_GAME_ALIASES >= MAX_ALIASES_PER_GAME, "limitele sunt pozitive si coerente");
 });
