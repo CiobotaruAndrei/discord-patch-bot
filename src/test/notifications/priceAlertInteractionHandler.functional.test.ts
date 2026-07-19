@@ -5,6 +5,7 @@ import type { PriceAlertRule } from "../../types.js";
 import { isHandledCommandError } from "../../features/command-security/commandOutcome.js";
 
 import mod from "../../features/command-handlers/priceAlertInteractionHandler.js";
+import { PRICE_ALERT_MAX_THRESHOLD, PRICE_ALERT_MIN_THRESHOLD } from "../../features/notifications/priceAlertRepository.js";
 
 type MongoCall = {
   filter: Record<string, unknown>;
@@ -96,6 +97,29 @@ test("/price-alert add salveaza regula tipata si pastreaza o singura regula per 
   assert.deepEqual(calls[0].options, { upsert: true, returnDocument: "after" }, "findOneAndUpdate cu returnDocument:after ca handler-ul sa confirme din doc-ul actualizat");
   assert.match(String(replies[0]), /30 EUR/);
   assert.match(String(replies[0]), /deals-channel/);
+});
+
+test("/price-alert add: refuza un prag peste PRICE_ALERT_MAX_THRESHOLD fara sa scrie in Mongo (politica handler, audit #12)", async () => {
+  const { handler, calls, replies } = makeHarness({ discountsSubscribed: true, discountChannelId: "deals", priceAlerts: [] });
+
+  await handler.handlePriceAlertInteraction(
+    interaction("add", { joc: "elden-ring", price: PRICE_ALERT_MAX_THRESHOLD + 1, currency: "EUR" }),
+    games
+  );
+
+  assert.equal(calls.length, 0, "un prag peste politica nu ajunge in Mongo");
+  assert.match(String(replies.at(-1)), new RegExp(`${PRICE_ALERT_MAX_THRESHOLD}`), "eroarea citeaza pragul maxim din politica");
+});
+
+test("/price-alert add: accepta pragul minim exact PRICE_ALERT_MIN_THRESHOLD (politica handler, audit #12)", async () => {
+  const { handler, calls } = makeHarness({ discountsSubscribed: true, discountChannelId: "deals", priceAlerts: [] });
+
+  await handler.handlePriceAlertInteraction(
+    interaction("add", { joc: "elden-ring", price: PRICE_ALERT_MIN_THRESHOLD, currency: "EUR" }),
+    games
+  );
+
+  assert.equal(calls.length, 1, "pragul minim exact este acceptat si scris");
 });
 
 test("/price-alert remove sterge toate valutele jocului", async () => {

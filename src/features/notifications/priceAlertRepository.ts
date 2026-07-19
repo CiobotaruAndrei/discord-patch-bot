@@ -14,6 +14,15 @@ export interface PriceAlertGuildModelLike {
 }
 
 export const MAX_PRICE_ALERTS_PER_GUILD = 25;
+export const PRICE_ALERT_MIN_THRESHOLD = 0.01;
+export const PRICE_ALERT_MAX_THRESHOLD = 10000;
+
+export function isValidPriceAlertThreshold(value: unknown): value is number {
+  return typeof value === "number"
+    && Number.isFinite(value)
+    && value >= PRICE_ALERT_MIN_THRESHOLD
+    && value <= PRICE_ALERT_MAX_THRESHOLD;
+}
 
 export function buildPriceAlertRule(game: GameConfig, threshold: number, currency: string): PriceAlertRule {
   return {

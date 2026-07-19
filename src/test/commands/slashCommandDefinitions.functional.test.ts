@@ -6,6 +6,17 @@ import assert from "node:assert/strict";
 import attachSlashCommands from "../../features/command-definitions/slashCommandDefinitions.js";
 import { SlashCommandBuilder } from "discord.js";
 import type { CurrencyRegistry } from "../../types.js";
+import { PRICE_ALERT_MAX_THRESHOLD, PRICE_ALERT_MIN_THRESHOLD } from "../../features/notifications/priceAlertRepository.js";
+
+function asDefinitionNodes(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value)
+    ? value.filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+    : [];
+}
+
+function findDefinitionByName(value: unknown, name: string): Record<string, unknown> | undefined {
+  return asDefinitionNodes(value).find(node => node.name === name);
+}
 
 type SlashRuntime = {
   registerSlashCommands: (token: string, clientId: string) => Promise<void>;
@@ -60,6 +71,25 @@ test("createSlashCommandDefinitions accepta builder-ul discord.js REAL fara cast
   });
   const names = defs.buildSlashCommandDefinitions().map(d => String((d as { name?: unknown }).name || ""));
   assert.ok(names.includes("ping") && names.includes("start"), "factory-ul produce definitii reale cu builder-ul discord.js, fara as unknown as");
+});
+
+test("anti-drift: pragul optiunii price din /add price-alert coincide cu politica din handler (audit #12)", () => {
+  const { SlashCommandBuilder, PermissionsBitField, Routes, REST } = require("discord.js") as typeof import("discord.js");
+  const defs = attachSlashCommands.createSlashCommandDefinitions({
+    SlashCommandBuilder,
+    PermissionsBitField,
+    Routes,
+    REST,
+    SUPPORTED_CURRENCIES: TEST_CURRENCIES,
+    logger: () => undefined
+  });
+  const built = defs.buildSlashCommandDefinitions();
+  const addCommand = findDefinitionByName(built, "add");
+  const priceAlertSub = findDefinitionByName(addCommand?.options, "price-alert");
+  const priceOption = findDefinitionByName(priceAlertSub?.options, "price");
+  assert.ok(priceOption, "optiunea `price` exista in /add price-alert");
+  assert.equal(priceOption.min_value, PRICE_ALERT_MIN_THRESHOLD, "min_value din definitie trebuie sa fie exact politica PRICE_ALERT_MIN_THRESHOLD");
+  assert.equal(priceOption.max_value, PRICE_ALERT_MAX_THRESHOLD, "max_value din definitie trebuie sa fie exact politica PRICE_ALERT_MAX_THRESHOLD");
 });
 
 test("comenzile administrative (inclusiv /health) cer Administrator; cele publice raman deschise", () => {

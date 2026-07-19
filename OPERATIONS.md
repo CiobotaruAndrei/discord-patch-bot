@@ -237,6 +237,10 @@ Convenția watchlist-ului este uniformă: `enabledGames` **absent sau gol** îns
 
 Pragurile calendaristice (30, 7, 1 zile inainte de lansare) se trimit cel mult o data. Politica pentru tick-uri ratate: cand un ciclu intarziat trece simultan peste mai multe praguri nenotificate (ex. de la 31 la 6 zile), se trimite **un singur** mesaj — pragul cel mai apropiat inca util (7) — iar pragurile mai vechi sarite (30) sunt marcate `notifiedThresholdDays` fara mesaj. Marcarea e atomica, deci un restart nu retrimite pragurile sarite. Dupa lansare (`remaining < 0`) nu se mai trimite niciun prag calendaristic. Tranzitiile preorder (disponibil / pret schimbat / retras) sunt independente de praguri.
 
+## Politica pragului la `/add price-alert`
+
+Pragul de pret acceptat de `/add price-alert` are o singura sursa de adevar: constantele `PRICE_ALERT_MIN_THRESHOLD` (0.01) si `PRICE_ALERT_MAX_THRESHOLD` (10000) din `priceAlertRepository`. Aceleasi constante sunt folosite in doua locuri care altfel ar putea aluneca separat: `setMinValue`/`setMaxValue` din definitia slash (limita afisata clientului Discord) si validarea defensiva din handler (`isValidPriceAlertThreshold`, plasa de siguranta daca API-ul e apelat direct, in afara clientului). Un test anti-drift verifica faptul ca `min_value`/`max_value` din definitia construita coincid exact cu constantele, deci o schimbare a limitei intr-un singur loc pica CI-ul in loc sa produca o comanda care accepta in client valori pe care handler-ul le respinge. Limita per server ramane `MAX_PRICE_ALERTS_PER_GUILD` (25), aplicata atomic in pipeline-ul de upsert.
+
 ## Paginare recuperabila la liste
 
 `/list suggest-command` nu mai taie continutul la bugetul de caractere: intrarile sunt randate cate una pe linie si paginate (`paginateTextLines`), prima pagina prin editarea raspunsului si restul prin `followUp` ephemeral, astfel incat fiecare sugestie salvata sa fie vizibila printr-o succesiune finita de pagini (`numar` controleaza cate intrari sunt aduse, pana la `MAX_SUGGESTED_COMMANDS`). Nicio intrare nu mai este ascunsa doar fiindca descrierile sunt lungi.

@@ -1,4 +1,5 @@
 import type { SlashCommandJsonSource, SlashDefinitionTools } from "./slashDefinitionTools.js";
+import { PRICE_ALERT_MAX_THRESHOLD, PRICE_ALERT_MIN_THRESHOLD } from "../notifications/priceAlertRepository.js";
 
 export function buildAdminCommandDefinitions({ SlashCommandBuilder, PermissionsBitField, CURRENCY_CHOICES }: SlashDefinitionTools): SlashCommandJsonSource[] {
   return [
@@ -7,7 +8,7 @@ export function buildAdminCommandDefinitions({ SlashCommandBuilder, PermissionsB
       .setDescription("Adauga ceva (alerta de pret, joc in watchlist, backup, sugestie de comanda)")
       .addSubcommand(subcommand => subcommand.setName("price-alert").setDescription("Adauga sau actualizeaza o alerta de pret (admin)")
         .addStringOption(option => option.setName("joc").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true))
-        .addNumberOption(option => option.setName("price").setDescription("Pragul de pret").setRequired(true).setMinValue(0.01).setMaxValue(10000))
+        .addNumberOption(option => option.setName("price").setDescription("Pragul de pret").setRequired(true).setMinValue(PRICE_ALERT_MIN_THRESHOLD).setMaxValue(PRICE_ALERT_MAX_THRESHOLD))
         .addStringOption(option => option.setName("currency").setDescription("Valuta pragului").setRequired(true).addChoices(...CURRENCY_CHOICES)))
       .addSubcommand(subcommand => subcommand.setName("watchlist").setDescription("Adauga un joc in watchlist (admin)")
         .addStringOption(option => option.setName("joc").setDescription("Cheia jocului").setRequired(true).setAutocomplete(true)))

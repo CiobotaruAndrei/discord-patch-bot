@@ -3,8 +3,11 @@
 import type { CurrencyCode, DiscordReplyPayload, GameConfig, GuildSettings, MongoWriteOutcome, PriceAlertRule } from "../../types.js";
 import {
   MAX_PRICE_ALERTS_PER_GUILD,
+  PRICE_ALERT_MAX_THRESHOLD,
+  PRICE_ALERT_MIN_THRESHOLD,
   buildPriceAlertRule,
   buildPriceAlertUpsertPipeline,
+  isValidPriceAlertThreshold,
   removePriceAlertsForGame,
   upsertPriceAlert
 } from "../notifications/priceAlertRepository.js";
@@ -80,8 +83,8 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
     if (!game) {
       return safeEdit(interaction, `Eroare: jocul \`${gameKey}\` nu exista. Foloseste autocomplete sau \`/games\`.`);
     }
-    if (typeof threshold !== "number" || !Number.isFinite(threshold) || threshold < 0.01 || threshold > 10000) {
-      return safeEdit(interaction, "Eroare: `price` trebuie sa fie intre 0.01 si 10000.");
+    if (!isValidPriceAlertThreshold(threshold)) {
+      return safeEdit(interaction, `Eroare: \`price\` trebuie sa fie intre ${PRICE_ALERT_MIN_THRESHOLD} si ${PRICE_ALERT_MAX_THRESHOLD}.`);
     }
     if (!currency || !(currency in SUPPORTED_CURRENCIES)) {
       return safeEdit(interaction, `Eroare: valuta trebuie sa fie una dintre ${Object.keys(SUPPORTED_CURRENCIES).join(", ")}.`);
