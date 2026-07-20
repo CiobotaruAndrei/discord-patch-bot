@@ -75,7 +75,7 @@
     "@napi-rs/cli": "3.7.3",
     "@types/node": "26.1.1",
     "@typescript/native": "npm:typescript@7.0.2",
-    "typescript": "6.0.3"
+    "typescript": "7.0.2"
   },
   "overrides": {
     "form-data": ">=4.0.6",
