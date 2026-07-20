@@ -12,7 +12,8 @@ import {
   dealPassesFiltersFallback,
   rankListingCandidatesFallback,
   extractAndRankListingCandidatesFallback,
-  selectLatestSteamPatchNoteIndexFallback
+  selectLatestSteamPatchNoteIndexFallback,
+  chooseBestSteamMatchIndexFallback
 } from "../native/fuzzy.js";
 import type { DealInfo, GameConfig, GuildSettings } from "../types.js";
 import { strictEnvInt } from "./benchmarkEnv.js";
@@ -50,7 +51,8 @@ export type BenchmarkAreaKey =
   | "dealPassesFilters"
   | "rankListingCandidates"
   | "extractAndRankListingCandidates"
-  | "selectLatestSteamPatchNote";
+  | "selectLatestSteamPatchNote"
+  | "chooseBestSteamMatch";
 
 export interface AreaBenchmarkResult {
   key: BenchmarkAreaKey;
@@ -176,6 +178,17 @@ const SAMPLE_STEAM_ITEMS: Array<{ title: string; url: string; contents: string; 
   feedname: i % 4 === 0 ? "steam_community_announcements" : "other",
   date: 1_700_000_000 + i * 3600
 }));
+const SAMPLE_STEAM_MATCH_ITEMS: Array<{ name: string; type: string }> = [
+  { name: "The Witcher 3: Wild Hunt", type: "game" },
+  { name: "The Witcher 3: Wild Hunt - Hearts of Stone", type: "dlc" },
+  { name: "The Witcher 3: Wild Hunt - Blood and Wine", type: "dlc" },
+  { name: "The Witcher 3: Wild Hunt Soundtrack", type: "music" },
+  { name: "The Witcher 2: Assassins of Kings", type: "game" },
+  { name: "The Witcher Adventure Game", type: "game" },
+  { name: "Thronebreaker: The Witcher Tales", type: "game" },
+  { name: "The Witcher 3: Wild Hunt - Game of the Year Edition", type: "game" }
+];
+const SAMPLE_STEAM_MATCH_QUERY = "witcher 3 wild hunt";
 
 function dealHashNativeArgs(deal: DealInfo): [string, string, string, string, string, string, string] {
   return [
@@ -226,6 +239,8 @@ interface NativeFns {
   extract_and_rank_listing_candidates?: (anchors: Array<{ href: string; rawText: string }>, keywords: string[], maxResults: number) => Array<{ href: string; text: string }>;
   selectLatestSteamPatchNote?: (items: unknown[]) => number | null;
   select_latest_steam_patch_note?: (items: unknown[]) => number | null;
+  chooseBestSteamMatch?: (items: unknown[], query: string, forceGameOnly: boolean) => number | null;
+  choose_best_steam_match?: (items: unknown[], query: string, forceGameOnly: boolean) => number | null;
 }
 
 interface AreaSpec {
@@ -406,6 +421,27 @@ function buildAreaSpecs(native: NativeFns | null): AreaSpec[] {
       if (!fn) return true;
       const nativeIndex = fn(steamNativePayload());
       const tsIndex = selectLatestSteamPatchNoteIndexFallback(SAMPLE_STEAM_ITEMS);
+      return (nativeIndex ?? -1) === tsIndex;
+    }
+  });
+
+  const steamMatchNativePayload = () => SAMPLE_STEAM_MATCH_ITEMS.map(item => ({ name: item.name, itemType: item.type }));
+  specs.push({
+    key: "chooseBestSteamMatch",
+    area: "steam-match (chooseBestSteamMatch)",
+    callsPerIteration: 1,
+    ts: () => { chooseBestSteamMatchIndexFallback(SAMPLE_STEAM_MATCH_ITEMS, SAMPLE_STEAM_MATCH_QUERY, true); },
+    native: native && (native.chooseBestSteamMatch || native.choose_best_steam_match)
+      ? (n: NativeFns) => {
+          const fn = (n.chooseBestSteamMatch || n.choose_best_steam_match) as (items: unknown[], query: string, forceGameOnly: boolean) => number | null;
+          fn(steamMatchNativePayload(), SAMPLE_STEAM_MATCH_QUERY, true);
+        }
+      : null,
+    parityOk: (n: NativeFns) => {
+      const fn = n.chooseBestSteamMatch || n.choose_best_steam_match;
+      if (!fn) return true;
+      const nativeIndex = fn(steamMatchNativePayload(), SAMPLE_STEAM_MATCH_QUERY, true);
+      const tsIndex = chooseBestSteamMatchIndexFallback(SAMPLE_STEAM_MATCH_ITEMS, SAMPLE_STEAM_MATCH_QUERY, true);
       return (nativeIndex ?? -1) === tsIndex;
     }
   });

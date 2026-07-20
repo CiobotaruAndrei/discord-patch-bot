@@ -16,6 +16,8 @@ const {
   extractAndRankListingCandidatesFallback,
   selectLatestSteamPatchNoteIndex,
   selectLatestSteamPatchNoteIndexFallback,
+  chooseBestSteamMatchIndex,
+  chooseBestSteamMatchIndexFallback,
   extractDateScore,
   findGameKeys,
   findGameKeysFallback,
@@ -163,6 +165,38 @@ test("selectLatestSteamPatchNoteIndex: la data egala pastreaza prima aparitie", 
     { gid: "b", title: "Patch B", url: "https://store.steampowered.com/news/b", contents: "", tags: [], feed_type: 1, feedname: "", date: 500 }
   ];
   assert.equal(selectLatestSteamPatchNoteIndex(tied), 0);
+});
+
+const STEAM_MATCH_SAMPLE = [
+  { name: "The Witcher 3: Wild Hunt", type: "game" },
+  { name: "The Witcher 3: Wild Hunt - Hearts of Stone", type: "dlc" },
+  { name: "The Witcher 3: Wild Hunt Soundtrack", type: "music" },
+  { name: "The Witcher 2: Assassins of Kings", type: "game" },
+  { name: "The Witcher 3: Wild Hunt - Game of the Year Edition", type: "game" }
+];
+
+test("chooseBestSteamMatchIndex: native == fallback pe interogari variate (paritate)", () => {
+  const cases: Array<{ query: string; force: boolean }> = [
+    { query: "The Witcher 3: Wild Hunt", force: true },
+    { query: "witcher 3 wild hunt", force: true },
+    { query: "witcher 3 soundtrack", force: false },
+    { query: "witcher 3 goty dlc", force: true },
+    { query: "witcher", force: true },
+    { query: "", force: false }
+  ];
+  for (const { query, force } of cases) {
+    assert.equal(
+      chooseBestSteamMatchIndex(STEAM_MATCH_SAMPLE, query, force),
+      chooseBestSteamMatchIndexFallback(STEAM_MATCH_SAMPLE, query, force),
+      `divergenta native/fallback pentru query="${query}" force=${force}`
+    );
+  }
+});
+
+test("chooseBestSteamMatchIndex: potrivire exacta si force-game-only", () => {
+  assert.equal(chooseBestSteamMatchIndex(STEAM_MATCH_SAMPLE, "The Witcher 3: Wild Hunt", true), 0, "potrivirea exacta pe joc castiga");
+  assert.equal(chooseBestSteamMatchIndex(STEAM_MATCH_SAMPLE, "witcher 3 wild hunt", true), 0, "force_game_only tine DLC/soundtrack in afara, jocul de baza castiga");
+  assert.equal(chooseBestSteamMatchIndex([], "orice", false), -1, "lista goala -> -1");
 });
 
 test("Rust fuzzy matching returns exact game keys", () => {

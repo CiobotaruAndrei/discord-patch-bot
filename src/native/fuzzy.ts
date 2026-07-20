@@ -30,6 +30,7 @@ import {
   levenshteinFallback,
   normalizeDealStateFallback,
   normalizeTitleForDedupeFallback,
+  chooseBestSteamMatchIndexFallback,
   rankListingCandidatesFallback,
   reorderByValidPermutation,
   scoreListingCandidateFallback,
@@ -39,6 +40,7 @@ import {
   type ListingAnchorInput,
   type RankableListingCandidate,
   type RankedListingResult,
+  type SteamMatchItemInput,
   type SteamNewsItemInput
 } from "./fuzzyFallbacks.js";
 
@@ -60,12 +62,13 @@ export {
   nativeFallbackAllowed,
   rankListingCandidatesFallback,
   recordNativeFallback,
+  chooseBestSteamMatchIndexFallback,
   reorderByValidPermutation,
   resetNativeFallbackTotals,
   selectLatestSteamPatchNoteIndexFallback,
   stableUpdateIdFallback
 };
-export type { ListingAnchorInput, RankableListingCandidate, RankedListingResult, SteamNewsItemInput };
+export type { ListingAnchorInput, RankableListingCandidate, RankedListingResult, SteamMatchItemInput, SteamNewsItemInput };
 
 export function levenshtein(a: string, b: string): number {
   const native = loadNativeFuzzy();
@@ -198,6 +201,32 @@ export function extractAndRankListingCandidates(
 
 export function selectLatestSteamPatchNoteIndex(items: SteamNewsItemInput[]): number {
   return selectLatestSteamPatchNoteIndexFallback(Array.isArray(items) ? items : []);
+}
+
+export function chooseBestSteamMatchIndex(items: SteamMatchItemInput[], query: string, forceGameOnly: boolean): number {
+  if (!Array.isArray(items) || items.length === 0) return -1;
+  const q = String(query ?? "");
+  const force = Boolean(forceGameOnly);
+  const native = loadNativeFuzzy();
+  if (native) {
+    const fn = typeof native.chooseBestSteamMatch === "function"
+      ? native.chooseBestSteamMatch
+      : native.choose_best_steam_match;
+    if (typeof fn === "function") {
+      try {
+        const payload = items.map(item => ({
+          name: String(item?.name ?? ""),
+          itemType: typeof item?.type === "string" ? item.type : ""
+        }));
+        const index = fn.call(native, payload, q, force);
+        if (index === null || index === undefined) return -1;
+        const numeric = Number(index);
+        if (Number.isInteger(numeric) && numeric >= 0 && numeric < items.length) return numeric;
+        recordNativeFallback("chooseBestSteamMatch", new Error("index nativ invalid (out-of-range / NaN)"));
+      } catch (err) { recordNativeFallback("chooseBestSteamMatch", err); }
+    }
+  }
+  return chooseBestSteamMatchIndexFallback(items, q, force);
 }
 
 export function stableUpdateId(title: unknown, link: unknown): string {

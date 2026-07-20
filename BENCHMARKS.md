@@ -46,6 +46,7 @@ Masuratoare reprezentativa (100.000 iteratii; cifrele difera intre masini, conte
 | `rankListingCandidates` (listing-rank) | ~24k | ~30k | **~1.25x** (Rust mai rapid) | OK |
 | `extractAndRankListingCandidates` (listing-batch) | ~16k | ~37k | **~2.3x** (Rust mai rapid) | OK |
 | `selectLatestSteamPatchNote` (steam-patch) | ~270k | ~21k | ~0.08x (Rust mai lent) | OK |
+| `chooseBestSteamMatch` (steam-match) | ~33k | ~83k | **~2.5x** (Rust mai rapid) | OK |
 
 Interpretare onesta: Rust castiga clar doar acolo unde calculul e dominant si argumentele sunt
 ieftine de trecut peste granita JS<->Rust — `levenshtein` (string-uri) si `dealHash` (SHA-256 pe string-uri;
@@ -77,6 +78,15 @@ cazuri overhead-ul apelului nativ depaseste castigul, deci Rust e mai lent decat
   peste 2.3x. Parsarea HTML ramane intentionat in Cheerio (parser lenient, referinta de paritate);
   a muta si parsarea DOM in Rust ar adauga un parser HTML cu risc de divergenta pe HTML invalid, fara
   castig CPU proportional.
+- `chooseBestSteamMatch` (alegerea celui mai bun rezultat Steam pentru un query, PDF Prioritate 3
+  „conditionat") **trece in Rust** (~2.5x vs fallback-ul TS, paritate verificata). Spre deosebire de
+  `selectLatestSteamPatchNote`, aici calculul **nu** e trivial: normalizarea + `levenshtein` pe nume
+  lungi de jocuri (editii/DLC-uri) e O(n·m) per candidat, deci Rust-ul isi amortizeaza marshaling-ul
+  array-ului si castiga stabil. Codul vechi apela `levenshtein` nativ **per candidat** (N traversari
+  NAPI); acum filtrarea games-only + scoringul complet (bonus egal/prefix/includere, penalizare
+  DLC/demo/music) se fac intr-un **singur** apel batch care intoarce doar indexul castigatorului
+  (`steam/index.ts` reconstruieste `items[index]`). Pragul de warn e mai ridicat (`1.3x`) fiindca
+  avantajul masurat e clar.
 - `findGameKeys`, `buildAutocompleteChoices`, `dealPassesFilters`, `selectLatestSteamPatchNote` sunt acum
   **TS-primary**: wrapper-ele publice din `native/fuzzy.ts` apeleaza direct implementarea TypeScript
   (masurat mai rapida — Rust pierde pe marshaling-ul NAPI al array-urilor de candidati / calcul trivial),
@@ -104,15 +114,15 @@ Pentru ca deciziile „ramane in Rust pentru ca e mai rapid" sa nu se erodeze ta
 automat care leaga acest document de CI: `npm run benchmark:guard` (`scripts/benchmarkGuard.ts`), rulat
 in `ci.yml` dupa `npm run check` (cand addonul nativ e deja construit). Guard-ul masoara, best-of-N
 (`BENCH_GUARD_RUNS`, implicit 3), functiile hot-path pe care le pastram in Rust — `levenshtein`,
-`dealHash`, `stableUpdateId`, `rankListingCandidates` si `extractAndRankListingCandidates` — fata de
-fallback-ul TS, si:
+`dealHash`, `stableUpdateId`, `rankListingCandidates`, `extractAndRankListingCandidates` si
+`chooseBestSteamMatch` — fata de fallback-ul TS, si:
 
 - **esueaza** (`::error::`, exit 1) daca o functie hot-path e **mai lenta decat TS** sub pragul de esec
   (`BENCH_HOTPATH_FAIL_RATIO`, implicit `0.85x`) — semn ca decizia din acest document nu mai e valabila
   (regula limbajului: ramane doar daca e mai bun/eficient), deci trebuie mutata in TS sau investigata regresia;
 - **esueaza** daca paritatea native != TS (rezultate divergente) — bug de corectitudine, nu de viteza;
 - **avertizeaza** (`::warning::`, fara a pica) daca speedup-ul scade sub pragul asteptat documentat aici
-  (`levenshtein` < `1.4x`, `dealHash` < `1.2x`, `stableUpdateId` < `1.2x`, `rankListingCandidates` < `1.1x`, `extractAndRankListingCandidates` < `1.1x`), ca semnal ca avantajul Rust se erodeaza;
+  (`levenshtein` < `1.4x`, `dealHash` < `1.2x`, `stableUpdateId` < `1.2x`, `rankListingCandidates` < `1.1x`, `extractAndRankListingCandidates` < `1.1x`, `chooseBestSteamMatch` < `1.3x`), ca semnal ca avantajul Rust se erodeaza;
 - se **sare** (CI-safe, exit 0) cand addonul nativ nu e disponibil — **cu exceptia** modului strict
   `BENCH_GUARD_REQUIRE_NATIVE=true` (setat in `ci.yml`), unde absenta addonului devine **esec**: in CI
   build-ul Rust ruleaza inainte de guard, deci un addon lipsa inseamna o problema de build, nu un skip

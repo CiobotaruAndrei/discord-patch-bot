@@ -24,7 +24,7 @@ export interface GuardOutcome {
   skipped: string[];
 }
 
-export const HOT_PATH_AREAS = ["levenshtein", "dealHash", "stableUpdateId", "rankListingCandidates", "extractAndRankListingCandidates"] as const;
+export const HOT_PATH_AREAS = ["levenshtein", "dealHash", "stableUpdateId", "rankListingCandidates", "extractAndRankListingCandidates", "chooseBestSteamMatch"] as const;
 
 export function defaultGuardConfig(): GuardConfig {
   return {
@@ -34,7 +34,8 @@ export function defaultGuardConfig(): GuardConfig {
       dealHash: strictEnvFloat("BENCH_DEALHASH_WARN_RATIO", 1.2),
       stableUpdateId: strictEnvFloat("BENCH_STABLEUPDATE_WARN_RATIO", 1.2),
       rankListingCandidates: strictEnvFloat("BENCH_RANKLISTING_WARN_RATIO", 1.1),
-      extractAndRankListingCandidates: strictEnvFloat("BENCH_LISTINGBATCH_WARN_RATIO", 1.1)
+      extractAndRankListingCandidates: strictEnvFloat("BENCH_LISTINGBATCH_WARN_RATIO", 1.1),
+      chooseBestSteamMatch: strictEnvFloat("BENCH_STEAMMATCH_WARN_RATIO", 1.3)
     },
     requireNative: process.env.BENCH_GUARD_REQUIRE_NATIVE !== "false"
   };
@@ -105,26 +106,31 @@ export function collectGuardSamples(
   const stableUpdateIdValues: Array<number | null> = [];
   const listingRankValues: Array<number | null> = [];
   const listingBatchValues: Array<number | null> = [];
+  const steamMatchValues: Array<number | null> = [];
   let dealHashArea: AreaBenchmarkResult | undefined;
   let stableUpdateIdArea: AreaBenchmarkResult | undefined;
   let listingRankArea: AreaBenchmarkResult | undefined;
   let listingBatchArea: AreaBenchmarkResult | undefined;
+  let steamMatchArea: AreaBenchmarkResult | undefined;
   for (let i = 0; i < totalRuns; i++) {
     const areas = deps.runAreaBenchmarks();
     const dealHash = areas.find(a => a.key === "dealHash");
     const stableUpdateId = areas.find(a => a.key === "stableUpdateId");
     const listingRank = areas.find(a => a.key === "rankListingCandidates");
     const listingBatch = areas.find(a => a.key === "extractAndRankListingCandidates");
+    const steamMatch = areas.find(a => a.key === "chooseBestSteamMatch");
     if (i === 0) {
       dealHashArea = dealHash;
       stableUpdateIdArea = stableUpdateId;
       listingRankArea = listingRank;
       listingBatchArea = listingBatch;
+      steamMatchArea = steamMatch;
     }
     dealHashValues.push(dealHash ? dealHash.speedup : null);
     stableUpdateIdValues.push(stableUpdateId ? stableUpdateId.speedup : null);
     listingRankValues.push(listingRank ? listingRank.speedup : null);
     listingBatchValues.push(listingBatch ? listingBatch.speedup : null);
+    steamMatchValues.push(steamMatch ? steamMatch.speedup : null);
   }
 
   return [
@@ -157,6 +163,12 @@ export function collectGuardSamples(
       rustAvailable: listingBatchArea ? listingBatchArea.rustAvailable : levenshteinRustAvailable,
       speedup: bestOf(listingBatchValues),
       parityOk: listingBatchArea ? listingBatchArea.parityOk : true
+    },
+    {
+      area: "chooseBestSteamMatch",
+      rustAvailable: steamMatchArea ? steamMatchArea.rustAvailable : levenshteinRustAvailable,
+      speedup: bestOf(steamMatchValues),
+      parityOk: steamMatchArea ? steamMatchArea.parityOk : true
     }
   ];
 }

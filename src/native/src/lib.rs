@@ -50,6 +50,12 @@ pub struct SteamNewsItem {
   pub date: f64,
 }
 
+#[napi(object)]
+pub struct SteamMatchItem {
+  pub name: String,
+  pub item_type: String,
+}
+
 fn to_game_data(games: Vec<GameCandidate>) -> Vec<logic::GameCandidateData> {
   games
     .into_iter()
@@ -136,6 +142,15 @@ pub fn select_latest_steam_patch_note(items: Vec<SteamNewsItem>) -> Option<u32> 
     })
     .collect();
   logic::select_latest_steam_patch_note(&data)
+}
+
+#[napi]
+pub fn choose_best_steam_match(items: Vec<SteamMatchItem>, query: String, force_game_only: bool) -> Option<u32> {
+  let data: Vec<logic::SteamMatchItemData> = items
+    .into_iter()
+    .map(|item| logic::SteamMatchItemData { name: item.name, item_type: item.item_type })
+    .collect();
+  logic::choose_best_steam_match(&data, &query, force_game_only)
 }
 
 #[napi]

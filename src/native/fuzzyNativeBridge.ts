@@ -50,6 +50,8 @@ export interface NativeFuzzyModule {
   extract_and_rank_listing_candidates?(anchors: Array<{ href: string; rawText: string }>, keywords: string[], maxResults: number): Array<{ href: string; text: string }>;
   selectLatestSteamPatchNote?(items: Array<{ title: string; url: string; contents: string; tags: string[]; feedType: number; feedname: string; date: number }>): number | null;
   select_latest_steam_patch_note?(items: Array<{ title: string; url: string; contents: string; tags: string[]; feedType: number; feedname: string; date: number }>): number | null;
+  chooseBestSteamMatch?(items: Array<{ name: string; itemType: string }>, query: string, forceGameOnly: boolean): number | null;
+  choose_best_steam_match?(items: Array<{ name: string; itemType: string }>, query: string, forceGameOnly: boolean): number | null;
 }
 
 let nativeModule: NativeFuzzyModule | null | undefined;

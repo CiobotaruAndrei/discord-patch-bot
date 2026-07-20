@@ -7,6 +7,7 @@ export const NATIVE_FALLBACK_FUNCTIONS = [
   "scoreListingCandidate",
   "rankListingCandidates",
   "extractAndRankListingCandidates",
+  "chooseBestSteamMatch",
   "isGoodSteamArticleUrl",
   "extractDateScore"
 ];
