@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createThreatInspectionService, reputationEngineConfigured, describeResponseCompleteness, passiveDocumentIndicators } from "../../features/command-security/threatInspectionService.js";
-import { hasObfuscatedPdfActionName } from "../../features/command-security/passiveArchiveInspection.js";
+import { hasObfuscatedPdfActionName, inspectCompoundFileBinary } from "../../features/command-security/passiveArchiveInspection.js";
 import { isRecentAccount, recentAccountCutoff } from "../../features/command-security/recentAccountPolicy.js";
 
 function storedZip(entries: Array<{ name: string; data: Buffer; declaredSize?: number }>): Buffer {
@@ -19,6 +19,55 @@ function storedZip(entries: Array<{ name: string; data: Buffer; declaredSize?: n
     return Buffer.concat([header, encodedName, data]);
   }));
 }
+
+function compoundFile(entries: Array<{ name: string; type: number }>): Buffer {
+  const sectorSize = 512;
+  const buffer = Buffer.alloc(512 + sectorSize * 2, 0);
+  buffer.writeUInt32BE(0xd0cf11e0, 0);
+  buffer.writeUInt32BE(0xa1b11ae1, 4);
+  buffer.writeUInt16LE(9, 30);
+  buffer.writeUInt16LE(6, 32);
+  buffer.writeUInt32LE(1, 44);
+  buffer.writeUInt32LE(1, 48);
+  buffer.writeUInt32LE(0, 76);
+  for (let i = 1; i < 109; i++) buffer.writeUInt32LE(0xffffffff, 76 + i * 4);
+  const fatBase = 512;
+  for (let i = 0; i < 128; i++) buffer.writeUInt32LE(0xffffffff, fatBase + i * 4);
+  buffer.writeUInt32LE(0xfffffffd, fatBase);
+  buffer.writeUInt32LE(0xfffffffe, fatBase + 4);
+  const dirBase = 1024;
+  entries.slice(0, 4).forEach((entry, index) => {
+    const entryOffset = dirBase + index * 128;
+    const nameBuffer = Buffer.from(entry.name, "utf16le");
+    nameBuffer.copy(buffer, entryOffset);
+    buffer.writeUInt16LE(nameBuffer.length + 2, entryOffset + 64);
+    buffer.writeUInt8(entry.type, entryOffset + 66);
+  });
+  return buffer;
+}
+
+test("inspectCompoundFileBinary: parser structural CFB detecteaza macro VBA in document OLE (ce scanarea latin1 pierde)", () => {
+  const withMacros = compoundFile([{ name: "Root Entry", type: 5 }, { name: "Macros", type: 1 }, { name: "WordDocument", type: 2 }]);
+  assert.deepEqual(inspectCompoundFileBinary(withMacros), ["macro VBA in document OLE (parser structural CFB)"]);
+});
+
+test("inspectCompoundFileBinary: detecteaza obiect OLE incorporat si nu escaladeaza documente OLE curate", () => {
+  const withObject = compoundFile([{ name: "Root Entry", type: 5 }, { name: "ObjectPool", type: 1 }]);
+  assert.deepEqual(inspectCompoundFileBinary(withObject), ["obiect OLE incorporat in document OLE (parser structural CFB)"]);
+
+  const clean = compoundFile([{ name: "Root Entry", type: 5 }, { name: "WordDocument", type: 2 }, { name: "1Table", type: 2 }]);
+  assert.deepEqual(inspectCompoundFileBinary(clean), [], "documentul OLE curat nu primeste indicatori (fara escaladare doar dupa extensie)");
+
+  assert.deepEqual(inspectCompoundFileBinary(Buffer.from("nu e CFB")), [], "buffer non-CFB -> fara indicatori");
+});
+
+test("passiveDocumentIndicators: ruteaza documentele OLE prin parserul structural CFB", () => {
+  const doc = compoundFile([{ name: "Root Entry", type: 5 }, { name: "_VBA_PROJECT", type: 2 }]);
+  assert.ok(
+    passiveDocumentIndicators(doc).includes("macro VBA in document OLE (parser structural CFB)"),
+    "un .doc OLE cu _VBA_PROJECT e prins structural, nu doar prin scanarea latin1 a primului MiB (unde numele UTF-16 nu se potrivesc)"
+  );
+});
 
 test("politica de cont nou foloseste exact trei luni calendaristice", () => {
   const now = new Date("2026-07-31T12:00:00.000Z");
