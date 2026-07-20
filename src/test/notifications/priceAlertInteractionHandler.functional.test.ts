@@ -136,6 +136,8 @@ test("/price-alert remove sterge toate valutele jocului", async () => {
 
 test("/price-alert list afiseaza pragul si starea fiecarei alerte", async () => {
   const { handler, replies } = makeHarness({
+    discountsSubscribed: true,
+    discountChannelId: "deals",
     priceAlerts: [{
       gameKey: "elden-ring",
       gameName: "Elden Ring",
@@ -152,6 +154,18 @@ test("/price-alert list afiseaza pragul si starea fiecarei alerte", async () => 
   assert.match(JSON.stringify(replies[0]), /30 EUR/);
   assert.match(JSON.stringify(replies[0]), /armata/);
   assert.match(JSON.stringify(replies[0]), /49.99 EUR/);
+});
+
+test("/price-alert list: o alerta ne-declansata e 'inactiva', nu 'armata', cand reducerile nu sunt pornite (audit 154 #8)", async () => {
+  const alert = { gameKey: "elden-ring", gameName: "Elden Ring", threshold: 30, currency: "EUR", triggeredAt: null, lastObservedPrice: null };
+  const dormant = makeHarness({ priceAlerts: [alert] });
+  await dormant.handler.handlePriceAlertInteraction(interaction("list"), games);
+  assert.match(JSON.stringify(dormant.replies[0]), /inactiva/, "fara canal activ, o alerta ne-declansata NU mai e numita 'armata'");
+  assert.doesNotMatch(JSON.stringify(dormant.replies[0]), /- armata/, "starea per-alerta reflecta dormanta modulului");
+
+  const active = makeHarness({ discountsSubscribed: true, discountChannelId: "deals", priceAlerts: [alert] });
+  await active.handler.handlePriceAlertInteraction(interaction("list"), games);
+  assert.match(JSON.stringify(active.replies[0]), /armata/, "cand reducerile au canal, aceeasi alerta e 'armata'");
 });
 
 test("/price-alert list marcheaza explicit starea INACTIVA cand reducerile nu sunt pornite (audit #6)", async () => {
