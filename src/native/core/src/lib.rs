@@ -11,7 +11,10 @@ pub use autocomplete::build_autocomplete_choices;
 pub use deals::deal_passes_filters;
 pub use fuzzy::find_game_keys;
 pub use hashing::{deal_hash, normalize_deal_state, stable_update_id};
-pub use listing_rank::{rank_listing_candidates, score_listing_candidate};
+pub use listing_rank::{
+  extract_and_rank_listing_candidates, rank_listing_candidates, score_listing_candidate,
+  ListingAnchorData, RankedListingCandidate,
+};
 pub use text::{clean_text, levenshtein, normalize_title_for_dedupe};
 pub use types::{AutocompleteChoiceData, FuzzyMatch, GameCandidateData, ListingCandidateData};
 pub use updates::{classify_patch_note, extract_date_score, is_good_steam_article_url};
@@ -143,6 +146,59 @@ mod tests {
     assert_eq!(order, vec![2, 1, 0]);
     let no_keywords = rank_listing_candidates(&candidates, &[]);
     assert_eq!(no_keywords, vec![2, 1, 0]);
+  }
+
+  fn anchor(href: &str, raw_text: &str) -> ListingAnchorData {
+    ListingAnchorData { href: href.to_string(), raw_text: raw_text.to_string() }
+  }
+
+  #[test]
+  fn extract_and_rank_batch_cleans_dedupes_filters_and_ranks() {
+    let anchors = vec![
+      anchor("https://x.com/old", "<b>Community</b> article"),
+      anchor("https://x.com/2024-05-01/patch", "  Patch   notes  "),
+      anchor("https://x.com/2024-05-01/patch", "duplicate of the same href"),
+      anchor("https://x.com/2024-06-01/patch", "Latest patch"),
+    ];
+    let ranked = extract_and_rank_listing_candidates(&anchors, &["patch".to_string()], 0);
+    let order: Vec<&str> = ranked.iter().map(|c| c.href.as_str()).collect();
+    assert_eq!(order, vec!["https://x.com/2024-06-01/patch", "https://x.com/2024-05-01/patch"]);
+    assert_eq!(ranked[1].text, "Patch notes", "textul e curatat inainte de returnare");
+  }
+
+  #[test]
+  fn extract_and_rank_batch_without_keywords_keeps_all_by_date_then_position() {
+    let anchors = vec![
+      anchor("https://x.com/no-date", "prima"),
+      anchor("https://x.com/2024-06-01/a", "a doua"),
+      anchor("https://x.com/2024-07-01/b", "a treia"),
+    ];
+    let ranked = extract_and_rank_listing_candidates(&anchors, &[], 0);
+    let order: Vec<&str> = ranked.iter().map(|c| c.href.as_str()).collect();
+    assert_eq!(order, vec!["https://x.com/2024-07-01/b", "https://x.com/2024-06-01/a", "https://x.com/no-date"]);
+  }
+
+  #[test]
+  fn extract_and_rank_batch_respects_max_results() {
+    let anchors = vec![
+      anchor("https://x.com/2024-01-01/patch", "patch one"),
+      anchor("https://x.com/2024-02-01/patch", "patch two"),
+      anchor("https://x.com/2024-03-01/patch", "patch three"),
+    ];
+    let ranked = extract_and_rank_listing_candidates(&anchors, &["patch".to_string()], 2);
+    assert_eq!(ranked.len(), 2, "returneaza doar cei mai buni max_results candidati");
+    assert_eq!(ranked[0].href, "https://x.com/2024-03-01/patch");
+  }
+
+  #[test]
+  fn extract_and_rank_batch_drops_zero_score_when_keywords_present() {
+    let anchors = vec![
+      anchor("https://x.com/irrelevant", "nimic relevant"),
+      anchor("https://x.com/patch", "patch notes"),
+    ];
+    let ranked = extract_and_rank_listing_candidates(&anchors, &["patch".to_string()], 0);
+    assert_eq!(ranked.len(), 1);
+    assert_eq!(ranked[0].href, "https://x.com/patch");
   }
 
   #[test]

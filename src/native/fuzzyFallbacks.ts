@@ -272,6 +272,45 @@ export function rankListingCandidatesFallback<T extends RankableListingCandidate
   return scored.map(entry => entry.candidate);
 }
 
+export interface ListingAnchorInput {
+  href: string;
+  rawText: string;
+}
+
+export interface RankedListingResult {
+  href: string;
+  text: string;
+}
+
+export function extractAndRankListingCandidatesFallback(
+  anchors: ListingAnchorInput[],
+  keywords: string[],
+  maxResults: number
+): RankedListingResult[] {
+  const hasKeywords = Array.isArray(keywords) && keywords.length > 0;
+  const seen = new Set<string>();
+  const scored: Array<{ href: string; text: string; score: number; date: number; position: number }> = [];
+  let position = 0;
+  for (const anchor of anchors) {
+    const href = String(anchor?.href || "");
+    if (!href) continue;
+    const text = cleanTextFallback(anchor?.rawText);
+    const score = hasKeywords ? scoreListingCandidateFallback(href, text, keywords) : 0;
+    if (hasKeywords && score === 0) continue;
+    const current = position++;
+    if (seen.has(href)) continue;
+    seen.add(href);
+    scored.push({ href, text, score, date: extractDateScoreFallback(href), position: current });
+  }
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (b.date !== a.date) return b.date - a.date;
+    return a.position - b.position;
+  });
+  const limit = maxResults > 0 ? maxResults : scored.length;
+  return scored.slice(0, limit).map(entry => ({ href: entry.href, text: entry.text }));
+}
+
 export function reorderByValidPermutation<T>(items: T[], order: unknown[]): T[] | null {
   if (order.length !== items.length) return null;
   const seen = new Set<number>();

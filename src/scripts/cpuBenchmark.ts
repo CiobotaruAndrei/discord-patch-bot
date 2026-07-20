@@ -10,7 +10,8 @@ import {
   stableUpdateIdFallback,
   buildAutocompleteChoicesFallback,
   dealPassesFiltersFallback,
-  rankListingCandidatesFallback
+  rankListingCandidatesFallback,
+  extractAndRankListingCandidatesFallback
 } from "../native/fuzzy.js";
 import type { DealInfo, GameConfig, GuildSettings } from "../types.js";
 import { strictEnvInt } from "./benchmarkEnv.js";
@@ -46,7 +47,8 @@ export type BenchmarkAreaKey =
   | "stableUpdateId"
   | "buildAutocompleteChoices"
   | "dealPassesFilters"
-  | "rankListingCandidates";
+  | "rankListingCandidates"
+  | "extractAndRankListingCandidates";
 
 export interface AreaBenchmarkResult {
   key: BenchmarkAreaKey;
@@ -158,6 +160,11 @@ const SAMPLE_LISTING_CANDIDATES: Array<{ href: string; text: string; position: n
   text: i % 3 === 0 ? `Patch ${i} update hotfix notes` : `Community article number ${i}`,
   position: i
 }));
+const SAMPLE_LISTING_ANCHORS: Array<{ href: string; rawText: string }> = SAMPLE_LISTING_CANDIDATES.map((c, i) => ({
+  href: c.href,
+  rawText: i % 4 === 0 ? `  <b>${c.text}</b> &amp; more  ` : c.text
+}));
+const SAMPLE_LISTING_MAX = 3;
 
 function dealHashNativeArgs(deal: DealInfo): [string, string, string, string, string, string, string] {
   return [
@@ -204,6 +211,8 @@ interface NativeFns {
   deal_passes_filters?: (...args: unknown[]) => boolean;
   rankListingCandidates?: (candidates: Array<{ href: string; text: string; position: number }>, keywords: string[]) => number[];
   rank_listing_candidates?: (candidates: Array<{ href: string; text: string; position: number }>, keywords: string[]) => number[];
+  extractAndRankListingCandidates?: (anchors: Array<{ href: string; rawText: string }>, keywords: string[], maxResults: number) => Array<{ href: string; text: string }>;
+  extract_and_rank_listing_candidates?: (anchors: Array<{ href: string; rawText: string }>, keywords: string[], maxResults: number) => Array<{ href: string; text: string }>;
 }
 
 interface AreaSpec {
@@ -335,6 +344,27 @@ function buildAreaSpecs(native: NativeFns | null): AreaSpec[] {
       const nativeOrder = order.map(i => SAMPLE_LISTING_CANDIDATES[Number(i)].position);
       const tsOrder = rankListingCandidatesFallback(SAMPLE_LISTING_CANDIDATES, SAMPLE_LISTING_KEYWORDS).map(c => c.position);
       return JSON.stringify(nativeOrder) === JSON.stringify(tsOrder);
+    }
+  });
+
+  const anchorsPayload = () => SAMPLE_LISTING_ANCHORS.map(a => ({ href: a.href, rawText: a.rawText }));
+  specs.push({
+    key: "extractAndRankListingCandidates",
+    area: "listing-batch (extractAndRankListingCandidates)",
+    callsPerIteration: 1,
+    ts: () => { extractAndRankListingCandidatesFallback(SAMPLE_LISTING_ANCHORS, SAMPLE_LISTING_KEYWORDS, SAMPLE_LISTING_MAX); },
+    native: native && (native.extractAndRankListingCandidates || native.extract_and_rank_listing_candidates)
+      ? (n: NativeFns) => {
+          const fn = (n.extractAndRankListingCandidates || n.extract_and_rank_listing_candidates) as (anchors: Array<{ href: string; rawText: string }>, keywords: string[], maxResults: number) => Array<{ href: string; text: string }>;
+          fn(anchorsPayload(), SAMPLE_LISTING_KEYWORDS, SAMPLE_LISTING_MAX);
+        }
+      : null,
+    parityOk: (n: NativeFns) => {
+      const fn = n.extractAndRankListingCandidates || n.extract_and_rank_listing_candidates;
+      if (!fn) return true;
+      const nativeResult = fn(anchorsPayload(), SAMPLE_LISTING_KEYWORDS, SAMPLE_LISTING_MAX);
+      const tsResult = extractAndRankListingCandidatesFallback(SAMPLE_LISTING_ANCHORS, SAMPLE_LISTING_KEYWORDS, SAMPLE_LISTING_MAX);
+      return JSON.stringify(nativeResult) === JSON.stringify(tsResult);
     }
   });
 

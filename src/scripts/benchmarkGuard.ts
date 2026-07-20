@@ -24,7 +24,7 @@ export interface GuardOutcome {
   skipped: string[];
 }
 
-export const HOT_PATH_AREAS = ["levenshtein", "dealHash", "stableUpdateId", "rankListingCandidates"] as const;
+export const HOT_PATH_AREAS = ["levenshtein", "dealHash", "stableUpdateId", "rankListingCandidates", "extractAndRankListingCandidates"] as const;
 
 export function defaultGuardConfig(): GuardConfig {
   return {
@@ -33,7 +33,8 @@ export function defaultGuardConfig(): GuardConfig {
       levenshtein: strictEnvFloat("BENCH_LEVENSHTEIN_WARN_RATIO", 1.4),
       dealHash: strictEnvFloat("BENCH_DEALHASH_WARN_RATIO", 1.2),
       stableUpdateId: strictEnvFloat("BENCH_STABLEUPDATE_WARN_RATIO", 1.2),
-      rankListingCandidates: strictEnvFloat("BENCH_RANKLISTING_WARN_RATIO", 1.1)
+      rankListingCandidates: strictEnvFloat("BENCH_RANKLISTING_WARN_RATIO", 1.1),
+      extractAndRankListingCandidates: strictEnvFloat("BENCH_LISTINGBATCH_WARN_RATIO", 1.1)
     },
     requireNative: process.env.BENCH_GUARD_REQUIRE_NATIVE !== "false"
   };
@@ -103,22 +104,27 @@ export function collectGuardSamples(
   const dealHashValues: Array<number | null> = [];
   const stableUpdateIdValues: Array<number | null> = [];
   const listingRankValues: Array<number | null> = [];
+  const listingBatchValues: Array<number | null> = [];
   let dealHashArea: AreaBenchmarkResult | undefined;
   let stableUpdateIdArea: AreaBenchmarkResult | undefined;
   let listingRankArea: AreaBenchmarkResult | undefined;
+  let listingBatchArea: AreaBenchmarkResult | undefined;
   for (let i = 0; i < totalRuns; i++) {
     const areas = deps.runAreaBenchmarks();
     const dealHash = areas.find(a => a.key === "dealHash");
     const stableUpdateId = areas.find(a => a.key === "stableUpdateId");
     const listingRank = areas.find(a => a.key === "rankListingCandidates");
+    const listingBatch = areas.find(a => a.key === "extractAndRankListingCandidates");
     if (i === 0) {
       dealHashArea = dealHash;
       stableUpdateIdArea = stableUpdateId;
       listingRankArea = listingRank;
+      listingBatchArea = listingBatch;
     }
     dealHashValues.push(dealHash ? dealHash.speedup : null);
     stableUpdateIdValues.push(stableUpdateId ? stableUpdateId.speedup : null);
     listingRankValues.push(listingRank ? listingRank.speedup : null);
+    listingBatchValues.push(listingBatch ? listingBatch.speedup : null);
   }
 
   return [
@@ -145,6 +151,12 @@ export function collectGuardSamples(
       rustAvailable: listingRankArea ? listingRankArea.rustAvailable : levenshteinRustAvailable,
       speedup: bestOf(listingRankValues),
       parityOk: listingRankArea ? listingRankArea.parityOk : true
+    },
+    {
+      area: "extractAndRankListingCandidates",
+      rustAvailable: listingBatchArea ? listingBatchArea.rustAvailable : levenshteinRustAvailable,
+      speedup: bestOf(listingBatchValues),
+      parityOk: listingBatchArea ? listingBatchArea.parityOk : true
     }
   ];
 }

@@ -27,6 +27,18 @@ pub struct ListingCandidate {
   pub position: i32,
 }
 
+#[napi(object)]
+pub struct ListingAnchor {
+  pub href: String,
+  pub raw_text: String,
+}
+
+#[napi(object)]
+pub struct RankedListingResult {
+  pub href: String,
+  pub text: String,
+}
+
 fn to_game_data(games: Vec<GameCandidate>) -> Vec<logic::GameCandidateData> {
   games
     .into_iter()
@@ -80,6 +92,22 @@ pub fn rank_listing_candidates(candidates: Vec<ListingCandidate>, keywords: Vec<
     })
     .collect();
   logic::rank_listing_candidates(&data, &keywords)
+}
+
+#[napi]
+pub fn extract_and_rank_listing_candidates(
+  anchors: Vec<ListingAnchor>,
+  keywords: Vec<String>,
+  max_results: u32,
+) -> Vec<RankedListingResult> {
+  let data: Vec<logic::ListingAnchorData> = anchors
+    .into_iter()
+    .map(|anchor| logic::ListingAnchorData { href: anchor.href, raw_text: anchor.raw_text })
+    .collect();
+  logic::extract_and_rank_listing_candidates(&data, &keywords, max_results as usize)
+    .into_iter()
+    .map(|candidate| RankedListingResult { href: candidate.href, text: candidate.text })
+    .collect()
 }
 
 #[napi]

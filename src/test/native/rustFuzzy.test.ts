@@ -12,6 +12,8 @@ const {
   cleanText,
   dealPassesFilters,
   dealHash,
+  extractAndRankListingCandidates,
+  extractAndRankListingCandidatesFallback,
   extractDateScore,
   findGameKeys,
   findGameKeysFallback,
@@ -72,6 +74,54 @@ test("rankListingCandidates: fara keywords cade pe data desc apoi pozitie", () =
 
 test("rankListingCandidates: lista goala -> lista goala", () => {
   assert.deepEqual(rankListingCandidates([], ["patch"]), []);
+});
+
+const ANCHOR_SAMPLE = [
+  { href: "https://x.com/news/2024-01-05/intro", rawText: "  <b>Intro</b>   article  " },
+  { href: "https://x.com/news/2024-03-12/big-patch-notes", rawText: "Big patch &amp; update" },
+  { href: "https://x.com/blog/no-date-here/teaser", rawText: "Teaser hotfix" },
+  { href: "https://x.com/news/2024-03-12/big-patch-notes", rawText: "duplicat cu patch update" },
+  { href: "https://x.com/news/2023-11-20/legacy-update", rawText: "Legacy update" }
+];
+
+test("extractAndRankListingCandidates: native == fallback pe cazuri variate (paritate)", () => {
+  const cases: Array<{ keywords: string[]; max: number }> = [
+    { keywords: ["patch", "update"], max: 0 },
+    { keywords: ["patch", "update"], max: 2 },
+    { keywords: [], max: 0 },
+    { keywords: [], max: 3 },
+    { keywords: ["inexistent"], max: 0 }
+  ];
+  for (const { keywords, max } of cases) {
+    const native = extractAndRankListingCandidates(ANCHOR_SAMPLE, keywords, max);
+    const fallback = extractAndRankListingCandidatesFallback(ANCHOR_SAMPLE, keywords, max);
+    assert.deepEqual(native, fallback, `divergenta native/fallback pentru keywords=${JSON.stringify(keywords)} max=${max}`);
+  }
+});
+
+test("extractAndRankListingCandidates: curata textul, deduplica dupa href, filtreaza scor 0 si ordoneaza", () => {
+  const ranked = extractAndRankListingCandidates(ANCHOR_SAMPLE, ["patch", "update"], 0);
+  assert.deepEqual(
+    ranked.map((c: { href: string }) => c.href),
+    ["https://x.com/news/2024-03-12/big-patch-notes", "https://x.com/news/2023-11-20/legacy-update"],
+    "intro/teaser scor 0 cad; duplicatul de href e eliminat; scor desc apoi data desc"
+  );
+  assert.equal(ranked[0].text, "Big patch & update", "textul e curatat de taguri/entitati/spatii inainte de returnare");
+});
+
+test("extractAndRankListingCandidates: fara keywords pastreaza tot pe data desc apoi pozitie, deduplicat", () => {
+  const ranked = extractAndRankListingCandidates(ANCHOR_SAMPLE, [], 0).map((c: { href: string }) => c.href);
+  assert.deepEqual(ranked, [
+    "https://x.com/news/2024-03-12/big-patch-notes",
+    "https://x.com/news/2024-01-05/intro",
+    "https://x.com/news/2023-11-20/legacy-update",
+    "https://x.com/blog/no-date-here/teaser"
+  ]);
+});
+
+test("extractAndRankListingCandidates: max_results taie la cei mai buni; lista goala -> gol", () => {
+  assert.equal(extractAndRankListingCandidates(ANCHOR_SAMPLE, [], 2).length, 2);
+  assert.deepEqual(extractAndRankListingCandidates([], ["patch"], 0), []);
 });
 
 test("Rust fuzzy matching returns exact game keys", () => {

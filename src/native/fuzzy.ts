@@ -23,6 +23,7 @@ import {
   cleanTextFallback,
   dealHashFallback,
   dealPassesFiltersFallback,
+  extractAndRankListingCandidatesFallback,
   extractDateScoreFallback,
   findGameKeysFallback,
   isGoodSteamArticleUrlFallback,
@@ -34,7 +35,9 @@ import {
   scoreListingCandidateFallback,
   stableUpdateIdFallback,
   type FuzzyMatchKeys,
-  type RankableListingCandidate
+  type ListingAnchorInput,
+  type RankableListingCandidate,
+  type RankedListingResult
 } from "./fuzzyFallbacks.js";
 
 export {
@@ -44,6 +47,7 @@ export {
   dealHashFallback,
   dealPassesFiltersFallback,
   ensureNativeFuzzy,
+  extractAndRankListingCandidatesFallback,
   findGameKeysFallback,
   getNativeFallbackTotal,
   getNativeFallbackTotals,
@@ -58,7 +62,7 @@ export {
   resetNativeFallbackTotals,
   stableUpdateIdFallback
 };
-export type { RankableListingCandidate };
+export type { ListingAnchorInput, RankableListingCandidate, RankedListingResult };
 
 export function levenshtein(a: string, b: string): number {
   const native = loadNativeFuzzy();
@@ -160,6 +164,33 @@ export function rankListingCandidates<T extends RankableListingCandidate>(candid
     }
   }
   return rankListingCandidatesFallback(candidates, keywords);
+}
+
+export function extractAndRankListingCandidates(
+  anchors: ListingAnchorInput[],
+  keywords: string[],
+  maxResults: number
+): RankedListingResult[] {
+  if (!Array.isArray(anchors) || anchors.length === 0) return [];
+  const native = loadNativeFuzzy();
+  if (native) {
+    const fn = typeof native.extractAndRankListingCandidates === "function"
+      ? native.extractAndRankListingCandidates
+      : native.extract_and_rank_listing_candidates;
+    if (typeof fn === "function") {
+      try {
+        const payload = anchors.map(anchor => ({
+          href: String(anchor.href || ""),
+          rawText: String(anchor.rawText || "")
+        }));
+        const result = fn.call(native, payload, Array.isArray(keywords) ? keywords.map(k => String(k)) : [], Math.max(0, Number(maxResults) || 0));
+        if (Array.isArray(result)) {
+          return result.map(entry => ({ href: String(entry.href || ""), text: String(entry.text || "") }));
+        }
+      } catch (err) { recordNativeFallback("extractAndRankListingCandidates", err); }
+    }
+  }
+  return extractAndRankListingCandidatesFallback(anchors, keywords, maxResults);
 }
 
 export function stableUpdateId(title: unknown, link: unknown): string {

@@ -44,6 +44,7 @@ Masuratoare reprezentativa (100.000 iteratii; cifrele difera intre masini, conte
 | `buildAutocompleteChoices` | ~1,15M | ~99k | ~0.09x (Rust mai lent) | OK |
 | `dealPassesFilters` | ~37M | ~3,1M | ~0.08x (Rust mai lent) | OK |
 | `rankListingCandidates` (listing-rank) | ~24k | ~30k | **~1.25x** (Rust mai rapid) | OK |
+| `extractAndRankListingCandidates` (listing-batch) | ~16k | ~37k | **~2.3x** (Rust mai rapid) | OK |
 
 Interpretare onesta: Rust castiga clar doar acolo unde calculul e dominant si argumentele sunt
 ieftine de trecut peste granita JS<->Rust — `levenshtein` (string-uri) si `dealHash` (SHA-256 pe string-uri;
@@ -63,6 +64,18 @@ cazuri overhead-ul apelului nativ depaseste castigul, deci Rust e mai lent decat
   nativ intr-un **singur** apel NAPI. Bonus algoritmic: codul vechi recalcula scorul + data in
   comparatorul de sort (O(n log n) apeluri native pe ancora); acum se calculeaza o singura data per
   ancora (O(n)) — castigul real fata de productia veche e mult peste 1.25x.
+- `extractAndRankListingCandidates` (pipeline-ul complet de listing, Prioritate 1) **trece in Rust**
+  (~2.3x vs fallback-ul TS, paritate verificata). Consolideaza intr-un **singur** apel NAPI intreg
+  hot-path-ul CPU care inainte facea multe apeluri native mici per ancora: `cleanText` per ancora +
+  `scoreListingCandidate` per ancora + un apel separat `rankListingCandidates`. Acum TypeScript
+  (`listingUpdates.ts`) extrage cu Cheerio doar perechile ancora `{ href, rawText }` (href deja
+  absolutizat + trecut prin regex, operatii pur-JS non-native) si trimite tot lotul o singura data;
+  Rust curata textul, filtreaza scorul 0 cand exista keywords, deduplica dupa href, calculeaza scorul
+  + scorul de data, ordoneaza si intoarce doar cei mai buni `max_results` (compact `{ href, text }`).
+  Fata de productia veche, care traversa granita NAPI de `2N+1` ori per pagina, castigul real e mult
+  peste 2.3x. Parsarea HTML ramane intentionat in Cheerio (parser lenient, referinta de paritate);
+  a muta si parsarea DOM in Rust ar adauga un parser HTML cu risc de divergenta pe HTML invalid, fara
+  castig CPU proportional.
 - `findGameKeys`, `buildAutocompleteChoices`, `dealPassesFilters` sunt acum **TS-primary**: wrapper-ele
   publice din `native/fuzzy.ts` apeleaza direct implementarea TypeScript (masurat mai rapida — Rust
   pierde pe marshaling-ul NAPI al array-urilor de candidati / calcul trivial), iar rezultatul e identic
@@ -79,14 +92,15 @@ Pentru ca deciziile „ramane in Rust pentru ca e mai rapid" sa nu se erodeze ta
 automat care leaga acest document de CI: `npm run benchmark:guard` (`scripts/benchmarkGuard.ts`), rulat
 in `ci.yml` dupa `npm run check` (cand addonul nativ e deja construit). Guard-ul masoara, best-of-N
 (`BENCH_GUARD_RUNS`, implicit 3), functiile hot-path pe care le pastram in Rust — `levenshtein`,
-`dealHash` si `rankListingCandidates` — fata de fallback-ul TS, si:
+`dealHash`, `stableUpdateId`, `rankListingCandidates` si `extractAndRankListingCandidates` — fata de
+fallback-ul TS, si:
 
 - **esueaza** (`::error::`, exit 1) daca o functie hot-path e **mai lenta decat TS** sub pragul de esec
   (`BENCH_HOTPATH_FAIL_RATIO`, implicit `0.85x`) — semn ca decizia din acest document nu mai e valabila
   (regula limbajului: ramane doar daca e mai bun/eficient), deci trebuie mutata in TS sau investigata regresia;
 - **esueaza** daca paritatea native != TS (rezultate divergente) — bug de corectitudine, nu de viteza;
 - **avertizeaza** (`::warning::`, fara a pica) daca speedup-ul scade sub pragul asteptat documentat aici
-  (`levenshtein` < `1.4x`, `dealHash` < `1.2x`, `stableUpdateId` < `1.2x`, `rankListingCandidates` < `1.1x`), ca semnal ca avantajul Rust se erodeaza;
+  (`levenshtein` < `1.4x`, `dealHash` < `1.2x`, `stableUpdateId` < `1.2x`, `rankListingCandidates` < `1.1x`, `extractAndRankListingCandidates` < `1.1x`), ca semnal ca avantajul Rust se erodeaza;
 - se **sare** (CI-safe, exit 0) cand addonul nativ nu e disponibil — **cu exceptia** modului strict
   `BENCH_GUARD_REQUIRE_NATIVE=true` (setat in `ci.yml`), unde absenta addonului devine **esec**: in CI
   build-ul Rust ruleaza inainte de guard, deci un addon lipsa inseamna o problema de build, nu un skip
