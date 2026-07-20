@@ -1,7 +1,7 @@
 "use strict";
 
 import type { DirectAttachment } from "../moderation/moderationInputPolicy.js";
-import { hasObfuscatedPdfActionName, inspectArchivePassively } from "./passiveArchiveInspection.js";
+import { hasObfuscatedPdfActionName, inspectArchivePassively, inspectCompoundFileBinary } from "./passiveArchiveInspection.js";
 
 export type ThreatVerdict = "safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed";
 
@@ -173,7 +173,8 @@ export function passiveDocumentIndicators(buffer: Buffer): string[] {
   if (ascii.includes("/XFA")) {
     indicators.push("formular XFA cu potential de script");
   }
-  return indicators;
+  indicators.push(...inspectCompoundFileBinary(buffer));
+  return [...new Set(indicators)];
 }
 
 function classifyResource(mime: string, buffer: Buffer | null): ThreatInspectionResult & { kind: ResourceKind } {
