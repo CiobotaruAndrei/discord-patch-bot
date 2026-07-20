@@ -14,6 +14,8 @@ const {
   dealHash,
   extractAndRankListingCandidates,
   extractAndRankListingCandidatesFallback,
+  selectLatestSteamPatchNoteIndex,
+  selectLatestSteamPatchNoteIndexFallback,
   extractDateScore,
   findGameKeys,
   findGameKeysFallback,
@@ -122,6 +124,45 @@ test("extractAndRankListingCandidates: fara keywords pastreaza tot pe data desc 
 test("extractAndRankListingCandidates: max_results taie la cei mai buni; lista goala -> gol", () => {
   assert.equal(extractAndRankListingCandidates(ANCHOR_SAMPLE, [], 2).length, 2);
   assert.deepEqual(extractAndRankListingCandidates([], ["patch"], 0), []);
+});
+
+const STEAM_SAMPLE = [
+  { gid: "1", title: "Summer Sale", url: "https://store.steampowered.com/news/1", contents: "reduceri", tags: [], feed_type: 1, feedname: "", date: 300 },
+  { gid: "2", title: "Patch 1.2 notes", url: "https://store.steampowered.com/news/2", contents: "bug fixes", tags: [], feed_type: 1, feedname: "", date: 100 },
+  { gid: "3", title: "Hotfix build", url: "https://cdn.steamstatic.com/img.png", contents: "", tags: [], feed_type: 1, feedname: "", date: 999 },
+  { gid: "4", title: "Update notes", url: "https://store.steampowered.com/news/4", contents: "", tags: ["patchnotes"], feed_type: 7, feedname: "steam_community_announcements", date: 200 },
+  { gid: "5", title: "Season launch", url: "https://store.steampowered.com/news/5", contents: "content update", tags: [], feed_type: 1, feedname: "", date: 150 }
+];
+
+test("selectLatestSteamPatchNoteIndex: wrapper-ul deleaga la implementarea TS (TS-primary, Rust pierde la marshaling)", () => {
+  const cases = [
+    STEAM_SAMPLE,
+    [],
+    [{ gid: "x", title: "Community giveaway", url: "https://store.steampowered.com/news/x", contents: "", tags: [], feed_type: 1, feedname: "", date: 10 }],
+    STEAM_SAMPLE.map(item => ({ ...item, feed_type: 9 })),
+    STEAM_SAMPLE.map((item, i) => ({ ...item, date: i === 1 ? 200 : item.date }))
+  ];
+  for (const items of cases) {
+    assert.equal(
+      selectLatestSteamPatchNoteIndex(items),
+      selectLatestSteamPatchNoteIndexFallback(items),
+      `wrapper-ul trebuie sa dea acelasi rezultat ca implementarea TS pentru ${JSON.stringify(items.map(i => [i.feed_type, i.feedname, i.date]))}`
+    );
+  }
+});
+
+test("selectLatestSteamPatchNoteIndex: alege cel mai nou patch note valid, respinge sale/CDN/feed gresit", () => {
+  assert.equal(selectLatestSteamPatchNoteIndex(STEAM_SAMPLE), 3,
+    "index 4 (feedname community + tag patchnotes, data 200) bate index 2 (data 100) si index 5 (data 150); sale respins de clasificare, CDN respins de URL");
+  assert.equal(selectLatestSteamPatchNoteIndex([]), -1, "feed gol -> -1");
+});
+
+test("selectLatestSteamPatchNoteIndex: la data egala pastreaza prima aparitie", () => {
+  const tied = [
+    { gid: "a", title: "Patch A", url: "https://store.steampowered.com/news/a", contents: "", tags: [], feed_type: 1, feedname: "", date: 500 },
+    { gid: "b", title: "Patch B", url: "https://store.steampowered.com/news/b", contents: "", tags: [], feed_type: 1, feedname: "", date: 500 }
+  ];
+  assert.equal(selectLatestSteamPatchNoteIndex(tied), 0);
 });
 
 test("Rust fuzzy matching returns exact game keys", () => {

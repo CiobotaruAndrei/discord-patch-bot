@@ -45,6 +45,7 @@ Masuratoare reprezentativa (100.000 iteratii; cifrele difera intre masini, conte
 | `dealPassesFilters` | ~37M | ~3,1M | ~0.08x (Rust mai lent) | OK |
 | `rankListingCandidates` (listing-rank) | ~24k | ~30k | **~1.25x** (Rust mai rapid) | OK |
 | `extractAndRankListingCandidates` (listing-batch) | ~16k | ~37k | **~2.3x** (Rust mai rapid) | OK |
+| `selectLatestSteamPatchNote` (steam-patch) | ~270k | ~21k | ~0.08x (Rust mai lent) | OK |
 
 Interpretare onesta: Rust castiga clar doar acolo unde calculul e dominant si argumentele sunt
 ieftine de trecut peste granita JS<->Rust — `levenshtein` (string-uri) si `dealHash` (SHA-256 pe string-uri;
@@ -76,12 +77,23 @@ cazuri overhead-ul apelului nativ depaseste castigul, deci Rust e mai lent decat
   peste 2.3x. Parsarea HTML ramane intentionat in Cheerio (parser lenient, referinta de paritate);
   a muta si parsarea DOM in Rust ar adauga un parser HTML cu risc de divergenta pe HTML invalid, fara
   castig CPU proportional.
-- `findGameKeys`, `buildAutocompleteChoices`, `dealPassesFilters` sunt acum **TS-primary**: wrapper-ele
-  publice din `native/fuzzy.ts` apeleaza direct implementarea TypeScript (masurat mai rapida — Rust
-  pierde pe marshaling-ul NAPI al array-urilor de candidati / calcul trivial), iar rezultatul e identic
-  (paritate verificata). Functiile native raman expuse prin `getNativeFuzzy()` doar pentru benchmark si
-  testele de paritate, dar nu mai sunt pe calea de productie pentru aceste trei. Astfel regula limbajului e
-  respectata in ambele sensuri: limbajul mai rapid pentru fiecare zona, demonstrat cu masuratori.
+- `findGameKeys`, `buildAutocompleteChoices`, `dealPassesFilters`, `selectLatestSteamPatchNote` sunt acum
+  **TS-primary**: wrapper-ele publice din `native/fuzzy.ts` apeleaza direct implementarea TypeScript
+  (masurat mai rapida — Rust pierde pe marshaling-ul NAPI al array-urilor de candidati / calcul trivial),
+  iar rezultatul e identic (paritate verificata). Functiile native raman expuse prin `getNativeFuzzy()`
+  doar pentru benchmark si testele de paritate, dar nu mai sunt pe calea de productie. Astfel regula
+  limbajului e respectata in ambele sensuri: limbajul mai rapid pentru fiecare zona, demonstrat cu masuratori.
+- `selectLatestSteamPatchNote` (alegerea celui mai nou patch note dintr-un feed Steam de pana la 50 de
+  stiri) merita o nota aparte: PDF-ul „Patru bucati concrete de trecut in Rust" il propunea drept
+  Prioritate 2 (a colapsa multele apeluri native per stire — `isGoodSteamArticleUrl` +
+  `classifyPatchNote` — intr-un singur apel batch). Masuratoarea infirma ipoteza Rust: batch-ul Rust
+  transfera 50 de obiecte cu campuri string peste granita NAPI, iar calculul (contains pe string-uri) e
+  trivial, deci pierde masiv (~0.08x) fata de o singura trecere pur-TS. Castigul real fata de **productia
+  veche** vine totusi din consolidare: `steamUpdates.ts` nu mai apeleaza `isGoodSteamArticleUrl` +
+  `classifyPatchNote` per stire (~100 apeluri native per feed), ci o singura functie TS
+  (`selectLatestSteamPatchNoteIndex`) care face totul intr-o singura trecere, fara nicio traversare NAPI.
+  Deci Prioritatea 2 se livreaza ca **batch TS**, nu Rust — exact ce cere metodologia PDF-ului: candidatul
+  intra in productie doar daca benchmark-ul arata avantaj, iar aici avantajul e al TS-ului.
 
 Fallback-ul TS exista pentru robustete (cand addonul nu poate fi incarcat), nu ca implementare
 principala — cu exceptia notata mai sus, unde ar fi chiar mai eficient.

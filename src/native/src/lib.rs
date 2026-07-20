@@ -39,6 +39,17 @@ pub struct RankedListingResult {
   pub text: String,
 }
 
+#[napi(object)]
+pub struct SteamNewsItem {
+  pub title: String,
+  pub url: String,
+  pub contents: String,
+  pub tags: Vec<String>,
+  pub feed_type: f64,
+  pub feedname: String,
+  pub date: f64,
+}
+
 fn to_game_data(games: Vec<GameCandidate>) -> Vec<logic::GameCandidateData> {
   games
     .into_iter()
@@ -108,6 +119,23 @@ pub fn extract_and_rank_listing_candidates(
     .into_iter()
     .map(|candidate| RankedListingResult { href: candidate.href, text: candidate.text })
     .collect()
+}
+
+#[napi]
+pub fn select_latest_steam_patch_note(items: Vec<SteamNewsItem>) -> Option<u32> {
+  let data: Vec<logic::SteamNewsItemData> = items
+    .into_iter()
+    .map(|item| logic::SteamNewsItemData {
+      title: item.title,
+      url: item.url,
+      contents: item.contents,
+      tags: item.tags,
+      feed_type: item.feed_type,
+      feedname: item.feedname,
+      date: item.date,
+    })
+    .collect();
+  logic::select_latest_steam_patch_note(&data)
 }
 
 #[napi]
