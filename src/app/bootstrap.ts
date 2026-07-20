@@ -33,6 +33,8 @@ import { createScheduledTaskRunner } from "./scheduler/scheduledTaskRunner.js";
 
 const { repositories, locks, migrations, snapshots, administration } = mongoContextBundles;
 
+mongoose.set("updatePipeline", true);
+
 const operationJournal = createOperationJournalRuntime({
   OperationJournalModel: repositories.OperationJournalModel,
   GuildModel: repositories.GuildModel,
