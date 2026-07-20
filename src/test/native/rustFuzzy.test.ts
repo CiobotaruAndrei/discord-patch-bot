@@ -18,6 +18,8 @@ const {
   selectLatestSteamPatchNoteIndexFallback,
   chooseBestSteamMatchIndex,
   chooseBestSteamMatchIndexFallback,
+  dedupeAndRankDealsIndex,
+  dedupeAndRankDealsIndexFallback,
   extractDateScore,
   findGameKeys,
   findGameKeysFallback,
@@ -197,6 +199,33 @@ test("chooseBestSteamMatchIndex: potrivire exacta si force-game-only", () => {
   assert.equal(chooseBestSteamMatchIndex(STEAM_MATCH_SAMPLE, "The Witcher 3: Wild Hunt", true), 0, "potrivirea exacta pe joc castiga");
   assert.equal(chooseBestSteamMatchIndex(STEAM_MATCH_SAMPLE, "witcher 3 wild hunt", true), 0, "force_game_only tine DLC/soundtrack in afara, jocul de baza castiga");
   assert.equal(chooseBestSteamMatchIndex([], "orice", false), -1, "lista goala -> -1");
+});
+
+const DEAL_SAMPLE = [
+  { title: "Hades", popularityScore: 30, id: "a" },
+  { title: "Celeste", popularityScore: 80, id: "b" },
+  { title: "Hades™", popularityScore: 90, id: "c" },
+  { title: "Stardew Valley", popularityScore: 50, id: "d" }
+];
+
+test("dedupeAndRankDealsIndex: deduplica dupa titlu normalizat (scor mai mare) si ordoneaza descrescator", () => {
+  assert.deepEqual(dedupeAndRankDealsIndex(DEAL_SAMPLE, 0), [2, 1, 3],
+    "Hades dedus la scorul 90 (index 2), apoi 80 (Celeste), apoi 50 (Stardew); duplicatul Hades de scor 30 cade");
+  assert.deepEqual(dedupeAndRankDealsIndex(DEAL_SAMPLE, 2), [2, 1], "maxDeals taie la primii 2");
+});
+
+test("dedupeAndRankDealsIndex: titlu care se normalizeaza la gol foloseste id-ul", () => {
+  const deals = [
+    { title: "!!!", popularityScore: 10, id: "x" },
+    { title: "@@@", popularityScore: 20, id: "y" }
+  ];
+  assert.deepEqual(dedupeAndRankDealsIndex(deals, 0), [1, 0], "cheile devin id-urile; sort desc pe scor: 20, 10");
+  assert.deepEqual(dedupeAndRankDealsIndex([], 5), [], "lista goala -> gol");
+});
+
+test("dedupeAndRankDealsIndex: wrapper-ul deleaga la implementarea TS (TS-primary, Rust pierde la marshaling)", () => {
+  const candidates = DEAL_SAMPLE.map(deal => ({ title: deal.title, popularityScore: deal.popularityScore, fallbackId: String(deal.id) }));
+  assert.deepEqual(dedupeAndRankDealsIndex(DEAL_SAMPLE, 3), dedupeAndRankDealsIndexFallback(candidates, 3));
 });
 
 test("Rust fuzzy matching returns exact game keys", () => {

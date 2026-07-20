@@ -47,6 +47,7 @@ Masuratoare reprezentativa (100.000 iteratii; cifrele difera intre masini, conte
 | `extractAndRankListingCandidates` (listing-batch) | ~16k | ~37k | **~2.3x** (Rust mai rapid) | OK |
 | `selectLatestSteamPatchNote` (steam-patch) | ~270k | ~21k | ~0.08x (Rust mai lent) | OK |
 | `chooseBestSteamMatch` (steam-match) | ~33k | ~83k | **~2.5x** (Rust mai rapid) | OK |
+| `dedupeAndRankDeals` (deals-dedupe, 200 oferte) | ~40k | ~10k | ~0.26x (Rust mai lent) | OK |
 
 Interpretare onesta: Rust castiga clar doar acolo unde calculul e dominant si argumentele sunt
 ieftine de trecut peste granita JS<->Rust — `levenshtein` (string-uri) si `dealHash` (SHA-256 pe string-uri;
@@ -87,12 +88,21 @@ cazuri overhead-ul apelului nativ depaseste castigul, deci Rust e mai lent decat
   DLC/demo/music) se fac intr-un **singur** apel batch care intoarce doar indexul castigatorului
   (`steam/index.ts` reconstruieste `items[index]`). Pragul de warn e mai ridicat (`1.3x`) fiindca
   avantajul masurat e clar.
-- `findGameKeys`, `buildAutocompleteChoices`, `dealPassesFilters`, `selectLatestSteamPatchNote` sunt acum
+- `findGameKeys`, `buildAutocompleteChoices`, `dealPassesFilters`, `selectLatestSteamPatchNote`,
+  `dedupeAndRankDeals` sunt acum
   **TS-primary**: wrapper-ele publice din `native/fuzzy.ts` apeleaza direct implementarea TypeScript
   (masurat mai rapida — Rust pierde pe marshaling-ul NAPI al array-urilor de candidati / calcul trivial),
   iar rezultatul e identic (paritate verificata). Functiile native raman expuse prin `getNativeFuzzy()`
   doar pentru benchmark si testele de paritate, dar nu mai sunt pe calea de productie. Astfel regula
   limbajului e respectata in ambele sensuri: limbajul mai rapid pentru fiecare zona, demonstrat cu masuratori.
+- `dedupeAndRankDeals` (deduplicare + ordonare oferte, PDF Prioritate 4 „conditionat") **ramane TS**.
+  Benchmark la 200 de oferte (dimensiune realista: Steam + Epic specials): Rust **~0.26x** vs fallback-ul
+  TS, paritate OK. Calculul (normalize + dedup Map + sort) e trivial, iar marshaling-ul a 200 de obiecte
+  string domina — exact conditia din PDF („se pastreaza varianta Rust numai daca avantajul ramane stabil
+  la dimensiunile reale, nu doar la loturi artificiale foarte mari"). Castigul real vine tot din
+  consolidare in TS: `dealHelpers.ts` nu mai apeleaza `normalizeTitleForDedupe` nativ per oferta
+  (N traversari NAPI), ci o singura functie TS `dedupeAndRankDealsIndex` (0 traversari) care intoarce
+  indecsii. Functia Rust `dedupe_and_rank_deals` + paritatea raman doar pentru benchmark/inregistrare.
 - `selectLatestSteamPatchNote` (alegerea celui mai nou patch note dintr-un feed Steam de pana la 50 de
   stiri) merita o nota aparte: PDF-ul „Patru bucati concrete de trecut in Rust" il propunea drept
   Prioritate 2 (a colapsa multele apeluri native per stire — `isGoodSteamArticleUrl` +

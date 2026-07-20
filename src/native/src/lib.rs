@@ -56,6 +56,13 @@ pub struct SteamMatchItem {
   pub item_type: String,
 }
 
+#[napi(object)]
+pub struct DealCandidate {
+  pub title: String,
+  pub popularity_score: f64,
+  pub fallback_id: String,
+}
+
 fn to_game_data(games: Vec<GameCandidate>) -> Vec<logic::GameCandidateData> {
   games
     .into_iter()
@@ -151,6 +158,19 @@ pub fn choose_best_steam_match(items: Vec<SteamMatchItem>, query: String, force_
     .map(|item| logic::SteamMatchItemData { name: item.name, item_type: item.item_type })
     .collect();
   logic::choose_best_steam_match(&data, &query, force_game_only)
+}
+
+#[napi]
+pub fn dedupe_and_rank_deals(candidates: Vec<DealCandidate>, max_deals: u32) -> Vec<u32> {
+  let data: Vec<logic::DealCandidateData> = candidates
+    .into_iter()
+    .map(|candidate| logic::DealCandidateData {
+      title: candidate.title,
+      popularity_score: candidate.popularity_score,
+      fallback_id: candidate.fallback_id,
+    })
+    .collect();
+  logic::dedupe_and_rank_deals(&data, max_deals as usize)
 }
 
 #[napi]
