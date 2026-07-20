@@ -160,12 +160,14 @@ async function sendExistingAccountAlerts(
   interaction: SecurityInteraction,
   channel: SecurityChannel,
   guildId: string,
-  claim?: AccountAlertClaimFn
-): Promise<number> {
+  claim?: AccountAlertClaimFn,
+  logger?: SecurityDeps["logger"]
+): Promise<{ delivered: number; sentUnconfirmed: number }> {
   const members = await interaction.guild?.members?.fetch();
-  if (!members || !channel.send) return 0;
+  if (!members || !channel.send) return { delivered: 0, sentUnconfirmed: 0 };
   const now = new Date();
-  let sent = 0;
+  let delivered = 0;
+  let sentUnconfirmed = 0;
   for (const member of members.values()) {
     const user = member.user;
     if (!user?.id || user.bot || !isRecentAccount(user.createdTimestamp, now)) continue;
@@ -180,10 +182,17 @@ async function sendExistingAccountAlerts(
       if (ticket) await ticket.release().catch(() => undefined);
       throw error;
     }
-    if (ticket) await ticket.markDelivered().catch(() => undefined);
-    sent++;
+    if (!ticket) { delivered++; continue; }
+    const confirmed = await ticket.markDelivered().catch(() => false);
+    if (confirmed) {
+      delivered++;
+    } else {
+      await ticket.markSentUnconfirmed().catch(() => undefined);
+      sentUnconfirmed++;
+      logger?.("WARN", "NEW_ACCOUNT_ALERT", "Alerta cont nou trimisa dar nefinalizata in Mongo (sent-unconfirmed); nu se retrimite, necesita reconciliere", { guildId, userId: user.id });
+    }
   }
-  return sent;
+  return { delivered, sentUnconfirmed };
 }
 
 function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<SecurityInteraction> {
@@ -262,8 +271,11 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
           const fetched = channelId && interaction.guild?.channels?.fetch
             ? await interaction.guild.channels.fetch(channelId)
             : null;
-          const count = fetched ? await sendExistingAccountAlerts(interaction, fetched, guildId, accountAlertClaim) : 0;
-          return respond(interaction, `OK: protectia **${sub}** a fost pornita. Au fost verificate conturile existente si trimise ${count} alerte.`);
+          const result = fetched ? await sendExistingAccountAlerts(interaction, fetched, guildId, accountAlertClaim, target.logger) : { delivered: 0, sentUnconfirmed: 0 };
+          const unconfirmedNote = result.sentUnconfirmed > 0
+            ? ` ${result.sentUnconfirmed} au fost trimise dar neconfirmate in baza de date (vor fi reconciliate, nu retrimise).`
+            : "";
+          return respond(interaction, `OK: protectia **${sub}** a fost pornita. Au fost verificate conturile existente si trimise ${result.delivered} alerte confirmate.${unconfirmedNote}`);
         } catch (err) {
           await applyGuildConfigUpdate(target.GuildModel, guildId, { [enabledField]: false });
           throw err;
