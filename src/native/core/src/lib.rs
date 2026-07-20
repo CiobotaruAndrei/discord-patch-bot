@@ -9,7 +9,7 @@ mod types;
 mod updates;
 
 pub use autocomplete::build_autocomplete_choices;
-pub use deals::deal_passes_filters;
+pub use deals::{deal_passes_filters, dedupe_and_rank_deals, DealCandidateData};
 pub use fuzzy::find_game_keys;
 pub use hashing::{deal_hash, normalize_deal_state, stable_update_id};
 pub use listing_rank::{
@@ -290,6 +290,49 @@ mod tests {
   #[test]
   fn choose_best_steam_match_empty_is_none() {
     assert_eq!(choose_best_steam_match(&[], "anything", false), None);
+  }
+
+  fn deal(title: &str, popularity_score: f64, fallback_id: &str) -> DealCandidateData {
+    DealCandidateData { title: title.to_string(), popularity_score, fallback_id: fallback_id.to_string() }
+  }
+
+  #[test]
+  fn dedupe_and_rank_deals_keeps_higher_popularity_and_sorts_desc() {
+    let deals = vec![
+      deal("Hades", 30.0, "a"),
+      deal("Celeste", 80.0, "b"),
+      deal("Hades\u{2122}", 90.0, "c"),
+      deal("Stardew Valley", 50.0, "d"),
+    ];
+    let order = dedupe_and_rank_deals(&deals, 0);
+    assert_eq!(order, vec![2, 1, 3], "Hades dedus la scorul mai mare (index 2), apoi sort desc: 90,80,50");
+  }
+
+  #[test]
+  fn dedupe_and_rank_deals_tie_keeps_first_seen_and_respects_max() {
+    let deals = vec![
+      deal("Hades", 50.0, "a"),
+      deal("Hades", 50.0, "b"),
+      deal("Celeste", 70.0, "c"),
+    ];
+    let order = dedupe_and_rank_deals(&deals, 2);
+    assert_eq!(order, vec![2, 0], "la scor egal se pastreaza prima aparitie (index 0), max_deals taie la 2");
+  }
+
+  #[test]
+  fn dedupe_and_rank_deals_empty_title_uses_fallback_id() {
+    let deals = vec![
+      deal("!!!", 10.0, "id-1"),
+      deal("@@@", 20.0, "id-2"),
+      deal("###", 5.0, "id-1"),
+    ];
+    let order = dedupe_and_rank_deals(&deals, 0);
+    assert_eq!(order, vec![1, 2], "titluri care se normalizeaza la gol -> cheie = fallback_id; id-1 suprascris de ultima aparitie (index 2), sort desc pe scor: 20, 5");
+  }
+
+  #[test]
+  fn dedupe_and_rank_deals_empty_input() {
+    assert_eq!(dedupe_and_rank_deals(&[], 5), Vec::<u32>::new());
   }
 
   #[test]

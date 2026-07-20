@@ -13,7 +13,8 @@ import {
   rankListingCandidatesFallback,
   extractAndRankListingCandidatesFallback,
   selectLatestSteamPatchNoteIndexFallback,
-  chooseBestSteamMatchIndexFallback
+  chooseBestSteamMatchIndexFallback,
+  dedupeAndRankDealsIndexFallback
 } from "../native/fuzzy.js";
 import type { DealInfo, GameConfig, GuildSettings } from "../types.js";
 import { strictEnvInt } from "./benchmarkEnv.js";
@@ -52,7 +53,8 @@ export type BenchmarkAreaKey =
   | "rankListingCandidates"
   | "extractAndRankListingCandidates"
   | "selectLatestSteamPatchNote"
-  | "chooseBestSteamMatch";
+  | "chooseBestSteamMatch"
+  | "dedupeAndRankDeals";
 
 export interface AreaBenchmarkResult {
   key: BenchmarkAreaKey;
@@ -189,6 +191,13 @@ const SAMPLE_STEAM_MATCH_ITEMS: Array<{ name: string; type: string }> = [
   { name: "The Witcher 3: Wild Hunt - Game of the Year Edition", type: "game" }
 ];
 const SAMPLE_STEAM_MATCH_QUERY = "witcher 3 wild hunt";
+const SAMPLE_DEAL_TITLES = ["Hades", "Celeste", "Stardew Valley", "Hollow Knight", "Cuphead", "Dead Cells", "Slay the Spire", "Disco Elysium", "Hades II", "The Witcher 3: Wild Hunt", "Elden Ring", "Baldur's Gate 3"];
+const SAMPLE_DEAL_CANDIDATES: Array<{ title: string; popularityScore: number; id: string }> = Array.from({ length: 200 }, (_, i) => ({
+  title: SAMPLE_DEAL_TITLES[i % SAMPLE_DEAL_TITLES.length],
+  popularityScore: (i * 37) % 100,
+  id: `deal-${i}`
+}));
+const SAMPLE_DEAL_MAX = 20;
 
 function dealHashNativeArgs(deal: DealInfo): [string, string, string, string, string, string, string] {
   return [
@@ -241,6 +250,8 @@ interface NativeFns {
   select_latest_steam_patch_note?: (items: unknown[]) => number | null;
   chooseBestSteamMatch?: (items: unknown[], query: string, forceGameOnly: boolean) => number | null;
   choose_best_steam_match?: (items: unknown[], query: string, forceGameOnly: boolean) => number | null;
+  dedupeAndRankDeals?: (candidates: unknown[], maxDeals: number) => number[];
+  dedupe_and_rank_deals?: (candidates: unknown[], maxDeals: number) => number[];
 }
 
 interface AreaSpec {
@@ -443,6 +454,28 @@ function buildAreaSpecs(native: NativeFns | null): AreaSpec[] {
       const nativeIndex = fn(steamMatchNativePayload(), SAMPLE_STEAM_MATCH_QUERY, true);
       const tsIndex = chooseBestSteamMatchIndexFallback(SAMPLE_STEAM_MATCH_ITEMS, SAMPLE_STEAM_MATCH_QUERY, true);
       return (nativeIndex ?? -1) === tsIndex;
+    }
+  });
+
+  const dealsNativePayload = () => SAMPLE_DEAL_CANDIDATES.map(deal => ({ title: deal.title, popularityScore: deal.popularityScore, fallbackId: deal.id }));
+  const dealsFallbackPayload = () => SAMPLE_DEAL_CANDIDATES.map(deal => ({ title: deal.title, popularityScore: deal.popularityScore, fallbackId: deal.id }));
+  specs.push({
+    key: "dedupeAndRankDeals",
+    area: "deals-dedupe (dedupeAndRankDeals)",
+    callsPerIteration: 1,
+    ts: () => { dedupeAndRankDealsIndexFallback(dealsFallbackPayload(), SAMPLE_DEAL_MAX); },
+    native: native && (native.dedupeAndRankDeals || native.dedupe_and_rank_deals)
+      ? (n: NativeFns) => {
+          const fn = (n.dedupeAndRankDeals || n.dedupe_and_rank_deals) as (candidates: unknown[], maxDeals: number) => number[];
+          fn(dealsNativePayload(), SAMPLE_DEAL_MAX);
+        }
+      : null,
+    parityOk: (n: NativeFns) => {
+      const fn = n.dedupeAndRankDeals || n.dedupe_and_rank_deals;
+      if (!fn) return true;
+      const nativeOrder = fn(dealsNativePayload(), SAMPLE_DEAL_MAX);
+      const tsOrder = dedupeAndRankDealsIndexFallback(dealsFallbackPayload(), SAMPLE_DEAL_MAX);
+      return JSON.stringify(nativeOrder) === JSON.stringify(tsOrder);
     }
   });
 

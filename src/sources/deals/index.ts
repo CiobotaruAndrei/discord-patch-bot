@@ -63,7 +63,7 @@ function createDeals(d: DealsDeps): DealsApi {
   });
 
   async function _fetchDealsImpl(currencyCode: DealCurrencyCode): Promise<DealInfo[]> {
-    const { getCurrencyConfig, normalizeTitleForDedupe, MAX_DEALS } = deps;
+    const { getCurrencyConfig, MAX_DEALS } = deps;
     const cfg = getCurrencyConfig(currencyCode);
     const cc = cfg.cc;
 
@@ -73,7 +73,7 @@ function createDeals(d: DealsDeps): DealsApi {
     ]);
     const deals: DealInfo[] = [...steamSpecials, ...epicSpecials];
 
-    const finalTop = dedupeAndRankDeals(deals, normalizeTitleForDedupe, MAX_DEALS);
+    const finalTop = dedupeAndRankDeals(deals, MAX_DEALS);
     if (!finalTop.length) throw new Error("Fără oferte valide.");
     return finalTop;
   }

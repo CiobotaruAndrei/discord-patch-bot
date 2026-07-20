@@ -392,6 +392,35 @@ export function chooseBestSteamMatchIndexFallback(items: SteamMatchItemInput[], 
   return bestIndex;
 }
 
+export interface DealCandidateInput {
+  title?: unknown;
+  popularityScore?: unknown;
+  fallbackId?: unknown;
+}
+
+export function dedupeAndRankDealsIndexFallback(candidates: DealCandidateInput[], maxDeals: number): number[] {
+  const slotByKey = new Map<string, number>();
+  const kept: Array<{ originalIndex: number; score: number }> = [];
+  for (let index = 0; index < candidates.length; index++) {
+    const candidate = candidates[index];
+    const score = Number(candidate?.popularityScore) || 0;
+    const normalized = normalizeTitleForDedupeFallback(candidate?.title);
+    if (!normalized) {
+      const key = String(candidate?.fallbackId);
+      const slot = slotByKey.get(key);
+      if (slot === undefined) { slotByKey.set(key, kept.length); kept.push({ originalIndex: index, score }); }
+      else { kept[slot] = { originalIndex: index, score }; }
+      continue;
+    }
+    const slot = slotByKey.get(normalized);
+    if (slot === undefined) { slotByKey.set(normalized, kept.length); kept.push({ originalIndex: index, score }); }
+    else if (score > kept[slot].score) { kept[slot] = { originalIndex: index, score }; }
+  }
+  const order = kept.map((_, slot) => slot).sort((a, b) => kept[b].score - kept[a].score);
+  const limit = maxDeals > 0 ? Math.min(maxDeals, order.length) : order.length;
+  return order.slice(0, limit).map(slot => kept[slot].originalIndex);
+}
+
 export function reorderByValidPermutation<T>(items: T[], order: unknown[]): T[] | null {
   if (order.length !== items.length) return null;
   const seen = new Set<number>();

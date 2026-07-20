@@ -52,6 +52,8 @@ export interface NativeFuzzyModule {
   select_latest_steam_patch_note?(items: Array<{ title: string; url: string; contents: string; tags: string[]; feedType: number; feedname: string; date: number }>): number | null;
   chooseBestSteamMatch?(items: Array<{ name: string; itemType: string }>, query: string, forceGameOnly: boolean): number | null;
   choose_best_steam_match?(items: Array<{ name: string; itemType: string }>, query: string, forceGameOnly: boolean): number | null;
+  dedupeAndRankDeals?(candidates: Array<{ title: string; popularityScore: number; fallbackId: string }>, maxDeals: number): number[];
+  dedupe_and_rank_deals?(candidates: Array<{ title: string; popularityScore: number; fallbackId: string }>, maxDeals: number): number[];
 }
 
 let nativeModule: NativeFuzzyModule | null | undefined;

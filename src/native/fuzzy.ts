@@ -31,11 +31,13 @@ import {
   normalizeDealStateFallback,
   normalizeTitleForDedupeFallback,
   chooseBestSteamMatchIndexFallback,
+  dedupeAndRankDealsIndexFallback,
   rankListingCandidatesFallback,
   reorderByValidPermutation,
   scoreListingCandidateFallback,
   selectLatestSteamPatchNoteIndexFallback,
   stableUpdateIdFallback,
+  type DealCandidateInput,
   type FuzzyMatchKeys,
   type ListingAnchorInput,
   type RankableListingCandidate,
@@ -63,12 +65,13 @@ export {
   rankListingCandidatesFallback,
   recordNativeFallback,
   chooseBestSteamMatchIndexFallback,
+  dedupeAndRankDealsIndexFallback,
   reorderByValidPermutation,
   resetNativeFallbackTotals,
   selectLatestSteamPatchNoteIndexFallback,
   stableUpdateIdFallback
 };
-export type { ListingAnchorInput, RankableListingCandidate, RankedListingResult, SteamMatchItemInput, SteamNewsItemInput };
+export type { DealCandidateInput, ListingAnchorInput, RankableListingCandidate, RankedListingResult, SteamMatchItemInput, SteamNewsItemInput };
 
 export function levenshtein(a: string, b: string): number {
   const native = loadNativeFuzzy();
@@ -227,6 +230,17 @@ export function chooseBestSteamMatchIndex(items: SteamMatchItemInput[], query: s
     }
   }
   return chooseBestSteamMatchIndexFallback(items, q, force);
+}
+
+export function dedupeAndRankDealsIndex(deals: Array<{ title?: unknown; popularityScore?: unknown; id?: unknown }>, maxDeals: number): number[] {
+  if (!Array.isArray(deals) || deals.length === 0) return [];
+  const cap = Math.max(0, Number(maxDeals) || 0);
+  const candidates: DealCandidateInput[] = deals.map(deal => ({
+    title: deal?.title,
+    popularityScore: Number(deal?.popularityScore) || 0,
+    fallbackId: String(deal?.id)
+  }));
+  return dedupeAndRankDealsIndexFallback(candidates, cap);
 }
 
 export function stableUpdateId(title: unknown, link: unknown): string {
