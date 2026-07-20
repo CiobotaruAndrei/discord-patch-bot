@@ -38,12 +38,18 @@ function managerFor(guild: BackupDiscordGuild, kind: BackupResourceKind): Backup
   return kind === "channel" ? guild.channels : guild.roles;
 }
 
-async function rollbackCreated(resourcesToDelete: BackupDiscordResource[]): Promise<void> {
+export async function rollbackMaterializedResources(resourcesToDelete: readonly BackupDiscordResource[]): Promise<{ deleted: number; failed: number }> {
+  let deleted = 0;
+  let failed = 0;
   for (const resource of [...resourcesToDelete].reverse()) {
     try {
       await resource.delete("Compensare dupa esecul restaurarii backup-ului");
-    } catch {}
+      deleted++;
+    } catch {
+      failed++;
+    }
   }
+  return { deleted, failed };
 }
 
 export async function materializeBackupResources(
@@ -80,10 +86,10 @@ export async function materializeBackupResources(
       (entry.kind === "channel" ? channelIds : roleIds).add(resource.id);
     }
   } catch (error) {
-    await rollbackCreated(created);
+    await rollbackMaterializedResources(created);
     throw error;
   }
   return { channelIds, created, remap: { channels, roles }, roleIds };
 }
 
-export default { materializeBackupResources };
+export default { materializeBackupResources, rollbackMaterializedResources };
