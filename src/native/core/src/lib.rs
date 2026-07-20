@@ -3,6 +3,7 @@ mod deals;
 mod fuzzy;
 mod hashing;
 mod listing_rank;
+mod steam;
 mod text;
 mod types;
 mod updates;
@@ -15,6 +16,7 @@ pub use listing_rank::{
   extract_and_rank_listing_candidates, rank_listing_candidates, score_listing_candidate,
   ListingAnchorData, RankedListingCandidate,
 };
+pub use steam::{select_latest_steam_patch_note, SteamNewsItemData};
 pub use text::{clean_text, levenshtein, normalize_title_for_dedupe};
 pub use types::{AutocompleteChoiceData, FuzzyMatch, GameCandidateData, ListingCandidateData};
 pub use updates::{classify_patch_note, extract_date_score, is_good_steam_article_url};
@@ -199,6 +201,54 @@ mod tests {
     let ranked = extract_and_rank_listing_candidates(&anchors, &["patch".to_string()], 0);
     assert_eq!(ranked.len(), 1);
     assert_eq!(ranked[0].href, "https://x.com/patch");
+  }
+
+  fn news(title: &str, url: &str, feed_type: f64, feedname: &str, date: f64) -> SteamNewsItemData {
+    SteamNewsItemData {
+      title: title.to_string(),
+      url: url.to_string(),
+      contents: String::new(),
+      tags: Vec::new(),
+      feed_type,
+      feedname: feedname.to_string(),
+      date,
+    }
+  }
+
+  #[test]
+  fn select_latest_steam_patch_note_picks_newest_valid() {
+    let items = vec![
+      news("Summer Sale", "https://store.steampowered.com/news/1", 1.0, "", 300.0),
+      news("Patch 1.2 notes", "https://store.steampowered.com/news/2", 1.0, "", 100.0),
+      news("Hotfix build", "https://store.steampowered.com/news/3", 1.0, "", 200.0),
+    ];
+    assert_eq!(select_latest_steam_patch_note(&items), Some(2), "cel mai nou patch note valid (sale-ul e respins de clasificare)");
+  }
+
+  #[test]
+  fn select_latest_steam_patch_note_requires_feed_and_url() {
+    let items = vec![
+      news("Patch notes", "https://cdn.steamstatic.com/img.png", 1.0, "", 100.0),
+      news("Patch notes", "https://store.steampowered.com/news/2", 7.0, "other_feed", 200.0),
+      news("Patch notes", "https://store.steampowered.com/news/3", 7.0, "steam_community_announcements", 150.0),
+    ];
+    assert_eq!(select_latest_steam_patch_note(&items), Some(2), "URL CDN respins; feed_type gresit fara feedname respins; ramane anuntul comunitatii");
+  }
+
+  #[test]
+  fn select_latest_steam_patch_note_ties_keep_first_occurrence() {
+    let items = vec![
+      news("Patch A", "https://store.steampowered.com/news/a", 1.0, "", 500.0),
+      news("Patch B", "https://store.steampowered.com/news/b", 1.0, "", 500.0),
+    ];
+    assert_eq!(select_latest_steam_patch_note(&items), Some(0), "la data egala se pastreaza prima aparitie (sort stabil desc + [0])");
+  }
+
+  #[test]
+  fn select_latest_steam_patch_note_none_when_no_valid() {
+    let items = vec![news("Community giveaway", "https://store.steampowered.com/news/1", 1.0, "", 100.0)];
+    assert_eq!(select_latest_steam_patch_note(&items), None);
+    assert_eq!(select_latest_steam_patch_note(&[]), None);
   }
 
   #[test]

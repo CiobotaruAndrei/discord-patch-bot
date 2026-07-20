@@ -33,11 +33,13 @@ import {
   rankListingCandidatesFallback,
   reorderByValidPermutation,
   scoreListingCandidateFallback,
+  selectLatestSteamPatchNoteIndexFallback,
   stableUpdateIdFallback,
   type FuzzyMatchKeys,
   type ListingAnchorInput,
   type RankableListingCandidate,
-  type RankedListingResult
+  type RankedListingResult,
+  type SteamNewsItemInput
 } from "./fuzzyFallbacks.js";
 
 export {
@@ -60,9 +62,10 @@ export {
   recordNativeFallback,
   reorderByValidPermutation,
   resetNativeFallbackTotals,
+  selectLatestSteamPatchNoteIndexFallback,
   stableUpdateIdFallback
 };
-export type { ListingAnchorInput, RankableListingCandidate, RankedListingResult };
+export type { ListingAnchorInput, RankableListingCandidate, RankedListingResult, SteamNewsItemInput };
 
 export function levenshtein(a: string, b: string): number {
   const native = loadNativeFuzzy();
@@ -191,6 +194,10 @@ export function extractAndRankListingCandidates(
     }
   }
   return extractAndRankListingCandidatesFallback(anchors, keywords, maxResults);
+}
+
+export function selectLatestSteamPatchNoteIndex(items: SteamNewsItemInput[]): number {
+  return selectLatestSteamPatchNoteIndexFallback(Array.isArray(items) ? items : []);
 }
 
 export function stableUpdateId(title: unknown, link: unknown): string {

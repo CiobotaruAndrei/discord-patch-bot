@@ -49,7 +49,7 @@ test("NATIVE_FALLBACK_FUNCTIONS enumera doar functiile inca native-primary (cele
     assert.ok(fuzzy.NATIVE_FALLBACK_FUNCTIONS.includes(fn), `lista canonica include ${fn}`);
   }
   assert.equal(fuzzy.NATIVE_FALLBACK_FUNCTIONS.length, 6);
-  for (const tsPrimary of ["dealPassesFilters", "findGameKeys", "buildAutocompleteChoices"]) {
+  for (const tsPrimary of ["dealPassesFilters", "findGameKeys", "buildAutocompleteChoices", "selectLatestSteamPatchNote"]) {
     assert.ok(!fuzzy.NATIVE_FALLBACK_FUNCTIONS.includes(tsPrimary), `${tsPrimary} este TS-primary, nu mai face fallback nativ`);
   }
 });

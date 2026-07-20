@@ -11,7 +11,8 @@ import {
   buildAutocompleteChoicesFallback,
   dealPassesFiltersFallback,
   rankListingCandidatesFallback,
-  extractAndRankListingCandidatesFallback
+  extractAndRankListingCandidatesFallback,
+  selectLatestSteamPatchNoteIndexFallback
 } from "../native/fuzzy.js";
 import type { DealInfo, GameConfig, GuildSettings } from "../types.js";
 import { strictEnvInt } from "./benchmarkEnv.js";
@@ -48,7 +49,8 @@ export type BenchmarkAreaKey =
   | "buildAutocompleteChoices"
   | "dealPassesFilters"
   | "rankListingCandidates"
-  | "extractAndRankListingCandidates";
+  | "extractAndRankListingCandidates"
+  | "selectLatestSteamPatchNote";
 
 export interface AreaBenchmarkResult {
   key: BenchmarkAreaKey;
@@ -165,6 +167,15 @@ const SAMPLE_LISTING_ANCHORS: Array<{ href: string; rawText: string }> = SAMPLE_
   rawText: i % 4 === 0 ? `  <b>${c.text}</b> &amp; more  ` : c.text
 }));
 const SAMPLE_LISTING_MAX = 3;
+const SAMPLE_STEAM_ITEMS: Array<{ title: string; url: string; contents: string; tags: string[]; feed_type: number; feedname: string; date: number }> = Array.from({ length: 50 }, (_, i) => ({
+  title: i % 3 === 0 ? `Patch ${i} notes` : i % 3 === 1 ? `Summer sale ${i}` : `Community giveaway ${i}`,
+  url: i % 5 === 0 ? "https://cdn.steamstatic.com/img.png" : `https://store.steampowered.com/news/app/730/view/${i}`,
+  contents: i % 2 === 0 ? "bug fixes and balance changes" : "no relevant words here",
+  tags: i % 7 === 0 ? ["patchnotes"] : [],
+  feed_type: i % 2 === 0 ? 1 : 13,
+  feedname: i % 4 === 0 ? "steam_community_announcements" : "other",
+  date: 1_700_000_000 + i * 3600
+}));
 
 function dealHashNativeArgs(deal: DealInfo): [string, string, string, string, string, string, string] {
   return [
@@ -213,6 +224,8 @@ interface NativeFns {
   rank_listing_candidates?: (candidates: Array<{ href: string; text: string; position: number }>, keywords: string[]) => number[];
   extractAndRankListingCandidates?: (anchors: Array<{ href: string; rawText: string }>, keywords: string[], maxResults: number) => Array<{ href: string; text: string }>;
   extract_and_rank_listing_candidates?: (anchors: Array<{ href: string; rawText: string }>, keywords: string[], maxResults: number) => Array<{ href: string; text: string }>;
+  selectLatestSteamPatchNote?: (items: unknown[]) => number | null;
+  select_latest_steam_patch_note?: (items: unknown[]) => number | null;
 }
 
 interface AreaSpec {
@@ -365,6 +378,35 @@ function buildAreaSpecs(native: NativeFns | null): AreaSpec[] {
       const nativeResult = fn(anchorsPayload(), SAMPLE_LISTING_KEYWORDS, SAMPLE_LISTING_MAX);
       const tsResult = extractAndRankListingCandidatesFallback(SAMPLE_LISTING_ANCHORS, SAMPLE_LISTING_KEYWORDS, SAMPLE_LISTING_MAX);
       return JSON.stringify(nativeResult) === JSON.stringify(tsResult);
+    }
+  });
+
+  const steamNativePayload = () => SAMPLE_STEAM_ITEMS.map(item => ({
+    title: item.title,
+    url: item.url,
+    contents: item.contents,
+    tags: item.tags,
+    feedType: item.feed_type === 1 ? 1 : 0,
+    feedname: item.feedname,
+    date: item.date
+  }));
+  specs.push({
+    key: "selectLatestSteamPatchNote",
+    area: "steam-patch (selectLatestSteamPatchNote)",
+    callsPerIteration: 1,
+    ts: () => { selectLatestSteamPatchNoteIndexFallback(SAMPLE_STEAM_ITEMS); },
+    native: native && (native.selectLatestSteamPatchNote || native.select_latest_steam_patch_note)
+      ? (n: NativeFns) => {
+          const fn = (n.selectLatestSteamPatchNote || n.select_latest_steam_patch_note) as (items: unknown[]) => number | null;
+          fn(steamNativePayload());
+        }
+      : null,
+    parityOk: (n: NativeFns) => {
+      const fn = n.selectLatestSteamPatchNote || n.select_latest_steam_patch_note;
+      if (!fn) return true;
+      const nativeIndex = fn(steamNativePayload());
+      const tsIndex = selectLatestSteamPatchNoteIndexFallback(SAMPLE_STEAM_ITEMS);
+      return (nativeIndex ?? -1) === tsIndex;
     }
   });
 

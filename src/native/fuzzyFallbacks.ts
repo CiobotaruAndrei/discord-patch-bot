@@ -311,6 +311,35 @@ export function extractAndRankListingCandidatesFallback(
   return scored.slice(0, limit).map(entry => ({ href: entry.href, text: entry.text }));
 }
 
+export interface SteamNewsItemInput {
+  gid?: unknown;
+  title?: unknown;
+  url?: unknown;
+  contents?: unknown;
+  tags?: unknown;
+  feed_type?: unknown;
+  feedname?: unknown;
+  date?: unknown;
+}
+
+export function selectLatestSteamPatchNoteIndexFallback(items: SteamNewsItemInput[]): number {
+  let bestIndex = -1;
+  let bestDate = 0;
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const passes = (item?.feed_type === 1 || item?.feedname === "steam_community_announcements")
+      && isGoodSteamArticleUrlFallback(item?.url)
+      && classifyPatchNoteFallback(item?.title, item?.contents, item?.tags);
+    if (!passes) continue;
+    const date = Number(item?.date) || 0;
+    if (bestIndex === -1 || date > bestDate) {
+      bestIndex = i;
+      bestDate = date;
+    }
+  }
+  return bestIndex;
+}
+
 export function reorderByValidPermutation<T>(items: T[], order: unknown[]): T[] | null {
   if (order.length !== items.length) return null;
   const seen = new Set<number>();
