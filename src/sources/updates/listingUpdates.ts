@@ -1,11 +1,13 @@
 import { requestOptionsFor } from "../sourcePolicies.js";
 import type { CheerioAPI } from "cheerio";
 import type { GameConfig, NormalizedUpdate, PatchUpdate } from "../../types.js";
-import { rankListingCandidates } from "../../native/fuzzy.js";
+import { extractAndRankListingCandidates } from "../../native/fuzzy.js";
+import type { ListingAnchorInput } from "../../native/fuzzy.js";
 import { errorMessage } from "../../shared/errors.js";
-import type { ListingCandidate } from "../sourceApis.js";
-import { absoluteUrl, getArticleHrefRegex, scoreCandidate } from "./updateHelpers.js";
+import { absoluteUrl, getArticleHrefRegex } from "./updateHelpers.js";
 import type { CheerioSelector, HttpReq, RunConcurrent, SchemaDriftErrorClass } from "./updateHelpers.js";
+
+const LISTING_RANKED_LIMIT = 3;
 
 interface ListingUpdatesDeps {
   httpReq: HttpReq;
@@ -32,44 +34,32 @@ function createListingUpdates(deps: ListingUpdatesDeps) {
     const keywords = Array.isArray(game.requireKeywords) ? game.requireKeywords : [];
     const hrefRegex = getArticleHrefRegex(game);
 
-    type FetchedListing = { url: string; candidates: ListingCandidate[] };
+    type FetchedListing = { url: string; anchors: ListingAnchorInput[] };
     const fetched: Array<FetchedListing | null> = new Array(listingUrls.length).fill(null);
     await deps.runConcurrent(listingUrls, deps.FETCH_CONCURRENCY_LISTING, async (url, index) => {
       const listRes = await httpReq("GET", url, requestOptionsFor("listing-index"));
       const $ = safeCheerioLoad(listRes.data);
-      const candidates: ListingCandidate[] = [];
-      let localPosition = 0;
+      const anchors: ListingAnchorInput[] = [];
       $("a").each((i: number, el: unknown) => {
         const node = el as CheerioSelector;
         const href = absoluteUrl(game.baseUrl, $(node).attr("href"));
         if (!href || (hrefRegex && !hrefRegex.test(href))) return;
-        const candidate = { href, text: cleanText($(node).text()), position: localPosition++ };
-        if (keywords.length > 0 && scoreCandidate(candidate, keywords) === 0) return;
-        candidates.push(candidate);
+        anchors.push({ href, rawText: $(node).text() });
       });
-      fetched[index] = { url: String(url), candidates };
+      fetched[index] = { url: String(url), anchors };
     }, {
       errorLogger: (url, err) => logger("WARN", "SCRAPE", `Eroare preluare listing url ${url}`, errorMessage(err))
     });
 
-    const collected: ListingCandidate[] = [];
+    const anchors: ListingAnchorInput[] = [];
     let listingFetched = 0;
-    let globalPosition = 0;
     for (const entry of fetched) {
       if (!entry) continue;
       listingFetched++;
-      for (const c of entry.candidates) {
-        collected.push({ href: c.href, text: c.text, position: globalPosition++ });
-      }
+      for (const anchor of entry.anchors) anchors.push(anchor);
     }
 
-    const seen = new Set<string>();
-    const unique = collected.filter(item => {
-      if (!item.href || seen.has(item.href)) return false;
-      seen.add(item.href);
-      return true;
-    });
-    const ranked = rankListingCandidates(unique, keywords);
+    const ranked = extractAndRankListingCandidates(anchors, keywords, LISTING_RANKED_LIMIT);
 
     if (!ranked.length) {
       if (listingFetched > 0) {

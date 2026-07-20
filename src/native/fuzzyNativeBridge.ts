@@ -46,6 +46,8 @@ export interface NativeFuzzyModule {
   extract_date_score?(url: string): number;
   rankListingCandidates?(candidates: Array<{ href: string; text: string; position: number }>, keywords: string[]): number[];
   rank_listing_candidates?(candidates: Array<{ href: string; text: string; position: number }>, keywords: string[]): number[];
+  extractAndRankListingCandidates?(anchors: Array<{ href: string; rawText: string }>, keywords: string[], maxResults: number): Array<{ href: string; text: string }>;
+  extract_and_rank_listing_candidates?(anchors: Array<{ href: string; rawText: string }>, keywords: string[], maxResults: number): Array<{ href: string; text: string }>;
 }
 
 let nativeModule: NativeFuzzyModule | null | undefined;

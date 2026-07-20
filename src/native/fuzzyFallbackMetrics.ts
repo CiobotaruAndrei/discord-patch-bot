@@ -6,6 +6,7 @@ export const NATIVE_FALLBACK_FUNCTIONS = [
   "classifyPatchNote",
   "scoreListingCandidate",
   "rankListingCandidates",
+  "extractAndRankListingCandidates",
   "isGoodSteamArticleUrl",
   "extractDateScore"
 ];
