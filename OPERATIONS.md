@@ -386,6 +386,12 @@ Daca livrarile sunt incetinite de rate-limit:
 2. Bot-ul respecta deja un token-bucket global la trimitere; nu forta drenarea agresiv.
 3. Daca e backlog temporar, lasa worker-ul sa-l goleasca; reincercarile sunt reprogramate automat cu backoff.
 
+## Diagnostic per server: `/maintenance`
+
+`/maintenance` (ephemeral, admin) genereaza un raport de sanatate per guild din `buildMaintenanceReport`. Pe langa outbox, dead-letter, pauza de drenare, backup-ul de configuratie si erorile YouTube, raportul verifica un **inventar declarativ de module** (`MAINTENANCE_MODULES`): fiecare modul are un camp de activare, un camp de canal si, optional, un camp de ultima eroare. Un modul activ fara canalul configurat apare la linia `canale notificari`, iar linia `notificari` semnaleaza `ATENTIE` doar cand niciun modul din inventar nu este activ.
+
+Inventarul acopera: update-uri (`subscribed`/`notificationChannelId`/`updatesLastError`), reduceri (`discountsSubscribed`/`discountChannelId`/`discountsLastError`), YouTube (`youtubeNotificationsEnabled`/`youtubeNotificationChannelId`), future-release (`futureReleaseSubscribed`/`futureReleaseChannelId`), DLC (`dlcSubscribed`/`dlcChannelId`/`dlcLastError`), player-count (`playerCountSubscribed`/`playerCountChannelId`), alerte cont nou (`newAccountAlertsEnabled`/`newAccountAlertChannelId`), protectie amenintari (`threatProtectionEnabled`/`threatAlertChannelId`) si protectie adaugare boti (`botAddProtectionEnabled`/`botAddAlertChannelId`). La adaugarea unui modul nou de notificare/protectie, extinde inventarul cu o singura intrare, ca `/maintenance` sa nu ramana in urma fata de comportamentul real.
+
 ## Mentenanta: oprirea temporara a drenarii
 
 Pentru interventii (canal in remediere, migrare, debugging), opreste controlat instanta botului din orchestratorul de deploy. Joburile raman persistate in Mongo si worker-ul reia drenarea dupa restart.

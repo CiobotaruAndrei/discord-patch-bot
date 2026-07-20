@@ -99,6 +99,53 @@ test("buildMaintenanceReport enumera toate modulele cu canal lipsa", async () =>
   assert.doesNotMatch(report, /lipseste canalul pentru:[^\n]*DLC/, "DLC are canal configurat, deci nu apare ca lipsa");
 });
 
+test("buildMaintenanceReport acopera player-count, alerte cont nou, amenintari si adaugare boti (audit 154 #9)", async () => {
+  const settings: GuildSettings = {
+    _id: "guild-1",
+    playerCountSubscribed: true,
+    playerCountChannelId: null,
+    newAccountAlertsEnabled: true,
+    newAccountAlertChannelId: null,
+    threatProtectionEnabled: true,
+    threatAlertChannelId: null,
+    botAddProtectionEnabled: true,
+    botAddAlertChannelId: null
+  };
+
+  const report = await installMaintenance.buildMaintenanceReport(makeDeps(settings, 0, false), "guild-1");
+
+  assert.match(
+    report,
+    /lipseste canalul pentru: player-count, alerte cont nou, protectie amenintari, protectie adaugare boti/,
+    "modulele de protectie/monitorizare fara canal trebuie semnalate, nu doar cele clasice de notificare"
+  );
+  assert.match(
+    report,
+    /OK: notificari - cel putin un modul de notificare este activ/,
+    "un modul de protectie activ (fara vreun modul clasic) conteaza ca modul activ"
+  );
+});
+
+test("MAINTENANCE_MODULES include modulele de protectie ca sa nu poata fi uitate la extindere (audit 154 #9)", () => {
+  const enabledFields = installMaintenance.MAINTENANCE_MODULES.map(module => module.enabledField);
+  for (const field of ["playerCountSubscribed", "newAccountAlertsEnabled", "threatProtectionEnabled", "botAddProtectionEnabled"]) {
+    assert.ok(enabledFields.includes(field as (typeof enabledFields)[number]), `inventarul de mentenanta trebuie sa contina ${field}`);
+  }
+});
+
+test("buildMaintenanceReport raporteaza ultima eroare DLC din inventarul declarativ (audit 154 #9)", async () => {
+  const settings: GuildSettings = {
+    _id: "guild-1",
+    dlcSubscribed: true,
+    dlcChannelId: "dlc-ok",
+    dlcLastError: { message: "steam dlc feed 503" }
+  };
+
+  const report = await installMaintenance.buildMaintenanceReport(makeDeps(settings, 0, false), "guild-1");
+
+  assert.match(report, /ATENTIE: DLC - steam dlc feed 503/, "linia de ultima-eroare acopera si DLC, nu doar update-uri/reduceri");
+});
+
 test("/maintenance ruleaza cooldown, log si returneaza raport ephemeral", async () => {
   const replies: unknown[] = [];
   const statuses: string[] = [];

@@ -1,6 +1,6 @@
 "use strict";
 
-import type { ConfigBackupRecord, GameConfig, GuildSettings } from "../../types.js";
+import type { ConfigBackupRecord, GameConfig, GuildConfigurationSettings, GuildOperationalSettings, GuildSettings } from "../../types.js";
 type MongoFilter = Record<string, unknown>;
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
@@ -44,6 +44,25 @@ interface MaintenanceDeps {
 
 type MaintenanceContext = MaintenanceDeps;
 
+interface MaintenanceModule {
+  label: string;
+  enabledField: keyof GuildConfigurationSettings;
+  channelField: keyof GuildConfigurationSettings;
+  lastErrorField?: keyof GuildOperationalSettings;
+}
+
+const MAINTENANCE_MODULES: readonly MaintenanceModule[] = [
+  { label: "update-uri", enabledField: "subscribed", channelField: "notificationChannelId", lastErrorField: "updatesLastError" },
+  { label: "reduceri", enabledField: "discountsSubscribed", channelField: "discountChannelId", lastErrorField: "discountsLastError" },
+  { label: "YouTube", enabledField: "youtubeNotificationsEnabled", channelField: "youtubeNotificationChannelId" },
+  { label: "future-release", enabledField: "futureReleaseSubscribed", channelField: "futureReleaseChannelId" },
+  { label: "DLC", enabledField: "dlcSubscribed", channelField: "dlcChannelId", lastErrorField: "dlcLastError" },
+  { label: "player-count", enabledField: "playerCountSubscribed", channelField: "playerCountChannelId" },
+  { label: "alerte cont nou", enabledField: "newAccountAlertsEnabled", channelField: "newAccountAlertChannelId" },
+  { label: "protectie amenintari", enabledField: "threatProtectionEnabled", channelField: "threatAlertChannelId" },
+  { label: "protectie adaugare boti", enabledField: "botAddProtectionEnabled", channelField: "botAddAlertChannelId" }
+];
+
 function isOldBackup(newestBackup: ConfigBackupRecord | null, now: number): boolean {
   if (!newestBackup) return true;
   const newest = new Date(newestBackup.createdAt).getTime();
@@ -53,6 +72,22 @@ function isOldBackup(newestBackup: ConfigBackupRecord | null, now: number): bool
 
 function issueLine(ok: boolean, label: string, detail: string): string {
   return `${ok ? "OK" : "ATENTIE"}: ${label} - ${detail}`;
+}
+
+function isModuleEnabled(settings: GuildSettings | null, module: MaintenanceModule): boolean {
+  return Boolean(settings?.[module.enabledField]);
+}
+
+function isModuleChannelConfigured(settings: GuildSettings | null, module: MaintenanceModule): boolean {
+  return Boolean(settings?.[module.channelField]);
+}
+
+function readLastErrorMessage(value: unknown): string {
+  if (value && typeof value === "object" && "message" in value) {
+    const message = (value as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  return "";
 }
 
 async function buildMaintenanceReport(deps: MaintenanceDeps, guildId: string): Promise<string> {
@@ -66,32 +101,29 @@ async function buildMaintenanceReport(deps: MaintenanceDeps, guildId: string): P
   ]);
   const now = Date.now();
   const backupsOld = isOldBackup(newestBackup, now);
-  const updateChannelOk = settings?.subscribed ? Boolean(settings.notificationChannelId) : true;
-  const discountChannelOk = settings?.discountsSubscribed ? Boolean(settings.discountChannelId) : true;
-  const youtubeChannelOk = settings?.youtubeNotificationsEnabled ? Boolean(settings.youtubeNotificationChannelId) : true;
-  const futureReleaseOk = settings?.futureReleaseSubscribed ? Boolean(settings.futureReleaseChannelId) : true;
-  const dlcOk = settings?.dlcSubscribed ? Boolean(settings.dlcChannelId) : true;
-  const missingChannels = [
-    updateChannelOk ? null : "update-uri",
-    discountChannelOk ? null : "reduceri",
-    youtubeChannelOk ? null : "YouTube",
-    futureReleaseOk ? null : "future-release",
-    dlcOk ? null : "DLC"
-  ].filter((name): name is string => name !== null);
+  const missingChannels = MAINTENANCE_MODULES
+    .filter(module => isModuleEnabled(settings, module) && !isModuleChannelConfigured(settings, module))
+    .map(module => module.label);
   const channelsDetail = missingChannels.length === 0
     ? "toate modulele active au canalul configurat"
     : `lipseste canalul pentru: ${missingChannels.join(", ")}`;
+  const anyModuleActive = MAINTENANCE_MODULES.some(module => isModuleEnabled(settings, module));
+  const moduleErrorLines = MAINTENANCE_MODULES.flatMap(module => {
+    const field = module.lastErrorField;
+    if (!field) return [];
+    const message = readLastErrorMessage(settings?.[field]);
+    return [issueLine(!message, module.label, message || "fara ultima eroare salvata")];
+  });
   const lines = [
     "**Maintenance check**",
     issueLine(youtubeErrors === 0, "surse YouTube", youtubeErrors === 0 ? "fara erori recente salvate" : `${youtubeErrors} erori recente`),
-    issueLine(!settings?.updatesLastError?.message, "update-uri", settings?.updatesLastError?.message || "fara ultima eroare salvata"),
-    issueLine(!settings?.discountsLastError?.message, "reduceri", settings?.discountsLastError?.message || "fara ultima eroare salvata"),
+    ...moduleErrorLines,
     issueLine(queued === 0, "outbox", queued < 0 ? "nu am putut citi coada" : `${queued} joburi in coada`),
     issueLine(deadLetters === 0, "dead-letter", deadLetters === 0 ? "gol" : `${deadLetters} livrari esuate definitiv`),
     issueLine(paused !== true, "drenare outbox", paused === null ? "stare necunoscuta" : paused ? "pe pauza" : "activa"),
     issueLine(!backupsOld, "backup configuratie", backupsOld ? "lipseste sau e mai vechi de 30 zile" : "recent"),
     issueLine(missingChannels.length === 0, "canale notificari", channelsDetail),
-    issueLine(settings?.subscribed === true || settings?.discountsSubscribed === true || settings?.youtubeNotificationsEnabled === true || settings?.futureReleaseSubscribed === true || settings?.dlcSubscribed === true, "notificari", "cel putin un modul de notificare este activ")
+    issueLine(anyModuleActive, "notificari", "cel putin un modul de notificare este activ")
   ];
   return lines.join("\n");
 }
@@ -139,5 +171,6 @@ function buildMaintenanceCommandHandler(target: MaintenanceContext) {
 export default {
   createMaintenanceInteractionHandler,
   buildMaintenanceReport,
+  MAINTENANCE_MODULES,
   buildCommandHandler: buildMaintenanceCommandHandler
 };
