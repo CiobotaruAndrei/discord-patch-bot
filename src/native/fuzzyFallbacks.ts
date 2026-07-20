@@ -340,6 +340,58 @@ export function selectLatestSteamPatchNoteIndexFallback(items: SteamNewsItemInpu
   return bestIndex;
 }
 
+export interface SteamMatchItemInput {
+  name?: unknown;
+  type?: unknown;
+}
+
+const STEAM_MATCH_DLC_KEYWORDS = ["dlc", "soundtrack", "demo", "expansion", "deluxe upgrade", "season pass", "ost", "artbook", "collection", "remaster", "bundle", "definitive edition"];
+
+function normalizeSteamMatch(str: unknown): string {
+  return String(str).toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+export function chooseBestSteamMatchIndexFallback(items: SteamMatchItemInput[], query: string, forceGameOnly: boolean): number {
+  if (!Array.isArray(items) || items.length === 0) return -1;
+  const searchTarget = String(query).toLowerCase().trim();
+  const normTarget = normalizeSteamMatch(query);
+  const wantsDLC = STEAM_MATCH_DLC_KEYWORDS.some(kw => searchTarget.includes(kw));
+  const extraTypes = new Set(["dlc", "demo", "music"]);
+
+  let pool: number[] = items.map((_, index) => index);
+  if (forceGameOnly && !wantsDLC) {
+    const gamesOnly = pool.filter(index => {
+      const item = items[index];
+      const type = String(item.type || "").toLowerCase();
+      const nameHasExtra = STEAM_MATCH_DLC_KEYWORDS.some(kw => String(item.name || "").toLowerCase().includes(kw));
+      if (type && type !== "game") return false;
+      if (nameHasExtra) return false;
+      return true;
+    });
+    if (gamesOnly.length > 0) pool = gamesOnly;
+  }
+  if (!pool.length) return -1;
+
+  let bestIndex = pool[0];
+  let bestScore = Infinity;
+  for (const index of pool) {
+    const item = items[index];
+    const itemName = String(item.name || "").toLowerCase();
+    const normItemName = normalizeSteamMatch(itemName);
+    let score = levenshteinFallback(normTarget, normItemName);
+    if (normItemName === normTarget) score -= 100;
+    else if (normItemName.startsWith(normTarget)) score -= 20;
+    else if (normItemName.includes(normTarget)) score -= 10;
+    if (!wantsDLC) {
+      const isExtraByName = STEAM_MATCH_DLC_KEYWORDS.some(kw => itemName.includes(kw));
+      const isExtraByType = typeof item.type === "string" && extraTypes.has(item.type.toLowerCase());
+      if (isExtraByName || isExtraByType) score += 50;
+    }
+    if (score < bestScore) { bestScore = score; bestIndex = index; }
+  }
+  return bestIndex;
+}
+
 export function reorderByValidPermutation<T>(items: T[], order: unknown[]): T[] | null {
   if (order.length !== items.length) return null;
   const seen = new Set<number>();

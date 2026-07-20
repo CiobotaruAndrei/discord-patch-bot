@@ -16,7 +16,9 @@ pub use listing_rank::{
   extract_and_rank_listing_candidates, rank_listing_candidates, score_listing_candidate,
   ListingAnchorData, RankedListingCandidate,
 };
-pub use steam::{select_latest_steam_patch_note, SteamNewsItemData};
+pub use steam::{
+  choose_best_steam_match, select_latest_steam_patch_note, SteamMatchItemData, SteamNewsItemData,
+};
 pub use text::{clean_text, levenshtein, normalize_title_for_dedupe};
 pub use types::{AutocompleteChoiceData, FuzzyMatch, GameCandidateData, ListingCandidateData};
 pub use updates::{classify_patch_note, extract_date_score, is_good_steam_article_url};
@@ -249,6 +251,45 @@ mod tests {
     let items = vec![news("Community giveaway", "https://store.steampowered.com/news/1", 1.0, "", 100.0)];
     assert_eq!(select_latest_steam_patch_note(&items), None);
     assert_eq!(select_latest_steam_patch_note(&[]), None);
+  }
+
+  fn match_item(name: &str, item_type: &str) -> SteamMatchItemData {
+    SteamMatchItemData { name: name.to_string(), item_type: item_type.to_string() }
+  }
+
+  #[test]
+  fn choose_best_steam_match_prefers_exact_then_prefix() {
+    let items = vec![
+      match_item("The Witcher 3: Wild Hunt", "game"),
+      match_item("The Witcher 3: Wild Hunt - Hearts of Stone", "dlc"),
+      match_item("Cyberpunk 2077", "game"),
+    ];
+    assert_eq!(choose_best_steam_match(&items, "The Witcher 3: Wild Hunt", false), Some(0), "potrivirea exacta castiga (bonus -100)");
+    assert_eq!(choose_best_steam_match(&items, "witcher 3", false), Some(0), "prefix/includere pe joc bate DLC-ul");
+  }
+
+  #[test]
+  fn choose_best_steam_match_force_game_only_filters_dlc() {
+    let items = vec![
+      match_item("Elden Ring - Shadow of the Erdtree", "dlc"),
+      match_item("Elden Ring", "game"),
+    ];
+    assert_eq!(choose_best_steam_match(&items, "elden ring", true), Some(1), "force_game_only elimina DLC-ul cand nu se cere explicit");
+    assert_eq!(choose_best_steam_match(&items, "Elden Ring Shadow of the Erdtree dlc", true), Some(0), "cuvantul cheie DLC in interogare sare peste filtru, iar DLC-ul potriveste cel mai bine");
+  }
+
+  #[test]
+  fn choose_best_steam_match_penalizes_extra_types() {
+    let items = vec![
+      match_item("Hades Soundtrack", "music"),
+      match_item("Hades", "game"),
+    ];
+    assert_eq!(choose_best_steam_match(&items, "hades", false), Some(1), "penalizarea +50 pe music/dlc/demo lasa jocul sa castige");
+  }
+
+  #[test]
+  fn choose_best_steam_match_empty_is_none() {
+    assert_eq!(choose_best_steam_match(&[], "anything", false), None);
   }
 
   #[test]

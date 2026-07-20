@@ -103,6 +103,7 @@ test("defaultGuardConfig: addon-ul nativ este obligatoriu implicit si permite do
     assert.equal(base.warnBelow.stableUpdateId, 1.2);
     assert.equal(base.warnBelow.rankListingCandidates, 1.1);
     assert.equal(base.warnBelow.extractAndRankListingCandidates, 1.1);
+    assert.equal(base.warnBelow.chooseBestSteamMatch, 1.3);
     assert.equal(base.requireNative, true);
 
     process.env.BENCH_HOTPATH_FAIL_RATIO = "1";
@@ -120,7 +121,7 @@ test("defaultGuardConfig: addon-ul nativ este obligatoriu implicit si permite do
 });
 
 test("HOT_PATH_AREAS enumera doar functiile pe care BENCHMARKS.md le pastreaza in Rust", () => {
-  assert.deepEqual([...HOT_PATH_AREAS], ["levenshtein", "dealHash", "stableUpdateId", "rankListingCandidates", "extractAndRankListingCandidates"]);
+  assert.deepEqual([...HOT_PATH_AREAS], ["levenshtein", "dealHash", "stableUpdateId", "rankListingCandidates", "extractAndRankListingCandidates", "chooseBestSteamMatch"]);
 });
 
 test("collectGuardSamples: ruleaza fiecare benchmark exact `runs` ori (nu de 4/8) si pastreaza cel mai bun speedup per zona", () => {
