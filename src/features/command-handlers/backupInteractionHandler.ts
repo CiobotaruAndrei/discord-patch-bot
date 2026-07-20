@@ -30,6 +30,7 @@ import {
 } from "../admin-records/backupResourceRestorePlan.js";
 import {
   materializeBackupResources,
+  rollbackMaterializedResources,
   type BackupDiscordGuild,
   type BackupDiscordResourceManager
 } from "../admin-records/backupResourceRestoreRuntime.js";
@@ -152,7 +153,11 @@ function createBackupInteractionHandler(deps: BackupInteractionDeps) {
     const remappedBackup = { ...backup, snapshot: applyResourceIdRemap(backup.snapshot, materialized.remap) };
     const validation = validateBackupResourceReferences(remappedBackup.snapshot, materialized.channelIds, materialized.roleIds);
     if (validation.invalid.length > 0 || validation.missing.length > 0) {
-      throw new Error("Backup-ul nu poate fi incarcat deoarece au ramas referinte Discord invalide sau inexistente.");
+      const compensation = await rollbackMaterializedResources(materialized.created);
+      const cleanup = compensation.failed > 0
+        ? ` Resursele nou-create au fost sterse partial (${compensation.deleted} sterse, ${compensation.failed} necesita curatare manuala).`
+        : materialized.created.length > 0 ? ` Cele ${compensation.deleted} resurse nou-create au fost sterse.` : "";
+      throw new Error(`Backup-ul nu poate fi incarcat deoarece au ramas referinte Discord invalide sau inexistente.${cleanup}`);
     }
     await operationJournal.runJournaled(operationKey(interaction, BACKUP_LOAD_KIND, backup.name), BACKUP_LOAD_KIND, {
       guildId,

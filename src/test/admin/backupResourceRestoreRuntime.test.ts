@@ -4,10 +4,25 @@ import assert from "node:assert/strict";
 import { planBackupResourceRestore } from "../../features/admin-records/backupResourceRestorePlan.js";
 import {
   materializeBackupResources,
+  rollbackMaterializedResources,
   type BackupDiscordGuild,
   type BackupDiscordResource,
   type BackupDiscordResourceManager
 } from "../../features/admin-records/backupResourceRestoreRuntime.js";
+
+test("rollbackMaterializedResources sterge fiecare resursa independent si raporteaza succese/esecuri (audit 154 #2)", async () => {
+  const deleted: string[] = [];
+  const resources: BackupDiscordResource[] = [
+    { id: "r1", delete: async () => { deleted.push("r1"); } },
+    { id: "r2", delete: async () => { throw new Error("nu pot sterge r2"); } },
+    { id: "r3", delete: async () => { deleted.push("r3"); } }
+  ];
+
+  const result = await rollbackMaterializedResources(resources);
+
+  assert.deepEqual(result, { deleted: 2, failed: 1 }, "raporteaza cate resurse au fost sterse si cate necesita curatare manuala");
+  assert.deepEqual([...deleted].sort(), ["r1", "r3"], "compensarea continua pentru toate resursele chiar daca stergerea uneia esueaza");
+});
 
 function manager(kind: string, failAt = Number.POSITIVE_INFINITY): { manager: BackupDiscordResourceManager; deleted: string[] } {
   const cache = new Map<string, BackupDiscordResource>();
