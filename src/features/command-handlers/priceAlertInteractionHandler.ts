@@ -61,8 +61,10 @@ interface PriceAlertInteractionDeps {
 
 type PriceAlertContext = PriceAlertInteractionDeps;
 
-function formatAlertLine(alert: PriceAlertRule, index: number): string {
-  const state = alert.triggeredAt ? "declansata, asteapta rearmare" : "armata";
+function formatAlertLine(alert: PriceAlertRule, index: number, deliverable: boolean): string {
+  const state = alert.triggeredAt
+    ? "declansata, asteapta rearmare"
+    : deliverable ? "armata" : "inactiva (pana la `/start reduceri`)";
   const observed = typeof alert.lastObservedPrice === "number"
     ? `, ultimul pret ${alert.lastObservedPrice} ${alert.currency}`
     : "";
@@ -126,7 +128,7 @@ function createPriceAlertInteractionHandler(deps: PriceAlertInteractionDeps) {
     const stateLine = deliverable
       ? `Livrare activa in <#${settings?.discountChannelId}>.`
       : "Alertele sunt salvate dar INACTIVE pana pornesti livrarea cu `/start reduceri`.";
-    const lines = [`Alerte de pret (${alerts.length}/${MAX_PRICE_ALERTS_PER_GUILD}):`, stateLine, ...alerts.map(formatAlertLine)];
+    const lines = [`Alerte de pret (${alerts.length}/${MAX_PRICE_ALERTS_PER_GUILD}):`, stateLine, ...alerts.map((alert, index) => formatAlertLine(alert, index, deliverable))];
     return sendPaginatedEdit(interaction, payload => safeEdit(interaction, payload), lines, { ephemeral: true });
   }
 
