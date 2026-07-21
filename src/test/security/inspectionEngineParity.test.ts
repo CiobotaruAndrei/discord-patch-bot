@@ -456,3 +456,23 @@ test("un instalator MSI produce indicatori de tabele, nu doar recunoasterea cont
 function engineHas(indicators: string[], value: string): boolean {
   return indicators.includes(value);
 }
+
+const TINY_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAFElEQVR4nGP8//8/AzGAiShVowoBRxMDAytU9tsAAAAASUVORK5CYII=",
+  "base64"
+);
+
+test("o imagine fara cod QR este scanata si nu produce indicatori inventati", async () => {
+  const report = await inspectUntrustedContent(TINY_PNG, "captura.png", "image/png", "archive");
+  assert.deepEqual(report.indicators, [], JSON.stringify(report.indicators));
+  assert.equal(report.status, "inspected");
+});
+
+test("un continut care nu e imagine nu intra pe ruta vizuala", async () => {
+  const notImage = Buffer.from("%PDF-1.7\nstartxref\n0\n%%EOF\n", "latin1");
+  const report = await inspectUntrustedContent(notImage, "raport.pdf", "application/pdf", "document");
+  assert.ok(
+    !report.indicators.some(entry => /cod QR|coduri vizuale/.test(entry)),
+    JSON.stringify(report.indicators)
+  );
+});

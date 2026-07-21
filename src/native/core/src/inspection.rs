@@ -1,4 +1,5 @@
 use crate::executable::{analyze_executable, looks_like_executable, ExecutableLimits, ExecutableOutcome};
+use crate::visual::{looks_like_image, scan_visual_codes, VisualLimits, VisualOutcome};
 use crate::pdf_structure::{
   inspect_pdf_structure, needs_structural_escalation, PdfStructureLimits, PdfStructureOutcome,
 };
@@ -1358,9 +1359,20 @@ fn executable_indicators(bytes: &[u8]) -> Vec<String> {
   }
 }
 
+fn visual_indicators(bytes: &[u8]) -> Vec<String> {
+  if !looks_like_image(bytes) {
+    return Vec::new();
+  }
+  match scan_visual_codes(bytes, &VisualLimits::default()) {
+    VisualOutcome::Scanned { indicators, .. } => indicators,
+    VisualOutcome::Failed(_) | VisualOutcome::Unavailable(_) | VisualOutcome::NotImage => Vec::new(),
+  }
+}
+
 fn document_finding(bytes: &[u8], budget: &mut Budget) -> Finding {
   let mut indicators = document_indicators(bytes);
   indicators.extend(executable_indicators(bytes));
+  indicators.extend(visual_indicators(bytes));
   indicators.extend(pdf_structural_indicators(bytes, budget));
   let deep = pdf_deep_indicators(bytes, budget);
   let (uncertain, deep_reason) = match deep {
@@ -1400,6 +1412,14 @@ pub fn inspect_untrusted_content(
     inspect_native_container(bytes, 0, &mut budget, "RAR").unwrap_or_else(|| inspect_rar(bytes, &mut budget))
   } else if is_seven_zip(bytes) {
     inspect_native_container(bytes, 0, &mut budget, "7z").unwrap_or_else(|| inspect_seven_zip(bytes, &mut budget))
+  } else if looks_like_image(bytes) {
+    let indicators = dedupe(visual_indicators(bytes));
+    let reason = if indicators.is_empty() {
+      "imagine scanata fara coduri vizuale".to_string()
+    } else {
+      "imagine scanata cu coduri vizuale".to_string()
+    };
+    Finding { uncertain: false, indicators, reason }
   } else if looks_like_executable(bytes) {
     let indicators = dedupe(executable_indicators(bytes));
     let reason = if indicators.is_empty() {
