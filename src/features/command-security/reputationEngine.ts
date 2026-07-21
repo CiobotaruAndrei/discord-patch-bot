@@ -17,10 +17,20 @@ export interface ReputationEngineEnv {
   THREAT_REPUTATION_TIMEOUT_MS?: number;
 }
 
+export interface ReputationEngineDetails {
+  verdict: ReputationVerdict;
+  signature: string;
+  engineVersion: string;
+  databaseVersion: string;
+  contentSha256: string;
+  complete: boolean;
+}
+
 export interface ReputationEngineDeps {
   env: ReputationEngineEnv;
   httpReq?: ReputationHttpRequest;
   logger?: (level: string, context: string, message: string, meta?: unknown) => void;
+  onDetails?: (details: ReputationEngineDetails) => void;
 }
 
 export interface ReputationEngineStatus {
@@ -51,6 +61,12 @@ export function resolveReputationEngineStatus(env: ReputationEngineEnv): Reputat
     return { configured: false, reason: "THREAT_REPUTATION_TOKEN este prea scurt" };
   }
   return { configured: true, reason: "motor de reputatie/antivirus configurat" };
+}
+
+export function readEngineText(value: unknown, key: string): string {
+  if (typeof value !== "object" || value === null) return "";
+  const raw = Reflect.get(value, key);
+  return typeof raw === "string" ? raw.slice(0, 200) : "";
 }
 
 function normalizeBoundVerdict(value: unknown, expectedSha256: string): ReputationVerdict {
@@ -104,7 +120,16 @@ export function createReputationEngine(deps: ReputationEngineDeps): ReputationSc
         headers
       }, 0);
       if (typeof response.status === "number" && response.status >= 400) return "unknown";
-      return normalizeBoundVerdict(response.data, contentSha256);
+      const verdict = normalizeBoundVerdict(response.data, contentSha256);
+      deps.onDetails?.({
+        verdict,
+        signature: readEngineText(response.data, "signature"),
+        engineVersion: readEngineText(response.data, "engineVersion"),
+        databaseVersion: readEngineText(response.data, "dbVersion"),
+        contentSha256,
+        complete: input.complete
+      });
+      return verdict;
     } catch (err) {
       deps.logger?.("WARN", "THREAT_REPUTATION", "Apel esuat catre motorul de reputatie; verdict unknown", err);
       return "unknown";

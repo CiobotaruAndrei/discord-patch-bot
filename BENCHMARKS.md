@@ -428,6 +428,35 @@ URL-ul mai departe catre motorul extern, la fel ca YARA si ca analiza de executa
 **Cost de build: zero pachete de sistem, zero C/C++.** ICU4C ar fi adus zeci de MB de date si un build
 lung pentru capabilitati pe care standardul le defineste public si crate-urile le implementeaza.
 
+### clamd: confirmarea antivirus ca serviciu, nu ca librarie legata (etapa 7 din PDF-ul de librarii)
+
+Aceasta e singura etapa in care PDF-ul cere explicit sa **nu** se lege nimic: repository-ul e MIT, iar
+libclamav e GPLv2. Motorul ruleaza ca daemon separat si se apeleaza prin contractul HTTP existent
+`THREAT_REPUTATION_URL`.
+
+**Ce era deja implementat corect** (verificat, nu presupus):
+
+- verdictul e legat de SHA-256-ul exact al continutului descarcat — un raspuns cu alt hash devine
+  `unknown`, nu se aplica;
+- esecul, timeout-ul sau un status >= 400 dau `unknown`, niciodata `safe`;
+- un verdict periculos pe un **fragment** incomplet nu poate produce `confirmed`, ci cel mult
+  `uncertain`, cu motivul spus explicit;
+- un `clean` de la motor nu ridica nimic la `safe` — nu modifica deloc verdictul local.
+
+**Ce lipsea:** raspunsul purta `signature`, `engineVersion` si `dbVersion`, dar erau aruncate. Pentru un
+motor antivirus asta conteaza: fara versiunea bazei de semnaturi nu poti spune daca un „clean" de acum
+doua saptamani mai inseamna ceva, si fara numele semnaturii nu poti verifica un fals pozitiv. Acum sunt
+capturate si legate de acelasi hash, impreuna cu steagul de completitudine.
+
+Campurile de text sunt plafonate la 200 de caractere: vin de la un serviciu extern, iar un raspuns
+ostil nu are voie sa umple log-urile.
+
+**Topologia ceruta**, ramasa in sarcina operarii, nu a codului: `clamd` nu se expune public, ci doar in
+reteaua interna sau prin gateway autentificat; `freshclam` actualizeaza baza separat, cu health check
+si versiune raportata; scanarile antivirus au coada si plafon de bytes proprii. Contractul de aici
+raporteaza versiunile primite, deci un gateway care le completeaza corect face diferenta vizibila in
+audit.
+
 ### native-inspector + libseccomp: sandbox de syscall (etapa 5 din PDF-ul de librarii)
 
 Etapele 1-4 au adaugat capabilitati **in procesul existent**: libmagic-like, libyara, libarchive si qpdf
