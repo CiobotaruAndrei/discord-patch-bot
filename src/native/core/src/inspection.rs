@@ -1,3 +1,6 @@
+use crate::pdf_structure::{
+  inspect_pdf_structure, needs_structural_escalation, PdfStructureLimits, PdfStructureOutcome,
+};
 use flate2::read::{DeflateDecoder, GzDecoder, ZlibDecoder};
 use std::io::Read;
 use std::time::Instant;
@@ -1236,16 +1239,59 @@ fn looks_like_archive(bytes: &[u8], filename: &str, mime: &str) -> bool {
   ["zip", "tar", "gzip", "x-rar", "7z", "compressed"].iter().any(|token| lower_mime.contains(token))
 }
 
+fn pdf_deep_indicators(bytes: &[u8], budget: &mut Budget) -> Option<(Vec<String>, bool, String)> {
+  if !is_pdf(bytes) || !needs_structural_escalation(bytes) {
+    return None;
+  }
+  let limits = PdfStructureLimits {
+    max_decoded_bytes: budget.limits.max_expanded_bytes,
+    timeout_ms: budget.limits.timeout_ms,
+    ..PdfStructureLimits::default()
+  };
+  let mut nested: Vec<String> = Vec::new();
+  let outcome = inspect_pdf_structure(bytes, &limits, |name, payload| {
+    nested.extend(content_indicators(name, payload, budget));
+  });
+  match outcome {
+    PdfStructureOutcome::Analyzed(report) => {
+      budget.expanded_bytes += report.decoded_bytes;
+      let mut indicators = report.indicators;
+      indicators.extend(nested);
+      let uncertain = report.encrypted || !report.complete;
+      let reason = if report.encrypted {
+        "PDF criptat analizat structural; verdictul ramane neconfirmat".to_string()
+      } else if !report.stop_reason.is_empty() {
+        report.stop_reason
+      } else {
+        format!(
+          "PDF analizat structural cu qpdf ({} obiecte, {} fluxuri, versiune {})",
+          report.object_count, report.stream_count, report.pdf_version
+        )
+      };
+      Some((indicators, uncertain, reason))
+    }
+    PdfStructureOutcome::Failed(_) | PdfStructureOutcome::Unavailable(_) => None,
+  }
+}
+
 fn document_finding(bytes: &[u8], budget: &mut Budget) -> Finding {
   let mut indicators = document_indicators(bytes);
   indicators.extend(pdf_structural_indicators(bytes, budget));
-  let indicators = dedupe(indicators);
-  let reason = if indicators.is_empty() {
-    "document inspectat structural fara indicatori".to_string()
-  } else {
-    "document inspectat structural cu indicatori".to_string()
+  let deep = pdf_deep_indicators(bytes, budget);
+  let (uncertain, deep_reason) = match deep {
+    Some((deep_indicators, uncertain, reason)) => {
+      indicators.extend(deep_indicators);
+      (uncertain, Some(reason))
+    }
+    None => (false, None),
   };
-  Finding { uncertain: false, indicators, reason }
+  let indicators = dedupe(indicators);
+  let reason = match deep_reason {
+    Some(reason) => reason,
+    None if indicators.is_empty() => "document inspectat structural fara indicatori".to_string(),
+    None => "document inspectat structural cu indicatori".to_string(),
+  };
+  Finding { uncertain, indicators, reason }
 }
 
 pub fn inspect_untrusted_content(

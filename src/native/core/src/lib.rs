@@ -5,6 +5,7 @@ mod hashing;
 mod inspection;
 mod native_archive;
 mod magic;
+mod pdf_structure;
 mod listing_rank;
 mod steam;
 mod text;
@@ -27,6 +28,10 @@ pub use native_archive::{
 pub use inspection::{
   document_indicators, has_obfuscated_pdf_action_name, inspect_compound_file_binary,
   inspect_untrusted_content, InspectionLimits, InspectionReport,
+};
+pub use pdf_structure::{
+  count_revisions, inspect_pdf_structure, needs_structural_escalation, qpdf_available,
+  PdfStructureLimits, PdfStructureOutcome, PdfStructureReport,
 };
 pub use steam::{
   choose_best_steam_match, select_latest_steam_patch_note, SteamMatchItemData, SteamNewsItemData,

@@ -240,3 +240,61 @@ test("nicio arhiva RAR/7z nu poate fi declarata curata pe ruta locala, indiferen
     assert.equal(report.status, "uncertain", `${fixture.name}: confirmarea ramane pe motorul extern (PDF, sectiunea 6)`);
   }
 });
+
+function pdfWithObjects(objects: string[], root: number): Buffer {
+  let out = "%PDF-1.7\n";
+  const offsets: number[] = [];
+  objects.forEach((body, index) => {
+    offsets.push(out.length);
+    out += `${index + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xref = out.length;
+  out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) out += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  out += `trailer\n<< /Size ${objects.length + 1} /Root ${root} 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(out, "latin1");
+}
+
+const ASCII_HEX_LAUNCH = `${Buffer.from("<< /Launch (calc.exe) >>", "latin1").toString("hex")}>`;
+
+test("qpdf gaseste o actiune ascunsa intr-un filtru pe care calea rapida nu il decodeaza", async () => {
+  const pdf = pdfWithObjects(
+    [
+      "<< /Type /Catalog /Pages 2 0 R /Names 3 0 R >>",
+      "<< /Type /Pages /Kids [] /Count 0 >>",
+      "<< /EmbeddedFiles 4 0 R >>",
+      `<< /Length ${ASCII_HEX_LAUNCH.length} /Filter /ASCIIHexDecode >>\nstream\n${ASCII_HEX_LAUNCH}\nendstream`
+    ],
+    1
+  );
+
+  const engine = await inspectUntrustedContent(pdf, "raport.pdf", "application/pdf", "document");
+  const fallback = inspectUntrustedContentFallback(pdf, "raport.pdf", "application/pdf", "document");
+
+  for (const indicator of fallback.indicators) {
+    assert.ok(engine.indicators.includes(indicator), `motorul nativ nu pierde indicatorul rapid: ${indicator}`);
+  }
+
+  if (!isRustFuzzyAvailable()) return;
+
+  assert.ok(
+    engine.indicators.length > fallback.indicators.length,
+    "un filtru non-Flate produce indicatori pe care fallback-ul TS nu ii poate obtine"
+  );
+  assert.ok(
+    engine.indicators.some(entry => /actiune automata sau script PDF intern/.test(entry)),
+    "continutul decodat de qpdf trece prin aceleasi verificari ca orice payload intern"
+  );
+  assert.ok(
+    engine.indicators.some(entry => /ASCIIHexDecode/.test(entry)),
+    "filtrul folosit este raportat explicit, nu doar rezultatul"
+  );
+});
+
+test("escaladarea la qpdf se face doar cand structura o cere, nu la fiecare PDF", async () => {
+  const simple = pdfWithObjects(["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [] /Count 0 >>"], 1);
+  const engine = await inspectUntrustedContent(simple, "curat.pdf", "application/pdf", "document");
+  const fallback = inspectUntrustedContentFallback(simple, "curat.pdf", "application/pdf", "document");
+  assert.deepEqual(engine.indicators, fallback.indicators, "un PDF simplu ramane identic pe ambele motoare");
+  assert.equal(engine.status, fallback.status);
+});

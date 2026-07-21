@@ -291,6 +291,56 @@ addonul nativ lipseste, comportamentul degradeaza la scanarea de headere: tot `u
 un fals „curat". Paritatea native==TS din corpusul de fixtures se pastreaza fiindca fixture-urile
 sintetice de acolo nu sunt arhive RAR/7z valide, deci ambele cai ajung pe scanarea de headere.
 
+### qpdf: analiza structurala completa a PDF-urilor (etapa 4 din PDF-ul de librarii)
+
+Parserul rapid din Rust cauta `stream`/`endstream`, decomprima **doar** FlateDecode sub buget si cauta
+actiuni automate in rezultat. Acoperirea aceea ramane calea ieftina si ruleaza prima. Ce nu putea face:
+xref streams, object streams, lanturi de filtre, criptare, arbori de nume si actualizari incrementale —
+adica exact locurile in care se ascunde continutul care conteaza.
+
+**Cum se leaga**: crate-ul `qpdf` 0.3.5 (bindings MIT/Apache peste API-ul C `qpdf-c.h`), cu feature-ul
+`vendored`. Spre deosebire de libarchive, aici **nu apare niciun pachet de sistem nou**:
+
+| Aspect | libyara (etapa 2) | libarchive (etapa 3) | qpdf (etapa 4) |
+| --- | --- | --- | --- |
+| Sistem de build | `cc` | CMake | `cc` |
+| Pachete apt noi | niciunul | 9 | **niciunul** |
+| `libclang` la build | nu | da (bindgen) | **nu** (bindings pre-generate pentru tintele noastre) |
+| Ce se compileaza | libyara | libarchive | zlib + libjpeg + libqpdf |
+
+Cerinta reala e doar un compilator C++17, pe care `build-essential` din imaginea de build il aduce deja.
+Costul e in timpul de compilare (~100 de fisiere `.cc`), nu in lantul de dependinte.
+
+**Escaladare, nu inlocuire.** qpdf **nu** ruleaza pe fiecare PDF. Motorul verifica intai daca structura
+chiar o cere — `/Encrypt`, `/ObjStm`, `/XRefStm`, un filtru diferit de Flate, sau mai mult de un
+`startxref` (actualizari incrementale). Un PDF simplu produce exact acelasi raport ca inainte; un test
+verifica explicit asta, ca escaladarea sa nu devina tacit calea implicita.
+
+**Ce castiga concret.** Un `/Launch (calc.exe)` ascuns intr-un flux `ASCIIHexDecode` era complet invizibil
+pentru calea rapida — care decomprima doar Flate. Acum qpdf decodeaza fluxul, iar continutul intra prin
+**aceleasi** verificari ca orice payload intern (`content_indicators`), deci produce indicatorul obisnuit
+de actiune PDF plus mentiunea explicita a filtrului folosit. Testul din `inspectionEngineParity.test.ts`
+compara direct cele doua motoare pe acelasi fisier si cere ca setul nativ sa fie strict mai bogat.
+
+**Read-only, fara exceptie.** Fara randare, fara executie de JavaScript, fara rescriere sau reparare a
+fisierului primit. Erorile qpdf sunt capturate in wrapper si devin coduri de eroare; cand analiza esueaza,
+motorul **cade inapoi** pe parserul rapid, la fel ca la libarchive. Un PDF criptat cu parola nu este
+deschis: se raporteaza ca atare, cu verdict neconfirmat.
+
+**Limita onesta pe care am ales-o.** `get_data` din qpdf decodeaza un flux intreg in memorie, fara sa
+poata fi oprit la jumatate. Ca sa nu existe o bomba de decompresie neplafonata, fluxurile a caror forma
+**bruta** depaseste 64 KiB nu se decodeaza deloc — sunt raportate ca „peste plafonul de decodare".
+Marginea e aleasa asa incat cel mai rau caz teoretic (~1000:1 la zlib) sa ramana in ordinul zecilor de MiB
+pentru un singur flux, iar bugetul total de bytes decodati opreste oricum traversarea imediat dupa. E un
+compromis, nu o acoperire completa: un payload mare intr-un flux mare nu e inspectat, doar semnalat.
+
+Graful de obiecte e parcurs cu set de vizitate pe `(id, generatie)`, deci un ciclu de referinte se
+termina; un test construieste ciclul explicit.
+
+**Fallback-ul TypeScript** nu are echivalent qpdf. Ramane parserul rapid: mai putini indicatori, dar
+niciodata un fals „curat" — contractul verificat de teste este ca setul nativ le **contine** pe cele ale
+fallback-ului, niciodata invers.
+
 ### Guard automat in CI (deciziile de mai sus, impuse)
 
 Pentru ca deciziile „ramane in Rust pentru ca e mai rapid" sa nu se erodeze tacut, exista un guard
